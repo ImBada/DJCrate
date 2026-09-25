@@ -1113,6 +1113,14 @@ func run() async throws {
         }
         print("변속 곡 \(checked)곡 중 anicue도 구간을 나눈 곡 \(split)")
 
+    case "gain-write-test":
+        // 사본 DB에 오토게인을 써 본다. anicue gain-write-test <사본.db> <UUID> <선형 게인>
+        guard args.count > 3, let linear = Double(args[3]) else { return }
+        let db = URL(filePath: args[1])
+        let report = try RekordboxWriter.write(drafts: [], gains: [args[2]: 20 * log10(Double(Float(linear)))], to: db, dryRun: false,
+                                               backups: db.deletingLastPathComponent().appending(path: "backups"))
+        for o in report.gainOutcomes ?? [] { print(o.status.rawValue, o.title, o.reason ?? "", o.added) }
+
     case "seekinfo-check":
         // rekordbox가 적은 FLAC SeekInfo·VBR MP3 MPEG 위치를 우리 계산과 전수 대조(읽기 전용)
         let db = try CipherDatabase(path: value(after: "--db", in: args) ?? LibrarySnapshot.latest().path, key: RekordboxKey.derive())
