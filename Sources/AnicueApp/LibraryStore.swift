@@ -90,8 +90,12 @@ final class LibraryStore {
     var reflectionMessage: String?
     /// 마지막으로 내보낸 반영 묶음(가져온 뒤 검증 대기)
     var reflectionBatch: ReflectionStore.Batch?
-    /// 이번 실행에서 rekordbox에 쓴 마지막 백업(안내 줄의 되돌리기 버튼)
+    /// 이번 실행에서 rekordbox에 쓴 마지막 백업(토스트·사이드바의 되돌리기)
     var lastWriteBackup: URL?
+    /// 창 아래에 잠깐 뜨는 알림(rekordbox 반영 완료 등)
+    var toast: AppToast?
+    /// rekordbox 쓰기 단계 안내(있으면 창 전체를 덮어 조작을 막는다. 확인 창이 떠 있는 동안은 nil)
+    var writeStage: String?
     /// rekordbox에 쓰는 중(미리 보기 포함)
     var isWritingRekordbox = false
     /// 쓰는 동안 덱 큐 편집을 잠근다
@@ -174,13 +178,16 @@ final class LibraryStore {
         }
     }
 
-    func takeSnapshot(force: Bool = false) async {
+    /// - Parameter quiet: 화면을 로딩으로 바꾸지 않고 뒤에서 다시 읽는다(rekordbox에 쓴 뒤 등).
+    func takeSnapshot(force: Bool = false, quiet: Bool = false) async {
         guard !isLoading else { return }
         let hadRows = !rows.isEmpty
-        phase = .loading("rekordbox DB 스냅샷을 뜨는 중…")
+        var isLoaded: Bool { if case .loaded = phase { true } else { false } }
+        let quiet = quiet && hadRows && isLoaded
+        if !quiet { phase = .loading("rekordbox DB 스냅샷을 뜨는 중…") }
         do {
             let url = try await Task.detached { try LibrarySnapshot.take(force: force) }.value
-            await load(snapshot: url)
+            await load(snapshot: url, quiet: quiet)
         } catch {
             // 이미 라이브러리가 있으면 그대로 두고 오류만 알린다.
             if hadRows {
@@ -192,11 +199,11 @@ final class LibraryStore {
         }
     }
 
-    func load(snapshot: URL) async {
+    func load(snapshot: URL, quiet: Bool = false) async {
         loadGeneration += 1
         let generation = loadGeneration
         let started = ContinuousClock.now
-        phase = .loading("라이브러리를 읽는 중…")
+        if !quiet { phase = .loading("라이브러리를 읽는 중…") }
         do {
             let loaded = try await Task.detached(priority: .userInitiated) { try LoadedLibrary.load(snapshot: snapshot) }.value
             // 더 나중에 시작한 로드가 있으면 이 결과는 버린다.
@@ -233,7 +240,11 @@ final class LibraryStore {
             Task.detached(priority: .background) { CacheMaintenance.prune() }
         } catch {
             guard generation == loadGeneration else { return }
-            phase = .failed(String(describing: error))
+            if quiet {
+                lastError = String(describing: error)
+            } else {
+                phase = .failed(String(describing: error))
+            }
         }
     }
 

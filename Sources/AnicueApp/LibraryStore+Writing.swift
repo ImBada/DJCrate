@@ -36,6 +36,8 @@ extension LibraryStore {
 
     /// rekordbox master.db에 쓴다. 쓴 곡의 큐 초안은 지우고(백업 폴더에 남는다) 새 스냅샷을 읽는다.
     func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:]) async throws -> RekordboxWriter.Report {
+        writeStage = "rekordbox에 쓰는 중…"
+        defer { writeStage = nil }
         let report = try await Task.detached(priority: .userInitiated) {
             try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, dryRun: false)
         }.value
@@ -53,25 +55,34 @@ extension LibraryStore {
             draftChanged(trackUUID: outcome.trackUUID, kind: .grid, exists: false)
         }
         DraftWriter.flush()
-        await takeSnapshot()
-        // 그리드만 바뀐 곡은 DB가 그대로라 목록 줄이 같다. 덱이 그 곡을 보고 있으면 분석 파일을 다시 읽게 한다.
+        // 화면을 처음부터 다시 불러오지 않고 뒤에서 조용히 다시 읽는다.
+        writeStage = "반영 확인 중…"
+        await takeSnapshot(quiet: true)
+        // 그리드만 바뀐 곡은 DB가 그대로라 목록 줄이 같다. 덱이 그 곡을 보고 있으면 초안·그리드만 다시 읽게 한다.
         onRekordboxWritten?(Set(report.written.map(\.trackUUID)).union(report.gridWritten.map(\.trackUUID)).union(report.gainWritten.map(\.trackUUID)))
         var parts: [String] = []
         if !report.written.isEmpty { parts.append("큐 \(report.written.count)곡") }
         if !report.gridWritten.isEmpty { parts.append("그리드 \(report.gridWritten.count)곡") }
         if !report.gainWritten.isEmpty { parts.append("게인 \(report.gainWritten.count)곡") }
-        var text = "rekordbox에 " + (parts.isEmpty ? "쓴 것이 없습니다" : parts.joined(separator: " · ") + "을 썼습니다")
+        let titles = Array(Set((report.written + report.gridWritten + report.gainWritten).map(\.title))).sorted()
+        var detail = titles.prefix(3).joined(separator: ", ") + (titles.count > 3 ? " 외 \(titles.count - 3)곡" : "")
         let blocked = report.blocked + report.gridBlocked + report.gainBlocked
         if !blocked.isEmpty {
-            text += " · 쓰지 않은 것 \(blocked.count): " + blocked.prefix(2).map { "\($0.title)(\($0.reason ?? ""))" }.joined(separator: ", ")
+            detail += (detail.isEmpty ? "" : "\n") + "쓰지 않은 것 \(blocked.count): "
+                + blocked.prefix(2).map { "\($0.title)(\($0.reason ?? ""))" }.joined(separator: ", ")
         }
-        reflectionMessage = text
         lastWriteBackup = report.backup.map { URL(filePath: $0) }
+        toast = AppToast(kind: blocked.isEmpty ? .success : .warning,
+                         title: parts.isEmpty ? "rekordbox에 쓴 것이 없습니다" : "rekordbox에 반영했습니다 · " + parts.joined(separator: " · "),
+                         detail: detail.isEmpty ? nil : detail,
+                         undoBackup: parts.isEmpty ? nil : lastWriteBackup)
         return report
     }
 
     /// 백업으로 되돌린다: DB를 쓰기 전으로 돌리고, 그때 쓴 초안을 anicue에 다시 살린다.
     func restoreRekordbox(_ backup: RekordboxWriter.Backup) async throws {
+        writeStage = "rekordbox를 되돌리는 중…"
+        defer { writeStage = nil }
         try await Task.detached(priority: .userInitiated) {
             _ = try RekordboxWriter.restore(backup.url)
         }.value
@@ -81,9 +92,13 @@ extension LibraryStore {
         for grid in grids { DraftWriter.save(grid) }
         for (uuid, gain) in RekordboxWriter.gainDrafts(in: backup.url) { GainDraftStore.save(gain, trackUUID: uuid) }
         DraftWriter.flush()
-        await takeSnapshot()
-        onRekordboxWritten?(Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID)))
-        reflectionMessage = "rekordbox를 \(backup.createdAt.formatted(date: .omitted, time: .shortened)) 쓰기 전으로 되돌렸습니다 · 초안 \(Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID)).count)곡을 다시 살렸습니다"
+        writeStage = "되돌린 라이브러리를 읽는 중…"
+        await takeSnapshot(quiet: true)
+        let gainUUIDs = Set(RekordboxWriter.gainDrafts(in: backup.url).keys)
+        onRekordboxWritten?(Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID)).union(gainUUIDs))
+        let revived = Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID)).union(gainUUIDs).count
+        toast = AppToast(title: "rekordbox를 \(backup.createdAt.formatted(date: .omitted, time: .shortened)) 쓰기 전으로 되돌렸습니다",
+                         detail: "초안 \(revived)곡을 다시 살렸습니다")
         lastWriteBackup = nil
     }
 
