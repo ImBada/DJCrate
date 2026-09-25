@@ -15,30 +15,185 @@ final class DeckModel {
     private(set) var waveformError: String?
     private(set) var analysis: PartAnalysis?
     private(set) var analysisError: String?
+    /// 섹션(MU) 분석이 끝나기를 기다리는 중(섹션 칸에 로딩 막대)
+    private(set) var isAnalyzingSections = false
     private(set) var artwork: NSImage?
     private(set) var draft: CueDraft?
     var selectedCueID: EditableCue.ID?
     private(set) var playhead: Double = 0
     private(set) var isPlaying = false
-    var zoomSeconds: Double = 16
-    var quantize = true
-    var showSuggestions = true { didSet { refreshSuggestions() } }
+    var zoomSeconds: Double = DeckSettings.double("zoomSeconds", 16) { didSet { DeckSettings.set("zoomSeconds", zoomSeconds) } }
+    /// CDJ식 메인 CUE 지점. 곡을 불러오면 첫 메모리 큐(없으면 0초)에 놓인다. 초안·rekordbox에는 쓰지 않는다.
+    private(set) var cuePoint: Double = 0
+    /// CUE를 누르고 있는 동안의 미리 듣기.
+    private(set) var isCuePreviewing = false
+    private var placeAtFirstMemoryCue = false
+    var quantize = DeckSettings.bool("quantize", true) { didSet { DeckSettings.set("quantize", quantize) } }
+    var showSuggestions = DeckSettings.bool("showSuggestions", true) {
+        didSet { DeckSettings.set("showSuggestions", showSuggestions); refreshSuggestions() }
+    }
 
     // 재생 설정
-    var volume: Double = 0.9 { didSet { audio.volume = Float(volume) } }
+    var volume: Double = DeckSettings.double("volume", 0.9) {
+        didSet { audio.volume = Float(volume); DeckSettings.set("volume", volume) }
+    }
     var metronome = false { didSet { audio.metronome = metronome } }
     /// 재생 속도(%). rekordbox 템포 슬라이더와 같은 의미.
     var tempoPercent: Double = 0 { didSet { audio.rate = 1 + tempoPercent / 100 } }
-    var keyLock = true { didSet { audio.keyLock = keyLock } }
+    var keyLock = DeckSettings.bool("keyLock", true) { didSet { audio.keyLock = keyLock; DeckSettings.set("keyLock", keyLock) } }
+
+    // MARK: 게인 (볼륨 페이더 앞)
+
+    /// 곡마다 통합 음량을 목표에 맞춘다.
+    var autoGain = DeckSettings.bool("autoGain", true) { didSet { DeckSettings.set("autoGain", autoGain); applyGain() } }
+    /// 오토게인 목표(LUFS)
+    var gainTarget: Double = DeckSettings.double("gainTarget", -10) { didSet { DeckSettings.set("gainTarget", gainTarget); applyGain() } }
+    /// 피크가 0dBFS를 넘지 않을 만큼만 올린다.
+    var peakProtection = DeckSettings.bool("peakProtection", true) {
+        didSet { DeckSettings.set("peakProtection", peakProtection); applyGain() }
+    }
+    /// 수동 트림(dB). 오토게인 위에 더한다.
+    var gainTrim: Double = DeckSettings.double("gainTrim", 0) { didSet { DeckSettings.set("gainTrim", gainTrim); applyGain() } }
+    /// 지금 곡의 음량(메모리 디코딩 뒤 측정, 다음부터는 캐시)
+    private(set) var loudness: Loudness?
+
+    /// rekordbox 오토게인을 그대로 쓴다(없으면 anicue 측정으로 계산).
+    var useRekordboxGain = DeckSettings.bool("useRekordboxGain", true) {
+        didSet { DeckSettings.set("useRekordboxGain", useRekordboxGain); applyGain() }
+    }
+
+    /// 이 곡의 rekordbox 오토게인(dB)
+    var rekordboxGainDB: Double? { row?.autoGain?.gainDB }
+
+    /// anicue 측정으로 계산한 오토게인(dB)
+    var measuredGainDB: Double? {
+        loudness.map { $0.autoGain(target: gainTarget, peakProtection: peakProtection) }
+    }
+
+    /// rekordbox 오토게인과 anicue 계산(같은 −10 LUFS 기준)의 차이. 1.5dB 넘으면 이상한 값으로 본다.
+    var gainMismatchDB: Double? {
+        guard let rekordbox = rekordboxGainDB, let integrated = loudness?.integrated else { return nil }
+        return rekordbox - (RekordboxAutoGain.targetLoudness - integrated)
+    }
+
+    var isGainSuspicious: Bool { abs(gainMismatchDB ?? 0) > 1.5 }
+
+    var autoGainDB: Double {
+        guard autoGain else { return 0 }
+        if let uuid = row?.track.uuid, let override = gainOverrides[uuid] { return override }
+        if useRekordboxGain, let rekordbox = rekordboxGainDB { return rekordbox }
+        return measuredGainDB ?? 0
+    }
+
+    // MARK: 게인 제안(rekordbox 값이 이상할 때)
+
+    /// 곡마다 받아들인 게인(dB). rekordbox 값 대신 쓴다.
+    private(set) var gainOverrides: [String: Double] = (UserDefaults.standard.dictionary(forKey: "deck.gainOverrides") as? [String: Double]) ?? [:] {
+        didSet { UserDefaults.standard.set(gainOverrides, forKey: "deck.gainOverrides") }
+    }
+    private(set) var dismissedGainSuggestions: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "deck.dismissedGainSuggestions") ?? []) {
+        didSet { UserDefaults.standard.set(Array(dismissedGainSuggestions), forKey: "deck.dismissedGainSuggestions") }
+    }
+
+    /// 제안할 게인(dB): rekordbox 오토게인이 anicue 측정과 1.5dB 넘게 다를 때 anicue 계산값
+    var gainSuggestion: Double? {
+        guard autoGain, useRekordboxGain, isGainSuspicious, let uuid = row?.track.uuid,
+              gainOverrides[uuid] == nil, !dismissedGainSuggestions.contains(uuid) else { return nil }
+        return measuredGainDB
+    }
+
+    func acceptGainSuggestion() {
+        guard let uuid = row?.track.uuid, let value = measuredGainDB else { return }
+        gainOverrides[uuid] = value
+        applyGain()
+    }
+
+    func dismissGainSuggestion() {
+        guard let uuid = row?.track.uuid else { return }
+        dismissedGainSuggestions.insert(uuid)
+    }
+
+    /// 받아들인 게인을 지우고 rekordbox 값으로 돌아간다.
+    func clearGainOverride() {
+        guard let uuid = row?.track.uuid else { return }
+        gainOverrides[uuid] = nil
+        dismissedGainSuggestions.remove(uuid)
+        applyGain()
+    }
+
+    var hasGainOverride: Bool { row.map { gainOverrides[$0.track.uuid] != nil } ?? false }
+
+    /// 실제로 걸린 게인(dB)
+    var appliedGain: Double { min(max(autoGainDB + gainTrim, -24), 24) }
+
+    /// 게인 뒤·볼륨 앞 레벨
+    var meter: LevelMeter { audio.meter }
+
+    private func applyGain() { audio.gainDB = Float(appliedGain) }
+
+    // MARK: 조성 흐름(추정)
+
+    /// 곡 안의 조표 구간(rekordbox 시간축). 주 조표는 rekordbox 키에 맞춘다.
+    private(set) var keySegments: [KeyAnalyzer.Segment] = []
+    /// 장·단(A/B)은 rekordbox 키를 따른다(없으면 장조로 본다).
+    private(set) var keyMinor = false
+    @ObservationIgnored private var keyChroma: KeyAnalyzer.Chroma?
+
+    func keyName(for segment: KeyAnalyzer.Segment) -> String { KeyAnalyzer.camelot(signature: segment.signature, minor: keyMinor) }
+
+    /// 재생 위치의 조성(Camelot)
+    func key(at time: Double) -> String? {
+        guard let segment = keySegments.first(where: { time >= $0.start && time < $0.end }) ?? keySegments.last(where: { time >= $0.start })
+        else { return row?.track.key }
+        return keyName(for: segment)
+    }
+
+    /// 크로마·그리드가 바뀌면 다시 계산한다(마디 창, 벌점 5, 최소 16마디).
+    private func refreshKeySegments() {
+        guard let chroma = keyChroma, !chroma.frames.isEmpty else { keySegments = []; return }
+        let offset = timelineOffset
+        let rekordbox = row.flatMap { KeyAnalyzer.signature(camelot: $0.track.key ?? "") }
+        keyMinor = rekordbox?.minor ?? false
+        // 창은 rekordbox 시간축(그리드 기준) → 크로마(음원 시간축)로 옮겨 계산하고 되돌린다.
+        let windows = KeyAnalyzer.windows(grid: grid, duration: duration).map { ($0.0 - offset, $0.1 - offset) }
+        let result = KeyAnalyzer.segments(chroma: chroma, windows: windows, switchPenalty: 5, minWindows: 16)
+        var segments = result.segments.map { KeyAnalyzer.Segment(start: $0.start + offset, end: $0.end + offset, signature: $0.signature) }
+        // 주 조표를 rekordbox 키에 맞춘다(전조는 같은 간격으로 옮긴다).
+        if let main = result.main, let rekordbox, main != rekordbox.signature {
+            let shift = rekordbox.signature - main
+            segments = segments.map { var s = $0; s.signature = (($0.signature + shift) % 12 + 12) % 12; return s }
+        }
+        if let first = segments.first, first.start > 0 { segments[0].start = 0 }
+        keySegments = segments
+    }
 
     // 그리드
     private(set) var originalGrid: BeatGrid?
     private(set) var gridDraft: GridDraft?
     /// 화면·스냅·메트로놈이 쓰는 그리드. 편집하지 않았으면 rekordbox 원본 그대로다.
-    private(set) var grid: BeatGrid?
+    private(set) var grid: BeatGrid? { didSet { if grid?.downbeats != oldValue?.downbeats { refreshKeySegments() } } }
     var gridEditing = false
+    /// rekordbox에 쓰는 동안 큐 편집을 막는다(쓰는 초안과 덱 초안이 어긋나지 않게).
+    var isWriteLocked = false
     /// 편집 전 재생성 오차가 크면(다이내믹 그리드 등) 그리드 편집을 막는다.
     private(set) var gridEditBlockedReason: String?
+    /// rekordbox 비트 그리드가 있는 곡인지(없으면 추정 그리드를 권한다)
+    private(set) var hasRekordboxGrid = false
+    /// rekordbox 시간축 − 음원(AVFoundation) 시간축(초). 덱은 rekordbox 시간축을 쓰고,
+    /// 음원 재생·파형·MU 분석만 이만큼 밀어 맞춘다(압축 음원의 인코더 지연을 rekordbox처럼 남긴다).
+    private(set) var timelineOffset: Double = 0
+    /// anicue가 추정한 그리드(anicue 시간축)와 현재 그리드와의 차이 설명
+    private(set) var gridSuggestion: GridEstimator.Estimate?
+    private(set) var gridSuggestionNote: String?
+    /// 그리드가 없는 곡에서 파형 위에 미리 보여 줄 추정 박(적용 전)
+    private(set) var suggestedGrid: BeatGrid?
+    private var suggestionTask: Task<Void, Never>?
+    /// 추가한 곡의 그리드가 바뀌면 목록 BPM을 맞춘다.
+    var onStagedGridChange: ((String, Double?) -> Void)?
+    /// 큐 초안이 바뀔 때(목록의 핫큐·메모리 숫자용)
+    var onCueDraftChange: ((CueDraft) -> Void)?
+    /// 지금 곡의 초안을 rekordbox 반영 XML로 만들기(덱 큐 목록의 버튼)
+    var onRequestReflection: ((TrackRow) -> Void)?
     private(set) var tapBPM: Double?
     private var taps: [Double] = []
     private var gridDragBase: GridDraft?
@@ -68,6 +223,25 @@ final class DeckModel {
     private var seekRestartTask: Task<Void, Never>?
 
     init() {
+        audio.volume = Float(volume)
+        audio.keyLock = keyLock
+        audio.onChroma = { [weak self] chroma in
+            guard let self, let row = self.row, !row.track.isStreaming else { return }
+            AnalysisCache.store(chroma, key: row.track.uuid, file: URL(filePath: row.track.folderPath))
+            self.keyChroma = chroma
+            self.refreshKeySegments()
+        }
+        audio.onLoudness = { [weak self] measured in
+            guard let self, let row = self.row, !row.track.isStreaming else { return }
+            LoudnessCache.shared.store(measured, for: URL(filePath: row.track.folderPath))
+            self.loudness = measured
+            self.applyGain()
+        }
+        audio.onRecovered = { [weak self] in
+            guard let self else { return }
+            self.isPlaying = true
+            self.ticker.start()
+        }
         audio.onInterrupted = { [weak self] position in
             guard let self else { return }
             self.ticker.stop()
@@ -86,6 +260,13 @@ final class DeckModel {
 
     // MARK: - 로드
 
+    /// 지금 곡을 처음부터 다시 읽는다(분석 파일·초안이 밖에서 바뀌었을 때).
+    func reload() {
+        let current = row
+        load(nil)
+        load(current)
+    }
+
     /// 곡 ID가 같아도 내용(새 스냅샷의 큐·메타데이터)이 다르면 다시 불러온다.
     func load(_ row: TrackRow?) {
         guard row != self.row else { return }
@@ -97,10 +278,13 @@ final class DeckModel {
         audio.unload()
         self.row = row
         waveform = nil; waveformError = nil; analysis = nil; analysisError = nil; artwork = nil
-        suggestions = []; sectionEnergies = []; draft = nil
+        isAnalyzingSections = row.map { !$0.track.isStreaming } ?? false
+        suggestions = []; sectionEnergies = []; draft = nil; loudness = nil; keySegments = []; keyChroma = nil
         originalGrid = nil; gridDraft = nil; grid = nil; gridBPM = nil; gridEditBlockedReason = nil
-        gridDragBase = nil; tapBPM = nil; taps = []; resumeAfterScrub = false
-        if !sameTrack { selectedCueID = nil; playhead = 0 }
+        hasRekordboxGrid = false; timelineOffset = 0; gridSuggestion = nil; gridSuggestionNote = nil; suggestedGrid = nil
+        suggestionTask?.cancel()
+        gridDragBase = nil; tapBPM = nil; taps = []; resumeAfterScrub = false; isCuePreviewing = false
+        if !sameTrack { selectedCueID = nil; playhead = 0; cuePoint = 0; placeAtFirstMemoryCue = true }
         duration = Double(row?.track.lengthSeconds ?? 0)
         canPlay = false
         guard let row else { return }
@@ -108,9 +292,21 @@ final class DeckModel {
         let url = URL(filePath: row.track.folderPath)
         let exists = !row.track.isStreaming && FileManager.default.fileExists(atPath: url.path)
         if exists {
-            try? audio.load(url: url)
+            // 인코더 지연은 rekordbox 쪽에 맞춘다: 덱의 모든 시각은 rekordbox 시간축이다.
+            timelineOffset = RekordboxTimeline.predictedOffset(url: url)
+            // 조성 크로마 캐시가 있으면 디코딩 때 다시 계산하지 않는다(불러오기 전에 정해야 한다).
+            let cachedChroma = AnalysisCache.chroma(key: row.track.uuid, file: url)
+            audio.needsChroma = cachedChroma == nil
+            try? audio.load(url: url, timelineOffset: timelineOffset)
+            // 전에 잰 곡이면 디코딩을 기다리지 않고 바로 오토게인을 건다.
+            loudness = LoudnessCache.shared.value(for: url)
+            applyGain()
             canPlay = audio.isLoaded
             if canPlay { duration = audio.duration }
+            if let cachedChroma {
+                keyChroma = cachedChroma
+                refreshKeySegments()
+            }
             if !canPlay { waveformError = "이 파일 형식은 재생·파형을 지원하지 않습니다." }
         } else if !row.track.isStreaming {
             waveformError = "파일을 찾을 수 없습니다. 외장 드라이브가 연결됐는지 확인하세요."
@@ -132,7 +328,7 @@ final class DeckModel {
             }
 
             // 2) 파형: 곡을 넘기면 바로 취소된다(조각 단위로 취소를 확인한다).
-            guard self.canPlay else { return }
+            guard self.canPlay else { self.isAnalyzingSections = false; return }
             let job = Task.detached(priority: .userInitiated) { try WaveformCache.load(fileAt: url, key: key) }
             self.waveformTask = job
             do {
@@ -151,13 +347,17 @@ final class DeckModel {
             do {
                 let analysis = try await PartAnalyzer.analyze(fileAt: url, cacheKey: key)
                 guard !Task.isCancelled, self.row?.id == id else { return }
-                self.analysis = analysis
+                let shifted = analysis.shifted(by: self.timelineOffset)
+                self.analysis = shifted
                 self.analysisError = nil
-                self.sectionEnergies = PartLabeler.energies(analysis)
+                self.isAnalyzingSections = false
+                self.sectionEnergies = PartLabeler.energies(shifted)
                 self.refreshSuggestions()
+                self.startGridSuggestion(analysis: analysis, url: url, id: id)
             } catch {
                 guard !Task.isCancelled, self.row?.id == id else { return }
                 self.analysisError = String(describing: error)
+                self.isAnalyzingSections = false
             }
         }
     }
@@ -167,21 +367,227 @@ final class DeckModel {
         originalGrid = payload.originalGrid
         gridDraft = payload.gridDraft
         gridEditBlockedReason = payload.gridBlockedReason
+        hasRekordboxGrid = payload.originalGrid != nil
         if let image = payload.artwork?.image {
             artwork = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
         }
         refreshGrid()
+        // CDJ처럼 첫 메모리 큐에서 대기한다. 그사이 사용자가 위치를 옮겼으면 건드리지 않는다.
+        if placeAtFirstMemoryCue {
+            placeAtFirstMemoryCue = false
+            let first = draft?.cues.filter { $0.kind == .memory }.map(\.time).min() ?? 0
+            if !isPlaying, playhead == cuePoint {
+                cuePoint = min(max(first, 0), duration)
+                playhead = cuePoint
+                audio.seekWhilePaused(cuePoint)
+                updateGridBPM()
+            }
+        }
     }
 
-    /// 개발용: `--grid-edit`, `--autoplay [--muted] [--metronome]`
+    /// 개발용: `--grid-edit`, `--autoplay [--muted|--quiet] [--metronome]`
     private func applyLaunchFlags() {
         let args = ProcessInfo.processInfo.arguments
         if args.contains("--grid-edit") { gridEditing = true }
         if args.contains("--autoplay"), !isPlaying {
             if args.contains("--muted") { volume = 0 }
+            if args.contains("--quiet") { volume = 0.0003 }   // 진단용 −70dB
             if args.contains("--metronome") { metronome = true }
             togglePlay()
         }
+        if args.contains("--audio-selftest"), !Self.selfTestStarted {
+            Self.selfTestStarted = true
+            runAudioSelfTest()
+        }
+        if args.contains("--stale-cue-selftest"), !Self.selfTestStarted {
+            Self.selfTestStarted = true
+            runStaleCueSelfTest()
+        }
+        if args.contains("--analysis-play-selftest"), !Self.selfTestStarted {
+            Self.selfTestStarted = true
+            runAnalysisPlaySelfTest()
+        }
+        if args.contains("--grid-selftest"), !Self.selfTestStarted {
+            Self.selfTestStarted = true
+            runGridSelfTest()
+        }
+        if args.contains("--key-selftest"), !Self.selfTestStarted {
+            Self.selfTestStarted = true
+            runKeySelfTest()
+        }
+    }
+
+    private static var selfTestStarted = false
+
+    /// 진단: 실제 조작 순서를 흉내 내며 단계마다 표시를 남긴다(`ANICUE_AUDIO_DEBUG=1`과 함께 쓴다).
+    private func runAudioSelfTest() {
+        volume = 0.0003
+        Task {
+            await selfTestStep("재생") { togglePlay() }
+            await selfTestStep("일시정지", 1) { togglePlay() }
+            await selfTestStep("재개") { togglePlay() }
+            await selfTestStep("탐색 60초") { seek(60) }
+            await selfTestStep("0초로 탐색(지연 구간 안쪽)") { seek(0.01) }
+            await selfTestStep("스크럽(끌기)") { beginScrub(); scrub(to: 80); scrub(to: 90); endScrub() }
+            await selfTestStep("가로 스크롤 스크럽") { scrubCoalesced(to: 100); scrubCoalesced(to: 101) }
+            await selfTestStep("템포 +8%") { tempoPercent = 8 }
+            await selfTestStep("템포 +8% 탐색 30초") { seek(30) }
+            await selfTestStep("키락 끔") { keyLock = false }
+            await selfTestStep("키락 끔 탐색 40초") { seek(40) }
+            await selfTestStep("템포 0%·키락 켬") { tempoPercent = 0; keyLock = true }
+            await selfTestStep("탐색 50초") { seek(50) }
+            await selfTestStep("메트로놈 켬") { metronome = true }
+            await selfTestStep("일시정지 후 재개", 0.3) { togglePlay() }
+            await selfTestStep("재개") { togglePlay() }
+            await selfTestStep("재생 중 CUE → 큐 지점 정지", 1) { cueDown(); cueUp() }
+            await selfTestStep("탐색 70초(멈춤)", 0.5) { seek(70) }
+            await selfTestStep("CUE → 70초를 새 큐 지점으로", 0.5) { cueDown(); cueUp() }
+            await selfTestStep("CUE 누르고 있기(미리 듣기)", 1.5) { cueDown() }
+            await selfTestStep("CUE 뗌 → 큐 지점 복귀", 1) { cueUp() }
+            await selfTestStep("CUE 누른 채 재생 → 계속 재생", 0.5) { cueDown(); togglePlay() }
+            await selfTestStep("CUE 뗌(계속 재생)", 1.5) { cueUp() }
+            await selfTestStep("재생(복구 시험)") { if !isPlaying { togglePlay() } }
+            await selfTestStep("엔진이 알림 없이 멈춤", 3) { audio.debugStopEngine() }
+            await selfTestStep("출력 구성 변경", 3) { audio.debugConfigurationChange() }
+            await selfTestStep("끝", 0.5) { togglePlay() }
+        }
+    }
+
+    /// 진단: CUE를 뗀 신호를 놓친 상황(미리 듣기 상태만 남음)에서 스스로 풀리는지, 재생이 되는지 본다.
+    private func runStaleCueSelfTest() {
+        volume = 0.0003
+        Task {
+            await selfTestStep("큐 지점으로", 0.5) { seek(cuePoint) }
+            await selfTestStep("재생", 1.5) { togglePlay() }
+            await selfTestStep("정지 후 오래 쉼(엔진 꺼짐)", 4) { togglePlay() }
+            await selfTestStep("오래 쉰 뒤 재생", 2) { togglePlay() }
+            await selfTestStep("정지", 0.5) { togglePlay() }
+            await selfTestStep("큐 지점으로 다시", 0.5) { seek(cuePoint) }
+            await selfTestStep("CUE 누름(뗌 신호 없음)", 1.5) { cueDown() }
+            await selfTestStep("재생 누름", 2) { togglePlay() }
+            await selfTestStep("정지", 0.5) { togglePlay() }
+            await selfTestStep("다시 재생", 2) { togglePlay() }
+            await selfTestStep("끝", 0.5) { if isPlaying { togglePlay() } }
+        }
+    }
+
+    /// 진단: 분석이 도는 동안 재생·일시정지·재개를 반복한다(곡을 고르자마자 재생하는 실제 사용과 같게).
+    private func runAnalysisPlaySelfTest() {
+        volume = 0.0003
+        Task {
+            await selfTestStep("곡 로드 직후 재생", 3) { togglePlay() }
+            for round in 1...8 {
+                await selfTestStep("일시정지 \(round)", 1.2) { togglePlay() }
+                await selfTestStep("재개 \(round)", 2.5) { togglePlay() }
+            }
+            await selfTestStep("끝", 0.5) { if isPlaying { togglePlay() } }
+        }
+    }
+
+    /// 진단: 그리드 편집 중·후에 소리가 끊기는지 본다.
+    private func runGridSelfTest() {
+        volume = 0.0003
+        Task {
+            await selfTestStep("재생") { togglePlay() }
+            await selfTestStep("그리드 편집 켬") { gridEditing = true }
+            await selfTestStep("그리드 10ms 이동") { shiftGrid(ms: 10) }
+            await selfTestStep("BPM +0.01") { nudgeGridBPM(0.01) }
+            await selfTestStep("여기를 1박으로") { setDownbeatAtPlayhead() }
+            await selfTestStep("그리드 끌기") { beginGridDrag(); dragGrid(by: 0.02); dragGrid(by: 0.03); endGridDrag() }
+            await selfTestStep("여기서 BPM 변경") { addTempoChangeAtPlayhead() }
+            await selfTestStep("메트로놈 켬") { metronome = true }
+            await selfTestStep("메트로놈 켠 채 10ms 이동") { shiftGrid(ms: 10) }
+            await selfTestStep("일시정지", 0.5) { togglePlay() }
+            await selfTestStep("재개") { togglePlay() }
+            await selfTestStep("탐색 60초") { seek(60) }
+            await selfTestStep("그리드 되돌리기") { revertGrid() }
+            await selfTestStep("그리드 편집 끔") { gridEditing = false }
+            await selfTestStep("끝", 0.5) { togglePlay() }
+        }
+    }
+
+    /// 진단: 앱 안으로 키 이벤트를 흘려보내 단축키·포커스 경로를 확인한다(다른 앱에는 가지 않는다).
+    private func runKeySelfTest() {
+        volume = 0.0003
+        Task {
+            try? await Task.sleep(for: .seconds(1))
+            guard let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeKey }) else { return }
+            NSApp.activate()
+            window.makeKeyAndOrderFront(nil)
+            @MainActor func key(_ characters: String, _ code: UInt16) async {
+                for type in [NSEvent.EventType.keyDown, .keyUp] {
+                    if let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [],
+                                                    timestamp: ProcessInfo.processInfo.systemUptime,
+                                                    windowNumber: window.windowNumber, context: nil,
+                                                    characters: characters, charactersIgnoringModifiers: characters,
+                                                    isARepeat: false, keyCode: code) {
+                        NSApp.postEvent(event, atStart: false)
+                    }
+                }
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+            @MainActor func shiftKey(_ characters: String, _ code: UInt16) async {
+                for type in [NSEvent.EventType.keyDown, .keyUp] {
+                    if let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [.shift],
+                                                    timestamp: ProcessInfo.processInfo.systemUptime,
+                                                    windowNumber: window.windowNumber, context: nil,
+                                                    characters: characters, charactersIgnoringModifiers: characters,
+                                                    isARepeat: false, keyCode: code) {
+                        NSApp.postEvent(event, atStart: false)
+                    }
+                }
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+            @MainActor func mark(_ name: String) {
+                let responder = window.firstResponder.map { String(describing: type(of: $0)) } ?? "없음"
+                let line = "── \(name) · 재생=\(isPlaying) · 포커스=\(responder)"
+                AudioDebug.log(line)
+            }
+            @MainActor func field(_ view: NSView?, placeholder: String) -> NSTextField? {
+                guard let view else { return nil }
+                if let field = view as? NSTextField, field.placeholderString == placeholder { return field }
+                for sub in view.subviews { if let found = field(sub, placeholder: placeholder) { return found } }
+                return nil
+            }
+            mark("시작")
+            await key(" ", 49); mark("스페이스(재생 기대)")
+            await key(" ", 49); mark("스페이스(정지 기대)")
+            gridEditing = true
+            try? await Task.sleep(for: .milliseconds(400))
+            if let bpm = field(window.contentView, placeholder: "BPM") { window.makeFirstResponder(bpm) }
+            mark("BPM 칸 클릭")
+            await key("\r", 36); mark("Return")
+            await key(" ", 49); mark("스페이스(재생 기대)")
+            await key(" ", 49); mark("스페이스(정지 기대)")
+            await key("ㅊ", 8); mark("C 자리 키를 한글 입력으로(ㅊ) · 큐 \(String(format: "%.2f", cuePoint))")
+            await key("ㄷ", 14); mark("E 자리(ㄷ) 다음 큐 · 위치 \(String(format: "%.2f", playhead))")
+            await key("ㄷ", 14); mark("E 자리(ㄷ) 다음 큐 · 위치 \(String(format: "%.2f", playhead))")
+            let hotA = hotCue(slot: 0).map { String(format: "%.2f", $0.time) } ?? "없음"
+            await key("1", 18); mark("1 → 핫큐 A(\(hotA)) · 위치 \(String(format: "%.2f", playhead))")
+            await key("5", 23); mark("5 → 핫큐 E · 위치 \(String(format: "%.2f", playhead))")
+            let memoriesBefore = draft?.cues.filter { $0.kind == .memory }.count ?? 0
+            await key("₩", 50); mark("` 자리(₩) → 메모리 큐 \(memoriesBefore) → \(draft?.cues.filter { $0.kind == .memory }.count ?? 0)")
+            seek(playhead + 5)
+            await key("ㅡ", 46); mark("M 자리(ㅡ) → 메모리 큐 \(draft?.cues.filter { $0.kind == .memory }.count ?? 0)")
+            await shiftKey("M", 46); mark("Shift+M → 이 자리 메모리 큐 지움 → \(draft?.cues.filter { $0.kind == .memory }.count ?? 0)")
+            await shiftKey("M", 46); mark("다시 Shift+M(이 자리에 없음) → \(draft?.cues.filter { $0.kind == .memory }.count ?? 0)")
+            let hotB = hotCue(slot: 1).map { String(format: "%.2f", $0.time) } ?? "없음"
+            await shiftKey("@", 19); mark("Shift+2 → 핫큐 B 지움(전 \(hotB)) · 지금 \(hotCue(slot: 1).map { String(format: "%.2f", $0.time) } ?? "없음")")
+            await key("8", 91); mark("숫자 패드 8 → 핫큐 H · 위치 \(String(format: "%.2f", playhead)) · H=\(hotCue(slot: 7).map { String(format: "%.2f", $0.time) } ?? "없음")")
+            await key("q", 12); mark("Q 이전 큐 · 위치 \(String(format: "%.2f", playhead))")
+            await key(" ", 49); mark("스페이스(재생 기대)")
+            await key("e", 14); mark("재생 중 E · 위치 \(String(format: "%.2f", playhead))")
+            await key("q", 12); mark("재생 중 Q · 위치 \(String(format: "%.2f", playhead))")
+            await key(" ", 49); mark("스페이스(정지 기대)")
+        }
+    }
+
+    private func selfTestStep(_ name: String, _ seconds: Double = 2.5, _ action: () -> Void) async {
+        AudioDebug.log("── \(name)")
+        action()
+        let state = "   상태 재생=\(isPlaying) 위치=\(String(format: "%.2f", playhead)) 큐=\(String(format: "%.2f", cuePoint)) 미리듣기=\(isCuePreviewing)"
+        AudioDebug.log(state)
+        try? await Task.sleep(for: .seconds(seconds))
     }
 
     private func refreshGrid() {
@@ -217,6 +623,17 @@ final class DeckModel {
 
     func togglePlay() {
         guard canPlay else { return }
+        AudioEvents.record("조작 재생/정지 · 재생 중=\(isPlaying) · 미리듣기=\(isCuePreviewing) · 위치 \(String(format: "%.2f", playhead))")
+        if isCuePreviewing {
+            if Self.isCueHeld {
+                // CUE를 누른 채 재생을 누르면 손을 떼도 계속 재생한다(CDJ와 같다).
+                isCuePreviewing = false
+                return
+            }
+            // CUE를 뗀 신호를 놓쳐 미리 듣기 상태만 남은 경우: 평소처럼 재생/정지한다.
+            AudioEvents.record("남아 있던 미리 듣기 상태를 풀었음")
+            isCuePreviewing = false
+        }
         if isPlaying {
             audio.pause()
             playhead = audio.position
@@ -241,12 +658,20 @@ final class DeckModel {
 
     private func tick() {
         guard isPlaying else { return }
+        // CUE를 뗀 신호(키·마우스)를 놓치면 미리 듣기가 끝나지 않는다. 실제로 누르고 있지 않으면 뗀 것으로 본다.
+        if isCuePreviewing, !Self.isCueHeld {
+            AudioEvents.record("CUE를 뗀 신호를 놓쳐 미리 듣기를 끝냄")
+            cueUp()
+            return
+        }
+        audio.recoverIfStalled()
         playhead = audio.position
         updateGridBPM()
         audio.scheduleClicks(grid)
         if !audio.isPlaying || playhead >= duration - 0.01 {
             audio.stop()
             isPlaying = false
+            isCuePreviewing = false
             ticker.stop()
             playhead = min(playhead, duration)
         }
@@ -254,6 +679,7 @@ final class DeckModel {
 
     /// 한 번의 이동(패드·목록 클릭 등). 재생 중이면 그 위치에서 다시 재생한다.
     func seek(_ time: Double) {
+        isCuePreviewing = false
         playhead = min(max(time, 0), duration)
         updateGridBPM()
         if isPlaying {
@@ -265,6 +691,7 @@ final class DeckModel {
 
     /// 끌기 시작: 재생 중이면 소리를 멈추고, 놓을 때 한 번만 다시 재생한다.
     func beginScrub() {
+        isCuePreviewing = false
         guard isPlaying else { return }
         resumeAfterScrub = true
         audio.pause()
@@ -301,6 +728,89 @@ final class DeckModel {
         ticker.stop()
         audio.stop()
         isPlaying = false
+        isCuePreviewing = false
+    }
+
+    // MARK: - CUE (CDJ 방식)
+
+    /// CUE를 누름.
+    /// - 재생 중: 큐 지점으로 돌아가 멈춘다.
+    /// - 멈춤 + 큐 지점이 아닌 곳: 그 자리를 새 큐 지점으로 정한다(퀀타이즈가 켜져 있으면 박에 맞춘다).
+    /// - 멈춤 + 큐 지점: 누르고 있는 동안 재생한다. 떼면 큐 지점으로 돌아간다.
+    func cueDown() {
+        guard canPlay, !isCuePreviewing else { return }
+        AudioEvents.record("조작 CUE 누름 · 재생 중=\(isPlaying) · 위치 \(String(format: "%.2f", playhead)) · 큐 \(String(format: "%.2f", cuePoint))")
+        if isPlaying {
+            returnToCue()
+        } else if abs(playhead - cuePoint) > Self.cueTolerance {
+            cuePoint = snapped(playhead)
+            playhead = cuePoint
+            audio.seekWhilePaused(cuePoint)
+            updateGridBPM()
+        } else {
+            isCuePreviewing = true
+            startPlayback(from: cuePoint)
+            if !isPlaying { isCuePreviewing = false }
+        }
+    }
+
+    /// CUE를 뗌: 미리 듣던 중이면 큐 지점으로 돌아가 멈춘다.
+    func cueUp() {
+        guard isCuePreviewing else { return }
+        AudioEvents.record("조작 CUE 뗌(미리 듣기 끝)")
+        isCuePreviewing = false
+        if isPlaying { returnToCue() }
+    }
+
+    /// CUE를 지금 실제로 누르고 있는지(C 키 또는 마우스 왼쪽 버튼). 미리 듣기 상태가 남지 않게 확인한다.
+    static var isCueHeld: Bool {
+        CGEventSource.keyState(.combinedSessionState, key: 8) || (NSEvent.pressedMouseButtons & 1) != 0
+    }
+
+    /// 멈춘 채 큐 지점에 있는지(CUE 버튼 불빛).
+    var isAtCue: Bool { !isPlaying && abs(playhead - cuePoint) <= Self.cueTolerance }
+
+    private static let cueTolerance = 0.01
+
+    private func returnToCue() {
+        audio.pause()
+        ticker.stop()
+        isPlaying = false
+        playhead = cuePoint
+        audio.seekWhilePaused(cuePoint)
+        updateGridBPM()
+    }
+
+    /// Q/E: 이전·다음 큐(메모리·핫큐)로 간다. 부른 큐는 CUE 지점이 된다(CDJ의 메모리 큐 호출과 같다).
+    /// 재생 중이면 거기서 계속 재생하고, 멈춰 있으면 그 자리에서 대기한다(C로 바로 미리 듣기).
+    func jumpToCue(forward: Bool) {
+        guard canPlay, let cues = draft?.cues, !cues.isEmpty else { return }
+        let times = cues.sorted { $0.time < $1.time }
+        let target: EditableCue?
+        if forward {
+            target = times.first { $0.time > playhead + Self.cueTolerance }
+        } else {
+            // 재생 중에는 방금 부른 큐에서 0.25초 안이면 그 앞 큐로 간다(아니면 지금 구간의 시작으로).
+            let slack = isPlaying ? 0.25 : Self.cueTolerance
+            target = times.last { $0.time < playhead - slack }
+        }
+        guard let target else { return }
+        selectedCueID = target.id
+        cuePoint = target.time
+        seek(target.time)
+    }
+
+    /// 선택한 큐를 박 단위로 민다. 선택이 없으면 false(키를 다른 곳에 넘긴다).
+    func nudgeSelectedCue(beats: Int) -> Bool {
+        guard let id = selectedCueID, cue(id) != nil else { return false }
+        nudge(id, beats: beats)
+        return true
+    }
+
+    func deleteSelectedCue() -> Bool {
+        guard let id = selectedCueID, cue(id) != nil else { return false }
+        delete(id)
+        return true
     }
 
     // MARK: - 큐 편집 (초안만 바뀐다)
@@ -319,9 +829,31 @@ final class DeckModel {
     }
 
     func addMemoryCue(at time: Double) {
-        let cue = EditableCue(kind: .memory, time: snapped(time))
+        let target = snapped(time)
+        // 같은 자리(±30ms)에 메모리 큐가 이미 있으면 새로 만들지 않고 그 큐를 고른다.
+        if let existing = draft?.cues.first(where: { $0.kind == .memory && abs($0.time - target) <= 0.03 }) {
+            selectedCueID = existing.id
+            return
+        }
+        guard memoryCueCount < Self.memoryCueLimit else {
+            showToast("메모리 큐는 곡당 \(Self.memoryCueLimit)개까지입니다(rekordbox 제한, 자동 큐 포함)")
+            return
+        }
+        let cue = EditableCue(kind: .memory, time: target)
         mutate { $0.place(cue) }
         selectedCueID = cue.id
+    }
+
+    /// 재생 위치(±30ms, 퀀타이즈 위치 포함)에 있는 메모리 큐를 지운다. CDJ에서 메모리 큐를 불러온 자리에서 DELETE를 누르는 것과 같다.
+    @discardableResult
+    func deleteMemoryCue(at time: Double) -> Bool {
+        let targets = [time, snapped(time)]
+        let candidates = (draft?.cues ?? []).filter { cue in
+            cue.kind == .memory && targets.contains { abs(cue.time - $0) <= 0.03 }
+        }
+        guard let cue = candidates.min(by: { abs($0.time - time) < abs($1.time - time) }) else { return false }
+        delete(cue.id)
+        return true
     }
 
     func pressHotCue(slot: Int) {
@@ -334,6 +866,12 @@ final class DeckModel {
             mutate { $0.place(cue) }
             selectedCueID = cue.id
         }
+    }
+
+    /// 그 칸의 핫큐를 지운다(초안만, 되돌리기 가능).
+    func deleteHotCue(slot: Int) {
+        guard let cue = hotCue(slot: slot) else { return }
+        delete(cue.id)
     }
 
     func moveHotCueToPlayhead(slot: Int) {
@@ -383,11 +921,11 @@ final class DeckModel {
     }
 
     func commitDraft() {
-        if let draft { persist(draft) }
+        if !isWriteLocked, let draft { persist(draft) }
     }
 
     private func mutate(save: Bool = true, _ change: (inout CueDraft) -> Void) {
-        guard var draft, draft.trackUUID == row?.track.uuid else { return }
+        guard !isWriteLocked, var draft, draft.trackUUID == row?.track.uuid else { return }
         change(&draft)
         self.draft = draft
         refreshSuggestions()
@@ -396,12 +934,16 @@ final class DeckModel {
 
     private func persist(_ draft: CueDraft) {
         DraftWriter.save(draft)
+        onCueDraftChange?(draft)
         onDraftChange?(draft.trackUUID, .cue, draft.hasChanges)
     }
 
     // MARK: - 그리드 편집 (초안만 바뀐다)
 
     var canEditGrid: Bool { gridDraft != nil && gridEditBlockedReason == nil }
+
+    /// rekordbox 그리드도, 적용한 추정 그리드도 없는 로컬 곡.
+    var needsGrid: Bool { row != nil && row?.track.isStreaming == false && !hasRekordboxGrid && gridDraft == nil }
 
     func shiftGrid(ms: Double) { mutateGrid { $0.shift(by: ms / 1000) } }
 
@@ -470,7 +1012,168 @@ final class DeckModel {
         refreshGrid()
         DraftWriter.save(gridDraft)
         onDraftChange?(gridDraft.trackUUID, .grid, gridDraft.hasChanges)
+        if row?.isStaged == true { onStagedGridChange?(gridDraft.trackUUID, gridDraft.segments.first?.bpm) }
         audio.resetClicks()
+        refreshSuggestionNote()
+    }
+
+    // MARK: - 그리드 추정·제안
+
+    /// MU 분석 결과와 어택 곡선으로 그리드를 추정한다. 추가한 곡(아직 rekordbox에 없음)은 그리드가 없으면 바로 적용한다.
+    private func startGridSuggestion(analysis: PartAnalysis, url: URL, id: String) {
+        suggestionTask?.cancel()
+        suggestionTask = Task {
+            let key = self.row?.track.uuid ?? id
+            let estimate = try? await Task.detached(priority: .utility) {
+                if let cached = AnalysisCache.gridEstimate(key: key, file: url) { return cached }
+                let onset = try OnsetEnvelope.compute(url: url)
+                try Task.checkCancellation()
+                let estimate = GridEstimator.estimate(beats: analysis.beats, bars: analysis.bars, duration: analysis.duration, onset: onset)
+                if let estimate { AnalysisCache.store(estimate, key: key, file: url) }
+                return estimate
+            }.value
+            guard !Task.isCancelled, self.row?.id == id, var estimate else { return }
+            // 추정은 음원(AVFoundation) 시간축 → rekordbox 시간축으로 옮긴다.
+            for i in estimate.segments.indices { estimate.segments[i].start += self.timelineOffset }
+            self.gridSuggestion = estimate
+            self.suggestedGrid = GridDraft(trackUUID: "", base: [], segments: estimate.segments).grid(duration: self.duration)
+            if self.gridDraft == nil, self.row?.isStaged == true {
+                self.applyGridSuggestion()
+            } else {
+                self.refreshSuggestionNote()
+            }
+        }
+    }
+
+    /// 재분석: 이 곡의 섹션·그리드 추정·조성 캐시와 제안 무시 표시를 지우고 다시 불러온다.
+    func reanalyze() {
+        guard let uuid = row?.track.uuid else { return }
+        AnalysisCache.removeAll(key: uuid)
+        var dismissed = Set(UserDefaults.standard.stringArray(forKey: Self.dismissedSuggestionsKey) ?? [])
+        dismissed.remove(uuid)
+        UserDefaults.standard.set(Array(dismissed), forKey: Self.dismissedSuggestionsKey)
+        reload()
+        showToast("다시 분석합니다")
+    }
+
+    /// 무시한 제안을 다시 보인다.
+    func restoreGridSuggestion() {
+        guard let uuid = row?.track.uuid else { return }
+        var dismissed = Set(UserDefaults.standard.stringArray(forKey: Self.dismissedSuggestionsKey) ?? [])
+        dismissed.remove(uuid)
+        UserDefaults.standard.set(Array(dismissed), forKey: Self.dismissedSuggestionsKey)
+        refreshSuggestionNote()
+    }
+
+    /// 이 곡의 그리드 제안을 더는 보이지 않게 한다(곡마다 기억).
+    func dismissGridSuggestion() {
+        guard let uuid = row?.track.uuid else { return }
+        var dismissed = Set(UserDefaults.standard.stringArray(forKey: Self.dismissedSuggestionsKey) ?? [])
+        dismissed.insert(uuid)
+        UserDefaults.standard.set(Array(dismissed), forKey: Self.dismissedSuggestionsKey)
+        dismissedRevision += 1
+    }
+
+    /// 무시 표시가 바뀌면 화면을 다시 그리게 한다.
+    private(set) var dismissedRevision = 0
+
+    static let dismissedSuggestionsKey = "deck.dismissedGridSuggestions"
+
+    var isGridSuggestionDismissed: Bool {
+        guard let uuid = row?.track.uuid else { return false }
+        return (UserDefaults.standard.stringArray(forKey: Self.dismissedSuggestionsKey) ?? []).contains(uuid)
+    }
+
+    // MARK: 알림(잠깐 떴다 사라진다)
+
+    private(set) var toast: String?
+    @ObservationIgnored private var toastTask: Task<Void, Never>?
+
+    func showToast(_ text: String) {
+        toast = text
+        toastTask?.cancel()
+        toastTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled else { return }
+            self?.toast = nil
+        }
+    }
+
+    /// rekordbox는 곡당 메모리 큐를 10개까지 둔다(라이브러리 7천 곡 중 최대가 정확히 10개, 자동 큐 포함).
+    static let memoryCueLimit = 10
+
+    /// 이 곡의 메모리 큐 수(초안 + 초안에서 빼 둔 rekordbox 자동 큐)
+    var memoryCueCount: Int {
+        let draftMemory = draft?.cues.filter { $0.kind == .memory }.count ?? 0
+        let auto = row?.cues.filter { $0.isMemoryCue && $0.isAutoGenerated }.count ?? 0
+        return draftMemory + auto
+    }
+
+    /// 추정 그리드를 초안으로 적용한다(원본이 있으면 원본은 그대로 두고 구간만 바꾼다).
+    func applyGridSuggestion() {
+        guard let suggestion = gridSuggestion, let uuid = row?.track.uuid else { return }
+        let base = gridDraft?.base ?? []
+        let draft = GridDraft(trackUUID: uuid, base: base, segments: suggestion.segments)
+        gridDraft = draft
+        // 복잡한 원본이라 막아 둔 곡도, 추정 그리드로 바꾸면 편집할 수 있다.
+        gridEditBlockedReason = nil
+        refreshGrid()
+        DraftWriter.save(draft)
+        onDraftChange?(uuid, .grid, draft.hasChanges)
+        if row?.isStaged == true { onStagedGridChange?(uuid, draft.segments.first?.bpm) }
+        audio.resetClicks()
+        refreshSuggestionNote()
+    }
+
+    /// 반 박 옮긴다(추정이 뒷박을 잡았을 때 한 번에 고친다).
+    func shiftGridHalfBeat() {
+        mutateGrid { draft in
+            let segment = draft.segments[draft.segmentIndex(at: playhead)]
+            draft.shift(by: 30 / segment.bpm)
+        }
+    }
+
+    /// 백그라운드 추정이 이 곡의 초안을 저장했으면 다시 읽는다.
+    func gridDraftSavedExternally(_ uuid: String) {
+        guard row?.track.uuid == uuid, gridDraft == nil, let saved = GridDraftStore.load(trackUUID: uuid) else { return }
+        gridDraft = saved
+        refreshGrid()
+        refreshSuggestionNote()
+    }
+
+    /// 추정과 현재 그리드의 차이를 한 줄로(없거나 작으면 nil).
+    private func refreshSuggestionNote() {
+        guard let suggestion = gridSuggestion else { gridSuggestionNote = nil; return }
+        // 신뢰도가 낮을 때만 덧붙인다.
+        let confidence = suggestion.isConfident ? "" : " · 확인 필요"
+        guard let grid, !grid.beats.isEmpty else {
+            gridSuggestionNote = String(format: "추정 %.2f BPM", suggestion.bpm) + confidence
+            return
+        }
+        let suggested = GridDraft(trackUUID: "", base: [], segments: suggestion.segments).grid(duration: duration)
+        let bpmDelta = suggestion.bpm - (grid.beats.first?.bpm ?? suggestion.bpm)
+        // 곡 가운데 80%에서 현재 박과 추정 박의 차이(반 박 안으로 접은 값)의 중앙값
+        let period = 60 / max(suggestion.bpm, 1)
+        var deltas: [Double] = []
+        for beat in grid.beats where beat.time > duration * 0.1 && beat.time < duration * 0.9 {
+            let i = suggested.firstIndex(atOrAfter: beat.time)
+            let near = [i - 1, i].filter { suggested.beats.indices.contains($0) }.map { suggested.beats[$0].time }
+            guard let nearest = near.min(by: { abs($0 - beat.time) < abs($1 - beat.time) }) else { continue }
+            var d = (nearest - beat.time).truncatingRemainder(dividingBy: period)
+            if d > period / 2 { d -= period } else if d < -period / 2 { d += period }
+            deltas.append(d)
+        }
+        deltas.sort()
+        let phase = deltas.isEmpty ? 0 : deltas[deltas.count / 2]
+        if abs(bpmDelta) < 0.05, abs(phase) < 0.010 {
+            gridSuggestionNote = nil  // 사실상 같다
+        } else {
+            gridSuggestionNote = String(format: "추정 %.2f BPM(%+.2f) · 위상 %+.0fms", suggestion.bpm, bpmDelta, phase * 1000) + confidence
+        }
+        if suggestion.segments.count > 1, let note = gridSuggestionNote {
+            let flow = suggestion.segments.map { String(format: "%.0f", $0.bpm) }.joined(separator: "→")
+            gridSuggestionNote = note + " · 변속 추정 \(flow)"
+        }
     }
 }
 
@@ -483,16 +1186,19 @@ struct DeckPayload: Sendable {
     var artwork: Thumbnails.Box?
 
     static func load(track: Track, cues: [Cue], duration: Double) -> DeckPayload {
+        // 덱의 시각은 모두 rekordbox 시간축이다(초안·rekordbox 큐·그리드를 그대로 쓴다).
         let draft = CueDraftStore.load(trackUUID: track.uuid) ?? CueDraft(trackUUID: track.uuid, rekordboxCues: cues)
         var payload = DeckPayload(draft: draft)
         payload.artwork = ArtworkCache.downsampled(imagePath: track.imagePath, maxPixels: 360)
 
         guard let url = RekordboxShare.analysisURL(track.analysisDataPath),
-              let original = try? BeatGrid.load(anlz: url), !original.beats.isEmpty
+              let rekordboxGrid = try? BeatGrid.load(anlz: url), !rekordboxGrid.beats.isEmpty
         else {
-            payload.gridBlockedReason = "rekordbox 비트 그리드가 없습니다(분석되지 않은 곡)."
+            // 그리드가 없는 곡: 앞서 적용해 둔 추정 그리드 초안이 있으면 그것을 쓴다.
+            payload.gridDraft = GridDraftStore.load(trackUUID: track.uuid)
             return payload
         }
+        let original = rekordboxGrid
         payload.originalGrid = original
         let fresh = GridDraft(trackUUID: track.uuid, grid: original)
         // 재생성 오차 확인: 편집하지 않은 상태에서 2ms 넘게 다르면 편집을 막는다.
@@ -512,7 +1218,12 @@ enum DraftWriter {
     private static let queue = DispatchQueue(label: "anicue.draft-writer", qos: .utility)
 
     static func save(_ draft: CueDraft) { queue.async { try? CueDraftStore.save(draft) } }
+    /// 반영이 끝난 곡의 큐 초안을 지운다(앞서 걸린 저장 뒤에).
+    static func removeCue(trackUUID: String) { queue.async { CueDraftStore.remove(trackUUID: trackUUID) } }
+    /// 걸려 있는 저장을 모두 끝낸다(디스크의 초안을 읽기 전에).
+    static func flush() { queue.sync {} }
     static func save(_ draft: GridDraft) { queue.async { try? GridDraftStore.save(draft) } }
+    static func removeGrid(trackUUID: String) { queue.async { GridDraftStore.remove(trackUUID: trackUUID) } }
     static func save(_ drafts: [TagDraft]) { queue.async { for draft in drafts { try? TagDraftStore.save(draft) } } }
 }
 
@@ -570,5 +1281,27 @@ actor Thumbnails {
         // 아트워크가 없는 곡도 기억해 파일을 다시 열지 않는다.
         cache.setObject(Entry(box), forKey: key as NSString)
         return box
+    }
+}
+
+/// 덱 설정(볼륨·키 락·퀀타이즈·제안 표시·확대 배율)을 앱을 다시 켜도 유지한다.
+/// 개발용 자가 테스트(음량을 −70dB로 바꾼다)는 저장하지 않는다.
+enum DeckSettings {
+    private static let persist = !ProcessInfo.processInfo.arguments.contains { $0.hasSuffix("-selftest") || $0 == "--autoplay" }
+    private static func key(_ name: String) -> String { "deck.\(name)" }
+
+    static func double(_ name: String, _ fallback: Double) -> Double {
+        guard persist, let value = UserDefaults.standard.object(forKey: key(name)) as? Double, value.isFinite else { return fallback }
+        return value
+    }
+
+    static func bool(_ name: String, _ fallback: Bool) -> Bool {
+        guard persist, let value = UserDefaults.standard.object(forKey: key(name)) as? Bool else { return fallback }
+        return value
+    }
+
+    static func set(_ name: String, _ value: Any) {
+        guard persist else { return }
+        UserDefaults.standard.set(value, forKey: key(name))
     }
 }

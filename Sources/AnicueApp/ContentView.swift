@@ -9,6 +9,7 @@ struct ContentView: View {
     @State private var showTagEditor = false
     @AppStorage("waveformHeight") private var waveformHeight: Double = 150
     @AppStorage("sheetMode") private var sheetMode = false
+    @State private var keys = KeyRouter()
 
     var body: some View {
         NavigationSplitView {
@@ -26,11 +27,29 @@ struct ContentView: View {
                             .padding(.horizontal, 14).padding(.vertical, 6)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    if let message = store.reflectionMessage {
+                        HStack {
+                            Label(message, systemImage: message.contains("불일치") ? "exclamationmark.triangle" : "checkmark.seal")
+                                .foregroundStyle(message.contains("불일치") ? .orange : .secondary)
+                                .lineLimit(2)
+                            Spacer()
+                            if let backup = store.lastWriteBackup {
+                                Button("되돌리기…") { DirectWritePanels.restore(store: store, backupURL: backup) }
+                                    .controlSize(.small)
+                                    .disabled(store.isWritingRekordbox)
+                                    .help("rekordbox 라이브러리를 이번 쓰기 직전 백업으로 되돌립니다(rekordbox가 꺼져 있어야 합니다).")
+                            }
+                            Button("닫기") { store.reflectionMessage = nil }.controlSize(.small)
+                        }
+                        .font(.callout)
+                        .padding(.horizontal, 14).padding(.vertical, 6)
+                    }
                     // 덱 높이는 내용에 맞춘다(잘리지 않게). 핸들은 파형 높이를 조절한다.
                     DeckView(deck: deck, waveformHeight: waveformHeight)
                         .frame(maxWidth: .infinity, alignment: .top)
                         .fixedSize(horizontal: false, vertical: true)
                     SplitHandle(height: $waveformHeight)
+                    ListActionBar(store: store)
                     if sheetMode {
                         SheetHeader(store: store)
                         TagSheetView(store: store)
@@ -41,6 +60,11 @@ struct ContentView: View {
                     }
                 }
                 .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                // Finder에서 음원·폴더를 끌어다 놓으면 추가한다.
+                .dropDestination(for: URL.self) { urls, _ in
+                    Task { await store.addFiles(urls) }
+                    return !urls.isEmpty
+                }
                 .inspector(isPresented: $showTagEditor) {
                     TagInspector(store: store)
                         .inspectorColumnWidth(min: 300, ideal: 340, max: 460)
@@ -78,6 +102,15 @@ struct ContentView: View {
             }
             ToolbarItem {
                 Button {
+                    StagingPanels.chooseFiles(store: store)
+                } label: {
+                    Label("곡 추가", systemImage: "plus")
+                }
+                .disabled(store.rows.isEmpty)
+                .help("음원 파일·폴더를 anicue에 추가합니다. BPM·그리드를 추정한 뒤 rekordbox XML로 넘길 수 있습니다(창에 끌어다 놓아도 됩니다).")
+            }
+            ToolbarItem {
+                Button {
                     showTagEditor.toggle()
                 } label: {
                     Label("태그 편집", systemImage: "tag")
@@ -87,17 +120,31 @@ struct ContentView: View {
             }
             ToolbarItem {
                 Button {
-                    Task { await store.takeSnapshot() }
+                    // rekordbox가 켜져 있어도 읽기용 사본을 뜬다(최근 변경이 담긴 WAL까지 사본 안에서 합친다).
+                    Task { await store.takeSnapshot(force: LibrarySnapshot.isRekordboxRunning()) }
                 } label: {
                     Label("새 스냅샷", systemImage: "arrow.clockwise")
                 }
                 .disabled(store.isLoading)
-                .help("rekordbox master.db 사본을 새로 떠서 다시 읽습니다")
+                .help("rekordbox master.db 사본을 새로 떠서 다시 읽습니다(원본은 읽기만). rekordbox에서 반영 XML을 가져온 뒤 누르면 자동으로 검증합니다.")
             }
         }
         .onAppear {
             // 선택 변경은 스토어가 150ms 뒤에 알려 준다(루트 뷰가 선택마다 다시 그려지지 않도록).
             store.onPrimaryRowChange = { [weak deck] row in deck?.load(row) }
+            store.onGridDraftSaved = { [weak deck] uuid in deck?.gridDraftSavedExternally(uuid) }
+            deck.onStagedGridChange = { [weak store] uuid, bpm in store?.stagedGridChanged(uuid: uuid, bpm: bpm) }
+            deck.onCueDraftChange = { [weak store] draft in store?.cueDraftChanged(draft) }
+            deck.onRequestReflection = { [weak store] row in
+                guard let store else { return }
+                DirectWritePanels.write(store: store, rows: [row])
+            }
+            store.onWriteLock = { [weak deck] locked in deck?.isWriteLocked = locked }
+            store.onRekordboxWritten = { [weak deck] uuids in
+                if let uuid = deck?.row?.track.uuid, uuids.contains(uuid) { deck?.reload() }
+            }
+            keys.install(deck: deck)
+            DevSelfTests.runIfRequested(store: store, deck: deck)
             deck.onDraftChange = { [weak store] uuid, kind, exists in
                 store?.draftChanged(trackUUID: uuid, kind: kind, exists: exists)
             }
@@ -156,6 +203,8 @@ private struct SplitHandle: View {
 
 struct Sidebar: View {
     @Bindable var store: LibraryStore
+    @AppStorage("sidebar.playlistsExpanded") private var playlistsExpanded = true
+    @AppStorage("sidebar.summaryExpanded") private var summaryExpanded = true
 
     var body: some View {
         List(selection: $store.sidebar) {
@@ -166,8 +215,23 @@ struct Sidebar: View {
                         .tag(SidebarItem.filter(filter))
                 }
             }
+            Section("anicue") {
+                Label("추가한 곡", systemImage: "tray.and.arrow.down")
+                    .badge(store.staged.count)
+                    .tag(SidebarItem.staged)
+                Label("rekordbox 반영 대기", systemImage: "square.and.arrow.up.on.square")
+                    .badge(store.pendingLibraryCount)
+                    .tag(SidebarItem.pending)
+                    .help("큐·그리드 초안이 있어 rekordbox에 반영할 곡")
+                if let job = store.gridJob {
+                    HStack(spacing: 6) {
+                        ProgressView(value: Double(job.done), total: Double(max(job.total, 1))).controlSize(.small)
+                        Text("그리드 추정 \(job.done)/\(job.total)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    }
+                }
+            }
             if !store.playlistTree.isEmpty {
-                Section("rekordbox 플레이리스트") {
+                Section("rekordbox 플레이리스트 (\(store.playlistCount))", isExpanded: $playlistsExpanded) {
                     OutlineGroup(store.playlistTree, children: \.children) { node in
                         Label(node.name.isEmpty ? "(이름 없음)" : node.name,
                               systemImage: node.isFolder ? "folder" : "music.note.list")
@@ -178,7 +242,7 @@ struct Sidebar: View {
                 }
             }
             if let report = store.report {
-                Section("현황") {
+                Section("현황", isExpanded: $summaryExpanded) {
                     LabeledContent("실제 컬렉션", value: "\(report.liveTracks)")
                     LabeledContent("삭제 행(제외)", value: "\(report.deletedRows)")
                     LabeledContent("규칙 코멘트", value: "\(report.commentClasses[.convention, default: 0])")
@@ -195,5 +259,348 @@ struct Sidebar: View {
                 }
             }
         }
+        // 일괄 반영은 사이드바 맨 아래에 둔다(툴바의 공유 모양 아이콘과 헷갈리지 않게).
+        .safeAreaInset(edge: .bottom, spacing: 0) { ReflectFooter(store: store) }
+    }
+}
+
+/// 사이드바 아래 고정: 반영 대기 곡 수와 rekordbox 일괄 반영 버튼(⌘⇧E).
+private struct ReflectFooter: View {
+    let store: LibraryStore
+
+    var body: some View {
+        let targets = store.reflectionTargets
+        let selectedOnly = targets.contains { store.selection.contains($0.id) }
+        VStack(alignment: .leading, spacing: 6) {
+            Divider()
+            Button {
+                DirectWritePanels.write(store: store, rows: targets)
+            } label: {
+                Label(store.isWritingRekordbox ? "rekordbox에 쓰는 중…"
+                      : selectedOnly ? "선택한 \(targets.count)곡 rekordbox에 반영" : "rekordbox에 반영 (\(store.pendingLibraryCount)곡)",
+                      systemImage: "square.and.arrow.up.on.square")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .keyboardShortcut("e", modifiers: [.command, .shift])
+            .disabled(store.pendingLibraryCount == 0 || store.isWritingRekordbox)
+            .help("선택한 곡에 초안이 있으면 그 곡들만, 없으면 반영 대기 곡 전체의 큐를 rekordbox 라이브러리에 바로 씁니다. 미리 보기로 확인한 뒤, rekordbox가 꺼져 있을 때만 씁니다 (⌘⇧E).")
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 10)
+        .background(.bar)
+    }
+}
+
+/// 목록 위 작업 줄: 추가한 곡(추가·빼기·XML 내보내기), BPM 없는 곡(일괄 추정).
+private struct ListActionBar: View {
+    let store: LibraryStore
+
+    var body: some View {
+        switch store.sidebar {
+        case .staged:
+            bar {
+                Button { StagingPanels.chooseFiles(store: store) } label: { Label("곡 추가…", systemImage: "plus") }
+                Button { store.removeStaged(store.selection) } label: { Label("선택 빼기", systemImage: "minus") }
+                    .disabled(!store.selection.contains { $0.hasPrefix("anicue-") })
+                    .help("추가 목록에서만 뺍니다. 파일은 지우지 않습니다.")
+                Button { StagingPanels.exportXML(store: store) } label: { Label("rekordbox XML로 내보내기…", systemImage: "square.and.arrow.up") }
+                    .disabled(store.staged.isEmpty)
+                    .help("rekordbox › 환경설정 › 고급 › rekordbox xml에서 이 파일을 지정한 뒤, 트리의 rekordbox xml에서 곡을 선택하고 Import To Collection 하세요. 가져온 뒤 새 스냅샷을 뜨면 anicue가 그리드가 그대로 들어갔는지 확인합니다.")
+                if store.staged.contains(where: { $0.importCheck != nil && $0.importCheck?.result != .pending }) {
+                    Button { store.removeImportedStaged() } label: { Label("가져온 곡 정리", systemImage: "checkmark.circle") }
+                        .help("rekordbox에 들어간 것이 확인된 곡을 추가 목록에서 뺍니다(파일·초안은 그대로).")
+                }
+                message
+            }
+        case .pending:
+            bar {
+                let targets = store.selection.isEmpty ? store.displayRows : store.selectedRows
+                Button { DirectWritePanels.write(store: store, rows: targets) } label: {
+                    Label("rekordbox에 쓰기 (\(targets.count)곡)…", systemImage: "square.and.arrow.up.on.square")
+                }
+                .disabled(targets.isEmpty || store.isWritingRekordbox)
+                .help("선택한 곡(없으면 목록 전체)의 큐 초안을 rekordbox 라이브러리에 바로 씁니다. 미리 보기로 확인한 뒤 씁니다. rekordbox가 꺼져 있어야 합니다.")
+                Button { ReflectionPanels.export(store: store, rows: targets) } label: {
+                    Label("XML로…", systemImage: "doc.text")
+                }
+                .disabled(targets.isEmpty)
+                .help("직접 쓰지 않고 rekordbox XML로 만듭니다(그리드 초안은 아직 이 경로로만 반영됩니다).")
+                Button { DirectWritePanels.restoreLatest(store: store) } label: {
+                    Label("되돌리기…", systemImage: "arrow.uturn.backward")
+                }
+                .disabled(store.isWritingRekordbox)
+                .help("anicue가 마지막으로 rekordbox에 쓰기 직전 백업으로 되돌립니다.")
+                if store.isWritingRekordbox {
+                    ProgressView().controlSize(.small)
+                    Text("rekordbox 라이브러리 확인·쓰는 중…").font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text("rekordbox가 꺼져 있을 때만 씁니다 · 쓰기 전에 전체 백업").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        case .filter(.noBPM):
+            bar {
+                Button { store.estimateGridsForDisplayedRows() } label: {
+                    Label("이 목록 그리드 추정 (\(store.displayRows.count)곡)", systemImage: "metronome")
+                }
+                .disabled(store.displayRows.isEmpty || store.gridJob != nil)
+                .help("rekordbox가 분석하지 않은 곡의 BPM·박 위치를 추정해 그리드 초안으로 저장합니다(rekordbox는 바뀌지 않습니다).")
+                Text("초안만 만듭니다 · 덱에서 확인·수정").font(.caption).foregroundStyle(.secondary)
+                message
+            }
+        default:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder private var message: some View {
+        if let text = store.stagingMessage {
+            Text(text).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        }
+    }
+
+    private func bar<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        HStack(spacing: 10) {
+            content()
+            Spacer(minLength: 0)
+        }
+        .controlSize(.small)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+}
+
+/// 파일 선택·저장 창.
+@MainActor
+enum StagingPanels {
+    static func chooseFiles(store: LibraryStore) {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [.audio, .folder]
+        panel.prompt = "추가"
+        panel.message = "anicue에 추가할 음원 파일이나 폴더를 고르세요. 이미 rekordbox에 있는 파일은 건너뜁니다."
+        guard panel.runModal() == .OK else { return }
+        let urls = panel.urls
+        Task { await store.addFiles(urls) }
+    }
+
+    static func exportXML(store: LibraryStore) {
+        let selected = store.selection.filter { $0.hasPrefix("anicue-") }
+        do {
+            let url = try RekordboxLink.prepare()
+            let result = try store.exportStaged(to: url, only: selected.isEmpty ? nil : selected)
+            var text = "\(result.count)곡을 연동 XML에 썼습니다 · rekordbox: rekordbox xml 새로고침 › \"anicue 추가\" › Import To Collection"
+            if result.withoutGrid > 0 { text += " · \(result.withoutGrid)곡은 그리드 없이(rekordbox가 분석)" }
+            store.stagingMessage = text
+            RekordboxLink.showSetupIfNeeded()
+        } catch {
+            store.stagingMessage = "내보내지 못했습니다: \(error.localizedDescription)"
+        }
+    }
+}
+
+/// anicue ↔ rekordbox 연동 XML. 저장 창 없이 늘 같은 파일에 쓴다.
+/// rekordbox 환경설정 › 고급 › 데이터베이스 › rekordbox xml에 이 파일을 한 번만 지정하면,
+/// 이후에는 rekordbox에서 트리 새로고침 → 재생 목록 → Import To Collection만 하면 된다.
+@MainActor
+enum RekordboxLink {
+    static var url: URL {
+        URL.documentsDirectory.appending(path: "anicue/anicue-rekordbox.xml")
+    }
+
+    static func prepare() throws -> URL {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        return url
+    }
+
+    /// 처음 한 번만 rekordbox 설정 방법을 알려 주고 경로를 클립보드에 복사한다.
+    static func showSetupIfNeeded() {
+        let key = "rekordboxLinkSetupShown"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(url.path, forType: .string)
+        let alert = NSAlert()
+        alert.messageText = "rekordbox에 연동 파일을 한 번만 지정해 주세요"
+        alert.informativeText = """
+        anicue는 반영할 내용을 늘 이 파일에 씁니다(경로를 클립보드에 복사했습니다):
+        \(url.path)
+
+        1. rekordbox › 환경설정 › 고급 › 데이터베이스 › rekordbox xml › "가져온 라이브러리"에 이 파일을 지정합니다(처음 한 번만).
+        2. 트리에 "rekordbox xml"이 보이게 합니다(환경설정 › 보기 › 레이아웃에서 켤 수 있습니다).
+
+        이후 반영할 때마다 rekordbox에서:
+        • "rekordbox xml" 옆 새로고침 → 재생 목록 "anicue 반영"(새 곡은 "anicue 추가") → 곡 모두 선택 → 오른쪽 클릭 › Import To Collection
+        • anicue에서 새 스냅샷(⟳)을 누르면 곡마다 제대로 들어갔는지 자동으로 확인합니다.
+
+        처음 반영하기 전에 rekordbox › 파일 › 라이브러리 › 라이브러리 백업을 한 번 해 두세요.
+        """
+        alert.addButton(withTitle: "확인")
+        alert.addButton(withTitle: "Finder에서 보기")
+        if alert.runModal() == .alertSecondButtonReturn {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        }
+        UserDefaults.standard.set(true, forKey: key)
+    }
+}
+
+/// rekordbox에 바로 쓰기(기본 경로). rekordbox가 켜져 있으면 절대 쓰지 않는다.
+@MainActor
+enum DirectWritePanels {
+    static func write(store: LibraryStore, rows: [TrackRow]) {
+        guard !store.isWritingRekordbox else { return }
+        guard !LibrarySnapshot.isRekordboxRunning() else {
+            alert("rekordbox가 켜져 있어 쓰지 않았습니다",
+                  "rekordbox를 완전히 종료한 뒤 다시 누르세요. anicue는 rekordbox가 켜져 있는 동안에는 rekordbox 라이브러리에 절대 쓰지 않습니다.")
+            return
+        }
+        let targets = store.writeTargets(rows)
+        guard !targets.isEmpty else {
+            alert("반영할 초안이 없습니다", "고른 곡에 rekordbox와 다른 큐·그리드 초안이 없습니다.")
+            return
+        }
+        lock(store, true)
+        Task {
+            defer { lock(store, false) }
+            do {
+                let preview = try await store.previewWrite(rows: targets)
+                let writable = preview.report.written, blocked = preview.report.blocked
+                let gridWritable = preview.report.gridWritten, gridBlocked = preview.report.gridBlocked
+                guard !writable.isEmpty || !gridWritable.isEmpty else {
+                    let reasons = (blocked + gridBlocked).prefix(8).map { "• \($0.title): \($0.reason ?? "")" }
+                    alert("rekordbox에 쓸 수 있는 초안이 없습니다", reasons.joined(separator: "\n"))
+                    return
+                }
+                let alert = NSAlert()
+                var title: [String] = []
+                if !writable.isEmpty { title.append("큐 \(writable.count)곡") }
+                if !gridWritable.isEmpty { title.append("그리드 \(gridWritable.count)곡") }
+                alert.messageText = "rekordbox에 " + title.joined(separator: " · ") + "을 씁니다"
+                let gridBlockedByUUID = Dictionary(gridBlocked.map { ($0.trackUUID, $0) }, uniquingKeysWith: { a, _ in a })
+                var body = writable.prefix(12).map { outcome -> String in
+                    var line = "• \(outcome.title) — 큐 추가 \(outcome.added) · 삭제 \(outcome.removed)"
+                    if gridWritable.contains(where: { $0.trackUUID == outcome.trackUUID }) { line += " · 그리드" }
+                    if gridBlockedByUUID[outcome.trackUUID] != nil { line += " · ⚠︎ 그리드는 안 들어감" }
+                    return line
+                }
+                for grid in gridWritable where !writable.contains(where: { $0.trackUUID == grid.trackUUID }) {
+                    body.append("• \(grid.title) — 그리드(박 \(grid.added)개)")
+                }
+                if writable.count > 12 { body.append("… 외 \(writable.count - 12)곡") }
+                let notWritten = blocked + gridBlocked
+                if !notWritten.isEmpty {
+                    body += ["", "쓰지 않는 것 \(notWritten.count):"] + notWritten.prefix(8).map { "• \($0.title): \($0.reason ?? "")" }
+                }
+                body += ["", "쓰기 전에 rekordbox 라이브러리(master.db)와 바꿀 분석 파일을 백업하고, 쓴 뒤 다시 읽어 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요."]
+                alert.informativeText = body.joined(separator: "\n")
+                alert.addButton(withTitle: "rekordbox에 쓰기")
+                alert.addButton(withTitle: "취소")
+                guard alert.runModal() == .alertFirstButtonReturn else { return }
+                let uuids = Set(writable.map(\.trackUUID)), gridUUIDs = Set(gridWritable.map(\.trackUUID))
+                _ = try await store.writeToRekordbox(preview.drafts.filter { uuids.contains($0.trackUUID) },
+                                                     grids: preview.grids.filter { gridUUIDs.contains($0.trackUUID) })
+            } catch {
+                store.reflectionMessage = "rekordbox에 쓰지 않았습니다 — \(error)"
+            }
+        }
+    }
+
+    static func restoreLatest(store: LibraryStore) {
+        guard let backup = RekordboxWriter.backups().first(where: \.isWrite) else {
+            alert("되돌릴 쓰기 기록이 없습니다", "anicue가 rekordbox에 쓴 적이 없거나 백업이 정리됐습니다.")
+            return
+        }
+        restore(store: store, backup: backup)
+    }
+
+    static func restore(store: LibraryStore, backupURL: URL) {
+        guard let backup = RekordboxWriter.backups().first(where: { $0.url.path == backupURL.path }) else {
+            alert("백업을 찾지 못했습니다", backupURL.path)
+            return
+        }
+        restore(store: store, backup: backup)
+    }
+
+    static func restore(store: LibraryStore, backup: RekordboxWriter.Backup) {
+        guard !store.isWritingRekordbox else { return }
+        guard !LibrarySnapshot.isRekordboxRunning() else {
+            alert("rekordbox가 켜져 있어 되돌리지 않았습니다", "rekordbox를 완전히 종료한 뒤 다시 누르세요.")
+            return
+        }
+        lock(store, true)
+        Task {
+            defer { lock(store, false) }
+            let changed = await store.libraryChangedSince(backup)
+            let alert = NSAlert()
+            alert.messageText = "rekordbox를 \(backup.createdAt.formatted(date: .abbreviated, time: .shortened)) 쓰기 전으로 되돌릴까요?"
+            var lines: [String] = []
+            if !backup.titles.isEmpty {
+                lines.append("그때 쓴 곡: " + backup.titles.prefix(8).joined(separator: ", ") + (backup.titles.count > 8 ? " 외 \(backup.titles.count - 8)곡" : ""))
+            }
+            lines.append("rekordbox 라이브러리 파일 전체를 그때 백업으로 바꿉니다. 그때 쓴 큐 초안은 anicue에 다시 살아납니다. 지금 상태도 따로 백업해 둡니다.")
+            switch changed {
+            case true?:
+                alert.alertStyle = .critical
+                lines.append("⚠︎ 이 백업 뒤에 rekordbox에서도 라이브러리가 바뀌었습니다(큐·재생 목록·곡 추가 등). 되돌리면 그 변경도 함께 사라집니다.")
+            case nil:
+                lines.append("백업 뒤 rekordbox에서 바뀐 것이 있는지 확인하지 못했습니다. 그 뒤 rekordbox에서 한 변경은 함께 사라집니다.")
+            case false?:
+                break
+            }
+            alert.informativeText = lines.joined(separator: "\n\n")
+            alert.addButton(withTitle: "되돌리기")
+            alert.addButton(withTitle: "취소")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            do {
+                try await store.restoreRekordbox(backup)
+            } catch {
+                store.reflectionMessage = "되돌리지 못했습니다 — \(error)"
+            }
+        }
+    }
+
+    private static func lock(_ store: LibraryStore, _ locked: Bool) {
+        store.isWritingRekordbox = locked
+        store.onWriteLock?(locked)
+    }
+
+    private static func alert(_ title: String, _ text: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = text
+        alert.runModal()
+    }
+}
+
+/// 반영 XML 만들기(연동 파일에 바로 쓴다).
+@MainActor
+enum ReflectionPanels {
+    static func export(store: LibraryStore, rows: [TrackRow]) {
+        let plans = store.reflectionPlans(for: rows)
+        let eligible = plans.filter(\.isEligible), blocked = plans.filter { !$0.blockers.isEmpty }
+        guard !eligible.isEmpty else {
+            let alert = NSAlert()
+            alert.messageText = "반영할 수 있는 곡이 없습니다"
+            alert.informativeText = blocked.isEmpty
+                ? "고른 곡에 rekordbox와 다른 큐·그리드 초안이 없습니다."
+                : blocked.prefix(5).map { "• \($0.title): \($0.blockers.joined(separator: " / "))" }.joined(separator: "\n")
+            alert.runModal()
+            return
+        }
+        do {
+            let url = try RekordboxLink.prepare()
+            _ = try store.exportReflection(rows: rows, to: url)
+        } catch {
+            store.reflectionMessage = "반영 XML을 쓰지 못했습니다: \(error.localizedDescription)"
+            return
+        }
+        var text = "\(eligible.count)곡을 연동 XML에 썼습니다 · rekordbox: rekordbox xml 새로고침 › \"anicue 반영\" › 곡 모두 선택 › Import To Collection → anicue 새 스냅샷(⟳)"
+        if !blocked.isEmpty {
+            text += " · 막혀서 뺀 곡 \(blocked.count): " + blocked.prefix(2).map { "\($0.title)(\($0.blockers.first ?? ""))" }.joined(separator: ", ")
+        }
+        store.reflectionMessage = text
+        RekordboxLink.showSetupIfNeeded()
     }
 }
