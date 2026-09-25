@@ -62,11 +62,14 @@ public struct Cue: Sendable, Hashable {
     public var color: Int?
     /// 자동 루프(ActiveLoop) 표시
     public var activeLoop: Int = 0
+    /// 박 루프 크기(상위 16비트 = 박 수, 하위 = 1). 박으로 잡은 루프가 아니면 0.
+    public var beatLoopSize: Int = 0
 
     public init(id: String, contentID: String, kind: Int, inMsec: Int, name: String, colorTableIndex: Int?,
-                outMsec: Int = 0, color: Int? = nil, activeLoop: Int = 0) {
+                outMsec: Int = 0, color: Int? = nil, activeLoop: Int = 0, beatLoopSize: Int = 0) {
         self.id = id; self.contentID = contentID; self.kind = kind; self.inMsec = inMsec; self.name = name
         self.colorTableIndex = colorTableIndex; self.outMsec = outMsec; self.color = color; self.activeLoop = activeLoop
+        self.beatLoopSize = beatLoopSize
     }
 
     public var isMemoryCue: Bool { kind == 0 }

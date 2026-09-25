@@ -69,7 +69,7 @@ public struct RekordboxLibrary: Sendable {
 
         var cues: [Cue] = []
         try db.query("""
-            SELECT ContentID, Kind, InMsec, Comment, ColorTableIndex, ID, OutMsec, Color, ActiveLoop
+            SELECT ContentID, Kind, InMsec, Comment, ColorTableIndex, ID, OutMsec, Color, ActiveLoop, BeatLoopSize
             FROM djmdCue WHERE rb_local_deleted = 0
             """) { row in
             cues.append(Cue(
@@ -81,7 +81,8 @@ public struct RekordboxLibrary: Sendable {
                 colorTableIndex: row.int(4),
                 outMsec: row.int(6) ?? 0,
                 color: row.int(7),
-                activeLoop: row.int(8) ?? 0
+                activeLoop: row.int(8) ?? 0,
+                beatLoopSize: row.int(9) ?? 0
             ))
         }
 
