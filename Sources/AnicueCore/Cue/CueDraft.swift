@@ -109,8 +109,13 @@ public struct CueDraft: Codable, Sendable {
 
 /// 초안은 곡 UUID별 JSON으로 Application Support에 둔다.
 public enum CueDraftStore {
+    /// rekordbox에 반영이 확인된 곡의 초안을 지운다(이제 rekordbox 값이 원본이다).
+    public static func remove(trackUUID: String) {
+        try? FileManager.default.removeItem(at: directory.appending(path: "\(trackUUID).json"))
+    }
+
     public static var directory: URL {
-        URL.applicationSupportDirectory.appending(path: "anicue/cue-drafts")
+        AnicuePaths.userData.appending(path: "cue-drafts")
     }
 
     public static func load(trackUUID: String) -> CueDraft? {
@@ -127,5 +132,18 @@ public enum CueDraftStore {
         } else {
             try? FileManager.default.removeItem(at: url)
         }
+    }
+}
+
+// MARK: - 시간축 이동
+
+public extension CueDraft {
+    /// 모든 큐(원본 포함)를 옮긴다. rekordbox 시간축 ↔ anicue 시간축 변환에 쓴다.
+    func shifted(by seconds: Double) -> CueDraft {
+        guard seconds != 0 else { return self }
+        var copy = self
+        copy.base = base.map { var cue = $0; cue.time += seconds; return cue }
+        copy.cues = cues.map { var cue = $0; cue.time += seconds; return cue }
+        return copy
     }
 }

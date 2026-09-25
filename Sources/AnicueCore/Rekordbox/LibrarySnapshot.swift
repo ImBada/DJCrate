@@ -3,12 +3,20 @@ import Foundation
 /// rekordbox 라이브 DB를 건드리지 않기 위한 스냅샷.
 /// 툴의 모든 읽기는 이 사본에서 한다.
 public enum LibrarySnapshot {
+    /// rekordbox 라이브러리 폴더. 개발 시험은 `ANICUE_REKORDBOX_DIR`로 사본 폴더를 가리킨다(실제 라이브러리를 건드리지 않게).
     public static var rekordboxDirectory: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Pioneer/rekordbox")
+        if let override = ProcessInfo.processInfo.environment["ANICUE_REKORDBOX_DIR"], !override.isEmpty {
+            return URL(filePath: override)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Pioneer/rekordbox")
     }
 
     public static var defaultDirectory: URL {
-        URL.applicationSupportDirectory.appending(path: "anicue/snapshots")
+        // 사본 rekordbox 폴더로 시험할 때는 스냅샷도 그 안에 둔다(사용자 스냅샷과 섞이지 않게).
+        if let override = ProcessInfo.processInfo.environment["ANICUE_REKORDBOX_DIR"], !override.isEmpty {
+            return URL(filePath: override).appending(path: "anicue-snapshots")
+        }
+        return URL.applicationSupportDirectory.appending(path: "anicue/snapshots")
     }
 
     /// rekordbox가 실행 중인지 프로세스 이름으로 확인한다.
@@ -68,6 +76,23 @@ public enum LibrarySnapshot {
         try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: partial.path)
         if fm.fileExists(atPath: destination.path) { try? fm.removeItem(at: destination) }
         try fm.moveItem(at: partial, to: destination)
+
+        // rekordbox가 켜져 있으면 최근 변경이 WAL에만 있다. WAL도 사본 옆에 복사해 사본 안에서 합친다.
+        let sourceWAL = source.deletingLastPathComponent().appending(path: source.lastPathComponent + "-wal")
+        if force, let size = try? fm.attributesOfItem(atPath: sourceWAL.path)[.size] as? Int, size > 0 {
+            let copyWAL = URL(filePath: destination.path + "-wal")
+            try? fm.removeItem(at: copyWAL)
+            try fm.copyItem(at: sourceWAL, to: copyWAL)
+            try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: copyWAL.path)
+            do {
+                try CipherDatabase.mergeWriteAheadLog(ofCopyAt: destination.path, key: RekordboxKey.derive())
+            } catch {
+                try? fm.removeItem(at: copyWAL)
+                throw error
+            }
+            try? fm.removeItem(at: copyWAL)
+            try? fm.removeItem(at: URL(filePath: destination.path + "-shm"))
+        }
         prune(keeping: 3, in: directory)
         return destination
     }
@@ -79,6 +104,12 @@ public enum LibrarySnapshot {
             .filter { $0.pathExtension == "db" }
             .sorted { $0.lastPathComponent > $1.lastPathComponent }
         for old in files.dropFirst(keeping) { try? fm.removeItem(at: old) }
+        // 읽는 연결이 남긴 -shm·-wal 중 본 파일이 지워진 것
+        for leftover in ((try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [])
+        where ["db-shm", "db-wal"].contains(leftover.pathExtension) {
+            let main = leftover.deletingPathExtension().path + ".db"
+            if !fm.fileExists(atPath: main) { try? fm.removeItem(at: leftover) }
+        }
         // 진행 중인 다른 복사본을 지우지 않도록 10분 넘은 임시 파일만 정리한다.
         for stale in ((try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.contentModificationDateKey])) ?? [])
         where stale.pathExtension == "part" {

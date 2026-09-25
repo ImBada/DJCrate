@@ -26,6 +26,17 @@ public struct Track: Sendable, Identifiable, Hashable {
     /// 컬렉션에서 삭제됐지만 행이 남아 있는 tombstone.
     public let isDeleted: Bool
 
+    public init(id: String, uuid: String, title: String, artist: String?, album: String?, albumArtist: String?,
+                genre: String?, composer: String?, releaseYear: Int?, trackNumber: Int?, key: String?, bpm: Double?,
+                lengthSeconds: Int, folderPath: String, comment: String, importedOn: String?,
+                analysisDataPath: String?, imagePath: String?, isDeleted: Bool) {
+        self.id = id; self.uuid = uuid; self.title = title; self.artist = artist; self.album = album
+        self.albumArtist = albumArtist; self.genre = genre; self.composer = composer; self.releaseYear = releaseYear
+        self.trackNumber = trackNumber; self.key = key; self.bpm = bpm; self.lengthSeconds = lengthSeconds
+        self.folderPath = folderPath; self.comment = comment; self.importedOn = importedOn
+        self.analysisDataPath = analysisDataPath; self.imagePath = imagePath; self.isDeleted = isDeleted
+    }
+
     /// 스트리밍 트랙(`apple-music:…`, `spotify:…` 등)은 로컬 파일 경로가 없다.
     public var isStreaming: Bool { !folderPath.hasPrefix("/") }
 
@@ -45,8 +56,21 @@ public struct Cue: Sendable, Hashable {
     public let inMsec: Int
     public let name: String
     public let colorTableIndex: Int?
+    /// 루프 끝(ms). 루프가 아니면 0 이하.
+    public var outMsec: Int = 0
+    /// rekordbox 색 값(255 = 색 없음)
+    public var color: Int?
+    /// 자동 루프(ActiveLoop) 표시
+    public var activeLoop: Int = 0
+
+    public init(id: String, contentID: String, kind: Int, inMsec: Int, name: String, colorTableIndex: Int?,
+                outMsec: Int = 0, color: Int? = nil, activeLoop: Int = 0) {
+        self.id = id; self.contentID = contentID; self.kind = kind; self.inMsec = inMsec; self.name = name
+        self.colorTableIndex = colorTableIndex; self.outMsec = outMsec; self.color = color; self.activeLoop = activeLoop
+    }
 
     public var isMemoryCue: Bool { kind == 0 }
+    public var isLoop: Bool { outMsec > inMsec }
 
     /// rekordbox가 자동으로 붙이는 이름. 이 이름의 큐는 사용자가 직접 찍은 큐로 보지 않는다.
     public static let autoNames: Set<String> = ["CUE(Auto)", "1.1Bars"]

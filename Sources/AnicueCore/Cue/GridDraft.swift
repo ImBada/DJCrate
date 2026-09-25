@@ -28,6 +28,13 @@ public struct GridDraft: Codable, Sendable {
         segments = base
     }
 
+    /// 원본 그리드(없으면 빈 배열)와 현재 구간으로 만든다. 추정 그리드를 적용할 때 쓴다.
+    public init(trackUUID: String, base: [GridSegment], segments: [GridSegment]) {
+        self.trackUUID = trackUUID
+        self.base = base
+        self.segments = segments
+    }
+
     /// 부동소수 오차(±10ms 이동 후 되돌리기 등)는 변경으로 보지 않는다.
     public var hasChanges: Bool {
         guard segments.count == base.count else { return true }
@@ -138,8 +145,13 @@ public struct GridDraft: Codable, Sendable {
 }
 
 public enum GridDraftStore {
+    /// rekordbox에 반영이 확인된 곡의 초안을 지운다(이제 rekordbox 값이 원본이다).
+    public static func remove(trackUUID: String) {
+        try? FileManager.default.removeItem(at: directory.appending(path: "\(trackUUID).json"))
+    }
+
     public static var directory: URL {
-        URL.applicationSupportDirectory.appending(path: "anicue/grid-drafts")
+        AnicuePaths.userData.appending(path: "grid-drafts")
     }
 
     public static func load(trackUUID: String) -> GridDraft? {
@@ -169,4 +181,24 @@ enum DraftFiles {
 
 public extension CueDraftStore {
     static func uuids() -> Set<String> { DraftFiles.uuids(in: directory) }
+}
+
+// MARK: - 시간축 이동
+
+public extension GridDraft {
+    /// 모든 구간(원본 포함)을 옮긴다. rekordbox 시간축 ↔ anicue 시간축 변환에 쓴다.
+    func shifted(by seconds: Double) -> GridDraft {
+        guard seconds != 0 else { return self }
+        var copy = self
+        copy.base = base.map { GridSegment(start: $0.start + seconds, bpm: $0.bpm, firstBeatNumber: $0.firstBeatNumber) }
+        copy.segments = segments.map { GridSegment(start: $0.start + seconds, bpm: $0.bpm, firstBeatNumber: $0.firstBeatNumber) }
+        return copy
+    }
+}
+
+public extension BeatGrid {
+    func shifted(by seconds: Double) -> BeatGrid {
+        guard seconds != 0 else { return self }
+        return BeatGrid(beats: beats.map { .init(number: $0.number, bpm: $0.bpm, time: $0.time + seconds) })
+    }
 }
