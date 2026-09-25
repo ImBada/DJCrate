@@ -7,11 +7,11 @@ enum PerfProbe {
     static let enabled = ProcessInfo.processInfo.arguments.contains("--scroll-perf")
     /// A/B: 확대 파형 막대를 그리지 않는다
     static let skipBands = ProcessInfo.processInfo.arguments.contains("--skip-bands")
-    /// A/B: 이름을 준 화면 요소를 숨긴다(`--perf-hide zoom,label,overview,meter`)
+    /// A/B: 이름을 준 화면 요소를 숨긴다(`--perf-hide=zoom,label,overview,meter`)
     static let hidden: Set<String> = {
-        let args = ProcessInfo.processInfo.arguments
-        guard let i = args.firstIndex(of: "--perf-hide"), args.indices.contains(i + 1) else { return [] }
-        return Set(args[i + 1].components(separatedBy: ","))
+        // `--perf-hide=zoom,label` 한 덩어리로 받는다(따로 쓰면 AppKit이 뒤 단어를 열 파일로 본다).
+        guard let arg = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--perf-hide=") }) else { return [] }
+        return Set(arg.dropFirst("--perf-hide=".count).components(separatedBy: ","))
     }()
 
     private static var ticks: [Double] = []
