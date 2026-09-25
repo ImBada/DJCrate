@@ -496,17 +496,20 @@ private struct GainSettings: View {
     @Bindable var deck: DeckModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("게인").font(.headline)
-            Toggle("오토게인 — 곡마다 목표 음량에 맞춤", isOn: $deck.autoGain)
-            Toggle("rekordbox 오토게인 값 쓰기(rekordbox는 약 −10 LUFS에 맞춤)", isOn: $deck.useRekordboxGain)
+            Toggle("오토게인", isOn: $deck.autoGain)
+                .help("곡마다 목표 음량에 맞춥니다")
+            Toggle("rekordbox 값 사용", isOn: $deck.useRekordboxGain)
                 .disabled(!deck.autoGain)
+                .help("rekordbox 오토게인 값을 씁니다(rekordbox는 약 −10 LUFS에 맞춤)")
             Picker("목표 음량", selection: $deck.gainTarget) {
                 ForEach([-14.0, -12, -11, -10, -9, -8], id: \.self) { Text(String(format: "%.0f LUFS", $0)).tag($0) }
             }
             .disabled(!deck.autoGain)
-            Toggle("피크 보호 — 0dBFS를 넘지 않을 만큼만 올림", isOn: $deck.peakProtection)
+            Toggle("피크 보호", isOn: $deck.peakProtection)
                 .disabled(!deck.autoGain)
+                .help("0dBFS를 넘지 않을 만큼만 올립니다")
             HStack {
                 Text("트림")
                 Slider(value: $deck.gainTrim, in: -12...12, step: 0.5)
@@ -517,13 +520,15 @@ private struct GainSettings: View {
             if let loudness = deck.loudness {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("이 곡").font(.subheadline.bold())
-                    Text(loudness.integrated.map { String(format: "통합 음량 %.1f LUFS", $0) } ?? "통합 음량 — (무음)")
-                    Text(String(format: "샘플 피크 %.1f dBFS", loudness.peak))
-                    Text(String(format: "적용 게인 %+.1f dB (오토 %+.1f · 트림 %+.1f)", deck.appliedGain, deck.autoGainDB, deck.gainTrim))
+                    Text((loudness.integrated.map { String(format: "음량 %.1f LUFS", $0) } ?? "음량 — (무음)")
+                         + String(format: " · 피크 %.1f dBFS", loudness.peak))
+                        .help("통합 음량(BS.1770)과 샘플 피크")
+                    Text(String(format: "적용 %+.1f dB (오토 %+.1f · 트림 %+.1f)", deck.appliedGain, deck.autoGainDB, deck.gainTrim))
                     if let rekordbox = deck.rekordboxGainDB {
-                        Text(String(format: "rekordbox 오토게인 %+.1f dB", rekordbox) + (deck.measuredGainDB.map { String(format: " · anicue 계산 %+.1f dB", $0) } ?? ""))
+                        Text(String(format: "rekordbox %+.1f dB", rekordbox) + (deck.measuredGainDB.map { String(format: " · anicue %+.1f dB", $0) } ?? ""))
+                            .help("rekordbox 오토게인 값과 anicue가 잰 음량으로 계산한 값")
                         HStack(spacing: 6) {
-                            Text("이 곡 오토게인")
+                            Text("곡 게인")
                             Button("−1") { deck.adjustTrackGain(by: -1) }
                             Button("−0.1") { deck.adjustTrackGain(by: -0.1) }
                             Text(String(format: "%+.1f dB", deck.trackGainDB ?? rekordbox))
@@ -537,43 +542,37 @@ private struct GainSettings: View {
                             }
                         }
                         .controlSize(.small)
-                        if deck.gainDraft != nil {
-                            Text("초안입니다. rekordbox에 반영하면 rekordbox 오토게인이 이 값으로 바뀝니다.")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
+                        .help(deck.gainDraft != nil ? "초안입니다. rekordbox에 반영하면 rekordbox 오토게인이 이 값으로 바뀝니다" : "이 곡의 rekordbox 오토게인을 고칩니다(초안)")
                     } else {
-                        Text("rekordbox 오토게인 값 없음(rekordbox에서 분석하지 않은 곡)").foregroundStyle(.secondary)
+                        Text("rekordbox 값 없음(분석 전)").foregroundStyle(.secondary)
                     }
                     if deck.isGainSuspicious, let mismatch = deck.gainMismatchDB {
-                        Label(String(format: "rekordbox 값이 이 파일 음량과 %.1fdB 다릅니다. 파일을 바꿨거나 분석이 오래됐을 수 있습니다 — rekordbox에서 다시 분석하거나 anicue 계산값을 쓰세요.", abs(mismatch)),
-                              systemImage: "exclamationmark.triangle")
+                        Label(String(format: "rekordbox 값이 실제 음량과 %.1fdB 다름", abs(mismatch)), systemImage: "exclamationmark.triangle")
                             .foregroundStyle(.orange)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .help("파일을 바꿨거나 분석이 오래됐을 수 있습니다. rekordbox에서 다시 분석하거나 anicue 값을 쓰세요")
                     }
                     if loudness.isLoud {
-                        Label("마스터가 매우 큽니다(−6 LUFS 초과). 라이브러리 대부분의 곡보다 세게 들립니다.", systemImage: "exclamationmark.triangle")
+                        Label("매우 큼(−6 LUFS 초과)", systemImage: "exclamationmark.triangle")
                             .foregroundStyle(.orange)
+                            .help("라이브러리 대부분의 곡보다 세게 들립니다")
                     }
                     if loudness.clippedRuns > 0 {
-                        Label("원본에 클리핑 흔적 \(loudness.clippedRuns)곳(풀스케일에 붙은 구간)\(loudness.isHeavilyClipped ? " — 심함" : "")",
-                              systemImage: "waveform.path.badge.minus")
+                        Label("클리핑 흔적 \(loudness.clippedRuns)곳\(loudness.isHeavilyClipped ? " · 심함" : "")", systemImage: "waveform.path.badge.minus")
                             .foregroundStyle(loudness.isHeavilyClipped ? .orange : .secondary)
+                            .help("원본에서 풀스케일에 붙은 구간")
                     }
                 }
                 .font(.callout)
             } else {
-                Text(deck.row == nil ? "곡을 올리면 음량을 잽니다." : "곡 음량을 재는 중이거나 잴 수 없는 파일입니다(20분 넘는 파일·스트리밍).")
+                Text(deck.row == nil ? "곡을 올리면 음량을 잽니다" : "음량을 재는 중이거나 잴 수 없는 파일입니다")
                     .font(.callout).foregroundStyle(.secondary)
             }
-            Text("미터는 게인 뒤·볼륨 앞 레벨입니다. 0dBFS를 넘으면 CLIP이 켜지고, 누르면 기록을 지웁니다.")
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
 
 /// 레벨 미터(게인 뒤·볼륨 앞, L/R 피크). 초록 ~−12 · 노랑 −12~−3 · 빨강 −3~0dBFS.
-/// 오른쪽은 곡을 올린 뒤 최고 피크와 CLIP 표시(0dBFS 이상, 누르면 지움).
+/// 오른쪽은 곡을 올린 뒤 최고 피크(0dBFS를 넘은 적이 있으면 빨간 점, 누르면 지움).
 private struct LevelMeterView: View {
     let deck: DeckModel
     @State private var ballistics = MeterBallistics()
