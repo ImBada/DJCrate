@@ -468,8 +468,9 @@ enum DirectWritePanels {
                 let preview = try await store.previewWrite(rows: targets)
                 let writable = preview.report.written, blocked = preview.report.blocked
                 let gridWritable = preview.report.gridWritten, gridBlocked = preview.report.gridBlocked
-                guard !writable.isEmpty || !gridWritable.isEmpty else {
-                    let reasons = (blocked + gridBlocked).prefix(8).map { "• \($0.title): \($0.reason ?? "")" }
+                let gainWritable = preview.report.gainWritten, gainBlocked = preview.report.gainBlocked
+                guard !writable.isEmpty || !gridWritable.isEmpty || !gainWritable.isEmpty else {
+                    let reasons = (blocked + gridBlocked + gainBlocked).prefix(8).map { "• \($0.title): \($0.reason ?? "")" }
                     alert("rekordbox에 쓸 수 있는 초안이 없습니다", reasons.joined(separator: "\n"))
                     return
                 }
@@ -477,6 +478,7 @@ enum DirectWritePanels {
                 var title: [String] = []
                 if !writable.isEmpty { title.append("큐 \(writable.count)곡") }
                 if !gridWritable.isEmpty { title.append("그리드 \(gridWritable.count)곡") }
+                if !gainWritable.isEmpty { title.append("게인 \(gainWritable.count)곡") }
                 alert.messageText = "rekordbox에 " + title.joined(separator: " · ") + "을 씁니다"
                 let gridBlockedByUUID = Dictionary(gridBlocked.map { ($0.trackUUID, $0) }, uniquingKeysWith: { a, _ in a })
                 var body = writable.prefix(12).map { outcome -> String in
@@ -488,8 +490,11 @@ enum DirectWritePanels {
                 for grid in gridWritable where !writable.contains(where: { $0.trackUUID == grid.trackUUID }) {
                     body.append("• \(grid.title) — 그리드(박 \(grid.added)개)")
                 }
+                for gain in gainWritable {
+                    body.append(String(format: "• %@ — 오토게인 %+.1f dB", gain.title, Double(gain.added) / 100))
+                }
                 if writable.count > 12 { body.append("… 외 \(writable.count - 12)곡") }
-                let notWritten = blocked + gridBlocked
+                let notWritten = blocked + gridBlocked + gainBlocked
                 if !notWritten.isEmpty {
                     body += ["", "쓰지 않는 것 \(notWritten.count):"] + notWritten.prefix(8).map { "• \($0.title): \($0.reason ?? "")" }
                 }
@@ -499,8 +504,10 @@ enum DirectWritePanels {
                 alert.addButton(withTitle: "취소")
                 guard alert.runModal() == .alertFirstButtonReturn else { return }
                 let uuids = Set(writable.map(\.trackUUID)), gridUUIDs = Set(gridWritable.map(\.trackUUID))
+                let gainUUIDs = Set(gainWritable.map(\.trackUUID))
                 _ = try await store.writeToRekordbox(preview.drafts.filter { uuids.contains($0.trackUUID) },
-                                                     grids: preview.grids.filter { gridUUIDs.contains($0.trackUUID) })
+                                                     grids: preview.grids.filter { gridUUIDs.contains($0.trackUUID) },
+                                                     gains: preview.gains.filter { gainUUIDs.contains($0.key) })
             } catch {
                 store.reflectionMessage = "rekordbox에 쓰지 않았습니다 — \(error)"
             }

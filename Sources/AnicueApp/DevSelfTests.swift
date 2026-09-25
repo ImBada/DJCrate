@@ -7,6 +7,7 @@ import Foundation
 enum DevSelfTests {
     static func runIfRequested(store: LibraryStore, deck: DeckModel) {
         runWriteSelfTestIfRequested(store: store, deck: deck)
+        runLoopSelfTestIfRequested(deck: deck)
         guard ProcessInfo.processInfo.arguments.contains("--switch-selftest") else { return }
         Task {
             @MainActor func mark(_ text: String) {
@@ -88,7 +89,14 @@ enum DevSelfTests {
                     if let row = store.rowsByUUID[uuid], let url = RekordboxShare.analysisURL(row.track.analysisDataPath) { originals[uuid] = try? Data(contentsOf: url) }
                 }
                 let grids = preview.grids.filter { gridUUIDs.contains($0.trackUUID) }
-                let report = try await store.writeToRekordbox(preview.drafts.filter { uuids.contains($0.trackUUID) }, grids: grids)
+                let gainUUIDs = Set(preview.report.gainWritten.map(\.trackUUID))
+                log("미리 보기 게인: \(preview.report.gainWritten.count)곡 · 막힘 \(preview.report.gainBlocked.count)")
+                let report = try await store.writeToRekordbox(preview.drafts.filter { uuids.contains($0.trackUUID) }, grids: grids,
+                                                              gains: preview.gains.filter { gainUUIDs.contains($0.key) })
+                for outcome in report.gainWritten {
+                    let now = store.rowsByUUID[outcome.trackUUID]?.autoGain?.gainDB
+                    log(String(format: "게인 쓰기: %@ → 다시 읽은 rekordbox 오토게인 %+.2f dB(초안 %+.2f)", outcome.title, now ?? .nan, Double(outcome.added) / 100))
+                }
                 store.onWriteLock?(false)
                 await wait(1.5)
                 var same = 0
@@ -121,6 +129,7 @@ enum DevSelfTests {
                     if let row = store.rowsByUUID[uuid], let url = RekordboxShare.analysisURL(row.track.analysisDataPath),
                        (try? Data(contentsOf: url)) == data { filesRestored += 1 }
                 }
+                log("되돌림 뒤 게인 초안: \(GainDraftStore.all().count)개")
                 log("되돌림: 큐 초안 복구 \(restored)/\(expected.count) · 그리드 초안 복구 \(gridRestored)/\(grids.count) · 분석 파일 원본과 같음 \(filesRestored)/\(originals.count) · 반영 대기 \(store.pendingLibraryCount)곡")
                 log("끝")
                 exit(0)
@@ -128,6 +137,30 @@ enum DevSelfTests {
                 log("오류: \(error)")
                 exit(1)
             }
+        }
+    }
+
+    /// 개발용: 활성 루프가 있는 곡에서 루프 앞부터 재생해 반복되는지 본다(`--loop-selftest`, 음량 −70dB).
+    static func runLoopSelfTestIfRequested(deck: DeckModel) {
+        guard ProcessInfo.processInfo.arguments.contains("--loop-selftest") else { return }
+        func log(_ text: String) { FileHandle.standardError.write(Data("[루프 시험] \(text)\n".utf8)) }
+        Task {
+            func wait(_ seconds: Double) async { try? await Task.sleep(for: .seconds(seconds)) }
+            for _ in 0..<100 where !deck.canPlay || deck.draft == nil { await wait(0.1) }
+            deck.volume = 0.0003
+            guard let active = deck.draft?.cues.first(where: { $0.loop?.active == true }), let loop = active.loop else {
+                log("활성 루프 없음"); exit(1)
+            }
+            log(String(format: "활성 루프 %.3f~%.3f초", active.time, loop.end))
+            deck.seek(active.time - 1)
+            deck.togglePlay()
+            var samples: [Double] = []
+            for _ in 0..<35 { await wait(0.2); samples.append(deck.currentTime) }
+            deck.togglePlay()
+            let inside = samples.dropFirst(8).allSatisfy { $0 >= active.time - 0.05 && $0 <= loop.end + 0.08 }
+            log("위치: " + samples.map { String(format: "%.2f", $0) }.joined(separator: " "))
+            log(inside ? "루프 안에서 반복됨" : "루프를 벗어남!")
+            exit(inside ? 0 : 1)
         }
     }
 }

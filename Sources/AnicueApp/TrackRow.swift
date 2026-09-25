@@ -35,6 +35,9 @@ struct TrackRow: Identifiable, Hashable, Sendable {
     var cueStateName: String { cueState.rawValue }
     var bpmValue: Double { track.bpm ?? 0 }
     var genre: String { track.genre ?? "" }
+    var lengthSeconds: Int { track.lengthSeconds }
+    /// "4:02"
+    var lengthText: String { track.lengthSeconds > 0 ? String(format: "%d:%02d", track.lengthSeconds / 60, track.lengthSeconds % 60) : "" }
     var album: String { isEncrypted ? "" : track.album ?? "" }
     var keyName: String { track.key ?? "" }
     /// rekordbox 그리드의 변속 흐름(BPM 순서, 변속 없으면 빈 배열)
