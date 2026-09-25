@@ -181,7 +181,7 @@ private struct TransportBar: View {
                 .disabled(!deck.canPlay)
                 .help("재생/일시정지 (스페이스)")
                 PlayheadLabel(deck: deck)
-                    .frame(width: 112, alignment: .leading)
+                    .frame(width: 190, alignment: .leading)
             }
             HStack(spacing: 4) {
                 ForEach(0..<8, id: \.self) { slot in
@@ -240,7 +240,7 @@ private struct ZoomControl: View {
     }
 }
 
-/// 볼륨 · 메트로놈 · 템포(변속) · 키 고정 · BPM · 그리드 편집 전환
+/// 볼륨 · 메트로놈 · 템포(변속) · 키 고정 · 그리드 편집 전환
 private struct AudioBar: View {
     @Bindable var deck: DeckModel
 
@@ -285,12 +285,6 @@ private struct AudioBar: View {
             Toggle("키 고정", isOn: $deck.keyLock)
                 .toggleStyle(.checkbox)
                 .help("켜면 음정을 유지한 채 속도만 바꿉니다(마스터 템포). 끄면 바이닐처럼 음정도 함께 바뀝니다.")
-            if let bpm = deck.gridBPM {
-                Text(deck.tempoPercent == 0 ? String(format: "%.2f BPM", bpm)
-                     : String(format: "%.2f → %.2f BPM", bpm, bpm * deck.rate))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
             Toggle(isOn: $deck.gridEditing) { Label("그리드 편집", systemImage: "grid") }
                 .toggleStyle(.button)
                 .disabled(deck.gridDraft == nil)
@@ -459,6 +453,16 @@ private struct PlayheadLabel: View {
                 Text(key).font(.caption.monospacedDigit().bold())
                     .foregroundStyle(Palette.keyColor(key))
                     .help(deck.keySegments.count > 1 ? "지금 조성(Camelot, 추정). 이 곡은 조성이 바뀝니다" : "지금 조성(Camelot)")
+            }
+            // 지금 BPM(그리드의 이 구간 BPM × 템포). 템포를 바꾸면 주황색.
+            if let bpm = deck.gridBPM {
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    Text(String(format: "%.2f", bpm * deck.rate)).font(.callout.monospacedDigit().bold())
+                    Text("BPM").font(.system(size: 8, weight: .semibold)).foregroundStyle(.secondary)
+                }
+                .foregroundStyle(deck.tempoPercent == 0 ? Color.primary : Palette.cue)
+                .help(deck.tempoPercent == 0 ? "지금 BPM(그리드 기준, 변속 곡은 구간마다 바뀝니다)"
+                      : String(format: "지금 BPM · 원래 %.2f BPM, 템포 %+.1f%%", bpm, deck.tempoPercent))
             }
         }
     }
@@ -935,7 +939,7 @@ private struct CueRow: View {
                     Button("\(beats)박 루프") { deck.setLoop(cue.id, beats: beats) }
                 }
             } label: {
-                Text(cue.loop == nil ? "루프" : "\(deck.loopBeats(cue).map(String.init) ?? "?")박")
+                Text(cue.loop == nil ? "루프" : "\(cue.loop?.beats.map(DeckModel.beatsText) ?? deck.loopBeats(cue).map(String.init) ?? "?")박")
                     .font(.caption.monospacedDigit())
             }
             .menuStyle(.borderlessButton)

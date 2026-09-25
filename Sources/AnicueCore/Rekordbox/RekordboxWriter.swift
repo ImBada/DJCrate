@@ -8,7 +8,7 @@ import Foundation
 /// - `contentCue`·`djmdContent`: 동기화 상태 256 → 257, `rb_local_usn`은 전역 카운터(`agentRegistry.localUpdateCount`)를
 ///   하나씩 올려 받는다. `djmdContent.CueUpdated`는 고친 횟수만큼 늘린다.
 /// 옮긴 큐는 지우고 새로 넣는다. FLAC은 rekordbox처럼 프레임 탐색 위치(SeekInfo)를 계산해 적는다.
-/// 루프를 옮기는 것과 VBR MP3(MPEG 탐색 위치 규칙 미확인)는 막는다.
+/// VBR MP3(MPEG 탐색 위치 규칙 미확인)는 막는다.
 ///
 /// 안전장치: rekordbox(에이전트 포함)가 켜져 있으면 라이브 DB에 쓰지 않는다. 쓰기 전에 DB를 통째로 백업하고, 한
 /// 트랜잭션 안에서 쓰고 다시 읽어 검증한 뒤에만 커밋한다. 커밋 뒤 무결성 검사·재검증이 실패하면 백업으로 되돌린다.
@@ -379,13 +379,14 @@ public enum RekordboxWriter {
         var color: Int?
         var colorTableIndex: Int?
         var activeLoop: Int
+        var beatLoopSize: Int = 0
         var inMpegFrame: Int
         var hasSeekInfo: Bool
         var deleted: Bool
 
         var cue: Cue {
             Cue(id: id, contentID: "", kind: kind, inMsec: inMsec, name: comment, colorTableIndex: colorTableIndex,
-                outMsec: outMsec, color: color, activeLoop: activeLoop)
+                outMsec: outMsec, color: color, activeLoop: activeLoop, beatLoopSize: beatLoopSize)
         }
     }
 
@@ -408,11 +409,13 @@ public enum RekordboxWriter {
         // 큐 행
         var rows: [CueRow] = []
         try db.query("""
-            SELECT ID, Kind, InMsec, OutMsec, Comment, Color, ColorTableIndex, ActiveLoop, InMpegFrame, InPointSeekInfo, rb_local_deleted
+            SELECT ID, Kind, InMsec, OutMsec, Comment, Color, ColorTableIndex, ActiveLoop, InMpegFrame, InPointSeekInfo, rb_local_deleted,
+                BeatLoopSize
             FROM djmdCue WHERE ContentID = ?
             """, [.text(content.id)]) { r in
             rows.append(CueRow(id: r.string(0) ?? "", kind: r.int(1) ?? -1, inMsec: r.int(2) ?? 0, outMsec: r.int(3) ?? 0,
                                comment: r.string(4) ?? "", color: r.int(5), colorTableIndex: r.int(6), activeLoop: r.int(7) ?? 0,
+                               beatLoopSize: r.int(11) ?? 0,
                                inMpegFrame: r.int(8) ?? 0, hasSeekInfo: r.string(9) != nil, deleted: (r.int(10) ?? 0) != 0))
         }
         guard !rows.contains(where: \.deleted) else { throw block("삭제 표시된 큐 행이 있습니다") }
@@ -477,13 +480,9 @@ public enum RekordboxWriter {
                 removals.append(row)
             case let .modified(old, new):
                 guard let id = old.sourceID, let row = rowsByID[id] else { throw block("옮길 큐를 찾지 못했습니다") }
-                guard !row.cue.isLoop, row.activeLoop == 0, new.loop == nil else {
-                    throw block("루프(끝 지점·활성 루프) 쓰기는 rekordbox 실험으로 확인한 뒤 엽니다")
-                }
                 removals.append(row)
                 inserts.append((new, row))
             case let .added(new):
-                guard new.loop == nil else { throw block("루프(끝 지점·활성 루프) 쓰기는 rekordbox 실험으로 확인한 뒤 엽니다") }
                 inserts.append((new, nil))
             }
         }
@@ -499,15 +498,30 @@ public enum RekordboxWriter {
             + inserts.filter { $0.cue.kind == .memory }.count
         guard memoryAfter <= 10 else { throw block("메모리 큐가 \(memoryAfter)개가 됩니다(rekordbox는 곡당 10개까지, 자동 큐 포함)") }
         let limit = (content.length + 1) * 1000
-        guard inserts.allSatisfy({ (0...limit).contains(msec($0.cue.time)) }) else { throw block("곡 길이를 벗어난 큐가 있습니다") }
+        guard inserts.allSatisfy({ (0...limit).contains(msec($0.cue.time)) && (0...limit).contains(msec($0.cue.loop?.end ?? 0)) }) else {
+            throw block("곡 길이를 벗어난 큐가 있습니다")
+        }
+        guard inserts.allSatisfy({ $0.cue.loop.map { msec($0.end) } ?? .max > msec($0.cue.time) }) else { throw block("끝이 시작보다 앞인 루프가 있습니다") }
+        // 활성 루프는 곡에 하나까지(라이브러리 전체에 둘 이상인 곡이 없다)
+        let activeAfter = rows.filter { !removedIDs.contains($0.id) && $0.activeLoop == 1 }.count
+            + inserts.filter { $0.cue.loop?.active == true }.count
+        guard activeAfter <= 1 else { throw block("활성 루프가 \(activeAfter)개가 됩니다(곡당 하나)") }
         // FLAC 탐색 위치(쓰기 전에 모두 계산해 둔다)
         var seekInfo: [EditableCue.ID: String] = [:]
+        var outSeekInfo: [EditableCue.ID: String] = [:]
         if let flac {
             for (cue, _) in inserts {
                 guard let info = SeekInfo.flacSeekInfo(frames: flac.frames, sample: msec(cue.time) * flac.sampleRate / 1000) else {
                     throw block("FLAC 탐색 위치를 계산하지 못한 큐가 있습니다")
                 }
                 seekInfo[cue.id] = info
+                // 루프는 끝 지점도 같은 식(기존 rekordbox 루프 끝 전수 일치)
+                if let end = cue.loop?.end {
+                    guard let outInfo = SeekInfo.flacSeekInfo(frames: flac.frames, sample: msec(end) * flac.sampleRate / 1000) else {
+                        throw block("FLAC 탐색 위치를 계산하지 못한 루프가 있습니다")
+                    }
+                    outSeekInfo[cue.id] = outInfo
+                }
             }
         }
 
@@ -531,34 +545,48 @@ public enum RekordboxWriter {
             let uuid = UUID().uuidString.lowercased()
             let inMsec = msec(cue.time)
             let kind = kind(for: cue.kind)
+            // 루프는 rekordbox처럼 Color 255·ColorTableIndex 0·ActiveLoop·BeatLoopSize·CueMicrosec 0·Comment ''를 적는다
+            // (2026-09-26 실험: Flip Flop 활성 루프 핫큐·ときめき分類学 루프 핫큐, 기존 루프 105개와 같은 모양).
+            let loop = cue.loop
+            let outMsec = loop.map { msec($0.end) }
             // 옮긴 큐는 지정해 둔 색을 이어받는다.
-            var color = -1
-            var colorTableIndex: Int?
+            var color = loop == nil ? -1 : 255
+            var colorTableIndex: Int? = loop == nil ? nil : 0
             if let old = replacing, (old.kind == 0) == (kind == 0),
                (old.color.map { $0 != -1 && $0 != 255 } ?? false) || (old.colorTableIndex ?? 0) > 0 {
                 color = old.color ?? -1
                 colorTableIndex = old.colorTableIndex
             }
-            let comment: String? = cue.name.isEmpty ? nil : cue.name
+            let comment: String? = cue.name.isEmpty ? (loop == nil ? nil : "") : cue.name
+            let activeLoop: Int? = loop.map { $0.active ? 1 : 0 }
+            let beatLoopSize: Int? = loop.map { EditableCue.Loop.beatLoopSize(beats: $0.beats) }
+            let cueMicrosec: Int? = loop == nil ? nil : 0
             let inSeek = seekInfo[cue.id]
+            let outSeek = inSeek == nil ? nil : outSeekInfo[cue.id] ?? "0,0,0"
+            func bind(_ value: Int?) -> CipherDatabase.Value { value.map { .int($0) } ?? .null }
             try db.run("""
                 INSERT INTO djmdCue (ID, ContentID, InMsec, InFrame, InMpegFrame, InMpegAbs, OutMsec, OutFrame, OutMpegFrame,
                     OutMpegAbs, Kind, Color, ColorTableIndex, ActiveLoop, Comment, BeatLoopSize, CueMicrosec, InPointSeekInfo,
                     OutPointSeekInfo, ContentUUID, UUID, rb_data_status, rb_local_data_status, rb_local_deleted, rb_local_synced,
                     usn, rb_local_usn, created_at, updated_at)
-                VALUES (?, ?, ?, ?, 0, 0, -1, 0, 0, 0, ?, ?, ?, NULL, ?, NULL, NULL, ?, ?, ?, ?, 0, 0, 0, 0, NULL, NULL, ?, ?)
-                """, [.text(id), .text(content.id), .int(inMsec), .int(inMsec * 150 / 1000), .int(kind), .int(color),
-                      colorTableIndex.map { .int($0) } ?? .null, comment.map { .text($0) } ?? .null,
-                      inSeek.map { .text($0) } ?? .null, inSeek == nil ? .null : .text("0,0,0"),
+                VALUES (?, ?, ?, ?, 0, 0, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, NULL, NULL, ?, ?)
+                """, [.text(id), .text(content.id), .int(inMsec), .int(inMsec * 150 / 1000),
+                      .int(outMsec ?? -1), .int((outMsec ?? 0) * 150 / 1000), .int(kind), .int(color),
+                      bind(colorTableIndex), bind(activeLoop), comment.map { .text($0) } ?? .null, bind(beatLoopSize), bind(cueMicrosec),
+                      inSeek.map { .text($0) } ?? .null, outSeek.map { .text($0) } ?? .null,
                       .text(contentUUID), .text(uuid), .text(stamp.db), .text(stamp.db)])
+            // JSON에는 NULL 칸과 빈 코멘트를 적지 않는다(rekordbox JSON에 "Comment":""는 한 번도 없다).
             newObjects.append(CueJSON.newObject([
                 ("ID", .string(id)), ("ContentID", .string(content.id)), ("ContentUUID", .string(contentUUID)),
                 ("InMsec", .int(inMsec)), ("InFrame", .int(inMsec * 150 / 1000)), ("InMpegFrame", .int(0)), ("InMpegAbs", .int(0)),
                 ("InPointSeekInfo", inSeek.map { .string($0) }),
-                ("OutMsec", .int(-1)), ("OutFrame", .int(0)), ("OutMpegFrame", .int(0)), ("OutMpegAbs", .int(0)),
-                ("OutPointSeekInfo", inSeek == nil ? nil : .string("0,0,0")),
+                ("OutMsec", .int(outMsec ?? -1)), ("OutFrame", .int((outMsec ?? 0) * 150 / 1000)), ("OutMpegFrame", .int(0)), ("OutMpegAbs", .int(0)),
+                ("OutPointSeekInfo", outSeek.map { .string($0) }),
                 ("Kind", .int(kind)), ("Color", .int(color)), ("ColorTableIndex", colorTableIndex.map { .int($0) }),
-                ("Comment", comment.map { .string($0) }), ("UUID", .string(uuid)),
+                ("ActiveLoop", activeLoop.map { .int($0) }),
+                ("Comment", comment.flatMap { $0.isEmpty ? nil : .string($0) }),
+                ("BeatLoopSize", beatLoopSize.map { .int($0) }), ("CueMicrosec", cueMicrosec.map { .int($0) }),
+                ("UUID", .string(uuid)),
                 ("created_at", .string(stamp.json)), ("updated_at", .string(stamp.json)),
             ]))
             insertedIDs.insert(id)
@@ -610,9 +638,12 @@ public enum RekordboxWriter {
     static func verify(db: CipherDatabase, contentID: String, _ expected: Expectation) throws {
         func fail(_ reason: String) -> AnicueError { .writeVerificationFailed("\(reason) (ContentID \(contentID))") }
         var rows: [CueRow] = []
-        try db.query("SELECT ID, Kind, InMsec, OutMsec, Comment, ColorTableIndex FROM djmdCue WHERE ContentID = ?", [.text(contentID)]) { r in
+        try db.query("""
+            SELECT ID, Kind, InMsec, OutMsec, Comment, ColorTableIndex, ActiveLoop, BeatLoopSize FROM djmdCue WHERE ContentID = ?
+            """, [.text(contentID)]) { r in
             rows.append(CueRow(id: r.string(0) ?? "", kind: r.int(1) ?? -1, inMsec: r.int(2) ?? 0, outMsec: r.int(3) ?? 0,
-                               comment: r.string(4) ?? "", color: nil, colorTableIndex: r.int(5), activeLoop: 0,
+                               comment: r.string(4) ?? "", color: nil, colorTableIndex: r.int(5), activeLoop: r.int(6) ?? 0,
+                               beatLoopSize: r.int(7) ?? 0,
                                inMpegFrame: 0, hasSeekInfo: false, deleted: false))
         }
         guard Set(rows.map(\.id)) == expected.untouchedIDs.union(expected.insertedIDs), rows.count == Set(rows.map(\.id)).count else {
@@ -655,7 +686,7 @@ public enum RekordboxWriter {
         try db.query("SELECT " + columns.map { "\"\($0)\"" }.joined(separator: ", ") + " FROM djmdCue WHERE ID = ?", [.text(cueID)]) { r in
             for (index, column) in columns.enumerated() {
                 if CueJSON.stringKeys.contains(column) {
-                    guard var text = r.string(Int32(index)) else { continue }
+                    guard var text = r.string(Int32(index)), !(column == "Comment" && text.isEmpty) else { continue }
                     if column == "created_at" || column == "updated_at" {
                         text = text.replacingOccurrences(of: " +", with: "+").replacingOccurrences(of: " ", with: "T")
                     }
@@ -860,7 +891,9 @@ public enum RekordboxWriter {
     public static func key(_ cues: [EditableCue], withSource: Bool) -> [String] {
         cues.map { cue in
             let kind = switch cue.kind { case .memory: "m"; case let .hot(slot): "h\(slot)" }
-            return (withSource ? (cue.sourceID ?? "-") + "|" : "") + "\(kind)|\(msec(cue.time))|\(cue.name)"
+            // 루프는 끝·활성·박 수까지 (루프가 아니면 예전과 같은 키)
+            let loop = cue.loop.map { "|L\(msec($0.end))|\($0.active ? "a" : "-")|\(EditableCue.Loop.beatLoopSize(beats: $0.beats))" } ?? ""
+            return (withSource ? (cue.sourceID ?? "-") + "|" : "") + "\(kind)|\(msec(cue.time))|\(cue.name)" + loop
         }.sorted()
     }
 }

@@ -712,6 +712,8 @@ final class DeckModel {
     struct InstantLoop: Equatable {
         var start: Double
         var end: Double
+        /// 박 수(루프 큐로 저장할 때 rekordbox BeatLoopSize로 적는다)
+        var beats: Double?
     }
 
     private(set) var instantLoop: InstantLoop?
@@ -734,7 +736,7 @@ final class DeckModel {
     var engagedLoopRange: InstantLoop? {
         if let instantLoop { return instantLoop }
         guard let cue = cue(engagedLoopID), let loop = cue.loop else { return nil }
-        return InstantLoop(start: cue.time, end: loop.end)
+        return InstantLoop(start: cue.time, end: loop.end, beats: loop.beats)
     }
 
     var isLooping: Bool { engagedLoopRange != nil }
@@ -772,21 +774,23 @@ final class DeckModel {
         guard canPlay else { return }
         let start = snapped(currentTime)
         guard let end = loopEnd(from: start, beats: loopSize) else { return }
-        instantLoop = InstantLoop(start: start, end: end)
+        instantLoop = InstantLoop(start: start, end: end, beats: loopSize)
     }
 
     /// 루프 길이를 반으로(-1) · 두 배로(+1). 반복 중이면 시작점은 두고 끝만 바꾼다(루프 큐는 그대로 두고 즉석 루프로 바뀐다).
     func resizeLoop(_ direction: Int) {
         let current = engagedLoopRange
         var size = loopSize
-        if instantLoop == nil, let cue = cue(engagedLoopID), let beats = loopBeats(cue), beats > 0 { size = Double(beats) }
+        if instantLoop == nil, let cue = cue(engagedLoopID) {
+            if let beats = cue.loop?.beats { size = beats } else if let beats = loopBeats(cue), beats > 0 { size = Double(beats) }
+        }
         guard let index = Self.loopSizes.firstIndex(where: { $0 >= size - 0.001 }) ?? Self.loopSizes.indices.last,
               Self.loopSizes.indices.contains(index + direction) else { return }
         let next = Self.loopSizes[index + direction]
         if let current {
             guard let end = loopEnd(from: current.start, beats: next) else { return }
             engagedLoopID = nil
-            instantLoop = InstantLoop(start: current.start, end: end)
+            instantLoop = InstantLoop(start: current.start, end: end, beats: next)
             // 줄어든 루프 밖에 있으면 바로 시작점으로
             if playhead >= end { seek(current.start) }
         }
@@ -996,7 +1000,7 @@ final class DeckModel {
             return
         }
         var cue = EditableCue(kind: .memory, time: loop.start)
-        cue.loop = EditableCue.Loop(end: loop.end, active: false)
+        cue.loop = EditableCue.Loop(end: loop.end, active: false, beats: loop.beats)
         mutate { $0.place(cue) }
         instantLoop = nil
         engagedLoopID = cue.id
@@ -1028,7 +1032,7 @@ final class DeckModel {
         } else if let loop = instantLoop {
             // 즉석 루프 중에 빈 칸을 누르면 그 루프를 루프 핫큐로 저장하고 계속 반복한다(CDJ와 같다).
             var cue = EditableCue(kind: .hot(slot), time: loop.start)
-            cue.loop = EditableCue.Loop(end: loop.end, active: false)
+            cue.loop = EditableCue.Loop(end: loop.end, active: false, beats: loop.beats)
             mutate { $0.place(cue) }
             instantLoop = nil
             engagedLoopID = cue.id
@@ -1085,7 +1089,7 @@ final class DeckModel {
                 end = cue.time + Double(beats) * 60 / bpm
             }
             guard end > cue.time + 0.01, end <= duration + 0.01 else { showToast("곡 끝을 넘는 루프는 만들 수 없습니다"); return }
-            cue.loop = EditableCue.Loop(end: end, active: cue.loop?.active ?? false)
+            cue.loop = EditableCue.Loop(end: end, active: cue.loop?.active ?? false, beats: Double(beats))
         } else {
             cue.loop = nil
         }

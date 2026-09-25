@@ -817,6 +817,115 @@ func run() async throws {
                                                 backups: live ? RekordboxWriter.backupDirectory : database.deletingLastPathComponent().appending(path: "backups"))
         print("되돌림 완료 · 되돌리기 전 상태 백업: \(saved.path)")
 
+    case "loop-repro":
+        // rekordbox 루프 실험 재현: 실험 전 사본(--old)에 실험 뒤(--new) 새로 생긴 큐를 anicue로 써 보고, rekordbox가 쓴 행·JSON과 칸마다 비교한다.
+        guard let oldPath = value(after: "--old", in: args), let newPath = value(after: "--new", in: args),
+              let ids = value(after: "--ids", in: args)?.components(separatedBy: ","),
+              let work = value(after: "--work", in: args) else {
+            print("anicue loop-repro --old <실험 전.db> --new <실험 뒤.db> --ids <ContentID,…> --work <작업 폴더>"); return
+        }
+        let fm = FileManager.default
+        let folder = URL(filePath: work)
+        try? fm.removeItem(at: folder)
+        try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        let copy = folder.appending(path: "master.db")
+        try fm.copyItem(at: URL(filePath: oldPath), to: copy)
+        let before = try RekordboxLibrary.load(snapshot: URL(filePath: oldPath))
+        let after = try RekordboxLibrary.load(snapshot: URL(filePath: newPath))
+        var drafts: [CueDraft] = []
+        var added: [String: [Cue]] = [:]
+        for id in ids {
+            guard let track = before.tracks.first(where: { $0.id == id }), let newTrack = after.tracks.first(where: { $0.id == id }) else {
+                print("곡 없음 \(id)"); continue
+            }
+            let oldIDs = Set(before.cues(for: track).map(\.id))
+            let fresh = after.cues(for: newTrack).filter { !oldIDs.contains($0.id) }
+            var draft = CueDraft(trackUUID: track.uuid, rekordboxCues: before.cues(for: track))
+            for cue in fresh {
+                guard var editable = EditableCue(cue) else { print("편집 대상 아님: Kind \(cue.kind)"); continue }
+                editable.id = UUID(); editable.sourceID = nil
+                draft.place(editable)
+            }
+            added[id] = fresh
+            drafts.append(draft)
+            print("\(track.title.prefix(30)) · 새 큐 \(fresh.count) · 변경 \(draft.changes.count)")
+        }
+        let report = try RekordboxWriter.write(drafts: drafts, to: copy, dryRun: false, backups: folder.appending(path: "backups"))
+        for outcome in report.outcomes {
+            print(outcome.status == .written ? "✓" : "✗", outcome.title.prefix(30), outcome.reason ?? "")
+        }
+        // 칸마다 비교(ID·UUID·시각은 다를 수밖에 없다)
+        let ours = try CipherDatabase(path: copy.path, key: RekordboxKey.derive())
+        let theirs = try CipherDatabase(path: newPath, key: RekordboxKey.derive())
+        func rows(_ db: CipherDatabase, _ sql: String, _ values: [CipherDatabase.Value]) throws -> [[String: String]] {
+            var out: [[String: String]] = []
+            try db.query(sql, values) { r in
+                var row: [String: String] = [:]
+                for i in 0..<r.count { row[r.name(Int32(i))] = r.string(Int32(i)) ?? "NULL" }
+                out.append(row)
+            }
+            return out
+        }
+        let skip: Set<String> = ["ID", "UUID", "created_at", "updated_at", "usn", "rb_local_usn"]
+        func maskJSON(_ text: String) -> String {
+            text.replacingOccurrences(of: #""(ID|UUID|created_at|updated_at)":"[^"]*""#, with: "\"$1\":\"*\"", options: .regularExpression)
+        }
+        var differences = 0
+        for (id, fresh) in added {
+            let mine = try rows(ours, "SELECT * FROM djmdCue WHERE ContentID = ? ORDER BY InMsec, Kind", [.text(id)])
+            let rb = try rows(theirs, "SELECT * FROM djmdCue WHERE ContentID = ? ORDER BY InMsec, Kind", [.text(id)])
+            guard mine.count == rb.count else { print("  \(id) 큐 행 수 다름 \(mine.count) vs \(rb.count)"); differences += 1; continue }
+            for (a, b) in zip(mine, rb) {
+                for key in a.keys.sorted() where !skip.contains(key) && a[key] != b[key] {
+                    print("  \(id) 큐 칸 \(key): anicue \(a[key]!) · rekordbox \(b[key] ?? "-")"); differences += 1
+                }
+            }
+            let jsonA = try rows(ours, "SELECT * FROM contentCue WHERE ContentID = ?", [.text(id)])
+            let jsonB = try rows(theirs, "SELECT * FROM contentCue WHERE ContentID = ?", [.text(id)])
+            for (a, b) in zip(jsonA, jsonB) {
+                for key in a.keys.sorted() where !skip.contains(key) {
+                    let x = key == "Cues" ? maskJSON(a[key]!) : a[key]!, y = key == "Cues" ? maskJSON(b[key] ?? "") : b[key] ?? "-"
+                    if x != y { print("  \(id) contentCue \(key):\n    anicue    \(x)\n    rekordbox \(y)"); differences += 1 }
+                }
+            }
+            let cA = try rows(ours, "SELECT CueUpdated, rb_data_status, rb_local_data_status FROM djmdContent WHERE ID = ?", [.text(id)])
+            let cB = try rows(theirs, "SELECT CueUpdated, rb_data_status, rb_local_data_status FROM djmdContent WHERE ID = ?", [.text(id)])
+            if cA != cB { print("  \(id) djmdContent: anicue \(cA) · rekordbox \(cB)") }
+            print("  \(id) 새 큐 \(fresh.count)개 비교 끝")
+        }
+        print(differences == 0 ? "행·JSON 모두 rekordbox와 같음(ID·UUID·시각·변경 번호 제외)" : "다른 칸 \(differences)개")
+        ours.close(); theirs.close()
+
+        // 2단계: 쓴 사본에서 루프 고치기(옮기기·활성 끄기/켜기·지우기·½박 메모리 루프). 쓰기 모듈의 검증을 통과해야 한다.
+        let written = try RekordboxLibrary.load(snapshot: copy)
+        var edits: [CueDraft] = []
+        for (n, id) in ids.enumerated() {
+            guard let track = written.tracks.first(where: { $0.id == id }) else { continue }
+            var draft = CueDraft(trackUUID: track.uuid, rekordboxCues: written.cues(for: track))
+            guard var loop = draft.cues.first(where: { $0.loop != nil }) else { continue }
+            if n == 0 {
+                draft.remove(loop.id)   // 활성 루프 지우기
+            } else {
+                loop.time += 1; loop.loop?.end += 1; loop.loop?.active = true   // 옮기고 활성으로
+                draft.place(loop)
+                var half = EditableCue(kind: .memory, time: 30)
+                half.loop = EditableCue.Loop(end: 30.25, active: false, beats: 0.5)
+                draft.place(half)
+            }
+            edits.append(draft)
+            print("고치기 \(track.title.prefix(24)) · 변경 \(draft.changes.count)")
+        }
+        let second = try RekordboxWriter.write(drafts: edits, to: copy, dryRun: false, backups: folder.appending(path: "backups"))
+        for outcome in second.outcomes {
+            print(outcome.status == .written ? "✓" : "✗", outcome.title.prefix(30), "지움 \(outcome.removed) · 넣음 \(outcome.added)", outcome.reason ?? "")
+        }
+        let check = try RekordboxLibrary.load(snapshot: copy)
+        for id in ids {
+            guard let track = check.tracks.first(where: { $0.id == id }) else { continue }
+            let loops = check.cues(for: track).filter(\.isLoop).map { "Kind \($0.kind) \($0.inMsec)~\($0.outMsec) 활성 \($0.activeLoop) BeatLoopSize \($0.beatLoopSize)" }
+            print("  \(track.title.prefix(24)) 루프: \(loops.isEmpty ? "없음" : loops.joined(separator: " / "))")
+        }
+
     case "cue-write-selftest":
         // 사본 DB에서 기존 큐 지우기·옮기기·핫큐 추가·막힘 조건을 시험한다(개발용, 사본만).
         guard let path = value(after: "--db", in: args), !RekordboxWriter.liveDatabase.path.hasSuffix(path) else { print("--db <사본>"); return }
