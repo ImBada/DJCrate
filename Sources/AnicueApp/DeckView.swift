@@ -99,7 +99,7 @@ private struct DeckInfoColumn: View {
     let row: TrackRow
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .center, spacing: 8) {
             CoverView(image: deck.artwork, size: 150)
             Text(row.title).font(.headline).lineLimit(2).textSelection(.enabled)
             Text(row.artist).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
@@ -128,8 +128,9 @@ private struct DeckInfoColumn: View {
                 .textSelection(.enabled)
                 .help(row.comment)
         }
-        // 글자 길이와 상관없이 늘 왼쪽 위에 붙인다.
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+        // 글자 길이와 상관없이 칸 가운데 세로축에 맞춘다.
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity, alignment: .top)
     }
 }
 
