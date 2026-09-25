@@ -148,6 +148,12 @@ public enum RekordboxShare {
         return URL(filePath: sized)
     }
 
+    /// rekordbox 파형 분석 파일(.EXT)이 있는지. 없으면 rekordbox에서 트랙 분석이 끝나지 않은 곡이다.
+    public static func hasWaveformAnalysis(_ analysisDataPath: String?) -> Bool {
+        guard let dat = analysisURL(analysisDataPath) else { return false }
+        return FileManager.default.fileExists(atPath: dat.deletingPathExtension().appendingPathExtension("EXT").path)
+    }
+
     public static func analysisURL(_ analysisDataPath: String?) -> URL? {
         guard let path = analysisDataPath, !path.isEmpty else { return nil }
         return directory.appending(path: String(path.drop(while: { $0 == "/" })))

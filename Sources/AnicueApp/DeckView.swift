@@ -114,6 +114,12 @@ private struct DeckInfoColumn: View {
             }
             .font(.caption.monospacedDigit())
             .foregroundStyle(.secondary)
+            if let path = row.track.analysisDataPath, !path.isEmpty, !row.track.isStreaming,
+               !RekordboxShare.hasWaveformAnalysis(path) {
+                Label("rekordbox 분석 전 · 파형 없음", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption).foregroundStyle(.orange)
+                    .help("rekordbox가 이 곡을 아직 분석하지 않았습니다(파형 파일 없음). rekordbox에서 트랙 분석을 먼저 해야 그리드를 쓸 수 있습니다")
+            }
             // 코멘트는 적힌 그대로(태그로 나누지 않는다)
             Text(row.comment.isEmpty ? "(빈 코멘트)" : row.comment)
                 .font(.callout)
