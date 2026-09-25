@@ -10,3 +10,4 @@ xcuserdata/
 *.db-shm
 *.part
 snapshots/
+dist/
