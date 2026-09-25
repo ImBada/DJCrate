@@ -61,6 +61,35 @@ public struct BeatGrid: Sendable, Hashable {
         return lo
     }
 
+    /// 변속 흐름: 정수로 반올림한 BPM이 8박 넘게 이어지는 구간만 센 BPM 순서(2 BPM 이내 차이는 합친다).
+    /// 한 가지면 빈 배열(변속 없음).
+    public var tempoChanges: [Double] {
+        var runs: [(bpm: Double, count: Int)] = []
+        for beat in beats {
+            let bpm = beat.bpm.rounded()
+            if let last = runs.last, last.bpm == bpm { runs[runs.count - 1].count += 1 } else { runs.append((bpm, 1)) }
+        }
+        // rekordbox 가변 그리드의 ±1~2 BPM 흔들림은 같은 템포로 본다.
+        let kept = runs.filter { $0.count > 8 }
+        var sequence: [Double] = []
+        for run in kept {
+            if let last = sequence.last, abs(last - run.bpm) <= 2 { continue }
+            sequence.append(run.bpm)
+        }
+        return sequence.count > 1 ? sequence : []
+    }
+
+    /// 마디.박 위치. 박은 0부터 센다(14.0 → 14.1 → 14.2 → 14.3 → 15.0). 첫 박 이전은 nil.
+    public func position(at time: Double) -> (bar: Int, beat: Int)? {
+        let index = firstIndex(atOrAfter: time + 0.001) - 1
+        guard beats.indices.contains(index) else { return nil }
+        return (bar(at: beats[index].time), max(beats[index].number - 1, 0))
+    }
+
+    public func positionText(at time: Double) -> String? {
+        position(at: time).map { "\($0.bar).\($0.beat)" }
+    }
+
     public static func load(anlz url: URL) throws -> BeatGrid {
         let data = try Data(contentsOf: url)
         func u32(_ offset: Int) -> Int {

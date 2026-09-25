@@ -58,3 +58,26 @@ public struct PartAnalysis: Codable, Sendable {
         return bars.lastIndex(where: { $0 <= time + 0.05 }).map { $0 + 1 }
     }
 }
+
+public extension PartAnalysis {
+    /// 모든 시각을 옮긴다. MU는 AVFoundation 시간축(인코더 지연을 잘라 낸 음원)으로 분석하므로,
+    /// rekordbox 시간축에서 보여 줄 때 그 지연만큼 뒤로 민다.
+    func shifted(by seconds: Double) -> PartAnalysis {
+        guard seconds != 0 else { return self }
+        func span(_ s: Span) -> Span { Span(start: s.start + seconds, end: s.end + seconds) }
+        func sample(_ s: Sample) -> Sample { Sample(time: s.time + seconds, value: s.value) }
+        var copy = self
+        copy.duration += seconds
+        copy.beats = beats.map { $0 + seconds }
+        copy.bars = bars.map { $0 + seconds }
+        copy.sections = sections.map(span)
+        copy.segments = segments.map(span)
+        copy.phrases = phrases.map(span)
+        copy.keys = keys.map { KeySpan(span: span($0.span), tonic: $0.tonic, mode: $0.mode) }
+        copy.pace = pace.map(sample)
+        copy.vocal = vocal.map(sample)
+        copy.drum = drum.map(sample)
+        copy.loudness = loudness.map(sample)
+        return copy
+    }
+}
