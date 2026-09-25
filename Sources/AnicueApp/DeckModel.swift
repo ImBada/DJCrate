@@ -29,6 +29,8 @@ final class DeckModel {
     private(set) var isCuePreviewing = false
     private var placeAtFirstMemoryCue = false
     var quantize = DeckSettings.bool("quantize", true) { didSet { DeckSettings.set("quantize", quantize) } }
+    /// 그리드를 고칠 때 핫큐(루프 포함)도 같은 박을 따라 옮긴다.
+    var carryHotCues = DeckSettings.bool("carryHotCues", true) { didSet { DeckSettings.set("carryHotCues", carryHotCues) } }
     var showSuggestions = DeckSettings.bool("showSuggestions", true) {
         didSet { DeckSettings.set("showSuggestions", showSuggestions); refreshSuggestions() }
     }
@@ -219,6 +221,8 @@ final class DeckModel {
     private(set) var tapBPM: Double?
     private var taps: [Double] = []
     private var gridDragBase: GridDraft?
+    /// 그리드를 끄는 동안 핫큐의 출발 위치(끄는 동안 오차가 쌓이지 않게 늘 여기서 옮긴다)
+    private var cueDragBase: [EditableCue]?
     private var lastClickReset: Double = 0
 
     /// 초안 존재 여부가 바뀌면 알린다(목록의 편집 표시용). 디스크를 다시 읽지 않도록 상태를 함께 넘긴다.
@@ -1201,12 +1205,15 @@ final class DeckModel {
     func beginGridDrag() {
         guard canEditGrid else { return }
         gridDragBase = gridDraft
+        cueDragBase = carryHotCues ? draft?.cues : nil
     }
 
     func dragGrid(by seconds: Double) {
         guard var base = gridDragBase, base.trackUUID == row?.track.uuid else { return }
+        let from = base.segments
         base.shift(by: seconds)
         gridDraft = base
+        if let cues = cueDragBase { moveHotCuesWithGrid(cues, from: from, to: base.segments, save: false) }
         refreshGrid()
         // 끄는 동안에도 메트로놈이 새 그리드를 따라가게 한다(너무 잦지 않게).
         let now = ProcessInfo.processInfo.systemUptime
@@ -1219,7 +1226,31 @@ final class DeckModel {
     func endGridDrag() {
         guard gridDragBase != nil else { return }
         gridDragBase = nil
+        if cueDragBase != nil {
+            cueDragBase = nil
+            commitDraft()
+        }
         mutateGrid { _ in }
+    }
+
+    /// 그리드가 `from` → `to`로 바뀐 만큼 핫큐(루프 끝 포함)를 따라 옮긴다. 메모리 큐는 그대로 둔다.
+    private func moveHotCuesWithGrid(_ cues: [EditableCue]? = nil, from: [GridSegment], to: [GridSegment], save: Bool = true) {
+        guard carryHotCues, from != to, let current = draft else { return }
+        let source = cues ?? current.cues
+        let length = max(duration, Double(row?.track.lengthSeconds ?? 0))
+        func carried(_ time: Double) -> Double { min(max(GridDraft.carry(time, from: from, to: to, duration: length), 0), length) }
+        let moved: [EditableCue] = source.compactMap { cue in
+            guard case .hot = cue.kind else { return nil }
+            var copy = cue
+            copy.time = carried(cue.time)
+            if let end = cue.loop?.end { copy.loop?.end = max(carried(end), copy.time + 0.01) }
+            // 지금 초안 값과 같으면 건드리지 않는다.
+            guard let now = current.cues.first(where: { $0.id == cue.id }),
+                  abs(now.time - copy.time) >= 0.0005 || abs((now.loop?.end ?? 0) - (copy.loop?.end ?? 0)) >= 0.0005 else { return nil }
+            return copy
+        }
+        guard !moved.isEmpty else { return }
+        mutate(save: save) { draft in for cue in moved { draft.place(cue) } }
     }
 
     /// 탭 템포: 2초 넘게 쉬면 새로 센다. 최근 8번 간격의 평균.
@@ -1235,8 +1266,10 @@ final class DeckModel {
 
     private func mutateGrid(_ change: (inout GridDraft) -> Void) {
         guard canEditGrid, var gridDraft, gridDraft.trackUUID == row?.track.uuid else { return }
+        let before = gridDraft.segments
         change(&gridDraft)
         self.gridDraft = gridDraft
+        moveHotCuesWithGrid(from: before, to: gridDraft.segments)
         refreshGrid()
         DraftWriter.save(gridDraft)
         onDraftChange?(gridDraft.trackUUID, .grid, gridDraft.hasChanges)
@@ -1341,8 +1374,10 @@ final class DeckModel {
     func applyGridSuggestion() {
         guard let suggestion = gridSuggestion, let uuid = row?.track.uuid else { return }
         let base = gridDraft?.base ?? []
+        let before = gridDraft?.segments ?? originalGrid.map(GridDraft.segments(from:)) ?? []
         let draft = GridDraft(trackUUID: uuid, base: base, segments: suggestion.segments)
         gridDraft = draft
+        moveHotCuesWithGrid(from: before, to: draft.segments)
         // 복잡한 원본이라 막아 둔 곡도, 추정 그리드로 바꾸면 편집할 수 있다.
         gridEditBlockedReason = nil
         refreshGrid()

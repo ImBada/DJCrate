@@ -346,6 +346,9 @@ private struct GridEditorBar: View {
                         Button("여기서 BPM 변경") { deck.addTempoChangeAtPlayhead() }
                             .help("변속곡: 가장 가까운 박부터 새 템포 구간을 시작합니다")
                     }
+                    Toggle("핫큐도 함께", isOn: $deck.carryHotCues)
+                        .toggleStyle(.checkbox)
+                        .help("켜면 그리드를 옮기거나 BPM을 바꿀 때 핫큐(루프 포함)도 같은 박을 따라 움직입니다. 메모리 큐는 그대로입니다")
                     HStack(spacing: 4) {
                         Button("탭 (T)") { deck.tapTempo() }
                         if let tap = deck.tapBPM {
