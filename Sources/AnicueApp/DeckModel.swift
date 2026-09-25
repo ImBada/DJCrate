@@ -830,6 +830,11 @@ final class DeckModel {
 
     var isLooping: Bool { engagedLoopRange != nil }
 
+    /// 걸린 루프를 오디오에 알린다. 오디오가 곡을 메모리에 풀어 두었으면 샘플 단위로 이어 붙여 끊김 없이 되풀이한다.
+    private func syncAudioLoop() {
+        audio.setLoop(engagedLoopRange.map { $0.start...$0.end })
+    }
+
     /// 재생 중 루프 처리. 반복으로 되돌렸으면 true.
     private func handleLoops(previous: Double) -> Bool {
         let cues = draft?.cues ?? []
@@ -839,7 +844,11 @@ final class DeckModel {
             engagedLoopID = active.id
         }
         if engagedLoopID != nil, cue(engagedLoopID)?.loop == nil { engagedLoopID = nil }
+        syncAudioLoop()
         guard let range = engagedLoopRange else { return false }
+        // 오디오가 샘플 단위로 되풀이하고 있으면 화면은 따라가기만 한다.
+        if audio.handlesLoop { return false }
+        // 곡을 아직 메모리에 풀지 못했으면(막 불러온 직후) 예전처럼 끝에서 되돌린다.
         if playhead >= range.end - 0.004 {
             startPlayback(from: range.start)
             playhead = range.start
@@ -848,10 +857,11 @@ final class DeckModel {
         return false
     }
 
-    /// 루프에서 빠져나온다.
+    /// 루프에서 빠져나온다(재생 중이면 지금 바퀴 끝에서 그대로 이어 간다).
     func exitLoop() {
         engagedLoopID = nil
         instantLoop = nil
+        syncAudioLoop()
     }
 
     /// LOOP 버튼·L: 반복 중이면 빠져나오고, 아니면 플레이헤드(퀀타이즈면 가까운 박)에서 `loopSize`박 루프를 건다.
@@ -864,6 +874,7 @@ final class DeckModel {
         let start = snapped(currentTime)
         guard let end = loopEnd(from: start, beats: loopSize) else { return }
         instantLoop = InstantLoop(start: start, end: end, beats: loopSize)
+        syncAudioLoop()
     }
 
     /// 루프 길이를 반으로(-1) · 두 배로(+1). 반복 중이면 시작점은 두고 끝만 바꾼다(루프 큐는 그대로 두고 즉석 루프로 바뀐다).
@@ -880,8 +891,13 @@ final class DeckModel {
             guard let end = loopEnd(from: current.start, beats: next) else { return }
             engagedLoopID = nil
             instantLoop = InstantLoop(start: current.start, end: end, beats: next)
-            // 줄어든 루프 밖에 있으면 바로 시작점으로
-            if playhead >= end { jump(to: current.start) }
+            if playhead >= end {
+                // 줄어든 루프 밖에 있으면 바로 시작점으로(새 루프로 다시 예약된다)
+                audio.setLoop(current.start...end, reschedule: false)
+                jump(to: current.start)
+            } else {
+                syncAudioLoop()
+            }
         }
         loopSize = next
     }
@@ -1121,7 +1137,7 @@ final class DeckModel {
                 return
             }
             seek(cue.time)
-            if cue.loop != nil { instantLoop = nil; engagedLoopID = cue.id }
+            if cue.loop != nil { instantLoop = nil; engagedLoopID = cue.id; syncAudioLoop() }
             selectedCueID = cue.id
         } else if let loop = instantLoop {
             // 즉석 루프 중에 빈 칸을 누르면 그 루프를 루프 핫큐로 저장하고 계속 반복한다(CDJ와 같다).

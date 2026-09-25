@@ -1,3 +1,4 @@
+import AVFoundation
 import QuartzCore
 import AppKit
 import AnicueCore
@@ -12,6 +13,7 @@ enum DevSelfTests {
         runLoopSelfTestIfRequested(deck: deck)
         runCarrySelfTestIfRequested(deck: deck)
         runScrollPerfIfRequested(deck: deck)
+        runLoopAudioSelfTestIfRequested()
         guard ProcessInfo.processInfo.arguments.contains("--switch-selftest") else { return }
         Task {
             @MainActor func mark(_ text: String) {
@@ -152,6 +154,7 @@ enum DevSelfTests {
             func wait(_ seconds: Double) async { try? await Task.sleep(for: .seconds(seconds)) }
             for _ in 0..<100 where !deck.canPlay || deck.draft == nil { await wait(0.1) }
             deck.volume = 0.0003
+            deck.metronome = true   // 루프 중 클릭 예약도 함께 돈다
             guard let active = deck.draft?.cues.first(where: { $0.loop?.active == true }), let loop = active.loop else {
                 log("활성 루프 없음"); exit(1)
             }
@@ -311,4 +314,83 @@ enum DevSelfTests {
             exit(0)
         }
     }
+
+    /// 개발용: 루프 이음새가 샘플 단위로 맞는지 실제 재생 경로로 확인한다(`--loop-audio-selftest`, 스피커 음소거).
+    /// 값이 곧 프레임 번호인 램프 WAV를 틀고, 곡 믹서 출력에서 "프레임이 +1이 아닌 곳"을 모두 찾는다.
+    static func runLoopAudioSelfTestIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("--loop-audio-selftest") else { return }
+        func log(_ text: String) { FileHandle.standardError.write(Data("[루프 소리 시험] \(text)\n".utf8)) }
+        Task { @MainActor in
+            func wait(_ seconds: Double) async { try? await Task.sleep(for: .seconds(seconds)) }
+            let rate = 44_100.0, seconds = 30
+            let url = FileManager.default.temporaryDirectory.appending(path: "anicue-ramp.wav")
+            do {
+                let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: rate, channels: 1, interleaved: false)!
+                let file = try AVAudioFile(forWriting: url, settings: format.settings, commonFormat: .pcmFormatFloat32, interleaved: false)
+                let count = Int(rate) * seconds
+                let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(count))!
+                buffer.frameLength = AVAudioFrameCount(count)
+                for i in 0..<count { buffer.floatChannelData![0][i] = Float(i) / 1_000_000 }
+                try file.write(from: buffer)
+            } catch { log("램프 파일을 만들지 못함: \(error)"); exit(1) }
+
+            let audio = DeckAudio()
+            audio.volume = 1   // 값이 곧 프레임 번호여야 한다(볼륨을 곱하지 않게)
+            try? audio.load(url: url)
+            for _ in 0..<100 where !audio.canLoopSampleAccurately { await wait(0.05) }
+            guard audio.canLoopSampleAccurately else { log("메모리 디코딩 안 됨"); exit(1) }
+            let captured = Captured()
+            audio.debugCaptureTrack { buffer in
+                guard let data = buffer.floatChannelData else { return }
+                captured.append((0..<Int(buffer.frameLength)).map { Int((Double(data[0][$0]) * 1_000_000).rounded()) })
+            }
+            func frame(_ t: Double) -> Int { Int((t * rate).rounded()) }
+            // 1) 1초부터 재생 → 2) 재생 중 2.0~2.5초 루프 걸기 → 3) 4바퀴쯤 → 4) ½(2.0~2.25) → 5) ×2 두 번(2.0~3.0)
+            // → 6) 나가기(바퀴 끝에서 이어 감)
+            audio.play(from: 1.0)
+            await wait(0.4)
+            audio.setLoop(2.0...2.5)
+            await wait(3.0)
+            audio.setLoop(2.0...2.25)
+            await wait(1.0)
+            audio.setLoop(2.0...2.5)
+            await wait(0.6)
+            audio.setLoop(2.0...3.0)
+            await wait(2.2)
+            audio.setLoop(nil)
+            await wait(2.0)
+            audio.stop()
+            await wait(0.2)
+            // 재생 전·멈춘 뒤의 0은 뺀다.
+            var frames = Array(captured.values.drop { $0 == 0 })
+            while frames.last == 0 { frames.removeLast() }
+            var jumps: [(Int, Int)] = []
+            var previous: Int?
+            for value in frames {
+                if let p = previous, value != p + 1 { jumps.append((p, value)) }
+                previous = value
+            }
+            let expected: Set<String> = ["\(frame(2.5) - 1)→\(frame(2.0))", "\(frame(2.25) - 1)→\(frame(2.0))", "\(frame(3.0) - 1)→\(frame(2.0))"]
+            let described = jumps.map { "\($0.0)→\($0.1)" }
+            let unexpected = described.filter { !expected.contains($0) }
+            log("받은 프레임 \(frames.count) · 이음새 \(jumps.count)곳: " + Dictionary(grouping: described, by: { $0 }).map { "\($0.key) ×\($0.value.count)" }.sorted().prefix(12).joined(separator: ", "))
+            // 순서대로(연속 0은 한 덩어리로)
+            var ordered: [String] = []
+            for (a, b) in jumps where !(a == 0 && b == 0) { ordered.append("\(a)→\(b)") }
+            log("순서: " + ordered.prefix(40).joined(separator: " "))
+            let exitedAt = frames.last.map { Double($0) / rate } ?? 0
+            log(String(format: "마지막 프레임 %.3f초(나간 뒤 3.0초를 지나 이어졌는지)", exitedAt))
+            let ok = unexpected.isEmpty && !jumps.isEmpty && exitedAt > 3.2
+            log(ok ? "통과: 루프 이음새가 모두 샘플 단위로 맞음" : "실패: 예상 밖 이음새 \(unexpected.prefix(5))")
+            exit(ok ? 0 : 1)
+        }
+    }
+}
+
+/// 오디오 탭 스레드에서 모은 값(잠금으로 보호)
+final class Captured: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [Int] = []
+    func append(_ values: [Int]) { lock.lock(); storage += values; lock.unlock() }
+    var values: [Int] { lock.lock(); defer { lock.unlock() }; return storage }
 }
