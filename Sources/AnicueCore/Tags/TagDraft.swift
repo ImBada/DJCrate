@@ -103,7 +103,7 @@ public struct TagDraft: Codable, Sendable {
 
 public enum TagDraftStore {
     public static var directory: URL {
-        URL.applicationSupportDirectory.appending(path: "anicue/tag-drafts")
+        AnicuePaths.userData.appending(path: "tag-drafts")
     }
 
     public static func load(trackUUID: String) -> TagDraft? {

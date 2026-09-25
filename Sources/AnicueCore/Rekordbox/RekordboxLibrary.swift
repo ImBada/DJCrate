@@ -8,6 +8,8 @@ public struct RekordboxLibrary: Sendable {
     /// ContentID → 재생 기록 수 (djmdSongHistory).
     public let playCounts: [String: Int]
     public let playlists: [RekordboxPlaylist]
+    /// ContentID → rekordbox 오토게인(djmdMixerParam)
+    public var autoGains: [String: RekordboxAutoGain] = [:]
 
     /// 실제 컬렉션. 제안·커버리지·백로그 집계는 이것만 대상으로 한다.
     public var tracks: [Track] { allTracks.filter { !$0.isDeleted } }
@@ -67,7 +69,7 @@ public struct RekordboxLibrary: Sendable {
 
         var cues: [Cue] = []
         try db.query("""
-            SELECT ContentID, Kind, InMsec, Comment, ColorTableIndex, ID
+            SELECT ContentID, Kind, InMsec, Comment, ColorTableIndex, ID, OutMsec, Color, ActiveLoop
             FROM djmdCue WHERE rb_local_deleted = 0
             """) { row in
             cues.append(Cue(
@@ -76,7 +78,10 @@ public struct RekordboxLibrary: Sendable {
                 kind: row.int(1) ?? 0,
                 inMsec: row.int(2) ?? 0,
                 name: row.string(3) ?? "",
-                colorTableIndex: row.int(4)
+                colorTableIndex: row.int(4),
+                outMsec: row.int(6) ?? 0,
+                color: row.int(7),
+                activeLoop: row.int(8) ?? 0
             ))
         }
 
@@ -88,7 +93,38 @@ public struct RekordboxLibrary: Sendable {
             if let id = row.string(0) { playCounts[id] = row.int(1) ?? 0 }
         }
 
-        return RekordboxLibrary(allTracks: tracks, cues: cues, playCounts: playCounts,
-                                playlists: try loadPlaylists(db))
+        var library = RekordboxLibrary(allTracks: tracks, cues: cues, playCounts: playCounts,
+                                       playlists: try loadPlaylists(db))
+        // 오토게인: 게인·피크가 32비트 실수 하나를 16비트 두 칸(상위·하위)에 나눠 담겨 있다.
+        var gains: [String: RekordboxAutoGain] = [:]
+        try? db.query("SELECT ContentID, GainHigh, GainLow, PeakHigh, PeakLow FROM djmdMixerParam WHERE rb_local_deleted = 0") { r in
+            guard let id = r.string(0) else { return }
+            let gain = RekordboxAutoGain.float(high: r.int(1) ?? 0, low: r.int(2) ?? 0)
+            let peak = RekordboxAutoGain.float(high: r.int(3) ?? 0, low: r.int(4) ?? 0)
+            if gain > 0, gain.isFinite { gains[id] = RekordboxAutoGain(gain: Double(gain), peak: Double(peak)) }
+        }
+        library.autoGains = gains
+        return library
     }
+}
+
+/// rekordbox 오토게인(`djmdMixerParam`). rekordbox는 곡을 약 −10 LUFS에 맞추는 선형 게인을 적는다
+/// (라이브러리 30곡: 게인dB + anicue 측정 LUFS = −9.97 ± 0.25).
+public struct RekordboxAutoGain: Sendable, Hashable {
+    /// 선형 게인(1 = 0dB)
+    public var gain: Double
+    /// 샘플 피크(선형, 1 = 0dBFS)
+    public var peak: Double
+
+    public init(gain: Double, peak: Double) { self.gain = gain; self.peak = peak }
+
+    public var gainDB: Double { 20 * log10(max(gain, 1e-9)) }
+
+    /// 16비트 두 칸 → 32비트 실수
+    public static func float(high: Int, low: Int) -> Float {
+        Float(bitPattern: UInt32(truncatingIfNeeded: high & 0xFFFF) << 16 | UInt32(truncatingIfNeeded: low & 0xFFFF))
+    }
+
+    /// rekordbox가 맞추는 음량(LUFS)
+    public static let targetLoudness = -10.0
 }

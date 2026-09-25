@@ -7,7 +7,6 @@ import SwiftUI
 struct DeckView: View {
     @Bindable var deck: DeckModel
     var waveformHeight: Double
-    @FocusState private var focused: Bool
     @State private var width: CGFloat = 1400
     @State private var middleHeight: CGFloat = 320
 
@@ -26,12 +25,24 @@ struct DeckView: View {
                     ZoomWaveformView(deck: deck)
                         .frame(height: waveformHeight)
                         .overlay(alignment: .center) { loadingOverlay }
+                        .overlay(alignment: .top) {
+                            if let toast = deck.toast {
+                                Label(toast, systemImage: "exclamationmark.circle.fill")
+                                    .font(.callout.weight(.semibold))
+                                    .padding(.horizontal, 12).padding(.vertical, 7)
+                                    .background(.regularMaterial, in: Capsule())
+                                    .padding(.top, 22)
+                                    .transition(.opacity)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                        .animation(.easeOut(duration: 0.15), value: deck.toast)
                     OverviewWaveformView(deck: deck)
-                        .frame(height: 72)
+                        .frame(height: 86)
                     TransportBar(deck: deck)
                     AudioBar(deck: deck)
+                    if deck.gridEditing || deck.needsGrid { GridSuggestionRow(deck: deck) }
                     if deck.gridEditing { GridEditorBar(deck: deck) }
-                    Legend()
                 }
                 .frame(minWidth: 0, maxWidth: .infinity, alignment: .topLeading)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { middleHeight = $0 }
@@ -40,20 +51,7 @@ struct DeckView: View {
             }
             .padding(14)
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-            .focusable()
-            .focused($focused)
-            .focusEffectDisabled()
-            .onTapGesture { focused = true }
-            .onKeyPress(.space) { deck.togglePlay(); return .handled }
-            .onKeyPress(.delete) { deleteSelected() }
-            .onKeyPress(.deleteForward) { deleteSelected() }
-            .onKeyPress(.leftArrow) { nudgeSelected(-1) }
-            .onKeyPress(.rightArrow) { nudgeSelected(1) }
-            .onKeyPress("m") { deck.addMemoryCue(at: deck.currentTime); return .handled }
-            .onKeyPress("t") { deck.tapTempo(); return .handled }
-            .onKeyPress("+") { deck.zoom(by: 0.8); return .handled }
-            .onKeyPress("=") { deck.zoom(by: 0.8); return .handled }
-            .onKeyPress("-") { deck.zoom(by: 1.25); return .handled }
+            // 단축키는 창 전체에서 KeyRouter가 받는다(포커스 위치와 무관).
         } else {
             ContentUnavailableView("곡을 선택하세요", systemImage: "music.note",
                                    description: Text("아래 목록에서 곡을 고르면 파형과 큐가 여기 뜹니다."))
@@ -71,17 +69,6 @@ struct DeckView: View {
         }
     }
 
-    private func deleteSelected() -> KeyPress.Result {
-        guard let id = deck.selectedCueID else { return .ignored }
-        deck.delete(id)
-        return .handled
-    }
-
-    private func nudgeSelected(_ beats: Int) -> KeyPress.Result {
-        guard let id = deck.selectedCueID else { return .ignored }
-        deck.nudge(id, beats: beats)
-        return .handled
-    }
 }
 
 /// 좁은 창: 커버 열 대신 한 줄 헤더.
@@ -185,6 +172,7 @@ private struct TransportBar: View {
     var body: some View {
         FlowLayout(spacing: 10) {
             HStack(spacing: 8) {
+                CueButton(deck: deck)
                 Button {
                     deck.togglePlay()
                 } label: {
@@ -200,9 +188,20 @@ private struct TransportBar: View {
                     HotCuePad(deck: deck, slot: slot)
                 }
             }
-            Button("+ 메모리 큐") { deck.addMemoryCue(at: deck.currentTime) }
-                .help("플레이헤드 위치에 메모리 큐 추가 (M)")
+            HStack(spacing: 2) {
+                Button { deck.jumpToCue(forward: false) } label: { Image(systemName: "backward.end.fill") }
+                    .help("이전 큐로 (Q)").accessibilityLabel("이전 큐로")
+                Button { deck.jumpToCue(forward: true) } label: { Image(systemName: "forward.end.fill") }
+                    .help("다음 큐로 (E)").accessibilityLabel("다음 큐로")
+            }
+            .disabled(!deck.canPlay)
+            Button("+ 메모리 큐") {
+                // Shift+클릭 = 이 자리 메모리 큐 지우기
+                if NSEvent.modifierFlags.contains(.shift) { deck.deleteMemoryCue(at: deck.currentTime) } else { deck.addMemoryCue(at: deck.currentTime) }
+            }
+            .help("플레이헤드 위치에 메모리 큐 추가 (` 또는 M). Shift를 누르고 누르면 이 자리 메모리 큐를 지웁니다")
             ZoomControl(deck: deck)
+            ShortcutsButton()
             HStack(spacing: 8) {
                 Toggle("퀀타이즈", isOn: $deck.quantize)
                     .toggleStyle(.checkbox)
@@ -251,6 +250,27 @@ private struct AudioBar: View {
                 Slider(value: $deck.volume, in: 0...1).frame(width: 90)
                     .accessibilityLabel("재생 볼륨")
             }
+            HStack(spacing: 6) {
+                GainControl(deck: deck)
+                LevelMeterView(deck: deck)
+                // rekordbox 오토게인이 이상하면 그리드 제안처럼 옆에 띄운다.
+                if let suggestion = deck.gainSuggestion {
+                    HStack(spacing: 4) {
+                        Image(systemName: "wand.and.stars").foregroundStyle(Palette.suggestion)
+                        Text(String(format: "게인 제안 %+.1f dB (rekordbox %+.1f)", suggestion, deck.rekordboxGainDB ?? 0))
+                            .font(.caption).foregroundStyle(.secondary)
+                        Button("제안 받기") { deck.acceptGainSuggestion() }
+                            .help("이 곡은 anicue가 잰 음량으로 계산한 게인(−10 LUFS 기준)을 씁니다")
+                        Button("무시") { deck.dismissGainSuggestion() }
+                            .help("이 곡에서는 rekordbox 값을 그대로 쓰고 제안을 더 보이지 않습니다")
+                    }
+                    .help(String(format: "rekordbox 오토게인이 이 파일의 실제 음량과 %.1fdB 다릅니다", abs(deck.gainMismatchDB ?? 0)))
+                } else if deck.hasGainOverride {
+                    Button("게인 제안 취소") { deck.clearGainOverride() }
+                        .font(.caption)
+                        .help("받아들인 게인을 지우고 rekordbox 오토게인으로 돌아갑니다")
+                }
+            }
             Toggle(isOn: $deck.metronome) { Label("메트로놈", systemImage: "metronome") }
                 .toggleStyle(.button)
                 .help("그리드의 박마다 클릭 (1박은 높은 음)")
@@ -274,6 +294,18 @@ private struct AudioBar: View {
                 .toggleStyle(.button)
                 .disabled(deck.gridDraft == nil)
                 .help(deck.gridEditBlockedReason ?? "켜면 파형을 끌어 그리드를 옮기고, 아래 막대로 BPM·1박·변속 지점을 고칩니다.")
+            // 그리드 편집에 들어가지 않고 anicue 제안을 받거나 무시한다.
+            if !deck.gridEditing, !deck.needsGrid, let note = deck.gridSuggestionNote,
+               deck.dismissedRevision >= 0, !deck.isGridSuggestionDismissed {
+                HStack(spacing: 4) {
+                    Image(systemName: "wand.and.stars").foregroundStyle(Palette.suggestion)
+                    Text(note).font(.caption).lineLimit(1).foregroundStyle(.secondary)
+                    Button("제안 받기") { deck.applyGridSuggestion() }
+                        .help("anicue가 추정한 그리드로 바꿉니다(초안만, 되돌리기 가능)")
+                    Button("무시") { deck.dismissGridSuggestion() }
+                        .help("이 곡에서는 제안을 더 보이지 않습니다")
+                }
+            }
         }
         .controlSize(.small)
     }
@@ -310,6 +342,8 @@ private struct GridEditorBar: View {
                         Button("+0.01") { deck.nudgeGridBPM(0.01) }
                     }
                     HStack(spacing: 4) {
+                        Button("½박 이동") { deck.shiftGridHalfBeat() }
+                            .help("그리드를 반 박 옮깁니다(추정이 뒷박을 잡았을 때)")
                         Button("여기를 1박으로") { deck.setDownbeatAtPlayhead() }
                             .help("플레이헤드에 가장 가까운 박을 마디 첫 박으로")
                         Button("여기서 그리드 시작") { deck.setGridAnchorAtPlayhead() }
@@ -358,6 +392,56 @@ private struct GridEditorBar: View {
     }
 }
 
+/// anicue가 추정한 그리드 안내. 그리드가 없는 곡은 편집 모드가 아니어도 보인다.
+private struct GridSuggestionRow: View {
+    let deck: DeckModel
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if deck.needsGrid {
+                Image(systemName: "metronome").foregroundStyle(Palette.suggestion)
+                if let suggestion = deck.gridSuggestion {
+                    Text(String(format: "rekordbox 그리드가 없습니다 · 추정 %.2f BPM", suggestion.bpm))
+                    confidence(suggestion)
+                    Button("추정 그리드 적용") { deck.applyGridSuggestion() }
+                        .help("추정한 템포·박 위치를 그리드 초안으로 넣습니다. 적용 뒤 그리드 편집으로 고칠 수 있습니다.")
+                } else if deck.analysisError != nil {
+                    Text("rekordbox 그리드가 없고, 분석에 실패해 추정하지 못했습니다.").foregroundStyle(.secondary)
+                } else {
+                    ProgressView().controlSize(.mini)
+                    Text("rekordbox 그리드가 없습니다 · BPM·박 위치를 추정하는 중…").foregroundStyle(.secondary)
+                }
+            } else if let note = deck.gridSuggestionNote, let suggestion = deck.gridSuggestion {
+                Image(systemName: "wand.and.stars").foregroundStyle(Palette.suggestion)
+                Text("anicue 제안: \(note)").lineLimit(1)
+                Button("제안 그리드 적용") { deck.applyGridSuggestion() }
+                    .help("현재 그리드를 추정 그리드로 바꿉니다(초안만, 되돌리기 가능). \(suggestion.isConfident ? "" : "추정 신뢰도가 낮으니 소리로 확인하세요.")")
+                if deck.dismissedRevision >= 0, deck.isGridSuggestionDismissed {
+                    Button("제안 다시 보기") { deck.restoreGridSuggestion() }
+                        .help("무시했던 제안을 그리드 편집 밖에서도 다시 보이게 합니다")
+                }
+            } else if deck.gridSuggestion != nil {
+                Image(systemName: "checkmark.seal").foregroundStyle(.secondary)
+                Text("anicue 추정과 지금 그리드가 사실상 같습니다").foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            Button { deck.reanalyze() } label: { Label("재분석", systemImage: "arrow.triangle.2.circlepath") }
+                .help("이 곡의 섹션·그리드 추정·조성 분석 캐시를 지우고 다시 분석합니다(파형·초안은 그대로)")
+        }
+        .font(.caption)
+        .controlSize(.small)
+    }
+
+    private func confidence(_ suggestion: GridEstimator.Estimate) -> some View {
+        Text(suggestion.isConfident ? "" : "확인 필요")
+            .font(.caption.bold())
+            .foregroundStyle(.orange)
+            .help(suggestion.isConfident
+                  ? "박이 고르게 잡혔습니다. 1박(마디 첫 박)과 반 박 어긋남은 소리로 한 번 확인하세요."
+                  : "박이 흔들리거나 템포가 바뀌는 곡입니다. 적용 뒤 메트로놈으로 확인하고 고쳐 주세요.")
+    }
+}
+
 /// 매 프레임 바뀌는 시간 표시만 따로 둔다(컨트롤이 많은 줄 전체가 다시 그려지지 않도록).
 private struct PlayheadLabel: View {
     let deck: DeckModel
@@ -366,10 +450,246 @@ private struct PlayheadLabel: View {
         let t = deck.currentTime
         HStack(spacing: 6) {
             Text(t.clockText).font(.callout.monospacedDigit())
-            if let grid = deck.grid {
-                Text("\(grid.bar(at: t))마디").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            if let position = deck.grid?.positionText(at: t) {
+                Text(position).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    .help("마디.박(박은 0부터)")
+            }
+            if let key = deck.key(at: t) {
+                Text(key).font(.caption.monospacedDigit().bold())
+                    .foregroundStyle(Palette.keyColor(key))
+                    .help(deck.keySegments.count > 1 ? "지금 조성(Camelot, 추정). 이 곡은 조성이 바뀝니다" : "지금 조성(Camelot)")
             }
         }
+    }
+}
+
+/// 게인 버튼: 지금 걸린 게인과 곡 음량을 보여 주고, 누르면 오토게인·트림 설정.
+private struct GainControl: View {
+    @Bindable var deck: DeckModel
+    @State private var shown = false
+
+    var body: some View {
+        Button { shown.toggle() } label: {
+            HStack(spacing: 4) {
+                Text(deck.autoGain ? (deck.useRekordboxGain && deck.rekordboxGainDB != nil ? "RB AUTO" : "AUTO") : "GAIN")
+                    .font(.system(size: 9, weight: .heavy))
+                    .padding(.horizontal, 3).padding(.vertical, 1)
+                    .background(RoundedRectangle(cornerRadius: 3).fill(deck.autoGain ? Color.accentColor.opacity(0.35) : Color.secondary.opacity(0.2)))
+                Text(String(format: "%+.1f dB", deck.appliedGain)).font(.caption.monospacedDigit())
+                if let loudness = deck.loudness, let lufs = loudness.integrated {
+                    Text(String(format: "%.1f LUFS", lufs))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(loudness.isHot ? Color.orange : Color.secondary)
+                }
+                if deck.isGainSuspicious {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                        .help("rekordbox 오토게인이 anicue 측정과 1.5dB 넘게 다릅니다")
+                }
+            }
+        }
+        .buttonStyle(.borderless)
+        .help("게인(볼륨 페이더 앞). 누르면 오토게인·목표 음량·트림을 정합니다. 주황 LUFS = 매우 큰 마스터(−6 LUFS 초과)이거나 심한 클리핑")
+        .popover(isPresented: $shown, arrowEdge: .bottom) { GainSettings(deck: deck).padding(16).frame(width: 340) }
+    }
+}
+
+private struct GainSettings: View {
+    @Bindable var deck: DeckModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("게인").font(.headline)
+            Toggle("오토게인 — 곡마다 목표 음량에 맞춤", isOn: $deck.autoGain)
+            Toggle("rekordbox 오토게인 값 쓰기(rekordbox는 약 −10 LUFS에 맞춤)", isOn: $deck.useRekordboxGain)
+                .disabled(!deck.autoGain)
+            Picker("목표 음량", selection: $deck.gainTarget) {
+                ForEach([-14.0, -12, -11, -10, -9, -8], id: \.self) { Text(String(format: "%.0f LUFS", $0)).tag($0) }
+            }
+            .disabled(!deck.autoGain)
+            Toggle("피크 보호 — 0dBFS를 넘지 않을 만큼만 올림", isOn: $deck.peakProtection)
+                .disabled(!deck.autoGain)
+            HStack {
+                Text("트림")
+                Slider(value: $deck.gainTrim, in: -12...12, step: 0.5)
+                Text(String(format: "%+.1f dB", deck.gainTrim)).font(.callout.monospacedDigit()).frame(width: 60, alignment: .trailing)
+                Button("0") { deck.gainTrim = 0 }
+            }
+            Divider()
+            if let loudness = deck.loudness {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("이 곡").font(.subheadline.bold())
+                    Text(loudness.integrated.map { String(format: "통합 음량 %.1f LUFS", $0) } ?? "통합 음량 — (무음)")
+                    Text(String(format: "샘플 피크 %.1f dBFS", loudness.peak))
+                    Text(String(format: "적용 게인 %+.1f dB (오토 %+.1f · 트림 %+.1f)", deck.appliedGain, deck.autoGainDB, deck.gainTrim))
+                    if let rekordbox = deck.rekordboxGainDB {
+                        Text(String(format: "rekordbox 오토게인 %+.1f dB", rekordbox) + (deck.measuredGainDB.map { String(format: " · anicue 계산 %+.1f dB", $0) } ?? ""))
+                    } else {
+                        Text("rekordbox 오토게인 값 없음(rekordbox에서 분석하지 않은 곡)").foregroundStyle(.secondary)
+                    }
+                    if deck.isGainSuspicious, let mismatch = deck.gainMismatchDB {
+                        Label(String(format: "rekordbox 값이 이 파일 음량과 %.1fdB 다릅니다. 파일을 바꿨거나 분석이 오래됐을 수 있습니다 — rekordbox에서 다시 분석하거나 anicue 계산값을 쓰세요.", abs(mismatch)),
+                              systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if loudness.isLoud {
+                        Label("마스터가 매우 큽니다(−6 LUFS 초과). 라이브러리 대부분의 곡보다 세게 들립니다.", systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                    }
+                    if loudness.clippedRuns > 0 {
+                        Label("원본에 클리핑 흔적 \(loudness.clippedRuns)곳(풀스케일에 붙은 구간)\(loudness.isHeavilyClipped ? " — 심함" : "")",
+                              systemImage: "waveform.path.badge.minus")
+                            .foregroundStyle(loudness.isHeavilyClipped ? .orange : .secondary)
+                    }
+                }
+                .font(.callout)
+            } else {
+                Text(deck.row == nil ? "곡을 올리면 음량을 잽니다." : "곡 음량을 재는 중이거나 잴 수 없는 파일입니다(20분 넘는 파일·스트리밍).")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            Text("미터는 게인 뒤·볼륨 앞 레벨입니다. 0dBFS를 넘으면 CLIP이 켜지고, 누르면 기록을 지웁니다.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+/// 레벨 미터(게인 뒤·볼륨 앞, L/R 피크). 초록 ~−12 · 노랑 −12~−3 · 빨강 −3~0dBFS.
+/// 오른쪽은 곡을 올린 뒤 최고 피크와 CLIP 표시(0dBFS 이상, 누르면 지움).
+private struct LevelMeterView: View {
+    let deck: DeckModel
+    @State private var ballistics = MeterBallistics()
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !deck.isPlaying)) { _ in
+            let reading = deck.meter.read()
+            let now = ProcessInfo.processInfo.systemUptime
+            let state = ballistics.step(reading, now: now, playing: deck.isPlaying)
+            let clipping = now - reading.clipTime < 2 || reading.clipCount > 0
+            HStack(spacing: 6) {
+                Canvas { context, size in draw(context, size: size, state: state) }
+                    .frame(width: 130, height: 13)
+                Text(reading.maxPeak > 0 ? String(format: "%+.1f", 20 * log10(reading.maxPeak)) : "−∞")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(reading.maxPeak >= 1 ? Color.red : reading.maxPeak >= 0.708 ? Color.orange : Color.secondary)
+                    .frame(width: 34, alignment: .trailing)
+                    .help("곡을 올린 뒤 최고 피크(dBFS, 게인 뒤)")
+                Button { deck.meter.resetPeaks() } label: {
+                    Text("CLIP")
+                        .font(.system(size: 9, weight: .heavy))
+                        .padding(.horizontal, 4).padding(.vertical, 2)
+                        .foregroundStyle(clipping ? Color.white : Color.secondary.opacity(0.6))
+                        .background(RoundedRectangle(cornerRadius: 3).fill(clipping ? Color.red : Color.secondary.opacity(0.15)))
+                }
+                .buttonStyle(.plain)
+                .help(reading.clipCount > 0 ? "0dBFS를 넘은 적이 있습니다(\(reading.clipCount)번). 게인을 낮추세요. 누르면 기록을 지웁니다." : "0dBFS를 넘으면 빨갛게 켜집니다")
+            }
+        }
+        .accessibilityLabel("레벨 미터")
+    }
+
+    private static let floor: Double = -48
+    private static let top: Double = 3
+
+    private func x(_ db: Double, _ width: CGFloat) -> CGFloat {
+        CGFloat((min(max(db, Self.floor), Self.top) - Self.floor) / (Self.top - Self.floor)) * width
+    }
+
+    private func draw(_ context: GraphicsContext, size: CGSize, state: MeterBallistics.State) {
+        let barHeight = (size.height - 1) / 2
+        let zones: [(from: Double, to: Double, color: Color)] = [(-48, -12, .green), (-12, -3, .yellow), (-3, 3, .red)]
+        for (row, channel) in [state.left, state.right].enumerated() {
+            let y = CGFloat(row) * (barHeight + 1)
+            context.fill(Path(CGRect(x: 0, y: y, width: size.width, height: barHeight)), with: .color(.black.opacity(0.35)))
+            let level = x(channel.level, size.width)
+            for zone in zones {
+                let start = x(zone.from, size.width), end = min(level, x(zone.to, size.width))
+                if end > start {
+                    context.fill(Path(CGRect(x: start, y: y, width: end - start, height: barHeight)), with: .color(zone.color.opacity(0.9)))
+                }
+            }
+            if channel.hold > Self.floor {
+                let hx = x(channel.hold, size.width)
+                context.fill(Path(CGRect(x: hx - 1, y: y, width: 2, height: barHeight)),
+                             with: .color(channel.hold >= 0 ? .red : .white.opacity(0.8)))
+            }
+        }
+        // 0dBFS 눈금
+        let zero = x(0, size.width)
+        context.fill(Path(CGRect(x: zero, y: 0, width: 1, height: size.height)), with: .color(.white.opacity(0.5)))
+    }
+}
+
+/// 미터 움직임: 오를 땐 바로, 내릴 땐 초당 24dB. 피크 표시는 1.5초 머문 뒤 내려온다.
+final class MeterBallistics {
+    struct Channel {
+        var level: Double = -120
+        var hold: Double = -120
+        var holdTime: Double = 0
+    }
+
+    struct State {
+        var left = Channel()
+        var right = Channel()
+    }
+
+    private var state = State()
+    private var last: Double = 0
+
+    func step(_ reading: LevelMeter.Reading, now: Double, playing: Bool) -> State {
+        let dt = last == 0 ? 0 : min(max(now - last, 0), 0.5)
+        last = now
+        // 재생이 멈췄거나 탭이 한동안 오지 않으면 무음으로 본다.
+        let fresh = playing && now - reading.time < 0.25
+        func db(_ value: Float) -> Double { value > 0 ? 20 * log10(Double(value)) : -120 }
+        func update(_ channel: inout Channel, _ peak: Float) {
+            let input = fresh ? db(peak) : -120
+            channel.level = input >= channel.level ? input : max(input, channel.level - 24 * dt)
+            if input >= channel.hold {
+                channel.hold = input
+                channel.holdTime = now
+            } else if now - channel.holdTime > 1.5 {
+                channel.hold = max(input, channel.hold - 12 * dt)
+            }
+        }
+        update(&state.left, reading.peak.left)
+        update(&state.right, reading.peak.right)
+        if !playing { state = State() }
+        return state
+    }
+}
+
+/// CDJ의 CUE 버튼. 누르는 순간과 떼는 순간을 모두 받아야 해서(미리 듣기) Button 대신 제스처를 쓴다.
+private struct CueButton: View {
+    let deck: DeckModel
+    @State private var pressed = false
+
+    var body: some View {
+        // 재생 중에는 위치를 읽지 않는다(매 프레임 다시 그리지 않게).
+        let lit = deck.isCuePreviewing || deck.isAtCue
+        Text("CUE")
+            .font(.system(size: 10, weight: .heavy))
+            .frame(width: 36, height: 20)
+            .foregroundStyle(lit ? Color.black : Palette.cue)
+            .background(lit ? Palette.cue : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Palette.cue))
+            .opacity(deck.canPlay ? 1 : 0.4)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    guard !pressed else { return }
+                    pressed = true
+                    deck.cueDown()
+                }
+                .onEnded { _ in
+                    pressed = false
+                    deck.cueUp()
+                })
+            .help("CUE (C) — 재생 중: 큐 지점으로 돌아가 정지 · 멈춘 곳: 새 큐 지점 · 큐 지점에서 누르고 있기: 미리 듣기 · 누른 채 재생: 계속 재생\n큐 지점 \(deck.cuePoint.clockText)")
+            .accessibilityElement()
+            .accessibilityLabel("CUE")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { deck.cueDown(); deck.cueUp() }
     }
 }
 
@@ -381,7 +701,8 @@ private struct HotCuePad: View {
         let cue = deck.hotCue(slot: slot)
         let letter = String(UnicodeScalar(UInt8(65 + slot)))
         Button {
-            deck.pressHotCue(slot: slot)
+            // Shift+클릭 = 지우기
+            if NSEvent.modifierFlags.contains(.shift) { deck.deleteHotCue(slot: slot) } else { deck.pressHotCue(slot: slot) }
         } label: {
             Text(letter)
                 .font(.system(size: 11, weight: .bold))
@@ -391,7 +712,8 @@ private struct HotCuePad: View {
                 .overlay(RoundedRectangle(cornerRadius: 4).stroke(cue == nil ? Color.secondary.opacity(0.5) : Palette.hot))
         }
         .buttonStyle(.plain)
-        .help(cue == nil ? "핫큐 \(letter): 플레이헤드에 설정" : "핫큐 \(letter)로 이동 (\(cue!.time.clockText))")
+        .help(cue == nil ? "핫큐 \(letter) (\(slot + 1)): 플레이헤드에 설정"
+              : "핫큐 \(letter) (\(slot + 1))로 이동 (\(cue!.time.clockText)) · Shift+클릭 또는 Shift+\(slot + 1): 지우기")
         .accessibilityLabel(cue == nil ? "핫큐 \(letter) 비어 있음, 설정" : "핫큐 \(letter)로 이동")
         .contextMenu {
             if cue != nil {
@@ -402,27 +724,70 @@ private struct HotCuePad: View {
     }
 }
 
-private struct Legend: View {
+/// 단축키 안내(? 버튼을 누를 때만 보인다).
+private struct ShortcutsButton: View {
+    @State private var shown = false
+
     var body: some View {
-        FlowLayout(spacing: 12) {
-            item(Palette.low, "저음")
-            item(Palette.mid, "중음")
-            item(Palette.high, "고음")
-            item(Palette.section, "섹션")
-            item(Palette.hot, "핫큐")
-            item(Palette.memory, "메모리 큐")
-            item(Palette.suggestion, "제안")
-            Text("드래그: 스크럽 · 큐 드래그: 이동 · 더블클릭: 메모리 큐 · 휠: 확대 · ←→: 1박 · ⌫: 삭제 · T: 탭")
-                .foregroundStyle(.tertiary)
+        Button { shown.toggle() } label: { Image(systemName: "questionmark.circle") }
+            .buttonStyle(.borderless)
+            .help("단축키")
+            .accessibilityLabel("단축키 보기")
+            .popover(isPresented: $shown, arrowEdge: .bottom) {
+                ShortcutsList(scale: 1.1).padding(18)
+            }
+    }
+}
+
+/// 단축키 목록(? 버튼 팝오버). 키는 키캡 모양으로 크게 쓴다.
+struct ShortcutsList: View {
+    /// 1 = 팝오버, ⌘ 안내는 더 크게
+    var scale: CGFloat = 1
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12 * scale) {
+            Text("단축키").font(.system(size: 20 * scale, weight: .bold))
+            Grid(alignment: .leading, horizontalSpacing: 18 * scale, verticalSpacing: 9 * scale) {
+                row(["Space"], "재생 / 정지")
+                row(["C"], "CUE — 재생 중: 큐로 돌아가 정지 · 멈춤: 큐 지점 설정 · 누르고 있기: 미리 듣기")
+                row(["1", "~", "8"], "핫큐 A~H (있으면 이동, 없으면 찍기)")
+                row(["Shift", "+", "1", "~", "8"], "그 핫큐 지우기")
+                row(["`", "·", "M"], "메모리 큐 찍기 (파형 더블클릭도)")
+                row(["Shift", "+", "`", "·", "M"], "이 자리 메모리 큐 지우기")
+                row(["Q", "/", "E"], "이전 · 다음 큐로")
+                row(["←", "→"], "선택한 큐 1박 이동")
+                row(["⌫"], "선택한 큐 지우기")
+                row(["T"], "탭 템포")
+                row(["휠", "·", "+", "/", "−"], "파형 확대 · 축소 (가로 스크롤: 이동)")
+                row(["⌘", "⇧", "E"], "rekordbox에 반영")
+                row(["⌘", "I"], "태그 편집")
+            }
         }
-        .font(.caption2)
-        .foregroundStyle(.secondary)
     }
 
-    private func item(_ color: Color, _ text: String) -> some View {
-        HStack(spacing: 4) {
-            RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 9, height: 9)
+    /// 구분 기호(~ / · +)는 키캡 없이 글자로만 쓴다.
+    private static let separators: Set<String> = ["~", "/", "·", "+"]
+
+    private func row(_ keys: [String], _ text: String) -> some View {
+        GridRow {
+            HStack(spacing: 4 * scale) {
+                ForEach(Array(keys.enumerated()), id: \.offset) { _, key in
+                    if Self.separators.contains(key) {
+                        Text(key).font(.system(size: 14 * scale, weight: .medium)).foregroundStyle(.secondary)
+                    } else {
+                        Text(key)
+                            .font(.system(size: 14 * scale, weight: .semibold, design: .rounded))
+                            .padding(.horizontal, 7 * scale).padding(.vertical, 3 * scale)
+                            .frame(minWidth: 24 * scale)
+                            .background(RoundedRectangle(cornerRadius: 5 * scale).fill(Color.primary.opacity(0.10)))
+                            .overlay(RoundedRectangle(cornerRadius: 5 * scale).strokeBorder(Color.primary.opacity(0.25)))
+                    }
+                }
+            }
             Text(text)
+                .font(.system(size: 15 * scale))
+                .frame(maxWidth: 520 * scale, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -435,7 +800,10 @@ private struct CueListView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("큐 \(deck.draft?.cues.count ?? 0)").font(.headline)
+                let cues = deck.draft?.cues ?? []
+                let hot = cues.filter { if case .hot = $0.kind { true } else { false } }.count
+                Text("핫큐 \(hot)").font(.headline).foregroundStyle(Palette.hot)
+                Text("메모리 \(cues.count - hot)").font(.headline).foregroundStyle(Palette.memory)
                 Spacer()
                 if let changes = deck.draft?.changes, !changes.isEmpty {
                     Text("초안 변경 \(changes.count)")
@@ -463,13 +831,14 @@ private struct CueListView: View {
                     .disabled(deck.draft?.hasChanges != true)
                     .help("rekordbox에서 불러온 상태로 되돌립니다")
                 Spacer()
-                Button("rekordbox에 반영…") {}
-                    .disabled(true)
-                    .help("반영 경로(XML 가져오기) 검증 전까지 잠겨 있습니다. 편집은 anicue 초안에만 저장됩니다.")
+                Button("rekordbox에 반영…") { if let row = deck.row { deck.onRequestReflection?(row) } }
+                    .disabled(deck.isWriteLocked || deck.row?.isStaged != false || (deck.draft?.hasChanges != true && deck.gridDraft?.hasChanges != true))
+                    .help("이 곡의 큐 초안을 rekordbox 라이브러리에 바로 씁니다(미리 보기로 확인한 뒤, rekordbox가 꺼져 있을 때만). 그리드 초안은 아직 XML로만 반영됩니다.")
             }
             .controlSize(.small)
-            Text("편집은 anicue 초안에만 저장됩니다. rekordbox 라이브러리는 바뀌지 않습니다.")
-                .font(.caption2).foregroundStyle(.secondary)
+            if deck.isWriteLocked {
+                Text("rekordbox에 쓰는 중이라 큐 편집을 잠시 막았습니다.").font(.caption2).foregroundStyle(.secondary)
+            }
         }
     }
 }

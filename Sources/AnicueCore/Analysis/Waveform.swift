@@ -62,7 +62,13 @@ public enum WaveformAnalyzer {
 
         while true {
             if Task.isCancelled { throw CancellationError() }
-            try file.read(into: buffer, frameCount: chunkFrames)
+            do {
+                try file.read(into: buffer, frameCount: chunkFrames)
+            } catch {
+                // 파일 끝에서 eofErr(-39)를 돌려주는 디코더가 있다(MP3 길이 추정). 읽은 만큼은 쓴다.
+                guard totalFrames > 0 else { throw error }
+                break
+            }
             let frames = Int(buffer.frameLength)
             guard frames > 0, let data = buffer.floatChannelData else { break }
             totalFrames += frames

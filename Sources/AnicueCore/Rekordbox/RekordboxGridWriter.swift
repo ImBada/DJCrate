@@ -1,0 +1,185 @@
+import AVFoundation
+import CryptoKit
+import Foundation
+
+/// anicue 그리드 초안을 rekordbox 분석 파일(ANLZ)에 쓴다.
+///
+/// rekordbox 7.2.18이 직접 그리드를 옮겼을 때 바뀐 모양을 그대로 따른다(2026-09-26 확인):
+/// - `.DAT`의 PQTZ만 새 박 목록으로 바꾸고 나머지 태그는 바이트 그대로 둔다(PMAI 전체 길이만 다시 적는다).
+/// - `.EXT`의 PQT2는 빈 형태(머리 0, 본문 없음)로 바꾼다. 다른 태그는 그대로.
+/// - DB(`contentFile` 해시·크기, `djmdContent`)는 건드리지 않는다. rekordbox도 이동만 했을 때는 DB를 고치지 않았다.
+/// 박 시각은 정밀 시각(ms)을 내림해 적고, 곡 앞쪽 −1ms 안의 박은 0으로 적는다(rekordbox가 만든 그리드와 전 박 일치 확인).
+/// BPM이 바뀌면(BPM 244→245 실험) `.DAT`의 `contentFile` 해시·크기·상태·변경 번호와 `djmdContent`의 BPM·AnalysisUpdated·
+/// TrackInfoUpdated·상태·변경 번호도 고친다. 템포가 여러 개인 곡의 BPM 변경은 막는다.
+public enum RekordboxGridWriter {
+    /// 그리드 구간 → rekordbox PQTZ 박
+    public static func beats(segments: [GridSegment], duration: Double) -> [BeatGridTags.Beat] {
+        var beats: [BeatGridTags.Beat] = []
+        for (index, segment) in segments.enumerated() where segment.bpm > 0 {
+            let interval = 60 / segment.bpm
+            let end = index + 1 < segments.count ? segments[index + 1].start : duration
+            var k = index == 0 ? -Int(((segment.start + 0.001) / interval).rounded(.up)) : 0
+            let bpm100 = Int((segment.bpm * 100).rounded())
+            while true {
+                let t = segment.start + Double(k) * interval
+                if t >= end - 0.0005 { break }
+                if t > -0.001 {
+                    let number = ((segment.firstBeatNumber - 1 + k) % 4 + 4) % 4 + 1
+                    beats.append(BeatGridTags.Beat(number: number, bpm100: bpm100, time: max(0, t * 1000)))
+                }
+                k += 1
+            }
+        }
+        return beats
+    }
+
+    /// 곡 하나를 쓰기 위한 계획(파일 바이트까지 미리 만든다).
+    public struct Plan: Sendable {
+        public var trackUUID: String
+        public var title: String
+        public var datURL: URL
+        public var extURL: URL?
+        public var originalDat: Data
+        public var originalExt: Data?
+        public var newDat: Data
+        public var newExt: Data?
+        public var beats: [BeatGridTags.Beat]
+        /// BPM이 바뀌면 새 `djmdContent.BPM`(BPM×100). 그대로면 nil(DB를 건드리지 않는다).
+        public var newBPM100: Int?
+        /// `.DAT`의 DB 경로(`contentFile.Path`와 같다)
+        public var analysisDataPath: String
+    }
+
+    public struct Blocked: Error, Sendable {
+        public var title: String
+        public var reason: String
+    }
+
+    /// 계획을 만든다. 막히면 `Blocked`를 던진다.
+    /// - Parameters:
+    ///   - rekordboxBPM100: `djmdContent.BPM`(BPM×100). 초안의 BPM이 이와 다르면 막는다.
+    public static func plan(draft: GridDraft, title: String, analysisDataPath: String?, rekordboxBPM100: Int,
+                            audioPath: String, shareRoot: URL = RekordboxShare.directory) throws -> Plan {
+        func block(_ reason: String) -> Blocked { Blocked(title: title, reason: reason) }
+        guard draft.hasChanges else { throw block("그리드 변경이 없습니다") }
+        let datURL = analysisDataPath.flatMap { $0.isEmpty ? nil : shareRoot.appending(path: String($0.drop(while: { $0 == "/" }))) }
+        guard let datURL, FileManager.default.fileExists(atPath: datURL.path) else {
+            throw block("rekordbox 분석 파일이 없습니다. rekordbox에서 트랙 분석을 먼저 하세요")
+        }
+        // BPM이 그대로면 파일만, 바뀌면 DB의 BPM도 고친다(템포가 하나인 그리드만).
+        let bpmChanged = draft.segments.count != draft.base.count
+            || zip(draft.segments, draft.base).contains { abs($0.bpm - $1.bpm) >= 0.005 }
+            || rekordboxBPM100 == 0
+        if bpmChanged, draft.segments.count != 1 {
+            throw block("템포가 바뀌는 곡(구간 여러 개)의 BPM 변경은 아직 직접 쓰지 않습니다")
+        }
+        let datFile: AnlzFile
+        let originalDat: Data
+        do {
+            originalDat = try Data(contentsOf: datURL)
+            datFile = try AnlzFile(data: originalDat)
+        } catch {
+            throw block("분석 파일을 읽지 못했습니다")
+        }
+        guard let pqtz = datFile.tag("PQTZ") else { throw block("분석 파일에 그리드 칸(PQTZ)이 없습니다") }
+        let extURL = datURL.deletingPathExtension().appendingPathExtension("EXT")
+        let originalExt = FileManager.default.fileExists(atPath: extURL.path) ? try? Data(contentsOf: extURL) : nil
+        let extFile = originalExt.flatMap { try? AnlzFile(data: $0) }
+        if originalExt != nil, extFile == nil { throw block("확장 분석 파일(.EXT)을 읽지 못했습니다") }
+
+        // 초안을 시작한 뒤 rekordbox에서 그리드가 바뀌었으면 쓰지 않는다.
+        let current = BeatGridTags.decode(pqtz: pqtz.bytes, pqt2: extFile?.tag("PQT2")?.bytes).beats
+        let currentGrid = BeatGrid(beats: current.map { .init(number: $0.number, bpm: Double($0.bpm100) / 100, time: $0.time / 1000) })
+        let currentSegments = GridDraft.segments(from: currentGrid)
+        guard currentSegments.count == draft.base.count,
+              zip(currentSegments, draft.base).allSatisfy({ abs($0.start - $1.start) < 0.002 && abs($0.bpm - $1.bpm) < 0.01 && $0.firstBeatNumber == $1.firstBeatNumber })
+        else { throw block("초안을 만든 뒤 rekordbox에서 그리드가 바뀌었습니다. anicue에서 다시 불러와 확인하세요") }
+
+        // 초안은 PQTZ의 ms(내림)로 만든 것이다. 실제 박은 그 ms 안 어딘가에 있어서, rekordbox는 소수(PQT2)를 알면 그 값을,
+        // 모르면 ms 한가운데(+0.5ms)를 기준으로 다시 계산한다(BPM 244→245 실험에서 바이트까지 확인).
+        var segments = draft.segments
+        if let firstMs = current.first.map({ $0.time.rounded(.down) }), let first = current.first {
+            let fraction = first.time - firstMs
+            let offset = fraction > 0 ? fraction : 0.5
+            segments = segments.map { var s = $0; s.start += offset / 1000; return s }
+        }
+
+        // 곡 길이(rekordbox 시간축): 음원 길이 + 인코더 지연
+        let url = URL(filePath: audioPath)
+        guard let audio = try? AVAudioFile(forReading: url) else { throw block("음원 파일을 열지 못했습니다") }
+        let duration = Double(audio.length) / audio.processingFormat.sampleRate + RekordboxTimeline.predictedOffset(url: url)
+        let beats = beats(segments: segments, duration: duration)
+        guard beats.count >= 8 else { throw block("만든 박이 너무 적습니다") }
+
+        var newDatFile = datFile
+        newDatFile.replace("PQTZ", with: BeatGridTags.pqtz(beats))
+        var newExt: Data?
+        if var extFile {
+            if extFile.tag("PQT2") != nil { extFile.replace("PQT2", with: BeatGridTags.pqt2([], unknown: 0)) }
+            newExt = extFile.serialized()
+        }
+        return Plan(trackUUID: draft.trackUUID, title: title, datURL: datURL, extURL: originalExt == nil ? nil : extURL,
+                    originalDat: originalDat, originalExt: originalExt, newDat: newDatFile.serialized(), newExt: newExt, beats: beats,
+                    newBPM100: bpmChanged ? Int((draft.segments[0].bpm * 100).rounded()) : nil,
+                    analysisDataPath: analysisDataPath ?? "")
+    }
+
+    /// 새 파일이 의도대로인지: 그리드 칸만 바뀌고 나머지 태그는 원본과 바이트까지 같아야 한다.
+    public static func verify(_ plan: Plan, written dat: Data, ext: Data?) throws {
+        func fail(_ reason: String) -> AnicueError { .writeVerificationFailed("\(reason) (\(plan.title))") }
+        let original = try AnlzFile(data: plan.originalDat), now = try AnlzFile(data: dat)
+        guard original.header.prefix(8) == now.header.prefix(8), original.header.dropFirst(12) == now.header.dropFirst(12),
+              original.tags.map(\.fourcc) == now.tags.map(\.fourcc) else {
+            throw fail("분석 파일 태그 구성이 달라졌습니다")
+        }
+        for (a, b) in zip(original.tags, now.tags) where a.fourcc != "PQTZ" && a.bytes != b.bytes { throw fail("그리드 밖 태그(\(a.fourcc))가 바뀌었습니다") }
+        let decoded = BeatGridTags.decode(pqtz: now.tag("PQTZ")!.bytes, pqt2: nil).beats
+        guard decoded.count == plan.beats.count,
+              zip(decoded, plan.beats).allSatisfy({ $0.number == $1.number && $0.bpm100 == $1.bpm100 && Int($0.time) == Int((max(0, $1.time) + 1e-6).rounded(.down)) })
+        else { throw fail("쓴 그리드가 의도와 다릅니다") }
+        if let originalExt = plan.originalExt {
+            guard let ext else { throw fail(".EXT가 사라졌습니다") }
+            let a = try AnlzFile(data: originalExt), b = try AnlzFile(data: ext)
+            guard a.tags.map(\.fourcc) == b.tags.map(\.fourcc) else { throw fail(".EXT 태그 구성이 달라졌습니다") }
+            for (x, y) in zip(a.tags, b.tags) where x.fourcc != "PQT2" && x.bytes != y.bytes { throw fail(".EXT의 \(x.fourcc)가 바뀌었습니다") }
+        }
+    }
+}
+
+extension RekordboxGridWriter {
+    /// 계획대로 파일을 바꾼다(같은 폴더의 임시 파일에 쓰고 바꿔 끼운다). 다시 읽어 검증하고, 실패하면 원본으로 되돌리고 던진다.
+    public static func apply(_ plan: Plan) throws {
+        let fm = FileManager.default
+        func replace(_ url: URL, with data: Data) throws {
+            let partial = url.deletingLastPathComponent().appending(path: ".\(url.lastPathComponent).anicue-part")
+            try? fm.removeItem(at: partial)
+            try data.write(to: partial)
+            if let attributes = try? fm.attributesOfItem(atPath: url.path), let mode = attributes[.posixPermissions] {
+                try? fm.setAttributes([.posixPermissions: mode], ofItemAtPath: partial.path)
+            }
+            _ = try fm.replaceItemAt(url, withItemAt: partial)
+        }
+        do {
+            try replace(plan.datURL, with: plan.newDat)
+            if let extURL = plan.extURL, let newExt = plan.newExt { try replace(extURL, with: newExt) }
+            let dat = try Data(contentsOf: plan.datURL)
+            let ext = try plan.extURL.map { try Data(contentsOf: $0) }
+            guard dat == plan.newDat, ext == plan.newExt else { throw AnicueError.writeVerificationFailed("분석 파일이 쓴 내용과 다릅니다(\(plan.title))") }
+            try verify(plan, written: dat, ext: ext)
+        } catch {
+            try? restore(plan)
+            throw error
+        }
+    }
+
+    /// 원본 바이트로 되돌린다.
+    public static func restore(_ plan: Plan) throws {
+        try plan.originalDat.write(to: plan.datURL, options: .atomic)
+        if let extURL = plan.extURL, let originalExt = plan.originalExt { try originalExt.write(to: extURL, options: .atomic) }
+    }
+}
+
+extension RekordboxGridWriter.Plan {
+    /// 새 `.DAT`의 MD5(`contentFile.Hash`와 같은 형식)
+    public var newDatMD5: String { Insecure.MD5.hash(data: newDat).map { String(format: "%02x", $0) }.joined() }
+}

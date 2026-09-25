@@ -9,6 +9,9 @@ public enum AnicueError: Error, CustomStringConvertible {
     case sourceChangedDuringCopy(path: String)
     case snapshotNotFound
     case invalidAnalysisFile(String)
+    case invalidCueJSON
+    case writeRefused(String)
+    case writeVerificationFailed(String)
 
     public var description: String {
         switch self {
@@ -28,6 +31,12 @@ public enum AnicueError: Error, CustomStringConvertible {
             "스냅샷이 없습니다. 먼저 `anicue snapshot`을 실행하세요."
         case let .invalidAnalysisFile(path):
             "rekordbox 분석 파일 형식이 아닙니다: \(path)"
+        case .invalidCueJSON:
+            "rekordbox 큐 JSON을 읽지 못했습니다."
+        case let .writeRefused(reason):
+            "rekordbox에 쓰지 않았습니다: \(reason)"
+        case let .writeVerificationFailed(reason):
+            "쓴 결과가 의도와 달라 백업으로 되돌렸습니다: \(reason)"
         }
     }
 }
