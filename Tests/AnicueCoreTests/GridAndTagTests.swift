@@ -168,3 +168,44 @@ struct TSVTests {
         #expect(TSV.parse(text) == cells)
     }
 }
+
+@Suite("그리드를 따라 큐 옮기기")
+struct GridCarryTests {
+    let old = [GridSegment(start: 0.5, bpm: 120, firstBeatNumber: 1)]
+
+    @Test func 이동하면_같은_만큼() {
+        let new = [GridSegment(start: 0.52, bpm: 120, firstBeatNumber: 1)]
+        #expect(abs(GridDraft.carry(10.5, from: old, to: new, duration: 60) - 10.52) < 1e-9)
+    }
+
+    @Test func BPM을_바꾸면_같은_박으로() {
+        // 120 → 121: 20박째(10.5초) 박은 새 그리드의 20박째로
+        let new = [GridSegment(start: 0.5, bpm: 121, firstBeatNumber: 1)]
+        #expect(abs(GridDraft.carry(10.5, from: old, to: new, duration: 60) - (0.5 + 20 * 60 / 121)) < 1e-9)
+        // 박 사이(반 박)는 새 박 사이 같은 비율
+        #expect(abs(GridDraft.carry(10.75, from: old, to: new, duration: 60) - (0.5 + 20.5 * 60 / 121)) < 1e-9)
+    }
+
+    @Test func 반_박_이동은_옮긴_방향으로() {
+        let forward = [GridSegment(start: 0.75, bpm: 120, firstBeatNumber: 1)]
+        #expect(abs(GridDraft.carry(10.5, from: old, to: forward, duration: 60) - 10.75) < 1e-9)
+        let backward = [GridSegment(start: 0.25, bpm: 120, firstBeatNumber: 1)]
+        #expect(abs(GridDraft.carry(10.5, from: old, to: backward, duration: 60) - 10.25) < 1e-9)
+    }
+
+    @Test func 시작점이_멀리_뛰어도_반_박_안에서만() {
+        // "여기서 그리드 시작": 시작이 12.53초로 → 격자는 30ms만 밀린 것
+        let new = [GridSegment(start: 12.53, bpm: 120, firstBeatNumber: 1)]
+        #expect(abs(GridDraft.carry(10.5, from: old, to: new, duration: 60) - 10.53) < 1e-9)
+    }
+
+    @Test func 박_번호만_바꾸면_그대로() {
+        let new = [GridSegment(start: 0.5, bpm: 120, firstBeatNumber: 3)]
+        #expect(GridDraft.carry(10.5, from: old, to: new, duration: 60) == 10.5)
+    }
+
+    @Test func 변속_지점을_더해도_박_위치가_같으면_그대로() {
+        let new = old + [GridSegment(start: 20.5, bpm: 120, firstBeatNumber: 1)]
+        #expect(abs(GridDraft.carry(30.5, from: old, to: new, duration: 60) - 30.5) < 1e-6)
+    }
+}

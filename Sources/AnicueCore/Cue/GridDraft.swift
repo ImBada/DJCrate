@@ -202,3 +202,36 @@ public extension BeatGrid {
         return BeatGrid(beats: beats.map { .init(number: $0.number, bpm: $0.bpm, time: $0.time + seconds) })
     }
 }
+
+// MARK: - 그리드를 따라 큐 옮기기
+
+public extension GridDraft {
+    /// 그리드가 `old` → `new`로 바뀔 때 `time`에 있던 점이 따라갈 위치. 박 위의 점은 새 그리드의 같은 박으로,
+    /// 박 사이의 점은 박 사이 같은 비율 자리로 간다.
+    /// - 구간 수가 같으면 구간마다: 새 구간 시작에 가장 가까운 옛 박을 기준으로 옮기고 BPM 비율로 늘이거나 줄인다
+    ///   (이동·BPM 변경·½박 이동은 그대로 따라가고, "여기서 그리드 시작"처럼 시작점이 멀리 뛰어도 반 박 안쪽만 움직인다).
+    /// - 구간 수가 다르면(변속 지점 추가·삭제) 가장 가까운 박끼리 잇는다.
+    static func carry(_ time: Double, from old: [GridSegment], to new: [GridSegment], duration: Double) -> Double {
+        guard !old.isEmpty, !new.isEmpty, old != new else { return time }
+        if old.count == new.count {
+            let i = old.lastIndex { $0.start <= time + 0.0005 } ?? 0
+            let o = old[i], n = new[i]
+            guard o.bpm > 0, n.bpm > 0 else { return time }
+            let interval = 60 / o.bpm
+            let ratio = (n.start - o.start) / interval
+            // 정확히 반 박(½박 이동)이면 옮긴 방향으로 간다.
+            let k = abs(abs(ratio - ratio.rounded(.towardZero)) - 0.5) < 0.001 ? ratio.rounded(.towardZero) : ratio.rounded()
+            let anchor = o.start + k * interval
+            return n.start + (time - anchor) * o.bpm / n.bpm
+        }
+        let oldGrid = GridDraft(trackUUID: "", base: [], segments: old).grid(duration: duration)
+        let newGrid = GridDraft(trackUUID: "", base: [], segments: new).grid(duration: duration)
+        guard !oldGrid.beats.isEmpty, !newGrid.beats.isEmpty else { return time }
+        let beat = oldGrid.snap(time)
+        let oldBPM = oldGrid.beats[max(0, oldGrid.firstIndex(atOrAfter: beat - 0.0005))].bpm
+        let target = newGrid.snap(beat)
+        let newIndex = min(newGrid.beats.count - 1, newGrid.firstIndex(atOrAfter: target - 0.0005))
+        let newBPM = newGrid.beats[newIndex].bpm
+        return target + (time - beat) * oldBPM / newBPM
+    }
+}
