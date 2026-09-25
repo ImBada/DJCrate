@@ -114,32 +114,16 @@ private struct DeckInfoColumn: View {
             }
             .font(.caption.monospacedDigit())
             .foregroundStyle(.secondary)
+            // 코멘트는 적힌 그대로(태그로 나누지 않는다)
             Text(row.comment.isEmpty ? "(빈 코멘트)" : row.comment)
-                .font(.callout.monospaced())
+                .font(.callout)
                 .foregroundStyle(row.comment.isEmpty ? .tertiary : .primary)
-                .lineLimit(2)
+                .lineLimit(3)
                 .textSelection(.enabled)
-            if let parsed = row.parsed {
-                FlowLayout(spacing: 4) {
-                    ForEach(Array(chips(parsed).enumerated()), id: \.offset) { _, chip in
-                        Text(chip).font(.caption)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 4))
-                    }
-                }
-            }
+                .help(row.comment)
         }
-    }
-
-    private func chips(_ c: ConventionComment) -> [String] {
-        var chips = [c.prefix.rawValue]
-        if !c.workName.isEmpty { chips.append(c.workName) }
-        if let season = c.season { chips.append("\(season)기") }
-        chips += c.abbreviations
-        chips += c.usages.map { $0.kind.rawValue + ($0.numbers.isEmpty ? "" : " " + $0.numbers.map(String.init).joined(separator: ",")) }
-        if c.isCharacterSong { chips.append("CS") }
-        if c.isTVSize { chips.append("TVSIZE") }
-        return chips
+        // 글자 길이와 상관없이 늘 왼쪽 위에 붙인다.
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 }
 
