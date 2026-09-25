@@ -935,7 +935,7 @@ private struct CueRow: View {
                     Button("\(beats)박 루프") { deck.setLoop(cue.id, beats: beats) }
                 }
             } label: {
-                Text(cue.loop == nil ? "루프" : "\(deck.loopBeats(cue).map(String.init) ?? "?")박")
+                Text(cue.loop == nil ? "루프" : "\(cue.loop?.beats.map(DeckModel.beatsText) ?? deck.loopBeats(cue).map(String.init) ?? "?")박")
                     .font(.caption.monospacedDigit())
             }
             .menuStyle(.borderlessButton)

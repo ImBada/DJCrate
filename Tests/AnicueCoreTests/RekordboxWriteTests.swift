@@ -52,4 +52,15 @@ struct RekordboxWriteTests {
         #expect(grid.positionText(at: 3.5) == "2.0")
         #expect(grid.positionText(at: 3.4999) == "2.0", "1ms 안쪽은 다음 박으로 본다")
     }
+
+    @Test func 루프_박_수는_rekordbox_BeatLoopSize와_같다() {
+        // 라이브러리 실측: 8박 524289, 16박 1048577, 4박 262145, 2박 131073, ½박 65538, 박 없음 0
+        for (beats, value) in [(8.0, 524289), (16, 1048577), (4, 262145), (2, 131073), (32, 2097153), (0.5, 65538), (0.25, 65540)] {
+            #expect(EditableCue.Loop.beatLoopSize(beats: beats) == value)
+            #expect(EditableCue.Loop.beats(beatLoopSize: value) == beats)
+        }
+        #expect(EditableCue.Loop.beatLoopSize(beats: nil) == 0)
+        #expect(EditableCue.Loop.beatLoopSize(beats: 3.3) == 0, "박에 맞지 않는 길이는 0")
+        #expect(EditableCue.Loop.beats(beatLoopSize: 0) == nil)
+    }
 }

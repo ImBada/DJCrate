@@ -134,6 +134,11 @@ public final class CipherDatabase {
 
         public var count: Int { Int(sqlite3_column_count(statement)) }
 
+        /// 칸 이름
+        public func name(_ column: Int32) -> String {
+            sqlite3_column_name(statement, column).map { String(cString: $0) } ?? ""
+        }
+
         public func int(_ column: Int32) -> Int? {
             guard sqlite3_column_type(statement, column) != SQLITE_NULL else { return nil }
             return Int(sqlite3_column_int64(statement, column))
