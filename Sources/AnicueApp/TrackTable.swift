@@ -50,6 +50,8 @@ private struct TrackListView: NSViewRepresentable {
         table.menu = context.coordinator.makeMenu()
         table.autosaveName = "anicue.trackList.v2"
         table.autosaveTableColumns = true
+        // 머리글을 오른쪽 클릭하면 보일 칸을 고른다(숨김 상태도 자동 저장된다).
+        table.headerView?.menu = context.coordinator.makeColumnMenu(table)
         // 저장된 칸 배치에는 새 "형식" 칸이 없어서 끝으로 밀린다. 한 번만 BPM 옆으로 옮긴다(그 뒤로는 사용자가 옮긴 대로).
         let indexKey = "anicue.trackList.indexColumnPlaced"
         if !UserDefaults.standard.bool(forKey: indexKey),
@@ -118,6 +120,7 @@ private struct TrackColumn {
         TrackColumn(id: "class", title: "분류", width: 52, minWidth: 40, sortKey: "class", help: "코멘트 분류: 규칙·구형·잔재·크레딧·빈 값·기타"),
         TrackColumn(id: "bpm", title: "BPM", width: 44, minWidth: 34, sortKey: "bpm", ascendingFirst: false),
         TrackColumn(id: "key", title: "키", width: 36, minWidth: 30, sortKey: "key"),
+        TrackColumn(id: "length", title: "길이", width: 46, minWidth: 38, sortKey: "length", ascendingFirst: false, help: "곡 전체 재생 시간"),
         TrackColumn(id: "format", title: "형식", width: 44, minWidth: 36, sortKey: "format", help: "파일 확장자(MP3·M4A·FLAC·WAV 등)"),
         TrackColumn(id: "tempo", title: "변속", width: 90, minWidth: 44, sortKey: "tempo", ascendingFirst: false,
                     help: "rekordbox 그리드에서 BPM이 바뀌는 곡의 흐름(예: 175→128→175)"),
@@ -140,6 +143,7 @@ private struct TrackColumn {
         case "class": return KeyPathComparator(\TrackRow.commentClassName, order: order)
         case "bpm": return KeyPathComparator(\TrackRow.bpmValue, order: order)
         case "key": return KeyPathComparator(\TrackRow.keyName, order: order)
+        case "length": return KeyPathComparator(\TrackRow.lengthSeconds, order: order)
         case "format": return KeyPathComparator(\TrackRow.formatName, order: order)
         case "tempo": return KeyPathComparator(\TrackRow.tempoChangeCount, order: order)
         case "imported": return KeyPathComparator(\TrackRow.importedOn, order: order)
@@ -161,6 +165,7 @@ private struct TrackColumn {
         case \TrackRow.commentClassName: "class"
         case \TrackRow.bpmValue: "bpm"
         case \TrackRow.keyName: "key"
+        case \TrackRow.lengthSeconds: "length"
         case \TrackRow.formatName: "format"
         case \TrackRow.tempoChangeCount: "tempo"
         case \TrackRow.importedOn: "imported"
@@ -304,6 +309,7 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        if menu.identifier?.rawValue == "columns" { fillColumnMenu(menu); return }
         menu.removeAllItems()
         let targets = menuTargets()
         let pending = targets.filter { !$0.isStaged && store.pendingUUIDs.contains($0.track.uuid) }
@@ -346,6 +352,48 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
     }
 
     // MARK: - 데이터 소스
+
+    // MARK: - 칸 보이기·숨기기
+
+    func makeColumnMenu(_ table: NSTableView) -> NSMenu {
+        let menu = NSMenu(title: "칸")
+        menu.delegate = self
+        menu.identifier = NSUserInterfaceItemIdentifier("columns")
+        return menu
+    }
+
+    private func fillColumnMenu(_ menu: NSMenu) {
+        guard let table else { return }
+        menu.removeAllItems()
+        let header = NSMenuItem(title: "보일 칸", action: nil, keyEquivalent: "")
+        header.isEnabled = false
+        menu.addItem(header)
+        for spec in TrackColumn.all {
+            guard let column = table.tableColumns.first(where: { $0.identifier.rawValue == spec.id }) else { continue }
+            let title = spec.title.isEmpty ? "앨범 아트" : spec.title == "✎" ? "✎ 초안 표시" : spec.title == "#" ? "# 번호" : spec.title
+            let item = NSMenuItem(title: title, action: #selector(toggleColumn(_:)), keyEquivalent: "")
+            item.target = self
+            item.state = column.isHidden ? .off : .on
+            item.representedObject = spec.id
+            // 제목 칸은 숨기지 않는다.
+            item.isEnabled = spec.id != "title"
+            menu.addItem(item)
+        }
+        menu.addItem(.separator())
+        let reset = NSMenuItem(title: "모든 칸 보이기", action: #selector(showAllColumns), keyEquivalent: "")
+        reset.target = self
+        menu.addItem(reset)
+    }
+
+    @objc private func toggleColumn(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String,
+              let column = table?.tableColumns.first(where: { $0.identifier.rawValue == id }) else { return }
+        column.isHidden.toggle()
+    }
+
+    @objc private func showAllColumns() {
+        table?.tableColumns.forEach { $0.isHidden = false }
+    }
 
     func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
 
@@ -403,6 +451,7 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
         case "class": cell.set(row.commentClassName, color: row.commentClass.nsTint)
         case "bpm": cell.set(row.bpmValue > 0 ? String(format: "%.0f", row.bpmValue) : "", color: .secondaryLabelColor, digits: true)
         case "key": cell.set(row.keyName, color: .secondaryLabelColor)
+        case "length": cell.set(row.lengthText, color: .secondaryLabelColor, digits: true)
         case "format": cell.set(row.formatName, color: .secondaryLabelColor)
         case "tempo": cell.set(row.tempoChangeText, color: .systemYellow, digits: true)
         case "imported": cell.set(row.importedOn, color: .secondaryLabelColor, digits: true)

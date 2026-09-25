@@ -266,9 +266,9 @@ private struct AudioBar: View {
                     }
                     .help(String(format: "rekordbox 오토게인이 이 파일의 실제 음량과 %.1fdB 다릅니다", abs(deck.gainMismatchDB ?? 0)))
                 } else if deck.hasGainOverride {
-                    Button("게인 제안 취소") { deck.clearGainOverride() }
+                    Button("게인 초안 취소") { deck.clearGainDraft() }
                         .font(.caption)
-                        .help("받아들인 게인을 지우고 rekordbox 오토게인으로 돌아갑니다")
+                        .help("이 곡의 게인 초안을 지우고 rekordbox 오토게인으로 돌아갑니다")
                 }
             }
             Toggle(isOn: $deck.metronome) { Label("메트로놈", systemImage: "metronome") }
@@ -523,6 +523,25 @@ private struct GainSettings: View {
                     Text(String(format: "적용 게인 %+.1f dB (오토 %+.1f · 트림 %+.1f)", deck.appliedGain, deck.autoGainDB, deck.gainTrim))
                     if let rekordbox = deck.rekordboxGainDB {
                         Text(String(format: "rekordbox 오토게인 %+.1f dB", rekordbox) + (deck.measuredGainDB.map { String(format: " · anicue 계산 %+.1f dB", $0) } ?? ""))
+                        HStack(spacing: 6) {
+                            Text("이 곡 오토게인")
+                            Button("−1") { deck.adjustTrackGain(by: -1) }
+                            Button("−0.1") { deck.adjustTrackGain(by: -0.1) }
+                            Text(String(format: "%+.1f dB", deck.trackGainDB ?? rekordbox))
+                                .font(.callout.monospacedDigit().bold())
+                                .foregroundStyle(deck.gainDraft != nil ? Color.accentColor : Color.primary)
+                                .frame(width: 64)
+                            Button("+0.1") { deck.adjustTrackGain(by: 0.1) }
+                            Button("+1") { deck.adjustTrackGain(by: 1) }
+                            if deck.gainDraft != nil {
+                                Button("되돌리기") { deck.clearGainDraft() }
+                            }
+                        }
+                        .controlSize(.small)
+                        if deck.gainDraft != nil {
+                            Text("초안입니다. rekordbox에 반영하면 rekordbox 오토게인이 이 값으로 바뀝니다.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                     } else {
                         Text("rekordbox 오토게인 값 없음(rekordbox에서 분석하지 않은 곡)").foregroundStyle(.secondary)
                     }
@@ -704,7 +723,7 @@ private struct HotCuePad: View {
             // Shift+클릭 = 지우기
             if NSEvent.modifierFlags.contains(.shift) { deck.deleteHotCue(slot: slot) } else { deck.pressHotCue(slot: slot) }
         } label: {
-            Text(letter)
+            Text(cue?.loop == nil ? letter : letter + "↻")
                 .font(.system(size: 11, weight: .bold))
                 .frame(width: 22, height: 20)
                 .foregroundStyle(cue == nil ? Color.secondary : Color.black)
@@ -867,6 +886,30 @@ private struct CueRow: View {
             .buttonStyle(.plain).help("이 위치로 이동")
             Button { deck.nudge(cue.id, beats: 1) } label: { Image(systemName: "chevron.right") }
                 .buttonStyle(.borderless).help("1박 뒤로").accessibilityLabel("1박 뒤로")
+
+            // 루프: 박 수 메뉴, 활성 루프 켜기·끄기
+            Menu {
+                Button("루프 없음") { deck.setLoop(cue.id, beats: nil) }
+                Divider()
+                ForEach([1, 2, 4, 8, 16, 32], id: \.self) { beats in
+                    Button("\(beats)박 루프") { deck.setLoop(cue.id, beats: beats) }
+                }
+            } label: {
+                Text(cue.loop == nil ? "루프" : "\(deck.loopBeats(cue).map(String.init) ?? "?")박")
+                    .font(.caption.monospacedDigit())
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .foregroundStyle(cue.loop == nil ? Color.secondary : Palette.loop)
+            .help("이 큐를 루프로 만들거나 길이를 바꿉니다")
+            if cue.loop != nil {
+                Button { deck.toggleActiveLoop(cue.id) } label: {
+                    Image(systemName: "repeat.circle\(cue.loop?.active == true ? ".fill" : "")")
+                        .foregroundStyle(cue.loop?.active == true ? Palette.loop : .secondary)
+                }
+                .buttonStyle(.borderless)
+                .help(cue.loop?.active == true ? "활성 루프(곡을 불러오면 자동 반복) — 눌러서 끄기" : "활성 루프로 만들기(곡을 불러오면 이 루프를 자동 반복)")
+            }
 
             TextField("이름", text: Binding(get: { cue.name }, set: { deck.rename(cue.id, $0) }))
                 .textFieldStyle(.plain)

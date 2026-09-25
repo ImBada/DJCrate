@@ -112,7 +112,8 @@ public enum Reflection {
             marks.append(mark)
         }
         for added in draftCues where added.sourceID == nil {
-            marks.append(Mark(name: added.name, type: 0, start: added.time, end: nil, num: xmlNum(for: added.kind)))
+            marks.append(Mark(name: added.name, type: added.loop == nil ? 0 : 4, start: added.time, end: added.loop?.end,
+                              num: xmlNum(for: added.kind)))
         }
         marks.sort { ($0.start, $0.num) < ($1.start, $1.num) }
 

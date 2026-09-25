@@ -10,6 +10,9 @@ enum Palette {
         return Color(hue: Double(number - 1) / 12, saturation: 0.62, brightness: text.hasSuffix("A") ? 0.78 : 0.95)
     }
 
+    /// 루프 구간
+    static let loop = Color(red: 0.25, green: 0.85, blue: 0.75)
+
     static let low = Color(red: 0.23, green: 0.44, blue: 0.96)
     static let mid = Color(red: 0.94, green: 0.64, blue: 0.24)
     static let high = Color(red: 0.95, green: 0.94, blue: 0.91)
@@ -91,6 +94,7 @@ private struct DrawState {
     var zoomSeconds: Double
     var segments: [GridSegment]
     var gridEditing: Bool
+    var engagedLoop: EditableCue.ID?
 
     @MainActor init(_ deck: DeckModel) {
         grid = deck.grid
@@ -106,6 +110,7 @@ private struct DrawState {
         audioOffset = deck.timelineOffset
         zoomSeconds = deck.zoomSeconds
         segments = deck.gridDraft?.segments ?? []
+        engagedLoop = deck.engagedLoopID
         gridEditing = deck.gridEditing && deck.canEditGrid
     }
 }
@@ -338,6 +343,23 @@ struct ZoomWaveformView: View {
             context.draw(Text("+").font(.system(size: 15, weight: .heavy)).foregroundStyle(Color.black),
                          at: CGPoint(x: badge.midX, y: badge.midY - 0.5))
         }
+        // 루프 구간(큐 선보다 먼저 칠한다). 활성 루프는 진하게 + ↻
+        for cue in state.cues {
+            guard let loop = cue.loop, loop.end >= start, cue.time <= end else { continue }
+            let x0 = xOf(cue.time), x1 = xOf(loop.end)
+            let band = CGRect(x: x0, y: Self.rulerHeight, width: max(1, x1 - x0), height: size.height - Self.rulerHeight)
+            let engaged = state.engagedLoop == cue.id
+            context.fill(Path(band), with: .color(Palette.loop.opacity(engaged ? 0.35 : loop.active ? 0.22 : 0.12)))
+            let top = CGRect(x: x0, y: Self.rulerHeight, width: max(1, x1 - x0), height: 4)
+            context.fill(Path(top), with: .color(Palette.loop.opacity(loop.active ? 0.95 : 0.6)))
+            var endLine = Path()
+            endLine.move(to: CGPoint(x: x1, y: Self.rulerHeight)); endLine.addLine(to: CGPoint(x: x1, y: size.height))
+            context.stroke(endLine, with: .color(Palette.loop.opacity(0.8)), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+            if loop.active, x1 - x0 > 16 {
+                context.draw(Text("↻").font(.system(size: 12, weight: .heavy)).foregroundStyle(Palette.loop),
+                             at: CGPoint(x: x0 + 8, y: Self.rulerHeight + 14))
+            }
+        }
         // 큐 (초안)
         for cue in state.cues where cue.time >= start - 1 && cue.time <= end + 1 {
             let x = xOf(cue.time)
@@ -500,6 +522,10 @@ private struct OverviewStaticLayer: View {
                 context.stroke(line, with: .color(Palette.suggestion), style: StrokeStyle(lineWidth: 1.5, dash: [4, 2]))
             }
             for cue in cues {
+                if let loop = cue.loop {
+                    let band = CGRect(x: xOf(cue.time), y: 0, width: max(1.5, xOf(loop.end) - xOf(cue.time)), height: waveHeight)
+                    context.fill(Path(band), with: .color(Palette.loop.opacity(loop.active ? 0.35 : 0.2)))
+                }
                 var line = Path()
                 line.move(to: CGPoint(x: xOf(cue.time), y: 0)); line.addLine(to: CGPoint(x: xOf(cue.time), y: waveHeight))
                 let color = cue.kind == .memory ? Palette.memory : Palette.hot

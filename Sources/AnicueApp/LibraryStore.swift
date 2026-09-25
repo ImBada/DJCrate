@@ -71,6 +71,7 @@ final class LibraryStore {
     private(set) var tagDrafts: [String: TagDraft] = [:]
     private var cueDraftUUIDs: Set<String> = []
     private var gridDraftUUIDs: Set<String> = []
+    private var gainDraftUUIDs: Set<String> = []
     private(set) var editedUUIDs: Set<String> = []
 
     var rowsByID: [TrackRow.ID: TrackRow] = [:]
@@ -102,7 +103,7 @@ final class LibraryStore {
     var draftCueCounts: [String: CueCounts] = [:]
 
     /// 큐·그리드 초안이 있는 곡(태그 초안은 파일 태그로 반영하므로 여기엔 넣지 않는다)
-    var pendingUUIDs: Set<String> { cueDraftUUIDs.union(gridDraftUUIDs) }
+    var pendingUUIDs: Set<String> { cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs) }
     /// 반영 대기 중인 rekordbox 곡 수(추가한 곡 제외)
     var pendingLibraryCount: Int { pendingUUIDs.filter { rowsByUUID[$0].map { !$0.isStaged } ?? false }.count }
     /// 백그라운드 추정이 초안을 저장했을 때(덱이 같은 곡을 보고 있으면 다시 읽게)
@@ -209,7 +210,8 @@ final class LibraryStore {
             cueDraftUUIDs = loaded.cueDraftUUIDs
             draftCueCounts = loaded.draftCueCounts
             gridDraftUUIDs = loaded.gridDraftUUIDs
-            editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(tagDrafts.keys)
+            gainDraftUUIDs = GainDraftStore.uuids()
+            editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys)
             playlistTree = loaded.tree
             var index: [String: PlaylistNode] = [:]
             func walk(_ nodes: [PlaylistNode]) { for node in nodes { index[node.id] = node; walk(node.children ?? []) } }
@@ -257,13 +259,14 @@ final class LibraryStore {
         switch kind {
         case .cue: if exists { cueDraftUUIDs.insert(trackUUID) } else { cueDraftUUIDs.remove(trackUUID) }
         case .grid: if exists { gridDraftUUIDs.insert(trackUUID) } else { gridDraftUUIDs.remove(trackUUID) }
+        case .gain: if exists { gainDraftUUIDs.insert(trackUUID) } else { gainDraftUUIDs.remove(trackUUID) }
         }
         updateEdited(trackUUID)
         if case .pending = sidebar { refreshBase() }
     }
 
     func updateEdited(_ uuid: String) {
-        let edited = cueDraftUUIDs.contains(uuid) || gridDraftUUIDs.contains(uuid) || tagDrafts[uuid] != nil
+        let edited = cueDraftUUIDs.contains(uuid) || gridDraftUUIDs.contains(uuid) || gainDraftUUIDs.contains(uuid) || tagDrafts[uuid] != nil
         // 바뀔 때만 건드려서 표의 ✎ 칸이 불필요하게 다시 그려지지 않게 한다.
         if edited, !editedUUIDs.contains(uuid) { editedUUIDs.insert(uuid) }
         if !edited, editedUUIDs.contains(uuid) { editedUUIDs.remove(uuid) }

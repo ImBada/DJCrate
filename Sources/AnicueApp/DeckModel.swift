@@ -8,7 +8,7 @@ import Observation
 @MainActor
 @Observable
 final class DeckModel {
-    enum DraftKind { case cue, grid }
+    enum DraftKind { case cue, grid, gain }
 
     private(set) var row: TrackRow?
     private(set) var waveform: Waveform?
@@ -80,32 +80,33 @@ final class DeckModel {
 
     var autoGainDB: Double {
         guard autoGain else { return 0 }
-        if let uuid = row?.track.uuid, let override = gainOverrides[uuid] { return override }
+        if let gainDraft { return gainDraft }
         if useRekordboxGain, let rekordbox = rekordboxGainDB { return rekordbox }
         return measuredGainDB ?? 0
     }
 
-    // MARK: 게인 제안(rekordbox 값이 이상할 때)
+    // MARK: 곡 오토게인 초안(rekordbox에 반영한다)
 
-    /// 곡마다 받아들인 게인(dB). rekordbox 값 대신 쓴다.
-    private(set) var gainOverrides: [String: Double] = (UserDefaults.standard.dictionary(forKey: "deck.gainOverrides") as? [String: Double]) ?? [:] {
-        didSet { UserDefaults.standard.set(gainOverrides, forKey: "deck.gainOverrides") }
-    }
+    /// 이 곡의 오토게인 초안(dB). rekordbox에 반영하면 rekordbox 오토게인이 이 값이 된다.
+    private(set) var gainDraft: Double?
+
+    /// 지금 이 곡에 쓰는 오토게인 값(초안 > rekordbox)
+    var trackGainDB: Double? { gainDraft ?? rekordboxGainDB }
+
     private(set) var dismissedGainSuggestions: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "deck.dismissedGainSuggestions") ?? []) {
         didSet { UserDefaults.standard.set(Array(dismissedGainSuggestions), forKey: "deck.dismissedGainSuggestions") }
     }
 
     /// 제안할 게인(dB): rekordbox 오토게인이 anicue 측정과 1.5dB 넘게 다를 때 anicue 계산값
     var gainSuggestion: Double? {
-        guard autoGain, useRekordboxGain, isGainSuspicious, let uuid = row?.track.uuid,
-              gainOverrides[uuid] == nil, !dismissedGainSuggestions.contains(uuid) else { return nil }
+        guard autoGain, useRekordboxGain, isGainSuspicious, gainDraft == nil, let uuid = row?.track.uuid,
+              !dismissedGainSuggestions.contains(uuid) else { return nil }
         return measuredGainDB
     }
 
     func acceptGainSuggestion() {
-        guard let uuid = row?.track.uuid, let value = measuredGainDB else { return }
-        gainOverrides[uuid] = value
-        applyGain()
+        guard let value = measuredGainDB else { return }
+        setTrackGain((value * 10).rounded() / 10)
     }
 
     func dismissGainSuggestion() {
@@ -113,15 +114,36 @@ final class DeckModel {
         dismissedGainSuggestions.insert(uuid)
     }
 
-    /// 받아들인 게인을 지우고 rekordbox 값으로 돌아간다.
-    func clearGainOverride() {
-        guard let uuid = row?.track.uuid else { return }
-        gainOverrides[uuid] = nil
-        dismissedGainSuggestions.remove(uuid)
+    /// 곡 오토게인을 정한다(초안). rekordbox 값과 같으면 초안을 지운다.
+    func setTrackGain(_ value: Double) {
+        guard let uuid = row?.track.uuid, rekordboxGainDB != nil else { return }
+        let clamped = min(max(value, -24), 24)
+        if let rekordbox = rekordboxGainDB, abs(clamped - rekordbox) < 0.05 {
+            gainDraft = nil
+        } else {
+            gainDraft = clamped
+        }
+        GainDraftStore.save(gainDraft, trackUUID: uuid)
+        onDraftChange?(uuid, .gain, gainDraft != nil)
         applyGain()
     }
 
-    var hasGainOverride: Bool { row.map { gainOverrides[$0.track.uuid] != nil } ?? false }
+    func adjustTrackGain(by delta: Double) {
+        guard let current = trackGainDB else { return }
+        setTrackGain(((current + delta) * 10).rounded() / 10)
+    }
+
+    /// 초안을 지우고 rekordbox 오토게인으로 돌아간다.
+    func clearGainDraft() {
+        guard let uuid = row?.track.uuid else { return }
+        gainDraft = nil
+        dismissedGainSuggestions.remove(uuid)
+        GainDraftStore.remove(trackUUID: uuid)
+        onDraftChange?(uuid, .gain, false)
+        applyGain()
+    }
+
+    var hasGainOverride: Bool { gainDraft != nil }
 
     /// 실제로 걸린 게인(dB)
     var appliedGain: Double { min(max(autoGainDB + gainTrim, -24), 24) }
@@ -279,7 +301,8 @@ final class DeckModel {
         self.row = row
         waveform = nil; waveformError = nil; analysis = nil; analysisError = nil; artwork = nil
         isAnalyzingSections = row.map { !$0.track.isStreaming } ?? false
-        suggestions = []; sectionEnergies = []; draft = nil; loudness = nil; keySegments = []; keyChroma = nil
+        suggestions = []; sectionEnergies = []; draft = nil; loudness = nil; keySegments = []; keyChroma = nil; gainDraft = nil
+        engagedLoopID = nil
         originalGrid = nil; gridDraft = nil; grid = nil; gridBPM = nil; gridEditBlockedReason = nil
         hasRekordboxGrid = false; timelineOffset = 0; gridSuggestion = nil; gridSuggestionNote = nil; suggestedGrid = nil
         suggestionTask?.cancel()
@@ -300,6 +323,7 @@ final class DeckModel {
             try? audio.load(url: url, timelineOffset: timelineOffset)
             // 전에 잰 곡이면 디코딩을 기다리지 않고 바로 오토게인을 건다.
             loudness = LoudnessCache.shared.value(for: url)
+            gainDraft = GainDraftStore.load(trackUUID: row.track.uuid)
             applyGain()
             canPlay = audio.isLoaded
             if canPlay { duration = audio.duration }
@@ -665,7 +689,9 @@ final class DeckModel {
             return
         }
         audio.recoverIfStalled()
+        let previous = playhead
         playhead = audio.position
+        if handleLoops(previous: previous) { return }
         updateGridBPM()
         audio.scheduleClicks(grid)
         if !audio.isPlaying || playhead >= duration - 0.01 {
@@ -677,8 +703,40 @@ final class DeckModel {
         }
     }
 
+    // MARK: 루프 재생
+
+    /// 지금 반복 중인 루프(큐 ID)
+    private(set) var engagedLoopID: EditableCue.ID?
+
+    /// 재생 중 루프 처리. 반복으로 되돌렸으면 true.
+    private func handleLoops(previous: Double) -> Bool {
+        let cues = draft?.cues ?? []
+        // 활성 루프: 재생이 그 시작을 지나가면 자동으로 건다.
+        if engagedLoopID == nil,
+           let active = cues.first(where: { $0.loop?.active == true && previous < $0.time && playhead >= $0.time }) {
+            engagedLoopID = active.id
+        }
+        guard let id = engagedLoopID, let cue = cues.first(where: { $0.id == id }), let loop = cue.loop else {
+            engagedLoopID = nil
+            return false
+        }
+        if playhead >= loop.end - 0.004 {
+            startPlayback(from: cue.time)
+            playhead = cue.time
+            return true
+        }
+        return false
+    }
+
+    /// 루프에서 빠져나온다.
+    func exitLoop() { engagedLoopID = nil }
+
     /// 한 번의 이동(패드·목록 클릭 등). 재생 중이면 그 위치에서 다시 재생한다.
     func seek(_ time: Double) {
+        // 반복 중인 루프 밖으로 옮기면 루프를 푼다.
+        if let id = engagedLoopID, let cue = cue(id), let loop = cue.loop, time < cue.time - 0.001 || time >= loop.end {
+            engagedLoopID = nil
+        }
         isCuePreviewing = false
         playhead = min(max(time, 0), duration)
         updateGridBPM()
@@ -858,7 +916,13 @@ final class DeckModel {
 
     func pressHotCue(slot: Int) {
         if let cue = hotCue(slot: slot) {
+            // 루프 핫큐: 누르면 그 루프를 반복하고, 반복 중에 다시 누르면 빠져나온다.
+            if cue.loop != nil, engagedLoopID == cue.id {
+                engagedLoopID = nil
+                return
+            }
             seek(cue.time)
+            if cue.loop != nil { engagedLoopID = cue.id }
             selectedCueID = cue.id
         } else {
             guard canPlay || grid != nil else { return }  // 소리·그리드 없이 0초에 박히지 않게
@@ -884,14 +948,65 @@ final class DeckModel {
         guard var cue = cue(id) else { return }
         let target = snapped(time)
         guard abs(target - cue.time) >= 0.0005 else { return }
+        // 루프는 길이를 유지한 채 함께 옮긴다.
+        if let length = cue.loopLength { cue.loop?.end = target + length }
         cue.time = target
         mutate(save: save) { $0.place(cue) }
     }
 
     func nudge(_ id: EditableCue.ID, beats: Int) {
         guard var cue = cue(id) else { return }
+        let length = cue.loopLength
         cue.time = grid?.nudge(cue.time, beats: beats) ?? min(max(cue.time + Double(beats) * 0.5, 0), duration)
+        if let length { cue.loop?.end = cue.time + length }
         mutate { $0.place(cue) }
+    }
+
+    // MARK: 루프
+
+    /// 큐를 박 수만큼의 루프로 만든다(nil이면 루프를 없앤다). 그리드가 있으면 박에 맞춘다.
+    func setLoop(_ id: EditableCue.ID, beats: Int?) {
+        guard var cue = cue(id) else { return }
+        if let beats {
+            let end: Double
+            if let grid, !grid.beats.isEmpty {
+                end = grid.nudge(cue.time, beats: beats)
+            } else {
+                let bpm = gridBPM ?? 120
+                end = cue.time + Double(beats) * 60 / bpm
+            }
+            guard end > cue.time + 0.01, end <= duration + 0.01 else { showToast("곡 끝을 넘는 루프는 만들 수 없습니다"); return }
+            cue.loop = EditableCue.Loop(end: end, active: cue.loop?.active ?? false)
+        } else {
+            cue.loop = nil
+        }
+        mutate { $0.place(cue) }
+    }
+
+    /// 활성 루프 켜기·끄기(곡을 불러오면 그 루프를 자동으로 반복한다)
+    func toggleActiveLoop(_ id: EditableCue.ID) {
+        guard var cue = cue(id), cue.loop != nil else { return }
+        let turningOn = !(cue.loop?.active ?? false)
+        cue.loop?.active = turningOn
+        mutate { draft in
+            // 활성 루프는 곡에 하나만 둔다.
+            if turningOn {
+                for i in draft.cues.indices where draft.cues[i].id != cue.id && draft.cues[i].loop?.active == true {
+                    draft.cues[i].loop?.active = false
+                }
+            }
+            draft.place(cue)
+        }
+    }
+
+    /// 루프 박 수(그리드 기준, 대략)
+    func loopBeats(_ cue: EditableCue) -> Int? {
+        guard let loop = cue.loop else { return nil }
+        if let grid, !grid.beats.isEmpty {
+            let a = grid.firstIndex(atOrAfter: cue.time - 0.005), b = grid.firstIndex(atOrAfter: loop.end - 0.005)
+            return max(b - a, 0)
+        }
+        return gridBPM.map { Int(((loop.end - cue.time) * $0 / 60).rounded()) }
     }
 
     func setKind(_ id: EditableCue.ID, _ kind: EditableCue.Kind) {

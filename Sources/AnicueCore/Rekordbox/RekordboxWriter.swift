@@ -39,11 +39,15 @@ public enum RekordboxWriter {
         public var finalUpdateCount: Int?
         /// 그리드(분석 파일) 쓰기 결과. 옛 보고서에는 없다.
         public var gridOutcomes: [Outcome]?
+        /// 오토게인 쓰기 결과(added = 새 게인 ×100 dB). 옛 보고서에는 없다.
+        public var gainOutcomes: [Outcome]?
 
         public var written: [Outcome] { outcomes.filter { $0.status == .written } }
         public var blocked: [Outcome] { outcomes.filter { $0.status == .blocked } }
         public var gridWritten: [Outcome] { (gridOutcomes ?? []).filter { $0.status == .written } }
         public var gridBlocked: [Outcome] { (gridOutcomes ?? []).filter { $0.status == .blocked } }
+        public var gainWritten: [Outcome] { (gainOutcomes ?? []).filter { $0.status == .written } }
+        public var gainBlocked: [Outcome] { (gainOutcomes ?? []).filter { $0.status == .blocked } }
     }
 
     public static var liveDatabase: URL { LibrarySnapshot.rekordboxDirectory.appending(path: "master.db") }
@@ -64,11 +68,12 @@ public enum RekordboxWriter {
     /// - Parameters:
     ///   - grids: 그리드 초안. 분석 파일(`shareRoot` 아래)을 고친다.
     ///   - shareRoot: 분석 파일 뿌리. 라이브 DB면 rekordbox share 폴더, 사본 DB면 명시해야 그리드를 쓴다(실제 파일을 건드리지 않게).
-    public static func write(drafts: [CueDraft], grids: [GridDraft] = [], to database: URL = liveDatabase, dryRun: Bool,
+    public static func write(drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:],
+                             to database: URL = liveDatabase, dryRun: Bool,
                              now: Date = .now, backups: URL = backupDirectory, shareRoot: URL? = nil) throws -> Report {
         let stamp = CueJSON.timestamps(now)
         let grids = grids.filter(\.hasChanges)
-        guard drafts.contains(where: \.hasChanges) || !grids.isEmpty else {
+        guard drafts.contains(where: \.hasChanges) || !grids.isEmpty || !gains.isEmpty else {
             // 쓸 것이 없으면 DB를 열지도, 백업을 만들지도 않는다.
             return Report(outcomes: drafts.map { Outcome(trackUUID: $0.trackUUID, title: $0.trackUUID, status: .unchanged,
                                                           reason: nil, removed: 0, added: 0) },
@@ -124,6 +129,7 @@ public enum RekordboxWriter {
         if let backup, !gridPlans.isEmpty { try backupAnalysis(gridPlans, in: backup) }
 
         var outcomes: [Outcome] = []
+        var gainOutcomes: [Outcome] = []
         var written: [(contentID: String, expectation: Expectation)] = []
         var finalUpdateCount: Int?
         do {
@@ -151,6 +157,19 @@ public enum RekordboxWriter {
                                             reason: blocked.reason, removed: 0, added: 0))
                 }
             }
+            // 오토게인: rekordbox가 직접 고쳤을 때처럼 djmdMixerParam 한 행(삭제 안 된 것)의 게인 두 칸·상태·변경 번호만 바꾼다.
+            for (uuid, gainDB) in gains.sorted(by: { $0.key < $1.key }) {
+                try db.execute("SAVEPOINT anicue_gain")
+                do {
+                    gainOutcomes.append(try applyGain(uuid: uuid, gainDB: gainDB, db: db, usn: &usn, stamp: stamp))
+                    try db.execute("RELEASE anicue_gain")
+                } catch let blocked as Blocked {
+                    try db.execute("ROLLBACK TO anicue_gain")
+                    try db.execute("RELEASE anicue_gain")
+                    gainOutcomes.append(Outcome(trackUUID: uuid, title: blocked.title, status: .blocked, reason: blocked.reason, removed: 0, added: 0))
+                }
+            }
+
             // BPM이 바뀌는 그리드: .DAT 파일 기록과 곡 BPM을 rekordbox처럼 고친다(파일은 커밋 뒤에 쓴다).
             for plan in gridPlans where plan.newBPM100 != nil {
                 try applyGridDatabase(plan, db: db, usn: &usn, stamp: stamp)
@@ -167,6 +186,7 @@ public enum RekordboxWriter {
             finalUpdateCount = usn
 
             let databaseChanged = !written.isEmpty || gridPlans.contains { $0.newBPM100 != nil }
+                || gainOutcomes.contains { $0.status == .written }
             if dryRun || !databaseChanged {
                 try db.execute("ROLLBACK")
             } else {
@@ -209,6 +229,7 @@ public enum RekordboxWriter {
         var report = Report(outcomes: outcomes, backup: backup?.path, dryRun: dryRun, createdAt: stamp.json,
                             finalUpdateCount: finalUpdateCount)
         report.gridOutcomes = gridOutcomes.isEmpty ? nil : gridOutcomes
+        report.gainOutcomes = gainOutcomes.isEmpty ? nil : gainOutcomes
         if let backup {
             try? save(report, in: backup)
             // 되돌리면 anicue 초안도 살릴 수 있게 쓴 초안을 백업 옆에 둔다.
@@ -217,6 +238,11 @@ public enum RekordboxWriter {
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             for draft in drafts where written.contains(draft.trackUUID) {
                 try? JSONEncoder().encode(draft).write(to: folder.appending(path: "\(draft.trackUUID).json"), options: .atomic)
+            }
+            let gainWritten = Set(report.gainWritten.map(\.trackUUID))
+            if !gainWritten.isEmpty {
+                let written = gains.filter { gainWritten.contains($0.key) }
+                try? JSONEncoder().encode(written).write(to: backup.appending(path: "gain-drafts.json"), options: .atomic)
             }
             let gridWritten = Set(report.gridWritten.map(\.trackUUID))
             if !gridWritten.isEmpty {
@@ -229,6 +255,38 @@ public enum RekordboxWriter {
             prune(backups)
         }
         return report
+    }
+
+    /// 백업에 들어 있는 게인 초안
+    public static func gainDrafts(in backup: URL) -> [String: Double] {
+        guard let data = try? Data(contentsOf: backup.appending(path: "gain-drafts.json")) else { return [:] }
+        return (try? JSONDecoder().decode([String: Double].self, from: data)) ?? [:]
+    }
+
+    /// 오토게인 한 곡(流れ行く命 −3.3→+0.65dB 실험과 같은 칸): GainHigh·GainLow·상태 256→257·rb_local_usn·updated_at
+    static func applyGain(uuid: String, gainDB: Double, db: CipherDatabase, usn: inout Int,
+                          stamp: (db: String, json: String)) throws -> Outcome {
+        var content: (id: String, title: String)?
+        try db.query("SELECT ID, Title FROM djmdContent WHERE UUID = ? AND rb_local_deleted = 0", [.text(uuid)]) { content = ($0.string(0) ?? "", $0.string(1) ?? "") }
+        guard let content else { throw Blocked(title: uuid, reason: "rekordbox 컬렉션에서 곡을 찾지 못했습니다") }
+        guard gainDB.isFinite, (-24...24).contains(gainDB) else { throw Blocked(title: content.title, reason: "게인이 범위를 벗어납니다") }
+        var rows: [String] = []
+        try db.query("SELECT ID FROM djmdMixerParam WHERE ContentID = ? AND rb_local_deleted = 0", [.text(content.id)]) { rows.append($0.string(0) ?? "") }
+        guard rows.count == 1, let rowID = rows.first else {
+            throw Blocked(title: content.title, reason: rows.isEmpty ? "rekordbox 오토게인 값이 없는 곡입니다(분석 전)" : "오토게인 행이 여럿입니다")
+        }
+        let value = Float(pow(10, gainDB / 20))
+        let (high, low) = RekordboxAutoGain.halves(value)
+        usn += 1
+        try db.run("""
+            UPDATE djmdMixerParam SET GainHigh = ?, GainLow = ?,
+                rb_data_status = CASE rb_data_status WHEN 256 THEN 257 ELSE rb_data_status END,
+                rb_local_usn = ?, updated_at = ? WHERE ID = ?
+            """, [.int(high), .int(low), .int(usn), .text(stamp.db), .text(rowID)])
+        var check: (Int, Int)?
+        try db.query("SELECT GainHigh, GainLow FROM djmdMixerParam WHERE ID = ?", [.text(rowID)]) { check = ($0.int(0) ?? -1, $0.int(1) ?? -1) }
+        guard check?.0 == high, check?.1 == low else { throw AnicueError.writeVerificationFailed("오토게인 확인 실패 (\(content.title))") }
+        return Outcome(trackUUID: uuid, title: content.title, status: .written, reason: nil, removed: 0, added: Int((gainDB * 100).rounded()))
     }
 
     /// BPM이 바뀌는 그리드의 DB 쪽(BPM 244→245 실험과 같은 칸):
@@ -419,10 +477,13 @@ public enum RekordboxWriter {
                 removals.append(row)
             case let .modified(old, new):
                 guard let id = old.sourceID, let row = rowsByID[id] else { throw block("옮길 큐를 찾지 못했습니다") }
-                guard !row.cue.isLoop, row.activeLoop == 0 else { throw block("루프를 옮기는 건 아직 직접 쓰지 않습니다") }
+                guard !row.cue.isLoop, row.activeLoop == 0, new.loop == nil else {
+                    throw block("루프(끝 지점·활성 루프) 쓰기는 rekordbox 실험으로 확인한 뒤 엽니다")
+                }
                 removals.append(row)
                 inserts.append((new, row))
             case let .added(new):
+                guard new.loop == nil else { throw block("루프(끝 지점·활성 루프) 쓰기는 rekordbox 실험으로 확인한 뒤 엽니다") }
                 inserts.append((new, nil))
             }
         }
