@@ -106,10 +106,11 @@ final class DecodedAudio: @unchecked Sendable {
         return Loudness.measure(channels: channels, sampleRate: buffer.format.sampleRate)
     }
 
-    /// `frame`부터 끝까지를 가리키는 버퍼(복사하지 않는다). 버퍼가 살아 있는 동안 원본도 붙잡아 둔다.
-    func segment(from frame: AVAudioFramePosition) -> AVAudioPCMBuffer? {
-        guard frame >= 0, frame < frameCount, let data = buffer.floatChannelData else { return nil }
-        let count = Int(frameCount - frame)
+    /// `frame`부터 `end`(없으면 끝)까지를 가리키는 버퍼(복사하지 않는다). 버퍼가 살아 있는 동안 원본도 붙잡아 둔다.
+    func segment(from frame: AVAudioFramePosition, to end: AVAudioFramePosition? = nil) -> AVAudioPCMBuffer? {
+        let end = min(end ?? frameCount, frameCount)
+        guard frame >= 0, frame < end, let data = buffer.floatChannelData else { return nil }
+        let count = Int(end - frame)
         let channels = Int(buffer.format.channelCount)
         let list = AudioBufferList.allocate(maximumBuffers: channels)
         for ch in 0..<channels {
@@ -154,12 +155,140 @@ final class DeckAudio {
 
     private(set) var isPlaying = false
     private var pausedPosition: Double = 0
-    /// 재생 시작(또는 속도 변경) 시점의 곡 위치와 호스트 시각.
+    /// 재생 시작(또는 속도 변경) 시점의 "직선 시간"과 호스트 시각. 직선 시간은 재생을 시작한 곡 위치에서
+    /// 곡 속도로 쭉 흘러가는 시간이다(루프가 없으면 곡 위치와 같다). 곡 위치는 조각(`pieces`)으로 바꿔 구한다.
     private var anchorPosition: Double = 0
     private var anchorHost: Double = 0
-    /// clickNode 샘플 0이 가리키는 곡 위치.
+    /// clickNode 샘플 0이 가리키는 직선 시간.
     private var clickEpochPosition: Double = 0
+    /// 여기(직선 시간)까지 클릭을 예약했다.
     private var clickScheduledUntil: Double = 0
+
+    // MARK: 샘플 단위 루프
+
+    /// 재생 조각: 재생 노드 샘플 `node`부터 곡 프레임 `frame`을 낸다. `loop`가 있으면 그 길이로 되풀이한다.
+    /// 재생 노드에 버퍼를 이어 붙여 예약하므로 루프 이음새가 샘플 단위로 맞는다(rekordbox처럼 끊김 없이).
+    private struct Piece {
+        var node: Int64
+        var frame: Int64
+        var loop: Int64?
+    }
+
+    private var pieces: [Piece] = []
+    /// 재생을 시작한 직선 시간(= 곡 위치)과 곡 앞 지연 구간 길이(재생 노드가 늦게 시작한 만큼, 프레임)
+    private var playStartLinear: Double = 0
+    private var leadInFrames: Int64 = 0
+    /// 걸어 둘 루프(곡 위치, rekordbox 시간축)
+    private(set) var loopRange: ClosedRange<Double>?
+
+    /// 메모리에 풀어 둔 곡이 있어 루프를 샘플 단위로 이어 붙일 수 있는지(없으면 화면 틱이 되돌린다)
+    var canLoopSampleAccurately: Bool { decoded != nil }
+    /// 지금 예약된 재생에 루프가 들어 있어 오디오가 알아서 되풀이하는지
+    var handlesLoop: Bool { isPlaying && loopRange != nil && pieces.last?.loop != nil }
+
+    private var sampleRate: Double { file?.processingFormat.sampleRate ?? 44_100 }
+
+    private func linear(ofNode node: Double) -> Double {
+        playStartLinear + (node + Double(leadInFrames)) / sampleRate
+    }
+
+    private func node(ofLinear linear: Double) -> Double {
+        (linear - playStartLinear) * sampleRate - Double(leadInFrames)
+    }
+
+    /// 재생 노드 샘플 → 곡 위치(초, rekordbox 시간축)
+    private func songPosition(atNode node: Double) -> Double {
+        guard let piece = pieces.last(where: { Double($0.node) <= node }) ?? pieces.first else {
+            return linear(ofNode: node)
+        }
+        var offset = node - Double(piece.node)
+        if let loop = piece.loop, loop > 0, offset >= 0 { offset = offset.truncatingRemainder(dividingBy: Double(loop)) }
+        return (Double(piece.frame) + offset) / sampleRate + timelineOffset
+    }
+
+    private func frame(of position: Double) -> Int64 {
+        Int64(((position - timelineOffset) * sampleRate).rounded())
+    }
+
+    /// 재생 노드가 실제로 그려 낸 샘플(없으면 호스트 시각으로 어림)
+    private var renderedNode: Double {
+        if let time = trackNode.lastRenderTime, let player = trackNode.playerTime(forNodeTime: time) {
+            return Double(player.sampleTime)
+        }
+        return node(ofLinear: renderPosition)
+    }
+
+    /// 루프를 건다(nil이면 푼다). 재생 중이면 지금 흐름에 끊김 없이 이어 붙인다.
+    /// - Returns: 샘플 단위로 처리했으면 true. false면 부른 쪽이 예전 방식(화면 틱에서 되돌리기)으로 처리한다.
+    /// - Parameter reschedule: false면 값만 바꾼다(곧바로 다른 자리에서 다시 재생할 때).
+    @discardableResult
+    func setLoop(_ range: ClosedRange<Double>?, reschedule: Bool = true) -> Bool {
+        guard range != loopRange else { return canLoopSampleAccurately }
+        loopRange = range
+        guard let decoded, file != nil else { return false }
+        guard isPlaying, reschedule else { return true }
+        // 예약은 재생 노드가 이미 그린 곳보다 충분히 앞서야 샘플 단위로 맞는다(렌더 블록 하나 이상, 2026-09-26 오프라인 실험).
+        let margin = Int64((0.1 + latency) * sampleRate)
+        let now = Int64(renderedNode)
+        let ahead = now + margin
+        guard let index = pieces.lastIndex(where: { $0.node <= ahead }), index == pieces.count - 1 else {
+            restartKeepingPosition(); return true
+        }
+        let piece = pieces[index]
+        func schedule(_ buffer: AVAudioPCMBuffer, at node: Int64, _ options: AVAudioPlayerNodeBufferOptions) {
+            trackNode.scheduleBuffer(buffer, at: AVAudioTime(sampleTime: node, atRate: sampleRate), options: options, completionHandler: nil)
+        }
+        if let oldLength = piece.loop {
+            // 되풀이하는 버퍼는 바퀴 경계에서만 정확히 끊을 수 있다(바퀴 중간은 렌더 블록 단위로 어긋남). 다음 바퀴 끝에서 바꾼다.
+            let boundary = piece.node + ((ahead - piece.node) / oldLength + 1) * oldLength
+            let oldEnd = piece.frame + oldLength
+            if let range {
+                let start = frame(of: range.lowerBound), end = frame(of: range.upperBound)
+                guard start == piece.frame, end - start > 16, let body = decoded.segment(from: start, to: end) else {
+                    restartKeepingPosition(); return true
+                }
+                if end > oldEnd {
+                    // 늘리기: 옛 끝 → 새 끝을 이어 붙이고 새 루프(둘 다 시각을 정해 예약해야 지워지지 않는다)
+                    guard let bridge = decoded.segment(from: oldEnd, to: end) else { restartKeepingPosition(); return true }
+                    schedule(bridge, at: boundary, .interrupts)
+                    schedule(body, at: boundary + (end - oldEnd), .loops)
+                    pieces.append(Piece(node: boundary, frame: oldEnd, loop: nil))
+                    pieces.append(Piece(node: boundary + (end - oldEnd), frame: start, loop: end - start))
+                } else {
+                    // 줄이기: 다음 바퀴부터 새 길이
+                    schedule(body, at: boundary, [.interrupts, .loops])
+                    pieces.append(Piece(node: boundary, frame: start, loop: end - start))
+                }
+                AudioEvents.record("루프 길이 바꿈(샘플 단위) · \(String(format: "%.3f~%.3f", range.lowerBound, range.upperBound))초")
+            } else {
+                // 나가기: 이번 바퀴 끝에서 루프 끝 다음으로 이어 간다.
+                guard let rest = decoded.segment(from: oldEnd) else { restartKeepingPosition(); return true }
+                schedule(rest, at: boundary, .interrupts)
+                pieces.append(Piece(node: boundary, frame: oldEnd, loop: nil))
+                AudioEvents.record("루프 나가기(샘플 단위)")
+            }
+        } else if let range {
+            // 곡 흐름 중에 걸기: 루프 끝 지점에서 정확히 넘어간다.
+            let start = frame(of: range.lowerBound), end = frame(of: range.upperBound)
+            let at = piece.node + (end - piece.frame)
+            guard end - start > 16, at > ahead, let body = decoded.segment(from: start, to: end) else {
+                restartKeepingPosition(); return true
+            }
+            schedule(body, at: at, [.interrupts, .loops])
+            pieces.append(Piece(node: at, frame: start, loop: end - start))
+            AudioEvents.record("루프 걸기(샘플 단위) · \(String(format: "%.3f~%.3f", range.lowerBound, range.upperBound))초")
+        } else if pieces.contains(where: { $0.loop != nil && $0.node > now }) {
+            // 아직 닿지 않은 루프를 취소: 다시 예약한다.
+            restartKeepingPosition()
+        }
+        return true
+    }
+
+    /// 지금 위치에서 다시 예약한다(짧은 끊김이 있다). 샘플 단위로 이어 붙일 수 없는 드문 경우에만 쓴다.
+    private func restartKeepingPosition() {
+        guard isPlaying else { return }
+        play(from: position)
+    }
     /// 출력·변환 지연. 매 프레임 Core Audio에 묻지 않도록 재생 시작·속도 변경 때만 갱신한다.
     private var latency: Double = 0
     private var configObserver: NSObjectProtocol?
@@ -272,6 +401,18 @@ final class DeckAudio {
 
     var isEngineRunning: Bool { engine.isRunning }
 
+    /// 진단: 곡 믹서 출력(속도 변환 전)을 받아 본다. 스피커는 음소거한다(개발용 자가 테스트).
+    func debugCaptureTrack(_ handler: @escaping @Sendable (AVAudioPCMBuffer) -> Void) {
+        engine.mainMixerNode.outputVolume = 0
+        trackMixer.removeTap(onBus: 0)
+        trackMixer.installTap(onBus: 0, bufferSize: 1024, format: nil, block: Self.captureTap(handler))
+    }
+
+    /// 오디오 스레드에서 불리므로 메인 액터 밖에서 만든다.
+    nonisolated private static func captureTap(_ handler: @escaping @Sendable (AVAudioPCMBuffer) -> Void) -> AVAudioNodeTapBlock {
+        { buffer, _ in handler(buffer) }
+    }
+
     /// 진단: 알림 없이 엔진이 멈춘 상황을 흉내 낸다.
     func debugStopEngine() { engine.stop() }
 
@@ -345,12 +486,13 @@ final class DeckAudio {
     var position: Double {
         guard isPlaying else { return pausedPosition }
         let elapsed = max(0, Self.now() - anchorHost - latency)
-        return min(duration, anchorPosition + elapsed * rate)
+        let linear = anchorPosition + elapsed * rate
+        return min(duration, songPosition(atNode: node(ofLinear: linear)))
     }
 
     private var fileDuration: Double = 0
 
-    /// 지금 렌더링 중인 곡 위치(지연 보정 없음). 클릭 예약·재앵커에 쓴다.
+    /// 지금 렌더링 중인 직선 시간(지연 보정 없음). 클릭 예약·재앵커에 쓴다.
     private var renderPosition: Double {
         anchorPosition + max(0, Self.now() - anchorHost) * rate
     }
@@ -380,7 +522,18 @@ final class DeckAudio {
                 return false
             }
         }
-        if let segment = decoded?.segment(from: startFrame) {
+        pieces = [Piece(node: 0, frame: startFrame, loop: nil)]
+        playStartLinear = position
+        leadInFrames = Int64((leadIn * sampleRate).rounded())
+        if let decoded, let range = loopRange, position < range.upperBound - 0.001,
+           case let (loopStart, loopEnd) = (frame(of: range.lowerBound), frame(of: range.upperBound)),
+           loopEnd - loopStart > 16, loopEnd > startFrame,
+           let head = decoded.segment(from: startFrame, to: loopEnd), let body = decoded.segment(from: loopStart, to: loopEnd) {
+            // 루프 끝까지 + 루프 되풀이(샘플 단위로 이어진다)
+            trackNode.scheduleBuffer(head, at: nil, options: [], completionHandler: nil)
+            trackNode.scheduleBuffer(body, at: nil, options: .loops, completionHandler: nil)
+            pieces.append(Piece(node: loopEnd - startFrame, frame: loopStart, loop: loopEnd - loopStart))
+        } else if let segment = decoded?.segment(from: startFrame) {
             trackNode.scheduleBuffer(segment, at: nil, options: [], completionHandler: nil)
         } else {
             // 디코딩이 끝나기 전(곡을 막 불러온 직후)이나 아주 긴 파일: 파일에서 바로 읽는다.
@@ -462,20 +615,51 @@ final class DeckAudio {
 
     // MARK: - 메트로놈
 
-    /// 1.5초 앞까지 클릭을 예약한다. 디스플레이 갱신마다 부른다.
+    /// 1.5초 앞까지 클릭을 예약한다. 디스플레이 갱신마다 부른다. 루프 중에는 조각을 따라 바퀴마다 같은 박을 친다.
     func scheduleClicks(_ grid: BeatGrid?) {
-        guard isPlaying, metronome, let grid, let down = downbeatClick, let beat = beatClick else { return }
+        guard isPlaying, metronome, let grid, let down = downbeatClick, let beat = beatClick, !pieces.isEmpty else { return }
         let horizon = renderPosition + 1.5 * rate
-        var index = grid.firstIndex(atOrAfter: clickScheduledUntil + 0.0005)
-        while index < grid.beats.count, grid.beats[index].time <= horizon {
-            let b = grid.beats[index]
-            index += 1
-            let offset = b.time - clickEpochPosition
+        let from = clickScheduledUntil + 0.0005
+        guard from < horizon else { return }
+        var events: [(linear: Double, downbeat: Bool)] = []
+        for (i, piece) in pieces.enumerated() {
+            let startLinear = i == 0 ? playStartLinear : linear(ofNode: Double(piece.node))
+            let endLinear = i + 1 < pieces.count ? linear(ofNode: Double(pieces[i + 1].node)) : .infinity
+            let lo = max(from, startLinear), hi = min(horizon, endLinear)
+            guard lo < hi else { continue }
+            let pieceSong = Double(piece.frame) / sampleRate + timelineOffset
+            // 조각 첫 샘플의 직선 시간(첫 조각은 곡 앞 지연 구간까지 포함)
+            let origin = linear(ofNode: Double(piece.node))
+            if let loop = piece.loop {
+                let length = Double(loop) / sampleRate
+                var turn = max(0, ((lo - origin) / length).rounded(.down))
+                while origin + turn * length < hi {
+                    let turnStart = origin + turn * length
+                    var index = grid.firstIndex(atOrAfter: pieceSong - 0.0005)
+                    while index < grid.beats.count, grid.beats[index].time < pieceSong + length - 0.0005 {
+                        let t = turnStart + (grid.beats[index].time - pieceSong)
+                        if t >= lo, t < hi { events.append((t, grid.beats[index].isDownbeat)) }
+                        index += 1
+                    }
+                    turn += 1
+                }
+            } else {
+                var index = grid.firstIndex(atOrAfter: pieceSong + (lo - origin) - 0.0005)
+                while index < grid.beats.count {
+                    let t = origin + (grid.beats[index].time - pieceSong)
+                    if t >= hi { break }
+                    if t >= lo { events.append((t, grid.beats[index].isDownbeat)) }
+                    index += 1
+                }
+            }
+        }
+        for event in events.sorted(by: { $0.linear < $1.linear }) {
+            let offset = event.linear - clickEpochPosition
             guard offset >= 0 else { continue }
             let when = AVAudioTime(sampleTime: AVAudioFramePosition(offset * clickFormat.sampleRate), atRate: clickFormat.sampleRate)
-            clickNode.scheduleBuffer(b.isDownbeat ? down : beat, at: when, options: [], completionHandler: nil)
-            clickScheduledUntil = b.time
+            clickNode.scheduleBuffer(event.downbeat ? down : beat, at: when, options: [], completionHandler: nil)
         }
+        clickScheduledUntil = horizon
     }
 
     /// 예약된 클릭을 버리고 새 시간축에서 다시 시작한다(메트로놈 토글·그리드 편집 후).
