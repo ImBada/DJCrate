@@ -302,7 +302,7 @@ final class DeckModel {
         waveform = nil; waveformError = nil; analysis = nil; analysisError = nil; artwork = nil
         isAnalyzingSections = row.map { !$0.track.isStreaming } ?? false
         suggestions = []; sectionEnergies = []; draft = nil; loudness = nil; keySegments = []; keyChroma = nil; gainDraft = nil
-        engagedLoopID = nil
+        engagedLoopID = nil; instantLoop = nil
         originalGrid = nil; gridDraft = nil; grid = nil; gridBPM = nil; gridEditBlockedReason = nil
         hasRekordboxGrid = false; timelineOffset = 0; gridSuggestion = nil; gridSuggestionNote = nil; suggestedGrid = nil
         suggestionTask?.cancel()
@@ -708,34 +708,113 @@ final class DeckModel {
     /// 지금 반복 중인 루프(큐 ID)
     private(set) var engagedLoopID: EditableCue.ID?
 
+    /// 즉석 루프(큐에 저장하지 않은 루프). CDJ의 오토 비트 루프와 같다. 이 상태로 빈 핫큐 칸을 누르면 루프 핫큐로 저장된다.
+    struct InstantLoop: Equatable {
+        var start: Double
+        var end: Double
+    }
+
+    private(set) var instantLoop: InstantLoop?
+
+    /// 즉석 루프 길이(박). ½ · ×2로 바꾼다.
+    private(set) var loopSize: Double = 4
+    static let loopSizes: [Double] = [0.25, 0.5, 1, 2, 4, 8, 16, 32]
+
+    var loopSizeText: String { Self.beatsText(loopSize) }
+
+    static func beatsText(_ beats: Double) -> String {
+        switch beats {
+        case 0.25: "¼"
+        case 0.5: "½"
+        default: String(Int(beats))
+        }
+    }
+
+    /// 지금 반복 중인 구간(즉석 루프 또는 루프 큐)
+    var engagedLoopRange: InstantLoop? {
+        if let instantLoop { return instantLoop }
+        guard let cue = cue(engagedLoopID), let loop = cue.loop else { return nil }
+        return InstantLoop(start: cue.time, end: loop.end)
+    }
+
+    var isLooping: Bool { engagedLoopRange != nil }
+
     /// 재생 중 루프 처리. 반복으로 되돌렸으면 true.
     private func handleLoops(previous: Double) -> Bool {
         let cues = draft?.cues ?? []
         // 활성 루프: 재생이 그 시작을 지나가면 자동으로 건다.
-        if engagedLoopID == nil,
+        if engagedLoopID == nil, instantLoop == nil,
            let active = cues.first(where: { $0.loop?.active == true && previous < $0.time && playhead >= $0.time }) {
             engagedLoopID = active.id
         }
-        guard let id = engagedLoopID, let cue = cues.first(where: { $0.id == id }), let loop = cue.loop else {
-            engagedLoopID = nil
-            return false
-        }
-        if playhead >= loop.end - 0.004 {
-            startPlayback(from: cue.time)
-            playhead = cue.time
+        if engagedLoopID != nil, cue(engagedLoopID)?.loop == nil { engagedLoopID = nil }
+        guard let range = engagedLoopRange else { return false }
+        if playhead >= range.end - 0.004 {
+            startPlayback(from: range.start)
+            playhead = range.start
             return true
         }
         return false
     }
 
     /// 루프에서 빠져나온다.
-    func exitLoop() { engagedLoopID = nil }
+    func exitLoop() {
+        engagedLoopID = nil
+        instantLoop = nil
+    }
+
+    /// LOOP 버튼·L: 반복 중이면 빠져나오고, 아니면 플레이헤드(퀀타이즈면 가까운 박)에서 `loopSize`박 루프를 건다.
+    func toggleLoop() {
+        if isLooping {
+            exitLoop()
+            return
+        }
+        guard canPlay else { return }
+        let start = snapped(currentTime)
+        guard let end = loopEnd(from: start, beats: loopSize) else { return }
+        instantLoop = InstantLoop(start: start, end: end)
+    }
+
+    /// 루프 길이를 반으로(-1) · 두 배로(+1). 반복 중이면 시작점은 두고 끝만 바꾼다(루프 큐는 그대로 두고 즉석 루프로 바뀐다).
+    func resizeLoop(_ direction: Int) {
+        let current = engagedLoopRange
+        var size = loopSize
+        if instantLoop == nil, let cue = cue(engagedLoopID), let beats = loopBeats(cue), beats > 0 { size = Double(beats) }
+        guard let index = Self.loopSizes.firstIndex(where: { $0 >= size - 0.001 }) ?? Self.loopSizes.indices.last,
+              Self.loopSizes.indices.contains(index + direction) else { return }
+        let next = Self.loopSizes[index + direction]
+        if let current {
+            guard let end = loopEnd(from: current.start, beats: next) else { return }
+            engagedLoopID = nil
+            instantLoop = InstantLoop(start: current.start, end: end)
+            // 줄어든 루프 밖에 있으면 바로 시작점으로
+            if playhead >= end { seek(current.start) }
+        }
+        loopSize = next
+    }
+
+    /// `start`에서 `beats`박 뒤. 그리드가 있으면 박에 맞추고(1박 이상), 1박 미만이면 그 자리 BPM으로 나눈다.
+    private func loopEnd(from start: Double, beats: Double) -> Double? {
+        let end: Double
+        if let grid, !grid.beats.isEmpty, beats >= 1, beats == beats.rounded() {
+            end = grid.nudge(start, beats: Int(beats))
+        } else {
+            let index = grid.map { max(0, $0.firstIndex(atOrAfter: start + 0.001) - 1) }
+            let bpm = index.flatMap { grid?.beats.indices.contains($0) == true ? grid?.beats[$0].bpm : nil } ?? gridBPM ?? 120
+            end = start + beats * 60 / max(bpm, 1)
+        }
+        guard end > start + 0.01, end <= duration + 0.01 else {
+            showToast("곡 끝을 넘는 루프는 만들 수 없습니다")
+            return nil
+        }
+        return end
+    }
 
     /// 한 번의 이동(패드·목록 클릭 등). 재생 중이면 그 위치에서 다시 재생한다.
     func seek(_ time: Double) {
         // 반복 중인 루프 밖으로 옮기면 루프를 푼다.
-        if let id = engagedLoopID, let cue = cue(id), let loop = cue.loop, time < cue.time - 0.001 || time >= loop.end {
-            engagedLoopID = nil
+        if let range = engagedLoopRange, time < range.start - 0.001 || time >= range.end {
+            exitLoop()
         }
         isCuePreviewing = false
         playhead = min(max(time, 0), duration)
@@ -902,6 +981,28 @@ final class DeckModel {
         selectedCueID = cue.id
     }
 
+    /// + 메모리 큐 · M: 즉석 루프 중이면 그 루프를 메모리 루프로 저장하고, 아니면 플레이헤드에 메모리 큐를 찍는다.
+    func addMemoryCueAtPlayhead() {
+        guard let loop = instantLoop else {
+            addMemoryCue(at: currentTime)
+            return
+        }
+        if let existing = draft?.cues.first(where: { $0.kind == .memory && abs($0.time - loop.start) <= 0.03 && $0.loop != nil }) {
+            selectedCueID = existing.id
+            return
+        }
+        guard memoryCueCount < Self.memoryCueLimit else {
+            showToast("메모리 큐는 곡당 \(Self.memoryCueLimit)개까지입니다(rekordbox 제한, 자동 큐 포함)")
+            return
+        }
+        var cue = EditableCue(kind: .memory, time: loop.start)
+        cue.loop = EditableCue.Loop(end: loop.end, active: false)
+        mutate { $0.place(cue) }
+        instantLoop = nil
+        engagedLoopID = cue.id
+        selectedCueID = cue.id
+    }
+
     /// 재생 위치(±30ms, 퀀타이즈 위치 포함)에 있는 메모리 큐를 지운다. CDJ에서 메모리 큐를 불러온 자리에서 DELETE를 누르는 것과 같다.
     @discardableResult
     func deleteMemoryCue(at time: Double) -> Bool {
@@ -922,7 +1023,15 @@ final class DeckModel {
                 return
             }
             seek(cue.time)
-            if cue.loop != nil { engagedLoopID = cue.id }
+            if cue.loop != nil { instantLoop = nil; engagedLoopID = cue.id }
+            selectedCueID = cue.id
+        } else if let loop = instantLoop {
+            // 즉석 루프 중에 빈 칸을 누르면 그 루프를 루프 핫큐로 저장하고 계속 반복한다(CDJ와 같다).
+            var cue = EditableCue(kind: .hot(slot), time: loop.start)
+            cue.loop = EditableCue.Loop(end: loop.end, active: false)
+            mutate { $0.place(cue) }
+            instantLoop = nil
+            engagedLoopID = cue.id
             selectedCueID = cue.id
         } else {
             guard canPlay || grid != nil else { return }  // 소리·그리드 없이 0초에 박히지 않게

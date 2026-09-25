@@ -188,6 +188,7 @@ private struct TransportBar: View {
                     HotCuePad(deck: deck, slot: slot)
                 }
             }
+            LoopControl(deck: deck)
             HStack(spacing: 2) {
                 Button { deck.jumpToCue(forward: false) } label: { Image(systemName: "backward.end.fill") }
                     .help("이전 큐로 (Q)").accessibilityLabel("이전 큐로")
@@ -197,7 +198,7 @@ private struct TransportBar: View {
             .disabled(!deck.canPlay)
             Button("+ 메모리 큐") {
                 // Shift+클릭 = 이 자리 메모리 큐 지우기
-                if NSEvent.modifierFlags.contains(.shift) { deck.deleteMemoryCue(at: deck.currentTime) } else { deck.addMemoryCue(at: deck.currentTime) }
+                if NSEvent.modifierFlags.contains(.shift) { deck.deleteMemoryCue(at: deck.currentTime) } else { deck.addMemoryCueAtPlayhead() }
             }
             .help("플레이헤드 위치에 메모리 큐 추가 (` 또는 M). Shift를 누르고 누르면 이 자리 메모리 큐를 지웁니다")
             ZoomControl(deck: deck)
@@ -588,20 +589,21 @@ private struct LevelMeterView: View {
             HStack(spacing: 6) {
                 Canvas { context, size in draw(context, size: size, state: state) }
                     .frame(width: 130, height: 13)
-                Text(reading.maxPeak > 0 ? String(format: "%+.1f", 20 * log10(reading.maxPeak)) : "−∞")
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(reading.maxPeak >= 1 ? Color.red : reading.maxPeak >= 0.708 ? Color.orange : Color.secondary)
-                    .frame(width: 34, alignment: .trailing)
-                    .help("곡을 올린 뒤 최고 피크(dBFS, 게인 뒤)")
+                // 최고 피크. 0dBFS를 넘은 적이 있으면 빨간 점이 켜진다. 누르면 기록을 지운다.
                 Button { deck.meter.resetPeaks() } label: {
-                    Text("CLIP")
-                        .font(.system(size: 9, weight: .heavy))
-                        .padding(.horizontal, 4).padding(.vertical, 2)
-                        .foregroundStyle(clipping ? Color.white : Color.secondary.opacity(0.6))
-                        .background(RoundedRectangle(cornerRadius: 3).fill(clipping ? Color.red : Color.secondary.opacity(0.15)))
+                    HStack(spacing: 3) {
+                        Circle().fill(Color.red).frame(width: 6, height: 6).opacity(clipping ? 1 : 0)
+                        Text(reading.maxPeak > 0 ? String(format: "%+.1f", 20 * log10(reading.maxPeak)) : "−∞")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(reading.maxPeak >= 1 ? Color.red : reading.maxPeak >= 0.708 ? Color.orange : Color.secondary)
+                    }
+                    .frame(width: 44, alignment: .trailing)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help(reading.clipCount > 0 ? "0dBFS를 넘은 적이 있습니다(\(reading.clipCount)번). 게인을 낮추세요. 누르면 기록을 지웁니다." : "0dBFS를 넘으면 빨갛게 켜집니다")
+                .help(reading.clipCount > 0
+                      ? "최고 피크(dBFS, 게인 뒤). 0dBFS를 \(reading.clipCount)번 넘었습니다 — 게인을 낮추세요. 누르면 기록을 지웁니다"
+                      : "곡을 올린 뒤 최고 피크(dBFS, 게인 뒤). 0dBFS를 넘으면 빨간 점이 켜집니다. 누르면 기록을 지웁니다")
             }
         }
         .accessibilityLabel("레벨 미터")
@@ -719,6 +721,8 @@ private struct HotCuePad: View {
     var body: some View {
         let cue = deck.hotCue(slot: slot)
         let letter = String(UnicodeScalar(UInt8(65 + slot)))
+        let color = cue.map(Palette.color(for:)) ?? .secondary
+        let engaged = cue != nil && cue?.id == deck.engagedLoopID
         Button {
             // Shift+클릭 = 지우기
             if NSEvent.modifierFlags.contains(.shift) { deck.deleteHotCue(slot: slot) } else { deck.pressHotCue(slot: slot) }
@@ -727,11 +731,13 @@ private struct HotCuePad: View {
                 .font(.system(size: 11, weight: .bold))
                 .frame(width: 22, height: 20)
                 .foregroundStyle(cue == nil ? Color.secondary : Color.black)
-                .background(cue == nil ? Color.clear : Palette.hot, in: RoundedRectangle(cornerRadius: 4))
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(cue == nil ? Color.secondary.opacity(0.5) : Palette.hot))
+                .background(cue == nil ? Color.clear : color, in: RoundedRectangle(cornerRadius: 4))
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(engaged ? Color.white : cue == nil ? Color.secondary.opacity(0.5) : color,
+                                                                  lineWidth: engaged ? 2 : 1))
         }
         .buttonStyle(.plain)
-        .help(cue == nil ? "핫큐 \(letter) (\(slot + 1)): 플레이헤드에 설정"
+        .help(cue == nil ? (deck.instantLoop != nil ? "핫큐 \(letter) (\(slot + 1)): 지금 루프를 루프 핫큐로 저장" : "핫큐 \(letter) (\(slot + 1)): 플레이헤드에 설정")
+              : cue?.loop != nil ? "루프 핫큐 \(letter) (\(slot + 1)): 누르면 루프 반복, 반복 중에 다시 누르면 나가기 · Shift+클릭: 지우기"
               : "핫큐 \(letter) (\(slot + 1))로 이동 (\(cue!.time.clockText)) · Shift+클릭 또는 Shift+\(slot + 1): 지우기")
         .accessibilityLabel(cue == nil ? "핫큐 \(letter) 비어 있음, 설정" : "핫큐 \(letter)로 이동")
         .contextMenu {
@@ -740,6 +746,38 @@ private struct HotCuePad: View {
                 Button("삭제", role: .destructive) { if let id = cue?.id { deck.delete(id) } }
             }
         }
+    }
+}
+
+/// 오토 비트 루프: ½ · LOOP n박 · ×2. 반복 중에 빈 핫큐 칸이나 + 메모리 큐를 누르면 그 루프가 저장된다.
+private struct LoopControl: View {
+    let deck: DeckModel
+
+    var body: some View {
+        let looping = deck.isLooping
+        HStack(spacing: 2) {
+            Button { deck.resizeLoop(-1) } label: { Text("½").frame(width: 14) }
+                .help("루프 길이 반으로 ([)").accessibilityLabel("루프 길이 반으로")
+            Button { deck.toggleLoop() } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "repeat").font(.system(size: 9, weight: .bold))
+                    Text(deck.loopSizeText).font(.system(size: 11, weight: .heavy).monospacedDigit())
+                }
+                .frame(width: 44, height: 20)
+                .foregroundStyle(looping ? Color.black : Palette.loop)
+                .background(looping ? Palette.loop : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Palette.loop))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .opacity(deck.canPlay ? 1 : 0.4)
+            .help(looping ? "루프에서 나가기 (L)"
+                  : "플레이헤드에서 \(deck.loopSizeText)박 루프 (L). 반복 중에 빈 핫큐 칸을 누르면 루프 핫큐, + 메모리 큐를 누르면 메모리 루프로 저장")
+            .accessibilityLabel(looping ? "루프 나가기" : "\(deck.loopSizeText)박 루프")
+            Button { deck.resizeLoop(1) } label: { Text("×2").frame(width: 18) }
+                .help("루프 길이 두 배로 (])").accessibilityLabel("루프 길이 두 배로")
+        }
+        .disabled(!deck.canPlay)
     }
 }
 
@@ -776,6 +814,8 @@ struct ShortcutsList: View {
                 row(["Q", "/", "E"], "이전 · 다음 큐로")
                 row(["←", "→"], "선택한 큐 1박 이동")
                 row(["⌫"], "선택한 큐 지우기")
+                row(["L"], "루프 걸기 · 나가기 (반복 중 빈 핫큐 = 루프 핫큐로 저장)")
+                row(["[", "/", "]"], "루프 길이 ½ · ×2")
                 row(["T"], "탭 템포")
                 row(["휠", "·", "+", "/", "−"], "파형 확대 · 축소 (가로 스크롤: 이동)")
                 row(["⌘", "⇧", "E"], "rekordbox에 반영")
@@ -876,7 +916,7 @@ private struct CueRow: View {
             }
             .labelsHidden()
             .frame(width: 76)
-            .foregroundStyle(cue.kind == .memory ? Palette.memory : Palette.hot)
+            .foregroundStyle(Palette.color(for: cue))
 
             Button { deck.nudge(cue.id, beats: -1) } label: { Image(systemName: "chevron.left") }
                 .buttonStyle(.borderless).help("1박 앞으로").accessibilityLabel("1박 앞으로")

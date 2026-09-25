@@ -149,9 +149,12 @@ final class KeyRouter {
         case "m":
             // Shift + M(`) = 이 자리 메모리 큐 지우기
             if !event.isARepeat {
-                if event.modifierFlags.contains(.shift) { deck.deleteMemoryCue(at: deck.currentTime) } else { deck.addMemoryCue(at: deck.currentTime) }
+                if event.modifierFlags.contains(.shift) { deck.deleteMemoryCue(at: deck.currentTime) } else { deck.addMemoryCueAtPlayhead() }
             }
         case "t": if !event.isARepeat { deck.tapTempo() }
+        case "l": if !event.isARepeat { deck.toggleLoop() }
+        case "[": deck.resizeLoop(-1)
+        case "]": deck.resizeLoop(1)
         case "+", "=": deck.zoom(by: 0.8)
         case "-": deck.zoom(by: 1.25)
         default: return false
@@ -208,6 +211,9 @@ final class KeyRouter {
         case 8: "c"
         case 46, 50: "m"   // M, `(1 왼쪽 키 — 한글 자판에선 ₩)
         case 17: "t"
+        case 37: "l"
+        case 33: "["
+        case 30: "]"
         case 12: "q"
         case 14: "e"
         case 24: "="
