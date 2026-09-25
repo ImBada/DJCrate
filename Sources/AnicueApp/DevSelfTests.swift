@@ -1,3 +1,5 @@
+import QuartzCore
+import AppKit
 import AnicueCore
 import Foundation
 
@@ -9,6 +11,7 @@ enum DevSelfTests {
         runWriteSelfTestIfRequested(store: store, deck: deck)
         runLoopSelfTestIfRequested(deck: deck)
         runCarrySelfTestIfRequested(deck: deck)
+        runScrollPerfIfRequested(deck: deck)
         guard ProcessInfo.processInfo.arguments.contains("--switch-selftest") else { return }
         Task {
             @MainActor func mark(_ text: String) {
@@ -252,6 +255,60 @@ enum DevSelfTests {
             let ok = shifted && memoriesStill && stillOnBeat && reverted && dragged && untouched
             log(ok ? "통과" : "실패")
             exit(ok ? 0 : 1)
+        }
+    }
+
+    /// 개발용: 재생 중에 곡 목록을 스크롤할 때 파형 갱신이 끊기는지 잰다(`--scroll-perf`).
+    static func runScrollPerfIfRequested(deck: DeckModel) {
+        guard PerfProbe.enabled else { return }
+        func log(_ text: String) { FileHandle.standardError.write(Data("[스크롤 성능] \(text)\n".utf8)) }
+        Task {
+            func wait(_ seconds: Double) async { try? await Task.sleep(for: .seconds(seconds)) }
+            for _ in 0..<100 where !deck.canPlay || deck.waveform == nil { await wait(0.1) }
+            guard deck.canPlay else { log("재생 불가"); exit(1) }
+            @MainActor func findTable(_ view: NSView?) -> NSTableView? {
+                guard let view else { return nil }
+                if let table = view as? NSTableView, table.identifier == KeyRouter.trackListID { return table }
+                for sub in view.subviews { if let found = findTable(sub) { return found } }
+                return nil
+            }
+            guard let window = NSApp.windows.first(where: { $0.isVisible }), let table = findTable(window.contentView),
+                  let clip = table.enclosingScrollView?.contentView else { log("목록을 찾지 못함"); exit(1) }
+            deck.volume = 0.0003
+            PerfProbe.startRunLoopProbe()
+            deck.togglePlay()
+            await wait(1.5)
+            PerfProbe.reset()
+            await wait(3)
+            log("가만히: " + PerfProbe.summary())
+            PerfProbe.reset()
+            // 3초씩: 천천히(8ms마다 14px), 빠르게 훑기(8ms마다 70px)
+            var stepCosts: [Double] = []
+            for (name, step) in [("천천히 스크롤", 14.0), ("빠르게 스크롤", 70.0)] {
+                PerfProbe.reset()
+                let started = ProcessInfo.processInfo.systemUptime
+                var y = clip.bounds.origin.y
+                var down = true
+                while ProcessInfo.processInfo.systemUptime - started < 3 {
+                    y += down ? step : -step
+                    let maxY = table.bounds.height - clip.bounds.height
+                    if y >= maxY { down = false } else if y <= 0 { down = true }
+                    let t0 = CACurrentMediaTime()
+                    clip.scroll(to: NSPoint(x: clip.bounds.origin.x, y: min(max(y, 0), maxY)))
+                    table.enclosingScrollView?.reflectScrolledClipView(clip)
+                    window.contentView?.layoutSubtreeIfNeeded()
+                    window.displayIfNeeded()
+                    stepCosts.append((CACurrentMediaTime() - t0) * 1000)
+                    try? await Task.sleep(for: .milliseconds(8))
+                }
+                let sorted = stepCosts.sorted()
+                log("\(name): " + PerfProbe.summary()
+                    + String(format: " · 스크롤 한 번 처리 평균 %.2fms · 상위 10%% %.2fms · 최대 %.2fms",
+                             stepCosts.reduce(0, +) / Double(max(stepCosts.count, 1)), sorted[Int(Double(sorted.count) * 0.9)], sorted.last ?? 0))
+                stepCosts = []
+            }
+            deck.togglePlay()
+            exit(0)
         }
     }
 }

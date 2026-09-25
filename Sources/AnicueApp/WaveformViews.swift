@@ -128,17 +128,16 @@ private struct DrawState {
 /// 세로 휠: 확대·축소 / 가로 스크롤(트랙패드·Shift+휠): 위치 이동. 파형 영역 밖 스크롤은 건드리지 않는다.
 @MainActor
 final class WaveformScrollHandler {
-    var frame: CGRect = .zero
+    /// 파형 자리의 AppKit 뷰(창 좌표로 마우스가 파형 위인지 본다)
+    weak var probe: NSView?
     weak var deck: DeckModel?
     private var monitor: Any?
 
     func install() {
         guard monitor == nil else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-            guard let self, let deck = self.deck, let content = event.window?.contentView else { return event }
-            let location = event.locationInWindow
-            let point = CGPoint(x: location.x, y: content.bounds.height - location.y)
-            guard self.frame.contains(point) else { return event }
+            guard let self, let deck = self.deck, let probe = self.probe, event.window === probe.window,
+                  probe.bounds.contains(probe.convert(event.locationInWindow, from: nil)) else { return event }
             let precise = event.hasPreciseScrollingDeltas
             let dx = event.scrollingDeltaX, dy = event.scrollingDeltaY
             if abs(dy) >= abs(dx) {
@@ -147,7 +146,7 @@ final class WaveformScrollHandler {
                 deck.zoom(by: precise ? exp(-Double(dy) * 0.01) : (dy > 0 ? 0.85 : 1.18))
             } else {
                 // 가로 이동은 이벤트마다 오디오를 다시 시작하지 않고 모아서 처리한다.
-                let seconds = -Double(dx) / Double(max(self.frame.width, 1)) * deck.zoomSeconds * (precise ? 1 : 6)
+                let seconds = -Double(dx) / Double(max(probe.bounds.width, 1)) * deck.zoomSeconds * (precise ? 1 : 6)
                 deck.scrubCoalesced(to: deck.currentTime + seconds)
             }
             return nil
@@ -183,7 +182,7 @@ struct ZoomWaveformView: View {
 
                 let state = DrawState(deck)
                 Canvas { context, size in
-                    draw(context, size: size, state: state, start: start, window: window, xOf: xOf)
+                    PerfProbe.measureDraw { draw(context, size: size, state: state, start: start, window: window, xOf: xOf) }
                 }
                 .contentShape(Rectangle())
                 .gesture(
@@ -251,7 +250,7 @@ struct ZoomWaveformView: View {
                 }
                 .onEnded { _ in pinchBase = nil }
         )
-        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { scroll.frame = $0 }
+        .background { HitProbe { scroll.probe = $0 } }
         .onAppear { scroll.deck = deck; scroll.install() }
         .onDisappear { scroll.remove() }
         .accessibilityLabel("확대 3밴드 파형. 드래그로 스크럽, 큐를 끌어 이동, 더블클릭으로 메모리 큐 추가, 휠로 확대·축소")
@@ -319,7 +318,7 @@ struct ZoomWaveformView: View {
                                style: StrokeStyle(lineWidth: beat.isDownbeat ? 1.5 : 1, dash: [3, 4]))
             }
         }
-        if let waveform = state.waveform {
+        if let waveform = state.waveform, !PerfProbe.skipBands {
             drawBands(context, waveform: waveform, from: start - state.audioOffset, to: end - state.audioOffset,
                       in: CGRect(x: 0, y: 16, width: size.width, height: size.height - 34))
         }
@@ -575,7 +574,8 @@ private struct OverviewPlayheadLayer: View {
     let duration: Double
 
     var body: some View {
-        let t = deck.currentTime
+        // 전체 파형은 넓어서 초당 15번이면 충분하다(창 전체 갱신을 매 프레임 일으키지 않게).
+        let t = deck.displayTime
         let zoom = deck.zoomSeconds
         Canvas { context, size in
             let xOf = { (time: Double) in CGFloat(time / duration) * size.width }

@@ -20,8 +20,12 @@ final class DeckModel {
     private(set) var artwork: NSImage?
     private(set) var draft: CueDraft?
     var selectedCueID: EditableCue.ID?
-    private(set) var playhead: Double = 0
-    private(set) var isPlaying = false
+    private(set) var playhead: Double = 0 {
+        didSet { updateDisplayTime() }
+    }
+    private(set) var isPlaying = false {
+        didSet { if !isPlaying, displayTime != playhead { displayTime = playhead } }
+    }
     var zoomSeconds: Double = DeckSettings.double("zoomSeconds", 16) { didSet { DeckSettings.set("zoomSeconds", zoomSeconds) } }
     /// CDJ식 메인 CUE 지점. 곡을 불러오면 첫 메모리 큐(없으면 0초)에 놓인다. 초안·rekordbox에는 쓰지 않는다.
     private(set) var cuePoint: Double = 0
@@ -246,6 +250,19 @@ final class DeckModel {
     private(set) var duration: Double = 0
     private(set) var canPlay = false
     var currentTime: Double { playhead }
+    /// 글자·전체 파형용 재생 위치. 재생 중에는 초당 15번만 바뀐다(멈춰 있을 땐 바로 따라간다).
+    private(set) var displayTime: Double = 0
+    @ObservationIgnored private var displayTimeStamp: Double = 0
+
+    private func updateDisplayTime() {
+        guard displayTime != playhead else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        // 재생 중이 아니거나(탐색·끌기) 크게 뛰면 바로, 재생 중에는 1/15초마다
+        if !isPlaying || now - displayTimeStamp >= 1.0 / 15 || abs(playhead - displayTime) > 0.5 {
+            displayTime = playhead
+            displayTimeStamp = now
+        }
+    }
     var rate: Double { 1 + tempoPercent / 100 }
 
     /// 플레이헤드가 있는 템포 구간의 BPM. 바뀔 때만 갱신되는 저장값이다.
@@ -742,8 +759,18 @@ final class DeckModel {
         }
     }
 
+    /// 레벨 미터 다시 그리기 신호(재생 틱에 맞춰 초당 30번). 미터가 따로 타이머를 돌리면 창 갱신이 그만큼 더 생긴다.
+    private(set) var meterFrame = 0
+    @ObservationIgnored private var meterStamp: Double = 0
+
     private func tick() {
         guard isPlaying else { return }
+        PerfProbe.tick()
+        let now = ProcessInfo.processInfo.systemUptime
+        if now - meterStamp >= 1.0 / 30 {
+            meterStamp = now
+            meterFrame &+= 1
+        }
         // CUE를 뗀 신호(키·마우스)를 놓치면 미리 듣기가 끝나지 않는다. 실제로 누르고 있지 않으면 뗀 것으로 본다.
         if isCuePreviewing, !Self.isCueHeld {
             AudioEvents.record("CUE를 뗀 신호를 놓쳐 미리 듣기를 끝냄")

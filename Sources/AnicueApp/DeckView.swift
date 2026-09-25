@@ -22,7 +22,7 @@ struct DeckView: View {
                 }
                 VStack(alignment: .leading, spacing: 8) {
                     if compact { CompactInfo(deck: deck, row: row) }
-                    ZoomWaveformView(deck: deck)
+                    Group { if PerfProbe.hidden.contains("zoom") { EmptyView() } else { ZoomWaveformView(deck: deck) } }
                         .frame(height: waveformHeight)
                         .overlay(alignment: .center) { loadingOverlay }
                         .overlay(alignment: .top) {
@@ -37,7 +37,7 @@ struct DeckView: View {
                             }
                         }
                         .animation(.easeOut(duration: 0.15), value: deck.toast)
-                    OverviewWaveformView(deck: deck)
+                    Group { if PerfProbe.hidden.contains("overview") { EmptyView() } else { OverviewWaveformView(deck: deck) } }
                         .frame(height: 86)
                     TransportBar(deck: deck)
                     AudioBar(deck: deck)
@@ -171,7 +171,7 @@ private struct TransportBar: View {
                 }
                 .disabled(!deck.canPlay)
                 .help("재생/일시정지 (스페이스)")
-                PlayheadLabel(deck: deck)
+                Group { if PerfProbe.hidden.contains("label") { EmptyView() } else { PlayheadLabel(deck: deck) } }
                     .frame(width: 190, alignment: .leading)
             }
             HStack(spacing: 4) {
@@ -244,7 +244,7 @@ private struct AudioBar: View {
             }
             HStack(spacing: 6) {
                 GainControl(deck: deck)
-                LevelMeterView(deck: deck)
+                Group { if PerfProbe.hidden.contains("meter") { EmptyView() } else { LevelMeterView(deck: deck) } }
                 // rekordbox 오토게인이 이상하면 그리드 제안처럼 옆에 띄운다.
                 if let suggestion = deck.gainSuggestion {
                     HStack(spacing: 4) {
@@ -436,7 +436,8 @@ private struct PlayheadLabel: View {
     let deck: DeckModel
 
     var body: some View {
-        let t = deck.currentTime
+        // 글자는 초당 15번이면 읽기에 충분하다(매 프레임 창 전체를 다시 그리지 않게).
+        let t = deck.displayTime
         HStack(spacing: 6) {
             Text(t.clockText).font(.callout.monospacedDigit())
             if let position = deck.grid?.positionText(at: t) {
@@ -579,7 +580,9 @@ private struct LevelMeterView: View {
     @State private var ballistics = MeterBallistics()
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !deck.isPlaying)) { _ in
+        // 재생 틱이 올리는 meterFrame으로 다시 그린다(따로 타이머를 돌리지 않는다).
+        let _ = deck.meterFrame
+        Group {
             let reading = deck.meter.read()
             let now = ProcessInfo.processInfo.systemUptime
             let state = ballistics.step(reading, now: now, playing: deck.isPlaying)
