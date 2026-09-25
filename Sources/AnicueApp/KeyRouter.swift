@@ -40,6 +40,8 @@ final class KeyRouter {
     /// nil을 돌려주면 이벤트를 삼킨다(다른 곳으로 가지 않는다).
     private func route(_ event: NSEvent) -> NSEvent? {
         guard let deck, let window = event.window, window.attachedSheet == nil else { return event }
+        // rekordbox에 쓰는 동안은 키 조작을 모두 막는다(확인 창 등 모달은 따로 받는다).
+        if deck.isWriteLocked, NSApp.modalWindow == nil { return nil }
         let responder = window.firstResponder
         if let editor = responder as? NSTextView {
             return routeWhileTyping(event, editor: editor, window: window)

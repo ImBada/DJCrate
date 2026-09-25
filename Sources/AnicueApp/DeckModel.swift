@@ -198,7 +198,21 @@ final class DeckModel {
     private(set) var grid: BeatGrid? { didSet { if grid?.downbeats != oldValue?.downbeats { refreshKeySegments() } } }
     var gridEditing = false
     /// rekordbox에 쓰는 동안 큐 편집을 막는다(쓰는 초안과 덱 초안이 어긋나지 않게).
-    var isWriteLocked = false
+    /// rekordbox에 쓰는 동안: 재생을 잠시 멈추고(끝나면 이어서) 편집을 막는다.
+    var isWriteLocked = false {
+        didSet {
+            guard isWriteLocked != oldValue else { return }
+            if isWriteLocked {
+                resumeAfterWrite = isPlaying
+                if isPlaying { togglePlay() }
+            } else if resumeAfterWrite {
+                resumeAfterWrite = false
+                if canPlay, !isPlaying { togglePlay() }
+            }
+        }
+    }
+    private var resumeAfterWrite = false
+    private var softReloadTask: Task<Void, Never>?
     /// 편집 전 재생성 오차가 크면(다이내믹 그리드 등) 그리드 편집을 막는다.
     private(set) var gridEditBlockedReason: String?
     /// rekordbox 비트 그리드가 있는 곡인지(없으면 추정 그리드를 권한다)
@@ -293,10 +307,54 @@ final class DeckModel {
         load(current)
     }
 
+    /// rekordbox에 쓰거나 되돌린 뒤: 소리·파형·분석은 그대로 두고 초안·그리드·게인만 새 rekordbox 값으로 맞춘다.
+    func refreshAfterWrite(_ newRow: TrackRow?) {
+        guard let current = row else { return }
+        let target = newRow ?? current
+        guard target.id == current.id else { return }
+        softReload(target)
+    }
+
+    /// 같은 곡·같은 파일인데 내용(큐·그리드·게인·메타데이터)만 바뀌었을 때.
+    private func softReload(_ newRow: TrackRow) {
+        row = newRow
+        gainDraft = GainDraftStore.load(trackUUID: newRow.track.uuid)
+        applyGain()
+        let selected = cue(selectedCueID), engaged = cue(engagedLoopID)
+        let track = newRow.track, cues = newRow.cues, id = newRow.id, length = duration
+        softReloadTask?.cancel()
+        softReloadTask = Task {
+            let payload = await Task.detached(priority: .userInitiated) {
+                DeckPayload.load(track: track, cues: cues, duration: length)
+            }.value
+            guard !Task.isCancelled, self.row?.id == id else { return }
+            self.draft = payload.draft
+            self.originalGrid = payload.originalGrid
+            self.gridDraft = payload.gridDraft
+            self.gridEditBlockedReason = payload.gridBlockedReason
+            self.hasRekordboxGrid = payload.originalGrid != nil
+            self.refreshGrid()
+            self.refreshSuggestions()
+            self.refreshSuggestionNote()
+            // 고른 큐·걸린 루프는 같은 자리·종류의 새 큐로 잇는다(반영하면 rekordbox 큐로 바뀌어 ID가 새로 생긴다).
+            func match(_ old: EditableCue?) -> EditableCue.ID? {
+                old.flatMap { o in payload.draft.cues.first { $0.kind == o.kind && abs($0.time - o.time) < 0.002 }?.id }
+            }
+            self.selectedCueID = match(selected)
+            if self.engagedLoopID != nil { self.engagedLoopID = match(engaged) }
+        }
+    }
+
     /// 곡 ID가 같아도 내용(새 스냅샷의 큐·메타데이터)이 다르면 다시 불러온다.
+    /// 같은 파일이고 이미 소리를 불러 둔 상태면 처음부터 다시 부르지 않고 초안·그리드만 맞춘다.
     func load(_ row: TrackRow?) {
         guard row != self.row else { return }
         let sameTrack = row != nil && row?.id == self.row?.id
+        if sameTrack, let row, let current = self.row, canPlay,
+           row.track.folderPath == current.track.folderPath, row.track.imagePath == current.track.imagePath {
+            softReload(row)
+            return
+        }
         stopPlayback()
         loadTask?.cancel()
         waveformTask?.cancel()
@@ -796,7 +854,7 @@ final class DeckModel {
             engagedLoopID = nil
             instantLoop = InstantLoop(start: current.start, end: end, beats: next)
             // 줄어든 루프 밖에 있으면 바로 시작점으로
-            if playhead >= end { seek(current.start) }
+            if playhead >= end { jump(to: current.start) }
         }
         loopSize = next
     }
@@ -820,10 +878,13 @@ final class DeckModel {
 
     /// 한 번의 이동(패드·목록 클릭 등). 재생 중이면 그 위치에서 다시 재생한다.
     func seek(_ time: Double) {
-        // 반복 중인 루프 밖으로 옮기면 루프를 푼다.
-        if let range = engagedLoopRange, time < range.start - 0.001 || time >= range.end {
-            exitLoop()
-        }
+        // 루프 중에 다른 자리로 옮기면 루프에서 빠져나온다(루프 핫큐를 누른 경우는 부른 쪽이 다시 건다).
+        if isLooping, abs(time - playhead) > 0.005 { exitLoop() }
+        jump(to: time)
+    }
+
+    /// 루프 상태를 건드리지 않고 옮긴다(루프 길이를 줄여 끝 밖에 있게 됐을 때 등).
+    private func jump(to time: Double) {
         isCuePreviewing = false
         playhead = min(max(time, 0), duration)
         updateGridBPM()
@@ -845,6 +906,7 @@ final class DeckModel {
     }
 
     func scrub(to time: Double) {
+        if isLooping, abs(time - playhead) > 0.005 { exitLoop() }
         playhead = min(max(time, 0), duration)
         audio.seekWhilePaused(playhead)
         updateGridBPM()
@@ -918,6 +980,7 @@ final class DeckModel {
     private static let cueTolerance = 0.01
 
     private func returnToCue() {
+        exitLoop()
         audio.pause()
         ticker.stop()
         isPlaying = false

@@ -16,6 +16,33 @@ struct ContentView: View {
             Sidebar(store: store)
                 .navigationSplitViewColumnWidth(min: 210, ideal: 230)
         } detail: {
+            detail
+        }
+        // rekordbox에 쓰는 동안은 창 전체를 덮어 다른 조작을 막는다.
+        .overlay {
+            if let stage = store.writeStage {
+                WritingOverlay(text: stage).transition(.opacity)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if let toast = store.toast {
+                AppToastView(toast: toast,
+                             onUndo: toast.undoBackup.map { url in { store.toast = nil; DirectWritePanels.restore(store: store, backupURL: url) } },
+                             onClose: { if store.toast?.id == toast.id { store.toast = nil } })
+                    .padding(.bottom, 22)
+                    .padding(.horizontal, 16)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .id(toast.id)
+            }
+        }
+        .animation(.spring(duration: 0.35), value: store.toast?.id)
+        .animation(.easeInOut(duration: 0.15), value: store.writeStage)
+        .searchable(text: $store.search, placement: .toolbar, prompt: "제목·아티스트·코멘트")
+        .toolbar { toolbarContent }
+        .onAppear { setUp() }
+    }
+
+    @ViewBuilder private var detail: some View {
             switch store.phase {
             case .loaded:
                 // VSplitView(NSSplitView)는 자식 최소 크기가 내용에 따라 바뀌면 레이아웃을 끝없이
@@ -33,12 +60,6 @@ struct ContentView: View {
                                 .foregroundStyle(message.contains("불일치") ? .orange : .secondary)
                                 .lineLimit(2)
                             Spacer()
-                            if let backup = store.lastWriteBackup {
-                                Button("되돌리기…") { DirectWritePanels.restore(store: store, backupURL: backup) }
-                                    .controlSize(.small)
-                                    .disabled(store.isWritingRekordbox)
-                                    .help("rekordbox 라이브러리를 이번 쓰기 직전 백업으로 되돌립니다(rekordbox가 꺼져 있어야 합니다).")
-                            }
                             Button("닫기") { store.reflectionMessage = nil }.controlSize(.small)
                         }
                         .font(.callout)
@@ -89,9 +110,9 @@ struct ContentView: View {
                     Button("실행 중이어도 읽기용 스냅샷 뜨기") { Task { await store.takeSnapshot(force: true) } }
                 }
             }
-        }
-        .searchable(text: $store.search, placement: .toolbar, prompt: "제목·아티스트·코멘트")
-        .toolbar {
+    }
+
+    @ToolbarContentBuilder private var toolbarContent: some ToolbarContent {
             ToolbarItem(placement: .principal) {
                 Picker("보기", selection: $sheetMode) {
                     Label("목록", systemImage: "list.bullet").tag(false)
@@ -128,8 +149,9 @@ struct ContentView: View {
                 .disabled(store.isLoading)
                 .help("rekordbox master.db 사본을 새로 떠서 다시 읽습니다(원본은 읽기만). rekordbox에서 반영 XML을 가져온 뒤 누르면 자동으로 검증합니다.")
             }
-        }
-        .onAppear {
+    }
+
+    private func setUp() {
             // 선택 변경은 스토어가 150ms 뒤에 알려 준다(루트 뷰가 선택마다 다시 그려지지 않도록).
             store.onPrimaryRowChange = { [weak deck] row in deck?.load(row) }
             store.onGridDraftSaved = { [weak deck] uuid in deck?.gridDraftSavedExternally(uuid) }
@@ -140,8 +162,10 @@ struct ContentView: View {
                 DirectWritePanels.write(store: store, rows: [row])
             }
             store.onWriteLock = { [weak deck] locked in deck?.isWriteLocked = locked }
-            store.onRekordboxWritten = { [weak deck] uuids in
-                if let uuid = deck?.row?.track.uuid, uuids.contains(uuid) { deck?.reload() }
+            store.onRekordboxWritten = { [weak deck, weak store] uuids in
+                // 처음부터 다시 불러오지 않고 초안·그리드·게인만 새 rekordbox 값으로 맞춘다(소리·파형은 그대로).
+                guard let deck, let uuid = deck.row?.track.uuid, uuids.contains(uuid) else { return }
+                deck.refreshAfterWrite(store?.rowsByUUID[uuid])
             }
             keys.install(deck: deck)
             DevSelfTests.runIfRequested(store: store, deck: deck)
@@ -150,7 +174,6 @@ struct ContentView: View {
             }
             if ProcessInfo.processInfo.arguments.contains("--inspector") { showTagEditor = true }
             if ProcessInfo.processInfo.arguments.contains("--sheet") { sheetMode = true }
-        }
     }
 }
 
@@ -286,6 +309,18 @@ private struct ReflectFooter: View {
             .keyboardShortcut("e", modifiers: [.command, .shift])
             .disabled(store.pendingLibraryCount == 0 || store.isWritingRekordbox)
             .help("선택한 곡에 초안이 있으면 그 곡들만, 없으면 반영 대기 곡 전체의 큐를 rekordbox 라이브러리에 바로 씁니다. 미리 보기로 확인한 뒤, rekordbox가 꺼져 있을 때만 씁니다 (⌘⇧E).")
+            // 마지막 반영 되돌리기(토스트가 사라진 뒤에도)
+            if store.lastWriteBackup != nil {
+                Button { DirectWritePanels.restoreLatest(store: store) } label: {
+                    Label("마지막 반영 되돌리기…", systemImage: "arrow.uturn.backward")
+                        .font(.caption)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
+                .disabled(store.isWritingRekordbox)
+                .help("anicue가 마지막으로 rekordbox에 쓰기 직전 백업으로 되돌립니다(rekordbox가 꺼져 있어야 합니다)")
+            }
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 10)
@@ -465,7 +500,9 @@ enum DirectWritePanels {
         Task {
             defer { lock(store, false) }
             do {
+                store.writeStage = "바꿀 내용을 확인하는 중…"
                 let preview = try await store.previewWrite(rows: targets)
+                store.writeStage = nil
                 let writable = preview.report.written, blocked = preview.report.blocked
                 let gridWritable = preview.report.gridWritten, gridBlocked = preview.report.gridBlocked
                 let gainWritable = preview.report.gainWritten, gainBlocked = preview.report.gainBlocked
@@ -509,7 +546,8 @@ enum DirectWritePanels {
                                                      grids: preview.grids.filter { gridUUIDs.contains($0.trackUUID) },
                                                      gains: preview.gains.filter { gainUUIDs.contains($0.key) })
             } catch {
-                store.reflectionMessage = "rekordbox에 쓰지 않았습니다 — \(error)"
+                store.writeStage = nil
+                store.toast = AppToast(kind: .failure, title: "rekordbox에 쓰지 않았습니다", detail: String(describing: error))
             }
         }
     }
@@ -539,7 +577,9 @@ enum DirectWritePanels {
         lock(store, true)
         Task {
             defer { lock(store, false) }
+            store.writeStage = "백업 뒤 바뀐 것을 확인하는 중…"
             let changed = await store.libraryChangedSince(backup)
+            store.writeStage = nil
             let alert = NSAlert()
             alert.messageText = "rekordbox를 \(backup.createdAt.formatted(date: .abbreviated, time: .shortened)) 쓰기 전으로 되돌릴까요?"
             var lines: [String] = []
@@ -563,7 +603,7 @@ enum DirectWritePanels {
             do {
                 try await store.restoreRekordbox(backup)
             } catch {
-                store.reflectionMessage = "되돌리지 못했습니다 — \(error)"
+                store.toast = AppToast(kind: .failure, title: "되돌리지 못했습니다", detail: String(describing: error))
             }
         }
     }
