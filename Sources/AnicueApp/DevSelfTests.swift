@@ -160,7 +160,46 @@ enum DevSelfTests {
             let inside = samples.dropFirst(8).allSatisfy { $0 >= active.time - 0.05 && $0 <= loop.end + 0.08 }
             log("위치: " + samples.map { String(format: "%.2f", $0) }.joined(separator: " "))
             log(inside ? "루프 안에서 반복됨" : "루프를 벗어남!")
-            exit(inside ? 0 : 1)
+            guard inside else { exit(1) }
+
+            // 즉석 루프: 루프 없는 자리에서 L(4박) → ½ → 빈 핫큐 칸에 저장 → 나가기
+            deck.exitLoop()
+            let cues = deck.draft?.cues ?? []
+            let spot = stride(from: 20.0, to: deck.duration - 20, by: 5).first { t in
+                !cues.contains { cue in cue.loop.map { t > cue.time - 3 && t < $0.end + 3 } ?? false }
+            } ?? 30
+            deck.seek(spot)
+            deck.togglePlay()
+            await wait(0.5)
+            deck.toggleLoop()
+            guard let instant = deck.instantLoop else { log("즉석 루프가 안 걸림"); exit(1) }
+            let beat = 60 / (deck.gridBPM ?? 120)
+            log(String(format: "즉석 루프 %@박 %.3f~%.3f초 (%.2f박)", deck.loopSizeText, instant.start, instant.end, (instant.end - instant.start) / beat))
+            samples = []
+            for _ in 0..<15 { await wait(0.2); samples.append(deck.currentTime) }
+            let instantInside = samples.dropFirst(2).allSatisfy { $0 >= instant.start - 0.05 && $0 <= instant.end + 0.08 }
+            log("위치: " + samples.map { String(format: "%.2f", $0) }.joined(separator: " "))
+            deck.resizeLoop(-1)
+            let halved = deck.instantLoop.map { ($0.end - $0.start) / beat } ?? 0
+            log(String(format: "½ 뒤 %@박 (%.2f박)", deck.loopSizeText, halved))
+            let before = deck.draft?.cues.count ?? 0
+            guard let slot = (0..<8).first(where: { deck.hotCue(slot: $0) == nil }) else { log("빈 핫큐 칸 없음"); exit(1) }
+            deck.pressHotCue(slot: slot)
+            let stored = deck.hotCue(slot: slot)
+            let storedOK = stored?.loop != nil && deck.engagedLoopID == stored?.id && deck.instantLoop == nil
+            log("핫큐 \(slot + 1)에 저장: \(storedOK ? "루프 핫큐로 저장·계속 반복" : "실패")")
+            samples = []
+            for _ in 0..<8 { await wait(0.2); samples.append(deck.currentTime) }
+            let storedInside = stored.flatMap { cue in cue.loop.map { loop in samples.allSatisfy { $0 >= cue.time - 0.05 && $0 <= loop.end + 0.08 } } } ?? false
+            deck.toggleLoop()
+            let exited = !deck.isLooping
+            if let id = stored?.id { deck.delete(id) }
+            deck.togglePlay()
+            let restored = (deck.draft?.cues.count ?? -1) == before
+            log("즉석 루프 반복 \(instantInside) · ½ \(abs(halved - 2) < 0.1) · 저장 뒤 반복 \(storedInside) · 나가기 \(exited) · 시험 큐 지움 \(restored)")
+            let ok = instantInside && abs(halved - 2) < 0.1 && storedOK && storedInside && exited && restored
+            log(ok ? "통과" : "실패")
+            exit(ok ? 0 : 1)
         }
     }
 }

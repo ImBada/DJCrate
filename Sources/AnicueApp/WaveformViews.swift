@@ -10,8 +10,8 @@ enum Palette {
         return Color(hue: Double(number - 1) / 12, saturation: 0.62, brightness: text.hasSuffix("A") ? 0.78 : 0.95)
     }
 
-    /// 루프 구간
-    static let loop = Color(red: 0.25, green: 0.85, blue: 0.75)
+    /// 루프 구간·루프 큐(rekordbox처럼 주황)
+    static let loop = Color(red: 1.0, green: 0.55, blue: 0.0)
 
     static let low = Color(red: 0.23, green: 0.44, blue: 0.96)
     static let mid = Color(red: 0.94, green: 0.64, blue: 0.24)
@@ -24,6 +24,11 @@ enum Palette {
     static let suggestion = Color(red: 0.35, green: 0.80, blue: 1.0)
     static let section = Color(red: 0.56, green: 0.53, blue: 1.0)
     static let well = Color(red: 0.043, green: 0.047, blue: 0.055)
+
+    /// 큐 표시 색: 루프 = 주황, 핫큐 = 초록, 메모리 큐 = 빨강
+    static func color(for cue: EditableCue) -> Color {
+        cue.loop != nil ? loop : cue.kind == .memory ? memory : hot
+    }
 }
 
 /// 3밴드 파형을 가운데 기준 대칭으로 그린다.
@@ -95,6 +100,8 @@ private struct DrawState {
     var segments: [GridSegment]
     var gridEditing: Bool
     var engagedLoop: EditableCue.ID?
+    var instantLoop: DeckModel.InstantLoop?
+    var loopSizeText: String
 
     @MainActor init(_ deck: DeckModel) {
         grid = deck.grid
@@ -111,6 +118,8 @@ private struct DrawState {
         zoomSeconds = deck.zoomSeconds
         segments = deck.gridDraft?.segments ?? []
         engagedLoop = deck.engagedLoopID
+        instantLoop = deck.instantLoop
+        loopSizeText = deck.loopSizeText
         gridEditing = deck.gridEditing && deck.canEditGrid
     }
 }
@@ -360,6 +369,22 @@ struct ZoomWaveformView: View {
                              at: CGPoint(x: x0 + 8, y: Self.rulerHeight + 14))
             }
         }
+        // 즉석 루프(아직 큐가 아님): 진한 주황 + 양끝 실선 + 박 수
+        if let loop = state.instantLoop, loop.end >= start, loop.start <= end {
+            let x0 = xOf(loop.start), x1 = xOf(loop.end)
+            let band = CGRect(x: x0, y: Self.rulerHeight, width: max(1, x1 - x0), height: size.height - Self.rulerHeight)
+            context.fill(Path(band), with: .color(Palette.loop.opacity(0.3)))
+            context.fill(Path(CGRect(x: x0, y: Self.rulerHeight, width: max(1, x1 - x0), height: 4)), with: .color(Palette.loop))
+            for x in [x0, x1] {
+                var edge = Path()
+                edge.move(to: CGPoint(x: x, y: Self.rulerHeight)); edge.addLine(to: CGPoint(x: x, y: size.height))
+                context.stroke(edge, with: .color(Palette.loop), lineWidth: 1.5)
+            }
+            if x1 - x0 > 30 {
+                context.draw(Text("↻ \(state.loopSizeText)").font(.system(size: 11, weight: .heavy)).foregroundStyle(Palette.loop),
+                             at: CGPoint(x: x0 + 5, y: Self.rulerHeight + 14), anchor: .leading)
+            }
+        }
         // 큐 (초안)
         for cue in state.cues where cue.time >= start - 1 && cue.time <= end + 1 {
             let x = xOf(cue.time)
@@ -368,15 +393,15 @@ struct ZoomWaveformView: View {
             line.move(to: CGPoint(x: x, y: 0)); line.addLine(to: CGPoint(x: x, y: size.height))
             switch cue.kind {
             case .memory:
-                context.stroke(line, with: .color(Palette.memory), lineWidth: selected ? 2.5 : 1.2)
+                context.stroke(line, with: .color(Palette.color(for: cue)), lineWidth: selected ? 2.5 : 1.2)
                 var tri = Path()
                 tri.addLines([CGPoint(x: x - 6, y: 16), CGPoint(x: x + 6, y: 16), CGPoint(x: x, y: 26)])
                 tri.closeSubpath()
-                context.fill(tri, with: .color(Palette.memory))
+                context.fill(tri, with: .color(Palette.color(for: cue)))
                 if selected { context.stroke(tri, with: .color(.white), lineWidth: 1.2) }
             case .hot:
-                context.stroke(line, with: .color(Palette.hot), lineWidth: selected ? 2.5 : 1.8)
-                chip(context, cue.kind.slotLetter ?? "", at: CGPoint(x: x, y: size.height - 16), color: Palette.hot, selected: selected, maxX: size.width)
+                context.stroke(line, with: .color(Palette.color(for: cue)), lineWidth: selected ? 2.5 : 1.8)
+                chip(context, cue.kind.slotLetter ?? "", at: CGPoint(x: x, y: size.height - 16), color: Palette.color(for: cue), selected: selected, maxX: size.width)
             }
             if !cue.name.isEmpty {
                 let nearRight = x > size.width - 90
@@ -484,6 +509,7 @@ private struct OverviewStaticLayer: View {
         let energies = deck.sectionEnergies
         let suggestions = deck.suggestions
         let cues = deck.draft?.cues ?? []
+        let instantLoop = deck.instantLoop
         let selected = deck.selectedCueID
         let cuePoint = deck.cuePoint
         let audioOffset = deck.timelineOffset
@@ -521,6 +547,10 @@ private struct OverviewStaticLayer: View {
                 context.stroke(line, with: .color(.black.opacity(0.5)), lineWidth: 3)
                 context.stroke(line, with: .color(Palette.suggestion), style: StrokeStyle(lineWidth: 1.5, dash: [4, 2]))
             }
+            if let loop = instantLoop {
+                let band = CGRect(x: xOf(loop.start), y: 0, width: max(2, xOf(loop.end) - xOf(loop.start)), height: waveHeight)
+                context.fill(Path(band), with: .color(Palette.loop.opacity(0.45)))
+            }
             for cue in cues {
                 if let loop = cue.loop {
                     let band = CGRect(x: xOf(cue.time), y: 0, width: max(1.5, xOf(loop.end) - xOf(cue.time)), height: waveHeight)
@@ -528,8 +558,7 @@ private struct OverviewStaticLayer: View {
                 }
                 var line = Path()
                 line.move(to: CGPoint(x: xOf(cue.time), y: 0)); line.addLine(to: CGPoint(x: xOf(cue.time), y: waveHeight))
-                let color = cue.kind == .memory ? Palette.memory : Palette.hot
-                context.stroke(line, with: .color(color), lineWidth: cue.id == selected ? 2.5 : 1.2)
+                context.stroke(line, with: .color(Palette.color(for: cue)), lineWidth: cue.id == selected ? 2.5 : 1.2)
             }
             var tri = Path()
             let cx = xOf(cuePoint)
