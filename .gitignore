@@ -1,0 +1,12 @@
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# rekordbox DB 사본에는 경로와 클라우드 토큰이 들어 있다. 절대 커밋하지 않는다.
+*.db
+*.db-wal
+*.db-shm
+*.part
+snapshots/
