@@ -1,7 +1,9 @@
+import Foundation
+
 /// 키 위치(ANSI 배열 키 코드)의 이름. 입력기와 무관하게 자판에 새겨진 글자로 보인다(한글 입력기에서 C를 "ㅊ"으로 보이지 않게).
 public enum KeyLabel {
     public static func name(for keyCode: UInt16) -> String {
-        names[keyCode] ?? "키 \(keyCode)"
+        names[keyCode] ?? String(ui: "키 \(Int(keyCode))")
     }
 
     private static let names: [UInt16: String] = {
@@ -14,12 +16,12 @@ public enum KeyLabel {
             36: "Return", 48: "Tab", 49: "Space", 51: "⌫", 53: "Esc", 76: "Enter", 117: "⌦",
             115: "Home", 119: "End", 116: "Page Up", 121: "Page Down",
             123: "←", 124: "→", 125: "↓", 126: "↑", 114: "Help",
-            65: "숫자패드 .", 67: "숫자패드 *", 69: "숫자패드 +", 71: "숫자패드 Clear", 75: "숫자패드 /",
-            78: "숫자패드 −", 81: "숫자패드 =", 82: "숫자패드 0", 91: "숫자패드 8", 92: "숫자패드 9",
-            93: "¥", 94: "_", 95: "숫자패드 ,", 102: "英数", 104: "かな",
+            65: keypad("."), 67: keypad("*"), 69: keypad("+"), 71: keypad("Clear"), 75: keypad("/"),
+            78: keypad("−"), 81: keypad("="), 82: keypad("0"), 91: keypad("8"), 92: keypad("9"),
+            93: "¥", 94: "_", 95: keypad(","), 102: "英数", 104: "かな",
         ]
         for (offset, code) in ([83, 84, 85, 86, 87, 88, 89] as [UInt16]).enumerated() {
-            names[code] = "숫자패드 \(offset + 1)"
+            names[code] = keypad(String(offset + 1))
         }
         let functionKeys: [UInt16] = [122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111, 105, 107, 113, 106, 64, 79, 80, 90]
         for (offset, code) in functionKeys.enumerated() {
@@ -27,4 +29,6 @@ public enum KeyLabel {
         }
         return names
     }()
+
+    private static func keypad(_ key: String) -> String { String(ui: "숫자패드 \(key)") }
 }

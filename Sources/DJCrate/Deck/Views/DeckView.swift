@@ -40,7 +40,7 @@ struct DeckView: View {
                                         Image(systemName: "xmark")
                                     }
                                     .buttonStyle(.plain)
-                                    .accessibilityLabel("덱 알림 닫기")
+                                    .accessibilityLabel(.ui("덱 알림 닫기"))
                                 }
                                     .font(.scaled(.callout, textScale).weight(.semibold))
                                     .padding(.horizontal, 12).padding(.vertical, 7)
@@ -78,15 +78,15 @@ struct DeckView: View {
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
             // 단축키는 창 전체에서 KeyRouter가 받는다(포커스 위치와 무관).
         } else {
-            ContentUnavailableView("곡을 선택하세요", systemImage: "music.note",
-                                   description: Text("아래 목록에서 곡을 고르면 파형과 큐가 여기 뜹니다."))
+            ContentUnavailableView(.ui("곡을 선택하세요"), systemImage: "music.note",
+                                   description: Text(.ui("아래 목록에서 곡을 고르면 파형과 큐가 여기 뜹니다.")))
                 .frame(height: 220)
         }
     }
 
     @ViewBuilder private var loadingOverlay: some View {
         if deck.row?.track.isStreaming == true {
-            Text("스트리밍 곡은 파형·재생·분석을 할 수 없습니다").font(.scaled(.callout, textScale)).foregroundStyle(.secondary)
+            Text(.ui("스트리밍 곡은 파형·재생·분석을 할 수 없습니다")).font(.scaled(.callout, textScale)).foregroundStyle(.secondary)
         } else if let error = deck.waveformError {
             Label(error, systemImage: "exclamationmark.triangle").font(.scaled(.callout, textScale)).foregroundStyle(UIColors.warning.color)
         } else if deck.waveform == nil {
@@ -112,7 +112,7 @@ struct CompactInfo: View {
             }
             Spacer(minLength: 8)
             // 넓은 레이아웃(커버 열)과 같은 서체로 보인다(고정폭으로 바꾸지 않는다).
-            Text(row.comment.isEmpty ? "(빈 코멘트)" : row.comment)
+            Text(row.comment.isEmpty ? String(ui: "(빈 코멘트)") : row.comment)
                 .font(.scaled(.caption, textScale)).lineLimit(1)
                 .foregroundStyle(row.comment.isEmpty ? .tertiary : .secondary)
         }
@@ -135,10 +135,10 @@ struct DeckInfoColumn: View {
                 Label(genre, systemImage: "guitars").font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
             }
             HStack(spacing: 10) {
-                if let bpm = row.track.bpm { Text(String(format: "%.1f BPM", bpm)) }
+                if let bpm = row.track.bpm { Text(verbatim: bpm.formatted(.number.precision(.fractionLength(1)).grouping(.never)) + " BPM") }
                 if let key = row.track.key { Text(key) }
                 Text(Double(row.track.lengthSeconds).clockText.dropLast(3))
-                if row.playCount > 0 { Text("재생 \(row.playCount)") }
+                if row.playCount > 0 { Text(.ui("재생 \(row.playCount)")) }
             }
             .font(.scaled(.caption, textScale).monospacedDigit())
             .foregroundStyle(.secondary)
@@ -148,7 +148,7 @@ struct DeckInfoColumn: View {
                     .help(note.help)
             }
             // 코멘트는 적힌 그대로(태그로 나누지 않는다)
-            Text(row.comment.isEmpty ? "(빈 코멘트)" : row.comment)
+            Text(row.comment.isEmpty ? String(ui: "(빈 코멘트)") : row.comment)
                 .font(.scaled(.callout, textScale))
                 .foregroundStyle(row.comment.isEmpty ? .tertiary : .primary)
                 .lineLimit(3)
@@ -164,13 +164,13 @@ struct DeckInfoColumn: View {
     /// `.DAT`만 있고 파형(.EXT)이 없는 곡은 rekordbox 분석이 끝나지 않은 곡이라 rekordbox에서 다시 분석해야 한다.
     func analysisNote(_ analysisDataPath: String?) -> (title: String, help: String)? {
         if RekordboxWriter.needsAnalysis(analysisDataPath) {
-            return ("rekordbox 분석 전", RekordboxWriter.attachesAnalysis
-                ? "rekordbox가 이 곡을 아직 분석하지 않았습니다. 그리드 초안을 반영하면 DJCrate가 파형·그리드·오토게인 분석 파일을 만들어 붙입니다"
-                : "rekordbox가 이 곡을 아직 분석하지 않았습니다. rekordbox에서 트랙 분석을 먼저 해야 그리드를 쓸 수 있습니다")
+            return (String(ui: "rekordbox 분석 전"), RekordboxWriter.attachesAnalysis
+                ? String(ui: "rekordbox가 이 곡을 아직 분석하지 않았습니다. 그리드 초안을 반영하면 DJCrate가 파형·그리드·오토게인 분석 파일을 만들어 붙입니다")
+                : String(ui: "rekordbox가 이 곡을 아직 분석하지 않았습니다. rekordbox에서 트랙 분석을 먼저 해야 그리드를 쓸 수 있습니다"))
         }
         guard !RekordboxShare.hasWaveformAnalysis(analysisDataPath) else { return nil }
-        return ("rekordbox 분석 전 · 파형 없음",
-                "rekordbox 분석이 끝나지 않은 곡입니다(파형 파일 없음). rekordbox에서 트랙 분석을 다시 해야 그리드를 쓸 수 있습니다")
+        return (String(ui: "rekordbox 분석 전 · 파형 없음"),
+                String(ui: "rekordbox 분석이 끝나지 않은 곡입니다(파형 파일 없음). rekordbox에서 트랙 분석을 다시 해야 그리드를 쓸 수 있습니다"))
     }
 }
 
@@ -191,7 +191,7 @@ struct CoverView: View {
         }
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: size > 60 ? 8 : 3))
-        .accessibilityLabel("앨범 커버")
+        .accessibilityLabel(.ui("앨범 커버"))
     }
 }
 

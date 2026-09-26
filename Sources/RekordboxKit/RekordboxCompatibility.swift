@@ -67,22 +67,22 @@ public enum RekordboxCompatibility {
         for (table, expected) in exactColumns.sorted(by: { $0.key < $1.key }) {
             let columns = try self.columns(of: table, in: db)
             let extra = columns.subtracting(expected).sorted(), missing = expected.subtracting(columns).sorted()
-            if !extra.isEmpty { problems.append("\(table)에 모르는 칸(\(extra.joined(separator: ", ")))") }
-            if !missing.isEmpty { problems.append("\(table)에 없는 칸(\(missing.joined(separator: ", ")))") }
+            if !extra.isEmpty { problems.append(String(ui: "\(table)에 모르는 칸(\(extra.joined(separator: ", ")))")) }
+            if !missing.isEmpty { problems.append(String(ui: "\(table)에 없는 칸(\(missing.joined(separator: ", ")))")) }
         }
         for (table, expected) in requiredColumns.sorted(by: { $0.key < $1.key }) {
             let missing = expected.subtracting(try columns(of: table, in: db)).sorted()
-            if !missing.isEmpty { problems.append("없는 칸 " + missing.map { "\(table).\($0)" }.joined(separator: ", ")) }
+            if !missing.isEmpty { problems.append(String(ui: "없는 칸 \(missing.map { "\(table).\($0)" }.joined(separator: ", "))")) }
         }
         if problems.isEmpty {
             var versions: [String] = []
             try db.query("SELECT DBVersion FROM djmdProperty") { versions.append($0.string(0) ?? "?") }
             if versions != [databaseVersion] {
-                problems.append("DB 버전 \(versions.joined(separator: ", "))(확인한 버전 \(databaseVersion))")
+                problems.append(String(ui: "DB 버전 \(versions.joined(separator: ", "))(확인한 버전 \(databaseVersion))"))
             }
         }
         guard problems.isEmpty else {
-            throw DJCError.writeRefused("rekordbox DB 구조가 DJCrate가 확인한 모양과 다릅니다: \(problems.joined(separator: "; ")). rekordbox가 업데이트됐다면 DJCrate도 확인이 필요합니다")
+            throw DJCError.writeRefused(String(ui: "rekordbox DB 구조가 DJCrate가 확인한 모양과 다릅니다: \(problems.joined(separator: "; ")). rekordbox가 업데이트됐다면 DJCrate도 확인이 필요합니다"))
         }
     }
 
@@ -101,7 +101,7 @@ public enum RekordboxCompatibility {
     /// 되돌렸다는 사례가 있다(조사 2026-09-26). 동기화를 안 쓰면(값 없음·0) 통과.
     public static func checkCounters(local: Int, cloud: Int?) throws {
         guard let cloud, cloud > 0, local < cloud else { return }
-        throw DJCError.writeRefused("rekordbox 변경 카운터(\(local))가 클라우드 동기화 카운터(\(cloud))보다 작습니다. rekordbox를 한 번 켜서 동기화를 끝낸 뒤 종료하고 다시 시도하세요")
+        throw DJCError.writeRefused(String(ui: "rekordbox 변경 카운터(\(local))가 클라우드 동기화 카운터(\(cloud))보다 작습니다. rekordbox를 한 번 켜서 동기화를 끝낸 뒤 종료하고 다시 시도하세요"))
     }
 
     /// 설치된 rekordbox 버전을 확인한다. 못 찾으면(nil) 통과.
@@ -111,7 +111,7 @@ public enum RekordboxCompatibility {
         let majorMinor = parts.prefix(2).joined(separator: ".")
         guard parts.count >= 2, verifiedAppVersions.contains(majorMinor) else {
             let verified = verifiedAppVersions.sorted().map { "\($0).x" }.joined(separator: ", ")
-            throw DJCError.writeRefused("rekordbox \(version)는 DJCrate가 쓰기를 확인하지 않은 버전입니다(확인: \(verified))")
+            throw DJCError.writeRefused(String(ui: "rekordbox \(version)는 DJCrate가 쓰기를 확인하지 않은 버전입니다(확인: \(verified))"))
         }
     }
 
@@ -151,13 +151,13 @@ public struct RekordboxWriteGuard: Sendable {
 
     /// 라이브 DB면 rekordbox가 꺼져 있고 WAL이 비었고 확인한 버전이어야 한다.
     func checkLive(_ database: URL, dryRun: Bool) throws {
-        guard !dryRun else { throw DJCError.writeRefused("미리 보기는 스냅샷 사본으로만 합니다") }
+        guard !dryRun else { throw DJCError.writeRefused(String(ui: "미리 보기는 스냅샷 사본으로만 합니다")) }
         guard !isRekordboxRunning() else {
-            throw DJCError.writeRefused("rekordbox가 켜져 있습니다. rekordbox를 완전히 종료한 뒤 다시 시도하세요")
+            throw DJCError.writeRefused(String(ui: "rekordbox가 켜져 있습니다. rekordbox를 완전히 종료한 뒤 다시 시도하세요"))
         }
         let wal = URL(filePath: database.path + "-wal")
         if let size = (try? FileManager.default.attributesOfItem(atPath: wal.path))?[.size] as? Int, size > 0 {
-            throw DJCError.writeRefused("rekordbox가 정상적으로 종료되지 않은 것 같습니다(WAL 파일이 남아 있음). rekordbox를 한 번 켰다가 종료한 뒤 다시 시도하세요")
+            throw DJCError.writeRefused(String(ui: "rekordbox가 정상적으로 종료되지 않은 것 같습니다(WAL 파일이 남아 있음). rekordbox를 한 번 켰다가 종료한 뒤 다시 시도하세요"))
         }
         try RekordboxCompatibility.checkApp(version: appVersion())
     }

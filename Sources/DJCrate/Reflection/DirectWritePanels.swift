@@ -36,7 +36,8 @@ enum DirectWritePanels {
 
     static func restoreLatest(store: LibraryStore) {
         guard let backup = RekordboxWriter.backups(in: DJCPaths.rekordboxBackups).first(where: \.isWrite) else {
-            _ = AlertPrompter().show(ReflectionPrompt(title: "되돌릴 쓰기 기록이 없습니다", text: "DJCrate가 rekordbox에 쓴 적이 없거나 백업이 정리됐습니다."))
+            _ = AlertPrompter().show(ReflectionPrompt(title: String(ui: "되돌릴 쓰기 기록이 없습니다"),
+                                                      text: String(ui: "DJCrate가 rekordbox에 쓴 적이 없거나 백업이 정리됐습니다.")))
             return
         }
         guard !store.isWritingRekordbox, store.writeTask == nil else { return }
@@ -48,7 +49,7 @@ enum DirectWritePanels {
 
     static func restore(store: LibraryStore, backupURL: URL) {
         guard let backup = RekordboxWriter.backups(in: DJCPaths.rekordboxBackups).first(where: { $0.url.path == backupURL.path }) else {
-            _ = AlertPrompter().show(ReflectionPrompt(title: "백업을 찾지 못했습니다", text: backupURL.path))
+            _ = AlertPrompter().show(ReflectionPrompt(title: String(ui: "백업을 찾지 못했습니다"), text: backupURL.path))
             return
         }
         guard !store.isWritingRekordbox, store.writeTask == nil else { return }

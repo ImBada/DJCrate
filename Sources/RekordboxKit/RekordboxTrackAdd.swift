@@ -51,11 +51,11 @@ public struct TrackAddPlan: Sendable, Codable, Equatable {
         let path = url.path.precomposedStringWithCanonicalMapping
         let fileName = url.lastPathComponent.precomposedStringWithCanonicalMapping
         guard let fileType = fileTypes[url.pathExtension.lowercased()] else {
-            throw DJCError.writeRefused("\(fileName): 이 형식은 아직 rekordbox에 직접 넣지 않습니다")
+            throw DJCError.writeRefused(String(ui: "\(fileName): 이 형식은 아직 rekordbox에 직접 넣지 않습니다"))
         }
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         guard let size = attributes[.size] as? Int, let inode = attributes[.systemFileNumber] as? Int else {
-            throw DJCError.writeRefused("\(fileName): 파일 정보를 읽지 못했습니다")
+            throw DJCError.writeRefused(String(ui: "\(fileName): 파일 정보를 읽지 못했습니다"))
         }
         let created = attributes[.creationDate] as? Date ?? now
         return TrackAddPlan(

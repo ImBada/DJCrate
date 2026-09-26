@@ -13,7 +13,7 @@ public enum EditStaging {
         var tracks = StagingStore.load(url: list)
         let path = url.path.precomposedStringWithCanonicalMapping
         guard !tracks.contains(where: { $0.path.precomposedStringWithCanonicalMapping == path }) else {
-            throw DJCError.editRefused("\(url.lastPathComponent)은 이미 추가한 곡입니다. 추가 목록에서 확인하세요")
+            throw DJCError.editRefused(String(ui: "\(url.lastPathComponent)은 이미 추가한 곡입니다. 추가 목록에서 확인하세요"))
         }
         var staged = try await StagedTrack.make(fileAt: url, addedOn: String(ISO8601DateFormatter().string(from: now).prefix(10)))
         staged.path = path

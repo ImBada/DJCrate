@@ -1,4 +1,5 @@
 import AppKit
+import DJCDomain
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -6,7 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var inform: (String) -> Void = { message in
         let alert = NSAlert()
         alert.messageText = message
-        alert.addButton(withTitle: "확인")
+        alert.addButton(withTitle: String(ui: "확인"))
         alert.runModal()
     }
 

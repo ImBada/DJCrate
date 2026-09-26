@@ -287,7 +287,8 @@ enum DevSelfTests {
                 let visible = table.rows(in: table.visibleRect)
                 let hasImage = (visible.location..<NSMaxRange(visible)).contains { row in
                     let cell = table.view(atColumn: column, row: row, makeIfNecessary: false)
-                    return cell?.accessibilityValue() as? String == "곡 전체 미리 보기"
+                    // 앱 언어와 관계없이 통과하게 PreviewWaveform과 같은 키로 비교한다.
+                    return cell?.accessibilityValue() as? String == String(ui: "곡 전체 미리 보기")
                 }
                 log("미리 보기 비트맵: " + (hasImage ? "표시됨" : "없음"))
             }

@@ -1,0 +1,150 @@
+{
+  "sourceLanguage": "ko",
+  "strings": {
+    "NSDesktopFolderUsageDescription": {
+      "comment": "데스크탑 접근 권한 안내",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DJCrate needs access to play and analyze audio files on your Desktop."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デスクトップにある音源を再生・解析するにはアクセスが必要です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "데스크탑에 있는 음원을 재생·분석하려면 접근이 필요합니다."
+          }
+        }
+      }
+    },
+    "NSDocumentsFolderUsageDescription": {
+      "comment": "문서 폴더 접근 권한 안내",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DJCrate needs access to play and analyze audio files in your Documents folder, or to save rekordbox XML there."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "書類フォルダにある音源を再生・解析したり、rekordbox XMLを保存したりするにはアクセスが必要です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "문서 폴더에 있는 음원을 재생·분석하거나 rekordbox XML을 저장하려면 접근이 필요합니다."
+          }
+        }
+      }
+    },
+    "NSDownloadsFolderUsageDescription": {
+      "comment": "다운로드 폴더 접근 권한 안내",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DJCrate needs access to play and analyze audio files in your Downloads folder."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダウンロードフォルダにある音源を再生・解析するにはアクセスが必要です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다운로드 폴더에 있는 음원을 재생·분석하려면 접근이 필요합니다."
+          }
+        }
+      }
+    },
+    "NSHumanReadableCopyright": {
+      "comment": "앱 정보의 설명 한 줄",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A personal rekordbox library tool for anime songs"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "rekordbox用の個人向けアニソンライブラリーツール"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "개인용 rekordbox 애니송 라이브러리 도구"
+          }
+        }
+      }
+    },
+    "NSNetworkVolumesUsageDescription": {
+      "comment": "네트워크 드라이브 접근 권한 안내",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DJCrate needs access to play and analyze audio files on network drives."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ネットワークドライブにある音源を再生・解析するにはアクセスが必要です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "네트워크 드라이브에 있는 음원을 재생·분석하려면 접근이 필요합니다."
+          }
+        }
+      }
+    },
+    "NSRemovableVolumesUsageDescription": {
+      "comment": "외장 드라이브 접근 권한 안내",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DJCrate needs access to play and analyze audio files on external drives. DJCrate never modifies your audio files."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "外部ドライブにある音源を再生・解析するにはアクセスが必要です。DJCrateが音源ファイルを変更することはありません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "외장 드라이브에 있는 음원을 재생·분석하려면 접근이 필요합니다. DJCrate는 음원 파일을 고치지 않습니다."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

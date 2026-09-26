@@ -14,9 +14,9 @@ extension DeckModel {
     /// rekordbox 그리드도, 적용한 추정 그리드도 없는 로컬 곡.
     var needsGrid: Bool { row != nil && row?.track.isStreaming == false && !hasRekordboxGrid && gridDraft == nil }
 
-    func shiftGrid(ms: Double) { mutateGrid(name: "그리드 옮기기") { $0.shift(by: ms / 1000) } }
+    func shiftGrid(ms: Double) { mutateGrid(name: String(ui: "그리드 옮기기")) { $0.shift(by: ms / 1000) } }
 
-    func setGridBPM(_ bpm: Double) { mutateGrid(name: "BPM 변경") { $0.setBPM(bpm, at: playhead) } }
+    func setGridBPM(_ bpm: Double) { mutateGrid(name: String(ui: "BPM 변경")) { $0.setBPM(bpm, at: playhead) } }
 
     func scaleGridBPM(_ factor: Double) {
         guard let bpm = gridBPM else { return }
@@ -36,7 +36,7 @@ extension DeckModel {
 
     func removeTempoChange(at index: Int) { mutateGrid { $0.removeTempoChange(at: index) } }
 
-    func revertGrid() { mutateGrid(name: "그리드 초안 버리기") { $0.revert() } }
+    func revertGrid() { mutateGrid(name: String(ui: "그리드 초안 버리기")) { $0.revert() } }
 
     /// 확대 파형을 끌어 그리드 전체를 옮긴다(그리드 편집 모드).
     func beginGridDrag() {
@@ -68,7 +68,7 @@ extension DeckModel {
         cueDragBase = nil
         if let draft { persist(draft) }
         saveGridEdit()
-        registerDraftUndo(from: pendingDraftUndo, name: "그리드 옮기기")
+        registerDraftUndo(from: pendingDraftUndo, name: String(ui: "그리드 옮기기"))
         pendingDraftUndo = nil
     }
 
@@ -96,7 +96,7 @@ extension DeckModel {
         tapBPM = 60 / interval
     }
 
-    func mutateGrid(name: String = "그리드 편집", _ change: (inout GridDraft) -> Void) {
+    func mutateGrid(name: String = String(ui: "그리드 편집"), _ change: (inout GridDraft) -> Void) {
         guard canEditGrid, var gridDraft, gridDraft.trackUUID == row?.track.uuid else { return }
         let snapshot = draftSnapshot
         let before = gridDraft.segments
@@ -154,7 +154,7 @@ extension DeckModel {
         dismissed.remove(uuid)
         storage.settings.setStrings(SettingKeys.dismissedGridSuggestions, dismissed)
         reload()
-        showToast("다시 분석합니다", kind: .success)
+        showToast(String(ui: "다시 분석합니다"), kind: .success)
     }
 
     /// 무시한 제안을 다시 보인다.
@@ -218,7 +218,7 @@ extension DeckModel {
         if row?.isStaged == true { onStagedGridChange?(uuid, draft.segments.first?.bpm) }
         audio.resetClicks()
         refreshSuggestionNote()
-        if recordingUndo { registerDraftUndo(from: snapshot, name: "추정 그리드 적용") }
+        if recordingUndo { registerDraftUndo(from: snapshot, name: String(ui: "추정 그리드 적용")) }
     }
 
     /// 반 박 옮긴다(추정이 뒷박을 잡았을 때 한 번에 고친다).
@@ -242,9 +242,9 @@ extension DeckModel {
     func refreshSuggestionNote() {
         guard let suggestion = gridSuggestion else { gridSuggestionNote = nil; return }
         // 신뢰도가 낮을 때만 덧붙인다.
-        let confidence = suggestion.isConfident ? "" : " · 확인 필요"
+        let confidence = suggestion.isConfident ? "" : " · " + String(ui: "확인 필요")
         guard let grid, !grid.beats.isEmpty else {
-            gridSuggestionNote = String(format: "추정 %.2f BPM", suggestion.bpm) + confidence
+            gridSuggestionNote = String(ui: "추정 \(suggestion.bpm, specifier: "%.2f") BPM") + confidence
             return
         }
         let suggested = GridDraft(trackUUID: "", base: [], segments: suggestion.segments).grid(duration: duration)
@@ -265,11 +265,12 @@ extension DeckModel {
         if abs(bpmDelta) < 0.05, abs(phase) < 0.010 {
             gridSuggestionNote = nil  // 사실상 같다
         } else {
-            gridSuggestionNote = String(format: "추정 %.2f BPM(%+.2f) · 위상 %+.0fms", suggestion.bpm, bpmDelta, phase * 1000) + confidence
+            gridSuggestionNote = String(ui: "추정 \(suggestion.bpm, specifier: "%.2f") BPM(\(bpmDelta, specifier: "%+.2f")) · 위상 \(phase * 1000, specifier: "%+.0f")ms")
+                + confidence
         }
         if suggestion.segments.count > 1, let note = gridSuggestionNote {
             let flow = suggestion.segments.map { String(format: "%.0f", $0.bpm) }.joined(separator: "→")
-            gridSuggestionNote = note + " · 변속 추정 \(flow)"
+            gridSuggestionNote = note + " · " + String(ui: "변속 추정 \(flow)")
         }
     }
 }

@@ -10,25 +10,25 @@ public struct AnisongCommentRule: CommentRule {
         let classification = CommentClassifier.classify(normalized: text)
         let parsed = ConventionParser.parse(normalized: text)
         let display: (String, CommentEvaluation.Tone) = switch classification {
-        case .convention: ("규칙", .matched)
-        case .legacy: ("구형", .info)
-        case .residue: ("잔재", .residue)
-        case .credit: ("크레딧", .info)
-        case .empty: ("빈 값", .empty)
-        case .other: ("기타", .secondary)
+        case .convention: (String(ui: "규칙"), .matched)
+        case .legacy: (String(ui: "구형"), .info)
+        case .residue: (String(ui: "잔재"), .residue)
+        case .credit: (String(ui: "크레딧"), .info)
+        case .empty: (String(ui: "빈 값"), .empty)
+        case .other: (String(ui: "기타"), .secondary)
         }
         var usages = parsed?.usages.map { $0.kind.rawValue } ?? []
         if parsed?.isCharacterSong == true { usages.append("CS") }
         return CommentEvaluation(classification: classification.rawValue, displayName: display.0, tone: display.1,
                                  isMatch: classification == .convention, isEmpty: classification == .empty,
-                                 summary: parsed.map(summary) ?? (classification == .empty ? "" : "규칙(분류 접두어 + 작품명 + 용도)에 맞지 않습니다"),
+                                 summary: parsed.map(summary) ?? (classification == .empty ? "" : String(ui: "규칙(분류 접두어 + 작품명 + 용도)에 맞지 않습니다")),
                                  prefix: parsed?.prefix.rawValue, usages: usages)
     }
 
     private func summary(_ c: ConventionComment) -> String {
         var parts = [c.prefix.rawValue, c.workName]
-        if let season = c.season { parts.append("\(season)기") }
-        if !c.abbreviations.isEmpty { parts.append("약칭 " + c.abbreviations.joined(separator: ", ")) }
+        if let season = c.season { parts.append(String(ui: "\(season)기")) }
+        if !c.abbreviations.isEmpty { parts.append(String(ui: "약칭 \(c.abbreviations.joined(separator: ", "))")) }
         parts += c.usages.map { $0.kind.rawValue + ($0.numbers.isEmpty ? "" : " " + $0.numbers.map(String.init).joined(separator: ",")) }
         if c.isCharacterSong { parts.append("CS") }
         if c.isTVSize { parts.append("TVSIZE") }

@@ -13,11 +13,11 @@ struct CueListView: View {
             HStack {
                 let cues = deck.draft?.cues ?? []
                 let hot = cues.filter { if case .hot = $0.kind { true } else { false } }.count
-                Text("핫큐 \(hot)").font(.scaled(.headline, textScale)).foregroundStyle(UIColors.hot.color)
-                Text("메모리 \(cues.count - hot)").font(.scaled(.headline, textScale)).foregroundStyle(UIColors.memory.color)
+                Text(.ui("핫큐 \(hot)")).font(.scaled(.headline, textScale)).foregroundStyle(UIColors.hot.color)
+                Text(.ui("메모리 \(cues.count - hot)")).font(.scaled(.headline, textScale)).foregroundStyle(UIColors.memory.color)
                 Spacer()
                 if let changes = deck.draft?.changes, !changes.isEmpty {
-                    Text("초안 변경 \(changes.count)")
+                    Text(.ui("초안 변경 \(changes.count)"))
                         .font(.scaled(.caption, textScale).bold())
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(UIColors.draftFill, in: Capsule())
@@ -38,17 +38,17 @@ struct CueListView: View {
                     .font(.scaled(.caption, textScale)).foregroundStyle(UIColors.warning.color)
             }
             HStack {
-                Button("되돌리기") { deck.revertDraft() }
+                Button(.ui("되돌리기")) { deck.revertDraft() }
                     .disabled(deck.draft?.hasChanges != true)
-                    .help("rekordbox에서 불러온 상태로 되돌립니다")
+                    .help(.ui("rekordbox에서 불러온 상태로 되돌립니다"))
                 Spacer()
-                Button("rekordbox에 반영…") { if let row = deck.row { deck.onRequestReflection?(row) } }
+                Button(.ui("rekordbox에 반영…")) { if let row = deck.row { deck.onRequestReflection?(row) } }
                     .disabled(deck.isWriteLocked || deck.row?.isStaged != false || (deck.draft?.hasChanges != true && deck.gridDraft?.hasChanges != true))
-                    .help("이 곡의 큐 초안을 rekordbox 라이브러리에 바로 씁니다(미리 보기로 확인한 뒤, rekordbox가 꺼져 있을 때만). 그리드 초안은 아직 XML로만 반영됩니다.")
+                    .help(.ui("이 곡의 큐 초안을 rekordbox 라이브러리에 바로 씁니다(미리 보기로 확인한 뒤, rekordbox가 꺼져 있을 때만). 그리드 초안은 아직 XML로만 반영됩니다."))
             }
             .controlSize(ControlSize.small.scaled(textScale))
             if deck.isWriteLocked {
-                Text("rekordbox에 쓰는 중이라 큐 편집을 잠시 막았습니다.").font(.scaled(.caption2, textScale)).foregroundStyle(.secondary)
+                Text(.ui("rekordbox에 쓰는 중이라 큐 편집을 잠시 막았습니다.")).font(.scaled(.caption2, textScale)).foregroundStyle(.secondary)
             }
         }
     }
@@ -72,10 +72,10 @@ struct CueRow: View {
         HStack(spacing: 6) {
             Circle().fill(UIColors.color(for: cue)).frame(width: 6, height: 6)
                 .allowsHitTesting(false)
-            Picker("종류", selection: Binding(get: { cue.kind }, set: { deck.setKind(cue.id, $0) })) {
-                Text("메모리").tag(EditableCue.Kind.memory)
+            Picker(.ui("종류"), selection: Binding(get: { cue.kind }, set: { deck.setKind(cue.id, $0) })) {
+                Text(.ui("메모리")).tag(EditableCue.Kind.memory)
                 ForEach(0..<8, id: \.self) { slot in
-                    Text("핫큐 \(String(UnicodeScalar(UInt8(65 + slot))))").tag(EditableCue.Kind.hot(slot))
+                    Text(.ui("핫큐 \(String(UnicodeScalar(UInt8(65 + slot))))")).tag(EditableCue.Kind.hot(slot))
                 }
             }
             .labelsHidden()
@@ -88,7 +88,7 @@ struct CueRow: View {
                     .fixedSize()
                     .frame(minWidth: TextScale.length(56, scale: textScale), alignment: .leading)
             }
-            .buttonStyle(.plain).help("이 위치로 이동")
+            .buttonStyle(.plain).help(.ui("이 위치로 이동"))
             .layoutPriority(1)
             if inlineDetails {
                 loopControls
@@ -102,8 +102,8 @@ struct CueRow: View {
                     Image(systemName: cue.loop == nil ? "ellipsis.circle" : "repeat.circle")
                 }
                 .buttonStyle(.borderless)
-                .help("큐 이름·루프 편집 및 삭제")
-                .accessibilityLabel("큐 세부 편집")
+                .help(.ui("큐 이름·루프 편집 및 삭제"))
+                .accessibilityLabel(.ui("큐 세부 편집"))
                 .popover(isPresented: $showDetails) {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 6) {
@@ -131,19 +131,19 @@ struct CueRow: View {
 
     @ViewBuilder private var loopControls: some View {
         Menu {
-            Button("루프 없음") { deck.setLoop(cue.id, beats: nil) }
+            Button(.ui("루프 없음")) { deck.setLoop(cue.id, beats: nil) }
             Divider()
             ForEach([1, 2, 4, 8, 16, 32], id: \.self) { beats in
-                Button("\(beats)박 루프") { deck.setLoop(cue.id, beats: beats) }
+                Button(.ui("\(beats)박 루프")) { deck.setLoop(cue.id, beats: beats) }
             }
         } label: {
-            Text(cue.loop == nil ? "루프" : "\(cue.loop?.beats.map(LoopRules.text) ?? deck.loopBeats(cue).map(String.init) ?? "?")박")
+            Text(cue.loop == nil ? .ui("루프") : .ui("\(cue.loop?.beats.map(LoopRules.text) ?? deck.loopBeats(cue).map(String.init) ?? "?")박"))
                 .font(.scaled(.caption, textScale).monospacedDigit())
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
         .foregroundStyle(cue.loop == nil ? Color.secondary : UIColors.loop.color)
-        .help("이 큐를 루프로 만들거나 길이를 바꿉니다")
+        .help(.ui("이 큐를 루프로 만들거나 길이를 바꿉니다"))
         if cue.loop != nil {
             Button { deck.toggleActiveLoop(cue.id) } label: {
                 Image(systemName: "repeat.circle")
@@ -151,21 +151,21 @@ struct CueRow: View {
                     .foregroundStyle(cue.loop?.active == true ? UIColors.loop.color : .secondary)
             }
             .buttonStyle(.borderless)
-            .help(cue.loop?.active == true ? "활성 루프(곡을 불러오면 자동 반복) — 눌러서 끄기" : "활성 루프로 만들기(곡을 불러오면 이 루프를 자동 반복)")
-            .accessibilityLabel("활성 루프")
-            .accessibilityValue(cue.loop?.active == true ? "켜짐" : "꺼짐")
+            .help(cue.loop?.active == true ? .ui("활성 루프(곡을 불러오면 자동 반복) — 눌러서 끄기") : .ui("활성 루프로 만들기(곡을 불러오면 이 루프를 자동 반복)"))
+            .accessibilityLabel(.ui("활성 루프"))
+            .accessibilityValue(cue.loop?.active == true ? .ui("켜짐") : .ui("꺼짐"))
         }
 
     }
 
     private var nameField: some View {
-        TextField("이름", text: Binding(get: { cue.name }, set: { deck.rename(cue.id, $0) }))
+        TextField(.ui("이름"), text: Binding(get: { cue.name }, set: { deck.rename(cue.id, $0) }))
             .textFieldStyle(.plain)
             .font(.scaled(.caption, textScale))
     }
 
     private var deleteButton: some View {
         Button(role: .destructive) { deck.delete(cue.id) } label: { Image(systemName: "trash") }
-            .buttonStyle(.borderless).help("삭제").accessibilityLabel("큐 삭제")
+            .buttonStyle(.borderless).help(.ui("삭제")).accessibilityLabel(.ui("큐 삭제"))
     }
 }

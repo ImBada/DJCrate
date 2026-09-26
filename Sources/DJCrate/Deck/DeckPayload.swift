@@ -33,8 +33,7 @@ struct DeckPayload: Sendable {
         let rebuilt = fresh.grid(duration: max(duration + 1, original.beats.last!.time + 0.01))
         let worst = original.beats.map { abs(rebuilt.snap($0.time) - $0.time) }.max() ?? 0
         if worst > 0.002 {
-            payload.gridBlockedReason = String(format: "이 곡의 그리드는 템포 구간 %d개로 복잡해 정확히 재현되지 않습니다(최대 %.0fms). 편집을 막았습니다.",
-                                               fresh.segments.count, worst * 1000)
+            payload.gridBlockedReason = String(ui: "이 곡의 그리드는 템포 구간 \(fresh.segments.count)개로 복잡해 정확히 재현되지 않습니다(최대 \(worst * 1000, specifier: "%.0f")ms). 편집을 막았습니다.")
         }
         payload.gridDraft = storage.loadGridDraft(track.uuid) ?? fresh
         return payload

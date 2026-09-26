@@ -58,13 +58,13 @@ struct ShortcutSettingsView: View {
                 } else {
                     Button { start(Recording(action: action, replacing: nil)) } label: { Image(systemName: "plus") }
                         .buttonStyle(.borderless)
-                        .help("키 더하기")
-                        .accessibilityLabel("\(action.title)에 키 더하기")
+                        .help(.ui("키 더하기"))
+                        .accessibilityLabel(.ui("\(action.title)에 키 더하기"))
                 }
                 Button { reset(action) } label: { Image(systemName: "arrow.uturn.backward") }
                     .buttonStyle(.borderless)
-                    .help("이 동작만 기본 키로")
-                    .accessibilityLabel("\(action.title) 기본 키로")
+                    .help(.ui("이 동작만 기본 키로"))
+                    .accessibilityLabel(.ui("\(action.title) 기본 키로"))
                     .opacity(deck.shortcuts.isStandard(action) ? 0 : 1)
                     .disabled(deck.shortcuts.isStandard(action))
             }
@@ -97,17 +97,17 @@ struct ShortcutSettingsView: View {
         }
         .buttonStyle(.plain)
         .help(others.isEmpty
-              ? "누르고 새 키를 누르면 바꿉니다(오른쪽 클릭: 빼기)"
-              : "‘\(others.map(\.title).joined(separator: "’, ‘"))’에도 지정된 키입니다. 목록 위쪽 동작이 받습니다")
+              ? String(ui: "누르고 새 키를 누르면 바꿉니다(오른쪽 클릭: 빼기)")
+              : String(ui: "\(Self.quotedTitles(others))에도 지정된 키입니다. 목록 위쪽 동작이 받습니다"))
         .contextMenu {
-            Button("‘\(KeyLabel.name(for: key))’ 빼기") { remove(key, from: action) }
+            Button(.ui("‘\(KeyLabel.name(for: key))’ 빼기")) { remove(key, from: action) }
         }
-        .accessibilityLabel("\(action.title): \(KeyLabel.name(for: key))")
-        .accessibilityHint("누른 뒤 새 키를 누르면 바꿉니다")
+        .accessibilityLabel(Text(verbatim: "\(action.title): \(KeyLabel.name(for: key))"))
+        .accessibilityHint(.ui("누른 뒤 새 키를 누르면 바꿉니다"))
     }
 
     private func recorderChip(for target: Recording) -> some View {
-        Text("키를 누르세요…")
+        Text(.ui("키를 누르세요…"))
             .font(.callout.weight(.semibold))
             .padding(.horizontal, 8).padding(.vertical, 3)
             .foregroundStyle(Color.accentColor)
@@ -121,10 +121,10 @@ struct ShortcutSettingsView: View {
     private var conflictBanner: some View {
         let lines = deck.shortcuts.conflicts
             .sorted { $0.key < $1.key }
-            .map { "‘\(KeyLabel.name(for: $0.key))’: \($0.value.map(\.title).joined(separator: ", "))" }
+            .map { String(ui: "‘\(KeyLabel.name(for: $0.key))’: \($0.value.map(\.title).joined(separator: ", "))") }
         return Label {
             VStack(alignment: .leading, spacing: 2) {
-                Text("겹치는 키가 있습니다. 목록 위쪽 동작만 받습니다.").bold()
+                Text(.ui("겹치는 키가 있습니다. 목록 위쪽 동작만 받습니다.")).bold()
                 ForEach(lines, id: \.self) { Text($0).font(.callout) }
             }
         } icon: {
@@ -141,13 +141,13 @@ struct ShortcutSettingsView: View {
                         .foregroundStyle(message.isWarning ? UIColors.warning.color : Color.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Text("Shift는 핫큐·메모리 큐 지우기, 1마디 이동, 이전 제안에 씁니다. Esc는 덱에서 큐 선택을 풉니다(그 뒤 1박 이동 키는 재생 위치를 옮깁니다). ⌘·⌃·⌥ 조합(메뉴·실행 취소 ⌘Z)과 Return·Esc·Tab·↑↓·Home·End·Page Up/Down(곡 고르기·칸 나가기)은 지정할 수 없습니다.")
+                Text(.ui("Shift는 핫큐·메모리 큐 지우기, 1마디 이동, 이전 제안에 씁니다. Esc는 덱에서 큐 선택을 풉니다(그 뒤 1박 이동 키는 재생 위치를 옮깁니다). ⌘·⌃·⌥ 조합(메뉴·실행 취소 ⌘Z)과 Return·Esc·Tab·↑↓·Home·End·Page Up/Down(곡 고르기·칸 나가기)은 지정할 수 없습니다."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
-            Button("모두 기본값으로") {
+            Button(.ui("모두 기본값으로")) {
                 recording = nil
                 message = nil
                 deck.shortcuts.resetAll()
@@ -160,7 +160,7 @@ struct ShortcutSettingsView: View {
 
     private func start(_ target: Recording) {
         recording = target
-        message = Message(text: "‘\(target.action.title)’에 쓸 키를 누르세요(Esc: 취소).", isWarning: false)
+        message = Message(text: String(ui: "‘\(target.action.title)’에 쓸 키를 누르세요(Esc: 취소)."), isWarning: false)
     }
 
     /// 다른 칸을 눌러 새로 기다리기 시작한 뒤 늦게 온 취소는 무시한다.
@@ -174,7 +174,7 @@ struct ShortcutSettingsView: View {
         guard recording == target else { return }
         let name = KeyLabel.name(for: keyCode)
         guard modifiers.intersection([.command, .control, .option]).isEmpty else {
-            message = Message(text: "⌘·⌃·⌥ 조합은 메뉴 단축키와 겹쳐 쓸 수 없습니다. 키 하나만 누르세요.", isWarning: true)
+            message = Message(text: String(ui: "⌘·⌃·⌥ 조합은 메뉴 단축키와 겹쳐 쓸 수 없습니다. 키 하나만 누르세요."), isWarning: true)
             return
         }
         var shortcuts = deck.shortcuts
@@ -186,7 +186,7 @@ struct ShortcutSettingsView: View {
             }
         } catch {
             // 기록은 이어 가서 다른 키를 바로 누를 수 있게 한다.
-            message = Message(text: "‘\(name)’ 키는 곡 고르기·칸 나가기에 써서 지정할 수 없습니다. 다른 키를 누르세요.", isWarning: true)
+            message = Message(text: String(ui: "‘\(name)’ 키는 곡 고르기·칸 나가기에 써서 지정할 수 없습니다. 다른 키를 누르세요."), isWarning: true)
             return
         }
         deck.shortcuts = shortcuts
@@ -194,7 +194,7 @@ struct ShortcutSettingsView: View {
         let others = shortcuts.otherActions(using: keyCode, besides: target.action)
         message = others.isEmpty
             ? nil
-            : Message(text: "‘\(name)’ 키는 ‘\(others.map(\.title).joined(separator: "’, ‘"))’에도 지정돼 있습니다. 목록 위쪽 동작이 받으니 한쪽을 바꾸세요.",
+            : Message(text: String(ui: "‘\(name)’ 키는 \(Self.quotedTitles(others))에도 지정돼 있습니다. 목록 위쪽 동작이 받으니 한쪽을 바꾸세요."),
                       isWarning: true)
     }
 
@@ -202,8 +202,13 @@ struct ShortcutSettingsView: View {
         recording = nil
         deck.shortcuts.remove(key, from: action)
         message = deck.shortcuts.keys(for: action).isEmpty
-            ? Message(text: "‘\(action.title)’에 키가 없습니다. +로 더하거나 되돌리기를 누르세요.", isWarning: false)
+            ? Message(text: String(ui: "‘\(action.title)’에 키가 없습니다. +로 더하거나 되돌리기를 누르세요."), isWarning: false)
             : nil
+    }
+
+    /// ‘재생’, ‘핫큐 A’처럼 동작 이름마다 따옴표를 씌운다(따옴표 모양은 언어마다 다르다).
+    private static func quotedTitles(_ actions: [DeckAction]) -> String {
+        actions.map { String(ui: "‘\($0.title)’") }.joined(separator: ", ")
     }
 
     private func reset(_ action: DeckAction) {
