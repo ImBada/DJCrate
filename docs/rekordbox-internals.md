@@ -2,14 +2,26 @@
 
 rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 diff해서 뽑은 규칙이다. 각 규칙은 "실험 전 사본에 anicue로 같은 편집을 쓰고, rekordbox가 쓴 결과와 칸마다 비교"해서 확인했다. 확인하지 못한 규칙은 코드에서 막아 두었다(아래 "막아 둔 것").
 
-코드: `Sources/AnicueCore/Rekordbox/` — `RekordboxWriter`(DB), `RekordboxGridWriter`(ANLZ), `CueJSON`, `AnlzFile`, `SeekInfo`, `CipherDatabase`.
+코드: `Sources/RekordboxKit/` — `RekordboxWriter`(DB, 역할별 `+Cues`·`+Grid`·`+Gain`·`+Verify`·`+Backup`), `RekordboxGridWriter`(ANLZ), `RekordboxCompatibility`(쓰기 전 버전·구조 확인), `CueJSON`, `AnlzFile`, `SeekInfo`, `CipherDatabase`.
 
 ## 파일과 열기
 
 - 라이브러리: `~/Library/Pioneer/rekordbox/master.db` (SQLCipher 4). 키는 pyrekordbox와 같은 방식으로 푼다(`RekordboxKey.derive()`).
 - 분석 파일: `~/Library/Pioneer/rekordbox/share/PIONEER/USBANLZ/<3자리>/<uuid 나머지>/ANLZ0000.{DAT,EXT,2EX,3EX}`. 경로는 `djmdContent.AnalysisDataPath`(`.DAT` 경로).
 - 삭제 행이 절반쯤 있다(`rb_local_deleted=1`). 집계·쓰기는 항상 삭제되지 않은 행만.
-- `agentRegistry`에는 클라우드 인증값이 들어 있다. 읽거나 출력하지 않는다(`anicue sql`은 이 테이블 질의를 막는다). 예외: 쓰기 모듈이 `localUpdateCount` 한 칸만 읽고 쓴다.
+- `agentRegistry`에는 클라우드 인증값이 들어 있다. 읽거나 출력하지 않는다(`anicue lab sql`은 이 테이블 질의를 막는다). 예외: 쓰기 모듈이 `localUpdateCount`를 읽고 쓰고, `lastUpdateCount`의 정수 칸만 읽는다.
+
+## 쓰기 전 확인 (`RekordboxCompatibility`)
+
+쓰기 규칙은 rekordbox 7.2.18에서 확인했다. rekordbox가 업데이트로 DB 구조를 바꾸면 규칙이 맞지 않을 수 있어서, 쓰기 전에 다음을 보고 하나라도 다르면 **백업도 뜨지 않고** 막는다.
+
+- 앱 버전: `/Applications/rekordbox N/rekordbox.app`의 `CFBundleShortVersionString` 주.부가 `7.2`(못 찾으면 아래 DB 검사에 맡김). 라이브 DB에만 적용.
+- 새 행을 넣는 표(`djmdCue` 29칸, `contentCue` 13칸)는 칸 이름이 정확히 같아야 한다. 칸이 늘면 rekordbox가 기대하는 값을 빠뜨리게 된다.
+- 고치거나 읽는 칸(`djmdContent`·`contentFile`·`djmdMixerParam`·`agentRegistry`·`djmdProperty`)은 모두 있어야 한다.
+- `djmdProperty.DBVersion` = `6000`.
+- `localUpdateCount` ≥ `lastUpdateCount`(클라우드 동기화가 본 가장 큰 번호). 로컬 번호가 더 작으면 동기화 때 변경이 되돌려졌다는 사례가 있다(2026-09-26 조사). 2026-09-26 실제 라이브러리: 로컬 1,002,950 · 클라우드 372,628.
+
+`anicue compat`으로 읽기 전용 확인을 할 수 있다. 새 rekordbox 버전을 허용하려면 "새 쓰기 경로를 여는 방법"처럼 실험으로 큐·그리드·게인 쓰기를 다시 확인한 뒤 `verifiedAppVersions`를 넓힌다.
 
 ## 공통: 변경 번호(usn)
 
@@ -86,6 +98,6 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 ## 새 쓰기 경로를 여는 방법
 
 1. 사용자에게 rekordbox에서 그 편집을 직접 해 달라고 한다(곡 이름 받기, 끝나면 rekordbox 종료).
-2. 편집 전 스냅샷과 새 스냅샷(`anicue snapshot --force`)을 `anicue sql <사본> "…"`로 비교: 바뀐 테이블·칸·usn 순서.
-3. 실험 전 사본에 anicue로 같은 편집을 써서 칸마다 비교(예: `anicue loop-repro --old … --new … --ids … --work <폴더>`).
-4. 일치하면 막아 둔 조건을 풀고, 이 문서에 규칙을 적는다.
+2. 편집 전 스냅샷과 새 스냅샷(`anicue snapshot --force`)을 `anicue lab sql <사본> "…"`·`anicue lab db-diff`로 비교: 바뀐 테이블·칸·usn 순서.
+3. 실험 전 사본에 anicue로 같은 편집을 써서 칸마다 비교(예: `anicue lab loop-repro --old … --new … --ids … --work <폴더>`).
+4. 일치하면 `Tests/RekordboxKitTests`에 골든 테스트를 먼저 쓰고, 막아 둔 조건을 풀고, 이 문서에 규칙을 적는다.

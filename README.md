@@ -25,7 +25,7 @@ rekordbox 7로 애니송 DJ를 하는 사람을 위한 macOS 라이브러리 관
 
 **그리드 편집**
 - 이동(1·10ms, 끌기), BPM 입력·×2·÷2, ½박 이동, 여기를 1박으로, 변속 지점, 탭 템포.
-- "핫큐도 함께"를 켜면 그리드를 고칠 때 핫큐가 같은 박을 따라간다.
+- "큐도 함께(핫큐·메모리)"를 켜면 그리드를 옮기거나 BPM을 바꿀 때 핫큐와 메모리 큐(루프 포함)가 같은 박을 따라간다.
 
 **rekordbox 반영**
 - 큐(메모리·핫큐·루프·활성 루프), 그리드·BPM, 오토게인을 rekordbox 라이브러리에 바로 쓴다(⌘⇧E).
@@ -38,6 +38,7 @@ rekordbox 7로 애니송 DJ를 하는 사람을 위한 macOS 라이브러리 관
 ## 안전 장치
 
 - rekordbox(또는 rekordboxAgent)가 켜져 있으면 **절대 쓰지 않는다**.
+- 확인한 rekordbox(7.2.x)·DB 구조가 아니면 쓰지 않는다. rekordbox를 업데이트했다면 `anicue compat`으로 먼저 확인한다.
 - 쓰기 전에 라이브러리 전체와 바꿀 분석 파일을 백업하고, 한 트랜잭션으로 쓴 뒤 다시 읽어 검증한다. 무결성 검사에 실패하면 백업으로 되돌린다.
 - 쓰기 규칙은 rekordbox 7.2.18에서 직접 편집한 결과와 칸 단위로 같은지 확인한 것만 쓴다. 확인하지 못한 경우는 이유와 함께 막는다:
   - VBR MP3 큐
@@ -53,7 +54,7 @@ rekordbox 7로 애니송 DJ를 하는 사람을 위한 macOS 라이브러리 관
 ## 빌드·설치
 
 ```bash
-swift build && swift test          # 개발 빌드·단위 테스트
+scripts/check.sh                   # 빌드·단위 테스트·커버리지 목표
 scripts/build-app.sh               # dist/anicue.app
 scripts/build-app.sh --install     # /Applications/anicue.app에 설치
 ```
@@ -81,10 +82,10 @@ scripts/build-app.sh --install     # /Applications/anicue.app에 설치
 
 ## CLI
 
-`anicue`는 개발·실험용 명령줄 도구다(`swift build` 후 `.build/debug/anicue`). 인자 없이 실행하면 명령 목록이 나온다.
-- 조회: `snapshot`(라이브 DB 사본), `report`(라이브러리 현황), `sql`(사본에 읽기 전용 질의)
+`anicue`는 개발용 명령줄 도구다(`swift build` 후 `.build/debug/anicue`). 인자 없이 실행하면 명령 목록이 나온다.
+- 조회: `snapshot`(라이브 DB 사본), `report`(라이브러리 현황), `compat`(쓰기 전 버전·구조 확인)
 - 쓰기 시험: `cue-write`(초안 쓰기, 기본은 사본), `rekordbox-restore`(백업으로 되돌리기)
-- 분석 평가: `grid-estimate-eval`, `key-eval`, `loudness` 등
+- 실험: `anicue lab …` — rekordbox 규칙을 알아낼 때 쓴 명령(`sql`, `db-diff`, `loop-repro`, `seekinfo-check`, `key-eval` 등)
 
 ## 데이터 위치
 
