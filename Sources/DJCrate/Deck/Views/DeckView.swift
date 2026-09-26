@@ -40,11 +40,22 @@ struct DeckView: View {
                             }
                         }
                         .animation(.easeOut(duration: 0.15), value: deck.toast)
+                        // 그리드 없는 곡 안내는 파형 위에 띄운다(줄로 끼워 넣으면 덱 높이가 바뀌어 아래 목록이 밀렸다)
+                        .overlay(alignment: .bottomLeading) {
+                            if deck.needsGrid && !deck.gridEditing {
+                                GridSuggestionRow(deck: deck, badge: true)
+                                    .padding(.horizontal, 10).padding(.vertical, 5)
+                                    .background(.regularMaterial, in: Capsule())
+                                    .padding(8)
+                                    .transition(.opacity)
+                            }
+                        }
+                        .animation(.easeOut(duration: 0.15), value: deck.needsGrid)
                     Group { if PerfProbe.hidden.contains("overview") { EmptyView() } else { OverviewWaveformView(deck: deck) } }
                         .frame(height: 86)
                     TransportBar(deck: deck)
                     AudioBar(deck: deck)
-                    if deck.gridEditing || deck.needsGrid { GridSuggestionRow(deck: deck) }
+                    if deck.gridEditing { GridSuggestionRow(deck: deck) }
                     if deck.gridEditing { GridEditorBar(deck: deck) }
                 }
                 .frame(minWidth: 0, maxWidth: .infinity, alignment: .topLeading)

@@ -91,6 +91,8 @@ struct GridEditorBar: View {
 /// DJCrate가 추정한 그리드 안내. 그리드가 없는 곡은 편집 모드가 아니어도 보인다.
 struct GridSuggestionRow: View {
     let deck: DeckModel
+    /// 파형 위에 띄우는 작은 배지 모양(줄 끝 채우기·긴 버튼 이름 없이)
+    var badge = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -120,11 +122,14 @@ struct GridSuggestionRow: View {
                 Image(systemName: "checkmark.seal").foregroundStyle(.secondary)
                 Text("DJCrate 추정과 지금 그리드가 사실상 같습니다").foregroundStyle(.secondary)
             }
-            Spacer(minLength: 0)
-            Button { deck.reanalyze() } label: { Label("재분석", systemImage: "arrow.triangle.2.circlepath") }
-                .help("이 곡의 섹션·그리드 추정·조성 분석 캐시를 지우고 다시 분석합니다(파형·초안은 그대로)")
+            if !badge { Spacer(minLength: 0) }
+            Button { deck.reanalyze() } label: {
+                if badge { Image(systemName: "arrow.triangle.2.circlepath") } else { Label("재분석", systemImage: "arrow.triangle.2.circlepath") }
+            }
+            .help("이 곡의 섹션·그리드 추정·조성 분석 캐시를 지우고 다시 분석합니다(파형·초안은 그대로)")
         }
         .font(.caption)
+        .lineLimit(1)
         .controlSize(.small)
     }
 
