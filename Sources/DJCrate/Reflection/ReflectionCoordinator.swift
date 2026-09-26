@@ -217,7 +217,8 @@ struct ReflectionCoordinator {
         } catch {
             host.writeStage = nil
             host.toast = nil
-            let text = "rekordbox 라이브러리 상태를 확인하지 못했습니다. rekordbox를 켜지 말고 백업 폴더와 오류를 확인한 뒤 다시 되돌리세요.\n\n" + String(describing: error)
+            AppErrorMessage.log(error)
+            let text = "rekordbox 라이브러리 상태를 확인하지 못했으므로 rekordbox를 켜지 말고 백업 폴더의 위치와 접근 권한을 확인한 뒤 다시 되돌리세요."
             host.resultHistory.record(WriteResult(kind: .failure, title: "되돌리지 못했습니다", text: text, backups: [backup.url]))
             _ = prompter.show(ReflectionPrompt(title: "되돌리지 못했습니다", text: text, critical: true))
         }
@@ -248,7 +249,8 @@ struct ReflectionCoordinator {
             host.resultHistory.record(WriteResult(kind: .failure, title: alert.title, text: alert.text, backups: backups))
             _ = prompter.show(alert)
         } else {
-            publish(WriteResult(kind: .failure, title: title, text: String(describing: error)), detail: String(describing: error))
+            let message = AppErrorMessage.message(for: error)
+            publish(WriteResult(kind: .failure, title: title, text: message), detail: message)
         }
     }
 
@@ -258,12 +260,12 @@ struct ReflectionCoordinator {
     /// 반영·넣기·빼기 모두 '반영 대기' 목록의 '되돌리기…'(가장 최근 쓰기 백업으로 되돌림)를 안내한다.
     /// 사이드바 아래 '마지막 반영 되돌리기…'는 쓰기가 성공했을 때만 나타나 여기서는 보이지 않을 수 있다.
     static func restoreFailureAlert(_ error: any Error) -> ReflectionPrompt? {
-        guard case let DJCError.restoreFailed(reason, restoreError, backup, database) = error else { return nil }
+        guard case let DJCError.restoreFailed(_, _, backup, database) = error else { return nil }
+        AppErrorMessage.log(error)
         let text = [
             "rekordbox 라이브러리(master.db)와 분석 파일이 어떤 상태인지 알 수 없습니다. "
                 + "rekordbox를 켜지 말고, 사이드바에서 'rekordbox 반영 대기'를 고른 뒤 목록 위 '되돌리기…'로 쓰기 전 백업을 복원하세요.",
             "터미널에서는: " + DJCError.restoreCommand(backup: backup, database: database),
-            "확인 실패: \(reason)\n복원 실패: \(restoreError)",
         ]
         return ReflectionPrompt(title: "쓰기 확인에 실패했고 자동 복원도 하지 못했습니다", text: text.joined(separator: "\n\n"), critical: true)
     }
