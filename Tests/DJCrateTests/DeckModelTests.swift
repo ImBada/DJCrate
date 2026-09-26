@@ -47,7 +47,7 @@ struct DeckLoopTests {
         try await h.loaded()
         h.deck.seek(20.5)
         h.deck.toggleLoop()
-        h.deck.addMemoryCueAtPlayhead()
+        h.deck.addMemoryCue()
         let cue = try #require(h.deck.draft?.cues.first { $0.kind == .memory })
         #expect(cue.loop?.end == 22.5 && h.deck.engagedLoopID == cue.id)
     }

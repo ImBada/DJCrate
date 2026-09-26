@@ -89,7 +89,7 @@ enum DeckMenuCommand: Hashable {
             case .cue: deck.cueDown(); deck.cueUp()
             case .previousCue: deck.jumpToCue(forward: false)
             case .nextCue: deck.jumpToCue(forward: true)
-            case .memoryCue: deck.addMemoryCueAtPlayhead()
+            case .memoryCue: deck.addMemoryCue()
             case .nudgeBack: deck.step(beats: -1)
             case .nudgeForward: deck.step(beats: 1)
             case .deleteCue: _ = deck.deleteSelectedCue()

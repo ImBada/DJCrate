@@ -2961,6 +2961,22 @@
         }
       }
     },
+    "CUE 위치에 메모리 큐 추가 (%@). Shift를 누르고 누르면 현재 재생 위치의 메모리 큐를 지웁니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a Memory Cue at the CUE point (%@). Shift-click to delete the Memory Cue at the current playback position."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CUEポイントにメモリーキューを追加（%@）。Shiftを押しながらクリックすると、現在の再生位置のメモリーキューを削除します。"
+          }
+        }
+      }
+    },
     "DB 구조: 확인한 모양과 같음(DBVersion %@) · %@" : {
       "localizations" : {
         "en" : {
@@ -21773,22 +21789,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレイリスト"
-          }
-        }
-      }
-    },
-    "플레이헤드 위치에 메모리 큐 추가 (%@). Shift를 누르고 누르면 이 자리 메모리 큐를 지웁니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add a Memory Cue at the playhead (%@). Shift-click to delete the Memory Cue here."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "再生位置にメモリーキューを追加（%@）。Shiftを押しながらクリックすると、この位置のメモリーキューを削除します。"
           }
         }
       }

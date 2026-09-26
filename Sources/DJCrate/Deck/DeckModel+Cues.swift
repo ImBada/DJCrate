@@ -42,10 +42,10 @@ extension DeckModel {
         storeMemoryCue(at: snapped(time), loop: nil)
     }
 
-    /// + 메모리 큐 · M: 즉석 루프 중이면 그 루프를 메모리 루프로 저장하고, 아니면 플레이헤드에 메모리 큐를 찍는다.
-    func addMemoryCueAtPlayhead() {
+    /// + 메모리 큐 · M: 즉석 루프 중이면 그 루프를 메모리 루프로 저장하고, 아니면 CUE 위치에 메모리 큐를 찍는다.
+    func addMemoryCue() {
         guard let loop = instantLoop else {
-            addMemoryCue(at: currentTime)
+            storeMemoryCue(at: cuePoint, loop: nil)
             return
         }
         guard let id = storeMemoryCue(at: loop.start, loop: EditableCue.Loop(end: loop.end, active: false, beats: loop.beats)) else { return }
