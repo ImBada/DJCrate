@@ -250,7 +250,7 @@ struct ZoomWaveformView: View {
             line.move(to: CGPoint(x: x, y: 0)); line.addLine(to: CGPoint(x: x, y: size.height))
             context.stroke(line, with: .color(.yellow), lineWidth: 2)
             let nearRight = x > size.width - 80 * metrics.scale
-            context.draw(Text(String(format: "%.2f BPM", segment.bpm)).font(.system(size: metrics.labelSize, weight: .bold)).foregroundStyle(Color.yellow),
+            context.draw(Text(verbatim: segment.bpm.formatted(.number.precision(.fractionLength(2)).grouping(.never)) + " BPM").font(.system(size: metrics.labelSize, weight: .bold)).foregroundStyle(Color.yellow),
                          at: CGPoint(x: nearRight ? x - 4 : x + 4, y: ruler + 4), anchor: nearRight ? .trailing : .leading)
         }
         // MU 섹션 경계

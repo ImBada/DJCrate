@@ -52,7 +52,7 @@ private struct EditHeader: View {
             }
             if let layout = model.layout {
                 let notes = [
-                    String(format: "%.2f BPM", layout.segment.bpm),
+                    layout.segment.bpm.formatted(.number.precision(.fractionLength(2)).grouping(.never)) + " BPM",
                     String(ui: "마디 \(layout.count)개"),
                     String(ui: "1마디 \(layout.barLength, specifier: "%.3f")초"),
                     layout.hasLeadIn ? String(ui: "첫 다운비트 앞 곡 머리(0마디) \(layout.firstDownbeat.clockText)") : nil,

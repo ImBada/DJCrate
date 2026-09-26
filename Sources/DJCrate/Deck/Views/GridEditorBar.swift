@@ -64,7 +64,7 @@ struct GridEditorBar: View {
                     Text(.ui("템포 구간 \(segments.count)")).font(.scaled(.caption, textScale)).foregroundStyle(.secondary)
                     ForEach(Array(segments.prefix(24).enumerated()), id: \.offset) { index, segment in
                         HStack(spacing: 2) {
-                            Button(String(format: "%@ · %.2f", segment.start.clockText, segment.bpm)) { deck.seek(segment.start) }
+                            Button(segment.start.clockText + " · " + segment.bpm.formatted(.number.precision(.fractionLength(2)).grouping(.never))) { deck.seek(segment.start) }
                                 .buttonStyle(.plain)
                             if index > 0 {
                                 Button { deck.removeTempoChange(at: index) } label: { Image(systemName: "xmark.circle.fill") }
