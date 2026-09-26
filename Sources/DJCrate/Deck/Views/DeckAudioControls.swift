@@ -204,6 +204,9 @@ struct LevelMeterView: View {
                     .frame(width: 130, height: 13)
                     .background(Palette.well)
                     .environment(\.colorScheme, .dark)
+                    .accessibilityElement()
+                    .accessibilityLabel("레벨 미터")
+                    .modifier(LevelMeterAccessibility(deck: deck))
                 // 최고 피크. 0dBFS를 넘은 적이 있으면 빨간 점이 켜진다. 누르면 기록을 지운다.
                 Button { deck.meter.resetPeaks() } label: {
                     HStack(spacing: 3) {
@@ -219,9 +222,12 @@ struct LevelMeterView: View {
                 .help(reading.clipCount > 0
                       ? "최고 피크(dBFS, 게인 뒤). 0dBFS를 \(reading.clipCount)번 넘었습니다 — 게인을 낮추세요. 누르면 기록을 지웁니다"
                       : "곡을 올린 뒤 최고 피크(dBFS, 게인 뒤). 0dBFS를 넘으면 빨간 점이 켜집니다. 누르면 기록을 지웁니다")
+                // 최고 피크는 곡마다 가끔만 바뀐다(값이 바뀔 때만 VoiceOver에 알린다).
+                .accessibilityLabel("최고 피크")
+                .accessibilityValue(reading.maxPeak > 0 ? String(format: "%+.1f dB", 20 * log10(reading.maxPeak)) : "없음")
+                .accessibilityHint("누르면 최고 피크와 클리핑 기록을 지웁니다")
             }
         }
-        .accessibilityLabel("레벨 미터")
     }
 
     private static let floor: Double = -48
@@ -253,6 +259,17 @@ struct LevelMeterView: View {
         // 0dBFS 눈금
         let zero = x(0, size.width)
         context.fill(Path(CGRect(x: zero, y: 0, width: 1, height: size.height)), with: .color(.white.opacity(0.5)))
+    }
+}
+
+/// 레벨 미터 VoiceOver 값(지금 피크·클리핑). 미터 그림은 재생 틱(초당 30번)으로 그리지만 값은 `displayTime` 주기(초당 15번)로만 읽는다.
+struct LevelMeterAccessibility: ViewModifier {
+    let deck: DeckModel
+
+    func body(content: Content) -> some View {
+        let _ = deck.displayTime
+        content.accessibilityValue(WaveformAccessibility.meterValue(deck.meter.read(), playing: deck.isPlaying,
+                                                                    now: ProcessInfo.processInfo.systemUptime))
     }
 }
 

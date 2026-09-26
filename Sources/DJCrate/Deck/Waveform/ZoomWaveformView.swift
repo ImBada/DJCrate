@@ -44,14 +44,32 @@ struct ZoomWaveformView: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @Bindable var deck: DeckModel
     @State private var drag: DragMode?
+    /// 포인터 아래 대상(바뀔 때만 다시 그린다)
+    @State private var hover = ZoomPointerTarget.empty
+    @State private var width: CGFloat = 1
     @State private var scroll = WaveformScrollHandler()
     @State private var pinchBase: Double?
+
+    /// `hover`: 처음 보일 포인터 아래 대상(미리 보기·캡처용)
+    init(deck: DeckModel, hover: ZoomPointerTarget = .empty) {
+        self.deck = deck
+        _hover = State(initialValue: hover)
+    }
 
     private enum DragMode {
         /// 큐를 잡았다. 3px 넘게 끌기 전에는 움직이지 않는다(클릭만으로 큐가 바뀌지 않도록).
         case cue(EditableCue.ID, originalTime: Double)
         case scrub(from: Double)
         case grid
+
+        /// 끄는 동안의 포인터 모양은 끌기 시작한 대상을 따른다.
+        var target: ZoomPointerTarget {
+            switch self {
+            case let .cue(id, _): .cue(id)
+            case .scrub: .empty
+            case .grid: .grid
+            }
+        }
     }
 
     var body: some View {
@@ -62,7 +80,7 @@ struct ZoomWaveformView: View {
                 let time = { (x: CGFloat) in start + Double(x / max(geo.size.width, 1)) * window }
                 let xOf = { (t: Double) in CGFloat((t - start) / window) * geo.size.width }
 
-                let state = DrawState(deck)
+                let state = DrawState(deck, hover: hover)
                 Canvas { context, size in
                     PerfProbe.measureDraw { draw(context, size: size, state: state, start: start, window: window, xOf: xOf) }
                 }
@@ -71,13 +89,14 @@ struct ZoomWaveformView: View {
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
                             if drag == nil {
-                                if deck.gridEditing, deck.canEditGrid {
+                                switch pointerTarget(atX: value.startLocation.x, xOf: xOf, suggestions: []) {
+                                case .grid:
                                     deck.beginGridDrag()
                                     drag = .grid
-                                } else if let hit = hitCue(atX: value.startLocation.x, xOf: xOf) {
+                                case let .cue(hit):
                                     deck.selectedCueID = hit
                                     drag = .cue(hit, originalTime: deck.cue(hit)?.time ?? center)
-                                } else {
+                                case .empty, .suggestion:
                                     deck.beginScrub()
                                     drag = .scrub(from: center)
                                 }
@@ -104,7 +123,7 @@ struct ZoomWaveformView: View {
                             case .scrub:
                                 // 제안 마커를 짧게 클릭하면 메모리 큐로 받아들인다.
                                 if abs(value.translation.width) < 2,
-                                   let s = deck.suggestions.first(where: { abs(xOf($0) - value.location.x) < 11 }) {
+                                   case let .suggestion(s) = pointerTarget(atX: value.location.x, xOf: xOf, gridEditing: false) {
                                     deck.acceptSuggestion(s)
                                 }
                                 deck.endScrub()
@@ -122,6 +141,18 @@ struct ZoomWaveformView: View {
                     }
                 )
         }
+        // 누르기 전에 무엇이 잡힐지 보인다: 포인터 모양을 바꾸고 큐 선은 굵게, 제안 배지는 밝게 그린다.
+        // 매 프레임 다시 그리는 위 본문 밖에 두고, 위치는 이벤트 때 읽는다(재생 위치를 본문에서 읽지 않게).
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .onContinuousHover { phase in
+            var target = ZoomPointerTarget.empty
+            if case let .active(point) = phase {
+                let start = deck.currentTime - deck.zoomSeconds / 2, window = deck.zoomSeconds, width = width
+                target = pointerTarget(atX: point.x, xOf: { CGFloat(($0 - start) / window) * width })
+            }
+            if hover != target { hover = target }
+        }
+        .pointerStyle(ZoomPointerTarget.pointer(hover: hover, drag: drag?.target).style)
         .background(Palette.well)
         .environment(\.colorScheme, .dark)
         .clipShape(RoundedRectangle(cornerRadius: 6))
@@ -136,14 +167,22 @@ struct ZoomWaveformView: View {
         .background { HitProbe { scroll.probe = $0 } }
         .onAppear { scroll.deck = deck; scroll.install() }
         .onDisappear { scroll.remove() }
-        .accessibilityLabel("확대 \(deck.waveformColorMode.title) 파형. 드래그로 스크럽, 큐를 끌어 이동, 더블클릭으로 메모리 큐 추가, 휠로 확대·축소")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("확대 파형")
+        .accessibilityHint("드래그로 스크럽하고, 큐를 끌어 옮기고, 더블클릭으로 메모리 큐를 추가합니다. 휠로 확대·축소합니다. 조절하면 1박씩 옮깁니다")
+        .waveformAccessibility(deck: deck, kind: .zoom)
+    }
+
+    /// 끌기 시작·짧은 클릭·호버가 같은 규칙으로 대상을 고른다.
+    private func pointerTarget(atX x: CGFloat, xOf: (Double) -> CGFloat, suggestions: [Double]? = nil,
+                               gridEditing: Bool? = nil) -> ZoomPointerTarget {
+        ZoomPointerTarget.at(x: x, cues: deck.draft?.cues ?? [], suggestions: suggestions ?? deck.suggestions,
+                             gridEditing: gridEditing ?? (deck.gridEditing && deck.canEditGrid), xOf: xOf)
     }
 
     private func hitCue(atX x: CGFloat, xOf: (Double) -> CGFloat) -> EditableCue.ID? {
-        deck.draft?.cues
-            .map { ($0.id, abs(xOf($0.time) - x)) }
-            .filter { $0.1 < 7 }
-            .min { $0.1 < $1.1 }?.0
+        if case let .cue(id) = pointerTarget(atX: x, xOf: xOf, suggestions: [], gridEditing: false) { return id }
+        return nil
     }
 
     private func draw(_ context: GraphicsContext, size: CGSize, state: DrawState, start: Double, window: Double, xOf: (Double) -> CGFloat) {
@@ -230,13 +269,20 @@ struct ZoomWaveformView: View {
         // 메모리 큐 제안: 밝은 파형 위에서도 보이게 어두운 테두리 위에 굵은 점선, 아래에 "+" 배지(누르면 메모리 큐)
         for s in state.suggestions where s > start && s < end {
             let x = xOf(s)
+            let hovered = state.hoveredSuggestion == s
             var line = Path()
             line.move(to: CGPoint(x: x, y: 0)); line.addLine(to: CGPoint(x: x, y: size.height - 22))
-            context.stroke(line, with: .color(.black.opacity(0.55)), lineWidth: 4)
-            context.stroke(line, with: .color(contrast == .increased ? Color.white : Palette.suggestion), style: StrokeStyle(lineWidth: 2, dash: [6, 3]))
-            let badge = CGRect(x: x - 9, y: size.height - 21, width: 18, height: 18)
+            context.stroke(line, with: .color(.black.opacity(0.55)), lineWidth: hovered ? 5 : 4)
+            context.stroke(line, with: .color(contrast == .increased || hovered ? Color.white : Palette.suggestion),
+                           style: StrokeStyle(lineWidth: hovered ? 3 : 2, dash: [6, 3]))
+            // 포인터가 올라가면 배지를 키우고 밝게(흰 테두리) 그려 누르면 받는다는 것을 보인다.
+            let badge = CGRect(x: x - 9, y: size.height - 21, width: 18, height: 18).insetBy(dx: hovered ? -1.5 : 0, dy: hovered ? -1.5 : 0)
             context.fill(Path(ellipseIn: badge.insetBy(dx: -1.5, dy: -1.5)), with: .color(.black.opacity(0.6)))
             context.fill(Path(ellipseIn: badge), with: .color(Palette.suggestion))
+            if hovered {
+                context.fill(Path(ellipseIn: badge), with: .color(.white.opacity(0.35)))
+                context.stroke(Path(ellipseIn: badge), with: .color(.white), lineWidth: 1.5)
+            }
             context.draw(Text("+").font(.system(size: 15, weight: .heavy)).foregroundStyle(Color.black),
                          at: CGPoint(x: badge.midX, y: badge.midY - 0.5))
         }
@@ -277,18 +323,20 @@ struct ZoomWaveformView: View {
         for cue in state.cues where cue.time >= start - 1 && cue.time <= end + 1 {
             let x = xOf(cue.time)
             let selected = cue.id == state.selected
+            // 포인터가 올라간 큐 선은 한 단계 굵게(끌어 옮길 수 있다는 표시)
+            let hoverWidth: CGFloat = cue.id == state.hoveredCue ? 1.5 : 0
             var line = Path()
             line.move(to: CGPoint(x: x, y: 0)); line.addLine(to: CGPoint(x: x, y: size.height))
             switch cue.kind {
             case .memory:
-                context.stroke(line, with: .color(Palette.color(for: cue)), lineWidth: selected ? 2.5 : 1.2)
+                context.stroke(line, with: .color(Palette.color(for: cue)), lineWidth: (selected ? 2.5 : 1.2) + hoverWidth)
                 var tri = Path()
                 tri.addLines([CGPoint(x: x - 6, y: 16), CGPoint(x: x + 6, y: 16), CGPoint(x: x, y: 26)])
                 tri.closeSubpath()
                 context.fill(tri, with: .color(Palette.color(for: cue)))
                 if selected { context.stroke(tri, with: .color(.white), lineWidth: 1.2) }
             case .hot:
-                context.stroke(line, with: .color(Palette.color(for: cue)), lineWidth: selected ? 2.5 : 1.8)
+                context.stroke(line, with: .color(Palette.color(for: cue)), lineWidth: (selected ? 2.5 : 1.8) + hoverWidth)
                 chip(context, cue.kind.slotLetter ?? "", at: CGPoint(x: x, y: size.height - 16), color: Palette.color(for: cue), selected: selected, maxX: size.width)
             }
             if !cue.name.isEmpty {
@@ -336,6 +384,58 @@ struct ZoomWaveformView: View {
     static func countdown(to cues: [EditableCue], from time: Double, grid: BeatGrid?) -> String? {
         CueCountdown.text(to: cues, from: time, grid: grid)
     }
+}
+
+/// 확대 파형에서 포인터 아래 대상. 끌기 시작(그리드·큐·스크럽)·제안 짧은 클릭·호버 표시가 같은 규칙을 쓴다.
+enum ZoomPointerTarget: Equatable {
+    case empty
+    case cue(EditableCue.ID)
+    case suggestion(Double)
+    /// 그리드 편집 중에는 어디를 끌어도 그리드를 옮긴다.
+    case grid
+
+    /// 큐 선 7pt, 제안 11pt 안(가장 가까운 것). 큐가 제안보다 먼저다.
+    static func at(x: CGFloat, cues: [EditableCue], suggestions: [Double], gridEditing: Bool, xOf: (Double) -> CGFloat) -> Self {
+        if gridEditing { return .grid }
+        if let hit = cues.map({ ($0.id, abs(xOf($0.time) - x)) }).filter({ $0.1 < 7 }).min(by: { $0.1 < $1.1 }) {
+            return .cue(hit.0)
+        }
+        if let hit = suggestions.map({ ($0, abs(xOf($0) - x)) }).filter({ $0.1 < 11 }).min(by: { $0.1 < $1.1 }) {
+            return .suggestion(hit.0)
+        }
+        return .empty
+    }
+
+    enum Pointer: Equatable {
+        case grabIdle, grabActive, columnResize, arrow
+
+        var style: PointerStyle {
+            switch self {
+            case .grabIdle: .grabIdle
+            case .grabActive: .grabActive
+            case .columnResize: .columnResize
+            case .arrow: .default
+            }
+        }
+    }
+
+    /// 빈 곳은 펼친 손(끌면 스크럽), 끄는 중은 쥔 손, 큐 선·그리드 편집은 좌우 화살표, 제안 배지는 기본 화살표(누르면 받기).
+    static func pointer(hover: Self, drag: Self?) -> Pointer {
+        if let drag {
+            switch drag {
+            case .cue, .grid: return .columnResize
+            case .empty, .suggestion: return .grabActive
+            }
+        }
+        switch hover {
+        case .cue, .grid: return .columnResize
+        case .suggestion: return .arrow
+        case .empty: return .grabIdle
+        }
+    }
+
+    var cue: EditableCue.ID? { if case let .cue(id) = self { id } else { nil } }
+    var suggestion: Double? { if case let .suggestion(time) = self { time } else { nil } }
 }
 
 // MARK: - 전체 개요

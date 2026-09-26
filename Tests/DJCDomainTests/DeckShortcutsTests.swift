@@ -20,6 +20,8 @@ struct DeckShortcutsTests {
         case 123: return .nudgeBack
         case 124: return .nudgeForward
         case 51, 117: return .deleteCue
+        case 1: return .nextSuggestion      // S, #33에서 더함
+        case 0: return .acceptSuggestion    // A, #33에서 더함
         case 18, 83: return .hotCueA
         case 19, 84: return .hotCueB
         case 20, 85: return .hotCueC
