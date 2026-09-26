@@ -13,6 +13,8 @@ enum MainCommands {
         Command("analyze", "<파일|ContentID> [--db PATH]", "곡 파트 분석(ContentID면 기존 큐와 비교)", analyze),
         Command("reflection-dry-run", nil, "초안으로 반영 계획을 만들어 XML을 지정한 곳에만 쓴다(rekordbox는 그대로)", reflectionDryRun),
         Command("cue-write", "--db <사본.db> [--dry-run] [--uuid U] | --live", "큐 초안을 rekordbox DB에 직접 쓴다", cueWrite),
+        Command("track-add", "--db <사본.db> [--dry-run] <음원…> | --live …", "음원을 rekordbox 컬렉션에 넣는다(분석 전, 기본은 사본)", trackAdd),
+        Command("track-delete", "--db <사본.db> [--share <분석 뿌리>] [--dry-run] <ContentID…> | --live …", "곡을 rekordbox 컬렉션에서 뺀다(음원 파일은 그대로)", trackDelete),
         Command("rekordbox-restore", "[--backup <폴더> (--db <사본> | --live)]", "백업으로 되돌린다", rekordboxRestore),
         Command("schema-dump", "<사본.db> <출력.sql>", "사본 DB의 구조(CREATE 문)만 뽑는다", schemaDump),
         Command("path", "<제목>", "제목으로 파일 경로 찾기", path),
@@ -70,6 +72,50 @@ enum MainCommands {
             print("\(mark) \(outcome.title.prefix(34)) — 지움 \(outcome.removed) · 넣음 \(outcome.added)\(outcome.reason.map { " · \($0)" } ?? "")")
         }
         print("\(report.dryRun ? "미리 보기(되돌림)" : "씀") · 쓴 곡 \(report.written.count) · 막힌 곡 \(report.blocked.count) · 백업 \(report.backup ?? "없음")")
+    }
+
+    /// 인자 가운데 옵션(과 그 값)을 뺀 나머지
+    static func operands(_ args: [String], valued: Set<String>) -> [String] {
+        var result: [String] = [], skip = false
+        for arg in args.dropFirst() {
+            if skip { skip = false; continue }
+            if valued.contains(arg) { skip = true; continue }
+            if arg.hasPrefix("--") { continue }
+            result.append(arg)
+        }
+        return result
+    }
+
+    /// 음원을 컬렉션에 넣는다(분석 전). 기본은 --db 사본, 라이브 DB는 --live(rekordbox가 꺼져 있어야 한다).
+    static func trackAdd(_ args: [String]) async throws {
+        let live = args.contains("--live")
+        guard live || value(after: "--db", in: args) != nil else { throw UsageError() }
+        let database = live ? RekordboxWriter.liveDatabase : URL(filePath: value(after: "--db", in: args)!)
+        let files = operands(args, valued: ["--db"])
+        guard !files.isEmpty else { throw UsageError() }
+        var plans: [TrackAddPlan] = []
+        for file in files {
+            let url = URL(filePath: file)
+            do { plans.append(try TrackAddPlan.make(url: url, tags: try await AudioTags.read(url: url))) } catch { print("✗ \(url.lastPathComponent) — \(error)") }
+        }
+        let backups = live ? DJCPaths.rekordboxBackups : database.deletingLastPathComponent().appending(path: "backups")
+        let report = try RekordboxTrackWriter.add(plans, to: database, dryRun: args.contains("--dry-run"), backups: backups)
+        for o in report.added { print("\(o.written ? "✓" : "✗") \(o.title.prefix(40))\(o.contentID.map { " · ID \($0)" } ?? "")\(o.reason.map { " · \($0)" } ?? "")") }
+        print("\(report.dryRun ? "미리 보기(되돌림)" : "넣음") · \(report.added.filter(\.written).count)곡 · 백업 \(report.backup ?? "없음")")
+    }
+
+    /// 곡을 컬렉션에서 뺀다. 분석 파일은 백업으로 옮긴다. 기본은 --db 사본(분석 파일은 --share를 줄 때만), 라이브는 --live.
+    static func trackDelete(_ args: [String]) async throws {
+        let live = args.contains("--live")
+        guard live || value(after: "--db", in: args) != nil else { throw UsageError() }
+        let database = live ? RekordboxWriter.liveDatabase : URL(filePath: value(after: "--db", in: args)!)
+        let ids = operands(args, valued: ["--db", "--share"])
+        guard !ids.isEmpty else { throw UsageError() }
+        let backups = live ? DJCPaths.rekordboxBackups : database.deletingLastPathComponent().appending(path: "backups")
+        let report = try RekordboxTrackWriter.delete(contentIDs: ids, from: database, shareRoot: value(after: "--share", in: args).map { URL(filePath: $0) },
+                                                     dryRun: args.contains("--dry-run"), backups: backups)
+        for o in report.deleted { print("\(o.written ? "✓" : "✗") \(o.title.prefix(40)) · ID \(o.contentID ?? "")\(o.reason.map { " · \($0)" } ?? "")") }
+        print("\(report.dryRun ? "미리 보기(되돌림)" : "뺌") · \(report.deleted.filter(\.written).count)곡 · 분석 파일 \(report.removedFiles.count)개 · 백업 \(report.backup ?? "없음")")
     }
 
     /// 백업으로 되돌린다. 기본은 --db 사본. 라이브 DB는 --live(rekordbox가 꺼져 있어야 한다). 백업 목록은 인자 없이.

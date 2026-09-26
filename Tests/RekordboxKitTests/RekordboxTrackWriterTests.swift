@@ -1,0 +1,190 @@
+import DJCDomain
+import DJCTestSupport
+import Foundation
+@testable import RekordboxKit
+import Testing
+
+/// 곡 추가·삭제. rekordbox 7.2.18이 직접 한 결과(2026-09-26 묶음 1·2 실험)를 기대값으로 둔다.
+@Suite("rekordbox 곡 추가·삭제")
+struct RekordboxTrackWriterTests {
+    /// 2026-09-25 12:00:00.000 UTC
+    let now = Date(timeIntervalSince1970: 1_790_337_600)
+    let stamp = "2026-09-25 12:00:00.000 +00:00"
+
+    func plan(_ resource: String) async throws -> TrackAddPlan {
+        let url = try TestResources.url(resource)
+        return try TrackAddPlan.make(url: url, tags: try await AudioTags.read(url: url), now: now)
+    }
+
+    func add(_ fixture: RekordboxFixture, _ plans: [TrackAddPlan]) throws -> RekordboxTrackWriter.Report {
+        try RekordboxTrackWriter.add(plans, to: fixture.database, dryRun: false, now: now, backups: fixture.backups)
+    }
+
+    func row(_ fixture: RekordboxFixture, _ id: String) throws -> [String: String] {
+        try #require(try fixture.rows("SELECT * FROM djmdContent WHERE ID = ?", [.text(id)]).first)
+    }
+
+    // MARK: 태그
+
+    @Test func 태그를_읽는다() async throws {
+        let tags = try await AudioTags.read(url: try TestResources.url("mp3-tagged.mp3"))
+        #expect(tags.title == "시험 제목" && tags.artist == "시험 아티스트" && tags.album == "시험 앨범")
+        #expect(tags.albumArtist == "시험 앨범 아티스트" && tags.genre == "Anison" && tags.composer == "시험 작곡가")
+        #expect(tags.comment == "시험 코멘트" && tags.year == 2024 && tags.trackNumber == 3 && tags.discNumber == 2)
+        #expect(tags.isrc == "JPTEST000001" && abs(tags.duration - 2) < 0.1, "\(tags.duration)")
+    }
+
+    @Test func 태그가_없으면_파일_이름이_제목() async throws {
+        let p = try await plan("mp3-notag-cbr.mp3")
+        #expect(p.title == "mp3-notag-cbr" && p.artist == nil && p.comment == "" && p.fileType == 1)
+    }
+
+    // MARK: 추가
+
+    @Test func 분석_전_곡_행은_rekordbox_7이_넣은_모양과_같다() async throws {
+        // O-Ku-Ri-Mo-No Sunday!를 자동 분석을 끄고 넣었을 때(2026-09-26)의 칸 값·형식
+        let fixture = try RekordboxFixture(localUpdateCount: 1000)
+        try fixture.add(TrackSpec())   // 라이브러리 공통값을 가져올 기존 곡
+        try fixture.insert("djmdArtist", ["ID": .text("111"), "Name": .text("시험 아티스트"), "UUID": .text("u"), "rb_local_deleted": .int(0)])
+        let p = try await plan("mp3-tagged.mp3")
+        let report = try add(fixture, [p])
+        let id = try #require(report.added.first?.contentID)
+        #expect(report.added.first?.written == true && (Int(id) ?? 0) > 0 && (Int(id) ?? 0) < 1 << 28)
+        let r = try row(fixture, id)
+        // 분석 전 칸
+        #expect(r["BPM"] == "0" && r["BitRate"] == "0" && r["BitDepth"] == "0" && r["SampleRate"] == "0")
+        #expect(r["KeyID"] == "0" && r["AnalysisDataPath"] == "" && r["Analysed"] == "0" && r["ContentLink"] == "14")
+        #expect(r["AnalysisUpdated"] == "NULL" && r["TrackInfoUpdated"] == "NULL" && r["CueUpdated"] == "NULL")
+        // 태그·파일
+        #expect(r["Title"] == "시험 제목" && r["FileNameL"] == "mp3-tagged.mp3" && r["FileNameS"] == "" && r["FileType"] == "1")
+        #expect(r["Commnt"] == "시험 코멘트" && r["ReleaseYear"] == "2024" && r["TrackNo"] == "3" && r["DiscNo"] == "2")
+        #expect(r["ISRC"] == "JPTEST000001" && r["Length"] == "2" && r["FolderPath"] == p.path && r["FileSize"] == String(p.fileSize))
+        #expect(r["rb_file_id"] == p.fileID && r["DateCreated"] == p.dateCreated && r["StockDate"] == "2026-09-25")
+        // 고정값
+        #expect(r["MasterDBID"] == RekordboxFixture.masterDBID && r["DeviceID"] == RekordboxFixture.deviceID && r["MasterSongID"] == id)
+        #expect(r["HotCueAutoLoad"] == "on" && r["DeliveryControl"] == "on" && r["ExtInfo"] == "null" && r["ColorID"] == "0")
+        #expect(r["ImagePath"] == "" && r["Rating"] == "0" && r["DJPlayCount"] == "0" && r["SamplerGain"] == "0.0")
+        #expect(r["rb_data_status"] == "0" && r["usn"] == "NULL" && r["created_at"] == stamp && r["updated_at"] == stamp)
+        let types = try #require(try fixture.rows("""
+            SELECT typeof(KeyID) k, typeof(ColorID) c, typeof(VideoAssociate) v, typeof(rb_file_id) f, typeof(SamplerGain) g, typeof(Length) l
+            FROM djmdContent WHERE ID = ?
+            """, [.text(id)]).first)
+        #expect(types == ["k": "text", "c": "text", "v": "text", "f": "text", "g": "real", "l": "integer"])
+        // 아티스트는 있던 행을 쓰고, 앨범 아티스트·앨범·장르·작곡가는 새 행
+        #expect(r["ArtistID"] == "111")
+        let album = try #require(try fixture.rows("SELECT * FROM djmdAlbum WHERE ID = ?", [.text(r["AlbumID"] ?? "")]).first)
+        #expect(album["Name"] == "시험 앨범" && album["Compilation"] == "0" && album["ImagePath"] == "NULL")
+        #expect(try fixture.rows("SELECT Name FROM djmdArtist WHERE ID = ?", [.text(album["AlbumArtistID"] ?? "")]).first?["Name"] == "시험 앨범 아티스트")
+        #expect(try fixture.rows("SELECT Name FROM djmdGenre WHERE ID = ?", [.text(r["GenreID"] ?? "")]).first?["Name"] == "Anison")
+        #expect(try fixture.rows("SELECT Name FROM djmdArtist WHERE ID = ?", [.text(r["ComposerID"] ?? "")]).first?["Name"] == "시험 작곡가")
+        // 변경 번호: 관련 행 4개가 먼저, 곡 행이 마지막
+        #expect(r["rb_local_usn"] == "1005" && album["rb_local_usn"] == "1002")
+        #expect(try fixture.localUpdateCount() == 1005)
+        // 분석 파일·파일 행·오토게인 행은 없다
+        #expect(try fixture.rows("SELECT * FROM contentFile WHERE ContentID = ?", [.text(id)]).isEmpty)
+        #expect(try fixture.rows("SELECT * FROM djmdMixerParam WHERE ContentID = ?", [.text(id)]).isEmpty)
+    }
+
+    @Test func 이미_컬렉션에_있는_파일은_막는다() async throws {
+        let fixture = try RekordboxFixture()
+        try fixture.add(TrackSpec())
+        let p = try await plan("mp3-tagged.mp3")
+        #expect(try add(fixture, [p]).added.first?.written == true)
+        let again = try add(fixture, [p])
+        #expect(again.added.first?.written == false && again.added.first?.reason?.contains("이미") == true)
+        #expect(try fixture.rows("SELECT * FROM djmdContent WHERE FolderPath = ?", [.text(p.path)]).count == 1)
+    }
+
+    @Test func rekordbox가_켜져_있으면_넣지_않는다() async throws {
+        let fixture = try RekordboxFixture()
+        try fixture.add(TrackSpec())
+        let running = RekordboxWriteGuard(isLive: { _ in true }, isRekordboxRunning: { true }, appVersion: { "7.2.18" })
+        let p = try await plan("mp3-tagged.mp3")
+        #expect(throws: DJCError.self) {
+            try RekordboxTrackWriter.add([p], to: fixture.database, dryRun: false, now: now, backups: fixture.backups, guard: running)
+        }
+        #expect(try fixture.rows("SELECT * FROM djmdContent").count == 1)
+    }
+
+    // MARK: 삭제
+
+    /// A(지울 곡)·B가 재생 목록·이력에 A, B 순으로 있다. A만 쓰는 아티스트·앨범, 둘이 같이 쓰는 아티스트.
+    func deleteFixture() throws -> (RekordboxFixture, TrackSpec, TrackSpec) {
+        let fixture = try RekordboxFixture(localUpdateCount: 2000)
+        for (id, name) in [("1", "A만"), ("2", "같이"), ("3", "앨범 아티스트")] {
+            try fixture.insert("djmdArtist", ["ID": .text(id), "Name": .text(name), "UUID": .text("u\(id)"), "rb_local_deleted": .int(0)])
+        }
+        try fixture.insert("djmdAlbum", ["ID": .text("10"), "Name": .text("A 앨범"), "AlbumArtistID": .text("3"), "UUID": .text("ua"), "rb_local_deleted": .int(0)])
+        var a = TrackSpec(id: "100")
+        a.artistID = "1"; a.composerID = "2"; a.albumID = "10"
+        a.analysisDataPath = "/PIONEER/USBANLZ/aaa/bbbb/ANLZ0000.DAT"
+        a.imagePath = "/PIONEER/Artwork/aaa/bbbb/artwork.jpg"
+        a.cues = [CueSpec(kind: 1, inMsec: 1000)]
+        a.gain = (high: 16256, low: 0)
+        var b = TrackSpec(id: "200")
+        b.artistID = "2"
+        try fixture.add(a); try fixture.add(b)
+        try fixture.addContentFile(for: a, hash: "h", size: 1)
+        for (table, list) in [("djmdSongPlaylist", "PlaylistID"), ("djmdSongHistory", "HistoryID")] {
+            for (n, track) in [a, b].enumerated() {
+                try fixture.insert(table, ["ID": .text("\(table)-\(n)"), list: .text("L"), "ContentID": .text(track.id), "TrackNo": .int(n + 1),
+                                           "UUID": .text("u-\(table)-\(n)"), "rb_local_deleted": .int(0), "rb_local_usn": .int(5)])
+            }
+        }
+        let files = [fixture.shareRoot.appending(path: "PIONEER/USBANLZ/aaa/bbbb"), fixture.shareRoot.appending(path: "PIONEER/Artwork/aaa/bbbb")]
+        for folder in files { try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true) }
+        try Data("dat".utf8).write(to: files[0].appending(path: "ANLZ0000.DAT"))
+        try Data("ext".utf8).write(to: files[0].appending(path: "ANLZ0000.EXT"))
+        try Data("jpg".utf8).write(to: files[1].appending(path: "artwork.jpg"))
+        return (fixture, a, b)
+    }
+
+    func delete(_ fixture: RekordboxFixture, _ ids: [String]) throws -> RekordboxTrackWriter.Report {
+        try RekordboxTrackWriter.delete(contentIDs: ids, from: fixture.database, shareRoot: fixture.shareRoot, dryRun: false,
+                                        now: now, backups: fixture.backups)
+    }
+
+    @Test func 곡을_지우면_딸린_행을_지우고_뒤_순번을_당긴다() throws {
+        let (fixture, a, b) = try deleteFixture()
+        let report = try delete(fixture, [a.id])
+        #expect(report.deleted.first?.written == true)
+        for table in ["djmdContent WHERE ID", "djmdCue WHERE ContentID", "contentCue WHERE ContentID", "contentFile WHERE ContentID",
+                      "djmdMixerParam WHERE ContentID", "djmdSongPlaylist WHERE ContentID", "djmdSongHistory WHERE ContentID"] {
+            #expect(try fixture.rows("SELECT * FROM \(table) = ?", [.text(a.id)]).isEmpty, "\(table)")
+        }
+        // B는 1번으로 당겨지고 새 변경 번호 하나를 받는다
+        for table in ["djmdSongPlaylist", "djmdSongHistory"] {
+            let entry = try #require(try fixture.rows("SELECT TrackNo, rb_local_usn, updated_at FROM \(table) WHERE ContentID = ?", [.text(b.id)]).first)
+            #expect(entry == ["TrackNo": "1", "rb_local_usn": "2001", "updated_at": stamp], "\(table)")
+        }
+        #expect(try fixture.localUpdateCount() == 2001)
+        // A만 쓰던 아티스트·앨범(과 그 앨범 아티스트)은 지우고, B도 쓰는 아티스트는 남긴다
+        #expect(try fixture.rows("SELECT ID FROM djmdArtist ORDER BY ID").map { $0["ID"] } == ["2"])
+        #expect(try fixture.rows("SELECT * FROM djmdAlbum").isEmpty)
+        // 분석 폴더는 지우고 아트워크 폴더는 남긴다(파일만 지움). 지운 파일은 백업에 있다.
+        #expect(!FileManager.default.fileExists(atPath: fixture.shareRoot.appending(path: "PIONEER/USBANLZ/aaa/bbbb").path))
+        #expect(FileManager.default.fileExists(atPath: fixture.shareRoot.appending(path: "PIONEER/Artwork/aaa/bbbb").path))
+        #expect(!FileManager.default.fileExists(atPath: fixture.shareRoot.appending(path: "PIONEER/Artwork/aaa/bbbb/artwork.jpg").path))
+        #expect(report.removedFiles.count == 3)
+    }
+
+    @Test func 지운_곡은_백업으로_되돌리면_행과_파일이_돌아온다() throws {
+        let (fixture, a, _) = try deleteFixture()
+        let before = try fixture.rows("SELECT * FROM djmdContent ORDER BY ID") + fixture.rows("SELECT * FROM djmdSongPlaylist ORDER BY ID")
+        let report = try delete(fixture, [a.id])
+        _ = try RekordboxWriter.restore(URL(filePath: try #require(report.backup)), to: fixture.database, backups: fixture.backups)
+        #expect(try fixture.rows("SELECT * FROM djmdContent ORDER BY ID") + fixture.rows("SELECT * FROM djmdSongPlaylist ORDER BY ID") == before)
+        #expect(try Data(contentsOf: fixture.shareRoot.appending(path: "PIONEER/USBANLZ/aaa/bbbb/ANLZ0000.EXT")) == Data("ext".utf8))
+        #expect(try Data(contentsOf: fixture.shareRoot.appending(path: "PIONEER/Artwork/aaa/bbbb/artwork.jpg")) == Data("jpg".utf8))
+    }
+
+    @Test func 확인하지_않은_표에_걸린_곡은_지우지_않는다() throws {
+        let (fixture, a, _) = try deleteFixture()
+        try fixture.insert("djmdSongMyTag", ["ID": .text("t1"), "MyTagID": .text("m"), "ContentID": .text(a.id), "TrackNo": .int(1),
+                                             "UUID": .text("u"), "rb_local_deleted": .int(0)])
+        let report = try delete(fixture, [a.id])
+        #expect(report.deleted.first?.written == false && report.deleted.first?.reason?.contains("djmdSongMyTag") == true)
+        #expect(try fixture.rows("SELECT * FROM djmdContent WHERE ID = ?", [.text(a.id)]).count == 1)
+        #expect(FileManager.default.fileExists(atPath: fixture.shareRoot.appending(path: "PIONEER/USBANLZ/aaa/bbbb/ANLZ0000.DAT").path))
+    }
+}

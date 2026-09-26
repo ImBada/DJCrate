@@ -48,6 +48,9 @@ public final class RekordboxFixture {
     }
 
     static let stamp = "2026-01-01 00:00:00.000 +00:00"
+    /// 라이브러리 공통값(실제 라이브러리에서는 곡 행마다 같다)
+    public static let masterDBID = "2112110951"
+    public static let deviceID = "00000000-test-device"
 
     public func open() throws -> CipherDatabase {
         try CipherDatabase(path: database.path, key: RekordboxKey.derive(), writable: true)
@@ -60,12 +63,16 @@ public final class RekordboxFixture {
         defer { db.close() }
         try db.run("""
             INSERT INTO djmdContent (ID, UUID, Title, FileType, BitRate, Length, BPM, FolderPath, CueUpdated, AnalysisDataPath,
-                AnalysisUpdated, TrackInfoUpdated, rb_data_status, rb_local_deleted, rb_local_usn, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 256, 0, 10, ?, ?)
+                AnalysisUpdated, TrackInfoUpdated, MasterDBID, DeviceID, ArtistID, AlbumID, ComposerID, ImagePath,
+                rb_data_status, rb_local_deleted, rb_local_usn, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 256, 0, 10, ?, ?)
             """, [.text(track.id), .text(track.uuid), .text(track.title), .int(track.fileType), .int(track.bitRate),
                   .int(track.length), .int(track.bpm100), .text(track.folderPath),
                   track.cueUpdated.map { .text($0) } ?? .null, track.analysisDataPath.map { .text($0) } ?? .null,
-                  .text(track.analysisUpdated), .text(track.trackInfoUpdated), .text(Self.stamp), .text(Self.stamp)])
+                  .text(track.analysisUpdated), .text(track.trackInfoUpdated), .text(Self.masterDBID), .text(Self.deviceID),
+                  track.artistID.map { .text($0) } ?? .null, track.albumID.map { .text($0) } ?? .null,
+                  track.composerID.map { .text($0) } ?? .null, track.imagePath.map { .text($0) } ?? .null,
+                  .text(Self.stamp), .text(Self.stamp)])
         for cue in track.cues {
             try db.run("""
                 INSERT INTO djmdCue (ID, ContentID, InMsec, InFrame, InMpegFrame, InMpegAbs, OutMsec, OutFrame, OutMpegFrame, OutMpegAbs,
@@ -196,6 +203,10 @@ public struct TrackSpec: Sendable {
     /// 옛 rekordbox가 쓴 JSON처럼 칸 순서를 섞어 둔다(다시 쓸 때 순서를 지키는지 본다)
     public var legacyJSON = false
     public var gain: (high: Int, low: Int)?
+    public var artistID: String?
+    public var albumID: String?
+    public var composerID: String?
+    public var imagePath: String?
 
     public init(id: String = String(Int.random(in: 100_000...999_999)), uuid: String = UUID().uuidString.lowercased()) {
         self.id = id

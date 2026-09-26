@@ -66,8 +66,8 @@ public enum RekordboxShare {
         return FileManager.default.fileExists(atPath: dat.deletingPathExtension().appendingPathExtension("EXT").path)
     }
 
-    public static func analysisURL(_ analysisDataPath: String?) -> URL? {
+    public static func analysisURL(_ analysisDataPath: String?, root: URL? = nil) -> URL? {
         guard let path = analysisDataPath, !path.isEmpty else { return nil }
-        return directory.appending(path: String(path.drop(while: { $0 == "/" })))
+        return (root ?? directory).appending(path: String(path.drop(while: { $0 == "/" })))
     }
 }
