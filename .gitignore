@@ -11,3 +11,6 @@ xcuserdata/
 *.part
 snapshots/
 dist/
+
+# 커버리지 계측 빌드를 실행하면 생긴다
+*.profraw
