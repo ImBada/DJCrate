@@ -41,7 +41,7 @@ enum TrackLab {
         let snapshot = try value(after: "--db", in: args).map { URL(filePath: $0) } ?? LibrarySnapshot.latest()
         let ids = MainCommands.operands(args, valued: ["--db"])
         guard !ids.isEmpty else { throw UsageError() }
-        let db = try CipherDatabase(path: snapshot.path, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: snapshot.path, key: RekordboxKey.derive())
         defer { db.close() }
         for id in ids {
             var row: (path: String, dat: String, bitRate: Int, sampleRate: Int, bitDepth: Int, length: Int)?
@@ -85,7 +85,7 @@ enum TrackLab {
     static func factsCheck(_ args: [String]) async throws {
         let limit = Int(value(after: "--limit", in: args) ?? "") ?? 60
         let snapshot = try value(after: "--db", in: args).map { URL(filePath: $0) } ?? LibrarySnapshot.latest()
-        let db = try CipherDatabase(path: snapshot.path, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: snapshot.path, key: RekordboxKey.derive())
         defer { db.close() }
         var rows: [(type: Int, path: String, bitRate: Int, sampleRate: Int, bitDepth: Int)] = []
         try db.query("""
@@ -107,7 +107,7 @@ enum TrackLab {
 
     static func pvbrCheck(_ args: [String]) async throws {
         let snapshot = try value(after: "--db", in: args).map { URL(filePath: $0) } ?? LibrarySnapshot.latest()
-        let db = try CipherDatabase(path: snapshot.path, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: snapshot.path, key: RekordboxKey.derive())
         defer { db.close() }
         var rows: [(path: String, dat: String, bitRate: Int)] = []
         try db.query("SELECT FolderPath, AnalysisDataPath, BitRate FROM djmdContent WHERE rb_local_deleted = 0 AND FileType = 1 AND Analysed = 105 AND FolderPath LIKE '/%'") {
@@ -142,7 +142,7 @@ enum TrackLab {
 
     static func pvb2Check(_ args: [String]) async throws {
         let snapshot = try value(after: "--db", in: args).map { URL(filePath: $0) } ?? LibrarySnapshot.latest()
-        let db = try CipherDatabase(path: snapshot.path, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: snapshot.path, key: RekordboxKey.derive())
         defer { db.close() }
         var rows: [(path: String, dat: String, sampleRate: Int, bitDepth: Int, bitRate: Int)] = []
         try db.query("SELECT FolderPath, AnalysisDataPath, SampleRate, BitDepth, BitRate FROM djmdContent WHERE rb_local_deleted = 0 AND FileType = 5 AND Analysed = 105 AND FolderPath LIKE '/%'") {
@@ -204,7 +204,7 @@ enum TrackLab {
         }
         let ids = MainCommands.operands(args, valued: ["--db", "--share", "--grid-from"])
         guard !ids.isEmpty else { throw UsageError() }
-        let db = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: database.path, key: RekordboxKey.derive())
         var tracks: [(id: String, uuid: String, path: String)] = []
         for id in ids {
             try db.query("SELECT ID, UUID, FolderPath FROM djmdContent WHERE ID = ? AND rb_local_deleted = 0", [.text(id)]) {
@@ -269,7 +269,7 @@ enum TrackLab {
         }
         guard !edits.isEmpty else { throw UsageError() }
         var drafts: [TagDraft] = []
-        let db = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: database.path, key: RekordboxKey.derive())
         for edit in edits {
             var uuid: String?
             try db.query("SELECT UUID FROM djmdContent WHERE ID = ?", [.text(edit.id)]) { uuid = $0.string(0) }
@@ -293,7 +293,7 @@ enum TrackLab {
         guard let dbPath = value(after: "--db", in: args) else { throw UsageError() }
         let files = args.dropFirst().filter { $0 != "--db" && $0 != dbPath }
         guard !files.isEmpty else { throw UsageError() }
-        let db = try CipherDatabase(path: dbPath, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: dbPath, key: RekordboxKey.derive())
         defer { db.close() }
         func name(_ table: String, _ id: String?) throws -> String? {
             guard let id, !id.isEmpty else { return nil }
@@ -344,7 +344,7 @@ enum TrackLab {
         let snapshot = try value(after: "--db", in: args).map { URL(filePath: $0) } ?? LibrarySnapshot.latest()
         let limit = value(after: "--limit", in: args).flatMap(Int.init) ?? 20
         var ids = MainCommands.operands(args, valued: ["--db", "--limit"])
-        let db = try CipherDatabase(path: snapshot.path, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: snapshot.path, key: RekordboxKey.derive())
         defer { db.close() }
         if ids.isEmpty {
             try db.query("SELECT ID FROM djmdContent WHERE rb_local_deleted = 0 AND ImagePath != '' ORDER BY random() LIMIT ?", [.int(limit)]) {

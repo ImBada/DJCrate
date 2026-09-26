@@ -1,70 +1,6 @@
 {
   "sourceLanguage" : "ko",
   "strings" : {
-    "큐 목록 보기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cue List View"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "キュー一覧の表示"
-          }
-        }
-      }
-    },
-    "그리드를 %lldms 왼쪽으로 이동" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Move the Grid %lld ms Left"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "グリッドを左に%lldms移動"
-          }
-        }
-      }
-    },
-    "그리드를 %lldms 오른쪽으로 이동" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Move the Grid %lld ms Right"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "グリッドを右に%lldms移動"
-          }
-        }
-      }
-    },
-    "그리드 전체를 옮깁니다 (1초 동안 누르면 반복 · 파형을 끌어도 됩니다)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Moves the whole grid (hold for 1 second to repeat, or drag the waveform)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "グリッド全体を移動（1秒間押し続けると繰り返し移動・波形のドラッグでも移動できます）"
-          }
-        }
-      }
-    },
     "\nrekordbox 기존 큐 (직접 찍은 것)" : {
       "localizations" : {
         "en" : {
@@ -687,18 +623,18 @@
         }
       }
     },
-    "[--backup <폴더> (--db <사본> | --live)]" : {
+    "[--backup <폴더> (--db <사본> | --live) [--share <폴더>]]" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "[--backup <folder> (--db <copy> | --live)]"
+            "value" : "[--backup <folder> (--db <copy> | --live) [--share <folder>]]"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "[--backup <フォルダー> (--db <コピー> | --live)]"
+            "value" : "[--backup <フォルダー> (--db <コピー> | --live) [--share <フォルダー>]]"
           }
         }
       }
@@ -6575,6 +6511,22 @@
         }
       }
     },
+    "경로에 상위 폴더 이동 또는 빈 이름이 있음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the path contains parent traversal or an empty name"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスに親フォルダーへの移動または空の名前があります"
+          }
+        }
+      }
+    },
     "고른 %lld곡에 모두 적용합니다" : {
       "localizations" : {
         "en" : {
@@ -7907,6 +7859,22 @@
         }
       }
     },
+    "그리드 전체를 옮깁니다 (1초 동안 누르면 반복 · 파형을 끌어도 됩니다)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moves the whole grid (hold for 1 second to repeat, or drag the waveform)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グリッド全体を移動（1秒間押し続けると繰り返し移動・波形のドラッグでも移動できます）"
+          }
+        }
+      }
+    },
     "그리드 초안 버리기" : {
       "localizations" : {
         "en" : {
@@ -8129,6 +8097,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ビートグリッドが最大%.0fmsずれています"
+          }
+        }
+      }
+    },
+    "그리드를 %lldms 오른쪽으로 이동" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move the Grid %lld ms Right"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グリッドを右に%lldms移動"
+          }
+        }
+      }
+    },
+    "그리드를 %lldms 왼쪽으로 이동" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move the Grid %lld ms Left"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グリッドを左に%lldms移動"
           }
         }
       }
@@ -9053,6 +9053,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "閉じる"
+          }
+        }
+      }
+    },
+    "대상 파일이 중복됨" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "a destination file is listed more than once"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元先ファイルが重複しています"
           }
         }
       }
@@ -11543,6 +11559,22 @@
         }
       }
     },
+    "백업 메타데이터가 손상됨" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "backup metadata is damaged"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バックアップのメタデータが破損しています"
+          }
+        }
+      }
+    },
     "백업 위치" : {
       "localizations" : {
         "en" : {
@@ -11555,6 +11587,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "バックアップの場所"
+          }
+        }
+      }
+    },
+    "백업 파일이 없거나 일반 파일이 아님" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "a backup file is missing or is not a regular file"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バックアップファイルがないか、通常のファイルではありません"
           }
         }
       }
@@ -11587,6 +11635,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "バックアップから復元"
+          }
+        }
+      }
+    },
+    "백업을 복원할 수 없습니다: %@. 올바른 백업과 share 폴더를 선택하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot restore this backup: %@. Select a valid backup and share folder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バックアップを復元できません：%@。正しいバックアップとshareフォルダーを選択してください"
           }
         }
       }
@@ -13845,6 +13909,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "起動中でも読み取り用スナップショットを作成"
+          }
+        }
+      }
+    },
+    "심볼릭 링크 또는 일반 파일이 아닌 항목이 있음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the path contains a symbolic link or an unexpected file type"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスにシンボリックリンクまたは想定外のファイル種類があります"
           }
         }
       }
@@ -19675,6 +19755,22 @@
         }
       }
     },
+    "큐 목록 보기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cue List View"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キュー一覧の表示"
+          }
+        }
+      }
+    },
     "큐 반영 완료" : {
       "localizations" : {
         "en" : {
@@ -21023,6 +21119,22 @@
         }
       }
     },
+    "파일이 백업의 곡 소유권과 맞지 않음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "a file does not belong to the expected track"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルが想定した曲に属していません"
+          }
+        }
+      }
+    },
     "파일이 이미 있습니다: %@" : {
       "localizations" : {
         "en" : {
@@ -22077,6 +22189,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ホットキューをセット"
+          }
+        }
+      }
+    },
+    "허용된 분석·아트워크 경로가 아님" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the path is not an allowed analysis or artwork path"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "許可された解析・アートワークのパスではありません"
           }
         }
       }

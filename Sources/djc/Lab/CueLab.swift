@@ -29,7 +29,7 @@ enum CueLab {
     /// djmdCue 칸 구성과 종류별 예시(개발용, 스냅샷 읽기 전용)
     static func cueColumns(_ args: [String]) async throws {
         let snapshot = try LibrarySnapshot.latest()
-        let db = try CipherDatabase(path: snapshot.path, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: snapshot.path, key: RekordboxKey.derive())
         try db.query("PRAGMA table_info(djmdCue)") { row in print("  칸", row.string(1) ?? "", row.string(2) ?? "") }
         try db.query("""
             SELECT Kind, count(*), sum(OutMsec > 0), sum(ifnull(Color, -1) >= 0), sum(ifnull(ColorTableIndex, 0) > 0),
@@ -51,11 +51,8 @@ enum CueLab {
     /// 직접 쓰기 설계를 위한 읽기 전용 조사(스냅샷 사본)
     static func writeProbe(_ args: [String]) async throws {
         let snapshot = try LibrarySnapshot.latest()
-        let db = try CipherDatabase(path: snapshot.path, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: snapshot.path, key: RekordboxKey.derive())
         try db.query("SELECT name FROM sqlite_master WHERE type='table' AND (name LIKE '%Cue%' OR name LIKE '%egistry%' OR name LIKE 'content%')") { print("표:", $0.string(0) ?? "") }
-        try db.query("SELECT registry_id, id_1, id_2, int_1, int_2, str_1, date_1 FROM agentRegistry") { r in
-            print("  agentRegistry", (Int32(0)..<7).map { r.string($0) ?? "nil" }.joined(separator: " | "))
-        }
         try db.query("SELECT rb_local_deleted, count(*) FROM djmdCue GROUP BY 1") { print("  djmdCue 삭제표시", $0.int(0) ?? -1, $0.int(1) ?? 0) }
         try db.query("SELECT max(rb_local_usn), max(usn) FROM djmdCue") { print("  djmdCue 최대 usn", $0.string(0) ?? "", $0.string(1) ?? "") }
         try db.query("PRAGMA table_info(contentCue)") { print("  contentCue 칸", $0.string(1) ?? "", $0.string(2) ?? "") }
@@ -76,7 +73,7 @@ enum CueLab {
     /// djmdCue 행과 contentCue JSON이 같은지, JSON에 어떤 칸이 들어가는지(읽기 전용)
     static func cueConsistency(_ args: [String]) async throws {
         let snapshot = try LibrarySnapshot.latest()
-        let db = try CipherDatabase(path: snapshot.path, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: snapshot.path, key: RekordboxKey.derive())
         var rowsByContent: [String: [String: (Int, Int, Int)]] = [:]
         try db.query("SELECT ContentID, ID, InMsec, Kind, OutMsec FROM djmdCue WHERE rb_local_deleted = 0") { r in
             rowsByContent[r.string(0) ?? "", default: [:]][r.string(1) ?? ""] = (r.int(2) ?? 0, r.int(3) ?? 0, r.int(4) ?? 0)
@@ -120,7 +117,7 @@ enum CueLab {
     /// rb_cue_count의 뜻과 MP3 큐의 MPEG 칸(읽기 전용)
     static func cueFields(_ args: [String]) async throws {
         let snapshot = try LibrarySnapshot.latest()
-        let db = try CipherDatabase(path: snapshot.path, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: snapshot.path, key: RekordboxKey.derive())
         var tallies: [String: Int] = [:]
         try db.query("""
             SELECT cc.rb_cue_count,
@@ -156,7 +153,7 @@ enum CueLab {
     static func dbDiff(_ args: [String]) async throws {
         guard args.count > 2 else { throw UsageError() }
         let key = try RekordboxKey.derive()
-        let before = try CipherDatabase(path: args[1], key: key), after = try CipherDatabase(path: args[2], key: key)
+        let before = try CipherDatabase.diagnostic(path: args[1], key: key), after = try CipherDatabase.diagnostic(path: args[2], key: key)
         var tables: [String] = []
         try after.query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name") { tables.append($0.string(0) ?? "") }
         func sensitive(_ table: String, _ column: String, _ rowKey: String) -> Bool {
@@ -164,11 +161,19 @@ enum CueLab {
             return ["credential", "token", "password", "secret", "auth", "session"].contains { text.contains($0) }
         }
         for table in tables {
+            // 인증 표는 비교를 위해서도 읽지 않는다. 행 키 자체가 인증값일 수 있다.
+            if CipherDatabase.isCredentialIdentifier(table) {
+                print("■ \(table): (가림)")
+                continue
+            }
             var columns: [String] = [], pk: [Int] = []
             try after.query("PRAGMA table_info(\(table))") { r in
-                columns.append(r.string(1) ?? "")
+                let column = r.string(1) ?? ""
+                guard !CipherDatabase.isCredentialIdentifier(column) else { return }
+                columns.append(column)
                 if (r.int(5) ?? 0) > 0 { pk.append(columns.count - 1) }
             }
+            guard !columns.isEmpty else { continue }
             let keyColumns = pk.isEmpty ? (columns.firstIndex(of: "ID").map { [$0] } ?? []) : pk
             func load(_ db: CipherDatabase) throws -> [String: [String?]] {
                 var rows: [String: [String?]] = [:]
@@ -210,7 +215,7 @@ enum CueLab {
     /// 한 곡의 contentCue JSON 원문(읽기 전용)
     static func cueJson(_ args: [String]) async throws {
         guard args.count > 2 else { return }
-        let db = try CipherDatabase(path: args[1], key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: args[1], key: RekordboxKey.derive())
         try db.query("SELECT Cues, rb_cue_count, rb_data_status, rb_local_synced FROM contentCue WHERE ContentID = '\(args[2])'") { r in
             print("rb_cue_count \(r.int(1) ?? -1) · status \(r.int(2) ?? -1) · synced \(r.int(3) ?? -1)")
             print(r.string(0) ?? "")
@@ -221,7 +226,7 @@ enum CueLab {
     }
 
     static func cueRowsProbe(_ args: [String]) async throws {
-        let db = try CipherDatabase(path: args[1], key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: args[1], key: RekordboxKey.derive())
         try db.query("""
             SELECT count(*) FROM djmdContent t WHERE t.rb_local_deleted = 0
               AND NOT EXISTS (SELECT 1 FROM djmdCue c WHERE c.ContentID = t.ID)
@@ -253,7 +258,7 @@ enum CueLab {
         guard sql.lowercased().hasPrefix("select") || sql.lowercased().hasPrefix("pragma table_info"),
               !["agentregistry", "credential", "token", "cloudagent"].contains(where: sql.lowercased().contains)
         else { print("허용하지 않는 쿼리"); return }
-        let db = try CipherDatabase(path: args[1], key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: args[1], key: RekordboxKey.derive())
         try db.query(sql) { r in print((Int32(0)..<Int32(r.count)).map { r.string($0) ?? "nil" }.joined(separator: " | ")) }
     }
 
@@ -295,8 +300,8 @@ enum CueLab {
             print(outcome.status == .written ? "✓" : "✗", outcome.title.prefix(30), outcome.reason ?? "")
         }
         // 칸마다 비교(ID·UUID·시각은 다를 수밖에 없다)
-        let ours = try CipherDatabase(path: copy.path, key: RekordboxKey.derive())
-        let theirs = try CipherDatabase(path: newPath, key: RekordboxKey.derive())
+        let ours = try CipherDatabase.diagnostic(path: copy.path, key: RekordboxKey.derive())
+        let theirs = try CipherDatabase.diagnostic(path: newPath, key: RekordboxKey.derive())
         func rows(_ db: CipherDatabase, _ sql: String, _ values: [CipherDatabase.Value]) throws -> [[String: String]] {
             var out: [[String: String]] = []
             try db.query(sql, values) { r in
@@ -372,7 +377,7 @@ enum CueLab {
         guard let path = value(after: "--db", in: args), !RekordboxWriter.liveDatabase.path.hasSuffix(path) else { print("--db <사본>"); return }
         let database = URL(filePath: path)
         let library = try RekordboxLibrary.load(snapshot: database)
-        let meta = try CipherDatabase(path: path, key: RekordboxKey.derive())
+        let meta = try CipherDatabase.diagnostic(path: path, key: RekordboxKey.derive())
         var formats: [String: (Int, Int)] = [:]
         try meta.query("SELECT ID, FileType, BitRate FROM djmdContent") { formats[$0.string(0) ?? ""] = ($0.int(1) ?? 0, $0.int(2) ?? 0) }
         var seek: Set<String> = []
@@ -437,7 +442,7 @@ enum CueLab {
 
     /// VBR MP3 큐와 파일 구조를 JSON으로(규칙 맞추기용, 읽기 전용)
     static func vbrDump(_ args: [String]) async throws {
-        let db = try CipherDatabase(path: value(after: "--db", in: args) ?? LibrarySnapshot.latest().path, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: value(after: "--db", in: args) ?? LibrarySnapshot.latest().path, key: RekordboxKey.derive())
         var byTrack: [String: (path: String, cues: [[Int]])] = [:]
         try db.query("""
             SELECT t.ID, t.FolderPath, c.InMsec, c.InMpegFrame, c.InMpegAbs, c.OutMsec, c.OutMpegFrame, c.OutMpegAbs FROM djmdCue c
@@ -482,7 +487,7 @@ enum CueLab {
         try fm.copyItem(at: original, to: copy)
         let library = try RekordboxLibrary.load(snapshot: copy)
         var ids: [String] = []
-        let meta = try CipherDatabase(path: copy.path, key: RekordboxKey.derive())
+        let meta = try CipherDatabase.diagnostic(path: copy.path, key: RekordboxKey.derive())
         try meta.query("""
             SELECT DISTINCT c.ContentID FROM djmdCue c JOIN djmdContent t ON t.ID = c.ContentID
             WHERE t.FileType = 1 AND c.InMpegFrame != 0 AND t.rb_local_deleted = 0 ORDER BY c.ContentID
@@ -508,8 +513,8 @@ enum CueLab {
         let report = try RekordboxWriter.write(drafts: drafts, to: copy, dryRun: false, backups: folder.appending(path: "backups"))
         let blocked = report.outcomes.filter { $0.status != .written }
         blocked.prefix(5).forEach { print("✗", $0.title.prefix(30), $0.reason ?? "") }
-        let ours = try CipherDatabase(path: copy.path, key: RekordboxKey.derive())
-        let theirs = try CipherDatabase(path: original.path, key: RekordboxKey.derive())
+        let ours = try CipherDatabase.diagnostic(path: copy.path, key: RekordboxKey.derive())
+        let theirs = try CipherDatabase.diagnostic(path: original.path, key: RekordboxKey.derive())
         defer { ours.close(); theirs.close() }
         let columns = ["InMsec", "InFrame", "InMpegFrame", "InMpegAbs", "OutMsec", "OutFrame", "OutMpegFrame", "OutMpegAbs", "Kind",
                        "InPointSeekInfo", "OutPointSeekInfo", "ActiveLoop", "BeatLoopSize"]
@@ -544,7 +549,7 @@ enum CueLab {
 
     /// rekordbox가 적은 FLAC SeekInfo·VBR MP3 MPEG 위치를 우리 계산과 전수 대조(읽기 전용)
     static func seekinfoCheck(_ args: [String]) async throws {
-        let db = try CipherDatabase(path: value(after: "--db", in: args) ?? LibrarySnapshot.latest().path, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: value(after: "--db", in: args) ?? LibrarySnapshot.latest().path, key: RekordboxKey.derive())
         defer { db.close() }
         let limit = Int(value(after: "--limit", in: args) ?? "") ?? 100_000
         var flac: [String: (path: String, cues: [(Int, String, String?, Int?)])] = [:]
@@ -612,7 +617,7 @@ enum CueLab {
 
     /// 라이브러리의 모든 contentCue JSON을 읽고 다시 써서 원문과 같은지(읽기 전용)
     static func cueJsonRoundtrip(_ args: [String]) async throws {
-        let db = try CipherDatabase(path: args.count > 1 ? args[1] : LibrarySnapshot.latest().path, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: args.count > 1 ? args[1] : LibrarySnapshot.latest().path, key: RekordboxKey.derive())
         var same = 0, differ = 0, failed = 0
         try db.query("SELECT ContentID, Cues FROM contentCue WHERE rb_local_deleted = 0") { r in
             guard let text = r.string(1) else { return }
