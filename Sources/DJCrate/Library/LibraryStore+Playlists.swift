@@ -318,6 +318,9 @@ extension LibraryStore {
             savePlaylistDraft()
         }
         if !ids.isEmpty {
+            var imports = playlistImports
+            imports.remapTargets(ids)
+            savePlaylistImports(imports)
             recentPlaylistIDs = recentPlaylistIDs.map { ids[$0] ?? $0 }
             if settings.persist { settings.defaults.set(recentPlaylistIDs, forKey: Self.recentPlaylistsKey) }
             if case let .playlist(id) = sidebar, let real = ids[id] { sidebar = .playlist(real) }
@@ -333,6 +336,11 @@ extension LibraryStore {
         playlistDraft = rebuilt.draft
         savePlaylistDraft()
         refreshPlaylists()
+        var imports = playlistImports
+        imports.restoreTargets(createdKeys: Set(edits.compactMap { edit in
+            if case let .create(key, _, _, _) = edit { key } else { nil }
+        }))
+        savePlaylistImports(imports)
         return rebuilt.failed.count
     }
 }
