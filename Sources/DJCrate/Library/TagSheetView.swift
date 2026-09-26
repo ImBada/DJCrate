@@ -187,7 +187,6 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
                        readOnly: editableKey(row: row, column: column) == nil,
                        selected: isSelected(position),
                        active: position == cursor)
-        cell.label.delegate = self
         cell.label.setAccessibilityLabel(spec.title)
         return cell
     }
@@ -314,10 +313,11 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
         syncAccessibilitySelection(announceFocus: false)
         editing = cursor
         editingOriginal = text(row: cursor.row, column: cursor.column)
-        cell.beginEditing(text: initialText ?? editingOriginal)
-        table.window?.makeFirstResponder(cell.label)
-        if let editor = cell.label.currentEditor() {
-            let length = (cell.label.stringValue as NSString).length
+        let field = cell.beginEditing(text: initialText ?? editingOriginal)
+        field.delegate = self
+        table.window?.makeFirstResponder(field)
+        if let editor = field.currentEditor() {
+            let length = (field.stringValue as NSString).length
             editor.selectedRange = initialText == nil ? NSRange(location: 0, length: length) : NSRange(location: length, length: 0)
         }
     }
@@ -332,7 +332,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
         guard let position = editing, let table else { return }
         editing = nil
         let cell = table.view(atColumn: position.column, row: position.row, makeIfNecessary: false) as? SheetCell
-        let value = cell?.label.stringValue ?? editingOriginal
+        let value = cell?.editingField?.stringValue ?? editingOriginal
         cell?.endEditing()
         table.window?.makeFirstResponder(table)
         if commit, value != editingOriginal, let key = editableKey(row: position.row, column: position.column) {
@@ -642,9 +642,10 @@ struct DraftCornerSwatch: View {
     }
 }
 
-/// 시트 셀: 평소에는 라벨, 편집할 때만 같은 텍스트 필드를 편집 가능으로 바꾼다.
+/// 시트 셀: 표시용 라벨 위에 편집할 때만 입력 칸을 띄운다.
 final class SheetCell: NSTableCellView {
     let label = NSTextField(labelWithString: "")
+    private(set) var editingField: NSTextField?
     private let draftMark = DraftCornerView()
     private var edited = false
     private var readOnly = false
@@ -687,7 +688,7 @@ final class SheetCell: NSTableCellView {
     }
 
     func configure(text: String, edited: Bool, readOnly: Bool, selected: Bool, active: Bool) {
-        if label.currentEditor() == nil { label.stringValue = text }
+        label.stringValue = text
         toolTip = text
         self.edited = edited
         self.readOnly = readOnly
@@ -708,7 +709,7 @@ final class SheetCell: NSTableCellView {
 
     private func updateColors() {
         // AppKit이 창·표 포커스가 바뀔 때 다시 그리므로 선택색도 그때 풀어 쓴다.
-        let editing = label.currentEditor() != nil
+        let editing = editingField != nil
         let emphasized = window?.isKeyWindow == true && (window?.firstResponder is SheetTableView || editing)
         let appearance = SheetCellAppearance(edited: edited, readOnly: readOnly, selected: selected, editing: editing)
         if draftMark.isHidden == appearance.showsDraftMark { draftMark.isHidden = !appearance.showsDraftMark }
@@ -728,23 +729,32 @@ final class SheetCell: NSTableCellView {
         }
     }
 
-    func beginEditing(text: String) {
-        label.cell?.isScrollable = true
-        label.isEditable = true
-        label.isSelectable = true
-        label.drawsBackground = true
-        label.backgroundColor = .textBackgroundColor
-        label.stringValue = text
-        // 입력하는 동안은 VoiceOver가 칸 값을 그대로 읽는다.
-        label.cell?.setAccessibilityValue(text)
+    func beginEditing(text: String) -> NSTextField {
+        // 표의 라벨을 편집 가능으로 바꾸면 AppKit이 제약 갱신을 반복한다. 목록처럼 입력 칸을 따로 둔다.
+        let field = NSTextField(string: text)
+        field.font = label.font
+        field.isBordered = false
+        field.drawsBackground = true
+        field.backgroundColor = .textBackgroundColor
+        field.cell?.usesSingleLineMode = true
+        field.cell?.isScrollable = true
+        field.setAccessibilityLabel(label.accessibilityLabel())
+        field.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(field)
+        NSLayoutConstraint.activate([
+            field.leadingAnchor.constraint(equalTo: label.leadingAnchor),
+            field.trailingAnchor.constraint(equalTo: label.trailingAnchor),
+            field.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+        label.isHidden = true
+        editingField = field
+        return field
     }
 
     func endEditing() {
-        label.cell?.isScrollable = false
-        label.lineBreakMode = .byTruncatingTail
-        label.isEditable = false
-        label.isSelectable = false
-        label.drawsBackground = false
+        editingField?.removeFromSuperview()
+        editingField = nil
+        label.isHidden = false
         updateColors()
     }
 }

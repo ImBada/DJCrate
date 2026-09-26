@@ -26,9 +26,11 @@ struct LibraryTablePolishTests {
         #expect(cell.label.cell?.isScrollable == false)
         #expect(cell.label.lineBreakMode == .byTruncatingTail)
         #expect(cell.toolTip == value)
-        cell.beginEditing(text: value)
-        #expect(cell.label.cell?.isScrollable == true)
+        let field = cell.beginEditing(text: value)
+        #expect(field.cell?.isScrollable == true)
+        #expect(cell.label.isHidden)
         cell.endEditing()
+        #expect(field.superview == nil && !cell.label.isHidden)
         #expect(cell.label.cell?.isScrollable == false)
         #expect(cell.label.lineBreakMode == .byTruncatingTail)
     }
