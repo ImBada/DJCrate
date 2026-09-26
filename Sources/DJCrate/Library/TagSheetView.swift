@@ -62,16 +62,16 @@ struct SheetColumn {
 
     static let all: [SheetColumn] = [
         SheetColumn(id: "index", title: "#", width: 44, key: nil),
-        SheetColumn(id: "title", title: "제목", width: 220, key: .title),
-        SheetColumn(id: "artist", title: "아티스트", width: 170, key: .artist),
-        SheetColumn(id: "album", title: "앨범", width: 170, key: .album),
-        SheetColumn(id: "albumArtist", title: "앨범 아티스트", width: 120, key: .albumArtist),
-        SheetColumn(id: "genre", title: "장르", width: 90, key: .genre),
-        SheetColumn(id: "composer", title: "작곡가", width: 110, key: .composer),
-        SheetColumn(id: "year", title: "연도", width: 52, key: .year),
-        SheetColumn(id: "trackNumber", title: "트랙", width: 44, key: .trackNumber),
-        SheetColumn(id: "comment", title: "코멘트", width: 300, key: .comment),
-        SheetColumn(id: "file", title: "파일", width: 220, key: nil),
+        SheetColumn(id: "title", title: String(ui: "제목"), width: 220, key: .title),
+        SheetColumn(id: "artist", title: String(ui: "아티스트"), width: 170, key: .artist),
+        SheetColumn(id: "album", title: String(ui: "앨범"), width: 170, key: .album),
+        SheetColumn(id: "albumArtist", title: String(ui: "앨범 아티스트"), width: 120, key: .albumArtist),
+        SheetColumn(id: "genre", title: String(ui: "장르"), width: 90, key: .genre),
+        SheetColumn(id: "composer", title: String(ui: "작곡가"), width: 110, key: .composer),
+        SheetColumn(id: "year", title: String(ui: "연도"), width: 52, key: .year),
+        SheetColumn(id: "trackNumber", title: String(ui: "트랙"), width: 44, key: .trackNumber),
+        SheetColumn(id: "comment", title: String(ui: "코멘트"), width: 300, key: .comment),
+        SheetColumn(id: "file", title: String(ui: "파일"), width: 220, key: nil),
     ]
 }
 

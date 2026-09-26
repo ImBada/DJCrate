@@ -17,7 +17,9 @@ struct TrackTable: View {
     var body: some View {
         TrackListView(store: store, mode: deck.waveformColorMode)
             .navigationTitle(store.sidebarTitle)
-            .navigationSubtitle("\(store.displayRows.count)곡" + (store.selection.count > 1 ? " · \(store.selection.count)곡 선택" : ""))
+            .navigationSubtitle(store.selection.count > 1
+                ? String(ui: "\(store.displayRows.count)곡 · \(store.selection.count)곡 선택")
+                : String(ui: "\(store.displayRows.count)곡"))
     }
 }
 
@@ -157,33 +159,33 @@ struct TrackColumn {
     var help = ""
 
     static let all: [TrackColumn] = [
-        TrackColumn(id: "index", title: "#", width: 38, minWidth: 30, help: "지금 목록에서 몇 번째 곡인지"),
+        TrackColumn(id: "index", title: "#", width: 38, minWidth: 30, help: String(ui: "지금 목록에서 몇 번째 곡인지")),
         TrackColumn(id: "thumb", title: "", width: 26, minWidth: 26),
-        TrackColumn(id: "edited", title: "초안", width: 18, minWidth: 18, help: "DJCrate 초안이 있는 곡 (rekordbox·파일에는 아직 반영 안 됨)"),
-        TrackColumn(id: "title", title: "제목", width: 220, minWidth: 140, flexible: true, sortKey: "title"),
-        TrackColumn(id: "preview", title: "미리 보기", width: 160, minWidth: 80,
-                    help: "곡 전체 파형과 핫큐·메모리 큐·루프 위치"),
-        TrackColumn(id: "artist", title: "아티스트", width: 140, minWidth: 80, flexible: true, sortKey: "artist"),
-        TrackColumn(id: "album", title: "앨범", width: 150, minWidth: 60, flexible: true, sortKey: "album"),
-        TrackColumn(id: "albumArtist", title: String(localized: "앨범 아티스트"), width: 120, minWidth: 60, flexible: true, sortKey: "albumArtist"),
-        TrackColumn(id: "composer", title: String(localized: "작곡가"), width: 110, minWidth: 60, flexible: true, sortKey: "composer"),
-        TrackColumn(id: "year", title: String(localized: "연도"), width: 46, minWidth: 38, sortKey: "year", ascendingFirst: false),
-        TrackColumn(id: "trackNumber", title: String(localized: "트랙 번호"), width: 60, minWidth: 40, sortKey: "trackNumber"),
-        TrackColumn(id: "genre", title: "장르", width: 90, minWidth: 50, flexible: true, sortKey: "genre"),
-        TrackColumn(id: "comment", title: "코멘트", width: 250, minWidth: 140, flexible: true, sortKey: "comment"),
-        TrackColumn(id: "class", title: "분류", width: 52, minWidth: 40, sortKey: "class", help: "코멘트 분류: 규칙·구형·잔재·크레딧·빈 값·기타"),
+        TrackColumn(id: "edited", title: String(ui: "초안"), width: 18, minWidth: 18, help: String(ui: "DJCrate 초안이 있는 곡 (rekordbox·파일에는 아직 반영 안 됨)")),
+        TrackColumn(id: "title", title: String(ui: "제목"), width: 220, minWidth: 140, flexible: true, sortKey: "title"),
+        TrackColumn(id: "preview", title: String(ui: "미리 보기"), width: 160, minWidth: 80,
+                    help: String(ui: "곡 전체 파형과 핫큐·메모리 큐·루프 위치")),
+        TrackColumn(id: "artist", title: String(ui: "아티스트"), width: 140, minWidth: 80, flexible: true, sortKey: "artist"),
+        TrackColumn(id: "album", title: String(ui: "앨범"), width: 150, minWidth: 60, flexible: true, sortKey: "album"),
+        TrackColumn(id: "albumArtist", title: String(ui: "앨범 아티스트"), width: 120, minWidth: 60, flexible: true, sortKey: "albumArtist"),
+        TrackColumn(id: "composer", title: String(ui: "작곡가"), width: 110, minWidth: 60, flexible: true, sortKey: "composer"),
+        TrackColumn(id: "year", title: String(ui: "연도"), width: 46, minWidth: 38, sortKey: "year", ascendingFirst: false),
+        TrackColumn(id: "trackNumber", title: String(ui: "트랙 번호"), width: 60, minWidth: 40, sortKey: "trackNumber"),
+        TrackColumn(id: "genre", title: String(ui: "장르"), width: 90, minWidth: 50, flexible: true, sortKey: "genre"),
+        TrackColumn(id: "comment", title: String(ui: "코멘트"), width: 250, minWidth: 140, flexible: true, sortKey: "comment"),
+        TrackColumn(id: "class", title: String(ui: "분류"), width: 52, minWidth: 40, sortKey: "class", help: String(ui: "코멘트 분류: 규칙·구형·잔재·크레딧·빈 값·기타")),
         TrackColumn(id: "bpm", title: "BPM", width: 44, minWidth: 34, sortKey: "bpm", ascendingFirst: false),
-        TrackColumn(id: "key", title: "키", width: 36, minWidth: 30, sortKey: "key"),
-        TrackColumn(id: "length", title: "길이", width: 46, minWidth: 38, sortKey: "length", ascendingFirst: false, help: "곡 전체 재생 시간"),
-        TrackColumn(id: "format", title: "형식", width: 44, minWidth: 36, sortKey: "format", help: "파일 확장자(MP3·M4A·FLAC·WAV 등)"),
-        TrackColumn(id: "tempo", title: "변속", width: 90, minWidth: 44, sortKey: "tempo", ascendingFirst: false,
-                    help: "rekordbox 그리드에서 BPM이 바뀌는 곡의 흐름(예: 175→128→175)"),
-        TrackColumn(id: "imported", title: "임포트", width: 86, minWidth: 70, sortKey: "imported", ascendingFirst: false),
-        TrackColumn(id: "plays", title: "재생", width: 42, minWidth: 34, sortKey: "plays", ascendingFirst: false),
-        TrackColumn(id: "hotCues", title: "핫큐", width: 42, minWidth: 34, sortKey: "hotCues", ascendingFirst: false,
-                    help: "직접 찍은 핫큐 수(초록)"),
-        TrackColumn(id: "memoryCues", title: "메모리", width: 50, minWidth: 40, sortKey: "memoryCues", ascendingFirst: false,
-                    help: "직접 찍은 메모리 큐 수(빨강). 큐가 없으면 주황 '없음', rekordbox 자동 큐만 있으면 '자동'"),
+        TrackColumn(id: "key", title: String(ui: "키"), width: 36, minWidth: 30, sortKey: "key"),
+        TrackColumn(id: "length", title: String(ui: "길이"), width: 46, minWidth: 38, sortKey: "length", ascendingFirst: false, help: String(ui: "곡 전체 재생 시간")),
+        TrackColumn(id: "format", title: String(ui: "형식"), width: 44, minWidth: 36, sortKey: "format", help: String(ui: "파일 확장자(MP3·M4A·FLAC·WAV 등)")),
+        TrackColumn(id: "tempo", title: String(ui: "변속"), width: 90, minWidth: 44, sortKey: "tempo", ascendingFirst: false,
+                    help: String(ui: "rekordbox 그리드에서 BPM이 바뀌는 곡의 흐름(예: 175→128→175)")),
+        TrackColumn(id: "imported", title: String(ui: "임포트"), width: 86, minWidth: 70, sortKey: "imported", ascendingFirst: false),
+        TrackColumn(id: "plays", title: String(ui: "재생"), width: 42, minWidth: 34, sortKey: "plays", ascendingFirst: false),
+        TrackColumn(id: "hotCues", title: String(ui: "핫큐"), width: 42, minWidth: 34, sortKey: "hotCues", ascendingFirst: false,
+                    help: String(ui: "직접 찍은 핫큐 수(초록)")),
+        TrackColumn(id: "memoryCues", title: String(ui: "메모리"), width: 50, minWidth: 40, sortKey: "memoryCues", ascendingFirst: false,
+                    help: String(ui: "직접 찍은 메모리 큐 수(빨강). 큐가 없으면 주황 '없음', rekordbox 자동 큐만 있으면 '자동'")),
     ]
 
     /// 처음에 숨기는 칸(머리글 오른쪽 클릭으로 보인다). 태그 칸은 모두 목록에서 바로 고칠 수 있게 두되(#88) 자주 쓰지 않는 칸은 숨긴다.
@@ -193,7 +195,7 @@ struct TrackColumn {
     /// 제목 '초안'은 칸 메뉴와 VoiceOver에 쓴다.
     @MainActor static var draftHeader: NSAttributedString {
         let attachment = NSTextAttachment()
-        attachment.image = NSImage(systemSymbolName: "pencil", accessibilityDescription: "초안")?
+        attachment.image = NSImage(systemSymbolName: "pencil", accessibilityDescription: String(ui: "초안"))?
             .withSymbolConfiguration(.init(pointSize: NSFont.smallSystemFontSize, weight: .regular))
         let text = NSMutableAttributedString(attachment: attachment)
         let paragraph = NSMutableParagraphStyle()
@@ -467,32 +469,32 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         menu.removeAllItems()
         let targets = menuTargets()
         let pending = targets.filter { !$0.isStaged && store.pendingUUIDs.contains($0.track.uuid) }
-        let reflect = NSMenuItem(title: pending.isEmpty ? "rekordbox에 반영할 초안이 없습니다" : "선택한 곡 rekordbox에 반영 (\(pending.count)곡)…",
+        let reflect = NSMenuItem(title: pending.isEmpty ? String(ui: "rekordbox에 반영할 초안이 없습니다") : String(ui: "선택한 곡 rekordbox에 반영 (\(pending.count)곡)…"),
                                  action: pending.isEmpty ? nil : #selector(reflectSelected), keyEquivalent: "")
         reflect.target = self
         menu.addItem(reflect)
         if !pending.isEmpty {
-            let xml = NSMenuItem(title: "선택한 곡 반영 XML 만들기 (\(pending.count)곡)…", action: #selector(exportReflectionXML), keyEquivalent: "")
+            let xml = NSMenuItem(title: String(ui: "선택한 곡 반영 XML 만들기 (\(pending.count)곡)…"), action: #selector(exportReflectionXML), keyEquivalent: "")
             xml.target = self
             menu.addItem(xml)
         }
         let staged = targets.filter(\.isStaged)
         if !staged.isEmpty {
-            let add = NSMenuItem(title: "rekordbox에 바로 넣기 (\(staged.count)곡)…", action: #selector(addToRekordbox), keyEquivalent: "")
+            let add = NSMenuItem(title: String(ui: "rekordbox에 바로 넣기 (\(staged.count)곡)…"), action: #selector(addToRekordbox), keyEquivalent: "")
             add.target = self
             menu.addItem(add)
-            let export = NSMenuItem(title: "추가한 곡 rekordbox XML로 내보내기 (\(staged.count)곡)…", action: #selector(exportStaged), keyEquivalent: "")
+            let export = NSMenuItem(title: String(ui: "추가한 곡 rekordbox XML로 내보내기 (\(staged.count)곡)…"), action: #selector(exportStaged), keyEquivalent: "")
             export.target = self
             menu.addItem(export)
         }
         menu.addItem(.separator())
-        let pendingList = NSMenuItem(title: "rekordbox 반영 대기 목록 보기", action: #selector(showPending), keyEquivalent: "")
+        let pendingList = NSMenuItem(title: String(ui: "rekordbox 반영 대기 목록 보기"), action: #selector(showPending), keyEquivalent: "")
         pendingList.target = self
         menu.addItem(pendingList)
         let removable = targets.filter { !$0.isStaged && !$0.track.isStreaming }
         if !removable.isEmpty {
             menu.addItem(.separator())
-            let remove = NSMenuItem(title: "rekordbox에서 빼기 (\(removable.count)곡)…", action: #selector(deleteFromRekordbox), keyEquivalent: "")
+            let remove = NSMenuItem(title: String(ui: "rekordbox에서 빼기 (\(removable.count)곡)…"), action: #selector(deleteFromRekordbox), keyEquivalent: "")
             remove.target = self
             menu.addItem(remove)
         }
@@ -528,7 +530,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     // MARK: - 칸 보이기·숨기기
 
     func makeColumnMenu(_ table: NSTableView) -> NSMenu {
-        let menu = NSMenu(title: "칸")
+        let menu = NSMenu(title: String(ui: "칸"))
         menu.delegate = self
         menu.identifier = NSUserInterfaceItemIdentifier("columns")
         return menu
@@ -537,13 +539,13 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     private func fillColumnMenu(_ menu: NSMenu) {
         guard let table else { return }
         menu.removeAllItems()
-        let header = NSMenuItem(title: "보일 칸", action: nil, keyEquivalent: "")
+        let header = NSMenuItem(title: String(ui: "보일 칸"), action: nil, keyEquivalent: "")
         header.isEnabled = false
         menu.addItem(header)
         for spec in TrackColumn.all {
             if spec.id == "class", commentPreset?.rule == nil { continue }
             guard let column = table.tableColumns.first(where: { $0.identifier.rawValue == spec.id }) else { continue }
-            let title = spec.title.isEmpty ? "앨범 아트" : spec.id == "edited" ? "초안 표시" : spec.title == "#" ? "# 번호" : spec.title
+            let title = spec.title.isEmpty ? String(ui: "앨범 아트") : spec.id == "edited" ? String(ui: "초안 표시") : spec.title == "#" ? String(ui: "# 번호") : spec.title
             let item = NSMenuItem(title: title, action: #selector(toggleColumn(_:)), keyEquivalent: "")
             item.target = self
             item.state = column.isHidden ? .off : .on
@@ -553,7 +555,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             menu.addItem(item)
         }
         menu.addItem(.separator())
-        let reset = NSMenuItem(title: "모든 칸 보이기", action: #selector(showAllColumns), keyEquivalent: "")
+        let reset = NSMenuItem(title: String(ui: "모든 칸 보이기"), action: #selector(showAllColumns), keyEquivalent: "")
         reset.target = self
         menu.addItem(reset)
     }
@@ -652,13 +654,13 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         case "memoryCues":
             // DJCrate에서 찍은 큐(초안)가 있으면 그 개수를 보여 준다(반영 전이라도).
             if let counts = cueCounts[row.track.uuid] {
-                cell.set(counts.memory > 0 ? "\(counts.memory)" : (counts.hot > 0 ? "" : "없음"),
+                cell.set(counts.memory > 0 ? "\(counts.memory)" : (counts.hot > 0 ? "" : String(ui: "없음")),
                          color: counts.memory > 0 ? UIColors.memory.nsColor : UIColors.warning.nsColor, digits: true)
                 break
             }
             switch row.cueState {
-            case .none: cell.set("없음", color: UIColors.warning.nsColor)
-            case .autoOnly: cell.set("자동", color: .tertiaryLabelColor)
+            case .none: cell.set(String(ui: "없음"), color: UIColors.warning.nsColor)
+            case .autoOnly: cell.set(String(ui: "자동"), color: .tertiaryLabelColor)
             case .manual: cell.set(row.memoryCueCount > 0 ? "\(row.memoryCueCount)" : "", color: UIColors.memory.nsColor, digits: true)
             }
         default: cell.set("", color: .labelColor)
@@ -743,11 +745,11 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         table.scrollColumnToVisible(columnIndex)
         guard let cell = table.view(atColumn: columnIndex, row: index, makeIfNecessary: true) as? TrackTextCell else { return false }
         let field = cell.beginEditing(text: session.original,
-                                      placeholder: session.mixed ? String(localized: "(여러 값 — 입력하면 모두 바뀜)") : nil)
+                                      placeholder: session.mixed ? String(ui: "(여러 값 — 입력하면 모두 바뀜)") : nil)
         field.delegate = self
         field.setAccessibilityLabel(key.label)
         if targets.count > 1 {
-            let help = String(localized: "고른 \(targets.count)곡에 모두 적용합니다")
+            let help = String(ui: "고른 \(targets.count)곡에 모두 적용합니다")
             field.toolTip = help
             field.setAccessibilityHelp(help)
         }
@@ -923,7 +925,7 @@ private final class ThumbnailCell: NSTableCellView {
     private var key: String?
     private var task: Task<Void, Never>?
     private static let placeholder: NSImage? = {
-        let image = NSImage(systemSymbolName: "music.note", accessibilityDescription: "앨범 커버 없음")
+        let image = NSImage(systemSymbolName: "music.note", accessibilityDescription: String(ui: "앨범 커버 없음"))
         return image?.withSymbolConfiguration(.init(pointSize: 8, weight: .regular))
     }()
 
@@ -935,7 +937,7 @@ private final class ThumbnailCell: NSTableCellView {
         thumb.layer?.cornerRadius = 3
         thumb.layer?.masksToBounds = true
         thumb.contentTintColor = .tertiaryLabelColor
-        thumb.setAccessibilityLabel("앨범 커버")
+        thumb.setAccessibilityLabel(String(ui: "앨범 커버"))
         addSubview(thumb)
         NSLayoutConstraint.activate([
             thumb.widthAnchor.constraint(equalToConstant: 22),
@@ -981,7 +983,7 @@ private final class ThumbnailCell: NSTableCellView {
 
 private final class EditedMarkCell: NSTableCellView {
     private let mark = NSImageView()
-    private static let image = NSImage(systemSymbolName: DraftMark.symbol, accessibilityDescription: "초안 있음")
+    private static let image = NSImage(systemSymbolName: DraftMark.symbol, accessibilityDescription: String(ui: "초안 있음"))
 
     init() {
         super.init(frame: .zero)
@@ -1004,7 +1006,7 @@ private final class EditedMarkCell: NSTableCellView {
 
     func configure(edited: Bool) {
         mark.image = edited ? Self.image : nil
-        toolTip = edited ? "DJCrate 초안이 있습니다 (rekordbox·파일에는 아직 반영 안 됨)" : nil
+        toolTip = edited ? String(ui: "DJCrate 초안이 있습니다 (rekordbox·파일에는 아직 반영 안 됨)") : nil
     }
 }
 

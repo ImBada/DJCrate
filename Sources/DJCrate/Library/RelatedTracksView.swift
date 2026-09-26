@@ -8,10 +8,10 @@ struct RelatedTracksButton: View {
 
     var body: some View {
         Button { isPresented.toggle() } label: {
-            Label("관련 곡", systemImage: "music.note.list")
+            Label(.ui("관련 곡"), systemImage: "music.note.list")
         }
         .disabled(deck.row == nil || store.isWritingRekordbox)
-        .help("덱에 올린 곡과 BPM·키·장르·코멘트의 #태그가 어울리는 곡을 찾습니다")
+        .help(.ui("덱에 올린 곡과 BPM·키·장르·코멘트의 #태그가 어울리는 곡을 찾습니다"))
         .popover(isPresented: $isPresented) {
             RelatedTracksView(source: deck.row, rows: store.rows) { id in
                 // 기존 목록 선택 경로로 덱을 올려 로드·단축키 동작을 유지한다.
@@ -32,22 +32,22 @@ private struct RelatedTracksView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("관련 곡").font(.headline)
+            Text(.ui("관련 곡")).font(.headline)
             if let source {
-                Text("기준: \(source.title)").font(.callout).lineLimit(1)
+                Text(.ui("기준: \(source.title)")).font(.callout).lineLimit(1)
             }
-            Text("BPM ±6% · 반·두 배 포함 · 키 이웃 · 장르 · #태그\n점수순 상위 100곡 · 곡을 누르면 덱에 올립니다")
+            Text(.ui("BPM ±6% · 반·두 배 포함 · 키 이웃 · 장르 · #태그\n점수순 상위 100곡 · 곡을 누르면 덱에 올립니다"))
                 .font(.caption).foregroundStyle(.secondary)
             Divider()
             if model.isLoading {
-                ProgressView("관련 곡을 찾는 중…")
+                ProgressView { Text(.ui("관련 곡을 찾는 중…")) }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if source == nil {
-                ContentUnavailableView("기준곡이 없습니다", systemImage: "music.note",
-                                       description: Text("목록에서 곡을 골라 덱에 올리세요"))
+                ContentUnavailableView(.ui("기준곡이 없습니다"), systemImage: "music.note",
+                                       description: Text(.ui("목록에서 곡을 골라 덱에 올리세요")))
             } else if model.matches.isEmpty {
-                ContentUnavailableView("관련 곡이 없습니다", systemImage: "music.note.list",
-                                       description: Text("다른 기준곡을 고르거나 BPM·키·장르·#태그를 확인하세요"))
+                ContentUnavailableView(.ui("관련 곡이 없습니다"), systemImage: "music.note.list",
+                                       description: Text(.ui("다른 기준곡을 고르거나 BPM·키·장르·#태그를 확인하세요")))
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -59,7 +59,7 @@ private struct RelatedTracksView: View {
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            .help("\(match.row.title)을 덱에 올리기")
+                            .help(.ui("\(match.row.title)을 덱에 올리기"))
                             Divider()
                         }
                     }
@@ -86,7 +86,7 @@ private struct RelatedTracksView: View {
                 HStack(spacing: 8) {
                     if !match.row.artist.isEmpty { Text(match.row.artist).lineLimit(1) }
                     if let bpm = match.row.track.bpm, bpm.isFinite, bpm > 0 {
-                        Text("\(bpm, specifier: "%.1f") BPM").fixedSize()
+                        Text(verbatim: "\(bpm.formatted(.number.precision(.fractionLength(1)))) BPM").fixedSize()
                     }
                     if let key = match.row.track.key { Text(key).fixedSize() }
                 }
@@ -94,7 +94,7 @@ private struct RelatedTracksView: View {
                 Text(reasons(match.score)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Text("\(match.score.total, specifier: "%.0f")점")
+            Text(.ui("\(match.score.total, specifier: "%.0f")점"))
                 .font(.callout.monospacedDigit()).foregroundStyle(.secondary)
         }
     }
@@ -102,11 +102,11 @@ private struct RelatedTracksView: View {
     private func reasons(_ score: RelatedTracks.Score) -> String {
         var reasons: [String] = []
         if score.bpm > 0 {
-            reasons.append(score.tempoMultiplier == 2 ? "BPM 두 배로 비교" : score.tempoMultiplier == 0.5 ? "BPM 절반으로 비교" : "가까운 BPM")
+            reasons.append(score.tempoMultiplier == 2 ? String(ui: "BPM 두 배로 비교") : score.tempoMultiplier == 0.5 ? String(ui: "BPM 절반으로 비교") : String(ui: "가까운 BPM"))
         }
-        if score.key > 0 { reasons.append(score.key == 30 ? "같은 키" : "호환 키") }
-        if score.genre > 0 { reasons.append("같은 장르") }
-        if score.tags > 0 { reasons.append("#태그 겹침") }
+        if score.key > 0 { reasons.append(score.key == 30 ? String(ui: "같은 키") : String(ui: "호환 키")) }
+        if score.genre > 0 { reasons.append(String(ui: "같은 장르")) }
+        if score.tags > 0 { reasons.append(String(ui: "#태그 겹침")) }
         return reasons.joined(separator: " · ")
     }
 }

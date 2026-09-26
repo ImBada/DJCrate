@@ -74,7 +74,7 @@ extension LibraryStore {
             target.applyTagSnapshot(change.before)
             target.registerTagUndo(change.reversed)
         }
-        undoManager.setActionName("태그 편집")
+        undoManager.setActionName(String(ui: "태그 편집"))
         if grouping {
             undoManager.endUndoGrouping()
             undoManager.groupsByEvent = groupsByEvent
