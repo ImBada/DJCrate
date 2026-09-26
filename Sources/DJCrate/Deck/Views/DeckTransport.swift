@@ -33,9 +33,9 @@ struct TransportBar: View {
                     .disabled(!deck.canPlay)
                     Button(.ui("+ 메모리 큐")) {
                         // Shift+클릭 = 이 자리 메모리 큐 지우기
-                        if NSEvent.modifierFlags.contains(.shift) { deck.deleteMemoryCue(at: deck.currentTime) } else { deck.addMemoryCueAtPlayhead() }
+                        if NSEvent.modifierFlags.contains(.shift) { deck.deleteMemoryCue(at: deck.currentTime) } else { deck.addMemoryCue() }
                     }
-                    .help(.ui("플레이헤드 위치에 메모리 큐 추가 (\(deck.shortcuts.keyLabel(for: .memoryCue))). Shift를 누르고 누르면 이 자리 메모리 큐를 지웁니다"))
+                    .help(.ui("CUE 위치에 메모리 큐 추가 (\(deck.shortcuts.keyLabel(for: .memoryCue))). Shift를 누르고 누르면 현재 재생 위치의 메모리 큐를 지웁니다"))
                 }
                 HStack(spacing: 4) {
                     ForEach(0..<8, id: \.self) { slot in
