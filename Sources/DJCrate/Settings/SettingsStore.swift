@@ -24,6 +24,11 @@ final class SettingsStore: @unchecked Sendable {
         defaults.set(value, forKey: key.name)
     }
 
+    var commentPreset: CommentPreset {
+        get { CommentPreset(rawValue: value(SettingKeys.commentPreset)) ?? .none }
+        set { set(SettingKeys.commentPreset, newValue.rawValue) }
+    }
+
     /// 덱 단축키. 기본과 다른 동작만 저장하고, 모두 기본이면 지운다.
     var shortcuts: DeckShortcuts {
         get {

@@ -8,7 +8,7 @@ enum ReadCommands {
     static let names: Set<String> = ["search", "track", "playlists", "playlist", "histories", "history", "drafts"]
     static let jsonNames = names.union(["report", "path", "parse", "compat"])
     static let all: [Command] = [
-        Command("search", "<검색어> [--bpm 최소-최대] [--key 키] [--playlist ID] [--filter 필터] [--db PATH] [--json]", "곡 찾기", run),
+        Command("search", "<검색어> [--bpm 최소-최대] [--key 키] [--playlist ID] [--filter 필터] [--comment-preset none|anisong] [--db PATH] [--json]", "곡 찾기", run),
         Command("track", "<ContentID> [--db PATH] [--json]", "곡 정보·큐·그리드·게인·초안 보기", run),
         Command("playlists", "[--tree] [--db PATH] [--json]", "재생 목록·폴더 보기", run),
         Command("playlist", "<ID> [--db PATH] [--json]", "재생 목록의 곡을 순서대로 보기", run),
@@ -35,7 +35,7 @@ enum ReadCommands {
                        name: name, json: true) { _ in "" }
             return
         }
-        let read = try LibraryRead(snapshot: snapshot, shareRoot: explicit == nil ? RekordboxShare.directory : nil)
+        let read = try LibraryRead(snapshot: snapshot, shareRoot: explicit == nil ? RekordboxShare.directory : nil, commentPreset: options.commentPreset)
         let json = options.flags.contains("--json")
         switch name {
         case "search":
@@ -126,12 +126,14 @@ enum ReadCommands {
         var flags: Set<String> = []
         var bpm: ClosedRange<Double>?
         var filter: LibraryFilter = .all
+        var commentPreset: CommentPreset = .none
 
         init(_ args: [String]) throws {
             let command = args.first ?? ""
             var valued: Set<String> = command == "parse" ? [] : ["--db"]
             var boolean: Set<String> = ["--json"]
             if command == "search" { valued.formUnion(["--bpm", "--key", "--playlist", "--filter"]) }
+            if command == "search" || command == "report" { valued.insert("--comment-preset") }
             if command == "playlists" { boolean.insert("--tree") }
             if command == "report" { boolean.insert("--files") }
             var index = 1, positionalOnly = false
@@ -161,12 +163,21 @@ enum ReadCommands {
                       lower.isFinite, upper.isFinite, lower > 0, lower <= upper else { throw invalid("BPM은 120-130처럼 양수 범위로 쓰세요") }
                 bpm = lower...upper
             }
+            if let raw = values["--comment-preset"] {
+                guard let preset = CommentPreset(rawValue: raw) else {
+                    throw invalid("코멘트 프리셋은 none 또는 anisong으로 쓰세요")
+                }
+                commentPreset = preset
+            }
             if let raw = values["--filter"] {
                 if raw == "backlog" {
                     throw invalid("backlog 필터는 삭제되었습니다. 빈 코멘트는 --filter empty-comment로 찾으세요")
                 }
                 guard let matched = LibraryFilter.allCases.first(where: { $0.cliName == raw }) else {
                     throw invalid("필터는 " + LibraryFilter.allCases.map(\.cliName).joined(separator: ", ") + " 중 하나로 쓰세요")
+                }
+                guard !matched.requiresCommentRule || commentPreset.rule != nil else {
+                    throw invalid("코멘트 규칙 필터는 --comment-preset anisong을 지정한 뒤 쓰세요")
                 }
                 filter = matched
             }

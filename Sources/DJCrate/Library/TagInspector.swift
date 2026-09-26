@@ -33,8 +33,8 @@ struct TagInspector: View {
                 Section("코멘트") {
                     field(.comment, rows: rows, axis: .vertical)
                     let comment = store.tagValue(.comment, rows: rows)
-                    if !comment.mixed {
-                        CommentPreview(comment: comment.value)
+                    if !comment.mixed, let rule = store.commentPreset.rule {
+                        CommentPreview(result: rule.evaluate(comment.value))
                     }
                 }
                 Section {
@@ -99,29 +99,16 @@ private struct CommitTextField: View {
     }
 }
 
-/// 코멘트를 사용자 규칙으로 파싱한 결과를 보여 준다.
+/// 고른 프리셋의 분류와 설명만 보여 준다.
 private struct CommentPreview: View {
-    let comment: String
+    let result: CommentEvaluation
 
     var body: some View {
-        let cls = CommentClassifier.classify(comment)
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(cls.displayName).font(.caption.bold()).foregroundStyle(cls.tint)
-            if let parsed = ConventionParser.parse(comment) {
-                Text(summary(parsed)).font(.caption).foregroundStyle(.secondary)
-            } else if cls != .empty {
-                Text("규칙(분류 접두어 + 작품명 + 용도)에 맞지 않습니다").font(.caption).foregroundStyle(.secondary)
+            Text(result.displayName).font(.caption.bold()).foregroundStyle(result.tone.tint)
+            if !result.summary.isEmpty {
+                Text(result.summary).font(.caption).foregroundStyle(.secondary)
             }
         }
-    }
-
-    private func summary(_ c: ConventionComment) -> String {
-        var parts = [c.prefix.rawValue, c.workName]
-        if let season = c.season { parts.append("\(season)기") }
-        if !c.abbreviations.isEmpty { parts.append("약칭 " + c.abbreviations.joined(separator: ", ")) }
-        parts += c.usages.map { $0.kind.rawValue + ($0.numbers.isEmpty ? "" : " " + $0.numbers.map(String.init).joined(separator: ",")) }
-        if c.isCharacterSong { parts.append("CS") }
-        if c.isTVSize { parts.append("TVSIZE") }
-        return parts.filter { !$0.isEmpty }.joined(separator: " · ")
     }
 }

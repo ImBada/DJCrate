@@ -31,7 +31,7 @@ extension LibraryStore {
 
     func rebuildStagedRows() {
         for row in stagedRows { rowsByID[row.id] = nil; rowsByUUID[row.track.uuid] = nil }
-        stagedRows = staged.map { TrackRow(track: $0.track, cues: [], playCount: 0) }
+        stagedRows = staged.map { TrackRow(track: $0.track, cues: [], playCount: 0, commentRule: commentPreset.rule) }
         for row in stagedRows { rowsByID[row.id] = row; rowsByUUID[row.track.uuid] = row }
         if case .staged = sidebar { refreshBase() }
     }

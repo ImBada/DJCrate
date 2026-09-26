@@ -8,8 +8,10 @@ public struct LibraryReport: Sendable {
     public var liveTracks = 0
     public var streamingTracks = 0
     public var extensions: [String: Int] = [:]
-    public var commentClasses: [CommentClass: Int] = [:]
-    public var prefixes: [ConventionComment.Prefix: Int] = [:]
+    public var commentClasses: [String: Int] = [:]
+    public var prefixes: [String: Int] = [:]
+    public private(set) var hasCommentRule = false
+    public private(set) var matchingComments = 0
     public var usages: [String: Int] = [:]
     public var emptyByImportYear: [String: Int] = [:]
     public var tracksWithCues = 0
@@ -21,12 +23,13 @@ public struct LibraryReport: Sendable {
     public var emptyCommentPlayed = 0
     public var missingFiles: Int?
 
-    public init(library: RekordboxLibrary, checkFiles: Bool = false) {
+    public init(library: RekordboxLibrary, checkFiles: Bool = false, commentRule: (any CommentRule)? = nil) {
         totalRows = library.allTracks.count
         let live = library.tracks
         liveTracks = live.count
         deletedRows = totalRows - liveTracks
 
+        applyCommentRule(commentRule, comments: live.map(\.comment))
         var missing = 0
         for track in live {
             extensions[track.fileExtension, default: 0] += 1
@@ -36,14 +39,8 @@ public struct LibraryReport: Sendable {
                 missing += 1
             }
 
-            let cls = CommentClassifier.classify(track.comment)
-            commentClasses[cls, default: 0] += 1
-            if cls == .empty { emptyByImportYear[track.importYear ?? "?", default: 0] += 1 }
-            if cls == .convention, let parsed = ConventionParser.parse(track.comment) {
-                prefixes[parsed.prefix, default: 0] += 1
-                for usage in parsed.usages { usages[usage.kind.rawValue, default: 0] += 1 }
-                if parsed.isCharacterSong { usages["CS", default: 0] += 1 }
-            }
+            let empty = CommentText.normalize(track.comment).isEmpty
+            if empty { emptyByImportYear[track.importYear ?? "?", default: 0] += 1 }
 
             let cues = library.cues(for: track)
             if cues.isEmpty {
@@ -62,10 +59,24 @@ public struct LibraryReport: Sendable {
 
             if library.playCounts[track.id, default: 0] > 0 {
                 playedTracks += 1
-                if cls == .empty { emptyCommentPlayed += 1 }
+                if empty { emptyCommentPlayed += 1 }
             }
         }
         if checkFiles { missingFiles = missing }
+    }
+
+    /// 프리셋 전환은 이미 읽은 코멘트만 다시 집계한다.
+    public mutating func applyCommentRule(_ rule: (any CommentRule)?, comments: [String]) {
+        hasCommentRule = rule != nil
+        commentClasses = [:]; prefixes = [:]; usages = [:]; matchingComments = 0
+        guard let rule else { return }
+        for comment in comments {
+            let result = rule.evaluate(comment)
+            commentClasses[result.classification, default: 0] += 1
+            if result.isMatch { matchingComments += 1 }
+            if let prefix = result.prefix { prefixes[prefix, default: 0] += 1 }
+            for usage in result.usages { usages[usage, default: 0] += 1 }
+        }
     }
 
     public func render() -> String {
@@ -79,9 +90,11 @@ public struct LibraryReport: Sendable {
         if let missingFiles { lines.append("접근 불가 파일: \(missingFiles) (스트리밍 \(streamingTracks) 제외)") }
         lines.append("")
         lines.append("## 코멘트")
-        lines.append("분류: " + sorted(commentClasses) { $0.rawValue })
-        lines.append("접두어: " + sorted(prefixes) { $0.rawValue })
-        lines.append("용도: " + sorted(usages) { $0 })
+        if hasCommentRule {
+            lines.append("분류: " + sorted(commentClasses) { $0 })
+            lines.append("접두어: " + sorted(prefixes) { $0 })
+            lines.append("용도: " + sorted(usages) { $0 })
+        }
         lines.append("빈 코멘트 임포트 연도: " + emptyByImportYear.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: " · "))
         lines.append("")
         lines.append("## 큐")
