@@ -31,6 +31,12 @@ enum KeyRoutingPolicy {
         }
     }
 
+    /// ⌘→: 고른 곡을 덱에 올린다(#93). 곡 목록·태그 시트는 표가 직접 받고, 여기서는 덱을 보고 있을 때만 맡는다.
+    /// 글자 칸의 ⌘→(줄 끝으로)와 사이드바 등 다른 컨트롤은 건드리지 않는다.
+    static func loadsSelection(_ keyCode: UInt16, modifiers: NSEvent.ModifierFlags, focus: Focus) -> Bool {
+        keyCode == 124 && modifiers.intersection([.command, .shift, .control, .option]) == .command && focus == .deck
+    }
+
     /// ⌘=(Shift 없이 누른 ⌘+)도 보기 › 글자 크게로 본다. 메뉴 항목은 '+' 글자에 걸려 ⌘=에는 반응하지 않는다.
     static func isTextBiggerAlias(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Bool {
         keyCode == 24 && modifiers.intersection([.command, .shift, .control, .option]) == .command

@@ -80,7 +80,8 @@ struct TrackEditButton: View {
 }
 
 extension LibraryStore {
-    /// 렌더해 넣은 편집본을 추가한 곡 목록에서 고른다(덱에 올라간다). 초안은 편집 창이 파일로 써 두었다.
+    /// 렌더해 넣은 편집본을 추가한 곡 목록에서 고르고 덱에 올린다(덱의 곡을 편집한 결과라 이어서 확인한다).
+    /// 초안은 편집 창이 파일로 써 두었다.
     func showStagedEdit(_ track: StagedTrack) {
         loadStaged()
         refreshExternalDrafts()
@@ -88,6 +89,7 @@ extension LibraryStore {
         search = ""
         sidebar = .staged
         selection = [track.id]
+        loadToDeck(rowsByID[track.id])
         stagingMessage = AppMessage(kind: .success, text: String(ui: "편집본 ‘\(track.title)’을 추가한 곡에 넣었습니다. rekordbox에 바로 넣기나 XML로 넘기세요"))
     }
 }

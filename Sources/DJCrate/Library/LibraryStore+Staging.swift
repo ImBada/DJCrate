@@ -85,30 +85,23 @@ extension LibraryStore {
         }
         var parts: [String] = []
         if !added.isEmpty { parts.append(String(ui: "\(added.count)곡 추가")) }
-        if !libraryRows.isEmpty { parts.append(String(ui: "rekordbox 곡 \(libraryRows.count)곡을 열었습니다")) }
-        if !stagedIDs.isEmpty { parts.append(String(ui: "이미 추가한 \(stagedIDs.count)곡을 열었습니다")) }
+        if !libraryRows.isEmpty { parts.append(String(ui: "rekordbox에 이미 있는 \(libraryRows.count)곡을 골랐습니다")) }
+        if !stagedIDs.isEmpty { parts.append(String(ui: "이미 추가한 \(stagedIDs.count)곡을 골랐습니다")) }
         if failed > 0 { parts.append(String(ui: "\(failed)곡은 읽지 못함")) }
         if stagingMessage?.kind != .failure {
             stagingMessage = AppMessage(kind: failed > 0 ? .warning : .success, text: parts.joined(separator: " · "))
         }
+        // 넣은 곡은 목록에서 골라 보여 주기만 한다. 덱은 그대로 둔다(덱에 올리기는 더블클릭·⌘→, #93).
         if !added.isEmpty || (!stagedIDs.isEmpty && libraryRows.isEmpty) {
-            // 새 곡(또는 이미 추가한 곡)은 "추가한 곡"에서 바로 연다.
+            // 새 곡(또는 이미 추가한 곡)은 "추가한 곡"에서 고른다.
             sidebar = .staged
             selection = Set(added.map(\.id) + stagedIDs)
-            if let first = added.first?.id ?? stagedIDs.first { selectPrimary(first) }
         } else if let first = libraryRows.first {
-            // rekordbox 곡: 지금 목록에 없으면 "전체"로 바꿔 바로 연다.
+            // rekordbox 곡: 지금 목록에 없으면 "전체"로 바꿔 고른다.
             if !displayRows.contains(where: { $0.id == first.id }) { sidebar = .filter(.all); search = "" }
             selection = Set(libraryRows.map(\.id))
-            selectPrimary(first.id)
         }
         enqueueGrid(added.map { GridJobItem(uuid: $0.uuid, path: $0.path, staged: true) })
-    }
-
-    /// 여러 곡을 선택했을 때도 이 곡을 덱에 올린다(덱은 표 순서로 첫 곡을 올리므로 표 순서와 무관하게 지정).
-    private func selectPrimary(_ id: TrackRow.ID) {
-        guard let row = rowsByID[id] else { return }
-        onPrimaryRowChange?(row)
     }
 
     func removeStaged(_ ids: Set<TrackRow.ID>) {
@@ -121,6 +114,7 @@ extension LibraryStore {
         persistStaged()
         selection.subtract(ids)
         rebuildStagedRows()
+        refreshDeckTrack()
         if stagingMessage?.kind != .failure {
             stagingMessage = AppMessage(text: String(ui: "\(removing.count)곡을 추가 목록에서 뺐습니다(파일은 그대로)."))
         }

@@ -35,6 +35,14 @@ struct DuplicateTracksView: View {
                                 }
                             }
                             .listStyle(.inset)
+                            // 한 번 클릭은 고르기만, 더블클릭·Return·오른쪽 클릭 메뉴로 덱에 올린다(#93).
+                            .contextMenu(forSelectionType: TrackRow.ID.self) { ids in
+                                if loadTarget(ids) != nil {
+                                    Button(.ui("덱에 불러오기")) { store.loadToDeck(loadTarget(ids)) }
+                                }
+                            } primaryAction: { ids in
+                                store.loadToDeck(loadTarget(ids))
+                            }
                         }
                         .frame(width: max(900, geometry.size.width), height: geometry.size.height)
                     }
@@ -44,6 +52,11 @@ struct DuplicateTracksView: View {
         .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
         .navigationTitle(store.sidebarTitle)
         .navigationSubtitle(String(ui: "\(store.displayDuplicateGroups.count)묶음 · \(store.displayRows.count)곡"))
+    }
+
+    /// 고른 후보 중 화면 순서로 첫 곡
+    private func loadTarget(_ ids: Set<TrackRow.ID>) -> TrackRow? {
+        store.displayRows.first { ids.contains($0.id) }
     }
 
     private func candidate(_ member: LibraryRead.DuplicateMember) -> some View {

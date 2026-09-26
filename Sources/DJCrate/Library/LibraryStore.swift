@@ -144,9 +144,12 @@ final class LibraryStore {
     var sortOrder = [KeyPathComparator(\TrackRow.importedOn, order: .reverse)] {
         didSet { if !suppressRefresh { refreshBase() } }
     }
-    /// 선택이 바뀌면 150ms 뒤 덱에 올릴 곡을 알린다(방향키로 지나가는 곡마다 덱을 올리지 않도록).
-    var selection: Set<TrackRow.ID> = [] { didSet { if selection != oldValue { schedulePrimaryChange() } } }
-    var onPrimaryRowChange: ((TrackRow?) -> Void)?
+    /// 목록에서 고른 곡(포커스). 덱은 따라가지 않는다: 덱에 올리기는 불러오기 명령(`loadToDeck`)으로만 한다(#93).
+    var selection: Set<TrackRow.ID> = []
+    /// 덱에 곡을 올리거나(nil이면 내리기) 새로 읽은 값으로 맞춘다. 덱과 잇는 곳은 여기 하나다.
+    var onLoadToDeck: ((TrackRow?) -> Void)?
+    /// 덱에 올린 곡(ContentID, 추가한 곡은 djc- ID). 목록의 덱 표시와 새로 읽을 때 덱을 맞추는 데 쓴다.
+    private(set) var deckTrackID: String?
 
     /// 초안 상태(메모리). 표의 ✎ 표시는 디스크를 다시 읽지 않고 이것으로 계산한다.
     var tagDrafts: [String: TagDraft] = [:]
@@ -215,10 +218,9 @@ final class LibraryStore {
     private var sortedBase: [TrackRow] = []
     private var suppressRefresh = false
     private var loadGeneration = 0
-    private var primaryTask: Task<Void, Never>?
     private(set) var lastError: String?
 
-    /// 덱에 올릴 곡: 선택 중 표 순서로 첫 곡.
+    /// 불러오기 명령(⌘→·메뉴)이 덱에 올릴 곡: 선택 중 표 순서로 첫 곡.
     var primaryRow: TrackRow? {
         guard !selection.isEmpty else { return nil }
         if selection.count == 1, let id = selection.first, let row = rowsByID[id] { return row }
@@ -249,13 +251,42 @@ final class LibraryStore {
 
     func count(playlist node: PlaylistOutlineNode) -> Int { playlistCounts[node.id] ?? 0 }
 
-    private func schedulePrimaryChange() {
-        primaryTask?.cancel()
-        primaryTask = Task {
-            try? await Task.sleep(for: .milliseconds(150))
-            guard !Task.isCancelled else { return }
-            self.onPrimaryRowChange?(self.primaryRow)
-        }
+    // MARK: - 덱에 불러오기(#93)
+
+    /// 이 곡을 덱에 올린다(더블클릭·⌘→·오른쪽 클릭·끌어다 놓기). 재생 기록의 반복 행도 컬렉션 곡으로 올린다.
+    /// rekordbox에 쓰는 동안은 덱을 바꾸지 않는다.
+    func loadToDeck(_ row: TrackRow?) {
+        guard writeLockPolicy.allowsLibraryInteraction, let row else { return }
+        setDeckTrack(rowsByID[row.track.id] ?? row)
+    }
+
+    var canLoadSelectionToDeck: Bool { writeLockPolicy.allowsLibraryInteraction && primaryRow != nil }
+
+    /// 고른 곡 중 표 순서로 첫 곡을 덱에 올린다(⌘→·덱 메뉴).
+    func loadSelectionToDeck() {
+        guard canLoadSelectionToDeck else { return }
+        loadToDeck(primaryRow)
+    }
+
+    /// 덱 위에 놓은 곡(ContentID 또는 추가한 곡 ID) 중 라이브러리에 있는 첫 곡을 올린다.
+    func loadDroppedTracks(_ ids: [String]) {
+        loadToDeck(ids.lazy.compactMap { self.rowsByID[$0] }.first)
+    }
+
+    private func setDeckTrack(_ row: TrackRow?) {
+        deckTrackID = row?.track.id
+        onLoadToDeck?(row)
+    }
+
+    /// 라이브러리를 새로 읽거나 추가한 곡을 뺀 뒤: 덱의 곡을 새 값으로 맞추고, 없어진 곡은 내린다(지워진 곡을 붙들지 않게).
+    func refreshDeckTrack() {
+        guard let id = deckTrackID else { return }
+        setDeckTrack(rowsByID[id])
+    }
+
+    /// 덱의 곡이 다른 ID로 바뀌었다(추가한 곡을 rekordbox에 넣음). 다음 `refreshDeckTrack`에서 새 곡으로 올린다.
+    func moveDeckTrack(to id: String) {
+        deckTrackID = id
     }
 
     func refreshBase() {
@@ -405,7 +436,7 @@ final class LibraryStore {
             loadStaged()
             // 기다리는 동안 설정이 바뀌었으면 최신 프리셋으로 맞춘다.
             if preset != commentPreset { refreshCommentRule() }
-            // rekordbox에서 지운 곡은 선택에서도 뺀다(덱이 지워진 곡을 붙들지 않게)
+            // rekordbox에서 지운 곡은 선택에서도 뺀다
             refreshBase()
             let visible = Set(displayRows.map(\.id))
             let existing = selection.filter { rowsByID[$0] != nil || visible.contains($0) }
@@ -419,8 +450,8 @@ final class LibraryStore {
             previewWarmTask = Task.detached(priority: .background) { await PreviewWaveformStore.shared.warm(previewSources) }
             lastError = nil
             FileHandle.standardError.write(Data("라이브러리 로드 \(ContinuousClock.now - started) · \(rows.count)곡\n".utf8))
+            refreshDeckTrack()
             applyLaunchSelection()
-            onPrimaryRowChange?(primaryRow)
             runLaunchStagingTest()
             // 캐시 용량 상한(최근 사용 순)은 뒤에서 조용히 정리한다.
             Task.detached(priority: .background) { CacheMaintenance.prune() }
@@ -434,14 +465,15 @@ final class LibraryStore {
         }
     }
 
-    /// 개발용: `--select <ContentID>`
+    /// 개발용: `--select <ContentID>` 곡을 골라 덱에 올린다(처음 읽을 때 한 번).
     private func applyLaunchSelection() {
         let args = ProcessInfo.processInfo.arguments
-        guard let i = args.firstIndex(of: "--select"), args.indices.contains(i + 1),
+        guard deckTrackID == nil, let i = args.firstIndex(of: "--select"), args.indices.contains(i + 1),
               let row = rowsByID[args[i + 1]]
         else { return }
         if case let .filter(filter) = sidebar, !filter.includes(row) { sidebar = .filter(.all) }
         selection = [row.id]
+        loadToDeck(row)
     }
 
     // MARK: - 초안 표시

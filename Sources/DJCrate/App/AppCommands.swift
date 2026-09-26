@@ -68,6 +68,11 @@ struct AppCommands: Commands {
         }
         CommandMenu(.ui("재생 목록")) { PlaylistCommands(store: context?.store) }
         CommandMenu(.ui("덱")) {
+            // 키는 곡 목록·태그 시트가 받는다(글자 입력 중 ⌘→는 커서 이동이라 메뉴에 걸지 않는다).
+            let loadTitle = "\(String(ui: "고른 곡 덱에 불러오기"))    ⌘→"
+            Button(loadTitle) { context?.store.loadSelectionToDeck() }
+                .disabled(context?.store.canLoadSelectionToDeck != true)
+            Divider()
             ForEach(DeckAction.Group.allCases, id: \.self) { group in
                 if group != .transport { Divider() }
                 if group == .hotCues {

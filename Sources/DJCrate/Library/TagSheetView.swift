@@ -9,6 +9,7 @@ import SwiftUI
 ///
 /// - 클릭: 셀 선택 / Shift+클릭·드래그: 범위 / 방향키·Tab: 이동(Shift로 범위 확장)
 /// - 더블클릭·Return·타이핑: 편집 시작 / Return: 확정 후 아래로 / Tab: 확정 후 오른쪽 / Esc: 취소
+/// - 커서 줄은 고른 곡일 뿐 덱은 그대로다. ⌘→·오른쪽 클릭 '덱에 불러오기'로 덱에 올린다(#93)
 /// - ⌘C·⌘V: 탭 구분 텍스트(엑셀·구글 시트 호환) / ⌘D: 아래로 채우기 / Delete: 지우기
 /// - ⌘Z·⇧⌘Z: 실행 취소·실행 복귀 / ⌘A: 전체 선택
 struct TagSheetView: NSViewRepresentable {
@@ -196,8 +197,36 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
         table?.scrollRowToVisible(clamped.row)
         table?.scrollColumnToVisible(clamped.column)
         reloadVisible()
-        // 커서 줄을 덱에 올린다.
+        // 커서 줄을 고른 곡으로 둔다(태그 편집 창 등이 따라온다). 덱은 불러오기 명령으로만 바꾼다.
         store.selection = [rows[clamped.row].id]
+    }
+
+    // MARK: - 덱에 불러오기(#93)
+
+    /// ⌘→: 커서 줄의 곡을 덱에 올린다.
+    func loadCursorRow() {
+        loadRow(cursor.row)
+    }
+
+    /// 오른쪽 클릭 메뉴: 누른 줄의 곡을 덱에 올린다.
+    func contextMenu(forRow row: Int) -> NSMenu {
+        let menu = NSMenu()
+        let load = NSMenuItem(title: String(ui: "덱에 불러오기"), action: rows.indices.contains(row) ? #selector(loadMenuRow(_:)) : nil,
+                              keyEquivalent: TrackListCoordinator.loadKey)
+        load.keyEquivalentModifierMask = .command
+        load.target = self
+        load.tag = row
+        menu.addItem(load)
+        return menu
+    }
+
+    @objc private func loadMenuRow(_ sender: NSMenuItem) {
+        loadRow(sender.tag)
+    }
+
+    private func loadRow(_ index: Int) {
+        guard rows.indices.contains(index) else { return }
+        store.loadToDeck(rows[index])
     }
 
     func move(rows dRow: Int, columns dColumn: Int, extend: Bool) {
@@ -389,6 +418,13 @@ final class SheetTableView: NSTableView {
         if event.clickCount == 2 { coordinator.beginEditing() }
     }
 
+    /// 오른쪽 클릭: 고른 범위 밖이면 그 칸으로 커서를 옮기고(엑셀처럼) 덱에 불러오기 메뉴를 띄운다.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        guard let coordinator, let position = position(for: event) else { return nil }
+        if !coordinator.isSelected(position) { coordinator.select(position, extend: false) }
+        return coordinator.contextMenu(forRow: position.row)
+    }
+
     override func mouseDragged(with event: NSEvent) {
         guard let coordinator, let position = position(for: event) else { return }
         autoscroll(with: event)
@@ -398,6 +434,11 @@ final class SheetTableView: NSTableView {
     override func keyDown(with event: NSEvent) {
         guard let coordinator else { return super.keyDown(with: event) }
         let shift = event.modifierFlags.contains(.shift)
+        // ⌘→: 커서 줄을 덱에 올린다(곡 목록과 같다). ⌘ 없는 →는 옆 칸으로.
+        if event.specialKey == .rightArrow, event.modifierFlags.intersection([.command, .control, .option, .shift]) == .command {
+            coordinator.loadCursorRow()
+            return
+        }
         switch event.specialKey {
         case .upArrow: coordinator.move(rows: -1, columns: 0, extend: shift)
         case .downArrow: coordinator.move(rows: 1, columns: 0, extend: shift)

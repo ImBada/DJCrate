@@ -36,6 +36,7 @@ rekordbox master.db ──(스냅샷 사본)──▶ RekordboxLibrary ──▶
                         새 곡 ── StagedTrack ── rekordbox XML ──▶ rekordbox가 Import
 ```
 
+- **목록 선택과 덱은 따로다(#93).** 목록 한 번 클릭·↑↓·태그 시트 커서는 고른 곡(`LibraryStore.selection`)만 바꾸고 덱은 그대로다. 덱은 불러오기 명령(`LibraryStore.loadToDeck`: 더블클릭·⌘→·오른쪽 클릭 "덱에 불러오기"·덱으로 끌어다 놓기)으로만 바뀐다. 재생 기록의 반복 행도 컬렉션 곡으로 올리고(`deckTrackID` = ContentID), 스냅샷을 새로 읽으면 덱의 곡만 새 값으로 맞추거나 지워졌으면 내린다. 곡을 추가해도 덱은 그대로고, 덱의 곡을 편집해 렌더한 편집본과 덱에 올린 추가한 곡을 rekordbox에 넣은 경우만 덱을 바꿔 올린다.
 - **읽기는 사본에서만.** 라이브 DB를 열어 두면 rekordbox와 잠금·WAL이 얽힌다. `LibrarySnapshot`이 사본을 뜨고, rekordbox가 켜져 있으면 `--force`일 때만 WAL까지 합친 읽기용 사본을 뜬다.
 - **편집은 초안.** 초안은 JSON으로 `~/Library/Application Support/DJCrate/`에 저장된다. 앱을 꺼도 남고, 반영하면 지운다. 초안마다 만들 때의 rekordbox 상태(`base`)가 있어서, 그 뒤 rekordbox에서 바뀐 곡은 쓰지 않는다(덮어쓰기 방지).
 - **재생 목록 초안은 편집 순서다.** 곡 초안과 달리 편집끼리 기대므로(새로 만든 목록에 곡 넣기, 넣은 뒤 옮기기) `PlaylistDraft`는 `PlaylistEdit`을 적힌 순서대로 들고, 편집마다 기대는 rekordbox 목록의 처음 상태(`base`)를 적는다. 사이드바·곡 목록은 rekordbox 상태에 초안을 얹은 모양(`PlaylistLayout`, 쓰기 모듈과 같은 규칙)을 보여 준다. 쓰기 모듈은 트랜잭션 안에서 base와 지금 상태를 비교해 바뀐 목록의 편집만 막고, 앱은 쓴 편집만 초안에서 뺀다. 되돌리면 그때 쓴 편집을 되돌린 상태에 다시 쌓는다.

@@ -294,7 +294,7 @@ struct TrackListTagEditTests {
 
 /// 곡 목록 표 + 조정자 + 창. 칸은 목록과 같은 이름으로 몇 개만 둔다.
 @MainActor
-private final class ListHarness {
+final class ListHarness {
     let store: LibraryStore
     let undo = UndoManager()
     let coordinator: TrackListCoordinator
@@ -333,9 +333,13 @@ private final class ListHarness {
     var field: NSTextField? { editor?.delegate as? NSTextField }
 
     func pressReturn() {
-        let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
-                                     windowNumber: window.windowNumber, context: nil, characters: "\r",
-                                     charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36)!
+        press(keyCode: 36, characters: "\r")
+    }
+
+    func press(keyCode: UInt16, characters: String, modifiers: NSEvent.ModifierFlags = []) {
+        let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
+                                     windowNumber: window.windowNumber, context: nil, characters: characters,
+                                     charactersIgnoringModifiers: characters, isARepeat: false, keyCode: keyCode)!
         table.keyDown(with: event)
     }
 
@@ -350,7 +354,11 @@ private final class ListHarness {
     }
 
     func cell(row: Int, column: String) -> TrackTextCell? {
+        view(row: row, column: column) as? TrackTextCell
+    }
+
+    func view(row: Int, column: String) -> NSView? {
         guard let index = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == column }) else { return nil }
-        return table.view(atColumn: index, row: row, makeIfNecessary: true) as? TrackTextCell
+        return table.view(atColumn: index, row: row, makeIfNecessary: true)
     }
 }

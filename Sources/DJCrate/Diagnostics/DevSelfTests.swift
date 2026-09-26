@@ -48,15 +48,15 @@ enum DevSelfTests {
             }
             let b = rows[start + 1], c = rows[start + 2]
             mark("A 로드됨"); deck.togglePlay(); await wait(3); mark("A 재생 3초")
-            store.selection = [b.id]; await waitLoaded(b.id); await wait(1); mark("A 재생 중 B로 바꿈")
+            store.loadToDeck(b); await waitLoaded(b.id); await wait(1); mark("A 재생 중 B로 바꿈")
             deck.togglePlay(); await wait(3); mark("B 재생 3초")
             deck.togglePlay(); await wait(1); mark("B 정지")
             deck.togglePlay(); await wait(2); mark("B 다시 재생")
             deck.seek(60); await wait(2); mark("B 60초로 탐색")
             deck.togglePlay(); await wait(1); mark("B 정지")
-            store.selection = [c.id]; await waitLoaded(c.id); await wait(1); mark("멈춘 채 C로 바꿈")
+            store.loadToDeck(c); await waitLoaded(c.id); await wait(1); mark("멈춘 채 C로 바꿈")
             deck.togglePlay(); await wait(3); mark("C 재생 3초")
-            store.selection = [a.id]; await waitLoaded(a.id); await wait(1); mark("C 재생 중 A로 돌아옴")
+            store.loadToDeck(a); await waitLoaded(a.id); await wait(1); mark("C 재생 중 A로 돌아옴")
             deck.togglePlay(); await wait(3); mark("A 재생 3초")
             deck.togglePlay(); mark("끝")
         }
@@ -100,7 +100,7 @@ enum DevSelfTests {
             let playlistEdits = store.playlistDraft.edits.count
             log("재생 목록 초안: 편집 \(playlistEdits)건 · 새 목록 \(list ?? "-") · 있던 목록에 넣기 \(extended == nil ? "없음" : "있음")")
             // 덱에 대상 곡 하나를 올려 둔다(쓴 뒤 덱이 새 큐로 다시 읽는지 본다).
-            if let first = targets.first { store.selection = [first.id] }
+            if let first = targets.first { store.selection = [first.id]; store.loadToDeck(first) }
             await wait(1.5)
             do {
                 store.setWriteLock(true)
