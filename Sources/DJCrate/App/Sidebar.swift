@@ -15,7 +15,7 @@ struct Sidebar: View {
         List(selection: $store.sidebar) {
             Section("라이브러리") {
                 ForEach(LibraryFilter.visible(commentPreset: store.commentPreset)) { filter in
-                    Label(filter.rawValue, systemImage: filter.systemImage)
+                    Label(filter.title, systemImage: filter.systemImage)
                         .badge(store.count(filter))
                         .tag(SidebarItem.filter(filter))
                 }

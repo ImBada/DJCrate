@@ -1,4 +1,6 @@
-/// 앱과 CLI가 공유하는 컬렉션 필터. 표시 이름과 기존 판정은 그대로 둔다.
+import Foundation
+
+/// 앱과 CLI가 공유하는 컬렉션 필터. rawValue는 식별자로만 쓰고(바꾸면 저장한 선택을 잃는다), 화면에는 `title`을 쓴다.
 public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable {
     case emptyComment = "빈 코멘트 전체"
     case offConvention = "규칙 밖 코멘트"
@@ -10,6 +12,19 @@ public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable {
     case all = "전체"
 
     public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .emptyComment: String(ui: "빈 코멘트 전체")
+        case .offConvention: String(ui: "규칙 밖 코멘트")
+        case .noCues: String(ui: "큐 없음")
+        case .played: String(ui: "재생한 곡")
+        case .streaming: String(ui: "스트리밍")
+        case .noBPM: String(ui: "BPM·그리드 없음")
+        case .tempoChange: String(ui: "변속 곡")
+        case .all: String(ui: "전체")
+        }
+    }
 
     public var cliName: String {
         switch self {

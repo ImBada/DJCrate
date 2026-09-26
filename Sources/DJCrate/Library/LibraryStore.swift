@@ -98,7 +98,7 @@ final class LibraryStore {
 
     var sidebarTitle: String {
         switch sidebar {
-        case let .filter(filter): filter.rawValue
+        case let .filter(filter): filter.title
         case let .playlist(id): playlistIndex[id]?.name ?? "플레이리스트"
         case let .history(id): historyIndex[id].map(historyTitle) ?? "재생 기록"
         case .duplicates: "중복 후보"
