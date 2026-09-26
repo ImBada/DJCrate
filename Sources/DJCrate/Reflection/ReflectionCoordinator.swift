@@ -95,7 +95,7 @@ struct ReflectionCoordinator {
                                                 gains: preview.gains.filter { gains.contains($0.key) })
         } catch {
             host.writeStage = nil
-            host.toast = AppToast(kind: .failure, title: "rekordbox에 쓰지 않았습니다", detail: String(describing: error))
+            fail("rekordbox에 쓰지 않았습니다", error)
         }
     }
 
@@ -126,7 +126,7 @@ struct ReflectionCoordinator {
             _ = try await host.addTracksToRekordbox(preview)
         } catch {
             host.writeStage = nil
-            host.toast = AppToast(kind: .failure, title: "rekordbox에 넣지 않았습니다", detail: String(describing: error))
+            fail("rekordbox에 넣지 않았습니다", error)
         }
     }
 
@@ -158,7 +158,7 @@ struct ReflectionCoordinator {
             _ = try await host.deleteTracksFromRekordbox(preview)
         } catch {
             host.writeStage = nil
-            host.toast = AppToast(kind: .failure, title: "rekordbox에서 빼지 않았습니다", detail: String(describing: error))
+            fail("rekordbox에서 빼지 않았습니다", error)
         }
     }
 
@@ -186,7 +186,28 @@ struct ReflectionCoordinator {
         _ = prompter.show(ReflectionPrompt(title: title, text: text))
     }
 
+    /// 쓰기 실패 알림. 자동 복원까지 실패했으면 사라지는 토스트가 아니라 닫아야 하는 경고 창으로 알린다.
+    private func fail(_ title: String, _ error: any Error) {
+        if let alert = Self.restoreFailureAlert(error) {
+            _ = prompter.show(alert)
+        } else {
+            host.toast = AppToast(kind: .failure, title: title, detail: String(describing: error))
+        }
+    }
+
     // MARK: - 창 문구
+
+    /// 쓰기 확인도 자동 복원도 실패했을 때의 경고(상태를 알 수 없음 + 할 일). 그 밖의 오류면 nil.
+    static func restoreFailureAlert(_ error: any Error) -> ReflectionPrompt? {
+        guard case let DJCError.restoreFailed(reason, restoreError, backup, database) = error else { return nil }
+        let text = [
+            "rekordbox 라이브러리(master.db)와 분석 파일이 어떤 상태인지 알 수 없습니다. "
+                + "rekordbox를 켜지 말고 사이드바 'rekordbox 반영 대기'의 '되돌리기…'로 쓰기 전 백업을 복원하세요.",
+            "터미널에서는: " + DJCError.restoreCommand(backup: backup, database: database),
+            "확인 실패: \(reason)\n복원 실패: \(restoreError)",
+        ]
+        return ReflectionPrompt(title: "쓰기 확인에 실패했고 자동 복원도 하지 못했습니다", text: text.joined(separator: "\n\n"), critical: true)
+    }
 
     static func reasons(_ report: RekordboxWriter.Report) -> [String] {
         (report.blocked + report.gridBlocked + report.gainBlocked).map { "• \($0.title): \($0.reason ?? "")" }
