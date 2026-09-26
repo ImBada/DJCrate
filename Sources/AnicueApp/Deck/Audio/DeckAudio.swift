@@ -7,128 +7,6 @@ import Accelerate
 import AVFoundation
 import QuartzCore
 
-/// `ANICUE_AUDIO_DEBUG=1`이면 재생 경로를 표준 오류에 기록한다.
-enum AudioDebug {
-    static let enabled = ProcessInfo.processInfo.environment["ANICUE_AUDIO_DEBUG"] != nil
-    nonisolated static func log(_ message: @autoclosure () -> String) {
-        guard enabled else { return }
-        let now = AVAudioTime.seconds(forHostTime: mach_absolute_time())
-        FileHandle.standardError.write(Data("[audio \(String(format: "%.3f", now))] \(message())\n".utf8))
-    }
-}
-
-/// 상시 오디오 사건 기록(`~/Library/Logs/anicue/audio.log`). 재생·정지·구성 변경·복구만 짧게 남긴다.
-/// "소리가 안 나온다"가 다시 생기면 이 파일로 무슨 일이 있었는지 본다. 1MB를 넘으면 새로 시작한다.
-enum AudioEvents {
-    private static let queue = DispatchQueue(label: "anicue.audio-events", qos: .utility)
-    private static let url = URL.libraryDirectory.appending(path: "Logs/anicue/audio.log")
-    static func record(_ message: String) {
-        AudioDebug.log(message)
-        let line = "\(Date.now.formatted(.iso8601)) \(message)\n"
-        queue.async {
-            let manager = FileManager.default
-            try? manager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            if let size = (try? manager.attributesOfItem(atPath: url.path))?[.size] as? Int, size > 1_000_000 {
-                try? manager.removeItem(at: url)
-            }
-            if let handle = try? FileHandle(forWritingTo: url) {
-                handle.seekToEndOfFile()
-                handle.write(Data(line.utf8))
-                try? handle.close()
-            } else {
-                try? Data(line.utf8).write(to: url)
-            }
-        }
-    }
-}
-
-/// 곡 전체를 메모리에 풀어 둔 PCM. 재생을 다시 시작할 때 파일을 읽지 않고 바로 소리를 낸다.
-///
-/// 큐 점프·CUE 미리 듣기가 외장 드라이브에서도 바로 반응하도록 곡을 불러올 때 한 번 디코딩해 두고,
-/// 재생은 이 버퍼를 복사 없이 잘라 예약한다.
-/// (처음 겪은 "재시작마다 1~1.7초 무음"의 실제 원인은 파일 읽기가 아니라 엔진 pause→start 뒤의
-/// 시작 시각 어긋남이었다. 그건 `stop()`에서 engine.stop()을 쓰는 것으로 고쳤다.)
-final class DecodedAudio: @unchecked Sendable {
-    /// 디코딩이 끝난 뒤에는 바뀌지 않는다(읽기 전용 공유).
-    let buffer: AVAudioPCMBuffer
-
-    private init(buffer: AVAudioPCMBuffer) {
-        self.buffer = buffer
-    }
-
-    /// 긴 믹스 파일은 메모리를 너무 많이 쓰므로 파일 스트리밍으로 둔다.
-    static let maxDuration: Double = 20 * 60
-
-    var frameCount: AVAudioFramePosition { AVAudioFramePosition(buffer.frameLength) }
-
-    static func decode(url: URL) -> DecodedAudio? {
-        guard let file = try? AVAudioFile(forReading: url) else { return nil }
-        let format = file.processingFormat
-        let channels = Int(format.channelCount)
-        // MP3 길이는 추정값이라 약간 더 받아 둔다.
-        let capacity = AVAudioFrameCount(min(Double(file.length) + format.sampleRate, Double(UInt32.max - 1)))
-        let chunkFrames: AVAudioFrameCount = 1 << 16
-        guard file.length > 0,
-              let whole = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity),
-              let chunk = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: chunkFrames),
-              let dst = whole.floatChannelData else { return nil }
-        var filled = 0
-        while !Task.isCancelled, file.framePosition < file.length {
-            do { try file.read(into: chunk, frameCount: chunkFrames) } catch {
-                // 파일 끝에서 eofErr를 돌려주는 디코더가 있다. 읽은 만큼은 쓴다.
-                guard filled > 0 else { return nil }
-                break
-            }
-            let n = Int(chunk.frameLength)
-            guard n > 0, let src = chunk.floatChannelData else { break }
-            let take = min(n, Int(capacity) - filled)
-            guard take > 0 else { break }
-            for ch in 0..<channels {
-                (dst[ch] + filled).update(from: src[ch], count: take)
-            }
-            filled += take
-        }
-        guard !Task.isCancelled, filled > 0 else { return nil }
-        whole.frameLength = AVAudioFrameCount(filled)
-        return DecodedAudio(buffer: whole)
-    }
-
-    /// 조성 흐름 추정용 크로마
-    func chroma() -> KeyAnalyzer.Chroma {
-        guard let data = buffer.floatChannelData else { return KeyAnalyzer.Chroma(hop: 0.2, frames: []) }
-        let frames = Int(buffer.frameLength)
-        let channels = (0..<Int(buffer.format.channelCount)).map { UnsafeBufferPointer(start: data[$0], count: frames) }
-        return KeyAnalyzer.chroma(channels: channels, sampleRate: buffer.format.sampleRate)
-    }
-
-    /// 곡 전체 음량(BS.1770 통합 음량·피크·클리핑 흔적)
-    func loudness() -> Loudness {
-        guard let data = buffer.floatChannelData else { return Loudness(integrated: nil, peak: -120, clippedRuns: 0) }
-        let frames = Int(buffer.frameLength)
-        let channels = (0..<Int(buffer.format.channelCount)).map { UnsafeBufferPointer(start: data[$0], count: frames) }
-        return Loudness.measure(channels: channels, sampleRate: buffer.format.sampleRate)
-    }
-
-    /// `frame`부터 `end`(없으면 끝)까지를 가리키는 버퍼(복사하지 않는다). 버퍼가 살아 있는 동안 원본도 붙잡아 둔다.
-    func segment(from frame: AVAudioFramePosition, to end: AVAudioFramePosition? = nil) -> AVAudioPCMBuffer? {
-        let end = min(end ?? frameCount, frameCount)
-        guard frame >= 0, frame < end, let data = buffer.floatChannelData else { return nil }
-        let count = Int(end - frame)
-        let channels = Int(buffer.format.channelCount)
-        let list = AudioBufferList.allocate(maximumBuffers: channels)
-        for ch in 0..<channels {
-            list[ch] = AudioBuffer(mNumberChannels: 1,
-                                   mDataByteSize: UInt32(count * MemoryLayout<Float>.size),
-                                   mData: UnsafeMutableRawPointer(data[ch] + Int(frame)))
-        }
-        let owner = self
-        return AVAudioPCMBuffer(pcmFormat: buffer.format, bufferListNoCopy: list.unsafePointer) { _ in
-            withExtendedLifetime(owner) {}
-            free(list.unsafeMutablePointer)
-        }
-    }
-}
-
 /// 덱 재생 엔진.
 ///
 /// 곡(trackNode)과 메트로놈(clickNode)을 같은 서브믹서에 넣고 속도 변환(varispeed·timePitch)을
@@ -213,58 +91,31 @@ final class DeckAudio {
         guard let decoded, file != nil else { return false }
         guard isPlaying, reschedule else { return true }
         // 예약은 재생 노드가 이미 그린 곳보다 충분히 앞서야 샘플 단위로 맞는다(렌더 블록 하나 이상, 2026-09-26 오프라인 실험).
-        let margin = Int64((0.1 + latency) * sampleRate)
         let now = Int64(renderedNode)
-        let ahead = now + margin
-        guard let index = pieces.lastIndex(where: { $0.node <= ahead }), index == pieces.count - 1 else {
-            restartKeepingPosition(); return true
-        }
-        let piece = pieces[index]
-        func schedule(_ buffer: AVAudioPCMBuffer, at node: Int64, _ options: AVAudioPlayerNodeBufferOptions) {
-            trackNode.scheduleBuffer(buffer, at: AVAudioTime(sampleTime: node, atRate: sampleRate), options: options, completionHandler: nil)
-        }
-        if let oldLength = piece.loop {
-            // 되풀이하는 버퍼는 바퀴 경계에서만 정확히 끊을 수 있다(바퀴 중간은 렌더 블록 단위로 어긋남). 다음 바퀴 끝에서 바꾼다.
-            let boundary = piece.node + ((ahead - piece.node) / oldLength + 1) * oldLength
-            let oldEnd = piece.frame + oldLength
-            if let range {
-                let start = frame(of: range.lowerBound), end = frame(of: range.upperBound)
-                guard start == piece.frame, end - start > 16, let body = decoded.segment(from: start, to: end) else {
-                    restartKeepingPosition(); return true
-                }
-                if end > oldEnd {
-                    // 늘리기: 옛 끝 → 새 끝을 이어 붙이고 새 루프(둘 다 시각을 정해 예약해야 지워지지 않는다)
-                    guard let bridge = decoded.segment(from: oldEnd, to: end) else { restartKeepingPosition(); return true }
-                    schedule(bridge, at: boundary, .interrupts)
-                    schedule(body, at: boundary + (end - oldEnd), .loops)
-                    pieces.append(PlaybackPiece(node: boundary, frame: oldEnd, loop: nil))
-                    pieces.append(PlaybackPiece(node: boundary + (end - oldEnd), frame: start, loop: end - start))
-                } else {
-                    // 줄이기: 다음 바퀴부터 새 길이
-                    schedule(body, at: boundary, [.interrupts, .loops])
-                    pieces.append(PlaybackPiece(node: boundary, frame: start, loop: end - start))
-                }
-                AudioEvents.record("루프 길이 바꿈(샘플 단위) · \(String(format: "%.3f~%.3f", range.lowerBound, range.upperBound))초")
-            } else {
-                // 나가기: 이번 바퀴 끝에서 루프 끝 다음으로 이어 간다.
-                guard let rest = decoded.segment(from: oldEnd) else { restartKeepingPosition(); return true }
-                schedule(rest, at: boundary, .interrupts)
-                pieces.append(PlaybackPiece(node: boundary, frame: oldEnd, loop: nil))
-                AudioEvents.record("루프 나가기(샘플 단위)")
-            }
-        } else if let range {
-            // 곡 흐름 중에 걸기: 루프 끝 지점에서 정확히 넘어간다.
-            let start = frame(of: range.lowerBound), end = frame(of: range.upperBound)
-            let at = piece.node + (end - piece.frame)
-            guard end - start > 16, at > ahead, let body = decoded.segment(from: start, to: end) else {
-                restartKeepingPosition(); return true
-            }
-            schedule(body, at: at, [.interrupts, .loops])
-            pieces.append(PlaybackPiece(node: at, frame: start, loop: end - start))
-            AudioEvents.record("루프 걸기(샘플 단위) · \(String(format: "%.3f~%.3f", range.lowerBound, range.upperBound))초")
-        } else if pieces.contains(where: { $0.loop != nil && $0.node > now }) {
-            // 아직 닿지 않은 루프를 취소: 다시 예약한다.
+        let ahead = now + Int64((0.1 + latency) * sampleRate)
+        let target = range.map { (start: frame(of: $0.lowerBound), end: frame(of: $0.upperBound)) }
+        guard let plan = LoopPlanner.plan(pieces: pieces, now: now, ahead: ahead, loop: target) else {
             restartKeepingPosition()
+            return true
+        }
+        // 버퍼를 먼저 모두 만든 뒤 예약한다(하나라도 못 만들면 다시 재생).
+        var buffers: [(AVAudioPCMBuffer, LoopPlanner.Buffer)] = []
+        for item in plan.buffers {
+            guard let buffer = decoded.segment(from: item.from, to: item.to) else { restartKeepingPosition(); return true }
+            buffers.append((buffer, item))
+        }
+        for (buffer, item) in buffers {
+            var options: AVAudioPlayerNodeBufferOptions = []
+            if item.interrupts { options.insert(.interrupts) }
+            if item.loops { options.insert(.loops) }
+            trackNode.scheduleBuffer(buffer, at: AVAudioTime(sampleTime: item.at, atRate: sampleRate), options: options, completionHandler: nil)
+        }
+        pieces += plan.pieces
+        switch plan.kind {
+        case .engage: AudioEvents.record("루프 걸기(샘플 단위) · \(range.map { String(format: "%.3f~%.3f", $0.lowerBound, $0.upperBound) } ?? "")초")
+        case .resize: AudioEvents.record("루프 길이 바꿈(샘플 단위) · \(range.map { String(format: "%.3f~%.3f", $0.lowerBound, $0.upperBound) } ?? "")초")
+        case .exit: AudioEvents.record("루프 나가기(샘플 단위)")
+        case .none: break
         }
         return true
     }
@@ -710,98 +561,5 @@ final class DeckAudio {
             // 상시 기록: 재생 중 출력이 무음으로 바뀌는 순간을 남긴다(곡의 실제 무음 구간도 찍힌다).
             AudioEvents.record("출력 \(silent ? "무음" : "소리") 시작 · 렌더 시각 \(String(format: "%.3f", host))")
         }
-    }
-}
-
-/// 디스플레이 주사율에 맞춘 갱신(CADisplayLink). 16ms 타이머보다 움직임이 고르다.
-@MainActor
-final class DisplayTicker: NSObject {
-    private var link: CADisplayLink?
-    private let onTick: @MainActor () -> Void
-
-    init(onTick: @escaping @MainActor () -> Void) {
-        self.onTick = onTick
-    }
-
-    func start() {
-        guard link == nil, let screen = NSScreen.main else { return }
-        let link = screen.displayLink(target: self, selector: #selector(step(_:)))
-        // 파형 갱신은 60Hz면 충분하다(ProMotion 120Hz에서 CPU를 반으로 줄인다).
-        link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
-        link.add(to: .main, forMode: .common)
-        self.link = link
-    }
-
-    func stop() {
-        link?.invalidate()
-        link = nil
-    }
-
-    private var pending = false
-
-    /// 디스플레이 링크는 AppKit 레이아웃 패스 도중에 불린다. 여기서 바로 상태를 바꾸면
-    /// 레이아웃이 다시 무효화되어 무한 갱신(NSGenericException)이 난다. 다음 런루프로 미룬다.
-    @objc private func step(_ link: CADisplayLink) {
-        guard !pending else { return }
-        pending = true
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            self.pending = false
-            self.onTick()
-        }
-    }
-}
-
-/// 게인 뒤·볼륨 앞 레벨. 오디오 탭 스레드가 쓰고 화면이 읽는다(잠금으로 보호).
-final class LevelMeter: @unchecked Sendable {
-    struct Reading {
-        var peak: (left: Float, right: Float) = (0, 0)
-        var rms: (left: Float, right: Float) = (0, 0)
-        /// 마지막으로 받은 시각(재생이 멈추면 더 오지 않는다)
-        var time: Double = 0
-        /// 마지막으로 0dBFS 이상이 나온 시각
-        var clipTime: Double = -.infinity
-        /// 곡을 불러온 뒤 가장 큰 피크와 0dBFS를 넘은 횟수(버퍼 단위)
-        var maxPeak: Float = 0
-        var clipCount = 0
-    }
-
-    private let lock = NSLock()
-    private var reading = Reading()
-
-    func update(peak: (Float, Float), rms: (Float, Float)) {
-        let now = ProcessInfo.processInfo.systemUptime
-        lock.lock()
-        reading.peak = peak
-        reading.rms = rms
-        reading.time = now
-        let top = max(peak.0, peak.1)
-        reading.maxPeak = max(reading.maxPeak, top)
-        if top >= 1 {
-            reading.clipTime = now
-            reading.clipCount += 1
-        }
-        lock.unlock()
-    }
-
-    func read() -> Reading {
-        lock.lock()
-        defer { lock.unlock() }
-        return reading
-    }
-
-    func reset() {
-        lock.lock()
-        reading = Reading()
-        lock.unlock()
-    }
-
-    /// 최고 피크·CLIP 기록만 지운다.
-    func resetPeaks() {
-        lock.lock()
-        reading.maxPeak = 0
-        reading.clipCount = 0
-        reading.clipTime = -.infinity
-        lock.unlock()
     }
 }
