@@ -2,7 +2,7 @@
 
 rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 diff해서 뽑은 규칙이다. 각 규칙은 "실험 전 사본에 DJCrate로 같은 편집을 쓰고, rekordbox가 쓴 결과와 칸마다 비교"해서 확인했다. 확인하지 못한 규칙은 코드에서 막아 두었다(아래 "막아 둔 것").
 
-코드: `Sources/RekordboxKit/` — `RekordboxWriter`(DB, 역할별 `+Cues`·`+Grid`·`+Gain`·`+Analysis`·`+Verify`·`+Backup`), `RekordboxGridWriter`(ANLZ), `RekordboxCompatibility`(쓰기 전 버전·구조 확인), `CueJSON`, `AnlzFile`, `SeekInfo`, `CipherDatabase`.
+코드: `Sources/RekordboxKit/` — `RekordboxWriter`(DB, 역할별 `+Cues`·`+Grid`·`+Gain`·`+Analysis`·`+Playlist`·`+Verify`·`+Backup`), `RekordboxGridWriter`(ANLZ), `RekordboxCompatibility`(쓰기 전 버전·구조 확인), `CueJSON`, `AnlzFile`, `SeekInfo`, `MasterPlaylistsXML`, `CipherDatabase`.
 
 ## 파일과 열기
 
@@ -16,8 +16,8 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 쓰기 규칙은 rekordbox 7.2.18에서 확인했다. rekordbox가 업데이트로 DB 구조를 바꾸면 규칙이 맞지 않을 수 있어서, 쓰기 전에 다음을 보고 하나라도 다르면 **백업도 뜨지 않고** 막는다.
 
 - 앱 버전: `/Applications/rekordbox N/rekordbox.app`의 `CFBundleShortVersionString` 주.부가 `7.2`(못 찾으면 아래 DB 검사에 맡김). 라이브 DB에만 적용.
-- 새 행을 넣는 표(`djmdCue` 29칸, `contentCue` 13칸, 곡 넣기의 `djmdContent`·`djmdArtist`·`djmdAlbum`·`djmdGenre`, 곡 넣기·분석 붙이기의 `contentFile` 24칸·`djmdMixerParam` 15칸)는 칸 이름이 정확히 같아야 한다. 칸이 늘면 rekordbox가 기대하는 값을 빠뜨리게 된다.
-- 고치거나 읽는 칸(`agentRegistry`·`djmdProperty`·곡 삭제의 `djmdSongPlaylist`·`djmdSongHistory`)은 모두 있어야 한다.
+- 새 행을 넣는 표(`djmdCue` 29칸, `contentCue` 13칸, 곡 넣기의 `djmdContent`·`djmdArtist`·`djmdAlbum`·`djmdGenre`, 곡 넣기·분석 붙이기의 `contentFile` 24칸·`djmdMixerParam` 15칸, 재생 목록의 `djmdPlaylist` 16칸·`djmdSongPlaylist` 13칸·`djmdCloudFilterPlaylist` 13칸)는 칸 이름이 정확히 같아야 한다. 칸이 늘면 rekordbox가 기대하는 값을 빠뜨리게 된다.
+- 고치거나 읽는 칸(`agentRegistry`·`djmdProperty`·곡 삭제의 `djmdSongHistory`)은 모두 있어야 한다.
 - `djmdProperty.DBVersion` = `6000`.
 - `localUpdateCount` ≥ `lastUpdateCount`(클라우드 동기화가 본 가장 큰 번호). 로컬 번호가 더 작으면 동기화 때 변경이 되돌려졌다는 사례가 있다(2026-09-26 조사). 2026-09-26 실제 라이브러리: 로컬 1,002,950 · 클라우드 372,628.
 
@@ -89,7 +89,7 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 1. rekordbox·rekordboxAgent가 실행 중이면 거부. `-wal`이 남아 있어도 거부.
 2. master.db(+wal/shm) 전체와 바꿀 분석 파일을 `rekordbox-backups/<시각>-write/`에 복사(복사 중 원본이 바뀌면 실패).
 3. `BEGIN IMMEDIATE` 한 트랜잭션에서 쓰고, 같은 연결로 다시 읽어 초안과 칸마다 비교. 비교 기준은 초안의 변경(`CueDraft.changes`, 1ms 미만 차이는 변경 아님)만 base에 반영한 큐 목록(`expectedCues(after:)`)이다. 그리드 따라가기로 1ms 미만 움직인 큐는 rekordbox 값 그대로 둔다(#73).
-4. 커밋 뒤 다시 열어 한 번 더 검증 + `PRAGMA quick_check` + `cipher_integrity_check`.
+4. 커밋 뒤 다시 열어 한 번 더 검증 + `PRAGMA quick_check` + `cipher_integrity_check`. 그 뒤 분석 파일·`masterPlaylists6.xml`을 쓴다(백업에 원본을 함께 둔다).
 5. 어느 단계든 실패하면 백업으로 되돌린다. 초안을 만든 뒤 rekordbox에서 그 곡이 바뀌었으면(base 불일치) 그 곡은 쓰지 않는다.
 
 ## 곡 추가·삭제 (`RekordboxTrackWriter`, 2026-09-26 묶음 1·2 실험)
@@ -117,7 +117,7 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 - 막음: LAME이 아닌 VBR MP3(비트레이트 규칙 들쭉날쭉), 프레임이 중간에 끊긴 MP3·FLAC(STREAMINFO 전체 샘플과 프레임 합이 다름), ALAC.
 
 **삭제**: 삭제 표시가 아니라 행을 실제로 지운다.
-- 곡 행, 큐(`djmdCue`·`contentCue`), 파일 행, 오토게인 행, 재생 목록·재생 이력 항목. 같은 이력의 뒤 순번을 하나씩 당기고 그 행들은 한 변경 번호로 몰아 받는다(재생 목록도 같다고 보고 당긴다: 추정).
+- 곡 행, 큐(`djmdCue`·`contentCue`), 파일 행, 오토게인 행, 재생 목록·재생 이력 항목. 같은 이력의 뒤 순번을 하나씩 당기고 그 행들은 한 변경 번호로 몰아 받는다(재생 목록도 같다고 보고 당긴다: 추정). 화면의 "플레이리스트에서 제거"는 남은 곡을 모두 다시 매긴다(아래 "재생 목록"). 컬렉션에서 지울 때 재생 목록 항목이 어떻게 되는지는 아직 실험하지 않았다.
 - 그 곡만 쓰던 아티스트·앨범 행도 지운다. 분석 폴더는 통째로, 아트워크는 파일만 지운다(폴더는 남김).
 - MyTag·핫큐 뱅크·샘플러·관련 곡·신청곡·검열 구간·클라우드 내보내기에 걸린 곡은 아직 지우지 않는다.
 
@@ -155,6 +155,45 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 
 **rekordbox가 음원 파일도 고친다**: 태그를 고치면 파일 태그를 다시 쓰고(m4a 확인), 분석하면 키 태그(TKEY 등)를 써 넣는다(파일 크기가 커짐). 자동 분석을 켜면 라이브러리의 분석 안 된 곡까지 한꺼번에 분석한다.
 
+## 재생 목록 (`RekordboxWriter+Playlist`, #38)
+
+**실험**(2026-09-26 23:36 ~ 09-27 00:07 KST, rekordbox 7.2.18, 합성 곡 "DJC 실험곡 1~5"): 맨 위에 폴더 "DJC 실험"을 만들고 그 안에서 목록 만들기, 곡 넣기(세 곡 한꺼번에·한 곡 따로), 빼기(다섯 곡 중 2·4번째), 순서 바꾸기(5번째 → 1·2번째 사이), 같은 곡 두 번 넣기, 이름 바꾸기, 다른 폴더로 옮기기, 폴더 안 순서 바꾸기(맨 아래 → 맨 위), 목록 지우기(곡 2개 든 가운데 목록), 폴더째 지우기(폴더 > 폴더 > 목록), 가운데 넣기 시도를 차례로 했다. rekordbox는 조작마다 곧바로 DB와 XML에 쓴다. 그래서 켜 둔 채 `djc lab playlist-watch`로 2초마다 라이브 DB·XML을 읽기용으로 복사해 단계마다 비교했다.
+**사본 재현**: 실험 전 사본에 같은 조작 42개를 `djc lab playlist-repro`로 쓰면 목록 행 133개(맨 위 형제 112 + 새 21)·곡 항목 19개·거울 행 21개가 번호(`rb_local_usn`)까지 칸마다 같고, 변경 카운터(1,004,075 → 1,004,366)와 XML NODE 672줄도 같다. 골든 테스트는 `RekordboxPlaylistWriterTests`.
+
+**행 모양**
+- 목록(`djmdPlaylist`): `ID`는 32비트 난수(문자열), `UUID`는 소문자 v4. 폴더 `Attribute` 1·목록 0(인텔리전트 목록은 4·`SmartList`). 맨 위는 `ParentID` `"root"`. 새 행은 `ImagePath`·`SmartList` NULL, 상태 0, `usn` NULL, `created_at` = `updated_at`.
+- 곡 항목(`djmdSongPlaylist`): `ID`·`UUID` 둘 다 소문자 v4(서로 다름). `TrackNo`는 1부터 이어진다. 새 행은 상태 0, `usn` NULL.
+- 클라우드 거울(`djmdCloudFilterPlaylist`): 목록·폴더마다 하나. `ID` 32비트 난수, `PlaylistUUID` = 목록 UUID, `Seq` 0, `ParentID` NULL, 상태 0, `usn` NULL. 고치지 않고, 목록을 지우면 같이 지운다.
+- 고친 행: 바뀐 칸 + `rb_local_usn`·`updated_at`, 상태 256 → 257(0은 그대로). 클라우드 `usn`은 그대로.
+- 지우기는 삭제 표시가 아니라 행을 실제로 지운다(목록·곡 항목·거울). 삭제 표시(`rb_local_deleted` 1)가 남은 옛 행은 건드리지 않고 Seq 계산에서도 뺀다(맨 위 삭제 표시 행 30개는 실험 뒤에도 그대로).
+- 실험 전 라이브러리(읽기 전용 조사): 부모 48곳 모두 Seq가 1부터 이어지고, 목록 404개 모두 TrackNo가 1부터 이어졌다.
+
+**조작별 규칙**. "번호" = 변경 카운터를 하나씩 올려 받는 값. "비움" = rekordbox가 카운터만 올리고 어느 행에도 쓰지 않는 번호다.
+
+| 조작 | 행 | 번호 |
+|---|---|---|
+| 만들기 | 부모의 맨 위(Seq 1), 형제는 Seq +1 | 형제가 있으면 비움 → 새 행 → 형제마다 하나씩(Seq 순서) → 거울 행 → 새 행 한 번 더(rekordbox는 "무제 리스트"로 만든 뒤 이름을 바꾼다) |
+| 이름 바꾸기 | `Name` | 하나 |
+| 곡 넣기 | 끝에 붙인다(보조 브라우저로 가운데에 놓아도 끝) | 한 번에 넣은 곡이 하나를 같이 |
+| 같은 곡 다시 넣기 | 확인 창("사본을 추가하시겠습니까 아니면 스킵하시겠습니까?")에서 "추가"면 새 항목 | 곡 넣기와 같다 |
+| 곡 빼기 | 행을 지우고 남은 곡을 1부터 다시 매긴다 | 비움 → 남은 곡 모두(자리가 그대로인 곡도) 하나를 같이 |
+| 곡 순서 | 옮긴 곡을 끼우고 다시 매긴다 | 자리가 바뀐 곡만 하나를 같이 |
+| 다른 폴더로 옮기기 | 새 폴더의 맨 끝(가장 큰 Seq + 1). 옛 폴더의 형제는 그대로라 Seq에 빈칸이 남는다(가3=1·가1=3) | 옮긴 행 하나 |
+| 폴더 안 순서 | 부모 안을 1부터 다시 매긴다 | 자리가 바뀐 행마다 하나씩(새 순서대로) |
+| 지우기 | 폴더면 안에 든 목록·곡 항목·거울까지. 뒤 형제만 Seq −1 | 비움 → 당긴 형제 모두 하나를 같이 |
+
+**masterPlaylists6.xml**(rekordbox 폴더, CRLF): NODE 한 줄마다 `Id`(목록 ID 16진수 대문자) · `ParentId`(맨 위 `0`) · `Attribute` · `Timestamp`(ms) · `Lib_Type` 0 · `CheckType` 0.
+- 만들기: 끝에 NODE를 붙인다(Timestamp 0, 이름을 붙이면 그 시각). 부모 폴더 Timestamp도 그 시각.
+- 이름 바꾸기·곡 넣기·빼기·순서: 그 목록의 Timestamp.
+- 옮기기: `ParentId`와 Timestamp, 새 부모 Timestamp(옛 부모는 그대로). 폴더 안 순서: 옮긴 목록과 부모 Timestamp.
+- 지우기: 바꾸지 않는다(NODE가 남는다). 그래서 새 ID는 남은 NODE와도 겹치지 않게 고른다.
+
+**DJCrate가 쓰는 것**: `RekordboxWriter.write(playlists:)`가 편집(`PlaylistEdit`)을 적힌 순서대로 한 트랜잭션에서 쓴다. 번호를 받는 순서와 비우는 번호까지 위 표와 같게 한다. 만들기는 이름을 붙인 뒤 모양으로 한 번에 쓰고(XML Timestamp = 쓴 시각), 가운데 넣기는 넣은 뒤 옮기기(`moveTracks`)다. 막힌 편집은 그 편집만 되돌린다(번호도). 다 쓴 뒤 재생 목록 표 전체를 다시 읽어 계획과 같은지, 거울 행이 있는지 트랜잭션 안과 커밋 뒤에 본다. XML은 커밋·확인 뒤 적는다. 적지 못하면 DB·XML 모두 되돌린다. 백업에 XML을 함께 두어 되돌리기 때 같이 살린다. DB 옆에 XML이 없는 사본은 DB만 쓴다. 사본 시험은 `djc playlist-write --db <사본.db> <편집.json>`.
+
+**막는 것**: 인텔리전트 재생 목록, 폴더에 곡 넣기·빼기, 목록 아래에 만들기, 폴더를 제 안으로 옮기기, 컬렉션에 없는 곡, 빈 이름. 곡 빼기·순서는 `(TrackNo, ContentID)`로 자리를 가리켜 편집을 만든 뒤 rekordbox에서 목록이 바뀌었으면 막는다.
+
+**확인하지 않은 것**(규칙을 넓혀 둔 곳): 여러 곡을 한꺼번에 끌어 순서 바꾸기(한 곡만 봤다. 자리가 바뀐 곡만 하나를 같이), Seq에 빈칸이 있는 폴더 안 순서 바꾸기(1부터 다시 매긴다), 뒤 형제가 없는 목록 지우기(비움 하나만), 인텔리전트 목록.
+
 ## ALAC 분석 파일 조사 (#8, 2026-09-26)
 
 **결론: ALAC 기준 표본을 확인하지 못해 규칙을 확정하지 못했다. 분석 붙이기 차단을 유지한다.** 아래는 기존 스냅샷을 읽은 결과이며, rekordbox에서 새로 분석한 전후 비교가 아니다.
@@ -180,6 +219,6 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 ## 새 쓰기 경로를 여는 방법
 
 1. 사용자에게 rekordbox에서 그 편집을 직접 해 달라고 한다(곡 이름 받기, 끝나면 rekordbox 종료).
-2. 편집 전 스냅샷과 새 스냅샷(`djc snapshot --force`)을 `djc lab sql <사본> "…"`·`djc lab db-diff`로 비교: 바뀐 테이블·칸·usn 순서.
+2. 편집 전 스냅샷과 새 스냅샷(`djc snapshot --force`)을 `djc lab sql <사본> "…"`·`djc lab db-diff`로 비교: 바뀐 테이블·칸·usn 순서. rekordbox가 조작마다 바로 쓰는 표면 켜 둔 채 단계마다 떠서 비교할 수 있다(`djc lab playlist-watch --out <폴더>`, 읽기 전용 복사만).
 3. 실험 전 사본에 DJCrate로 같은 편집을 써서 칸마다 비교(예: `djc lab loop-repro --old … --new … --ids … --work <폴더>`).
 4. 일치하면 `Tests/RekordboxKitTests`에 골든 테스트를 먼저 쓰고, 막아 둔 조건을 풀고, 이 문서에 규칙을 적는다.

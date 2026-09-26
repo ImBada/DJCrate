@@ -44,14 +44,20 @@ public enum RekordboxCompatibility {
                         "usn", "rb_local_usn", "created_at", "updated_at"],
         "djmdMixerParam": ["ID", "ContentID", "GainHigh", "GainLow", "PeakHigh", "PeakLow", "UUID", "rb_data_status",
                            "rb_local_data_status", "rb_local_deleted", "rb_local_synced", "usn", "rb_local_usn", "created_at", "updated_at"],
+        // 재생 목록 쓰기(목록·곡 항목·클라우드 거울 행을 새로 넣는다). 곡 삭제도 곡 항목을 지우고 번호를 당긴다.
+        "djmdPlaylist": ["ID", "Seq", "Name", "ImagePath", "Attribute", "ParentID", "SmartList", "UUID", "rb_data_status",
+                         "rb_local_data_status", "rb_local_deleted", "rb_local_synced", "usn", "rb_local_usn", "created_at", "updated_at"],
+        "djmdSongPlaylist": ["ID", "PlaylistID", "ContentID", "TrackNo", "UUID", "rb_data_status", "rb_local_data_status",
+                             "rb_local_deleted", "rb_local_synced", "usn", "rb_local_usn", "created_at", "updated_at"],
+        "djmdCloudFilterPlaylist": ["ID", "PlaylistUUID", "Seq", "ParentID", "UUID", "rb_data_status", "rb_local_data_status",
+                                    "rb_local_deleted", "rb_local_synced", "usn", "rb_local_usn", "created_at", "updated_at"],
     ]
 
     /// 고치거나 읽는 칸: 있어야 한다
     static let requiredColumns: [String: Set<String>] = [
         "agentRegistry": ["registry_id", "int_1"],
         "djmdProperty": ["DBVersion"],
-        // 곡 삭제 때 지우거나 번호를 당기는 표
-        "djmdSongPlaylist": ["ID", "PlaylistID", "ContentID", "TrackNo", "rb_local_usn", "updated_at"],
+        // 곡 삭제 때 지우거나 번호를 당기는 표(곡 항목 djmdSongPlaylist는 위에서 칸 전체를 본다)
         "djmdSongHistory": ["ID", "HistoryID", "ContentID", "TrackNo", "rb_local_usn", "updated_at"],
     ]
 
