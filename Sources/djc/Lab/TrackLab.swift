@@ -12,6 +12,7 @@ enum TrackLab {
         Command("analysis-repro", "<ContentID…> [--db 스냅샷]", "rekordbox 분석 파일을 같은 그리드로 다시 만들어 태그마다 비교(파형은 수치로)", TrackLab.analysisRepro),
         Command("facts-check", "[--limit N] [--db 스냅샷]", "음원 정보(비트레이트·샘플레이트·비트)를 rekordbox 곡 행과 형식별로 비교", TrackLab.factsCheck),
         Command("pvbr-check", "[--db 스냅샷]", "라이브러리 MP3마다 만든 PVBR·비트레이트를 rekordbox .DAT와 바이트로 비교", TrackLab.pvbrCheck),
+        Command("nonlame-vbr-check", "[--db 스냅샷]", "비LAME VBR의 비트레이트 후보·PVBR·파형 길이를 익명 수치로 비교(읽기 전용)", TrackLab.nonLameVBRCheck),
         Command("pvb2-check", "[--db 스냅샷]", "라이브러리 FLAC마다 만든 PVB2(.EXT 탐색표)·음원 칸을 rekordbox와 바이트로 비교", TrackLab.pvb2Check),
         Command("track-add-repro", "--db <스냅샷> <음원 파일…>", "파일로 곡 추가 계획을 만들어 rekordbox가 넣은 행과 칸마다 비교", TrackLab.trackAddRepro),
         Command("analysis-attach-test", "--db <사본.db> --share <사본 share> [--grid-from <.DAT>] <ContentID…>",
@@ -62,6 +63,15 @@ enum TrackLab {
                 "\(name) \(rbDat.tags.filter { $0.fourcc == name }.map(\.bytes) == ours.tags.filter { $0.fourcc == name }.map(\.bytes) ? "같음" : "다름")"
             }.joined(separator: " · "))
             print("   .EXT 태그 순서 rb \(rbExt.tags.map(\.fourcc).joined(separator: " ")) / djc \(oursExt.tags.map(\.fourcc).joined(separator: " "))")
+            for name in ["PWV3", "PWV5"] {
+                if let reference = rbExt.tag(name), reference.bytes.count >= 20,
+                   let generated = oursExt.tag(name), generated.bytes.count >= 20 {
+                    let count = reference.bytes[16..<20].reduce(0) { ($0 << 8) | Int($1) }
+                    let ours = generated.bytes[16..<20].reduce(0) { ($0 << 8) | Int($1) }
+                    print("   \(name) 길이 rb \(count)/djc \(ours)")
+                }
+            }
+            print("   PVB2 rb \(rbExt.tag("PVB2") != nil)/djc \(oursExt.tag("PVB2") != nil) · 예측 지연 \(RekordboxTimeline.predictedOffset(url: url))초")
             if let a = rbDat.tag("PVBR"), let b = ours.tag("PVBR"), a.bytes != b.bytes {
                 print("   PVBR 끝값 rb \(a.bytes.suffix(4).map { String(format: "%02x", $0) }.joined()) / djc \(b.bytes.suffix(4).map { String(format: "%02x", $0) }.joined())")
             }
