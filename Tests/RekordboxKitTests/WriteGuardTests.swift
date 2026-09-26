@@ -77,6 +77,18 @@ struct WriteGuardTests {
         #expect(refusal { _ = try write(fixture, track, guard: .system) }?.contains("7000") == true)
     }
 
+    @Test func 로컬_카운터가_클라우드_동기화_카운터보다_작으면_쓰지_않는다() throws {
+        let fixture = try RekordboxFixture(localUpdateCount: 1000)
+        let track = try fixture.add(TrackSpec())
+        try fixture.insert("agentRegistry", ["registry_id": .text("lastUpdateCount"), "int_1": .int(5000)])
+        #expect(refusal { _ = try write(fixture, track, guard: .system) }?.contains("클라우드") == true)
+        #expect(try fixture.localUpdateCount() == 1000, "카운터도 그대로")
+        #expect(((try? FileManager.default.contentsOfDirectory(atPath: fixture.backups.path)) ?? []).isEmpty, "막힐 쓰기는 백업도 뜨지 않는다")
+        // 동기화 카운터가 더 작으면(보통) 쓴다
+        try fixture.execute("UPDATE agentRegistry SET int_1 = 10 WHERE registry_id = 'lastUpdateCount'")
+        #expect(try write(fixture, track, guard: .system).written.count == 1)
+    }
+
     @Test func 지금_rekordbox_구조는_통과한다() throws {
         let fixture = try RekordboxFixture()
         let db = try CipherDatabase(path: fixture.database.path, key: RekordboxKey.derive())

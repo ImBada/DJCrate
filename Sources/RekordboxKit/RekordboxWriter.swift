@@ -88,6 +88,9 @@ public enum RekordboxWriter {
             let reader = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
             defer { reader.close() }
             try RekordboxCompatibility.checkSchema(reader)
+            // 백업(약 150MB)을 뜨기 전에 막힐 조건을 먼저 본다.
+            let counters = try RekordboxCompatibility.updateCounters(reader)
+            if let local = counters.local { try RekordboxCompatibility.checkCounters(local: local, cloud: counters.cloud) }
         }
         // 그리드 계획(파일을 읽기만 한다)
         var gridPlans: [RekordboxGridWriter.Plan] = []

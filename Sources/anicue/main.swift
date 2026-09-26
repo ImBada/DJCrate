@@ -76,6 +76,9 @@ enum CLI {
         defer { db.close() }
         try RekordboxCompatibility.checkSchema(db)
         print("DB 구조: 확인한 모양과 같음(DBVersion \(RekordboxCompatibility.databaseVersion)) · \(snapshot.lastPathComponent)")
+        let counters = try RekordboxCompatibility.updateCounters(db)
+        print("변경 카운터: 로컬 \(counters.local.map(String.init) ?? "없음") · 클라우드 동기화 \(counters.cloud.map(String.init) ?? "없음")")
+        if let local = counters.local { try RekordboxCompatibility.checkCounters(local: local, cloud: counters.cloud) }
     }
 }
 

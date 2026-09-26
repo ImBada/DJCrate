@@ -58,6 +58,24 @@ public enum RekordboxCompatibility {
         }
     }
 
+    /// 변경 카운터 두 개(`agentRegistry`의 정수 칸만 읽는다. 인증값이 든 칸은 읽지 않는다).
+    /// - local: 이 컴퓨터에서 나눠 준 마지막 번호(`localUpdateCount`)
+    /// - cloud: 클라우드 동기화가 본 가장 큰 번호(`lastUpdateCount`, 동기화를 안 쓰면 없거나 0)
+    public static func updateCounters(_ db: CipherDatabase) throws -> (local: Int?, cloud: Int?) {
+        var local: Int?, cloud: Int?
+        try db.query("SELECT registry_id, int_1 FROM agentRegistry WHERE registry_id IN ('localUpdateCount', 'lastUpdateCount')") { row in
+            if row.string(0) == "localUpdateCount" { local = row.int(1) } else { cloud = row.int(1) }
+        }
+        return (local, cloud)
+    }
+
+    /// 로컬 카운터가 클라우드 동기화 카운터보다 작으면 쓰지 않는다. rekordbox가 동기화하며 그 번호 밑의 변경을
+    /// 되돌렸다는 사례가 있다(조사 2026-09-26). 동기화를 안 쓰면(값 없음·0) 통과.
+    public static func checkCounters(local: Int, cloud: Int?) throws {
+        guard let cloud, cloud > 0, local < cloud else { return }
+        throw AnicueError.writeRefused("rekordbox 변경 카운터(\(local))가 클라우드 동기화 카운터(\(cloud))보다 작습니다. rekordbox를 한 번 켜서 동기화를 끝낸 뒤 종료하고 다시 시도하세요")
+    }
+
     /// 설치된 rekordbox 버전을 확인한다. 못 찾으면(nil) 통과.
     public static func checkApp(version: String?) throws {
         guard let version else { return }

@@ -15,6 +15,7 @@ extension RekordboxWriter {
         let issued = max(try scalar(db, "SELECT ifnull(max(rb_local_usn), 0) FROM djmdContent", []) ?? 0,
                          try scalar(db, "SELECT ifnull(max(rb_local_usn), 0) FROM contentCue", []) ?? 0)
         guard issued <= value else { throw AnicueError.writeRefused("rekordbox 변경 카운터가 예상과 다릅니다") }
+        try RekordboxCompatibility.checkCounters(local: value, cloud: RekordboxCompatibility.updateCounters(db).cloud)
         return value
     }
 
