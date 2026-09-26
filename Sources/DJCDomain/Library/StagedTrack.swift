@@ -24,6 +24,8 @@ public struct StagedTrack: Codable, Sendable, Hashable, Identifiable {
     public var addedOn: String
     /// rekordbox로 가져온 뒤 확인 결과(새 스냅샷에서 같은 경로의 곡을 찾아 그리드를 비교)
     public var importCheck: ImportCheck?
+    /// 옛 staged.json도 읽을 수 있도록 출처가 없는 곡은 nil이다.
+    public var appleMusicOrigins: [AppleMusicOrigin]?
 
     public struct ImportCheck: Codable, Sendable, Hashable {
         public enum Result: String, Codable, Sendable {

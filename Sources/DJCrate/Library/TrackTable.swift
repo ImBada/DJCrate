@@ -28,10 +28,14 @@ private struct TrackListView: NSViewRepresentable {
     func makeCoordinator() -> TrackListCoordinator { TrackListCoordinator(store: store) }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let table = NSTableView()
+        let table = TrackListTableView()
         table.identifier = KeyRouter.trackListID
+        table.coordinator = context.coordinator
         table.dataSource = context.coordinator
         table.delegate = context.coordinator
+        // 태그 칸을 더블클릭하면 바로 고친다(#88). 한 번 클릭은 지금처럼 곡을 골라 덱에 올린다.
+        table.target = context.coordinator
+        table.doubleAction = #selector(TrackListCoordinator.doubleClicked(_:))
         table.style = .inset
         table.rowHeight = 24
         table.usesAlternatingRowBackgroundColors = true
@@ -56,7 +60,7 @@ private struct TrackListView: NSViewRepresentable {
                 column.headerCell.attributedStringValue = TrackColumn.draftHeader
                 column.headerCell.setAccessibilityLabel(spec.title)
             }
-            column.isHidden = spec.id == "preview"
+            column.isHidden = TrackColumn.hiddenByDefault.contains(spec.id)
             table.addTableColumn(column)
         }
         table.menu = context.coordinator.makeMenu()
@@ -99,6 +103,19 @@ private struct TrackListView: NSViewRepresentable {
             table.moveColumn(from, toColumn: from > title ? title + 1 : title)
             if !PerfProbe.enabled { UserDefaults.standard.set(true, forKey: previewKey) }
         }
+        // 새 태그 칸(#88)도 저장된 배치에는 없어 끝으로 밀린다. 한 번만 앨범 옆으로 옮긴다(처음엔 숨김).
+        let tagKey = "djc.trackList.tagColumnsPlaced"
+        if !UserDefaults.standard.bool(forKey: tagKey) {
+            var anchor = "album"
+            for id in ["albumArtist", "composer", "year", "trackNumber"] {
+                if let from = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == id }),
+                   let to = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == anchor }) {
+                    table.moveColumn(from, toColumn: from > to ? to + 1 : to)
+                }
+                anchor = id
+            }
+            UserDefaults.standard.set(true, forKey: tagKey)
+        }
         if let show = PerfProbe.previewColumnVisible {
             table.tableColumns.first(where: { $0.identifier.rawValue == "preview" })?.isHidden = !show
         }
@@ -114,18 +131,20 @@ private struct TrackListView: NSViewRepresentable {
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
+        context.coordinator.updateWriteLock(store.isWritingRekordbox)
         context.coordinator.updateTextScale(context.environment.textScale)
         context.coordinator.updateCommentPreset(store.commentPreset)
         context.coordinator.update(rows: store.displayRows, edited: store.editedUUIDs,
                                    selection: store.selection, sortOrder: store.sortOrder, snapshotURL: store.snapshotURL,
                                    previewRevision: store.previewRevision)
+        context.coordinator.updateTagRevision(store.tagRevision)
         context.coordinator.updateCueCounts(store.draftCueCounts)
         context.coordinator.updatePreviewCues(store.draftPreviewCues)
         context.coordinator.updateWaveformMode(mode)
     }
 }
 
-private struct TrackColumn {
+struct TrackColumn {
     let id: String
     let title: String
     let width: CGFloat
@@ -146,6 +165,10 @@ private struct TrackColumn {
                     help: "곡 전체 파형과 핫큐·메모리 큐·루프 위치"),
         TrackColumn(id: "artist", title: "아티스트", width: 140, minWidth: 80, flexible: true, sortKey: "artist"),
         TrackColumn(id: "album", title: "앨범", width: 150, minWidth: 60, flexible: true, sortKey: "album"),
+        TrackColumn(id: "albumArtist", title: String(localized: "앨범 아티스트"), width: 120, minWidth: 60, flexible: true, sortKey: "albumArtist"),
+        TrackColumn(id: "composer", title: String(localized: "작곡가"), width: 110, minWidth: 60, flexible: true, sortKey: "composer"),
+        TrackColumn(id: "year", title: String(localized: "연도"), width: 46, minWidth: 38, sortKey: "year", ascendingFirst: false),
+        TrackColumn(id: "trackNumber", title: String(localized: "트랙 번호"), width: 60, minWidth: 40, sortKey: "trackNumber"),
         TrackColumn(id: "genre", title: "장르", width: 90, minWidth: 50, flexible: true, sortKey: "genre"),
         TrackColumn(id: "comment", title: "코멘트", width: 250, minWidth: 140, flexible: true, sortKey: "comment"),
         TrackColumn(id: "class", title: "분류", width: 52, minWidth: 40, sortKey: "class", help: "코멘트 분류: 규칙·구형·잔재·크레딧·빈 값·기타"),
@@ -162,6 +185,9 @@ private struct TrackColumn {
         TrackColumn(id: "memoryCues", title: "메모리", width: 50, minWidth: 40, sortKey: "memoryCues", ascendingFirst: false,
                     help: "직접 찍은 메모리 큐 수(빨강). 큐가 없으면 주황 '없음', rekordbox 자동 큐만 있으면 '자동'"),
     ]
+
+    /// 처음에 숨기는 칸(머리글 오른쪽 클릭으로 보인다). 태그 칸은 모두 목록에서 바로 고칠 수 있게 두되(#88) 자주 쓰지 않는 칸은 숨긴다.
+    static let hiddenByDefault: Set<String> = ["preview", "albumArtist", "composer", "year", "trackNumber"]
 
     /// 초안 칸 머리글: 글자 '✎' 대신 pencil 심볼을 머리글 글자색·크기로 넣는다(칸이 좁아 '초안'이 들어가지 않는다).
     /// 제목 '초안'은 칸 메뉴와 VoiceOver에 쓴다.
@@ -184,6 +210,10 @@ private struct TrackColumn {
         case "artist": return KeyPathComparator(\TrackRow.artist, order: order)
         case "genre": return KeyPathComparator(\TrackRow.genre, order: order)
         case "album": return KeyPathComparator(\TrackRow.album, order: order)
+        case "albumArtist": return KeyPathComparator(\TrackRow.albumArtist, order: order)
+        case "composer": return KeyPathComparator(\TrackRow.composer, order: order)
+        case "year": return KeyPathComparator(\TrackRow.releaseYear, order: order)
+        case "trackNumber": return KeyPathComparator(\TrackRow.trackNumber, order: order)
         case "comment": return KeyPathComparator(\TrackRow.comment, order: order)
         case "class": return KeyPathComparator(\TrackRow.commentClassName, order: order)
         case "bpm": return KeyPathComparator(\TrackRow.bpmValue, order: order)
@@ -206,6 +236,10 @@ private struct TrackColumn {
         case \TrackRow.artist: "artist"
         case \TrackRow.genre: "genre"
         case \TrackRow.album: "album"
+        case \TrackRow.albumArtist: "albumArtist"
+        case \TrackRow.composer: "composer"
+        case \TrackRow.releaseYear: "year"
+        case \TrackRow.trackNumber: "trackNumber"
         case \TrackRow.comment: "comment"
         case \TrackRow.commentClassName: "class"
         case \TrackRow.bpmValue: "bpm"
@@ -223,7 +257,7 @@ private struct TrackColumn {
 }
 
 @MainActor
-final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate {
+final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate, NSTextFieldDelegate {
     let store: LibraryStore
     weak var table: NSTableView?
     private var rows: [TrackRow] = []
@@ -236,9 +270,23 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     private var waveformMode = WaveformColorMode.threeBand
     private var previewCues: [String: [PreviewCueMark]] = [:]
     private var textScale = 1.0
-    private var fonts = TextCell.Fonts(scale: 1)
+    private var fonts = TrackTextCell.Fonts(scale: 1)
+    private var tagRevision = 0
     /// 표 → 스토어로 선택·정렬을 넘기는 중에는 스토어 → 표 동기화를 건너뛴다(되먹임 방지).
     private var syncing = false
+
+    /// 칸에서 바로 고치는 중인 태그(#88). 대상 곡과 시작 값은 편집을 시작할 때 정한다.
+    private struct InlineEdit {
+        let row: Int
+        let column: String
+        let session: TrackListTagEditing.Session
+        weak var cell: TrackTextCell?
+        weak var field: NSTextField?
+    }
+    private var inlineEdit: InlineEdit?
+    var isEditing: Bool { inlineEdit != nil }
+    /// 고치는 중인 칸 이름(시험용)
+    var editingColumn: String? { inlineEdit?.column }
 
     init(store: LibraryStore) {
         self.store = store
@@ -258,6 +306,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         store.settings.set(SettingKeys.commentClassColumnHidden, classHiddenWhenEnabled)
         commentPreset = preset
         column.isHidden = preset.rule == nil || classHiddenWhenEnabled
+        cancelEditing()
         reloadVisible(table)
     }
 
@@ -265,8 +314,9 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     func updateTextScale(_ scale: Double) {
         guard scale != textScale, let table else { return }
         textScale = scale
-        fonts = TextCell.Fonts(scale: scale)
+        fonts = TrackTextCell.Fonts(scale: scale)
         table.rowHeight = TextScale.length(24, scale: scale)
+        cancelEditing()
         reloadVisible(table)
     }
 
@@ -289,6 +339,8 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         self.previewRevision = previewRevision
         // 같은 배열이면(== 는 저장소가 같을 때 바로 참) 비교 비용이 없다.
         if rows != self.rows || snapshotChanged {
+            // 줄이 바뀌면(필터·검색·정렬·새 스냅샷) 고치던 칸을 먼저 닫는다. 편집 위치가 줄 번호라 그대로 두면 다른 곡에 남는다.
+            cancelEditing()
             let ids = rows.map(\.id)
             let reordered = ids != rowIDs
             self.rows = rows
@@ -381,6 +433,8 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
 
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
         guard !syncing else { return }
+        // 머리글을 눌러 정렬을 바꾸면 줄이 바뀌기 전에 고치던 칸을 확정한다.
+        finishEditing(commit: true, restoreFocus: true)
         guard let first = tableView.sortDescriptors.first, let key = first.key else {
             store.sortOrder = []
             return
@@ -508,11 +562,13 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         guard let id = sender.representedObject as? String,
               let column = table?.tableColumns.first(where: { $0.identifier.rawValue == id }) else { return }
         guard id != "class" || commentPreset?.rule != nil else { return }
+        finishEditing(commit: true, restoreFocus: true)
         column.isHidden.toggle()
         if id == "class" { store.settings.set(SettingKeys.commentClassColumnHidden, column.isHidden) }
     }
 
     @objc func showAllColumns() {
+        finishEditing(commit: true, restoreFocus: true)
         table?.tableColumns.forEach { $0.isHidden = $0.identifier.rawValue == "class" && commentPreset?.rule == nil }
         if commentPreset?.rule != nil { store.settings.set(SettingKeys.commentClassColumnHidden, false) }
     }
@@ -551,7 +607,11 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             cell.configure(edited: edited.contains(row.track.uuid))
             return cell
         default:
-            let cell = reuse(tableView, "text") { TextCell() }
+            let cell = reuse(tableView, "text") { TrackTextCell() }
+            // 고치던 칸이 다른 자리로 다시 쓰이면(스크롤로 줄이 사라짐) 그 입력을 확정한다. 대상 곡은 편집을 시작할 때 정해 두었다.
+            if let edit = inlineEdit, edit.cell === cell, edit.row != index || edit.column != id {
+                Task { @MainActor [weak self] in self?.finishEditing(commit: true, restoreFocus: true) }
+            }
             cell.fonts = fonts
             configure(cell, column: id, row: row, index: index)
             return cell
@@ -566,20 +626,19 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         return cell
     }
 
-    private func configure(_ cell: TextCell, column: String, row: TrackRow, index: Int) {
+    private func configure(_ cell: TrackTextCell, column: String, row: TrackRow, index: Int) {
+        if let key = TrackListTagEditing.key(forColumn: column) {
+            configureTag(cell, key: key, row: row)
+            return
+        }
         switch column {
         case "index": cell.set("\(row.historyTrackNumber ?? (index + 1))", color: .tertiaryLabelColor, digits: true)
-        case "title": cell.set(row.title, color: .labelColor)
-        case "artist": cell.set(row.artist, color: .secondaryLabelColor)
-        case "genre": cell.set(row.genre, color: .secondaryLabelColor)
-        case "album": cell.set(row.album, color: .secondaryLabelColor)
-        case "comment":
-            if row.comment.isEmpty {
-                cell.set("—", color: .tertiaryLabelColor)
-            } else {
-                cell.set(row.comment, color: row.commentEvaluation?.isMatch == true ? .labelColor : .secondaryLabelColor)
-            }
-        case "class": cell.set(row.commentClassName, color: row.commentEvaluation?.tone.nsTint ?? .secondaryLabelColor)
+        case "class":
+            // 코멘트 초안이 있으면 초안 코멘트로 다시 가른다(반영 전 값이라 초안 표식을 붙인다).
+            let draft = store.tagDrafts[row.track.uuid]
+            let evaluation = TrackListTagEditing.commentEvaluation(row, draft: draft, rule: commentPreset?.rule)
+            cell.set(evaluation?.displayName ?? "", color: evaluation?.tone.nsTint ?? .secondaryLabelColor,
+                     draft: draft.map { $0.base.comment != $0.fields.comment } ?? false)
         case "bpm": cell.set(row.bpmValue > 0 ? String(format: "%.0f", row.bpmValue) : "", color: .secondaryLabelColor, digits: true)
         case "key": cell.set(row.keyName, color: .secondaryLabelColor)
         case "length": cell.set(row.lengthText, color: .secondaryLabelColor, digits: true)
@@ -605,20 +664,171 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         default: cell.set("", color: .labelColor)
         }
     }
+
+    /// 태그 칸: 초안 값이면 초안 색·모서리 표식·VoiceOver "초안"으로 보인다(태그 시트와 같다, #34).
+    private func configureTag(_ cell: TrackTextCell, key: TagFields.Key, row: TrackRow) {
+        let (text, edited) = TrackListTagEditing.text(row, key, draft: store.tagDrafts[row.track.uuid])
+        let color: NSColor = switch key {
+        case .title: .labelColor
+        case .comment: row.commentEvaluation?.isMatch == true ? .labelColor : .secondaryLabelColor
+        default: .secondaryLabelColor
+        }
+        if key == .comment, text.isEmpty {
+            cell.set("—", color: edited ? UIColors.draft.nsColor : .tertiaryLabelColor, draft: edited)
+        } else {
+            cell.set(text, color: edited ? UIColors.draft.nsColor : color,
+                     digits: key == .year || key == .trackNumber, draft: edited)
+        }
+    }
+
+    // MARK: - 칸에서 바로 태그 고치기(#88)
+
+    /// 태그 초안이 바뀌면(목록·시트·인스펙터·되돌리기·외부 초안) 보이는 태그 칸과 분류 칸을 제자리에서 다시 채운다.
+    /// 다시 불러오지 않으므로 고치던 칸이 닫히지 않는다.
+    func updateTagRevision(_ revision: Int) {
+        guard revision != tagRevision, let table else { return }
+        tagRevision = revision
+        refreshTagCells(table)
+    }
+
+    /// rekordbox에 쓰기 시작하면 고치던 칸을 닫는다(쓰는 동안에는 초안을 바꾸지 않는다).
+    func updateWriteLock(_ locked: Bool) {
+        if locked { cancelEditing() }
+    }
+
+    private func refreshTagCells(_ table: NSTableView) {
+        let visible = table.rows(in: table.visibleRect)
+        guard visible.length > 0 else { return }
+        let columns = table.tableColumns.indices.filter {
+            let id = table.tableColumns[$0].identifier.rawValue
+            return TrackListTagEditing.key(forColumn: id) != nil || id == "class"
+        }
+        for index in visible.location..<NSMaxRange(visible) where rows.indices.contains(index) {
+            for column in columns {
+                guard let cell = table.view(atColumn: column, row: index, makeIfNecessary: false) as? TrackTextCell else { continue }
+                configure(cell, column: table.tableColumns[column].identifier.rawValue, row: rows[index], index: index)
+            }
+        }
+    }
+
+    private func visibleColumnIDs(_ table: NSTableView) -> [String] {
+        table.tableColumns.filter { !$0.isHidden }.map(\.identifier.rawValue)
+    }
+
+    @objc func doubleClicked(_ sender: Any?) {
+        guard let table, table.clickedRow >= 0, table.tableColumns.indices.contains(table.clickedColumn) else { return }
+        beginEditing(row: table.clickedRow, column: table.tableColumns[table.clickedColumn].identifier.rawValue)
+    }
+
+    /// Return·Enter: 고른 줄 중 표에서 첫 곡(스트리밍 제외)의 보이는 첫 태그 칸부터 고친다(Finder 이름 바꾸기처럼).
+    @discardableResult
+    func beginEditingSelection() -> Bool {
+        guard let table, let column = TrackListTagEditing.firstColumn(in: visibleColumnIDs(table)),
+              let row = table.selectedRowIndexes.first(where: { rows.indices.contains($0) && !rows[$0].track.isStreaming })
+        else { return false }
+        return beginEditing(row: row, column: column)
+    }
+
+    /// 칸 자리에 입력 칸을 띄운다. 고른 줄 안이면 고른 곡 모두가 대상이다(인스펙터 여러 곡 편집과 같다).
+    @discardableResult
+    func beginEditing(row index: Int, column: String) -> Bool {
+        guard inlineEdit == nil, store.writeLockPolicy.allowsLibraryInteraction, let table, rows.indices.contains(index),
+              let key = TrackListTagEditing.key(forColumn: column),
+              let columnIndex = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == column && !$0.isHidden })
+        else { return false }
+        let selected = table.selectedRowIndexes.compactMap { rows.indices.contains($0) ? rows[$0] : nil }
+        let targets = TrackListTagEditing.targets(anchor: rows[index], selection: selected)
+        guard let session = TrackListTagEditing.Session(key: key, targets: targets, value: { store.tagCell($0, key) }) else { return false }
+        table.scrollRowToVisible(index)
+        table.scrollColumnToVisible(columnIndex)
+        guard let cell = table.view(atColumn: columnIndex, row: index, makeIfNecessary: true) as? TrackTextCell else { return false }
+        let field = cell.beginEditing(text: session.original,
+                                      placeholder: session.mixed ? String(localized: "(여러 값 — 입력하면 모두 바뀜)") : nil)
+        field.delegate = self
+        field.setAccessibilityLabel(key.label)
+        if targets.count > 1 {
+            let help = String(localized: "고른 \(targets.count)곡에 모두 적용합니다")
+            field.toolTip = help
+            field.setAccessibilityHelp(help)
+        }
+        inlineEdit = InlineEdit(row: index, column: column, session: session, cell: cell, field: field)
+        table.window?.makeFirstResponder(field)
+        return true
+    }
+
+    func cancelEditing() {
+        finishEditing(commit: false, restoreFocus: true)
+    }
+
+    /// 편집을 끝낸다. 키나 표 쪽 사정으로 끝낼 때만 표로 포커스를 되돌린다(다른 곳을 눌러 끝나면 그곳에 둔다).
+    /// - Parameter forward: Tab(true)·⇧Tab(false)이면 확정 뒤 보이는 옆 태그 칸을 이어서 고친다.
+    private func finishEditing(commit: Bool, restoreFocus: Bool, thenMove forward: Bool? = nil) {
+        guard let edit = inlineEdit, let table else { return }
+        inlineEdit = nil
+        let value = edit.field?.stringValue ?? edit.session.original
+        if restoreFocus { table.window?.makeFirstResponder(table) }
+        edit.cell?.endEditing()
+        if commit {
+            let targets = TrackListTagEditing.changes(edit.session, committing: value)
+            if !targets.isEmpty { store.setTag(edit.session.key, value, rows: targets) }
+        }
+        refreshTagCells(table)
+        if let forward, let next = TrackListTagEditing.column(after: edit.column, forward: forward, in: visibleColumnIDs(table)) {
+            beginEditing(row: edit.row, column: next)
+        }
+    }
+
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+        guard inlineEdit?.field === control else { return false }
+        switch selector {
+        case #selector(NSResponder.insertNewline(_:)): finishEditing(commit: true, restoreFocus: true)
+        case #selector(NSResponder.insertTab(_:)): finishEditing(commit: true, restoreFocus: true, thenMove: true)
+        case #selector(NSResponder.insertBacktab(_:)): finishEditing(commit: true, restoreFocus: true, thenMove: false)
+        case #selector(NSResponder.cancelOperation(_:)): finishEditing(commit: false, restoreFocus: true)
+        default: return false
+        }
+        return true
+    }
+
+    func controlTextDidEndEditing(_ notification: Notification) {
+        // 다른 곳을 눌러 칸을 벗어나면 확정한다(태그 시트와 같다).
+        guard let field = notification.object as? NSTextField, inlineEdit?.field === field else { return }
+        finishEditing(commit: true, restoreFocus: false)
+    }
+}
+
+/// 곡 목록 표. 곡을 고른 채 Return·Enter를 누르면 태그 칸을 바로 고친다(#88). 나머지 키는 지금처럼 표가 처리한다.
+final class TrackListTableView: NSTableView {
+    weak var coordinator: TrackListCoordinator?
+
+    override func keyDown(with event: NSEvent) {
+        // Return(36)·Enter(76)는 덱 단축키로 줄 수 없는 예약 키라 덱과 부딪히지 않는다.
+        if [36, 76].contains(event.keyCode), event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+           coordinator?.beginEditingSelection() == true { return }
+        super.keyDown(with: event)
+    }
 }
 
 // MARK: - 셀
 
-private final class TextCell: NSTableCellView {
-    private let label = NSTextField(labelWithString: "")
+/// 목록 글자 칸. 태그 초안이면 왼쪽 위 모서리 표식과 VoiceOver 값 "…, 초안"을 붙이고(#34),
+/// 칸에서 바로 고칠 때(#88)는 목록 글자를 가리고 같은 자리에 입력 칸을 띄운다.
+final class TrackTextCell: NSTableCellView {
+    let label = NSTextField(labelWithString: "")
+    private let draftMark = DraftCornerView()
     private var normalColor = NSColor.labelColor
+    /// 접근성 값을 한 번이라도 덮었는지. 셀에 nil을 넣으면 기본값으로 돌아가지 않아 그 뒤로는 글자를 계속 넣는다.
+    private var speaksCustomValue = false
+    private var field: NSTextField?
 
     override var backgroundStyle: NSView.BackgroundStyle {
         didSet { updateColor() }
     }
 
     private func updateColor() {
-        label.textColor = backgroundStyle == .emphasized ? .alternateSelectedControlTextColor : normalColor
+        let emphasized = backgroundStyle == .emphasized
+        label.textColor = emphasized ? .alternateSelectedControlTextColor : normalColor
+        draftMark.color = emphasized ? .alternateSelectedControlTextColor : UIColors.draft.nsColor
     }
 
     /// 글자 배율에 맞춘 본문·숫자 글꼴(표가 배율이 바뀔 때 한 번 만든다)
@@ -635,6 +845,10 @@ private final class TextCell: NSTableCellView {
 
     var fonts = Fonts(scale: 1)
 
+    /// 칸 글자·초안 표식(시험용)
+    var text: String { label.stringValue }
+    var showsDraftMark: Bool { !draftMark.isHidden }
+
     init() {
         super.init(frame: .zero)
         label.lineBreakMode = .byTruncatingTail
@@ -642,21 +856,63 @@ private final class TextCell: NSTableCellView {
         label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)
         textField = label
+        draftMark.translatesAutoresizingMaskIntoConstraints = false
+        draftMark.isHidden = true
+        addSubview(draftMark)
         NSLayoutConstraint.activate([
             label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
             label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            draftMark.leadingAnchor.constraint(equalTo: leadingAnchor),
+            draftMark.topAnchor.constraint(equalTo: topAnchor),
+            draftMark.widthAnchor.constraint(equalToConstant: 7),
+            draftMark.heightAnchor.constraint(equalToConstant: 7),
         ])
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func set(_ text: String, color: NSColor, digits: Bool = false) {
+    /// - Parameter draft: 반영 전 초안 값. 색과 함께 모서리 표식·VoiceOver "초안"으로도 알린다.
+    func set(_ text: String, color: NSColor, digits: Bool = false, draft: Bool = false) {
         if label.stringValue != text { label.stringValue = text }
         normalColor = color
         updateColor()
         let font = digits ? fonts.digits : fonts.text
         if label.font != font { label.font = font }
+        if draftMark.isHidden == draft { draftMark.isHidden = !draft }
+        if draft || speaksCustomValue {
+            label.cell?.setAccessibilityValue(draft ? "\(text), \(DraftMark.spoken)" : text)
+            speaksCustomValue = true
+        }
+    }
+
+    /// 칸 자리에 입력 칸을 띄운다(목록 글자는 가린다). 끝나면 `endEditing`으로 걷는다.
+    func beginEditing(text: String, placeholder: String?) -> NSTextField {
+        endEditing()
+        let field = NSTextField(string: text)
+        field.font = label.font
+        field.placeholderString = placeholder
+        field.isBordered = false
+        field.drawsBackground = true
+        field.backgroundColor = .textBackgroundColor
+        field.cell?.usesSingleLineMode = true
+        field.cell?.isScrollable = true
+        field.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(field)
+        NSLayoutConstraint.activate([
+            field.leadingAnchor.constraint(equalTo: label.leadingAnchor),
+            field.trailingAnchor.constraint(equalTo: label.trailingAnchor),
+            field.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+        label.isHidden = true
+        self.field = field
+        return field
+    }
+
+    func endEditing() {
+        field?.removeFromSuperview()
+        field = nil
+        label.isHidden = false
     }
 }
 
