@@ -119,3 +119,19 @@ public struct Loudness: Codable, Hashable, Sendable {
     /// 곡 자체가 과하게 센가(매우 큰 마스터이거나 심한 클리핑)
     public var isHot: Bool { isLoud || isHeavilyClipped }
 }
+
+import AVFoundation
+
+public extension Loudness {
+    /// 파일 전체를 디코딩해 잰다.
+    static func measure(fileAt url: URL) throws -> Loudness {
+        let file = try AVAudioFile(forReading: url)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)) else {
+            return Loudness(integrated: nil, peak: -120, clippedRuns: 0)
+        }
+        try file.read(into: buffer)
+        let frames = Int(buffer.frameLength)
+        let channels = (0..<Int(buffer.format.channelCount)).map { UnsafeBufferPointer(start: buffer.floatChannelData![$0], count: frames) }
+        return measure(channels: channels, sampleRate: buffer.format.sampleRate)
+    }
+}

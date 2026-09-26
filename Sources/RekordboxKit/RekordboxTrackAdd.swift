@@ -28,6 +28,8 @@ public struct TrackAddPlan: Sendable, Codable, Equatable {
     public var fileSize: Int
     public var fileID: String
     public var length: Int
+    /// AVFoundation이 잰 길이(초). 분석을 붙이면 rekordbox처럼 버림해 적는다.
+    public var duration: Double
     public var dateCreated: String
     public var stockDate: String
 
@@ -60,6 +62,6 @@ public struct TrackAddPlan: Sendable, Codable, Equatable {
             artist: tags.artist, album: tags.album, albumArtist: tags.albumArtist, genre: tags.genre, composer: tags.composer,
             comment: tags.comment ?? "", year: tags.year ?? 0, trackNumber: tags.trackNumber ?? 0, discNumber: tags.discNumber ?? 0,
             isrc: tags.isrc ?? "", lyricist: tags.lyricist ?? "", fileType: fileType, fileSize: size, fileID: String(inode),
-            length: Int(tags.duration.rounded()), dateCreated: dateText(created), stockDate: dateText(now))
+            length: Int(tags.duration.rounded()), duration: tags.duration, dateCreated: dateText(created), stockDate: dateText(now))
     }
 }

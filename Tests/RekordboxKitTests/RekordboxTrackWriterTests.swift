@@ -106,6 +106,58 @@ struct RekordboxTrackWriterTests {
         #expect(try fixture.rows("SELECT * FROM djmdContent").count == 1)
     }
 
+    // MARK: 분석까지 붙여 넣기
+
+    @Test func 분석을_붙이면_분석_파일_3개와_파일_행_오토게인_행까지() async throws {
+        let fixture = try RekordboxFixture(localUpdateCount: 3000)
+        try fixture.add(TrackSpec())
+        let p = try await plan("mp3-tagged.mp3")
+        let analysis = RekordboxTrackWriter.Analysis(segments: [GridSegment(start: 0.5, bpm: 120, firstBeatNumber: 1)], loudness: -8, peak: 0.9)
+        let report = try RekordboxTrackWriter.add([p], analyses: [p.path: analysis], to: fixture.database, shareRoot: fixture.shareRoot,
+                                                  dryRun: false, now: now, backups: fixture.backups)
+        let id = try #require(report.added.first?.contentID)
+        let r = try row(fixture, id)
+        #expect(r["BPM"] == "12000" && r["Length"] == "2" && r["BitRate"] == "128" && r["SampleRate"] == "44100" && r["BitDepth"] == "16")
+        #expect(r["Analysed"] == "105" && r["ContentLink"] == "2885134" && r["AnalysisUpdated"] == "3" && r["TrackInfoUpdated"] == "2")
+        let uuid = try #require(r["UUID"])
+        #expect(r["AnalysisDataPath"] == "/PIONEER/USBANLZ/\(uuid.prefix(3))/\(uuid.dropFirst(3))/ANLZ0000.DAT")
+        // 분석 파일: rekordbox 7.2.18과 같은 태그 순서
+        let dat = try AnlzFile(url: try #require(RekordboxShare.analysisURL(r["AnalysisDataPath"], root: fixture.shareRoot)))
+        #expect(dat.tags.map(\.fourcc) == ["PPTH", "PVBR", "PQTZ", "PWAV", "PWV2", "PCOB", "PCOB"])
+        let beats = BeatGridTags.decode(pqtz: try #require(dat.tag("PQTZ")).bytes, pqt2: nil).beats
+        #expect(beats.prefix(2).map(\.time) == [0, 500] && beats[1].number == 1 && beats.allSatisfy { $0.bpm100 == 12000 })
+        #expect(report.createdFiles.count == 3)
+        // 파일 행 3개(해시·크기가 실제 파일과 같다)
+        let files = try fixture.rows("SELECT Path, Hash, Size, rb_local_path, ID FROM contentFile WHERE ContentID = ? ORDER BY Path", [.text(id)])
+        #expect(files.map { String($0["Path"]!.suffix(3)) } == ["2EX", "DAT", "EXT"])
+        for file in files {
+            let data = try Data(contentsOf: URL(filePath: file["rb_local_path"]!))
+            #expect(file["Size"] == String(data.count) && file["ID"]!.hasPrefix("\(uuid)_%2FPIONEER%2FUSBANLZ%2F"))
+        }
+        // 오토게인: −10 LUFS 목표 → −8 LUFS 곡은 −2dB
+        let mixer = try #require(try fixture.rows("SELECT * FROM djmdMixerParam WHERE ContentID = ?", [.text(id)]).first)
+        let gain = RekordboxAutoGain.float(high: Int(mixer["GainHigh"]!)!, low: Int(mixer["GainLow"]!)!)
+        #expect(abs(20 * log10(Double(gain)) + 2) < 1e-4)
+        #expect(abs(Double(RekordboxAutoGain.float(high: Int(mixer["PeakHigh"]!)!, low: Int(mixer["PeakLow"]!)!)) - 0.9) < 1e-6)
+        // 지우면 분석 폴더도 사라진다
+        _ = try RekordboxTrackWriter.delete(contentIDs: [id], from: fixture.database, shareRoot: fixture.shareRoot, dryRun: false,
+                                            now: now.addingTimeInterval(1), backups: fixture.backups)
+        #expect(!FileManager.default.fileExists(atPath: dat.tags.isEmpty ? "" : try #require(RekordboxShare.analysisURL(r["AnalysisDataPath"], root: fixture.shareRoot)).path))
+        #expect(try fixture.rows("SELECT * FROM contentFile WHERE ContentID = ?", [.text(id)]).isEmpty)
+    }
+
+    @Test func 규칙을_모르는_형식은_분석을_붙이지_않고_막는다() async throws {
+        let fixture = try RekordboxFixture()
+        try fixture.add(TrackSpec())
+        let flac = try AudioFixture.flac(seconds: 1, in: fixture.audio)
+        let p = try TrackAddPlan.make(url: flac, tags: try await AudioTags.read(url: flac), now: now)
+        let analysis = RekordboxTrackWriter.Analysis(segments: [GridSegment(start: 0, bpm: 120, firstBeatNumber: 1)], loudness: -10, peak: 1)
+        let report = try RekordboxTrackWriter.add([p], analyses: [p.path: analysis], to: fixture.database, shareRoot: fixture.shareRoot,
+                                                  dryRun: false, now: now, backups: fixture.backups)
+        #expect(report.added.first?.written == false && report.added.first?.reason?.contains("FLAC") == true)
+        #expect(try fixture.rows("SELECT * FROM djmdContent").count == 1)
+    }
+
     // MARK: 삭제
 
     /// A(지울 곡)·B가 재생 목록·이력에 A, B 순으로 있다. A만 쓰는 아티스트·앨범, 둘이 같이 쓰는 아티스트.
