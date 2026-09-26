@@ -14,6 +14,8 @@ let languages = ["en", "ja"]
 
 struct Extracted {
     var key: String
+    /// 키를 따로 준 문구(`String(localized: "키", defaultValue: "원문", …)`)의 원문.
+    var value: String?
     var table: String
     var file: String
     var line: Int
@@ -68,7 +70,7 @@ func extracted(from files: [URL]) -> [Extracted] {
         for (table, entries) in json["tables"] as? [String: [[String: Any]]] ?? [:] {
             for entry in entries {
                 let location = entry["location"] as? [String: Int] ?? [:]
-                result.append(Extracted(key: entry["key"] as? String ?? "", table: table, file: source,
+                result.append(Extracted(key: entry["key"] as? String ?? "", value: entry["value"] as? String, table: table, file: source,
                                         line: location["startingLine"] ?? 0, column: location["startingColumn"] ?? 0))
             }
         }
@@ -78,11 +80,13 @@ func extracted(from files: [URL]) -> [Extracted] {
 
 /// 문구는 `String(ui:)`·`.ui(…)`로만 카탈로그를 찾는다. SwiftUI에 문자열을 그대로 주면(Text("…"))
 /// 메인 번들을 찾아서 개발 빌드·테스트와 앱 번들이 다르게 보인다. 원문 그대로 보일 글은 verbatim으로 쓴다.
+/// 같은 한국어를 뜻에 따라 달리 번역할 때만 키를 따로 주고 번들은 `UIStrings.bundle`로 준다.
 func misplaced(_ entries: [Extracted]) -> [String] {
     var sources: [String: [Substring]] = [:]
     let allowed = try! Regex(#"(String\(ui:|\.ui\()\s*#*$"#)
+    let explicitKey = try! Regex(#"(String\(localized:|LocalizedStringResource\()\s*#*$"#)
     var problems: [String] = []
-    for entry in entries {
+    for entry in entries where !isTextless(entry.value ?? entry.key) {
         let relative = entry.file.replacingOccurrences(of: root.path + "/", with: "")
         guard entry.table == "Localizable" else {
             problems.append("\(relative):\(entry.line): 표 '\(entry.table)'는 쓰지 않습니다. String(ui:)·.ui(…)로 쓰세요")
@@ -98,7 +102,10 @@ func misplaced(_ entries: [Extracted]) -> [String] {
         let current = Array(lines[entry.line - 1].utf8)
         let head = String(decoding: current.prefix(max(entry.column - 1, 0)), as: UTF8.self)
         let before = lines[max(0, entry.line - 3)..<(entry.line - 1)].joined(separator: "\n") + "\n" + head
-        if before.firstMatch(of: allowed) == nil {
+        let after = String(decoding: current.dropFirst(max(entry.column - 1, 0)), as: UTF8.self)
+            + lines[entry.line..<min(lines.count, entry.line + 2)].joined(separator: "\n")
+        let keyed = entry.value != nil && before.firstMatch(of: explicitKey) != nil && after.contains("bundle: UIStrings.bundle")
+        if before.firstMatch(of: allowed) == nil && !keyed {
             problems.append("\(relative):\(entry.line): \"\(entry.key)\" — String(ui:)·.ui(…) 밖의 지역화 문구입니다. 번역할 문구면 .ui(…)로, 그대로 보일 글이면 Text(verbatim:)으로 쓰세요")
         }
     }
@@ -157,6 +164,13 @@ func placeholders(_ text: String) -> [String] {
     }.sorted()
 }
 
+/// 자리표시자와 빈칸만 있는 키(SF 심볼을 끼운 Text("\(letter)\(Image(…))")의 "%@%@" 등)는 번역할 것이 없다.
+/// 따옴표·쌍점이 있는 키("‘%@’")는 언어마다 부호가 달라(「%@」) 번역한다.
+func isTextless(_ key: String) -> Bool {
+    let pattern = try! Regex(#"%(?:\d+\$)?[-+ #0']*\d*(?:\.\d+)?(hh|h|ll|l|q|L|z|t|j)?[@dDiuUxXoOfeEgGcCsSpaA%]"#)
+    return key.replacing(pattern, with: "").allSatisfy(\.isWhitespace)
+}
+
 func isSubset(_ small: [String], of large: [String]) -> Bool {
     var remaining = large
     for item in small {
@@ -167,10 +181,12 @@ func isSubset(_ small: [String], of large: [String]) -> Bool {
 }
 
 /// en·ja 번역이 모두 있고 자리표시자가 원문과 같은지. 복수형 변형은 원문의 일부만 써도 된다("1곡"의 1을 글로).
+/// 키를 따로 준 문구는 한국어 원문 값(ko)과 비교한다.
 func translationProblems(_ catalog: [String: Any], name: String, languages: [String] = languages) -> [String] {
     var problems: [String] = []
     for (key, entry) in strings(catalog).sorted(by: { $0.key < $1.key }) where entry["shouldTranslate"] as? Bool != false {
-        let source = placeholders(key)
+        let korean = (((entry["localizations"] as? [String: Any])?["ko"] as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String
+        let source = placeholders(korean ?? key)
         for language in languages {
             guard let values = translations(entry, language: language) else {
                 problems.append("\(name) \(language) 번역 없음: \(key)")
@@ -208,6 +224,7 @@ case "sync":
     var entries = strings(after)
     let removed = entries.filter { isStale($0.value) }.map(\.key).sorted()
     for key in removed { entries[key] = nil }
+    for key in entries.keys { entries[key]?["shouldTranslate"] = isTextless(key) ? false : nil }
     after["strings"] = entries
     // 빠진 문구만 빼고 다시 맞춰 xcstringstool 모양 그대로 저장한다.
     let data = try! JSONSerialization.data(withJSONObject: after, options: [.prettyPrinted, .sortedKeys])

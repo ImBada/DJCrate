@@ -181,7 +181,7 @@ struct TrackColumn {
         TrackColumn(id: "tempo", title: String(ui: "변속"), width: 90, minWidth: 44, sortKey: "tempo", ascendingFirst: false,
                     help: String(ui: "rekordbox 그리드에서 BPM이 바뀌는 곡의 흐름(예: 175→128→175)")),
         TrackColumn(id: "imported", title: String(ui: "임포트"), width: 86, minWidth: 70, sortKey: "imported", ascendingFirst: false),
-        TrackColumn(id: "plays", title: String(ui: "재생"), width: 42, minWidth: 34, sortKey: "plays", ascendingFirst: false),
+        TrackColumn(id: "plays", title: String(localized: "library.column.plays", defaultValue: "재생", bundle: UIStrings.bundle), width: 42, minWidth: 34, sortKey: "plays", ascendingFirst: false),
         TrackColumn(id: "hotCues", title: String(ui: "핫큐"), width: 42, minWidth: 34, sortKey: "hotCues", ascendingFirst: false,
                     help: String(ui: "직접 찍은 핫큐 수(초록)")),
         TrackColumn(id: "memoryCues", title: String(ui: "메모리"), width: 50, minWidth: 40, sortKey: "memoryCues", ascendingFirst: false,

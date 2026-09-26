@@ -18,6 +18,21 @@ struct LocalizationCatalogTests {
         #expect(value != "설정…")
     }
 
+    @Test func 뜻이_다른_같은_원문은_키를_나눠_번역한다() {
+        #expect(lookup("재생", in: "en") == "Playback")
+        #expect(lookup("library.column.plays", in: "en") == "Plays")
+        #expect(lookup("reflection.restore", in: "ja") == "元に戻す")
+    }
+
+    @Test func 영어는_수에_따라_복수형을_고른다() throws {
+        let path = try #require(Bundle.module.path(forResource: "en", ofType: "lproj"))
+        let format = try #require(Bundle(path: path)).localizedString(forKey: "마디 %lld개", value: nil, table: nil)
+        // 복수형 규칙은 형식을 채우는 로캘의 언어를 따른다(앱에서는 화면 언어와 같다).
+        let english = Locale(identifier: "en_US")
+        #expect(String(format: format, locale: english, 1) == "1 bar")
+        #expect(String(format: format, locale: english, 3) == "3 bars")
+    }
+
     @Test func 개발_빌드도_macOS_언어_목록을_가진다() throws {
         // 실행 파일에 넣은 Info.plist(Package.swift의 -sectcreate)와 같은 파일이다.
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "../../Sources/DJCrate/Info.plist")

@@ -441,7 +441,7 @@ struct ReflectionCoordinator {
         }
         lines.append(String(ui: "백업한 뒤 되돌리고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요."))
         return ReflectionPrompt(title: String(ui: "rekordbox를 쓰기 전으로 되돌릴까요?"),
-                                text: lines.joined(separator: "\n\n"), confirm: String(ui: "되돌리기"),
+                                text: lines.joined(separator: "\n\n"), confirm: String(localized: "reflection.restore", defaultValue: "되돌리기", bundle: UIStrings.bundle),
                                 critical: changed != false, destructive: changed != false, details: details)
     }
 }

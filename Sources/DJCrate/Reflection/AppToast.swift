@@ -70,7 +70,7 @@ struct AppToastView: View {
             .fixedSize(horizontal: false, vertical: true)
             if let onDetails { Button(.ui("결과 보기"), action: onDetails).controlSize(ControlSize.small.scaled(textScale)) }
             if let onUndo, toast.undoBackup != nil {
-                Button(.ui("되돌리기"), action: onUndo)
+                Button(LocalizedStringResource("reflection.restore", defaultValue: "되돌리기", bundle: UIStrings.bundle), action: onUndo)
                     .controlSize(ControlSize.small.scaled(textScale))
                     .help(.ui("rekordbox 라이브러리를 이번 쓰기 직전 백업으로 되돌립니다(rekordbox가 꺼져 있어야 합니다)"))
             }
