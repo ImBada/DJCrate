@@ -15,7 +15,10 @@ extension RekordboxWriter {
         /// 곡 추가·삭제 보고서
         public var trackReport: RekordboxTrackWriter.Report?
 
-        public var titles: [String] { (report.map { $0.written + $0.analysisWritten }?.map(\.title) ?? []) + (trackReport?.titles ?? []) }
+        public var titles: [String] {
+            (report.map { $0.written + $0.analysisWritten }?.map(\.title) ?? []) + (report?.playlistWritten.map(\.name) ?? [])
+                + (trackReport?.titles ?? [])
+        }
         /// 쓴 직후 rekordbox 변경 카운터(옛 백업에는 없다)
         public var finalUpdateCount: Int? { report?.finalUpdateCount ?? trackReport?.finalUpdateCount }
 
@@ -54,6 +57,13 @@ extension RekordboxWriter {
                 try? fm.removeItem(at: folder)
                 throw DJCError.sourceChangedDuringCopy(path: source.path)
             }
+        }
+        // 재생 목록 쓰기가 고치는 masterPlaylists6.xml도 둔다(되돌리면 DB와 같은 때로).
+        let xml = playlistXMLURL(for: database)
+        if fm.fileExists(atPath: xml.path) {
+            let destination = folder.appending(path: xml.lastPathComponent)
+            try fm.copyItem(at: xml, to: destination)
+            try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
         }
         return folder
     }
@@ -174,12 +184,23 @@ extension RekordboxWriter {
                 try fm.removeItem(at: target)
             }
         }
+        // 옛 백업에는 없다(그때는 XML을 고치지 않았다).
+        let xml = backup.appending(path: "masterPlaylists6.xml")
+        if fm.fileExists(atPath: xml.path) {
+            try Data(contentsOf: xml).write(to: playlistXMLURL(for: database), options: .atomic)
+        }
     }
 
 
     public static func updateCount(of database: URL) throws -> Int {
         let db = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
         return try localUpdateCount(db)
+    }
+
+    /// 백업에 둔 재생 목록 편집(되돌리면 초안으로 살린다)
+    public static func playlistEdits(in backup: URL) -> [PlaylistEdit] {
+        guard let data = try? Data(contentsOf: backup.appending(path: "playlist-edits.json")) else { return [] }
+        return (try? JSONDecoder().decode([PlaylistEdit].self, from: data)) ?? []
     }
 
     /// 백업에 들어 있는 쓰기 보고서와 초안.

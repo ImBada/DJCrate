@@ -120,6 +120,33 @@ public final class RekordboxFixture {
             .deletingPathExtension().appendingPathExtension(ext)
     }
 
+    /// 재생 목록·폴더 하나(djmdPlaylist + 클라우드 거울 행 + 곡 항목). 동기화를 마친 행처럼 상태 256·usn을 채운다.
+    @discardableResult
+    public func add(_ playlist: PlaylistSpec) throws -> PlaylistSpec {
+        let db = try open()
+        defer { db.close() }
+        try db.run("""
+            INSERT INTO djmdPlaylist (ID, Seq, Name, ImagePath, Attribute, ParentID, SmartList, UUID, rb_data_status, rb_local_data_status,
+                rb_local_deleted, rb_local_synced, usn, rb_local_usn, created_at, updated_at)
+            VALUES (?, ?, ?, NULL, ?, ?, NULL, ?, 256, 0, 0, 1, 20, 20, ?, ?)
+            """, [.text(playlist.id), .int(playlist.seq), .text(playlist.name), .int(playlist.isFolder ? 1 : 0), .text(playlist.parentID),
+                  .text(playlist.uuid), .text(Self.stamp), .text(Self.stamp)])
+        try db.run("""
+            INSERT INTO djmdCloudFilterPlaylist (ID, PlaylistUUID, Seq, ParentID, UUID, rb_data_status, rb_local_data_status, rb_local_deleted,
+                rb_local_synced, usn, rb_local_usn, created_at, updated_at)
+            VALUES (?, ?, 0, NULL, ?, 256, 0, 0, 0, 21, 21, ?, ?)
+            """, [.text("cf-\(playlist.id)"), .text(playlist.uuid), .text(UUID().uuidString.lowercased()), .text(Self.stamp), .text(Self.stamp)])
+        for (index, contentID) in playlist.contentIDs.enumerated() {
+            try db.run("""
+                INSERT INTO djmdSongPlaylist (ID, PlaylistID, ContentID, TrackNo, UUID, rb_data_status, rb_local_data_status, rb_local_deleted,
+                    rb_local_synced, usn, rb_local_usn, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 256, 0, 0, 0, 22, 22, ?, ?)
+                """, [.text(UUID().uuidString.lowercased()), .text(playlist.id), .text(contentID), .int(index + 1),
+                      .text(UUID().uuidString.lowercased()), .text(Self.stamp), .text(Self.stamp)])
+        }
+        return playlist
+    }
+
     /// `.DAT`의 contentFile 행(그리드 BPM 변경 때 해시·크기를 고친다)
     public func addContentFile(for track: TrackSpec, hash: String, size: Int) throws {
         let db = try open()
@@ -241,6 +268,28 @@ public struct TrackSpec: Sendable {
         if legacyJSON { pairs.reverse() }
         let present = pairs.compactMap { key, value in value.map { (key, $0) } }
         return CueJSON.Object(fields: present)
+    }
+}
+
+/// 합성 재생 목록·폴더
+public struct PlaylistSpec: Sendable {
+    public var id: String
+    public var uuid = UUID().uuidString.lowercased()
+    public var name: String
+    public var parentID: String
+    public var seq: Int
+    public var isFolder: Bool
+    /// TrackNo 순서의 곡 ID(같은 곡이 여러 번 있을 수 있다)
+    public var contentIDs: [String]
+
+    public init(id: String = String(Int.random(in: 100_000...4_000_000_000)), name: String, parentID: String = "root", seq: Int,
+                isFolder: Bool = false, contentIDs: [String] = []) {
+        self.id = id
+        self.name = name
+        self.parentID = parentID
+        self.seq = seq
+        self.isFolder = isFolder
+        self.contentIDs = contentIDs
     }
 }
 
