@@ -249,6 +249,7 @@ public struct RekordboxWaveforms: Sendable, Equatable {
     // MARK: - 태그 바이트
 
     static func be32(_ v: UInt32) -> [UInt8] { withUnsafeBytes(of: v.bigEndian) { Array($0) } }
+    static func be64(_ v: UInt64) -> [UInt8] { withUnsafeBytes(of: v.bigEndian) { Array($0) } }
     static func be16(_ v: UInt16) -> [UInt8] { withUnsafeBytes(of: v.bigEndian) { Array($0) } }
 
     /// `fourcc · len_header · len_tag · 본문`
@@ -291,12 +292,13 @@ public struct RekordboxWaveforms: Sendable, Equatable {
     /// - .EXT: PPTH · PWV3 · PCOB(핫) · PCOB(메모리) · PCO2(핫) · PCO2(메모리) · PQT2(빈 형태) · PWV5 · PWV4
     /// - .2EX: PPTH · PWV7 · PWV6 · PWVC
     /// 프레이즈(PSSI)·보컬(PVDI)은 만들지 못해 넣지 않는다.
-    public func files(dat: AnlzFile) throws -> (ext: Data, twoEx: Data) {
+    /// `extTail`: .EXT 끝에 덧붙일 태그(FLAC의 PVB2)
+    public func files(dat: AnlzFile, extTail: [Data] = []) throws -> (ext: Data, twoEx: Data) {
         guard let ppth = dat.tag("PPTH") else { throw DJCError.invalidAnalysisFile(".DAT에 경로(PPTH)가 없음") }
         let pcob = dat.tags.filter { $0.fourcc == "PCOB" }.map(\.bytes)
         guard pcob.count == 2 else { throw DJCError.invalidAnalysisFile(".DAT의 큐 목록(PCOB)이 두 개가 아님") }
         let ext = AnlzFile(header: dat.header, tags: [ppth.bytes, pwv3Tag, pcob[0], pcob[1], Self.emptyPCO2(kind: 1), Self.emptyPCO2(kind: 0),
-                                                       BeatGridTags.pqt2([], unknown: 0), pwv5Tag, pwv4Tag])
+                                                       BeatGridTags.pqt2([], unknown: 0), pwv5Tag, pwv4Tag] + extTail)
         let twoEx = AnlzFile(header: dat.header, tags: [ppth.bytes, pwv7Tag, pwv6Tag, pwvcTag])
         return (ext.serialized(), twoEx.serialized())
     }

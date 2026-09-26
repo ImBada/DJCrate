@@ -149,13 +149,32 @@ struct RekordboxTrackWriterTests {
     @Test func 규칙을_모르는_형식은_분석을_붙이지_않고_막는다() async throws {
         let fixture = try RekordboxFixture()
         try fixture.add(TrackSpec())
-        let flac = try AudioFixture.flac(seconds: 1, in: fixture.audio)
+        let alac = try AudioFixture.alac(seconds: 1, in: fixture.audio)
+        let p = try TrackAddPlan.make(url: alac, tags: try await AudioTags.read(url: alac), now: now)
+        let analysis = RekordboxTrackWriter.Analysis(segments: [GridSegment(start: 0, bpm: 120, firstBeatNumber: 1)], loudness: -10, peak: 1)
+        let report = try RekordboxTrackWriter.add([p], analyses: [p.path: analysis], to: fixture.database, shareRoot: fixture.shareRoot,
+                                                  dryRun: false, now: now, backups: fixture.backups)
+        #expect(report.added.first?.written == false && report.added.first?.reason?.contains("ALAC") == true)
+        #expect(try fixture.rows("SELECT * FROM djmdContent").count == 1)
+    }
+
+    @Test func FLAC은_EXT_끝에_탐색표_PVB2를_붙인다() async throws {
+        let fixture = try RekordboxFixture()
+        try fixture.add(TrackSpec())
+        let flac = try AudioFixture.flac(seconds: 2, in: fixture.audio)
         let p = try TrackAddPlan.make(url: flac, tags: try await AudioTags.read(url: flac), now: now)
         let analysis = RekordboxTrackWriter.Analysis(segments: [GridSegment(start: 0, bpm: 120, firstBeatNumber: 1)], loudness: -10, peak: 1)
         let report = try RekordboxTrackWriter.add([p], analyses: [p.path: analysis], to: fixture.database, shareRoot: fixture.shareRoot,
                                                   dryRun: false, now: now, backups: fixture.backups)
-        #expect(report.added.first?.written == false && report.added.first?.reason?.contains("FLAC") == true)
-        #expect(try fixture.rows("SELECT * FROM djmdContent").count == 1)
+        let id = try #require(report.added.first?.contentID)
+        let r = try row(fixture, id)
+        #expect(r["FileType"] == "5" && r["BitRate"] == "0" && r["BitDepth"] == "24" && r["SampleRate"] == "44100" && r["Analysed"] == "105")
+        let datURL = try #require(RekordboxShare.analysisURL(r["AnalysisDataPath"], root: fixture.shareRoot))
+        let pvbr = try #require(try AnlzFile(url: datURL).tag("PVBR"))
+        #expect(pvbr.bytes.dropFirst(12).allSatisfy { $0 == 0 }, "FLAC의 PVBR은 탐색표·끝값 모두 0")
+        let ext = try AnlzFile(url: datURL.deletingPathExtension().appendingPathExtension("EXT"))
+        #expect(ext.tags.map(\.fourcc) == ["PPTH", "PWV3", "PCOB", "PCOB", "PCO2", "PCO2", "PQT2", "PWV5", "PWV4", "PVB2"])
+        #expect(ext.tag("PVB2")?.bytes == TrackAnalysisFiles.pvb2(AudioFacts.read(url: flac)))
     }
 
     // MARK: 삭제

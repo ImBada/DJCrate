@@ -190,7 +190,7 @@ public enum RekordboxTrackWriter {
 
     /// 파일 행(.DAT·.EXT·.2EX)과 오토게인 행
     static func insertAnalysisRows(_ db: CipherDatabase, _ ready: PreparedAnalysis, contentID: String, usn: inout Int,
-                                   stamp: (json: String, db: String)) throws {
+                                   stamp: (db: String, json: String)) throws {
         guard let share = ready.share else { return }
         for (url, data) in ready.files {
             let path = "/" + url.path.dropFirst(share.path.count).drop(while: { $0 == "/" })
@@ -217,7 +217,7 @@ public enum RekordboxTrackWriter {
     /// 분석 전 곡 행(78칸). 칸 형식(글자·정수·NULL)까지 rekordbox 7.2.18과 같게.
     static func contentRow(_ plan: TrackAddPlan, id: String, uuid: String, artistID: String?, albumID: String?, genreID: String?,
                            composerID: String?, library: (masterDBID: String, deviceID: String), usn: Int,
-                           stamp: (json: String, db: String)) -> [String: CipherDatabase.Value] {
+                           stamp: (db: String, json: String)) -> [String: CipherDatabase.Value] {
         func text(_ s: String?) -> CipherDatabase.Value { s.map { .text($0) } ?? .null }
         return [
             "ID": .text(id), "FolderPath": .text(plan.path), "FileNameL": .text(plan.fileName), "FileNameS": .text(""),
@@ -255,7 +255,7 @@ public enum RekordboxTrackWriter {
         return result
     }
 
-    static func findOrCreate(_ db: CipherDatabase, table: String, name: String, usn: inout Int, stamp: (json: String, db: String)) throws -> String {
+    static func findOrCreate(_ db: CipherDatabase, table: String, name: String, usn: inout Int, stamp: (db: String, json: String)) throws -> String {
         var existing: String?
         try db.query("SELECT ID FROM \(table) WHERE Name = ? AND rb_local_deleted = 0 ORDER BY created_at LIMIT 1", [.text(name)]) { existing = $0.string(0) }
         if let existing { return existing }
@@ -268,7 +268,7 @@ public enum RekordboxTrackWriter {
     }
 
     static func findOrCreateAlbum(_ db: CipherDatabase, name: String, albumArtistID: String?, usn: inout Int,
-                                  stamp: (json: String, db: String)) throws -> String {
+                                  stamp: (db: String, json: String)) throws -> String {
         var existing: String?
         try db.query("SELECT ID FROM djmdAlbum WHERE Name = ? AND AlbumArtistID IS ? AND rb_local_deleted = 0 ORDER BY created_at LIMIT 1",
                      [.text(name), albumArtistID.map { .text($0) } ?? .null]) { existing = $0.string(0) }
@@ -282,7 +282,7 @@ public enum RekordboxTrackWriter {
         return id
     }
 
-    static func syncColumns(usn: Int, stamp: (json: String, db: String)) -> [String: CipherDatabase.Value] {
+    static func syncColumns(usn: Int, stamp: (db: String, json: String)) -> [String: CipherDatabase.Value] {
         ["rb_data_status": .int(0), "rb_local_data_status": .int(0), "rb_local_deleted": .int(0), "rb_local_synced": .int(0),
          "usn": .null, "rb_local_usn": .int(usn), "created_at": .text(stamp.db), "updated_at": .text(stamp.db)]
     }

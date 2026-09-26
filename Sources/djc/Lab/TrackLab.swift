@@ -9,6 +9,7 @@ enum TrackLab {
         Command("analysis-repro", "<ContentID…> [--db 스냅샷]", "rekordbox 분석 파일을 같은 그리드로 다시 만들어 태그마다 비교(파형은 수치로)", TrackLab.analysisRepro),
         Command("facts-check", "[--limit N] [--db 스냅샷]", "음원 정보(비트레이트·샘플레이트·비트)를 rekordbox 곡 행과 형식별로 비교", TrackLab.factsCheck),
         Command("pvbr-check", "[--db 스냅샷]", "라이브러리 MP3마다 만든 PVBR·비트레이트를 rekordbox .DAT와 바이트로 비교", TrackLab.pvbrCheck),
+        Command("pvb2-check", "[--db 스냅샷]", "라이브러리 FLAC마다 만든 PVB2(.EXT 탐색표)·음원 칸을 rekordbox와 바이트로 비교", TrackLab.pvb2Check),
         Command("track-add-repro", "--db <스냅샷> <음원 파일…>", "파일로 곡 추가 계획을 만들어 rekordbox가 넣은 행과 칸마다 비교", TrackLab.trackAddRepro),
     ]
 
@@ -107,6 +108,34 @@ enum TrackLab {
             }
         }
         for (kind, t) in tally.sorted(by: { $0.key < $1.key }) { print("\(kind): \(t.all)곡 · PVBR 같음 \(t.pvbr) · 비트레이트 같음 \(t.bitRate)") }
+    }
+
+    static func pvb2Check(_ args: [String]) async throws {
+        let snapshot = try value(after: "--db", in: args).map { URL(filePath: $0) } ?? LibrarySnapshot.latest()
+        let db = try CipherDatabase(path: snapshot.path, key: RekordboxKey.derive())
+        defer { db.close() }
+        var rows: [(path: String, dat: String, sampleRate: Int, bitDepth: Int, bitRate: Int)] = []
+        try db.query("SELECT FolderPath, AnalysisDataPath, SampleRate, BitDepth, BitRate FROM djmdContent WHERE rb_local_deleted = 0 AND FileType = 5 AND Analysed = 105 AND FolderPath LIKE '/%'") {
+            rows.append(($0.string(0) ?? "", $0.string(1) ?? "", $0.int(2) ?? 0, $0.int(3) ?? 0, $0.int(4) ?? 0))
+        }
+        var all = 0, same = 0, sameSamples = 0, cells = 0, blocked = 0, shown = 0
+        for row in rows where FileManager.default.fileExists(atPath: row.path) {
+            guard let datURL = RekordboxShare.analysisURL(row.dat),
+                  let ext = try? AnlzFile(url: datURL.deletingPathExtension().appendingPathExtension("EXT")), let rb = ext.tag("PVB2") else { continue }
+            all += 1
+            let facts = AudioFacts.read(url: URL(filePath: row.path))
+            guard facts.unsupported == nil, let ours = TrackAnalysisFiles.pvb2(facts) else { blocked += 1; continue }
+            if (facts.sampleRate, facts.bitDepth, facts.bitRate) == (row.sampleRate, row.bitDepth, row.bitRate) { cells += 1 }
+            if ours == rb.bytes { same += 1; sameSamples += 1; continue }
+            // 칸마다 시작 샘플만 같은지(바이트 위치만 다르면 분석 뒤 파일이 바뀐 것)
+            let samples = { (d: Data) in stride(from: 32, to: d.count, by: 20).map { d.subdata(in: $0..<$0 + 8) } }
+            if samples(ours) == samples(rb.bytes) { sameSamples += 1 }
+            if shown < 10 {
+                shown += 1
+                print("✘ \((row.path as NSString).lastPathComponent.prefix(36)) · 샘플 \(samples(ours) == samples(rb.bytes) ? "같음(바이트 위치만 다름)" : "다름")")
+            }
+        }
+        print("FLAC \(all)곡 · PVB2 같음 \(same) · 시작 샘플까지 같음 \(sameSamples) · 샘플레이트·비트·비트레이트 같음 \(cells) · 막음 \(blocked)")
     }
 
     /// 파일마다 DJCrate 계획과 rekordbox가 넣은 행(같은 경로)을 칸마다 비교한다.
