@@ -43,7 +43,6 @@ rekordbox 7용 DJ 라이브러리 관리 macOS 앱(약칭 DJC, 명령줄 도구 
 - 확인한 rekordbox(7.2.x)·DB 구조가 아니면 쓰지 않는다. rekordbox를 업데이트했다면 `djc compat`으로 먼저 확인한다.
 - 쓰기 전에 라이브러리 전체와 바꿀 분석 파일을 백업하고, 한 트랜잭션으로 쓴 뒤 다시 읽어 검증한다. 무결성 검사에 실패하면 백업으로 되돌린다.
 - 쓰기 규칙은 rekordbox 7.2.18에서 직접 편집한 결과와 칸 단위로 같은지 확인한 것만 쓴다. 확인하지 못한 경우는 이유와 함께 막는다:
-  - VBR MP3 큐
   - 템포 구간이 여러 개인 곡의 BPM 변경
   - rekordbox 분석 전 곡(파형 없음)의 그리드
 - 반영한 뒤에도 사이드바의 "마지막 반영 되돌리기"로 쓰기 전 상태로 돌릴 수 있다.
@@ -100,8 +99,8 @@ scripts/build-app.sh --install     # /Applications/DJCrate.app에 설치
 
 ## 한계
 
-- 새 곡을 rekordbox에 넣는 건 아직 rekordbox XML을 거친다. rekordbox 분석(파형)은 rekordbox만 만들 수 있다.
-- VBR MP3 큐, 변속 곡의 BPM 변경은 쓰지 않는다.
+- 새 곡을 분석까지 붙여 넣을 수 있는 형식은 MP3(CBR·LAME VBR)·AAC·WAV·FLAC이다. ALAC은 분석 전 추가만 한다. 프레이즈·보컬·AI 특징은 rekordbox만 만들 수 있다.
+- 변속 곡의 BPM 변경은 쓰지 않는다.
 - 스트리밍 곡은 파형·재생·분석을 하지 않는다.
 
 ## 문서

@@ -154,7 +154,7 @@ struct RekordboxWriterGoldenTests {
         return report.blocked.first?.reason
     }
 
-    @Test func VBR_MP3는_막는다() throws {
+    @Test func 파일은_CBR인데_비트레이트가_0이면_막는다() throws {
         let fixture = try RekordboxFixture()
         var track = TrackSpec()
         track.bitRate = 0
@@ -165,18 +165,41 @@ struct RekordboxWriterGoldenTests {
         #expect(try fixture.rows("SELECT * FROM djmdCue").isEmpty)
     }
 
-    @Test func BitRate가_있어도_파일이_VBR이면_막는다() throws {
+    @Test func VBR_MP3는_큐마다_MPEG_칸을_적는다() throws {
         // rekordbox 7.2.18은 Xing 머리가 있는 VBR 파일을 BitRate 32로 적기도 한다
         // (2026-09-26 凸凹スピードスター 추가 실험, 라이브러리의 BitRate 32 곡은 모두 Xing VBR이고 큐에 MPEG 위치가 있다).
+        // MPEG 칸 규칙은 라이브러리 VBR 큐 1,118개·루프 끝 6개와 전수 일치(`djc lab seekinfo-check`).
         let fixture = try RekordboxFixture()
         var vbr = TrackSpec()
         vbr.bitRate = 32
-        vbr.folderPath = try TestResources.url("mp3-lame-vbr.mp3").path
+        let url = try TestResources.url("mp3-lame-vbr.mp3")
+        vbr.folderPath = url.path
         try fixture.add(vbr)
         var draft = CueDraft(trackUUID: vbr.uuid, rekordboxCues: [])
         draft.place(EditableCue(kind: .memory, time: 0.5))
-        #expect(try blockedReason(fixture, draft)?.contains("VBR") == true)
-        #expect(try fixture.rows("SELECT * FROM djmdCue").isEmpty)
+        var loop = EditableCue(kind: .hot(1), time: 0.3)
+        loop.loop = EditableCue.Loop(end: 0.7, active: false, beats: 0)
+        draft.place(loop)
+        let report = try write(fixture, drafts: [draft])
+        #expect(report.blocked.isEmpty && report.written.first?.added == 2)
+        // LAME 정보 프레임도 센다. 칸 = InFrame/2(1/75초) → ms 올림 → MPEG 프레임(버림) − 8 → 첫 프레임 기준 바이트 위치
+        let offsets = try #require(SeekInfo.mp3Frames(url: url)).offsets
+        func expected(_ msec: Int) -> (Int, Int) {
+            let mpegFrame = msec * 150 / 1000 / 2
+            let ms = Int((Double(mpegFrame) * 1000 / 75).rounded(.up))
+            return (mpegFrame, offsets[max(0, ms * 44_100 / 1000 / 1152 - 8)] - offsets[0])
+        }
+        let rows = try fixture.rows("SELECT * FROM djmdCue WHERE ContentID = ? ORDER BY InMsec", [.text(vbr.id)])
+        #expect(rows.count == 2)
+        let (loopIn, loopOut, memory) = (expected(300), expected(700), expected(500))
+        #expect(rows[0]["InMpegFrame"] == "\(loopIn.0)" && rows[0]["InMpegAbs"] == "\(loopIn.1)")
+        #expect(rows[0]["OutMpegFrame"] == "\(loopOut.0)" && rows[0]["OutMpegAbs"] == "\(loopOut.1)")
+        #expect(rows[1]["InMpegFrame"] == "\(memory.0)" && rows[1]["InMpegAbs"] == "\(memory.1)" && memory.1 > 0)
+        #expect(rows[1]["OutMpegFrame"] == "0" && rows[1]["OutMpegAbs"] == "0", "루프가 아니면 끝은 0")
+        #expect(rows.allSatisfy { $0["InPointSeekInfo"] == "NULL" })
+        // JSON에도 같은 값(쓰기 검증이 행과 JSON을 칸마다 비교한다)
+        let json = try #require(try fixture.rows("SELECT Cues FROM contentCue").first?["Cues"])
+        #expect(json.contains("\"InMpegAbs\":\(memory.1)"))
     }
 
     @Test func 음원_파일이_없으면_VBR인지_몰라_막는다() throws {

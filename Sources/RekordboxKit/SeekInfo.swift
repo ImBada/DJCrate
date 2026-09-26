@@ -4,7 +4,7 @@ import Foundation
 /// rekordbox가 큐 행에 적는 파일 탐색 위치.
 ///
 /// - FLAC: `InPointSeekInfo = "<프레임 시작 샘플>,<프레임 바이트 위치>,<블록 크기>"`(큐 지점이 든 FLAC 프레임)
-/// - VBR MP3: `InMpegFrame`(1/75초 단위)·`InMpegAbs`(큐 지점이 든 MPEG 프레임의 바이트 위치)
+/// - VBR MP3: `InMpegFrame`(1/75초 단위)·`InMpegAbs`(큐보다 8프레임 앞 MPEG 프레임의 바이트 위치, `mp3CuePosition`)
 /// 규칙은 라이브러리에 이미 있는 rekordbox 큐와 전수 대조해 확인한다(`djc lab seekinfo-check`).
 public enum SeekInfo {
     // MARK: - FLAC
@@ -180,6 +180,25 @@ public enum SeekInfo {
             guard let low = lengths.min(), let high = lengths.max() else { return false }
             return high - low > 1
         }
+    }
+
+    /// rekordbox가 세는 MP3 프레임의 바이트 위치. LAME 정보 프레임(첫 프레임 안에 LAME 태그)은 소리로 세고,
+    /// 다른 인코더(ffmpeg Lavc 등)의 정보 프레임은 세지 않는다. 시간축 보정·PVBR·큐 MPEG 칸이 모두 이 규칙이다.
+    public static func countedMp3Offsets(_ frames: Mp3Frames, url: URL) -> [Int] {
+        guard frames.hasInfoFrame, !RekordboxTimeline.mp3Header(url: url).contains("LAME") else { return frames.offsets }
+        return Array(frames.offsets.dropFirst())
+    }
+
+    /// VBR MP3 큐의 MPEG 칸(라이브러리 VBR 큐 1,118개·루프 끝 6개와 전수 일치, 2026-09-26).
+    /// - `InMpegFrame` = InFrame / 2(1/75초 단위, InFrame = 1/150초)
+    /// - `InMpegAbs` = 센 프레임 중 `floor(올림(InMpegFrame·1000/75)ms × 샘플레이트 / 1000 / 1152) − 8`번째(음수면 0번째)의
+    ///   바이트 위치(첫 센 프레임 기준). 8프레임 앞은 PVBR 탐색표와 같다(디코더 비트 저장소 몫).
+    public static func mp3CuePosition(msec: Int, counted: [Int], sampleRate: Int, samplesPerFrame: Int) -> (mpegFrame: Int, abs: Int)? {
+        let mpegFrame = msec * 150 / 1000 / 2
+        let rounded = (mpegFrame * 1000 + 74) / 75
+        let index = max(0, rounded * sampleRate / 1000 / samplesPerFrame - 8)
+        guard let first = counted.first, index < counted.count else { return nil }
+        return (mpegFrame, counted[index] - first)
     }
 
     /// MPEG 오디오 프레임 표(ID3v2 뒤부터, 헤더가 이어지는 프레임만).

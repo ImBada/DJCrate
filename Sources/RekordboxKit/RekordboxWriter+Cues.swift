@@ -17,6 +17,8 @@ extension RekordboxWriter {
         var untouchedIDs: Set<String>
         /// 새로 넣은 큐 ID
         var insertedIDs: Set<String>
+        /// 새로 넣은 큐의 탐색 칸: InMpegFrame·InMpegAbs·OutMpegFrame·OutMpegAbs·InPointSeekInfo·OutPointSeekInfo(NULL은 "NULL")
+        var insertedSeek: [String: [String]] = [:]
         /// 건드리지 않은 JSON 객체 원문
         var untouchedJSON: [String: String]
         var cueUSN: Int
@@ -74,16 +76,22 @@ extension RekordboxWriter {
         guard !rows.contains(where: \.deleted) else { throw block("삭제 표시된 큐 행이 있습니다") }
 
         // 형식: FLAC은 rekordbox처럼 큐가 든 프레임의 탐색 위치(SeekInfo)를 계산해 적는다(기존 큐 1,818개와 전수 일치 확인).
-        // VBR MP3의 MPEG 탐색 위치는 규칙을 아직 다 찾지 못해 막는다.
+        // VBR MP3는 큐마다 MPEG 칸(InMpegFrame·InMpegAbs)을 적는다(기존 VBR 큐 1,118개·루프 끝 6개와 전수 일치 확인).
         var flac: (sampleRate: Int, frames: [SeekInfo.FlacFrame])?
+        var vbr: (counted: [Int], sampleRate: Int, samplesPerFrame: Int)?
         switch content.fileType {
         case 1:
             // VBR은 DB에 BitRate 0으로도, 첫 프레임 비트레이트(예: 32)로도 적혀서 파일 머리로 가린다(2026-09-26).
-            guard let frames = SeekInfo.mp3Frames(url: URL(filePath: content.path)) else {
+            let url = URL(filePath: content.path)
+            guard let frames = SeekInfo.mp3Frames(url: url) else {
                 throw block("음원 파일을 읽지 못해 VBR MP3인지 확인할 수 없습니다. rekordbox에서 파일 위치를 확인하세요")
             }
-            guard content.bitRate > 0, !frames.isVariableBitRate, !rows.contains(where: { $0.inMpegFrame != 0 }) else {
-                throw block("VBR MP3는 rekordbox가 큐마다 적는 MPEG 탐색 위치의 규칙을 아직 다 찾지 못해 막아 두었습니다")
+            if frames.isVariableBitRate {
+                vbr = (SeekInfo.countedMp3Offsets(frames, url: url), frames.sampleRate, frames.samplesPerFrame)
+            } else {
+                guard content.bitRate > 0, !rows.contains(where: { $0.inMpegFrame != 0 }) else {
+                    throw block("파일은 CBR MP3인데 rekordbox에는 VBR처럼(비트레이트 0·MPEG 위치) 적혀 있어 직접 쓰지 않습니다")
+                }
             }
         case 4, 11:
             break
@@ -182,6 +190,23 @@ extension RekordboxWriter {
             }
         }
 
+        // VBR MP3 MPEG 칸(루프가 아니면 끝은 0, 0)
+        var mpeg: [EditableCue.ID: (inFrame: Int, inAbs: Int, outFrame: Int, outAbs: Int)] = [:]
+        if let vbr {
+            func position(_ msec: Int) throws -> (mpegFrame: Int, abs: Int) {
+                guard let p = SeekInfo.mp3CuePosition(msec: msec, counted: vbr.counted, sampleRate: vbr.sampleRate,
+                                                      samplesPerFrame: vbr.samplesPerFrame) else {
+                    throw block("VBR MP3 탐색 위치를 계산하지 못한 큐가 있습니다(파일 끝을 넘음)")
+                }
+                return p
+            }
+            for (cue, _) in inserts {
+                let start = try position(msec(cue.time))
+                let end = try cue.loop.map { try position(msec($0.end)) }
+                mpeg[cue.id] = (start.mpegFrame, start.abs, end?.mpegFrame ?? 0, end?.abs ?? 0)
+            }
+        }
+
         // 곡 UUID(= contentCue.ID = 큐의 ContentUUID)
         let contentUUID = draft.trackUUID
 
@@ -197,6 +222,7 @@ extension RekordboxWriter {
         }
         var newObjects: [CueJSON.Object] = []
         var insertedIDs: Set<String> = []
+        var insertedSeek: [String: [String]] = [:]
         for (cue, replacing) in inserts.sorted(by: { $0.cue.time < $1.cue.time }) {
             let id = try newCueID(db)
             let uuid = UUID().uuidString.lowercased()
@@ -220,24 +246,25 @@ extension RekordboxWriter {
             let cueMicrosec: Int? = loop == nil ? nil : 0
             let inSeek = seekInfo[cue.id]
             let outSeek = inSeek == nil ? nil : outSeekInfo[cue.id] ?? "0,0,0"
+            let mp = mpeg[cue.id] ?? (0, 0, 0, 0)
             func bind(_ value: Int?) -> CipherDatabase.Value { value.map { .int($0) } ?? .null }
             try db.run("""
                 INSERT INTO djmdCue (ID, ContentID, InMsec, InFrame, InMpegFrame, InMpegAbs, OutMsec, OutFrame, OutMpegFrame,
                     OutMpegAbs, Kind, Color, ColorTableIndex, ActiveLoop, Comment, BeatLoopSize, CueMicrosec, InPointSeekInfo,
                     OutPointSeekInfo, ContentUUID, UUID, rb_data_status, rb_local_data_status, rb_local_deleted, rb_local_synced,
                     usn, rb_local_usn, created_at, updated_at)
-                VALUES (?, ?, ?, ?, 0, 0, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, NULL, NULL, ?, ?)
-                """, [.text(id), .text(content.id), .int(inMsec), .int(inMsec * 150 / 1000),
-                      .int(outMsec ?? -1), .int((outMsec ?? 0) * 150 / 1000), .int(kind), .int(color),
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, NULL, NULL, ?, ?)
+                """, [.text(id), .text(content.id), .int(inMsec), .int(inMsec * 150 / 1000), .int(mp.inFrame), .int(mp.inAbs),
+                      .int(outMsec ?? -1), .int((outMsec ?? 0) * 150 / 1000), .int(mp.outFrame), .int(mp.outAbs), .int(kind), .int(color),
                       bind(colorTableIndex), bind(activeLoop), comment.map { .text($0) } ?? .null, bind(beatLoopSize), bind(cueMicrosec),
                       inSeek.map { .text($0) } ?? .null, outSeek.map { .text($0) } ?? .null,
                       .text(contentUUID), .text(uuid), .text(stamp.db), .text(stamp.db)])
             // JSON에는 NULL 칸과 빈 코멘트를 적지 않는다(rekordbox JSON에 "Comment":""는 한 번도 없다).
             newObjects.append(CueJSON.newObject([
                 ("ID", .string(id)), ("ContentID", .string(content.id)), ("ContentUUID", .string(contentUUID)),
-                ("InMsec", .int(inMsec)), ("InFrame", .int(inMsec * 150 / 1000)), ("InMpegFrame", .int(0)), ("InMpegAbs", .int(0)),
+                ("InMsec", .int(inMsec)), ("InFrame", .int(inMsec * 150 / 1000)), ("InMpegFrame", .int(mp.inFrame)), ("InMpegAbs", .int(mp.inAbs)),
                 ("InPointSeekInfo", inSeek.map { .string($0) }),
-                ("OutMsec", .int(outMsec ?? -1)), ("OutFrame", .int((outMsec ?? 0) * 150 / 1000)), ("OutMpegFrame", .int(0)), ("OutMpegAbs", .int(0)),
+                ("OutMsec", .int(outMsec ?? -1)), ("OutFrame", .int((outMsec ?? 0) * 150 / 1000)), ("OutMpegFrame", .int(mp.outFrame)), ("OutMpegAbs", .int(mp.outAbs)),
                 ("OutPointSeekInfo", outSeek.map { .string($0) }),
                 ("Kind", .int(kind)), ("Color", .int(color)), ("ColorTableIndex", colorTableIndex.map { .int($0) }),
                 ("ActiveLoop", activeLoop.map { .int($0) }),
@@ -247,6 +274,7 @@ extension RekordboxWriter {
                 ("created_at", .string(stamp.json)), ("updated_at", .string(stamp.json)),
             ]))
             insertedIDs.insert(id)
+            insertedSeek[id] = [mp.inFrame, mp.inAbs, mp.outFrame, mp.outAbs].map(String.init) + [inSeek ?? "NULL", outSeek ?? "NULL"]
         }
         let kept = zip(objectIDs, objects).filter { !removedIDs.contains($0.0) }
         let json = CueJSON.serialize(kept.map(\.1) + newObjects)
@@ -283,6 +311,7 @@ extension RekordboxWriter {
             editable: key(draft.cues, withSource: false),
             untouchedIDs: untouched,
             insertedIDs: insertedIDs,
+            insertedSeek: insertedSeek,
             untouchedJSON: Dictionary(uniqueKeysWithValues: kept.map { ($0.0, CueJSON.serialize([$0.1])) }),
             cueUSN: cueUSN, contentUSN: contentUSN)
         return (Outcome(trackUUID: draft.trackUUID, title: content.title, status: .written, reason: nil,
