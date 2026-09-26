@@ -44,6 +44,11 @@ struct TrackRow: Identifiable, Hashable, Sendable {
     /// "4:02"
     var lengthText: String { track.lengthSeconds > 0 ? String(format: "%d:%02d", track.lengthSeconds / 60, track.lengthSeconds % 60) : "" }
     var album: String { isEncrypted ? "" : track.album ?? "" }
+    var albumArtist: String { isEncrypted ? "" : track.albumArtist ?? "" }
+    var composer: String { track.composer ?? "" }
+    /// 정렬용: 연도·트랙 번호는 숫자로(없으면 0)
+    var releaseYear: Int { track.releaseYear ?? 0 }
+    var trackNumber: Int { track.trackNumber ?? 0 }
     var keyName: String { track.key ?? "" }
     /// rekordbox 그리드의 변속 흐름(BPM 순서, 변속 없으면 빈 배열)
     let tempoChanges: [Double]
