@@ -88,10 +88,10 @@ public enum RekordboxCompatibility {
     }
 
     /// `/Applications/rekordbox N/rekordbox.app` 중 가장 높은 판의 버전
-    public static func installedAppVersion() -> String? {
-        let apps = (try? FileManager.default.contentsOfDirectory(atPath: "/Applications")) ?? []
+    public static func installedAppVersion(applications: URL = URL(filePath: "/Applications")) -> String? {
+        let apps = (try? FileManager.default.contentsOfDirectory(atPath: applications.path)) ?? []
         return apps.filter { $0.hasPrefix("rekordbox") }.sorted().reversed().lazy.compactMap { folder -> String? in
-            let info = URL(filePath: "/Applications").appending(path: folder).appending(path: "rekordbox.app/Contents/Info.plist")
+            let info = applications.appending(path: folder).appending(path: "rekordbox.app/Contents/Info.plist")
             guard let plist = NSDictionary(contentsOf: info) else { return nil }
             return plist["CFBundleShortVersionString"] as? String
         }.first
@@ -119,7 +119,7 @@ public struct RekordboxWriteGuard: Sendable {
 
     public static let system = RekordboxWriteGuard(isLive: RekordboxWriter.isLive,
                                                    isRekordboxRunning: LibrarySnapshot.isRekordboxRunning,
-                                                   appVersion: RekordboxCompatibility.installedAppVersion)
+                                                   appVersion: { RekordboxCompatibility.installedAppVersion() })
 
     /// 라이브 DB면 rekordbox가 꺼져 있고 WAL이 비었고 확인한 버전이어야 한다.
     func checkLive(_ database: URL, dryRun: Bool) throws {
