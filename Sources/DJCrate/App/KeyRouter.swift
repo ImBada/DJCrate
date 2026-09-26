@@ -129,8 +129,8 @@ final class KeyRouter {
             }
             return event
         }
-        // 태그 시트 셀은 Return으로 확정하고 아래 칸으로 가는 규칙이 따로 있다.
-        guard let field = editor.delegate as? NSTextField, !Self.isInSheet(field) else { return event }
+        // 태그 시트 셀·곡 목록 칸 편집은 확정·취소 뒤 표로 포커스를 돌리는 규칙이 따로 있다.
+        guard let field = editor.delegate as? NSTextField, !Self.editsInTable(field) else { return event }
         // 확정·취소는 칸에 먼저 보내고 포커스를 놓는다.
         Task { @MainActor in
             if window.firstResponder === editor { window.makeFirstResponder(nil) }
@@ -138,10 +138,12 @@ final class KeyRouter {
         return event
     }
 
-    private static func isInSheet(_ view: NSView) -> Bool {
+    /// 태그 시트나 곡 목록(#88) 칸에서 고치는 글자 칸인가. 그 표가 Return·Tab·Esc를 처리하고 표로 포커스를 돌린다.
+    static func editsInTable(_ view: NSView) -> Bool {
         var current: NSView? = view
         while let candidate = current {
             if candidate is SheetTableView { return true }
+            if let table = candidate as? NSTableView, table.identifier == trackListID { return true }
             current = candidate.superview
         }
         return false

@@ -143,7 +143,7 @@ struct MenuCommandTests {
     }
 
     @Test func 앱_명령은_파일과_rekordbox_메뉴로_나뉜다() {
-        #expect(LibraryMenuAction.fileActions == [.addFiles, .snapshot, .exportXML])
+        #expect(LibraryMenuAction.fileActions == [.addFiles, .importAppleMusic, .snapshot, .exportXML])
         #expect(LibraryMenuAction.rekordboxActions == [.reflect, .pending, .writeResult, .restore, .removeTracks])
         #expect(LibraryMenuAction.fileActions + LibraryMenuAction.rekordboxActions == LibraryMenuAction.allCases)
     }
