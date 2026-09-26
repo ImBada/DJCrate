@@ -12,22 +12,43 @@ struct PreviewWaveformRequest: Hashable, Sendable {
     var emphasized = false
     var audioURL: URL?
     var trackKey = ""
+    var cues: [PreviewCueMark] = []
+    var duration: Double = 0
 
     var cacheKey: NSString {
-        [url?.absoluteString ?? "", revision, appearance, mode.rawValue, String(emphasized), audioURL?.absoluteString ?? "", trackKey]
+        let positions = cues.map { "\($0.time):\($0.end ?? -1):\($0.hot)" }.joined(separator: ",")
+        return [url?.absoluteString ?? "", revision, appearance, mode.rawValue, String(emphasized), audioURL?.absoluteString ?? "", trackKey,
+                positions, String(duration)]
             .joined(separator: "\u{1F}") as NSString
     }
 }
 
 /// 색 선택과 그리기를 한곳에 모으고, 셀에는 완성된 이미지만 넘긴다.
 enum PreviewWaveformRenderer {
-    static func image(_ waveform: AnlzPreviewWaveform, mode: WaveformColorMode,
-                      appearance: String, emphasized: Bool = false) -> CGImage? {
-        let reduced = waveform.downsampled(to: 400)
-        let columns = mode == .blue ? reduced.blueColumns : (reduced.colorColumns ?? reduced.blueColumns)
+    static func image(_ waveform: AnlzPreviewWaveform?, mode: WaveformColorMode,
+                      appearance: String, emphasized: Bool = false, cues: [PreviewCueMark] = [], duration: Double = 0) -> CGImage? {
+        let reduced = waveform?.downsampled(to: 400)
+        let columns = mode == .blue ? reduced?.blueColumns : (reduced?.colorColumns ?? reduced?.blueColumns)
         // 선택 배경에서도 밴드·RGB 구분을 남기고 어두운 배경용 대비를 쓴다.
-        return WaveformBitmap.image(columns, mode: mode, appearance: emphasized ? .darkAqua : NSAppearance.Name(appearance),
-                                    height: 40, width: 400)
+        let name = emphasized ? NSAppearance.Name.darkAqua : NSAppearance.Name(appearance)
+        let image = columns.flatMap { WaveformBitmap.image($0, mode: mode, appearance: name, height: 40, width: 400) }
+        let shapes = PreviewCueMark.shapes(cues, duration: duration, width: 400, height: 40)
+        guard !shapes.isEmpty,
+              let context = CGContext(data: nil, width: 400, height: 40, bitsPerComponent: 8, bytesPerRow: 1600,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return image }
+        if let image { context.draw(image, in: CGRect(x: 0, y: 0, width: 400, height: 40)) }
+        context.translateBy(x: 0, y: 40)
+        context.scaleBy(x: 1, y: -1)
+        context.setShouldAntialias(false)
+        for shape in shapes {
+            // 반대 명도의 테두리로 어느 파형 색 위에서도 눈금 경계를 남긴다.
+            context.setFillColor(UIColors.onFillVariants.resolved(for: name).cgColor)
+            context.fill(shape.rect.insetBy(dx: -1, dy: -1))
+            context.setFillColor(shape.color.variants.resolved(for: name).cgColor)
+            context.fill(shape.rect)
+        }
+        return context.makeImage()
     }
 }
 
@@ -73,10 +94,11 @@ actor PreviewWaveformCache {
         if let hit = cache.object(forKey: imageKey) { return hit.image }
         let raw = await store.waveform(for: source)
         var image: CGImage?
-        if let waveform = PreviewWaveformSource.addingFallback(to: raw, audioURL: request.audioURL, key: request.trackKey),
-           !Task.isCancelled {
+        let waveform = PreviewWaveformSource.addingFallback(to: raw, audioURL: request.audioURL, key: request.trackKey)
+        if !Task.isCancelled {
             image = PreviewWaveformRenderer.image(waveform, mode: request.mode,
-                                                 appearance: request.appearance, emphasized: request.emphasized)
+                                                 appearance: request.appearance, emphasized: request.emphasized,
+                                                 cues: request.cues, duration: request.duration)
         }
         guard !Task.isCancelled else { return nil }
         cache.setObject(Entry(image), forKey: imageKey, cost: image.map { $0.bytesPerRow * $0.height } ?? 1)
@@ -87,7 +109,8 @@ actor PreviewWaveformCache {
 /// 재사용·모양새 전환 뒤 늦게 도착한 이미지는 버린다. 재생 틱은 읽지 않는다.
 final class PreviewWaveformCell: NSTableCellView {
     private let waveformLayer = CALayer()
-    private var source: (url: URL?, revision: String, mode: WaveformColorMode, audioURL: URL?, key: String)?
+    private var source: (url: URL?, revision: String, mode: WaveformColorMode, audioURL: URL?, key: String,
+                         cues: [PreviewCueMark], duration: Double)?
     private var request: PreviewWaveformRequest?
     private var task: Task<Void, Never>?
 
@@ -98,13 +121,14 @@ final class PreviewWaveformCell: NSTableCellView {
         setAccessibilityElement(true)
         setAccessibilityLabel("미리 보기 파형")
         setAccessibilityValue("분석 자료 없음")
-        toolTip = "곡 전체의 미리 보기 파형 · 분석 자료가 없는 곡은 빈 칸"
+        toolTip = "곡 전체 파형 · 핫큐는 위쪽, 메모리 큐는 아래쪽 눈금 · 루프는 짧은 막대"
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func configure(url: URL?, revision: String, mode: WaveformColorMode = .threeBand, audioURL: URL? = nil, key: String = "") {
-        source = (url, revision, mode, audioURL, key)
+    func configure(url: URL?, revision: String, mode: WaveformColorMode = .threeBand, audioURL: URL? = nil, key: String = "",
+                   cues: [PreviewCueMark] = [], duration: Double = 0) {
+        source = (url, revision, mode, audioURL, key, cues, duration)
         refresh()
     }
 
@@ -141,7 +165,7 @@ final class PreviewWaveformCell: NSTableCellView {
             .accessibilityHighContrastDarkAqua, .aqua, .darkAqua]) ?? .aqua
         let next = PreviewWaveformRequest(url: source.url, revision: source.revision,
                                           appearance: appearance.rawValue, mode: source.mode, emphasized: backgroundStyle == .emphasized,
-                                          audioURL: source.audioURL, trackKey: source.key)
+                                          audioURL: source.audioURL, trackKey: source.key, cues: source.cues, duration: source.duration)
         guard request != next else { return }
         request = next
         task?.cancel()
@@ -159,6 +183,6 @@ final class PreviewWaveformCell: NSTableCellView {
         CATransaction.setDisableActions(true)
         waveformLayer.contents = image
         CATransaction.commit()
-        setAccessibilityValue(image == nil ? "분석 자료 없음" : "곡 전체 파형")
+        setAccessibilityValue(image == nil ? "분석 자료 없음" : "곡 전체 미리 보기")
     }
 }
