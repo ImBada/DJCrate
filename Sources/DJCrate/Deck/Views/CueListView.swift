@@ -87,6 +87,8 @@ struct CueRow: View {
                     .lineLimit(1)
                     .fixedSize()
                     .frame(minWidth: TextScale.length(56, scale: textScale), alignment: .leading)
+                    .frame(minWidth: 20, minHeight: 20)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain).help(.ui("이 위치로 이동"))
             .layoutPriority(1)
@@ -167,6 +169,7 @@ struct CueRow: View {
             .help(cue.loop?.active == true ? .ui("활성 루프(곡을 불러오면 자동 반복) — 눌러서 끄기") : .ui("활성 루프로 만들기(곡을 불러오면 이 루프를 자동 반복)"))
             .accessibilityLabel(.ui("활성 루프"))
             .accessibilityValue(cue.loop?.active == true ? .ui("켜짐") : .ui("꺼짐"))
+            .accessibilityAddTraits(.isToggle)
         }
 
     }
