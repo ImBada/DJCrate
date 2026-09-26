@@ -44,6 +44,24 @@ struct Mp3TimelineTests {
 /// 곡을 분석까지 붙여 넣을 때의 MP3 음원 정보(PVBR). 규칙은 라이브러리 VBR 451곡·CBR 2291곡으로 확인(2026-09-26).
 @Suite("MP3 분석 음원 정보")
 struct Mp3AudioFactsTests {
+    @Test func 끝이_잘린_CBR_프레임은_PVBR_샘플에_세지_않는다() throws {
+        // #14 곡 A(2026-09-26): 끝 프레임의 헤더만 남으면 rekordbox는 완전한 프레임까지만 센다.
+        let fixture = try RekordboxFixture()
+        let source = try TestResources.url("mp3-lame-cbr.mp3")
+        let original = try #require(SeekInfo.mp3Frames(url: source))
+        let last = try #require(original.offsets.last)
+        let url = fixture.audio.appending(path: "truncated.mp3")
+        try Data(contentsOf: source).prefix(last + 4).write(to: url)
+        let frames = try #require(SeekInfo.mp3Frames(url: url))
+        #expect(frames.offsets == Array(original.offsets.dropLast()))
+        let facts = AudioFacts.read(url: url)
+        #expect(facts.unsupported == nil)
+        let expected = UInt32((original.offsets.count - 1) * original.samplesPerFrame)
+        #expect(facts.pvbrTotalSamples == expected)
+        let dat = try AnlzFile(data: AnlzBuilder.file([TrackAnalysisFiles.pvbr(facts)]))
+        #expect(dat.tag("PVBR")?.bytes.suffix(4).reduce(0) { $0 << 8 | UInt32($1) } == expected)
+    }
+
     @Test func LAME_VBR은_8프레임_앞_위치로_탐색표를_채운다() throws {
         let url = try TestResources.url("mp3-lame-vbr.mp3")
         let frames = try #require(SeekInfo.mp3Frames(url: url))

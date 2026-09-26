@@ -105,12 +105,21 @@ enum TrackLab {
             tally[kind, default: (0, 0, 0)].all += 1
             if same { tally[kind]!.pvbr += 1 }
             if facts.bitRate == row.bitRate { tally[kind]!.bitRate += 1 }
-            if kind != "막음", !same || facts.bitRate != row.bitRate, shown < 10 {
+            if kind != "막음", !same || facts.bitRate != row.bitRate {
                 shown += 1
-                print("✘ \((row.path as NSString).lastPathComponent.prefix(36)) · \(kind) · PVBR \(same ? "같음" : "다름") · 비트레이트 \(row.bitRate)/\(facts.bitRate)")
+                print("✘ 익명 곡 \(shown) · \(kind) · PVBR \(same ? "같음" : "다름") · 비트레이트 \(row.bitRate)/\(facts.bitRate)")
+                let url = URL(filePath: row.path)
+                if !same, let frames = SeekInfo.mp3Frames(url: url) {
+                    print("  이유: \(SeekDiagnostics.pvbr(stored: rb.bytes, current: TrackAnalysisFiles.pvbr(facts), frames: frames))")
+                }
+                if facts.bitRate != row.bitRate { print("  이유: 저장 비트레이트와 현재 프레임 비트레이트가 다릅니다. 재분석 전후를 비교하세요") }
+                try diagnosticMetadata(db, path: row.path, analysis: datURL)
             }
         }
-        for (kind, t) in tally.sorted(by: { $0.key < $1.key }) { print("\(kind): \(t.all)곡 · PVBR 같음 \(t.pvbr) · 비트레이트 같음 \(t.bitRate)") }
+        for (kind, t) in tally.sorted(by: { $0.key < $1.key }) where kind != "막음" {
+            print("\(kind): PVBR 어긋남 \(t.all - t.pvbr) · 비트레이트 어긋남 \(t.all - t.bitRate)")
+        }
+        if tally["막음"] != nil { print("미확인 형식은 비교에서 제외했습니다(기존 쓰기 차단 유지)") }
     }
 
     static func pvb2Check(_ args: [String]) async throws {
@@ -121,24 +130,46 @@ enum TrackLab {
         try db.query("SELECT FolderPath, AnalysisDataPath, SampleRate, BitDepth, BitRate FROM djmdContent WHERE rb_local_deleted = 0 AND FileType = 5 AND Analysed = 105 AND FolderPath LIKE '/%'") {
             rows.append(($0.string(0) ?? "", $0.string(1) ?? "", $0.int(2) ?? 0, $0.int(3) ?? 0, $0.int(4) ?? 0))
         }
-        var all = 0, same = 0, sameSamples = 0, cells = 0, blocked = 0, shown = 0
+        var all = 0, same = 0, cells = 0, blocked = 0, shown = 0
         for row in rows where FileManager.default.fileExists(atPath: row.path) {
             guard let datURL = RekordboxShare.analysisURL(row.dat),
                   let ext = try? AnlzFile(url: datURL.deletingPathExtension().appendingPathExtension("EXT")), let rb = ext.tag("PVB2") else { continue }
             all += 1
             let facts = AudioFacts.read(url: URL(filePath: row.path))
             guard facts.unsupported == nil, let ours = TrackAnalysisFiles.pvb2(facts) else { blocked += 1; continue }
-            if (facts.sampleRate, facts.bitDepth, facts.bitRate) == (row.sampleRate, row.bitDepth, row.bitRate) { cells += 1 }
-            if ours == rb.bytes { same += 1; sameSamples += 1; continue }
-            // 칸마다 시작 샘플만 같은지(바이트 위치만 다르면 분석 뒤 파일이 바뀐 것)
-            let samples = { (d: Data) in stride(from: 32, to: d.count, by: 20).map { d.subdata(in: $0..<$0 + 8) } }
-            if samples(ours) == samples(rb.bytes) { sameSamples += 1 }
-            if shown < 10 {
-                shown += 1
-                print("✘ \((row.path as NSString).lastPathComponent.prefix(36)) · 샘플 \(samples(ours) == samples(rb.bytes) ? "같음(바이트 위치만 다름)" : "다름")")
+            let sameCells = (facts.sampleRate, facts.bitDepth, facts.bitRate) == (row.sampleRate, row.bitDepth, row.bitRate)
+            if sameCells { cells += 1 }
+            if ours == rb.bytes { same += 1 }
+            if ours == rb.bytes && sameCells { continue }
+            shown += 1
+            print("✘ 익명 곡 \(shown) · PVB2 \(ours == rb.bytes ? "같음" : "다름")")
+            if ours != rb.bytes {
+                print("  이유: \(SeekDiagnostics.pvb2(stored: rb.bytes, current: ours))")
             }
+            if !sameCells { print("  이유: 저장 음원 정보와 현재 샘플레이트·비트·비트레이트가 다릅니다. 재분석 전후를 비교하세요") }
+            try diagnosticMetadata(db, path: row.path, analysis: datURL.deletingPathExtension().appendingPathExtension("EXT"))
         }
-        print("FLAC \(all)곡 · PVB2 같음 \(same) · 시작 샘플까지 같음 \(sameSamples) · 샘플레이트·비트·비트레이트 같음 \(cells) · 막음 \(blocked)")
+        print("FLAC: PVB2 어긋남 \(all - blocked - same) · 음원 정보 어긋남 \(all - blocked - cells)")
+        if blocked > 0 { print("못 읽는 형식은 비교에서 제외했습니다(기존 쓰기 차단 유지)") }
+    }
+
+    static func diagnosticMetadata(_ db: CipherDatabase, path: String, analysis: URL?) throws {
+        let audio = try? FileManager.default.attributesOfItem(atPath: path)
+        let anlz = analysis.flatMap { try? FileManager.default.attributesOfItem(atPath: $0.path) }
+        // AnalysisUpdated는 시각이 아닌 갱신 번호다. ANLZ 수정 시각도 재분석 시각과 같다고 단정하지 않는다.
+        if let modified = audio?[.modificationDate] as? Date, let analyzed = anlz?[.modificationDate] as? Date {
+            if modified > analyzed {
+                print("  근거: 음원 수정 시각 > 분석 파일 수정 시각; 분석 후 파일 변경 가능성(재인코딩 여부는 미확인)")
+            } else {
+                print("  근거: 음원 수정 시각 ≤ 분석 파일 수정 시각; 시각만으로 분석 후 변경을 입증할 수 없습니다")
+            }
+        } else {
+            print("  근거: 파일 수정 시각을 읽지 못해 분석 후 변경 여부를 확인할 수 없습니다")
+        }
+        try db.query("SELECT FileSize FROM djmdContent WHERE FolderPath = ?", [.text(path)]) {
+            guard let stored = $0.int(0), let current = audio?[.size] as? Int else { return }
+            print("  근거: DB 파일 크기와 현재 음원 크기 \(stored == current ? "같음" : "다름(태그 변경만으로도 달라질 수 있음)")")
+        }
     }
 
     /// 파일마다 DJCrate 계획과 rekordbox가 넣은 행(같은 경로)을 칸마다 비교한다.
