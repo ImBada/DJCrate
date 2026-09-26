@@ -1,9 +1,11 @@
 name: 빌드·테스트
 
+# dev 푸시는 합칠 때마다 오므로 단위 테스트만 돌린다. 전체 검사(릴리스 앱 빌드·커버리지 목표)는 PR·main·수동 실행에서.
 on:
   push:
     branches: [dev, main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -60,18 +62,26 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-swiftpm-${{ steps.toolchain.outputs.cache-key }}-${{ hashFiles('Package.swift', 'Package.resolved') }}-
 
-      - name: 빌드·단위 테스트·커버리지 목표 확인
+      - name: 단위 테스트(dev 푸시) 또는 전체 검사
         id: check
-        run: scripts/check.sh 2>&1 | tee "$RUNNER_TEMP/djc-check.log"
+        env:
+          CHECK_MODE: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/dev') && 'test' || 'full' }}
+        run: |
+          if [[ "$CHECK_MODE" == test ]]; then
+            swift test 2>&1 | tee "$RUNNER_TEMP/djc-check.log"
+          else
+            scripts/check.sh 2>&1 | tee "$RUNNER_TEMP/djc-check.log"
+          fi
 
       - name: 검증 결과 요약
         if: always()
         env:
           CHECK_OUTCOME: ${{ steps.check.outcome }}
+          CHECK_MODE: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/dev') && '단위 테스트만' || '전체 검사' }}
         run: |
           {
             echo '## 빌드·테스트·커버리지'
-            echo "검증 단계 결과: $CHECK_OUTCOME"
+            echo "검증 단계 결과: $CHECK_OUTCOME ($CHECK_MODE)"
             echo '```text'
             if [[ -f "$RUNNER_TEMP/djc-check.log" ]]; then
               grep -E '▸|✔ Test run|목표 [0-9]+%' "$RUNNER_TEMP/djc-check.log" || true
