@@ -26,12 +26,15 @@ extension DevSelfTests {
             store.selection = [row.id]
             let backup = DJCPaths.userData.appending(path: "synthetic-backup")
             store.lastWriteBackup = backup
-            store.resultHistory.record(WriteResult(kind: .warning, title: "일부 곡을 반영했습니다", text: "합성 데이터의 화면 배치 시험입니다"))
-            store.toast = AppToast(kind: .warning, title: "일부 곡을 반영했습니다", detail: "합성 데이터의 화면 배치 시험입니다", undoBackup: backup)
+            // 화면 배치를 언어별로 보려고 실제 알림처럼 번역되는 문구를 쓴다.
+            let title = String(ui: "일부 곡을 반영했습니다")
+            let detail = String(ui: "합성 데이터의 화면 배치 시험입니다")
+            store.resultHistory.record(WriteResult(kind: .warning, title: title, text: detail))
+            store.toast = AppToast(kind: .warning, title: title, detail: detail, undoBackup: backup)
             if argument.contains("locked-") {
                 store.toast = nil
                 store.setWriteLock(true)
-                store.writeStage = WriteStage("rekordbox에 쓰는 중…")
+                store.writeStage = WriteStage(String(ui: "rekordbox에 쓰는 중…"))
             }
         }
     }

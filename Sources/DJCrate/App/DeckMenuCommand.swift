@@ -28,11 +28,11 @@ enum DeckMenuCommand: Hashable {
     var title: String {
         switch self {
         case .action(let action): action.title
-        case .deleteHotCue: "지우기"
-        case .moveHotCue: "플레이헤드로 옮기기"
-        case .deleteMemoryCue: "이 자리 메모리 큐 지우기"
-        case .stepBar(let forward): forward ? "1마디 뒤로(선택한 큐 또는 재생 위치)" : "1마디 앞으로(선택한 큐 또는 재생 위치)"
-        case .previousSuggestion: "이전 제안으로"
+        case .deleteHotCue: String(ui: "지우기")
+        case .moveHotCue: String(ui: "플레이헤드로 옮기기")
+        case .deleteMemoryCue: String(ui: "이 자리 메모리 큐 지우기")
+        case .stepBar(let forward): forward ? String(ui: "1마디 뒤로(선택한 큐 또는 재생 위치)") : String(ui: "1마디 앞으로(선택한 큐 또는 재생 위치)")
+        case .previousSuggestion: String(ui: "이전 제안으로")
         }
     }
 
