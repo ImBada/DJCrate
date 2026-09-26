@@ -13,6 +13,7 @@ import Foundation
 /// - 확인하지 않은 표(MyTag·핫큐 뱅크·샘플러·관련 곡·신청곡·검열 구간·클라우드 내보내기)에 걸린 곡은 지우지 않는다.
 ///
 /// 안전장치는 큐 쓰기(`RekordboxWriter`)와 같다: 사전 확인 → 전체 백업 → 한 트랜잭션 → 다시 읽어 검증 → 무결성 검사 → 실패 시 복원.
+/// 커밋 뒤 실패는 복원했으면 `writeRolledBack`, 복원도 못 했으면 `restoreFailed`로 알린다.
 public enum RekordboxTrackWriter {
     public struct Outcome: Codable, Hashable, Sendable {
         public var path: String
@@ -81,7 +82,8 @@ public enum RekordboxTrackWriter {
         var report = Report(dryRun: dryRun)
         guard !plans.isEmpty else { return report }
         try preflight(database, dryRun: dryRun, guard: writeGuard)
-        let share = shareRoot ?? (writeGuard.isLive(database) ? RekordboxShare.directory : nil)
+        let live = writeGuard.isLive(database)
+        let share = shareRoot ?? (live ? RekordboxShare.directory : nil)
         // 분석 파일은 DB 밖에서 미리 만든다(오래 걸리고 실패해도 DB를 건드리기 전에 알 수 있게)
         var prepared: [String: PreparedAnalysis] = [:]
         for plan in plans {
@@ -154,8 +156,8 @@ public enum RekordboxTrackWriter {
             }
             return !inserted.isEmpty
         }
-        if !dryRun, !inserted.isEmpty {
-            try afterCommit(database, backup: backup) { db in
+        if let backup, !inserted.isEmpty {
+            try afterCommit(database, backup: backup, live: live) { db in
                 for item in inserted { try verify(db, table: "djmdContent", id: item.id, item.expected) }
                 for check in cueChecks { try RekordboxWriter.verify(db: db, contentID: check.contentID, check.expectation) }
             }
@@ -174,9 +176,9 @@ public enum RekordboxTrackWriter {
                     }
                 }
             } catch {
-                for url in created { try? FileManager.default.removeItem(at: url) }
-                if let backup { try? RekordboxWriter.restoreFiles(from: backup, to: database) }
-                throw DJCError.writeVerificationFailed("\(error)")
+                throw RekordboxWriter.recover(from: error, database: database, backup: backup, live: live) {
+                    try RekordboxWriter.each(created) { try FileManager.default.removeItem(at: $0) }
+                }
             }
             report.createdFiles = created.map(\.path)
         }
@@ -332,7 +334,8 @@ public enum RekordboxTrackWriter {
         var report = Report(dryRun: dryRun)
         guard !contentIDs.isEmpty else { return report }
         try preflight(database, dryRun: dryRun, guard: writeGuard)
-        let share = shareRoot ?? (writeGuard.isLive(database) ? RekordboxShare.directory : nil)
+        let live = writeGuard.isLive(database)
+        let share = shareRoot ?? (live ? RekordboxShare.directory : nil)
         let stamp = CueJSON.timestamps(now)
         let backup = dryRun ? nil : try RekordboxWriter.makeBackup(of: database, in: backups, now: now, label: "delete")
         report.backup = backup?.path
@@ -398,31 +401,30 @@ public enum RekordboxTrackWriter {
             }
             return !gone.isEmpty
         }
-        guard !dryRun, !gone.isEmpty else { return report }
-        try afterCommit(database, backup: backup) { db in
+        // 백업은 시험 실행이 아닐 때만 있다
+        guard let backup, !gone.isEmpty else { return report }
+        try afterCommit(database, backup: backup, live: live) { db in
             for id in gone where try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdContent WHERE ID = ?", [.text(id)]) != 0 {
                 throw DJCError.writeVerificationFailed("지운 곡이 다시 읽혔습니다")
             }
         }
         // 분석 폴더·아트워크 파일: 백업 폴더로 옮겨 두고(되돌리기 때 살림) 원래 자리에서 지운다. 아트워크 폴더는 rekordbox처럼 남긴다.
-        if let backup {
-            var manifest: [String: String] = [:]
-            let folder = backup.appending(path: "anlz")
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            for directory in files {
-                let items = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
-                for item in items {
-                    let name = "\(manifest.count).\(item.pathExtension)"
-                    try FileManager.default.copyItem(at: item, to: folder.appending(path: name))
-                    manifest[name] = item.path
-                }
+        var manifest: [String: String] = [:]
+        let folder = backup.appending(path: "anlz")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for directory in files {
+            let items = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
+            for item in items {
+                let name = "\(manifest.count).\(item.pathExtension)"
+                try FileManager.default.copyItem(at: item, to: folder.appending(path: name))
+                manifest[name] = item.path
             }
-            try JSONEncoder().encode(manifest).write(to: folder.appending(path: "manifest.json"))
-            for path in manifest.values { try? FileManager.default.removeItem(atPath: path) }
-            for directory in files where directory.path.contains("/USBANLZ/") { try? FileManager.default.removeItem(at: directory) }
-            report.removedFiles = manifest.values.sorted()
-            try? save(report, in: backup)
         }
+        try JSONEncoder().encode(manifest).write(to: folder.appending(path: "manifest.json"))
+        for path in manifest.values { try? FileManager.default.removeItem(atPath: path) }
+        for directory in files where directory.path.contains("/USBANLZ/") { try? FileManager.default.removeItem(at: directory) }
+        report.removedFiles = manifest.values.sorted()
+        try? save(report, in: backup)
         return report
     }
 
@@ -483,16 +485,15 @@ public enum RekordboxTrackWriter {
         return usn
     }
 
-    /// 커밋 뒤 무결성 검사와 다시 읽기. 실패하면 백업으로 되돌린다.
-    static func afterCommit(_ database: URL, backup: URL?, _ check: (CipherDatabase) throws -> Void) throws {
+    /// 커밋 뒤 무결성 검사와 다시 읽기. 실패하면 백업으로 되돌린다(되돌리지 못하면 `restoreFailed`).
+    static func afterCommit(_ database: URL, backup: URL, live: Bool, _ check: (CipherDatabase) throws -> Void) throws {
         do {
             try RekordboxWriter.checkIntegrity(of: database)
             let db = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
             defer { db.close() }
             try check(db)
         } catch {
-            if let backup { try? RekordboxWriter.restoreFiles(from: backup, to: database) }
-            throw DJCError.writeVerificationFailed("\(error)")
+            throw RekordboxWriter.recover(from: error, database: database, backup: backup, live: live)
         }
     }
 

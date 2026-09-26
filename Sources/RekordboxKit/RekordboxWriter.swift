@@ -12,7 +12,8 @@ import Foundation
 /// VBR MP3(MPEG 탐색 위치 규칙 미확인)는 막는다.
 ///
 /// 안전장치: rekordbox(에이전트 포함)가 켜져 있거나 확인하지 않은 버전·DB 구조면 쓰지 않는다(`RekordboxCompatibility`). 쓰기 전에 DB를 통째로 백업하고, 한
-/// 트랜잭션 안에서 쓰고 다시 읽어 검증한 뒤에만 커밋한다. 커밋 뒤 무결성 검사·재검증이 실패하면 백업으로 되돌린다.
+/// 트랜잭션 안에서 쓰고 다시 읽어 검증한 뒤에만 커밋한다. 커밋 뒤 무결성 검사·재검증이 실패하면 백업으로 되돌린다
+/// (`writeRolledBack`). 되돌리지도 못하면 상태를 알 수 없으니 `restoreFailed`로 따로 알린다.
 /// 초안을 시작한 뒤 rekordbox에서 그 곡의 큐가 바뀌었으면 그 곡은 쓰지 않는다.
 public enum RekordboxWriter {
     public struct Outcome: Codable, Hashable, Sendable {
@@ -133,6 +134,7 @@ public enum RekordboxWriter {
         var gainOutcomes: [Outcome] = []
         var written: [(contentID: String, expectation: Expectation)] = []
         var finalUpdateCount: Int?
+        var committed = false
         do {
             let db = try CipherDatabase(path: database.path, key: RekordboxKey.derive(), writable: true)
             try db.execute("BEGIN IMMEDIATE")
@@ -192,6 +194,7 @@ public enum RekordboxWriter {
                 try db.execute("ROLLBACK")
             } else {
                 try db.execute("COMMIT")
+                committed = true
                 try? db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             }
             finished = true
@@ -201,29 +204,27 @@ public enum RekordboxWriter {
             throw error
         }
 
-        if !dryRun, !written.isEmpty {
+        // 백업은 시험 실행이 아닐 때만 있다(= 커밋했을 수 있다).
+        if let backup, !written.isEmpty {
             do {
                 try checkIntegrity(of: database)
                 let db = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
+                defer { db.close() }
                 for item in written { try verify(db: db, contentID: item.contentID, item.expectation) }
             } catch {
-                if let backup { try? restoreFiles(from: backup, to: database) }
-                throw DJCError.writeVerificationFailed("\(error)")
+                throw recover(from: error, database: database, backup: backup, live: live)
             }
         }
 
         // 그리드: DB가 끝난 뒤 분석 파일을 쓴다. 하나라도 검증에 실패하면 DB·파일 모두 쓰기 전으로 되돌린다.
-        if !dryRun, !gridPlans.isEmpty {
-            var applied: [RekordboxGridWriter.Plan] = []
+        // 큐 없이 BPM·게인만 커밋했어도 DB를 되돌린다.
+        if let backup, !gridPlans.isEmpty {
             do {
-                for plan in gridPlans {
-                    try RekordboxGridWriter.apply(plan)
-                    applied.append(plan)
-                }
+                for plan in gridPlans { try RekordboxGridWriter.apply(plan) }
             } catch {
-                for plan in applied { try? RekordboxGridWriter.restore(plan) }
-                if let backup, !written.isEmpty { try? restoreFiles(from: backup, to: database) }
-                throw DJCError.writeVerificationFailed("\(error)")
+                throw recover(from: error, database: database, backup: backup, live: live, restoreDatabase: committed) {
+                    try restoreGridFiles(gridPlans)
+                }
             }
         }
 
@@ -258,6 +259,51 @@ public enum RekordboxWriter {
         return report
     }
 
-    /// 백업에 들어 있는 게인 초안
+    // MARK: - 커밋 뒤 실패
 
+    /// 커밋 뒤 확인·분석 파일 쓰기가 실패했을 때 쓰기 전으로 되돌리고 던질 오류를 고른다.
+    /// 모두 되돌렸으면 `writeRolledBack`, 하나라도 못 했거나 되돌린 DB가 무결성 검사를 통과하지 못하면 `restoreFailed`.
+    /// - Parameters:
+    ///   - restoreDatabase: DB를 커밋했으면 true(백업의 master.db로 바꾼다)
+    ///   - files: 분석 파일 되돌리기(바꾼 파일은 원본으로, 만든 파일은 지우기)
+    static func recover(from failure: any Error, database: URL, backup: URL, live: Bool, restoreDatabase: Bool = true,
+                        files: () throws -> Void = {}) -> DJCError {
+        var problems: [String] = []
+        do { try files() } catch { problems.append("분석 파일: \(DJCError.reason(of: error))") }
+        if restoreDatabase {
+            do {
+                try restoreFiles(from: backup, to: database)
+                try checkIntegrity(of: database)
+            } catch {
+                problems.append("master.db: \(DJCError.reason(of: error))")
+            }
+        }
+        let reason = DJCError.reason(of: failure)
+        guard problems.isEmpty else {
+            return .restoreFailed(reason: reason, restoreError: problems.joined(separator: " / "), backup: backup.path,
+                                  database: live ? nil : database.path)
+        }
+        return .writeRolledBack(reason)
+    }
+
+    /// 그리드를 쓴 분석 파일을 원본 바이트로 되돌린다. 원본 그대로인 파일(쓰기 전에 실패한 곡)은 건드리지 않는다.
+    static func restoreGridFiles(_ plans: [RekordboxGridWriter.Plan]) throws {
+        var files: [(URL, Data)] = []
+        for plan in plans {
+            files.append((plan.datURL, plan.originalDat))
+            if let extURL = plan.extURL, let originalExt = plan.originalExt { files.append((extURL, originalExt)) }
+        }
+        try each(files.filter { (try? Data(contentsOf: $0.0)) != $0.1 }) { url, original in
+            try original.write(to: url, options: .atomic)
+        }
+    }
+
+    /// 하나가 실패해도 나머지를 모두 해 보고, 처음 실패를 던진다(되돌리기를 중간에 멈추지 않게).
+    static func each<S: Sequence>(_ items: S, _ body: (S.Element) throws -> Void) throws {
+        var first: (any Error)?
+        for item in items {
+            do { try body(item) } catch { first = first ?? error }
+        }
+        if let first { throw first }
+    }
 }

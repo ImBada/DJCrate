@@ -16,12 +16,15 @@ final class FakeReflectionHost: ReflectionHost {
     var wrote: (drafts: [String], grids: [String], gains: [String])?
     var changedSinceBackup: Bool?
     var restored: [URL] = []
+    /// 쓰기·넣기·빼기가 던질 오류(확인 창 뒤 실제 쓰기 단계)
+    var writeError: Error?
 
     func setWriteLock(_ locked: Bool) { isWritingRekordbox = locked; locks.append(locked) }
     func writeTargets(_ rows: [TrackRow]) -> [TrackRow] { targets ?? rows }
     func previewWrite(rows: [TrackRow]) async throws -> LibraryStore.WritePreview { try preview.get() }
     func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft], gains: [String: Double]) async throws -> RekordboxWriter.Report {
         wrote = (drafts.map(\.trackUUID), grids.map(\.trackUUID), gains.keys.sorted())
+        if let writeError { throw writeError }
         return try preview.get().report
     }
     func libraryChangedSince(_ backup: RekordboxWriter.Backup) async -> Bool? { changedSinceBackup }
@@ -35,12 +38,14 @@ final class FakeReflectionHost: ReflectionHost {
     func previewTrackAdd(rows: [TrackRow]) async throws -> LibraryStore.TrackAddPreview { try addPreview.get() }
     func addTracksToRekordbox(_ preview: LibraryStore.TrackAddPreview) async throws -> RekordboxTrackWriter.Report {
         added = preview.report.added.filter(\.written).map(\.path)
+        if let writeError { throw writeError }
         return preview.report
     }
     func trackDeleteTargets(_ rows: [TrackRow]) -> [TrackRow] { rows.filter { !$0.isStaged } }
     func previewTrackDelete(rows: [TrackRow]) async throws -> LibraryStore.TrackDeletePreview { try deletePreview.get() }
     func deleteTracksFromRekordbox(_ preview: LibraryStore.TrackDeletePreview) async throws -> RekordboxTrackWriter.Report {
         deleted = preview.report.deleted.filter(\.written).compactMap(\.contentID)
+        if let writeError { throw writeError }
         return preview.report
     }
 }
@@ -128,6 +133,43 @@ struct ReflectionCoordinatorTests {
         await coordinator().write(rows: [Self.row("a")])
         #expect(host.toast?.kind == .failure && host.toast?.detail == "미리 보기 실패")
         #expect(host.writeStage == nil && !host.isWritingRekordbox)
+    }
+
+    /// 쓰기·넣기·빼기를 모두 확인 창까지 통과시켜 실제 쓰기 단계에서 `error`를 던지게 한다.
+    func failEveryWrite(with error: Error) async {
+        host.writeError = error
+        host.preview = .success(Self.preview(cues: [Self.outcome("a", .written)]))
+        host.addPreview = .success(Self.addPreview([Self.track("b")]))
+        var report = RekordboxTrackWriter.Report(dryRun: true)
+        report.deleted = [Self.track("c")]
+        host.deletePreview = .success(.init(report: report, contentIDs: ["id-c"]))
+        await coordinator().write(rows: [Self.row("a")])
+        await coordinator().addTracks(rows: [Self.row("djc-b")])
+        await coordinator().deleteTracks(rows: [Self.row("c")])
+    }
+
+    @Test func 자동_복원까지_실패하면_토스트가_아니라_닫아야_하는_심각_경고로_알린다() async {
+        let backup = "/tmp/rekordbox-backups/2026-09-26T120000-write"
+        await failEveryWrite(with: DJCError.restoreFailed(reason: "무결성 검사 실패: x", restoreError: "master.db: 권한 없음",
+                                                          backup: backup, database: nil))
+        #expect(host.toast == nil, "사라지는 토스트로 알리지 않는다")
+        // 확인 창 3개 뒤마다 경고 하나씩
+        let alerts = prompter.shown.filter { $0.confirm == nil }
+        #expect(alerts.count == 3 && alerts.allSatisfy(\.critical))
+        let alert = try? #require(alerts.first)
+        #expect(alert?.title == "쓰기 확인에 실패했고 자동 복원도 하지 못했습니다")
+        let text = alert?.text ?? ""
+        #expect(text.contains("rekordbox를 켜지 말고") && text.contains("'rekordbox 반영 대기'의 '되돌리기…'"))
+        #expect(text.contains("djc rekordbox-restore --backup '\(backup)' --live"))
+        #expect(text.contains("무결성 검사 실패: x") && text.contains("master.db: 권한 없음"))
+        #expect(host.writeStage == nil && host.locks == [true, false, true, false, true, false])
+    }
+
+    @Test func 백업으로_되돌렸으면_실패_토스트로_알린다() async {
+        await failEveryWrite(with: DJCError.writeRolledBack("무결성 검사 실패: x"))
+        #expect(prompter.shown.allSatisfy { $0.confirm != nil }, "경고 창은 띄우지 않는다")
+        #expect(host.toast?.kind == .failure && host.toast?.title == "rekordbox에서 빼지 않았습니다")
+        #expect(host.toast?.detail == "쓴 결과를 확인하지 못해 쓰기 전 백업으로 되돌렸습니다: 무결성 검사 실패: x")
     }
 
     @Test func 확인_창은_종류별_곡_수와_막힌_이유를_보여_준다() {

@@ -11,7 +11,13 @@ public enum DJCError: Error, CustomStringConvertible {
     case invalidAnalysisFile(String)
     case invalidCueJSON
     case writeRefused(String)
+    /// 커밋 전 확인 실패. 트랜잭션을 되돌려 rekordbox에는 아무것도 쓰지 않았다.
     case writeVerificationFailed(String)
+    /// 커밋 뒤 확인·분석 파일 쓰기가 실패해 쓰기 전 백업으로 되돌렸다.
+    case writeRolledBack(String)
+    /// 커밋 뒤 확인·분석 파일 쓰기가 실패했고 백업으로 되돌리지도 못했다. master.db·분석 파일 상태를 알 수 없다.
+    /// `database`는 사본 DB 경로, 라이브 DB면 nil(되돌리는 명령이 다르다).
+    case restoreFailed(reason: String, restoreError: String, backup: String, database: String?)
 
     public var description: String {
         switch self {
@@ -36,7 +42,31 @@ public enum DJCError: Error, CustomStringConvertible {
         case let .writeRefused(reason):
             "rekordbox에 쓰지 않았습니다: \(reason)"
         case let .writeVerificationFailed(reason):
-            "쓴 결과가 의도와 달라 백업으로 되돌렸습니다: \(reason)"
+            "쓴 결과가 의도와 달라 rekordbox에 쓰지 않았습니다: \(reason)"
+        case let .writeRolledBack(reason):
+            "쓴 결과를 확인하지 못해 쓰기 전 백업으로 되돌렸습니다: \(reason)"
+        case let .restoreFailed(reason, restoreError, backup, database):
+            """
+            쓴 결과를 확인하지 못했고 백업으로 자동 복원도 하지 못했습니다. rekordbox 라이브러리(master.db)와 분석 파일이 어떤 상태인지 알 수 없습니다.
+            rekordbox를 켜지 말고 먼저 쓰기 전 백업으로 되돌리세요: \(Self.restoreCommand(backup: backup, database: database))
+            확인 실패: \(reason)
+            복원 실패: \(restoreError)
+            """
         }
+    }
+
+    /// 다른 오류 문구 안에 넣을 사유. 쓰기 확인 오류는 머리말을 빼고 사유만 넘긴다(머리말이 두 번 붙지 않게).
+    /// 파일 오류는 UserInfo 덤프 대신 사람이 읽는 문장으로.
+    public static func reason(of error: any Error) -> String {
+        switch error as? DJCError {
+        case let .writeVerificationFailed(reason)?, let .writeRolledBack(reason)?: reason
+        default: (error as? CocoaError)?.localizedDescription ?? String(describing: error)
+        }
+    }
+
+    /// 백업으로 되돌리는 djc 명령. 경로에 빈칸이 있어도 그대로 붙여 쓸 수 있게 작은따옴표로 감싼다.
+    public static func restoreCommand(backup: String, database: String?) -> String {
+        func quoted(_ path: String) -> String { "'" + path.replacingOccurrences(of: "'", with: #"'\''"#) + "'" }
+        return "djc rekordbox-restore --backup \(quoted(backup)) " + (database.map { "--db \(quoted($0))" } ?? "--live")
     }
 }
