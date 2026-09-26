@@ -17,6 +17,7 @@ enum ReflectionPanels {
             alert.informativeText = blocked.isEmpty
                 ? "고른 곡에 rekordbox와 다른 큐·그리드 초안이 없습니다."
                 : blocked.prefix(5).map { "• \($0.title): \($0.blockers.joined(separator: " / "))" }.joined(separator: "\n")
+            alert.addButton(withTitle: "확인")
             alert.runModal()
             return
         }
