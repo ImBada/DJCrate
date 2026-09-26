@@ -69,31 +69,31 @@ extension RekordboxWriter {
             contents.append((r.string(0) ?? "", r.string(1) ?? "", (r.int(2) ?? 0) != 0, r.string(3), r.string(4)))
         }
         guard contents.count == 1, let content = contents.first else {
-            throw Blocked(title: draft.trackUUID, reason: contents.isEmpty ? "rekordbox 컬렉션에서 곡을 찾지 못했습니다" : "같은 UUID의 곡이 여럿입니다")
+            throw Blocked(title: draft.trackUUID, reason: contents.isEmpty ? String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했습니다") : String(ui: "같은 UUID의 곡이 여럿입니다"))
         }
         func block(_ reason: String) -> Blocked { Blocked(title: content.title, reason: reason) }
-        guard !content.deleted else { throw block("rekordbox 컬렉션에서 지운 곡입니다") }
+        guard !content.deleted else { throw block(String(ui: "rekordbox 컬렉션에서 지운 곡입니다")) }
         let closed = draft.changedKeys.filter { !writable.contains($0) }
         guard closed.isEmpty else {
-            throw block("rekordbox에 쓰는 규칙을 아직 확인하지 않은 칸(\(closed.map(\.label).joined(separator: "·")))이 있습니다. 그 칸을 되돌리면 나머지는 쓸 수 있습니다")
+            throw block(String(ui: "rekordbox에 쓰는 규칙을 아직 확인하지 않은 칸(\(closed.map(\.label).joined(separator: "·")))이 있습니다. 그 칸을 되돌리면 나머지는 쓸 수 있습니다"))
         }
         if let issue = draft.issues.first { throw block(issue) }
         for key in [TagFields.Key.year, .trackNumber] where draft.changedKeys.contains(key) {
-            guard (Int(draft.fields[key]) ?? 0) >= 0 else { throw block("\(key.label)는 0 이상이어야 합니다") }
+            guard (Int(draft.fields[key]) ?? 0) >= 0 else { throw block(String(ui: "\(key.label)는 0 이상이어야 합니다")) }
         }
         // 앨범을 비우면 rekordbox가 앨범 아티스트도 함께 비운다(2026-09-27 실험곡 3). 비운 앨범에 새 앨범 아티스트는 쓸 수 없다.
         if draft.changedKeys.contains(.albumArtist), draft.fields.album.isEmpty, !draft.fields.albumArtist.isEmpty {
-            throw block("앨범이 없는 곡에는 앨범 아티스트를 쓸 수 없습니다")
+            throw block(String(ui: "앨범이 없는 곡에는 앨범 아티스트를 쓸 수 없습니다"))
         }
         // 실험하지 않은 경우: 아티스트 비우기(작곡가는 '', 장르는 '0'으로 비워 짐작할 수 없다), 발매일이 있는 곡의 연도
         if draft.changedKeys.contains(.artist), draft.fields.artist.isEmpty {
-            throw block("아티스트를 비우는 rekordbox 규칙은 아직 확인하지 않았습니다. 아티스트는 rekordbox에서 비우세요")
+            throw block(String(ui: "아티스트를 비우는 rekordbox 규칙은 아직 확인하지 않았습니다. 아티스트는 rekordbox에서 비우세요"))
         }
         if draft.changedKeys.contains(.year), !(content.releaseDate ?? "").isEmpty {
-            throw block("발매일이 있는 곡의 연도를 고치는 rekordbox 규칙은 아직 확인하지 않았습니다. 연도는 rekordbox에서 고치세요")
+            throw block(String(ui: "발매일이 있는 곡의 연도를 고치는 rekordbox 규칙은 아직 확인하지 않았습니다. 연도는 rekordbox에서 고치세요"))
         }
         guard try currentTags(db: db, contentID: content.id) == draft.base else {
-            throw block("초안을 만든 뒤 rekordbox에서 곡 정보가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요")
+            throw block(String(ui: "초안을 만든 뒤 rekordbox에서 곡 정보가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요"))
         }
         return (content.id, content.title, content.trackInfoUpdated)
     }

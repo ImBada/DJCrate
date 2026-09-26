@@ -57,10 +57,10 @@ extension RekordboxWriter {
                              r.int(5) ?? 0, (r.int(6) ?? 0) != 0, r.string(7) ?? "", r.int(8) ?? 0))
         }
         guard contents.count == 1, let content = contents.first else {
-            throw Blocked(title: draft.trackUUID, reason: contents.isEmpty ? "rekordbox 컬렉션에서 곡을 찾지 못했습니다" : "같은 UUID의 곡이 여럿입니다")
+            throw Blocked(title: draft.trackUUID, reason: contents.isEmpty ? String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했습니다") : String(ui: "같은 UUID의 곡이 여럿입니다"))
         }
         func block(_ reason: String) -> Blocked { Blocked(title: content.title, reason: reason) }
-        guard !content.deleted else { throw block("rekordbox 컬렉션에서 지운 곡입니다") }
+        guard !content.deleted else { throw block(String(ui: "rekordbox 컬렉션에서 지운 곡입니다")) }
 
         // 큐 행
         var rows: [CueRow] = []
@@ -74,7 +74,7 @@ extension RekordboxWriter {
                                beatLoopSize: r.int(11) ?? 0,
                                inMpegFrame: r.int(8) ?? 0, hasSeekInfo: r.string(9) != nil, deleted: (r.int(10) ?? 0) != 0))
         }
-        guard !rows.contains(where: \.deleted) else { throw block("삭제 표시된 큐 행이 있습니다") }
+        guard !rows.contains(where: \.deleted) else { throw block(String(ui: "삭제 표시된 큐 행이 있습니다")) }
 
         // 형식: FLAC은 rekordbox처럼 큐가 든 프레임의 탐색 위치(SeekInfo)를 계산해 적는다(기존 큐 1,818개와 전수 일치 확인).
         // VBR MP3는 큐마다 MPEG 칸(InMpegFrame·InMpegAbs)을 적는다(기존 VBR 큐 1,118개·루프 끝 6개와 전수 일치 확인).
@@ -85,39 +85,39 @@ extension RekordboxWriter {
             // VBR은 DB에 BitRate 0으로도, 첫 프레임 비트레이트(예: 32)로도 적혀서 파일 머리로 가린다(2026-09-26).
             let url = URL(filePath: content.path)
             guard let frames = SeekInfo.mp3Frames(url: url) else {
-                throw block("음원 파일을 읽지 못해 VBR MP3인지 확인할 수 없습니다. rekordbox에서 파일 위치를 확인하세요")
+                throw block(String(ui: "음원 파일을 읽지 못해 VBR MP3인지 확인할 수 없습니다. rekordbox에서 파일 위치를 확인하세요"))
             }
             if frames.isVariableBitRate {
                 vbr = (SeekInfo.countedMp3Offsets(frames, url: url), frames.sampleRate, frames.samplesPerFrame)
             } else {
                 // 분석 전 곡(Analysed 0)은 rekordbox도 BitRate 0으로 넣는다(VBR 표시가 아님)
                 guard content.bitRate > 0 || content.analysed == 0, !rows.contains(where: { $0.inMpegFrame != 0 }) else {
-                    throw block("파일은 CBR MP3인데 rekordbox에는 VBR처럼(비트레이트 0·MPEG 위치) 적혀 있어 직접 쓰지 않습니다")
+                    throw block(String(ui: "파일은 CBR MP3인데 rekordbox에는 VBR처럼(비트레이트 0·MPEG 위치) 적혀 있어 직접 쓰지 않습니다"))
                 }
             }
         case 4, 11:
             break
         case 5:
             guard let table = SeekInfo.flacFrames(url: URL(filePath: content.path)) else {
-                throw block("FLAC 파일을 읽지 못했습니다(탐색 위치를 계산할 수 없음)")
+                throw block(String(ui: "FLAC 파일을 읽지 못했습니다(탐색 위치를 계산할 수 없음)"))
             }
             flac = table
         default:
-            throw block("이 파일 형식(FileType \(content.fileType))은 아직 직접 쓰지 않습니다")
+            throw block(String(ui: "이 파일 형식(FileType \(content.fileType))은 아직 직접 쓰지 않습니다"))
         }
-        guard flac != nil || !rows.contains(where: \.hasSeekInfo) else { throw block("탐색 위치가 적힌 큐가 있어 아직 직접 쓰지 않습니다") }
+        guard flac != nil || !rows.contains(where: \.hasSeekInfo) else { throw block(String(ui: "탐색 위치가 적힌 큐가 있어 아직 직접 쓰지 않습니다")) }
 
         // contentCue(JSON)
         var cueRecords: [(id: String, cues: String?, deleted: Bool)] = []
         try db.query("SELECT ID, Cues, rb_local_deleted FROM contentCue WHERE ContentID = ?", [.text(content.id)]) { r in
             cueRecords.append((r.string(0) ?? "", r.string(1), (r.int(2) ?? 0) != 0))
         }
-        guard cueRecords.count <= 1 else { throw block("큐 기록(contentCue)이 여럿입니다") }
-        if let record = cueRecords.first, record.deleted { throw block("큐 기록(contentCue)이 삭제 표시돼 있습니다") }
-        if cueRecords.isEmpty, !rows.isEmpty { throw block("큐 행은 있는데 큐 기록(contentCue)이 없습니다") }
+        guard cueRecords.count <= 1 else { throw block(String(ui: "큐 기록(contentCue)이 여럿입니다")) }
+        if let record = cueRecords.first, record.deleted { throw block(String(ui: "큐 기록(contentCue)이 삭제 표시돼 있습니다")) }
+        if cueRecords.isEmpty, !rows.isEmpty { throw block(String(ui: "큐 행은 있는데 큐 기록(contentCue)이 없습니다")) }
         let objects: [CueJSON.Object]
         if let record = cueRecords.first {
-            guard let text = record.cues, let parsed = try? CueJSON.parse(text) else { throw block("큐 기록(JSON)을 읽지 못했습니다") }
+            guard let text = record.cues, let parsed = try? CueJSON.parse(text) else { throw block(String(ui: "큐 기록(JSON)을 읽지 못했습니다")) }
             objects = parsed
         } else {
             objects = []
@@ -129,12 +129,12 @@ extension RekordboxWriter {
                 guard let row = rowsByID[id] else { return false }
                 return object["InMsec"] == .int(row.inMsec) && object["Kind"] == .int(row.kind)
             }
-        guard consistent else { throw block("rekordbox 큐 기록(JSON)과 큐 행이 서로 다릅니다") }
+        guard consistent else { throw block(String(ui: "rekordbox 큐 기록(JSON)과 큐 행이 서로 다릅니다")) }
 
         // 초안을 시작할 때와 rekordbox 큐가 같아야 한다.
         let current = rows.map(\.cue).filter { !$0.isAutoGenerated }.compactMap(EditableCue.init)
         guard key(current, withSource: true) == key(draft.base, withSource: true) else {
-            throw block("초안을 만든 뒤 rekordbox에서 이 곡의 큐가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요")
+            throw block(String(ui: "초안을 만든 뒤 rekordbox에서 이 곡의 큐가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요"))
         }
 
         // 바꿀 것
@@ -143,10 +143,10 @@ extension RekordboxWriter {
         for change in draft.changes {
             switch change {
             case let .removed(old):
-                guard let id = old.sourceID, let row = rowsByID[id] else { throw block("지울 큐를 찾지 못했습니다") }
+                guard let id = old.sourceID, let row = rowsByID[id] else { throw block(String(ui: "지울 큐를 찾지 못했습니다")) }
                 removals.append(row)
             case let .modified(old, new):
-                guard let id = old.sourceID, let row = rowsByID[id] else { throw block("옮길 큐를 찾지 못했습니다") }
+                guard let id = old.sourceID, let row = rowsByID[id] else { throw block(String(ui: "옮길 큐를 찾지 못했습니다")) }
                 removals.append(row)
                 inserts.append((new, row))
             case let .added(new):
@@ -159,33 +159,33 @@ extension RekordboxWriter {
         let removedIDs = Set(removals.map(\.id))
         let hotKinds = rows.filter { !removedIDs.contains($0.id) && $0.kind > 0 && $0.kind != 4 }.map(\.kind)
             + inserts.map { kind(for: $0.cue.kind) }.filter { $0 > 0 }
-        guard Set(hotKinds).count == hotKinds.count else { throw block("같은 핫큐 자리에 큐가 둘 생깁니다") }
+        guard Set(hotKinds).count == hotKinds.count else { throw block(String(ui: "같은 핫큐 자리에 큐가 둘 생깁니다")) }
         // rekordbox는 곡당 메모리 큐를 10개까지 둔다(자동 큐 포함).
         let memoryAfter = rows.filter { !removedIDs.contains($0.id) && $0.kind == 0 }.count
             + inserts.filter { $0.cue.kind == .memory }.count
-        guard memoryAfter <= 10 else { throw block("메모리 큐가 \(memoryAfter)개가 됩니다(rekordbox는 곡당 10개까지, 자동 큐 포함)") }
+        guard memoryAfter <= 10 else { throw block(String(ui: "메모리 큐가 \(memoryAfter)개가 됩니다(rekordbox는 곡당 10개까지, 자동 큐 포함)")) }
         let limit = (content.length + 1) * 1000
         guard inserts.allSatisfy({ (0...limit).contains(msec($0.cue.time)) && (0...limit).contains(msec($0.cue.loop?.end ?? 0)) }) else {
-            throw block("곡 길이를 벗어난 큐가 있습니다")
+            throw block(String(ui: "곡 길이를 벗어난 큐가 있습니다"))
         }
-        guard inserts.allSatisfy({ $0.cue.loop.map { msec($0.end) } ?? .max > msec($0.cue.time) }) else { throw block("끝이 시작보다 앞인 루프가 있습니다") }
+        guard inserts.allSatisfy({ $0.cue.loop.map { msec($0.end) } ?? .max > msec($0.cue.time) }) else { throw block(String(ui: "끝이 시작보다 앞인 루프가 있습니다")) }
         // 활성 루프는 곡에 하나까지(라이브러리 전체에 둘 이상인 곡이 없다)
         let activeAfter = rows.filter { !removedIDs.contains($0.id) && $0.activeLoop == 1 }.count
             + inserts.filter { $0.cue.loop?.active == true }.count
-        guard activeAfter <= 1 else { throw block("활성 루프가 \(activeAfter)개가 됩니다(곡당 하나)") }
+        guard activeAfter <= 1 else { throw block(String(ui: "활성 루프가 \(activeAfter)개가 됩니다(곡당 하나)")) }
         // FLAC 탐색 위치(쓰기 전에 모두 계산해 둔다)
         var seekInfo: [EditableCue.ID: String] = [:]
         var outSeekInfo: [EditableCue.ID: String] = [:]
         if let flac {
             for (cue, _) in inserts {
                 guard let info = SeekInfo.flacSeekInfo(frames: flac.frames, sample: msec(cue.time) * flac.sampleRate / 1000) else {
-                    throw block("FLAC 탐색 위치를 계산하지 못한 큐가 있습니다")
+                    throw block(String(ui: "FLAC 탐색 위치를 계산하지 못한 큐가 있습니다"))
                 }
                 seekInfo[cue.id] = info
                 // 루프는 끝 지점도 같은 식(기존 rekordbox 루프 끝 전수 일치)
                 if let end = cue.loop?.end {
                     guard let outInfo = SeekInfo.flacSeekInfo(frames: flac.frames, sample: msec(end) * flac.sampleRate / 1000) else {
-                        throw block("FLAC 탐색 위치를 계산하지 못한 루프가 있습니다")
+                        throw block(String(ui: "FLAC 탐색 위치를 계산하지 못한 루프가 있습니다"))
                     }
                     outSeekInfo[cue.id] = outInfo
                 }
@@ -198,7 +198,7 @@ extension RekordboxWriter {
             func position(_ msec: Int) throws -> (mpegFrame: Int, abs: Int) {
                 guard let p = SeekInfo.mp3CuePosition(msec: msec, counted: vbr.counted, sampleRate: vbr.sampleRate,
                                                       samplesPerFrame: vbr.samplesPerFrame) else {
-                    throw block("VBR MP3 탐색 위치를 계산하지 못한 큐가 있습니다(파일 끝을 넘음)")
+                    throw block(String(ui: "VBR MP3 탐색 위치를 계산하지 못한 큐가 있습니다(파일 끝을 넘음)"))
                 }
                 return p
             }
@@ -213,7 +213,7 @@ extension RekordboxWriter {
         let contentUUID = draft.trackUUID
 
         if cueRecords.isEmpty, try scalar(db, "SELECT count(*) FROM contentCue WHERE ID = ?", [.text(contentUUID)]) != 0 {
-            throw block("같은 ID의 큐 기록(contentCue)이 이미 있습니다")
+            throw block(String(ui: "같은 ID의 큐 기록(contentCue)이 이미 있습니다"))
         }
 
         // 쓰기

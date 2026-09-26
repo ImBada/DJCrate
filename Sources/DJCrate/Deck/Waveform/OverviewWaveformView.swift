@@ -20,13 +20,13 @@ struct OverviewWaveformView: View {
                     // 섹션 칸(아래 띠) 자리에 분석 진행 표시
                     HStack(spacing: 6) {
                         ProgressView().progressViewStyle(.linear).tint(Palette.section)
-                        Text("섹션 분석 중").font(.scaled(.caption2, textScale)).foregroundStyle(Palette.section)
+                        Text(.ui("섹션 분석 중")).font(.scaled(.caption2, textScale)).foregroundStyle(Palette.section)
                     }
                     .padding(.horizontal, 6)
                     .frame(height: metrics.sectionBandHeight + 2)
                     .padding(.bottom, metrics.keyBandHeight + 3)
                     .allowsHitTesting(false)
-                    .accessibilityLabel("섹션 분석 중")
+                    .accessibilityLabel(.ui("섹션 분석 중"))
                 }
                 OverviewPlayheadLayer(deck: deck, duration: duration, metrics: metrics)
             }
@@ -41,8 +41,8 @@ struct OverviewWaveformView: View {
                     deck.endScrub()
                 })
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("재생 위치")
-            .accessibilityHint("클릭하거나 끌어서 위치를 옮깁니다. 조절하면 1박씩 옮깁니다. 로터로 큐·섹션·조성 변화·제안으로 갈 수 있습니다")
+            .accessibilityLabel(.ui("재생 위치"))
+            .accessibilityHint(.ui("클릭하거나 끌어서 위치를 옮깁니다. 조절하면 1박씩 옮깁니다. 로터로 큐·섹션·조성 변화·제안으로 갈 수 있습니다"))
             .waveformAccessibility(deck: deck, kind: .overview)
         }
         .background(Palette.well)
@@ -75,11 +75,11 @@ struct OverviewAccessibilityMarkers: ViewModifier {
                             .accessibilityElement()
                             .accessibilityLabel(marker.label)
                             .accessibilityAddTraits(.isButton)
-                            .accessibilityHint("누르면 이 자리로 옮깁니다")
+                            .accessibilityHint(.ui("누르면 이 자리로 옮깁니다"))
                             .accessibilityAction { if !deck.isWriteLocked { deck.seek(marker.time) } }
                             .accessibilityActions {
                                 if suggestionIDs.contains(marker.id) {
-                                    Button("메모리 큐로 받기") { deck.acceptSuggestion(marker.time) }
+                                    Button(.ui("메모리 큐로 받기")) { deck.acceptSuggestion(marker.time) }
                                 }
                             }
                             .accessibilityRotorEntry(id: marker.id, in: rotorSpace)
@@ -88,11 +88,11 @@ struct OverviewAccessibilityMarkers: ViewModifier {
                 .allowsHitTesting(false)
             }
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("전체 파형")
-            .accessibilityRotor("큐") { entries(cues) }
-            .accessibilityRotor("섹션") { entries(sections) }
-            .accessibilityRotor("조성 변화") { entries(keys) }
-            .accessibilityRotor("제안") { entries(suggestions) }
+            .accessibilityLabel(.ui("전체 파형"))
+            .accessibilityRotor(.ui("큐")) { entries(cues) }
+            .accessibilityRotor(.ui("섹션")) { entries(sections) }
+            .accessibilityRotor(.ui("조성 변화")) { entries(keys) }
+            .accessibilityRotor(.ui("제안")) { entries(suggestions) }
     }
 
     private func entries(_ markers: [WaveformAccessibility.Marker]) -> some AccessibilityRotorContent {

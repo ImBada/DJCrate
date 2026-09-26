@@ -31,7 +31,7 @@ extension TrackEditWindow {
             model?.barsToAdd = 8
             try? await Task.sleep(for: .milliseconds(800))
             if layout != nil {
-                Self.log("창 번호 \(NSApp.windows.first { $0.title.hasPrefix("곡 편집") }?.windowNumber ?? -1)")
+                Self.log("창 번호 \(window?.windowNumber ?? -1)")
             }
             if selfTest { await runSelfTest(deck: deck, store: store) }
         }
@@ -67,7 +67,7 @@ extension TrackEditWindow {
         // 3) 창이 닫히고 추가한 곡에서 편집본이 덱에 올라온다(변환한 그리드·옮긴 큐)
         for _ in 0..<100 where deck.row?.track.uuid != staged.uuid || deck.draft == nil { try? await Task.sleep(for: .milliseconds(100)) }
         check(store.sidebar == .staged && store.selection == [staged.id] && self.model == nil
-              && !NSApp.windows.contains { $0.isVisible && $0.title.hasPrefix("곡 편집") }, "창 닫고 추가한 곡에서 고름")
+              && window?.isVisible != true, "창 닫고 추가한 곡에서 고름")
         check(deck.row?.track.uuid == staged.uuid && deck.gridDraft?.segments == [edit.outputGrid]
               && deck.draft?.cues.count == model.carry?.placed.count,
               "덱에 편집본 · 그리드 \(deck.gridDraft?.segments.first.map { String(format: "%.2f BPM", $0.bpm) } ?? "없음") · 큐 \(deck.draft?.cues.count ?? 0)개")

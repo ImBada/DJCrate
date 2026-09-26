@@ -15,6 +15,7 @@ import Foundation
 /// 트랜잭션 안에서 쓰고 다시 읽어 검증한 뒤에만 커밋한다. 커밋 뒤 무결성 검사·재검증이 실패하면 백업으로 되돌린다
 /// (`writeRolledBack`). 되돌리지도 못하면 상태를 알 수 없으니 `restoreFailed`로 따로 알린다.
 /// 초안을 시작한 뒤 rekordbox에서 그 곡의 큐가 바뀌었으면 그 곡은 쓰지 않는다.
+/// 그리드·오토게인·분석 붙이기·재생 목록은 역할별 확장(`+Grid`·`+Gain`·`+Analysis`·`+Playlist`)에 있다.
 public enum RekordboxWriter {
     public struct Outcome: Codable, Hashable, Sendable {
         public enum Status: String, Codable, Sendable {
@@ -49,6 +50,8 @@ public enum RekordboxWriter {
         public var analysisOutcomes: [Outcome]?
         /// 새로 만든 분석·아트워크 파일(되돌릴 때 지운다). 옛 보고서에는 없다.
         public var createdFiles: [String]?
+        /// 재생 목록 편집 결과(편집 순서대로). 옛 보고서에는 없다.
+        public var playlistOutcomes: [PlaylistOutcome]?
         /// 분석을 붙이며 음원 내장 그림으로 아트워크도 넣은(시험 실행이면 넣을) 곡 UUID. 옛 보고서에는 없다.
         public var artworkAdded: [String]?
         /// 태그(곡 정보) 쓰기 결과(added = 바꾼 칸 수). 옛 보고서에는 없다.
@@ -64,6 +67,8 @@ public enum RekordboxWriter {
         public var analysisBlocked: [Outcome] { (analysisOutcomes ?? []).filter { $0.status == .blocked } }
         public var tagWritten: [Outcome] { (tagOutcomes ?? []).filter { $0.status == .written } }
         public var tagBlocked: [Outcome] { (tagOutcomes ?? []).filter { $0.status == .blocked } }
+        public var playlistWritten: [PlaylistOutcome] { (playlistOutcomes ?? []).filter { $0.status == .written } }
+        public var playlistBlocked: [PlaylistOutcome] { (playlistOutcomes ?? []).filter { $0.status == .blocked } }
     }
 
     public static var liveDatabase: URL { LibrarySnapshot.rekordboxDirectory.appending(path: "master.db") }
@@ -87,13 +92,14 @@ public enum RekordboxWriter {
     ///   - tags: 태그 초안. rekordbox 곡 정보(`djmdContent` 등)만 고치고 음원 파일 태그는 그대로 둔다(`writableTagKeys` 칸만).
     ///   - analysisInputs: 분석 전 곡(분석 파일 없음)의 음원 길이·음량·내장 그림(곡 UUID별). 그 곡의 그리드 초안으로 분석 파일을 만들어 붙이고,
     ///     그림이 있으면 아트워크도 넣는다(`RekordboxTrackWriter.writesArtwork`).
+    ///   - playlists: 재생 목록 편집(적힌 순서대로). DB 옆 `masterPlaylists6.xml`도 rekordbox처럼 고친다.
     public static func write(drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:], tags: [TagDraft] = [],
-                             analysisInputs: [String: AnalysisInput] = [:],
+                             analysisInputs: [String: AnalysisInput] = [:], playlists: [PlaylistEdit] = [],
                              to database: URL = liveDatabase, dryRun: Bool,
                              now: Date = .now, backups: URL, shareRoot: URL? = nil,
                              guard writeGuard: RekordboxWriteGuard = .system) throws -> Report {
-        try write(drafts: drafts, grids: grids, gains: gains, tags: tags, analysisInputs: analysisInputs, to: database, dryRun: dryRun,
-                  now: now, backups: backups, shareRoot: shareRoot, guard: writeGuard, attachesAnalysis: attachesAnalysis,
+        try write(drafts: drafts, grids: grids, gains: gains, tags: tags, analysisInputs: analysisInputs, playlists: playlists, to: database,
+                  dryRun: dryRun, now: now, backups: backups, shareRoot: shareRoot, guard: writeGuard, attachesAnalysis: attachesAnalysis,
                   writesArtwork: RekordboxTrackWriter.writesArtwork)
     }
 
@@ -103,14 +109,14 @@ public enum RekordboxWriter {
     ///   - tagKeys: 태그 쓰기를 연 칸. 앱은 `writableTagKeys`를 따르고, 시험과 사본 실험(`djc lab tag-write-test`)만 바꾼다.
     package static func write(drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], tags: [TagDraft] = [],
                               analysisInputs: [String: AnalysisInput],
-                              to database: URL, dryRun: Bool, now: Date, backups: URL, shareRoot: URL?,
+                              playlists: [PlaylistEdit] = [], to database: URL, dryRun: Bool, now: Date, backups: URL, shareRoot: URL?,
                               guard writeGuard: RekordboxWriteGuard = .system, attachesAnalysis: Bool,
                               writesArtwork: Bool = RekordboxTrackWriter.writesArtwork,
                               tagKeys: Set<TagFields.Key> = writableTagKeys) throws -> Report {
         let stamp = CueJSON.timestamps(now)
         let grids = grids.filter(\.hasChanges)
         var tags = tags.filter(\.hasChanges)
-        guard drafts.contains(where: \.hasChanges) || !grids.isEmpty || !gains.isEmpty || !tags.isEmpty else {
+        guard drafts.contains(where: \.hasChanges) || !grids.isEmpty || !gains.isEmpty || !tags.isEmpty || !playlists.isEmpty else {
             // 쓸 것이 없으면 DB를 열지도, 백업을 만들지도 않는다.
             return Report(outcomes: drafts.map { Outcome(trackUUID: $0.trackUUID, title: $0.trackUUID, status: .unchanged,
                                                           reason: nil, removed: 0, added: 0) },
@@ -161,12 +167,12 @@ public enum RekordboxWriter {
                 }
                 guard let info else {
                     gridOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: draft.trackUUID, status: .blocked,
-                                                reason: "rekordbox 컬렉션에서 곡을 찾지 못했습니다", removed: 0, added: 0))
+                                                reason: String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했습니다"), removed: 0, added: 0))
                     continue
                 }
                 guard let gridRoot else {
                     gridOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: info.title, status: .blocked,
-                                                reason: "사본 DB에는 분석 파일 경로를 따로 주어야 그리드를 씁니다", removed: 0, added: 0))
+                                                reason: String(ui: "사본 DB에는 분석 파일 경로를 따로 주어야 그리드를 씁니다"), removed: 0, added: 0))
                     continue
                 }
                 if needsAnalysis(info.anlz) {
@@ -197,6 +203,17 @@ public enum RekordboxWriter {
             }
         }
 
+        // 재생 목록 편집은 DB 옆 masterPlaylists6.xml도 고친다. 읽지 못하는 모양이면 백업 전에 막는다.
+        let playlistXMLURL = playlistXMLURL(for: database)
+        var playlistXML: MasterPlaylistsXML?
+        if !playlists.isEmpty, FileManager.default.fileExists(atPath: playlistXMLURL.path) {
+            let xml = try? MasterPlaylistsXML(contentsOf: playlistXMLURL)
+            guard let xml, xml.text.contains("</PLAYLISTS>") else {
+                throw DJCError.writeRefused("masterPlaylists6.xml을 읽지 못했습니다. rekordbox를 한 번 켰다가 종료한 뒤 다시 시도하세요")
+            }
+            playlistXML = xml
+        }
+
         let backup = dryRun ? nil : try makeBackup(of: database, in: backups, now: now, label: "write")
         // 분석 파일도 원본을 백업에 둔다(되돌리기용).
         if let backup, !gridPlans.isEmpty { try backupAnalysis(gridPlans, in: backup) }
@@ -206,6 +223,9 @@ public enum RekordboxWriter {
         var written: [(contentID: String, expectation: Expectation)] = []
         var tagged: [TagExpectation] = []
         var attached: [AttachPlan] = []
+        var playlistOutcomes: [PlaylistOutcome] = []
+        var playlistWork: PlaylistWork?
+        var updatedXML: MasterPlaylistsXML?
         var finalUpdateCount: Int?
         var committed = false
         do {
@@ -261,6 +281,30 @@ public enum RekordboxWriter {
                     gainOutcomes.append(Outcome(trackUUID: uuid, title: blocked.title, status: .blocked, reason: blocked.reason, removed: 0, added: 0))
                 }
             }
+            // 재생 목록: 적힌 순서대로. 막힌 편집은 그 편집만 되돌리고(번호도) 뒤 편집을 이어 쓴다.
+            if !playlists.isEmpty {
+                var work = PlaylistWork(tree: try PlaylistTree.read(db), xmlIDs: Set(playlistXML?.nodes.map(\.id) ?? []))
+                for edit in playlists {
+                    try db.execute("SAVEPOINT djc_playlist")
+                    let saved = (work, usn)
+                    do {
+                        playlistOutcomes.append(try applyPlaylist(edit, work: &work, db: db, usn: &usn, stamp: stamp))
+                        try db.execute("RELEASE djc_playlist")
+                    } catch let blocked as PlaylistBlocked {
+                        try db.execute("ROLLBACK TO djc_playlist")
+                        try db.execute("RELEASE djc_playlist")
+                        (work, usn) = saved
+                        playlistOutcomes.append(PlaylistOutcome(edit: edit, playlistID: nil, name: blocked.name, status: .blocked,
+                                                                reason: blocked.reason))
+                    }
+                }
+                if playlistOutcomes.contains(where: { $0.status == .written }) {
+                    try verifyPlaylists(work, db: db)
+                    // XML은 커밋 뒤에 적지만, 적을 수 있는지는 커밋 전에 본다.
+                    updatedXML = try playlistXML.map { try applyPlaylistXML(work.xml, to: $0, now: now) }
+                    playlistWork = work
+                }
+            }
 
             // BPM이 바뀌는 그리드: .DAT 파일 기록과 곡 BPM을 rekordbox처럼 고친다(파일은 커밋 뒤에 쓴다).
             for plan in gridPlans where plan.newBPM100 != nil {
@@ -296,7 +340,7 @@ public enum RekordboxWriter {
             finalUpdateCount = usn
 
             let databaseChanged = !written.isEmpty || gridPlans.contains { $0.newBPM100 != nil }
-                || gainOutcomes.contains { $0.status == .written } || !attached.isEmpty || !tagged.isEmpty
+                || gainOutcomes.contains { $0.status == .written } || !attached.isEmpty || !tagged.isEmpty || playlistWork != nil
             if dryRun || !databaseChanged {
                 try db.execute("ROLLBACK")
             } else {
@@ -312,7 +356,7 @@ public enum RekordboxWriter {
         }
 
         // 백업은 시험 실행이 아닐 때만 있다(= 커밋했을 수 있다).
-        if let backup, !written.isEmpty || !attached.isEmpty || !tagged.isEmpty {
+        if let backup, !written.isEmpty || !attached.isEmpty || !tagged.isEmpty || playlistWork != nil {
             do {
                 try checkIntegrity(of: database)
                 let db = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
@@ -322,8 +366,22 @@ public enum RekordboxWriter {
                 let taggedIDs = Set(tagged.map(\.contentID))
                 for plan in attached { try verifyAttach(plan, db: db, skipsTrackInfo: taggedIDs.contains(plan.contentID)) }
                 for expectation in tagged { try verifyTags(db: db, expectation) }
+                if let playlistWork { try verifyPlaylists(playlistWork, db: db) }
             } catch {
                 throw recover(from: error, database: database, backup: backup, live: live)
+            }
+        }
+        // masterPlaylists6.xml: DB를 확인한 뒤 적는다. 적지 못하면 DB·XML 모두 쓰기 전으로.
+        if let backup, let updatedXML, let original = playlistXML {
+            do {
+                try updatedXML.data.write(to: playlistXMLURL, options: .atomic)
+                guard try MasterPlaylistsXML(contentsOf: playlistXMLURL) == updatedXML else {
+                    throw DJCError.writeVerificationFailed("masterPlaylists6.xml을 다시 읽으니 적은 것과 다릅니다")
+                }
+            } catch {
+                throw recover(from: error, database: database, backup: backup, live: live) {
+                    try original.data.write(to: playlistXMLURL, options: .atomic)
+                }
             }
         }
 
@@ -348,6 +406,7 @@ public enum RekordboxWriter {
         report.gainOutcomes = gainOutcomes.isEmpty ? nil : gainOutcomes
         report.analysisOutcomes = analysisOutcomes.isEmpty ? nil : analysisOutcomes
         report.createdFiles = created.isEmpty ? nil : created.map(\.path)
+        report.playlistOutcomes = playlistOutcomes.isEmpty ? nil : playlistOutcomes
         let artworkAdded = attached.filter { $0.artwork != nil }.map(\.trackUUID)
         report.artworkAdded = artworkAdded.isEmpty ? nil : artworkAdded
         report.tagOutcomes = tagOutcomes.isEmpty ? nil : tagOutcomes
@@ -382,6 +441,10 @@ public enum RekordboxWriter {
                 for draft in tags where tagWritten.contains(draft.trackUUID) {
                     try? JSONEncoder().encode(draft).write(to: tagFolder.appending(path: "\(draft.trackUUID).json"), options: .atomic)
                 }
+            }
+            let playlistWritten = report.playlistWritten.map(\.edit)
+            if !playlistWritten.isEmpty {
+                try? JSONEncoder().encode(playlistWritten).write(to: backup.appending(path: "playlist-edits.json"), options: .atomic)
             }
             prune(backups)
         }

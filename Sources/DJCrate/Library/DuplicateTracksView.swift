@@ -1,3 +1,4 @@
+import DJCDomain
 import DJCStorage
 import SwiftUI
 
@@ -7,19 +8,19 @@ struct DuplicateTracksView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("제목·아티스트 같음 · 길이 차이 2초 이내 · 버전 표기 구분")
+            Text(.ui("제목·아티스트 같음 · 길이 차이 2초 이내 · 버전 표기 구분"))
                 .font(.callout).padding(.horizontal, 12).padding(.top, 8)
-            Text("스냅샷 기준 · 후보가 같은 음원인지는 직접 확인하세요 · 한 곡이 여러 묶음에 나올 수 있습니다")
+            Text(.ui("스냅샷 기준 · 후보가 같은 음원인지는 직접 확인하세요 · 한 곡이 여러 묶음에 나올 수 있습니다"))
                 .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.bottom, 8)
             if store.displayDuplicateGroups.isEmpty {
-                ContentUnavailableView("중복 후보가 없습니다", systemImage: "square.on.square",
-                                       description: Text(store.search.isEmpty ? "현재 스냅샷에서 조건이 맞는 곡이 없습니다" : "검색어를 지우고 다시 확인하세요"))
+                ContentUnavailableView(.ui("중복 후보가 없습니다"), systemImage: "square.on.square",
+                                       description: store.search.isEmpty ? Text(.ui("현재 스냅샷에서 조건이 맞는 곡이 없습니다")) : Text(.ui("검색어를 지우고 다시 확인하세요")))
             } else {
                 GeometryReader { geometry in
                     ScrollView(.horizontal) {
                         VStack(spacing: 0) {
-                            columns(title: "곡 · 파일 경로", length: "길이", cues: "큐", playlists: "재생 목록",
-                                    plays: "재생 횟수", format: "형식", bitrate: "비트레이트")
+                            columns(title: String(ui: "곡 · 파일 경로"), length: String(ui: "길이"), cues: String(ui: "큐"), playlists: String(ui: "재생 목록"),
+                                    plays: String(ui: "재생 횟수"), format: String(ui: "형식"), bitrate: String(ui: "비트레이트"))
                                 .font(.caption).foregroundStyle(.secondary)
                                 .padding(.horizontal, 16).padding(.vertical, 6)
                             List(selection: $store.selection) {
@@ -29,7 +30,7 @@ struct DuplicateTracksView: View {
                                             candidate(member).tag(member.id)
                                         }
                                     } header: {
-                                        Text("\(group.tracks.first?.track.title ?? "") · \(group.tracks.count)곡")
+                                        Text(.ui("\(group.tracks.first?.track.title ?? "") · \(group.tracks.count)곡"))
                                     }
                                 }
                             }
@@ -42,17 +43,17 @@ struct DuplicateTracksView: View {
         }
         .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
         .navigationTitle(store.sidebarTitle)
-        .navigationSubtitle("\(store.displayDuplicateGroups.count)묶음 · \(store.displayRows.count)곡")
+        .navigationSubtitle(String(ui: "\(store.displayDuplicateGroups.count)묶음 · \(store.displayRows.count)곡"))
     }
 
     private func candidate(_ member: LibraryRead.DuplicateMember) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            columns(title: member.track.title, length: "\(member.track.lengthSeconds)초", cues: "\(member.cueCount)",
+            columns(title: member.track.title, length: String(ui: "\(member.track.lengthSeconds)초"), cues: "\(member.cueCount)",
                     playlists: "\(member.playlistCount)", plays: "\(member.playCount)", format: member.format,
-                    bitrate: member.bitrateKbps.map { "\($0) kbps" } ?? "알 수 없음")
+                    bitrate: member.bitrateKbps.map { "\($0) kbps" } ?? String(ui: "알 수 없음"))
             HStack {
-                Text(member.track.artist ?? "").lineLimit(1)
-                Text("수동 큐 \(member.manualCueCount) · 자동 큐 \(member.cueCount - member.manualCueCount)")
+                Text(verbatim: member.track.artist ?? "").lineLimit(1)
+                Text(.ui("수동 큐 \(member.manualCueCount) · 자동 큐 \(member.cueCount - member.manualCueCount)"))
             }
             .font(.caption).foregroundStyle(.secondary)
             Text(member.track.path).font(.caption).foregroundStyle(.secondary)

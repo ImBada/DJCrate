@@ -24,19 +24,19 @@ public enum DJCError: Error, LocalizedError, CustomStringConvertible {
     /// 앱에는 원문·경로·명령 대신 이유와 할 일을 보여 준다. CLI 원문은 description에 남긴다.
     public var errorDescription: String? {
         switch self {
-        case .keyDerivationFailed: "rekordbox 라이브러리의 잠금을 풀지 못했습니다"
-        case .databaseOpenFailed: "라이브러리 사본을 열지 못했습니다"
-        case .queryFailed: "라이브러리 정보를 읽지 못했습니다"
-        case .rekordboxRunning: "rekordbox가 실행 중입니다"
-        case .writeAheadLogPresent: "rekordbox의 변경 사항이 아직 저장되지 않았습니다"
-        case .sourceChangedDuringCopy: "복사하는 동안 라이브러리가 바뀌었습니다"
-        case .snapshotNotFound: "라이브러리 사본이 없습니다"
-        case .invalidAnalysisFile: "곡의 분석 파일을 읽지 못했습니다"
-        case .invalidCueJSON: "곡의 큐 정보를 읽지 못했습니다"
+        case .keyDerivationFailed: String(ui: "rekordbox 라이브러리의 잠금을 풀지 못했습니다")
+        case .databaseOpenFailed: String(ui: "라이브러리 사본을 열지 못했습니다")
+        case .queryFailed: String(ui: "라이브러리 정보를 읽지 못했습니다")
+        case .rekordboxRunning: String(ui: "rekordbox가 실행 중입니다")
+        case .writeAheadLogPresent: String(ui: "rekordbox의 변경 사항이 아직 저장되지 않았습니다")
+        case .sourceChangedDuringCopy: String(ui: "복사하는 동안 라이브러리가 바뀌었습니다")
+        case .snapshotNotFound: String(ui: "라이브러리 사본이 없습니다")
+        case .invalidAnalysisFile: String(ui: "곡의 분석 파일을 읽지 못했습니다")
+        case .invalidCueJSON: String(ui: "곡의 큐 정보를 읽지 못했습니다")
         case let .writeRefused(reason): reason
-        case .writeVerificationFailed: "반영 결과가 예상과 달라 변경을 취소했습니다"
-        case .writeRolledBack: "반영 결과를 확인하지 못해 쓰기 전 백업으로 되돌렸습니다"
-        case .restoreFailed: "라이브러리와 분석 파일의 상태를 확인하지 못했습니다"
+        case .writeVerificationFailed: String(ui: "반영 결과가 예상과 달라 변경을 취소했습니다")
+        case .writeRolledBack: String(ui: "반영 결과를 확인하지 못해 쓰기 전 백업으로 되돌렸습니다")
+        case .restoreFailed: String(ui: "라이브러리와 분석 파일의 상태를 확인하지 못했습니다")
         case let .editRefused(reason): reason
         }
     }
@@ -44,27 +44,27 @@ public enum DJCError: Error, LocalizedError, CustomStringConvertible {
     public var recoverySuggestion: String? {
         switch self {
         case .keyDerivationFailed:
-            "rekordbox와 DJCrate의 지원 버전을 확인하세요."
+            String(ui: "rekordbox와 DJCrate의 지원 버전을 확인하세요.")
         case .databaseOpenFailed, .queryFailed, .sourceChangedDuringCopy:
-            "rekordbox를 종료한 뒤 스냅샷을 다시 뜨세요."
+            String(ui: "rekordbox를 종료한 뒤 스냅샷을 다시 뜨세요.")
         case .rekordboxRunning:
-            "rekordbox를 완전히 종료한 뒤 다시 시도하세요."
+            String(ui: "rekordbox를 완전히 종료한 뒤 다시 시도하세요.")
         case .writeAheadLogPresent:
-            "rekordbox를 한 번 켰다가 완전히 종료한 뒤 스냅샷을 다시 뜨세요."
+            String(ui: "rekordbox를 한 번 켰다가 완전히 종료한 뒤 스냅샷을 다시 뜨세요.")
         case .snapshotNotFound:
-            "‘스냅샷 뜨기’를 눌러 라이브러리를 불러오세요."
+            String(ui: "‘스냅샷 뜨기’를 눌러 라이브러리를 불러오세요.")
         case .invalidAnalysisFile:
-            "rekordbox에서 트랙 분석을 다시 한 뒤 시도하세요."
+            String(ui: "rekordbox에서 트랙 분석을 다시 한 뒤 시도하세요.")
         case .invalidCueJSON:
-            "rekordbox에서 큐를 확인한 뒤 라이브러리를 다시 불러오세요."
+            String(ui: "rekordbox에서 큐를 확인한 뒤 라이브러리를 다시 불러오세요.")
         case .writeRefused:
-            "안내된 조건과 DJCrate 업데이트를 확인한 뒤 다시 시도하세요."
+            String(ui: "안내된 조건과 DJCrate 업데이트를 확인한 뒤 다시 시도하세요.")
         case .writeVerificationFailed, .writeRolledBack:
-            "라이브러리를 다시 불러오고 초안을 확인한 뒤 다시 시도하세요."
+            String(ui: "라이브러리를 다시 불러오고 초안을 확인한 뒤 다시 시도하세요.")
         case .restoreFailed:
-            "rekordbox를 켜지 말고 ‘rekordbox 반영 대기’의 ‘되돌리기…’로 쓰기 전 백업을 복원하세요."
+            String(ui: "rekordbox를 켜지 말고 ‘rekordbox 반영 대기’의 ‘되돌리기…’로 쓰기 전 백업을 복원하세요.")
         case .editRefused:
-            "안내된 마디 구간과 곡을 확인한 뒤 다시 시도하세요."
+            String(ui: "안내된 마디 구간과 곡을 확인한 뒤 다시 시도하세요.")
         }
     }
 

@@ -9,12 +9,12 @@ extension RekordboxWriter {
         var values: [Int] = []
         try db.query("SELECT int_1 FROM agentRegistry WHERE registry_id = 'localUpdateCount'") { values.append($0.int(0) ?? -1) }
         guard values.count == 1, let value = values.first, value > 0 else {
-            throw DJCError.writeRefused("rekordbox 변경 카운터를 찾지 못했습니다")
+            throw DJCError.writeRefused(String(ui: "rekordbox 변경 카운터를 찾지 못했습니다"))
         }
         // 카운터는 지금까지 나눠 준 번호보다 작으면 안 된다.
         let issued = max(try scalar(db, "SELECT ifnull(max(rb_local_usn), 0) FROM djmdContent", []) ?? 0,
                          try scalar(db, "SELECT ifnull(max(rb_local_usn), 0) FROM contentCue", []) ?? 0)
-        guard issued <= value else { throw DJCError.writeRefused("rekordbox 변경 카운터가 예상과 다릅니다") }
+        guard issued <= value else { throw DJCError.writeRefused(String(ui: "rekordbox 변경 카운터가 예상과 다릅니다")) }
         try RekordboxCompatibility.checkCounters(local: value, cloud: RekordboxCompatibility.updateCounters(db).cloud)
         return value
     }

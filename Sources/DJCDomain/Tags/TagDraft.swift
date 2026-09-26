@@ -9,15 +9,15 @@ public struct TagFields: Codable, Hashable, Sendable {
 
         public var label: String {
             switch self {
-            case .title: "제목"
-            case .artist: "아티스트"
-            case .album: "앨범"
-            case .albumArtist: "앨범 아티스트"
-            case .genre: "장르"
-            case .composer: "작곡가"
-            case .year: "연도"
-            case .trackNumber: "트랙 번호"
-            case .comment: "코멘트"
+            case .title: String(ui: "제목")
+            case .artist: String(ui: "아티스트")
+            case .album: String(ui: "앨범")
+            case .albumArtist: String(ui: "앨범 아티스트")
+            case .genre: String(ui: "장르")
+            case .composer: String(ui: "작곡가")
+            case .year: String(ui: "연도")
+            case .trackNumber: String(ui: "트랙 번호")
+            case .comment: String(ui: "코멘트")
             }
         }
     }
@@ -99,9 +99,9 @@ public struct TagDraft: Codable, Equatable, Sendable {
     /// 쓰기 전 확인할 문제.
     public var issues: [String] {
         var issues: [String] = []
-        if !fields.year.isEmpty, Int(fields.year) == nil { issues.append("연도는 숫자여야 합니다") }
-        if !fields.trackNumber.isEmpty, Int(fields.trackNumber) == nil { issues.append("트랙 번호는 숫자여야 합니다") }
-        if fields.title.trimmingCharacters(in: .whitespaces).isEmpty { issues.append("제목이 비어 있습니다") }
+        if !fields.year.isEmpty, Int(fields.year) == nil { issues.append(String(ui: "연도는 숫자여야 합니다")) }
+        if !fields.trackNumber.isEmpty, Int(fields.trackNumber) == nil { issues.append(String(ui: "트랙 번호는 숫자여야 합니다")) }
+        if fields.title.trimmingCharacters(in: .whitespaces).isEmpty { issues.append(String(ui: "제목이 비어 있습니다")) }
         return issues
     }
 }

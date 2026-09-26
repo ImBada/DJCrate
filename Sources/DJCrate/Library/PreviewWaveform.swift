@@ -119,9 +119,9 @@ final class PreviewWaveformCell: NSTableCellView {
         wantsLayer = true
         layer?.addSublayer(waveformLayer)
         setAccessibilityElement(true)
-        setAccessibilityLabel("미리 보기 파형")
-        setAccessibilityValue("분석 자료 없음")
-        toolTip = "곡 전체 파형 · 핫큐는 위쪽, 메모리 큐는 아래쪽 눈금 · 루프는 짧은 막대"
+        setAccessibilityLabel(String(ui: "미리 보기 파형"))
+        setAccessibilityValue(String(ui: "분석 자료 없음"))
+        toolTip = String(ui: "곡 전체 파형 · 핫큐는 위쪽, 메모리 큐는 아래쪽 눈금 · 루프는 짧은 막대")
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -183,6 +183,6 @@ final class PreviewWaveformCell: NSTableCellView {
         CATransaction.setDisableActions(true)
         waveformLayer.contents = image
         CATransaction.commit()
-        setAccessibilityValue(image == nil ? "분석 자료 없음" : "곡 전체 미리 보기")
+        setAccessibilityValue(image == nil ? String(ui: "분석 자료 없음") : String(ui: "곡 전체 미리 보기"))
     }
 }

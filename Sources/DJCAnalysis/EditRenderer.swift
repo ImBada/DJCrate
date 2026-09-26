@@ -34,19 +34,19 @@ public enum EditRenderer {
                               progress: Progress? = nil) throws -> Result {
         let ext = output.pathExtension.lowercased()
         guard outputExtensions.contains(ext) else {
-            throw DJCError.editRefused("\(output.lastPathComponent): WAV·AIFF로만 렌더합니다. 확장자를 .wav나 .aiff로 주세요")
+            throw DJCError.editRefused(String(ui: "\(output.lastPathComponent): WAV·AIFF로만 렌더합니다. 확장자를 .wav나 .aiff로 주세요"))
         }
-        guard bitDepth == 16 || bitDepth == 24 else { throw DJCError.editRefused("비트 수는 16이나 24로 주세요") }
+        guard bitDepth == 16 || bitDepth == 24 else { throw DJCError.editRefused(String(ui: "비트 수는 16이나 24로 주세요")) }
         func canonical(_ url: URL) -> URL { url.resolvingSymlinksInPath().standardizedFileURL }
         guard canonical(output) != canonical(source) else {
-            throw DJCError.editRefused("원본 음원에는 쓰지 않습니다. 다른 출력 파일 이름을 주세요")
+            throw DJCError.editRefused(String(ui: "원본 음원에는 쓰지 않습니다. 다른 출력 파일 이름을 주세요"))
         }
         guard !FileManager.default.fileExists(atPath: output.path) else {
-            throw DJCError.editRefused("\(output.lastPathComponent)은 이미 있는 파일입니다. 덮지 않으니 다른 이름을 주세요")
+            throw DJCError.editRefused(String(ui: "\(output.lastPathComponent)은 이미 있는 파일입니다. 덮지 않으니 다른 이름을 주세요"))
         }
         let file = try AVAudioFile(forReading: source)
         let format = file.processingFormat
-        guard format.channelCount <= 2 else { throw DJCError.editRefused("모노·스테레오 음원만 편집합니다") }
+        guard format.channelCount <= 2 else { throw DJCError.editRefused(String(ui: "모노·스테레오 음원만 편집합니다")) }
 
         let partial = output.deletingLastPathComponent().appending(path: ".\(output.deletingPathExtension().lastPathComponent).djc-partial.\(ext)")
         try? FileManager.default.removeItem(at: partial)
@@ -72,7 +72,7 @@ public enum EditRenderer {
         defer { out.close() }
         guard let body = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: chunk),
               let scratch = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: chunk) else {
-            throw DJCError.editRefused("렌더 버퍼를 만들지 못했습니다")
+            throw DJCError.editRefused(String(ui: "렌더 버퍼를 만들지 못했습니다"))
         }
         let channels = Int(format.channelCount)
         let total = max(1, spans.reduce(0) { $0 + $1.frameCount })
@@ -81,7 +81,7 @@ public enum EditRenderer {
         var tail: AVAudioPCMBuffer?
         for (index, span) in spans.enumerated() {
             guard span.outputFrame == written + Int64(tail?.frameLength ?? 0) else {
-                throw DJCError.editRefused("편집 시간표가 이어지지 않습니다(프레임 \(span.outputFrame))")
+                throw DJCError.editRefused(String(ui: "편집 시간표가 이어지지 않습니다(프레임 \(span.outputFrame))"))
             }
             if let held = tail {
                 if span.crossfadeFrames > 0 {
@@ -115,7 +115,7 @@ public enum EditRenderer {
             }
             if hold > 0 {
                 guard let held = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(hold)) else {
-                    throw DJCError.editRefused("렌더 버퍼를 만들지 못했습니다")
+                    throw DJCError.editRefused(String(ui: "렌더 버퍼를 만들지 못했습니다"))
                 }
                 try read(file, from: position, count: Int(hold), into: held, scratch: scratch)
                 tail = held

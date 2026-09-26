@@ -13,12 +13,12 @@ extension RekordboxWriter {
                           stamp: (db: String, json: String)) throws -> Outcome {
         var content: (id: String, title: String)?
         try db.query("SELECT ID, Title FROM djmdContent WHERE UUID = ? AND rb_local_deleted = 0", [.text(uuid)]) { content = ($0.string(0) ?? "", $0.string(1) ?? "") }
-        guard let content else { throw Blocked(title: uuid, reason: "rekordbox 컬렉션에서 곡을 찾지 못했습니다") }
-        guard gainDB.isFinite, (-24...24).contains(gainDB) else { throw Blocked(title: content.title, reason: "게인이 범위를 벗어납니다") }
+        guard let content else { throw Blocked(title: uuid, reason: String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했습니다")) }
+        guard gainDB.isFinite, (-24...24).contains(gainDB) else { throw Blocked(title: content.title, reason: String(ui: "게인이 범위를 벗어납니다")) }
         var rows: [String] = []
         try db.query("SELECT ID FROM djmdMixerParam WHERE ContentID = ? AND rb_local_deleted = 0", [.text(content.id)]) { rows.append($0.string(0) ?? "") }
         guard rows.count == 1, let rowID = rows.first else {
-            throw Blocked(title: content.title, reason: rows.isEmpty ? "rekordbox 오토게인 값이 없는 곡입니다(분석 전)" : "오토게인 행이 여럿입니다")
+            throw Blocked(title: content.title, reason: rows.isEmpty ? String(ui: "rekordbox 오토게인 값이 없는 곡입니다(분석 전)") : String(ui: "오토게인 행이 여럿입니다"))
         }
         let value = Float(pow(10, gainDB / 20))
         let (high, low) = RekordboxAutoGain.halves(value)

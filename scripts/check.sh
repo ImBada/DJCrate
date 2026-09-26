@@ -1,5 +1,5 @@
 #!/bin/zsh
-# 커밋·합치기 전 확인: 빌드(디버그·릴리스 앱) → 단위 테스트(커버리지) → 영역별 줄 커버리지와 목표.
+# 커밋·합치기 전 확인: 빌드(디버그·릴리스 앱) → 번역 누락 → 단위 테스트(커버리지) → 영역별 줄 커버리지와 목표.
 # 사용: scripts/check.sh            목표(쓰기 80%, 코어 60%) 밑이면 실패
 set -euo pipefail
 cd "${0:A:h}/.."
@@ -8,6 +8,9 @@ echo "▸ 빌드"
 swift build 2>&1 | grep -E "error:|warning: .*Sources/" || true
 swift build 2>&1 | tail -1
 swift build -c release --product DJCrate 2>&1 | tail -1
+
+echo "▸ 번역(en·ja 누락·안 쓰는 문구·자리표시자)"
+swift scripts/i18n.swift check
 
 echo "▸ 단위 테스트"
 if ! swift test --enable-code-coverage > .build/check-test.log 2>&1; then
