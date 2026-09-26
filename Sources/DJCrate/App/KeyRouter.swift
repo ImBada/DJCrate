@@ -3,8 +3,8 @@ import AppKit
 /// 창 전체 단축키와 검색창 포커스 정리.
 ///
 /// SwiftUI `onKeyPress`는 그 뷰에 포커스가 있어야 동작해서, 파형(제스처가 클릭을 먹는다)이나 목록을
-/// 누른 뒤, 또는 검색창에 포커스가 남아 있으면 스페이스·CUE가 먹히지 않았다. 여기서는 어디에 포커스가
-/// 있든 덱 단축키를 받고, 글자를 입력하는 중(검색창·태그 칸·시트 셀 편집)에는 끼어들지 않는다.
+/// 누른 뒤에는 스페이스·CUE가 먹히지 않았다. 덱·곡 목록에서만 덱 단축키를 받고,
+/// 다른 창이나 글자 입력·컨트롤 포커스에는 끼어들지 않는다.
 /// 검색창은 Esc·Return, 또는 글자 칸이 아닌 곳을 클릭하면 빠져나온다.
 @MainActor
 @Observable
@@ -12,6 +12,7 @@ final class KeyRouter {
     @ObservationIgnored private var monitors: [Any] = []
     @ObservationIgnored private weak var deck: DeckModel?
     @ObservationIgnored private var resignObserver: NSObjectProtocol?
+    @ObservationIgnored private var cueKeyIsDown = false
 
     func install(deck: DeckModel) {
         self.deck = deck
@@ -31,6 +32,7 @@ final class KeyRouter {
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.deck?.cueUp()
+                self?.cueKeyIsDown = false
             }
         }
     }
@@ -39,30 +41,42 @@ final class KeyRouter {
 
     /// nil을 돌려주면 이벤트를 삼킨다(다른 곳으로 가지 않는다).
     private func route(_ event: NSEvent) -> NSEvent? {
-        guard let deck, let window = event.window, window.attachedSheet == nil else { return event }
-        // rekordbox에 쓰는 동안은 키 조작을 모두 막는다(확인 창 등 모달은 따로 받는다).
-        if deck.isWriteLocked, NSApp.modalWindow == nil { return nil }
+        guard let deck else { return event }
+        // C를 누른 뒤 포커스가 바뀌어도 이미 시작한 미리 듣기는 끝내되, 키는 새 대상에 넘긴다.
+        if event.type == .keyUp, Self.shortcutName(for: event.keyCode) == "c", cueKeyIsDown {
+            deck.cueUp()
+            cueKeyIsDown = false
+        }
+        guard let window = event.window else { return event }
         let responder = window.firstResponder
+        let focus = Self.focus(in: window)
+        let context = KeyRoutingPolicy.Context(
+            isMainWindow: window === NSApp.mainWindow,
+            hasModalWindow: NSApp.modalWindow != nil,
+            hasAttachedSheet: window.attachedSheet != nil,
+            hasShortcutModifiers: !event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+            focus: focus)
+        guard context.isMainWindow, !context.hasModalWindow, !context.hasAttachedSheet else { return event }
         if let editor = responder as? NSTextView {
             return routeWhileTyping(event, editor: editor, window: window)
         }
-        guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return event }
+        if focus == .control || focus == .table || focus == .textInput { return event }
+        // 덱·목록의 쓰기 잠금은 유지한다. 모달·입력 컨트롤에는 위에서 먼저 키를 넘긴다.
+        if deck.isWriteLocked { return nil }
+        guard KeyRoutingPolicy.accepts(event.keyCode, in: context) else { return event }
         // 글자가 아니라 키 위치로 본다. 한글 입력기가 켜져 있으면 C 키가 "ㅊ"으로 들어와 글자로는 못 알아본다.
         let key = Self.shortcutName(for: event.keyCode)
-        // 태그 시트는 방향키·Delete·글자 입력을 직접 쓴다. 스페이스(재생)만 가져온다.
-        let inSheet = responder is SheetTableView
-        // 표(곡 목록·사이드바)가 아니면 덱을 보고 있는 것으로 본다(창 자신·파형·버튼).
-        let deckFocused = !(responder is NSTableView)
+        let deckFocused = focus == .deck
 
         if event.type == .keyUp {
-            if key == "c", !inSheet { deck.cueUp(); return nil }
+            if key == "c" { return nil }
             return event
         }
         if deck.row != nil, event.keyCode == Self.space {
             if !event.isARepeat { deck.togglePlay() }
             return nil
         }
-        if inSheet { return event }
+        if focus == .sheet { return event }
         if deck.row != nil, handleDeckKey(event, key: key, deckFocused: deckFocused) { return nil }
 
         if deckFocused {
@@ -100,17 +114,15 @@ final class KeyRouter {
         let isEscape = event.keyCode == Self.escape
         guard isReturn || isEscape else { return event }
         if editor.delegate is NSSearchField {
-            // 검색을 마치면 목록으로 넘어가 ↑↓로 바로 곡을 고를 수 있게 한다.
-            focusList(in: window)
-            return nil
+            // Esc의 검색어 지우기·Return의 확정을 먼저 처리한 뒤 목록으로 옮긴다.
+            Task { @MainActor [weak self] in
+                if window.firstResponder === editor { self?.focusList(in: window) }
+            }
+            return event
         }
         // 태그 시트 셀은 Return으로 확정하고 아래 칸으로 가는 규칙이 따로 있다.
         guard let field = editor.delegate as? NSTextField, !Self.isInSheet(field) else { return event }
-        if isEscape {
-            window.makeFirstResponder(nil)
-            return nil
-        }
-        // Return은 칸에 먼저 보내 값이 적용(onSubmit)되게 한 뒤 포커스를 놓는다.
+        // 확정·취소는 칸에 먼저 보내고 포커스를 놓는다.
         Task { @MainActor in
             if window.firstResponder === editor { window.makeFirstResponder(nil) }
         }
@@ -145,7 +157,8 @@ final class KeyRouter {
         case nil: break
         }
         switch key {
-        case "c": if !event.isARepeat { deck.cueDown() }
+        case "c":
+            if !event.isARepeat { deck.cueDown(); cueKeyIsDown = true }
         case "q": if !event.isARepeat { deck.jumpToCue(forward: false) }
         case "e": if !event.isARepeat { deck.jumpToCue(forward: true) }
         case "m":
@@ -168,6 +181,17 @@ final class KeyRouter {
 
     static let trackListID = NSUserInterfaceItemIdentifier("djc.trackList")
     private weak var list: NSTableView?
+
+    static func focus(in window: NSWindow) -> KeyRoutingPolicy.Focus {
+        let responder = window.firstResponder
+        if responder is NSTextView || responder is NSTextField { return .textInput }
+        if responder is SheetTableView { return .sheet }
+        if let table = responder as? NSTableView {
+            return table.identifier == trackListID ? .trackList : .table
+        }
+        // 파형 클릭은 창으로 포커스를 돌린다. SwiftUI의 내부 컨트롤도 기본적으로 보호한다.
+        return responder === window ? .deck : .control
+    }
 
     /// 곡 목록(태그 시트 모드면 시트)에 포커스를 준다. 없으면 창 자신에게.
     @discardableResult
@@ -194,12 +218,13 @@ final class KeyRouter {
     /// 글자 칸·표가 아닌 곳(파형·덱 버튼·빈 곳)을 누르면 포커스를 창으로 돌려 단축키가 덱으로 가게 한다.
     /// 검색창에 포커스가 박혀 스페이스가 검색어로 들어가던 문제를 여기서 푼다.
     private func releaseFocusIfNeeded(_ event: NSEvent) {
-        guard let window = event.window, window.attachedSheet == nil,
+        guard NSApp.modalWindow == nil, let window = event.window, window === NSApp.mainWindow,
+              window.attachedSheet == nil,
               let root = window.contentView?.superview,
               let hit = root.hitTest(event.locationInWindow) else { return }
         var view: NSView? = hit
         while let current = view {
-            if current is NSTextView || current is NSTextField || current is NSTableView {
+            if current is NSTextView || current is NSControl {
                 return
             }
             view = current.superview
@@ -208,7 +233,7 @@ final class KeyRouter {
     }
 
     /// 키 위치(ANSI 배열 키 코드) → 단축키 이름. 입력기·배열과 무관하게 같은 자리의 키가 같은 기능이다.
-    static func shortcutName(for keyCode: UInt16) -> String {
+    nonisolated static func shortcutName(for keyCode: UInt16) -> String {
         switch keyCode {
         case 8: "c"
         case 46, 50: "m"   // M, `(1 왼쪽 키 — 한글 자판에선 ₩)
@@ -227,7 +252,7 @@ final class KeyRouter {
     }
 
     /// 숫자 키 위치 → 핫큐 칸(0 = A). 윗줄 1~8과 숫자 패드 1~8.
-    static func hotCueSlot(for keyCode: UInt16) -> Int? {
+    nonisolated static func hotCueSlot(for keyCode: UInt16) -> Int? {
         switch keyCode {
         case 18, 83: 0
         case 19, 84: 1
