@@ -34,12 +34,15 @@ struct AppToastView: View {
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(tint)
                 .symbolEffect(.bounce, value: toast.id)
+            // 카드는 내용 폭에 맞춘다(긴 설명만 이 폭에서 줄을 바꾼다)
             VStack(alignment: .leading, spacing: 2) {
                 Text(toast.title).font(.system(size: 13, weight: .semibold))
                 if let detail = toast.detail {
                     Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(3)
                 }
             }
+            .frame(maxWidth: 420, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
             if let onUndo, toast.undoBackup != nil {
                 Button("되돌리기", action: onUndo)
                     .controlSize(.small)
@@ -51,7 +54,7 @@ struct AppToastView: View {
                 .accessibilityLabel("알림 닫기")
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
-        .frame(maxWidth: 560, alignment: .leading)
+        .fixedSize(horizontal: true, vertical: false)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(tint.opacity(0.35)))
         .shadow(color: .black.opacity(0.25), radius: 16, y: 6)
