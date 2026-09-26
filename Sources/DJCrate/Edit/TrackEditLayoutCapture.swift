@@ -22,6 +22,7 @@ extension TrackEditWindow {
             guard let row = store.rows.first(where: { $0.title.hasPrefix("편집 화면 시험") }) else { Self.log("합성 곡 없음"); return }
             if let layout { NSApp.appearance = NSAppearance(named: layout.hasSuffix("dark") ? .darkAqua : .aqua) }
             store.selection = [row.id]
+            store.loadToDeck(row)
             for _ in 0..<150 where deck.row?.id != row.id || deck.draft == nil || deck.waveform == nil {
                 try? await Task.sleep(for: .milliseconds(100))
             }

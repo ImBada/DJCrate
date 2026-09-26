@@ -1511,22 +1511,6 @@
         }
       }
     },
-    "%@을 덱에 올리기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Load %@ to the deck"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@をデッキに読み込む"
-          }
-        }
-      }
-    },
     "%@이 바뀌었습니다(%@ → %@)" : {
       "localizations" : {
         "en" : {
@@ -2795,18 +2779,18 @@
         }
       }
     },
-    "BPM ±6% · 반·두 배 포함 · 키 이웃 · 장르 · #태그\n점수순 상위 100곡 · 곡을 누르면 덱에 올립니다" : {
+    "BPM ±6% · 반·두 배 포함 · 키 이웃 · 장르 · #태그\n점수순 상위 100곡 · 더블클릭·Return으로 덱에 올립니다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "BPM ±6% · half and double included · neighboring keys · genre · #tags\nTop 100 by score · Click a track to load it to the deck"
+            "value" : "BPM ±6% · half and double included · neighboring keys · genre · #tags\nTop 100 by score · Double-click or press Return to load a track to the deck"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "BPM ±6% · 半分・倍を含む · 隣接キー · ジャンル · #タグ\nスコア上位100曲 · 曲をクリックするとデッキに読み込みます"
+            "value" : "BPM ±6% · 半分・倍を含む · 隣接キー · ジャンル · #タグ\nスコア上位100曲 · ダブルクリックまたはReturnでデッキに読み込みます"
           }
         }
       }
@@ -3795,34 +3779,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxの値が実際の音量と%.1fdB異なります"
-          }
-        }
-      }
-    },
-    "rekordbox 곡 %lld곡을 열었습니다" : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Opened %lld rekordbox track"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Opened %lld rekordbox tracks"
-                }
-              }
-            }
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxの曲を%lld曲開きました"
           }
         }
       }
@@ -5365,6 +5321,34 @@
         }
       }
     },
+    "rekordbox에 이미 있는 %lld곡을 골랐습니다" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Selected %lld track already in rekordbox"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Selected %lld tracks already in rekordbox"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxにすでにある%lld曲を選択しました"
+          }
+        }
+      }
+    },
     "rekordbox에서 %lld곡을 뺐습니다" : {
       "localizations" : {
         "en" : {
@@ -6523,6 +6507,22 @@
         }
       }
     },
+    "고른 곡 덱에 불러오기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Load Selected Track to Deck"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選んだ曲をデッキに読み込む"
+          }
+        }
+      }
+    },
     "고른 곡에 rekordbox와 다른 큐·그리드 초안이 없습니다." : {
       "localizations" : {
         "en" : {
@@ -6771,6 +6771,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "曲頭（0小節）"
+          }
+        }
+      }
+    },
+    "곡 목록: 고른 곡의 태그 칸 고치기 (고른 줄의 칸을 한 번 더 눌러도 됨)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Track list: edit the selected track's tag field (or click a field in the selected row once more)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲リスト：選んだ曲のタグ欄を編集（選んだ行の欄をもう一度クリックしても可）"
+          }
+        }
+      }
+    },
+    "곡 목록·태그 시트: 고른 곡 덱에 불러오기 (덱으로 끌어다 놓아도 됨)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Track list and Tag Sheet: load the selected track to the deck (or drag it onto the deck)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲リスト・タグシート：選んだ曲をデッキに読み込む（デッキへドラッグしても可）"
           }
         }
       }
@@ -7175,18 +7207,18 @@
         }
       }
     },
-    "곡을 선택하세요" : {
+    "덱에 곡을 불러오세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Select a Track"
+            "value" : "Load a Track to the Deck"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "曲を選択してください"
+            "value" : "デッキに曲を読み込んでください"
           }
         }
       }
@@ -9041,18 +9073,50 @@
         }
       }
     },
-    "더블클릭·Return·타이핑: 편집  ·  ⌃Tab: 표 밖으로  ·  ⌘C\/⌘V: 엑셀·시트와 복사·붙여넣기  ·  ⌘D: 아래로 채우기  ·  Delete: 지우기  ·  ⌘Z\/⇧⌘Z: 실행 취소·실행 복귀" : {
+    "더블클릭" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Double-click, Return, or type: Edit  ·  ⌃Tab: Leave table  ·  ⌘C\/⌘V: Copy and paste with Excel or spreadsheets  ·  ⌘D: Fill Down  ·  Delete: Clear  ·  ⌘Z\/⇧⌘Z: Undo\/Redo"
+            "value" : "Double-click"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ダブルクリック・Return・入力：編集  ・  ⌃Tab：表の外へ  ・  ⌘C\/⌘V：Excel・スプレッドシートとコピー＆ペースト  ・  ⌘D：下方向へ入力  ・  Delete：消去  ・  ⌘Z\/⇧⌘Z：取り消す・やり直す"
+            "value" : "ダブルクリック"
+          }
+        }
+      }
+    },
+    "더블클릭하면 %@을 덱에 올립니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-click to load %@ to the deck"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダブルクリックで%@をデッキに読み込みます"
+          }
+        }
+      }
+    },
+    "더블클릭·Return·타이핑: 편집  ·  ⌘→: 덱에 불러오기  ·  ⌃Tab: 표 밖으로  ·  ⌘C\/⌘V: 엑셀·시트와 복사·붙여넣기  ·  ⌘D: 아래로 채우기  ·  Delete: 지우기  ·  ⌘Z\/⇧⌘Z: 실행 취소·실행 복귀" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-click, Return, or type: Edit  ·  ⌘→: Load to Deck  ·  ⌃Tab: Leave table  ·  ⌘C\/⌘V: Copy and paste with Excel or spreadsheets  ·  ⌘D: Fill Down  ·  Delete: Clear  ·  ⌘Z\/⇧⌘Z: Undo\/Redo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダブルクリック・Return・入力：編集  ・  ⌘→：デッキに読み込む  ・  ⌃Tab：表の外へ  ・  ⌘C\/⌘V：Excel・スプレッドシートとコピー＆ペースト  ・  ⌘D：下方向へ入力  ・  Delete：消去  ・  ⌘Z\/⇧⌘Z：取り消す・やり直す"
           }
         }
       }
@@ -9149,6 +9213,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "デッキには別の曲が読み込まれています。原曲の波形をクリックして追加する位置を選んでください。"
+          }
+        }
+      }
+    },
+    "덱에 불러오기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Load to Deck"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デッキに読み込む"
+          }
+        }
+      }
+    },
+    "덱에 올린 곡" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Track on the deck"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デッキの曲"
+          }
+        }
+      }
+    },
+    "덱에 올린 곡, 재생 중" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Track on the deck, playing"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デッキの曲、再生中"
           }
         }
       }
@@ -10907,18 +11019,18 @@
         }
       }
     },
-    "목록에서 곡을 골라 덱에 올리세요" : {
+    "목록에서 곡을 더블클릭해 덱에 올리세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choose a track in the list and load it to the deck."
+            "value" : "Double-click a track in the list to load it to the deck."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "リストから曲を選んでデッキに読み込んでください。"
+            "value" : "リストで曲をダブルクリックしてデッキに読み込んでください。"
           }
         }
       }
@@ -14069,18 +14181,18 @@
         }
       }
     },
-    "아래 목록에서 곡을 고르면 파형과 큐가 여기 뜹니다." : {
+    "아래 목록에서 곡을 더블클릭하거나 여기로 끌어다 놓으면(⌘→도 됩니다) 파형과 큐가 여기 뜹니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choose a track in the list below to see its waveform and cues here."
+            "value" : "Double-click a track in the list below or drag it here (or press ⌘→) to see its waveform and cues here."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "下のリストで曲を選ぶと、ここに波形とキューが表示されます。"
+            "value" : "下のリストで曲をダブルクリックするか、ここへドラッグすると（⌘→でも可）、ここに波形とキューが表示されます。"
           }
         }
       }
@@ -16171,7 +16283,7 @@
         }
       }
     },
-    "이미 추가한 %lld곡을 열었습니다" : {
+    "이미 추가한 %lld곡을 골랐습니다" : {
       "localizations" : {
         "en" : {
           "variations" : {
@@ -16179,13 +16291,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Opened %lld already added track"
+                  "value" : "Selected %lld track you already added"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Opened %lld already added tracks"
+                  "value" : "Selected %lld tracks you already added"
                 }
               }
             }
@@ -16194,7 +16306,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "追加済みの%lld曲を開きました"
+            "value" : "追加済みの%lld曲を選択しました"
           }
         }
       }

@@ -15,13 +15,15 @@ struct TrackTable: View {
     let deck: DeckModel
 
     var body: some View {
-        TrackListView(store: store, mode: deck.waveformColorMode)
+        TrackListView(store: store, mode: deck.waveformColorMode, deckPlaying: deck.isPlaying)
     }
 }
 
 private struct TrackListView: NSViewRepresentable {
     let store: LibraryStore
     let mode: WaveformColorMode
+    /// 덱에 올린 곡의 # 칸 스피커 모양(재생 중이면 소리 나는 모양)
+    let deckPlaying: Bool
 
     func makeCoordinator() -> TrackListCoordinator { TrackListCoordinator(store: store) }
 
@@ -31,9 +33,6 @@ private struct TrackListView: NSViewRepresentable {
         table.coordinator = context.coordinator
         table.dataSource = context.coordinator
         table.delegate = context.coordinator
-        // 태그 칸을 더블클릭하면 바로 고친다(#88). 한 번 클릭은 지금처럼 곡을 골라 덱에 올린다.
-        table.target = context.coordinator
-        table.doubleAction = #selector(TrackListCoordinator.doubleClicked(_:))
         table.style = .inset
         table.rowHeight = 24
         table.usesAlternatingRowBackgroundColors = true
@@ -148,6 +147,7 @@ private struct TrackListView: NSViewRepresentable {
         context.coordinator.updateCueCounts(store.draftCueCounts)
         context.coordinator.updatePreviewCues(store.draftPreviewCues)
         context.coordinator.updateWaveformMode(mode)
+        context.coordinator.updateDeck(trackID: store.deckTrackID, playing: deckPlaying)
     }
 }
 
@@ -301,6 +301,13 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         weak var field: NSTextField?
     }
     private var inlineEdit: InlineEdit?
+    /// 다시 누른 태그 칸을 고치기 전 기다림(더블클릭이면 취소)
+    private var pendingEdit: Task<Void, Never>?
+    /// 줄 끌기를 시작한 횟수. 누른 줄을 끌었으면(덱에 놓기 등) 그 클릭으로 칸을 고치지 않는다.
+    private(set) var dragGeneration = 0
+    /// 덱에 올린 곡(ContentID)과 재생 중인지. # 칸에 스피커로 보인다.
+    private var deckTrackID: String?
+    private var deckPlaying = false
     var isEditing: Bool { inlineEdit != nil }
     /// 고치는 중인 칸 이름(시험용)
     var editingColumn: String? { inlineEdit?.column }
@@ -358,6 +365,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         // 같은 배열이면(== 는 저장소가 같을 때 바로 참) 비교 비용이 없다.
         if rows != self.rows || snapshotChanged {
             // 줄이 바뀌면(필터·검색·정렬·새 스냅샷) 고치던 칸을 먼저 닫는다. 편집 위치가 줄 번호라 그대로 두면 다른 곡에 남는다.
+            cancelPendingEdit()
             cancelEditing()
             let ids = rows.map(\.id)
             let reordered = ids != rowIDs
@@ -494,6 +502,13 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         if menu.identifier?.rawValue == "columns" { fillColumnMenu(menu); return }
         menu.removeAllItems()
         let targets = menuTargets()
+        // 누른 줄(없으면 고른 첫 줄)을 덱에 올린다(#93). ⌘→는 고른 첫 곡을 올린다.
+        let load = NSMenuItem(title: String(ui: "덱에 불러오기"), action: loadMenuRowIndex == nil ? nil : #selector(loadMenuRow),
+                              keyEquivalent: Self.loadKey)
+        load.keyEquivalentModifierMask = .command
+        load.target = self
+        menu.addItem(load)
+        menu.addItem(.separator())
         let pending = targets.filter { !$0.isStaged && store.pendingUUIDs.contains($0.track.uuid) }
         let reflect = NSMenuItem(title: pending.isEmpty ? String(ui: "rekordbox에 반영할 초안이 없습니다") : String(ui: "선택한 곡 rekordbox에 반영 (\(pending.count)곡)…"),
                                  action: pending.isEmpty ? nil : #selector(reflectSelected), keyEquivalent: "")
@@ -526,6 +541,17 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             remove.target = self
             menu.addItem(remove)
         }
+    }
+
+    /// 메뉴의 '덱에 불러오기'가 올릴 줄: 오른쪽 클릭한 줄, 없으면 고른 첫 줄.
+    private var loadMenuRowIndex: Int? {
+        guard let table else { return nil }
+        let index = table.clickedRow >= 0 ? table.clickedRow : table.selectedRowIndexes.first ?? -1
+        return rows.indices.contains(index) ? index : nil
+    }
+
+    @objc private func loadMenuRow() {
+        if let index = loadMenuRowIndex { loadRow(at: index) }
     }
 
     @objc private func addToRekordbox() {
@@ -637,6 +663,11 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             let cell = reuse(tableView, "edited") { EditedMarkCell() }
             cell.configure(edited: edited.contains(row.track.uuid))
             return cell
+        case "index":
+            let cell = reuse(tableView, "index") { TrackIndexCell() }
+            cell.configure(number: "\(row.historyTrackNumber ?? (index + 1))", font: fonts.digits,
+                           deck: row.track.id == deckTrackID ? .init(playing: deckPlaying) : nil)
+            return cell
         default:
             let cell = reuse(tableView, "text") { TrackTextCell() }
             // 고치던 칸이 다른 자리로 다시 쓰이면(스크롤로 줄이 사라짐) 그 입력을 확정한다. 대상 곡은 편집을 시작할 때 정해 두었다.
@@ -663,9 +694,6 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             return
         }
         switch column {
-        case "index":
-            cell.set("\(row.historyTrackNumber ?? (index + 1))", color: .tertiaryLabelColor, digits: true)
-            cell.label.alignment = .right
         case "class":
             // 코멘트 초안이 있으면 초안 코멘트로 다시 가른다(반영 전 값이라 초안 표식을 붙인다).
             let draft = store.tagDrafts[row.track.uuid]
@@ -748,9 +776,67 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         table.tableColumns.filter { !$0.isHidden }.map(\.identifier.rawValue)
     }
 
+    // MARK: - 덱에 불러오기(#93)
+
+    /// 더블클릭: 누른 줄의 곡을 덱에 올린다(rekordbox와 같다). 한 번 클릭은 고르기만 한다.
     @objc func doubleClicked(_ sender: Any?) {
-        guard let table, table.clickedRow >= 0, table.tableColumns.indices.contains(table.clickedColumn) else { return }
-        beginEditing(row: table.clickedRow, column: table.tableColumns[table.clickedColumn].identifier.rawValue)
+        guard let table else { return }
+        loadRow(at: table.clickedRow)
+    }
+
+    /// 이 줄의 곡을 덱에 올린다. 다시 누른 칸을 고치려고 기다리던 것은 취소한다(더블클릭의 첫 클릭이었다).
+    func loadRow(at index: Int) {
+        cancelPendingEdit()
+        guard rows.indices.contains(index) else { return }
+        store.loadToDeck(rows[index])
+    }
+
+    /// ⌘→: 고른 줄 중 표에서 첫 곡을 덱에 올린다.
+    func loadSelection() {
+        guard let index = table?.selectedRowIndexes.first else { return }
+        loadRow(at: index)
+    }
+
+    /// 목록·메뉴에 보이는 불러오기 키(⌘ 와 함께)
+    static let loadKey = String(UnicodeScalar(NSRightArrowFunctionKey)!)
+
+    /// 덱에 올린 곡이나 재생 상태가 바뀌면 그 곡의 # 칸만 다시 그린다.
+    func updateDeck(trackID: String?, playing: Bool) {
+        guard trackID != deckTrackID || playing != deckPlaying, let table else { return }
+        let changed = Set([deckTrackID, trackID].compactMap { $0 })
+        deckTrackID = trackID
+        deckPlaying = playing
+        guard let column = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == "index" }) else { return }
+        let indexes = IndexSet(rows.indices.filter { changed.contains(rows[$0].track.id) })
+        if !indexes.isEmpty { table.reloadData(forRowIndexes: indexes, columnIndexes: IndexSet(integer: column)) }
+    }
+
+    // MARK: - 다시 눌러 고치기(#88)
+
+    /// 이미 고른 줄의 태그 칸을 다시 누르면, 더블클릭이 아닌 것을 확인한 뒤(더블클릭 간격) 그 칸을 고친다(Finder 이름 바꾸기처럼).
+    func scheduleEdit(row index: Int, column: String, after delay: Duration = .seconds(NSEvent.doubleClickInterval)) {
+        cancelPendingEdit()
+        guard TrackListTagEditing.key(forColumn: column) != nil, rows.indices.contains(index) else { return }
+        let id = rows[index].id
+        pendingEdit = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled, let self, let table = self.table else { return }
+            self.pendingEdit = nil
+            // 그 사이 줄·선택·포커스가 바뀌었거나 아직 누르고 있으면(끌기) 고치지 않는다.
+            // 선택 알림은 늦게 올 때가 있어 알림으로 취소하지 않고 여기서 본다.
+            guard self.rows.indices.contains(index), self.rows[index].id == id,
+                  table.selectedRowIndexes == IndexSet(integer: index), table.window?.firstResponder === table,
+                  NSEvent.pressedMouseButtons == 0 else { return }
+            self.beginEditing(row: index, column: column)
+        }
+    }
+
+    /// 다시 누른 칸을 고치려고 기다리는 중인지(시험용)
+    var hasPendingEdit: Bool { pendingEdit != nil }
+
+    func cancelPendingEdit() {
+        pendingEdit?.cancel()
+        pendingEdit = nil
     }
 
     /// Return·Enter: 고른 줄 중 표에서 첫 곡(스트리밍 제외)의 보이는 첫 태그 칸부터 고친다(Finder 이름 바꾸기처럼).
@@ -830,11 +916,37 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     }
 }
 
-/// 곡 목록 표. 곡을 고른 채 Return·Enter를 누르면 태그 칸을 바로 고친다(#88). 나머지 키는 지금처럼 표가 처리한다.
+/// 곡 목록 표. 한 번 클릭은 고르기만 하고, 더블클릭·⌘→로 덱에 올린다(#93).
+/// 곡을 고른 채 Return·Enter를 누르거나 이미 고른 줄의 태그 칸을 다시 누르면 그 칸을 바로 고친다(#88). 나머지 키는 표가 처리한다.
 final class TrackListTableView: NSTableView {
-    weak var coordinator: TrackListCoordinator?
+    weak var coordinator: TrackListCoordinator? {
+        didSet {
+            target = coordinator
+            doubleAction = #selector(TrackListCoordinator.doubleClicked(_:))
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        let row = row(at: point), column = column(at: point)
+        let slowEdit = TrackListTagEditing.startsSlowEdit(clickCount: event.clickCount, row: row, selected: selectedRowIndexes,
+                                                          modifiers: event.modifierFlags)
+        coordinator?.cancelPendingEdit()
+        let drags = coordinator?.dragGeneration
+        super.mouseDown(with: event)
+        // 누른 채 끌어 놓았으면(끌기가 마우스를 놓기 전에 시작됨) 고치지 않는다.
+        if slowEdit, coordinator?.dragGeneration == drags, tableColumns.indices.contains(column) {
+            coordinator?.scheduleEdit(row: row, column: tableColumns[column].identifier.rawValue)
+        }
+    }
 
     override func keyDown(with event: NSEvent) {
+        coordinator?.cancelPendingEdit()
+        // ⌘→: 고른 곡을 덱에 올린다. 목록에서 ⌘ 조합은 덱 단축키로 가지 않고 여기로 온다(→·⇧→는 덱의 박·마디 이동).
+        if event.specialKey == .rightArrow, event.modifierFlags.intersection([.command, .control, .option, .shift]) == .command {
+            coordinator?.loadSelection()
+            return
+        }
         // Return(36)·Enter(76)는 덱 단축키로 줄 수 없는 예약 키라 덱과 부딪히지 않는다.
         if [36, 76].contains(event.keyCode), event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
            coordinator?.beginEditingSelection() == true { return }
@@ -946,6 +1058,73 @@ final class TrackTextCell: NSTableCellView {
         field?.removeFromSuperview()
         field = nil
         label.isHidden = false
+    }
+}
+
+/// # 칸: 목록 순번. 덱에 올린 곡은 번호 대신 스피커로 보인다(재생 중이면 소리 나는 모양, Apple Music처럼, #93).
+/// 색만이 아니라 모양으로 알리고, VoiceOver는 번호 대신 '덱에 올린 곡'을 읽는다.
+final class TrackIndexCell: NSTableCellView {
+    struct DeckState: Equatable {
+        var playing: Bool
+    }
+
+    let label = NSTextField(labelWithString: "")
+    private let icon = NSImageView()
+    /// 보이는 스피커 심볼(시험용). 덱에 올린 곡이 아니면 nil.
+    private(set) var deckSymbol: String?
+    private var iconPointSize: CGFloat = 0
+
+    var text: String { label.stringValue }
+    /// VoiceOver가 읽는 덱 상태(시험용)
+    var spokenDeckState: String? { deckSymbol == nil ? nil : icon.accessibilityLabel() }
+
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet { updateColor() }
+    }
+
+    init() {
+        super.init(frame: .zero)
+        label.lineBreakMode = .byClipping
+        label.alignment = .right
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+        textField = label
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.isHidden = true
+        addSubview(icon)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            icon.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
+            icon.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func configure(number: String, font: NSFont, deck: DeckState?) {
+        if label.stringValue != number { label.stringValue = number }
+        if label.font != font { label.font = font }
+        let symbol = deck.map { $0.playing ? "speaker.wave.2.fill" : "speaker.fill" }
+        label.isHidden = symbol != nil
+        icon.isHidden = symbol == nil
+        if symbol != deckSymbol || iconPointSize != font.pointSize {
+            iconPointSize = font.pointSize
+            let spoken = deck.map { $0.playing ? String(ui: "덱에 올린 곡, 재생 중") : String(ui: "덱에 올린 곡") }
+            icon.image = symbol.flatMap { NSImage(systemSymbolName: $0, accessibilityDescription: spoken) }?
+                .withSymbolConfiguration(.init(pointSize: font.pointSize, weight: .regular))
+            icon.setAccessibilityLabel(spoken)
+            icon.toolTip = spoken
+        }
+        deckSymbol = symbol
+        updateColor()
+    }
+
+    private func updateColor() {
+        let emphasized = backgroundStyle == .emphasized
+        label.textColor = emphasized ? .alternateSelectedControlTextColor : .tertiaryLabelColor
+        icon.contentTintColor = emphasized ? .alternateSelectedControlTextColor : .controlAccentColor
     }
 }
 
@@ -1135,12 +1314,20 @@ extension TrackListCoordinator {
 
     // MARK: 끌어다 놓기
 
-    /// 곡을 끌면 ContentID를 싣는다(사이드바 목록에 놓아 넣기, 목록 안에서 순서 바꾸기). 추가한 곡은 아직 rekordbox에 없어 싣지 않는다.
+    /// 곡을 끌면 ID를 싣는다: 덱 위에 놓아 불러오기(#93), 사이드바 목록에 놓아 넣기, 목록 안에서 순서 바꾸기.
+    /// 추가한 곡은 아직 rekordbox에 없어 재생 목록용으로는 싣지 않는다(덱에는 올릴 수 있다).
     func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> (any NSPasteboardWriting)? {
-        guard rows.indices.contains(row), !rows[row].isStaged, !isEditing else { return nil }
+        guard rows.indices.contains(row), !isEditing else { return nil }
         let item = NSPasteboardItem()
-        item.setString(rows[row].track.id, forType: PlaylistDragType.pasteboardTracks)
+        item.setString(rows[row].track.id, forType: DeckDragType.pasteboard)
+        if !rows[row].isStaged { item.setString(rows[row].track.id, forType: PlaylistDragType.pasteboardTracks) }
         return item
+    }
+
+    func tableView(_ tableView: NSTableView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint,
+                   forRowIndexes rowIndexes: IndexSet) {
+        dragGeneration += 1
+        cancelPendingEdit()
     }
 
     /// 목록을 # 순서로 볼 때만 줄 사이에 놓아 순서를 바꾼다.

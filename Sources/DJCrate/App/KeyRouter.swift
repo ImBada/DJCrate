@@ -60,6 +60,10 @@ final class KeyRouter {
             hasShortcutModifiers: !event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
             focus: focus)
         guard context.isMainWindow, !context.hasModalWindow, !context.hasAttachedSheet else { return event }
+        if event.type == .keyDown, KeyRoutingPolicy.loadsSelection(event.keyCode, modifiers: event.modifierFlags, focus: focus) {
+            store?.loadSelectionToDeck()
+            return nil
+        }
         // 표준 시스템 단축키는 AppKit에 맡긴다. 종료는 앱 델리게이트가 별도로 거절한다.
         if context.hasShortcutModifiers { return event }
         let lock = WriteLockPolicy(isWriting: deck.isWriteLocked, canCancelPreparation: store?.writeStage?.cancellable == true)

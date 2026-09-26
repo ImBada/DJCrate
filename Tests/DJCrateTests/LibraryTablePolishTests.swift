@@ -48,9 +48,10 @@ struct LibraryTablePolishTests {
         coordinator.updateTextScale(1.5)
         let width = ("10000" as NSString).size(withAttributes: [.font: TrackTextCell.Fonts(scale: 1.5).digits]).width
         #expect(column.width >= width + 12)
-        let cell = try #require(coordinator.tableView(table, viewFor: column, row: 9999) as? TrackTextCell)
+        // # 칸은 덱 표시(스피커)를 함께 그리는 따로 된 셀이다(#93)
+        let cell = try #require(coordinator.tableView(table, viewFor: column, row: 9999) as? TrackIndexCell)
         #expect(cell.label.alignment == .right)
-        #expect(cell.label.stringValue == "10000")
+        #expect(cell.text == "10000")
     }
 
     @Test func 시트_머리글_정렬은_스토어에_전달된다() throws {

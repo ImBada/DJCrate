@@ -139,6 +139,11 @@ extension LibraryStore {
             }
         }
         DraftWriter.flush()
+        // 덱에 올린 추가한 곡을 넣었으면 새로 읽을 때 새 rekordbox 곡으로 바꿔 올린다(덱을 비우지 않게).
+        if let deckUUID = deckTrackID.flatMap({ rowsByID[$0] }).flatMap({ $0.isStaged ? $0.track.uuid : nil }),
+           let moved = report.added.first(where: { $0.written && preview.stagedUUIDs[$0.path] == deckUUID })?.contentID {
+            moveDeckTrack(to: moved)
+        }
         let removed = unstage(uuids: unstaged)
         if let backup = report.backup, !removed.isEmpty, let data = try? JSONEncoder().encode(removed) {
             try? data.write(to: URL(filePath: backup).appending(path: Self.stagedBackupName))

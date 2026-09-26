@@ -14,8 +14,8 @@ struct RelatedTracksButton: View {
         .help(.ui("덱에 올린 곡과 BPM·키·장르·코멘트의 #태그가 어울리는 곡을 찾습니다"))
         .popover(isPresented: $isPresented) {
             RelatedTracksView(source: deck.row, rows: store.rows) { id in
-                // 기존 목록 선택 경로로 덱을 올려 로드·단축키 동작을 유지한다.
-                store.selection = [id]
+                // 더블클릭·Return·오른쪽 클릭 메뉴로만 덱에 올린다(한 번 클릭은 고르기만, #93).
+                store.loadToDeck(store.rowsByID[id])
                 isPresented = false
             }
             .disabled(store.isWritingRekordbox)
@@ -26,8 +26,9 @@ struct RelatedTracksButton: View {
 private struct RelatedTracksView: View {
     let source: TrackRow?
     let rows: [TrackRow]
-    let onSelect: (String) -> Void
+    let onLoad: (String) -> Void
     @State private var model = RelatedTracksModel()
+    @State private var selection: String?
     @State private var libraryRevision = 0
 
     var body: some View {
@@ -36,7 +37,7 @@ private struct RelatedTracksView: View {
             if let source {
                 Text(.ui("기준: \(source.title)")).font(.callout).lineLimit(1)
             }
-            Text(.ui("BPM ±6% · 반·두 배 포함 · 키 이웃 · 장르 · #태그\n점수순 상위 100곡 · 곡을 누르면 덱에 올립니다"))
+            Text(.ui("BPM ±6% · 반·두 배 포함 · 키 이웃 · 장르 · #태그\n점수순 상위 100곡 · 더블클릭·Return으로 덱에 올립니다"))
                 .font(.caption).foregroundStyle(.secondary)
             Divider()
             if model.isLoading {
@@ -44,25 +45,23 @@ private struct RelatedTracksView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if source == nil {
                 ContentUnavailableView(.ui("기준곡이 없습니다"), systemImage: "music.note",
-                                       description: Text(.ui("목록에서 곡을 골라 덱에 올리세요")))
+                                       description: Text(.ui("목록에서 곡을 더블클릭해 덱에 올리세요")))
             } else if model.matches.isEmpty {
                 ContentUnavailableView(.ui("관련 곡이 없습니다"), systemImage: "music.note.list",
                                        description: Text(.ui("다른 기준곡을 고르거나 BPM·키·장르·#태그를 확인하세요")))
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(model.matches) { match in
-                            Button { onSelect(match.id) } label: {
-                                candidate(match)
-                                    .padding(.vertical, 9)
-                                    .padding(.horizontal, 6)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .help(.ui("\(match.row.title)을 덱에 올리기"))
-                            Divider()
-                        }
+                List(model.matches, selection: $selection) { match in
+                    candidate(match)
+                        .padding(.vertical, 3)
+                        .help(.ui("더블클릭하면 \(match.row.title)을 덱에 올립니다"))
+                }
+                .listStyle(.inset)
+                .contextMenu(forSelectionType: String.self) { ids in
+                    if let id = ids.first {
+                        Button(.ui("덱에 불러오기")) { onLoad(id) }
                     }
+                } primaryAction: { ids in
+                    if let id = ids.first { onLoad(id) }
                 }
             }
         }

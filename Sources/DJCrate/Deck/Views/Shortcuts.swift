@@ -27,6 +27,8 @@ struct ShortcutsList: View {
             Text(.ui("단축키")).font(.scaled(.title2, scale).bold())
             Grid(alignment: .leading, horizontalSpacing: 18 * scale, verticalSpacing: 9 * scale) {
                 if shortcuts.isStandard { standardRows } else { customRows }
+                row([String(ui: "더블클릭"), "/", "⌘", "→"], String(ui: "곡 목록·태그 시트: 고른 곡 덱에 불러오기 (덱으로 끌어다 놓아도 됨)"))
+                row(["Return"], String(ui: "곡 목록: 고른 곡의 태그 칸 고치기 (고른 줄의 칸을 한 번 더 눌러도 됨)"))
                 row(["⌘", "⇧", "E"], String(ui: "rekordbox에 반영"))
                 row(["⌘", "I"], String(ui: "태그 편집"))
                 row(["⌘", "O"], String(ui: "곡 추가"))

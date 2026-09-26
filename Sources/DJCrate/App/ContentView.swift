@@ -132,6 +132,8 @@ struct ContentView: View {
                     }
                     .frame(height: DeckLayout.deckViewportHeight(contentHeight: deckChromeHeight + displayedHeight,
                                                                  detailHeight: detailHeight, otherHeight: otherHeight))
+                    // 곡 목록에서 끌어다 놓으면 덱에 올린다(#93)
+                    .modifier(DeckDropTarget(store: store))
                     SplitHandle(height: $waveformHeight, displayedHeight: displayedHeight, maximumHeight: maximumHeight)
                     VStack(spacing: 0) {
                         ListActionBar(store: store)
@@ -263,8 +265,8 @@ struct ContentView: View {
 
     private func setUp() {
             deck.feedback = store.feedback
-            // 선택 변경은 스토어가 150ms 뒤에 알려 준다(루트 뷰가 선택마다 다시 그려지지 않도록).
-            store.onPrimaryRowChange = { [weak deck] row in deck?.load(row) }
+            // 목록 선택은 덱을 바꾸지 않는다. 더블클릭·⌘→·오른쪽 클릭·끌어다 놓기로만 덱에 올린다(#93).
+            store.onLoadToDeck = { [weak deck] row in deck?.load(row) }
             store.onCueDraftsReloaded = { [weak deck] drafts in
                 guard let deck, let uuid = deck.row?.track.uuid else { return }
                 deck.reloadExternalCueDraft(drafts[uuid])
@@ -301,7 +303,7 @@ struct SheetHeader: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Text(.ui("더블클릭·Return·타이핑: 편집  ·  ⌃Tab: 표 밖으로  ·  ⌘C/⌘V: 엑셀·시트와 복사·붙여넣기  ·  ⌘D: 아래로 채우기  ·  Delete: 지우기  ·  ⌘Z/⇧⌘Z: 실행 취소·실행 복귀"))
+            Text(.ui("더블클릭·Return·타이핑: 편집  ·  ⌘→: 덱에 불러오기  ·  ⌃Tab: 표 밖으로  ·  ⌘C/⌘V: 엑셀·시트와 복사·붙여넣기  ·  ⌘D: 아래로 채우기  ·  Delete: 지우기  ·  ⌘Z/⇧⌘Z: 실행 취소·실행 복귀"))
                 .font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
             Spacer()
             // 색이 아니라 칸의 모양(왼쪽 위 모서리 삼각형)으로 알린다.

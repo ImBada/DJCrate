@@ -24,6 +24,7 @@ extension DevSelfTests {
             try? CueDraftStore.save(draft)
             store.cueDraftChanged(draft)
             store.selection = [row.id]
+            store.loadToDeck(row)
             let backup = DJCPaths.userData.appending(path: "synthetic-backup")
             store.lastWriteBackup = backup
             // 화면 배치를 언어별로 보려고 실제 알림처럼 번역되는 문구를 쓴다.
