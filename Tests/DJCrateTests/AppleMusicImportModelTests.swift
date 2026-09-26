@@ -10,6 +10,18 @@ struct AppleMusicImportModelTests {
         AppleMusicImportModel(store: LibraryStore(resultHistory: WriteResultHistory(url: nil), saveTagDrafts: { _ in }))
     }
 
+    @Test func 보관함_ID가_없는_XML도_같은_파일이면_출처를_유지한다() async throws {
+        let url = FileManager.default.temporaryDirectory.appending(path: "djc-library-\(UUID()).xml")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let data = try PropertyListSerialization.data(fromPropertyList: ["Tracks": [:]], format: .xml, options: 0)
+        try data.write(to: url)
+        let first = model(), second = model()
+        await first.load(url)
+        await second.load(url)
+        #expect(first.library?.id != nil)
+        #expect(first.library?.id == second.library?.id)
+    }
+
     @Test func 목록을_바꾸어도_선택을_유지하고_제외한_곡은_선택하지_않는다() throws {
         let fixture = AppleMusicLibraryTests()
         let model = model()
