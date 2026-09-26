@@ -73,11 +73,11 @@ extension DevSelfTests {
             }
             log("추가 목록 남은 곡 \(store.staged.count)")
             guard !added.isEmpty, let addBackup = latestBackup() else { log("넣은 곡이 없습니다"); exit(1) }
-            let createdFiles = addBackup.trackReport?.createdFiles ?? []
+            let createdFiles = (addBackup.trackReport?.createdFiles ?? []).map { URL(filePath: $0, relativeTo: RekordboxShare.directory) }
 
             // 3. 되돌리기: 곡이 빠지고 분석 파일이 지워지고 추가 목록으로 돌아온다
             await coordinator.restore(addBackup)
-            let leftFiles = createdFiles.filter { FileManager.default.fileExists(atPath: $0) }.count
+            let leftFiles = createdFiles.filter { FileManager.default.fileExists(atPath: $0.path) }.count
             log("되돌리기: 컬렉션 \(store.rows.count)곡(처음 \(before)) · 남은 만든 파일(분석·아트워크) \(leftFiles)/\(createdFiles.count) · 추가 목록 \(store.staged.count)곡 · 알림 \(toast())")
 
             // 4. 다시 넣고 빼기 → 되돌리기

@@ -71,7 +71,9 @@ extension RekordboxWriter {
         return folder
     }
 
-    static func save(_ report: Report, in backup: URL) throws {
+    static func save(_ report: Report, in backup: URL, shareRoot: URL? = nil) throws {
+        var report = report
+        if let paths = report.createdFiles { report.createdFiles = try backupRelativePaths(paths, shareRoot: shareRoot) }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(report).write(to: backup.appending(path: "report.json"), options: .atomic)
@@ -110,49 +112,53 @@ extension RekordboxWriter {
             }
         }
         // 백업이 멀쩡한지 먼저 본다.
+        for name in ["master.db", "master.db-wal", "master.db-shm", "masterPlaylists6.xml"] {
+            try validateBackupFile(backup.appending(path: name), under: backup, required: name == "master.db")
+        }
         try checkIntegrity(of: backup.appending(path: "master.db"))
-        let saved = try makeBackup(of: database, in: backups, now: now, label: "before-restore")
         let share = shareRoot ?? (writeGuard.isLive(database) ? RekordboxShare.directory : database.deletingLastPathComponent().appending(path: "share"))
+        // 한 경로라도 잘못됐으면 DB와 복원 전 백업까지 모두 그대로 둔다.
+        let analysis = try analysisRestoreFiles(from: backup, shareRoot: share)
+        let created = try createdRestoreFiles(from: backup, database: database, shareRoot: share)
+        try rejectDuplicateTargets(analysis.map(\.target) + created)
+        let saved = try makeBackup(of: database, in: backups, now: now, label: "before-restore")
         try restoreFiles(from: backup, to: database)
-        try restoreAnalysis(from: backup, saveCurrentTo: saved, shareRoot: share)
-        try removeCreatedFiles(of: backup, saveTo: saved, shareRoot: share)
+        try restoreAnalysis(analysis, saveCurrentTo: saved)
+        try removeCreatedFiles(created, saveTo: saved, shareRoot: share)
         try checkIntegrity(of: database)
         return saved
     }
 
     /// 곡을 넣거나 분석을 붙이며 만든 분석 파일을 지운다(빈 분석 폴더도). 지우기 전 파일은 `saveTo/anlz`에 두어 그 백업으로 다시 살릴 수 있다.
-    static func removeCreatedFiles(of backup: URL, saveTo saved: URL, shareRoot: URL) throws {
-        let created = (RekordboxTrackWriter.report(in: backup)?.createdFiles ?? []) + (contents(of: backup).report?.createdFiles ?? [])
+    static func removeCreatedFiles(_ created: [URL], saveTo saved: URL, shareRoot: URL) throws {
         guard !created.isEmpty else { return }
-        let allowed = try restorableFiles(created, database: saved.appending(path: "master.db"), shareRoot: shareRoot)
-        if allowed.count != Set(created).count { try markFileWarning(in: saved) }
         let fm = FileManager.default
         let folder = saved.appending(path: "anlz")
         try fm.createDirectory(at: folder, withIntermediateDirectories: true)
         let manifestURL = folder.appending(path: "manifest.json")
-        var manifest = (try? Data(contentsOf: manifestURL)).flatMap { try? JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
-        for path in created where allowed.contains(path) && fm.fileExists(atPath: path) {
-            let name = "created-\(manifest.count).\(URL(filePath: path).pathExtension)"
-            try fm.copyItem(at: URL(filePath: path), to: folder.appending(path: name))
-            manifest[name] = path
+        var manifest = try backupMetadata([String: String].self, at: manifestURL, in: saved) ?? [:]
+        for file in created where fm.fileExists(atPath: file.path) {
+            let name = "created-\(manifest.count).\(file.pathExtension)"
+            try fm.copyItem(at: file, to: folder.appending(path: name))
+            manifest[name] = try backupTarget(file.path, shareRoot: shareRoot).relative
         }
-        try JSONEncoder().encode(manifest).write(to: manifestURL)
-        try removeOwnedFiles(allowed.filter { fm.fileExists(atPath: $0) }.map { URL(filePath: $0) })
+        try JSONEncoder().encode(manifest).write(to: manifestURL, options: .atomic)
+        try removeOwnedFiles(created.filter { fm.fileExists(atPath: $0.path) })
     }
 
     /// 분석 파일 원본을 백업 폴더 `anlz/`에 둔다(원래 경로는 manifest.json).
-    static func backupAnalysis(_ plans: [RekordboxGridWriter.Plan], in backup: URL) throws {
+    static func backupAnalysis(_ plans: [RekordboxGridWriter.Plan], in backup: URL, shareRoot: URL) throws {
         let folder = backup.appending(path: "anlz")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         var manifest: [String: String] = [:]
         for (i, plan) in plans.enumerated() {
             let dat = folder.appending(path: "\(i).DAT")
             try plan.originalDat.write(to: dat)
-            manifest[dat.lastPathComponent] = plan.datURL.path
+            manifest[dat.lastPathComponent] = try backupTarget(plan.datURL.path, shareRoot: shareRoot).relative
             if let extURL = plan.extURL, let originalExt = plan.originalExt {
                 let ext = folder.appending(path: "\(i).EXT")
                 try originalExt.write(to: ext)
-                manifest[ext.lastPathComponent] = extURL.path
+                manifest[ext.lastPathComponent] = try backupTarget(extURL.path, shareRoot: shareRoot).relative
             }
         }
         try JSONEncoder().encode(manifest).write(to: folder.appending(path: "manifest.json"))
@@ -160,26 +166,26 @@ extension RekordboxWriter {
 
     /// 백업의 분석 파일을 원래 자리로 되돌린다. 되돌리기 전 현재 파일은 `saveCurrentTo`에 둔다.
     static func restoreAnalysis(from backup: URL, saveCurrentTo: URL?, shareRoot: URL) throws {
-        let folder = backup.appending(path: "anlz")
-        guard let data = try? Data(contentsOf: folder.appending(path: "manifest.json")),
-              let all = try? JSONDecoder().decode([String: String].self, from: data) else { return }
-        let allowed = try restorableFiles(Array(all.values), database: backup.appending(path: "master.db"), shareRoot: shareRoot)
-        let manifest = all.filter { name, path in
-            let source = folder.appending(path: name)
-            return allowed.contains(path) && source.lastPathComponent == name
-                && source.resolvingSymlinksInPath().path == source.path
-        }
-        if manifest.count != all.count { try markFileWarning(in: saveCurrentTo ?? backup) }
-        if let saveCurrentTo {
+        try restoreAnalysis(analysisRestoreFiles(from: backup, shareRoot: shareRoot), saveCurrentTo: saveCurrentTo)
+    }
+
+    static func restoreAnalysis(_ files: [AnalysisRestoreFile], saveCurrentTo: URL?) throws {
+        let fm = FileManager.default
+        if let saveCurrentTo, !files.isEmpty {
             let current = saveCurrentTo.appending(path: "anlz")
-            try FileManager.default.createDirectory(at: current, withIntermediateDirectories: true)
-            for (name, path) in manifest { try? FileManager.default.copyItem(at: URL(filePath: path), to: current.appending(path: name)) }
-            try JSONEncoder().encode(manifest).write(to: current.appending(path: "manifest.json"))
+            try fm.createDirectory(at: current, withIntermediateDirectories: true)
+            var manifest: [String: String] = [:]
+            for (index, file) in files.enumerated() where fm.fileExists(atPath: file.target.path) {
+                let name = "restore-\(index).\(file.target.pathExtension)"
+                try fm.copyItem(at: file.target, to: current.appending(path: name))
+                manifest[name] = file.relative
+            }
+            try JSONEncoder().encode(manifest).write(to: current.appending(path: "manifest.json"), options: .atomic)
         }
-        for (name, path) in manifest {
-            // 곡을 지우면서 폴더째 지운 경우가 있다
-            try FileManager.default.createDirectory(at: URL(filePath: path).deletingLastPathComponent(), withIntermediateDirectories: true)
-            try Data(contentsOf: folder.appending(path: name)).write(to: URL(filePath: path), options: .atomic)
+        for file in files {
+            // 곡을 지우면서 폴더째 지운 경우가 있다.
+            try fm.createDirectory(at: file.target.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try file.data.write(to: file.target, options: .atomic)
         }
     }
 

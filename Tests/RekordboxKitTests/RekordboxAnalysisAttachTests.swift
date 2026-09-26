@@ -110,6 +110,10 @@ struct RekordboxAnalysisAttachTests {
             #expect(try Data(contentsOf: analysisFile(fixture, uuid, ext)) == Data(contentsOf: analysisFile(fixture, refUUID, ext)), "\(ext)")
         }
         #expect(Set(report.createdFiles ?? []) == Set(["DAT", "EXT", "2EX"].map { analysisFile(fixture, uuid, $0).path }))
+        let backupPath = try #require(report.backup)
+        let backupReport = try #require(RekordboxWriter.contents(of: URL(filePath: backupPath)).report)
+        #expect(backupReport.createdFiles?.count == 3)
+        #expect(backupReport.createdFiles?.allSatisfy { $0.hasPrefix("PIONEER/USBANLZ/") } == true)
 
         // 변경 번호: rekordbox가 분석 전 곡을 분석한 순서(오토게인 행 → 곡 행 → 파일 행 .2EX·.DAT·.EXT), 카운터는 마지막 번호
         let mixerUSN = try fixture.rows("SELECT rb_local_usn FROM djmdMixerParam WHERE ContentID = ?", [.text(id)])

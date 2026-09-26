@@ -18,7 +18,7 @@ enum MainCommands {
         Command("track-delete", String(ui: "--db <사본.db> [--share <분석 뿌리>] [--dry-run] <ContentID…> | --live …"), String(ui: "곡을 rekordbox 컬렉션에서 뺀다(음원 파일은 그대로)"), trackDelete),
         Command("playlist-write", String(ui: "--db <사본.db> [--dry-run] <편집.json>"),
                 String(ui: "재생 목록 편집(JSON 배열)을 사본 DB와 그 옆 masterPlaylists6.xml에 쓴다(라이브 라이브러리는 거부)"), playlistWrite),
-        Command("rekordbox-restore", String(ui: "[--backup <폴더> (--db <사본> | --live)]"), String(ui: "백업으로 되돌린다"), rekordboxRestore),
+        Command("rekordbox-restore", String(ui: "[--backup <폴더> (--db <사본> | --live) [--share <폴더>]]"), String(ui: "백업으로 되돌린다"), rekordboxRestore),
         Command("schema-dump", String(ui: "<사본.db> <출력.sql>"), String(ui: "사본 DB의 구조(CREATE 문)만 뽑는다"), schemaDump),
         Command("path", String(ui: "<제목> [--db PATH] [--json]"), String(ui: "제목으로 파일 경로 찾기"), path),
         Command("parse", String(ui: "\"<코멘트>\" [--json]"), String(ui: "애니송 프리셋으로 코멘트 파싱"), parse),
@@ -173,7 +173,8 @@ enum MainCommands {
         }
         let database = live ? RekordboxWriter.liveDatabase : URL(filePath: value(after: "--db", in: args)!)
         let saved = try RekordboxWriter.restore(URL(filePath: folder), to: database,
-                                                backups: live ? DJCPaths.rekordboxBackups : database.deletingLastPathComponent().appending(path: "backups"))
+                                                backups: live ? DJCPaths.rekordboxBackups : database.deletingLastPathComponent().appending(path: "backups"),
+                                                shareRoot: value(after: "--share", in: args).map { URL(filePath: $0) })
         print(String(ui: "되돌림 완료 · 되돌리기 전 상태 백업: \(saved.path)"))
     }
 

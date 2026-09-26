@@ -39,7 +39,7 @@ public enum RekordboxTrackWriter {
         public var dryRun: Bool
         /// 지운 곡의 분석·아트워크 파일(백업 폴더 `anlz/`로 옮겨 두었다가 되돌릴 때 살린다)
         public var removedFiles: [String] = []
-        /// 새로 만든 분석·아트워크 파일(되돌릴 때 지운다)
+        /// 새로 만든 분석·아트워크 파일(되돌릴 때 지운다). 반환값은 절대 경로, 백업 JSON은 share 기준 상대 경로.
         public var createdFiles: [String] = []
         /// 쓴 직후 rekordbox 변경 카운터. 되돌리기 전에 그 뒤 rekordbox에서 바뀐 게 있는지 본다.
         public var finalUpdateCount: Int?
@@ -225,7 +225,7 @@ public enum RekordboxTrackWriter {
             }
             report.createdFiles = created.map(\.path)
         }
-        if let backup { try? save(report, in: backup) }
+        if let backup { try? save(report, in: backup, shareRoot: share) }
         return report
     }
 
@@ -440,7 +440,7 @@ public enum RekordboxTrackWriter {
                     try db.query("SELECT Title FROM djmdContent WHERE ID = ?", [.text(id)]) { title = $0.string(0) ?? id }
                     let filePlan = try RekordboxWriter.deletionFiles(id, db: db, share: share)
                     var deleted = try deleteRow(id, db: db, usn: &usn, stamp: stamp)
-                    try RekordboxWriter.backupDeletionFiles(filePlan.files, in: backup)
+                    try RekordboxWriter.backupDeletionFiles(filePlan.files, in: backup, shareRoot: share)
                     deleted.reason = filePlan.warning
                     title = deleted.title
                     try db.execute("RELEASE djc_delete")
@@ -471,7 +471,7 @@ public enum RekordboxTrackWriter {
             }
         }
         report.removedFiles = files.map(\.path).sorted()
-        try? save(report, in: backup)
+        try? save(report, in: backup, shareRoot: share)
         return report
     }
 
@@ -625,7 +625,10 @@ public enum RekordboxTrackWriter {
         (try? Data(contentsOf: backup.appending(path: "track-report.json"))).flatMap { try? JSONDecoder().decode(Report.self, from: $0) }
     }
 
-    static func save(_ report: Report, in backup: URL) throws {
+    static func save(_ report: Report, in backup: URL, shareRoot: URL? = nil) throws {
+        var report = report
+        report.createdFiles = try RekordboxWriter.backupRelativePaths(report.createdFiles, shareRoot: shareRoot)
+        report.removedFiles = try RekordboxWriter.backupRelativePaths(report.removedFiles, shareRoot: shareRoot)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(report).write(to: backup.appending(path: "track-report.json"), options: .atomic)
