@@ -24,56 +24,56 @@ struct AudioBar: View {
                     .foregroundStyle(.secondary)
                     .accessibilityHidden(true)
                     Slider(value: $deck.volume, in: 0...1).frame(width: 90)
-                        .accessibilityLabel("재생 볼륨")
-                        .help(String(localized: "재생 볼륨 \(Int((deck.volume * 100).rounded()))%"))
+                        .accessibilityLabel(.ui("재생 볼륨"))
+                        .help(String(ui: "재생 볼륨 \(Int((deck.volume * 100).rounded()))%"))
                 }
                 GainControl(deck: deck)
                 Group { if PerfProbe.hidden.contains("meter") { EmptyView() } else { LevelMeterView(deck: deck) } }
             }
             FlowLayout(spacing: 12) {
-                Toggle(isOn: $deck.metronome) { Label("메트로놈", systemImage: "metronome") }
+                Toggle(isOn: $deck.metronome) { Label(.ui("메트로놈"), systemImage: "metronome") }
                     .toggleStyle(.button)
-                    .help("그리드의 박마다 클릭 (1박은 높은 음)")
+                    .help(.ui("그리드의 박마다 클릭 (1박은 높은 음)"))
                 HStack(spacing: 4) {
-                    Text("템포").foregroundStyle(.secondary)
+                    Text(.ui("템포")).foregroundStyle(.secondary)
                     Slider(value: Binding(get: { deck.tempoPercent }, set: { deck.tempoPercent = ($0 * 10).rounded() / 10 }),
                            in: -16...16, neutralValue: 0) {
-                        Text("재생 템포")
+                        Text(.ui("재생 템포"))
                     } ticks: {
                         SliderTick(-16); SliderTick(-8); SliderTick(0); SliderTick(8); SliderTick(16)
                     }
                     .labelsHidden()
                     .frame(width: 120)
-                    Text(String(format: "%+.1f%%", deck.tempoPercent)).font(.scaled(.caption, textScale).monospacedDigit())
+                    Text(verbatim: deck.tempoPercent.unitText(signed: true) + "%").font(.scaled(.caption, textScale).monospacedDigit())
                         .frame(width: TextScale.length(46, scale: textScale), alignment: .trailing)
-                    Button("0") { deck.tempoPercent = 0 }.help("원래 속도로")
+                    Button { deck.tempoPercent = 0 } label: { Text(verbatim: "0") }.help(.ui("원래 속도로"))
                 }
-                Toggle("키 고정", isOn: $deck.keyLock)
+                Toggle(.ui("키 고정"), isOn: $deck.keyLock)
                     .toggleStyle(.checkbox)
-                    .help("켜면 음정을 유지한 채 속도만 바꿉니다(마스터 템포). 끄면 바이닐처럼 음정도 함께 바뀝니다.")
-                Toggle(isOn: $deck.gridEditing) { Label("그리드 편집", systemImage: "grid") }
+                    .help(.ui("켜면 음정을 유지한 채 속도만 바꿉니다(마스터 템포). 끄면 바이닐처럼 음정도 함께 바뀝니다."))
+                Toggle(isOn: $deck.gridEditing) { Label(.ui("그리드 편집"), systemImage: "grid") }
                     .toggleStyle(.button)
                     .disabled(deck.gridDraft == nil)
-                    .help(deck.gridEditBlockedReason ?? "켜면 파형을 끌어 그리드를 옮기고, 아래 막대로 BPM·1박·변속 지점을 고칩니다.")
+                    .help(deck.gridEditBlockedReason ?? String(ui: "켜면 파형을 끌어 그리드를 옮기고, 아래 막대로 BPM·1박·변속 지점을 고칩니다."))
             }
             // 제안 문구가 길어져도 음량·템포 묶음을 밀어내지 않는다.
             if let suggestion = deck.gainSuggestion {
                 HStack(spacing: 4) {
                     Image(systemName: "wand.and.stars").foregroundStyle(UIColors.suggestion.color)
-                    Text(String(format: "게인 제안 %+.1f dB (rekordbox %+.1f)", suggestion, deck.rekordboxGainDB ?? 0))
+                    Text(.ui("게인 제안 \(suggestion, specifier: "%+.1f") dB (rekordbox \(deck.rekordboxGainDB ?? 0, specifier: "%+.1f"))"))
                         .font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
-                        .help(String(format: "rekordbox 오토게인이 이 파일의 실제 음량과 %.1fdB 다릅니다", abs(deck.gainMismatchDB ?? 0)))
-                    Button("제안 받기") { deck.acceptGainSuggestion() }
+                        .help(.ui("rekordbox 오토게인이 이 파일의 실제 음량과 \(abs(deck.gainMismatchDB ?? 0), specifier: "%.1f")dB 다릅니다"))
+                    Button(.ui("제안 받기")) { deck.acceptGainSuggestion() }
                         .fixedSize()
-                        .help("이 곡은 DJCrate가 잰 음량으로 계산한 게인(−10 LUFS 기준)을 씁니다")
-                    Button("무시") { deck.dismissGainSuggestion() }
+                        .help(.ui("이 곡은 DJCrate가 잰 음량으로 계산한 게인(−10 LUFS 기준)을 씁니다"))
+                    Button(.ui("무시")) { deck.dismissGainSuggestion() }
                         .fixedSize()
-                        .help("이 곡에서는 rekordbox 값을 그대로 쓰고 제안을 더 보이지 않습니다")
+                        .help(.ui("이 곡에서는 rekordbox 값을 그대로 쓰고 제안을 더 보이지 않습니다"))
                 }
             } else if deck.hasGainOverride {
-                Button("게인 초안 취소") { deck.clearGainDraft() }
+                Button(.ui("게인 초안 취소")) { deck.clearGainDraft() }
                     .font(.scaled(.caption, textScale))
-                    .help("이 곡의 게인 초안을 지우고 rekordbox 오토게인으로 돌아갑니다")
+                    .help(.ui("이 곡의 게인 초안을 지우고 rekordbox 오토게인으로 돌아갑니다"))
             }
             // 그리드 편집에 들어가지 않고 DJCrate 제안을 받거나 무시한다.
             if !deck.gridEditing, !deck.needsGrid, let note = deck.gridSuggestionNote,
@@ -81,12 +81,12 @@ struct AudioBar: View {
                 HStack(spacing: 4) {
                     Image(systemName: "wand.and.stars").foregroundStyle(UIColors.suggestion.color)
                     Text(note).font(.scaled(.caption, textScale)).lineLimit(1).foregroundStyle(.secondary)
-                    Button("제안 받기") { deck.applyGridSuggestion() }
+                    Button(.ui("제안 받기")) { deck.applyGridSuggestion() }
                         .fixedSize()
-                        .help("DJCrate가 추정한 그리드로 바꿉니다(초안만, 되돌리기 가능)")
-                    Button("무시") { deck.dismissGridSuggestion() }
+                        .help(.ui("DJCrate가 추정한 그리드로 바꿉니다(초안만, 되돌리기 가능)"))
+                    Button(.ui("무시")) { deck.dismissGridSuggestion() }
                         .fixedSize()
-                        .help("이 곡에서는 제안을 더 보이지 않습니다")
+                        .help(.ui("이 곡에서는 제안을 더 보이지 않습니다"))
                 }
             }
         }
@@ -103,28 +103,28 @@ struct GainControl: View {
     var body: some View {
         Button { shown.toggle() } label: {
             HStack(spacing: 4) {
-                Text(deck.autoGain ? (deck.useRekordboxGain && deck.rekordboxGainDB != nil ? "RB AUTO" : "AUTO") : "GAIN")
+                Text(verbatim: deck.autoGain ? (deck.useRekordboxGain && deck.rekordboxGainDB != nil ? "RB AUTO" : "AUTO") : "GAIN")
                     .font(.scaled(.caption2, textScale).bold())
                     .padding(.horizontal, 3).padding(.vertical, 1)
                     .background(RoundedRectangle(cornerRadius: 3).fill(deck.autoGain ? Color.accentColor.opacity(0.35) : UIColors.subtleFill))
-                Text(String(format: "%+.1f dB", deck.appliedGain)).font(.scaled(.caption, textScale).monospacedDigit())
+                Text(verbatim: deck.appliedGain.unitText(signed: true) + " dB").font(.scaled(.caption, textScale).monospacedDigit())
                 if let loudness = deck.loudness, let lufs = loudness.integrated {
                     // 큰 음량은 색만이 아니라 경고 표식으로도 알린다(초안 주황과 모양으로 구분).
                     HStack(spacing: 2) {
-                        if loudness.isHot { Image(systemName: WarningMark.symbol).accessibilityLabel("경고") }
-                        Text(String(format: "%.1f LUFS", lufs))
+                        if loudness.isHot { Image(systemName: WarningMark.symbol).accessibilityLabel(.ui("경고")) }
+                        Text(verbatim: lufs.unitText() + " LUFS")
                     }
                     .font(.scaled(.caption, textScale).monospacedDigit())
                     .foregroundStyle(loudness.isHot ? UIColors.warning.color : Color.secondary)
                 }
                 if deck.isGainSuspicious {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(UIColors.warning.color)
-                        .help("rekordbox 오토게인이 DJCrate 측정과 1.5dB 넘게 다릅니다")
+                        .help(.ui("rekordbox 오토게인이 DJCrate 측정과 1.5dB 넘게 다릅니다"))
                 }
             }
         }
         .buttonStyle(.borderless)
-        .help("게인(볼륨 페이더 앞). 누르면 오토게인·목표 음량·트림을 정합니다. 느낌표가 붙은 LUFS = 매우 큰 마스터(−6 LUFS 초과)이거나 심한 클리핑")
+        .help(.ui("게인(볼륨 페이더 앞). 누르면 오토게인·목표 음량·트림을 정합니다. 느낌표가 붙은 LUFS = 매우 큰 마스터(−6 LUFS 초과)이거나 심한 클리핑"))
         .popover(isPresented: $shown, arrowEdge: .bottom) { GainSettings(deck: deck).padding(16).frame(width: 340) }
     }
 }
@@ -134,86 +134,87 @@ struct GainSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("게인").font(.headline)
-            Toggle("오토게인", isOn: $deck.autoGain)
-                .help("곡마다 목표 음량에 맞춥니다")
-            Toggle("rekordbox 값 사용", isOn: $deck.useRekordboxGain)
+            Text(.ui("게인")).font(.headline)
+            Toggle(.ui("오토게인"), isOn: $deck.autoGain)
+                .help(.ui("곡마다 목표 음량에 맞춥니다"))
+            Toggle(.ui("rekordbox 값 사용"), isOn: $deck.useRekordboxGain)
                 .disabled(!deck.autoGain)
-                .help("rekordbox 오토게인 값을 씁니다(rekordbox는 약 −10 LUFS에 맞춤)")
-            Picker("목표 음량", selection: $deck.gainTarget) {
-                ForEach([-14.0, -12, -11, -10, -9, -8], id: \.self) { Text(String(format: "%.0f LUFS", $0)).tag($0) }
+                .help(.ui("rekordbox 오토게인 값을 씁니다(rekordbox는 약 −10 LUFS에 맞춤)"))
+            Picker(.ui("목표 음량"), selection: $deck.gainTarget) {
+                ForEach([-14.0, -12, -11, -10, -9, -8], id: \.self) { Text(verbatim: $0.unitText(digits: 0) + " LUFS").tag($0) }
             }
             .disabled(!deck.autoGain)
-            Toggle("피크 보호", isOn: $deck.peakProtection)
+            Toggle(.ui("피크 보호"), isOn: $deck.peakProtection)
                 .disabled(!deck.autoGain)
-                .help("0dBFS를 넘지 않을 만큼만 올립니다")
+                .help(.ui("0dBFS를 넘지 않을 만큼만 올립니다"))
             HStack {
-                Text("트림")
+                Text(.ui("트림"))
                 Slider(value: Binding(get: { deck.gainTrim }, set: { deck.gainTrim = ($0 * 2).rounded() / 2 }),
                        in: -12...12, neutralValue: 0) {
-                    Text("트림")
+                    Text(.ui("트림"))
                 } ticks: {
                     SliderTick(-12); SliderTick(-6); SliderTick(0); SliderTick(6); SliderTick(12)
                 }
                 .labelsHidden()
-                Text(String(format: "%+.1f dB", deck.gainTrim)).font(.callout.monospacedDigit()).frame(width: 60, alignment: .trailing)
-                Button("0") { deck.gainTrim = 0 }
+                Text(verbatim: deck.gainTrim.unitText(signed: true) + " dB").font(.callout.monospacedDigit()).frame(width: 60, alignment: .trailing)
+                Button { deck.gainTrim = 0 } label: { Text(verbatim: "0") }
             }
             Divider()
             if let loudness = deck.loudness {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("이 곡").font(.subheadline.bold())
-                    Text((loudness.integrated.map { String(format: "음량 %.1f LUFS", $0) } ?? "음량 — (무음)")
-                         + String(format: " · 피크 %.1f dBFS", loudness.peak))
-                        .help("통합 음량(BS.1770)과 샘플 피크")
-                    Text(String(format: "적용 %+.1f dB (오토 %+.1f · 트림 %+.1f)", deck.appliedGain, deck.autoGainDB, deck.gainTrim))
+                    Text(.ui("이 곡")).font(.subheadline.bold())
+                    Text(loudness.integrated.map { String(ui: "음량 \($0, specifier: "%.1f") LUFS · 피크 \(loudness.peak, specifier: "%.1f") dBFS") }
+                         ?? String(ui: "음량 — (무음) · 피크 \(loudness.peak, specifier: "%.1f") dBFS"))
+                        .help(.ui("통합 음량(BS.1770)과 샘플 피크"))
+                    Text(.ui("적용 \(deck.appliedGain, specifier: "%+.1f") dB (오토 \(deck.autoGainDB, specifier: "%+.1f") · 트림 \(deck.gainTrim, specifier: "%+.1f"))"))
                     if let rekordbox = deck.rekordboxGainDB {
-                        Text(String(format: "rekordbox %+.1f dB", rekordbox) + (deck.measuredGainDB.map { String(format: " · DJCrate %+.1f dB", $0) } ?? ""))
-                            .help("rekordbox 오토게인 값과 DJCrate가 잰 음량으로 계산한 값")
+                        Text(verbatim: "rekordbox \(rekordbox.unitText(signed: true)) dB" + (deck.measuredGainDB.map { " · DJCrate \($0.unitText(signed: true)) dB" } ?? ""))
+                            .help(.ui("rekordbox 오토게인 값과 DJCrate가 잰 음량으로 계산한 값"))
                         HStack(spacing: 6) {
-                            Text("곡 게인")
-                            Button("−1") { deck.adjustTrackGain(by: -1) }
-                            Button("−0.1") { deck.adjustTrackGain(by: -0.1) }
+                            Text(.ui("곡 게인"))
+                            Button { deck.adjustTrackGain(by: -1) } label: { Text(verbatim: "−1") }
+                            Button { deck.adjustTrackGain(by: -0.1) } label: { Text(verbatim: "−0.1") }
                             // 초안 값은 초안 색 하나와 연필 표식으로 보인다(목록·시트·인스펙터와 같다).
                             HStack(spacing: 3) {
                                 if deck.gainDraft != nil {
                                     Image(systemName: DraftMark.symbol).accessibilityLabel(DraftMark.spoken)
                                 }
-                                Text(String(format: "%+.1f dB", deck.trackGainDB ?? rekordbox))
+                                Text(verbatim: (deck.trackGainDB ?? rekordbox).unitText(signed: true) + " dB")
                             }
                             .font(.callout.monospacedDigit().bold())
                             .foregroundStyle(deck.gainDraft != nil ? UIColors.draft.color : Color.primary)
                             .frame(width: 84)
-                            Button("+0.1") { deck.adjustTrackGain(by: 0.1) }
-                            Button("+1") { deck.adjustTrackGain(by: 1) }
+                            Button { deck.adjustTrackGain(by: 0.1) } label: { Text(verbatim: "+0.1") }
+                            Button { deck.adjustTrackGain(by: 1) } label: { Text(verbatim: "+1") }
                             if deck.gainDraft != nil {
-                                Button("되돌리기") { deck.clearGainDraft() }
+                                Button(.ui("되돌리기")) { deck.clearGainDraft() }
                             }
                         }
                         .controlSize(.small)
-                        .help(deck.gainDraft != nil ? "초안입니다. rekordbox에 반영하면 rekordbox 오토게인이 이 값으로 바뀝니다" : "이 곡의 rekordbox 오토게인을 고칩니다(초안)")
+                        .help(deck.gainDraft != nil ? String(ui: "초안입니다. rekordbox에 반영하면 rekordbox 오토게인이 이 값으로 바뀝니다") : String(ui: "이 곡의 rekordbox 오토게인을 고칩니다(초안)"))
                     } else {
-                        Text("rekordbox 값 없음(분석 전)").foregroundStyle(.secondary)
+                        Text(.ui("rekordbox 값 없음(분석 전)")).foregroundStyle(.secondary)
                     }
                     if deck.isGainSuspicious, let mismatch = deck.gainMismatchDB {
-                        Label(String(format: "rekordbox 값이 실제 음량과 %.1fdB 다름", abs(mismatch)), systemImage: "exclamationmark.triangle")
+                        Label(.ui("rekordbox 값이 실제 음량과 \(abs(mismatch), specifier: "%.1f")dB 다름"), systemImage: "exclamationmark.triangle")
                             .foregroundStyle(UIColors.warning.color)
-                            .help("파일을 바꿨거나 분석이 오래됐을 수 있습니다. rekordbox에서 다시 분석하거나 DJCrate 값을 쓰세요")
+                            .help(.ui("파일을 바꿨거나 분석이 오래됐을 수 있습니다. rekordbox에서 다시 분석하거나 DJCrate 값을 쓰세요"))
                     }
                     if loudness.isLoud {
-                        Label("매우 큼(−6 LUFS 초과)", systemImage: "exclamationmark.triangle")
+                        Label(.ui("매우 큼(−6 LUFS 초과)"), systemImage: "exclamationmark.triangle")
                             .foregroundStyle(UIColors.warning.color)
-                            .help("라이브러리 대부분의 곡보다 세게 들립니다")
+                            .help(.ui("라이브러리 대부분의 곡보다 세게 들립니다"))
                     }
                     if loudness.clippedRuns > 0 {
-                        Label("클리핑 흔적 \(loudness.clippedRuns)곳\(loudness.isHeavilyClipped ? " · 심함" : "")", systemImage: "waveform.path.badge.minus")
+                        Label(loudness.isHeavilyClipped ? String(ui: "클리핑 흔적 \(loudness.clippedRuns)곳 · 심함") : String(ui: "클리핑 흔적 \(loudness.clippedRuns)곳"),
+                              systemImage: "waveform.path.badge.minus")
                             .foregroundStyle(loudness.isHeavilyClipped ? UIColors.warning.color : Color.secondary)
-                            .help("원본에서 풀스케일에 붙은 구간")
+                            .help(.ui("원본에서 풀스케일에 붙은 구간"))
                     }
                 }
                 .font(.callout)
             } else {
-                Text(deck.row == nil ? "곡을 올리면 음량을 잽니다" : "음량을 재는 중이거나 잴 수 없는 파일입니다")
+                Text(deck.row == nil ? String(ui: "곡을 올리면 음량을 잽니다") : String(ui: "음량을 재는 중이거나 잴 수 없는 파일입니다"))
                     .font(.callout).foregroundStyle(.secondary)
             }
         }
@@ -241,13 +242,13 @@ struct LevelMeterView: View {
                     .background(Palette.well)
                     .environment(\.colorScheme, .dark)
                     .accessibilityElement()
-                    .accessibilityLabel("레벨 미터")
+                    .accessibilityLabel(.ui("레벨 미터"))
                     .modifier(LevelMeterAccessibility(deck: deck))
                 // 최고 피크. 0dBFS를 넘은 적이 있으면 빨간 점이 켜진다. 누르면 기록을 지운다.
                 Button { deck.meter.resetPeaks() } label: {
                     HStack(spacing: 3) {
                         Circle().fill(UIColors.memory.color).frame(width: 6, height: 6).opacity(clipping ? 1 : 0)
-                        Text(reading.maxPeak > 0 ? String(format: "%+.1f", 20 * log10(reading.maxPeak)) : "−∞")
+                        Text(verbatim: reading.maxPeak > 0 ? Double(20 * log10(reading.maxPeak)).unitText(signed: true) : "−∞")
                             .font(.scaled(.caption2, textScale).monospacedDigit())
                             .foregroundStyle(reading.maxPeak >= 1 ? UIColors.memory.color : reading.maxPeak >= 0.708 ? UIColors.warning.color : Color.secondary)
                     }
@@ -256,12 +257,12 @@ struct LevelMeterView: View {
                 }
                 .buttonStyle(.plain)
                 .help(reading.clipCount > 0
-                      ? "최고 피크(dBFS, 게인 뒤). 0dBFS를 \(reading.clipCount)번 넘었습니다 — 게인을 낮추세요. 누르면 기록을 지웁니다"
-                      : "곡을 올린 뒤 최고 피크(dBFS, 게인 뒤). 0dBFS를 넘으면 빨간 점이 켜집니다. 누르면 기록을 지웁니다")
+                      ? String(ui: "최고 피크(dBFS, 게인 뒤). 0dBFS를 \(reading.clipCount)번 넘었습니다 — 게인을 낮추세요. 누르면 기록을 지웁니다")
+                      : String(ui: "곡을 올린 뒤 최고 피크(dBFS, 게인 뒤). 0dBFS를 넘으면 빨간 점이 켜집니다. 누르면 기록을 지웁니다"))
                 // 최고 피크는 곡마다 가끔만 바뀐다(값이 바뀔 때만 VoiceOver에 알린다).
-                .accessibilityLabel("최고 피크")
-                .accessibilityValue(reading.maxPeak > 0 ? String(format: "%+.1f dB", 20 * log10(reading.maxPeak)) : "없음")
-                .accessibilityHint("누르면 최고 피크와 클리핑 기록을 지웁니다")
+                .accessibilityLabel(.ui("최고 피크"))
+                .accessibilityValue(reading.maxPeak > 0 ? Double(20 * log10(reading.maxPeak)).unitText(signed: true) + " dB" : String(ui: "없음"))
+                .accessibilityHint(.ui("누르면 최고 피크와 클리핑 기록을 지웁니다"))
             }
         }
     }
@@ -345,5 +346,13 @@ final class MeterBallistics {
         update(&state.right, reading.peak.right)
         if !playing { state = State() }
         return state
+    }
+}
+
+extension Double {
+    /// 단위만 붙는 수(dB·LUFS·%) 표시. 번역하지 않고 소수점만 로캘을 따른다. 모양은 `%.1f`·`%+.1f`와 같다.
+    fileprivate func unitText(digits: Int = 1, signed: Bool = false) -> String {
+        let style = FloatingPointFormatStyle<Double>.number.precision(.fractionLength(digits)).grouping(.never)
+        return formatted(signed ? style.sign(strategy: .always()) : style)
     }
 }

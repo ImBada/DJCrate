@@ -5,8 +5,10 @@ macOS 27 이상과 Swift 6.2 툴체인(Xcode)이 필요하다.
 ```bash
 swift build             # 디버그 빌드
 scripts/build-app.sh    # dist/DJCrate.app 만들기
-scripts/check.sh        # 빌드·단위 테스트·커버리지 목표 확인
+scripts/check.sh        # 빌드·번역 누락·단위 테스트·커버리지 목표 확인
 ```
+
+화면 문구를 더하거나 고치면 `swift scripts/i18n.swift sync` 뒤 영어·일본어 번역을 채운다([다국어 규칙](docs/i18n.md)). 영어 번역이 빠지면 영어·그 밖의 언어 사용자에게 한국어가 보이므로 `check.sh`가 막는다.
 
 rekordbox 쓰기 시험은 사본으로만 한다. `DJC_REKORDBOX_DIR=<사본 폴더>`와 `DJC_HOME=$(mktemp -d)`를 지정하고, 사본의 `share/PIONEER/USBANLZ`도 심볼릭 링크가 아닌 실제 복사본을 쓴다. 앱 자가 테스트에도 임시 `DJC_HOME`을 지정한다. 라이브 DB·분석 파일·음원에는 쓰지 않는다.
 

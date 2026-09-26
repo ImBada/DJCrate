@@ -12,7 +12,8 @@ final class TrackEditWindow: NSObject, NSWindowDelegate {
 
     private(set) weak var deck: DeckModel?
     private(set) weak var store: LibraryStore?
-    private var window: NSWindow?
+    /// 자가 테스트도 이 창을 쓴다(제목은 언어마다 달라 제목으로 찾지 않는다).
+    private(set) var window: NSWindow?
     private var host: NSHostingController<TrackEditView>?
     private(set) var model: TrackEditModel?
 
@@ -48,7 +49,7 @@ final class TrackEditWindow: NSObject, NSWindowDelegate {
             self.host = host
             self.window = window
         }
-        window?.title = "곡 편집 — \(model.row.title)"
+        window?.title = String(ui: "곡 편집 — \(model.row.title)")
         window?.makeKeyAndOrderFront(nil)
     }
 
@@ -71,10 +72,10 @@ struct TrackEditButton: View {
         Button {
             TrackEditWindow.shared.open()
         } label: {
-            Label("편집…", systemImage: "scissors")
+            Label(.ui("편집…"), systemImage: "scissors")
         }
         .disabled(!TrackEditModel.canOpen(deck))
-        .help("마디 단위로 잘라 이은 편집본(인트로 늘이기·짧은 버전)을 만듭니다. 원곡은 그대로 두고 새 곡으로 추가한 곡에 넣습니다")
+        .help(.ui("마디 단위로 잘라 이은 편집본(인트로 늘이기·짧은 버전)을 만듭니다. 원곡은 그대로 두고 새 곡으로 추가한 곡에 넣습니다"))
     }
 }
 
@@ -87,6 +88,6 @@ extension LibraryStore {
         search = ""
         sidebar = .staged
         selection = [track.id]
-        stagingMessage = AppMessage(kind: .success, text: "편집본 ‘\(track.title)’을 추가한 곡에 넣었습니다. rekordbox에 바로 넣기나 XML로 넘기세요")
+        stagingMessage = AppMessage(kind: .success, text: String(ui: "편집본 ‘\(track.title)’을 추가한 곡에 넣었습니다. rekordbox에 바로 넣기나 XML로 넘기세요"))
     }
 }

@@ -16,7 +16,7 @@ final class AppleMusicImportWindow: NSObject, NSWindowDelegate {
         if let window, window.isVisible { window.makeKeyAndOrderFront(nil); return }
         let model = AppleMusicImportModel(store: store)
         let window = NSWindow(contentViewController: NSHostingController(rootView: AppleMusicImportView(model: model)))
-        window.title = String(localized: "Apple Music XML 가져오기")
+        window.title = String(ui: "Apple Music XML 가져오기")
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.isReleasedWhenClosed = false
         window.delegate = self
@@ -57,8 +57,8 @@ final class AppleMusicImportModel {
     func chooseXML() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.xml]
-        panel.prompt = String(localized: "보관함 열기")
-        panel.message = String(localized: "Music 또는 iTunes에서 내보낸 보관함·재생 목록 XML을 고르세요.")
+        panel.prompt = String(ui: "보관함 열기")
+        panel.message = String(ui: "Music 또는 iTunes에서 내보낸 보관함·재생 목록 XML을 고르세요.")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         Task { await load(url) }
     }
@@ -76,7 +76,7 @@ final class AppleMusicImportModel {
             }.value
             self.library = library
         } catch {
-            message = String(localized: "XML을 열지 못했습니다. Music에서 보관함을 XML로 다시 내보내고 파일 접근 권한을 확인하세요.")
+            message = String(ui: "XML을 열지 못했습니다. Music에서 보관함을 XML로 다시 내보내고 파일 접근 권한을 확인하세요.")
         }
     }
 
@@ -119,7 +119,7 @@ final class AppleMusicImportModel {
         }
         // 파일 검사 중 시작된 반영과 곡 추가가 겹치지 않게 다시 확인한다.
         guard store.writeLockPolicy.allowsLibraryInteraction else {
-            message = String(localized: "rekordbox 반영이 끝난 뒤 선택한 곡을 다시 추가하세요.")
+            message = String(ui: "rekordbox 반영이 끝난 뒤 선택한 곡을 다시 추가하세요.")
             return
         }
         if !urls.isEmpty {
@@ -127,7 +127,7 @@ final class AppleMusicImportModel {
             message = store.stagingMessage?.text
         }
         if rejected > 0 {
-            let warning = String(localized: "\(rejected)곡은 파일을 확인하지 못해 제외했습니다. 각 곡의 안내를 확인하세요.")
+            let warning = String(ui: "\(rejected)곡은 파일을 확인하지 못해 제외했습니다. 각 곡의 안내를 확인하세요.")
             message = [message, warning].compactMap { $0 }.joined(separator: " · ")
         }
     }
@@ -138,27 +138,27 @@ private struct AppleMusicImportView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(String(localized: "Music의 파일 › 보관함 › 보관함 내보내기에서 XML을 저장하세요. 재생 목록 내보내기에서 XML을 골라도 됩니다."))
-            Text(String(localized: "로컬 음원만 ‘추가한 곡’에 넣습니다. 재생 목록은 원래 소속과 순서만 기억하며 rekordbox에 만들지는 않습니다."))
+            Text(.ui("Music의 파일 › 보관함 › 보관함 내보내기에서 XML을 저장하세요. 재생 목록 내보내기에서 XML을 골라도 됩니다."))
+            Text(.ui("로컬 음원만 ‘추가한 곡’에 넣습니다. 재생 목록은 원래 소속과 순서만 기억하며 rekordbox에 만들지는 않습니다."))
                 .font(.callout).foregroundStyle(.secondary)
             HStack {
-                Button(String(localized: "XML 파일 선택…")) { model.chooseXML() }
+                Button(.ui("XML 파일 선택…")) { model.chooseXML() }
                 if model.isBusy { ProgressView().controlSize(.small) }
                 Spacer()
-                Text(String(localized: "선택한 곡 \(model.selectedTracks.count)개"))
+                Text(.ui("선택한 곡 \(model.selectedTracks.count)개"))
             }
             if let library = model.library {
-                Picker(String(localized: "재생 목록"), selection: $model.playlistID) {
-                    Text(String(localized: "보관함 전체")).tag("")
+                Picker(.ui("재생 목록"), selection: $model.playlistID) {
+                    Text(.ui("보관함 전체")).tag("")
                     ForEach(library.playlists) { playlist in
                         Text(playlist.name).tag(playlist.id)
                     }
                 }
                 HStack {
-                    Button(String(localized: "표시한 곡 선택")) { model.selectVisible(true) }
-                    Button(String(localized: "표시한 곡 해제")) { model.selectVisible(false) }
+                    Button(.ui("표시한 곡 선택")) { model.selectVisible(true) }
+                    Button(.ui("표시한 곡 해제")) { model.selectVisible(false) }
                     Spacer()
-                    Text(String(localized: "제외된 곡 \(model.visibleTracks.filter { $0.exclusion != nil }.count)개"))
+                    Text(.ui("제외된 곡 \(model.visibleTracks.filter { $0.exclusion != nil }.count)개"))
                         .foregroundStyle(.secondary)
                 }
                 List(model.visibleTracks) { track in
@@ -178,14 +178,14 @@ private struct AppleMusicImportView: View {
                 }
             } else {
                 Spacer()
-                Text(String(localized: "XML을 열면 곡과 재생 목록을 고를 수 있습니다."))
+                Text(.ui("XML을 열면 곡과 재생 목록을 고를 수 있습니다."))
                     .foregroundStyle(.secondary).frame(maxWidth: .infinity)
                 Spacer()
             }
             if let message = model.message { Text(message).font(.callout).textSelection(.enabled) }
             HStack {
                 Spacer()
-                Button(String(localized: "선택한 곡 추가")) { Task { await model.addSelected() } }
+                Button(.ui("선택한 곡 추가")) { Task { await model.addSelected() } }
                     .buttonStyle(.borderedProminent)
                     .disabled(model.selectedTracks.isEmpty || !model.store.writeLockPolicy.allowsLibraryInteraction)
             }

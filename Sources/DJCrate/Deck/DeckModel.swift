@@ -389,9 +389,9 @@ final class DeckModel {
                 keyChroma = cachedChroma
                 refreshKeySegments()
             }
-            if !canPlay { waveformError = "이 파일 형식은 재생·파형을 지원하지 않습니다." }
+            if !canPlay { waveformError = String(ui: "이 파일 형식은 재생·파형을 지원하지 않습니다.") }
         } else if !row.track.isStreaming {
-            waveformError = "파일을 찾을 수 없습니다. 외장 드라이브가 연결됐는지 확인하세요."
+            waveformError = String(ui: "파일을 찾을 수 없습니다. 외장 드라이브가 연결됐는지 확인하세요.")
         }
         playhead = min(playhead, duration)
 
@@ -419,7 +419,7 @@ final class DeckModel {
                 self.waveform = waveform
             } catch {
                 guard !Task.isCancelled, self.row?.id == id else { return }
-                self.waveformError = "파형을 만들지 못했습니다: \(error.localizedDescription)"
+                self.waveformError = String(ui: "파형을 만들지 못했습니다: \(error.localizedDescription)")
             }
             #if DEBUG
             self.applyLaunchFlags()

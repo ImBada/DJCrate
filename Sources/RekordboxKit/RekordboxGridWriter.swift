@@ -62,17 +62,17 @@ public enum RekordboxGridWriter {
     public static func plan(draft: GridDraft, title: String, analysisDataPath: String?, rekordboxBPM100: Int,
                             audioPath: String, shareRoot: URL = RekordboxShare.directory) throws -> Plan {
         func block(_ reason: String) -> Blocked { Blocked(title: title, reason: reason) }
-        guard draft.hasChanges else { throw block("그리드 변경이 없습니다") }
+        guard draft.hasChanges else { throw block(String(ui: "그리드 변경이 없습니다")) }
         let datURL = analysisDataPath.flatMap { $0.isEmpty ? nil : shareRoot.appending(path: String($0.drop(while: { $0 == "/" }))) }
         guard let datURL, FileManager.default.fileExists(atPath: datURL.path) else {
-            throw block("rekordbox 분석 파일이 없습니다. rekordbox에서 트랙 분석을 먼저 하세요")
+            throw block(String(ui: "rekordbox 분석 파일이 없습니다. rekordbox에서 트랙 분석을 먼저 하세요"))
         }
         // BPM이 그대로면 파일만, 바뀌면 DB의 BPM도 고친다(템포가 하나인 그리드만).
         let bpmChanged = draft.segments.count != draft.base.count
             || zip(draft.segments, draft.base).contains { abs($0.bpm - $1.bpm) >= 0.005 }
             || rekordboxBPM100 == 0
         if bpmChanged, draft.segments.count != 1 {
-            throw block("템포가 바뀌는 곡(구간 여러 개)의 BPM 변경은 아직 직접 쓰지 않습니다")
+            throw block(String(ui: "템포가 바뀌는 곡(구간 여러 개)의 BPM 변경은 아직 직접 쓰지 않습니다"))
         }
         let datFile: AnlzFile
         let originalDat: Data
@@ -80,19 +80,19 @@ public enum RekordboxGridWriter {
             originalDat = try Data(contentsOf: datURL)
             datFile = try AnlzFile(data: originalDat)
         } catch {
-            throw block("분석 파일을 읽지 못했습니다")
+            throw block(String(ui: "분석 파일을 읽지 못했습니다"))
         }
-        guard let pqtz = datFile.tag("PQTZ") else { throw block("분석 파일에 그리드 칸(PQTZ)이 없습니다") }
+        guard let pqtz = datFile.tag("PQTZ") else { throw block(String(ui: "분석 파일에 그리드 칸(PQTZ)이 없습니다")) }
         let extURL = datURL.deletingPathExtension().appendingPathExtension("EXT")
         // .DAT만 있고 파형(.EXT)이 없는 곡은 rekordbox 분석이 끝나지 않은 반쪽 곡이다(분석 실패: 0박·파형 0인 .DAT와 .3EX만).
         // 그리드만 쓰면 rekordbox는 분석된 곡으로 보고 파형이 없는 채로 남는다(2026-09-26 サラマンダー). 기존 .DAT·파일 행을
         // rekordbox가 다시 분석할 때 어떻게 바꾸는지 몰라 분석 붙이기(`RekordboxWriter+Analysis`)도 하지 않는다.
         guard FileManager.default.fileExists(atPath: extURL.path) else {
-            throw block("rekordbox 분석이 끝나지 않은 곡입니다(파형 파일 없음). rekordbox에서 트랙 분석을 다시 한 뒤 쓰세요")
+            throw block(String(ui: "rekordbox 분석이 끝나지 않은 곡입니다(파형 파일 없음). rekordbox에서 트랙 분석을 다시 한 뒤 쓰세요"))
         }
         let originalExt = try? Data(contentsOf: extURL)
         let extFile = originalExt.flatMap { try? AnlzFile(data: $0) }
-        if originalExt != nil, extFile == nil { throw block("확장 분석 파일(.EXT)을 읽지 못했습니다") }
+        if originalExt != nil, extFile == nil { throw block(String(ui: "확장 분석 파일(.EXT)을 읽지 못했습니다")) }
 
         // 초안을 시작한 뒤 rekordbox에서 그리드가 바뀌었으면 쓰지 않는다.
         let current = BeatGridTags.decode(pqtz: pqtz.bytes, pqt2: extFile?.tag("PQT2")?.bytes).beats
@@ -100,7 +100,7 @@ public enum RekordboxGridWriter {
         let currentSegments = GridDraft.segments(from: currentGrid)
         guard currentSegments.count == draft.base.count,
               zip(currentSegments, draft.base).allSatisfy({ abs($0.start - $1.start) < 0.002 && abs($0.bpm - $1.bpm) < 0.01 && $0.firstBeatNumber == $1.firstBeatNumber })
-        else { throw block("초안을 만든 뒤 rekordbox에서 그리드가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요") }
+        else { throw block(String(ui: "초안을 만든 뒤 rekordbox에서 그리드가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요")) }
 
         // 초안은 PQTZ의 ms(내림)로 만든 것이다. 실제 박은 그 ms 안 어딘가에 있어서, rekordbox는 소수(PQT2)를 알면 그 값을,
         // 모르면 ms 한가운데(+0.5ms)를 기준으로 다시 계산한다(BPM 244→245 실험에서 바이트까지 확인).
@@ -113,10 +113,10 @@ public enum RekordboxGridWriter {
 
         // 곡 길이(rekordbox 시간축): 음원 길이 + 인코더 지연
         let url = URL(filePath: audioPath)
-        guard let audio = try? AVAudioFile(forReading: url) else { throw block("음원 파일을 열지 못했습니다") }
+        guard let audio = try? AVAudioFile(forReading: url) else { throw block(String(ui: "음원 파일을 열지 못했습니다")) }
         let duration = Double(audio.length) / audio.processingFormat.sampleRate + RekordboxTimeline.predictedOffset(url: url)
         let beats = beats(segments: segments, duration: duration)
-        guard beats.count >= 8 else { throw block("만든 박이 너무 적습니다") }
+        guard beats.count >= 8 else { throw block(String(ui: "만든 박이 너무 적습니다")) }
 
         var newDatFile = datFile
         newDatFile.replace("PQTZ", with: BeatGridTags.pqtz(beats))

@@ -17,12 +17,12 @@ public struct BarRange: Codable, Hashable, Sendable, CustomStringConvertible {
     public static func list(_ text: String) throws -> [BarRange] {
         let parts = text.replacingOccurrences(of: " ", with: "").split(separator: ",", omittingEmptySubsequences: false)
         guard !(parts.count == 1 && parts[0].isEmpty) else {
-            throw DJCError.editRefused("편집할 마디 구간이 없습니다. 1-16,1-16,17-64처럼 쓰세요")
+            throw DJCError.editRefused(String(ui: "편집할 마디 구간이 없습니다. 1-16,1-16,17-64처럼 쓰세요"))
         }
         return try parts.map { part in
             let ends = part.split(separator: "-", omittingEmptySubsequences: false).map { Int($0) }
             guard (1...2).contains(ends.count), let first = ends.first ?? nil, let last = ends.last ?? nil, first >= 0 else {
-                throw DJCError.editRefused("마디 구간 '\(part)'를 읽지 못했습니다. 1-16처럼 첫 마디-끝 마디로 쓰세요")
+                throw DJCError.editRefused(String(ui: "마디 구간 '\(part)'를 읽지 못했습니다. 1-16처럼 첫 마디-끝 마디로 쓰세요"))
             }
             let range = BarRange(first, last)
             try range.checkOrder()
@@ -31,8 +31,8 @@ public struct BarRange: Codable, Hashable, Sendable, CustomStringConvertible {
     }
 
     func checkOrder() throws {
-        guard first >= 0 else { throw DJCError.editRefused("마디 \(first)는 없습니다. 0마디(곡 머리)나 1마디부터 고르세요") }
-        guard first <= last else { throw DJCError.editRefused("마디 구간 \(first)-\(last)이 거꾸로입니다. 앞 마디를 먼저 쓰세요") }
+        guard first >= 0 else { throw DJCError.editRefused(String(ui: "마디 \(first)는 없습니다. 0마디(곡 머리)나 1마디부터 고르세요")) }
+        guard first <= last else { throw DJCError.editRefused(String(ui: "마디 구간 \(first)-\(last)이 거꾸로입니다. 앞 마디를 먼저 쓰세요")) }
     }
 }
 
@@ -54,10 +54,10 @@ public struct BarLayout: Sendable, Equatable {
     public init(grid: [GridSegment], duration: Double) throws {
         let segments = grid.filter { $0.bpm > 0 }
         guard let segment = segments.first else {
-            throw DJCError.editRefused("그리드가 없습니다. rekordbox에서 트랙 분석을 먼저 한 뒤 편집하세요")
+            throw DJCError.editRefused(String(ui: "그리드가 없습니다. rekordbox에서 트랙 분석을 먼저 한 뒤 편집하세요"))
         }
         guard segments.count == 1 else {
-            throw DJCError.editRefused("템포가 바뀌는 곡(템포 구간 \(segments.count)개)은 아직 편집하지 않습니다. 템포 구간이 하나인 곡을 고르세요")
+            throw DJCError.editRefused(String(ui: "템포가 바뀌는 곡(템포 구간 \(segments.count)개)은 아직 편집하지 않습니다. 템포 구간이 하나인 곡을 고르세요"))
         }
         let beat = 60 / segment.bpm
         barLength = 240 / segment.bpm
@@ -112,18 +112,18 @@ public struct TrackEdit: Sendable, Equatable {
 
     public init(grid: [GridSegment], sourceDuration: Double, bars: [BarRange]) throws {
         let layout = try BarLayout(grid: grid, duration: sourceDuration)
-        guard !bars.isEmpty else { throw DJCError.editRefused("편집할 마디 구간이 없습니다. 1-16,1-16,17-64처럼 쓰세요") }
+        guard !bars.isEmpty else { throw DJCError.editRefused(String(ui: "편집할 마디 구간이 없습니다. 1-16,1-16,17-64처럼 쓰세요")) }
         for (index, range) in bars.enumerated() {
             try range.checkOrder()
             guard range.last <= layout.count else {
-                throw DJCError.editRefused("마디 \(range.last)은 곡 끝을 넘습니다. 마지막 마디 \(layout.count) 이하로 고르세요")
+                throw DJCError.editRefused(String(ui: "마디 \(range.last)은 곡 끝을 넘습니다. 마지막 마디 \(layout.count) 이하로 고르세요"))
             }
             if range.first == 0 {
-                guard layout.hasLeadIn else { throw DJCError.editRefused("이 곡은 첫 다운비트가 곡 시작이라 0마디가 없습니다. 1마디부터 고르세요") }
-                guard index == 0 else { throw DJCError.editRefused("0마디(첫 다운비트 앞)는 맨 앞 구간의 시작에만 둘 수 있습니다") }
+                guard layout.hasLeadIn else { throw DJCError.editRefused(String(ui: "이 곡은 첫 다운비트가 곡 시작이라 0마디가 없습니다. 1마디부터 고르세요")) }
+                guard index == 0 else { throw DJCError.editRefused(String(ui: "0마디(첫 다운비트 앞)는 맨 앞 구간의 시작에만 둘 수 있습니다")) }
             }
             if layout.lastBarIsPartial, range.last == layout.count, index != bars.count - 1 {
-                throw DJCError.editRefused("마지막 마디 \(layout.count)은 곡 끝에서 잘려 있어 맨 뒤 구간의 끝에만 둘 수 있습니다")
+                throw DJCError.editRefused(String(ui: "마지막 마디 \(layout.count)은 곡 끝에서 잘려 있어 맨 뒤 구간의 끝에만 둘 수 있습니다"))
             }
         }
         // 원본에서 이어지는 구간은 합친다(이음새가 아니다).
@@ -186,8 +186,8 @@ public struct CueCarry: Sendable, Equatable {
 
         public var label: String {
             switch self {
-            case .cut: "빠진 구간"
-            case .loopAcrossSeam: "루프가 이음새에 걸림"
+            case .cut: String(ui: "빠진 구간")
+            case .loopAcrossSeam: String(ui: "루프가 이음새에 걸림")
             }
         }
     }

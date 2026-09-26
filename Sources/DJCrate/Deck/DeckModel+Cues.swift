@@ -48,10 +48,10 @@ extension DeckModel {
             selectedCueID = id
             return nil
         case .limitReached:
-            showToast("메모리 큐는 곡당 \(CueDraft.memoryLimit)개까지입니다(rekordbox 제한, 자동 큐 포함)")
+            showToast(String(ui: "메모리 큐는 곡당 \(CueDraft.memoryLimit)개까지입니다(rekordbox 제한, 자동 큐 포함)"))
             return nil
         case let .added(id):
-            mutate(name: "메모리 큐 찍기") { $0 = edited }
+            mutate(name: String(ui: "메모리 큐 찍기")) { $0 = edited }
             selectedCueID = id
             return id
         }
@@ -79,14 +79,14 @@ extension DeckModel {
             // 즉석 루프 중에 빈 칸을 누르면 그 루프를 루프 핫큐로 저장하고 계속 반복한다(CDJ와 같다).
             var cue = EditableCue(kind: .hot(slot), time: loop.start)
             cue.loop = EditableCue.Loop(end: loop.end, active: false, beats: loop.beats)
-            mutate(name: "핫큐 찍기") { $0.place(cue) }
+            mutate(name: String(ui: "핫큐 찍기")) { $0.place(cue) }
             instantLoop = nil
             engagedLoopID = cue.id
             selectedCueID = cue.id
         } else {
             guard canPlay || grid != nil else { return }  // 소리·그리드 없이 0초에 박히지 않게
             let cue = EditableCue(kind: .hot(slot), time: snapped(currentTime))
-            mutate(name: "핫큐 찍기") { $0.place(cue) }
+            mutate(name: String(ui: "핫큐 찍기")) { $0.place(cue) }
             selectedCueID = cue.id
         }
     }
@@ -100,21 +100,21 @@ extension DeckModel {
     func moveHotCueToPlayhead(slot: Int) {
         guard var cue = hotCue(slot: slot) else { return }
         cue.time = snapped(currentTime)
-        mutate(name: "큐 옮기기") { $0.place(cue) }
+        mutate(name: String(ui: "큐 옮기기")) { $0.place(cue) }
     }
 
     /// 옮긴다(퀀타이즈면 박에 맞춤). 루프는 길이를 유지한다.
     func move(_ id: EditableCue.ID, to time: Double, save: Bool = true) {
         let target = snapped(time)
         guard let cue = cue(id), abs(target - cue.time) >= 0.0005 else { return }
-        mutate(name: "큐 옮기기", save: save) { $0.move(id, to: target) }
+        mutate(name: String(ui: "큐 옮기기"), save: save) { $0.move(id, to: target) }
     }
 
     /// 박 단위로 민다(그리드가 없으면 0.5초).
     func nudge(_ id: EditableCue.ID, beats: Int) {
         guard let cue = cue(id) else { return }
         let target = grid?.nudge(cue.time, beats: beats) ?? min(max(cue.time + Double(beats) * 0.5, 0), duration)
-        mutate(name: "큐 옮기기") { $0.move(id, to: target) }
+        mutate(name: String(ui: "큐 옮기기")) { $0.move(id, to: target) }
     }
 
     // MARK: 루프
@@ -123,17 +123,17 @@ extension DeckModel {
     func setLoop(_ id: EditableCue.ID, beats: Int?) {
         guard let cue = cue(id) else { return }
         guard let beats else {
-            mutate(name: "루프 편집") { $0.setLoop(id, end: nil, beats: nil) }
+            mutate(name: String(ui: "루프 편집")) { $0.setLoop(id, end: nil, beats: nil) }
             return
         }
         guard let end = loopEnd(from: cue.time, beats: Double(beats)) else { return }
-        mutate(name: "루프 편집") { $0.setLoop(id, end: end, beats: Double(beats)) }
+        mutate(name: String(ui: "루프 편집")) { $0.setLoop(id, end: end, beats: Double(beats)) }
     }
 
     /// 활성 루프 켜기·끄기(곡을 불러오면 그 루프를 자동으로 반복한다). 곡에 하나만 둔다.
     func toggleActiveLoop(_ id: EditableCue.ID) {
         guard cue(id)?.loop != nil else { return }
-        mutate(name: "활성 루프 변경") { $0.toggleActiveLoop(id) }
+        mutate(name: String(ui: "활성 루프 변경")) { $0.toggleActiveLoop(id) }
     }
 
     /// 루프 박 수(그리드 기준, 대략)
@@ -142,17 +142,17 @@ extension DeckModel {
     func setKind(_ id: EditableCue.ID, _ kind: EditableCue.Kind) {
         guard var cue = cue(id) else { return }
         cue.kind = kind
-        mutate(name: "큐 종류 변경") { $0.place(cue) }
+        mutate(name: String(ui: "큐 종류 변경")) { $0.place(cue) }
     }
 
     func rename(_ id: EditableCue.ID, _ name: String) {
         guard var cue = cue(id) else { return }
         cue.name = name
-        mutate(name: "큐 이름 변경") { $0.place(cue) }
+        mutate(name: String(ui: "큐 이름 변경")) { $0.place(cue) }
     }
 
     func delete(_ id: EditableCue.ID) {
-        let name = cue(id)?.kind.slotLetter == nil ? "메모리 큐 지우기" : "핫큐 지우기"
+        let name = cue(id)?.kind.slotLetter == nil ? String(ui: "메모리 큐 지우기") : String(ui: "핫큐 지우기")
         mutate(name: name) { $0.remove(id) }
         if selectedCueID == id { selectedCueID = nil }
     }
@@ -161,14 +161,14 @@ extension DeckModel {
     func acceptSuggestion(_ time: Double) {
         let target = snapped(time)
         guard storeMemoryCue(at: target, loop: nil) != nil else { return }
-        announce("제안을 받아 \(target.spokenClockText)에 메모리 큐를 찍었습니다")
+        announce(String(ui: "제안을 받아 \(target.spokenClockText)에 메모리 큐를 찍었습니다"))
     }
 
     /// A: 재생 위치에서 가장 가까운 제안을 받는다. 제안이 없으면 아무것도 하지 않고 VoiceOver로만 알린다.
     func acceptNearestSuggestion() {
         guard !isWriteLocked else { return }
         guard let nearest = suggestions.min(by: { abs($0 - playhead) < abs($1 - playhead) }) else {
-            announce("받을 제안이 없습니다")
+            announce(String(ui: "받을 제안이 없습니다"))
             return
         }
         acceptSuggestion(nearest)
@@ -183,7 +183,7 @@ extension DeckModel {
             ? suggestions.filter { $0 > playhead + Self.cueTolerance }.min()
             : suggestions.filter { $0 < playhead - slack }.max()
         guard let target else {
-            announce(forward ? "뒤쪽에 제안이 없습니다" : "앞쪽에 제안이 없습니다")
+            announce(forward ? String(ui: "뒤쪽에 제안이 없습니다") : String(ui: "앞쪽에 제안이 없습니다"))
             return
         }
         seek(target)
@@ -195,7 +195,7 @@ extension DeckModel {
     }
 
     func revertDraft() {
-        mutate(name: "큐 초안 버리기") { $0.revert() }
+        mutate(name: String(ui: "큐 초안 버리기")) { $0.revert() }
         selectedCueID = nil
     }
 
@@ -215,11 +215,11 @@ extension DeckModel {
     func commitDraft() {
         guard !isWriteLocked, let draft else { return }
         persist(draft)
-        registerDraftUndo(from: pendingDraftUndo, name: "큐 옮기기")
+        registerDraftUndo(from: pendingDraftUndo, name: String(ui: "큐 옮기기"))
         pendingDraftUndo = nil
     }
 
-    func mutate(name: String = "큐 편집", save: Bool = true, recordingUndo: Bool = true, _ change: (inout CueDraft) -> Void) {
+    func mutate(name: String = String(ui: "큐 편집"), save: Bool = true, recordingUndo: Bool = true, _ change: (inout CueDraft) -> Void) {
         guard !isWriteLocked, var draft, draft.trackUUID == row?.track.uuid else { return }
         let before = draftSnapshot
         change(&draft)

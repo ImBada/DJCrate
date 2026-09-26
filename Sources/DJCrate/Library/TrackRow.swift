@@ -32,7 +32,7 @@ struct TrackRow: Identifiable, Hashable, Sendable {
     var isStaged: Bool { track.id.hasPrefix("djc-") }
     /// rekordbox는 Spotify 곡의 제목·아티스트를 `$A7:v1:…`로 암호화해 저장한다.
     var isEncrypted: Bool { track.title.hasPrefix("$A7:") }
-    var title: String { isEncrypted ? "🔒 Spotify 곡 (제목 암호화됨)" : track.title }
+    var title: String { isEncrypted ? String(ui: "🔒 Spotify 곡 (제목 암호화됨)") : track.title }
     var artist: String { isEncrypted ? "" : track.artist ?? "" }
     var comment: String { track.comment }
     var commentClassName: String { commentEvaluation?.displayName ?? "" }
@@ -59,7 +59,7 @@ struct TrackRow: Identifiable, Hashable, Sendable {
     /// 정렬용: 변속 수
     var tempoChangeCount: Int { max(tempoChanges.count - 1, 0) }
     /// 파일 형식(확장자). 스트리밍 곡은 "스트림".
-    var formatName: String { track.isStreaming ? "스트림" : track.fileExtension.uppercased() }
+    var formatName: String { track.isStreaming ? String(ui: "스트림") : track.fileExtension.uppercased() }
 
     /// 검색용 소문자 키(제목·아티스트·코멘트·장르). 로딩 때 한 번만 만든다.
     let searchKey: String

@@ -63,7 +63,7 @@ extension DeckModel {
         storage.saveGain(gainDraft, uuid)
         onDraftChange?(uuid, .gain, gainDraft != nil)
         applyGain()
-        registerDraftUndo(from: before, name: "게인 변경")
+        registerDraftUndo(from: before, name: String(ui: "게인 변경"))
     }
 
     func adjustTrackGain(by delta: Double) {
@@ -80,7 +80,7 @@ extension DeckModel {
         storage.saveGain(nil, uuid)
         onDraftChange?(uuid, .gain, false)
         applyGain()
-        registerDraftUndo(from: before, name: "게인 초안 버리기")
+        registerDraftUndo(from: before, name: String(ui: "게인 초안 버리기"))
     }
 
     var hasGainOverride: Bool { gainDraft != nil }

@@ -33,40 +33,40 @@ struct AppCommands: Commands {
             ForEach(LibraryMenuAction.fileActions, id: \.self) { libraryButton($0) }
         }
         CommandGroup(before: .sidebar) {
-            Toggle("목록", isOn: Binding(get: { !sheetMode }, set: { if $0 { sheetMode = false } }))
+            Toggle(.ui("목록"), isOn: Binding(get: { !sheetMode }, set: { if $0 { sheetMode = false } }))
                 .keyboardShortcut("1", modifiers: .command)
                 .disabled(context?.store.writeLockPolicy.allowsLibraryInteraction != true)
-            Toggle("태그 시트", isOn: Binding(get: { sheetMode }, set: { if $0 { sheetMode = true } }))
+            Toggle(.ui("태그 시트"), isOn: Binding(get: { sheetMode }, set: { if $0 { sheetMode = true } }))
                 .keyboardShortcut("2", modifiers: .command)
                 .disabled(context?.store.writeLockPolicy.allowsLibraryInteraction != true)
             Divider()
-            Toggle("태그 편집", isOn: context?.showTagEditor ?? .constant(false))
+            Toggle(.ui("태그 편집"), isOn: context?.showTagEditor ?? .constant(false))
                 .keyboardShortcut("i", modifiers: .command)
                 .disabled(!canEditTags)
             Divider()
             // 덱·목록 사이 핸들을 끌지 않고 키보드·VoiceOver로 파형 높이를 바꾼다.
-            Button("파형 크게") { context?.waveformHeight?.grow() }
+            Button(.ui("파형 크게")) { context?.waveformHeight?.grow() }
                 .disabled(context?.waveformHeight?.canGrow != true)
-            Button("파형 작게") { context?.waveformHeight?.shrink() }
+            Button(.ui("파형 작게")) { context?.waveformHeight?.shrink() }
                 .disabled(context?.waveformHeight?.canShrink != true)
             Divider()
             // macOS는 Dynamic Type이 없어 앱 안에서 글자를 키운다(곡 목록·태그 시트·덱·알림).
             // ⌘+는 Shift 없이 누른 ⌘=로도 온다(KeyRouter가 바꿔 넣는다).
             let scale = SettingKeys.textScale.value(from: textScale)
-            Button("글자 크게") { textScale = TextScale.stepped(scale, by: 1) }
+            Button(.ui("글자 크게")) { textScale = TextScale.stepped(scale, by: 1) }
                 .keyboardShortcut("+", modifiers: .command)
                 .disabled(!TextScale.canStep(scale, by: 1))
-            Button("글자 작게") { textScale = TextScale.stepped(scale, by: -1) }
+            Button(.ui("글자 작게")) { textScale = TextScale.stepped(scale, by: -1) }
                 .keyboardShortcut("-", modifiers: .command)
                 .disabled(!TextScale.canStep(scale, by: -1))
-            Button("기본 글자 크기") { textScale = SettingKeys.textScale.defaultValue }
+            Button(.ui("기본 글자 크기")) { textScale = SettingKeys.textScale.defaultValue }
                 .keyboardShortcut("0", modifiers: .command)
                 .disabled(scale == SettingKeys.textScale.defaultValue)
         }
-        CommandMenu("rekordbox") {
+        CommandMenu(Text(verbatim: "rekordbox")) {
             ForEach(LibraryMenuAction.rekordboxActions, id: \.self) { libraryButton($0) }
         }
-        CommandMenu("덱") {
+        CommandMenu(.ui("덱")) {
             ForEach(DeckAction.Group.allCases, id: \.self) { group in
                 if group != .transport { Divider() }
                 if group == .hotCues {
@@ -89,11 +89,11 @@ struct AppCommands: Commands {
                 }
             }
             Divider()
-            Button("곡 편집…") { TrackEditWindow.shared.open() }
+            Button(.ui("곡 편집…")) { TrackEditWindow.shared.open() }
                 .disabled(context.map { !TrackEditModel.canOpen($0.deck) } ?? true)
         }
         CommandGroup(replacing: .help) {
-            Button("DJCrate 단축키") { openWindow(id: "shortcuts") }
+            Button(.ui("DJCrate 단축키")) { openWindow(id: "shortcuts") }
                 .keyboardShortcut("?", modifiers: .command)
         }
     }

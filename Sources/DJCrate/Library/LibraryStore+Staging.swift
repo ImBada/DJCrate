@@ -37,7 +37,7 @@ extension LibraryStore {
     }
 
     private func persistStaged() {
-        do { try StagingStore.save(staged) } catch { stagingMessage = AppMessage(kind: .failure, text: "추가한 곡 목록을 저장하지 못했습니다. DJCrate 데이터 폴더의 쓰기 권한을 확인하세요: \(error.localizedDescription)") }
+        do { try StagingStore.save(staged) } catch { stagingMessage = AppMessage(kind: .failure, text: String(ui: "추가한 곡 목록을 저장하지 못했습니다. DJCrate 데이터 폴더의 쓰기 권한을 확인하세요: \(error.localizedDescription)")) }
     }
 
     /// 파일·폴더를 추가한다. 이미 rekordbox 컬렉션에 있는 파일은 건너뛴다
@@ -45,7 +45,7 @@ extension LibraryStore {
     func addFiles(_ urls: [URL], appleMusicOrigins: [String: [AppleMusicOrigin]] = [:]) async {
         let files = StagedTrack.audioFiles(in: urls)
         guard !files.isEmpty else {
-            stagingMessage = AppMessage(kind: .warning, text: "추가할 음원이 없습니다. MP3·M4A·WAV·AIFF·FLAC 파일을 고르세요.")
+            stagingMessage = AppMessage(kind: .warning, text: String(ui: "추가할 음원이 없습니다. MP3·M4A·WAV·AIFF·FLAC 파일을 고르세요."))
             return
         }
         func key(_ path: String) -> String { path.precomposedStringWithCanonicalMapping }
@@ -84,10 +84,10 @@ extension LibraryStore {
             rebuildStagedRows()
         }
         var parts: [String] = []
-        if !added.isEmpty { parts.append("\(added.count)곡 추가") }
-        if !libraryRows.isEmpty { parts.append("rekordbox 곡 \(libraryRows.count)곡을 열었습니다") }
-        if !stagedIDs.isEmpty { parts.append("이미 추가한 \(stagedIDs.count)곡을 열었습니다") }
-        if failed > 0 { parts.append("\(failed)곡은 읽지 못함") }
+        if !added.isEmpty { parts.append(String(ui: "\(added.count)곡 추가")) }
+        if !libraryRows.isEmpty { parts.append(String(ui: "rekordbox 곡 \(libraryRows.count)곡을 열었습니다")) }
+        if !stagedIDs.isEmpty { parts.append(String(ui: "이미 추가한 \(stagedIDs.count)곡을 열었습니다")) }
+        if failed > 0 { parts.append(String(ui: "\(failed)곡은 읽지 못함")) }
         if stagingMessage?.kind != .failure {
             stagingMessage = AppMessage(kind: failed > 0 ? .warning : .success, text: parts.joined(separator: " · "))
         }
@@ -122,7 +122,7 @@ extension LibraryStore {
         selection.subtract(ids)
         rebuildStagedRows()
         if stagingMessage?.kind != .failure {
-            stagingMessage = AppMessage(text: "\(removing.count)곡을 추가 목록에서 뺐습니다(파일은 그대로).")
+            stagingMessage = AppMessage(text: String(ui: "\(removing.count)곡을 추가 목록에서 뺐습니다(파일은 그대로)."))
         }
     }
 
@@ -170,12 +170,12 @@ extension LibraryStore {
         let checked = staged.compactMap(\.importCheck)
         guard !checked.isEmpty else { return }
         let counts = Dictionary(grouping: checked, by: \.result).mapValues(\.count)
-        var parts = ["rekordbox 가져오기 확인 \(checked.count)곡"]
-        if let n = counts[.matched] { parts.append("그리드 일치 \(n)") }
-        if let n = counts[.shifted] { parts.append("박 어긋남 \(n)") }
-        if let n = counts[.reanalyzed] { parts.append("rekordbox가 재분석 \(n)") }
-        if let n = counts[.pending] { parts.append("분석 대기 \(n)") }
-        if let n = counts[.noGrid] { parts.append("그리드 없이 보냄 \(n)") }
+        var parts = [String(ui: "rekordbox 가져오기 확인 \(checked.count)곡")]
+        if let n = counts[.matched] { parts.append(String(ui: "그리드 일치 \(n)")) }
+        if let n = counts[.shifted] { parts.append(String(ui: "박 어긋남 \(n)")) }
+        if let n = counts[.reanalyzed] { parts.append(String(ui: "rekordbox가 재분석 \(n)")) }
+        if let n = counts[.pending] { parts.append(String(ui: "분석 대기 \(n)")) }
+        if let n = counts[.noGrid] { parts.append(String(ui: "그리드 없이 보냄 \(n)")) }
         guard stagingMessage?.kind != .failure else { return }
         stagingMessage = AppMessage(kind: checked.allSatisfy { $0.result == .matched } ? .success : .warning, text: parts.joined(separator: " · "))
     }

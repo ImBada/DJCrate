@@ -30,10 +30,10 @@ extension LibraryStore {
         let gains = Dictionary(uniqueKeysWithValues: targets.compactMap { row in allGains[row.track.uuid].map { (row.track.uuid, $0) } })
         // 미리 보기는 길이만 잰다(음량은 쓸 때 잰다. 막히는지 보는 데는 필요 없다).
         let inputs = try await analysisInputs(for: grids, measuringLoudness: false)
-        writeStage = WriteStage("미리 보기 1/2단계 · 사본을 만드는 중…", completed: 0, total: 2, cancellable: true)
+        writeStage = WriteStage(String(ui: "미리 보기 1/2단계 · 사본을 만드는 중…"), completed: 0, total: 2, cancellable: true)
         let report = try await Task.detached(priority: .userInitiated) {
             let snapshot = try LibrarySnapshot.take()
-            await MainActor.run { self.writeStage = WriteStage("미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…", completed: 1, total: 2, cancellable: true) }
+            await MainActor.run { self.writeStage = WriteStage(String(ui: "미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…"), completed: 1, total: 2, cancellable: true) }
             // 미리 보기: 사본 DB + 실제 분석 파일을 읽기만 한다(dryRun이라 파일을 쓰지 않는다).
             return try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, analysisInputs: inputs, to: snapshot, dryRun: true,
                                              backups: DJCPaths.rekordboxBackups, shareRoot: RekordboxShare.directory)
@@ -48,7 +48,7 @@ extension LibraryStore {
         defer { writeStage = nil }
         let inputs = try await analysisInputs(for: grids, measuringLoudness: true)
         try Task.checkCancellation()
-        writeStage = WriteStage("rekordbox에 쓰는 중…")
+        writeStage = WriteStage(String(ui: "rekordbox에 쓰는 중…"))
         let report = try await Task.detached(priority: .userInitiated) {
             try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, analysisInputs: inputs, dryRun: false,
                                       backups: DJCPaths.rekordboxBackups)
@@ -69,7 +69,7 @@ extension LibraryStore {
         }
         DraftWriter.flush()
         // 화면을 처음부터 다시 불러오지 않고 뒤에서 조용히 다시 읽는다.
-        writeStage = WriteStage("반영 확인 중…")
+        writeStage = WriteStage(String(ui: "반영 확인 중…"))
         await takeSnapshot(quiet: true)
         // 그리드만 바뀐 곡은 DB가 그대로라 목록 줄이 같다. 덱이 그 곡을 보고 있으면 초안·그리드만 다시 읽게 한다.
         onRekordboxWritten?(Set(report.written.map(\.trackUUID)).union(report.gridWritten.map(\.trackUUID)).union(report.gainWritten.map(\.trackUUID)).union(report.analysisWritten.map(\.trackUUID)))
@@ -80,7 +80,7 @@ extension LibraryStore {
     /// 백업으로 되돌린다: DB를 쓰기 전으로 돌리고, 그때 쓴 초안을 DJCrate에 다시 살린다.
     @discardableResult
     func restoreRekordbox(_ backup: RekordboxWriter.Backup) async throws -> URL {
-        writeStage = WriteStage("rekordbox를 되돌리는 중…")
+        writeStage = WriteStage(String(ui: "rekordbox를 되돌리는 중…"))
         defer { writeStage = nil }
         let saved = try await Task.detached(priority: .userInitiated) {
             try RekordboxWriter.restore(backup.url, backups: DJCPaths.rekordboxBackups)
@@ -91,7 +91,7 @@ extension LibraryStore {
         for grid in grids { DraftWriter.save(grid) }
         for (uuid, gain) in RekordboxWriter.gainDrafts(in: backup.url) { GainDraftStore.save(gain, trackUUID: uuid) }
         DraftWriter.flush()
-        writeStage = WriteStage("되돌린 라이브러리를 읽는 중…")
+        writeStage = WriteStage(String(ui: "되돌린 라이브러리를 읽는 중…"))
         await takeSnapshot(quiet: true)
         let gainUUIDs = Set(RekordboxWriter.gainDrafts(in: backup.url).keys)
         onRekordboxWritten?(Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID)).union(gainUUIDs))
@@ -107,7 +107,7 @@ extension LibraryStore {
         var inputs: [String: RekordboxWriter.AnalysisInput] = [:]
         for (index, grid) in grids.enumerated() {
             try Task.checkCancellation()
-            writeStage = WriteStage(measuringLoudness ? "음량을 재는 중…" : "분석할 곡을 확인하는 중…",
+            writeStage = WriteStage(measuringLoudness ? String(ui: "음량을 재는 중…") : String(ui: "분석할 곡을 확인하는 중…"),
                                     completed: index, total: grids.count, cancellable: true)
             guard let row = rowsByUUID[grid.trackUUID], !row.isStaged, !row.track.isStreaming,
                   RekordboxWriter.needsAnalysis(row.track.analysisDataPath) else { continue }

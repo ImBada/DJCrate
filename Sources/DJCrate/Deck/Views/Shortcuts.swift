@@ -11,8 +11,8 @@ struct ShortcutsButton: View {
 
     var body: some View {
         HelpLink { openWindow(id: "shortcuts") }
-            .help("단축키")
-            .accessibilityLabel("단축키 보기")
+            .help(.ui("단축키"))
+            .accessibilityLabel(.ui("단축키 보기"))
     }
 }
 
@@ -24,45 +24,45 @@ struct ShortcutsList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12 * scale) {
-            Text("단축키").font(.scaled(.title2, scale).bold())
+            Text(.ui("단축키")).font(.scaled(.title2, scale).bold())
             Grid(alignment: .leading, horizontalSpacing: 18 * scale, verticalSpacing: 9 * scale) {
                 if shortcuts.isStandard { standardRows } else { customRows }
-                row(["⌘", "⇧", "E"], "rekordbox에 반영")
-                row(["⌘", "I"], "태그 편집")
-                row(["⌘", "O"], "곡 추가")
-                row(["⌘", "R"], "새 스냅샷")
-                row(["⌘", "1", "/", "2"], "목록 · 태그 시트")
+                row(["⌘", "⇧", "E"], String(ui: "rekordbox에 반영"))
+                row(["⌘", "I"], String(ui: "태그 편집"))
+                row(["⌘", "O"], String(ui: "곡 추가"))
+                row(["⌘", "R"], String(ui: "새 스냅샷"))
+                row(["⌘", "1", "/", "2"], String(ui: "목록 · 태그 시트"))
                 // '+'는 구분 기호로 쓰여서 이 줄은 키캡을 직접 놓는다.
                 GridRow {
                     HStack(spacing: 4 * scale) { keycap("⌘"); keycap("+"); separator("/"); keycap("⌘"); keycap("−") }
-                    description("글자 크게 · 작게 (⌘0: 기본 크기)")
+                    description(String(ui: "글자 크게 · 작게 (⌘0: 기본 크기)"))
                 }
-                row(["⌘", "?"], "단축키 창")
+                row(["⌘", "?"], String(ui: "단축키 창"))
             }
-            Text("덱 단축키는 설정(⌘,) › 단축키에서 바꿀 수 있습니다.")
+            Text(.ui("덱 단축키는 설정(⌘,) › 단축키에서 바꿀 수 있습니다."))
                 .font(.scaled(.callout, scale))
                 .foregroundStyle(.secondary)
         }
     }
 
     @ViewBuilder private var standardRows: some View {
-        row(["Space"], "재생 / 정지")
-        row(["C"], "CUE — 재생 중: 큐로 돌아가 정지 · 멈춤: 큐 지점 설정 · 누르고 있기: 미리 듣기")
-        row(["1", "~", "8"], "핫큐 A~H (있으면 이동, 없으면 찍기)")
-        row(["Shift", "+", "1", "~", "8"], "그 핫큐 지우기")
-        row(["`", "·", "M"], "메모리 큐 찍기 (파형 더블클릭도)")
-        row(["Shift", "+", "`", "·", "M"], "이 자리 메모리 큐 지우기")
-        row(["Q", "/", "E"], "이전 · 다음 큐로")
-        row(["←", "→"], "1박 이동 — 선택한 큐가 있으면 그 큐, 없으면 재생 위치")
-        row(["Shift", "+", "←", "→"], "1마디 이동 (선택한 큐 또는 재생 위치)")
-        row(["Esc"], "큐 선택 풀기 (그 뒤 ←→는 재생 위치를 옮김)")
-        row(["⌫"], "선택한 큐 지우기")
-        row(["S"], "다음 제안으로 (Shift: 이전 제안으로)")
-        row(["A"], "재생 위치에서 가장 가까운 제안을 메모리 큐로 받기")
-        row(["L"], "루프 걸기 · 나가기 (반복 중 빈 핫큐 = 루프 핫큐로 저장)")
-        row(["[", "/", "]"], "루프 길이 ½ · ×2")
-        row(["T"], "탭 템포")
-        row(["휠", "·", "+", "/", "−"], "파형 확대 · 축소 (가로 스크롤: 이동)")
+        row(["Space"], String(ui: "재생 / 정지"))
+        row(["C"], String(ui: "CUE — 재생 중: 큐로 돌아가 정지 · 멈춤: 큐 지점 설정 · 누르고 있기: 미리 듣기"))
+        row(["1", "~", "8"], String(ui: "핫큐 A~H (있으면 이동, 없으면 찍기)"))
+        row(["Shift", "+", "1", "~", "8"], String(ui: "그 핫큐 지우기"))
+        row(["`", "·", "M"], String(ui: "메모리 큐 찍기 (파형 더블클릭도)"))
+        row(["Shift", "+", "`", "·", "M"], String(ui: "이 자리 메모리 큐 지우기"))
+        row(["Q", "/", "E"], String(ui: "이전 · 다음 큐로"))
+        row(["←", "→"], String(ui: "1박 이동 — 선택한 큐가 있으면 그 큐, 없으면 재생 위치"))
+        row(["Shift", "+", "←", "→"], String(ui: "1마디 이동 (선택한 큐 또는 재생 위치)"))
+        row(["Esc"], String(ui: "큐 선택 풀기 (그 뒤 ←→는 재생 위치를 옮김)"))
+        row(["⌫"], String(ui: "선택한 큐 지우기"))
+        row(["S"], String(ui: "다음 제안으로 (Shift: 이전 제안으로)"))
+        row(["A"], String(ui: "재생 위치에서 가장 가까운 제안을 메모리 큐로 받기"))
+        row(["L"], String(ui: "루프 걸기 · 나가기 (반복 중 빈 핫큐 = 루프 핫큐로 저장)"))
+        row(["[", "/", "]"], String(ui: "루프 길이 ½ · ×2"))
+        row(["T"], String(ui: "탭 템포"))
+        row([String(ui: "휠"), "·", "+", "/", "−"], String(ui: "파형 확대 · 축소 (가로 스크롤: 이동)"))
     }
 
     /// 바꾼 표: 키가 있는 동작마다 한 줄(키 이름은 구분 기호와 섞이지 않게 키캡으로만 쓴다)
@@ -78,8 +78,8 @@ struct ShortcutsList: View {
                 description(action.title + (action.shiftTitle.map { " (\($0))" } ?? ""))
             }
         }
-        row(["Esc"], "큐 선택 풀기 (그 뒤 1박 이동 키는 재생 위치를 옮김)")
-        row(["휠"], "파형 확대 · 축소 (가로 스크롤: 이동)")
+        row(["Esc"], String(ui: "큐 선택 풀기 (그 뒤 1박 이동 키는 재생 위치를 옮김)"))
+        row([String(ui: "휠")], String(ui: "파형 확대 · 축소 (가로 스크롤: 이동)"))
     }
 
     /// 구분 기호(~ / · +)는 키캡 없이 글자로만 쓴다.
@@ -139,6 +139,6 @@ extension DeckShortcuts {
     /// 키를 지웠으면 기본 키 대신 미지정으로 안내한다.
     func keyLabel(for action: DeckAction) -> String {
         let keys = keys(for: action).map(KeyLabel.name(for:))
-        return keys.isEmpty ? "미지정" : keys.joined(separator: " · ")
+        return keys.isEmpty ? String(ui: "미지정") : keys.joined(separator: " · ")
     }
 }

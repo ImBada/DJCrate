@@ -105,13 +105,13 @@ final class TrackEditModel {
         var layout: BarLayout?
         var reason: String?
         if row.track.isStreaming {
-            reason = "스트리밍 곡은 편집할 수 없습니다. 파일로 된 곡을 고르세요"
+            reason = String(ui: "스트리밍 곡은 편집할 수 없습니다. 파일로 된 곡을 고르세요")
         } else if !FileManager.default.fileExists(atPath: source.path) {
-            reason = "음원 파일이 없습니다. 외장 드라이브가 연결됐는지 확인하세요"
+            reason = String(ui: "음원 파일이 없습니다. 외장 드라이브가 연결됐는지 확인하세요")
         } else if !deck.canPlay {
-            reason = "이 파일 형식은 읽지 못해 편집할 수 없습니다. MP3·AAC·WAV·AIFF·FLAC 곡을 고르세요"
+            reason = String(ui: "이 파일 형식은 읽지 못해 편집할 수 없습니다. MP3·AAC·WAV·AIFF·FLAC 곡을 고르세요")
         } else if segments.isEmpty {
-            reason = "그리드가 없습니다. 덱에서 추정 그리드를 적용하거나 rekordbox에서 트랙 분석을 한 뒤 편집하세요"
+            reason = String(ui: "그리드가 없습니다. 덱에서 추정 그리드를 적용하거나 rekordbox에서 트랙 분석을 한 뒤 편집하세요")
         } else if let blocked = deck.gridEditBlockedReason {
             reason = blocked
         } else {
@@ -148,7 +148,7 @@ final class TrackEditModel {
         guard let layout else { return }
         let time = isDeckOnTrack ? deck?.currentTime ?? cursor : cursor
         guard let range = layout.range(from: time, length: barsToAdd, leading: entries.isEmpty) else {
-            message = AppMessage(kind: .warning, text: "곡 끝이라 고를 마디가 없습니다. 재생 위치를 앞으로 옮긴 뒤 더하세요")
+            message = AppMessage(kind: .warning, text: String(ui: "곡 끝이라 고를 마디가 없습니다. 재생 위치를 앞으로 옮긴 뒤 더하세요"))
             return
         }
         message = nil
@@ -288,7 +288,7 @@ final class TrackEditModel {
             } catch {
                 isPreparingPreview = false
                 preview = nil
-                message = AppMessage(kind: .failure, text: "미리 듣기를 만들지 못했습니다. \(Self.reason(error))")
+                message = AppMessage(kind: .failure, text: String(ui: "미리 듣기를 만들지 못했습니다. \(Self.reason(error))"))
             }
         }
     }
@@ -324,12 +324,12 @@ final class TrackEditModel {
                     throw error
                 }
                 self.staged = staged
-                message = AppMessage(kind: .success, text: "편집본을 추가한 곡에 넣었습니다: \(title) · \(edit.duration.clockText) · 큐 \(carry.placed.count)개")
+                message = AppMessage(kind: .success, text: String(ui: "편집본을 추가한 곡에 넣었습니다: \(title) · \(edit.duration.clockText) · 큐 \(carry.placed.count)개"))
                 onStaged?(staged)
             } catch is CancellationError {
-                message = AppMessage(kind: .warning, text: "렌더를 취소했습니다. 만들던 파일은 지웠습니다.")
+                message = AppMessage(kind: .warning, text: String(ui: "렌더를 취소했습니다. 만들던 파일은 지웠습니다."))
             } catch {
-                message = AppMessage(kind: .failure, text: "렌더하지 못했습니다. \(Self.reason(error))")
+                message = AppMessage(kind: .failure, text: String(ui: "렌더하지 못했습니다. \(Self.reason(error))"))
             }
         }
     }
@@ -392,7 +392,7 @@ final class AudioFilePreviewPlayer: EditPreviewPlayer {
         let player = try AVAudioPlayer(contentsOf: url)
         player.volume = volume
         player.prepareToPlay()
-        guard player.play() else { throw DJCError.editRefused("미리 듣기를 재생하지 못했습니다. 소리 출력 장치를 확인하세요") }
+        guard player.play() else { throw DJCError.editRefused(String(ui: "미리 듣기를 재생하지 못했습니다. 소리 출력 장치를 확인하세요")) }
         self.player = player
     }
 

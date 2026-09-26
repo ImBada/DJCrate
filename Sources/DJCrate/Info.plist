@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- 실행 파일에 넣는 언어 목록. 앱 번들(scripts/build-app.sh)도 이 값을 그대로 쓴다.
+     목록에 없는 언어를 쓰는 사용자에게는 개발 지역(영어)이 나온다. -->
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleLocalizations</key><array><string>ko</string><string>en</string><string>ja</string></array>
+</dict>
+</plist>
