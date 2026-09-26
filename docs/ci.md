@@ -23,6 +23,10 @@
 - `GITHUB_TOKEN` 권한은 `contents: read`이고 checkout 뒤 인증 정보를 보관하지 않는다. 별도 비밀값은 필요 없다. Actions 버전은 커밋 SHA로 고정한다.
 - 포크 PR도 GitHub가 제공하는 임시 VM에서 `pull_request`로 실행한다. self-hosted 러너와 `pull_request_target`은 사용하지 않는다. 러너를 등록할 필요가 없다.
 
+## 워크플로 검사
+
+워크플로를 수정한 뒤 저장소 루트에서 `actionlint`로 검사한다. `.github/actionlint.yaml`은 actionlint 1.7.12가 아직 인식하지 못하는 공개 미리보기 `xcode-27` 라벨만 허용하며, self-hosted 러너를 사용하는 설정은 아니다.
+
 ## 푸시 뒤 관리자 확인
 
 1. Actions 설정에서 이 워크플로와 `actions/checkout`, `actions/cache` 실행을 허용한다. 외부 포크 PR은 **모든 외부 기여자의 실행 승인**을 요구하도록 설정하고, 변경 내용을 확인한 뒤 승인한다.
