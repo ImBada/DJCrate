@@ -14,7 +14,8 @@ public enum BeatJump {
         guard steps != 0 else { return time }
         let result: Double
         if let beats = grid?.beats, !beats.isEmpty, let grid {
-            result = keepsPhase ? phaseKept(from: time, steps: steps, beats: beats) : snapped(from: time, steps: steps, grid: grid)
+            result = keepsPhase ? grid.time(atBeatCoordinate: grid.beatCoordinate(at: time) + Double(steps))
+                : snapped(from: time, steps: steps, grid: grid)
         } else {
             result = time + Double(steps) * 0.5
         }
@@ -36,28 +37,5 @@ public enum BeatJump {
             return last > time + tolerance ? last : time
         }
         return beats[index].time
-    }
-
-    /// 박 번호를 소수(박 안의 비율 포함)로 보고 n만큼 더한다. 첫 박 앞·마지막 박 뒤는 그 박 길이로 늘려 센다.
-    private static func phaseKept(from time: Double, steps: Int, beats: [BeatGrid.Beat]) -> Double {
-        func length(_ i: Int) -> Double {
-            i + 1 < beats.count ? beats[i + 1].time - beats[i].time : 60 / max(beats[i].bpm, 1)
-        }
-        let last = beats.count - 1
-        let position: Double
-        if time < beats[0].time {
-            position = (time - beats[0].time) / length(0)
-        } else {
-            var lo = 0, hi = last
-            while lo < hi {
-                let mid = (lo + hi + 1) / 2
-                if beats[mid].time <= time { lo = mid } else { hi = mid - 1 }
-            }
-            position = Double(lo) + (time - beats[lo].time) / length(lo)
-        }
-        let moved = position + Double(steps)
-        if moved < 0 { return beats[0].time + moved * length(0) }
-        let index = min(Int(moved.rounded(.down)), last)
-        return beats[index].time + (moved - Double(index)) * length(index)
     }
 }

@@ -22,6 +22,7 @@ enum DevSelfTests {
         runScrollPerfIfRequested(deck: deck)
         runLoopAudioSelfTestIfRequested()
         runHotCueClickSelfTestIfRequested(store: store, deck: deck)
+        runJumpAudioSelfTestIfRequested()
         runMetronomeSelfTestIfRequested()
         guard ProcessInfo.processInfo.arguments.contains("--switch-selftest") else { return }
         Task {
@@ -463,11 +464,112 @@ enum DevSelfTests {
     }
 }
 
+extension DevSelfTests {
+    /// 개발용: 재생 퀀타이즈 핫큐 점프가 박 경계에서 샘플 단위로 넘어가는지 실제 재생 경로로 확인한다(`--jump-audio-selftest`, 스피커 음소거).
+    /// 값이 곧 프레임 번호인 램프 WAV(120BPM 그리드, 0.5초부터 박)를 틀고, 곡 믹서 출력에서 "프레임이 +1이 아닌 곳"을 모두 찾아
+    /// 예약한 점프(경계 직전 프레임 → 착지 프레임)·루프 되풀이 말고는 이음새가 없는지, 경계가 박 조각 위이고 박 안 위치가 이어지는지 본다.
+    static func runJumpAudioSelfTestIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("--jump-audio-selftest") else { return }
+        func log(_ text: String) { FileHandle.standardError.write(Data("[점프 소리 시험] \(text)\n".utf8)) }
+        Task { @MainActor in
+            func wait(_ seconds: Double) async { try? await Task.sleep(for: .seconds(seconds)) }
+            let rate = 44_100.0, seconds = 40
+            let url = FileManager.default.temporaryDirectory.appending(path: "djc-jump-ramp.wav")
+            do {
+                let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: rate, channels: 1, interleaved: false)!
+                let file = try AVAudioFile(forWriting: url, settings: format.settings, commonFormat: .pcmFormatFloat32, interleaved: false)
+                let count = Int(rate) * seconds
+                let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(count))!
+                buffer.frameLength = AVAudioFrameCount(count)
+                for i in 0..<count { buffer.floatChannelData![0][i] = Float(i) / 1_000_000 }
+                try file.write(from: buffer)
+            } catch { log("램프 파일을 만들지 못함: \(error)"); exit(1) }
+            let bpm = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--jump-bpm=") })
+                .flatMap { Double($0.dropFirst("--jump-bpm=".count)) } ?? 120
+            guard [120.0, 180.0].contains(bpm) else { log("BPM은 120 또는 180으로 지정하세요"); exit(1) }
+            let grid = BeatGrid(beats: (0..<Int(Double(seconds) * bpm / 60)).map {
+                BeatGrid.Beat(number: $0 % 4 + 1, bpm: bpm, time: 0.5 + Double($0) * 60 / bpm)
+            })
+            log("그리드 \(Int(bpm)) BPM")
+            func quantize(_ beats: Double) -> PlayQuantize { PlayQuantize(grid: grid, beats: beats)! }
+
+            let audio = DeckAudio()
+            audio.volume = 1   // 값이 곧 프레임 번호여야 한다(볼륨을 곱하지 않게)
+            try? audio.load(url: url)
+            for _ in 0..<100 where !audio.canLoopSampleAccurately { await wait(0.05) }
+            guard audio.canLoopSampleAccurately else { log("메모리 디코딩 안 됨"); exit(1) }
+            let captured = Captured()
+            audio.debugCaptureTrack { buffer in
+                guard let data = buffer.floatChannelData else { return }
+                captured.append((0..<Int(buffer.frameLength)).map { Int((Double(data[0][$0]) * 1_000_000).rounded()) })
+            }
+            func frame(_ t: Double) -> Int { Int((t * rate).rounded()) }
+            var expected: [String: String] = [:]
+            var failures: [String] = []
+            /// 점프 하나: 경계는 박 조각 위, 착지의 박 안 위치는 경계와 같아야 한다.
+            /// `flowLoop`: 누를 때 되풀이 중이던 루프. 경계가 그 시작이면 되풀이 순간(루프 끝 직전 프레임)에서 넘어간다.
+            @MainActor func expect(_ jump: PlayQuantize.Jump?, _ name: String, unit: Double, cue: Double, flowLoop: ClosedRange<Double>? = nil) {
+                guard let jump else { failures.append("\(name): 예약 못 함"); return }
+                if flowLoop == nil, let first = audio.debugExpectedJumpBoundary, abs(jump.at - first) > 1e-6 {
+                    failures.append(String(format: "%@: 예약 가능한 첫 경계 %.4f초를 건너뛰고 %.4f초로 예약함", name, first, jump.at))
+                }
+                let at = grid.beatCoordinate(at: jump.at), to = grid.beatCoordinate(at: jump.to) - grid.beatCoordinate(at: cue)
+                if abs((at / unit).rounded() - at / unit) > 1e-6 { failures.append("\(name): 경계가 \(unit)박 조각 위가 아님(\(at)박째)") }
+                if abs((at - at.rounded(.down)) - to) > 1e-6 { failures.append("\(name): 박 안 위치가 이어지지 않음") }
+                let before = flowLoop.map { abs($0.lowerBound - jump.at) < 1e-6 ? frame($0.upperBound) - 1 : frame(jump.at) - 1 } ?? frame(jump.at) - 1
+                expected["\(before)→\(frame(jump.to))"] = name
+                log(String(format: "%@ 예약: %.4f초(%.2f박째) → %.4f초", name, jump.at, at, jump.to))
+            }
+
+            // 1) 1초부터 재생 → ¼박으로 10초 핫큐 → 1박으로 20초 핫큐 → ½박으로 5~6초 루프 핫큐(되풀이)
+            // → 루프 안에서 12초 핫큐를 누르고 바로 15초 핫큐(나중 것만 넘어가야 한다)
+            audio.play(from: 1.0)
+            await wait(0.5)
+            expect(audio.scheduleJump(to: 10, loop: nil, quantize: quantize(0.25)), "¼박", unit: 0.25, cue: 10)
+            await wait(1.0)
+            expect(audio.scheduleJump(to: 20, loop: nil, quantize: quantize(1)), "1박", unit: 1, cue: 20)
+            await wait(1.2)
+            expect(audio.scheduleJump(to: 5, loop: 5...6, quantize: quantize(0.5)), "½박 루프", unit: 0.5, cue: 5)
+            await wait(2.6)
+            let overridden = audio.scheduleJump(to: 12, loop: nil, quantize: quantize(1))
+            expect(audio.scheduleJump(to: 15, loop: nil, quantize: quantize(1)), "다시 누름", unit: 1, cue: 15, flowLoop: 5...6)
+            let positionCheck = audio.position
+            await wait(1.2)
+            let after = audio.position
+            audio.stop()
+            await wait(0.2)
+
+            var frames = Array(captured.values.drop { $0 == 0 })
+            while frames.last == 0 { frames.removeLast() }
+            var jumps: [String] = []
+            var previous: Int?
+            for value in frames {
+                if let p = previous, value != p + 1 { jumps.append("\(p)→\(value)") }
+                previous = value
+            }
+            let wrap = "\(frame(6) - 1)→\(frame(5))"
+            let seen = Dictionary(grouping: jumps, by: { $0 }).mapValues(\.count)
+            for (pair, name) in expected where seen[pair] != 1 { failures.append("\(name): 이음새 \(pair)가 \(seen[pair] ?? 0)번") }
+            if let overridden, jumps.contains(where: { $0.hasSuffix("→\(frame(overridden.to))") }) { failures.append("먼저 누른 12초 핫큐로 넘어감") }
+            let wraps = seen[wrap] ?? 0
+            if wraps < 2 { failures.append("루프 되풀이 \(wraps)번(2번 넘어야 함)") }
+            let unexpected = jumps.filter { expected[$0] == nil && $0 != wrap }
+            if !unexpected.isEmpty { failures.append("예상 밖 이음새 \(unexpected.prefix(5))") }
+            log("받은 프레임 \(frames.count) · 이음새 \(jumps.count)곳(루프 되풀이 \(wraps)번) · 순서: " + jumps.prefix(20).joined(separator: " "))
+            log(String(format: "다시 누른 뒤 위치 %.3f초 → 1.2초 뒤 %.3f초(15초 근처여야 함)", positionCheck, after))
+            if !(15...16.5).contains(after) { failures.append(String(format: "화면 위치가 착지를 따라가지 않음(%.3f초)", after)) }
+            log(failures.isEmpty ? "통과: 핫큐 점프가 박 경계에서 샘플 단위로 넘어감" : "실패: \(failures)")
+            exit(failures.isEmpty ? 0 : 1)
+        }
+    }
+}
+
 /// 개발용: 메트로놈이 박마다 한 번씩 빠짐없이 치는지 실제 재생 경로로 센다(`--metronome-selftest`, 스피커 음소거).
 /// 무음 WAV + 120BPM 그리드로 12초 재생(그중 루프 구간 포함), 클릭 노드 출력에서 클릭 시작을 찾아 박 수와 비교한다.
 @MainActor
 func runMetronomeSelfTestIfRequested() {
-    guard ProcessInfo.processInfo.arguments.contains("--metronome-selftest") else { return }
+    let testsJump = ProcessInfo.processInfo.arguments.contains("--metronome-jump-selftest")
+    guard testsJump || ProcessInfo.processInfo.arguments.contains("--metronome-selftest") else { return }
     func log(_ text: String) { FileHandle.standardError.write(Data("[메트로놈 시험] \(text)\n".utf8)) }
     Task { @MainActor in
         func wait(_ seconds: Double) async { try? await Task.sleep(for: .seconds(seconds)) }
@@ -482,6 +584,10 @@ func runMetronomeSelfTestIfRequested() {
         } catch { log("무음 파일을 만들지 못함: \(error)"); exit(1) }
         var beats: [BeatGrid.Beat] = []
         for k in 0..<80 { beats.append(BeatGrid.Beat(number: k % 4 + 1, bpm: 120, time: 0.25 + Double(k) * 0.5)) }
+        if testsJump {
+            beats = (0..<8).map { BeatGrid.Beat(number: $0 % 4 + 1, bpm: 60, time: 0.25 + Double($0)) }
+                + (0..<90).map { BeatGrid.Beat(number: $0 % 4 + 1, bpm: 180, time: 8.1 + Double($0) / 3) }
+        }
         let grid = BeatGrid(beats: beats)
         let audio = DeckAudio()
         try? audio.load(url: url)
@@ -489,27 +595,61 @@ func runMetronomeSelfTestIfRequested() {
         let captured = Captured()
         audio.debugCaptureClicks { buffer in
             guard let data = buffer.floatChannelData else { return }
-            // 클릭 시작 = 조용하다가 소리가 나는 순간(버퍼 단위로 모아 보낸다: 1 = 소리, 0 = 조용)
-            captured.append((0..<Int(buffer.frameLength)).map { abs(data[0][$0]) > 0.01 ? 1 : 0 })
+            // 부호까지 보존해 클릭 간격과 강박(1760Hz)/일반 박(1175Hz)을 함께 검사한다.
+            captured.append((0..<Int(buffer.frameLength)).map { Int(data[0][$0] * 1_000_000) })
         }
         audio.metronome = true
         audio.play(from: 1.0)
         // 화면 틱처럼 약 14ms마다 예약한다(창 경계가 박 가까이에 자주 걸리게 조금씩 흔든다).
         let started = ProcessInfo.processInfo.systemUptime
         var i = 0
-        while ProcessInfo.processInfo.systemUptime - started < 12 {
+        let played = testsJump ? 3.0 : 12.0
+        var jump: PlayQuantize.Jump?
+        while ProcessInfo.processInfo.systemUptime - started < played {
             audio.scheduleClicks(grid)
             i += 1
+            if testsJump, i == 6 {
+                // 첫 클릭(1.25초) 전에 점프를 예약한다. 착지 그리드는 180 BPM의 강박부터 시작한다.
+                jump = audio.scheduleJump(to: 8.1, loop: nil, quantize: PlayQuantize(grid: grid, beats: 1)!)
+            }
             try? await Task.sleep(for: .milliseconds(13 + i % 3))
         }
         audio.stop()
         await wait(0.2)
         // 소리 덩어리(클릭) 수: 0→1로 바뀌는 곳. 클릭 30ms 안의 작은 끊김은 합친다.
-        var onsets = 0, silentRun = 10_000
-        for v in captured.values {
-            if v == 1 { if silentRun > 400 { onsets += 1 }; silentRun = 0 } else { silentRun += 1 }
+        let values = captured.values
+        var onsetFrames: [Int] = [], silentRun = 10_000
+        for (frame, value) in values.enumerated() {
+            if abs(value) > 10_000 {
+                if silentRun > 400 { onsetFrames.append(frame) }
+                silentRun = 0
+            } else { silentRun += 1 }
         }
-        let played = 12.0
+        let onsets = onsetFrames.count
+        if testsJump {
+            let intervals = zip(onsetFrames, onsetFrames.dropFirst()).map { Double($1 - $0) / 48_000 }
+            let downbeats = onsetFrames.map { onset in
+                let end = min(values.count - 1, onset + 960)
+                let crossings = (onset..<end).filter { values[$0] <= 0 && values[$0 + 1] > 0 }.count
+                return crossings > 29
+            }
+            guard let jump else { log("실패: 점프를 예약하지 못함"); exit(1) }
+            // 앱 첫 화면을 그리는 동안 요청이 늦어질 수 있어 실제 예약 경계 앞의 원래 박도 포함한다.
+            let prefix = grid.beats.filter { $0.time >= 1 && $0.time < jump.at - 0.0001 }
+            let expected = prefix.map { (time: $0.time, downbeat: $0.isDownbeat) }
+                + grid.beats.filter { $0.time >= jump.to - 0.0001 }.map { (time: jump.at + $0.time - jump.to, downbeat: $0.isDownbeat) }
+            let spacingOK = intervals.enumerated().allSatisfy { index, interval in
+                index + 1 < expected.count && abs(interval - (expected[index + 1].time - expected[index].time)) < 0.002
+            }
+            let accentsOK = downbeats.enumerated().allSatisfy { index, downbeat in
+                index < expected.count && downbeat == expected[index].downbeat
+            }
+            let ok = onsets >= prefix.count + 4 && spacingOK && accentsOK
+            log(String(format: "점프 %.4f → %.4f초 · 경계 전 원래 박 %d개", jump.at, jump.to, prefix.count))
+            log("점프 뒤 클릭 \(onsets)개 · 간격 \(intervals.map { String(format: "%.4f", $0) }.joined(separator: ",")) · 강박 \(downbeats)")
+            log(ok ? "통과: 점프 직후부터 새 그리드의 박과 강박으로 클릭함" : "실패: 점프 전 그리드의 클릭이 남거나 새 박이 빠짐")
+            exit(ok ? 0 : 1)
+        }
         let expected = grid.beats.filter { $0.time >= 1.0 && $0.time < 1.0 + played - 0.3 }.count
         log("예상 박 약 \(expected)개(마지막 0.3초 제외) · 들린 클릭 \(onsets)개")
         let ok = onsets >= expected && onsets <= expected + 1

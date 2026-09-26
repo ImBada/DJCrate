@@ -13,6 +13,12 @@ public enum SettingKeys {
     /// 파형 확대(화면에 보이는 초)
     public static let zoomSeconds = SettingKey<Double>("deck.zoomSeconds", 16, in: 2...64)
     public static let quantize = SettingKey("deck.quantize", true)
+    /// 재생 퀀타이즈: 재생 중 핫큐를 다음 박 조각 경계에서 넘긴다(`PlayQuantize`). 큐를 찍을 때의 퀀타이즈와 따로다.
+    public static let playQuantize = SettingKey("deck.playQuantize", true)
+    /// 재생 퀀타이즈 단위(박). 고를 수 있는 값(`PlayQuantize.choices`)이 아니면 기본값(1/4박).
+    public static let playQuantizeBeats = SettingKey<Double>("deck.playQuantizeBeats", PlayQuantize.defaultBeats) {
+        PlayQuantize.choices.contains($0) ? $0 : nil
+    }
     /// 그리드를 고칠 때 큐도 같은 박을 따라 옮긴다.
     public static let carryCues = SettingKey("deck.carryCues", true)
     /// 메모리 큐 제안 표시
@@ -66,8 +72,8 @@ public enum SettingKeys {
     /// 모든 이름(겹치지 않는지 확인용)
     public static var all: [String] {
         [zoomSeconds.name, volume.name, metronomeVolume.name, idleSeconds.name, gainTarget.name, gainTrim.name,
-         waveformHeight.name, textScale.name]
-            + [quantize, carryCues, showSuggestions, keyLock, autoGain, peakProtection, useRekordboxGain,
+         waveformHeight.name, textScale.name, playQuantizeBeats.name]
+            + [quantize, playQuantize, carryCues, showSuggestions, keyLock, autoGain, peakProtection, useRekordboxGain,
                sheetMode, showTagEditor, sidebarPlaylistsExpanded, sidebarSummaryExpanded, sidebarHistoriesExpanded,
                commentClassColumnHidden].map(\.name)
             + [dismissedGainSuggestions, dismissedGridSuggestions, deckShortcuts, waveformColorMode.name, commentPreset.name, cueListFilter.name]

@@ -26,6 +26,7 @@ final class FakeDeckAudio: DeckAudioEngine {
     var duration = 0.0
     var position = 0.0
     var handlesLoop = false
+    var hasPendingJump = false
     /// 불러오면 이 길이가 된다
     var trackLength = 180.0
     /// 걸려 있는 루프(오디오 쪽)
@@ -36,22 +37,37 @@ final class FakeDeckAudio: DeckAudioEngine {
     func unload() { isLoaded = false; isPlaying = false }
     func play(from position: Double) -> Bool {
         self.position = position
+        hasPendingJump = false
         isPlaying = true
         handlesLoop = loop != nil
         log.append(String(format: "play %.3f", position))
         return true
     }
-    func pause() { isPlaying = false; log.append("pause") }
-    func stop() { isPlaying = false; log.append("stop") }
+    func pause() { isPlaying = false; hasPendingJump = false; log.append("pause") }
+    func stop() { isPlaying = false; hasPendingJump = false; log.append("stop") }
     func seekWhilePaused(_ position: Double) { self.position = position }
     func recoverIfStalled() {}
     func scheduleClicks(_ grid: BeatGrid?) {}
     func resetClicks() { log.append("resetClicks") }
     func setLoop(_ range: ClosedRange<Double>?, reschedule: Bool) -> Bool {
-        loop = range
         handlesLoop = range != nil && isPlaying
+        // 실제 엔진처럼 같은 루프를 다시 걸면 아무 일도 하지 않는다(예약한 점프를 지우지 않게).
+        guard range != loop else { return true }
+        loop = range
         log.append(range.map { String(format: "loop %.3f~%.3f", $0.lowerBound, $0.upperBound) } ?? "loop off")
         return true
+    }
+    /// false면 샘플 단위 점프 예약을 못 하는 엔진(곡을 메모리에 풀기 전)처럼 군다.
+    var schedulesJumps = true
+    func scheduleJump(to cue: Double, loop: ClosedRange<Double>?, quantize: PlayQuantize) -> PlayQuantize.Jump? {
+        guard schedulesJumps, isPlaying else { return nil }
+        let jump = quantize.jump(earliest: position, to: cue, loopEnd: loop?.upperBound)
+        self.loop = loop
+        hasPendingJump = true
+        handlesLoop = loop != nil
+        log.append(String(format: "jump %.3f→%.3f", jump.at, jump.to)
+                   + (loop.map { String(format: " loop %.3f~%.3f", $0.lowerBound, $0.upperBound) } ?? ""))
+        return jump
     }
     func debugStopEngine() {}
     func debugConfigurationChange() {}

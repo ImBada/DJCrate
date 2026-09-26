@@ -58,6 +58,7 @@ extension DeckModel {
 
     /// 루프에서 빠져나온다(재생 중이면 지금 바퀴 끝에서 그대로 이어 간다).
     func exitLoop() {
+        prepareLoopChange()
         engagedLoopID = nil
         instantLoop = nil
         syncAudioLoop()
@@ -65,7 +66,9 @@ extension DeckModel {
 
     /// LOOP 버튼·L: 반복 중이면 빠져나오고, 아니면 플레이헤드(퀀타이즈면 가까운 박)에서 `loopSize`박 루프를 건다.
     func toggleLoop() {
-        if isLooping {
+        let wasLooping = isLooping
+        prepareLoopChange()
+        if wasLooping {
             exitLoop()
             return
         }
@@ -78,6 +81,7 @@ extension DeckModel {
 
     /// 루프 길이를 반으로(-1) · 두 배로(+1). 반복 중이면 시작점은 두고 끝만 바꾼다(루프 큐는 그대로 두고 즉석 루프로 바뀐다).
     func resizeLoop(_ direction: Int) {
+        prepareLoopChange()
         let current = engagedLoopRange
         var size = loopSize
         if instantLoop == nil, let cue = cue(engagedLoopID) {
