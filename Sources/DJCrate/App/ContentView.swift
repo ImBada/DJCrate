@@ -167,6 +167,9 @@ struct ContentView: View {
     }
 
     @ToolbarContentBuilder private var toolbarContent: some CustomizableToolbarContent {
+            ToolbarItem(id: "relatedTracks") {
+                RelatedTracksButton(store: store, deck: deck)
+            }
             ToolbarItem(id: "viewMode", placement: .principal) {
                 Picker("보기", selection: $sheetMode) {
                     Label("목록", systemImage: "list.bullet").tag(false)

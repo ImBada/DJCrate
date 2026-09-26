@@ -10,6 +10,7 @@ struct ReflectionPrompt: Equatable {
     var confirm: String?
     var critical = false
     var destructive = false
+    var details: [String] = []
 }
 
 /// 창을 띄운다. 시험에서는 정해 둔 답을 돌려준다.
@@ -29,6 +30,7 @@ struct AlertPrompter: ReflectionPrompter {
         let alert = NSAlert()
         alert.messageText = prompt.title
         alert.informativeText = prompt.text
+        if !prompt.details.isEmpty { alert.accessoryView = makeDetailsView(prompt.details) }
         if prompt.critical { alert.alertStyle = .critical }
         guard let confirm = prompt.confirm else {
             alert.addButton(withTitle: "확인")
@@ -42,6 +44,39 @@ struct AlertPrompter: ReflectionPrompter {
             confirmButton.keyEquivalent = ""
         }
         return alert
+    }
+
+    private func makeDetailsView(_ details: [String]) -> NSScrollView {
+        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 440, height: 240))
+        scroll.borderType = .bezelBorder
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+        let textView = NSTextView(frame: NSRect(origin: .zero, size: scroll.contentSize))
+        textView.isEditable = false
+        // 목록이 입력 초점을 가져가면 자동으로 중간에 스크롤되고 Return을 가로챈다.
+        textView.isSelectable = false
+        textView.isRichText = false
+        textView.font = .systemFont(ofSize: NSFont.systemFontSize)
+        textView.textColor = .labelColor
+        textView.backgroundColor = .textBackgroundColor
+        textView.textContainerInset = NSSize(width: 8, height: 8)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = .width
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.containerSize.height = .greatestFiniteMagnitude
+        textView.setAccessibilityLabel("세부 내용")
+        textView.string = details.joined(separator: "\n")
+        scroll.documentView = textView
+        if let container = textView.textContainer, let layout = textView.layoutManager {
+            layout.ensureLayout(for: container)
+            let height = ceil(layout.usedRect(for: container).height) + 2 * textView.textContainerInset.height
+            // 짧은 목록은 줄이고, 곡이 많아도 확인·취소 버튼은 창 안에 둔다.
+            let borderHeight = scroll.frame.height - scroll.contentSize.height
+            scroll.setFrameSize(NSSize(width: 440, height: min(240, max(44, height + borderHeight))))
+            textView.setFrameSize(NSSize(width: scroll.contentSize.width, height: max(height, scroll.contentSize.height)))
+        }
+        return scroll
     }
 }
 
@@ -99,7 +134,7 @@ struct ReflectionCoordinator {
             let report = preview.report
             guard !report.written.isEmpty || !report.gridWritten.isEmpty || !report.analysisWritten.isEmpty || !report.gainWritten.isEmpty else {
                 publish(.written(report, preview: report))
-                inform("rekordbox에 쓸 수 있는 초안이 없습니다", Self.reasons(report).joined(separator: "\n"))
+                inform("rekordbox에 쓸 수 있는 초안이 없습니다", "", details: Self.reasons(report))
                 return
             }
             guard prompter.show(Self.confirmation(report)) else { return }
@@ -143,7 +178,7 @@ struct ReflectionCoordinator {
             host.writeStage = nil
             guard preview.report.added.contains(where: \.written) else {
                 publish(.tracks(preview.report, preview: preview.report, adding: true, withoutAnalysis: preview.withoutAnalysis, unreadable: preview.unreadable))
-                inform("rekordbox에 넣을 수 있는 곡이 없습니다", Self.addReasons(preview).joined(separator: "\n"))
+                inform("rekordbox에 넣을 수 있는 곡이 없습니다", "", details: Self.addReasons(preview))
                 return
             }
             guard prompter.show(Self.addConfirmation(preview)) else { return }
@@ -182,8 +217,8 @@ struct ReflectionCoordinator {
             host.writeStage = nil
             guard preview.report.deleted.contains(where: \.written) else {
                 publish(.tracks(preview.report, preview: preview.report, adding: false))
-                inform("rekordbox에서 뺄 수 있는 곡이 없습니다",
-                       preview.report.deleted.map { "• \($0.title): \($0.reason ?? "")" }.joined(separator: "\n"))
+                inform("rekordbox에서 뺄 수 있는 곡이 없습니다", "",
+                       details: preview.report.deleted.map { "• \($0.title): \($0.reason ?? "")" })
                 return
             }
             guard prompter.show(Self.deleteConfirmation(preview)) else { return }
@@ -236,8 +271,8 @@ struct ReflectionCoordinator {
         host.toast = toast
     }
 
-    private func inform(_ title: String, _ text: String) {
-        _ = prompter.show(ReflectionPrompt(title: title, text: text))
+    private func inform(_ title: String, _ text: String, details: [String] = []) {
+        _ = prompter.show(ReflectionPrompt(title: title, text: text, details: details))
     }
 
     /// 쓰기 실패 알림. 자동 복원까지 실패했으면 사라지는 토스트가 아니라 닫아야 하는 경고 창으로 알린다.
@@ -284,7 +319,7 @@ struct ReflectionCoordinator {
         if !gains.isEmpty { kinds.append("게인 \(gains.count)곡") }
         let gridBlocked = Set((report.gridBlocked + report.analysisBlocked).map(\.trackUUID)), gridWritten = Set(grids.map(\.trackUUID))
         let analysisWritten = Set(analyses.map(\.trackUUID))
-        var body = cues.prefix(12).map { outcome -> String in
+        var body = cues.map { outcome -> String in
             var changes: [String] = []
             if outcome.added > 0 { changes.append("+\(outcome.added)") }
             if outcome.removed > 0 { changes.append("−\(outcome.removed)") }
@@ -300,15 +335,14 @@ struct ReflectionCoordinator {
             body.append("• \(analysis.title) — 분석 파일 붙이기(파형·그리드 박 \(analysis.added)개·오토게인)")
         }
         for gain in gains { body.append(String(format: "• %@ — 오토게인 %+.1f dB", gain.title, Double(gain.added) / 100)) }
-        if cues.count > 12 { body.append("… 외 \(cues.count - 12)곡") }
         let reasons = reasons(report)
-        if !reasons.isEmpty { body += ["", "쓰지 않는 것 \(reasons.count):"] + reasons.prefix(8) }
+        if !reasons.isEmpty { body += ["", "쓰지 않는 것 \(reasons.count):"] + reasons }
         if !analyses.isEmpty {
             body += ["", "파형·그리드·오토게인만 붙입니다. 키·프레이즈·보컬 분석은 없습니다."]
         }
-        body += ["", "백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요."]
         return ReflectionPrompt(title: kinds.joined(separator: " · ") + "을 rekordbox에 쓸까요?",
-                                text: body.joined(separator: "\n"), confirm: "rekordbox에 쓰기")
+                                text: "백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.",
+                                confirm: "rekordbox에 쓰기", details: body)
     }
 
     static func addReasons(_ preview: LibraryStore.TrackAddPreview) -> [String] {
@@ -318,40 +352,36 @@ struct ReflectionCoordinator {
     /// 넣기 전 확인 창: 곡마다 분석까지 붙는지, 넣지 않는 곡과 이유
     static func addConfirmation(_ preview: LibraryStore.TrackAddPreview) -> ReflectionPrompt {
         let written = preview.report.added.filter(\.written)
-        var body = written.prefix(12).map { outcome -> String in
+        var body = written.map { outcome -> String in
             var line = preview.withoutAnalysis[outcome.path].map { "• \(outcome.title) — 분석 없이(\($0))" }
                 ?? "• \(outcome.title) — 그리드·파형·오토게인까지"
             if let count = outcome.cuesWritten, count > 0 { line += " · 큐 \(count)개" }
             if let reason = outcome.cueReason { line += " · ⚠︎ 큐는 안 들어감(\(reason))" }
             return line
         }
-        if written.count > 12 { body.append("… 외 \(written.count - 12)곡") }
         let reasons = addReasons(preview)
-        if !reasons.isEmpty { body += ["", "넣지 않는 곡 \(reasons.count):"] + reasons.prefix(8) }
+        if !reasons.isEmpty { body += ["", "넣지 않는 곡 \(reasons.count):"] + reasons }
         let bare = written.filter { preview.withoutAnalysis[$0.path] != nil }.count
         if bare > 0 { body += ["", "분석 없이 넣는 곡은 rekordbox에서 분석해야 파형·그리드가 생깁니다."] }
-        body += ["", "백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요."]
-        return ReflectionPrompt(title: "\(written.count)곡을 rekordbox에 넣을까요?", text: body.joined(separator: "\n"), confirm: "rekordbox에 넣기")
+        return ReflectionPrompt(title: "\(written.count)곡을 rekordbox에 넣을까요?",
+                                text: "백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.",
+                                confirm: "rekordbox에 넣기", details: body)
     }
 
     /// 빼기 전 확인 창(경고): 뺄 곡, 빼지 않는 곡과 이유, 함께 사라지는 것
     static func deleteConfirmation(_ preview: LibraryStore.TrackDeletePreview) -> ReflectionPrompt {
         let written = preview.report.deleted.filter(\.written), blocked = preview.report.deleted.filter { !$0.written }
-        var body = written.prefix(12).map { "• \($0.title)" }
-        if written.count > 12 { body.append("… 외 \(written.count - 12)곡") }
-        if !blocked.isEmpty { body += ["", "빼지 않는 곡 \(blocked.count):"] + blocked.prefix(8).map { "• \($0.title): \($0.reason ?? "")" } }
-        body += ["", "음원 파일은 지우지 않습니다. rekordbox의 큐·재생 목록 항목·재생 기록·분석 파일이 함께 사라집니다.",
-                 "백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요."]
-        return ReflectionPrompt(title: "\(written.count)곡을 rekordbox에서 뺄까요?", text: body.joined(separator: "\n"),
-                                confirm: "rekordbox에서 빼기", critical: true)
+        var body = written.map { "• \($0.title)" }
+        if !blocked.isEmpty { body += ["", "빼지 않는 곡 \(blocked.count):"] + blocked.map { "• \($0.title): \($0.reason ?? "")" } }
+        return ReflectionPrompt(title: "\(written.count)곡을 rekordbox에서 뺄까요?",
+                                text: "음원 파일은 지우지 않습니다. rekordbox의 큐·재생 목록 항목·재생 기록·분석 파일이 함께 사라집니다.\n백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.",
+                                confirm: "rekordbox에서 빼기", critical: true, details: body)
     }
 
     /// 되돌리기 확인 창. 백업 뒤 변경이 있거나 확인하지 못했으면 파괴적 경고로 띄운다.
     static func restoreConfirmation(_ backup: RekordboxWriter.Backup, changedSince changed: Bool?) -> ReflectionPrompt {
         var lines = ["백업: \(backup.createdAt.formatted(date: .abbreviated, time: .shortened))"]
-        if !backup.titles.isEmpty {
-            lines.append("그때 쓴 곡: " + backup.titles.prefix(8).joined(separator: ", ") + (backup.titles.count > 8 ? " 외 \(backup.titles.count - 8)곡" : ""))
-        }
+        let details = backup.titles.isEmpty ? [] : ["그때 쓴 곡:"] + backup.titles.map { "• \($0)" }
         if let tracks = backup.trackReport {
             let added = tracks.added.filter(\.written).count, deleted = tracks.deleted.filter(\.written).count
             lines.append("라이브러리 전체를 이 백업으로 되돌립니다. "
@@ -368,7 +398,7 @@ struct ReflectionCoordinator {
         lines.append("백업한 뒤 되돌리고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.")
         return ReflectionPrompt(title: "rekordbox를 쓰기 전으로 되돌릴까요?",
                                 text: lines.joined(separator: "\n\n"), confirm: "되돌리기",
-                                critical: changed != false, destructive: changed != false)
+                                critical: changed != false, destructive: changed != false, details: details)
     }
 }
 
