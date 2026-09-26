@@ -36,7 +36,7 @@ enum CLI {
 
         사용법:
         \(MainCommands.all.map { $0.line() }.joined(separator: "\n"))
-        \(Command("compat", "[--db PATH]", "쓰기 전 확인: rekordbox 버전·DB 구조가 확인한 모양인지", { _ in }).line())
+        \(Command("compat", "[--db PATH] [--json]", "쓰기 전 확인: rekordbox 버전·DB 구조가 확인한 모양인지", { _ in }).line())
         \(Command("lab", "<명령>", "규칙을 알아낼 때 쓴 실험 명령(목록: djc lab)", { _ in }).line())
         """
 
@@ -45,6 +45,7 @@ enum CLI {
     }
 
     static func run(_ args: [String]) async throws {
+        if ReadCommands.handlesJSON(args) { try await ReadCommands.run(args); return }
         switch args.first {
         case "lab"?:
             try await dispatch(Array(args.dropFirst()), in: lab, usage: labUsage)
@@ -72,7 +73,7 @@ enum CLI {
         let version = RekordboxCompatibility.installedAppVersion()
         print("rekordbox 앱: \(version ?? "찾지 못함") · 확인한 버전 \(RekordboxCompatibility.verifiedAppVersions.sorted().map { "\($0).x" }.joined(separator: ", "))")
         try RekordboxCompatibility.checkApp(version: version)
-        let snapshot = try value(after: "--db", in: args).map { URL(filePath: $0) } ?? LibrarySnapshot.latest()
+        let snapshot = try LibraryRead.resolve(database: value(after: "--db", in: args).map { URL(filePath: $0) })
         let db = try CipherDatabase(path: snapshot.path, key: RekordboxKey.derive())
         defer { db.close() }
         try RekordboxCompatibility.checkSchema(db)
@@ -83,11 +84,19 @@ enum CLI {
     }
 }
 
-LegacyMigration.run()
+// 새 읽기 명령과 JSON 조회는 옛 데이터 폴더를 옮기지도 않는다.
+let arguments = Array(CommandLine.arguments.dropFirst())
+if !ReadCommands.names.contains(arguments.first ?? ""), !ReadCommands.handlesJSON(arguments) {
+    LegacyMigration.run()
+}
 
 do {
-    try await CLI.run(Array(CommandLine.arguments.dropFirst()))
+    try await CLI.run(arguments)
 } catch {
-    FileHandle.standardError.write(Data("오류: \(error)\n".utf8))
+    if ReadCommands.handlesJSON(arguments), let data = try? ReadJSON.error(command: arguments.first ?? "", error: error) {
+        FileHandle.standardError.write(data + Data("\n".utf8))
+    } else {
+        FileHandle.standardError.write(Data("오류: \(error)\n".utf8))
+    }
     exit(1)
 }

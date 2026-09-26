@@ -7,6 +7,10 @@ public enum TagDraftStore {
     }
 
     public static func load(trackUUID: String) -> TagDraft? {
+        load(trackUUID: trackUUID, directory: directory)
+    }
+
+    public static func load(trackUUID: String, directory: URL) -> TagDraft? {
         guard let data = try? Data(contentsOf: directory.appending(path: "\(trackUUID).json")) else { return nil }
         return try? JSONDecoder().decode(TagDraft.self, from: data)
     }
@@ -21,5 +25,5 @@ public enum TagDraftStore {
         }
     }
 
-    public static func uuids() -> Set<String> { DraftFiles.uuids(in: directory) }
+    public static func uuids(directory: URL = directory) -> Set<String> { DraftFiles.uuids(in: directory) }
 }
