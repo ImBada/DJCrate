@@ -165,6 +165,20 @@ struct RekordboxWriterGoldenTests {
         #expect(try fixture.rows("SELECT * FROM djmdCue").isEmpty)
     }
 
+    @Test func 분석_전_곡은_비트레이트가_0이어도_CBR이면_큐를_쓴다() throws {
+        // rekordbox는 분석 전 곡을 BitRate 0으로 넣는다(2026-09-26 분석 전 추가 실험). VBR 표시가 아니다.
+        let fixture = try RekordboxFixture()
+        var track = TrackSpec()
+        track.bitRate = 0
+        track.analysed = 0
+        try fixture.add(track)
+        var draft = CueDraft(trackUUID: track.uuid, rekordboxCues: [])
+        draft.place(EditableCue(kind: .memory, time: 0.5))
+        let report = try write(fixture, drafts: [draft])
+        #expect(report.blocked.isEmpty && report.written.first?.added == 1)
+        #expect(try newCueRow(fixture, track: track, except: [])["InMpegFrame"] == "0")
+    }
+
     @Test func VBR_MP3는_큐마다_MPEG_칸을_적는다() throws {
         // rekordbox 7.2.18은 Xing 머리가 있는 VBR 파일을 BitRate 32로 적기도 한다
         // (2026-09-26 凸凹スピードスター 추가 실험, 라이브러리의 BitRate 32 곡은 모두 Xing VBR이고 큐에 MPEG 위치가 있다).

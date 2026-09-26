@@ -225,8 +225,11 @@ struct ReflectionCoordinator {
     static func addConfirmation(_ preview: LibraryStore.TrackAddPreview) -> ReflectionPrompt {
         let written = preview.report.added.filter(\.written)
         var body = written.prefix(12).map { outcome -> String in
-            if let reason = preview.withoutAnalysis[outcome.path] { return "• \(outcome.title) — 분석 없이(\(reason))" }
-            return "• \(outcome.title) — 그리드·파형·오토게인까지"
+            var line = preview.withoutAnalysis[outcome.path].map { "• \(outcome.title) — 분석 없이(\($0))" }
+                ?? "• \(outcome.title) — 그리드·파형·오토게인까지"
+            if let count = outcome.cuesWritten { line += " · 큐 \(count)개" }
+            if let reason = outcome.cueReason { line += " · ⚠︎ 큐는 안 들어감(\(reason))" }
+            return line
         }
         if written.count > 12 { body.append("… 외 \(written.count - 12)곡") }
         let reasons = addReasons(preview)

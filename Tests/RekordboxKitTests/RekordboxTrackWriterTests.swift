@@ -146,6 +146,43 @@ struct RekordboxTrackWriterTests {
         #expect(try fixture.rows("SELECT * FROM contentFile WHERE ContentID = ?", [.text(id)]).isEmpty)
     }
 
+    @Test func 큐_초안도_같은_트랜잭션에서_함께_넣는다() async throws {
+        let fixture = try RekordboxFixture(localUpdateCount: 3000)
+        try fixture.add(TrackSpec())
+        let wav = try AudioFixture.wav(seconds: 20, in: fixture.audio, name: "cue.wav")
+        let p = try TrackAddPlan.make(url: wav, tags: try await AudioTags.read(url: wav), now: now)
+        let cues = [EditableCue(kind: .memory, time: 1.373), EditableCue(kind: .hot(0), time: 10.973)]
+        let report = try RekordboxTrackWriter.add([p], cues: [p.path: cues], to: fixture.database, dryRun: false, now: now, backups: fixture.backups)
+        let outcome = try #require(report.added.first)
+        #expect(outcome.written && outcome.cuesWritten == 2 && outcome.cueReason == nil)
+        let id = try #require(outcome.contentID)
+        let rows = try fixture.rows("SELECT Kind, InMsec FROM djmdCue WHERE ContentID = ? ORDER BY InMsec", [.text(id)])
+        #expect(rows == [["Kind": "0", "InMsec": "1373"], ["Kind": "1", "InMsec": "10973"]])
+        let record = try #require(try fixture.rows("SELECT rb_cue_count, rb_local_usn FROM contentCue WHERE ContentID = ?", [.text(id)]).first)
+        #expect(record["rb_cue_count"] == "2")
+        // 곡 행은 큐를 쓴 모양(CueUpdated·변경 번호)이고 변경 카운터가 마지막 번호다
+        let content = try row(fixture, id)
+        let final = try fixture.localUpdateCount()
+        #expect(content["CueUpdated"] == "2" && content["rb_local_usn"] == "\(final)" && record["rb_local_usn"] == "\(final - 1)",
+                "큐 기록 다음 번호를 곡 행이 받는다(큐 쓰기와 같은 순서)")
+        #expect(report.finalUpdateCount == final)
+        // 되돌리면 곡과 큐가 함께 사라진다
+        _ = try RekordboxWriter.restore(URL(filePath: try #require(report.backup)), to: fixture.database, backups: fixture.backups)
+        #expect(try fixture.rows("SELECT * FROM djmdCue").isEmpty && fixture.rows("SELECT * FROM contentCue").isEmpty)
+    }
+
+    @Test func 큐가_막혀도_곡은_넣고_이유를_남긴다() async throws {
+        let fixture = try RekordboxFixture()
+        try fixture.add(TrackSpec())
+        let wav = try AudioFixture.wav(seconds: 20, in: fixture.audio, name: "many.wav")
+        let p = try TrackAddPlan.make(url: wav, tags: try await AudioTags.read(url: wav), now: now)
+        let cues = (0..<11).map { EditableCue(kind: .memory, time: Double($0) + 0.5) }   // 메모리 큐 한도 10
+        let report = try RekordboxTrackWriter.add([p], cues: [p.path: cues], to: fixture.database, dryRun: false, now: now, backups: fixture.backups)
+        let outcome = try #require(report.added.first)
+        #expect(outcome.written && outcome.cuesWritten == nil && outcome.cueReason?.isEmpty == false)
+        #expect(try fixture.rows("SELECT * FROM djmdCue").isEmpty && fixture.rows("SELECT * FROM djmdContent").count == 2)
+    }
+
     @Test func 규칙을_모르는_형식은_분석을_붙이지_않고_막는다() async throws {
         let fixture = try RekordboxFixture()
         try fixture.add(TrackSpec())
