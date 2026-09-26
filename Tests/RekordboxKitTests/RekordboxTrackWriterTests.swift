@@ -223,10 +223,10 @@ struct RekordboxTrackWriterTests {
             try fixture.insert("djmdArtist", ["ID": .text(id), "Name": .text(name), "UUID": .text("u\(id)"), "rb_local_deleted": .int(0)])
         }
         try fixture.insert("djmdAlbum", ["ID": .text("10"), "Name": .text("A 앨범"), "AlbumArtistID": .text("3"), "UUID": .text("ua"), "rb_local_deleted": .int(0)])
-        var a = TrackSpec(id: "100")
+        var a = TrackSpec(id: "100", uuid: "aaa00000-0000-4000-8000-000000000001")
         a.artistID = "1"; a.composerID = "2"; a.albumID = "10"
-        a.analysisDataPath = "/PIONEER/USBANLZ/aaa/bbbb/ANLZ0000.DAT"
-        a.imagePath = "/PIONEER/Artwork/aaa/bbbb/artwork.jpg"
+        a.analysisDataPath = "/PIONEER/USBANLZ/aaa/00000-0000-4000-8000-000000000001/ANLZ0000.DAT"
+        a.imagePath = "/PIONEER/Artwork/aaa/00000-0000-4000-8000-000000000001/artwork.jpg"
         a.cues = [CueSpec(kind: 1, inMsec: 1000)]
         a.gain = (high: 16256, low: 0)
         var b = TrackSpec(id: "200")
@@ -239,7 +239,7 @@ struct RekordboxTrackWriterTests {
                                            "UUID": .text("u-\(table)-\(n)"), "rb_local_deleted": .int(0), "rb_local_usn": .int(5)])
             }
         }
-        let files = [fixture.shareRoot.appending(path: "PIONEER/USBANLZ/aaa/bbbb"), fixture.shareRoot.appending(path: "PIONEER/Artwork/aaa/bbbb")]
+        let files = [fixture.shareRoot.appending(path: "PIONEER/USBANLZ/aaa/00000-0000-4000-8000-000000000001"), fixture.shareRoot.appending(path: "PIONEER/Artwork/aaa/00000-0000-4000-8000-000000000001")]
         for folder in files { try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true) }
         try Data("dat".utf8).write(to: files[0].appending(path: "ANLZ0000.DAT"))
         try Data("ext".utf8).write(to: files[0].appending(path: "ANLZ0000.EXT"))
@@ -269,10 +269,10 @@ struct RekordboxTrackWriterTests {
         // A만 쓰던 아티스트·앨범(과 그 앨범 아티스트)은 지우고, B도 쓰는 아티스트는 남긴다
         #expect(try fixture.rows("SELECT ID FROM djmdArtist ORDER BY ID").map { $0["ID"] } == ["2"])
         #expect(try fixture.rows("SELECT * FROM djmdAlbum").isEmpty)
-        // 분석 폴더는 지우고 아트워크 폴더는 남긴다(파일만 지움). 지운 파일은 백업에 있다.
-        #expect(!FileManager.default.fileExists(atPath: fixture.shareRoot.appending(path: "PIONEER/USBANLZ/aaa/bbbb").path))
-        #expect(FileManager.default.fileExists(atPath: fixture.shareRoot.appending(path: "PIONEER/Artwork/aaa/bbbb").path))
-        #expect(!FileManager.default.fileExists(atPath: fixture.shareRoot.appending(path: "PIONEER/Artwork/aaa/bbbb/artwork.jpg").path))
+        // 허용한 파일을 지우고 비어 있는 곡 폴더만 지운다. 지운 파일은 백업에 있다.
+        #expect(!FileManager.default.fileExists(atPath: fixture.shareRoot.appending(path: "PIONEER/USBANLZ/aaa/00000-0000-4000-8000-000000000001").path))
+        #expect(!FileManager.default.fileExists(atPath: fixture.shareRoot.appending(path: "PIONEER/Artwork/aaa/00000-0000-4000-8000-000000000001").path))
+        #expect(!FileManager.default.fileExists(atPath: fixture.shareRoot.appending(path: "PIONEER/Artwork/aaa/00000-0000-4000-8000-000000000001/artwork.jpg").path))
         #expect(report.removedFiles.count == 3)
     }
 
@@ -282,8 +282,8 @@ struct RekordboxTrackWriterTests {
         let report = try delete(fixture, [a.id])
         _ = try RekordboxWriter.restore(URL(filePath: try #require(report.backup)), to: fixture.database, backups: fixture.backups)
         #expect(try fixture.rows("SELECT * FROM djmdContent ORDER BY ID") + fixture.rows("SELECT * FROM djmdSongPlaylist ORDER BY ID") == before)
-        #expect(try Data(contentsOf: fixture.shareRoot.appending(path: "PIONEER/USBANLZ/aaa/bbbb/ANLZ0000.EXT")) == Data("ext".utf8))
-        #expect(try Data(contentsOf: fixture.shareRoot.appending(path: "PIONEER/Artwork/aaa/bbbb/artwork.jpg")) == Data("jpg".utf8))
+        #expect(try Data(contentsOf: fixture.shareRoot.appending(path: "PIONEER/USBANLZ/aaa/00000-0000-4000-8000-000000000001/ANLZ0000.EXT")) == Data("ext".utf8))
+        #expect(try Data(contentsOf: fixture.shareRoot.appending(path: "PIONEER/Artwork/aaa/00000-0000-4000-8000-000000000001/artwork.jpg")) == Data("jpg".utf8))
     }
 
     @Test func 넣은_곡은_백업으로_되돌리면_행과_만든_분석_파일이_사라진다() async throws {
@@ -326,6 +326,6 @@ struct RekordboxTrackWriterTests {
         let report = try delete(fixture, [a.id])
         #expect(report.deleted.first?.written == false && report.deleted.first?.reason?.contains("djmdSongMyTag") == true)
         #expect(try fixture.rows("SELECT * FROM djmdContent WHERE ID = ?", [.text(a.id)]).count == 1)
-        #expect(FileManager.default.fileExists(atPath: fixture.shareRoot.appending(path: "PIONEER/USBANLZ/aaa/bbbb/ANLZ0000.DAT").path))
+        #expect(FileManager.default.fileExists(atPath: fixture.shareRoot.appending(path: "PIONEER/USBANLZ/aaa/00000-0000-4000-8000-000000000001/ANLZ0000.DAT").path))
     }
 }

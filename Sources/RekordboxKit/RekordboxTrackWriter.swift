@@ -435,53 +435,16 @@ public enum RekordboxTrackWriter {
                 try db.execute("SAVEPOINT djc_delete")
                 var title = id
                 do {
-                    var found: (title: String, path: String, artists: [String], album: String?, analysis: String?, image: String?)?
-                    try db.query("""
-                        SELECT Title, FolderPath, ArtistID, ComposerID, OrgArtistID, RemixerID, AlbumID, AnalysisDataPath, ImagePath
-                        FROM djmdContent WHERE ID = ? AND rb_local_deleted = 0
-                        """, [.text(id)]) { r in
-                        found = (r.string(0) ?? "", r.string(1) ?? "", [2, 3, 4, 5].compactMap { r.string(Int32($0)) }, r.string(6), r.string(7), r.string(8))
-                    }
-                    guard let track = found else { throw Blocked(String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했습니다")) }
-                    title = track.title
-                    for table in unverifiedReferenceTables where try RekordboxWriter.scalar(db, "SELECT count(*) FROM \(table) WHERE ContentID = ?", [.text(id)]) ?? 0 > 0 {
-                        throw Blocked(String(ui: "\(table)에도 들어 있는 곡이라 아직 지우지 않습니다(rekordbox에서 지우세요)"))
-                    }
-                    usn += 1
-                    for (table, list) in [("djmdSongPlaylist", "PlaylistID"), ("djmdSongHistory", "HistoryID")] {
-                        var entries: [(list: String, trackNo: Int)] = []
-                        try db.query("SELECT \(list), TrackNo FROM \(table) WHERE ContentID = ?", [.text(id)]) { entries.append(($0.string(0) ?? "", $0.int(1) ?? 0)) }
-                        _ = try db.run("DELETE FROM \(table) WHERE ContentID = ?", [.text(id)])
-                        // 같은 목록의 뒤 순번을 하나씩 당긴다(한 번호로 몰아서). 뒤에서부터 지운 순번만큼.
-                        for entry in entries.sorted(by: { $0.trackNo > $1.trackNo }) {
-                            _ = try db.run("UPDATE \(table) SET TrackNo = TrackNo - 1, rb_local_usn = ?, updated_at = ? WHERE \(list) = ? AND TrackNo > ?",
-                                           [.int(usn), .text(stamp.db), .text(entry.list), .int(entry.trackNo)])
-                        }
-                    }
-                    for table in ["djmdCue", "contentCue", "contentFile", "djmdMixerParam"] {
-                        _ = try db.run("DELETE FROM \(table) WHERE ContentID = ?", [.text(id)])
-                    }
-                    guard try db.run("DELETE FROM djmdContent WHERE ID = ?", [.text(id)]) == 1 else { throw Blocked(String(ui: "곡 행을 지우지 못했습니다")) }
-                    // 그 곡만 쓰던 앨범·아티스트
-                    if let album = track.album, try referenceCount(db, album: album) == 0 {
-                        var albumArtist: String?
-                        try db.query("SELECT AlbumArtistID FROM djmdAlbum WHERE ID = ?", [.text(album)]) { albumArtist = $0.string(0) }
-                        _ = try db.run("DELETE FROM djmdAlbum WHERE ID = ?", [.text(album)])
-                        if let albumArtist, try referenceCount(db, artist: albumArtist) == 0 { _ = try db.run("DELETE FROM djmdArtist WHERE ID = ?", [.text(albumArtist)]) }
-                    }
-                    for artist in Set(track.artists) where try referenceCount(db, artist: artist) == 0 {
-                        _ = try db.run("DELETE FROM djmdArtist WHERE ID = ?", [.text(artist)])
-                    }
-                    guard try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdContent WHERE ID = ?", [.text(id)]) == 0 else {
-                        throw DJCError.writeVerificationFailed(String(ui: "곡 행이 남아 있습니다"))
-                    }
+                    try db.query("SELECT Title FROM djmdContent WHERE ID = ?", [.text(id)]) { title = $0.string(0) ?? id }
+                    let filePlan = try RekordboxWriter.deletionFiles(id, db: db, share: share)
+                    var deleted = try deleteRow(id, db: db, usn: &usn, stamp: stamp)
+                    try RekordboxWriter.backupDeletionFiles(filePlan.files, in: backup)
+                    deleted.reason = filePlan.warning
+                    title = deleted.title
                     try db.execute("RELEASE djc_delete")
                     gone.append(id)
-                    if let share {
-                        if let analysis = track.analysis, let dat = RekordboxShare.analysisURL(analysis, root: share) { files.append(dat.deletingLastPathComponent()) }
-                        if let image = track.image, !image.isEmpty, let art = RekordboxShare.analysisURL(image, root: share) { files.append(art.deletingLastPathComponent()) }
-                    }
-                    report.deleted.append(Outcome(path: track.path, contentID: id, title: track.title, written: true, reason: nil))
+                    files += filePlan.files
+                    report.deleted.append(deleted)
                 } catch let blocked as Blocked {
                     try db.execute("ROLLBACK TO djc_delete")
                     try db.execute("RELEASE djc_delete")
@@ -497,24 +460,61 @@ public enum RekordboxTrackWriter {
                 throw DJCError.writeVerificationFailed(String(ui: "지운 곡이 다시 읽혔습니다"))
             }
         }
-        // 분석 폴더·아트워크 파일: 백업 폴더로 옮겨 두고(되돌리기 때 살림) 원래 자리에서 지운다. 아트워크 폴더는 rekordbox처럼 남긴다.
-        var manifest: [String: String] = [:]
-        let folder = backup.appending(path: "anlz")
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        for directory in files {
-            let items = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
-            for item in items {
-                let name = "\(manifest.count).\(item.pathExtension)"
-                try FileManager.default.copyItem(at: item, to: folder.appending(path: name))
-                manifest[name] = item.path
+        do {
+            try RekordboxWriter.removeOwnedFiles(files)
+        } catch {
+            throw RekordboxWriter.recover(from: error, database: database, backup: backup, live: live) {
+                try RekordboxWriter.restoreAnalysis(from: backup, saveCurrentTo: nil,
+                                                     shareRoot: share ?? database.deletingLastPathComponent().appending(path: "share"))
             }
         }
-        try JSONEncoder().encode(manifest).write(to: folder.appending(path: "manifest.json"))
-        for path in manifest.values { try? FileManager.default.removeItem(atPath: path) }
-        for directory in files where directory.path.contains("/USBANLZ/") { try? FileManager.default.removeItem(at: directory) }
-        report.removedFiles = manifest.values.sorted()
+        report.removedFiles = files.map(\.path).sorted()
         try? save(report, in: backup)
         return report
+    }
+
+    /// 이미 열린 쓰기 트랜잭션에서 곡 하나를 뺀다. 합치기도 같은 삭제 규칙을 쓴다.
+    static func deleteRow(_ id: String, db: CipherDatabase, usn: inout Int, stamp: (db: String, json: String)) throws -> Outcome {
+        var found: (title: String, path: String, artists: [String], album: String?)?
+        try db.query("""
+            SELECT Title, FolderPath, ArtistID, ComposerID, OrgArtistID, RemixerID, AlbumID
+            FROM djmdContent WHERE ID = ? AND rb_local_deleted = 0
+            """, [.text(id)]) { r in
+            found = (r.string(0) ?? "", r.string(1) ?? "", [2, 3, 4, 5].compactMap { r.string(Int32($0)) }, r.string(6))
+        }
+        guard let track = found else { throw Blocked(String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했습니다")) }
+        for table in unverifiedReferenceTables where try RekordboxWriter.scalar(db, "SELECT count(*) FROM \(table) WHERE ContentID = ?", [.text(id)]) ?? 0 > 0 {
+            throw Blocked(String(ui: "\(table)에도 들어 있는 곡이라 아직 지우지 않습니다(rekordbox에서 지우세요)"))
+        }
+        usn += 1
+        for (table, list) in [("djmdSongPlaylist", "PlaylistID"), ("djmdSongHistory", "HistoryID")] {
+            var entries: [(list: String, trackNo: Int)] = []
+            try db.query("SELECT \(list), TrackNo FROM \(table) WHERE ContentID = ?", [.text(id)]) { entries.append(($0.string(0) ?? "", $0.int(1) ?? 0)) }
+            _ = try db.run("DELETE FROM \(table) WHERE ContentID = ?", [.text(id)])
+            // 같은 목록의 뒤 순번을 하나씩 당긴다(한 번호로 몰아서). 뒤에서부터 지운 순번만큼.
+            for entry in entries.sorted(by: { $0.trackNo > $1.trackNo }) {
+                _ = try db.run("UPDATE \(table) SET TrackNo = TrackNo - 1, rb_local_usn = ?, updated_at = ? WHERE \(list) = ? AND TrackNo > ?",
+                   [.int(usn), .text(stamp.db), .text(entry.list), .int(entry.trackNo)])
+            }
+        }
+        for table in ["djmdCue", "contentCue", "contentFile", "djmdMixerParam"] {
+            _ = try db.run("DELETE FROM \(table) WHERE ContentID = ?", [.text(id)])
+        }
+        guard try db.run("DELETE FROM djmdContent WHERE ID = ?", [.text(id)]) == 1 else { throw Blocked(String(ui: "곡 행을 지우지 못했습니다")) }
+        // 그 곡만 쓰던 앨범·아티스트
+        if let album = track.album, try referenceCount(db, album: album) == 0 {
+            var albumArtist: String?
+            try db.query("SELECT AlbumArtistID FROM djmdAlbum WHERE ID = ?", [.text(album)]) { albumArtist = $0.string(0) }
+            _ = try db.run("DELETE FROM djmdAlbum WHERE ID = ?", [.text(album)])
+            if let albumArtist, try referenceCount(db, artist: albumArtist) == 0 { _ = try db.run("DELETE FROM djmdArtist WHERE ID = ?", [.text(albumArtist)]) }
+        }
+        for artist in Set(track.artists) where try referenceCount(db, artist: artist) == 0 {
+            _ = try db.run("DELETE FROM djmdArtist WHERE ID = ?", [.text(artist)])
+        }
+        guard try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdContent WHERE ID = ?", [.text(id)]) == 0 else {
+            throw DJCError.writeVerificationFailed(String(ui: "곡 행이 남아 있습니다"))
+        }
+        return Outcome(path: track.path, contentID: id, title: track.title, written: true, reason: nil)
     }
 
     static func referenceCount(_ db: CipherDatabase, artist: String) throws -> Int {
