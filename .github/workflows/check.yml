@@ -1,0 +1,78 @@
+name: 빌드·테스트
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: 빌드·테스트·커버리지
+    # macOS 27에서 테스트를 실행하는 호스티드 이미지. 근거·제약은 docs/ci.md.
+    runs-on: xcode-27
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.app/Contents/Developer
+      DJC_HOME: ${{ runner.temp }}/djc-home
+      DJC_REKORDBOX_DIR: ${{ runner.temp }}/rekordbox-fixture
+    steps:
+      - name: 소스 받기
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 실행 환경 확인
+        id: toolchain
+        run: |
+          {
+            sw_vers
+            xcodebuild -version
+            swift --version
+            xcrun --sdk macosx --show-sdk-version
+          } | tee "$RUNNER_TEMP/djc-toolchain.txt"
+          if [[ "$(sw_vers -productVersion | cut -d. -f1)" -lt 27 ]] ||
+             [[ "$(xcrun --sdk macosx --show-sdk-version | cut -d. -f1)" -lt 27 ]]; then
+            echo '::error::macOS 27 실행 환경과 SDK가 있는 러너를 선택하세요.'
+            exit 1
+          fi
+          echo "cache-key=$(shasum -a 256 "$RUNNER_TEMP/djc-toolchain.txt" | cut -d ' ' -f1)" >> "$GITHUB_OUTPUT"
+          mkdir -p "$DJC_HOME" "$DJC_REKORDBOX_DIR"
+
+      - name: SwiftPM 빌드 캐시
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build
+          key: ${{ runner.os }}-${{ runner.arch }}-swiftpm-${{ steps.toolchain.outputs.cache-key }}-${{ hashFiles('Package.swift', 'Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-swiftpm-${{ steps.toolchain.outputs.cache-key }}-${{ hashFiles('Package.swift', 'Package.resolved') }}-
+
+      - name: 빌드·단위 테스트·커버리지 목표 확인
+        id: check
+        run: scripts/check.sh 2>&1 | tee "$RUNNER_TEMP/djc-check.log"
+
+      - name: 검증 결과 요약
+        if: always()
+        env:
+          CHECK_OUTCOME: ${{ steps.check.outcome }}
+        run: |
+          {
+            echo '## 빌드·테스트·커버리지'
+            echo "검증 단계 결과: $CHECK_OUTCOME"
+            echo '```text'
+            if [[ -f "$RUNNER_TEMP/djc-check.log" ]]; then
+              grep -E '▸|✔ Test run|목표 [0-9]+%' "$RUNNER_TEMP/djc-check.log" || true
+            else
+              echo '검증을 시작하지 못했습니다. 앞 단계의 로그를 확인하세요.'
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
