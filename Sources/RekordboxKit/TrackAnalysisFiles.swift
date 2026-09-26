@@ -4,13 +4,19 @@ import Foundation
 
 /// 곡을 분석까지 붙여 넣을 때 rekordbox 7.2.18과 같게 적는 음원 정보(2026-09-26 라이브러리·실험으로 확인).
 /// - BitRate: CBR MP3는 프레임 비트레이트, AAC는 파일 머리(esds)에 적힌 평균 비트레이트(없으면 0), WAV는 샘플레이트×비트×채널.
-/// - PVBR 끝값: MP3는 MPEG 프레임 수(정보 프레임 포함)×1152, AAC·WAV는 0(7.2.18이 오늘 분석한 곡 기준).
-/// - VBR MP3(PVBR 탐색표 400칸)·FLAC(.EXT의 PVB2)·ALAC은 규칙을 몰라 분석을 붙이지 않는다(분석 전 추가만).
+/// - PVBR 끝값: MP3는 rekordbox가 세는 프레임 수×1152, AAC·WAV는 0(7.2.18이 오늘 분석한 곡 기준).
+///   LAME 정보 프레임은 소리로 세고, 다른 인코더(ffmpeg 등)의 정보 프레임은 세지 않는다(시간축 규칙과 같다).
+/// - VBR MP3 탐색표: 칸 k = rekordbox가 세는 프레임 중 `floor((k+1)·n/400) − 8`번째의 바이트 위치(그 첫 프레임 기준).
+///   라이브러리 VBR 459곡 중 452곡(LAME) + 6곡(ffmpeg)이 400칸 모두 같다(2026-09-26). 8프레임 앞은 디코더 비트 저장소 몫으로 보인다.
+///   VBR 비트레이트 칸은 LAME이면 0(453곡). LAME이 아닌 VBR은 비트레이트 규칙이 들쭉날쭉해 막는다.
+/// - FLAC(.EXT의 PVB2)·ALAC은 규칙을 몰라 분석을 붙이지 않는다(분석 전 추가만).
 public struct AudioFacts: Sendable, Equatable {
     public var sampleRate: Int
     public var bitDepth: Int
     public var bitRate: Int
     public var pvbrTotalSamples: UInt32
+    /// VBR MP3 탐색표(400칸, 첫 프레임 기준 바이트 위치). CBR·다른 형식은 모두 0.
+    public var pvbrEntries: [UInt32] = []
     /// 분석을 붙일 수 없는 이유(nil이면 붙인다)
     public var unsupported: String?
 
@@ -26,13 +32,30 @@ public struct AudioFacts: Sendable, Equatable {
         let rate = Int(format.mSampleRate)
         switch format.mFormatID {
         case kAudioFormatMPEGLayer3:
-            guard let frames = SeekInfo.mp3Frames(url: url) else {
+            guard let frames = SeekInfo.mp3Frames(url: url), let first = frames.offsets.first else {
                 return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: 0, pvbrTotalSamples: 0, unsupported: "MP3 프레임을 읽지 못했습니다")
             }
-            let audioFrame = frames.hasInfoFrame && frames.offsets.count > 1 ? frames.offsets[1] : frames.offsets[0]
-            let facts = AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: mp3BitRate(url: url, at: audioFrame) ?? 0,
-                                   pvbrTotalSamples: UInt32(frames.offsets.count * frames.samplesPerFrame), unsupported: nil)
-            return frames.isVariableBitRate ? with(facts, "VBR MP3는 탐색표(PVBR) 규칙을 몰라 분석을 붙이지 않습니다") : facts
+            // 중간에 깨진 프레임이 있으면 rekordbox와 프레임 수가 달라진다(끝까지 읽혀야 한다)
+            let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
+            guard let last = frames.offsets.last, size - last < 16_384 else {
+                return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: 0, pvbrTotalSamples: 0,
+                                  unsupported: "MP3 프레임이 중간에 끊겨 있어(깨진 프레임) 분석을 붙이지 않습니다")
+            }
+            let lame = RekordboxTimeline.mp3Header(url: url).contains("LAME")
+            let counted = frames.hasInfoFrame && !lame ? Array(frames.offsets.dropFirst()) : frames.offsets
+            let total = UInt32(counted.count * frames.samplesPerFrame)
+            let audioFrame = frames.hasInfoFrame && frames.offsets.count > 1 ? frames.offsets[1] : first
+            guard frames.isVariableBitRate else {
+                return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: mp3BitRate(url: url, at: audioFrame) ?? 0,
+                                  pvbrTotalSamples: total, unsupported: nil)
+            }
+            guard lame, counted.count > 8 else {
+                return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: 0, pvbrTotalSamples: total,
+                                  unsupported: "LAME이 아닌 VBR MP3는 rekordbox 비트레이트 규칙을 몰라 분석을 붙이지 않습니다")
+            }
+            let n = counted.count
+            let entries = (0..<400).map { k in UInt32(counted[max(0, (k + 1) * n / 400 - 8)] - counted[0]) }
+            return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: 0, pvbrTotalSamples: total, pvbrEntries: entries, unsupported: nil)
         case kAudioFormatMPEG4AAC:
             return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: aacAverageBitRate(fileID) / 1000, pvbrTotalSamples: 0, unsupported: nil)
         case kAudioFormatLinearPCM:
@@ -104,9 +127,9 @@ public enum TrackAnalysisFiles {
     }
 
     /// PVBR: 머리 u32 0 · 탐색표 400칸(CBR은 0) · 끝값(전체 샘플)
-    static func pvbr(totalSamples: UInt32) -> Data {
-        RekordboxWaveforms.section("PVBR", headerLength: 0x10, RekordboxWaveforms.be32(0) + [UInt8](repeating: 0, count: 1600)
-                                   + RekordboxWaveforms.be32(totalSamples))
+    public static func pvbr(_ facts: AudioFacts) -> Data {
+        let table = facts.pvbrEntries.count == 400 ? facts.pvbrEntries.flatMap(RekordboxWaveforms.be32) : [UInt8](repeating: 0, count: 1600)
+        return RekordboxWaveforms.section("PVBR", headerLength: 0x10, RekordboxWaveforms.be32(0) + table + RekordboxWaveforms.be32(facts.pvbrTotalSamples))
     }
 
     /// 빈 큐 목록(PCOB). kind 1 = 핫큐, 0 = 메모리 큐.
@@ -116,7 +139,7 @@ public enum TrackAnalysisFiles {
 
     public static func make(fileName: String, beats: [BeatGridTags.Beat], waveforms: RekordboxWaveforms,
                             facts: AudioFacts) throws -> (dat: Data, ext: Data, twoEx: Data) {
-        let dat = AnlzFile(header: header, tags: [ppth(fileName: fileName), pvbr(totalSamples: facts.pvbrTotalSamples),
+        let dat = AnlzFile(header: header, tags: [ppth(fileName: fileName), pvbr(facts),
                                                   BeatGridTags.pqtz(beats), waveforms.pwavTag, waveforms.pwv2Tag,
                                                   emptyPCOB(kind: 1), emptyPCOB(kind: 0)])
         let (ext, twoEx) = try waveforms.files(dat: dat)

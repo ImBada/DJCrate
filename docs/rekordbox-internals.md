@@ -100,13 +100,15 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 
 **추가(분석 포함)**: 위 행에 분석 칸을 채우고 분석 파일·파일 행·오토게인 행을 더한다.
 - 분석 경로 `/PIONEER/USBANLZ/<UUID 앞 3자>/<나머지>/ANLZ0000.DAT`, `Analysed` 105, 길이는 초 버림, `AnalysisUpdated` "3"·`TrackInfoUpdated` "2"(글자).
-- 비트레이트: CBR MP3는 프레임 비트레이트, AAC는 esds 평균 비트레이트(없으면 0, streamType 바이트 0x14도 있음), WAV는 샘플레이트×비트×채널, FLAC 0.
-- `.DAT`: `PPTH`(`?/파일 이름` UTF-16BE + NULL) · `PVBR`(머리 0, 탐색표 400칸, 끝값 = MP3는 MPEG 프레임 수(정보 프레임 포함)×1152, AAC·WAV는 0) · `PQTZ` · `PWAV` · `PWV2` · `PCOB`(핫, 빈) · `PCOB`(메모리, 빈). 같은 그리드로 다시 만들면 머리·PPTH·PVBR·PQTZ·PCOB가 바이트까지 같다.
+- 비트레이트: CBR MP3는 프레임 비트레이트, LAME VBR MP3는 0, AAC는 esds 평균 비트레이트(없으면 0, streamType 바이트 0x14도 있음), WAV는 샘플레이트×비트×채널, FLAC 0.
+- `.DAT`: `PPTH`(`?/파일 이름` UTF-16BE + NULL) · `PVBR`(머리 0, 탐색표 400칸, 끝값 = MP3는 rekordbox가 세는 프레임 수×1152, AAC·WAV는 0) · `PQTZ` · `PWAV` · `PWV2` · `PCOB`(핫, 빈) · `PCOB`(메모리, 빈). 같은 그리드로 다시 만들면 머리·PPTH·PVBR·PQTZ·PCOB가 바이트까지 같다.
 - `.EXT`·`.2EX`는 파형 생성기(`RekordboxWaveforms`, baken MIT 규칙 이식). 흑백 파형 높이는 99.5% 바이트 일치, 색·3밴드·미리 보기는 근사. rekordbox 7.2.18은 우리 파일을 그대로 표시했다(サラマンダー 복사본).
 - `contentFile` 행은 파일마다(ID `<곡 UUID>_<경로, /는 %2F>`, MD5, 크기, `rb_local_path`, `rb_priority` 50). 없어도 표시는 되지만 rekordbox처럼 넣는다.
 - `ContentLink`는 분석 구성 비트: `0x3C060E` 보통(6,409곡), `0x2C060E` 보컬 분석 없음, +`0x10000` 프레이즈 있음. 우리는 프레이즈·보컬이 없으므로 `0x2C060E`.
 - 만들 수 없는 것: `PSSI`(프레이즈), `PVDI`(보컬), `.3EX`(MessagePack `embedding`, rekordbox AI 특징값). rekordbox에서 Phrase만 분석하면 우리 태그를 바이트 그대로 두고 `PSSI`만 덧붙인다.
-- 막음: VBR MP3(`PVBR` 400칸 탐색표 규칙 미확인), FLAC(`.EXT`의 `PVB2` 1000칸 미확인), ALAC.
+- MP3 프레임 세기: LAME 정보 프레임(첫 프레임 안에 LAME 태그)은 소리로 세고, 다른 인코더(ffmpeg Lavc 등)의 정보 프레임은 세지 않는다. 다음 오디오 프레임에 "LAME3.99U"가 찍힌 ffmpeg 파일이 있어 LAME은 첫 프레임 안에서만 찾는다.
+- VBR MP3 탐색표: 칸 k = 센 프레임 중 `floor((k+1)·n/400) − 8`번째 프레임의 바이트 위치(첫 센 프레임 기준, 음수면 0번째). 라이브러리 LAME VBR 451곡 400칸 전부 일치(CBR은 전부 0, 2291/2294곡). 8프레임 앞은 디코더 비트 저장소 몫으로 보인다.
+- 막음: LAME이 아닌 VBR MP3(비트레이트 규칙 들쭉날쭉), 프레임이 중간에 끊긴 MP3, FLAC(`.EXT`의 `PVB2` 1000칸 미확인), ALAC.
 
 **삭제**: 삭제 표시가 아니라 행을 실제로 지운다.
 - 곡 행, 큐(`djmdCue`·`contentCue`), 파일 행, 오토게인 행, 재생 목록·재생 이력 항목. 같은 이력의 뒤 순번을 하나씩 당기고 그 행들은 한 변경 번호로 몰아 받는다(재생 목록도 같다고 보고 당긴다: 추정).
@@ -119,7 +121,6 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 
 - **VBR MP3 큐**: rekordbox가 큐마다 `InMpegFrame` = InFrame/2, `InMpegAbs` = 큐보다 7~9프레임 앞 MPEG 프레임의 바이트 위치(첫 프레임 기준)를 적는다. 곡·큐마다 달라 규칙을 못 찾았다(Xing TOC 보간 가설 9.5% 일치).
 - **템포 구간이 여러 개인 곡의 BPM 변경**: 구간 이동은 되지만 BPM 변경은 막는다.
-- **새 곡 추가**: DB에 곡 행만 넣으면 분석 파일(파형)이 없어 불완전하다. 지금은 rekordbox XML(Import To Collection)로 넘긴다.
 
 ## 새 쓰기 경로를 여는 방법
 

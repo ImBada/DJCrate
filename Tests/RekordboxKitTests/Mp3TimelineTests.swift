@@ -40,3 +40,42 @@ struct Mp3TimelineTests {
         #expect(gaps.isSubset(of: [417, 418]))
     }
 }
+
+/// 곡을 분석까지 붙여 넣을 때의 MP3 음원 정보(PVBR). 규칙은 라이브러리 VBR 451곡·CBR 2291곡으로 확인(2026-09-26).
+@Suite("MP3 분석 음원 정보")
+struct Mp3AudioFactsTests {
+    @Test func LAME_VBR은_8프레임_앞_위치로_탐색표를_채운다() throws {
+        let url = try TestResources.url("mp3-lame-vbr.mp3")
+        let frames = try #require(SeekInfo.mp3Frames(url: url))
+        let facts = AudioFacts.read(url: url)
+        #expect(facts.unsupported == nil && facts.bitRate == 0, "LAME VBR은 비트레이트 칸이 0")
+        // LAME 정보 프레임은 소리로 센다
+        let counted = frames.offsets
+        #expect(facts.pvbrTotalSamples == UInt32(counted.count * 1152))
+        #expect(facts.pvbrEntries.count == 400)
+        #expect(facts.pvbrEntries.first == 0)
+        #expect(facts.pvbrEntries.last == UInt32(counted[counted.count - 8] - counted[0]), "마지막 칸 = 끝에서 8번째 프레임")
+        #expect(zip(facts.pvbrEntries, facts.pvbrEntries.dropFirst()).allSatisfy { $0 <= $1 })
+        let tag = TrackAnalysisFiles.pvbr(facts)
+        #expect(tag.count == 0x10 + 1600 + 4, "머리 12바이트 + u32 0 · 400칸 · 끝값")
+        let lastEntry = tag.subdata(in: 0x10 + 399 * 4 ..< 0x10 + 400 * 4)
+        #expect(lastEntry.reduce(0) { $0 << 8 | UInt32($1) } == facts.pvbrEntries[399], "빅엔디언")
+    }
+
+    @Test func CBR은_탐색표가_비고_비트레이트를_적는다() throws {
+        let lame = try TestResources.url("mp3-lame-cbr.mp3")
+        let facts = AudioFacts.read(url: lame)
+        let frames = try #require(SeekInfo.mp3Frames(url: lame))
+        #expect(facts.unsupported == nil && facts.bitRate == 128 && facts.pvbrEntries.isEmpty)
+        #expect(facts.pvbrTotalSamples == UInt32(frames.offsets.count * 1152))
+        #expect(TrackAnalysisFiles.pvbr(facts).subdata(in: 0x10 ..< 0x10 + 1600).allSatisfy { $0 == 0 })
+    }
+
+    @Test func ffmpeg_정보_프레임은_세지_않는다() throws {
+        let url = try TestResources.url("mp3-ffmpeg-cbr.mp3")
+        let frames = try #require(SeekInfo.mp3Frames(url: url))
+        #expect(frames.hasInfoFrame)
+        #expect(!RekordboxTimeline.mp3Header(url: url).contains("LAME"), "LAME은 첫 프레임 안에서만 찾는다")
+        #expect(AudioFacts.read(url: url).pvbrTotalSamples == UInt32((frames.offsets.count - 1) * 1152))
+    }
+}
