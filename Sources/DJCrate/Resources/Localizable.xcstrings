@@ -11307,6 +11307,22 @@
         }
       }
     },
+    "미리 보기 파일 경로가 안전하지 않습니다. rekordbox에서 분석 파일 위치를 확인한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The preview file path is unsafe. Check the analysis file location in rekordbox, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレビュー用ファイルのパスが安全ではありません。rekordboxで解析ファイルの場所を確認してから、もう一度お試しください"
+          }
+        }
+      }
+    },
     "미리 보기" : {
       "localizations" : {
         "en" : {

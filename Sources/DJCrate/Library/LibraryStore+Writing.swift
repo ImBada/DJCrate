@@ -40,14 +40,20 @@ extension LibraryStore {
         // 미리 보기는 길이만 잰다(음량은 쓸 때 잰다. 막히는지 보는 데는 필요 없다).
         let inputs = try await analysisInputs(for: grids, measuringLoudness: false)
         writeStage = WriteStage(String(ui: "미리 보기 1/2단계 · 사본을 만드는 중…"), completed: 0, total: 2, cancellable: true)
-        let report = try await Task.detached(priority: .userInitiated) {
-            let snapshot = try LibrarySnapshot.take()
-            await MainActor.run { self.writeStage = WriteStage(String(ui: "미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…"), completed: 1, total: 2, cancellable: true) }
-            // 미리 보기: 사본 DB + 실제 분석 파일을 읽기만 한다(dryRun이라 파일을 쓰지 않는다).
-            return try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, tags: tags, analysisInputs: inputs,
-                                             playlistDraft: playlistDraft, merges: merges, to: snapshot, dryRun: true, backups: DJCPaths.rekordboxBackups,
-                                             shareRoot: RekordboxShare.directory)
-        }.value
+        let task = Task.detached(priority: .userInitiated) {
+            try await WritePreviewSnapshot.withCopy(grids: grids, merges: merges) { snapshot, share in
+                await MainActor.run { self.writeStage = WriteStage(String(ui: "미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…"), completed: 1, total: 2, cancellable: true) }
+                try Task.checkCancellation()
+                return try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, tags: tags, analysisInputs: inputs,
+                                                 playlistDraft: playlistDraft, merges: merges, to: snapshot, dryRun: true,
+                                                 backups: snapshot.deletingLastPathComponent().appending(path: "backups"), shareRoot: share)
+            }
+        }
+        let report = try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
         try Task.checkCancellation()
         return WritePreview(report: report, drafts: drafts, grids: grids, gains: gains, tags: tags, playlists: playlistDraft, merges: merges)
     }
