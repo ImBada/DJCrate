@@ -50,7 +50,7 @@ enum DirectWritePanels {
     }
 
     static func restore(store: LibraryStore, backupURL: URL) {
-        guard let backup = RekordboxWriter.backups(in: DJCPaths.rekordboxBackups).first(where: { $0.url.path == backupURL.path }) else {
+        guard let backup = backup(matching: backupURL, in: RekordboxWriter.backups(in: DJCPaths.rekordboxBackups)) else {
             _ = AlertPrompter().show(ReflectionPrompt(title: String(ui: "백업을 찾지 못했습니다"), text: backupURL.path))
             return
         }
@@ -59,5 +59,15 @@ enum DirectWritePanels {
             defer { store.writeTask = nil }
             await ReflectionCoordinator(host: store).restore(backup)
         }
+    }
+
+    static func backup(matching url: URL, in backups: [RekordboxWriter.Backup]) -> RekordboxWriter.Backup? {
+        guard url.isFileURL else { return nil }
+        let path = url.resolvingSymlinksInPath().standardizedFileURL.path
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else { return nil }
+        // /tmp 별칭과 디렉터리 표기를 맞추되, 모호한 후보는 복원하지 않는다.
+        let matches = backups.filter { $0.url.isFileURL && $0.url.resolvingSymlinksInPath().standardizedFileURL.path == path }
+        return matches.count == 1 ? matches[0] : nil
     }
 }
