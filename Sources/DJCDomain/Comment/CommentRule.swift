@@ -37,7 +37,7 @@ public enum CommentPreset: String, CaseIterable, Sendable {
     case none, anisong
 
     public var title: String {
-        switch self { case .none: "없음"; case .anisong: "애니송" }
+        switch self { case .none: String(ui: "없음"); case .anisong: String(ui: "애니송") }
     }
 
     public var rule: (any CommentRule)? {

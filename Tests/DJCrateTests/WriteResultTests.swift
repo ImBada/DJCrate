@@ -65,6 +65,17 @@ struct WriteResultTests {
         if operation == "되돌리기" { #expect(result.backups.contains(host.restoreSafetyBackup)) }
     }
 
+    @Test func 태그_결과도_곡마다_남긴다() {
+        var preview = Fixture.preview(cues: [], tags: [Fixture.tagOutcome("t", .written), Fixture.tagOutcome("x", .blocked, reason: "바뀜")])
+        let predicted = preview.report
+        preview.report.tagOutcomes = [Fixture.tagOutcome("t", .written)]
+        let result = WriteResult.written(preview.report, preview: predicted)
+        #expect(result.title == "rekordbox에 반영했습니다 · 태그 1곡" && result.kind == .warning)
+        #expect(result.text.contains("• 곡 t — 태그 반영 완료") && result.text.contains("• 곡 x — 태그 쓰지 않음: 바뀜"))
+        let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b"), createdAt: .now, isWrite: true, report: preview.report)
+        #expect(WriteResult.restored(backup, saved: URL(filePath: "/tmp/s")).text.contains("• 곡 t"))
+    }
+
     @Test func 모두_막힌_결과도_전체_이유를_남긴다() async throws {
         let host = FakeReflectionHost()
         host.preview = .success(Fixture.preview(cues: (1...15).map { Fixture.outcome("\($0)", .blocked, reason: "이유 \($0)") }))

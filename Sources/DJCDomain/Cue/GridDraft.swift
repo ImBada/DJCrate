@@ -18,6 +18,8 @@ public struct GridSegment: Codable, Hashable, Sendable {
 /// 곡 하나의 비트 그리드 초안. 변속곡은 구간이 여러 개다.
 /// rekordbox에는 쓰지 않는다(검증된 반영 경로를 통해서만 나간다).
 public struct GridDraft: Codable, Equatable, Sendable {
+    public static let bpmRange: ClosedRange<Double> = 20...999
+
     public var trackUUID: String
     public var base: [GridSegment]
     public var segments: [GridSegment]
@@ -99,7 +101,7 @@ public struct GridDraft: Codable, Equatable, Sendable {
     }
 
     public mutating func setBPM(_ bpm: Double, at time: Double) {
-        guard bpm >= 20, bpm <= 999 else { return }
+        guard Self.bpmRange.contains(bpm) else { return }
         let index = segmentIndex(at: time)
         // 표시값(소수 둘째 자리)을 그대로 다시 넣는 경우는 무시한다. 그렇지 않으면 실측 BPM
         // (예: 153.9987)이 154.00으로 바뀌어 500박이면 약 16ms 어긋난다.

@@ -66,7 +66,7 @@ struct ContentView: View {
         }
         .sheet(isPresented: $store.showingWriteResult) { WriteResultView(history: store.resultHistory) }
         .animation(.easeInOut(duration: 0.15), value: store.writeStage)
-        .searchable(text: $store.search, placement: .toolbar, prompt: "제목·아티스트·코멘트")
+        .searchable(text: $store.search, placement: .toolbar, prompt: Text(.ui("제목·아티스트·코멘트")))
         .toolbar(id: "main") { toolbarContent }
         .focusedSceneValue(\.appCommands, AppCommandContext(store: store, deck: deck, showTagEditor: $showTagEditor,
                                                              waveformHeight: waveformHeightControl))
@@ -98,7 +98,7 @@ struct ContentView: View {
                 VStack(spacing: 0) {
                     VStack(spacing: 0) {
                         if let error = store.lastError {
-                            Label("스냅샷을 새로 뜨지 못했습니다: \(error)", systemImage: "exclamationmark.triangle")
+                            Label(.ui("스냅샷을 새로 뜨지 못했습니다: \(error)"), systemImage: "exclamationmark.triangle")
                                 .font(.callout).foregroundStyle(UIColors.warning.color)
                                 .padding(.horizontal, 14).padding(.vertical, 6)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -135,9 +135,11 @@ struct ContentView: View {
                         TagSheetView(store: store)
                             .onDisappear { store.canFillDownTags = false }
                             .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
+                            .overlay { if store.displayRows.isEmpty { emptyLibrary } }
                     } else {
                         TrackTable(store: store, deck: deck)
                             .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
+                            .overlay { if store.displayRows.isEmpty { emptyLibrary } }
                     }
                 }
                 .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
@@ -157,24 +159,50 @@ struct ContentView: View {
                 }
             case .idle:
                 ContentUnavailableView {
-                    Label("스냅샷이 없습니다", systemImage: "externaldrive.badge.questionmark")
+                    Label(.ui("스냅샷이 없습니다"), systemImage: "externaldrive.badge.questionmark")
                 } description: {
-                    Text("rekordbox를 종료한 뒤 master.db 사본을 떠 주세요. 원본은 읽기만 합니다.")
+                    Text(.ui("rekordbox를 종료한 뒤 master.db 사본을 떠 주세요. 원본은 읽기만 합니다."))
                 } actions: {
-                    Button("스냅샷 뜨기") { Task { await store.takeSnapshot() } }
+                    Button(.ui("스냅샷 뜨기")) { Task { await store.takeSnapshot() } }
                 }
             case let .loading(message):
                 ProgressView(message)
             case let .failed(message):
                 ContentUnavailableView {
-                    Label("불러오지 못했습니다", systemImage: "exclamationmark.triangle")
+                    Label(.ui("불러오지 못했습니다"), systemImage: "exclamationmark.triangle")
                 } description: {
                     Text(message)
                 } actions: {
-                    Button("다시 시도") { Task { await store.loadInitial() } }
-                    Button("실행 중이어도 읽기용 스냅샷 뜨기") { Task { await store.takeSnapshot(force: true) } }
+                    Button(.ui("다시 시도")) { Task { await store.loadInitial() } }
+                    Button(.ui("실행 중이어도 읽기용 스냅샷 뜨기")) { Task { await store.takeSnapshot(force: true) } }
                 }
             }
+    }
+
+    @ViewBuilder private var emptyLibrary: some View {
+        if !store.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            ContentUnavailableView.search(text: store.search)
+        } else if store.sidebar == .pending {
+            ContentUnavailableView {
+                Label(.ui("반영할 초안이 없습니다"), systemImage: "checkmark.circle")
+            } description: {
+                Text(.ui("곡의 큐·그리드·게인을 고치면 여기에 모입니다."))
+            }
+        } else if store.sidebar == .staged {
+            ContentUnavailableView {
+                Label(.ui("추가한 곡이 없습니다"), systemImage: "music.note")
+            } description: {
+                Text(.ui("음원 파일을 끌어다 놓거나 ‘곡 추가’를 눌러 시작하세요."))
+            } actions: {
+                Button(.ui("곡 추가…")) { StagingPanels.chooseFiles(store: store) }
+            }
+        } else {
+            ContentUnavailableView {
+                Label(.ui("표시할 곡이 없습니다"), systemImage: "music.note.list")
+            } description: {
+                Text(.ui("다른 목록을 선택하거나 새 스냅샷으로 라이브러리를 다시 읽어 보세요."))
+            }
+        }
     }
 
     @ToolbarContentBuilder private var toolbarContent: some CustomizableToolbarContent {
@@ -182,30 +210,30 @@ struct ContentView: View {
                 RelatedTracksButton(store: store, deck: deck)
             }
             ToolbarItem(id: "viewMode", placement: .principal) {
-                Picker("보기", selection: $sheetMode) {
-                    Label("목록", systemImage: "list.bullet").tag(false)
-                    Label("태그 시트", systemImage: "tablecells").tag(true)
+                Picker(.ui("보기"), selection: $sheetMode) {
+                    Label(.ui("목록"), systemImage: "list.bullet").tag(false)
+                    Label(.ui("태그 시트"), systemImage: "tablecells").tag(true)
                 }
                 .pickerStyle(.segmented)
                 .disabled(!store.writeLockPolicy.allowsLibraryInteraction || store.sidebar == .duplicates)
-                .help("태그 시트: 엑셀처럼 셀을 선택·편집·붙여넣기 합니다")
+                .help(.ui("태그 시트: 엑셀처럼 셀을 선택·편집·붙여넣기 합니다"))
             }
             ToolbarItem(id: "addFiles") {
                 Button {
                     StagingPanels.chooseFiles(store: store)
                 } label: {
-                    Label("곡 추가", systemImage: "plus")
+                    Label(.ui("곡 추가"), systemImage: "plus")
                 }
                 .disabled(!LibraryMenuAction.addFiles.isEnabled(in: store))
-                .help("음원 파일·폴더를 DJCrate에 추가합니다. BPM·그리드를 추정한 뒤 rekordbox XML로 넘길 수 있습니다(창에 끌어다 놓아도 됩니다).")
+                .help(.ui("음원 파일·폴더를 DJCrate에 추가합니다. BPM·그리드를 추정한 뒤 rekordbox XML로 넘길 수 있습니다(창에 끌어다 놓아도 됩니다)."))
             }
             ToolbarItem(id: "tagEditor") {
                 Button {
                     showTagEditor.toggle()
                 } label: {
-                    Label("태그 편집", systemImage: "tag")
+                    Label(.ui("태그 편집"), systemImage: "tag")
                 }
-                .help("선택한 곡의 태그를 편집합니다 (⌘I). 여러 곡을 한꺼번에 편집할 수 있습니다.")
+                .help(.ui("선택한 곡의 태그를 편집합니다 (⌘I). 여러 곡을 한꺼번에 편집할 수 있습니다."))
                 .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
             }
             ToolbarItem(id: "snapshot") {
@@ -213,10 +241,10 @@ struct ContentView: View {
                     // rekordbox가 켜져 있어도 읽기용 사본을 뜬다(최근 변경이 담긴 WAL까지 사본 안에서 합친다).
                     Task { await store.takeSnapshot(force: LibrarySnapshot.isRekordboxRunning()) }
                 } label: {
-                    Label("새 스냅샷", systemImage: "arrow.clockwise")
+                    Label(.ui("새 스냅샷"), systemImage: "arrow.clockwise")
                 }
                 .disabled(!LibraryMenuAction.snapshot.isEnabled(in: store))
-                .help("rekordbox master.db 사본을 새로 떠서 다시 읽습니다(원본은 읽기만). rekordbox에서 반영 XML을 가져온 뒤 누르면 자동으로 검증합니다.")
+                .help(.ui("rekordbox master.db 사본을 새로 떠서 다시 읽습니다(원본은 읽기만). rekordbox에서 반영 XML을 가져온 뒤 누르면 자동으로 검증합니다."))
             }
             ToolbarItem(id: "reflection", placement: .primaryAction) {
                 ReflectionMenu(store: store)
@@ -264,17 +292,17 @@ struct SheetHeader: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Text("\(store.sidebarTitle) · \(store.displayRows.count)곡").font(.scaled(.callout, textScale).bold())
-            Text("더블클릭·Return·타이핑: 편집  ·  ⌘C/⌘V: 엑셀·시트와 복사·붙여넣기  ·  ⌘D: 아래로 채우기  ·  Delete: 지우기  ·  ⌘Z/⇧⌘Z: 실행 취소·실행 복귀")
+            Text(.ui("\(store.sidebarTitle) · \(store.displayRows.count)곡")).font(.scaled(.callout, textScale).bold())
+            Text(.ui("더블클릭·Return·타이핑: 편집  ·  ⌘C/⌘V: 엑셀·시트와 복사·붙여넣기  ·  ⌘D: 아래로 채우기  ·  Delete: 지우기  ·  ⌘Z/⇧⌘Z: 실행 취소·실행 복귀"))
                 .font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
             Spacer()
             // 색이 아니라 칸의 모양(왼쪽 위 모서리 삼각형)으로 알린다.
-            Label { Text("= 초안(파일·rekordbox 미반영)") } icon: { DraftCornerSwatch() }
+            Label { Text(.ui("= 초안(파일·rekordbox 미반영)")) } icon: { DraftCornerSwatch() }
                 .font(.scaled(.caption, textScale)).foregroundStyle(.secondary)
-                .help("값을 고친 칸은 왼쪽 위 모서리에 삼각형이 붙습니다. 음원 파일과 rekordbox에는 아직 반영하지 않은 초안입니다")
+                .help(.ui("값을 고친 칸은 왼쪽 위 모서리에 삼각형이 붙습니다. 음원 파일과 rekordbox에는 아직 반영하지 않은 초안입니다"))
                 .accessibilityElement(children: .ignore)
                 .accessibilityAddTraits(.isStaticText)
-                .accessibilityLabel("왼쪽 위 모서리 삼각형이 붙은 칸은 초안(파일·rekordbox 미반영)")
+                .accessibilityLabel(.ui("왼쪽 위 모서리 삼각형이 붙은 칸은 초안(파일·rekordbox 미반영)"))
         }
         .controlSize(.small)
         .padding(.horizontal, 12)
@@ -306,9 +334,9 @@ struct SplitHandle: View {
                 }
                 .onEnded { _ in start = nil })
             .onTapGesture(count: 2) { height = DeckLayout.defaultWaveformHeight }
-            .accessibilityLabel("파형 높이 조절")
-            .accessibilityValue("\(Int(displayedHeight))포인트")
-            .accessibilityHint("위아래로 조절하거나 두 번 클릭하면 기본 높이로 돌아갑니다")
+            .accessibilityLabel(.ui("파형 높이 조절"))
+            .accessibilityValue(.ui("\(Int(displayedHeight))포인트"))
+            .accessibilityHint(.ui("위아래로 조절하거나 두 번 클릭하면 기본 높이로 돌아갑니다"))
             .accessibilityAdjustableAction { direction in
                 // 메뉴 '파형 크게·작게'와 같은 한 칸
                 switch direction {

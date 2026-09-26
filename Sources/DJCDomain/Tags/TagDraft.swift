@@ -1,6 +1,6 @@
 import Foundation
 
-/// 태그 편집기에서 다루는 곡 정보. 파일 태그로 쓰고 rekordbox는 Reload Tag로 읽게 한다.
+/// 태그 편집기에서 다루는 곡 정보. 반영하면 rekordbox 라이브러리에 쓴다(음원 파일 태그는 그대로 둔다).
 public struct TagFields: Codable, Hashable, Sendable {
     public enum Key: String, CaseIterable, Codable, Sendable, Identifiable {
         case title, artist, album, albumArtist, genre, composer, year, trackNumber, comment
@@ -9,15 +9,15 @@ public struct TagFields: Codable, Hashable, Sendable {
 
         public var label: String {
             switch self {
-            case .title: "제목"
-            case .artist: "아티스트"
-            case .album: "앨범"
-            case .albumArtist: "앨범 아티스트"
-            case .genre: "장르"
-            case .composer: "작곡가"
-            case .year: "연도"
-            case .trackNumber: "트랙 번호"
-            case .comment: "코멘트"
+            case .title: String(ui: "제목")
+            case .artist: String(ui: "아티스트")
+            case .album: String(ui: "앨범")
+            case .albumArtist: String(ui: "앨범 아티스트")
+            case .genre: String(ui: "장르")
+            case .composer: String(ui: "작곡가")
+            case .year: String(ui: "연도")
+            case .trackNumber: String(ui: "트랙 번호")
+            case .comment: String(ui: "코멘트")
             }
         }
     }
@@ -83,8 +83,13 @@ public struct TagDraft: Codable, Equatable, Sendable {
     public var fields: TagFields
 
     public init(track: Track) {
-        trackUUID = track.uuid
-        base = TagFields(track: track)
+        self.init(trackUUID: track.uuid, base: TagFields(track: track))
+    }
+
+    /// base(초안을 만들 때의 rekordbox 값)에서 시작한다.
+    public init(trackUUID: String, base: TagFields) {
+        self.trackUUID = trackUUID
+        self.base = base
         fields = base
     }
 
@@ -94,9 +99,9 @@ public struct TagDraft: Codable, Equatable, Sendable {
     /// 쓰기 전 확인할 문제.
     public var issues: [String] {
         var issues: [String] = []
-        if !fields.year.isEmpty, Int(fields.year) == nil { issues.append("연도는 숫자여야 합니다") }
-        if !fields.trackNumber.isEmpty, Int(fields.trackNumber) == nil { issues.append("트랙 번호는 숫자여야 합니다") }
-        if fields.title.trimmingCharacters(in: .whitespaces).isEmpty { issues.append("제목이 비어 있습니다") }
+        if !fields.year.isEmpty, Int(fields.year) == nil { issues.append(String(ui: "연도는 숫자여야 합니다")) }
+        if !fields.trackNumber.isEmpty, Int(fields.trackNumber) == nil { issues.append(String(ui: "트랙 번호는 숫자여야 합니다")) }
+        if fields.title.trimmingCharacters(in: .whitespaces).isEmpty { issues.append(String(ui: "제목이 비어 있습니다")) }
         return issues
     }
 }

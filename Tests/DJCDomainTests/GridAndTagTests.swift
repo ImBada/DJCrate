@@ -4,6 +4,23 @@ import Testing
 
 @Suite("그리드 초안")
 struct GridDraftTests {
+    @Test func BPM_범위는_양끝을_포함한다() {
+        #expect(GridDraft.bpmRange == 20...999)
+        for bpm in [20.0, 999.0] {
+            var draft = GridDraft(trackUUID: "t", grid: constantGrid())
+            draft.setBPM(bpm, at: 1)
+            #expect(draft.segments[0].bpm == bpm)
+        }
+    }
+
+    @Test(arguments: [19.999, 999.001, Double.nan, .infinity, -.infinity])
+    func BPM_범위_밖은_반올림_전에_거부한다(bpm: Double) {
+        var draft = GridDraft(trackUUID: "t", grid: constantGrid())
+        let original = draft
+        draft.setBPM(bpm, at: 1)
+        #expect(draft == original)
+    }
+
     /// 120 BPM(0.5초 간격), 0.1초에서 시작하는 4/4 그리드. 첫 박은 1박.
     func constantGrid(count: Int = 40, start: Double = 0.1, bpm: Double = 120) -> BeatGrid {
         BeatGrid(beats: (0..<count).map { i in

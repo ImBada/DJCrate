@@ -169,8 +169,8 @@ struct ZoomWaveformView: View {
         .onAppear { scroll.deck = deck; scroll.install() }
         .onDisappear { scroll.remove() }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("확대 파형")
-        .accessibilityHint("드래그로 스크럽하고, 큐를 끌어 옮기고, 더블클릭으로 메모리 큐를 추가합니다. 휠로 확대·축소합니다. 조절하면 1박씩 옮깁니다")
+        .accessibilityLabel(.ui("확대 파형"))
+        .accessibilityHint(.ui("드래그로 스크럽하고, 큐를 끌어 옮기고, 더블클릭으로 메모리 큐를 추가합니다. 휠로 확대·축소합니다. 조절하면 1박씩 옮깁니다"))
         .waveformAccessibility(deck: deck, kind: .zoom)
     }
 
@@ -208,7 +208,7 @@ struct ZoomWaveformView: View {
                 let beatWidth = size.width / window * 60 / max(beat.bpm, 1)
                 if state.gridEditing,
                    BeatRulerLabel.showsBeatNumber(isDownbeat: beat.isDownbeat, beatWidth: beatWidth, charWidth: metrics.charWidth) {
-                    context.draw(Text("\(beat.number)").font(.system(size: metrics.labelSize, weight: beat.isDownbeat ? .bold : .regular).monospacedDigit())
+                    context.draw(Text(verbatim: "\(beat.number)").font(.system(size: metrics.labelSize, weight: beat.isDownbeat ? .bold : .regular).monospacedDigit())
                         .foregroundStyle(beat.isDownbeat ? Palette.mid : Palette.rulerText),
                                  at: CGPoint(x: x + 2, y: size.height - metrics.beatNumberInset), anchor: .leading)
                 }
@@ -250,7 +250,7 @@ struct ZoomWaveformView: View {
             line.move(to: CGPoint(x: x, y: 0)); line.addLine(to: CGPoint(x: x, y: size.height))
             context.stroke(line, with: .color(.yellow), lineWidth: 2)
             let nearRight = x > size.width - 80 * metrics.scale
-            context.draw(Text(String(format: "%.2f BPM", segment.bpm)).font(.system(size: metrics.labelSize, weight: .bold)).foregroundStyle(Color.yellow),
+            context.draw(Text(verbatim: segment.bpm.formatted(.number.precision(.fractionLength(2)).grouping(.never)) + " BPM").font(.system(size: metrics.labelSize, weight: .bold)).foregroundStyle(Color.yellow),
                          at: CGPoint(x: nearRight ? x - 4 : x + 4, y: ruler + 4), anchor: nearRight ? .trailing : .leading)
         }
         // MU 섹션 경계

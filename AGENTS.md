@@ -19,7 +19,8 @@ rekordbox 7용 DJ 라이브러리 관리 macOS 앱 DJCrate(약칭 DJC, CLI `djc`
 ## 명령
 
 ```bash
-scripts/check.sh                     # 커밋 전: 빌드(디버그·릴리스 앱) + 테스트 + 커버리지 목표(쓰기 80%, 코어 60%)
+scripts/check.sh                     # 커밋 전: 빌드(디버그·릴리스 앱) + 번역 누락 + 테스트 + 커버리지 목표(쓰기 80%, 코어 60%)
+swift scripts/i18n.swift sync        # 코드의 화면 문구로 String Catalog 맞추기(새 문구 더하기·안 쓰는 문구 빼기). 뒤에 en·ja 번역을 채운다
 swift build                          # 전체 디버그 빌드
 swift test                           # 단위 테스트(Swift Testing, 테스트 타깃 4개)
 swift test --filter WriteGuardTests  # 한 묶음만
@@ -96,7 +97,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 
 ## 코드 스타일
 
-- UI 문구·주석·커밋 메시지는 한국어, 식별자는 영어.
+- UI 문구(원문)·주석·커밋 메시지는 한국어, 식별자는 영어. 화면 문구는 `String(ui:)`·`.ui(…)`로 쓰고 영어·일본어 번역을 카탈로그(`Sources/DJCrate/Resources/Localizable.xcstrings`)에 채운다. 규칙·용어표는 `docs/i18n.md`.
 - 주석은 "왜"를 짧게 한국어로. 둘레 코드의 주석 밀도와 말투에 맞춘다.
 - 사용자에게 보이는 막힘·오류 이유는 무엇을 하면 되는지까지 한국어 한 문장으로 쓴다(예: "rekordbox에서 트랙 분석을 먼저 한 뒤 쓰세요").
 - Swift 6 엄격 동시성. 오디오 탭·렌더 콜백은 메인 액터 밖(`nonisolated static`)에서 만든다. 메인 액터 격리를 물려받으면 오디오 스레드에서 죽는다.

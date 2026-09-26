@@ -31,6 +31,12 @@ final class LibraryStore {
         didSet { if oldValue !== undoManager { oldValue?.removeAllActions(withTarget: self) } }
     }
     @ObservationIgnored let saveTagDrafts: ([TagDraft]) -> Void
+    @ObservationIgnored let backupDirectory: URL
+    private(set) var hasWriteBackup = false
+
+    func refreshWriteBackups() {
+        hasWriteBackup = RekordboxWriter.backups(in: backupDirectory).contains(where: \.isWrite)
+    }
 
     let resultHistory: WriteResultHistory
     @ObservationIgnored var feedback: AppFeedback
@@ -54,12 +60,15 @@ final class LibraryStore {
     var commentRuleEnabled: Bool { commentPreset.rule != nil }
 
     init(settings: SettingsStore = SettingsStore(), resultHistory: WriteResultHistory = WriteResultHistory(url: DJCPaths.userData.appending(path: "last-write-result.json")),
-         feedback: AppFeedback = AppFeedback(), saveTagDrafts: @escaping ([TagDraft]) -> Void = { DraftWriter.save($0) }) {
+         feedback: AppFeedback = AppFeedback(), saveTagDrafts: @escaping ([TagDraft]) -> Void = { DraftWriter.save($0) },
+         backupDirectory: URL = DJCPaths.rekordboxBackups) {
         self.settings = settings
         self.commentPreset = settings.commentPreset
         self.saveTagDrafts = saveTagDrafts
         self.resultHistory = resultHistory
         self.feedback = feedback
+        self.backupDirectory = backupDirectory
+        refreshWriteBackups()
     }
 
     var phase: Phase = .idle
@@ -98,12 +107,12 @@ final class LibraryStore {
 
     var sidebarTitle: String {
         switch sidebar {
-        case let .filter(filter): filter.rawValue
-        case let .playlist(id): playlistIndex[id]?.name ?? "플레이리스트"
-        case let .history(id): historyIndex[id].map(historyTitle) ?? "재생 기록"
-        case .duplicates: "중복 후보"
-        case .staged: "추가한 곡"
-        case .pending: "rekordbox 반영 대기"
+        case let .filter(filter): filter.title
+        case let .playlist(id): playlistIndex[id]?.name ?? String(ui: "플레이리스트")
+        case let .history(id): historyIndex[id].map(historyTitle) ?? String(ui: "재생 기록")
+        case .duplicates: String(ui: "중복 후보")
+        case .staged: String(ui: "추가한 곡")
+        case .pending: String(ui: "rekordbox 반영 대기")
         }
     }
     var search = "" { didSet { if search != oldValue { refreshFiltered() } } }
@@ -153,7 +162,11 @@ final class LibraryStore {
     var writeStage: WriteStage?
     /// rekordbox에 쓰는 중(미리 보기 포함)
     var isWritingRekordbox = false {
-        didSet { if isWritingRekordbox { undoManager?.removeAllActions(withTarget: self) } }
+        didSet {
+            if isWritingRekordbox { undoManager?.removeAllActions(withTarget: self) }
+            // 쓰기·되돌리기 실패 때도 백업이 남거나 정리될 수 있다.
+            if oldValue && !isWritingRekordbox { refreshWriteBackups() }
+        }
     }
     /// 쓰는 동안 덱 큐 편집을 잠근다
     var onWriteLock: ((Bool) -> Void)?
@@ -164,8 +177,8 @@ final class LibraryStore {
     var draftCueCounts: [String: CueCounts] = [:]
     var draftPreviewCues: [String: [PreviewCueMark]] = [:]
 
-    /// 큐·그리드 초안이 있는 곡(태그 초안은 파일 태그로 반영하므로 여기엔 넣지 않는다)
-    var pendingUUIDs: Set<String> { cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs) }
+    /// 큐·그리드·게인·태그 초안이 있는 곡(태그도 반영하면 rekordbox 곡 정보에 쓴다)
+    var pendingUUIDs: Set<String> { cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys) }
     /// 반영 대기 중인 rekordbox 곡 수(추가한 곡 제외)
     var pendingLibraryCount: Int { pendingUUIDs.filter { rowsByUUID[$0].map { !$0.isStaged } ?? false }.count }
     /// 백그라운드 추정이 초안을 저장했을 때(덱이 같은 곡을 보고 있으면 다시 읽게)
@@ -199,7 +212,7 @@ final class LibraryStore {
     }
 
     func historyTitle(_ history: RekordboxHistory) -> String {
-        let date = history.dateCreated.map { String($0.prefix(10)) } ?? "날짜 없음"
+        let date = history.dateCreated.map { String($0.prefix(10)) } ?? String(ui: "날짜 없음")
         return history.name.isEmpty || history.name == date ? date : "\(date) · \(history.name)"
     }
 
@@ -315,7 +328,7 @@ final class LibraryStore {
         let hadRows = !rows.isEmpty
         var isLoaded: Bool { if case .loaded = phase { true } else { false } }
         let quiet = quiet && hadRows && isLoaded
-        if !quiet { phase = .loading("rekordbox DB 스냅샷을 뜨는 중…") }
+        if !quiet { phase = .loading(String(ui: "rekordbox DB 스냅샷을 뜨는 중…")) }
         do {
             let url = try await Task.detached { try LibrarySnapshot.take(force: force) }.value
             await load(snapshot: url, quiet: quiet)
@@ -336,7 +349,7 @@ final class LibraryStore {
         loadGeneration += 1
         let generation = loadGeneration
         let started = ContinuousClock.now
-        if !quiet { phase = .loading("라이브러리를 읽는 중…") }
+        if !quiet { phase = .loading(String(ui: "라이브러리를 읽는 중…")) }
         do {
             let preset = commentPreset
             let loaded = try await Task.detached(priority: .userInitiated) { try LoadedLibrary.load(snapshot: snapshot, commentPreset: preset) }.value

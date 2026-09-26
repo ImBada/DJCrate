@@ -102,7 +102,7 @@ extension DeckModel {
     /// `start`에서 `beats`박 뒤(규칙은 `LoopRules.end`). 곡 끝을 넘으면 알리고 nil.
     func loopEnd(from start: Double, beats: Double) -> Double? {
         guard let end = LoopRules.end(from: start, beats: beats, grid: grid, fallbackBPM: gridBPM, duration: duration) else {
-            showToast("곡 끝을 넘는 루프는 만들 수 없습니다")
+            showToast(String(ui: "곡 끝을 넘는 루프는 만들 수 없습니다"))
             return nil
         }
         return end

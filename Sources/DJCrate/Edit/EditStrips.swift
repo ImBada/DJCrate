@@ -25,7 +25,7 @@ private func drawBarRuler(_ context: GraphicsContext, layout: BarLayout, bars: C
         tick.addLine(to: CGPoint(x: px, y: labeled ? 7 : 3))
         context.stroke(tick, with: .color(Palette.rulerText.opacity(labeled ? 0.9 : 0.4)), lineWidth: 1)
         if labeled, px < width - 8 {
-            context.draw(Text("\(bar)").font(.system(size: 9).monospacedDigit()).foregroundStyle(Palette.rulerText),
+            context.draw(Text(verbatim: "\(bar)").font(.system(size: 9).monospacedDigit()).foregroundStyle(Palette.rulerText),
                          at: CGPoint(x: px + 2, y: height), anchor: .bottomLeading)
         }
     }
@@ -53,8 +53,8 @@ struct EditSourceStrip: View {
         .environment(\.colorScheme, .dark)
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .accessibilityElement()
-        .accessibilityLabel("원곡 전체 파형과 고른 마디 구간")
-        .accessibilityHint("눌러서 구간을 더할 위치를 고릅니다")
+        .accessibilityLabel(.ui("원곡 전체 파형과 고른 마디 구간"))
+        .accessibilityHint(.ui("눌러서 구간을 더할 위치를 고릅니다"))
     }
 }
 
@@ -126,7 +126,7 @@ struct EditOutputStrip: View {
         .environment(\.colorScheme, .dark)
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .accessibilityElement()
-        .accessibilityLabel(model.edit.map { "편집 결과 파형, \($0.pieces.count)조각, 이음새 \(max(0, $0.pieces.count - 1))곳" } ?? "편집 결과 없음")
+        .accessibilityLabel(model.edit.map { String(ui: "편집 결과 파형, \($0.pieces.count)조각, 이음새 \(max(0, $0.pieces.count - 1))곳") } ?? String(ui: "편집 결과 없음"))
     }
 }
 
@@ -140,7 +140,7 @@ private struct EditOutputLayer: View {
         let firstEntry = firstEntryIndices()
         Canvas { context, size in
             guard let edit, edit.duration > 0 else {
-                context.draw(Text("구간을 더하면 결과가 여기 이어져 보입니다").font(.callout).foregroundStyle(Palette.rulerText),
+                context.draw(Text(.ui("구간을 더하면 결과가 여기 이어져 보입니다")).font(.callout).foregroundStyle(Palette.rulerText),
                              at: CGPoint(x: size.width / 2, y: size.height / 2))
                 return
             }
