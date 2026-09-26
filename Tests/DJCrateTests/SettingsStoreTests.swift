@@ -8,6 +8,14 @@ import Testing
 struct SettingsStoreTests {
     static func freshDefaults() -> UserDefaults { UserDefaults(suiteName: "djc-test-\(UUID().uuidString)")! }
 
+    @Test func 큐_목록의_탭은_다시_켜도_기억하고_자가_테스트에서는_기본값이다() {
+        let defaults = Self.freshDefaults()
+        let store = SettingsStore(defaults: defaults, persist: true)
+        store.set(SettingKeys.cueListFilter, CueListFilter.memory.rawValue)
+        #expect(SettingsStore(defaults: defaults, persist: true).value(SettingKeys.cueListFilter) == "memory")
+        #expect(SettingsStore(defaults: defaults, persist: false).value(SettingKeys.cueListFilter) == "all")
+    }
+
     @Test func 설정을_안_건드린_덱은_예전_기본값으로_시작한다() {
         let audio = FakeDeckAudio()
         let deck = DeckModel(audio: audio, storage: .memory(MemoryDrafts()), runsAnalysis: false)

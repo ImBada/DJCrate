@@ -13,9 +13,9 @@ struct LocalizationCatalogTests {
 
     @Test(arguments: ["en", "ja"])
     func 영어_일본어_번역이_번들에_들어간다(language: String) throws {
-        let value = try #require(lookup("설정…", in: language))
+        let value = try #require(lookup("일반", in: language))
         #expect(!value.isEmpty)
-        #expect(value != "설정…")
+        #expect(value != "일반")
     }
 
     @Test func 뜻이_다른_같은_원문은_키를_나눠_번역한다() {
