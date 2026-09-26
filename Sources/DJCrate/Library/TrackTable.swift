@@ -109,7 +109,8 @@ private struct TrackListView: NSViewRepresentable {
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         context.coordinator.update(rows: store.displayRows, edited: store.editedUUIDs,
-                                   selection: store.selection, sortOrder: store.sortOrder, snapshotURL: store.snapshotURL)
+                                   selection: store.selection, sortOrder: store.sortOrder, snapshotURL: store.snapshotURL,
+                                   previewRevision: store.previewRevision)
         context.coordinator.updateCueCounts(store.draftCueCounts)
         context.coordinator.updateWaveformMode(mode)
     }
@@ -206,6 +207,7 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
     private var rowIDs: [TrackRow.ID] = []
     private var edited: Set<String> = []
     private var snapshotURL: URL?
+    private var previewRevision = 0
     private var waveformMode = WaveformColorMode.threeBand
     /// 표 → 스토어로 선택·정렬을 넘기는 중에는 스토어 → 표 동기화를 건너뛴다(되먹임 방지).
     private var syncing = false
@@ -227,11 +229,12 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
     }
 
     func update(rows: [TrackRow], edited: Set<String>, selection: Set<TrackRow.ID>,
-                sortOrder: [KeyPathComparator<TrackRow>], snapshotURL: URL?) {
+                sortOrder: [KeyPathComparator<TrackRow>], snapshotURL: URL?, previewRevision: Int) {
         guard let table else { return }
         applySortIndicator(sortOrder, table: table)
-        let snapshotChanged = self.snapshotURL != snapshotURL
+        let snapshotChanged = self.snapshotURL != snapshotURL || self.previewRevision != previewRevision
         self.snapshotURL = snapshotURL
+        self.previewRevision = previewRevision
         // 같은 배열이면(== 는 저장소가 같을 때 바로 참) 비교 비용이 없다.
         if rows != self.rows || snapshotChanged {
             let ids = rows.map(\.id)
@@ -468,7 +471,7 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
         case "preview":
             let cell = reuse(tableView, "preview") { PreviewWaveformCell() }
             cell.configure(url: RekordboxShare.analysisURL(row.track.analysisDataPath),
-                           revision: snapshotURL?.absoluteString ?? "", mode: waveformMode,
+                           revision: "\(snapshotURL?.absoluteString ?? ""):\(previewRevision)", mode: waveformMode,
                            audioURL: row.track.isStreaming ? nil : URL(filePath: row.track.folderPath), key: row.track.uuid)
             return cell
         case "thumb":

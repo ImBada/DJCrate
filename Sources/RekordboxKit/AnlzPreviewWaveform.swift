@@ -49,4 +49,14 @@ public struct AnlzPreviewWaveform: Sendable, Equatable, Codable {
         Self(blue: WaveformColumn.downsample(blueColumns, to: points),
              color: colorColumns.map { WaveformColumn.downsample($0, to: points) })
     }
+
+    /// DAT·EXT 중 한쪽이 없거나 손상돼도 다른 쪽의 사용 가능한 자료는 남긴다.
+    public static func readAnalysis(at url: URL?) -> Self? {
+        let dat = url.flatMap { try? AnlzFile(url: $0) }.flatMap { try? Self(file: $0) }
+        let ext = url.flatMap { try? AnlzFile(url: $0.deletingPathExtension().appendingPathExtension("EXT")) }
+        let colors = ext.flatMap { try? Self(file: $0) }?.colorColumns
+        let blue = dat?.blueColumns ?? ext.flatMap { try? AnlzColorWaveform(file: $0, mode: .blue) }?.columns
+        guard let blue = blue ?? colors else { return nil }
+        return Self(blue: blue, color: colors).downsampled(to: 400)
+    }
 }

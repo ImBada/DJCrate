@@ -34,6 +34,7 @@ final class LibraryStore {
     @ObservationIgnored var feedback: AppFeedback
     var showingWriteResult = false
     @ObservationIgnored var writeTask: Task<Void, Never>?
+    @ObservationIgnored var previewWarmTask: Task<Void, Never>?
 
     func cancelWritePreparation() {
         guard writeStage?.cancellable == true else { return }
@@ -51,6 +52,7 @@ final class LibraryStore {
     private(set) var rows: [TrackRow] = []
     private(set) var report: LibraryReport?
     private(set) var snapshotURL: URL?
+    private(set) var previewRevision = 0
     /// 표에 보이는 줄. 필터·검색·정렬이 바뀔 때만 다시 계산한다(그릴 때마다 계산하지 않는다).
     private(set) var displayRows: [TrackRow] = []
     private(set) var filterCounts: [LibraryFilter: Int] = [:]
@@ -250,6 +252,7 @@ final class LibraryStore {
     }
 
     func load(snapshot: URL, quiet: Bool = false) async {
+        previewWarmTask?.cancel()
         loadGeneration += 1
         let generation = loadGeneration
         let started = ContinuousClock.now
@@ -279,6 +282,7 @@ final class LibraryStore {
             let known = rowsByID
             playlistCounts = index.mapValues { node in node.trackIDs.lazy.filter { known[$0] != nil }.count }
             snapshotURL = snapshot
+            previewRevision += 1
             loadStaged()
             // rekordbox에서 지운 곡은 선택에서도 뺀다(덱이 지워진 곡을 붙들지 않게)
             let existing = selection.filter { rowsByID[$0] != nil }
@@ -286,6 +290,10 @@ final class LibraryStore {
             verifyReflection()
             refreshBase()
             phase = .loaded
+            let previewSources = loaded.rows.filter { !$0.track.isStreaming }.map {
+                PreviewWaveformStore.Source(uuid: $0.track.uuid, url: RekordboxShare.analysisURL($0.track.analysisDataPath))
+            }
+            previewWarmTask = Task.detached(priority: .background) { await PreviewWaveformStore.shared.warm(previewSources) }
             lastError = nil
             FileHandle.standardError.write(Data("라이브러리 로드 \(ContinuousClock.now - started) · \(rows.count)곡\n".utf8))
             applyLaunchSelection()

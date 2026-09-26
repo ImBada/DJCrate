@@ -1,6 +1,7 @@
 import AppKit
 import DJCAnalysis
 import DJCDomain
+import DJCStorage
 import RekordboxKit
 
 struct PreviewWaveformRequest: Hashable, Sendable {
@@ -31,12 +32,9 @@ enum PreviewWaveformRenderer {
 }
 
 enum PreviewWaveformSource {
-    static func load(url: URL?, audioURL: URL?, key: String) -> AnlzPreviewWaveform? {
-        let dat = url.flatMap { try? AnlzFile(url: $0) }.flatMap { try? AnlzPreviewWaveform(file: $0) }
-        let ext = url.flatMap { try? AnlzFile(url: $0.deletingPathExtension().appendingPathExtension("EXT")) }
-        let colors = ext.flatMap { try? AnlzPreviewWaveform(file: $0) }?.colorColumns
-        var blue = dat?.blueColumns ?? ext.flatMap { try? AnlzColorWaveform(file: $0, mode: .blue) }?.columns
-        var bands = colors
+    static func addingFallback(to source: AnlzPreviewWaveform?, audioURL: URL?, key: String) -> AnlzPreviewWaveform? {
+        var blue = source?.blueColumns
+        var bands = source?.colorColumns
         if blue == nil || bands == nil, !Task.isCancelled, let audioURL, !key.isEmpty,
            let fallback = try? WaveformCache.load(fileAt: audioURL, key: key) {
             let columns = fallback.downsampled(to: 400).colorColumns
@@ -51,6 +49,9 @@ enum PreviewWaveformSource {
 /// 파일 읽기와 비트맵 생성은 메인 액터 밖에서 직렬 처리한다. 빈 자료도 기억한다.
 actor PreviewWaveformCache {
     static let shared = PreviewWaveformCache()
+    private let store: PreviewWaveformStore
+
+    init(store: PreviewWaveformStore = .shared) { self.store = store }
     private final class Entry {
         let image: CGImage?
         init(_ image: CGImage?) { self.image = image }
@@ -62,17 +63,23 @@ actor PreviewWaveformCache {
         return cache
     }()
 
-    func image(for request: PreviewWaveformRequest) -> CGImage? {
+    func image(for request: PreviewWaveformRequest) async -> CGImage? {
         guard !Task.isCancelled else { return nil }
-        if let hit = cache.object(forKey: request.cacheKey) { return hit.image }
+        let key = request.trackKey.isEmpty ? request.url?.absoluteString ?? "" : request.trackKey
+        let source = PreviewWaveformStore.Source(uuid: key, url: request.url)
+        let revision = await store.revision(for: source)
+        let imageKey = "\(request.cacheKey)\u{1F}\(revision)" as NSString
+        guard !Task.isCancelled else { return nil }
+        if let hit = cache.object(forKey: imageKey) { return hit.image }
+        let raw = await store.waveform(for: source)
         var image: CGImage?
-        if let waveform = PreviewWaveformSource.load(url: request.url, audioURL: request.audioURL, key: request.trackKey),
+        if let waveform = PreviewWaveformSource.addingFallback(to: raw, audioURL: request.audioURL, key: request.trackKey),
            !Task.isCancelled {
             image = PreviewWaveformRenderer.image(waveform, mode: request.mode,
                                                  appearance: request.appearance, emphasized: request.emphasized)
         }
         guard !Task.isCancelled else { return nil }
-        cache.setObject(Entry(image), forKey: request.cacheKey, cost: image.map { $0.bytesPerRow * $0.height } ?? 1)
+        cache.setObject(Entry(image), forKey: imageKey, cost: image.map { $0.bytesPerRow * $0.height } ?? 1)
         return image
     }
 }

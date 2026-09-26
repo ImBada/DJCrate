@@ -13,4 +13,6 @@ public enum DJCPaths {
 
     /// DJCrate가 rekordbox에 쓰기 직전에 뜬 백업
     public static var rekordboxBackups: URL { userData.appending(path: "rekordbox-backups") }
+
+    public static var previewWaveforms: URL { userData.appending(path: "preview-waveforms.plist") }
 }
