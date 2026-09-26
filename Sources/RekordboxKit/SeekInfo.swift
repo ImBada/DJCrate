@@ -144,6 +144,18 @@ public enum SeekInfo {
         public var xingFrames: Int?
         public var xingBytes: Int?
         public var toc: [UInt8]?
+        /// 첫 프레임 머리 표시("Xing" = VBR, "Info" = CBR, "VBRI" = VBR)
+        public var headerTag: String?
+
+        /// 가변 비트레이트인지: Xing·VBRI 머리가 있거나, 프레임 길이가 패딩(1바이트)보다 크게 달라진다.
+        /// rekordbox는 VBR을 BitRate 0으로도, 첫 프레임 비트레이트(예: 32)로도 적어서 DB 값만으로는 가릴 수 없다.
+        public var isVariableBitRate: Bool {
+            if headerTag == "Xing" || headerTag == "VBRI" { return true }
+            let audio = hasInfoFrame ? Array(offsets.dropFirst()) : offsets
+            let lengths = zip(audio.dropFirst(), audio).map { $0 - $1 }
+            guard let low = lengths.min(), let high = lengths.max() else { return false }
+            return high - low > 1
+        }
     }
 
     /// MPEG 오디오 프레임 표(ID3v2 뒤부터, 헤더가 이어지는 프레임만).
@@ -157,6 +169,7 @@ public enum SeekInfo {
             var sampleRate = 0, samplesPerFrame = 0
             var hasInfo = false
             var xingFrames: Int?, xingBytes: Int?, toc: [UInt8]?
+            var headerTag: String?
             while p + 4 <= n {
                 guard let frame = mpegFrame(b, at: p) else {
                     // 첫 프레임을 찾을 때만 한 바이트씩 넘긴다. 도중에 끊기면 끝(뒤쪽 태그 등)
@@ -173,6 +186,7 @@ public enum SeekInfo {
                     if tag + 4 <= n {
                         let word = String(bytes: [b[tag], b[tag + 1], b[tag + 2], b[tag + 3]], encoding: .ascii)
                         hasInfo = word == "Xing" || word == "Info"
+                        if hasInfo { headerTag = word }
                         if hasInfo, tag + 8 <= n {
                             func u32(_ i: Int) -> Int { Int(b[i]) << 24 | Int(b[i + 1]) << 16 | Int(b[i + 2]) << 8 | Int(b[i + 3]) }
                             let flags = u32(tag + 4)
@@ -182,13 +196,18 @@ public enum SeekInfo {
                             if flags & 4 != 0, q + 100 <= n { toc = (0..<100).map { b[q + $0] }; q += 100 }
                         }
                     }
+                    // Fraunhofer VBRI 머리는 프레임 머리 뒤 32바이트에 있다.
+                    let vbri = p + 4 + 32
+                    if !hasInfo, vbri + 4 <= n, [b[vbri], b[vbri + 1], b[vbri + 2], b[vbri + 3]] == [0x56, 0x42, 0x52, 0x49] {
+                        headerTag = "VBRI"
+                    }
                 }
                 offsets.append(p)
                 p += frame.length
             }
             return offsets.isEmpty ? nil : Mp3Frames(sampleRate: sampleRate, samplesPerFrame: samplesPerFrame,
                                                      offsets: offsets, hasInfoFrame: hasInfo,
-                                                     xingFrames: xingFrames, xingBytes: xingBytes, toc: toc)
+                                                     xingFrames: xingFrames, xingBytes: xingBytes, toc: toc, headerTag: headerTag)
         }
     }
 

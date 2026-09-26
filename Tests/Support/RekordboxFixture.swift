@@ -186,7 +186,8 @@ public struct TrackSpec: Sendable {
     public var bitRate = 320
     public var length = 200
     public var bpm100 = 12800
-    public var folderPath = "/tmp/anicue-none.mp3"
+    /// 기본은 CBR MP3 테스트 음원(쓰기 모듈이 MP3 파일 머리로 VBR인지 본다)
+    public var folderPath = (try? TestResources.url("mp3-lame-cbr.mp3").path) ?? "/tmp/anicue-none.mp3"
     public var cueUpdated: String? = "1"
     public var analysisUpdated = "1"
     public var trackInfoUpdated = "1"

@@ -29,8 +29,12 @@ struct Mp3TimelineTests {
         #expect(vbr.hasInfoFrame && vbr.toc?.count == 100)
         // offsets 첫 칸은 정보(Xing) 프레임 자신이다. Xing이 적은 오디오 프레임 수 = 나머지
         #expect(vbr.xingFrames == vbr.offsets.count - 1)
+        #expect(vbr.headerTag == "Xing" && vbr.isVariableBitRate)
         let cbr = try #require(SeekInfo.mp3Frames(url: try TestResources.url("mp3-lame-cbr.mp3")))
         #expect(cbr.hasInfoFrame && cbr.offsets.count > 30)
+        #expect(cbr.headerTag == "Info" && !cbr.isVariableBitRate)
+        let notag = try #require(SeekInfo.mp3Frames(url: try TestResources.url("mp3-notag-cbr.mp3")))
+        #expect(notag.headerTag == nil && !notag.isVariableBitRate, "머리가 없는 CBR은 프레임 길이가 일정하다")
         // CBR은 프레임 간격이 일정하다(128kbps: 417 또는 418바이트)
         let gaps = Set(zip(cbr.offsets.dropFirst(), cbr.offsets).map { $0 - $1 })
         #expect(gaps.isSubset(of: [417, 418]))
