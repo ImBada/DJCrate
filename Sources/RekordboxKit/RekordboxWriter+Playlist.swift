@@ -54,6 +54,16 @@ extension RekordboxWriter {
         func subtree(of id: String) -> [String] {
             [id] + children(of: id).flatMap { subtree(of: $0.id) }
         }
+
+        /// 초안의 base와 비교할 모양(`PlaylistLayout(rekordbox:)`와 같은 값)
+        var layout: PlaylistLayout {
+            PlaylistLayout(nodes.values.map { node in
+                (PlaylistLayout.Item(id: node.id, name: node.name, parentID: node.parentID, isFolder: node.attribute == 1,
+                                     isSmart: node.attribute > 1 || node.smartList,
+                                     entries: (entries[node.id] ?? []).map { PlaylistEntry(trackNo: $0.trackNo, contentID: $0.contentID) }),
+                 node.seq)
+            })
+        }
     }
 
     /// `masterPlaylists6.xml`에 할 일(DB를 커밋하고 확인한 뒤 적는다)

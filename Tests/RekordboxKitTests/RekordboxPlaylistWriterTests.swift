@@ -420,6 +420,77 @@ struct RekordboxPlaylistWriterTests {
         #expect(RekordboxWriter.backups(in: fixture.backups).isEmpty)
     }
 
+    // MARK: 초안(#39·#40)
+
+    /// 스냅샷을 읽은 rekordbox 재생 목록 상태(앱이 초안을 쌓을 때 보는 것)
+    func layout(_ fixture: RekordboxFixture) throws -> PlaylistLayout {
+        PlaylistLayout(rekordbox: try RekordboxLibrary.load(snapshot: fixture.database).playlists)
+    }
+
+    @Test func 초안을_만든_뒤_rekordbox에서_바뀐_목록의_편집은_쓰지_않는다() throws {
+        let fixture = try library([PlaylistSpec(id: "70", name: "목록", seq: 1, contentIDs: ["101", "102"]),
+                                   PlaylistSpec(id: "80", name: "다른 목록", seq: 2, contentIDs: ["103"])])
+        var draft = PlaylistDraft()
+        try draft.append(.addTracks(playlist: .id("70"), contentIDs: ["104"]), rekordbox: try layout(fixture))
+        try draft.append(.rename(playlist: .id("80"), name: "새 이름"), rekordbox: try layout(fixture))
+        // 그 뒤 rekordbox에서 목록 70에 곡을 넣었다
+        try write(fixture, [.addTracks(playlist: .id("70"), contentIDs: ["105"])])
+
+        let report = try RekordboxWriter.write(drafts: [], playlistDraft: draft, to: fixture.database, dryRun: false, now: now,
+                                               backups: fixture.backups)
+        #expect(report.playlistOutcomes?.map(\.status) == [.blocked, .written])
+        #expect(report.playlistBlocked.first?.name == "목록")
+        #expect(report.playlistBlocked.first?.reason?.contains("rekordbox에서 이 목록이 바뀌었습니다") == true)
+        #expect(try entries(fixture, "70").map { $0["ContentID"] } == ["101", "102", "105"])
+        #expect(try row(fixture, "80")["Name"] == "새 이름")
+        // 백업에는 쓴 편집만 둔다(되돌리면 초안으로 살린다)
+        let backup = try #require(report.backup.map { URL(filePath: $0) })
+        #expect(RekordboxWriter.playlistEdits(in: backup) == [.rename(playlist: .id("80"), name: "새 이름")])
+    }
+
+    @Test func 초안을_얹어_본_모양과_쓴_뒤_다시_읽은_모양이_같다() throws {
+        let fixture = try library([
+            PlaylistSpec(id: "1", name: "폴더", seq: 1, isFolder: true),
+            PlaylistSpec(id: "70", name: "가", parentID: "1", seq: 1, contentIDs: ["101", "102", "103"]),
+            PlaylistSpec(id: "71", name: "나", parentID: "1", seq: 2, contentIDs: ["104"]),
+            PlaylistSpec(id: "80", name: "다", seq: 2, contentIDs: ["105"]),
+            PlaylistSpec(id: "90", name: "지울 폴더", seq: 3, isFolder: true),
+            PlaylistSpec(id: "91", name: "안 목록", parentID: "90", seq: 1, contentIDs: ["101"]),
+        ])
+        let rekordbox = try layout(fixture)
+        var draft = PlaylistDraft()
+        for edit: PlaylistEdit in [
+            .create(key: "f", name: "새 폴더", isFolder: true, parent: .root),
+            .create(key: "p", name: "새 목록", isFolder: false, parent: .new("f")),
+            .addTracks(playlist: .new("p"), contentIDs: ["101", "102", "103"]),
+            .moveTracks(playlist: .new("p"), entries: [.init(trackNo: 3, contentID: "103")], to: 1),
+            .addTracks(playlist: .id("70"), contentIDs: ["105"]),
+            .removeTracks(playlist: .id("70"), entries: [.init(trackNo: 2, contentID: "102")]),
+            .rename(playlist: .id("71"), name: "나2"),
+            .move(playlist: .id("80"), into: .id("1")),
+            .reorder(playlist: .id("80"), index: 0),
+            .delete(playlist: .id("90")),
+        ] { try draft.append(edit, rekordbox: rekordbox) }
+        let projected = draft.project(onto: rekordbox)
+        #expect(projected.ready.count == 10)
+
+        let report = try RekordboxWriter.write(drafts: [], playlistDraft: draft, to: fixture.database, dryRun: false, now: now,
+                                               backups: fixture.backups)
+        #expect(report.playlistWritten.count == 10)
+        // 새 ID를 new:키로 바꿔 비교한다
+        var names: [String: String] = [:]
+        for (step, outcome) in zip(draft.steps, report.playlistOutcomes ?? []) {
+            if case let .create(key, _, _, _) = step.edit, let id = outcome.playlistID { names[id] = "new:\(key)" }
+        }
+        func shape(_ layout: PlaylistLayout, rename: [String: String] = [:]) -> [String] {
+            layout.outline.map { item in
+                let id = rename[item.id] ?? item.id, parent = rename[item.parentID] ?? item.parentID
+                return "\(id)<\(parent) \(item.name) \(item.entries.map { "\($0.trackNo):\($0.contentID)" })"
+            }
+        }
+        #expect(shape(try layout(fixture), rename: names) == shape(projected.layout))
+    }
+
     @Test func 편집은_JSON_글자_하나로_가리킨다() throws {
         #expect(PlaylistRef("root") == .root && PlaylistRef("123") == .id("123") && PlaylistRef("new:가") == .new("가"))
         #expect([PlaylistRef.root, .id("1"), .new("x")].map(\.description) == ["root", "1", "new:x"])
