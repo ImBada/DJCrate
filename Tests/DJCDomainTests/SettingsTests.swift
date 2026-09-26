@@ -32,6 +32,7 @@ struct SettingsTests {
             (SettingKeys.sheetMode, "sheetMode", false),
             (SettingKeys.sidebarPlaylistsExpanded, "sidebar.playlistsExpanded", true),
             (SettingKeys.sidebarSummaryExpanded, "sidebar.summaryExpanded", true),
+            (SettingKeys.sidebarHistoriesExpanded, "sidebar.historiesExpanded", false),
         ]
         for (key, name, value) in bools {
             #expect(key.name == name)

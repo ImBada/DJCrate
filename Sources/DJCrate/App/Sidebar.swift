@@ -9,7 +9,7 @@ struct Sidebar: View {
     @Bindable var store: LibraryStore
     @AppStorage(SettingKeys.sidebarPlaylistsExpanded.name) private var playlistsExpanded = SettingKeys.sidebarPlaylistsExpanded.defaultValue
     @AppStorage(SettingKeys.sidebarSummaryExpanded.name) private var summaryExpanded = SettingKeys.sidebarSummaryExpanded.defaultValue
-    @State private var historiesExpanded = true
+    @AppStorage(SettingKeys.sidebarHistoriesExpanded.name) private var historiesExpanded = SettingKeys.sidebarHistoriesExpanded.defaultValue
 
     var body: some View {
         List(selection: $store.sidebar) {
