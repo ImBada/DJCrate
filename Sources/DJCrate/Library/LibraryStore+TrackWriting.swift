@@ -5,7 +5,7 @@ import Foundation
 import RekordboxKit
 
 /// rekordbox 컬렉션에 곡을 바로 넣고 뺀다(rekordbox를 켜지 않고). 흐름은 `ReflectionCoordinator`.
-/// 넣기: 추가한 곡의 태그 초안·그리드 초안·음량으로 곡 행과 분석 파일(파형·그리드·오토게인)을 만든다.
+/// 넣기: 추가한 곡의 태그 초안·그리드 초안·음량으로 곡 행과 분석 파일(파형·그리드·오토게인)을 만들고, 큐 초안도 같은 트랜잭션에서 쓴다.
 /// 빼기: 곡 행과 딸린 큐·재생 목록 항목·재생 기록·분석 파일을 지운다(음원 파일은 그대로).
 /// 둘 다 쓰기 직전 백업을 떠서 "되돌리기"로 무를 수 있다.
 extension LibraryStore {
@@ -17,6 +17,8 @@ extension LibraryStore {
         var stagedUUIDs: [String: String]
         /// 경로 → 분석을 붙이지 못하는 이유(곡은 분석 전 상태로 넣는다)
         var withoutAnalysis: [String: String]
+        /// 경로 → 함께 넣을 큐(추가한 곡의 큐 초안)
+        var cues: [String: [EditableCue]] = [:]
         /// 계획을 만들지 못한 곡(이름: 이유)
         var unreadable: [String]
     }
@@ -39,6 +41,7 @@ extension LibraryStore {
         DraftWriter.flush()
         let tracks = trackAddTargets(rows).compactMap { row in staged.first { $0.id == row.id } }
         var plans: [TrackAddPlan] = [], uuids: [String: String] = [:], without: [String: String] = [:], unreadable: [String] = []
+        var cues: [String: [EditableCue]] = [:]
         for track in tracks {
             let url = URL(filePath: track.path)
             do {
@@ -47,6 +50,7 @@ extension LibraryStore {
                 let plan = try TrackAddPlan.make(url: url, tags: tags)
                 plans.append(plan)
                 uuids[plan.path] = track.uuid
+                if let draft = CueDraftStore.load(trackUUID: track.uuid), !draft.cues.isEmpty { cues[plan.path] = draft.cues }
                 if GridDraftStore.load(trackUUID: track.uuid)?.segments.first.map({ $0.bpm > 0 }) != true {
                     without[plan.path] = gridJob != nil ? "그리드를 아직 추정하는 중" : "그리드가 없음"
                 } else if let reason = AudioFacts.read(url: url).unsupported {
@@ -56,11 +60,12 @@ extension LibraryStore {
                 unreadable.append("\(track.title): \(error.localizedDescription)")
             }
         }
-        let report = try await Task.detached(priority: .userInitiated) { [plans] in
+        // 사본으로 DB만 시험한다(분석 파일은 만들지 않지만 큐는 함께 시험해 막히는 이유를 미리 본다).
+        let report = try await Task.detached(priority: .userInitiated) { [plans, cues] in
             let snapshot = try LibrarySnapshot.take()
-            return try RekordboxTrackWriter.add(plans, to: snapshot, dryRun: true, backups: DJCPaths.rekordboxBackups)
+            return try RekordboxTrackWriter.add(plans, cues: cues, to: snapshot, dryRun: true, backups: DJCPaths.rekordboxBackups)
         }.value
-        return TrackAddPreview(report: report, plans: plans, stagedUUIDs: uuids, withoutAnalysis: without, unreadable: unreadable)
+        return TrackAddPreview(report: report, plans: plans, stagedUUIDs: uuids, withoutAnalysis: without, cues: cues, unreadable: unreadable)
     }
 
     /// 태그 초안(시트·인스펙터에서 고친 값)을 파일 태그 위에 얹는다. 빈 칸은 태그 없음.
@@ -77,7 +82,8 @@ extension LibraryStore {
         tags.comment = text(fields.comment)
     }
 
-    /// rekordbox 라이브러리에 넣는다. 넣은 곡은 추가 목록에서 빼고(백업에 남긴다) 큐·그리드 초안을 새 곡으로 옮긴다.
+    /// rekordbox 라이브러리에 넣는다(큐 초안도 함께). 넣은 곡은 추가 목록에서 빼고(백업에 남긴다),
+    /// 큐가 막힌 곡의 큐 초안과 분석을 못 붙인 곡의 그리드 초안은 새 곡으로 옮긴다.
     func addTracksToRekordbox(_ preview: TrackAddPreview) async throws -> RekordboxTrackWriter.Report {
         let accepted = Set(preview.report.added.filter(\.written).map(\.path))
         let plans = preview.plans.filter { accepted.contains($0.path) }
@@ -96,16 +102,17 @@ extension LibraryStore {
                                         peak: loudness.map { pow(10, $0.peak / 20) } ?? 1)
         }
         writeStage = "rekordbox에 곡과 분석 파일을 넣는 중…"
-        let report = try await Task.detached(priority: .userInitiated) { [plans, analyses] in
-            try RekordboxTrackWriter.add(plans, analyses: analyses, dryRun: false, backups: DJCPaths.rekordboxBackups)
+        let cues = preview.cues.filter { accepted.contains($0.key) }
+        let report = try await Task.detached(priority: .userInitiated) { [plans, analyses, cues] in
+            try RekordboxTrackWriter.add(plans, analyses: analyses, cues: cues, dryRun: false, backups: DJCPaths.rekordboxBackups)
         }.value
-        // 초안 옮기기: 큐는 새 곡의 반영 대기로, 그리드는 분석 파일에 들어갔으면 끝(못 붙였으면 새 곡 초안으로).
+        // 초안 옮기기: 큐가 막힌 곡은 새 곡의 반영 대기로, 그리드는 분석 파일에 들어갔으면 끝(못 붙였으면 새 곡 초안으로).
         var movedCues = 0
         var unstaged: Set<String> = []
         for outcome in report.added where outcome.written {
             guard let old = preview.stagedUUIDs[outcome.path], let new = outcome.uuid else { continue }
             unstaged.insert(old)
-            if let cues = CueDraftStore.load(trackUUID: old), !cues.cues.isEmpty {
+            if outcome.cuesWritten == nil, let cues = CueDraftStore.load(trackUUID: old), !cues.cues.isEmpty {
                 var draft = CueDraft(trackUUID: new, rekordboxCues: [])
                 for var cue in cues.cues {
                     cue.sourceID = nil
@@ -137,10 +144,15 @@ extension LibraryStore {
         var detail = written.prefix(3).map(\.title).joined(separator: ", ") + (written.count > 3 ? " 외 \(written.count - 3)곡" : "")
         let bare = written.filter { analyses[$0.path] == nil }.count
         if bare > 0 { detail += "\n\(bare)곡은 분석 없이 넣었습니다(rekordbox에서 분석하세요)" }
-        if movedCues > 0 { detail += "\n큐 초안 \(movedCues)곡은 반영 대기로 옮겼습니다" }
+        let cueTracks = written.filter { $0.cuesWritten != nil }
+        if !cueTracks.isEmpty { detail += "\n큐 \(cueTracks.reduce(0) { $0 + ($1.cuesWritten ?? 0) })개도 함께 넣었습니다" }
+        if movedCues > 0 {
+            let reasons = written.compactMap { outcome in outcome.cueReason.map { "\(outcome.title): \($0)" } }
+            detail += "\n큐 초안 \(movedCues)곡은 반영 대기로 옮겼습니다" + (reasons.isEmpty ? "" : " — " + reasons.prefix(2).joined(separator: ", "))
+        }
         if !blocked.isEmpty { detail += "\n넣지 않은 곡 \(blocked.count): " + blocked.prefix(2).map { "\($0.title)(\($0.reason ?? ""))" }.joined(separator: ", ") }
         lastWriteBackup = report.backup.map { URL(filePath: $0) }
-        toast = AppToast(kind: blocked.isEmpty && bare == 0 ? .success : .warning,
+        toast = AppToast(kind: blocked.isEmpty && bare == 0 && movedCues == 0 ? .success : .warning,
                          title: written.isEmpty ? "rekordbox에 넣은 곡이 없습니다" : "rekordbox에 \(written.count)곡을 넣었습니다",
                          detail: detail, undoBackup: written.isEmpty ? nil : lastWriteBackup)
         return report

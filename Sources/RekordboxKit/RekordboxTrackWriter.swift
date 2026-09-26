@@ -22,6 +22,10 @@ public enum RekordboxTrackWriter {
         public var reason: String?
         /// 넣은 곡의 UUID(초안을 새 곡으로 옮길 때 쓴다)
         public var uuid: String?
+        /// 곡과 함께 넣은 큐 수(큐를 주지 않았거나 막혔으면 nil)
+        public var cuesWritten: Int?
+        /// 큐를 넣지 못한 이유(곡은 넣었다)
+        public var cueReason: String?
     }
 
     public struct Report: Codable, Sendable {
@@ -68,7 +72,10 @@ public enum RekordboxTrackWriter {
     /// - Parameters:
     ///   - analyses: 경로마다 붙일 분석. 있으면 분석 파일(.DAT·.EXT·.2EX)·파일 행·오토게인 행까지 넣는다(CBR MP3·AAC·WAV만).
     ///   - shareRoot: 분석 파일 뿌리. 라이브 DB면 rekordbox share 폴더, 사본이면 명시해야 분석을 붙인다.
-    public static func add(_ plans: [TrackAddPlan], analyses: [String: Analysis] = [:], to database: URL = RekordboxWriter.liveDatabase,
+    ///   - cues: 경로마다 함께 넣을 큐. 곡을 넣은 같은 트랜잭션에서 큐 쓰기(`RekordboxWriter`)와 같은 규칙으로 쓴다.
+    ///     큐가 막히면 곡만 넣고 이유를 `cueReason`에 남긴다.
+    public static func add(_ plans: [TrackAddPlan], analyses: [String: Analysis] = [:], cues: [String: [EditableCue]] = [:],
+                           to database: URL = RekordboxWriter.liveDatabase,
                            shareRoot: URL? = nil, dryRun: Bool, now: Date = .now, backups: URL,
                            guard writeGuard: RekordboxWriteGuard = .system) throws -> Report {
         var report = Report(dryRun: dryRun)
@@ -89,6 +96,7 @@ public enum RekordboxTrackWriter {
         let backup = dryRun ? nil : try RekordboxWriter.makeBackup(of: database, in: backups, now: now, label: "add")
         report.backup = backup?.path
         var inserted: [(id: String, expected: [String: CipherDatabase.Value])] = []
+        var cueChecks: [(contentID: String, expectation: RekordboxWriter.Expectation)] = []
         report.finalUpdateCount = try transaction(database, dryRun: dryRun) { db, usn in
             let library = try libraryIdentity(db)
             for plan in plans {
@@ -113,9 +121,31 @@ public enum RekordboxTrackWriter {
                     try insert(db, table: "djmdContent", row)
                     try verify(db, table: "djmdContent", id: id, row)
                     if let ready { try insertAnalysisRows(db, ready, contentID: id, usn: &usn, stamp: stamp) }
+                    var outcome = Outcome(path: plan.path, contentID: id, title: plan.title, written: true, reason: nil, uuid: uuid)
+                    if let list = cues[plan.path], !list.isEmpty {
+                        var draft = CueDraft(trackUUID: uuid, rekordboxCues: [])
+                        for cue in list { draft.place(cue) }
+                        try db.execute("SAVEPOINT djc_add_cues")
+                        do {
+                            let result = try RekordboxWriter.apply(draft, db: db, usn: &usn, stamp: stamp)
+                            if let expectation = result.expectation {
+                                try RekordboxWriter.verify(db: db, contentID: id, expectation)
+                                cueChecks.append((id, expectation))
+                                // 큐를 쓰면 곡 행의 CueUpdated·변경 번호가 바뀐다
+                                row["CueUpdated"] = .text(String(result.outcome.added))
+                                row["rb_local_usn"] = .int(expectation.contentUSN)
+                                outcome.cuesWritten = result.outcome.added
+                            }
+                            try db.execute("RELEASE djc_add_cues")
+                        } catch let blocked as RekordboxWriter.Blocked {
+                            try db.execute("ROLLBACK TO djc_add_cues")
+                            try db.execute("RELEASE djc_add_cues")
+                            outcome.cueReason = blocked.reason
+                        }
+                    }
                     try db.execute("RELEASE djc_add")
                     inserted.append((id, row))
-                    report.added.append(Outcome(path: plan.path, contentID: id, title: plan.title, written: true, reason: nil, uuid: uuid))
+                    report.added.append(outcome)
                 } catch let blocked as Blocked {
                     try db.execute("ROLLBACK TO djc_add")
                     try db.execute("RELEASE djc_add")
@@ -127,6 +157,7 @@ public enum RekordboxTrackWriter {
         if !dryRun, !inserted.isEmpty {
             try afterCommit(database, backup: backup) { db in
                 for item in inserted { try verify(db, table: "djmdContent", id: item.id, item.expected) }
+                for check in cueChecks { try RekordboxWriter.verify(db: db, contentID: check.contentID, check.expectation) }
             }
             // 분석 파일: DB가 끝난 뒤 쓴다. 실패하면 쓴 파일을 지우고 DB를 되돌린다.
             let written = report.added.filter(\.written).map(\.path)

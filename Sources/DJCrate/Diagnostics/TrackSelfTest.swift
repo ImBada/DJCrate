@@ -51,10 +51,11 @@ extension DevSelfTests {
             while store.gridJob != nil { await wait(0.3) }
             let paths = store.staged.map(\.path)
             log("추가 목록 \(store.staged.count)곡 · 그리드 " + store.staged.map { "\($0.title.prefix(16)) \($0.bpm.map { String(format: "%.2f", $0) } ?? "-")" }.joined(separator: ", "))
-            // 첫 곡에 큐 초안을 하나 만들어 둔다(넣은 뒤 새 곡의 반영 대기로 옮겨지는지)
-            if let first = store.staged.first {
-                var draft = CueDraft(trackUUID: first.uuid, rekordboxCues: [])
-                draft.place(EditableCue(kind: .hot(0), time: 1))
+            // 곡마다 큐 초안(메모리 큐·핫큐)을 만들어 둔다(넣을 때 함께 들어가는지)
+            for track in store.staged {
+                var draft = CueDraft(trackUUID: track.uuid, rekordboxCues: [])
+                draft.place(EditableCue(kind: .memory, time: 0.2))
+                draft.place(EditableCue(kind: .hot(0), time: 0.6))
                 try? CueDraftStore.save(draft)
             }
 
@@ -66,7 +67,7 @@ extension DevSelfTests {
                 let files = ["DAT", "EXT", "2EX"].compactMap { ext in
                     RekordboxShare.analysisURL(row.track.analysisDataPath).map { $0.deletingPathExtension().appendingPathExtension(ext) }
                 }.filter { FileManager.default.fileExists(atPath: $0.path) }
-                log("  \(row.title.prefix(24)) · BPM \(row.track.bpm.map { String(format: "%.2f", $0) } ?? "-") · 분석 파일 \(files.count)개 · 오토게인 \(row.autoGain.map { String(format: "%+.1f dB", $0.gainDB) } ?? "-") · 반영 대기 \(store.pendingUUIDs.contains(row.track.uuid))")
+                log("  \(row.title.prefix(24)) · BPM \(row.track.bpm.map { String(format: "%.2f", $0) } ?? "-") · 분석 파일 \(files.count)개 · 오토게인 \(row.autoGain.map { String(format: "%+.1f dB", $0.gainDB) } ?? "-") · 큐 \(row.cues.count)개 · 반영 대기 \(store.pendingUUIDs.contains(row.track.uuid))")
             }
             log("추가 목록 남은 곡 \(store.staged.count)")
             guard !added.isEmpty, let addBackup = latestBackup() else { log("넣은 곡이 없습니다"); exit(1) }

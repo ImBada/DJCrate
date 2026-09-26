@@ -62,11 +62,11 @@ public final class RekordboxFixture {
         let db = try open()
         defer { db.close() }
         try db.run("""
-            INSERT INTO djmdContent (ID, UUID, Title, FileType, BitRate, Length, BPM, FolderPath, CueUpdated, AnalysisDataPath,
+            INSERT INTO djmdContent (ID, UUID, Title, FileType, BitRate, Analysed, Length, BPM, FolderPath, CueUpdated, AnalysisDataPath,
                 AnalysisUpdated, TrackInfoUpdated, MasterDBID, DeviceID, ArtistID, AlbumID, ComposerID, ImagePath,
                 rb_data_status, rb_local_deleted, rb_local_usn, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 256, 0, 10, ?, ?)
-            """, [.text(track.id), .text(track.uuid), .text(track.title), .int(track.fileType), .int(track.bitRate),
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 256, 0, 10, ?, ?)
+            """, [.text(track.id), .text(track.uuid), .text(track.title), .int(track.fileType), .int(track.bitRate), .int(track.analysed),
                   .int(track.length), .int(track.bpm100), .text(track.folderPath),
                   track.cueUpdated.map { .text($0) } ?? .null, track.analysisDataPath.map { .text($0) } ?? .null,
                   .text(track.analysisUpdated), .text(track.trackInfoUpdated), .text(Self.masterDBID), .text(Self.deviceID),
@@ -189,8 +189,10 @@ public struct TrackSpec: Sendable {
     public var title = "시험 곡"
     /// 1 MP3, 4 M4A, 5 FLAC, 11 WAV
     public var fileType = 1
-    /// 0 = VBR
+    /// 0 = VBR(분석한 곡) 또는 분석 전
     public var bitRate = 320
+    /// 105 = 분석함, 0 = 분석 전(BitRate 등 분석 칸이 0)
+    public var analysed = 105
     public var length = 200
     public var bpm100 = 12800
     /// 기본은 CBR MP3 테스트 음원(쓰기 모듈이 MP3 파일 머리로 VBR인지 본다)

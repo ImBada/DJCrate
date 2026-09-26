@@ -164,13 +164,16 @@ struct ReflectionCoordinatorTests {
     }
 
     @Test func 넣기_확인_창은_분석_여부와_넣지_않는_곡을_보여_주고_확인하면_넣는다() async {
-        host.addPreview = .success(Self.addPreview([Self.track("a"), Self.track("b"), Self.track("c", written: false, reason: "이미 rekordbox 컬렉션에 있는 파일입니다")],
+        var a = Self.track("a"), b = Self.track("b")
+        a.cuesWritten = 2
+        b.cueReason = "메모리 큐가 11개가 됩니다"
+        host.addPreview = .success(Self.addPreview([a, b, Self.track("c", written: false, reason: "이미 rekordbox 컬렉션에 있는 파일입니다")],
                                                    without: ["b": "ALAC"]))
         await coordinator().addTracks(rows: ["djc-a", "djc-b", "djc-c"].map(Self.row))
         let prompt = try? #require(prompter.shown.first)
         #expect(prompt?.title == "rekordbox 컬렉션에 2곡을 넣습니다" && prompt?.confirm == "rekordbox에 넣기" && prompt?.critical == false)
         let lines = prompt?.text.components(separatedBy: "\n") ?? []
-        #expect(lines.contains("• 곡 a — 그리드·파형·오토게인까지") && lines.contains("• 곡 b — 분석 없이(ALAC)"))
+        #expect(lines.contains("• 곡 a — 그리드·파형·오토게인까지 · 큐 2개") && lines.contains("• 곡 b — 분석 없이(ALAC) · ⚠︎ 큐는 안 들어감(메모리 큐가 11개가 됩니다)"))
         #expect(lines.contains("넣지 않는 곡 1:") && lines.contains("• 곡 c: 이미 rekordbox 컬렉션에 있는 파일입니다"))
         #expect(host.added == ["a", "b"] && host.locks == [true, false])
     }

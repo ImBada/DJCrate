@@ -48,12 +48,13 @@ extension RekordboxWriter {
     static func apply(_ draft: CueDraft, db: CipherDatabase, usn: inout Int,
                       stamp: (db: String, json: String)) throws -> (outcome: Outcome, contentID: String, expectation: Expectation?) {
         // 곡
-        var contents: [(id: String, title: String, fileType: Int, bitRate: Int, cueUpdated: String?, length: Int, deleted: Bool, path: String)] = []
+        var contents: [(id: String, title: String, fileType: Int, bitRate: Int, cueUpdated: String?, length: Int, deleted: Bool, path: String,
+                        analysed: Int)] = []
         try db.query("""
-            SELECT ID, Title, FileType, BitRate, CueUpdated, Length, rb_local_deleted, FolderPath FROM djmdContent WHERE UUID = ?
+            SELECT ID, Title, FileType, BitRate, CueUpdated, Length, rb_local_deleted, FolderPath, Analysed FROM djmdContent WHERE UUID = ?
             """, [.text(draft.trackUUID)]) { r in
             contents.append((r.string(0) ?? "", r.string(1) ?? "", r.int(2) ?? -1, r.int(3) ?? 0, r.string(4),
-                             r.int(5) ?? 0, (r.int(6) ?? 0) != 0, r.string(7) ?? ""))
+                             r.int(5) ?? 0, (r.int(6) ?? 0) != 0, r.string(7) ?? "", r.int(8) ?? 0))
         }
         guard contents.count == 1, let content = contents.first else {
             throw Blocked(title: draft.trackUUID, reason: contents.isEmpty ? "rekordbox 컬렉션에서 곡을 찾지 못했습니다" : "같은 UUID의 곡이 여럿입니다")
@@ -89,7 +90,8 @@ extension RekordboxWriter {
             if frames.isVariableBitRate {
                 vbr = (SeekInfo.countedMp3Offsets(frames, url: url), frames.sampleRate, frames.samplesPerFrame)
             } else {
-                guard content.bitRate > 0, !rows.contains(where: { $0.inMpegFrame != 0 }) else {
+                // 분석 전 곡(Analysed 0)은 rekordbox도 BitRate 0으로 넣는다(VBR 표시가 아님)
+                guard content.bitRate > 0 || content.analysed == 0, !rows.contains(where: { $0.inMpegFrame != 0 }) else {
                     throw block("파일은 CBR MP3인데 rekordbox에는 VBR처럼(비트레이트 0·MPEG 위치) 적혀 있어 직접 쓰지 않습니다")
                 }
             }
