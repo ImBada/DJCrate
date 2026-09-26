@@ -109,6 +109,35 @@ struct PlaylistEditingTests {
         #expect(store.playlistTree.map(\.id) == ["B"])
     }
 
+    @Test func 접힌_폴더에_만들면_조상만_펼치고_다른_펼침과_선택은_유지한다() throws {
+        store.rekordboxPlaylists = PlaylistLayout([
+            (Self.item("F", "부모", folder: true), 1),
+            (Self.item("N", "접힌 자식", parent: "F", folder: true), 1),
+            (Self.item("O", "펼친 다른 폴더", folder: true), 2),
+            (Self.item("C", "접힌 다른 폴더", folder: true), 3),
+        ])
+        store.refreshPlaylists()
+        store.expandedPlaylistIDs = ["O"]
+        store.sidebar = .playlist("N")
+
+        let id = try #require(store.createPlaylist(isFolder: false))
+
+        #expect(store.expandedPlaylistIDs == ["O", "F", "N"])
+        #expect(store.sidebar == .playlist(id) && store.renamingPlaylistID == id)
+        #expect(store.playlistProjection.layout.childIDs(of: "N") == [id])
+        store.renamePlaylist(id, to: "자식 목록")
+        #expect(store.expandedPlaylistIDs == ["O", "F", "N"])
+    }
+
+    @Test func 맨_위에_만들거나_만들지_못하면_폴더_펼침을_바꾸지_않는다() throws {
+        store.expandedPlaylistIDs = ["F"]
+        let id = try #require(store.createPlaylist(isFolder: true, in: PlaylistLayout.root))
+        #expect(store.expandedPlaylistIDs == ["F"])
+        #expect(!store.expandedPlaylistIDs.contains(id))
+        #expect(store.createPlaylist(isFolder: false, in: "A") == nil)
+        #expect(store.expandedPlaylistIDs == ["F"])
+    }
+
     @Test func 옮기기와_순서_바꾸기() {
         store.movePlaylist("B", into: "F")
         #expect(store.playlistProjection.layout.childIDs(of: "F") == ["A", "B"])

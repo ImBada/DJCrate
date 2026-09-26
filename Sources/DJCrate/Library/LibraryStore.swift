@@ -118,6 +118,8 @@ final class LibraryStore {
     }
     /// 사이드바 재생 목록 트리(rekordbox 상태에 재생 목록 초안을 얹은 모양, LibraryStore+Playlists)
     var playlistTree: [PlaylistOutlineNode] = []
+    /// 새 항목의 부모만 펼치고 다른 폴더의 펼침 상태는 유지한다.
+    var expandedPlaylistIDs: Set<String> = []
     var playlistIndex: [String: PlaylistOutlineNode] = [:] { didSet { playlistCount = playlistIndex.values.filter { !$0.isFolder }.count } }
     /// 폴더를 뺀 rekordbox 플레이리스트 수(사이드바 제목)
     private(set) var playlistCount = 0

@@ -228,6 +228,7 @@ extension LibraryStore {
         guard applyPlaylistEdits(edits, actionName: action) else { return nil }
         let id = PlaylistRef.new(key).layoutID
         if !ids.isEmpty { touchRecent(id) }
+        expandedPlaylistIDs.formUnion(playlistProjection.layout.ancestors(of: id).map(\.id))
         sidebar = .playlist(id)
         renamingPlaylistID = id
         return id
