@@ -222,6 +222,13 @@ struct TrackListDeckLoadTests {
         h.table.selectRowIndexes([1], byExtendingSelection: false)
         await finishPendingEdit(h)
         #expect(!h.coordinator.isEditing)
+        // 기다리는 사이 줄을 끌기 시작하면(덱에 놓기 등) 고치지 않는다. 끌기가 먼저 시작돼도 예약하지 않는다.
+        h.table.selectRowIndexes([0], byExtendingSelection: false)
+        h.coordinator.scheduleEdit(row: 0, column: "title", after: .milliseconds(50))
+        let drags = h.coordinator.dragGeneration
+        h.coordinator.tableView(h.table, draggingSession: NSDraggingSession(), willBeginAt: .zero, forRowIndexes: [0])
+        #expect(!h.coordinator.hasPendingEdit)
+        #expect(h.coordinator.dragGeneration == drags + 1)
         // 키를 누르면 취소한다(Return·⌘→ 등은 그 키 몫)
         h.table.selectRowIndexes([0], byExtendingSelection: false)
         h.coordinator.scheduleEdit(row: 0, column: "title", after: .milliseconds(50))

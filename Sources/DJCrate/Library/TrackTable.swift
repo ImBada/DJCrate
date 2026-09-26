@@ -303,6 +303,8 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     private var inlineEdit: InlineEdit?
     /// 다시 누른 태그 칸을 고치기 전 기다림(더블클릭이면 취소)
     private var pendingEdit: Task<Void, Never>?
+    /// 줄 끌기를 시작한 횟수. 누른 줄을 끌었으면(덱에 놓기 등) 그 클릭으로 칸을 고치지 않는다.
+    private(set) var dragGeneration = 0
     /// 덱에 올린 곡(ContentID)과 재생 중인지. # 칸에 스피커로 보인다.
     private var deckTrackID: String?
     private var deckPlaying = false
@@ -930,8 +932,10 @@ final class TrackListTableView: NSTableView {
         let slowEdit = TrackListTagEditing.startsSlowEdit(clickCount: event.clickCount, row: row, selected: selectedRowIndexes,
                                                           modifiers: event.modifierFlags)
         coordinator?.cancelPendingEdit()
+        let drags = coordinator?.dragGeneration
         super.mouseDown(with: event)
-        if slowEdit, tableColumns.indices.contains(column) {
+        // 누른 채 끌어 놓았으면(끌기가 마우스를 놓기 전에 시작됨) 고치지 않는다.
+        if slowEdit, coordinator?.dragGeneration == drags, tableColumns.indices.contains(column) {
             coordinator?.scheduleEdit(row: row, column: tableColumns[column].identifier.rawValue)
         }
     }
@@ -1322,6 +1326,7 @@ extension TrackListCoordinator {
 
     func tableView(_ tableView: NSTableView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint,
                    forRowIndexes rowIndexes: IndexSet) {
+        dragGeneration += 1
         cancelPendingEdit()
     }
 
