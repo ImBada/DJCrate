@@ -29,7 +29,7 @@ DJCrate · DJCrate(CLI)
 rekordbox master.db ──(스냅샷 사본)──▶ RekordboxLibrary ──▶ LibraryStore(목록·필터) ──▶ DeckModel(덱)
         ▲                                                         │
         │                                            편집은 초안으로 쌓임
-        │                                    CueDraft · GridDraft · 게인 초안 · TagDraft
+        │                           CueDraft · GridDraft · 게인 초안 · TagDraft · PlaylistDraft
         │                                                         │
         └──── RekordboxWriter / RekordboxGridWriter ◀── 반영(rekordbox 꺼져 있을 때만)
                                                                   │
@@ -38,6 +38,7 @@ rekordbox master.db ──(스냅샷 사본)──▶ RekordboxLibrary ──▶
 
 - **읽기는 사본에서만.** 라이브 DB를 열어 두면 rekordbox와 잠금·WAL이 얽힌다. `LibrarySnapshot`이 사본을 뜨고, rekordbox가 켜져 있으면 `--force`일 때만 WAL까지 합친 읽기용 사본을 뜬다.
 - **편집은 초안.** 초안은 JSON으로 `~/Library/Application Support/DJCrate/`에 저장된다. 앱을 꺼도 남고, 반영하면 지운다. 초안마다 만들 때의 rekordbox 상태(`base`)가 있어서, 그 뒤 rekordbox에서 바뀐 곡은 쓰지 않는다(덮어쓰기 방지).
+- **재생 목록 초안은 편집 순서다.** 곡 초안과 달리 편집끼리 기대므로(새로 만든 목록에 곡 넣기, 넣은 뒤 옮기기) `PlaylistDraft`는 `PlaylistEdit`을 적힌 순서대로 들고, 편집마다 기대는 rekordbox 목록의 처음 상태(`base`)를 적는다. 사이드바·곡 목록은 rekordbox 상태에 초안을 얹은 모양(`PlaylistLayout`, 쓰기 모듈과 같은 규칙)을 보여 준다. 쓰기 모듈은 트랜잭션 안에서 base와 지금 상태를 비교해 바뀐 목록의 편집만 막고, 앱은 쓴 편집만 초안에서 뺀다. 되돌리면 그때 쓴 편집을 되돌린 상태에 다시 쌓는다.
 - **반영 흐름**은 `ReflectionCoordinator` 한 곳이다: rekordbox 꺼짐 확인 → 스냅샷 사본으로 끝까지 써 보고 되돌림(미리 보기) → 확인 창 → 쓸 수 있는 것만 실제로 쓰기 → 토스트. 쓰는 동안 덱은 재생을 멈추고 조작을 막는다.
 - **반영 뒤에는 조용히 다시 읽는다.** 화면을 로딩으로 바꾸지 않고 스냅샷을 새로 떠서 목록을 바꾸고, 덱은 소리·파형·분석을 그대로 둔 채 초안·그리드·게인만 새 값으로 맞춘다(`DeckModel.softReload`).
 - **되돌리기.** 쓰기 전 전체 백업(`rekordbox-backups/<시각>-write/`)에 그때 쓴 초안도 함께 넣어 두고, 되돌리면 DB·분석 파일을 복원하고 초안을 다시 살린다.

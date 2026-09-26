@@ -93,6 +93,44 @@
         }
       }
     },
+    "‘%@’에 %lld곡을 넣었습니다(반영 대기)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added to ‘%1$@’ · Tracks: %2$lld (pending write)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」に%2$lld曲を追加しました（反映待ち）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "‘%1$@’에 %2$lld곡을 넣었습니다(반영 대기)."
+          }
+        }
+      }
+    },
+    "‘%@’에 넣기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to ‘%@’"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」に追加"
+          }
+        }
+      }
+    },
     "‘%@’에 쓸 키를 누르세요(Esc: 취소)." : {
       "localizations" : {
         "en" : {
@@ -125,6 +163,66 @@
         }
       }
     },
+    "‘%@’에서 %lld곡을 뺐습니다(반영 대기)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removed from ‘%1$@’ · Tracks: %2$lld (pending write)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」から%2$lld曲を外しました（反映待ち）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "‘%1$@’에서 %2$lld곡을 뺐습니다(반영 대기)."
+          }
+        }
+      }
+    },
+    "‘%@’에서 빼기 (%lld곡)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from ‘%1$@’ (Tracks: %2$lld)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」から外す（%2$lld曲）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "‘%1$@’에서 빼기 (%2$lld곡)"
+          }
+        }
+      }
+    },
+    "‘%@’을 지울까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete ‘%@’?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」を削除しますか？"
+          }
+        }
+      }
+    },
     "‘스냅샷 뜨기’를 눌러 라이브러리를 불러오세요." : {
       "localizations" : {
         "en" : {
@@ -153,6 +251,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "（コメントなし）"
+          }
+        }
+      }
+    },
+    "(빈 폴더)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(Empty Folder)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（空のフォルダ）"
           }
         }
       }
@@ -787,6 +901,62 @@
         }
       }
     },
+    "%lld곡 넣기" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Add %lld Track"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Add %lld Tracks"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld曲を追加"
+          }
+        }
+      }
+    },
+    "%lld곡 빼기" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Remove %lld Track"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Remove %lld Tracks"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld曲を外す"
+          }
+        }
+      }
+    },
     "%lld곡 선택" : {
       "localizations" : {
         "en" : {
@@ -1157,6 +1327,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld拍"
+          }
+        }
+      }
+    },
+    "%lld번째 곡이 편집을 만들 때와 다릅니다. 목록을 다시 읽은 뒤 고치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Track %lld differs from when the edit was made. Reload the playlist and edit it again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld番目の曲が編集したときと異なります。プレイリストを読み直してから編集し直してください"
           }
         }
       }
@@ -2957,6 +3143,22 @@
         }
       }
     },
+    "rekordbox 컬렉션에 없는 곡입니다(ContentID %@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The track isn't in the rekordbox Collection (ContentID %@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxのコレクションにない曲です（ContentID %@）"
+          }
+        }
+      }
+    },
     "rekordbox 컬렉션에서 곡을 찾지 못했습니다" : {
       "localizations" : {
         "en" : {
@@ -2969,6 +3171,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxのコレクションに曲が見つかりませんでした"
+          }
+        }
+      }
+    },
+    "rekordbox 컬렉션에서 빼기 (%lld곡)…" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Remove from rekordbox Collection (%lld Track)…"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Remove from rekordbox Collection (%lld Tracks)…"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxのコレクションから削除（%lld曲）…"
           }
         }
       }
@@ -3637,6 +3867,28 @@
         }
       }
     },
+    "rekordbox에 쓰기 (%lld곡 · 재생 목록 %lld건)…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write to rekordbox (Tracks: %1$lld · Playlist Edits: %2$lld)…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxに書き込む（%1$lld曲・プレイリスト%2$lld件）…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "rekordbox에 쓰기 (%1$lld곡 · 재생 목록 %2$lld건)…"
+          }
+        }
+      }
+    },
     "rekordbox에 쓰기 (%lld곡)…" : {
       "localizations" : {
         "en" : {
@@ -3793,6 +4045,38 @@
         }
       }
     },
+    "rekordbox에 아직 쓰지 않은 재생 목록 편집(만들기·이름·옮기기·지우기·곡 넣기·빼기)을 모두 버립니다. ⌘Z로 되돌릴 수 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discards all playlist edits not yet written to rekordbox (create, rename, move, delete, add and remove tracks). You can undo this with ⌘Z."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxにまだ書き込んでいないプレイリストの編集（作成・名前・移動・削除・曲の追加・除外）をすべて破棄します。⌘Zで元に戻せます。"
+          }
+        }
+      }
+    },
+    "rekordbox에 아직 쓰지 않은 재생 목록 편집을 모두 버립니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discards all playlist edits not yet written to rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxにまだ書き込んでいないプレイリストの編集をすべて破棄します。"
+          }
+        }
+      }
+    },
     "rekordbox에 연동 파일을 한 번만 지정해 주세요" : {
       "localizations" : {
         "en" : {
@@ -3901,34 +4185,6 @@
         }
       }
     },
-    "rekordbox에서 빼기 (%lld곡)…" : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Remove from rekordbox (%lld track)…"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Remove from rekordbox (%lld tracks)…"
-                }
-              }
-            }
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxから削除（%lld曲）…"
-          }
-        }
-      }
-    },
     "rekordbox에서 빼기…" : {
       "localizations" : {
         "en" : {
@@ -3989,6 +4245,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxから削除できる曲がありません"
+          }
+        }
+      }
+    },
+    "rekordbox에서 재생 목록을 찾지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The playlist wasn't found in rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxでプレイリストが見つかりません"
+          }
+        }
+      }
+    },
+    "rekordbox에서 지운 목록입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The playlist was deleted in rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxで削除されたプレイリストです"
           }
         }
       }
@@ -4341,6 +4629,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同じUUIDの曲が複数あります"
+          }
+        }
+      }
+    },
+    "같은 묶음에 같은 key(%@)로 만든 목록이 있습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A playlist with the same key (%@) was already created in this batch"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ一括処理に同じkey（%@）で作成したプレイリストがあります"
+          }
+        }
+      }
+    },
+    "같은 자리를 두 번 가리킵니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The same position is referenced twice"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ位置を2回指定しています"
           }
         }
       }
@@ -4787,6 +5107,50 @@
         }
       }
     },
+    "고른 곡으로 새 재생 목록" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Playlist from Selection"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した曲で新規プレイリスト"
+          }
+        }
+      }
+    },
+    "고른 곡으로 새 재생 목록 (%lld곡)" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "New Playlist from Selection (%lld Track)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "New Playlist from Selection (%lld Tracks)"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した曲で新規プレイリスト（%lld曲）"
+          }
+        }
+      }
+    },
     "고른 구간이 없습니다" : {
       "localizations" : {
         "en" : {
@@ -4943,6 +5307,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "曲の範囲外のキューがあります"
+          }
+        }
+      }
+    },
+    "곡 순서 바꾸기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reorder Tracks"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲の並べ替え"
           }
         }
       }
@@ -5119,6 +5499,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "曲ごとに目標音量に合わせます"
+          }
+        }
+      }
+    },
+    "곡은 컬렉션에 그대로 남습니다. 반영(⇧⌘E)할 때 rekordbox에 씁니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks stay in the Collection. The change is written to rekordbox when you write drafts (⇧⌘E)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲はコレクションに残ります。反映（⇧⌘E）するときにrekordboxに書き込みます。"
           }
         }
       }
@@ -6225,6 +6621,22 @@
         }
       }
     },
+    "넣기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加"
+          }
+        }
+      }
+    },
     "넣기 완료" : {
       "localizations" : {
         "en" : {
@@ -6265,6 +6677,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "追加した%lld曲はコレクションから外れ、DJCrateの追加リストに戻ります（解析・アートワークファイルも削除）。"
+          }
+        }
+      }
+    },
+    "넣은 곡은 반영(⇧⌘E)할 때 rekordbox에 씁니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added tracks are written to rekordbox when you write drafts (⇧⌘E)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加した曲は反映（⇧⌘E）するときにrekordboxに書き込みます。"
           }
         }
       }
@@ -6441,6 +6869,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "別のリストを選ぶか、新しいスナップショットを作成してライブラリを読み直してください。"
+          }
+        }
+      }
+    },
+    "다른 폴더로 옮기기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move to Another Folder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別のフォルダへ移動"
           }
         }
       }
@@ -7841,6 +8285,22 @@
         }
       }
     },
+    "마지막에 쓴 목록에 넣기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to Last Used Playlist"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最後に使ったプレイリストに追加"
+          }
+        }
+      }
+    },
     "막혀서 뺀 곡 %lld: %@" : {
       "localizations" : {
         "en" : {
@@ -7879,6 +8339,22 @@
         }
       }
     },
+    "맞는 재생 목록이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No matching playlists"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一致するプレイリストがありません"
+          }
+        }
+      }
+    },
     "매우 큼(−6 LUFS 초과)" : {
       "localizations" : {
         "en" : {
@@ -7891,6 +8367,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "非常に大きい（−6 LUFS超）"
+          }
+        }
+      }
+    },
+    "맨 위" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top Level"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最上位"
+          }
+        }
+      }
+    },
+    "맨 위는 편집할 수 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The top level can't be edited"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最上位は編集できません"
           }
         }
       }
@@ -8227,6 +8735,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "リスト・タグシート"
+          }
+        }
+      }
+    },
+    "목록·폴더 이름" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlist or folder name"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト・フォルダ名"
           }
         }
       }
@@ -8615,6 +9139,50 @@
         }
       }
     },
+    "반영하지 않은 재생 목록 초안 %lld건" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld playlist draft edit not yet written"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld playlist draft edits not yet written"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未反映のプレイリスト下書き%lld件"
+          }
+        }
+      }
+    },
+    "반영하지 않은 초안이 있는 목록입니다 · 반영(⇧⌘E)할 때 rekordbox에 씁니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This playlist has drafts not yet written · They are written to rekordbox when you write drafts (⇧⌘E)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未反映の下書きがあるプレイリストです · 反映（⇧⌘E）するときにrekordboxに書き込みます"
+          }
+        }
+      }
+    },
     "반영할 수 있는 곡이 없습니다" : {
       "localizations" : {
         "en" : {
@@ -8787,6 +9355,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "バックアップしてから書き込み、もう一度確認します。終わるまでrekordboxを起動しないでください。"
+          }
+        }
+      }
+    },
+    "버리기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "破棄"
           }
         }
       }
@@ -9661,6 +10245,146 @@
         }
       }
     },
+    "새 재생 목록" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Playlist"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規プレイリスト"
+          }
+        }
+      }
+    },
+    "새 재생 목록 · 새 폴더" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Playlist · New Folder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規プレイリスト · 新規フォルダ"
+          }
+        }
+      }
+    },
+    "새 재생 목록 만들기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create Playlist"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストを作成"
+          }
+        }
+      }
+    },
+    "새 재생 목록·폴더" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Playlist or Folder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規プレイリスト・フォルダ"
+          }
+        }
+      }
+    },
+    "새 재생 목록·폴더(맨 위)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Playlist or Folder (Top Level)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規プレイリスト・フォルダ（最上位）"
+          }
+        }
+      }
+    },
+    "새 재생 목록으로 (%lld곡)" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "As New Playlist (%lld Track)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "As New Playlist (%lld Tracks)"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規プレイリストとして（%lld曲）"
+          }
+        }
+      }
+    },
+    "새 폴더" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Folder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規フォルダ"
+          }
+        }
+      }
+    },
+    "새 폴더 만들기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create Folder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダを作成"
+          }
+        }
+      }
+    },
     "색 모드" : {
       "localizations" : {
         "en" : {
@@ -9809,18 +10533,18 @@
         }
       }
     },
-    "선택한 곡(없으면 목록 전체)의 큐 초안을 rekordbox 라이브러리에 바로 씁니다. 미리 보기로 확인한 뒤 씁니다. rekordbox가 꺼져 있어야 합니다." : {
+    "선택한 곡(없으면 목록 전체)의 곡 초안(큐·그리드·게인·태그)과 재생 목록 초안을 rekordbox 라이브러리에 바로 씁니다. 미리 보기로 확인한 뒤 씁니다. rekordbox가 꺼져 있어야 합니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Writes the cue drafts of the selected tracks (or the whole list if none are selected) directly to the rekordbox library. You check a preview before writing. rekordbox must be closed."
+            "value" : "Writes the track drafts (cues, grids, gain, tags) of the selected tracks (or the whole list if none are selected) and the playlist drafts directly to the rekordbox library. You check a preview before writing. rekordbox must be closed."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選択した曲（なければリスト全体）のキューの下書きをrekordboxライブラリに直接書き込みます。プレビューで確認してから書き込みます。rekordboxを終了しておく必要があります。"
+            "value" : "選択した曲（なければリスト全体）の曲の下書き（キュー・グリッド・ゲイン・タグ）とプレイリストの下書きをrekordboxライブラリに直接書き込みます。プレビューで確認してから書き込みます。rekordboxを終了しておく必要があります。"
           }
         }
       }
@@ -10045,6 +10769,22 @@
         }
       }
     },
+    "순서 바꾸기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reorder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "並べ替え"
+          }
+        }
+      }
+    },
     "숫자패드 %@" : {
       "localizations" : {
         "en" : {
@@ -10141,6 +10881,22 @@
         }
       }
     },
+    "스트리밍" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Streaming"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ストリーミング"
+          }
+        }
+      }
+    },
     "스트리밍 곡은 가져올 수 없습니다. 로컬 음원을 준비하세요." : {
       "localizations" : {
         "en" : {
@@ -10189,22 +10945,6 @@
         }
       }
     },
-    "스트리밍 곡은 편집할 수 없습니다. 파일로 된 곡을 고르세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Streaming tracks can’t be edited. Choose a track that’s an audio file."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ストリーミングの曲は編集できません。ファイルの曲を選んでください。"
-          }
-        }
-      }
-    },
     "스트림" : {
       "localizations" : {
         "en" : {
@@ -10221,18 +10961,18 @@
         }
       }
     },
-    "스트리밍" : {
+    "스트리밍 곡은 편집할 수 없습니다. 파일로 된 곡을 고르세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Streaming"
+            "value" : "Streaming tracks can’t be edited. Choose a track that’s an audio file."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ストリーミング"
+            "value" : "ストリーミングの曲は編集できません。ファイルの曲を選んでください。"
           }
         }
       }
@@ -10317,6 +11057,50 @@
         }
       }
     },
+    "쓸 수 없는 재생 목록 초안 버리기 (%lld건)" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Discard Unwritable Playlist Drafts (%lld Edit)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Discard Unwritable Playlist Drafts (%lld Edits)"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込めないプレイリスト下書きを破棄（%lld件）"
+          }
+        }
+      }
+    },
+    "쓸 수 없는 초안" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draft that can't be written"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込めない下書き"
+          }
+        }
+      }
+    },
     "아래 목록에서 곡을 고르면 파형과 큐가 여기 뜹니다." : {
       "localizations" : {
         "en" : {
@@ -10329,6 +11113,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下のリストで曲を選ぶと、ここに波形とキューが表示されます。"
+          }
+        }
+      }
+    },
+    "아래로 옮기기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Down"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下へ移動"
           }
         }
       }
@@ -10521,6 +11321,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "通知を閉じる"
+          }
+        }
+      }
+    },
+    "앞에서 만들지 못한 목록입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The playlist couldn't be created by an earlier edit"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前の編集で作成できなかったプレイリストです"
           }
         }
       }
@@ -10985,6 +11801,22 @@
         }
       }
     },
+    "옮기기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move To"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動"
+          }
+        }
+      }
+    },
     "옮길 큐를 찾지 못했습니다" : {
       "localizations" : {
         "en" : {
@@ -11093,6 +11925,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "元の音源でフルスケールに張り付いている箇所"
+          }
+        }
+      }
+    },
+    "위로 옮기기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Up"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上へ移動"
           }
         }
       }
@@ -11639,6 +12487,54 @@
         }
       }
     },
+    "이 목록에서 빼기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from This Playlist"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このプレイリストから外す"
+          }
+        }
+      }
+    },
+    "이 목록의 초안 버리기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard This Playlist's Drafts"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このプレイリストの下書きを破棄"
+          }
+        }
+      }
+    },
+    "이 목록의 초안 일부를 쓸 수 없습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some drafts for this playlist can't be written: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このプレイリストの下書きの一部を書き込めません：%@"
+          }
+        }
+      }
+    },
     "이 변속 지점 삭제" : {
       "localizations" : {
         "en" : {
@@ -11751,6 +12647,22 @@
         }
       }
     },
+    "이 폴더에" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Into This Folder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このフォルダへ"
+          }
+        }
+      }
+    },
     "이 형식의 분석 규칙은 확인되지 않았으니 rekordbox에서 먼저 분석하세요" : {
       "localizations" : {
         "en" : {
@@ -11783,6 +12695,22 @@
         }
       }
     },
+    "이름 바꾸기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前を変更"
+          }
+        }
+      }
+    },
     "이름 없는 재생 목록" : {
       "localizations" : {
         "en" : {
@@ -11799,6 +12727,22 @@
         }
       }
     },
+    "이름을 적어 주세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a name"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前を入力してください"
+          }
+        }
+      }
+    },
     "이미 rekordbox 컬렉션에 있는 파일입니다" : {
       "localizations" : {
         "en" : {
@@ -11811,6 +12755,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "既にrekordboxのコレクションにあるファイルです"
+          }
+        }
+      }
+    },
+    "이미 들어 있는 %lld곡은 넣지 않았습니다." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Skipped %lld track already in the playlist."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Skipped %lld tracks already in the playlist."
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すでに入っている%lld曲は追加しませんでした。"
           }
         }
       }
@@ -12027,6 +12999,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "以降、反映するたびにrekordboxで："
+          }
+        }
+      }
+    },
+    "인텔리전트 재생 목록은 아직 쓰지 않습니다(rekordbox에서 고치세요)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intelligent Playlists aren't written yet (edit them in rekordbox)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インテリジェントプレイリストはまだ書き込みません（rekordboxで編集してください）"
           }
         }
       }
@@ -12311,6 +13299,424 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレイリスト"
+          }
+        }
+      }
+    },
+    "재생 목록 %lld건" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld playlist edit"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld playlist edits"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト%lld件"
+          }
+        }
+      }
+    },
+    "재생 목록 반영 완료: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "playlist written: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト反映済み：%@"
+          }
+        }
+      }
+    },
+    "재생 목록 변경 없음(%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "playlist unchanged (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト変更なし（%@）"
+          }
+        }
+      }
+    },
+    "재생 목록 쓰지 않음(%@): %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "playlist not written (%1$@): %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト未反映（%1$@）：%2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "재생 목록 쓰지 않음(%1$@): %2$@"
+          }
+        }
+      }
+    },
+    "재생 목록 옮기기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Playlist"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストを移動"
+          }
+        }
+      }
+    },
+    "재생 목록 이름" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlist name"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト名"
+          }
+        }
+      }
+    },
+    "재생 목록 이름 바꾸기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename Playlist"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト名を変更"
+          }
+        }
+      }
+    },
+    "재생 목록 지우기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Playlist"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストを削除"
+          }
+        }
+      }
+    },
+    "재생 목록 지우기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Playlist…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストを削除…"
+          }
+        }
+      }
+    },
+    "재생 목록 초안 %lld건" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld playlist draft edit"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld playlist draft edits"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト下書き%lld件"
+          }
+        }
+      }
+    },
+    "재생 목록 초안 %lld건을 버릴까요?" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Discard %lld playlist draft edit?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Discard %lld playlist draft edits?"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト下書き%lld件を破棄しますか？"
+          }
+        }
+      }
+    },
+    "재생 목록 초안 버리기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard Playlist Drafts"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト下書きを破棄"
+          }
+        }
+      }
+    },
+    "재생 목록 초안 버리기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard Playlist Drafts…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト下書きを破棄…"
+          }
+        }
+      }
+    },
+    "재생 목록 초안을 저장하지 못했습니다. DJCrate 데이터 폴더의 쓰기 권한을 확인하세요: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't save the playlist drafts. Check write permission for the DJCrate data folder: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト下書きを保存できませんでした。DJCrateデータフォルダの書き込み権限を確認してください：%@"
+          }
+        }
+      }
+    },
+    "재생 목록 편집 %lld건은 초안으로 되살리지 못했습니다." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Couldn't restore %lld playlist edit as a draft."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Couldn't restore %lld playlist edits as drafts."
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストの編集%lld件は下書きとして復元できませんでした。"
+          }
+        }
+      }
+    },
+    "재생 목록에 넣기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to Playlist"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストに追加"
+          }
+        }
+      }
+    },
+    "재생 목록에 넣기 (%lld곡)" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Add to Playlist (%lld Track)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Add to Playlist (%lld Tracks)"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストに追加（%lld曲）"
+          }
+        }
+      }
+    },
+    "재생 목록에 넣기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to Playlist…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストに追加…"
+          }
+        }
+      }
+    },
+    "재생 목록에서 빼기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from Playlist"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストから外す"
+          }
+        }
+      }
+    },
+    "재생 목록으로 만들기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Make Playlist"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストにする"
+          }
+        }
+      }
+    },
+    "재생 목록을 고치지 않았습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlist not changed: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストを変更しませんでした：%@"
+          }
+        }
+      }
+    },
+    "재생 목록을 볼 때: 이 목록에서 빼기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "While viewing a playlist: remove from this playlist"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト表示中：このプレイリストから外す"
           }
         }
       }
@@ -13179,6 +14585,38 @@
         }
       }
     },
+    "찾기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "検索"
+          }
+        }
+      }
+    },
+    "찾아서 넣기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find Playlist…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストを探して追加…"
+          }
+        }
+      }
+    },
     "처음 반영하기 전에 rekordbox › 파일 › 라이브러리 › 라이브러리 백업을 한 번 해 두세요." : {
       "localizations" : {
         "en" : {
@@ -13399,6 +14837,22 @@
         }
       }
     },
+    "초안을 만든 뒤 rekordbox에서 이 목록이 바뀌었습니다. 이 목록의 초안을 버리고 다시 편집하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This playlist changed in rekordbox after the draft was made. Discard this playlist's drafts and edit it again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きの作成後にrekordboxでこのプレイリストが変更されました。このプレイリストの下書きを破棄して編集し直してください"
+          }
+        }
+      }
+    },
     "초안입니다. rekordbox에 반영하면 rekordbox 오토게인이 이 값으로 바뀝니다" : {
       "localizations" : {
         "en" : {
@@ -13503,6 +14957,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "追加した曲"
+          }
+        }
+      }
+    },
+    "추가한 곡 %lld곡은 rekordbox 컬렉션에 넣은 뒤 목록에 넣을 수 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld added track can go into playlists once it's in the rekordbox Collection."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld added tracks can go into playlists once they're in the rekordbox Collection."
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加した曲%lld曲は、rekordboxのコレクションに入れてからプレイリストに追加できます。"
           }
         }
       }
@@ -14297,18 +15779,18 @@
         }
       }
     },
-    "큐·그리드 초안이 있어 rekordbox에 반영할 곡" : {
+    "큐·그리드·게인·태그 초안이 있어 rekordbox에 반영할 곡. 재생 목록 초안도 이 목록 위 ‘rekordbox에 쓰기’로 함께 씁니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tracks with cue or grid drafts to write to rekordbox"
+            "value" : "Tracks with cue, grid, gain, or tag drafts to write to rekordbox. Playlist drafts are written too with ‘Write to rekordbox’ above this list."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "キュー・グリッドの下書きがあり、rekordboxに反映する曲"
+            "value" : "キュー・グリッド・ゲイン・タグの下書きがあり、rekordboxに反映する曲。プレイリストの下書きもこのリストの上の「rekordboxに書き込む」で一緒に書き込みます。"
           }
         }
       }
@@ -14653,38 +16135,6 @@
         }
       }
     },
-    "태그 쓰지 않음: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "tags not written: %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "タグ未反映：%@"
-          }
-        }
-      }
-    },
-    "태그 편집" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Edit Tags"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "タグを編集"
-          }
-        }
-      }
-    },
     "태그(%@)" : {
       "localizations" : {
         "en" : {
@@ -14697,22 +16147,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "タグ（%@）"
-          }
-        }
-      }
-    },
-    "태그는 rekordbox 라이브러리에만 씁니다. 음원 파일의 태그는 그대로라 다른 앱이나 rekordbox '태그 다시 읽기'에서는 예전 값이 보일 수 있습니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tags are written only to the rekordbox library. The tags in your audio files stay the same, so other apps or rekordbox's Reload Tag may show the old values."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "タグはrekordboxのライブラリにだけ書き込みます。音源ファイルのタグはそのままなので、他のアプリやrekordboxの「タグの再読み込み」では以前の値が表示されることがあります。"
           }
         }
       }
@@ -14745,6 +16179,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "タグ変更なし"
+          }
+        }
+      }
+    },
+    "태그 쓰지 않음: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tags not written: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タグ未反映：%@"
+          }
+        }
+      }
+    },
+    "태그 편집" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Tags"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タグを編集"
+          }
+        }
+      }
+    },
+    "태그는 rekordbox 라이브러리에만 씁니다. 음원 파일의 태그는 그대로라 다른 앱이나 rekordbox '태그 다시 읽기'에서는 예전 값이 보일 수 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tags are written only to the rekordbox library. The tags in your audio files stay the same, so other apps or rekordbox's Reload Tag may show the old values."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タグはrekordboxのライブラリにだけ書き込みます。音源ファイルのタグはそのままなので、他のアプリやrekordboxの「タグの再読み込み」では以前の値が表示されることがあります。"
           }
         }
       }
@@ -15429,6 +16911,92 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "編集する小節範囲がありません。1-16,1-16,17-64のように入力してください"
+          }
+        }
+      }
+    },
+    "폴더 안의 재생 목록 %lld개와 폴더 %lld개도 함께 지웁니다. 곡은 컬렉션에 그대로 남습니다. 반영(⇧⌘E)할 때 rekordbox에 씁니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Also deletes the playlists (%1$lld) and folders (%2$lld) inside. Tracks stay in the Collection. The change is written to rekordbox when you write drafts (⇧⌘E)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダ内のプレイリスト%1$lld個とフォルダ%2$lld個も削除します。曲はコレクションに残ります。反映（⇧⌘E）するときにrekordboxに書き込みます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "폴더 안의 재생 목록 %1$lld개와 폴더 %2$lld개도 함께 지웁니다. 곡은 컬렉션에 그대로 남습니다. 반영(⇧⌘E)할 때 rekordbox에 씁니다."
+          }
+        }
+      }
+    },
+    "폴더 지우기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Folder…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダを削除…"
+          }
+        }
+      }
+    },
+    "폴더가 아닌 재생 목록(%@) 안에는 넣을 수 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Items can't go inside a playlist that isn't a folder (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダではないプレイリスト（%@）の中には入れられません"
+          }
+        }
+      }
+    },
+    "폴더를 제 안으로 옮길 수 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A folder can't be moved into itself"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダをそれ自身の中へは移動できません"
+          }
+        }
+      }
+    },
+    "폴더에는 곡을 넣거나 뺄 수 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks can't be added to or removed from a folder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダには曲を追加・除外できません"
           }
         }
       }

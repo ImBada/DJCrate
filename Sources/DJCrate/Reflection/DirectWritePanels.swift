@@ -8,11 +8,12 @@ import SwiftUI
 /// rekordbox에 바로 쓰기·되돌리기 버튼의 입구. 흐름은 `ReflectionCoordinator`.
 @MainActor
 enum DirectWritePanels {
-    static func write(store: LibraryStore, rows: [TrackRow]) {
+    /// - Parameter playlists: 재생 목록 초안도 함께 쓸지(곡을 골라 쓰는 오른쪽 클릭 메뉴는 false)
+    static func write(store: LibraryStore, rows: [TrackRow], playlists: Bool = true) {
         guard !store.isWritingRekordbox, store.writeTask == nil else { return }
         store.writeTask = Task {
             defer { store.writeTask = nil }
-            await ReflectionCoordinator(host: store).write(rows: rows)
+            await ReflectionCoordinator(host: store).write(rows: rows, playlists: playlists)
         }
     }
 

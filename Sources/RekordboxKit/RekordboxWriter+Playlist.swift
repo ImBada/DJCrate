@@ -54,6 +54,16 @@ extension RekordboxWriter {
         func subtree(of id: String) -> [String] {
             [id] + children(of: id).flatMap { subtree(of: $0.id) }
         }
+
+        /// 초안의 base와 비교할 모양(`PlaylistLayout(rekordbox:)`와 같은 값)
+        var layout: PlaylistLayout {
+            PlaylistLayout(nodes.values.map { node in
+                (PlaylistLayout.Item(id: node.id, name: node.name, parentID: node.parentID, isFolder: node.attribute == 1,
+                                     isSmart: node.attribute > 1 || node.smartList,
+                                     entries: (entries[node.id] ?? []).map { PlaylistEntry(trackNo: $0.trackNo, contentID: $0.contentID) }),
+                 node.seq)
+            })
+        }
     }
 
     /// `masterPlaylists6.xml`에 할 일(DB를 커밋하고 확인한 뒤 적는다)
@@ -97,8 +107,8 @@ extension RekordboxWriter {
         }
         switch edit {
         case let .create(key, name, isFolder, parent):
-            guard work.keys[key] == nil else { throw PlaylistBlocked(name: name, reason: "같은 묶음에 같은 key(\(key))로 만든 목록이 있습니다") }
-            guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw PlaylistBlocked(name: name, reason: "이름을 적어 주세요") }
+            guard work.keys[key] == nil else { throw PlaylistBlocked(name: name, reason: String(ui: "같은 묶음에 같은 key(\(key))로 만든 목록이 있습니다")) }
+            guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw PlaylistBlocked(name: name, reason: String(ui: "이름을 적어 주세요")) }
             let parentID = try folderID(parent, work: work, for: name)
             let siblings = work.tree.children(of: parentID)
             // rekordbox는 형제가 있으면 번호 하나를 비우고 시작한다(형제가 없으면 비우지 않는다).
@@ -136,7 +146,7 @@ extension RekordboxWriter {
 
         case let .rename(playlist, name):
             var node = try target(playlist, work: work)
-            guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw PlaylistBlocked(name: node.name, reason: "이름을 적어 주세요") }
+            guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw PlaylistBlocked(name: node.name, reason: String(ui: "이름을 적어 주세요")) }
             guard node.name != name else { return done(node, .unchanged) }
             usn += 1
             try touchPlaylist(db, node.id, ["Name": .text(name)], usn: usn, stamp: stamp)
@@ -150,7 +160,7 @@ extension RekordboxWriter {
             let parentID = try folderID(into, work: work, for: node.name)
             guard parentID != node.parentID else { return done(node, .unchanged, "이미 그 폴더에 있습니다") }
             guard !work.tree.subtree(of: node.id).contains(parentID) else {
-                throw PlaylistBlocked(name: node.name, reason: "폴더를 제 안으로 옮길 수 없습니다")
+                throw PlaylistBlocked(name: node.name, reason: String(ui: "폴더를 제 안으로 옮길 수 없습니다"))
             }
             // 새 폴더의 맨 끝으로. 옛 폴더의 형제 Seq는 rekordbox처럼 당기지 않는다(빈칸이 남는다).
             let seq = (work.tree.children(of: parentID).map(\.seq).max() ?? 0) + 1
@@ -211,7 +221,7 @@ extension RekordboxWriter {
             let node = try trackList(playlist, work: work)
             guard !contentIDs.isEmpty else { return done(node, .unchanged) }
             for id in Set(contentIDs) where try scalar(db, "SELECT count(*) FROM djmdContent WHERE ID = ? AND rb_local_deleted = 0", [.text(id)]) == 0 {
-                throw PlaylistBlocked(name: node.name, reason: "rekordbox 컬렉션에 없는 곡입니다(ContentID \(id))")
+                throw PlaylistBlocked(name: node.name, reason: String(ui: "rekordbox 컬렉션에 없는 곡입니다(ContentID \(id))"))
             }
             var rows = work.tree.entries[node.id] ?? []
             let start = rows.map(\.trackNo).max() ?? 0
@@ -275,21 +285,21 @@ extension RekordboxWriter {
     static func target(_ ref: PlaylistRef, work: PlaylistWork) throws -> PlaylistTree.Node {
         let id: String
         switch ref {
-        case .root: throw PlaylistBlocked(name: "root", reason: "맨 위는 편집할 수 없습니다")
+        case .root: throw PlaylistBlocked(name: "root", reason: String(ui: "맨 위는 편집할 수 없습니다"))
         case let .id(value): id = value
         case let .new(key):
-            guard let value = work.keys[key] else { throw PlaylistBlocked(name: key, reason: "앞에서 만들지 못한 목록입니다") }
+            guard let value = work.keys[key] else { throw PlaylistBlocked(name: key, reason: String(ui: "앞에서 만들지 못한 목록입니다")) }
             id = value
         }
-        guard let node = work.tree.nodes[id] else { throw PlaylistBlocked(name: id, reason: "rekordbox에서 재생 목록을 찾지 못했습니다") }
-        guard node.attribute <= 1, !node.smartList else { throw PlaylistBlocked(name: node.name, reason: "인텔리전트 재생 목록은 아직 쓰지 않습니다(rekordbox에서 고치세요)") }
+        guard let node = work.tree.nodes[id] else { throw PlaylistBlocked(name: id, reason: String(ui: "rekordbox에서 재생 목록을 찾지 못했습니다")) }
+        guard node.attribute <= 1, !node.smartList else { throw PlaylistBlocked(name: node.name, reason: String(ui: "인텔리전트 재생 목록은 아직 쓰지 않습니다(rekordbox에서 고치세요)")) }
         return node
     }
 
     /// 곡을 담는 목록(폴더가 아님)
     static func trackList(_ ref: PlaylistRef, work: PlaylistWork) throws -> PlaylistTree.Node {
         let node = try target(ref, work: work)
-        guard node.attribute == 0 else { throw PlaylistBlocked(name: node.name, reason: "폴더에는 곡을 넣거나 뺄 수 없습니다") }
+        guard node.attribute == 0 else { throw PlaylistBlocked(name: node.name, reason: String(ui: "폴더에는 곡을 넣거나 뺄 수 없습니다")) }
         return node
     }
 
@@ -297,16 +307,16 @@ extension RekordboxWriter {
     static func folderID(_ ref: PlaylistRef, work: PlaylistWork, for name: String) throws -> String {
         if ref == .root { return "root" }
         let node = try target(ref, work: work)
-        guard node.attribute == 1 else { throw PlaylistBlocked(name: name, reason: "폴더가 아닌 재생 목록(\(node.name)) 안에는 넣을 수 없습니다") }
+        guard node.attribute == 1 else { throw PlaylistBlocked(name: name, reason: String(ui: "폴더가 아닌 재생 목록(\(node.name)) 안에는 넣을 수 없습니다")) }
         return node.id
     }
 
     /// 편집이 가리키는 곡 항목. 그 자리에 그 곡이 없으면(편집을 만든 뒤 rekordbox에서 목록이 바뀜) 막는다.
     static func matching(_ entries: [PlaylistEntry], in rows: [PlaylistTree.Entry], playlist: PlaylistTree.Node) throws -> [PlaylistTree.Entry] {
-        guard Set(entries.map(\.trackNo)).count == entries.count else { throw PlaylistBlocked(name: playlist.name, reason: "같은 자리를 두 번 가리킵니다") }
+        guard Set(entries.map(\.trackNo)).count == entries.count else { throw PlaylistBlocked(name: playlist.name, reason: String(ui: "같은 자리를 두 번 가리킵니다")) }
         let picked = try entries.map { entry in
             guard let row = rows.first(where: { $0.trackNo == entry.trackNo && $0.contentID == entry.contentID }) else {
-                throw PlaylistBlocked(name: playlist.name, reason: "\(entry.trackNo)번째 곡이 편집을 만들 때와 다릅니다. 목록을 다시 읽은 뒤 고치세요")
+                throw PlaylistBlocked(name: playlist.name, reason: String(ui: "\(entry.trackNo)번째 곡이 편집을 만들 때와 다릅니다. 목록을 다시 읽은 뒤 고치세요"))
             }
             return row
         }
