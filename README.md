@@ -1,5 +1,7 @@
 # DJCrate
 
+[![빌드·테스트](https://github.com/fotoner/DJCrate/actions/workflows/check.yml/badge.svg?branch=dev)](https://github.com/fotoner/DJCrate/actions/workflows/check.yml)
+
 rekordbox 7용 DJ 라이브러리 관리 macOS 앱(약칭 DJC, 명령줄 도구 `djc`). rekordbox 라이브러리를 읽어 큐·그리드·오토게인·루프를 고치고, **rekordbox를 깨뜨리지 않는 선에서** rekordbox에 직접 반영한다. 목표는 rekordbox를 켜지 않고도 곡을 넣고 빼고 고치는 것이다. DJ 공연 프로그램이 아니라 라이브러리 관리 도구다. rekordbox Export 모드의 라이브러리 관리 기능에 1:1로 대응하면서 더 낫게 만들고, 랩탑 공연 기능은 만들지 않는다. 애니송 코멘트 규칙 같은 애니송 DJ용 기능도 들어 있다.
 
 옛 이름은 anicue(2026-09-26 이름 바꿈). 처음 켤 때 옛 데이터 폴더·설정을 새 이름으로 옮긴다.
