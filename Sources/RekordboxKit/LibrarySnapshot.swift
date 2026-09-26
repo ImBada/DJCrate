@@ -119,6 +119,27 @@ public enum LibrarySnapshot {
         }
     }
 
+    /// 스냅샷 파일 이름(`master-2026-09-26T083646.db`, UTC)에 적힌 뜬 시각
+    public static func takenAt(_ snapshot: URL) -> Date? {
+        let name = snapshot.deletingPathExtension().lastPathComponent
+        guard name.hasPrefix("master-") else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = "yyyy-MM-dd'T'HHmmss"
+        return formatter.date(from: String(name.dropFirst("master-".count)))
+    }
+
+    /// 스냅샷을 뜬 뒤에 rekordbox 라이브러리(master.db나 WAL)가 바뀌었는지.
+    /// rekordbox가 켜져 있으면 변경이 WAL에만 있으므로 둘 다 본다. 시각을 모르면 false.
+    public static func changed(since snapshot: URL, source: URL = rekordboxDirectory.appending(path: "master.db")) -> Bool {
+        guard let taken = takenAt(snapshot) else { return false }
+        let fm = FileManager.default
+        let modified = [source.path, source.path + "-wal"].compactMap { try? fm.attributesOfItem(atPath: $0)[.modificationDate] as? Date }
+        // 이름의 시각은 초 단위로 버린 값이라 1초 여유를 둔다
+        return modified.contains { $0 > taken.addingTimeInterval(1) }
+    }
+
     /// 가장 최근 스냅샷.
     public static func latest(in directory: URL = defaultDirectory) throws -> URL {
         let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
