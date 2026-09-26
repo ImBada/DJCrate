@@ -7,7 +7,9 @@ import Foundation
 /// rekordbox 7.2.18 실험(2026-09-26, 묶음 1·2)에서 확인한 모양을 따른다:
 /// - 추가(분석 전): `djmdContent` 행 하나 + 새 이름이면 `djmdArtist`·`djmdAlbum`·`djmdGenre` 행. 분석 파일·파일 행·오토게인 행은 없다.
 ///   곡 ID는 1~2^28 난수, 아티스트 등은 32비트 난수. 관련 행 번호(usn)를 먼저 받고 곡 행이 마지막 번호를 받는다.
-/// - 음원에 아트워크가 있으면 아트워크 파일 셋(`TrackArtwork`)·`ImagePath`·`artwork.jpg` 파일 행도 넣는다(`writesArtwork`가 열렸을 때).
+/// - 추가(분석 포함): 변경 번호는 관련 행 → (아트워크 파일 행) → 오토게인 행 → 곡 행 → 파일 행 .2EX·.DAT·.EXT(2026-09-26 실험).
+/// - 아트워크: 분석까지 붙여 넣는 곡만, 음원에 그림이 있으면 아트워크 파일 셋(`TrackArtwork`)·`ImagePath`·`artwork.jpg` 파일 행을 넣는다.
+///   rekordbox는 자동 분석을 끄고 넣을 때는 만들지 않고 곡을 분석할 때 뽑는다(2026-09-26 실험 "DJC 실험 아트").
 /// - 삭제: 행을 실제로 지운다(삭제 표시가 아님). 곡 행·큐(`djmdCue`·`contentCue`)·파일 행·오토게인 행·재생 목록·재생 이력 항목.
 ///   같은 목록·이력의 뒤 순번은 하나씩 당기고(한 번호로 몰아서), 그 곡만 쓰던 아티스트·앨범 행도 지운다. 분석 폴더·아트워크 파일도 지운다.
 ///   재생 목록 순번 당기기는 재생 이력에서 본 것을 따른 추정이다.
@@ -65,9 +67,9 @@ public enum RekordboxTrackWriter {
     /// 분석까지 붙인 곡의 `ContentLink`(프레이즈·보컬 분석 없음, 라이브러리 426곡이 쓰는 값)
     static let analysedContentLink = 0x2C060E
 
-    /// 곡을 넣을 때 음원 내장 아트워크도 넣는지(#4). 파일·칸 모양은 라이브러리로 확인했고,
-    /// rekordbox가 아트워크 든 곡을 넣을 때의 변경 번호 순서를 실험으로 확인하기 전까지 닫아 둔다.
-    public static let writesArtwork = false
+    /// 분석까지 붙여 넣는 곡에 음원 내장 아트워크도 넣는지(#4). 2026-09-26 실험(rekordbox가 아트워크 든 곡을 넣고 분석한 전후 비교)으로
+    /// 파일 셋·파일 행 칸·변경 번호 순서를 확인해 열었다. 규칙이 맞지 않는 것이 드러나면 여기서 닫는다.
+    public static let writesArtwork = true
 
     /// 지울 곡을 막는 표(아직 rekordbox 실험으로 확인하지 않음)
     static let unverifiedReferenceTables = ["contentActiveCensor", "djmdActiveCensor", "djmdCloudExportSongPlaylist", "djmdSongHotCueBanklist",
@@ -80,7 +82,7 @@ public enum RekordboxTrackWriter {
     ///   - shareRoot: 분석 파일 뿌리. 라이브 DB면 rekordbox share 폴더, 사본이면 명시해야 분석을 붙인다.
     ///   - cues: 경로마다 함께 넣을 큐. 곡을 넣은 같은 트랜잭션에서 큐 쓰기(`RekordboxWriter`)와 같은 규칙으로 쓴다.
     ///     큐가 막히면 곡만 넣고 이유를 `cueReason`에 남긴다.
-    ///   - writesArtwork: 음원 내장 아트워크로 아트워크 파일 셋·`ImagePath`·파일 행을 넣는지(share가 있을 때만). 앱은 `writesArtwork`를 따른다.
+    ///   - writesArtwork: 분석까지 붙이는 곡에 음원 내장 아트워크로 아트워크 파일 셋·`ImagePath`·파일 행을 넣는지. 앱은 `writesArtwork`를 따른다.
     public static func add(_ plans: [TrackAddPlan], analyses: [String: Analysis] = [:], cues: [String: [EditableCue]] = [:],
                            to database: URL = RekordboxWriter.liveDatabase,
                            shareRoot: URL? = nil, dryRun: Bool, now: Date = .now, backups: URL,
@@ -98,15 +100,16 @@ public enum RekordboxTrackWriter {
         var artworks: [String: PreparedArtwork] = [:]
         for plan in plans {
             let uuid = uuids[plan.path]!
-            if writesArtwork, let share, let image = plan.artwork, let files = TrackArtwork.make(image) {
-                artworks[plan.path] = PreparedArtwork(uuid: uuid, files: files, share: share)
-            }
             guard let analysis = analyses[plan.path] else { continue }
             do {
                 prepared[plan.path] = try prepare(path: plan.path, fileName: plan.fileName, duration: plan.duration, uuid: uuid,
                                                   analysis: analysis, share: share)
             } catch {
                 prepared[plan.path] = PreparedAnalysis(uuid: uuid, blocked: "분석 파일을 만들지 못했습니다: \(error)")
+            }
+            // 아트워크는 분석과 함께만 넣는다(rekordbox는 분석할 때 뽑고, 자동 분석을 끄고 넣으면 만들지 않는다)
+            if writesArtwork, prepared[plan.path]?.blocked == nil, let share, let image = plan.artwork, let files = TrackArtwork.make(image) {
+                artworks[plan.path] = PreparedArtwork(uuid: uuid, files: files, share: share)
             }
         }
         let stamp = CueJSON.timestamps(now)
@@ -134,6 +137,22 @@ public enum RekordboxTrackWriter {
                     if let reason = ready?.blocked { throw Blocked(reason) }
                     let uuid = uuids[plan.path]!
                     let artwork = artworks[plan.path]
+                    // rekordbox가 분석할 때의 순서: 아트워크 파일 행 → 오토게인 행 → 곡 행 → 분석 파일 행(2026-09-26 실험)
+                    var planRows: [InsertedRow] = []
+                    func insertRow(_ row: InsertedRow) throws {
+                        try insert(db, table: row.table, row.values)
+                        try verify(db, table: row.table, id: row.id, row.values)
+                        planRows.append(row)
+                    }
+                    if let artwork {
+                        // 아트워크 파일 행은 artwork.jpg 하나(_m·_s는 행이 없다)
+                        usn += 1
+                        try insertRow(fileRow(uuid: uuid, share: artwork.share, artwork.files[0], contentID: id, usn: usn, stamp: stamp))
+                    }
+                    if let ready {
+                        usn += 1
+                        try insertRow(mixerRow(ready, contentID: id, usn: usn, stamp: stamp))
+                    }
                     usn += 1
                     var row = contentRow(plan, id: id, uuid: uuid, artistID: artistID, albumID: albumID,
                                          genreID: genreID, composerID: composerID, library: library, usn: usn, stamp: stamp)
@@ -141,20 +160,8 @@ public enum RekordboxTrackWriter {
                     if let artwork { row["ImagePath"] = .text(artwork.imagePath) }
                     try insert(db, table: "djmdContent", row)
                     try verify(db, table: "djmdContent", id: id, row)
-                    var planRows: [InsertedRow] = []
-                    if let artwork {
-                        // 아트워크 파일 행은 artwork.jpg 하나(_m·_s는 행이 없다)
-                        usn += 1
-                        let file = fileRow(uuid: uuid, share: artwork.share, artwork.files[0], contentID: id, usn: usn, stamp: stamp)
-                        try insert(db, table: file.table, file.values)
-                        try verify(db, table: file.table, id: file.id, file.values)
-                        planRows.append(file)
-                    }
                     if let ready {
-                        for row in try insertAnalysisRows(db, ready, contentID: id, usn: &usn, stamp: stamp) {
-                            try verify(db, table: row.table, id: row.id, row.values)
-                            planRows.append(row)
-                        }
+                        for file in analysisFileRows(ready, contentID: id, usn: &usn, stamp: stamp) { try insertRow(file) }
                     }
                     var outcome = Outcome(path: plan.path, contentID: id, title: plan.title, written: true, reason: nil, uuid: uuid)
                     if let list = cues[plan.path], !list.isEmpty {
@@ -285,20 +292,17 @@ public enum RekordboxTrackWriter {
         return ready
     }
 
-    /// 파일 행(.DAT·.EXT·.2EX)과 오토게인 행. 넣은 행을 돌려준다(다시 읽어 비교할 때 쓴다).
-    @discardableResult
-    static func insertAnalysisRows(_ db: CipherDatabase, _ ready: PreparedAnalysis, contentID: String, usn: inout Int,
-                                   stamp: (db: String, json: String)) throws -> [InsertedRow] {
+    /// 분석 파일 행을 rekordbox 순서(.2EX → .DAT → .EXT)로 만든다. rekordbox는 .2EX 앞에 .3EX 행도 넣는다(DJCrate는 만들지 못한다).
+    static func analysisFileRows(_ ready: PreparedAnalysis, contentID: String, usn: inout Int,
+                                 stamp: (db: String, json: String)) -> [InsertedRow] {
         guard ready.share != nil else { return [] }
-        var inserted: [InsertedRow] = []
-        for file in ready.files {
+        var rows: [InsertedRow] = []
+        for ext in ["2EX", "DAT", "EXT"] {
+            guard let file = ready.files.first(where: { $0.0.pathExtension == ext }) else { continue }
             usn += 1
-            inserted.append(fileRow(ready, file, contentID: contentID, usn: usn, stamp: stamp))
+            rows.append(fileRow(ready, file, contentID: contentID, usn: usn, stamp: stamp))
         }
-        usn += 1
-        inserted.append(mixerRow(ready, contentID: contentID, usn: usn, stamp: stamp))
-        for row in inserted { try insert(db, table: row.table, row.values) }
-        return inserted
+        return rows
     }
 
     /// 분석 파일 하나의 `contentFile` 행(ID = `<곡 UUID>_<경로, /는 %2F>`, MD5·크기·로컬 경로)

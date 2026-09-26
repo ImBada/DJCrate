@@ -2,8 +2,9 @@ import CoreGraphics
 import Foundation
 import ImageIO
 
-/// rekordbox 7.2.18이 곡을 넣을 때 음원 내장 아트워크로 만드는 파일 셋.
+/// rekordbox 7.2.x가 곡을 분석할 때 음원 내장 아트워크로 만드는 파일 셋(자동 분석을 끄고 넣을 때는 만들지 않는다).
 ///
+/// 2026-09-26 실험(시험 곡 "DJC 실험 아트", 1200×900 JPEG): 800×600·240×240·80×80, 머리 같음, `djc lab artwork-check` 화소 차이 0.1·2.5·4.9.
 /// 2026-09-26 라이브러리 조사(스냅샷 사본과 share 읽기 전용, 아트워크 있는 곡 전부·파일 19,914개):
 /// - 폴더는 곡 UUID로 정한다(`/PIONEER/Artwork/<앞 3자>/<나머지>/`, 분석 폴더와 같은 규칙). `ImagePath`는 그 안의 `artwork.jpg`.
 /// - `artwork.jpg`: 원본 크기 그대로, 긴 변이 800을 넘으면 800으로 줄인다(비율 유지, 짧은 변은 반올림). 원본이 JPEG여도 다시 인코딩한다(PNG도 JPEG로).
