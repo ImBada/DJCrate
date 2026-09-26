@@ -26,6 +26,8 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 .build/debug/djc compat           # rekordbox 버전·DB 구조·카운터가 쓰기를 확인한 모양인지(읽기 전용)
 .build/debug/djc snapshot [--force]                    # 라이브 DB 읽기용 사본 뜨기
 .build/debug/djc cue-write --db <사본.db> [--dry-run]   # 초안을 사본에 써 보기
+.build/debug/djc track-add --db <사본.db> --share <폴더> --analyze <음원…>   # 곡 넣기(분석까지), 사본에만
+.build/debug/djc track-delete --db <사본.db> --share <폴더> <ContentID…>      # 곡 빼기, 사본에만
 .build/debug/djc lab                                   # 실험 명령 목록(sql·loop-repro·seekinfo-check …)
 .build/debug/djc lab sql <사본.db> "SELECT …"           # 사본에 읽기 전용 질의
 ```
