@@ -125,20 +125,54 @@ struct LibraryReadTests {
         #expect(try read.track(id: "101").drafts.gain)
     }
 
-    @Test func 최신_스냅샷만_선택하고_라이브_DB를_차단한다() throws {
+    @Test func 최신_스냅샷만_선택한다() throws {
         let fixture = try fixture()
         let directory = fixture.root.appending(path: "snapshots")
-        #expect(throws: (any Error).self) { try LibraryRead.resolve(database: nil, snapshots: directory) }
+        let live = fixture.root.appending(path: "live/master.db")
+        #expect(throws: (any Error).self) { try LibraryRead.resolve(database: nil, snapshots: directory, liveDatabase: live) }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         for name in ["master-2026-01-01T000000.db", "master-2026-01-02T000000.db"] {
             try FileManager.default.copyItem(at: fixture.database, to: directory.appending(path: name))
         }
-        #expect(try LibraryRead.resolve(database: nil, snapshots: directory).lastPathComponent == "master-2026-01-02T000000.db")
-        let live = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Pioneer/rekordbox/master.db")
-        #expect(throws: ReadFailure.self) { try LibraryRead.resolve(database: live) }
-        let alias = fixture.root.appending(path: "alias.db")
-        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: live)
-        #expect(throws: ReadFailure.self) { try LibraryRead.resolve(database: alias) }
+        #expect(try LibraryRead.resolve(database: nil, snapshots: directory, liveDatabase: live).lastPathComponent == "master-2026-01-02T000000.db")
+    }
+
+    @Test func 라이브_DB와_심볼릭_링크와_하드_링크를_차단한다() throws {
+        let fixture = try RekordboxFixture()
+        let fm = FileManager.default
+        let live = fixture.root.appending(path: "live/master.db")
+        try fm.createDirectory(at: live.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data().write(to: live)
+        let absolute = fixture.root.appending(path: "absolute.db")
+        let relative = fixture.root.appending(path: "relative.db")
+        let hard = fixture.root.appending(path: "hard.db")
+        try fm.createSymbolicLink(at: absolute, withDestinationURL: live)
+        try fm.createSymbolicLink(atPath: relative.path, withDestinationPath: "live/master.db")
+        try fm.linkItem(at: live, to: hard)
+        for candidate in [live, absolute, relative, hard] {
+            #expect(throws: ReadFailure.self) { try LibraryRead.resolve(database: candidate, liveDatabase: live) }
+        }
+        let copy = fixture.root.appending(path: "copy.db")
+        try fm.copyItem(at: live, to: copy)
+        let copyAlias = fixture.root.appending(path: "copy-alias.db")
+        try fm.createSymbolicLink(at: copyAlias, withDestinationURL: copy)
+        #expect(try LibraryRead.resolve(database: copy, liveDatabase: live) == copy)
+        #expect(try LibraryRead.resolve(database: copyAlias, liveDatabase: live) == copyAlias)
+    }
+
+    @Test func 라이브_DB가_없어도_경로와_끊어진_링크를_차단한다() throws {
+        let fixture = try RekordboxFixture()
+        let fm = FileManager.default
+        let live = fixture.root.appending(path: "missing/master.db")
+        #expect(!fm.fileExists(atPath: live.path))
+        let absolute = fixture.root.appending(path: "absolute.db")
+        let relative = fixture.root.appending(path: "relative.db")
+        try fm.createSymbolicLink(at: absolute, withDestinationURL: live)
+        try fm.createSymbolicLink(atPath: relative.path, withDestinationPath: "missing/master.db")
+        for candidate in [live, absolute, relative] {
+            #expect(throws: ReadFailure.self) { try LibraryRead.resolve(database: candidate, liveDatabase: live) }
+        }
+        #expect(try LibraryRead.resolve(database: fixture.database, liveDatabase: live) == fixture.database)
     }
 
     @Test func 없는_ID는_JSON_오류다() throws {

@@ -22,17 +22,23 @@ public struct LibraryRead {
     }
 
     /// 명시한 사본 또는 기존 최신 스냅샷만 사용한다. 라이브 경로·링크를 DB로 열지 않는다.
-    public static func resolve(database: URL?, snapshots: URL = LibrarySnapshot.defaultDirectory) throws -> URL {
+    public static func resolve(database: URL?, snapshots: URL = LibrarySnapshot.defaultDirectory,
+                               liveDatabase: URL = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Pioneer/rekordbox/master.db")) throws -> URL {
         let candidate = try database ?? LibrarySnapshot.latest(in: snapshots)
         let resolved = candidate.resolvingSymlinksInPath().standardizedFileURL
-        let live = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Pioneer/rekordbox/master.db")
-            .resolvingSymlinksInPath().standardizedFileURL
+        let live = liveDatabase.resolvingSymlinksInPath().standardizedFileURL
         let fm = FileManager.default
+        // 끊어진 링크는 풀리지 않으므로 저장된 대상 경로도 확인한다.
+        let destination = try? fm.destinationOfSymbolicLink(atPath: candidate.path)
+        let linked = destination.map {
+            URL(filePath: $0, relativeTo: candidate.deletingLastPathComponent())
+                .resolvingSymlinksInPath().standardizedFileURL
+        }
         let source = try? fm.attributesOfItem(atPath: live.path)
         let target = try? fm.attributesOfItem(atPath: resolved.path)
         let sameFile = source?[.systemNumber] as? UInt64 == target?[.systemNumber] as? UInt64
             && source?[.systemFileNumber] as? UInt64 == target?[.systemFileNumber] as? UInt64 && source != nil && target != nil
-        guard resolved != live, !sameFile else {
+        guard resolved != live, linked != live, !sameFile else {
             throw ReadFailure("live_database", "라이브 master.db는 열 수 없습니다. djc snapshot으로 사본을 만든 뒤 읽으세요")
         }
         return candidate
