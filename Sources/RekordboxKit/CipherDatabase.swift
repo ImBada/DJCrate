@@ -77,6 +77,7 @@ public final class CipherDatabase {
     public enum Value: Sendable, Equatable {
         case text(String)
         case int(Int)
+        case real(Double)
         case null
     }
 
@@ -92,6 +93,7 @@ public final class CipherDatabase {
             let result = switch value {
             case let .text(text): sqlite3_bind_text(statement, position, text, -1, transient)
             case let .int(number): sqlite3_bind_int64(statement, position, Int64(number))
+            case let .real(number): sqlite3_bind_double(statement, position, number)
             case .null: sqlite3_bind_null(statement, position)
             }
             guard result == SQLITE_OK else {
@@ -143,6 +145,11 @@ public final class CipherDatabase {
         public func int(_ column: Int32) -> Int? {
             guard sqlite3_column_type(statement, column) != SQLITE_NULL else { return nil }
             return Int(sqlite3_column_int64(statement, column))
+        }
+
+        public func double(_ column: Int32) -> Double? {
+            guard sqlite3_column_type(statement, column) != SQLITE_NULL else { return nil }
+            return sqlite3_column_double(statement, column)
         }
     }
 }

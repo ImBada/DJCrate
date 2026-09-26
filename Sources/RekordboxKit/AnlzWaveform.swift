@@ -221,7 +221,8 @@ public struct RekordboxWaveforms: Sendable, Equatable {
         let chunk: AVAudioFrameCount = 1 << 16
         guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: chunk) else { throw DJCError.invalidAnalysisFile("버퍼") }
         while file.framePosition < file.length {
-            try file.read(into: buffer, frameCount: chunk)
+            // 압축 음원은 알려 준 길이가 실제보다 조금 길 수 있다: 이미 읽은 뒤 끝에서 실패하면 거기까지.
+            do { try file.read(into: buffer, frameCount: chunk) } catch where mono.count > lead { break }
             let frames = Int(buffer.frameLength)
             guard frames > 0, let data = buffer.floatChannelData else { break }
             for i in 0..<frames {

@@ -89,6 +89,32 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 4. 커밋 뒤 다시 열어 한 번 더 검증 + `PRAGMA quick_check` + `cipher_integrity_check`.
 5. 어느 단계든 실패하면 백업으로 되돌린다. 초안을 만든 뒤 rekordbox에서 그 곡이 바뀌었으면(base 불일치) 그 곡은 쓰지 않는다.
 
+## 곡 추가·삭제 (`RekordboxTrackWriter`, 2026-09-26 묶음 1·2 실험)
+
+**추가(분석 전)**: rekordbox가 자동 분석을 끈 채 파일을 넣으면 `djmdContent` 행 하나만 생긴다(78칸, 형식까지 `RekordboxTrackWriter.contentRow`).
+- 곡 ID는 1~2^28 난수(라이브러리 14,155행 전부 이 범위), 아티스트·앨범·장르 ID는 32비트 난수. UUID는 소문자 v4.
+- 태그(ID3·iTunes·Vorbis)에서 제목·아티스트·앨범·앨범 아티스트·장르·작곡가(`djmdArtist`)·코멘트·연도·트랙·디스크·ISRC. 제목이 없으면 확장자를 뺀 파일 이름. 설명이 붙은 ID3 코멘트(iTunNORM 등)는 쓰지 않는다. 이름이 없으면 새 행.
+- 분석 칸은 0·빈 값, `Analysed` 0, `ContentLink` 14, `AnalysisUpdated`·`TrackInfoUpdated`·`CueUpdated` NULL, 길이는 초 반올림.
+- `rb_file_id` = 음원 파일 inode, `DateCreated` = 파일 만든 날, `StockDate` = 넣은 날, `MasterDBID`·`DeviceID`는 라이브러리 공통값. 경로·파일 이름은 NFC.
+- 변경 번호는 관련 행(아티스트·앨범·장르)이 먼저, 곡 행이 마지막.
+
+**추가(분석 포함)**: 위 행에 분석 칸을 채우고 분석 파일·파일 행·오토게인 행을 더한다.
+- 분석 경로 `/PIONEER/USBANLZ/<UUID 앞 3자>/<나머지>/ANLZ0000.DAT`, `Analysed` 105, 길이는 초 버림, `AnalysisUpdated` "3"·`TrackInfoUpdated` "2"(글자).
+- 비트레이트: CBR MP3는 프레임 비트레이트, AAC는 esds 평균 비트레이트(없으면 0, streamType 바이트 0x14도 있음), WAV는 샘플레이트×비트×채널, FLAC 0.
+- `.DAT`: `PPTH`(`?/파일 이름` UTF-16BE + NULL) · `PVBR`(머리 0, 탐색표 400칸, 끝값 = MP3는 MPEG 프레임 수(정보 프레임 포함)×1152, AAC·WAV는 0) · `PQTZ` · `PWAV` · `PWV2` · `PCOB`(핫, 빈) · `PCOB`(메모리, 빈). 같은 그리드로 다시 만들면 머리·PPTH·PVBR·PQTZ·PCOB가 바이트까지 같다.
+- `.EXT`·`.2EX`는 파형 생성기(`RekordboxWaveforms`, baken MIT 규칙 이식). 흑백 파형 높이는 99.5% 바이트 일치, 색·3밴드·미리 보기는 근사. rekordbox 7.2.18은 우리 파일을 그대로 표시했다(サラマンダー 복사본).
+- `contentFile` 행은 파일마다(ID `<곡 UUID>_<경로, /는 %2F>`, MD5, 크기, `rb_local_path`, `rb_priority` 50). 없어도 표시는 되지만 rekordbox처럼 넣는다.
+- `ContentLink`는 분석 구성 비트: `0x3C060E` 보통(6,409곡), `0x2C060E` 보컬 분석 없음, +`0x10000` 프레이즈 있음. 우리는 프레이즈·보컬이 없으므로 `0x2C060E`.
+- 만들 수 없는 것: `PSSI`(프레이즈), `PVDI`(보컬), `.3EX`(MessagePack `embedding`, rekordbox AI 특징값). rekordbox에서 Phrase만 분석하면 우리 태그를 바이트 그대로 두고 `PSSI`만 덧붙인다.
+- 막음: VBR MP3(`PVBR` 400칸 탐색표 규칙 미확인), FLAC(`.EXT`의 `PVB2` 1000칸 미확인), ALAC.
+
+**삭제**: 삭제 표시가 아니라 행을 실제로 지운다.
+- 곡 행, 큐(`djmdCue`·`contentCue`), 파일 행, 오토게인 행, 재생 목록·재생 이력 항목. 같은 이력의 뒤 순번을 하나씩 당기고 그 행들은 한 변경 번호로 몰아 받는다(재생 목록도 같다고 보고 당긴다: 추정).
+- 그 곡만 쓰던 아티스트·앨범 행도 지운다. 분석 폴더는 통째로, 아트워크는 파일만 지운다(폴더는 남김).
+- MyTag·핫큐 뱅크·샘플러·관련 곡·신청곡·검열 구간·클라우드 내보내기에 걸린 곡은 아직 지우지 않는다.
+
+**rekordbox가 음원 파일도 고친다**: 태그를 고치면 파일 태그를 다시 쓰고(m4a 확인), 분석하면 키 태그(TKEY 등)를 써 넣는다(파일 크기가 커짐). 자동 분석을 켜면 라이브러리의 분석 안 된 곡까지 한꺼번에 분석한다.
+
 ## 막아 둔 것 (규칙 미확인)
 
 - **VBR MP3 큐**: rekordbox가 큐마다 `InMpegFrame` = InFrame/2, `InMpegAbs` = 큐보다 7~9프레임 앞 MPEG 프레임의 바이트 위치(첫 프레임 기준)를 적는다. 곡·큐마다 달라 규칙을 못 찾았다(Xing TOC 보간 가설 9.5% 일치).

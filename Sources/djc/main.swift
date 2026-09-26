@@ -29,7 +29,7 @@ struct Command: Sendable {
 struct UsageError: Error {}
 
 enum CLI {
-    static let lab = CueLab.all + GridLab.all + AudioLab.all
+    static let lab = CueLab.all + GridLab.all + AudioLab.all + TrackLab.all
 
     static let usage = """
         DJCrate(djc) — rekordbox DJ 라이브러리 관리 도구

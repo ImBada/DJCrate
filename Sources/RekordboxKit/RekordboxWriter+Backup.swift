@@ -22,7 +22,13 @@ extension RekordboxWriter {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd'T'HHmmss"
-        let name = formatter.string(from: now) + "-" + label
+        // 같은 초에 두 번 뜨면 번호를 붙인다(이름 순서 = 시간 순서가 되게 -2, -3…)
+        var name = formatter.string(from: now) + "-" + label
+        var suffix = 2
+        while fm.fileExists(atPath: directory.appending(path: name).path) {
+            name = formatter.string(from: now) + "-" + label + "-\(suffix)"
+            suffix += 1
+        }
         let folder = directory.appending(path: name)
         try fm.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         for suffix in ["", "-wal", "-shm"] {
@@ -121,6 +127,8 @@ extension RekordboxWriter {
             try JSONEncoder().encode(manifest).write(to: current.appending(path: "manifest.json"))
         }
         for (name, path) in manifest {
+            // 곡을 지우면서 폴더째 지운 경우가 있다
+            try FileManager.default.createDirectory(at: URL(filePath: path).deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data(contentsOf: folder.appending(path: name)).write(to: URL(filePath: path), options: .atomic)
         }
     }

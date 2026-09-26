@@ -20,17 +20,34 @@ public enum RekordboxCompatibility {
                     "rb_local_deleted", "rb_local_synced", "usn", "rb_local_usn", "created_at", "updated_at"],
         "contentCue": ["ID", "ContentID", "Cues", "rb_cue_count", "UUID", "rb_data_status", "rb_local_data_status",
                        "rb_local_deleted", "rb_local_synced", "usn", "rb_local_usn", "created_at", "updated_at"],
+        // 곡 추가(RekordboxTrackWriter)
+        "djmdContent": ["ID", "FolderPath", "FileNameL", "FileNameS", "Title", "ArtistID", "AlbumID", "GenreID", "BPM", "Length", "TrackNo",
+                        "BitRate", "BitDepth", "Commnt", "FileType", "Rating", "ReleaseYear", "RemixerID", "LabelID", "OrgArtistID", "KeyID",
+                        "StockDate", "ColorID", "DJPlayCount", "ImagePath", "MasterDBID", "MasterSongID", "AnalysisDataPath", "SearchStr",
+                        "FileSize", "DiscNo", "ComposerID", "Subtitle", "SampleRate", "DisableQuantize", "Analysed", "ReleaseDate",
+                        "DateCreated", "ContentLink", "Tag", "ModifiedByRBM", "HotCueAutoLoad", "DeliveryControl", "DeliveryComment",
+                        "CueUpdated", "AnalysisUpdated", "TrackInfoUpdated", "Lyricist", "ISRC", "SamplerTrackInfo", "SamplerPlayOffset",
+                        "SamplerGain", "VideoAssociate", "LyricStatus", "ServiceID", "OrgFolderPath", "Reserved1", "Reserved2", "Reserved3",
+                        "Reserved4", "ExtInfo", "rb_file_id", "DeviceID", "rb_LocalFolderPath", "SrcID", "SrcTitle", "SrcArtistName",
+                        "SrcAlbumName", "SrcLength", "UUID", "rb_data_status", "rb_local_data_status", "rb_local_deleted", "rb_local_synced",
+                        "usn", "rb_local_usn", "created_at", "updated_at"],
+        "djmdArtist": ["ID", "Name", "SearchStr", "UUID", "rb_data_status", "rb_local_data_status", "rb_local_deleted", "rb_local_synced",
+                       "usn", "rb_local_usn", "created_at", "updated_at"],
+        "djmdAlbum": ["ID", "Name", "AlbumArtistID", "ImagePath", "Compilation", "SearchStr", "UUID", "rb_data_status",
+                      "rb_local_data_status", "rb_local_deleted", "rb_local_synced", "usn", "rb_local_usn", "created_at", "updated_at"],
+        "djmdGenre": ["ID", "Name", "UUID", "rb_data_status", "rb_local_data_status", "rb_local_deleted", "rb_local_synced", "usn",
+                      "rb_local_usn", "created_at", "updated_at"],
     ]
 
     /// 고치거나 읽는 칸: 있어야 한다
     static let requiredColumns: [String: Set<String>] = [
-        "djmdContent": ["ID", "UUID", "Title", "FileType", "BitRate", "Length", "FolderPath", "AnalysisDataPath", "BPM",
-                        "CueUpdated", "AnalysisUpdated", "TrackInfoUpdated", "rb_data_status", "rb_local_deleted",
-                        "rb_local_usn", "updated_at"],
         "contentFile": ["ContentID", "Path", "Hash", "Size", "rb_data_status", "rb_local_usn", "updated_at"],
         "djmdMixerParam": ["ID", "ContentID", "GainHigh", "GainLow", "rb_data_status", "rb_local_deleted", "rb_local_usn", "updated_at"],
         "agentRegistry": ["registry_id", "int_1"],
         "djmdProperty": ["DBVersion"],
+        // 곡 삭제 때 지우거나 번호를 당기는 표
+        "djmdSongPlaylist": ["ID", "PlaylistID", "ContentID", "TrackNo", "rb_local_usn", "updated_at"],
+        "djmdSongHistory": ["ID", "HistoryID", "ContentID", "TrackNo", "rb_local_usn", "updated_at"],
     ]
 
     /// DB 구조와 DB 버전을 확인한다. 다르면 `writeRefused`.
