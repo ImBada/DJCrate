@@ -47,6 +47,7 @@ struct TransportBar: View {
             FlowLayout(spacing: 10) {
                 ZoomControl(deck: deck)
                 ShortcutsButton()
+                TrackEditButton(deck: deck)
                 HStack(spacing: 8) {
                     Toggle("퀀타이즈", isOn: $deck.quantize)
                         .toggleStyle(.checkbox)

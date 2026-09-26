@@ -234,6 +234,7 @@ struct ContentView: View {
                 deck.refreshAfterWrite(store?.rowsByUUID[uuid])
             }
             keys.install(deck: deck, store: store)
+            TrackEditWindow.shared.attach(deck: deck, store: store)
             #if DEBUG
             DevSelfTests.runIfRequested(store: store, deck: deck)
             #endif

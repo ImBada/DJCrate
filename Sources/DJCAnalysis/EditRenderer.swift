@@ -6,6 +6,7 @@ import Foundation
 ///
 /// 무엇을 어디에 쓸지는 `TrackEdit.frames`(순수, 테스트됨)가 정하고 여기서는 그대로 읽고 쓴다.
 /// 원본은 읽기만 하고, 이미 있는 파일은 덮지 않는다. 옆에 임시 파일로 다 쓴 뒤 이름을 바꿔 반쯤 쓴 파일을 남기지 않는다.
+/// 렌더하는 작업을 취소하면 조각을 쓰는 사이사이에 멈추고(`CancellationError`) 임시 파일을 지운다.
 public enum EditRenderer {
     public struct Result: Sendable, Equatable {
         public var frames: Int64
@@ -18,13 +19,19 @@ public enum EditRenderer {
 
     public static let outputExtensions: Set<String> = ["wav", "aif", "aiff"]
 
+    /// 쓴 비율(0~1). 렌더하는 스레드에서 부른다.
+    public typealias Progress = @Sendable (Double) -> Void
+
     /// - Parameter sourceOffset: 원본의 rekordbox 시간축 − 음원 시간축(초, `RekordboxTimeline.predictedOffset`)
-    public static func render(_ edit: TrackEdit, source: URL, sourceOffset: Double, to output: URL, bitDepth: Int = 16) throws -> Result {
+    public static func render(_ edit: TrackEdit, source: URL, sourceOffset: Double, to output: URL, bitDepth: Int = 16,
+                              progress: Progress? = nil) throws -> Result {
         let rate = try AVAudioFile(forReading: source).processingFormat.sampleRate
-        return try render(edit.frames(sampleRate: rate, sourceOffset: sourceOffset), source: source, to: output, bitDepth: bitDepth)
+        return try render(edit.frames(sampleRate: rate, sourceOffset: sourceOffset), source: source, to: output, bitDepth: bitDepth,
+                          progress: progress)
     }
 
-    public static func render(_ spans: [EditFrameSpan], source: URL, to output: URL, bitDepth: Int = 16) throws -> Result {
+    public static func render(_ spans: [EditFrameSpan], source: URL, to output: URL, bitDepth: Int = 16,
+                              progress: Progress? = nil) throws -> Result {
         let ext = output.pathExtension.lowercased()
         guard outputExtensions.contains(ext) else {
             throw DJCError.editRefused("\(output.lastPathComponent): WAV·AIFF로만 렌더합니다. 확장자를 .wav나 .aiff로 주세요")
@@ -44,7 +51,7 @@ public enum EditRenderer {
         let partial = output.deletingLastPathComponent().appending(path: ".\(output.deletingPathExtension().lastPathComponent).djc-partial.\(ext)")
         try? FileManager.default.removeItem(at: partial)
         do {
-            let result = try write(spans, from: file, to: partial, bitDepth: bitDepth, bigEndian: ext != "wav")
+            let result = try write(spans, from: file, to: partial, bitDepth: bitDepth, bigEndian: ext != "wav", progress: progress)
             try FileManager.default.moveItem(at: partial, to: output)
             return result
         } catch {
@@ -55,7 +62,8 @@ public enum EditRenderer {
 
     static let chunk: AVAudioFrameCount = 1 << 16
 
-    static func write(_ spans: [EditFrameSpan], from file: AVAudioFile, to url: URL, bitDepth: Int, bigEndian: Bool) throws -> Result {
+    static func write(_ spans: [EditFrameSpan], from file: AVAudioFile, to url: URL, bitDepth: Int, bigEndian: Bool,
+                      progress: Progress? = nil) throws -> Result {
         let format = file.processingFormat
         let out = try AVAudioFile(forWriting: url, settings: [
             AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: format.sampleRate, AVNumberOfChannelsKey: format.channelCount,
@@ -67,6 +75,7 @@ public enum EditRenderer {
             throw DJCError.editRefused("렌더 버퍼를 만들지 못했습니다")
         }
         let channels = Int(format.channelCount)
+        let total = max(1, spans.reduce(0) { $0 + $1.frameCount })
         var written: Int64 = 0
         // 앞 조각 끝(다음 이음새에서 섞을 만큼)을 쓰지 않고 들고 있다.
         var tail: AVAudioPCMBuffer?
@@ -95,12 +104,14 @@ public enum EditRenderer {
             var position = span.sourceFrame
             var remaining = span.frameCount - hold
             while remaining > 0 {
+                try Task.checkCancellation()
                 let n = Int(min(Int64(chunk), remaining))
                 try read(file, from: position, count: n, into: body, scratch: scratch)
                 try out.write(from: body)
                 written += Int64(n)
                 position += Int64(n)
                 remaining -= Int64(n)
+                progress?(min(1, Double(written) / Double(total)))
             }
             if hold > 0 {
                 guard let held = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(hold)) else {
@@ -114,6 +125,7 @@ public enum EditRenderer {
             try out.write(from: held)
             written += Int64(held.frameLength)
         }
+        progress?(1)
         return Result(frames: written, sampleRate: format.sampleRate, channels: channels,
                       seams: spans.filter { $0.crossfadeFrames > 0 }.count)
     }

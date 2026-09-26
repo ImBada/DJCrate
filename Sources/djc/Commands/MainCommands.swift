@@ -124,7 +124,7 @@ enum MainCommands {
         let report = try RekordboxTrackWriter.add(plans, analyses: analyses, to: database, shareRoot: value(after: "--share", in: args).map { URL(filePath: $0) },
                                                   dryRun: args.contains("--dry-run"), backups: backups)
         for o in report.added { print("\(o.written ? "✓" : "✗") \(o.title.prefix(40))\(o.contentID.map { " · ID \($0)" } ?? "")\(o.reason.map { " · \($0)" } ?? "")") }
-        print("\(report.dryRun ? "미리 보기(되돌림)" : "넣음") · \(report.added.filter(\.written).count)곡 · 분석 파일 \(report.createdFiles.count)개 · 백업 \(report.backup ?? "없음")")
+        print("\(report.dryRun ? "미리 보기(되돌림)" : "넣음") · \(report.added.filter(\.written).count)곡 · 만든 파일(분석·아트워크) \(report.createdFiles.count)개 · 백업 \(report.backup ?? "없음")")
     }
 
     /// 곡을 컬렉션에서 뺀다. 분석 파일은 백업으로 옮긴다. 기본은 --db 사본(분석 파일은 --share를 줄 때만), 라이브는 --live.
@@ -138,7 +138,7 @@ enum MainCommands {
         let report = try RekordboxTrackWriter.delete(contentIDs: ids, from: database, shareRoot: value(after: "--share", in: args).map { URL(filePath: $0) },
                                                      dryRun: args.contains("--dry-run"), backups: backups)
         for o in report.deleted { print("\(o.written ? "✓" : "✗") \(o.title.prefix(40)) · ID \(o.contentID ?? "")\(o.reason.map { " · \($0)" } ?? "")") }
-        print("\(report.dryRun ? "미리 보기(되돌림)" : "뺌") · \(report.deleted.filter(\.written).count)곡 · 분석 파일 \(report.removedFiles.count)개 · 백업 \(report.backup ?? "없음")")
+        print("\(report.dryRun ? "미리 보기(되돌림)" : "뺌") · \(report.deleted.filter(\.written).count)곡 · 지운 파일(분석·아트워크) \(report.removedFiles.count)개 · 백업 \(report.backup ?? "없음")")
     }
 
     /// 백업으로 되돌린다. 기본은 --db 사본. 라이브 DB는 --live(rekordbox가 꺼져 있어야 한다). 백업 목록은 인자 없이.

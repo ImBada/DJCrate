@@ -131,6 +131,25 @@ public extension LibraryRead {
         public let tracks: [TrackRecord]
     }
 
+    struct HistoryRecord: Codable {
+        public let id: String
+        public let name: String
+        public let dateCreated: String?
+        public let trackCount: Int
+    }
+
+    struct HistoryEntry: Codable {
+        public let id: String
+        public let trackNumber: Int
+        public let track: TrackRecord
+    }
+
+    struct HistoryList: Codable { public let histories: [HistoryRecord] }
+    struct HistoryContents: Codable {
+        public let history: HistoryRecord
+        public let entries: [HistoryEntry]
+    }
+
     struct TrackInfo: Codable {
         public let track: TrackRecord
         public let cues: [CueRecord]

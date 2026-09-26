@@ -95,6 +95,24 @@ public struct LibraryRead {
         return PlaylistContents(playlist: record(playlist, tree: false), tracks: try playlistTracks(id: id).map(TrackRecord.init))
     }
 
+    public func histories() -> HistoryList {
+        HistoryList(histories: library.histories.map(historyRecord))
+    }
+
+    public func history(id: String) throws -> HistoryContents {
+        guard let history = library.histories.first(where: { $0.id == id }) else {
+            throw ReadFailure("not_found", "재생 기록을 찾지 못했습니다. histories로 ID를 확인하세요")
+        }
+        return HistoryContents(history: historyRecord(history), entries: history.entries.compactMap { entry in
+            byID[entry.contentID].map { HistoryEntry(id: entry.id, trackNumber: entry.trackNumber, track: TrackRecord($0)) }
+        })
+    }
+
+    private func historyRecord(_ history: RekordboxHistory) -> HistoryRecord {
+        HistoryRecord(id: history.id, name: history.name, dateCreated: history.dateCreated,
+                      trackCount: history.entries.lazy.filter { byID[$0.contentID] != nil }.count)
+    }
+
     public func drafts() -> DraftList {
         let uuids = CueDraftStore.uuids(directory: home.appending(path: "cue-drafts"))
             .union(GridDraftStore.uuids(directory: home.appending(path: "grid-drafts")))

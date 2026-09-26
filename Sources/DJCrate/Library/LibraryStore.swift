@@ -9,6 +9,7 @@ import Observation
 enum SidebarItem: Hashable, Sendable {
     case filter(LibraryFilter)
     case playlist(String)
+    case history(String)
     /// DJCrate에 추가한 곡(아직 rekordbox에 없음)
     case staged
     /// 큐·그리드 초안이 있어 rekordbox에 반영할 곡
@@ -77,7 +78,7 @@ final class LibraryStore {
             // 플레이리스트는 rekordbox 순서가 기본, 필터는 임포트 최신순이 기본.
             suppressRefresh = true
             switch sidebar {
-            case .playlist, .staged, .pending: sortOrder = []
+            case .playlist, .history, .staged, .pending: sortOrder = []
             case .filter:
                 if case .filter = oldValue {} else { sortOrder = [KeyPathComparator(\TrackRow.importedOn, order: .reverse)] }
             }
@@ -89,11 +90,14 @@ final class LibraryStore {
     private var playlistIndex: [String: PlaylistNode] = [:] { didSet { playlistCount = playlistIndex.values.filter { !$0.isFolder }.count } }
     /// 폴더를 뺀 rekordbox 플레이리스트 수(사이드바 제목)
     private(set) var playlistCount = 0
+    private(set) var histories: [RekordboxHistory] = []
+    private var historyIndex: [String: RekordboxHistory] = [:]
 
     var sidebarTitle: String {
         switch sidebar {
         case let .filter(filter): filter.rawValue
         case let .playlist(id): playlistIndex[id]?.name ?? "플레이리스트"
+        case let .history(id): historyIndex[id].map(historyTitle) ?? "재생 기록"
         case .staged: "추가한 곡"
         case .pending: "rekordbox 반영 대기"
         }
@@ -175,13 +179,28 @@ final class LibraryStore {
     /// 덱에 올릴 곡: 선택 중 표 순서로 첫 곡.
     var primaryRow: TrackRow? {
         guard !selection.isEmpty else { return nil }
-        if selection.count == 1, let id = selection.first { return rowsByID[id] }
-        if let row = displayRows.first(where: { selection.contains($0.id) }) { return row }
+        if selection.count == 1, let id = selection.first, let row = rowsByID[id] { return row }
+        if let row = displayRows.first(where: { selection.contains($0.id) }) { return rowsByID[row.track.id] ?? row }
         return selection.first.flatMap { rowsByID[$0] }
     }
 
     var selectedRows: [TrackRow] {
-        displayRows.filter { selection.contains($0.id) }
+        uniqueTracks(displayRows.filter { selection.contains($0.id) })
+    }
+
+    /// 재생 기록의 반복 행을 함께 골라도 곡 편집·반영 대상은 한 번만 넘긴다.
+    func uniqueTracks(_ candidates: [TrackRow]) -> [TrackRow] {
+        var seen = Set<String>()
+        return candidates.filter { seen.insert($0.track.id).inserted }.map { rowsByID[$0.track.id] ?? $0 }
+    }
+
+    func historyTitle(_ history: RekordboxHistory) -> String {
+        let date = history.dateCreated.map { String($0.prefix(10)) } ?? "날짜 없음"
+        return history.name.isEmpty || history.name == date ? date : "\(date) · \(history.name)"
+    }
+
+    func count(history: RekordboxHistory) -> Int {
+        history.entries.lazy.filter { self.rowsByID[$0.contentID] != nil }.count
     }
 
     func count(_ filter: LibraryFilter) -> Int { filterCounts[filter] ?? 0 }
@@ -202,6 +221,12 @@ final class LibraryStore {
         switch sidebar {
         case let .filter(filter): base = rows.filter(filter.includes)
         case let .playlist(id): base = (playlistIndex[id]?.trackIDs ?? []).compactMap { rowsByID[$0] }
+        case let .history(id):
+            base = (historyIndex[id]?.entries ?? []).compactMap { entry in
+                guard var row = rowsByID[entry.contentID] else { return nil }
+                row.historyEntry = entry
+                return row
+            }
         case .staged: base = stagedRows
         case .pending: base = rows.filter { pendingUUIDs.contains($0.track.uuid) }
         }
@@ -317,6 +342,8 @@ final class LibraryStore {
             func walk(_ nodes: [PlaylistNode]) { for node in nodes { index[node.id] = node; walk(node.children ?? []) } }
             walk(loaded.tree)
             playlistIndex = index
+            histories = loaded.histories
+            historyIndex = Dictionary(uniqueKeysWithValues: histories.map { ($0.id, $0) })
             let known = rowsByID
             playlistCounts = index.mapValues { node in node.trackIDs.lazy.filter { known[$0] != nil }.count }
             snapshotURL = snapshot
@@ -325,7 +352,9 @@ final class LibraryStore {
             // 기다리는 동안 설정이 바뀌었으면 최신 프리셋으로 맞춘다.
             if preset != commentPreset { refreshCommentRule() }
             // rekordbox에서 지운 곡은 선택에서도 뺀다(덱이 지워진 곡을 붙들지 않게)
-            let existing = selection.filter { rowsByID[$0] != nil }
+            refreshBase()
+            let visible = Set(displayRows.map(\.id))
+            let existing = selection.filter { rowsByID[$0] != nil || visible.contains($0) }
             if existing != selection { selection = existing }
             verifyReflection()
             refreshBase()

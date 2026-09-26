@@ -103,5 +103,27 @@ struct CommentPresetAppTests {
         #expect(table.tableColumns.first { $0.identifier.rawValue == "class" }?.isHidden == false)
         coordinator.menuNeedsUpdate(menu)
         #expect(menu.items.contains { $0.representedObject as? String == "class" })
+        table.tableColumns.first { $0.identifier.rawValue == "class" }?.isHidden = true
+        coordinator.updateCommentPreset(.none)
+        coordinator.updateCommentPreset(.anisong)
+        #expect(table.tableColumns.first { $0.identifier.rawValue == "class" }?.isHidden == true)
+    }
+
+    @Test func 프리셋을_바꿔도_재생_기록의_반복행과_선택을_보존한다() async throws {
+        let fixture = try historyFixture()
+        try fixture.execute("UPDATE djmdContent SET Commnt = 'TVA 시험 OP' WHERE ID = '101'")
+        let settings = SettingsStore(defaults: SettingsStoreTests.freshDefaults(), persist: true)
+        let store = LibraryStore(settings: settings, saveTagDrafts: { _ in })
+        await store.load(snapshot: fixture.database)
+        store.sidebar = .history("new-a")
+        store.selection = ["history:entry-3"]
+        for preset in [CommentPreset.anisong, .none, .anisong] {
+            store.commentPreset = preset
+            #expect(store.sidebar == .history("new-a"))
+            #expect(store.displayRows.map(\.id) == ["history:entry-1", "history:entry-2", "history:entry-3"])
+            #expect(store.selection == ["history:entry-3"])
+            #expect(store.primaryRow?.track.id == "101")
+            #expect(store.displayRows.last?.commentEvaluation?.isMatch == (preset == .none ? nil : true))
+        }
     }
 }

@@ -41,6 +41,8 @@ public enum SettingKeys {
     public static let sheetMode = SettingKey("sheetMode", false)
     public static let sidebarPlaylistsExpanded = SettingKey("sidebar.playlistsExpanded", true)
     public static let sidebarSummaryExpanded = SettingKey("sidebar.summaryExpanded", true)
+    /// 재생 기록은 날짜마다 한 줄이라 길어서 접어 두고 시작한다.
+    public static let sidebarHistoriesExpanded = SettingKey("sidebar.historiesExpanded", false)
 
     // MARK: 목록·표
 
@@ -57,7 +59,8 @@ public enum SettingKeys {
         [zoomSeconds.name, volume.name, metronomeVolume.name, idleSeconds.name, gainTarget.name, gainTrim.name,
          waveformHeight.name]
             + [quantize, carryCues, showSuggestions, keyLock, autoGain, peakProtection, useRekordboxGain,
-               sheetMode, sidebarPlaylistsExpanded, sidebarSummaryExpanded, commentClassColumnHidden].map(\.name)
+               sheetMode, sidebarPlaylistsExpanded, sidebarSummaryExpanded, sidebarHistoriesExpanded,
+               commentClassColumnHidden].map(\.name)
             + [dismissedGainSuggestions, dismissedGridSuggestions, deckShortcuts, waveformColorMode.name, commentPreset.name]
     }
 }
