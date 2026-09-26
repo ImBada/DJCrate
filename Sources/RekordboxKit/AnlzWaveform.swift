@@ -193,6 +193,7 @@ public struct RekordboxWaveforms: Sendable, Equatable {
                 pwv6[k * 3 + j] = UInt8(min(127, (pwv6Scale[j] * sum / Double(b - a)).rounded()))
             }
         }
+        let previewRanges = mono.isEmpty ? [] : ranges(mono.count, 1200)
         var pwv4 = [UInt8](repeating: 0, count: 1200 * 6)
         for k in 0..<1200 {
             var b = [UInt8](repeating: 0, count: 6)
@@ -201,8 +202,17 @@ public struct RekordboxWaveforms: Sendable, Equatable {
             let top = max(r, g, bl)
             if top > 0 {
                 b[2] = UInt8(min(127, (0.91 * (r * r + g * g + bl * bl).squareRoot()).rounded()))
-                b[0] = UInt8(min(127, (0.88 * top + 38).rounded()))
-                b[1] = UInt8(min(255, max(0, (203 - 0.49 * Double(b[0])).rounded())))
+            }
+            // 2026-09-26 분석 사본 비교: 앞 두 바이트는 색 밴드가 아니라 PCM의 양·음 피크다.
+            // 곡 최대값으로 정규화하지 않고 128배 후 0 쪽으로 버린다(음수는 2의 보수).
+            if !previewRanges.isEmpty {
+                var positive: Float = 0, negative: Float = 0
+                for sample in mono[previewRanges[k]] {
+                    positive = max(positive, sample)
+                    negative = min(negative, sample)
+                }
+                b[0] = UInt8(min(127, Int(positive * 128)))
+                b[1] = UInt8(bitPattern: Int8(clamping: Int(negative * 128)))
             }
             pwv4.replaceSubrange(k * 6..<k * 6 + 6, with: b)
         }
@@ -245,6 +255,34 @@ public struct RekordboxWaveforms: Sendable, Equatable {
     public static func analyze(url: URL) throws -> RekordboxWaveforms {
         let (samples, rate) = try decodeForRekordbox(url: url)
         return analyze(mono: samples, sampleRate: rate)
+    }
+
+    // MARK: - 비교
+
+    /// 같은 위치의 바이트 오차. 길이가 다르면 없는 꼬리도 일치율 분모에 넣는다.
+    public struct Comparison: Sendable, Codable {
+        public let referenceBytes: Int
+        public let generatedBytes: Int
+        public let comparedBytes: Int
+        public let matchingPercent: Double?
+        public let meanAbsoluteError: Double?
+        public let maxAbsoluteError: Int?
+    }
+
+    public static func compare(reference: [UInt8], generated: [UInt8]) -> Comparison {
+        let count = min(reference.count, generated.count)
+        let total = max(reference.count, generated.count)
+        var matching = 0, sum = 0, largest = 0
+        for i in 0..<count {
+            let difference = abs(Int(reference[i]) - Int(generated[i]))
+            if difference == 0 { matching += 1 }
+            sum += difference
+            largest = max(largest, difference)
+        }
+        return Comparison(referenceBytes: reference.count, generatedBytes: generated.count, comparedBytes: count,
+                          matchingPercent: total == 0 ? nil : 100 * Double(matching) / Double(total),
+                          meanAbsoluteError: count == 0 ? nil : Double(sum) / Double(count),
+                          maxAbsoluteError: count == 0 ? nil : largest)
     }
 
     // MARK: - 태그 바이트
