@@ -157,8 +157,41 @@ extension DeckModel {
         if selectedCueID == id { selectedCueID = nil }
     }
 
+    /// 제안 자리에 메모리 큐를 찍는다(배지 클릭·A·VoiceOver 동작). 새로 찍었으면 VoiceOver로 알린다.
     func acceptSuggestion(_ time: Double) {
-        addMemoryCue(at: time)
+        let target = snapped(time)
+        guard storeMemoryCue(at: target, loop: nil) != nil else { return }
+        announce("제안을 받아 \(target.spokenClockText)에 메모리 큐를 찍었습니다")
+    }
+
+    /// A: 재생 위치에서 가장 가까운 제안을 받는다. 제안이 없으면 아무것도 하지 않고 VoiceOver로만 알린다.
+    func acceptNearestSuggestion() {
+        guard !isWriteLocked else { return }
+        guard let nearest = suggestions.min(by: { abs($0 - playhead) < abs($1 - playhead) }) else {
+            announce("받을 제안이 없습니다")
+            return
+        }
+        acceptSuggestion(nearest)
+    }
+
+    /// S·⇧S: 다음·이전 제안 자리로 재생 위치만 옮긴다(큐·CUE 지점은 그대로). 그쪽에 제안이 없으면 VoiceOver로만 알린다.
+    func jumpToSuggestion(forward: Bool) {
+        guard !isWriteLocked else { return }
+        // 재생 중 이전으로는 Q처럼 방금 지난 제안(0.25초 안)을 건너뛴다.
+        let slack = !forward && isPlaying ? 0.25 : Self.cueTolerance
+        let target = forward
+            ? suggestions.filter { $0 > playhead + Self.cueTolerance }.min()
+            : suggestions.filter { $0 < playhead - slack }.max()
+        guard let target else {
+            announce(forward ? "뒤쪽에 제안이 없습니다" : "앞쪽에 제안이 없습니다")
+            return
+        }
+        seek(target)
+    }
+
+    /// 화면 알림 없이 VoiceOver로만 알린다.
+    func announce(_ text: String) {
+        feedback.announce(AppMessage(kind: .success, text: text))
     }
 
     func revertDraft() {

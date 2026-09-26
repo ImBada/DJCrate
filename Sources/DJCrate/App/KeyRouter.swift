@@ -1,4 +1,5 @@
 import AppKit
+import DJCDomain
 
 /// 창 전체 단축키와 검색창 포커스 정리.
 ///
@@ -45,6 +46,7 @@ final class KeyRouter {
 
     /// nil을 돌려주면 이벤트를 삼킨다(다른 곳으로 가지 않는다).
     private func route(_ event: NSEvent) -> NSEvent? {
+        if event.type == .keyDown, let bigger = Self.textBiggerEvent(from: event) { return bigger }
         guard let deck else { return event }
         // CUE를 누른 뒤 포커스가 바뀌어도 이미 시작한 미리 듣기는 끝내되, 키는 새 대상에 넘긴다.
         if event.type == .keyUp { handleKeyUp(event.keyCode) }
@@ -103,6 +105,15 @@ final class KeyRouter {
         return event
     }
 
+    /// ⌘=를 메뉴 '글자 크게'(⌘+)에 걸리는 ⌘⇧= 이벤트로 바꾼다. 처리는 그대로 메뉴가 한다.
+    static func textBiggerEvent(from event: NSEvent) -> NSEvent? {
+        guard KeyRoutingPolicy.isTextBiggerAlias(keyCode: event.keyCode, modifiers: event.modifierFlags) else { return nil }
+        return NSEvent.keyEvent(with: event.type, location: event.locationInWindow,
+                                modifierFlags: event.modifierFlags.union(.shift), timestamp: event.timestamp,
+                                windowNumber: event.windowNumber, context: nil, characters: "+",
+                                charactersIgnoringModifiers: "+", isARepeat: event.isARepeat, keyCode: event.keyCode)
+    }
+
     /// 글자 입력 중에는 단축키를 쓰지 않는다. 대신 입력을 끝내는 키(Return·Esc)에서 포커스를 놓아 준다.
     /// 놓지 않으면 BPM·큐 이름 칸에 Return을 친 뒤에도 스페이스·C가 계속 칸으로 들어가 재생이 안 된다.
     private func routeWhileTyping(_ event: NSEvent, editor: NSTextView, window: NSWindow) -> NSEvent? {
@@ -118,8 +129,8 @@ final class KeyRouter {
             }
             return event
         }
-        // 태그 시트 셀은 Return으로 확정하고 아래 칸으로 가는 규칙이 따로 있다.
-        guard let field = editor.delegate as? NSTextField, !Self.isInSheet(field) else { return event }
+        // 태그 시트 셀·곡 목록 칸 편집은 확정·취소 뒤 표로 포커스를 돌리는 규칙이 따로 있다.
+        guard let field = editor.delegate as? NSTextField, !Self.editsInTable(field) else { return event }
         // 확정·취소는 칸에 먼저 보내고 포커스를 놓는다.
         Task { @MainActor in
             if window.firstResponder === editor { window.makeFirstResponder(nil) }
@@ -127,10 +138,12 @@ final class KeyRouter {
         return event
     }
 
-    private static func isInSheet(_ view: NSView) -> Bool {
+    /// 태그 시트나 곡 목록(#88) 칸에서 고치는 글자 칸인가. 그 표가 Return·Tab·Esc를 처리하고 표로 포커스를 돌린다.
+    static func editsInTable(_ view: NSView) -> Bool {
         var current: NSView? = view
         while let candidate = current {
             if candidate is SheetTableView { return true }
+            if let table = candidate as? NSTableView, table.identifier == trackListID { return true }
             current = candidate.superview
         }
         return false
@@ -139,7 +152,14 @@ final class KeyRouter {
     /// 덱 단축키. 글자가 아니라 키 위치로 본다(한글 입력기가 켜져 있으면 C 키가 "ㅊ"으로 들어와 글자로는 못 알아본다).
     /// 처리했으면 true. NSEvent 없이 시험할 수 있게 창·포커스 판단(`route`)과 나눴다.
     func handleKeyDown(_ keyCode: UInt16, shift: Bool = false, isRepeat: Bool = false, focus: KeyRoutingPolicy.Focus) -> Bool {
-        guard let deck, deck.row != nil, let action = deck.shortcuts.action(for: keyCode) else { return false }
+        guard let deck, deck.row != nil else { return false }
+        // Esc(예약 키)는 덱에서 큐 선택만 푼다. 그 뒤 ←→는 재생 위치를 옮긴다. 목록·검색창·시트의 Esc는 그대로 둔다.
+        if keyCode == Self.escape {
+            guard focus == .deck, deck.selectedCueID != nil else { return false }
+            deck.selectedCueID = nil
+            return true
+        }
+        guard let action = deck.shortcuts.action(for: keyCode) else { return false }
         if action == .playPause {
             if !isRepeat { deck.togglePlay() }
             return true
@@ -164,9 +184,13 @@ final class KeyRouter {
             if !isRepeat {
                 if shift { deck.deleteMemoryCue(at: deck.currentTime) } else { deck.addMemoryCueAtPlayhead() }
             }
-        case .nudgeBack: return deckFocused && deck.nudgeSelectedCue(beats: -1)
-        case .nudgeForward: return deckFocused && deck.nudgeSelectedCue(beats: 1)
+        case .nudgeBack, .nudgeForward:
+            // 선택한 큐가 있으면 그 큐를, 없으면 재생 위치를 1박(Shift: 1마디) 옮긴다.
+            guard deckFocused else { return false }
+            deck.step(beats: (action == .nudgeBack ? -1 : 1) * (shift ? BeatJump.beatsPerBar : 1))
         case .deleteCue: return deckFocused && deck.deleteSelectedCue()
+        case .nextSuggestion: if !isRepeat { deck.jumpToSuggestion(forward: !shift) }
+        case .acceptSuggestion: if !isRepeat { deck.acceptNearestSuggestion() }
         case .tapTempo: if !isRepeat { deck.tapTempo() }
         case .loop: if !isRepeat { deck.toggleLoop() }
         case .loopHalve: deck.resizeLoop(-1)

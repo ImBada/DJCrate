@@ -3,6 +3,7 @@ public enum DeckAction: String, CaseIterable, Sendable {
     case playPause, cue
     case hotCueA, hotCueB, hotCueC, hotCueD, hotCueE, hotCueF, hotCueG, hotCueH
     case memoryCue, previousCue, nextCue, nudgeBack, nudgeForward, deleteCue
+    case nextSuggestion, acceptSuggestion
     case loop, loopHalve, loopDouble
     case tapTempo, zoomIn, zoomOut
 
@@ -13,7 +14,7 @@ public enum DeckAction: String, CaseIterable, Sendable {
             switch self {
             case .transport: "재생"
             case .hotCues: "핫큐"
-            case .cues: "메모리 큐·선택한 큐"
+            case .cues: "큐·박 이동·제안"
             case .loops: "루프"
             case .view: "템포·파형"
             }
@@ -24,7 +25,7 @@ public enum DeckAction: String, CaseIterable, Sendable {
         switch self {
         case .playPause, .cue: .transport
         case .hotCueA, .hotCueB, .hotCueC, .hotCueD, .hotCueE, .hotCueF, .hotCueG, .hotCueH: .hotCues
-        case .memoryCue, .previousCue, .nextCue, .nudgeBack, .nudgeForward, .deleteCue: .cues
+        case .memoryCue, .previousCue, .nextCue, .nudgeBack, .nudgeForward, .deleteCue, .nextSuggestion, .acceptSuggestion: .cues
         case .loop, .loopHalve, .loopDouble: .loops
         case .tapTempo, .zoomIn, .zoomOut: .view
         }
@@ -53,9 +54,11 @@ public enum DeckAction: String, CaseIterable, Sendable {
         case .memoryCue: return "메모리 큐 찍기"
         case .previousCue: return "이전 큐"
         case .nextCue: return "다음 큐"
-        case .nudgeBack: return "선택한 큐 1박 앞으로"
-        case .nudgeForward: return "선택한 큐 1박 뒤로"
+        case .nudgeBack: return "1박 앞으로(선택한 큐 또는 재생 위치)"
+        case .nudgeForward: return "1박 뒤로(선택한 큐 또는 재생 위치)"
         case .deleteCue: return "선택한 큐 지우기"
+        case .nextSuggestion: return "다음 제안으로"
+        case .acceptSuggestion: return "가까운 제안 받기"
         case .loop: return "루프 걸기·나가기"
         case .loopHalve: return "루프 길이 ½"
         case .loopDouble: return "루프 길이 ×2"
@@ -69,7 +72,12 @@ public enum DeckAction: String, CaseIterable, Sendable {
     /// Shift와 함께 누르면 하는 일
     public var shiftTitle: String? {
         if hotCueSlot != nil { return "Shift: 지우기" }
-        return self == .memoryCue ? "Shift: 이 자리 메모리 큐 지우기" : nil
+        switch self {
+        case .memoryCue: return "Shift: 이 자리 메모리 큐 지우기"
+        case .nudgeBack, .nudgeForward: return "Shift: 1마디"
+        case .nextSuggestion: return "Shift: 이전 제안으로"
+        default: return nil
+        }
     }
 }
 
@@ -78,7 +86,7 @@ public enum DeckAction: String, CaseIterable, Sendable {
 public struct DeckShortcuts: Equatable, Sendable {
     private var table: [DeckAction: [UInt16]]
 
-    /// 설정 창 전부터 쓰던 고정 단축키
+    /// 기본 단축키: 설정 창 전부터 쓰던 고정 키와 제안 키(S·A, #33)
     public static let standard = DeckShortcuts(table: [
         .playPause: [49],          // Space
         .cue: [8],                 // C
@@ -90,6 +98,8 @@ public struct DeckShortcuts: Equatable, Sendable {
         .nudgeBack: [123],         // ←
         .nudgeForward: [124],      // →
         .deleteCue: [51, 117],     // ⌫, ⌦
+        .nextSuggestion: [1],      // S
+        .acceptSuggestion: [0],    // A
         .loop: [37],               // L
         .loopHalve: [33],          // [
         .loopDouble: [30],         // ]

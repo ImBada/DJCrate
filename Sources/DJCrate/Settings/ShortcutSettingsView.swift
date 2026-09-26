@@ -141,7 +141,7 @@ struct ShortcutSettingsView: View {
                         .foregroundStyle(message.isWarning ? UIColors.warning.color : Color.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Text("Shift는 핫큐·메모리 큐 지우기에 씁니다. ⌘·⌃·⌥ 조합(메뉴·실행 취소 ⌘Z)과 Return·Esc·Tab·↑↓·Home·End·Page Up/Down(곡 고르기·칸 나가기)은 지정할 수 없습니다.")
+                Text("Shift는 핫큐·메모리 큐 지우기, 1마디 이동, 이전 제안에 씁니다. Esc는 덱에서 큐 선택을 풉니다(그 뒤 1박 이동 키는 재생 위치를 옮깁니다). ⌘·⌃·⌥ 조합(메뉴·실행 취소 ⌘Z)과 Return·Esc·Tab·↑↓·Home·End·Page Up/Down(곡 고르기·칸 나가기)은 지정할 수 없습니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

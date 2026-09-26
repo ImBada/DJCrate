@@ -157,7 +157,8 @@ public struct RekordboxWaveforms: Sendable, Equatable {
         // 색: 칸에서 가장 센 밴드에 대한 비율의 제곱근(약한 밴드도 물들게)
         let pwv5: [UInt16] = zip(columns, heights).map { c, h in
             let top = max(c.band.0, c.band.1, c.band.2)
-            func level(_ b: Double) -> UInt16 { top <= 0 ? 0 : UInt16(min(7, (7 * (b / top).squareRoot()).rounded())) }
+            // 2026-09-26 probe 3곡의 완전한 무음은 RGB 모두 7(높이는 0)이다.
+            func level(_ b: Double) -> UInt16 { top <= 0 ? 7 : UInt16(min(7, (7 * (b / top).squareRoot()).rounded())) }
             return level(c.band.0) << 13 | level(c.band.1) << 10 | level(c.band.2) << 7 | UInt16(h) << 2
         }
 
@@ -193,16 +194,33 @@ public struct RekordboxWaveforms: Sendable, Equatable {
                 pwv6[k * 3 + j] = UInt8(min(127, (pwv6Scale[j] * sum / Double(b - a)).rounded()))
             }
         }
+        let previewRanges = mono.isEmpty ? [] : ranges(mono.count, 1200)
         var pwv4 = [UInt8](repeating: 0, count: 1200 * 6)
+        var previewLowpass = Biquad(lowpass: 400, rate: rate)
+        var filteredIndex = -1, filteredSample = 0.0
         for k in 0..<1200 {
             var b = [UInt8](repeating: 0, count: 6)
             for j in 0..<3 { b[3 + j] = UInt8(min(127, (pwv4Scale[j] * Double(pwv6[k * 3 + j])).rounded())) }
-            let (r, g, bl) = (Double(b[3]), Double(b[4]), Double(b[5]))
-            let top = max(r, g, bl)
-            if top > 0 {
-                b[2] = UInt8(min(127, (0.91 * (r * r + g * g + bl * bl).squareRoot()).rounded()))
-                b[0] = UInt8(min(127, (0.88 * top + 38).rounded()))
-                b[1] = UInt8(min(255, max(0, (203 - 0.49 * Double(b[0])).rounded())))
+            // 2026-09-26 분석 사본 비교: 앞 두 바이트는 색 밴드가 아니라 PCM의 양·음 피크다.
+            // 곡 최대값으로 정규화하지 않고 128배 후 0 쪽으로 버린다(음수는 2의 보수).
+            if !previewRanges.isEmpty {
+                var positive: Float = 0, negative: Float = 0
+                var lowPeak = 0.0
+                for index in previewRanges[k] {
+                    let sample = mono[index]
+                    positive = max(positive, sample)
+                    negative = min(negative, sample)
+                    // 1200샘플보다 짧으면 창이 겹치므로 필터에는 샘플을 한 번만 넣는다.
+                    if index != filteredIndex {
+                        filteredSample = previewLowpass.step(Double(sample))
+                        filteredIndex = index
+                    }
+                    lowPeak = max(lowPeak, abs(filteredSample))
+                }
+                b[0] = UInt8(min(127, Int(positive * 128)))
+                b[1] = UInt8(bitPattern: Int8(clamping: Int(negative * 128)))
+                // 2026-09-26 probe 3곡: 세 번째 바이트는 400Hz 2차 저역 통과 피크(정규화·release 없음).
+                b[2] = UInt8(min(127, Int(lowPeak * 128)))
             }
             pwv4.replaceSubrange(k * 6..<k * 6 + 6, with: b)
         }
@@ -245,6 +263,34 @@ public struct RekordboxWaveforms: Sendable, Equatable {
     public static func analyze(url: URL) throws -> RekordboxWaveforms {
         let (samples, rate) = try decodeForRekordbox(url: url)
         return analyze(mono: samples, sampleRate: rate)
+    }
+
+    // MARK: - 비교
+
+    /// 같은 위치의 바이트 오차. 길이가 다르면 없는 꼬리도 일치율 분모에 넣는다.
+    public struct Comparison: Sendable, Codable {
+        public let referenceBytes: Int
+        public let generatedBytes: Int
+        public let comparedBytes: Int
+        public let matchingPercent: Double?
+        public let meanAbsoluteError: Double?
+        public let maxAbsoluteError: Int?
+    }
+
+    public static func compare(reference: [UInt8], generated: [UInt8]) -> Comparison {
+        let count = min(reference.count, generated.count)
+        let total = max(reference.count, generated.count)
+        var matching = 0, sum = 0, largest = 0
+        for i in 0..<count {
+            let difference = abs(Int(reference[i]) - Int(generated[i]))
+            if difference == 0 { matching += 1 }
+            sum += difference
+            largest = max(largest, difference)
+        }
+        return Comparison(referenceBytes: reference.count, generatedBytes: generated.count, comparedBytes: count,
+                          matchingPercent: total == 0 ? nil : 100 * Double(matching) / Double(total),
+                          meanAbsoluteError: count == 0 ? nil : Double(sum) / Double(count),
+                          maxAbsoluteError: count == 0 ? nil : largest)
     }
 
     // MARK: - 태그 바이트

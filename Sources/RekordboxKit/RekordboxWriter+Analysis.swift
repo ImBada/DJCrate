@@ -8,10 +8,14 @@ import Foundation
 /// - `djmdContent`: 분석 칸(BPM·Length 버림·BitRate·BitDepth·SampleRate·AnalysisDataPath·Analysed 105·ContentLink)과
 ///   상태 256→257·변경 번호·`updated_at`.
 /// - `contentFile` 행(파일마다)과 `djmdMixerParam` 행(오토게인)을 새로 넣는다.
+/// - 음원에 그림이 있으면 아트워크 파일 셋(`TrackArtwork`)·`ImagePath`·`artwork.jpg` 파일 행도 넣는다(#87). rekordbox는 분석 전 곡을
+///   분석할 때 아트워크를 뽑는다(2026-09-26 실험 "DJC 실험 아트": 자동 분석을 끄고 넣은 곡을 다음 세션의 자동 분석이 분석).
+///   이미 아트워크가 있는 곡은 rekordbox가 다시 뽑는지 확인하지 않아 그대로 둔다.
 /// 곡 넣기와 다른 것은 rekordbox 7.2.18이 기존 분석 전 곡을 분석했을 때를 따른다(2026-09-26 실험, The Asterisk War (edit)
 /// XML로 들어온 곡을 '트랙 분석', 보통 모드·BPM/그리드·키만):
 /// - `AnalysisUpdated` NULL → '2', `TrackInfoUpdated` NULL → '1'(글자). 카운터가 이미 있는 곡은 얼마나 느는지 몰라 막는다.
-/// - 변경 번호: 오토게인 행 → 곡 행 → 파일 행 .2EX·.DAT·.EXT(rekordbox는 사이에 .3EX 행도 넣는다. DJCrate는 만들지 못한다).
+/// - 변경 번호: (아트워크 파일 행) → 오토게인 행 → 곡 행 → 파일 행 .2EX·.DAT·.EXT(rekordbox는 사이에 .3EX 행도 넣는다. DJCrate는 만들지 못한다).
+///   아트워크 파일 행이 오토게인 행 앞인 것은 "DJC 실험 아트"에서, 나머지는 The Asterisk War (edit)에서 확인했다.
 /// 같은 쓰기의 큐·게인 초안은 분석을 붙인 뒤에 쓴다(rekordbox에서 분석한 곡을 고치는 순서).
 ///
 /// 대상은 분석 경로가 빈 곡이다(자동 분석을 끄고 넣은 곡 Analysed 0, XML로 들어온 곡 Analysed 41).
@@ -32,11 +36,14 @@ extension RekordboxWriter {
         public var loudness: Double?
         /// 샘플 피크(선형, 0~1)
         public var peak: Double
+        /// 음원 내장 그림(`AudioTags.artwork`). 있으면 아트워크 파일 셋도 넣는다.
+        public var artwork: Data?
 
-        public init(duration: Double, loudness: Double?, peak: Double) {
+        public init(duration: Double, loudness: Double?, peak: Double, artwork: Data? = nil) {
             self.duration = duration
             self.loudness = loudness
             self.peak = peak
+            self.artwork = artwork
         }
     }
 
@@ -49,13 +56,16 @@ extension RekordboxWriter {
         var contentID: String
         var title: String
         var ready: RekordboxTrackWriter.PreparedAnalysis
+        /// 함께 넣을 아트워크 파일 셋(음원에 그림이 없거나 이미 아트워크가 있으면 nil)
+        var artwork: RekordboxTrackWriter.PreparedArtwork?
         /// 넣은 행(커밋 뒤 다시 읽어 비교)
         var inserted: [RekordboxTrackWriter.InsertedRow] = []
     }
 
     /// 계획(읽기만 한다). 막히면 `Blocked`.
+    /// - Parameter writesArtwork: 음원 내장 그림으로 아트워크도 넣는지(`RekordboxTrackWriter.writesArtwork`).
     static func attachPlan(draft: GridDraft, content: (id: String, title: String, path: String, fileName: String), input: AnalysisInput?,
-                           share: URL, reader: CipherDatabase, enabled: Bool) throws -> AttachPlan {
+                           share: URL, reader: CipherDatabase, enabled: Bool, writesArtwork: Bool) throws -> AttachPlan {
         func block(_ reason: String) -> Blocked { Blocked(title: content.title, reason: reason) }
         guard enabled else { throw block("rekordbox 분석 전 곡입니다. rekordbox에서 트랙 분석을 먼저 한 뒤 쓰세요") }
         guard draft.base.isEmpty else { throw block("초안을 만든 뒤 rekordbox에서 그리드가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요") }
@@ -86,26 +96,48 @@ extension RekordboxWriter {
             throw block("분석 파일을 만들지 못했습니다: \(DJCError.reason(of: error))")
         }
         if let reason = ready.blocked { throw block(reason) }
-        return AttachPlan(trackUUID: draft.trackUUID, contentID: content.id, title: content.title, ready: ready)
+        var plan = AttachPlan(trackUUID: draft.trackUUID, contentID: content.id, title: content.title, ready: ready)
+        if writesArtwork, let image = input.artwork, try hasNoArtwork(content.id, uuid: draft.trackUUID, share: share, reader: reader),
+           let files = TrackArtwork.make(image) {
+            plan.artwork = RekordboxTrackWriter.PreparedArtwork(uuid: draft.trackUUID, files: files, share: share)
+        }
+        return plan
     }
 
-    /// 분석을 붙인 곡 행 칸(곡 넣기 분석 칸 + 기존 곡 카운터)
+    /// 아트워크가 아직 없는 곡인지(`ImagePath` 빈 값, 아트워크 파일 행 없음, 곡 UUID 아트워크 폴더에 파일 없음).
+    /// 있으면 분석만 붙이고 아트워크는 그대로 둔다(라이브러리에 분석 전인데 `ImagePath`가 있는 곡이 있다).
+    static func hasNoArtwork(_ contentID: String, uuid: String, share: URL, reader: CipherDatabase) throws -> Bool {
+        let folder = share.appending(path: String(TrackArtwork.folder(uuid: uuid).dropFirst()))
+        return try scalar(reader, "SELECT count(*) FROM djmdContent WHERE ID = ? AND ifnull(ImagePath, '') = ''", [.text(contentID)]) == 1
+            && scalar(reader, "SELECT count(*) FROM contentFile WHERE ContentID = ? AND Path LIKE '/PIONEER/Artwork/%'", [.text(contentID)]) == 0
+            && ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).isEmpty
+    }
+
+    /// 분석을 붙인 곡 행 칸(곡 넣기 분석 칸 + 기존 곡 카운터 + 아트워크면 `ImagePath`)
     static func attachedColumns(_ plan: AttachPlan) -> [String: CipherDatabase.Value] {
-        plan.ready.columns.merging(attachedCounters) { _, counter in counter }
+        var columns = plan.ready.columns.merging(attachedCounters) { _, counter in counter }
+        if let artwork = plan.artwork { columns["ImagePath"] = .text(artwork.imagePath) }
+        return columns
     }
 
-    /// 트랜잭션 안에서 rekordbox 순서대로 쓰고(오토게인 행 → 곡 행 분석 칸 → 파일 행 .2EX·.DAT·.EXT) 다시 읽어 비교한다.
+    /// 트랜잭션 안에서 rekordbox 순서대로 쓰고(아트워크 파일 행 → 오토게인 행 → 곡 행 분석 칸 → 파일 행 .2EX·.DAT·.EXT) 다시 읽어 비교한다.
     static func applyAttach(_ plan: inout AttachPlan, db: CipherDatabase, usn: inout Int, stamp: (db: String, json: String)) throws {
         var status: Int?
         try db.query("""
             SELECT rb_data_status FROM djmdContent WHERE ID = ? AND rb_local_deleted = 0 AND ifnull(AnalysisDataPath, '') = ''
-                AND AnalysisUpdated IS NULL AND TrackInfoUpdated IS NULL
-            """, [.text(plan.contentID)]) { status = $0.int(0) ?? 0 }
+                AND AnalysisUpdated IS NULL AND TrackInfoUpdated IS NULL AND (? = 0 OR ifnull(ImagePath, '') = '')
+            """, [.text(plan.contentID), .int(plan.artwork == nil ? 0 : 1)]) { status = $0.int(0) ?? 0 }
         guard let status else { throw Blocked(title: plan.title, reason: "초안을 만든 뒤 rekordbox에서 곡이 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요") }
         func insert(_ row: RekordboxTrackWriter.InsertedRow) throws {
             try RekordboxTrackWriter.insert(db, table: row.table, row.values)
             try RekordboxTrackWriter.verify(db, table: row.table, id: row.id, row.values)
             plan.inserted.append(row)
+        }
+        if let artwork = plan.artwork {
+            // artwork.jpg 파일 행이 먼저 번호를 받는다(_m·_s는 행이 없다, 2026-09-26 실험 "DJC 실험 아트")
+            usn += 1
+            try insert(RekordboxTrackWriter.fileRow(uuid: plan.trackUUID, share: artwork.share, artwork.files[0], contentID: plan.contentID,
+                                                    usn: usn, stamp: stamp))
         }
         usn += 1
         try insert(RekordboxTrackWriter.mixerRow(plan.ready, contentID: plan.contentID, usn: usn, stamp: stamp))
@@ -139,27 +171,29 @@ extension RekordboxWriter {
         }
     }
 
-    /// 커밋 뒤 분석 파일을 만든다(없던 파일만). 만든 파일은 `created`에 더한다(실패하면 되돌릴 때 지운다).
+    /// 커밋 뒤 분석 파일(과 아트워크 파일 셋)을 만든다(없던 파일만). 만든 파일은 `created`에 더한다(실패하면 되돌릴 때 지운다).
     static func writeAnalysisFiles(_ plan: AttachPlan, created: inout [URL]) throws {
         let fm = FileManager.default
-        for (url, data) in plan.ready.files {
-            guard !fm.fileExists(atPath: url.path) else { throw DJCError.writeVerificationFailed("분석 파일이 이미 있습니다: \(url.lastPathComponent)") }
+        for (url, data) in plan.ready.files + (plan.artwork?.files ?? []) {
+            guard !fm.fileExists(atPath: url.path) else { throw DJCError.writeVerificationFailed("파일이 이미 있습니다: \(url.lastPathComponent)") }
             try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try data.write(to: url, options: .atomic)
             created.append(url)
             guard try Data(contentsOf: url) == data else {
-                throw DJCError.writeVerificationFailed("분석 파일 확인 실패: \(url.lastPathComponent) (\(plan.title))")
+                throw DJCError.writeVerificationFailed("파일 확인 실패: \(url.lastPathComponent) (\(plan.title))")
             }
         }
     }
 
-    /// 만든 분석 파일을 지우고, 비게 된 `USBANLZ/<3자>/<나머지>` 폴더도 지운다(rekordbox가 곡을 지울 때처럼).
+    /// 만든 분석·아트워크 파일을 지우고, 비게 된 `USBANLZ`·`Artwork` 아래 `<3자>/<나머지>` 폴더도 지운다.
+    /// 분석 폴더는 rekordbox가 곡을 지울 때처럼, 아트워크 폴더는 넣기 전 모양으로(곡 빼기는 rekordbox처럼 아트워크 폴더를 남긴다).
     static func removeAnalysisFiles(_ created: [URL]) throws {
         let fm = FileManager.default
+        let roots = ["USBANLZ", "Artwork"]
         try each(created.filter { fm.fileExists(atPath: $0.path) }) { try fm.removeItem(at: $0) }
-        for directory in Set(created.map { $0.deletingLastPathComponent() }) where directory.path.contains("/USBANLZ/") {
+        for directory in Set(created.map { $0.deletingLastPathComponent() }) where roots.contains(where: { directory.path.contains("/\($0)/") }) {
             var current = directory
-            while current.lastPathComponent != "USBANLZ", (try? fm.contentsOfDirectory(atPath: current.path))?.isEmpty == true {
+            while !roots.contains(current.lastPathComponent), (try? fm.contentsOfDirectory(atPath: current.path))?.isEmpty == true {
                 try? fm.removeItem(at: current)
                 current = current.deletingLastPathComponent()
             }

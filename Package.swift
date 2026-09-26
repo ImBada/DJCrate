@@ -50,6 +50,7 @@ let package = Package(
         .testTarget(name: "DJCDomainTests", dependencies: ["DJCDomain"]),
         .testTarget(name: "RekordboxKitTests", dependencies: ["RekordboxKit", "DJCDomain", "DJCTestSupport"]),
         .testTarget(name: "DJCAnalysisTests", dependencies: ["DJCAnalysis", "DJCDomain", "DJCTestSupport"]),
+        .testTarget(name: "djcTests", dependencies: ["djc", "DJCAnalysis", "RekordboxKit"]),
         // 앱 화면 모델(덱·목록·반영 흐름)을 가짜 오디오·저장소로 시험한다.
         .testTarget(name: "DJCrateTests", dependencies: ["DJCrate", "DJCDomain", "DJCStorage", "DJCTestSupport"]),
     ]

@@ -1,0 +1,142 @@
+import DJCDomain
+import Foundation
+import SwiftUI
+
+extension Double {
+    /// VoiceOver가 읽는 곡 안 위치: "1분 23초", 1분 안이면 "23초". "1:23"은 시각(1시 23분)으로 읽혀 쓰지 않는다.
+    var spokenClockText: String {
+        let seconds = Int(Swift.max(self, 0))
+        return seconds < 60 ? "\(seconds)초" : "\(seconds / 60)분 \(seconds % 60)초"
+    }
+}
+
+/// 파형·레벨 미터의 VoiceOver 글자와 로터 항목. Canvas에만 그려지는 위치·마디·남은 박·섹션·조성을 말로 옮긴다.
+enum WaveformAccessibility {
+    /// 로터 항목 하나(전체 파형 위 투명 요소로 놓인다)
+    struct Marker: Identifiable, Hashable {
+        var id: String
+        var time: Double
+        var label: String
+    }
+
+    /// 확대 파형: "1분 23초, 12.3마디, 다음 메모리 큐까지 8박"
+    static func zoomValue(time: Double, grid: BeatGrid?, cues: [EditableCue]) -> String {
+        var parts = [time.spokenClockText]
+        if let position = grid?.positionText(at: time) { parts.append("\(position)마디") }
+        if let remaining = CueCountdown.remaining(to: cues, from: time, grid: grid) {
+            parts.append("다음 메모리 큐까지 \(spoken(remaining))")
+        }
+        return parts.joined(separator: ", ")
+    }
+
+    /// 전체 파형: "전체 3분 0초 중 1분 23초, 12.3마디"
+    static func overviewValue(time: Double, duration: Double, grid: BeatGrid?) -> String {
+        var parts = ["전체 \(duration.spokenClockText) 중 \(time.spokenClockText)"]
+        if let position = grid?.positionText(at: time) { parts.append("\(position)마디") }
+        return parts.joined(separator: ", ")
+    }
+
+    /// 레벨 미터: 지금 피크(1dB 단위)와 0dBFS를 넘은 횟수. 재생이 멈췄거나 탭이 한동안 오지 않으면 무음으로 본다(미터 그림과 같다).
+    static func meterValue(_ reading: LevelMeter.Reading, playing: Bool, now: Double) -> String {
+        let peak = Swift.max(reading.peak.left, reading.peak.right)
+        let level: String
+        if !playing {
+            level = "멈춤"
+        } else if now - reading.time < 0.25, peak > 0 {
+            level = String(format: "지금 피크 %+.0f dB", 20 * log10(Double(peak)))
+        } else {
+            level = "소리 없음"
+        }
+        let clipping = reading.clipCount > 0 ? "0dBFS를 \(reading.clipCount)번 넘음" : "클리핑 없음"
+        return "\(level), \(clipping)"
+    }
+
+    static func spoken(_ remaining: CueCountdown.Remaining) -> String {
+        switch remaining {
+        case let .beats(beats) where beats > 64:
+            beats % BeatJump.beatsPerBar == 0
+                ? "\(beats / BeatJump.beatsPerBar)마디"
+                : "\(beats / BeatJump.beatsPerBar)마디 \(beats % BeatJump.beatsPerBar)박"
+        case let .beats(beats): "\(beats)박"
+        case let .seconds(seconds): "\(Int(seconds.rounded()))초"
+        }
+    }
+
+    // MARK: 로터
+
+    static func cueMarkers(_ cues: [EditableCue]) -> [Marker] {
+        cues.sorted { $0.time < $1.time }.map { cue in
+            var parts = [cue.kind.slotLetter.map { "핫큐 \($0)" } ?? "메모리 큐", cue.time.spokenClockText]
+            if let loop = cue.loop { parts.append(loop.beats.map { "\(LoopRules.text($0))박 루프" } ?? "루프") }
+            if !cue.name.isEmpty { parts.append(cue.name) }
+            return Marker(id: "cue-\(cue.id)", time: cue.time, label: parts.joined(separator: ", "))
+        }
+    }
+
+    /// 섹션 시작. 에너지(전체 파형 섹션 띠의 진하기)는 곡 안에서 견준 세 단계로 읽는다.
+    static func sectionMarkers(_ sections: [(start: Double, score: Double)]) -> [Marker] {
+        let scores = sections.map(\.score).filter(\.isFinite)
+        let lo = scores.min() ?? 0, hi = scores.max() ?? 0
+        return sections.enumerated().map { index, section in
+            var label = "섹션 \(index + 1), \(section.start.spokenClockText)"
+            if hi > lo, section.score.isFinite {
+                let norm = (section.score - lo) / (hi - lo)
+                label += ", 에너지 " + (norm >= 0.67 ? "강함" : norm >= 0.34 ? "보통" : "약함")
+            }
+            return Marker(id: "section-\(index)", time: section.start, label: label)
+        }
+    }
+
+    /// 조성이 바뀌는 곳만(첫 구간은 빼고)
+    static func keyChangeMarkers(_ segments: [(start: Double, name: String)]) -> [Marker] {
+        zip(segments, segments.dropFirst()).enumerated().map { index, pair in
+            Marker(id: "key-\(index)", time: pair.1.start,
+                   label: "조성 \(pair.0.name)에서 \(pair.1.name)로, \(pair.1.start.spokenClockText)")
+        }
+    }
+
+    static func suggestionMarkers(_ times: [Double]) -> [Marker] {
+        times.sorted().enumerated().map { index, time in
+            Marker(id: "suggestion-\(index)", time: time, label: "메모리 큐 제안, \(time.spokenClockText)")
+        }
+    }
+}
+
+extension View {
+    /// 파형 VoiceOver 1박 조절·동작(단축키·메뉴와 같은 함수)과 값. 조절·동작은 한 번만 달고,
+    /// 값만 `displayTime`(재생 중 초당 15번)으로 다시 계산해 매 프레임 그리는 파형 본문과 따로 간다.
+    func waveformAccessibility(deck: DeckModel, kind: WaveformAccessibilityValue.Kind) -> some View {
+        modifier(WaveformAccessibilityValue(deck: deck, kind: kind))
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: deck.beatJump(beats: 1)
+                case .decrement: deck.beatJump(beats: -1)
+                @unknown default: break
+                }
+            }
+            .accessibilityAction(named: "메모리 큐 추가") { deck.addMemoryCueAtPlayhead() }
+            .accessibilityAction(named: "가장 가까운 제안 받기") { deck.acceptNearestSuggestion() }
+            .accessibilityAction(named: "다음 제안으로") { deck.jumpToSuggestion(forward: true) }
+            .accessibilityAction(named: "이전 제안으로") { deck.jumpToSuggestion(forward: false) }
+            .accessibilityAction(named: "확대") { deck.zoom(by: 0.8) }
+            .accessibilityAction(named: "축소") { deck.zoom(by: 1.25) }
+    }
+}
+
+/// 파형 VoiceOver 값만 읽는 수정자(재생 위치는 여기서만 읽는다)
+struct WaveformAccessibilityValue: ViewModifier {
+    enum Kind { case zoom, overview }
+
+    let deck: DeckModel
+    let kind: Kind
+
+    func body(content: Content) -> some View {
+        let time = deck.displayTime
+        let value = switch kind {
+        case .zoom: WaveformAccessibility.zoomValue(time: time, grid: deck.grid, cues: deck.draft?.cues ?? [])
+        case .overview: WaveformAccessibility.overviewValue(time: time, duration: deck.duration, grid: deck.grid)
+            + (deck.isAnalyzingSections ? ", 섹션 분석 중" : "")
+        }
+        content.accessibilityValue(value)
+    }
+}

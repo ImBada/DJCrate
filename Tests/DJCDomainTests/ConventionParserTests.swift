@@ -2,7 +2,7 @@
 import Foundation
 import Testing
 
-@Suite("컨벤션 파서 — 실제 라이브러리 코멘트")
+@Suite("애니송 프리셋 · 컨벤션 파서 — 실제 라이브러리 코멘트")
 struct ConventionParserTests {
     @Test func 약칭과_기수_순서가_뒤집힌_작품() throws {
         let c = try #require(ConventionParser.parse("TVA 내 여동생이 이렇게 귀여울 리가 없어(내여귀, 오레이모) 1기 OP"))
@@ -110,7 +110,7 @@ struct ConventionParserTests {
     }
 }
 
-@Suite("코멘트 분류")
+@Suite("애니송 프리셋 · 코멘트 분류")
 struct CommentClassifierTests {
     @Test func 분류() {
         #expect(CommentClassifier.classify("") == .empty)
@@ -125,7 +125,7 @@ struct CommentClassifierTests {
     }
 }
 
-@Suite("정규식 없는 파서 — 경계 사례")
+@Suite("애니송 프리셋 · 정규식 없는 파서 — 경계 사례")
 struct ConventionParserEdgeTests {
     @Test func 붙여_쓴_회차_목록() throws {
         let c = try #require(ConventionParser.parse("TVA 작품 OP 3화,5화"))

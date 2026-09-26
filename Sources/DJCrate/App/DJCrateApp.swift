@@ -24,6 +24,7 @@ struct DJCrateApp: App {
         // 단일 창: ⌘N 새 창이 같은 상태를 공유하며 라이브러리를 다시 읽는 문제를 막는다.
         Window("DJCrate", id: "main") {
             ContentView(store: store, deck: deck)
+                .modifier(AppTextScale())
                 .frame(minWidth: 1100, minHeight: 700)
                 .task {
                     appDelegate.store = store
@@ -55,6 +56,7 @@ struct DJCrateApp: App {
             ScrollView {
                 ShortcutsList(shortcuts: deck.shortcuts).padding(20)
             }
+            .modifier(AppTextScale())
             .frame(minWidth: 620, minHeight: 420)
             .background(ShortcutsWindow.Tracker())
         }
@@ -63,7 +65,7 @@ struct DJCrateApp: App {
 
         // 기본 설정·덱 단축키(⌘,). 덱과 같은 모델에 묶여 바꾸면 바로 반영·저장된다.
         Settings {
-            SettingsView(deck: deck)
+            SettingsView(store: store, deck: deck)
         }
     }
 }

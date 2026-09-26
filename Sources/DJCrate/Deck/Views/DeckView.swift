@@ -8,13 +8,15 @@ import SwiftUI
 /// 높이는 내용에 맞춰 정해지고(잘리지 않음), 파형 높이만 사용자가 조절한다.
 /// 창이 좁으면 커버 열을 작은 헤더로 접고, 컨트롤 줄은 줄바꿈한다.
 struct DeckView: View {
+    @Environment(\.textScale) private var textScale
     @Bindable var deck: DeckModel
     var waveformHeight: Double
     @State private var width: CGFloat = 1400
     @State private var middleHeight: CGFloat = 320
 
     private var compact: Bool { width < 1150 }
-    private var cueListWidth: CGFloat { width < 1400 ? 250 : 290 }
+    /// 글자 배율의 절반만큼 넓힌다(큐 이름이 보이게 하되 파형 자리를 너무 빼앗지 않게).
+    private var cueListWidth: CGFloat { TextScale.length(width < 1400 ? 250 : 290, scale: 1 + (textScale - 1) / 2) }
 
     var body: some View {
         if let row = deck.row {
@@ -40,7 +42,7 @@ struct DeckView: View {
                                     .buttonStyle(.plain)
                                     .accessibilityLabel("덱 알림 닫기")
                                 }
-                                    .font(.callout.weight(.semibold))
+                                    .font(.scaled(.callout, textScale).weight(.semibold))
                                     .padding(.horizontal, 12).padding(.vertical, 7)
                                     .background(.regularMaterial, in: Capsule())
                                     .padding(.top, 22)
@@ -61,7 +63,7 @@ struct DeckView: View {
                         .animation(.easeOut(duration: 0.15), value: deck.needsGrid)
                         .environment(\.colorScheme, .dark)
                     Group { if PerfProbe.hidden.contains("overview") { EmptyView() } else { OverviewWaveformView(deck: deck) } }
-                        .frame(height: 86)
+                        .frame(height: WaveformMetrics(scale: textScale).overviewHeight)
                     TransportBar(deck: deck)
                     AudioBar(deck: deck)
                     if deck.gridEditing { GridSuggestionRow(deck: deck) }
@@ -84,9 +86,9 @@ struct DeckView: View {
 
     @ViewBuilder private var loadingOverlay: some View {
         if deck.row?.track.isStreaming == true {
-            Text("스트리밍 곡은 파형·재생·분석을 할 수 없습니다").font(.callout).foregroundStyle(.secondary)
+            Text("스트리밍 곡은 파형·재생·분석을 할 수 없습니다").font(.scaled(.callout, textScale)).foregroundStyle(.secondary)
         } else if let error = deck.waveformError {
-            Label(error, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(UIColors.warning.color)
+            Label(error, systemImage: "exclamationmark.triangle").font(.scaled(.callout, textScale)).foregroundStyle(UIColors.warning.color)
         } else if deck.waveform == nil {
             ProgressView().controlSize(.small)
         }
@@ -96,6 +98,7 @@ struct DeckView: View {
 
 /// 좁은 창: 커버 열 대신 한 줄 헤더.
 struct CompactInfo: View {
+    @Environment(\.textScale) private var textScale
     let deck: DeckModel
     let row: TrackRow
 
@@ -103,13 +106,14 @@ struct CompactInfo: View {
         HStack(spacing: 10) {
             CoverView(image: deck.artwork, size: 40)
             VStack(alignment: .leading, spacing: 2) {
-                Text(row.title).font(.headline).lineLimit(1)
+                Text(row.title).font(.scaled(.headline, textScale)).lineLimit(1)
                 Text([row.artist, row.genre].filter { !$0.isEmpty }.joined(separator: " · "))
-                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    .font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 8)
+            // 넓은 레이아웃(커버 열)과 같은 서체로 보인다(고정폭으로 바꾸지 않는다).
             Text(row.comment.isEmpty ? "(빈 코멘트)" : row.comment)
-                .font(.caption.monospaced()).lineLimit(1)
+                .font(.scaled(.caption, textScale)).lineLimit(1)
                 .foregroundStyle(row.comment.isEmpty ? .tertiary : .secondary)
         }
     }
@@ -118,16 +122,17 @@ struct CompactInfo: View {
 // MARK: - 커버·정보
 
 struct DeckInfoColumn: View {
+    @Environment(\.textScale) private var textScale
     let deck: DeckModel
     let row: TrackRow
 
     var body: some View {
         VStack(alignment: .center, spacing: 8) {
             CoverView(image: deck.artwork, size: 150)
-            Text(row.title).font(.headline).lineLimit(2).textSelection(.enabled)
-            Text(row.artist).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+            Text(row.title).font(.scaled(.headline, textScale)).lineLimit(2).textSelection(.enabled)
+            Text(row.artist).font(.scaled(.subheadline, textScale)).foregroundStyle(.secondary).lineLimit(1)
             if let genre = row.track.genre, !genre.trimmingCharacters(in: .whitespaces).isEmpty {
-                Label(genre, systemImage: "guitars").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Label(genre, systemImage: "guitars").font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
             }
             HStack(spacing: 10) {
                 if let bpm = row.track.bpm { Text(String(format: "%.1f BPM", bpm)) }
@@ -135,16 +140,16 @@ struct DeckInfoColumn: View {
                 Text(Double(row.track.lengthSeconds).clockText.dropLast(3))
                 if row.playCount > 0 { Text("재생 \(row.playCount)") }
             }
-            .font(.caption.monospacedDigit())
+            .font(.scaled(.caption, textScale).monospacedDigit())
             .foregroundStyle(.secondary)
             if !row.track.isStreaming, !row.isStaged, let note = analysisNote(row.track.analysisDataPath) {
                 Label(note.title, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption).foregroundStyle(UIColors.warning.color)
+                    .font(.scaled(.caption, textScale)).foregroundStyle(UIColors.warning.color)
                     .help(note.help)
             }
             // 코멘트는 적힌 그대로(태그로 나누지 않는다)
             Text(row.comment.isEmpty ? "(빈 코멘트)" : row.comment)
-                .font(.callout)
+                .font(.scaled(.callout, textScale))
                 .foregroundStyle(row.comment.isEmpty ? .tertiary : .primary)
                 .lineLimit(3)
                 .textSelection(.enabled)

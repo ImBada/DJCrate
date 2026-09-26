@@ -94,6 +94,20 @@ enum UIColors: String, CaseIterable {
 
 }
 
+/// 초안(파일·rekordbox에 아직 반영하지 않은 값) 표식. 색은 `UIColors.draft` 하나이고, 색만으로 알리지 않게 모양·VoiceOver 글자를 함께 쓴다.
+/// 경고(`UIColors.warning`)도 같은 계열 주황이라 모양으로 나눈다: 초안은 연필, 경고는 느낌표 삼각형(`WarningMark`).
+/// 곡 목록 칸·인스펙터 필드는 연필 심볼, 칸이 빽빽한 태그 시트는 칸 왼쪽 위 모서리 삼각형이다.
+enum DraftMark {
+    static let symbol = "pencil.circle.fill"
+    static let spoken = "초안"
+    static let help = "초안: 파일·rekordbox에 아직 반영하지 않은 값"
+}
+
+/// 경고 표식: 경고 주황 글자에는 늘 이 심볼을 붙인다(초안 주황과 모양으로 구분).
+enum WarningMark {
+    static let symbol = "exclamationmark.triangle"
+}
+
 /// 고대비 모양새를 시스템 설정과 독립적으로도 시험할 수 있게 네 값을 함께 둔다.
 struct AppearanceColor {
     let nsColor: NSColor

@@ -70,6 +70,27 @@ public extension LibraryRead {
     struct TrackList: Codable { public let tracks: [TrackRecord] }
     struct PathList: Codable { public let paths: [String] }
 
+    struct DuplicateMember: Codable, Sendable, Identifiable {
+        public let track: TrackRecord
+        public let cueCount: Int
+        public let manualCueCount: Int
+        public let playlistCount: Int
+        public let playCount: Int
+        public let format: String
+        public let bitrateKbps: Int?
+        public var id: String { track.id }
+    }
+
+    struct DuplicateGroup: Codable, Sendable, Identifiable {
+        public let id: String
+        public let tracks: [DuplicateMember]
+    }
+
+    struct DuplicateList: Codable, Sendable {
+        public let lengthToleranceSeconds: Int
+        public let groups: [DuplicateGroup]
+    }
+
     struct CueRecord: Codable {
         public let id: String
         public let kind: Int
@@ -131,6 +152,25 @@ public extension LibraryRead {
         public let tracks: [TrackRecord]
     }
 
+    struct HistoryRecord: Codable {
+        public let id: String
+        public let name: String
+        public let dateCreated: String?
+        public let trackCount: Int
+    }
+
+    struct HistoryEntry: Codable {
+        public let id: String
+        public let trackNumber: Int
+        public let track: TrackRecord
+    }
+
+    struct HistoryList: Codable { public let histories: [HistoryRecord] }
+    struct HistoryContents: Codable {
+        public let history: HistoryRecord
+        public let entries: [HistoryEntry]
+    }
+
     struct TrackInfo: Codable {
         public let track: TrackRecord
         public let cues: [CueRecord]
@@ -154,9 +194,9 @@ public extension LibraryRead {
         public let liveTracks: Int
         public let streamingTracks: Int
         public let extensions: [String: Int]
-        public let commentClasses: [String: Int]
-        public let prefixes: [String: Int]
-        public let usages: [String: Int]
+        public let commentClasses: [String: Int]?
+        public let prefixes: [String: Int]?
+        public let usages: [String: Int]?
         public let emptyByImportYear: [String: Int]
         public let tracksWithCues: Int
         public let tracksWithManualCues: Int

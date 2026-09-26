@@ -26,6 +26,15 @@ struct ContentView: View {
         DeckLayout.waveformHeight(requested: waveformHeight, detailHeight: detailHeight,
                                   deckChromeHeight: deckChromeHeight, otherHeight: otherHeight)
     }
+    private var maximumWaveformHeight: Double {
+        DeckLayout.waveformHeight(requested: DeckLayout.maximumWaveformHeight, detailHeight: detailHeight,
+                                  deckChromeHeight: deckChromeHeight, otherHeight: otherHeight)
+    }
+    /// 메뉴 '파형 크게·작게'(덱이 보일 때만)
+    private var waveformHeightControl: WaveformHeightControl? {
+        guard case .loaded = store.phase else { return nil }
+        return WaveformHeightControl(displayed: displayedWaveformHeight, maximum: maximumWaveformHeight) { waveformHeight = $0 }
+    }
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -59,7 +68,8 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.15), value: store.writeStage)
         .searchable(text: $store.search, placement: .toolbar, prompt: "제목·아티스트·코멘트")
         .toolbar(id: "main") { toolbarContent }
-        .focusedSceneValue(\.appCommands, AppCommandContext(store: store, deck: deck, showTagEditor: $showTagEditor))
+        .focusedSceneValue(\.appCommands, AppCommandContext(store: store, deck: deck, showTagEditor: $showTagEditor,
+                                                             waveformHeight: waveformHeightControl))
         .onAppear { setUp() }
         .onChange(of: undoManager, initial: true) {
             deck.undoManager = undoManager
@@ -82,9 +92,7 @@ struct ContentView: View {
             switch store.phase {
             case .loaded:
                 let displayedHeight = displayedWaveformHeight
-                let maximumHeight = DeckLayout.waveformHeight(requested: DeckLayout.maximumWaveformHeight,
-                                                               detailHeight: detailHeight,
-                                                               deckChromeHeight: deckChromeHeight, otherHeight: otherHeight)
+                let maximumHeight = maximumWaveformHeight
                 // VSplitView(NSSplitView)는 자식 최소 크기가 내용에 따라 바뀌면 레이아웃을 끝없이
                 // 다시 잡다가 예외로 죽는다. SwiftUI만으로 나누고, 덱 높이는 핸들로 조절한다.
                 VStack(spacing: 0) {
@@ -117,10 +125,13 @@ struct ContentView: View {
                     SplitHandle(height: $waveformHeight, displayedHeight: displayedHeight, maximumHeight: maximumHeight)
                     VStack(spacing: 0) {
                         ListActionBar(store: store)
-                        if sheetMode { SheetHeader(store: store) }
+                        if sheetMode && store.sidebar != .duplicates { SheetHeader(store: store) }
                     }
                     .onGeometryChange(for: Double.self) { $0.size.height } action: { listHeaderHeight = $0 }
-                    if sheetMode {
+                    if store.sidebar == .duplicates {
+                        DuplicateTracksView(store: store)
+                            .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
+                    } else if sheetMode {
                         TagSheetView(store: store)
                             .onDisappear { store.canFillDownTags = false }
                             .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
@@ -176,7 +187,7 @@ struct ContentView: View {
                     Label("태그 시트", systemImage: "tablecells").tag(true)
                 }
                 .pickerStyle(.segmented)
-                .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
+                .disabled(!store.writeLockPolicy.allowsLibraryInteraction || store.sidebar == .duplicates)
                 .help("태그 시트: 엑셀처럼 셀을 선택·편집·붙여넣기 합니다")
             }
             ToolbarItem(id: "addFiles") {
@@ -234,6 +245,7 @@ struct ContentView: View {
                 deck.refreshAfterWrite(store?.rowsByUUID[uuid])
             }
             keys.install(deck: deck, store: store)
+            TrackEditWindow.shared.attach(deck: deck, store: store)
             #if DEBUG
             DevSelfTests.runIfRequested(store: store, deck: deck)
             #endif
@@ -247,15 +259,22 @@ struct ContentView: View {
 
 /// 태그 시트 위 안내 줄.
 struct SheetHeader: View {
+    @Environment(\.textScale) private var textScale
     let store: LibraryStore
 
     var body: some View {
         HStack(spacing: 14) {
-            Text("\(store.sidebarTitle) · \(store.displayRows.count)곡").font(.callout.bold())
+            Text("\(store.sidebarTitle) · \(store.displayRows.count)곡").font(.scaled(.callout, textScale).bold())
             Text("더블클릭·Return·타이핑: 편집  ·  ⌘C/⌘V: 엑셀·시트와 복사·붙여넣기  ·  ⌘D: 아래로 채우기  ·  Delete: 지우기  ·  ⌘Z/⇧⌘Z: 실행 취소·실행 복귀")
-                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                .font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
             Spacer()
-            Text("주황 = 초안(파일·rekordbox 미반영)").font(.caption).foregroundStyle(UIColors.warning.color)
+            // 색이 아니라 칸의 모양(왼쪽 위 모서리 삼각형)으로 알린다.
+            Label { Text("= 초안(파일·rekordbox 미반영)") } icon: { DraftCornerSwatch() }
+                .font(.scaled(.caption, textScale)).foregroundStyle(.secondary)
+                .help("값을 고친 칸은 왼쪽 위 모서리에 삼각형이 붙습니다. 음원 파일과 rekordbox에는 아직 반영하지 않은 초안입니다")
+                .accessibilityElement(children: .ignore)
+                .accessibilityAddTraits(.isStaticText)
+                .accessibilityLabel("왼쪽 위 모서리 삼각형이 붙은 칸은 초안(파일·rekordbox 미반영)")
         }
         .controlSize(.small)
         .padding(.horizontal, 12)
@@ -291,9 +310,10 @@ struct SplitHandle: View {
             .accessibilityValue("\(Int(displayedHeight))포인트")
             .accessibilityHint("위아래로 조절하거나 두 번 클릭하면 기본 높이로 돌아갑니다")
             .accessibilityAdjustableAction { direction in
+                // 메뉴 '파형 크게·작게'와 같은 한 칸
                 switch direction {
-                case .increment: height = clamped(displayedHeight + 10)
-                case .decrement: height = clamped(displayedHeight - 10)
+                case .increment: height = DeckLayout.steppedWaveformHeight(displayed: displayedHeight, direction: 1, maximum: maximumHeight)
+                case .decrement: height = DeckLayout.steppedWaveformHeight(displayed: displayedHeight, direction: -1, maximum: maximumHeight)
                 @unknown default: break
                 }
             }

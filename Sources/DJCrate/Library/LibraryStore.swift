@@ -9,6 +9,8 @@ import Observation
 enum SidebarItem: Hashable, Sendable {
     case filter(LibraryFilter)
     case playlist(String)
+    case history(String)
+    case duplicates
     /// DJCrate에 추가한 곡(아직 rekordbox에 없음)
     case staged
     /// 큐·그리드 초안이 있어 rekordbox에 반영할 곡
@@ -41,8 +43,20 @@ final class LibraryStore {
         writeTask?.cancel()
     }
 
-    init(resultHistory: WriteResultHistory = WriteResultHistory(url: DJCPaths.userData.appending(path: "last-write-result.json")),
+    @ObservationIgnored let settings: SettingsStore
+    var commentPreset: CommentPreset {
+        didSet {
+            guard commentPreset != oldValue else { return }
+            settings.commentPreset = commentPreset
+            refreshCommentRule()
+        }
+    }
+    var commentRuleEnabled: Bool { commentPreset.rule != nil }
+
+    init(settings: SettingsStore = SettingsStore(), resultHistory: WriteResultHistory = WriteResultHistory(url: DJCPaths.userData.appending(path: "last-write-result.json")),
          feedback: AppFeedback = AppFeedback(), saveTagDrafts: @escaping ([TagDraft]) -> Void = { DraftWriter.save($0) }) {
+        self.settings = settings
+        self.commentPreset = settings.commentPreset
         self.saveTagDrafts = saveTagDrafts
         self.resultHistory = resultHistory
         self.feedback = feedback
@@ -55,6 +69,8 @@ final class LibraryStore {
     private(set) var previewRevision = 0
     /// 표에 보이는 줄. 필터·검색·정렬이 바뀔 때만 다시 계산한다(그릴 때마다 계산하지 않는다).
     private(set) var displayRows: [TrackRow] = []
+    private(set) var duplicateGroups: [LibraryRead.DuplicateGroup] = []
+    private(set) var displayDuplicateGroups: [LibraryRead.DuplicateGroup] = []
     private(set) var filterCounts: [LibraryFilter: Int] = [:]
     private(set) var playlistCounts: [String: Int] = [:]
     var isLoading: Bool { if case .loading = phase { true } else { false } }
@@ -65,7 +81,7 @@ final class LibraryStore {
             // 플레이리스트는 rekordbox 순서가 기본, 필터는 임포트 최신순이 기본.
             suppressRefresh = true
             switch sidebar {
-            case .playlist, .staged, .pending: sortOrder = []
+            case .playlist, .history, .duplicates, .staged, .pending: sortOrder = []
             case .filter:
                 if case .filter = oldValue {} else { sortOrder = [KeyPathComparator(\TrackRow.importedOn, order: .reverse)] }
             }
@@ -77,11 +93,15 @@ final class LibraryStore {
     private var playlistIndex: [String: PlaylistNode] = [:] { didSet { playlistCount = playlistIndex.values.filter { !$0.isFolder }.count } }
     /// 폴더를 뺀 rekordbox 플레이리스트 수(사이드바 제목)
     private(set) var playlistCount = 0
+    private(set) var histories: [RekordboxHistory] = []
+    private var historyIndex: [String: RekordboxHistory] = [:]
 
     var sidebarTitle: String {
         switch sidebar {
         case let .filter(filter): filter.rawValue
         case let .playlist(id): playlistIndex[id]?.name ?? "플레이리스트"
+        case let .history(id): historyIndex[id].map(historyTitle) ?? "재생 기록"
+        case .duplicates: "중복 후보"
         case .staged: "추가한 곡"
         case .pending: "rekordbox 반영 대기"
         }
@@ -163,13 +183,28 @@ final class LibraryStore {
     /// 덱에 올릴 곡: 선택 중 표 순서로 첫 곡.
     var primaryRow: TrackRow? {
         guard !selection.isEmpty else { return nil }
-        if selection.count == 1, let id = selection.first { return rowsByID[id] }
-        if let row = displayRows.first(where: { selection.contains($0.id) }) { return row }
+        if selection.count == 1, let id = selection.first, let row = rowsByID[id] { return row }
+        if let row = displayRows.first(where: { selection.contains($0.id) }) { return rowsByID[row.track.id] ?? row }
         return selection.first.flatMap { rowsByID[$0] }
     }
 
     var selectedRows: [TrackRow] {
-        displayRows.filter { selection.contains($0.id) }
+        uniqueTracks(displayRows.filter { selection.contains($0.id) })
+    }
+
+    /// 재생 기록의 반복 행을 함께 골라도 곡 편집·반영 대상은 한 번만 넘긴다.
+    func uniqueTracks(_ candidates: [TrackRow]) -> [TrackRow] {
+        var seen = Set<String>()
+        return candidates.filter { seen.insert($0.track.id).inserted }.map { rowsByID[$0.track.id] ?? $0 }
+    }
+
+    func historyTitle(_ history: RekordboxHistory) -> String {
+        let date = history.dateCreated.map { String($0.prefix(10)) } ?? "날짜 없음"
+        return history.name.isEmpty || history.name == date ? date : "\(date) · \(history.name)"
+    }
+
+    func count(history: RekordboxHistory) -> Int {
+        history.entries.lazy.filter { self.rowsByID[$0.contentID] != nil }.count
     }
 
     func count(_ filter: LibraryFilter) -> Int { filterCounts[filter] ?? 0 }
@@ -190,15 +225,58 @@ final class LibraryStore {
         switch sidebar {
         case let .filter(filter): base = rows.filter(filter.includes)
         case let .playlist(id): base = (playlistIndex[id]?.trackIDs ?? []).compactMap { rowsByID[$0] }
+        case let .history(id):
+            base = (historyIndex[id]?.entries ?? []).compactMap { entry in
+                guard var row = rowsByID[entry.contentID] else { return nil }
+                row.historyEntry = entry
+                return row
+            }
         case .staged: base = stagedRows
         case .pending: base = rows.filter { pendingUUIDs.contains($0.track.uuid) }
+        case .duplicates:
+            var seen = Set<String>()
+            base = duplicateGroups.flatMap(\.tracks).compactMap { member in
+                seen.insert(member.id).inserted ? rowsByID[member.id] : nil
+            }
         }
         sortedBase = sortOrder.isEmpty ? base : base.sorted(using: sortOrder)
         refreshFiltered()
     }
 
+    /// 프리셋 전환은 초안·선택·스냅샷을 보존하고 코멘트 캐시만 갱신한다.
+    private func refreshCommentRule() {
+        let rule = commentPreset.rule
+        for index in rows.indices { rows[index].applyCommentRule(rule) }
+        for index in stagedRows.indices { stagedRows[index].applyCommentRule(rule) }
+        for row in rows + stagedRows { rowsByID[row.id] = row; rowsByUUID[row.track.uuid] = row }
+        report?.applyCommentRule(rule, comments: rows.map(\.comment))
+        filterCounts = Dictionary(uniqueKeysWithValues: LibraryFilter.visible(commentPreset: commentPreset).map {
+            ($0, rows.lazy.filter($0.includes).count)
+        })
+        suppressRefresh = true
+        if !commentRuleEnabled {
+            sortOrder.removeAll { $0.keyPath == \TrackRow.commentClassName }
+        }
+        suppressRefresh = false
+        if !commentRuleEnabled, case let .filter(filter) = sidebar, filter.requiresCommentRule {
+            sidebar = .filter(.all)
+        } else {
+            refreshBase()
+        }
+    }
+
     private func refreshFiltered() {
         let needle = search.trimmingCharacters(in: .whitespaces).lowercased()
+        if sidebar == .duplicates {
+            // 검색한 곡의 비교 상대도 남겨 묶음이 한 곡으로 잘리지 않게 한다.
+            displayDuplicateGroups = needle.isEmpty ? duplicateGroups : duplicateGroups.filter { group in
+                group.tracks.contains { rowsByID[$0.id]?.searchKey.contains(needle) == true }
+            }
+            let visible = Set(displayDuplicateGroups.flatMap { $0.tracks.map(\.id) })
+            displayRows = sortedBase.filter { visible.contains($0.id) }
+            return
+        }
+        displayDuplicateGroups = []
         displayRows = needle.isEmpty ? sortedBase : sortedBase.filter { $0.searchKey.contains(needle) }
     }
 
@@ -260,7 +338,8 @@ final class LibraryStore {
         let started = ContinuousClock.now
         if !quiet { phase = .loading("라이브러리를 읽는 중…") }
         do {
-            let loaded = try await Task.detached(priority: .userInitiated) { try LoadedLibrary.load(snapshot: snapshot) }.value
+            let preset = commentPreset
+            let loaded = try await Task.detached(priority: .userInitiated) { try LoadedLibrary.load(snapshot: snapshot, commentPreset: preset) }.value
             // 더 나중에 시작한 로드가 있으면 이 결과는 버린다.
             guard generation == loadGeneration else { return }
             undoManager?.removeAllActions(withTarget: self)
@@ -269,6 +348,7 @@ final class LibraryStore {
             rowsByUUID = Dictionary(loaded.rows.map { ($0.track.uuid, $0) }, uniquingKeysWith: { first, _ in first })
             report = loaded.report
             filterCounts = loaded.filterCounts
+            duplicateGroups = loaded.duplicateGroups
             draftFileStamps = nil
             tagDrafts = loaded.tagDrafts
             cueDraftUUIDs = loaded.cueDraftUUIDs
@@ -282,13 +362,19 @@ final class LibraryStore {
             func walk(_ nodes: [PlaylistNode]) { for node in nodes { index[node.id] = node; walk(node.children ?? []) } }
             walk(loaded.tree)
             playlistIndex = index
+            histories = loaded.histories
+            historyIndex = Dictionary(uniqueKeysWithValues: histories.map { ($0.id, $0) })
             let known = rowsByID
             playlistCounts = index.mapValues { node in node.trackIDs.lazy.filter { known[$0] != nil }.count }
             snapshotURL = snapshot
             previewRevision += 1
             loadStaged()
+            // 기다리는 동안 설정이 바뀌었으면 최신 프리셋으로 맞춘다.
+            if preset != commentPreset { refreshCommentRule() }
             // rekordbox에서 지운 곡은 선택에서도 뺀다(덱이 지워진 곡을 붙들지 않게)
-            let existing = selection.filter { rowsByID[$0] != nil }
+            refreshBase()
+            let visible = Set(displayRows.map(\.id))
+            let existing = selection.filter { rowsByID[$0] != nil || visible.contains($0) }
             if existing != selection { selection = existing }
             verifyReflection()
             refreshBase()

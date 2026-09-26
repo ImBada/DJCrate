@@ -2,14 +2,15 @@ import RekordboxKit
 import SwiftUI
 
 enum LibraryMenuAction: CaseIterable {
-    case addFiles, snapshot, exportXML, reflect, pending, writeResult, restore, removeTracks
+    case addFiles, importAppleMusic, snapshot, exportXML, reflect, pending, writeResult, restore, removeTracks
 
-    static let fileActions: [Self] = [.addFiles, .snapshot, .exportXML]
+    static let fileActions: [Self] = [.addFiles, .importAppleMusic, .snapshot, .exportXML]
     static let rekordboxActions: [Self] = [.reflect, .pending, .writeResult, .restore, .removeTracks]
 
     var title: String {
         switch self {
         case .addFiles: "곡 추가…"
+        case .importAppleMusic: String(localized: "Apple Music XML 가져오기…")
         case .snapshot: "새 스냅샷"
         case .exportXML: "rekordbox XML로 내보내기…"
         case .reflect: "반영…"
@@ -33,6 +34,7 @@ enum LibraryMenuAction: CaseIterable {
         guard store.writeLockPolicy.allowsLibraryInteraction else { return false }
         switch self {
         case .addFiles: return !store.rows.isEmpty
+        case .importAppleMusic: return !store.isLoading
         case .snapshot: return !store.isLoading
         case .exportXML: return store.sidebar == .staged ? !store.staged.isEmpty : !store.reflectionTargets.isEmpty
         case .reflect: return store.pendingLibraryCount > 0
@@ -46,6 +48,7 @@ enum LibraryMenuAction: CaseIterable {
         guard isEnabled(in: store) else { return }
         switch self {
         case .addFiles: StagingPanels.chooseFiles(store: store)
+        case .importAppleMusic: AppleMusicImportWindow.shared.open(store: store)
         case .snapshot: Task { await store.takeSnapshot(force: LibrarySnapshot.isRekordboxRunning()) }
         case .exportXML:
             if store.sidebar == .staged { StagingPanels.exportXML(store: store) }
