@@ -25,7 +25,7 @@ struct ReflectionMenu: View {
         }
         .labelStyle(.titleAndIcon)
         .accessibilityLabel("rekordbox에 반영")
-        .disabled(store.isWritingRekordbox)
+        .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
         // ⇧⌘E는 AppCommands가 맡아 툴바·사이드바를 숨겨도 한 번만 실행한다.
         .help("선택한 곡에 초안이 있으면 그 곡들만, 없으면 반영 대기 전체를 미리 보고 rekordbox에 씁니다 (⇧⌘E). 대상 \(store.reflectionTargets.count.formatted())곡")
     }

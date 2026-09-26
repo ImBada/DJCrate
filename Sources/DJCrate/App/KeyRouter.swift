@@ -12,12 +12,14 @@ import AppKit
 final class KeyRouter {
     @ObservationIgnored private var monitors: [Any] = []
     @ObservationIgnored weak var deck: DeckModel?
+    @ObservationIgnored private weak var store: LibraryStore?
     @ObservationIgnored private var resignObserver: NSObjectProtocol?
     /// 미리 듣기를 시작한 CUE 키(떼면 미리 듣기를 끝낸다)
     @ObservationIgnored private var heldCueKey: UInt16?
 
-    func install(deck: DeckModel) {
+    func install(deck: DeckModel, store: LibraryStore? = nil) {
         self.deck = deck
+        self.store = store
         guard monitors.isEmpty else { return }
         if let monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp], handler: { [weak self] event in
             // `self?.route(event) ?? event`로 쓰면 처리했다는 nil까지 원래 이벤트로 바뀌어 새어 나간다.
@@ -56,12 +58,15 @@ final class KeyRouter {
             hasShortcutModifiers: !event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
             focus: focus)
         guard context.isMainWindow, !context.hasModalWindow, !context.hasAttachedSheet else { return event }
+        // 표준 시스템 단축키는 AppKit에 맡긴다. 종료는 앱 델리게이트가 별도로 거절한다.
+        if context.hasShortcutModifiers { return event }
+        let lock = WriteLockPolicy(isWriting: deck.isWriteLocked, canCancelPreparation: store?.writeStage?.cancellable == true)
+        if lock.blocksKey(event.keyCode, in: context) { return nil }
+        if lock.isWriting, lock.canCancelPreparation, event.keyCode == Self.escape { return event }
         if let editor = responder as? NSTextView {
             return routeWhileTyping(event, editor: editor, window: window)
         }
         if focus == .control || focus == .table || focus == .textInput { return event }
-        // 덱·목록의 쓰기 잠금은 유지한다. 모달·입력 컨트롤에는 위에서 먼저 키를 넘긴다.
-        if deck.isWriteLocked { return nil }
         guard KeyRoutingPolicy.accepts(event.keyCode, in: context, shortcuts: deck.shortcuts) else { return event }
 
         if event.type == .keyUp {

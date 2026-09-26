@@ -28,6 +28,11 @@ extension DevSelfTests {
             store.lastWriteBackup = backup
             store.resultHistory.record(WriteResult(kind: .warning, title: "일부 곡을 반영했습니다", text: "합성 데이터의 화면 배치 시험입니다"))
             store.toast = AppToast(kind: .warning, title: "일부 곡을 반영했습니다", detail: "합성 데이터의 화면 배치 시험입니다", undoBackup: backup)
+            if argument.contains("locked-") {
+                store.toast = nil
+                store.setWriteLock(true)
+                store.writeStage = WriteStage("rekordbox에 쓰는 중…")
+            }
         }
     }
 }

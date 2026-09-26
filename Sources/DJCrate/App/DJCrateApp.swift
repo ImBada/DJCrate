@@ -6,6 +6,7 @@ import SwiftUI
 struct DJCrateApp: App {
     /// 옛 이름(anicue) 데이터·설정 옮기기. 목록·덱이 설정을 읽기 전에 돌아야 해서 첫 속성으로 둔다.
     private let migrated = LegacyMigration.run()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var store = LibraryStore()
     @State private var deck = DeckModel()
 
@@ -20,6 +21,7 @@ struct DJCrateApp: App {
             ContentView(store: store, deck: deck)
                 .frame(minWidth: 1100, minHeight: 700)
                 .task {
+                    appDelegate.store = store
                     NSApplication.shared.activate()
                     await store.loadInitial()
                 }

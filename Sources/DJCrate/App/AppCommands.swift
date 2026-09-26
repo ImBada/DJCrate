@@ -33,10 +33,10 @@ struct AppCommands: Commands {
         CommandGroup(before: .sidebar) {
             Toggle("목록", isOn: Binding(get: { !sheetMode }, set: { if $0 { sheetMode = false } }))
                 .keyboardShortcut("1", modifiers: .command)
-                .disabled(context == nil || context?.store.isWritingRekordbox == true)
+                .disabled(context?.store.writeLockPolicy.allowsLibraryInteraction != true)
             Toggle("태그 시트", isOn: Binding(get: { sheetMode }, set: { if $0 { sheetMode = true } }))
                 .keyboardShortcut("2", modifiers: .command)
-                .disabled(context == nil || context?.store.isWritingRekordbox == true)
+                .disabled(context?.store.writeLockPolicy.allowsLibraryInteraction != true)
             Divider()
             Toggle("태그 편집", isOn: context?.showTagEditor ?? .constant(false))
                 .keyboardShortcut("i", modifiers: .command)
@@ -74,7 +74,7 @@ struct AppCommands: Commands {
 
     private var canEditTags: Bool {
         guard let store = context?.store, case .loaded = store.phase else { return false }
-        return !store.isWritingRekordbox
+        return store.writeLockPolicy.allowsLibraryInteraction
     }
 
     private func libraryButton(_ action: LibraryMenuAction) -> some View {
