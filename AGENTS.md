@@ -55,6 +55,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 | `--metronome-selftest` | 메트로놈 클릭이 빠지지 않는지(실제 엔진으로 12초 재생해 클릭 수를 셈) | — |
 | `--switch-selftest` | 곡 전환·일시정지 뒤 소리 | — |
 | `--scroll-perf` | 재생 중 목록 스크롤 때 프레임 간격 | `--perf-hide=zoom,label,…`로 A/B |
+| `--edit-selftest` | 곡 편집 창: 이음새 미리 듣기(실제 재생)·렌더·추가한 곡으로 이동·덱에 편집본 | `EditLayoutFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로 |
 
 예: `DJC_HOME=$(mktemp -d) .build/debug/DJCrate --db <스냅샷> --select 32395449 --loop-selftest 2>&1 | grep "루프 시험"`
 

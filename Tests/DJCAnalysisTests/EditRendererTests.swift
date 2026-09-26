@@ -88,6 +88,32 @@ struct EditRendererTests {
         #expect(abs(out.left[2_205] - source.value(0)) < 5e-7 && abs(out.left[50_000] - source.value(50_000 - 2_205)) < 5e-7)
     }
 
+    @Test func 진행을_알리고_취소하면_파일을_남기지_않는다() async throws {
+        let dir = try directory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let source = try ramp(seconds: 20.5, in: dir)
+        let edit = try TrackEdit(grid: grid, sourceDuration: 20.5, bars: BarRange.list("1-10,1-10"))
+        final class Seen: @unchecked Sendable {
+            let lock = NSLock()
+            var values: [Double] = []
+            func add(_ value: Double) { lock.withLock { values.append(value) } }
+        }
+        // 쓴 만큼 늘어 1에서 끝난다(편집 창의 진행 막대)
+        let seen = Seen()
+        _ = try EditRenderer.render(edit, source: source.url, sourceOffset: 0, to: dir.appending(path: "full.wav"), progress: seen.add)
+        #expect(seen.values.count > 10 && seen.values == seen.values.sorted() && seen.values.last == 1)
+
+        // 렌더하는 작업을 취소하면 멈추고 출력·임시 파일을 지운다
+        let cancelled = dir.appending(path: "cancelled.wav")
+        let job = Task.detached {
+            try EditRenderer.render(edit, source: source.url, sourceOffset: 0, to: cancelled, progress: { _ in
+                withUnsafeCurrentTask { $0?.cancel() }
+            })
+        }
+        await #expect(throws: CancellationError.self) { _ = try await job.value }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path).sorted() == ["full.wav", "ramp.wav"])
+    }
+
     @Test func 원본과_이미_있는_파일에는_쓰지_않는다() throws {
         let dir = try directory()
         defer { try? FileManager.default.removeItem(at: dir) }
