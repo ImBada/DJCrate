@@ -37,6 +37,21 @@ struct LegacyMigrationTests {
         try? fm.removeItem(at: root)
     }
 
+    @Test func 옛_앱이_켜져_있으면_옮기지_않고_다음으로_미룬다() throws {
+        // 옛 앱이 켜진 채 폴더를 옮기면 그 앱이 옛 이름으로 폴더를 다시 만들어 캐시를 쓴다(2026-09-26 실제로 겪음).
+        let fm = FileManager.default
+        try fm.createDirectory(at: support.appending(path: "anicue/cue-drafts"), withIntermediateDirectories: true)
+        let d = defaults()
+        let skipped = LegacyMigration.run(support: support, documents: documents, defaults: d, legacyDefaults: ["gainTrim": 1.0],
+                                          legacyAppRunning: true)
+        #expect(skipped == .init() && fm.fileExists(atPath: support.appending(path: "anicue").path))
+        #expect(!d.bool(forKey: "djc.migratedLegacyDefaults"), "설정도 다음에 옮긴다")
+        let later = LegacyMigration.run(support: support, documents: documents, defaults: d, legacyDefaults: ["gainTrim": 1.0],
+                                        legacyAppRunning: false)
+        #expect(later.movedSupport && later.copiedDefaults == 1)
+        try? fm.removeItem(at: root)
+    }
+
     @Test func 새_폴더가_이미_있으면_옛_폴더를_건드리지_않는다() throws {
         let fm = FileManager.default
         try fm.createDirectory(at: support.appending(path: "anicue"), withIntermediateDirectories: true)

@@ -20,12 +20,17 @@ public enum LegacyMigration {
     @discardableResult
     public static func run() -> Result {
         run(support: URL.applicationSupportDirectory, documents: URL.documentsDirectory, defaults: .standard,
-            legacyDefaults: UserDefaults.standard.persistentDomain(forName: DJCIdentity.legacyBundleID))
+            legacyDefaults: UserDefaults.standard.persistentDomain(forName: DJCIdentity.legacyBundleID),
+            legacyAppRunning: isLegacyAppRunning())
     }
 
-    public static func run(support: URL, documents: URL, defaults: UserDefaults, legacyDefaults: [String: Any]?) -> Result {
+    /// - Parameter legacyAppRunning: 옛 앱이 켜져 있으면 아무것도 옮기지 않고 다음 실행으로 미룬다.
+    ///   켜진 채 옮기면 옛 앱이 옛 이름으로 폴더를 다시 만들어 쓴다(2026-09-26 실제로 겪음).
+    public static func run(support: URL, documents: URL, defaults: UserDefaults, legacyDefaults: [String: Any]?,
+                           legacyAppRunning: Bool = false) -> Result {
         let fm = FileManager.default
         var result = Result()
+        guard !legacyAppRunning else { return result }
         let oldSupport = support.appending(path: DJCIdentity.legacyName), newSupport = support.appending(path: DJCIdentity.name)
         if fm.fileExists(atPath: oldSupport.path), !fm.fileExists(atPath: newSupport.path) {
             result.movedSupport = (try? fm.moveItem(at: oldSupport, to: newSupport)) != nil
@@ -49,5 +54,21 @@ public enum LegacyMigration {
             defaults.set(true, forKey: flag)
         }
         return result
+    }
+
+    /// 옛 앱(anicue.app)이 켜져 있는지 프로세스 경로로 본다.
+    public static func isLegacyAppRunning() -> Bool {
+        let process = Process()
+        process.executableURL = URL(filePath: "/usr/bin/pgrep")
+        process.arguments = ["-f", "\(DJCIdentity.legacyName).app/Contents/MacOS/"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return true   // 확인하지 못하면 옮기지 않는다
+        }
     }
 }
