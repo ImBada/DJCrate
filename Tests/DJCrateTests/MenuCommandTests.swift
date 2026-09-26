@@ -7,6 +7,16 @@ import Testing
 @MainActor
 @Suite("메뉴 — 구성·단축키·덱 동작")
 struct MenuCommandTests {
+    @Test func 설정_메뉴와_단축키는_Settings_장면에서만_등록한다() throws {
+        // Settings가 메뉴와 ⌘,를 함께 만든다. 다른 장면의 수동 링크가 겹치지 않게 고정한다.
+        let root = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let app = try String(contentsOf: root.appending(path: "Sources/DJCrate/App/DJCrateApp.swift"), encoding: .utf8)
+        let commands = try String(contentsOf: root.appending(path: "Sources/DJCrate/App/AppCommands.swift"), encoding: .utf8)
+        #expect(app.components(separatedBy: "Settings {").count - 1 == 1)
+        #expect(!(app + commands).contains("SettingsLink"))
+        #expect(!(app + commands).contains(".appSettings"))
+    }
+
     @Test func 덱_메뉴는_단축키_표의_모든_동작을_한번씩_포함한다() {
         let actions = DeckAction.Group.allCases.flatMap { DeckMenuCommand.actions(in: $0) }
         #expect(actions == DeckAction.allCases)
