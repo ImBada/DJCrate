@@ -319,26 +319,29 @@ struct ReflectionCoordinator {
         if !gains.isEmpty { kinds.append("게인 \(gains.count)곡") }
         let gridBlocked = Set((report.gridBlocked + report.analysisBlocked).map(\.trackUUID)), gridWritten = Set(grids.map(\.trackUUID))
         let analysisWritten = Set(analyses.map(\.trackUUID))
+        // 분석을 붙이며 음원 그림으로 아트워크도 넣는 곡(rekordbox도 분석할 때 뽑는다, #87)
+        let artwork = Set(report.artworkAdded ?? [])
         var body = cues.map { outcome -> String in
             var changes: [String] = []
             if outcome.added > 0 { changes.append("+\(outcome.added)") }
             if outcome.removed > 0 { changes.append("−\(outcome.removed)") }
             var line = "• \(outcome.title) — 큐 " + (changes.isEmpty ? "변경" : changes.joined(separator: " · "))
             if gridWritten.contains(outcome.trackUUID) { line += " · 그리드" }
-            if analysisWritten.contains(outcome.trackUUID) { line += " · 분석 파일 붙이기" }
+            if analysisWritten.contains(outcome.trackUUID) { line += " · 분석 파일 붙이기" + (artwork.contains(outcome.trackUUID) ? " · 아트워크" : "") }
             if gridBlocked.contains(outcome.trackUUID) { line += " · ⚠︎ 그리드는 안 들어감" }
             return line
         }
         let cueUUIDs = Set(cues.map(\.trackUUID))
         for grid in grids where !cueUUIDs.contains(grid.trackUUID) { body.append("• \(grid.title) — 그리드(박 \(grid.added)개)") }
         for analysis in analyses where !cueUUIDs.contains(analysis.trackUUID) {
-            body.append("• \(analysis.title) — 분석 파일 붙이기(파형·그리드 박 \(analysis.added)개·오토게인)")
+            body.append("• \(analysis.title) — 분석 파일 붙이기(파형·그리드 박 \(analysis.added)개·오토게인\(artwork.contains(analysis.trackUUID) ? "·아트워크" : ""))")
         }
         for gain in gains { body.append(String(format: "• %@ — 오토게인 %+.1f dB", gain.title, Double(gain.added) / 100)) }
         let reasons = reasons(report)
         if !reasons.isEmpty { body += ["", "쓰지 않는 것 \(reasons.count):"] + reasons }
         if !analyses.isEmpty {
-            body += ["", "파형·그리드·오토게인만 붙입니다. 키·프레이즈·보컬 분석은 없습니다."]
+            let made = analyses.contains { artwork.contains($0.trackUUID) } ? "파형·그리드·오토게인과 음원의 아트워크를" : "파형·그리드·오토게인만"
+            body += ["", "\(made) 붙입니다. 키·프레이즈·보컬 분석은 없습니다."]
         }
         return ReflectionPrompt(title: kinds.joined(separator: " · ") + "을 rekordbox에 쓸까요?",
                                 text: "백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.",

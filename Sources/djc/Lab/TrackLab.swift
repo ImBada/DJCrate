@@ -15,7 +15,7 @@ enum TrackLab {
         Command("pvb2-check", "[--db 스냅샷]", "라이브러리 FLAC마다 만든 PVB2(.EXT 탐색표)·음원 칸을 rekordbox와 바이트로 비교", TrackLab.pvb2Check),
         Command("track-add-repro", "--db <스냅샷> <음원 파일…>", "파일로 곡 추가 계획을 만들어 rekordbox가 넣은 행과 칸마다 비교", TrackLab.trackAddRepro),
         Command("analysis-attach-test", "--db <사본.db> --share <사본 share> [--grid-from <.DAT>] <ContentID…>",
-                "분석 전 곡에 분석 파일을 붙여 본다(사본만, 막아 둔 쓰기 경로를 열어서). 그리드는 .DAT에서 읽거나 추정", TrackLab.analysisAttachTest),
+                "분석 전 곡에 분석 파일(음원 그림이 있으면 아트워크도)을 붙여 본다(사본만, 막아 둔 쓰기 경로를 열어서). 그리드는 .DAT에서 읽거나 추정", TrackLab.analysisAttachTest),
         Command("artwork-check", "[--db 스냅샷] [--limit N] [<ContentID…>]",
                 "음원 내장 아트워크로 아트워크 파일 셋을 만들어 rekordbox 파일과 크기·JPEG 머리·화소 차이를 비교(ID가 없으면 아트워크 있는 곡을 무작위로)",
                 TrackLab.artworkCheck),
@@ -219,8 +219,9 @@ enum TrackLab {
                 segments = estimate.segments.map { var s = $0; s.start += offset; return s }
             }
             let loudness = try Loudness.measure(fileAt: url)
-            inputs[track.uuid] = .init(duration: try await AudioTags.read(url: url).duration, loudness: loudness.integrated,
-                                       peak: pow(10, loudness.peak / 20))
+            // 음원 내장 그림이 있으면 앱처럼 아트워크도 넣는다(#87)
+            let tags = try await AudioTags.read(url: url)
+            inputs[track.uuid] = .init(duration: tags.duration, loudness: loudness.integrated, peak: pow(10, loudness.peak / 20), artwork: tags.artwork)
             grids.append(GridDraft(trackUUID: track.uuid, base: [], segments: segments))
             print(String(format: "· %@: %.2f BPM · 첫 박 %.4f초 · %.1f LUFS", track.id, segments.first?.bpm ?? 0, segments.first?.start ?? 0,
                          loudness.integrated ?? .nan))
@@ -232,7 +233,7 @@ enum TrackLab {
         for o in (report.analysisOutcomes ?? []) + (report.gridOutcomes ?? []) {
             print("\(o.status == .written ? "✓" : "✗") \(o.title.prefix(40)) · 박 \(o.added)\(o.reason.map { " · \($0)" } ?? "")")
         }
-        print("\(report.dryRun ? "미리 보기(되돌림)" : "씀") · 분석 파일 \(report.createdFiles?.count ?? 0)개 · 변경 카운터 \(report.finalUpdateCount.map(String.init) ?? "-") · 백업 \(report.backup ?? "없음")")
+        print("\(report.dryRun ? "미리 보기(되돌림)" : "씀") · 만든 파일 \(report.createdFiles?.count ?? 0)개 · 아트워크 \(report.artworkAdded?.count ?? 0)곡 · 변경 카운터 \(report.finalUpdateCount.map(String.init) ?? "-") · 백업 \(report.backup ?? "없음")")
     }
 
     static func trackAddRepro(_ args: [String]) async throws {

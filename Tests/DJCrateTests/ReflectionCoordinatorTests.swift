@@ -277,6 +277,19 @@ struct ReflectionCoordinatorTests {
         #expect(lines.contains("• 곡 b: ALAC") && lines.contains { $0.contains("키·프레이즈·보컬 분석은 없습니다") })
     }
 
+    @Test func 확인_창은_분석과_함께_아트워크도_넣는_곡을_알린다() {
+        // rekordbox는 분석 전 곡을 분석할 때 음원 그림으로 아트워크를 만든다(#87, 2026-09-26 실험)
+        var preview = Self.preview(cues: [Self.outcome("a", .written, added: 1)],
+                                   analyses: [Self.outcome("a", .written, added: 128), Self.outcome("n", .written, added: 96),
+                                              Self.outcome("p", .written, added: 64)])
+        preview.report.artworkAdded = ["a", "n"]
+        let lines = ReflectionCoordinator.confirmation(preview.report).details
+        #expect(lines.contains("• 곡 a — 큐 +1 · 분석 파일 붙이기 · 아트워크"))
+        #expect(lines.contains("• 곡 n — 분석 파일 붙이기(파형·그리드 박 96개·오토게인·아트워크)"))
+        #expect(lines.contains("• 곡 p — 분석 파일 붙이기(파형·그리드 박 64개·오토게인)"), "그림이 없는 곡")
+        #expect(lines.contains("파형·그리드·오토게인과 음원의 아트워크를 붙입니다. 키·프레이즈·보컬 분석은 없습니다."))
+    }
+
     @Test func 실패와_경고_토스트는_시간이_지나도_닫히지_않는다() {
         #expect(AppToast(kind: .failure, title: "실패").duration == .infinity)
         #expect(AppToast(kind: .warning, title: "경고").duration == .infinity)
