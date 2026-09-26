@@ -50,11 +50,12 @@ private struct TrackListView: NSViewRepresentable {
                 column.sortDescriptorPrototype = NSSortDescriptor(key: key, ascending: spec.ascendingFirst)
             }
             if !spec.help.isEmpty { column.headerToolTip = spec.help }
+            column.isHidden = spec.id == "preview"
             table.addTableColumn(column)
         }
         table.menu = context.coordinator.makeMenu()
         table.autosaveName = "djc.trackList.v2"
-        table.autosaveTableColumns = true
+        table.autosaveTableColumns = !PerfProbe.enabled
         // 머리글을 오른쪽 클릭하면 보일 칸을 고른다(숨김 상태도 자동 저장된다).
         table.headerView?.menu = context.coordinator.makeColumnMenu(table)
         // 저장된 칸 배치에는 새 "형식" 칸이 없어서 끝으로 밀린다. 한 번만 BPM 옆으로 옮긴다(그 뒤로는 사용자가 옮긴 대로).
@@ -85,6 +86,16 @@ private struct TrackListView: NSViewRepresentable {
             table.moveColumn(from, toColumn: from > bpm ? bpm + 1 : bpm)
             UserDefaults.standard.set(true, forKey: placedKey)
         }
+        let previewKey = "djc.trackList.previewColumnPlaced"
+        if !UserDefaults.standard.bool(forKey: previewKey),
+           let from = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == "preview" }),
+           let title = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == "title" }) {
+            table.moveColumn(from, toColumn: from > title ? title + 1 : title)
+            if !PerfProbe.enabled { UserDefaults.standard.set(true, forKey: previewKey) }
+        }
+        if let show = PerfProbe.previewColumnVisible {
+            table.tableColumns.first(where: { $0.identifier.rawValue == "preview" })?.isHidden = !show
+        }
         let scroll = NSScrollView()
         scroll.documentView = table
         scroll.hasVerticalScroller = true
@@ -96,7 +107,7 @@ private struct TrackListView: NSViewRepresentable {
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         context.coordinator.update(rows: store.displayRows, edited: store.editedUUIDs,
-                                   selection: store.selection, sortOrder: store.sortOrder)
+                                   selection: store.selection, sortOrder: store.sortOrder, snapshotURL: store.snapshotURL)
         context.coordinator.updateCueCounts(store.draftCueCounts)
     }
 }
@@ -118,6 +129,8 @@ private struct TrackColumn {
         TrackColumn(id: "thumb", title: "", width: 26, minWidth: 26),
         TrackColumn(id: "edited", title: "✎", width: 18, minWidth: 18, help: "DJCrate 초안이 있는 곡 (rekordbox·파일에는 아직 반영 안 됨)"),
         TrackColumn(id: "title", title: "제목", width: 220, minWidth: 140, flexible: true, sortKey: "title"),
+        TrackColumn(id: "preview", title: "미리 보기", width: 160, minWidth: 80,
+                    help: "곡 전체 파형 · 분석 자료가 없는 곡은 빈 칸"),
         TrackColumn(id: "artist", title: "아티스트", width: 140, minWidth: 80, flexible: true, sortKey: "artist"),
         TrackColumn(id: "album", title: "앨범", width: 150, minWidth: 60, flexible: true, sortKey: "album"),
         TrackColumn(id: "genre", title: "장르", width: 90, minWidth: 50, flexible: true, sortKey: "genre"),
@@ -189,6 +202,7 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
     private var rows: [TrackRow] = []
     private var rowIDs: [TrackRow.ID] = []
     private var edited: Set<String> = []
+    private var snapshotURL: URL?
     /// 표 → 스토어로 선택·정렬을 넘기는 중에는 스토어 → 표 동기화를 건너뛴다(되먹임 방지).
     private var syncing = false
 
@@ -199,11 +213,13 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
     // MARK: - 스토어 → 표
 
     func update(rows: [TrackRow], edited: Set<String>, selection: Set<TrackRow.ID>,
-                sortOrder: [KeyPathComparator<TrackRow>]) {
+                sortOrder: [KeyPathComparator<TrackRow>], snapshotURL: URL?) {
         guard let table else { return }
         applySortIndicator(sortOrder, table: table)
+        let snapshotChanged = self.snapshotURL != snapshotURL
+        self.snapshotURL = snapshotURL
         // 같은 배열이면(== 는 저장소가 같을 때 바로 참) 비교 비용이 없다.
-        if rows != self.rows {
+        if rows != self.rows || snapshotChanged {
             let ids = rows.map(\.id)
             let reordered = ids != rowIDs
             self.rows = rows
@@ -435,6 +451,11 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
         guard let id = tableColumn?.identifier.rawValue, rows.indices.contains(index) else { return nil }
         let row = rows[index]
         switch id {
+        case "preview":
+            let cell = reuse(tableView, "preview") { PreviewWaveformCell() }
+            cell.configure(url: RekordboxShare.analysisURL(row.track.analysisDataPath),
+                           revision: snapshotURL?.absoluteString ?? "")
+            return cell
         case "thumb":
             let cell = reuse(tableView, "thumb") { ThumbnailCell() }
             cell.configure(track: row.track)
