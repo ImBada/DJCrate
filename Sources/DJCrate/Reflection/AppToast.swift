@@ -68,16 +68,16 @@ struct AppToastView: View {
             }
             .frame(maxWidth: TextScale.length(420, scale: textScale), alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
-            if let onDetails { Button("결과 보기", action: onDetails).controlSize(ControlSize.small.scaled(textScale)) }
+            if let onDetails { Button(.ui("결과 보기"), action: onDetails).controlSize(ControlSize.small.scaled(textScale)) }
             if let onUndo, toast.undoBackup != nil {
-                Button("되돌리기", action: onUndo)
+                Button(.ui("되돌리기"), action: onUndo)
                     .controlSize(ControlSize.small.scaled(textScale))
-                    .help("rekordbox 라이브러리를 이번 쓰기 직전 백업으로 되돌립니다(rekordbox가 꺼져 있어야 합니다)")
+                    .help(.ui("rekordbox 라이브러리를 이번 쓰기 직전 백업으로 되돌립니다(rekordbox가 꺼져 있어야 합니다)"))
             }
             Button(action: onClose) { Image(systemName: "xmark").font(.scaled(.caption, textScale).bold()) }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .accessibilityLabel("알림 닫기")
+                .accessibilityLabel(.ui("알림 닫기"))
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
         .fixedSize(horizontal: true, vertical: false)
@@ -113,13 +113,14 @@ struct WritingOverlay: View {
             VStack(spacing: 10) {
                 if let done = stage.completed, let total = stage.total {
                     ProgressView(value: Double(done), total: Double(max(total, 1)))
-                    Text("\(done)/\(total)").font(.scaled(.caption, textScale).monospacedDigit())
+                    Text(verbatim: "\(done)/\(total)").font(.scaled(.caption, textScale).monospacedDigit())
                 } else { ProgressView().controlSize(.regular) }
                 Text(stage.text).font(.scaled(.body, textScale).weight(.semibold))
-                Text(stage.cancellable ? "아직 rekordbox에 쓰지 않았습니다" : "끝날 때까지 rekordbox를 켜지 마세요")
+                Text(stage.cancellable ? LocalizedStringResource.ui("아직 rekordbox에 쓰지 않았습니다")
+                                       : LocalizedStringResource.ui("끝날 때까지 rekordbox를 켜지 마세요"))
                     .font(.scaled(.caption, textScale)).foregroundStyle(.secondary)
                 if stage.cancellable {
-                    Button("취소", action: onCancel).keyboardShortcut(.cancelAction)
+                    Button(.ui("취소"), action: onCancel).keyboardShortcut(.cancelAction)
                 }
             }
             .padding(.horizontal, 28).padding(.vertical, 20)

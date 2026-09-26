@@ -33,12 +33,12 @@ struct AlertPrompter: ReflectionPrompter {
         if !prompt.details.isEmpty { alert.accessoryView = makeDetailsView(prompt.details) }
         if prompt.critical { alert.alertStyle = .critical }
         guard let confirm = prompt.confirm else {
-            alert.addButton(withTitle: "확인")
+            alert.addButton(withTitle: String(ui: "확인"))
             return alert
         }
         let confirmButton = alert.addButton(withTitle: confirm)
         // 번들이 없는 디버그 실행에서도 취소 단축키가 동작해야 한다.
-        alert.addButton(withTitle: "취소").keyEquivalent = "\u{1b}"
+        alert.addButton(withTitle: String(ui: "취소")).keyEquivalent = "\u{1b}"
         if prompt.destructive {
             confirmButton.hasDestructiveAction = true
             confirmButton.keyEquivalent = ""
@@ -65,7 +65,7 @@ struct AlertPrompter: ReflectionPrompter {
         textView.autoresizingMask = .width
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.containerSize.height = .greatestFiniteMagnitude
-        textView.setAccessibilityLabel("세부 내용")
+        textView.setAccessibilityLabel(String(ui: "세부 내용"))
         textView.string = details.joined(separator: "\n")
         scroll.documentView = textView
         if let container = textView.textContainer, let layout = textView.layoutManager {
@@ -114,19 +114,18 @@ struct ReflectionCoordinator {
     func write(rows: [TrackRow]) async {
         guard !host.isWritingRekordbox else { return }
         guard !isRekordboxRunning() else {
-            inform("rekordbox가 켜져 있어 쓰지 않았습니다",
-                   "rekordbox를 완전히 종료한 뒤 다시 누르세요. DJCrate는 rekordbox가 켜져 있는 동안에는 rekordbox 라이브러리에 절대 쓰지 않습니다.")
+            inform(String(ui: "rekordbox가 켜져 있어 쓰지 않았습니다"), Self.quitRekordboxText)
             return
         }
         let targets = host.writeTargets(rows)
         guard !targets.isEmpty else {
-            inform("반영할 초안이 없습니다", "고른 곡에 rekordbox와 다른 큐·그리드 초안이 없습니다.")
+            inform(String(ui: "반영할 초안이 없습니다"), String(ui: "고른 곡에 rekordbox와 다른 큐·그리드 초안이 없습니다."))
             return
         }
         host.setWriteLock(true)
         defer { host.setWriteLock(false) }
         do {
-            host.writeStage = WriteStage("바꿀 내용을 확인하는 중…", completed: 0, total: targets.count, cancellable: true)
+            host.writeStage = WriteStage(String(ui: "바꿀 내용을 확인하는 중…"), completed: 0, total: targets.count, cancellable: true)
             try Task.checkCancellation()
             let preview = try await host.previewWrite(rows: targets)
             try Task.checkCancellation()
@@ -134,7 +133,7 @@ struct ReflectionCoordinator {
             let report = preview.report
             guard !report.written.isEmpty || !report.gridWritten.isEmpty || !report.analysisWritten.isEmpty || !report.gainWritten.isEmpty else {
                 publish(.written(report, preview: report))
-                inform("rekordbox에 쓸 수 있는 초안이 없습니다", "", details: Self.reasons(report))
+                inform(String(ui: "rekordbox에 쓸 수 있는 초안이 없습니다"), "", details: Self.reasons(report))
                 return
             }
             guard prompter.show(Self.confirmation(report)) else { return }
@@ -148,10 +147,10 @@ struct ReflectionCoordinator {
             publish(.written(written, preview: report), undo: written.backup)
         } catch is CancellationError {
             host.writeStage = nil
-            publish(WriteResult(kind: .success, title: "작업을 취소했습니다", text: "rekordbox에 아무것도 쓰지 않았습니다."), detail: "rekordbox에 아무것도 쓰지 않았습니다.")
+            publishCancelled()
         } catch {
             host.writeStage = nil
-            fail("rekordbox에 쓰지 않았습니다", error)
+            fail(String(ui: "rekordbox에 쓰지 않았습니다"), error)
         }
     }
 
@@ -159,26 +158,25 @@ struct ReflectionCoordinator {
     func addTracks(rows: [TrackRow]) async {
         guard !host.isWritingRekordbox else { return }
         guard !isRekordboxRunning() else {
-            inform("rekordbox가 켜져 있어 넣지 않았습니다",
-                   "rekordbox를 완전히 종료한 뒤 다시 누르세요. DJCrate는 rekordbox가 켜져 있는 동안에는 rekordbox 라이브러리에 절대 쓰지 않습니다.")
+            inform(String(ui: "rekordbox가 켜져 있어 넣지 않았습니다"), Self.quitRekordboxText)
             return
         }
         let targets = host.trackAddTargets(rows)
         guard !targets.isEmpty else {
-            inform("rekordbox에 넣을 곡이 없습니다", "DJCrate에 추가한 곡만 rekordbox에 넣을 수 있습니다.")
+            inform(String(ui: "rekordbox에 넣을 곡이 없습니다"), String(ui: "DJCrate에 추가한 곡만 rekordbox에 넣을 수 있습니다."))
             return
         }
         host.setWriteLock(true)
         defer { host.setWriteLock(false) }
         do {
-            host.writeStage = WriteStage("넣을 곡을 확인하는 중…", completed: 0, total: targets.count, cancellable: true)
+            host.writeStage = WriteStage(String(ui: "넣을 곡을 확인하는 중…"), completed: 0, total: targets.count, cancellable: true)
             try Task.checkCancellation()
             let preview = try await host.previewTrackAdd(rows: targets)
             try Task.checkCancellation()
             host.writeStage = nil
             guard preview.report.added.contains(where: \.written) else {
                 publish(.tracks(preview.report, preview: preview.report, adding: true, withoutAnalysis: preview.withoutAnalysis, unreadable: preview.unreadable))
-                inform("rekordbox에 넣을 수 있는 곡이 없습니다", "", details: Self.addReasons(preview))
+                inform(String(ui: "rekordbox에 넣을 수 있는 곡이 없습니다"), "", details: Self.addReasons(preview))
                 return
             }
             guard prompter.show(Self.addConfirmation(preview)) else { return }
@@ -187,10 +185,10 @@ struct ReflectionCoordinator {
             publish(.tracks(written, preview: preview.report, adding: true, withoutAnalysis: preview.withoutAnalysis, unreadable: preview.unreadable), undo: written.backup)
         } catch is CancellationError {
             host.writeStage = nil
-            publish(WriteResult(kind: .success, title: "작업을 취소했습니다", text: "rekordbox에 아무것도 쓰지 않았습니다."), detail: "rekordbox에 아무것도 쓰지 않았습니다.")
+            publishCancelled()
         } catch {
             host.writeStage = nil
-            fail("rekordbox에 넣지 않았습니다", error)
+            fail(String(ui: "rekordbox에 넣지 않았습니다"), error)
         }
     }
 
@@ -198,26 +196,25 @@ struct ReflectionCoordinator {
     func deleteTracks(rows: [TrackRow]) async {
         guard !host.isWritingRekordbox else { return }
         guard !isRekordboxRunning() else {
-            inform("rekordbox가 켜져 있어 빼지 않았습니다",
-                   "rekordbox를 완전히 종료한 뒤 다시 누르세요. DJCrate는 rekordbox가 켜져 있는 동안에는 rekordbox 라이브러리에 절대 쓰지 않습니다.")
+            inform(String(ui: "rekordbox가 켜져 있어 빼지 않았습니다"), Self.quitRekordboxText)
             return
         }
         let targets = host.trackDeleteTargets(rows)
         guard !targets.isEmpty else {
-            inform("rekordbox에서 뺄 곡이 없습니다", "rekordbox 컬렉션의 로컬 곡만 뺄 수 있습니다(스트리밍·추가한 곡 제외).")
+            inform(String(ui: "rekordbox에서 뺄 곡이 없습니다"), String(ui: "rekordbox 컬렉션의 로컬 곡만 뺄 수 있습니다(스트리밍·추가한 곡 제외)."))
             return
         }
         host.setWriteLock(true)
         defer { host.setWriteLock(false) }
         do {
-            host.writeStage = WriteStage("뺄 곡을 확인하는 중…", completed: 0, total: targets.count, cancellable: true)
+            host.writeStage = WriteStage(String(ui: "뺄 곡을 확인하는 중…"), completed: 0, total: targets.count, cancellable: true)
             try Task.checkCancellation()
             let preview = try await host.previewTrackDelete(rows: targets)
             try Task.checkCancellation()
             host.writeStage = nil
             guard preview.report.deleted.contains(where: \.written) else {
                 publish(.tracks(preview.report, preview: preview.report, adding: false))
-                inform("rekordbox에서 뺄 수 있는 곡이 없습니다", "",
+                inform(String(ui: "rekordbox에서 뺄 수 있는 곡이 없습니다"), "",
                        details: preview.report.deleted.map { "• \($0.title): \($0.reason ?? "")" })
                 return
             }
@@ -227,22 +224,22 @@ struct ReflectionCoordinator {
             publish(.tracks(written, preview: preview.report, adding: false), undo: written.backup)
         } catch is CancellationError {
             host.writeStage = nil
-            publish(WriteResult(kind: .success, title: "작업을 취소했습니다", text: "rekordbox에 아무것도 쓰지 않았습니다."), detail: "rekordbox에 아무것도 쓰지 않았습니다.")
+            publishCancelled()
         } catch {
             host.writeStage = nil
-            fail("rekordbox에서 빼지 않았습니다", error)
+            fail(String(ui: "rekordbox에서 빼지 않았습니다"), error)
         }
     }
 
     func restore(_ backup: RekordboxWriter.Backup) async {
         guard !host.isWritingRekordbox else { return }
         guard !isRekordboxRunning() else {
-            inform("rekordbox가 켜져 있어 되돌리지 않았습니다", "rekordbox를 완전히 종료한 뒤 다시 누르세요.")
+            inform(String(ui: "rekordbox가 켜져 있어 되돌리지 않았습니다"), String(ui: "rekordbox를 완전히 종료한 뒤 다시 누르세요."))
             return
         }
         host.setWriteLock(true)
         defer { host.setWriteLock(false) }
-        host.writeStage = WriteStage("백업 뒤 바뀐 것을 확인하는 중…")
+        host.writeStage = WriteStage(String(ui: "백업 뒤 바뀐 것을 확인하는 중…"))
         let changed = await host.libraryChangedSince(backup)
         host.writeStage = nil
         guard prompter.show(Self.restoreConfirmation(backup, changedSince: changed)) else { return }
@@ -253,10 +250,17 @@ struct ReflectionCoordinator {
             host.writeStage = nil
             host.toast = nil
             AppErrorMessage.log(error)
-            let text = "rekordbox 라이브러리 상태를 확인하지 못했으므로 rekordbox를 켜지 말고 백업 폴더의 위치와 접근 권한을 확인한 뒤 다시 되돌리세요."
-            host.resultHistory.record(WriteResult(kind: .failure, title: "되돌리지 못했습니다", text: text, backups: [backup.url]))
-            _ = prompter.show(ReflectionPrompt(title: "되돌리지 못했습니다", text: text, critical: true))
+            let text = String(ui: "rekordbox 라이브러리 상태를 확인하지 못했으므로 rekordbox를 켜지 말고 백업 폴더의 위치와 접근 권한을 확인한 뒤 다시 되돌리세요.")
+            let title = String(ui: "되돌리지 못했습니다")
+            host.resultHistory.record(WriteResult(kind: .failure, title: title, text: text, backups: [backup.url]))
+            _ = prompter.show(ReflectionPrompt(title: title, text: text, critical: true))
         }
+    }
+
+    /// 작업을 취소했을 때의 결과. 미리 보기 단계에서만 취소할 수 있어 아무것도 쓰지 않았다.
+    private func publishCancelled() {
+        let text = String(ui: "rekordbox에 아무것도 쓰지 않았습니다.")
+        publish(WriteResult(kind: .success, title: String(ui: "작업을 취소했습니다"), text: text), detail: text)
     }
 
     private func publish(_ result: WriteResult, undo: String? = nil, detail: String? = nil) {
@@ -291,18 +295,27 @@ struct ReflectionCoordinator {
 
     // MARK: - 창 문구
 
+    static var quitRekordboxText: String {
+        String(ui: "rekordbox를 완전히 종료한 뒤 다시 누르세요. DJCrate는 rekordbox가 켜져 있는 동안에는 rekordbox 라이브러리에 절대 쓰지 않습니다.")
+    }
+
+    /// 확인 창이 쓰는 백업 안내(쓰기·넣기·빼기 공통)
+    private static var backupThenWriteText: String {
+        String(ui: "백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.")
+    }
+
     /// 쓰기 확인도 자동 복원도 실패했을 때의 경고(상태를 알 수 없음 + 할 일). 그 밖의 오류면 nil.
     /// 반영·넣기·빼기 모두 '반영 대기' 목록의 '되돌리기…'(가장 최근 쓰기 백업으로 되돌림)를 안내한다.
     /// 툴바의 '마지막 반영 되돌리기…'는 쓰기가 성공했을 때만 활성화된다.
     static func restoreFailureAlert(_ error: any Error) -> ReflectionPrompt? {
         guard case let DJCError.restoreFailed(_, _, backup, database) = error else { return nil }
         AppErrorMessage.log(error)
+        let command = DJCError.restoreCommand(backup: backup, database: database)
         let text = [
-            "rekordbox 라이브러리(master.db)와 분석 파일이 어떤 상태인지 알 수 없습니다. "
-                + "rekordbox를 켜지 말고, 사이드바에서 'rekordbox 반영 대기'를 고른 뒤 목록 위 '되돌리기…'로 쓰기 전 백업을 복원하세요.",
-            "터미널에서는: " + DJCError.restoreCommand(backup: backup, database: database),
+            String(ui: "rekordbox 라이브러리(master.db)와 분석 파일이 어떤 상태인지 알 수 없습니다. rekordbox를 켜지 말고, 사이드바에서 'rekordbox 반영 대기'를 고른 뒤 목록 위 '되돌리기…'로 쓰기 전 백업을 복원하세요."),
+            String(ui: "터미널에서는: \(command)"),
         ]
-        return ReflectionPrompt(title: "쓰기 확인에 실패했고 자동 복원도 하지 못했습니다", text: text.joined(separator: "\n\n"), critical: true)
+        return ReflectionPrompt(title: String(ui: "쓰기 확인에 실패했고 자동 복원도 하지 못했습니다"), text: text.joined(separator: "\n\n"), critical: true)
     }
 
     static func reasons(_ report: RekordboxWriter.Report) -> [String] {
@@ -313,10 +326,10 @@ struct ReflectionCoordinator {
     static func confirmation(_ report: RekordboxWriter.Report) -> ReflectionPrompt {
         let cues = report.written, grids = report.gridWritten, analyses = report.analysisWritten, gains = report.gainWritten
         var kinds: [String] = []
-        if !cues.isEmpty { kinds.append("큐 \(cues.count)곡") }
-        if !grids.isEmpty { kinds.append("그리드 \(grids.count)곡") }
-        if !analyses.isEmpty { kinds.append("분석 \(analyses.count)곡") }
-        if !gains.isEmpty { kinds.append("게인 \(gains.count)곡") }
+        if !cues.isEmpty { kinds.append(WriteResult.Part.cue.summary(cues.count)) }
+        if !grids.isEmpty { kinds.append(WriteResult.Part.grid.summary(grids.count)) }
+        if !analyses.isEmpty { kinds.append(WriteResult.Part.analysis.summary(analyses.count)) }
+        if !gains.isEmpty { kinds.append(WriteResult.Part.gain.summary(gains.count)) }
         let gridBlocked = Set((report.gridBlocked + report.analysisBlocked).map(\.trackUUID)), gridWritten = Set(grids.map(\.trackUUID))
         let analysisWritten = Set(analyses.map(\.trackUUID))
         // 분석을 붙이며 음원 그림으로 아트워크도 넣는 곡(rekordbox도 분석할 때 뽑는다, #87)
@@ -325,27 +338,35 @@ struct ReflectionCoordinator {
             var changes: [String] = []
             if outcome.added > 0 { changes.append("+\(outcome.added)") }
             if outcome.removed > 0 { changes.append("−\(outcome.removed)") }
-            var line = "• \(outcome.title) — 큐 " + (changes.isEmpty ? "변경" : changes.joined(separator: " · "))
-            if gridWritten.contains(outcome.trackUUID) { line += " · 그리드" }
-            if analysisWritten.contains(outcome.trackUUID) { line += " · 분석 파일 붙이기" + (artwork.contains(outcome.trackUUID) ? " · 아트워크" : "") }
-            if gridBlocked.contains(outcome.trackUUID) { line += " · ⚠︎ 그리드는 안 들어감" }
-            return line
+            // 줄 모양 "• 곡 — 내용 · 내용"은 언어와 관계없고, 내용만 번역한다.
+            var parts = [changes.isEmpty ? String(ui: "큐 변경") : String(ui: "큐 \(changes.joined(separator: " · "))")]
+            if gridWritten.contains(outcome.trackUUID) { parts.append(String(ui: "그리드")) }
+            if analysisWritten.contains(outcome.trackUUID) {
+                parts.append(String(ui: "분석 파일 붙이기"))
+                if artwork.contains(outcome.trackUUID) { parts.append(String(ui: "아트워크")) }
+            }
+            if gridBlocked.contains(outcome.trackUUID) { parts.append(String(ui: "⚠︎ 그리드는 안 들어감")) }
+            return "• \(outcome.title) — " + parts.joined(separator: " · ")
         }
         let cueUUIDs = Set(cues.map(\.trackUUID))
-        for grid in grids where !cueUUIDs.contains(grid.trackUUID) { body.append("• \(grid.title) — 그리드(박 \(grid.added)개)") }
+        for grid in grids where !cueUUIDs.contains(grid.trackUUID) { body.append("• \(grid.title) — " + String(ui: "그리드(박 \(grid.added)개)")) }
         for analysis in analyses where !cueUUIDs.contains(analysis.trackUUID) {
-            body.append("• \(analysis.title) — 분석 파일 붙이기(파형·그리드 박 \(analysis.added)개·오토게인\(artwork.contains(analysis.trackUUID) ? "·아트워크" : ""))")
+            let made = artwork.contains(analysis.trackUUID)
+                ? String(ui: "분석 파일 붙이기(파형·그리드 박 \(analysis.added)개·오토게인·아트워크)")
+                : String(ui: "분석 파일 붙이기(파형·그리드 박 \(analysis.added)개·오토게인)")
+            body.append("• \(analysis.title) — " + made)
         }
-        for gain in gains { body.append(String(format: "• %@ — 오토게인 %+.1f dB", gain.title, Double(gain.added) / 100)) }
+        for gain in gains { body.append("• \(gain.title) — " + String(ui: "오토게인 \(Double(gain.added) / 100, specifier: "%+.1f") dB")) }
         let reasons = reasons(report)
-        if !reasons.isEmpty { body += ["", "쓰지 않는 것 \(reasons.count):"] + reasons }
+        if !reasons.isEmpty { body += ["", String(ui: "쓰지 않는 것 \(reasons.count):")] + reasons }
         if !analyses.isEmpty {
-            let made = analyses.contains { artwork.contains($0.trackUUID) } ? "파형·그리드·오토게인과 음원의 아트워크를" : "파형·그리드·오토게인만"
-            body += ["", "\(made) 붙입니다. 키·프레이즈·보컬 분석은 없습니다."]
+            body += ["", analyses.contains { artwork.contains($0.trackUUID) }
+                ? String(ui: "파형·그리드·오토게인과 음원의 아트워크를 붙입니다. 키·프레이즈·보컬 분석은 없습니다.")
+                : String(ui: "파형·그리드·오토게인만 붙입니다. 키·프레이즈·보컬 분석은 없습니다.")]
         }
-        return ReflectionPrompt(title: kinds.joined(separator: " · ") + "을 rekordbox에 쓸까요?",
-                                text: "백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.",
-                                confirm: "rekordbox에 쓰기", details: body)
+        return ReflectionPrompt(title: String(ui: "\(kinds.joined(separator: " · "))을 rekordbox에 쓸까요?"),
+                                text: backupThenWriteText,
+                                confirm: String(ui: "rekordbox에 쓰기"), details: body)
     }
 
     static func addReasons(_ preview: LibraryStore.TrackAddPreview) -> [String] {
@@ -353,7 +374,9 @@ struct ReflectionCoordinator {
     }
 
     /// 아트워크 쓰기가 닫혀 있을 때(`RekordboxTrackWriter.writesArtwork`) 음원에 아트워크가 든 곡을 넣으면 보이는 안내
-    static let artworkClosedNote = "음원의 아트워크는 아직 넣지 않으니, 필요하면 rekordbox 곡 정보 창에서 이미지를 끌어다 붙이세요."
+    static var artworkClosedNote: String {
+        String(ui: "음원의 아트워크는 아직 넣지 않으니, 필요하면 rekordbox 곡 정보 창에서 이미지를 끌어다 붙이세요.")
+    }
 
     /// 넣기 전 확인 창: 곡마다 분석까지 붙는지(아트워크도 넣는지), 넣지 않는 곡과 이유.
     /// 아트워크는 분석까지 붙이는 곡에만 넣는다(rekordbox도 분석할 때 뽑는다, 2026-09-26 실험).
@@ -364,57 +387,61 @@ struct ReflectionCoordinator {
         let bare = written.filter { preview.withoutAnalysis[$0.path] != nil }
         let analysedArtwork = written.filter { preview.withoutAnalysis[$0.path] == nil && artwork.contains($0.path) }
         var body = written.map { outcome -> String in
-            var line = preview.withoutAnalysis[outcome.path].map { "• \(outcome.title) — 분석 없이(\($0))" }
-                ?? "• \(outcome.title) — 그리드·파형·오토게인까지"
-            if writesArtwork, analysedArtwork.contains(outcome) { line += " · 아트워크" }
-            if let count = outcome.cuesWritten, count > 0 { line += " · 큐 \(count)개" }
-            if let reason = outcome.cueReason { line += " · ⚠︎ 큐는 안 들어감(\(reason))" }
-            return line
+            var parts = [preview.withoutAnalysis[outcome.path].map { String(ui: "분석 없이(\($0))") }
+                ?? String(ui: "그리드·파형·오토게인까지")]
+            if writesArtwork, analysedArtwork.contains(outcome) { parts.append(String(ui: "아트워크")) }
+            if let count = outcome.cuesWritten, count > 0 { parts.append(String(ui: "큐 \(count)개")) }
+            if let reason = outcome.cueReason { parts.append(String(ui: "⚠︎ 큐는 안 들어감(\(reason))")) }
+            return "• \(outcome.title) — " + parts.joined(separator: " · ")
         }
         let reasons = addReasons(preview)
-        if !reasons.isEmpty { body += ["", "넣지 않는 곡 \(reasons.count):"] + reasons }
+        if !reasons.isEmpty { body += ["", String(ui: "넣지 않는 곡 \(reasons.count):")] + reasons }
         if !bare.isEmpty {
-            let made = bare.contains { artwork.contains($0.path) } ? "파형·그리드·아트워크" : "파형·그리드"
-            body += ["", "분석 없이 넣는 곡은 rekordbox에서 분석해야 \(made)가 생깁니다."]
+            body += ["", bare.contains { artwork.contains($0.path) }
+                ? String(ui: "분석 없이 넣는 곡은 rekordbox에서 분석해야 파형·그리드·아트워크가 생깁니다.")
+                : String(ui: "분석 없이 넣는 곡은 rekordbox에서 분석해야 파형·그리드가 생깁니다.")]
         }
         if !writesArtwork, !analysedArtwork.isEmpty {
             body += ["", Self.artworkClosedNote]
         }
-        return ReflectionPrompt(title: "\(written.count)곡을 rekordbox에 넣을까요?",
-                                text: "백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.",
-                                confirm: "rekordbox에 넣기", details: body)
+        return ReflectionPrompt(title: String(ui: "\(written.count)곡을 rekordbox에 넣을까요?"),
+                                text: backupThenWriteText,
+                                confirm: String(ui: "rekordbox에 넣기"), details: body)
     }
 
     /// 빼기 전 확인 창(경고): 뺄 곡, 빼지 않는 곡과 이유, 함께 사라지는 것
     static func deleteConfirmation(_ preview: LibraryStore.TrackDeletePreview) -> ReflectionPrompt {
         let written = preview.report.deleted.filter(\.written), blocked = preview.report.deleted.filter { !$0.written }
         var body = written.map { "• \($0.title)" }
-        if !blocked.isEmpty { body += ["", "빼지 않는 곡 \(blocked.count):"] + blocked.map { "• \($0.title): \($0.reason ?? "")" } }
-        return ReflectionPrompt(title: "\(written.count)곡을 rekordbox에서 뺄까요?",
-                                text: "음원 파일은 지우지 않습니다. rekordbox의 큐·재생 목록 항목·재생 기록·분석 파일·아트워크가 함께 사라집니다.\n백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.",
-                                confirm: "rekordbox에서 빼기", critical: true, details: body)
+        if !blocked.isEmpty { body += ["", String(ui: "빼지 않는 곡 \(blocked.count):")] + blocked.map { "• \($0.title): \($0.reason ?? "")" } }
+        return ReflectionPrompt(title: String(ui: "\(written.count)곡을 rekordbox에서 뺄까요?"),
+                                text: String(ui: "음원 파일은 지우지 않습니다. rekordbox의 큐·재생 목록 항목·재생 기록·분석 파일·아트워크가 함께 사라집니다.")
+                                    + "\n" + backupThenWriteText,
+                                confirm: String(ui: "rekordbox에서 빼기"), critical: true, details: body)
     }
 
     /// 되돌리기 확인 창. 백업 뒤 변경이 있거나 확인하지 못했으면 파괴적 경고로 띄운다.
     static func restoreConfirmation(_ backup: RekordboxWriter.Backup, changedSince changed: Bool?) -> ReflectionPrompt {
-        var lines = ["백업: \(backup.createdAt.formatted(date: .abbreviated, time: .shortened))"]
-        let details = backup.titles.isEmpty ? [] : ["그때 쓴 곡:"] + backup.titles.map { "• \($0)" }
+        var lines = [String(ui: "백업: \(backup.createdAt.formatted(date: .abbreviated, time: .shortened))")]
+        let details = backup.titles.isEmpty ? [] : [String(ui: "그때 쓴 곡:")] + backup.titles.map { "• \($0)" }
         if let tracks = backup.trackReport {
             let added = tracks.added.filter(\.written).count, deleted = tracks.deleted.filter(\.written).count
-            lines.append("라이브러리 전체를 이 백업으로 되돌립니다. "
-                         + (added > 0 ? "넣었던 \(added)곡은 컬렉션에서 빠지고 DJCrate 추가 목록으로 돌아옵니다(분석·아트워크 파일도 삭제). " : "")
-                         + (deleted > 0 ? "뺐던 \(deleted)곡은 큐·재생 목록·분석 파일·아트워크와 함께 복원됩니다. " : ""))
+            // 문장마다 번역하고, 문장 뒤 빈칸은 원래 모양 그대로 둔다.
+            var sentences = [String(ui: "라이브러리 전체를 이 백업으로 되돌립니다.")]
+            if added > 0 { sentences.append(String(ui: "넣었던 \(added)곡은 컬렉션에서 빠지고 DJCrate 추가 목록으로 돌아옵니다(분석·아트워크 파일도 삭제).")) }
+            if deleted > 0 { sentences.append(String(ui: "뺐던 \(deleted)곡은 큐·재생 목록·분석 파일·아트워크와 함께 복원됩니다.")) }
+            lines.append(sentences.map { $0 + " " }.joined())
         } else {
-            lines.append("라이브러리 전체를 이 백업으로 되돌립니다. 큐 초안도 DJCrate에 복원됩니다.")
+            lines.append(String(ui: "라이브러리 전체를 이 백업으로 되돌립니다. 큐 초안도 DJCrate에 복원됩니다."))
         }
         switch changed {
-        case true?: lines.append("⚠︎ 이 백업 뒤에 rekordbox에서도 라이브러리가 바뀌었습니다(큐·재생 목록·곡 추가 등). 되돌리면 그 변경도 함께 사라집니다.")
-        case nil: lines.append("백업 뒤 rekordbox에서 바뀐 것이 있는지 확인하지 못했습니다. 그 뒤 rekordbox에서 한 변경은 함께 사라집니다.")
+        case true?: lines.append(String(ui: "⚠︎ 이 백업 뒤에 rekordbox에서도 라이브러리가 바뀌었습니다(큐·재생 목록·곡 추가 등). 되돌리면 그 변경도 함께 사라집니다."))
+        case nil: lines.append(String(ui: "백업 뒤 rekordbox에서 바뀐 것이 있는지 확인하지 못했습니다. 그 뒤 rekordbox에서 한 변경은 함께 사라집니다."))
         case false?: break
         }
-        lines.append("백업한 뒤 되돌리고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.")
-        return ReflectionPrompt(title: "rekordbox를 쓰기 전으로 되돌릴까요?",
-                                text: lines.joined(separator: "\n\n"), confirm: "되돌리기",
+        lines.append(String(ui: "백업한 뒤 되돌리고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요."))
+        return ReflectionPrompt(title: String(ui: "rekordbox를 쓰기 전으로 되돌릴까요?"),
+                                text: lines.joined(separator: "\n\n"), confirm: String(ui: "되돌리기"),
                                 critical: changed != false, destructive: changed != false, details: details)
     }
 }
