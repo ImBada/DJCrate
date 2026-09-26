@@ -154,9 +154,9 @@ public extension LibraryRead {
         public let liveTracks: Int
         public let streamingTracks: Int
         public let extensions: [String: Int]
-        public let commentClasses: [String: Int]
-        public let prefixes: [String: Int]
-        public let usages: [String: Int]
+        public let commentClasses: [String: Int]?
+        public let prefixes: [String: Int]?
+        public let usages: [String: Int]?
         public let emptyByImportYear: [String: Int]
         public let tracksWithCues: Int
         public let tracksWithManualCues: Int

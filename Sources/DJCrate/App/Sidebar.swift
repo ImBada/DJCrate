@@ -13,7 +13,7 @@ struct Sidebar: View {
     var body: some View {
         List(selection: $store.sidebar) {
             Section("라이브러리") {
-                ForEach(LibraryFilter.allCases) { filter in
+                ForEach(LibraryFilter.visible(commentPreset: store.commentPreset)) { filter in
                     Label(filter.rawValue, systemImage: filter.systemImage)
                         .badge(store.count(filter))
                         .tag(SidebarItem.filter(filter))
@@ -54,7 +54,9 @@ struct Sidebar: View {
                 Section("현황", isExpanded: $summaryExpanded) {
                     LabeledContent("실제 컬렉션", value: report.liveTracks.formatted())
                     LabeledContent("삭제 행(제외)", value: report.deletedRows.formatted())
-                    LabeledContent("규칙 코멘트", value: report.commentClasses[.convention, default: 0].formatted())
+                    if store.commentRuleEnabled {
+                        LabeledContent("규칙 코멘트", value: report.matchingComments.formatted())
+                    }
                     LabeledContent("수동 큐 곡", value: report.tracksWithManualCues.formatted())
                 }
                 .font(.callout)

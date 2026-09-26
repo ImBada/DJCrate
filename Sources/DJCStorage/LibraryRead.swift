@@ -9,13 +9,15 @@ public struct LibraryRead {
     private let byID: [String: Track]
     private let home: URL
     private let shareRoot: URL
+    private let commentRule: (any CommentRule)?
     private let gains: [String: Double]
 
-    public init(snapshot: URL, home: URL = DJCPaths.userData, shareRoot: URL? = nil) throws {
+    public init(snapshot: URL, home: URL = DJCPaths.userData, shareRoot: URL? = nil, commentPreset: CommentPreset = .none) throws {
         let snapshot = try Self.resolve(database: snapshot)
         library = try RekordboxLibrary.load(snapshot: snapshot)
         tracks = library.tracks.sorted { $0.id < $1.id }
         byID = Dictionary(tracks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        self.commentRule = commentPreset.rule
         self.home = home
         self.shareRoot = shareRoot ?? snapshot.deletingLastPathComponent().appending(path: "share")
         gains = GainDraftStore.all(url: home.appending(path: "gain-drafts.json"))
@@ -46,6 +48,9 @@ public struct LibraryRead {
 
     public func search(query: String, bpm: ClosedRange<Double>? = nil, key: String? = nil,
                        playlistID: String? = nil, filter: LibraryFilter = .all) throws -> TrackList {
+        guard !filter.requiresCommentRule || commentRule != nil else {
+            throw ReadFailure("invalid_arguments", "코멘트 규칙 필터는 --comment-preset anisong을 지정한 뒤 쓰세요")
+        }
         let allowed = try playlistID.map { Set(try playlistTracks(id: $0).map(\.id)) }
         let needle = query.lowercased()
         let result = tracks.filter { track in
@@ -56,7 +61,7 @@ public struct LibraryRead {
                   bpm.map({ range in track.bpm.map(range.contains) ?? false }) ?? true,
                   key.map({ track.key?.caseInsensitiveCompare($0) == .orderedSame }) ?? true,
                   allowed?.contains(track.id) ?? true else { return false }
-            return filter.includes(track: track, commentClass: CommentClassifier.classify(track.comment),
+            return filter.includes(track: track, comment: commentRule?.evaluate(track.comment),
                                    hasCues: !library.cues(for: track).isEmpty, playCount: library.playCounts[track.id, default: 0],
                                    tempoChanges: filter == .tempoChange ? grid(for: track).tempoChanges : [])
         }
@@ -107,12 +112,12 @@ public struct LibraryRead {
     }
 
     public func report(checkFiles: Bool) -> Report {
-        let report = LibraryReport(library: library, checkFiles: checkFiles)
+        let report = LibraryReport(library: library, checkFiles: checkFiles, commentRule: commentRule)
         return Report(totalRows: report.totalRows, deletedRows: report.deletedRows, liveTracks: report.liveTracks,
                       streamingTracks: report.streamingTracks, extensions: report.extensions,
-                      commentClasses: Dictionary(uniqueKeysWithValues: report.commentClasses.map { ($0.key.rawValue, $0.value) }),
-                      prefixes: Dictionary(uniqueKeysWithValues: report.prefixes.map { ($0.key.rawValue, $0.value) }),
-                      usages: report.usages, emptyByImportYear: report.emptyByImportYear,
+                      commentClasses: report.hasCommentRule ? report.commentClasses : nil,
+                      prefixes: report.hasCommentRule ? report.prefixes : nil,
+                      usages: report.hasCommentRule ? report.usages : nil, emptyByImportYear: report.emptyByImportYear,
                       tracksWithCues: report.tracksWithCues, tracksWithManualCues: report.tracksWithManualCues,
                       tracksWithOnlyAutoCues: report.tracksWithOnlyAutoCues, tracksWithoutCues: report.tracksWithoutCues,
                       hotCueSlots: Dictionary(uniqueKeysWithValues: report.hotCueSlots.map { (String($0.key), $0.value) }),
@@ -120,7 +125,8 @@ public struct LibraryRead {
     }
 
     public static func parse(comment: String) -> ParsedComment {
-        let parsed = ConventionParser.parse(comment).map { value in
+        let rule = AnisongCommentRule()
+        let parsed = rule.parse(comment).map { value in
             ParsedComment.Parsed(prefix: value.prefix.rawValue, workRef: value.workRef, workName: value.workName,
                                  season: value.season, seasonStyle: value.seasonStyle.map {
                 switch $0 { case .parenthesized: "parenthesized"; case .plain: "plain"; case .season: "season" }
@@ -130,7 +136,7 @@ public struct LibraryRead {
                                  airingYear: value.tail.airingYear, airingQuarter: value.tail.airingQuarter,
                                  movieYear: value.tail.movieYear, boomboxVolumes: value.tail.boomboxVolumes)
         }
-        return ParsedComment(classification: CommentClassifier.classify(comment).rawValue, parsed: parsed)
+        return ParsedComment(classification: rule.evaluate(comment).classification, parsed: parsed)
     }
 
     public static func compatibility(snapshot: URL, version: String?) throws -> Compatibility {

@@ -63,7 +63,7 @@ struct DJCrateApp: App {
 
         // 기본 설정·덱 단축키(⌘,). 덱과 같은 모델에 묶여 바꾸면 바로 반영·저장된다.
         Settings {
-            SettingsView(deck: deck)
+            SettingsView(store: store, deck: deck)
         }
     }
 }

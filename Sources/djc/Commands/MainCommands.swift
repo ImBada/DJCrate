@@ -9,7 +9,7 @@ import Foundation
 enum MainCommands {
     static let all: [Command] = [
         Command("snapshot", "[--force]", "rekordbox master.db 스냅샷을 뜬다", snapshot),
-        Command("report", "[--db PATH] [--files] [--json]", "라이브러리 현황(기본: 최신 스냅샷)", report),
+        Command("report", "[--db PATH] [--files] [--comment-preset none|anisong] [--json]", "라이브러리 현황(기본: 최신 스냅샷)", report),
         Command("analyze", "<파일|ContentID> [--db PATH]", "곡 파트 분석(ContentID면 기존 큐와 비교)", analyze),
         Command("reflection-dry-run", nil, "초안으로 반영 계획을 만들어 XML을 지정한 곳에만 쓴다(rekordbox는 그대로)", reflectionDryRun),
         Command("cue-write", "--db <사본.db> [--dry-run] [--uuid U] | --live", "큐 초안을 rekordbox DB에 직접 쓴다", cueWrite),
@@ -19,7 +19,7 @@ enum MainCommands {
         Command("rekordbox-restore", "[--backup <폴더> (--db <사본> | --live)]", "백업으로 되돌린다", rekordboxRestore),
         Command("schema-dump", "<사본.db> <출력.sql>", "사본 DB의 구조(CREATE 문)만 뽑는다", schemaDump),
         Command("path", "<제목> [--db PATH] [--json]", "제목으로 파일 경로 찾기", path),
-        Command("parse", "\"<코멘트>\" [--json]", "코멘트 문법 파싱 결과", parse),
+        Command("parse", "\"<코멘트>\" [--json]", "애니송 프리셋으로 코멘트 파싱", parse),
     ] + ReadCommands.all
 
     static func snapshot(_ args: [String]) async throws {
@@ -28,10 +28,17 @@ enum MainCommands {
     }
 
     static func report(_ args: [String]) async throws {
+        let preset: CommentPreset
+        if args.contains("--comment-preset") {
+            guard let raw = value(after: "--comment-preset", in: args), let selected = CommentPreset(rawValue: raw) else {
+                throw ReadFailure("invalid_arguments", "코멘트 프리셋은 --comment-preset none 또는 anisong으로 쓰세요")
+            }
+            preset = selected
+        } else { preset = .none }
         let snapshot = try LibraryRead.resolve(database: value(after: "--db", in: args).map { URL(filePath: $0) })
         let library = try RekordboxLibrary.load(snapshot: snapshot)
         print("스냅샷: \(snapshot.path)\n")
-        print(LibraryReport(library: library, checkFiles: args.contains("--files")).render())
+        print(LibraryReport(library: library, checkFiles: args.contains("--files"), commentRule: preset.rule).render())
     }
 
     static func analyze(_ args: [String]) async throws {
@@ -176,8 +183,9 @@ enum MainCommands {
     static func parse(_ args: [String]) async throws {
         guard args.count > 1 else { throw UsageError() }
         let comment = args[1]
-        print("분류: \(CommentClassifier.classify(comment).rawValue)")
-        if let parsed = ConventionParser.parse(comment) {
+        let rule = AnisongCommentRule()
+        print("분류: \(rule.evaluate(comment).classification)")
+        if let parsed = rule.parse(comment) {
             dump(parsed)
         }
     }

@@ -24,10 +24,16 @@ public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    public func includes(track: Track, commentClass: CommentClass, hasCues: Bool, playCount: Int, tempoChanges: [Double]) -> Bool {
+    public var requiresCommentRule: Bool { self == .emptyComment || self == .offConvention }
+
+    public static func visible(commentPreset: CommentPreset) -> [LibraryFilter] {
+        allCases.filter { !$0.requiresCommentRule || commentPreset.rule != nil }
+    }
+
+    public func includes(track: Track, comment: CommentEvaluation?, hasCues: Bool, playCount: Int, tempoChanges: [Double]) -> Bool {
         switch self {
-        case .emptyComment: commentClass == .empty
-        case .offConvention: [.legacy, .residue, .credit, .other].contains(commentClass)
+        case .emptyComment: comment?.isEmpty == true
+        case .offConvention: comment.map { !$0.isEmpty && !$0.isMatch } ?? false
         case .noCues: !hasCues
         case .played: playCount > 0
         case .streaming: track.isStreaming

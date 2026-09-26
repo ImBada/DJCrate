@@ -41,8 +41,20 @@ final class LibraryStore {
         writeTask?.cancel()
     }
 
-    init(resultHistory: WriteResultHistory = WriteResultHistory(url: DJCPaths.userData.appending(path: "last-write-result.json")),
+    @ObservationIgnored let settings: SettingsStore
+    var commentPreset: CommentPreset {
+        didSet {
+            guard commentPreset != oldValue else { return }
+            settings.commentPreset = commentPreset
+            refreshCommentRule()
+        }
+    }
+    var commentRuleEnabled: Bool { commentPreset.rule != nil }
+
+    init(settings: SettingsStore = SettingsStore(), resultHistory: WriteResultHistory = WriteResultHistory(url: DJCPaths.userData.appending(path: "last-write-result.json")),
          feedback: AppFeedback = AppFeedback(), saveTagDrafts: @escaping ([TagDraft]) -> Void = { DraftWriter.save($0) }) {
+        self.settings = settings
+        self.commentPreset = settings.commentPreset
         self.saveTagDrafts = saveTagDrafts
         self.resultHistory = resultHistory
         self.feedback = feedback
@@ -197,6 +209,28 @@ final class LibraryStore {
         refreshFiltered()
     }
 
+    /// 프리셋 전환은 초안·선택·스냅샷을 보존하고 코멘트 캐시만 갱신한다.
+    private func refreshCommentRule() {
+        let rule = commentPreset.rule
+        for index in rows.indices { rows[index].applyCommentRule(rule) }
+        for index in stagedRows.indices { stagedRows[index].applyCommentRule(rule) }
+        for row in rows + stagedRows { rowsByID[row.id] = row; rowsByUUID[row.track.uuid] = row }
+        report?.applyCommentRule(rule, comments: rows.map(\.comment))
+        filterCounts = Dictionary(uniqueKeysWithValues: LibraryFilter.visible(commentPreset: commentPreset).map {
+            ($0, rows.lazy.filter($0.includes).count)
+        })
+        suppressRefresh = true
+        if !commentRuleEnabled {
+            sortOrder.removeAll { $0.keyPath == \TrackRow.commentClassName }
+        }
+        suppressRefresh = false
+        if !commentRuleEnabled, case let .filter(filter) = sidebar, filter.requiresCommentRule {
+            sidebar = .filter(.all)
+        } else {
+            refreshBase()
+        }
+    }
+
     private func refreshFiltered() {
         let needle = search.trimmingCharacters(in: .whitespaces).lowercased()
         displayRows = needle.isEmpty ? sortedBase : sortedBase.filter { $0.searchKey.contains(needle) }
@@ -260,7 +294,8 @@ final class LibraryStore {
         let started = ContinuousClock.now
         if !quiet { phase = .loading("라이브러리를 읽는 중…") }
         do {
-            let loaded = try await Task.detached(priority: .userInitiated) { try LoadedLibrary.load(snapshot: snapshot) }.value
+            let preset = commentPreset
+            let loaded = try await Task.detached(priority: .userInitiated) { try LoadedLibrary.load(snapshot: snapshot, commentPreset: preset) }.value
             // 더 나중에 시작한 로드가 있으면 이 결과는 버린다.
             guard generation == loadGeneration else { return }
             undoManager?.removeAllActions(withTarget: self)
@@ -287,6 +322,8 @@ final class LibraryStore {
             snapshotURL = snapshot
             previewRevision += 1
             loadStaged()
+            // 기다리는 동안 설정이 바뀌었으면 최신 프리셋으로 맞춘다.
+            if preset != commentPreset { refreshCommentRule() }
             // rekordbox에서 지운 곡은 선택에서도 뺀다(덱이 지워진 곡을 붙들지 않게)
             let existing = selection.filter { rowsByID[$0] != nil }
             if existing != selection { selection = existing }
