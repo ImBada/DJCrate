@@ -129,7 +129,8 @@ final class DeckModel {
     /// 무시 표시가 바뀌면 화면을 다시 그리게 한다.
     var dismissedRevision = 0
 
-    var toast: String?
+    var toast: AppMessage?
+    @ObservationIgnored var feedback = AppFeedback()
 
     @ObservationIgnored var toastTask: Task<Void, Never>?
 

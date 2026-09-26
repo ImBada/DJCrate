@@ -9,17 +9,29 @@ import SwiftUI
 @MainActor
 enum DirectWritePanels {
     static func write(store: LibraryStore, rows: [TrackRow]) {
-        Task { await ReflectionCoordinator(host: store).write(rows: rows) }
+        guard !store.isWritingRekordbox, store.writeTask == nil else { return }
+        store.writeTask = Task {
+            defer { store.writeTask = nil }
+            await ReflectionCoordinator(host: store).write(rows: rows)
+        }
     }
 
     /// 추가한 곡을 rekordbox 컬렉션에 바로 넣는다.
     static func addTracks(store: LibraryStore, rows: [TrackRow]) {
-        Task { await ReflectionCoordinator(host: store).addTracks(rows: rows) }
+        guard !store.isWritingRekordbox, store.writeTask == nil else { return }
+        store.writeTask = Task {
+            defer { store.writeTask = nil }
+            await ReflectionCoordinator(host: store).addTracks(rows: rows)
+        }
     }
 
     /// rekordbox 컬렉션에서 곡을 뺀다(음원 파일은 그대로).
     static func deleteTracks(store: LibraryStore, rows: [TrackRow]) {
-        Task { await ReflectionCoordinator(host: store).deleteTracks(rows: rows) }
+        guard !store.isWritingRekordbox, store.writeTask == nil else { return }
+        store.writeTask = Task {
+            defer { store.writeTask = nil }
+            await ReflectionCoordinator(host: store).deleteTracks(rows: rows)
+        }
     }
 
     static func restoreLatest(store: LibraryStore) {
@@ -27,7 +39,11 @@ enum DirectWritePanels {
             _ = AlertPrompter().show(ReflectionPrompt(title: "되돌릴 쓰기 기록이 없습니다", text: "DJCrate가 rekordbox에 쓴 적이 없거나 백업이 정리됐습니다."))
             return
         }
-        Task { await ReflectionCoordinator(host: store).restore(backup) }
+        guard !store.isWritingRekordbox, store.writeTask == nil else { return }
+        store.writeTask = Task {
+            defer { store.writeTask = nil }
+            await ReflectionCoordinator(host: store).restore(backup)
+        }
     }
 
     static func restore(store: LibraryStore, backupURL: URL) {
@@ -35,6 +51,10 @@ enum DirectWritePanels {
             _ = AlertPrompter().show(ReflectionPrompt(title: "백업을 찾지 못했습니다", text: backupURL.path))
             return
         }
-        Task { await ReflectionCoordinator(host: store).restore(backup) }
+        guard !store.isWritingRekordbox, store.writeTask == nil else { return }
+        store.writeTask = Task {
+            defer { store.writeTask = nil }
+            await ReflectionCoordinator(host: store).restore(backup)
+        }
     }
 }

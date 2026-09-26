@@ -103,17 +103,19 @@ struct CueRow: View {
                 .help("큐 이름·루프 편집 및 삭제")
                 .accessibilityLabel("큐 세부 편집")
                 .popover(isPresented: $showDetails) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text(cue.time.clockText).font(.headline.monospacedDigit())
-                        nameField.textFieldStyle(.roundedBorder)
-                        HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            Text(cue.time.clockText).font(.caption.monospacedDigit().bold())
+                                .lineLimit(1).fixedSize()
+                            Spacer(minLength: 0)
                             loopControls
+                            deleteButton
                         }
-                        deleteButton
+                        nameField.textFieldStyle(.roundedBorder)
                     }
                     .controlSize(.small)
-                    .padding(14)
-                    .frame(width: 280)
+                    .padding(10)
+                    .frame(width: 200)
                 }
             }
         }

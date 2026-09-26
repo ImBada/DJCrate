@@ -30,13 +30,21 @@ struct DeckView: View {
                         .overlay(alignment: .center) { loadingOverlay }
                         .overlay(alignment: .top) {
                             if let toast = deck.toast {
-                                Label(toast, systemImage: "exclamationmark.circle.fill")
+                                HStack {
+                                    Label(toast.text, systemImage: toast.kind.icon)
+                                        .foregroundStyle(toast.kind.tint)
+                                        .textSelection(.enabled)
+                                    Button { deck.toastTask?.cancel(); deck.toast = nil } label: {
+                                        Image(systemName: "xmark")
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("덱 알림 닫기")
+                                }
                                     .font(.callout.weight(.semibold))
                                     .padding(.horizontal, 12).padding(.vertical, 7)
                                     .background(.regularMaterial, in: Capsule())
                                     .padding(.top, 22)
                                     .transition(.opacity)
-                                    .allowsHitTesting(false)
                             }
                         }
                         .animation(.easeOut(duration: 0.15), value: deck.toast)

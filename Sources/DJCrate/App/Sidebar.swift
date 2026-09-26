@@ -27,6 +27,11 @@ struct Sidebar: View {
                     .badge(store.pendingLibraryCount)
                     .tag(SidebarItem.pending)
                     .help("큐·그리드 초안이 있어 rekordbox에 반영할 곡")
+                Button { store.showingWriteResult = true } label: {
+                    Label("마지막 쓰기 결과…", systemImage: "doc.text.magnifyingglass")
+                }
+                .buttonStyle(.plain)
+                .disabled(store.isWritingRekordbox)
                 if let job = store.gridJob {
                     HStack(spacing: 6) {
                         ProgressView(value: Double(job.done), total: Double(max(job.total, 1))).controlSize(.small)
@@ -137,7 +142,6 @@ struct ListActionBar: View {
                     Button { store.removeImportedStaged() } label: { Label("가져온 곡 정리", systemImage: "checkmark.circle") }
                         .help("rekordbox에 들어간 것이 확인된 곡을 추가 목록에서 뺍니다(파일·초안은 그대로).")
                 }
-                message
             }
         case .pending:
             bar {
@@ -172,16 +176,9 @@ struct ListActionBar: View {
                 .disabled(store.displayRows.isEmpty || store.gridJob != nil)
                 .help("rekordbox가 분석하지 않은 곡의 BPM·박 위치를 추정해 그리드 초안으로 저장합니다(rekordbox는 바뀌지 않습니다).")
                 Text("초안만 만듭니다 · 덱에서 확인·수정").font(.caption).foregroundStyle(.secondary)
-                message
             }
         default:
             EmptyView()
-        }
-    }
-
-    @ViewBuilder private var message: some View {
-        if let text = store.stagingMessage {
-            Text(text).font(.caption).foregroundStyle(.secondary).lineLimit(1)
         }
     }
 
