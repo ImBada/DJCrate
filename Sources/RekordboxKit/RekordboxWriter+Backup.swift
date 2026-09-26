@@ -73,11 +73,12 @@ extension RekordboxWriter {
     }
 
     /// 백업으로 되돌린다. 되돌리기 직전 상태도 따로 백업해 둔다.
+    /// 버전·DB 구조는 보지 않는다(되돌리기는 anicue가 쓴 것을 무르는 비상구라 막지 않는다). rekordbox 실행만 막는다.
     @discardableResult
     public static func restore(_ backup: URL, to database: URL = liveDatabase, now: Date = .now,
-                               backups: URL) throws -> URL {
-        if isLive(database) {
-            guard !LibrarySnapshot.isRekordboxRunning() else {
+                               backups: URL, guard writeGuard: RekordboxWriteGuard = .system) throws -> URL {
+        if writeGuard.isLive(database) {
+            guard !writeGuard.isRekordboxRunning() else {
                 throw AnicueError.writeRefused("rekordbox가 켜져 있습니다. rekordbox를 완전히 종료한 뒤 되돌리세요")
             }
         }
