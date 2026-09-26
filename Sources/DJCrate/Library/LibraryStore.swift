@@ -240,11 +240,12 @@ final class LibraryStore {
             await load(snapshot: url, quiet: quiet)
         } catch {
             // 이미 라이브러리가 있으면 그대로 두고 오류만 알린다.
+            let message = AppErrorMessage.message(for: error)
             if hadRows {
                 phase = .loaded
-                lastError = String(describing: error)
+                lastError = message
             } else {
-                phase = .failed(String(describing: error))
+                phase = .failed(message)
             }
         }
     }
@@ -296,9 +297,9 @@ final class LibraryStore {
         } catch {
             guard generation == loadGeneration else { return }
             if quiet {
-                lastError = String(describing: error)
+                lastError = AppErrorMessage.message(for: error)
             } else {
-                phase = .failed(String(describing: error))
+                phase = .failed(AppErrorMessage.message(for: error))
             }
         }
     }
