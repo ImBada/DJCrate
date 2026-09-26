@@ -138,12 +138,13 @@ struct GridSuggestionRow: View {
         .controlSize(ControlSize.small.scaled(textScale))
     }
 
-    private func confidence(_ suggestion: GridEstimator.Estimate) -> some View {
-        Text(suggestion.isConfident ? "" : "확인 필요")
-            .font(.scaled(.caption, textScale).bold())
-            .foregroundStyle(UIColors.warning.color)
-            .help(suggestion.isConfident
-                  ? "박이 고르게 잡혔습니다. 1박(마디 첫 박)과 반 박 어긋남은 소리로 한 번 확인하세요."
-                  : "박이 흔들리거나 템포가 바뀌는 곡입니다. 적용 뒤 메트로놈으로 확인하고 고쳐 주세요.")
+    /// 추정이 흔들리면 경고 표식(초안 주황과 모양으로 구분)을 붙여 알린다.
+    @ViewBuilder private func confidence(_ suggestion: GridEstimator.Estimate) -> some View {
+        if !suggestion.isConfident {
+            Label("확인 필요", systemImage: WarningMark.symbol)
+                .font(.scaled(.caption, textScale).bold())
+                .foregroundStyle(UIColors.warning.color)
+                .help("박이 흔들리거나 템포가 바뀌는 곡입니다. 적용 뒤 메트로놈으로 확인하고 고쳐 주세요.")
+        }
     }
 }

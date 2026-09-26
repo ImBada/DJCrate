@@ -265,7 +265,13 @@ struct SheetHeader: View {
             Text("더블클릭·Return·타이핑: 편집  ·  ⌘C/⌘V: 엑셀·시트와 복사·붙여넣기  ·  ⌘D: 아래로 채우기  ·  Delete: 지우기  ·  ⌘Z/⇧⌘Z: 실행 취소·실행 복귀")
                 .font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
             Spacer()
-            Text("주황 = 초안(파일·rekordbox 미반영)").font(.scaled(.caption, textScale)).foregroundStyle(UIColors.warning.color)
+            // 색이 아니라 칸의 모양(왼쪽 위 모서리 삼각형)으로 알린다.
+            Label { Text("= 초안(파일·rekordbox 미반영)") } icon: { DraftCornerSwatch() }
+                .font(.scaled(.caption, textScale)).foregroundStyle(.secondary)
+                .help("값을 고친 칸은 왼쪽 위 모서리에 삼각형이 붙습니다. 음원 파일과 rekordbox에는 아직 반영하지 않은 초안입니다")
+                .accessibilityElement(children: .ignore)
+                .accessibilityAddTraits(.isStaticText)
+                .accessibilityLabel("왼쪽 위 모서리 삼각형이 붙은 칸은 초안(파일·rekordbox 미반영)")
         }
         .controlSize(.small)
         .padding(.horizontal, 12)

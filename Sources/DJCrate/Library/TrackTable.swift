@@ -725,7 +725,7 @@ private final class ThumbnailCell: NSTableCellView {
 
 private final class EditedMarkCell: NSTableCellView {
     private let mark = NSImageView()
-    private static let image = NSImage(systemSymbolName: "pencil.circle.fill", accessibilityDescription: "초안 있음")
+    private static let image = NSImage(systemSymbolName: DraftMark.symbol, accessibilityDescription: "초안 있음")
 
     init() {
         super.init(frame: .zero)

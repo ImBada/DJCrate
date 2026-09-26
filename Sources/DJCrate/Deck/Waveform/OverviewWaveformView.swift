@@ -168,13 +168,59 @@ struct OverviewStaticLayer: View {
                 var line = Path()
                 line.move(to: CGPoint(x: xOf(cue.time), y: 0)); line.addLine(to: CGPoint(x: xOf(cue.time), y: waveHeight))
                 context.stroke(line, with: .color(Palette.color(for: cue)), lineWidth: cue.id == selected ? 2.5 : 1.2)
+                // 색만으로 나누지 않게 모양을 더한다: 메모리 큐는 CUE 삼각형 아래 작은 삼각형(확대 파형과 같은 모양).
+                if cue.kind == .memory {
+                    let x = xOf(cue.time), range = OverviewCueMarks.memoryTriangle
+                    var tri = Path()
+                    tri.addLines([CGPoint(x: x - 4, y: range.lowerBound), CGPoint(x: x + 4, y: range.lowerBound), CGPoint(x: x, y: range.upperBound)])
+                    tri.closeSubpath()
+                    // 밝은 파형 위에서도 보이게 어두운 테두리를 두른다(제안 선과 같은 방식).
+                    context.stroke(tri, with: .color(.black.opacity(0.6)), lineWidth: 1.5)
+                    context.fill(tri, with: .color(Palette.color(for: cue)))
+                    if cue.id == selected { context.stroke(tri, with: .color(.white), lineWidth: 1) }
+                }
+            }
+            // 핫큐는 파형 아래쪽에 슬롯 글자 칩(확대 파형 칩을 전체 파형 높이에 맞게 낮춘 것). 겹치는 칩은 뺀다.
+            for mark in OverviewCueMarks.chips(for: cues, xOf: xOf, metrics: metrics) {
+                chip(context, mark.loop ? Text("\(mark.letter)\(Image(systemName: "repeat"))") : Text(mark.letter),
+                     at: CGPoint(x: mark.x, y: waveHeight - metrics.overviewChipHeight - 1),
+                     color: mark.loop ? Palette.loop : Palette.hot, selected: mark.id == selected, maxX: size.width,
+                     metrics: metrics, height: metrics.overviewChipHeight)
             }
             var tri = Path()
             let cx = xOf(cuePoint)
-            tri.addLines([CGPoint(x: cx - 5, y: 0), CGPoint(x: cx + 5, y: 0), CGPoint(x: cx, y: 8)])
+            tri.addLines([CGPoint(x: cx - 5, y: 0), CGPoint(x: cx + 5, y: 0), CGPoint(x: cx, y: OverviewCueMarks.cueTriangleHeight)])
             tri.closeSubpath()
             context.fill(tri, with: .color(Palette.cue))
         }
+    }
+}
+
+/// 전체 파형의 큐 모양 표식. 핫큐(초록)·메모리 큐(빨강)를 색만으로 나누지 않는다(적록 색각에서도 구분되게).
+enum OverviewCueMarks {
+    /// CUE 지점 삼각형 높이(위쪽 0~8pt)
+    static let cueTriangleHeight: CGFloat = 8
+    /// 메모리 큐 삼각형: CUE 삼각형과 겹치지 않게 그 아래(위아래 y)
+    static let memoryTriangle: ClosedRange<CGFloat> = 9...15
+
+    struct Chip: Equatable {
+        var id: EditableCue.ID
+        var x: CGFloat
+        var letter: String
+        var loop: Bool
+    }
+
+    /// 핫큐 슬롯 글자 칩(왼쪽부터). 앞 칩과 겹치면 뺀다: 글자를 줄이지 않고 칩 수를 줄인다(선은 그대로 남는다).
+    static func chips(for cues: [EditableCue], xOf: (Double) -> CGFloat, metrics: WaveformMetrics) -> [Chip] {
+        let hot = cues.compactMap { cue in
+            cue.kind.slotLetter.map { Chip(id: cue.id, x: xOf(cue.time), letter: $0, loop: cue.loop != nil) }
+        }.sorted { $0.x < $1.x }
+        let spans = hot.map { chip -> (start: Double, end: Double) in
+            // 굵은 대문자 한 자 ≈ 글자 크기 0.7배, 반복 심볼 ≈ 1.3배, 좌우 여백 8pt
+            let width = metrics.labelSize * (chip.loop ? 2 : 0.7) + 8
+            return (chip.x - width / 2, chip.x + width / 2)
+        }
+        return zip(hot, WaveformMetrics.visibleLabels(spans, gap: 2)).filter(\.1).map(\.0)
     }
 }
 

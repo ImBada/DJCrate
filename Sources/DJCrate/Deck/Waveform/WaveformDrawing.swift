@@ -48,13 +48,14 @@ func chip(_ context: GraphicsContext, _ text: String, at point: CGPoint, color: 
 }
 
 /// 글자 칩(핫큐 슬롯 등). `text`에 심볼을 끼워 넣으면 옆 글자와 같은 글꼴로 그려진다.
+/// `height`: 칩 높이(없으면 확대 파형 칩 높이). 전체 파형은 더 낮은 칩을 쓴다.
 func chip(_ context: GraphicsContext, _ text: Text, at point: CGPoint, color: Color, selected: Bool, maxX: CGFloat = .infinity,
-          metrics: WaveformMetrics = WaveformMetrics()) {
+          metrics: WaveformMetrics = WaveformMetrics(), height: Double? = nil) {
     let label = context.resolve(text.font(.system(size: metrics.labelSize, weight: .bold)).foregroundStyle(Color.black))
     let size = label.measure(in: CGSize(width: 200, height: 40))
     let half = size.width / 2 + 4
     let cx = min(max(point.x, half + 1), maxX - half - 1)
-    let rect = CGRect(x: cx - half, y: point.y, width: size.width + 8, height: metrics.chipHeight)
+    let rect = CGRect(x: cx - half, y: point.y, width: size.width + 8, height: height ?? metrics.chipHeight)
     context.fill(Path(roundedRect: rect, cornerRadius: 3), with: .color(color))
     if selected { context.stroke(Path(roundedRect: rect.insetBy(dx: -1.5, dy: -1.5), cornerRadius: 4), with: .color(.white), lineWidth: 1.5) }
     context.draw(label, at: CGPoint(x: rect.midX, y: rect.midY))

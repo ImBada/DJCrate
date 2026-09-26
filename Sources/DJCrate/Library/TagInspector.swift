@@ -84,7 +84,19 @@ private struct CommitTextField: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        TextField(label, text: $text, prompt: Text(mixed ? "(여러 값 — 입력하면 모두 바뀜)" : ""), axis: axis)
+        // 초안이면 칸 이름 옆에 연필 표식을 붙이고 VoiceOver 이름에도 "초안"을 더한다(색만으로 알리지 않는다).
+        // 값(accessibilityValue)을 덮으면 칸에 적힌 글자를 못 읽으므로 이름에 붙인다.
+        TextField(text: $text, prompt: Text(mixed ? "(여러 값 — 입력하면 모두 바뀜)" : ""), axis: axis) {
+            HStack(spacing: 4) {
+                Text(label)
+                if edited {
+                    Image(systemName: DraftMark.symbol)
+                        .foregroundStyle(UIColors.draft.color)
+                        .help(DraftMark.help)
+                }
+            }
+        }
+            .accessibilityLabel(edited ? "\(label), \(DraftMark.spoken)" : label)
             .focused($focused)
             .foregroundStyle(edited ? UIColors.draft.color : .primary)
             .onAppear { text = value }

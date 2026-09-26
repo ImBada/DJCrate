@@ -88,6 +88,8 @@ struct WaveformMetrics: Equatable {
 
     // MARK: 전체 파형
 
+    /// 전체 파형의 핫큐 슬롯 칩(10pt 글자가 들어가는 가장 낮은 칩)
+    var overviewChipHeight: Double { TextScale.length(12, scale: scale) }
     var sectionBandHeight: Double { TextScale.length(14, scale: scale) }
     var keyBandHeight: Double { TextScale.length(12, scale: scale) }
     /// 파형 아래 섹션·조성 띠 자리(위아래 여백 포함)

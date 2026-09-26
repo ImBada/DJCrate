@@ -470,13 +470,72 @@ final class SheetTableView: NSTableView {
     }
 }
 
+/// 시트 칸의 초안 표시. 글자색(초안 색)만이 아니라 왼쪽 위 모서리 삼각형과 VoiceOver 값("…, 초안")으로도 알린다.
+struct SheetCellAppearance: Equatable {
+    enum Tone { case primary, secondary, draft }
+
+    var tone: Tone
+    /// 선택해도 남긴다(선택하면 글자색이 기본색으로 바뀌어 색으로는 알 수 없다).
+    var showsDraftMark: Bool
+    private var speaksDraft: Bool
+
+    init(edited: Bool, readOnly: Bool, selected: Bool, editing: Bool) {
+        // 선택한 칸은 선택 배경 위에서 읽히게 기본색으로 쓴다.
+        tone = selected && !editing ? .primary : edited ? .draft : readOnly ? .secondary : .primary
+        showsDraftMark = edited
+        // 입력 중에는 칸 값을 덮지 않는다(입력한 글자를 VoiceOver가 그대로 읽게).
+        speaksDraft = edited && !editing
+    }
+
+    /// VoiceOver가 읽을 칸 값. nil이면 칸 글자 그대로 읽힌다.
+    func accessibilityValue(for text: String) -> String? {
+        speaksDraft ? "\(text), \(DraftMark.spoken)" : nil
+    }
+}
+
+/// 초안 칸 왼쪽 위 모서리의 작은 삼각형(엑셀의 칸 표식처럼 글자 자리를 빼앗지 않는다).
+private final class DraftCornerView: NSView {
+    override var isFlipped: Bool { true }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let path = NSBezierPath()
+        path.move(to: .zero)
+        path.line(to: NSPoint(x: bounds.width, y: 0))
+        path.line(to: NSPoint(x: 0, y: bounds.height))
+        path.close()
+        UIColors.draft.nsColor.setFill()
+        path.fill()
+    }
+}
+
+/// 범례용 칸 모양: 시트 칸처럼 테두리 안 왼쪽 위에 초안 삼각형
+struct DraftCornerSwatch: View {
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            Rectangle().strokeBorder(Color(nsColor: .separatorColor))
+            Path { path in
+                path.move(to: .zero)
+                path.addLine(to: CGPoint(x: 7, y: 0))
+                path.addLine(to: CGPoint(x: 0, y: 7))
+                path.closeSubpath()
+            }
+            .fill(UIColors.draft.color)
+        }
+        .frame(width: 16, height: 12)
+    }
+}
+
 /// 시트 셀: 평소에는 라벨, 편집할 때만 같은 텍스트 필드를 편집 가능으로 바꾼다.
 final class SheetCell: NSTableCellView {
     let label = NSTextField(labelWithString: "")
+    private let draftMark = DraftCornerView()
     private var edited = false
     private var readOnly = false
     private var selected = false
     private var active = false
+
+    /// 초안 모서리 표식이 보이는지(시험용)
+    var showsDraftMark: Bool { !draftMark.isHidden }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -488,10 +547,17 @@ final class SheetCell: NSTableCellView {
         label.cell?.isScrollable = true
         addSubview(label)
         textField = label
+        draftMark.translatesAutoresizingMaskIntoConstraints = false
+        draftMark.isHidden = true
+        addSubview(draftMark)
         NSLayoutConstraint.activate([
             label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
             label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            draftMark.leadingAnchor.constraint(equalTo: leadingAnchor),
+            draftMark.topAnchor.constraint(equalTo: topAnchor),
+            draftMark.widthAnchor.constraint(equalToConstant: 7),
+            draftMark.heightAnchor.constraint(equalToConstant: 7),
         ])
     }
 
@@ -524,11 +590,19 @@ final class SheetCell: NSTableCellView {
 
     private func updateColors() {
         // AppKit이 창·표 포커스가 바뀔 때 다시 그리므로 선택색도 그때 풀어 쓴다.
-        let emphasized = window?.isKeyWindow == true && (window?.firstResponder is SheetTableView || label.currentEditor() != nil)
+        let editing = label.currentEditor() != nil
+        let emphasized = window?.isKeyWindow == true && (window?.firstResponder is SheetTableView || editing)
+        let appearance = SheetCellAppearance(edited: edited, readOnly: readOnly, selected: selected, editing: editing)
+        if draftMark.isHidden == appearance.showsDraftMark { draftMark.isHidden = !appearance.showsDraftMark }
+        // 글자 칸의 접근성 요소는 셀(NSTextFieldCell)이라 값도 셀에 둔다. 셀에 nil을 넣으면 기본값으로 돌아가지 않고
+        // 값이 비므로(재사용한 칸을 VoiceOver가 못 읽는다) 초안이 아니어도 글자를 그대로 넣는다.
+        label.cell?.setAccessibilityValue(appearance.accessibilityValue(for: label.stringValue) ?? label.stringValue)
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            label.textColor = selected && label.currentEditor() == nil
-                ? .labelColor
-                : (edited ? UIColors.draft.nsColor : (readOnly ? .secondaryLabelColor : .labelColor))
+            label.textColor = switch appearance.tone {
+            case .primary: .labelColor
+            case .secondary: .secondaryLabelColor
+            case .draft: UIColors.draft.nsColor
+            }
             let selection: NSColor = emphasized ? .selectedContentBackgroundColor : .unemphasizedSelectedContentBackgroundColor
             layer?.backgroundColor = selected ? selection.withAlphaComponent(0.28).cgColor : nil
             layer?.borderWidth = active ? 2 : 0
@@ -542,11 +616,14 @@ final class SheetCell: NSTableCellView {
         label.drawsBackground = true
         label.backgroundColor = .textBackgroundColor
         label.stringValue = text
+        // 입력하는 동안은 VoiceOver가 칸 값을 그대로 읽는다.
+        label.cell?.setAccessibilityValue(text)
     }
 
     func endEditing() {
         label.isEditable = false
         label.isSelectable = false
         label.drawsBackground = false
+        updateColors()
     }
 }

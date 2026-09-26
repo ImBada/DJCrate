@@ -102,9 +102,13 @@ struct GainControl: View {
                     .background(RoundedRectangle(cornerRadius: 3).fill(deck.autoGain ? Color.accentColor.opacity(0.35) : UIColors.subtleFill))
                 Text(String(format: "%+.1f dB", deck.appliedGain)).font(.scaled(.caption, textScale).monospacedDigit())
                 if let loudness = deck.loudness, let lufs = loudness.integrated {
-                    Text(String(format: "%.1f LUFS", lufs))
-                        .font(.scaled(.caption, textScale).monospacedDigit())
-                        .foregroundStyle(loudness.isHot ? UIColors.warning.color : Color.secondary)
+                    // 큰 음량은 색만이 아니라 경고 표식으로도 알린다(초안 주황과 모양으로 구분).
+                    HStack(spacing: 2) {
+                        if loudness.isHot { Image(systemName: WarningMark.symbol).accessibilityLabel("경고") }
+                        Text(String(format: "%.1f LUFS", lufs))
+                    }
+                    .font(.scaled(.caption, textScale).monospacedDigit())
+                    .foregroundStyle(loudness.isHot ? UIColors.warning.color : Color.secondary)
                 }
                 if deck.isGainSuspicious {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(UIColors.warning.color)
@@ -113,7 +117,7 @@ struct GainControl: View {
             }
         }
         .buttonStyle(.borderless)
-        .help("게인(볼륨 페이더 앞). 누르면 오토게인·목표 음량·트림을 정합니다. 주황 LUFS = 매우 큰 마스터(−6 LUFS 초과)이거나 심한 클리핑")
+        .help("게인(볼륨 페이더 앞). 누르면 오토게인·목표 음량·트림을 정합니다. 느낌표가 붙은 LUFS = 매우 큰 마스터(−6 LUFS 초과)이거나 심한 클리핑")
         .popover(isPresented: $shown, arrowEdge: .bottom) { GainSettings(deck: deck).padding(16).frame(width: 340) }
     }
 }
@@ -157,10 +161,16 @@ struct GainSettings: View {
                             Text("곡 게인")
                             Button("−1") { deck.adjustTrackGain(by: -1) }
                             Button("−0.1") { deck.adjustTrackGain(by: -0.1) }
-                            Text(String(format: "%+.1f dB", deck.trackGainDB ?? rekordbox))
-                                .font(.callout.monospacedDigit().bold())
-                                .foregroundStyle(deck.gainDraft != nil ? UIColors.info.color : Color.primary)
-                                .frame(width: 64)
+                            // 초안 값은 초안 색 하나와 연필 표식으로 보인다(목록·시트·인스펙터와 같다).
+                            HStack(spacing: 3) {
+                                if deck.gainDraft != nil {
+                                    Image(systemName: DraftMark.symbol).accessibilityLabel(DraftMark.spoken)
+                                }
+                                Text(String(format: "%+.1f dB", deck.trackGainDB ?? rekordbox))
+                            }
+                            .font(.callout.monospacedDigit().bold())
+                            .foregroundStyle(deck.gainDraft != nil ? UIColors.draft.color : Color.primary)
+                            .frame(width: 84)
                             Button("+0.1") { deck.adjustTrackGain(by: 0.1) }
                             Button("+1") { deck.adjustTrackGain(by: 1) }
                             if deck.gainDraft != nil {
