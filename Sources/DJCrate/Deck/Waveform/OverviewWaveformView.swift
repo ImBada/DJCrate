@@ -6,27 +6,29 @@ import AppKit
 import SwiftUI
 
 struct OverviewWaveformView: View {
+    @Environment(\.textScale) private var textScale
     @Bindable var deck: DeckModel
     @State private var scrubbing = false
 
     var body: some View {
         GeometryReader { geo in
             let duration = max(deck.duration, 1)
+            let metrics = WaveformMetrics(scale: textScale)
             ZStack(alignment: .bottom) {
-                OverviewStaticLayer(deck: deck, duration: duration)
+                OverviewStaticLayer(deck: deck, duration: duration, metrics: metrics)
                 if deck.isAnalyzingSections {
                     // 섹션 칸(아래 띠) 자리에 분석 진행 표시
                     HStack(spacing: 6) {
                         ProgressView().progressViewStyle(.linear).tint(Palette.section)
-                        Text("섹션 분석 중").font(.system(size: 9)).foregroundStyle(Palette.section)
+                        Text("섹션 분석 중").font(.scaled(.caption2, textScale)).foregroundStyle(Palette.section)
                     }
                     .padding(.horizontal, 6)
-                    .frame(height: 16)
-                    .padding(.bottom, 15)
+                    .frame(height: metrics.sectionBandHeight + 2)
+                    .padding(.bottom, metrics.keyBandHeight + 3)
                     .allowsHitTesting(false)
                     .accessibilityLabel("섹션 분석 중")
                 }
-                OverviewPlayheadLayer(deck: deck, duration: duration)
+                OverviewPlayheadLayer(deck: deck, duration: duration, metrics: metrics)
             }
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0)
@@ -103,6 +105,7 @@ struct OverviewStaticLayer: View {
     @Environment(\.colorSchemeContrast) private var contrast
     let deck: DeckModel
     let duration: Double
+    var metrics = WaveformMetrics()
 
     var body: some View {
         let waveform = deck.waveform
@@ -117,9 +120,10 @@ struct OverviewStaticLayer: View {
         let audioOffset = deck.timelineOffset
         let keys = deck.keySegments.map { (segment: $0, name: deck.keyName(for: $0)) }
         let keyChanges = deck.keySegments.count > 1
+        let metrics = metrics
         Canvas { context, size in
             let xOf = { (t: Double) in CGFloat(t / duration) * size.width }
-            let waveHeight = size.height - 34
+            let waveHeight = size.height - metrics.overviewBandsHeight
             if mode == .threeBand, let waveform {
                 drawBands(context, waveform: waveform, from: -audioOffset, to: duration - audioOffset,
                           in: CGRect(x: 0, y: 2, width: size.width, height: waveHeight - 2))
@@ -132,18 +136,18 @@ struct OverviewStaticLayer: View {
             for e in energies {
                 let norm = e.score.isFinite && hi > lo ? (e.score - lo) / (hi - lo) : 0
                 let rect = CGRect(x: xOf(e.span.start), y: waveHeight + 3,
-                                  width: max(1, xOf(e.span.end) - xOf(e.span.start) - 1), height: 14)
+                                  width: max(1, xOf(e.span.end) - xOf(e.span.start) - 1), height: metrics.sectionBandHeight)
                 context.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(Palette.section.opacity(0.1 + 0.62 * norm * norm)))
             }
-            // 조성 띠(섹션 띠 아래). 바뀌는 곳이 있으면 진하게.
+            // 조성 띠(섹션 띠 아래). 바뀌는 곳이 있으면 진하게. 이름은 띠 안에 다 들어갈 때만 쓴다(글자를 줄이지 않는다).
             for key in keys {
-                let rect = CGRect(x: xOf(key.segment.start), y: waveHeight + 19,
-                                  width: max(1, xOf(key.segment.end) - xOf(key.segment.start) - 1), height: 12)
+                let rect = CGRect(x: xOf(key.segment.start), y: waveHeight + 3 + metrics.sectionBandHeight + 2,
+                                  width: max(1, xOf(key.segment.end) - xOf(key.segment.start) - 1), height: metrics.keyBandHeight)
                 let color = Palette.keyColor(key.name)
                 context.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(color.opacity(Palette.keyBandOpacity(changes: keyChanges))))
-                if rect.width > 24 {
-                    context.draw(Text(key.name).font(.system(size: 9, weight: .bold)).foregroundStyle(Color.white),
-                                 at: CGPoint(x: rect.minX + 4, y: rect.midY), anchor: .leading)
+                let label = context.resolve(Text(key.name).font(.system(size: metrics.labelSize, weight: .bold)).foregroundStyle(Color.white))
+                if label.measure(in: CGSize(width: 200, height: 40)).width + 8 <= rect.width {
+                    context.draw(label, at: CGPoint(x: rect.minX + 4, y: rect.midY), anchor: .leading)
                 }
             }
             for s in suggestions {
@@ -164,13 +168,59 @@ struct OverviewStaticLayer: View {
                 var line = Path()
                 line.move(to: CGPoint(x: xOf(cue.time), y: 0)); line.addLine(to: CGPoint(x: xOf(cue.time), y: waveHeight))
                 context.stroke(line, with: .color(Palette.color(for: cue)), lineWidth: cue.id == selected ? 2.5 : 1.2)
+                // 색만으로 나누지 않게 모양을 더한다: 메모리 큐는 CUE 삼각형 아래 작은 삼각형(확대 파형과 같은 모양).
+                if cue.kind == .memory {
+                    let x = xOf(cue.time), range = OverviewCueMarks.memoryTriangle
+                    var tri = Path()
+                    tri.addLines([CGPoint(x: x - 4, y: range.lowerBound), CGPoint(x: x + 4, y: range.lowerBound), CGPoint(x: x, y: range.upperBound)])
+                    tri.closeSubpath()
+                    // 밝은 파형 위에서도 보이게 어두운 테두리를 두른다(제안 선과 같은 방식).
+                    context.stroke(tri, with: .color(.black.opacity(0.6)), lineWidth: 1.5)
+                    context.fill(tri, with: .color(Palette.color(for: cue)))
+                    if cue.id == selected { context.stroke(tri, with: .color(.white), lineWidth: 1) }
+                }
+            }
+            // 핫큐는 파형 아래쪽에 슬롯 글자 칩(확대 파형 칩을 전체 파형 높이에 맞게 낮춘 것). 겹치는 칩은 뺀다.
+            for mark in OverviewCueMarks.chips(for: cues, xOf: xOf, metrics: metrics) {
+                chip(context, mark.loop ? Text("\(mark.letter)\(Image(systemName: "repeat"))") : Text(mark.letter),
+                     at: CGPoint(x: mark.x, y: waveHeight - metrics.overviewChipHeight - 1),
+                     color: mark.loop ? Palette.loop : Palette.hot, selected: mark.id == selected, maxX: size.width,
+                     metrics: metrics, height: metrics.overviewChipHeight)
             }
             var tri = Path()
             let cx = xOf(cuePoint)
-            tri.addLines([CGPoint(x: cx - 5, y: 0), CGPoint(x: cx + 5, y: 0), CGPoint(x: cx, y: 8)])
+            tri.addLines([CGPoint(x: cx - 5, y: 0), CGPoint(x: cx + 5, y: 0), CGPoint(x: cx, y: OverviewCueMarks.cueTriangleHeight)])
             tri.closeSubpath()
             context.fill(tri, with: .color(Palette.cue))
         }
+    }
+}
+
+/// 전체 파형의 큐 모양 표식. 핫큐(초록)·메모리 큐(빨강)를 색만으로 나누지 않는다(적록 색각에서도 구분되게).
+enum OverviewCueMarks {
+    /// CUE 지점 삼각형 높이(위쪽 0~8pt)
+    static let cueTriangleHeight: CGFloat = 8
+    /// 메모리 큐 삼각형: CUE 삼각형과 겹치지 않게 그 아래(위아래 y)
+    static let memoryTriangle: ClosedRange<CGFloat> = 9...15
+
+    struct Chip: Equatable {
+        var id: EditableCue.ID
+        var x: CGFloat
+        var letter: String
+        var loop: Bool
+    }
+
+    /// 핫큐 슬롯 글자 칩(왼쪽부터). 앞 칩과 겹치면 뺀다: 글자를 줄이지 않고 칩 수를 줄인다(선은 그대로 남는다).
+    static func chips(for cues: [EditableCue], xOf: (Double) -> CGFloat, metrics: WaveformMetrics) -> [Chip] {
+        let hot = cues.compactMap { cue in
+            cue.kind.slotLetter.map { Chip(id: cue.id, x: xOf(cue.time), letter: $0, loop: cue.loop != nil) }
+        }.sorted { $0.x < $1.x }
+        let spans = hot.map { chip -> (start: Double, end: Double) in
+            // 굵은 대문자 한 자 ≈ 글자 크기 0.7배, 반복 심볼 ≈ 1.3배, 좌우 여백 8pt
+            let width = metrics.labelSize * (chip.loop ? 2 : 0.7) + 8
+            return (chip.x - width / 2, chip.x + width / 2)
+        }
+        return zip(hot, WaveformMetrics.visibleLabels(spans, gap: 2)).filter(\.1).map(\.0)
     }
 }
 
@@ -179,14 +229,16 @@ struct OverviewPlayheadLayer: View {
     @Environment(\.colorSchemeContrast) private var contrast
     let deck: DeckModel
     let duration: Double
+    var metrics = WaveformMetrics()
 
     var body: some View {
         // 전체 파형은 넓어서 초당 15번이면 충분하다(창 전체 갱신을 매 프레임 일으키지 않게).
         let t = deck.displayTime
         let zoom = deck.zoomSeconds
+        let metrics = metrics
         Canvas { context, size in
             let xOf = { (time: Double) in CGFloat(time / duration) * size.width }
-            let waveHeight = size.height - 34
+            let waveHeight = size.height - metrics.overviewBandsHeight
             let window = CGRect(x: xOf(t - zoom / 2), y: 0, width: xOf(zoom), height: waveHeight)
             context.fill(Path(window), with: .color(.white.opacity(0.08)))
             context.stroke(Path(window), with: .color(.white.opacity(contrast == .increased ? 0.7 : 0.3)), lineWidth: 1)

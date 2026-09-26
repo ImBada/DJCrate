@@ -1,3 +1,4 @@
+import DJCDomain
 import Foundation
 import QuartzCore
 
@@ -23,6 +24,12 @@ enum PerfProbe {
         if args.contains("--perf-preview=off") { return false }
         return nil
     }()
+    /// 화면 확인용 글자 배율(`--text-scale=1.3`). 사용자 설정을 바꾸지 않는다.
+    static let textScale: Double? = {
+        guard let arg = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--text-scale=") }),
+              let value = Double(arg.dropFirst("--text-scale=".count)) else { return nil }
+        return TextScale.nearest(value)
+    }()
     #else
     // 릴리스 빌드에서는 늘 꺼져 있다(부르는 쪽은 그대로 두고 아무 일도 하지 않는다).
     static let enabled = false
@@ -30,6 +37,7 @@ enum PerfProbe {
     static let skipBands = false
     static let hidden: Set<String> = []
     static let previewColumnVisible: Bool? = nil
+    static let textScale: Double? = nil
     #endif
 
     private static var ticks: [Double] = []

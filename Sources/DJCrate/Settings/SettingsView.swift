@@ -63,9 +63,22 @@ enum SettingsWindow {
 struct GeneralSettingsView: View {
     @Bindable var deck: DeckModel
     @Bindable var store: LibraryStore
+    @AppStorage(SettingKeys.textScale.name) private var textScale = SettingKeys.textScale.defaultValue
 
     var body: some View {
         Form {
+            Section {
+                Picker("글자 크기", selection: Binding(get: { SettingKeys.textScale.value(from: textScale) }, set: { textScale = $0 })) {
+                    ForEach(TextScale.steps, id: \.self) { scale in
+                        Text(scale == 1 ? "기본(100%)" : "\(Int((scale * 100).rounded()))%").tag(scale)
+                    }
+                }
+            } header: {
+                Text("화면")
+            } footer: {
+                Text("곡 목록·태그 시트·덱·알림의 글자를 키웁니다. 보기 › 글자 크게·작게(⌘+ · ⌘−)로도 바꿀 수 있습니다.")
+                    .foregroundStyle(.secondary)
+            }
             Section("코멘트") {
                 Picker("코멘트 프리셋", selection: $store.commentPreset) {
                     ForEach(CommentPreset.allCases, id: \.self) { Text($0.title).tag($0) }
@@ -88,7 +101,7 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         // 묶음 폼은 스크롤 뷰라 내용 높이를 스스로 알리지 않는다. 설정 창 높이를 탭마다 정한다.
-        .frame(width: 520, height: 300)
+        .frame(width: 520, height: 400)
     }
 
     static func durationText(_ seconds: Double) -> String {

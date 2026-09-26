@@ -46,6 +46,7 @@ final class KeyRouter {
 
     /// nil을 돌려주면 이벤트를 삼킨다(다른 곳으로 가지 않는다).
     private func route(_ event: NSEvent) -> NSEvent? {
+        if event.type == .keyDown, let bigger = Self.textBiggerEvent(from: event) { return bigger }
         guard let deck else { return event }
         // CUE를 누른 뒤 포커스가 바뀌어도 이미 시작한 미리 듣기는 끝내되, 키는 새 대상에 넘긴다.
         if event.type == .keyUp { handleKeyUp(event.keyCode) }
@@ -102,6 +103,15 @@ final class KeyRouter {
             }
         }
         return event
+    }
+
+    /// ⌘=를 메뉴 '글자 크게'(⌘+)에 걸리는 ⌘⇧= 이벤트로 바꾼다. 처리는 그대로 메뉴가 한다.
+    static func textBiggerEvent(from event: NSEvent) -> NSEvent? {
+        guard KeyRoutingPolicy.isTextBiggerAlias(keyCode: event.keyCode, modifiers: event.modifierFlags) else { return nil }
+        return NSEvent.keyEvent(with: event.type, location: event.locationInWindow,
+                                modifierFlags: event.modifierFlags.union(.shift), timestamp: event.timestamp,
+                                windowNumber: event.windowNumber, context: nil, characters: "+",
+                                charactersIgnoringModifiers: "+", isARepeat: event.isARepeat, keyCode: event.keyCode)
     }
 
     /// 글자 입력 중에는 단축키를 쓰지 않는다. 대신 입력을 끝내는 키(Return·Esc)에서 포커스를 놓아 준다.

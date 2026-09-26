@@ -44,6 +44,11 @@ public enum SettingKeys {
     /// 재생 기록은 날짜마다 한 줄이라 길어서 접어 두고 시작한다.
     public static let sidebarHistoriesExpanded = SettingKey("sidebar.historiesExpanded", false)
 
+    /// 앱 안 글자 배율(보기 › 글자 크게·작게). 단계 밖의 값은 가장 가까운 단계로 읽는다.
+    public static let textScale = SettingKey<Double>("view.textScale", 1) { value in
+        value.isFinite ? TextScale.nearest(value) : nil
+    }
+
     // MARK: 목록·표
 
     public static let commentClassColumnHidden = SettingKey("library.commentClassColumnHidden", false)
@@ -57,7 +62,7 @@ public enum SettingKeys {
     /// 모든 이름(겹치지 않는지 확인용)
     public static var all: [String] {
         [zoomSeconds.name, volume.name, metronomeVolume.name, idleSeconds.name, gainTarget.name, gainTrim.name,
-         waveformHeight.name]
+         waveformHeight.name, textScale.name]
             + [quantize, carryCues, showSuggestions, keyLock, autoGain, peakProtection, useRekordboxGain,
                sheetMode, sidebarPlaylistsExpanded, sidebarSummaryExpanded, sidebarHistoriesExpanded,
                commentClassColumnHidden].map(\.name)

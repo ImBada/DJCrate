@@ -44,11 +44,18 @@ func drawBands(_ context: GraphicsContext, waveform: Waveform, from start: Doubl
 }
 
 func chip(_ context: GraphicsContext, _ text: String, at point: CGPoint, color: Color, selected: Bool, maxX: CGFloat = .infinity) {
-    let label = context.resolve(Text(text).font(.system(size: 10, weight: .bold)).foregroundStyle(Color.black))
-    let size = label.measure(in: CGSize(width: 200, height: 20))
+    chip(context, Text(text), at: point, color: color, selected: selected, maxX: maxX)
+}
+
+/// 글자 칩(핫큐 슬롯 등). `text`에 심볼을 끼워 넣으면 옆 글자와 같은 글꼴로 그려진다.
+/// `height`: 칩 높이(없으면 확대 파형 칩 높이). 전체 파형은 더 낮은 칩을 쓴다.
+func chip(_ context: GraphicsContext, _ text: Text, at point: CGPoint, color: Color, selected: Bool, maxX: CGFloat = .infinity,
+          metrics: WaveformMetrics = WaveformMetrics(), height: Double? = nil) {
+    let label = context.resolve(text.font(.system(size: metrics.labelSize, weight: .bold)).foregroundStyle(Color.black))
+    let size = label.measure(in: CGSize(width: 200, height: 40))
     let half = size.width / 2 + 4
     let cx = min(max(point.x, half + 1), maxX - half - 1)
-    let rect = CGRect(x: cx - half, y: point.y, width: size.width + 8, height: 14)
+    let rect = CGRect(x: cx - half, y: point.y, width: size.width + 8, height: height ?? metrics.chipHeight)
     context.fill(Path(roundedRect: rect, cornerRadius: 3), with: .color(color))
     if selected { context.stroke(Path(roundedRect: rect.insetBy(dx: -1.5, dy: -1.5), cornerRadius: 4), with: .color(.white), lineWidth: 1.5) }
     context.draw(label, at: CGPoint(x: rect.midX, y: rect.midY))
@@ -81,8 +88,10 @@ struct DrawState {
     /// 포인터가 올라간 큐·제안(굵게·밝게)
     var hoveredCue: EditableCue.ID?
     var hoveredSuggestion: Double?
+    /// 글자 배율에 맞춘 라벨·눈금 크기
+    var metrics: WaveformMetrics
 
-    @MainActor init(_ deck: DeckModel, hover: ZoomPointerTarget = .empty) {
+    @MainActor init(_ deck: DeckModel, hover: ZoomPointerTarget = .empty, metrics: WaveformMetrics = WaveformMetrics()) {
         grid = deck.grid
         waveform = deck.waveform
         colorWaveform = deck.colorWaveform
@@ -104,5 +113,6 @@ struct DrawState {
         gridEditing = deck.gridEditing && deck.canEditGrid
         hoveredCue = hover.cue
         hoveredSuggestion = hover.suggestion
+        self.metrics = metrics
     }
 }

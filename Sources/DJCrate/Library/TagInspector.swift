@@ -6,6 +6,7 @@ import SwiftUI
 
 /// Mp3tag처럼 여러 곡을 한꺼번에 편집하는 인스펙터. 초안에만 저장되고 파일에는 쓰지 않는다.
 struct TagInspector: View {
+    @Environment(\.textScale) private var textScale
     @Bindable var store: LibraryStore
 
     var body: some View {
@@ -17,11 +18,11 @@ struct TagInspector: View {
             } else {
                 Section {
                     HStack {
-                        Text(rows.count == 1 ? rows[0].title : "\(rows.count)곡 선택").font(.headline).lineLimit(1)
+                        Text(rows.count == 1 ? rows[0].title : "\(rows.count)곡 선택").font(.scaled(.headline, textScale)).lineLimit(1)
                         Spacer()
                         let changed = rows.filter { store.tagDrafts[$0.track.uuid] != nil }.count
                         if changed > 0 {
-                            Text("초안 \(changed)곡").font(.caption.bold()).foregroundStyle(UIColors.draft.color)
+                            Text("초안 \(changed)곡").font(.scaled(.caption, textScale).bold()).foregroundStyle(UIColors.draft.color)
                         }
                     }
                 }
@@ -41,7 +42,7 @@ struct TagInspector: View {
                     let issues = rows.compactMap { store.tagDrafts[$0.track.uuid] }.flatMap(\.issues)
                     if !issues.isEmpty {
                         Label(Set(issues).sorted().joined(separator: " · "), systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(UIColors.warning.color).font(.caption)
+                            .foregroundStyle(UIColors.warning.color).font(.scaled(.caption, textScale))
                     }
                     HStack {
                         Button("되돌리기") { store.revertTags(rows: rows) }
@@ -51,11 +52,12 @@ struct TagInspector: View {
                             .help("안전 쓰기(태그 프레임만 교체 + 검증) 구현과 rekordbox Reload Tag 검증 전까지 잠겨 있습니다.")
                     }
                     Text("편집은 DJCrate 초안에만 저장됩니다. 음원 파일과 rekordbox는 바뀌지 않습니다.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.scaled(.caption, textScale)).foregroundStyle(.secondary)
                 }
             }
         }
         .formStyle(.grouped)
+        .font(.scaled(.body, textScale))
     }
 
     private func field(_ key: TagFields.Key, rows: [TrackRow], axis: Axis = .horizontal) -> some View {
@@ -82,7 +84,19 @@ private struct CommitTextField: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        TextField(label, text: $text, prompt: Text(mixed ? "(여러 값 — 입력하면 모두 바뀜)" : ""), axis: axis)
+        // 초안이면 칸 이름 옆에 연필 표식을 붙이고 VoiceOver 이름에도 "초안"을 더한다(색만으로 알리지 않는다).
+        // 값(accessibilityValue)을 덮으면 칸에 적힌 글자를 못 읽으므로 이름에 붙인다.
+        TextField(text: $text, prompt: Text(mixed ? "(여러 값 — 입력하면 모두 바뀜)" : ""), axis: axis) {
+            HStack(spacing: 4) {
+                Text(label)
+                if edited {
+                    Image(systemName: DraftMark.symbol)
+                        .foregroundStyle(UIColors.draft.color)
+                        .help(DraftMark.help)
+                }
+            }
+        }
+            .accessibilityLabel(edited ? "\(label), \(DraftMark.spoken)" : label)
             .focused($focused)
             .foregroundStyle(edited ? UIColors.draft.color : .primary)
             .onAppear { text = value }
@@ -101,13 +115,14 @@ private struct CommitTextField: View {
 
 /// 고른 프리셋의 분류와 설명만 보여 준다.
 private struct CommentPreview: View {
+    @Environment(\.textScale) private var textScale
     let result: CommentEvaluation
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(result.displayName).font(.caption.bold()).foregroundStyle(result.tone.tint)
+            Text(result.displayName).font(.scaled(.caption, textScale).bold()).foregroundStyle(result.tone.tint)
             if !result.summary.isEmpty {
-                Text(result.summary).font(.caption).foregroundStyle(.secondary)
+                Text(result.summary).font(.scaled(.caption, textScale)).foregroundStyle(.secondary)
             }
         }
     }

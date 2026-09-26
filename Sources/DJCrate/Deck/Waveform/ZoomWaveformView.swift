@@ -42,6 +42,7 @@ final class WaveformScrollHandler {
 
 struct ZoomWaveformView: View {
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.textScale) private var textScale
     @Bindable var deck: DeckModel
     @State private var drag: DragMode?
     /// 포인터 아래 대상(바뀔 때만 다시 그린다)
@@ -80,7 +81,7 @@ struct ZoomWaveformView: View {
                 let time = { (x: CGFloat) in start + Double(x / max(geo.size.width, 1)) * window }
                 let xOf = { (t: Double) in CGFloat((t - start) / window) * geo.size.width }
 
-                let state = DrawState(deck, hover: hover)
+                let state = DrawState(deck, hover: hover, metrics: WaveformMetrics(scale: textScale))
                 Canvas { context, size in
                     PerfProbe.measureDraw { draw(context, size: size, state: state, start: start, window: window, xOf: xOf) }
                 }
@@ -187,7 +188,9 @@ struct ZoomWaveformView: View {
 
     private func draw(_ context: GraphicsContext, size: CGSize, state: DrawState, start: Double, window: Double, xOf: (Double) -> CGFloat) {
         let end = start + window
-        context.fill(Path(CGRect(x: 0, y: 0, width: size.width, height: Self.rulerHeight)), with: .color(.black.opacity(0.35)))
+        let metrics = state.metrics
+        let ruler = metrics.rulerHeight
+        context.fill(Path(CGRect(x: 0, y: 0, width: size.width, height: ruler)), with: .color(.black.opacity(0.35)))
         // 비트 그리드 (rekordbox PQTZ): 창 안의 박만 이진 탐색으로 찾아 돈다.
         if let grid = state.grid {
             var i = grid.firstIndex(atOrAfter: start)
@@ -202,31 +205,21 @@ struct ZoomWaveformView: View {
                     : state.gridEditing ? (beat.isDownbeat ? 0.55 : 0.22) : (beat.isDownbeat ? 0.22 : 0.07)
                 context.stroke(line, with: .color((state.gridEditing ? Palette.mid : .white).opacity(strong)),
                                lineWidth: beat.isDownbeat && state.gridEditing ? 1.5 : 1)
-                if state.gridEditing {
-                    context.draw(Text("\(beat.number)").font(.system(size: 9, weight: beat.isDownbeat ? .bold : .regular).monospacedDigit())
-                        .foregroundStyle(beat.isDownbeat ? Palette.mid : Palette.rulerText), at: CGPoint(x: x + 2, y: size.height - 26), anchor: .leading)
-                }
-                // 상단 위치 표시(마디.박, 박은 0부터: 14.0 → 14.1 → 14.2 → 14.3).
-                // 자리가 있으면 모든 박에 전체를, 좁으면 마디 첫 박만 전체로 쓰고 나머지는 `.1 .2 .3`으로 줄인다.
                 let beatWidth = size.width / window * 60 / max(beat.bpm, 1)
-                let bar = grid.bar(at: beat.time)
-                let index = max(beat.number - 1, 0)
-                let full = "\(bar).\(index)"
-                let fullWidth = CGFloat(full.count) * 6 + 5
-                let label: String? = if beat.isDownbeat {
-                    beatWidth * 4 >= fullWidth || bar % 4 == 1 ? full : nil
-                } else if beatWidth >= fullWidth {
-                    full
-                } else if beatWidth >= 15 {
-                    ".\(index)"
-                } else {
-                    nil
+                if state.gridEditing,
+                   BeatRulerLabel.showsBeatNumber(isDownbeat: beat.isDownbeat, beatWidth: beatWidth, charWidth: metrics.charWidth) {
+                    context.draw(Text("\(beat.number)").font(.system(size: metrics.labelSize, weight: beat.isDownbeat ? .bold : .regular).monospacedDigit())
+                        .foregroundStyle(beat.isDownbeat ? Palette.mid : Palette.rulerText),
+                                 at: CGPoint(x: x + 2, y: size.height - metrics.beatNumberInset), anchor: .leading)
                 }
-                if let label, x < size.width - CGFloat(label.count) * 6 - 4 {
+                // 상단 위치 표시(마디.박, 박은 0부터). 자리가 모자라면 글자를 줄이지 않고 라벨 수를 줄인다(`BeatRulerLabel`).
+                if let label = BeatRulerLabel.text(bar: grid.bar(at: beat.time), beatIndex: max(beat.number - 1, 0),
+                                                   isDownbeat: beat.isDownbeat, beatWidth: beatWidth, charWidth: metrics.charWidth),
+                   x + 3 + CGFloat(label.count) * metrics.charWidth < size.width - 1 {
                     context.draw(Text(label)
-                        .font(.system(size: beat.isDownbeat ? 10 : 9, weight: beat.isDownbeat ? .semibold : .regular).monospacedDigit())
+                        .font(.system(size: metrics.labelSize, weight: beat.isDownbeat ? .semibold : .regular).monospacedDigit())
                         .foregroundStyle(contrast == .increased ? Color.white : Palette.rulerText),
-                                 at: CGPoint(x: x + 3, y: 8), anchor: .leading)
+                                 at: CGPoint(x: x + 3, y: ruler / 2), anchor: .leading)
                 }
             }
         }
@@ -256,9 +249,9 @@ struct ZoomWaveformView: View {
             var line = Path()
             line.move(to: CGPoint(x: x, y: 0)); line.addLine(to: CGPoint(x: x, y: size.height))
             context.stroke(line, with: .color(.yellow), lineWidth: 2)
-            let nearRight = x > size.width - 80
-            context.draw(Text(String(format: "%.2f BPM", segment.bpm)).font(.system(size: 10, weight: .bold)).foregroundStyle(Color.yellow),
-                         at: CGPoint(x: nearRight ? x - 4 : x + 4, y: 20), anchor: nearRight ? .trailing : .leading)
+            let nearRight = x > size.width - 80 * metrics.scale
+            context.draw(Text(String(format: "%.2f BPM", segment.bpm)).font(.system(size: metrics.labelSize, weight: .bold)).foregroundStyle(Color.yellow),
+                         at: CGPoint(x: nearRight ? x - 4 : x + 4, y: ruler + 4), anchor: nearRight ? .trailing : .leading)
         }
         // MU 섹션 경계
         for section in state.sections where section.start > start && section.start < end {
@@ -270,53 +263,55 @@ struct ZoomWaveformView: View {
         for s in state.suggestions where s > start && s < end {
             let x = xOf(s)
             let hovered = state.hoveredSuggestion == s
+            let side = metrics.badgeSize
             var line = Path()
-            line.move(to: CGPoint(x: x, y: 0)); line.addLine(to: CGPoint(x: x, y: size.height - 22))
+            line.move(to: CGPoint(x: x, y: 0)); line.addLine(to: CGPoint(x: x, y: size.height - side - 4))
             context.stroke(line, with: .color(.black.opacity(0.55)), lineWidth: hovered ? 5 : 4)
             context.stroke(line, with: .color(contrast == .increased || hovered ? Color.white : Palette.suggestion),
                            style: StrokeStyle(lineWidth: hovered ? 3 : 2, dash: [6, 3]))
             // 포인터가 올라가면 배지를 키우고 밝게(흰 테두리) 그려 누르면 받는다는 것을 보인다.
-            let badge = CGRect(x: x - 9, y: size.height - 21, width: 18, height: 18).insetBy(dx: hovered ? -1.5 : 0, dy: hovered ? -1.5 : 0)
+            let badge = CGRect(x: x - side / 2, y: size.height - side - 3, width: side, height: side)
+                .insetBy(dx: hovered ? -1.5 : 0, dy: hovered ? -1.5 : 0)
             context.fill(Path(ellipseIn: badge.insetBy(dx: -1.5, dy: -1.5)), with: .color(.black.opacity(0.6)))
             context.fill(Path(ellipseIn: badge), with: .color(Palette.suggestion))
             if hovered {
                 context.fill(Path(ellipseIn: badge), with: .color(.white.opacity(0.35)))
                 context.stroke(Path(ellipseIn: badge), with: .color(.white), lineWidth: 1.5)
             }
-            context.draw(Text("+").font(.system(size: 15, weight: .heavy)).foregroundStyle(Color.black),
-                         at: CGPoint(x: badge.midX, y: badge.midY - 0.5))
+            context.draw(Text(Image(systemName: "plus")).font(.system(size: side * 0.6, weight: .bold)).foregroundStyle(Color.black),
+                         at: CGPoint(x: badge.midX, y: badge.midY))
         }
-        // 루프 구간(큐 선보다 먼저 칠한다). 활성 루프는 진하게 + ↻
+        // 루프 구간(큐 선보다 먼저 칠한다). 활성 루프는 진하게 + 반복 심볼
         for cue in state.cues {
             guard let loop = cue.loop, loop.end >= start, cue.time <= end else { continue }
             let x0 = xOf(cue.time), x1 = xOf(loop.end)
-            let band = CGRect(x: x0, y: Self.rulerHeight, width: max(1, x1 - x0), height: size.height - Self.rulerHeight)
+            let band = CGRect(x: x0, y: ruler, width: max(1, x1 - x0), height: size.height - ruler)
             let engaged = state.engagedLoop == cue.id
             context.fill(Path(band), with: .color(Palette.loop.opacity(contrast == .increased ? (engaged ? 0.55 : loop.active ? 0.42 : 0.32) : (engaged ? 0.35 : loop.active ? 0.22 : 0.12))))
-            let top = CGRect(x: x0, y: Self.rulerHeight, width: max(1, x1 - x0), height: 4)
+            let top = CGRect(x: x0, y: ruler, width: max(1, x1 - x0), height: 4)
             context.fill(Path(top), with: .color(Palette.loop.opacity(contrast == .increased ? 1 : (loop.active ? 0.95 : 0.6))))
             var endLine = Path()
-            endLine.move(to: CGPoint(x: x1, y: Self.rulerHeight)); endLine.addLine(to: CGPoint(x: x1, y: size.height))
+            endLine.move(to: CGPoint(x: x1, y: ruler)); endLine.addLine(to: CGPoint(x: x1, y: size.height))
             context.stroke(endLine, with: .color(Palette.loop.opacity(contrast == .increased ? 1 : 0.8)), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
-            if loop.active, x1 - x0 > 16 {
-                context.draw(Text("↻").font(.system(size: 12, weight: .heavy)).foregroundStyle(Palette.loop),
-                             at: CGPoint(x: x0 + 8, y: Self.rulerHeight + 14))
+            if loop.active, x1 - x0 > 16 * metrics.scale {
+                context.draw(Text(Image(systemName: "repeat")).font(.system(size: metrics.labelSize, weight: .bold)).foregroundStyle(Palette.loop),
+                             at: CGPoint(x: x0 + 3, y: ruler + metrics.loopLabelOffset), anchor: .leading)
             }
         }
-        // 즉석 루프(아직 큐가 아님): 진한 주황 + 양끝 실선 + 박 수
+        // 즉석 루프(아직 큐가 아님): 진한 주황 + 양끝 실선 + 반복 심볼과 박 수
         if let loop = state.instantLoop, loop.end >= start, loop.start <= end {
             let x0 = xOf(loop.start), x1 = xOf(loop.end)
-            let band = CGRect(x: x0, y: Self.rulerHeight, width: max(1, x1 - x0), height: size.height - Self.rulerHeight)
+            let band = CGRect(x: x0, y: ruler, width: max(1, x1 - x0), height: size.height - ruler)
             context.fill(Path(band), with: .color(Palette.loop.opacity(contrast == .increased ? 0.5 : 0.3)))
-            context.fill(Path(CGRect(x: x0, y: Self.rulerHeight, width: max(1, x1 - x0), height: 4)), with: .color(Palette.loop))
+            context.fill(Path(CGRect(x: x0, y: ruler, width: max(1, x1 - x0), height: 4)), with: .color(Palette.loop))
             for x in [x0, x1] {
                 var edge = Path()
-                edge.move(to: CGPoint(x: x, y: Self.rulerHeight)); edge.addLine(to: CGPoint(x: x, y: size.height))
+                edge.move(to: CGPoint(x: x, y: ruler)); edge.addLine(to: CGPoint(x: x, y: size.height))
                 context.stroke(edge, with: .color(Palette.loop), lineWidth: 1.5)
             }
-            if x1 - x0 > 30 {
-                context.draw(Text("↻ \(state.loopSizeText)").font(.system(size: 11, weight: .heavy)).foregroundStyle(Palette.loop),
-                             at: CGPoint(x: x0 + 5, y: Self.rulerHeight + 14), anchor: .leading)
+            if x1 - x0 > 30 * metrics.scale {
+                context.draw(Text("\(Image(systemName: "repeat")) \(state.loopSizeText)").font(.system(size: metrics.labelSize, weight: .bold))
+                    .foregroundStyle(Palette.loop), at: CGPoint(x: x0 + 5, y: ruler + metrics.loopLabelOffset), anchor: .leading)
             }
         }
         // 큐 (초안)
@@ -331,19 +326,33 @@ struct ZoomWaveformView: View {
             case .memory:
                 context.stroke(line, with: .color(Palette.color(for: cue)), lineWidth: (selected ? 2.5 : 1.2) + hoverWidth)
                 var tri = Path()
-                tri.addLines([CGPoint(x: x - 6, y: 16), CGPoint(x: x + 6, y: 16), CGPoint(x: x, y: 26)])
+                tri.addLines([CGPoint(x: x - 6, y: ruler), CGPoint(x: x + 6, y: ruler), CGPoint(x: x, y: ruler + 10)])
                 tri.closeSubpath()
                 context.fill(tri, with: .color(Palette.color(for: cue)))
                 if selected { context.stroke(tri, with: .color(.white), lineWidth: 1.2) }
             case .hot:
                 context.stroke(line, with: .color(Palette.color(for: cue)), lineWidth: (selected ? 2.5 : 1.8) + hoverWidth)
-                chip(context, cue.kind.slotLetter ?? "", at: CGPoint(x: x, y: size.height - 16), color: Palette.color(for: cue), selected: selected, maxX: size.width)
+                // 루프 핫큐는 슬롯 글자 옆에 반복 심볼을 같은 글꼴로 붙인다(덱 패드와 같다).
+                let letter = cue.kind.slotLetter ?? ""
+                chip(context, cue.loop == nil ? Text(letter) : Text("\(letter)\(Image(systemName: "repeat"))"),
+                     at: CGPoint(x: x, y: size.height - metrics.chipHeight - 2), color: Palette.color(for: cue), selected: selected,
+                     maxX: size.width, metrics: metrics)
             }
-            if !cue.name.isEmpty {
-                let nearRight = x > size.width - 90
-                context.draw(Text(cue.name).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.white),
-                             at: CGPoint(x: nearRight ? x - 5 : x + 5, y: 34), anchor: nearRight ? .trailing : .leading)
-            }
+        }
+        // 큐 이름(선 위에 겹쳐 그린다). 앞 이름과 겹치면 뺀다: 글자 배율이 커도 글자를 줄이지 않는다.
+        var names: [(label: GraphicsContext.ResolvedText, x: CGFloat, trailing: Bool)] = []
+        for cue in state.cues where !cue.name.isEmpty && cue.time >= start - 1 && cue.time <= end + 1 {
+            let x = xOf(cue.time)
+            let trailing = x > size.width - 90 * metrics.scale
+            let label = context.resolve(Text(cue.name).font(.system(size: metrics.labelSize, weight: .semibold)).foregroundStyle(Color.white))
+            names.append((label, trailing ? x - 5 : x + 5, trailing))
+        }
+        let spans = names.map { name -> (start: Double, end: Double) in
+            let width = name.label.measure(in: CGSize(width: size.width, height: 100)).width
+            return name.trailing ? (name.x - width, name.x) : (name.x, name.x + width)
+        }
+        for (name, visible) in zip(names, WaveformMetrics.visibleLabels(spans, gap: 4)) where visible {
+            context.draw(name.label, at: CGPoint(x: name.x, y: ruler + metrics.cueNameOffset), anchor: name.trailing ? .trailing : .leading)
         }
         // CUE 지점: 위쪽 주황 삼각형(메모리 큐 삼각형보다 위)
         if state.cuePoint >= start, state.cuePoint <= end {
@@ -359,26 +368,23 @@ struct ZoomWaveformView: View {
         // 플레이헤드: 위 눈금 줄(마디.박 표시) 아래부터 긋고, 눈금 줄에는 작은 삼각형만 둔다(숫자를 가리지 않게).
         let px = xOf(state.playhead)
         var head = Path()
-        head.move(to: CGPoint(x: px, y: Self.rulerHeight)); head.addLine(to: CGPoint(x: px, y: size.height))
+        head.move(to: CGPoint(x: px, y: ruler)); head.addLine(to: CGPoint(x: px, y: size.height))
         context.stroke(head, with: .color(.white), lineWidth: 2)
         var marker = Path()
-        marker.addLines([CGPoint(x: px - 4, y: Self.rulerHeight - 5), CGPoint(x: px + 4, y: Self.rulerHeight - 5), CGPoint(x: px, y: Self.rulerHeight)])
+        marker.addLines([CGPoint(x: px - 4, y: ruler - 5), CGPoint(x: px + 4, y: ruler - 5), CGPoint(x: px, y: ruler)])
         marker.closeSubpath()
         context.fill(marker, with: .color(.white))
         // 다음 메모리 큐까지: 재생선 바로 왼쪽 위 알약(파형 높이에 맞춰 글자 크기를 줄인다)
         if let text = Self.countdown(to: state.cues, from: state.playhead, grid: state.grid) {
-            let fontSize = min(13, max(10, size.height / 9))
-            let label = context.resolve(Text(text).font(.system(size: fontSize, weight: .heavy).monospacedDigit()).foregroundStyle(Palette.memory))
+            let fontSize = min(13 * metrics.scale, max(metrics.labelSize, size.height / 9))
+            let label = context.resolve(Text(text).font(.system(size: fontSize, weight: .bold).monospacedDigit()).foregroundStyle(Palette.memory))
             let textSize = label.measure(in: CGSize(width: 200, height: 40))
             let width = textSize.width + 12
-            let pill = CGRect(x: max(2, px - width - 3), y: Self.rulerHeight + 4, width: width, height: textSize.height + 4)
+            let pill = CGRect(x: max(2, px - width - 3), y: ruler + 4, width: width, height: textSize.height + 4)
             context.fill(Path(roundedRect: pill, cornerRadius: pill.height / 2), with: .color(.black.opacity(0.65)))
             context.draw(label, at: CGPoint(x: pill.midX, y: pill.midY))
         }
     }
-
-    /// 위 눈금 줄(마디.박 숫자) 높이
-    static let rulerHeight: CGFloat = 16
 
     /// 다음 메모리 큐까지 남은 박(규칙은 `CueCountdown`)
     static func countdown(to cues: [EditableCue], from time: Double, grid: BeatGrid?) -> String? {
