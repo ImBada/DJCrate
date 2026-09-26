@@ -86,13 +86,15 @@ final class TrackEditModel {
         deck.row != nil && deck.draft != nil && !deck.isWriteLocked
     }
 
+    /// - Parameter edits: 렌더한 편집본을 둘 폴더. 없으면 `home` 아래 `edits`(테스트용). 앱은 `DJCPaths.editOutput`을 준다.
     init?(deck: DeckModel, entries: [BarRange] = [], player: any EditPreviewPlayer = AudioFilePreviewPlayer(),
-          home: URL = DJCPaths.userData) {
+          home: URL = DJCPaths.userData, edits: URL? = nil) {
         guard let row = deck.row else { return nil }
         self.row = row
         self.deck = deck
         self.player = player
         self.home = home
+        editsDirectory = edits ?? home.appending(path: "edits")
         source = URL(filePath: row.track.folderPath)
         segments = deck.gridDraft?.segments ?? []
         cues = deck.draft?.cues ?? []
@@ -125,7 +127,7 @@ final class TrackEditModel {
     }
 
     var previewDirectory: URL { home.appending(path: "edit-previews") }
-    var editsDirectory: URL { home.appending(path: "edits") }
+    let editsDirectory: URL
 
     /// 덱에 이 곡이 올라가 있다(재생 위치를 "여기서"로 쓴다)
     var isDeckOnTrack: Bool { deck?.row?.id == row.id }
@@ -293,7 +295,7 @@ final class TrackEditModel {
 
     // MARK: - 렌더 → 추가한 곡
 
-    /// 백그라운드에서 렌더하고(진행·취소) 추가한 곡에 넣는다. 파일은 DJCrate 데이터 폴더의 edits 아래에 둔다.
+    /// 백그라운드에서 렌더하고(진행·취소) 추가한 곡에 넣는다. 파일은 `editsDirectory`(앱은 음악 폴더의 DJCrate 편집본)에 둔다.
     func render() {
         guard canRender, let edit, let carry else { return }
         stopPreview()
