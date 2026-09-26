@@ -137,18 +137,18 @@ public enum RekordboxGridWriter {
         let original = try AnlzFile(data: plan.originalDat), now = try AnlzFile(data: dat)
         guard original.header.prefix(8) == now.header.prefix(8), original.header.dropFirst(12) == now.header.dropFirst(12),
               original.tags.map(\.fourcc) == now.tags.map(\.fourcc) else {
-            throw fail("분석 파일 태그 구성이 달라졌습니다")
+            throw fail(String(ui: "분석 파일 태그 구성이 달라졌습니다"))
         }
-        for (a, b) in zip(original.tags, now.tags) where a.fourcc != "PQTZ" && a.bytes != b.bytes { throw fail("그리드 밖 태그(\(a.fourcc))가 바뀌었습니다") }
+        for (a, b) in zip(original.tags, now.tags) where a.fourcc != "PQTZ" && a.bytes != b.bytes { throw fail(String(ui: "그리드 밖 태그(\(a.fourcc))가 바뀌었습니다")) }
         let decoded = BeatGridTags.decode(pqtz: now.tag("PQTZ")!.bytes, pqt2: nil).beats
         guard decoded.count == plan.beats.count,
               zip(decoded, plan.beats).allSatisfy({ $0.number == $1.number && $0.bpm100 == $1.bpm100 && Int($0.time) == Int((max(0, $1.time) + 1e-6).rounded(.down)) })
-        else { throw fail("쓴 그리드가 의도와 다릅니다") }
+        else { throw fail(String(ui: "쓴 그리드가 의도와 다릅니다")) }
         if let originalExt = plan.originalExt {
-            guard let ext else { throw fail(".EXT가 사라졌습니다") }
+            guard let ext else { throw fail(String(ui: ".EXT가 사라졌습니다")) }
             let a = try AnlzFile(data: originalExt), b = try AnlzFile(data: ext)
-            guard a.tags.map(\.fourcc) == b.tags.map(\.fourcc) else { throw fail(".EXT 태그 구성이 달라졌습니다") }
-            for (x, y) in zip(a.tags, b.tags) where x.fourcc != "PQT2" && x.bytes != y.bytes { throw fail(".EXT의 \(x.fourcc)가 바뀌었습니다") }
+            guard a.tags.map(\.fourcc) == b.tags.map(\.fourcc) else { throw fail(String(ui: ".EXT 태그 구성이 달라졌습니다")) }
+            for (x, y) in zip(a.tags, b.tags) where x.fourcc != "PQT2" && x.bytes != y.bytes { throw fail(String(ui: ".EXT의 \(x.fourcc)가 바뀌었습니다")) }
         }
     }
 }
@@ -171,7 +171,7 @@ extension RekordboxGridWriter {
             if let extURL = plan.extURL, let newExt = plan.newExt { try replace(extURL, with: newExt) }
             let dat = try Data(contentsOf: plan.datURL)
             let ext = try plan.extURL.map { try Data(contentsOf: $0) }
-            guard dat == plan.newDat, ext == plan.newExt else { throw DJCError.writeVerificationFailed("분석 파일이 쓴 내용과 다릅니다(\(plan.title))") }
+            guard dat == plan.newDat, ext == plan.newExt else { throw DJCError.writeVerificationFailed(String(ui: "분석 파일이 쓴 내용과 다릅니다(\(plan.title))")) }
             try verify(plan, written: dat, ext: ext)
         } catch {
             try? restore(plan)

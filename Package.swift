@@ -6,7 +6,7 @@ import PackageDescription
 //                         → DJCAnalysis ──────────────→ DJCDomain
 let package = Package(
     name: "DJCrate",
-    // 문구 원문(String Catalog 키)은 한국어. 영어·일본어 번역은 앱 카탈로그에 둔다(docs/i18n.md).
+    // 문구 원문(String Catalog 키)은 한국어. 앱·CLI가 카탈로그를 공유한다(docs/i18n.md).
     defaultLocalization: "ko",
     platforms: [.macOS("27.0")],
     products: [
@@ -35,7 +35,8 @@ let package = Package(
         // 명령줄 도구
         .executableTarget(
             name: "djc",
-            dependencies: ["DJCDomain", "RekordboxKit", "DJCStorage", "DJCAnalysis"]
+            dependencies: ["DJCDomain", "RekordboxKit", "DJCStorage", "DJCAnalysis"],
+            resources: [.process("Resources")]
         ),
         // macOS 앱. 문구 카탈로그는 Resources/에 있다.
         // 번들 없이 도는 개발 빌드도 macOS 언어를 따르게 실행 파일에 언어 목록(Info.plist)을 넣는다.
@@ -60,7 +61,7 @@ let package = Package(
         .testTarget(name: "DJCDomainTests", dependencies: ["DJCDomain"]),
         .testTarget(name: "RekordboxKitTests", dependencies: ["RekordboxKit", "DJCDomain", "DJCTestSupport"]),
         .testTarget(name: "DJCAnalysisTests", dependencies: ["DJCAnalysis", "DJCDomain", "DJCTestSupport"]),
-        .testTarget(name: "djcTests", dependencies: ["djc", "DJCAnalysis", "RekordboxKit"]),
+        .testTarget(name: "djcTests", dependencies: ["djc", "DJCAnalysis", "RekordboxKit", "DJCTestSupport"]),
         // 앱 화면 모델(덱·목록·반영 흐름)을 가짜 오디오·저장소로 시험한다.
         .testTarget(name: "DJCrateTests", dependencies: ["DJCrate", "DJCDomain", "DJCStorage", "DJCTestSupport"]),
     ]

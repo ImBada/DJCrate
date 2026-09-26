@@ -20,7 +20,7 @@ public enum ReadJSON {
     }
 
     public static func error(command: String, error: any Error) throws -> Data {
-        let failure = error as? ReadFailure ?? ReadFailure("read_failed", "읽지 못했습니다: \(error). 사본과 접근 권한을 확인하세요")
+        let failure = error as? ReadFailure ?? ReadFailure("read_failed", String(ui: "읽지 못했습니다: \(String(describing: error)). 사본과 접근 권한을 확인하세요"))
         return try encoder().encode(ErrorEnvelope(command: command, error: failure))
     }
 

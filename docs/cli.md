@@ -6,6 +6,10 @@
 
 `--db`는 이 문서의 DB 읽기 명령에서 쓸 수 있다. 이때 그리드 파일은 사본 DB 옆 `share/PIONEER/USBANLZ`에서 읽으며, 없는 경우 라이브 분석 파일로 대체하지 않는다. 기본 스냅샷은 `DJC_REKORDBOX_DIR` 또는 기본 rekordbox 폴더의 `share`에서 분석 파일을 읽는다. 초안은 `DJC_HOME` 또는 기본 DJCrate 데이터 폴더에서 읽는다.
 
+사람이 읽는 문구는 macOS 언어 설정(`Locale.preferredLanguages`)을 따르며 `DJC_LANG=ko|en|ja`로 우선 지정할 수 있다(예: `DJC_LANG=en djc search '시험' --json`, 지원하지 않는 언어는 영어). JSON의 `code`·칸 이름·데이터는 그대로 두고 오류 `message`만 번역한다.
+
+PATH로 옮길 때는 `djc`와 같은 빌드 폴더의 `DJCrate_djc.bundle`도 실행 파일 옆에 둔다(기존 실행 의존성 `SQLCipher.framework`도 함께 유지). 번역 번들이 없으면 한국어 원문으로 실행한다. 개발자용 `djc lab …`은 한국어를 유지한다.
+
 ## 사용법
 
 아래 ID·이름·경로는 모두 합성 데이터 예시다.

@@ -30,7 +30,7 @@ extension RekordboxWriter {
             """, [.int(high), .int(low), .int(usn), .text(stamp.db), .text(rowID)])
         var check: (Int, Int)?
         try db.query("SELECT GainHigh, GainLow FROM djmdMixerParam WHERE ID = ?", [.text(rowID)]) { check = ($0.int(0) ?? -1, $0.int(1) ?? -1) }
-        guard check?.0 == high, check?.1 == low else { throw DJCError.writeVerificationFailed("오토게인 확인 실패 (\(content.title))") }
+        guard check?.0 == high, check?.1 == low else { throw DJCError.writeVerificationFailed(String(ui: "오토게인 확인 실패 (\(content.title))")) }
         return Outcome(trackUUID: uuid, title: content.title, status: .written, reason: nil, removed: 0, added: Int((gainDB * 100).rounded()))
     }
 }

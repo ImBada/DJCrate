@@ -21,7 +21,7 @@ public enum DJCError: Error, LocalizedError, CustomStringConvertible {
     /// 곡 편집(마디 구간 잇기)을 만들지 않았다. 원본 음원·rekordbox는 건드리지 않았다.
     case editRefused(String)
 
-    /// 앱에는 원문·경로·명령 대신 이유와 할 일을 보여 준다. CLI 원문은 description에 남긴다.
+    /// 앱에는 원문·경로·명령 대신 이유와 할 일을 보여 준다. CLI의 상세 정보는 description에 남긴다.
     public var errorDescription: String? {
         switch self {
         case .keyDerivationFailed: String(ui: "rekordbox 라이브러리의 잠금을 풀지 못했습니다")
@@ -71,38 +71,38 @@ public enum DJCError: Error, LocalizedError, CustomStringConvertible {
     public var description: String {
         switch self {
         case .keyDerivationFailed:
-            "rekordbox DB 키를 풀지 못했습니다."
+            String(ui: "rekordbox DB 키를 풀지 못했습니다.")
         case let .databaseOpenFailed(path, message):
-            "DB를 열지 못했습니다 (\(path)): \(message)"
+            String(ui: "DB를 열지 못했습니다 (\(path)): \(message)")
         case let .queryFailed(sql, message):
-            "쿼리 실패: \(message)\n\(sql)"
+            String(ui: "쿼리 실패: \(message)\n\(sql)")
         case .rekordboxRunning:
-            "rekordbox가 실행 중입니다. 종료한 뒤 다시 시도하세요 (읽기 전용 스냅샷은 --force로 강행 가능)."
+            String(ui: "rekordbox가 실행 중입니다. 종료한 뒤 다시 시도하세요 (읽기 전용 스냅샷은 --force로 강행 가능).")
         case let .writeAheadLogPresent(path):
-            "WAL 파일이 남아 있습니다: \(path). rekordbox를 완전히 종료한 뒤 다시 시도하세요."
+            String(ui: "WAL 파일이 남아 있습니다: \(path). rekordbox를 완전히 종료한 뒤 다시 시도하세요.")
         case let .sourceChangedDuringCopy(path):
-            "복사하는 동안 원본이 바뀌었습니다: \(path). 스냅샷을 버렸습니다."
+            String(ui: "복사하는 동안 원본이 바뀌었습니다: \(path). 스냅샷을 버렸습니다.")
         case .snapshotNotFound:
-            "스냅샷이 없습니다. 먼저 `djc snapshot`을 실행하세요."
+            String(ui: "스냅샷이 없습니다. 먼저 `djc snapshot`을 실행하세요.")
         case let .invalidAnalysisFile(path):
-            "rekordbox 분석 파일 형식이 아닙니다: \(path)"
+            String(ui: "rekordbox 분석 파일 형식이 아닙니다: \(path)")
         case .invalidCueJSON:
-            "rekordbox 큐 JSON을 읽지 못했습니다."
+            String(ui: "rekordbox 큐 JSON을 읽지 못했습니다.")
         case let .writeRefused(reason):
-            "rekordbox에 쓰지 않았습니다: \(reason)"
+            String(ui: "rekordbox에 쓰지 않았습니다: \(reason)")
         case let .writeVerificationFailed(reason):
-            "쓴 결과가 의도와 달라 rekordbox에 쓰지 않았습니다: \(reason)"
+            String(ui: "쓴 결과가 의도와 달라 rekordbox에 쓰지 않았습니다: \(reason)")
         case let .writeRolledBack(reason):
-            "쓴 결과를 확인하지 못해 쓰기 전 백업으로 되돌렸습니다: \(reason)"
+            String(ui: "쓴 결과를 확인하지 못해 쓰기 전 백업으로 되돌렸습니다: \(reason)")
         case let .restoreFailed(reason, restoreError, backup, database):
-            """
+            String(ui: """
             쓴 결과를 확인하지 못했고 백업으로 자동 복원도 하지 못했습니다. rekordbox 라이브러리(master.db)와 분석 파일이 어떤 상태인지 알 수 없습니다.
             rekordbox를 켜지 말고 먼저 쓰기 전 백업으로 되돌리세요: \(Self.restoreCommand(backup: backup, database: database))
             확인 실패: \(reason)
             복원 실패: \(restoreError)
-            """
+            """)
         case let .editRefused(reason):
-            "편집하지 않았습니다: \(reason)"
+            String(ui: "편집하지 않았습니다: \(reason)")
         }
     }
 

@@ -134,7 +134,7 @@ extension RekordboxWriter {
             // rekordbox는 "무제 리스트"로 만든 뒤 이름을 붙인다. 그때 새 행이 번호를 한 번 더 받는다.
             usn += 1
             guard try db.run("UPDATE djmdPlaylist SET rb_local_usn = ? WHERE ID = ?", [.int(usn), .text(id)]) == 1 else {
-                throw DJCError.writeVerificationFailed("새 재생 목록 행을 찾지 못했습니다")
+                throw DJCError.writeVerificationFailed(String(ui: "새 재생 목록 행을 찾지 못했습니다"))
             }
             let node = PlaylistTree.Node(id: id, name: name, parentID: parentID, seq: 1, attribute: isFolder ? 1 : 0, uuid: uuid, smartList: false)
             work.tree.nodes[id] = node
@@ -158,7 +158,7 @@ extension RekordboxWriter {
         case let .move(playlist, into):
             var node = try target(playlist, work: work)
             let parentID = try folderID(into, work: work, for: node.name)
-            guard parentID != node.parentID else { return done(node, .unchanged, "이미 그 폴더에 있습니다") }
+            guard parentID != node.parentID else { return done(node, .unchanged, String(ui: "이미 그 폴더에 있습니다")) }
             guard !work.tree.subtree(of: node.id).contains(parentID) else {
                 throw PlaylistBlocked(name: node.name, reason: String(ui: "폴더를 제 안으로 옮길 수 없습니다"))
             }
@@ -199,7 +199,7 @@ extension RekordboxWriter {
                 _ = try db.run("DELETE FROM djmdSongPlaylist WHERE PlaylistID = ?", [.text(id)])
                 _ = try db.run("DELETE FROM djmdCloudFilterPlaylist WHERE PlaylistUUID = ?", [.text(uuid)])
                 guard try db.run("DELETE FROM djmdPlaylist WHERE ID = ?", [.text(id)]) == 1 else {
-                    throw DJCError.writeVerificationFailed("재생 목록 행을 지우지 못했습니다")
+                    throw DJCError.writeVerificationFailed(String(ui: "재생 목록 행을 지우지 못했습니다"))
                 }
                 work.tree.nodes[id] = nil
                 work.tree.entries[id] = nil
@@ -330,7 +330,7 @@ extension RekordboxWriter {
         let sql = "UPDATE djmdPlaylist SET " + keys.map { "\"\($0)\" = ?" }.joined(separator: ", ")
             + ", rb_local_usn = ?, updated_at = ?, rb_data_status = CASE rb_data_status WHEN 256 THEN 257 ELSE rb_data_status END WHERE ID = ?"
         guard try db.run(sql, keys.map { values[$0]! } + [.int(usn), .text(stamp.db), .text(id)]) == 1 else {
-            throw DJCError.writeVerificationFailed("재생 목록 행을 고치지 못했습니다")
+            throw DJCError.writeVerificationFailed(String(ui: "재생 목록 행을 고치지 못했습니다"))
         }
     }
 
@@ -339,7 +339,7 @@ extension RekordboxWriter {
             UPDATE djmdSongPlaylist SET TrackNo = ?, rb_local_usn = ?, updated_at = ?,
                 rb_data_status = CASE rb_data_status WHEN 256 THEN 257 ELSE rb_data_status END WHERE ID = ?
             """, [.int(entry.trackNo), .int(usn), .text(stamp.db), .text(entry.id)]) == 1 else {
-            throw DJCError.writeVerificationFailed("재생 목록 곡 항목을 고치지 못했습니다")
+            throw DJCError.writeVerificationFailed(String(ui: "재생 목록 곡 항목을 고치지 못했습니다"))
         }
     }
 
@@ -350,22 +350,22 @@ extension RekordboxWriter {
             if try scalar(db, "SELECT count(*) FROM djmdPlaylist WHERE ID = ?", [.text(id)]) == 0,
                let hex = MasterPlaylistsXML.hex(id), !work.xmlIDs.contains(hex) { return id }
         }
-        throw DJCError.writeVerificationFailed("새 재생 목록 ID를 만들지 못했습니다")
+        throw DJCError.writeVerificationFailed(String(ui: "새 재생 목록 ID를 만들지 못했습니다"))
     }
 
     // MARK: - 검증
 
     /// 쓴 뒤 재생 목록 표가 계획과 같은지(쓰기 트랜잭션 안과 커밋 뒤 두 번)
     static func verifyPlaylists(_ work: PlaylistWork, db: CipherDatabase) throws {
-        guard try PlaylistTree.read(db) == work.tree else { throw DJCError.writeVerificationFailed("재생 목록이 계획과 다릅니다") }
+        guard try PlaylistTree.read(db) == work.tree else { throw DJCError.writeVerificationFailed(String(ui: "재생 목록이 계획과 다릅니다")) }
         for id in work.created {
             guard let uuid = work.tree.nodes[id]?.uuid,
                   try scalar(db, "SELECT count(*) FROM djmdCloudFilterPlaylist WHERE PlaylistUUID = ?", [.text(uuid)]) == 1 else {
-                throw DJCError.writeVerificationFailed("새 재생 목록의 클라우드 거울 행이 없습니다")
+                throw DJCError.writeVerificationFailed(String(ui: "새 재생 목록의 클라우드 거울 행이 없습니다"))
             }
         }
         for uuid in work.deletedUUIDs where try scalar(db, "SELECT count(*) FROM djmdCloudFilterPlaylist WHERE PlaylistUUID = ?", [.text(uuid)]) != 0 {
-            throw DJCError.writeVerificationFailed("지운 재생 목록의 클라우드 거울 행이 남았습니다")
+            throw DJCError.writeVerificationFailed(String(ui: "지운 재생 목록의 클라우드 거울 행이 남았습니다"))
         }
     }
 
@@ -391,7 +391,7 @@ extension RekordboxWriter {
             }
         }
         for (id, parentID) in parents where xml.node(id: id)?.parentID != MasterPlaylistsXML.hex(parentID) {
-            throw DJCError.writeVerificationFailed("masterPlaylists6.xml에 재생 목록을 적지 못했습니다")
+            throw DJCError.writeVerificationFailed(String(ui: "masterPlaylists6.xml에 재생 목록을 적지 못했습니다"))
         }
         return xml
     }
