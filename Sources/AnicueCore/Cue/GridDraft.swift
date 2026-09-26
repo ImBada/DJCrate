@@ -234,4 +234,17 @@ public extension GridDraft {
         let newBPM = newGrid.beats[newIndex].bpm
         return target + (time - beat) * oldBPM / newBPM
     }
+
+    /// 그리드가 `old` → `new`로 바뀔 때 따라 옮긴 큐(핫큐·메모리 큐·루프 끝). 1ms 넘게 움직인 큐만 돌려준다.
+    static func carried(_ cues: [EditableCue], from old: [GridSegment], to new: [GridSegment], duration: Double) -> [EditableCue] {
+        guard old != new else { return [] }
+        func carry(_ time: Double) -> Double { min(max(Self.carry(time, from: old, to: new, duration: duration), 0), duration) }
+        return cues.compactMap { cue in
+            var copy = cue
+            copy.time = carry(cue.time)
+            if let end = cue.loop?.end { copy.loop?.end = max(carry(end), copy.time + 0.01) }
+            let moved = abs(copy.time - cue.time) >= 0.0005 || abs((copy.loop?.end ?? 0) - (cue.loop?.end ?? 0)) >= 0.0005
+            return moved ? copy : nil
+        }
+    }
 }

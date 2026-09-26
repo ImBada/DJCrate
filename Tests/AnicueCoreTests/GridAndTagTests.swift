@@ -209,3 +209,33 @@ struct GridCarryTests {
         #expect(abs(GridDraft.carry(30.5, from: old, to: new, duration: 60) - 30.5) < 1e-6)
     }
 }
+
+@Suite("그리드를 따라 큐 옮기기 — 어떤 큐가 움직이나")
+struct CueCarryTests {
+    let old = [GridSegment(start: 0.5, bpm: 120, firstBeatNumber: 1)]
+    let moved = [GridSegment(start: 0.52, bpm: 120, firstBeatNumber: 1)]
+
+    @Test func 핫큐와_메모리_큐와_루프_끝이_모두_따라간다() {
+        var loop = EditableCue(kind: .hot(1), time: 20.5)
+        loop.loop = EditableCue.Loop(end: 24.5, active: true, beats: 8)
+        let cues = [EditableCue(kind: .memory, time: 10.5), EditableCue(kind: .hot(0), time: 12.5), loop]
+        let carried = GridDraft.carried(cues, from: old, to: moved, duration: 60)
+        #expect(carried.count == 3)
+        for (before, after) in zip(cues, carried) {
+            #expect(after.id == before.id)
+            #expect(abs(after.time - (before.time + 0.02)) < 1e-9)
+        }
+        #expect(abs((carried[2].loop?.end ?? 0) - 24.52) < 1e-9)
+        #expect(carried[2].loop?.active == true && carried[2].loop?.beats == 8)
+    }
+
+    @Test func 그리드가_같으면_아무것도_안_바뀐다() {
+        #expect(GridDraft.carried([EditableCue(kind: .memory, time: 10.5)], from: old, to: old, duration: 60).isEmpty)
+    }
+
+    @Test func 곡_범위를_벗어나지_않는다() {
+        let early = [GridSegment(start: 0.2, bpm: 120, firstBeatNumber: 1)]
+        let carried = GridDraft.carried([EditableCue(kind: .memory, time: 0.1)], from: old, to: early, duration: 60)
+        #expect(carried.first.map { $0.time >= 0 } == true)
+    }
+}

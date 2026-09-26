@@ -225,13 +225,13 @@ enum DevSelfTests {
             @MainActor func time(_ cue: EditableCue) -> Double { deck.cue(cue.id)?.time ?? .nan }
             let onBeat = hots.filter { abs(grid.snap($0.time) - $0.time) < 0.002 }
             log("핫큐 \(hots.count)개(박 위 \(onBeat.count)) · 메모리 큐 \(memories.count)개 · BPM \(deck.gridBPM ?? 0)")
-            deck.carryHotCues = true
+            deck.carryCues = true
             deck.gridEditing = true
 
             deck.shiftGrid(ms: 10)
             let shifted = hots.allSatisfy { abs(time($0) - ($0.time + 0.010)) < 0.0006 }
-            let memoriesStill = memories.allSatisfy { abs(time($0) - $0.time) < 0.0001 }
-            log("10ms 이동: 핫큐 +10ms \(shifted) · 메모리 큐 그대로 \(memoriesStill)")
+            let memoriesStill = memories.allSatisfy { abs(time($0) - ($0.time + 0.010)) < 0.0006 }
+            log("10ms 이동: 핫큐 +10ms \(shifted) · 메모리 큐도 +10ms \(memoriesStill)")
 
             deck.nudgeGridBPM(0.5)
             let newGrid = deck.grid!
@@ -249,7 +249,7 @@ enum DevSelfTests {
             log("35ms 끌기: 핫큐 +35ms \(dragged)")
             deck.revertGrid()
 
-            deck.carryHotCues = false
+            deck.carryCues = false
             deck.shiftGrid(ms: 10)
             let untouched = hots.allSatisfy { abs(time($0) - $0.time) < 0.0015 }
             log("토글 끔 → 10ms 이동: 핫큐 그대로 \(untouched)")
