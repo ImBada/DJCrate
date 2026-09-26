@@ -4,7 +4,7 @@ import DJCDomain
 import DJCStorage
 import SwiftUI
 
-/// Mp3tag처럼 여러 곡을 한꺼번에 편집하는 인스펙터. 초안에만 저장되고 파일에는 쓰지 않는다.
+/// Mp3tag처럼 여러 곡을 한꺼번에 편집하는 인스펙터. 초안에 저장하고 반영 때 rekordbox 곡 정보에 쓴다(음원 파일에는 쓰지 않는다).
 struct TagInspector: View {
     @Environment(\.textScale) private var textScale
     @Bindable var store: LibraryStore
@@ -51,7 +51,8 @@ struct TagInspector: View {
                             .disabled(true)
                             .help("안전 쓰기(태그 프레임만 교체 + 검증) 구현과 rekordbox Reload Tag 검증 전까지 잠겨 있습니다.")
                     }
-                    Text("편집은 DJCrate 초안에만 저장됩니다. 음원 파일과 rekordbox는 바뀌지 않습니다.")
+                    // 반영(⌘⇧E)하면 rekordbox 곡 정보에 쓴다. 음원 파일은 읽기만 한다(#1 결정).
+                    Text(String(localized: "편집은 DJCrate 초안에 저장되고, rekordbox에 반영할 때 rekordbox 곡 정보에 씁니다. 음원 파일의 태그는 바뀌지 않습니다."))
                         .font(.scaled(.caption, textScale)).foregroundStyle(.secondary)
                 }
             }
