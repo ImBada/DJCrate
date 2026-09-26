@@ -21,7 +21,7 @@ struct AudioBar: View {
                 // rekordbox 오토게인이 이상하면 그리드 제안처럼 옆에 띄운다.
                 if let suggestion = deck.gainSuggestion {
                     HStack(spacing: 4) {
-                        Image(systemName: "wand.and.stars").foregroundStyle(Palette.suggestion)
+                        Image(systemName: "wand.and.stars").foregroundStyle(UIColors.suggestion.color)
                         Text(String(format: "게인 제안 %+.1f dB (rekordbox %+.1f)", suggestion, deck.rekordboxGainDB ?? 0))
                             .font(.caption).foregroundStyle(.secondary)
                         Button("제안 받기") { deck.acceptGainSuggestion() }
@@ -57,7 +57,7 @@ struct AudioBar: View {
             if !deck.gridEditing, !deck.needsGrid, let note = deck.gridSuggestionNote,
                deck.dismissedRevision >= 0, !deck.isGridSuggestionDismissed {
                 HStack(spacing: 4) {
-                    Image(systemName: "wand.and.stars").foregroundStyle(Palette.suggestion)
+                    Image(systemName: "wand.and.stars").foregroundStyle(UIColors.suggestion.color)
                     Text(note).font(.caption).lineLimit(1).foregroundStyle(.secondary)
                     Button("제안 받기") { deck.applyGridSuggestion() }
                         .help("DJCrate가 추정한 그리드로 바꿉니다(초안만, 되돌리기 가능)")
@@ -81,15 +81,15 @@ struct GainControl: View {
                 Text(deck.autoGain ? (deck.useRekordboxGain && deck.rekordboxGainDB != nil ? "RB AUTO" : "AUTO") : "GAIN")
                     .font(.system(size: 9, weight: .heavy))
                     .padding(.horizontal, 3).padding(.vertical, 1)
-                    .background(RoundedRectangle(cornerRadius: 3).fill(deck.autoGain ? Color.accentColor.opacity(0.35) : Color.secondary.opacity(0.2)))
+                    .background(RoundedRectangle(cornerRadius: 3).fill(deck.autoGain ? Color.accentColor.opacity(0.35) : UIColors.subtleFill))
                 Text(String(format: "%+.1f dB", deck.appliedGain)).font(.caption.monospacedDigit())
                 if let loudness = deck.loudness, let lufs = loudness.integrated {
                     Text(String(format: "%.1f LUFS", lufs))
                         .font(.caption.monospacedDigit())
-                        .foregroundStyle(loudness.isHot ? Color.orange : Color.secondary)
+                        .foregroundStyle(loudness.isHot ? UIColors.warning.color : Color.secondary)
                 }
                 if deck.isGainSuspicious {
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(UIColors.warning.color)
                         .help("rekordbox 오토게인이 DJCrate 측정과 1.5dB 넘게 다릅니다")
                 }
             }
@@ -141,7 +141,7 @@ struct GainSettings: View {
                             Button("−0.1") { deck.adjustTrackGain(by: -0.1) }
                             Text(String(format: "%+.1f dB", deck.trackGainDB ?? rekordbox))
                                 .font(.callout.monospacedDigit().bold())
-                                .foregroundStyle(deck.gainDraft != nil ? Color.accentColor : Color.primary)
+                                .foregroundStyle(deck.gainDraft != nil ? UIColors.info.color : Color.primary)
                                 .frame(width: 64)
                             Button("+0.1") { deck.adjustTrackGain(by: 0.1) }
                             Button("+1") { deck.adjustTrackGain(by: 1) }
@@ -156,17 +156,17 @@ struct GainSettings: View {
                     }
                     if deck.isGainSuspicious, let mismatch = deck.gainMismatchDB {
                         Label(String(format: "rekordbox 값이 실제 음량과 %.1fdB 다름", abs(mismatch)), systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(UIColors.warning.color)
                             .help("파일을 바꿨거나 분석이 오래됐을 수 있습니다. rekordbox에서 다시 분석하거나 DJCrate 값을 쓰세요")
                     }
                     if loudness.isLoud {
                         Label("매우 큼(−6 LUFS 초과)", systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(UIColors.warning.color)
                             .help("라이브러리 대부분의 곡보다 세게 들립니다")
                     }
                     if loudness.clippedRuns > 0 {
                         Label("클리핑 흔적 \(loudness.clippedRuns)곳\(loudness.isHeavilyClipped ? " · 심함" : "")", systemImage: "waveform.path.badge.minus")
-                            .foregroundStyle(loudness.isHeavilyClipped ? .orange : .secondary)
+                            .foregroundStyle(loudness.isHeavilyClipped ? UIColors.warning.color : Color.secondary)
                             .help("원본에서 풀스케일에 붙은 구간")
                     }
                 }
@@ -196,13 +196,15 @@ struct LevelMeterView: View {
             HStack(spacing: 6) {
                 Canvas { context, size in draw(context, size: size, state: state) }
                     .frame(width: 130, height: 13)
+                    .background(Palette.well)
+                    .environment(\.colorScheme, .dark)
                 // 최고 피크. 0dBFS를 넘은 적이 있으면 빨간 점이 켜진다. 누르면 기록을 지운다.
                 Button { deck.meter.resetPeaks() } label: {
                     HStack(spacing: 3) {
-                        Circle().fill(Color.red).frame(width: 6, height: 6).opacity(clipping ? 1 : 0)
+                        Circle().fill(UIColors.memory.color).frame(width: 6, height: 6).opacity(clipping ? 1 : 0)
                         Text(reading.maxPeak > 0 ? String(format: "%+.1f", 20 * log10(reading.maxPeak)) : "−∞")
                             .font(.caption2.monospacedDigit())
-                            .foregroundStyle(reading.maxPeak >= 1 ? Color.red : reading.maxPeak >= 0.708 ? Color.orange : Color.secondary)
+                            .foregroundStyle(reading.maxPeak >= 1 ? UIColors.memory.color : reading.maxPeak >= 0.708 ? UIColors.warning.color : Color.secondary)
                     }
                     .frame(width: 44, alignment: .trailing)
                     .contentShape(Rectangle())
@@ -225,10 +227,10 @@ struct LevelMeterView: View {
 
     private func draw(_ context: GraphicsContext, size: CGSize, state: MeterBallistics.State) {
         let barHeight = (size.height - 1) / 2
-        let zones: [(from: Double, to: Double, color: Color)] = [(-48, -12, .green), (-12, -3, .yellow), (-3, 3, .red)]
+        let zones: [(from: Double, to: Double, color: Color)] = [(-48, -12, Palette.meterLow), (-12, -3, Palette.meterMid), (-3, 3, Palette.meterHigh)]
         for (row, channel) in [state.left, state.right].enumerated() {
             let y = CGFloat(row) * (barHeight + 1)
-            context.fill(Path(CGRect(x: 0, y: y, width: size.width, height: barHeight)), with: .color(.black.opacity(0.35)))
+            context.fill(Path(CGRect(x: 0, y: y, width: size.width, height: barHeight)), with: .color(Palette.well))
             let level = x(channel.level, size.width)
             for zone in zones {
                 let start = x(zone.from, size.width), end = min(level, x(zone.to, size.width))
@@ -239,7 +241,7 @@ struct LevelMeterView: View {
             if channel.hold > Self.floor {
                 let hx = x(channel.hold, size.width)
                 context.fill(Path(CGRect(x: hx - 1, y: y, width: 2, height: barHeight)),
-                             with: .color(channel.hold >= 0 ? .red : .white.opacity(0.8)))
+                             with: .color(channel.hold >= 0 ? Palette.meterHigh : .white.opacity(0.8)))
             }
         }
         // 0dBFS 눈금

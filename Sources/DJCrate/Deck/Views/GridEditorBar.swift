@@ -12,7 +12,7 @@ struct GridEditorBar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let reason = deck.gridEditBlockedReason {
-                Label(reason, systemImage: "lock").font(.caption).foregroundStyle(.orange)
+                Label(reason, systemImage: "lock").font(.caption).foregroundStyle(UIColors.warning.color)
             } else {
                 FlowLayout(spacing: 8) {
                     HStack(spacing: 4) {
@@ -70,11 +70,11 @@ struct GridEditorBar: View {
                         }
                         .font(.caption.monospacedDigit())
                         .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(.quaternary, in: Capsule())
+                        .background(UIColors.subtleFill, in: Capsule())
                     }
                     if segments.count > 24 { Text("외 \(segments.count - 24)개").font(.caption).foregroundStyle(.secondary) }
                     if deck.gridDraft?.hasChanges == true {
-                        Text("그리드 초안 변경됨").font(.caption.bold()).foregroundStyle(Palette.mid)
+                        Text("그리드 초안 변경됨").font(.caption.bold()).foregroundStyle(UIColors.draft.color)
                     }
                     Button("그리드 되돌리기") { deck.revertGrid() }
                         .disabled(deck.gridDraft?.hasChanges != true)
@@ -84,7 +84,7 @@ struct GridEditorBar: View {
         .controlSize(.small)
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Palette.mid.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+        .background(UIColors.draftFill, in: RoundedRectangle(cornerRadius: 6))
     }
 }
 
@@ -97,7 +97,7 @@ struct GridSuggestionRow: View {
     var body: some View {
         HStack(spacing: 8) {
             if deck.needsGrid {
-                Image(systemName: "metronome").foregroundStyle(Palette.suggestion)
+                Image(systemName: "metronome").foregroundStyle(UIColors.suggestion.color)
                 if let suggestion = deck.gridSuggestion {
                     Text(String(format: "rekordbox 그리드가 없습니다 · 추정 %.2f BPM", suggestion.bpm))
                     confidence(suggestion)
@@ -110,7 +110,7 @@ struct GridSuggestionRow: View {
                     Text("rekordbox 그리드가 없습니다 · BPM·박 위치를 추정하는 중…").foregroundStyle(.secondary)
                 }
             } else if let note = deck.gridSuggestionNote, let suggestion = deck.gridSuggestion {
-                Image(systemName: "wand.and.stars").foregroundStyle(Palette.suggestion)
+                Image(systemName: "wand.and.stars").foregroundStyle(UIColors.suggestion.color)
                 Text("DJCrate 제안: \(note)").lineLimit(1)
                 Button("제안 그리드 적용") { deck.applyGridSuggestion() }
                     .help("현재 그리드를 추정 그리드로 바꿉니다(초안만, 되돌리기 가능). \(suggestion.isConfident ? "" : "추정 신뢰도가 낮으니 소리로 확인하세요.")")
@@ -136,7 +136,7 @@ struct GridSuggestionRow: View {
     private func confidence(_ suggestion: GridEstimator.Estimate) -> some View {
         Text(suggestion.isConfident ? "" : "확인 필요")
             .font(.caption.bold())
-            .foregroundStyle(.orange)
+            .foregroundStyle(UIColors.warning.color)
             .help(suggestion.isConfident
                   ? "박이 고르게 잡혔습니다. 1박(마디 첫 박)과 반 박 어긋남은 소리로 한 번 확인하세요."
                   : "박이 흔들리거나 템포가 바뀌는 곡입니다. 적용 뒤 메트로놈으로 확인하고 고쳐 주세요.")

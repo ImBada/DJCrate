@@ -57,14 +57,14 @@ struct ContentView: View {
                 VStack(spacing: 0) {
                     if let error = store.lastError {
                         Label("스냅샷을 새로 뜨지 못했습니다: \(error)", systemImage: "exclamationmark.triangle")
-                            .font(.callout).foregroundStyle(.orange)
+                            .font(.callout).foregroundStyle(UIColors.warning.color)
                             .padding(.horizontal, 14).padding(.vertical, 6)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     if let message = store.reflectionMessage {
                         HStack {
                             Label(message, systemImage: message.contains("불일치") ? "exclamationmark.triangle" : "checkmark.seal")
-                                .foregroundStyle(message.contains("불일치") ? .orange : .secondary)
+                                .foregroundStyle(message.contains("불일치") ? UIColors.warning.color : Color.secondary)
                                 .lineLimit(2)
                             Spacer()
                             Button("닫기") { store.reflectionMessage = nil }.controlSize(.small)
@@ -200,7 +200,7 @@ struct SheetHeader: View {
                 .disabled(!store.canUndoTags)
             Button { store.redoTags() } label: { Label("다시 실행", systemImage: "arrow.uturn.forward") }
                 .disabled(!store.canRedoTags)
-            Text("주황 = 초안(파일·rekordbox 미반영)").font(.caption).foregroundStyle(.orange)
+            Text("주황 = 초안(파일·rekordbox 미반영)").font(.caption).foregroundStyle(UIColors.warning.color)
         }
         .controlSize(.small)
         .padding(.horizontal, 12)

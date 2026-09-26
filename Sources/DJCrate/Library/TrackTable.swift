@@ -474,23 +474,23 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
         case "key": cell.set(row.keyName, color: .secondaryLabelColor)
         case "length": cell.set(row.lengthText, color: .secondaryLabelColor, digits: true)
         case "format": cell.set(row.formatName, color: .secondaryLabelColor)
-        case "tempo": cell.set(row.tempoChangeText, color: .systemYellow, digits: true)
+        case "tempo": cell.set(row.tempoChangeText, color: UIColors.tempo.nsColor, digits: true)
         case "imported": cell.set(row.importedOn, color: .secondaryLabelColor, digits: true)
         case "plays": cell.set(row.playCount > 0 ? "\(row.playCount)" : "", color: .labelColor, digits: true)
         case "hotCues":
             let hot = cueCounts[row.track.uuid]?.hot ?? row.hotCueCount
-            cell.set(hot > 0 ? "\(hot)" : "", color: NSColor(Palette.hot), digits: true)
+            cell.set(hot > 0 ? "\(hot)" : "", color: UIColors.hot.nsColor, digits: true)
         case "memoryCues":
             // DJCrate에서 찍은 큐(초안)가 있으면 그 개수를 보여 준다(반영 전이라도).
             if let counts = cueCounts[row.track.uuid] {
                 cell.set(counts.memory > 0 ? "\(counts.memory)" : (counts.hot > 0 ? "" : "없음"),
-                         color: counts.memory > 0 ? NSColor(Palette.memory) : .systemOrange, digits: true)
+                         color: counts.memory > 0 ? UIColors.memory.nsColor : UIColors.warning.nsColor, digits: true)
                 break
             }
             switch row.cueState {
-            case .none: cell.set("없음", color: .systemOrange)
+            case .none: cell.set("없음", color: UIColors.warning.nsColor)
             case .autoOnly: cell.set("자동", color: .tertiaryLabelColor)
-            case .manual: cell.set(row.memoryCueCount > 0 ? "\(row.memoryCueCount)" : "", color: NSColor(Palette.memory), digits: true)
+            case .manual: cell.set(row.memoryCueCount > 0 ? "\(row.memoryCueCount)" : "", color: UIColors.memory.nsColor, digits: true)
             }
         default: cell.set("", color: .labelColor)
         }
@@ -501,6 +501,16 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
 
 private final class TextCell: NSTableCellView {
     private let label = NSTextField(labelWithString: "")
+    private var normalColor = NSColor.labelColor
+
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet { updateColor() }
+    }
+
+    private func updateColor() {
+        label.textColor = backgroundStyle == .emphasized ? .alternateSelectedControlTextColor : normalColor
+    }
+
     private static let font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
     private static let digitFont = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
 
@@ -522,7 +532,8 @@ private final class TextCell: NSTableCellView {
 
     func set(_ text: String, color: NSColor, digits: Bool = false) {
         if label.stringValue != text { label.stringValue = text }
-        label.textColor = color
+        normalColor = color
+        updateColor()
         label.font = digits ? Self.digitFont : Self.font
     }
 }
@@ -530,6 +541,7 @@ private final class TextCell: NSTableCellView {
 /// 썸네일은 백그라운드에서 디코딩해 받아 온다. 셀이 다른 곡으로 재사용되면 늦게 온 결과는 버린다.
 private final class ThumbnailCell: NSTableCellView {
     private let thumb = NSImageView()
+    private var showingPlaceholder = true
     private var key: String?
     private var task: Task<Void, Never>?
     private static let placeholder: NSImage? = {
@@ -573,7 +585,19 @@ private final class ThumbnailCell: NSTableCellView {
     private func show(_ image: NSImage?) {
         thumb.image = image ?? Self.placeholder
         thumb.imageScaling = image == nil ? .scaleNone : .scaleProportionallyUpOrDown
-        thumb.layer?.backgroundColor = image == nil ? NSColor.quaternaryLabelColor.cgColor : nil
+        showingPlaceholder = image == nil
+        updateBackground()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateBackground()
+    }
+
+    private func updateBackground() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            thumb.layer?.backgroundColor = showingPlaceholder ? NSColor.quaternarySystemFill.cgColor : nil
+        }
     }
 }
 
@@ -584,7 +608,7 @@ private final class EditedMarkCell: NSTableCellView {
     init() {
         super.init(frame: .zero)
         mark.translatesAutoresizingMaskIntoConstraints = false
-        mark.contentTintColor = NSColor(Palette.mid)
+        mark.contentTintColor = UIColors.draft.nsColor
         addSubview(mark)
         NSLayoutConstraint.activate([
             mark.centerXAnchor.constraint(equalTo: centerXAnchor),
@@ -594,6 +618,12 @@ private final class EditedMarkCell: NSTableCellView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet {
+            mark.contentTintColor = backgroundStyle == .emphasized ? .alternateSelectedControlTextColor : UIColors.draft.nsColor
+        }
+    }
+
     func configure(edited: Bool) {
         mark.image = edited ? Self.image : nil
         toolTip = edited ? "DJCrate 초안이 있습니다 (rekordbox·파일에는 아직 반영 안 됨)" : nil
@@ -601,22 +631,14 @@ private final class EditedMarkCell: NSTableCellView {
 }
 
 extension CommentClass {
-    var tint: Color {
-        switch self {
-        case .convention: .green
-        case .empty: .orange
-        case .legacy, .credit: .blue
-        case .residue: .red
-        case .other: .secondary
-        }
-    }
+    var tint: Color { Color(nsColor: nsTint) }
 
     var nsTint: NSColor {
         switch self {
-        case .convention: .systemGreen
-        case .empty: .systemOrange
-        case .legacy, .credit: .systemBlue
-        case .residue: .systemRed
+        case .convention: UIColors.hot.nsColor
+        case .empty: UIColors.warning.nsColor
+        case .legacy, .credit: UIColors.info.nsColor
+        case .residue: UIColors.memory.nsColor
         case .other: .secondaryLabelColor
         }
     }

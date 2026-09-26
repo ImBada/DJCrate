@@ -21,7 +21,7 @@ struct TagInspector: View {
                         Spacer()
                         let changed = rows.filter { store.tagDrafts[$0.track.uuid] != nil }.count
                         if changed > 0 {
-                            Text("초안 \(changed)곡").font(.caption.bold()).foregroundStyle(Palette.mid)
+                            Text("초안 \(changed)곡").font(.caption.bold()).foregroundStyle(UIColors.draft.color)
                         }
                     }
                 }
@@ -41,7 +41,7 @@ struct TagInspector: View {
                     let issues = rows.compactMap { store.tagDrafts[$0.track.uuid] }.flatMap(\.issues)
                     if !issues.isEmpty {
                         Label(Set(issues).sorted().joined(separator: " · "), systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.orange).font(.caption)
+                            .foregroundStyle(UIColors.warning.color).font(.caption)
                     }
                     HStack {
                         Button("되돌리기") { store.revertTags(rows: rows) }
@@ -84,7 +84,7 @@ private struct CommitTextField: View {
     var body: some View {
         TextField(label, text: $text, prompt: Text(mixed ? "(여러 값 — 입력하면 모두 바뀜)" : ""), axis: axis)
             .focused($focused)
-            .foregroundStyle(edited ? Palette.mid : .primary)
+            .foregroundStyle(edited ? UIColors.draft.color : .primary)
             .onAppear { text = value }
             .onChange(of: value) { if !focused { text = value } }
             .onChange(of: text) { dirty = text != value }

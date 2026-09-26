@@ -41,6 +41,7 @@ final class WaveformScrollHandler {
 }
 
 struct ZoomWaveformView: View {
+    @Environment(\.colorSchemeContrast) private var contrast
     @Bindable var deck: DeckModel
     @State private var drag: DragMode?
     @State private var scroll = WaveformScrollHandler()
@@ -122,6 +123,7 @@ struct ZoomWaveformView: View {
                 )
         }
         .background(Palette.well)
+        .environment(\.colorScheme, .dark)
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .simultaneousGesture(
             MagnifyGesture()
@@ -156,12 +158,14 @@ struct ZoomWaveformView: View {
                 let x = xOf(beat.time)
                 var line = Path()
                 line.move(to: CGPoint(x: x, y: 0)); line.addLine(to: CGPoint(x: x, y: size.height))
-                let strong = state.gridEditing ? (beat.isDownbeat ? 0.55 : 0.22) : (beat.isDownbeat ? 0.22 : 0.07)
+                let strong = contrast == .increased
+                    ? (beat.isDownbeat ? 0.8 : 0.5)
+                    : state.gridEditing ? (beat.isDownbeat ? 0.55 : 0.22) : (beat.isDownbeat ? 0.22 : 0.07)
                 context.stroke(line, with: .color((state.gridEditing ? Palette.mid : .white).opacity(strong)),
                                lineWidth: beat.isDownbeat && state.gridEditing ? 1.5 : 1)
                 if state.gridEditing {
                     context.draw(Text("\(beat.number)").font(.system(size: 9, weight: beat.isDownbeat ? .bold : .regular).monospacedDigit())
-                        .foregroundStyle(beat.isDownbeat ? Palette.mid : Color.gray), at: CGPoint(x: x + 2, y: size.height - 26), anchor: .leading)
+                        .foregroundStyle(beat.isDownbeat ? Palette.mid : Palette.rulerText), at: CGPoint(x: x + 2, y: size.height - 26), anchor: .leading)
                 }
                 // 상단 위치 표시(마디.박, 박은 0부터: 14.0 → 14.1 → 14.2 → 14.3).
                 // 자리가 있으면 모든 박에 전체를, 좁으면 마디 첫 박만 전체로 쓰고 나머지는 `.1 .2 .3`으로 줄인다.
@@ -182,7 +186,7 @@ struct ZoomWaveformView: View {
                 if let label, x < size.width - CGFloat(label.count) * 6 - 4 {
                     context.draw(Text(label)
                         .font(.system(size: beat.isDownbeat ? 10 : 9, weight: beat.isDownbeat ? .semibold : .regular).monospacedDigit())
-                        .foregroundStyle(Color.gray.opacity(beat.isDownbeat ? 1 : 0.7)),
+                        .foregroundStyle(contrast == .increased ? Color.white : Palette.rulerText),
                                  at: CGPoint(x: x + 3, y: 8), anchor: .leading)
                 }
             }
@@ -195,7 +199,7 @@ struct ZoomWaveformView: View {
                 i += 1
                 var line = Path()
                 line.move(to: CGPoint(x: xOf(beat.time), y: 0)); line.addLine(to: CGPoint(x: xOf(beat.time), y: size.height))
-                context.stroke(line, with: .color(Palette.suggestion.opacity(beat.isDownbeat ? 0.6 : 0.25)),
+                context.stroke(line, with: .color(Palette.suggestion.opacity(contrast == .increased ? (beat.isDownbeat ? 1 : 0.7) : (beat.isDownbeat ? 0.6 : 0.25))),
                                style: StrokeStyle(lineWidth: beat.isDownbeat ? 1.5 : 1, dash: [3, 4]))
             }
         }
@@ -225,7 +229,7 @@ struct ZoomWaveformView: View {
             var line = Path()
             line.move(to: CGPoint(x: x, y: 0)); line.addLine(to: CGPoint(x: x, y: size.height - 22))
             context.stroke(line, with: .color(.black.opacity(0.55)), lineWidth: 4)
-            context.stroke(line, with: .color(Palette.suggestion), style: StrokeStyle(lineWidth: 2, dash: [6, 3]))
+            context.stroke(line, with: .color(contrast == .increased ? Color.white : Palette.suggestion), style: StrokeStyle(lineWidth: 2, dash: [6, 3]))
             let badge = CGRect(x: x - 9, y: size.height - 21, width: 18, height: 18)
             context.fill(Path(ellipseIn: badge.insetBy(dx: -1.5, dy: -1.5)), with: .color(.black.opacity(0.6)))
             context.fill(Path(ellipseIn: badge), with: .color(Palette.suggestion))
@@ -238,12 +242,12 @@ struct ZoomWaveformView: View {
             let x0 = xOf(cue.time), x1 = xOf(loop.end)
             let band = CGRect(x: x0, y: Self.rulerHeight, width: max(1, x1 - x0), height: size.height - Self.rulerHeight)
             let engaged = state.engagedLoop == cue.id
-            context.fill(Path(band), with: .color(Palette.loop.opacity(engaged ? 0.35 : loop.active ? 0.22 : 0.12)))
+            context.fill(Path(band), with: .color(Palette.loop.opacity(contrast == .increased ? (engaged ? 0.55 : loop.active ? 0.42 : 0.32) : (engaged ? 0.35 : loop.active ? 0.22 : 0.12))))
             let top = CGRect(x: x0, y: Self.rulerHeight, width: max(1, x1 - x0), height: 4)
-            context.fill(Path(top), with: .color(Palette.loop.opacity(loop.active ? 0.95 : 0.6)))
+            context.fill(Path(top), with: .color(Palette.loop.opacity(contrast == .increased ? 1 : (loop.active ? 0.95 : 0.6))))
             var endLine = Path()
             endLine.move(to: CGPoint(x: x1, y: Self.rulerHeight)); endLine.addLine(to: CGPoint(x: x1, y: size.height))
-            context.stroke(endLine, with: .color(Palette.loop.opacity(0.8)), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+            context.stroke(endLine, with: .color(Palette.loop.opacity(contrast == .increased ? 1 : 0.8)), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
             if loop.active, x1 - x0 > 16 {
                 context.draw(Text("↻").font(.system(size: 12, weight: .heavy)).foregroundStyle(Palette.loop),
                              at: CGPoint(x: x0 + 8, y: Self.rulerHeight + 14))
@@ -253,7 +257,7 @@ struct ZoomWaveformView: View {
         if let loop = state.instantLoop, loop.end >= start, loop.start <= end {
             let x0 = xOf(loop.start), x1 = xOf(loop.end)
             let band = CGRect(x: x0, y: Self.rulerHeight, width: max(1, x1 - x0), height: size.height - Self.rulerHeight)
-            context.fill(Path(band), with: .color(Palette.loop.opacity(0.3)))
+            context.fill(Path(band), with: .color(Palette.loop.opacity(contrast == .increased ? 0.5 : 0.3)))
             context.fill(Path(CGRect(x: x0, y: Self.rulerHeight, width: max(1, x1 - x0), height: 4)), with: .color(Palette.loop))
             for x in [x0, x1] {
                 var edge = Path()
