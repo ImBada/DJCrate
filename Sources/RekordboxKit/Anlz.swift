@@ -1,4 +1,4 @@
-import AnicueDomain
+import DJCDomain
 import Foundation
 
 public extension BeatGrid {
@@ -16,7 +16,7 @@ public extension BeatGrid {
             String(decoding: data[data.startIndex + offset..<data.startIndex + offset + 4], as: UTF8.self)
         }
 
-        guard data.count > 12, tag(0) == "PMAI" else { throw AnicueError.invalidAnalysisFile(url.path) }
+        guard data.count > 12, tag(0) == "PMAI" else { throw DJCError.invalidAnalysisFile(url.path) }
         var offset = u32(4)
         while offset + 12 <= data.count {
             let headerLength = u32(offset + 4), tagLength = u32(offset + 8)

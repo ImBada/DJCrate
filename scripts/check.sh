@@ -7,7 +7,7 @@ cd "${0:A:h}/.."
 echo "▸ 빌드"
 swift build 2>&1 | grep -E "error:|warning: .*Sources/" || true
 swift build 2>&1 | tail -1
-swift build -c release --product AnicueApp 2>&1 | tail -1
+swift build -c release --product DJCrate 2>&1 | tail -1
 
 echo "▸ 단위 테스트"
 if ! swift test --enable-code-coverage > .build/check-test.log 2>&1; then
@@ -29,8 +29,8 @@ awk '
     function add(group, lines, missed) { total[group] += lines; miss[group] += missed }
     {
         if ($1 ~ /^RekordboxKit\/(RekordboxWriter|RekordboxGridWriter|RekordboxCompatibility)/) add("쓰기", $2, $3)
-        if ($1 ~ /^(AnicueDomain|RekordboxKit|AnicueStorage|AnicueAnalysis)\//) add("코어", $2, $3)
-        if ($1 ~ /^AnicueApp\//) add("앱", $2, $3)
+        if ($1 ~ /^(DJCDomain|RekordboxKit|DJCStorage|DJCAnalysis)\//) add("코어", $2, $3)
+        if ($1 ~ /^DJCrate\//) add("앱", $2, $3)
     }
     END {
         target["쓰기"] = 80; target["코어"] = 60; target["앱"] = 0

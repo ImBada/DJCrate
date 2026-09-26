@@ -1,6 +1,8 @@
-# anicue
+# DJCrate
 
-rekordbox 7로 애니송 DJ를 하는 사람을 위한 macOS 라이브러리 관리 앱. rekordbox 라이브러리를 읽어 큐·그리드·오토게인·루프를 고치고, **rekordbox를 깨뜨리지 않는 선에서** rekordbox에 직접 반영한다.
+rekordbox 7용 DJ 라이브러리 관리 macOS 앱(약칭 DJC, 명령줄 도구 `djc`). rekordbox 라이브러리를 읽어 큐·그리드·오토게인·루프를 고치고, **rekordbox를 깨뜨리지 않는 선에서** rekordbox에 직접 반영한다. 목표는 rekordbox를 켜지 않고도 곡을 넣고 빼고 고치는 것이다. 애니송 코멘트 규칙 같은 애니송 DJ용 기능도 들어 있다.
+
+옛 이름은 anicue(2026-09-26 이름 바꿈). 처음 켤 때 옛 데이터 폴더·설정을 새 이름으로 옮긴다.
 
 ## 무엇을 하나
 
@@ -38,7 +40,7 @@ rekordbox 7로 애니송 DJ를 하는 사람을 위한 macOS 라이브러리 관
 ## 안전 장치
 
 - rekordbox(또는 rekordboxAgent)가 켜져 있으면 **절대 쓰지 않는다**.
-- 확인한 rekordbox(7.2.x)·DB 구조가 아니면 쓰지 않는다. rekordbox를 업데이트했다면 `anicue compat`으로 먼저 확인한다.
+- 확인한 rekordbox(7.2.x)·DB 구조가 아니면 쓰지 않는다. rekordbox를 업데이트했다면 `djc compat`으로 먼저 확인한다.
 - 쓰기 전에 라이브러리 전체와 바꿀 분석 파일을 백업하고, 한 트랜잭션으로 쓴 뒤 다시 읽어 검증한다. 무결성 검사에 실패하면 백업으로 되돌린다.
 - 쓰기 규칙은 rekordbox 7.2.18에서 직접 편집한 결과와 칸 단위로 같은지 확인한 것만 쓴다. 확인하지 못한 경우는 이유와 함께 막는다:
   - VBR MP3 큐
@@ -55,13 +57,13 @@ rekordbox 7로 애니송 DJ를 하는 사람을 위한 macOS 라이브러리 관
 
 ```bash
 scripts/check.sh                   # 빌드·단위 테스트·커버리지 목표
-scripts/build-app.sh               # dist/anicue.app
-scripts/build-app.sh --install     # /Applications/anicue.app에 설치
+scripts/build-app.sh               # dist/DJCrate.app
+scripts/build-app.sh --install     # /Applications/DJCrate.app에 설치
 ```
 
 ## 쓰는 법
 
-1. rekordbox를 끄고 anicue를 연다. 툴바의 ⟳(새 스냅샷)로 라이브러리 사본을 뜬다. rekordbox가 켜져 있어도 읽기용 사본은 뜬다.
+1. rekordbox를 끄고 DJCrate를 연다. 툴바의 ⟳(새 스냅샷)로 라이브러리 사본을 뜬다. rekordbox가 켜져 있어도 읽기용 사본은 뜬다.
 2. 곡을 골라 덱에서 큐·루프·그리드·게인을 고친다. 모두 초안으로 저장되고 목록에 "반영 대기"로 표시된다.
 3. rekordbox를 완전히 끈 뒤 사이드바의 "rekordbox에 반영"(⌘⇧E)을 누른다. 미리 보기를 확인하고 쓴다.
 
@@ -82,14 +84,14 @@ scripts/build-app.sh --install     # /Applications/anicue.app에 설치
 
 ## CLI
 
-`anicue`는 개발용 명령줄 도구다(`swift build` 후 `.build/debug/anicue`). 인자 없이 실행하면 명령 목록이 나온다.
+`DJCrate`는 개발용 명령줄 도구다(`swift build` 후 `.build/debug/djc`). 인자 없이 실행하면 명령 목록이 나온다.
 - 조회: `snapshot`(라이브 DB 사본), `report`(라이브러리 현황), `compat`(쓰기 전 버전·구조 확인)
 - 쓰기 시험: `cue-write`(초안 쓰기, 기본은 사본), `rekordbox-restore`(백업으로 되돌리기)
-- 실험: `anicue lab …` — rekordbox 규칙을 알아낼 때 쓴 명령(`sql`, `db-diff`, `loop-repro`, `seekinfo-check`, `key-eval` 등)
+- 실험: `djc lab …` — rekordbox 규칙을 알아낼 때 쓴 명령(`sql`, `db-diff`, `loop-repro`, `seekinfo-check`, `key-eval` 등)
 
 ## 데이터 위치
 
-- `~/Library/Application Support/anicue/`
+- `~/Library/Application Support/DJCrate/`(옛 `anicue/` 폴더가 있으면 처음 켤 때 옮긴다)
   - 초안: `cue-drafts/`, `grid-drafts/`, `gain-drafts.json`, `tag-drafts/`
   - 백업: `rekordbox-backups/`
   - 스냅샷: `snapshots/`

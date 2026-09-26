@@ -1,4 +1,4 @@
-import AnicueDomain
+import DJCDomain
 @testable import RekordboxKit
 import Foundation
 import Testing
@@ -18,7 +18,7 @@ struct BeatGridTests {
     @Test func PQTZ를_읽고_스냅_이동_마디를_계산한다() throws {
         // 120 BPM, 0.5초 간격, 첫 박은 4박째
         let beats = (0..<9).map { i in ((i + 3) % 4 + 1, 12000, 100 + i * 500) }
-        let url = FileManager.default.temporaryDirectory.appending(path: "anicue-test-\(UUID()).DAT")
+        let url = FileManager.default.temporaryDirectory.appending(path: "djc-test-\(UUID()).DAT")
         try anlz(beats: beats).write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
 

@@ -1,10 +1,10 @@
 ---
 paths:
   - "Sources/RekordboxKit/**"
-  - "Sources/AnicueDomain/Cue/**"
-  - "Sources/AnicueDomain/Grid/**"
-  - "Sources/AnicueApp/Library/LibraryStore+Writing.swift"
-  - "Sources/AnicueApp/Reflection/**"
+  - "Sources/DJCDomain/Cue/**"
+  - "Sources/DJCDomain/Grid/**"
+  - "Sources/DJCrate/Library/LibraryStore+Writing.swift"
+  - "Sources/DJCrate/Reflection/**"
   - "Tests/RekordboxKitTests/**"
 ---
 
@@ -17,7 +17,7 @@ paths:
 - 허용 버전(`verifiedAppVersions`)·`DBVersion`은 rekordbox 실험으로 쓰기 결과를 다시 확인하기 전에는 넓히지 않는다.
 - 바꾼 뒤 확인(모두 사본으로):
   1. `scripts/check.sh`(쓰기 커버리지 80% 이상)
-  2. `anicue compat`, `anicue cue-write --db <스냅샷 사본> --dry-run`: 기존 초안의 쓰기/막힘 결과가 바꾸기 전과 같아야 한다.
-  3. 그리드면 `anicue lab grid-write-test <사본.db> <사본 share> <UUID> <BPM>`
-  4. 흐름 전체는 `ANICUE_REKORDBOX_DIR=<사본> ANICUE_HOME=<임시> .build/debug/AnicueApp --write-selftest`
+  2. `djc compat`, `djc cue-write --db <스냅샷 사본> --dry-run`: 기존 초안의 쓰기/막힘 결과가 바꾸기 전과 같아야 한다.
+  3. 그리드면 `djc lab grid-write-test <사본.db> <사본 share> <UUID> <BPM>`
+  4. 흐름 전체는 `DJC_REKORDBOX_DIR=<사본> DJC_HOME=<임시> .build/debug/DJCrate --write-selftest`
 - 새 규칙을 알아내면 `docs/rekordbox-internals.md`에 적는다(날짜·실험 곡·확인 방법 포함).

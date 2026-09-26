@@ -1,6 +1,6 @@
-# rekordbox 7 내부 형식 — anicue가 알아낸 쓰기 규칙
+# rekordbox 7 내부 형식 — DJCrate가 알아낸 쓰기 규칙
 
-rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 diff해서 뽑은 규칙이다. 각 규칙은 "실험 전 사본에 anicue로 같은 편집을 쓰고, rekordbox가 쓴 결과와 칸마다 비교"해서 확인했다. 확인하지 못한 규칙은 코드에서 막아 두었다(아래 "막아 둔 것").
+rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 diff해서 뽑은 규칙이다. 각 규칙은 "실험 전 사본에 DJCrate로 같은 편집을 쓰고, rekordbox가 쓴 결과와 칸마다 비교"해서 확인했다. 확인하지 못한 규칙은 코드에서 막아 두었다(아래 "막아 둔 것").
 
 코드: `Sources/RekordboxKit/` — `RekordboxWriter`(DB, 역할별 `+Cues`·`+Grid`·`+Gain`·`+Verify`·`+Backup`), `RekordboxGridWriter`(ANLZ), `RekordboxCompatibility`(쓰기 전 버전·구조 확인), `CueJSON`, `AnlzFile`, `SeekInfo`, `CipherDatabase`.
 
@@ -9,7 +9,7 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 - 라이브러리: `~/Library/Pioneer/rekordbox/master.db` (SQLCipher 4). 키는 pyrekordbox와 같은 방식으로 푼다(`RekordboxKey.derive()`).
 - 분석 파일: `~/Library/Pioneer/rekordbox/share/PIONEER/USBANLZ/<3자리>/<uuid 나머지>/ANLZ0000.{DAT,EXT,2EX,3EX}`. 경로는 `djmdContent.AnalysisDataPath`(`.DAT` 경로).
 - 삭제 행이 절반쯤 있다(`rb_local_deleted=1`). 집계·쓰기는 항상 삭제되지 않은 행만.
-- `agentRegistry`에는 클라우드 인증값이 들어 있다. 읽거나 출력하지 않는다(`anicue lab sql`은 이 테이블 질의를 막는다). 예외: 쓰기 모듈이 `localUpdateCount`를 읽고 쓰고, `lastUpdateCount`의 정수 칸만 읽는다.
+- `agentRegistry`에는 클라우드 인증값이 들어 있다. 읽거나 출력하지 않는다(`djc lab sql`은 이 테이블 질의를 막는다). 예외: 쓰기 모듈이 `localUpdateCount`를 읽고 쓰고, `lastUpdateCount`의 정수 칸만 읽는다.
 
 ## 쓰기 전 확인 (`RekordboxCompatibility`)
 
@@ -21,7 +21,7 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 - `djmdProperty.DBVersion` = `6000`.
 - `localUpdateCount` ≥ `lastUpdateCount`(클라우드 동기화가 본 가장 큰 번호). 로컬 번호가 더 작으면 동기화 때 변경이 되돌려졌다는 사례가 있다(2026-09-26 조사). 2026-09-26 실제 라이브러리: 로컬 1,002,950 · 클라우드 372,628.
 
-`anicue compat`으로 읽기 전용 확인을 할 수 있다. 새 rekordbox 버전을 허용하려면 "새 쓰기 경로를 여는 방법"처럼 실험으로 큐·그리드·게인 쓰기를 다시 확인한 뒤 `verifiedAppVersions`를 넓힌다.
+`djc compat`으로 읽기 전용 확인을 할 수 있다. 새 rekordbox 버전을 허용하려면 "새 쓰기 경로를 여는 방법"처럼 실험으로 큐·그리드·게인 쓰기를 다시 확인한 뒤 `verifiedAppVersions`를 넓힌다.
 
 ## 공통: 변경 번호(usn)
 
@@ -49,7 +49,7 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 - `Color` 255, `ColorTableIndex` 0, `ActiveLoop` 0/1(활성 루프 = 곡을 불러오면 자동으로 반복), `CueMicrosec` 0, `Comment` `''`(JSON에는 안 적음).
 - `BeatLoopSize` = 분자 << 16 | 분모. 8박 524289, 16박 1048577, ½박 65538, 박에 맞지 않는 루프 0.
 - 새로 만든 루프는 JSON에도 `ActiveLoop`·`BeatLoopSize`가 있다(옛 루프 JSON엔 빠진 경우가 있음).
-- 활성 루프는 곡당 하나(라이브러리에 둘 이상인 곡 없음). rekordbox는 활성 켜기를 행 제자리 UPDATE로 하고 `CueUpdated`를 안 올리지만, anicue는 지우고 새로 넣는다(결과 상태는 같음).
+- 활성 루프는 곡당 하나(라이브러리에 둘 이상인 곡 없음). rekordbox는 활성 켜기를 행 제자리 UPDATE로 하고 `CueUpdated`를 안 올리지만, DJCrate는 지우고 새로 넣는다(결과 상태는 같음).
 
 ### 파일 형식별 탐색 위치
 
@@ -60,7 +60,7 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 ## 비트그리드 (ANLZ)
 
 - `.DAT`의 `PQTZ`: 박마다 `박 번호(u16 1~4) · BPM×100(u16) · 시각 ms(u32)`. 시각은 정밀 시각을 **내림**, 곡 앞 −1ms 안의 박은 0.
-- `.EXT`의 `PQT2`: 머리에 첫 박·마지막 박·박 수·정체 모를 u32, 본문은 박마다 (ms 아래 소수 × 1024). rekordbox가 그리드를 손으로 고치면 PQT2를 빈 형태(머리 0·본문 없음)로 바꾼다 → anicue도 그렇게 쓴다.
+- `.EXT`의 `PQT2`: 머리에 첫 박·마지막 박·박 수·정체 모를 u32, 본문은 박마다 (ms 아래 소수 × 1024). rekordbox가 그리드를 손으로 고치면 PQT2를 빈 형태(머리 0·본문 없음)로 바꾼다 → DJCrate도 그렇게 쓴다.
 - 이동만 하면 DB는 안 바뀐다(`contentFile` 해시도 그대로).
 - BPM을 바꾸면:
   - `.DAT`의 `contentFile` 행: `Hash`(새 파일 MD5), `Size`, `rb_data_status`, `rb_local_usn`, `updated_at`.
@@ -98,6 +98,6 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 ## 새 쓰기 경로를 여는 방법
 
 1. 사용자에게 rekordbox에서 그 편집을 직접 해 달라고 한다(곡 이름 받기, 끝나면 rekordbox 종료).
-2. 편집 전 스냅샷과 새 스냅샷(`anicue snapshot --force`)을 `anicue lab sql <사본> "…"`·`anicue lab db-diff`로 비교: 바뀐 테이블·칸·usn 순서.
-3. 실험 전 사본에 anicue로 같은 편집을 써서 칸마다 비교(예: `anicue lab loop-repro --old … --new … --ids … --work <폴더>`).
+2. 편집 전 스냅샷과 새 스냅샷(`djc snapshot --force`)을 `djc lab sql <사본> "…"`·`djc lab db-diff`로 비교: 바뀐 테이블·칸·usn 순서.
+3. 실험 전 사본에 DJCrate로 같은 편집을 써서 칸마다 비교(예: `djc lab loop-repro --old … --new … --ids … --work <폴더>`).
 4. 일치하면 `Tests/RekordboxKitTests`에 골든 테스트를 먼저 쓰고, 막아 둔 조건을 풀고, 이 문서에 규칙을 적는다.

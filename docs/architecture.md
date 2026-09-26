@@ -1,25 +1,25 @@
-# anicue 구조와 설계 결정
+# DJCrate 구조와 설계 결정
 
 코드 위치보다 **왜 이렇게 만들었는지**를 적는다. 파일별 설명은 코드와 `AGENTS.md`의 구조 목록을 본다.
 
 ## 모듈
 
 ```
-AnicueApp · anicue(CLI)
-   ├─▶ AnicueStorage ──▶ RekordboxKit ──▶ AnicueDomain
-   └─▶ AnicueAnalysis ─────────────────▶ AnicueDomain
+DJCrate · DJCrate(CLI)
+   ├─▶ DJCStorage ──▶ RekordboxKit ──▶ DJCDomain
+   └─▶ DJCAnalysis ─────────────────▶ DJCDomain
 ```
 
-- **AnicueDomain**: 입출력 없는 규칙. 큐 편집(메모리 큐 한도·같은 자리·활성 루프 하나), 루프 길이·끝, 그리드 따라가기, 게인 정책, 재생 예약(`PlaybackSchedule`·`LoopPlanner`). 테스트가 가장 빠르고 촘촘한 곳이다.
+- **DJCDomain**: 입출력 없는 규칙. 큐 편집(메모리 큐 한도·같은 자리·활성 루프 하나), 루프 길이·끝, 그리드 따라가기, 게인 정책, 재생 예약(`PlaybackSchedule`·`LoopPlanner`). 테스트가 가장 빠르고 촘촘한 곳이다.
 - **RekordboxKit**: rekordbox 형식을 아는 유일한 곳. DB 열기, ANLZ 읽기·쓰기, 스냅샷, 쓰기·백업·되돌리기, 쓰기 전 확인.
-- **AnicueStorage**: anicue 자신의 파일(초안·추가한 곡·반영 묶음). rekordbox 쓰기 모듈은 이 경로를 모른다(백업 폴더를 인자로 받는다).
-- **AnicueAnalysis**: 소리 분석. rekordbox를 모른다.
-- **AnicueApp**: 화면 모델은 바깥을 주입받는다. 덱은 `DeckAudioEngine`(오디오)·`DeckStorage`(초안·설정), 반영 흐름은 `ReflectionHost`(라이브러리)·`ReflectionPrompter`(확인 창). 시험에서는 가짜로 바꾼다.
+- **DJCStorage**: DJCrate 자신의 파일(초안·추가한 곡·반영 묶음). rekordbox 쓰기 모듈은 이 경로를 모른다(백업 폴더를 인자로 받는다).
+- **DJCAnalysis**: 소리 분석. rekordbox를 모른다.
+- **DJCrate**: 화면 모델은 바깥을 주입받는다. 덱은 `DeckAudioEngine`(오디오)·`DeckStorage`(초안·설정), 반영 흐름은 `ReflectionHost`(라이브러리)·`ReflectionPrompter`(확인 창). 시험에서는 가짜로 바꾼다.
 
 ## 테스트
 
 - 순서: 실패하는 테스트 → 구현 → `scripts/check.sh`(쓰기 80%, 코어 60% 줄 커버리지 목표).
-- rekordbox 쓰기는 실제 라이브러리 없이 시험한다. `Tests/Support/Resources/rekordbox-7.2.18-schema.sql`은 실제 DB에서 **구조만** 뽑은 것(`anicue schema-dump`, 데이터 0행)이고, 같은 키로 암호화해 픽스처 DB를 만든다. 분석 파일·음원도 합성한다.
+- rekordbox 쓰기는 실제 라이브러리 없이 시험한다. `Tests/Support/Resources/rekordbox-7.2.18-schema.sql`은 실제 DB에서 **구조만** 뽑은 것(`djc schema-dump`, 데이터 0행)이고, 같은 키로 암호화해 픽스처 DB를 만든다. 분석 파일·음원도 합성한다.
 - 골든 테스트는 rekordbox 실험에서 확인한 칸 값을 그대로 기대값으로 둔다(실험 곡·날짜를 주석으로).
 - 소리·실제 화면은 단위 테스트로 못 잡는 부분만 디버그 빌드의 자가 테스트로 본다(`AGENTS.md`의 표).
 
@@ -37,7 +37,7 @@ rekordbox master.db ──(스냅샷 사본)──▶ RekordboxLibrary ──▶
 ```
 
 - **읽기는 사본에서만.** 라이브 DB를 열어 두면 rekordbox와 잠금·WAL이 얽힌다. `LibrarySnapshot`이 사본을 뜨고, rekordbox가 켜져 있으면 `--force`일 때만 WAL까지 합친 읽기용 사본을 뜬다.
-- **편집은 초안.** 초안은 JSON으로 `~/Library/Application Support/anicue/`에 저장된다. 앱을 꺼도 남고, 반영하면 지운다. 초안마다 만들 때의 rekordbox 상태(`base`)가 있어서, 그 뒤 rekordbox에서 바뀐 곡은 쓰지 않는다(덮어쓰기 방지).
+- **편집은 초안.** 초안은 JSON으로 `~/Library/Application Support/DJCrate/`에 저장된다. 앱을 꺼도 남고, 반영하면 지운다. 초안마다 만들 때의 rekordbox 상태(`base`)가 있어서, 그 뒤 rekordbox에서 바뀐 곡은 쓰지 않는다(덮어쓰기 방지).
 - **반영 흐름**은 `ReflectionCoordinator` 한 곳이다: rekordbox 꺼짐 확인 → 스냅샷 사본으로 끝까지 써 보고 되돌림(미리 보기) → 확인 창 → 쓸 수 있는 것만 실제로 쓰기 → 토스트. 쓰는 동안 덱은 재생을 멈추고 조작을 막는다.
 - **반영 뒤에는 조용히 다시 읽는다.** 화면을 로딩으로 바꾸지 않고 스냅샷을 새로 떠서 목록을 바꾸고, 덱은 소리·파형·분석을 그대로 둔 채 초안·그리드·게인만 새 값으로 맞춘다(`DeckModel.softReload`).
 - **되돌리기.** 쓰기 전 전체 백업(`rekordbox-backups/<시각>-write/`)에 그때 쓴 초안도 함께 넣어 두고, 되돌리면 DB·분석 파일을 복원하고 초안을 다시 살린다.
@@ -60,7 +60,7 @@ rekordbox는 압축 음원 앞의 인코더 지연을 잘라 내지 않는다. �
 | 음량 | BS.1770 통합 음량(vDSP K-가중) | ffmpeg ebur128과 ±0.05 LU |
 
 - 결과는 `analysis/`에 캐시한다(파일이 바뀌면 다시 계산).
-- 오토게인은 rekordbox 값(약 −10 LUFS 기준)을 기본으로 쓰고, anicue가 잰 음량과 1.5dB 넘게 다르면 제안한다.
+- 오토게인은 rekordbox 값(약 −10 LUFS 기준)을 기본으로 쓰고, DJCrate가 잰 음량과 1.5dB 넘게 다르면 제안한다.
 
 ## 덱 오디오 (`DeckAudio`)
 

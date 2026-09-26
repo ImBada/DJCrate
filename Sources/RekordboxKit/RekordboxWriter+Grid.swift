@@ -1,4 +1,4 @@
-import AnicueDomain
+import DJCDomain
 import Foundation
 
 /// 그리드 BPM 변경 때 DB(contentFile 해시·크기, djmdContent BPM) 고치기
@@ -9,7 +9,7 @@ extension RekordboxWriter {
     static func applyGridDatabase(_ plan: RekordboxGridWriter.Plan, db: CipherDatabase, usn: inout Int,
                                   stamp: (db: String, json: String)) throws {
         guard let bpm100 = plan.newBPM100 else { return }
-        func fail(_ reason: String) -> AnicueError { .writeVerificationFailed("\(reason) (\(plan.title))") }
+        func fail(_ reason: String) -> DJCError { .writeVerificationFailed("\(reason) (\(plan.title))") }
         var contentID: String?
         try db.query("SELECT ID FROM djmdContent WHERE UUID = ? AND rb_local_deleted = 0", [.text(plan.trackUUID)]) { contentID = $0.string(0) }
         guard let contentID else { throw fail("곡을 찾지 못했습니다") }

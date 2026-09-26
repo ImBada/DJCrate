@@ -1,5 +1,5 @@
-import AnicueDomain
-import AnicueTestSupport
+import DJCDomain
+import DJCTestSupport
 import Foundation
 @testable import RekordboxKit
 import Testing
@@ -182,7 +182,7 @@ struct RekordboxWriterGoldenTests {
     @Test func 음원_파일이_없으면_VBR인지_몰라_막는다() throws {
         let fixture = try RekordboxFixture()
         var track = TrackSpec()
-        track.folderPath = "/tmp/anicue-없는-파일.mp3"
+        track.folderPath = "/tmp/djc-없는-파일.mp3"
         try fixture.add(track)
         var draft = CueDraft(trackUUID: track.uuid, rekordboxCues: [])
         draft.place(EditableCue(kind: .memory, time: 0.5))

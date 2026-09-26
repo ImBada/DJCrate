@@ -1,16 +1,16 @@
-import AnicueDomain
+import DJCDomain
 import AudioToolbox
 import AVFoundation
 import Foundation
 
-/// rekordbox 시간축과 anicue(AVFoundation) 시간축의 차이.
+/// rekordbox 시간축과 DJCrate(AVFoundation) 시간축의 차이.
 ///
 /// 압축 음원(AAC·MP3)은 인코더가 앞에 넣은 지연 샘플(프라이밍)이 있다. AVFoundation은 이를 잘라 내
 /// 실제 소리 시작을 0초로 두지만 rekordbox는 잘라 내지 않는 경우가 있어, 같은 박이 rekordbox에서
-/// 수십 ms 늦게 찍힌다. rekordbox의 큐·그리드를 anicue에서 그리거나 재생할 때, 그리고 anicue에서
+/// 수십 ms 늦게 찍힌다. rekordbox의 큐·그리드를 DJCrate에서 그리거나 재생할 때, 그리고 DJCrate에서
 /// 만든 큐·그리드를 rekordbox로 보낼 때 이 차이를 더하고 빼야 한다.
 ///
-/// `rekordboxTime = anicueTime + offset`
+/// `rekordboxTime = djcTime + offset`
 public enum RekordboxTimeline {
     /// rekordbox 상세 파형(ANLZ .EXT의 PWV3). 초당 150칸, 칸마다 높이 0~31.
     public static func detailWaveform(ext url: URL) throws -> [UInt8] {
@@ -22,7 +22,7 @@ public enum RekordboxTimeline {
         func tag(_ offset: Int) -> String {
             String(decoding: data[data.startIndex + offset..<data.startIndex + offset + 4], as: UTF8.self)
         }
-        guard data.count > 12, tag(0) == "PMAI" else { throw AnicueError.invalidAnalysisFile(url.path) }
+        guard data.count > 12, tag(0) == "PMAI" else { throw DJCError.invalidAnalysisFile(url.path) }
         var offset = u32(4)
         while offset + 12 <= data.count {
             let headerLength = u32(offset + 4), tagLength = u32(offset + 8)

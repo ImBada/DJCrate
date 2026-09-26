@@ -1,7 +1,7 @@
-import AnicueDomain
+import DJCDomain
 import Foundation
 
-/// anicue 큐 초안을 rekordbox `master.db`에 직접 쓴다.
+/// DJCrate 큐 초안을 rekordbox `master.db`에 직접 쓴다.
 ///
 /// rekordbox 7.2.18이 직접 큐를 고쳤을 때 DB가 바뀐 모양을 비교해 그대로 따른다(2026-09-26 확인):
 /// - `djmdCue`: 지운 큐는 행을 지우고, 새 큐는 새 행(ID는 32비트 난수, UUID 새로)으로 넣는다.
@@ -142,7 +142,7 @@ public enum RekordboxWriter {
             var usn = try localUpdateCount(db)
             let startUSN = usn
             for draft in drafts {
-                try db.execute("SAVEPOINT anicue_track")
+                try db.execute("SAVEPOINT djc_track")
                 do {
                     let result = try apply(draft, db: db, usn: &usn, stamp: stamp)
                     outcomes.append(result.outcome)
@@ -150,23 +150,23 @@ public enum RekordboxWriter {
                         try verify(db: db, contentID: result.contentID, expectation)
                         written.append((result.contentID, expectation))
                     }
-                    try db.execute("RELEASE anicue_track")
+                    try db.execute("RELEASE djc_track")
                 } catch let blocked as Blocked {
-                    try db.execute("ROLLBACK TO anicue_track")
-                    try db.execute("RELEASE anicue_track")
+                    try db.execute("ROLLBACK TO djc_track")
+                    try db.execute("RELEASE djc_track")
                     outcomes.append(Outcome(trackUUID: draft.trackUUID, title: blocked.title, status: .blocked,
                                             reason: blocked.reason, removed: 0, added: 0))
                 }
             }
             // 오토게인: rekordbox가 직접 고쳤을 때처럼 djmdMixerParam 한 행(삭제 안 된 것)의 게인 두 칸·상태·변경 번호만 바꾼다.
             for (uuid, gainDB) in gains.sorted(by: { $0.key < $1.key }) {
-                try db.execute("SAVEPOINT anicue_gain")
+                try db.execute("SAVEPOINT djc_gain")
                 do {
                     gainOutcomes.append(try applyGain(uuid: uuid, gainDB: gainDB, db: db, usn: &usn, stamp: stamp))
-                    try db.execute("RELEASE anicue_gain")
+                    try db.execute("RELEASE djc_gain")
                 } catch let blocked as Blocked {
-                    try db.execute("ROLLBACK TO anicue_gain")
-                    try db.execute("RELEASE anicue_gain")
+                    try db.execute("ROLLBACK TO djc_gain")
+                    try db.execute("RELEASE djc_gain")
                     gainOutcomes.append(Outcome(trackUUID: uuid, title: blocked.title, status: .blocked, reason: blocked.reason, removed: 0, added: 0))
                 }
             }
@@ -181,9 +181,9 @@ public enum RekordboxWriter {
             }
             if usn != startUSN {
                 let changed = try db.run("UPDATE agentRegistry SET int_1 = ? WHERE registry_id = 'localUpdateCount'", [.int(usn)])
-                guard changed == 1 else { throw AnicueError.writeVerificationFailed("변경 카운터를 올리지 못했습니다") }
+                guard changed == 1 else { throw DJCError.writeVerificationFailed("변경 카운터를 올리지 못했습니다") }
             }
-            guard try localUpdateCount(db) == usn else { throw AnicueError.writeVerificationFailed("변경 카운터가 맞지 않습니다") }
+            guard try localUpdateCount(db) == usn else { throw DJCError.writeVerificationFailed("변경 카운터가 맞지 않습니다") }
             finalUpdateCount = usn
 
             let databaseChanged = !written.isEmpty || gridPlans.contains { $0.newBPM100 != nil }
@@ -208,7 +208,7 @@ public enum RekordboxWriter {
                 for item in written { try verify(db: db, contentID: item.contentID, item.expectation) }
             } catch {
                 if let backup { try? restoreFiles(from: backup, to: database) }
-                throw AnicueError.writeVerificationFailed("\(error)")
+                throw DJCError.writeVerificationFailed("\(error)")
             }
         }
 
@@ -223,7 +223,7 @@ public enum RekordboxWriter {
             } catch {
                 for plan in applied { try? RekordboxGridWriter.restore(plan) }
                 if let backup, !written.isEmpty { try? restoreFiles(from: backup, to: database) }
-                throw AnicueError.writeVerificationFailed("\(error)")
+                throw DJCError.writeVerificationFailed("\(error)")
             }
         }
 
@@ -233,7 +233,7 @@ public enum RekordboxWriter {
         report.gainOutcomes = gainOutcomes.isEmpty ? nil : gainOutcomes
         if let backup {
             try? save(report, in: backup)
-            // 되돌리면 anicue 초안도 살릴 수 있게 쓴 초안을 백업 옆에 둔다.
+            // 되돌리면 DJCrate 초안도 살릴 수 있게 쓴 초안을 백업 옆에 둔다.
             let written = Set(report.written.map(\.trackUUID))
             let folder = backup.appending(path: "cue-drafts")
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

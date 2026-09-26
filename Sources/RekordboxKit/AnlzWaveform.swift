@@ -1,5 +1,5 @@
 import AVFoundation
-import AnicueDomain
+import DJCDomain
 import Foundation
 
 /// rekordbox 파형 태그(PWAV·PWV2 .DAT, PWV3·PWV5·PWV4 .EXT, PWV7·PWV6·PWVC .2EX)를 음원에서 만든다.
@@ -219,7 +219,7 @@ public struct RekordboxWaveforms: Sendable, Equatable {
         var mono = [Float](repeating: 0, count: lead)
         mono.reserveCapacity(lead + Int(file.length) + trailingFrames)
         let chunk: AVAudioFrameCount = 1 << 16
-        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: chunk) else { throw AnicueError.invalidAnalysisFile("버퍼") }
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: chunk) else { throw DJCError.invalidAnalysisFile("버퍼") }
         while file.framePosition < file.length {
             try file.read(into: buffer, frameCount: chunk)
             let frames = Int(buffer.frameLength)
@@ -291,9 +291,9 @@ public struct RekordboxWaveforms: Sendable, Equatable {
     /// - .2EX: PPTH · PWV7 · PWV6 · PWVC
     /// 프레이즈(PSSI)·보컬(PVDI)은 만들지 못해 넣지 않는다.
     public func files(dat: AnlzFile) throws -> (ext: Data, twoEx: Data) {
-        guard let ppth = dat.tag("PPTH") else { throw AnicueError.invalidAnalysisFile(".DAT에 경로(PPTH)가 없음") }
+        guard let ppth = dat.tag("PPTH") else { throw DJCError.invalidAnalysisFile(".DAT에 경로(PPTH)가 없음") }
         let pcob = dat.tags.filter { $0.fourcc == "PCOB" }.map(\.bytes)
-        guard pcob.count == 2 else { throw AnicueError.invalidAnalysisFile(".DAT의 큐 목록(PCOB)이 두 개가 아님") }
+        guard pcob.count == 2 else { throw DJCError.invalidAnalysisFile(".DAT의 큐 목록(PCOB)이 두 개가 아님") }
         let ext = AnlzFile(header: dat.header, tags: [ppth.bytes, pwv3Tag, pcob[0], pcob[1], Self.emptyPCO2(kind: 1), Self.emptyPCO2(kind: 0),
                                                        BeatGridTags.pqt2([], unknown: 0), pwv5Tag, pwv4Tag])
         let twoEx = AnlzFile(header: dat.header, tags: [ppth.bytes, pwv7Tag, pwv6Tag, pwvcTag])

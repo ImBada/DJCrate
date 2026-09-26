@@ -1,4 +1,4 @@
-import AnicueDomain
+import DJCDomain
 import Foundation
 
 /// rekordbox 플레이리스트·폴더(djmdPlaylist / djmdSongPlaylist). 읽기 전용.

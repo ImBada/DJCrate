@@ -1,4 +1,4 @@
-import AnicueDomain
+import DJCDomain
 import Foundation
 import RekordboxKit
 import SQLCipher
@@ -17,7 +17,7 @@ public final class RekordboxFixture {
     public var audio: URL { root.appending(path: "audio") }
 
     public init(localUpdateCount: Int = 1000) throws {
-        root = FileManager.default.temporaryDirectory.appending(path: "anicue-fixture-\(UUID().uuidString)")
+        root = FileManager.default.temporaryDirectory.appending(path: "djc-fixture-\(UUID().uuidString)")
         for dir in [shareRoot, backups, audio] { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) }
         let url = try TestResources.url("rekordbox-7.2.18-schema.sql")
         let schema = try String(contentsOf: url, encoding: .utf8)
@@ -187,7 +187,7 @@ public struct TrackSpec: Sendable {
     public var length = 200
     public var bpm100 = 12800
     /// 기본은 CBR MP3 테스트 음원(쓰기 모듈이 MP3 파일 머리로 VBR인지 본다)
-    public var folderPath = (try? TestResources.url("mp3-lame-cbr.mp3").path) ?? "/tmp/anicue-none.mp3"
+    public var folderPath = (try? TestResources.url("mp3-lame-cbr.mp3").path) ?? "/tmp/djc-none.mp3"
     public var cueUpdated: String? = "1"
     public var analysisUpdated = "1"
     public var trackInfoUpdated = "1"

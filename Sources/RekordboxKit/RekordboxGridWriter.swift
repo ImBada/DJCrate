@@ -1,9 +1,9 @@
-import AnicueDomain
+import DJCDomain
 import AVFoundation
 import CryptoKit
 import Foundation
 
-/// anicue 그리드 초안을 rekordbox 분석 파일(ANLZ)에 쓴다.
+/// DJCrate 그리드 초안을 rekordbox 분석 파일(ANLZ)에 쓴다.
 ///
 /// rekordbox 7.2.18이 직접 그리드를 옮겼을 때 바뀐 모양을 그대로 따른다(2026-09-26 확인):
 /// - `.DAT`의 PQTZ만 새 박 목록으로 바꾸고 나머지 태그는 바이트 그대로 둔다(PMAI 전체 길이만 다시 적는다).
@@ -99,7 +99,7 @@ public enum RekordboxGridWriter {
         let currentSegments = GridDraft.segments(from: currentGrid)
         guard currentSegments.count == draft.base.count,
               zip(currentSegments, draft.base).allSatisfy({ abs($0.start - $1.start) < 0.002 && abs($0.bpm - $1.bpm) < 0.01 && $0.firstBeatNumber == $1.firstBeatNumber })
-        else { throw block("초안을 만든 뒤 rekordbox에서 그리드가 바뀌었습니다. anicue에서 다시 불러와 확인하세요") }
+        else { throw block("초안을 만든 뒤 rekordbox에서 그리드가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요") }
 
         // 초안은 PQTZ의 ms(내림)로 만든 것이다. 실제 박은 그 ms 안 어딘가에 있어서, rekordbox는 소수(PQT2)를 알면 그 값을,
         // 모르면 ms 한가운데(+0.5ms)를 기준으로 다시 계산한다(BPM 244→245 실험에서 바이트까지 확인).
@@ -132,7 +132,7 @@ public enum RekordboxGridWriter {
 
     /// 새 파일이 의도대로인지: 그리드 칸만 바뀌고 나머지 태그는 원본과 바이트까지 같아야 한다.
     public static func verify(_ plan: Plan, written dat: Data, ext: Data?) throws {
-        func fail(_ reason: String) -> AnicueError { .writeVerificationFailed("\(reason) (\(plan.title))") }
+        func fail(_ reason: String) -> DJCError { .writeVerificationFailed("\(reason) (\(plan.title))") }
         let original = try AnlzFile(data: plan.originalDat), now = try AnlzFile(data: dat)
         guard original.header.prefix(8) == now.header.prefix(8), original.header.dropFirst(12) == now.header.dropFirst(12),
               original.tags.map(\.fourcc) == now.tags.map(\.fourcc) else {
@@ -157,7 +157,7 @@ extension RekordboxGridWriter {
     public static func apply(_ plan: Plan) throws {
         let fm = FileManager.default
         func replace(_ url: URL, with data: Data) throws {
-            let partial = url.deletingLastPathComponent().appending(path: ".\(url.lastPathComponent).anicue-part")
+            let partial = url.deletingLastPathComponent().appending(path: ".\(url.lastPathComponent).djc-part")
             try? fm.removeItem(at: partial)
             try data.write(to: partial)
             if let attributes = try? fm.attributesOfItem(atPath: url.path), let mode = attributes[.posixPermissions] {
@@ -170,7 +170,7 @@ extension RekordboxGridWriter {
             if let extURL = plan.extURL, let newExt = plan.newExt { try replace(extURL, with: newExt) }
             let dat = try Data(contentsOf: plan.datURL)
             let ext = try plan.extURL.map { try Data(contentsOf: $0) }
-            guard dat == plan.newDat, ext == plan.newExt else { throw AnicueError.writeVerificationFailed("분석 파일이 쓴 내용과 다릅니다(\(plan.title))") }
+            guard dat == plan.newDat, ext == plan.newExt else { throw DJCError.writeVerificationFailed("분석 파일이 쓴 내용과 다릅니다(\(plan.title))") }
             try verify(plan, written: dat, ext: ext)
         } catch {
             try? restore(plan)

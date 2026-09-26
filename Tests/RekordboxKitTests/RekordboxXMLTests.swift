@@ -1,4 +1,4 @@
-import AnicueDomain
+import DJCDomain
 @testable import RekordboxKit
 import Foundation
 import Testing
@@ -23,7 +23,7 @@ struct RekordboxXMLTests {
     @Test func 문서는_올바른_XML이고_값이_보존된다() throws {
         let cues = [EditableCue(kind: .memory, time: 12.3456, name: "인트로"), EditableCue(kind: .hot(2), time: 30.0)]
         let entry = RekordboxXML.Entry(track: staged(), tempos: [GridSegment(start: 0.256, bpm: 153.9987, firstBeatNumber: 1)], cues: cues)
-        let xml = RekordboxXML.document(entries: [entry], playlistName: "anicue 추가")
+        let xml = RekordboxXML.document(entries: [entry], playlistName: "DJCrate 추가")
         let parser = XMLParser(data: Data(xml.utf8))
         final class Collector: NSObject, XMLParserDelegate {
             var elements: [(String, [String: String])] = []
@@ -45,7 +45,7 @@ struct RekordboxXMLTests {
         #expect(marks.count == 2)
         #expect(marks[0]["Num"] == "-1" && marks[0]["Start"] == "12.346" && marks[0]["Name"] == "인트로")
         #expect(marks[1]["Num"] == "2" && marks[1]["Type"] == "0")
-        #expect(collector.elements.contains { $0.0 == "NODE" && $0.1["Name"] == "anicue 추가" && $0.1["Entries"] == "1" })
+        #expect(collector.elements.contains { $0.0 == "NODE" && $0.1["Name"] == "DJCrate 추가" && $0.1["Entries"] == "1" })
     }
 
     @Test func 그리드가_없으면_TEMPO를_쓰지_않는다() {

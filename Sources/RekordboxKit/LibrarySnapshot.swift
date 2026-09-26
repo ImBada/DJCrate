@@ -1,12 +1,12 @@
-import AnicueDomain
+import DJCDomain
 import Foundation
 
 /// rekordbox 라이브 DB를 건드리지 않기 위한 스냅샷.
 /// 툴의 모든 읽기는 이 사본에서 한다.
 public enum LibrarySnapshot {
-    /// rekordbox 라이브러리 폴더. 개발 시험은 `ANICUE_REKORDBOX_DIR`로 사본 폴더를 가리킨다(실제 라이브러리를 건드리지 않게).
+    /// rekordbox 라이브러리 폴더. 개발 시험은 `DJC_REKORDBOX_DIR`로 사본 폴더를 가리킨다(실제 라이브러리를 건드리지 않게).
     public static var rekordboxDirectory: URL {
-        if let override = ProcessInfo.processInfo.environment["ANICUE_REKORDBOX_DIR"], !override.isEmpty {
+        if let override = ProcessInfo.processInfo.environment["DJC_REKORDBOX_DIR"], !override.isEmpty {
             return URL(filePath: override)
         }
         return FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Pioneer/rekordbox")
@@ -14,10 +14,10 @@ public enum LibrarySnapshot {
 
     public static var defaultDirectory: URL {
         // 사본 rekordbox 폴더로 시험할 때는 스냅샷도 그 안에 둔다(사용자 스냅샷과 섞이지 않게).
-        if let override = ProcessInfo.processInfo.environment["ANICUE_REKORDBOX_DIR"], !override.isEmpty {
-            return URL(filePath: override).appending(path: "anicue-snapshots")
+        if let override = ProcessInfo.processInfo.environment["DJC_REKORDBOX_DIR"], !override.isEmpty {
+            return URL(filePath: override).appending(path: "djc-snapshots")
         }
-        return URL.applicationSupportDirectory.appending(path: "anicue/snapshots")
+        return DJCIdentity.supportDirectory.appending(path: "snapshots")
     }
 
     /// rekordbox가 실행 중인지 프로세스 이름으로 확인한다.
@@ -49,10 +49,10 @@ public enum LibrarySnapshot {
     ) throws -> URL {
         let fm = FileManager.default
         if !force {
-            if isRekordboxRunning() { throw AnicueError.rekordboxRunning }
+            if isRekordboxRunning() { throw DJCError.rekordboxRunning }
             let wal = source.deletingLastPathComponent().appending(path: source.lastPathComponent + "-wal")
             if let size = try? fm.attributesOfItem(atPath: wal.path)[.size] as? Int, size > 0 {
-                throw AnicueError.writeAheadLogPresent(path: wal.path)
+                throw DJCError.writeAheadLogPresent(path: wal.path)
             }
         }
 
@@ -71,7 +71,7 @@ public enum LibrarySnapshot {
               before[.modificationDate] as? Date == after[.modificationDate] as? Date
         else {
             try? fm.removeItem(at: partial)
-            throw AnicueError.sourceChangedDuringCopy(path: source.path)
+            throw DJCError.sourceChangedDuringCopy(path: source.path)
         }
 
         try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: partial.path)
@@ -123,7 +123,7 @@ public enum LibrarySnapshot {
     public static func latest(in directory: URL = defaultDirectory) throws -> URL {
         let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
         guard let newest = files.filter({ $0.pathExtension == "db" }).max(by: { $0.lastPathComponent < $1.lastPathComponent })
-        else { throw AnicueError.snapshotNotFound }
+        else { throw DJCError.snapshotNotFound }
         return newest
     }
 }

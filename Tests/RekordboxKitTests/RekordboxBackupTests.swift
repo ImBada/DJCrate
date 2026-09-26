@@ -1,5 +1,5 @@
-import AnicueDomain
-import AnicueTestSupport
+import DJCDomain
+import DJCTestSupport
 import Foundation
 @testable import RekordboxKit
 import Testing
@@ -56,7 +56,7 @@ struct RekordboxBackupTests {
         let (report, _, _, _) = try writeAll(fixture)
         let running = RekordboxWriteGuard(isLive: { _ in true }, isRekordboxRunning: { true }, appVersion: { "7.2.18" })
         let before = try fixture.rows("SELECT * FROM djmdCue")
-        #expect(throws: AnicueError.self) {
+        #expect(throws: DJCError.self) {
             try RekordboxWriter.restore(URL(filePath: try #require(report.backup)), to: fixture.database,
                                         backups: fixture.backups, guard: running)
         }
@@ -81,7 +81,7 @@ struct RekordboxBackupTests {
     }
 
     @Test func 설치된_rekordbox_버전은_가장_높은_판의_Info_plist에서() throws {
-        let apps = FileManager.default.temporaryDirectory.appending(path: "anicue-apps-\(UUID().uuidString)")
+        let apps = FileManager.default.temporaryDirectory.appending(path: "djc-apps-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: apps) }
         for (folder, version) in [("rekordbox 6", "6.8.5"), ("rekordbox 7", "7.2.18.0311")] {
             let contents = apps.appending(path: folder).appending(path: "rekordbox.app/Contents")
@@ -92,7 +92,7 @@ struct RekordboxBackupTests {
         #expect(RekordboxCompatibility.installedAppVersion(applications: apps) == "7.2.18.0311")
         #expect(RekordboxCompatibility.installedAppVersion(applications: apps.appending(path: "없음")) == nil)
         #expect(throws: Never.self) { try RekordboxCompatibility.checkApp(version: "7.2.18.0311") }
-        #expect(throws: AnicueError.self) { try RekordboxCompatibility.checkApp(version: "6.8.5") }
-        #expect(throws: AnicueError.self) { try RekordboxCompatibility.checkApp(version: "7") }
+        #expect(throws: DJCError.self) { try RekordboxCompatibility.checkApp(version: "6.8.5") }
+        #expect(throws: DJCError.self) { try RekordboxCompatibility.checkApp(version: "7") }
     }
 }
