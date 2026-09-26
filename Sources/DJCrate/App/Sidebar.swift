@@ -117,11 +117,20 @@ struct ListActionBar: View {
         switch store.sidebar {
         case .staged:
             bar {
+                let selectedStaged = store.selectedRows.filter(\.isStaged)
+                let addTargets = selectedStaged.isEmpty ? store.stagedRows : selectedStaged
+                Button { DirectWritePanels.addTracks(store: store, rows: addTargets) } label: {
+                    Label(store.isWritingRekordbox ? "rekordbox에 쓰는 중…" : "rekordbox에 바로 넣기 (\(addTargets.count)곡)…",
+                          systemImage: "tray.and.arrow.down")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(addTargets.isEmpty || store.isWritingRekordbox)
+                .help("선택한 곡(없으면 추가 목록 전체)을 rekordbox 컬렉션에 바로 넣습니다. 추정 그리드·파형·오토게인까지 만들어 넣고, 미리 보기로 확인한 뒤 rekordbox가 꺼져 있을 때만 씁니다. 되돌리기로 무를 수 있습니다.")
                 Button { StagingPanels.chooseFiles(store: store) } label: { Label("곡 추가…", systemImage: "plus") }
                 Button { store.removeStaged(store.selection) } label: { Label("선택 빼기", systemImage: "minus") }
                     .disabled(!store.selection.contains { $0.hasPrefix("djc-") })
                     .help("추가 목록에서만 뺍니다. 파일은 지우지 않습니다.")
-                Button { StagingPanels.exportXML(store: store) } label: { Label("rekordbox XML로 내보내기…", systemImage: "square.and.arrow.up") }
+                Button { StagingPanels.exportXML(store: store) } label: { Label("XML로…", systemImage: "doc.text") }
                     .disabled(store.staged.isEmpty)
                     .help("rekordbox › 환경설정 › 고급 › rekordbox xml에서 이 파일을 지정한 뒤, 트리의 rekordbox xml에서 곡을 선택하고 Import To Collection 하세요. 가져온 뒤 새 스냅샷을 뜨면 DJCrate가 그리드가 그대로 들어갔는지 확인합니다.")
                 if store.staged.contains(where: { $0.importCheck != nil && $0.importCheck?.result != .pending }) {

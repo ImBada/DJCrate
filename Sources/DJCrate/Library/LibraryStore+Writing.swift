@@ -100,14 +100,20 @@ extension LibraryStore {
         let gainUUIDs = Set(RekordboxWriter.gainDrafts(in: backup.url).keys)
         onRekordboxWritten?(Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID)).union(gainUUIDs))
         let revived = Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID)).union(gainUUIDs).count
+        let restaged = restoreStaged(from: backup)
+        let revivedTracks = backup.trackReport?.deleted.filter(\.written).count ?? 0
+        var detail: [String] = []
+        if revived > 0 { detail.append("초안 \(revived)곡을 다시 살렸습니다") }
+        if restaged > 0 { detail.append("넣었던 \(restaged)곡을 추가 목록으로 되돌렸습니다") }
+        if revivedTracks > 0 { detail.append("뺐던 \(revivedTracks)곡을 되살렸습니다") }
         toast = AppToast(title: "rekordbox를 \(backup.createdAt.formatted(date: .omitted, time: .shortened)) 쓰기 전으로 되돌렸습니다",
-                         detail: "초안 \(revived)곡을 다시 살렸습니다")
+                         detail: detail.isEmpty ? nil : detail.joined(separator: " · "))
         lastWriteBackup = nil
     }
 
     /// 백업 뒤 rekordbox에서 라이브러리가 바뀌었는지(되돌리면 그 변경도 사라진다).
     func libraryChangedSince(_ backup: RekordboxWriter.Backup) async -> Bool? {
-        guard let expected = backup.report?.finalUpdateCount else { return nil }
+        guard let expected = backup.finalUpdateCount else { return nil }
         return try? await Task.detached {
             let snapshot = try LibrarySnapshot.take()
             return try RekordboxWriter.updateCount(of: snapshot) != expected

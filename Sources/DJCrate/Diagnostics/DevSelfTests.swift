@@ -15,6 +15,7 @@ import Foundation
 enum DevSelfTests {
     static func runIfRequested(store: LibraryStore, deck: DeckModel) {
         runWriteSelfTestIfRequested(store: store, deck: deck)
+        runTrackSelfTestIfRequested(store: store)
         runLoopSelfTestIfRequested(deck: deck)
         runScrollPerfIfRequested(deck: deck)
         runLoopAudioSelfTestIfRequested()

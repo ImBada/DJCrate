@@ -35,7 +35,9 @@ rekordbox 7용 DJ 라이브러리 관리 macOS 앱(약칭 DJC, 명령줄 도구 
 
 **새 곡**
 - 파일·폴더를 끌어다 놓으면 BPM·그리드를 추정한다.
-- rekordbox XML로 내보내 rekordbox에서 Import To Collection하면, 새 스냅샷에서 그대로 들어갔는지 확인한다.
+- "rekordbox에 바로 넣기"로 rekordbox를 켜지 않고 컬렉션에 넣는다: 곡 행, 추정 그리드·파형·오토게인(분석 파일 .DAT·.EXT·.2EX), 태그 초안까지. 큐 초안은 새 곡의 반영 대기로 옮긴다. 프레이즈·보컬 분석은 rekordbox에서 Phrase만 분석하면 더해진다.
+- 라이브러리 곡은 오른쪽 클릭 "rekordbox에서 빼기"로 컬렉션에서 뺀다(음원 파일은 그대로, 큐·재생 목록 항목·분석 파일은 함께 사라짐).
+- 넣기·빼기 모두 쓰기 직전 백업을 떠서 "되돌리기"로 무를 수 있다. rekordbox XML(Import To Collection) 경로도 남아 있다.
 
 ## 안전 장치
 

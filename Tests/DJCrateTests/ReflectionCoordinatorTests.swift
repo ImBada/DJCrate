@@ -26,6 +26,23 @@ final class FakeReflectionHost: ReflectionHost {
     }
     func libraryChangedSince(_ backup: RekordboxWriter.Backup) async -> Bool? { changedSinceBackup }
     func restoreRekordbox(_ backup: RekordboxWriter.Backup) async throws { restored.append(backup.url) }
+
+    var addPreview: Result<LibraryStore.TrackAddPreview, Error> = .failure(FixtureFailure())
+    var deletePreview: Result<LibraryStore.TrackDeletePreview, Error> = .failure(FixtureFailure())
+    var added: [String]?
+    var deleted: [String]?
+    func trackAddTargets(_ rows: [TrackRow]) -> [TrackRow] { rows.filter(\.isStaged) }
+    func previewTrackAdd(rows: [TrackRow]) async throws -> LibraryStore.TrackAddPreview { try addPreview.get() }
+    func addTracksToRekordbox(_ preview: LibraryStore.TrackAddPreview) async throws -> RekordboxTrackWriter.Report {
+        added = preview.report.added.filter(\.written).map(\.path)
+        return preview.report
+    }
+    func trackDeleteTargets(_ rows: [TrackRow]) -> [TrackRow] { rows.filter { !$0.isStaged } }
+    func previewTrackDelete(rows: [TrackRow]) async throws -> LibraryStore.TrackDeletePreview { try deletePreview.get() }
+    func deleteTracksFromRekordbox(_ preview: LibraryStore.TrackDeletePreview) async throws -> RekordboxTrackWriter.Report {
+        deleted = preview.report.deleted.filter(\.written).compactMap(\.contentID)
+        return preview.report
+    }
 }
 
 struct FixtureFailure: Error, CustomStringConvertible { var description = "미리 보기 실패" }
@@ -124,6 +141,62 @@ struct ReflectionCoordinatorTests {
         #expect(lines.contains("• 곡 g — 그리드(박 64개)"))
         #expect(lines.contains("• 곡 d — 오토게인 -2.5 dB"))
         #expect(lines.contains("쓰지 않는 것 1:") && lines.contains("• 곡 a: 분석 전"))
+    }
+
+    // MARK: 곡 넣기·빼기
+
+    static func track(_ path: String, written: Bool = true, reason: String? = nil) -> RekordboxTrackWriter.Outcome {
+        .init(path: path, contentID: written ? "id-\(path)" : nil, title: "곡 \(path)", written: written, reason: reason)
+    }
+
+    static func addPreview(_ outcomes: [RekordboxTrackWriter.Outcome], without: [String: String] = [:]) -> LibraryStore.TrackAddPreview {
+        var report = RekordboxTrackWriter.Report(dryRun: true)
+        report.added = outcomes
+        return .init(report: report, plans: [], stagedUUIDs: [:], withoutAnalysis: without, unreadable: [])
+    }
+
+    @Test func 추가한_곡만_넣고_rekordbox가_켜져_있으면_묻지도_않는다() async {
+        await coordinator(running: true).addTracks(rows: [Self.row("djc-a")])
+        #expect(prompter.shown.map(\.title) == ["rekordbox가 켜져 있어 넣지 않았습니다"] && host.added == nil)
+        prompter.shown = []
+        await coordinator().addTracks(rows: [Self.row("a")])
+        #expect(prompter.shown.first?.title == "rekordbox에 넣을 곡이 없습니다" && host.locks.isEmpty)
+    }
+
+    @Test func 넣기_확인_창은_분석_여부와_넣지_않는_곡을_보여_주고_확인하면_넣는다() async {
+        host.addPreview = .success(Self.addPreview([Self.track("a"), Self.track("b"), Self.track("c", written: false, reason: "이미 rekordbox 컬렉션에 있는 파일입니다")],
+                                                   without: ["b": "ALAC"]))
+        await coordinator().addTracks(rows: ["djc-a", "djc-b", "djc-c"].map(Self.row))
+        let prompt = try? #require(prompter.shown.first)
+        #expect(prompt?.title == "rekordbox 컬렉션에 2곡을 넣습니다" && prompt?.confirm == "rekordbox에 넣기" && prompt?.critical == false)
+        let lines = prompt?.text.components(separatedBy: "\n") ?? []
+        #expect(lines.contains("• 곡 a — 그리드·파형·오토게인까지") && lines.contains("• 곡 b — 분석 없이(ALAC)"))
+        #expect(lines.contains("넣지 않는 곡 1:") && lines.contains("• 곡 c: 이미 rekordbox 컬렉션에 있는 파일입니다"))
+        #expect(host.added == ["a", "b"] && host.locks == [true, false])
+    }
+
+    @Test func 빼기는_경고_창으로_묻고_취소하면_빼지_않는다() async {
+        var report = RekordboxTrackWriter.Report(dryRun: true)
+        report.deleted = [Self.track("a"), Self.track("b", written: false, reason: "확인하지 않은 표(djmdSongMyTag)에 걸린 곡")]
+        host.deletePreview = .success(.init(report: report, contentIDs: ["id-a", "id-b"]))
+        prompter.answer = false
+        await coordinator().deleteTracks(rows: [Self.row("a"), Self.row("b")])
+        let prompt = try? #require(prompter.shown.first)
+        #expect(prompt?.critical == true && prompt?.title == "rekordbox 컬렉션에서 1곡을 뺍니다" && prompt?.confirm == "rekordbox에서 빼기")
+        #expect(prompt?.text.contains("음원 파일은 지우지 않습니다") == true && prompt?.text.contains("djmdSongMyTag") == true)
+        #expect(host.deleted == nil && !host.isWritingRekordbox)
+        prompter.answer = true
+        await coordinator().deleteTracks(rows: [Self.row("a"), Self.row("b")])
+        #expect(host.deleted == ["id-a"])
+    }
+
+    @Test func 곡_넣기를_되돌리는_창은_추가_목록으로_돌아온다고_알린다() {
+        var tracks = RekordboxTrackWriter.Report(dryRun: false)
+        tracks.added = [Self.track("a")]
+        let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b"), createdAt: .now, isWrite: true, report: nil, trackReport: tracks)
+        let prompt = ReflectionCoordinator.restoreConfirmation(backup, changedSince: false)
+        #expect(prompt.text.contains("그때 넣은 1곡은 컬렉션에서 빠지고") && prompt.text.contains("추가 목록으로 돌아옵니다"))
+        #expect(backup.titles == ["곡 a"])
     }
 
     @Test func 되돌리기는_그_뒤_rekordbox가_바뀌었으면_경고한다() async {

@@ -110,6 +110,29 @@ extension LibraryStore {
         stagingMessage = "\(removing.count)곡을 추가 목록에서 뺐습니다(파일은 그대로)."
     }
 
+    /// rekordbox에 바로 넣은 곡을 추가 목록에서 뺀다(초안은 남긴다: 되돌리면 다시 붙는다). 뺀 곡을 돌려준다.
+    func unstage(uuids: Set<String>) -> [StagedTrack] {
+        let removing = staged.filter { uuids.contains($0.uuid) }
+        guard !removing.isEmpty else { return [] }
+        gridQueue.removeAll { uuids.contains($0.uuid) }
+        staged.removeAll { uuids.contains($0.uuid) }
+        persistStaged()
+        selection.subtract(removing.map(\.id))
+        rebuildStagedRows()
+        return removing
+    }
+
+    /// 되돌린 곡을 추가 목록에 다시 넣는다(이미 있는 곡은 건너뜀). 넣은 곡 수.
+    func restage(_ tracks: [StagedTrack]) -> Int {
+        let known = Set(staged.map(\.uuid))
+        let fresh = tracks.filter { !known.contains($0.uuid) }
+        guard !fresh.isEmpty else { return 0 }
+        staged += fresh
+        persistStaged()
+        rebuildStagedRows()
+        return fresh.count
+    }
+
     // MARK: - 가져오기 뒤 확인
 
     /// 새 스냅샷에 추가한 곡과 같은 경로의 곡이 있으면(= rekordbox로 가져옴) 그리드를 비교해 적어 둔다.

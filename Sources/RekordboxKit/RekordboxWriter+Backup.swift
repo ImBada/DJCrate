@@ -9,11 +9,18 @@ extension RekordboxWriter {
         public var id: String { url.path }
         public var url: URL
         public var createdAt: Date
-        /// DJCrate가 쓰기 직전에 뜬 백업이면 true(되돌리기 직전 상태를 떠 둔 백업은 false)
+        /// DJCrate가 쓰기 직전에 뜬 백업이면 true(큐·그리드·게인 쓰기, 곡 추가·삭제). 되돌리기 직전 상태를 떠 둔 백업은 false.
         public var isWrite: Bool
         public var report: Report?
+        /// 곡 추가·삭제 보고서
+        public var trackReport: RekordboxTrackWriter.Report?
 
-        public var titles: [String] { report?.written.map(\.title) ?? [] }
+        public var titles: [String] { (report?.written.map(\.title) ?? []) + (trackReport?.titles ?? []) }
+        /// 쓴 직후 rekordbox 변경 카운터(옛 백업에는 없다)
+        public var finalUpdateCount: Int? { report?.finalUpdateCount ?? trackReport?.finalUpdateCount }
+
+        /// 쓰기 직전 백업의 이름 끝(`makeBackup`의 label)
+        static let writeLabels = ["-write", "-add", "-delete"]
     }
 
     /// DB 파일(+WAL·SHM)을 통째로 복사한다. 복사하는 동안 원본이 바뀌면 실패한다.
@@ -72,8 +79,9 @@ extension RekordboxWriter {
             .filter { fm.fileExists(atPath: $0.appending(path: "master.db").path) }
             .map { folder in
                 let created = (try? folder.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
-                return Backup(url: folder, createdAt: created, isWrite: folder.lastPathComponent.hasSuffix("-write"),
-                              report: contents(of: folder).report)
+                let name = folder.lastPathComponent
+                return Backup(url: folder, createdAt: created, isWrite: Backup.writeLabels.contains { name.hasSuffix($0) },
+                              report: contents(of: folder).report, trackReport: RekordboxTrackWriter.report(in: folder))
             }
             .sorted { $0.url.lastPathComponent > $1.url.lastPathComponent }
     }
@@ -93,8 +101,34 @@ extension RekordboxWriter {
         let saved = try makeBackup(of: database, in: backups, now: now, label: "before-restore")
         try restoreFiles(from: backup, to: database)
         try restoreAnalysis(from: backup, saveCurrentTo: saved)
+        try removeCreatedFiles(of: backup, saveTo: saved)
         try checkIntegrity(of: database)
         return saved
+    }
+
+    /// 곡을 넣으며 만든 분석 파일을 지운다(빈 분석 폴더도). 지우기 전 파일은 `saveTo/anlz`에 두어 그 백업으로 다시 살릴 수 있다.
+    static func removeCreatedFiles(of backup: URL, saveTo saved: URL) throws {
+        guard let created = RekordboxTrackWriter.report(in: backup)?.createdFiles, !created.isEmpty else { return }
+        let fm = FileManager.default
+        let folder = saved.appending(path: "anlz")
+        try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        let manifestURL = folder.appending(path: "manifest.json")
+        var manifest = (try? Data(contentsOf: manifestURL)).flatMap { try? JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
+        for path in created where fm.fileExists(atPath: path) {
+            let name = "created-\(manifest.count).\(URL(filePath: path).pathExtension)"
+            try fm.copyItem(at: URL(filePath: path), to: folder.appending(path: name))
+            manifest[name] = path
+        }
+        try JSONEncoder().encode(manifest).write(to: manifestURL)
+        for path in created { try? fm.removeItem(atPath: path) }
+        // USBANLZ/<3자>/<나머지> 폴더가 비었으면 지운다(rekordbox가 곡을 지울 때처럼)
+        for directory in Set(created.map { URL(filePath: $0).deletingLastPathComponent() }) where directory.path.contains("/USBANLZ/") {
+            var current = directory
+            while current.lastPathComponent != "USBANLZ", (try? fm.contentsOfDirectory(atPath: current.path))?.isEmpty == true {
+                try? fm.removeItem(at: current)
+                current = current.deletingLastPathComponent()
+            }
+        }
     }
 
     /// 분석 파일 원본을 백업 폴더 `anlz/`에 둔다(원래 경로는 manifest.json).

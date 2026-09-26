@@ -20,6 +20,8 @@ public enum RekordboxTrackWriter {
         public var title: String
         public var written: Bool
         public var reason: String?
+        /// 넣은 곡의 UUID(초안을 새 곡으로 옮길 때 쓴다)
+        public var uuid: String?
     }
 
     public struct Report: Codable, Sendable {
@@ -29,8 +31,13 @@ public enum RekordboxTrackWriter {
         public var dryRun: Bool
         /// 지운 곡의 분석·아트워크 파일(백업 폴더 `anlz/`로 옮겨 두었다가 되돌릴 때 살린다)
         public var removedFiles: [String] = []
-        /// 새로 만든 분석 파일
+        /// 새로 만든 분석 파일(되돌릴 때 지운다)
         public var createdFiles: [String] = []
+        /// 쓴 직후 rekordbox 변경 카운터. 되돌리기 전에 그 뒤 rekordbox에서 바뀐 게 있는지 본다.
+        public var finalUpdateCount: Int?
+
+        /// 실제로 넣거나 뺀 곡 이름
+        public var titles: [String] { (added + deleted).filter(\.written).map(\.title) }
     }
 
     /// 곡과 함께 붙일 분석(그리드·음량). 파형·음원 정보는 쓰기 모듈이 음원에서 직접 만든다.
@@ -82,7 +89,7 @@ public enum RekordboxTrackWriter {
         let backup = dryRun ? nil : try RekordboxWriter.makeBackup(of: database, in: backups, now: now, label: "add")
         report.backup = backup?.path
         var inserted: [(id: String, expected: [String: CipherDatabase.Value])] = []
-        try transaction(database, dryRun: dryRun) { db, usn in
+        report.finalUpdateCount = try transaction(database, dryRun: dryRun) { db, usn in
             let library = try libraryIdentity(db)
             for plan in plans {
                 try db.execute("SAVEPOINT djc_add")
@@ -108,7 +115,7 @@ public enum RekordboxTrackWriter {
                     if let ready { try insertAnalysisRows(db, ready, contentID: id, usn: &usn, stamp: stamp) }
                     try db.execute("RELEASE djc_add")
                     inserted.append((id, row))
-                    report.added.append(Outcome(path: plan.path, contentID: id, title: plan.title, written: true, reason: nil))
+                    report.added.append(Outcome(path: plan.path, contentID: id, title: plan.title, written: true, reason: nil, uuid: uuid))
                 } catch let blocked as Blocked {
                     try db.execute("ROLLBACK TO djc_add")
                     try db.execute("RELEASE djc_add")
@@ -300,7 +307,7 @@ public enum RekordboxTrackWriter {
         report.backup = backup?.path
         var gone: [String] = []
         var files: [URL] = []
-        try transaction(database, dryRun: dryRun) { db, usn in
+        report.finalUpdateCount = try transaction(database, dryRun: dryRun) { db, usn in
             for id in contentIDs {
                 try db.execute("SAVEPOINT djc_delete")
                 var title = id
@@ -418,7 +425,9 @@ public enum RekordboxTrackWriter {
     }
 
     /// 한 트랜잭션 안에서 `body`를 돌린다. 변경 카운터를 올려 적고, 시험 실행이거나 바뀐 게 없으면 되돌린다.
-    static func transaction(_ database: URL, dryRun: Bool, _ body: (CipherDatabase, inout Int) throws -> Bool) throws {
+    /// 커밋했으면 마지막 변경 카운터를 돌려준다.
+    @discardableResult
+    static func transaction(_ database: URL, dryRun: Bool, _ body: (CipherDatabase, inout Int) throws -> Bool) throws -> Int? {
         let db = try CipherDatabase(path: database.path, key: RekordboxKey.derive(), writable: true)
         defer { db.close() }
         try db.execute("BEGIN IMMEDIATE")
@@ -434,11 +443,13 @@ public enum RekordboxTrackWriter {
         }
         if dryRun || !changed {
             try db.execute("ROLLBACK")
-        } else {
-            try db.execute("COMMIT")
-            try? db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            finished = true
+            return nil
         }
+        try db.execute("COMMIT")
+        try? db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         finished = true
+        return usn
     }
 
     /// 커밋 뒤 무결성 검사와 다시 읽기. 실패하면 백업으로 되돌린다.
@@ -484,6 +495,11 @@ public enum RekordboxTrackWriter {
             }
         }
         guard ok else { throw DJCError.writeVerificationFailed("\(table) \(id) 행이 넣은 값과 다릅니다") }
+    }
+
+    /// 백업 폴더의 곡 추가·삭제 보고서
+    public static func report(in backup: URL) -> Report? {
+        (try? Data(contentsOf: backup.appending(path: "track-report.json"))).flatMap { try? JSONDecoder().decode(Report.self, from: $0) }
     }
 
     static func save(_ report: Report, in backup: URL) throws {
