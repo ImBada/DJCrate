@@ -2,7 +2,7 @@
 
 `search`, `track`, `playlists`, `playlist`, `drafts`는 기존 최신 `LibrarySnapshot`을 읽는다. 스냅샷이 없으면 오류이며 라이브 DB로 대체하거나 자동으로 스냅샷을 만들지 않는다. 먼저 `djc snapshot`을 실행하거나 `--db <사본.db>`를 준다. 실제 라이브 `master.db` 경로와 그 심볼릭 링크·하드 링크는 거부한다. 읽기 명령은 초안·DB·음원을 변경하지 않는다.
 
-에이전트(Claude Code·Codex)에게 이 명령으로 조회·제안만 하게 하는 스킬은 `skills/djcrate/SKILL.md`다(`.claude/skills/djcrate`·`.agents/skills/djcrate`는 그 폴더의 링크). 명령·JSON 계약을 바꾸면 스킬도 함께 고친다.
+에이전트(Claude Code·Codex)에게 이 명령으로 조회·제안하고 사용자가 고른 것만 초안으로 만들게 하는 스킬은 `skills/djcrate/SKILL.md`다(`.claude/skills/djcrate`·`.agents/skills/djcrate`는 그 폴더의 링크). 명령·JSON 계약을 바꾸면 스킬도 함께 고친다.
 
 `--db`는 이 문서의 DB 읽기 명령에서 쓸 수 있다. 이때 그리드 파일은 사본 DB 옆 `share/PIONEER/USBANLZ`에서 읽으며, 없는 경우 라이브 분석 파일로 대체하지 않는다. 기본 스냅샷은 `DJC_REKORDBOX_DIR` 또는 기본 rekordbox 폴더의 `share`에서 분석 파일을 읽는다. 초안은 `DJC_HOME` 또는 기본 DJCrate 데이터 폴더에서 읽는다.
 
