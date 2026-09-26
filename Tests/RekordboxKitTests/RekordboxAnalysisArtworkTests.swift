@@ -12,8 +12,7 @@ import Testing
 /// - 변경 번호: `artwork.jpg` 파일 행(1004001) → 오토게인 행(1004015) → 곡 행(1004017, `ImagePath`·분석 칸) → 파일 행 .3EX → .2EX → .DAT → .EXT.
 ///   사이 빈 번호는 다른 곡 추가·곡 행이 한 번 더 받은 번호다. DJCrate는 .3EX를 만들지 못하고 번호를 이어 받는다.
 /// - 파일 셋 800×600·240·80, 파일 행은 `artwork.jpg` 하나(분석 파일 행과 같은 칸), `djmdAlbum.ImagePath`·`imageFile`은 그대로.
-/// - 곡 행 분석 칸은 #6 분석 붙이기와 같다(`AnalysisUpdated`·`TrackInfoUpdated`는 이 실험에서 '1'·'1'이었지만 조건을 가르지 못해
-///   #6 실험 값 '2'·'1'을 그대로 쓴다. docs/rekordbox-internals.md "분석 카운터").
+/// - 곡 행 분석 칸은 #6 분석 붙이기와 같고, 카운터는 이 실험과 #95에서 확인한 첫 BPM/Grid 분석의 '1'·'1'이다.
 @Suite("rekordbox 분석 붙이기 아트워크")
 struct RekordboxAnalysisArtworkTests {
     /// 2026-09-25 12:00:00.000 UTC
@@ -85,7 +84,7 @@ struct RekordboxAnalysisArtworkTests {
         let r = try content(fixture, id)
         let path = "/PIONEER/Artwork/\(uuid.prefix(3))/\(uuid.dropFirst(3))/artwork.jpg"
         #expect(r["ImagePath"] == path && r["Analysed"] == "105" && r["ContentLink"] == "2885134")
-        #expect(r["AnalysisUpdated"] == "2" && r["TrackInfoUpdated"] == "1", "카운터는 #6 값 그대로")
+        #expect(r["AnalysisUpdated"] == "1" && r["TrackInfoUpdated"] == "1", "첫 BPM/Grid 분석 카운터")
 
         // 파일 셋: 1200×900 → 800×600, 240·80 정사각
         let base = artworkFolder(fixture, uuid)

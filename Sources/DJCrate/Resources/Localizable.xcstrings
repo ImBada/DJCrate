@@ -2659,22 +2659,6 @@
         }
       }
     },
-    "ALAC 분석 카운터의 사본 재현이 일치하지 않으니 rekordbox에서 먼저 분석하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Analyze this track in rekordbox first because ALAC analysis counters do not match when reproduced in a library copy."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ライブラリのコピーでALAC解析カウンターを再現した結果が一致しないため、先にrekordboxで解析してください。"
-          }
-        }
-      }
-    },
     "Apple Music XML 가져오기" : {
       "localizations" : {
         "en" : {
@@ -3147,22 +3131,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "DJCrateに追加する音源ファイルまたはフォルダを選んでください。すでにrekordboxにあるファイルはスキップします。"
-          }
-        }
-      }
-    },
-    "ffmpeg VBR 분석 카운터의 사본 재현이 일치하지 않으니 rekordbox에서 먼저 분석하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Analyze this track in rekordbox first because ffmpeg VBR analysis counters do not match when reproduced in a library copy."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ライブラリのコピーでffmpeg VBR解析カウンターを再現した結果が一致しないため、先にrekordboxで解析してください。"
           }
         }
       }
@@ -15427,6 +15395,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このテンポ変化点を削除"
+          }
+        }
+      }
+    },
+    "이 샘플레이트의 ffmpeg VBR은 곡 BPM 규칙이 확인되지 않았으니 rekordbox에서 먼저 분석하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analyze this track in rekordbox first because the track BPM rule for ffmpeg VBR at this sample rate has not been verified."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このサンプルレートのffmpeg VBRは曲のBPMの規則が未確認のため、先にrekordboxで解析してください。"
           }
         }
       }

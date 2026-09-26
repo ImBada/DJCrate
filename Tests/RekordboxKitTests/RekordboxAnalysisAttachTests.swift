@@ -5,11 +5,9 @@ import Foundation
 import Testing
 
 /// 분석 전 곡(분석 파일 없음)에 DJCrate가 분석을 붙이기(#6).
-/// 기대값은 곡 넣기(분석 포함, 2026-09-26 묶음 2 실험) 결과다: 같은 음원·그리드·음량이면 곡 행 분석 칸·파일 행·오토게인 행·
-/// 분석 파일이 칸·바이트까지 같아야 한다. 곡 넣기와 다른 것은 2026-09-26 실험(분석 전 곡 The Asterisk War (edit)를 rekordbox
-/// 7.2.18에서 '트랙 분석', 보통 모드·BPM/그리드·키만)에서 확인한 두 가지다:
-/// - `AnalysisUpdated` NULL → '2', `TrackInfoUpdated` NULL → '1'(곡 넣기는 '3'·'2')
-/// - 변경 번호: 오토게인 행 → 곡 행 → 파일 행 .2EX·.DAT·.EXT(곡 넣기는 곡 행 → .DAT·.EXT·.2EX → 오토게인 행)
+/// 첫 BPM/Grid 분석 카운터는 2026-09-27, rekordbox 7.2.18의 합성 곡 "DJC 실험 카운터 auto/manual-grid"에서 확인했다.
+/// 같은 음원·그리드·음량이면 곡 넣기와 분석 붙이기의 분석 칸·파일·오토게인 값이 같다.
+/// 기존 곡의 변경 번호 순서(오토게인 → 곡 → .2EX·.DAT·.EXT)는 2026-09-26 #6 실험을 따른다.
 @Suite("rekordbox 분석 붙이기")
 struct RekordboxAnalysisAttachTests {
     /// 2026-09-25 12:00:00.000 UTC
@@ -76,15 +74,14 @@ struct RekordboxAnalysisAttachTests {
                                 inputs: [uuid: .init(duration: bare.duration, loudness: -8, peak: 0.9)])
         #expect(report.analysisWritten.map(\.trackUUID) == [uuid] && report.analysisBlocked.isEmpty && report.gridOutcomes == nil)
 
-        // 곡 행: 신원·경로·파일 inode·분석 경로(곡 UUID 폴더)·변경 번호·분석 카운터 말고는 칸 값과 형식이 같다
-        let identity: Set = ["ID", "UUID", "FolderPath", "MasterSongID", "rb_file_id", "AnalysisDataPath", "rb_local_usn",
-                             "AnalysisUpdated", "TrackInfoUpdated"]
+        // 곡 행: 신원·경로·파일 inode·분석 경로(곡 UUID 폴더)·변경 번호 말고는 칸 값과 형식이 같다
+        let identity: Set = ["ID", "UUID", "FolderPath", "MasterSongID", "rb_file_id", "AnalysisDataPath", "rb_local_usn"]
         let row = try #require(try quoted(fixture, "djmdContent", "ID = ?", [.text(id)]).first)
         let refRow = try #require(try quoted(fixture, "djmdContent", "ID = ?", [.text(refID)]).first)
         for (column, value) in refRow where !identity.contains(column) { #expect(row[column] == value, "djmdContent.\(column)") }
         #expect(row["AnalysisDataPath"] == "'\(folder(uuid))/ANLZ0000.DAT'" && row["Analysed"] == "105" && row["BPM"] == "12000")
-        // 기존 분석 전 곡을 rekordbox가 분석하면 카운터는 '2'·'1'(글자). 곡 넣기('3'·'2')와 다르다(2026-09-26 실험).
-        #expect(row["AnalysisUpdated"] == "'2'" && row["TrackInfoUpdated"] == "'1'" && refRow["AnalysisUpdated"] == "'3'")
+        // 첫 BPM/Grid 분석은 두 경로 모두 글자형 1·1이다(2026-09-27 #95).
+        #expect(row["AnalysisUpdated"] == "'1'" && row["TrackInfoUpdated"] == "'1'" && refRow["AnalysisUpdated"] == "'1'")
 
         // 파일 행(.2EX·.DAT·.EXT): 곡 UUID가 든 칸 말고는 같다(해시·크기 = 같은 바이트)
         let fileIdentity: Set = ["ID", "ContentID", "Path", "rb_local_path", "UUID", "rb_local_usn"]
@@ -141,7 +138,7 @@ struct RekordboxAnalysisAttachTests {
         #expect(row["rb_data_status"] == "257" && row["rb_local_usn"] == "702" && row["updated_at"] == "'2026-09-25 12:00:00.000 +00:00'")
         #expect(row["Analysed"] == "105" && row["BPM"] == "12000" && row["Length"] == "20" && row["BitRate"] == "1411"
                 && row["BitDepth"] == "16" && row["SampleRate"] == "44100" && row["ContentLink"] == "2885134")
-        #expect(row["AnalysisUpdated"] == "'2'" && row["TrackInfoUpdated"] == "'1'" && row["KeyID"] == "NULL", "키는 쓰지 않는다(실험에서도 KeyID 그대로)")
+        #expect(row["AnalysisUpdated"] == "'1'" && row["TrackInfoUpdated"] == "'1'" && row["KeyID"] == "NULL", "키는 쓰지 않는다(실험에서도 KeyID 그대로)")
         // 오토게인: 음량을 모르면 0dB
         let mixer = try #require(try fixture.rows("SELECT GainHigh, GainLow, rb_local_usn FROM djmdMixerParam WHERE ContentID = ?", [.text(track.id)]).first)
         #expect(RekordboxAutoGain.float(high: Int(mixer["GainHigh"]!)!, low: Int(mixer["GainLow"]!)!) == 1 && mixer["rb_local_usn"] == "701")
@@ -168,13 +165,14 @@ struct RekordboxAnalysisAttachTests {
         #expect(RekordboxWriter.attachesAnalysis, "2026-09-26 실험으로 칸을 확인해 앱에서도 연다")
     }
 
-    @Test func 분석_카운터가_있는_분석_전_곡은_막는다() async throws {
-        // rekordbox에서 곡 정보를 고친 분석 전 곡(TrackInfoUpdated가 있음): 분석하면 카운터가 얼마나 늘지 확인하지 않았다
+    @Test(arguments: ["AnalysisUpdated", "TrackInfoUpdated"])
+    func 분석_카운터가_있는_분석_전_곡은_막는다(column: String) async throws {
+        // 어느 카운터든 이미 있으면 이번 첫 분석 규칙을 적용하지 않는다.
         let fixture = try RekordboxFixture()
         try fixture.add(TrackSpec())
         let p = try await plan(try AudioFixture.wav(seconds: 20, in: fixture.audio))
         let (id, uuid) = try addBare(fixture, p)
-        try fixture.execute("UPDATE djmdContent SET TrackInfoUpdated = '3' WHERE ID = ?", [.text(id)])
+        try fixture.execute("UPDATE djmdContent SET \(column) = '3' WHERE ID = ?", [.text(id)])
         let report = try attach(fixture, [GridDraft(trackUUID: uuid, base: [], segments: segments)],
                                 inputs: [uuid: .init(duration: p.duration, loudness: nil, peak: 1)])
         #expect(report.analysisWritten.isEmpty && report.analysisBlocked.first?.reason?.contains("rekordbox에서 트랙 분석을 하세요") == true,
@@ -209,7 +207,7 @@ struct RekordboxAnalysisAttachTests {
             let (id, uuid) = try addBare(fixture, p)
             return (id, uuid, p.duration)
         }
-        let alac = try await bare(try AudioFixture.alac(seconds: 2, in: fixture.audio))
+        let alac = try await bare(try AudioFixture.alac(seconds: 2, sampleRate: 96_000, in: fixture.audio))
         let mixer = try await bare(try AudioFixture.wav(seconds: 20, in: fixture.audio, name: "mixer.wav"))
         try fixture.insert("djmdMixerParam", ["ID": .text("m1"), "ContentID": .text(mixer.id), "GainHigh": .int(16256), "GainLow": .int(0),
                                               "UUID": .text("u"), "rb_local_deleted": .int(0)])

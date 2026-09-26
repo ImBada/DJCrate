@@ -5,6 +5,7 @@ import Foundation
 import Testing
 
 /// 곡 추가·삭제. rekordbox 7.2.18이 직접 한 결과(2026-09-26 묶음 1·2 실험)를 기대값으로 둔다.
+/// 첫 BPM/Grid 카운터는 2026-09-27 합성 곡 "DJC 실험 카운터 auto/manual-grid"의 1·1로 고정한다.
 @Suite("rekordbox 곡 추가·삭제")
 struct RekordboxTrackWriterTests {
     /// 2026-09-25 12:00:00.000 UTC
@@ -118,7 +119,7 @@ struct RekordboxTrackWriterTests {
         let id = try #require(report.added.first?.contentID)
         let r = try row(fixture, id)
         #expect(r["BPM"] == "12000" && r["Length"] == "2" && r["BitRate"] == "128" && r["SampleRate"] == "44100" && r["BitDepth"] == "16")
-        #expect(r["Analysed"] == "105" && r["ContentLink"] == "2885134" && r["AnalysisUpdated"] == "3" && r["TrackInfoUpdated"] == "2")
+        #expect(r["Analysed"] == "105" && r["ContentLink"] == "2885134" && r["AnalysisUpdated"] == "1" && r["TrackInfoUpdated"] == "1")
         let uuid = try #require(r["UUID"])
         #expect(r["AnalysisDataPath"] == "/PIONEER/USBANLZ/\(uuid.prefix(3))/\(uuid.dropFirst(3))/ANLZ0000.DAT")
         // 분석 파일: rekordbox 7.2.18과 같은 태그 순서
