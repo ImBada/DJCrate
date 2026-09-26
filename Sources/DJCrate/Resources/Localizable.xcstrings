@@ -1641,6 +1641,22 @@
         }
       }
     },
+    "ALAC 분석 카운터의 사본 재현이 일치하지 않으니 rekordbox에서 먼저 분석하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analyze this track in rekordbox first because ALAC analysis counters do not match when reproduced in a library copy."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリのコピーでALAC解析カウンターを再現した結果が一致しないため、先にrekordboxで解析してください。"
+          }
+        }
+      }
+    },
     "Apple Music XML 가져오기" : {
       "localizations" : {
         "en" : {
@@ -2005,6 +2021,22 @@
         }
       }
     },
+    "ffmpeg VBR 분석 카운터의 사본 재현이 일치하지 않으니 rekordbox에서 먼저 분석하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analyze this track in rekordbox first because ffmpeg VBR analysis counters do not match when reproduced in a library copy."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリのコピーでffmpeg VBR解析カウンターを再現した結果が一致しないため、先にrekordboxで解析してください。"
+          }
+        }
+      }
+    },
     "Finder에서 백업 보기" : {
       "localizations" : {
         "en" : {
@@ -2113,22 +2145,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "FLACフレームが途中で途切れている（壊れたフレーム）ため、解析を追加しません"
-          }
-        }
-      }
-    },
-    "LAME이 아닌 VBR MP3는 rekordbox 비트레이트 규칙을 몰라 분석을 붙이지 않습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordbox's bitrate rules for VBR MP3 files not encoded with LAME are unknown, so no analysis will be added"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "LAME以外のVBR MP3はrekordboxのビットレート規則が不明なため、解析を追加しません"
           }
         }
       }
@@ -11365,6 +11381,38 @@
         }
       }
     },
+    "이 ALAC 형식의 분석 규칙은 확인되지 않았으니 rekordbox에서 먼저 분석하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analyze this track in rekordbox first because the analysis rules for this ALAC format have not been verified."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このALAC形式の解析規則は未確認のため、先にrekordboxで解析してください。"
+          }
+        }
+      }
+    },
+    "이 VBR MP3 인코더의 분석 규칙은 확인되지 않았으니 rekordbox에서 먼저 분석하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analyze this track in rekordbox first because the analysis rules for this VBR MP3 encoder have not been verified."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このVBR MP3エンコーダーの解析規則は未確認のため、先にrekordboxで解析してください。"
+          }
+        }
+      }
+    },
     "이 결과에 연결된 백업이 없습니다." : {
       "localizations" : {
         "en" : {
@@ -11703,18 +11751,18 @@
         }
       }
     },
-    "이 형식(ALAC 등)은 분석 파일 규칙을 몰라 분석을 붙이지 않습니다" : {
+    "이 형식의 분석 규칙은 확인되지 않았으니 rekordbox에서 먼저 분석하세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The analysis file rules for this format (ALAC, etc.) are unknown, so no analysis will be added"
+            "value" : "Analyze this track in rekordbox first because the analysis rules for this format have not been verified."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この形式（ALACなど）は解析ファイルの規則が不明なため、解析を追加しません"
+            "value" : "この形式の解析規則は未確認のため、先にrekordboxで解析してください。"
           }
         }
       }
