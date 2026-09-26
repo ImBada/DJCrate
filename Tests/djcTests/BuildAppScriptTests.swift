@@ -26,8 +26,14 @@ struct BuildAppScriptTests {
         #expect(result.signatures.contains("--sign TEST_IDENTITY "))
     }
 
+    @Test func 번들에도_덱_드래그_형식을_선언한다() throws {
+        let result = try run(identity: "none", install: false)
+        #expect(result.status == 0, "\(result.output)")
+        #expect(result.exportedTypes.contains("com.djcrate.deck-track"))
+    }
+
     private func run(identity: String, install: Bool, signingFails: Bool = false) throws
-        -> (status: Int32, output: String, installed: Bool, signatures: String) {
+        -> (status: Int32, output: String, installed: Bool, signatures: String, exportedTypes: [String]) {
         let fm = FileManager.default
         let root = fm.temporaryDirectory.appending(path: "djc-build-script-\(UUID())")
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
@@ -40,6 +46,8 @@ struct BuildAppScriptTests {
         let source = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().appending(path: "scripts/build-app.sh")
         try file("scripts/build-app.sh", String(contentsOf: source, encoding: .utf8))
+        let info = source.deletingLastPathComponent().deletingLastPathComponent().appending(path: "Sources/DJCrate/Info.plist")
+        try file("Sources/DJCrate/Info.plist", String(contentsOf: info, encoding: .utf8))
         for path in [".build/release/DJCrate", ".build/release/SQLCipher.framework/SQLCipher",
                      ".build/release/DJCrate_DJCrate.bundle/Contents/Resources/ko.lproj/InfoPlist.strings",
                      "LICENSE", "THIRD_PARTY_NOTICES.md"] { try file(path) }
@@ -59,10 +67,7 @@ struct BuildAppScriptTests {
           codesign)
             print -r -- "$*" >> "$DJC_TEST_ROOT/signatures"
             [[ "$DJC_TEST_SIGN_FAIL" != 1 ]] ;;
-          plutil)
-            if [[ "$1" == -extract ]]; then
-              [[ "$2" == CFBundleDevelopmentRegion ]] && echo ko || echo '["ko","en","ja"]'
-            fi ;;
+          plutil) /usr/bin/plutil "$@" ;;
           mktemp) /bin/mkdir -p "$DJC_TEST_ROOT/icon-temp"; echo "$DJC_TEST_ROOT/icon-temp" ;;
           iconutil) /usr/bin/touch "$5" ;;
           cp|rm|mkdir)
@@ -97,7 +102,10 @@ struct BuildAppScriptTests {
         let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
         process.waitUntilExit()
         let signatures = (try? String(contentsOf: root.appending(path: "signatures"), encoding: .utf8)) ?? ""
+        let bundleInfo = NSDictionary(contentsOf: root.appending(path: "dist/DJCrate.app/Contents/Info.plist"))
+        let declarations = bundleInfo?["UTExportedTypeDeclarations"] as? [[String: Any]] ?? []
         return (process.terminationStatus, text,
-                fm.fileExists(atPath: root.appending(path: "installed/DJCrate.app/Contents/MacOS/DJCrate").path), signatures)
+                fm.fileExists(atPath: root.appending(path: "installed/DJCrate.app/Contents/MacOS/DJCrate").path), signatures,
+                declarations.compactMap { $0["UTTypeIdentifier"] as? String })
     }
 }

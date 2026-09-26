@@ -132,6 +132,17 @@ struct DeckLoadTests {
 struct TrackListDeckLoadTests {
     let a = TrackListTagEditTests.row("1"), b = TrackListTagEditTests.row("2")
 
+    @Test func 덱_드래그_형식은_페이스트보드와_연결해_선언한다() throws {
+        // 선언이 없으면 AppKit 드래그를 SwiftUI가 받지 못하고, 데이터를 읽어도 -1000으로 실패한다.
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "../../Sources/DJCrate/Info.plist")
+        let info = try #require(NSDictionary(contentsOf: url) as? [String: Any])
+        let declarations = try #require(info["UTExportedTypeDeclarations"] as? [[String: Any]])
+        let track = try #require(declarations.first { $0["UTTypeIdentifier"] as? String == DeckDragType.track.identifier })
+        #expect((track["UTTypeConformsTo"] as? [String])?.contains("public.data") == true)
+        let tags = try #require(track["UTTypeTagSpecification"] as? [String: [String]])
+        #expect(tags["com.apple.nspboard-type"]?.contains(DeckDragType.pasteboard.rawValue) == true)
+    }
+
     func harness(_ rows: [TrackRow], selection: Set<TrackRow.ID>) -> (ListHarness, DeckLoadTests.LoadLog) {
         let h = ListHarness(rows: rows, selection: selection)
         let log = DeckLoadTests.LoadLog()

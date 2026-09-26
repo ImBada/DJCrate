@@ -61,6 +61,8 @@ PLIST
 LANGUAGES=Sources/DJCrate/Info.plist
 plutil -replace CFBundleDevelopmentRegion -string "$(plutil -extract CFBundleDevelopmentRegion raw "$LANGUAGES")" "$APP/Contents/Info.plist"
 plutil -replace CFBundleLocalizations -json "$(plutil -extract CFBundleLocalizations json -o - "$LANGUAGES")" "$APP/Contents/Info.plist"
+# 덱 드래그 형식도 실행 파일과 번들에 똑같이 선언해야 AppKit에서 SwiftUI로 건너간다.
+plutil -replace UTExportedTypeDeclarations -json "$(plutil -extract UTExportedTypeDeclarations json -o - "$LANGUAGES")" "$APP/Contents/Info.plist"
 
 # 서명: Apple Development 인증서가 있으면 그것으로(다시 빌드해도 앱 신원이 같아 외장 드라이브 접근 허용이 유지된다),
 # 없으면 애드혹. DJC_SIGN_IDENTITY로 지정할 수 있다. 프레임워크 먼저.
