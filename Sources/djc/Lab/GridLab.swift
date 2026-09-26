@@ -399,7 +399,6 @@ enum GridLab {
                 let period = 60 / estimate.bpm
                 let times = grid.beats.map { $0.time - timelineOffset }.filter { $0 > first.time - timelineOffset }
                 let on = times.reduce(0.0) { $0 + Double(onset.value(at: $1)) }, off = times.reduce(0.0) { $0 + Double(onset.value(at: $1 + period / 2)) }
-                let onLow = times.reduce(0.0) { $0 + Double(onset.lowValue(at: $1)) }, offLow = times.reduce(0.0) { $0 + Double(onset.lowValue(at: $1 + period / 2)) }
                 // 박 번호별 어택 합: 가장 센 번호를 1박으로 보면 rekordbox와 맞는가
                 var accent = [0.0, 0.0, 0.0, 0.0], accentLow = [0.0, 0.0, 0.0, 0.0]
                 for beat in grid.beats {
