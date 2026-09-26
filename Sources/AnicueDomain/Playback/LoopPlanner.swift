@@ -3,9 +3,12 @@ import Foundation
 /// 재생 중에 루프를 걸기·바꾸기·풀 때, 재생 노드에 예약할 버퍼와 새 조각을 정한다(샘플 단위로 이어지게).
 ///
 /// AVAudioPlayerNode 오프라인 렌더 실험(2026-09-26)으로 확인한 제약을 따른다:
-/// - 되풀이(`loops`) 버퍼는 바퀴 경계에서만 정확히 끊긴다 → 바꾸기·나가기는 다음 바퀴 끝에서 한다.
 /// - 시각을 정한 `interrupts` 예약은 이미 그린 곳보다 앞서야 한다 → `ahead`(지금 + 여유)보다 뒤에 둔다.
+///   그러면 되풀이(`loops`) 버퍼도 바퀴 중간에서 샘플 단위로 끊긴다(렌더 블록 441·512·1024 모두).
 /// - `interrupts` 버퍼 뒤에 시각 없이 줄 세운 버퍼는 지워진다 → 이어 붙이는 버퍼도 모두 시각을 정한다.
+///
+/// 동작은 CDJ를 따른다: 나가기는 이번 바퀴를 끝까지 흘려보내고 곡으로, 늘리기는 옛 끝에서 새 끝까지 이어 가고,
+/// 줄이기는 바로(이번 바퀴의 새 끝에서, 이미 지났으면 새 길이만큼 뒤로 뛰어) 새 길이가 된다.
 public enum LoopPlanner {
     public struct Buffer: Equatable, Sendable {
         /// 곡 프레임 구간(`to`가 nil이면 곡 끝까지)
@@ -56,9 +59,23 @@ public enum LoopPlanner {
                             pieces: [PlaybackPiece(node: boundary, frame: oldEnd, loop: nil),
                                      PlaybackPiece(node: bodyAt, frame: loop.start, loop: loop.end - loop.start)])
             }
-            // 줄이기: 다음 바퀴부터 새 길이
-            return Plan(kind: .resize, buffers: [Buffer(from: loop.start, to: loop.end, at: boundary, interrupts: true, loops: true)],
-                        pieces: [PlaybackPiece(node: boundary, frame: loop.start, loop: loop.end - loop.start)])
+            // 줄이기(CDJ처럼 바로): 이번 바퀴에서 아직 새 끝 전이면 그 끝에서 새 길이로 되풀이한다.
+            // 새 끝을 이미 지났으면 지금 새 길이의 배수만큼 뒤로 뛰어 박자 위치를 지킨다.
+            let newLength = loop.end - loop.start
+            let turnStart = boundary - oldLength
+            let phase = ahead - turnStart
+            if phase <= newLength {
+                let at = turnStart + newLength
+                return Plan(kind: .resize, buffers: [Buffer(from: loop.start, to: loop.end, at: at, interrupts: true, loops: true)],
+                            pieces: [PlaybackPiece(node: at, frame: loop.start, loop: newLength)])
+            }
+            let offset = phase % newLength
+            let bodyAt = ahead + (newLength - offset)
+            return Plan(kind: .resize,
+                        buffers: [Buffer(from: loop.start + offset, to: loop.end, at: ahead, interrupts: true, loops: false),
+                                  Buffer(from: loop.start, to: loop.end, at: bodyAt, interrupts: false, loops: true)],
+                        pieces: [PlaybackPiece(node: ahead, frame: loop.start + offset, loop: nil),
+                                 PlaybackPiece(node: bodyAt, frame: loop.start, loop: newLength)])
         }
         guard let loop else {
             // 아직 닿지 않은 루프가 예약돼 있으면 다시 재생해 지운다

@@ -2,7 +2,7 @@
 import Testing
 
 /// 재생 중 루프 전환 계획(재생 노드에 예약할 버퍼와 새 조각). 44.1kHz, 1초에서 재생 시작.
-/// 되풀이 버퍼는 바퀴 경계에서만 정확히 끊기고, 예약은 렌더보다 앞서야 한다(2026-09-26 오프라인 렌더 실험).
+/// 예약은 렌더보다 앞서야 하고, 시각을 정한 interrupts는 되풀이 버퍼도 바퀴 중간에서 정확히 끊는다(2026-09-26 오프라인 렌더 실험).
 @Suite("루프 전환 계획")
 struct LoopPlannerTests {
     let sr: Int64 = 44_100
@@ -41,10 +41,30 @@ struct LoopPlannerTests {
                                 PlaybackPiece(node: boundary + sr / 2, frame: 2 * sr, loop: sr)])
     }
 
-    @Test func 줄이기는_다음_바퀴부터_새_길이() throws {
-        let plan = try #require(LoopPlanner.plan(pieces: looping, now: sr + 100, ahead: sr + 200, loop: (2 * sr, 9 * sr / 4)))
-        #expect(plan.buffers == [.init(from: 2 * sr, to: 9 * sr / 4, at: sr + sr / 2, interrupts: true, loops: true)])
-        #expect(plan.pieces == [PlaybackPiece(node: sr + sr / 2, frame: 2 * sr, loop: sr / 4)])
+    @Test func 줄이기는_이번_바퀴의_새_끝에서_바로() throws {
+        // 셋째 바퀴(노드 88200부터) 앞쪽 200샘플에서 ½ → 이번 바퀴의 새 끝(88200 + 11025)에서 새 길이로
+        let turn = sr + 2 * (sr / 2)
+        let plan = try #require(LoopPlanner.plan(pieces: looping, now: turn + 100, ahead: turn + 200, loop: (2 * sr, 9 * sr / 4)))
+        #expect(plan.kind == .resize)
+        #expect(plan.buffers == [.init(from: 2 * sr, to: 9 * sr / 4, at: turn + sr / 4, interrupts: true, loops: true)])
+        #expect(plan.pieces == [PlaybackPiece(node: turn + sr / 4, frame: 2 * sr, loop: sr / 4)])
+    }
+
+    @Test func 새_끝을_이미_지났으면_새_길이만큼_뒤로_뛰어_박자를_지킨다() throws {
+        // 새 끝보다 1000샘플 뒤에서 ½ → 지금(ahead) 곧바로 루프 시작 + 1000으로, 남은 만큼 뒤 새 루프
+        let ahead = sr + sr / 4 + 1000
+        let plan = try #require(LoopPlanner.plan(pieces: looping, now: ahead - 100, ahead: ahead, loop: (2 * sr, 9 * sr / 4)))
+        #expect(plan.kind == .resize)
+        #expect(plan.buffers == [.init(from: 2 * sr + 1000, to: 9 * sr / 4, at: ahead, interrupts: true, loops: false),
+                                 .init(from: 2 * sr, to: 9 * sr / 4, at: ahead + sr / 4 - 1000, interrupts: false, loops: true)])
+        #expect(plan.pieces == [PlaybackPiece(node: ahead, frame: 2 * sr + 1000, loop: nil),
+                                PlaybackPiece(node: ahead + sr / 4 - 1000, frame: 2 * sr, loop: sr / 4)])
+    }
+
+    @Test func 새_끝에_딱_닿았으면_바로_새_루프() throws {
+        let ahead = sr + sr / 4
+        let plan = try #require(LoopPlanner.plan(pieces: looping, now: ahead - 100, ahead: ahead, loop: (2 * sr, 9 * sr / 4)))
+        #expect(plan.buffers == [.init(from: 2 * sr, to: 9 * sr / 4, at: ahead, interrupts: true, loops: true)])
     }
 
     @Test func 시작이_다른_루프로는_바로_못_바꾼다() {

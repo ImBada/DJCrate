@@ -203,6 +203,8 @@ enum DevSelfTests {
             samples = []
             for _ in 0..<8 { await wait(0.2); samples.append(deck.currentTime) }
             let storedInside = stored.flatMap { cue in cue.loop.map { loop in samples.allSatisfy { $0 >= cue.time - 0.05 && $0 <= loop.end + 0.08 } } } ?? false
+            log(String(format: "저장한 루프 %.3f~%.3f초 · 위치: ", stored?.time ?? 0, stored?.loop?.end ?? 0)
+                + samples.map { String(format: "%.2f", $0) }.joined(separator: " "))
             deck.toggleLoop()
             let exited = !deck.isLooping
             if let id = stored?.id { deck.delete(id) }
@@ -299,14 +301,27 @@ enum DevSelfTests {
                 captured.append((0..<Int(buffer.frameLength)).map { Int((Double(data[0][$0]) * 1_000_000).rounded()) })
             }
             func frame(_ t: Double) -> Int { Int((t * rate).rounded()) }
-            // 1) 1초부터 재생 → 2) 재생 중 2.0~2.5초 루프 걸기 → 3) 4바퀴쯤 → 4) ½(2.0~2.25) → 5) ×2 두 번(2.0~3.0)
-            // → 6) 나가기(바퀴 끝에서 이어 감)
+            // 루프(2.0~2.5초) 안에서 지금 몇 초째인지 보고 누른다(½이 새 끝 전·후 두 경우를 모두 지나게).
+            @MainActor func waitPhase(_ range: ClosedRange<Double>) async {
+                for _ in 0..<500 {
+                    if range.contains((audio.position - 2.0).truncatingRemainder(dividingBy: 0.5)) { return }
+                    try? await Task.sleep(for: .milliseconds(2))
+                }
+            }
+            // 1) 1초부터 재생 → 2) 2.0~2.5초 루프 걸기 → 3) 바퀴 앞쪽에서 ½(새 끝에서 바로 줄어듦) → 4) ×2
+            // → 5) 바퀴 뒤쪽에서 ½(새 길이만큼 뒤로 뜀) → 6) ×2 두 번(2.0~3.0) → 7) 나가기(바퀴 끝에서 이어 감)
             audio.play(from: 1.0)
             await wait(0.4)
             audio.setLoop(2.0...2.5)
-            await wait(3.0)
+            await wait(1.2)
+            await waitPhase(0.0...0.08)
             audio.setLoop(2.0...2.25)
-            await wait(1.0)
+            await wait(0.8)
+            audio.setLoop(2.0...2.5)
+            await wait(0.8)
+            await waitPhase(0.20...0.28)
+            audio.setLoop(2.0...2.25)
+            await wait(0.8)
             audio.setLoop(2.0...2.5)
             await wait(0.6)
             audio.setLoop(2.0...3.0)
@@ -325,8 +340,13 @@ enum DevSelfTests {
                 previous = value
             }
             let expected: Set<String> = ["\(frame(2.5) - 1)→\(frame(2.0))", "\(frame(2.25) - 1)→\(frame(2.0))", "\(frame(3.0) - 1)→\(frame(2.0))"]
+            // 새 끝을 지나 ½하면 정확히 새 길이(0.25초)만큼 뒤로 뛴다
+            let halfLength = frame(2.25) - frame(2.0)
+            let backJumps = jumps.filter { $0.1 == $0.0 + 1 - halfLength && $0.0 >= frame(2.25) && $0.0 < frame(2.5) }
             let described = jumps.map { "\($0.0)→\($0.1)" }
-            let unexpected = described.filter { !expected.contains($0) }
+            let unexpected = jumps.filter { jump in
+                !expected.contains("\(jump.0)→\(jump.1)") && !backJumps.contains { $0 == jump }
+            }.map { "\($0.0)→\($0.1)" }
             log("받은 프레임 \(frames.count) · 이음새 \(jumps.count)곳: " + Dictionary(grouping: described, by: { $0 }).map { "\($0.key) ×\($0.value.count)" }.sorted().prefix(12).joined(separator: ", "))
             // 순서대로(연속 0은 한 덩어리로)
             var ordered: [String] = []
@@ -334,7 +354,8 @@ enum DevSelfTests {
             log("순서: " + ordered.prefix(40).joined(separator: " "))
             let exitedAt = frames.last.map { Double($0) / rate } ?? 0
             log(String(format: "마지막 프레임 %.3f초(나간 뒤 3.0초를 지나 이어졌는지)", exitedAt))
-            let ok = unexpected.isEmpty && !jumps.isEmpty && exitedAt > 3.2
+            log("½ 뒤로 뛰기 \(backJumps.count)번(새 끝을 지나 누른 경우)")
+            let ok = unexpected.isEmpty && !jumps.isEmpty && backJumps.count == 1 && exitedAt > 3.2
             log(ok ? "통과: 루프 이음새가 모두 샘플 단위로 맞음" : "실패: 예상 밖 이음새 \(unexpected.prefix(5))")
             exit(ok ? 0 : 1)
         }
