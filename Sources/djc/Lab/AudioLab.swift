@@ -14,7 +14,7 @@ enum AudioLab {
         Command("bench-waveform", nil, "파형 분석 시간", AudioLab.benchWaveform),
         Command("loudness", nil, "파일의 BS.1770 통합 음량·피크·클리핑 흔적(개발용)", AudioLab.loudness),
         Command("waveform-eval", "[--limit N] [--title 제목] [--exclude-title 제목] [--db 사본] [--copy-to 새 폴더 | --corpus 사본 폴더] [--out 결과.json] [--dump-to 새 폴더]", "음원·분석 사본을 익명 표본으로 비교(태그별 일치율·평균/최대 오차·칸 데이터)", AudioLab.waveformEval),
-        Command("waveform-probe", "--out 새 폴더", "rekordbox 파형 실험용 합성 WAV(주파수·진폭·포락선)를 만든다", AudioLab.waveformProbe),
+        Command("waveform-probe", "--out 새 폴더 [--suite 1|2]", "rekordbox 파형 실험용 합성 WAV(2: 경계·혼합·정규화·버스트, 44.1/48kHz)를 만든다", AudioLab.waveformProbe),
         Command("waveform-dump", "<제목> --out <파일.json> [--db PATH]", "한 곡의 rekordbox 파형 태그와 DJCrate 칸 측정값을 JSON으로(규칙 맞추기용)", AudioLab.waveformDump),
         Command("waveform-build", "<ContentID> --out <폴더> [--compare <ContentID>]", "곡의 .EXT·.2EX를 DJCrate가 만들어 폴더에 쓰고 같은 음원의 rekordbox 분석과 비교", AudioLab.waveformBuild),
         Command("key-eval", nil, "조표 흐름 추정의 주 조표를 rekordbox 키와 비교(읽기 전용)", AudioLab.keyEval),
