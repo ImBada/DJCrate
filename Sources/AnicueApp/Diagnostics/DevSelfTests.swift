@@ -86,7 +86,7 @@ enum DevSelfTests {
             if let first = targets.first { store.selection = [first.id] }
             await wait(1.5)
             do {
-                store.onWriteLock?(true)
+                store.setWriteLock(true)
                 let preview = try await store.previewWrite(rows: targets)
                 log("미리 보기: 큐 \(preview.report.written.count)곡 · 그리드 \(preview.report.gridWritten.count)곡 · 막힘 큐 \(preview.report.blocked.count) · 그리드 \(preview.report.gridBlocked.count)")
                 for o in preview.report.blocked + preview.report.gridBlocked { log("  막힘 \(o.title): \(o.reason ?? "")") }
@@ -107,7 +107,7 @@ enum DevSelfTests {
                     let now = store.rowsByUUID[outcome.trackUUID]?.autoGain?.gainDB
                     log(String(format: "게인 쓰기: %@ → 다시 읽은 rekordbox 오토게인 %+.2f dB(초안 %+.2f)", outcome.title, now ?? .nan, Double(outcome.added) / 100))
                 }
-                store.onWriteLock?(false)
+                store.setWriteLock(false)
                 await wait(1.5)
                 var same = 0
                 for (uuid, key) in expected {
