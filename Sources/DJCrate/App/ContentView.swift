@@ -4,6 +4,7 @@ import DJCDomain
 import DJCStorage
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// A안: 사이드바 | (위) 덱 · (아래) 라이브러리 표
 struct ContentView: View {
@@ -20,6 +21,7 @@ struct ContentView: View {
     @State private var deckChromeHeight = 240.0
     @State private var noticeHeight = 0.0
     @State private var listHeaderHeight = 40.0
+    @State private var isFileDropTargeted = false
 
     private var otherHeight: Double { noticeHeight + listHeaderHeight + DeckLayout.splitHandleHeight }
     private var displayedWaveformHeight: Double {
@@ -142,18 +144,31 @@ struct ContentView: View {
                         if sheetMode && store.sidebar != .duplicates { SheetHeader() }
                     }
                     .onGeometryChange(for: Double.self) { $0.size.height } action: { listHeaderHeight = $0 }
-                    if store.sidebar == .duplicates {
-                        DuplicateTracksView(store: store)
-                            .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
-                    } else if sheetMode {
-                        TagSheetView(store: store)
-                            .onDisappear { store.canFillDownTags = false }
-                            .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
-                            .overlay { if store.displayRows.isEmpty { emptyLibrary } }
-                    } else {
-                        TrackTable(store: store, deck: deck)
-                            .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
-                            .overlay { if store.displayRows.isEmpty { emptyLibrary } }
+                    Group {
+                        if store.sidebar == .duplicates {
+                            DuplicateTracksView(store: store)
+                                .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
+                        } else if sheetMode {
+                            TagSheetView(store: store)
+                                .onDisappear { store.canFillDownTags = false }
+                                .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
+                                .overlay { if store.displayRows.isEmpty { emptyLibrary } }
+                        } else {
+                            TrackTable(store: store, deck: deck)
+                                .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
+                                .overlay { if store.displayRows.isEmpty { emptyLibrary } }
+                        }
+                    }
+                    // 내부 곡 끌기는 재생 목록·덱이 맡으므로 파일 추가가 가로채지 않는다.
+                    .onDrop(of: [.fileURL], delegate: LibraryFileDropDelegate(store: store, isTargeted: $isFileDropTargeted))
+                    .overlay {
+                        if isFileDropTargeted {
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 3, dash: [8, 5]))
+                                .padding(4)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
                     }
                 }
                 .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
@@ -161,11 +176,6 @@ struct ContentView: View {
                     detailHeight = size.height
                     // 인스펙터를 열어 덱 폭이 모자라면 탐색 열을 접어 컨트롤 자리를 남긴다.
                     if size.width > 0, size.width < DeckLayout.minimumDetailWidth { columnVisibility = .detailOnly }
-                }
-                // Finder에서 음원·폴더를 끌어다 놓으면 추가한다.
-                .dropDestination(for: URL.self) { urls, _ in
-                    Task { await store.addFiles(urls) }
-                    return !urls.isEmpty
                 }
                 .inspector(isPresented: $showTagEditor) {
                     TagInspector(store: store)
@@ -361,5 +371,50 @@ struct SplitHandle: View {
 
     private func clamped(_ value: Double) -> Double {
         min(max(value, DeckLayout.minimumWaveformHeight), maximumHeight)
+    }
+}
+
+/// 파일 URL과 내부 곡 ID를 함께 싣는 드래그를 구별해야 하므로 형식을 검사할 수 있는 delegate를 쓴다.
+struct LibraryFileDropDelegate: DropDelegate {
+    let store: LibraryStore
+    @Binding var isTargeted: Bool
+
+    static func accepts(_ providers: [NSItemProvider]) -> Bool {
+        !providers.isEmpty
+            && providers.contains { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
+            && !providers.contains { $0.hasItemConformingToTypeIdentifier(DeckDragType.track.identifier)
+                || $0.hasItemConformingToTypeIdentifier(PlaylistDragType.tracks.identifier) }
+    }
+
+    func validateDrop(info: DropInfo) -> Bool {
+        store.writeLockPolicy.allowsLibraryInteraction
+            && Self.accepts(info.itemProviders(for: [.fileURL, DeckDragType.track, PlaylistDragType.tracks]))
+    }
+
+    func dropEntered(info: DropInfo) { isTargeted = validateDrop(info: info) }
+    func dropExited(info: DropInfo) { isTargeted = false }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        let accepted = validateDrop(info: info)
+        isTargeted = accepted
+        return DropProposal(operation: accepted ? .copy : .cancel)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        isTargeted = false
+        guard validateDrop(info: info) else { return false }
+        let providers = info.itemProviders(for: [.fileURL])
+        Task { @MainActor in
+            var urls: [URL] = []
+            for provider in providers {
+                let url: URL? = await withCheckedContinuation { continuation in
+                    _ = provider.loadObject(ofClass: URL.self) { url, _ in continuation.resume(returning: url) }
+                }
+                if let url, url.isFileURL { urls.append(url) }
+            }
+            guard !urls.isEmpty, store.writeLockPolicy.allowsLibraryInteraction else { return }
+            await store.addFiles(urls)
+        }
+        return true
     }
 }

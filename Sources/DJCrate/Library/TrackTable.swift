@@ -65,10 +65,10 @@ private struct TrackListView: NSViewRepresentable {
             table.addTableColumn(column)
         }
         table.menu = context.coordinator.makeMenu()
-        // 곡을 사이드바 재생 목록으로 끌어 넣고, 목록 안에서 끌어 순서를 바꾼다(#39). 앱 밖으로는 끌지 않는다.
+        // 앱 안에서는 재생 목록에 넣거나 순서를 바꾸고, 앱 밖에는 음원 파일을 복사한다.
         table.registerForDraggedTypes([PlaylistDragType.pasteboardTracks])
         table.setDraggingSourceOperationMask([.copy, .move], forLocal: true)
-        table.setDraggingSourceOperationMask([], forLocal: false)
+        table.setDraggingSourceOperationMask(.copy, forLocal: false)
         table.draggingDestinationFeedbackStyle = .gap
         table.autosaveName = "djc.trackList.v2"
         table.autosaveTableColumns = !PerfProbe.enabled
@@ -508,13 +508,13 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         load.keyEquivalentModifierMask = .command
         load.target = self
         menu.addItem(load)
-        menu.addItem(.separator())
         let pending = targets.filter { !$0.isStaged && store.pendingUUIDs.contains($0.track.uuid) }
-        let reflect = NSMenuItem(title: pending.isEmpty ? String(ui: "rekordbox에 반영할 초안이 없습니다") : String(ui: "선택한 곡 rekordbox에 반영 (\(pending.count)곡)…"),
-                                 action: pending.isEmpty ? nil : #selector(reflectSelected), keyEquivalent: "")
-        reflect.target = self
-        menu.addItem(reflect)
         if !pending.isEmpty {
+            menu.addItem(.separator())
+            let reflect = NSMenuItem(title: String(ui: "선택한 곡 rekordbox에 반영 (\(pending.count)곡)…"),
+                                     action: #selector(reflectSelected), keyEquivalent: "")
+            reflect.target = self
+            menu.addItem(reflect)
             let xml = NSMenuItem(title: String(ui: "선택한 곡 반영 XML 만들기 (\(pending.count)곡)…"), action: #selector(exportReflectionXML), keyEquivalent: "")
             xml.target = self
             menu.addItem(xml)
@@ -522,6 +522,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         addPlaylistItems(to: menu, targets: targets)
         let staged = targets.filter(\.isStaged)
         if !staged.isEmpty {
+            menu.addItem(.separator())
             let add = NSMenuItem(title: String(ui: "rekordbox에 바로 넣기 (\(staged.count)곡)…"), action: #selector(addToRekordbox), keyEquivalent: "")
             add.target = self
             menu.addItem(add)
@@ -594,9 +595,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     private func fillColumnMenu(_ menu: NSMenu) {
         guard let table else { return }
         menu.removeAllItems()
-        let header = NSMenuItem(title: String(ui: "보일 칸"), action: nil, keyEquivalent: "")
-        header.isEnabled = false
-        menu.addItem(header)
+        menu.addItem(.sectionHeader(title: String(ui: "보일 칸")))
         for spec in TrackColumn.all {
             if spec.id == "class", commentPreset?.rule == nil { continue }
             guard let column = table.tableColumns.first(where: { $0.identifier.rawValue == spec.id }) else { continue }
@@ -1321,6 +1320,14 @@ extension TrackListCoordinator {
         let item = NSPasteboardItem()
         item.setString(rows[row].track.id, forType: DeckDragType.pasteboard)
         if !rows[row].isStaged { item.setString(rows[row].track.id, forType: PlaylistDragType.pasteboardTracks) }
+        let track = rows[row].track
+        if !track.isStreaming {
+            let url = URL(filePath: track.folderPath)
+            if let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isReadableKey]),
+               values.isRegularFile == true, values.isReadable == true {
+                item.setString(url.absoluteString, forType: .fileURL)
+            }
+        }
         return item
     }
 
