@@ -50,3 +50,37 @@ public enum AudioFixture {
         return url
     }
 }
+
+public extension AudioFixture {
+    /// 짧은 클릭(1ms 사각파 + 감쇠)을 `times`(초)에 넣은 모노 WAV. 어택 곡선 시험용.
+    static func clicks(at times: [Double], seconds: Double, sampleRate: Double = 44_100, in directory: URL,
+                       name: String = "clicks.wav") throws -> URL {
+        let url = directory.appending(path: name)
+        let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false)!
+        let file = try AVAudioFile(forWriting: url, settings: [
+            AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: sampleRate, AVNumberOfChannelsKey: 1,
+            AVLinearPCMBitDepthKey: 16, AVLinearPCMIsFloatKey: false,
+        ], commonFormat: .pcmFormatFloat32, interleaved: false)
+        let frames = AVAudioFrameCount(seconds * sampleRate)
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
+        buffer.frameLength = frames
+        let data = buffer.floatChannelData![0]
+        for t in times {
+            let start = Int(t * sampleRate)
+            for i in 0..<Int(0.03 * sampleRate) where start + i < Int(frames) {
+                let noise = Float((i * 7919) % 200) / 100 - 1
+                data[start + i] = noise * 0.9 * Float(exp(-Double(i) / (0.004 * sampleRate)))
+            }
+        }
+        try file.write(from: buffer)
+        return url
+    }
+
+    /// 사인파 합(주파수·세기) 채널 버퍼. 크로마 시험용.
+    static func tones(_ partials: [(frequency: Double, amplitude: Double)], seconds: Double, sampleRate: Double = 22_050) -> [Float] {
+        (0..<Int(seconds * sampleRate)).map { i in
+            let t = Double(i) / sampleRate
+            return Float(partials.reduce(0) { $0 + $1.amplitude * sin(2 * .pi * $1.frequency * t) })
+        }
+    }
+}

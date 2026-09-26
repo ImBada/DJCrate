@@ -47,6 +47,6 @@ let package = Package(
         ),
         .testTarget(name: "AnicueDomainTests", dependencies: ["AnicueDomain"]),
         .testTarget(name: "RekordboxKitTests", dependencies: ["RekordboxKit", "AnicueDomain", "AnicueTestSupport"]),
-        .testTarget(name: "AnicueAnalysisTests", dependencies: ["AnicueAnalysis", "AnicueDomain"]),
+        .testTarget(name: "AnicueAnalysisTests", dependencies: ["AnicueAnalysis", "AnicueDomain", "AnicueTestSupport"]),
     ]
 )
