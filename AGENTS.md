@@ -1,6 +1,6 @@
 # AGENTS.md — DJCrate
 
-rekordbox 7용 DJ 라이브러리 관리 macOS 앱 DJCrate(약칭 DJC, CLI `djc`, 1인용, 옛 이름 anicue). 사람·Claude Code·Codex 등 모든 에이전트가 따르는 정본이다. 기능 소개는 `README.md`, rekordbox 쓰기 규칙은 `docs/rekordbox-internals.md`, 구조·설계 결정은 `docs/architecture.md`.
+rekordbox 7용 DJ 라이브러리 관리 macOS 앱 DJCrate(약칭 DJC, CLI `djc`, 1인용, 옛 이름 anicue). 사람·Claude Code·Codex 등 모든 에이전트가 따르는 정본이다. 기능 소개는 `README.md`, rekordbox 쓰기 규칙은 `docs/rekordbox-internals.md`, 구조·설계 결정은 `docs/architecture.md`, 이슈 관리 규칙은 `docs/issues.md`.
 
 - IMPORTANT: 사용자에게 하는 말·보고·질문은 항상 한국어로 한다.
 
@@ -100,10 +100,11 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 - 브랜치:
   - `main`: 릴리스
   - `dev`: 통합
-  - 작업 브랜치: `feat/…`, `fix/…`, `chore/…`, `hotfix/…`, `release/vX.Y.Z`
+  - 작업 브랜치: `feat/…`, `fix/…`, `chore/…`, `hotfix/…`, `release/vX.Y.Z`. 이슈가 있으면 번호를 앞에 붙인다(`feat/38-playlist-write`)
   - 작업 브랜치는 `dev`에서 따고, `git merge --no-ff`로 dev에 합친다("Merge branch 'feat/…' into dev").
 - 커밋 제목: `타입: 한국어 설명`(마침표 없음). 타입 = feat, fix, docs, style, design, test, refactor, build, ci, perf, chore, rename, remove. 자세한 내용은 본문에 불릿으로.
 - 커밋·푸시는 요청받았을 때만 한다.
+- 할 일·조사·계획은 GitHub 이슈로 관리한다(`docs/plans/`에 계획 문서를 만들지 않는다). 제목·라벨·본문·닫기 규칙은 `docs/issues.md`. 공개 저장소라 이슈에 라이브러리 사본·토큰·곡 수·개인 경로를 넣지 않는다.
 - 빌드해서 앱을 바꿀 때: DJCrate가 꺼져 있으면 `scripts/build-app.sh --install`로 설치한다. **켜져 있으면 끄기 전에 사용자에게 묻는다.**
 
 ## rekordbox 실험이 필요할 때

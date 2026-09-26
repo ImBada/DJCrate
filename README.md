@@ -1,6 +1,6 @@
 # DJCrate
 
-rekordbox 7용 DJ 라이브러리 관리 macOS 앱(약칭 DJC, 명령줄 도구 `djc`). rekordbox 라이브러리를 읽어 큐·그리드·오토게인·루프를 고치고, **rekordbox를 깨뜨리지 않는 선에서** rekordbox에 직접 반영한다. 목표는 rekordbox를 켜지 않고도 곡을 넣고 빼고 고치는 것이다. 애니송 코멘트 규칙 같은 애니송 DJ용 기능도 들어 있다.
+rekordbox 7용 DJ 라이브러리 관리 macOS 앱(약칭 DJC, 명령줄 도구 `djc`). rekordbox 라이브러리를 읽어 큐·그리드·오토게인·루프를 고치고, **rekordbox를 깨뜨리지 않는 선에서** rekordbox에 직접 반영한다. 목표는 rekordbox를 켜지 않고도 곡을 넣고 빼고 고치는 것이다. DJ 공연 프로그램이 아니라 라이브러리 관리 도구다. rekordbox Export 모드의 라이브러리 관리 기능에 1:1로 대응하면서 더 낫게 만들고, 랩탑 공연 기능은 만들지 않는다. 애니송 코멘트 규칙 같은 애니송 DJ용 기능도 들어 있다.
 
 옛 이름은 anicue(2026-09-26 이름 바꿈). 처음 켤 때 옛 데이터 폴더·설정을 새 이름으로 옮긴다.
 
@@ -105,10 +105,15 @@ scripts/build-app.sh --install     # /Applications/DJCrate.app에 설치
 - 변속 곡의 BPM 변경은 쓰지 않는다.
 - 스트리밍 곡은 파형·재생·분석을 하지 않는다.
 
+## 할 일과 이슈
+
+할 일·조사·계획은 [GitHub 이슈](https://github.com/fotoner/DJCrate/issues)로 관리한다. 큰 주제는 [상위 이슈](https://github.com/fotoner/DJCrate/issues?q=is%3Aopen%20label%3Aepic)(USB 내보내기, 재생 목록 편집, AI 에이전트 연동, VirtualDJ, CI/CD 등) 아래에 하위 이슈로 묶는다. 제목·라벨·본문 형식과 이슈에 넣지 않을 것은 `docs/issues.md`에 있다.
+
 ## 문서
 
 - `AGENTS.md`: 작업 규칙(사람·에이전트 공통)
 - `docs/architecture.md`: 구조와 설계 결정
 - `docs/rekordbox-internals.md`: rekordbox DB·분석 파일 쓰기 규칙(실험으로 확인한 것)
+- `docs/issues.md`: 이슈 관리 규칙(제목·라벨·본문·흐름)
 
 rekordbox는 AlphaTheta의 상표다. 이 앱은 AlphaTheta와 관계없는 개인 도구다. rekordbox DB 키는 [pyrekordbox](https://github.com/dylanljones/pyrekordbox)(MIT)와 같은 방식으로 푼다.
