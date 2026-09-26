@@ -133,6 +133,34 @@ struct RekordboxWriterGoldenTests {
         #expect(rows[0]["InMsec"] == "6000" && rows[0]["Color"] == "16711680" && rows[0]["ColorTableIndex"] == "3")
     }
 
+    /// #73: 그리드를 따라 큐가 1ms 미만 움직인 초안. `CueDraft.changes`는 그 큐를 바꾸지 않은 것으로 보는데
+    /// 검증이 초안 시각을 반올림해 비교하면(89.065984 → 89066ms, rekordbox 89065ms) 반영 묶음 전체가 중단됐다.
+    @Test func 큐가_1ms_미만_움직였으면_rekordbox_값을_그대로_두고_쓴다() throws {
+        let fixture = try RekordboxFixture()
+        var track = TrackSpec()
+        var loop = CueSpec(kind: 2, inMsec: 120_000)
+        loop.outMsec = 128_000; loop.activeLoop = 0; loop.beatLoopSize = 8 << 16 | 1; loop.color = 255; loop.colorTableIndex = 0
+        track.cues = [CueSpec(kind: 0, inMsec: 46603), CueSpec(kind: 0, inMsec: 89065), CueSpec(kind: 1, inMsec: 177_681), loop]
+        try fixture.add(track)
+        var draft = CueDraft(trackUUID: track.uuid, rekordboxCues: track.rekordboxCues)
+        let drift = [46603: 0.001155, 89065: 0.000984, 177_681: 0.000627, 120_000: 0.0004]   // 따라가기로 움직인 만큼
+        draft.cues = draft.cues.map { cue in
+            var cue = cue
+            cue.time += drift[Int((cue.time * 1000).rounded())] ?? 0
+            cue.loop?.end += 0.0006   // 128.0006 → 128001ms
+            return cue
+        }
+        #expect(draft.changes.count == 1)   // 1ms 넘게 움직인 46.603만
+
+        let report = try write(fixture, drafts: [draft])
+        #expect(report.written.count == 1 && report.written[0].removed == 1 && report.written[0].added == 1)
+        let rows = try fixture.rows("SELECT ID, InMsec, OutMsec FROM djmdCue WHERE ContentID = ?", [.text(track.id)])
+        let kept = Set(track.cues.dropFirst().map(\.id))
+        #expect(Set(rows.filter { kept.contains($0["ID"]!) }.map { "\($0["InMsec"]!)/\($0["OutMsec"]!)" })
+            == ["89065/-1", "177681/-1", "120000/128000"])
+        #expect(rows.filter { !kept.contains($0["ID"]!) }.map { $0["InMsec"] } == ["46604"])
+    }
+
     @Test func 옛_JSON의_칸_순서는_건드리지_않는다() throws {
         let fixture = try RekordboxFixture()
         var track = TrackSpec()

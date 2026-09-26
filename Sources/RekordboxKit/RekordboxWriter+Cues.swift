@@ -310,7 +310,7 @@ extension RekordboxWriter {
         let untouched = Set(rows.map(\.id)).subtracting(removedIDs)
         let expectation = Expectation(
             contentUUID: contentUUID,
-            editable: key(draft.cues, withSource: false),
+            editable: key(expectedCues(after: draft), withSource: false),
             untouchedIDs: untouched,
             insertedIDs: insertedIDs,
             insertedSeek: insertedSeek,
