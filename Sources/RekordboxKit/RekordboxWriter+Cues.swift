@@ -78,7 +78,11 @@ extension RekordboxWriter {
         var flac: (sampleRate: Int, frames: [SeekInfo.FlacFrame])?
         switch content.fileType {
         case 1:
-            guard content.bitRate > 0, !rows.contains(where: { $0.inMpegFrame != 0 }) else {
+            // VBR은 DB에 BitRate 0으로도, 첫 프레임 비트레이트(예: 32)로도 적혀서 파일 머리로 가린다(2026-09-26).
+            guard let frames = SeekInfo.mp3Frames(url: URL(filePath: content.path)) else {
+                throw block("음원 파일을 읽지 못해 VBR MP3인지 확인할 수 없습니다. rekordbox에서 파일 위치를 확인하세요")
+            }
+            guard content.bitRate > 0, !frames.isVariableBitRate, !rows.contains(where: { $0.inMpegFrame != 0 }) else {
                 throw block("VBR MP3는 rekordbox가 큐마다 적는 MPEG 탐색 위치의 규칙을 아직 다 찾지 못해 막아 두었습니다")
             }
         case 4, 11:

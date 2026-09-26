@@ -165,6 +165,30 @@ struct RekordboxWriterGoldenTests {
         #expect(try fixture.rows("SELECT * FROM djmdCue").isEmpty)
     }
 
+    @Test func BitRate가_있어도_파일이_VBR이면_막는다() throws {
+        // rekordbox 7.2.18은 Xing 머리가 있는 VBR 파일을 BitRate 32로 적기도 한다
+        // (2026-09-26 凸凹スピードスター 추가 실험, 라이브러리의 BitRate 32 곡은 모두 Xing VBR이고 큐에 MPEG 위치가 있다).
+        let fixture = try RekordboxFixture()
+        var vbr = TrackSpec()
+        vbr.bitRate = 32
+        vbr.folderPath = try TestResources.url("mp3-lame-vbr.mp3").path
+        try fixture.add(vbr)
+        var draft = CueDraft(trackUUID: vbr.uuid, rekordboxCues: [])
+        draft.place(EditableCue(kind: .memory, time: 0.5))
+        #expect(try blockedReason(fixture, draft)?.contains("VBR") == true)
+        #expect(try fixture.rows("SELECT * FROM djmdCue").isEmpty)
+    }
+
+    @Test func 음원_파일이_없으면_VBR인지_몰라_막는다() throws {
+        let fixture = try RekordboxFixture()
+        var track = TrackSpec()
+        track.folderPath = "/tmp/anicue-없는-파일.mp3"
+        try fixture.add(track)
+        var draft = CueDraft(trackUUID: track.uuid, rekordboxCues: [])
+        draft.place(EditableCue(kind: .memory, time: 0.5))
+        #expect(try blockedReason(fixture, draft)?.contains("음원 파일") == true)
+    }
+
     @Test func 초안을_만든_뒤_rekordbox에서_바뀐_곡은_막는다() throws {
         let fixture = try RekordboxFixture()
         var track = TrackSpec()
