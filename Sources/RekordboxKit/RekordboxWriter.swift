@@ -11,7 +11,7 @@ import Foundation
 /// 옮긴 큐는 지우고 새로 넣는다. FLAC은 rekordbox처럼 프레임 탐색 위치(SeekInfo)를 계산해 적는다.
 /// VBR MP3(MPEG 탐색 위치 규칙 미확인)는 막는다.
 ///
-/// 안전장치: rekordbox(에이전트 포함)가 켜져 있으면 라이브 DB에 쓰지 않는다. 쓰기 전에 DB를 통째로 백업하고, 한
+/// 안전장치: rekordbox(에이전트 포함)가 켜져 있거나 확인하지 않은 버전·DB 구조면 쓰지 않는다(`RekordboxCompatibility`). 쓰기 전에 DB를 통째로 백업하고, 한
 /// 트랜잭션 안에서 쓰고 다시 읽어 검증한 뒤에만 커밋한다. 커밋 뒤 무결성 검사·재검증이 실패하면 백업으로 되돌린다.
 /// 초안을 시작한 뒤 rekordbox에서 그 곡의 큐가 바뀌었으면 그 곡은 쓰지 않는다.
 public enum RekordboxWriter {
@@ -68,9 +68,11 @@ public enum RekordboxWriter {
     /// - Parameters:
     ///   - grids: 그리드 초안. 분석 파일(`shareRoot` 아래)을 고친다.
     ///   - shareRoot: 분석 파일 뿌리. 라이브 DB면 rekordbox share 폴더, 사본 DB면 명시해야 그리드를 쓴다(실제 파일을 건드리지 않게).
+    ///   - writeGuard: 라이브 DB 판단과 실행·버전 확인(시험에서 바꾼다). DB 구조는 사본이어도 늘 확인한다.
     public static func write(drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:],
                              to database: URL = liveDatabase, dryRun: Bool,
-                             now: Date = .now, backups: URL, shareRoot: URL? = nil) throws -> Report {
+                             now: Date = .now, backups: URL, shareRoot: URL? = nil,
+                             guard writeGuard: RekordboxWriteGuard = .system) throws -> Report {
         let stamp = CueJSON.timestamps(now)
         let grids = grids.filter(\.hasChanges)
         guard drafts.contains(where: \.hasChanges) || !grids.isEmpty || !gains.isEmpty else {
@@ -79,17 +81,13 @@ public enum RekordboxWriter {
                                                           reason: nil, removed: 0, added: 0) },
                           backup: nil, dryRun: dryRun, createdAt: stamp.json, finalUpdateCount: nil)
         }
-        let live = isLive(database)
+        let live = writeGuard.isLive(database)
         let gridRoot = shareRoot ?? (live ? RekordboxShare.directory : nil)
-        if live {
-            guard !dryRun else { throw AnicueError.writeRefused("미리 보기는 스냅샷 사본으로만 합니다") }
-            guard !LibrarySnapshot.isRekordboxRunning() else {
-                throw AnicueError.writeRefused("rekordbox가 켜져 있습니다. rekordbox를 완전히 종료한 뒤 다시 시도하세요")
-            }
-            let wal = URL(filePath: database.path + "-wal")
-            if let size = (try? FileManager.default.attributesOfItem(atPath: wal.path))?[.size] as? Int, size > 0 {
-                throw AnicueError.writeRefused("rekordbox가 정상적으로 종료되지 않은 것 같습니다(WAL 파일이 남아 있음). rekordbox를 한 번 켰다가 종료한 뒤 다시 시도하세요")
-            }
+        if live { try writeGuard.checkLive(database, dryRun: dryRun) }
+        do {
+            let reader = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
+            defer { reader.close() }
+            try RekordboxCompatibility.checkSchema(reader)
         }
         // 그리드 계획(파일을 읽기만 한다)
         var gridPlans: [RekordboxGridWriter.Plan] = []
