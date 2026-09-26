@@ -154,6 +154,13 @@ public enum RekordboxWriter {
                 }
             }
         }
+        if tags.isEmpty, !tagOutcomes.isEmpty, !drafts.contains(where: \.hasChanges), grids.isEmpty, gains.isEmpty, playlistSteps.isEmpty {
+            let unchanged = drafts.map { Outcome(trackUUID: $0.trackUUID, title: $0.trackUUID, status: .unchanged,
+                                                   reason: nil, removed: 0, added: 0) }
+            var report = Report(outcomes: unchanged, backup: nil, dryRun: dryRun, createdAt: stamp.json, finalUpdateCount: nil)
+            report.tagOutcomes = tagOutcomes
+            return report
+        }
         // 그리드 계획(파일을 읽기만 한다)
         var gridPlans: [RekordboxGridWriter.Plan] = []
         var gridOutcomes: [Outcome] = []
@@ -335,6 +342,12 @@ public enum RekordboxWriter {
                 do {
                     let result = try applyTags(draft, db: db, usn: &usn, stamp: stamp, writable: tagKeys)
                     tagOutcomes.append(result.outcome)
+                    // 여러 곡이 같은 앨범을 저장하거나 마지막 참조를 놓으면 뒤 편집이 그 행 검증을 맡는다.
+                    let replacedAlbums = Set(result.expectation.touchedAlbums.keys)
+                        .union(result.expectation.deletedNames.filter { $0.table == "djmdAlbum" }.map(\.id))
+                    for i in tagged.indices {
+                        for id in replacedAlbums { tagged[i].touchedAlbums.removeValue(forKey: id) }
+                    }
                     tagged.append(result.expectation)
                     for i in written.indices where written[i].contentID == result.expectation.contentID {
                         written[i].expectation.contentUSN = usn

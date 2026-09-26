@@ -176,6 +176,42 @@ public struct PlaylistDraft: Codable, Hashable, Sendable {
         pruneBase()
     }
 
+    /// 곡 추가를 되돌리면 사라진 ContentID를 초안에서도 뺀다. 다른 목록의 base는 그대로 둔다.
+    public mutating func forgetContentIDs(_ ids: Set<String>, rekordbox: PlaylistLayout) {
+        var originalLayout = rekordbox
+        steps = steps.compactMap { step in
+            let original = step.edit
+            let before = originalLayout.item(original.playlist.layoutID)?.entries ?? []
+            defer { try? originalLayout.apply(original) }
+            // 앞의 추가 편집에서 빠진 곡만큼 뒤의 자리 번호도 당긴다.
+            func remaining(_ entries: [PlaylistEntry]) -> [PlaylistEntry] {
+                entries.filter { !ids.contains($0.contentID) }.map { entry in
+                    PlaylistEntry(trackNo: entry.trackNo - before.filter { $0.trackNo < entry.trackNo && ids.contains($0.contentID) }.count,
+                                  contentID: entry.contentID)
+                }
+            }
+            var step = step
+            switch step.edit {
+            case let .addTracks(ref, tracks):
+                let kept = tracks.filter { !ids.contains($0) }
+                guard !kept.isEmpty else { return nil }
+                step.edit = .addTracks(playlist: ref, contentIDs: kept)
+            case let .removeTracks(ref, entries):
+                let kept = remaining(entries)
+                guard !kept.isEmpty else { return nil }
+                step.edit = .removeTracks(playlist: ref, entries: kept)
+            case let .moveTracks(ref, entries, to):
+                let kept = remaining(entries)
+                guard !kept.isEmpty else { return nil }
+                let removedBefore = before.filter { !entries.contains($0) }.prefix(max(0, to - 1)).filter { ids.contains($0.contentID) }.count
+                step.edit = .moveTracks(playlist: ref, entries: kept, to: to - removedBefore)
+            default: break
+            }
+            return step
+        }
+        pruneBase()
+    }
+
     /// 만든 편집이 없어진 새 목록을 가리키는 편집을 버린다(없어질 때까지 되풀이)
     mutating func dropOrphans() {
         while true {

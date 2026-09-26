@@ -24,6 +24,7 @@ extension LibraryStore {
     func loadStaged() {
         staged = StagingStore.load()
         verifyImports()
+        resolvePlaylistImports()
         rebuildStagedRows()
         // 지난번에 추정을 마치지 못한 곡을 이어서 한다.
         enqueueGrid(staged.filter { $0.bpm == nil }.map { GridJobItem(uuid: $0.uuid, path: $0.path, staged: true) })
@@ -37,12 +38,15 @@ extension LibraryStore {
     }
 
     private func persistStaged() {
-        do { try StagingStore.save(staged) } catch { stagingMessage = AppMessage(kind: .failure, text: String(ui: "추가한 곡 목록을 저장하지 못했습니다. DJCrate 데이터 폴더의 쓰기 권한을 확인하세요: \(error.localizedDescription)")) }
+        do { try stagingSaver(staged) } catch { stagingMessage = AppMessage(kind: .failure, text: String(ui: "추가한 곡 목록을 저장하지 못했습니다. DJCrate 데이터 폴더의 쓰기 권한을 확인하세요: \(error.localizedDescription)")) }
     }
 
     /// 파일·폴더를 추가한다. 이미 rekordbox 컬렉션에 있는 파일은 건너뛴다
     /// (XML로 다시 가져오면 rekordbox의 기존 큐·그리드를 덮을 수 있다).
-    func addFiles(_ urls: [URL], appleMusicOrigins: [String: [AppleMusicOrigin]] = [:]) async {
+    func addFiles(_ urls: [URL], appleMusicOrigins: [String: [AppleMusicOrigin]] = [:],
+                  createPlaylists: Bool = false, toPlaylist playlistID: String? = nil) async {
+        guard writeLockPolicy.allowsLibraryInteraction,
+              playlistID.map({ canEditTracks(of: $0) }) ?? true else { return }
         let files = StagedTrack.audioFiles(in: urls)
         guard !files.isEmpty else {
             stagingMessage = AppMessage(kind: .warning, text: String(ui: "추가할 음원이 없습니다. MP3·M4A·WAV·AIFF·FLAC 파일을 고르세요."))
@@ -77,17 +81,36 @@ extension LibraryStore {
                 failed += 1
             }
         }
+        // 태그를 읽는 동안 반영이 시작되면 추가 목록도 바꾸지 않는다.
+        guard writeLockPolicy.allowsLibraryInteraction else { return }
         stagingMessage = nil
         staged += added
         if !added.isEmpty || originsChanged {
             persistStaged()
             rebuildStagedRows()
         }
+        if createPlaylists || playlistID != nil {
+            let paths = added.map(\.path) + staged.filter { stagedIDs.contains($0.id) }.map(\.path) + libraryRows.map(\.track.folderPath)
+            var imports = playlistImports
+            if createPlaylists {
+                let accepted = Set(paths.map(key))
+                imports.addAppleMusic(appleMusicOrigins.filter { accepted.contains($0.key) })
+            }
+            if let playlistID { imports.addFiles(paths, to: PlaylistRef(playlistID)) }
+            if savePlaylistImports(imports) {
+                resolvePlaylistImports()
+            } else {
+                stagingMessage = AppMessage(kind: .failure, text: playlistMessage?.text ?? String(ui: "재생 목록 연결을 저장하지 못했습니다. DJCrate 데이터 폴더의 쓰기 권한을 확인하고 다시 시도하세요."))
+            }
+        }
         var parts: [String] = []
         if !added.isEmpty { parts.append(String(ui: "\(added.count)곡 추가")) }
         if !libraryRows.isEmpty { parts.append(String(ui: "rekordbox 곡 \(libraryRows.count)곡을 열었습니다")) }
         if !stagedIDs.isEmpty { parts.append(String(ui: "이미 추가한 \(stagedIDs.count)곡을 열었습니다")) }
         if failed > 0 { parts.append(String(ui: "\(failed)곡은 읽지 못함")) }
+        if createPlaylists || playlistID != nil {
+            parts.append(String(ui: "컬렉션에 들어간 곡은 재생 목록 초안에 연결합니다. 목록은 반영할 때 만듭니다."))
+        }
         if stagingMessage?.kind != .failure {
             stagingMessage = AppMessage(kind: failed > 0 ? .warning : .success, text: parts.joined(separator: " · "))
         }
@@ -114,6 +137,9 @@ extension LibraryStore {
     func removeStaged(_ ids: Set<TrackRow.ID>) {
         let removing = staged.filter { ids.contains($0.id) }
         guard !removing.isEmpty else { return }
+        var imports = playlistImports
+        imports.removePending(paths: Set(removing.map(\.path)))
+        guard savePlaylistImports(imports) else { return }
         let uuids = Set(removing.map(\.uuid))
         gridQueue.removeAll { uuids.contains($0.uuid) }
         stagingMessage = nil
