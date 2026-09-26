@@ -5,7 +5,7 @@ import RekordboxKit
 
 /// 인자와 출력만 맡고, 조회·JSON 계약은 DJCStorage에서 검증한다.
 enum ReadCommands {
-    static let names: Set<String> = ["search", "track", "playlists", "playlist", "histories", "history", "drafts"]
+    static let names: Set<String> = ["search", "track", "playlists", "playlist", "histories", "history", "drafts", "duplicates"]
     static let jsonNames = names.union(["report", "path", "parse", "compat"])
     static let all: [Command] = [
         Command("search", "<검색어> [--bpm 최소-최대] [--key 키] [--playlist ID] [--filter 필터] [--comment-preset none|anisong] [--db PATH] [--json]", "곡 찾기", run),
@@ -15,6 +15,7 @@ enum ReadCommands {
         Command("histories", "[--db PATH] [--json]", "재생 기록을 날짜순으로 보기", run),
         Command("history", "<ID> [--db PATH] [--json]", "기록의 곡을 재생 순서대로 보기", run),
         Command("drafts", "[--db PATH] [--json]", "반영 대기 초안 보기", run),
+        Command("duplicates", "[--db PATH] [--json]", "중복 후보 묶음과 큐·재생 목록·음질 비교", run),
     ]
 
     static func handlesJSON(_ args: [String]) -> Bool {
@@ -44,6 +45,17 @@ enum ReadCommands {
             try output(result, name: name, json: json) { tracksText($0.tracks) }
         case "track":
             try output(read.track(id: options.operands[0]), name: name, json: json, text: trackText)
+        case "duplicates":
+            try output(read.duplicates(), name: name, json: json) { result in
+                result.groups.isEmpty ? "중복 후보가 없습니다" : result.groups.map { group in
+                    "후보 묶음 \(group.id) · 길이 차이 2초 이내\n" + group.tracks.map { member in
+                        let bitrate = member.bitrateKbps.map { "\($0) kbps" } ?? "비트레이트 알 수 없음"
+                        return "\(member.id) · \(member.track.title) · \(member.track.artist ?? "") · \(member.track.lengthSeconds)초"
+                            + " · 큐 \(member.cueCount)(수동 \(member.manualCueCount)) · 재생 목록 \(member.playlistCount) · 재생 \(member.playCount)"
+                            + " · \(member.format) · \(bitrate)\n  \(member.track.path)"
+                    }.joined(separator: "\n")
+                }.joined(separator: "\n\n")
+            }
         case "playlists":
             try output(read.playlists(tree: options.flags.contains("--tree")), name: name, json: json) {
                 playlistsText($0.playlists)

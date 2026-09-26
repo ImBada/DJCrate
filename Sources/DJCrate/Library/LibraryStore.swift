@@ -10,6 +10,7 @@ enum SidebarItem: Hashable, Sendable {
     case filter(LibraryFilter)
     case playlist(String)
     case history(String)
+    case duplicates
     /// DJCrate에 추가한 곡(아직 rekordbox에 없음)
     case staged
     /// 큐·그리드 초안이 있어 rekordbox에 반영할 곡
@@ -68,6 +69,8 @@ final class LibraryStore {
     private(set) var previewRevision = 0
     /// 표에 보이는 줄. 필터·검색·정렬이 바뀔 때만 다시 계산한다(그릴 때마다 계산하지 않는다).
     private(set) var displayRows: [TrackRow] = []
+    private(set) var duplicateGroups: [LibraryRead.DuplicateGroup] = []
+    private(set) var displayDuplicateGroups: [LibraryRead.DuplicateGroup] = []
     private(set) var filterCounts: [LibraryFilter: Int] = [:]
     private(set) var playlistCounts: [String: Int] = [:]
     var isLoading: Bool { if case .loading = phase { true } else { false } }
@@ -78,7 +81,7 @@ final class LibraryStore {
             // 플레이리스트는 rekordbox 순서가 기본, 필터는 임포트 최신순이 기본.
             suppressRefresh = true
             switch sidebar {
-            case .playlist, .history, .staged, .pending: sortOrder = []
+            case .playlist, .history, .duplicates, .staged, .pending: sortOrder = []
             case .filter:
                 if case .filter = oldValue {} else { sortOrder = [KeyPathComparator(\TrackRow.importedOn, order: .reverse)] }
             }
@@ -98,6 +101,7 @@ final class LibraryStore {
         case let .filter(filter): filter.rawValue
         case let .playlist(id): playlistIndex[id]?.name ?? "플레이리스트"
         case let .history(id): historyIndex[id].map(historyTitle) ?? "재생 기록"
+        case .duplicates: "중복 후보"
         case .staged: "추가한 곡"
         case .pending: "rekordbox 반영 대기"
         }
@@ -229,6 +233,11 @@ final class LibraryStore {
             }
         case .staged: base = stagedRows
         case .pending: base = rows.filter { pendingUUIDs.contains($0.track.uuid) }
+        case .duplicates:
+            var seen = Set<String>()
+            base = duplicateGroups.flatMap(\.tracks).compactMap { member in
+                seen.insert(member.id).inserted ? rowsByID[member.id] : nil
+            }
         }
         sortedBase = sortOrder.isEmpty ? base : base.sorted(using: sortOrder)
         refreshFiltered()
@@ -258,6 +267,16 @@ final class LibraryStore {
 
     private func refreshFiltered() {
         let needle = search.trimmingCharacters(in: .whitespaces).lowercased()
+        if sidebar == .duplicates {
+            // 검색한 곡의 비교 상대도 남겨 묶음이 한 곡으로 잘리지 않게 한다.
+            displayDuplicateGroups = needle.isEmpty ? duplicateGroups : duplicateGroups.filter { group in
+                group.tracks.contains { rowsByID[$0.id]?.searchKey.contains(needle) == true }
+            }
+            let visible = Set(displayDuplicateGroups.flatMap { $0.tracks.map(\.id) })
+            displayRows = sortedBase.filter { visible.contains($0.id) }
+            return
+        }
+        displayDuplicateGroups = []
         displayRows = needle.isEmpty ? sortedBase : sortedBase.filter { $0.searchKey.contains(needle) }
     }
 
@@ -329,6 +348,7 @@ final class LibraryStore {
             rowsByUUID = Dictionary(loaded.rows.map { ($0.track.uuid, $0) }, uniquingKeysWith: { first, _ in first })
             report = loaded.report
             filterCounts = loaded.filterCounts
+            duplicateGroups = loaded.duplicateGroups
             draftFileStamps = nil
             tagDrafts = loaded.tagDrafts
             cueDraftUUIDs = loaded.cueDraftUUIDs
