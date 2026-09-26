@@ -107,6 +107,22 @@ struct DeckLoadTests {
         await store.load(snapshot: fixture.database, quiet: true)
         #expect(log.ids == ["101", "101", nil])
     }
+
+    @Test func 추가한_곡의_ID를_옮긴_뒤_새로_읽으면_덱은_등록된_곡을_유지한다() async throws {
+        let fixture = try historyFixture()
+        let (store, log) = await loadedStore(fixture)
+        let staged = TrackListTagEditTests.row("djc-test")
+        store.loadToDeck(staged)
+        store.selection = ["102"]
+        store.moveDeckTrack(to: "101")
+        // 다시 읽기 전에는 기존 오디오를 내리지 않는다.
+        #expect(log.ids == [staged.id])
+        await store.load(snapshot: fixture.database, quiet: true)
+        #expect(log.ids == [staged.id, "101"])
+        #expect(store.deckTrackID == "101")
+        #expect(store.selection == ["102"])
+        #expect(log.rows.last??.isStaged == false)
+    }
 }
 
 /// 곡 목록 표(#93): 한 번 클릭은 고르기만, 더블클릭·⌘→·오른쪽 클릭·끌어다 놓기로 덱에 올린다.
