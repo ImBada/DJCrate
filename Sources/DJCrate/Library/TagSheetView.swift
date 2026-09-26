@@ -10,7 +10,7 @@ import SwiftUI
 /// - 클릭: 셀 선택 / Shift+클릭·드래그: 범위 / 방향키·Tab: 이동(Shift로 범위 확장)
 /// - 더블클릭·Return·타이핑: 편집 시작 / Return: 확정 후 아래로 / Tab: 확정 후 오른쪽 / Esc: 취소
 /// - ⌘C·⌘V: 탭 구분 텍스트(엑셀·구글 시트 호환) / ⌘D: 아래로 채우기 / Delete: 지우기
-/// - ⌘Z·⇧⌘Z: 되돌리기·다시 실행 / ⌘A: 전체 선택
+/// - ⌘Z·⇧⌘Z: 실행 취소·실행 복귀 / ⌘A: 전체 선택
 struct TagSheetView: NSViewRepresentable {
     @Bindable var store: LibraryStore
 
@@ -98,6 +98,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
     // MARK: - 데이터
 
     func update(rows: [TrackRow], revision: Int) {
+        defer { table?.updateFillDownCommand() }
         let ids = rows.map(\.id)
         if ids != rowIDs {
             // 줄이 바뀌면(필터·정렬·검색) 편집 중인 셀을 먼저 취소한다. 편집 위치가 인덱스라
@@ -172,6 +173,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
     }
 
     func select(_ position: CellPosition, extend: Bool) {
+        defer { table?.updateFillDownCommand() }
         guard !rows.isEmpty else { return }
         let clamped = CellPosition(row: min(max(position.row, 0), rows.count - 1),
                                    column: min(max(position.column, 0), SheetColumn.all.count - 1))
@@ -189,6 +191,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
     }
 
     func selectAll() {
+        defer { table?.updateFillDownCommand() }
         guard !rows.isEmpty else { return }
         anchor = CellPosition(row: 0, column: 0)
         cursor = CellPosition(row: rows.count - 1, column: SheetColumn.all.count - 1)
@@ -292,6 +295,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
     }
 
     func paste() {
+        defer { table?.updateFillDownCommand() }
         guard let string = NSPasteboard.general.string(forType: .string), !rows.isEmpty else { return }
         let block = TSV.parse(string)
         guard !block.isEmpty else { return }
@@ -338,6 +342,24 @@ final class SheetTableView: NSTableView {
     weak var coordinator: SheetCoordinator?
 
     override var acceptsFirstResponder: Bool { true }
+
+    override func becomeFirstResponder() -> Bool {
+        let accepted = super.becomeFirstResponder()
+        if accepted { updateFillDownCommand(focused: true) }
+        return accepted
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let accepted = super.resignFirstResponder()
+        if accepted { coordinator?.store.canFillDownTags = false }
+        return accepted
+    }
+
+    func updateFillDownCommand(focused: Bool? = nil) {
+        let enabled = (focused ?? (window?.firstResponder === self))
+            && canEditSelection && (coordinator?.selectionRect.rows.count ?? 0) > 1
+        if coordinator?.store.canFillDownTags != enabled { coordinator?.store.canFillDownTags = enabled }
+    }
 
     private func position(for event: NSEvent) -> CellPosition? {
         let point = convert(event.locationInWindow, from: nil)
@@ -390,21 +412,46 @@ final class SheetTableView: NSTableView {
         }
     }
 
-    override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        guard let coordinator, window?.firstResponder === self,
-              event.modifierFlags.contains(.command) else { return super.performKeyEquivalent(with: event) }
-        let shift = event.modifierFlags.contains(.shift)
-        switch event.charactersIgnoringModifiers?.lowercased() {
-        case "c": coordinator.copySelection(); return true
-        case "x": coordinator.copySelection(); coordinator.clearSelection(); return true
-        case "v": coordinator.paste(); return true
-        case "d": coordinator.fillDown(); return true
-        case "a": coordinator.selectAll(); return true
-        case "z":
-            if shift { coordinator.store.redoTags() } else { coordinator.store.undoTags() }
-            return true
+    @objc func copy(_ sender: Any?) { coordinator?.copySelection() }
+    @objc func cut(_ sender: Any?) {
+        guard canEditSelection else { return }
+        coordinator?.copySelection()
+        coordinator?.clearSelection()
+    }
+    @objc func paste(_ sender: Any?) {
+        guard canEditSelection else { return }
+        coordinator?.paste()
+    }
+    @objc func delete(_ sender: Any?) {
+        guard canEditSelection else { return }
+        coordinator?.clearSelection()
+    }
+    override func selectAll(_ sender: Any?) { coordinator?.selectAll() }
+    @objc func fillDown(_ sender: Any?) {
+        guard canEditSelection else { return }
+        coordinator?.fillDown()
+    }
+
+    var canEditSelection: Bool {
+        guard let coordinator, !coordinator.store.isWritingRekordbox else { return false }
+        let rect = coordinator.selectionRect
+        return rect.rows.contains { row in
+            rect.columns.contains { coordinator.editableKey(row: row, column: $0) != nil }
+        }
+    }
+
+    override func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
+        switch item.action {
+        case #selector(copy(_:)), #selector(selectAll(_:)):
+            return coordinator?.rows.isEmpty == false
+        case #selector(cut(_:)), #selector(delete(_:)):
+            return canEditSelection
+        case #selector(paste(_:)):
+            return canEditSelection && NSPasteboard.general.canReadItem(withDataConformingToTypes: ["public.utf8-plain-text"])
+        case #selector(fillDown(_:)):
+            return canEditSelection && (coordinator?.selectionRect.rows.count ?? 0) > 1
         default:
-            return super.performKeyEquivalent(with: event)
+            return super.validateUserInterfaceItem(item)
         }
     }
 }

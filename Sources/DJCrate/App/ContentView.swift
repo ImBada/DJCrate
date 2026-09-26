@@ -7,6 +7,7 @@ import SwiftUI
 
 /// A안: 사이드바 | (위) 덱 · (아래) 라이브러리 표
 struct ContentView: View {
+    @Environment(\.undoManager) private var undoManager
     @Bindable var store: LibraryStore
     @Bindable var deck: DeckModel
     @State private var showTagEditor = false
@@ -43,6 +44,10 @@ struct ContentView: View {
         .searchable(text: $store.search, placement: .toolbar, prompt: "제목·아티스트·코멘트")
         .toolbar { toolbarContent }
         .onAppear { setUp() }
+        .onChange(of: undoManager, initial: true) {
+            deck.undoManager = undoManager
+            store.undoManager = undoManager
+        }
         // rekordbox에서 곡을 지우거나 고치고 돌아오면 새로 읽는다(옛 목록에 지워진 곡이 남지 않게)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             Task { await store.refreshIfRekordboxChanged() }
@@ -81,6 +86,7 @@ struct ContentView: View {
                     if sheetMode {
                         SheetHeader(store: store)
                         TagSheetView(store: store)
+                            .onDisappear { store.canFillDownTags = false }
                             .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                     } else {
                         TrackTable(store: store)
@@ -193,13 +199,9 @@ struct SheetHeader: View {
     var body: some View {
         HStack(spacing: 14) {
             Text("\(store.sidebarTitle) · \(store.displayRows.count)곡").font(.callout.bold())
-            Text("더블클릭·Return·타이핑: 편집  ·  ⌘C/⌘V: 엑셀·시트와 복사·붙여넣기  ·  ⌘D: 아래로 채우기  ·  Delete: 지우기  ·  ⌘Z: 되돌리기")
+            Text("더블클릭·Return·타이핑: 편집  ·  ⌘C/⌘V: 엑셀·시트와 복사·붙여넣기  ·  ⌘D: 아래로 채우기  ·  Delete: 지우기  ·  ⌘Z/⇧⌘Z: 실행 취소·실행 복귀")
                 .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             Spacer()
-            Button { store.undoTags() } label: { Label("되돌리기", systemImage: "arrow.uturn.backward") }
-                .disabled(!store.canUndoTags)
-            Button { store.redoTags() } label: { Label("다시 실행", systemImage: "arrow.uturn.forward") }
-                .disabled(!store.canRedoTags)
             Text("주황 = 초안(파일·rekordbox 미반영)").font(.caption).foregroundStyle(UIColors.warning.color)
         }
         .controlSize(.small)

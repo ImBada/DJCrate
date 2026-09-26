@@ -9,14 +9,14 @@ import RekordboxKit
 extension DeckModel {
     // MARK: - 그리드 편집 (초안만 바뀐다)
 
-    var canEditGrid: Bool { gridDraft != nil && gridEditBlockedReason == nil }
+    var canEditGrid: Bool { !isWriteLocked && gridDraft != nil && gridEditBlockedReason == nil }
 
     /// rekordbox 그리드도, 적용한 추정 그리드도 없는 로컬 곡.
     var needsGrid: Bool { row != nil && row?.track.isStreaming == false && !hasRekordboxGrid && gridDraft == nil }
 
-    func shiftGrid(ms: Double) { mutateGrid { $0.shift(by: ms / 1000) } }
+    func shiftGrid(ms: Double) { mutateGrid(name: "그리드 옮기기") { $0.shift(by: ms / 1000) } }
 
-    func setGridBPM(_ bpm: Double) { mutateGrid { $0.setBPM(bpm, at: playhead) } }
+    func setGridBPM(_ bpm: Double) { mutateGrid(name: "BPM 변경") { $0.setBPM(bpm, at: playhead) } }
 
     func scaleGridBPM(_ factor: Double) {
         guard let bpm = gridBPM else { return }
@@ -36,17 +36,18 @@ extension DeckModel {
 
     func removeTempoChange(at index: Int) { mutateGrid { $0.removeTempoChange(at: index) } }
 
-    func revertGrid() { mutateGrid { $0.revert() } }
+    func revertGrid() { mutateGrid(name: "그리드 초안 버리기") { $0.revert() } }
 
     /// 확대 파형을 끌어 그리드 전체를 옮긴다(그리드 편집 모드).
     func beginGridDrag() {
         guard canEditGrid else { return }
+        pendingDraftUndo = draftSnapshot
         gridDragBase = gridDraft
         cueDragBase = carryCues ? draft?.cues : nil
     }
 
     func dragGrid(by seconds: Double) {
-        guard var base = gridDragBase, base.trackUUID == row?.track.uuid else { return }
+        guard !isWriteLocked, var base = gridDragBase, base.trackUUID == row?.track.uuid else { return }
         let from = base.segments
         base.shift(by: seconds)
         gridDraft = base
@@ -62,12 +63,13 @@ extension DeckModel {
 
     func endGridDrag() {
         guard gridDragBase != nil else { return }
+        guard !isWriteLocked else { return }
         gridDragBase = nil
-        if cueDragBase != nil {
-            cueDragBase = nil
-            commitDraft()
-        }
-        mutateGrid { _ in }
+        cueDragBase = nil
+        if let draft { persist(draft) }
+        saveGridEdit()
+        registerDraftUndo(from: pendingDraftUndo, name: "그리드 옮기기")
+        pendingDraftUndo = nil
     }
 
     /// 그리드가 `from` → `to`로 바뀐 만큼 큐(핫큐·메모리 큐·루프 끝)를 따라 옮긴다.
@@ -80,7 +82,7 @@ extension DeckModel {
             return abs(now.time - cue.time) >= 0.0005 || abs((now.loop?.end ?? 0) - (cue.loop?.end ?? 0)) >= 0.0005
         }
         guard !moved.isEmpty else { return }
-        mutate(save: save) { draft in for cue in moved { draft.place(cue) } }
+        mutate(save: save, recordingUndo: false) { draft in for cue in moved { draft.place(cue) } }
     }
 
     /// 탭 템포: 2초 넘게 쉬면 새로 센다. 최근 8번 간격의 평균.
@@ -94,12 +96,20 @@ extension DeckModel {
         tapBPM = 60 / interval
     }
 
-    func mutateGrid(_ change: (inout GridDraft) -> Void) {
+    func mutateGrid(name: String = "그리드 편집", _ change: (inout GridDraft) -> Void) {
         guard canEditGrid, var gridDraft, gridDraft.trackUUID == row?.track.uuid else { return }
+        let snapshot = draftSnapshot
         let before = gridDraft.segments
         change(&gridDraft)
+        guard self.gridDraft != gridDraft else { return }
         self.gridDraft = gridDraft
         moveCuesWithGrid(from: before, to: gridDraft.segments)
+        saveGridEdit()
+        registerDraftUndo(from: snapshot, name: name)
+    }
+
+    func saveGridEdit() {
+        guard let gridDraft else { return }
         refreshGrid()
         storage.saveGridDraft(gridDraft)
         onDraftChange?(gridDraft.trackUUID, .grid, gridDraft.hasChanges)
@@ -129,7 +139,7 @@ extension DeckModel {
             self.gridSuggestion = estimate
             self.suggestedGrid = GridDraft(trackUUID: "", base: [], segments: estimate.segments).grid(duration: self.duration)
             if self.gridDraft == nil, self.row?.isStaged == true {
-                self.applyGridSuggestion()
+                self.applyGridSuggestion(recordingUndo: false)
             } else {
                 self.refreshSuggestionNote()
             }
@@ -186,8 +196,11 @@ extension DeckModel {
     }
 
     /// 추정 그리드를 초안으로 적용한다(원본이 있으면 원본은 그대로 두고 구간만 바꾼다).
-    func applyGridSuggestion() {
-        guard let suggestion = gridSuggestion, let uuid = row?.track.uuid else { return }
+    func applyGridSuggestion(recordingUndo: Bool = true) {
+        guard !isWriteLocked, let suggestion = gridSuggestion, let uuid = row?.track.uuid else { return }
+        // 자동 분석은 새 편집이 아니라 초안의 기준을 바꾸는 로드다.
+        if !recordingUndo { clearDraftUndo() }
+        let snapshot = draftSnapshot
         let base = gridDraft?.base ?? []
         let before = gridDraft?.segments ?? originalGrid.map(GridDraft.segments(from:)) ?? []
         let draft = GridDraft(trackUUID: uuid, base: base, segments: suggestion.segments)
@@ -201,6 +214,7 @@ extension DeckModel {
         if row?.isStaged == true { onStagedGridChange?(uuid, draft.segments.first?.bpm) }
         audio.resetClicks()
         refreshSuggestionNote()
+        if recordingUndo { registerDraftUndo(from: snapshot, name: "추정 그리드 적용") }
     }
 
     /// 반 박 옮긴다(추정이 뒷박을 잡았을 때 한 번에 고친다).
@@ -214,6 +228,7 @@ extension DeckModel {
     /// 백그라운드 추정이 이 곡의 초안을 저장했으면 다시 읽는다.
     func gridDraftSavedExternally(_ uuid: String) {
         guard row?.track.uuid == uuid, gridDraft == nil, let saved = storage.loadGridDraft(uuid) else { return }
+        clearDraftUndo()
         gridDraft = saved
         refreshGrid()
         refreshSuggestionNote()

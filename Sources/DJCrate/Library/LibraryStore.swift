@@ -25,6 +25,15 @@ final class LibraryStore {
         case failed(String)
     }
 
+    @ObservationIgnored weak var undoManager: UndoManager? {
+        didSet { if oldValue !== undoManager { oldValue?.removeAllActions(withTarget: self) } }
+    }
+    @ObservationIgnored let saveTagDrafts: ([TagDraft]) -> Void
+
+    init(saveTagDrafts: @escaping ([TagDraft]) -> Void = { DraftWriter.save($0) }) {
+        self.saveTagDrafts = saveTagDrafts
+    }
+
     var phase: Phase = .idle
     private(set) var rows: [TrackRow] = []
     private(set) var report: LibraryReport?
@@ -100,7 +109,9 @@ final class LibraryStore {
     /// rekordbox 쓰기 단계 안내(있으면 창 전체를 덮어 조작을 막는다. 확인 창이 떠 있는 동안은 nil)
     var writeStage: String?
     /// rekordbox에 쓰는 중(미리 보기 포함)
-    var isWritingRekordbox = false
+    var isWritingRekordbox = false {
+        didSet { if isWritingRekordbox { undoManager?.removeAllActions(withTarget: self) } }
+    }
     /// 쓰는 동안 덱 큐 편집을 잠근다
     var onWriteLock: ((Bool) -> Void)?
     /// rekordbox에 쓰거나 되돌린 곡(UUID). 덱이 그 곡이면 다시 읽는다.
@@ -223,6 +234,7 @@ final class LibraryStore {
             let loaded = try await Task.detached(priority: .userInitiated) { try LoadedLibrary.load(snapshot: snapshot) }.value
             // 더 나중에 시작한 로드가 있으면 이 결과는 버린다.
             guard generation == loadGeneration else { return }
+            undoManager?.removeAllActions(withTarget: self)
             rows = loaded.rows
             rowsByID = Dictionary(loaded.rows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             rowsByUUID = Dictionary(loaded.rows.map { ($0.track.uuid, $0) }, uniquingKeysWith: { first, _ in first })
@@ -302,7 +314,6 @@ final class LibraryStore {
     }
 
     // 태그 시트 되돌리기(LibraryStore+Tags). 편집이 반영될 때마다 tagRevision이 올라 시트가 보이는 줄을 다시 그린다.
+    var canFillDownTags = false
     var tagRevision = 0
-    var undoStack: [[TagEdit]] = []
-    var redoStack: [[TagEdit]] = []
 }

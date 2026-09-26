@@ -12,6 +12,11 @@ import RekordboxKit
 final class DeckModel {
     enum DraftKind { case cue, grid, gain }
 
+    @ObservationIgnored weak var undoManager: UndoManager? {
+        didSet { if oldValue !== undoManager { oldValue?.removeAllActions(withTarget: self) } }
+    }
+    @ObservationIgnored var pendingDraftUndo: DeckDraftSnapshot?
+
     var row: TrackRow?
     var waveform: Waveform?
     var waveformError: String?
@@ -121,6 +126,7 @@ final class DeckModel {
         didSet {
             guard isWriteLocked != oldValue else { return }
             if isWriteLocked {
+                clearDraftUndo()
                 resumeAfterWrite = isPlaying
                 if isPlaying { togglePlay() }
             } else if resumeAfterWrite {
@@ -268,6 +274,7 @@ final class DeckModel {
 
     /// 같은 곡·같은 파일인데 내용(큐·그리드·게인·메타데이터)만 바뀌었을 때.
     func softReload(_ newRow: TrackRow) {
+        clearDraftUndo()
         row = newRow
         gainDraft = storage.loadGain(newRow.track.uuid)
         applyGain()
@@ -279,6 +286,7 @@ final class DeckModel {
                 DeckPayload.load(track: track, cues: cues, duration: length, storage: storage)
             }.value
             guard !Task.isCancelled, self.row?.id == id else { return }
+            self.clearDraftUndo()
             self.draft = payload.draft
             self.originalGrid = payload.originalGrid
             self.gridDraft = payload.gridDraft
@@ -300,6 +308,7 @@ final class DeckModel {
     /// 같은 파일이고 이미 소리를 불러 둔 상태면 처음부터 다시 부르지 않고 초안·그리드만 맞춘다.
     func load(_ row: TrackRow?) {
         guard row != self.row else { return }
+        clearDraftUndo()
         let sameTrack = row != nil && row?.id == self.row?.id
         if sameTrack, let row, let current = self.row, canPlay,
            row.track.folderPath == current.track.folderPath, row.track.imagePath == current.track.imagePath {
