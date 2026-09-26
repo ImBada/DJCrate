@@ -17,3 +17,21 @@ struct HitProbe: NSViewRepresentable {
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
 }
+
+/// 개발용 자가 테스트가 창 안에서 컨트롤 위치를 찾게 이름 붙인 자리(SwiftUI 버튼은 NSView가 아니다).
+@MainActor
+enum SelfTestFrames {
+    /// 이름 → 창 좌표 사각형(`.global`, 위 왼쪽 원점)
+    static var frames: [String: CGRect] = [:]
+}
+
+extension View {
+    /// 디버그 빌드에서만 자리를 기록한다(릴리스에서는 아무것도 하지 않는다).
+    @ViewBuilder func selfTestFrame(_ name: String) -> some View {
+        #if DEBUG
+        onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { SelfTestFrames.frames[name] = $0 }
+        #else
+        self
+        #endif
+    }
+}

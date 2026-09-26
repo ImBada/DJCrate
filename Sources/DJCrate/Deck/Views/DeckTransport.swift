@@ -191,6 +191,7 @@ struct HotCuePad: View {
                                                                   lineWidth: engaged ? 2 : 1))
         }
         .buttonStyle(.plain)
+        .selfTestFrame("hotCue.\(slot)")
         .help(cue == nil ? (deck.instantLoop != nil ? String(ui: "핫큐 \(letter) (\(keys)): 지금 루프를 루프 핫큐로 저장") : String(ui: "핫큐 \(letter) (\(keys)): 플레이헤드에 설정"))
               : cue?.loop != nil ? String(ui: "루프 핫큐 \(letter) (\(keys)): 누르면 루프 반복, 반복 중에 다시 누르면 나가기 · Shift+클릭: 지우기")
               : String(ui: "핫큐 \(letter) (\(keys))로 이동 (\(cue!.time.clockText)) · Shift+클릭 또는 Shift와 단축키: 지우기"))
