@@ -70,12 +70,12 @@ public enum StagingStore {
         DJCPaths.userData.appending(path: "staged.json")
     }
 
-    public static func load() -> [StagedTrack] {
+    public static func load(url: URL = url) -> [StagedTrack] {
         guard let data = try? Data(contentsOf: url) else { return [] }
         return (try? JSONDecoder().decode([StagedTrack].self, from: data)) ?? []
     }
 
-    public static func save(_ tracks: [StagedTrack]) throws {
+    public static func save(_ tracks: [StagedTrack], url: URL = url) throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

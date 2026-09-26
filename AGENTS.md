@@ -65,10 +65,10 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 
 의존 방향은 한쪽뿐이다: 앱·CLI → DJCStorage → RekordboxKit → DJCDomain, DJCAnalysis → DJCDomain (`Package.swift` 주석).
 
-- `Sources/DJCDomain/` — 입출력 없는 규칙·모델. `Cue/`(초안·큐 편집 규칙), `Grid/`(그리드 초안·따라가기), `Playback/`(루프 규칙·`LoopPlanner`·`PlaybackSchedule`), `Library/`(곡 행·필터·게인 정책), `Settings/`(설정 이름·기본값, 덱 단축키 표), `Comment/`, `Tags/`
+- `Sources/DJCDomain/` — 입출력 없는 규칙·모델. `Cue/`(초안·큐 편집 규칙), `Grid/`(그리드 초안·따라가기), `Playback/`(루프 규칙·`LoopPlanner`·`PlaybackSchedule`), `Edit/`(곡 편집: 마디 구간 → 출력 시간표·그리드·큐), `Library/`(곡 행·필터·게인 정책), `Settings/`(설정 이름·기본값, 덱 단축키 표), `Comment/`, `Tags/`
 - `Sources/RekordboxKit/` — rekordbox 형식. DB(`CipherDatabase`), 쓰기(`RekordboxWriter+*`, `RekordboxGridWriter`, `RekordboxCompatibility`), ANLZ, 스냅샷, `Export/`(XML·반영 계획), `Library/`
 - `Sources/DJCStorage/` — DJCrate 자신의 파일: 초안·추가한 곡·반영 묶음·경로(`DJCPaths`)
-- `Sources/DJCAnalysis/` — 파형·그리드 추정·조성·음량·섹션
+- `Sources/DJCAnalysis/` — 파형·그리드 추정·조성·음량·섹션, 곡 편집 렌더(`EditRenderer`)
 - `Sources/DJCrate/` — SwiftUI+AppKit 앱
   - `Deck/`: `DeckModel`(+Transport·Loops·Cues·Grid·Gain·Key), `Audio/`(`DeckAudio`, `DeckAudioEngine` 프로토콜), `Views/`, `Waveform/`
   - `Library/`: `LibraryStore`(+Writing·Staging·Tags), `TrackTable`(NSTableView), 태그 편집

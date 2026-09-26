@@ -39,6 +39,8 @@ struct GridEditorBar: View {
                             .help("그리드를 반 박 옮깁니다(추정이 뒷박을 잡았을 때)")
                         Button("여기를 1박으로") { deck.setDownbeatAtPlayhead() }
                             .help("플레이헤드에 가장 가까운 박을 마디 첫 박으로")
+                    }
+                    HStack(spacing: 4) {
                         Button("여기서 그리드 시작") { deck.setGridAnchorAtPlayhead() }
                             .help("플레이헤드 위치에 박을 정확히 놓고 1박으로")
                         Button("여기서 BPM 변경") { deck.addTempoChangeAtPlayhead() }
@@ -48,7 +50,8 @@ struct GridEditorBar: View {
                         .toggleStyle(.checkbox)
                         .help("켜면 그리드를 옮기거나 BPM을 바꿀 때 핫큐·메모리 큐(루프 포함)가 같은 박을 따라 움직입니다")
                     HStack(spacing: 4) {
-                        Button("탭 (T)") { deck.tapTempo() }
+                        Button("탭") { deck.tapTempo() }
+                            .help("탭 템포 (\(deck.shortcuts.keyLabel(for: .tapTempo)))")
                         if let tap = deck.tapBPM {
                             Text(String(format: "탭 %.2f", tap)).font(.caption.monospacedDigit())
                             Button("적용") { deck.setGridBPM(tap) }

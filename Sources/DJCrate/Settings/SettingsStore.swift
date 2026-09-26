@@ -9,7 +9,7 @@ final class SettingsStore: @unchecked Sendable {
     let persist: Bool
 
     init(defaults: UserDefaults = .standard,
-         persist: Bool = !ProcessInfo.processInfo.arguments.contains { $0.hasSuffix("-selftest") || $0 == "--autoplay" }) {
+         persist: Bool = !ProcessInfo.processInfo.arguments.contains { $0.hasSuffix("-selftest") || $0 == "--autoplay" || $0 == "--scroll-perf" }) {
         self.defaults = defaults
         self.persist = persist
     }

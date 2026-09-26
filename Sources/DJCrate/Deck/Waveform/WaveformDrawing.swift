@@ -60,6 +60,8 @@ func chip(_ context: GraphicsContext, _ text: String, at point: CGPoint, color: 
 struct DrawState {
     var grid: BeatGrid?
     var waveform: Waveform?
+    var colorWaveform: ColorWaveformRaster?
+    var waveformColorMode: WaveformColorMode
     var sections: [PartAnalysis.Span]
     var energies: [PartLabeler.SectionEnergy]
     var suggestions: [Double]
@@ -80,6 +82,8 @@ struct DrawState {
     @MainActor init(_ deck: DeckModel) {
         grid = deck.grid
         waveform = deck.waveform
+        colorWaveform = deck.colorWaveform
+        waveformColorMode = deck.waveformColorMode
         sections = deck.analysis?.sections ?? []
         energies = deck.sectionEnergies
         suggestions = deck.suggestions

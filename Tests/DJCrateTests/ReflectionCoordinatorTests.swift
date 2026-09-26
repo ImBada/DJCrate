@@ -120,7 +120,7 @@ struct ReflectionCoordinatorTests {
         host.preview = .success(Self.preview(cues: [Self.outcome("a", .blocked, reason: "VBR MP3")]))
         await coordinator().write(rows: [Self.row("a")])
         #expect(prompter.shown.first?.title == "rekordbox에 쓸 수 있는 초안이 없습니다")
-        #expect(prompter.shown.first?.text.contains("VBR MP3") == true)
+        #expect(prompter.shown.first?.details.contains("• 곡 a: VBR MP3") == true)
         #expect(host.wrote == nil && host.locks == [true, false] && host.writeStage == nil)
     }
 
@@ -146,14 +146,32 @@ struct ReflectionCoordinatorTests {
         host.preview = .success(Self.preview(cues: [], analyses: [Self.outcome("n", .written, added: 96),
                                                                   Self.outcome("h", .blocked, reason: "rekordbox에서 트랙 분석을 먼저 한 뒤 쓰세요")]))
         await coordinator().write(rows: ["n", "h"].map(Self.row))
-        #expect(prompter.shown.first?.title == "rekordbox에 분석 1곡을 씁니다")
+        #expect(prompter.shown.first?.title == "분석 1곡을 rekordbox에 쓸까요?")
         #expect(host.wrote?.drafts == [] && host.wrote?.grids == ["n"] && host.wrote?.gains == [])
     }
 
     @Test func 미리_보기가_실패하면_실패_토스트() async {
         await coordinator().write(rows: [Self.row("a")])
-        #expect(host.toast?.kind == .failure && host.toast?.detail == "미리 보기 실패")
+        #expect(host.toast?.kind == .failure && host.toast?.detail == "디스크 공간과 권한을 확인한 뒤 다시 시도하세요.")
         #expect(host.writeStage == nil && !host.isWritingRekordbox)
+    }
+
+    @Test func 쓰기_거부_토스트는_제목을_되풀이하지_않고_할_일을_안내한다() async {
+        host.preview = .failure(DJCError.writeRefused("지원하지 않는 버전입니다"))
+        await coordinator().write(rows: [Self.row("a")])
+        #expect(host.toast?.title == "rekordbox에 쓰지 않았습니다")
+        let detail = host.toast?.detail ?? ""
+        #expect(detail.contains("지원하지 않는 버전입니다"))
+        #expect(detail.contains("확인"))
+        #expect(!detail.contains("rekordbox에 쓰지 않았습니다"))
+        #expect(host.resultHistory.latest?.text == detail)
+    }
+
+    @Test func 파일_오류_토스트는_NSError_원문을_숨긴다() async {
+        host.preview = .failure(NSError(domain: NSCocoaErrorDomain, code: NSFileWriteOutOfSpaceError,
+                                        userInfo: [NSLocalizedDescriptionKey: "Error Domain=NSCocoaErrorDomain SQL 원문"]))
+        await coordinator().write(rows: [Self.row("a")])
+        #expect(host.toast?.detail == "디스크 공간과 권한을 확인한 뒤 다시 시도하세요.")
     }
 
     /// 쓰기·넣기·빼기를 모두 확인 창까지 통과시켜 실제 쓰기 단계에서 `error`를 던지게 한다.
@@ -185,7 +203,7 @@ struct ReflectionCoordinatorTests {
         #expect(text.contains("rekordbox를 켜지 말고, 사이드바에서 'rekordbox 반영 대기'를 고른 뒤 목록 위 '되돌리기…'로 쓰기 전 백업을 복원하세요."))
         #expect(!text.contains("마지막 반영 되돌리기"))
         #expect(text.contains("djc rekordbox-restore --backup '\(backup)' --live"))
-        #expect(text.contains("무결성 검사 실패: x") && text.contains("master.db: 권한 없음"))
+        #expect(!text.contains("무결성 검사 실패: x") && !text.contains("master.db: 권한 없음"))
         #expect(host.writeStage == nil && host.locks == [true, false, true, false, true, false])
         #expect(host.resultHistory.latest?.kind == .failure)
         #expect(host.resultHistory.latest?.text == alerts.last?.text)
@@ -196,7 +214,9 @@ struct ReflectionCoordinatorTests {
         await failEveryWrite(with: DJCError.writeRolledBack("무결성 검사 실패: x"))
         #expect(prompter.shown.allSatisfy { $0.confirm != nil }, "경고 창은 띄우지 않는다")
         #expect(host.toast?.kind == .failure && host.toast?.title == "rekordbox에서 빼지 않았습니다")
-        #expect(host.toast?.detail == "쓴 결과를 확인하지 못해 쓰기 전 백업으로 되돌렸습니다: 무결성 검사 실패: x")
+        #expect(host.toast?.detail?.contains("쓰기 전 백업으로 되돌렸습니다") == true)
+        #expect(host.toast?.detail?.contains("초안을 확인") == true)
+        #expect(host.toast?.detail?.contains("무결성 검사 실패: x") == false)
     }
 
     @Test func 확인_창은_종류별_곡_수와_막힌_이유를_보여_준다() {
@@ -204,12 +224,44 @@ struct ReflectionCoordinatorTests {
                                    grids: [Self.outcome("a", .blocked, reason: "분석 전"), Self.outcome("g", .written, added: 64)],
                                    gains: [Self.outcome("d", .written, added: -250)])
         let prompt = ReflectionCoordinator.confirmation(preview.report)
-        #expect(prompt.title == "rekordbox에 큐 1곡 · 그리드 1곡 · 게인 1곡을 씁니다")
-        let lines = prompt.text.components(separatedBy: "\n")
-        #expect(lines.contains("• 곡 a — 큐 추가 2 · 삭제 0 · ⚠︎ 그리드는 안 들어감"))
+        #expect(prompt.title == "큐 1곡 · 그리드 1곡 · 게인 1곡을 rekordbox에 쓸까요?")
+        let lines = prompt.details
+        #expect(lines.contains("• 곡 a — 큐 +2 · ⚠︎ 그리드는 안 들어감"))
         #expect(lines.contains("• 곡 g — 그리드(박 64개)"))
         #expect(lines.contains("• 곡 d — 오토게인 -2.5 dB"))
         #expect(lines.contains("쓰지 않는 것 1:") && lines.contains("• 곡 a: 분석 전"))
+    }
+
+    @Test(arguments: [(1, 0, "큐 +1"), (0, 2, "큐 −2"), (1, 1, "큐 +1 · −1")])
+    func 큐_변경_줄에는_0을_빼고_바뀐_수만_쓴다(_ added: Int, _ removed: Int, _ expected: String) {
+        var outcome = Self.outcome("a", .written, added: added)
+        outcome.removed = removed
+        let prompt = ReflectionCoordinator.confirmation(Self.preview(cues: [outcome]).report)
+        #expect(prompt.title == "큐 1곡을 rekordbox에 쓸까요?")
+        #expect(prompt.details.first == "• 곡 a — " + expected)
+        #expect(prompt.text.hasSuffix("백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요."))
+    }
+
+    @Test func 넣기와_빼기와_되돌리기도_짧게_묻고_백업을_안내한다() {
+        var track = Self.track("a")
+        track.cuesWritten = 0
+        let add = ReflectionCoordinator.addConfirmation(Self.addPreview([track]))
+        #expect(add.title == "1곡을 rekordbox에 넣을까요?")
+        #expect(!add.details.contains { $0.contains("큐 0개") })
+        var report = RekordboxTrackWriter.Report(dryRun: true)
+        report.deleted = [track]
+        let delete = ReflectionCoordinator.deleteConfirmation(.init(report: report, contentIDs: ["id-a"]))
+        #expect(delete.title == "1곡을 rekordbox에서 뺄까요?")
+        for prompt in [add, delete] {
+            #expect(prompt.text.hasSuffix("백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요."))
+        }
+        let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b"), createdAt: .now, isWrite: true, report: nil)
+        let restore = ReflectionCoordinator.restoreConfirmation(backup, changedSince: true)
+        #expect(restore.title == "rekordbox를 쓰기 전으로 되돌릴까요?")
+        #expect(restore.text.contains("백업: "))
+        #expect(restore.text.contains("그 변경도 함께 사라집니다"))
+        #expect(restore.text.hasSuffix("백업한 뒤 되돌리고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요."))
+        #expect(restore.critical && restore.destructive)
     }
 
     @Test func 확인_창은_분석을_붙이는_곡과_막힌_이유를_보여_준다() {
@@ -217,12 +269,12 @@ struct ReflectionCoordinatorTests {
                                    analyses: [Self.outcome("a", .written, added: 128), Self.outcome("n", .written, added: 96),
                                               Self.outcome("b", .blocked, reason: "ALAC")])
         let prompt = ReflectionCoordinator.confirmation(preview.report)
-        #expect(prompt.title == "rekordbox에 큐 2곡 · 분석 2곡을 씁니다")
-        let lines = prompt.text.components(separatedBy: "\n")
-        #expect(lines.contains("• 곡 a — 큐 추가 1 · 삭제 0 · 분석 파일 붙이기"))
-        #expect(lines.contains("• 곡 b — 큐 추가 3 · 삭제 0 · ⚠︎ 그리드는 안 들어감"))
+        #expect(prompt.title == "큐 2곡 · 분석 2곡을 rekordbox에 쓸까요?")
+        let lines = prompt.details
+        #expect(lines.contains("• 곡 a — 큐 +1 · 분석 파일 붙이기"))
+        #expect(lines.contains("• 곡 b — 큐 +3 · ⚠︎ 그리드는 안 들어감"))
         #expect(lines.contains("• 곡 n — 분석 파일 붙이기(파형·그리드 박 96개·오토게인)"))
-        #expect(lines.contains("• 곡 b: ALAC") && prompt.text.contains("키·프레이즈·보컬 분석은 없습니다"))
+        #expect(lines.contains("• 곡 b: ALAC") && lines.contains { $0.contains("키·프레이즈·보컬 분석은 없습니다") })
     }
 
     @Test func 실패와_경고_토스트는_시간이_지나도_닫히지_않는다() {
@@ -231,14 +283,15 @@ struct ReflectionCoordinatorTests {
         #expect(AppToast(title: "성공").duration.isFinite)
     }
 
-    @Test func 되돌리기_실패는_전체_오류와_할_일을_심각_경고로_보여_준다() async {
+    @Test func 되돌리기_실패는_원문_대신_할_일을_심각_경고로_보여_준다() async {
         host.writeError = FixtureFailure()
         let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/test-backup"), createdAt: .now, isWrite: true, report: nil)
         await coordinator().restore(backup)
         #expect(prompter.shown.last?.critical == true)
         #expect(prompter.shown.last?.confirm == nil)
         #expect(prompter.shown.last?.text.contains("rekordbox를 켜지 말고") == true)
-        #expect(prompter.shown.last?.text.contains("미리 보기 실패") == true)
+        #expect(prompter.shown.last?.text.contains("다시 되돌리세요") == true)
+        #expect(prompter.shown.last?.text.contains("미리 보기 실패") == false)
         #expect(host.resultHistory.latest?.kind == .failure)
         #expect(host.resultHistory.latest?.backups == [backup.url])
     }
@@ -271,8 +324,8 @@ struct ReflectionCoordinatorTests {
                                                    without: ["b": "ALAC"]))
         await coordinator().addTracks(rows: ["djc-a", "djc-b", "djc-c"].map(Self.row))
         let prompt = try? #require(prompter.shown.first)
-        #expect(prompt?.title == "rekordbox 컬렉션에 2곡을 넣습니다" && prompt?.confirm == "rekordbox에 넣기" && prompt?.critical == false)
-        let lines = prompt?.text.components(separatedBy: "\n") ?? []
+        #expect(prompt?.title == "2곡을 rekordbox에 넣을까요?" && prompt?.confirm == "rekordbox에 넣기" && prompt?.critical == false)
+        let lines = prompt?.details ?? []
         #expect(lines.contains("• 곡 a — 그리드·파형·오토게인까지 · 큐 2개") && lines.contains("• 곡 b — 분석 없이(ALAC) · ⚠︎ 큐는 안 들어감(메모리 큐가 11개가 됩니다)"))
         #expect(lines.contains("넣지 않는 곡 1:") && lines.contains("• 곡 c: 이미 rekordbox 컬렉션에 있는 파일입니다"))
         #expect(host.added == ["a", "b"] && host.locks == [true, false])
@@ -285,8 +338,8 @@ struct ReflectionCoordinatorTests {
         prompter.answer = false
         await coordinator().deleteTracks(rows: [Self.row("a"), Self.row("b")])
         let prompt = try? #require(prompter.shown.first)
-        #expect(prompt?.critical == true && prompt?.title == "rekordbox 컬렉션에서 1곡을 뺍니다" && prompt?.confirm == "rekordbox에서 빼기")
-        #expect(prompt?.text.contains("음원 파일은 지우지 않습니다") == true && prompt?.text.contains("djmdSongMyTag") == true)
+        #expect(prompt?.critical == true && prompt?.title == "1곡을 rekordbox에서 뺄까요?" && prompt?.confirm == "rekordbox에서 빼기")
+        #expect(prompt?.text.contains("음원 파일은 지우지 않습니다") == true && prompt?.details.contains { $0.contains("djmdSongMyTag") } == true)
         #expect(host.deleted == nil && !host.isWritingRekordbox)
         prompter.answer = true
         await coordinator().deleteTracks(rows: [Self.row("a"), Self.row("b")])
@@ -298,7 +351,7 @@ struct ReflectionCoordinatorTests {
         tracks.added = [Self.track("a")]
         let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b"), createdAt: .now, isWrite: true, report: nil, trackReport: tracks)
         let prompt = ReflectionCoordinator.restoreConfirmation(backup, changedSince: false)
-        #expect(prompt.text.contains("그때 넣은 1곡은 컬렉션에서 빠지고") && prompt.text.contains("추가 목록으로 돌아옵니다"))
+        #expect(prompt.text.contains("넣었던 1곡은 컬렉션에서 빠지고") && prompt.text.contains("추가 목록으로 돌아옵니다"))
         #expect(backup.titles == ["곡 a"])
     }
 
@@ -351,10 +404,15 @@ struct ReflectionCoordinatorTests {
         let bare = try TrackAddPlan.make(url: try AudioFixture.wav(seconds: 1, in: folder, name: "bare.wav"), tags: AudioTags(duration: 1))
         var preview = Self.addPreview([Self.track(withArt.path), Self.track(bare.path)])
         preview.plans = [withArt, bare]
-        let open = ReflectionCoordinator.addConfirmation(preview, writesArtwork: true).text.components(separatedBy: "\n")
+        let open = ReflectionCoordinator.addConfirmation(preview, writesArtwork: true).details
         #expect(open.contains("• 곡 \(withArt.path) — 그리드·파형·오토게인까지 · 아트워크"))
         #expect(open.contains("• 곡 \(bare.path) — 그리드·파형·오토게인까지"))
-        #expect(!ReflectionCoordinator.addConfirmation(preview, writesArtwork: false).text.contains("아트워크"), "아트워크 쓰기가 닫혀 있으면 말하지 않는다")
+        #expect(!open.contains(ReflectionCoordinator.artworkClosedNote))
+        // 닫혀 있으면 곡 줄에는 붙이지 않고, 아트워크가 든 곡이 있을 때만 무엇을 하면 되는지 한 번 알린다
+        let closed = ReflectionCoordinator.addConfirmation(preview, writesArtwork: false).details
+        #expect(!closed.contains { $0.hasSuffix("· 아트워크") } && closed.last == ReflectionCoordinator.artworkClosedNote)
+        preview.plans = [bare]
+        #expect(!ReflectionCoordinator.addConfirmation(preview, writesArtwork: false).details.contains(ReflectionCoordinator.artworkClosedNote))
     }
 
     @Test func 변경이_없는_되돌리기는_Return으로_확인할_수_있다() {

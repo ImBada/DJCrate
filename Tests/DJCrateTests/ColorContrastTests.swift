@@ -1,11 +1,30 @@
 import AppKit
 import SwiftUI
 import Testing
+import DJCDomain
 @testable import DJCrate
 
 @Suite("색 대비", .serialized)
 @MainActor
 struct ColorContrastTests {
+    @Test func 파형_색은_목록_배경과_구분된다() throws {
+        let samples = [WaveformColumn(low: 1, mid: 0, high: 0), WaveformColumn(low: 0, mid: 1, high: 0),
+                       WaveformColumn(low: 0, mid: 0, high: 1), WaveformColumn(low: 1, mid: 1, high: 1)]
+        for name in Self.appearances {
+            let appearance = try #require(NSAppearance(named: name))
+            appearance.performAsCurrentDrawingAppearance {
+                for mode in [WaveformColorMode.blue, .rgb] {
+                    for sample in samples {
+                        for background in NSColor.alternatingContentBackgroundColors.map({ composite($0, on: .windowBackgroundColor) }) {
+                            #expect(contrast(WaveformColors.color(sample, mode: mode, appearance: name), on: background) >= 3,
+                                    "\(name.rawValue) \(mode)")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     static let appearances: [NSAppearance.Name] = [
         .aqua, .darkAqua, .accessibilityHighContrastAqua, .accessibilityHighContrastDarkAqua,
     ]

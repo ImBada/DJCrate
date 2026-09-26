@@ -25,12 +25,15 @@ enum RekordboxLink {
         guard !UserDefaults.standard.bool(forKey: key) else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url.path, forType: .string)
-        let alert = NSAlert()
-        alert.messageText = "rekordbox에 연동 파일을 한 번만 지정해 주세요"
-        alert.informativeText = """
-        DJCrate는 반영할 내용을 늘 이 파일에 씁니다(경로를 클립보드에 복사했습니다):
-        \(url.path)
+        let alert = setupAlert(for: url)
+        if alert.runModal() == .alertSecondButtonReturn {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        }
+        UserDefaults.standard.set(true, forKey: key)
+    }
 
+    static func setupAlert(for url: URL) -> NSAlert {
+        let details = """
         1. rekordbox › 환경설정 › 고급 › 데이터베이스 › rekordbox xml › "가져온 라이브러리"에 이 파일을 지정합니다(처음 한 번만).
         2. 트리에 "rekordbox xml"이 보이게 합니다(환경설정 › 보기 › 레이아웃에서 켤 수 있습니다).
 
@@ -40,11 +43,11 @@ enum RekordboxLink {
 
         처음 반영하기 전에 rekordbox › 파일 › 라이브러리 › 라이브러리 백업을 한 번 해 두세요.
         """
-        alert.addButton(withTitle: "확인")
+        let alert = AlertPrompter().makeAlert(ReflectionPrompt(
+            title: "rekordbox에 연동 파일을 한 번만 지정해 주세요",
+            text: "DJCrate는 반영할 내용을 늘 이 파일에 씁니다(경로를 클립보드에 복사했습니다):\n\(url.path)",
+            details: details.components(separatedBy: "\n")))
         alert.addButton(withTitle: "Finder에서 보기")
-        if alert.runModal() == .alertSecondButtonReturn {
-            NSWorkspace.shared.activateFileViewerSelecting([url])
-        }
-        UserDefaults.standard.set(true, forKey: key)
+        return alert
     }
 }

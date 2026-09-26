@@ -1,0 +1,37 @@
+import DJCDomain
+import Foundation
+
+/// 곡 편집 결과(렌더한 파일)를 곡 넣기 흐름에 잇는다.
+///
+/// "추가한 곡"에 넣고, 그리드는 추정하지 않고 편집으로 변환한 그리드를, 큐는 출력 위치로 옮긴 큐를 초안으로 둔다.
+/// 곡 정보는 원곡 값을 태그 초안으로 둔다(렌더한 WAV에는 태그가 없다). 이후 rekordbox에 넣기·XML 내보내기는 기존 흐름 그대로다.
+/// 출력은 PCM이라 인코더 지연이 없어 초안의 rekordbox 시간축 = 출력 파일 시간축이다.
+public enum EditStaging {
+    public static func stage(fileAt url: URL, edit: TrackEdit, cues: [EditableCue], source: Track?, title: String? = nil,
+                             home: URL = DJCPaths.userData, now: Date = .now) async throws -> StagedTrack {
+        let list = home.appending(path: "staged.json")
+        var tracks = StagingStore.load(url: list)
+        let path = url.path.precomposedStringWithCanonicalMapping
+        guard !tracks.contains(where: { $0.path.precomposedStringWithCanonicalMapping == path }) else {
+            throw DJCError.editRefused("\(url.lastPathComponent)은 이미 추가한 곡입니다. 추가 목록에서 확인하세요")
+        }
+        var staged = try await StagedTrack.make(fileAt: url, addedOn: String(ISO8601DateFormatter().string(from: now).prefix(10)))
+        staged.path = path
+        staged.bpm = edit.outputGrid.bpm
+        staged.gridConfident = true
+
+        try GridDraftStore.save(GridDraft(trackUUID: staged.uuid, base: [], segments: [edit.outputGrid]),
+                                directory: home.appending(path: "grid-drafts"))
+        var cueDraft = CueDraft(trackUUID: staged.uuid, rekordboxCues: [])
+        for cue in cues { cueDraft.place(cue) }
+        try CueDraftStore.save(cueDraft, directory: home.appending(path: "cue-drafts"))
+        var tags = TagDraft(track: staged.track)
+        if let source { tags.fields = TagFields(track: source) }
+        tags.fields.title = title ?? source.map { "\($0.title) (Edit)" } ?? staged.title
+        try TagDraftStore.save(tags, directory: home.appending(path: "tag-drafts"))
+
+        tracks.append(staged)
+        try StagingStore.save(tracks, url: list)
+        return staged
+    }
+}

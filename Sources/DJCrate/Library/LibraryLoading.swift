@@ -15,6 +15,7 @@ struct LoadedLibrary: Sendable {
     var gridDraftUUIDs: Set<String>
     var tree: [PlaylistNode]
     var draftCueCounts: [String: CueCounts] = [:]
+    var draftPreviewCues: [String: [PreviewCueMark]] = [:]
 
     static func load(snapshot: URL) throws -> LoadedLibrary {
         let library = try RekordboxLibrary.load(snapshot: snapshot)
@@ -37,13 +38,17 @@ struct LoadedLibrary: Sendable {
         for uuid in TagDraftStore.uuids() { tagDrafts[uuid] = TagDraftStore.load(trackUUID: uuid) }
         let cueUUIDs = CueDraftStore.uuids()
         var draftCueCounts: [String: CueCounts] = [:]
+        var draftPreviewCues: [String: [PreviewCueMark]] = [:]
         for uuid in cueUUIDs {
-            if let draft = CueDraftStore.load(trackUUID: uuid) { draftCueCounts[uuid] = CueCounts(draft) }
+            if let draft = CueDraftStore.load(trackUUID: uuid) {
+                draftCueCounts[uuid] = CueCounts(draft)
+                if draft.hasChanges { draftPreviewCues[uuid] = draft.cues.map(PreviewCueMark.init) }
+            }
         }
         return LoadedLibrary(rows: rows, report: LibraryReport(library: library), filterCounts: counts,
                              tagDrafts: tagDrafts, cueDraftUUIDs: cueUUIDs,
                              gridDraftUUIDs: GridDraftStore.uuids(), tree: PlaylistNode.tree(library.playlists),
-                             draftCueCounts: draftCueCounts)
+                             draftCueCounts: draftCueCounts, draftPreviewCues: draftPreviewCues)
     }
 }
 

@@ -3,6 +3,15 @@ import RekordboxKit
 
 /// 합성 rekordbox 분석 파일(ANLZ). PMAI 머리 + 태그들. 그리드 밖 태그는 바이트 보존 검사용으로 채워 둔다.
 public enum AnlzBuilder {
+    /// PWV3·PWV4·PWV5 합성 칸. 잘못된 길이 시험에서도 머리만 따로 바꿀 수 있다.
+    public static func waveform(_ tag: String, entryBytes: Int, samples: [UInt8]) -> Data {
+        var out = Data(tag.utf8)
+        out.append(be(24)); out.append(be(UInt32(24 + samples.count)))
+        out.append(be(UInt32(entryBytes))); out.append(be(UInt32(samples.count / entryBytes)))
+        out.append(be(0)); out.append(contentsOf: samples)
+        return out
+    }
+
     /// PWAV: 상위 3비트는 흰 정도, 하위 5비트는 높이.
     public static func pwav(_ samples: [UInt8]) -> Data {
         var out = Data("PWAV".utf8)

@@ -245,6 +245,8 @@ public enum SeekInfo {
                         headerTag = "VBRI"
                     }
                 }
+                // 끝에 헤더만 남은 프레임은 디코딩할 수 없으므로 샘플 수에 포함하지 않는다(#14).
+                guard p + frame.length <= n else { break }
                 offsets.append(p)
                 p += frame.length
             }
