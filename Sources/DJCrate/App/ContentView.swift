@@ -26,6 +26,15 @@ struct ContentView: View {
         DeckLayout.waveformHeight(requested: waveformHeight, detailHeight: detailHeight,
                                   deckChromeHeight: deckChromeHeight, otherHeight: otherHeight)
     }
+    private var maximumWaveformHeight: Double {
+        DeckLayout.waveformHeight(requested: DeckLayout.maximumWaveformHeight, detailHeight: detailHeight,
+                                  deckChromeHeight: deckChromeHeight, otherHeight: otherHeight)
+    }
+    /// 메뉴 '파형 크게·작게'(덱이 보일 때만)
+    private var waveformHeightControl: WaveformHeightControl? {
+        guard case .loaded = store.phase else { return nil }
+        return WaveformHeightControl(displayed: displayedWaveformHeight, maximum: maximumWaveformHeight) { waveformHeight = $0 }
+    }
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -59,7 +68,8 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.15), value: store.writeStage)
         .searchable(text: $store.search, placement: .toolbar, prompt: "제목·아티스트·코멘트")
         .toolbar(id: "main") { toolbarContent }
-        .focusedSceneValue(\.appCommands, AppCommandContext(store: store, deck: deck, showTagEditor: $showTagEditor))
+        .focusedSceneValue(\.appCommands, AppCommandContext(store: store, deck: deck, showTagEditor: $showTagEditor,
+                                                             waveformHeight: waveformHeightControl))
         .onAppear { setUp() }
         .onChange(of: undoManager, initial: true) {
             deck.undoManager = undoManager
@@ -82,9 +92,7 @@ struct ContentView: View {
             switch store.phase {
             case .loaded:
                 let displayedHeight = displayedWaveformHeight
-                let maximumHeight = DeckLayout.waveformHeight(requested: DeckLayout.maximumWaveformHeight,
-                                                               detailHeight: detailHeight,
-                                                               deckChromeHeight: deckChromeHeight, otherHeight: otherHeight)
+                let maximumHeight = maximumWaveformHeight
                 // VSplitView(NSSplitView)는 자식 최소 크기가 내용에 따라 바뀌면 레이아웃을 끝없이
                 // 다시 잡다가 예외로 죽는다. SwiftUI만으로 나누고, 덱 높이는 핸들로 조절한다.
                 VStack(spacing: 0) {
@@ -291,9 +299,10 @@ struct SplitHandle: View {
             .accessibilityValue("\(Int(displayedHeight))포인트")
             .accessibilityHint("위아래로 조절하거나 두 번 클릭하면 기본 높이로 돌아갑니다")
             .accessibilityAdjustableAction { direction in
+                // 메뉴 '파형 크게·작게'와 같은 한 칸
                 switch direction {
-                case .increment: height = clamped(displayedHeight + 10)
-                case .decrement: height = clamped(displayedHeight - 10)
+                case .increment: height = DeckLayout.steppedWaveformHeight(displayed: displayedHeight, direction: 1, maximum: maximumHeight)
+                case .decrement: height = DeckLayout.steppedWaveformHeight(displayed: displayedHeight, direction: -1, maximum: maximumHeight)
                 @unknown default: break
                 }
             }

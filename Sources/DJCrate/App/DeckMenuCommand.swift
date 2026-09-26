@@ -5,9 +5,24 @@ enum DeckMenuCommand: Hashable {
     case action(DeckAction)
     case deleteHotCue(Int), moveHotCue(Int)
     case deleteMemoryCue
+    /// ⇧←→: 선택한 큐 또는 재생 위치를 1마디
+    case stepBar(forward: Bool)
+    /// ⇧S
+    case previousSuggestion
 
     static func actions(in group: DeckAction.Group) -> [DeckAction] {
         DeckAction.allCases.filter { $0.group == group }
+    }
+
+    /// 핫큐 밖에서 Shift와 함께 누르는 동작(메뉴에서 원래 동작 바로 아래에 둔다)
+    static func variants(after action: DeckAction) -> [DeckMenuCommand] {
+        switch action {
+        case .memoryCue: [.deleteMemoryCue]
+        case .nudgeBack: [.stepBar(forward: false)]
+        case .nudgeForward: [.stepBar(forward: true)]
+        case .nextSuggestion: [.previousSuggestion]
+        default: []
+        }
     }
 
     var title: String {
@@ -16,6 +31,8 @@ enum DeckMenuCommand: Hashable {
         case .deleteHotCue: "지우기"
         case .moveHotCue: "플레이헤드로 옮기기"
         case .deleteMemoryCue: "이 자리 메모리 큐 지우기"
+        case .stepBar(let forward): forward ? "1마디 뒤로(선택한 큐 또는 재생 위치)" : "1마디 앞으로(선택한 큐 또는 재생 위치)"
+        case .previousSuggestion: "이전 제안으로"
         }
     }
 
@@ -28,6 +45,8 @@ enum DeckMenuCommand: Hashable {
             guard let value = DeckAction.allCases.first(where: { $0.hotCueSlot == slot }) else { return "" }
             action = value; shift = true
         case .deleteMemoryCue: action = .memoryCue; shift = true
+        case .stepBar(let forward): action = forward ? .nudgeForward : .nudgeBack; shift = true
+        case .previousSuggestion: action = .nextSuggestion; shift = true
         case .moveHotCue: return ""
         }
         return shortcuts.keys(for: action).map { (shift ? "⇧" : "") + KeyLabel.name(for: $0) }.joined(separator: " · ")
@@ -38,8 +57,13 @@ enum DeckMenuCommand: Hashable {
         switch self {
         case .action(.playPause), .action(.cue), .action(.previousCue), .action(.nextCue):
             return deck.canPlay
-        case .action(.nudgeBack), .action(.nudgeForward), .action(.deleteCue):
+        case .action(.nudgeBack), .action(.nudgeForward), .stepBar:
+            // 선택한 큐가 없으면 재생 위치를 옮긴다(`DeckModel.beatJump`와 같은 조건).
+            return deck.cue(deck.selectedCueID) != nil || deck.canPlay || deck.grid != nil
+        case .action(.deleteCue):
             return deck.cue(deck.selectedCueID) != nil
+        case .action(.nextSuggestion), .action(.acceptSuggestion), .previousSuggestion:
+            return !deck.suggestions.isEmpty
         case .deleteHotCue(let slot), .moveHotCue(let slot):
             return deck.hotCue(slot: slot) != nil
         case .deleteMemoryCue:
@@ -55,6 +79,8 @@ enum DeckMenuCommand: Hashable {
         case .deleteHotCue(let slot): deck.deleteHotCue(slot: slot)
         case .moveHotCue(let slot): deck.moveHotCueToPlayhead(slot: slot)
         case .deleteMemoryCue: deck.deleteMemoryCue(at: deck.currentTime)
+        case .stepBar(let forward): deck.step(beats: forward ? BeatJump.beatsPerBar : -BeatJump.beatsPerBar)
+        case .previousSuggestion: deck.jumpToSuggestion(forward: false)
         case .action(let action):
             if let slot = action.hotCueSlot { deck.pressHotCue(slot: slot); return }
             switch action {
@@ -64,9 +90,11 @@ enum DeckMenuCommand: Hashable {
             case .previousCue: deck.jumpToCue(forward: false)
             case .nextCue: deck.jumpToCue(forward: true)
             case .memoryCue: deck.addMemoryCueAtPlayhead()
-            case .nudgeBack: _ = deck.nudgeSelectedCue(beats: -1)
-            case .nudgeForward: _ = deck.nudgeSelectedCue(beats: 1)
+            case .nudgeBack: deck.step(beats: -1)
+            case .nudgeForward: deck.step(beats: 1)
             case .deleteCue: _ = deck.deleteSelectedCue()
+            case .nextSuggestion: deck.jumpToSuggestion(forward: true)
+            case .acceptSuggestion: deck.acceptNearestSuggestion()
             case .loop: deck.toggleLoop()
             case .loopHalve: deck.resizeLoop(-1)
             case .loopDouble: deck.resizeLoop(1)

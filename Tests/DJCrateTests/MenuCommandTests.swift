@@ -85,6 +85,63 @@ struct MenuCommandTests {
         #expect(h.deck.taps.isEmpty)
     }
 
+    @Test func 박_이동과_제안_메뉴는_단축키와_같은_함수를_부른다() async throws {
+        let h = try DeckHarness()
+        try await h.loaded()
+        h.deck.seek(10)
+        #expect(DeckMenuCommand.action(.nudgeForward).isEnabled(on: h.deck), "선택한 큐가 없으면 재생 위치를 옮긴다")
+        DeckMenuCommand.action(.nudgeForward).perform(on: h.deck)
+        #expect(h.deck.currentTime == 10.5)
+        DeckMenuCommand.stepBar(forward: true).perform(on: h.deck)
+        #expect(h.deck.currentTime == 12.5)
+        DeckMenuCommand.stepBar(forward: false).perform(on: h.deck)
+        DeckMenuCommand.action(.nudgeBack).perform(on: h.deck)
+        #expect(h.deck.currentTime == 10)
+
+        for command in [DeckMenuCommand.action(.nextSuggestion), .previousSuggestion, .action(.acceptSuggestion)] {
+            #expect(!command.isEnabled(on: h.deck), "제안이 없으면 끈다")
+        }
+        h.deck.suggestions = [20, 30]
+        DeckMenuCommand.action(.nextSuggestion).perform(on: h.deck)
+        DeckMenuCommand.action(.nextSuggestion).perform(on: h.deck)
+        #expect(h.deck.currentTime == 30)
+        DeckMenuCommand.previousSuggestion.perform(on: h.deck)
+        #expect(h.deck.currentTime == 20)
+        h.deck.seek(21)
+        DeckMenuCommand.action(.acceptSuggestion).perform(on: h.deck)
+        #expect(h.deck.draft?.cues.map(\.time) == [20])
+        h.deck.isWriteLocked = true
+        for command in [DeckMenuCommand.stepBar(forward: true), .stepBar(forward: false), .previousSuggestion] {
+            #expect(!command.isEnabled(on: h.deck))
+        }
+    }
+
+    @Test func Shift_동작은_메뉴에서_원래_동작_바로_아래에_Shift_키와_함께_있다() {
+        #expect(DeckMenuCommand.variants(after: .memoryCue) == [.deleteMemoryCue])
+        #expect(DeckMenuCommand.variants(after: .nudgeBack) == [.stepBar(forward: false)])
+        #expect(DeckMenuCommand.variants(after: .nudgeForward) == [.stepBar(forward: true)])
+        #expect(DeckMenuCommand.variants(after: .nextSuggestion) == [.previousSuggestion])
+        #expect(DeckMenuCommand.variants(after: .acceptSuggestion).isEmpty)
+        #expect(DeckMenuCommand.stepBar(forward: false).keyLabel(shortcuts: .standard) == "⇧←")
+        #expect(DeckMenuCommand.previousSuggestion.keyLabel(shortcuts: .standard) == "⇧S")
+        #expect(DeckMenuCommand.action(.acceptSuggestion).keyLabel(shortcuts: .standard) == "A")
+    }
+
+    @Test func 파형_높이_메뉴는_보이는_높이에서_한_칸씩_범위_안으로_바꾼다() {
+        #expect(DeckLayout.steppedWaveformHeight(displayed: 150, direction: 1, maximum: 400) == 150 + DeckLayout.waveformHeightStep)
+        #expect(DeckLayout.steppedWaveformHeight(displayed: 150, direction: -1, maximum: 400) == 150 - DeckLayout.waveformHeightStep)
+        // 저장한 높이가 창보다 커도 지금 보이는 높이에서 줄인다
+        #expect(DeckLayout.steppedWaveformHeight(displayed: 395, direction: 1, maximum: 400) == 400)
+        #expect(DeckLayout.steppedWaveformHeight(displayed: 85, direction: -1, maximum: 400) == DeckLayout.minimumWaveformHeight)
+        var requested = 480.0
+        let control = WaveformHeightControl(displayed: 200, maximum: 260) { requested = $0 }
+        #expect(control.canGrow && control.canShrink)
+        control.shrink()
+        #expect(requested == 200 - DeckLayout.waveformHeightStep)
+        #expect(!WaveformHeightControl(displayed: 260, maximum: 260) { _ in }.canGrow)
+        #expect(!WaveformHeightControl(displayed: DeckLayout.minimumWaveformHeight, maximum: 260) { _ in }.canShrink)
+    }
+
     @Test func 앱_명령은_파일과_rekordbox_메뉴로_나뉜다() {
         #expect(LibraryMenuAction.fileActions == [.addFiles, .snapshot, .exportXML])
         #expect(LibraryMenuAction.rekordboxActions == [.reflect, .pending, .writeResult, .restore, .removeTracks])

@@ -38,11 +38,63 @@ struct OverviewWaveformView: View {
                     scrubbing = false
                     deck.endScrub()
                 })
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("재생 위치")
+            .accessibilityHint("클릭하거나 끌어서 위치를 옮깁니다. 조절하면 1박씩 옮깁니다. 로터로 큐·섹션·조성 변화·제안으로 갈 수 있습니다")
+            .waveformAccessibility(deck: deck, kind: .overview)
         }
         .background(Palette.well)
         .environment(\.colorScheme, .dark)
         .clipShape(RoundedRectangle(cornerRadius: 6))
-        .accessibilityLabel("전체 곡 \(deck.waveformColorMode.title) 파형. 클릭해서 위치 이동")
+        .modifier(OverviewAccessibilityMarkers(deck: deck))
+    }
+}
+
+/// 전체 파형의 VoiceOver 로터(큐·섹션·조성 변화·제안). 로터가 가리킬 투명 요소를 그 자리에 하나씩 놓는다.
+/// 요소를 누르면(VO-Space) 그 자리로 옮기고, 제안은 메모리 큐로 받을 수도 있다. 재생 위치를 읽지 않아 재생 중에는 다시 계산하지 않는다.
+struct OverviewAccessibilityMarkers: ViewModifier {
+    let deck: DeckModel
+    @Namespace private var rotorSpace
+
+    func body(content: Content) -> some View {
+        let duration = max(deck.duration, 1)
+        let cues = WaveformAccessibility.cueMarkers(deck.draft?.cues ?? [])
+        let sections = WaveformAccessibility.sectionMarkers(deck.sectionEnergies.map { (start: $0.span.start, score: $0.score) })
+        let keys = WaveformAccessibility.keyChangeMarkers(deck.keySegments.map { (start: $0.start, name: deck.keyName(for: $0)) })
+        let suggestions = WaveformAccessibility.suggestionMarkers(deck.suggestions)
+        let suggestionIDs = Set(suggestions.map(\.id))
+        content
+            .overlay {
+                GeometryReader { geo in
+                    ForEach(cues + sections + keys + suggestions) { marker in
+                        Color.clear
+                            .frame(width: 8, height: geo.size.height)
+                            .position(x: CGFloat(marker.time / duration) * geo.size.width, y: geo.size.height / 2)
+                            .accessibilityElement()
+                            .accessibilityLabel(marker.label)
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityHint("누르면 이 자리로 옮깁니다")
+                            .accessibilityAction { if !deck.isWriteLocked { deck.seek(marker.time) } }
+                            .accessibilityActions {
+                                if suggestionIDs.contains(marker.id) {
+                                    Button("메모리 큐로 받기") { deck.acceptSuggestion(marker.time) }
+                                }
+                            }
+                            .accessibilityRotorEntry(id: marker.id, in: rotorSpace)
+                    }
+                }
+                .allowsHitTesting(false)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("전체 파형")
+            .accessibilityRotor("큐") { entries(cues) }
+            .accessibilityRotor("섹션") { entries(sections) }
+            .accessibilityRotor("조성 변화") { entries(keys) }
+            .accessibilityRotor("제안") { entries(suggestions) }
+    }
+
+    private func entries(_ markers: [WaveformAccessibility.Marker]) -> some AccessibilityRotorContent {
+        ForEach(markers) { AccessibilityRotorEntry(Text($0.label), id: $0.id, in: rotorSpace) }
     }
 }
 

@@ -5,6 +5,7 @@ struct AppCommandContext {
     var store: LibraryStore
     var deck: DeckModel
     var showTagEditor: Binding<Bool>
+    var waveformHeight: WaveformHeightControl?
 }
 
 private struct AppCommandContextKey: FocusedValueKey {
@@ -41,6 +42,12 @@ struct AppCommands: Commands {
             Toggle("태그 편집", isOn: context?.showTagEditor ?? .constant(false))
                 .keyboardShortcut("i", modifiers: .command)
                 .disabled(!canEditTags)
+            Divider()
+            // 덱·목록 사이 핸들을 끌지 않고 키보드·VoiceOver로 파형 높이를 바꾼다.
+            Button("파형 크게") { context?.waveformHeight?.grow() }
+                .disabled(context?.waveformHeight?.canGrow != true)
+            Button("파형 작게") { context?.waveformHeight?.shrink() }
+                .disabled(context?.waveformHeight?.canShrink != true)
         }
         CommandMenu("rekordbox") {
             ForEach(LibraryMenuAction.rekordboxActions, id: \.self) { libraryButton($0) }
@@ -61,8 +68,10 @@ struct AppCommands: Commands {
                         }
                     }
                 } else {
-                    ForEach(DeckMenuCommand.actions(in: group), id: \.self) { deckButton(.action($0)) }
-                    if group == .cues { deckButton(.deleteMemoryCue) }
+                    ForEach(DeckMenuCommand.actions(in: group), id: \.self) { action in
+                        deckButton(.action(action))
+                        ForEach(DeckMenuCommand.variants(after: action), id: \.self) { deckButton($0) }
+                    }
                 }
             }
         }

@@ -1,4 +1,5 @@
 import AppKit
+import DJCDomain
 
 /// 창 전체 단축키와 검색창 포커스 정리.
 ///
@@ -139,7 +140,14 @@ final class KeyRouter {
     /// 덱 단축키. 글자가 아니라 키 위치로 본다(한글 입력기가 켜져 있으면 C 키가 "ㅊ"으로 들어와 글자로는 못 알아본다).
     /// 처리했으면 true. NSEvent 없이 시험할 수 있게 창·포커스 판단(`route`)과 나눴다.
     func handleKeyDown(_ keyCode: UInt16, shift: Bool = false, isRepeat: Bool = false, focus: KeyRoutingPolicy.Focus) -> Bool {
-        guard let deck, deck.row != nil, let action = deck.shortcuts.action(for: keyCode) else { return false }
+        guard let deck, deck.row != nil else { return false }
+        // Esc(예약 키)는 덱에서 큐 선택만 푼다. 그 뒤 ←→는 재생 위치를 옮긴다. 목록·검색창·시트의 Esc는 그대로 둔다.
+        if keyCode == Self.escape {
+            guard focus == .deck, deck.selectedCueID != nil else { return false }
+            deck.selectedCueID = nil
+            return true
+        }
+        guard let action = deck.shortcuts.action(for: keyCode) else { return false }
         if action == .playPause {
             if !isRepeat { deck.togglePlay() }
             return true
@@ -164,9 +172,13 @@ final class KeyRouter {
             if !isRepeat {
                 if shift { deck.deleteMemoryCue(at: deck.currentTime) } else { deck.addMemoryCueAtPlayhead() }
             }
-        case .nudgeBack: return deckFocused && deck.nudgeSelectedCue(beats: -1)
-        case .nudgeForward: return deckFocused && deck.nudgeSelectedCue(beats: 1)
+        case .nudgeBack, .nudgeForward:
+            // 선택한 큐가 있으면 그 큐를, 없으면 재생 위치를 1박(Shift: 1마디) 옮긴다.
+            guard deckFocused else { return false }
+            deck.step(beats: (action == .nudgeBack ? -1 : 1) * (shift ? BeatJump.beatsPerBar : 1))
         case .deleteCue: return deckFocused && deck.deleteSelectedCue()
+        case .nextSuggestion: if !isRepeat { deck.jumpToSuggestion(forward: !shift) }
+        case .acceptSuggestion: if !isRepeat { deck.acceptNearestSuggestion() }
         case .tapTempo: if !isRepeat { deck.tapTempo() }
         case .loop: if !isRepeat { deck.toggleLoop() }
         case .loopHalve: deck.resizeLoop(-1)

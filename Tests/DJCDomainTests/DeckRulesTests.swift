@@ -149,4 +149,13 @@ struct CueCountdownTests {
         #expect(CueCountdown.text(to: cues, from: 100.1, grid: grid) == nil)
         #expect(CueCountdown.text(to: cues, from: 12, grid: nil) == "−8.0s")
     }
+
+    @Test func 남은_양은_박_또는_초로_센다() {
+        let cues = [EditableCue(kind: .memory, time: 20), EditableCue(kind: .memory, time: 100)]
+        #expect(CueCountdown.remaining(to: cues, from: 12.1, grid: grid) == .beats(16))
+        #expect(CueCountdown.remaining(to: cues, from: 20.1, grid: grid) == .beats(160))
+        #expect(CueCountdown.remaining(to: cues, from: 12, grid: nil) == .seconds(8))
+        #expect(CueCountdown.remaining(to: cues, from: 100.1, grid: grid) == nil)
+        #expect(CueCountdown.remaining(to: [EditableCue(kind: .hot(0), time: 20)], from: 12, grid: grid) == nil, "핫큐는 세지 않는다")
+    }
 }

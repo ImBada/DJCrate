@@ -78,8 +78,11 @@ struct DrawState {
     var engagedLoop: EditableCue.ID?
     var instantLoop: DeckModel.InstantLoop?
     var loopSizeText: String
+    /// 포인터가 올라간 큐·제안(굵게·밝게)
+    var hoveredCue: EditableCue.ID?
+    var hoveredSuggestion: Double?
 
-    @MainActor init(_ deck: DeckModel) {
+    @MainActor init(_ deck: DeckModel, hover: ZoomPointerTarget = .empty) {
         grid = deck.grid
         waveform = deck.waveform
         colorWaveform = deck.colorWaveform
@@ -99,5 +102,7 @@ struct DrawState {
         instantLoop = deck.instantLoop
         loopSizeText = deck.loopSizeText
         gridEditing = deck.gridEditing && deck.canEditGrid
+        hoveredCue = hover.cue
+        hoveredSuggestion = hover.suggestion
     }
 }
