@@ -147,6 +147,9 @@ enum ReadCommands {
                 bpm = lower...upper
             }
             if let raw = values["--filter"] {
+                if raw == "backlog" {
+                    throw invalid("backlog 필터는 삭제되었습니다. 빈 코멘트는 --filter empty-comment로 찾으세요")
+                }
                 guard let matched = LibraryFilter.allCases.first(where: { $0.cliName == raw }) else {
                     throw invalid("필터는 " + LibraryFilter.allCases.map(\.cliName).joined(separator: ", ") + " 중 하나로 쓰세요")
                 }

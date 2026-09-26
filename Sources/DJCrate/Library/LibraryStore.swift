@@ -44,7 +44,7 @@ final class LibraryStore {
     private(set) var playlistCounts: [String: Int] = [:]
     var isLoading: Bool { if case .loading = phase { true } else { false } }
 
-    var sidebar: SidebarItem = .filter(.backlog) {
+    var sidebar: SidebarItem = .filter(.all) {
         didSet {
             guard sidebar != oldValue else { return }
             // 플레이리스트는 rekordbox 순서가 기본, 필터는 임포트 최신순이 기본.
