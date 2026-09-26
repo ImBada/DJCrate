@@ -1387,6 +1387,38 @@
         }
       }
     },
+    "%@박, 반복 꺼짐" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@-beat loop, not repeating"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@拍、繰り返しオフ"
+          }
+        }
+      }
+    },
+    "%@박, 반복 중" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@-beat loop, repeating"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@拍、繰り返し中"
+          }
+        }
+      }
+    },
     "%@에 모르는 칸(%@)" : {
       "localizations" : {
         "en" : {
@@ -2155,6 +2187,34 @@
         }
       }
     },
+    "%lld칸 바뀜" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cell changed"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cells changed"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lldセルを変更"
+          }
+        }
+      }
+    },
     "%lld포인트" : {
       "localizations" : {
         "en" : {
@@ -2211,6 +2271,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "• %1$@ · キュー変更%2$lld · グリッド変更%3$@ · マーク%4$lld→%5$lld · "
+          }
+        }
+      }
+    },
+    "• %@ 유지 · 중복 %lld곡을 컬렉션에서 뺍니다" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "• Keep %1$@ · Remove %2$lld duplicate track from the Collection"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "• Keep %1$@ · Remove %2$lld duplicate tracks from the Collection"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "• %1$@を残す・重複する%2$lld曲をコレクションから削除します"
           }
         }
       }
@@ -5929,6 +6017,22 @@
         }
       }
     },
+    "같은 곡의 다른 초안이나 재생 목록 초안이 있습니다. 먼저 반영하거나 버린 뒤 합치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other drafts for these tracks or Playlist drafts exist. Write or discard them before merging."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ曲の別の下書き、またはプレイリストの下書きがあります。先に反映するか破棄してから統合してください。"
+          }
+        }
+      }
+    },
     "같은 묶음에 같은 key(%@)로 만든 목록이 있습니다" : {
       "localizations" : {
         "en" : {
@@ -5941,6 +6045,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同じ一括処理に同じkey（%@）で作成したプレイリストがあります"
+          }
+        }
+      }
+    },
+    "같은 음원 확인 · 초안 만들기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm Same Audio and Create Draft"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ音源と確認して下書きを作成"
+          }
+        }
+      }
+    },
+    "같은 음원인지 확인하고 합치기 초안을 만들까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm the Same Audio and Create a Merge Draft?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ音源か確認して統合の下書きを作成しますか？"
           }
         }
       }
@@ -6005,6 +6141,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同じキー"
+          }
+        }
+      }
+    },
+    "같은 핫큐 슬롯에 다른 큐가 있습니다. 슬롯을 정리한 뒤 다시 합치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Different cues occupy the same Hot Cue slot. Resolve the slot conflict before merging."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じホットキュースロットに異なるキューがあります。スロットを整理してから再度統合してください。"
           }
         }
       }
@@ -6247,6 +6399,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ゲインの下書きを取り消す"
+          }
+        }
+      }
+    },
+    "게인 트림" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gain Trim"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲイントリム"
           }
         }
       }
@@ -8413,6 +8581,22 @@
         }
       }
     },
+    "남길 곡: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Track to keep: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "残す曲：%@"
+          }
+        }
+      }
+    },
     "내보내지 못했습니다. 저장 위치와 권한을 확인하세요: %@" : {
       "localizations" : {
         "en" : {
@@ -9519,6 +9703,22 @@
         }
       }
     },
+    "라이브러리는 반영했지만 합치기 초안 파일을 저장하지 못했습니다. DJCrate 데이터 폴더의 쓰기 권한을 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The library was updated, but the merge draft file could not be saved. Check write permission for the DJCrate data folder."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリには反映しましたが、統合の下書きファイルを保存できませんでした。DJCrateデータフォルダの書き込み権限を確認してください。"
+          }
+        }
+      }
+    },
     "라이브러리를 다시 불러오고 초안을 확인한 뒤 다시 시도하세요." : {
       "localizations" : {
         "en" : {
@@ -9691,6 +9891,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ローカルの音源だけを「追加した曲」に入れます。「プレイリストも作成」をオンにすると、コレクションへの追加後に元の所属と順序でプレイリストの下書きを作成します。"
+          }
+        }
+      }
+    },
+    "로컬 음원의 시간축을 읽지 못했습니다. 파일 위치와 형식을 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read the local audio timeline. Check the file location and format."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカル音源の時間軸を読み取れませんでした。ファイルの場所と形式を確認してください。"
           }
         }
       }
@@ -10419,22 +10635,6 @@
         }
       }
     },
-    "멈추기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stop"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "停止"
-          }
-        }
-      }
-    },
     "멈춤" : {
       "localizations" : {
         "en" : {
@@ -10447,6 +10647,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "停止中"
+          }
+        }
+      }
+    },
+    "멈추기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止"
           }
         }
       }
@@ -12259,6 +12475,22 @@
         }
       }
     },
+    "분석 파일을 지우지 않음(경로가 예상과 다름)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analysis files left in place (unexpected path)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解析ファイルは削除しませんでした（想定と異なるパス）"
+          }
+        }
+      }
+    },
     "분석 파일이 쓴 내용과 다릅니다(%@)" : {
       "localizations" : {
         "en" : {
@@ -12489,6 +12721,22 @@
         }
       }
     },
+    "빼지 않는 곡 %lld:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not removed (%lld):"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除しない曲 %lld："
+          }
+        }
+      }
+    },
     "빼지 않음: %@" : {
       "localizations" : {
         "en" : {
@@ -12521,6 +12769,22 @@
         }
       }
     },
+    "뺄 곡의 재생 기록·재생 횟수·평점·색·마이 태그·그리드·게인·자동 큐·큐 색은 옮기지 않습니다. 음원 파일은 남습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History, DJ Play Count, Rating, color, My Tag, beat grid, gain, automatic cues, and cue colors from removed tracks will not transfer. Audio files will remain."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除する曲の演奏履歴、DJプレイ回数、評価、色、マイタグ、ビートグリッド、ゲイン、自動キュー、キューの色は引き継ぎません。音源ファイルは残ります。"
+          }
+        }
+      }
+    },
     "뺌" : {
       "localizations" : {
         "en" : {
@@ -12533,22 +12797,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "削除済み"
-          }
-        }
-      }
-    },
-    "빼지 않는 곡 %lld:" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not removed (%lld):"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "削除しない曲 %lld："
           }
         }
       }
@@ -12989,6 +13237,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "色を指定したホットキューがあります。rekordboxの色番号とXMLの色の対応を確認するまでブロックしています"
+          }
+        }
+      }
+    },
+    "서로 다른 곡을 골라 합치기 초안을 다시 만드세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select distinct tracks and create the merge draft again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "異なる曲を選び、統合の下書きを作り直してください。"
+          }
+        }
+      }
+    },
+    "서로 다른 활성 루프가 있습니다. 활성 루프를 하나로 정한 뒤 다시 합치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Different Active Loops exist. Choose one Active Loop before merging."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "異なるアクティブループがあります。アクティブループを1つに決めてから再度統合してください。"
           }
         }
       }
@@ -13521,22 +13801,6 @@
         }
       }
     },
-    "스트리밍 곡은 가져올 수 없습니다. 로컬 음원을 준비하세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Streaming tracks can't be imported. Use local audio files."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ストリーミングの曲は取り込めません。ローカル音源を用意してください。"
-          }
-        }
-      }
-    },
     "스트리밍 곡은 반영할 수 없습니다" : {
       "localizations" : {
         "en" : {
@@ -13581,6 +13845,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ストリーム"
+          }
+        }
+      }
+    },
+    "스트리밍 곡은 가져올 수 없습니다. 로컬 음원을 준비하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Streaming tracks can't be imported. Use local audio files."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ストリーミングの曲は取り込めません。ローカル音源を用意してください。"
           }
         }
       }
@@ -14745,6 +15025,38 @@
         }
       }
     },
+    "옮길 수 없는 큐가 있습니다. rekordbox에서 큐를 정리한 뒤 다시 합치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some cues cannot be transferred. Organize them in rekordbox before merging."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動できないキューがあります。rekordboxでキューを整理してから再度統合してください。"
+          }
+        }
+      }
+    },
+    "옮길 큐나 루프가 곡 길이를 벗어납니다. 큐를 확인한 뒤 다시 합치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A transferred cue or loop would fall outside the track. Check the cues before merging."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動するキューまたはループが曲の範囲を超えます。キューを確認してから再度統合してください。"
+          }
+        }
+      }
+    },
     "옮길 큐를 찾지 못했습니다" : {
       "localizations" : {
         "en" : {
@@ -15023,6 +15335,22 @@
         }
       }
     },
+    "음원 길이 차이가 20ms를 넘거나 시간축을 확인할 수 없습니다. 같은 음원인지 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audio lengths differ by more than 20 ms, or the timeline is unknown. Check that these are the same audio."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音源の長さの差が20msを超えているか、時間軸を確認できません。同じ音源か確認してください。"
+          }
+        }
+      }
+    },
     "음원 길이를 재지 못해 분석을 붙이지 않습니다. 음원 파일을 확인한 뒤 다시 쓰세요" : {
       "localizations" : {
         "en" : {
@@ -15253,6 +15581,22 @@
         }
       }
     },
+    "이 MP3 인코더의 시간축을 확인하지 못했습니다. rekordbox에서 큐를 직접 정리하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The timeline for this MP3 encoder is unverified. Organize the cues in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMP3エンコーダーの時間軸は未確認です。rekordboxでキューを直接整理してください。"
+          }
+        }
+      }
+    },
     "이 VBR MP3 인코더의 분석 규칙은 확인되지 않았으니 rekordbox에서 먼저 분석하세요" : {
       "localizations" : {
         "en" : {
@@ -15361,6 +15705,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "この曲は最初の小節の1拍目が曲の頭にあるため、0小節目がありません。1小節目から選んでください"
+          }
+        }
+      }
+    },
+    "이 곡을 남기고 합치기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep This Track and Merge…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この曲を残して統合…"
           }
         }
       }
@@ -17747,6 +18107,22 @@
         }
       }
     },
+    "중복 곡 합치기 초안" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duplicate Tracks Merge Draft"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重複した曲の統合の下書き"
+          }
+        }
+      }
+    },
     "중복 후보" : {
       "localizations" : {
         "en" : {
@@ -17929,6 +18305,22 @@
         }
       }
     },
+    "지운 곡의 참조가 남아 있습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "References to a removed track remain"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除した曲への参照が残っています"
+          }
+        }
+      }
+    },
     "지운 곡이 다시 읽혔습니다" : {
       "localizations" : {
         "en" : {
@@ -18021,6 +18413,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "対応していない形式です。MP3・M4A・WAV・AIFF・FLACなどの音源を用意してください。"
+          }
+        }
+      }
+    },
+    "직접 미리 들어 같은 음원인지 확인하세요. 인코더 지연만 보정하며, 곡 앞뒤의 편집 차이는 보정하지 않습니다. 초안은 ⇧⌘E로 반영합니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listen to confirm these are the same audio. Only encoder delay is adjusted; edits to the beginning or end are not aligned. Write the draft with ⇧⌘E."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "試聴して同じ音源か確認してください。エンコーダーの遅延のみ補正し、曲の前後の編集による違いは補正しません。下書きは⇧⌘Eで反映します。"
           }
         }
       }
@@ -18209,6 +18617,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下書き %lld曲"
+          }
+        }
+      }
+    },
+    "초안 버리기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard Draft"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きを破棄"
           }
         }
       }
@@ -18859,6 +19283,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "コレクションにありません"
+          }
+        }
+      }
+    },
+    "컬렉션에서 뺄 곡: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Track to remove from Collection: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コレクションから削除する曲：%@"
           }
         }
       }
@@ -20119,22 +20559,6 @@
         }
       }
     },
-    "태그 시트" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tag Sheet"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "タグシート"
-          }
-        }
-      }
-    },
     "태그 시트: 엑셀처럼 셀을 선택·편집·붙여넣기 합니다" : {
       "localizations" : {
         "en" : {
@@ -20147,6 +20571,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "タグシート：Excelのようにセルを選択・編集・ペーストします"
+          }
+        }
+      }
+    },
+    "태그 쓰지 않음: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tags not written: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タグ未反映：%@"
           }
         }
       }
@@ -20215,18 +20655,18 @@
         }
       }
     },
-    "태그 쓰지 않음: %@" : {
+    "태그 시트" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "tags not written: %@"
+            "value" : "Tag Sheet"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "タグ未反映：%@"
+            "value" : "タグシート"
           }
         }
       }
@@ -20307,6 +20747,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "テンポ"
+          }
+        }
+      }
+    },
+    "템포 0으로" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Tempo to 0"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テンポを0に戻す"
           }
         }
       }
@@ -20467,6 +20923,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "トリム"
+          }
+        }
+      }
+    },
+    "트림 0 dB로" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Trim to 0 dB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トリムを0 dBに戻す"
+          }
+        }
+      }
+    },
+    "트림을 0 dB로 되돌립니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset trim to 0 dB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トリムを0 dBに戻します"
           }
         }
       }
@@ -20675,6 +21163,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "波形の高さ調整"
+          }
+        }
+      }
+    },
+    "파형 불러오는 중" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading waveform"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "波形を読み込み中"
           }
         }
       }
@@ -21311,6 +21815,158 @@
         }
       }
     },
+    "합치기 %lld묶음" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Merge %lld group"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Merge %lld groups"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "統合%lld組"
+          }
+        }
+      }
+    },
+    "합치기 반영 대기 · %@ 유지 · %lld곡 빼기" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Merge pending · Keep %1$@ · Remove %2$lld track"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Merge pending · Keep %1$@ · Remove %2$lld tracks"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "統合の反映待ち・%1$@を残す・%2$lld曲を削除"
+          }
+        }
+      }
+    },
+    "합치기 반영 완료" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge complete"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "統合を反映しました"
+          }
+        }
+      }
+    },
+    "합치기 변경 없음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No merge changes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "統合の変更なし"
+          }
+        }
+      }
+    },
+    "합치기 초안 뒤 곡·큐·재생 목록·음원이 바뀌었습니다. 초안을 버리고 다시 만드세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks, cues, Playlists, or audio have changed since this merge draft. Discard it and create a new draft."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "統合の下書き作成後に曲、キュー、プレイリスト、音源が変更されました。下書きを破棄して作り直してください。"
+          }
+        }
+      }
+    },
+    "합치기 초안을 만들지 않았습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge Draft Was Not Created"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "統合の下書きを作成しませんでした"
+          }
+        }
+      }
+    },
+    "합치지 않음: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not merged: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "統合しませんでした：%@"
+          }
+        }
+      }
+    },
+    "합친 메모리 큐가 10개를 넘습니다. 큐를 정리한 뒤 다시 합치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The merged track would have more than 10 Memory Cues. Organize the cues before merging."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "統合後のメモリーキューが10個を超えます。キューを整理してから再度統合してください。"
+          }
+        }
+      }
+    },
     "핫큐" : {
       "localizations" : {
         "en" : {
@@ -21869,146 +22525,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ホイール"
-          }
-        }
-      }
-    },
-    "%@박, 반복 꺼짐" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@-beat loop, not repeating"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@拍、繰り返しオフ"
-          }
-        }
-      }
-    },
-    "%@박, 반복 중" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@-beat loop, repeating"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@拍、繰り返し中"
-          }
-        }
-      }
-    },
-    "%lld칸 바뀜" : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld cell changed"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld cells changed"
-                }
-              }
-            }
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lldセルを変更"
-          }
-        }
-      }
-    },
-    "게인 트림" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gain Trim"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ゲイントリム"
-          }
-        }
-      }
-    },
-    "템포 0으로" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reset Tempo to 0"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "テンポを0に戻す"
-          }
-        }
-      }
-    },
-    "트림 0 dB로" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reset Trim to 0 dB"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "トリムを0 dBに戻す"
-          }
-        }
-      }
-    },
-    "트림을 0 dB로 되돌립니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reset trim to 0 dB"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "トリムを0 dBに戻します"
-          }
-        }
-      }
-    },
-    "파형 불러오는 중" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Loading waveform"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "波形を読み込み中"
           }
         }
       }

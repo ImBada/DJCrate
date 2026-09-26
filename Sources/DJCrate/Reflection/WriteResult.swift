@@ -18,7 +18,7 @@ struct WriteResult: Codable, Equatable {
 
     /// 한 번에 쓰는 것의 종류. 종류 이름이 문장 안에서 어순·조사가 달라지므로 종류마다 문장 전체를 번역한다.
     enum Part {
-        case cue, grid, analysis, gain, tag
+        case cue, grid, analysis, gain, tag, merge
 
         /// "큐 3곡" — 확인 창 제목과 결과 제목에 쓴다.
         func summary(_ count: Int) -> String {
@@ -28,6 +28,7 @@ struct WriteResult: Codable, Equatable {
             case .analysis: String(ui: "분석 \(count)곡")
             case .gain: String(ui: "게인 \(count)곡")
             case .tag: String(ui: "태그 \(count)곡")
+            case .merge: String(ui: "합치기 \(count)묶음")
             }
         }
 
@@ -38,6 +39,7 @@ struct WriteResult: Codable, Equatable {
             case .analysis: String(ui: "분석 반영 완료")
             case .gain: String(ui: "게인 반영 완료")
             case .tag: String(ui: "태그 반영 완료")
+            case .merge: String(ui: "합치기 반영 완료")
             }
         }
 
@@ -48,6 +50,7 @@ struct WriteResult: Codable, Equatable {
             case .analysis: String(ui: "분석 쓰지 않음: \(reason)")
             case .gain: String(ui: "게인 쓰지 않음: \(reason)")
             case .tag: String(ui: "태그 쓰지 않음: \(reason)")
+            case .merge: String(ui: "합치지 않음: \(reason)")
             }
         }
 
@@ -58,6 +61,7 @@ struct WriteResult: Codable, Equatable {
             case .analysis: String(ui: "분석 변경 없음")
             case .gain: String(ui: "게인 변경 없음")
             case .tag: String(ui: "태그 변경 없음")
+            case .merge: String(ui: "합치기 변경 없음")
             }
         }
     }
@@ -69,6 +73,7 @@ struct WriteResult: Codable, Equatable {
             (.analysis, report.analysisOutcomes ?? [], preview.analysisOutcomes ?? []),
             (.gain, report.gainOutcomes ?? [], preview.gainOutcomes ?? []),
             (.tag, report.tagOutcomes ?? [], preview.tagOutcomes ?? []),
+            (.merge, report.mergeOutcomes ?? [], preview.mergeOutcomes ?? []),
         ]
         var lines: [String] = [], summaries: [String] = [], count = 0, blocked = false
         for (part, actual, predicted) in groups {
@@ -81,6 +86,7 @@ struct WriteResult: Codable, Equatable {
                 case .written:
                     count += 1
                     lines.append("• \(outcome.title) — " + part.written)
+                    if let reason = outcome.reason { blocked = true; lines.append(reason) }
                 case .blocked:
                     blocked = true
                     lines.append("• \(outcome.title) — " + part.blocked(outcome.reason ?? String(ui: "이유 없음")))
@@ -112,6 +118,7 @@ struct WriteResult: Codable, Equatable {
             var parts: [String] = []
             if outcome.written {
                 parts.append(adding ? String(ui: "넣기 완료") : String(ui: "빼기 완료"))
+                if let reason = outcome.reason { warning = true; parts.append(reason) }
                 if adding, let reason = withoutAnalysis[outcome.path] {
                     warning = true
                     parts.append(String(ui: "분석 없이 넣음(\(reason)): rekordbox에서 분석하세요"))
@@ -138,13 +145,15 @@ struct WriteResult: Codable, Equatable {
     static func restored(_ backup: RekordboxWriter.Backup, saved: URL) -> Self {
         let report = backup.report
         let outcomes: [RekordboxWriter.Outcome] = (report?.written ?? []) + (report?.gridWritten ?? []) + (report?.gainWritten ?? [])
-            + (report?.analysisWritten ?? []) + (report?.tagWritten ?? [])
+            + (report?.analysisWritten ?? []) + (report?.tagWritten ?? []) + (report?.mergeWritten ?? [])
         let names: [String] = (report?.playlistWritten ?? []).map(\.name) + (backup.trackReport?.titles ?? [])
         let titles = Set(outcomes.map(\.title) + names)
         var lines = [String(ui: "rekordbox 라이브러리 전체를 선택한 백업의 쓰기 전 상태로 되돌렸습니다."),
                      String(ui: "그때 쓴 초안과 추가 목록도 복원했습니다. 되돌리기 직전 상태는 아래 두 번째 백업에 남아 있습니다.")]
         lines += titles.sorted().map { "• \($0)" }
-        return Self(kind: .success, title: String(ui: "rekordbox를 쓰기 전으로 되돌렸습니다"), text: lines.joined(separator: "\n"), backups: [backup.url, saved])
+        let fileWarning = RekordboxWriter.fileWarning(in: saved)
+        if let fileWarning { lines.append(fileWarning) }
+        return Self(kind: fileWarning == nil ? .success : .warning, title: String(ui: "rekordbox를 쓰기 전으로 되돌렸습니다"), text: lines.joined(separator: "\n"), backups: [backup.url, saved])
     }
 }
 

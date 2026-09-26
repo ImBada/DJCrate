@@ -5,6 +5,7 @@ import SwiftUI
 /// 기존 곡 표의 열·정렬 설정을 바꾸지 않고 후보끼리 비교한다.
 struct DuplicateTracksView: View {
     @Bindable var store: LibraryStore
+    @State private var preparing = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -12,6 +13,17 @@ struct DuplicateTracksView: View {
                 .font(.callout).padding(.horizontal, 12).padding(.top, 8)
             Text(.ui("스냅샷 기준 · 후보가 같은 음원인지는 직접 확인하세요 · 한 곡이 여러 묶음에 나올 수 있습니다"))
                 .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.bottom, 8)
+            ForEach(store.mergeDrafts) { draft in
+                HStack {
+                    Text(.ui("합치기 반영 대기 · \(draft.keeping.title) 유지 · \(draft.removing.count)곡 빼기"))
+                    Spacer()
+                    Button(.ui("초안 버리기")) {
+                        do { try store.setMergeDrafts(store.mergeDrafts.filter { $0.id != draft.id }) }
+                        catch { store.reflectionMessage = AppMessage(kind: .warning, text: error.localizedDescription) }
+                    }
+                }
+                .padding(.horizontal, 12).padding(.vertical, 4)
+            }
             if store.displayDuplicateGroups.isEmpty {
                 ContentUnavailableView(.ui("중복 후보가 없습니다"), systemImage: "square.on.square",
                                        description: store.search.isEmpty ? Text(.ui("현재 스냅샷에서 조건이 맞는 곡이 없습니다")) : Text(.ui("검색어를 지우고 다시 확인하세요")))
@@ -27,7 +39,7 @@ struct DuplicateTracksView: View {
                                 ForEach(store.displayDuplicateGroups) { group in
                                     Section {
                                         ForEach(group.tracks) { member in
-                                            candidate(member).tag(member.id)
+                                            candidate(member, group: group).tag(member.id)
                                         }
                                     } header: {
                                         Text(.ui("\(group.tracks.first?.track.title ?? "") · \(group.tracks.count)곡"))
@@ -59,7 +71,7 @@ struct DuplicateTracksView: View {
         store.displayRows.first { ids.contains($0.id) }
     }
 
-    private func candidate(_ member: LibraryRead.DuplicateMember) -> some View {
+    private func candidate(_ member: LibraryRead.DuplicateMember, group: LibraryRead.DuplicateGroup) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             columns(title: member.track.title, length: String(ui: "\(member.track.lengthSeconds)초"), cues: "\(member.cueCount)",
                     playlists: "\(member.playlistCount)", plays: "\(member.playCount)", format: member.format,
@@ -69,8 +81,20 @@ struct DuplicateTracksView: View {
                 Text(.ui("수동 큐 \(member.manualCueCount) · 자동 큐 \(member.cueCount - member.manualCueCount)"))
             }
             .font(.caption).foregroundStyle(.secondary)
-            Text(member.track.path).font(.caption).foregroundStyle(.secondary)
-                .lineLimit(1).truncationMode(.middle).help(member.track.path)
+            HStack {
+                Text(member.track.path).font(.caption).foregroundStyle(.secondary)
+                    .lineLimit(1).truncationMode(.middle).help(member.track.path)
+                Spacer()
+                Button(.ui("이 곡을 남기고 합치기…")) {
+                    preparing = true
+                    Task {
+                        await store.prepareMerge(keeping: member.id, removing: group.tracks.filter { $0.id != member.id }.map(\.id))
+                        preparing = false
+                    }
+                }
+                .buttonStyle(.borderless)
+                .disabled(preparing || group.tracks.contains { store.pendingUUIDs.contains($0.track.uuid) })
+            }
         }
         .padding(.vertical, 3)
     }

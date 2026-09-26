@@ -14,7 +14,7 @@ struct RekordboxGridWriterTests {
     /// 128 BPM, 첫 박 500.3ms(소수는 PQT2에), 60초짜리 WAV
     func makeTrack(_ fixture: RekordboxFixture, withEXT: Bool = true, emptyPQT2: Bool = false,
                    beats: [BeatGridTags.Beat]? = nil) throws -> (TrackSpec, [BeatGridTags.Beat]) {
-        var track = TrackSpec()
+        var track = TrackSpec(uuid: "a1b2c3d4-0000-1111-2222-333344445555")
         track.fileType = 11
         track.bpm100 = 12800
         track.folderPath = try AudioFixture.wav(seconds: 60, in: fixture.audio).path
