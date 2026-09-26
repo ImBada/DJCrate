@@ -6,8 +6,10 @@ import Testing
 
 /// 분석 전 곡(분석 파일 없음)에 DJCrate가 분석을 붙이기(#6).
 /// 기대값은 곡 넣기(분석 포함, 2026-09-26 묶음 2 실험) 결과다: 같은 음원·그리드·음량이면 곡 행 분석 칸·파일 행·오토게인 행·
-/// 분석 파일이 칸·바이트까지 같아야 한다. rekordbox가 기존 분석 전 곡을 분석한 결과(AnalysisUpdated·TrackInfoUpdated·
-/// 변경 번호 순서)는 실험으로 확인하기 전이라 쓰기 경로는 막아 두고(`RekordboxWriter.attachesAnalysis`) 시험에서만 연다.
+/// 분석 파일이 칸·바이트까지 같아야 한다. 곡 넣기와 다른 것은 2026-09-26 실험(분석 전 곡 The Asterisk War (edit)를 rekordbox
+/// 7.2.18에서 '트랙 분석', 보통 모드·BPM/그리드·키만)에서 확인한 두 가지다:
+/// - `AnalysisUpdated` NULL → '2', `TrackInfoUpdated` NULL → '1'(곡 넣기는 '3'·'2')
+/// - 변경 번호: 오토게인 행 → 곡 행 → 파일 행 .2EX·.DAT·.EXT(곡 넣기는 곡 행 → .DAT·.EXT·.2EX → 오토게인 행)
 @Suite("rekordbox 분석 붙이기")
 struct RekordboxAnalysisAttachTests {
     /// 2026-09-25 12:00:00.000 UTC
@@ -74,12 +76,15 @@ struct RekordboxAnalysisAttachTests {
                                 inputs: [uuid: .init(duration: bare.duration, loudness: -8, peak: 0.9)])
         #expect(report.analysisWritten.map(\.trackUUID) == [uuid] && report.analysisBlocked.isEmpty && report.gridOutcomes == nil)
 
-        // 곡 행: 신원·경로·파일 inode·분석 경로(곡 UUID 폴더)·변경 번호 말고는 칸 값과 형식이 같다
-        let identity: Set = ["ID", "UUID", "FolderPath", "MasterSongID", "rb_file_id", "AnalysisDataPath", "rb_local_usn"]
+        // 곡 행: 신원·경로·파일 inode·분석 경로(곡 UUID 폴더)·변경 번호·분석 카운터 말고는 칸 값과 형식이 같다
+        let identity: Set = ["ID", "UUID", "FolderPath", "MasterSongID", "rb_file_id", "AnalysisDataPath", "rb_local_usn",
+                             "AnalysisUpdated", "TrackInfoUpdated"]
         let row = try #require(try quoted(fixture, "djmdContent", "ID = ?", [.text(id)]).first)
         let refRow = try #require(try quoted(fixture, "djmdContent", "ID = ?", [.text(refID)]).first)
         for (column, value) in refRow where !identity.contains(column) { #expect(row[column] == value, "djmdContent.\(column)") }
         #expect(row["AnalysisDataPath"] == "'\(folder(uuid))/ANLZ0000.DAT'" && row["Analysed"] == "105" && row["BPM"] == "12000")
+        // 기존 분석 전 곡을 rekordbox가 분석하면 카운터는 '2'·'1'(글자). 곡 넣기('3'·'2')와 다르다(2026-09-26 실험).
+        #expect(row["AnalysisUpdated"] == "'2'" && row["TrackInfoUpdated"] == "'1'" && refRow["AnalysisUpdated"] == "'3'")
 
         // 파일 행(.2EX·.DAT·.EXT): 곡 UUID가 든 칸 말고는 같다(해시·크기 = 같은 바이트)
         let fileIdentity: Set = ["ID", "ContentID", "Path", "rb_local_path", "UUID", "rb_local_usn"]
@@ -106,18 +111,14 @@ struct RekordboxAnalysisAttachTests {
         }
         #expect(Set(report.createdFiles ?? []) == Set(["DAT", "EXT", "2EX"].map { analysisFile(fixture, uuid, $0).path }))
 
-        // 변경 번호: 곡 넣기와 같은 순서(곡 행 → 파일 행 .DAT·.EXT·.2EX → 오토게인 행), 카운터는 마지막 번호
-        func order(_ contentID: String) throws -> [Int] {
-            let content = try fixture.rows("SELECT rb_local_usn FROM djmdContent WHERE ID = ?", [.text(contentID)])
-            let files = try fixture.rows("SELECT rb_local_usn FROM contentFile WHERE ContentID = ? ORDER BY substr(Path, -3) = '2EX', substr(Path, -3) = 'EXT'",
-                                         [.text(contentID)])
-            let mixer = try fixture.rows("SELECT rb_local_usn FROM djmdMixerParam WHERE ContentID = ?", [.text(contentID)])
-            return (content + files + mixer).compactMap { $0["rb_local_usn"].flatMap { Int($0) } }
-        }
-        let usns = try order(id), refUSNs = try order(refID)
-        #expect(usns.count == 5 && usns.map { $0 - usns[0] } == refUSNs.map { $0 - refUSNs[0] }, "\(usns) / \(refUSNs)")
+        // 변경 번호: rekordbox가 분석 전 곡을 분석한 순서(오토게인 행 → 곡 행 → 파일 행 .2EX·.DAT·.EXT), 카운터는 마지막 번호
+        let mixerUSN = try fixture.rows("SELECT rb_local_usn FROM djmdMixerParam WHERE ContentID = ?", [.text(id)])
+        let contentUSN = try fixture.rows("SELECT rb_local_usn FROM djmdContent WHERE ID = ?", [.text(id)])
+        let fileUSNs = try fixture.rows("SELECT rb_local_usn FROM contentFile WHERE ContentID = ? ORDER BY Path", [.text(id)])   // 2EX·DAT·EXT
+        let usns = (mixerUSN + contentUSN + fileUSNs).compactMap { $0["rb_local_usn"].flatMap { Int($0) } }
+        #expect(usns == Array(before + 1...before + 5), "\(usns)")
         let final = try fixture.localUpdateCount()
-        #expect(usns.first == before + 1 && report.finalUpdateCount == usns.max() && final == usns.max())
+        #expect(report.finalUpdateCount == before + 5 && final == before + 5)
     }
 
     @Test func XML로_들어와_동기화된_곡도_붙이고_상태는_257() async throws {
@@ -137,19 +138,21 @@ struct RekordboxAnalysisAttachTests {
                                 inputs: [track.uuid: .init(duration: 20.6, loudness: nil, peak: 1)])
         #expect(report.analysisWritten.count == 1)
         let row = try #require(try quoted(fixture, "djmdContent", "ID = ?", [.text(track.id)]).first)
-        #expect(row["rb_data_status"] == "257" && row["rb_local_usn"] == "701" && row["updated_at"] == "'2026-09-25 12:00:00.000 +00:00'")
+        #expect(row["rb_data_status"] == "257" && row["rb_local_usn"] == "702" && row["updated_at"] == "'2026-09-25 12:00:00.000 +00:00'")
         #expect(row["Analysed"] == "105" && row["BPM"] == "12000" && row["Length"] == "20" && row["BitRate"] == "1411"
                 && row["BitDepth"] == "16" && row["SampleRate"] == "44100" && row["ContentLink"] == "2885134")
-        #expect(row["AnalysisUpdated"] == "'3'" && row["TrackInfoUpdated"] == "'2'" && row["KeyID"] == "NULL", "키는 분석하지 않는다(곡 넣기와 같음)")
+        #expect(row["AnalysisUpdated"] == "'2'" && row["TrackInfoUpdated"] == "'1'" && row["KeyID"] == "NULL", "키는 쓰지 않는다(실험에서도 KeyID 그대로)")
         // 오토게인: 음량을 모르면 0dB
         let mixer = try #require(try fixture.rows("SELECT GainHigh, GainLow, rb_local_usn FROM djmdMixerParam WHERE ContentID = ?", [.text(track.id)]).first)
-        #expect(RekordboxAutoGain.float(high: Int(mixer["GainHigh"]!)!, low: Int(mixer["GainLow"]!)!) == 1 && mixer["rb_local_usn"] == "705")
+        #expect(RekordboxAutoGain.float(high: Int(mixer["GainHigh"]!)!, low: Int(mixer["GainLow"]!)!) == 1 && mixer["rb_local_usn"] == "701")
+        let files = try fixture.rows("SELECT rb_local_usn FROM contentFile WHERE ContentID = ? ORDER BY Path", [.text(track.id)])
+        #expect(files.map { $0["rb_local_usn"] } == ["703", "704", "705"])
         #expect(try fixture.localUpdateCount() == 705)
     }
 
     // MARK: 막힘
 
-    @Test func 막아_둔_동안에는_쓰지_않고_이유를_알린다() async throws {
+    @Test func 닫아_두면_쓰지_않고_이유를_알린다() async throws {
         let fixture = try RekordboxFixture()
         try fixture.add(TrackSpec())
         let wav = try AudioFixture.wav(seconds: 20, in: fixture.audio)
@@ -162,7 +165,21 @@ struct RekordboxAnalysisAttachTests {
         #expect(report.analysisWritten.isEmpty && report.analysisBlocked.first?.reason?.contains("rekordbox에서 트랙 분석을 먼저 한 뒤 쓰세요") == true)
         #expect(try quoted(fixture, "djmdContent", "ID = ?", [.text(id)]) == before && fixture.localUpdateCount() == count)
         #expect(!FileManager.default.fileExists(atPath: fixture.shareRoot.appending(path: "PIONEER").path))
-        #expect(RekordboxWriter.attachesAnalysis == false, "rekordbox 실험으로 칸을 확인하기 전에는 앱에서도 막는다")
+        #expect(RekordboxWriter.attachesAnalysis, "2026-09-26 실험으로 칸을 확인해 앱에서도 연다")
+    }
+
+    @Test func 분석_카운터가_있는_분석_전_곡은_막는다() async throws {
+        // rekordbox에서 곡 정보를 고친 분석 전 곡(TrackInfoUpdated가 있음): 분석하면 카운터가 얼마나 늘지 확인하지 않았다
+        let fixture = try RekordboxFixture()
+        try fixture.add(TrackSpec())
+        let p = try await plan(try AudioFixture.wav(seconds: 20, in: fixture.audio))
+        let (id, uuid) = try addBare(fixture, p)
+        try fixture.execute("UPDATE djmdContent SET TrackInfoUpdated = '3' WHERE ID = ?", [.text(id)])
+        let report = try attach(fixture, [GridDraft(trackUUID: uuid, base: [], segments: segments)],
+                                inputs: [uuid: .init(duration: p.duration, loudness: nil, peak: 1)])
+        #expect(report.analysisWritten.isEmpty && report.analysisBlocked.first?.reason?.contains("rekordbox에서 트랙 분석을 하세요") == true,
+                "\(report.analysisBlocked)")
+        #expect(try fixture.rows("SELECT * FROM contentFile").isEmpty && fixture.rows("SELECT * FROM djmdMixerParam").isEmpty)
     }
 
     @Test func 반쪽_분석_곡은_막는다() throws {

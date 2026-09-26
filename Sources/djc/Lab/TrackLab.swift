@@ -168,7 +168,12 @@ enum TrackLab {
             let url = URL(filePath: track.path)
             var segments: [GridSegment]
             if let dat = value(after: "--grid-from", in: args) {
-                segments = GridDraft.segments(from: try BeatGrid.load(anlz: URL(filePath: dat)))
+                // rekordbox 분석의 정밀 시각: .DAT의 ms에 옆 .EXT의 소수(PQT2)를 더한다(그리드 쓰기와 같다)
+                let datURL = URL(filePath: dat)
+                let pqtz = try AnlzFile(url: datURL).tag("PQTZ")?.bytes ?? Data()
+                let pqt2 = (try? AnlzFile(url: datURL.deletingPathExtension().appendingPathExtension("EXT")))?.tag("PQT2")?.bytes
+                let beats = BeatGridTags.decode(pqtz: pqtz, pqt2: pqt2).beats
+                segments = GridDraft.segments(from: BeatGrid(beats: beats.map { .init(number: $0.number, bpm: Double($0.bpm100) / 100, time: $0.time / 1000) }))
             } else {
                 // 음원 시간축 추정을 rekordbox 시간축으로 옮긴다(곡 넣기 --analyze와 같다)
                 guard let estimate = try await GridSuggestion.estimate(fileAt: url, cacheKey: "attach-\(track.uuid)") else {

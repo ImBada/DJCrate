@@ -249,30 +249,42 @@ public enum RekordboxTrackWriter {
     @discardableResult
     static func insertAnalysisRows(_ db: CipherDatabase, _ ready: PreparedAnalysis, contentID: String, usn: inout Int,
                                    stamp: (db: String, json: String)) throws -> [InsertedRow] {
-        guard let share = ready.share else { return [] }
+        guard ready.share != nil else { return [] }
         var inserted: [InsertedRow] = []
-        for (url, data) in ready.files {
-            let path = "/" + url.path.dropFirst(share.path.count).drop(while: { $0 == "/" })
-            let encoded = path.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? path
+        for file in ready.files {
             usn += 1
-            let row: [String: CipherDatabase.Value] = [
-                "ID": .text("\(ready.uuid)_\(encoded)"), "ContentID": .text(contentID), "Path": .text(path),
-                "Hash": .text(Insecure.MD5.hash(data: data).map { String(format: "%02x", $0) }.joined()), "Size": .int(data.count),
-                "rb_local_path": .text(url.path), "rb_insync_hash": .null, "rb_insync_local_usn": .null, "rb_file_hash_dirty": .int(0),
-                "rb_local_file_status": .int(0), "rb_in_progress": .int(0), "rb_process_type": .int(0), "rb_temp_path": .null,
-                "rb_priority": .int(50), "rb_file_size_dirty": .int(0), "UUID": .text(UUID().uuidString.lowercased()),
-            ]
-            inserted.append(InsertedRow(table: "contentFile", values: row.merging(syncColumns(usn: usn, stamp: stamp)) { a, _ in a }))
+            inserted.append(fileRow(ready, file, contentID: contentID, usn: usn, stamp: stamp))
         }
         usn += 1
+        inserted.append(mixerRow(ready, contentID: contentID, usn: usn, stamp: stamp))
+        for row in inserted { try insert(db, table: row.table, row.values) }
+        return inserted
+    }
+
+    /// 분석 파일 하나의 `contentFile` 행(ID = `<곡 UUID>_<경로, /는 %2F>`, MD5·크기·로컬 경로)
+    static func fileRow(_ ready: PreparedAnalysis, _ file: (url: URL, data: Data), contentID: String, usn: Int,
+                        stamp: (db: String, json: String)) -> InsertedRow {
+        let share = ready.share?.path ?? ""
+        let path = "/" + file.url.path.dropFirst(share.count).drop(while: { $0 == "/" })
+        let encoded = path.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? path
+        let row: [String: CipherDatabase.Value] = [
+            "ID": .text("\(ready.uuid)_\(encoded)"), "ContentID": .text(contentID), "Path": .text(path),
+            "Hash": .text(Insecure.MD5.hash(data: file.data).map { String(format: "%02x", $0) }.joined()), "Size": .int(file.data.count),
+            "rb_local_path": .text(file.url.path), "rb_insync_hash": .null, "rb_insync_local_usn": .null, "rb_file_hash_dirty": .int(0),
+            "rb_local_file_status": .int(0), "rb_in_progress": .int(0), "rb_process_type": .int(0), "rb_temp_path": .null,
+            "rb_priority": .int(50), "rb_file_size_dirty": .int(0), "UUID": .text(UUID().uuidString.lowercased()),
+        ]
+        return InsertedRow(table: "contentFile", values: row.merging(syncColumns(usn: usn, stamp: stamp)) { a, _ in a })
+    }
+
+    /// 오토게인 `djmdMixerParam` 행
+    static func mixerRow(_ ready: PreparedAnalysis, contentID: String, usn: Int, stamp: (db: String, json: String)) -> InsertedRow {
         let mixer: [String: CipherDatabase.Value] = [
             "ID": .text(UUID().uuidString.lowercased()), "ContentID": .text(contentID), "GainHigh": .int(ready.gain.high),
             "GainLow": .int(ready.gain.low), "PeakHigh": .int(ready.peak.high), "PeakLow": .int(ready.peak.low),
             "UUID": .text(UUID().uuidString.lowercased()),
         ]
-        inserted.append(InsertedRow(table: "djmdMixerParam", values: mixer.merging(syncColumns(usn: usn, stamp: stamp)) { a, _ in a }))
-        for row in inserted { try insert(db, table: row.table, row.values) }
-        return inserted
+        return InsertedRow(table: "djmdMixerParam", values: mixer.merging(syncColumns(usn: usn, stamp: stamp)) { a, _ in a })
     }
 
     /// 넣은 행 하나(표·칸 값)
