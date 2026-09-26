@@ -42,7 +42,7 @@ extension LibraryStore {
 
     /// 파일·폴더를 추가한다. 이미 rekordbox 컬렉션에 있는 파일은 건너뛴다
     /// (XML로 다시 가져오면 rekordbox의 기존 큐·그리드를 덮을 수 있다).
-    func addFiles(_ urls: [URL]) async {
+    func addFiles(_ urls: [URL], appleMusicOrigins: [String: [AppleMusicOrigin]] = [:]) async {
         let files = StagedTrack.audioFiles(in: urls)
         guard !files.isEmpty else {
             stagingMessage = AppMessage(kind: .warning, text: "추가할 음원이 없습니다. MP3·M4A·WAV·AIFF·FLAC 파일을 고르세요.")
@@ -54,14 +54,24 @@ extension LibraryStore {
         var known = Set(stagedByPath.keys)
         let today = String(ISO8601DateFormatter().string(from: .now).prefix(10))
         var added: [StagedTrack] = [], libraryRows: [TrackRow] = [], stagedIDs: [String] = [], failed = 0
+        var originsChanged = false
         for url in files {
             let path = key(url.path)
             // 이미 rekordbox에 있는 곡은 추가하지 않고 그 곡을 바로 연다(XML로 다시 가져오면 기존 큐를 덮을 수 있다).
             if let row = inLibrary[path] { libraryRows.append(row); continue }
-            if let id = stagedByPath[path] { stagedIDs.append(id); continue }
+            if let id = stagedByPath[path] {
+                stagedIDs.append(id)
+                if let origins = appleMusicOrigins[path], let index = staged.firstIndex(where: { $0.id == id }) {
+                    staged[index].rememberAppleMusicOrigins(origins)
+                    originsChanged = true
+                }
+                continue
+            }
             if known.contains(path) { continue }
             do {
-                added.append(try await StagedTrack.make(fileAt: url, addedOn: today))
+                var track = try await StagedTrack.make(fileAt: url, addedOn: today)
+                track.rememberAppleMusicOrigins(appleMusicOrigins[path] ?? [])
+                added.append(track)
                 known.insert(path)
             } catch {
                 failed += 1
@@ -69,7 +79,7 @@ extension LibraryStore {
         }
         stagingMessage = nil
         staged += added
-        if !added.isEmpty {
+        if !added.isEmpty || originsChanged {
             persistStaged()
             rebuildStagedRows()
         }
