@@ -12,6 +12,10 @@ public enum CueDraftStore {
     }
 
     public static func load(trackUUID: String) -> CueDraft? {
+        load(trackUUID: trackUUID, directory: directory)
+    }
+
+    public static func load(trackUUID: String, directory: URL) -> CueDraft? {
         let url = directory.appending(path: "\(trackUUID).json")
         guard let data = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(CueDraft.self, from: data)

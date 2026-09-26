@@ -12,6 +12,10 @@ public enum GridDraftStore {
     }
 
     public static func load(trackUUID: String) -> GridDraft? {
+        load(trackUUID: trackUUID, directory: directory)
+    }
+
+    public static func load(trackUUID: String, directory: URL) -> GridDraft? {
         guard let data = try? Data(contentsOf: directory.appending(path: "\(trackUUID).json")) else { return nil }
         return try? JSONDecoder().decode(GridDraft.self, from: data)
     }
@@ -26,7 +30,7 @@ public enum GridDraftStore {
         }
     }
 
-    public static func uuids() -> Set<String> { DraftFiles.uuids(in: directory) }
+    public static func uuids(directory: URL = directory) -> Set<String> { DraftFiles.uuids(in: directory) }
 }
 
 enum DraftFiles {
@@ -37,5 +41,5 @@ enum DraftFiles {
 }
 
 public extension CueDraftStore {
-    static func uuids() -> Set<String> { DraftFiles.uuids(in: directory) }
+    static func uuids(directory: URL = directory) -> Set<String> { DraftFiles.uuids(in: directory) }
 }

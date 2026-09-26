@@ -92,19 +92,7 @@ extension CommentClass {
     }
 }
 
-enum LibraryFilter: String, CaseIterable, Identifiable, Sendable {
-    case backlog = "빈 코멘트 (2025~26 파일)"
-    case emptyComment = "빈 코멘트 전체"
-    case offConvention = "규칙 밖 코멘트"
-    case noCues = "큐 없음"
-    case played = "재생한 곡"
-    case streaming = "스트리밍"
-    case noBPM = "BPM·그리드 없음"
-    case tempoChange = "변속 곡"
-    case all = "전체"
-
-    var id: String { rawValue }
-
+extension LibraryFilter {
     var systemImage: String {
         switch self {
         case .backlog: "tray.full"
@@ -120,20 +108,8 @@ enum LibraryFilter: String, CaseIterable, Identifiable, Sendable {
     }
 
     func includes(_ row: TrackRow) -> Bool {
-        switch self {
-        // 툴이 파일 태그로 코멘트를 쓸 수 있는 로컬 파일만. 스트리밍은 별도 필터.
-        case .backlog: row.commentClass == .empty && !row.track.isStreaming
-            && ["2025", "2026"].contains(row.track.importYear ?? "")
-        case .emptyComment: row.commentClass == .empty
-        case .offConvention: [.legacy, .residue, .credit, .other].contains(row.commentClass)
-        case .noCues: row.cueState == .none
-        case .played: row.playCount > 0
-        case .streaming: row.track.isStreaming
-        // rekordbox가 분석하지 않은 로컬 곡. DJCrate가 BPM·그리드를 추정해 준다.
-        case .noBPM: !row.track.isStreaming && (row.track.bpm ?? 0) <= 0
-        case .tempoChange: !row.tempoChanges.isEmpty
-        case .all: true
-        }
+        includes(track: row.track, commentClass: row.commentClass, hasCues: !row.cues.isEmpty,
+                 playCount: row.playCount, tempoChanges: row.tempoChanges)
     }
 }
 

@@ -5,7 +5,7 @@ import Foundation
 public enum GainDraftStore {
     public static var url: URL { DJCPaths.userData.appending(path: "gain-drafts.json") }
 
-    public static func all() -> [String: Double] {
+    public static func all(url: URL = url) -> [String: Double] {
         guard let data = try? Data(contentsOf: url) else { return [:] }
         return (try? JSONDecoder().decode([String: Double].self, from: data)) ?? [:]
     }
