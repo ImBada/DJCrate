@@ -48,5 +48,7 @@ let package = Package(
         .testTarget(name: "AnicueDomainTests", dependencies: ["AnicueDomain"]),
         .testTarget(name: "RekordboxKitTests", dependencies: ["RekordboxKit", "AnicueDomain", "AnicueTestSupport"]),
         .testTarget(name: "AnicueAnalysisTests", dependencies: ["AnicueAnalysis", "AnicueDomain", "AnicueTestSupport"]),
+        // 앱 화면 모델(덱·목록·반영 흐름)을 가짜 오디오·저장소로 시험한다.
+        .testTarget(name: "AnicueAppTests", dependencies: ["AnicueApp", "AnicueDomain", "AnicueTestSupport"]),
     ]
 )
