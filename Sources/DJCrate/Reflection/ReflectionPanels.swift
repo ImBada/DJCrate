@@ -25,14 +25,14 @@ enum ReflectionPanels {
             let url = try RekordboxLink.prepare()
             _ = try store.exportReflection(rows: rows, to: url)
         } catch {
-            store.reflectionMessage = "반영 XML을 쓰지 못했습니다: \(error.localizedDescription)"
+            store.reflectionMessage = AppMessage(kind: .failure, text: "반영 XML을 쓰지 못했습니다. 저장 위치와 권한을 확인하세요: \(error.localizedDescription)")
             return
         }
         var text = "\(eligible.count)곡을 연동 XML에 썼습니다 · rekordbox: rekordbox xml 새로고침 › \"DJCrate 반영\" › 곡 모두 선택 › Import To Collection → DJCrate 새 스냅샷(⟳)"
         if !blocked.isEmpty {
             text += " · 막혀서 뺀 곡 \(blocked.count): " + blocked.prefix(2).map { "\($0.title)(\($0.blockers.first ?? ""))" }.joined(separator: ", ")
         }
-        store.reflectionMessage = text
+        store.reflectionMessage = AppMessage(kind: blocked.isEmpty ? .success : .warning, text: text)
         RekordboxLink.showSetupIfNeeded()
     }
 }

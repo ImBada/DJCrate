@@ -9,45 +9,54 @@ import Testing
 @MainActor
 final class FakeReflectionHost: ReflectionHost {
     var isWritingRekordbox = false
-    var writeStage: String?
+    var writeStage: WriteStage?
     var toast: AppToast?
+    var resultHistory = WriteResultHistory()
+    var writtenReport: RekordboxWriter.Report?
+    var trackReport: RekordboxTrackWriter.Report?
+    let restoreSafetyBackup = URL(filePath: "/tmp/fixture-before-restore")
     var locks: [Bool] = []
     var targets: [TrackRow]?
     var preview: Result<LibraryStore.WritePreview, Error> = .failure(FixtureFailure())
     var wrote: (drafts: [String], grids: [String], gains: [String])?
     var changedSinceBackup: Bool?
     var restored: [URL] = []
+    var beforePreview: (() async -> Void)?
     /// 쓰기·넣기·빼기가 던질 오류(확인 창 뒤 실제 쓰기 단계)
     var writeError: Error?
 
     func setWriteLock(_ locked: Bool) { isWritingRekordbox = locked; locks.append(locked) }
     func writeTargets(_ rows: [TrackRow]) -> [TrackRow] { targets ?? rows }
-    func previewWrite(rows: [TrackRow]) async throws -> LibraryStore.WritePreview { try preview.get() }
+    func previewWrite(rows: [TrackRow]) async throws -> LibraryStore.WritePreview { await beforePreview?(); return try preview.get() }
     func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft], gains: [String: Double]) async throws -> RekordboxWriter.Report {
         wrote = (drafts.map(\.trackUUID), grids.map(\.trackUUID), gains.keys.sorted())
         if let writeError { throw writeError }
-        return try preview.get().report
+        return try writtenReport ?? preview.get().report
     }
     func libraryChangedSince(_ backup: RekordboxWriter.Backup) async -> Bool? { changedSinceBackup }
-    func restoreRekordbox(_ backup: RekordboxWriter.Backup) async throws { restored.append(backup.url) }
+    func restoreRekordbox(_ backup: RekordboxWriter.Backup) async throws -> URL {
+        if let writeError { throw writeError }
+        restored.append(backup.url)
+        return restoreSafetyBackup
+    }
 
     var addPreview: Result<LibraryStore.TrackAddPreview, Error> = .failure(FixtureFailure())
     var deletePreview: Result<LibraryStore.TrackDeletePreview, Error> = .failure(FixtureFailure())
     var added: [String]?
     var deleted: [String]?
     func trackAddTargets(_ rows: [TrackRow]) -> [TrackRow] { rows.filter(\.isStaged) }
-    func previewTrackAdd(rows: [TrackRow]) async throws -> LibraryStore.TrackAddPreview { try addPreview.get() }
+    func previewTrackAdd(rows: [TrackRow]) async throws -> LibraryStore.TrackAddPreview { await beforePreview?(); return try addPreview.get() }
     func addTracksToRekordbox(_ preview: LibraryStore.TrackAddPreview) async throws -> RekordboxTrackWriter.Report {
         added = preview.report.added.filter(\.written).map(\.path)
         if let writeError { throw writeError }
-        return preview.report
+        return trackReport ?? preview.report
     }
     func trackDeleteTargets(_ rows: [TrackRow]) -> [TrackRow] { rows.filter { !$0.isStaged } }
-    func previewTrackDelete(rows: [TrackRow]) async throws -> LibraryStore.TrackDeletePreview { try deletePreview.get() }
+    func previewTrackDelete(rows: [TrackRow]) async throws -> LibraryStore.TrackDeletePreview { await beforePreview?(); return try deletePreview.get() }
     func deleteTracksFromRekordbox(_ preview: LibraryStore.TrackDeletePreview) async throws -> RekordboxTrackWriter.Report {
         deleted = preview.report.deleted.filter(\.written).compactMap(\.contentID)
         if let writeError { throw writeError }
-        return preview.report
+        return trackReport ?? preview.report
     }
 }
 
@@ -160,6 +169,7 @@ struct ReflectionCoordinatorTests {
     }
 
     @Test func 자동_복원까지_실패하면_토스트가_아니라_닫아야_하는_심각_경고로_알린다() async {
+        host.toast = AppToast(title: "이전 성공")
         let backup = "/tmp/rekordbox-backups/2026-09-26T120000-write"
         await failEveryWrite(with: DJCError.restoreFailed(reason: "무결성 검사 실패: x", restoreError: "master.db: 권한 없음",
                                                           backup: backup, database: nil))
@@ -176,6 +186,9 @@ struct ReflectionCoordinatorTests {
         #expect(text.contains("djc rekordbox-restore --backup '\(backup)' --live"))
         #expect(text.contains("무결성 검사 실패: x") && text.contains("master.db: 권한 없음"))
         #expect(host.writeStage == nil && host.locks == [true, false, true, false, true, false])
+        #expect(host.resultHistory.latest?.kind == .failure)
+        #expect(host.resultHistory.latest?.text == alerts.last?.text)
+        #expect(host.resultHistory.latest?.backups == [URL(filePath: backup)])
     }
 
     @Test func 백업으로_되돌렸으면_실패_토스트로_알린다() async {
@@ -209,6 +222,24 @@ struct ReflectionCoordinatorTests {
         #expect(lines.contains("• 곡 b — 큐 추가 3 · 삭제 0 · ⚠︎ 그리드는 안 들어감"))
         #expect(lines.contains("• 곡 n — 분석 파일 붙이기(파형·그리드 박 96개·오토게인)"))
         #expect(lines.contains("• 곡 b: ALAC") && prompt.text.contains("키·프레이즈·보컬 분석은 없습니다"))
+    }
+
+    @Test func 실패와_경고_토스트는_시간이_지나도_닫히지_않는다() {
+        #expect(AppToast(kind: .failure, title: "실패").duration == .infinity)
+        #expect(AppToast(kind: .warning, title: "경고").duration == .infinity)
+        #expect(AppToast(title: "성공").duration.isFinite)
+    }
+
+    @Test func 되돌리기_실패는_전체_오류와_할_일을_심각_경고로_보여_준다() async {
+        host.writeError = FixtureFailure()
+        let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/test-backup"), createdAt: .now, isWrite: true, report: nil)
+        await coordinator().restore(backup)
+        #expect(prompter.shown.last?.critical == true)
+        #expect(prompter.shown.last?.confirm == nil)
+        #expect(prompter.shown.last?.text.contains("rekordbox를 켜지 말고") == true)
+        #expect(prompter.shown.last?.text.contains("미리 보기 실패") == true)
+        #expect(host.resultHistory.latest?.kind == .failure)
+        #expect(host.resultHistory.latest?.backups == [backup.url])
     }
 
     // MARK: 곡 넣기·빼기

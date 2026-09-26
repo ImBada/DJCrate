@@ -101,7 +101,7 @@ extension DevSelfTests {
             await store.refreshIfRekordboxChanged()
             log("창으로 돌아옴: 목록에 남은 곡 \(rows(at: paths).count) · 선택 \(store.selection.count)")
             await store.addFiles(files)
-            log("다시 추가: 추가 목록 \(store.staged.count)곡 · \(store.stagingMessage ?? "")")
+            log("다시 추가: 추가 목록 \(store.staged.count)곡 · \(store.stagingMessage?.text ?? "")")
             log("끝")
             exit(0)
         }

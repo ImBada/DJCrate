@@ -42,7 +42,9 @@ extension LibraryStore {
         let tracks = trackAddTargets(rows).compactMap { row in staged.first { $0.id == row.id } }
         var plans: [TrackAddPlan] = [], uuids: [String: String] = [:], without: [String: String] = [:], unreadable: [String] = []
         var cues: [String: [EditableCue]] = [:]
-        for track in tracks {
+        for (index, track) in tracks.enumerated() {
+            try Task.checkCancellation()
+            writeStage = WriteStage("넣을 곡을 확인하는 중…", completed: index, total: tracks.count, cancellable: true)
             let url = URL(filePath: track.path)
             do {
                 var tags = try await AudioTags.read(url: url)
@@ -56,13 +58,18 @@ extension LibraryStore {
                 } else if let reason = AudioFacts.read(url: url).unsupported {
                     without[plan.path] = reason
                 }
+            } catch is CancellationError {
+                throw CancellationError()
             } catch {
                 unreadable.append("\(track.title): \(error.localizedDescription)")
             }
         }
+        try Task.checkCancellation()
+        writeStage = WriteStage("미리 보기 1/2단계 · 사본을 만드는 중…", completed: 0, total: 2, cancellable: true)
         // 사본으로 DB만 시험한다(분석 파일은 만들지 않지만 큐는 함께 시험해 막히는 이유를 미리 본다).
         let report = try await Task.detached(priority: .userInitiated) { [plans, cues] in
             let snapshot = try LibrarySnapshot.take()
+            await MainActor.run { self.writeStage = WriteStage("미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…", completed: 1, total: 2, cancellable: true) }
             return try RekordboxTrackWriter.add(plans, cues: cues, to: snapshot, dryRun: true, backups: DJCPaths.rekordboxBackups)
         }.value
         return TrackAddPreview(report: report, plans: plans, stagedUUIDs: uuids, withoutAnalysis: without, cues: cues, unreadable: unreadable)
@@ -87,10 +94,13 @@ extension LibraryStore {
     func addTracksToRekordbox(_ preview: TrackAddPreview) async throws -> RekordboxTrackWriter.Report {
         let accepted = Set(preview.report.added.filter(\.written).map(\.path))
         let plans = preview.plans.filter { accepted.contains($0.path) }
-        writeStage = "음량을 재는 중…"
+        let analysisPlans = plans.filter { preview.withoutAnalysis[$0.path] == nil }
+        writeStage = WriteStage("음량을 재는 중…", completed: 0, total: analysisPlans.count, cancellable: true)
         defer { writeStage = nil }
         var analyses: [String: RekordboxTrackWriter.Analysis] = [:]
-        for plan in plans where preview.withoutAnalysis[plan.path] == nil {
+        for (index, plan) in analysisPlans.enumerated() {
+            try Task.checkCancellation()
+            writeStage = WriteStage("음량을 재는 중…", completed: index, total: analysisPlans.count, cancellable: true)
             guard let uuid = preview.stagedUUIDs[plan.path], let grid = GridDraftStore.load(trackUUID: uuid) else { continue }
             let url = URL(filePath: plan.path)
             var loudness = LoudnessCache.shared.value(for: url)
@@ -98,16 +108,17 @@ extension LibraryStore {
                 loudness = try? await Task.detached(priority: .userInitiated) { try Loudness.measure(fileAt: url) }.value
                 if let loudness { LoudnessCache.shared.store(loudness, for: url) }
             }
+            try Task.checkCancellation()
             analyses[plan.path] = .init(segments: grid.segments, loudness: loudness?.integrated,
                                         peak: loudness.map { pow(10, $0.peak / 20) } ?? 1)
         }
-        writeStage = "rekordbox에 곡과 분석 파일을 넣는 중…"
+        try Task.checkCancellation()
+        writeStage = WriteStage("rekordbox에 곡과 분석 파일을 넣는 중…")
         let cues = preview.cues.filter { accepted.contains($0.key) }
         let report = try await Task.detached(priority: .userInitiated) { [plans, analyses, cues] in
             try RekordboxTrackWriter.add(plans, analyses: analyses, cues: cues, dryRun: false, backups: DJCPaths.rekordboxBackups)
         }.value
         // 초안 옮기기: 큐가 막힌 곡은 새 곡의 반영 대기로, 그리드는 분석 파일에 들어갔으면 끝(못 붙였으면 새 곡 초안으로).
-        var movedCues = 0
         var unstaged: Set<String> = []
         for outcome in report.added where outcome.written {
             guard let old = preview.stagedUUIDs[outcome.path], let new = outcome.uuid else { continue }
@@ -119,7 +130,6 @@ extension LibraryStore {
                     draft.place(cue)
                 }
                 DraftWriter.save(draft)
-                movedCues += 1
             }
             if analyses[outcome.path] == nil, var grid = GridDraftStore.load(trackUUID: old) {
                 grid.trackUUID = new
@@ -132,29 +142,14 @@ extension LibraryStore {
         if let backup = report.backup, !removed.isEmpty, let data = try? JSONEncoder().encode(removed) {
             try? data.write(to: URL(filePath: backup).appending(path: Self.stagedBackupName))
         }
-        writeStage = "넣은 곡을 읽는 중…"
+        writeStage = WriteStage("넣은 곡을 읽는 중…")
         await takeSnapshot(quiet: true)
         if let first = report.added.first(where: \.written), let id = first.contentID {
             sidebar = .filter(.all)
             search = ""
             selection = [id]
         }
-        let written = report.added.filter(\.written)
-        let blocked = report.added.filter { !$0.written }
-        var detail = written.prefix(3).map(\.title).joined(separator: ", ") + (written.count > 3 ? " 외 \(written.count - 3)곡" : "")
-        let bare = written.filter { analyses[$0.path] == nil }.count
-        if bare > 0 { detail += "\n\(bare)곡은 분석 없이 넣었습니다(rekordbox에서 분석하세요)" }
-        let cueTracks = written.filter { $0.cuesWritten != nil }
-        if !cueTracks.isEmpty { detail += "\n큐 \(cueTracks.reduce(0) { $0 + ($1.cuesWritten ?? 0) })개도 함께 넣었습니다" }
-        if movedCues > 0 {
-            let reasons = written.compactMap { outcome in outcome.cueReason.map { "\(outcome.title): \($0)" } }
-            detail += "\n큐 초안 \(movedCues)곡은 반영 대기로 옮겼습니다" + (reasons.isEmpty ? "" : " — " + reasons.prefix(2).joined(separator: ", "))
-        }
-        if !blocked.isEmpty { detail += "\n넣지 않은 곡 \(blocked.count): " + blocked.prefix(2).map { "\($0.title)(\($0.reason ?? ""))" }.joined(separator: ", ") }
         lastWriteBackup = report.backup.map { URL(filePath: $0) }
-        toast = AppToast(kind: blocked.isEmpty && bare == 0 && movedCues == 0 ? .success : .warning,
-                         title: written.isEmpty ? "rekordbox에 넣은 곡이 없습니다" : "rekordbox에 \(written.count)곡을 넣었습니다",
-                         detail: detail, undoBackup: written.isEmpty ? nil : lastWriteBackup)
         return report
     }
 
@@ -164,30 +159,29 @@ extension LibraryStore {
 
     func previewTrackDelete(rows: [TrackRow]) async throws -> TrackDeletePreview {
         let ids = trackDeleteTargets(rows).map(\.track.id)
+        try Task.checkCancellation()
+        writeStage = WriteStage("미리 보기 1/2단계 · 사본을 만드는 중…", completed: 0, total: 2, cancellable: true)
         let report = try await Task.detached(priority: .userInitiated) {
             let snapshot = try LibrarySnapshot.take()
+            await MainActor.run { self.writeStage = WriteStage("미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…", completed: 1, total: 2, cancellable: true) }
             return try RekordboxTrackWriter.delete(contentIDs: ids, from: snapshot, dryRun: true, backups: DJCPaths.rekordboxBackups)
         }.value
+        try Task.checkCancellation()
         return TrackDeletePreview(report: report, contentIDs: ids)
     }
 
     func deleteTracksFromRekordbox(_ preview: TrackDeletePreview) async throws -> RekordboxTrackWriter.Report {
         let ids = preview.report.deleted.filter(\.written).compactMap(\.contentID)
-        writeStage = "rekordbox에서 곡을 빼는 중…"
+        try Task.checkCancellation()
+        writeStage = WriteStage("rekordbox에서 곡을 빼는 중…")
         defer { writeStage = nil }
         let report = try await Task.detached(priority: .userInitiated) {
             try RekordboxTrackWriter.delete(contentIDs: ids, dryRun: false, backups: DJCPaths.rekordboxBackups)
         }.value
         selection.subtract(Set(report.deleted.filter(\.written).compactMap(\.contentID)))
-        writeStage = "라이브러리를 다시 읽는 중…"
+        writeStage = WriteStage("라이브러리를 다시 읽는 중…")
         await takeSnapshot(quiet: true)
-        let written = report.deleted.filter(\.written), blocked = report.deleted.filter { !$0.written }
-        var detail = written.prefix(3).map(\.title).joined(separator: ", ") + (written.count > 3 ? " 외 \(written.count - 3)곡" : "")
-        if !blocked.isEmpty { detail += "\n빼지 않은 곡 \(blocked.count): " + blocked.prefix(2).map { "\($0.title)(\($0.reason ?? ""))" }.joined(separator: ", ") }
         lastWriteBackup = report.backup.map { URL(filePath: $0) }
-        toast = AppToast(kind: blocked.isEmpty ? .success : .warning,
-                         title: written.isEmpty ? "rekordbox에서 뺀 곡이 없습니다" : "rekordbox에서 \(written.count)곡을 뺐습니다",
-                         detail: detail, undoBackup: written.isEmpty ? nil : lastWriteBackup)
         return report
     }
 

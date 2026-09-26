@@ -37,7 +37,7 @@ extension LibraryStore {
     }
 
     private func persistStaged() {
-        do { try StagingStore.save(staged) } catch { stagingMessage = "추가한 곡 목록을 저장하지 못했습니다: \(error.localizedDescription)" }
+        do { try StagingStore.save(staged) } catch { stagingMessage = AppMessage(kind: .failure, text: "추가한 곡 목록을 저장하지 못했습니다. DJCrate 데이터 폴더의 쓰기 권한을 확인하세요: \(error.localizedDescription)") }
     }
 
     /// 파일·폴더를 추가한다. 이미 rekordbox 컬렉션에 있는 파일은 건너뛴다
@@ -45,7 +45,7 @@ extension LibraryStore {
     func addFiles(_ urls: [URL]) async {
         let files = StagedTrack.audioFiles(in: urls)
         guard !files.isEmpty else {
-            stagingMessage = "추가할 음원이 없습니다(rekordbox가 읽는 MP3·M4A·WAV·AIFF·FLAC만)."
+            stagingMessage = AppMessage(kind: .warning, text: "추가할 음원이 없습니다. MP3·M4A·WAV·AIFF·FLAC 파일을 고르세요.")
             return
         }
         func key(_ path: String) -> String { path.precomposedStringWithCanonicalMapping }
@@ -67,6 +67,7 @@ extension LibraryStore {
                 failed += 1
             }
         }
+        stagingMessage = nil
         staged += added
         if !added.isEmpty {
             persistStaged()
@@ -77,7 +78,9 @@ extension LibraryStore {
         if !libraryRows.isEmpty { parts.append("rekordbox 곡 \(libraryRows.count)곡을 열었습니다") }
         if !stagedIDs.isEmpty { parts.append("이미 추가한 \(stagedIDs.count)곡을 열었습니다") }
         if failed > 0 { parts.append("\(failed)곡은 읽지 못함") }
-        stagingMessage = parts.joined(separator: " · ")
+        if stagingMessage?.kind != .failure {
+            stagingMessage = AppMessage(kind: failed > 0 ? .warning : .success, text: parts.joined(separator: " · "))
+        }
         if !added.isEmpty || (!stagedIDs.isEmpty && libraryRows.isEmpty) {
             // 새 곡(또는 이미 추가한 곡)은 "추가한 곡"에서 바로 연다.
             sidebar = .staged
@@ -103,11 +106,14 @@ extension LibraryStore {
         guard !removing.isEmpty else { return }
         let uuids = Set(removing.map(\.uuid))
         gridQueue.removeAll { uuids.contains($0.uuid) }
+        stagingMessage = nil
         staged.removeAll { ids.contains($0.id) }
         persistStaged()
         selection.subtract(ids)
         rebuildStagedRows()
-        stagingMessage = "\(removing.count)곡을 추가 목록에서 뺐습니다(파일은 그대로)."
+        if stagingMessage?.kind != .failure {
+            stagingMessage = AppMessage(text: "\(removing.count)곡을 추가 목록에서 뺐습니다(파일은 그대로).")
+        }
     }
 
     /// rekordbox에 바로 넣은 곡을 추가 목록에서 뺀다(초안은 남긴다: 되돌리면 다시 붙는다). 뺀 곡을 돌려준다.
@@ -160,7 +166,8 @@ extension LibraryStore {
         if let n = counts[.reanalyzed] { parts.append("rekordbox가 재분석 \(n)") }
         if let n = counts[.pending] { parts.append("분석 대기 \(n)") }
         if let n = counts[.noGrid] { parts.append("그리드 없이 보냄 \(n)") }
-        stagingMessage = parts.joined(separator: " · ")
+        guard stagingMessage?.kind != .failure else { return }
+        stagingMessage = AppMessage(kind: checked.allSatisfy { $0.result == .matched } ? .success : .warning, text: parts.joined(separator: " · "))
     }
 
     nonisolated static func compareImported(_ staged: StagedTrack, with track: Track, today: String) -> StagedTrack.ImportCheck {
@@ -253,7 +260,7 @@ extension LibraryStore {
         let export = args.firstIndex(of: "--export-staged").flatMap { args.indices.contains($0 + 1) ? args[$0 + 1] : nil }
         Task {
             await addFiles(urls)
-            log("추가: \(stagingMessage ?? "")")
+            log("추가: \(stagingMessage?.text ?? "")")
             while gridJob != nil { try? await Task.sleep(for: .milliseconds(300)) }
             for track in staged {
                 let draft = GridDraftStore.load(trackUUID: track.uuid)

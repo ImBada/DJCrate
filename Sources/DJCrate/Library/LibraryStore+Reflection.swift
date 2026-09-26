@@ -73,7 +73,7 @@ extension LibraryStore {
         var parts = ["rekordbox 반영 확인(\(batch.createdAt) 묶음): 일치 \(matched)"]
         if notYet > 0 { parts.append("아직 가져오지 않음 \(notYet)") }
         if !mismatched.isEmpty { parts.append("불일치 \(mismatched.count) — " + mismatched.prefix(2).joined(separator: " · ")) }
-        reflectionMessage = parts.joined(separator: " · ")
-        FileHandle.standardError.write(Data("[반영 검증] \(reflectionMessage ?? "")\n".utf8))
+        reflectionMessage = AppMessage(kind: mismatched.isEmpty && notYet == 0 ? .success : .warning, text: parts.joined(separator: " · "))
+        FileHandle.standardError.write(Data("[반영 검증] \(reflectionMessage?.text ?? "")\n".utf8))
     }
 }
