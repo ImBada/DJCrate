@@ -1,6 +1,22 @@
 {
   "sourceLanguage" : "ko",
   "strings" : {
+    "큐 목록 보기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cue List View"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キュー一覧の表示"
+          }
+        }
+      }
+    },
     "그리드를 %lldms 왼쪽으로 이동" : {
       "localizations" : {
         "en" : {
