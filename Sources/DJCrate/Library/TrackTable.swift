@@ -327,6 +327,9 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
         }
         let staged = targets.filter(\.isStaged)
         if !staged.isEmpty {
+            let add = NSMenuItem(title: "rekordbox에 바로 넣기 (\(staged.count)곡)…", action: #selector(addToRekordbox), keyEquivalent: "")
+            add.target = self
+            menu.addItem(add)
             let export = NSMenuItem(title: "추가한 곡 rekordbox XML로 내보내기 (\(staged.count)곡)…", action: #selector(exportStaged), keyEquivalent: "")
             export.target = self
             menu.addItem(export)
@@ -335,6 +338,21 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
         let pendingList = NSMenuItem(title: "rekordbox 반영 대기 목록 보기", action: #selector(showPending), keyEquivalent: "")
         pendingList.target = self
         menu.addItem(pendingList)
+        let removable = targets.filter { !$0.isStaged && !$0.track.isStreaming }
+        if !removable.isEmpty {
+            menu.addItem(.separator())
+            let remove = NSMenuItem(title: "rekordbox에서 빼기 (\(removable.count)곡)…", action: #selector(deleteFromRekordbox), keyEquivalent: "")
+            remove.target = self
+            menu.addItem(remove)
+        }
+    }
+
+    @objc private func addToRekordbox() {
+        DirectWritePanels.addTracks(store: store, rows: menuTargets())
+    }
+
+    @objc private func deleteFromRekordbox() {
+        DirectWritePanels.deleteTracks(store: store, rows: menuTargets())
     }
 
     @objc private func reflectSelected() {

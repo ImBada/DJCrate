@@ -249,6 +249,39 @@ struct RekordboxTrackWriterTests {
         #expect(try Data(contentsOf: fixture.shareRoot.appending(path: "PIONEER/Artwork/aaa/bbbb/artwork.jpg")) == Data("jpg".utf8))
     }
 
+    @Test func 넣은_곡은_백업으로_되돌리면_행과_만든_분석_파일이_사라진다() async throws {
+        let fixture = try RekordboxFixture(localUpdateCount: 3000)
+        try fixture.add(TrackSpec())
+        let before = try fixture.rows("SELECT * FROM djmdContent ORDER BY ID")
+        let p = try await plan("mp3-tagged.mp3")
+        let analysis = RekordboxTrackWriter.Analysis(segments: [GridSegment(start: 0.5, bpm: 120, firstBeatNumber: 1)], loudness: -8, peak: 0.9)
+        let report = try RekordboxTrackWriter.add([p], analyses: [p.path: analysis], to: fixture.database, shareRoot: fixture.shareRoot,
+                                                  dryRun: false, now: now, backups: fixture.backups)
+        #expect(report.finalUpdateCount == (try fixture.localUpdateCount()) && report.finalUpdateCount! > 3000, "쓴 직후 변경 카운터")
+        let created = report.createdFiles.map { URL(filePath: $0) }
+        #expect(created.count == 3 && created.allSatisfy { FileManager.default.fileExists(atPath: $0.path) })
+        #expect(report.added.first?.uuid.map { created[0].path.contains("/\($0.prefix(3))/\($0.dropFirst(3))/") } == true)
+        let saved = try RekordboxWriter.restore(URL(filePath: try #require(report.backup)), to: fixture.database, backups: fixture.backups)
+        #expect(try fixture.rows("SELECT * FROM djmdContent ORDER BY ID") == before)
+        #expect(created.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) }, "만든 분석 파일을 지운다")
+        #expect(!FileManager.default.fileExists(atPath: created[0].deletingLastPathComponent().path), "빈 분석 폴더도 지운다")
+        // 되돌리기 직전 상태 백업에 그 파일들이 있어 다시 되돌리면 살아난다
+        _ = try RekordboxWriter.restore(saved, to: fixture.database, backups: fixture.backups)
+        #expect(created.allSatisfy { FileManager.default.fileExists(atPath: $0.path) })
+        #expect(try fixture.rows("SELECT * FROM djmdContent").count == 2)
+    }
+
+    @Test func 곡_추가_삭제_백업도_되돌리기_목록에_곡_이름과_함께_나온다() async throws {
+        let (fixture, a, _) = try deleteFixture()
+        _ = try delete(fixture, [a.id])
+        _ = try RekordboxTrackWriter.add([try await plan("mp3-tagged.mp3")], to: fixture.database, dryRun: false,
+                                         now: now.addingTimeInterval(60), backups: fixture.backups)
+        let backups = RekordboxWriter.backups(in: fixture.backups)
+        #expect(backups.count == 2 && backups.allSatisfy(\.isWrite))
+        #expect(backups[0].titles == ["시험 제목"] && backups[1].titles == [a.title])
+        #expect(backups.allSatisfy { $0.finalUpdateCount != nil })
+    }
+
     @Test func 확인하지_않은_표에_걸린_곡은_지우지_않는다() throws {
         let (fixture, a, _) = try deleteFixture()
         try fixture.insert("djmdSongMyTag", ["ID": .text("t1"), "MyTagID": .text("m"), "ContentID": .text(a.id), "TrackNo": .int(1),
