@@ -16,6 +16,7 @@ extension LibraryStore {
         var tags: [TagDraft] = []
         /// 함께 쓸 재생 목록 초안(없으면 nil). 결과(`report.playlistOutcomes`)가 편집 순서와 같다.
         var playlists: PlaylistDraft?
+        var merges: [DuplicateMergeDraft] = []
     }
 
     /// 대상 곡 중 반영 대기 초안이 있는 곡(추가한 곡 제외)
@@ -28,6 +29,8 @@ extension LibraryStore {
     func previewWrite(rows: [TrackRow], playlists: Bool) async throws -> WritePreview {
         DraftWriter.flush()
         let targets = writeTargets(rows)
+        let uuids = Set(targets.map { $0.track.uuid })
+        let merges = mergeDrafts.filter { $0.members.contains { uuids.contains($0.trackUUID) } }
         let drafts = targets.compactMap { CueDraftStore.load(trackUUID: $0.track.uuid) }.filter(\.hasChanges)
         let grids = targets.compactMap { GridDraftStore.load(trackUUID: $0.track.uuid) }.filter(\.hasChanges)
         let allGains = GainDraftStore.all()
@@ -42,27 +45,32 @@ extension LibraryStore {
             await MainActor.run { self.writeStage = WriteStage(String(ui: "미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…"), completed: 1, total: 2, cancellable: true) }
             // 미리 보기: 사본 DB + 실제 분석 파일을 읽기만 한다(dryRun이라 파일을 쓰지 않는다).
             return try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, tags: tags, analysisInputs: inputs,
-                                             playlistDraft: playlistDraft, to: snapshot, dryRun: true, backups: DJCPaths.rekordboxBackups,
+                                             playlistDraft: playlistDraft, merges: merges, to: snapshot, dryRun: true, backups: DJCPaths.rekordboxBackups,
                                              shareRoot: RekordboxShare.directory)
         }.value
         try Task.checkCancellation()
-        return WritePreview(report: report, drafts: drafts, grids: grids, gains: gains, tags: tags, playlists: playlistDraft)
+        return WritePreview(report: report, drafts: drafts, grids: grids, gains: gains, tags: tags, playlists: playlistDraft, merges: merges)
     }
 
     /// rekordbox master.db에 쓴다. 쓴 곡의 초안과 쓴 재생 목록 편집은 지우고(백업 폴더에 남는다) 새 스냅샷을 읽는다. 태그는 반영한 값이 새 base가 된다.
     func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:],
-                          tags: [TagDraft] = [], playlists: PlaylistDraft? = nil) async throws -> RekordboxWriter.Report {
+                          tags: [TagDraft] = [], playlists: PlaylistDraft? = nil, merges: [DuplicateMergeDraft] = []) async throws -> RekordboxWriter.Report {
         try Task.checkCancellation()
         defer { writeStage = nil }
         let inputs = try await analysisInputs(for: grids, measuringLoudness: true)
         try Task.checkCancellation()
         writeStage = WriteStage(String(ui: "rekordbox에 쓰는 중…"))
         let report = try await Task.detached(priority: .userInitiated) {
-            try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, tags: tags, analysisInputs: inputs, playlistDraft: playlists,
+            try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, tags: tags, analysisInputs: inputs, playlistDraft: playlists, merges: merges,
                                       dryRun: false,
                                       backups: DJCPaths.rekordboxBackups)
         }.value
         // 스냅샷을 다시 읽으면 초안도 파일에서 다시 읽으므로 그 전에 쓴 편집을 뺀다.
+        let merged = Set(report.mergeWritten.map(\.trackUUID))
+        if !merged.isEmpty {
+            let remaining = mergeDrafts.filter { !merged.contains($0.id) }
+            saveMergeDraftsAfterWrite(remaining)
+        }
         if let playlists { finishPlaylistWrite(playlists, outcomes: report.playlistOutcomes ?? []) }
         for outcome in report.gainWritten {
             GainDraftStore.remove(trackUUID: outcome.trackUUID)
@@ -90,7 +98,7 @@ extension LibraryStore {
         await takeSnapshot(quiet: true)
         // 그리드만 바뀐 곡은 DB가 그대로라 목록 줄이 같다. 덱이 그 곡을 보고 있으면 초안·그리드만 다시 읽게 한다.
         onRekordboxWritten?(Set(report.written.map(\.trackUUID)).union(report.gridWritten.map(\.trackUUID)).union(report.gainWritten.map(\.trackUUID))
-            .union(report.analysisWritten.map(\.trackUUID)).union(tagWritten))
+            .union(report.analysisWritten.map(\.trackUUID)).union(tagWritten).union(merges.filter { merged.contains($0.id) }.flatMap { $0.members.map(\.trackUUID) }))
         lastWriteBackup = report.backup.map { URL(filePath: $0) }
         return report
     }
@@ -103,6 +111,12 @@ extension LibraryStore {
         let saved = try await Task.detached(priority: .userInitiated) {
             try RekordboxWriter.restore(backup.url, backups: DJCPaths.rekordboxBackups)
         }.value
+        let restoredMerges = RekordboxWriter.mergeDrafts(in: backup.url)
+        if !restoredMerges.isEmpty {
+            let restoredIDs = Set(restoredMerges.flatMap { $0.members.map(\.trackUUID) })
+            let combined = mergeDrafts.filter { Set($0.members.map(\.trackUUID)).isDisjoint(with: restoredIDs) } + restoredMerges
+            saveMergeDraftsAfterWrite(combined)
+        }
         let drafts = RekordboxWriter.contents(of: backup.url).drafts
         for draft in drafts { DraftWriter.save(draft) }
         let grids = RekordboxWriter.gridDrafts(in: backup.url)

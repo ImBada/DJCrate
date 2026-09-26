@@ -93,7 +93,7 @@ protocol ReflectionHost: AnyObject {
     var hasPlaylistDrafts: Bool { get }
     func previewWrite(rows: [TrackRow], playlists: Bool) async throws -> LibraryStore.WritePreview
     func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], tags: [TagDraft],
-                          playlists: PlaylistDraft?) async throws -> RekordboxWriter.Report
+                          playlists: PlaylistDraft?, merges: [DuplicateMergeDraft]) async throws -> RekordboxWriter.Report
     func libraryChangedSince(_ backup: RekordboxWriter.Backup) async -> Bool?
     func restoreRekordbox(_ backup: RekordboxWriter.Backup) async throws -> URL
     // 곡 넣기·빼기
@@ -137,7 +137,7 @@ struct ReflectionCoordinator {
             host.writeStage = nil
             let report = preview.report
             guard !report.written.isEmpty || !report.gridWritten.isEmpty || !report.analysisWritten.isEmpty || !report.gainWritten.isEmpty
-                    || !report.tagWritten.isEmpty || !report.playlistWritten.isEmpty else {
+                    || !report.tagWritten.isEmpty || !report.playlistWritten.isEmpty || !report.mergeWritten.isEmpty else {
                 publish(.written(report, preview: report))
                 inform(String(ui: "rekordbox에 쓸 수 있는 초안이 없습니다"), "", details: Self.reasons(report))
                 return
@@ -151,7 +151,8 @@ struct ReflectionCoordinator {
                                                 grids: preview.grids.filter { grids.contains($0.trackUUID) },
                                                 gains: preview.gains.filter { gains.contains($0.key) },
                                                 tags: preview.tags.filter { tags.contains($0.trackUUID) },
-                                                playlists: report.playlistWritten.isEmpty ? nil : preview.playlists)
+                                                playlists: report.playlistWritten.isEmpty ? nil : preview.playlists,
+                                                merges: preview.merges.filter { draft in report.mergeWritten.contains { $0.trackUUID == draft.id } })
             publish(.written(written, preview: report), undo: written.backup)
         } catch is CancellationError {
             host.writeStage = nil
@@ -327,7 +328,7 @@ struct ReflectionCoordinator {
     }
 
     static func reasons(_ report: RekordboxWriter.Report) -> [String] {
-        (report.blocked + report.gridBlocked + report.analysisBlocked + report.gainBlocked + report.tagBlocked).map { "• \($0.title): \($0.reason ?? "")" }
+        (report.blocked + report.gridBlocked + report.analysisBlocked + report.gainBlocked + report.tagBlocked + report.mergeBlocked).map { "• \($0.title): \($0.reason ?? "")" }
             + report.playlistBlocked.map(PlaylistWriteText.reason)
     }
 
@@ -345,6 +346,7 @@ struct ReflectionCoordinator {
         let tagFields = Dictionary(tags.map { tag in
             (tag.trackUUID, (tag.fields ?? []).compactMap { TagFields.Key(rawValue: $0)?.label }.joined(separator: "·"))
         }, uniquingKeysWith: { a, _ in a })
+        if !report.mergeWritten.isEmpty { kinds.append(String(ui: "합치기 \(report.mergeWritten.count)묶음")) }
         let playlists = report.playlistWritten
         if !playlists.isEmpty { kinds.append(PlaylistWriteText.summary(playlists.count)) }
         let gridBlocked = Set((report.gridBlocked + report.analysisBlocked).map(\.trackUUID)), gridWritten = Set(grids.map(\.trackUUID))
@@ -379,6 +381,9 @@ struct ReflectionCoordinator {
             body.append("• \(tag.title) — " + String(ui: "태그(\(tagFields[tag.trackUUID] ?? ""))"))
         }
         body += playlists.map(PlaylistWriteText.line)
+        body += report.mergeWritten.map { String(ui: "• \($0.title) 유지 · 중복 \($0.removed)곡을 컬렉션에서 뺍니다") }
+        body += report.mergeWritten.compactMap(\.reason)
+        if !report.mergeWritten.isEmpty { body += ["", DuplicateMerge.lossNotice] }
         let reasons = reasons(report)
         if !reasons.isEmpty { body += ["", String(ui: "쓰지 않는 것 \(reasons.count):")] + reasons }
         if !analyses.isEmpty {
@@ -392,7 +397,7 @@ struct ReflectionCoordinator {
         }
         return ReflectionPrompt(title: String(ui: "\(kinds.joined(separator: " · "))을 rekordbox에 쓸까요?"),
                                 text: backupThenWriteText,
-                                confirm: String(ui: "rekordbox에 쓰기"), details: body)
+                                confirm: String(ui: "rekordbox에 쓰기"), destructive: !report.mergeWritten.isEmpty, details: body)
     }
 
     static func addReasons(_ preview: LibraryStore.TrackAddPreview) -> [String] {
