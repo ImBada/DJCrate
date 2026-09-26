@@ -9,6 +9,7 @@ struct ReflectionPrompt: Equatable {
     var text: String
     var confirm: String?
     var critical = false
+    var destructive = false
 }
 
 /// 창을 띄운다. 시험에서는 정해 둔 답을 돌려준다.
@@ -20,17 +21,27 @@ protocol ReflectionPrompter {
 
 struct AlertPrompter: ReflectionPrompter {
     func show(_ prompt: ReflectionPrompt) -> Bool {
+        let response = makeAlert(prompt).runModal()
+        return prompt.confirm != nil && response == .alertFirstButtonReturn
+    }
+
+    func makeAlert(_ prompt: ReflectionPrompt) -> NSAlert {
         let alert = NSAlert()
         alert.messageText = prompt.title
         alert.informativeText = prompt.text
         if prompt.critical { alert.alertStyle = .critical }
         guard let confirm = prompt.confirm else {
-            alert.runModal()
-            return false
+            alert.addButton(withTitle: "확인")
+            return alert
         }
-        alert.addButton(withTitle: confirm)
-        alert.addButton(withTitle: "취소")
-        return alert.runModal() == .alertFirstButtonReturn
+        let confirmButton = alert.addButton(withTitle: confirm)
+        // 번들이 없는 디버그 실행에서도 취소 단축키가 동작해야 한다.
+        alert.addButton(withTitle: "취소").keyEquivalent = "\u{1b}"
+        if prompt.destructive {
+            confirmButton.hasDestructiveAction = true
+            confirmButton.keyEquivalent = ""
+        }
+        return alert
     }
 }
 
@@ -274,7 +285,7 @@ struct ReflectionCoordinator {
                                 confirm: "rekordbox에서 빼기", critical: true)
     }
 
-    /// 되돌리기 확인 창. 백업 뒤 rekordbox에서 바뀐 게 있으면 경고로 띄운다.
+    /// 되돌리기 확인 창. 백업 뒤 변경이 있거나 확인하지 못했으면 파괴적 경고로 띄운다.
     static func restoreConfirmation(_ backup: RekordboxWriter.Backup, changedSince changed: Bool?) -> ReflectionPrompt {
         var lines: [String] = []
         if !backup.titles.isEmpty {
@@ -295,7 +306,8 @@ struct ReflectionCoordinator {
         case false?: break
         }
         return ReflectionPrompt(title: "rekordbox를 \(backup.createdAt.formatted(date: .abbreviated, time: .shortened)) 쓰기 전으로 되돌릴까요?",
-                                text: lines.joined(separator: "\n\n"), confirm: "되돌리기", critical: changed == true)
+                                text: lines.joined(separator: "\n\n"), confirm: "되돌리기",
+                                critical: changed != false, destructive: changed != false)
     }
 }
 

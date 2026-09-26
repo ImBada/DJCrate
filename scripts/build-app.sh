@@ -29,6 +29,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <dict>
     <key>CFBundleName</key><string>DJCrate</string>
     <key>CFBundleDisplayName</key><string>DJCrate</string>
+    <key>CFBundleDevelopmentRegion</key><string>ko</string>
+    <key>CFBundleLocalizations</key><array><string>ko</string></array>
     <key>CFBundleIdentifier</key><string>${BUNDLE_ID}</string>
     <key>CFBundleExecutable</key><string>DJCrate</string>
     <key>CFBundlePackageType</key><string>APPL</string>
