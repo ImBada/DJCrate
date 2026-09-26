@@ -80,6 +80,7 @@ extension DeckModel {
     }
 
     func pressHotCue(slot: Int) {
+        AudioEvents.record("조작 핫큐 \(String(UnicodeScalar(UInt8(65 + slot)))) · 재생 중=\(isPlaying) · 위치 \(String(format: "%.2f", playhead))")
         if let cue = hotCue(slot: slot) {
             // 루프 핫큐: 누르면 그 루프를 반복하고, 반복 중에 다시 누르면 빠져나온다.
             if cue.loop != nil, engagedLoopID == cue.id {

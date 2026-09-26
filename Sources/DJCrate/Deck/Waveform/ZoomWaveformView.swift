@@ -6,31 +6,38 @@ import AppKit
 import SwiftUI
 
 /// 파형 위 스크롤 휠 처리. SwiftUI에는 휠 이벤트가 없어서 로컬 이벤트 모니터로 받는다.
-/// 세로 휠: 확대·축소 / 가로 스크롤(트랙패드·Shift+휠): 위치 이동. 파형 영역 밖 스크롤은 건드리지 않는다.
+/// 세로 휠: 확대·축소 / 가로 스크롤(트랙패드·Shift+휠): 위치 이동. 파형 영역 밖에서 시작한 스크롤은 건드리지 않는다.
+/// 무엇을 받을지는 `WaveformScrollPolicy`가 정한다(트랙패드 제스처는 관성까지 한 덩어리로).
 @MainActor
 final class WaveformScrollHandler {
     /// 파형 자리의 AppKit 뷰(창 좌표로 마우스가 파형 위인지 본다)
     weak var probe: NSView?
     weak var deck: DeckModel?
     private var monitor: Any?
+    private var policy = WaveformScrollPolicy()
 
     func install() {
         guard monitor == nil else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-            guard let self, let deck = self.deck, let probe = self.probe, event.window === probe.window,
-                  probe.bounds.contains(probe.convert(event.locationInWindow, from: nil)) else { return event }
-            let precise = event.hasPreciseScrollingDeltas
-            let dx = event.scrollingDeltaX, dy = event.scrollingDeltaY
-            if abs(dy) >= abs(dx) {
-                // 손가락을 뗀 뒤의 관성 스크롤로는 확대하지 않는다.
-                guard dy != 0, event.momentumPhase.isEmpty else { return nil }
-                deck.zoom(by: precise ? exp(-Double(dy) * 0.01) : (dy > 0 ? 0.85 : 1.18))
-            } else {
+            guard let self, let deck = self.deck, let probe = self.probe, event.window === probe.window else { return event }
+            let over = probe.bounds.contains(probe.convert(event.locationInWindow, from: nil))
+            let action = self.policy.handle(.init(event, over: over), zoomSeconds: deck.zoomSeconds, width: Double(probe.bounds.width))
+#if DEBUG
+            HotCueScrollTrace.record(event, action: action)
+#endif
+            switch action {
+            case .pass:
+                return event
+            case .swallow:
+                return nil
+            case let .zoom(factor):
+                deck.zoom(by: factor)
+                return nil
+            case let .scrub(seconds):
                 // 가로 이동은 이벤트마다 오디오를 다시 시작하지 않고 모아서 처리한다.
-                let seconds = -Double(dx) / Double(max(probe.bounds.width, 1)) * deck.zoomSeconds * (precise ? 1 : 6)
                 deck.scrubCoalesced(to: deck.currentTime + seconds)
+                return nil
             }
-            return nil
         }
     }
 
@@ -166,6 +173,7 @@ struct ZoomWaveformView: View {
                 .onEnded { _ in pinchBase = nil }
         )
         .background { HitProbe { scroll.probe = $0 } }
+        .selfTestFrame("zoomWaveform")
         .onAppear { scroll.deck = deck; scroll.install() }
         .onDisappear { scroll.remove() }
         .accessibilityElement(children: .ignore)

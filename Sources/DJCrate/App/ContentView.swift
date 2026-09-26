@@ -130,6 +130,8 @@ struct ContentView: View {
                                 max(0, $0.size.height - displayedHeight)
                             } action: { deckChromeHeight = $0 }
                     }
+                    // 들어맞을 때는 튕기지 않게 해 스크럽 뒤 불필요한 감속을 막는다(#92).
+                    .scrollBounceBehavior(.basedOnSize, axes: .vertical)
                     .frame(height: DeckLayout.deckViewportHeight(contentHeight: deckChromeHeight + displayedHeight,
                                                                  detailHeight: detailHeight, otherHeight: otherHeight))
                     // 곡 목록에서 끌어다 놓으면 덱에 올린다(#93)

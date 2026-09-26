@@ -21,6 +21,7 @@ enum DevSelfTests {
         runLoopSelfTestIfRequested(deck: deck)
         runScrollPerfIfRequested(deck: deck)
         runLoopAudioSelfTestIfRequested()
+        runHotCueClickSelfTestIfRequested(store: store, deck: deck)
         runMetronomeSelfTestIfRequested()
         guard ProcessInfo.processInfo.arguments.contains("--switch-selftest") else { return }
         Task {
