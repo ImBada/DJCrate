@@ -301,7 +301,7 @@ struct SheetHeader: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Text(.ui("더블클릭·Return·타이핑: 편집  ·  ⌘C/⌘V: 엑셀·시트와 복사·붙여넣기  ·  ⌘D: 아래로 채우기  ·  Delete: 지우기  ·  ⌘Z/⇧⌘Z: 실행 취소·실행 복귀"))
+            Text(.ui("더블클릭·Return·타이핑: 편집  ·  ⌃Tab: 표 밖으로  ·  ⌘C/⌘V: 엑셀·시트와 복사·붙여넣기  ·  ⌘D: 아래로 채우기  ·  Delete: 지우기  ·  ⌘Z/⇧⌘Z: 실행 취소·실행 복귀"))
                 .font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
             Spacer()
             // 색이 아니라 칸의 모양(왼쪽 위 모서리 삼각형)으로 알린다.

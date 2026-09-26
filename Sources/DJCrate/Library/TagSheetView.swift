@@ -22,6 +22,7 @@ struct TagSheetView: NSViewRepresentable {
         table.dataSource = context.coordinator
         table.delegate = context.coordinator
         table.selectionHighlightStyle = .none
+        table.allowsMultipleSelection = true
         table.allowsColumnReordering = false
         table.allowsColumnResizing = true
         table.columnAutoresizingStyle = .noColumnAutoresizing
@@ -100,6 +101,10 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
     private var textScale = 1.0
     private var font = SheetCell.font(scale: 1)
     private var syncingSort = false
+    var announce: (String) -> Void = { message in
+        NSAccessibility.post(element: NSApplication.shared, notification: .announcementRequested,
+                             userInfo: [.announcement: message, .priority: NSAccessibilityPriorityLevel.medium.rawValue])
+    }
 
     init(store: LibraryStore) {
         self.store = store
@@ -134,6 +139,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
             if let anchorID, let index = ids.firstIndex(of: anchorID) { anchor.row = index } else { anchor = cursor }
             clampSelection()
             table?.reloadData()
+            syncAccessibilitySelection(announceFocus: false)
         } else if revision != self.revision {
             self.rows = rows
             self.revision = revision
@@ -181,6 +187,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
                        selected: isSelected(position),
                        active: position == cursor)
         cell.label.delegate = self
+        cell.label.setAccessibilityLabel(spec.title)
         return cell
     }
 
@@ -226,6 +233,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
         reloadVisible()
         // 커서 줄을 덱에 올린다.
         store.selection = [rows[clamped.row].id]
+        syncAccessibilitySelection()
     }
 
     func move(rows dRow: Int, columns dColumn: Int, extend: Bool) {
@@ -238,6 +246,18 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
         anchor = CellPosition(row: 0, column: 0)
         cursor = CellPosition(row: rows.count - 1, column: SheetColumn.all.count - 1)
         reloadVisible()
+        syncAccessibilitySelection()
+    }
+
+    private func syncAccessibilitySelection(announceFocus: Bool = true) {
+        guard let table else { return }
+        let indexes = rows.isEmpty ? IndexSet() : IndexSet(integersIn: selectionRect.rows)
+        table.selectRowIndexes(indexes, byExtendingSelection: false)
+        NSAccessibility.post(element: table, notification: .selectedCellsChanged)
+        if announceFocus, !rows.isEmpty,
+           let cell = table.accessibilityCell(forColumn: cursor.column, row: cursor.row) {
+            NSAccessibility.post(element: cell, notification: .focusedUIElementChanged)
+        }
     }
 
     private func clampSelection() {
@@ -262,6 +282,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
               let cell = table.view(atColumn: cursor.column, row: cursor.row, makeIfNecessary: true) as? SheetCell
         else { return }
         anchor = cursor
+        syncAccessibilitySelection(announceFocus: false)
         editing = cursor
         editingOriginal = text(row: cursor.row, column: cursor.column)
         cell.beginEditing(text: initialText ?? editingOriginal)
@@ -323,7 +344,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
 
     func clearSelection() {
         guard !rows.isEmpty else { return }
-        store.applyTagEdits(editableCells(in: selectionRect).map { ($0.row, $0.key, "") })
+        applyChanges(editableCells(in: selectionRect).map { ($0.row, $0.key, "") })
     }
 
     func copySelection() {
@@ -360,7 +381,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
                                   column: min(rect.columns.lowerBound + (block.map(\.count).max() ?? 1) - 1, SheetColumn.all.count - 1))
             anchor = CellPosition(row: rect.rows.lowerBound, column: rect.columns.lowerBound)
         }
-        store.applyTagEdits(changes)
+        applyChanges(changes)
     }
 
     /// 선택 범위 맨 윗줄 값으로 아래 줄들을 채운다.
@@ -375,7 +396,16 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
                 changes.append((rows[r], key, value))
             }
         }
+        applyChanges(changes)
+    }
+
+    private func applyChanges(_ changes: [(row: TrackRow, key: TagFields.Key, value: String)]) {
+        let before = changes.map { store.tagCell($0.row, $0.key) }
         store.applyTagEdits(changes)
+        let changed = zip(changes, before).filter { store.tagCell($0.0.row, $0.0.key) != $0.1 }.count
+        reloadVisible()
+        syncAccessibilitySelection(announceFocus: false)
+        if changed > 0 { announce(String(ui: "\(changed)칸 바뀜")) }
     }
 }
 
@@ -384,6 +414,14 @@ final class SheetTableView: NSTableView {
     weak var coordinator: SheetCoordinator?
 
     override var acceptsFirstResponder: Bool { true }
+
+    override func accessibilitySelectedCells() -> [Any]? {
+        guard let coordinator, !coordinator.rows.isEmpty else { return [] }
+        let rect = coordinator.selectionRect
+        return rect.rows.flatMap { row in
+            rect.columns.compactMap { accessibilityCell(forColumn: $0, row: row) }
+        }
+    }
 
     override func becomeFirstResponder() -> Bool {
         let accepted = super.becomeFirstResponder()
@@ -426,6 +464,11 @@ final class SheetTableView: NSTableView {
     override func keyDown(with event: NSEvent) {
         guard let coordinator else { return super.keyDown(with: event) }
         let shift = event.modifierFlags.contains(.shift)
+        if event.modifierFlags.contains(.control), event.specialKey == .tab || event.specialKey == .backTab {
+            if shift || event.specialKey == .backTab { window?.selectPreviousKeyView(nil) }
+            else { window?.selectNextKeyView(nil) }
+            return
+        }
         switch event.specialKey {
         case .upArrow: coordinator.move(rows: -1, columns: 0, extend: shift)
         case .downArrow: coordinator.move(rows: 1, columns: 0, extend: shift)

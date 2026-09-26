@@ -91,6 +91,7 @@ struct DeckView: View {
             Label(error, systemImage: "exclamationmark.triangle").font(.scaled(.callout, textScale)).foregroundStyle(UIColors.warning.color)
         } else if deck.waveform == nil {
             ProgressView().controlSize(.small)
+                .accessibilityLabel(.ui("파형 불러오는 중"))
         }
     }
 

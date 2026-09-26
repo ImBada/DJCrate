@@ -8777,18 +8777,18 @@
         }
       }
     },
-    "더블클릭·Return·타이핑: 편집  ·  ⌘C\/⌘V: 엑셀·시트와 복사·붙여넣기  ·  ⌘D: 아래로 채우기  ·  Delete: 지우기  ·  ⌘Z\/⇧⌘Z: 실행 취소·실행 복귀" : {
+    "더블클릭·Return·타이핑: 편집  ·  ⌃Tab: 표 밖으로  ·  ⌘C\/⌘V: 엑셀·시트와 복사·붙여넣기  ·  ⌘D: 아래로 채우기  ·  Delete: 지우기  ·  ⌘Z\/⇧⌘Z: 실행 취소·실행 복귀" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Double-click, Return, or type: Edit  ·  ⌘C\/⌘V: Copy and paste with Excel or spreadsheets  ·  ⌘D: Fill Down  ·  Delete: Clear  ·  ⌘Z\/⇧⌘Z: Undo\/Redo"
+            "value" : "Double-click, Return, or type: Edit  ·  ⌃Tab: Leave table  ·  ⌘C\/⌘V: Copy and paste with Excel or spreadsheets  ·  ⌘D: Fill Down  ·  Delete: Clear  ·  ⌘Z\/⇧⌘Z: Undo\/Redo"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ダブルクリック・Return・入力：編集  ・  ⌘C\/⌘V：Excel・スプレッドシートとコピー＆ペースト  ・  ⌘D：下方向へ入力  ・  Delete：消去  ・  ⌘Z\/⇧⌘Z：取り消す・やり直す"
+            "value" : "ダブルクリック・Return・入力：編集  ・  ⌃Tab：表の外へ  ・  ⌘C\/⌘V：Excel・スプレッドシートとコピー＆ペースト  ・  ⌘D：下方向へ入力  ・  Delete：消去  ・  ⌘Z\/⇧⌘Z：取り消す・やり直す"
           }
         }
       }
@@ -21597,6 +21597,146 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ホイール"
+          }
+        }
+      }
+    },
+    "%@박, 반복 꺼짐" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@-beat loop, not repeating"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@拍、繰り返しオフ"
+          }
+        }
+      }
+    },
+    "%@박, 반복 중" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@-beat loop, repeating"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@拍、繰り返し中"
+          }
+        }
+      }
+    },
+    "%lld칸 바뀜" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cell changed"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cells changed"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lldセルを変更"
+          }
+        }
+      }
+    },
+    "게인 트림" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gain Trim"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲイントリム"
+          }
+        }
+      }
+    },
+    "템포 0으로" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Tempo to 0"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テンポを0に戻す"
+          }
+        }
+      }
+    },
+    "트림 0 dB로" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Trim to 0 dB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トリムを0 dBに戻す"
+          }
+        }
+      }
+    },
+    "트림을 0 dB로 되돌립니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset trim to 0 dB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トリムを0 dBに戻します"
+          }
+        }
+      }
+    },
+    "파형 불러오는 중" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading waveform"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "波形を読み込み中"
           }
         }
       }
