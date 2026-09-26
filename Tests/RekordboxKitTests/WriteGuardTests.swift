@@ -66,8 +66,20 @@ struct WriteGuardTests {
     @Test func 쓰는_칸이_없어지면_쓰지_않는다() throws {
         let fixture = try RekordboxFixture()
         let track = try fixture.add(TrackSpec())
+        try fixture.execute("ALTER TABLE djmdSongHistory DROP COLUMN TrackNo")
+        #expect(refusal { _ = try write(fixture, track, guard: .system) }?.contains("djmdSongHistory.TrackNo") == true)
+    }
+
+    @Test func 재생_목록_표의_칸이_달라지면_쓰지_않는다() throws {
+        // 재생 목록 쓰기가 목록·곡 항목·클라우드 거울 행을 새로 넣으므로 칸이 정확히 같아야 한다
+        let fixture = try RekordboxFixture()
+        let track = try fixture.add(TrackSpec())
         try fixture.execute("ALTER TABLE djmdSongPlaylist DROP COLUMN TrackNo")
-        #expect(refusal { _ = try write(fixture, track, guard: .system) }?.contains("djmdSongPlaylist.TrackNo") == true)
+        try fixture.execute("ALTER TABLE djmdPlaylist ADD COLUMN NewSort INTEGER DEFAULT NULL")
+        try fixture.execute("ALTER TABLE djmdCloudFilterPlaylist ADD COLUMN NewFilter INTEGER DEFAULT NULL")
+        let reason = refusal { _ = try write(fixture, track, guard: .system) }
+        #expect(reason?.contains("djmdSongPlaylist에 없는 칸(TrackNo)") == true && reason?.contains("djmdPlaylist에 모르는 칸(NewSort)") == true
+                && reason?.contains("djmdCloudFilterPlaylist에 모르는 칸(NewFilter)") == true, "\(reason ?? "")")
     }
 
     @Test func 행을_넣는_파일_표_오토게인_표의_칸이_달라지면_쓰지_않는다() throws {

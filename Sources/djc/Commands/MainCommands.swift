@@ -16,6 +16,8 @@ enum MainCommands {
         Command("track-add", "--db <사본.db> [--share <분석 뿌리>] [--analyze] [--dry-run] <음원…> | --live …",
                 "음원을 rekordbox 컬렉션에 넣는다(--analyze면 그리드·파형·오토게인까지, 기본은 사본)", trackAdd),
         Command("track-delete", "--db <사본.db> [--share <분석 뿌리>] [--dry-run] <ContentID…> | --live …", "곡을 rekordbox 컬렉션에서 뺀다(음원 파일은 그대로)", trackDelete),
+        Command("playlist-write", "--db <사본.db> [--dry-run] <편집.json>",
+                "재생 목록 편집(JSON 배열)을 사본 DB와 그 옆 masterPlaylists6.xml에 쓴다(라이브 라이브러리는 거부)", playlistWrite),
         Command("rekordbox-restore", "[--backup <폴더> (--db <사본> | --live)]", "백업으로 되돌린다", rekordboxRestore),
         Command("schema-dump", "<사본.db> <출력.sql>", "사본 DB의 구조(CREATE 문)만 뽑는다", schemaDump),
         Command("path", "<제목> [--db PATH] [--json]", "제목으로 파일 경로 찾기", path),
@@ -139,6 +141,25 @@ enum MainCommands {
                                                      dryRun: args.contains("--dry-run"), backups: backups)
         for o in report.deleted { print("\(o.written ? "✓" : "✗") \(o.title.prefix(40)) · ID \(o.contentID ?? "")\(o.reason.map { " · \($0)" } ?? "")") }
         print("\(report.dryRun ? "미리 보기(되돌림)" : "뺌") · \(report.deleted.filter(\.written).count)곡 · 지운 파일(분석·아트워크) \(report.removedFiles.count)개 · 백업 \(report.backup ?? "없음")")
+    }
+
+    /// 재생 목록 편집을 사본에 쓴다. 편집 JSON 예: `[{"create":{"key":"f","name":"새 폴더","isFolder":true,"parent":"root"}},
+    /// {"addTracks":{"playlist":"new:f","contentIDs":["123"]}}]`. 라이브 라이브러리는 앱의 반영으로만 쓴다.
+    static func playlistWrite(_ args: [String]) async throws {
+        guard let path = value(after: "--db", in: args), let file = operands(args, valued: ["--db"]).first else { throw UsageError() }
+        let database = URL(filePath: path)
+        let real = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Pioneer/rekordbox/master.db")
+        guard database.resolvingSymlinksInPath().standardizedFileURL.path != real.resolvingSymlinksInPath().standardizedFileURL.path else {
+            throw DJCError.writeRefused("playlist-write는 사본에만 씁니다. rekordbox 라이브러리는 앱의 반영으로 쓰세요")
+        }
+        let edits = try JSONDecoder().decode([PlaylistEdit].self, from: Data(contentsOf: URL(filePath: file)))
+        let report = try RekordboxWriter.write(drafts: [], playlists: edits, to: database, dryRun: args.contains("--dry-run"),
+                                               backups: database.deletingLastPathComponent().appending(path: "backups"))
+        for o in report.playlistOutcomes ?? [] {
+            let mark = switch o.status { case .written: "✓"; case .blocked: "✗"; case .unchanged: "·" }
+            print("\(mark) \(o.name.prefix(34))\(o.playlistID.map { " · ID \($0)" } ?? "")\(o.reason.map { " · \($0)" } ?? "")")
+        }
+        print("\(report.dryRun ? "미리 보기(되돌림)" : "씀") · 쓴 편집 \(report.playlistWritten.count) · 막힌 편집 \(report.playlistBlocked.count) · 카운터 \(report.finalUpdateCount.map(String.init) ?? "-") · 백업 \(report.backup ?? "없음")")
     }
 
     /// 백업으로 되돌린다. 기본은 --db 사본. 라이브 DB는 --live(rekordbox가 꺼져 있어야 한다). 백업 목록은 인자 없이.
