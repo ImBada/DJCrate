@@ -8,6 +8,59 @@ import Testing
 
 @Suite("CLI 읽기 JSON")
 struct LibraryReadTests {
+    @Test func 프리셋을_안_고르면_JSON에_규칙_집계가_없다() throws {
+        let fixture = try fixture(), read = try reader(fixture)
+        let report = try json("report", read.report(checkFiles: false))
+        #expect(report["commentClasses"] == nil)
+        #expect(report["prefixes"] == nil)
+        #expect(report["usages"] == nil)
+        #expect(throws: ReadFailure.self) { try read.search(query: "", filter: .offConvention) }
+    }
+
+    @Test(arguments: ["none", "anisong"])
+    func CLI_프리셋은_앱_설정_없이_명시한_값만_쓴다(preset: String) throws {
+        let fixture = try fixture()
+        let result = try runCLI(["report", "--json", "--comment-preset", preset, "--db", fixture.database.path], fixture: fixture)
+        #expect(result.status == 0 && result.stderr.isEmpty)
+        let envelope = try #require(JSONSerialization.jsonObject(with: result.stdout) as? [String: Any])
+        let report = try #require(envelope["data"] as? [String: Any])
+        if preset == "anisong" {
+            #expect(report["commentClasses"] as? [String: Int] == ["convention": 1, "empty": 1])
+            #expect(report["prefixes"] as? [String: Int] == ["TVA": 1])
+            #expect(report["usages"] as? [String: Int] == ["OP": 1])
+        } else {
+            #expect(report["commentClasses"] == nil && report["prefixes"] == nil && report["usages"] == nil)
+        }
+    }
+
+    @Test(arguments: [["--comment-preset", "unknown"], ["--comment-preset"], ["--filter", "off-convention"]])
+    func CLI는_잘못된_프리셋과_꺼진_필터를_DB보다_먼저_검사한다(options: [String]) throws {
+        let fixture = try RekordboxFixture()
+        let result = try runCLI(["search", "", "--json", "--db", fixture.root.appending(path: "missing.db").path] + options, fixture: fixture)
+        #expect(result.status == 1 && result.stdout.isEmpty)
+        let envelope = try #require(JSONSerialization.jsonObject(with: result.stderr) as? [String: Any])
+        #expect((envelope["error"] as? [String: String])?["code"] == "invalid_arguments")
+    }
+
+    private func runCLI(_ arguments: [String], fixture: RekordboxFixture) throws -> (status: Int32, stdout: Data, stderr: Data) {
+        let root = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let executable = try #require([".build/debug/djc", ".build/out/Products/Debug/djc"].map { root.appending(path: $0) }
+            .first { FileManager.default.isExecutableFile(atPath: $0.path) })
+        let process = Process(), out = Pipe(), err = Pipe()
+        process.executableURL = executable
+        process.arguments = arguments
+        process.environment = ProcessInfo.processInfo.environment.merging([
+            "DJC_HOME": fixture.root.appending(path: "home").path,
+            "DJC_REKORDBOX_DIR": fixture.root.path,
+        ]) { _, new in new }
+        process.standardOutput = out; process.standardError = err
+        try process.run()
+        let stdout = out.fileHandleForReading.readDataToEndOfFile()
+        let stderr = err.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return (process.terminationStatus, stdout, stderr)
+    }
+
     func fixture() throws -> RekordboxFixture {
         let fixture = try RekordboxFixture()
         var first = TrackSpec(id: "101", uuid: "track-101")
@@ -37,8 +90,8 @@ struct LibraryReadTests {
         return fixture
     }
 
-    func reader(_ fixture: RekordboxFixture) throws -> LibraryRead {
-        try LibraryRead(snapshot: fixture.database, home: fixture.root.appending(path: "home"), shareRoot: fixture.shareRoot)
+    func reader(_ fixture: RekordboxFixture, preset: CommentPreset = .none) throws -> LibraryRead {
+        try LibraryRead(snapshot: fixture.database, home: fixture.root.appending(path: "home"), shareRoot: fixture.shareRoot, commentPreset: preset)
     }
 
     func json<T: Encodable>(_ command: String, _ result: T) throws -> [String: Any] {
@@ -51,7 +104,7 @@ struct LibraryReadTests {
     }
 
     @Test func 검색_JSON과_교집합_필터() throws {
-        let fixture = try fixture(), read = try reader(fixture)
+        let fixture = try fixture(), read = try reader(fixture, preset: .anisong)
         let data = try json("search", read.search(query: "ALPHA", bpm: 120...130, key: "8a", playlistID: "p1"))
         #expect(Set(data.keys) == ["tracks"])
         let tracks = try #require(data["tracks"] as? [[String: Any]])
@@ -188,7 +241,7 @@ struct LibraryReadTests {
     }
 
     @Test func 기존_읽기명령_JSON() throws {
-        let fixture = try fixture(), read = try reader(fixture)
+        let fixture = try fixture(), read = try reader(fixture, preset: .anisong)
         let report = try json("report", read.report(checkFiles: false))
         #expect(Set(report.keys) == ["totalRows", "deletedRows", "liveTracks", "streamingTracks", "extensions", "commentClasses", "prefixes", "usages", "emptyByImportYear", "tracksWithCues", "tracksWithManualCues", "tracksWithOnlyAutoCues", "tracksWithoutCues", "hotCueSlots", "playedTracks", "emptyCommentPlayed"])
         #expect(report["liveTracks"] as? Int == 2 && report["deletedRows"] as? Int == 1)
@@ -250,7 +303,7 @@ struct LibraryReadTests {
         first.analysisDataPath = "/PIONEER/USBANLZ/test/ANLZ0000.DAT"
         let beats = AnlzBuilder.beats(bpm: 120, first: 0, count: 16) + AnlzBuilder.beats(bpm: 160, first: 8000, count: 16)
         try fixture.putAnalysis(for: first, dat: AnlzBuilder.dat(beats: beats), ext: nil)
-        let read = try reader(fixture)
+        let read = try reader(fixture, preset: .anisong)
         let expected: [LibraryFilter: [String]] = [.emptyComment: ["102"], .offConvention: ["104"],
             .noCues: ["102", "104"], .played: ["101"], .streaming: ["104"], .noBPM: ["102"], .tempoChange: ["101"], .all: ["101", "102", "104"]]
         for filter in LibraryFilter.allCases {
@@ -277,7 +330,7 @@ struct LibraryReadTests {
         try fixture.add(streaming)
         try fixture.execute("UPDATE djmdContent SET StockDate = '2024-01-01' WHERE ID = '102'")
         try fixture.execute("UPDATE djmdContent SET StockDate = '2027-01-01' WHERE ID = '104'")
-        #expect(try reader(fixture).search(query: "", filter: .emptyComment).tracks.map(\.id) == ["102", "104"])
+        #expect(try reader(fixture, preset: .anisong).search(query: "", filter: .emptyComment).tracks.map(\.id) == ["102", "104"])
     }
 
     @Test(arguments: [false, true])

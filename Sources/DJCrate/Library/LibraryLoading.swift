@@ -14,10 +14,11 @@ struct LoadedLibrary: Sendable {
     var cueDraftUUIDs: Set<String>
     var gridDraftUUIDs: Set<String>
     var tree: [PlaylistNode]
+    var histories: [RekordboxHistory]
     var draftCueCounts: [String: CueCounts] = [:]
     var draftPreviewCues: [String: [PreviewCueMark]] = [:]
 
-    static func load(snapshot: URL) throws -> LoadedLibrary {
+    static func load(snapshot: URL, commentPreset: CommentPreset = .none) throws -> LoadedLibrary {
         let library = try RekordboxLibrary.load(snapshot: snapshot)
         let tracks = library.tracks
         // 변속 흐름: 분석 파일의 그리드를 병렬로 훑는다(7천 곡 약 0.2~0.7초).
@@ -30,10 +31,10 @@ struct LoadedLibrary: Sendable {
         }
         let rows = tracks.enumerated().map { i, track in
             TrackRow(track: track, cues: library.cues(for: track), playCount: library.playCounts[track.id, default: 0],
-                     tempoChanges: tempo.values[i], autoGain: library.autoGains[track.id])
+                     tempoChanges: tempo.values[i], autoGain: library.autoGains[track.id], commentRule: commentPreset.rule)
         }
         var counts: [LibraryFilter: Int] = [:]
-        for filter in LibraryFilter.allCases { counts[filter] = rows.lazy.filter(filter.includes).count }
+        for filter in LibraryFilter.visible(commentPreset: commentPreset) { counts[filter] = rows.lazy.filter(filter.includes).count }
         var tagDrafts: [String: TagDraft] = [:]
         for uuid in TagDraftStore.uuids() { tagDrafts[uuid] = TagDraftStore.load(trackUUID: uuid) }
         let cueUUIDs = CueDraftStore.uuids()
@@ -45,9 +46,10 @@ struct LoadedLibrary: Sendable {
                 if draft.hasChanges { draftPreviewCues[uuid] = draft.cues.map(PreviewCueMark.init) }
             }
         }
-        return LoadedLibrary(rows: rows, report: LibraryReport(library: library), filterCounts: counts,
+        return LoadedLibrary(rows: rows, report: LibraryReport(library: library, commentRule: commentPreset.rule), filterCounts: counts,
                              tagDrafts: tagDrafts, cueDraftUUIDs: cueUUIDs,
                              gridDraftUUIDs: GridDraftStore.uuids(), tree: PlaylistNode.tree(library.playlists),
+                             histories: library.histories,
                              draftCueCounts: draftCueCounts, draftPreviewCues: draftPreviewCues)
     }
 }

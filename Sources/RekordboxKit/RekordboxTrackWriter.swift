@@ -7,6 +7,7 @@ import Foundation
 /// rekordbox 7.2.18 실험(2026-09-26, 묶음 1·2)에서 확인한 모양을 따른다:
 /// - 추가(분석 전): `djmdContent` 행 하나 + 새 이름이면 `djmdArtist`·`djmdAlbum`·`djmdGenre` 행. 분석 파일·파일 행·오토게인 행은 없다.
 ///   곡 ID는 1~2^28 난수, 아티스트 등은 32비트 난수. 관련 행 번호(usn)를 먼저 받고 곡 행이 마지막 번호를 받는다.
+/// - 음원에 아트워크가 있으면 아트워크 파일 셋(`TrackArtwork`)·`ImagePath`·`artwork.jpg` 파일 행도 넣는다(`writesArtwork`가 열렸을 때).
 /// - 삭제: 행을 실제로 지운다(삭제 표시가 아님). 곡 행·큐(`djmdCue`·`contentCue`)·파일 행·오토게인 행·재생 목록·재생 이력 항목.
 ///   같은 목록·이력의 뒤 순번은 하나씩 당기고(한 번호로 몰아서), 그 곡만 쓰던 아티스트·앨범 행도 지운다. 분석 폴더·아트워크 파일도 지운다.
 ///   재생 목록 순번 당기기는 재생 이력에서 본 것을 따른 추정이다.
@@ -36,7 +37,7 @@ public enum RekordboxTrackWriter {
         public var dryRun: Bool
         /// 지운 곡의 분석·아트워크 파일(백업 폴더 `anlz/`로 옮겨 두었다가 되돌릴 때 살린다)
         public var removedFiles: [String] = []
-        /// 새로 만든 분석 파일(되돌릴 때 지운다)
+        /// 새로 만든 분석·아트워크 파일(되돌릴 때 지운다)
         public var createdFiles: [String] = []
         /// 쓴 직후 rekordbox 변경 카운터. 되돌리기 전에 그 뒤 rekordbox에서 바뀐 게 있는지 본다.
         public var finalUpdateCount: Int?
@@ -64,6 +65,10 @@ public enum RekordboxTrackWriter {
     /// 분석까지 붙인 곡의 `ContentLink`(프레이즈·보컬 분석 없음, 라이브러리 426곡이 쓰는 값)
     static let analysedContentLink = 0x2C060E
 
+    /// 곡을 넣을 때 음원 내장 아트워크도 넣는지(#4). 파일·칸 모양은 라이브러리로 확인했고,
+    /// rekordbox가 아트워크 든 곡을 넣을 때의 변경 번호 순서를 실험으로 확인하기 전까지 닫아 둔다.
+    public static let writesArtwork = false
+
     /// 지울 곡을 막는 표(아직 rekordbox 실험으로 확인하지 않음)
     static let unverifiedReferenceTables = ["contentActiveCensor", "djmdActiveCensor", "djmdCloudExportSongPlaylist", "djmdSongHotCueBanklist",
                                             "djmdSongMyTag", "djmdSongRelatedTracks", "djmdSongRequestList", "djmdSongSampler", "djmdSongTagList"]
@@ -75,29 +80,41 @@ public enum RekordboxTrackWriter {
     ///   - shareRoot: 분석 파일 뿌리. 라이브 DB면 rekordbox share 폴더, 사본이면 명시해야 분석을 붙인다.
     ///   - cues: 경로마다 함께 넣을 큐. 곡을 넣은 같은 트랜잭션에서 큐 쓰기(`RekordboxWriter`)와 같은 규칙으로 쓴다.
     ///     큐가 막히면 곡만 넣고 이유를 `cueReason`에 남긴다.
+    ///   - writesArtwork: 음원 내장 아트워크로 아트워크 파일 셋·`ImagePath`·파일 행을 넣는지(share가 있을 때만). 앱은 `writesArtwork`를 따른다.
     public static func add(_ plans: [TrackAddPlan], analyses: [String: Analysis] = [:], cues: [String: [EditableCue]] = [:],
                            to database: URL = RekordboxWriter.liveDatabase,
                            shareRoot: URL? = nil, dryRun: Bool, now: Date = .now, backups: URL,
-                           guard writeGuard: RekordboxWriteGuard = .system) throws -> Report {
+                           guard writeGuard: RekordboxWriteGuard = .system,
+                           writesArtwork: Bool = RekordboxTrackWriter.writesArtwork) throws -> Report {
         var report = Report(dryRun: dryRun)
         guard !plans.isEmpty else { return report }
         try preflight(database, dryRun: dryRun, guard: writeGuard)
         let live = writeGuard.isLive(database)
         let share = shareRoot ?? (live ? RekordboxShare.directory : nil)
-        // 분석 파일은 DB 밖에서 미리 만든다(오래 걸리고 실패해도 DB를 건드리기 전에 알 수 있게)
+        // 곡 UUID를 먼저 정한다(분석·아트워크 폴더 이름이 된다)
+        let uuids = Dictionary(plans.map { ($0.path, UUID().uuidString.lowercased()) }) { first, _ in first }
+        // 분석·아트워크 파일은 DB 밖에서 미리 만든다(오래 걸리고 실패해도 DB를 건드리기 전에 알 수 있게)
         var prepared: [String: PreparedAnalysis] = [:]
+        var artworks: [String: PreparedArtwork] = [:]
         for plan in plans {
+            let uuid = uuids[plan.path]!
+            if writesArtwork, let share, let image = plan.artwork, let files = TrackArtwork.make(image) {
+                artworks[plan.path] = PreparedArtwork(uuid: uuid, files: files, share: share)
+            }
             guard let analysis = analyses[plan.path] else { continue }
             do {
-                prepared[plan.path] = try prepare(plan, analysis: analysis, share: share)
+                prepared[plan.path] = try prepare(path: plan.path, fileName: plan.fileName, duration: plan.duration, uuid: uuid,
+                                                  analysis: analysis, share: share)
             } catch {
-                prepared[plan.path] = PreparedAnalysis(uuid: UUID().uuidString.lowercased(), blocked: "분석 파일을 만들지 못했습니다: \(error)")
+                prepared[plan.path] = PreparedAnalysis(uuid: uuid, blocked: "분석 파일을 만들지 못했습니다: \(error)")
             }
         }
         let stamp = CueJSON.timestamps(now)
         let backup = dryRun ? nil : try RekordboxWriter.makeBackup(of: database, in: backups, now: now, label: "add")
         report.backup = backup?.path
         var inserted: [(id: String, expected: [String: CipherDatabase.Value])] = []
+        /// 곡과 함께 넣은 파일 행·오토게인 행(커밋 뒤 다시 읽어 비교)
+        var extraRows: [InsertedRow] = []
         var cueChecks: [(contentID: String, expectation: RekordboxWriter.Expectation)] = []
         report.finalUpdateCount = try transaction(database, dryRun: dryRun) { db, usn in
             let library = try libraryIdentity(db)
@@ -115,16 +132,28 @@ public enum RekordboxTrackWriter {
                     let id = try newID(db, table: "djmdContent", range: 1..<(1 << 28))
                     let ready = prepared[plan.path]
                     if let reason = ready?.blocked { throw Blocked(reason) }
-                    let uuid = ready?.uuid ?? UUID().uuidString.lowercased()
+                    let uuid = uuids[plan.path]!
+                    let artwork = artworks[plan.path]
                     usn += 1
                     var row = contentRow(plan, id: id, uuid: uuid, artistID: artistID, albumID: albumID,
                                          genreID: genreID, composerID: composerID, library: library, usn: usn, stamp: stamp)
                     if let ready { row.merge(ready.columns) { _, new in new } }
+                    if let artwork { row["ImagePath"] = .text(artwork.imagePath) }
                     try insert(db, table: "djmdContent", row)
                     try verify(db, table: "djmdContent", id: id, row)
+                    var planRows: [InsertedRow] = []
+                    if let artwork {
+                        // 아트워크 파일 행은 artwork.jpg 하나(_m·_s는 행이 없다)
+                        usn += 1
+                        let file = fileRow(uuid: uuid, share: artwork.share, artwork.files[0], contentID: id, usn: usn, stamp: stamp)
+                        try insert(db, table: file.table, file.values)
+                        try verify(db, table: file.table, id: file.id, file.values)
+                        planRows.append(file)
+                    }
                     if let ready {
                         for row in try insertAnalysisRows(db, ready, contentID: id, usn: &usn, stamp: stamp) {
                             try verify(db, table: row.table, id: row.id, row.values)
+                            planRows.append(row)
                         }
                     }
                     var outcome = Outcome(path: plan.path, contentID: id, title: plan.title, written: true, reason: nil, uuid: uuid)
@@ -151,6 +180,7 @@ public enum RekordboxTrackWriter {
                     }
                     try db.execute("RELEASE djc_add")
                     inserted.append((id, row))
+                    extraRows += planRows
                     report.added.append(outcome)
                 } catch let blocked as Blocked {
                     try db.execute("ROLLBACK TO djc_add")
@@ -163,25 +193,26 @@ public enum RekordboxTrackWriter {
         if let backup, !inserted.isEmpty {
             try afterCommit(database, backup: backup, live: live) { db in
                 for item in inserted { try verify(db, table: "djmdContent", id: item.id, item.expected) }
+                for row in extraRows { try verify(db, table: row.table, id: row.id, row.values) }
                 for check in cueChecks { try RekordboxWriter.verify(db: db, contentID: check.contentID, check.expectation) }
             }
-            // 분석 파일: DB가 끝난 뒤 쓴다. 실패하면 쓴 파일을 지우고 DB를 되돌린다.
+            // 분석·아트워크 파일: DB가 끝난 뒤 쓴다. 실패하면 쓴 파일과 만든 빈 폴더를 지우고 DB를 되돌린다.
             let written = report.added.filter(\.written).map(\.path)
             var created: [URL] = []
             do {
                 for path in written {
-                    guard let ready = prepared[path], ready.blocked == nil else { continue }
-                    for (url, data) in ready.files {
-                        guard !FileManager.default.fileExists(atPath: url.path) else { throw DJCError.writeVerificationFailed("분석 파일이 이미 있습니다: \(url.path)") }
+                    let analysisFiles = prepared[path].flatMap { $0.blocked == nil ? $0.files : nil } ?? []
+                    for (url, data) in analysisFiles + (artworks[path]?.files ?? []) {
+                        guard !FileManager.default.fileExists(atPath: url.path) else { throw DJCError.writeVerificationFailed("파일이 이미 있습니다: \(url.path)") }
                         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                         try data.write(to: url, options: .atomic)
                         created.append(url)
-                        guard try Data(contentsOf: url) == data else { throw DJCError.writeVerificationFailed("분석 파일 확인 실패: \(url.lastPathComponent)") }
+                        guard try Data(contentsOf: url) == data else { throw DJCError.writeVerificationFailed("파일 확인 실패: \(url.lastPathComponent)") }
                     }
                 }
             } catch {
                 throw RekordboxWriter.recover(from: error, database: database, backup: backup, live: live) {
-                    try RekordboxWriter.each(created) { try FileManager.default.removeItem(at: $0) }
+                    try RekordboxWriter.removeAnalysisFiles(created)
                 }
             }
             report.createdFiles = created.map(\.path)
@@ -204,13 +235,22 @@ public enum RekordboxTrackWriter {
         var beats = 0
     }
 
+    /// DB 밖에서 미리 만든 아트워크 파일 셋(`artwork.jpg`·`_m`·`_s` 순서, 파일 행은 첫 파일만)
+    struct PreparedArtwork {
+        var imagePath: String
+        var files: [(URL, Data)]
+        var share: URL
+
+        init(uuid: String, files: TrackArtwork.Files, share: URL) {
+            imagePath = TrackArtwork.imagePath(uuid: uuid)
+            let folder = share.appending(path: String(TrackArtwork.folder(uuid: uuid).dropFirst()))
+            self.files = zip(TrackArtwork.fileNames, [files.full, files.medium, files.small]).map { (folder.appending(path: $0), $1) }
+            self.share = share
+        }
+    }
+
     /// 곡 UUID로 정하는 분석 폴더(`/PIONEER/USBANLZ/<앞 3자>/<나머지>`)
     static func analysisFolder(uuid: String) -> String { "/PIONEER/USBANLZ/\(uuid.prefix(3))/\(uuid.dropFirst(3))" }
-
-    static func prepare(_ plan: TrackAddPlan, analysis: Analysis, share: URL?) throws -> PreparedAnalysis {
-        try prepare(path: plan.path, fileName: plan.fileName, duration: plan.duration, uuid: UUID().uuidString.lowercased(),
-                    analysis: analysis, share: share)
-    }
 
     /// 곡 넣기와 분석 붙이기(`RekordboxWriter+Analysis`)가 함께 쓰는 레시피. 분석 폴더는 곡 UUID로 정한다.
     /// - Parameter duration: AVFoundation 길이(초). `Length`에 버림해 적는다.
@@ -264,11 +304,17 @@ public enum RekordboxTrackWriter {
     /// 분석 파일 하나의 `contentFile` 행(ID = `<곡 UUID>_<경로, /는 %2F>`, MD5·크기·로컬 경로)
     static func fileRow(_ ready: PreparedAnalysis, _ file: (url: URL, data: Data), contentID: String, usn: Int,
                         stamp: (db: String, json: String)) -> InsertedRow {
-        let share = ready.share?.path ?? ""
+        fileRow(uuid: ready.uuid, share: ready.share, file, contentID: contentID, usn: usn, stamp: stamp)
+    }
+
+    /// share 아래 파일 하나의 `contentFile` 행. 분석 파일과 아트워크(`artwork.jpg`) 행이 같은 칸 모양이다(라이브러리 조사 2026-09-26).
+    static func fileRow(uuid: String, share root: URL?, _ file: (url: URL, data: Data), contentID: String, usn: Int,
+                        stamp: (db: String, json: String)) -> InsertedRow {
+        let share = root?.path ?? ""
         let path = "/" + file.url.path.dropFirst(share.count).drop(while: { $0 == "/" })
         let encoded = path.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? path
         let row: [String: CipherDatabase.Value] = [
-            "ID": .text("\(ready.uuid)_\(encoded)"), "ContentID": .text(contentID), "Path": .text(path),
+            "ID": .text("\(uuid)_\(encoded)"), "ContentID": .text(contentID), "Path": .text(path),
             "Hash": .text(Insecure.MD5.hash(data: file.data).map { String(format: "%02x", $0) }.joined()), "Size": .int(file.data.count),
             "rb_local_path": .text(file.url.path), "rb_insync_hash": .null, "rb_insync_local_usn": .null, "rb_file_hash_dirty": .int(0),
             "rb_local_file_status": .int(0), "rb_in_progress": .int(0), "rb_process_type": .int(0), "rb_temp_path": .null,

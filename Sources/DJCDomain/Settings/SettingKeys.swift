@@ -1,5 +1,9 @@
 /// 앱 설정 목록(이름·기본값·범위). 이름은 설정 창 전부터 쓰던 UserDefaults 키 그대로라 쓰던 값이 이어진다.
 public enum SettingKeys {
+    public static let commentPreset = SettingKey("library.commentPreset", CommentPreset.none.rawValue) {
+        CommentPreset(rawValue: $0)?.rawValue
+    }
+
     // MARK: 덱
 
     public static let waveformColorMode = SettingKey("waveform.colorMode", WaveformColorMode.threeBand.rawValue) {
@@ -37,8 +41,12 @@ public enum SettingKeys {
     public static let sheetMode = SettingKey("sheetMode", false)
     public static let sidebarPlaylistsExpanded = SettingKey("sidebar.playlistsExpanded", true)
     public static let sidebarSummaryExpanded = SettingKey("sidebar.summaryExpanded", true)
+    /// 재생 기록은 날짜마다 한 줄이라 길어서 접어 두고 시작한다.
+    public static let sidebarHistoriesExpanded = SettingKey("sidebar.historiesExpanded", false)
 
     // MARK: 목록·표
+
+    public static let commentClassColumnHidden = SettingKey("library.commentClassColumnHidden", false)
 
     /// 곡 UUID 모음: 무시한 게인·그리드 제안
     public static let dismissedGainSuggestions = "deck.dismissedGainSuggestions"
@@ -51,7 +59,8 @@ public enum SettingKeys {
         [zoomSeconds.name, volume.name, metronomeVolume.name, idleSeconds.name, gainTarget.name, gainTrim.name,
          waveformHeight.name]
             + [quantize, carryCues, showSuggestions, keyLock, autoGain, peakProtection, useRekordboxGain,
-               sheetMode, sidebarPlaylistsExpanded, sidebarSummaryExpanded].map(\.name)
-            + [dismissedGainSuggestions, dismissedGridSuggestions, deckShortcuts, waveformColorMode.name]
+               sheetMode, sidebarPlaylistsExpanded, sidebarSummaryExpanded, sidebarHistoriesExpanded,
+               commentClassColumnHidden].map(\.name)
+            + [dismissedGainSuggestions, dismissedGridSuggestions, deckShortcuts, waveformColorMode.name, commentPreset.name]
     }
 }

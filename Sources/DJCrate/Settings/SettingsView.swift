@@ -5,13 +5,14 @@ import SwiftUI
 /// 설정 창(⌘,). 값은 덱 모델에 바로 묶여 덱 화면과 함께 바뀌고, 바꾸면 곧바로 저장된다.
 /// 새 설정 묶음은 `SettingsTab`과 아래 `TabView`에 함께 더한다.
 struct SettingsView: View {
+    @Bindable var store: LibraryStore
     @Bindable var deck: DeckModel
     @State private var tab = SettingsTab.general
 
     var body: some View {
         TabView(selection: $tab) {
             Tab("일반", systemImage: "gearshape", value: SettingsTab.general) {
-                GeneralSettingsView(deck: deck)
+                GeneralSettingsView(deck: deck, store: store)
             }
             Tab("덱", systemImage: "dial.medium", value: SettingsTab.deck) {
                 DeckSettingsView(deck: deck)
@@ -61,9 +62,17 @@ enum SettingsWindow {
 
 struct GeneralSettingsView: View {
     @Bindable var deck: DeckModel
+    @Bindable var store: LibraryStore
 
     var body: some View {
         Form {
+            Section("코멘트") {
+                Picker("코멘트 프리셋", selection: $store.commentPreset) {
+                    ForEach(CommentPreset.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                Text("애니송을 고르면 코멘트 분류·필터·현황·형식 검사를 켭니다.")
+                    .foregroundStyle(.secondary)
+            }
             Section {
                 Picker("재생을 멈춘 뒤 오디오 엔진 끄기", selection: $deck.idleSeconds) {
                     ForEach(SettingKeys.idleSecondsChoices, id: \.self) { seconds in
@@ -79,7 +88,7 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         // 묶음 폼은 스크롤 뷰라 내용 높이를 스스로 알리지 않는다. 설정 창 높이를 탭마다 정한다.
-        .frame(width: 520, height: 180)
+        .frame(width: 520, height: 300)
     }
 
     static func durationText(_ seconds: Double) -> String {

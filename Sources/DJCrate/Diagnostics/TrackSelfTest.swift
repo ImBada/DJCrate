@@ -67,7 +67,9 @@ extension DevSelfTests {
                 let files = ["DAT", "EXT", "2EX"].compactMap { ext in
                     RekordboxShare.analysisURL(row.track.analysisDataPath).map { $0.deletingPathExtension().appendingPathExtension(ext) }
                 }.filter { FileManager.default.fileExists(atPath: $0.path) }
-                log("  \(row.title.prefix(24)) · BPM \(row.track.bpm.map { String(format: "%.2f", $0) } ?? "-") · 분석 파일 \(files.count)개 · 오토게인 \(row.autoGain.map { String(format: "%+.1f dB", $0.gainDB) } ?? "-") · 큐 \(row.cues.count)개 · 반영 대기 \(store.pendingUUIDs.contains(row.track.uuid))")
+                let artwork = [RekordboxShare.ArtworkSize.full, .medium, .small].compactMap { RekordboxShare.artworkURL(row.track.imagePath, size: $0) }
+                    .filter { FileManager.default.fileExists(atPath: $0.path) }
+                log("  \(row.title.prefix(24)) · BPM \(row.track.bpm.map { String(format: "%.2f", $0) } ?? "-") · 분석 파일 \(files.count)개 · 아트워크 파일 \(artwork.count)개 · 오토게인 \(row.autoGain.map { String(format: "%+.1f dB", $0.gainDB) } ?? "-") · 큐 \(row.cues.count)개 · 반영 대기 \(store.pendingUUIDs.contains(row.track.uuid))")
             }
             log("추가 목록 남은 곡 \(store.staged.count)")
             guard !added.isEmpty, let addBackup = latestBackup() else { log("넣은 곡이 없습니다"); exit(1) }
@@ -76,7 +78,7 @@ extension DevSelfTests {
             // 3. 되돌리기: 곡이 빠지고 분석 파일이 지워지고 추가 목록으로 돌아온다
             await coordinator.restore(addBackup)
             let leftFiles = createdFiles.filter { FileManager.default.fileExists(atPath: $0) }.count
-            log("되돌리기: 컬렉션 \(store.rows.count)곡(처음 \(before)) · 남은 분석 파일 \(leftFiles)/\(createdFiles.count) · 추가 목록 \(store.staged.count)곡 · 알림 \(toast())")
+            log("되돌리기: 컬렉션 \(store.rows.count)곡(처음 \(before)) · 남은 만든 파일(분석·아트워크) \(leftFiles)/\(createdFiles.count) · 추가 목록 \(store.staged.count)곡 · 알림 \(toast())")
 
             // 4. 다시 넣고 빼기 → 되돌리기
             await coordinator.addTracks(rows: store.stagedRows)
@@ -90,7 +92,10 @@ extension DevSelfTests {
             let revivedFiles = revived.filter { row in
                 RekordboxShare.analysisURL(row.track.analysisDataPath).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
             }.count
-            log("빼기 되돌리기: 되살아난 곡 \(revived.count) · 분석 파일 있는 곡 \(revivedFiles) · 알림 \(toast())")
+            let revivedArtwork = revived.filter { row in
+                RekordboxShare.artworkURL(row.track.imagePath, size: .full).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+            }.count
+            log("빼기 되돌리기: 되살아난 곡 \(revived.count) · 분석 파일 있는 곡 \(revivedFiles) · 아트워크 있는 곡 \(revivedArtwork) · 알림 \(toast())")
 
             // 5. rekordbox가 바깥에서 곡을 지운 것처럼 하고 창으로 돌아온다: 새로 읽어 목록·선택에서 빠지고 다시 추가할 수 있어야 한다
             store.selection = Set(revived.prefix(1).map(\.id))

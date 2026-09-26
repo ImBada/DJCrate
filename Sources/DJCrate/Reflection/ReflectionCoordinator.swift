@@ -349,12 +349,18 @@ struct ReflectionCoordinator {
         preview.report.added.filter { !$0.written }.map { "• \($0.title): \($0.reason ?? "")" } + preview.unreadable.map { "• \($0)" }
     }
 
-    /// 넣기 전 확인 창: 곡마다 분석까지 붙는지, 넣지 않는 곡과 이유
-    static func addConfirmation(_ preview: LibraryStore.TrackAddPreview) -> ReflectionPrompt {
+    /// 아트워크 쓰기가 닫혀 있을 때(`RekordboxTrackWriter.writesArtwork`) 음원에 아트워크가 든 곡을 넣으면 보이는 안내
+    static let artworkClosedNote = "음원의 아트워크는 아직 넣지 않으니, 필요하면 rekordbox 곡 정보 창에서 이미지를 끌어다 붙이세요."
+
+    /// 넣기 전 확인 창: 곡마다 분석까지 붙는지(아트워크도 넣는지), 넣지 않는 곡과 이유
+    static func addConfirmation(_ preview: LibraryStore.TrackAddPreview,
+                                writesArtwork: Bool = RekordboxTrackWriter.writesArtwork) -> ReflectionPrompt {
         let written = preview.report.added.filter(\.written)
+        let artwork = Set(preview.plans.filter { $0.artwork != nil }.map(\.path))
         var body = written.map { outcome -> String in
             var line = preview.withoutAnalysis[outcome.path].map { "• \(outcome.title) — 분석 없이(\($0))" }
                 ?? "• \(outcome.title) — 그리드·파형·오토게인까지"
+            if writesArtwork, artwork.contains(outcome.path) { line += " · 아트워크" }
             if let count = outcome.cuesWritten, count > 0 { line += " · 큐 \(count)개" }
             if let reason = outcome.cueReason { line += " · ⚠︎ 큐는 안 들어감(\(reason))" }
             return line
@@ -363,6 +369,9 @@ struct ReflectionCoordinator {
         if !reasons.isEmpty { body += ["", "넣지 않는 곡 \(reasons.count):"] + reasons }
         let bare = written.filter { preview.withoutAnalysis[$0.path] != nil }.count
         if bare > 0 { body += ["", "분석 없이 넣는 곡은 rekordbox에서 분석해야 파형·그리드가 생깁니다."] }
+        if !writesArtwork, written.contains(where: { artwork.contains($0.path) }) {
+            body += ["", Self.artworkClosedNote]
+        }
         return ReflectionPrompt(title: "\(written.count)곡을 rekordbox에 넣을까요?",
                                 text: "백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.",
                                 confirm: "rekordbox에 넣기", details: body)
@@ -374,7 +383,7 @@ struct ReflectionCoordinator {
         var body = written.map { "• \($0.title)" }
         if !blocked.isEmpty { body += ["", "빼지 않는 곡 \(blocked.count):"] + blocked.map { "• \($0.title): \($0.reason ?? "")" } }
         return ReflectionPrompt(title: "\(written.count)곡을 rekordbox에서 뺄까요?",
-                                text: "음원 파일은 지우지 않습니다. rekordbox의 큐·재생 목록 항목·재생 기록·분석 파일이 함께 사라집니다.\n백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.",
+                                text: "음원 파일은 지우지 않습니다. rekordbox의 큐·재생 목록 항목·재생 기록·분석 파일·아트워크가 함께 사라집니다.\n백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.",
                                 confirm: "rekordbox에서 빼기", critical: true, details: body)
     }
 
@@ -385,8 +394,8 @@ struct ReflectionCoordinator {
         if let tracks = backup.trackReport {
             let added = tracks.added.filter(\.written).count, deleted = tracks.deleted.filter(\.written).count
             lines.append("라이브러리 전체를 이 백업으로 되돌립니다. "
-                         + (added > 0 ? "넣었던 \(added)곡은 컬렉션에서 빠지고 DJCrate 추가 목록으로 돌아옵니다(분석 파일도 삭제). " : "")
-                         + (deleted > 0 ? "뺐던 \(deleted)곡은 큐·재생 목록·분석 파일과 함께 복원됩니다. " : ""))
+                         + (added > 0 ? "넣었던 \(added)곡은 컬렉션에서 빠지고 DJCrate 추가 목록으로 돌아옵니다(분석·아트워크 파일도 삭제). " : "")
+                         + (deleted > 0 ? "뺐던 \(deleted)곡은 큐·재생 목록·분석 파일·아트워크와 함께 복원됩니다. " : ""))
         } else {
             lines.append("라이브러리 전체를 이 백업으로 되돌립니다. 큐 초안도 DJCrate에 복원됩니다.")
         }

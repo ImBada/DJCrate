@@ -104,10 +104,12 @@ private struct TrackListView: NSViewRepresentable {
         scroll.hasHorizontalScroller = true
         scroll.autohidesScrollers = true
         context.coordinator.table = table
+        context.coordinator.updateCommentPreset(store.commentPreset)
         return scroll
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
+        context.coordinator.updateCommentPreset(store.commentPreset)
         context.coordinator.update(rows: store.displayRows, edited: store.editedUUIDs,
                                    selection: store.selection, sortOrder: store.sortOrder, snapshotURL: store.snapshotURL,
                                    previewRevision: store.previewRevision)
@@ -201,7 +203,7 @@ private struct TrackColumn {
 }
 
 @MainActor
-private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate {
+final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate {
     let store: LibraryStore
     weak var table: NSTableView?
     private var rows: [TrackRow] = []
@@ -209,6 +211,8 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
     private var edited: Set<String> = []
     private var snapshotURL: URL?
     private var previewRevision = 0
+    private var commentPreset: CommentPreset?
+    private var classHiddenWhenEnabled = false
     private var waveformMode = WaveformColorMode.threeBand
     private var previewCues: [String: [PreviewCueMark]] = [:]
     /// 표 → 스토어로 선택·정렬을 넘기는 중에는 스토어 → 표 동기화를 건너뛴다(되먹임 방지).
@@ -219,6 +223,21 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
     }
 
     // MARK: - 스토어 → 표
+
+    func updateCommentPreset(_ preset: CommentPreset) {
+        guard commentPreset != preset, let table,
+              let column = table.tableColumns.first(where: { $0.identifier.rawValue == "class" }) else { return }
+        // 강제로 숨긴 상태가 사용자가 고른 열 숨김 설정을 덮지 않게 따로 기억한다.
+        if commentPreset == nil {
+            classHiddenWhenEnabled = store.settings.defaults.object(forKey: SettingKeys.commentClassColumnHidden.name) as? Bool ?? column.isHidden
+        } else if commentPreset?.rule != nil {
+            classHiddenWhenEnabled = column.isHidden
+        }
+        store.settings.set(SettingKeys.commentClassColumnHidden, classHiddenWhenEnabled)
+        commentPreset = preset
+        column.isHidden = preset.rule == nil || classHiddenWhenEnabled
+        reloadVisible(table)
+    }
 
     func updateWaveformMode(_ mode: WaveformColorMode) {
         guard mode != waveformMode, let table else { return }
@@ -355,7 +374,7 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
         guard let table else { return [] }
         let clicked = table.clickedRow
         let indexes = clicked >= 0 && !table.selectedRowIndexes.contains(clicked) ? IndexSet(integer: clicked) : table.selectedRowIndexes
-        return indexes.compactMap { rows.indices.contains($0) ? rows[$0] : nil }
+        return store.uniqueTracks(indexes.compactMap { rows.indices.contains($0) ? rows[$0] : nil })
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -437,6 +456,7 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
         header.isEnabled = false
         menu.addItem(header)
         for spec in TrackColumn.all {
+            if spec.id == "class", commentPreset?.rule == nil { continue }
             guard let column = table.tableColumns.first(where: { $0.identifier.rawValue == spec.id }) else { continue }
             let title = spec.title.isEmpty ? "앨범 아트" : spec.title == "✎" ? "✎ 초안 표시" : spec.title == "#" ? "# 번호" : spec.title
             let item = NSMenuItem(title: title, action: #selector(toggleColumn(_:)), keyEquivalent: "")
@@ -456,11 +476,14 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
     @objc private func toggleColumn(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? String,
               let column = table?.tableColumns.first(where: { $0.identifier.rawValue == id }) else { return }
+        guard id != "class" || commentPreset?.rule != nil else { return }
         column.isHidden.toggle()
+        if id == "class" { store.settings.set(SettingKeys.commentClassColumnHidden, column.isHidden) }
     }
 
-    @objc private func showAllColumns() {
-        table?.tableColumns.forEach { $0.isHidden = false }
+    @objc func showAllColumns() {
+        table?.tableColumns.forEach { $0.isHidden = $0.identifier.rawValue == "class" && commentPreset?.rule == nil }
+        if commentPreset?.rule != nil { store.settings.set(SettingKeys.commentClassColumnHidden, false) }
     }
 
     func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
@@ -513,7 +536,7 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
 
     private func configure(_ cell: TextCell, column: String, row: TrackRow, index: Int) {
         switch column {
-        case "index": cell.set("\(index + 1)", color: .tertiaryLabelColor, digits: true)
+        case "index": cell.set("\(row.historyTrackNumber ?? (index + 1))", color: .tertiaryLabelColor, digits: true)
         case "title": cell.set(row.title, color: .labelColor)
         case "artist": cell.set(row.artist, color: .secondaryLabelColor)
         case "genre": cell.set(row.genre, color: .secondaryLabelColor)
@@ -522,9 +545,9 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
             if row.comment.isEmpty {
                 cell.set("—", color: .tertiaryLabelColor)
             } else {
-                cell.set(row.comment, color: row.commentClass == .convention ? .labelColor : .secondaryLabelColor)
+                cell.set(row.comment, color: row.commentEvaluation?.isMatch == true ? .labelColor : .secondaryLabelColor)
             }
-        case "class": cell.set(row.commentClassName, color: row.commentClass.nsTint)
+        case "class": cell.set(row.commentClassName, color: row.commentEvaluation?.tone.nsTint ?? .secondaryLabelColor)
         case "bpm": cell.set(row.bpmValue > 0 ? String(format: "%.0f", row.bpmValue) : "", color: .secondaryLabelColor, digits: true)
         case "key": cell.set(row.keyName, color: .secondaryLabelColor)
         case "length": cell.set(row.lengthText, color: .secondaryLabelColor, digits: true)
@@ -685,16 +708,16 @@ private final class EditedMarkCell: NSTableCellView {
     }
 }
 
-extension CommentClass {
+extension CommentEvaluation.Tone {
     var tint: Color { Color(nsColor: nsTint) }
 
     var nsTint: NSColor {
         switch self {
-        case .convention: UIColors.hot.nsColor
+        case .matched: UIColors.hot.nsColor
         case .empty: UIColors.warning.nsColor
-        case .legacy, .credit: UIColors.info.nsColor
+        case .info: UIColors.info.nsColor
         case .residue: UIColors.memory.nsColor
-        case .other: .secondaryLabelColor
+        case .secondary: .secondaryLabelColor
         }
     }
 }

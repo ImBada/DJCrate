@@ -14,8 +14,7 @@ struct TrackRow: Identifiable, Hashable, Sendable {
 
     let track: Track
     let cues: [Cue]
-    let commentClass: CommentClass
-    let parsed: ConventionComment?
+    private(set) var commentEvaluation: CommentEvaluation?
     let playCount: Int
     let cueState: CueState
     let manualCueCount: Int
@@ -25,7 +24,10 @@ struct TrackRow: Identifiable, Hashable, Sendable {
     /// rekordbox가 자동으로 만든 큐만 있는 경우의 수
     let autoCueCount: Int
 
-    var id: String { track.id }
+    /// 같은 곡을 다시 재생한 행도 따로 선택하고 원래 순번을 표시한다.
+    var historyEntry: RekordboxHistory.Entry?
+    var historyTrackNumber: Int? { historyEntry?.trackNumber }
+    var id: String { historyEntry.map { "history:\($0.id)" } ?? track.id }
     /// DJCrate에 추가했지만 아직 rekordbox 컬렉션에 없는 곡.
     var isStaged: Bool { track.id.hasPrefix("djc-") }
     /// rekordbox는 Spotify 곡의 제목·아티스트를 `$A7:v1:…`로 암호화해 저장한다.
@@ -33,7 +35,7 @@ struct TrackRow: Identifiable, Hashable, Sendable {
     var title: String { isEncrypted ? "🔒 Spotify 곡 (제목 암호화됨)" : track.title }
     var artist: String { isEncrypted ? "" : track.artist ?? "" }
     var comment: String { track.comment }
-    var commentClassName: String { commentClass.displayName }
+    var commentClassName: String { commentEvaluation?.displayName ?? "" }
     var importedOn: String { track.importedOn ?? "" }
     var cueStateName: String { cueState.rawValue }
     var bpmValue: Double { track.bpm ?? 0 }
@@ -57,16 +59,13 @@ struct TrackRow: Identifiable, Hashable, Sendable {
     /// 검색용 소문자 키(제목·아티스트·코멘트·장르). 로딩 때 한 번만 만든다.
     let searchKey: String
 
-    init(track: Track, cues: [Cue], playCount: Int, tempoChanges: [Double] = [], autoGain: RekordboxAutoGain? = nil) {
+    init(track: Track, cues: [Cue], playCount: Int, tempoChanges: [Double] = [], autoGain: RekordboxAutoGain? = nil, commentRule: (any CommentRule)? = nil) {
         self.track = track
         self.tempoChanges = tempoChanges
         self.autoGain = autoGain
         self.cues = cues.sorted { $0.inMsec < $1.inMsec }
         self.playCount = playCount
-        // 정규화는 한 번만 하고 분류·파싱이 같이 쓴다.
-        let normalized = CommentText.normalize(track.comment)
-        commentClass = CommentClassifier.classify(normalized: normalized)
-        parsed = commentClass == .convention ? ConventionParser.parse(normalized: normalized) : nil
+        commentEvaluation = commentRule?.evaluate(track.comment)
         let encrypted = track.title.hasPrefix("$A7:")
         searchKey = [encrypted ? "" : track.title, encrypted ? "" : (track.artist ?? ""), track.comment, track.genre ?? ""]
             .joined(separator: "\u{1F}").lowercased()
@@ -77,18 +76,8 @@ struct TrackRow: Identifiable, Hashable, Sendable {
         autoCueCount = cues.count - manual.count
         cueState = cues.isEmpty ? .none : (manual.isEmpty ? .autoOnly : .manual)
     }
-}
-
-extension CommentClass {
-    var displayName: String {
-        switch self {
-        case .convention: "규칙"
-        case .legacy: "구형"
-        case .residue: "잔재"
-        case .credit: "크레딧"
-        case .empty: "빈 값"
-        case .other: "기타"
-        }
+    mutating func applyCommentRule(_ rule: (any CommentRule)?) {
+        commentEvaluation = rule?.evaluate(track.comment)
     }
 }
 
@@ -107,7 +96,7 @@ extension LibraryFilter {
     }
 
     func includes(_ row: TrackRow) -> Bool {
-        includes(track: row.track, commentClass: row.commentClass, hasCues: !row.cues.isEmpty,
+        includes(track: row.track, comment: row.commentEvaluation, hasCues: !row.cues.isEmpty,
                  playCount: row.playCount, tempoChanges: row.tempoChanges)
     }
 }

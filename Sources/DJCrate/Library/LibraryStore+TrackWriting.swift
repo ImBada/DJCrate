@@ -6,7 +6,8 @@ import RekordboxKit
 
 /// rekordbox 컬렉션에 곡을 바로 넣고 뺀다(rekordbox를 켜지 않고). 흐름은 `ReflectionCoordinator`.
 /// 넣기: 추가한 곡의 태그 초안·그리드 초안·음량으로 곡 행과 분석 파일(파형·그리드·오토게인)을 만들고, 큐 초안도 같은 트랜잭션에서 쓴다.
-/// 빼기: 곡 행과 딸린 큐·재생 목록 항목·재생 기록·분석 파일을 지운다(음원 파일은 그대로).
+/// 음원에 아트워크가 있으면 아트워크 파일도 만든다(`RekordboxTrackWriter.writesArtwork`가 열렸을 때).
+/// 빼기: 곡 행과 딸린 큐·재생 목록 항목·재생 기록·분석 파일·아트워크 파일을 지운다(음원 파일은 그대로).
 /// 둘 다 쓰기 직전 백업을 떠서 "되돌리기"로 무를 수 있다.
 extension LibraryStore {
     struct TrackAddPreview {
