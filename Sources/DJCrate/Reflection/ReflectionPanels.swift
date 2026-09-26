@@ -12,13 +12,7 @@ enum ReflectionPanels {
         let plans = store.reflectionPlans(for: rows)
         let eligible = plans.filter(\.isEligible), blocked = plans.filter { !$0.blockers.isEmpty }
         guard !eligible.isEmpty else {
-            let alert = NSAlert()
-            alert.messageText = "반영할 수 있는 곡이 없습니다"
-            alert.informativeText = blocked.isEmpty
-                ? "고른 곡에 rekordbox와 다른 큐·그리드 초안이 없습니다."
-                : blocked.prefix(5).map { "• \($0.title): \($0.blockers.joined(separator: " / "))" }.joined(separator: "\n")
-            alert.addButton(withTitle: "확인")
-            alert.runModal()
+            _ = AlertPrompter().show(blockedPrompt(blocked))
             return
         }
         do {
@@ -34,5 +28,11 @@ enum ReflectionPanels {
         }
         store.reflectionMessage = AppMessage(kind: blocked.isEmpty ? .success : .warning, text: text)
         RekordboxLink.showSetupIfNeeded()
+    }
+
+    static func blockedPrompt(_ blocked: [Reflection.Plan]) -> ReflectionPrompt {
+        ReflectionPrompt(title: "반영할 수 있는 곡이 없습니다",
+                         text: blocked.isEmpty ? "고른 곡에 rekordbox와 다른 큐·그리드 초안이 없습니다." : "",
+                         details: blocked.map { "• \($0.title): \($0.blockers.joined(separator: " / "))" })
     }
 }

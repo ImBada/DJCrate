@@ -119,7 +119,7 @@ struct ReflectionCoordinatorTests {
         host.preview = .success(Self.preview(cues: [Self.outcome("a", .blocked, reason: "VBR MP3")]))
         await coordinator().write(rows: [Self.row("a")])
         #expect(prompter.shown.first?.title == "rekordbox에 쓸 수 있는 초안이 없습니다")
-        #expect(prompter.shown.first?.text.contains("VBR MP3") == true)
+        #expect(prompter.shown.first?.details.contains("• 곡 a: VBR MP3") == true)
         #expect(host.wrote == nil && host.locks == [true, false] && host.writeStage == nil)
     }
 
@@ -224,7 +224,7 @@ struct ReflectionCoordinatorTests {
                                    gains: [Self.outcome("d", .written, added: -250)])
         let prompt = ReflectionCoordinator.confirmation(preview.report)
         #expect(prompt.title == "rekordbox에 큐 1곡 · 그리드 1곡 · 게인 1곡을 씁니다")
-        let lines = prompt.text.components(separatedBy: "\n")
+        let lines = prompt.details
         #expect(lines.contains("• 곡 a — 큐 추가 2 · 삭제 0 · ⚠︎ 그리드는 안 들어감"))
         #expect(lines.contains("• 곡 g — 그리드(박 64개)"))
         #expect(lines.contains("• 곡 d — 오토게인 -2.5 dB"))
@@ -237,11 +237,11 @@ struct ReflectionCoordinatorTests {
                                               Self.outcome("b", .blocked, reason: "ALAC")])
         let prompt = ReflectionCoordinator.confirmation(preview.report)
         #expect(prompt.title == "rekordbox에 큐 2곡 · 분석 2곡을 씁니다")
-        let lines = prompt.text.components(separatedBy: "\n")
+        let lines = prompt.details
         #expect(lines.contains("• 곡 a — 큐 추가 1 · 삭제 0 · 분석 파일 붙이기"))
         #expect(lines.contains("• 곡 b — 큐 추가 3 · 삭제 0 · ⚠︎ 그리드는 안 들어감"))
         #expect(lines.contains("• 곡 n — 분석 파일 붙이기(파형·그리드 박 96개·오토게인)"))
-        #expect(lines.contains("• 곡 b: ALAC") && prompt.text.contains("키·프레이즈·보컬 분석은 없습니다"))
+        #expect(lines.contains("• 곡 b: ALAC") && lines.contains { $0.contains("키·프레이즈·보컬 분석은 없습니다") })
     }
 
     @Test func 실패와_경고_토스트는_시간이_지나도_닫히지_않는다() {
@@ -292,7 +292,7 @@ struct ReflectionCoordinatorTests {
         await coordinator().addTracks(rows: ["djc-a", "djc-b", "djc-c"].map(Self.row))
         let prompt = try? #require(prompter.shown.first)
         #expect(prompt?.title == "rekordbox 컬렉션에 2곡을 넣습니다" && prompt?.confirm == "rekordbox에 넣기" && prompt?.critical == false)
-        let lines = prompt?.text.components(separatedBy: "\n") ?? []
+        let lines = prompt?.details ?? []
         #expect(lines.contains("• 곡 a — 그리드·파형·오토게인까지 · 큐 2개") && lines.contains("• 곡 b — 분석 없이(ALAC) · ⚠︎ 큐는 안 들어감(메모리 큐가 11개가 됩니다)"))
         #expect(lines.contains("넣지 않는 곡 1:") && lines.contains("• 곡 c: 이미 rekordbox 컬렉션에 있는 파일입니다"))
         #expect(host.added == ["a", "b"] && host.locks == [true, false])
@@ -306,7 +306,7 @@ struct ReflectionCoordinatorTests {
         await coordinator().deleteTracks(rows: [Self.row("a"), Self.row("b")])
         let prompt = try? #require(prompter.shown.first)
         #expect(prompt?.critical == true && prompt?.title == "rekordbox 컬렉션에서 1곡을 뺍니다" && prompt?.confirm == "rekordbox에서 빼기")
-        #expect(prompt?.text.contains("음원 파일은 지우지 않습니다") == true && prompt?.text.contains("djmdSongMyTag") == true)
+        #expect(prompt?.text.contains("음원 파일은 지우지 않습니다") == true && prompt?.details.contains { $0.contains("djmdSongMyTag") } == true)
         #expect(host.deleted == nil && !host.isWritingRekordbox)
         prompter.answer = true
         await coordinator().deleteTracks(rows: [Self.row("a"), Self.row("b")])
