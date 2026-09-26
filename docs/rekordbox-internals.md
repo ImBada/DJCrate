@@ -215,7 +215,7 @@ rekordbox 7.2.18이 하는 것:
 - `contentFile` 행 4개(.3EX·.2EX·.DAT·.EXT, 곡 넣기와 같은 칸), `djmdMixerParam` 행 1개(피크 1.0).
 - 변경 번호: 오토게인 행 → .3EX 행 → 곡 행 → .2EX → .DAT → .EXT. rekordbox는 두 번에 나눠 쓴다(오토게인·.3EX·.DAT 행을 먼저 만들고 몇 분 뒤 곡 행·나머지 파일 행, .DAT 행은 그때 다시 고침). 파일 행 순서 .2EX → .DAT → .EXT는 O-Ku-Ri-Mo-No Sunday!·ヴァンパイア에서도 같았다.
 
-**DJCrate가 쓰는 것**(골든 테스트 `RekordboxAnalysisAttachTests`: 같은 음원·그리드·음량이면 곡 넣기 결과와 칸·바이트까지 같고, 다른 것은 위 실험의 카운터·순서뿐):
+**DJCrate가 쓰는 것**(골든 테스트 `RekordboxAnalysisAttachTests`: 같은 음원·그리드·음량이면 곡 넣기 결과와 칸·바이트까지 같고, 변경 번호 순서는 위 실험을 따른다. 첫 BPM/Grid 카운터는 두 경로 모두 '1'·'1'):
 - 분석 파일 `.DAT`·`.EXT`·`.2EX`를 곡 UUID 폴더(`/PIONEER/USBANLZ/<UUID 앞 3자>/<나머지>`)에 새로 만든다. PPTH의 파일 이름은 `FileNameL`.
 - `djmdContent`: BPM(첫 구간 ×100)·Length(AVFoundation 길이 버림)·BitRate·BitDepth·SampleRate·AnalysisDataPath·`Analysed` 105·`ContentLink` 0x2C060E·`AnalysisUpdated` '1'·`TrackInfoUpdated` '1'(첫 BPM/Grid), 상태 256→257, 변경 번호, `updated_at`. `KeyID`는 건드리지 않는다.
 - `contentFile` 행 3개와 `djmdMixerParam` 행(오토게인, −10 LUFS 목표). 변경 번호는 오토게인 행 → 곡 행 → .2EX → .DAT → .EXT(.3EX는 만들지 못한다).
