@@ -11,9 +11,8 @@ import Foundation
 /// - 음원에 그림이 있으면 아트워크 파일 셋(`TrackArtwork`)·`ImagePath`·`artwork.jpg` 파일 행도 넣는다(#87). rekordbox는 분석 전 곡을
 ///   분석할 때 아트워크를 뽑는다(2026-09-26 실험 "DJC 실험 아트": 자동 분석을 끄고 넣은 곡을 다음 세션의 자동 분석이 분석).
 ///   이미 아트워크가 있는 곡은 rekordbox가 다시 뽑는지 확인하지 않아 그대로 둔다.
-/// 곡 넣기와 다른 것은 rekordbox 7.2.18이 기존 분석 전 곡을 분석했을 때를 따른다(2026-09-26 실험, The Asterisk War (edit)
-/// XML로 들어온 곡을 '트랙 분석', 보통 모드·BPM/그리드·키만):
-/// - `AnalysisUpdated` NULL → '2', `TrackInfoUpdated` NULL → '1'(글자). 카운터가 이미 있는 곡은 얼마나 느는지 몰라 막는다.
+/// 카운터는 곡 넣기와 같은 첫 BPM/Grid 분석의 '1'·'1'(글자, 2026-09-27 #95 합성 곡 실험). 기존 카운터가 있는 곡은 계속 막는다.
+/// 기존 곡의 변경 번호 순서는 rekordbox 7.2.18이 XML로 들어온 분석 전 곡을 분석했을 때를 따른다(2026-09-26 #6 실험):
 /// - 변경 번호: (아트워크 파일 행) → 오토게인 행 → 곡 행 → 파일 행 .2EX·.DAT·.EXT(rekordbox는 사이에 .3EX 행도 넣는다. DJCrate는 만들지 못한다).
 ///   아트워크 파일 행이 오토게인 행 앞인 것은 "DJC 실험 아트"에서, 나머지는 The Asterisk War (edit)에서 확인했다.
 /// 같은 쓰기의 큐·게인 초안은 분석을 붙인 뒤에 쓴다(rekordbox에서 분석한 곡을 고치는 순서).
@@ -25,8 +24,8 @@ extension RekordboxWriter {
     /// 규칙이 맞지 않는 것이 드러나면 여기서 닫는다.
     public static let attachesAnalysis = true
 
-    /// 기존 분석 전 곡을 rekordbox가 분석하면 적는 카운터(글자, 2026-09-26 실험)
-    static let attachedCounters: [String: CipherDatabase.Value] = ["AnalysisUpdated": .text("2"), "TrackInfoUpdated": .text("1")]
+    /// 첫 BPM/Grid 분석 카운터(글자, 2026-09-27 합성 곡 auto/manual-grid 사본 재현)
+    static let attachedCounters: [String: CipherDatabase.Value] = ["AnalysisUpdated": .text("1"), "TrackInfoUpdated": .text("1")]
 
     /// 분석을 붙일 곡의 음원 길이·음량(앱이 AVFoundation·음량 분석으로 잰다)
     public struct AnalysisInput: Sendable, Equatable {

@@ -283,7 +283,7 @@ public enum RekordboxTrackWriter {
             "BPM": .int(Int((first.bpm * 100).rounded())), "Length": .int(Int(duration.rounded(.down))),
             "BitRate": .int(facts.bitRate), "BitDepth": .int(facts.bitDepth), "SampleRate": .int(facts.sampleRate),
             "AnalysisDataPath": .text(datPath), "Analysed": .int(105), "ContentLink": .int(analysedContentLink),
-            "AnalysisUpdated": .text("3"), "TrackInfoUpdated": .text("2"),
+            "AnalysisUpdated": .text("1"), "TrackInfoUpdated": .text("1"),
         ]
         // 오토게인: rekordbox는 약 −10 LUFS에 맞춘다(라이브러리 비교 2026-09-26)
         let gainDB = analysis.loudness.map { RekordboxAutoGain.targetLoudness - $0 } ?? 0

@@ -38,7 +38,7 @@ rekordbox 7 라이브러리를 관리하는 macOS 앱. 큐·그리드·오토게
 
 ## 한계
 
-- 분석 파일까지 만들어 넣을 수 있는 형식은 MP3(CBR·LAME VBR)·AAC·WAV·FLAC이다. ALAC과 LAME이 아닌 VBR MP3는 분석 없이 넣는다.
+- 분석 파일까지 만들어 넣을 수 있는 형식은 MP3(CBR·LAME VBR·44.1kHz ffmpeg Xing VBR)·AAC·WAV·FLAC·ALAC(16/24비트·44.1/48kHz 스테레오)이다. 그 밖의 ALAC·비LAME VBR은 분석 없이 넣는다.
 - DJCrate가 만드는 분석 파일에는 키·프레이즈·보컬 분석이 없다. 필요하면 rekordbox에서 분석한다.
 - 템포 구간이 여러 개인 곡(변속 곡)의 BPM 변경은 쓰지 않는다. 구간 이동은 된다.
 - 스트리밍 곡은 파형·재생·분석을 하지 않는다.
