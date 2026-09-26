@@ -65,6 +65,9 @@ struct AppCommands: Commands {
                     if group == .cues { deckButton(.deleteMemoryCue) }
                 }
             }
+            Divider()
+            Button("곡 편집…") { TrackEditWindow.shared.open() }
+                .disabled(context.map { !TrackEditModel.canOpen($0.deck) } ?? true)
         }
         CommandGroup(replacing: .help) {
             Button("DJCrate 단축키") { openWindow(id: "shortcuts") }
