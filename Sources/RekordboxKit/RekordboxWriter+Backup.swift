@@ -93,7 +93,7 @@ extension RekordboxWriter {
                                backups: URL, guard writeGuard: RekordboxWriteGuard = .system) throws -> URL {
         if writeGuard.isLive(database) {
             guard !writeGuard.isRekordboxRunning() else {
-                throw DJCError.writeRefused("rekordbox가 켜져 있습니다. rekordbox를 완전히 종료한 뒤 되돌리세요")
+                throw DJCError.writeRefused(String(ui: "rekordbox가 켜져 있습니다. rekordbox를 완전히 종료한 뒤 되돌리세요"))
             }
         }
         // 백업이 멀쩡한지 먼저 본다.

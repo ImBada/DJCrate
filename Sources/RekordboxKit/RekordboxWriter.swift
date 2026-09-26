@@ -134,12 +134,12 @@ public enum RekordboxWriter {
                 }
                 guard let info else {
                     gridOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: draft.trackUUID, status: .blocked,
-                                                reason: "rekordbox 컬렉션에서 곡을 찾지 못했습니다", removed: 0, added: 0))
+                                                reason: String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했습니다"), removed: 0, added: 0))
                     continue
                 }
                 guard let gridRoot else {
                     gridOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: info.title, status: .blocked,
-                                                reason: "사본 DB에는 분석 파일 경로를 따로 주어야 그리드를 씁니다", removed: 0, added: 0))
+                                                reason: String(ui: "사본 DB에는 분석 파일 경로를 따로 주어야 그리드를 씁니다"), removed: 0, added: 0))
                     continue
                 }
                 if needsAnalysis(info.anlz) {

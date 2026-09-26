@@ -27,12 +27,12 @@ public struct AppleMusicLibrary: Sendable {
 
         public var message: String {
             switch self {
-            case .protectedContent: String(localized: "보호된 곡은 가져올 수 없습니다. DRM 없는 로컬 음원을 준비하세요.")
-            case .streaming: String(localized: "스트리밍 곡은 가져올 수 없습니다. 로컬 음원을 준비하세요.")
-            case .cloudOnly: String(localized: "로컬 파일 위치가 없습니다. 음원을 내려받고 XML을 다시 내보내세요.")
-            case .invalidLocation: String(localized: "파일 위치를 읽을 수 없습니다. 이 Mac에서 XML을 다시 내보내세요.")
-            case .unavailableFile: String(localized: "파일을 읽을 수 없습니다. 드라이브 연결과 파일 접근 권한을 확인하세요.")
-            case .unsupportedFormat: String(localized: "지원하지 않는 형식입니다. MP3·M4A·WAV·AIFF·FLAC 등의 음원을 준비하세요.")
+            case .protectedContent: String(ui: "보호된 곡은 가져올 수 없습니다. DRM 없는 로컬 음원을 준비하세요.")
+            case .streaming: String(ui: "스트리밍 곡은 가져올 수 없습니다. 로컬 음원을 준비하세요.")
+            case .cloudOnly: String(ui: "로컬 파일 위치가 없습니다. 음원을 내려받고 XML을 다시 내보내세요.")
+            case .invalidLocation: String(ui: "파일 위치를 읽을 수 없습니다. 이 Mac에서 XML을 다시 내보내세요.")
+            case .unavailableFile: String(ui: "파일을 읽을 수 없습니다. 드라이브 연결과 파일 접근 권한을 확인하세요.")
+            case .unsupportedFormat: String(ui: "지원하지 않는 형식입니다. MP3·M4A·WAV·AIFF·FLAC 등의 음원을 준비하세요.")
             }
         }
     }
@@ -40,7 +40,7 @@ public struct AppleMusicLibrary: Sendable {
     public enum ParseError: Error, LocalizedError {
         case invalidLibrary
         public var errorDescription: String? {
-            String(localized: "보관함 XML을 읽을 수 없습니다. Music의 파일 › 보관함 › 보관함 내보내기에서 만든 XML을 고르세요.")
+            String(ui: "보관함 XML을 읽을 수 없습니다. Music의 파일 › 보관함 › 보관함 내보내기에서 만든 XML을 고르세요.")
         }
     }
 
@@ -58,7 +58,7 @@ public struct AppleMusicLibrary: Sendable {
             let location = raw["Location"] as? String ?? ""
             let url = location.isEmpty ? nil : URL(string: location)
             let reason = exclusion(raw, url: url, location: location, isReadableFile: isReadableFile)
-            tracks.append(Track(id: id, title: raw["Name"] as? String ?? String(localized: "제목 없음"),
+            tracks.append(Track(id: id, title: raw["Name"] as? String ?? String(ui: "제목 없음"),
                                 artist: raw["Artist"] as? String ?? "", fileURL: url?.isFileURL == true ? url : nil,
                                 exclusion: reason))
         }
@@ -76,7 +76,7 @@ public struct AppleMusicLibrary: Sendable {
                 guard let id = item["Track ID"] as? Int, id > 0 else { throw ParseError.invalidLibrary }
                 return id
             }
-            playlists.append(Playlist(id: id, name: raw["Name"] as? String ?? String(localized: "이름 없는 재생 목록"),
+            playlists.append(Playlist(id: id, name: raw["Name"] as? String ?? String(ui: "이름 없는 재생 목록"),
                                       parentID: raw["Parent Persistent ID"] as? String, trackIDs: ids))
         }
         return Self(id: root["Library Persistent ID"] as? String, tracks: tracks.sorted { $0.id < $1.id }, playlists: playlists)

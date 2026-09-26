@@ -106,7 +106,7 @@ public enum RekordboxTrackWriter {
                 prepared[plan.path] = try prepare(path: plan.path, fileName: plan.fileName, duration: plan.duration, uuid: uuid,
                                                   analysis: analysis, share: share)
             } catch {
-                prepared[plan.path] = PreparedAnalysis(uuid: uuid, blocked: "분석 파일을 만들지 못했습니다: \(error)")
+                prepared[plan.path] = PreparedAnalysis(uuid: uuid, blocked: String(ui: "분석 파일을 만들지 못했습니다: \(String(describing: error))"))
             }
             // 아트워크는 분석과 함께만 넣는다(rekordbox는 분석할 때 뽑고, 자동 분석을 끄고 넣으면 만들지 않는다)
             if writesArtwork, prepared[plan.path]?.blocked == nil, let share, let image = plan.artwork, let files = TrackArtwork.make(image) {
@@ -125,9 +125,9 @@ public enum RekordboxTrackWriter {
             for plan in plans {
                 try db.execute("SAVEPOINT djc_add")
                 do {
-                    guard FileManager.default.fileExists(atPath: plan.path) else { throw Blocked("음원 파일이 없습니다") }
+                    guard FileManager.default.fileExists(atPath: plan.path) else { throw Blocked(String(ui: "음원 파일이 없습니다")) }
                     guard try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdContent WHERE FolderPath = ? AND rb_local_deleted = 0",
-                                                     [.text(plan.path)]) == 0 else { throw Blocked("이미 rekordbox 컬렉션에 있는 파일입니다") }
+                                                     [.text(plan.path)]) == 0 else { throw Blocked(String(ui: "이미 rekordbox 컬렉션에 있는 파일입니다")) }
                     let artistID = try plan.artist.map { try findOrCreate(db, table: "djmdArtist", name: $0, usn: &usn, stamp: stamp) }
                     let albumArtistID = try plan.albumArtist.map { try findOrCreate(db, table: "djmdArtist", name: $0, usn: &usn, stamp: stamp) }
                     let albumID = try plan.album.map { try findOrCreateAlbum(db, name: $0, albumArtistID: albumArtistID, usn: &usn, stamp: stamp) }
@@ -265,11 +265,11 @@ public enum RekordboxTrackWriter {
     static func prepare(path: String, fileName: String, duration: Double, uuid: String, analysis: Analysis,
                         share: URL?) throws -> PreparedAnalysis {
         var ready = PreparedAnalysis(uuid: uuid, share: share)
-        guard let share else { ready.blocked = "사본 DB에는 분석 파일 뿌리(share)를 주어야 분석을 붙입니다"; return ready }
+        guard let share else { ready.blocked = String(ui: "사본 DB에는 분석 파일 뿌리(share)를 주어야 분석을 붙입니다"); return ready }
         let url = URL(filePath: path)
         let facts = AudioFacts.read(url: url)
         if let reason = facts.unsupported { ready.blocked = reason; return ready }
-        guard let first = analysis.segments.first, first.bpm > 0 else { ready.blocked = "그리드가 없습니다"; return ready }
+        guard let first = analysis.segments.first, first.bpm > 0 else { ready.blocked = String(ui: "그리드가 없습니다"); return ready }
         let waveforms = try RekordboxWaveforms.analyze(url: url)
         let waveformDuration = Double(waveforms.columns) / RekordboxWaveforms.columnsPerSecond
         let beats = RekordboxGridWriter.beats(segments: analysis.segments, duration: waveformDuration)
@@ -381,7 +381,7 @@ public enum RekordboxTrackWriter {
             GROUP BY MasterDBID, DeviceID ORDER BY n DESC LIMIT 1
             """) { result = ($0.string(0) ?? "", $0.string(1) ?? "") }
         guard let result, !result.0.isEmpty else {
-            throw DJCError.writeRefused("컬렉션에 곡이 하나도 없어 이 라이브러리의 기기 정보를 알 수 없습니다. rekordbox에서 곡을 하나 넣은 뒤 다시 시도하세요")
+            throw DJCError.writeRefused(String(ui: "컬렉션에 곡이 하나도 없어 이 라이브러리의 기기 정보를 알 수 없습니다. rekordbox에서 곡을 하나 넣은 뒤 다시 시도하세요"))
         }
         return result
     }
@@ -444,10 +444,10 @@ public enum RekordboxTrackWriter {
                         """, [.text(id)]) { r in
                         found = (r.string(0) ?? "", r.string(1) ?? "", [2, 3, 4, 5].compactMap { r.string(Int32($0)) }, r.string(6), r.string(7), r.string(8))
                     }
-                    guard let track = found else { throw Blocked("rekordbox 컬렉션에서 곡을 찾지 못했습니다") }
+                    guard let track = found else { throw Blocked(String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했습니다")) }
                     title = track.title
                     for table in unverifiedReferenceTables where try RekordboxWriter.scalar(db, "SELECT count(*) FROM \(table) WHERE ContentID = ?", [.text(id)]) ?? 0 > 0 {
-                        throw Blocked("\(table)에도 들어 있는 곡이라 아직 지우지 않습니다(rekordbox에서 지우세요)")
+                        throw Blocked(String(ui: "\(table)에도 들어 있는 곡이라 아직 지우지 않습니다(rekordbox에서 지우세요)"))
                     }
                     usn += 1
                     for (table, list) in [("djmdSongPlaylist", "PlaylistID"), ("djmdSongHistory", "HistoryID")] {
@@ -463,7 +463,7 @@ public enum RekordboxTrackWriter {
                     for table in ["djmdCue", "contentCue", "contentFile", "djmdMixerParam"] {
                         _ = try db.run("DELETE FROM \(table) WHERE ContentID = ?", [.text(id)])
                     }
-                    guard try db.run("DELETE FROM djmdContent WHERE ID = ?", [.text(id)]) == 1 else { throw Blocked("곡 행을 지우지 못했습니다") }
+                    guard try db.run("DELETE FROM djmdContent WHERE ID = ?", [.text(id)]) == 1 else { throw Blocked(String(ui: "곡 행을 지우지 못했습니다")) }
                     // 그 곡만 쓰던 앨범·아티스트
                     if let album = track.album, try referenceCount(db, album: album) == 0 {
                         var albumArtist: String?
