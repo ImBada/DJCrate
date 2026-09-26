@@ -189,7 +189,7 @@ extension RekordboxWriter {
     }
 
     /// 만든 분석·아트워크 파일을 지우고, 비게 된 `USBANLZ`·`Artwork` 아래 `<3자>/<나머지>` 폴더도 지운다.
-    /// 분석 폴더는 rekordbox가 곡을 지울 때처럼, 아트워크 폴더는 넣기 전 모양으로(곡 빼기는 rekordbox처럼 아트워크 폴더를 남긴다).
+    /// 쓰기 실패 때 이번 작업이 만든 파일만 지워 넣기 전 모양으로 돌린다.
     static func removeAnalysisFiles(_ created: [URL]) throws {
         let fm = FileManager.default
         let roots = ["USBANLZ", "Artwork"]

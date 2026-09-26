@@ -103,7 +103,7 @@ extension RekordboxWriter {
     /// 버전·DB 구조는 보지 않는다(되돌리기는 DJCrate가 쓴 것을 무르는 비상구라 막지 않는다). rekordbox 실행만 막는다.
     @discardableResult
     public static func restore(_ backup: URL, to database: URL = liveDatabase, now: Date = .now,
-                               backups: URL, guard writeGuard: RekordboxWriteGuard = .system) throws -> URL {
+                               backups: URL, guard writeGuard: RekordboxWriteGuard = .system, shareRoot: URL? = nil) throws -> URL {
         if writeGuard.isLive(database) {
             guard !writeGuard.isRekordboxRunning() else {
                 throw DJCError.writeRefused(String(ui: "rekordbox가 켜져 있습니다. rekordbox를 완전히 종료한 뒤 되돌리세요"))
@@ -112,29 +112,32 @@ extension RekordboxWriter {
         // 백업이 멀쩡한지 먼저 본다.
         try checkIntegrity(of: backup.appending(path: "master.db"))
         let saved = try makeBackup(of: database, in: backups, now: now, label: "before-restore")
+        let share = shareRoot ?? (writeGuard.isLive(database) ? RekordboxShare.directory : database.deletingLastPathComponent().appending(path: "share"))
         try restoreFiles(from: backup, to: database)
-        try restoreAnalysis(from: backup, saveCurrentTo: saved)
-        try removeCreatedFiles(of: backup, saveTo: saved)
+        try restoreAnalysis(from: backup, saveCurrentTo: saved, shareRoot: share)
+        try removeCreatedFiles(of: backup, saveTo: saved, shareRoot: share)
         try checkIntegrity(of: database)
         return saved
     }
 
     /// 곡을 넣거나 분석을 붙이며 만든 분석 파일을 지운다(빈 분석 폴더도). 지우기 전 파일은 `saveTo/anlz`에 두어 그 백업으로 다시 살릴 수 있다.
-    static func removeCreatedFiles(of backup: URL, saveTo saved: URL) throws {
+    static func removeCreatedFiles(of backup: URL, saveTo saved: URL, shareRoot: URL) throws {
         let created = (RekordboxTrackWriter.report(in: backup)?.createdFiles ?? []) + (contents(of: backup).report?.createdFiles ?? [])
         guard !created.isEmpty else { return }
+        let allowed = try restorableFiles(created, database: saved.appending(path: "master.db"), shareRoot: shareRoot)
+        if allowed.count != Set(created).count { try markFileWarning(in: saved) }
         let fm = FileManager.default
         let folder = saved.appending(path: "anlz")
         try fm.createDirectory(at: folder, withIntermediateDirectories: true)
         let manifestURL = folder.appending(path: "manifest.json")
         var manifest = (try? Data(contentsOf: manifestURL)).flatMap { try? JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
-        for path in created where fm.fileExists(atPath: path) {
+        for path in created where allowed.contains(path) && fm.fileExists(atPath: path) {
             let name = "created-\(manifest.count).\(URL(filePath: path).pathExtension)"
             try fm.copyItem(at: URL(filePath: path), to: folder.appending(path: name))
             manifest[name] = path
         }
         try JSONEncoder().encode(manifest).write(to: manifestURL)
-        try? removeAnalysisFiles(created.map { URL(filePath: $0) })
+        try removeOwnedFiles(allowed.filter { fm.fileExists(atPath: $0) }.map { URL(filePath: $0) })
     }
 
     /// 분석 파일 원본을 백업 폴더 `anlz/`에 둔다(원래 경로는 manifest.json).
@@ -156,10 +159,17 @@ extension RekordboxWriter {
     }
 
     /// 백업의 분석 파일을 원래 자리로 되돌린다. 되돌리기 전 현재 파일은 `saveCurrentTo`에 둔다.
-    static func restoreAnalysis(from backup: URL, saveCurrentTo: URL?) throws {
+    static func restoreAnalysis(from backup: URL, saveCurrentTo: URL?, shareRoot: URL) throws {
         let folder = backup.appending(path: "anlz")
         guard let data = try? Data(contentsOf: folder.appending(path: "manifest.json")),
-              let manifest = try? JSONDecoder().decode([String: String].self, from: data) else { return }
+              let all = try? JSONDecoder().decode([String: String].self, from: data) else { return }
+        let allowed = try restorableFiles(Array(all.values), database: backup.appending(path: "master.db"), shareRoot: shareRoot)
+        let manifest = all.filter { name, path in
+            let source = folder.appending(path: name)
+            return allowed.contains(path) && source.lastPathComponent == name
+                && source.resolvingSymlinksInPath().path == source.path
+        }
+        if manifest.count != all.count { try markFileWarning(in: saveCurrentTo ?? backup) }
         if let saveCurrentTo {
             let current = saveCurrentTo.appending(path: "anlz")
             try FileManager.default.createDirectory(at: current, withIntermediateDirectories: true)

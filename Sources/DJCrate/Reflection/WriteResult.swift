@@ -86,6 +86,7 @@ struct WriteResult: Codable, Equatable {
                 case .written:
                     count += 1
                     lines.append("• \(outcome.title) — " + part.written)
+                    if let reason = outcome.reason { blocked = true; lines.append(reason) }
                 case .blocked:
                     blocked = true
                     lines.append("• \(outcome.title) — " + part.blocked(outcome.reason ?? String(ui: "이유 없음")))
@@ -117,6 +118,7 @@ struct WriteResult: Codable, Equatable {
             var parts: [String] = []
             if outcome.written {
                 parts.append(adding ? String(ui: "넣기 완료") : String(ui: "빼기 완료"))
+                if let reason = outcome.reason { warning = true; parts.append(reason) }
                 if adding, let reason = withoutAnalysis[outcome.path] {
                     warning = true
                     parts.append(String(ui: "분석 없이 넣음(\(reason)): rekordbox에서 분석하세요"))
@@ -149,7 +151,9 @@ struct WriteResult: Codable, Equatable {
         var lines = [String(ui: "rekordbox 라이브러리 전체를 선택한 백업의 쓰기 전 상태로 되돌렸습니다."),
                      String(ui: "그때 쓴 초안과 추가 목록도 복원했습니다. 되돌리기 직전 상태는 아래 두 번째 백업에 남아 있습니다.")]
         lines += titles.sorted().map { "• \($0)" }
-        return Self(kind: .success, title: String(ui: "rekordbox를 쓰기 전으로 되돌렸습니다"), text: lines.joined(separator: "\n"), backups: [backup.url, saved])
+        let fileWarning = RekordboxWriter.fileWarning(in: saved)
+        if let fileWarning { lines.append(fileWarning) }
+        return Self(kind: fileWarning == nil ? .success : .warning, title: String(ui: "rekordbox를 쓰기 전으로 되돌렸습니다"), text: lines.joined(separator: "\n"), backups: [backup.url, saved])
     }
 }
 

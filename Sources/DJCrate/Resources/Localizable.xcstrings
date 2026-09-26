@@ -11975,22 +11975,6 @@
         }
       }
     },
-    "분석 파일 경로가 안전하지 않습니다. rekordbox에서 분석 파일을 다시 만든 뒤 합치세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The analysis file path is unsafe. Rebuild the analysis files in rekordbox before merging."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解析ファイルのパスが安全ではありません。rekordboxで解析ファイルを作り直してから統合してください。"
-          }
-        }
-      }
-    },
     "분석 파일 기록이 여럿입니다" : {
       "localizations" : {
         "en" : {
@@ -12127,22 +12111,6 @@
         }
       }
     },
-    "분석 파일 폴더가 연결되었거나 다른 곡과 공유됩니다. rekordbox에서 직접 정리하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The analysis folder is linked or shared with another track. Organize it in rekordbox."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解析ファイルのフォルダがリンクされているか、別の曲と共有されています。rekordboxで直接整理してください。"
-          }
-        }
-      }
-    },
     "분석 파일: %@" : {
       "localizations" : {
         "en" : {
@@ -12219,6 +12187,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解析ファイルを読み込めませんでした"
+          }
+        }
+      }
+    },
+    "분석 파일을 지우지 않음(경로가 예상과 다름)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analysis files left in place (unexpected path)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解析ファイルは削除しませんでした（想定と異なるパス）"
           }
         }
       }

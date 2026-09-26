@@ -8,6 +8,21 @@ import Testing
 /// 목록: 2026-09-26~27 rekordbox 7.2.18, 합성 "DJC 실험곡 1~5"의 끝에 넣기·순서 바꾸기 규칙.
 @Suite("중복 곡 합치기 쓰기")
 struct DuplicateMergeWriterTests {
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["DJC_MERGE_FIXTURE"] != nil))
+    func 합성_화면_확인용_사본() throws {
+        guard let path = ProcessInfo.processInfo.environment["DJC_MERGE_FIXTURE"] else { return }
+        let fixture = try fixture()
+        let root = URL(filePath: path)
+        try fixture.insert("djmdArtist", ["ID": .text("1"), "Name": .text("합성 아티스트"), "UUID": .text("artist-1"), "rb_local_deleted": .int(0)])
+        let db = try fixture.open()
+        try db.run("UPDATE djmdContent SET ArtistID = '1', Title = '합성 중복 곡' WHERE ID IN ('100', '200')", [])
+        for id in ["100", "200", "300"] {
+            try db.run("UPDATE djmdContent SET FolderPath = ? WHERE ID = ?", [.text(root.appending(path: "audio/\(id).wav").path), .text(id)])
+        }
+        db.close()
+        try FileManager.default.copyItem(at: fixture.root, to: root)
+    }
+
     func fixture() throws -> RekordboxFixture {
         let fixture = try RekordboxFixture()
         for id in ["100", "200", "300"] {
@@ -91,7 +106,7 @@ struct DuplicateMergeWriterTests {
 
     @Test func 분석파일도_함께_백업하고_삭제와_복원을_검증한다() throws {
         let fixture = try fixture()
-        let path = "/PIONEER/USBANLZ/aaa/bbb/ANLZ0000.DAT"
+        let path = "/PIONEER/USBANLZ/u20/0/ANLZ0000.DAT"
         let dat = try #require(RekordboxShare.analysisURL(path, root: fixture.shareRoot))
         try FileManager.default.createDirectory(at: dat.deletingLastPathComponent(), withIntermediateDirectories: true)
         let bytes = Data("합성 분석 파일".utf8)
@@ -106,17 +121,16 @@ struct DuplicateMergeWriterTests {
         #expect(try Data(contentsOf: dat) == bytes)
     }
 
-    @Test func 다른곡과_공유한_분석폴더는_막고_모두_그대로_둔다() throws {
+    @Test func 다른곡과_공유한_분석폴더는_남기고_DB만_합친다() throws {
         let fixture = try fixture()
-        let path = "/PIONEER/USBANLZ/aaa/bbb/ANLZ0000.DAT"
+        let path = "/PIONEER/USBANLZ/u20/0/ANLZ0000.DAT"
         let db = try fixture.open()
         try db.run("UPDATE djmdContent SET AnalysisDataPath = ? WHERE ID IN ('100', '200')", [.text(path)])
         db.close()
         let report = try write(fixture, draft(fixture))
-        #expect(report.mergeBlocked.count == 1)
-        #expect(try fixture.rows("SELECT ID FROM djmdContent").count == 3)
-        #expect(try fixture.rows("SELECT ID FROM djmdCue WHERE ContentID = '100'").isEmpty)
-        #expect(try fixture.localUpdateCount() == 1000)
+        #expect(report.mergeWritten.count == 1 && report.mergeWritten.first?.reason != nil)
+        #expect(try fixture.rows("SELECT ID FROM djmdContent").count == 2)
+        #expect(try fixture.rows("SELECT ID FROM djmdCue WHERE ContentID = '100'").count == 2)
     }
 
     @Test func 같은곡_다른초안이나_목록초안과_겹치면_합치기는_막는다() throws {
@@ -172,7 +186,7 @@ struct DuplicateMergeWriterTests {
         try db.run("UPDATE djmdContent SET AnalysisDataPath = '/audio/ANLZ0000.DAT', FolderPath = ? WHERE ID = '200'", [.text(wav.path)])
         db.close()
         let report = try write(fixture, draft(fixture))
-        #expect(report.mergeBlocked.count == 1)
+        #expect(report.mergeWritten.count == 1 && report.mergeWritten.first?.reason != nil)
         #expect(FileManager.default.fileExists(atPath: wav.path))
         if FileManager.default.fileExists(atPath: wav.path) { #expect(try Data(contentsOf: wav) == before) }
     }

@@ -97,31 +97,26 @@ extension RekordboxWriter {
     struct MergeExpectation {
         var draft: DuplicateMergeDraft
         var cue: Expectation?
+        var fileWarning: String?
     }
 
     static func applyMerge(_ draft: DuplicateMergeDraft, cue: CueDraft, work: inout PlaylistWork,
                            db: CipherDatabase, usn: inout Int, stamp: (db: String, json: String), share: URL?) throws
-        -> (expectation: MergeExpectation, directories: [URL]) {
+        -> (expectation: MergeExpectation, files: [URL]) {
         var expectation = MergeExpectation(draft: draft)
         if cue.hasChanges { expectation.cue = try apply(cue, db: db, usn: &usn, stamp: stamp).expectation }
         for edit in try DuplicateMerge.playlists(keeping: draft.keeping.contentID, removing: Set(draft.removing.map(\.contentID)), in: work.tree.layout) {
             _ = try applyPlaylist(edit, work: &work, db: db, usn: &usn, stamp: stamp)
         }
-        var directories: [URL] = []
-        var audioDirectories = Set<String>()
+        var files: [URL] = []
         for source in draft.removing {
-            try db.query("SELECT FolderPath FROM djmdContent WHERE ID = ?", [.text(source.contentID)]) {
-                if let path = $0.string(0) {
-                    audioDirectories.insert(URL(filePath: path).resolvingSymlinksInPath().deletingLastPathComponent().path)
-                }
-            }
-            directories += try RekordboxTrackWriter.deleteRow(source.contentID, db: db, usn: &usn, stamp: stamp, share: share).directories
-        }
-        guard directories.allSatisfy({ !audioDirectories.contains($0.resolvingSymlinksInPath().path) }) else {
-            throw DuplicateMerge.Blocked(String(ui: "분석 파일 경로가 안전하지 않습니다. rekordbox에서 분석 파일을 다시 만든 뒤 합치세요"))
+            let plan = try deletionFiles(source.contentID, db: db, share: share)
+            _ = try RekordboxTrackWriter.deleteRow(source.contentID, db: db, usn: &usn, stamp: stamp)
+            files += plan.files
+            if let warning = plan.warning { expectation.fileWarning = warning }
         }
         try verifyMerge(expectation, db: db)
-        return (expectation, directories)
+        return (expectation, files)
     }
 
     static func verifyMerge(_ expectation: MergeExpectation, db: CipherDatabase) throws {
@@ -134,56 +129,6 @@ extension RekordboxWriter {
                 }
             }
         }
-    }
-
-    /// 삭제할 분석·그림은 커밋 전에 백업한다. 다른 곡과 폴더를 공유하면 삭제하지 않는다.
-    static func backupMergeFiles(_ directories: [URL], db: CipherDatabase, share: URL?, backup: URL?) throws -> [URL] {
-        guard !directories.isEmpty, let share else { return [] }
-        let root = share.resolvingSymlinksInPath().standardizedFileURL.path + "/"
-        var referenced = Set<String>()
-        try db.query("SELECT AnalysisDataPath, ImagePath, FolderPath FROM djmdContent") { row in
-            for column: Int32 in [0, 1] {
-                if let url = RekordboxShare.analysisURL(row.string(column), root: share) {
-                    referenced.insert(url.deletingLastPathComponent().resolvingSymlinksInPath().path)
-                }
-            }
-            if let path = row.string(2), path.hasPrefix("/") {
-                referenced.insert(URL(filePath: path).resolvingSymlinksInPath().deletingLastPathComponent().path)
-            }
-        }
-        var files: [URL] = []
-        for directory in Set(directories) {
-            let resolved = directory.resolvingSymlinksInPath().standardizedFileURL
-            guard ["PIONEER/USBANLZ/", "PIONEER/Artwork/"].contains(where: { resolved.path.hasPrefix(root + $0) }) else {
-                throw DuplicateMerge.Blocked(String(ui: "분석 파일 경로가 안전하지 않습니다. rekordbox에서 분석 파일을 다시 만든 뒤 합치세요"))
-            }
-            guard resolved.path.hasPrefix(root), resolved.path == directory.standardizedFileURL.path,
-                  !referenced.contains(resolved.path) else {
-                throw DuplicateMerge.Blocked(String(ui: "분석 파일 폴더가 연결되었거나 다른 곡과 공유됩니다. rekordbox에서 직접 정리하세요"))
-            }
-            if FileManager.default.fileExists(atPath: directory.path) {
-                for file in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey]) {
-                    let info = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
-                    guard info.isRegularFile == true, info.isSymbolicLink != true else {
-                        throw DuplicateMerge.Blocked(String(ui: "분석 파일 폴더가 연결되었거나 다른 곡과 공유됩니다. rekordbox에서 직접 정리하세요"))
-                    }
-                    files.append(file)
-                }
-            }
-        }
-        if let backup {
-            let folder = backup.appending(path: "anlz")
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            let manifestURL = folder.appending(path: "manifest.json")
-            var manifest = (try? Data(contentsOf: manifestURL)).flatMap { try? JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
-            for file in files {
-                let name = "merge-\(manifest.count).\(file.pathExtension)"
-                try FileManager.default.copyItem(at: file, to: folder.appending(path: name))
-                manifest[name] = file.path
-            }
-            try JSONEncoder().encode(manifest).write(to: manifestURL, options: .atomic)
-        }
-        return files
     }
 
     public static func mergeDrafts(in backup: URL) -> [DuplicateMergeDraft] {

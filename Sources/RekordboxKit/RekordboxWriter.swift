@@ -373,12 +373,12 @@ public enum RekordboxWriter {
                     do {
                         let cues = plan.cues
                         let result = try applyMerge(plan.draft, cue: cues, work: &work, db: db, usn: &usn, stamp: stamp, share: gridRoot)
-                        let files = try backupMergeFiles(result.directories, db: db, share: gridRoot, backup: backup)
+                        try backupDeletionFiles(result.files, in: backup)
                         try verifyPlaylists(work, db: db)
                         try db.execute("RELEASE djc_merge")
-                        merged.append(result.expectation); mergeFiles += files
+                        merged.append(result.expectation); mergeFiles += result.files
                         mergeOutcomes.append(Outcome(trackUUID: plan.draft.id, title: plan.draft.keeping.title, status: .written,
-                                                      reason: nil, removed: plan.draft.removing.count, added: cues.cues.count - cues.base.count))
+                                                      reason: result.expectation.fileWarning, removed: plan.draft.removing.count, added: cues.cues.count - cues.base.count))
                     } catch {
                         let reason: String
                         switch error {
@@ -501,10 +501,11 @@ public enum RekordboxWriter {
 
         if let backup, !mergeFiles.isEmpty {
             do {
-                for file in Set(mergeFiles) { try FileManager.default.removeItem(at: file) }
+                try removeOwnedFiles(mergeFiles)
             } catch {
                 throw recover(from: error, database: database, backup: backup, live: live) {
-                    try restoreAnalysis(from: backup, saveCurrentTo: nil)
+                    try restoreAnalysis(from: backup, saveCurrentTo: nil,
+                                        shareRoot: gridRoot ?? database.deletingLastPathComponent().appending(path: "share"))
                     try removeAnalysisFiles(created)
                 }
             }

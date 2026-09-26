@@ -382,6 +382,7 @@ struct ReflectionCoordinator {
         }
         body += playlists.map(PlaylistWriteText.line)
         body += report.mergeWritten.map { String(ui: "• \($0.title) 유지 · 중복 \($0.removed)곡을 컬렉션에서 뺍니다") }
+        body += report.mergeWritten.compactMap(\.reason)
         if !report.mergeWritten.isEmpty { body += ["", DuplicateMerge.lossNotice] }
         let reasons = reasons(report)
         if !reasons.isEmpty { body += ["", String(ui: "쓰지 않는 것 \(reasons.count):")] + reasons }
