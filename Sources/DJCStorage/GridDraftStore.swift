@@ -20,7 +20,7 @@ public enum GridDraftStore {
         return try? JSONDecoder().decode(GridDraft.self, from: data)
     }
 
-    public static func save(_ draft: GridDraft) throws {
+    public static func save(_ draft: GridDraft, directory: URL = directory) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = directory.appending(path: "\(draft.trackUUID).json")
         if draft.hasChanges {

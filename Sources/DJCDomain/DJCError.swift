@@ -18,6 +18,8 @@ public enum DJCError: Error, CustomStringConvertible {
     /// 커밋 뒤 확인·분석 파일 쓰기가 실패했고 백업으로 되돌리지도 못했다. master.db·분석 파일 상태를 알 수 없다.
     /// `database`는 사본 DB 경로, 라이브 DB면 nil(되돌리는 명령이 다르다).
     case restoreFailed(reason: String, restoreError: String, backup: String, database: String?)
+    /// 곡 편집(마디 구간 잇기)을 만들지 않았다. 원본 음원·rekordbox는 건드리지 않았다.
+    case editRefused(String)
 
     public var description: String {
         switch self {
@@ -52,6 +54,8 @@ public enum DJCError: Error, CustomStringConvertible {
             확인 실패: \(reason)
             복원 실패: \(restoreError)
             """
+        case let .editRefused(reason):
+            "편집하지 않았습니다: \(reason)"
         }
     }
 
