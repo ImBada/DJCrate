@@ -8,7 +8,12 @@ import SwiftUI
 struct GridEditorBar: View {
     @Environment(\.textScale) private var textScale
     @Bindable var deck: DeckModel
-    @State private var bpmText = ""
+    @State private var bpm: Double?
+    @State private var bpmFieldRevision = 0
+    @FocusState private var bpmFocused: Bool
+
+    private var invalidBPM: Bool { bpm.map { !GridDraft.bpmRange.contains($0) } ?? true }
+    private var bpmWarning: String { String(localized: "BPM은 20…999 사이로 입력하세요.") }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -24,12 +29,28 @@ struct GridEditorBar: View {
                     }
                     .help("그리드 전체를 옮깁니다 (파형을 끌어도 됩니다)")
                     HStack(spacing: 4) {
-                        TextField("BPM", text: $bpmText)
+                        TextField("BPM", value: $bpm, format: .number.precision(.fractionLength(2)))
+                            .id(bpmFieldRevision)
+                            .focused($bpmFocused)
                             .frame(width: TextScale.length(64, scale: textScale))
-                            .onSubmit { if let v = Double(bpmText) { deck.setGridBPM(v) } }
-                            .onAppear { bpmText = deck.gridBPM.map { String(format: "%.2f", $0) } ?? "" }
-                            .onChange(of: deck.gridBPM) { bpmText = deck.gridBPM.map { String(format: "%.2f", $0) } ?? "" }
-                            .help("현재 템포 구간의 BPM (엔터로 적용)")
+                            .onSubmit { bpmFocused = false }
+                            .onChange(of: bpmFocused) { _, focused in
+                                if !focused { commitBPM() }
+                            }
+                            .onAppear { bpm = deck.gridBPM }
+                            .onChange(of: deck.gridBPM) { bpm = deck.gridBPM }
+                            .onChange(of: deck.row?.track.uuid) {
+                                bpm = deck.gridBPM
+                                bpmFocused = false
+                                bpmFieldRevision += 1
+                            }
+                            .help(invalidBPM ? bpmWarning : String(localized: "현재 템포 구간의 BPM (엔터를 누르거나 칸을 벗어나면 적용)"))
+                        if invalidBPM {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(UIColors.warning.color)
+                                .accessibilityLabel(bpmWarning)
+                                .help(bpmWarning)
+                        }
                         Button("×2") { deck.scaleGridBPM(2) }
                         Button("÷2") { deck.scaleGridBPM(0.5) }
                         Button("−0.01") { deck.nudgeGridBPM(-0.01) }
@@ -89,6 +110,13 @@ struct GridEditorBar: View {
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(UIColors.draftFill, in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private func commitBPM() {
+        if let bpm, GridDraft.bpmRange.contains(bpm) { deck.setGridBPM(bpm) }
+        bpm = deck.gridBPM
+        // 숫자로 해석할 수 없어 바인딩이 바뀌지 않은 입력도 원래 표시로 돌린다.
+        bpmFieldRevision += 1
     }
 }
 

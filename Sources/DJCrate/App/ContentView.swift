@@ -135,9 +135,11 @@ struct ContentView: View {
                         TagSheetView(store: store)
                             .onDisappear { store.canFillDownTags = false }
                             .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
+                            .overlay { if store.displayRows.isEmpty { emptyLibrary } }
                     } else {
                         TrackTable(store: store, deck: deck)
                             .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
+                            .overlay { if store.displayRows.isEmpty { emptyLibrary } }
                     }
                 }
                 .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
@@ -175,6 +177,32 @@ struct ContentView: View {
                     Button("실행 중이어도 읽기용 스냅샷 뜨기") { Task { await store.takeSnapshot(force: true) } }
                 }
             }
+    }
+
+    @ViewBuilder private var emptyLibrary: some View {
+        if !store.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            ContentUnavailableView.search(text: store.search)
+        } else if store.sidebar == .pending {
+            ContentUnavailableView {
+                Label("반영할 초안이 없습니다", systemImage: "checkmark.circle")
+            } description: {
+                Text("곡의 큐·그리드·게인을 고치면 여기에 모입니다.")
+            }
+        } else if store.sidebar == .staged {
+            ContentUnavailableView {
+                Label("추가한 곡이 없습니다", systemImage: "music.note")
+            } description: {
+                Text("음원 파일을 끌어다 놓거나 ‘곡 추가’를 눌러 시작하세요.")
+            } actions: {
+                Button("곡 추가…") { StagingPanels.chooseFiles(store: store) }
+            }
+        } else {
+            ContentUnavailableView {
+                Label("표시할 곡이 없습니다", systemImage: "music.note.list")
+            } description: {
+                Text("다른 목록을 선택하거나 새 스냅샷으로 라이브러리를 다시 읽어 보세요.")
+            }
+        }
     }
 
     @ToolbarContentBuilder private var toolbarContent: some CustomizableToolbarContent {

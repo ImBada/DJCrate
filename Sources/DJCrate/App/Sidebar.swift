@@ -135,8 +135,10 @@ struct ListActionBar: View {
                 Button { DirectWritePanels.restoreLatest(store: store) } label: {
                     Label("되돌리기…", systemImage: "arrow.uturn.backward")
                 }
-                .disabled(store.isWritingRekordbox)
-                .help("DJCrate가 마지막으로 rekordbox에 쓰기 직전 백업으로 되돌립니다.")
+                .disabled(store.isWritingRekordbox || !store.hasWriteBackup)
+                .help(store.hasWriteBackup
+                      ? String(localized: "DJCrate가 마지막으로 rekordbox에 쓰기 직전 백업으로 되돌립니다.")
+                      : String(localized: "되돌릴 백업이 없습니다. rekordbox에 반영하면 쓰기 전 백업이 생깁니다."))
                 if store.isWritingRekordbox {
                     ProgressView().controlSize(.small)
                     Text("rekordbox 라이브러리 확인·쓰는 중…").font(.caption).foregroundStyle(.secondary)
