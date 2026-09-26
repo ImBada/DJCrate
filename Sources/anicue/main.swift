@@ -820,6 +820,22 @@ func run() async throws {
                                                 backups: live ? AnicuePaths.rekordboxBackups : database.deletingLastPathComponent().appending(path: "backups"))
         print("되돌림 완료 · 되돌리기 전 상태 백업: \(saved.path)")
 
+    case "schema-dump":
+        // 사본 DB의 구조(CREATE 문)만 뽑는다. 데이터는 한 줄도 담지 않는다(테스트 픽스처용).
+        guard args.count > 2 else { print("anicue schema-dump <사본.db> <출력.sql>"); return }
+        let db = try CipherDatabase(path: args[1], key: RekordboxKey.derive())
+        var statements: [String] = []
+        try db.query("""
+            SELECT sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%'
+            ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END, name
+            """) { statements.append(($0.string(0) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)) }
+        var version = "?"
+        try? db.query("SELECT DBVersion FROM djmdProperty LIMIT 1") { version = $0.string(0) ?? "?" }
+        let text = "-- rekordbox master.db 구조(데이터 없음). DBVersion \(version)\n-- anicue schema-dump로 뽑음\n\n"
+            + statements.map { $0 + ";" }.joined(separator: "\n\n") + "\n"
+        try text.write(toFile: args[2], atomically: true, encoding: .utf8)
+        print("구조 \(statements.count)개 → \(args[2]) · DBVersion \(version)")
+
     case "loop-repro":
         // rekordbox 루프 실험 재현: 실험 전 사본(--old)에 실험 뒤(--new) 새로 생긴 큐를 anicue로 써 보고, rekordbox가 쓴 행·JSON과 칸마다 비교한다.
         guard let oldPath = value(after: "--old", in: args), let newPath = value(after: "--new", in: args),

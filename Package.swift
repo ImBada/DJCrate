@@ -38,8 +38,15 @@ let package = Package(
             name: "AnicueApp",
             dependencies: ["AnicueDomain", "RekordboxKit", "AnicueStorage", "AnicueAnalysis"]
         ),
+        // 테스트 재료: 구조만 있는 rekordbox DB, 합성 분석 파일·음원(실데이터 없음)
+        .target(
+            name: "AnicueTestSupport",
+            dependencies: ["AnicueDomain", "RekordboxKit", .product(name: "SQLCipher", package: "SQLCipher.swift")],
+            path: "Tests/Support",
+            resources: [.copy("Resources")]
+        ),
         .testTarget(name: "AnicueDomainTests", dependencies: ["AnicueDomain"]),
-        .testTarget(name: "RekordboxKitTests", dependencies: ["RekordboxKit", "AnicueDomain"]),
+        .testTarget(name: "RekordboxKitTests", dependencies: ["RekordboxKit", "AnicueDomain", "AnicueTestSupport"]),
         .testTarget(name: "AnicueAnalysisTests", dependencies: ["AnicueAnalysis", "AnicueDomain"]),
     ]
 )
