@@ -37,6 +37,7 @@ public enum DJCError: Error, LocalizedError, CustomStringConvertible {
         case .writeVerificationFailed: "반영 결과가 예상과 달라 변경을 취소했습니다"
         case .writeRolledBack: "반영 결과를 확인하지 못해 쓰기 전 백업으로 되돌렸습니다"
         case .restoreFailed: "라이브러리와 분석 파일의 상태를 확인하지 못했습니다"
+        case let .editRefused(reason): reason
         }
     }
 
@@ -62,6 +63,8 @@ public enum DJCError: Error, LocalizedError, CustomStringConvertible {
             "라이브러리를 다시 불러오고 초안을 확인한 뒤 다시 시도하세요."
         case .restoreFailed:
             "rekordbox를 켜지 말고 ‘rekordbox 반영 대기’의 ‘되돌리기…’로 쓰기 전 백업을 복원하세요."
+        case .editRefused:
+            "안내된 마디 구간과 곡을 확인한 뒤 다시 시도하세요."
         }
     }
 
