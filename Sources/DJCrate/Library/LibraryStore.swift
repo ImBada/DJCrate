@@ -176,6 +176,8 @@ final class LibraryStore {
             await load(snapshot: URL(filePath: override))
         } else if let latest = try? LibrarySnapshot.latest() {
             await load(snapshot: latest)
+            // 켠 순간의 창 활성화는 읽는 도중이라 건너뛰므로, 읽은 뒤 한 번 더 본다
+            await refreshIfRekordboxChanged()
         } else {
             phase = .idle
         }
