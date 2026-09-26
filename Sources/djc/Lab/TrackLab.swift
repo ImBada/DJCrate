@@ -1,3 +1,4 @@
+import DJCAnalysis
 import DJCDomain
 import Foundation
 import RekordboxKit
@@ -11,6 +12,8 @@ enum TrackLab {
         Command("pvbr-check", "[--db 스냅샷]", "라이브러리 MP3마다 만든 PVBR·비트레이트를 rekordbox .DAT와 바이트로 비교", TrackLab.pvbrCheck),
         Command("pvb2-check", "[--db 스냅샷]", "라이브러리 FLAC마다 만든 PVB2(.EXT 탐색표)·음원 칸을 rekordbox와 바이트로 비교", TrackLab.pvb2Check),
         Command("track-add-repro", "--db <스냅샷> <음원 파일…>", "파일로 곡 추가 계획을 만들어 rekordbox가 넣은 행과 칸마다 비교", TrackLab.trackAddRepro),
+        Command("analysis-attach-test", "--db <사본.db> --share <사본 share> [--grid-from <.DAT>] <ContentID…>",
+                "분석 전 곡에 분석 파일을 붙여 본다(사본만, 막아 둔 쓰기 경로를 열어서). 그리드는 .DAT에서 읽거나 추정", TrackLab.analysisAttachTest),
     ]
 
     static func trackAddPlan(_ args: [String]) async throws {
@@ -170,6 +173,63 @@ enum TrackLab {
     }
 
     /// 파일마다 DJCrate 계획과 rekordbox가 넣은 행(같은 경로)을 칸마다 비교한다.
+    /// 분석 붙이기를 사본에 써 본다. rekordbox 실험(기존 분석 전 곡을 rekordbox가 분석) 전 사본에 같은 곡을 써서
+    /// `djc lab db-diff`로 rekordbox 결과와 칸마다 비교할 때 쓴다. 라이브 DB·실제 분석 폴더는 거부한다.
+    static func analysisAttachTest(_ args: [String]) async throws {
+        guard let dbPath = value(after: "--db", in: args), let sharePath = value(after: "--share", in: args) else { throw UsageError() }
+        let database = URL(filePath: dbPath), share = URL(filePath: sharePath)
+        func same(_ a: URL, _ b: URL) -> Bool { a.resolvingSymlinksInPath().standardizedFileURL.path == b.resolvingSymlinksInPath().standardizedFileURL.path }
+        guard !same(database, RekordboxWriter.liveDatabase), !same(share, LibrarySnapshot.rekordboxDirectory.appending(path: "share")),
+              !share.appending(path: "PIONEER/USBANLZ").resolvingSymlinksInPath().path.hasPrefix(
+                  FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Pioneer").resolvingSymlinksInPath().path) else {
+            print("라이브 rekordbox DB·분석 폴더에는 쓰지 않습니다. 사본을 주세요"); return
+        }
+        let ids = MainCommands.operands(args, valued: ["--db", "--share", "--grid-from"])
+        guard !ids.isEmpty else { throw UsageError() }
+        let db = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
+        var tracks: [(id: String, uuid: String, path: String)] = []
+        for id in ids {
+            try db.query("SELECT ID, UUID, FolderPath FROM djmdContent WHERE ID = ? AND rb_local_deleted = 0", [.text(id)]) {
+                tracks.append(($0.string(0) ?? "", $0.string(1) ?? "", $0.string(2) ?? ""))
+            }
+        }
+        db.close()
+        var grids: [GridDraft] = [], inputs: [String: RekordboxWriter.AnalysisInput] = [:]
+        for track in tracks {
+            let url = URL(filePath: track.path)
+            var segments: [GridSegment]
+            if let dat = value(after: "--grid-from", in: args) {
+                // rekordbox 분석의 정밀 시각: .DAT의 ms에 옆 .EXT의 소수(PQT2)를 더한다(그리드 쓰기와 같다)
+                let datURL = URL(filePath: dat)
+                let pqtz = try AnlzFile(url: datURL).tag("PQTZ")?.bytes ?? Data()
+                let pqt2 = (try? AnlzFile(url: datURL.deletingPathExtension().appendingPathExtension("EXT")))?.tag("PQT2")?.bytes
+                let beats = BeatGridTags.decode(pqtz: pqtz, pqt2: pqt2).beats
+                segments = GridDraft.segments(from: BeatGrid(beats: beats.map { .init(number: $0.number, bpm: Double($0.bpm100) / 100, time: $0.time / 1000) }))
+            } else {
+                // 음원 시간축 추정을 rekordbox 시간축으로 옮긴다(곡 넣기 --analyze와 같다)
+                guard let estimate = try await GridSuggestion.estimate(fileAt: url, cacheKey: "attach-\(track.uuid)") else {
+                    print("✗ \(track.id): 그리드를 추정하지 못했습니다"); continue
+                }
+                let offset = RekordboxTimeline.predictedOffset(url: url)
+                segments = estimate.segments.map { var s = $0; s.start += offset; return s }
+            }
+            let loudness = try Loudness.measure(fileAt: url)
+            inputs[track.uuid] = .init(duration: try await AudioTags.read(url: url).duration, loudness: loudness.integrated,
+                                       peak: pow(10, loudness.peak / 20))
+            grids.append(GridDraft(trackUUID: track.uuid, base: [], segments: segments))
+            print(String(format: "· %@: %.2f BPM · 첫 박 %.4f초 · %.1f LUFS", track.id, segments.first?.bpm ?? 0, segments.first?.start ?? 0,
+                         loudness.integrated ?? .nan))
+        }
+        let report = try RekordboxWriter.write(drafts: [], grids: grids, gains: [:], analysisInputs: inputs, to: database,
+                                               dryRun: args.contains("--dry-run"), now: .now,
+                                               backups: database.deletingLastPathComponent().appending(path: "backups"), shareRoot: share,
+                                               attachesAnalysis: true)
+        for o in (report.analysisOutcomes ?? []) + (report.gridOutcomes ?? []) {
+            print("\(o.status == .written ? "✓" : "✗") \(o.title.prefix(40)) · 박 \(o.added)\(o.reason.map { " · \($0)" } ?? "")")
+        }
+        print("\(report.dryRun ? "미리 보기(되돌림)" : "씀") · 분석 파일 \(report.createdFiles?.count ?? 0)개 · 변경 카운터 \(report.finalUpdateCount.map(String.init) ?? "-") · 백업 \(report.backup ?? "없음")")
+    }
+
     static func trackAddRepro(_ args: [String]) async throws {
         guard let dbPath = value(after: "--db", in: args) else { throw UsageError() }
         let files = args.dropFirst().filter { $0 != "--db" && $0 != dbPath }

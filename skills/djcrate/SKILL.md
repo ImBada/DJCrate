@@ -55,7 +55,6 @@ description: DJCrate의 명령줄 도구 djc로 rekordbox 라이브러리(스냅
 | `no-cues` | 자동 큐를 포함해 큐가 하나도 없음 |
 | `empty-comment` | 빈 코멘트 |
 | `off-convention` | 규칙 밖 코멘트(구형·잔재·크레딧·기타) |
-| `backlog` | 2025~2026년에 추가한 로컬 곡 중 빈 코멘트 |
 | `no-bpm` | BPM이 없는 로컬 곡 |
 | `tempo-change` | 그리드에 변속이 있음 |
 | `played` · `streaming` · `all` | 재생 이력 있음 · 스트리밍 곡 · 전체(기본) |

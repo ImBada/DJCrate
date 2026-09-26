@@ -30,13 +30,21 @@ struct DeckView: View {
                         .overlay(alignment: .center) { loadingOverlay }
                         .overlay(alignment: .top) {
                             if let toast = deck.toast {
-                                Label(toast, systemImage: "exclamationmark.circle.fill")
+                                HStack {
+                                    Label(toast.text, systemImage: toast.kind.icon)
+                                        .foregroundStyle(toast.kind.tint)
+                                        .textSelection(.enabled)
+                                    Button { deck.toastTask?.cancel(); deck.toast = nil } label: {
+                                        Image(systemName: "xmark")
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("덱 알림 닫기")
+                                }
                                     .font(.callout.weight(.semibold))
                                     .padding(.horizontal, 12).padding(.vertical, 7)
                                     .background(.regularMaterial, in: Capsule())
                                     .padding(.top, 22)
                                     .transition(.opacity)
-                                    .allowsHitTesting(false)
                             }
                         }
                         .animation(.easeOut(duration: 0.15), value: deck.toast)
@@ -129,11 +137,10 @@ struct DeckInfoColumn: View {
             }
             .font(.caption.monospacedDigit())
             .foregroundStyle(.secondary)
-            if let path = row.track.analysisDataPath, !path.isEmpty, !row.track.isStreaming,
-               !RekordboxShare.hasWaveformAnalysis(path) {
-                Label("rekordbox 분석 전 · 파형 없음", systemImage: "exclamationmark.triangle.fill")
+            if !row.track.isStreaming, !row.isStaged, let note = analysisNote(row.track.analysisDataPath) {
+                Label(note.title, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption).foregroundStyle(UIColors.warning.color)
-                    .help("rekordbox가 이 곡을 아직 분석하지 않았습니다(파형 파일 없음). rekordbox에서 트랙 분석을 먼저 해야 그리드를 쓸 수 있습니다")
+                    .help(note.help)
             }
             // 코멘트는 적힌 그대로(태그로 나누지 않는다)
             Text(row.comment.isEmpty ? "(빈 코멘트)" : row.comment)
@@ -146,6 +153,19 @@ struct DeckInfoColumn: View {
         // 글자 길이와 상관없이 칸 가운데 세로축에 맞춘다.
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity, alignment: .top)
+    }
+
+    /// rekordbox 분석 전 곡 표시. 분석 파일이 없는 곡은 반영 때 DJCrate가 붙일 수 있고(열려 있으면),
+    /// `.DAT`만 있고 파형(.EXT)이 없는 곡은 rekordbox 분석이 끝나지 않은 곡이라 rekordbox에서 다시 분석해야 한다.
+    func analysisNote(_ analysisDataPath: String?) -> (title: String, help: String)? {
+        if RekordboxWriter.needsAnalysis(analysisDataPath) {
+            return ("rekordbox 분석 전", RekordboxWriter.attachesAnalysis
+                ? "rekordbox가 이 곡을 아직 분석하지 않았습니다. 그리드 초안을 반영하면 DJCrate가 파형·그리드·오토게인 분석 파일을 만들어 붙입니다"
+                : "rekordbox가 이 곡을 아직 분석하지 않았습니다. rekordbox에서 트랙 분석을 먼저 해야 그리드를 쓸 수 있습니다")
+        }
+        guard !RekordboxShare.hasWaveformAnalysis(analysisDataPath) else { return nil }
+        return ("rekordbox 분석 전 · 파형 없음",
+                "rekordbox 분석이 끝나지 않은 곡입니다(파형 파일 없음). rekordbox에서 트랙 분석을 다시 해야 그리드를 쓸 수 있습니다")
     }
 }
 

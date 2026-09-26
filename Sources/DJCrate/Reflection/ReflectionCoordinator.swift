@@ -49,14 +49,15 @@ struct AlertPrompter: ReflectionPrompter {
 @MainActor
 protocol ReflectionHost: AnyObject {
     var isWritingRekordbox: Bool { get }
-    var writeStage: String? { get set }
+    var writeStage: WriteStage? { get set }
     var toast: AppToast? { get set }
+    var resultHistory: WriteResultHistory { get }
     func setWriteLock(_ locked: Bool)
     func writeTargets(_ rows: [TrackRow]) -> [TrackRow]
     func previewWrite(rows: [TrackRow]) async throws -> LibraryStore.WritePreview
     func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft], gains: [String: Double]) async throws -> RekordboxWriter.Report
     func libraryChangedSince(_ backup: RekordboxWriter.Backup) async -> Bool?
-    func restoreRekordbox(_ backup: RekordboxWriter.Backup) async throws
+    func restoreRekordbox(_ backup: RekordboxWriter.Backup) async throws -> URL
     // 곡 넣기·빼기
     func trackAddTargets(_ rows: [TrackRow]) -> [TrackRow]
     func previewTrackAdd(rows: [TrackRow]) async throws -> LibraryStore.TrackAddPreview
@@ -90,20 +91,29 @@ struct ReflectionCoordinator {
         host.setWriteLock(true)
         defer { host.setWriteLock(false) }
         do {
-            host.writeStage = "바꿀 내용을 확인하는 중…"
+            host.writeStage = WriteStage("바꿀 내용을 확인하는 중…", completed: 0, total: targets.count, cancellable: true)
+            try Task.checkCancellation()
             let preview = try await host.previewWrite(rows: targets)
+            try Task.checkCancellation()
             host.writeStage = nil
             let report = preview.report
-            guard !report.written.isEmpty || !report.gridWritten.isEmpty || !report.gainWritten.isEmpty else {
-                inform("rekordbox에 쓸 수 있는 초안이 없습니다", Self.reasons(report).prefix(8).joined(separator: "\n"))
+            guard !report.written.isEmpty || !report.gridWritten.isEmpty || !report.analysisWritten.isEmpty || !report.gainWritten.isEmpty else {
+                publish(.written(report, preview: report))
+                inform("rekordbox에 쓸 수 있는 초안이 없습니다", Self.reasons(report).joined(separator: "\n"))
                 return
             }
             guard prompter.show(Self.confirmation(report)) else { return }
-            let cues = Set(report.written.map(\.trackUUID)), grids = Set(report.gridWritten.map(\.trackUUID))
+            // 분석을 붙이는 곡도 그리드 초안으로 쓴다.
+            let cues = Set(report.written.map(\.trackUUID)), grids = Set((report.gridWritten + report.analysisWritten).map(\.trackUUID))
             let gains = Set(report.gainWritten.map(\.trackUUID))
-            _ = try await host.writeToRekordbox(preview.drafts.filter { cues.contains($0.trackUUID) },
+            try Task.checkCancellation()
+            let written = try await host.writeToRekordbox(preview.drafts.filter { cues.contains($0.trackUUID) },
                                                 grids: preview.grids.filter { grids.contains($0.trackUUID) },
                                                 gains: preview.gains.filter { gains.contains($0.key) })
+            publish(.written(written, preview: report), undo: written.backup)
+        } catch is CancellationError {
+            host.writeStage = nil
+            publish(WriteResult(kind: .success, title: "작업을 취소했습니다", text: "rekordbox에 아무것도 쓰지 않았습니다."), detail: "rekordbox에 아무것도 쓰지 않았습니다.")
         } catch {
             host.writeStage = nil
             fail("rekordbox에 쓰지 않았습니다", error)
@@ -126,15 +136,23 @@ struct ReflectionCoordinator {
         host.setWriteLock(true)
         defer { host.setWriteLock(false) }
         do {
-            host.writeStage = "넣을 곡을 확인하는 중…"
+            host.writeStage = WriteStage("넣을 곡을 확인하는 중…", completed: 0, total: targets.count, cancellable: true)
+            try Task.checkCancellation()
             let preview = try await host.previewTrackAdd(rows: targets)
+            try Task.checkCancellation()
             host.writeStage = nil
             guard preview.report.added.contains(where: \.written) else {
-                inform("rekordbox에 넣을 수 있는 곡이 없습니다", Self.addReasons(preview).prefix(8).joined(separator: "\n"))
+                publish(.tracks(preview.report, preview: preview.report, adding: true, withoutAnalysis: preview.withoutAnalysis, unreadable: preview.unreadable))
+                inform("rekordbox에 넣을 수 있는 곡이 없습니다", Self.addReasons(preview).joined(separator: "\n"))
                 return
             }
             guard prompter.show(Self.addConfirmation(preview)) else { return }
-            _ = try await host.addTracksToRekordbox(preview)
+            try Task.checkCancellation()
+            let written = try await host.addTracksToRekordbox(preview)
+            publish(.tracks(written, preview: preview.report, adding: true, withoutAnalysis: preview.withoutAnalysis, unreadable: preview.unreadable), undo: written.backup)
+        } catch is CancellationError {
+            host.writeStage = nil
+            publish(WriteResult(kind: .success, title: "작업을 취소했습니다", text: "rekordbox에 아무것도 쓰지 않았습니다."), detail: "rekordbox에 아무것도 쓰지 않았습니다.")
         } catch {
             host.writeStage = nil
             fail("rekordbox에 넣지 않았습니다", error)
@@ -157,16 +175,24 @@ struct ReflectionCoordinator {
         host.setWriteLock(true)
         defer { host.setWriteLock(false) }
         do {
-            host.writeStage = "뺄 곡을 확인하는 중…"
+            host.writeStage = WriteStage("뺄 곡을 확인하는 중…", completed: 0, total: targets.count, cancellable: true)
+            try Task.checkCancellation()
             let preview = try await host.previewTrackDelete(rows: targets)
+            try Task.checkCancellation()
             host.writeStage = nil
             guard preview.report.deleted.contains(where: \.written) else {
+                publish(.tracks(preview.report, preview: preview.report, adding: false))
                 inform("rekordbox에서 뺄 수 있는 곡이 없습니다",
-                       preview.report.deleted.map { "• \($0.title): \($0.reason ?? "")" }.prefix(8).joined(separator: "\n"))
+                       preview.report.deleted.map { "• \($0.title): \($0.reason ?? "")" }.joined(separator: "\n"))
                 return
             }
             guard prompter.show(Self.deleteConfirmation(preview)) else { return }
-            _ = try await host.deleteTracksFromRekordbox(preview)
+            try Task.checkCancellation()
+            let written = try await host.deleteTracksFromRekordbox(preview)
+            publish(.tracks(written, preview: preview.report, adding: false), undo: written.backup)
+        } catch is CancellationError {
+            host.writeStage = nil
+            publish(WriteResult(kind: .success, title: "작업을 취소했습니다", text: "rekordbox에 아무것도 쓰지 않았습니다."), detail: "rekordbox에 아무것도 쓰지 않았습니다.")
         } catch {
             host.writeStage = nil
             fail("rekordbox에서 빼지 않았습니다", error)
@@ -181,16 +207,32 @@ struct ReflectionCoordinator {
         }
         host.setWriteLock(true)
         defer { host.setWriteLock(false) }
-        host.writeStage = "백업 뒤 바뀐 것을 확인하는 중…"
+        host.writeStage = WriteStage("백업 뒤 바뀐 것을 확인하는 중…")
         let changed = await host.libraryChangedSince(backup)
         host.writeStage = nil
         guard prompter.show(Self.restoreConfirmation(backup, changedSince: changed)) else { return }
         do {
-            try await host.restoreRekordbox(backup)
+            let saved = try await host.restoreRekordbox(backup)
+            publish(.restored(backup, saved: saved))
         } catch {
             host.writeStage = nil
-            host.toast = AppToast(kind: .failure, title: "되돌리지 못했습니다", detail: String(describing: error))
+            host.toast = nil
+            let text = "rekordbox 라이브러리 상태를 확인하지 못했습니다. rekordbox를 켜지 말고 백업 폴더와 오류를 확인한 뒤 다시 되돌리세요.\n\n" + String(describing: error)
+            host.resultHistory.record(WriteResult(kind: .failure, title: "되돌리지 못했습니다", text: text, backups: [backup.url]))
+            _ = prompter.show(ReflectionPrompt(title: "되돌리지 못했습니다", text: text, critical: true))
         }
+    }
+
+    private func publish(_ result: WriteResult, undo: String? = nil, detail: String? = nil) {
+        host.resultHistory.record(result)
+        var toast = result.toast
+        if let detail { toast.detail = detail }
+        toast.undoBackup = undo.map { URL(filePath: $0) }
+        if let error = host.resultHistory.storageError {
+            if toast.kind == .success { toast.kind = .warning }
+            toast.detail = [toast.detail, error].compactMap { $0 }.joined(separator: "\n")
+        }
+        host.toast = toast
     }
 
     private func inform(_ title: String, _ text: String) {
@@ -200,9 +242,13 @@ struct ReflectionCoordinator {
     /// 쓰기 실패 알림. 자동 복원까지 실패했으면 사라지는 토스트가 아니라 닫아야 하는 경고 창으로 알린다.
     private func fail(_ title: String, _ error: any Error) {
         if let alert = Self.restoreFailureAlert(error) {
+            host.toast = nil
+            let backups: [URL]
+            if case let DJCError.restoreFailed(_, _, backup, _) = error { backups = [URL(filePath: backup)] } else { backups = [] }
+            host.resultHistory.record(WriteResult(kind: .failure, title: alert.title, text: alert.text, backups: backups))
             _ = prompter.show(alert)
         } else {
-            host.toast = AppToast(kind: .failure, title: title, detail: String(describing: error))
+            publish(WriteResult(kind: .failure, title: title, text: String(describing: error)), detail: String(describing: error))
         }
     }
 
@@ -223,29 +269,38 @@ struct ReflectionCoordinator {
     }
 
     static func reasons(_ report: RekordboxWriter.Report) -> [String] {
-        (report.blocked + report.gridBlocked + report.gainBlocked).map { "• \($0.title): \($0.reason ?? "")" }
+        (report.blocked + report.gridBlocked + report.analysisBlocked + report.gainBlocked).map { "• \($0.title): \($0.reason ?? "")" }
     }
 
     /// 쓰기 전 확인 창: 종류별 곡 수, 곡마다 바뀌는 것, 쓰지 않는 것과 이유
     static func confirmation(_ report: RekordboxWriter.Report) -> ReflectionPrompt {
-        let cues = report.written, grids = report.gridWritten, gains = report.gainWritten
+        let cues = report.written, grids = report.gridWritten, analyses = report.analysisWritten, gains = report.gainWritten
         var kinds: [String] = []
         if !cues.isEmpty { kinds.append("큐 \(cues.count)곡") }
         if !grids.isEmpty { kinds.append("그리드 \(grids.count)곡") }
+        if !analyses.isEmpty { kinds.append("분석 \(analyses.count)곡") }
         if !gains.isEmpty { kinds.append("게인 \(gains.count)곡") }
-        let gridBlocked = Set(report.gridBlocked.map(\.trackUUID)), gridWritten = Set(grids.map(\.trackUUID))
+        let gridBlocked = Set((report.gridBlocked + report.analysisBlocked).map(\.trackUUID)), gridWritten = Set(grids.map(\.trackUUID))
+        let analysisWritten = Set(analyses.map(\.trackUUID))
         var body = cues.prefix(12).map { outcome -> String in
             var line = "• \(outcome.title) — 큐 추가 \(outcome.added) · 삭제 \(outcome.removed)"
             if gridWritten.contains(outcome.trackUUID) { line += " · 그리드" }
+            if analysisWritten.contains(outcome.trackUUID) { line += " · 분석 파일 붙이기" }
             if gridBlocked.contains(outcome.trackUUID) { line += " · ⚠︎ 그리드는 안 들어감" }
             return line
         }
         let cueUUIDs = Set(cues.map(\.trackUUID))
         for grid in grids where !cueUUIDs.contains(grid.trackUUID) { body.append("• \(grid.title) — 그리드(박 \(grid.added)개)") }
+        for analysis in analyses where !cueUUIDs.contains(analysis.trackUUID) {
+            body.append("• \(analysis.title) — 분석 파일 붙이기(파형·그리드 박 \(analysis.added)개·오토게인)")
+        }
         for gain in gains { body.append(String(format: "• %@ — 오토게인 %+.1f dB", gain.title, Double(gain.added) / 100)) }
         if cues.count > 12 { body.append("… 외 \(cues.count - 12)곡") }
         let reasons = reasons(report)
         if !reasons.isEmpty { body += ["", "쓰지 않는 것 \(reasons.count):"] + reasons.prefix(8) }
+        if !analyses.isEmpty {
+            body += ["", "분석을 붙이는 곡은 rekordbox 분석 전 곡입니다. 파형·그리드·오토게인을 DJCrate가 만들고, 키·프레이즈·보컬 분석은 없습니다(프레이즈는 rekordbox에서 Phrase만 분석하면 더해집니다)."]
+        }
         body += ["", "쓰기 전에 rekordbox 라이브러리(master.db)와 바꿀 분석 파일을 백업하고, 쓴 뒤 다시 읽어 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요."]
         return ReflectionPrompt(title: "rekordbox에 " + kinds.joined(separator: " · ") + "을 씁니다",
                                 text: body.joined(separator: "\n"), confirm: "rekordbox에 쓰기")

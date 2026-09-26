@@ -122,7 +122,11 @@ public enum RekordboxTrackWriter {
                     if let ready { row.merge(ready.columns) { _, new in new } }
                     try insert(db, table: "djmdContent", row)
                     try verify(db, table: "djmdContent", id: id, row)
-                    if let ready { try insertAnalysisRows(db, ready, contentID: id, usn: &usn, stamp: stamp) }
+                    if let ready {
+                        for row in try insertAnalysisRows(db, ready, contentID: id, usn: &usn, stamp: stamp) {
+                            try verify(db, table: row.table, id: row.id, row.values)
+                        }
+                    }
                     var outcome = Outcome(path: plan.path, contentID: id, title: plan.title, written: true, reason: nil, uuid: uuid)
                     if let list = cues[plan.path], !list.isEmpty {
                         var draft = CueDraft(trackUUID: uuid, rekordboxCues: [])
@@ -196,27 +200,40 @@ public enum RekordboxTrackWriter {
         var share: URL?
         /// 분석을 붙일 수 없는 이유(곡을 넣지 않는다)
         var blocked: String?
+        /// PQTZ 박 수
+        var beats = 0
     }
 
+    /// 곡 UUID로 정하는 분석 폴더(`/PIONEER/USBANLZ/<앞 3자>/<나머지>`)
+    static func analysisFolder(uuid: String) -> String { "/PIONEER/USBANLZ/\(uuid.prefix(3))/\(uuid.dropFirst(3))" }
+
     static func prepare(_ plan: TrackAddPlan, analysis: Analysis, share: URL?) throws -> PreparedAnalysis {
-        let uuid = UUID().uuidString.lowercased()
+        try prepare(path: plan.path, fileName: plan.fileName, duration: plan.duration, uuid: UUID().uuidString.lowercased(),
+                    analysis: analysis, share: share)
+    }
+
+    /// 곡 넣기와 분석 붙이기(`RekordboxWriter+Analysis`)가 함께 쓰는 레시피. 분석 폴더는 곡 UUID로 정한다.
+    /// - Parameter duration: AVFoundation 길이(초). `Length`에 버림해 적는다.
+    static func prepare(path: String, fileName: String, duration: Double, uuid: String, analysis: Analysis,
+                        share: URL?) throws -> PreparedAnalysis {
         var ready = PreparedAnalysis(uuid: uuid, share: share)
         guard let share else { ready.blocked = "사본 DB에는 분석 파일 뿌리(share)를 주어야 분석을 붙입니다"; return ready }
-        let url = URL(filePath: plan.path)
+        let url = URL(filePath: path)
         let facts = AudioFacts.read(url: url)
         if let reason = facts.unsupported { ready.blocked = reason; return ready }
         guard let first = analysis.segments.first, first.bpm > 0 else { ready.blocked = "그리드가 없습니다"; return ready }
         let waveforms = try RekordboxWaveforms.analyze(url: url)
-        let duration = Double(waveforms.columns) / RekordboxWaveforms.columnsPerSecond
-        let beats = RekordboxGridWriter.beats(segments: analysis.segments, duration: duration)
-        let files = try TrackAnalysisFiles.make(fileName: plan.fileName, beats: beats, waveforms: waveforms, facts: facts)
-        let folder = "/PIONEER/USBANLZ/\(uuid.prefix(3))/\(uuid.dropFirst(3))"
+        let waveformDuration = Double(waveforms.columns) / RekordboxWaveforms.columnsPerSecond
+        let beats = RekordboxGridWriter.beats(segments: analysis.segments, duration: waveformDuration)
+        ready.beats = beats.count
+        let files = try TrackAnalysisFiles.make(fileName: fileName, beats: beats, waveforms: waveforms, facts: facts)
+        let folder = analysisFolder(uuid: uuid)
         let datPath = folder + "/ANLZ0000.DAT"
         ready.files = [("DAT", files.dat), ("EXT", files.ext), ("2EX", files.twoEx)].map { ext, data in
             (share.appending(path: String(folder.dropFirst()) + "/ANLZ0000.\(ext)"), data)
         }
         ready.columns = [
-            "BPM": .int(Int((first.bpm * 100).rounded())), "Length": .int(Int(plan.duration.rounded(.down))),
+            "BPM": .int(Int((first.bpm * 100).rounded())), "Length": .int(Int(duration.rounded(.down))),
             "BitRate": .int(facts.bitRate), "BitDepth": .int(facts.bitDepth), "SampleRate": .int(facts.sampleRate),
             "AnalysisDataPath": .text(datPath), "Analysed": .int(105), "ContentLink": .int(analysedContentLink),
             "AnalysisUpdated": .text("3"), "TrackInfoUpdated": .text("2"),
@@ -228,30 +245,53 @@ public enum RekordboxTrackWriter {
         return ready
     }
 
-    /// 파일 행(.DAT·.EXT·.2EX)과 오토게인 행
+    /// 파일 행(.DAT·.EXT·.2EX)과 오토게인 행. 넣은 행을 돌려준다(다시 읽어 비교할 때 쓴다).
+    @discardableResult
     static func insertAnalysisRows(_ db: CipherDatabase, _ ready: PreparedAnalysis, contentID: String, usn: inout Int,
-                                   stamp: (db: String, json: String)) throws {
-        guard let share = ready.share else { return }
-        for (url, data) in ready.files {
-            let path = "/" + url.path.dropFirst(share.path.count).drop(while: { $0 == "/" })
-            let encoded = path.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? path
+                                   stamp: (db: String, json: String)) throws -> [InsertedRow] {
+        guard ready.share != nil else { return [] }
+        var inserted: [InsertedRow] = []
+        for file in ready.files {
             usn += 1
-            let row: [String: CipherDatabase.Value] = [
-                "ID": .text("\(ready.uuid)_\(encoded)"), "ContentID": .text(contentID), "Path": .text(path),
-                "Hash": .text(Insecure.MD5.hash(data: data).map { String(format: "%02x", $0) }.joined()), "Size": .int(data.count),
-                "rb_local_path": .text(url.path), "rb_insync_hash": .null, "rb_insync_local_usn": .null, "rb_file_hash_dirty": .int(0),
-                "rb_local_file_status": .int(0), "rb_in_progress": .int(0), "rb_process_type": .int(0), "rb_temp_path": .null,
-                "rb_priority": .int(50), "rb_file_size_dirty": .int(0), "UUID": .text(UUID().uuidString.lowercased()),
-            ]
-            try insert(db, table: "contentFile", row.merging(syncColumns(usn: usn, stamp: stamp)) { a, _ in a })
+            inserted.append(fileRow(ready, file, contentID: contentID, usn: usn, stamp: stamp))
         }
         usn += 1
+        inserted.append(mixerRow(ready, contentID: contentID, usn: usn, stamp: stamp))
+        for row in inserted { try insert(db, table: row.table, row.values) }
+        return inserted
+    }
+
+    /// 분석 파일 하나의 `contentFile` 행(ID = `<곡 UUID>_<경로, /는 %2F>`, MD5·크기·로컬 경로)
+    static func fileRow(_ ready: PreparedAnalysis, _ file: (url: URL, data: Data), contentID: String, usn: Int,
+                        stamp: (db: String, json: String)) -> InsertedRow {
+        let share = ready.share?.path ?? ""
+        let path = "/" + file.url.path.dropFirst(share.count).drop(while: { $0 == "/" })
+        let encoded = path.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? path
+        let row: [String: CipherDatabase.Value] = [
+            "ID": .text("\(ready.uuid)_\(encoded)"), "ContentID": .text(contentID), "Path": .text(path),
+            "Hash": .text(Insecure.MD5.hash(data: file.data).map { String(format: "%02x", $0) }.joined()), "Size": .int(file.data.count),
+            "rb_local_path": .text(file.url.path), "rb_insync_hash": .null, "rb_insync_local_usn": .null, "rb_file_hash_dirty": .int(0),
+            "rb_local_file_status": .int(0), "rb_in_progress": .int(0), "rb_process_type": .int(0), "rb_temp_path": .null,
+            "rb_priority": .int(50), "rb_file_size_dirty": .int(0), "UUID": .text(UUID().uuidString.lowercased()),
+        ]
+        return InsertedRow(table: "contentFile", values: row.merging(syncColumns(usn: usn, stamp: stamp)) { a, _ in a })
+    }
+
+    /// 오토게인 `djmdMixerParam` 행
+    static func mixerRow(_ ready: PreparedAnalysis, contentID: String, usn: Int, stamp: (db: String, json: String)) -> InsertedRow {
         let mixer: [String: CipherDatabase.Value] = [
             "ID": .text(UUID().uuidString.lowercased()), "ContentID": .text(contentID), "GainHigh": .int(ready.gain.high),
             "GainLow": .int(ready.gain.low), "PeakHigh": .int(ready.peak.high), "PeakLow": .int(ready.peak.low),
             "UUID": .text(UUID().uuidString.lowercased()),
         ]
-        try insert(db, table: "djmdMixerParam", mixer.merging(syncColumns(usn: usn, stamp: stamp)) { a, _ in a })
+        return InsertedRow(table: "djmdMixerParam", values: mixer.merging(syncColumns(usn: usn, stamp: stamp)) { a, _ in a })
+    }
+
+    /// 넣은 행 하나(표·칸 값)
+    struct InsertedRow {
+        var table: String
+        var values: [String: CipherDatabase.Value]
+        var id: String { if case let .text(id)? = values["ID"] { id } else { "" } }
     }
 
     /// 분석 전 곡 행(78칸). 칸 형식(글자·정수·NULL)까지 rekordbox 7.2.18과 같게.

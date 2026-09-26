@@ -16,15 +16,17 @@ struct DraftCommandTests {
         }
     }
 
-    func run(_ args: [String], fixture: RekordboxFixture, database: URL? = nil, json: Bool = true) throws -> Output {
+    func run(_ args: [String], fixture: RekordboxFixture, database: URL? = nil, json: Bool = true,
+             home: String? = nil, currentDirectory: URL? = nil) throws -> Output {
         let root = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let candidates = [".build/debug/djc", ".build/out/Products/Debug/djc"]
         let executable = try #require(candidates.map { root.appending(path: $0) }.first { FileManager.default.isExecutableFile(atPath: $0.path) })
         let process = Process(), out = Pipe(), err = Pipe()
         process.executableURL = executable
+        process.currentDirectoryURL = currentDirectory
         process.arguments = ["draft"] + args + ["--db", (database ?? fixture.database).path] + (json ? ["--json"] : [])
         process.environment = ProcessInfo.processInfo.environment.merging([
-            "DJC_HOME": fixture.root.appending(path: "home").path,
+            "DJC_HOME": home ?? fixture.root.appending(path: "home").path,
             "DJC_REKORDBOX_DIR": fixture.root.path,
         ]) { _, new in new }
         process.standardOutput = out; process.standardError = err
@@ -45,6 +47,56 @@ struct DraftCommandTests {
 
     func directory(_ fixture: RekordboxFixture, _ kind: String) -> URL {
         fixture.root.appending(path: "home/\(kind)-drafts")
+    }
+
+    @Test(arguments: ["private", "alias", "trailing", "relative"], ["cue", "tag"])
+    func 기존_HOME은_같은_폴더의_경로_표기를_모두_받는다(spelling: String, kind: String) throws {
+        let fixture = try fixture(), fm = FileManager.default
+        let home = URL(filePath: "/private/tmp/djc-home-test-\(UUID().uuidString)")
+        try fm.createDirectory(at: home, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: home) }
+        let path: String
+        switch spelling {
+        case "alias": path = String(home.path.dropFirst("/private".count))
+        case "trailing": path = home.path + "/"
+        case "relative": path = "./\(home.lastPathComponent)/../\(home.lastPathComponent)"
+        default: path = home.path
+        }
+        let args = kind == "cue" ? ["cue", "101", "--time", "12.5"] : ["tag", "101", "--title", "새 제목"]
+        let directory = home.appending(path: "\(kind)-drafts"), file = directory.appending(path: "track-101.json")
+        let preview = try run(args + ["--dry-run"], fixture: fixture, home: path, currentDirectory: home.deletingLastPathComponent())
+        try #require(preview.status == 0, "\(String(decoding: preview.stderr, as: UTF8.self))")
+        #expect(!fm.fileExists(atPath: directory.path))
+        let saved = try run(args, fixture: fixture, home: path, currentDirectory: home.deletingLastPathComponent())
+        try #require(saved.status == 0, "\(String(decoding: saved.stderr, as: UTF8.self))")
+        let before = try Data(contentsOf: file)
+        let existing = try run(args + ["--dry-run"], fixture: fixture, home: path, currentDirectory: home.deletingLastPathComponent())
+        #expect(existing.status == 0 && existing.stderr.isEmpty)
+        #expect(try Data(contentsOf: file) == before)
+        let removed = try run(["rm", kind, "101"], fixture: fixture, home: path, currentDirectory: home.deletingLastPathComponent())
+        #expect(removed.status == 0 && removed.stderr.isEmpty)
+        #expect(!fm.fileExists(atPath: file.path))
+    }
+
+    @Test(arguments: ["cue", "tag"], [false, true])
+    func 초안_폴더나_파일이_외부를_가리키는_링크면_거절한다(kind: String, linkFile: Bool) throws {
+        let fixture = try fixture(), fm = FileManager.default
+        let directory = directory(fixture, kind), outside = fixture.root.appending(path: "outside")
+        try fm.createDirectory(at: outside, withIntermediateDirectories: true)
+        try fm.createDirectory(at: linkFile ? directory : directory.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let target = outside.appending(path: "track-101.json"), original = Data("외부 파일".utf8)
+        try original.write(to: target)
+        try fm.createSymbolicLink(at: linkFile ? directory.appending(path: "track-101.json") : directory,
+                                  withDestinationURL: linkFile ? target : outside)
+        let save = kind == "cue" ? ["cue", "101", "--time", "12.5"] : ["tag", "101", "--title", "새 제목"]
+        for args in [save, ["rm", kind, "101"]] {
+            let output = try run(args, fixture: fixture)
+            #expect(output.status == 1 && output.stdout.isEmpty)
+            let error = try #require(output.document(error: true)["error"] as? [String: Any])
+            #expect(error["code"] as? String == "invalid_arguments")
+            #expect((error["message"] as? String)?.contains("심볼릭 링크") == true)
+            #expect(try Data(contentsOf: target) == original)
+        }
     }
 
     @Test func 큐_생성은_base와_앱_형식을_보존하고_DB를_바꾸지_않는다() throws {

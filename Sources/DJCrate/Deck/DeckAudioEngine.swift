@@ -7,6 +7,9 @@ import Foundation
 protocol DeckAudioEngine: AnyObject {
     var volume: Float { get set }
     var metronome: Bool { get set }
+    var metronomeVolume: Float { get set }
+    /// 멈춘 뒤 엔진을 끄기까지(초)
+    var idleSeconds: Double { get set }
     var rate: Double { get set }
     var keyLock: Bool { get set }
     var gainDB: Float { get set }

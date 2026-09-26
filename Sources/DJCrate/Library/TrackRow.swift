@@ -95,7 +95,6 @@ extension CommentClass {
 extension LibraryFilter {
     var systemImage: String {
         switch self {
-        case .backlog: "tray.full"
         case .emptyComment: "text.badge.xmark"
         case .offConvention: "exclamationmark.bubble"
         case .noCues: "flag.slash"

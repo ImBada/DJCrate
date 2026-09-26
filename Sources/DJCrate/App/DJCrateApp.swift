@@ -25,6 +25,11 @@ struct DJCrateApp: App {
                 }
         }
         .commands {
+            // 번들 없이 도는 개발 빌드에서도 한국어 "설정…"(⌘,)이 되게 직접 둔다.
+            CommandGroup(replacing: .appSettings) {
+                SettingsLink { Text("설정…") }
+                    .keyboardShortcut(",", modifiers: .command)
+            }
             CommandGroup(after: .pasteboard) {
                 // 표준 편집 명령처럼 현재 응답자가 활성 상태와 실행을 결정한다.
                 Button("아래로 채우기") {
@@ -37,5 +42,10 @@ struct DJCrateApp: App {
         .defaultSize(width: 1440, height: 900)
         // 이전 창 상태 복원이 가끔 500×500 흰 창을 만든다. 항상 새 창으로 시작한다.
         .restorationBehavior(.disabled)
+
+        // 기본 설정·덱 단축키(⌘,). 덱과 같은 모델에 묶여 바꾸면 바로 반영·저장된다.
+        Settings {
+            SettingsView(deck: deck)
+        }
     }
 }

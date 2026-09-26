@@ -1,6 +1,5 @@
 /// 앱과 CLI가 공유하는 컬렉션 필터. 표시 이름과 기존 판정은 그대로 둔다.
 public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable {
-    case backlog = "빈 코멘트 (2025~26 파일)"
     case emptyComment = "빈 코멘트 전체"
     case offConvention = "규칙 밖 코멘트"
     case noCues = "큐 없음"
@@ -14,7 +13,6 @@ public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable {
 
     public var cliName: String {
         switch self {
-        case .backlog: "backlog"
         case .emptyComment: "empty-comment"
         case .offConvention: "off-convention"
         case .noCues: "no-cues"
@@ -28,7 +26,6 @@ public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable {
 
     public func includes(track: Track, commentClass: CommentClass, hasCues: Bool, playCount: Int, tempoChanges: [Double]) -> Bool {
         switch self {
-        case .backlog: commentClass == .empty && !track.isStreaming && ["2025", "2026"].contains(track.importYear ?? "")
         case .emptyComment: commentClass == .empty
         case .offConvention: [.legacy, .residue, .credit, .other].contains(commentClass)
         case .noCues: !hasCues

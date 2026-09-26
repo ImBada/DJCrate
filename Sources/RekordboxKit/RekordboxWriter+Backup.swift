@@ -15,7 +15,7 @@ extension RekordboxWriter {
         /// 곡 추가·삭제 보고서
         public var trackReport: RekordboxTrackWriter.Report?
 
-        public var titles: [String] { (report?.written.map(\.title) ?? []) + (trackReport?.titles ?? []) }
+        public var titles: [String] { (report.map { $0.written + $0.analysisWritten }?.map(\.title) ?? []) + (trackReport?.titles ?? []) }
         /// 쓴 직후 rekordbox 변경 카운터(옛 백업에는 없다)
         public var finalUpdateCount: Int? { report?.finalUpdateCount ?? trackReport?.finalUpdateCount }
 
@@ -106,9 +106,10 @@ extension RekordboxWriter {
         return saved
     }
 
-    /// 곡을 넣으며 만든 분석 파일을 지운다(빈 분석 폴더도). 지우기 전 파일은 `saveTo/anlz`에 두어 그 백업으로 다시 살릴 수 있다.
+    /// 곡을 넣거나 분석을 붙이며 만든 분석 파일을 지운다(빈 분석 폴더도). 지우기 전 파일은 `saveTo/anlz`에 두어 그 백업으로 다시 살릴 수 있다.
     static func removeCreatedFiles(of backup: URL, saveTo saved: URL) throws {
-        guard let created = RekordboxTrackWriter.report(in: backup)?.createdFiles, !created.isEmpty else { return }
+        let created = (RekordboxTrackWriter.report(in: backup)?.createdFiles ?? []) + (contents(of: backup).report?.createdFiles ?? [])
+        guard !created.isEmpty else { return }
         let fm = FileManager.default
         let folder = saved.appending(path: "anlz")
         try fm.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -120,15 +121,7 @@ extension RekordboxWriter {
             manifest[name] = path
         }
         try JSONEncoder().encode(manifest).write(to: manifestURL)
-        for path in created { try? fm.removeItem(atPath: path) }
-        // USBANLZ/<3자>/<나머지> 폴더가 비었으면 지운다(rekordbox가 곡을 지울 때처럼)
-        for directory in Set(created.map { URL(filePath: $0).deletingLastPathComponent() }) where directory.path.contains("/USBANLZ/") {
-            var current = directory
-            while current.lastPathComponent != "USBANLZ", (try? fm.contentsOfDirectory(atPath: current.path))?.isEmpty == true {
-                try? fm.removeItem(at: current)
-                current = current.deletingLastPathComponent()
-            }
-        }
+        try? removeAnalysisFiles(created.map { URL(filePath: $0) })
     }
 
     /// 분석 파일 원본을 백업 폴더 `anlz/`에 둔다(원래 경로는 manifest.json).

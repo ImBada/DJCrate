@@ -14,11 +14,20 @@ enum PerfProbe {
         guard let arg = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--perf-hide=") }) else { return [] }
         return Set(arg.dropFirst("--perf-hide=".count).components(separatedBy: ","))
     }()
+    /// 사용자 열 설정을 저장하지 않고 미리 보기 열만 켜거나 끈다.
+    static let previewColumnVisible: Bool? = {
+        guard enabled else { return nil }
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("--perf-preview=on") { return true }
+        if args.contains("--perf-preview=off") { return false }
+        return nil
+    }()
     #else
     // 릴리스 빌드에서는 늘 꺼져 있다(부르는 쪽은 그대로 두고 아무 일도 하지 않는다).
     static let enabled = false
     static let skipBands = false
     static let hidden: Set<String> = []
+    static let previewColumnVisible: Bool? = nil
     #endif
 
     private static var ticks: [Double] = []

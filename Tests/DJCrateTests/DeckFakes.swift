@@ -9,6 +9,8 @@ import Foundation
 final class FakeDeckAudio: DeckAudioEngine {
     var volume: Float = 1
     var metronome = false
+    var metronomeVolume: Float = 1
+    var idleSeconds = 0.0
     var rate = 1.0
     var keyLock = true
     var gainDB: Float = 0
@@ -71,13 +73,15 @@ final class MemoryDrafts: @unchecked Sendable {
 }
 
 extension DeckStorage {
-    static func memory(_ drafts: MemoryDrafts) -> DeckStorage {
+    static func memory(_ drafts: MemoryDrafts,
+                       settings: SettingsStore = SettingsStore(defaults: UserDefaults(suiteName: "djc-test-\(UUID().uuidString)")!,
+                                                               persist: true)) -> DeckStorage {
         DeckStorage(
             loadCueDraft: { drafts.cue($0) }, saveCueDraft: { drafts.save($0) },
             loadGridDraft: { drafts.grid($0) }, saveGridDraft: { drafts.save($0) },
             loadGain: { drafts.gain($0) }, saveGain: { drafts.save(gain: $0, $1) },
             removeGridDraft: { drafts.removeGrid($0) },
-            settings: DeckSettings(defaults: UserDefaults(suiteName: "djc-test-\(UUID().uuidString)")!, persist: true))
+            settings: settings)
     }
 }
 

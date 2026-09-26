@@ -7,12 +7,13 @@ import SwiftUI
 
 /// A안: 사이드바 | (위) 덱 · (아래) 라이브러리 표
 struct ContentView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.undoManager) private var undoManager
     @Bindable var store: LibraryStore
     @Bindable var deck: DeckModel
     @State private var showTagEditor = false
-    @AppStorage("waveformHeight") private var waveformHeight: Double = 150
-    @AppStorage("sheetMode") private var sheetMode = false
+    @AppStorage(SettingKeys.waveformHeight.name) private var waveformHeight = SettingKeys.waveformHeight.defaultValue
+    @AppStorage(SettingKeys.sheetMode.name) private var sheetMode = SettingKeys.sheetMode.defaultValue
     @State private var keys = KeyRouter()
 
     var body: some View {
@@ -25,21 +26,23 @@ struct ContentView: View {
         // rekordbox에 쓰는 동안은 창 전체를 덮어 다른 조작을 막는다.
         .overlay {
             if let stage = store.writeStage {
-                WritingOverlay(text: stage).transition(.opacity)
+                WritingOverlay(stage: stage, onCancel: { store.cancelWritePreparation() }).transition(.opacity)
             }
         }
         .overlay(alignment: .bottom) {
             if let toast = store.toast {
                 AppToastView(toast: toast,
                              onUndo: toast.undoBackup.map { url in { store.toast = nil; DirectWritePanels.restore(store: store, backupURL: url) } },
+                             onDetails: { store.showingWriteResult = true },
                              onClose: { if store.toast?.id == toast.id { store.toast = nil } })
                     .padding(.bottom, 22)
                     .padding(.horizontal, 16)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                     .id(toast.id)
             }
         }
-        .animation(.spring(duration: 0.35), value: store.toast?.id)
+        .animation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(duration: 0.35), value: store.toast?.id)
+        .sheet(isPresented: $store.showingWriteResult) { WriteResultView(history: store.resultHistory) }
         .animation(.easeInOut(duration: 0.15), value: store.writeStage)
         .searchable(text: $store.search, placement: .toolbar, prompt: "제목·아티스트·코멘트")
         .toolbar { toolbarContent }
@@ -74,15 +77,10 @@ struct ContentView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     if let message = store.reflectionMessage {
-                        HStack {
-                            Label(message, systemImage: message.contains("불일치") ? "exclamationmark.triangle" : "checkmark.seal")
-                                .foregroundStyle(message.contains("불일치") ? UIColors.warning.color : Color.secondary)
-                                .lineLimit(2)
-                            Spacer()
-                            Button("닫기") { store.reflectionMessage = nil }.controlSize(.small)
-                        }
-                        .font(.callout)
-                        .padding(.horizontal, 14).padding(.vertical, 6)
+                        AppMessageView(message: message, onClose: { store.reflectionMessage = nil })
+                    }
+                    if let message = store.stagingMessage {
+                        AppMessageView(message: message, onClose: { store.stagingMessage = nil })
                     }
                     // 덱 높이는 내용에 맞춘다(잘리지 않게). 핸들은 파형 높이를 조절한다.
                     DeckView(deck: deck, waveformHeight: waveformHeight)
@@ -172,6 +170,7 @@ struct ContentView: View {
     }
 
     private func setUp() {
+            deck.feedback = store.feedback
             // 선택 변경은 스토어가 150ms 뒤에 알려 준다(루트 뷰가 선택마다 다시 그려지지 않도록).
             store.onPrimaryRowChange = { [weak deck] row in deck?.load(row) }
             store.onCueDraftsReloaded = { [weak deck] drafts in
