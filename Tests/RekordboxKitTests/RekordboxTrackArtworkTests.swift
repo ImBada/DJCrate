@@ -83,6 +83,9 @@ struct RekordboxTrackArtworkTests {
         #expect(Set(report.createdFiles) == Set(names.map { base.appending(path: $0).path }).union(
             ["DAT", "EXT", "2EX"].map { fixture.shareRoot.appending(path: "PIONEER/USBANLZ/\(uuid.prefix(3))/\(uuid.dropFirst(3))/ANLZ0000.\($0)").path }),
             "되돌릴 때 지울 파일")
+        let backupPath = try #require(report.backup)
+        let backupReport = try #require(RekordboxTrackWriter.report(in: URL(filePath: backupPath)))
+        #expect(backupReport.createdFiles.count == 6 && backupReport.createdFiles.allSatisfy { $0.hasPrefix("PIONEER/") })
         // 파일 행은 artwork.jpg 하나(_m·_s는 행이 없다). 칸은 rekordbox가 만든 행과 같다.
         let artworkRows = try fixture.rows("SELECT * FROM contentFile WHERE ContentID = ? AND Path LIKE '%/Artwork/%'", [.text(id)])
         #expect(artworkRows.count == 1)

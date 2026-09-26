@@ -69,7 +69,7 @@ extension RekordboxWriter {
         return DeletionFiles(files: candidates.filter { FileManager.default.fileExists(atPath: $0.path) })
     }
 
-    static func backupDeletionFiles(_ files: [URL], in backup: URL?) throws {
+    static func backupDeletionFiles(_ files: [URL], in backup: URL?, shareRoot: URL?) throws {
         guard let backup, !files.isEmpty else { return }
         let folder = backup.appending(path: "anlz")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -78,7 +78,7 @@ extension RekordboxWriter {
         for file in Set(files) {
             let name = "delete-\(manifest.count).\(file.pathExtension)"
             try FileManager.default.copyItem(at: file, to: folder.appending(path: name))
-            manifest[name] = file.path
+            manifest[name] = try backupRelativePaths([file.path], shareRoot: shareRoot)[0]
         }
         try JSONEncoder().encode(manifest).write(to: manifestURL, options: .atomic)
     }

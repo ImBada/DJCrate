@@ -48,7 +48,7 @@ public enum RekordboxWriter {
         public var gainOutcomes: [Outcome]?
         /// 분석 전 곡에 분석 파일을 붙인 결과(added = 박 수). 옛 보고서에는 없다.
         public var analysisOutcomes: [Outcome]?
-        /// 새로 만든 분석·아트워크 파일(되돌릴 때 지운다). 옛 보고서에는 없다.
+        /// 새로 만든 분석·아트워크 파일(되돌릴 때 지운다). 반환값은 절대 경로, 백업 JSON은 share 기준 상대 경로. 옛 보고서에는 없다.
         public var createdFiles: [String]?
         /// 재생 목록 편집 결과(편집 순서대로). 옛 보고서에는 없다.
         public var playlistOutcomes: [PlaylistOutcome]?
@@ -81,9 +81,8 @@ public enum RekordboxWriter {
     /// 백업은 한 개에 150MB 안팎이다. 최근 이만큼만 남긴다.
     static let backupsToKeep = 5
 
-    static func isLive(_ database: URL) -> Bool {
-        database.resolvingSymlinksInPath().standardizedFileURL.path
-            == liveDatabase.resolvingSymlinksInPath().standardizedFileURL.path
+    static func isLive(_ database: URL, liveDatabase: URL = liveDatabase) -> Bool {
+        RekordboxWriteGuard.sameFile(database, liveDatabase)
     }
 
     // MARK: - 쓰기
@@ -132,8 +131,7 @@ public enum RekordboxWriter {
                           backup: nil, dryRun: dryRun, createdAt: stamp.json, finalUpdateCount: nil)
         }
         let live = writeGuard.isLive(database)
-        let gridRoot = shareRoot ?? (live ? RekordboxShare.directory : nil)
-        if live { try writeGuard.checkLive(database, dryRun: dryRun) }
+        let gridRoot = try writeGuard.checkTargets(database, shareRoot: shareRoot, dryRun: dryRun)
         do {
             let reader = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
             defer { reader.close() }
@@ -262,7 +260,7 @@ public enum RekordboxWriter {
 
         let backup = dryRun ? nil : try makeBackup(of: database, in: backups, now: now, label: "write")
         // 분석 파일도 원본을 백업에 둔다(되돌리기용).
-        if let backup, !gridPlans.isEmpty { try backupAnalysis(gridPlans, in: backup) }
+        if let backup, let gridRoot, !gridPlans.isEmpty { try backupAnalysis(gridPlans, in: backup, shareRoot: gridRoot) }
 
         var outcomes: [Outcome] = []
         var gainOutcomes: [Outcome] = []
@@ -381,7 +379,7 @@ public enum RekordboxWriter {
                     do {
                         let cues = plan.cues
                         let result = try applyMerge(plan.draft, cue: cues, work: &work, db: db, usn: &usn, stamp: stamp, share: gridRoot)
-                        try backupDeletionFiles(result.files, in: backup)
+                        try backupDeletionFiles(result.files, in: backup, shareRoot: gridRoot)
                         try verifyPlaylists(work, db: db)
                         try db.execute("RELEASE djc_merge")
                         merged.append(result.expectation); mergeFiles += result.files
@@ -537,7 +535,7 @@ public enum RekordboxWriter {
         report.tagOutcomes = tagOutcomes.isEmpty ? nil : tagOutcomes
         report.mergeOutcomes = mergeOutcomes.isEmpty ? nil : mergeOutcomes
         if let backup {
-            try? save(report, in: backup)
+            try? save(report, in: backup, shareRoot: gridRoot)
             // 되돌리면 DJCrate 초안도 살릴 수 있게 쓴 초안을 백업 옆에 둔다.
             let written = Set(report.written.map(\.trackUUID))
             let folder = backup.appending(path: "cue-drafts")
