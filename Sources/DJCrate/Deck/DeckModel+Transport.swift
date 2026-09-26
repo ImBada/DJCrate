@@ -13,7 +13,7 @@ extension DeckModel {
         guard canPlay else { return }
         AudioEvents.record("조작 재생/정지 · 재생 중=\(isPlaying) · 미리듣기=\(isCuePreviewing) · 위치 \(String(format: "%.2f", playhead))")
         if isCuePreviewing {
-            if Self.isCueHeld {
+            if isCueHeld {
                 // CUE를 누른 채 재생을 누르면 손을 떼도 계속 재생한다(CDJ와 같다).
                 isCuePreviewing = false
                 return
@@ -54,7 +54,7 @@ extension DeckModel {
             meterFrame &+= 1
         }
         // CUE를 뗀 신호(키·마우스)를 놓치면 미리 듣기가 끝나지 않는다. 실제로 누르고 있지 않으면 뗀 것으로 본다.
-        if isCuePreviewing, !Self.isCueHeld {
+        if isCuePreviewing, !isCueHeld {
             AudioEvents.record("CUE를 뗀 신호를 놓쳐 미리 듣기를 끝냄")
             cueUp()
             return
@@ -169,9 +169,10 @@ extension DeckModel {
         if isPlaying { returnToCue() }
     }
 
-    /// CUE를 지금 실제로 누르고 있는지(C 키 또는 마우스 왼쪽 버튼). 미리 듣기 상태가 남지 않게 확인한다.
-    static var isCueHeld: Bool {
-        CGEventSource.keyState(.combinedSessionState, key: 8) || (NSEvent.pressedMouseButtons & 1) != 0
+    /// CUE를 지금 실제로 누르고 있는지(CUE 단축키 또는 마우스 왼쪽 버튼). 미리 듣기 상태가 남지 않게 확인한다.
+    var isCueHeld: Bool {
+        shortcuts.keys(for: .cue).contains { CGEventSource.keyState(.combinedSessionState, key: CGKeyCode($0)) }
+            || (NSEvent.pressedMouseButtons & 1) != 0
     }
 
     /// 멈춘 채 큐 지점에 있는지(CUE 버튼 불빛).

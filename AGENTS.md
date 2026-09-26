@@ -36,7 +36,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 ```
 
 - 앱 개발용 실행 인자: `--db <스냅샷>`(그 사본을 연다), `--select <ContentID>`(곡을 골라 둔다).
-- 환경 변수: `DJC_HOME`(초안·백업 폴더를 바꿈), `DJC_REKORDBOX_DIR`(rekordbox 폴더 사본), `DJC_DB`(열 스냅샷), `DJC_IDLE_SECONDS`(재생 멈춘 뒤 엔진 끄기까지).
+- 환경 변수: `DJC_HOME`(초안·백업 폴더를 바꿈), `DJC_REKORDBOX_DIR`(rekordbox 폴더 사본), `DJC_DB`(열 스냅샷), `DJC_IDLE_SECONDS`(재생 멈춘 뒤 엔진 끄기까지, 설정 › 일반보다 먼저).
 
 ## 검증 (작업이 끝났다고 말하기 전에)
 
@@ -65,7 +65,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 
 의존 방향은 한쪽뿐이다: 앱·CLI → DJCStorage → RekordboxKit → DJCDomain, DJCAnalysis → DJCDomain (`Package.swift` 주석).
 
-- `Sources/DJCDomain/` — 입출력 없는 규칙·모델. `Cue/`(초안·큐 편집 규칙), `Grid/`(그리드 초안·따라가기), `Playback/`(루프 규칙·`LoopPlanner`·`PlaybackSchedule`), `Library/`(곡 행·필터·게인 정책), `Comment/`, `Tags/`
+- `Sources/DJCDomain/` — 입출력 없는 규칙·모델. `Cue/`(초안·큐 편집 규칙), `Grid/`(그리드 초안·따라가기), `Playback/`(루프 규칙·`LoopPlanner`·`PlaybackSchedule`), `Library/`(곡 행·필터·게인 정책), `Settings/`(설정 이름·기본값, 덱 단축키 표), `Comment/`, `Tags/`
 - `Sources/RekordboxKit/` — rekordbox 형식. DB(`CipherDatabase`), 쓰기(`RekordboxWriter+*`, `RekordboxGridWriter`, `RekordboxCompatibility`), ANLZ, 스냅샷, `Export/`(XML·반영 계획), `Library/`
 - `Sources/DJCStorage/` — DJCrate 자신의 파일: 초안·추가한 곡·반영 묶음·경로(`DJCPaths`)
 - `Sources/DJCAnalysis/` — 파형·그리드 추정·조성·음량·섹션
@@ -73,7 +73,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
   - `Deck/`: `DeckModel`(+Transport·Loops·Cues·Grid·Gain·Key), `Audio/`(`DeckAudio`, `DeckAudioEngine` 프로토콜), `Views/`, `Waveform/`
   - `Library/`: `LibraryStore`(+Writing·Staging·Tags), `TrackTable`(NSTableView), 태그 편집
   - `Reflection/`: `ReflectionCoordinator`(미리 보기 → 확인 → 쓰기 → 토스트), 토스트, XML 연동
-  - `App/`: 창·사이드바·`KeyRouter`(단축키). `Diagnostics/`: 자가 테스트·성능 기록(디버그 전용)
+  - `App/`: 창·사이드바·`KeyRouter`(단축키). `Settings/`: 설정 창(⌘,)·설정 저장소(`SettingsStore`, 이름·기본값은 `DJCDomain/Settings`). `Diagnostics/`: 자가 테스트·성능 기록(디버그 전용)
 - `Sources/djc/` — CLI. `Commands/`(늘 쓰는 명령), `Lab/`(규칙을 알아낼 때 쓴 실험, `djc lab …`)
 - `Tests/` — 타깃별 테스트 + `Support/`(rekordbox 픽스처·합성 ANLZ·합성 음원, 실데이터 없음)
 - 사용자 데이터: `~/Library/Application Support/DJCrate/`
@@ -90,6 +90,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 - 화면: 재생 중 매 프레임 바뀌는 관찰 값은 큰 뷰가 읽지 않게 한다. 글자·전체 파형 재생선은 `displayTime`(15Hz), 레벨 미터는 재생 틱(`meterFrame`)으로 갱신한다.
 - 그리드 쓰기는 파형 파일(`.EXT`)이 있는 곡만 한다(rekordbox 분석 전 곡은 막음).
 - 새 곡은 rekordbox XML(Import To Collection)로 넘긴다. 이미 컬렉션에 있는 경로는 막는다(기존 큐 덮어쓰기 방지).
+- 설정: 이름·기본값·범위는 `SettingKeys`에 모은다. 이름은 옛 UserDefaults 키 그대로다(바꾸면 쓰던 값을 잃는다). 덱 단축키는 키 위치(키 코드)로 정하고, 기본과 다른 동작만 저장한다. ⌘·⌃·⌥ 조합과 목록 확정·이동 키(`DeckShortcuts.reservedKeys`)는 지정할 수 없다.
 
 ## 코드 스타일
 

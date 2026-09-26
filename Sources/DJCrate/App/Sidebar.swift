@@ -7,8 +7,8 @@ import SwiftUI
 
 struct Sidebar: View {
     @Bindable var store: LibraryStore
-    @AppStorage("sidebar.playlistsExpanded") private var playlistsExpanded = true
-    @AppStorage("sidebar.summaryExpanded") private var summaryExpanded = true
+    @AppStorage(SettingKeys.sidebarPlaylistsExpanded.name) private var playlistsExpanded = SettingKeys.sidebarPlaylistsExpanded.defaultValue
+    @AppStorage(SettingKeys.sidebarSummaryExpanded.name) private var summaryExpanded = SettingKeys.sidebarSummaryExpanded.defaultValue
 
     var body: some View {
         List(selection: $store.sidebar) {

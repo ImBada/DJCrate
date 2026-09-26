@@ -419,17 +419,19 @@ final class DeckAudio {
         if engine.isRunning { engine.stop() }
     }
 
-    /// 멈춘 뒤 엔진을 끄기까지의 시간(개발용으로 `DJC_IDLE_SECONDS`로 줄일 수 있다).
-    static let idleSeconds: Double = ProcessInfo.processInfo.environment["DJC_IDLE_SECONDS"].flatMap(Double.init) ?? 20
+    /// 멈춘 뒤 엔진을 끄기까지의 시간(설정 › 일반). 개발용 `DJC_IDLE_SECONDS`가 있으면 그 값이 먼저다.
+    var idleSeconds: Double = 20
+    private static let idleOverride = ProcessInfo.processInfo.environment["DJC_IDLE_SECONDS"].flatMap(Double.init)
 
     /// 멈춘 뒤에도 잠시 엔진을 켜 두어 CUE·재생이 바로 반응하게 하고, 오래 쉬면 CPU를 쓰지 않게 끈다.
     private func scheduleIdlePause() {
         idleTask?.cancel()
+        let seconds = Self.idleOverride ?? idleSeconds
         idleTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(Self.idleSeconds))
+            try? await Task.sleep(for: .seconds(seconds))
             guard !Task.isCancelled, let self, !self.isPlaying, self.engine.isRunning else { return }
             self.engine.stop()
-            AudioEvents.record("\(Int(Self.idleSeconds))초 유휴 · 엔진 정지")
+            AudioEvents.record("\(Int(seconds))초 유휴 · 엔진 정지")
         }
     }
 

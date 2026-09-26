@@ -72,7 +72,9 @@ scripts/build-app.sh --install     # /Applications/DJCrate.app에 설치
 
 ### 단축키
 
-| 키 | 동작 |
+덱 단축키(아래 표에서 ⌘ 조합을 뺀 것)는 설정(⌘,) › 단축키에서 동작마다 키를 눌러 바꿀 수 있다. 키는 자리로 기억해서 한글 입력기에서도 같은 키가 같은 일을 한다. 겹치는 키는 경고하고, "모두 기본값으로"로 되돌린다. ⌘ 조합(메뉴·실행 취소 ⌘Z)과 Return·Esc·Tab·↑↓·Home·End·Page Up/Down은 바꿀 수 없다.
+
+| 키(기본) | 동작 |
 |---|---|
 | Space | 재생 / 정지 |
 | C | CUE(재생 중: 큐로 돌아가 정지, 멈춤: 큐 지점 설정, 누르고 있기: 미리 듣기) |
@@ -84,6 +86,7 @@ scripts/build-app.sh --install     # /Applications/DJCrate.app에 설치
 | T | 탭 템포 |
 | 휠 · + − | 파형 확대·축소(가로 스크롤: 이동) |
 | ⌘⇧E / ⌘I | rekordbox에 반영 / 태그 편집 |
+| ⌘, | 설정(일반·덱·단축키) |
 
 ## CLI
 

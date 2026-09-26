@@ -4,15 +4,17 @@ import AppKit
 ///
 /// SwiftUI `onKeyPress`는 그 뷰에 포커스가 있어야 동작해서, 파형(제스처가 클릭을 먹는다)이나 목록을
 /// 누른 뒤에는 스페이스·CUE가 먹히지 않았다. 덱·곡 목록에서만 덱 단축키를 받고,
-/// 다른 창이나 글자 입력·컨트롤 포커스에는 끼어들지 않는다.
+/// 다른 창(설정 창 포함)이나 글자 입력·컨트롤 포커스에는 끼어들지 않는다.
+/// 어떤 키가 어떤 동작인지는 덱의 단축키 표(`DeckShortcuts`, 설정 › 단축키)를 따른다.
 /// 검색창은 Esc·Return, 또는 글자 칸이 아닌 곳을 클릭하면 빠져나온다.
 @MainActor
 @Observable
 final class KeyRouter {
     @ObservationIgnored private var monitors: [Any] = []
-    @ObservationIgnored private weak var deck: DeckModel?
+    @ObservationIgnored weak var deck: DeckModel?
     @ObservationIgnored private var resignObserver: NSObjectProtocol?
-    @ObservationIgnored private var cueKeyIsDown = false
+    /// 미리 듣기를 시작한 CUE 키(떼면 미리 듣기를 끝낸다)
+    @ObservationIgnored private var heldCueKey: UInt16?
 
     func install(deck: DeckModel) {
         self.deck = deck
@@ -32,7 +34,7 @@ final class KeyRouter {
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.deck?.cueUp()
-                self?.cueKeyIsDown = false
+                self?.heldCueKey = nil
             }
         }
     }
@@ -42,16 +44,13 @@ final class KeyRouter {
     /// nil을 돌려주면 이벤트를 삼킨다(다른 곳으로 가지 않는다).
     private func route(_ event: NSEvent) -> NSEvent? {
         guard let deck else { return event }
-        // C를 누른 뒤 포커스가 바뀌어도 이미 시작한 미리 듣기는 끝내되, 키는 새 대상에 넘긴다.
-        if event.type == .keyUp, Self.shortcutName(for: event.keyCode) == "c", cueKeyIsDown {
-            deck.cueUp()
-            cueKeyIsDown = false
-        }
+        // CUE를 누른 뒤 포커스가 바뀌어도 이미 시작한 미리 듣기는 끝내되, 키는 새 대상에 넘긴다.
+        if event.type == .keyUp { handleKeyUp(event.keyCode) }
         guard let window = event.window else { return event }
         let responder = window.firstResponder
         let focus = Self.focus(in: window)
         let context = KeyRoutingPolicy.Context(
-            isMainWindow: window === NSApp.mainWindow,
+            isMainWindow: Self.isDeckWindow(window),
             hasModalWindow: NSApp.modalWindow != nil,
             hasAttachedSheet: window.attachedSheet != nil,
             hasShortcutModifiers: !event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
@@ -63,23 +62,17 @@ final class KeyRouter {
         if focus == .control || focus == .table || focus == .textInput { return event }
         // 덱·목록의 쓰기 잠금은 유지한다. 모달·입력 컨트롤에는 위에서 먼저 키를 넘긴다.
         if deck.isWriteLocked { return nil }
-        guard KeyRoutingPolicy.accepts(event.keyCode, in: context) else { return event }
-        // 글자가 아니라 키 위치로 본다. 한글 입력기가 켜져 있으면 C 키가 "ㅊ"으로 들어와 글자로는 못 알아본다.
-        let key = Self.shortcutName(for: event.keyCode)
-        let deckFocused = focus == .deck
+        guard KeyRoutingPolicy.accepts(event.keyCode, in: context, shortcuts: deck.shortcuts) else { return event }
 
         if event.type == .keyUp {
-            if key == "c" { return nil }
-            return event
+            return deck.shortcuts.action(for: event.keyCode) == .cue ? nil : event
         }
-        if deck.row != nil, event.keyCode == Self.space {
-            if !event.isARepeat { deck.togglePlay() }
+        if handleKeyDown(event.keyCode, shift: event.modifierFlags.contains(.shift), isRepeat: event.isARepeat, focus: focus) {
             return nil
         }
         if focus == .sheet { return event }
-        if deck.row != nil, handleDeckKey(event, key: key, deckFocused: deckFocused) { return nil }
 
-        if deckFocused {
+        if focus == .deck {
             switch event.specialKey {
             case .upArrow?, .downArrow?, .pageUp?, .pageDown?, .home?, .end?:
                 // 파형을 누른 뒤에도 ↑↓로 곡을 고를 수 있게 목록으로 넘긴다.
@@ -138,43 +131,61 @@ final class KeyRouter {
         return false
     }
 
-    /// 덱 단축키. 처리했으면 true.
-    private func handleDeckKey(_ event: NSEvent, key: String, deckFocused: Bool) -> Bool {
-        guard let deck else { return false }
-        // 1~8(윗줄·숫자 패드) = 핫큐 A~H. 버튼을 누른 것과 같다(있으면 이동, 없으면 플레이헤드에 찍기).
-        if let slot = Self.hotCueSlot(for: event.keyCode) {
-            // Shift + 1~8 = 그 핫큐 지우기
-            if !event.isARepeat {
-                if event.modifierFlags.contains(.shift) { deck.deleteHotCue(slot: slot) } else { deck.pressHotCue(slot: slot) }
+    /// 덱 단축키. 글자가 아니라 키 위치로 본다(한글 입력기가 켜져 있으면 C 키가 "ㅊ"으로 들어와 글자로는 못 알아본다).
+    /// 처리했으면 true. NSEvent 없이 시험할 수 있게 창·포커스 판단(`route`)과 나눴다.
+    func handleKeyDown(_ keyCode: UInt16, shift: Bool = false, isRepeat: Bool = false, focus: KeyRoutingPolicy.Focus) -> Bool {
+        guard let deck, deck.row != nil, let action = deck.shortcuts.action(for: keyCode) else { return false }
+        if action == .playPause {
+            if !isRepeat { deck.togglePlay() }
+            return true
+        }
+        // 태그 표에서는 재생/정지만 덱으로 보낸다(나머지는 칸 입력).
+        guard focus != .sheet else { return false }
+        let deckFocused = focus == .deck
+        // 핫큐 A~H: 버튼을 누른 것과 같다(있으면 이동, 없으면 플레이헤드에 찍기). Shift를 함께 누르면 지우기.
+        if let slot = action.hotCueSlot {
+            if !isRepeat {
+                if shift { deck.deleteHotCue(slot: slot) } else { deck.pressHotCue(slot: slot) }
             }
             return true
         }
-        switch event.specialKey {
-        case .leftArrow?: return deckFocused && deck.nudgeSelectedCue(beats: -1)
-        case .rightArrow?: return deckFocused && deck.nudgeSelectedCue(beats: 1)
-        case .delete?, .deleteForward?, .backspace?: return deckFocused && deck.deleteSelectedCue()
-        case .some: return false
-        case nil: break
-        }
-        switch key {
-        case "c":
-            if !event.isARepeat { deck.cueDown(); cueKeyIsDown = true }
-        case "q": if !event.isARepeat { deck.jumpToCue(forward: false) }
-        case "e": if !event.isARepeat { deck.jumpToCue(forward: true) }
-        case "m":
-            // Shift + M(`) = 이 자리 메모리 큐 지우기
-            if !event.isARepeat {
-                if event.modifierFlags.contains(.shift) { deck.deleteMemoryCue(at: deck.currentTime) } else { deck.addMemoryCueAtPlayhead() }
+        switch action {
+        case .cue:
+            if !isRepeat { deck.cueDown(); heldCueKey = keyCode }
+        case .previousCue: if !isRepeat { deck.jumpToCue(forward: false) }
+        case .nextCue: if !isRepeat { deck.jumpToCue(forward: true) }
+        case .memoryCue:
+            // Shift를 함께 누르면 이 자리 메모리 큐 지우기
+            if !isRepeat {
+                if shift { deck.deleteMemoryCue(at: deck.currentTime) } else { deck.addMemoryCueAtPlayhead() }
             }
-        case "t": if !event.isARepeat { deck.tapTempo() }
-        case "l": if !event.isARepeat { deck.toggleLoop() }
-        case "[": deck.resizeLoop(-1)
-        case "]": deck.resizeLoop(1)
-        case "+", "=": deck.zoom(by: 0.8)
-        case "-": deck.zoom(by: 1.25)
-        default: return false
+        case .nudgeBack: return deckFocused && deck.nudgeSelectedCue(beats: -1)
+        case .nudgeForward: return deckFocused && deck.nudgeSelectedCue(beats: 1)
+        case .deleteCue: return deckFocused && deck.deleteSelectedCue()
+        case .tapTempo: if !isRepeat { deck.tapTempo() }
+        case .loop: if !isRepeat { deck.toggleLoop() }
+        case .loopHalve: deck.resizeLoop(-1)
+        case .loopDouble: deck.resizeLoop(1)
+        case .zoomIn: deck.zoom(by: 0.8)
+        case .zoomOut: deck.zoom(by: 1.25)
+        case .playPause, .hotCueA, .hotCueB, .hotCueC, .hotCueD, .hotCueE, .hotCueF, .hotCueG, .hotCueH:
+            return false   // 위에서 처리
         }
         return true
+    }
+
+    /// CUE 키를 떼면 미리 듣기를 끝낸다. 끝냈으면 true.
+    @discardableResult
+    func handleKeyUp(_ keyCode: UInt16) -> Bool {
+        guard keyCode == heldCueKey else { return false }
+        deck?.cueUp()
+        heldCueKey = nil
+        return true
+    }
+
+    /// 덱 단축키를 받는 창: 주 창이면서 설정 창이 아닌 것(설정 창도 주 창이 될 수 있다)
+    private static func isDeckWindow(_ window: NSWindow) -> Bool {
+        window === NSApp.mainWindow && window !== SettingsWindow.current
     }
 
     // MARK: - 목록 포커스
@@ -218,7 +229,7 @@ final class KeyRouter {
     /// 글자 칸·표가 아닌 곳(파형·덱 버튼·빈 곳)을 누르면 포커스를 창으로 돌려 단축키가 덱으로 가게 한다.
     /// 검색창에 포커스가 박혀 스페이스가 검색어로 들어가던 문제를 여기서 푼다.
     private func releaseFocusIfNeeded(_ event: NSEvent) {
-        guard NSApp.modalWindow == nil, let window = event.window, window === NSApp.mainWindow,
+        guard NSApp.modalWindow == nil, let window = event.window, Self.isDeckWindow(window),
               window.attachedSheet == nil,
               let root = window.contentView?.superview,
               let hit = root.hitTest(event.locationInWindow) else { return }
@@ -232,41 +243,6 @@ final class KeyRouter {
         if window.firstResponder !== window { window.makeFirstResponder(nil) }
     }
 
-    /// 키 위치(ANSI 배열 키 코드) → 단축키 이름. 입력기·배열과 무관하게 같은 자리의 키가 같은 기능이다.
-    nonisolated static func shortcutName(for keyCode: UInt16) -> String {
-        switch keyCode {
-        case 8: "c"
-        case 46, 50: "m"   // M, `(1 왼쪽 키 — 한글 자판에선 ₩)
-        case 17: "t"
-        case 37: "l"
-        case 33: "["
-        case 30: "]"
-        case 12: "q"
-        case 14: "e"
-        case 24: "="
-        case 27: "-"
-        case 69: "+"   // 숫자 패드 +
-        case 78: "-"   // 숫자 패드 −
-        default: ""
-        }
-    }
-
-    /// 숫자 키 위치 → 핫큐 칸(0 = A). 윗줄 1~8과 숫자 패드 1~8.
-    nonisolated static func hotCueSlot(for keyCode: UInt16) -> Int? {
-        switch keyCode {
-        case 18, 83: 0
-        case 19, 84: 1
-        case 20, 85: 2
-        case 21, 86: 3
-        case 23, 87: 4
-        case 22, 88: 5
-        case 26, 89: 6
-        case 28, 91: 7
-        default: nil
-        }
-    }
-
-    private static let space: UInt16 = 49
     private static let escape: UInt16 = 53
     private static let returnKey: UInt16 = 36
     private static let enter: UInt16 = 76
