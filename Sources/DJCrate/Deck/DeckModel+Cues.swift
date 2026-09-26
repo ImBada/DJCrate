@@ -165,6 +165,17 @@ extension DeckModel {
         selectedCueID = nil
     }
 
+    func reloadExternalCueDraft(_ saved: CueDraft?) {
+        guard !isWriteLocked, !hasUncommittedCueEdits, let row, saved == nil || saved?.trackUUID == row.track.uuid else { return }
+        if let saved, saved.base == draft?.base, saved.cues == draft?.cues { return }
+        if saved == nil, draft?.hasChanges != true { return }
+        draft = saved ?? CueDraft(trackUUID: row.track.uuid, rekordboxCues: row.cues)
+        if cue(selectedCueID) == nil { selectedCueID = nil }
+        if cue(engagedLoopID)?.loop == nil { engagedLoopID = nil }
+        refreshSuggestions()
+        syncAudioLoop()
+    }
+
     func commitDraft() {
         if !isWriteLocked, let draft { persist(draft) }
     }
@@ -173,11 +184,13 @@ extension DeckModel {
         guard !isWriteLocked, var draft, draft.trackUUID == row?.track.uuid else { return }
         change(&draft)
         self.draft = draft
+        hasUncommittedCueEdits = !save
         refreshSuggestions()
         if save { persist(draft) }
     }
 
     func persist(_ draft: CueDraft) {
+        hasUncommittedCueEdits = false
         storage.saveCueDraft(draft)
         onCueDraftChange?(draft)
         onDraftChange?(draft.trackUUID, .cue, draft.hasChanges)

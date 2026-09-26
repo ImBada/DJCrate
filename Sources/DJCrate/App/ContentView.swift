@@ -43,6 +43,13 @@ struct ContentView: View {
         .searchable(text: $store.search, placement: .toolbar, prompt: "제목·아티스트·코멘트")
         .toolbar { toolbarContent }
         .onAppear { setUp() }
+        .task {
+            while !Task.isCancelled {
+                // 끄는 중인 큐·그리드는 손을 놓아 저장한 뒤에 다시 읽는다.
+                if !deck.hasUncommittedCueEdits, deck.cueDragBase == nil, deck.gridDragBase == nil { store.refreshExternalDrafts() }
+                do { try await Task.sleep(for: .seconds(1)) } catch { break }
+            }
+        }
         // rekordbox에서 곡을 지우거나 고치고 돌아오면 새로 읽는다(옛 목록에 지워진 곡이 남지 않게)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             Task { await store.refreshIfRekordboxChanged() }
@@ -161,6 +168,10 @@ struct ContentView: View {
     private func setUp() {
             // 선택 변경은 스토어가 150ms 뒤에 알려 준다(루트 뷰가 선택마다 다시 그려지지 않도록).
             store.onPrimaryRowChange = { [weak deck] row in deck?.load(row) }
+            store.onCueDraftsReloaded = { [weak deck] drafts in
+                guard let deck, let uuid = deck.row?.track.uuid else { return }
+                deck.reloadExternalCueDraft(drafts[uuid])
+            }
             store.onGridDraftSaved = { [weak deck] uuid in deck?.gridDraftSavedExternally(uuid) }
             deck.onStagedGridChange = { [weak store] uuid, bpm in store?.stagedGridChanged(uuid: uuid, bpm: bpm) }
             deck.onCueDraftChange = { [weak store] draft in store?.cueDraftChanged(draft) }
