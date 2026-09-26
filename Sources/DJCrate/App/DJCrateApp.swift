@@ -29,6 +29,7 @@ struct DJCrateApp: App {
             ContentView(store: store, deck: deck)
                 .modifier(AppTextScale())
                 .frame(minWidth: 1100, minHeight: 700)
+                .background(MainWindowFrame())
                 .task {
                     appDelegate.store = store
                     NSApplication.shared.activate()
@@ -37,11 +38,6 @@ struct DJCrateApp: App {
         }
         .commands {
             AppCommands()
-            // 번들 없이 도는 개발 빌드에서도 앱 언어로 "설정…"(⌘,)이 되게 직접 둔다.
-            CommandGroup(replacing: .appSettings) {
-                SettingsLink { Text(.ui("설정…")) }
-                    .keyboardShortcut(",", modifiers: .command)
-            }
             CommandGroup(after: .pasteboard) {
                 // 표준 편집 명령처럼 현재 응답자가 활성 상태와 실행을 결정한다.
                 Button(.ui("아래로 채우기")) {
@@ -66,9 +62,28 @@ struct DJCrateApp: App {
         .defaultSize(width: 720, height: 660)
         .restorationBehavior(.disabled)
 
-        // 기본 설정·덱 단축키(⌘,). 덱과 같은 모델에 묶여 바꾸면 바로 반영·저장된다.
+        // Settings가 설정 메뉴와 ⌘,도 등록한다. 주 창에 수동 메뉴를 더하면 중복된다.
+        // 덱과 같은 모델에 묶여 바꾸면 바로 반영·저장된다.
         Settings {
             SettingsView(store: store, deck: deck)
+        }
+    }
+}
+
+/// SwiftUI 장면 복원은 끈 채 창 위치·크기만 AppKit에 맡긴다.
+private struct MainWindowFrame: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { TrackingView() }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    final class TrackingView: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            // SwiftUI가 기본 크기를 잡은 뒤 저장된 프레임을 적용한다.
+            DispatchQueue.main.async { [weak self] in
+                guard let window = self?.window, window.frameAutosaveName != "djc.mainWindow" else { return }
+                window.setFrameUsingName("djc.mainWindow")
+                window.setFrameAutosaveName("djc.mainWindow")
+            }
         }
     }
 }

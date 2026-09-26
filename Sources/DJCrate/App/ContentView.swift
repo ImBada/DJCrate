@@ -11,7 +11,7 @@ struct ContentView: View {
     @Environment(\.undoManager) private var undoManager
     @Bindable var store: LibraryStore
     @Bindable var deck: DeckModel
-    @State private var showTagEditor = false
+    @AppStorage(SettingKeys.showTagEditor.name) private var showTagEditor = SettingKeys.showTagEditor.defaultValue
     @AppStorage(SettingKeys.waveformHeight.name) private var waveformHeight = SettingKeys.waveformHeight.defaultValue
     @AppStorage(SettingKeys.sheetMode.name) private var sheetMode = SettingKeys.sheetMode.defaultValue
     @State private var keys = KeyRouter()
@@ -43,6 +43,12 @@ struct ContentView: View {
                 .navigationSplitViewColumnWidth(min: 210, ideal: 230)
         } detail: {
             detail
+                .navigationTitle(store.sidebarTitle)
+                .navigationSubtitle(store.sidebar == .duplicates
+                    ? String(ui: "\(store.displayDuplicateGroups.count)묶음 · \(store.displayRows.count)곡")
+                    : store.selection.count > 1
+                    ? String(ui: "\(store.displayRows.count)곡 · \(store.selection.count)곡 선택")
+                    : String(ui: "\(store.displayRows.count)곡"))
                 .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
                 .overlay(alignment: .top) {
                     if let toast = store.toast {
@@ -101,7 +107,7 @@ struct ContentView: View {
                         if let error = store.lastError {
                             Label(.ui("스냅샷을 새로 뜨지 못했습니다: \(error)"), systemImage: "exclamationmark.triangle")
                                 .font(.callout).foregroundStyle(UIColors.warning.color)
-                                .padding(.horizontal, 14).padding(.vertical, 6)
+                                .padding(.horizontal, Spacing.edge).padding(.vertical, 6)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         if let message = store.reflectionMessage {
@@ -129,7 +135,7 @@ struct ContentView: View {
                     SplitHandle(height: $waveformHeight, displayedHeight: displayedHeight, maximumHeight: maximumHeight)
                     VStack(spacing: 0) {
                         ListActionBar(store: store)
-                        if sheetMode && store.sidebar != .duplicates { SheetHeader(store: store) }
+                        if sheetMode && store.sidebar != .duplicates { SheetHeader() }
                     }
                     .onGeometryChange(for: Double.self) { $0.size.height } action: { listHeaderHeight = $0 }
                     if store.sidebar == .duplicates {
@@ -292,12 +298,10 @@ struct ContentView: View {
 /// 태그 시트 위 안내 줄.
 struct SheetHeader: View {
     @Environment(\.textScale) private var textScale
-    let store: LibraryStore
 
     var body: some View {
         HStack(spacing: 14) {
-            Text(.ui("\(store.sidebarTitle) · \(store.displayRows.count)곡")).font(.scaled(.callout, textScale).bold())
-            Text(.ui("더블클릭·Return·타이핑: 편집  ·  ⌘C/⌘V: 엑셀·시트와 복사·붙여넣기  ·  ⌘D: 아래로 채우기  ·  Delete: 지우기  ·  ⌘Z/⇧⌘Z: 실행 취소·실행 복귀"))
+            Text(.ui("더블클릭·Return·타이핑: 편집  ·  ⌃Tab: 표 밖으로  ·  ⌘C/⌘V: 엑셀·시트와 복사·붙여넣기  ·  ⌘D: 아래로 채우기  ·  Delete: 지우기  ·  ⌘Z/⇧⌘Z: 실행 취소·실행 복귀"))
                 .font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
             Spacer()
             // 색이 아니라 칸의 모양(왼쪽 위 모서리 삼각형)으로 알린다.
@@ -309,7 +313,7 @@ struct SheetHeader: View {
                 .accessibilityLabel(.ui("왼쪽 위 모서리 삼각형이 붙은 칸은 초안(파일·rekordbox 미반영)"))
         }
         .controlSize(.small)
-        .padding(.horizontal, 12)
+        .padding(.horizontal, Spacing.edge)
         .padding(.vertical, 6)
     }
 }

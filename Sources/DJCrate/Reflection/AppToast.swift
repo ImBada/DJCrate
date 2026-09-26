@@ -74,7 +74,11 @@ struct AppToastView: View {
                     .controlSize(ControlSize.small.scaled(textScale))
                     .help(.ui("rekordbox 라이브러리를 이번 쓰기 직전 백업으로 되돌립니다(rekordbox가 꺼져 있어야 합니다)"))
             }
-            Button(action: onClose) { Image(systemName: "xmark").font(.scaled(.caption, textScale).bold()) }
+            Button(action: onClose) {
+                Image(systemName: "xmark").font(.scaled(.caption, textScale).bold())
+                    .frame(minWidth: 20, minHeight: 20)
+                    .contentShape(Rectangle())
+            }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .accessibilityLabel(.ui("알림 닫기"))

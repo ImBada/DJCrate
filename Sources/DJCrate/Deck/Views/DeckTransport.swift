@@ -171,6 +171,7 @@ struct HotCuePad: View {
         let keys = DeckAction.allCases.first { $0.hotCueSlot == slot }.map { deck.shortcuts.keyLabel(for: $0) } ?? String(ui: "미지정")
         let color = cue.map(UIColors.color(for:)) ?? .secondary
         let engaged = cue != nil && cue?.id == deck.engagedLoopID
+        let accessibility = deck.hotCueAccessibility(slot: slot)
         Button {
             // Shift+클릭 = 지우기
             if NSEvent.modifierFlags.contains(.shift) { deck.deleteHotCue(slot: slot) } else { deck.pressHotCue(slot: slot) }
@@ -193,7 +194,8 @@ struct HotCuePad: View {
         .help(cue == nil ? (deck.instantLoop != nil ? String(ui: "핫큐 \(letter) (\(keys)): 지금 루프를 루프 핫큐로 저장") : String(ui: "핫큐 \(letter) (\(keys)): 플레이헤드에 설정"))
               : cue?.loop != nil ? String(ui: "루프 핫큐 \(letter) (\(keys)): 누르면 루프 반복, 반복 중에 다시 누르면 나가기 · Shift+클릭: 지우기")
               : String(ui: "핫큐 \(letter) (\(keys))로 이동 (\(cue!.time.clockText)) · Shift+클릭 또는 Shift와 단축키: 지우기"))
-        .accessibilityLabel(cue == nil ? String(ui: "핫큐 \(letter) 비어 있음, 설정") : cue?.loop != nil ? String(ui: "루프 핫큐 \(letter)") : String(ui: "핫큐 \(letter)로 이동"))
+        .accessibilityLabel(accessibility.label)
+        .accessibilityValue(accessibility.value)
         .contextMenu {
             if cue != nil {
                 Button(.ui("플레이헤드로 옮기기")) { deck.moveHotCueToPlayhead(slot: slot) }

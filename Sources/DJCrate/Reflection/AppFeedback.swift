@@ -45,6 +45,6 @@ struct AppMessageView: View {
             Button(.ui("닫기"), action: onClose).controlSize(.small)
         }
         .font(.callout)
-        .padding(.horizontal, 14).padding(.vertical, 6)
+        .padding(.horizontal, Spacing.edge).padding(.vertical, 6)
     }
 }

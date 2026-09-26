@@ -22,12 +22,11 @@ struct GridEditorBar: View {
             } else {
                 FlowLayout(spacing: 8) {
                     HStack(spacing: 4) {
-                        Button("◀ 10ms" as String) { deck.shiftGrid(ms: -10) }
-                        Button("◀ 1ms" as String) { deck.shiftGrid(ms: -1) }
-                        Button("1ms ▶" as String) { deck.shiftGrid(ms: 1) }
-                        Button("10ms ▶" as String) { deck.shiftGrid(ms: 10) }
+                        ForEach([-10.0, -1.0, 1.0, 10.0], id: \.self) { milliseconds in
+                            GridShiftButton(deck: deck, milliseconds: milliseconds).fixedSize()
+                        }
                     }
-                    .help(.ui("그리드 전체를 옮깁니다 (파형을 끌어도 됩니다)"))
+                    .help(.ui("그리드 전체를 옮깁니다 (1초 동안 누르면 반복 · 파형을 끌어도 됩니다)"))
                     HStack(spacing: 4) {
                         TextField("BPM" as String, value: $bpm, format: .number.precision(.fractionLength(2)))
                             .id(bpmFieldRevision)
@@ -88,7 +87,11 @@ struct GridEditorBar: View {
                             Button(segment.start.clockText + " · " + segment.bpm.formatted(.number.precision(.fractionLength(2)).grouping(.never))) { deck.seek(segment.start) }
                                 .buttonStyle(.plain)
                             if index > 0 {
-                                Button { deck.removeTempoChange(at: index) } label: { Image(systemName: "xmark.circle.fill") }
+                                Button { deck.removeTempoChange(at: index) } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .frame(minWidth: 20, minHeight: 20)
+                                        .contentShape(Rectangle())
+                                }
                                     .buttonStyle(.plain).foregroundStyle(.secondary)
                                     .accessibilityLabel(.ui("이 변속 지점 삭제"))
                             }
@@ -162,6 +165,7 @@ struct GridSuggestionRow: View {
                 if badge { Image(systemName: "arrow.triangle.2.circlepath") } else { Label(.ui("재분석"), systemImage: "arrow.triangle.2.circlepath") }
             }
             .help(.ui("이 곡의 섹션·그리드 추정·조성 분석 캐시를 지우고 다시 분석합니다(파형·초안은 그대로)"))
+            .accessibilityLabel(.ui("재분석"))
         }
         .font(.scaled(.caption, textScale))
         .lineLimit(1)
