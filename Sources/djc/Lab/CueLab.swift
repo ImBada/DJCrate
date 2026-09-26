@@ -450,7 +450,7 @@ enum CueLab {
             guard let t = SeekInfo.mp3Frames(url: URL(filePath: entry.path)) else { continue }
             let size = (try? FileManager.default.attributesOfItem(atPath: entry.path)[.size] as? Int) ?? 0
             out.append(["name": (entry.path as NSString).lastPathComponent, "sr": t.sampleRate, "spf": t.samplesPerFrame,
-                        "offsets": t.offsets.map { $0 - t.offsets[0] }, "first": t.offsets[0], "fileSize": size ?? 0,
+                        "offsets": t.offsets.map { $0 - t.offsets[0] }, "first": t.offsets[0], "fileSize": size,
                         "info": t.hasInfoFrame, "xingFrames": t.xingFrames ?? -1, "xingBytes": t.xingBytes ?? -1,
                         "toc": t.toc.map { $0.map(Int.init) } ?? [], "cues": entry.cues])
         }
