@@ -9,6 +9,7 @@ public struct RekordboxLibrary: Sendable {
     /// ContentID → 재생 기록 수 (djmdSongHistory).
     public let playCounts: [String: Int]
     public let playlists: [RekordboxPlaylist]
+    public let histories: [RekordboxHistory]
     /// ContentID → rekordbox 오토게인(djmdMixerParam)
     public var autoGains: [String: RekordboxAutoGain] = [:]
 
@@ -19,11 +20,13 @@ public struct RekordboxLibrary: Sendable {
 
     private let cuesByContent: [String: [Cue]]
 
-    public init(allTracks: [Track], cues: [Cue], playCounts: [String: Int], playlists: [RekordboxPlaylist] = []) {
+    public init(allTracks: [Track], cues: [Cue], playCounts: [String: Int], playlists: [RekordboxPlaylist] = [],
+                histories: [RekordboxHistory] = []) {
         self.allTracks = allTracks
         self.cues = cues
         self.playCounts = playCounts
         self.playlists = playlists
+        self.histories = histories
         self.cuesByContent = Dictionary(grouping: cues, by: \.contentID)
     }
 
@@ -96,7 +99,7 @@ public struct RekordboxLibrary: Sendable {
         }
 
         var library = RekordboxLibrary(allTracks: tracks, cues: cues, playCounts: playCounts,
-                                       playlists: try loadPlaylists(db))
+                                       playlists: try loadPlaylists(db), histories: try loadHistories(db))
         // 오토게인: 게인·피크가 32비트 실수 하나를 16비트 두 칸(상위·하위)에 나눠 담겨 있다.
         var gains: [String: RekordboxAutoGain] = [:]
         try? db.query("SELECT ContentID, GainHigh, GainLow, PeakHigh, PeakLow FROM djmdMixerParam WHERE rb_local_deleted = 0") { r in

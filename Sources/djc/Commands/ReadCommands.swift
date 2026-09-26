@@ -5,13 +5,15 @@ import RekordboxKit
 
 /// 인자와 출력만 맡고, 조회·JSON 계약은 DJCStorage에서 검증한다.
 enum ReadCommands {
-    static let names: Set<String> = ["search", "track", "playlists", "playlist", "drafts"]
+    static let names: Set<String> = ["search", "track", "playlists", "playlist", "histories", "history", "drafts"]
     static let jsonNames = names.union(["report", "path", "parse", "compat"])
     static let all: [Command] = [
         Command("search", "<검색어> [--bpm 최소-최대] [--key 키] [--playlist ID] [--filter 필터] [--db PATH] [--json]", "곡 찾기", run),
         Command("track", "<ContentID> [--db PATH] [--json]", "곡 정보·큐·그리드·게인·초안 보기", run),
         Command("playlists", "[--tree] [--db PATH] [--json]", "재생 목록·폴더 보기", run),
         Command("playlist", "<ID> [--db PATH] [--json]", "재생 목록의 곡을 순서대로 보기", run),
+        Command("histories", "[--db PATH] [--json]", "재생 기록을 날짜순으로 보기", run),
+        Command("history", "<ID> [--db PATH] [--json]", "기록의 곡을 재생 순서대로 보기", run),
         Command("drafts", "[--db PATH] [--json]", "반영 대기 초안 보기", run),
     ]
 
@@ -49,6 +51,19 @@ enum ReadCommands {
         case "playlist":
             try output(read.playlist(id: options.operands[0]), name: name, json: json) {
                 "\($0.playlist.name) · \($0.playlist.id)\n" + tracksText($0.tracks)
+            }
+        case "histories":
+            try output(read.histories(), name: name, json: json) {
+                $0.histories.isEmpty ? "재생 기록이 없습니다" : $0.histories.map {
+                    "\($0.id) · \($0.dateCreated ?? "날짜 없음") · \($0.name) · \($0.trackCount)곡"
+                }.joined(separator: "\n")
+            }
+        case "history":
+            try output(read.history(id: options.operands[0]), name: name, json: json) {
+                "\($0.history.dateCreated ?? "날짜 없음") · \($0.history.name)\n"
+                    + ($0.entries.isEmpty ? "곡이 없습니다" : $0.entries.map {
+                        "\($0.trackNumber). " + tracksText([$0.track])
+                    }.joined(separator: "\n"))
             }
         case "drafts":
             try output(read.drafts(), name: name, json: json) { result in
@@ -138,7 +153,7 @@ enum ReadCommands {
                 } else { operands.append(arg) }
                 index += 1
             }
-            let expected = ["search", "track", "playlist", "path", "parse"].contains(command) ? 1 : 0
+            let expected = ["search", "track", "playlist", "history", "path", "parse"].contains(command) ? 1 : 0
             guard operands.count == expected else { throw invalid("명령 인자 수가 맞지 않습니다") }
             if let raw = values["--bpm"] {
                 let pieces = raw.split(separator: "-", omittingEmptySubsequences: false)

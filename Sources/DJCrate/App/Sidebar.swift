@@ -9,6 +9,7 @@ struct Sidebar: View {
     @Bindable var store: LibraryStore
     @AppStorage(SettingKeys.sidebarPlaylistsExpanded.name) private var playlistsExpanded = SettingKeys.sidebarPlaylistsExpanded.defaultValue
     @AppStorage(SettingKeys.sidebarSummaryExpanded.name) private var summaryExpanded = SettingKeys.sidebarSummaryExpanded.defaultValue
+    @State private var historiesExpanded = true
 
     var body: some View {
         List(selection: $store.sidebar) {
@@ -48,6 +49,18 @@ struct Sidebar: View {
                             .lineLimit(1)
                             .tag(SidebarItem.playlist(node.id))
                     }
+                }
+            }
+            Section("재생 기록", isExpanded: $historiesExpanded) {
+                if store.histories.isEmpty {
+                    Text("재생 기록이 없습니다").foregroundStyle(.secondary)
+                }
+                ForEach(store.histories) { history in
+                    Label(store.historyTitle(history), systemImage: "clock")
+                        .badge(store.count(history: history))
+                        .lineLimit(1)
+                        .help(store.historyTitle(history))
+                        .tag(SidebarItem.history(history.id))
                 }
             }
             if let report = store.report {
