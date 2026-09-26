@@ -81,9 +81,8 @@ public enum RekordboxWriter {
     /// 백업은 한 개에 150MB 안팎이다. 최근 이만큼만 남긴다.
     static let backupsToKeep = 5
 
-    static func isLive(_ database: URL) -> Bool {
-        database.resolvingSymlinksInPath().standardizedFileURL.path
-            == liveDatabase.resolvingSymlinksInPath().standardizedFileURL.path
+    static func isLive(_ database: URL, liveDatabase: URL = liveDatabase) -> Bool {
+        RekordboxWriteGuard.sameFile(database, liveDatabase)
     }
 
     // MARK: - 쓰기
@@ -132,8 +131,7 @@ public enum RekordboxWriter {
                           backup: nil, dryRun: dryRun, createdAt: stamp.json, finalUpdateCount: nil)
         }
         let live = writeGuard.isLive(database)
-        let gridRoot = shareRoot ?? (live ? RekordboxShare.directory : nil)
-        if live { try writeGuard.checkLive(database, dryRun: dryRun) }
+        let gridRoot = try writeGuard.checkTargets(database, shareRoot: shareRoot, dryRun: dryRun)
         do {
             let reader = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
             defer { reader.close() }

@@ -106,6 +106,9 @@ extension RekordboxWriter {
     @discardableResult
     public static func restore(_ backup: URL, to database: URL = liveDatabase, now: Date = .now,
                                backups: URL, guard writeGuard: RekordboxWriteGuard = .system, shareRoot: URL? = nil) throws -> URL {
+        let copyShare = writeGuard.isLive(database) ? nil : database.deletingLastPathComponent().appending(path: "share")
+        let share = try writeGuard.resolveShareRoot(database, shareRoot: shareRoot ?? copyShare)
+            ?? database.deletingLastPathComponent().appending(path: "share")
         if writeGuard.isLive(database) {
             guard !writeGuard.isRekordboxRunning() else {
                 throw DJCError.writeRefused(String(ui: "rekordbox가 켜져 있습니다. rekordbox를 완전히 종료한 뒤 되돌리세요"))
@@ -116,7 +119,6 @@ extension RekordboxWriter {
             try validateBackupFile(backup.appending(path: name), under: backup, required: name == "master.db")
         }
         try checkIntegrity(of: backup.appending(path: "master.db"))
-        let share = shareRoot ?? (writeGuard.isLive(database) ? RekordboxShare.directory : database.deletingLastPathComponent().appending(path: "share"))
         // 한 경로라도 잘못됐으면 DB와 복원 전 백업까지 모두 그대로 둔다.
         let analysis = try analysisRestoreFiles(from: backup, shareRoot: share)
         let created = try createdRestoreFiles(from: backup, database: database, shareRoot: share)
