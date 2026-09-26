@@ -6,6 +6,8 @@ extension DeckModel {
         keyLock = SettingKeys.keyLock.defaultValue
         metronomeVolume = SettingKeys.metronomeVolume.defaultValue
         quantize = SettingKeys.quantize.defaultValue
+        playQuantize = SettingKeys.playQuantize.defaultValue
+        playQuantizeBeats = SettingKeys.playQuantizeBeats.defaultValue
         carryCues = SettingKeys.carryCues.defaultValue
         showSuggestions = SettingKeys.showSuggestions.defaultValue
         autoGain = SettingKeys.autoGain.defaultValue

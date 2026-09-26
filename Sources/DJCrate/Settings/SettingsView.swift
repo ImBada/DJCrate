@@ -118,6 +118,11 @@ struct DeckSettingsView: View {
         Form {
             Section(.ui("재생")) {
                 Toggle(.ui("키 고정(템포를 바꿔도 음정 유지)"), isOn: $deck.keyLock)
+                Toggle(.ui("재생 퀀타이즈(재생 중 핫큐를 박 경계에서 넘김)"), isOn: $deck.playQuantize)
+                Picker(.ui("재생 퀀타이즈 단위"), selection: $deck.playQuantizeBeats) {
+                    ForEach(PlayQuantize.choices, id: \.self) { Text(PlayQuantize.unitText($0)).tag($0) }
+                }
+                .disabled(!deck.playQuantize)
                 LabeledContent(.ui("메트로놈 소리 크기")) {
                     HStack {
                         Slider(value: $deck.metronomeVolume, in: 0...1)
@@ -155,6 +160,6 @@ struct DeckSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 620)
+        .frame(width: 520, height: 700)
     }
 }

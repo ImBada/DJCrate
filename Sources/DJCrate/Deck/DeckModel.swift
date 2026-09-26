@@ -50,6 +50,18 @@ final class DeckModel {
     var isCuePreviewing = false
     var placeAtFirstMemoryCue = false
     var quantize = true { didSet { storage.settings.set(SettingKeys.quantize, quantize) } }
+    /// 재생 퀀타이즈(Q): 재생 중 핫큐를 누르면 다음 박 조각(`playQuantizeBeats`) 경계에서 넘어간다.
+    var playQuantize = true { didSet { storage.settings.set(SettingKeys.playQuantize, playQuantize) } }
+    /// 재생 퀀타이즈 단위(박): 1/4 · 1/2 · 1
+    var playQuantizeBeats = PlayQuantize.defaultBeats {
+        didSet { storage.settings.set(SettingKeys.playQuantizeBeats, playQuantizeBeats) }
+    }
+    /// 오디오가 샘플 단위로 예약하지 못한 점프(곡을 메모리에 풀기 전). 화면 틱이 경계를 지나면 넘긴다.
+    var pendingJump: PendingJump?
+    /// 오디오가 경계에서 넘길 점프. 화면 틱이 넘어간 순간을 알아본다(건너뛴 구간을 지나간 것으로 보지 않게).
+    @ObservationIgnored var scheduledJump: PlayQuantize.Jump?
+    /// 경계 전에 일시정지하면 아직 도착하지 않은 루프 상태도 함께 취소한다.
+    @ObservationIgnored var scheduledJumpSourceLoop: (instant: InstantLoop?, cueID: EditableCue.ID?)?
     /// 그리드를 고칠 때 큐(핫큐·메모리 큐·루프)도 같은 박을 따라 옮긴다.
     var carryCues = true { didSet { storage.settings.set(SettingKeys.carryCues, carryCues) } }
     var showSuggestions = true {
@@ -240,6 +252,8 @@ final class DeckModel {
         zoomSeconds = settings.value(SettingKeys.zoomSeconds)
         waveformColorMode = WaveformColorMode(rawValue: settings.value(SettingKeys.waveformColorMode)) ?? .threeBand
         quantize = settings.value(SettingKeys.quantize)
+        playQuantize = settings.value(SettingKeys.playQuantize)
+        playQuantizeBeats = settings.value(SettingKeys.playQuantizeBeats)
         carryCues = settings.value(SettingKeys.carryCues)
         showSuggestions = settings.value(SettingKeys.showSuggestions)
         volume = settings.value(SettingKeys.volume)

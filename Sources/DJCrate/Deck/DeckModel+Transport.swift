@@ -5,6 +5,14 @@ import AppKit
 import Foundation
 import RekordboxKit
 
+/// 오디오가 샘플 단위로 예약하지 못해 화면 틱이 넘길 재생 퀀타이즈 점프
+struct PendingJump: Equatable {
+    var jump: PlayQuantize.Jump
+    /// 루프 핫큐면 착지 뒤 걸 루프
+    var loopCueID: EditableCue.ID?
+    var loop: ClosedRange<Double>?
+}
+
 /// 재생·탐색·끌기·CUE(CDJ 방식)
 extension DeckModel {
     // MARK: - 재생
@@ -23,6 +31,7 @@ extension DeckModel {
             isCuePreviewing = false
         }
         if isPlaying {
+            cancelPendingJump(restoringLoop: true)
             audio.pause()
             playhead = audio.position
             isPlaying = false
@@ -44,6 +53,89 @@ extension DeckModel {
         }
     }
 
+    /// 재생 퀀타이즈(#90): 재생 중이면 핫큐로 바로 넘어가지 않고 누른 뒤 다음 박 조각 경계에서 넘어간다
+    /// (규칙은 `PlayQuantize`, 경계의 박 안 위치를 큐 쪽에서도 지킨다). 오디오가 샘플 단위로 예약하고,
+    /// 못 하면(곡을 메모리에 풀기 전) 화면 틱이 경계를 지날 때 넘긴다. 이렇게 처리했으면 true(부른 쪽은 바로 옮기지 않는다).
+    func quantizedJump(to cue: EditableCue) -> Bool {
+        guard playQuantize, isPlaying, !isCuePreviewing,
+              let quantize = PlayQuantize(grid: grid, beats: playQuantizeBeats) else { return false }
+        let loop = cue.loop.map { cue.time...$0.end }
+        let position = audio.position
+        let replacingScheduled = scheduledJump != nil && audio.hasPendingJump
+        let sourceLoop = replacingScheduled ? (scheduledJumpSourceLoop ?? (instant: instantLoop, cueID: engagedLoopID))
+            : (instant: instantLoop, cueID: engagedLoopID)
+        cancelPendingJump()
+        if let jump = audio.scheduleJump(to: cue.time, loop: loop, quantize: quantize) {
+            // 걸린 루프는 경계에서 풀린다(루프 핫큐면 그 루프가 걸린다). 오디오는 경계까지 지금 흐름을 그대로 낸다.
+            instantLoop = nil
+            engagedLoopID = loop == nil ? nil : cue.id
+            scheduledJump = jump
+            scheduledJumpSourceLoop = sourceLoop
+            return true
+        }
+        if replacingScheduled {
+            // 새 요청을 샘플로 예약하지 못한 경우에도 이전 핫큐가 나중에 재생되지 않게 버린다.
+            instantLoop = sourceLoop.instant
+            engagedLoopID = sourceLoop.cueID
+            audio.setLoop(engagedLoopRange.map { $0.start...$0.end }, reschedule: false)
+            startPlayback(from: position)
+            playhead = position
+        }
+        let jump = quantize.jump(earliest: position, to: cue.time, loopEnd: loop?.upperBound)
+        pendingJump = PendingJump(jump: jump, loopCueID: loop == nil ? nil : cue.id, loop: loop)
+        return true
+    }
+
+    func cancelPendingJump(restoringLoop: Bool = false) {
+        if restoringLoop, let source = scheduledJumpSourceLoop {
+            _ = audio.position
+            if audio.hasPendingJump {
+                instantLoop = source.instant
+                engagedLoopID = source.cueID
+                audio.setLoop(engagedLoopRange.map { $0.start...$0.end }, reschedule: false)
+            }
+        }
+        pendingJump = nil
+        scheduledJump = nil
+        scheduledJumpSourceLoop = nil
+    }
+
+    /// 새 루프 조작은 아직 도착하지 않은 점프를 취소하고 현재 재생 중인 구간에 적용한다.
+    func prepareLoopChange() {
+        guard pendingJump != nil || scheduledJump != nil else { return }
+        let position = audio.position
+        let cancelAudio = scheduledJump != nil && audio.hasPendingJump
+        cancelPendingJump(restoringLoop: true)
+        if cancelAudio {
+            startPlayback(from: position)
+            playhead = position
+        }
+    }
+
+    /// 화면 틱: 오디오가 예약한 점프로 방금 넘어갔으면 착지 자리를 이번 틱의 출발점으로 돌려준다
+    /// (앞으로 건너뛴 구간의 활성 루프를 지나간 것으로 보지 않게).
+    func landedPosition(previous: Double) -> Double {
+        // 곡 시각은 루프에서 되돌아가므로, 같은 position 조회의 노드 경계 도달 여부로 판단한다.
+        guard scheduledJump != nil, !audio.hasPendingJump else { return previous }
+        scheduledJump = nil
+        scheduledJumpSourceLoop = nil
+        return playhead
+    }
+
+    /// 화면 틱: 샘플 단위로 예약하지 못한 점프를 경계를 지나면(루프로 되돌아갔어도) 넘긴다. 넘겼으면 true.
+    func handlePendingJump(previous: Double) -> Bool {
+        guard let pending = pendingJump, playhead >= pending.jump.at || playhead < previous else { return false }
+        pendingJump = nil
+        instantLoop = nil
+        engagedLoopID = pending.loopCueID
+        audio.setLoop(pending.loop, reschedule: false)
+        // 틱이 늦은 만큼 착지 뒤에서 이어 간다(박자가 밀리지 않게).
+        let target = min(pending.jump.to + max(0, playhead - pending.jump.at), duration)
+        startPlayback(from: target)
+        playhead = target
+        return true
+    }
+
 
     func tick() {
         guard isPlaying else { return }
@@ -60,8 +152,10 @@ extension DeckModel {
             return
         }
         audio.recoverIfStalled()
-        let previous = playhead
+        var previous = playhead
         playhead = audio.position
+        previous = landedPosition(previous: previous)
+        if handlePendingJump(previous: previous) { return }
         if handleLoops(previous: previous) { return }
         updateGridBPM()
         audio.scheduleClicks(grid)
@@ -93,6 +187,7 @@ extension DeckModel {
     /// 루프 상태를 건드리지 않고 옮긴다(루프 길이를 줄여 끝 밖에 있게 됐을 때 등).
     func jump(to time: Double) {
         isCuePreviewing = false
+        cancelPendingJump()
         playhead = min(max(time, 0), duration)
         updateGridBPM()
         if isPlaying {
@@ -105,6 +200,7 @@ extension DeckModel {
     /// 끌기 시작: 재생 중이면 소리를 멈추고, 놓을 때 한 번만 다시 재생한다.
     func beginScrub() {
         isCuePreviewing = false
+        cancelPendingJump(restoringLoop: true)
         guard isPlaying else { return }
         resumeAfterScrub = true
         audio.pause()
@@ -143,6 +239,7 @@ extension DeckModel {
         audio.stop()
         isPlaying = false
         isCuePreviewing = false
+        cancelPendingJump()
     }
 
 
@@ -190,6 +287,7 @@ extension DeckModel {
 
     func returnToCue() {
         exitLoop()
+        cancelPendingJump()
         audio.pause()
         ticker.stop()
         isPlaying = false

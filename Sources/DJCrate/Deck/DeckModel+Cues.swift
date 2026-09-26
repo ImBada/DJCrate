@@ -84,11 +84,14 @@ extension DeckModel {
         if let cue = hotCue(slot: slot) {
             // 루프 핫큐: 누르면 그 루프를 반복하고, 반복 중에 다시 누르면 빠져나온다.
             if cue.loop != nil, engagedLoopID == cue.id {
-                engagedLoopID = nil
+                exitLoop()
                 return
             }
-            seek(cue.time)
-            if cue.loop != nil { instantLoop = nil; engagedLoopID = cue.id; syncAudioLoop() }
+            // 재생 퀀타이즈가 켜져 있으면 다음 박 조각 경계에서 넘어간다(멈춰 있으면 바로).
+            if !quantizedJump(to: cue) {
+                seek(cue.time)
+                if cue.loop != nil { instantLoop = nil; engagedLoopID = cue.id; syncAudioLoop() }
+            }
             selectedCueID = cue.id
         } else if let loop = instantLoop {
             // 즉석 루프 중에 빈 칸을 누르면 그 루프를 루프 핫큐로 저장하고 계속 반복한다(CDJ와 같다).

@@ -28,6 +28,8 @@ protocol DeckAudioEngine: AnyObject {
     var position: Double { get }
     /// 오디오가 루프를 샘플 단위로 되풀이하고 있는지
     var handlesLoop: Bool { get }
+    /// 마지막 position 조회에서 예약한 점프 경계에 아직 닿지 않았는지
+    var hasPendingJump: Bool { get }
 
     func load(url: URL, timelineOffset: Double) throws
     func unload()
@@ -39,6 +41,9 @@ protocol DeckAudioEngine: AnyObject {
     func scheduleClicks(_ grid: BeatGrid?)
     func resetClicks()
     @discardableResult func setLoop(_ range: ClosedRange<Double>?, reschedule: Bool) -> Bool
+    /// 재생 퀀타이즈: 다음 박 조각 경계에서 `cue` 쪽으로 넘어가게 예약한다(루프 핫큐면 착지 뒤 `loop`를 되풀이).
+    /// 샘플 단위로 예약했으면 그 점프, 못 하면 nil(부른 쪽이 화면 틱으로 넘긴다).
+    func scheduleJump(to cue: Double, loop: ClosedRange<Double>?, quantize: PlayQuantize) -> PlayQuantize.Jump?
 
     // 진단(자가 테스트)
     func debugStopEngine()

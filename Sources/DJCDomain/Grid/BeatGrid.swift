@@ -50,6 +50,28 @@ public struct BeatGrid: Sendable, Hashable {
         return candidates.map { beats[$0].time }.min { abs($0 - time) < abs($1 - time) } ?? time
     }
 
+    /// 박 좌표: 박 번호를 소수(박 안의 비율 포함)로 본 위치(첫 박 = 0). 첫 박 앞·마지막 박 뒤는 그 박 길이로 늘려 센다.
+    /// 비어 있으면 0.
+    public func beatCoordinate(at time: Double) -> Double {
+        guard !beats.isEmpty else { return 0 }
+        if time < beats[0].time { return (time - beats[0].time) / beatLength(0) }
+        let index = max(firstIndex(atOrAfter: time + 1e-12) - 1, 0)
+        return Double(index) + (time - beats[index].time) / beatLength(index)
+    }
+
+    /// 박 좌표 → 곡 위치(`beatCoordinate`의 반대)
+    public func time(atBeatCoordinate coordinate: Double) -> Double {
+        guard !beats.isEmpty else { return 0 }
+        if coordinate < 0 { return beats[0].time + coordinate * beatLength(0) }
+        let index = min(Int(coordinate.rounded(.down)), beats.count - 1)
+        return beats[index].time + (coordinate - Double(index)) * beatLength(index)
+    }
+
+    /// `index` 박에서 다음 박까지(마지막 박은 그 BPM으로)
+    private func beatLength(_ index: Int) -> Double {
+        index + 1 < beats.count ? beats[index + 1].time - beats[index].time : 60 / max(beats[index].bpm, 1)
+    }
+
     /// 박 단위로 옮긴다(`steps`가 음수면 앞으로).
     public func nudge(_ time: Double, beats steps: Int) -> Double {
         guard let index = beats.firstIndex(where: { $0.time >= time - 0.001 }) else { return time }

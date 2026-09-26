@@ -30,6 +30,12 @@ final class DeckAudio {
     private let beatClick: AVAudioPCMBuffer?
     private var file: AVAudioFile?
     private var decoded: DecodedAudio?
+    private var jumpNode: Int64?
+    private(set) var hasPendingJump = false
+    private var jumpLeadFrames: Int64 = 1024
+    #if DEBUG
+    private(set) var debugExpectedJumpBoundary: Double?
+    #endif
     private var decodeTask: Task<Void, Never>?
     private var loadGeneration = 0
     private var idleTask: Task<Void, Never>?
@@ -120,6 +126,46 @@ final class DeckAudio {
         return true
     }
 
+    /// 재생 퀀타이즈 점프를 예약한다(무엇을 언제 예약할지는 `JumpPlanner`). 경계까지는 지금 흐름(루프 포함)을 그대로 내고,
+    /// 경계 샘플에서 착지 지점으로 넘어간다. 루프 핫큐면 착지 뒤 루프 끝까지 흘리고 되풀이한다.
+    /// - Returns: 예약한 점프. 곡을 메모리에 풀기 전이거나 계획할 수 없으면 nil(부른 쪽이 화면 틱으로 넘긴다).
+    func scheduleJump(to cue: Double, loop: ClosedRange<Double>?, quantize: PlayQuantize) -> PlayQuantize.Jump? {
+        guard isPlaying, let decoded, file != nil else { return nil }
+        // 출력 지연은 renderedNode에 이미 포함됐다. 0.1초를 더하면 빠른 곡의 ¼박을 매번 건너뛴다.
+        let now = Int64(renderedNode)
+        let ahead = now + jumpLeadFrames
+        #if DEBUG
+        debugExpectedJumpBoundary = quantize.boundary(atOrAfter: songPosition(atNode: Double(now + jumpLeadFrames))).time
+        #endif
+        guard let plan = JumpPlanner.plan(schedule: schedule, ahead: ahead, quantize: quantize, cue: cue, loop: loop,
+                                          frameCount: decoded.frameCount) else { return nil }
+        var buffers: [(AVAudioPCMBuffer, LoopPlanner.Buffer)] = []
+        for item in plan.buffers {
+            guard let buffer = decoded.segment(from: item.from, to: item.to) else { return nil }
+            buffers.append((buffer, item))
+        }
+        for (buffer, item) in buffers {
+            var options: AVAudioPlayerNodeBufferOptions = []
+            if item.interrupts { options.insert(.interrupts) }
+            if item.loops { options.insert(.loops) }
+            trackNode.scheduleBuffer(buffer, at: AVAudioTime(sampleTime: item.at, atRate: sampleRate), options: options, completionHandler: nil)
+        }
+        pieces = plan.pieces
+        jumpNode = plan.buffers.first?.at
+        hasPendingJump = true
+        // 노드에 1.5초 앞까지 쌓인 옛 클릭을 버린 뒤 바뀐 시간표에서 다시 예약한다.
+        // 새 시작은 점프 예약 여유의 절반 안에 둬 경계 클릭을 건너뛰지 않는다.
+        if metronome {
+            restartClicks(after: min(0.02, Double(jumpLeadFrames) / sampleRate / rate / 2))
+            scheduleClicks(quantize.grid)
+        }
+        loopRange = loop
+        AudioEvents.record("핫큐 점프 예약(샘플 단위) · \(String(format: "%.3f", plan.jump.at))초에서 \(String(format: "%.3f", plan.jump.to))초로"
+                           + (loop.map { String(format: " · 루프 %.3f~%.3f초", $0.lowerBound, $0.upperBound) } ?? "")
+                           + " · 노드 지금 \(now) 여유 \(ahead) 경계 \(plan.buffers.first?.at ?? -1)")
+        return plan.jump
+    }
+
     /// 지금 위치에서 다시 예약한다(짧은 끊김이 있다). 샘플 단위로 이어 붙일 수 없는 드문 경우에만 쓴다.
     private func restartKeepingPosition() {
         guard isPlaying else { return }
@@ -181,6 +227,8 @@ final class DeckAudio {
         let wasPlaying = isPlaying
         let position = self.position
         AudioEvents.record("출력 구성 변경 · 재생 중=\(wasPlaying) · 엔진 동작=\(engine.isRunning) · \(String(format: "%.2f", position))초 · 장치 \(outputDeviceName())")
+        jumpNode = nil
+        hasPendingJump = false
         trackNode.stop()
         clickNode.stop()
         isPlaying = false
@@ -224,6 +272,8 @@ final class DeckAudio {
         lastRecovery = now
         let position = self.position
         AudioEvents.record("엔진이 멈춰 있음(재생 중) · \(String(format: "%.2f", position))초에서 복구 · 장치 \(outputDeviceName())")
+        jumpNode = nil
+        hasPendingJump = false
         trackNode.stop()
         clickNode.stop()
         isPlaying = false
@@ -330,7 +380,9 @@ final class DeckAudio {
         guard isPlaying else { return pausedPosition }
         let elapsed = max(0, Self.now() - anchorHost - latency)
         let linear = anchorPosition + elapsed * rate
-        return min(duration, songPosition(atNode: node(ofLinear: linear)))
+        let node = node(ofLinear: linear)
+        hasPendingJump = jumpNode.map { node < Double($0) } ?? false
+        return min(duration, songPosition(atNode: node))
     }
 
     private var fileDuration: Double = 0
@@ -345,6 +397,8 @@ final class DeckAudio {
     func play(from position: Double) -> Bool {
         guard let file else { return false }
         idleTask?.cancel()
+        jumpNode = nil
+        hasPendingJump = false
         trackNode.stop()
         clickNode.stop()
         let sampleRate = file.processingFormat.sampleRate
@@ -368,22 +422,26 @@ final class DeckAudio {
         schedule = PlaybackSchedule(sampleRate: sampleRate, timelineOffset: timelineOffset, startLinear: position,
                                     leadInFrames: Int64((leadIn * sampleRate).rounded()),
                                     pieces: [PlaybackPiece(node: 0, frame: startFrame, loop: nil)])
+        // 첫 버퍼도 노드 샘플 0에 못 박는다. 시각 없이(nil) 예약하면 다음 렌더 덩어리에서 시작해 노드 시각과
+        // 곡 프레임이 최대 한 덩어리(512프레임 안팎)까지 어긋났고, 그만큼 첫 점프·루프가 일찍 넘어갔다(2026-09-27 실측).
+        let start = AVAudioTime(sampleTime: 0, atRate: sampleRate)
         if let decoded, let range = loopRange, position < range.upperBound - 0.001,
            case let (loopStart, loopEnd) = (frame(of: range.lowerBound), frame(of: range.upperBound)),
            loopEnd - loopStart > 16, loopEnd > startFrame,
            let head = decoded.segment(from: startFrame, to: loopEnd), let body = decoded.segment(from: loopStart, to: loopEnd) {
             // 루프 끝까지 + 루프 되풀이(샘플 단위로 이어진다)
-            trackNode.scheduleBuffer(head, at: nil, options: [], completionHandler: nil)
-            trackNode.scheduleBuffer(body, at: nil, options: .loops, completionHandler: nil)
+            trackNode.scheduleBuffer(head, at: start, options: [], completionHandler: nil)
+            trackNode.scheduleBuffer(body, at: AVAudioTime(sampleTime: loopEnd - startFrame, atRate: sampleRate), options: .loops, completionHandler: nil)
             pieces.append(PlaybackPiece(node: loopEnd - startFrame, frame: loopStart, loop: loopEnd - loopStart))
         } else if let segment = decoded?.segment(from: startFrame) {
-            trackNode.scheduleBuffer(segment, at: nil, options: [], completionHandler: nil)
+            trackNode.scheduleBuffer(segment, at: start, options: [], completionHandler: nil)
         } else {
             // 디코딩이 끝나기 전(곡을 막 불러온 직후)이나 아주 긴 파일: 파일에서 바로 읽는다.
             trackNode.scheduleSegment(file, startingFrame: startFrame,
-                                      frameCount: AVAudioFrameCount(file.length - startFrame), at: nil)
+                                      frameCount: AVAudioFrameCount(file.length - startFrame), at: start)
         }
         latency = currentLatency()
+        updateJumpLead()
         let startHost = mach_absolute_time() + AVAudioTime.hostTime(forSeconds: 0.02)
         let when = AVAudioTime(hostTime: startHost)
         let trackStart = AVAudioTime(hostTime: startHost + AVAudioTime.hostTime(forSeconds: leadIn / rate))
@@ -402,6 +460,8 @@ final class DeckAudio {
     func pause() {
         guard isPlaying else { return }
         pausedPosition = position
+        jumpNode = nil
+        hasPendingJump = false
         trackNode.stop()
         clickNode.stop()
         isPlaying = false
@@ -411,6 +471,8 @@ final class DeckAudio {
     /// 곡을 바꾸거나 끝났을 때. 엔진도 바로 쉰다.
     func stop() {
         idleTask?.cancel()
+        jumpNode = nil
+        hasPendingJump = false
         trackNode.stop()
         clickNode.stop()
         isPlaying = false
@@ -451,6 +513,21 @@ final class DeckAudio {
         timePitch.bypass = !stretching
         varispeed.bypass = !resampling
         latency = currentLatency()
+        updateJumpLead()
+    }
+
+    private func updateJumpLead() {
+        let output = engine.outputNode
+        let device = output.auAudioUnit.deviceID
+        var frames = output.auAudioUnit.maximumFramesToRender
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyBufferFrameSize,
+                                                  mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        // 장치 값을 못 읽으면 오디오 유닛의 최대 렌더 크기를 안전한 대체값으로 쓴다.
+        _ = AudioObjectGetPropertyData(device, &address, 0, nil, &size, &frames)
+        let outputRate = output.outputFormat(forBus: 0).sampleRate
+        jumpLeadFrames = JumpPlanner.renderLeadFrames(bufferFrames: max(frames, 1), outputSampleRate: max(outputRate, 1),
+                                                       sampleRate: sampleRate, rate: rate)
     }
 
     private func currentLatency() -> Double {
@@ -476,10 +553,12 @@ final class DeckAudio {
     }
 
     /// 예약된 클릭을 버리고 새 시간축에서 다시 시작한다(메트로놈 토글·그리드 편집 후).
-    func resetClicks() {
+    func resetClicks() { restartClicks(after: 0.02) }
+
+    private func restartClicks(after delay: Double) {
         guard isPlaying else { return }
         clickNode.stop()
-        let startHost = mach_absolute_time() + AVAudioTime.hostTime(forSeconds: 0.02)
+        let startHost = mach_absolute_time() + AVAudioTime.hostTime(forSeconds: delay)
         clickNode.play(at: AVAudioTime(hostTime: startHost))
         clickEpochPosition = anchorPosition + (AVAudioTime.seconds(forHostTime: startHost) - anchorHost) * rate
         clickScheduledUntil = clickEpochPosition - 0.001

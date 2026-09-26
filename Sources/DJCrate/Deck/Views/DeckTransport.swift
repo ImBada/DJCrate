@@ -20,6 +20,7 @@ struct TransportBar: View {
                     }
                     .disabled(!deck.canPlay)
                     .help(.ui("재생/일시정지 (\(deck.shortcuts.keyLabel(for: .playPause)))"))
+                    PlayQuantizeToggle(deck: deck)
                     Group { if PerfProbe.hidden.contains("label") { EmptyView() } else { PlayheadLabel(deck: deck) } }
                         .frame(width: TextScale.length(200, scale: textScale), alignment: .leading)
                 }
@@ -60,6 +61,44 @@ struct TransportBar: View {
             }
         }
         .controlSize(ControlSize.small.scaled(textScale))
+    }
+}
+
+/// 재생 퀀타이즈(Q): 켜면 재생 중 핫큐가 다음 박 조각 경계에서 박자를 이어 넘어간다. 단위는 설정 › 덱.
+/// 큐를 찍을 때 박에 맞추는 '퀀타이즈' 체크와는 따로다.
+struct PlayQuantizeToggle: View {
+    @Environment(\.textScale) private var textScale
+    let deck: DeckModel
+
+    var body: some View {
+        let unit = PlayQuantize.unitText(deck.playQuantizeBeats)
+        let on = deck.playQuantize
+        // CUE·루프 버튼처럼 켜지면 색이 찬다(핫큐·메모리·루프 색과 겹치지 않는 파랑).
+        Button { deck.playQuantize.toggle() } label: {
+            Text(verbatim: "Q")
+                .font(.scaled(size: 11, weight: .heavy, textScale))
+                .frame(width: TextScale.length(22, scale: textScale), height: TextScale.length(20, scale: textScale))
+                .foregroundStyle(on ? UIColors.onFill : UIColors.info.color)
+                .background(on ? UIColors.info.color : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(UIColors.info.color))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(.isToggle)
+        .help(.ui("재생 퀀타이즈: 켜면 재생 중 핫큐를 누른 뒤 다음 \(unit) 경계에서 박자를 이어 넘어갑니다. 단위는 설정 › 덱에서 바꿉니다"))
+        .accessibilityLabel(.ui("재생 퀀타이즈"))
+        .accessibilityValue(on ? String(ui: "켜짐, \(unit)") : String(ui: "꺼짐"))
+    }
+}
+
+extension PlayQuantize {
+    /// 설정·도움말에 보이는 단위 이름
+    static func unitText(_ beats: Double) -> String {
+        switch beats {
+        case 0.25: String(ui: "1/4박")
+        case 0.5: String(ui: "1/2박")
+        default: String(ui: "1박")
+        }
     }
 }
 

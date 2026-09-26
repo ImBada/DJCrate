@@ -273,6 +273,54 @@
         }
       }
     },
+    "1\/2박" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1\/2 beat"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1\/2拍"
+          }
+        }
+      }
+    },
+    "1\/4박" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1\/4 beat"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1\/4拍"
+          }
+        }
+      }
+    },
+    "1박" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 beat"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1拍"
+          }
+        }
+      }
+    },
     "· %@: 그리드를 추정하지 못해 분석 없이 넣습니다" : {
       "localizations" : {
         "en" : {
@@ -2443,6 +2491,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "⚠︎ キューは書き込まれません（%@）"
+          }
+        }
+      }
+    },
+    "재생 퀀타이즈" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playback Quantize"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再生クオンタイズ"
+          }
+        }
+      }
+    },
+    "재생 퀀타이즈 단위" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playback Quantize Unit"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再生クオンタイズの単位"
+          }
+        }
+      }
+    },
+    "재생 퀀타이즈(재생 중 핫큐를 박 경계에서 넘김)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playback quantize (hot cues pressed during playback jump on a beat boundary)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再生クオンタイズ（再生中に押したホットキューを拍の区切りで移動）"
+          }
+        }
+      }
+    },
+    "재생 퀀타이즈: 켜면 재생 중 핫큐를 누른 뒤 다음 %@ 경계에서 박자를 이어 넘어갑니다. 단위는 설정 › 덱에서 바꿉니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playback quantize: when on, a hot cue pressed during playback jumps at the next %@ boundary, keeping the beat. Change the unit in Settings › Deck."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再生クオンタイズ：オンにすると、再生中に押したホットキューは次の%@の区切りで拍を保ったまま移動します。単位は設定 › デッキで変更します。"
+          }
+        }
+      }
+    },
+    "켜짐, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On, %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オン、%@"
           }
         }
       }
