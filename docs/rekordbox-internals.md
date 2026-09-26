@@ -55,7 +55,9 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 
 - MP3 CBR·M4A·WAV: `InMpegFrame`·`InMpegAbs` 0, SeekInfo NULL.
 - FLAC: `InPointSeekInfo` = `"<큐 샘플이 든 FLAC 프레임 시작 샘플>,<그 프레임 바이트 위치 − 첫 오디오 프레임 위치>,<블록 크기>"`. 루프가 아니면 `OutPointSeekInfo` = `"0,0,0"`, 루프면 끝 지점을 같은 식으로. 기존 큐 1,818개·루프 끝 전부와 일치.
-- VBR MP3: 막아 둠(아래).
+- VBR MP3(파일 머리가 Xing·VBRI거나 프레임 길이가 들쭉날쭉): `InMpegFrame` = InFrame / 2(1/75초 단위), `InMpegAbs` = rekordbox가 세는 프레임(LAME 정보 프레임은 세고 다른 인코더의 정보 프레임은 뺌) 중
+  `floor(올림(InMpegFrame × 1000 / 75)ms × 샘플레이트 / 1000 / 1152) − 8`번째(음수면 0번째) 프레임의 바이트 위치(첫 센 프레임 기준). 루프 끝도 같은 식, 루프가 아니면 끝은 0·0. SeekInfo는 NULL.
+  ms를 버림하면 1,099개, 올림하면 1,118개 전부 맞는다(기존 VBR 큐 1,118개·루프 끝 6개, `djc lab seekinfo-check`). 사본에서 VBR 200곡의 큐 886개를 지우고 다시 써도 885개가 칸까지 같다(`djc lab vbr-cue-repro`, 나머지 1개는 rekordbox가 옛날에 MPEG 칸을 비워 둔 큐).
 
 ## 비트그리드 (ANLZ)
 
@@ -122,8 +124,8 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 
 ## 막아 둔 것 (규칙 미확인)
 
-- **VBR MP3 큐**: rekordbox가 큐마다 `InMpegFrame` = InFrame/2, `InMpegAbs` = 큐보다 7~9프레임 앞 MPEG 프레임의 바이트 위치(첫 프레임 기준)를 적는다. 곡·큐마다 달라 규칙을 못 찾았다(Xing TOC 보간 가설 9.5% 일치).
 - **템포 구간이 여러 개인 곡의 BPM 변경**: 구간 이동은 되지만 BPM 변경은 막는다.
+- **분석을 붙인 곡 추가 중 ALAC·LAME이 아닌 VBR MP3**: 분석 파일 규칙(ALAC)·비트레이트 칸 규칙(비LAME VBR)을 못 찾았다. 분석 전 추가만 한다.
 
 ## 새 쓰기 경로를 여는 방법
 

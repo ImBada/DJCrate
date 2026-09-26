@@ -47,8 +47,8 @@ public struct AudioFacts: Sendable, Equatable {
                 return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: 0, pvbrTotalSamples: 0,
                                   unsupported: "MP3 프레임이 중간에 끊겨 있어(깨진 프레임) 분석을 붙이지 않습니다")
             }
+            let counted = SeekInfo.countedMp3Offsets(frames, url: url)
             let lame = RekordboxTimeline.mp3Header(url: url).contains("LAME")
-            let counted = frames.hasInfoFrame && !lame ? Array(frames.offsets.dropFirst()) : frames.offsets
             let total = UInt32(counted.count * frames.samplesPerFrame)
             let audioFrame = frames.hasInfoFrame && frames.offsets.count > 1 ? frames.offsets[1] : first
             guard frames.isVariableBitRate else {

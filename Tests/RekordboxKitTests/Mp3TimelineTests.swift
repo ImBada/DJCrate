@@ -71,6 +71,20 @@ struct Mp3AudioFactsTests {
         #expect(TrackAnalysisFiles.pvbr(facts).subdata(in: 0x10 ..< 0x10 + 1600).allSatisfy { $0 == 0 })
     }
 
+    @Test func VBR_큐_MPEG_칸은_ms_올림_뒤_8프레임_앞() {
+        // 1152샘플·44.1kHz 프레임 100개(바이트 위치 = 번호 × 400)
+        let counted = (0..<100).map { $0 * 400 }
+        func position(_ msec: Int) -> (Int, Int)? {
+            SeekInfo.mp3CuePosition(msec: msec, counted: counted, sampleRate: 44_100, samplesPerFrame: 1152).map { ($0.mpegFrame, $0.abs) }
+        }
+        #expect(position(10)! == (0, 0), "InFrame 1 → MPEG 칸 0")
+        #expect(position(200)! == (15, 0), "앞쪽은 0번째 프레임으로 붙는다")
+        // 80,622ms: InFrame 12093 → 6046(1/75초) → 80,613.3ms 올림 80,614ms → 3086.005 → 3086 − 8
+        // (버림 80,613ms면 3085가 되어 rekordbox와 달라진다: いーあるふぁんくらぶ 등 실측)
+        #expect(SeekInfo.mp3CuePosition(msec: 80_622, counted: Array(0..<4000), sampleRate: 44_100, samplesPerFrame: 1152)!.abs == 3078)
+        #expect(position(3_000) == nil, "파일 끝을 넘으면 계산하지 않는다")
+    }
+
     @Test func ffmpeg_정보_프레임은_세지_않는다() throws {
         let url = try TestResources.url("mp3-ffmpeg-cbr.mp3")
         let frames = try #require(SeekInfo.mp3Frames(url: url))

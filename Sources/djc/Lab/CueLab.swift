@@ -20,6 +20,7 @@ enum CueLab {
         Command("cue-write-selftest", nil, "사본 DB에서 기존 큐 지우기·옮기기·핫큐 추가·막힘 조건을 시험한다(개발용, 사본만)", CueLab.cueWriteSelftest),
         Command("vbr-dump", nil, "VBR MP3 큐와 파일 구조를 JSON으로(규칙 맞추기용, 읽기 전용)", CueLab.vbrDump),
         Command("gain-write-test", nil, "사본 DB에 오토게인을 써 본다", CueLab.gainWriteTest),
+        Command("vbr-cue-repro", "--work <폴더> [--limit N]", "VBR MP3 곡의 기존 큐를 사본에서 지우고 같은 시각으로 다시 써 rekordbox가 적은 칸과 비교(사본만)", CueLab.vbrCueRepro),
         Command("seekinfo-check", nil, "rekordbox가 적은 FLAC SeekInfo·VBR MP3 MPEG 위치를 우리 계산과 전수 대조(읽기 전용)", CueLab.seekinfoCheck),
         Command("cue-json-roundtrip", nil, "라이브러리의 모든 contentCue JSON을 읽고 다시 써서 원문과 같은지(읽기 전용)", CueLab.cueJsonRoundtrip),
         Command("eval-cues", nil, "섹션 경계 메모리 큐 후보를 직접 찍은 큐와 비교", CueLab.evalCues),
@@ -467,6 +468,80 @@ enum CueLab {
         for o in report.gainOutcomes ?? [] { print(o.status.rawValue, o.title, o.reason ?? "", o.added) }
     }
 
+    /// VBR MP3 곡의 기존 큐(rekordbox가 적은 행)를 사본에서 지우고 같은 시각·종류로 DJCrate가 다시 써서 칸마다 비교한다.
+    /// 색은 옮긴 큐가 아니라 새 큐로 넣으므로 비교하지 않는다.
+    static func vbrCueRepro(_ args: [String]) async throws {
+        guard let work = value(after: "--work", in: args) else { throw UsageError() }
+        let limit = Int(value(after: "--limit", in: args) ?? "") ?? 50
+        let fm = FileManager.default
+        let folder = URL(filePath: work)
+        try? fm.removeItem(at: folder)
+        try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        let original = try LibrarySnapshot.latest()
+        let copy = folder.appending(path: "master.db")
+        try fm.copyItem(at: original, to: copy)
+        let library = try RekordboxLibrary.load(snapshot: copy)
+        var ids: [String] = []
+        let meta = try CipherDatabase(path: copy.path, key: RekordboxKey.derive())
+        try meta.query("""
+            SELECT DISTINCT c.ContentID FROM djmdCue c JOIN djmdContent t ON t.ID = c.ContentID
+            WHERE t.FileType = 1 AND c.InMpegFrame != 0 AND t.rb_local_deleted = 0 ORDER BY c.ContentID
+            """) { ids.append($0.string(0) ?? "") }
+        meta.close()
+        var drafts: [CueDraft] = []
+        var picked: [(id: String, uuid: String)] = []
+        var skipped: [String: Int] = [:]
+        for id in ids where picked.count < limit {
+            guard let track = library.tracks.first(where: { $0.id == id }) else { skipped["목록에 없음", default: 0] += 1; continue }
+            guard fm.fileExists(atPath: track.folderPath) else { skipped["파일 없음", default: 0] += 1; continue }
+            var draft = CueDraft(trackUUID: track.uuid, rekordboxCues: library.cues(for: track))
+            for cue in draft.cues {
+                draft.remove(cue.id)
+                var fresh = cue
+                fresh.id = UUID(); fresh.sourceID = nil
+                draft.place(fresh)
+            }
+            guard !draft.changes.isEmpty else { skipped["고칠 큐 없음", default: 0] += 1; continue }
+            drafts.append(draft); picked.append((id, track.uuid))
+        }
+        if !skipped.isEmpty { print("건너뜀:", skipped.map { "\($0.key) \($0.value)" }.joined(separator: " · ")) }
+        let report = try RekordboxWriter.write(drafts: drafts, to: copy, dryRun: false, backups: folder.appending(path: "backups"))
+        let blocked = report.outcomes.filter { $0.status != .written }
+        blocked.prefix(5).forEach { print("✗", $0.title.prefix(30), $0.reason ?? "") }
+        let ours = try CipherDatabase(path: copy.path, key: RekordboxKey.derive())
+        let theirs = try CipherDatabase(path: original.path, key: RekordboxKey.derive())
+        defer { ours.close(); theirs.close() }
+        let columns = ["InMsec", "InFrame", "InMpegFrame", "InMpegAbs", "OutMsec", "OutFrame", "OutMpegFrame", "OutMpegAbs", "Kind",
+                       "InPointSeekInfo", "OutPointSeekInfo", "ActiveLoop", "BeatLoopSize"]
+        func rows(_ db: CipherDatabase, _ id: String) throws -> [[String]] {
+            var out: [[String]] = []
+            try db.query("SELECT \(columns.joined(separator: ", ")) FROM djmdCue WHERE ContentID = ? AND Kind >= 0 ORDER BY InMsec, Kind", [.text(id)]) { r in
+                out.append((0..<columns.count).map { r.string(Int32($0)) ?? "NULL" })
+            }
+            return out
+        }
+        var cues = 0, same = 0, mpegSame = 0, shown = 0
+        // 옛 rekordbox는 루프가 아닌 큐에도 ActiveLoop·BeatLoopSize 0을 적었다(7.2는 NULL). 같은 것으로 본다.
+        let loopColumns = Set(["ActiveLoop", "BeatLoopSize"].compactMap { columns.firstIndex(of: $0) })
+        let mpegColumns = ["InMpegFrame", "InMpegAbs", "OutMpegFrame", "OutMpegAbs"].compactMap { columns.firstIndex(of: $0) }
+        for (id, uuid) in picked where !blocked.contains(where: { $0.trackUUID == uuid }) {
+            let mine = try rows(ours, id), rb = try rows(theirs, id)
+            guard mine.count == rb.count else { print("  \(id) 큐 행 수 다름 \(mine.count) vs \(rb.count)"); continue }
+            for (a, b) in zip(mine, rb) {
+                cues += 1
+                if mpegColumns.allSatisfy({ a[$0] == b[$0] }) { mpegSame += 1 }
+                let differs = columns.indices.contains { i in a[i] != b[i] && !(loopColumns.contains(i) && Set([a[i], b[i]]) == ["NULL", "0"]) }
+                if !differs { same += 1; continue }
+                if shown < 10 {
+                    shown += 1
+                    let diff = columns.indices.filter { a[$0] != b[$0] && !loopColumns.contains($0) }.map { "\(columns[$0]) DJCrate \(a[$0]) · rekordbox \(b[$0])" }
+                    print("  \(id) \(diff.joined(separator: " / "))")
+                }
+            }
+        }
+        print("VBR MP3 후보 \(ids.count)곡 중 \(picked.count)곡 다시 씀(막힘 \(blocked.count)) · 큐 \(cues)개 · MPEG 칸 같음 \(mpegSame) · 비교 칸 모두 같음 \(same)")
+    }
+
     /// rekordbox가 적은 FLAC SeekInfo·VBR MP3 MPEG 위치를 우리 계산과 전수 대조(읽기 전용)
     static func seekinfoCheck(_ args: [String]) async throws {
         let db = try CipherDatabase(path: value(after: "--db", in: args) ?? LibrarySnapshot.latest().path, key: RekordboxKey.derive())
@@ -502,52 +577,31 @@ enum CueLab {
         print("FLAC \(flac.count)곡 · 큐 일치(내림) \(same[0]) · 일치(반올림) \(same[1]) · 둘 다 다름 \(differ) · 파일 없음·못 읽음 \(missing)곡 · 루프 끝 일치 \(outSame)/\(outSame + outDiffer)")
         samples.forEach { print("  ", $0) }
 
-        var vbr: [String: (path: String, cues: [(Int, Int, Int, Int)])] = [:]
+        // VBR MP3: 큐마다 (시각, MPEG 칸) 쌍. 루프 끝도 같은 식으로 센다.
+        var vbr: [String: (path: String, points: [(msec: Int, frame: Int, abs: Int)])] = [:]
         try db.query("""
-            SELECT t.ID, t.FolderPath, c.InMsec, c.InFrame, c.InMpegFrame, c.InMpegAbs FROM djmdCue c JOIN djmdContent t ON t.ID = c.ContentID
-            WHERE t.FileType = 1 AND c.InMpegFrame != 0
+            SELECT t.ID, t.FolderPath, c.InMsec, c.InMpegFrame, c.InMpegAbs, c.OutMsec, c.OutMpegFrame, c.OutMpegAbs FROM djmdCue c
+            JOIN djmdContent t ON t.ID = c.ContentID WHERE t.FileType = 1 AND c.InMpegFrame != 0
             """) { r in
             let id = r.string(0) ?? ""
-            vbr[id, default: (r.string(1) ?? "", [])].cues.append((r.int(2) ?? 0, r.int(3) ?? 0, r.int(4) ?? 0, r.int(5) ?? 0))
+            vbr[id, default: (r.string(1) ?? "", [])].points.append((r.int(2) ?? 0, r.int(3) ?? 0, r.int(4) ?? 0))
+            if let out = r.int(5), out > 0 { vbr[id]!.points.append((out, r.int(6) ?? 0, r.int(7) ?? 0)) }
         }
-        var frameRule = 0, total = 0, notFrame = 0, lagCounts: [Int: Int] = [:], vbrMissing = 0, vbrSamples: [String] = [], detailCount = 0
+        var vbrSame = 0, vbrTotal = 0, vbrMissing = 0, vbrSamples: [String] = []
         for (_, entry) in vbr.prefix(limit) {
-            guard FileManager.default.fileExists(atPath: entry.path), let table = SeekInfo.mp3Frames(url: URL(filePath: entry.path)) else { vbrMissing += 1; continue }
-            // 기준점 후보: 첫 프레임(Xing 포함) · Xing 다음 프레임
-            let bases = [table.offsets[0], table.offsets.count > 1 ? table.offsets[1] : table.offsets[0]]
-            var hits = [0, 0]
-            for (i, base) in bases.enumerated() {
-                let set = Set(table.offsets.map { $0 - base })
-                hits[i] = entry.cues.filter { set.contains($0.3) }.count
-            }
-            let base = hits[1] > hits[0] ? bases[1] : bases[0]
-            let index = Dictionary(table.offsets.enumerated().map { ($1 - base, $0) }, uniquingKeysWith: { a, _ in a })
-            if vbrSamples.count < 3 { vbrSamples.append("기준 맞춤: 첫 프레임 \(hits[0])/\(entry.cues.count) · Xing 다음 \(hits[1])/\(entry.cues.count) · Info 프레임 \(table.hasInfoFrame)") }
-            for (msec, inFrame, mpegFrame, abs) in entry.cues {
-                total += 1
-                if mpegFrame == inFrame / 2 { frameRule += 1 }
-                guard let k = index[abs] else {
-                    notFrame += 1
-                    if vbrSamples.count < 4 { vbrSamples.append("\((entry.path as NSString).lastPathComponent.prefix(30)) \(msec)ms abs \(abs) 프레임 경계 아님 · 첫 프레임 \(table.offsets.first ?? -1)") }
-                    continue
-                }
-                // 시간으로 센 프레임 번호와의 차이
-                let byTime = Int(Double(msec) / 1000 * Double(table.sampleRate) / Double(table.samplesPerFrame))
-                lagCounts[k - byTime, default: 0] += 1
-                if args.contains("--detail"), detailCount < 40 {
-                    detailCount += 1
-                    let exact = Double(msec) / 1000 * Double(table.sampleRate) / Double(table.samplesPerFrame)
-                    let target = min(Int(exact), table.offsets.count - 1)
-                    let bytes = table.offsets[target] - table.offsets[k]
-                    let avg = target > k ? bytes / (target - k) : 0
-                    print(String(format: "  %@ %7dms · 프레임 %5d · 시간 %9.3f · 차 %6.3f · 바이트 거리 %6d · 평균 프레임 %4d · sr %d",
-                                 String((entry.path as NSString).lastPathComponent.prefix(18)), msec, k, exact, Double(k) - exact, bytes, avg,
-                                 table.sampleRate))
+            let url = URL(filePath: entry.path)
+            guard FileManager.default.fileExists(atPath: entry.path), let frames = SeekInfo.mp3Frames(url: url) else { vbrMissing += 1; continue }
+            let counted = SeekInfo.countedMp3Offsets(frames, url: url)
+            for point in entry.points {
+                vbrTotal += 1
+                let ours = SeekInfo.mp3CuePosition(msec: point.msec, counted: counted, sampleRate: frames.sampleRate, samplesPerFrame: frames.samplesPerFrame)
+                if let ours, ours.mpegFrame == point.frame, ours.abs == point.abs { vbrSame += 1; continue }
+                if vbrSamples.count < 5 {
+                    vbrSamples.append("\((entry.path as NSString).lastPathComponent.prefix(30)) \(point.msec)ms · rb \(point.frame)/\(point.abs) · djc \(ours.map { "\($0.mpegFrame)/\($0.abs)" } ?? "없음")")
                 }
             }
         }
-        print("VBR MP3 \(vbr.count)곡 · 큐 \(total) · InMpegFrame = InFrame/2 \(frameRule) · InMpegAbs가 프레임 경계 아님 \(notFrame) · 파일 없음·못 읽음 \(vbrMissing)곡")
-        print("  (InMpegAbs 프레임 번호 − 시간으로 센 번호) 분포:", lagCounts.sorted { $0.value > $1.value }.prefix(8).map { "\($0.key):\($0.value)" }.joined(separator: " "))
+        print("VBR MP3 \(vbr.count)곡 · 큐·루프 끝 \(vbrTotal) · MPEG 칸 일치 \(vbrSame) · 파일 없음·못 읽음 \(vbrMissing)곡")
         vbrSamples.forEach { print("  ", $0) }
     }
 
