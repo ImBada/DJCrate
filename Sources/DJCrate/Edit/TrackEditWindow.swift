@@ -1,5 +1,6 @@
 import AppKit
 import DJCDomain
+import DJCStorage
 import SwiftUI
 
 /// 곡 편집 창 하나를 띄우고 닫는다. 따로 된 창이라 편집하는 동안에도 덱에서 곡을 들으며 위치를 고를 수 있다.
@@ -28,7 +29,7 @@ final class TrackEditWindow: NSObject, NSWindowDelegate {
         guard let deck, TrackEditModel.canOpen(deck) else { return }
         let kept = model?.row.id == deck.row?.id ? model?.entries.map(\.range) ?? [] : []
         model?.close()
-        guard let model = TrackEditModel(deck: deck, entries: entries ?? kept) else { return }
+        guard let model = TrackEditModel(deck: deck, entries: entries ?? kept, edits: DJCPaths.editOutput) else { return }
         model.onStaged = { [weak self] staged in self?.finish(staged) }
         self.model = model
         let root = TrackEditView(model: model, deck: deck)
