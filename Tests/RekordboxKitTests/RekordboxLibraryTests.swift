@@ -82,6 +82,41 @@ struct RekordboxLibraryTests {
         #expect(folder.trackIDs == [live.id, deleted.id], "폴더는 하위 곡을 순서대로 모으고 중복을 뺀다")
     }
 
+    @Test func 일반_표에_들어온_목록은_보조_XML_없이_이름과_곡_순서를_보존한다() throws {
+        // #100: 일반 표에 저장된 목록의 읽기만 확인한다. iTunes 동기화 캐시 형식을 가정하지 않는다.
+        let (fixture, live, _) = try makeLibrary()
+        try fixture.add(TrackSpec(id: "103"))
+        for (id, name, parent, folder, seq) in [
+            ("import-folder", "가져온 폴더", "root", true, 3),
+            ("import-a", "같은 이름", "import-folder", false, 2),
+            ("import-b", "같은 이름", "import-folder", false, 1),
+        ] {
+            try fixture.insert("djmdPlaylist", ["ID": .text(id), "Name": .text(name), "ParentID": .text(parent),
+                                                "Attribute": .int(folder ? 1 : 0), "Seq": .int(seq)])
+        }
+        for (id, content, no, deleted) in [("entry-a", "103", 9, 0), ("entry-z", live.id, 2, 0),
+                                           ("entry-b", "103", 5, 1), ("entry-c", live.id, 12, 0)] {
+            try fixture.insert("djmdSongPlaylist", ["ID": .text(id), "PlaylistID": .text("import-a"),
+                                                    "ContentID": .text(content), "TrackNo": .int(no), "rb_local_deleted": .int(deleted)])
+        }
+        let snapshot = try LibrarySnapshot.take(from: fixture.database, into: fixture.root.appending(path: "snapshots"), force: true)
+        let before = try Data(contentsOf: snapshot)
+        let library = try RekordboxLibrary.load(snapshot: snapshot)
+        #expect(Set(library.playlists.map(\.id)) == ["f1", "p1", "p2", "p3", "import-folder", "import-a", "import-b"])
+        let imported = try #require(library.playlists.first { $0.id == "import-a" })
+        #expect(imported.trackIDs == [live.id, "103", live.id] && imported.trackNumbers == [2, 9, 12])
+        let tree = PlaylistNode.tree(library.playlists)
+        let folder = try #require(tree.first { $0.id == "import-folder" })
+        #expect(folder.children?.map(\.id) == ["import-b", "import-a"])
+        #expect(folder.children?.map(\.name) == ["같은 이름", "같은 이름"], "이름으로 합치거나 거르지 않는다")
+        #expect(folder.children?.first?.trackIDs.isEmpty == true, "빈 목록도 남긴다")
+        #expect(folder.trackIDs == [live.id, "103"])
+        let outline = PlaylistOutlineNode.tree(PlaylistLayout(rekordbox: library.playlists))
+        #expect(outline.map(\.id) == tree.map(\.id))
+        #expect(outline.first { $0.id == "import-folder" }?.children?.map(\.id) == ["import-b", "import-a"])
+        #expect(try Data(contentsOf: snapshot) == before, "읽기는 스냅샷을 고치지 않는다")
+    }
+
     @Test func 현황은_삭제_행을_빼고_센다() throws {
         let (fixture, _, _) = try makeLibrary()
         let report = LibraryReport(library: try RekordboxLibrary.load(snapshot: fixture.database))
