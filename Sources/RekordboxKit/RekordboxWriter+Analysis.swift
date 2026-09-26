@@ -153,13 +153,15 @@ extension RekordboxWriter {
         }
     }
 
-    /// 만든 분석 파일을 지우고, 비게 된 `USBANLZ/<3자>/<나머지>` 폴더도 지운다(rekordbox가 곡을 지울 때처럼).
+    /// 만든 분석·아트워크 파일을 지우고, 비게 된 `USBANLZ`·`Artwork` 아래 `<3자>/<나머지>` 폴더도 지운다.
+    /// 분석 폴더는 rekordbox가 곡을 지울 때처럼, 아트워크 폴더는 넣기 전 모양으로(곡 빼기는 rekordbox처럼 아트워크 폴더를 남긴다).
     static func removeAnalysisFiles(_ created: [URL]) throws {
         let fm = FileManager.default
+        let roots = ["USBANLZ", "Artwork"]
         try each(created.filter { fm.fileExists(atPath: $0.path) }) { try fm.removeItem(at: $0) }
-        for directory in Set(created.map { $0.deletingLastPathComponent() }) where directory.path.contains("/USBANLZ/") {
+        for directory in Set(created.map { $0.deletingLastPathComponent() }) where roots.contains(where: { directory.path.contains("/\($0)/") }) {
             var current = directory
-            while current.lastPathComponent != "USBANLZ", (try? fm.contentsOfDirectory(atPath: current.path))?.isEmpty == true {
+            while !roots.contains(current.lastPathComponent), (try? fm.contentsOfDirectory(atPath: current.path))?.isEmpty == true {
                 try? fm.removeItem(at: current)
                 current = current.deletingLastPathComponent()
             }

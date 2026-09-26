@@ -1,6 +1,7 @@
 @testable import DJCrate
 import AppKit
 import DJCDomain
+import DJCTestSupport
 import Foundation
 @testable import RekordboxKit
 import Testing
@@ -340,6 +341,20 @@ struct ReflectionCoordinatorTests {
         #expect(alert.buttons.allSatisfy { $0.keyEquivalent != "\r" })
         #expect(alert.window.defaultButtonCell == nil)
         #expect(alert.buttons.last?.keyEquivalent == "\u{1b}")
+    }
+
+    @Test func 넣기_확인_창은_아트워크를_함께_넣는_곡을_표시한다() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "djc-art-prompt-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let withArt = try TrackAddPlan.make(url: try AudioFixture.wav(seconds: 1, in: folder, name: "art.wav"), tags: AudioTags(duration: 1, artwork: Data([1])))
+        let bare = try TrackAddPlan.make(url: try AudioFixture.wav(seconds: 1, in: folder, name: "bare.wav"), tags: AudioTags(duration: 1))
+        var preview = Self.addPreview([Self.track(withArt.path), Self.track(bare.path)])
+        preview.plans = [withArt, bare]
+        let open = ReflectionCoordinator.addConfirmation(preview, writesArtwork: true).text.components(separatedBy: "\n")
+        #expect(open.contains("• 곡 \(withArt.path) — 그리드·파형·오토게인까지 · 아트워크"))
+        #expect(open.contains("• 곡 \(bare.path) — 그리드·파형·오토게인까지"))
+        #expect(!ReflectionCoordinator.addConfirmation(preview, writesArtwork: false).text.contains("아트워크"), "아트워크 쓰기가 닫혀 있으면 말하지 않는다")
     }
 
     @Test func 변경이_없는_되돌리기는_Return으로_확인할_수_있다() {

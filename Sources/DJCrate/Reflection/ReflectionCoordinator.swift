@@ -310,12 +310,15 @@ struct ReflectionCoordinator {
         preview.report.added.filter { !$0.written }.map { "• \($0.title): \($0.reason ?? "")" } + preview.unreadable.map { "• \($0)" }
     }
 
-    /// 넣기 전 확인 창: 곡마다 분석까지 붙는지, 넣지 않는 곡과 이유
-    static func addConfirmation(_ preview: LibraryStore.TrackAddPreview) -> ReflectionPrompt {
+    /// 넣기 전 확인 창: 곡마다 분석까지 붙는지(아트워크도 넣는지), 넣지 않는 곡과 이유
+    static func addConfirmation(_ preview: LibraryStore.TrackAddPreview,
+                                writesArtwork: Bool = RekordboxTrackWriter.writesArtwork) -> ReflectionPrompt {
         let written = preview.report.added.filter(\.written)
+        let artwork = Set(preview.plans.filter { $0.artwork != nil }.map(\.path))
         var body = written.prefix(12).map { outcome -> String in
             var line = preview.withoutAnalysis[outcome.path].map { "• \(outcome.title) — 분석 없이(\($0))" }
                 ?? "• \(outcome.title) — 그리드·파형·오토게인까지"
+            if writesArtwork, artwork.contains(outcome.path) { line += " · 아트워크" }
             if let count = outcome.cuesWritten { line += " · 큐 \(count)개" }
             if let reason = outcome.cueReason { line += " · ⚠︎ 큐는 안 들어감(\(reason))" }
             return line
@@ -336,7 +339,7 @@ struct ReflectionCoordinator {
         var body = written.prefix(12).map { "• \($0.title)" }
         if written.count > 12 { body.append("… 외 \(written.count - 12)곡") }
         if !blocked.isEmpty { body += ["", "빼지 않는 곡 \(blocked.count):"] + blocked.prefix(8).map { "• \($0.title): \($0.reason ?? "")" } }
-        body += ["", "음원 파일은 지우지 않습니다. rekordbox의 큐·재생 목록 항목·재생 기록·분석 파일이 함께 사라집니다.",
+        body += ["", "음원 파일은 지우지 않습니다. rekordbox의 큐·재생 목록 항목·재생 기록·분석 파일·아트워크가 함께 사라집니다.",
                  "쓰기 전에 전체를 백업하므로 \"되돌리기\"로 되살릴 수 있습니다. 끝날 때까지 rekordbox를 켜지 마세요."]
         return ReflectionPrompt(title: "rekordbox 컬렉션에서 \(written.count)곡을 뺍니다", text: body.joined(separator: "\n"),
                                 confirm: "rekordbox에서 빼기", critical: true)
@@ -351,8 +354,8 @@ struct ReflectionCoordinator {
         if let tracks = backup.trackReport {
             let added = tracks.added.filter(\.written).count, deleted = tracks.deleted.filter(\.written).count
             lines.append("rekordbox 라이브러리 파일 전체를 그때 백업으로 바꿉니다. "
-                         + (added > 0 ? "그때 넣은 \(added)곡은 컬렉션에서 빠지고(만든 분석 파일도 지움) DJCrate 추가 목록으로 돌아옵니다. " : "")
-                         + (deleted > 0 ? "그때 뺀 \(deleted)곡은 큐·재생 목록·분석 파일과 함께 되살아납니다. " : "")
+                         + (added > 0 ? "그때 넣은 \(added)곡은 컬렉션에서 빠지고(만든 분석·아트워크 파일도 지움) DJCrate 추가 목록으로 돌아옵니다. " : "")
+                         + (deleted > 0 ? "그때 뺀 \(deleted)곡은 큐·재생 목록·분석 파일·아트워크와 함께 되살아납니다. " : "")
                          + "지금 상태도 따로 백업해 둡니다.")
         } else {
             lines.append("rekordbox 라이브러리 파일 전체를 그때 백업으로 바꿉니다. 그때 쓴 큐 초안은 DJCrate에 다시 살아납니다. 지금 상태도 따로 백업해 둡니다.")
