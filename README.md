@@ -9,7 +9,7 @@ rekordbox 7용 DJ 라이브러리 관리 macOS 앱(약칭 DJC, 명령줄 도구 
 ## 무엇을 하나
 
 **라이브러리**
-- rekordbox `master.db`를 스냅샷 사본으로 읽어 7천여 곡을 목록으로 본다(플레이리스트 트리 포함).
+- rekordbox `master.db`를 스냅샷 사본으로 읽어 라이브러리의 곡을 목록으로 본다(플레이리스트 트리 포함).
 - 필터: 빈 코멘트, 규칙 밖 코멘트, 큐 없음, BPM·그리드 없음, 변속 곡, 반영 대기 등.
 - 컬럼 추가·삭제(헤더 오른쪽 클릭), 앨범·길이·형식·변속 정보·핫큐/메모리 큐 수 표시.
 - 코멘트 규칙(`TVA 작품명(약칭) 2기 OP 1 TVSIZE`) 파싱, 태그 편집(인스펙터·엑셀식 태그 시트).
@@ -25,7 +25,7 @@ rekordbox 7용 DJ 라이브러리 관리 macOS 앱(약칭 DJC, 명령줄 도구 
 **분석과 제안**
 - 곡 구조 분석으로 메모리 큐 후보 제안.
 - rekordbox 그리드가 없는 곡의 BPM·그리드 추정(변속 곡 포함), 제안 받기·무시·재분석.
-- 조성 흐름 추정(Camelot), 곡 음량(LUFS)·클리핑 흔적.
+- 알파뉴메릭 표기(1A–12B)로 조성 흐름 추정, 곡 음량(LUFS)·클리핑 흔적.
 
 **그리드 편집**
 - 이동(1·10ms, 끌기), BPM 입력·×2·÷2, ½박 이동, 여기를 1박으로, 변속 지점, 탭 템포.
@@ -114,8 +114,11 @@ scripts/build-app.sh --install     # /Applications/DJCrate.app에 설치
 ## 문서
 
 - `AGENTS.md`: 작업 규칙(사람·에이전트 공통)
+- [CONTRIBUTING.md](CONTRIBUTING.md): 빌드·검증·기여 안내
 - `docs/architecture.md`: 구조와 설계 결정
 - `docs/rekordbox-internals.md`: rekordbox DB·분석 파일 쓰기 규칙(실험으로 확인한 것)
 - `docs/issues.md`: 이슈 관리 규칙(제목·라벨·본문·흐름)
+
+라이선스: [MIT(LICENSE)](LICENSE), 제3자 고지: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 
 rekordbox는 AlphaTheta의 상표다. 이 앱은 AlphaTheta와 관계없는 개인 도구다. rekordbox DB 키는 [pyrekordbox](https://github.com/dylanljones/pyrekordbox)(MIT)와 같은 방식으로 푼다.
