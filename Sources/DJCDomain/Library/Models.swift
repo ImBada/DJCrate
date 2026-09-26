@@ -15,6 +15,8 @@ public struct Track: Sendable, Identifiable, Hashable {
     /// rekordbox는 BPM을 100배 정수로 저장한다. 미분석이면 nil.
     public let bpm: Double?
     public let lengthSeconds: Int
+    /// DB의 kbps. 미분석·알 수 없는 값은 nil.
+    public let bitrateKbps: Int?
     public let folderPath: String
     /// DB에 저장된 코멘트 원문(정규화 전).
     public let comment: String
@@ -29,12 +31,13 @@ public struct Track: Sendable, Identifiable, Hashable {
     public init(id: String, uuid: String, title: String, artist: String?, album: String?, albumArtist: String?,
                 genre: String?, composer: String?, releaseYear: Int?, trackNumber: Int?, key: String?, bpm: Double?,
                 lengthSeconds: Int, folderPath: String, comment: String, importedOn: String?,
-                analysisDataPath: String?, imagePath: String?, isDeleted: Bool) {
+                analysisDataPath: String?, imagePath: String?, isDeleted: Bool, bitrateKbps: Int? = nil) {
         self.id = id; self.uuid = uuid; self.title = title; self.artist = artist; self.album = album
         self.albumArtist = albumArtist; self.genre = genre; self.composer = composer; self.releaseYear = releaseYear
         self.trackNumber = trackNumber; self.key = key; self.bpm = bpm; self.lengthSeconds = lengthSeconds
         self.folderPath = folderPath; self.comment = comment; self.importedOn = importedOn
         self.analysisDataPath = analysisDataPath; self.imagePath = imagePath; self.isDeleted = isDeleted
+        self.bitrateKbps = bitrateKbps.flatMap { $0 > 0 ? $0 : nil }
     }
 
     /// 스트리밍 트랙(`apple-music:…`, `spotify:…` 등)은 로컬 파일 경로가 없다.

@@ -125,10 +125,13 @@ struct ContentView: View {
                     SplitHandle(height: $waveformHeight, displayedHeight: displayedHeight, maximumHeight: maximumHeight)
                     VStack(spacing: 0) {
                         ListActionBar(store: store)
-                        if sheetMode { SheetHeader(store: store) }
+                        if sheetMode && store.sidebar != .duplicates { SheetHeader(store: store) }
                     }
                     .onGeometryChange(for: Double.self) { $0.size.height } action: { listHeaderHeight = $0 }
-                    if sheetMode {
+                    if store.sidebar == .duplicates {
+                        DuplicateTracksView(store: store)
+                            .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
+                    } else if sheetMode {
                         TagSheetView(store: store)
                             .onDisappear { store.canFillDownTags = false }
                             .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
@@ -184,7 +187,7 @@ struct ContentView: View {
                     Label("태그 시트", systemImage: "tablecells").tag(true)
                 }
                 .pickerStyle(.segmented)
-                .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
+                .disabled(!store.writeLockPolicy.allowsLibraryInteraction || store.sidebar == .duplicates)
                 .help("태그 시트: 엑셀처럼 셀을 선택·편집·붙여넣기 합니다")
             }
             ToolbarItem(id: "addFiles") {

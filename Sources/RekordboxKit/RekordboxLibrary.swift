@@ -38,7 +38,7 @@ public struct RekordboxLibrary: Sendable {
             SELECT c.ID, c.UUID, c.Title, a.Name, al.Name, g.Name, k.ScaleName,
                    c.BPM, c.Length, c.FolderPath, c.Commnt, c.created_at,
                    c.AnalysisDataPath, c.rb_local_deleted, c.ImagePath,
-                   cp.Name, aa.Name, c.ReleaseYear, c.TrackNo
+                   cp.Name, aa.Name, c.ReleaseYear, c.TrackNo, c.BitRate
             FROM djmdContent c
             LEFT JOIN djmdArtist a ON a.ID = c.ArtistID
             LEFT JOIN djmdAlbum al ON al.ID = c.AlbumID
@@ -67,7 +67,8 @@ public struct RekordboxLibrary: Sendable {
                 importedOn: row.string(11).map { String($0.prefix(10)) },
                 analysisDataPath: row.string(12),
                 imagePath: row.string(14),
-                isDeleted: (row.int(13) ?? 0) != 0
+                isDeleted: (row.int(13) ?? 0) != 0,
+                bitrateKbps: row.int(19)
             ))
         }
 

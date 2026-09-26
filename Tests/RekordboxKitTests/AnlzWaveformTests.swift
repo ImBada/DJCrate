@@ -76,4 +76,40 @@ struct AnlzWaveformTests {
         let silence = RekordboxWaveforms.analyze(mono: [], sampleRate: 44_100)
         #expect(silence.pwv4.allSatisfy { $0 == 0 })
     }
+
+    @Test func 색_미리보기_세번째_성분은_400Hz_저역_피크다() {
+        // 2026-09-26 rekordbox 7.2.18, probe-frequency.wav 정상 구간의 세 번째 바이트.
+        // 8kHz의 값이 0이므로 RGB 에너지 합이 아니다. 곡 최대값이나 PWVC 게인에도 무관하다.
+        let frequencies: [Double] = [60, 150, 300, 1000, 2500, 8000, 16000]
+        let expected: [UInt8] = [63, 63, 55, 10, 1, 0, 0]
+        var samples = [Float](repeating: 0, count: 30 * 44_100)
+        for (index, hz) in frequencies.enumerated() {
+            let start = (2 + index * 4) * 44_100
+            samples.replaceSubrange(start..<start + 2 * 44_100, with: tone(seconds: 2, hz: hz, amplitude: 0.5))
+        }
+        let w = RekordboxWaveforms.analyze(mono: samples, sampleRate: 44_100)
+        for (index, value) in expected.enumerated() {
+            #expect(w.pwv4[(3 + index * 4) * 40 * 6 + 2] == value, "\(frequencies[index])Hz의 저역 피크")
+        }
+    }
+
+    @Test func 색_미리보기_저역_피크는_절대_진폭을_버림한다() {
+        // 같은 날 probe-amplitude.wav의 1kHz, 진폭 1/64·1/16·1/4·1/2·1 구간.
+        var samples = [Float](repeating: 0, count: 22 * 44_100)
+        let amplitudes: [Float] = [1.0 / 64, 1.0 / 16, 0.25, 0.5, 1]
+        for (index, amplitude) in amplitudes.enumerated() {
+            let start = (2 + index * 4) * 44_100
+            samples.replaceSubrange(start..<start + 2 * 44_100, with: tone(seconds: 2, hz: 1000, amplitude: amplitude))
+        }
+        let w = RekordboxWaveforms.analyze(mono: samples, sampleRate: 44_100)
+        for (index, value) in [UInt8(0), 1, 5, 10, 20].enumerated() {
+            #expect(w.pwv4[Int(Double(3 + index * 4) * 1200 / 22) * 6 + 2] == value)
+        }
+    }
+
+    @Test func 색_파형의_완전한_무음은_흰색에_높이_0이다() {
+        // 2026-09-26 rekordbox 7.2.18, probe 3곡 모두 앞쪽 무음의 PWV5가 FF80이었다.
+        let w = RekordboxWaveforms.analyze(mono: [Float](repeating: 0, count: 44_100), sampleRate: 44_100)
+        #expect(w.pwv5.allSatisfy { $0 == 0xFF80 })
+    }
 }

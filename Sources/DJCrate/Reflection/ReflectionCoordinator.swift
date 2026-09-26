@@ -319,26 +319,29 @@ struct ReflectionCoordinator {
         if !gains.isEmpty { kinds.append("게인 \(gains.count)곡") }
         let gridBlocked = Set((report.gridBlocked + report.analysisBlocked).map(\.trackUUID)), gridWritten = Set(grids.map(\.trackUUID))
         let analysisWritten = Set(analyses.map(\.trackUUID))
+        // 분석을 붙이며 음원 그림으로 아트워크도 넣는 곡(rekordbox도 분석할 때 뽑는다, #87)
+        let artwork = Set(report.artworkAdded ?? [])
         var body = cues.map { outcome -> String in
             var changes: [String] = []
             if outcome.added > 0 { changes.append("+\(outcome.added)") }
             if outcome.removed > 0 { changes.append("−\(outcome.removed)") }
             var line = "• \(outcome.title) — 큐 " + (changes.isEmpty ? "변경" : changes.joined(separator: " · "))
             if gridWritten.contains(outcome.trackUUID) { line += " · 그리드" }
-            if analysisWritten.contains(outcome.trackUUID) { line += " · 분석 파일 붙이기" }
+            if analysisWritten.contains(outcome.trackUUID) { line += " · 분석 파일 붙이기" + (artwork.contains(outcome.trackUUID) ? " · 아트워크" : "") }
             if gridBlocked.contains(outcome.trackUUID) { line += " · ⚠︎ 그리드는 안 들어감" }
             return line
         }
         let cueUUIDs = Set(cues.map(\.trackUUID))
         for grid in grids where !cueUUIDs.contains(grid.trackUUID) { body.append("• \(grid.title) — 그리드(박 \(grid.added)개)") }
         for analysis in analyses where !cueUUIDs.contains(analysis.trackUUID) {
-            body.append("• \(analysis.title) — 분석 파일 붙이기(파형·그리드 박 \(analysis.added)개·오토게인)")
+            body.append("• \(analysis.title) — 분석 파일 붙이기(파형·그리드 박 \(analysis.added)개·오토게인\(artwork.contains(analysis.trackUUID) ? "·아트워크" : ""))")
         }
         for gain in gains { body.append(String(format: "• %@ — 오토게인 %+.1f dB", gain.title, Double(gain.added) / 100)) }
         let reasons = reasons(report)
         if !reasons.isEmpty { body += ["", "쓰지 않는 것 \(reasons.count):"] + reasons }
         if !analyses.isEmpty {
-            body += ["", "파형·그리드·오토게인만 붙입니다. 키·프레이즈·보컬 분석은 없습니다."]
+            let made = analyses.contains { artwork.contains($0.trackUUID) } ? "파형·그리드·오토게인과 음원의 아트워크를" : "파형·그리드·오토게인만"
+            body += ["", "\(made) 붙입니다. 키·프레이즈·보컬 분석은 없습니다."]
         }
         return ReflectionPrompt(title: kinds.joined(separator: " · ") + "을 rekordbox에 쓸까요?",
                                 text: "백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.",
@@ -352,24 +355,29 @@ struct ReflectionCoordinator {
     /// 아트워크 쓰기가 닫혀 있을 때(`RekordboxTrackWriter.writesArtwork`) 음원에 아트워크가 든 곡을 넣으면 보이는 안내
     static let artworkClosedNote = "음원의 아트워크는 아직 넣지 않으니, 필요하면 rekordbox 곡 정보 창에서 이미지를 끌어다 붙이세요."
 
-    /// 넣기 전 확인 창: 곡마다 분석까지 붙는지(아트워크도 넣는지), 넣지 않는 곡과 이유
+    /// 넣기 전 확인 창: 곡마다 분석까지 붙는지(아트워크도 넣는지), 넣지 않는 곡과 이유.
+    /// 아트워크는 분석까지 붙이는 곡에만 넣는다(rekordbox도 분석할 때 뽑는다, 2026-09-26 실험).
     static func addConfirmation(_ preview: LibraryStore.TrackAddPreview,
                                 writesArtwork: Bool = RekordboxTrackWriter.writesArtwork) -> ReflectionPrompt {
         let written = preview.report.added.filter(\.written)
         let artwork = Set(preview.plans.filter { $0.artwork != nil }.map(\.path))
+        let bare = written.filter { preview.withoutAnalysis[$0.path] != nil }
+        let analysedArtwork = written.filter { preview.withoutAnalysis[$0.path] == nil && artwork.contains($0.path) }
         var body = written.map { outcome -> String in
             var line = preview.withoutAnalysis[outcome.path].map { "• \(outcome.title) — 분석 없이(\($0))" }
                 ?? "• \(outcome.title) — 그리드·파형·오토게인까지"
-            if writesArtwork, artwork.contains(outcome.path) { line += " · 아트워크" }
+            if writesArtwork, analysedArtwork.contains(outcome) { line += " · 아트워크" }
             if let count = outcome.cuesWritten, count > 0 { line += " · 큐 \(count)개" }
             if let reason = outcome.cueReason { line += " · ⚠︎ 큐는 안 들어감(\(reason))" }
             return line
         }
         let reasons = addReasons(preview)
         if !reasons.isEmpty { body += ["", "넣지 않는 곡 \(reasons.count):"] + reasons }
-        let bare = written.filter { preview.withoutAnalysis[$0.path] != nil }.count
-        if bare > 0 { body += ["", "분석 없이 넣는 곡은 rekordbox에서 분석해야 파형·그리드가 생깁니다."] }
-        if !writesArtwork, written.contains(where: { artwork.contains($0.path) }) {
+        if !bare.isEmpty {
+            let made = bare.contains { artwork.contains($0.path) } ? "파형·그리드·아트워크" : "파형·그리드"
+            body += ["", "분석 없이 넣는 곡은 rekordbox에서 분석해야 \(made)가 생깁니다."]
+        }
+        if !writesArtwork, !analysedArtwork.isEmpty {
             body += ["", Self.artworkClosedNote]
         }
         return ReflectionPrompt(title: "\(written.count)곡을 rekordbox에 넣을까요?",

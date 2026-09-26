@@ -19,6 +19,10 @@ struct Sidebar: View {
                         .badge(store.count(filter))
                         .tag(SidebarItem.filter(filter))
                 }
+                Label("중복 후보", systemImage: "square.on.square")
+                    .badge(store.duplicateGroups.count)
+                    .tag(SidebarItem.duplicates)
+                    .help("제목·아티스트가 같고 길이 차이가 2초 이내인 후보 묶음")
             }
             Section("DJCrate") {
                 Label("추가한 곡", systemImage: "tray.and.arrow.down")

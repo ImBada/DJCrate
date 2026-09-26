@@ -42,11 +42,14 @@ description: DJCrate의 명령줄 도구 djc로 rekordbox 라이브러리(스냅
 | `djc track <ContentID> --json` | 곡 하나의 태그·큐·그리드·게인·소속 재생 목록·초안 여부 | `{track, cues, grid, gain?, playlists, drafts}` |
 | `djc playlists [--tree] --json` | 재생 목록·폴더 | `{playlists}` |
 | `djc playlist <ID> --json` | 재생 목록 곡을 순서대로(폴더면 하위 목록을 합침) | `{playlist, tracks}` |
+| `djc duplicates --json` | 중복 후보 묶음·큐 수·직접 소속 목록 수·재생 수·형식·비트레이트 비교(읽기 전용) | `{lengthToleranceSeconds, groups}` |
 | `djc drafts --json` | 초안이 있는 곡과 종류(cue·grid·gain·tag) | `{drafts}` |
 | `djc report [--files] --json` | 라이브러리 현황 집계(코멘트 분류·큐 유무·확장자 등, `--files`면 없는 파일 수) | 집계 칸 |
 | `djc parse "<코멘트>" --json` | 코멘트가 규칙(`TVA 작품명 OP 1` 꼴)에 맞는지 판정 | `{classification, parsed?}` |
 | `djc path <제목> --json` | 제목으로 파일 경로 찾기(대소문자 구분) | `{paths}` |
 | `djc compat --json` | rekordbox 버전·DB 구조가 쓰기를 확인한 모양인지 | 버전·카운터 |
+
+`duplicates`는 제목·아티스트의 NFC·대소문자·공백을 정규화하고 길이 차이 2초까지 비교한다. 괄호 속 버전은 구분하며 빈 제목·아티스트·길이, 삭제·스트리밍 곡은 제외한다. 한 곡이 여러 후보 묶음에 나올 수 있다. `groups[].tracks[]`는 `track`, `cueCount`, `manualCueCount`, `playlistCount`, `playCount`, `format`, 선택 `bitrateKbps`를 담는다. 같은 녹음이라는 확정이 아니므로 비교할 후보로만 제안하고 합치기·삭제하지 않는다.
 
 `--filter` 이름:
 

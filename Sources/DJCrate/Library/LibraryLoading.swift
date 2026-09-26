@@ -17,6 +17,7 @@ struct LoadedLibrary: Sendable {
     var histories: [RekordboxHistory]
     var draftCueCounts: [String: CueCounts] = [:]
     var draftPreviewCues: [String: [PreviewCueMark]] = [:]
+    var duplicateGroups: [LibraryRead.DuplicateGroup] = []
 
     static func load(snapshot: URL, commentPreset: CommentPreset = .none) throws -> LoadedLibrary {
         let library = try RekordboxLibrary.load(snapshot: snapshot)
@@ -50,7 +51,8 @@ struct LoadedLibrary: Sendable {
                              tagDrafts: tagDrafts, cueDraftUUIDs: cueUUIDs,
                              gridDraftUUIDs: GridDraftStore.uuids(), tree: PlaylistNode.tree(library.playlists),
                              histories: library.histories,
-                             draftCueCounts: draftCueCounts, draftPreviewCues: draftPreviewCues)
+                             draftCueCounts: draftCueCounts, draftPreviewCues: draftPreviewCues,
+                             duplicateGroups: LibraryRead.duplicates(in: library).groups)
     }
 }
 

@@ -70,6 +70,27 @@ public extension LibraryRead {
     struct TrackList: Codable { public let tracks: [TrackRecord] }
     struct PathList: Codable { public let paths: [String] }
 
+    struct DuplicateMember: Codable, Sendable, Identifiable {
+        public let track: TrackRecord
+        public let cueCount: Int
+        public let manualCueCount: Int
+        public let playlistCount: Int
+        public let playCount: Int
+        public let format: String
+        public let bitrateKbps: Int?
+        public var id: String { track.id }
+    }
+
+    struct DuplicateGroup: Codable, Sendable, Identifiable {
+        public let id: String
+        public let tracks: [DuplicateMember]
+    }
+
+    struct DuplicateList: Codable, Sendable {
+        public let lengthToleranceSeconds: Int
+        public let groups: [DuplicateGroup]
+    }
+
     struct CueRecord: Codable {
         public let id: String
         public let kind: Int

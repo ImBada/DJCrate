@@ -20,12 +20,20 @@ extension AudioLab {
         let limit = Int(value(after: "--limit", in: args) ?? "12") ?? 0
         guard limit > 0 else { throw UsageError() }
         let corpus = value(after: "--corpus", in: args), copyTo = value(after: "--copy-to", in: args)
-        guard corpus == nil || (copyTo == nil && !args.contains("--db") && !args.contains("--title")) else { throw UsageError() }
+        guard corpus == nil || (copyTo == nil && !args.contains("--db") && !args.contains("--title")
+            && !args.contains("--exclude-title")) else { throw UsageError() }
         let root = (corpus ?? copyTo).map { URL(filePath: $0) }
             ?? fm.temporaryDirectory.appending(path: "djc-waveform-\(UUID().uuidString)")
         let temporary = corpus == nil && copyTo == nil
         // 이 명령이 만든 임시 사본만 정리한다.
         defer { if temporary { try? fm.removeItem(at: root) } }
+        let dumpRoot = value(after: "--dump-to", in: args).map { URL(filePath: $0) }
+        if let dumpRoot {
+            guard !fm.fileExists(atPath: dumpRoot.path) else {
+                throw DJCError.invalidAnalysisFile("기존 자료를 덮어쓰지 않도록 새 출력 폴더를 지정하세요")
+            }
+            try fm.createDirectory(at: dumpRoot, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        }
         if corpus == nil { try copyWaveformCorpus(args, to: root, limit: limit) }
         let folders = try fm.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey])
             .filter { $0.lastPathComponent.hasPrefix("sample-") && (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
@@ -58,6 +66,14 @@ extension AudioLab {
                     for (field, values) in waveformFields(tag, a) {
                         row.metrics["\(tag).\(field)"] = RekordboxWaveforms.compare(reference: values, generated: waveformFields(tag, b)[field] ?? [])
                     }
+                }
+                if let dumpRoot {
+                    // 제목·경로(PPTH)를 빼고 비교 대상인 파형 본문만 저장한다.
+                    let json = ["reference": reference.mapValues { RekordboxWaveforms.body(of: $0) },
+                                "generated": generated.mapValues { RekordboxWaveforms.body(of: $0) }]
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = [.sortedKeys]
+                    try encoder.encode(json).write(to: dumpRoot.appending(path: String(format: "sample-%03d.json", index + 1)), options: .withoutOverwriting)
                 }
             } catch {
                 // 디코더·파일 오류에는 개인 경로가 들어갈 수 있어 그대로 출력하지 않는다.
@@ -115,9 +131,11 @@ extension AudioLab {
             throw DJCError.invalidAnalysisFile("라이브 DB 대신 djc snapshot으로 만든 사본을 지정하세요")
         }
         let title = value(after: "--title", in: args)
+        let excludeTitle = value(after: "--exclude-title", in: args)
         let library = try RekordboxLibrary.load(snapshot: snapshot)
         let candidates = library.tracks.filter { !$0.isStreaming && fm.fileExists(atPath: $0.folderPath)
-            && RekordboxShare.hasWaveformAnalysis($0.analysisDataPath) && (title == nil || $0.title.contains(title!)) }
+            && RekordboxShare.hasWaveformAnalysis($0.analysisDataPath) && (title == nil || $0.title.contains(title!))
+            && (excludeTitle == nil || !$0.title.contains(excludeTitle!)) }
         let byFormat = Dictionary(grouping: candidates, by: \.fileExtension)
         var groups: [[Track]] = []
         for format in byFormat.keys.sorted() {

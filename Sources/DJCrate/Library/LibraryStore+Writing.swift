@@ -100,8 +100,8 @@ extension LibraryStore {
         return saved
     }
 
-    /// 분석 전 곡(분석 파일 없음)의 그리드 초안에 붙일 음원 길이·음량(곡 UUID별). 분석 붙이기가 닫혀 있으면 비운다.
-    /// 길이는 곡 넣기와 같은 값(AVFoundation), 음량은 캐시가 없으면 잰다.
+    /// 분석 전 곡(분석 파일 없음)의 그리드 초안에 붙일 음원 길이·음량·내장 그림(곡 UUID별). 분석 붙이기가 닫혀 있으면 비운다.
+    /// 길이는 곡 넣기와 같은 값(AVFoundation), 음량은 캐시가 없으면 잰다. 내장 그림이 있으면 쓰기 모듈이 아트워크도 넣는다(#87).
     func analysisInputs(for grids: [GridDraft], measuringLoudness: Bool) async throws -> [String: RekordboxWriter.AnalysisInput] {
         guard RekordboxWriter.attachesAnalysis else { return [:] }
         var inputs: [String: RekordboxWriter.AnalysisInput] = [:]
@@ -112,7 +112,7 @@ extension LibraryStore {
             guard let row = rowsByUUID[grid.trackUUID], !row.isStaged, !row.track.isStreaming,
                   RekordboxWriter.needsAnalysis(row.track.analysisDataPath) else { continue }
             let url = URL(filePath: row.track.folderPath)
-            guard let duration = try? await AudioTags.read(url: url).duration, duration > 0 else { continue }
+            guard let tags = try? await AudioTags.read(url: url), tags.duration > 0 else { continue }
             var loudness: Loudness?
             if measuringLoudness {
                 loudness = LoudnessCache.shared.value(for: url)
@@ -122,7 +122,8 @@ extension LibraryStore {
                 }
             }
             try Task.checkCancellation()
-            inputs[grid.trackUUID] = .init(duration: duration, loudness: loudness?.integrated, peak: loudness.map { pow(10, $0.peak / 20) } ?? 1)
+            inputs[grid.trackUUID] = .init(duration: tags.duration, loudness: loudness?.integrated, peak: loudness.map { pow(10, $0.peak / 20) } ?? 1,
+                                           artwork: tags.artwork)
         }
         try Task.checkCancellation()
         return inputs
