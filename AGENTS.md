@@ -6,7 +6,8 @@ rekordbox 7용 애니송 DJ 라이브러리 관리 macOS 앱(1인용). 사람·C
 
 ## 가장 중요한 규칙: rekordbox 라이브러리를 절대 깨뜨리지 않는다
 
-- IMPORTANT: rekordbox 또는 rekordboxAgent가 켜져 있으면 rekordbox 라이브러리(`master.db`, `share/PIONEER/USBANLZ`)에 **절대 쓰지 않는다**. 쓰기는 `RekordboxWriter.write` 한 곳으로만 한다(전체 백업 → 한 트랜잭션 → 다시 읽어 검증 → 무결성 검사 → 실패 시 복원).
+- IMPORTANT: rekordbox 또는 rekordboxAgent가 켜져 있으면 rekordbox 라이브러리(`master.db`, `share/PIONEER/USBANLZ`)에 **절대 쓰지 않는다**. 쓰기는 `RekordboxWriter.write` 한 곳으로만 한다(사전 확인 → 전체 백업 → 한 트랜잭션 → 다시 읽어 검증 → 무결성 검사 → 실패 시 복원).
+- 사전 확인(`RekordboxCompatibility`, `RekordboxWriteGuard`): rekordbox 7.2.x만, DB 구조(`djmdCue`·`contentCue` 칸이 정확히 같고 고치는 칸이 있음)·`DBVersion` 6000, 로컬 변경 카운터 ≥ 클라우드 동기화 카운터. 막힐 조건은 백업을 뜨기 전에 본다. rekordbox가 업데이트되면 `anicue compat`으로 먼저 확인하고, 실험으로 규칙을 다시 확인하기 전에는 허용 목록을 넓히지 않는다.
 - 라이브 DB·음원은 읽기 전용이다. 읽기는 스냅샷 사본(`LibrarySnapshot`)에서 한다.
 - 시험·실험 쓰기는 **사본에만** 한다: `ANICUE_REKORDBOX_DIR=<사본 폴더>`, `ANICUE_HOME=<임시 폴더>`. 사본의 `share/PIONEER/USBANLZ`는 심볼릭 링크가 아니라 실제 복사본이어야 한다.
 - 규칙을 확인하지 않은 쓰기(VBR MP3 큐, 템포 구간 여러 개인 곡의 BPM 변경, DB에 새 곡 추가)는 막아 둔다. 새 쓰기 경로는 rekordbox 실험 → 사본 재현 → 칸 단위 일치를 확인한 뒤에만 연다(`docs/rekordbox-internals.md` 끝).
@@ -15,15 +16,18 @@ rekordbox 7용 애니송 DJ 라이브러리 관리 macOS 앱(1인용). 사람·C
 ## 명령
 
 ```bash
-swift build                          # 전체(코어·CLI·앱) 디버그 빌드
-swift test                           # 단위 테스트(Swift Testing, AnicueCoreTests)
-swift build -c release --product AnicueApp
-scripts/build-app.sh                 # dist/anicue.app 만들기(릴리스·번들·로컬 서명)
-scripts/build-app.sh --install       # 만들고 /Applications에 설치
-.build/debug/anicue                  # CLI 도움말(명령 목록)
-.build/debug/anicue snapshot [--force]            # 라이브 DB 읽기용 사본 뜨기
-.build/debug/anicue sql <사본.db> "SELECT …"       # 사본에 읽기 전용 질의
+scripts/check.sh                     # 커밋 전: 빌드(디버그·릴리스 앱) + 테스트 + 커버리지 목표(쓰기 80%, 코어 60%)
+swift build                          # 전체 디버그 빌드
+swift test                           # 단위 테스트(Swift Testing, 테스트 타깃 4개)
+swift test --filter WriteGuardTests  # 한 묶음만
+scripts/coverage.sh [경로 정규식]     # 파일별 줄 커버리지
+scripts/build-app.sh [--install]     # dist/anicue.app(릴리스·번들·로컬 서명), --install이면 /Applications에
+.build/debug/anicue                  # CLI 명령 목록
+.build/debug/anicue compat           # rekordbox 버전·DB 구조·카운터가 쓰기를 확인한 모양인지(읽기 전용)
+.build/debug/anicue snapshot [--force]                    # 라이브 DB 읽기용 사본 뜨기
 .build/debug/anicue cue-write --db <사본.db> [--dry-run]   # 초안을 사본에 써 보기
+.build/debug/anicue lab                                   # 실험 명령 목록(sql·loop-repro·seekinfo-check …)
+.build/debug/anicue lab sql <사본.db> "SELECT …"           # 사본에 읽기 전용 질의
 ```
 
 - 앱 개발용 실행 인자: `--db <스냅샷>`(그 사본을 연다), `--select <ContentID>`(곡을 골라 둔다).
@@ -31,17 +35,21 @@ scripts/build-app.sh --install       # 만들고 /Applications에 설치
 
 ## 검증 (작업이 끝났다고 말하기 전에)
 
-- `swift build`와 `swift test`가 통과해야 한다. 코어 로직을 바꾸면 `Tests/AnicueCoreTests`에 테스트를 더한다.
-- 소리·UI·rekordbox 쓰기는 앱 자가 테스트로 확인한다. 초안이 사용자 것과 섞이지 않게 항상 `ANICUE_HOME=<임시 폴더>`를 준다:
+- `scripts/check.sh`가 통과해야 한다(빌드·테스트·커버리지 목표).
+- 테스트 먼저(TDD): 버그는 실패하는 테스트로 재현한 뒤 고친다. 새 규칙은 테스트를 먼저 쓰고 빨간색을 본 뒤 구현한다.
+  - 순수 규칙(큐 편집·루프·게인·재생 예약) → `Tests/AnicueDomainTests`
+  - rekordbox 쓰기 → `Tests/RekordboxKitTests`. 구조만 있는 rekordbox 7.2.18 DB(`RekordboxFixture`)와 합성 분석 파일(`AnlzBuilder`)로 한다. 새 쓰기 규칙은 실험 곡·날짜를 적은 골든 테스트로 남긴다.
+  - 덱·반영 흐름 → `Tests/AnicueAppTests`. 가짜 오디오(`FakeDeckAudio`)·메모리 저장소(`DeckStorage.memory`)·가짜 창(`ScriptedPrompter`)
+- 소리·실제 UI·rekordbox 쓰기 전 과정은 앱 자가 테스트로 확인한다. **디버그 빌드에만 있다**(`.build/debug/AnicueApp`). 초안이 사용자 것과 섞이지 않게 항상 `ANICUE_HOME=<임시 폴더>`를 준다:
 
 | 인자 | 확인하는 것 | 추가 조건 |
 |---|---|---|
 | `--write-selftest` | 반영(미리 보기·쓰기·조용한 다시 읽기·되돌리기) 전 과정 | `ANICUE_REKORDBOX_DIR` 사본 필수 |
 | `--loop-selftest` | 활성 루프·즉석 루프·½·핫큐 저장·나가기 | `--select`로 활성 루프 있는 곡 |
 | `--loop-audio-selftest` | 루프 이음새가 샘플 단위로 맞는지(램프 WAV) | — |
-| `--carry-selftest` | 그리드 이동·BPM 변경 때 핫큐 따라가기 | `--select`로 핫큐 있는 곡 |
+| `--metronome-selftest` | 메트로놈 클릭이 빠지지 않는지(실제 엔진으로 12초 재생해 클릭 수를 셈) | — |
 | `--switch-selftest` | 곡 전환·일시정지 뒤 소리 | — |
-| `--scroll-perf` | 재생 중 목록 스크롤 때 프레임 간격(릴리스로) | `--perf-hide=zoom,label,…`로 A/B |
+| `--scroll-perf` | 재생 중 목록 스크롤 때 프레임 간격 | `--perf-hide=zoom,label,…`로 A/B |
 
 예: `ANICUE_HOME=$(mktemp -d) .build/debug/AnicueApp --db <스냅샷> --select 32395449 --loop-selftest 2>&1 | grep "루프 시험"`
 
@@ -50,22 +58,19 @@ scripts/build-app.sh --install       # 만들고 /Applications에 설치
 
 ## 구조
 
-- `Sources/AnicueCore/` — UI 없는 로직(테스트 대상).
-  - `Rekordbox/`: DB·ANLZ 읽기·쓰기
-  - `Analysis/`: 파형·그리드 추정·조성·음량·섹션
-  - `Cue/`: 큐·그리드·게인 초안
-  - `Comment/`: 코멘트 규칙 파서
-  - `Export/`: rekordbox XML
-  - `Staging/`: 새로 추가한 곡
-  - `Tags/`: 태그 초안·TSV
-- `Sources/AnicueApp/` — SwiftUI+AppKit 앱.
-  - `LibraryStore*`: 목록·필터·반영
-  - `DeckModel`·`DeckAudio`: 재생·큐·루프·그리드 편집
-  - `WaveformViews`·`DeckView`: 덱 화면
-  - `TrackTable`: NSTableView 목록
-  - `KeyRouter`: 단축키
-  - `DevSelfTests`: 자가 테스트
-- `Sources/anicue/main.swift` — 개발·실험용 CLI.
+의존 방향은 한쪽뿐이다: 앱·CLI → AnicueStorage → RekordboxKit → AnicueDomain, AnicueAnalysis → AnicueDomain (`Package.swift` 주석).
+
+- `Sources/AnicueDomain/` — 입출력 없는 규칙·모델. `Cue/`(초안·큐 편집 규칙), `Grid/`(그리드 초안·따라가기), `Playback/`(루프 규칙·`LoopPlanner`·`PlaybackSchedule`), `Library/`(곡 행·필터·게인 정책), `Comment/`, `Tags/`
+- `Sources/RekordboxKit/` — rekordbox 형식. DB(`CipherDatabase`), 쓰기(`RekordboxWriter+*`, `RekordboxGridWriter`, `RekordboxCompatibility`), ANLZ, 스냅샷, `Export/`(XML·반영 계획), `Library/`
+- `Sources/AnicueStorage/` — anicue 자신의 파일: 초안·추가한 곡·반영 묶음·경로(`AnicuePaths`)
+- `Sources/AnicueAnalysis/` — 파형·그리드 추정·조성·음량·섹션
+- `Sources/AnicueApp/` — SwiftUI+AppKit 앱
+  - `Deck/`: `DeckModel`(+Transport·Loops·Cues·Grid·Gain·Key), `Audio/`(`DeckAudio`, `DeckAudioEngine` 프로토콜), `Views/`, `Waveform/`
+  - `Library/`: `LibraryStore`(+Writing·Staging·Tags), `TrackTable`(NSTableView), 태그 편집
+  - `Reflection/`: `ReflectionCoordinator`(미리 보기 → 확인 → 쓰기 → 토스트), 토스트, XML 연동
+  - `App/`: 창·사이드바·`KeyRouter`(단축키). `Diagnostics/`: 자가 테스트·성능 기록(디버그 전용)
+- `Sources/anicue/` — CLI. `Commands/`(늘 쓰는 명령), `Lab/`(규칙을 알아낼 때 쓴 실험, `anicue lab …`)
+- `Tests/` — 타깃별 테스트 + `Support/`(rekordbox 픽스처·합성 ANLZ·합성 음원, 실데이터 없음)
 - 사용자 데이터: `~/Library/Application Support/anicue/`
   - 초안: `cue-drafts/`, `grid-drafts/`, `gain-drafts.json`, `tag-drafts/`
   - 그 밖: `staged.json`, `snapshots/`, `rekordbox-backups/`, 캐시(`analysis/`, `waveforms/`, `loudness.json`)
@@ -76,7 +81,7 @@ scripts/build-app.sh --install       # 만들고 /Applications에 설치
 - 덱·초안의 시각은 모두 **rekordbox 시간축**(음원 시각 + 인코더 지연, `RekordboxTimeline.predictedOffset`)이다. 파형만 음원 시간축이라 `timelineOffset`만큼 당겨 그린다.
 - 오디오:
   - `AVAudioEngine.pause()`를 쓰지 않는다. 멈출 땐 `stop()`. pause 뒤 다시 켜면 시작 시각이 밀려 소리가 늦고 무음이 쌓인다.
-  - 루프는 재생 노드에 버퍼를 예약해 샘플 단위로 잇는다(`DeckAudio.setLoop`). 예약은 렌더 블록보다 앞서야 하고, 되풀이 버퍼는 바퀴 경계에서만 끊는다.
+  - 루프는 재생 노드에 버퍼를 예약해 샘플 단위로 잇는다. 무엇을 언제 예약할지는 `LoopPlanner`(순수, 테스트됨)가 정하고 `DeckAudio.setLoop`은 그대로 실행한다. 예약은 렌더 블록보다 앞서야 하고, 되풀이 버퍼는 바퀴 경계에서만 끊는다.
 - 화면: 재생 중 매 프레임 바뀌는 관찰 값은 큰 뷰가 읽지 않게 한다. 글자·전체 파형 재생선은 `displayTime`(15Hz), 레벨 미터는 재생 틱(`meterFrame`)으로 갱신한다.
 - 그리드 쓰기는 파형 파일(`.EXT`)이 있는 곡만 한다(rekordbox 분석 전 곡은 막음).
 - 새 곡은 rekordbox XML(Import To Collection)로 넘긴다. 이미 컬렉션에 있는 경로는 막는다(기존 큐 덮어쓰기 방지).
