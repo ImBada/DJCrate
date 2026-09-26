@@ -12717,6 +12717,22 @@
         }
       }
     },
+    "사본 DB에 라이브 share를 사용할 수 없습니다. share 폴더도 실제 사본으로 복사한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A database copy cannot use the live share folder. Make a separate copy of the share folder and try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コピーしたDBには稼働中のライブラリのshareフォルダを使用できません。shareフォルダも別にコピーしてから再試行してください。"
+          }
+        }
+      }
+    },
     "사본 DB에는 분석 파일 경로를 따로 주어야 그리드를 씁니다" : {
       "localizations" : {
         "en" : {
