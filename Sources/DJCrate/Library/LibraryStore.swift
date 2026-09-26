@@ -34,6 +34,7 @@ final class LibraryStore {
     @ObservationIgnored var feedback: AppFeedback
     var showingWriteResult = false
     @ObservationIgnored var writeTask: Task<Void, Never>?
+    @ObservationIgnored var previewWarmTask: Task<Void, Never>?
 
     func cancelWritePreparation() {
         guard writeStage?.cancellable == true else { return }
@@ -51,6 +52,7 @@ final class LibraryStore {
     private(set) var rows: [TrackRow] = []
     private(set) var report: LibraryReport?
     private(set) var snapshotURL: URL?
+    private(set) var previewRevision = 0
     /// 표에 보이는 줄. 필터·검색·정렬이 바뀔 때만 다시 계산한다(그릴 때마다 계산하지 않는다).
     private(set) var displayRows: [TrackRow] = []
     private(set) var filterCounts: [LibraryFilter: Int] = [:]
@@ -140,6 +142,7 @@ final class LibraryStore {
 
     /// 큐 초안이 있는 곡의 (핫큐, 메모리 큐) 개수. 목록 숫자는 반영 전에도 초안 기준으로 보여 준다.
     var draftCueCounts: [String: CueCounts] = [:]
+    var draftPreviewCues: [String: [PreviewCueMark]] = [:]
 
     /// 큐·그리드 초안이 있는 곡(태그 초안은 파일 태그로 반영하므로 여기엔 넣지 않는다)
     var pendingUUIDs: Set<String> { cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs) }
@@ -251,6 +254,7 @@ final class LibraryStore {
     }
 
     func load(snapshot: URL, quiet: Bool = false) async {
+        previewWarmTask?.cancel()
         loadGeneration += 1
         let generation = loadGeneration
         let started = ContinuousClock.now
@@ -269,6 +273,7 @@ final class LibraryStore {
             tagDrafts = loaded.tagDrafts
             cueDraftUUIDs = loaded.cueDraftUUIDs
             draftCueCounts = loaded.draftCueCounts
+            draftPreviewCues = loaded.draftPreviewCues
             gridDraftUUIDs = loaded.gridDraftUUIDs
             gainDraftUUIDs = GainDraftStore.uuids()
             editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys)
@@ -280,6 +285,7 @@ final class LibraryStore {
             let known = rowsByID
             playlistCounts = index.mapValues { node in node.trackIDs.lazy.filter { known[$0] != nil }.count }
             snapshotURL = snapshot
+            previewRevision += 1
             loadStaged()
             // rekordbox에서 지운 곡은 선택에서도 뺀다(덱이 지워진 곡을 붙들지 않게)
             let existing = selection.filter { rowsByID[$0] != nil }
@@ -287,6 +293,10 @@ final class LibraryStore {
             verifyReflection()
             refreshBase()
             phase = .loaded
+            let previewSources = loaded.rows.filter { !$0.track.isStreaming }.map {
+                PreviewWaveformStore.Source(uuid: $0.track.uuid, url: RekordboxShare.analysisURL($0.track.analysisDataPath))
+            }
+            previewWarmTask = Task.detached(priority: .background) { await PreviewWaveformStore.shared.warm(previewSources) }
             lastError = nil
             FileHandle.standardError.write(Data("라이브러리 로드 \(ContinuousClock.now - started) · \(rows.count)곡\n".utf8))
             applyLaunchSelection()
@@ -347,6 +357,7 @@ final class LibraryStore {
         }
         cueDraftUUIDs = Set(cues.keys)
         draftCueCounts = cues.mapValues(CueCounts.init)
+        draftPreviewCues = cues.mapValues { $0.cues.map(PreviewCueMark.init) }
         editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys)
         if case .pending = sidebar { refreshBase() }
         onCueDraftsReloaded?(cues)
@@ -356,11 +367,17 @@ final class LibraryStore {
     func cueDraftChanged(_ draft: CueDraft) {
         let counts = draft.hasChanges ? CueCounts(draft) : nil
         if draftCueCounts[draft.trackUUID] != counts { draftCueCounts[draft.trackUUID] = counts }
+        let marks = draft.hasChanges ? draft.cues.map(PreviewCueMark.init) : nil
+        if draftPreviewCues[draft.trackUUID] != marks { draftPreviewCues[draft.trackUUID] = marks }
     }
 
     func draftChanged(trackUUID: String, kind: DeckModel.DraftKind, exists: Bool) {
         switch kind {
-        case .cue: if exists { cueDraftUUIDs.insert(trackUUID) } else { cueDraftUUIDs.remove(trackUUID) }
+        case .cue:
+            if exists { cueDraftUUIDs.insert(trackUUID) } else {
+                cueDraftUUIDs.remove(trackUUID)
+                draftPreviewCues[trackUUID] = nil
+            }
         case .grid: if exists { gridDraftUUIDs.insert(trackUUID) } else { gridDraftUUIDs.remove(trackUUID) }
         case .gain: if exists { gainDraftUUIDs.insert(trackUUID) } else { gainDraftUUIDs.remove(trackUUID) }
         }

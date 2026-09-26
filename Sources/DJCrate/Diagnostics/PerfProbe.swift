@@ -6,6 +6,7 @@ import QuartzCore
 enum PerfProbe {
     #if DEBUG
     static let enabled = ProcessInfo.processInfo.arguments.contains("--scroll-perf")
+    static let previewCuesVisible = !ProcessInfo.processInfo.arguments.contains("--perf-cues=off")
     /// A/B: 확대 파형 막대를 그리지 않는다
     static let skipBands = ProcessInfo.processInfo.arguments.contains("--skip-bands")
     /// A/B: 이름을 준 화면 요소를 숨긴다(`--perf-hide=zoom,label,overview,meter`)
@@ -25,6 +26,7 @@ enum PerfProbe {
     #else
     // 릴리스 빌드에서는 늘 꺼져 있다(부르는 쪽은 그대로 두고 아무 일도 하지 않는다).
     static let enabled = false
+    static let previewCuesVisible = true
     static let skipBands = false
     static let hidden: Set<String> = []
     static let previewColumnVisible: Bool? = nil

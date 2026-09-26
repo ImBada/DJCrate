@@ -18,7 +18,16 @@ final class DeckModel {
     @ObservationIgnored var pendingDraftUndo: DeckDraftSnapshot?
 
     var row: TrackRow?
-    var waveform: Waveform?
+    var waveform: Waveform? { didSet { refreshColorWaveform() } }
+    var colorWaveform: ColorWaveformRaster?
+    @ObservationIgnored var colorWaveformTask: Task<Void, Never>?
+    var waveformColorMode = WaveformColorMode.threeBand {
+        didSet {
+            guard waveformColorMode != oldValue else { return }
+            storage.settings.set(SettingKeys.waveformColorMode, waveformColorMode.rawValue)
+            refreshColorWaveform()
+        }
+    }
     var waveformError: String?
     var analysis: PartAnalysis?
     var analysisError: String?
@@ -229,6 +238,7 @@ final class DeckModel {
         // 설정은 저장소에서 읽는다(여기서 넣는 값은 didSet이 돌지 않아 다시 저장하지 않는다).
         let settings = storage.settings
         zoomSeconds = settings.value(SettingKeys.zoomSeconds)
+        waveformColorMode = WaveformColorMode(rawValue: settings.value(SettingKeys.waveformColorMode)) ?? .threeBand
         quantize = settings.value(SettingKeys.quantize)
         carryCues = settings.value(SettingKeys.carryCues)
         showSuggestions = settings.value(SettingKeys.showSuggestions)

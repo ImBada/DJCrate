@@ -3,9 +3,34 @@ import Foundation
 import Testing
 import DJCTestSupport
 import RekordboxKit
+import DJCDomain
+import DJCStorage
 @testable import DJCrate
 
 struct PreviewWaveformTests {
+    @Test func modeChangesInvalidateCachedImagesAndUsePWV4() async throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appending(path: "preview.DAT")
+        try AnlzBuilder.file([AnlzBuilder.pwav([31])]).write(to: url)
+        try AnlzBuilder.file([AnlzBuilder.waveform("PWV4", entryBytes: 6, samples: [0, 255, 127, 127, 0, 0])])
+            .write(to: url.deletingPathExtension().appendingPathExtension("EXT"))
+        let cache = PreviewWaveformCache(store: PreviewWaveformStore(file: nil))
+        var request = PreviewWaveformRequest(url: url, revision: "same", appearance: NSAppearance.Name.darkAqua.rawValue)
+        request.mode = .blue
+        let blue = try #require(await cache.image(for: request))
+        request.mode = .rgb
+        let rgb = try #require(await cache.image(for: request))
+        #expect(blue !== rgb)
+        let color = try #require(NSBitmapImageRep(cgImage: rgb).colorAt(x: 200, y: 20))
+        #expect(color.redComponent > color.blueComponent)
+        request.mode = .threeBand
+        let bands = try #require(await cache.image(for: request))
+        #expect(rgb !== bands)
+        #expect(await cache.image(for: request) === bands)
+    }
+
     @Test func rendersPeaksAndSilenceInEveryAppearance() throws {
         let preview = try #require(try AnlzPreviewWaveform(file: AnlzFile(data:
             AnlzBuilder.file([AnlzBuilder.pwav([0, 31])]))))
@@ -30,12 +55,13 @@ struct PreviewWaveformTests {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appending(path: "preview.DAT")
-        let cache = PreviewWaveformCache()
+        let cache = PreviewWaveformCache(store: PreviewWaveformStore(file: nil))
         let first = PreviewWaveformRequest(url: url, revision: "first", appearance: NSAppearance.Name.aqua.rawValue)
         #expect(await cache.image(for: first) == nil)
-        try AnlzBuilder.file([AnlzBuilder.pwav([31, 0, 15])]).write(to: url)
-        // 없는 자료도 캐시하되 새 스냅샷을 열면 다시 읽는다.
         #expect(await cache.image(for: first) == nil)
+        try AnlzBuilder.file([AnlzBuilder.pwav([31, 0, 15])]).write(to: url)
+        // 같은 스냅샷이어도 분석 파일이 생기면 빈 비트맵 캐시를 버린다.
+        #expect(await cache.image(for: first) != nil)
         let second = PreviewWaveformRequest(url: url, revision: "second", appearance: NSAppearance.Name.aqua.rawValue)
         let image = try #require(await cache.image(for: second))
         #expect(await cache.image(for: second) === image)

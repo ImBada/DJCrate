@@ -136,7 +136,7 @@ struct ZoomWaveformView: View {
         .background { HitProbe { scroll.probe = $0 } }
         .onAppear { scroll.deck = deck; scroll.install() }
         .onDisappear { scroll.remove() }
-        .accessibilityLabel("확대 3밴드 파형. 드래그로 스크럽, 큐를 끌어 이동, 더블클릭으로 메모리 큐 추가, 휠로 확대·축소")
+        .accessibilityLabel("확대 \(deck.waveformColorMode.title) 파형. 드래그로 스크럽, 큐를 끌어 이동, 더블클릭으로 메모리 큐 추가, 휠로 확대·축소")
     }
 
     private func hitCue(atX x: CGFloat, xOf: (Double) -> CGFloat) -> EditableCue.ID? {
@@ -203,9 +203,13 @@ struct ZoomWaveformView: View {
                                style: StrokeStyle(lineWidth: beat.isDownbeat ? 1.5 : 1, dash: [3, 4]))
             }
         }
-        if let waveform = state.waveform, !PerfProbe.skipBands {
-            drawBands(context, waveform: waveform, from: start - state.audioOffset, to: end - state.audioOffset,
-                      in: CGRect(x: 0, y: 16, width: size.width, height: size.height - 34))
+        if !PerfProbe.skipBands {
+            let rect = CGRect(x: 0, y: 16, width: size.width, height: size.height - 34)
+            if state.waveformColorMode == .threeBand, let waveform = state.waveform {
+                drawBands(context, waveform: waveform, from: start - state.audioOffset, to: end - state.audioOffset, in: rect)
+            } else {
+                state.colorWaveform?.draw(context, from: start, to: end, in: rect)
+            }
         }
         // 변속 지점(템포 구간 경계)
         for segment in state.segments.dropFirst() where segment.start > start && segment.start < end {

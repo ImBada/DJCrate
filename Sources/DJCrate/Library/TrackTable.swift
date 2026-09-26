@@ -12,9 +12,10 @@ import SwiftUI
 /// 선택·정렬은 스토어와 양방향으로 맞춘다. 열 너비·순서는 자동 저장된다.
 struct TrackTable: View {
     @Bindable var store: LibraryStore
+    let deck: DeckModel
 
     var body: some View {
-        TrackListView(store: store)
+        TrackListView(store: store, mode: deck.waveformColorMode)
             .navigationTitle(store.sidebarTitle)
             .navigationSubtitle("\(store.displayRows.count)곡" + (store.selection.count > 1 ? " · \(store.selection.count)곡 선택" : ""))
     }
@@ -22,6 +23,7 @@ struct TrackTable: View {
 
 private struct TrackListView: NSViewRepresentable {
     let store: LibraryStore
+    let mode: WaveformColorMode
 
     func makeCoordinator() -> TrackListCoordinator { TrackListCoordinator(store: store) }
 
@@ -107,8 +109,11 @@ private struct TrackListView: NSViewRepresentable {
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         context.coordinator.update(rows: store.displayRows, edited: store.editedUUIDs,
-                                   selection: store.selection, sortOrder: store.sortOrder, snapshotURL: store.snapshotURL)
+                                   selection: store.selection, sortOrder: store.sortOrder, snapshotURL: store.snapshotURL,
+                                   previewRevision: store.previewRevision)
         context.coordinator.updateCueCounts(store.draftCueCounts)
+        context.coordinator.updatePreviewCues(store.draftPreviewCues)
+        context.coordinator.updateWaveformMode(mode)
     }
 }
 
@@ -130,7 +135,7 @@ private struct TrackColumn {
         TrackColumn(id: "edited", title: "✎", width: 18, minWidth: 18, help: "DJCrate 초안이 있는 곡 (rekordbox·파일에는 아직 반영 안 됨)"),
         TrackColumn(id: "title", title: "제목", width: 220, minWidth: 140, flexible: true, sortKey: "title"),
         TrackColumn(id: "preview", title: "미리 보기", width: 160, minWidth: 80,
-                    help: "곡 전체 파형 · 분석 자료가 없는 곡은 빈 칸"),
+                    help: "곡 전체 파형과 핫큐·메모리 큐·루프 위치"),
         TrackColumn(id: "artist", title: "아티스트", width: 140, minWidth: 80, flexible: true, sortKey: "artist"),
         TrackColumn(id: "album", title: "앨범", width: 150, minWidth: 60, flexible: true, sortKey: "album"),
         TrackColumn(id: "genre", title: "장르", width: 90, minWidth: 50, flexible: true, sortKey: "genre"),
@@ -203,6 +208,9 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
     private var rowIDs: [TrackRow.ID] = []
     private var edited: Set<String> = []
     private var snapshotURL: URL?
+    private var previewRevision = 0
+    private var waveformMode = WaveformColorMode.threeBand
+    private var previewCues: [String: [PreviewCueMark]] = [:]
     /// 표 → 스토어로 선택·정렬을 넘기는 중에는 스토어 → 표 동기화를 건너뛴다(되먹임 방지).
     private var syncing = false
 
@@ -212,12 +220,23 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
 
     // MARK: - 스토어 → 표
 
+    func updateWaveformMode(_ mode: WaveformColorMode) {
+        guard mode != waveformMode, let table else { return }
+        waveformMode = mode
+        guard let column = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == "preview" }) else { return }
+        let visible = table.rows(in: table.visibleRect)
+        guard visible.location != NSNotFound else { return }
+        table.reloadData(forRowIndexes: IndexSet(integersIn: visible.location..<NSMaxRange(visible)),
+                         columnIndexes: IndexSet(integer: column))
+    }
+
     func update(rows: [TrackRow], edited: Set<String>, selection: Set<TrackRow.ID>,
-                sortOrder: [KeyPathComparator<TrackRow>], snapshotURL: URL?) {
+                sortOrder: [KeyPathComparator<TrackRow>], snapshotURL: URL?, previewRevision: Int) {
         guard let table else { return }
         applySortIndicator(sortOrder, table: table)
-        let snapshotChanged = self.snapshotURL != snapshotURL
+        let snapshotChanged = self.snapshotURL != snapshotURL || self.previewRevision != previewRevision
         self.snapshotURL = snapshotURL
+        self.previewRevision = previewRevision
         // 같은 배열이면(== 는 저장소가 같을 때 바로 참) 비교 비용이 없다.
         if rows != self.rows || snapshotChanged {
             let ids = rows.map(\.id)
@@ -246,6 +265,16 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
     }
 
     private var cueCounts: [String: CueCounts] = [:]
+
+    /// 개수가 같은 이동이어도 그 곡의 미리 보기만 다시 그린다.
+    func updatePreviewCues(_ cues: [String: [PreviewCueMark]]) {
+        guard cues != previewCues, let table else { return }
+        let changed = Set(cues.keys).union(previewCues.keys).filter { cues[$0] != previewCues[$0] }
+        previewCues = cues
+        guard let column = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == "preview" }) else { return }
+        let indexes = IndexSet(rows.indices.filter { changed.contains(rows[$0].track.uuid) })
+        if !indexes.isEmpty { table.reloadData(forRowIndexes: indexes, columnIndexes: IndexSet(integer: column)) }
+    }
 
     /// 초안 큐 개수가 바뀐 곡만 핫큐·메모리 칸을 다시 그린다.
     func updateCueCounts(_ counts: [String: CueCounts]) {
@@ -454,7 +483,10 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
         case "preview":
             let cell = reuse(tableView, "preview") { PreviewWaveformCell() }
             cell.configure(url: RekordboxShare.analysisURL(row.track.analysisDataPath),
-                           revision: snapshotURL?.absoluteString ?? "")
+                           revision: "\(snapshotURL?.absoluteString ?? ""):\(previewRevision)", mode: waveformMode,
+                           audioURL: row.track.isStreaming ? nil : URL(filePath: row.track.folderPath), key: row.track.uuid,
+                           cues: PerfProbe.previewCuesVisible ? PreviewCueMark.current(saved: row.cues, draft: previewCues[row.track.uuid]) : [],
+                           duration: Double(row.track.lengthSeconds))
             return cell
         case "thumb":
             let cell = reuse(tableView, "thumb") { ThumbnailCell() }

@@ -14,6 +14,11 @@ public struct Waveform: Codable, Sendable {
 
     public var count: Int { low.count }
 
+    public var colorColumns: [WaveformColumn] {
+        (0..<count).map { WaveformColumn(low: Double(low[$0]) / 255,
+                                        mid: Double(mid[$0]) / 255, high: Double(high[$0]) / 255) }
+    }
+
     /// 개요 파형용 다운샘플(구간 최대값).
     public func downsampled(to points: Int) -> Waveform {
         guard count > points, points > 0 else { return self }

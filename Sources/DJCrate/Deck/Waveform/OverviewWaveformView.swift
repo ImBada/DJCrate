@@ -42,7 +42,7 @@ struct OverviewWaveformView: View {
         .background(Palette.well)
         .environment(\.colorScheme, .dark)
         .clipShape(RoundedRectangle(cornerRadius: 6))
-        .accessibilityLabel("전체 곡 3밴드 파형. 클릭해서 위치 이동")
+        .accessibilityLabel("전체 곡 \(deck.waveformColorMode.title) 파형. 클릭해서 위치 이동")
     }
 }
 
@@ -54,6 +54,8 @@ struct OverviewStaticLayer: View {
 
     var body: some View {
         let waveform = deck.waveform
+        let colorWaveform = deck.colorWaveform
+        let mode = deck.waveformColorMode
         let energies = deck.sectionEnergies
         let suggestions = deck.suggestions
         let cues = deck.draft?.cues ?? []
@@ -66,9 +68,12 @@ struct OverviewStaticLayer: View {
         Canvas { context, size in
             let xOf = { (t: Double) in CGFloat(t / duration) * size.width }
             let waveHeight = size.height - 34
-            if let waveform {
+            if mode == .threeBand, let waveform {
                 drawBands(context, waveform: waveform, from: -audioOffset, to: duration - audioOffset,
                           in: CGRect(x: 0, y: 2, width: size.width, height: waveHeight - 2))
+            } else {
+                colorWaveform?.draw(context, from: 0, to: duration,
+                                    in: CGRect(x: 0, y: 2, width: size.width, height: waveHeight - 2), full: true)
             }
             let scores = energies.map(\.score).filter(\.isFinite)
             let lo = scores.min() ?? 0, hi = scores.max() ?? 1
