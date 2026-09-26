@@ -95,7 +95,7 @@ djc track <ContentID>                 # 곡 정보·큐·그리드·게인·초�
 djc draft cue <ContentID> --time 12.5 --name '진입'   # 메모리 큐 초안
 ```
 
-- 읽기: `search`, `track`, `playlists`, `playlist`, `drafts`, `report`, `compat`. `--json`을 주면 정해진 JSON으로 출력한다.
+- 읽기: `search`, `track`, `duplicates`, `playlists`, `playlist`, `drafts`, `report`, `compat`. `--json`을 주면 정해진 JSON으로 출력한다.
 - 초안: `djc draft cue|tag|rm`은 DJCrate 초안만 만들고 지운다. rekordbox에 쓰는 것은 앱의 반영뿐이다.
 - 명령과 JSON 형식은 [docs/cli.md](docs/cli.md)에 있다.
 
