@@ -25,6 +25,7 @@ struct ReflectionMenu: View {
             LibraryMenuAction.reflect.perform(in: store)
         }
         .labelStyle(.titleAndIcon)
+        .fixedSize(horizontal: true, vertical: false)
         .accessibilityLabel(.ui("rekordbox에 반영"))
         .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
         // ⇧⌘E는 AppCommands가 맡아 툴바·사이드바를 숨겨도 한 번만 실행한다.

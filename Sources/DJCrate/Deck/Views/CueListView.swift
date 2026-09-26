@@ -98,7 +98,8 @@ struct CueRow: View {
                 }
             }
             .labelsHidden()
-            .frame(width: TextScale.length(76, scale: textScale))
+            .fixedSize()
+            .frame(minWidth: TextScale.length(76, scale: textScale))
             .foregroundStyle(.primary)
 
             Button { deck.selectCueFromList(cue.id) } label: {
