@@ -145,6 +145,20 @@ public enum RekordboxTimeline {
         }
     }
 
+    /// rekordbox가 곡 끝에서 AVFoundation보다 더 읽는 샘플 수(파형 칸 수를 맞출 때). 2026-09-26 파형 비교로 맞춤.
+    /// - AAC: 끝 패딩(remainder)까지 센다
+    /// - MP3: MPEG 프레임 전체(정보 프레임 포함 × 1152)라 끝 패딩에서 디코더 지연(529)을 뺀 만큼
+    /// - FLAC: 약 4,096샘플 더(2곡: 3,840~4,116 범위, 블록 하나로 추정)
+    public static func predictedTrailingFrames(url: URL) -> Int {
+        guard let info = packetInfo(url: url) else { return 0 }
+        switch info.formatID {
+        case "aac ", "aach", "aacp": return info.remainderFrames
+        case ".mp3", ".mp2", ".mp1": return info.primingFrames > 0 ? max(0, info.remainderFrames - 529) : 0
+        case "flac": return 4096
+        default: return 0
+        }
+    }
+
     /// rekordbox 파형(PWV3)과 AVFoundation 디코딩의 소리 크기 곡선을 맞대어 차이(초)를 잰다.
     /// 그리드와 무관한 순수한 시간축 차이다. 반환: (offset, 상관계수). 상관이 0.8 미만이면 믿지 않는다.
     public static func measureOffset(audio url: URL, rekordboxHeights: [UInt8],
