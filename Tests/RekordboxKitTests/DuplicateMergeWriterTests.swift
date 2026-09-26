@@ -143,6 +143,22 @@ struct DuplicateMergeWriterTests {
         #expect(try fixture.rows("SELECT ID FROM djmdContent").count == 3)
     }
 
+    @Test func 별개_태그가_사전검사에서_막혀도_합치기는_반영한다() throws {
+        let fixture = try fixture()
+        let merge = try draft(fixture)
+        let db = try fixture.open()
+        let base = try #require(try RekordboxWriter.currentTags(db: db, contentID: "300"))
+        db.close()
+        var tag = TagDraft(trackUUID: "u300", base: base)
+        tag.fields.title = "태그 초안"
+        try fixture.execute("UPDATE djmdContent SET Title = '바뀐 제목' WHERE ID = '300'")
+        let report = try RekordboxWriter.write(drafts: [], tags: [tag], merges: [merge], to: fixture.database,
+                                              dryRun: false, backups: fixture.backups, shareRoot: fixture.shareRoot)
+        #expect(report.tagBlocked.count == 1)
+        #expect(report.mergeWritten.count == 1)
+        #expect(try fixture.rows("SELECT ID FROM djmdContent").count == 2)
+    }
+
     @Test func 음원이_바뀌거나_없어지면_삭제하지_않는다() throws {
         let fixture = try fixture()
         let merge = try draft(fixture)

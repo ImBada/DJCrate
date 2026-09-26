@@ -35,6 +35,10 @@ final class LibraryStore {
     var mergeDrafts: [DuplicateMergeDraft] = []
     /// 재생 목록 초안 파일 쓰기(시험은 메모리로 바꾼다)
     @ObservationIgnored let playlistDraftSaver: (PlaylistDraft) throws -> Void
+    @ObservationIgnored let playlistImportURL: URL?
+    @ObservationIgnored let stagingSaver: ([StagedTrack]) throws -> Void
+    var playlistImports = PlaylistImports()
+    var playlistImportsLoadFailed = false
     @ObservationIgnored let backupDirectory: URL
     private(set) var hasWriteBackup = false
 
@@ -67,17 +71,22 @@ final class LibraryStore {
          feedback: AppFeedback = AppFeedback(), saveTagDrafts: @escaping ([TagDraft]) -> Void = { DraftWriter.save($0) },
          backupDirectory: URL = DJCPaths.rekordboxBackups,
          playlistDraftSaver: @escaping (PlaylistDraft) throws -> Void = { try PlaylistDraftStore.save($0) },
-         mergeDraftSaver: @escaping ([DuplicateMergeDraft]) throws -> Void = { try DuplicateMergeDraftStore.save($0) }) {
+         mergeDraftSaver: @escaping ([DuplicateMergeDraft]) throws -> Void = { try DuplicateMergeDraftStore.save($0) },
+         playlistImportURL: URL? = PlaylistImportStore.url,
+         stagingSaver: @escaping ([StagedTrack]) throws -> Void = { try StagingStore.save($0) }) {
         self.settings = settings
         self.commentPreset = settings.commentPreset
         self.saveTagDrafts = saveTagDrafts
         self.playlistDraftSaver = playlistDraftSaver
         self.mergeDraftSaver = mergeDraftSaver
+        self.playlistImportURL = playlistImportURL
+        self.stagingSaver = stagingSaver
         self.resultHistory = resultHistory
         self.feedback = feedback
         self.backupDirectory = backupDirectory
         refreshWriteBackups()
         loadRecentPlaylists()
+        loadPlaylistImports()
     }
 
     var phase: Phase = .idle

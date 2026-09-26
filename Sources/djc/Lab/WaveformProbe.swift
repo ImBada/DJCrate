@@ -13,9 +13,15 @@ extension AudioLab {
     /// 자동으로 rekordbox에 곡을 넣지 않는다. WAV와 구간 명세만 새 폴더에 만든다.
     static func waveformProbe(_ args: [String]) async throws {
         guard let out = value(after: "--out", in: args) else { throw UsageError() }
+        let suite = value(after: "--suite", in: args) ?? (args.contains("--suite") ? "" : "1")
+        guard ["1", "2"].contains(suite) else { throw UsageError() }
         let folder = URL(filePath: out), fm = FileManager.default
         guard !fm.fileExists(atPath: folder.path) else { throw DJCError.invalidAnalysisFile("기존 파일을 덮어쓰지 않도록 새 실험 폴더를 지정하세요") }
         try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        if suite == "2" {
+            try waveformProbe2(folder: folder)
+            return
+        }
         let rate = 44_100.0
         let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: rate, channels: 2, interleaved: false)!
         var manifest: [String: [WaveformProbeSegment]] = [:]

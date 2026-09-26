@@ -38,6 +38,7 @@ final class AppleMusicImportModel {
     var library: AppleMusicLibrary?
     var selected = Set<Int>()
     var playlistID = ""
+    var createPlaylists = false
     var isBusy = false
     var message: String?
 
@@ -71,9 +72,11 @@ final class AppleMusicImportModel {
         playlistID = ""
         defer { isBusy = false }
         do {
-            let library = try await Task.detached(priority: .userInitiated) {
+            var library = try await Task.detached(priority: .userInitiated) {
                 try AppleMusicLibrary.parse(Data(contentsOf: url))
             }.value
+            // 보관함 ID가 없는 재생 목록 XML도 같은 파일을 다시 열면 같은 출처로 잇는다.
+            if library.id == nil { library.id = "xml:\(url.standardizedFileURL.path)" }
             self.library = library
         } catch {
             message = String(ui: "XML을 열지 못했습니다. Music에서 보관함을 XML로 다시 내보내고 파일 접근 권한을 확인하세요.")
@@ -123,7 +126,7 @@ final class AppleMusicImportModel {
             return
         }
         if !urls.isEmpty {
-            await store.addFiles(urls, appleMusicOrigins: origins)
+            await store.addFiles(urls, appleMusicOrigins: origins, createPlaylists: createPlaylists)
             message = store.stagingMessage?.text
         }
         if rejected > 0 {
@@ -139,8 +142,14 @@ private struct AppleMusicImportView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(.ui("Music의 파일 › 보관함 › 보관함 내보내기에서 XML을 저장하세요. 재생 목록 내보내기에서 XML을 골라도 됩니다."))
-            Text(.ui("로컬 음원만 ‘추가한 곡’에 넣습니다. 재생 목록은 원래 소속과 순서만 기억하며 rekordbox에 만들지는 않습니다."))
+            Text(.ui("로컬 음원만 ‘추가한 곡’에 넣습니다. ‘재생 목록도 만들기’를 켜면 컬렉션에 반영한 뒤 원래 소속과 순서로 목록 초안을 만듭니다."))
                 .font(.callout).foregroundStyle(.secondary)
+            Toggle(.ui("재생 목록도 만들기"), isOn: $model.createPlaylists)
+                .toggleStyle(.checkbox)
+            if model.createPlaylists {
+                Text(.ui("목록은 맨 위에 만듭니다. 같은 이름은 ‘ (2)’, ‘ (3)’을 붙여 새로 만들고, 같은 출처는 기존 연결에 이어 넣습니다. 목록 초안은 반영할 때 rekordbox에 씁니다."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             HStack {
                 Button(.ui("XML 파일 선택…")) { model.chooseXML() }
                 if model.isBusy { ProgressView().controlSize(.small) }

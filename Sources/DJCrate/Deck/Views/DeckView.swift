@@ -74,7 +74,7 @@ struct DeckView: View {
                 CueListView(deck: deck)
                     .frame(width: cueListWidth, height: max(middleHeight, 220))
             }
-            .padding(14)
+            .padding(Spacing.edge)
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
             // 단축키는 창 전체에서 KeyRouter가 받는다(포커스 위치와 무관).
         } else {
@@ -91,6 +91,7 @@ struct DeckView: View {
             Label(error, systemImage: "exclamationmark.triangle").font(.scaled(.callout, textScale)).foregroundStyle(UIColors.warning.color)
         } else if deck.waveform == nil {
             ProgressView().controlSize(.small)
+                .accessibilityLabel(.ui("파형 불러오는 중"))
         }
     }
 
