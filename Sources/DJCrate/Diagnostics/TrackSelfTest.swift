@@ -91,6 +91,17 @@ extension DevSelfTests {
                 RekordboxShare.analysisURL(row.track.analysisDataPath).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
             }.count
             log("빼기 되돌리기: 되살아난 곡 \(revived.count) · 분석 파일 있는 곡 \(revivedFiles) · 알림 \(toast())")
+
+            // 5. rekordbox가 바깥에서 곡을 지운 것처럼 하고 창으로 돌아온다: 새로 읽어 목록·선택에서 빠지고 다시 추가할 수 있어야 한다
+            store.selection = Set(revived.prefix(1).map(\.id))
+            await wait(1.5)
+            let outside = try? RekordboxTrackWriter.delete(contentIDs: revived.map(\.track.id), dryRun: false,
+                                                           backups: FileManager.default.temporaryDirectory.appending(path: "djc-outside-\(UUID().uuidString)"))
+            log("바깥에서 지움: \(outside?.deleted.filter(\.written).count ?? 0)곡 · 새로 읽기 전 목록에 남은 곡 \(rows(at: paths).count)")
+            await store.refreshIfRekordboxChanged()
+            log("창으로 돌아옴: 목록에 남은 곡 \(rows(at: paths).count) · 선택 \(store.selection.count)")
+            await store.addFiles(files)
+            log("다시 추가: 추가 목록 \(store.staged.count)곡 · \(store.stagingMessage ?? "")")
             log("끝")
             exit(0)
         }

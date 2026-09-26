@@ -181,6 +181,16 @@ final class LibraryStore {
         }
     }
 
+    /// 창으로 돌아올 때: 지금 읽은 스냅샷 뒤에 rekordbox가 라이브러리를 바꿨으면 뒤에서 조용히 새로 읽는다.
+    /// rekordbox가 켜져 있어도 읽기용 사본(WAL까지 사본 안에서 합침)으로 뜬다. 원본은 읽기만 한다.
+    func refreshIfRekordboxChanged() async {
+        guard case .loaded = phase, !isLoading, !isWritingRekordbox, let snapshotURL,
+              snapshotURL.deletingLastPathComponent().standardizedFileURL.path == LibrarySnapshot.defaultDirectory.standardizedFileURL.path,
+              LibrarySnapshot.changed(since: snapshotURL) else { return }
+        FileHandle.standardError.write(Data("rekordbox 라이브러리가 바뀌어 다시 읽습니다\n".utf8))
+        await takeSnapshot(force: true, quiet: true)
+    }
+
     /// - Parameter quiet: 화면을 로딩으로 바꾸지 않고 뒤에서 다시 읽는다(rekordbox에 쓴 뒤 등).
     func takeSnapshot(force: Bool = false, quiet: Bool = false) async {
         guard !isLoading else { return }
@@ -231,6 +241,9 @@ final class LibraryStore {
             playlistCounts = index.mapValues { node in node.trackIDs.lazy.filter { known[$0] != nil }.count }
             snapshotURL = snapshot
             loadStaged()
+            // rekordbox에서 지운 곡은 선택에서도 뺀다(덱이 지워진 곡을 붙들지 않게)
+            let existing = selection.filter { rowsByID[$0] != nil }
+            if existing != selection { selection = existing }
             verifyReflection()
             refreshBase()
             phase = .loaded

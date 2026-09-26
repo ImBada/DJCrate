@@ -43,6 +43,10 @@ struct ContentView: View {
         .searchable(text: $store.search, placement: .toolbar, prompt: "제목·아티스트·코멘트")
         .toolbar { toolbarContent }
         .onAppear { setUp() }
+        // rekordbox에서 곡을 지우거나 고치고 돌아오면 새로 읽는다(옛 목록에 지워진 곡이 남지 않게)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await store.refreshIfRekordboxChanged() }
+        }
     }
 
     @ViewBuilder private var detail: some View {

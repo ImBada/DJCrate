@@ -103,4 +103,24 @@ struct RekordboxLibraryTests {
         #expect(try LibrarySnapshot.latest(in: folder).lastPathComponent == taken.last?.lastPathComponent)
         #expect(try RekordboxLibrary.load(snapshot: taken.last!).allTracks.count == 2)
     }
+
+    @Test func 스냅샷_뒤에_rekordbox가_라이브러리를_바꿨는지_안다() throws {
+        let (fixture, _, _) = try makeLibrary()
+        let folder = fixture.root.appending(path: "snapshots")
+        let taken = Date(timeIntervalSince1970: 1_790_000_000)
+        let snapshot = try LibrarySnapshot.take(from: fixture.database, into: folder, force: true, now: taken)
+        #expect(LibrarySnapshot.takenAt(snapshot) == taken, "파일 이름의 시각(UTC, 초 단위)")
+        #expect(LibrarySnapshot.takenAt(URL(filePath: "/x/other.db")) == nil)
+        let fm = FileManager.default
+        try fm.setAttributes([.modificationDate: taken.addingTimeInterval(-60)], ofItemAtPath: fixture.database.path)
+        #expect(!LibrarySnapshot.changed(since: snapshot, source: fixture.database))
+        // rekordbox가 켜져 있으면 변경은 WAL에만 있다
+        let wal = URL(filePath: fixture.database.path + "-wal")
+        try Data([1]).write(to: wal)
+        try fm.setAttributes([.modificationDate: taken.addingTimeInterval(30)], ofItemAtPath: wal.path)
+        #expect(LibrarySnapshot.changed(since: snapshot, source: fixture.database))
+        try fm.removeItem(at: wal)
+        try fm.setAttributes([.modificationDate: taken.addingTimeInterval(5)], ofItemAtPath: fixture.database.path)
+        #expect(LibrarySnapshot.changed(since: snapshot, source: fixture.database))
+    }
 }
