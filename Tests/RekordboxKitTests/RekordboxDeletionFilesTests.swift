@@ -74,7 +74,7 @@ struct RekordboxDeletionFilesTests {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try Data("음원이 아닌 잘못된 백업".utf8).write(to: folder.appending(path: "0.wav"))
         try JSONEncoder().encode(["0.wav": audio.path]).write(to: folder.appending(path: "manifest.json"))
-        _ = try RekordboxWriter.restore(backup, to: fixture.database, backups: fixture.backups)
+        #expect(throws: DJCError.self) { try RekordboxWriter.restore(backup, to: fixture.database, backups: fixture.backups) }
         #expect(try Data(contentsOf: audio) == bytes)
     }
 
@@ -84,11 +84,11 @@ struct RekordboxDeletionFilesTests {
         var report = try delete(fixture)
         let backup = URL(filePath: try #require(report.backup))
         report.createdFiles = [audio.path]
-        try RekordboxTrackWriter.save(report, in: backup)
-        let saved = try RekordboxWriter.restore(backup, to: fixture.database, backups: fixture.backups)
+        // 외부에서 조작한 옛 보고서는 저장 경로 검증을 거치지 않는다.
+        try JSONEncoder().encode(report).write(to: backup.appending(path: "track-report.json"))
+        #expect(throws: DJCError.self) { try RekordboxWriter.restore(backup, to: fixture.database, backups: fixture.backups) }
         #expect(FileManager.default.fileExists(atPath: audio.path))
         if FileManager.default.fileExists(atPath: audio.path) { #expect(try Data(contentsOf: audio) == bytes) }
-        #expect(RekordboxWriter.fileWarning(in: saved) != nil)
     }
 
     @Test func 허용한_파일이_심볼릭링크여도_원본을_건드리지_않는다() throws {
@@ -114,8 +114,7 @@ struct RekordboxDeletionFilesTests {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try Data([2]).write(to: folder.appending(path: "0.DAT"))
         try JSONEncoder().encode(["0.DAT": outside.path]).write(to: folder.appending(path: "manifest.json"))
-        let saved = try RekordboxWriter.restore(backup, to: fixture.database, backups: fixture.backups)
+        #expect(throws: DJCError.self) { try RekordboxWriter.restore(backup, to: fixture.database, backups: fixture.backups) }
         #expect(try Data(contentsOf: outside) == Data([1]))
-        #expect(RekordboxWriter.fileWarning(in: saved) != nil)
     }
 }

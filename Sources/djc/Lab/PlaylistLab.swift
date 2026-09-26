@@ -68,7 +68,7 @@ enum PlaylistLab {
 
     /// 변경 카운터와 재생 목록 표 세 개의 내용 요약. 둘 중 하나라도 바뀌면 새 상태로 본다.
     static func fingerprint(_ copy: URL) throws -> String {
-        let db = try CipherDatabase(path: copy.path, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: copy.path, key: RekordboxKey.derive())
         defer { db.close() }
         var hasher = SHA256()
         for table in ["djmdPlaylist", "djmdSongPlaylist", "djmdCloudFilterPlaylist"] {
@@ -77,8 +77,15 @@ enum PlaylistLab {
             }
         }
         let digest = hasher.finalize().prefix(6).map { String(format: "%02x", $0) }.joined()
-        let local = try RekordboxCompatibility.updateCounters(db).local
+        let local = try localUpdateCount(copy)
         return "변경 카운터 \(local.map(String.init) ?? "없음") · 재생 목록 \(digest)"
+    }
+
+    private static func localUpdateCount(_ snapshot: URL) throws -> Int? {
+        // 진단 연결의 인증 표 차단은 유지하고, 고정된 두 카운터의 정수 칸만 별도로 읽는다.
+        let db = try CipherDatabase(path: snapshot.path, key: RekordboxKey.derive())
+        defer { db.close() }
+        return try RekordboxCompatibility.updateCounters(db).local
     }
 
     // MARK: - 사본 재현
@@ -103,12 +110,12 @@ enum PlaylistLab {
         var counter: Int?
 
         init(_ url: URL) throws {
-            let db = try CipherDatabase(path: url.path, key: RekordboxKey.derive())
+            let db = try CipherDatabase.diagnostic(path: url.path, key: RekordboxKey.derive())
             defer { db.close() }
             playlists = try rows(db, "djmdPlaylist")
             entries = try rows(db, "djmdSongPlaylist")
             mirrors = try rows(db, "djmdCloudFilterPlaylist")
-            counter = try RekordboxCompatibility.updateCounters(db).local
+            counter = try PlaylistLab.localUpdateCount(url)
         }
 
         /// 목록 ID → 이름 경로("DJC 실험/DJC 폴더 가/가1"). 새로 만든 목록은 ID가 달라 이 경로로 짝짓는다.

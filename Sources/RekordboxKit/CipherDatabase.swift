@@ -37,6 +37,23 @@ public final class CipherDatabase {
         sqlite3_close_v2(handle)
     }
 
+    /// 개발용 조사도 인증값은 읽지 않는다. 뷰·하위 질의도 SQLite가 실제 참조하는 표·칸에서 막는다.
+    public static func diagnostic(path: String, key: String?) throws -> CipherDatabase {
+        let db = try CipherDatabase(path: path, key: key)
+        sqlite3_set_authorizer(db.handle, { _, action, table, column, _, _ in
+            guard action == SQLITE_READ else { return SQLITE_OK }
+            let table = table.map { String(cString: $0) } ?? ""
+            let column = column.map { String(cString: $0) } ?? ""
+            return CipherDatabase.isCredentialIdentifier(table) || CipherDatabase.isCredentialIdentifier(column) ? SQLITE_DENY : SQLITE_OK
+        }, nil)
+        return db
+    }
+
+    public static func isCredentialIdentifier(_ name: String) -> Bool {
+        let name = name.lowercased()
+        return ["agentregistry", "cloudagent", "credential", "token", "password", "secret", "auth", "session"].contains(where: name.contains)
+    }
+
     /// 연결을 바로 닫는다(쓰기 뒤 파일을 다시 열어 검사하기 전에 쓴다).
     public func close() {
         sqlite3_close_v2(handle)

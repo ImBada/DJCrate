@@ -39,7 +39,7 @@ public enum RekordboxTrackWriter {
         public var dryRun: Bool
         /// 지운 곡의 분석·아트워크 파일(백업 폴더 `anlz/`로 옮겨 두었다가 되돌릴 때 살린다)
         public var removedFiles: [String] = []
-        /// 새로 만든 분석·아트워크 파일(되돌릴 때 지운다)
+        /// 새로 만든 분석·아트워크 파일(되돌릴 때 지운다). 반환값은 절대 경로, 백업 JSON은 share 기준 상대 경로.
         public var createdFiles: [String] = []
         /// 쓴 직후 rekordbox 변경 카운터. 되돌리기 전에 그 뒤 rekordbox에서 바뀐 게 있는지 본다.
         public var finalUpdateCount: Int?
@@ -91,9 +91,8 @@ public enum RekordboxTrackWriter {
                            writesArtwork: Bool = RekordboxTrackWriter.writesArtwork) throws -> Report {
         var report = Report(dryRun: dryRun)
         guard !plans.isEmpty else { return report }
-        try preflight(database, dryRun: dryRun, guard: writeGuard)
+        let share = try preflight(database, shareRoot: shareRoot, dryRun: dryRun, guard: writeGuard)
         let live = writeGuard.isLive(database)
-        let share = shareRoot ?? (live ? RekordboxShare.directory : nil)
         // 곡 UUID를 먼저 정한다(분석·아트워크 폴더 이름이 된다)
         let uuids = Dictionary(plans.map { ($0.path, UUID().uuidString.lowercased()) }) { first, _ in first }
         // 분석·아트워크 파일은 DB 밖에서 미리 만든다(오래 걸리고 실패해도 DB를 건드리기 전에 알 수 있게)
@@ -225,7 +224,7 @@ public enum RekordboxTrackWriter {
             }
             report.createdFiles = created.map(\.path)
         }
-        if let backup { try? save(report, in: backup) }
+        if let backup { try? save(report, in: backup, shareRoot: share) }
         return report
     }
 
@@ -424,9 +423,8 @@ public enum RekordboxTrackWriter {
                               dryRun: Bool, now: Date = .now, backups: URL, guard writeGuard: RekordboxWriteGuard = .system) throws -> Report {
         var report = Report(dryRun: dryRun)
         guard !contentIDs.isEmpty else { return report }
-        try preflight(database, dryRun: dryRun, guard: writeGuard)
+        let share = try preflight(database, shareRoot: shareRoot, dryRun: dryRun, guard: writeGuard)
         let live = writeGuard.isLive(database)
-        let share = shareRoot ?? (live ? RekordboxShare.directory : nil)
         let stamp = CueJSON.timestamps(now)
         let backup = dryRun ? nil : try RekordboxWriter.makeBackup(of: database, in: backups, now: now, label: "delete")
         report.backup = backup?.path
@@ -440,7 +438,7 @@ public enum RekordboxTrackWriter {
                     try db.query("SELECT Title FROM djmdContent WHERE ID = ?", [.text(id)]) { title = $0.string(0) ?? id }
                     let filePlan = try RekordboxWriter.deletionFiles(id, db: db, share: share)
                     var deleted = try deleteRow(id, db: db, usn: &usn, stamp: stamp)
-                    try RekordboxWriter.backupDeletionFiles(filePlan.files, in: backup)
+                    try RekordboxWriter.backupDeletionFiles(filePlan.files, in: backup, shareRoot: share)
                     deleted.reason = filePlan.warning
                     title = deleted.title
                     try db.execute("RELEASE djc_delete")
@@ -471,7 +469,7 @@ public enum RekordboxTrackWriter {
             }
         }
         report.removedFiles = files.map(\.path).sorted()
-        try? save(report, in: backup)
+        try? save(report, in: backup, shareRoot: share)
         return report
     }
 
@@ -539,13 +537,14 @@ public enum RekordboxTrackWriter {
     }
 
     /// 라이브 DB면 rekordbox 꺼짐·WAL·버전, 어느 DB든 구조·카운터(백업 전에).
-    static func preflight(_ database: URL, dryRun: Bool, guard writeGuard: RekordboxWriteGuard) throws {
-        if writeGuard.isLive(database) { try writeGuard.checkLive(database, dryRun: dryRun) }
+    static func preflight(_ database: URL, shareRoot: URL?, dryRun: Bool, guard writeGuard: RekordboxWriteGuard) throws -> URL? {
+        let share = try writeGuard.checkTargets(database, shareRoot: shareRoot, dryRun: dryRun)
         let reader = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
         defer { reader.close() }
         try RekordboxCompatibility.checkSchema(reader)
         let counters = try RekordboxCompatibility.updateCounters(reader)
         if let local = counters.local { try RekordboxCompatibility.checkCounters(local: local, cloud: counters.cloud) }
+        return share
     }
 
     /// 한 트랜잭션 안에서 `body`를 돌린다. 변경 카운터를 올려 적고, 시험 실행이거나 바뀐 게 없으면 되돌린다.
@@ -625,7 +624,10 @@ public enum RekordboxTrackWriter {
         (try? Data(contentsOf: backup.appending(path: "track-report.json"))).flatMap { try? JSONDecoder().decode(Report.self, from: $0) }
     }
 
-    static func save(_ report: Report, in backup: URL) throws {
+    static func save(_ report: Report, in backup: URL, shareRoot: URL? = nil) throws {
+        var report = report
+        report.createdFiles = try RekordboxWriter.backupRelativePaths(report.createdFiles, shareRoot: shareRoot)
+        report.removedFiles = try RekordboxWriter.backupRelativePaths(report.removedFiles, shareRoot: shareRoot)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(report).write(to: backup.appending(path: "track-report.json"), options: .atomic)

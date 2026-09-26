@@ -249,7 +249,7 @@ enum EditLab {
         }
         // 넣은 분석 파일의 그리드를 다시 읽어 보낸 그리드와 비교한다.
         guard !dryRun, let id = report.added.first(where: \.written)?.contentID else { return }
-        let db = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: database.path, key: RekordboxKey.derive())
         defer { db.close() }
         var dat: String?
         try db.query("SELECT AnalysisDataPath FROM djmdContent WHERE ID = ?", [.text(id)]) { dat = $0.string(0) }
