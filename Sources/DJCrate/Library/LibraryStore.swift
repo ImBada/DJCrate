@@ -115,6 +115,9 @@ final class LibraryStore {
     var pendingLibraryCount: Int { pendingUUIDs.filter { rowsByUUID[$0].map { !$0.isStaged } ?? false }.count }
     /// 백그라운드 추정이 초안을 저장했을 때(덱이 같은 곡을 보고 있으면 다시 읽게)
     var onGridDraftSaved: ((String) -> Void)?
+    var onCueDraftsReloaded: (([String: CueDraft]) -> Void)?
+    @ObservationIgnored private var draftFileStamps: [String: Date]?
+
     /// 필터·플레이리스트·정렬까지 적용한 줄(검색 전). 검색은 이 순서를 그대로 걸러 쓴다.
     private var sortedBase: [TrackRow] = []
     private var suppressRefresh = false
@@ -228,6 +231,7 @@ final class LibraryStore {
             rowsByUUID = Dictionary(loaded.rows.map { ($0.track.uuid, $0) }, uniquingKeysWith: { first, _ in first })
             report = loaded.report
             filterCounts = loaded.filterCounts
+            draftFileStamps = nil
             tagDrafts = loaded.tagDrafts
             cueDraftUUIDs = loaded.cueDraftUUIDs
             draftCueCounts = loaded.draftCueCounts
@@ -277,6 +281,41 @@ final class LibraryStore {
     }
 
     // MARK: - 초안 표시
+
+    /// CLI·외부 편집의 원자적 파일 교체를 확인한다. DB·파형·재생은 다시 불러오지 않는다.
+    func refreshExternalDrafts(home: URL = DJCPaths.userData) {
+        guard case .loaded = phase, !isWritingRekordbox else { return }
+        DraftWriter.flush()
+        let cueDirectory = home.appending(path: "cue-drafts")
+        let tagDirectory = home.appending(path: "tag-drafts")
+        var stamps: [String: Date] = [:]
+        for directory in [cueDirectory, tagDirectory] {
+            let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+            for file in files where file.pathExtension == "json" {
+                stamps[file.path] = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            }
+        }
+        guard stamps != draftFileStamps else { return }
+        draftFileStamps = stamps
+        var cues: [String: CueDraft] = [:]
+        for uuid in CueDraftStore.uuids(directory: cueDirectory) {
+            if let draft = CueDraftStore.load(trackUUID: uuid, directory: cueDirectory), draft.hasChanges { cues[uuid] = draft }
+        }
+        var tags: [String: TagDraft] = [:]
+        for uuid in TagDraftStore.uuids(directory: tagDirectory) {
+            if let draft = TagDraftStore.load(trackUUID: uuid, directory: tagDirectory), draft.hasChanges { tags[uuid] = draft }
+        }
+        if tagDrafts.mapValues(\.fields) != tags.mapValues(\.fields) || tagDrafts.mapValues(\.base) != tags.mapValues(\.base) {
+            tagDrafts = tags
+            // 외부 변경 뒤 옛 되돌리기가 새 초안을 덮지 않게 한다.
+            undoStack.removeAll(); redoStack.removeAll(); tagRevision += 1
+        }
+        cueDraftUUIDs = Set(cues.keys)
+        draftCueCounts = cues.mapValues(CueCounts.init)
+        editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys)
+        if case .pending = sidebar { refreshBase() }
+        onCueDraftsReloaded?(cues)
+    }
 
     /// 덱에서 큐를 찍거나 지울 때마다 목록 숫자를 맞춘다.
     func cueDraftChanged(_ draft: CueDraft) {
