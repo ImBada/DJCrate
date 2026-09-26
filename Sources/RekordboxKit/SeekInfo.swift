@@ -15,6 +15,30 @@ public enum SeekInfo {
         public var blockSize: Int
     }
 
+    /// FLAC STREAMINFO(샘플레이트·채널·비트·전체 샘플). 전체 샘플이 0이면 파일에 적혀 있지 않은 것.
+    public struct FlacStreamInfo: Hashable, Sendable {
+        public var sampleRate: Int
+        public var channels: Int
+        public var bitsPerSample: Int
+        public var totalSamples: Int
+    }
+
+    public static func flacStreamInfo(url: URL) -> FlacStreamInfo? {
+        guard let data = try? Data(contentsOf: url, options: .alwaysMapped) else { return nil }
+        return data.withUnsafeBytes { raw -> FlacStreamInfo? in
+            let b = raw.bindMemory(to: UInt8.self)
+            let p = id3v2Length(b)
+            // "fLaC" 바로 뒤 첫 메타데이터 블록이 STREAMINFO(34바이트)다
+            guard p + 8 + 18 <= b.count, b[p] == 0x66, b[p + 1] == 0x4C, b[p + 2] == 0x61, b[p + 3] == 0x43, b[p + 4] & 0x7F == 0 else { return nil }
+            let s = p + 8
+            let total = Int(b[s + 13] & 0x0F) << 32 | Int(b[s + 14]) << 24 | Int(b[s + 15]) << 16 | Int(b[s + 16]) << 8 | Int(b[s + 17])
+            return FlacStreamInfo(sampleRate: Int(b[s + 10]) << 12 | Int(b[s + 11]) << 4 | Int(b[s + 12]) >> 4,
+                                  channels: Int(b[s + 12] >> 1 & 0x07) + 1,
+                                  bitsPerSample: (Int(b[s + 12] & 0x01) << 4 | Int(b[s + 13] >> 4)) + 1,
+                                  totalSamples: total)
+        }
+    }
+
     /// FLAC 파일의 오디오 프레임 표(시작 샘플·바이트 위치·블록 크기). 형식이 아니면 nil.
     public static func flacFrames(url: URL) -> (sampleRate: Int, frames: [FlacFrame])? {
         guard let data = try? Data(contentsOf: url, options: .alwaysMapped) else { return nil }

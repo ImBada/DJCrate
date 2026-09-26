@@ -36,6 +36,20 @@ public enum AudioFixture {
         return url
     }
 
+    /// ALAC(M4A). 분석 규칙을 모르는 형식 시험용.
+    public static func alac(seconds: Double, sampleRate: Double = 44_100, in directory: URL, name: String = "lossless.m4a") throws -> URL {
+        let url = directory.appending(path: name)
+        let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 2, interleaved: false)!
+        let file = try AVAudioFile(forWriting: url, settings: [
+            AVFormatIDKey: kAudioFormatAppleLossless, AVSampleRateKey: sampleRate, AVNumberOfChannelsKey: 2, AVEncoderBitDepthHintKey: 16,
+        ], commonFormat: .pcmFormatFloat32, interleaved: false)
+        let frames = AVAudioFrameCount(seconds * sampleRate)
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
+        buffer.frameLength = frames
+        try file.write(from: buffer)
+        return url
+    }
+
     /// AAC(M4A). macOS 인코더는 앞에 프라이밍 2112샘플을 넣는다.
     public static func aac(seconds: Double, sampleRate: Double = 44_100, in directory: URL, name: String = "tone.m4a") throws -> URL {
         let url = directory.appending(path: name)

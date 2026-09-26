@@ -156,7 +156,7 @@ enum AudioLab {
             let extURL = datURL.deletingPathExtension().appendingPathExtension("EXT")
             let twoURL = datURL.deletingPathExtension().appendingPathExtension("2EX")
             guard let dat = try? AnlzFile(url: datURL), let ext = try? AnlzFile(url: extURL), let two = try? AnlzFile(url: twoURL),
-                  let rbPWV3 = ext.tag("PWV3").map({ RekordboxWaveforms.body(of: $0.bytes) }) else {
+                  ext.tag("PWV3") != nil else {
                 print("건너뜀 \(track.title): 분석 파일 태그 없음"); continue
             }
             let started = ContinuousClock.now

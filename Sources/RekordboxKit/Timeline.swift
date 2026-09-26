@@ -104,11 +104,24 @@ public enum RekordboxTimeline {
         return parts.isEmpty ? "표기 없음" : parts.joined(separator: " ")
     }
 
+    /// MPEG 1·2 Layer III 프레임 길이(바이트)
+    static func mpegFrameLength(_ b: [UInt8], at i: Int) -> Int? {
+        guard i + 4 <= b.count else { return nil }
+        let version = (b[i + 1] >> 3) & 0x3, index = Int(b[i + 2] >> 4), rateIndex = Int((b[i + 2] >> 2) & 0x3)
+        guard index > 0, index < 15, rateIndex < 3 else { return nil }
+        let mpeg1 = version == 3
+        let kbps = (mpeg1 ? [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320] : [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160])[index]
+        let rate = (mpeg1 ? [44_100, 48_000, 32_000] : version == 2 ? [22_050, 24_000, 16_000] : [11_025, 12_000, 8_000])[rateIndex]
+        return (mpeg1 ? 144 : 72) * kbps * 1000 / rate + Int((b[i + 2] >> 1) & 1)
+    }
+
     static func describeFrame(_ bytes: [UInt8], from start: Int) -> String {
         var i = start
         while i + 4 < bytes.count, !(bytes[i] == 0xFF && bytes[i + 1] & 0xE0 == 0xE0) { i += 1 }
         guard i + 200 < bytes.count else { return "프레임 없음" }
-        let window = Array(bytes[i..<min(bytes.count, i + 400)])
+        // 정보 태그·인코더 문자열은 첫 프레임 안에서만 찾는다. 다음 오디오 프레임에 LAME 문자열이 들어 있는
+        // ffmpeg 파일이 있어서(2026-09-26 花になって 등), 400바이트를 보면 LAME로 잘못 읽었다.
+        let window = Array(bytes[i..<min(bytes.count, i + (mpegFrameLength(bytes, at: i) ?? 400))])
         func find(_ text: String) -> Int? {
             let needle = Array(text.utf8)
             guard window.count >= needle.count else { return nil }
