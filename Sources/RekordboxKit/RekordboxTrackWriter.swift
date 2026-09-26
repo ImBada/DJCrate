@@ -113,6 +113,8 @@ public enum RekordboxTrackWriter {
         let backup = dryRun ? nil : try RekordboxWriter.makeBackup(of: database, in: backups, now: now, label: "add")
         report.backup = backup?.path
         var inserted: [(id: String, expected: [String: CipherDatabase.Value])] = []
+        /// 곡과 함께 넣은 파일 행·오토게인 행(커밋 뒤 다시 읽어 비교)
+        var extraRows: [InsertedRow] = []
         var cueChecks: [(contentID: String, expectation: RekordboxWriter.Expectation)] = []
         report.finalUpdateCount = try transaction(database, dryRun: dryRun) { db, usn in
             let library = try libraryIdentity(db)
@@ -139,16 +141,19 @@ public enum RekordboxTrackWriter {
                     if let artwork { row["ImagePath"] = .text(artwork.imagePath) }
                     try insert(db, table: "djmdContent", row)
                     try verify(db, table: "djmdContent", id: id, row)
+                    var planRows: [InsertedRow] = []
                     if let artwork {
                         // 아트워크 파일 행은 artwork.jpg 하나(_m·_s는 행이 없다)
                         usn += 1
                         let file = fileRow(uuid: uuid, share: artwork.share, artwork.files[0], contentID: id, usn: usn, stamp: stamp)
                         try insert(db, table: file.table, file.values)
                         try verify(db, table: file.table, id: file.id, file.values)
+                        planRows.append(file)
                     }
                     if let ready {
                         for row in try insertAnalysisRows(db, ready, contentID: id, usn: &usn, stamp: stamp) {
                             try verify(db, table: row.table, id: row.id, row.values)
+                            planRows.append(row)
                         }
                     }
                     var outcome = Outcome(path: plan.path, contentID: id, title: plan.title, written: true, reason: nil, uuid: uuid)
@@ -175,6 +180,7 @@ public enum RekordboxTrackWriter {
                     }
                     try db.execute("RELEASE djc_add")
                     inserted.append((id, row))
+                    extraRows += planRows
                     report.added.append(outcome)
                 } catch let blocked as Blocked {
                     try db.execute("ROLLBACK TO djc_add")
@@ -187,6 +193,7 @@ public enum RekordboxTrackWriter {
         if let backup, !inserted.isEmpty {
             try afterCommit(database, backup: backup, live: live) { db in
                 for item in inserted { try verify(db, table: "djmdContent", id: item.id, item.expected) }
+                for row in extraRows { try verify(db, table: row.table, id: row.id, row.values) }
                 for check in cueChecks { try RekordboxWriter.verify(db: db, contentID: check.contentID, check.expectation) }
             }
             // 분석·아트워크 파일: DB가 끝난 뒤 쓴다. 실패하면 쓴 파일과 만든 빈 폴더를 지우고 DB를 되돌린다.
