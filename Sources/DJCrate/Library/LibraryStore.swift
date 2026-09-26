@@ -31,6 +31,8 @@ final class LibraryStore {
         didSet { if oldValue !== undoManager { oldValue?.removeAllActions(withTarget: self) } }
     }
     @ObservationIgnored let saveTagDrafts: ([TagDraft]) -> Void
+    @ObservationIgnored let mergeDraftSaver: ([DuplicateMergeDraft]) throws -> Void
+    var mergeDrafts: [DuplicateMergeDraft] = []
     /// 재생 목록 초안 파일 쓰기(시험은 메모리로 바꾼다)
     @ObservationIgnored let playlistDraftSaver: (PlaylistDraft) throws -> Void
     @ObservationIgnored let backupDirectory: URL
@@ -64,11 +66,13 @@ final class LibraryStore {
     init(settings: SettingsStore = SettingsStore(), resultHistory: WriteResultHistory = WriteResultHistory(url: DJCPaths.userData.appending(path: "last-write-result.json")),
          feedback: AppFeedback = AppFeedback(), saveTagDrafts: @escaping ([TagDraft]) -> Void = { DraftWriter.save($0) },
          backupDirectory: URL = DJCPaths.rekordboxBackups,
-         playlistDraftSaver: @escaping (PlaylistDraft) throws -> Void = { try PlaylistDraftStore.save($0) }) {
+         playlistDraftSaver: @escaping (PlaylistDraft) throws -> Void = { try PlaylistDraftStore.save($0) },
+         mergeDraftSaver: @escaping ([DuplicateMergeDraft]) throws -> Void = { try DuplicateMergeDraftStore.save($0) }) {
         self.settings = settings
         self.commentPreset = settings.commentPreset
         self.saveTagDrafts = saveTagDrafts
         self.playlistDraftSaver = playlistDraftSaver
+        self.mergeDraftSaver = mergeDraftSaver
         self.resultHistory = resultHistory
         self.feedback = feedback
         self.backupDirectory = backupDirectory
@@ -203,7 +207,8 @@ final class LibraryStore {
     var draftPreviewCues: [String: [PreviewCueMark]] = [:]
 
     /// 큐·그리드·게인·태그 초안이 있는 곡(태그도 반영하면 rekordbox 곡 정보에 쓴다)
-    var pendingUUIDs: Set<String> { cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys) }
+    var pendingUUIDs: Set<String> { cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys)
+        .union(mergeDrafts.flatMap { $0.members.map(\.trackUUID) }) }
     /// 반영 대기 중인 rekordbox 곡 수(추가한 곡 제외)
     var pendingLibraryCount: Int { pendingUUIDs.filter { rowsByUUID[$0].map { !$0.isStaged } ?? false }.count }
     /// 백그라운드 추정이 초안을 저장했을 때(덱이 같은 곡을 보고 있으면 다시 읽게)
@@ -397,6 +402,7 @@ final class LibraryStore {
             editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys)
             rekordboxPlaylists = loaded.playlists
             playlistDraft = loaded.playlistDraft
+            mergeDrafts = DuplicateMergeDraftStore.load()
             refreshPlaylists(refreshList: false)
             histories = loaded.histories
             historyIndex = Dictionary(uniqueKeysWithValues: histories.map { ($0.id, $0) })

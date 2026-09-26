@@ -18,7 +18,7 @@ extension RekordboxWriter {
         public var titles: [String] {
             // 한 곡에 큐·태그를 함께 썼으면 한 번만
             var seen: Set<String> = []
-            let written = report.map { $0.written + $0.analysisWritten + $0.tagWritten } ?? []
+            let written = report.map { $0.written + $0.analysisWritten + $0.tagWritten + $0.mergeWritten } ?? []
             return written.filter { seen.insert($0.trackUUID).inserted }.map(\.title) + (report?.playlistWritten.map(\.name) ?? [])
                 + (trackReport?.titles ?? [])
         }

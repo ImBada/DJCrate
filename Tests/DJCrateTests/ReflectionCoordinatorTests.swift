@@ -23,6 +23,7 @@ final class FakeReflectionHost: ReflectionHost {
     var hasPlaylistDrafts = false
     /// 미리 보기에 재생 목록 초안을 넣으라고 했는지, 쓰기에 넘긴 재생 목록 초안
     var previewedPlaylists: Bool?
+    var wroteMerges: [DuplicateMergeDraft]?
     var wrotePlaylists: PlaylistDraft??
     var changedSinceBackup: Bool?
     var restored: [URL] = []
@@ -38,9 +39,10 @@ final class FakeReflectionHost: ReflectionHost {
         return try preview.get()
     }
     func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], tags: [TagDraft],
-                          playlists: PlaylistDraft?) async throws -> RekordboxWriter.Report {
+                          playlists: PlaylistDraft?, merges: [DuplicateMergeDraft]) async throws -> RekordboxWriter.Report {
         wrote = (drafts.map(\.trackUUID), grids.map(\.trackUUID), gains.keys.sorted(), tags.map(\.trackUUID))
         wrotePlaylists = .some(playlists)
+        wroteMerges = merges
         if let writeError { throw writeError }
         return try writtenReport ?? preview.get().report
     }
