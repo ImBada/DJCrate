@@ -124,3 +124,11 @@ enum ShortcutsWindow {
         }
     }
 }
+
+extension DeckShortcuts {
+    /// 키를 지웠으면 기본 키 대신 미지정으로 안내한다.
+    func keyLabel(for action: DeckAction) -> String {
+        let keys = keys(for: action).map(KeyLabel.name(for:))
+        return keys.isEmpty ? "미지정" : keys.joined(separator: " · ")
+    }
+}

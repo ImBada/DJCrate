@@ -82,6 +82,14 @@ extension DeckModel {
         jump(to: time)
     }
 
+    /// 목록은 재생 상태를 유지하며 시작점만 부른다. 같은 위치의 루프를 눌러도 반복은 풀린다.
+    func selectCueFromList(_ id: EditableCue.ID) {
+        guard let target = cue(id) else { return }
+        selectedCueID = id
+        if isLooping { exitLoop() }
+        seek(target.time)
+    }
+
     /// 루프 상태를 건드리지 않고 옮긴다(루프 길이를 줄여 끝 밖에 있게 됐을 때 등).
     func jump(to time: Double) {
         isCuePreviewing = false

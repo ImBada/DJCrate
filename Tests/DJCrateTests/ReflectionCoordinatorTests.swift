@@ -151,8 +151,26 @@ struct ReflectionCoordinatorTests {
 
     @Test func 미리_보기가_실패하면_실패_토스트() async {
         await coordinator().write(rows: [Self.row("a")])
-        #expect(host.toast?.kind == .failure && host.toast?.detail == "미리 보기 실패")
+        #expect(host.toast?.kind == .failure && host.toast?.detail == "디스크 공간과 권한을 확인한 뒤 다시 시도하세요.")
         #expect(host.writeStage == nil && !host.isWritingRekordbox)
+    }
+
+    @Test func 쓰기_거부_토스트는_제목을_되풀이하지_않고_할_일을_안내한다() async {
+        host.preview = .failure(DJCError.writeRefused("지원하지 않는 버전입니다"))
+        await coordinator().write(rows: [Self.row("a")])
+        #expect(host.toast?.title == "rekordbox에 쓰지 않았습니다")
+        let detail = host.toast?.detail ?? ""
+        #expect(detail.contains("지원하지 않는 버전입니다"))
+        #expect(detail.contains("확인"))
+        #expect(!detail.contains("rekordbox에 쓰지 않았습니다"))
+        #expect(host.resultHistory.latest?.text == detail)
+    }
+
+    @Test func 파일_오류_토스트는_NSError_원문을_숨긴다() async {
+        host.preview = .failure(NSError(domain: NSCocoaErrorDomain, code: NSFileWriteOutOfSpaceError,
+                                        userInfo: [NSLocalizedDescriptionKey: "Error Domain=NSCocoaErrorDomain SQL 원문"]))
+        await coordinator().write(rows: [Self.row("a")])
+        #expect(host.toast?.detail == "디스크 공간과 권한을 확인한 뒤 다시 시도하세요.")
     }
 
     /// 쓰기·넣기·빼기를 모두 확인 창까지 통과시켜 실제 쓰기 단계에서 `error`를 던지게 한다.
@@ -184,7 +202,7 @@ struct ReflectionCoordinatorTests {
         #expect(text.contains("rekordbox를 켜지 말고, 사이드바에서 'rekordbox 반영 대기'를 고른 뒤 목록 위 '되돌리기…'로 쓰기 전 백업을 복원하세요."))
         #expect(!text.contains("마지막 반영 되돌리기"))
         #expect(text.contains("djc rekordbox-restore --backup '\(backup)' --live"))
-        #expect(text.contains("무결성 검사 실패: x") && text.contains("master.db: 권한 없음"))
+        #expect(!text.contains("무결성 검사 실패: x") && !text.contains("master.db: 권한 없음"))
         #expect(host.writeStage == nil && host.locks == [true, false, true, false, true, false])
         #expect(host.resultHistory.latest?.kind == .failure)
         #expect(host.resultHistory.latest?.text == alerts.last?.text)
@@ -195,7 +213,9 @@ struct ReflectionCoordinatorTests {
         await failEveryWrite(with: DJCError.writeRolledBack("무결성 검사 실패: x"))
         #expect(prompter.shown.allSatisfy { $0.confirm != nil }, "경고 창은 띄우지 않는다")
         #expect(host.toast?.kind == .failure && host.toast?.title == "rekordbox에서 빼지 않았습니다")
-        #expect(host.toast?.detail == "쓴 결과를 확인하지 못해 쓰기 전 백업으로 되돌렸습니다: 무결성 검사 실패: x")
+        #expect(host.toast?.detail?.contains("쓰기 전 백업으로 되돌렸습니다") == true)
+        #expect(host.toast?.detail?.contains("초안을 확인") == true)
+        #expect(host.toast?.detail?.contains("무결성 검사 실패: x") == false)
     }
 
     @Test func 확인_창은_종류별_곡_수와_막힌_이유를_보여_준다() {
@@ -230,14 +250,15 @@ struct ReflectionCoordinatorTests {
         #expect(AppToast(title: "성공").duration.isFinite)
     }
 
-    @Test func 되돌리기_실패는_전체_오류와_할_일을_심각_경고로_보여_준다() async {
+    @Test func 되돌리기_실패는_원문_대신_할_일을_심각_경고로_보여_준다() async {
         host.writeError = FixtureFailure()
         let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/test-backup"), createdAt: .now, isWrite: true, report: nil)
         await coordinator().restore(backup)
         #expect(prompter.shown.last?.critical == true)
         #expect(prompter.shown.last?.confirm == nil)
         #expect(prompter.shown.last?.text.contains("rekordbox를 켜지 말고") == true)
-        #expect(prompter.shown.last?.text.contains("미리 보기 실패") == true)
+        #expect(prompter.shown.last?.text.contains("다시 되돌리세요") == true)
+        #expect(prompter.shown.last?.text.contains("미리 보기 실패") == false)
         #expect(host.resultHistory.latest?.kind == .failure)
         #expect(host.resultHistory.latest?.backups == [backup.url])
     }

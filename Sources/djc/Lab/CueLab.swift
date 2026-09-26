@@ -450,7 +450,7 @@ enum CueLab {
             guard let t = SeekInfo.mp3Frames(url: URL(filePath: entry.path)) else { continue }
             let size = (try? FileManager.default.attributesOfItem(atPath: entry.path)[.size] as? Int) ?? 0
             out.append(["name": (entry.path as NSString).lastPathComponent, "sr": t.sampleRate, "spf": t.samplesPerFrame,
-                        "offsets": t.offsets.map { $0 - t.offsets[0] }, "first": t.offsets[0], "fileSize": size ?? 0,
+                        "offsets": t.offsets.map { $0 - t.offsets[0] }, "first": t.offsets[0], "fileSize": size,
                         "info": t.hasInfoFrame, "xingFrames": t.xingFrames ?? -1, "xingBytes": t.xingBytes ?? -1,
                         "toc": t.toc.map { $0.map(Int.init) } ?? [], "cues": entry.cues])
         }
@@ -545,6 +545,7 @@ enum CueLab {
     /// rekordbox가 적은 FLAC SeekInfo·VBR MP3 MPEG 위치를 우리 계산과 전수 대조(읽기 전용)
     static func seekinfoCheck(_ args: [String]) async throws {
         let db = try CipherDatabase(path: value(after: "--db", in: args) ?? LibrarySnapshot.latest().path, key: RekordboxKey.derive())
+        defer { db.close() }
         let limit = Int(value(after: "--limit", in: args) ?? "") ?? 100_000
         var flac: [String: (path: String, cues: [(Int, String, String?, Int?)])] = [:]
         try db.query("""
@@ -554,7 +555,7 @@ enum CueLab {
             let id = r.string(0) ?? ""
             flac[id, default: (r.string(1) ?? "", [])].cues.append((r.int(2) ?? 0, r.string(3) ?? "", r.string(4), r.int(5)))
         }
-        var same = [0, 0], differ = 0, outSame = 0, outDiffer = 0, missing = 0, samples: [String] = []
+        var differ = 0, outDiffer = 0, missing = 0
         for (_, entry) in flac.prefix(limit) {
             guard FileManager.default.fileExists(atPath: entry.path), let table = SeekInfo.flacFrames(url: URL(filePath: entry.path)) else { missing += 1; continue }
             for (msec, stored, outStored, outMsec) in entry.cues {
@@ -562,20 +563,22 @@ enum CueLab {
                 let roundSample = Int((Double(msec) * Double(table.sampleRate) / 1000).rounded())
                 let a = SeekInfo.flacSeekInfo(frames: table.frames, sample: floorSample)
                 let b = SeekInfo.flacSeekInfo(frames: table.frames, sample: roundSample)
-                if a == stored { same[0] += 1 }
-                if b == stored { same[1] += 1 }
                 if a != stored && b != stored {
                     differ += 1
-                    if samples.count < 6 { samples.append("\((entry.path as NSString).lastPathComponent.prefix(30)) \(msec)ms: rekordbox \(stored) · 우리 \(a ?? "nil")") }
+                    print("✘ 익명 FLAC 큐 \(differ): \(msec)ms · 저장 \(stored) · 현재 \(a ?? "없음")")
+                    print("  이유: 현재 샘플이 든 프레임과 저장 SeekInfo가 다릅니다. 파일 변경·생성 규칙은 재분석 전후를 비교하세요")
                 }
                 if let outMsec, outMsec > 0, let outStored {
                     let o = SeekInfo.flacSeekInfo(frames: table.frames, sample: outMsec * table.sampleRate / 1000)
-                    if o == outStored { outSame += 1 } else { outDiffer += 1 }
+                    if o != outStored {
+                        outDiffer += 1
+                        print("✘ 익명 FLAC 루프 끝 \(outDiffer): 현재 프레임과 저장 SeekInfo가 다릅니다. 재분석 전후를 비교하세요")
+                    }
                 }
             }
         }
-        print("FLAC \(flac.count)곡 · 큐 일치(내림) \(same[0]) · 일치(반올림) \(same[1]) · 둘 다 다름 \(differ) · 파일 없음·못 읽음 \(missing)곡 · 루프 끝 일치 \(outSame)/\(outSame + outDiffer)")
-        samples.forEach { print("  ", $0) }
+        print("FLAC: 큐 어긋남 \(differ) · 루프 끝 어긋남 \(outDiffer)")
+        if missing > 0 { print("파일 없음·못 읽음으로 비교하지 못한 FLAC이 있습니다") }
 
         // VBR MP3: 큐마다 (시각, MPEG 칸) 쌍. 루프 끝도 같은 식으로 센다.
         var vbr: [String: (path: String, points: [(msec: Int, frame: Int, abs: Int)])] = [:]
@@ -587,22 +590,24 @@ enum CueLab {
             vbr[id, default: (r.string(1) ?? "", [])].points.append((r.int(2) ?? 0, r.int(3) ?? 0, r.int(4) ?? 0))
             if let out = r.int(5), out > 0 { vbr[id]!.points.append((out, r.int(6) ?? 0, r.int(7) ?? 0)) }
         }
-        var vbrSame = 0, vbrTotal = 0, vbrMissing = 0, vbrSamples: [String] = []
+        var vbrDiffer = 0, vbrMissing = 0
         for (_, entry) in vbr.prefix(limit) {
             let url = URL(filePath: entry.path)
             guard FileManager.default.fileExists(atPath: entry.path), let frames = SeekInfo.mp3Frames(url: url) else { vbrMissing += 1; continue }
             let counted = SeekInfo.countedMp3Offsets(frames, url: url)
             for point in entry.points {
-                vbrTotal += 1
                 let ours = SeekInfo.mp3CuePosition(msec: point.msec, counted: counted, sampleRate: frames.sampleRate, samplesPerFrame: frames.samplesPerFrame)
-                if let ours, ours.mpegFrame == point.frame, ours.abs == point.abs { vbrSame += 1; continue }
-                if vbrSamples.count < 5 {
-                    vbrSamples.append("\((entry.path as NSString).lastPathComponent.prefix(30)) \(point.msec)ms · rb \(point.frame)/\(point.abs) · djc \(ours.map { "\($0.mpegFrame)/\($0.abs)" } ?? "없음")")
-                }
+                if let ours, ours.mpegFrame == point.frame, ours.abs == point.abs { continue }
+                vbrDiffer += 1
+                print("✘ 익명 MP3 큐 \(vbrDiffer): \(point.msec)ms · 저장 \(point.frame)/\(point.abs) · 현재 \(ours.map { "\($0.mpegFrame)/\($0.abs)" } ?? "없음")")
+                print("  이유: \(SeekDiagnostics.mp3Cue(stored: point.abs, counted: counted))")
+                var analysis: String?
+                try db.query("SELECT AnalysisDataPath FROM djmdContent WHERE FolderPath = ?", [.text(entry.path)]) { analysis = $0.string(0) }
+                try TrackLab.diagnosticMetadata(db, path: entry.path, analysis: analysis.flatMap { RekordboxShare.analysisURL($0) })
             }
         }
-        print("VBR MP3 \(vbr.count)곡 · 큐·루프 끝 \(vbrTotal) · MPEG 칸 일치 \(vbrSame) · 파일 없음·못 읽음 \(vbrMissing)곡")
-        vbrSamples.forEach { print("  ", $0) }
+        print("VBR MP3: 큐·루프 끝 MPEG 어긋남 \(vbrDiffer)")
+        if vbrMissing > 0 { print("파일 없음·못 읽음으로 비교하지 못한 MP3가 있습니다") }
     }
 
     /// 라이브러리의 모든 contentCue JSON을 읽고 다시 써서 원문과 같은지(읽기 전용)

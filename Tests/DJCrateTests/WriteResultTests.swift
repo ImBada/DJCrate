@@ -149,7 +149,7 @@ struct WriteResultTests {
         await coordinator.write(rows: [Fixture.row("a")])
         host.toast = nil
         #expect(host.resultHistory.latest?.kind == .failure)
-        #expect(host.resultHistory.latest?.text == "미리 보기 실패")
+        #expect(host.resultHistory.latest?.text == "디스크 공간과 권한을 확인한 뒤 다시 시도하세요.")
     }
 
     @Test func 알림은_주입한_한_함수로_제목과_설명을_보낸다() {
