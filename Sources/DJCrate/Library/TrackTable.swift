@@ -355,7 +355,7 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
         guard let table else { return [] }
         let clicked = table.clickedRow
         let indexes = clicked >= 0 && !table.selectedRowIndexes.contains(clicked) ? IndexSet(integer: clicked) : table.selectedRowIndexes
-        return indexes.compactMap { rows.indices.contains($0) ? rows[$0] : nil }
+        return store.uniqueTracks(indexes.compactMap { rows.indices.contains($0) ? rows[$0] : nil })
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -513,7 +513,7 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
 
     private func configure(_ cell: TextCell, column: String, row: TrackRow, index: Int) {
         switch column {
-        case "index": cell.set("\(index + 1)", color: .tertiaryLabelColor, digits: true)
+        case "index": cell.set("\(row.historyTrackNumber ?? (index + 1))", color: .tertiaryLabelColor, digits: true)
         case "title": cell.set(row.title, color: .labelColor)
         case "artist": cell.set(row.artist, color: .secondaryLabelColor)
         case "genre": cell.set(row.genre, color: .secondaryLabelColor)
