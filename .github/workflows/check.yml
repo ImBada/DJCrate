@@ -23,8 +23,6 @@ jobs:
         shell: bash
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.app/Contents/Developer
-      DJC_HOME: ${{ runner.temp }}/djc-home
-      DJC_REKORDBOX_DIR: ${{ runner.temp }}/rekordbox-fixture
     steps:
       - name: 소스 받기
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -46,7 +44,13 @@ jobs:
             exit 1
           fi
           echo "cache-key=$(shasum -a 256 "$RUNNER_TEMP/djc-toolchain.txt" | cut -d ' ' -f1)" >> "$GITHUB_OUTPUT"
+          DJC_HOME="$RUNNER_TEMP/djc-home"
+          DJC_REKORDBOX_DIR="$RUNNER_TEMP/rekordbox-fixture"
           mkdir -p "$DJC_HOME" "$DJC_REKORDBOX_DIR"
+          {
+            echo "DJC_HOME=$DJC_HOME"
+            echo "DJC_REKORDBOX_DIR=$DJC_REKORDBOX_DIR"
+          } >> "$GITHUB_ENV"
 
       - name: SwiftPM 빌드 캐시
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
