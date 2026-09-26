@@ -1,0 +1,267 @@
+import AppKit
+import DJCDomain
+import SwiftUI
+
+/// 설정 › 단축키: 덱 동작마다 키를 눌러 다시 지정한다. 키는 자리(키 코드)로 기억해 한글 입력기에서도 같다.
+/// 키를 누르면 바꾸고, +로 더하고, 오른쪽 클릭으로 뺀다. 겹친 키는 경고하고, 목록 위쪽 동작이 받는다.
+struct ShortcutSettingsView: View {
+    @Bindable var deck: DeckModel
+    /// 키를 기다리는 자리: 그 동작의 키 하나를 바꾸거나(`replacing`) 새로 더한다(nil).
+    @State private var recording: Recording?
+    @State private var message: Message?
+
+    struct Recording: Equatable {
+        var action: DeckAction
+        var replacing: UInt16?
+    }
+
+    struct Message: Equatable {
+        var text: String
+        var isWarning: Bool
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Form {
+                if !deck.shortcuts.conflicts.isEmpty {
+                    Section { conflictBanner }
+                }
+                ForEach(DeckAction.Group.allCases, id: \.self) { group in
+                    Section(group.title) {
+                        ForEach(DeckAction.allCases.filter { $0.group == group }, id: \.self) { action in
+                            row(action)
+                        }
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            Divider()
+            footer.padding(12)
+        }
+        .frame(width: 640, height: 620)
+    }
+
+    // MARK: 줄
+
+    private func row(_ action: DeckAction) -> some View {
+        LabeledContent {
+            HStack(spacing: 6) {
+                ForEach(deck.shortcuts.keys(for: action), id: \.self) { key in
+                    if recording == Recording(action: action, replacing: key) {
+                        recorderChip(for: Recording(action: action, replacing: key))
+                    } else {
+                        keyChip(key, in: action)
+                    }
+                }
+                if recording == Recording(action: action, replacing: nil) {
+                    recorderChip(for: Recording(action: action, replacing: nil))
+                } else {
+                    Button { start(Recording(action: action, replacing: nil)) } label: { Image(systemName: "plus") }
+                        .buttonStyle(.borderless)
+                        .help("키 더하기")
+                        .accessibilityLabel("\(action.title)에 키 더하기")
+                }
+                Button { reset(action) } label: { Image(systemName: "arrow.uturn.backward") }
+                    .buttonStyle(.borderless)
+                    .help("이 동작만 기본 키로")
+                    .accessibilityLabel("\(action.title) 기본 키로")
+                    .opacity(deck.shortcuts.isStandard(action) ? 0 : 1)
+                    .disabled(deck.shortcuts.isStandard(action))
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(action.title)
+                if let shift = action.shiftTitle {
+                    Text(shift).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func keyChip(_ key: UInt16, in action: DeckAction) -> some View {
+        let others = deck.shortcuts.otherActions(using: key, besides: action)
+        return Button { start(Recording(action: action, replacing: key)) } label: {
+            HStack(spacing: 3) {
+                if !others.isEmpty {
+                    Image(systemName: "exclamationmark.triangle.fill").font(.caption2)
+                }
+                Text(KeyLabel.name(for: key))
+            }
+            .font(.system(.callout, design: .rounded).weight(.semibold))
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .frame(minWidth: 28)
+            .foregroundStyle(others.isEmpty ? Color.primary : UIColors.warning.color)
+            .background(RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(0.08)))
+            .overlay(RoundedRectangle(cornerRadius: 5)
+                .strokeBorder(others.isEmpty ? Color.primary.opacity(0.25) : UIColors.warning.color))
+        }
+        .buttonStyle(.plain)
+        .help(others.isEmpty
+              ? "누르고 새 키를 누르면 바꿉니다(오른쪽 클릭: 빼기)"
+              : "‘\(others.map(\.title).joined(separator: "’, ‘"))’에도 지정된 키입니다. 목록 위쪽 동작이 받습니다")
+        .contextMenu {
+            Button("‘\(KeyLabel.name(for: key))’ 빼기") { remove(key, from: action) }
+        }
+        .accessibilityLabel("\(action.title): \(KeyLabel.name(for: key))")
+        .accessibilityHint("누른 뒤 새 키를 누르면 바꿉니다")
+    }
+
+    private func recorderChip(for target: Recording) -> some View {
+        Text("키를 누르세요…")
+            .font(.callout.weight(.semibold))
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .foregroundStyle(Color.accentColor)
+            .background(RoundedRectangle(cornerRadius: 5).fill(Color.accentColor.opacity(0.15)))
+            .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Color.accentColor))
+            .background(KeyRecorder(onKey: { record($0, $1, for: target) }, onCancel: { cancel(target) }))
+    }
+
+    // MARK: 겹침·안내
+
+    private var conflictBanner: some View {
+        let lines = deck.shortcuts.conflicts
+            .sorted { $0.key < $1.key }
+            .map { "‘\(KeyLabel.name(for: $0.key))’: \($0.value.map(\.title).joined(separator: ", "))" }
+        return Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("겹치는 키가 있습니다. 목록 위쪽 동작만 받습니다.").bold()
+                ForEach(lines, id: \.self) { Text($0).font(.callout) }
+            }
+        } icon: {
+            Image(systemName: "exclamationmark.triangle.fill")
+        }
+        .foregroundStyle(UIColors.warning.color)
+    }
+
+    private var footer: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                if let message {
+                    Text(message.text)
+                        .foregroundStyle(message.isWarning ? UIColors.warning.color : Color.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text("Shift는 핫큐·메모리 큐 지우기에 씁니다. ⌘·⌃·⌥ 조합(메뉴·실행 취소 ⌘Z)과 Return·Esc·Tab·↑↓·Home·End·Page Up/Down(곡 고르기·칸 나가기)은 지정할 수 없습니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            Button("모두 기본값으로") {
+                recording = nil
+                message = nil
+                deck.shortcuts.resetAll()
+            }
+            .disabled(deck.shortcuts.isStandard)
+        }
+    }
+
+    // MARK: 동작
+
+    private func start(_ target: Recording) {
+        recording = target
+        message = Message(text: "‘\(target.action.title)’에 쓸 키를 누르세요(Esc: 취소).", isWarning: false)
+    }
+
+    /// 다른 칸을 눌러 새로 기다리기 시작한 뒤 늦게 온 취소는 무시한다.
+    private func cancel(_ target: Recording) {
+        guard recording == target else { return }
+        recording = nil
+        message = nil
+    }
+
+    private func record(_ keyCode: UInt16, _ modifiers: NSEvent.ModifierFlags, for target: Recording) {
+        guard recording == target else { return }
+        let name = KeyLabel.name(for: keyCode)
+        guard modifiers.intersection([.command, .control, .option]).isEmpty else {
+            message = Message(text: "⌘·⌃·⌥ 조합은 메뉴 단축키와 겹쳐 쓸 수 없습니다. 키 하나만 누르세요.", isWarning: true)
+            return
+        }
+        var shortcuts = deck.shortcuts
+        do {
+            if let old = target.replacing {
+                try shortcuts.replace(old, with: keyCode, in: target.action)
+            } else {
+                try shortcuts.add(keyCode, to: target.action)
+            }
+        } catch {
+            // 기록은 이어 가서 다른 키를 바로 누를 수 있게 한다.
+            message = Message(text: "‘\(name)’ 키는 곡 고르기·칸 나가기에 써서 지정할 수 없습니다. 다른 키를 누르세요.", isWarning: true)
+            return
+        }
+        deck.shortcuts = shortcuts
+        recording = nil
+        let others = shortcuts.otherActions(using: keyCode, besides: target.action)
+        message = others.isEmpty
+            ? nil
+            : Message(text: "‘\(name)’ 키는 ‘\(others.map(\.title).joined(separator: "’, ‘"))’에도 지정돼 있습니다. 목록 위쪽 동작이 받으니 한쪽을 바꾸세요.",
+                      isWarning: true)
+    }
+
+    private func remove(_ key: UInt16, from action: DeckAction) {
+        recording = nil
+        deck.shortcuts.remove(key, from: action)
+        message = deck.shortcuts.keys(for: action).isEmpty
+            ? Message(text: "‘\(action.title)’에 키가 없습니다. +로 더하거나 되돌리기를 누르세요.", isWarning: false)
+            : nil
+    }
+
+    private func reset(_ action: DeckAction) {
+        recording = nil
+        message = nil
+        deck.shortcuts.reset(action)
+    }
+}
+
+/// 키를 기다리는 동안 첫 응답자가 되어 키 하나를 받는다(키 코드와 조합 키). Esc나 다른 곳을 누르면 취소.
+/// ⌘ 조합은 메뉴가 먼저 받는다(설정 창을 닫는 ⌘W 등이 그대로 동작한다).
+private struct KeyRecorder: NSViewRepresentable {
+    var onKey: (UInt16, NSEvent.ModifierFlags) -> Void
+    var onCancel: () -> Void
+
+    func makeNSView(context: Context) -> CaptureView {
+        let view = CaptureView()
+        view.onKey = onKey
+        view.onCancel = onCancel
+        return view
+    }
+
+    func updateNSView(_ view: CaptureView, context: Context) {
+        view.onKey = onKey
+        view.onCancel = onCancel
+    }
+
+    final class CaptureView: NSView {
+        var onKey: ((UInt16, NSEvent.ModifierFlags) -> Void)?
+        var onCancel: (() -> Void)?
+
+        override var acceptsFirstResponder: Bool { true }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window else { return }
+            // 뷰를 붙이는 중에 응답자를 바꾸면 SwiftUI 갱신과 겹친다. 다음 차례에 잡는다.
+            Task { @MainActor [weak self] in
+                guard let self, self.window === window else { return }
+                window.makeFirstResponder(self)
+            }
+        }
+
+        override func keyDown(with event: NSEvent) {
+            if event.keyCode == 53 {   // Esc
+                onCancel?()
+            } else {
+                onKey?(event.keyCode, event.modifierFlags)
+            }
+        }
+
+        override func resignFirstResponder() -> Bool {
+            let resigned = super.resignFirstResponder()
+            if resigned {
+                let cancel = onCancel
+                Task { @MainActor in cancel?() }
+            }
+            return resigned
+        }
+    }
+}

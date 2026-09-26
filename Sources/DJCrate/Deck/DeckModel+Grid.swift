@@ -150,9 +150,9 @@ extension DeckModel {
     func reanalyze() {
         guard let uuid = row?.track.uuid else { return }
         AnalysisCache.removeAll(key: uuid)
-        var dismissed = storage.settings.strings("dismissedGridSuggestions")
+        var dismissed = storage.settings.strings(SettingKeys.dismissedGridSuggestions)
         dismissed.remove(uuid)
-        storage.settings.setStrings("dismissedGridSuggestions", dismissed)
+        storage.settings.setStrings(SettingKeys.dismissedGridSuggestions, dismissed)
         reload()
         showToast("다시 분석합니다")
     }
@@ -160,25 +160,25 @@ extension DeckModel {
     /// 무시한 제안을 다시 보인다.
     func restoreGridSuggestion() {
         guard let uuid = row?.track.uuid else { return }
-        var dismissed = storage.settings.strings("dismissedGridSuggestions")
+        var dismissed = storage.settings.strings(SettingKeys.dismissedGridSuggestions)
         dismissed.remove(uuid)
-        storage.settings.setStrings("dismissedGridSuggestions", dismissed)
+        storage.settings.setStrings(SettingKeys.dismissedGridSuggestions, dismissed)
         refreshSuggestionNote()
     }
 
     /// 이 곡의 그리드 제안을 더는 보이지 않게 한다(곡마다 기억).
     func dismissGridSuggestion() {
         guard let uuid = row?.track.uuid else { return }
-        var dismissed = storage.settings.strings("dismissedGridSuggestions")
+        var dismissed = storage.settings.strings(SettingKeys.dismissedGridSuggestions)
         dismissed.insert(uuid)
-        storage.settings.setStrings("dismissedGridSuggestions", dismissed)
+        storage.settings.setStrings(SettingKeys.dismissedGridSuggestions, dismissed)
         dismissedRevision += 1
     }
 
 
     var isGridSuggestionDismissed: Bool {
         guard let uuid = row?.track.uuid else { return false }
-        return storage.settings.strings("dismissedGridSuggestions").contains(uuid)
+        return storage.settings.strings(SettingKeys.dismissedGridSuggestions).contains(uuid)
     }
 
 

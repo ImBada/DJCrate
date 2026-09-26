@@ -34,57 +34,75 @@ final class DeckModel {
     var isPlaying = false {
         didSet { if !isPlaying, displayTime != playhead { displayTime = playhead } }
     }
-    var zoomSeconds: Double = 16 { didSet { storage.settings.set("zoomSeconds", zoomSeconds) } }
+    var zoomSeconds: Double = 16 { didSet { storage.settings.set(SettingKeys.zoomSeconds, zoomSeconds) } }
     /// CDJ식 메인 CUE 지점. 곡을 불러오면 첫 메모리 큐(없으면 0초)에 놓인다. 초안·rekordbox에는 쓰지 않는다.
     var cuePoint: Double = 0
     /// CUE를 누르고 있는 동안의 미리 듣기.
     var isCuePreviewing = false
     var placeAtFirstMemoryCue = false
-    var quantize = true { didSet { storage.settings.set("quantize", quantize) } }
+    var quantize = true { didSet { storage.settings.set(SettingKeys.quantize, quantize) } }
     /// 그리드를 고칠 때 큐(핫큐·메모리 큐·루프)도 같은 박을 따라 옮긴다.
-    var carryCues = true { didSet { storage.settings.set("carryCues", carryCues) } }
+    var carryCues = true { didSet { storage.settings.set(SettingKeys.carryCues, carryCues) } }
     var showSuggestions = true {
-        didSet { storage.settings.set("showSuggestions", showSuggestions); refreshSuggestions() }
+        didSet { storage.settings.set(SettingKeys.showSuggestions, showSuggestions); refreshSuggestions() }
     }
 
     // 재생 설정
     var volume: Double = 0.9 {
-        didSet { audio.volume = Float(volume); storage.settings.set("volume", volume) }
+        didSet { audio.volume = Float(volume); storage.settings.set(SettingKeys.volume, volume) }
     }
     var metronome = false { didSet { audio.metronome = metronome } }
+    /// 메트로놈 소리 크기(0~1). 설정 창 컨트롤이 같은 값을 다시 넣을 때는 저장하지 않는다.
+    var metronomeVolume = SettingKeys.metronomeVolume.defaultValue {
+        didSet {
+            guard metronomeVolume != oldValue else { return }
+            audio.metronomeVolume = Float(metronomeVolume)
+            storage.settings.set(SettingKeys.metronomeVolume, metronomeVolume)
+        }
+    }
+    /// 재생을 멈춘 뒤 오디오 엔진을 끄기까지(초)
+    var idleSeconds = SettingKeys.idleSeconds.defaultValue {
+        didSet {
+            guard idleSeconds != oldValue else { return }
+            audio.idleSeconds = idleSeconds
+            storage.settings.set(SettingKeys.idleSeconds, idleSeconds)
+        }
+    }
+    /// 덱 단축키(키 위치 → 동작). 설정 창에서 바꾸고 KeyRouter가 읽는다.
+    var shortcuts = DeckShortcuts.standard { didSet { storage.settings.shortcuts = shortcuts } }
     /// 재생 속도(%). rekordbox 템포 슬라이더와 같은 의미.
     var tempoPercent: Double = 0 { didSet { audio.rate = 1 + tempoPercent / 100 } }
-    var keyLock = true { didSet { audio.keyLock = keyLock; storage.settings.set("keyLock", keyLock) } }
+    var keyLock = true { didSet { audio.keyLock = keyLock; storage.settings.set(SettingKeys.keyLock, keyLock) } }
 
     // MARK: 상태(역할별 파일에서 쓰는 저장값)
 
     /// 곡마다 통합 음량을 목표에 맞춘다.
-    var autoGain = true { didSet { storage.settings.set("autoGain", autoGain); applyGain() } }
+    var autoGain = true { didSet { storage.settings.set(SettingKeys.autoGain, autoGain); applyGain() } }
 
     /// 오토게인 목표(LUFS)
-    var gainTarget: Double = -10 { didSet { storage.settings.set("gainTarget", gainTarget); applyGain() } }
+    var gainTarget: Double = -10 { didSet { storage.settings.set(SettingKeys.gainTarget, gainTarget); applyGain() } }
 
     /// 피크가 0dBFS를 넘지 않을 만큼만 올린다.
     var peakProtection = true {
-        didSet { storage.settings.set("peakProtection", peakProtection); applyGain() }
+        didSet { storage.settings.set(SettingKeys.peakProtection, peakProtection); applyGain() }
     }
 
     /// 수동 트림(dB). 오토게인 위에 더한다.
-    var gainTrim: Double = 0 { didSet { storage.settings.set("gainTrim", gainTrim); applyGain() } }
+    var gainTrim: Double = 0 { didSet { storage.settings.set(SettingKeys.gainTrim, gainTrim); applyGain() } }
 
     /// 지금 곡의 음량(메모리 디코딩 뒤 측정, 다음부터는 캐시)
     var loudness: Loudness?
 
     /// rekordbox 오토게인을 그대로 쓴다(없으면 DJCrate 측정으로 계산).
     var useRekordboxGain = true {
-        didSet { storage.settings.set("useRekordboxGain", useRekordboxGain); applyGain() }
+        didSet { storage.settings.set(SettingKeys.useRekordboxGain, useRekordboxGain); applyGain() }
     }
 
     /// 이 곡의 오토게인 초안(dB). rekordbox에 반영하면 rekordbox 오토게인이 이 값이 된다.
     var gainDraft: Double?
 
     var dismissedGainSuggestions: Set<String> = [] {
-        didSet { storage.settings.setStrings("dismissedGainSuggestions", dismissedGainSuggestions) }
+        didSet { storage.settings.setStrings(SettingKeys.dismissedGainSuggestions, dismissedGainSuggestions) }
     }
 
     /// 곡 안의 조표 구간(rekordbox 시간축). 주 조표는 rekordbox 키에 맞춘다.
@@ -209,20 +227,25 @@ final class DeckModel {
         self.runsAnalysis = runsAnalysis
         // 설정은 저장소에서 읽는다(여기서 넣는 값은 didSet이 돌지 않아 다시 저장하지 않는다).
         let settings = storage.settings
-        zoomSeconds = settings.double("zoomSeconds", 16)
-        quantize = settings.bool("quantize", true)
-        carryCues = settings.bool("carryCues", true)
-        showSuggestions = settings.bool("showSuggestions", true)
-        volume = settings.double("volume", 0.9)
-        keyLock = settings.bool("keyLock", true)
-        autoGain = settings.bool("autoGain", true)
-        gainTarget = settings.double("gainTarget", -10)
-        peakProtection = settings.bool("peakProtection", true)
-        gainTrim = settings.double("gainTrim", 0)
-        useRekordboxGain = settings.bool("useRekordboxGain", true)
-        dismissedGainSuggestions = settings.strings("dismissedGainSuggestions")
+        zoomSeconds = settings.value(SettingKeys.zoomSeconds)
+        quantize = settings.value(SettingKeys.quantize)
+        carryCues = settings.value(SettingKeys.carryCues)
+        showSuggestions = settings.value(SettingKeys.showSuggestions)
+        volume = settings.value(SettingKeys.volume)
+        keyLock = settings.value(SettingKeys.keyLock)
+        metronomeVolume = settings.value(SettingKeys.metronomeVolume)
+        idleSeconds = settings.value(SettingKeys.idleSeconds)
+        shortcuts = settings.shortcuts
+        autoGain = settings.value(SettingKeys.autoGain)
+        gainTarget = settings.value(SettingKeys.gainTarget)
+        peakProtection = settings.value(SettingKeys.peakProtection)
+        gainTrim = settings.value(SettingKeys.gainTrim)
+        useRekordboxGain = settings.value(SettingKeys.useRekordboxGain)
+        dismissedGainSuggestions = settings.strings(SettingKeys.dismissedGainSuggestions)
         audio.volume = Float(volume)
         audio.keyLock = keyLock
+        audio.metronomeVolume = Float(metronomeVolume)
+        audio.idleSeconds = idleSeconds
         audio.onChroma = { [weak self] chroma in
             guard let self, let row = self.row, !row.track.isStreaming else { return }
             AnalysisCache.store(chroma, key: row.track.uuid, file: URL(filePath: row.track.folderPath))

@@ -11,8 +11,8 @@ struct ContentView: View {
     @Bindable var store: LibraryStore
     @Bindable var deck: DeckModel
     @State private var showTagEditor = false
-    @AppStorage("waveformHeight") private var waveformHeight: Double = 150
-    @AppStorage("sheetMode") private var sheetMode = false
+    @AppStorage(SettingKeys.waveformHeight.name) private var waveformHeight = SettingKeys.waveformHeight.defaultValue
+    @AppStorage(SettingKeys.sheetMode.name) private var sheetMode = SettingKeys.sheetMode.defaultValue
     @State private var keys = KeyRouter()
 
     var body: some View {
