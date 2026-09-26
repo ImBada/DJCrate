@@ -171,7 +171,9 @@ struct ContentView: View {
                 deck.refreshAfterWrite(store?.rowsByUUID[uuid])
             }
             keys.install(deck: deck)
+            #if DEBUG
             DevSelfTests.runIfRequested(store: store, deck: deck)
+            #endif
             deck.onDraftChange = { [weak store] uuid, kind, exists in
                 store?.draftChanged(trackUUID: uuid, kind: kind, exists: exists)
             }

@@ -1,9 +1,10 @@
 import Foundation
 import QuartzCore
 
-/// 개발용 성능 기록(`--scroll-perf`일 때만). 재생 화면 갱신 간격과 파형 그리기 시간을 잰다.
+/// 개발용 성능 기록(디버그 빌드의 `--scroll-perf`일 때만). 재생 화면 갱신 간격과 파형 그리기 시간을 잰다.
 @MainActor
 enum PerfProbe {
+    #if DEBUG
     static let enabled = ProcessInfo.processInfo.arguments.contains("--scroll-perf")
     /// A/B: 확대 파형 막대를 그리지 않는다
     static let skipBands = ProcessInfo.processInfo.arguments.contains("--skip-bands")
@@ -13,6 +14,12 @@ enum PerfProbe {
         guard let arg = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--perf-hide=") }) else { return [] }
         return Set(arg.dropFirst("--perf-hide=".count).components(separatedBy: ","))
     }()
+    #else
+    // 릴리스 빌드에서는 늘 꺼져 있다(부르는 쪽은 그대로 두고 아무 일도 하지 않는다).
+    static let enabled = false
+    static let skipBands = false
+    static let hidden: Set<String> = []
+    #endif
 
     private static var ticks: [Double] = []
     private static var draws: [Double] = []

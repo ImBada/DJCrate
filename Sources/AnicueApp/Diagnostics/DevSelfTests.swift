@@ -7,6 +7,8 @@ import AnicueDomain
 import AnicueStorage
 import Foundation
 
+// 개발용 자가 시험은 디버그 빌드에만 들어간다(설치하는 릴리스 앱에는 없다).
+#if DEBUG
 /// 개발용: 곡을 바꿔 가며 재생하는 흐름을 그대로 재현한다(`--switch-selftest`, 음량은 −70dB).
 /// 결과는 `~/Library/Logs/anicue/audio.log`와 표준 오류에 남는다.
 @MainActor
@@ -14,7 +16,6 @@ enum DevSelfTests {
     static func runIfRequested(store: LibraryStore, deck: DeckModel) {
         runWriteSelfTestIfRequested(store: store, deck: deck)
         runLoopSelfTestIfRequested(deck: deck)
-        runCarrySelfTestIfRequested(deck: deck)
         runScrollPerfIfRequested(deck: deck)
         runLoopAudioSelfTestIfRequested()
         runMetronomeSelfTestIfRequested()
@@ -214,57 +215,6 @@ enum DevSelfTests {
         }
     }
 
-    /// 개발용: 그리드를 옮기거나 BPM을 바꿀 때 핫큐가 따라가는지(`--carry-selftest`, 초안은 ANICUE_HOME 사본에만).
-    static func runCarrySelfTestIfRequested(deck: DeckModel) {
-        guard ProcessInfo.processInfo.arguments.contains("--carry-selftest") else { return }
-        func log(_ text: String) { FileHandle.standardError.write(Data("[핫큐 따라가기 시험] \(text)\n".utf8)) }
-        Task {
-            func wait(_ seconds: Double) async { try? await Task.sleep(for: .seconds(seconds)) }
-            for _ in 0..<100 where deck.draft == nil || !deck.canEditGrid || deck.grid == nil { await wait(0.1) }
-            guard let draft = deck.draft, deck.canEditGrid, let grid = deck.grid else { log("그리드 편집 불가"); exit(1) }
-            let hots = draft.cues.filter { if case .hot = $0.kind { true } else { false } }
-            let memories = draft.cues.filter { $0.kind == .memory }
-            guard !hots.isEmpty else { log("핫큐 없음"); exit(1) }
-            @MainActor func time(_ cue: EditableCue) -> Double { deck.cue(cue.id)?.time ?? .nan }
-            let onBeat = hots.filter { abs(grid.snap($0.time) - $0.time) < 0.002 }
-            log("핫큐 \(hots.count)개(박 위 \(onBeat.count)) · 메모리 큐 \(memories.count)개 · BPM \(deck.gridBPM ?? 0)")
-            deck.carryCues = true
-            deck.gridEditing = true
-
-            deck.shiftGrid(ms: 10)
-            let shifted = hots.allSatisfy { abs(time($0) - ($0.time + 0.010)) < 0.0006 }
-            let memoriesStill = memories.allSatisfy { abs(time($0) - ($0.time + 0.010)) < 0.0006 }
-            log("10ms 이동: 핫큐 +10ms \(shifted) · 메모리 큐도 +10ms \(memoriesStill)")
-
-            deck.nudgeGridBPM(0.5)
-            let newGrid = deck.grid!
-            let stillOnBeat = onBeat.allSatisfy { abs(newGrid.snap(time($0)) - time($0)) < 0.002 }
-            let far = onBeat.max { $0.time < $1.time }
-            log(String(format: "BPM +0.5: 박 위 핫큐가 새 박 위에 %@ · 가장 뒤 핫큐 %.3f → %.3f초", stillOnBeat ? "있음" : "없음!",
-                       far?.time ?? 0, far.map(time) ?? 0))
-
-            deck.revertGrid()
-            let reverted = hots.allSatisfy { abs(time($0) - $0.time) < 0.0015 }
-            log("되돌리기: 핫큐 원래 자리 \(reverted)")
-
-            deck.beginGridDrag(); deck.dragGrid(by: 0.02); deck.dragGrid(by: 0.035); deck.endGridDrag()
-            let dragged = hots.allSatisfy { abs(time($0) - ($0.time + 0.035)) < 0.0006 }
-            log("35ms 끌기: 핫큐 +35ms \(dragged)")
-            deck.revertGrid()
-
-            deck.carryCues = false
-            deck.shiftGrid(ms: 10)
-            let untouched = hots.allSatisfy { abs(time($0) - $0.time) < 0.0015 }
-            log("토글 끔 → 10ms 이동: 핫큐 그대로 \(untouched)")
-            deck.revertGrid()
-            deck.gridEditing = false
-
-            let ok = shifted && memoriesStill && stillOnBeat && reverted && dragged && untouched
-            log(ok ? "통과" : "실패")
-            exit(ok ? 0 : 1)
-        }
-    }
-
     /// 개발용: 재생 중에 곡 목록을 스크롤할 때 파형 갱신이 끊기는지 잰다(`--scroll-perf`).
     static func runScrollPerfIfRequested(deck: DeckModel) {
         guard PerfProbe.enabled else { return }
@@ -453,3 +403,4 @@ final class Captured: @unchecked Sendable {
     func append(_ values: [Int]) { lock.lock(); storage += values; lock.unlock() }
     var values: [Int] { lock.lock(); defer { lock.unlock() }; return storage }
 }
+#endif

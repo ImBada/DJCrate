@@ -5,6 +5,8 @@ import AppKit
 import Foundation
 import RekordboxKit
 
+// 개발용 자가 시험은 디버그 빌드에만 들어간다(설치하는 릴리스 앱에는 없다).
+#if DEBUG
 /// 개발용 자가 테스트(실행 인자로만 돈다)
 extension DeckModel {
     /// 개발용: `--grid-edit`, `--autoplay [--muted|--quiet] [--metronome]`
@@ -212,3 +214,4 @@ extension DeckModel {
         try? await Task.sleep(for: .seconds(seconds))
     }
 }
+#endif

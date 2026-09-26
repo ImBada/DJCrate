@@ -376,7 +376,9 @@ final class DeckModel {
                 guard !Task.isCancelled, self.row?.id == id else { return }
                 self.waveformError = "파형을 만들지 못했습니다: \(error.localizedDescription)"
             }
+            #if DEBUG
             self.applyLaunchFlags()
+            #endif
 
             // 3) 음악 분석(약 5초): 같은 곡에 1초 머문 뒤에만 시작하고, 곡을 넘기면 취소된다.
             try? await Task.sleep(for: .seconds(1))

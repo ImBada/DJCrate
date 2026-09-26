@@ -181,6 +181,42 @@ struct DeckGridGainTests {
         #expect(abs((h.deck.hotCue(slot: 0)?.time ?? 0) - 20.51) < 1e-6, "끄면 그대로")
     }
 
+    @Test func BPM을_바꾸면_박_위_큐는_새_박_위에_남는다() async throws {
+        let h = try DeckHarness()
+        try await h.loaded()
+        h.deck.seek(60.5)
+        h.deck.pressHotCue(slot: 0)
+        h.deck.addMemoryCue(at: 90.5)
+        h.deck.nudgeGridBPM(0.5)
+        let grid = try #require(h.deck.grid)
+        for time in [h.deck.hotCue(slot: 0)?.time, h.deck.draft?.cues.first { $0.kind == .memory }?.time] {
+            let t = try #require(time)
+            #expect(abs(grid.snap(t) - t) < 0.002, "새 박 위: \(t)")
+        }
+        #expect((h.deck.hotCue(slot: 0)?.time ?? 99) < 60.5, "BPM이 빨라지면 뒤쪽 박은 앞으로 온다")
+    }
+
+    @Test func 그리드를_되돌리면_큐도_제자리로() async throws {
+        let original = [GridSegment(start: 0.5, bpm: 120, firstBeatNumber: 1)]
+        let h = try DeckHarness(grid: original, gridBase: original)
+        try await h.loaded()
+        h.deck.seek(20.5)
+        h.deck.pressHotCue(slot: 0)
+        h.deck.shiftGrid(ms: 10)
+        h.deck.nudgeGridBPM(0.5)
+        h.deck.revertGrid()
+        #expect(abs((h.deck.hotCue(slot: 0)?.time ?? 0) - 20.5) < 0.0015)
+    }
+
+    @Test func 그리드를_끌면_큐가_마지막_위치만큼_따라간다() async throws {
+        let h = try DeckHarness()
+        try await h.loaded()
+        h.deck.seek(20.5)
+        h.deck.pressHotCue(slot: 0)
+        h.deck.beginGridDrag(); h.deck.dragGrid(by: 0.02); h.deck.dragGrid(by: 0.035); h.deck.endGridDrag()
+        #expect(abs((h.deck.hotCue(slot: 0)?.time ?? 0) - 20.535) < 0.0006)
+    }
+
     @Test func 곡_게인_초안은_rekordbox와_같으면_지운다() async throws {
         let gain = RekordboxAutoGain(gain: pow(10, -3.0 / 20), peak: 0.9)
         let h = try DeckHarness(autoGain: gain)
