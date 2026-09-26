@@ -77,8 +77,15 @@ enum PlaylistLab {
             }
         }
         let digest = hasher.finalize().prefix(6).map { String(format: "%02x", $0) }.joined()
-        let local = try RekordboxCompatibility.updateCounters(db).local
+        let local = try localUpdateCount(copy)
         return "변경 카운터 \(local.map(String.init) ?? "없음") · 재생 목록 \(digest)"
+    }
+
+    private static func localUpdateCount(_ snapshot: URL) throws -> Int? {
+        // 진단 연결의 인증 표 차단은 유지하고, 고정된 두 카운터의 정수 칸만 별도로 읽는다.
+        let db = try CipherDatabase(path: snapshot.path, key: RekordboxKey.derive())
+        defer { db.close() }
+        return try RekordboxCompatibility.updateCounters(db).local
     }
 
     // MARK: - 사본 재현
@@ -108,7 +115,7 @@ enum PlaylistLab {
             playlists = try rows(db, "djmdPlaylist")
             entries = try rows(db, "djmdSongPlaylist")
             mirrors = try rows(db, "djmdCloudFilterPlaylist")
-            counter = try RekordboxCompatibility.updateCounters(db).local
+            counter = try PlaylistLab.localUpdateCount(url)
         }
 
         /// 목록 ID → 이름 경로("DJC 실험/DJC 폴더 가/가1"). 새로 만든 목록은 ID가 달라 이 경로로 짝짓는다.

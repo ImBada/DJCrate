@@ -55,6 +55,22 @@ struct LabCredentialTests {
         #expect(output.contains("djmdCue 최대 usn"))
     }
 
+    @Test func 재생_목록_감시는_인증값_없이_변경_카운터를_구분한다() throws {
+        let fixture = try fixture()
+        let before = try PlaylistLab.fingerprint(fixture.database)
+        #expect(before.contains("변경 카운터 1000"))
+        try fixture.execute("UPDATE agentRegistry SET int_1 = 1001 WHERE registry_id = 'localUpdateCount'")
+        let after = try PlaylistLab.fingerprint(fixture.database)
+        #expect(after.contains("변경 카운터 1001"))
+        #expect(before != after)
+        #expect(!before.contains(marker) && !after.contains(marker))
+    }
+
+    @Test func 재생_목록_재현은_안전한_변경_카운터를_읽는다() throws {
+        let fixture = try fixture()
+        #expect(try PlaylistLab.Library(fixture.database).counter == 1000)
+    }
+
     @Test(arguments: ["SELECT * FROM agentRegistry", "SELECT * FROM cloudAgentRegistry", "SELECT * FROM harmless_view", "SELECT * FROM harmless_data"])
     func SQL은_직접_조회와_뷰를_통한_인증값_조회도_막는다(_ sql: String) throws {
         let fixture = try fixture()
