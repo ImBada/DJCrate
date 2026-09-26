@@ -186,7 +186,7 @@ struct ListActionBar: View {
             Spacer(minLength: 0)
         }
         .controlSize(.small)
-        .padding(.horizontal, 12)
+        .padding(.horizontal, Spacing.edge)
         .padding(.vertical, 6)
     }
 }

@@ -35,8 +35,13 @@ struct TagSheetView: NSViewRepresentable {
             tableColumn.title = column.title
             tableColumn.width = column.width
             tableColumn.minWidth = 30
+            if column.key != nil {
+                tableColumn.sortDescriptorPrototype = NSSortDescriptor(key: column.id, ascending: true)
+            }
             table.addTableColumn(tableColumn)
         }
+        table.autosaveName = "djc.tagSheet.v1"
+        table.autosaveTableColumns = true
         let scroll = NSScrollView()
         scroll.documentView = table
         scroll.hasVerticalScroller = true
@@ -94,6 +99,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
     private var editingOriginal = ""
     private var textScale = 1.0
     private var font = SheetCell.font(scale: 1)
+    private var syncingSort = false
 
     init(store: LibraryStore) {
         self.store = store
@@ -112,6 +118,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
 
     func update(rows: [TrackRow], revision: Int) {
         defer { table?.updateFillDownCommand() }
+        applySortIndicator()
         let ids = rows.map(\.id)
         if ids != rowIDs {
             // 줄이 바뀌면(필터·정렬·검색) 편집 중인 셀을 먼저 취소한다. 편집 위치가 인덱스라
@@ -135,6 +142,27 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
     }
 
     func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
+
+    func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
+        guard !syncingSort, let descriptor = tableView.sortDescriptors.first,
+              let key = descriptor.key, SheetColumn.all.contains(where: { $0.id == key && $0.key != nil }),
+              let comparator = TrackColumn.comparator(key: key, ascending: descriptor.ascending) else { return }
+        finishEditing(commit: true, then: nil)
+        store.sortOrder = [comparator]
+    }
+
+    private func applySortIndicator() {
+        guard let table else { return }
+        let wanted: [NSSortDescriptor] = store.sortOrder.first.flatMap { comparator in
+            guard let key = TrackColumn.sortKey(of: comparator.keyPath),
+                  SheetColumn.all.contains(where: { $0.id == key && $0.key != nil }) else { return nil }
+            return [NSSortDescriptor(key: key, ascending: comparator.order == .forward)]
+        } ?? []
+        guard table.sortDescriptors != wanted else { return }
+        syncingSort = true
+        table.sortDescriptors = wanted
+        syncingSort = false
+    }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         guard let tableColumn, let column = tableView.tableColumns.firstIndex(of: tableColumn) else { return nil }
@@ -549,7 +577,7 @@ final class SheetCell: NSTableCellView {
         label.lineBreakMode = .byTruncatingTail
         label.font = Self.font(scale: 1)
         label.cell?.usesSingleLineMode = true
-        label.cell?.isScrollable = true
+        label.cell?.isScrollable = false
         addSubview(label)
         textField = label
         draftMark.translatesAutoresizingMaskIntoConstraints = false
@@ -576,6 +604,7 @@ final class SheetCell: NSTableCellView {
 
     func configure(text: String, edited: Bool, readOnly: Bool, selected: Bool, active: Bool) {
         if label.currentEditor() == nil { label.stringValue = text }
+        toolTip = text
         self.edited = edited
         self.readOnly = readOnly
         self.selected = selected
@@ -616,6 +645,7 @@ final class SheetCell: NSTableCellView {
     }
 
     func beginEditing(text: String) {
+        label.cell?.isScrollable = true
         label.isEditable = true
         label.isSelectable = true
         label.drawsBackground = true
@@ -626,6 +656,8 @@ final class SheetCell: NSTableCellView {
     }
 
     func endEditing() {
+        label.cell?.isScrollable = false
+        label.lineBreakMode = .byTruncatingTail
         label.isEditable = false
         label.isSelectable = false
         label.drawsBackground = false
