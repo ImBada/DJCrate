@@ -76,6 +76,19 @@ private struct MainWindowFrame: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {}
 
     final class TrackingView: NSView {
+        private weak var sizedSearchField: NSSearchField?
+
+        override func layout() {
+            super.layout()
+            guard let search = window?.toolbar?.items.compactMap({ $0 as? NSSearchToolbarItem }).first,
+                  sizedSearchField !== search.searchField else { return }
+            // 포커스 때만 240pt로 늘어나 이웃 버튼이 밀리지 않게 평상시에도 같은 폭을 확보한다.
+            let width: CGFloat = 240
+            search.preferredWidthForSearchField = width
+            search.searchField.widthAnchor.constraint(equalToConstant: width).isActive = true
+            sizedSearchField = search.searchField
+        }
+
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             // SwiftUI가 기본 크기를 잡은 뒤 저장된 프레임을 적용한다.
