@@ -44,6 +44,22 @@ extension RekordboxWriter {
 
     static func msec(_ seconds: Double) -> Int { Int((seconds * 1000).rounded()) }
 
+    /// 쓴 뒤 rekordbox에 있어야 할 편집 큐. 초안이 바꾸지 않은 큐는 `base`(= 지금 rekordbox 값) 그대로다.
+    /// `CueDraft.changes`는 1ms 미만 차이를 무시하므로(그리드 따라가기로 조금 움직인 큐) 초안 시각을 그대로 반올림하면
+    /// rekordbox 값과 1ms 어긋날 수 있다(#73).
+    public static func expectedCues(after draft: CueDraft) -> [EditableCue] {
+        var replaced: Set<EditableCue.ID> = []
+        var inserted: [EditableCue] = []
+        for change in draft.changes {
+            switch change {
+            case let .removed(old): replaced.insert(old.id)
+            case let .modified(old, new): replaced.insert(old.id); inserted.append(new)
+            case let .added(new): inserted.append(new)
+            }
+        }
+        return draft.base.filter { !replaced.contains($0.id) } + inserted
+    }
+
     /// 큐 목록 비교용 열쇠(순서 무관)
     public static func key(_ cues: [EditableCue], withSource: Bool) -> [String] {
         cues.map { cue in
