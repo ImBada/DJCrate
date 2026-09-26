@@ -64,6 +64,7 @@ enum DevSelfTests {
 
     /// 개발용: 사본 rekordbox 폴더(`DJC_REKORDBOX_DIR`)와 사본 초안(`DJC_HOME`)으로
     /// 미리 보기 → 쓰기 → 다시 읽기 → 되돌리기 → 초안 복구를 앱 흐름 그대로 해 본다(`--write-selftest`).
+    /// 재생 목록 초안도 만들어(맨 위에 폴더 → 그 안에 목록 + 곡, 있던 목록에 곡 하나) 함께 쓰고 되돌린다.
     static func runWriteSelfTestIfRequested(store: LibraryStore, deck: DeckModel) {
         guard ProcessInfo.processInfo.arguments.contains("--write-selftest") else { return }
         func log(_ text: String) { FileHandle.standardError.write(Data("[쓰기 시험] \(text)\n".utf8)) }
@@ -85,12 +86,27 @@ enum DevSelfTests {
             guard loaded() else { log("라이브러리를 읽지 못했습니다"); exit(1) }
             let targets = store.writeTargets(store.rows)
             log("반영 대기 \(store.pendingLibraryCount)곡 · 대상 \(targets.count)곡")
+            // 재생 목록 초안: 새 폴더 안에 새 목록(곡 셋), 있던 목록 하나에 곡 하나
+            let playable = store.rows.filter { !$0.isStaged && !$0.track.isStreaming }
+            let folder = store.createPlaylist(isFolder: true, in: PlaylistLayout.root, name: "DJC 시험 폴더")
+            let list = folder.flatMap { store.createPlaylist(isFolder: false, in: $0, name: "DJC 시험 목록", tracks: Array(playable.prefix(3))) }
+            var extended: (id: String, before: [String], added: String)?
+            if let existing = store.rekordboxPlaylists.outline.first(where: { $0.holdsTracks }),
+               let track = playable.first(where: { !existing.trackIDs.contains($0.track.id) }) {
+                store.addTracks([track], toPlaylist: existing.id)
+                extended = (existing.id, existing.trackIDs, track.track.id)
+            }
+            store.renamingPlaylistID = nil
+            let playlistEdits = store.playlistDraft.edits.count
+            log("재생 목록 초안: 편집 \(playlistEdits)건 · 새 목록 \(list ?? "-") · 있던 목록에 넣기 \(extended == nil ? "없음" : "있음")")
             // 덱에 대상 곡 하나를 올려 둔다(쓴 뒤 덱이 새 큐로 다시 읽는지 본다).
             if let first = targets.first { store.selection = [first.id] }
             await wait(1.5)
             do {
                 store.setWriteLock(true)
-                let preview = try await store.previewWrite(rows: targets)
+                let preview = try await store.previewWrite(rows: targets, playlists: true)
+                log("미리 보기 재생 목록: 씀 \(preview.report.playlistWritten.count)건 · 막힘 \(preview.report.playlistBlocked.count)건")
+                for o in preview.report.playlistBlocked { log("  막힘 \(o.name): \(o.reason ?? "")") }
                 log("미리 보기: 큐 \(preview.report.written.count)곡 · 그리드 \(preview.report.gridWritten.count)곡 · 막힘 큐 \(preview.report.blocked.count) · 그리드 \(preview.report.gridBlocked.count)")
                 for o in preview.report.blocked + preview.report.gridBlocked { log("  막힘 \(o.title): \(o.reason ?? "")") }
                 log("미리 보기 분석 붙이기: \(preview.report.analysisWritten.count)곡 · 막힘 \(preview.report.analysisBlocked.count)")
@@ -109,7 +125,15 @@ enum DevSelfTests {
                 let gainUUIDs = Set(preview.report.gainWritten.map(\.trackUUID))
                 log("미리 보기 게인: \(preview.report.gainWritten.count)곡 · 막힘 \(preview.report.gainBlocked.count)")
                 let report = try await store.writeToRekordbox(preview.drafts.filter { uuids.contains($0.trackUUID) }, grids: grids + attachGrids,
-                                                              gains: preview.gains.filter { gainUUIDs.contains($0.key) })
+                                                              gains: preview.gains.filter { gainUUIDs.contains($0.key) },
+                                                              playlists: preview.report.playlistWritten.isEmpty ? nil : preview.playlists)
+                // 재생 목록: 다시 읽은 rekordbox에 새 폴더·목록(곡 셋)과 넣은 곡이 있고 초안이 비었는지
+                let rekordbox = store.rekordboxPlaylists
+                let newFolder = rekordbox.outline.first { $0.name == "DJC 시험 폴더" && $0.isFolder && $0.parentID == PlaylistLayout.root }
+                let newList = newFolder.flatMap { folder in rekordbox.children(of: folder.id).first { $0.name == "DJC 시험 목록" } }
+                let expectedTracks = Array(playable.prefix(3)).map(\.track.id)
+                let extendedOK = extended.map { rekordbox.item($0.id)?.trackIDs == $0.before + [$0.added] }
+                log("재생 목록 쓰기: \(report.playlistWritten.count)/\(playlistEdits)건 · 새 폴더 \(newFolder == nil ? "없음" : "있음") · 새 목록 곡이 같음 \(newList?.trackIDs == expectedTracks) · 있던 목록 곡 \(extendedOK.map { "\($0)" } ?? "-") · 남은 초안 \(store.playlistDraft.edits.count)건")
                 for outcome in report.gainWritten {
                     let now = store.rowsByUUID[outcome.trackUUID]?.autoGain?.gainDB
                     log(String(format: "게인 쓰기: %@ → 다시 읽은 rekordbox 오토게인 %+.2f dB(초안 %+.2f)", outcome.title, now ?? .nan, Double(outcome.added) / 100))
@@ -160,6 +184,10 @@ enum DevSelfTests {
                        (try? Data(contentsOf: url)) == data { filesRestored += 1 }
                 }
                 log("되돌림 뒤 게인 초안: \(GainDraftStore.all().count)개")
+                let rolledBack = !store.rekordboxPlaylists.outline.contains { $0.name == "DJC 시험 폴더" }
+                let extendedBack = extended.map { store.rekordboxPlaylists.item($0.id)?.trackIDs == $0.before }
+                let redrafted = store.playlistProjection.layout.outline.contains { $0.name == "DJC 시험 목록" && $0.isNew }
+                log("재생 목록 되돌림: rekordbox에서 새 폴더 사라짐 \(rolledBack) · 있던 목록 곡 원래대로 \(extendedBack.map { "\($0)" } ?? "-") · 초안 복구 \(store.playlistDraft.edits.count)/\(report.playlistWritten.count)건 · 초안에 새 목록 \(redrafted)")
                 let createdLeft = createdFiles.filter { FileManager.default.fileExists(atPath: $0.path) }.count
                 log("되돌림: 큐 초안 복구 \(restored)/\(expected.count) · 그리드 초안 복구 \(gridRestored)/\(grids.count + attachGrids.count) · 분석 파일 원본과 같음 \(filesRestored)/\(originals.count) · 붙인 분석 파일 남음 \(createdLeft)/\(createdFiles.count) · 반영 대기 \(store.pendingLibraryCount)곡")
                 log("끝")

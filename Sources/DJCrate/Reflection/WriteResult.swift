@@ -83,6 +83,13 @@ struct WriteResult: Codable, Equatable {
                 }
             }
         }
+        // 재생 목록은 초안 전체를 넘겨 쓰므로 결과가 편집마다 하나씩 있다(쓰지 않았으면 미리 보기 결과).
+        let playlists = report.playlistOutcomes ?? preview.playlistOutcomes ?? []
+        let playlistWritten = playlists.filter { $0.status == .written }.count
+        if playlistWritten > 0 { summaries.append(PlaylistWriteText.summary(playlistWritten)) }
+        count += playlistWritten
+        if playlists.contains(where: { $0.status == .blocked }) { blocked = true }
+        lines += playlists.map(PlaylistWriteText.result)
         return Self(kind: blocked || count == 0 ? .warning : .success,
                     title: count == 0 ? String(ui: "rekordbox에 쓴 것이 없습니다")
                         : String(ui: "rekordbox에 반영했습니다 · \(summaries.joined(separator: " · "))"),
@@ -127,6 +134,7 @@ struct WriteResult: Codable, Equatable {
         let titles = Set((backup.report?.written ?? []).map(\.title)
             + (backup.report?.gridWritten ?? []).map(\.title) + (backup.report?.gainWritten ?? []).map(\.title)
             + (backup.report?.analysisWritten ?? []).map(\.title)
+            + (backup.report?.playlistWritten ?? []).map(\.name)
             + (backup.trackReport?.titles ?? []))
         var lines = [String(ui: "rekordbox 라이브러리 전체를 선택한 백업의 쓰기 전 상태로 되돌렸습니다."),
                      String(ui: "그때 쓴 초안과 추가 목록도 복원했습니다. 되돌리기 직전 상태는 아래 두 번째 백업에 남아 있습니다.")]

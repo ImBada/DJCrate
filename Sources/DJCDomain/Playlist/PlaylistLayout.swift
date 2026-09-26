@@ -120,22 +120,22 @@ public struct PlaylistLayout: Hashable, Sendable {
         switch edit {
         case let .create(key, name, isFolder, parent):
             let id = PlaylistRef.new(key).description
-            guard items[id] == nil else { throw Blocked("같은 묶음에 같은 key(\(key))로 만든 목록이 있습니다") }
-            guard !Self.isBlank(name) else { throw Blocked("이름을 적어 주세요") }
+            guard items[id] == nil else { throw Blocked(String(ui: "같은 묶음에 같은 key(\(key))로 만든 목록이 있습니다")) }
+            guard !Self.isBlank(name) else { throw Blocked(String(ui: "이름을 적어 주세요")) }
             let parentID = try folderID(parent, for: name)
             items[id] = Item(id: id, name: name, parentID: parentID, isFolder: isFolder)
             order[parentID, default: []].insert(id, at: 0)
 
         case let .rename(ref, name):
             let item = try target(ref)
-            guard !Self.isBlank(name) else { throw Blocked("이름을 적어 주세요") }
+            guard !Self.isBlank(name) else { throw Blocked(String(ui: "이름을 적어 주세요")) }
             items[item.id]?.name = name
 
         case let .move(ref, into):
             let item = try target(ref)
             let parentID = try folderID(into, for: item.name)
             guard parentID != item.parentID else { return }
-            guard !subtree(of: item.id).contains(parentID) else { throw Blocked("폴더를 제 안으로 옮길 수 없습니다") }
+            guard !subtree(of: item.id).contains(parentID) else { throw Blocked(String(ui: "폴더를 제 안으로 옮길 수 없습니다")) }
             order[item.parentID]?.removeAll { $0 == item.id }
             order[parentID, default: []].append(item.id)
             items[item.id]?.parentID = parentID
@@ -183,36 +183,36 @@ public struct PlaylistLayout: Hashable, Sendable {
     /// 편집할 목록(맨 위는 안 됨, 인텔리전트 목록은 막음)
     func target(_ ref: PlaylistRef) throws -> Item {
         switch ref {
-        case .root: throw Blocked("맨 위는 편집할 수 없습니다")
+        case .root: throw Blocked(String(ui: "맨 위는 편집할 수 없습니다"))
         case .new:
-            guard let item = items[ref.description] else { throw Blocked("앞에서 만들지 못한 목록입니다") }
+            guard let item = items[ref.description] else { throw Blocked(String(ui: "앞에서 만들지 못한 목록입니다")) }
             return item
         case let .id(id):
-            guard let item = items[id] else { throw Blocked("rekordbox에서 재생 목록을 찾지 못했습니다") }
-            guard !item.isSmart else { throw Blocked("인텔리전트 재생 목록은 아직 쓰지 않습니다(rekordbox에서 고치세요)") }
+            guard let item = items[id] else { throw Blocked(String(ui: "rekordbox에서 재생 목록을 찾지 못했습니다")) }
+            guard !item.isSmart else { throw Blocked(String(ui: "인텔리전트 재생 목록은 아직 쓰지 않습니다(rekordbox에서 고치세요)")) }
             return item
         }
     }
 
     func trackList(_ ref: PlaylistRef) throws -> Item {
         let item = try target(ref)
-        guard !item.isFolder else { throw Blocked("폴더에는 곡을 넣거나 뺄 수 없습니다") }
+        guard !item.isFolder else { throw Blocked(String(ui: "폴더에는 곡을 넣거나 뺄 수 없습니다")) }
         return item
     }
 
     func folderID(_ ref: PlaylistRef, for name: String) throws -> String {
         if ref == .root { return Self.root }
         let item = try target(ref)
-        guard item.isFolder else { throw Blocked("폴더가 아닌 재생 목록(\(item.name)) 안에는 넣을 수 없습니다") }
+        guard item.isFolder else { throw Blocked(String(ui: "폴더가 아닌 재생 목록(\(item.name)) 안에는 넣을 수 없습니다")) }
         return item.id
     }
 
     /// 편집이 가리키는 곡 자리(TrackNo 순서의 번호). 그 자리에 그 곡이 없으면 막는다.
     func matching(_ entries: [PlaylistEntry], in item: Item) throws -> [Int] {
-        guard Set(entries.map(\.trackNo)).count == entries.count else { throw Blocked("같은 자리를 두 번 가리킵니다") }
+        guard Set(entries.map(\.trackNo)).count == entries.count else { throw Blocked(String(ui: "같은 자리를 두 번 가리킵니다")) }
         return try entries.map { entry in
             guard let index = item.entries.firstIndex(of: entry) else {
-                throw Blocked("\(entry.trackNo)번째 곡이 편집을 만들 때와 다릅니다. 목록을 다시 읽은 뒤 고치세요")
+                throw Blocked(String(ui: "\(entry.trackNo)번째 곡이 편집을 만들 때와 다릅니다. 목록을 다시 읽은 뒤 고치세요"))
             }
             return index
         }.sorted()

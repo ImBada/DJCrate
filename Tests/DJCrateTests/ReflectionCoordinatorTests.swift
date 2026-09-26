@@ -20,6 +20,10 @@ final class FakeReflectionHost: ReflectionHost {
     var targets: [TrackRow]?
     var preview: Result<LibraryStore.WritePreview, Error> = .failure(FixtureFailure())
     var wrote: (drafts: [String], grids: [String], gains: [String])?
+    var hasPlaylistDrafts = false
+    /// 미리 보기에 재생 목록 초안을 넣으라고 했는지, 쓰기에 넘긴 재생 목록 초안
+    var previewedPlaylists: Bool?
+    var wrotePlaylists: PlaylistDraft??
     var changedSinceBackup: Bool?
     var restored: [URL] = []
     var beforePreview: (() async -> Void)?
@@ -28,9 +32,15 @@ final class FakeReflectionHost: ReflectionHost {
 
     func setWriteLock(_ locked: Bool) { isWritingRekordbox = locked; locks.append(locked) }
     func writeTargets(_ rows: [TrackRow]) -> [TrackRow] { targets ?? rows }
-    func previewWrite(rows: [TrackRow]) async throws -> LibraryStore.WritePreview { await beforePreview?(); return try preview.get() }
-    func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft], gains: [String: Double]) async throws -> RekordboxWriter.Report {
+    func previewWrite(rows: [TrackRow], playlists: Bool) async throws -> LibraryStore.WritePreview {
+        previewedPlaylists = playlists
+        await beforePreview?()
+        return try preview.get()
+    }
+    func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft], gains: [String: Double],
+                          playlists: PlaylistDraft?) async throws -> RekordboxWriter.Report {
         wrote = (drafts.map(\.trackUUID), grids.map(\.trackUUID), gains.keys.sorted())
+        wrotePlaylists = .some(playlists)
         if let writeError { throw writeError }
         return try writtenReport ?? preview.get().report
     }
@@ -139,6 +149,83 @@ struct ReflectionCoordinatorTests {
         await coordinator().write(rows: ["a", "b", "c", "d"].map(Self.row))
         #expect(host.wrote?.drafts == ["a"] && host.wrote?.grids == ["a"] && host.wrote?.gains == ["d"])
         #expect(host.locks == [true, false])
+    }
+
+    // MARK: 재생 목록 초안(#39·#40)
+
+    static func playlistOutcome(_ edit: PlaylistEdit, _ name: String, _ status: RekordboxWriter.Outcome.Status,
+                                reason: String? = nil) -> PlaylistOutcome {
+        PlaylistOutcome(edit: edit, playlistID: status == .written ? "1" : nil, name: name, status: status, reason: reason)
+    }
+
+    static func playlistPreview(_ outcomes: [PlaylistOutcome]) -> LibraryStore.WritePreview {
+        var preview = Self.preview(cues: [])
+        preview.report.playlistOutcomes = outcomes
+        var draft = PlaylistDraft()
+        try? draft.append(.create(key: "k", name: "세트", isFolder: false, parent: .root), rekordbox: PlaylistLayout())
+        preview.playlists = draft
+        return preview
+    }
+
+    @Test func 곡_초안이_없어도_재생_목록_초안만_쓴다() async throws {
+        host.targets = []
+        host.hasPlaylistDrafts = true
+        let preview = Self.playlistPreview([
+            Self.playlistOutcome(.create(key: "k", name: "세트", isFolder: false, parent: .root), "세트", .written),
+            Self.playlistOutcome(.addTracks(playlist: .id("9"), contentIDs: ["1", "2"]), "옛 목록", .blocked,
+                                 reason: "초안을 만든 뒤 rekordbox에서 이 목록이 바뀌었습니다. 이 목록의 초안을 버리고 다시 편집하세요"),
+        ])
+        host.preview = .success(preview)
+        await coordinator().write(rows: [])
+        #expect(host.previewedPlaylists == true)
+        let prompt = try #require(prompter.shown.first)
+        #expect(prompt.title == "재생 목록 1건을 rekordbox에 쓸까요?")
+        #expect(prompt.details.contains("• 세트 — 새 재생 목록 만들기"))
+        #expect(prompt.details.contains { $0.hasPrefix("• 옛 목록: 2곡 넣기 — 초안을 만든 뒤 rekordbox에서") })
+        // 쓰기에는 초안 전체를 넘긴다(결과가 편집 순서와 같아야 쓴 편집만 뺄 수 있다)
+        #expect(host.wrotePlaylists == .some(preview.playlists))
+        #expect(host.wrote?.drafts == [] && host.locks == [true, false])
+        #expect(host.toast?.title == "rekordbox에 반영했습니다 · 재생 목록 1건")
+    }
+
+    @Test func 곡을_골라_쓸_때는_재생_목록_초안을_넣지_않는다() async {
+        host.targets = []
+        host.hasPlaylistDrafts = true
+        await coordinator().write(rows: [Self.row("a")], playlists: false)
+        #expect(prompter.shown.first?.title == "반영할 초안이 없습니다" && host.previewedPlaylists == nil)
+        // 곡 초안이 있으면 곡만 미리 본다
+        host.targets = nil
+        host.preview = .success(Self.preview(cues: [Self.outcome("a", .written)]))
+        await coordinator().write(rows: [Self.row("a")], playlists: false)
+        #expect(host.previewedPlaylists == false && host.wrotePlaylists == .some(nil))
+    }
+
+    @Test func 재생_목록_편집이_모두_막히면_이유만_보여_준다() async {
+        host.targets = []
+        host.hasPlaylistDrafts = true
+        host.preview = .success(Self.playlistPreview([
+            Self.playlistOutcome(.rename(playlist: .id("9"), name: "x"), "스마트", .blocked, reason: "인텔리전트 재생 목록은 아직 쓰지 않습니다(rekordbox에서 고치세요)"),
+        ]))
+        await coordinator().write(rows: [])
+        #expect(prompter.shown.first?.title == "rekordbox에 쓸 수 있는 초안이 없습니다")
+        #expect(prompter.shown.first?.details == ["• 스마트: 이름 바꾸기 — 인텔리전트 재생 목록은 아직 쓰지 않습니다(rekordbox에서 고치세요)"])
+        #expect(host.wrote == nil)
+    }
+
+    @Test func 쓰기_결과에_재생_목록_편집마다_한_줄을_남긴다() {
+        var report = RekordboxWriter.Report(outcomes: [], backup: "/tmp/b", dryRun: false, createdAt: "", finalUpdateCount: 1)
+        report.playlistOutcomes = [
+            Self.playlistOutcome(.removeTracks(playlist: .id("1"), entries: [.init(trackNo: 1, contentID: "a")]), "목록", .written),
+            Self.playlistOutcome(.delete(playlist: .id("2")), "폴더", .blocked, reason: "rekordbox에서 지운 목록입니다"),
+            Self.playlistOutcome(.rename(playlist: .id("3"), name: "같음"), "같음", .unchanged),
+        ]
+        let result = WriteResult.written(report, preview: report)
+        #expect(result.kind == .warning && result.title == "rekordbox에 반영했습니다 · 재생 목록 1건")
+        #expect(result.text.components(separatedBy: "\n") == [
+            "• 목록 — 재생 목록 반영 완료: 1곡 빼기",
+            "• 폴더 — 재생 목록 쓰지 않음(지우기): rekordbox에서 지운 목록입니다",
+            "• 같음 — 재생 목록 변경 없음(이름 바꾸기)",
+        ])
     }
 
     @Test func 분석_전_곡은_그리드_초안으로_분석을_붙여_쓴다() async {

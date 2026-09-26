@@ -11,6 +11,24 @@ public struct RekordboxPlaylist: Sendable, Hashable, Identifiable {
     public let isFolder: Bool
     /// TrackNo 순서의 ContentID
     public let trackIDs: [String]
+    /// `trackIDs`와 같은 순서의 TrackNo(빈칸이 있을 수 있다). 곡 빼기·옮기기 편집이 자리를 이것으로 가리킨다.
+    public var trackNumbers: [Int] = []
+    /// 인텔리전트 재생 목록(Attribute 4 또는 SmartList 규칙이 있음). 편집하지 않는다.
+    public var isSmart = false
+}
+
+public extension PlaylistLayout {
+    /// 스냅샷에서 읽은 재생 목록 → 초안을 얹을 트리
+    init(rekordbox playlists: [RekordboxPlaylist]) {
+        self.init(playlists.map { playlist in
+            let numbered = playlist.trackNumbers.count == playlist.trackIDs.count
+            let entries = playlist.trackIDs.enumerated().map {
+                PlaylistEntry(trackNo: numbered ? playlist.trackNumbers[$0.offset] : $0.offset + 1, contentID: $0.element)
+            }
+            return (PlaylistLayout.Item(id: playlist.id, name: playlist.name, parentID: playlist.parentID, isFolder: playlist.isFolder,
+                                        isSmart: playlist.isSmart, entries: entries), playlist.seq)
+        })
+    }
 }
 
 /// 사이드바 트리 노드. `children`이 nil이면 잎(플레이리스트)이다.
@@ -55,17 +73,20 @@ public struct PlaylistNode: Sendable, Hashable, Identifiable {
 extension RekordboxLibrary {
     static func loadPlaylists(_ db: CipherDatabase) throws -> [RekordboxPlaylist] {
         var tracks: [String: [String]] = [:]
+        var numbers: [String: [Int]] = [:]
+        // 쓰기 모듈(`PlaylistTree.read`)과 같은 순서
         try db.query("""
-            SELECT PlaylistID, ContentID FROM djmdSongPlaylist
-            WHERE rb_local_deleted = 0 ORDER BY PlaylistID, TrackNo
+            SELECT PlaylistID, ContentID, TrackNo FROM djmdSongPlaylist
+            WHERE rb_local_deleted = 0 ORDER BY PlaylistID, TrackNo, ID
             """) { row in
             if let playlist = row.string(0), let content = row.string(1) {
                 tracks[playlist, default: []].append(content)
+                numbers[playlist, default: []].append(row.int(2) ?? 0)
             }
         }
         var playlists: [RekordboxPlaylist] = []
         try db.query("""
-            SELECT ID, Seq, Name, Attribute, ParentID FROM djmdPlaylist WHERE rb_local_deleted = 0
+            SELECT ID, Seq, Name, Attribute, ParentID, SmartList FROM djmdPlaylist WHERE rb_local_deleted = 0
             """) { row in
             let id = row.string(0) ?? ""
             playlists.append(RekordboxPlaylist(
@@ -74,7 +95,9 @@ extension RekordboxLibrary {
                 parentID: row.string(4) ?? "root",
                 seq: row.int(1) ?? 0,
                 isFolder: row.int(3) == 1,
-                trackIDs: tracks[id] ?? []
+                trackIDs: tracks[id] ?? [],
+                trackNumbers: numbers[id] ?? [],
+                isSmart: (row.int(3) ?? 0) > 1 || !(row.string(5) ?? "").isEmpty
             ))
         }
         return playlists

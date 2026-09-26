@@ -13,7 +13,8 @@ struct LoadedLibrary: Sendable {
     var tagDrafts: [String: TagDraft]
     var cueDraftUUIDs: Set<String>
     var gridDraftUUIDs: Set<String>
-    var tree: [PlaylistNode]
+    var playlists: PlaylistLayout
+    var playlistDraft: PlaylistDraft
     var histories: [RekordboxHistory]
     var draftCueCounts: [String: CueCounts] = [:]
     var draftPreviewCues: [String: [PreviewCueMark]] = [:]
@@ -49,7 +50,8 @@ struct LoadedLibrary: Sendable {
         }
         return LoadedLibrary(rows: rows, report: LibraryReport(library: library, commentRule: commentPreset.rule), filterCounts: counts,
                              tagDrafts: tagDrafts, cueDraftUUIDs: cueUUIDs,
-                             gridDraftUUIDs: GridDraftStore.uuids(), tree: PlaylistNode.tree(library.playlists),
+                             gridDraftUUIDs: GridDraftStore.uuids(), playlists: PlaylistLayout(rekordbox: library.playlists),
+                             playlistDraft: PlaylistDraftStore.load(),
                              histories: library.histories,
                              draftCueCounts: draftCueCounts, draftPreviewCues: draftPreviewCues,
                              duplicateGroups: LibraryRead.duplicates(in: library).groups)

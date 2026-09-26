@@ -65,6 +65,7 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $store.showingWriteResult) { WriteResultView(history: store.resultHistory) }
+        .sheet(isPresented: $store.showingPlaylistPicker) { PlaylistPickerView(store: store) }
         .animation(.easeInOut(duration: 0.15), value: store.writeStage)
         .searchable(text: $store.search, placement: .toolbar, prompt: Text(.ui("제목·아티스트·코멘트")))
         .toolbar(id: "main") { toolbarContent }
@@ -108,6 +109,9 @@ struct ContentView: View {
                         }
                         if let message = store.stagingMessage {
                             AppMessageView(message: message, onClose: { store.stagingMessage = nil })
+                        }
+                        if let message = store.playlistMessage {
+                            AppMessageView(message: message, onClose: { store.playlistMessage = nil })
                         }
                     }
                     .onGeometryChange(for: Double.self) { $0.size.height } action: { noticeHeight = $0 }

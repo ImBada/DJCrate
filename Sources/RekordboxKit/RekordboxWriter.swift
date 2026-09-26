@@ -86,12 +86,15 @@ public enum RekordboxWriter {
     ///   - analysisInputs: 분석 전 곡(분석 파일 없음)의 음원 길이·음량·내장 그림(곡 UUID별). 그 곡의 그리드 초안으로 분석 파일을 만들어 붙이고,
     ///     그림이 있으면 아트워크도 넣는다(`RekordboxTrackWriter.writesArtwork`).
     ///   - playlists: 재생 목록 편집(적힌 순서대로). DB 옆 `masterPlaylists6.xml`도 rekordbox처럼 고친다.
+    ///   - playlistDraft: 앱의 재생 목록 초안. `playlists` 대신 준다. 초안을 만든 뒤 rekordbox에서 바뀐 목록(base와 다름)의 편집은 쓰지 않는다.
     public static func write(drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:],
                              analysisInputs: [String: AnalysisInput] = [:], playlists: [PlaylistEdit] = [],
+                             playlistDraft: PlaylistDraft? = nil,
                              to database: URL = liveDatabase, dryRun: Bool,
                              now: Date = .now, backups: URL, shareRoot: URL? = nil,
                              guard writeGuard: RekordboxWriteGuard = .system) throws -> Report {
-        try write(drafts: drafts, grids: grids, gains: gains, analysisInputs: analysisInputs, playlists: playlists, to: database,
+        try write(drafts: drafts, grids: grids, gains: gains, analysisInputs: analysisInputs, playlists: playlists,
+                  playlistDraft: playlistDraft, to: database,
                   dryRun: dryRun, now: now, backups: backups, shareRoot: shareRoot, guard: writeGuard, attachesAnalysis: attachesAnalysis,
                   writesArtwork: RekordboxTrackWriter.writesArtwork)
     }
@@ -100,12 +103,14 @@ public enum RekordboxWriter {
     ///   - attachesAnalysis: 분석 붙이기를 여는지. 앱은 `attachesAnalysis`를 따르고, 시험과 사본 실험(`djc lab analysis-attach-test`)만 바꾼다.
     ///   - writesArtwork: 분석을 붙이는 곡에 아트워크도 넣는지. 앱은 `RekordboxTrackWriter.writesArtwork`를 따르고, 시험만 바꾼다.
     package static func write(drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], analysisInputs: [String: AnalysisInput],
-                              playlists: [PlaylistEdit] = [], to database: URL, dryRun: Bool, now: Date, backups: URL, shareRoot: URL?,
+                              playlists: [PlaylistEdit] = [], playlistDraft: PlaylistDraft? = nil, to database: URL, dryRun: Bool, now: Date,
+                              backups: URL, shareRoot: URL?,
                               guard writeGuard: RekordboxWriteGuard = .system, attachesAnalysis: Bool,
                               writesArtwork: Bool = RekordboxTrackWriter.writesArtwork) throws -> Report {
         let stamp = CueJSON.timestamps(now)
         let grids = grids.filter(\.hasChanges)
-        guard drafts.contains(where: \.hasChanges) || !grids.isEmpty || !gains.isEmpty || !playlists.isEmpty else {
+        let playlistSteps = playlistDraft?.steps ?? playlists.map { PlaylistDraft.Step(edit: $0) }
+        guard drafts.contains(where: \.hasChanges) || !grids.isEmpty || !gains.isEmpty || !playlistSteps.isEmpty else {
             // 쓸 것이 없으면 DB를 열지도, 백업을 만들지도 않는다.
             return Report(outcomes: drafts.map { Outcome(trackUUID: $0.trackUUID, title: $0.trackUUID, status: .unchanged,
                                                           reason: nil, removed: 0, added: 0) },
@@ -179,7 +184,7 @@ public enum RekordboxWriter {
         // 재생 목록 편집은 DB 옆 masterPlaylists6.xml도 고친다. 읽지 못하는 모양이면 백업 전에 막는다.
         let playlistXMLURL = playlistXMLURL(for: database)
         var playlistXML: MasterPlaylistsXML?
-        if !playlists.isEmpty, FileManager.default.fileExists(atPath: playlistXMLURL.path) {
+        if !playlistSteps.isEmpty, FileManager.default.fileExists(atPath: playlistXMLURL.path) {
             let xml = try? MasterPlaylistsXML(contentsOf: playlistXMLURL)
             guard let xml, xml.text.contains("</PLAYLISTS>") else {
                 throw DJCError.writeRefused("masterPlaylists6.xml을 읽지 못했습니다. rekordbox를 한 번 켰다가 종료한 뒤 다시 시도하세요")
@@ -254,9 +259,19 @@ public enum RekordboxWriter {
                 }
             }
             // 재생 목록: 적힌 순서대로. 막힌 편집은 그 편집만 되돌리고(번호도) 뒤 편집을 이어 쓴다.
-            if !playlists.isEmpty {
-                var work = PlaylistWork(tree: try PlaylistTree.read(db), xmlIDs: Set(playlistXML?.nodes.map(\.id) ?? []))
-                for edit in playlists {
+            if !playlistSteps.isEmpty {
+                let tree = try PlaylistTree.read(db)
+                // 초안의 base는 쓰기 전 rekordbox 상태와 비교한다(이 묶음에서 앞 편집이 바꾼 상태가 아니라).
+                let rekordbox = playlistDraft.map { _ in tree.layout }
+                var work = PlaylistWork(tree: tree, xmlIDs: Set(playlistXML?.nodes.map(\.id) ?? []))
+                for step in playlistSteps {
+                    let edit = step.edit
+                    if let playlistDraft, let rekordbox,
+                       let reason = step.depends.lazy.compactMap({ playlistDraft.staleReason($0, rekordbox: rekordbox) }).first {
+                        let name = work.tree.nodes[edit.playlist.layoutID]?.name ?? edit.playlist.description
+                        playlistOutcomes.append(PlaylistOutcome(edit: edit, playlistID: nil, name: name, status: .blocked, reason: reason))
+                        continue
+                    }
                     try db.execute("SAVEPOINT djc_playlist")
                     let saved = (work, usn)
                     do {

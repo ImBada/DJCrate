@@ -4,7 +4,7 @@ import DJCDomain
 import DJCStorage
 import Foundation
 
-/// 큐·그리드·게인 초안을 rekordbox DB에 직접 쓴다. rekordbox가 꺼져 있을 때만 쓴다.
+/// 큐·그리드·게인·재생 목록 초안을 rekordbox DB에 직접 쓴다. rekordbox가 꺼져 있을 때만 쓴다.
 /// 흐름: 새 스냅샷 사본으로 미리 보기 → 사용자 확인 → 쓰기(백업·검증은 `RekordboxWriter`) → 새 스냅샷으로 다시 읽기.
 /// 분석 전 곡(분석 파일 없음)의 그리드 초안은 분석 파일(파형·그리드·오토게인)을 만들어 붙인다(`RekordboxWriter.attachesAnalysis`가 열렸을 때).
 extension LibraryStore {
@@ -13,6 +13,8 @@ extension LibraryStore {
         var drafts: [CueDraft]
         var grids: [GridDraft]
         var gains: [String: Double]
+        /// 함께 쓸 재생 목록 초안(없으면 nil). 결과(`report.playlistOutcomes`)가 편집 순서와 같다.
+        var playlists: PlaylistDraft?
     }
 
     /// 대상 곡 중 반영 대기 초안이 있는 곡(추가한 곡 제외)
@@ -21,13 +23,15 @@ extension LibraryStore {
     }
 
     /// 새 스냅샷을 떠서 그 사본으로 쓰기를 끝까지 해 보고 되돌린다(rekordbox는 건드리지 않는다).
-    func previewWrite(rows: [TrackRow]) async throws -> WritePreview {
+    /// - Parameter playlists: 재생 목록 초안도 함께 볼지(곡 초안과 달리 곡을 골라 나누지 않는다)
+    func previewWrite(rows: [TrackRow], playlists: Bool) async throws -> WritePreview {
         DraftWriter.flush()
         let targets = writeTargets(rows)
         let drafts = targets.compactMap { CueDraftStore.load(trackUUID: $0.track.uuid) }.filter(\.hasChanges)
         let grids = targets.compactMap { GridDraftStore.load(trackUUID: $0.track.uuid) }.filter(\.hasChanges)
         let allGains = GainDraftStore.all()
         let gains = Dictionary(uniqueKeysWithValues: targets.compactMap { row in allGains[row.track.uuid].map { (row.track.uuid, $0) } })
+        let playlistDraft = playlists && !self.playlistDraft.isEmpty ? self.playlistDraft : nil
         // 미리 보기는 길이만 잰다(음량은 쓸 때 잰다. 막히는지 보는 데는 필요 없다).
         let inputs = try await analysisInputs(for: grids, measuringLoudness: false)
         writeStage = WriteStage(String(ui: "미리 보기 1/2단계 · 사본을 만드는 중…"), completed: 0, total: 2, cancellable: true)
@@ -35,24 +39,27 @@ extension LibraryStore {
             let snapshot = try LibrarySnapshot.take()
             await MainActor.run { self.writeStage = WriteStage(String(ui: "미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…"), completed: 1, total: 2, cancellable: true) }
             // 미리 보기: 사본 DB + 실제 분석 파일을 읽기만 한다(dryRun이라 파일을 쓰지 않는다).
-            return try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, analysisInputs: inputs, to: snapshot, dryRun: true,
-                                             backups: DJCPaths.rekordboxBackups, shareRoot: RekordboxShare.directory)
+            return try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, analysisInputs: inputs, playlistDraft: playlistDraft,
+                                             to: snapshot, dryRun: true, backups: DJCPaths.rekordboxBackups, shareRoot: RekordboxShare.directory)
         }.value
         try Task.checkCancellation()
-        return WritePreview(report: report, drafts: drafts, grids: grids, gains: gains)
+        return WritePreview(report: report, drafts: drafts, grids: grids, gains: gains, playlists: playlistDraft)
     }
 
-    /// rekordbox master.db에 쓴다. 쓴 곡의 큐 초안은 지우고(백업 폴더에 남는다) 새 스냅샷을 읽는다.
-    func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:]) async throws -> RekordboxWriter.Report {
+    /// rekordbox master.db에 쓴다. 쓴 곡의 큐 초안과 쓴 재생 목록 편집은 지우고(백업 폴더에 남는다) 새 스냅샷을 읽는다.
+    func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:],
+                          playlists: PlaylistDraft? = nil) async throws -> RekordboxWriter.Report {
         try Task.checkCancellation()
         defer { writeStage = nil }
         let inputs = try await analysisInputs(for: grids, measuringLoudness: true)
         try Task.checkCancellation()
         writeStage = WriteStage(String(ui: "rekordbox에 쓰는 중…"))
         let report = try await Task.detached(priority: .userInitiated) {
-            try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, analysisInputs: inputs, dryRun: false,
+            try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, analysisInputs: inputs, playlistDraft: playlists, dryRun: false,
                                       backups: DJCPaths.rekordboxBackups)
         }.value
+        // 스냅샷을 다시 읽으면 초안도 파일에서 다시 읽으므로 그 전에 쓴 편집을 뺀다.
+        if let playlists { finishPlaylistWrite(playlists, outcomes: report.playlistOutcomes ?? []) }
         for outcome in report.gainWritten {
             GainDraftStore.remove(trackUUID: outcome.trackUUID)
             draftChanged(trackUUID: outcome.trackUUID, kind: .gain, exists: false)
@@ -93,6 +100,11 @@ extension LibraryStore {
         DraftWriter.flush()
         writeStage = WriteStage(String(ui: "되돌린 라이브러리를 읽는 중…"))
         await takeSnapshot(quiet: true)
+        // 재생 목록 편집은 되돌린 rekordbox 상태에 다시 쌓는다(쌓지 못한 편집은 알린다).
+        let unrestored = restorePlaylistEdits(RekordboxWriter.playlistEdits(in: backup.url))
+        if unrestored > 0 {
+            playlistMessage = AppMessage(kind: .warning, text: String(ui: "재생 목록 편집 \(unrestored)건은 초안으로 되살리지 못했습니다."))
+        }
         let gainUUIDs = Set(RekordboxWriter.gainDrafts(in: backup.url).keys)
         onRekordboxWritten?(Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID)).union(gainUUIDs))
         _ = restoreStaged(from: backup)

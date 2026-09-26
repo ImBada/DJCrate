@@ -54,7 +54,7 @@ public struct PlaylistDraft: Codable, Hashable, Sendable {
     public var edits: [PlaylistEdit] { steps.map(\.edit) }
     public var isEmpty: Bool { steps.isEmpty }
 
-    static let changedReason = "초안을 만든 뒤 rekordbox에서 이 목록이 바뀌었습니다. 이 목록의 초안을 버리고 다시 편집하세요"
+    static var changedReason: String { String(ui: "초안을 만든 뒤 rekordbox에서 이 목록이 바뀌었습니다. 이 목록의 초안을 버리고 다시 편집하세요") }
 
     // MARK: - 쌓기
 
@@ -230,7 +230,7 @@ public struct PlaylistDraft: Codable, Hashable, Sendable {
         guard let base = base[id] else { return nil }
         let children = base.childIDs.map { _ in rekordbox.childIDs(of: id) }
         if id == PlaylistLayout.root { return children == base.childIDs ? nil : Self.changedReason }
-        guard let now = rekordbox.item(id) else { return "rekordbox에서 지운 목록입니다" }
+        guard let now = rekordbox.item(id) else { return String(ui: "rekordbox에서 지운 목록입니다") }
         return Base(now, childIDs: children) == base ? nil : Self.changedReason
     }
 
