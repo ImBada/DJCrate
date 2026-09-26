@@ -137,17 +137,65 @@ public struct RekordboxWriteGuard: Sendable {
     public var isLive: @Sendable (URL) -> Bool
     public var isRekordboxRunning: @Sendable () -> Bool
     public var appVersion: @Sendable () -> String?
+    private let liveDirectories: [URL]
 
-    public init(isLive: @escaping @Sendable (URL) -> Bool, isRekordboxRunning: @escaping @Sendable () -> Bool,
-                appVersion: @escaping @Sendable () -> String?) {
-        self.isLive = isLive
+    /// 시험에서는 합성 라이브 루트만 주입한다. 환경 변수로 사본을 골라도 실제 라이브 루트는 보호한다.
+    public init(isLive: (@Sendable (URL) -> Bool)? = nil, isRekordboxRunning: @escaping @Sendable () -> Bool,
+                appVersion: @escaping @Sendable () -> String?, liveDirectories: [URL] = [
+                    LibrarySnapshot.rekordboxDirectory,
+                    FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Pioneer/rekordbox")
+                ]) {
+        self.liveDirectories = liveDirectories
+        self.isLive = isLive ?? { database in
+            liveDirectories.contains { RekordboxWriter.isLive(database, liveDatabase: $0.appending(path: "master.db")) }
+        }
         self.isRekordboxRunning = isRekordboxRunning
         self.appVersion = appVersion
     }
 
-    public static let system = RekordboxWriteGuard(isLive: RekordboxWriter.isLive,
-                                                   isRekordboxRunning: LibrarySnapshot.isRekordboxRunning,
+    public static let system = RekordboxWriteGuard(isRekordboxRunning: LibrarySnapshot.isRekordboxRunning,
                                                    appVersion: { RekordboxCompatibility.installedAppVersion() })
+
+    /// DB와 share를 함께 검사하고, 생략된 라이브 share는 같은 라이브러리에서 고른다.
+    func checkTargets(_ database: URL, shareRoot: URL?, dryRun: Bool) throws -> URL? {
+        for directory in liveDirectories {
+            if let shareRoot, Self.contains(shareRoot, in: directory.appending(path: "share")),
+               !Self.sameFile(database, directory.appending(path: "master.db")) {
+                throw DJCError.writeRefused(String(ui: "사본 DB에 라이브 share를 사용할 수 없습니다. share 폴더도 실제 사본으로 복사한 뒤 다시 시도하세요"))
+            }
+        }
+        let live = isLive(database)
+        if live { try checkLive(database, dryRun: dryRun) }
+        let directory = liveDirectories.first { Self.sameFile(database, $0.appending(path: "master.db")) }
+        return shareRoot ?? (live ? directory?.appending(path: "share") ?? RekordboxShare.directory : nil)
+    }
+
+    /// 경로와 device/inode를 함께 본다. 파일이 아직 없는 끊어진 심볼릭 링크도 경로로 막는다.
+    static func sameFile(_ candidate: URL, _ reference: URL) -> Bool {
+        let resolved = candidate.resolvingSymlinksInPath().standardizedFileURL
+        let live = reference.resolvingSymlinksInPath().standardizedFileURL
+        let fm = FileManager.default
+        if resolved.path == live.path { return true }
+        if let destination = try? fm.destinationOfSymbolicLink(atPath: candidate.path),
+           URL(filePath: destination, relativeTo: candidate.deletingLastPathComponent())
+            .resolvingSymlinksInPath().standardizedFileURL.path == live.path { return true }
+        guard let source = try? fm.attributesOfItem(atPath: live.path),
+              let target = try? fm.attributesOfItem(atPath: resolved.path),
+              let sourceDevice = source[.systemNumber] as? UInt64, let targetDevice = target[.systemNumber] as? UInt64,
+              let sourceInode = source[.systemFileNumber] as? UInt64, let targetInode = target[.systemFileNumber] as? UInt64 else { return false }
+        return sourceDevice == targetDevice && sourceInode == targetInode
+    }
+
+    /// 별칭 폴더 아래 새 경로도 조상을 따라가며 검사해 루트의 하드 링크를 놓치지 않는다.
+    static func contains(_ candidate: URL, in root: URL) -> Bool {
+        var ancestor = candidate.resolvingSymlinksInPath().standardizedFileURL
+        while true {
+            if sameFile(ancestor, root) { return true }
+            let parent = ancestor.deletingLastPathComponent().standardizedFileURL
+            guard parent.path != ancestor.path else { return false }
+            ancestor = parent
+        }
+    }
 
     /// 라이브 DB면 rekordbox가 꺼져 있고 WAL이 비었고 확인한 버전이어야 한다.
     func checkLive(_ database: URL, dryRun: Bool) throws {
@@ -155,9 +203,13 @@ public struct RekordboxWriteGuard: Sendable {
         guard !isRekordboxRunning() else {
             throw DJCError.writeRefused(String(ui: "rekordbox가 켜져 있습니다. rekordbox를 완전히 종료한 뒤 다시 시도하세요"))
         }
-        let wal = URL(filePath: database.path + "-wal")
-        if let size = (try? FileManager.default.attributesOfItem(atPath: wal.path))?[.size] as? Int, size > 0 {
-            throw DJCError.writeRefused(String(ui: "rekordbox가 정상적으로 종료되지 않은 것 같습니다(WAL 파일이 남아 있음). rekordbox를 한 번 켰다가 종료한 뒤 다시 시도하세요"))
+        // 하드 링크 별칭 옆에는 원본 WAL이 없을 수 있으므로 원래 라이브 경로도 검사한다.
+        let originals = liveDirectories.map { $0.appending(path: "master.db") }.filter { Self.sameFile(database, $0) }
+        for source in [database, database.resolvingSymlinksInPath()] + originals {
+            let wal = URL(filePath: source.path + "-wal")
+            if let size = (try? FileManager.default.attributesOfItem(atPath: wal.path))?[.size] as? Int, size > 0 {
+                throw DJCError.writeRefused(String(ui: "rekordbox가 정상적으로 종료되지 않은 것 같습니다(WAL 파일이 남아 있음). rekordbox를 한 번 켰다가 종료한 뒤 다시 시도하세요"))
+            }
         }
         try RekordboxCompatibility.checkApp(version: appVersion())
     }
