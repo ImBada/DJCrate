@@ -18,9 +18,8 @@ struct PlaylistSection: View {
 
     var body: some View {
         Section(isExpanded: $isExpanded) {
-            OutlineGroup(store.playlistTree, children: \.children) { node in
-                PlaylistRow(store: store, node: node)
-                    .tag(SidebarItem.playlist(node.id))
+            ForEach(store.playlistTree) { node in
+                PlaylistTreeRow(store: store, node: node)
             }
         } header: {
             HStack(spacing: 4) {
@@ -47,6 +46,37 @@ struct PlaylistSection: View {
             .onDrop(of: [PlaylistDragType.playlist], isTargeted: nil) { providers in
                 PlaylistDrop.movePlaylist(providers) { store.movePlaylist($0, into: PlaylistLayout.root) }
             }
+        }
+        .onChange(of: store.renamingPlaylistID) { _, id in
+            if id != nil { isExpanded = true }
+        }
+    }
+}
+
+/// 펼침 상태를 직접 묶어야 접힌 폴더에 만든 항목의 이름 편집도 보인다.
+struct PlaylistTreeRow: View {
+    @Bindable var store: LibraryStore
+    let node: PlaylistOutlineNode
+
+    var body: some View {
+        if let children = node.children {
+            DisclosureGroup(isExpanded: Binding(
+                get: { store.expandedPlaylistIDs.contains(node.id) },
+                set: { expanded in
+                    if expanded { store.expandedPlaylistIDs.insert(node.id) }
+                    else { store.expandedPlaylistIDs.remove(node.id) }
+                }
+            )) {
+                ForEach(children) { child in
+                    PlaylistTreeRow(store: store, node: child)
+                }
+            } label: {
+                PlaylistRow(store: store, node: node)
+            }
+            .tag(SidebarItem.playlist(node.id))
+        } else {
+            PlaylistRow(store: store, node: node)
+                .tag(SidebarItem.playlist(node.id))
         }
     }
 }
