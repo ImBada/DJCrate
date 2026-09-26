@@ -67,8 +67,9 @@ public enum RekordboxTrackWriter {
     /// 분석까지 붙인 곡의 `ContentLink`(프레이즈·보컬 분석 없음, 라이브러리 426곡이 쓰는 값)
     static let analysedContentLink = 0x2C060E
 
-    /// 분석까지 붙여 넣는 곡에 음원 내장 아트워크도 넣는지(#4). 2026-09-26 실험(rekordbox가 아트워크 든 곡을 넣고 분석한 전후 비교)으로
-    /// 파일 셋·파일 행 칸·변경 번호 순서를 확인해 열었다. 규칙이 맞지 않는 것이 드러나면 여기서 닫는다.
+    /// 분석까지 붙여 넣는 곡(#4)과 분석을 붙이는 분석 전 곡(`RekordboxWriter+Analysis`, #87)에 음원 내장 아트워크도 넣는지.
+    /// 2026-09-26 실험(rekordbox가 아트워크 든 곡을 넣고 분석한 전후 비교)으로 파일 셋·파일 행 칸·변경 번호 순서를 확인해 열었다.
+    /// 규칙이 맞지 않는 것이 드러나면 여기서 닫는다.
     public static let writesArtwork = true
 
     /// 지울 곡을 막는 표(아직 rekordbox 실험으로 확인하지 않음)

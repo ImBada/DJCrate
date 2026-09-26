@@ -45,8 +45,10 @@ public enum RekordboxWriter {
         public var gainOutcomes: [Outcome]?
         /// 분석 전 곡에 분석 파일을 붙인 결과(added = 박 수). 옛 보고서에는 없다.
         public var analysisOutcomes: [Outcome]?
-        /// 새로 만든 분석 파일(되돌릴 때 지운다). 옛 보고서에는 없다.
+        /// 새로 만든 분석·아트워크 파일(되돌릴 때 지운다). 옛 보고서에는 없다.
         public var createdFiles: [String]?
+        /// 분석을 붙이며 음원 내장 그림으로 아트워크도 넣은(시험 실행이면 넣을) 곡 UUID. 옛 보고서에는 없다.
+        public var artworkAdded: [String]?
 
         public var written: [Outcome] { outcomes.filter { $0.status == .written } }
         public var blocked: [Outcome] { outcomes.filter { $0.status == .blocked } }
@@ -76,20 +78,25 @@ public enum RekordboxWriter {
     ///   - grids: 그리드 초안. 분석 파일(`shareRoot` 아래)을 고친다.
     ///   - shareRoot: 분석 파일 뿌리. 라이브 DB면 rekordbox share 폴더, 사본 DB면 명시해야 그리드를 쓴다(실제 파일을 건드리지 않게).
     ///   - writeGuard: 라이브 DB 판단과 실행·버전 확인(시험에서 바꾼다). DB 구조는 사본이어도 늘 확인한다.
-    ///   - analysisInputs: 분석 전 곡(분석 파일 없음)의 음원 길이·음량(곡 UUID별). 그 곡의 그리드 초안으로 분석 파일을 만들어 붙인다.
+    ///   - analysisInputs: 분석 전 곡(분석 파일 없음)의 음원 길이·음량·내장 그림(곡 UUID별). 그 곡의 그리드 초안으로 분석 파일을 만들어 붙이고,
+    ///     그림이 있으면 아트워크도 넣는다(`RekordboxTrackWriter.writesArtwork`).
     public static func write(drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:],
                              analysisInputs: [String: AnalysisInput] = [:],
                              to database: URL = liveDatabase, dryRun: Bool,
                              now: Date = .now, backups: URL, shareRoot: URL? = nil,
                              guard writeGuard: RekordboxWriteGuard = .system) throws -> Report {
         try write(drafts: drafts, grids: grids, gains: gains, analysisInputs: analysisInputs, to: database, dryRun: dryRun, now: now,
-                  backups: backups, shareRoot: shareRoot, guard: writeGuard, attachesAnalysis: attachesAnalysis)
+                  backups: backups, shareRoot: shareRoot, guard: writeGuard, attachesAnalysis: attachesAnalysis,
+                  writesArtwork: RekordboxTrackWriter.writesArtwork)
     }
 
-    /// - Parameter attachesAnalysis: 분석 붙이기를 여는지. 앱은 `attachesAnalysis`를 따르고, 시험과 사본 실험(`djc lab analysis-attach-test`)만 바꾼다.
+    /// - Parameters:
+    ///   - attachesAnalysis: 분석 붙이기를 여는지. 앱은 `attachesAnalysis`를 따르고, 시험과 사본 실험(`djc lab analysis-attach-test`)만 바꾼다.
+    ///   - writesArtwork: 분석을 붙이는 곡에 아트워크도 넣는지. 앱은 `RekordboxTrackWriter.writesArtwork`를 따르고, 시험만 바꾼다.
     package static func write(drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], analysisInputs: [String: AnalysisInput],
                               to database: URL, dryRun: Bool, now: Date, backups: URL, shareRoot: URL?,
-                              guard writeGuard: RekordboxWriteGuard = .system, attachesAnalysis: Bool) throws -> Report {
+                              guard writeGuard: RekordboxWriteGuard = .system, attachesAnalysis: Bool,
+                              writesArtwork: Bool = RekordboxTrackWriter.writesArtwork) throws -> Report {
         let stamp = CueJSON.timestamps(now)
         let grids = grids.filter(\.hasChanges)
         guard drafts.contains(where: \.hasChanges) || !grids.isEmpty || !gains.isEmpty else {
@@ -139,7 +146,8 @@ public enum RekordboxWriter {
                     let fileName = info.fileName.isEmpty ? URL(filePath: info.path).lastPathComponent : info.fileName
                     do {
                         let plan = try attachPlan(draft: draft, content: (info.id, info.title, info.path, fileName),
-                                                  input: analysisInputs[draft.trackUUID], share: gridRoot, reader: reader, enabled: attachesAnalysis)
+                                                  input: analysisInputs[draft.trackUUID], share: gridRoot, reader: reader, enabled: attachesAnalysis,
+                                                  writesArtwork: writesArtwork)
                         attachPlans.append(plan)
                         analysisOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: info.title, status: .written, reason: nil,
                                                         removed: 0, added: plan.ready.beats))
@@ -291,6 +299,8 @@ public enum RekordboxWriter {
         report.gainOutcomes = gainOutcomes.isEmpty ? nil : gainOutcomes
         report.analysisOutcomes = analysisOutcomes.isEmpty ? nil : analysisOutcomes
         report.createdFiles = created.isEmpty ? nil : created.map(\.path)
+        let artworkAdded = attached.filter { $0.artwork != nil }.map(\.trackUUID)
+        report.artworkAdded = artworkAdded.isEmpty ? nil : artworkAdded
         if let backup {
             try? save(report, in: backup)
             // 되돌리면 DJCrate 초안도 살릴 수 있게 쓴 초안을 백업 옆에 둔다.
