@@ -3,27 +3,23 @@ import DJCAnalysis
 import DJCDomain
 import DJCStorage
 import SwiftUI
+import AppKit
 
-/// 단축키 안내(? 버튼을 누를 때만 보인다).
+/// 도움말 메뉴와 같은 단축키 창을 연다.
 struct ShortcutsButton: View {
-    @State private var shown = false
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        Button { shown.toggle() } label: { Image(systemName: "questionmark.circle") }
-            .buttonStyle(.borderless)
+        HelpLink { openWindow(id: "shortcuts") }
             .help("단축키")
             .accessibilityLabel("단축키 보기")
-            .popover(isPresented: $shown, arrowEdge: .bottom) {
-                // 열 때마다 저장된 단축키 표(덱과 같은 저장소)를 읽는다.
-                ShortcutsList(shortcuts: DeckStorage.live.settings.shortcuts, scale: 1.1).padding(18)
-            }
     }
 }
 
-/// 단축키 목록(? 버튼 팝오버). 키는 키캡 모양으로 크게 쓴다. 설정에서 바꿨으면 바꾼 표를 동작마다 보인다.
+/// 단축키 목록. 설정에서 바꿨으면 바꾼 표를 동작마다 보인다.
 struct ShortcutsList: View {
     var shortcuts = DeckShortcuts.standard
-    /// 1 = 팝오버, ⌘ 안내는 더 크게
+    /// 기본 창은 1배 크기로 표시한다.
     var scale: CGFloat = 1
 
     var body: some View {
@@ -33,6 +29,10 @@ struct ShortcutsList: View {
                 if shortcuts.isStandard { standardRows } else { customRows }
                 row(["⌘", "⇧", "E"], "rekordbox에 반영")
                 row(["⌘", "I"], "태그 편집")
+                row(["⌘", "O"], "곡 추가")
+                row(["⌘", "R"], "새 스냅샷")
+                row(["⌘", "1", "/", "2"], "목록 · 태그 시트")
+                row(["⌘", "?"], "단축키 창")
             }
             Text("덱 단축키는 설정(⌘,) › 단축키에서 바꿀 수 있습니다.")
                 .font(.system(size: 12 * scale))
@@ -107,4 +107,20 @@ struct ShortcutsList: View {
     }
 }
 
-// MARK: - 큐 목록
+/// 단축키 창도 주 창이 될 수 있다. 이 창의 키를 덱 조작으로 보내지 않도록 구분한다.
+@MainActor
+enum ShortcutsWindow {
+    static weak var current: NSWindow?
+
+    struct Tracker: NSViewRepresentable {
+        func makeNSView(context: Context) -> NSView { TrackingView() }
+        func updateNSView(_ nsView: NSView, context: Context) {}
+
+        private final class TrackingView: NSView {
+            override func viewDidMoveToWindow() {
+                super.viewDidMoveToWindow()
+                if let window { ShortcutsWindow.current = window }
+            }
+        }
+    }
+}

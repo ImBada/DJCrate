@@ -183,9 +183,9 @@ final class KeyRouter {
         return true
     }
 
-    /// 덱 단축키를 받는 창: 주 창이면서 설정 창이 아닌 것(설정 창도 주 창이 될 수 있다)
+    /// 덱 단축키를 받는 창: 설정·단축키 안내 창을 제외한 주 창.
     private static func isDeckWindow(_ window: NSWindow) -> Bool {
-        window === NSApp.mainWindow && window !== SettingsWindow.current
+        window === NSApp.mainWindow && window !== SettingsWindow.current && window !== ShortcutsWindow.current
     }
 
     // MARK: - 목록 포커스

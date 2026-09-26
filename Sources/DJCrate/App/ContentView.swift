@@ -45,7 +45,8 @@ struct ContentView: View {
         .sheet(isPresented: $store.showingWriteResult) { WriteResultView(history: store.resultHistory) }
         .animation(.easeInOut(duration: 0.15), value: store.writeStage)
         .searchable(text: $store.search, placement: .toolbar, prompt: "제목·아티스트·코멘트")
-        .toolbar { toolbarContent }
+        .toolbar(id: "main") { toolbarContent }
+        .focusedSceneValue(\.appCommands, AppCommandContext(store: store, deck: deck, showTagEditor: $showTagEditor))
         .onAppear { setUp() }
         .onChange(of: undoManager, initial: true) {
             deck.undoManager = undoManager
@@ -130,8 +131,8 @@ struct ContentView: View {
             }
     }
 
-    @ToolbarContentBuilder private var toolbarContent: some ToolbarContent {
-            ToolbarItem(placement: .principal) {
+    @ToolbarContentBuilder private var toolbarContent: some CustomizableToolbarContent {
+            ToolbarItem(id: "viewMode", placement: .principal) {
                 Picker("보기", selection: $sheetMode) {
                     Label("목록", systemImage: "list.bullet").tag(false)
                     Label("태그 시트", systemImage: "tablecells").tag(true)
@@ -139,7 +140,7 @@ struct ContentView: View {
                 .pickerStyle(.segmented)
                 .help("태그 시트: 엑셀처럼 셀을 선택·편집·붙여넣기 합니다")
             }
-            ToolbarItem {
+            ToolbarItem(id: "addFiles") {
                 Button {
                     StagingPanels.chooseFiles(store: store)
                 } label: {
@@ -148,16 +149,15 @@ struct ContentView: View {
                 .disabled(store.rows.isEmpty)
                 .help("음원 파일·폴더를 DJCrate에 추가합니다. BPM·그리드를 추정한 뒤 rekordbox XML로 넘길 수 있습니다(창에 끌어다 놓아도 됩니다).")
             }
-            ToolbarItem {
+            ToolbarItem(id: "tagEditor") {
                 Button {
                     showTagEditor.toggle()
                 } label: {
                     Label("태그 편집", systemImage: "tag")
                 }
-                .keyboardShortcut("i", modifiers: .command)
                 .help("선택한 곡의 태그를 편집합니다 (⌘I). 여러 곡을 한꺼번에 편집할 수 있습니다.")
             }
-            ToolbarItem {
+            ToolbarItem(id: "snapshot") {
                 Button {
                     // rekordbox가 켜져 있어도 읽기용 사본을 뜬다(최근 변경이 담긴 WAL까지 사본 안에서 합친다).
                     Task { await store.takeSnapshot(force: LibrarySnapshot.isRekordboxRunning()) }
