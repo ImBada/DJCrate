@@ -89,8 +89,11 @@ protocol ReflectionHost: AnyObject {
     var resultHistory: WriteResultHistory { get }
     func setWriteLock(_ locked: Bool)
     func writeTargets(_ rows: [TrackRow]) -> [TrackRow]
-    func previewWrite(rows: [TrackRow]) async throws -> LibraryStore.WritePreview
-    func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], tags: [TagDraft]) async throws -> RekordboxWriter.Report
+    /// 재생 목록 초안이 있는지(곡을 고르지 않아도 반영할 것이 있다)
+    var hasPlaylistDrafts: Bool { get }
+    func previewWrite(rows: [TrackRow], playlists: Bool) async throws -> LibraryStore.WritePreview
+    func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], tags: [TagDraft],
+                          playlists: PlaylistDraft?) async throws -> RekordboxWriter.Report
     func libraryChangedSince(_ backup: RekordboxWriter.Backup) async -> Bool?
     func restoreRekordbox(_ backup: RekordboxWriter.Backup) async throws -> URL
     // 곡 넣기·빼기
@@ -111,14 +114,16 @@ struct ReflectionCoordinator {
     var prompter: any ReflectionPrompter = AlertPrompter()
     var isRekordboxRunning: () -> Bool = LibrarySnapshot.isRekordboxRunning
 
-    func write(rows: [TrackRow]) async {
+    /// - Parameter playlists: 재생 목록 초안도 함께 쓸지(곡을 골라 쓰는 오른쪽 클릭 메뉴는 곡 초안만 쓴다)
+    func write(rows: [TrackRow], playlists: Bool = true) async {
         guard !host.isWritingRekordbox else { return }
         guard !isRekordboxRunning() else {
             inform(String(ui: "rekordbox가 켜져 있어 쓰지 않았습니다"), Self.quitRekordboxText)
             return
         }
         let targets = host.writeTargets(rows)
-        guard !targets.isEmpty else {
+        let withPlaylists = playlists && host.hasPlaylistDrafts
+        guard !targets.isEmpty || withPlaylists else {
             inform(String(ui: "반영할 초안이 없습니다"), String(ui: "고른 곡에 rekordbox와 다른 큐·그리드·게인·태그 초안이 없습니다."))
             return
         }
@@ -127,12 +132,12 @@ struct ReflectionCoordinator {
         do {
             host.writeStage = WriteStage(String(ui: "바꿀 내용을 확인하는 중…"), completed: 0, total: targets.count, cancellable: true)
             try Task.checkCancellation()
-            let preview = try await host.previewWrite(rows: targets)
+            let preview = try await host.previewWrite(rows: targets, playlists: withPlaylists)
             try Task.checkCancellation()
             host.writeStage = nil
             let report = preview.report
             guard !report.written.isEmpty || !report.gridWritten.isEmpty || !report.analysisWritten.isEmpty || !report.gainWritten.isEmpty
-                    || !report.tagWritten.isEmpty else {
+                    || !report.tagWritten.isEmpty || !report.playlistWritten.isEmpty else {
                 publish(.written(report, preview: report))
                 inform(String(ui: "rekordbox에 쓸 수 있는 초안이 없습니다"), "", details: Self.reasons(report))
                 return
@@ -145,7 +150,8 @@ struct ReflectionCoordinator {
             let written = try await host.writeToRekordbox(preview.drafts.filter { cues.contains($0.trackUUID) },
                                                 grids: preview.grids.filter { grids.contains($0.trackUUID) },
                                                 gains: preview.gains.filter { gains.contains($0.key) },
-                                                tags: preview.tags.filter { tags.contains($0.trackUUID) })
+                                                tags: preview.tags.filter { tags.contains($0.trackUUID) },
+                                                playlists: report.playlistWritten.isEmpty ? nil : preview.playlists)
             publish(.written(written, preview: report), undo: written.backup)
         } catch is CancellationError {
             host.writeStage = nil
@@ -322,6 +328,7 @@ struct ReflectionCoordinator {
 
     static func reasons(_ report: RekordboxWriter.Report) -> [String] {
         (report.blocked + report.gridBlocked + report.analysisBlocked + report.gainBlocked + report.tagBlocked).map { "• \($0.title): \($0.reason ?? "")" }
+            + report.playlistBlocked.map(PlaylistWriteText.reason)
     }
 
     /// 쓰기 전 확인 창: 종류별 곡 수, 곡마다 바뀌는 것, 쓰지 않는 것과 이유
@@ -338,6 +345,8 @@ struct ReflectionCoordinator {
         let tagFields = Dictionary(tags.map { tag in
             (tag.trackUUID, (tag.fields ?? []).compactMap { TagFields.Key(rawValue: $0)?.label }.joined(separator: "·"))
         }, uniquingKeysWith: { a, _ in a })
+        let playlists = report.playlistWritten
+        if !playlists.isEmpty { kinds.append(PlaylistWriteText.summary(playlists.count)) }
         let gridBlocked = Set((report.gridBlocked + report.analysisBlocked).map(\.trackUUID)), gridWritten = Set(grids.map(\.trackUUID))
         let analysisWritten = Set(analyses.map(\.trackUUID))
         // 분석을 붙이며 음원 그림으로 아트워크도 넣는 곡(rekordbox도 분석할 때 뽑는다, #87)
@@ -369,6 +378,7 @@ struct ReflectionCoordinator {
         for tag in tags where !cueUUIDs.contains(tag.trackUUID) {
             body.append("• \(tag.title) — " + String(ui: "태그(\(tagFields[tag.trackUUID] ?? ""))"))
         }
+        body += playlists.map(PlaylistWriteText.line)
         let reasons = reasons(report)
         if !reasons.isEmpty { body += ["", String(ui: "쓰지 않는 것 \(reasons.count):")] + reasons }
         if !analyses.isEmpty {

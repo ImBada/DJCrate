@@ -31,7 +31,7 @@ extension RekordboxWriter {
             let id = String(UInt32.random(in: 1...UInt32.max))
             if try scalar(db, "SELECT count(*) FROM djmdCue WHERE ID = ?", [.text(id)]) == 0 { return id }
         }
-        throw DJCError.writeVerificationFailed("새 큐 ID를 만들지 못했습니다")
+        throw DJCError.writeVerificationFailed(String(ui: "새 큐 ID를 만들지 못했습니다"))
     }
 
     /// 편집 큐 종류 → rekordbox Kind(메모리 0, 핫큐 A…H = 1,2,3,5,6,7,8,9)

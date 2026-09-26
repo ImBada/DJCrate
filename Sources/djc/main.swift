@@ -1,3 +1,4 @@
+import DJCDomain
 import DJCStorage
 import Foundation
 import RekordboxKit
@@ -31,14 +32,14 @@ struct UsageError: Error {}
 enum CLI {
     static let lab = CueLab.all + GridLab.all + AudioLab.all + TrackLab.all + EditLab.all + PlaylistLab.all
 
-    static let usage = """
+    static let usage = String(ui: """
         DJCrate(djc) — rekordbox DJ 라이브러리 관리 도구
 
         사용법:
         \((MainCommands.all + [DraftCommands.command]).map { $0.line() }.joined(separator: "\n"))
-        \(Command("compat", "[--db PATH] [--json]", "쓰기 전 확인: rekordbox 버전·DB 구조가 확인한 모양인지", { _ in }).line())
-        \(Command("lab", "<명령>", "규칙을 알아낼 때 쓴 실험 명령(목록: djc lab)", { _ in }).line())
-        """
+        \(Command("compat", "[--db PATH] [--json]", String(ui: "쓰기 전 확인: rekordbox 버전·DB 구조가 확인한 모양인지"), { _ in }).line())
+        \(Command("lab", String(ui: "<명령>"), String(ui: "규칙을 알아낼 때 쓴 실험 명령(목록: djc lab)"), { _ in }).line())
+        """)
 
     static var labUsage: String {
         "djc lab — 실험 명령(읽기 전용이거나 사본에만 쓴다)\n\n" + lab.map { $0.line(prefix: "djc lab") }.joined(separator: "\n")
@@ -65,28 +66,29 @@ enum CLI {
         do {
             try await command.run(args)
         } catch is UsageError {
-            print("사용법:\n" + command.line(prefix: commands.first?.name == lab.first?.name ? "djc lab" : "djc"))
+            print(String(ui: "사용법:\n") + command.line(prefix: commands.first?.name == lab.first?.name ? "djc lab" : "djc"))
         }
     }
 
     /// 라이브 쓰기 전 확인(읽기 전용): 설치된 rekordbox 버전, DB 구조(스냅샷 사본)
     static func compat(_ args: [String]) throws {
         let version = RekordboxCompatibility.installedAppVersion()
-        print("rekordbox 앱: \(version ?? "찾지 못함") · 확인한 버전 \(RekordboxCompatibility.verifiedAppVersions.sorted().map { "\($0).x" }.joined(separator: ", "))")
+        print(String(ui: "rekordbox 앱: \(version ?? String(ui: "찾지 못함")) · 확인한 버전 \(RekordboxCompatibility.verifiedAppVersions.sorted().map { "\($0).x" }.joined(separator: ", "))"))
         try RekordboxCompatibility.checkApp(version: version)
         let snapshot = try LibraryRead.resolve(database: value(after: "--db", in: args).map { URL(filePath: $0) })
         let db = try CipherDatabase(path: snapshot.path, key: RekordboxKey.derive())
         defer { db.close() }
         try RekordboxCompatibility.checkSchema(db)
-        print("DB 구조: 확인한 모양과 같음(DBVersion \(RekordboxCompatibility.databaseVersion)) · \(snapshot.lastPathComponent)")
+        print(String(ui: "DB 구조: 확인한 모양과 같음(DBVersion \(RekordboxCompatibility.databaseVersion)) · \(snapshot.lastPathComponent)"))
         let counters = try RekordboxCompatibility.updateCounters(db)
-        print("변경 카운터: 로컬 \(counters.local.map(String.init) ?? "없음") · 클라우드 동기화 \(counters.cloud.map(String.init) ?? "없음")")
+        print(String(ui: "변경 카운터: 로컬 \(counters.local.map(String.init) ?? String(ui: "없음")) · 클라우드 동기화 \(counters.cloud.map(String.init) ?? String(ui: "없음"))"))
         if let local = counters.local { try RekordboxCompatibility.checkCounters(local: local, cloud: counters.cloud) }
     }
 }
 
 // 새 읽기 명령과 JSON 조회는 옛 데이터 폴더를 옮기지도 않는다.
 let arguments = Array(CommandLine.arguments.dropFirst())
+if arguments.first != "lab" { CLILocalization.configure() }
 if arguments.first != "draft", !ReadCommands.names.contains(arguments.first ?? ""), !ReadCommands.handlesJSON(arguments) {
     LegacyMigration.run()
 }
@@ -97,7 +99,7 @@ do {
     if (ReadCommands.handlesJSON(arguments) || (arguments.first == "draft" && arguments.contains("--json"))), let data = try? ReadJSON.error(command: arguments.first ?? "", error: error) {
         FileHandle.standardError.write(data + Data("\n".utf8))
     } else {
-        FileHandle.standardError.write(Data("오류: \(error)\n".utf8))
+        FileHandle.standardError.write(Data(String(ui: "오류: \(String(describing: error))\n").utf8))
     }
     exit(1)
 }

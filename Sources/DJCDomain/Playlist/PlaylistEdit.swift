@@ -38,7 +38,7 @@ public struct PlaylistEntry: Hashable, Sendable, Codable {
     }
 }
 
-/// 재생 목록 편집 한 건. `RekordboxWriter.write(playlists:)`가 적힌 순서대로 한 트랜잭션에서 쓴다.
+/// 재생 목록 편집 한 건. 앱은 초안(`PlaylistDraft`)으로 쌓고, `RekordboxWriter.write(playlists:)`가 적힌 순서대로 한 트랜잭션에서 쓴다.
 /// 각 편집은 rekordbox 7.2.18 화면에서 같은 조작을 했을 때와 같은 행을 남긴다(docs/rekordbox-internals.md "재생 목록").
 public enum PlaylistEdit: Hashable, Sendable, Codable {
     /// 새 재생 목록·폴더를 부모(맨 위 또는 폴더)의 맨 위에 만든다. 뒤 편집에서는 `.new(key)`로 가리킨다.
@@ -64,15 +64,4 @@ public enum PlaylistEdit: Hashable, Sendable, Codable {
              let .addTracks(playlist, _), let .removeTracks(playlist, _), let .moveTracks(playlist, _, _): playlist
         }
     }
-}
-
-/// 재생 목록 편집 한 건의 결과
-public struct PlaylistOutcome: Codable, Hashable, Sendable {
-    public var edit: PlaylistEdit
-    /// 쓴 목록 ID(만들기면 새 ID). 찾지 못했으면 nil.
-    public var playlistID: String?
-    /// 목록 이름(쓴 뒤 이름)
-    public var name: String
-    public var status: RekordboxWriter.Outcome.Status
-    public var reason: String?
 }

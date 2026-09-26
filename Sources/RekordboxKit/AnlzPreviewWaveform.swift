@@ -29,10 +29,10 @@ public struct AnlzPreviewWaveform: Sendable, Equatable, Codable {
             return
         }
         let bytes = [UInt8](tag.bytes)
-        guard bytes.count >= 20 else { throw DJCError.invalidAnalysisFile("PWAV 머리가 짧음") }
+        guard bytes.count >= 20 else { throw DJCError.invalidAnalysisFile(String(ui: "PWAV 머리가 짧음")) }
         let header = Int(AnlzFile.u32(bytes, 4)), count = Int(AnlzFile.u32(bytes, 12))
         guard header >= 20, header <= bytes.count, count <= bytes.count - header else {
-            throw DJCError.invalidAnalysisFile("PWAV 길이가 맞지 않음")
+            throw DJCError.invalidAnalysisFile(String(ui: "PWAV 길이가 맞지 않음"))
         }
         guard count > 0 || colorColumns != nil else { return nil }
         heights = bytes[header..<header + count].map { $0 & 0x1F }

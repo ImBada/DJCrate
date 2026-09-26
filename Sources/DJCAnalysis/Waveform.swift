@@ -52,7 +52,7 @@ public enum WaveformAnalyzer {
         let hop = max(1, Int(sampleRate / rate))
         let chunkFrames = AVAudioFrameCount(hop * 220)
         guard channels > 0, let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: chunkFrames) else {
-            throw DJCError.queryFailed(sql: url.path, message: "오디오 버퍼를 만들지 못했습니다")
+            throw DJCError.queryFailed(sql: url.path, message: String(ui: "오디오 버퍼를 만들지 못했습니다"))
         }
 
         // 필터 상태는 조각 사이에 이어진다(vDSP.Biquad가 상태를 들고 있다).

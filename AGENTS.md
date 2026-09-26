@@ -51,7 +51,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 
 | 인자 | 확인하는 것 | 추가 조건 |
 |---|---|---|
-| `--write-selftest` | 반영(미리 보기·쓰기·조용한 다시 읽기·되돌리기) 전 과정 | `DJC_REKORDBOX_DIR` 사본 필수 |
+| `--write-selftest` | 반영(미리 보기·쓰기·조용한 다시 읽기·되돌리기) 전 과정. 재생 목록 초안(새 폴더·목록, 있던 목록에 곡)도 만들어 함께 쓰고 되돌린다 | `DJC_REKORDBOX_DIR` 사본 필수. 합성 사본은 `DJC_PLAYLIST_FIXTURE=<폴더> swift test --filter PlaylistWriteFixtureCapture` |
 | `--loop-selftest` | 활성 루프·즉석 루프·½·핫큐 저장·나가기 | `--select`로 활성 루프 있는 곡 |
 | `--loop-audio-selftest` | 루프 이음새가 샘플 단위로 맞는지(램프 WAV) | — |
 | `--metronome-selftest` | 메트로놈 클릭이 빠지지 않는지(실제 엔진으로 12초 재생해 클릭 수를 셈) | — |
@@ -80,7 +80,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 - `Sources/djc/` — CLI. `Commands/`(늘 쓰는 명령), `Lab/`(규칙을 알아낼 때 쓴 실험, `djc lab …`)
 - `Tests/` — 타깃별 테스트 + `Support/`(rekordbox 픽스처·합성 ANLZ·합성 음원, 실데이터 없음)
 - 사용자 데이터: `~/Library/Application Support/DJCrate/`
-  - 초안: `cue-drafts/`, `grid-drafts/`, `gain-drafts.json`, `tag-drafts/`
+  - 초안: `cue-drafts/`, `grid-drafts/`, `gain-drafts.json`, `tag-drafts/`, `playlist-drafts.json`(재생 목록 편집, 순서대로)
   - 그 밖: `staged.json`, `snapshots/`, `rekordbox-backups/`, 캐시(`analysis/`, `waveforms/`, `loudness.json`)
 
 ## 핵심 설계 결정 (코드만 봐서는 모르는 것)

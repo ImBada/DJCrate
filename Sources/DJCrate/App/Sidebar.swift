@@ -31,7 +31,7 @@ struct Sidebar: View {
                 Label(.ui("rekordbox 반영 대기"), systemImage: "square.and.arrow.up.on.square")
                     .badge(store.pendingLibraryCount)
                     .tag(SidebarItem.pending)
-                    .help(.ui("큐·그리드 초안이 있어 rekordbox에 반영할 곡"))
+                    .help(.ui("큐·그리드·게인·태그 초안이 있어 rekordbox에 반영할 곡. 재생 목록 초안도 이 목록 위 ‘rekordbox에 쓰기’로 함께 씁니다."))
                 Button { store.showingWriteResult = true } label: {
                     Label(.ui("마지막 쓰기 결과…"), systemImage: "doc.text.magnifyingglass")
                 }
@@ -44,16 +44,8 @@ struct Sidebar: View {
                     }
                 }
             }
-            if !store.playlistTree.isEmpty {
-                Section(.ui("rekordbox 플레이리스트 (\(store.playlistCount))"), isExpanded: $playlistsExpanded) {
-                    OutlineGroup(store.playlistTree, children: \.children) { node in
-                        Label(node.name.isEmpty ? String(ui: "(이름 없음)") : node.name,
-                              systemImage: node.isFolder ? "folder" : "music.note.list")
-                            .badge(store.count(playlist: node))
-                            .lineLimit(1)
-                            .tag(SidebarItem.playlist(node.id))
-                    }
-                }
+            if case .loaded = store.phase {
+                PlaylistSection(store: store, isExpanded: $playlistsExpanded)
             }
             Section(.ui("재생 기록"), isExpanded: $historiesExpanded) {
                 if store.histories.isEmpty {
@@ -87,6 +79,7 @@ struct Sidebar: View {
                 }
             }
         }
+        .modifier(PlaylistSidebarMenu(store: store))
     }
 }
 
@@ -122,11 +115,21 @@ struct ListActionBar: View {
         case .pending:
             bar {
                 let targets = store.selection.isEmpty ? store.displayRows : store.selectedRows
+                let playlistEdits = store.playlistDraft.steps.count
                 Button { DirectWritePanels.write(store: store, rows: targets) } label: {
-                    Label(.ui("rekordbox에 쓰기 (\(targets.count)곡)…"), systemImage: "square.and.arrow.up.on.square")
+                    Label(playlistEdits > 0 ? LocalizedStringResource.ui("rekordbox에 쓰기 (\(targets.count)곡 · 재생 목록 \(playlistEdits)건)…")
+                            : .ui("rekordbox에 쓰기 (\(targets.count)곡)…"),
+                          systemImage: "square.and.arrow.up.on.square")
                 }
-                .disabled(targets.isEmpty || store.isWritingRekordbox)
-                .help(.ui("선택한 곡(없으면 목록 전체)의 큐 초안을 rekordbox 라이브러리에 바로 씁니다. 미리 보기로 확인한 뒤 씁니다. rekordbox가 꺼져 있어야 합니다."))
+                .disabled((targets.isEmpty && playlistEdits == 0) || store.isWritingRekordbox)
+                .help(.ui("선택한 곡(없으면 목록 전체)의 곡 초안(큐·그리드·게인·태그)과 재생 목록 초안을 rekordbox 라이브러리에 바로 씁니다. 미리 보기로 확인한 뒤 씁니다. rekordbox가 꺼져 있어야 합니다."))
+                if playlistEdits > 0 {
+                    Button { PlaylistPanels.discardAll(store: store) } label: {
+                        Label(.ui("재생 목록 초안 버리기…"), systemImage: "trash")
+                    }
+                    .disabled(store.isWritingRekordbox)
+                    .help(.ui("rekordbox에 아직 쓰지 않은 재생 목록 편집을 모두 버립니다."))
+                }
                 Button { ReflectionPanels.export(store: store, rows: targets) } label: {
                     Label(.ui("XML로…"), systemImage: "doc.text")
                 }
@@ -145,6 +148,23 @@ struct ListActionBar: View {
                 } else {
                     Text(.ui("rekordbox가 꺼져 있을 때만 씁니다 · 쓰기 전에 전체 백업")).font(.caption).foregroundStyle(.secondary)
                 }
+            }
+        case let .playlist(id):
+            if let node = store.playlistIndex[id], node.isDraft || node.blockedReason != nil {
+                bar {
+                    if let reason = node.blockedReason {
+                        Label(.ui("이 목록의 초안 일부를 쓸 수 없습니다: \(reason)"), systemImage: WarningMark.symbol)
+                            .foregroundStyle(UIColors.warning.color)
+                            .lineLimit(2)
+                    } else {
+                        Label(.ui("반영하지 않은 초안이 있는 목록입니다 · 반영(⇧⌘E)할 때 rekordbox에 씁니다"), systemImage: DraftMark.symbol)
+                            .foregroundStyle(UIColors.draft.color)
+                    }
+                    Button(.ui("이 목록의 초안 버리기")) { store.discardPlaylistDraft(id) }
+                        .disabled(store.isWritingRekordbox)
+                }
+            } else {
+                EmptyView()
             }
         case .filter(.noBPM):
             bar {

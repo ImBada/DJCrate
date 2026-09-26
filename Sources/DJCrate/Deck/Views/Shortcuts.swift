@@ -31,6 +31,10 @@ struct ShortcutsList: View {
                 row(["⌘", "I"], String(ui: "태그 편집"))
                 row(["⌘", "O"], String(ui: "곡 추가"))
                 row(["⌘", "R"], String(ui: "새 스냅샷"))
+                row(["⌘", "N", "/", "⌘", "⇧", "N"], String(ui: "새 재생 목록 · 새 폴더"))
+                row(["⌘", "⇧", "P"], String(ui: "마지막에 쓴 목록에 넣기"))
+                row(["⌘", "⌥", "P"], String(ui: "재생 목록에 넣기…"))
+                row(["⌫"], String(ui: "재생 목록을 볼 때: 이 목록에서 빼기"))
                 row(["⌘", "1", "/", "2"], String(ui: "목록 · 태그 시트"))
                 // '+'는 구분 기호로 쓰여서 이 줄은 키캡을 직접 놓는다.
                 GridRow {

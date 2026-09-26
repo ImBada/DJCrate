@@ -24,6 +24,7 @@ description: DJCrate의 명령줄 도구 djc로 rekordbox 라이브러리(스냅
 
 ## 준비
 
+- 언어: macOS 언어 설정을 따르며 `DJC_LANG=ko|en|ja`가 우선한다(예: `DJC_LANG=en djc search '시험' --json`, 지원하지 않는 언어는 영어). JSON의 `code`·칸 이름·데이터는 그대로이고 오류 `message`만 번역한다.
 - `djc` 찾기: PATH에 `djc`가 있으면 그것을, 없으면 DJCrate 저장소에서 `swift build --product djc` 후 `.build/debug/djc`를 쓴다.
 - 읽기 명령과 `djc draft`는 최신 스냅샷을 읽는다. 스냅샷이 없으면 `read_failed`("스냅샷이 없습니다") 오류가 난다.
 - `djc snapshot`은 라이브 DB를 읽기만 해서 사본을 뜬다(rekordbox에 쓰지 않음). 사람이 rekordbox에서 고친 뒤라면 새로 뜬다. rekordbox가 켜져 있거나 막 끈 뒤 `master.db-wal`이 남아 있으면 막힌다. 그때는 사람에게 rekordbox를 꺼 달라고 하거나 기존 스냅샷을 쓴다. `--force`는 사람이 동의할 때만 쓴다(최근 변경이 빠질 수 있다).

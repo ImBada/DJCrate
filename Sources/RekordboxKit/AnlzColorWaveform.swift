@@ -32,11 +32,11 @@ public struct AnlzColorWaveform: Sendable {
     static func entries(file: AnlzFile, tag name: String, size: Int) throws -> [UInt8]? {
         guard let tag = file.tag(name) else { return nil }
         let bytes = [UInt8](tag.bytes)
-        guard bytes.count >= 24 else { throw DJCError.invalidAnalysisFile("\(name) 머리가 짧음") }
+        guard bytes.count >= 24 else { throw DJCError.invalidAnalysisFile(String(ui: "\(name) 머리가 짧음")) }
         let header = Int(AnlzFile.u32(bytes, 4)), stride = Int(AnlzFile.u32(bytes, 12))
         let count = Int(AnlzFile.u32(bytes, 16))
         guard header >= 24, header <= bytes.count, stride == size, count <= (bytes.count - header) / size else {
-            throw DJCError.invalidAnalysisFile("\(name) 칸 크기나 길이가 맞지 않음")
+            throw DJCError.invalidAnalysisFile(String(ui: "\(name) 칸 크기나 길이가 맞지 않음"))
         }
         return Array(bytes[header..<header + count * size])
     }

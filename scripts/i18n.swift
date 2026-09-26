@@ -8,8 +8,8 @@ let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingL
 let resources = root.appending(path: "Sources/DJCrate/Resources")
 let catalogURL = resources.appending(path: "Localizable.xcstrings")
 let infoPlistCatalogURL = resources.appending(path: "InfoPlist.xcstrings")
-/// 앱 카탈로그로 문구를 찾는 모듈. djc(CLI)는 아직 번역하지 않는다.
-let modules = ["DJCrate", "DJCDomain", "RekordboxKit", "DJCStorage", "DJCAnalysis"]
+/// 앱·CLI가 같은 카탈로그로 문구를 찾는다. CLI의 Lab은 개발자용이라 한국어를 유지한다.
+let modules = ["DJCrate", "djc", "DJCDomain", "RekordboxKit", "DJCStorage", "DJCAnalysis"]
 let languages = ["en", "ja"]
 
 struct Extracted {
@@ -205,6 +205,7 @@ func translationProblems(_ catalog: [String: Any], name: String, languages: [Str
 
 func buildDebug() {
     guard run(["swift", "build", "--product", "DJCrate"], quiet: true) == 0 else { fail("swift build가 실패했습니다. 먼저 빌드 오류를 고치세요") }
+    guard run(["swift", "build", "--product", "djc"], quiet: true) == 0 else { fail("djc 빌드가 실패했습니다. 먼저 빌드 오류를 고치세요") }
 }
 
 func report(_ problems: [String], limit: Int = 40) {

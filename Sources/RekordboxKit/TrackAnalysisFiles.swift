@@ -7,12 +7,14 @@ import Foundation
 /// - PVBR 끝값: MP3는 rekordbox가 세는 프레임 수×1152, AAC·WAV는 0(7.2.18이 오늘 분석한 곡 기준).
 ///   LAME 정보 프레임은 소리로 세고, 다른 인코더(ffmpeg 등)의 정보 프레임은 세지 않는다(시간축 규칙과 같다).
 /// - VBR MP3 탐색표: 칸 k = rekordbox가 세는 프레임 중 `floor((k+1)·n/400) − 8`번째의 바이트 위치(그 첫 프레임 기준).
-///   라이브러리 VBR 459곡 중 452곡(LAME) + 6곡(ffmpeg)이 400칸 모두 같다(2026-09-26). 8프레임 앞은 디코더 비트 저장소 몫으로 보인다.
-///   VBR 비트레이트 칸은 LAME이면 0(453곡). LAME이 아닌 VBR은 비트레이트 규칙이 들쭉날쭉해 막는다.
+///   LAME·ffmpeg Xing(Lavc/Lavf)에서 400칸 일치. 8프레임 앞은 디코더 비트 저장소 몫으로 보인다.
+///   VBR 비트레이트는 LAME이면 0, ffmpeg Xing은 첫 음성 프레임 비트레이트(2026-09-27 합성 3곡·기존 표본).
 /// - FLAC: 비트레이트 0, PVBR은 모두 0. 대신 .EXT 끝에 PVB2(400칸 탐색표)를 붙인다.
 ///   칸 k = 샘플 `k · floor(전체 샘플/400)`이 든 FLAC 프레임의 (시작 샘플, 첫 프레임 기준 바이트 위치, 블록 크기).
 ///   라이브러리 FLAC 1,083곡 중 1,081곡이 바이트까지 같다(2026-09-26, 나머지 2곡은 샘플은 같고 바이트 위치만 달라 분석 뒤 파일이 바뀐 것으로 보임).
-/// - ALAC은 규칙을 몰라 분석을 붙이지 않는다(분석 전 추가만).
+/// - ALAC: AudioToolbox 압축 비트레이트를 kbps로 버림, 원본 비트 깊이, PVBR 모두 0·PVB2 없음.
+///   2026-09-27 합성 4곡으로 스테레오 16/24비트·44.1/48kHz를 확인했다.
+///   ALAC·ffmpeg VBR은 사본의 분석 카운터가 달라 계산값만 반환하고 쓰기는 계속 막는다.
 public struct AudioFacts: Sendable, Equatable {
     public var sampleRate: Int
     public var bitDepth: Int
@@ -48,20 +50,24 @@ public struct AudioFacts: Sendable, Equatable {
                                   unsupported: String(ui: "MP3 프레임이 중간에 끊겨 있어(깨진 프레임) 분석을 붙이지 않습니다"))
             }
             let counted = SeekInfo.countedMp3Offsets(frames, url: url)
-            let lame = RekordboxTimeline.mp3Header(url: url).contains("LAME")
+            let header = RekordboxTimeline.mp3Header(url: url)
+            let lame = header.contains("LAME")
+            let ffmpeg = header.hasPrefix("Xing Lavc") || header.hasPrefix("Xing Lavf")
             let total = UInt32(counted.count * frames.samplesPerFrame)
             let audioFrame = frames.hasInfoFrame && frames.offsets.count > 1 ? frames.offsets[1] : first
             guard frames.isVariableBitRate else {
                 return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: mp3BitRate(url: url, at: audioFrame) ?? 0,
                                   pvbrTotalSamples: total, unsupported: nil)
             }
-            guard lame, counted.count > 8 else {
+            guard lame || ffmpeg, counted.count > 8 else {
                 return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: 0, pvbrTotalSamples: total,
-                                  unsupported: String(ui: "LAME이 아닌 VBR MP3는 rekordbox 비트레이트 규칙을 몰라 분석을 붙이지 않습니다"))
+                                  unsupported: String(ui: "이 VBR MP3 인코더의 분석 규칙은 확인되지 않았으니 rekordbox에서 먼저 분석하세요"))
             }
             let n = counted.count
             let entries = (0..<400).map { k in UInt32(counted[max(0, (k + 1) * n / 400 - 8)] - counted[0]) }
-            return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: 0, pvbrTotalSamples: total, pvbrEntries: entries, unsupported: nil)
+            return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: lame ? 0 : (mp3BitRate(url: url, at: audioFrame) ?? 0),
+                              pvbrTotalSamples: total, pvbrEntries: entries,
+                              unsupported: lame ? nil : String(ui: "ffmpeg VBR 분석 카운터의 사본 재현이 일치하지 않으니 rekordbox에서 먼저 분석하세요"))
         case kAudioFormatMPEG4AAC:
             return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: aacAverageBitRate(fileID) / 1000, pvbrTotalSamples: 0, unsupported: nil)
         case kAudioFormatLinearPCM:
@@ -70,9 +76,22 @@ public struct AudioFacts: Sendable, Equatable {
                               pvbrTotalSamples: 0, unsupported: nil)
         case kAudioFormatFLAC:
             return flac(url: url)
+        case kAudioFormatAppleLossless:
+            // ALAC의 mBitsPerChannel은 0이다. 원본 비트 깊이는 format flags에 있다.
+            let bits = format.mFormatFlags == kAppleLosslessFormatFlag_16BitSourceData ? 16
+                : format.mFormatFlags == kAppleLosslessFormatFlag_24BitSourceData ? 24 : 0
+            var bitrate: UInt32 = 0
+            size = UInt32(MemoryLayout<UInt32>.size)
+            guard bits > 0, [44_100, 48_000].contains(rate), format.mChannelsPerFrame == 2,
+                  AudioFileGetProperty(fileID, kAudioFilePropertyBitRate, &size, &bitrate) == noErr else {
+                return AudioFacts(sampleRate: rate, bitDepth: bits, bitRate: 0, pvbrTotalSamples: 0,
+                                  unsupported: String(ui: "이 ALAC 형식의 분석 규칙은 확인되지 않았으니 rekordbox에서 먼저 분석하세요"))
+            }
+            return AudioFacts(sampleRate: rate, bitDepth: bits, bitRate: Int(bitrate / 1000), pvbrTotalSamples: 0,
+                              unsupported: String(ui: "ALAC 분석 카운터의 사본 재현이 일치하지 않으니 rekordbox에서 먼저 분석하세요"))
         default:
             return AudioFacts(sampleRate: rate, bitDepth: 0, bitRate: 0, pvbrTotalSamples: 0,
-                              unsupported: String(ui: "이 형식(ALAC 등)은 분석 파일 규칙을 몰라 분석을 붙이지 않습니다"))
+                              unsupported: String(ui: "이 형식의 분석 규칙은 확인되지 않았으니 rekordbox에서 먼저 분석하세요"))
         }
     }
 

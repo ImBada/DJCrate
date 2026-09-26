@@ -186,7 +186,7 @@ struct RekordboxTrackWriterTests {
     @Test func 규칙을_모르는_형식은_분석을_붙이지_않고_막는다() async throws {
         let fixture = try RekordboxFixture()
         try fixture.add(TrackSpec())
-        let alac = try AudioFixture.alac(seconds: 1, in: fixture.audio)
+        let alac = try AudioFixture.alac(seconds: 1, sampleRate: 96_000, in: fixture.audio)
         let p = try TrackAddPlan.make(url: alac, tags: try await AudioTags.read(url: alac), now: now)
         let analysis = RekordboxTrackWriter.Analysis(segments: [GridSegment(start: 0, bpm: 120, firstBeatNumber: 1)], loudness: -10, peak: 1)
         let report = try RekordboxTrackWriter.add([p], analyses: [p.path: analysis], to: fixture.database, shareRoot: fixture.shareRoot,

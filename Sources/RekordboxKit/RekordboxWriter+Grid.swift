@@ -12,7 +12,7 @@ extension RekordboxWriter {
         func fail(_ reason: String) -> DJCError { .writeVerificationFailed("\(reason) (\(plan.title))") }
         var contentID: String?
         try db.query("SELECT ID FROM djmdContent WHERE UUID = ? AND rb_local_deleted = 0", [.text(plan.trackUUID)]) { contentID = $0.string(0) }
-        guard let contentID else { throw fail("곡을 찾지 못했습니다") }
+        guard let contentID else { throw fail(String(ui: "곡을 찾지 못했습니다")) }
         usn += 1
         let fileUSN = usn
         let files = try db.run("""
@@ -20,7 +20,7 @@ extension RekordboxWriter {
                 rb_data_status = CASE rb_data_status WHEN 256 THEN 257 ELSE rb_data_status END,
                 rb_local_usn = ?, updated_at = ? WHERE ContentID = ? AND Path = ?
             """, [.text(plan.newDatMD5), .int(plan.newDat.count), .int(fileUSN), .text(stamp.db), .text(contentID), .text(plan.analysisDataPath)])
-        guard files <= 1 else { throw fail("분석 파일 기록이 여럿입니다") }
+        guard files <= 1 else { throw fail(String(ui: "분석 파일 기록이 여럿입니다")) }
         usn += 1
         let contentUSN = usn
         let changed = try db.run("""
@@ -30,13 +30,13 @@ extension RekordboxWriter {
                 rb_data_status = CASE rb_data_status WHEN 256 THEN 257 ELSE rb_data_status END,
                 rb_local_usn = ?, updated_at = ? WHERE ID = ?
             """, [.int(bpm100), .int(contentUSN), .text(stamp.db), .text(contentID)])
-        guard changed == 1 else { throw fail("곡 BPM을 고치지 못했습니다") }
+        guard changed == 1 else { throw fail(String(ui: "곡 BPM을 고치지 못했습니다")) }
         // rekordbox는 두 칸을 글자로 둔다.
         try db.run("UPDATE djmdContent SET AnalysisUpdated = CAST(AnalysisUpdated AS TEXT), TrackInfoUpdated = CAST(TrackInfoUpdated AS TEXT) WHERE ID = ?",
                    [.text(contentID)])
         var check: (Int, String?)?
         try db.query("SELECT BPM, typeof(AnalysisUpdated) FROM djmdContent WHERE ID = ?", [.text(contentID)]) { check = ($0.int(0) ?? 0, $0.string(1)) }
-        guard check?.0 == bpm100, check?.1 == "text" else { throw fail("곡 BPM 확인 실패") }
+        guard check?.0 == bpm100, check?.1 == "text" else { throw fail(String(ui: "곡 BPM 확인 실패")) }
     }
 
     /// DB 사본의 rekordbox 변경 카운터(읽기 전용).

@@ -149,11 +149,11 @@ extension RekordboxWriter {
         let keys = columns.keys.sorted()
         let changed = try db.run("UPDATE djmdContent SET \(keys.map { "\"\($0)\" = ?" }.joined(separator: ", ")) WHERE ID = ?",
                                  keys.map { columns[$0]! } + [.text(plan.contentID)])
-        guard changed == 1 else { throw DJCError.writeVerificationFailed("곡 행에 분석 칸을 쓰지 못했습니다 (\(plan.title))") }
+        guard changed == 1 else { throw DJCError.writeVerificationFailed(String(ui: "곡 행에 분석 칸을 쓰지 못했습니다 (\(plan.title))")) }
         try RekordboxTrackWriter.verify(db, table: "djmdContent", id: plan.contentID, columns)
         for ext in ["2EX", "DAT", "EXT"] {
             guard let file = plan.ready.files.first(where: { $0.0.pathExtension == ext }) else {
-                throw DJCError.writeVerificationFailed("분석 파일(.\(ext))을 만들지 못했습니다 (\(plan.title))")
+                throw DJCError.writeVerificationFailed(String(ui: "분석 파일(.\(ext))을 만들지 못했습니다 (\(plan.title))"))
             }
             usn += 1
             try insert(RekordboxTrackWriter.fileRow(plan.ready, file, contentID: plan.contentID, usn: usn, stamp: stamp))
@@ -178,12 +178,12 @@ extension RekordboxWriter {
     static func writeAnalysisFiles(_ plan: AttachPlan, created: inout [URL]) throws {
         let fm = FileManager.default
         for (url, data) in plan.ready.files + (plan.artwork?.files ?? []) {
-            guard !fm.fileExists(atPath: url.path) else { throw DJCError.writeVerificationFailed("파일이 이미 있습니다: \(url.lastPathComponent)") }
+            guard !fm.fileExists(atPath: url.path) else { throw DJCError.writeVerificationFailed(String(ui: "파일이 이미 있습니다: \(url.lastPathComponent)")) }
             try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try data.write(to: url, options: .atomic)
             created.append(url)
             guard try Data(contentsOf: url) == data else {
-                throw DJCError.writeVerificationFailed("파일 확인 실패: \(url.lastPathComponent) (\(plan.title))")
+                throw DJCError.writeVerificationFailed(String(ui: "파일 확인 실패: \(url.lastPathComponent) (\(plan.title))"))
             }
         }
     }
