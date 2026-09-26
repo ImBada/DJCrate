@@ -4,9 +4,10 @@ import SwiftUI
 
 extension Double {
     /// VoiceOver가 읽는 곡 안 위치: "1분 23초", 1분 안이면 "23초". "1:23"은 시각(1시 23분)으로 읽혀 쓰지 않는다.
+    /// 분·초를 따로 찾아 잇는다(영어는 수에 따라 minute/minutes가 달라 한 문구에 두 복수형을 담기 어렵다).
     var spokenClockText: String {
         let seconds = Int(Swift.max(self, 0))
-        return seconds < 60 ? "\(seconds)초" : "\(seconds / 60)분 \(seconds % 60)초"
+        return seconds < 60 ? String(ui: "\(seconds)초") : String(ui: "\(seconds / 60)분") + " " + String(ui: "\(seconds % 60)초")
     }
 }
 
@@ -22,17 +23,17 @@ enum WaveformAccessibility {
     /// 확대 파형: "1분 23초, 12.3마디, 다음 메모리 큐까지 8박"
     static func zoomValue(time: Double, grid: BeatGrid?, cues: [EditableCue]) -> String {
         var parts = [time.spokenClockText]
-        if let position = grid?.positionText(at: time) { parts.append("\(position)마디") }
+        if let position = grid?.positionText(at: time) { parts.append(String(ui: "\(position)마디")) }
         if let remaining = CueCountdown.remaining(to: cues, from: time, grid: grid) {
-            parts.append("다음 메모리 큐까지 \(spoken(remaining))")
+            parts.append(String(ui: "다음 메모리 큐까지 \(spoken(remaining))"))
         }
         return parts.joined(separator: ", ")
     }
 
     /// 전체 파형: "전체 3분 0초 중 1분 23초, 12.3마디"
     static func overviewValue(time: Double, duration: Double, grid: BeatGrid?) -> String {
-        var parts = ["전체 \(duration.spokenClockText) 중 \(time.spokenClockText)"]
-        if let position = grid?.positionText(at: time) { parts.append("\(position)마디") }
+        var parts = [String(ui: "전체 \(duration.spokenClockText) 중 \(time.spokenClockText)")]
+        if let position = grid?.positionText(at: time) { parts.append(String(ui: "\(position)마디")) }
         return parts.joined(separator: ", ")
     }
 
@@ -41,13 +42,13 @@ enum WaveformAccessibility {
         let peak = Swift.max(reading.peak.left, reading.peak.right)
         let level: String
         if !playing {
-            level = "멈춤"
+            level = String(ui: "멈춤")
         } else if now - reading.time < 0.25, peak > 0 {
-            level = String(format: "지금 피크 %+.0f dB", 20 * log10(Double(peak)))
+            level = String(ui: "지금 피크 \(20 * log10(Double(peak)), specifier: "%+.0f") dB")
         } else {
-            level = "소리 없음"
+            level = String(ui: "소리 없음")
         }
-        let clipping = reading.clipCount > 0 ? "0dBFS를 \(reading.clipCount)번 넘음" : "클리핑 없음"
+        let clipping = reading.clipCount > 0 ? String(ui: "0dBFS를 \(reading.clipCount)번 넘음") : String(ui: "클리핑 없음")
         return "\(level), \(clipping)"
     }
 
@@ -55,10 +56,10 @@ enum WaveformAccessibility {
         switch remaining {
         case let .beats(beats) where beats > 64:
             beats % BeatJump.beatsPerBar == 0
-                ? "\(beats / BeatJump.beatsPerBar)마디"
-                : "\(beats / BeatJump.beatsPerBar)마디 \(beats % BeatJump.beatsPerBar)박"
-        case let .beats(beats): "\(beats)박"
-        case let .seconds(seconds): "\(Int(seconds.rounded()))초"
+                ? String(ui: "\(beats / BeatJump.beatsPerBar)마디")
+                : String(ui: "\(beats / BeatJump.beatsPerBar)마디") + " " + String(ui: "\(beats % BeatJump.beatsPerBar)박")
+        case let .beats(beats): String(ui: "\(beats)박")
+        case let .seconds(seconds): String(ui: "\(Int(seconds.rounded()))초")
         }
     }
 
@@ -66,8 +67,8 @@ enum WaveformAccessibility {
 
     static func cueMarkers(_ cues: [EditableCue]) -> [Marker] {
         cues.sorted { $0.time < $1.time }.map { cue in
-            var parts = [cue.kind.slotLetter.map { "핫큐 \($0)" } ?? "메모리 큐", cue.time.spokenClockText]
-            if let loop = cue.loop { parts.append(loop.beats.map { "\(LoopRules.text($0))박 루프" } ?? "루프") }
+            var parts = [cue.kind.slotLetter.map { String(ui: "핫큐 \($0)") } ?? String(ui: "메모리 큐"), cue.time.spokenClockText]
+            if let loop = cue.loop { parts.append(loop.beats.map { String(ui: "\(LoopRules.text($0))박 루프") } ?? String(ui: "루프")) }
             if !cue.name.isEmpty { parts.append(cue.name) }
             return Marker(id: "cue-\(cue.id)", time: cue.time, label: parts.joined(separator: ", "))
         }
@@ -78,10 +79,10 @@ enum WaveformAccessibility {
         let scores = sections.map(\.score).filter(\.isFinite)
         let lo = scores.min() ?? 0, hi = scores.max() ?? 0
         return sections.enumerated().map { index, section in
-            var label = "섹션 \(index + 1), \(section.start.spokenClockText)"
+            var label = String(ui: "섹션 \(index + 1), \(section.start.spokenClockText)")
             if hi > lo, section.score.isFinite {
                 let norm = (section.score - lo) / (hi - lo)
-                label += ", 에너지 " + (norm >= 0.67 ? "강함" : norm >= 0.34 ? "보통" : "약함")
+                label += ", " + (norm >= 0.67 ? String(ui: "에너지 강함") : norm >= 0.34 ? String(ui: "에너지 보통") : String(ui: "에너지 약함"))
             }
             return Marker(id: "section-\(index)", time: section.start, label: label)
         }
@@ -91,13 +92,13 @@ enum WaveformAccessibility {
     static func keyChangeMarkers(_ segments: [(start: Double, name: String)]) -> [Marker] {
         zip(segments, segments.dropFirst()).enumerated().map { index, pair in
             Marker(id: "key-\(index)", time: pair.1.start,
-                   label: "조성 \(pair.0.name)에서 \(pair.1.name)로, \(pair.1.start.spokenClockText)")
+                   label: String(ui: "조성 \(pair.0.name)에서 \(pair.1.name)로, \(pair.1.start.spokenClockText)"))
         }
     }
 
     static func suggestionMarkers(_ times: [Double]) -> [Marker] {
         times.sorted().enumerated().map { index, time in
-            Marker(id: "suggestion-\(index)", time: time, label: "메모리 큐 제안, \(time.spokenClockText)")
+            Marker(id: "suggestion-\(index)", time: time, label: String(ui: "메모리 큐 제안, \(time.spokenClockText)"))
         }
     }
 }
@@ -114,12 +115,12 @@ extension View {
                 @unknown default: break
                 }
             }
-            .accessibilityAction(named: "메모리 큐 추가") { deck.addMemoryCueAtPlayhead() }
-            .accessibilityAction(named: "가장 가까운 제안 받기") { deck.acceptNearestSuggestion() }
-            .accessibilityAction(named: "다음 제안으로") { deck.jumpToSuggestion(forward: true) }
-            .accessibilityAction(named: "이전 제안으로") { deck.jumpToSuggestion(forward: false) }
-            .accessibilityAction(named: "확대") { deck.zoom(by: 0.8) }
-            .accessibilityAction(named: "축소") { deck.zoom(by: 1.25) }
+            .accessibilityAction(named: .ui("메모리 큐 추가")) { deck.addMemoryCueAtPlayhead() }
+            .accessibilityAction(named: .ui("가장 가까운 제안 받기")) { deck.acceptNearestSuggestion() }
+            .accessibilityAction(named: .ui("다음 제안으로")) { deck.jumpToSuggestion(forward: true) }
+            .accessibilityAction(named: .ui("이전 제안으로")) { deck.jumpToSuggestion(forward: false) }
+            .accessibilityAction(named: .ui("확대")) { deck.zoom(by: 0.8) }
+            .accessibilityAction(named: .ui("축소")) { deck.zoom(by: 1.25) }
     }
 }
 
@@ -135,7 +136,7 @@ struct WaveformAccessibilityValue: ViewModifier {
         let value = switch kind {
         case .zoom: WaveformAccessibility.zoomValue(time: time, grid: deck.grid, cues: deck.draft?.cues ?? [])
         case .overview: WaveformAccessibility.overviewValue(time: time, duration: deck.duration, grid: deck.grid)
-            + (deck.isAnalyzingSections ? ", 섹션 분석 중" : "")
+            + (deck.isAnalyzingSections ? ", " + String(ui: "섹션 분석 중") : "")
         }
         content.accessibilityValue(value)
     }

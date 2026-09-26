@@ -45,7 +45,7 @@ extension LibraryStore {
         var cues: [String: [EditableCue]] = [:]
         for (index, track) in tracks.enumerated() {
             try Task.checkCancellation()
-            writeStage = WriteStage("넣을 곡을 확인하는 중…", completed: index, total: tracks.count, cancellable: true)
+            writeStage = WriteStage(String(ui: "넣을 곡을 확인하는 중…"), completed: index, total: tracks.count, cancellable: true)
             let url = URL(filePath: track.path)
             do {
                 var tags = try await AudioTags.read(url: url)
@@ -55,7 +55,7 @@ extension LibraryStore {
                 uuids[plan.path] = track.uuid
                 if let draft = CueDraftStore.load(trackUUID: track.uuid), !draft.cues.isEmpty { cues[plan.path] = draft.cues }
                 if GridDraftStore.load(trackUUID: track.uuid)?.segments.first.map({ $0.bpm > 0 }) != true {
-                    without[plan.path] = gridJob != nil ? "그리드를 아직 추정하는 중" : "그리드가 없음"
+                    without[plan.path] = gridJob != nil ? String(ui: "그리드를 아직 추정하는 중") : String(ui: "그리드가 없음")
                 } else if let reason = AudioFacts.read(url: url).unsupported {
                     without[plan.path] = reason
                 }
@@ -66,11 +66,11 @@ extension LibraryStore {
             }
         }
         try Task.checkCancellation()
-        writeStage = WriteStage("미리 보기 1/2단계 · 사본을 만드는 중…", completed: 0, total: 2, cancellable: true)
+        writeStage = WriteStage(String(ui: "미리 보기 1/2단계 · 사본을 만드는 중…"), completed: 0, total: 2, cancellable: true)
         // 사본으로 DB만 시험한다(분석 파일은 만들지 않지만 큐는 함께 시험해 막히는 이유를 미리 본다).
         let report = try await Task.detached(priority: .userInitiated) { [plans, cues] in
             let snapshot = try LibrarySnapshot.take()
-            await MainActor.run { self.writeStage = WriteStage("미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…", completed: 1, total: 2, cancellable: true) }
+            await MainActor.run { self.writeStage = WriteStage(String(ui: "미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…"), completed: 1, total: 2, cancellable: true) }
             return try RekordboxTrackWriter.add(plans, cues: cues, to: snapshot, dryRun: true, backups: DJCPaths.rekordboxBackups)
         }.value
         return TrackAddPreview(report: report, plans: plans, stagedUUIDs: uuids, withoutAnalysis: without, cues: cues, unreadable: unreadable)
@@ -96,12 +96,12 @@ extension LibraryStore {
         let accepted = Set(preview.report.added.filter(\.written).map(\.path))
         let plans = preview.plans.filter { accepted.contains($0.path) }
         let analysisPlans = plans.filter { preview.withoutAnalysis[$0.path] == nil }
-        writeStage = WriteStage("음량을 재는 중…", completed: 0, total: analysisPlans.count, cancellable: true)
+        writeStage = WriteStage(String(ui: "음량을 재는 중…"), completed: 0, total: analysisPlans.count, cancellable: true)
         defer { writeStage = nil }
         var analyses: [String: RekordboxTrackWriter.Analysis] = [:]
         for (index, plan) in analysisPlans.enumerated() {
             try Task.checkCancellation()
-            writeStage = WriteStage("음량을 재는 중…", completed: index, total: analysisPlans.count, cancellable: true)
+            writeStage = WriteStage(String(ui: "음량을 재는 중…"), completed: index, total: analysisPlans.count, cancellable: true)
             guard let uuid = preview.stagedUUIDs[plan.path], let grid = GridDraftStore.load(trackUUID: uuid) else { continue }
             let url = URL(filePath: plan.path)
             var loudness = LoudnessCache.shared.value(for: url)
@@ -114,7 +114,7 @@ extension LibraryStore {
                                         peak: loudness.map { pow(10, $0.peak / 20) } ?? 1)
         }
         try Task.checkCancellation()
-        writeStage = WriteStage("rekordbox에 곡과 분석 파일을 넣는 중…")
+        writeStage = WriteStage(String(ui: "rekordbox에 곡과 분석 파일을 넣는 중…"))
         let cues = preview.cues.filter { accepted.contains($0.key) }
         let report = try await Task.detached(priority: .userInitiated) { [plans, analyses, cues] in
             try RekordboxTrackWriter.add(plans, analyses: analyses, cues: cues, dryRun: false, backups: DJCPaths.rekordboxBackups)
@@ -143,7 +143,7 @@ extension LibraryStore {
         if let backup = report.backup, !removed.isEmpty, let data = try? JSONEncoder().encode(removed) {
             try? data.write(to: URL(filePath: backup).appending(path: Self.stagedBackupName))
         }
-        writeStage = WriteStage("넣은 곡을 읽는 중…")
+        writeStage = WriteStage(String(ui: "넣은 곡을 읽는 중…"))
         await takeSnapshot(quiet: true)
         if let first = report.added.first(where: \.written), let id = first.contentID {
             sidebar = .filter(.all)
@@ -161,10 +161,10 @@ extension LibraryStore {
     func previewTrackDelete(rows: [TrackRow]) async throws -> TrackDeletePreview {
         let ids = trackDeleteTargets(rows).map(\.track.id)
         try Task.checkCancellation()
-        writeStage = WriteStage("미리 보기 1/2단계 · 사본을 만드는 중…", completed: 0, total: 2, cancellable: true)
+        writeStage = WriteStage(String(ui: "미리 보기 1/2단계 · 사본을 만드는 중…"), completed: 0, total: 2, cancellable: true)
         let report = try await Task.detached(priority: .userInitiated) {
             let snapshot = try LibrarySnapshot.take()
-            await MainActor.run { self.writeStage = WriteStage("미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…", completed: 1, total: 2, cancellable: true) }
+            await MainActor.run { self.writeStage = WriteStage(String(ui: "미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…"), completed: 1, total: 2, cancellable: true) }
             return try RekordboxTrackWriter.delete(contentIDs: ids, from: snapshot, dryRun: true, backups: DJCPaths.rekordboxBackups)
         }.value
         try Task.checkCancellation()
@@ -174,13 +174,13 @@ extension LibraryStore {
     func deleteTracksFromRekordbox(_ preview: TrackDeletePreview) async throws -> RekordboxTrackWriter.Report {
         let ids = preview.report.deleted.filter(\.written).compactMap(\.contentID)
         try Task.checkCancellation()
-        writeStage = WriteStage("rekordbox에서 곡을 빼는 중…")
+        writeStage = WriteStage(String(ui: "rekordbox에서 곡을 빼는 중…"))
         defer { writeStage = nil }
         let report = try await Task.detached(priority: .userInitiated) {
             try RekordboxTrackWriter.delete(contentIDs: ids, dryRun: false, backups: DJCPaths.rekordboxBackups)
         }.value
         selection.subtract(Set(report.deleted.filter(\.written).compactMap(\.contentID)))
-        writeStage = WriteStage("라이브러리를 다시 읽는 중…")
+        writeStage = WriteStage(String(ui: "라이브러리를 다시 읽는 중…"))
         await takeSnapshot(quiet: true)
         lastWriteBackup = report.backup.map { URL(filePath: $0) }
         return report

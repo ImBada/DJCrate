@@ -7,6 +7,8 @@ rekordbox 7 라이브러리를 관리하는 macOS 앱. 큐·그리드·오토게
 
 ![DJCrate 덱과 곡 목록 화면(합성 시험 데이터)](docs/images/deck-library.png)
 
+화면은 macOS 언어 설정에 따라 한국어·영어·일본어로 나온다. English summary: [below](#english).
+
 ## 기능
 
 - **곡 목록**: rekordbox 라이브러리를 사본으로 읽어 재생 목록 트리와 함께 본다. 큐 없음·BPM·그리드 없음·변속 곡·반영 대기 같은 필터, 컬럼 고르기(머리글 오른쪽 클릭), 곡 전체 미리 보기 파형 칸(기본은 숨김).
@@ -109,6 +111,18 @@ djc draft cue <ContentID> --time 12.5 --name '진입'   # 메모리 큐 초안
 - [AGENTS.md](AGENTS.md): 작업 규칙(사람·에이전트 공통)
 - [docs/architecture.md](docs/architecture.md): 구조와 설계 결정
 - [docs/rekordbox-internals.md](docs/rekordbox-internals.md): 실험으로 확인한 rekordbox 쓰기 규칙
+
+## English
+
+DJCrate is a macOS app for managing a rekordbox 7 library without launching rekordbox. It edits cues, beat grids and Auto Gain, adds and removes tracks, and writes the results directly into the rekordbox library. It is a library tool, not a DJ performance app. A command-line tool, `djc`, is included.
+
+- **Languages**: the app follows your macOS language setting: English, Japanese or Korean (other languages fall back to English). The `djc` command-line tool is Korean only for now.
+- **Safety**: DJCrate never writes while rekordbox or rekordboxAgent is running, and only writes to rekordbox 7.2.x with a verified database layout. It backs up the whole library first, writes in a single transaction, reads the result back to verify it, and restores the backup if anything fails. The last write can be restored from the app.
+- **Drafts**: every edit is kept as a DJCrate draft until you write it to rekordbox.
+- **Requirements**: macOS 27 or later, a Swift 6.2+ toolchain (Xcode) and rekordbox 7.2.x (verified with 7.2.18). Build and install with `scripts/build-app.sh --install`.
+- **Getting started**: take a library snapshot (⟳ in the toolbar), edit cues and grids on the deck, quit rekordbox completely, then choose Write to rekordbox (⇧⌘E), check the preview and write.
+
+Documentation, code comments and issues are written in Korean. rekordbox is a trademark of AlphaTheta; DJCrate is an independent project not affiliated with AlphaTheta. Licensed under the [MIT License](LICENSE).
 
 ## 라이선스
 

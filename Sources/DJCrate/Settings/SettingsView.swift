@@ -11,21 +11,21 @@ struct SettingsView: View {
 
     var body: some View {
         TabView(selection: $tab) {
-            Tab("일반", systemImage: "gearshape", value: SettingsTab.general) {
+            Tab(.ui("일반"), systemImage: "gearshape", value: SettingsTab.general) {
                 GeneralSettingsView(deck: deck, store: store)
             }
-            Tab("덱", systemImage: "dial.medium", value: SettingsTab.deck) {
+            Tab(.ui("덱"), systemImage: "dial.medium", value: SettingsTab.deck) {
                 DeckSettingsView(deck: deck)
             }
-            Tab("단축키", systemImage: "keyboard", value: SettingsTab.shortcuts) {
+            Tab(.ui("단축키"), systemImage: "keyboard", value: SettingsTab.shortcuts) {
                 ShortcutSettingsView(deck: deck)
             }
-            Tab("파형", systemImage: "waveform", value: SettingsTab.waveform) {
+            Tab(.ui("파형"), systemImage: "waveform", value: SettingsTab.waveform) {
                 Form {
-                    Picker("색 모드", selection: $deck.waveformColorMode) {
+                    Picker(.ui("색 모드"), selection: $deck.waveformColorMode) {
                         ForEach(WaveformColorMode.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
-                    Text("덱의 확대·전체 파형과 곡 목록 미리 보기에 함께 적용합니다.")
+                    Text(.ui("덱의 확대·전체 파형과 곡 목록 미리 보기에 함께 적용합니다."))
                         .foregroundStyle(.secondary)
                 }
                 .formStyle(.grouped)
@@ -68,34 +68,34 @@ struct GeneralSettingsView: View {
     var body: some View {
         Form {
             Section {
-                Picker("글자 크기", selection: Binding(get: { SettingKeys.textScale.value(from: textScale) }, set: { textScale = $0 })) {
+                Picker(.ui("글자 크기"), selection: Binding(get: { SettingKeys.textScale.value(from: textScale) }, set: { textScale = $0 })) {
                     ForEach(TextScale.steps, id: \.self) { scale in
-                        Text(scale == 1 ? "기본(100%)" : "\(Int((scale * 100).rounded()))%").tag(scale)
+                        Text(scale == 1 ? String(ui: "기본(100%)") : "\(Int((scale * 100).rounded()))%").tag(scale)
                     }
                 }
             } header: {
-                Text("화면")
+                Text(.ui("화면"))
             } footer: {
-                Text("곡 목록·태그 시트·덱·알림의 글자를 키웁니다. 보기 › 글자 크게·작게(⌘+ · ⌘−)로도 바꿀 수 있습니다.")
+                Text(.ui("곡 목록·태그 시트·덱·알림의 글자를 키웁니다. 보기 › 글자 크게·작게(⌘+ · ⌘−)로도 바꿀 수 있습니다."))
                     .foregroundStyle(.secondary)
             }
-            Section("코멘트") {
-                Picker("코멘트 프리셋", selection: $store.commentPreset) {
+            Section(.ui("코멘트")) {
+                Picker(.ui("코멘트 프리셋"), selection: $store.commentPreset) {
                     ForEach(CommentPreset.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
-                Text("애니송을 고르면 코멘트 분류·필터·현황·형식 검사를 켭니다.")
+                Text(.ui("애니송을 고르면 코멘트 분류·필터·현황·형식 검사를 켭니다."))
                     .foregroundStyle(.secondary)
             }
             Section {
-                Picker("재생을 멈춘 뒤 오디오 엔진 끄기", selection: $deck.idleSeconds) {
+                Picker(.ui("재생을 멈춘 뒤 오디오 엔진 끄기"), selection: $deck.idleSeconds) {
                     ForEach(SettingKeys.idleSecondsChoices, id: \.self) { seconds in
                         Text(Self.durationText(seconds)).tag(seconds)
                     }
                 }
             } header: {
-                Text("오디오")
+                Text(.ui("오디오"))
             } footer: {
-                Text("짧을수록 쉬는 동안 CPU를 덜 쓰고, 길수록 멈춘 뒤 CUE·재생이 바로 소리 납니다.")
+                Text(.ui("짧을수록 쉬는 동안 CPU를 덜 쓰고, 길수록 멈춘 뒤 CUE·재생이 바로 소리 납니다."))
                     .foregroundStyle(.secondary)
             }
         }
@@ -105,7 +105,7 @@ struct GeneralSettingsView: View {
     }
 
     static func durationText(_ seconds: Double) -> String {
-        seconds < 60 ? "\(Int(seconds))초" : "\(Int(seconds / 60))분"
+        seconds < 60 ? String(ui: "\(Int(seconds))초") : String(ui: "\(Int(seconds / 60))분")
     }
 }
 
@@ -116,41 +116,41 @@ struct DeckSettingsView: View {
 
     var body: some View {
         Form {
-            Section("재생") {
-                Toggle("키 고정(템포를 바꿔도 음정 유지)", isOn: $deck.keyLock)
-                LabeledContent("메트로놈 소리 크기") {
+            Section(.ui("재생")) {
+                Toggle(.ui("키 고정(템포를 바꿔도 음정 유지)"), isOn: $deck.keyLock)
+                LabeledContent(.ui("메트로놈 소리 크기")) {
                     HStack {
                         Slider(value: $deck.metronomeVolume, in: 0...1)
                             .frame(width: 180)
-                        Text("\(Int((deck.metronomeVolume * 100).rounded()))%")
+                        Text(verbatim: "\(Int((deck.metronomeVolume * 100).rounded()))%")
                             .monospacedDigit()
                             .frame(width: 40, alignment: .trailing)
                     }
                 }
             }
-            Section("편집") {
-                Toggle("퀀타이즈(큐·루프를 비트 그리드의 박에 맞춤)", isOn: $deck.quantize)
-                Toggle("그리드를 고칠 때 큐도 함께 옮기기(핫큐·메모리 큐·루프)", isOn: $deck.carryCues)
-                Toggle("메모리 큐 제안 보이기(섹션 경계)", isOn: $deck.showSuggestions)
+            Section(.ui("편집")) {
+                Toggle(.ui("퀀타이즈(큐·루프를 비트 그리드의 박에 맞춤)"), isOn: $deck.quantize)
+                Toggle(.ui("그리드를 고칠 때 큐도 함께 옮기기(핫큐·메모리 큐·루프)"), isOn: $deck.carryCues)
+                Toggle(.ui("메모리 큐 제안 보이기(섹션 경계)"), isOn: $deck.showSuggestions)
             }
-            Section("게인") {
-                Toggle("오토게인(곡마다 목표 음량에 맞춤)", isOn: $deck.autoGain)
-                Toggle("rekordbox 값 사용", isOn: $deck.useRekordboxGain)
+            Section(.ui("게인")) {
+                Toggle(.ui("오토게인(곡마다 목표 음량에 맞춤)"), isOn: $deck.autoGain)
+                Toggle(.ui("rekordbox 값 사용"), isOn: $deck.useRekordboxGain)
                     .disabled(!deck.autoGain)
-                Picker("목표 음량", selection: $deck.gainTarget) {
+                Picker(.ui("목표 음량"), selection: $deck.gainTarget) {
                     ForEach(SettingKeys.gainTargetChoices, id: \.self) { Text(String(format: "%.0f LUFS", $0)).tag($0) }
                 }
                 .disabled(!deck.autoGain)
-                Toggle("피크 보호(0dBFS를 넘지 않을 만큼만 올림)", isOn: $deck.peakProtection)
+                Toggle(.ui("피크 보호(0dBFS를 넘지 않을 만큼만 올림)"), isOn: $deck.peakProtection)
                     .disabled(!deck.autoGain)
             }
             Section {
                 HStack {
                     Spacer()
-                    Button("기본값으로 되돌리기") { deck.resetDeckSettings() }
+                    Button(.ui("기본값으로 되돌리기")) { deck.resetDeckSettings() }
                 }
             } footer: {
-                Text("덱에서 바로 만지는 볼륨·확대·트림은 그대로 둡니다.")
+                Text(.ui("덱에서 바로 만지는 볼륨·확대·트림은 그대로 둡니다."))
                     .foregroundStyle(.secondary)
             }
         }

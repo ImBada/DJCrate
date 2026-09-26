@@ -143,8 +143,8 @@ public struct CueDraft: Codable, Equatable, Sendable {
     public func issues(duration: Double) -> [String] {
         var issues: [String] = []
         let slots = cues.compactMap(\.kind.slotLetter)
-        if Set(slots).count != slots.count { issues.append("같은 핫큐 슬롯이 두 번 쓰였습니다") }
-        if cues.contains(where: { $0.time < 0 || $0.time > duration }) { issues.append("곡 길이를 벗어난 큐가 있습니다") }
+        if Set(slots).count != slots.count { issues.append(String(ui: "같은 핫큐 슬롯이 두 번 쓰였습니다")) }
+        if cues.contains(where: { $0.time < 0 || $0.time > duration }) { issues.append(String(ui: "곡 길이를 벗어난 큐가 있습니다")) }
         return issues
     }
 }

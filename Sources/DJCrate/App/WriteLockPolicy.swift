@@ -1,3 +1,5 @@
+import DJCDomain
+
 /// 쓰기 잠금에서 허용하는 시스템 동작과 막는 라이브러리 조작을 구분한다.
 struct WriteLockPolicy {
     var isWriting: Bool
@@ -5,7 +7,7 @@ struct WriteLockPolicy {
 
     var allowsLibraryInteraction: Bool { !isWriting }
     var allowsTermination: Bool { !isWriting }
-    static let terminationMessage = "rekordbox에 쓰는 중입니다. 끝난 뒤 종료하세요"
+    static var terminationMessage: String { String(ui: "rekordbox에 쓰는 중입니다. 끝난 뒤 종료하세요") }
 
     func blocksKey(_ keyCode: UInt16, in context: KeyRoutingPolicy.Context) -> Bool {
         guard isWriting, context.isMainWindow, !context.hasModalWindow, !context.hasAttachedSheet,

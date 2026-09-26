@@ -29,7 +29,7 @@ public struct AudioFacts: Sendable, Equatable {
     public static func read(url: URL) -> AudioFacts {
         var fileID: AudioFileID?
         guard AudioFileOpenURL(url as CFURL, .readPermission, 0, &fileID) == noErr, let fileID else {
-            return AudioFacts(sampleRate: 0, bitDepth: 0, bitRate: 0, pvbrTotalSamples: 0, unsupported: "음원 형식을 읽지 못했습니다")
+            return AudioFacts(sampleRate: 0, bitDepth: 0, bitRate: 0, pvbrTotalSamples: 0, unsupported: String(ui: "음원 형식을 읽지 못했습니다"))
         }
         defer { AudioFileClose(fileID) }
         var format = AudioStreamBasicDescription()
@@ -39,13 +39,13 @@ public struct AudioFacts: Sendable, Equatable {
         switch format.mFormatID {
         case kAudioFormatMPEGLayer3:
             guard let frames = SeekInfo.mp3Frames(url: url), let first = frames.offsets.first else {
-                return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: 0, pvbrTotalSamples: 0, unsupported: "MP3 프레임을 읽지 못했습니다")
+                return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: 0, pvbrTotalSamples: 0, unsupported: String(ui: "MP3 프레임을 읽지 못했습니다"))
             }
             // 중간에 깨진 프레임이 있으면 rekordbox와 프레임 수가 달라진다(끝까지 읽혀야 한다)
             let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
             guard let last = frames.offsets.last, size - last < 16_384 else {
                 return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: 0, pvbrTotalSamples: 0,
-                                  unsupported: "MP3 프레임이 중간에 끊겨 있어(깨진 프레임) 분석을 붙이지 않습니다")
+                                  unsupported: String(ui: "MP3 프레임이 중간에 끊겨 있어(깨진 프레임) 분석을 붙이지 않습니다"))
             }
             let counted = SeekInfo.countedMp3Offsets(frames, url: url)
             let lame = RekordboxTimeline.mp3Header(url: url).contains("LAME")
@@ -57,7 +57,7 @@ public struct AudioFacts: Sendable, Equatable {
             }
             guard lame, counted.count > 8 else {
                 return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: 0, pvbrTotalSamples: total,
-                                  unsupported: "LAME이 아닌 VBR MP3는 rekordbox 비트레이트 규칙을 몰라 분석을 붙이지 않습니다")
+                                  unsupported: String(ui: "LAME이 아닌 VBR MP3는 rekordbox 비트레이트 규칙을 몰라 분석을 붙이지 않습니다"))
             }
             let n = counted.count
             let entries = (0..<400).map { k in UInt32(counted[max(0, (k + 1) * n / 400 - 8)] - counted[0]) }
@@ -72,19 +72,19 @@ public struct AudioFacts: Sendable, Equatable {
             return flac(url: url)
         default:
             return AudioFacts(sampleRate: rate, bitDepth: 0, bitRate: 0, pvbrTotalSamples: 0,
-                              unsupported: "이 형식(ALAC 등)은 분석 파일 규칙을 몰라 분석을 붙이지 않습니다")
+                              unsupported: String(ui: "이 형식(ALAC 등)은 분석 파일 규칙을 몰라 분석을 붙이지 않습니다"))
         }
     }
 
     static func flac(url: URL) -> AudioFacts {
         guard let info = SeekInfo.flacStreamInfo(url: url), let table = SeekInfo.flacFrames(url: url),
               let first = table.frames.first, let last = table.frames.last else {
-            return AudioFacts(sampleRate: 0, bitDepth: 0, bitRate: 0, pvbrTotalSamples: 0, unsupported: "FLAC 프레임을 읽지 못했습니다")
+            return AudioFacts(sampleRate: 0, bitDepth: 0, bitRate: 0, pvbrTotalSamples: 0, unsupported: String(ui: "FLAC 프레임을 읽지 못했습니다"))
         }
         let total = last.startSample + last.blockSize
         guard info.totalSamples == 0 || info.totalSamples == total else {
             return AudioFacts(sampleRate: info.sampleRate, bitDepth: info.bitsPerSample, bitRate: 0, pvbrTotalSamples: 0,
-                              unsupported: "FLAC 프레임이 중간에 끊겨 있어(깨진 프레임) 분석을 붙이지 않습니다")
+                              unsupported: String(ui: "FLAC 프레임이 중간에 끊겨 있어(깨진 프레임) 분석을 붙이지 않습니다"))
         }
         let starts = table.frames.map(\.startSample)
         let step = total / 400

@@ -1,3 +1,5 @@
+import Foundation
+
 /// 단축키로 부를 수 있는 덱 동작. 순서는 설정 창의 순서이자, 키가 겹칠 때 먼저 받는 순서다.
 public enum DeckAction: String, CaseIterable, Sendable {
     case playPause, cue
@@ -12,11 +14,11 @@ public enum DeckAction: String, CaseIterable, Sendable {
 
         public var title: String {
             switch self {
-            case .transport: "재생"
-            case .hotCues: "핫큐"
-            case .cues: "큐·박 이동·제안"
-            case .loops: "루프"
-            case .view: "템포·파형"
+            case .transport: String(ui: "재생")
+            case .hotCues: String(ui: "핫큐")
+            case .cues: String(ui: "큐·박 이동·제안")
+            case .loops: String(ui: "루프")
+            case .view: String(ui: "템포·파형")
             }
         }
     }
@@ -47,35 +49,35 @@ public enum DeckAction: String, CaseIterable, Sendable {
     }
 
     public var title: String {
-        if let slot = hotCueSlot { return "핫큐 \(Character(UnicodeScalar(UInt8(65 + slot))))" }
+        if let slot = hotCueSlot { return String(ui: "핫큐 \(String(Character(UnicodeScalar(UInt8(65 + slot)))))") }
         switch self {
-        case .playPause: return "재생 / 정지"
+        case .playPause: return String(ui: "재생 / 정지")
         case .cue: return "CUE"
-        case .memoryCue: return "메모리 큐 찍기"
-        case .previousCue: return "이전 큐"
-        case .nextCue: return "다음 큐"
-        case .nudgeBack: return "1박 앞으로(선택한 큐 또는 재생 위치)"
-        case .nudgeForward: return "1박 뒤로(선택한 큐 또는 재생 위치)"
-        case .deleteCue: return "선택한 큐 지우기"
-        case .nextSuggestion: return "다음 제안으로"
-        case .acceptSuggestion: return "가까운 제안 받기"
-        case .loop: return "루프 걸기·나가기"
-        case .loopHalve: return "루프 길이 ½"
-        case .loopDouble: return "루프 길이 ×2"
-        case .tapTempo: return "탭 템포"
-        case .zoomIn: return "파형 확대"
-        case .zoomOut: return "파형 축소"
+        case .memoryCue: return String(ui: "메모리 큐 찍기")
+        case .previousCue: return String(ui: "이전 큐")
+        case .nextCue: return String(ui: "다음 큐")
+        case .nudgeBack: return String(ui: "1박 앞으로(선택한 큐 또는 재생 위치)")
+        case .nudgeForward: return String(ui: "1박 뒤로(선택한 큐 또는 재생 위치)")
+        case .deleteCue: return String(ui: "선택한 큐 지우기")
+        case .nextSuggestion: return String(ui: "다음 제안으로")
+        case .acceptSuggestion: return String(ui: "가까운 제안 받기")
+        case .loop: return String(ui: "루프 걸기·나가기")
+        case .loopHalve: return String(ui: "루프 길이 ½")
+        case .loopDouble: return String(ui: "루프 길이 ×2")
+        case .tapTempo: return String(ui: "탭 템포")
+        case .zoomIn: return String(ui: "파형 확대")
+        case .zoomOut: return String(ui: "파형 축소")
         default: return rawValue
         }
     }
 
     /// Shift와 함께 누르면 하는 일
     public var shiftTitle: String? {
-        if hotCueSlot != nil { return "Shift: 지우기" }
+        if hotCueSlot != nil { return String(ui: "Shift: 지우기") }
         switch self {
-        case .memoryCue: return "Shift: 이 자리 메모리 큐 지우기"
-        case .nudgeBack, .nudgeForward: return "Shift: 1마디"
-        case .nextSuggestion: return "Shift: 이전 제안으로"
+        case .memoryCue: return String(ui: "Shift: 이 자리 메모리 큐 지우기")
+        case .nudgeBack, .nudgeForward: return String(ui: "Shift: 1마디")
+        case .nextSuggestion: return String(ui: "Shift: 이전 제안으로")
         default: return nil
         }
     }

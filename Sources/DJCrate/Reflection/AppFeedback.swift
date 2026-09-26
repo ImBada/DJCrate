@@ -1,4 +1,5 @@
 import AppKit
+import DJCDomain
 import SwiftUI
 
 struct AppMessage: Equatable {
@@ -41,7 +42,7 @@ struct AppMessageView: View {
                 .foregroundStyle(message.kind.tint)
                 .textSelection(.enabled)
             Spacer()
-            Button("닫기", action: onClose).controlSize(.small)
+            Button(.ui("닫기"), action: onClose).controlSize(.small)
         }
         .font(.callout)
         .padding(.horizontal, 14).padding(.vertical, 6)

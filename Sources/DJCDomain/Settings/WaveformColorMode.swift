@@ -1,11 +1,13 @@
+import Foundation
+
 public enum WaveformColorMode: String, CaseIterable, Codable, Sendable {
     case blue, rgb, threeBand
 
     public var title: String {
         switch self {
-        case .blue: "블루"
+        case .blue: String(ui: "블루")
         case .rgb: "RGB"
-        case .threeBand: "3밴드"
+        case .threeBand: String(ui: "3밴드")
         }
     }
 }

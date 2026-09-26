@@ -13,25 +13,25 @@ struct TagInspector: View {
         let rows = store.selectedRows
         Form {
             if rows.isEmpty {
-                Text("목록에서 곡을 선택하세요. 여러 곡을 고르면 한꺼번에 편집합니다.")
+                Text(.ui("목록에서 곡을 선택하세요. 여러 곡을 고르면 한꺼번에 편집합니다."))
                     .foregroundStyle(.secondary)
             } else {
                 Section {
                     HStack {
-                        Text(rows.count == 1 ? rows[0].title : "\(rows.count)곡 선택").font(.scaled(.headline, textScale)).lineLimit(1)
+                        Text(rows.count == 1 ? rows[0].title : String(ui: "\(rows.count)곡 선택")).font(.scaled(.headline, textScale)).lineLimit(1)
                         Spacer()
                         let changed = rows.filter { store.tagDrafts[$0.track.uuid] != nil }.count
                         if changed > 0 {
-                            Text("초안 \(changed)곡").font(.scaled(.caption, textScale).bold()).foregroundStyle(UIColors.draft.color)
+                            Text(.ui("초안 \(changed)곡")).font(.scaled(.caption, textScale).bold()).foregroundStyle(UIColors.draft.color)
                         }
                     }
                 }
-                Section("곡 정보") {
+                Section(.ui("곡 정보")) {
                     ForEach(TagFields.Key.allCases.filter { $0 != .comment }) { key in
                         field(key, rows: rows)
                     }
                 }
-                Section("코멘트") {
+                Section(.ui("코멘트")) {
                     field(.comment, rows: rows, axis: .vertical)
                     let comment = store.tagValue(.comment, rows: rows)
                     if !comment.mixed, let rule = store.commentPreset.rule {
@@ -45,13 +45,13 @@ struct TagInspector: View {
                             .foregroundStyle(UIColors.warning.color).font(.scaled(.caption, textScale))
                     }
                     HStack {
-                        Button("되돌리기") { store.revertTags(rows: rows) }
+                        Button(.ui("되돌리기")) { store.revertTags(rows: rows) }
                         Spacer()
-                        Button("파일에 쓰기…") {}
+                        Button(.ui("파일에 쓰기…")) {}
                             .disabled(true)
-                            .help("안전 쓰기(태그 프레임만 교체 + 검증) 구현과 rekordbox Reload Tag 검증 전까지 잠겨 있습니다.")
+                            .help(.ui("안전 쓰기(태그 프레임만 교체 + 검증) 구현과 rekordbox Reload Tag 검증 전까지 잠겨 있습니다."))
                     }
-                    Text("편집은 DJCrate 초안에만 저장됩니다. 음원 파일과 rekordbox는 바뀌지 않습니다.")
+                    Text(.ui("편집은 DJCrate 초안에만 저장됩니다. 음원 파일과 rekordbox는 바뀌지 않습니다."))
                         .font(.scaled(.caption, textScale)).foregroundStyle(.secondary)
                 }
             }
@@ -86,7 +86,7 @@ private struct CommitTextField: View {
     var body: some View {
         // 초안이면 칸 이름 옆에 연필 표식을 붙이고 VoiceOver 이름에도 "초안"을 더한다(색만으로 알리지 않는다).
         // 값(accessibilityValue)을 덮으면 칸에 적힌 글자를 못 읽으므로 이름에 붙인다.
-        TextField(text: $text, prompt: Text(mixed ? "(여러 값 — 입력하면 모두 바뀜)" : ""), axis: axis) {
+        TextField(text: $text, prompt: Text(mixed ? String(ui: "(여러 값 — 입력하면 모두 바뀜)") : ""), axis: axis) {
             HStack(spacing: 4) {
                 Text(label)
                 if edited {
