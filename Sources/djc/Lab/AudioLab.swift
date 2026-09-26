@@ -8,6 +8,7 @@ import Foundation
 /// 소리 분석 실험과 시간 측정.
 enum AudioLab {
     static let all: [Command] = [
+        Command("phrase-eval", "--corpus 사본 폴더 [--limit N] [--out 결과.json]", "PSSI와 섹션 경계를 마디 단위로 익명 비교(읽기 전용)", PhraseEvaluation.run),
         Command("mockup-data", nil, "디자인 시안용 실데이터(JSON)", AudioLab.mockupData),
         Command("bench-load", nil, "DB 읽기·분류·파싱 시간", AudioLab.benchLoad),
         Command("bench-waveform", nil, "파형 분석 시간", AudioLab.benchWaveform),
