@@ -46,7 +46,7 @@ struct TransportBar: View {
             // 재생·큐 묶음 다음 줄에 확대·보기 묶음을 둔다.
             FlowLayout(spacing: 10) {
                 ZoomControl(deck: deck)
-                ShortcutsButton(deck: deck)
+                ShortcutsButton()
                 HStack(spacing: 8) {
                     Toggle("퀀타이즈", isOn: $deck.quantize)
                         .toggleStyle(.checkbox)

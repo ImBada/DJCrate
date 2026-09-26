@@ -92,7 +92,6 @@ struct ReflectFooter: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .keyboardShortcut("e", modifiers: [.command, .shift])
             .disabled(store.pendingLibraryCount == 0 || store.isWritingRekordbox)
             .help("선택한 곡에 초안이 있으면 그 곡들만, 없으면 반영 대기 곡 전체의 큐를 rekordbox 라이브러리에 바로 씁니다. 미리 보기로 확인한 뒤, rekordbox가 꺼져 있을 때만 씁니다 (⌘⇧E).")
             // 마지막 반영 되돌리기(토스트가 사라진 뒤에도)
