@@ -151,7 +151,7 @@ struct RekordboxTrackArtworkTests {
         #expect(names.allSatisfy { FileManager.default.fileExists(atPath: base.appending(path: $0).path) })
     }
 
-    @Test func 아트워크를_넣은_곡을_빼면_파일은_지우고_폴더는_남기고_되돌리면_살아난다() async throws {
+    @Test func 아트워크를_넣은_곡을_빼면_파일과_빈_폴더를_지우고_되돌리면_살아난다() async throws {
         let fixture = try RekordboxFixture(localUpdateCount: 3000)
         try fixture.add(TrackSpec())
         let added = try add(fixture, [try await plan(fixture)], writesArtwork: true)
@@ -161,7 +161,7 @@ struct RekordboxTrackArtworkTests {
         let deleted = try RekordboxTrackWriter.delete(contentIDs: [id], from: fixture.database, shareRoot: fixture.shareRoot, dryRun: false,
                                                       now: now.addingTimeInterval(60), backups: fixture.backups)
         #expect(deleted.deleted.first?.written == true)
-        #expect(FileManager.default.fileExists(atPath: base.path), "rekordbox처럼 아트워크 폴더는 남긴다")
+        #expect(!FileManager.default.fileExists(atPath: base.path), "허용한 파일을 뺀 뒤 빈 곡 폴더만 지운다")
         #expect(names.allSatisfy { !FileManager.default.fileExists(atPath: base.appending(path: $0).path) })
         #expect(try fixture.rows("SELECT * FROM contentFile").isEmpty)
         _ = try RekordboxWriter.restore(URL(filePath: try #require(deleted.backup)), to: fixture.database, backups: fixture.backups)
