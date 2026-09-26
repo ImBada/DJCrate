@@ -132,4 +132,59 @@ struct WriteTargetGuardTests {
                                              liveDirectories: [missingRoot])
         #expect(writeGuard.isLive(alias))
     }
+
+    @Test(arguments: [false, true])
+    func 합치기도_사본_DB와_라이브_share를_섞으면_거부한다(symbolic: Bool) throws {
+        let live = try RekordboxFixture()
+        let copy = try DuplicateMergeWriterTests().fixture()
+        let merge = try DuplicateMergeWriterTests().draft(copy)
+        let alias = copy.root.appending(path: "share-alias")
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: live.shareRoot)
+        let reason = WriteGuardTests().refusal {
+            _ = try RekordboxWriter.write(drafts: [], merges: [merge], to: copy.database, dryRun: false,
+                                          backups: copy.backups, shareRoot: symbolic ? alias : live.shareRoot, guard: guardFor(live))
+        }
+        #expect(reason?.contains("share") == true)
+        #expect(try copy.rows("SELECT ID FROM djmdContent ORDER BY ID").map { $0["ID"] } == ["100", "200", "300"])
+        #expect(try FileManager.default.contentsOfDirectory(atPath: copy.backups.path).isEmpty)
+    }
+
+    @Test(arguments: ["direct", "symbolic", "default"])
+    func 복원도_사본_DB와_라이브_share를_섞으면_백업_전에_거부한다(kind: String) throws {
+        let live = try RekordboxFixture(), copy = try RekordboxFixture()
+        let backup = try RekordboxWriter.makeBackup(of: copy.database, in: copy.root.appending(path: "source-backups"), now: .now, label: "test")
+        let track = try copy.add(TrackSpec())
+        try FileManager.default.removeItem(at: copy.shareRoot)
+        try FileManager.default.createSymbolicLink(at: copy.shareRoot, withDestinationURL: live.shareRoot)
+        let share: URL? = kind == "default" ? nil : kind == "direct" ? live.shareRoot : copy.shareRoot
+        let reason = WriteGuardTests().refusal {
+            _ = try RekordboxWriter.restore(backup, to: copy.database, backups: copy.backups,
+                                            guard: guardFor(live), shareRoot: share)
+        }
+        #expect(reason?.contains("share") == true)
+        #expect(try copy.rows("SELECT ID FROM djmdContent").first?["ID"] == track.id)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: copy.backups.path).isEmpty)
+    }
+
+    @Test(arguments: [false, true])
+    func 복원도_DB_링크의_라이브_실행_검사를_거친다(symbolic: Bool) throws {
+        let live = try RekordboxFixture(), copy = try RekordboxFixture()
+        let alias = try databaseAlias(live, in: copy, symbolic: symbolic)
+        let reason = WriteGuardTests().refusal {
+            _ = try RekordboxWriter.restore(copy.root.appending(path: "missing-backup"), to: alias, backups: copy.backups,
+                                            guard: guardFor(live, running: true))
+        }
+        #expect(reason?.contains("켜져") == true)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: copy.backups.path).isEmpty)
+    }
+
+    @Test func 복원의_버전_예외는_유지하고_라이브_share를_같이_판정한다() throws {
+        let live = try RekordboxFixture()
+        let backup = try RekordboxWriter.makeBackup(of: live.database, in: live.root.appending(path: "source-backups"), now: .now, label: "test")
+        try live.add(TrackSpec())
+        let saved = try RekordboxWriter.restore(backup, to: live.database, backups: live.backups,
+                                                guard: guardFor(live, version: "7.3.0"), shareRoot: live.shareRoot)
+        #expect(FileManager.default.fileExists(atPath: saved.appending(path: "master.db").path))
+        #expect(try live.rows("SELECT ID FROM djmdContent").isEmpty)
+    }
 }

@@ -158,16 +158,22 @@ public struct RekordboxWriteGuard: Sendable {
 
     /// DB와 share를 함께 검사하고, 생략된 라이브 share는 같은 라이브러리에서 고른다.
     func checkTargets(_ database: URL, shareRoot: URL?, dryRun: Bool) throws -> URL? {
+        let share = try resolveShareRoot(database, shareRoot: shareRoot)
+        if isLive(database) { try checkLive(database, dryRun: dryRun) }
+        return share
+    }
+
+    /// 복원도 같은 대상 경계를 쓰되, 비상 복원의 버전 검사 예외는 유지한다.
+    func resolveShareRoot(_ database: URL, shareRoot: URL?) throws -> URL? {
+        let directory = liveDirectories.first { Self.sameFile(database, $0.appending(path: "master.db")) }
+        let shareRoot = shareRoot ?? (isLive(database) ? directory?.appending(path: "share") ?? RekordboxShare.directory : nil)
         for directory in liveDirectories {
             if let shareRoot, Self.contains(shareRoot, in: directory.appending(path: "share")),
                !Self.sameFile(database, directory.appending(path: "master.db")) {
                 throw DJCError.writeRefused(String(ui: "사본 DB에 라이브 share를 사용할 수 없습니다. share 폴더도 실제 사본으로 복사한 뒤 다시 시도하세요"))
             }
         }
-        let live = isLive(database)
-        if live { try checkLive(database, dryRun: dryRun) }
-        let directory = liveDirectories.first { Self.sameFile(database, $0.appending(path: "master.db")) }
-        return shareRoot ?? (live ? directory?.appending(path: "share") ?? RekordboxShare.directory : nil)
+        return shareRoot
     }
 
     /// 경로와 device/inode를 함께 본다. 파일이 아직 없는 끊어진 심볼릭 링크도 경로로 막는다.
