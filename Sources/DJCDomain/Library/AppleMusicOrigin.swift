@@ -1,6 +1,6 @@
 import Foundation
 
-/// 재생 목록을 쓰는 기능이 생길 때까지 원래 소속과 순서를 추가한 곡에 보관한다.
+/// 가져온 곡의 원래 소속과 순서. 목록 만들기를 고르면 컬렉션 등록 뒤 이 출처로 초안을 만든다.
 public struct AppleMusicOrigin: Codable, Sendable, Hashable {
     public var libraryID: String?
     public var trackID: Int

@@ -84,7 +84,7 @@ struct PlaylistRow: View {
                 // 인텔리전트 목록은 옮기지 않는다(규칙 미확인)
                 node.isSmart ? NSItemProvider() : NSItemProvider(item: Data(node.id.utf8) as NSData, typeIdentifier: PlaylistDragType.playlist.identifier)
             }
-            .onDrop(of: [PlaylistDragType.tracks, PlaylistDragType.playlist], isTargeted: $isTargeted) { providers in
+            .onDrop(of: [PlaylistDragType.tracks, PlaylistDragType.playlist, .fileURL], isTargeted: $isTargeted) { providers in
                 PlaylistDrop.perform(providers, on: node, store: store)
             }
             .background(isTargeted ? Color.accentColor.opacity(0.25) : .clear, in: RoundedRectangle(cornerRadius: 4))
@@ -232,11 +232,21 @@ struct PlaylistFolderMenu: View {
 enum PlaylistDrop {
     /// 곡을 목록에 놓으면 넣고, 재생 목록을 폴더에 놓으면 그 안(맨 끝)으로, 목록에 놓으면 그 앞으로 옮긴다.
     static func perform(_ providers: [NSItemProvider], on node: PlaylistOutlineNode, store: LibraryStore) -> Bool {
+        guard store.writeLockPolicy.allowsLibraryInteraction else { return false }
         let tracks = providers.filter { $0.hasItemConformingToTypeIdentifier(PlaylistDragType.tracks.identifier) }
         if !tracks.isEmpty {
             guard store.canEditTracks(of: node.id) else { return false }
             loadStrings(tracks, type: PlaylistDragType.tracks) { ids in
                 store.addTracks(ids.compactMap { store.rowsByID[$0] }, toPlaylist: node.id)
+            }
+            return true
+        }
+        let files = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
+        if !files.isEmpty {
+            guard store.canEditTracks(of: node.id) else { return false }
+            loadStrings(files, type: .fileURL) { strings in
+                let urls = strings.compactMap(URL.init(string:)).filter(\.isFileURL)
+                Task { await store.addFiles(urls, toPlaylist: node.id) }
             }
             return true
         }

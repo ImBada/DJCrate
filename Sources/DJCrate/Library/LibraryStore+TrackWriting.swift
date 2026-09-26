@@ -195,6 +195,7 @@ extension LibraryStore {
 
     /// 곡 추가를 되돌렸으면 그 곡들을 추가 목록에 다시 넣고, 새 곡으로 옮겼던 초안을 지운다. 되살린 곡 수.
     func restoreStaged(from backup: RekordboxWriter.Backup) -> Int {
+        resetPlaylistImports(contentIDs: Set(backup.trackReport?.added.filter(\.written).compactMap(\.contentID) ?? []))
         for uuid in backup.trackReport?.added.compactMap(\.uuid) ?? [] {
             CueDraftStore.remove(trackUUID: uuid)
             GridDraftStore.remove(trackUUID: uuid)
