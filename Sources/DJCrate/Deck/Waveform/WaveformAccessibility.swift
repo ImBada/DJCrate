@@ -115,7 +115,7 @@ extension View {
                 @unknown default: break
                 }
             }
-            .accessibilityAction(named: .ui("메모리 큐 추가")) { deck.addMemoryCueAtPlayhead() }
+            .accessibilityAction(named: .ui("메모리 큐 추가")) { deck.addMemoryCue() }
             .accessibilityAction(named: .ui("가장 가까운 제안 받기")) { deck.acceptNearestSuggestion() }
             .accessibilityAction(named: .ui("다음 제안으로")) { deck.jumpToSuggestion(forward: true) }
             .accessibilityAction(named: .ui("이전 제안으로")) { deck.jumpToSuggestion(forward: false) }

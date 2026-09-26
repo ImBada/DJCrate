@@ -192,7 +192,7 @@ final class KeyRouter {
         case .memoryCue:
             // Shift를 함께 누르면 이 자리 메모리 큐 지우기
             if !isRepeat {
-                if shift { deck.deleteMemoryCue(at: deck.currentTime) } else { deck.addMemoryCueAtPlayhead() }
+                if shift { deck.deleteMemoryCue(at: deck.currentTime) } else { deck.addMemoryCue() }
             }
         case .nudgeBack, .nudgeForward:
             // 선택한 큐가 있으면 그 큐를, 없으면 재생 위치를 1박(Shift: 1마디) 옮긴다.
