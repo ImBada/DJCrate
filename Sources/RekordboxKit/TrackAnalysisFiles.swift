@@ -14,7 +14,8 @@ import Foundation
 ///   라이브러리 FLAC 1,083곡 중 1,081곡이 바이트까지 같다(2026-09-26, 나머지 2곡은 샘플은 같고 바이트 위치만 달라 분석 뒤 파일이 바뀐 것으로 보임).
 /// - ALAC: AudioToolbox 압축 비트레이트를 kbps로 버림, 원본 비트 깊이, PVBR 모두 0·PVB2 없음.
 ///   2026-09-27 합성 4곡으로 스테레오 16/24비트·44.1/48kHz를 확인했다.
-///   ALAC·ffmpeg VBR은 사본의 분석 카운터가 달라 계산값만 반환하고 쓰기는 계속 막는다.
+///   #95 첫 BPM/Grid 카운터 사본 재현으로 ALAC·44.1kHz ffmpeg VBR 쓰기를 확인했다.
+///   48kHz ffmpeg VBR은 곡 행 BPM과 정밀 박 간격으로 복원한 BPM이 달라 규칙 확인 전까지 막는다.
 public struct AudioFacts: Sendable, Equatable {
     public var sampleRate: Int
     public var bitDepth: Int
@@ -67,7 +68,8 @@ public struct AudioFacts: Sendable, Equatable {
             let entries = (0..<400).map { k in UInt32(counted[max(0, (k + 1) * n / 400 - 8)] - counted[0]) }
             return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: lame ? 0 : (mp3BitRate(url: url, at: audioFrame) ?? 0),
                               pvbrTotalSamples: total, pvbrEntries: entries,
-                              unsupported: lame ? nil : String(ui: "ffmpeg VBR 분석 카운터의 사본 재현이 일치하지 않으니 rekordbox에서 먼저 분석하세요"))
+                              unsupported: !lame && rate != 44_100
+                                ? String(ui: "이 샘플레이트의 ffmpeg VBR은 곡 BPM 규칙이 확인되지 않았으니 rekordbox에서 먼저 분석하세요") : nil)
         case kAudioFormatMPEG4AAC:
             return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: aacAverageBitRate(fileID) / 1000, pvbrTotalSamples: 0, unsupported: nil)
         case kAudioFormatLinearPCM:
@@ -88,7 +90,7 @@ public struct AudioFacts: Sendable, Equatable {
                                   unsupported: String(ui: "이 ALAC 형식의 분석 규칙은 확인되지 않았으니 rekordbox에서 먼저 분석하세요"))
             }
             return AudioFacts(sampleRate: rate, bitDepth: bits, bitRate: Int(bitrate / 1000), pvbrTotalSamples: 0,
-                              unsupported: String(ui: "ALAC 분석 카운터의 사본 재현이 일치하지 않으니 rekordbox에서 먼저 분석하세요"))
+                              unsupported: nil)
         default:
             return AudioFacts(sampleRate: rate, bitDepth: 0, bitRate: 0, pvbrTotalSamples: 0,
                               unsupported: String(ui: "이 형식의 분석 규칙은 확인되지 않았으니 rekordbox에서 먼저 분석하세요"))

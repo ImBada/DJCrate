@@ -162,13 +162,13 @@ rekordbox 7.2.18이 하는 것:
 - 변경 번호는 관련 행(아티스트·앨범·장르)이 먼저, 곡 행이 마지막.
 
 **추가(분석 포함)**: 위 행에 분석 칸을 채우고 분석 파일·파일 행·오토게인 행을 더한다.
-- 분석 경로 `/PIONEER/USBANLZ/<UUID 앞 3자>/<나머지>/ANLZ0000.DAT`, `Analysed` 105, 길이는 초 버림, `AnalysisUpdated` "3"·`TrackInfoUpdated` "2"(글자).
+- 분석 경로 `/PIONEER/USBANLZ/<UUID 앞 3자>/<나머지>/ANLZ0000.DAT`, `Analysed` 105, 길이는 초 버림, `AnalysisUpdated` "1"·`TrackInfoUpdated` "1"(글자, 첫 BPM/Grid 분석만 만든다).
 - 비트레이트: CBR MP3는 프레임 비트레이트, LAME VBR MP3는 0, AAC는 esds 평균 비트레이트(없으면 0, streamType 바이트 0x14도 있음), WAV는 샘플레이트×비트×채널, FLAC 0.
 - `.DAT`: `PPTH`(`?/파일 이름` UTF-16BE + NULL) · `PVBR`(머리 0, 탐색표 400칸, 끝값 = MP3는 rekordbox가 세는 프레임 수×1152, AAC·WAV는 0) · `PQTZ` · `PWAV` · `PWV2` · `PCOB`(핫, 빈) · `PCOB`(메모리, 빈). 같은 그리드로 다시 만들면 머리·PPTH·PVBR·PQTZ·PCOB가 바이트까지 같다.
 - `.EXT`·`.2EX`는 파형 생성기(`RekordboxWaveforms`, baken MIT 규칙 이식). 흑백 파형 높이는 99.5% 바이트 일치, 색·3밴드·미리 보기는 근사. rekordbox 7.2.18은 우리 파일을 그대로 표시했다(サラマンダー 복사본).
 - `contentFile` 행은 파일마다(ID `<곡 UUID>_<경로, /는 %2F>`, MD5, 크기, `rb_local_path`, `rb_priority` 50). 없어도 표시는 되지만 rekordbox처럼 넣는다.
 - 변경 번호: 관련 행 → (아트워크 파일 행) → 오토게인 행 → 곡 행 → .2EX → .DAT → .EXT. rekordbox는 곡 행을 먼저 넣고 분석이 끝나면 다시 고쳐 새 번호를 받고, 곡 행 뒤·.2EX 앞에 .3EX 행도 넣는다(2026-09-26 아트워크 실험 세션: 자동 분석을 켜고 넣은 합성 WAV 3곡, 분석 전 곡을 분석한 "DJC 실험 아트"). DJCrate는 곡 행을 한 번만 넣으므로 rekordbox의 마지막 번호 순서를 따른다.
-- `AnalysisUpdated`·`TrackInfoUpdated` 값은 세션마다 달랐다. 무엇이 정하는지 몰라 묶음 2의 '3'·'2'를 그대로 쓴다(아래 "분석 카운터").
+- 카운터는 분석 항목·횟수에 따라 다르다. 조성·Phrase 없이 첫 BPM/Grid만 만드는 두 경로는 '1'·'1'이다(아래 "분석 카운터", 2026-09-27 #95).
 - `ContentLink`는 분석 구성 비트: `0x3C060E` 보통(6,409곡), `0x2C060E` 보컬 분석 없음, +`0x10000` 프레이즈 있음. 우리는 프레이즈·보컬이 없으므로 `0x2C060E`.
 - 만들 수 없는 것: `PSSI`(프레이즈), `PVDI`(보컬), `.3EX`(MessagePack `embedding`, rekordbox AI 특징값). rekordbox에서 Phrase만 분석하면 우리 태그를 바이트 그대로 두고 `PSSI`만 덧붙인다.
 - MP3 프레임 세기: LAME 정보 프레임(첫 프레임 안에 LAME 태그)은 소리로 세고, 다른 인코더(ffmpeg Lavc 등)의 정보 프레임은 세지 않는다. 다음 오디오 프레임에 "LAME3.99U"가 찍힌 ffmpeg 파일이 있어 LAME은 첫 프레임 안에서만 찾는다.
@@ -176,7 +176,7 @@ rekordbox 7.2.18이 하는 것:
 - FLAC: 비트레이트 0, 비트는 STREAMINFO, `PVBR`은 탐색표·끝값 모두 0. 대신 `.EXT` 끝(`PWV4` 뒤)에 `PVB2`를 붙인다.
   머리 0x20(`u32 0` · `u64 전체 샘플` · `u32 400` · `u32 20`), 칸 400개 × 20바이트 = (`u64 프레임 시작 샘플` · `u64 첫 프레임 기준 바이트 위치` · `u32 블록 크기`).
   칸 k = 샘플 `k · floor(전체 샘플 / 400)`이 든 FLAC 프레임(나눗셈을 먼저 버리므로 뒤 칸일수록 조금 앞을 가리킨다). 라이브러리 1,083곡 중 1,081곡 바이트까지 일치(`djc lab pvb2-check`). 나머지 2곡은 시작 샘플은 같고 바이트 위치만 달라 분석 뒤 파일이 바뀐 것으로 본다.
-- 막음: ALAC·ffmpeg VBR(음원 칸·탐색표는 아래 조사 2에서 확인했으나 분석 카운터 사본 재현 불일치, #95), 그 밖의 비LAME VBR(탐색표·비트레이트 규칙 미확인), 프레임이 중간에 끊긴 MP3·FLAC(STREAMINFO 전체 샘플과 프레임 합이 다름).
+- 막음: 미확인 ALAC 조건(16/24비트·44.1/48kHz·스테레오 밖), 44.1kHz가 아닌 ffmpeg VBR(곡 행 BPM과 정밀 그리드 규칙 미확인), 그 밖의 비LAME VBR(L3.99r1 포함), 프레임이 중간에 끊긴 MP3·FLAC(STREAMINFO 전체 샘플과 프레임 합이 다름).
 
 **아트워크**(#4): rekordbox는 곡을 **분석할 때** 음원 내장 그림(ID3 APIC·iTunes covr·FLAC PICTURE)으로 파일 셋을 만든다. 자동 분석을 끄고 넣을 때는 만들지 않는다. XML로 들어온 곡(`Analysed` 41)에도 없었다.
 - 실험(2026-09-26, rekordbox 7.2.18): 1200×900 JPEG 앞표지(APIC)가 든 MP3 "DJC 실험 아트"(라이브러리에 없던 아티스트·앨범)를 자동 분석을 끄고 넣고 종료했다. 다음 세션에서 자동 분석을 켜자 rekordbox가 이 곡을 분석했다. 넣기 전·넣은 직후·분석 뒤 스냅샷을 `djc lab db-diff`로 비교했다(넣기 전 스냅샷은 rekordbox 자동 백업과 같은 상태).
@@ -215,9 +215,9 @@ rekordbox 7.2.18이 하는 것:
 - `contentFile` 행 4개(.3EX·.2EX·.DAT·.EXT, 곡 넣기와 같은 칸), `djmdMixerParam` 행 1개(피크 1.0).
 - 변경 번호: 오토게인 행 → .3EX 행 → 곡 행 → .2EX → .DAT → .EXT. rekordbox는 두 번에 나눠 쓴다(오토게인·.3EX·.DAT 행을 먼저 만들고 몇 분 뒤 곡 행·나머지 파일 행, .DAT 행은 그때 다시 고침). 파일 행 순서 .2EX → .DAT → .EXT는 O-Ku-Ri-Mo-No Sunday!·ヴァンパイア에서도 같았다.
 
-**DJCrate가 쓰는 것**(골든 테스트 `RekordboxAnalysisAttachTests`: 같은 음원·그리드·음량이면 곡 넣기 결과와 칸·바이트까지 같고, 다른 것은 위 실험의 카운터·순서뿐):
+**DJCrate가 쓰는 것**(골든 테스트 `RekordboxAnalysisAttachTests`: 같은 음원·그리드·음량이면 곡 넣기 결과와 칸·바이트까지 같고, 변경 번호 순서는 위 실험을 따른다. 첫 BPM/Grid 카운터는 두 경로 모두 '1'·'1'):
 - 분석 파일 `.DAT`·`.EXT`·`.2EX`를 곡 UUID 폴더(`/PIONEER/USBANLZ/<UUID 앞 3자>/<나머지>`)에 새로 만든다. PPTH의 파일 이름은 `FileNameL`.
-- `djmdContent`: BPM(첫 구간 ×100)·Length(AVFoundation 길이 버림)·BitRate·BitDepth·SampleRate·AnalysisDataPath·`Analysed` 105·`ContentLink` 0x2C060E·`AnalysisUpdated` '2'·`TrackInfoUpdated` '1', 상태 256→257, 변경 번호, `updated_at`. `KeyID`는 건드리지 않는다.
+- `djmdContent`: BPM(첫 구간 ×100)·Length(AVFoundation 길이 버림)·BitRate·BitDepth·SampleRate·AnalysisDataPath·`Analysed` 105·`ContentLink` 0x2C060E·`AnalysisUpdated` '1'·`TrackInfoUpdated` '1'(첫 BPM/Grid), 상태 256→257, 변경 번호, `updated_at`. `KeyID`는 건드리지 않는다.
 - `contentFile` 행 3개와 `djmdMixerParam` 행(오토게인, −10 LUFS 목표). 변경 번호는 오토게인 행 → 곡 행 → .2EX → .DAT → .EXT(.3EX는 만들지 못한다).
 - 음원에 그림이 있으면 아트워크(#87): 파일 셋 3개·`ImagePath`·`artwork.jpg` 파일 행(곡 넣기와 같은 레시피, 바이트까지 같음). 변경 번호는 `artwork.jpg` 행 → 오토게인 행 → 곡 행 → .2EX → .DAT → .EXT(골든 테스트 `RekordboxAnalysisArtworkTests`, "DJC 실험 아트" 순서). 파일은 분석 파일 다음에 쓰고 `createdFiles`에 넣어 되돌릴 때 지운다. 앱은 반영 때 음원 태그를 읽어 그림을 넘기고(`AnalysisInput.artwork`), 확인 창에 "아트워크"를 붙여 알린다.
 - 같은 쓰기의 큐·게인 초안은 분석을 붙인 뒤에 쓴다(분석한 곡을 고치는 순서).
@@ -231,17 +231,30 @@ rekordbox 7.2.18이 하는 것:
 - 파일 행: `artwork.jpg`·.2EX·.DAT·.EXT 행의 ID·경로·`rb_local_path`·상태 칸이 같고 해시·크기만 다르다(`artwork.jpg` 31,258 vs 31,223바이트, `.DAT`는 그리드 86박 × 8바이트만큼 큼). rekordbox의 .3EX 행은 없다.
 - 오토게인 행: 상태 칸·피크가 같고 게인은 음량 측정 차만큼 다르다. 파일 셋은 800×600·240×240·80×80.
 
-**분석 카운터**(`AnalysisUpdated`·`TrackInfoUpdated`, 글자): 곡의 일생 동안 늘어나는 값이다(라이브러리의 분석한 곡은 분석 1~5·곡 정보 2~9쯤으로 퍼져 있다). rekordbox가 한 번 분석한 직후 값은 조건마다 달랐다.
+**분석 카운터**(`AnalysisUpdated`·`TrackInfoUpdated`, 글자, #95): 2026-09-27 rekordbox 7.2.18에서 같은 PCM의 합성 곡 "DJC 실험 카운터 auto/manual-grid/manual-key/manual-phrase/manual-keyphrase/repeat"를 조건별로 분석하고 정상 종료 사본 S0~S9를 비교했다.
 
-| 조건 (rekordbox 7.2.18, 2026-09-26) | 분석 전 | 분석 뒤 |
+| 조건 | 분석 전 | 분석 뒤 |
 |---|---|---|
-| 곡 넣기 + 자동 분석(묶음 2 실험) | — | '3'·'2' |
-| XML로 들어온 곡(`Analysed` 41)을 '트랙 분석'(#6, The Asterisk War (edit)) | NULL·NULL | '2'·'1' |
-| 곡 넣기 + 자동 분석(#4 실험 세션: 합성 MP3 5곡 "DJC 실험곡 1~5", 다음 세션 합성 WAV 3곡) | — | '1'·'1' |
-| 자동 분석을 끄고 넣은 곡(`Analysed` 0)을 다음 세션 자동 분석이 분석("DJC 실험 아트") | NULL·NULL | '1'·'1' |
+| 자동 분석 가져오기, BPM/Grid만 | 행 없음 | '1'·'1' |
+| 자동 분석 Off로 가져온 뒤 수동 BPM/Grid만 | NULL·NULL | '1'·'1' |
+| BPM/Grid + 조성 | NULL·NULL | '1'·'2' |
+| BPM/Grid + Phrase | NULL·NULL | '2'·'1' |
+| BPM/Grid + 조성 + Phrase | NULL·NULL | '2'·'2' |
+| BPM/Grid만 반복 분석 | '1'·'1' | '2'·'2' → '3'·'3' |
 
-- #4 실험 세션에서는 넣을 때 분석한 곡과 나중에 분석한 곡이 같은 값이라 "넣을 때 분석 vs 나중에 분석"은 이 값을 가르지 않는다. 같은 "곡 넣기 + 자동 분석"이 묶음 2('3'·'2')와 #4 세션('1'·'1')에서 달라, 기록하지 않은 조건(분석 설정·음원 내용 등)이 있다. 수동 '트랙 분석'과 자동 분석의 차이인지도 가르지 못했다.
-- 그래서 DJCrate는 값을 바꾸지 않는다: 곡 넣기(분석 포함) '3'·'2', 분석 붙이기 '2'·'1'(수동 분석에 가까운 쓰기). DJCrate가 '3'·'2'로 넣은 곡은 그 뒤 rekordbox 세션을 거친 스냅샷에서도 곡 행이 그대로였다. 이 값을 가르려면 같은 세션에서 수동 '트랙 분석'과 자동 분석을 나란히 비교하는 실험이 필요하다.
+- **[확인]** 위 조건에서는 BPM/Grid 분석마다 두 칸이 1씩 늘고, 조성은 `TrackInfoUpdated`, Phrase는 `AnalysisUpdated`를 1 더 올렸다. 재시작 뒤에도 값과 `text` 자료형을 유지했다. 조성·Phrase만 단독/반복 분석한 경우까지 일반화하지 않는다.
+- **[확인]** DJCrate가 만드는 것은 파형·BPM/Grid·오토게인뿐이므로 곡 넣기와 분석 붙이기 모두 첫 분석의 '1'·'1'을 쓴다. 보존된 가져오기 전/분석 전 사본에 두 경로를 각각 실행해 자동·수동 기준의 카운터와 음원 칸을 대조했다. 이미 어느 카운터든 있는 곡은 계속 막는다.
+- **[확인]** 옛 #6 표본은 보존된 분석 전 사본에서 `Analysed=41`, 카운터 NULL·NULL, `KeyID=0`, 분석 경로 없음이고, 분석 뒤 사본에서 `Analysed=105`, '2'·'1', `KeyID=0`이었다. 조성을 켰다는 기록만으로 조성 분석 성공이나 카운터 증가를 주장할 수 없다. 이 표본의 '2'·'1'은 새 실험의 BPM/Grid+Phrase 결과와 같지만, 당시 Phrase 설정·중간 분석 사본이 없어 원인을 확정하지 못했다.
+- **[추정]** 묶음 2의 '3'·'2'는 여러 분석/추가 항목의 이력이 섞인 값일 수 있다. 당시에는 분석·태그·Relocate를 함께 했으며, 남은 사본으로 '3'·'2'에 이른 각 작업을 복원하지 못했다. 반복 BPM/Grid만으로는 두 카운터가 같이 오르므로 이 비대칭을 설명할 수 없다. 옛 관측값은 이력 자료로 남기되 첫 BPM/Grid 쓰기의 고정값으로 쓰지 않는다.
+- **검증 범위**: `RekordboxTrackWriterTests`·`RekordboxAnalysisAttachTests`·`RekordboxAnalysisArtworkTests`가 글자형 '1'·'1', 기존 카운터 차단, XML에서 온 분석 전 상태의 보존을 고정한다. XML `Analysed=41`에 BPM/Grid만 분석하는 새 rekordbox 화면 실험은 하지 않았으므로, 그 조건의 독립 재현까지 확인했다고 주장하지 않는다.
+- **기존 차이**는 아래와 같으며 이번 카운터 수정의 범위 밖이다. 전체 파일 바이트 일치를 보장하지 않는다.
+
+| 비교 항목 | rekordbox | DJCrate | 확인·추정 범위 |
+|---|---|---|---|
+| #95 합성 WAV `Length` | 63 | 64 | [확인] 입력은 44.1kHz·2,822,400프레임(64초), DJCrate는 AVFoundation 길이를 버린다. [추정] rekordbox가 마지막 샘플 시각 `(N−1)/rate=63.999977…`을 버리면 63이다. 부동소수점 오차나 분석 종료 위치 기준도 배제하지 못해 일반식으로 적용하지 않는다. |
+| 그리드 | 기준 박 목록 | 시작 쪽 선행 박 추가·대응 박의 약 ±1ms 차이 | `GridDraft.segments`는 첫~끝 박 간격으로 BPM을 복원하고 생성기는 시작까지 늘린다. 저장 BPM과 복원 BPM이 항상 같지는 않다. |
+| 파형·오토게인 | rekordbox 분석 | 기존 생성기·음량 측정 근사 | 파형 태그 길이·파일 행 형식은 대조했지만 파형 값·게인/피크 하위 칸까지 동일하지 않다. |
+
 
 **막는 것**:
 - 반쪽 분석 곡(.DAT만): "rekordbox에서 트랙 분석을 다시 한 뒤 쓰세요". rekordbox가 다시 분석하면(ヴァンパイア) 곡 행은 BPM·`AnalysisUpdated`+1·`TrackInfoUpdated`+1·변경 번호만 바뀌고(`ContentLink`는 그대로), `.DAT`를 새로 써서 그 파일 행 해시·크기를 고치고, `.3EX` 해시를 고치고, `.2EX`·`.EXT` 파일 행을 넣는다(곡 행 → .3EX → .2EX → .DAT → .EXT). 오토게인 행은 그대로였다. 이 경로는 아직 쓰지 않는다.
@@ -310,7 +323,7 @@ rekordbox 7.2.18이 하는 것:
 
 ## ALAC·비LAME VBR 분석 파일 조사 2 (#8·#9, 2026-09-27)
 
-**결론: ALAC과 ffmpeg Xing VBR의 음원 칸·분석 파일 규칙은 확인했지만 분석 카운터의 사본 재현이 달라 분석 쓰기 차단을 유지한다.** 카운터 조건은 [#95](https://github.com/fotoner/DJCrate/issues/95)에서 따로 확인한다. `AudioFacts`는 확인한 계산값과 차단 이유를 함께 반환하고, `TrackAddPlan`은 ALAC을 실제 코덱으로 판별해 `FileType=6`으로 넣는다. 분석 없는 추가는 가능하다.
+**현재 결론(2026-09-27 #95 후속): ALAC 16/24비트·44.1/48kHz 스테레오와 44.1kHz ffmpeg Xing(Lavc/Lavf) VBR은 첫 BPM/Grid 카운터 사본 재현을 확인해 분석 쓰기를 연다.** 아래 조사 2 당시에는 카운터가 달라 닫았으며, 후속 재현은 다음 절에 기록한다. `TrackAddPlan`은 ALAC을 코덱으로 판별해 `FileType=6`으로 넣는다.
 
 **[확인] 실험 조건**: rekordbox 7.2.18에 합성 7곡만 기본 자동 분석으로 가져왔다. ALAC은 afconvert로 만든 스테레오 16/24비트 × 44.1/48kHz이며, ffmpeg VBR은 44.1kHz q2/q8·48kHz q5다. VBR 압축기는 ffmpeg 기본 libmp3lame이지만 첫 Xing 프레임의 인코더 문자열은 `Lavc62.28`이고 `LAME`은 없다. 여기서 비LAME은 첫 정보 프레임 문자열에 따른 분류이며 압축 라이브러리의 출처를 뜻하지 않는다. 가져오기 직후 분석 전·분석 완료·앱 종료 후 스냅샷을 보존하고, 분석 파일은 실제 복사본으로 비교했다. 업데이트·OneLibrary 변환·기존 곡 편집은 하지 않았다.
 
@@ -341,10 +354,17 @@ rekordbox 7.2.18이 하는 것:
 - 48kHz VBR q5는 곡 행 `BPM=12000`인데 첫 정밀 그리드는 `119.96 BPM`이다. 정밀 그리드를 가져온 분석 붙이기 사본은 `BPM=11996`이므로 카운터 외에도 이 차이가 남는다. #95 후속 실험에서 행 BPM과 정밀 그리드 BPM을 함께 기록해야 한다.
 - 골든 테스트: `AnalysisFormatGoldenTests`(실험 날짜·시험 제목 명시). 저장소에는 음원·DB·분석 파일 사본을 넣지 않으며, ALAC은 런타임 합성하고 MP3는 정보·음성 프레임을 칸 단위로 만든다. ALAC 큐의 MPEG·SeekInfo와 미확인 ALAC 비트 깊이·샘플레이트·채널 수는 이번 실험으로 열지 않는다.
 
+### #95 후속 사본 재현 (2026-09-27)
+
+- 보존된 #8·#9 가져오기 전/분석 전 사본에서 ALAC 4조건·44.1kHz ffmpeg VBR 2조건을 두 경로로 재현했다. `FileType·BPM·Length·BitRate·BitDepth·SampleRate·Analysed·ContentLink·AnalysisUpdated·TrackInfoUpdated`가 기준과 일치했다. 분석 붙이기의 나머지 곡 행도 신원·경로·변경 번호·시각을 제외하면 일치했다. 새 곡의 아티스트 ID는 새 난수이므로 동일 문자열을 기대하지 않는다.
+- `PPTH·PVBR·빈 PCOB/PCO2·PVB2 유무`, 파일 행의 신원·경로·해시·크기·변경 번호·시각을 제외한 칸, 파형 태그 길이를 대조했다. PVBR 400칸과 끝값은 같다. 파형·게인·박 재생성의 기존 차이는 위 검증 범위대로 남기며, 해시와 크기는 각 생성 파일 자체를 다시 읽어 검증한다. `.3EX`는 만들지 않는다.
+- **48kHz ffmpeg VBR은 계속 막는다**: q5 표본은 곡 행과 `PQTZ`에 12000을 기록했지만 정밀 박 간격으로 복원한 첫 구간은 119.96 BPM이다. 다른 표본의 행/PQTZ는 ALAC 11995, ffmpeg 11997도 있어 정수 BPM 반올림을 공통 규칙으로 쓰면 틀린다. 시간 간격으로 복원한 BPM과 저장된 표시 BPM을 분리하는 규칙은 미확인이다. 확인된 44.1kHz만 열고 다른 샘플레이트·L3.99r1·알 수 없는 인코더는 막는다(#9 후속).
+- `AnalysisFormatGoldenTests`는 ALAC 4조건과 44.1kHz ffmpeg의 두 쓰기 경로·글자형 '1'·'1', 48kHz ffmpeg의 두 경로 차단과 행·파일 미생성을 검증한다. ALAC 큐의 MPEG·SeekInfo와 그 밖의 ALAC 형식은 이번에 열지 않는다.
+
 ## 막아 둔 것 (규칙 미확인)
 
 - **템포 구간이 여러 개인 곡의 BPM 변경**: 구간 이동은 되지만 BPM 변경은 막는다.
-- **분석을 붙인 곡 추가 중 ALAC·LAME이 아닌 VBR MP3**: ALAC·ffmpeg Xing의 음원·탐색표 규칙은 확인했으나 분석 카운터 사본 재현이 달라 #95가 남았다. 그 밖의 비LAME VBR은 형식 규칙도 미확인이다. 분석 전 추가만 하며 분석 붙이기도 막는다.
+- **미확인 ALAC·VBR 형식의 분석 쓰기**: ALAC 16/24비트·44.1/48kHz·스테레오 밖, 44.1kHz가 아닌 ffmpeg VBR, L3.99r1·알 수 없는 비LAME VBR은 계속 막는다.
 - **반쪽 분석 곡(.DAT만 있고 .EXT 없음)의 그리드·분석 붙이기**: rekordbox가 다시 분석한 모양은 한 곡 보았지만(위 "분석 붙이기") 사본 재현으로 확인하지 않았다.
 - **카운터가 이미 있는 분석 전 곡에 분석 붙이기**: `AnalysisUpdated`·`TrackInfoUpdated`가 NULL인 곡만 확인했다.
 - **태그의 공유 앨범 값 변경·동명 앨범 선택·앨범과 앨범 아티스트 동시 변경·상태 256**: 위 "태그 (곡 정보)"의 조건표. 새 앨범·단독 앨범 아티스트·아티스트 비우기·발매일 보존 연도는 연다.

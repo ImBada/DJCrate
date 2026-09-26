@@ -17,7 +17,7 @@ struct AnalysisFormatGoldenTests {
         let plan = try TrackAddPlan.make(url: url, tags: tags)
         let facts = AudioFacts.read(url: url)
         #expect(plan.fileType == 6, "같은 m4a 확장자의 AAC(4)와 구분")
-        #expect(facts.unsupported?.contains("카운터") == true)
+        #expect(facts.unsupported == nil)
         #expect(facts.bitDepth == bits && facts.sampleRate == Int(rate))
 
         var fileID: AudioFileID?
@@ -52,7 +52,8 @@ struct AnalysisFormatGoldenTests {
         let fixture = try RekordboxFixture()
         let url = try mp3(in: fixture.audio, rate: sample.0, firstBitRate: sample.1, encoder: "Lavc62.28")
         let facts = AudioFacts.read(url: url)
-        #expect(facts.unsupported?.contains("카운터") == true && facts.bitRate == sample.1)
+        #expect((facts.unsupported != nil) == (sample.0 == 48_000))
+        #expect(facts.bitRate == sample.1)
         #expect(facts.bitDepth == 16 && facts.sampleRate == sample.0)
         #expect(facts.pvbrTotalSamples == 40 * 1152, "Xing 프레임은 제외")
         #expect(facts.pvbrEntries.count == 400)
@@ -66,7 +67,7 @@ struct AnalysisFormatGoldenTests {
         let fixture = try RekordboxFixture()
         let url = try mp3(in: fixture.audio, rate: 44_100, firstBitRate: 160, encoder: "Lavf56.4.")
         let facts = AudioFacts.read(url: url)
-        #expect(facts.unsupported?.contains("카운터") == true && facts.bitRate == 160 && facts.pvbrEntries.count == 400)
+        #expect(facts.unsupported == nil && facts.bitRate == 160 && facts.pvbrEntries.count == 400)
     }
 
     @Test func L3_99와_알_수_없는_인코더는_계속_막는다() throws {
@@ -77,40 +78,66 @@ struct AnalysisFormatGoldenTests {
         }
     }
 
-    @Test func 분석_카운터_사본_불일치가_남은_새_형식은_쓰지_않는다() async throws {
+    @Test(arguments: [false, true])
+    func 확인한_형식의_첫_분석은_두_경로_모두_글자형_1_1이다(attach: Bool) async throws {
         let fixture = try RekordboxFixture()
         try fixture.add(TrackSpec())
-        let alac = try AudioFixture.alac(seconds: 1, in: fixture.audio)
-        let vbr = try mp3(in: fixture.audio, rate: 44_100, firstBitRate: 256, encoder: "Lavc62.28")
-        for url in [alac, vbr] {
-            let plan = try TrackAddPlan.make(url: url, tags: try await AudioTags.read(url: url))
-            let input = RekordboxTrackWriter.Analysis(segments: [.init(start: 0, bpm: 120, firstBeatNumber: 1)], loudness: -10, peak: 1)
-            let report = try RekordboxTrackWriter.add([plan], analyses: [plan.path: input], to: fixture.database,
-                                                     shareRoot: fixture.shareRoot, dryRun: false, now: .now, backups: fixture.backups)
-            #expect(report.added.first?.written == false)
-            #expect(report.added.first?.reason?.contains("카운터") == true)
+        var urls: [URL] = []
+        for bits in [16, 24] {
+            for rate in [44_100.0, 48_000.0] {
+                urls.append(try AudioFixture.alac(seconds: 1, sampleRate: rate, bitDepth: bits,
+                    in: fixture.audio, name: "alac-\(bits)-\(Int(rate)).m4a"))
+            }
         }
-        #expect(try fixture.rows("SELECT ID FROM djmdContent").count == 1)
+        urls.append(try mp3(in: fixture.audio, rate: 44_100, firstBitRate: 256, encoder: "Lavc62.28"))
+        for url in urls {
+            let plan = try TrackAddPlan.make(url: url, tags: try await AudioTags.read(url: url))
+            let segments = [GridSegment(start: 0, bpm: 120, firstBeatNumber: 1)]
+            let input = RekordboxTrackWriter.Analysis(segments: segments, loudness: -10, peak: 1)
+            let added = try RekordboxTrackWriter.add([plan], analyses: attach ? [:] : [plan.path: input],
+                to: fixture.database, shareRoot: fixture.shareRoot, dryRun: false, now: .now, backups: fixture.backups)
+            #expect(added.added.first?.written == true)
+            let uuid = try #require(added.added.first?.uuid)
+            if attach {
+                let report = try RekordboxWriter.write(drafts: [], grids: [.init(trackUUID: uuid, base: [], segments: segments)], gains: [:],
+                    analysisInputs: [uuid: .init(duration: plan.duration, loudness: -10, peak: 1)], to: fixture.database,
+                    dryRun: false, now: .now, backups: fixture.backups, shareRoot: fixture.shareRoot, attachesAnalysis: true)
+                #expect(report.analysisWritten.count == 1 && report.analysisBlocked.isEmpty)
+                #expect(report.createdFiles?.count == 3)
+            }
+            let row = try #require(fixture.rows("SELECT quote(AnalysisUpdated) AS a, quote(TrackInfoUpdated) AS t, Analysed FROM djmdContent WHERE UUID = ?", [.text(uuid)]).first)
+            #expect(row["a"] == "'1'" && row["t"] == "'1'" && row["Analysed"] == "105")
+            #expect(try fixture.rows("SELECT ID FROM contentFile WHERE ContentID = (SELECT ID FROM djmdContent WHERE UUID = ?)", [.text(uuid)]).count == 3)
+        }
     }
 
-    @Test func 분석_전_곡에_붙이기도_카운터_검증_전까지_막는다() async throws {
+    @Test(arguments: [false, true])
+    func ffmpeg_48kHz는_행_BPM_규칙이_확인될_때까지_두_경로를_막는다(attach: Bool) async throws {
+        // 2026-09-27 "DJC 실험 VBR ffmpeg q5": 행·PQTZ 12000, 정밀 박 간격으로 복원한 첫 구간 119.96 BPM.
+        // 한 표본으로 정수 반올림을 일반화하지 않는다.
         let fixture = try RekordboxFixture()
         try fixture.add(TrackSpec())
-        let alac = try AudioFixture.alac(seconds: 1, in: fixture.audio)
-        let vbr = try mp3(in: fixture.audio, rate: 48_000, firstBitRate: 224, encoder: "Lavc62.28")
-        for url in [alac, vbr] {
-            let plan = try TrackAddPlan.make(url: url, tags: try await AudioTags.read(url: url))
+        let url = try mp3(in: fixture.audio, rate: 48_000, firstBitRate: 224, encoder: "Lavc62.28")
+        let plan = try TrackAddPlan.make(url: url, tags: try await AudioTags.read(url: url))
+        let segments = [GridSegment(start: 0, bpm: 119.96, firstBeatNumber: 1)]
+        let before = try Data(contentsOf: fixture.database)
+        if attach {
             let bare = try RekordboxTrackWriter.add([plan], to: fixture.database, dryRun: false, now: .now, backups: fixture.backups)
             let uuid = try #require(bare.added.first?.uuid)
-            let grid = GridDraft(trackUUID: uuid, base: [], segments: [.init(start: 0, bpm: 120, firstBeatNumber: 1)])
-            let report = try RekordboxWriter.write(drafts: [], grids: [grid], gains: [:],
+            let report = try RekordboxWriter.write(drafts: [], grids: [.init(trackUUID: uuid, base: [], segments: segments)], gains: [:],
                 analysisInputs: [uuid: .init(duration: plan.duration, loudness: -10, peak: 1)], to: fixture.database,
                 dryRun: false, now: .now, backups: fixture.backups, shareRoot: fixture.shareRoot, attachesAnalysis: true)
-            #expect(report.analysisWritten.isEmpty)
-            #expect(report.analysisBlocked.first?.reason?.contains("카운터") == true)
+            #expect(report.analysisWritten.isEmpty && report.analysisBlocked.first?.reason?.contains("BPM") == true)
             #expect((report.createdFiles ?? []).isEmpty)
             #expect(try fixture.rows("SELECT Analysed FROM djmdContent WHERE UUID = ?", [.text(uuid)]).first?["Analysed"] == "0")
+        } else {
+            let report = try RekordboxTrackWriter.add([plan], analyses: [plan.path: .init(segments: segments, loudness: -10, peak: 1)],
+                to: fixture.database, shareRoot: fixture.shareRoot, dryRun: false, now: .now, backups: fixture.backups)
+            #expect(report.added.first?.written == false && report.added.first?.reason?.contains("BPM") == true)
+            #expect(try Data(contentsOf: fixture.database) == before)
         }
+        #expect(try fixture.rows("SELECT ID FROM contentFile").isEmpty)
+        #expect(try fixture.rows("SELECT ID FROM djmdMixerParam").isEmpty)
     }
 
     /// 정보 프레임·서로 다른 길이의 MPEG1 프레임을 칸 단위로 만든다(음원 바이트를 옮기지 않는다).
