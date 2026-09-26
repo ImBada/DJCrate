@@ -22,12 +22,11 @@ struct GridEditorBar: View {
             } else {
                 FlowLayout(spacing: 8) {
                     HStack(spacing: 4) {
-                        Button("◀ 10ms" as String) { deck.shiftGrid(ms: -10) }
-                        Button("◀ 1ms" as String) { deck.shiftGrid(ms: -1) }
-                        Button("1ms ▶" as String) { deck.shiftGrid(ms: 1) }
-                        Button("10ms ▶" as String) { deck.shiftGrid(ms: 10) }
+                        ForEach([-10.0, -1.0, 1.0, 10.0], id: \.self) { milliseconds in
+                            GridShiftButton(deck: deck, milliseconds: milliseconds).fixedSize()
+                        }
                     }
-                    .help(.ui("그리드 전체를 옮깁니다 (파형을 끌어도 됩니다)"))
+                    .help(.ui("그리드 전체를 옮깁니다 (1초 동안 누르면 반복 · 파형을 끌어도 됩니다)"))
                     HStack(spacing: 4) {
                         TextField("BPM" as String, value: $bpm, format: .number.precision(.fractionLength(2)))
                             .id(bpmFieldRevision)
