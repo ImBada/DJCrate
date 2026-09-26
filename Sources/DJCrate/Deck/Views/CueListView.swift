@@ -130,12 +130,25 @@ struct CueRow: View {
     }
 
     @ViewBuilder private var loopControls: some View {
+        let presets: [Double] = [1, 2, 4, 8, 16, 32]
+        let current = cue.loop.map { loop in
+            loop.beats ?? deck.loopBeats(cue).map(Double.init) ?? (loop.end - cue.time) * (deck.gridBPM ?? 120) / 60
+        }
         Menu {
-            Button(.ui("루프 없음")) { deck.setLoop(cue.id, beats: nil) }
-            Divider()
-            ForEach([1, 2, 4, 8, 16, 32], id: \.self) { beats in
-                Button(.ui("\(beats)박 루프")) { deck.setLoop(cue.id, beats: beats) }
+            Picker(.ui("루프 길이"), selection: Binding(get: { current }, set: { beats in
+                // 프리셋 밖 현재 값을 다시 골라도 기존 루프 끝은 그대로 둔다.
+                guard beats != current else { return }
+                deck.setLoop(cue.id, beats: beats.map(Int.init))
+            })) {
+                Text(.ui("루프 없음")).tag(nil as Double?)
+                if let current, !presets.contains(current) {
+                    Text(.ui("\(LoopRules.text(current))박 루프")).tag(Optional(current))
+                }
+                ForEach(presets, id: \.self) { beats in
+                    Text(.ui("\(LoopRules.text(beats))박 루프")).tag(Optional(beats))
+                }
             }
+            .pickerStyle(.inline)
         } label: {
             Text(cue.loop == nil ? .ui("루프") : .ui("\(cue.loop?.beats.map(LoopRules.text) ?? deck.loopBeats(cue).map(String.init) ?? "?")박"))
                 .font(.scaled(.caption, textScale).monospacedDigit())

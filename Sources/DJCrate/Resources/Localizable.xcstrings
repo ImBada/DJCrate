@@ -1161,22 +1161,6 @@
         }
       }
     },
-    "%lld박 루프" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld-Beat Loop"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld拍ループ"
-          }
-        }
-      }
-    },
     "%lld분" : {
       "localizations" : {
         "en" : {
@@ -1765,6 +1749,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "BPM・グリッドなし"
+          }
+        }
+      }
+    },
+    "BPM은 20…999 사이로 입력하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a BPM between 20 and 999."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "BPMは20〜999の範囲で入力してください。"
           }
         }
       }
@@ -5187,6 +5187,22 @@
         }
       }
     },
+    "곡의 큐·그리드·게인을 고치면 여기에 모입니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit a track’s cues, beat grid, or gain to collect drafts here."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲のキュー・ビートグリッド・ゲインを編集すると、下書きがここに表示されます。"
+          }
+        }
+      }
+    },
     "관련 곡" : {
       "localizations" : {
         "en" : {
@@ -6397,6 +6413,22 @@
         }
       }
     },
+    "다른 목록을 선택하거나 새 스냅샷으로 라이브러리를 다시 읽어 보세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select another list or take a new snapshot to reload the library."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別のリストを選ぶか、新しいスナップショットを作成してライブラリを読み直してください。"
+          }
+        }
+      }
+    },
     "다시 분석합니다" : {
       "localizations" : {
         "en" : {
@@ -6825,6 +6857,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "元に戻したライブラリを読み込み中…"
+          }
+        }
+      }
+    },
+    "되돌릴 백업이 없습니다. rekordbox에 반영하면 쓰기 전 백업이 생깁니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No backup to restore. Writing to rekordbox creates a backup before making changes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元に戻せるバックアップがありません。rekordboxに反映すると、書き込む前のバックアップが作成されます。"
           }
         }
       }
@@ -7279,6 +7327,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ループ設定・解除"
+          }
+        }
+      }
+    },
+    "루프 길이" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loop Length"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ループの長さ"
           }
         }
       }
@@ -10061,18 +10125,18 @@
         }
       }
     },
-    "스트리밍" : {
+    "스트리밍 곡은 가져올 수 없습니다. 로컬 음원을 준비하세요." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Streaming"
+            "value" : "Streaming tracks can't be imported. Use local audio files."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ストリーミング"
+            "value" : "ストリーミングの曲は取り込めません。ローカル音源を用意してください。"
           }
         }
       }
@@ -10141,18 +10205,18 @@
         }
       }
     },
-    "스트리밍 곡은 가져올 수 없습니다. 로컬 음원을 준비하세요." : {
+    "스트리밍" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Streaming tracks can't be imported. Use local audio files."
+            "value" : "Streaming"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ストリーミングの曲は取り込めません。ローカル音源を用意してください。"
+            "value" : "ストリーミング"
           }
         }
       }
@@ -11147,6 +11211,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "音源ファイルは削除しません。rekordboxのキュー・プレイリストの項目・演奏履歴・解析ファイル・アートワークも一緒に削除されます。"
+          }
+        }
+      }
+    },
+    "음원 파일을 끌어다 놓거나 ‘곡 추가’를 눌러 시작하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag audio files here or click Add Tracks to get started."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音源ファイルをドラッグするか、「曲を追加」を押して始めてください。"
           }
         }
       }
@@ -12199,6 +12279,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再生音量"
+          }
+        }
+      }
+    },
+    "재생 볼륨 %lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playback volume %lld%%"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再生音量 %lld%%"
           }
         }
       }
@@ -13407,6 +13503,22 @@
         }
       }
     },
+    "추가한 곡이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Added Tracks"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加した曲がありません"
+          }
+        }
+      }
+    },
     "추가할 음원이 없습니다. MP3·M4A·WAV·AIFF·FLAC 파일을 고르세요." : {
       "localizations" : {
         "en" : {
@@ -14417,22 +14529,6 @@
         }
       }
     },
-    "탭" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "TAP"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "TAP"
-          }
-        }
-      }
-    },
     "태그 %lld곡" : {
       "localizations" : {
         "en" : {
@@ -14473,22 +14569,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "タグ反映済み"
-          }
-        }
-      }
-    },
-    "태그 변경 없음" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "tags unchanged"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "タグ変更なし"
           }
         }
       }
@@ -14585,6 +14665,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "タグはrekordboxのライブラリにだけ書き込みます。音源ファイルのタグはそのままなので、他のアプリやrekordboxの「タグの再読み込み」では以前の値が表示されることがあります。"
+          }
+        }
+      }
+    },
+    "탭" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TAP"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TAP"
+          }
+        }
+      }
+    },
+    "태그 변경 없음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tags unchanged"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タグ変更なし"
           }
         }
       }
@@ -15305,6 +15417,22 @@
         }
       }
     },
+    "표시할 곡이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Tracks to Display"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示する曲がありません"
+          }
+        }
+      }
+    },
     "플레이리스트" : {
       "localizations" : {
         "en" : {
@@ -15697,18 +15825,18 @@
         }
       }
     },
-    "현재 템포 구간의 BPM (엔터로 적용)" : {
+    "현재 템포 구간의 BPM (엔터를 누르거나 칸을 벗어나면 적용)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "BPM of the current tempo section (press Return to apply)"
+            "value" : "BPM of the current tempo section (press Return or leave the field to apply)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "現在のテンポ区間のBPM（Returnで適用）"
+            "value" : "現在のテンポ区間のBPM（Returnを押すか入力欄から移動すると適用）"
           }
         }
       }

@@ -25,6 +25,7 @@ struct AudioBar: View {
                     .accessibilityHidden(true)
                     Slider(value: $deck.volume, in: 0...1).frame(width: 90)
                         .accessibilityLabel(.ui("재생 볼륨"))
+                        .help(String(ui: "재생 볼륨 \(Int((deck.volume * 100).rounded()))%"))
                 }
                 GainControl(deck: deck)
                 Group { if PerfProbe.hidden.contains("meter") { EmptyView() } else { LevelMeterView(deck: deck) } }
@@ -35,8 +36,14 @@ struct AudioBar: View {
                     .help(.ui("그리드의 박마다 클릭 (1박은 높은 음)"))
                 HStack(spacing: 4) {
                     Text(.ui("템포")).foregroundStyle(.secondary)
-                    Slider(value: $deck.tempoPercent, in: -16...16, step: 0.1).frame(width: 120)
-                        .accessibilityLabel(.ui("재생 템포"))
+                    Slider(value: Binding(get: { deck.tempoPercent }, set: { deck.tempoPercent = ($0 * 10).rounded() / 10 }),
+                           in: -16...16, neutralValue: 0) {
+                        Text(.ui("재생 템포"))
+                    } ticks: {
+                        SliderTick(-16); SliderTick(-8); SliderTick(0); SliderTick(8); SliderTick(16)
+                    }
+                    .labelsHidden()
+                    .frame(width: 120)
                     Text(verbatim: deck.tempoPercent.unitText(signed: true) + "%").font(.scaled(.caption, textScale).monospacedDigit())
                         .frame(width: TextScale.length(46, scale: textScale), alignment: .trailing)
                     Button { deck.tempoPercent = 0 } label: { Text(verbatim: "0") }.help(.ui("원래 속도로"))
@@ -142,7 +149,13 @@ struct GainSettings: View {
                 .help(.ui("0dBFS를 넘지 않을 만큼만 올립니다"))
             HStack {
                 Text(.ui("트림"))
-                Slider(value: $deck.gainTrim, in: -12...12, step: 0.5)
+                Slider(value: Binding(get: { deck.gainTrim }, set: { deck.gainTrim = ($0 * 2).rounded() / 2 }),
+                       in: -12...12, neutralValue: 0) {
+                    Text(.ui("트림"))
+                } ticks: {
+                    SliderTick(-12); SliderTick(-6); SliderTick(0); SliderTick(6); SliderTick(12)
+                }
+                .labelsHidden()
                 Text(verbatim: deck.gainTrim.unitText(signed: true) + " dB").font(.callout.monospacedDigit()).frame(width: 60, alignment: .trailing)
                 Button { deck.gainTrim = 0 } label: { Text(verbatim: "0") }
             }

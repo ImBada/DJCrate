@@ -31,6 +31,12 @@ final class LibraryStore {
         didSet { if oldValue !== undoManager { oldValue?.removeAllActions(withTarget: self) } }
     }
     @ObservationIgnored let saveTagDrafts: ([TagDraft]) -> Void
+    @ObservationIgnored let backupDirectory: URL
+    private(set) var hasWriteBackup = false
+
+    func refreshWriteBackups() {
+        hasWriteBackup = RekordboxWriter.backups(in: backupDirectory).contains(where: \.isWrite)
+    }
 
     let resultHistory: WriteResultHistory
     @ObservationIgnored var feedback: AppFeedback
@@ -54,12 +60,15 @@ final class LibraryStore {
     var commentRuleEnabled: Bool { commentPreset.rule != nil }
 
     init(settings: SettingsStore = SettingsStore(), resultHistory: WriteResultHistory = WriteResultHistory(url: DJCPaths.userData.appending(path: "last-write-result.json")),
-         feedback: AppFeedback = AppFeedback(), saveTagDrafts: @escaping ([TagDraft]) -> Void = { DraftWriter.save($0) }) {
+         feedback: AppFeedback = AppFeedback(), saveTagDrafts: @escaping ([TagDraft]) -> Void = { DraftWriter.save($0) },
+         backupDirectory: URL = DJCPaths.rekordboxBackups) {
         self.settings = settings
         self.commentPreset = settings.commentPreset
         self.saveTagDrafts = saveTagDrafts
         self.resultHistory = resultHistory
         self.feedback = feedback
+        self.backupDirectory = backupDirectory
+        refreshWriteBackups()
     }
 
     var phase: Phase = .idle
@@ -153,7 +162,11 @@ final class LibraryStore {
     var writeStage: WriteStage?
     /// rekordbox에 쓰는 중(미리 보기 포함)
     var isWritingRekordbox = false {
-        didSet { if isWritingRekordbox { undoManager?.removeAllActions(withTarget: self) } }
+        didSet {
+            if isWritingRekordbox { undoManager?.removeAllActions(withTarget: self) }
+            // 쓰기·되돌리기 실패 때도 백업이 남거나 정리될 수 있다.
+            if oldValue && !isWritingRekordbox { refreshWriteBackups() }
+        }
     }
     /// 쓰는 동안 덱 큐 편집을 잠근다
     var onWriteLock: ((Bool) -> Void)?
