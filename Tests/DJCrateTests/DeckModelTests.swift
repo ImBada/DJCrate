@@ -88,7 +88,7 @@ struct DeckCueTests {
         #expect(h.deck.memoryCueCount == 10)
         h.deck.addMemoryCue(at: 150)
         #expect(h.deck.draft?.cues.filter { $0.kind == .memory }.count == 9)
-        #expect(h.deck.toast?.contains("10개") == true)
+        #expect(h.deck.toast?.text.contains("10개") == true)
     }
 
     @Test func 같은_자리_메모리_큐는_새로_만들지_않고_고른다() async throws {

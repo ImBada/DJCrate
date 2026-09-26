@@ -28,10 +28,10 @@ enum StagingPanels {
             let result = try store.exportStaged(to: url, only: selected.isEmpty ? nil : selected)
             var text = "\(result.count)곡을 연동 XML에 썼습니다 · rekordbox: rekordbox xml 새로고침 › \"DJCrate 추가\" › Import To Collection"
             if result.withoutGrid > 0 { text += " · \(result.withoutGrid)곡은 그리드 없이(rekordbox가 분석)" }
-            store.stagingMessage = text
+            store.stagingMessage = AppMessage(kind: result.withoutGrid > 0 ? .warning : .success, text: text)
             RekordboxLink.showSetupIfNeeded()
         } catch {
-            store.stagingMessage = "내보내지 못했습니다: \(error.localizedDescription)"
+            store.stagingMessage = AppMessage(kind: .failure, text: "내보내지 못했습니다. 저장 위치와 권한을 확인하세요: \(error.localizedDescription)")
         }
     }
 }

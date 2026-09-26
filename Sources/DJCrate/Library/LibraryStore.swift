@@ -30,8 +30,21 @@ final class LibraryStore {
     }
     @ObservationIgnored let saveTagDrafts: ([TagDraft]) -> Void
 
-    init(saveTagDrafts: @escaping ([TagDraft]) -> Void = { DraftWriter.save($0) }) {
+    let resultHistory: WriteResultHistory
+    @ObservationIgnored var feedback: AppFeedback
+    var showingWriteResult = false
+    @ObservationIgnored var writeTask: Task<Void, Never>?
+
+    func cancelWritePreparation() {
+        guard writeStage?.cancellable == true else { return }
+        writeTask?.cancel()
+    }
+
+    init(resultHistory: WriteResultHistory = WriteResultHistory(url: DJCPaths.userData.appending(path: "last-write-result.json")),
+         feedback: AppFeedback = AppFeedback(), saveTagDrafts: @escaping ([TagDraft]) -> Void = { DraftWriter.save($0) }) {
         self.saveTagDrafts = saveTagDrafts
+        self.resultHistory = resultHistory
+        self.feedback = feedback
     }
 
     var phase: Phase = .idle
@@ -97,17 +110,25 @@ final class LibraryStore {
     var gridQueue: [GridJobItem] = []
     var gridTask: Task<Void, Never>?
     /// 곡 추가·내보내기 결과 안내
-    var stagingMessage: String?
+    var stagingMessage: AppMessage? {
+        didSet { if let stagingMessage { feedback.announce(stagingMessage) } }
+    }
     /// rekordbox 반영 내보내기·검증 결과 안내
-    var reflectionMessage: String?
+    var reflectionMessage: AppMessage? {
+        didSet { if let reflectionMessage { feedback.announce(reflectionMessage) } }
+    }
     /// 마지막으로 내보낸 반영 묶음(가져온 뒤 검증 대기)
     var reflectionBatch: ReflectionStore.Batch?
     /// 이번 실행에서 rekordbox에 쓴 마지막 백업(토스트·사이드바의 되돌리기)
     var lastWriteBackup: URL?
     /// 창 아래에 잠깐 뜨는 알림(rekordbox 반영 완료 등)
-    var toast: AppToast?
+    var toast: AppToast? {
+        didSet {
+            if let toast { feedback.announce(AppMessage(kind: toast.kind, text: [toast.title, toast.detail].compactMap { $0 }.joined(separator: "\n"))) }
+        }
+    }
     /// rekordbox 쓰기 단계 안내(있으면 창 전체를 덮어 조작을 막는다. 확인 창이 떠 있는 동안은 nil)
-    var writeStage: String?
+    var writeStage: WriteStage?
     /// rekordbox에 쓰는 중(미리 보기 포함)
     var isWritingRekordbox = false {
         didSet { if isWritingRekordbox { undoManager?.removeAllActions(withTarget: self) } }
