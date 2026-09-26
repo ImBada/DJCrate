@@ -12,9 +12,10 @@ import SwiftUI
 /// 선택·정렬은 스토어와 양방향으로 맞춘다. 열 너비·순서는 자동 저장된다.
 struct TrackTable: View {
     @Bindable var store: LibraryStore
+    let deck: DeckModel
 
     var body: some View {
-        TrackListView(store: store)
+        TrackListView(store: store, mode: deck.waveformColorMode)
             .navigationTitle(store.sidebarTitle)
             .navigationSubtitle("\(store.displayRows.count)곡" + (store.selection.count > 1 ? " · \(store.selection.count)곡 선택" : ""))
     }
@@ -22,6 +23,7 @@ struct TrackTable: View {
 
 private struct TrackListView: NSViewRepresentable {
     let store: LibraryStore
+    let mode: WaveformColorMode
 
     func makeCoordinator() -> TrackListCoordinator { TrackListCoordinator(store: store) }
 
@@ -109,6 +111,7 @@ private struct TrackListView: NSViewRepresentable {
         context.coordinator.update(rows: store.displayRows, edited: store.editedUUIDs,
                                    selection: store.selection, sortOrder: store.sortOrder, snapshotURL: store.snapshotURL)
         context.coordinator.updateCueCounts(store.draftCueCounts)
+        context.coordinator.updateWaveformMode(mode)
     }
 }
 
@@ -203,6 +206,7 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
     private var rowIDs: [TrackRow.ID] = []
     private var edited: Set<String> = []
     private var snapshotURL: URL?
+    private var waveformMode = WaveformColorMode.threeBand
     /// 표 → 스토어로 선택·정렬을 넘기는 중에는 스토어 → 표 동기화를 건너뛴다(되먹임 방지).
     private var syncing = false
 
@@ -211,6 +215,16 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
     }
 
     // MARK: - 스토어 → 표
+
+    func updateWaveformMode(_ mode: WaveformColorMode) {
+        guard mode != waveformMode, let table else { return }
+        waveformMode = mode
+        guard let column = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == "preview" }) else { return }
+        let visible = table.rows(in: table.visibleRect)
+        guard visible.location != NSNotFound else { return }
+        table.reloadData(forRowIndexes: IndexSet(integersIn: visible.location..<NSMaxRange(visible)),
+                         columnIndexes: IndexSet(integer: column))
+    }
 
     func update(rows: [TrackRow], edited: Set<String>, selection: Set<TrackRow.ID>,
                 sortOrder: [KeyPathComparator<TrackRow>], snapshotURL: URL?) {
@@ -454,7 +468,8 @@ private final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTab
         case "preview":
             let cell = reuse(tableView, "preview") { PreviewWaveformCell() }
             cell.configure(url: RekordboxShare.analysisURL(row.track.analysisDataPath),
-                           revision: snapshotURL?.absoluteString ?? "")
+                           revision: snapshotURL?.absoluteString ?? "", mode: waveformMode,
+                           audioURL: row.track.isStreaming ? nil : URL(filePath: row.track.folderPath), key: row.track.uuid)
             return cell
         case "thumb":
             let cell = reuse(tableView, "thumb") { ThumbnailCell() }

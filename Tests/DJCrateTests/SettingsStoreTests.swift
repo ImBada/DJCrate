@@ -12,6 +12,7 @@ struct SettingsStoreTests {
         let audio = FakeDeckAudio()
         let deck = DeckModel(audio: audio, storage: .memory(MemoryDrafts()), runsAnalysis: false)
         #expect(deck.zoomSeconds == 16)
+        #expect(deck.waveformColorMode == .threeBand)
         #expect(deck.quantize)
         #expect(deck.carryCues)
         #expect(deck.showSuggestions)
@@ -54,6 +55,7 @@ struct SettingsStoreTests {
         deck.metronomeVolume = 0.3
         deck.idleSeconds = 60
         deck.carryCues = false
+        deck.waveformColorMode = .rgb
         var shortcuts = deck.shortcuts
         try shortcuts.replace(8, with: 7, in: .cue)
         deck.shortcuts = shortcuts
@@ -63,6 +65,7 @@ struct SettingsStoreTests {
         #expect(again.metronomeVolume == 0.3)
         #expect(again.idleSeconds == 60)
         #expect(!again.carryCues)
+        #expect(again.waveformColorMode == .rgb)
         #expect(again.shortcuts.keys(for: .cue) == [7])
         #expect(audio.metronomeVolume == 0.3)
         #expect(audio.idleSeconds == 60)

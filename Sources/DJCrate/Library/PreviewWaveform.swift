@@ -1,53 +1,50 @@
 import AppKit
+import DJCAnalysis
+import DJCDomain
 import RekordboxKit
-
-enum PreviewWaveformColorMode: String, Sendable {
-    case blue
-}
 
 struct PreviewWaveformRequest: Hashable, Sendable {
     let url: URL?
     let revision: String
     let appearance: String
-    var mode: PreviewWaveformColorMode = .blue
+    var mode: WaveformColorMode = .threeBand
     var emphasized = false
+    var audioURL: URL?
+    var trackKey = ""
 
     var cacheKey: NSString {
-        [url?.absoluteString ?? "", revision, appearance, mode.rawValue, String(emphasized)]
+        [url?.absoluteString ?? "", revision, appearance, mode.rawValue, String(emphasized), audioURL?.absoluteString ?? "", trackKey]
             .joined(separator: "\u{1F}") as NSString
     }
 }
 
 /// 색 선택과 그리기를 한곳에 모으고, 셀에는 완성된 이미지만 넘긴다.
 enum PreviewWaveformRenderer {
-    static func image(_ waveform: AnlzPreviewWaveform, mode: PreviewWaveformColorMode,
+    static func image(_ waveform: AnlzPreviewWaveform, mode: WaveformColorMode,
                       appearance: String, emphasized: Bool = false) -> CGImage? {
-        let width = 400, height = 40
-        let heights = waveform.downsampled(to: width).heights
-        guard !heights.isEmpty,
-              let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
-                                      bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
-        var color: NSColor
-        switch mode {
-        case .blue:
-            color = UIColors.info.variants.resolved(for: NSAppearance.Name(appearance))
+        let reduced = waveform.downsampled(to: 400)
+        let columns = mode == .blue ? reduced.blueColumns : (reduced.colorColumns ?? reduced.blueColumns)
+        // 선택 배경에서도 밴드·RGB 구분을 남기고 어두운 배경용 대비를 쓴다.
+        return WaveformBitmap.image(columns, mode: mode, appearance: emphasized ? .darkAqua : NSAppearance.Name(appearance),
+                                    height: 40, width: 400)
+    }
+}
+
+enum PreviewWaveformSource {
+    static func load(url: URL?, audioURL: URL?, key: String) -> AnlzPreviewWaveform? {
+        let dat = url.flatMap { try? AnlzFile(url: $0) }.flatMap { try? AnlzPreviewWaveform(file: $0) }
+        let ext = url.flatMap { try? AnlzFile(url: $0.deletingPathExtension().appendingPathExtension("EXT")) }
+        let colors = ext.flatMap { try? AnlzPreviewWaveform(file: $0) }?.colorColumns
+        var blue = dat?.blueColumns ?? ext.flatMap { try? AnlzColorWaveform(file: $0, mode: .blue) }?.columns
+        var bands = colors
+        if blue == nil || bands == nil, !Task.isCancelled, let audioURL, !key.isEmpty,
+           let fallback = try? WaveformCache.load(fileAt: audioURL, key: key) {
+            let columns = fallback.downsampled(to: 400).colorColumns
+            if blue == nil { blue = columns }
+            if bands == nil { bands = columns }
         }
-        if emphasized, let appearance = NSAppearance(named: NSAppearance.Name(appearance)) {
-            appearance.performAsCurrentDrawingAppearance {
-                color = NSColor.alternateSelectedControlTextColor.usingColorSpace(.sRGB) ?? color
-            }
-        }
-        context.setFillColor(color.cgColor)
-        var bars: [CGRect] = []
-        bars.reserveCapacity(heights.count)
-        for (index, value) in heights.enumerated() where value > 0 {
-            let x = index * width / heights.count, end = (index + 1) * width / heights.count
-            let bar = max(1, Int(value) * height / 31)
-            bars.append(CGRect(x: x, y: (height - bar) / 2, width: end - x, height: bar))
-        }
-        context.fill(bars)
-        return context.makeImage()
+        guard let blue = blue ?? bands else { return nil }
+        return AnlzPreviewWaveform(blue: blue, color: bands).downsampled(to: 400)
     }
 }
 
@@ -69,8 +66,8 @@ actor PreviewWaveformCache {
         guard !Task.isCancelled else { return nil }
         if let hit = cache.object(forKey: request.cacheKey) { return hit.image }
         var image: CGImage?
-        if let url = request.url, let file = try? AnlzFile(url: url),
-           let waveform = try? AnlzPreviewWaveform(file: file), !Task.isCancelled {
+        if let waveform = PreviewWaveformSource.load(url: request.url, audioURL: request.audioURL, key: request.trackKey),
+           !Task.isCancelled {
             image = PreviewWaveformRenderer.image(waveform, mode: request.mode,
                                                  appearance: request.appearance, emphasized: request.emphasized)
         }
@@ -83,7 +80,7 @@ actor PreviewWaveformCache {
 /// 재사용·모양새 전환 뒤 늦게 도착한 이미지는 버린다. 재생 틱은 읽지 않는다.
 final class PreviewWaveformCell: NSTableCellView {
     private let waveformLayer = CALayer()
-    private var source: (url: URL?, revision: String)?
+    private var source: (url: URL?, revision: String, mode: WaveformColorMode, audioURL: URL?, key: String)?
     private var request: PreviewWaveformRequest?
     private var task: Task<Void, Never>?
 
@@ -99,8 +96,8 @@ final class PreviewWaveformCell: NSTableCellView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func configure(url: URL?, revision: String) {
-        source = (url, revision)
+    func configure(url: URL?, revision: String, mode: WaveformColorMode = .threeBand, audioURL: URL? = nil, key: String = "") {
+        source = (url, revision, mode, audioURL, key)
         refresh()
     }
 
@@ -136,7 +133,8 @@ final class PreviewWaveformCell: NSTableCellView {
         let appearance = effectiveAppearance.bestMatch(from: [.accessibilityHighContrastAqua,
             .accessibilityHighContrastDarkAqua, .aqua, .darkAqua]) ?? .aqua
         let next = PreviewWaveformRequest(url: source.url, revision: source.revision,
-                                          appearance: appearance.rawValue, emphasized: backgroundStyle == .emphasized)
+                                          appearance: appearance.rawValue, mode: source.mode, emphasized: backgroundStyle == .emphasized,
+                                          audioURL: source.audioURL, trackKey: source.key)
         guard request != next else { return }
         request = next
         task?.cancel()

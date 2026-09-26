@@ -94,7 +94,7 @@ struct ContentView: View {
                             .onDisappear { store.canFillDownTags = false }
                             .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                     } else {
-                        TrackTable(store: store)
+                        TrackTable(store: store, deck: deck)
                             .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                     }
                 }

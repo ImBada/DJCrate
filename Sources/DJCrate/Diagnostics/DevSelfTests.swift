@@ -241,8 +241,12 @@ enum DevSelfTests {
         guard PerfProbe.enabled else { return }
         func log(_ text: String) { FileHandle.standardError.write(Data("[스크롤 성능] \(text)\n".utf8)) }
         Task {
+            let args = ProcessInfo.processInfo.arguments
+            if let value = args.first(where: { $0.hasPrefix("--perf-waveform=") })?.split(separator: "=").last,
+               let mode = WaveformColorMode(rawValue: String(value)) { deck.waveformColorMode = mode }
             func wait(_ seconds: Double) async { try? await Task.sleep(for: .seconds(seconds)) }
-            for _ in 0..<100 where !deck.canPlay || deck.waveform == nil { await wait(0.1) }
+            for _ in 0..<200 where !deck.canPlay || deck.waveform == nil
+                || (deck.waveformColorMode != .threeBand && deck.colorWaveform == nil) { await wait(0.1) }
             guard deck.canPlay else { log("재생 불가"); exit(1) }
             @MainActor func findTable(_ view: NSView?) -> NSTableView? {
                 guard let view else { return nil }
@@ -252,6 +256,7 @@ enum DevSelfTests {
             }
             guard let window = NSApp.windows.first(where: { $0.isVisible }), let table = findTable(window.contentView),
                   let clip = table.enclosingScrollView?.contentView else { log("목록을 찾지 못함"); exit(1) }
+            log("파형 모드: \(deck.waveformColorMode.title)")
             if let column = table.tableColumns.first(where: { $0.identifier.rawValue == "preview" }) {
                 log("미리 보기 컬럼: " + (column.isHidden ? "끔" : "켬"))
             }
@@ -262,6 +267,20 @@ enum DevSelfTests {
             deck.seek(0)
             deck.togglePlay()
             await wait(1.5)
+            if let arg = args.first(where: { $0.hasPrefix("--perf-capture=") }) {
+                let path = String(arg.dropFirst("--perf-capture=".count))
+                window.makeKeyAndOrderFront(nil)
+                NSApp.activate()
+                await wait(0.3)
+                let capture = Process()
+                capture.executableURL = URL(filePath: "/usr/sbin/screencapture")
+                capture.arguments = ["-x", "-l", String(window.windowNumber), path]
+                do {
+                    try capture.run()
+                    capture.waitUntilExit()
+                    log("화면 저장: \(capture.terminationStatus == 0 ? "통과" : "실패")")
+                } catch { log("화면 저장 실패") }
+            }
             if let column = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == "preview" }),
                !table.tableColumns[column].isHidden {
                 let visible = table.rows(in: table.visibleRect)

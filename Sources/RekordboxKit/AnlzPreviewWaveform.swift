@@ -1,31 +1,52 @@
 import DJCDomain
 import Foundation
 
-/// 목록용 PWAV 미리 보기. 높이는 하위 5비트(0~31)이며 재생 시각과 무관하다.
-public struct AnlzPreviewWaveform: Sendable, Equatable {
+/// 목록용 PWAV·PWV4 미리 보기. 재생 시각과 무관한 줄인 원자료다.
+public struct AnlzPreviewWaveform: Sendable, Equatable, Codable {
     public let heights: [UInt8]
+    public let blueColumns: [WaveformColumn]
+    public let colorColumns: [WaveformColumn]?
 
     public init?(file: AnlzFile) throws {
-        guard let tag = file.tag("PWAV") else { return nil }
+        let colors = try AnlzColorWaveform.entries(file: file, tag: "PWV4", size: 6)
+        colorColumns = colors.flatMap { bytes in
+            guard !bytes.isEmpty else { return nil }
+            // PWV4: 채널 하위 7비트, 두 번째 바이트는 밝기 배율(pyrekordbox, MIT).
+            return stride(from: 0, to: bytes.count, by: 6).map { index in
+                let low = Double(bytes[index + 3] & 127), mid = Double(bytes[index + 4] & 127)
+                let high = Double(bytes[index + 5] & 127), intensity = Double(bytes[index + 2] & 127)
+                let gain = Double(bytes[index + 1]) / 127 / 255
+                var column = WaveformColumn(low: low / 127, mid: mid / 127, high: high / 127)
+                column.height = max(intensity, low, mid, high) / 127
+                column.rgb = WaveformRGB(red: min(1, low * gain), green: min(1, mid * gain), blue: min(1, high * gain))
+                return column
+            }
+        }
+        guard let tag = file.tag("PWAV") else {
+            guard let colorColumns else { return nil }
+            blueColumns = colorColumns
+            heights = colorColumns.map { UInt8(($0.height * 31).rounded()) }
+            return
+        }
         let bytes = [UInt8](tag.bytes)
         guard bytes.count >= 20 else { throw DJCError.invalidAnalysisFile("PWAV 머리가 짧음") }
         let header = Int(AnlzFile.u32(bytes, 4)), count = Int(AnlzFile.u32(bytes, 12))
         guard header >= 20, header <= bytes.count, count <= bytes.count - header else {
             throw DJCError.invalidAnalysisFile("PWAV 길이가 맞지 않음")
         }
-        guard count > 0 else { return nil }
+        guard count > 0 || colorColumns != nil else { return nil }
         heights = bytes[header..<header + count].map { $0 & 0x1F }
+        blueColumns = bytes[header..<header + count].map(AnlzColorWaveform.blue)
     }
 
-    private init(heights: [UInt8]) { self.heights = heights }
+    public init(blue: [WaveformColumn], color: [WaveformColumn]?) {
+        blueColumns = blue; colorColumns = color
+        heights = blue.map { UInt8(($0.height * 31).rounded()) }
+    }
 
     /// 짧은 피크와 곡 끝이 사라지지 않도록 겹치지 않는 구간의 최대값을 남긴다.
     public func downsampled(to points: Int) -> Self {
-        guard points > 0 else { return Self(heights: []) }
-        guard heights.count > points else { return self }
-        return Self(heights: (0..<points).map { index in
-            let start = index * heights.count / points, end = (index + 1) * heights.count / points
-            return heights[start..<end].max() ?? 0
-        })
+        Self(blue: WaveformColumn.downsample(blueColumns, to: points),
+             color: colorColumns.map { WaveformColumn.downsample($0, to: points) })
     }
 }
