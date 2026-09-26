@@ -85,7 +85,7 @@ struct ReflectionPromptLayoutTests {
         #expect(prompt.text.count < 180)
         let lines = try detailText(prompt).components(separatedBy: "\n")
         for index in 1...100 {
-            #expect(lines.contains("• 곡 cue-\(index) — 큐 추가 1 · 삭제 0"))
+            #expect(lines.contains("• 곡 cue-\(index) — 큐 +1"))
             #expect(lines.contains("• 곡 analysis-\(index) — 분석 파일 붙이기(파형·그리드 박 96개·오토게인)"))
             #expect(lines.contains("• 곡 blocked-\(index): 분석 전"))
         }

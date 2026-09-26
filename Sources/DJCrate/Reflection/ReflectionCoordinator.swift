@@ -293,7 +293,7 @@ struct ReflectionCoordinator {
 
     /// 쓰기 확인도 자동 복원도 실패했을 때의 경고(상태를 알 수 없음 + 할 일). 그 밖의 오류면 nil.
     /// 반영·넣기·빼기 모두 '반영 대기' 목록의 '되돌리기…'(가장 최근 쓰기 백업으로 되돌림)를 안내한다.
-    /// 사이드바 아래 '마지막 반영 되돌리기…'는 쓰기가 성공했을 때만 나타나 여기서는 보이지 않을 수 있다.
+    /// 툴바의 '마지막 반영 되돌리기…'는 쓰기가 성공했을 때만 활성화된다.
     static func restoreFailureAlert(_ error: any Error) -> ReflectionPrompt? {
         guard case let DJCError.restoreFailed(_, _, backup, database) = error else { return nil }
         AppErrorMessage.log(error)
@@ -320,7 +320,10 @@ struct ReflectionCoordinator {
         let gridBlocked = Set((report.gridBlocked + report.analysisBlocked).map(\.trackUUID)), gridWritten = Set(grids.map(\.trackUUID))
         let analysisWritten = Set(analyses.map(\.trackUUID))
         var body = cues.map { outcome -> String in
-            var line = "• \(outcome.title) — 큐 추가 \(outcome.added) · 삭제 \(outcome.removed)"
+            var changes: [String] = []
+            if outcome.added > 0 { changes.append("+\(outcome.added)") }
+            if outcome.removed > 0 { changes.append("−\(outcome.removed)") }
+            var line = "• \(outcome.title) — 큐 " + (changes.isEmpty ? "변경" : changes.joined(separator: " · "))
             if gridWritten.contains(outcome.trackUUID) { line += " · 그리드" }
             if analysisWritten.contains(outcome.trackUUID) { line += " · 분석 파일 붙이기" }
             if gridBlocked.contains(outcome.trackUUID) { line += " · ⚠︎ 그리드는 안 들어감" }
@@ -335,10 +338,10 @@ struct ReflectionCoordinator {
         let reasons = reasons(report)
         if !reasons.isEmpty { body += ["", "쓰지 않는 것 \(reasons.count):"] + reasons }
         if !analyses.isEmpty {
-            body += ["", "분석을 붙이는 곡은 rekordbox 분석 전 곡입니다. 파형·그리드·오토게인을 DJCrate가 만들고, 키·프레이즈·보컬 분석은 없습니다(프레이즈는 rekordbox에서 Phrase만 분석하면 더해집니다)."]
+            body += ["", "파형·그리드·오토게인만 붙입니다. 키·프레이즈·보컬 분석은 없습니다."]
         }
-        return ReflectionPrompt(title: "rekordbox에 " + kinds.joined(separator: " · ") + "을 씁니다",
-                                text: "쓰기 전 백업하고 쓴 뒤 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.",
+        return ReflectionPrompt(title: kinds.joined(separator: " · ") + "을 rekordbox에 쓸까요?",
+                                text: "백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.",
                                 confirm: "rekordbox에 쓰기", details: body)
     }
 
@@ -352,7 +355,7 @@ struct ReflectionCoordinator {
         var body = written.map { outcome -> String in
             var line = preview.withoutAnalysis[outcome.path].map { "• \(outcome.title) — 분석 없이(\($0))" }
                 ?? "• \(outcome.title) — 그리드·파형·오토게인까지"
-            if let count = outcome.cuesWritten { line += " · 큐 \(count)개" }
+            if let count = outcome.cuesWritten, count > 0 { line += " · 큐 \(count)개" }
             if let reason = outcome.cueReason { line += " · ⚠︎ 큐는 안 들어감(\(reason))" }
             return line
         }
@@ -360,9 +363,8 @@ struct ReflectionCoordinator {
         if !reasons.isEmpty { body += ["", "넣지 않는 곡 \(reasons.count):"] + reasons }
         let bare = written.filter { preview.withoutAnalysis[$0.path] != nil }.count
         if bare > 0 { body += ["", "분석 없이 넣는 곡은 rekordbox에서 분석해야 파형·그리드가 생깁니다."] }
-        body += ["", "프레이즈·보컬 분석은 rekordbox에서 Phrase만 분석하면 더해집니다."]
-        return ReflectionPrompt(title: "rekordbox 컬렉션에 \(written.count)곡을 넣습니다",
-                                text: "쓰기 전 백업하고 쓴 뒤 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.",
+        return ReflectionPrompt(title: "\(written.count)곡을 rekordbox에 넣을까요?",
+                                text: "백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.",
                                 confirm: "rekordbox에 넣기", details: body)
     }
 
@@ -371,31 +373,30 @@ struct ReflectionCoordinator {
         let written = preview.report.deleted.filter(\.written), blocked = preview.report.deleted.filter { !$0.written }
         var body = written.map { "• \($0.title)" }
         if !blocked.isEmpty { body += ["", "빼지 않는 곡 \(blocked.count):"] + blocked.map { "• \($0.title): \($0.reason ?? "")" } }
-        body += ["", "쓰기 전에 전체를 백업하므로 \"되돌리기\"로 되살릴 수 있습니다."]
-        return ReflectionPrompt(title: "rekordbox 컬렉션에서 \(written.count)곡을 뺍니다",
-                                text: "음원 파일은 지우지 않습니다. rekordbox의 큐·재생 목록 항목·재생 기록·분석 파일이 함께 사라집니다. 끝날 때까지 rekordbox를 켜지 마세요.",
+        return ReflectionPrompt(title: "\(written.count)곡을 rekordbox에서 뺄까요?",
+                                text: "음원 파일은 지우지 않습니다. rekordbox의 큐·재생 목록 항목·재생 기록·분석 파일이 함께 사라집니다.\n백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.",
                                 confirm: "rekordbox에서 빼기", critical: true, details: body)
     }
 
     /// 되돌리기 확인 창. 백업 뒤 변경이 있거나 확인하지 못했으면 파괴적 경고로 띄운다.
     static func restoreConfirmation(_ backup: RekordboxWriter.Backup, changedSince changed: Bool?) -> ReflectionPrompt {
-        var lines: [String] = []
+        var lines = ["백업: \(backup.createdAt.formatted(date: .abbreviated, time: .shortened))"]
         let details = backup.titles.isEmpty ? [] : ["그때 쓴 곡:"] + backup.titles.map { "• \($0)" }
         if let tracks = backup.trackReport {
             let added = tracks.added.filter(\.written).count, deleted = tracks.deleted.filter(\.written).count
-            lines.append("rekordbox 라이브러리 파일 전체를 그때 백업으로 바꿉니다. "
-                         + (added > 0 ? "그때 넣은 \(added)곡은 컬렉션에서 빠지고(만든 분석 파일도 지움) DJCrate 추가 목록으로 돌아옵니다. " : "")
-                         + (deleted > 0 ? "그때 뺀 \(deleted)곡은 큐·재생 목록·분석 파일과 함께 되살아납니다. " : "")
-                         + "지금 상태도 따로 백업해 둡니다.")
+            lines.append("라이브러리 전체를 이 백업으로 되돌립니다. "
+                         + (added > 0 ? "넣었던 \(added)곡은 컬렉션에서 빠지고 DJCrate 추가 목록으로 돌아옵니다(분석 파일도 삭제). " : "")
+                         + (deleted > 0 ? "뺐던 \(deleted)곡은 큐·재생 목록·분석 파일과 함께 복원됩니다. " : ""))
         } else {
-            lines.append("rekordbox 라이브러리 파일 전체를 그때 백업으로 바꿉니다. 그때 쓴 큐 초안은 DJCrate에 다시 살아납니다. 지금 상태도 따로 백업해 둡니다.")
+            lines.append("라이브러리 전체를 이 백업으로 되돌립니다. 큐 초안도 DJCrate에 복원됩니다.")
         }
         switch changed {
         case true?: lines.append("⚠︎ 이 백업 뒤에 rekordbox에서도 라이브러리가 바뀌었습니다(큐·재생 목록·곡 추가 등). 되돌리면 그 변경도 함께 사라집니다.")
         case nil: lines.append("백업 뒤 rekordbox에서 바뀐 것이 있는지 확인하지 못했습니다. 그 뒤 rekordbox에서 한 변경은 함께 사라집니다.")
         case false?: break
         }
-        return ReflectionPrompt(title: "rekordbox를 \(backup.createdAt.formatted(date: .abbreviated, time: .shortened)) 쓰기 전으로 되돌릴까요?",
+        lines.append("백업한 뒤 되돌리고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.")
+        return ReflectionPrompt(title: "rekordbox를 쓰기 전으로 되돌릴까요?",
                                 text: lines.joined(separator: "\n\n"), confirm: "되돌리기",
                                 critical: changed != false, destructive: changed != false, details: details)
     }

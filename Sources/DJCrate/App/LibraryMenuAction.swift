@@ -30,7 +30,7 @@ enum LibraryMenuAction: CaseIterable {
     }
 
     @MainActor func isEnabled(in store: LibraryStore) -> Bool {
-        guard !store.isWritingRekordbox else { return false }
+        guard store.writeLockPolicy.allowsLibraryInteraction else { return false }
         switch self {
         case .addFiles: return !store.rows.isEmpty
         case .snapshot: return !store.isLoading

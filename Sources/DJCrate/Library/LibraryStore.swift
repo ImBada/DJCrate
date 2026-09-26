@@ -121,9 +121,9 @@ final class LibraryStore {
     }
     /// 마지막으로 내보낸 반영 묶음(가져온 뒤 검증 대기)
     var reflectionBatch: ReflectionStore.Batch?
-    /// 이번 실행에서 rekordbox에 쓴 마지막 백업(토스트·사이드바의 되돌리기)
+    /// 이번 실행에서 rekordbox에 쓴 마지막 백업(토스트·툴바의 되돌리기)
     var lastWriteBackup: URL?
-    /// 창 아래에 잠깐 뜨는 알림(rekordbox 반영 완료 등)
+    /// detail 위쪽에 뜨는 알림(rekordbox 반영 완료 등)
     var toast: AppToast? {
         didSet {
             if let toast { feedback.announce(AppMessage(kind: toast.kind, text: [toast.title, toast.detail].compactMap { $0 }.joined(separator: "\n"))) }

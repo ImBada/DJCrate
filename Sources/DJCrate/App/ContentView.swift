@@ -30,9 +30,24 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             Sidebar(store: store)
+                .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
                 .navigationSplitViewColumnWidth(min: 210, ideal: 230)
         } detail: {
             detail
+                .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
+                .overlay(alignment: .top) {
+                    if let toast = store.toast {
+                        AppToastView(toast: toast,
+                                     onUndo: toast.undoBackup.map { url in { store.toast = nil; DirectWritePanels.restore(store: store, backupURL: url) } },
+                                     onDetails: { store.showingWriteResult = true },
+                                     onClose: { if store.toast?.id == toast.id { store.toast = nil } })
+                            .padding(.top, 12)
+                            .padding(.horizontal, 16)
+                            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                            .id(toast.id)
+                    }
+                }
+                .animation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(duration: 0.35), value: store.toast?.id)
         }
         // rekordbox에 쓰는 동안은 창 전체를 덮어 다른 조작을 막는다.
         .overlay {
@@ -40,19 +55,6 @@ struct ContentView: View {
                 WritingOverlay(stage: stage, onCancel: { store.cancelWritePreparation() }).transition(.opacity)
             }
         }
-        .overlay(alignment: .bottom) {
-            if let toast = store.toast {
-                AppToastView(toast: toast,
-                             onUndo: toast.undoBackup.map { url in { store.toast = nil; DirectWritePanels.restore(store: store, backupURL: url) } },
-                             onDetails: { store.showingWriteResult = true },
-                             onClose: { if store.toast?.id == toast.id { store.toast = nil } })
-                    .padding(.bottom, 22)
-                    .padding(.horizontal, 16)
-                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
-                    .id(toast.id)
-            }
-        }
-        .animation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(duration: 0.35), value: store.toast?.id)
         .sheet(isPresented: $store.showingWriteResult) { WriteResultView(history: store.resultHistory) }
         .animation(.easeInOut(duration: 0.15), value: store.writeStage)
         .searchable(text: $store.search, placement: .toolbar, prompt: "제목·아티스트·코멘트")
@@ -174,6 +176,7 @@ struct ContentView: View {
                     Label("태그 시트", systemImage: "tablecells").tag(true)
                 }
                 .pickerStyle(.segmented)
+                .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
                 .help("태그 시트: 엑셀처럼 셀을 선택·편집·붙여넣기 합니다")
             }
             ToolbarItem(id: "addFiles") {
@@ -182,7 +185,7 @@ struct ContentView: View {
                 } label: {
                     Label("곡 추가", systemImage: "plus")
                 }
-                .disabled(store.rows.isEmpty)
+                .disabled(!LibraryMenuAction.addFiles.isEnabled(in: store))
                 .help("음원 파일·폴더를 DJCrate에 추가합니다. BPM·그리드를 추정한 뒤 rekordbox XML로 넘길 수 있습니다(창에 끌어다 놓아도 됩니다).")
             }
             ToolbarItem(id: "tagEditor") {
@@ -192,6 +195,7 @@ struct ContentView: View {
                     Label("태그 편집", systemImage: "tag")
                 }
                 .help("선택한 곡의 태그를 편집합니다 (⌘I). 여러 곡을 한꺼번에 편집할 수 있습니다.")
+                .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
             }
             ToolbarItem(id: "snapshot") {
                 Button {
@@ -200,8 +204,11 @@ struct ContentView: View {
                 } label: {
                     Label("새 스냅샷", systemImage: "arrow.clockwise")
                 }
-                .disabled(store.isLoading)
+                .disabled(!LibraryMenuAction.snapshot.isEnabled(in: store))
                 .help("rekordbox master.db 사본을 새로 떠서 다시 읽습니다(원본은 읽기만). rekordbox에서 반영 XML을 가져온 뒤 누르면 자동으로 검증합니다.")
+            }
+            ToolbarItem(id: "reflection", placement: .primaryAction) {
+                ReflectionMenu(store: store)
             }
     }
 
@@ -226,7 +233,7 @@ struct ContentView: View {
                 guard let deck, let uuid = deck.row?.track.uuid, uuids.contains(uuid) else { return }
                 deck.refreshAfterWrite(store?.rowsByUUID[uuid])
             }
-            keys.install(deck: deck)
+            keys.install(deck: deck, store: store)
             #if DEBUG
             DevSelfTests.runIfRequested(store: store, deck: deck)
             #endif
