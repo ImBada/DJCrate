@@ -31,7 +31,7 @@ struct Sidebar: View {
                 Label(.ui("rekordbox 반영 대기"), systemImage: "square.and.arrow.up.on.square")
                     .badge(store.pendingLibraryCount)
                     .tag(SidebarItem.pending)
-                    .help(.ui("큐·그리드 초안이 있어 rekordbox에 반영할 곡. 재생 목록 초안도 이 목록 위 ‘rekordbox에 쓰기’로 함께 씁니다."))
+                    .help(.ui("큐·그리드·게인·태그 초안이 있어 rekordbox에 반영할 곡. 재생 목록 초안도 이 목록 위 ‘rekordbox에 쓰기’로 함께 씁니다."))
                 Button { store.showingWriteResult = true } label: {
                     Label(.ui("마지막 쓰기 결과…"), systemImage: "doc.text.magnifyingglass")
                 }
@@ -122,7 +122,7 @@ struct ListActionBar: View {
                           systemImage: "square.and.arrow.up.on.square")
                 }
                 .disabled((targets.isEmpty && playlistEdits == 0) || store.isWritingRekordbox)
-                .help(.ui("선택한 곡(없으면 목록 전체)의 큐 초안과 재생 목록 초안을 rekordbox 라이브러리에 바로 씁니다. 미리 보기로 확인한 뒤 씁니다. rekordbox가 꺼져 있어야 합니다."))
+                .help(.ui("선택한 곡(없으면 목록 전체)의 곡 초안(큐·그리드·게인·태그)과 재생 목록 초안을 rekordbox 라이브러리에 바로 씁니다. 미리 보기로 확인한 뒤 씁니다. rekordbox가 꺼져 있어야 합니다."))
                 if playlistEdits > 0 {
                     Button { PlaylistPanels.discardAll(store: store) } label: {
                         Label(.ui("재생 목록 초안 버리기…"), systemImage: "trash")
@@ -138,8 +138,10 @@ struct ListActionBar: View {
                 Button { DirectWritePanels.restoreLatest(store: store) } label: {
                     Label(.ui("되돌리기…"), systemImage: "arrow.uturn.backward")
                 }
-                .disabled(store.isWritingRekordbox)
-                .help(.ui("DJCrate가 마지막으로 rekordbox에 쓰기 직전 백업으로 되돌립니다."))
+                .disabled(store.isWritingRekordbox || !store.hasWriteBackup)
+                .help(store.hasWriteBackup
+                      ? String(ui: "DJCrate가 마지막으로 rekordbox에 쓰기 직전 백업으로 되돌립니다.")
+                      : String(ui: "되돌릴 백업이 없습니다. rekordbox에 반영하면 쓰기 전 백업이 생깁니다."))
                 if store.isWritingRekordbox {
                     ProgressView().controlSize(.small)
                     Text(.ui("rekordbox 라이브러리 확인·쓰는 중…")).font(.caption).foregroundStyle(.secondary)

@@ -12,10 +12,14 @@ enum TrackLab {
         Command("analysis-repro", "<ContentID…> [--db 스냅샷]", "rekordbox 분석 파일을 같은 그리드로 다시 만들어 태그마다 비교(파형은 수치로)", TrackLab.analysisRepro),
         Command("facts-check", "[--limit N] [--db 스냅샷]", "음원 정보(비트레이트·샘플레이트·비트)를 rekordbox 곡 행과 형식별로 비교", TrackLab.factsCheck),
         Command("pvbr-check", "[--db 스냅샷]", "라이브러리 MP3마다 만든 PVBR·비트레이트를 rekordbox .DAT와 바이트로 비교", TrackLab.pvbrCheck),
+        Command("nonlame-vbr-check", "[--db 스냅샷]", "비LAME VBR의 비트레이트 후보·PVBR·파형 길이를 익명 수치로 비교(읽기 전용)", TrackLab.nonLameVBRCheck),
         Command("pvb2-check", "[--db 스냅샷]", "라이브러리 FLAC마다 만든 PVB2(.EXT 탐색표)·음원 칸을 rekordbox와 바이트로 비교", TrackLab.pvb2Check),
         Command("track-add-repro", "--db <스냅샷> <음원 파일…>", "파일로 곡 추가 계획을 만들어 rekordbox가 넣은 행과 칸마다 비교", TrackLab.trackAddRepro),
         Command("analysis-attach-test", "--db <사본.db> --share <사본 share> [--grid-from <.DAT>] <ContentID…>",
                 "분석 전 곡에 분석 파일(음원 그림이 있으면 아트워크도)을 붙여 본다(사본만, 막아 둔 쓰기 경로를 열어서). 그리드는 .DAT에서 읽거나 추정", TrackLab.analysisAttachTest),
+        Command("tag-write-test", "--db <사본.db> [--dry-run] <ContentID>:<칸>=<값>…",
+                "곡 정보(태그)를 사본에 써 본다(사본만, 확인하지 않은 칸도 열어서). 칸: title·artist·album·albumArtist·genre·composer·year·trackNumber·comment. 한 번 실행 = rekordbox에서 한 번 저장",
+                TrackLab.tagWriteTest),
         Command("artwork-check", "[--db 스냅샷] [--limit N] [<ContentID…>]",
                 "음원 내장 아트워크로 아트워크 파일 셋을 만들어 rekordbox 파일과 크기·JPEG 머리·화소 차이를 비교(ID가 없으면 아트워크 있는 곡을 무작위로)",
                 TrackLab.artworkCheck),
@@ -62,6 +66,15 @@ enum TrackLab {
                 "\(name) \(rbDat.tags.filter { $0.fourcc == name }.map(\.bytes) == ours.tags.filter { $0.fourcc == name }.map(\.bytes) ? "같음" : "다름")"
             }.joined(separator: " · "))
             print("   .EXT 태그 순서 rb \(rbExt.tags.map(\.fourcc).joined(separator: " ")) / djc \(oursExt.tags.map(\.fourcc).joined(separator: " "))")
+            for name in ["PWV3", "PWV5"] {
+                if let reference = rbExt.tag(name), reference.bytes.count >= 20,
+                   let generated = oursExt.tag(name), generated.bytes.count >= 20 {
+                    let count = reference.bytes[16..<20].reduce(0) { ($0 << 8) | Int($1) }
+                    let ours = generated.bytes[16..<20].reduce(0) { ($0 << 8) | Int($1) }
+                    print("   \(name) 길이 rb \(count)/djc \(ours)")
+                }
+            }
+            print("   PVB2 rb \(rbExt.tag("PVB2") != nil)/djc \(oursExt.tag("PVB2") != nil) · 예측 지연 \(RekordboxTimeline.predictedOffset(url: url))초")
             if let a = rbDat.tag("PVBR"), let b = ours.tag("PVBR"), a.bytes != b.bytes {
                 print("   PVBR 끝값 rb \(a.bytes.suffix(4).map { String(format: "%02x", $0) }.joined()) / djc \(b.bytes.suffix(4).map { String(format: "%02x", $0) }.joined())")
             }
@@ -234,6 +247,46 @@ enum TrackLab {
             print("\(o.status == .written ? "✓" : "✗") \(o.title.prefix(40)) · 박 \(o.added)\(o.reason.map { " · \($0)" } ?? "")")
         }
         print("\(report.dryRun ? "미리 보기(되돌림)" : "씀") · 만든 파일 \(report.createdFiles?.count ?? 0)개 · 아트워크 \(report.artworkAdded?.count ?? 0)곡 · 변경 카운터 \(report.finalUpdateCount.map(String.init) ?? "-") · 백업 \(report.backup ?? "없음")")
+    }
+
+    /// rekordbox 곡 정보 편집 실험을 사본에 재현한다(#1). 실험 전 사본에 같은 편집을 쓰고 `djc lab db-diff`로 rekordbox 결과와 비교한다.
+    static func tagWriteTest(_ args: [String]) async throws {
+        guard let dbPath = value(after: "--db", in: args) else { throw UsageError() }
+        let database = URL(filePath: dbPath)
+        guard database.resolvingSymlinksInPath().standardizedFileURL.path
+                != RekordboxWriter.liveDatabase.resolvingSymlinksInPath().standardizedFileURL.path else {
+            print("라이브 rekordbox DB에는 쓰지 않습니다. 사본을 주세요"); return
+        }
+        // "<ContentID>:<칸>=<값>"을 곡마다 모은다(같은 곡은 한 초안으로).
+        var edits: [(id: String, changes: [(TagFields.Key, String)])] = []
+        for operand in MainCommands.operands(args.filter { $0 != "--dry-run" }, valued: ["--db"]) {
+            guard let colon = operand.firstIndex(of: ":"), let equals = operand[colon...].firstIndex(of: "="),
+                  let key = TagFields.Key(rawValue: String(operand[operand.index(after: colon)..<equals])) else {
+                print("✗ 알 수 없는 편집: \(operand)(예: 123:title=새 제목)"); throw UsageError()
+            }
+            let id = String(operand[..<colon]), value = String(operand[operand.index(after: equals)...])
+            if let i = edits.firstIndex(where: { $0.id == id }) { edits[i].changes.append((key, value)) } else { edits.append((id, [(key, value)])) }
+        }
+        guard !edits.isEmpty else { throw UsageError() }
+        var drafts: [TagDraft] = []
+        let db = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
+        for edit in edits {
+            var uuid: String?
+            try db.query("SELECT UUID FROM djmdContent WHERE ID = ?", [.text(edit.id)]) { uuid = $0.string(0) }
+            guard let uuid, let base = try RekordboxWriter.currentTags(db: db, contentID: edit.id) else { print("✗ \(edit.id): 곡이 없습니다"); continue }
+            var draft = TagDraft(trackUUID: uuid, base: base)
+            for (key, value) in edit.changes { draft.fields[key] = value }
+            drafts.append(draft)
+        }
+        db.close()
+        let report = try RekordboxWriter.write(drafts: [], grids: [], gains: [:], tags: drafts, analysisInputs: [:], to: database,
+                                               dryRun: args.contains("--dry-run"), now: .now,
+                                               backups: database.deletingLastPathComponent().appending(path: "backups"), shareRoot: nil,
+                                               attachesAnalysis: false, tagKeys: Set(TagFields.Key.allCases))
+        for o in report.tagOutcomes ?? [] {
+            print("\(o.status == .written ? "✓" : "✗") \(o.title.prefix(40)) · \((o.fields ?? []).joined(separator: ","))\(o.reason.map { " · \($0)" } ?? "")")
+        }
+        print("\(report.dryRun ? "미리 보기(되돌림)" : "씀") · 변경 카운터 \(report.finalUpdateCount.map(String.init) ?? "-") · 백업 \(report.backup ?? "없음")")
     }
 
     static func trackAddRepro(_ args: [String]) async throws {

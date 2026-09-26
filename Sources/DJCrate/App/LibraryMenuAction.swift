@@ -40,7 +40,7 @@ enum LibraryMenuAction: CaseIterable {
         case .exportXML: return store.sidebar == .staged ? !store.staged.isEmpty : !store.reflectionTargets.isEmpty
         case .reflect: return store.pendingLibraryCount > 0 || store.hasPlaylistDrafts
         case .pending, .writeResult: return true
-        case .restore: return store.lastWriteBackup != nil
+        case .restore: return store.hasWriteBackup
         case .removeTracks: return store.selectedRows.contains { !$0.isStaged && !$0.track.isStreaming }
         }
     }

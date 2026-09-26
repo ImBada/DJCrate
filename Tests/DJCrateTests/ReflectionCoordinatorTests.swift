@@ -19,7 +19,7 @@ final class FakeReflectionHost: ReflectionHost {
     var locks: [Bool] = []
     var targets: [TrackRow]?
     var preview: Result<LibraryStore.WritePreview, Error> = .failure(FixtureFailure())
-    var wrote: (drafts: [String], grids: [String], gains: [String])?
+    var wrote: (drafts: [String], grids: [String], gains: [String], tags: [String])?
     var hasPlaylistDrafts = false
     /// 미리 보기에 재생 목록 초안을 넣으라고 했는지, 쓰기에 넘긴 재생 목록 초안
     var previewedPlaylists: Bool?
@@ -37,9 +37,9 @@ final class FakeReflectionHost: ReflectionHost {
         await beforePreview?()
         return try preview.get()
     }
-    func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft], gains: [String: Double],
+    func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], tags: [TagDraft],
                           playlists: PlaylistDraft?) async throws -> RekordboxWriter.Report {
-        wrote = (drafts.map(\.trackUUID), grids.map(\.trackUUID), gains.keys.sorted())
+        wrote = (drafts.map(\.trackUUID), grids.map(\.trackUUID), gains.keys.sorted(), tags.map(\.trackUUID))
         wrotePlaylists = .some(playlists)
         if let writeError { throw writeError }
         return try writtenReport ?? preview.get().report
@@ -103,15 +103,25 @@ struct ReflectionCoordinatorTests {
     }
 
     static func preview(cues: [RekordboxWriter.Outcome], grids: [RekordboxWriter.Outcome] = [],
-                        gains: [RekordboxWriter.Outcome] = [], analyses: [RekordboxWriter.Outcome] = []) -> LibraryStore.WritePreview {
+                        gains: [RekordboxWriter.Outcome] = [], analyses: [RekordboxWriter.Outcome] = [],
+                        tags: [RekordboxWriter.Outcome] = []) -> LibraryStore.WritePreview {
         var report = RekordboxWriter.Report(outcomes: cues, backup: nil, dryRun: true, createdAt: "", finalUpdateCount: nil)
         report.gridOutcomes = grids.isEmpty ? nil : grids
         report.gainOutcomes = gains.isEmpty ? nil : gains
         report.analysisOutcomes = analyses.isEmpty ? nil : analyses
+        report.tagOutcomes = tags.isEmpty ? nil : tags
         return .init(report: report,
                      drafts: cues.map { CueDraft(trackUUID: $0.trackUUID, rekordboxCues: []) },
                      grids: (grids + analyses).map { GridDraft(trackUUID: $0.trackUUID, base: [], segments: []) },
-                     gains: Dictionary(uniqueKeysWithValues: gains.map { ($0.trackUUID, -3.0) }))
+                     gains: Dictionary(uniqueKeysWithValues: gains.map { ($0.trackUUID, -3.0) }),
+                     tags: tags.map { TagDraft(trackUUID: $0.trackUUID, base: TagFields()) })
+    }
+
+    static func tagOutcome(_ uuid: String, _ status: RekordboxWriter.Outcome.Status, fields: [String] = ["title", "artist"],
+                           reason: String? = nil) -> RekordboxWriter.Outcome {
+        var outcome = outcome(uuid, status, reason: reason, added: fields.count)
+        outcome.fields = status == .written ? fields : nil
+        return outcome
     }
 
     @Test func rekordbox가_켜져_있으면_미리_보지도_않는다() async {
@@ -226,6 +236,30 @@ struct ReflectionCoordinatorTests {
             "• 폴더 — 재생 목록 쓰지 않음(지우기): rekordbox에서 지운 목록입니다",
             "• 같음 — 재생 목록 변경 없음(이름 바꾸기)",
         ])
+    }
+
+    @Test func 태그만_쓸_수_있어도_묻고_막힌_곡의_태그는_넘기지_않는다() async {
+        host.preview = .success(Self.preview(cues: [], tags: [Self.tagOutcome("t", .written),
+                                                              Self.tagOutcome("x", .blocked, reason: "rekordbox에서 곡 정보가 바뀌었습니다")]))
+        await coordinator().write(rows: ["t", "x"].map(Self.row))
+        #expect(prompter.shown.first?.title == "태그 1곡을 rekordbox에 쓸까요?")
+        #expect(host.wrote?.tags == ["t"] && host.wrote?.drafts == [] && host.wrote?.grids == [] && host.wrote?.gains == [])
+    }
+
+    @Test func 확인_창은_바뀌는_태그_칸과_음원_파일은_그대로라는_것을_알린다() {
+        let preview = Self.preview(cues: [Self.outcome("a", .written, added: 1)],
+                                   tags: [Self.tagOutcome("a", .written, fields: ["comment"]), Self.tagOutcome("t", .written),
+                                          Self.tagOutcome("x", .blocked, reason: "규칙을 확인하지 않은 칸")])
+        let prompt = ReflectionCoordinator.confirmation(preview.report)
+        #expect(prompt.title == "큐 1곡 · 태그 2곡을 rekordbox에 쓸까요?")
+        let lines = prompt.details
+        #expect(lines.contains("• 곡 a — 큐 +1 · 태그(코멘트)"))
+        #expect(lines.contains("• 곡 t — 태그(제목·아티스트)"))
+        #expect(lines.contains("• 곡 x: 규칙을 확인하지 않은 칸"))
+        #expect(lines.contains { $0.contains("음원 파일의 태그는 그대로") })
+        // 태그를 쓰지 않으면 안내도 없다
+        let cuesOnly = ReflectionCoordinator.confirmation(Self.preview(cues: [Self.outcome("a", .written)]).report)
+        #expect(!cuesOnly.details.contains { $0.contains("음원 파일의 태그") })
     }
 
     @Test func 분석_전_곡은_그리드_초안으로_분석을_붙여_쓴다() async {

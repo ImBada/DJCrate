@@ -16,7 +16,10 @@ extension RekordboxWriter {
         public var trackReport: RekordboxTrackWriter.Report?
 
         public var titles: [String] {
-            (report.map { $0.written + $0.analysisWritten }?.map(\.title) ?? []) + (report?.playlistWritten.map(\.name) ?? [])
+            // 한 곡에 큐·태그를 함께 썼으면 한 번만
+            var seen: Set<String> = []
+            let written = report.map { $0.written + $0.analysisWritten + $0.tagWritten } ?? []
+            return written.filter { seen.insert($0.trackUUID).inserted }.map(\.title) + (report?.playlistWritten.map(\.name) ?? [])
                 + (trackReport?.titles ?? [])
         }
         /// 쓴 직후 rekordbox 변경 카운터(옛 백업에는 없다)

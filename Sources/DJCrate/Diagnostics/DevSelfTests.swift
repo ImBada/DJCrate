@@ -124,8 +124,13 @@ enum DevSelfTests {
                 let attachGrids = preview.grids.filter { attachUUIDs.contains($0.trackUUID) }
                 let gainUUIDs = Set(preview.report.gainWritten.map(\.trackUUID))
                 log("미리 보기 게인: \(preview.report.gainWritten.count)곡 · 막힘 \(preview.report.gainBlocked.count)")
+                // 태그: 쓸 수 있는 칸(`RekordboxWriter.writableTagKeys`)만 쓰고, 다시 읽은 곡 정보가 초안과 같은지 본다.
+                let tagUUIDs = Set(preview.report.tagWritten.map(\.trackUUID))
+                let tags = preview.tags.filter { tagUUIDs.contains($0.trackUUID) }
+                log("미리 보기 태그: \(preview.report.tagWritten.count)곡 · 막힘 \(preview.report.tagBlocked.count)")
+                for o in preview.report.tagBlocked { log("  막힘 \(o.title): \(o.reason ?? "")") }
                 let report = try await store.writeToRekordbox(preview.drafts.filter { uuids.contains($0.trackUUID) }, grids: grids + attachGrids,
-                                                              gains: preview.gains.filter { gainUUIDs.contains($0.key) },
+                                                              gains: preview.gains.filter { gainUUIDs.contains($0.key) }, tags: tags,
                                                               playlists: preview.report.playlistWritten.isEmpty ? nil : preview.playlists)
                 // 재생 목록: 다시 읽은 rekordbox에 새 폴더·목록(곡 셋)과 넣은 곡이 있고 초안이 비었는지
                 let rekordbox = store.rekordboxPlaylists
@@ -169,6 +174,13 @@ enum DevSelfTests {
                     let worst = written.beats.map { abs(intended.snap($0.time) - $0.time) }.max() ?? 1
                     if worst <= 0.0015 { attachSame += 1 } else { log(String(format: "  분석 그리드 다름 %@: 최대 %.1fms", row.title, worst * 1000)) }
                 }
+                var tagSame = 0
+                for draft in tags {
+                    guard let row = store.rowsByUUID[draft.trackUUID] else { continue }
+                    let now = TagFields(track: row.track)
+                    if draft.changedKeys.allSatisfy({ now[$0] == draft.fields[$0] }) { tagSame += 1 } else { log("  태그 다름: \(row.title)") }
+                }
+                log("태그 쓰기: \(report.tagWritten.count)곡 · 다시 읽은 곡 정보가 초안과 같음 \(tagSame)/\(tags.count) · 남은 태그 초안 \(tags.filter { store.tagDrafts[$0.trackUUID] != nil }.count)")
                 let createdFiles = (report.createdFiles ?? []).map { URL(filePath: $0) }
                 log("분석 붙이기: \(report.analysisWritten.count)곡 · 파형·그리드가 초안과 같음 \(attachSame)/\(attachGrids.count) · 만든 파일 \(createdFiles.count)개")
                 guard let backup = RekordboxWriter.backups(in: DJCPaths.rekordboxBackups).first(where: \.isWrite) else { log("백업 없음!"); exit(1) }
@@ -184,6 +196,9 @@ enum DevSelfTests {
                        (try? Data(contentsOf: url)) == data { filesRestored += 1 }
                 }
                 log("되돌림 뒤 게인 초안: \(GainDraftStore.all().count)개")
+                let tagRestored = tags.filter { store.tagDrafts[$0.trackUUID] == $0 && TagDraftStore.load(trackUUID: $0.trackUUID) == $0 }.count
+                let tagBase = tags.filter { draft in store.rowsByUUID[draft.trackUUID].map { TagFields(track: $0.track) == draft.base } ?? false }.count
+                log("되돌림: 태그 초안 복구 \(tagRestored)/\(tags.count) · rekordbox 곡 정보가 쓰기 전과 같음 \(tagBase)/\(tags.count)")
                 let rolledBack = !store.rekordboxPlaylists.outline.contains { $0.name == "DJC 시험 폴더" }
                 let extendedBack = extended.map { store.rekordboxPlaylists.item($0.id)?.trackIDs == $0.before }
                 let redrafted = store.playlistProjection.layout.outline.contains { $0.name == "DJC 시험 목록" && $0.isNew }
