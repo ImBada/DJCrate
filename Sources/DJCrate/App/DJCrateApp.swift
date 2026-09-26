@@ -29,6 +29,7 @@ struct DJCrateApp: App {
             ContentView(store: store, deck: deck)
                 .modifier(AppTextScale())
                 .frame(minWidth: 1100, minHeight: 700)
+                .background(MainWindowFrame())
                 .task {
                     appDelegate.store = store
                     NSApplication.shared.activate()
@@ -69,6 +70,24 @@ struct DJCrateApp: App {
         // 기본 설정·덱 단축키(⌘,). 덱과 같은 모델에 묶여 바꾸면 바로 반영·저장된다.
         Settings {
             SettingsView(store: store, deck: deck)
+        }
+    }
+}
+
+/// SwiftUI 장면 복원은 끈 채 창 위치·크기만 AppKit에 맡긴다.
+private struct MainWindowFrame: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { TrackingView() }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    final class TrackingView: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            // SwiftUI가 기본 크기를 잡은 뒤 저장된 프레임을 적용한다.
+            DispatchQueue.main.async { [weak self] in
+                guard let window = self?.window, window.frameAutosaveName != "djc.mainWindow" else { return }
+                window.setFrameUsingName("djc.mainWindow")
+                window.setFrameAutosaveName("djc.mainWindow")
+            }
         }
     }
 }

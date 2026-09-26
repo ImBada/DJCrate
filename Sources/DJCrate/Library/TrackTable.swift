@@ -16,10 +16,6 @@ struct TrackTable: View {
 
     var body: some View {
         TrackListView(store: store, mode: deck.waveformColorMode, deckPlaying: deck.isPlaying)
-            .navigationTitle(store.sidebarTitle)
-            .navigationSubtitle(store.selection.count > 1
-                ? String(ui: "\(store.displayRows.count)곡 · \(store.selection.count)곡 선택")
-                : String(ui: "\(store.displayRows.count)곡"))
     }
 }
 
@@ -57,6 +53,10 @@ private struct TrackListView: NSViewRepresentable {
                 column.sortDescriptorPrototype = NSSortDescriptor(key: key, ascending: spec.ascendingFirst)
             }
             if !spec.help.isEmpty { column.headerToolTip = spec.help }
+            if spec.id == "thumb" {
+                column.headerCell.attributedStringValue = TrackColumn.artworkHeader
+                column.headerCell.setAccessibilityLabel(spec.title)
+            }
             if spec.id == "edited" {
                 column.headerCell.attributedStringValue = TrackColumn.draftHeader
                 column.headerCell.setAccessibilityLabel(spec.title)
@@ -164,8 +164,8 @@ struct TrackColumn {
     var help = ""
 
     static let all: [TrackColumn] = [
-        TrackColumn(id: "index", title: "#", width: 38, minWidth: 30, help: String(ui: "지금 목록에서 몇 번째 곡인지")),
-        TrackColumn(id: "thumb", title: "", width: 26, minWidth: 26),
+        TrackColumn(id: "index", title: "#", width: 48, minWidth: 48, help: String(ui: "지금 목록에서 몇 번째 곡인지")),
+        TrackColumn(id: "thumb", title: String(ui: "앨범 아트"), width: 26, minWidth: 26, help: String(ui: "앨범 아트")),
         TrackColumn(id: "edited", title: String(ui: "초안"), width: 18, minWidth: 18, help: String(ui: "DJCrate 초안이 있는 곡 (rekordbox·파일에는 아직 반영 안 됨)")),
         TrackColumn(id: "title", title: String(ui: "제목"), width: 220, minWidth: 140, flexible: true, sortKey: "title"),
         TrackColumn(id: "preview", title: String(ui: "미리 보기"), width: 160, minWidth: 80,
@@ -199,8 +199,17 @@ struct TrackColumn {
     /// 초안 칸 머리글: 글자 '✎' 대신 pencil 심볼을 머리글 글자색·크기로 넣는다(칸이 좁아 '초안'이 들어가지 않는다).
     /// 제목 '초안'은 칸 메뉴와 VoiceOver에 쓴다.
     @MainActor static var draftHeader: NSAttributedString {
+        symbolHeader("pencil", label: String(ui: "초안"))
+    }
+
+    // NSTableHeaderCell은 image를 직접 그리지 않아 초안 머리글처럼 글자 안에 심볼을 넣는다.
+    @MainActor static var artworkHeader: NSAttributedString {
+        symbolHeader("photo", label: String(ui: "앨범 아트"))
+    }
+
+    @MainActor private static func symbolHeader(_ symbol: String, label: String) -> NSAttributedString {
         let attachment = NSTextAttachment()
-        attachment.image = NSImage(systemSymbolName: "pencil", accessibilityDescription: String(ui: "초안"))?
+        attachment.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)?
             .withSymbolConfiguration(.init(pointSize: NSFont.smallSystemFontSize, weight: .regular))
         let text = NSMutableAttributedString(attachment: attachment)
         let paragraph = NSMutableParagraphStyle()
@@ -268,6 +277,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     let store: LibraryStore
     weak var table: NSTableView?
     private var rows: [TrackRow] = []
+    private var largestRowIndex = 0
     private var rowIDs: [TrackRow.ID] = []
     private var edited: Set<String> = []
     private var snapshotURL: URL?
@@ -328,6 +338,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         textScale = scale
         fonts = TrackTextCell.Fonts(scale: scale)
         table.rowHeight = TextScale.length(24, scale: scale)
+        updateIndexWidth(table)
         cancelEditing()
         reloadVisible(table)
     }
@@ -357,6 +368,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             let ids = rows.map(\.id)
             let reordered = ids != rowIDs
             self.rows = rows
+            largestRowIndex = max(rows.count, rows.compactMap(\.historyTrackNumber).max() ?? 0)
             rowIDs = ids
             self.edited = edited
             if reordered {
@@ -377,6 +389,15 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         if !syncing, selection != selectedIDs(table) {
             applySelection(selection, table: table, scroll: true)
         }
+        updateIndexWidth(table)
+    }
+
+    private func updateIndexWidth(_ table: NSTableView) {
+        guard let column = table.tableColumns.first(where: { $0.identifier.rawValue == "index" }) else { return }
+        let width = ceil((String(largestRowIndex) as NSString).size(withAttributes: [.font: fonts.digits]).width) + 12
+        // 저장된 v2 배치가 좁아도 번호·글자 배율에 필요한 너비를 되찾는다.
+        column.minWidth = max(48, width)
+        column.width = max(column.width, column.minWidth)
     }
 
     private var cueCounts: [String: CueCounts] = [:]
@@ -1043,7 +1064,7 @@ final class TrackIndexCell: NSTableCellView {
         var playing: Bool
     }
 
-    private let label = NSTextField(labelWithString: "")
+    let label = NSTextField(labelWithString: "")
     private let icon = NSImageView()
     /// 보이는 스피커 심볼(시험용). 덱에 올린 곡이 아니면 nil.
     private(set) var deckSymbol: String?
@@ -1060,6 +1081,7 @@ final class TrackIndexCell: NSTableCellView {
     init() {
         super.init(frame: .zero)
         label.lineBreakMode = .byClipping
+        label.alignment = .right
         label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)
         textField = label
@@ -1070,7 +1092,7 @@ final class TrackIndexCell: NSTableCellView {
             label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
             label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
-            icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
+            icon.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
             icon.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
     }

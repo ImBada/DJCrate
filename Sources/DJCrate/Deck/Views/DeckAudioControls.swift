@@ -47,6 +47,7 @@ struct AudioBar: View {
                     Text(verbatim: deck.tempoPercent.unitText(signed: true) + "%").font(.scaled(.caption, textScale).monospacedDigit())
                         .frame(width: TextScale.length(46, scale: textScale), alignment: .trailing)
                     Button { deck.tempoPercent = 0 } label: { Text(verbatim: "0") }.help(.ui("원래 속도로"))
+                        .accessibilityLabel(.ui("템포 0으로"))
                 }
                 Toggle(.ui("키 고정"), isOn: $deck.keyLock)
                     .toggleStyle(.checkbox)
@@ -151,13 +152,15 @@ struct GainSettings: View {
                 Text(.ui("트림"))
                 Slider(value: Binding(get: { deck.gainTrim }, set: { deck.gainTrim = ($0 * 2).rounded() / 2 }),
                        in: -12...12, neutralValue: 0) {
-                    Text(.ui("트림"))
+                    Text(.ui("게인 트림"))
                 } ticks: {
                     SliderTick(-12); SliderTick(-6); SliderTick(0); SliderTick(6); SliderTick(12)
                 }
                 .labelsHidden()
                 Text(verbatim: deck.gainTrim.unitText(signed: true) + " dB").font(.callout.monospacedDigit()).frame(width: 60, alignment: .trailing)
                 Button { deck.gainTrim = 0 } label: { Text(verbatim: "0") }
+                    .accessibilityLabel(.ui("트림 0 dB로"))
+                    .help(.ui("트림을 0 dB로 되돌립니다"))
             }
             Divider()
             if let loudness = deck.loudness {
@@ -253,6 +256,7 @@ struct LevelMeterView: View {
                             .foregroundStyle(reading.maxPeak >= 1 ? UIColors.memory.color : reading.maxPeak >= 0.708 ? UIColors.warning.color : Color.secondary)
                     }
                     .frame(width: TextScale.length(44, scale: textScale), alignment: .leading)
+                    .frame(minWidth: 20, minHeight: 20)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
