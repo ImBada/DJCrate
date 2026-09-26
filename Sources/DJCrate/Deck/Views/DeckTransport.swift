@@ -8,46 +8,53 @@ struct TransportBar: View {
     @Bindable var deck: DeckModel
 
     var body: some View {
-        FlowLayout(spacing: 10) {
-            HStack(spacing: 8) {
-                CueButton(deck: deck)
-                Button {
-                    deck.togglePlay()
-                } label: {
-                    Image(systemName: deck.isPlaying ? "pause.fill" : "play.fill").frame(width: 18)
+        VStack(alignment: .leading, spacing: 6) {
+            FlowLayout(spacing: 10) {
+                HStack(spacing: 8) {
+                    CueButton(deck: deck)
+                    Button {
+                        deck.togglePlay()
+                    } label: {
+                        Image(systemName: deck.isPlaying ? "pause.fill" : "play.fill").frame(width: 18)
+                    }
+                    .disabled(!deck.canPlay)
+                    .help("재생/일시정지 (\(deck.shortcuts.keyLabel(for: .playPause)))")
+                    Group { if PerfProbe.hidden.contains("label") { EmptyView() } else { PlayheadLabel(deck: deck) } }
+                        .frame(width: 190, alignment: .leading)
                 }
-                .disabled(!deck.canPlay)
-                .help("재생/일시정지 (스페이스)")
-                Group { if PerfProbe.hidden.contains("label") { EmptyView() } else { PlayheadLabel(deck: deck) } }
-                    .frame(width: 190, alignment: .leading)
-            }
-            HStack(spacing: 4) {
-                ForEach(0..<8, id: \.self) { slot in
-                    HotCuePad(deck: deck, slot: slot)
+                HStack(spacing: 6) {
+                    HStack(spacing: 2) {
+                        Button { deck.jumpToCue(forward: false) } label: { Image(systemName: "backward.end.fill") }
+                            .help("이전 큐로 (\(deck.shortcuts.keyLabel(for: .previousCue)))").accessibilityLabel("이전 큐로")
+                        Button { deck.jumpToCue(forward: true) } label: { Image(systemName: "forward.end.fill") }
+                            .help("다음 큐로 (\(deck.shortcuts.keyLabel(for: .nextCue)))").accessibilityLabel("다음 큐로")
+                    }
+                    .disabled(!deck.canPlay)
+                    Button("+ 메모리 큐") {
+                        // Shift+클릭 = 이 자리 메모리 큐 지우기
+                        if NSEvent.modifierFlags.contains(.shift) { deck.deleteMemoryCue(at: deck.currentTime) } else { deck.addMemoryCueAtPlayhead() }
+                    }
+                    .help("플레이헤드 위치에 메모리 큐 추가 (\(deck.shortcuts.keyLabel(for: .memoryCue))). Shift를 누르고 누르면 이 자리 메모리 큐를 지웁니다")
                 }
+                HStack(spacing: 4) {
+                    ForEach(0..<8, id: \.self) { slot in
+                        HotCuePad(deck: deck, slot: slot)
+                    }
+                }
+                LoopControl(deck: deck)
             }
-            LoopControl(deck: deck)
-            HStack(spacing: 2) {
-                Button { deck.jumpToCue(forward: false) } label: { Image(systemName: "backward.end.fill") }
-                    .help("이전 큐로 (Q)").accessibilityLabel("이전 큐로")
-                Button { deck.jumpToCue(forward: true) } label: { Image(systemName: "forward.end.fill") }
-                    .help("다음 큐로 (E)").accessibilityLabel("다음 큐로")
-            }
-            .disabled(!deck.canPlay)
-            Button("+ 메모리 큐") {
-                // Shift+클릭 = 이 자리 메모리 큐 지우기
-                if NSEvent.modifierFlags.contains(.shift) { deck.deleteMemoryCue(at: deck.currentTime) } else { deck.addMemoryCueAtPlayhead() }
-            }
-            .help("플레이헤드 위치에 메모리 큐 추가 (` 또는 M). Shift를 누르고 누르면 이 자리 메모리 큐를 지웁니다")
-            ZoomControl(deck: deck)
-            ShortcutsButton()
-            HStack(spacing: 8) {
-                Toggle("퀀타이즈", isOn: $deck.quantize)
-                    .toggleStyle(.checkbox)
-                    .help("rekordbox 비트 그리드의 박에 맞춤")
-                Toggle("제안", isOn: $deck.showSuggestions)
-                    .toggleStyle(.checkbox)
-                    .help("섹션 경계 기반 메모리 큐 제안 표시. 초록 + 를 클릭하면 추가")
+            // 재생·큐 묶음 다음 줄에 확대·보기 묶음을 둔다.
+            FlowLayout(spacing: 10) {
+                ZoomControl(deck: deck)
+                ShortcutsButton(deck: deck)
+                HStack(spacing: 8) {
+                    Toggle("퀀타이즈", isOn: $deck.quantize)
+                        .toggleStyle(.checkbox)
+                        .help("rekordbox 비트 그리드의 박에 맞춤")
+                    Toggle("제안", isOn: $deck.showSuggestions)
+                        .toggleStyle(.checkbox)
+                        .help("섹션 경계 기반 메모리 큐 제안 표시. 초록 + 를 클릭하면 추가")
+                }
             }
         }
         .controlSize(.small)
@@ -61,7 +68,7 @@ struct ZoomControl: View {
     var body: some View {
         HStack(spacing: 2) {
             Button { deck.zoom(by: 1.25) } label: { Image(systemName: "minus.magnifyingglass") }
-                .help("축소 (−)").accessibilityLabel("파형 축소")
+                .help("축소 (\(deck.shortcuts.keyLabel(for: .zoomOut)))").accessibilityLabel("파형 축소")
             Menu {
                 ForEach([4.0, 8, 16, 32, 64], id: \.self) { seconds in
                     Button("\(Int(seconds))초") { deck.setZoom(seconds) }
@@ -73,7 +80,7 @@ struct ZoomControl: View {
             .fixedSize()
             .help("확대 창 폭. 파형 위에서 휠(세로)로 확대·축소, 가로 스크롤로 이동, 핀치로 확대")
             Button { deck.zoom(by: 0.8) } label: { Image(systemName: "plus.magnifyingglass") }
-                .help("확대 (+)").accessibilityLabel("파형 확대")
+                .help("확대 (\(deck.shortcuts.keyLabel(for: .zoomIn)))").accessibilityLabel("파형 확대")
         }
     }
 }
@@ -138,7 +145,7 @@ struct CueButton: View {
                     pressed = false
                     deck.cueUp()
                 })
-            .help("CUE (C) — 재생 중: 큐 지점으로 돌아가 정지 · 멈춘 곳: 새 큐 지점 · 큐 지점에서 누르고 있기: 미리 듣기 · 누른 채 재생: 계속 재생\n큐 지점 \(deck.cuePoint.clockText)")
+            .help("CUE (\(deck.shortcuts.keyLabel(for: .cue))) — 재생 중: 큐 지점으로 돌아가 정지 · 멈춘 곳: 새 큐 지점 · 큐 지점에서 누르고 있기: 미리 듣기 · 누른 채 재생: 계속 재생\n큐 지점 \(deck.cuePoint.clockText)")
             .accessibilityElement()
             .accessibilityLabel("CUE")
             .accessibilityAddTraits(.isButton)
@@ -153,6 +160,7 @@ struct HotCuePad: View {
     var body: some View {
         let cue = deck.hotCue(slot: slot)
         let letter = String(UnicodeScalar(UInt8(65 + slot)))
+        let keys = DeckAction.allCases.first { $0.hotCueSlot == slot }.map { deck.shortcuts.keyLabel(for: $0) } ?? "미지정"
         let color = cue.map(UIColors.color(for:)) ?? .secondary
         let engaged = cue != nil && cue?.id == deck.engagedLoopID
         Button {
@@ -168,9 +176,9 @@ struct HotCuePad: View {
                                                                   lineWidth: engaged ? 2 : 1))
         }
         .buttonStyle(.plain)
-        .help(cue == nil ? (deck.instantLoop != nil ? "핫큐 \(letter) (\(slot + 1)): 지금 루프를 루프 핫큐로 저장" : "핫큐 \(letter) (\(slot + 1)): 플레이헤드에 설정")
-              : cue?.loop != nil ? "루프 핫큐 \(letter) (\(slot + 1)): 누르면 루프 반복, 반복 중에 다시 누르면 나가기 · Shift+클릭: 지우기"
-              : "핫큐 \(letter) (\(slot + 1))로 이동 (\(cue!.time.clockText)) · Shift+클릭 또는 Shift+\(slot + 1): 지우기")
+        .help(cue == nil ? (deck.instantLoop != nil ? "핫큐 \(letter) (\(keys)): 지금 루프를 루프 핫큐로 저장" : "핫큐 \(letter) (\(keys)): 플레이헤드에 설정")
+              : cue?.loop != nil ? "루프 핫큐 \(letter) (\(keys)): 누르면 루프 반복, 반복 중에 다시 누르면 나가기 · Shift+클릭: 지우기"
+              : "핫큐 \(letter) (\(keys))로 이동 (\(cue!.time.clockText)) · Shift+클릭 또는 Shift와 단축키: 지우기")
         .accessibilityLabel(cue == nil ? "핫큐 \(letter) 비어 있음, 설정" : "핫큐 \(letter)로 이동")
         .contextMenu {
             if cue != nil {
@@ -189,7 +197,7 @@ struct LoopControl: View {
         let looping = deck.isLooping
         HStack(spacing: 2) {
             Button { deck.resizeLoop(-1) } label: { Text("½").frame(width: 14) }
-                .help("루프 길이 반으로 ([)").accessibilityLabel("루프 길이 반으로")
+                .help("루프 길이 반으로 (\(deck.shortcuts.keyLabel(for: .loopHalve)))").accessibilityLabel("루프 길이 반으로")
             Button { deck.toggleLoop() } label: {
                 HStack(spacing: 3) {
                     Image(systemName: "repeat").font(.system(size: 9, weight: .bold))
@@ -203,11 +211,11 @@ struct LoopControl: View {
             }
             .buttonStyle(.plain)
             .opacity(deck.canPlay ? 1 : 0.4)
-            .help(looping ? "루프에서 나가기 (L)"
-                  : "플레이헤드에서 \(deck.loopSizeText)박 루프 (L). 반복 중에 빈 핫큐 칸을 누르면 루프 핫큐, + 메모리 큐를 누르면 메모리 루프로 저장")
+            .help(looping ? "루프에서 나가기 (\(deck.shortcuts.keyLabel(for: .loop)))"
+                  : "플레이헤드에서 \(deck.loopSizeText)박 루프 (\(deck.shortcuts.keyLabel(for: .loop))). 반복 중에 빈 핫큐 칸을 누르면 루프 핫큐, + 메모리 큐를 누르면 메모리 루프로 저장")
             .accessibilityLabel(looping ? "루프 나가기" : "\(deck.loopSizeText)박 루프")
             Button { deck.resizeLoop(1) } label: { Text("×2").frame(width: 18) }
-                .help("루프 길이 두 배로 (])").accessibilityLabel("루프 길이 두 배로")
+                .help("루프 길이 두 배로 (\(deck.shortcuts.keyLabel(for: .loopDouble)))").accessibilityLabel("루프 길이 두 배로")
         }
         .disabled(!deck.canPlay)
     }

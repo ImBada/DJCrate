@@ -56,10 +56,20 @@ struct CueListView: View {
 struct CueRow: View {
     let deck: DeckModel
     let cue: EditableCue
+    @State private var showDetails = false
 
     var body: some View {
+        ViewThatFits(in: .horizontal) {
+            row(inlineDetails: true)
+            row(inlineDetails: false)
+        }
+        .controlSize(.small)
+    }
+
+    private func row(inlineDetails: Bool) -> some View {
         HStack(spacing: 6) {
             Circle().fill(UIColors.color(for: cue)).frame(width: 6, height: 6)
+                .allowsHitTesting(false)
             Picker("종류", selection: Binding(get: { cue.kind }, set: { deck.setKind(cue.id, $0) })) {
                 Text("메모리").tag(EditableCue.Kind.memory)
                 ForEach(0..<8, id: \.self) { slot in
@@ -70,46 +80,87 @@ struct CueRow: View {
             .frame(width: 76)
             .foregroundStyle(.primary)
 
-            Button { deck.nudge(cue.id, beats: -1) } label: { Image(systemName: "chevron.left") }
-                .buttonStyle(.borderless).help("1박 앞으로").accessibilityLabel("1박 앞으로")
-            Button { deck.seek(cue.time); deck.selectedCueID = cue.id } label: {
+            Button { deck.selectCueFromList(cue.id) } label: {
                 Text(cue.time.clockText).font(.caption.monospacedDigit())
+                    .lineLimit(1)
+                    .fixedSize()
+                    .frame(minWidth: 56, alignment: .leading)
             }
             .buttonStyle(.plain).help("이 위치로 이동")
-            Button { deck.nudge(cue.id, beats: 1) } label: { Image(systemName: "chevron.right") }
-                .buttonStyle(.borderless).help("1박 뒤로").accessibilityLabel("1박 뒤로")
-
-            // 루프: 박 수 메뉴, 활성 루프 켜기·끄기
-            Menu {
-                Button("루프 없음") { deck.setLoop(cue.id, beats: nil) }
-                Divider()
-                ForEach([1, 2, 4, 8, 16, 32], id: \.self) { beats in
-                    Button("\(beats)박 루프") { deck.setLoop(cue.id, beats: beats) }
-                }
-            } label: {
-                Text(cue.loop == nil ? "루프" : "\(cue.loop?.beats.map(LoopRules.text) ?? deck.loopBeats(cue).map(String.init) ?? "?")박")
-                    .font(.caption.monospacedDigit())
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .foregroundStyle(cue.loop == nil ? Color.secondary : UIColors.loop.color)
-            .help("이 큐를 루프로 만들거나 길이를 바꿉니다")
-            if cue.loop != nil {
-                Button { deck.toggleActiveLoop(cue.id) } label: {
-                    Image(systemName: "repeat.circle\(cue.loop?.active == true ? ".fill" : "")")
-                        .foregroundStyle(cue.loop?.active == true ? UIColors.loop.color : .secondary)
+            .layoutPriority(1)
+            if inlineDetails {
+                loopControls
+                nameField.frame(minWidth: 40).layoutPriority(-1)
+                deleteButton
+            } else {
+                Text(cue.name).font(.caption).lineLimit(1).layoutPriority(-1)
+                    .allowsHitTesting(false)
+                Spacer(minLength: 0)
+                Button { showDetails.toggle() } label: {
+                    Image(systemName: cue.loop == nil ? "ellipsis.circle" : "repeat.circle")
                 }
                 .buttonStyle(.borderless)
-                .help(cue.loop?.active == true ? "활성 루프(곡을 불러오면 자동 반복) — 눌러서 끄기" : "활성 루프로 만들기(곡을 불러오면 이 루프를 자동 반복)")
+                .help("큐 이름·루프 편집 및 삭제")
+                .accessibilityLabel("큐 세부 편집")
+                .popover(isPresented: $showDetails) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            Text(cue.time.clockText).font(.caption.monospacedDigit().bold())
+                                .lineLimit(1).fixedSize()
+                            Spacer(minLength: 0)
+                            loopControls
+                            deleteButton
+                        }
+                        nameField.textFieldStyle(.roundedBorder)
+                    }
+                    .controlSize(.small)
+                    .padding(10)
+                    .frame(width: 200)
+                }
             }
-
-            TextField("이름", text: Binding(get: { cue.name }, set: { deck.rename(cue.id, $0) }))
-                .textFieldStyle(.plain)
-                .font(.caption)
-
-            Button(role: .destructive) { deck.delete(cue.id) } label: { Image(systemName: "trash") }
-                .buttonStyle(.borderless).help("삭제").accessibilityLabel("큐 삭제")
         }
-        .controlSize(.small)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // 빈 곳은 이동하되, 위에 놓인 종류·이름·삭제 컨트롤은 자기 동작만 받는다.
+        .background {
+            Color.clear.contentShape(Rectangle())
+                .onTapGesture { deck.selectCueFromList(cue.id) }
+        }
+    }
+
+    @ViewBuilder private var loopControls: some View {
+        Menu {
+            Button("루프 없음") { deck.setLoop(cue.id, beats: nil) }
+            Divider()
+            ForEach([1, 2, 4, 8, 16, 32], id: \.self) { beats in
+                Button("\(beats)박 루프") { deck.setLoop(cue.id, beats: beats) }
+            }
+        } label: {
+            Text(cue.loop == nil ? "루프" : "\(cue.loop?.beats.map(LoopRules.text) ?? deck.loopBeats(cue).map(String.init) ?? "?")박")
+                .font(.caption.monospacedDigit())
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .foregroundStyle(cue.loop == nil ? Color.secondary : UIColors.loop.color)
+        .help("이 큐를 루프로 만들거나 길이를 바꿉니다")
+        if cue.loop != nil {
+            Button { deck.toggleActiveLoop(cue.id) } label: {
+                Image(systemName: "repeat.circle\(cue.loop?.active == true ? ".fill" : "")")
+                    .foregroundStyle(cue.loop?.active == true ? UIColors.loop.color : .secondary)
+            }
+            .buttonStyle(.borderless)
+            .help(cue.loop?.active == true ? "활성 루프(곡을 불러오면 자동 반복) — 눌러서 끄기" : "활성 루프로 만들기(곡을 불러오면 이 루프를 자동 반복)")
+        }
+
+    }
+
+    private var nameField: some View {
+        TextField("이름", text: Binding(get: { cue.name }, set: { deck.rename(cue.id, $0) }))
+            .textFieldStyle(.plain)
+            .font(.caption)
+    }
+
+    private var deleteButton: some View {
+        Button(role: .destructive) { deck.delete(cue.id) } label: { Image(systemName: "trash") }
+            .buttonStyle(.borderless).help("삭제").accessibilityLabel("큐 삭제")
     }
 }

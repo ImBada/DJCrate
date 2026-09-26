@@ -15,9 +15,20 @@ struct ContentView: View {
     @AppStorage(SettingKeys.waveformHeight.name) private var waveformHeight = SettingKeys.waveformHeight.defaultValue
     @AppStorage(SettingKeys.sheetMode.name) private var sheetMode = SettingKeys.sheetMode.defaultValue
     @State private var keys = KeyRouter()
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var detailHeight = 650.0
+    @State private var deckChromeHeight = 240.0
+    @State private var noticeHeight = 0.0
+    @State private var listHeaderHeight = 40.0
+
+    private var otherHeight: Double { noticeHeight + listHeaderHeight + DeckLayout.splitHandleHeight }
+    private var displayedWaveformHeight: Double {
+        DeckLayout.waveformHeight(requested: waveformHeight, detailHeight: detailHeight,
+                                  deckChromeHeight: deckChromeHeight, otherHeight: otherHeight)
+    }
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             Sidebar(store: store)
                 .navigationSplitViewColumnWidth(min: 210, ideal: 230)
         } detail: {
@@ -67,38 +78,60 @@ struct ContentView: View {
     @ViewBuilder private var detail: some View {
             switch store.phase {
             case .loaded:
+                let displayedHeight = displayedWaveformHeight
+                let maximumHeight = DeckLayout.waveformHeight(requested: DeckLayout.maximumWaveformHeight,
+                                                               detailHeight: detailHeight,
+                                                               deckChromeHeight: deckChromeHeight, otherHeight: otherHeight)
                 // VSplitView(NSSplitView)는 자식 최소 크기가 내용에 따라 바뀌면 레이아웃을 끝없이
                 // 다시 잡다가 예외로 죽는다. SwiftUI만으로 나누고, 덱 높이는 핸들로 조절한다.
                 VStack(spacing: 0) {
-                    if let error = store.lastError {
-                        Label("스냅샷을 새로 뜨지 못했습니다: \(error)", systemImage: "exclamationmark.triangle")
-                            .font(.callout).foregroundStyle(UIColors.warning.color)
-                            .padding(.horizontal, 14).padding(.vertical, 6)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(spacing: 0) {
+                        if let error = store.lastError {
+                            Label("스냅샷을 새로 뜨지 못했습니다: \(error)", systemImage: "exclamationmark.triangle")
+                                .font(.callout).foregroundStyle(UIColors.warning.color)
+                                .padding(.horizontal, 14).padding(.vertical, 6)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        if let message = store.reflectionMessage {
+                            AppMessageView(message: message, onClose: { store.reflectionMessage = nil })
+                        }
+                        if let message = store.stagingMessage {
+                            AppMessageView(message: message, onClose: { store.stagingMessage = nil })
+                        }
                     }
-                    if let message = store.reflectionMessage {
-                        AppMessageView(message: message, onClose: { store.reflectionMessage = nil })
+                    .onGeometryChange(for: Double.self) { $0.size.height } action: { noticeHeight = $0 }
+                    // 먼저 파형을 줄이고, 그리드 편집 등으로도 모자라면 덱만 스크롤한다.
+                    ScrollView(.vertical) {
+                        DeckView(deck: deck, waveformHeight: displayedHeight)
+                            .frame(maxWidth: .infinity, alignment: .top)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .onGeometryChange(for: Double.self) {
+                                max(0, $0.size.height - displayedHeight)
+                            } action: { deckChromeHeight = $0 }
                     }
-                    if let message = store.stagingMessage {
-                        AppMessageView(message: message, onClose: { store.stagingMessage = nil })
+                    .frame(height: DeckLayout.deckViewportHeight(contentHeight: deckChromeHeight + displayedHeight,
+                                                                 detailHeight: detailHeight, otherHeight: otherHeight))
+                    SplitHandle(height: $waveformHeight, displayedHeight: displayedHeight, maximumHeight: maximumHeight)
+                    VStack(spacing: 0) {
+                        ListActionBar(store: store)
+                        if sheetMode { SheetHeader(store: store) }
                     }
-                    // 덱 높이는 내용에 맞춘다(잘리지 않게). 핸들은 파형 높이를 조절한다.
-                    DeckView(deck: deck, waveformHeight: waveformHeight)
-                        .frame(maxWidth: .infinity, alignment: .top)
-                        .fixedSize(horizontal: false, vertical: true)
-                    SplitHandle(height: $waveformHeight)
-                    ListActionBar(store: store)
+                    .onGeometryChange(for: Double.self) { $0.size.height } action: { listHeaderHeight = $0 }
                     if sheetMode {
-                        SheetHeader(store: store)
                         TagSheetView(store: store)
                             .onDisappear { store.canFillDownTags = false }
-                            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                            .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
                     } else {
                         TrackTable(store: store)
-                            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                            .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
                     }
                 }
                 .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+                    detailHeight = size.height
+                    // 인스펙터를 열어 덱 폭이 모자라면 탐색 열을 접어 컨트롤 자리를 남긴다.
+                    if size.width > 0, size.width < DeckLayout.minimumDetailWidth { columnVisibility = .detailOnly }
+                }
                 // Finder에서 음원·폴더를 끌어다 놓으면 추가한다.
                 .dropDestination(for: URL.self) { urls, _ in
                     Task { await store.addFiles(urls) }
@@ -223,6 +256,8 @@ struct SheetHeader: View {
 /// 덱과 목록 사이 핸들: 끌어서 파형 높이를 조절한다.
 struct SplitHandle: View {
     @Binding var height: Double
+    var displayedHeight: Double
+    var maximumHeight: Double
     @State private var start: Double?
 
     var body: some View {
@@ -235,12 +270,26 @@ struct SplitHandle: View {
             .onHover { inside in
                 if inside { NSCursor.resizeUpDown.push() } else { NSCursor.pop() }
             }
-            .gesture(DragGesture(minimumDistance: 1)
+            .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
                 .onChanged { value in
-                    if start == nil { start = height }
-                    height = min(max((start ?? height) + value.translation.height, 80), 480)
+                    if start == nil { start = displayedHeight }
+                    height = clamped((start ?? displayedHeight) + value.translation.height)
                 }
                 .onEnded { _ in start = nil })
+            .onTapGesture(count: 2) { height = DeckLayout.defaultWaveformHeight }
             .accessibilityLabel("파형 높이 조절")
+            .accessibilityValue("\(Int(displayedHeight))포인트")
+            .accessibilityHint("위아래로 조절하거나 두 번 클릭하면 기본 높이로 돌아갑니다")
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: height = clamped(displayedHeight + 10)
+                case .decrement: height = clamped(displayedHeight - 10)
+                @unknown default: break
+                }
+            }
+    }
+
+    private func clamped(_ value: Double) -> Double {
+        min(max(value, DeckLayout.minimumWaveformHeight), maximumHeight)
     }
 }

@@ -6,6 +6,7 @@ import SwiftUI
 
 /// 단축키 안내(? 버튼을 누를 때만 보인다).
 struct ShortcutsButton: View {
+    let deck: DeckModel
     @State private var shown = false
 
     var body: some View {
@@ -14,8 +15,8 @@ struct ShortcutsButton: View {
             .help("단축키")
             .accessibilityLabel("단축키 보기")
             .popover(isPresented: $shown, arrowEdge: .bottom) {
-                // 열 때마다 저장된 단축키 표(덱과 같은 저장소)를 읽는다.
-                ShortcutsList(shortcuts: DeckStorage.live.settings.shortcuts, scale: 1.1).padding(18)
+                // 툴팁과 같은 덱 단축키 표를 읽는다.
+                ShortcutsList(shortcuts: deck.shortcuts, scale: 1.1).padding(18)
             }
     }
 }
@@ -108,3 +109,11 @@ struct ShortcutsList: View {
 }
 
 // MARK: - 큐 목록
+
+extension DeckShortcuts {
+    /// 키를 지웠으면 기본 키 대신 미지정으로 안내한다.
+    func keyLabel(for action: DeckAction) -> String {
+        let keys = keys(for: action).map(KeyLabel.name(for:))
+        return keys.isEmpty ? "미지정" : keys.joined(separator: " · ")
+    }
+}

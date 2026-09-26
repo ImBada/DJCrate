@@ -9,50 +9,54 @@ struct AudioBar: View {
     @Bindable var deck: DeckModel
 
     var body: some View {
-        FlowLayout(spacing: 12) {
-            HStack(spacing: 4) {
-                Image(systemName: deck.volume == 0 ? "speaker.slash" : "speaker.wave.2").foregroundStyle(.secondary)
-                Slider(value: $deck.volume, in: 0...1).frame(width: 90)
-                    .accessibilityLabel("재생 볼륨")
-            }
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 6) {
+            FlowLayout(spacing: 12) {
+                HStack(spacing: 4) {
+                    Image(systemName: deck.volume == 0 ? "speaker.slash" : "speaker.wave.2").foregroundStyle(.secondary)
+                    Slider(value: $deck.volume, in: 0...1).frame(width: 90)
+                        .accessibilityLabel("재생 볼륨")
+                }
                 GainControl(deck: deck)
                 Group { if PerfProbe.hidden.contains("meter") { EmptyView() } else { LevelMeterView(deck: deck) } }
-                // rekordbox 오토게인이 이상하면 그리드 제안처럼 옆에 띄운다.
-                if let suggestion = deck.gainSuggestion {
-                    HStack(spacing: 4) {
-                        Image(systemName: "wand.and.stars").foregroundStyle(UIColors.suggestion.color)
-                        Text(String(format: "게인 제안 %+.1f dB (rekordbox %+.1f)", suggestion, deck.rekordboxGainDB ?? 0))
-                            .font(.caption).foregroundStyle(.secondary)
-                        Button("제안 받기") { deck.acceptGainSuggestion() }
-                            .help("이 곡은 DJCrate가 잰 음량으로 계산한 게인(−10 LUFS 기준)을 씁니다")
-                        Button("무시") { deck.dismissGainSuggestion() }
-                            .help("이 곡에서는 rekordbox 값을 그대로 쓰고 제안을 더 보이지 않습니다")
-                    }
-                    .help(String(format: "rekordbox 오토게인이 이 파일의 실제 음량과 %.1fdB 다릅니다", abs(deck.gainMismatchDB ?? 0)))
-                } else if deck.hasGainOverride {
-                    Button("게인 초안 취소") { deck.clearGainDraft() }
-                        .font(.caption)
-                        .help("이 곡의 게인 초안을 지우고 rekordbox 오토게인으로 돌아갑니다")
+            }
+            FlowLayout(spacing: 12) {
+                Toggle(isOn: $deck.metronome) { Label("메트로놈", systemImage: "metronome") }
+                    .toggleStyle(.button)
+                    .help("그리드의 박마다 클릭 (1박은 높은 음)")
+                HStack(spacing: 4) {
+                    Text("템포").foregroundStyle(.secondary)
+                    Slider(value: $deck.tempoPercent, in: -16...16, step: 0.1).frame(width: 120)
+                        .accessibilityLabel("재생 템포")
+                    Text(String(format: "%+.1f%%", deck.tempoPercent)).font(.caption.monospacedDigit()).frame(width: 46, alignment: .trailing)
+                    Button("0") { deck.tempoPercent = 0 }.help("원래 속도로")
                 }
+                Toggle("키 고정", isOn: $deck.keyLock)
+                    .toggleStyle(.checkbox)
+                    .help("켜면 음정을 유지한 채 속도만 바꿉니다(마스터 템포). 끄면 바이닐처럼 음정도 함께 바뀝니다.")
+                Toggle(isOn: $deck.gridEditing) { Label("그리드 편집", systemImage: "grid") }
+                    .toggleStyle(.button)
+                    .disabled(deck.gridDraft == nil)
+                    .help(deck.gridEditBlockedReason ?? "켜면 파형을 끌어 그리드를 옮기고, 아래 막대로 BPM·1박·변속 지점을 고칩니다.")
             }
-            Toggle(isOn: $deck.metronome) { Label("메트로놈", systemImage: "metronome") }
-                .toggleStyle(.button)
-                .help("그리드의 박마다 클릭 (1박은 높은 음)")
-            HStack(spacing: 4) {
-                Text("템포").foregroundStyle(.secondary)
-                Slider(value: $deck.tempoPercent, in: -16...16, step: 0.1).frame(width: 120)
-                    .accessibilityLabel("재생 템포")
-                Text(String(format: "%+.1f%%", deck.tempoPercent)).font(.caption.monospacedDigit()).frame(width: 46, alignment: .trailing)
-                Button("0") { deck.tempoPercent = 0 }.help("원래 속도로")
+            // 제안 문구가 길어져도 음량·템포 묶음을 밀어내지 않는다.
+            if let suggestion = deck.gainSuggestion {
+                HStack(spacing: 4) {
+                    Image(systemName: "wand.and.stars").foregroundStyle(UIColors.suggestion.color)
+                    Text(String(format: "게인 제안 %+.1f dB (rekordbox %+.1f)", suggestion, deck.rekordboxGainDB ?? 0))
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        .help(String(format: "rekordbox 오토게인이 이 파일의 실제 음량과 %.1fdB 다릅니다", abs(deck.gainMismatchDB ?? 0)))
+                    Button("제안 받기") { deck.acceptGainSuggestion() }
+                        .fixedSize()
+                        .help("이 곡은 DJCrate가 잰 음량으로 계산한 게인(−10 LUFS 기준)을 씁니다")
+                    Button("무시") { deck.dismissGainSuggestion() }
+                        .fixedSize()
+                        .help("이 곡에서는 rekordbox 값을 그대로 쓰고 제안을 더 보이지 않습니다")
+                }
+            } else if deck.hasGainOverride {
+                Button("게인 초안 취소") { deck.clearGainDraft() }
+                    .font(.caption)
+                    .help("이 곡의 게인 초안을 지우고 rekordbox 오토게인으로 돌아갑니다")
             }
-            Toggle("키 고정", isOn: $deck.keyLock)
-                .toggleStyle(.checkbox)
-                .help("켜면 음정을 유지한 채 속도만 바꿉니다(마스터 템포). 끄면 바이닐처럼 음정도 함께 바뀝니다.")
-            Toggle(isOn: $deck.gridEditing) { Label("그리드 편집", systemImage: "grid") }
-                .toggleStyle(.button)
-                .disabled(deck.gridDraft == nil)
-                .help(deck.gridEditBlockedReason ?? "켜면 파형을 끌어 그리드를 옮기고, 아래 막대로 BPM·1박·변속 지점을 고칩니다.")
             // 그리드 편집에 들어가지 않고 DJCrate 제안을 받거나 무시한다.
             if !deck.gridEditing, !deck.needsGrid, let note = deck.gridSuggestionNote,
                deck.dismissedRevision >= 0, !deck.isGridSuggestionDismissed {
@@ -60,8 +64,10 @@ struct AudioBar: View {
                     Image(systemName: "wand.and.stars").foregroundStyle(UIColors.suggestion.color)
                     Text(note).font(.caption).lineLimit(1).foregroundStyle(.secondary)
                     Button("제안 받기") { deck.applyGridSuggestion() }
+                        .fixedSize()
                         .help("DJCrate가 추정한 그리드로 바꿉니다(초안만, 되돌리기 가능)")
                     Button("무시") { deck.dismissGridSuggestion() }
+                        .fixedSize()
                         .help("이 곡에서는 제안을 더 보이지 않습니다")
                 }
             }
@@ -206,7 +212,7 @@ struct LevelMeterView: View {
                             .font(.caption2.monospacedDigit())
                             .foregroundStyle(reading.maxPeak >= 1 ? UIColors.memory.color : reading.maxPeak >= 0.708 ? UIColors.warning.color : Color.secondary)
                     }
-                    .frame(width: 44, alignment: .trailing)
+                    .frame(width: 44, alignment: .leading)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
