@@ -156,6 +156,16 @@ enum GridLab {
             print("초안: \(track.title.prefix(30)) · \(["+12ms", "½박", "1박 위치"][made])")
             made += 1
         }
+        // 분석 전 곡(분석 파일 없음) 하나: 추정 그리드로 초안을 만든다(반영하면 분석 파일을 붙인다)
+        if let track = library.tracks.shuffled().first(where: { !$0.isStreaming && RekordboxWriter.needsAnalysis($0.analysisDataPath)
+            && FileManager.default.fileExists(atPath: $0.folderPath) }) {
+            let url = URL(filePath: track.folderPath)
+            if let estimate = try await GridSuggestion.estimate(fileAt: url, cacheKey: "attach-\(track.uuid)") {
+                try GridDraftStore.save(GridDraft(trackUUID: track.uuid, base: [], segments: estimate.segments)
+                    .shifted(by: RekordboxTimeline.predictedOffset(url: url)))
+                print("초안: \(track.title.prefix(30)) · 분석 전 곡(분석 붙이기)")
+            }
+        }
     }
 
     /// 사본 DB·사본 분석 폴더에 BPM 변경 그리드를 써 본다. djc grid-write-test <사본.db> <사본 share 뿌리> <UUID> <BPM>

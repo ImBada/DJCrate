@@ -66,8 +66,19 @@ struct WriteGuardTests {
     @Test func 쓰는_칸이_없어지면_쓰지_않는다() throws {
         let fixture = try RekordboxFixture()
         let track = try fixture.add(TrackSpec())
+        try fixture.execute("ALTER TABLE djmdSongPlaylist DROP COLUMN TrackNo")
+        #expect(refusal { _ = try write(fixture, track, guard: .system) }?.contains("djmdSongPlaylist.TrackNo") == true)
+    }
+
+    @Test func 행을_넣는_파일_표_오토게인_표의_칸이_달라지면_쓰지_않는다() throws {
+        // 곡 넣기(분석 포함)·분석 붙이기가 contentFile·djmdMixerParam에 새 행을 넣으므로 칸이 정확히 같아야 한다
+        let fixture = try RekordboxFixture()
+        let track = try fixture.add(TrackSpec())
         try fixture.execute("ALTER TABLE contentFile DROP COLUMN Hash")
-        #expect(refusal { _ = try write(fixture, track, guard: .system) }?.contains("contentFile.Hash") == true)
+        try fixture.execute("ALTER TABLE djmdMixerParam ADD COLUMN NewGain INTEGER DEFAULT NULL")
+        let reason = refusal { _ = try write(fixture, track, guard: .system) }
+        #expect(reason?.contains("contentFile에 없는 칸(Hash)") == true && reason?.contains("djmdMixerParam에 모르는 칸(NewGain)") == true,
+                "\(reason ?? "")")
     }
 
     @Test func DB_버전이_다르면_쓰지_않는다() throws {

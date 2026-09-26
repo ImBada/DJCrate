@@ -83,13 +83,14 @@ struct ReflectionCoordinatorTests {
     }
 
     static func preview(cues: [RekordboxWriter.Outcome], grids: [RekordboxWriter.Outcome] = [],
-                        gains: [RekordboxWriter.Outcome] = []) -> LibraryStore.WritePreview {
+                        gains: [RekordboxWriter.Outcome] = [], analyses: [RekordboxWriter.Outcome] = []) -> LibraryStore.WritePreview {
         var report = RekordboxWriter.Report(outcomes: cues, backup: nil, dryRun: true, createdAt: "", finalUpdateCount: nil)
         report.gridOutcomes = grids.isEmpty ? nil : grids
         report.gainOutcomes = gains.isEmpty ? nil : gains
+        report.analysisOutcomes = analyses.isEmpty ? nil : analyses
         return .init(report: report,
                      drafts: cues.map { CueDraft(trackUUID: $0.trackUUID, rekordboxCues: []) },
-                     grids: grids.map { GridDraft(trackUUID: $0.trackUUID, base: [], segments: []) },
+                     grids: (grids + analyses).map { GridDraft(trackUUID: $0.trackUUID, base: [], segments: []) },
                      gains: Dictionary(uniqueKeysWithValues: gains.map { ($0.trackUUID, -3.0) }))
     }
 
@@ -128,6 +129,15 @@ struct ReflectionCoordinatorTests {
         await coordinator().write(rows: ["a", "b", "c", "d"].map(Self.row))
         #expect(host.wrote?.drafts == ["a"] && host.wrote?.grids == ["a"] && host.wrote?.gains == ["d"])
         #expect(host.locks == [true, false])
+    }
+
+    @Test func 분석_전_곡은_그리드_초안으로_분석을_붙여_쓴다() async {
+        // 분석 붙이기만 쓸 수 있어도 확인 창을 띄우고, 그 곡의 그리드 초안을 넘긴다(막힌 곡은 넘기지 않는다)
+        host.preview = .success(Self.preview(cues: [], analyses: [Self.outcome("n", .written, added: 96),
+                                                                  Self.outcome("h", .blocked, reason: "rekordbox에서 트랙 분석을 먼저 한 뒤 쓰세요")]))
+        await coordinator().write(rows: ["n", "h"].map(Self.row))
+        #expect(prompter.shown.first?.title == "rekordbox에 분석 1곡을 씁니다")
+        #expect(host.wrote?.drafts == [] && host.wrote?.grids == ["n"] && host.wrote?.gains == [])
     }
 
     @Test func 미리_보기가_실패하면_실패_토스트() async {
@@ -186,6 +196,19 @@ struct ReflectionCoordinatorTests {
         #expect(lines.contains("• 곡 g — 그리드(박 64개)"))
         #expect(lines.contains("• 곡 d — 오토게인 -2.5 dB"))
         #expect(lines.contains("쓰지 않는 것 1:") && lines.contains("• 곡 a: 분석 전"))
+    }
+
+    @Test func 확인_창은_분석을_붙이는_곡과_막힌_이유를_보여_준다() {
+        let preview = Self.preview(cues: [Self.outcome("a", .written, added: 1), Self.outcome("b", .written, added: 3)],
+                                   analyses: [Self.outcome("a", .written, added: 128), Self.outcome("n", .written, added: 96),
+                                              Self.outcome("b", .blocked, reason: "ALAC")])
+        let prompt = ReflectionCoordinator.confirmation(preview.report)
+        #expect(prompt.title == "rekordbox에 큐 2곡 · 분석 2곡을 씁니다")
+        let lines = prompt.text.components(separatedBy: "\n")
+        #expect(lines.contains("• 곡 a — 큐 추가 1 · 삭제 0 · 분석 파일 붙이기"))
+        #expect(lines.contains("• 곡 b — 큐 추가 3 · 삭제 0 · ⚠︎ 그리드는 안 들어감"))
+        #expect(lines.contains("• 곡 n — 분석 파일 붙이기(파형·그리드 박 96개·오토게인)"))
+        #expect(lines.contains("• 곡 b: ALAC") && prompt.text.contains("키·프레이즈·보컬 분석은 없습니다"))
     }
 
     // MARK: 곡 넣기·빼기

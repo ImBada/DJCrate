@@ -84,10 +84,11 @@ public enum RekordboxGridWriter {
         }
         guard let pqtz = datFile.tag("PQTZ") else { throw block("분석 파일에 그리드 칸(PQTZ)이 없습니다") }
         let extURL = datURL.deletingPathExtension().appendingPathExtension("EXT")
-        // 파형(.EXT)이 없는 곡은 rekordbox 분석이 끝나지 않은 곡이다(BPM 0 곡 등). 그리드만 쓰면 rekordbox는 분석된 곡으로 보고
-        // 파형이 없는 채로 남는다(2026-09-26 サラマンダー). rekordbox에서 트랙 분석을 먼저 하게 한다.
+        // .DAT만 있고 파형(.EXT)이 없는 곡은 rekordbox 분석이 끝나지 않은 반쪽 곡이다(분석 실패: 0박·파형 0인 .DAT와 .3EX만).
+        // 그리드만 쓰면 rekordbox는 분석된 곡으로 보고 파형이 없는 채로 남는다(2026-09-26 サラマンダー). 기존 .DAT·파일 행을
+        // rekordbox가 다시 분석할 때 어떻게 바꾸는지 몰라 분석 붙이기(`RekordboxWriter+Analysis`)도 하지 않는다.
         guard FileManager.default.fileExists(atPath: extURL.path) else {
-            throw block("rekordbox 파형 분석이 없는 곡입니다. rekordbox에서 트랙 분석을 먼저 한 뒤 쓰세요(그리드만 쓰면 파형이 없는 채로 남습니다)")
+            throw block("rekordbox 분석이 끝나지 않은 곡입니다(파형 파일 없음). rekordbox에서 트랙 분석을 다시 한 뒤 쓰세요")
         }
         let originalExt = try? Data(contentsOf: extURL)
         let extFile = originalExt.flatMap { try? AnlzFile(data: $0) }

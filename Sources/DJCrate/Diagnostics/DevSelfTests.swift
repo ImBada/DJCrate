@@ -92,7 +92,10 @@ enum DevSelfTests {
                 let preview = try await store.previewWrite(rows: targets)
                 log("미리 보기: 큐 \(preview.report.written.count)곡 · 그리드 \(preview.report.gridWritten.count)곡 · 막힘 큐 \(preview.report.blocked.count) · 그리드 \(preview.report.gridBlocked.count)")
                 for o in preview.report.blocked + preview.report.gridBlocked { log("  막힘 \(o.title): \(o.reason ?? "")") }
+                log("미리 보기 분석 붙이기: \(preview.report.analysisWritten.count)곡 · 막힘 \(preview.report.analysisBlocked.count)")
+                for o in preview.report.analysisBlocked { log("  막힘 \(o.title): \(o.reason ?? "")") }
                 let uuids = Set(preview.report.written.map(\.trackUUID)), gridUUIDs = Set(preview.report.gridWritten.map(\.trackUUID))
+                let attachUUIDs = Set(preview.report.analysisWritten.map(\.trackUUID))
                 let expected = Dictionary(uniqueKeysWithValues: preview.drafts.filter { uuids.contains($0.trackUUID) }
                     .map { ($0.trackUUID, RekordboxWriter.key(RekordboxWriter.expectedCues(after: $0), withSource: false)) })
                 // 그리드: 쓰기 전 분석 파일 바이트(되돌린 뒤 같은지 본다)
@@ -101,9 +104,10 @@ enum DevSelfTests {
                     if let row = store.rowsByUUID[uuid], let url = RekordboxShare.analysisURL(row.track.analysisDataPath) { originals[uuid] = try? Data(contentsOf: url) }
                 }
                 let grids = preview.grids.filter { gridUUIDs.contains($0.trackUUID) }
+                let attachGrids = preview.grids.filter { attachUUIDs.contains($0.trackUUID) }
                 let gainUUIDs = Set(preview.report.gainWritten.map(\.trackUUID))
                 log("미리 보기 게인: \(preview.report.gainWritten.count)곡 · 막힘 \(preview.report.gainBlocked.count)")
-                let report = try await store.writeToRekordbox(preview.drafts.filter { uuids.contains($0.trackUUID) }, grids: grids,
+                let report = try await store.writeToRekordbox(preview.drafts.filter { uuids.contains($0.trackUUID) }, grids: grids + attachGrids,
                                                               gains: preview.gains.filter { gainUUIDs.contains($0.key) })
                 for outcome in report.gainWritten {
                     let now = store.rowsByUUID[outcome.trackUUID]?.autoGain?.gainDB
@@ -129,6 +133,19 @@ enum DevSelfTests {
                     if worst <= 0.0015 { gridSame += 1 } else { log(String(format: "  그리드 다름 %@: 최대 %.1fms", row.title, worst * 1000)) }
                 }
                 log("그리드 쓰기: \(report.gridWritten.count)곡 · 다시 읽은 그리드가 초안과 같음 \(gridSame)/\(grids.count) · 덱 그리드 초안 변경 \(deck.gridDraft?.hasChanges == true ? "있음" : "없음")")
+                // 분석 붙이기: 다시 읽은 곡에 분석 경로·파형 파일이 있고 그리드가 초안과 같은지
+                var attachSame = 0
+                for grid in attachGrids {
+                    guard let row = store.rowsByUUID[grid.trackUUID], RekordboxShare.hasWaveformAnalysis(row.track.analysisDataPath),
+                          let url = RekordboxShare.analysisURL(row.track.analysisDataPath), let written = try? BeatGrid.load(anlz: url) else {
+                        log("  분석 파일 없음: \(grid.trackUUID)"); continue
+                    }
+                    let intended = grid.grid(duration: Double(row.track.lengthSeconds) + 1)
+                    let worst = written.beats.map { abs(intended.snap($0.time) - $0.time) }.max() ?? 1
+                    if worst <= 0.0015 { attachSame += 1 } else { log(String(format: "  분석 그리드 다름 %@: 최대 %.1fms", row.title, worst * 1000)) }
+                }
+                let createdFiles = (report.createdFiles ?? []).map { URL(filePath: $0) }
+                log("분석 붙이기: \(report.analysisWritten.count)곡 · 파형·그리드가 초안과 같음 \(attachSame)/\(attachGrids.count) · 만든 파일 \(createdFiles.count)개")
                 guard let backup = RekordboxWriter.backups(in: DJCPaths.rekordboxBackups).first(where: \.isWrite) else { log("백업 없음!"); exit(1) }
                 log("되돌리기 전 확인: 백업 뒤 라이브러리 바뀜 = \(String(describing: await store.libraryChangedSince(backup)))")
                 try await store.restoreRekordbox(backup)
@@ -136,13 +153,14 @@ enum DevSelfTests {
                 var restored = 0
                 for uuid in expected.keys where CueDraftStore.load(trackUUID: uuid)?.hasChanges == true { restored += 1 }
                 var gridRestored = 0, filesRestored = 0
-                for grid in grids where GridDraftStore.load(trackUUID: grid.trackUUID)?.hasChanges == true { gridRestored += 1 }
+                for grid in grids + attachGrids where GridDraftStore.load(trackUUID: grid.trackUUID)?.hasChanges == true { gridRestored += 1 }
                 for (uuid, data) in originals {
                     if let row = store.rowsByUUID[uuid], let url = RekordboxShare.analysisURL(row.track.analysisDataPath),
                        (try? Data(contentsOf: url)) == data { filesRestored += 1 }
                 }
                 log("되돌림 뒤 게인 초안: \(GainDraftStore.all().count)개")
-                log("되돌림: 큐 초안 복구 \(restored)/\(expected.count) · 그리드 초안 복구 \(gridRestored)/\(grids.count) · 분석 파일 원본과 같음 \(filesRestored)/\(originals.count) · 반영 대기 \(store.pendingLibraryCount)곡")
+                let createdLeft = createdFiles.filter { FileManager.default.fileExists(atPath: $0.path) }.count
+                log("되돌림: 큐 초안 복구 \(restored)/\(expected.count) · 그리드 초안 복구 \(gridRestored)/\(grids.count + attachGrids.count) · 분석 파일 원본과 같음 \(filesRestored)/\(originals.count) · 붙인 분석 파일 남음 \(createdLeft)/\(createdFiles.count) · 반영 대기 \(store.pendingLibraryCount)곡")
                 log("끝")
                 exit(0)
             } catch {
