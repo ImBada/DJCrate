@@ -68,7 +68,7 @@ enum PlaylistLab {
 
     /// 변경 카운터와 재생 목록 표 세 개의 내용 요약. 둘 중 하나라도 바뀌면 새 상태로 본다.
     static func fingerprint(_ copy: URL) throws -> String {
-        let db = try CipherDatabase(path: copy.path, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: copy.path, key: RekordboxKey.derive())
         defer { db.close() }
         var hasher = SHA256()
         for table in ["djmdPlaylist", "djmdSongPlaylist", "djmdCloudFilterPlaylist"] {
@@ -103,7 +103,7 @@ enum PlaylistLab {
         var counter: Int?
 
         init(_ url: URL) throws {
-            let db = try CipherDatabase(path: url.path, key: RekordboxKey.derive())
+            let db = try CipherDatabase.diagnostic(path: url.path, key: RekordboxKey.derive())
             defer { db.close() }
             playlists = try rows(db, "djmdPlaylist")
             entries = try rows(db, "djmdSongPlaylist")

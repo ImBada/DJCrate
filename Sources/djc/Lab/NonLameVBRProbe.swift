@@ -5,7 +5,7 @@ extension TrackLab {
     /// 미확인 후보식을 비교할 뿐 AudioFacts의 쓰기 허용 조건은 바꾸지 않는다.
     static func nonLameVBRCheck(_ args: [String]) async throws {
         let snapshot = try value(after: "--db", in: args).map { URL(filePath: $0) } ?? LibrarySnapshot.latest()
-        let db = try CipherDatabase(path: snapshot.path, key: RekordboxKey.derive())
+        let db = try CipherDatabase.diagnostic(path: snapshot.path, key: RekordboxKey.derive())
         defer { db.close() }
         var rows: [(path: String, dat: String, bitRate: Int)] = []
         try db.query("SELECT FolderPath, AnalysisDataPath, BitRate FROM djmdContent WHERE rb_local_deleted = 0 AND FileType = 1 AND Analysed = 105") {
