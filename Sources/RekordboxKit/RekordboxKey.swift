@@ -5,6 +5,7 @@ import Foundation
 ///
 /// pyrekordbox(MIT)와 같은 방식으로 난독화된 상수를 푼다:
 /// base85(RFC 1924) 디코드 → 고정 키 XOR → zlib 해제.
+/// 고지: THIRD_PARTY_NOTICES.md
 public enum RekordboxKey {
     static let blob = "PN_Pq^*N>(JYe*u^8;Yg76HuZ<mR13S?=>)b9;DpoTXV(6ItkU`}8*m6tx_I{Solh_N#dfe{v="
     static let xorKey = Array("657f48f84c437cc1".utf8)

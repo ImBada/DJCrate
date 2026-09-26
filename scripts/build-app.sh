@@ -15,6 +15,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Frameworks" "$APP/Contents/Resources"
 cp .build/release/DJCrate "$APP/Contents/MacOS/DJCrate"
 cp -R .build/release/SQLCipher.framework "$APP/Contents/Frameworks/"
+cp LICENSE THIRD_PARTY_NOTICES.md "$APP/Contents/Resources/"
 # 실행 파일은 @loader_path에서 프레임워크를 찾는다. 번들 안 Frameworks 폴더도 찾게 한다.
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/DJCrate"
 

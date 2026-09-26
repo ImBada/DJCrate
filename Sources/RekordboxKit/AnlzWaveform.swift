@@ -7,6 +7,7 @@ import Foundation
 /// 규칙은 baken(MIT, © 2025 Masanari Higashi, github.com/M-Igashi/baken PR #148)이 rekordbox 7.2 분석 1,070곡과
 /// 음원을 비교해 역산한 것을 옮겼다. baken 보고: 흑백 높이·흰 정도(PWV3)는 칸의 99.5%가 바이트까지 같고,
 /// 색·3밴드(PWV5·PWV7·PWV4·PWV6)는 근사다.
+/// 고지: THIRD_PARTY_NOTICES.md
 ///
 /// 칸: 초당 150칸. 칸 `i`는 모노 `(L + R) / 2`의 샘플 `[round(i·rate/150), round((i+1)·rate/150))`.
 /// 시각은 rekordbox 시간축(인코더 지연 포함)이어야 해서, 디코딩한 음원 앞에 `RekordboxTimeline.predictedOffset`만큼 무음을 붙인다.

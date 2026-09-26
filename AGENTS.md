@@ -12,6 +12,9 @@ rekordbox 7용 DJ 라이브러리 관리 macOS 앱 DJCrate(약칭 DJC, CLI `djc`
 - 시험·실험 쓰기는 **사본에만** 한다: `DJC_REKORDBOX_DIR=<사본 폴더>`, `DJC_HOME=<임시 폴더>`. 사본의 `share/PIONEER/USBANLZ`는 심볼릭 링크가 아니라 실제 복사본이어야 한다.
 - 규칙을 확인하지 않은 쓰기(템포 구간 여러 개인 곡의 BPM 변경, ALAC 분석 붙이기, LAME이 아닌 VBR MP3 분석 붙이기)는 막아 둔다. 새 쓰기 경로는 rekordbox 실험 → 사본 재현 → 칸 단위 일치를 확인한 뒤에만 연다(`docs/rekordbox-internals.md` 끝).
 - rekordbox DB 사본(`*.db`, `-wal`, `-shm`, `snapshots/`)에는 클라우드 토큰이 들어 있다. 커밋·출력·로그 금지. `agentRegistry`의 인증값은 읽지도 옮기지도 않는다.
+- rekordbox 규칙은 rekordbox 화면에서 편집한 결과 파일을 비교해서만 알아낸다. rekordbox 실행 파일(본체·rb_http_server 등)은 strings·디스어셈블을 포함해 분석하지 않는다.
+- 라이선스가 없는 외부 코드·문서는 쓰지 않는다. 외부 코드를 옮기면 라이선스를 확인하고 THIRD_PARTY_NOTICES.md에 더한다.
+- 내보내는 파일(USB 등)은 칸 단위로 만든다. rekordbox가 만든 파일의 페이지·표 바이트를 통째로 넣지 않는다.
 
 ## 명령
 
