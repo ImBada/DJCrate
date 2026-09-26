@@ -91,6 +91,7 @@ scripts/build-app.sh --install     # /Applications/DJCrate.app에 설치
 - 조회: `snapshot`(라이브 DB 사본), `report`(라이브러리 현황), `compat`(쓰기 전 버전·구조 확인)
 - 쓰기 시험: `cue-write`(초안 쓰기, 기본은 사본), `rekordbox-restore`(백업으로 되돌리기)
 - 실험: `djc lab …` — rekordbox 규칙을 알아낼 때 쓴 명령(`sql`, `db-diff`, `loop-repro`, `seekinfo-check`, `key-eval` 등)
+- 에이전트: Claude Code·Codex가 `djc` 읽기 명령으로 라이브러리를 찾아보고 고칠 것을 제안하는 스킬 `skills/djcrate/SKILL.md`(이 저장소에서 열면 `.claude/skills`·`.agents/skills`로 읽힌다). rekordbox에는 쓰지 않는다.
 
 ## 데이터 위치
 
