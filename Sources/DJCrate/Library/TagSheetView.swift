@@ -412,6 +412,10 @@ final class SheetTableView: NSTableView {
 /// 시트 셀: 평소에는 라벨, 편집할 때만 같은 텍스트 필드를 편집 가능으로 바꾼다.
 final class SheetCell: NSTableCellView {
     let label = NSTextField(labelWithString: "")
+    private var edited = false
+    private var readOnly = false
+    private var selected = false
+    private var active = false
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -435,10 +439,35 @@ final class SheetCell: NSTableCellView {
 
     func configure(text: String, edited: Bool, readOnly: Bool, selected: Bool, active: Bool) {
         if label.currentEditor() == nil { label.stringValue = text }
-        label.textColor = edited ? .systemOrange : (readOnly ? .secondaryLabelColor : .labelColor)
-        layer?.backgroundColor = selected ? NSColor.selectedContentBackgroundColor.withAlphaComponent(0.28).cgColor : nil
-        layer?.borderWidth = active ? 2 : 0
-        layer?.borderColor = NSColor.controlAccentColor.cgColor
+        self.edited = edited
+        self.readOnly = readOnly
+        self.selected = selected
+        self.active = active
+        updateColors()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateColors()
+    }
+
+    override func viewWillDraw() {
+        updateColors()
+        super.viewWillDraw()
+    }
+
+    private func updateColors() {
+        // AppKit이 창·표 포커스가 바뀔 때 다시 그리므로 선택색도 그때 풀어 쓴다.
+        let emphasized = window?.isKeyWindow == true && (window?.firstResponder is SheetTableView || label.currentEditor() != nil)
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            label.textColor = selected && label.currentEditor() == nil
+                ? .labelColor
+                : (edited ? UIColors.draft.nsColor : (readOnly ? .secondaryLabelColor : .labelColor))
+            let selection: NSColor = emphasized ? .selectedContentBackgroundColor : .unemphasizedSelectedContentBackgroundColor
+            layer?.backgroundColor = selected ? selection.withAlphaComponent(0.28).cgColor : nil
+            layer?.borderWidth = active ? 2 : 0
+            layer?.borderColor = UIColors.info.nsColor.cgColor
+        }
     }
 
     func beginEditing(text: String) {

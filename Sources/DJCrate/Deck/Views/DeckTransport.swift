@@ -92,9 +92,11 @@ struct PlayheadLabel: View {
                     .help("마디.박(박은 0부터)")
             }
             if let key = deck.key(at: t) {
-                Text(key).font(.caption.monospacedDigit().bold())
-                    .foregroundStyle(Palette.keyColor(key))
-                    .help(deck.keySegments.count > 1 ? "지금 조성(Camelot, 추정). 이 곡은 조성이 바뀝니다" : "지금 조성(Camelot)")
+                HStack(spacing: 3) {
+                    Circle().fill(UIColors.keyDot(key)).frame(width: 6, height: 6)
+                    Text(key).font(.caption.monospacedDigit().bold()).foregroundStyle(.primary)
+                }
+                .help(deck.keySegments.count > 1 ? "지금 조성(Camelot, 추정). 이 곡은 조성이 바뀝니다" : "지금 조성(Camelot)")
             }
             // 지금 BPM(그리드의 이 구간 BPM × 템포). 템포를 바꾸면 주황색.
             if let bpm = deck.gridBPM {
@@ -102,7 +104,7 @@ struct PlayheadLabel: View {
                     Text(String(format: "%.2f", bpm * deck.rate)).font(.callout.monospacedDigit().bold())
                     Text("BPM").font(.system(size: 8, weight: .semibold)).foregroundStyle(.secondary)
                 }
-                .foregroundStyle(deck.tempoPercent == 0 ? Color.primary : Palette.cue)
+                .foregroundStyle(deck.tempoPercent == 0 ? Color.primary : UIColors.cue.color)
                 .help(deck.tempoPercent == 0 ? "지금 BPM(그리드 기준, 변속 곡은 구간마다 바뀝니다)"
                       : String(format: "지금 BPM · 원래 %.2f BPM, 템포 %+.1f%%", bpm, deck.tempoPercent))
             }
@@ -121,9 +123,9 @@ struct CueButton: View {
         Text("CUE")
             .font(.system(size: 10, weight: .heavy))
             .frame(width: 36, height: 20)
-            .foregroundStyle(lit ? Color.black : Palette.cue)
-            .background(lit ? Palette.cue : Color.clear, in: RoundedRectangle(cornerRadius: 4))
-            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Palette.cue))
+            .foregroundStyle(lit ? UIColors.onFill : UIColors.cue.color)
+            .background(lit ? UIColors.cue.color : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(UIColors.cue.color))
             .opacity(deck.canPlay ? 1 : 0.4)
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0)
@@ -151,7 +153,7 @@ struct HotCuePad: View {
     var body: some View {
         let cue = deck.hotCue(slot: slot)
         let letter = String(UnicodeScalar(UInt8(65 + slot)))
-        let color = cue.map(Palette.color(for:)) ?? .secondary
+        let color = cue.map(UIColors.color(for:)) ?? .secondary
         let engaged = cue != nil && cue?.id == deck.engagedLoopID
         Button {
             // Shift+클릭 = 지우기
@@ -160,9 +162,9 @@ struct HotCuePad: View {
             Text(cue?.loop == nil ? letter : letter + "↻")
                 .font(.system(size: 11, weight: .bold))
                 .frame(width: 22, height: 20)
-                .foregroundStyle(cue == nil ? Color.secondary : Color.black)
+                .foregroundStyle(cue == nil ? Color.secondary : UIColors.onFill)
                 .background(cue == nil ? Color.clear : color, in: RoundedRectangle(cornerRadius: 4))
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(engaged ? Color.white : cue == nil ? Color.secondary.opacity(0.5) : color,
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(engaged ? Color.primary : cue == nil ? Color.secondary.opacity(0.5) : color,
                                                                   lineWidth: engaged ? 2 : 1))
         }
         .buttonStyle(.plain)
@@ -194,9 +196,9 @@ struct LoopControl: View {
                     Text(deck.loopSizeText).font(.system(size: 11, weight: .heavy).monospacedDigit())
                 }
                 .frame(width: 44, height: 20)
-                .foregroundStyle(looping ? Color.black : Palette.loop)
-                .background(looping ? Palette.loop : Color.clear, in: RoundedRectangle(cornerRadius: 4))
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Palette.loop))
+                .foregroundStyle(looping ? UIColors.onFill : UIColors.loop.color)
+                .background(looping ? UIColors.loop.color : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(UIColors.loop.color))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

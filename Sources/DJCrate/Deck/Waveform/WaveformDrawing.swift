@@ -5,35 +5,6 @@ import DJCStorage
 import AppKit
 import SwiftUI
 
-enum Palette {
-    /// Camelot 번호마다 색(휠 순서로 색상이 돈다). A/B는 밝기만 다르다.
-    static func keyColor(_ camelot: String) -> Color {
-        let text = camelot.uppercased()
-        guard let number = Int(text.dropLast()), (1...12).contains(number) else { return .secondary }
-        return Color(hue: Double(number - 1) / 12, saturation: 0.62, brightness: text.hasSuffix("A") ? 0.78 : 0.95)
-    }
-
-    /// 루프 구간·루프 큐(rekordbox처럼 주황)
-    static let loop = Color(red: 1.0, green: 0.55, blue: 0.0)
-
-    static let low = Color(red: 0.23, green: 0.44, blue: 0.96)
-    static let mid = Color(red: 0.94, green: 0.64, blue: 0.24)
-    static let high = Color(red: 0.95, green: 0.94, blue: 0.91)
-    /// 핫큐: rekordbox 기본 핫큐 색(초록). 메모리 큐(빨강)와 한눈에 구분되게.
-    static let hot = Color(red: 0.16, green: 0.86, blue: 0.24)
-    static let memory = Color(red: 0.94, green: 0.25, blue: 0.25)
-    static let cue = Color(red: 1.0, green: 0.56, blue: 0.08)
-    /// 제안(메모리 큐 후보·추정 그리드): 핫큐 초록과 겹치지 않는 하늘색
-    static let suggestion = Color(red: 0.35, green: 0.80, blue: 1.0)
-    static let section = Color(red: 0.56, green: 0.53, blue: 1.0)
-    static let well = Color(red: 0.043, green: 0.047, blue: 0.055)
-
-    /// 큐 표시 색: 루프 = 주황, 핫큐 = 초록, 메모리 큐 = 빨강
-    static func color(for cue: EditableCue) -> Color {
-        cue.loop != nil ? loop : cue.kind == .memory ? memory : hot
-    }
-}
-
 /// 3밴드 파형을 가운데 기준 대칭으로 그린다.
 /// 픽셀 열의 샘플 구간을 곡의 절대 시간(빈 = span/열 수)에 고정한다. 창이 움직여도 빈 경계가
 /// 바뀌지 않아 스크롤 중 반짝임(에일리어싱)이 생기지 않는다.

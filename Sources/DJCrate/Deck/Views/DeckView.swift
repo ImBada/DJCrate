@@ -51,6 +51,7 @@ struct DeckView: View {
                             }
                         }
                         .animation(.easeOut(duration: 0.15), value: deck.needsGrid)
+                        .environment(\.colorScheme, .dark)
                     Group { if PerfProbe.hidden.contains("overview") { EmptyView() } else { OverviewWaveformView(deck: deck) } }
                         .frame(height: 86)
                     TransportBar(deck: deck)
@@ -77,7 +78,7 @@ struct DeckView: View {
         if deck.row?.track.isStreaming == true {
             Text("스트리밍 곡은 파형·재생·분석을 할 수 없습니다").font(.callout).foregroundStyle(.secondary)
         } else if let error = deck.waveformError {
-            Label(error, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange)
+            Label(error, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(UIColors.warning.color)
         } else if deck.waveform == nil {
             ProgressView().controlSize(.small)
         }
@@ -131,7 +132,7 @@ struct DeckInfoColumn: View {
             if let path = row.track.analysisDataPath, !path.isEmpty, !row.track.isStreaming,
                !RekordboxShare.hasWaveformAnalysis(path) {
                 Label("rekordbox 분석 전 · 파형 없음", systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption).foregroundStyle(.orange)
+                    .font(.caption).foregroundStyle(UIColors.warning.color)
                     .help("rekordbox가 이 곡을 아직 분석하지 않았습니다(파형 파일 없음). rekordbox에서 트랙 분석을 먼저 해야 그리드를 쓸 수 있습니다")
             }
             // 코멘트는 적힌 그대로(태그로 나누지 않는다)
@@ -158,7 +159,7 @@ struct CoverView: View {
                 Image(nsImage: image).resizable().interpolation(.high).aspectRatio(contentMode: .fill)
             } else {
                 ZStack {
-                    Rectangle().fill(.quaternary)
+                    Rectangle().fill(UIColors.subtleFill)
                     Image(systemName: "music.note").font(.system(size: size * 0.28)).foregroundStyle(.tertiary)
                 }
             }

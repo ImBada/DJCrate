@@ -40,6 +40,7 @@ struct OverviewWaveformView: View {
                 })
         }
         .background(Palette.well)
+        .environment(\.colorScheme, .dark)
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .accessibilityLabel("전체 곡 3밴드 파형. 클릭해서 위치 이동")
     }
@@ -47,6 +48,7 @@ struct OverviewWaveformView: View {
 
 /// 파형·섹션 띠·큐·제안. 재생 위치를 읽지 않으므로 재생 중에는 다시 그려지지 않는다.
 struct OverviewStaticLayer: View {
+    @Environment(\.colorSchemeContrast) private var contrast
     let deck: DeckModel
     let duration: Double
 
@@ -81,7 +83,7 @@ struct OverviewStaticLayer: View {
                 let rect = CGRect(x: xOf(key.segment.start), y: waveHeight + 19,
                                   width: max(1, xOf(key.segment.end) - xOf(key.segment.start) - 1), height: 12)
                 let color = Palette.keyColor(key.name)
-                context.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(color.opacity(keyChanges ? 0.55 : 0.3)))
+                context.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(color.opacity(Palette.keyBandOpacity(changes: keyChanges))))
                 if rect.width > 24 {
                     context.draw(Text(key.name).font(.system(size: 9, weight: .bold)).foregroundStyle(Color.white),
                                  at: CGPoint(x: rect.minX + 4, y: rect.midY), anchor: .leading)
@@ -91,16 +93,16 @@ struct OverviewStaticLayer: View {
                 var line = Path()
                 line.move(to: CGPoint(x: xOf(s), y: 0)); line.addLine(to: CGPoint(x: xOf(s), y: waveHeight))
                 context.stroke(line, with: .color(.black.opacity(0.5)), lineWidth: 3)
-                context.stroke(line, with: .color(Palette.suggestion), style: StrokeStyle(lineWidth: 1.5, dash: [4, 2]))
+                context.stroke(line, with: .color(contrast == .increased ? Color.white : Palette.suggestion), style: StrokeStyle(lineWidth: 1.5, dash: [4, 2]))
             }
             if let loop = instantLoop {
                 let band = CGRect(x: xOf(loop.start), y: 0, width: max(2, xOf(loop.end) - xOf(loop.start)), height: waveHeight)
-                context.fill(Path(band), with: .color(Palette.loop.opacity(0.45)))
+                context.fill(Path(band), with: .color(Palette.loop.opacity(contrast == .increased ? 0.65 : 0.45)))
             }
             for cue in cues {
                 if let loop = cue.loop {
                     let band = CGRect(x: xOf(cue.time), y: 0, width: max(1.5, xOf(loop.end) - xOf(cue.time)), height: waveHeight)
-                    context.fill(Path(band), with: .color(Palette.loop.opacity(loop.active ? 0.35 : 0.2)))
+                    context.fill(Path(band), with: .color(Palette.loop.opacity(contrast == .increased ? (loop.active ? 0.55 : 0.4) : (loop.active ? 0.35 : 0.2))))
                 }
                 var line = Path()
                 line.move(to: CGPoint(x: xOf(cue.time), y: 0)); line.addLine(to: CGPoint(x: xOf(cue.time), y: waveHeight))
@@ -117,6 +119,7 @@ struct OverviewStaticLayer: View {
 
 /// 재생선과 확대 창 범위만 그린다(매 프레임).
 struct OverviewPlayheadLayer: View {
+    @Environment(\.colorSchemeContrast) private var contrast
     let deck: DeckModel
     let duration: Double
 
@@ -129,7 +132,7 @@ struct OverviewPlayheadLayer: View {
             let waveHeight = size.height - 34
             let window = CGRect(x: xOf(t - zoom / 2), y: 0, width: xOf(zoom), height: waveHeight)
             context.fill(Path(window), with: .color(.white.opacity(0.08)))
-            context.stroke(Path(window), with: .color(.white.opacity(0.3)), lineWidth: 1)
+            context.stroke(Path(window), with: .color(.white.opacity(contrast == .increased ? 0.7 : 0.3)), lineWidth: 1)
             var head = Path()
             head.move(to: CGPoint(x: xOf(t), y: 0)); head.addLine(to: CGPoint(x: xOf(t), y: size.height))
             context.stroke(head, with: .color(.white), lineWidth: 1.5)

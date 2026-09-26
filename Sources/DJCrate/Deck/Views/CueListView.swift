@@ -12,15 +12,15 @@ struct CueListView: View {
             HStack {
                 let cues = deck.draft?.cues ?? []
                 let hot = cues.filter { if case .hot = $0.kind { true } else { false } }.count
-                Text("핫큐 \(hot)").font(.headline).foregroundStyle(Palette.hot)
-                Text("메모리 \(cues.count - hot)").font(.headline).foregroundStyle(Palette.memory)
+                Text("핫큐 \(hot)").font(.headline).foregroundStyle(UIColors.hot.color)
+                Text("메모리 \(cues.count - hot)").font(.headline).foregroundStyle(UIColors.memory.color)
                 Spacer()
                 if let changes = deck.draft?.changes, !changes.isEmpty {
                     Text("초안 변경 \(changes.count)")
                         .font(.caption.bold())
                         .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Palette.mid.opacity(0.2), in: Capsule())
-                        .foregroundStyle(Palette.mid)
+                        .background(UIColors.draftFill, in: Capsule())
+                        .foregroundStyle(UIColors.draft.color)
                 }
             }
             List(selection: $deck.selectedCueID) {
@@ -34,7 +34,7 @@ struct CueListView: View {
 
             if let issues = deck.draft?.issues(duration: deck.duration), !issues.isEmpty {
                 Label(issues.joined(separator: " · "), systemImage: "exclamationmark.triangle")
-                    .font(.caption).foregroundStyle(.orange)
+                    .font(.caption).foregroundStyle(UIColors.warning.color)
             }
             HStack {
                 Button("되돌리기") { deck.revertDraft() }
@@ -59,6 +59,7 @@ struct CueRow: View {
 
     var body: some View {
         HStack(spacing: 6) {
+            Circle().fill(UIColors.color(for: cue)).frame(width: 6, height: 6)
             Picker("종류", selection: Binding(get: { cue.kind }, set: { deck.setKind(cue.id, $0) })) {
                 Text("메모리").tag(EditableCue.Kind.memory)
                 ForEach(0..<8, id: \.self) { slot in
@@ -67,7 +68,7 @@ struct CueRow: View {
             }
             .labelsHidden()
             .frame(width: 76)
-            .foregroundStyle(Palette.color(for: cue))
+            .foregroundStyle(.primary)
 
             Button { deck.nudge(cue.id, beats: -1) } label: { Image(systemName: "chevron.left") }
                 .buttonStyle(.borderless).help("1박 앞으로").accessibilityLabel("1박 앞으로")
@@ -91,12 +92,12 @@ struct CueRow: View {
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
-            .foregroundStyle(cue.loop == nil ? Color.secondary : Palette.loop)
+            .foregroundStyle(cue.loop == nil ? Color.secondary : UIColors.loop.color)
             .help("이 큐를 루프로 만들거나 길이를 바꿉니다")
             if cue.loop != nil {
                 Button { deck.toggleActiveLoop(cue.id) } label: {
                     Image(systemName: "repeat.circle\(cue.loop?.active == true ? ".fill" : "")")
-                        .foregroundStyle(cue.loop?.active == true ? Palette.loop : .secondary)
+                        .foregroundStyle(cue.loop?.active == true ? UIColors.loop.color : .secondary)
                 }
                 .buttonStyle(.borderless)
                 .help(cue.loop?.active == true ? "활성 루프(곡을 불러오면 자동 반복) — 눌러서 끄기" : "활성 루프로 만들기(곡을 불러오면 이 루프를 자동 반복)")
