@@ -77,7 +77,7 @@ public struct TagFields: Codable, Hashable, Sendable {
     }
 }
 
-public struct TagDraft: Codable, Sendable {
+public struct TagDraft: Codable, Equatable, Sendable {
     public var trackUUID: String
     public var base: TagFields
     public var fields: TagFields

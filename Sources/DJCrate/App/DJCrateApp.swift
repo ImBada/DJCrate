@@ -24,6 +24,16 @@ struct DJCrateApp: App {
                     await store.loadInitial()
                 }
         }
+        .commands {
+            CommandGroup(after: .pasteboard) {
+                // 표준 편집 명령처럼 현재 응답자가 활성 상태와 실행을 결정한다.
+                Button("아래로 채우기") {
+                    NSApp.sendAction(#selector(SheetTableView.fillDown(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("d", modifiers: .command)
+                .disabled(!store.canFillDownTags || store.isWritingRekordbox)
+            }
+        }
         .defaultSize(width: 1440, height: 900)
         // 이전 창 상태 복원이 가끔 500×500 흰 창을 만든다. 항상 새 창으로 시작한다.
         .restorationBehavior(.disabled)

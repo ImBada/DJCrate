@@ -84,7 +84,7 @@ public struct EditableCue: Codable, Identifiable, Hashable, Sendable {
 }
 
 /// 곡 하나의 큐 초안. `base`는 편집을 시작할 때의 rekordbox 상태다.
-public struct CueDraft: Codable, Sendable {
+public struct CueDraft: Codable, Equatable, Sendable {
     public var trackUUID: String
     public var base: [EditableCue]
     public var cues: [EditableCue]

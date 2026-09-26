@@ -33,16 +33,6 @@ extension LibraryStore {
 
     // MARK: - 태그 시트(엑셀식) 일괄 편집 + 되돌리기
 
-    struct TagEdit: Sendable {
-        let trackUUID: String
-        let key: TagFields.Key
-        let old: String
-        let new: String
-    }
-
-    var canUndoTags: Bool { !undoStack.isEmpty }
-    var canRedoTags: Bool { !redoStack.isEmpty }
-
     func tagCell(_ row: TrackRow, _ key: TagFields.Key) -> String {
         if let draft = tagDrafts[row.track.uuid] { return draft.fields[key] }
         return TagFields(track: row.track)[key]
@@ -55,44 +45,49 @@ extension LibraryStore {
 
     /// 여러 셀을 한 번에 바꾼다. 되돌리기 한 단위가 된다.
     func applyTagEdits(_ changes: [(row: TrackRow, key: TagFields.Key, value: String)]) {
-        var edits: [TagEdit] = []
-        for change in changes {
-            let old = tagCell(change.row, change.key)
-            guard old != change.value else { continue }
-            edits.append(TagEdit(trackUUID: change.row.track.uuid, key: change.key, old: old, new: change.value))
+        guard !isWritingRekordbox else { return }
+        var before: [String: TagDraft] = [:]
+        var after: [String: TagDraft] = [:]
+        for change in changes where !change.row.track.isStreaming {
+            let uuid = change.row.track.uuid
+            let original = tagDraft(for: change.row)
+            before[uuid] = original
+            var edited = after[uuid] ?? original
+            edited.fields[change.key] = change.value
+            after[uuid] = edited
         }
-        guard !edits.isEmpty else { return }
-        apply(edits, forward: true)
-        undoStack.append(edits)
-        redoStack.removeAll()
+        guard let change = DraftChange(before: before, after: after) else { return }
+        applyTagSnapshot(after)
+        registerTagUndo(change)
     }
 
-    func undoTags() {
-        guard let edits = undoStack.popLast() else { return }
-        apply(edits, forward: false)
-        redoStack.append(edits)
-    }
-
-    func redoTags() {
-        guard let edits = redoStack.popLast() else { return }
-        apply(edits, forward: true)
-        undoStack.append(edits)
-    }
-
-    /// 곡별로 묶어 초안을 한 번만 고치고, 곡마다 한 번만 백그라운드에서 저장한다.
-    func apply(_ edits: [TagEdit], forward: Bool) {
-        var touched: [String: TagDraft] = [:]
-        for edit in edits {
-            guard let row = rowsByUUID[edit.trackUUID] else { continue }
-            var draft = touched[edit.trackUUID] ?? tagDraft(for: row)
-            draft.fields[edit.key] = forward ? edit.new : edit.old
-            touched[edit.trackUUID] = draft
+    private func registerTagUndo(_ change: DraftChange<[String: TagDraft]>) {
+        guard let undoManager else { return }
+        let grouping = !undoManager.isUndoing && !undoManager.isRedoing
+        let groupsByEvent = undoManager.groupsByEvent
+        if grouping {
+            undoManager.groupsByEvent = false
+            undoManager.beginUndoGrouping()
         }
+        undoManager.registerUndo(withTarget: self) { target in
+            guard !target.isWritingRekordbox else { return }
+            target.applyTagSnapshot(change.before)
+            target.registerTagUndo(change.reversed)
+        }
+        undoManager.setActionName("태그 편집")
+        if grouping {
+            undoManager.endUndoGrouping()
+            undoManager.groupsByEvent = groupsByEvent
+        }
+    }
+
+    /// 곡별 초안 전체를 복원해 base와 여러 칸을 함께 보존한다.
+    private func applyTagSnapshot(_ drafts: [String: TagDraft]) {
         var updated = tagDrafts
-        for (uuid, draft) in touched { updated[uuid] = draft.hasChanges ? draft : nil }
+        for (uuid, draft) in drafts { updated[uuid] = draft.hasChanges ? draft : nil }
         tagDrafts = updated
-        for uuid in touched.keys { updateEdited(uuid) }
-        DraftWriter.save(Array(touched.values))
+        for uuid in drafts.keys { updateEdited(uuid) }
+        saveTagDrafts(Array(drafts.values))
         tagRevision += 1
     }
 }

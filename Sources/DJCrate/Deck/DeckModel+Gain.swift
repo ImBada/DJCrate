@@ -57,11 +57,13 @@ extension DeckModel {
 
     /// 곡 오토게인을 정한다(초안). rekordbox 값과 같으면 초안을 지운다.
     func setTrackGain(_ value: Double) {
-        guard let uuid = row?.track.uuid, let rekordbox = rekordboxGainDB else { return }
+        guard !isWriteLocked, let uuid = row?.track.uuid, let rekordbox = rekordboxGainDB else { return }
+        let before = draftSnapshot
         gainDraft = GainPolicy.draft(for: value, rekordbox: rekordbox)
         storage.saveGain(gainDraft, uuid)
         onDraftChange?(uuid, .gain, gainDraft != nil)
         applyGain()
+        registerDraftUndo(from: before, name: "게인 변경")
     }
 
     func adjustTrackGain(by delta: Double) {
@@ -71,12 +73,14 @@ extension DeckModel {
 
     /// 초안을 지우고 rekordbox 오토게인으로 돌아간다.
     func clearGainDraft() {
-        guard let uuid = row?.track.uuid else { return }
+        guard !isWriteLocked, let uuid = row?.track.uuid else { return }
+        let before = draftSnapshot
         gainDraft = nil
         dismissedGainSuggestions.remove(uuid)
         storage.saveGain(nil, uuid)
         onDraftChange?(uuid, .gain, false)
         applyGain()
+        registerDraftUndo(from: before, name: "게인 초안 버리기")
     }
 
     var hasGainOverride: Bool { gainDraft != nil }

@@ -10,6 +10,7 @@ struct DeckStorage: Sendable {
     var saveGridDraft: @Sendable (GridDraft) -> Void
     var loadGain: @Sendable (String) -> Double?
     var saveGain: @Sendable (Double?, String) -> Void
+    var removeGridDraft: @Sendable (String) -> Void
     var settings: DeckSettings
 
     /// 실제 파일(`~/Library/Application Support/DJCrate`)과 UserDefaults
@@ -20,6 +21,7 @@ struct DeckStorage: Sendable {
         saveGridDraft: { DraftWriter.save($0) },
         loadGain: { GainDraftStore.load(trackUUID: $0) },
         saveGain: { GainDraftStore.save($0, trackUUID: $1) },
+        removeGridDraft: { DraftWriter.removeGrid(trackUUID: $0) },
         settings: DeckSettings()
     )
 }

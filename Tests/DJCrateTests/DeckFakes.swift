@@ -63,6 +63,7 @@ final class MemoryDrafts: @unchecked Sendable {
     private var gains: [String: Double] = [:]
     func cue(_ uuid: String) -> CueDraft? { lock.withLock { cues[uuid] } }
     func grid(_ uuid: String) -> GridDraft? { lock.withLock { grids[uuid] } }
+    func removeGrid(_ uuid: String) { lock.withLock { grids[uuid] = nil } }
     func gain(_ uuid: String) -> Double? { lock.withLock { gains[uuid] } }
     func save(_ draft: CueDraft) { lock.withLock { cues[draft.trackUUID] = draft } }
     func save(_ draft: GridDraft) { lock.withLock { grids[draft.trackUUID] = draft } }
@@ -75,6 +76,7 @@ extension DeckStorage {
             loadCueDraft: { drafts.cue($0) }, saveCueDraft: { drafts.save($0) },
             loadGridDraft: { drafts.grid($0) }, saveGridDraft: { drafts.save($0) },
             loadGain: { drafts.gain($0) }, saveGain: { drafts.save(gain: $0, $1) },
+            removeGridDraft: { drafts.removeGrid($0) },
             settings: DeckSettings(defaults: UserDefaults(suiteName: "djc-test-\(UUID().uuidString)")!, persist: true))
     }
 }
