@@ -41,8 +41,8 @@ public struct MasterPlaylistsXML: Sendable, Equatable {
 
     /// 새 NODE를 목록 끝(`</PLAYLISTS>` 앞)에 붙인다.
     public mutating func append(id: String, parentID: String, isFolder: Bool, timestamp: Int64) throws {
-        guard let hex = Self.hex(id), let parent = Self.hex(parentID) else { throw DJCError.writeVerificationFailed("재생 목록 ID가 숫자가 아닙니다") }
-        guard let end = text.range(of: "  </PLAYLISTS>") else { throw DJCError.writeVerificationFailed("masterPlaylists6.xml 모양이 다릅니다") }
+        guard let hex = Self.hex(id), let parent = Self.hex(parentID) else { throw DJCError.writeVerificationFailed(String(ui: "재생 목록 ID가 숫자가 아닙니다")) }
+        guard let end = text.range(of: "  </PLAYLISTS>") else { throw DJCError.writeVerificationFailed(String(ui: "masterPlaylists6.xml 모양이 다릅니다")) }
         let line = #"    <NODE Id="\#(hex)" ParentId="\#(parent)" Attribute="\#(isFolder ? 1 : 0)" Timestamp="\#(timestamp)" Lib_Type="0" CheckType="0"/>"#
         text.insert(contentsOf: line + newline, at: end.lowerBound)
     }
@@ -55,7 +55,7 @@ public struct MasterPlaylistsXML: Sendable, Equatable {
         guard let index = lines.firstIndex(where: { $0.node?.id == hex }) else { return false }
         var line = lines[index].text
         if let parentID {
-            guard let parent = Self.hex(parentID) else { throw DJCError.writeVerificationFailed("재생 목록 ID가 숫자가 아닙니다") }
+            guard let parent = Self.hex(parentID) else { throw DJCError.writeVerificationFailed(String(ui: "재생 목록 ID가 숫자가 아닙니다")) }
             line = Self.replacing("ParentId", with: parent, in: line)
         }
         if let timestamp { line = Self.replacing("Timestamp", with: String(timestamp), in: line) }

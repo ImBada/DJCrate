@@ -26,6 +26,7 @@ struct DraftCommandTests {
         process.currentDirectoryURL = currentDirectory
         process.arguments = ["draft"] + args + ["--db", (database ?? fixture.database).path] + (json ? ["--json"] : [])
         process.environment = ProcessInfo.processInfo.environment.merging([
+            "DJC_LANG": "ko",
             "DJC_HOME": home ?? fixture.root.appending(path: "home").path,
             "DJC_REKORDBOX_DIR": fixture.root.path,
         ]) { _, new in new }

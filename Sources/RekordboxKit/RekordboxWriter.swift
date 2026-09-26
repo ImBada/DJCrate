@@ -209,7 +209,7 @@ public enum RekordboxWriter {
         if !playlists.isEmpty, FileManager.default.fileExists(atPath: playlistXMLURL.path) {
             let xml = try? MasterPlaylistsXML(contentsOf: playlistXMLURL)
             guard let xml, xml.text.contains("</PLAYLISTS>") else {
-                throw DJCError.writeRefused("masterPlaylists6.xml을 읽지 못했습니다. rekordbox를 한 번 켰다가 종료한 뒤 다시 시도하세요")
+                throw DJCError.writeRefused(String(ui: "masterPlaylists6.xml을 읽지 못했습니다. rekordbox를 한 번 켰다가 종료한 뒤 다시 시도하세요"))
             }
             playlistXML = xml
         }
@@ -334,9 +334,9 @@ public enum RekordboxWriter {
             }
             if usn != startUSN {
                 let changed = try db.run("UPDATE agentRegistry SET int_1 = ? WHERE registry_id = 'localUpdateCount'", [.int(usn)])
-                guard changed == 1 else { throw DJCError.writeVerificationFailed("변경 카운터를 올리지 못했습니다") }
+                guard changed == 1 else { throw DJCError.writeVerificationFailed(String(ui: "변경 카운터를 올리지 못했습니다")) }
             }
-            guard try localUpdateCount(db) == usn else { throw DJCError.writeVerificationFailed("변경 카운터가 맞지 않습니다") }
+            guard try localUpdateCount(db) == usn else { throw DJCError.writeVerificationFailed(String(ui: "변경 카운터가 맞지 않습니다")) }
             finalUpdateCount = usn
 
             let databaseChanged = !written.isEmpty || gridPlans.contains { $0.newBPM100 != nil }
@@ -376,7 +376,7 @@ public enum RekordboxWriter {
             do {
                 try updatedXML.data.write(to: playlistXMLURL, options: .atomic)
                 guard try MasterPlaylistsXML(contentsOf: playlistXMLURL) == updatedXML else {
-                    throw DJCError.writeVerificationFailed("masterPlaylists6.xml을 다시 읽으니 적은 것과 다릅니다")
+                    throw DJCError.writeVerificationFailed(String(ui: "masterPlaylists6.xml을 다시 읽으니 적은 것과 다릅니다"))
                 }
             } catch {
                 throw recover(from: error, database: database, backup: backup, live: live) {
@@ -461,7 +461,7 @@ public enum RekordboxWriter {
     static func recover(from failure: any Error, database: URL, backup: URL, live: Bool, restoreDatabase: Bool = true,
                         files: () throws -> Void = {}) -> DJCError {
         var problems: [String] = []
-        do { try files() } catch { problems.append("분석 파일: \(DJCError.reason(of: error))") }
+        do { try files() } catch { problems.append(String(ui: "분석 파일: \(DJCError.reason(of: error))")) }
         if restoreDatabase {
             do {
                 try restoreFiles(from: backup, to: database)

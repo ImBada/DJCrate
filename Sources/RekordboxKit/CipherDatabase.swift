@@ -29,7 +29,7 @@ public final class CipherDatabase {
         do {
             _ = try scalarInt("SELECT count(*) FROM sqlite_master")
         } catch {
-            throw DJCError.databaseOpenFailed(path: path, message: "키가 맞지 않거나 DB가 손상됐습니다")
+            throw DJCError.databaseOpenFailed(path: path, message: String(ui: "키가 맞지 않거나 DB가 손상됐습니다"))
         }
     }
 

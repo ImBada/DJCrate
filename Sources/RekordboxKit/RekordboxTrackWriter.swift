@@ -211,11 +211,11 @@ public enum RekordboxTrackWriter {
                 for path in written {
                     let analysisFiles = prepared[path].flatMap { $0.blocked == nil ? $0.files : nil } ?? []
                     for (url, data) in analysisFiles + (artworks[path]?.files ?? []) {
-                        guard !FileManager.default.fileExists(atPath: url.path) else { throw DJCError.writeVerificationFailed("파일이 이미 있습니다: \(url.path)") }
+                        guard !FileManager.default.fileExists(atPath: url.path) else { throw DJCError.writeVerificationFailed(String(ui: "파일이 이미 있습니다: \(url.path)")) }
                         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                         try data.write(to: url, options: .atomic)
                         created.append(url)
-                        guard try Data(contentsOf: url) == data else { throw DJCError.writeVerificationFailed("파일 확인 실패: \(url.lastPathComponent)") }
+                        guard try Data(contentsOf: url) == data else { throw DJCError.writeVerificationFailed(String(ui: "파일 확인 실패: \(url.lastPathComponent)")) }
                     }
                 }
             } catch {
@@ -475,7 +475,7 @@ public enum RekordboxTrackWriter {
                         _ = try db.run("DELETE FROM djmdArtist WHERE ID = ?", [.text(artist)])
                     }
                     guard try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdContent WHERE ID = ?", [.text(id)]) == 0 else {
-                        throw DJCError.writeVerificationFailed("곡 행이 남아 있습니다")
+                        throw DJCError.writeVerificationFailed(String(ui: "곡 행이 남아 있습니다"))
                     }
                     try db.execute("RELEASE djc_delete")
                     gone.append(id)
@@ -496,7 +496,7 @@ public enum RekordboxTrackWriter {
         guard let backup, !gone.isEmpty else { return report }
         try afterCommit(database, backup: backup, live: live) { db in
             for id in gone where try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdContent WHERE ID = ?", [.text(id)]) != 0 {
-                throw DJCError.writeVerificationFailed("지운 곡이 다시 읽혔습니다")
+                throw DJCError.writeVerificationFailed(String(ui: "지운 곡이 다시 읽혔습니다"))
             }
         }
         // 분석 폴더·아트워크 파일: 백업 폴더로 옮겨 두고(되돌리기 때 살림) 원래 자리에서 지운다. 아트워크 폴더는 rekordbox처럼 남긴다.
@@ -562,7 +562,7 @@ public enum RekordboxTrackWriter {
         let changed = try body(db, &usn)
         if usn != start {
             guard try db.run("UPDATE agentRegistry SET int_1 = ? WHERE registry_id = 'localUpdateCount'", [.int(usn)]) == 1 else {
-                throw DJCError.writeVerificationFailed("변경 카운터를 올리지 못했습니다")
+                throw DJCError.writeVerificationFailed(String(ui: "변경 카운터를 올리지 못했습니다"))
             }
         }
         if dryRun || !changed {
@@ -593,13 +593,13 @@ public enum RekordboxTrackWriter {
             let id = String(Int.random(in: range))
             if try RekordboxWriter.scalar(db, "SELECT count(*) FROM \(table) WHERE ID = ?", [.text(id)]) == 0 { return id }
         }
-        throw DJCError.writeVerificationFailed("\(table) 새 ID를 만들지 못했습니다")
+        throw DJCError.writeVerificationFailed(String(ui: "\(table) 새 ID를 만들지 못했습니다"))
     }
 
     static func insert(_ db: CipherDatabase, table: String, _ row: [String: CipherDatabase.Value]) throws {
         let keys = row.keys.sorted()
         let sql = "INSERT INTO \(table) (\(keys.map { "\"\($0)\"" }.joined(separator: ", "))) VALUES (\(keys.map { _ in "?" }.joined(separator: ", ")))"
-        guard try db.run(sql, keys.map { row[$0]! }) == 1 else { throw DJCError.writeVerificationFailed("\(table) 행을 넣지 못했습니다") }
+        guard try db.run(sql, keys.map { row[$0]! }) == 1 else { throw DJCError.writeVerificationFailed(String(ui: "\(table) 행을 넣지 못했습니다")) }
     }
 
     /// 넣은 행을 다시 읽어 칸마다(형식까지) 비교한다.
@@ -617,7 +617,7 @@ public enum RekordboxTrackWriter {
                 }
             }
         }
-        guard ok else { throw DJCError.writeVerificationFailed("\(table) \(id) 행이 넣은 값과 다릅니다") }
+        guard ok else { throw DJCError.writeVerificationFailed(String(ui: "\(table) \(id) 행이 넣은 값과 다릅니다")) }
     }
 
     /// 백업 폴더의 곡 추가·삭제 보고서

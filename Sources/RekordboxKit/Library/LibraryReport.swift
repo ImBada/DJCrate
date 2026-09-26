@@ -84,25 +84,25 @@ public struct LibraryReport: Sendable {
             dict.sorted { $0.value > $1.value }.map { "\(key($0.key)) \($0.value)" }.joined(separator: " · ")
         }
         var lines: [String] = []
-        lines.append("## 컬렉션")
-        lines.append("전체 행 \(totalRows) = 실제 컬렉션 \(liveTracks) + 삭제 행 \(deletedRows)")
-        lines.append("포맷: " + sorted(extensions) { $0 })
-        if let missingFiles { lines.append("접근 불가 파일: \(missingFiles) (스트리밍 \(streamingTracks) 제외)") }
+        lines.append(String(ui: "## 컬렉션"))
+        lines.append(String(ui: "전체 행 \(totalRows) = 실제 컬렉션 \(liveTracks) + 삭제 행 \(deletedRows)"))
+        lines.append(String(ui: "포맷: ") + sorted(extensions) { $0 })
+        if let missingFiles { lines.append(String(ui: "접근 불가 파일: \(missingFiles) (스트리밍 \(streamingTracks) 제외)")) }
         lines.append("")
-        lines.append("## 코멘트")
+        lines.append(String(ui: "## 코멘트"))
         if hasCommentRule {
-            lines.append("분류: " + sorted(commentClasses) { $0 })
-            lines.append("접두어: " + sorted(prefixes) { $0 })
-            lines.append("용도: " + sorted(usages) { $0 })
+            lines.append(String(ui: "분류: ") + sorted(commentClasses) { $0 })
+            lines.append(String(ui: "접두어: ") + sorted(prefixes) { $0 })
+            lines.append(String(ui: "용도: ") + sorted(usages) { $0 })
         }
-        lines.append("빈 코멘트 임포트 연도: " + emptyByImportYear.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: " · "))
+        lines.append(String(ui: "빈 코멘트 임포트 연도: ") + emptyByImportYear.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: " · "))
         lines.append("")
-        lines.append("## 큐")
-        lines.append("큐 있음 \(tracksWithCues) (수동 \(tracksWithManualCues) · 자동만 \(tracksWithOnlyAutoCues)) · 큐 없음 \(tracksWithoutCues)")
-        lines.append("수동 핫큐 슬롯: " + hotCueSlots.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: " · "))
+        lines.append(String(ui: "## 큐"))
+        lines.append(String(ui: "큐 있음 \(tracksWithCues) (수동 \(tracksWithManualCues) · 자동만 \(tracksWithOnlyAutoCues)) · 큐 없음 \(tracksWithoutCues)"))
+        lines.append(String(ui: "수동 핫큐 슬롯: ") + hotCueSlots.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: " · "))
         lines.append("")
-        lines.append("## 재생")
-        lines.append("재생 기록 있는 곡 \(playedTracks) · 그중 빈 코멘트 \(emptyCommentPlayed)")
+        lines.append(String(ui: "## 재생"))
+        lines.append(String(ui: "재생 기록 있는 곡 \(playedTracks) · 그중 빈 코멘트 \(emptyCommentPlayed)"))
         return lines.joined(separator: "\n")
     }
 }
