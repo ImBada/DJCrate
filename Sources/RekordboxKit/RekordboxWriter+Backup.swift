@@ -15,7 +15,12 @@ extension RekordboxWriter {
         /// 곡 추가·삭제 보고서
         public var trackReport: RekordboxTrackWriter.Report?
 
-        public var titles: [String] { (report.map { $0.written + $0.analysisWritten }?.map(\.title) ?? []) + (trackReport?.titles ?? []) }
+        public var titles: [String] {
+            // 한 곡에 큐·태그를 함께 썼으면 한 번만
+            var seen: Set<String> = []
+            let written = report.map { $0.written + $0.analysisWritten + $0.tagWritten } ?? []
+            return written.filter { seen.insert($0.trackUUID).inserted }.map(\.title) + (trackReport?.titles ?? [])
+        }
         /// 쓴 직후 rekordbox 변경 카운터(옛 백업에는 없다)
         public var finalUpdateCount: Int? { report?.finalUpdateCount ?? trackReport?.finalUpdateCount }
 

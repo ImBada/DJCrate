@@ -29,6 +29,8 @@ public enum RekordboxWriter {
         public var reason: String?
         public var removed: Int
         public var added: Int
+        /// 태그 쓰기에서 바꾼 칸(`TagFields.Key` 이름). 다른 쓰기와 옛 보고서에는 없다.
+        public var fields: [String]? = nil
     }
 
     public struct Report: Codable, Sendable {
@@ -49,6 +51,8 @@ public enum RekordboxWriter {
         public var createdFiles: [String]?
         /// 분석을 붙이며 음원 내장 그림으로 아트워크도 넣은(시험 실행이면 넣을) 곡 UUID. 옛 보고서에는 없다.
         public var artworkAdded: [String]?
+        /// 태그(곡 정보) 쓰기 결과(added = 바꾼 칸 수). 옛 보고서에는 없다.
+        public var tagOutcomes: [Outcome]?
 
         public var written: [Outcome] { outcomes.filter { $0.status == .written } }
         public var blocked: [Outcome] { outcomes.filter { $0.status == .blocked } }
@@ -58,6 +62,8 @@ public enum RekordboxWriter {
         public var gainBlocked: [Outcome] { (gainOutcomes ?? []).filter { $0.status == .blocked } }
         public var analysisWritten: [Outcome] { (analysisOutcomes ?? []).filter { $0.status == .written } }
         public var analysisBlocked: [Outcome] { (analysisOutcomes ?? []).filter { $0.status == .blocked } }
+        public var tagWritten: [Outcome] { (tagOutcomes ?? []).filter { $0.status == .written } }
+        public var tagBlocked: [Outcome] { (tagOutcomes ?? []).filter { $0.status == .blocked } }
     }
 
     public static var liveDatabase: URL { LibrarySnapshot.rekordboxDirectory.appending(path: "master.db") }
@@ -78,28 +84,33 @@ public enum RekordboxWriter {
     ///   - grids: 그리드 초안. 분석 파일(`shareRoot` 아래)을 고친다.
     ///   - shareRoot: 분석 파일 뿌리. 라이브 DB면 rekordbox share 폴더, 사본 DB면 명시해야 그리드를 쓴다(실제 파일을 건드리지 않게).
     ///   - writeGuard: 라이브 DB 판단과 실행·버전 확인(시험에서 바꾼다). DB 구조는 사본이어도 늘 확인한다.
+    ///   - tags: 태그 초안. rekordbox 곡 정보(`djmdContent` 등)만 고치고 음원 파일 태그는 그대로 둔다(`writableTagKeys` 칸만).
     ///   - analysisInputs: 분석 전 곡(분석 파일 없음)의 음원 길이·음량·내장 그림(곡 UUID별). 그 곡의 그리드 초안으로 분석 파일을 만들어 붙이고,
     ///     그림이 있으면 아트워크도 넣는다(`RekordboxTrackWriter.writesArtwork`).
-    public static func write(drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:],
+    public static func write(drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:], tags: [TagDraft] = [],
                              analysisInputs: [String: AnalysisInput] = [:],
                              to database: URL = liveDatabase, dryRun: Bool,
                              now: Date = .now, backups: URL, shareRoot: URL? = nil,
                              guard writeGuard: RekordboxWriteGuard = .system) throws -> Report {
-        try write(drafts: drafts, grids: grids, gains: gains, analysisInputs: analysisInputs, to: database, dryRun: dryRun, now: now,
-                  backups: backups, shareRoot: shareRoot, guard: writeGuard, attachesAnalysis: attachesAnalysis,
+        try write(drafts: drafts, grids: grids, gains: gains, tags: tags, analysisInputs: analysisInputs, to: database, dryRun: dryRun,
+                  now: now, backups: backups, shareRoot: shareRoot, guard: writeGuard, attachesAnalysis: attachesAnalysis,
                   writesArtwork: RekordboxTrackWriter.writesArtwork)
     }
 
     /// - Parameters:
     ///   - attachesAnalysis: 분석 붙이기를 여는지. 앱은 `attachesAnalysis`를 따르고, 시험과 사본 실험(`djc lab analysis-attach-test`)만 바꾼다.
     ///   - writesArtwork: 분석을 붙이는 곡에 아트워크도 넣는지. 앱은 `RekordboxTrackWriter.writesArtwork`를 따르고, 시험만 바꾼다.
-    package static func write(drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], analysisInputs: [String: AnalysisInput],
+    ///   - tagKeys: 태그 쓰기를 연 칸. 앱은 `writableTagKeys`를 따르고, 시험과 사본 실험(`djc lab tag-write-test`)만 바꾼다.
+    package static func write(drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], tags: [TagDraft] = [],
+                              analysisInputs: [String: AnalysisInput],
                               to database: URL, dryRun: Bool, now: Date, backups: URL, shareRoot: URL?,
                               guard writeGuard: RekordboxWriteGuard = .system, attachesAnalysis: Bool,
-                              writesArtwork: Bool = RekordboxTrackWriter.writesArtwork) throws -> Report {
+                              writesArtwork: Bool = RekordboxTrackWriter.writesArtwork,
+                              tagKeys: Set<TagFields.Key> = writableTagKeys) throws -> Report {
         let stamp = CueJSON.timestamps(now)
         let grids = grids.filter(\.hasChanges)
-        guard drafts.contains(where: \.hasChanges) || !grids.isEmpty || !gains.isEmpty else {
+        var tags = tags.filter(\.hasChanges)
+        guard drafts.contains(where: \.hasChanges) || !grids.isEmpty || !gains.isEmpty || !tags.isEmpty else {
             // 쓸 것이 없으면 DB를 열지도, 백업을 만들지도 않는다.
             return Report(outcomes: drafts.map { Outcome(trackUUID: $0.trackUUID, title: $0.trackUUID, status: .unchanged,
                                                           reason: nil, removed: 0, added: 0) },
@@ -115,6 +126,22 @@ public enum RekordboxWriter {
             // 백업(약 150MB)을 뜨기 전에 막힐 조건을 먼저 본다.
             let counters = try RekordboxCompatibility.updateCounters(reader)
             if let local = counters.local { try RekordboxCompatibility.checkCounters(local: local, cloud: counters.cloud) }
+        }
+        // 태그: 막힐 초안(닫힌 칸·잘못된 값·곡 없음·base 불일치)은 백업 전에 거른다. 트랜잭션 안에서 한 번 더 본다.
+        var tagOutcomes: [Outcome] = []
+        if !tags.isEmpty {
+            let reader = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
+            defer { reader.close() }
+            tags = try tags.filter { draft in
+                do {
+                    _ = try checkTags(draft, db: reader, writable: tagKeys)
+                    return true
+                } catch let blocked as Blocked {
+                    tagOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: blocked.title, status: .blocked, reason: blocked.reason,
+                                               removed: 0, added: 0))
+                    return false
+                }
+            }
         }
         // 그리드 계획(파일을 읽기만 한다)
         var gridPlans: [RekordboxGridWriter.Plan] = []
@@ -177,6 +204,7 @@ public enum RekordboxWriter {
         var outcomes: [Outcome] = []
         var gainOutcomes: [Outcome] = []
         var written: [(contentID: String, expectation: Expectation)] = []
+        var tagged: [TagExpectation] = []
         var attached: [AttachPlan] = []
         var finalUpdateCount: Int?
         var committed = false
@@ -242,6 +270,24 @@ public enum RekordboxWriter {
                     written[i].expectation.contentUSN = usn
                 }
             }
+            // 태그는 마지막: 곡 행을 한 번 더 고쳐 가장 큰 변경 번호를 받는다(큐·그리드·분석을 쓴 곡이면 그 뒤 편집처럼).
+            for draft in tags {
+                try db.execute("SAVEPOINT djc_tags")
+                do {
+                    let result = try applyTags(draft, db: db, usn: &usn, stamp: stamp, writable: tagKeys)
+                    tagOutcomes.append(result.outcome)
+                    tagged.append(result.expectation)
+                    for i in written.indices where written[i].contentID == result.expectation.contentID {
+                        written[i].expectation.contentUSN = usn
+                    }
+                    try db.execute("RELEASE djc_tags")
+                } catch let blocked as Blocked {
+                    try db.execute("ROLLBACK TO djc_tags")
+                    try db.execute("RELEASE djc_tags")
+                    tagOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: blocked.title, status: .blocked, reason: blocked.reason,
+                                               removed: 0, added: 0))
+                }
+            }
             if usn != startUSN {
                 let changed = try db.run("UPDATE agentRegistry SET int_1 = ? WHERE registry_id = 'localUpdateCount'", [.int(usn)])
                 guard changed == 1 else { throw DJCError.writeVerificationFailed("변경 카운터를 올리지 못했습니다") }
@@ -250,7 +296,7 @@ public enum RekordboxWriter {
             finalUpdateCount = usn
 
             let databaseChanged = !written.isEmpty || gridPlans.contains { $0.newBPM100 != nil }
-                || gainOutcomes.contains { $0.status == .written } || !attached.isEmpty
+                || gainOutcomes.contains { $0.status == .written } || !attached.isEmpty || !tagged.isEmpty
             if dryRun || !databaseChanged {
                 try db.execute("ROLLBACK")
             } else {
@@ -266,13 +312,16 @@ public enum RekordboxWriter {
         }
 
         // 백업은 시험 실행이 아닐 때만 있다(= 커밋했을 수 있다).
-        if let backup, !written.isEmpty || !attached.isEmpty {
+        if let backup, !written.isEmpty || !attached.isEmpty || !tagged.isEmpty {
             do {
                 try checkIntegrity(of: database)
                 let db = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
                 defer { db.close() }
                 for item in written { try verify(db: db, contentID: item.contentID, item.expectation) }
-                for plan in attached { try verifyAttach(plan, db: db) }
+                // 분석을 붙인 뒤 태그도 쓴 곡은 곡 정보 변경 횟수를 태그 쪽에서 본다.
+                let taggedIDs = Set(tagged.map(\.contentID))
+                for plan in attached { try verifyAttach(plan, db: db, skipsTrackInfo: taggedIDs.contains(plan.contentID)) }
+                for expectation in tagged { try verifyTags(db: db, expectation) }
             } catch {
                 throw recover(from: error, database: database, backup: backup, live: live)
             }
@@ -301,6 +350,7 @@ public enum RekordboxWriter {
         report.createdFiles = created.isEmpty ? nil : created.map(\.path)
         let artworkAdded = attached.filter { $0.artwork != nil }.map(\.trackUUID)
         report.artworkAdded = artworkAdded.isEmpty ? nil : artworkAdded
+        report.tagOutcomes = tagOutcomes.isEmpty ? nil : tagOutcomes
         if let backup {
             try? save(report, in: backup)
             // 되돌리면 DJCrate 초안도 살릴 수 있게 쓴 초안을 백업 옆에 둔다.
@@ -322,6 +372,15 @@ public enum RekordboxWriter {
                 try? FileManager.default.createDirectory(at: gridFolder, withIntermediateDirectories: true)
                 for draft in grids where gridWritten.contains(draft.trackUUID) {
                     try? JSONEncoder().encode(draft).write(to: gridFolder.appending(path: "\(draft.trackUUID).json"), options: .atomic)
+                }
+            }
+            // 태그 초안도 둔다(되돌리면 DJCrate에 다시 살린다).
+            let tagWritten = Set(report.tagWritten.map(\.trackUUID))
+            if !tagWritten.isEmpty {
+                let tagFolder = backup.appending(path: "tag-drafts")
+                try? FileManager.default.createDirectory(at: tagFolder, withIntermediateDirectories: true)
+                for draft in tags where tagWritten.contains(draft.trackUUID) {
+                    try? JSONEncoder().encode(draft).write(to: tagFolder.appending(path: "\(draft.trackUUID).json"), options: .atomic)
                 }
             }
             prune(backups)

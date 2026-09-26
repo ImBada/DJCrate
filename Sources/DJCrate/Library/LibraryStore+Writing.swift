@@ -4,7 +4,7 @@ import DJCDomain
 import DJCStorage
 import Foundation
 
-/// 큐·그리드·게인 초안을 rekordbox DB에 직접 쓴다. rekordbox가 꺼져 있을 때만 쓴다.
+/// 큐·그리드·게인·태그 초안을 rekordbox DB에 직접 쓴다. rekordbox가 꺼져 있을 때만 쓴다(태그는 음원 파일이 아니라 rekordbox 곡 정보만).
 /// 흐름: 새 스냅샷 사본으로 미리 보기 → 사용자 확인 → 쓰기(백업·검증은 `RekordboxWriter`) → 새 스냅샷으로 다시 읽기.
 /// 분석 전 곡(분석 파일 없음)의 그리드 초안은 분석 파일(파형·그리드·오토게인)을 만들어 붙인다(`RekordboxWriter.attachesAnalysis`가 열렸을 때).
 extension LibraryStore {
@@ -13,6 +13,7 @@ extension LibraryStore {
         var drafts: [CueDraft]
         var grids: [GridDraft]
         var gains: [String: Double]
+        var tags: [TagDraft] = []
     }
 
     /// 대상 곡 중 반영 대기 초안이 있는 곡(추가한 곡 제외)
@@ -28,6 +29,7 @@ extension LibraryStore {
         let grids = targets.compactMap { GridDraftStore.load(trackUUID: $0.track.uuid) }.filter(\.hasChanges)
         let allGains = GainDraftStore.all()
         let gains = Dictionary(uniqueKeysWithValues: targets.compactMap { row in allGains[row.track.uuid].map { (row.track.uuid, $0) } })
+        let tags = targets.compactMap { TagDraftStore.load(trackUUID: $0.track.uuid) }.filter(\.hasChanges)
         // 미리 보기는 길이만 잰다(음량은 쓸 때 잰다. 막히는지 보는 데는 필요 없다).
         let inputs = try await analysisInputs(for: grids, measuringLoudness: false)
         writeStage = WriteStage("미리 보기 1/2단계 · 사본을 만드는 중…", completed: 0, total: 2, cancellable: true)
@@ -35,22 +37,23 @@ extension LibraryStore {
             let snapshot = try LibrarySnapshot.take()
             await MainActor.run { self.writeStage = WriteStage("미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…", completed: 1, total: 2, cancellable: true) }
             // 미리 보기: 사본 DB + 실제 분석 파일을 읽기만 한다(dryRun이라 파일을 쓰지 않는다).
-            return try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, analysisInputs: inputs, to: snapshot, dryRun: true,
-                                             backups: DJCPaths.rekordboxBackups, shareRoot: RekordboxShare.directory)
+            return try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, tags: tags, analysisInputs: inputs, to: snapshot,
+                                             dryRun: true, backups: DJCPaths.rekordboxBackups, shareRoot: RekordboxShare.directory)
         }.value
         try Task.checkCancellation()
-        return WritePreview(report: report, drafts: drafts, grids: grids, gains: gains)
+        return WritePreview(report: report, drafts: drafts, grids: grids, gains: gains, tags: tags)
     }
 
-    /// rekordbox master.db에 쓴다. 쓴 곡의 큐 초안은 지우고(백업 폴더에 남는다) 새 스냅샷을 읽는다.
-    func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:]) async throws -> RekordboxWriter.Report {
+    /// rekordbox master.db에 쓴다. 쓴 곡의 초안은 지우고(백업 폴더에 남는다) 새 스냅샷을 읽는다. 태그는 반영한 값이 새 base가 된다.
+    func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:],
+                          tags: [TagDraft] = []) async throws -> RekordboxWriter.Report {
         try Task.checkCancellation()
         defer { writeStage = nil }
         let inputs = try await analysisInputs(for: grids, measuringLoudness: true)
         try Task.checkCancellation()
         writeStage = WriteStage("rekordbox에 쓰는 중…")
         let report = try await Task.detached(priority: .userInitiated) {
-            try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, analysisInputs: inputs, dryRun: false,
+            try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, tags: tags, analysisInputs: inputs, dryRun: false,
                                       backups: DJCPaths.rekordboxBackups)
         }.value
         for outcome in report.gainWritten {
@@ -67,12 +70,19 @@ extension LibraryStore {
             DraftWriter.removeGrid(trackUUID: outcome.trackUUID)
             draftChanged(trackUUID: outcome.trackUUID, kind: .grid, exists: false)
         }
+        let tagWritten = Set(report.tagWritten.map(\.trackUUID))
+        replaceTagDrafts(tags.filter { tagWritten.contains($0.trackUUID) }.map { draft in
+            var cleared = draft
+            cleared.fields = cleared.base
+            return cleared
+        })
         DraftWriter.flush()
         // 화면을 처음부터 다시 불러오지 않고 뒤에서 조용히 다시 읽는다.
         writeStage = WriteStage("반영 확인 중…")
         await takeSnapshot(quiet: true)
         // 그리드만 바뀐 곡은 DB가 그대로라 목록 줄이 같다. 덱이 그 곡을 보고 있으면 초안·그리드만 다시 읽게 한다.
-        onRekordboxWritten?(Set(report.written.map(\.trackUUID)).union(report.gridWritten.map(\.trackUUID)).union(report.gainWritten.map(\.trackUUID)).union(report.analysisWritten.map(\.trackUUID)))
+        onRekordboxWritten?(Set(report.written.map(\.trackUUID)).union(report.gridWritten.map(\.trackUUID)).union(report.gainWritten.map(\.trackUUID))
+            .union(report.analysisWritten.map(\.trackUUID)).union(tagWritten))
         lastWriteBackup = report.backup.map { URL(filePath: $0) }
         return report
     }
@@ -90,14 +100,29 @@ extension LibraryStore {
         let grids = RekordboxWriter.gridDrafts(in: backup.url)
         for grid in grids { DraftWriter.save(grid) }
         for (uuid, gain) in RekordboxWriter.gainDrafts(in: backup.url) { GainDraftStore.save(gain, trackUUID: uuid) }
+        let tags = RekordboxWriter.tagDrafts(in: backup.url)
+        replaceTagDrafts(tags)
         DraftWriter.flush()
         writeStage = WriteStage("되돌린 라이브러리를 읽는 중…")
         await takeSnapshot(quiet: true)
         let gainUUIDs = Set(RekordboxWriter.gainDrafts(in: backup.url).keys)
-        onRekordboxWritten?(Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID)).union(gainUUIDs))
+        onRekordboxWritten?(Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID)).union(gainUUIDs).union(tags.map(\.trackUUID)))
         _ = restoreStaged(from: backup)
         lastWriteBackup = nil
         return saved
+    }
+
+    /// 태그 초안을 통째로 바꾼다(쓴 뒤 비운 초안, 되돌린 뒤 백업의 초안). 변경이 없는 초안은 파일째 지운다.
+    /// 쓰는 동안은 잠겨 있고 되돌리기 목록도 비어 있어 되돌리기 단위로 남기지 않는다.
+    func replaceTagDrafts(_ drafts: [TagDraft]) {
+        guard !drafts.isEmpty else { return }
+        for draft in drafts {
+            tagDrafts[draft.trackUUID] = draft.hasChanges ? draft : nil
+            updateEdited(draft.trackUUID)
+        }
+        saveTagDrafts(drafts)
+        tagRevision += 1
+        if case .pending = sidebar { refreshBase() }
     }
 
     /// 분석 전 곡(분석 파일 없음)의 그리드 초안에 붙일 음원 길이·음량·내장 그림(곡 UUID별). 분석 붙이기가 닫혀 있으면 비운다.

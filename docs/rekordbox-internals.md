@@ -2,7 +2,7 @@
 
 rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 diff해서 뽑은 규칙이다. 각 규칙은 "실험 전 사본에 DJCrate로 같은 편집을 쓰고, rekordbox가 쓴 결과와 칸마다 비교"해서 확인했다. 확인하지 못한 규칙은 코드에서 막아 두었다(아래 "막아 둔 것").
 
-코드: `Sources/RekordboxKit/` — `RekordboxWriter`(DB, 역할별 `+Cues`·`+Grid`·`+Gain`·`+Analysis`·`+Verify`·`+Backup`), `RekordboxGridWriter`(ANLZ), `RekordboxCompatibility`(쓰기 전 버전·구조 확인), `CueJSON`, `AnlzFile`, `SeekInfo`, `CipherDatabase`.
+코드: `Sources/RekordboxKit/` — `RekordboxWriter`(DB, 역할별 `+Cues`·`+Grid`·`+Gain`·`+Analysis`·`+Tags`·`+Verify`·`+Backup`), `RekordboxGridWriter`(ANLZ), `RekordboxCompatibility`(쓰기 전 버전·구조 확인), `CueJSON`, `AnlzFile`, `SeekInfo`, `CipherDatabase`.
 
 ## 파일과 열기
 
@@ -77,6 +77,43 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 - `GainHigh`·`GainLow` = 선형 게인 float32의 상위·하위 16비트. `PeakHigh`·`PeakLow`는 샘플 피크.
 - rekordbox 편집 시 삭제되지 않은 행 하나의 `GainHigh`·`GainLow`·상태·usn·`updated_at`만 바뀐다(같은 곡의 삭제된 옛 행이 따로 있을 수 있음).
 - rekordbox는 약 −10 LUFS에 맞춘다: 게인 dB + 곡 LUFS = −9.97 ± 0.25.
+
+## 태그 (곡 정보)
+
+rekordbox 7.2.18에서 곡 정보를 고친 모양(2026-09-26 묶음 2 실험, O-Ku-Ri-Mo-No Sunday!: 제목·아티스트(새 이름)·장르(새 이름)·코멘트·별점·키를 고쳤다. 같은 세션에 분석·Relocate·재생 목록 편집도 했다):
+- `djmdContent` 행을 제자리에서 UPDATE한다. `Title`·`Commnt`는 글자, 이름 칸은 이름 표의 ID(`ArtistID`·`GenreID`).
+- 새 이름이면 이름 표에 행을 더한다. `djmdArtist`(`SearchStr` NULL)·`djmdGenre` 모두 ID 32비트 난수, UUID 소문자, 상태 칸 0, `usn` NULL, `created_at` = `updated_at`. 옛 이름 행(다른 곡도 쓰는 이름)은 그대로였다.
+- 변경 번호: 새 이름 행이 먼저, 곡 행이 마지막. 편집마다 따로 저장해 곡 행에는 마지막 편집의 번호만 남는다.
+- rekordbox는 음원 파일의 태그도 다시 쓴다(m4a 확인). `FileSize`는 그대로였다.
+- 아티스트를 고칠 때 그 곡의 앨범 행(`djmdAlbum`)이 이름·`AlbumArtistID`는 그대로인 채 변경 번호·`updated_at`만 받았다(아티스트 행 8ms 뒤). 이유는 모른다.
+- `TrackInfoUpdated`는 NULL → '7'(글자)이었는데 편집 여러 번과 분석이 섞여 한 번 고칠 때 얼마나 느는지 가르지 못했다(BPM을 고칠 때는 +1: 2026-09-25 つよがるガール).
+
+라이브러리 조사(2026-09-27, 스냅샷 사본 읽기 전용): 비어 있는 이름 칸은 NULL과 빈 글자(`''`)가 섞여 있고 장르는 `'0'`도 있다. 연도는 `ReleaseYear`(정수, 없으면 0)이고, `ReleaseDate`(`YYYY-MM-DD`)가 든 곡은 앞 네 자가 `ReleaseYear`와 같다. 아무 곡도 쓰지 않는 이름 행은 삭제 표시(`rb_local_deleted` 1)된 것만 있어, rekordbox가 버려진 이름 행을 언젠가 정리하는 것으로 보인다(언제인지 모른다).
+
+**사본 재현**(2026-09-27): 묶음 2 실험 전 사본에 `djc lab tag-write-test`로 같은 편집(제목·아티스트·장르·코멘트)을 쓰고 `djc lab db-diff`로 rekordbox 결과와 비교했다. 제목·코멘트는 값이 같고, 새 아티스트·장르 행은 ID·UUID·변경 번호·시각 말고 모든 칸이 같다. 다른 것은 앨범 행의 변경 번호(rekordbox만 줌)와 `TrackInfoUpdated`(섞인 실험이라 비교할 수 없음)다.
+
+**DJCrate가 쓰는 것**(`RekordboxWriter+Tags`, 반영 ⌘⇧E, #1):
+- rekordbox 라이브러리만 쓰고 음원 파일 태그는 건드리지 않는다(2026-09-26 결정). 확인 창에 음원 파일 태그는 그대로라고 알린다.
+- 곡 행 제자리 UPDATE: 바뀐 칸 + `TrackInfoUpdated`(글자) +1 + 상태 256 → 257 + 변경 번호 + `updated_at`. 이름 칸은 같은 이름(대소문자까지)의 가장 오래된 행을 쓰고, 없으면 곡 넣기와 같은 모양으로 새 행을 만든다. 앨범은 (이름, 앨범 아티스트) 짝으로 찾는다(곡 넣기와 같다). 연도·트랙 번호는 정수(빈칸 0), 비운 이름 칸은 NULL.
+- 변경 번호: 아티스트 → 앨범 아티스트 → 앨범 → 장르 → 작곡가(새 행만) → 곡 행. 같은 쓰기에서 큐·그리드·분석도 쓴 곡은 태그를 마지막에 써서 곡 행이 가장 큰 번호를 받는다.
+- 초안의 base(초안을 만들 때 rekordbox 값)와 지금 곡 정보가 한 칸이라도 다르면 그 곡은 쓰지 않는다. 비었거나 숫자가 아닌 값·음수, 앨범 없는 앨범 아티스트도 막는다.
+- 다시 읽어 검증: 곡 정보(라이브러리 읽기와 같은 조인)·`TrackInfoUpdated`(글자형)·변경 번호. 쓴 곡의 태그 초안은 지운다(반영한 값이 새 base). 되돌리면 백업의 `tag-drafts/`로 초안을 살린다.
+- **쓰기를 연 칸: 아직 없다**(`RekordboxWriter.writableTagKeys`). 증가량과 앨범 행 변경 번호를 가르기 전에는 확인된 칸도 rekordbox와 칸 단위로 같다고 할 수 없어서다. 막힌 곡은 반영 미리 보기에 "rekordbox에 쓰는 규칙을 아직 확인하지 않은 칸(…)"으로 보인다.
+
+| 칸 | 곡 행 칸 | rekordbox 실험 | 사본 재현 | 쓰기 |
+|---|---|---|---|---|
+| 제목 | `Title` | 확인(묶음 2) | 같음 | 막음 |
+| 아티스트 | `ArtistID` → `djmdArtist` | 새 이름 행 확인(묶음 2), 기존 이름·비우기 미확인 | 새 행 칸 같음, 앨범 행 번호 다름 | 막음 |
+| 앨범 | `AlbumID` → `djmdAlbum` | 미확인 | — | 막음 |
+| 앨범 아티스트 | `djmdAlbum.AlbumArtistID` | 미확인(rekordbox 화면에서 고칠 수 있는지도) | — | 막음 |
+| 장르 | `GenreID` → `djmdGenre` | 새 이름 행 확인(묶음 2), 비우기 미확인 | 새 행 칸 같음 | 막음 |
+| 작곡가 | `ComposerID` → `djmdArtist` | 미확인 | — | 막음 |
+| 연도 | `ReleaseYear`(정수) | 미확인(`ReleaseDate`도 바뀌는지) | — | 막음 |
+| 트랙 번호 | `TrackNo`(정수) | 미확인 | — | 막음 |
+| 코멘트 | `Commnt` | 확인(묶음 2), 비우기 미확인 | 같음 | 막음 |
+| 공통 | `TrackInfoUpdated`·상태·`rb_local_usn`·`updated_at`·`localUpdateCount` | 증가량 미확인, 나머지 확인 | 번호 순서 같음 | — |
+
+**필요한 rekordbox 실험**: 합성 곡 "DJC 실험곡 1~5"로 정보 창에서 한 칸씩 고친다(두 세션: 값 넣기 → 비우기, 전후 스냅샷). 한 번 고칠 때 `TrackInfoUpdated` 증가량, 한 번에 여러 칸을 저장할 때, 앨범·앨범 아티스트(같은 앨범을 쓰는 다른 곡이 있을 때 앨범 행을 고치는지 새로 만드는지), 작곡가·연도·트랙 번호, 이미 있는 이름, 칸 비우기(NULL·`''`·0), 버려진 이름 행 처리, 앨범 행 변경 번호. 결과를 사본에 `djc lab tag-write-test`로 재현해 칸 단위로 맞춘 뒤 골든 테스트(`RekordboxTagWriterTests`)를 고치고 `writableTagKeys`를 연다.
 
 ## 시간축
 
@@ -190,7 +227,7 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 
 `RekordboxWriter.attachesAnalysis`로 경로 전체를 닫을 수 있다(규칙이 어긋나는 것이 드러나면 닫는다).
 
-**rekordbox가 음원 파일도 고친다**: 태그를 고치면 파일 태그를 다시 쓰고(m4a 확인), 분석하면 키 태그(TKEY 등)를 써 넣는다(파일 크기가 커짐). 자동 분석을 켜면 라이브러리의 분석 안 된 곡까지 한꺼번에 분석한다.
+**rekordbox가 음원 파일도 고친다**: 태그를 고치면 파일 태그를 다시 쓰고(m4a 확인), 분석하면 키 태그(TKEY 등)를 써 넣는다(파일 크기가 커짐). 자동 분석을 켜면 라이브러리의 분석 안 된 곡까지 한꺼번에 분석한다. DJCrate는 태그를 쓸 때도 음원 파일은 건드리지 않는다(위 "태그 (곡 정보)").
 
 ## ALAC 분석 파일 조사 (#8, 2026-09-26)
 
@@ -213,6 +250,7 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 - **분석을 붙인 곡 추가 중 ALAC·LAME이 아닌 VBR MP3**: 분석 파일 규칙(ALAC)·비트레이트 칸 규칙(비LAME VBR)을 못 찾았다. 분석 전 추가만 한다. 분석 붙이기도 같다.
 - **반쪽 분석 곡(.DAT만 있고 .EXT 없음)의 그리드·분석 붙이기**: rekordbox가 다시 분석한 모양은 한 곡 보았지만(위 "분석 붙이기") 사본 재현으로 확인하지 않았다.
 - **카운터가 이미 있는 분석 전 곡에 분석 붙이기**: `AnalysisUpdated`·`TrackInfoUpdated`가 NULL인 곡만 확인했다.
+- **태그 쓰기의 모든 칸**: 한 번 고칠 때 `TrackInfoUpdated` 증가량과 아티스트를 고칠 때 앨범 행이 변경 번호를 받는 이유를 가르지 못했다(위 "태그 (곡 정보)"의 표). 쓰기 경로는 있지만 `writableTagKeys`가 비어 있다.
 
 ## 새 쓰기 경로를 여는 방법
 

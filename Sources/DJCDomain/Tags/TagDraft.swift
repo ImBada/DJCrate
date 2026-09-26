@@ -1,6 +1,6 @@
 import Foundation
 
-/// 태그 편집기에서 다루는 곡 정보. 파일 태그로 쓰고 rekordbox는 Reload Tag로 읽게 한다.
+/// 태그 편집기에서 다루는 곡 정보. 반영하면 rekordbox 라이브러리에 쓴다(음원 파일 태그는 그대로 둔다).
 public struct TagFields: Codable, Hashable, Sendable {
     public enum Key: String, CaseIterable, Codable, Sendable, Identifiable {
         case title, artist, album, albumArtist, genre, composer, year, trackNumber, comment
@@ -83,8 +83,13 @@ public struct TagDraft: Codable, Equatable, Sendable {
     public var fields: TagFields
 
     public init(track: Track) {
-        trackUUID = track.uuid
-        base = TagFields(track: track)
+        self.init(trackUUID: track.uuid, base: TagFields(track: track))
+    }
+
+    /// base(초안을 만들 때의 rekordbox 값)에서 시작한다.
+    public init(trackUUID: String, base: TagFields) {
+        self.trackUUID = trackUUID
+        self.base = base
         fields = base
     }
 

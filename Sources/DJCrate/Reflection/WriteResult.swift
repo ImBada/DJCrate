@@ -19,7 +19,8 @@ struct WriteResult: Codable, Equatable {
         let groups = [("큐", report.outcomes, preview.outcomes),
                       ("그리드", report.gridOutcomes ?? [], preview.gridOutcomes ?? []),
                       ("분석", report.analysisOutcomes ?? [], preview.analysisOutcomes ?? []),
-                      ("게인", report.gainOutcomes ?? [], preview.gainOutcomes ?? [])]
+                      ("게인", report.gainOutcomes ?? [], preview.gainOutcomes ?? []),
+                      (String(localized: "태그"), report.tagOutcomes ?? [], preview.tagOutcomes ?? [])]
         var lines: [String] = [], summaries: [String] = [], count = 0, blocked = false
         for (label, actual, predicted) in groups {
             let written = actual.filter { $0.status == .written }.count
@@ -79,7 +80,7 @@ struct WriteResult: Codable, Equatable {
     static func restored(_ backup: RekordboxWriter.Backup, saved: URL) -> Self {
         let titles = Set((backup.report?.written ?? []).map(\.title)
             + (backup.report?.gridWritten ?? []).map(\.title) + (backup.report?.gainWritten ?? []).map(\.title)
-            + (backup.report?.analysisWritten ?? []).map(\.title)
+            + (backup.report?.analysisWritten ?? []).map(\.title) + (backup.report?.tagWritten ?? []).map(\.title)
             + (backup.trackReport?.titles ?? []))
         var lines = ["rekordbox 라이브러리 전체를 선택한 백업의 쓰기 전 상태로 되돌렸습니다.",
                      "그때 쓴 초안과 추가 목록도 복원했습니다. 되돌리기 직전 상태는 아래 두 번째 백업에 남아 있습니다."]

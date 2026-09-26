@@ -90,7 +90,7 @@ protocol ReflectionHost: AnyObject {
     func setWriteLock(_ locked: Bool)
     func writeTargets(_ rows: [TrackRow]) -> [TrackRow]
     func previewWrite(rows: [TrackRow]) async throws -> LibraryStore.WritePreview
-    func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft], gains: [String: Double]) async throws -> RekordboxWriter.Report
+    func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], tags: [TagDraft]) async throws -> RekordboxWriter.Report
     func libraryChangedSince(_ backup: RekordboxWriter.Backup) async -> Bool?
     func restoreRekordbox(_ backup: RekordboxWriter.Backup) async throws -> URL
     // 곡 넣기·빼기
@@ -120,7 +120,7 @@ struct ReflectionCoordinator {
         }
         let targets = host.writeTargets(rows)
         guard !targets.isEmpty else {
-            inform("반영할 초안이 없습니다", "고른 곡에 rekordbox와 다른 큐·그리드 초안이 없습니다.")
+            inform("반영할 초안이 없습니다", String(localized: "고른 곡에 rekordbox와 다른 큐·그리드·게인·태그 초안이 없습니다."))
             return
         }
         host.setWriteLock(true)
@@ -132,7 +132,8 @@ struct ReflectionCoordinator {
             try Task.checkCancellation()
             host.writeStage = nil
             let report = preview.report
-            guard !report.written.isEmpty || !report.gridWritten.isEmpty || !report.analysisWritten.isEmpty || !report.gainWritten.isEmpty else {
+            guard !report.written.isEmpty || !report.gridWritten.isEmpty || !report.analysisWritten.isEmpty || !report.gainWritten.isEmpty
+                    || !report.tagWritten.isEmpty else {
                 publish(.written(report, preview: report))
                 inform("rekordbox에 쓸 수 있는 초안이 없습니다", "", details: Self.reasons(report))
                 return
@@ -140,11 +141,12 @@ struct ReflectionCoordinator {
             guard prompter.show(Self.confirmation(report)) else { return }
             // 분석을 붙이는 곡도 그리드 초안으로 쓴다.
             let cues = Set(report.written.map(\.trackUUID)), grids = Set((report.gridWritten + report.analysisWritten).map(\.trackUUID))
-            let gains = Set(report.gainWritten.map(\.trackUUID))
+            let gains = Set(report.gainWritten.map(\.trackUUID)), tags = Set(report.tagWritten.map(\.trackUUID))
             try Task.checkCancellation()
             let written = try await host.writeToRekordbox(preview.drafts.filter { cues.contains($0.trackUUID) },
                                                 grids: preview.grids.filter { grids.contains($0.trackUUID) },
-                                                gains: preview.gains.filter { gains.contains($0.key) })
+                                                gains: preview.gains.filter { gains.contains($0.key) },
+                                                tags: preview.tags.filter { tags.contains($0.trackUUID) })
             publish(.written(written, preview: report), undo: written.backup)
         } catch is CancellationError {
             host.writeStage = nil
@@ -306,17 +308,23 @@ struct ReflectionCoordinator {
     }
 
     static func reasons(_ report: RekordboxWriter.Report) -> [String] {
-        (report.blocked + report.gridBlocked + report.analysisBlocked + report.gainBlocked).map { "• \($0.title): \($0.reason ?? "")" }
+        (report.blocked + report.gridBlocked + report.analysisBlocked + report.gainBlocked + report.tagBlocked).map { "• \($0.title): \($0.reason ?? "")" }
     }
 
     /// 쓰기 전 확인 창: 종류별 곡 수, 곡마다 바뀌는 것, 쓰지 않는 것과 이유
     static func confirmation(_ report: RekordboxWriter.Report) -> ReflectionPrompt {
         let cues = report.written, grids = report.gridWritten, analyses = report.analysisWritten, gains = report.gainWritten
+        let tags = report.tagWritten
         var kinds: [String] = []
         if !cues.isEmpty { kinds.append("큐 \(cues.count)곡") }
         if !grids.isEmpty { kinds.append("그리드 \(grids.count)곡") }
         if !analyses.isEmpty { kinds.append("분석 \(analyses.count)곡") }
         if !gains.isEmpty { kinds.append("게인 \(gains.count)곡") }
+        if !tags.isEmpty { kinds.append(String(localized: "태그 \(tags.count)곡")) }
+        // 태그는 바꾼 칸 이름으로(제목·아티스트…)
+        let tagFields = Dictionary(tags.map { tag in
+            (tag.trackUUID, (tag.fields ?? []).compactMap { TagFields.Key(rawValue: $0)?.label }.joined(separator: "·"))
+        }, uniquingKeysWith: { a, _ in a })
         let gridBlocked = Set((report.gridBlocked + report.analysisBlocked).map(\.trackUUID)), gridWritten = Set(grids.map(\.trackUUID))
         let analysisWritten = Set(analyses.map(\.trackUUID))
         // 분석을 붙이며 음원 그림으로 아트워크도 넣는 곡(rekordbox도 분석할 때 뽑는다, #87)
@@ -329,6 +337,7 @@ struct ReflectionCoordinator {
             if gridWritten.contains(outcome.trackUUID) { line += " · 그리드" }
             if analysisWritten.contains(outcome.trackUUID) { line += " · 분석 파일 붙이기" + (artwork.contains(outcome.trackUUID) ? " · 아트워크" : "") }
             if gridBlocked.contains(outcome.trackUUID) { line += " · ⚠︎ 그리드는 안 들어감" }
+            if let fields = tagFields[outcome.trackUUID] { line += String(localized: " · 태그(\(fields))") }
             return line
         }
         let cueUUIDs = Set(cues.map(\.trackUUID))
@@ -337,11 +346,18 @@ struct ReflectionCoordinator {
             body.append("• \(analysis.title) — 분석 파일 붙이기(파형·그리드 박 \(analysis.added)개·오토게인\(artwork.contains(analysis.trackUUID) ? "·아트워크" : ""))")
         }
         for gain in gains { body.append(String(format: "• %@ — 오토게인 %+.1f dB", gain.title, Double(gain.added) / 100)) }
+        for tag in tags where !cueUUIDs.contains(tag.trackUUID) {
+            body.append(String(localized: "• \(tag.title) — 태그(\(tagFields[tag.trackUUID] ?? ""))"))
+        }
         let reasons = reasons(report)
         if !reasons.isEmpty { body += ["", "쓰지 않는 것 \(reasons.count):"] + reasons }
         if !analyses.isEmpty {
             let made = analyses.contains { artwork.contains($0.trackUUID) } ? "파형·그리드·오토게인과 음원의 아트워크를" : "파형·그리드·오토게인만"
             body += ["", "\(made) 붙입니다. 키·프레이즈·보컬 분석은 없습니다."]
+        }
+        if !tags.isEmpty {
+            // 결정(#1, 2026-09-26): rekordbox 라이브러리만 쓰고 음원은 읽기만 한다.
+            body += ["", String(localized: "태그는 rekordbox 라이브러리에만 씁니다. 음원 파일의 태그는 그대로라 다른 앱이나 rekordbox '태그 다시 읽기'에서는 예전 값이 보일 수 있습니다.")]
         }
         return ReflectionPrompt(title: kinds.joined(separator: " · ") + "을 rekordbox에 쓸까요?",
                                 text: "백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요.",
@@ -405,7 +421,7 @@ struct ReflectionCoordinator {
                          + (added > 0 ? "넣었던 \(added)곡은 컬렉션에서 빠지고 DJCrate 추가 목록으로 돌아옵니다(분석·아트워크 파일도 삭제). " : "")
                          + (deleted > 0 ? "뺐던 \(deleted)곡은 큐·재생 목록·분석 파일·아트워크와 함께 복원됩니다. " : ""))
         } else {
-            lines.append("라이브러리 전체를 이 백업으로 되돌립니다. 큐 초안도 DJCrate에 복원됩니다.")
+            lines.append(String(localized: "라이브러리 전체를 이 백업으로 되돌립니다. 그때 쓴 초안(큐·그리드·게인·태그)도 DJCrate에 복원됩니다."))
         }
         switch changed {
         case true?: lines.append("⚠︎ 이 백업 뒤에 rekordbox에서도 라이브러리가 바뀌었습니다(큐·재생 목록·곡 추가 등). 되돌리면 그 변경도 함께 사라집니다.")

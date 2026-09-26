@@ -161,8 +161,11 @@ extension RekordboxWriter {
     }
 
     /// 커밋 뒤 다시 읽기. 같은 쓰기의 큐·게인 초안이 곡 행 변경 번호·오토게인 칸을 다시 바꾸므로 그 칸은 빼고 본다.
-    static func verifyAttach(_ plan: AttachPlan, db: CipherDatabase) throws {
-        try RekordboxTrackWriter.verify(db, table: "djmdContent", id: plan.contentID, attachedColumns(plan))
+    /// - Parameter skipsTrackInfo: 같은 쓰기에서 태그도 써서 `TrackInfoUpdated`가 더 늘어난 곡(그 칸은 태그 검증이 본다)
+    static func verifyAttach(_ plan: AttachPlan, db: CipherDatabase, skipsTrackInfo: Bool = false) throws {
+        var columns = attachedColumns(plan)
+        if skipsTrackInfo { columns["TrackInfoUpdated"] = nil }
+        try RekordboxTrackWriter.verify(db, table: "djmdContent", id: plan.contentID, columns)
         for row in plan.inserted {
             let values = row.table == "djmdMixerParam"
                 ? row.values.filter { !["GainHigh", "GainLow", "rb_data_status", "rb_local_usn", "updated_at"].contains($0.key) }
