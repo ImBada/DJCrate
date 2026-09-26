@@ -1,4 +1,7 @@
-import AnicueCore
+import RekordboxKit
+import AnicueAnalysis
+import AnicueDomain
+import AnicueStorage
 import SwiftUI
 
 /// Mp3tag처럼 여러 곡을 한꺼번에 편집하는 인스펙터. 초안에만 저장되고 파일에는 쓰지 않는다.

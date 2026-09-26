@@ -1,4 +1,7 @@
-import AnicueCore
+import RekordboxKit
+import AnicueAnalysis
+import AnicueDomain
+import AnicueStorage
 import AppKit
 import SwiftUI
 
@@ -553,7 +556,7 @@ enum DirectWritePanels {
     }
 
     static func restoreLatest(store: LibraryStore) {
-        guard let backup = RekordboxWriter.backups().first(where: \.isWrite) else {
+        guard let backup = RekordboxWriter.backups(in: AnicuePaths.rekordboxBackups).first(where: \.isWrite) else {
             alert("되돌릴 쓰기 기록이 없습니다", "anicue가 rekordbox에 쓴 적이 없거나 백업이 정리됐습니다.")
             return
         }
@@ -561,7 +564,7 @@ enum DirectWritePanels {
     }
 
     static func restore(store: LibraryStore, backupURL: URL) {
-        guard let backup = RekordboxWriter.backups().first(where: { $0.url.path == backupURL.path }) else {
+        guard let backup = RekordboxWriter.backups(in: AnicuePaths.rekordboxBackups).first(where: { $0.url.path == backupURL.path }) else {
             alert("백업을 찾지 못했습니다", backupURL.path)
             return
         }

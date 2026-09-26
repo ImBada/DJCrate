@@ -1,4 +1,7 @@
-import AnicueCore
+import RekordboxKit
+import AnicueAnalysis
+import AnicueDomain
+import AnicueStorage
 import Foundation
 
 /// 큐 초안을 rekordbox DB에 직접 쓴다. rekordbox가 꺼져 있을 때만 쓴다.
@@ -29,7 +32,7 @@ extension LibraryStore {
             let snapshot = try LibrarySnapshot.take()
             // 미리 보기: 사본 DB + 실제 분석 파일을 읽기만 한다(dryRun이라 파일을 쓰지 않는다).
             return try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, to: snapshot, dryRun: true,
-                                             shareRoot: RekordboxShare.directory)
+                                             backups: AnicuePaths.rekordboxBackups, shareRoot: RekordboxShare.directory)
         }.value
         return WritePreview(report: report, drafts: drafts, grids: grids, gains: gains)
     }
@@ -39,7 +42,7 @@ extension LibraryStore {
         writeStage = "rekordbox에 쓰는 중…"
         defer { writeStage = nil }
         let report = try await Task.detached(priority: .userInitiated) {
-            try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, dryRun: false)
+            try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, dryRun: false, backups: AnicuePaths.rekordboxBackups)
         }.value
         for outcome in report.gainWritten {
             GainDraftStore.remove(trackUUID: outcome.trackUUID)
@@ -84,7 +87,7 @@ extension LibraryStore {
         writeStage = "rekordbox를 되돌리는 중…"
         defer { writeStage = nil }
         try await Task.detached(priority: .userInitiated) {
-            _ = try RekordboxWriter.restore(backup.url)
+            _ = try RekordboxWriter.restore(backup.url, backups: AnicuePaths.rekordboxBackups)
         }.value
         let drafts = RekordboxWriter.contents(of: backup.url).drafts
         for draft in drafts { DraftWriter.save(draft) }

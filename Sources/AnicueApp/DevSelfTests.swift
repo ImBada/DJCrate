@@ -1,7 +1,10 @@
+import RekordboxKit
 import AVFoundation
 import QuartzCore
 import AppKit
-import AnicueCore
+import AnicueAnalysis
+import AnicueDomain
+import AnicueStorage
 import Foundation
 
 /// 개발용: 곡을 바꿔 가며 재생하는 흐름을 그대로 재현한다(`--switch-selftest`, 음량은 −70dB).
@@ -124,7 +127,7 @@ enum DevSelfTests {
                     if worst <= 0.0015 { gridSame += 1 } else { log(String(format: "  그리드 다름 %@: 최대 %.1fms", row.title, worst * 1000)) }
                 }
                 log("그리드 쓰기: \(report.gridWritten.count)곡 · 다시 읽은 그리드가 초안과 같음 \(gridSame)/\(grids.count) · 덱 그리드 초안 변경 \(deck.gridDraft?.hasChanges == true ? "있음" : "없음")")
-                guard let backup = RekordboxWriter.backups().first(where: \.isWrite) else { log("백업 없음!"); exit(1) }
+                guard let backup = RekordboxWriter.backups(in: AnicuePaths.rekordboxBackups).first(where: \.isWrite) else { log("백업 없음!"); exit(1) }
                 log("되돌리기 전 확인: 백업 뒤 라이브러리 바뀜 = \(String(describing: await store.libraryChangedSince(backup)))")
                 try await store.restoreRekordbox(backup)
                 await wait(1.5)

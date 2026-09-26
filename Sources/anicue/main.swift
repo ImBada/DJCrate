@@ -1,4 +1,7 @@
-import AnicueCore
+import RekordboxKit
+import AnicueAnalysis
+import AnicueDomain
+import AnicueStorage
 import AVFoundation
 import Foundation
 
@@ -794,7 +797,7 @@ func run() async throws {
         let database = live ? RekordboxWriter.liveDatabase : URL(filePath: value(after: "--db", in: args)!)
         let uuids = value(after: "--uuid", in: args).map { $0.components(separatedBy: ",") } ?? CueDraftStore.uuids().sorted()
         let drafts = uuids.compactMap(CueDraftStore.load(trackUUID:))
-        let backups = live ? RekordboxWriter.backupDirectory : database.deletingLastPathComponent().appending(path: "backups")
+        let backups = live ? AnicuePaths.rekordboxBackups : database.deletingLastPathComponent().appending(path: "backups")
         let report = try RekordboxWriter.write(drafts: drafts, to: database, dryRun: args.contains("--dry-run"), backups: backups)
         for outcome in report.outcomes {
             let mark = switch outcome.status { case .written: "✓"; case .blocked: "✗"; case .unchanged: "·" }
@@ -806,7 +809,7 @@ func run() async throws {
         // 백업으로 되돌린다. 기본은 --db 사본. 라이브 DB는 --live(rekordbox가 꺼져 있어야 한다). 백업 목록은 인자 없이.
         let live = args.contains("--live")
         guard let folder = value(after: "--backup", in: args), live || value(after: "--db", in: args) != nil else {
-            for backup in RekordboxWriter.backups() {
+            for backup in RekordboxWriter.backups(in: AnicuePaths.rekordboxBackups) {
                 print(backup.url.lastPathComponent, "·", backup.titles.prefix(5).joined(separator: ", "), "· 카운터", backup.report?.finalUpdateCount ?? -1)
             }
             print("anicue rekordbox-restore --backup <폴더> (--db <사본> | --live)")
@@ -814,7 +817,7 @@ func run() async throws {
         }
         let database = live ? RekordboxWriter.liveDatabase : URL(filePath: value(after: "--db", in: args)!)
         let saved = try RekordboxWriter.restore(URL(filePath: folder), to: database,
-                                                backups: live ? RekordboxWriter.backupDirectory : database.deletingLastPathComponent().appending(path: "backups"))
+                                                backups: live ? AnicuePaths.rekordboxBackups : database.deletingLastPathComponent().appending(path: "backups"))
         print("되돌림 완료 · 되돌리기 전 상태 백업: \(saved.path)")
 
     case "loop-repro":
