@@ -538,3 +538,35 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ````
+
+
+## pyrekordbox — 프레이즈 읽기 실험
+
+- 기준 커밋: `f695541827cc488af267d6ca8a8e0052598d85a0`
+- 출처: [dylanljones/pyrekordbox](https://github.com/dylanljones/pyrekordbox/tree/f695541827cc488af267d6ca8a8e0052598d85a0)
+- 참고·이식 범위: `anlz/structs.py`의 PSSI 칸 배치, `anlz/file.py`의 XOR 마스크와 복원 규칙을 `Sources/djc/Lab/PhraseStructure.swift`의 실험용 읽기에 사용한다.
+- 라이선스: MIT. Python 패키지 자체는 배포하지 않는다.
+
+```text
+MIT License
+
+Copyright (c) 2022-2025, Dylan Jones
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
