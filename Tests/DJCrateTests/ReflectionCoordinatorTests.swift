@@ -159,7 +159,9 @@ struct ReflectionCoordinatorTests {
         let alert = try? #require(alerts.first)
         #expect(alert?.title == "쓰기 확인에 실패했고 자동 복원도 하지 못했습니다")
         let text = alert?.text ?? ""
-        #expect(text.contains("rekordbox를 켜지 말고") && text.contains("'rekordbox 반영 대기'의 '되돌리기…'"))
+        // 반영·넣기·빼기 모두 같은 버튼(가장 최근 쓰기 백업으로 되돌림). 사이드바 아래 '마지막 반영 되돌리기…'는 성공한 쓰기 뒤에만 보여 안내하지 않는다.
+        #expect(text.contains("rekordbox를 켜지 말고, 사이드바에서 'rekordbox 반영 대기'를 고른 뒤 목록 위 '되돌리기…'로 쓰기 전 백업을 복원하세요."))
+        #expect(!text.contains("마지막 반영 되돌리기"))
         #expect(text.contains("djc rekordbox-restore --backup '\(backup)' --live"))
         #expect(text.contains("무결성 검사 실패: x") && text.contains("master.db: 권한 없음"))
         #expect(host.writeStage == nil && host.locks == [true, false, true, false, true, false])
@@ -242,6 +244,16 @@ struct ReflectionCoordinatorTests {
         let prompt = ReflectionCoordinator.restoreConfirmation(backup, changedSince: false)
         #expect(prompt.text.contains("그때 넣은 1곡은 컬렉션에서 빠지고") && prompt.text.contains("추가 목록으로 돌아옵니다"))
         #expect(backup.titles == ["곡 a"])
+    }
+
+    @Test func 자동_복원이_실패한_백업도_되돌리기로_복원한다() async {
+        // 복원 실패로 끝난 쓰기는 보고서를 남기지 않는다 → 그 뒤 바뀌었는지 모름(nil). 막지 않고 묻고 되돌린다.
+        let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b-write"), createdAt: .now, isWrite: true, report: nil)
+        #expect(backup.finalUpdateCount == nil)
+        host.changedSinceBackup = nil
+        await coordinator().restore(backup)
+        #expect(prompter.shown.map(\.confirm) == ["되돌리기"] && prompter.shown.first?.text.contains("확인하지 못했습니다") == true)
+        #expect(host.restored == [backup.url])
     }
 
     @Test func 되돌리기는_그_뒤_rekordbox가_바뀌었으면_경고한다() async {

@@ -99,9 +99,13 @@ struct RekordboxRestoreFailureTests {
         #expect(error.description.contains("djc rekordbox-restore --backup '\(backup)' --db '\(fixture.database.path)'"))
         #expect(try state(fixture) != before, "복원하지 못했으니 쓴 상태 그대로")
 
-        // 안내한 대로 백업으로 되돌리면 쓰기 전으로 돌아온다
+        // 앱의 '되돌리기…'는 가장 최근 쓰기 백업을 고른다(`DirectWritePanels.restoreLatest`): 바로 이 백업이고,
+        // 보고서가 없어 그 뒤 바뀌었는지 모를 뿐 막히지 않는다. 되돌리면 쓰기 전으로 돌아온다.
+        let writes = RekordboxWriter.backups(in: fixture.backups).filter(\.isWrite)
+        let latest = try #require(writes.first)
+        #expect(latest.url.lastPathComponent == URL(filePath: backup).lastPathComponent && latest.finalUpdateCount == nil)
         unlock(fixture)
-        _ = try RekordboxWriter.restore(URL(filePath: backup), to: fixture.database, now: now.addingTimeInterval(60), backups: fixture.backups)
+        _ = try RekordboxWriter.restore(latest.url, to: fixture.database, now: now.addingTimeInterval(60), backups: fixture.backups)
         #expect(try state(fixture) == before)
     }
 
@@ -171,6 +175,8 @@ struct RekordboxRestoreFailureTests {
         let failed = await #expect(throws: DJCError.self) { try await addWithAnalysis(fixture, now: now.addingTimeInterval(1)) }
         guard case let .restoreFailed(_, _, backup, database)? = failed else { Issue.record("복원 실패 오류가 아님: \(String(describing: failed))"); return }
         #expect(backup.hasSuffix("-add"))
+        let writes = RekordboxWriter.backups(in: fixture.backups).filter(\.isWrite)
+        #expect(writes.first?.url.lastPathComponent == URL(filePath: backup).lastPathComponent, "앱 '되돌리기…'가 고르는 백업")
         #expect(database == fixture.database.path)
     }
 
