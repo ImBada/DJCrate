@@ -1,4 +1,4 @@
-import AnicueDomain
+import DJCDomain
 @testable import RekordboxKit
 import Foundation
 import Testing
@@ -63,7 +63,7 @@ struct ReflectionTests {
         #expect(plan.isEligible && plan.gridChanged && !plan.cueChanged)
         let tempo = try #require(plan.tempos?.first)
         #expect(abs(tempo.bpm - 150) < 0.005)
-        let xml = Reflection.document(plans: [plan], playlistName: "anicue 반영")
+        let xml = Reflection.document(plans: [plan], playlistName: "DJCrate 반영")
         #expect(xml.contains("<TEMPO Inizio=") && xml.contains(#"Type="4""#) && xml.contains(#"Name="CUE(Auto)""#))
         #expect(XMLParser(data: Data(xml.utf8)).parse())
     }

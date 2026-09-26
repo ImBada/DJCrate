@@ -1,9 +1,9 @@
-import AnicueDomain
+import DJCDomain
 import Foundation
 
 /// rekordbox XML(환경설정 › 고급 › rekordbox xml로 불러와 "Import To Collection"하는 형식).
 ///
-/// anicue는 rekordbox DB를 직접 고치지 않는다. 새로 추가한 곡은 이 XML로 넘기고,
+/// DJCrate는 rekordbox DB를 직접 고치지 않는다. 새로 추가한 곡은 이 XML로 넘기고,
 /// 가져오기는 rekordbox에서 사용자가 한다. 시각은 모두 rekordbox 시간축(초)이어야 한다.
 public enum RekordboxXML {
     public struct Entry: Sendable {
@@ -24,7 +24,7 @@ public enum RekordboxXML {
         var lines = [
             #"<?xml version="1.0" encoding="UTF-8"?>"#,
             #"<DJ_PLAYLISTS Version="1.0.0">"#,
-            #"  <PRODUCT Name="anicue" Version="\#(escape(productVersion))" Company=""/>"#,
+            #"  <PRODUCT Name="DJCrate" Version="\#(escape(productVersion))" Company=""/>"#,
             #"  <COLLECTION Entries="\#(entries.count)">"#,
         ]
         for (index, entry) in entries.enumerated() {

@@ -1,15 +1,15 @@
-# AGENTS.md — anicue
+# AGENTS.md — DJCrate
 
-rekordbox 7용 애니송 DJ 라이브러리 관리 macOS 앱(1인용). 사람·Claude Code·Codex 등 모든 에이전트가 따르는 정본이다. 기능 소개는 `README.md`, rekordbox 쓰기 규칙은 `docs/rekordbox-internals.md`, 구조·설계 결정은 `docs/architecture.md`.
+rekordbox 7용 DJ 라이브러리 관리 macOS 앱 DJCrate(약칭 DJC, CLI `djc`, 1인용, 옛 이름 anicue). 사람·Claude Code·Codex 등 모든 에이전트가 따르는 정본이다. 기능 소개는 `README.md`, rekordbox 쓰기 규칙은 `docs/rekordbox-internals.md`, 구조·설계 결정은 `docs/architecture.md`.
 
 - IMPORTANT: 사용자에게 하는 말·보고·질문은 항상 한국어로 한다.
 
 ## 가장 중요한 규칙: rekordbox 라이브러리를 절대 깨뜨리지 않는다
 
 - IMPORTANT: rekordbox 또는 rekordboxAgent가 켜져 있으면 rekordbox 라이브러리(`master.db`, `share/PIONEER/USBANLZ`)에 **절대 쓰지 않는다**. 쓰기는 `RekordboxWriter.write` 한 곳으로만 한다(사전 확인 → 전체 백업 → 한 트랜잭션 → 다시 읽어 검증 → 무결성 검사 → 실패 시 복원).
-- 사전 확인(`RekordboxCompatibility`, `RekordboxWriteGuard`): rekordbox 7.2.x만, DB 구조(`djmdCue`·`contentCue` 칸이 정확히 같고 고치는 칸이 있음)·`DBVersion` 6000, 로컬 변경 카운터 ≥ 클라우드 동기화 카운터. 막힐 조건은 백업을 뜨기 전에 본다. rekordbox가 업데이트되면 `anicue compat`으로 먼저 확인하고, 실험으로 규칙을 다시 확인하기 전에는 허용 목록을 넓히지 않는다.
+- 사전 확인(`RekordboxCompatibility`, `RekordboxWriteGuard`): rekordbox 7.2.x만, DB 구조(`djmdCue`·`contentCue` 칸이 정확히 같고 고치는 칸이 있음)·`DBVersion` 6000, 로컬 변경 카운터 ≥ 클라우드 동기화 카운터. 막힐 조건은 백업을 뜨기 전에 본다. rekordbox가 업데이트되면 `djc compat`으로 먼저 확인하고, 실험으로 규칙을 다시 확인하기 전에는 허용 목록을 넓히지 않는다.
 - 라이브 DB·음원은 읽기 전용이다. 읽기는 스냅샷 사본(`LibrarySnapshot`)에서 한다.
-- 시험·실험 쓰기는 **사본에만** 한다: `ANICUE_REKORDBOX_DIR=<사본 폴더>`, `ANICUE_HOME=<임시 폴더>`. 사본의 `share/PIONEER/USBANLZ`는 심볼릭 링크가 아니라 실제 복사본이어야 한다.
+- 시험·실험 쓰기는 **사본에만** 한다: `DJC_REKORDBOX_DIR=<사본 폴더>`, `DJC_HOME=<임시 폴더>`. 사본의 `share/PIONEER/USBANLZ`는 심볼릭 링크가 아니라 실제 복사본이어야 한다.
 - 규칙을 확인하지 않은 쓰기(VBR MP3 큐, 템포 구간 여러 개인 곡의 BPM 변경, DB에 새 곡 추가)는 막아 둔다. 새 쓰기 경로는 rekordbox 실험 → 사본 재현 → 칸 단위 일치를 확인한 뒤에만 연다(`docs/rekordbox-internals.md` 끝).
 - rekordbox DB 사본(`*.db`, `-wal`, `-shm`, `snapshots/`)에는 클라우드 토큰이 들어 있다. 커밋·출력·로그 금지. `agentRegistry`의 인증값은 읽지도 옮기지도 않는다.
 
@@ -21,57 +21,57 @@ swift build                          # 전체 디버그 빌드
 swift test                           # 단위 테스트(Swift Testing, 테스트 타깃 4개)
 swift test --filter WriteGuardTests  # 한 묶음만
 scripts/coverage.sh [경로 정규식]     # 파일별 줄 커버리지
-scripts/build-app.sh [--install]     # dist/anicue.app(릴리스·번들·로컬 서명), --install이면 /Applications에
-.build/debug/anicue                  # CLI 명령 목록
-.build/debug/anicue compat           # rekordbox 버전·DB 구조·카운터가 쓰기를 확인한 모양인지(읽기 전용)
-.build/debug/anicue snapshot [--force]                    # 라이브 DB 읽기용 사본 뜨기
-.build/debug/anicue cue-write --db <사본.db> [--dry-run]   # 초안을 사본에 써 보기
-.build/debug/anicue lab                                   # 실험 명령 목록(sql·loop-repro·seekinfo-check …)
-.build/debug/anicue lab sql <사본.db> "SELECT …"           # 사본에 읽기 전용 질의
+scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로컬 서명), --install이면 /Applications에
+.build/debug/djc                  # CLI 명령 목록
+.build/debug/djc compat           # rekordbox 버전·DB 구조·카운터가 쓰기를 확인한 모양인지(읽기 전용)
+.build/debug/djc snapshot [--force]                    # 라이브 DB 읽기용 사본 뜨기
+.build/debug/djc cue-write --db <사본.db> [--dry-run]   # 초안을 사본에 써 보기
+.build/debug/djc lab                                   # 실험 명령 목록(sql·loop-repro·seekinfo-check …)
+.build/debug/djc lab sql <사본.db> "SELECT …"           # 사본에 읽기 전용 질의
 ```
 
 - 앱 개발용 실행 인자: `--db <스냅샷>`(그 사본을 연다), `--select <ContentID>`(곡을 골라 둔다).
-- 환경 변수: `ANICUE_HOME`(초안·백업 폴더를 바꿈), `ANICUE_REKORDBOX_DIR`(rekordbox 폴더 사본), `ANICUE_DB`(열 스냅샷), `ANICUE_IDLE_SECONDS`(재생 멈춘 뒤 엔진 끄기까지).
+- 환경 변수: `DJC_HOME`(초안·백업 폴더를 바꿈), `DJC_REKORDBOX_DIR`(rekordbox 폴더 사본), `DJC_DB`(열 스냅샷), `DJC_IDLE_SECONDS`(재생 멈춘 뒤 엔진 끄기까지).
 
 ## 검증 (작업이 끝났다고 말하기 전에)
 
 - `scripts/check.sh`가 통과해야 한다(빌드·테스트·커버리지 목표).
 - 테스트 먼저(TDD): 버그는 실패하는 테스트로 재현한 뒤 고친다. 새 규칙은 테스트를 먼저 쓰고 빨간색을 본 뒤 구현한다.
-  - 순수 규칙(큐 편집·루프·게인·재생 예약) → `Tests/AnicueDomainTests`
+  - 순수 규칙(큐 편집·루프·게인·재생 예약) → `Tests/DJCDomainTests`
   - rekordbox 쓰기 → `Tests/RekordboxKitTests`. 구조만 있는 rekordbox 7.2.18 DB(`RekordboxFixture`)와 합성 분석 파일(`AnlzBuilder`)로 한다. 새 쓰기 규칙은 실험 곡·날짜를 적은 골든 테스트로 남긴다.
-  - 덱·반영 흐름 → `Tests/AnicueAppTests`. 가짜 오디오(`FakeDeckAudio`)·메모리 저장소(`DeckStorage.memory`)·가짜 창(`ScriptedPrompter`)
-- 소리·실제 UI·rekordbox 쓰기 전 과정은 앱 자가 테스트로 확인한다. **디버그 빌드에만 있다**(`.build/debug/AnicueApp`). 초안이 사용자 것과 섞이지 않게 항상 `ANICUE_HOME=<임시 폴더>`를 준다:
+  - 덱·반영 흐름 → `Tests/DJCrateTests`. 가짜 오디오(`FakeDeckAudio`)·메모리 저장소(`DeckStorage.memory`)·가짜 창(`ScriptedPrompter`)
+- 소리·실제 UI·rekordbox 쓰기 전 과정은 앱 자가 테스트로 확인한다. **디버그 빌드에만 있다**(`.build/debug/DJCrate`). 초안이 사용자 것과 섞이지 않게 항상 `DJC_HOME=<임시 폴더>`를 준다:
 
 | 인자 | 확인하는 것 | 추가 조건 |
 |---|---|---|
-| `--write-selftest` | 반영(미리 보기·쓰기·조용한 다시 읽기·되돌리기) 전 과정 | `ANICUE_REKORDBOX_DIR` 사본 필수 |
+| `--write-selftest` | 반영(미리 보기·쓰기·조용한 다시 읽기·되돌리기) 전 과정 | `DJC_REKORDBOX_DIR` 사본 필수 |
 | `--loop-selftest` | 활성 루프·즉석 루프·½·핫큐 저장·나가기 | `--select`로 활성 루프 있는 곡 |
 | `--loop-audio-selftest` | 루프 이음새가 샘플 단위로 맞는지(램프 WAV) | — |
 | `--metronome-selftest` | 메트로놈 클릭이 빠지지 않는지(실제 엔진으로 12초 재생해 클릭 수를 셈) | — |
 | `--switch-selftest` | 곡 전환·일시정지 뒤 소리 | — |
 | `--scroll-perf` | 재생 중 목록 스크롤 때 프레임 간격 | `--perf-hide=zoom,label,…`로 A/B |
 
-예: `ANICUE_HOME=$(mktemp -d) .build/debug/AnicueApp --db <스냅샷> --select 32395449 --loop-selftest 2>&1 | grep "루프 시험"`
+예: `DJC_HOME=$(mktemp -d) .build/debug/DJCrate --db <스냅샷> --select 32395449 --loop-selftest 2>&1 | grep "루프 시험"`
 
 - 결과는 추측하지 말고 명령 출력(통과/실패 줄, 수치)을 보여 준다.
 - 새 앱 인자는 `--이름=값` 한 덩어리로 만든다. 값을 따로 쓴 `--perf-hide zoom`은 AppKit이 값을 열 파일로 보고 앱이 멈췄다.
 
 ## 구조
 
-의존 방향은 한쪽뿐이다: 앱·CLI → AnicueStorage → RekordboxKit → AnicueDomain, AnicueAnalysis → AnicueDomain (`Package.swift` 주석).
+의존 방향은 한쪽뿐이다: 앱·CLI → DJCStorage → RekordboxKit → DJCDomain, DJCAnalysis → DJCDomain (`Package.swift` 주석).
 
-- `Sources/AnicueDomain/` — 입출력 없는 규칙·모델. `Cue/`(초안·큐 편집 규칙), `Grid/`(그리드 초안·따라가기), `Playback/`(루프 규칙·`LoopPlanner`·`PlaybackSchedule`), `Library/`(곡 행·필터·게인 정책), `Comment/`, `Tags/`
+- `Sources/DJCDomain/` — 입출력 없는 규칙·모델. `Cue/`(초안·큐 편집 규칙), `Grid/`(그리드 초안·따라가기), `Playback/`(루프 규칙·`LoopPlanner`·`PlaybackSchedule`), `Library/`(곡 행·필터·게인 정책), `Comment/`, `Tags/`
 - `Sources/RekordboxKit/` — rekordbox 형식. DB(`CipherDatabase`), 쓰기(`RekordboxWriter+*`, `RekordboxGridWriter`, `RekordboxCompatibility`), ANLZ, 스냅샷, `Export/`(XML·반영 계획), `Library/`
-- `Sources/AnicueStorage/` — anicue 자신의 파일: 초안·추가한 곡·반영 묶음·경로(`AnicuePaths`)
-- `Sources/AnicueAnalysis/` — 파형·그리드 추정·조성·음량·섹션
-- `Sources/AnicueApp/` — SwiftUI+AppKit 앱
+- `Sources/DJCStorage/` — DJCrate 자신의 파일: 초안·추가한 곡·반영 묶음·경로(`DJCPaths`)
+- `Sources/DJCAnalysis/` — 파형·그리드 추정·조성·음량·섹션
+- `Sources/DJCrate/` — SwiftUI+AppKit 앱
   - `Deck/`: `DeckModel`(+Transport·Loops·Cues·Grid·Gain·Key), `Audio/`(`DeckAudio`, `DeckAudioEngine` 프로토콜), `Views/`, `Waveform/`
   - `Library/`: `LibraryStore`(+Writing·Staging·Tags), `TrackTable`(NSTableView), 태그 편집
   - `Reflection/`: `ReflectionCoordinator`(미리 보기 → 확인 → 쓰기 → 토스트), 토스트, XML 연동
   - `App/`: 창·사이드바·`KeyRouter`(단축키). `Diagnostics/`: 자가 테스트·성능 기록(디버그 전용)
-- `Sources/anicue/` — CLI. `Commands/`(늘 쓰는 명령), `Lab/`(규칙을 알아낼 때 쓴 실험, `anicue lab …`)
+- `Sources/djc/` — CLI. `Commands/`(늘 쓰는 명령), `Lab/`(규칙을 알아낼 때 쓴 실험, `djc lab …`)
 - `Tests/` — 타깃별 테스트 + `Support/`(rekordbox 픽스처·합성 ANLZ·합성 음원, 실데이터 없음)
-- 사용자 데이터: `~/Library/Application Support/anicue/`
+- 사용자 데이터: `~/Library/Application Support/DJCrate/`
   - 초안: `cue-drafts/`, `grid-drafts/`, `gain-drafts.json`, `tag-drafts/`
   - 그 밖: `staged.json`, `snapshots/`, `rekordbox-backups/`, 캐시(`analysis/`, `waveforms/`, `loudness.json`)
 
@@ -102,7 +102,7 @@ scripts/build-app.sh [--install]     # dist/anicue.app(릴리스·번들·로컬
   - 작업 브랜치는 `dev`에서 따고, `git merge --no-ff`로 dev에 합친다("Merge branch 'feat/…' into dev").
 - 커밋 제목: `타입: 한국어 설명`(마침표 없음). 타입 = feat, fix, docs, style, design, test, refactor, build, ci, perf, chore, rename, remove. 자세한 내용은 본문에 불릿으로.
 - 커밋·푸시는 요청받았을 때만 한다.
-- 빌드해서 앱을 바꿀 때: anicue가 꺼져 있으면 `scripts/build-app.sh --install`로 설치한다. **켜져 있으면 끄기 전에 사용자에게 묻는다.**
+- 빌드해서 앱을 바꿀 때: DJCrate가 꺼져 있으면 `scripts/build-app.sh --install`로 설치한다. **켜져 있으면 끄기 전에 사용자에게 묻는다.**
 
 ## rekordbox 실험이 필요할 때
 

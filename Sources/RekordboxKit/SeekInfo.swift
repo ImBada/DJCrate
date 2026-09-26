@@ -1,11 +1,11 @@
-import AnicueDomain
+import DJCDomain
 import Foundation
 
 /// rekordbox가 큐 행에 적는 파일 탐색 위치.
 ///
 /// - FLAC: `InPointSeekInfo = "<프레임 시작 샘플>,<프레임 바이트 위치>,<블록 크기>"`(큐 지점이 든 FLAC 프레임)
 /// - VBR MP3: `InMpegFrame`(1/75초 단위)·`InMpegAbs`(큐 지점이 든 MPEG 프레임의 바이트 위치)
-/// 규칙은 라이브러리에 이미 있는 rekordbox 큐와 전수 대조해 확인한다(`anicue seekinfo-check`).
+/// 규칙은 라이브러리에 이미 있는 rekordbox 큐와 전수 대조해 확인한다(`djc lab seekinfo-check`).
 public enum SeekInfo {
     // MARK: - FLAC
 

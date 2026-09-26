@@ -1,9 +1,9 @@
-import AnicueDomain
+import DJCDomain
 import Foundation
 @testable import RekordboxKit
 import Testing
 
-/// 파형 태그 생성기(RekordboxWaveforms). 규칙 자체는 실제 라이브러리와 `anicue lab waveform-eval`로 맞춘다.
+/// 파형 태그 생성기(RekordboxWaveforms). 규칙 자체는 실제 라이브러리와 `djc lab waveform-eval`로 맞춘다.
 @Suite("파형 태그 만들기")
 struct AnlzWaveformTests {
     func tone(seconds: Double, hz: Double, amplitude: Float, rate: Double = 44_100) -> [Float] {

@@ -1,5 +1,5 @@
-import AnicueDomain
-import AnicueTestSupport
+import DJCDomain
+import DJCTestSupport
 import Foundation
 @testable import RekordboxKit
 import Testing
@@ -24,7 +24,7 @@ struct WriteGuardTests {
     }
 
     func refusal(_ body: () throws -> Void) -> String? {
-        do { try body(); return nil } catch let AnicueError.writeRefused(reason) { return reason } catch { return "\(error)" }
+        do { try body(); return nil } catch let DJCError.writeRefused(reason) { return reason } catch { return "\(error)" }
     }
 
     @Test func rekordbox가_켜져_있으면_쓰지_않는다() throws {

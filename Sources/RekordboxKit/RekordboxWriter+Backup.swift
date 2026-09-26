@@ -1,4 +1,4 @@
-import AnicueDomain
+import DJCDomain
 import Foundation
 
 /// 백업·되돌리기
@@ -9,7 +9,7 @@ extension RekordboxWriter {
         public var id: String { url.path }
         public var url: URL
         public var createdAt: Date
-        /// anicue가 쓰기 직전에 뜬 백업이면 true(되돌리기 직전 상태를 떠 둔 백업은 false)
+        /// DJCrate가 쓰기 직전에 뜬 백업이면 true(되돌리기 직전 상태를 떠 둔 백업은 false)
         public var isWrite: Bool
         public var report: Report?
 
@@ -39,7 +39,7 @@ extension RekordboxWriter {
                   copied[.size] as? Int == after[.size] as? Int
             else {
                 try? fm.removeItem(at: folder)
-                throw AnicueError.sourceChangedDuringCopy(path: source.path)
+                throw DJCError.sourceChangedDuringCopy(path: source.path)
             }
         }
         return folder
@@ -73,13 +73,13 @@ extension RekordboxWriter {
     }
 
     /// 백업으로 되돌린다. 되돌리기 직전 상태도 따로 백업해 둔다.
-    /// 버전·DB 구조는 보지 않는다(되돌리기는 anicue가 쓴 것을 무르는 비상구라 막지 않는다). rekordbox 실행만 막는다.
+    /// 버전·DB 구조는 보지 않는다(되돌리기는 DJCrate가 쓴 것을 무르는 비상구라 막지 않는다). rekordbox 실행만 막는다.
     @discardableResult
     public static func restore(_ backup: URL, to database: URL = liveDatabase, now: Date = .now,
                                backups: URL, guard writeGuard: RekordboxWriteGuard = .system) throws -> URL {
         if writeGuard.isLive(database) {
             guard !writeGuard.isRekordboxRunning() else {
-                throw AnicueError.writeRefused("rekordbox가 켜져 있습니다. rekordbox를 완전히 종료한 뒤 되돌리세요")
+                throw DJCError.writeRefused("rekordbox가 켜져 있습니다. rekordbox를 완전히 종료한 뒤 되돌리세요")
             }
         }
         // 백업이 멀쩡한지 먼저 본다.
@@ -131,7 +131,7 @@ extension RekordboxWriter {
             let target = URL(filePath: database.path + suffix)
             let source = backup.appending(path: "master.db" + suffix)
             if fm.fileExists(atPath: source.path) {
-                let partial = URL(filePath: database.path + suffix + ".anicue-restore")
+                let partial = URL(filePath: database.path + suffix + ".djc-restore")
                 try? fm.removeItem(at: partial)
                 try fm.copyItem(at: source, to: partial)
                 _ = try fm.replaceItemAt(target, withItemAt: partial)

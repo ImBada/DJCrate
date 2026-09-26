@@ -1,4 +1,4 @@
-import AnicueDomain
+import DJCDomain
 import Foundation
 
 /// rekordbox `contentCue.Cues` JSON을 rekordbox와 같은 모양으로 읽고 쓴다.
@@ -82,7 +82,7 @@ public enum CueJSON {
         mutating func skip() { while i < s.count, [" ", "\n", "\r", "\t"].contains(s[i]) { i += 1 } }
         mutating func expect(_ c: Unicode.Scalar) throws {
             skip()
-            guard i < s.count, s[i] == c else { throw AnicueError.invalidCueJSON }
+            guard i < s.count, s[i] == c else { throw DJCError.invalidCueJSON }
             i += 1
         }
         mutating func peek() -> Unicode.Scalar? { skip(); return i < s.count ? s[i] : nil }
@@ -114,16 +114,16 @@ public enum CueJSON {
         }
 
         mutating func value() throws -> Value? {
-            guard let c = peek() else { throw AnicueError.invalidCueJSON }
+            guard let c = peek() else { throw DJCError.invalidCueJSON }
             if c == "\"" { return .string(try string()) }
             if c == "n" {
-                guard i + 4 <= s.count, String(String.UnicodeScalarView(s[i..<i + 4])) == "null" else { throw AnicueError.invalidCueJSON }
+                guard i + 4 <= s.count, String(String.UnicodeScalarView(s[i..<i + 4])) == "null" else { throw DJCError.invalidCueJSON }
                 i += 4
                 return nil
             }
             var digits = ""
             while i < s.count, s[i] == "-" || ("0"..."9").contains(s[i]) { digits.unicodeScalars.append(s[i]); i += 1 }
-            guard let n = Int(digits) else { throw AnicueError.invalidCueJSON }
+            guard let n = Int(digits) else { throw DJCError.invalidCueJSON }
             return .int(n)
         }
 
@@ -142,7 +142,7 @@ public enum CueJSON {
                     case "t": out.append("\t")
                     case "u":
                         guard i + 4 <= s.count, let v = UInt32(String(String.UnicodeScalarView(s[i..<i + 4])), radix: 16),
-                              let scalar = Unicode.Scalar(v) else { throw AnicueError.invalidCueJSON }
+                              let scalar = Unicode.Scalar(v) else { throw DJCError.invalidCueJSON }
                         out.append(scalar); i += 4
                     default: out.append(e)
                     }
@@ -150,7 +150,7 @@ public enum CueJSON {
                     out.append(c)
                 }
             }
-            throw AnicueError.invalidCueJSON
+            throw DJCError.invalidCueJSON
         }
     }
 

@@ -1,5 +1,5 @@
-import AnicueDomain
-import AnicueTestSupport
+import DJCDomain
+import DJCTestSupport
 import CryptoKit
 import Foundation
 @testable import RekordboxKit

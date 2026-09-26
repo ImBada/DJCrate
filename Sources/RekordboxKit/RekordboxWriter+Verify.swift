@@ -1,4 +1,4 @@
-import AnicueDomain
+import DJCDomain
 import Foundation
 
 /// 쓴 뒤 다시 읽어 검증·무결성 검사
@@ -7,7 +7,7 @@ extension RekordboxWriter {
 
     /// 곡 하나가 의도한 상태인지 다시 읽어 확인한다(쓰기 트랜잭션 안과 커밋 뒤 두 번).
     static func verify(db: CipherDatabase, contentID: String, _ expected: Expectation) throws {
-        func fail(_ reason: String) -> AnicueError { .writeVerificationFailed("\(reason) (ContentID \(contentID))") }
+        func fail(_ reason: String) -> DJCError { .writeVerificationFailed("\(reason) (ContentID \(contentID))") }
         var rows: [CueRow] = []
         try db.query("""
             SELECT ID, Kind, InMsec, OutMsec, Comment, ColorTableIndex, ActiveLoop, BeatLoopSize FROM djmdCue WHERE ContentID = ?
@@ -75,9 +75,9 @@ extension RekordboxWriter {
         let db = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
         var quick: [String] = []
         try db.query("PRAGMA quick_check") { quick.append($0.string(0) ?? "") }
-        guard quick == ["ok"] else { throw AnicueError.writeVerificationFailed("무결성 검사 실패: \(quick.prefix(3).joined(separator: " / "))") }
+        guard quick == ["ok"] else { throw DJCError.writeVerificationFailed("무결성 검사 실패: \(quick.prefix(3).joined(separator: " / "))") }
         var cipher: [String] = []
         try db.query("PRAGMA cipher_integrity_check") { cipher.append($0.string(0) ?? "") }
-        guard cipher.isEmpty else { throw AnicueError.writeVerificationFailed("암호 페이지 검사 실패: \(cipher.prefix(3).joined(separator: " / "))") }
+        guard cipher.isEmpty else { throw DJCError.writeVerificationFailed("암호 페이지 검사 실패: \(cipher.prefix(3).joined(separator: " / "))") }
     }
 }

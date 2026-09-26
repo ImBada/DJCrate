@@ -1,7 +1,7 @@
-import AnicueDomain
+import DJCDomain
 import Foundation
 
-/// anicue 초안(큐·그리드)을 이미 rekordbox 컬렉션에 있는 곡에 반영하는 계획·XML·검증.
+/// DJCrate 초안(큐·그리드)을 이미 rekordbox 컬렉션에 있는 곡에 반영하는 계획·XML·검증.
 ///
 /// rekordbox DB는 직접 고치지 않는다. rekordbox XML로 만들어 사용자가 "Import To Collection"하면
 /// rekordbox가 그 곡의 큐 목록을 **통째로** XML 내용으로 바꾼다. 그래서 XML에는 초안에서 다루지 않은
@@ -166,7 +166,7 @@ public enum Reflection {
         var lines = [
             #"<?xml version="1.0" encoding="UTF-8"?>"#,
             #"<DJ_PLAYLISTS Version="1.0.0">"#,
-            #"  <PRODUCT Name="anicue" Version="0.1" Company=""/>"#,
+            #"  <PRODUCT Name="DJCrate" Version="0.1" Company=""/>"#,
             #"  <COLLECTION Entries="\#(plans.count)">"#,
         ]
         for (index, plan) in plans.enumerated() {

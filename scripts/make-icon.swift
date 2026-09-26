@@ -1,9 +1,12 @@
-// anicue 앱 아이콘을 그린다: 어두운 둥근 사각형 위 3밴드 파형(저역 파랑·중역 주황·고역 흰색)과 핫큐·메모리 큐 표시.
-// 사용: swift scripts/make-icon.swift <출력 .iconset 폴더>
+// DJCrate 앱 아이콘을 그린다: 어두운 둥근 사각형 위, 레코드 세 장이 꽂힌 크레이트.
+// 레코드 라벨은 덱 3밴드 파형 색(저역 파랑·중역 주황·고역 흰색)을 따른다.
+// 사용: swift scripts/make-icon.swift <출력 .iconset 폴더> [미리 보기 .png]
 import AppKit
 
 let output = URL(filePath: CommandLine.arguments[1])
 try? FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+
+func color(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat, _ a: CGFloat = 1) -> NSColor { NSColor(red: r, green: g, blue: b, alpha: a) }
 
 func render(_ size: Int) -> Data {
     let s = CGFloat(size)
@@ -11,47 +14,70 @@ func render(_ size: Int) -> Data {
         let inset = s * 0.09
         let rect = NSRect(x: inset, y: inset, width: s - inset * 2, height: s - inset * 2)
         let background = NSBezierPath(roundedRect: rect, xRadius: s * 0.19, yRadius: s * 0.19)
-        NSGradient(starting: NSColor(red: 0.10, green: 0.11, blue: 0.14, alpha: 1),
-                   ending: NSColor(red: 0.03, green: 0.035, blue: 0.045, alpha: 1))?.draw(in: background, angle: -90)
+        NSGradient(starting: color(0.13, 0.14, 0.18), ending: color(0.04, 0.045, 0.06))?.draw(in: background, angle: -90)
+        NSGraphicsContext.saveGraphicsState()
+        background.addClip()
 
-        // 3밴드 파형(가운데 기준 대칭)
-        let bands: [(NSColor, CGFloat)] = [
-            (NSColor(red: 0.23, green: 0.44, blue: 0.96, alpha: 1), 1.0),
-            (NSColor(red: 0.94, green: 0.64, blue: 0.24, alpha: 1), 0.72),
-            (NSColor(red: 0.95, green: 0.94, blue: 0.91, alpha: 1), 0.42),
+        // 레코드: 크레이트 뒤에서 위로 비스듬히 솟은 원판 세 장
+        let labels = [color(0.23, 0.44, 0.96), color(0.94, 0.64, 0.24), color(0.95, 0.94, 0.91)]
+        let radius = rect.width * 0.25
+        let crateTop = rect.minY + rect.height * 0.46
+        let centers: [(CGFloat, CGFloat, CGFloat)] = [   // (x 비율, 위로 솟은 정도, 기울기 도)
+            (0.30, 0.20, 10), (0.50, 0.26, 0), (0.70, 0.18, -10),
         ]
-        let left = rect.minX + rect.width * 0.1, right = rect.maxX - rect.width * 0.1
-        let midY = rect.midY - rect.height * 0.02
-        let columns = 36
-        let step = (right - left) / CGFloat(columns)
-        for (color, scale) in bands {
-            color.setFill()
-            for i in 0..<columns {
-                let t = Double(i) / Double(columns - 1)
-                // 인트로 → 사비로 커지는 모양
-                let envelope = 0.35 + 0.65 * (0.5 - 0.5 * cos(t * .pi * 2.2)) * (0.6 + 0.4 * t)
-                let jitter = 0.75 + 0.25 * sin(Double(i) * 1.7) * sin(Double(i) * 0.61)
-                let h = rect.height * 0.30 * CGFloat(envelope * jitter) * scale
-                let bar = NSRect(x: left + CGFloat(i) * step + step * 0.12, y: midY - h, width: step * 0.76, height: h * 2)
-                NSBezierPath(roundedRect: bar, xRadius: step * 0.3, yRadius: step * 0.3).fill()
+        for (i, c) in centers.enumerated() {
+            let center = NSPoint(x: rect.minX + rect.width * c.0, y: crateTop + rect.height * c.1 - radius * 0.35)
+            let transform = NSAffineTransform()
+            transform.translateX(by: center.x, yBy: center.y)
+            transform.rotate(byDegrees: c.2)
+            NSGraphicsContext.saveGraphicsState()
+            transform.concat()
+            let disc = NSBezierPath(ovalIn: NSRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2))
+            NSGradient(starting: color(0.20, 0.20, 0.24), ending: color(0.06, 0.06, 0.08))?.draw(in: disc, angle: 60)
+            // 가장자리 빛(어두운 배경에서 원판이 묻히지 않게)
+            color(1, 1, 1, 0.22).setStroke()
+            disc.lineWidth = max(1, s * 0.006)
+            disc.stroke()
+            // 홈(동심원)
+            color(1, 1, 1, 0.07).setStroke()
+            for k in 1...5 {
+                let r = radius * (0.48 + 0.1 * CGFloat(k))
+                let groove = NSBezierPath(ovalIn: NSRect(x: -r, y: -r, width: r * 2, height: r * 2))
+                groove.lineWidth = max(0.5, s * 0.003)
+                groove.stroke()
             }
+            // 빛 반사
+            let shine = NSBezierPath()
+            shine.appendArc(withCenter: .zero, radius: radius * 0.86, startAngle: 100, endAngle: 150)
+            shine.lineWidth = max(1, s * 0.012)
+            color(1, 1, 1, 0.14).setStroke()
+            shine.stroke()
+            // 라벨과 가운데 구멍
+            labels[i].setFill()
+            NSBezierPath(ovalIn: NSRect(x: -radius * 0.36, y: -radius * 0.36, width: radius * 0.72, height: radius * 0.72)).fill()
+            color(0.04, 0.045, 0.06).setFill()
+            NSBezierPath(ovalIn: NSRect(x: -radius * 0.06, y: -radius * 0.06, width: radius * 0.12, height: radius * 0.12)).fill()
+            NSGraphicsContext.restoreGraphicsState()
         }
 
-        // 핫큐(초록)·메모리 큐(빨강) 선과 표시
-        func marker(at x: CGFloat, color: NSColor, top: Bool) {
-            color.setFill()
-            NSRect(x: x - s * 0.006, y: rect.minY + rect.height * 0.12, width: s * 0.012, height: rect.height * 0.76).fill()
-            let tri = NSBezierPath()
-            let y = top ? rect.minY + rect.height * 0.88 : rect.minY + rect.height * 0.12
-            let d: CGFloat = top ? -1 : 1
-            tri.move(to: NSPoint(x: x - s * 0.04, y: y))
-            tri.line(to: NSPoint(x: x + s * 0.04, y: y))
-            tri.line(to: NSPoint(x: x, y: y + d * s * 0.06))
-            tri.close()
-            tri.fill()
+        // 크레이트 앞판(주황 계열 나무 상자) + 손잡이 구멍 + 널빤지 줄
+        let front = NSRect(x: rect.minX + rect.width * 0.12, y: rect.minY + rect.height * 0.12,
+                           width: rect.width * 0.76, height: crateTop - rect.minY - rect.height * 0.12)
+        let crate = NSBezierPath(roundedRect: front, xRadius: s * 0.035, yRadius: s * 0.035)
+        NSGradient(starting: color(0.98, 0.62, 0.22), ending: color(0.86, 0.40, 0.10))?.draw(in: crate, angle: -90)
+        color(0.55, 0.22, 0.04, 0.55).setFill()
+        for k in 1...2 {
+            let y = front.minY + front.height * CGFloat(k) / 3
+            NSRect(x: front.minX + s * 0.02, y: y - s * 0.004, width: front.width - s * 0.04, height: s * 0.008).fill()
         }
-        marker(at: left + (right - left) * 0.3, color: NSColor(red: 0.94, green: 0.25, blue: 0.25, alpha: 1), top: true)
-        marker(at: left + (right - left) * 0.68, color: NSColor(red: 0.16, green: 0.86, blue: 0.24, alpha: 1), top: false)
+        let handle = NSRect(x: front.midX - front.width * 0.17, y: front.maxY - front.height * 0.3,
+                            width: front.width * 0.34, height: front.height * 0.14)
+        color(0.30, 0.11, 0.02).setFill()
+        NSBezierPath(roundedRect: handle, xRadius: handle.height / 2, yRadius: handle.height / 2).fill()
+        // 윗면 테두리(앞판 위 밝은 선)
+        color(1, 0.85, 0.6, 0.6).setFill()
+        NSRect(x: front.minX + s * 0.02, y: front.maxY - s * 0.012, width: front.width - s * 0.04, height: s * 0.008).fill()
+        NSGraphicsContext.restoreGraphicsState()
         return true
     }
     guard let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
@@ -63,4 +89,5 @@ for base in [16, 32, 128, 256, 512] {
     try render(base).write(to: output.appending(path: "icon_\(base)x\(base).png"))
     try render(base * 2).write(to: output.appending(path: "icon_\(base)x\(base)@2x.png"))
 }
+if CommandLine.arguments.count > 2 { try render(512).write(to: URL(filePath: CommandLine.arguments[2])) }
 print("아이콘: \(output.path)")

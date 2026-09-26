@@ -1,4 +1,4 @@
-import AnicueDomain
+import DJCDomain
 import Foundation
 import SQLCipher
 
@@ -12,11 +12,11 @@ public final class CipherDatabase {
             let message = handle.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
             sqlite3_close_v2(handle)
             handle = nil  // deinit이 한 번 더 닫지 않도록
-            throw AnicueError.databaseOpenFailed(path: path, message: message)
+            throw DJCError.databaseOpenFailed(path: path, message: message)
         }
         if let key {
             // 키는 16진수 문자열만 허용하므로 SQL 문자열에 넣어도 안전하다.
-            guard key.allSatisfy(\.isHexDigit) else { throw AnicueError.keyDerivationFailed }
+            guard key.allSatisfy(\.isHexDigit) else { throw DJCError.keyDerivationFailed }
             try execute("PRAGMA key = '\(key)'")
         }
         if writable {
@@ -29,7 +29,7 @@ public final class CipherDatabase {
         do {
             _ = try scalarInt("SELECT count(*) FROM sqlite_master")
         } catch {
-            throw AnicueError.databaseOpenFailed(path: path, message: "키가 맞지 않거나 DB가 손상됐습니다")
+            throw DJCError.databaseOpenFailed(path: path, message: "키가 맞지 않거나 DB가 손상됐습니다")
         }
     }
 
@@ -50,16 +50,16 @@ public final class CipherDatabase {
         guard sqlite3_open_v2(path, &handle, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
             let message = handle.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
             sqlite3_close_v2(handle)
-            throw AnicueError.databaseOpenFailed(path: path, message: message)
+            throw DJCError.databaseOpenFailed(path: path, message: message)
         }
         defer { sqlite3_close_v2(handle) }
-        guard key.allSatisfy(\.isHexDigit) else { throw AnicueError.keyDerivationFailed }
+        guard key.allSatisfy(\.isHexDigit) else { throw DJCError.keyDerivationFailed }
         for sql in ["PRAGMA key = '\(key)'", "PRAGMA wal_checkpoint(TRUNCATE)"] {
             var error: UnsafeMutablePointer<CChar>?
             guard sqlite3_exec(handle, sql, nil, nil, &error) == SQLITE_OK else {
                 let message = error.map { String(cString: $0) } ?? "unknown"
                 sqlite3_free(error)
-                throw AnicueError.queryFailed(sql: "wal_checkpoint", message: message)
+                throw DJCError.queryFailed(sql: "wal_checkpoint", message: message)
             }
         }
     }
@@ -69,7 +69,7 @@ public final class CipherDatabase {
         guard sqlite3_exec(handle, sql, nil, nil, &error) == SQLITE_OK else {
             let message = error.map { String(cString: $0) } ?? "unknown"
             sqlite3_free(error)
-            throw AnicueError.queryFailed(sql: sql, message: message)
+            throw DJCError.queryFailed(sql: sql, message: message)
         }
     }
 
@@ -83,7 +83,7 @@ public final class CipherDatabase {
     public func query(_ sql: String, _ values: [Value] = [], _ each: (Row) throws -> Void) throws {
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK else {
-            throw AnicueError.queryFailed(sql: sql, message: String(cString: sqlite3_errmsg(handle)))
+            throw DJCError.queryFailed(sql: sql, message: String(cString: sqlite3_errmsg(handle)))
         }
         defer { sqlite3_finalize(statement) }
         let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
@@ -95,7 +95,7 @@ public final class CipherDatabase {
             case .null: sqlite3_bind_null(statement, position)
             }
             guard result == SQLITE_OK else {
-                throw AnicueError.queryFailed(sql: sql, message: String(cString: sqlite3_errmsg(handle)))
+                throw DJCError.queryFailed(sql: sql, message: String(cString: sqlite3_errmsg(handle)))
             }
         }
         while true {
@@ -105,7 +105,7 @@ public final class CipherDatabase {
             case SQLITE_DONE:
                 return
             default:
-                throw AnicueError.queryFailed(sql: sql, message: String(cString: sqlite3_errmsg(handle)))
+                throw DJCError.queryFailed(sql: sql, message: String(cString: sqlite3_errmsg(handle)))
             }
         }
     }

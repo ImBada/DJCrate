@@ -1,4 +1,4 @@
-import AnicueDomain
+import DJCDomain
 @testable import RekordboxKit
 import Foundation
 import Testing
@@ -11,7 +11,7 @@ struct AnlzReadTests {
         var tag = Array("PQTZ".utf8) + u32(24) + u32(24 + 16) + u32(0) + u32(0x80000) + u32(4_000_000_000)
         tag += [0, 1, 0x2E, 0xE0] + u32(100) + [0, 2, 0x2E, 0xE0] + u32(600)
         let data = Data(Array("PMAI".utf8) + u32(28) + u32(28 + tag.count) + [UInt8](repeating: 0, count: 16) + tag)
-        let url = FileManager.default.temporaryDirectory.appending(path: "anicue-bad-\(UUID()).DAT")
+        let url = FileManager.default.temporaryDirectory.appending(path: "djc-bad-\(UUID()).DAT")
         try data.write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
         #expect(try BeatGrid.load(anlz: url).beats.count == 2)

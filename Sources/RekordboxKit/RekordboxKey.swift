@@ -1,4 +1,4 @@
-import AnicueDomain
+import DJCDomain
 import Foundation
 
 /// rekordbox 6/7 `master.db`의 SQLCipher 키.
@@ -16,7 +16,7 @@ public enum RekordboxKey {
         guard let key = String(data: inflated, encoding: .utf8),
               key.hasPrefix("402fd"),
               key.allSatisfy(\.isHexDigit)
-        else { throw AnicueError.keyDerivationFailed }
+        else { throw DJCError.keyDerivationFailed }
         return key
     }
 }
@@ -35,10 +35,10 @@ enum Base85 {
         for chunk in stride(from: 0, to: chars.count, by: 5) {
             var acc: UInt64 = 0
             for c in chars[chunk..<chunk + 5] {
-                guard let v = table[c] else { throw AnicueError.keyDerivationFailed }
+                guard let v = table[c] else { throw DJCError.keyDerivationFailed }
                 acc = acc * 85 + UInt64(v)
             }
-            guard acc <= UInt64(UInt32.max) else { throw AnicueError.keyDerivationFailed }
+            guard acc <= UInt64(UInt32.max) else { throw DJCError.keyDerivationFailed }
             out += [UInt8(acc >> 24 & 0xff), UInt8(acc >> 16 & 0xff), UInt8(acc >> 8 & 0xff), UInt8(acc & 0xff)]
         }
         return Array(out.dropLast(padding))
@@ -49,12 +49,12 @@ enum Base85 {
 /// Foundation의 `.zlib`은 raw DEFLATE만 다루므로 헤더와 트레일러를 떼고 넘긴다.
 enum Zlib {
     static func inflate(_ data: Data) throws -> Data {
-        guard data.count > 6 else { throw AnicueError.keyDerivationFailed }
+        guard data.count > 6 else { throw DJCError.keyDerivationFailed }
         let deflate = data.subdata(in: 2..<(data.count - 4))
         do {
             return try (deflate as NSData).decompressed(using: .zlib) as Data
         } catch {
-            throw AnicueError.keyDerivationFailed
+            throw DJCError.keyDerivationFailed
         }
     }
 }
