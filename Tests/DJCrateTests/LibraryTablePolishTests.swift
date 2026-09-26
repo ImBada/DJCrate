@@ -6,6 +6,13 @@ import Testing
 @Suite("목록·태그 시트 표")
 @MainActor
 struct LibraryTablePolishTests {
+    @Test func 앨범_아트_머리글은_표가_그리는_텍스트_첨부_이미지를_쓴다() throws {
+        let header = TrackColumn.artworkHeader
+        let attachment = try #require(header.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)
+        #expect(attachment.image != nil)
+        #expect(header.string == "\u{fffc}")
+    }
+
     @Test func 번호_칸은_네_자리와_여백을_확보한다() throws {
         let spec = try #require(TrackColumn.all.first { $0.id == "index" })
         #expect(spec.minWidth >= 48)

@@ -55,8 +55,7 @@ private struct TrackListView: NSViewRepresentable {
             }
             if !spec.help.isEmpty { column.headerToolTip = spec.help }
             if spec.id == "thumb" {
-                column.headerCell.stringValue = ""
-                column.headerCell.image = NSImage(systemSymbolName: "photo", accessibilityDescription: spec.title)
+                column.headerCell.attributedStringValue = TrackColumn.artworkHeader
                 column.headerCell.setAccessibilityLabel(spec.title)
             }
             if spec.id == "edited" {
@@ -200,8 +199,17 @@ struct TrackColumn {
     /// 초안 칸 머리글: 글자 '✎' 대신 pencil 심볼을 머리글 글자색·크기로 넣는다(칸이 좁아 '초안'이 들어가지 않는다).
     /// 제목 '초안'은 칸 메뉴와 VoiceOver에 쓴다.
     @MainActor static var draftHeader: NSAttributedString {
+        symbolHeader("pencil", label: String(ui: "초안"))
+    }
+
+    // NSTableHeaderCell은 image를 직접 그리지 않아 초안 머리글처럼 글자 안에 심볼을 넣는다.
+    @MainActor static var artworkHeader: NSAttributedString {
+        symbolHeader("photo", label: String(ui: "앨범 아트"))
+    }
+
+    @MainActor private static func symbolHeader(_ symbol: String, label: String) -> NSAttributedString {
         let attachment = NSTextAttachment()
-        attachment.image = NSImage(systemSymbolName: "pencil", accessibilityDescription: String(ui: "초안"))?
+        attachment.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)?
             .withSymbolConfiguration(.init(pointSize: NSFont.smallSystemFontSize, weight: .regular))
         let text = NSMutableAttributedString(attachment: attachment)
         let paragraph = NSMutableParagraphStyle()
