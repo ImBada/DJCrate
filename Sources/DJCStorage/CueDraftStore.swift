@@ -7,6 +7,13 @@ public enum CueDraftStore {
         try? FileManager.default.removeItem(at: directory.appending(path: "\(trackUUID).json"))
     }
 
+    /// CLI는 삭제 실패를 성공으로 보고하지 않는다.
+    public static func remove(trackUUID: String, directory: URL) throws {
+        let url = directory.appending(path: "\(trackUUID).json")
+        do { try FileManager.default.removeItem(at: url) }
+        catch CocoaError.fileNoSuchFile { }
+    }
+
     public static var directory: URL {
         DJCPaths.userData.appending(path: "cue-drafts")
     }
@@ -21,13 +28,13 @@ public enum CueDraftStore {
         return try? JSONDecoder().decode(CueDraft.self, from: data)
     }
 
-    public static func save(_ draft: CueDraft) throws {
+    public static func save(_ draft: CueDraft, directory: URL = directory) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = directory.appending(path: "\(draft.trackUUID).json")
         if draft.hasChanges {
             try JSONEncoder().encode(draft).write(to: url, options: .atomic)
         } else {
-            try? FileManager.default.removeItem(at: url)
+            try remove(trackUUID: draft.trackUUID, directory: directory)
         }
     }
 }

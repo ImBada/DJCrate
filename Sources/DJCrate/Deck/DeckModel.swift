@@ -26,6 +26,7 @@ final class DeckModel {
     var isAnalyzingSections = false
     var artwork: NSImage?
     var draft: CueDraft?
+    var hasUncommittedCueEdits = false
     var selectedCueID: EditableCue.ID?
     var playhead: Double = 0 {
         didSet { updateDisplayTime() }
@@ -309,6 +310,7 @@ final class DeckModel {
     func load(_ row: TrackRow?) {
         guard row != self.row else { return }
         clearDraftUndo()
+        hasUncommittedCueEdits = false
         let sameTrack = row != nil && row?.id == self.row?.id
         if sameTrack, let row, let current = self.row, canPlay,
            row.track.folderPath == current.track.folderPath, row.track.imagePath == current.track.imagePath {

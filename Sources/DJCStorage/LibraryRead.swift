@@ -57,6 +57,12 @@ public struct LibraryRead {
         return TrackList(tracks: result.map(TrackRecord.init))
     }
 
+    /// 초안을 시작할 때 쓰는 원본. 이미 열린 스냅샷에서만 읽는다.
+    public func draftSource(id: String) throws -> (track: Track, cues: [Cue]) {
+        guard let track = byID[id] else { throw ReadFailure("not_found", "곡을 찾지 못했습니다. search로 ContentID를 확인하세요") }
+        return (track, library.cues(for: track))
+    }
+
     public func track(id: String) throws -> TrackInfo {
         guard let track = byID[id] else { throw ReadFailure("not_found", "곡을 찾지 못했습니다. search로 ContentID를 확인하세요") }
         let gain = library.autoGains[id].map {

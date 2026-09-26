@@ -1,4 +1,5 @@
 @testable import DJCrate
+import AppKit
 import DJCDomain
 import Foundation
 @testable import RekordboxKit
@@ -159,7 +160,9 @@ struct ReflectionCoordinatorTests {
         let alert = try? #require(alerts.first)
         #expect(alert?.title == "쓰기 확인에 실패했고 자동 복원도 하지 못했습니다")
         let text = alert?.text ?? ""
-        #expect(text.contains("rekordbox를 켜지 말고") && text.contains("'rekordbox 반영 대기'의 '되돌리기…'"))
+        // 반영·넣기·빼기 모두 같은 버튼(가장 최근 쓰기 백업으로 되돌림). 사이드바 아래 '마지막 반영 되돌리기…'는 성공한 쓰기 뒤에만 보여 안내하지 않는다.
+        #expect(text.contains("rekordbox를 켜지 말고, 사이드바에서 'rekordbox 반영 대기'를 고른 뒤 목록 위 '되돌리기…'로 쓰기 전 백업을 복원하세요."))
+        #expect(!text.contains("마지막 반영 되돌리기"))
         #expect(text.contains("djc rekordbox-restore --backup '\(backup)' --live"))
         #expect(text.contains("무결성 검사 실패: x") && text.contains("master.db: 권한 없음"))
         #expect(host.writeStage == nil && host.locks == [true, false, true, false, true, false])
@@ -244,6 +247,16 @@ struct ReflectionCoordinatorTests {
         #expect(backup.titles == ["곡 a"])
     }
 
+    @Test func 자동_복원이_실패한_백업도_되돌리기로_복원한다() async {
+        // 복원 실패로 끝난 쓰기는 보고서를 남기지 않는다 → 그 뒤 바뀌었는지 모름(nil). 막지 않고 묻고 되돌린다.
+        let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b-write"), createdAt: .now, isWrite: true, report: nil)
+        #expect(backup.finalUpdateCount == nil)
+        host.changedSinceBackup = nil
+        await coordinator().restore(backup)
+        #expect(prompter.shown.map(\.confirm) == ["되돌리기"] && prompter.shown.first?.text.contains("확인하지 못했습니다") == true)
+        #expect(host.restored == [backup.url])
+    }
+
     @Test func 되돌리기는_그_뒤_rekordbox가_바뀌었으면_경고한다() async {
         let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b"), createdAt: .now, isWrite: true, report: nil)
         host.changedSinceBackup = true
@@ -253,5 +266,73 @@ struct ReflectionCoordinatorTests {
         prompter.answer = false
         await coordinator().restore(backup)
         #expect(host.restored.count == 1)
+    }
+
+    @Test(arguments: [true, nil] as [Bool?])
+    func 변경됐거나_확인하지_못한_되돌리기는_파괴적_경고이고_Return으로_실행하지_않는다(changed: Bool?) async throws {
+        let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b"), createdAt: .now, isWrite: true, report: nil)
+        host.changedSinceBackup = changed
+        prompter.answer = false
+        await coordinator().restore(backup)
+        let prompt = try #require(prompter.shown.first)
+        #expect(prompt.critical && prompt.destructive)
+        #expect(host.restored.isEmpty && host.locks == [true, false])
+
+        _ = NSApplication.shared
+        let alert = AlertPrompter().makeAlert(prompt)
+        alert.layout()
+        #expect(alert.alertStyle == .critical)
+        #expect(alert.buttons.first?.hasDestructiveAction == true)
+        #expect(alert.buttons.allSatisfy { $0.keyEquivalent != "\r" })
+        #expect(alert.window.defaultButtonCell == nil)
+        #expect(alert.buttons.last?.keyEquivalent == "\u{1b}")
+    }
+
+    @Test func 변경이_없는_되돌리기는_Return으로_확인할_수_있다() {
+        let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b"), createdAt: .now, isWrite: true, report: nil)
+        let prompt = ReflectionCoordinator.restoreConfirmation(backup, changedSince: false)
+        #expect(!prompt.critical && !prompt.destructive)
+        _ = NSApplication.shared
+        let alert = AlertPrompter().makeAlert(prompt)
+        alert.layout()
+        #expect(alert.buttons.first?.keyEquivalent == "\r")
+        #expect(alert.buttons.first?.hasDestructiveAction == false)
+        #expect(alert.buttons.last?.keyEquivalent == "\u{1b}")
+    }
+
+    @Test func 쓰기_넣기_빼기_확인_창은_Return_기본_버튼을_유지하고_Esc로_취소할_수_있다() {
+        var deleted = RekordboxTrackWriter.Report(dryRun: true)
+        deleted.deleted = [Self.track("a")]
+        let prompts = [
+            ReflectionCoordinator.confirmation(Self.preview(cues: [Self.outcome("a", .written)]).report),
+            ReflectionCoordinator.addConfirmation(Self.addPreview([Self.track("a")])),
+            ReflectionCoordinator.deleteConfirmation(.init(report: deleted, contentIDs: ["id-a"])),
+        ]
+        _ = NSApplication.shared
+        for prompt in prompts {
+            #expect(!prompt.destructive)
+            let alert = AlertPrompter().makeAlert(prompt)
+            alert.layout()
+            #expect(alert.buttons.map(\.title) == [prompt.confirm, "취소"])
+            #expect(alert.buttons.first?.keyEquivalent == "\r")
+            #expect(alert.buttons.first?.hasDestructiveAction == false)
+            #expect(alert.buttons.last?.keyEquivalent == "\u{1b}")
+        }
+    }
+
+    @Test func 정보_알림은_한국어_확인_버튼을_직접_만든다() {
+        _ = NSApplication.shared
+        let alert = AlertPrompter().makeAlert(ReflectionPrompt(title: "알림", text: "안내"))
+        #expect(alert.buttons.map(\.title) == ["확인"])
+    }
+
+    @Test func 자동_복원_실패_경고는_심각_경고와_한국어_확인_버튼을_유지한다() throws {
+        let prompt = try #require(ReflectionCoordinator.restoreFailureAlert(
+            DJCError.restoreFailed(reason: "검증 실패", restoreError: "복원 실패", backup: "/tmp/b", database: nil)))
+        _ = NSApplication.shared
+        let alert = AlertPrompter().makeAlert(prompt)
+        #expect(alert.alertStyle == .critical && !prompt.destructive)
+        #expect(alert.buttons.map(\.title) == ["확인"])
+        #expect(alert.buttons.first?.keyEquivalent == "\r")
     }
 }

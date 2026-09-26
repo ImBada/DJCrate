@@ -429,7 +429,7 @@ enum CueLab {
             guard report.outcomes.contains(where: { $0.trackUUID == draft.trackUUID && $0.status == .written }),
                   let track = after.tracks.first(where: { $0.uuid == draft.trackUUID }) else { continue }
             let now = CueDraft(trackUUID: track.uuid, rekordboxCues: after.cues(for: track)).cues
-            let same = RekordboxWriter.key(now, withSource: false) == RekordboxWriter.key(draft.cues, withSource: false)
+            let same = RekordboxWriter.key(now, withSource: false) == RekordboxWriter.key(RekordboxWriter.expectedCues(after: draft), withSource: false)
             print("재확인 \(track.title.prefix(24)): \(same ? "초안과 같음" : "다름!")")
         }
         print("백업:", report.backup ?? "")

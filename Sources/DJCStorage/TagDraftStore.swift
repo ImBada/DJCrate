@@ -2,6 +2,13 @@ import DJCDomain
 import Foundation
 
 public enum TagDraftStore {
+    /// CLI는 삭제 실패를 성공으로 보고하지 않는다.
+    public static func remove(trackUUID: String, directory: URL) throws {
+        let url = directory.appending(path: "\(trackUUID).json")
+        do { try FileManager.default.removeItem(at: url) }
+        catch CocoaError.fileNoSuchFile { }
+    }
+
     public static var directory: URL {
         DJCPaths.userData.appending(path: "tag-drafts")
     }
@@ -15,13 +22,13 @@ public enum TagDraftStore {
         return try? JSONDecoder().decode(TagDraft.self, from: data)
     }
 
-    public static func save(_ draft: TagDraft) throws {
+    public static func save(_ draft: TagDraft, directory: URL = directory) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = directory.appending(path: "\(draft.trackUUID).json")
         if draft.hasChanges {
             try JSONEncoder().encode(draft).write(to: url, options: .atomic)
         } else {
-            try? FileManager.default.removeItem(at: url)
+            try remove(trackUUID: draft.trackUUID, directory: directory)
         }
     }
 

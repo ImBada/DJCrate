@@ -166,6 +166,19 @@ extension DeckModel {
         selectedCueID = nil
     }
 
+    func reloadExternalCueDraft(_ saved: CueDraft?) {
+        guard !isWriteLocked, !hasUncommittedCueEdits, let row, saved == nil || saved?.trackUUID == row.track.uuid else { return }
+        if let saved, saved.base == draft?.base, saved.cues == draft?.cues { return }
+        if saved == nil, draft?.hasChanges != true { return }
+        // 그리드·게인 실행 취소에도 옛 큐가 들어 있으므로 이 곡의 덱 이력을 비운다.
+        clearDraftUndo()
+        draft = saved ?? CueDraft(trackUUID: row.track.uuid, rekordboxCues: row.cues)
+        if cue(selectedCueID) == nil { selectedCueID = nil }
+        if cue(engagedLoopID)?.loop == nil { engagedLoopID = nil }
+        refreshSuggestions()
+        syncAudioLoop()
+    }
+
     func commitDraft() {
         guard !isWriteLocked, let draft else { return }
         persist(draft)
@@ -180,6 +193,7 @@ extension DeckModel {
         guard self.draft != draft else { return }
         if recordingUndo, !save, pendingDraftUndo == nil { pendingDraftUndo = before }
         self.draft = draft
+        hasUncommittedCueEdits = !save
         refreshSuggestions()
         if save {
             persist(draft)
@@ -192,6 +206,7 @@ extension DeckModel {
     }
 
     func persist(_ draft: CueDraft) {
+        hasUncommittedCueEdits = false
         storage.saveCueDraft(draft)
         onCueDraftChange?(draft)
         onDraftChange?(draft.trackUUID, .cue, draft.hasChanges)

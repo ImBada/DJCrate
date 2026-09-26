@@ -1,6 +1,8 @@
-# djc 읽기 명령과 JSON
+# djc 읽기·초안 명령과 JSON
 
 `search`, `track`, `playlists`, `playlist`, `drafts`는 기존 최신 `LibrarySnapshot`을 읽는다. 스냅샷이 없으면 오류이며 라이브 DB로 대체하거나 자동으로 스냅샷을 만들지 않는다. 먼저 `djc snapshot`을 실행하거나 `--db <사본.db>`를 준다. 실제 라이브 `master.db` 경로와 그 심볼릭 링크·하드 링크는 거부한다. 읽기 명령은 초안·DB·음원을 변경하지 않는다.
+
+에이전트(Claude Code·Codex)에게 이 명령으로 조회·제안만 하게 하는 스킬은 `skills/djcrate/SKILL.md`다(`.claude/skills/djcrate`·`.agents/skills/djcrate`는 그 폴더의 링크). 명령·JSON 계약을 바꾸면 스킬도 함께 고친다.
 
 `--db`는 이 문서의 DB 읽기 명령에서 쓸 수 있다. 이때 그리드 파일은 사본 DB 옆 `share/PIONEER/USBANLZ`에서 읽으며, 없는 경우 라이브 분석 파일로 대체하지 않는다. 기본 스냅샷은 `DJC_REKORDBOX_DIR` 또는 기본 rekordbox 폴더의 `share`에서 분석 파일을 읽는다. 초안은 `DJC_HOME` 또는 기본 DJCrate 데이터 폴더에서 읽는다.
 
@@ -79,3 +81,32 @@ djc compat --db /tmp/djc-fixture/master.db --json
 - `ParsedComment`: `prefix`, `workRef`, `workName`, `abbreviations`, `usages`(`{kind, numbers}` 배열), `episodes`, `isCharacterSong`, `isTVSize`, `variants`, `isFormerAffiliation`, `boomboxVolumes`; 선택 `season`, `seasonStyle`(`parenthesized`, `plain`, `season`), `airingYear`, `airingQuarter`, `movieYear`. `classification`은 `convention`, `legacy`, `residue`, `credit`, `empty`, `other` 중 하나다.
 
 `compat` 성공은 기존 앱 버전·DB 구조·카운터 검사 통과를 뜻한다. rekordbox 실행 여부 등 실제 쓰기 사전 확인을 대체하지 않는다.
+
+## 큐·태그 초안 만들기
+
+`djc draft`는 위와 같은 `LibraryRead` 스냅샷 경로를 쓰며 라이브 DB를 거절한다. DB·분석 파일·음원에는 쓰지 않고 `DJC_HOME`의 `cue-drafts/`·`tag-drafts/`에 앱과 같은 JSON을 저장한다. 처음 만들 때 스냅샷의 rekordbox 값을 `base`에 담고, 기존 초안을 이어 고칠 때는 그 `base`와 다른 편집을 보존한다. rekordbox 반영은 앱에서 사람이 별도로 실행한다.
+
+```sh
+# 시험할 때는 반드시 임시 DJC_HOME을 쓴다.
+export DJC_HOME="$(mktemp -d)"
+djc draft cue 101 --time 12.5 --name '진입' --db /tmp/djc-fixture/master.db --dry-run --json
+djc draft cue 101 --slot B --time 16 --loop-end 20 --beats 8 --active --db /tmp/djc-fixture/master.db
+djc draft tag 101 --title '합성 제목' --artist '합성 가수' --comment '' --db /tmp/djc-fixture/master.db --json
+djc draft rm cue 101 --db /tmp/djc-fixture/master.db --dry-run --json
+djc draft rm tag 101 --db /tmp/djc-fixture/master.db
+```
+
+- `draft cue <ContentID> --time <초>`: 기본은 메모리 큐다. `--slot A`~`H`를 주면 해당 핫큐를 놓거나 교체한다. `--name`은 이름이다. 시각은 **rekordbox 시간축의 초**이며 자동 퀀타이즈하지 않는다.
+- `--loop-end <초>`는 시작보다 뒤인 루프 끝이다. 선택 `--beats <박 수>`는 양의 정수 또는 1/n, `--active`는 활성 루프 지정이다. 두 옵션은 `--loop-end`와 함께 쓴다. 활성 루프는 곡에 하나만 남는다.
+- 메모리 큐는 자동 큐를 포함해 10개까지다. 같은 자리 ±30ms의 기존 메모리 큐는 앱처럼 그대로 사용한다(루프 추가 시에는 기존 루프만 해당). 새 이름이나 루프 길이로 그 큐를 덮어쓰지는 않는다.
+- `draft tag <ContentID>`: `--title`, `--artist`, `--album`, `--album-artist`, `--genre`, `--composer`, `--year`, `--track-number`, `--comment` 중 하나 이상을 준다. 빈 문자열은 해당 값을 비우며, 빈 제목·숫자가 아닌 연도/트랙 번호는 거절한다.
+- `draft rm cue|tag <ContentID>`는 해당 종류의 **초안 전체**를 버린다. 개별 큐나 rekordbox 원본을 지우지 않는다. 이미 없는 초안을 지우는 것은 성공이다. 그리드·게인 초안은 그대로 둔다.
+- `--dry-run`은 같은 검증을 거쳐 결과를 보여 주고 폴더·파일을 만들거나 지우지 않는다. 기존 초안이 손상되었으면 덮어쓰지 않고 오류를 낸다.
+
+앱은 실행 중 약 1초마다 큐·태그 초안 파일 변경을 확인한다. 목록의 편집 표시·큐 개수·태그 편집기와 현재 덱의 큐를 갱신하며 재생 위치를 유지한다. 큐·그리드를 드래그하는 동안에는 저장 후에 다시 읽는다. 태그가 외부에서 바뀌면 오래된 되돌리기 기록은 비운다. 태그 초안은 기존 앱과 같이 태그 편집기에 표시되며, rekordbox 반영 대기 목록은 큐·그리드·게인만 포함한다. 같은 곡을 앱과 CLI에서 동시에 편집하면 마지막 저장이 앞선 저장을 덮을 수 있으므로 편집을 마친 뒤 다음 명령을 실행한다.
+
+`--json`은 위 JSON v1 성공/오류 출력 규칙을 따른다. `command`는 `draft`, `data`는 `{kind: "cue"|"tag", action: "save"|"remove", contentID, trackUUID, dryRun, hasChanges, cue?, tag?}`다. 저장·미리보기의 `cue` 또는 `tag`에는 앱 파일과 같은 초안 전체(`base` 포함)가 담긴다. `hasChanges`는 명령 적용 후 남을 초안의 변경 여부이며 삭제는 `false`다. 원본으로 되돌아간 초안은 저장소에서 제거된다.
+
+추가 오류 코드는 `invalid_draft`(기존 초안 손상·큐 한도), `draft_io_failed`(초안 저장·삭제 실패)다. 기존 `invalid_arguments`, `not_found`, `live_database`, `read_failed`도 사용한다. 실패 시 종료 코드 1이며 JSON은 stderr에만 나온다.
+
+재생 목록 초안은 #39에서 저장 방식이 정해진 뒤 다룬다. 이번 명령의 대상은 큐·태그다.

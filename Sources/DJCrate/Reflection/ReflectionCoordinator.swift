@@ -9,6 +9,7 @@ struct ReflectionPrompt: Equatable {
     var text: String
     var confirm: String?
     var critical = false
+    var destructive = false
 }
 
 /// 창을 띄운다. 시험에서는 정해 둔 답을 돌려준다.
@@ -20,17 +21,27 @@ protocol ReflectionPrompter {
 
 struct AlertPrompter: ReflectionPrompter {
     func show(_ prompt: ReflectionPrompt) -> Bool {
+        let response = makeAlert(prompt).runModal()
+        return prompt.confirm != nil && response == .alertFirstButtonReturn
+    }
+
+    func makeAlert(_ prompt: ReflectionPrompt) -> NSAlert {
         let alert = NSAlert()
         alert.messageText = prompt.title
         alert.informativeText = prompt.text
         if prompt.critical { alert.alertStyle = .critical }
         guard let confirm = prompt.confirm else {
-            alert.runModal()
-            return false
+            alert.addButton(withTitle: "확인")
+            return alert
         }
-        alert.addButton(withTitle: confirm)
-        alert.addButton(withTitle: "취소")
-        return alert.runModal() == .alertFirstButtonReturn
+        let confirmButton = alert.addButton(withTitle: confirm)
+        // 번들이 없는 디버그 실행에서도 취소 단축키가 동작해야 한다.
+        alert.addButton(withTitle: "취소").keyEquivalent = "\u{1b}"
+        if prompt.destructive {
+            confirmButton.hasDestructiveAction = true
+            confirmButton.keyEquivalent = ""
+        }
+        return alert
     }
 }
 
@@ -198,11 +209,13 @@ struct ReflectionCoordinator {
     // MARK: - 창 문구
 
     /// 쓰기 확인도 자동 복원도 실패했을 때의 경고(상태를 알 수 없음 + 할 일). 그 밖의 오류면 nil.
+    /// 반영·넣기·빼기 모두 '반영 대기' 목록의 '되돌리기…'(가장 최근 쓰기 백업으로 되돌림)를 안내한다.
+    /// 사이드바 아래 '마지막 반영 되돌리기…'는 쓰기가 성공했을 때만 나타나 여기서는 보이지 않을 수 있다.
     static func restoreFailureAlert(_ error: any Error) -> ReflectionPrompt? {
         guard case let DJCError.restoreFailed(reason, restoreError, backup, database) = error else { return nil }
         let text = [
             "rekordbox 라이브러리(master.db)와 분석 파일이 어떤 상태인지 알 수 없습니다. "
-                + "rekordbox를 켜지 말고 사이드바 'rekordbox 반영 대기'의 '되돌리기…'로 쓰기 전 백업을 복원하세요.",
+                + "rekordbox를 켜지 말고, 사이드바에서 'rekordbox 반영 대기'를 고른 뒤 목록 위 '되돌리기…'로 쓰기 전 백업을 복원하세요.",
             "터미널에서는: " + DJCError.restoreCommand(backup: backup, database: database),
             "확인 실패: \(reason)\n복원 실패: \(restoreError)",
         ]
@@ -274,7 +287,7 @@ struct ReflectionCoordinator {
                                 confirm: "rekordbox에서 빼기", critical: true)
     }
 
-    /// 되돌리기 확인 창. 백업 뒤 rekordbox에서 바뀐 게 있으면 경고로 띄운다.
+    /// 되돌리기 확인 창. 백업 뒤 변경이 있거나 확인하지 못했으면 파괴적 경고로 띄운다.
     static func restoreConfirmation(_ backup: RekordboxWriter.Backup, changedSince changed: Bool?) -> ReflectionPrompt {
         var lines: [String] = []
         if !backup.titles.isEmpty {
@@ -295,7 +308,8 @@ struct ReflectionCoordinator {
         case false?: break
         }
         return ReflectionPrompt(title: "rekordbox를 \(backup.createdAt.formatted(date: .abbreviated, time: .shortened)) 쓰기 전으로 되돌릴까요?",
-                                text: lines.joined(separator: "\n\n"), confirm: "되돌리기", critical: changed == true)
+                                text: lines.joined(separator: "\n\n"), confirm: "되돌리기",
+                                critical: changed != false, destructive: changed != false)
     }
 }
 

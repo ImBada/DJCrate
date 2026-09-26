@@ -94,7 +94,7 @@ enum DevSelfTests {
                 for o in preview.report.blocked + preview.report.gridBlocked { log("  막힘 \(o.title): \(o.reason ?? "")") }
                 let uuids = Set(preview.report.written.map(\.trackUUID)), gridUUIDs = Set(preview.report.gridWritten.map(\.trackUUID))
                 let expected = Dictionary(uniqueKeysWithValues: preview.drafts.filter { uuids.contains($0.trackUUID) }
-                    .map { ($0.trackUUID, RekordboxWriter.key($0.cues, withSource: false)) })
+                    .map { ($0.trackUUID, RekordboxWriter.key(RekordboxWriter.expectedCues(after: $0), withSource: false)) })
                 // 그리드: 쓰기 전 분석 파일 바이트(되돌린 뒤 같은지 본다)
                 var originals: [String: Data] = [:]
                 for uuid in gridUUIDs {
