@@ -1,0 +1,262 @@
+import Foundation
+
+/// 재생 목록 초안(#39·#40): 반영(⇧⌘E) 때 rekordbox에 쓸 편집을 적힌 순서대로 쌓는다.
+///
+/// 큐·그리드 초안처럼 편집이 기대는 rekordbox 목록의 처음 상태(`base`)를 들고 있어, 그 뒤 rekordbox에서 바뀐 목록의 편집은 쓰지 않는다.
+/// - 곡 넣기·빼기·옮기기·이름 바꾸기·옮기기: 그 목록의 이름·부모·곡 항목
+/// - 순서 바꾸기: 그 목록과 부모 안 순서(자리 번호가 거기에 기댄다)
+/// - 지우기: 그 아래 모든 목록(지우면 함께 사라지므로 그 뒤 rekordbox에서 넣은 곡·목록이 있으면 막는다)
+/// - 만들기·옮겨 넣을 폴더: 폴더가 있기만 하면 된다
+/// 초안으로 만든 목록(`new:키`)은 rekordbox 상태가 없어 기댈 것이 없다.
+public struct PlaylistDraft: Codable, Hashable, Sendable {
+    /// 편집이 기대는 목록 하나의 rekordbox 상태
+    public struct Base: Codable, Hashable, Sendable {
+        public var name: String
+        public var parentID: String
+        public var isFolder: Bool
+        public var entries: [PlaylistEntry]
+        /// 부모 안 순서에 기대는 편집(순서 바꾸기의 부모, 폴더 지우기)이 있을 때만 적는다
+        public var childIDs: [String]?
+
+        public init(_ item: PlaylistLayout.Item, childIDs: [String]? = nil) {
+            name = item.name
+            parentID = item.parentID
+            isFolder = item.isFolder
+            entries = item.entries
+            self.childIDs = childIDs
+        }
+
+        /// 맨 위(자식 순서만 본다)
+        static func root(childIDs: [String]) -> Base {
+            var base = Base(PlaylistLayout.Item(id: PlaylistLayout.root, name: "", parentID: "", isFolder: true))
+            base.childIDs = childIDs
+            return base
+        }
+    }
+
+    public struct Step: Codable, Hashable, Sendable {
+        public var edit: PlaylistEdit
+        /// 이 편집이 기대는 rekordbox 목록(ID, 맨 위는 `root`). 하나라도 `base`와 달라졌으면 쓰지 않는다.
+        public var depends: [String]
+
+        public init(edit: PlaylistEdit, depends: [String] = []) {
+            self.edit = edit
+            self.depends = depends
+        }
+    }
+
+    public private(set) var steps: [Step] = []
+    /// 목록 ID → 편집이 처음 기댄 때의 rekordbox 상태
+    public private(set) var base: [String: Base] = [:]
+
+    public init() {}
+
+    public var edits: [PlaylistEdit] { steps.map(\.edit) }
+    public var isEmpty: Bool { steps.isEmpty }
+
+    static let changedReason = "초안을 만든 뒤 rekordbox에서 이 목록이 바뀌었습니다. 이 목록의 초안을 버리고 다시 편집하세요"
+
+    // MARK: - 쌓기
+
+    /// 편집을 더한다. 지금 rekordbox 상태에 초안을 얹은 모양에서 쓸 수 없는 편집이면 `PlaylistLayout.Blocked`를 던지고 그대로 둔다.
+    /// 같은 목록의 이름은 마지막 것만 남기고, 초안으로 만든 목록을 지우면 만든 편집부터 없던 일로 한다.
+    /// - Returns: 더한 뒤 모양
+    @discardableResult
+    public mutating func append(_ edit: PlaylistEdit, rekordbox: PlaylistLayout) throws -> PlaylistLayout {
+        let before = project(onto: rekordbox).layout
+        var after = before
+        try after.apply(edit)
+        var draft = self
+        let needs = Self.needs(edit, in: before, rekordbox: rekordbox)
+        for need in needs { draft.capture(need.id, children: need.children, from: rekordbox) }
+        if !draft.fold(edit, before: before, rekordbox: rekordbox) {
+            draft.steps.append(Step(edit: edit, depends: needs.map(\.id)))
+        }
+        draft.pruneBase()
+        self = draft
+        return after
+    }
+
+    /// 편집이 기대는 rekordbox 목록(초안으로 만든 목록은 뺀다)
+    static func needs(_ edit: PlaylistEdit, in layout: PlaylistLayout, rekordbox: PlaylistLayout) -> [(id: String, children: Bool)] {
+        func existing(_ ref: PlaylistRef) -> String? {
+            if case let .id(id) = ref, rekordbox.item(id) != nil { id } else { nil }
+        }
+        switch edit {
+        case .create: return []
+        case let .rename(ref, _), let .move(ref, _), let .addTracks(ref, _), let .removeTracks(ref, _), let .moveTracks(ref, _, _):
+            return existing(ref).map { [($0, false)] } ?? []
+        case let .reorder(ref, _):
+            var needs = existing(ref).map { [($0, false)] } ?? []
+            if let parent = layout.item(ref.layoutID)?.parentID, parent == PlaylistLayout.root || rekordbox.item(parent) != nil {
+                needs.append((parent, true))
+            }
+            return needs
+        case let .delete(ref):
+            guard let id = existing(ref) else { return [] }
+            return rekordbox.subtree(of: id).map { ($0, rekordbox.item($0)?.isFolder == true) }
+        }
+    }
+
+    mutating func capture(_ id: String, children: Bool, from rekordbox: PlaylistLayout) {
+        if base[id] == nil {
+            if id == PlaylistLayout.root {
+                base[id] = .root(childIDs: rekordbox.childIDs(of: id))
+            } else if let item = rekordbox.item(id) {
+                base[id] = Base(item)
+            }
+        }
+        if children, base[id] != nil, base[id]?.childIDs == nil { base[id]?.childIDs = rekordbox.childIDs(of: id) }
+    }
+
+    /// 앞 편집과 합칠 수 있으면 합치고 true
+    mutating func fold(_ edit: PlaylistEdit, before: PlaylistLayout, rekordbox: PlaylistLayout) -> Bool {
+        switch edit {
+        case let .rename(ref, name):
+            if case let .new(key) = ref, let index = createIndex(key), case let .create(_, _, isFolder, parent) = steps[index].edit {
+                steps[index].edit = .create(key: key, name: name, isFolder: isFolder, parent: parent)
+                return true
+            }
+            // 이름은 마지막 것만 쓴다. rekordbox 이름으로 되돌리면 편집이 없다.
+            steps.removeAll { if case .rename(ref, _) = $0.edit { true } else { false } }
+            return rekordbox.item(ref.layoutID)?.name == name
+        case let .delete(.new(key)):
+            let subtree = Set(before.subtree(of: PlaylistRef.new(key).layoutID))
+            guard let start = createIndex(key), subtree.allSatisfy({ $0.hasPrefix("new:") }) else { return false }
+            let outside = steps.filter { !subtree.contains($0.edit.playlist.layoutID) }
+            // 다른 목록이 이 폴더를 거쳐 갔거나(만든 뒤 밖으로 옮김), 뒤에 부모 안 자리에 기대는 순서 바꾸기가 있으면 그대로 지운다.
+            guard !outside.contains(where: { $0.edit.destination.map { subtree.contains($0.layoutID) } == true }),
+                  !steps[start...].contains(where: { step in
+                      if case let .reorder(ref, _) = step.edit { !subtree.contains(ref.layoutID) } else { false }
+                  })
+            else { return false }
+            steps = outside
+            return true
+        default:
+            return false
+        }
+    }
+
+    func createIndex(_ key: String) -> Int? {
+        steps.firstIndex { if case .create(key, _, _, _) = $0.edit { true } else { false } }
+    }
+
+    mutating func pruneBase() {
+        let used = Set(steps.flatMap(\.depends))
+        base = base.filter { used.contains($0.key) }
+    }
+
+    // MARK: - 버리기
+
+    /// 이 목록(폴더면 그 아래까지, 초안을 얹은 모양 기준)을 건드린 편집을 버린다.
+    /// 버린 새 목록을 가리키던 편집(그 안에 만든 목록, 그리로 옮긴 목록 등)도 함께 버린다.
+    public mutating func discard(playlist id: String, rekordbox: PlaylistLayout) {
+        let layout = project(onto: rekordbox).layout
+        let ids = Set(layout.item(id) != nil ? layout.subtree(of: id) : [id])
+        steps.removeAll { ids.contains($0.edit.playlist.layoutID) }
+        dropOrphans()
+        pruneBase()
+    }
+
+    /// 지금 rekordbox 상태에서 쓸 수 없는 편집을 모두 버린다(그 편집에 기대던 편집도).
+    public mutating func discardBlocked(rekordbox: PlaylistLayout) {
+        while true {
+            let blocked = project(onto: rekordbox).blocked
+            guard blocked.contains(where: { $0 != nil }) else { break }
+            steps = zip(steps, blocked).filter { $0.1 == nil }.map(\.0)
+            dropOrphans()
+        }
+        pruneBase()
+    }
+
+    /// 쓴 편집을 뺀다(쓰기 모듈 결과가 편집 순서와 같다). 남은 편집은 그대로 두어 다음 반영에서 다시 본다.
+    public mutating func removeSteps(at offsets: some Sequence<Int>) {
+        let drop = Set(offsets)
+        steps = steps.enumerated().filter { !drop.contains($0.offset) }.map(\.element)
+        pruneBase()
+    }
+
+    /// 만든 편집이 없어진 새 목록을 가리키는 편집을 버린다(없어질 때까지 되풀이)
+    mutating func dropOrphans() {
+        while true {
+            var created = Set<String>()
+            var kept: [Step] = []
+            for step in steps {
+                let refs = [step.edit.playlist, step.edit.destination].compactMap { $0 }
+                if case let .create(key, _, _, _) = step.edit {
+                    if refs.dropFirst().allSatisfy({ ref in if case .new = ref { created.contains(ref.layoutID) } else { true } }) {
+                        created.insert(PlaylistRef.new(key).layoutID)
+                        kept.append(step)
+                    }
+                    continue
+                }
+                if refs.allSatisfy({ ref in if case .new = ref { created.contains(ref.layoutID) } else { true } }) { kept.append(step) }
+            }
+            guard kept.count != steps.count else { return }
+            steps = kept
+        }
+    }
+
+    /// 되돌린 뒤: 되살린 편집을 지금 rekordbox 상태에 차례로 다시 쌓는다(쌓을 수 없는 편집은 `failed`).
+    public static func rebuilt(_ edits: [PlaylistEdit], rekordbox: PlaylistLayout) -> (draft: PlaylistDraft, failed: [PlaylistEdit]) {
+        var draft = PlaylistDraft(), failed: [PlaylistEdit] = []
+        for edit in edits {
+            do { try draft.append(edit, rekordbox: rekordbox) } catch { failed.append(edit) }
+        }
+        return (draft, failed)
+    }
+
+    // MARK: - 얹어 보기
+
+    public struct Projection: Hashable, Sendable {
+        /// 초안을 얹은 모양(막힌 편집은 빼고)
+        public var layout: PlaylistLayout
+        public var edits: [PlaylistEdit]
+        /// 편집마다 쓸 수 없는 이유(쓸 수 있으면 nil). `edits`와 같은 순서.
+        public var blocked: [String?]
+        /// 초안으로 바뀌는 목록(새로 만든 것·이름·자리·곡이 바뀐 것, 안의 목록을 지운 폴더)
+        public var changed: Set<String>
+        /// 막힌 편집이 가리키는 목록 → 처음 이유
+        public var blockedTargets: [String: String]
+
+        public var ready: [PlaylistEdit] { zip(edits, blocked).filter { $0.1 == nil }.map(\.0) }
+        public var blockedEdits: [(edit: PlaylistEdit, reason: String)] {
+            zip(edits, blocked).compactMap { edit, reason in reason.map { (edit, $0) } }
+        }
+    }
+
+    /// 지금 rekordbox 상태가 base와 다르면 그 이유
+    public func staleReason(_ id: String, rekordbox: PlaylistLayout) -> String? {
+        guard let base = base[id] else { return nil }
+        let children = base.childIDs.map { _ in rekordbox.childIDs(of: id) }
+        if id == PlaylistLayout.root { return children == base.childIDs ? nil : Self.changedReason }
+        guard let now = rekordbox.item(id) else { return "rekordbox에서 지운 목록입니다" }
+        return Base(now, childIDs: children) == base ? nil : Self.changedReason
+    }
+
+    /// 지금 rekordbox 상태에 편집을 차례로 얹는다. base와 달라진 목록에 기대는 편집, 얹을 수 없는 편집은 막힌 것으로 두고 건너뛴다.
+    public func project(onto rekordbox: PlaylistLayout) -> Projection {
+        var layout = rekordbox
+        var blocked: [String?] = [], changed = Set<String>(), targets: [String: String] = [:]
+        for step in steps {
+            let target = step.edit.playlist.layoutID
+            let parent = layout.item(target)?.parentID
+            var reason = step.depends.lazy.compactMap { staleReason($0, rekordbox: rekordbox) }.first
+            if reason == nil {
+                do { try layout.apply(step.edit) } catch let error as PlaylistLayout.Blocked { reason = error.reason } catch { reason = "\(error)" }
+            }
+            blocked.append(reason)
+            if let reason {
+                if targets[target] == nil { targets[target] = reason }
+                continue
+            }
+            if case .delete = step.edit {
+                if let parent, parent != PlaylistLayout.root { changed.insert(parent) }
+            } else {
+                changed.insert(target)
+            }
+        }
+        return Projection(layout: layout, edits: edits, blocked: blocked, changed: changed.filter { layout.item($0) != nil },
+                          blockedTargets: targets)
+    }
+}
