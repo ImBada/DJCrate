@@ -238,7 +238,7 @@ public struct RekordboxWaveforms: Sendable, Equatable {
         var mono = [Float](repeating: 0, count: lead)
         mono.reserveCapacity(lead + Int(file.length) + trailingFrames)
         let chunk: AVAudioFrameCount = 1 << 16
-        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: chunk) else { throw DJCError.invalidAnalysisFile("버퍼") }
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: chunk) else { throw DJCError.invalidAnalysisFile(String(ui: "버퍼")) }
         while file.framePosition < file.length {
             // 압축 음원은 알려 준 길이가 실제보다 조금 길 수 있다: 이미 읽은 뒤 끝에서 실패하면 거기까지.
             do { try file.read(into: buffer, frameCount: chunk) } catch where mono.count > lead { break }
@@ -341,9 +341,9 @@ public struct RekordboxWaveforms: Sendable, Equatable {
     /// 프레이즈(PSSI)·보컬(PVDI)은 만들지 못해 넣지 않는다.
     /// `extTail`: .EXT 끝에 덧붙일 태그(FLAC의 PVB2)
     public func files(dat: AnlzFile, extTail: [Data] = []) throws -> (ext: Data, twoEx: Data) {
-        guard let ppth = dat.tag("PPTH") else { throw DJCError.invalidAnalysisFile(".DAT에 경로(PPTH)가 없음") }
+        guard let ppth = dat.tag("PPTH") else { throw DJCError.invalidAnalysisFile(String(ui: ".DAT에 경로(PPTH)가 없음")) }
         let pcob = dat.tags.filter { $0.fourcc == "PCOB" }.map(\.bytes)
-        guard pcob.count == 2 else { throw DJCError.invalidAnalysisFile(".DAT의 큐 목록(PCOB)이 두 개가 아님") }
+        guard pcob.count == 2 else { throw DJCError.invalidAnalysisFile(String(ui: ".DAT의 큐 목록(PCOB)이 두 개가 아님")) }
         let ext = AnlzFile(header: dat.header, tags: [ppth.bytes, pwv3Tag, pcob[0], pcob[1], Self.emptyPCO2(kind: 1), Self.emptyPCO2(kind: 0),
                                                        BeatGridTags.pqt2([], unknown: 0), pwv5Tag, pwv4Tag] + extTail)
         let twoEx = AnlzFile(header: dat.header, tags: [ppth.bytes, pwv7Tag, pwv6Tag, pwvcTag])

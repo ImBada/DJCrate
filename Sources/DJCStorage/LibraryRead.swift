@@ -41,7 +41,7 @@ public struct LibraryRead {
         let sameFile = source?[.systemNumber] as? UInt64 == target?[.systemNumber] as? UInt64
             && source?[.systemFileNumber] as? UInt64 == target?[.systemFileNumber] as? UInt64 && source != nil && target != nil
         guard resolved != live, linked != live, !sameFile else {
-            throw ReadFailure("live_database", "라이브 master.db는 열 수 없습니다. djc snapshot으로 사본을 만든 뒤 읽으세요")
+            throw ReadFailure("live_database", String(ui: "라이브 master.db는 열 수 없습니다. djc snapshot으로 사본을 만든 뒤 읽으세요"))
         }
         return candidate
     }
@@ -49,7 +49,7 @@ public struct LibraryRead {
     public func search(query: String, bpm: ClosedRange<Double>? = nil, key: String? = nil,
                        playlistID: String? = nil, filter: LibraryFilter = .all) throws -> TrackList {
         guard !filter.requiresCommentRule || commentRule != nil else {
-            throw ReadFailure("invalid_arguments", "코멘트 규칙 필터는 --comment-preset anisong을 지정한 뒤 쓰세요")
+            throw ReadFailure("invalid_arguments", String(ui: "코멘트 규칙 필터는 --comment-preset anisong을 지정한 뒤 쓰세요"))
         }
         let allowed = try playlistID.map { Set(try playlistTracks(id: $0).map(\.id)) }
         let needle = query.lowercased()
@@ -70,12 +70,12 @@ public struct LibraryRead {
 
     /// 초안을 시작할 때 쓰는 원본. 이미 열린 스냅샷에서만 읽는다.
     public func draftSource(id: String) throws -> (track: Track, cues: [Cue]) {
-        guard let track = byID[id] else { throw ReadFailure("not_found", "곡을 찾지 못했습니다. search로 ContentID를 확인하세요") }
+        guard let track = byID[id] else { throw ReadFailure("not_found", String(ui: "곡을 찾지 못했습니다. search로 ContentID를 확인하세요")) }
         return (track, library.cues(for: track))
     }
 
     public func track(id: String) throws -> TrackInfo {
-        guard let track = byID[id] else { throw ReadFailure("not_found", "곡을 찾지 못했습니다. search로 ContentID를 확인하세요") }
+        guard let track = byID[id] else { throw ReadFailure("not_found", String(ui: "곡을 찾지 못했습니다. search로 ContentID를 확인하세요")) }
         let gain = library.autoGains[id].map {
             GainRecord(linear: $0.gain, decibels: $0.gainDB, peak: $0.peak.isFinite ? $0.peak : nil)
         }
@@ -127,7 +127,7 @@ public struct LibraryRead {
 
     public func history(id: String) throws -> HistoryContents {
         guard let history = library.histories.first(where: { $0.id == id }) else {
-            throw ReadFailure("not_found", "재생 기록을 찾지 못했습니다. histories로 ID를 확인하세요")
+            throw ReadFailure("not_found", String(ui: "재생 기록을 찾지 못했습니다. histories로 ID를 확인하세요"))
         }
         return HistoryContents(history: historyRecord(history), entries: history.entries.compactMap { entry in
             byID[entry.contentID].map { HistoryEntry(id: entry.id, trackNumber: entry.trackNumber, track: TrackRecord($0)) }
@@ -221,7 +221,7 @@ public struct LibraryRead {
     }
 
     private func missingPlaylist() -> ReadFailure {
-        ReadFailure("not_found", "재생 목록을 찾지 못했습니다. playlists로 ID를 확인하세요")
+        ReadFailure("not_found", String(ui: "재생 목록을 찾지 못했습니다. playlists로 ID를 확인하세요"))
     }
 
     private func playlistTracks(id: String, visited: Set<String> = []) throws -> [Track] {

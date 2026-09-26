@@ -31,6 +31,14 @@ final class LibraryStore {
         didSet { if oldValue !== undoManager { oldValue?.removeAllActions(withTarget: self) } }
     }
     @ObservationIgnored let saveTagDrafts: ([TagDraft]) -> Void
+    /// 재생 목록 초안 파일 쓰기(시험은 메모리로 바꾼다)
+    @ObservationIgnored let playlistDraftSaver: (PlaylistDraft) throws -> Void
+    @ObservationIgnored let backupDirectory: URL
+    private(set) var hasWriteBackup = false
+
+    func refreshWriteBackups() {
+        hasWriteBackup = RekordboxWriter.backups(in: backupDirectory).contains(where: \.isWrite)
+    }
 
     let resultHistory: WriteResultHistory
     @ObservationIgnored var feedback: AppFeedback
@@ -54,12 +62,18 @@ final class LibraryStore {
     var commentRuleEnabled: Bool { commentPreset.rule != nil }
 
     init(settings: SettingsStore = SettingsStore(), resultHistory: WriteResultHistory = WriteResultHistory(url: DJCPaths.userData.appending(path: "last-write-result.json")),
-         feedback: AppFeedback = AppFeedback(), saveTagDrafts: @escaping ([TagDraft]) -> Void = { DraftWriter.save($0) }) {
+         feedback: AppFeedback = AppFeedback(), saveTagDrafts: @escaping ([TagDraft]) -> Void = { DraftWriter.save($0) },
+         backupDirectory: URL = DJCPaths.rekordboxBackups,
+         playlistDraftSaver: @escaping (PlaylistDraft) throws -> Void = { try PlaylistDraftStore.save($0) }) {
         self.settings = settings
         self.commentPreset = settings.commentPreset
         self.saveTagDrafts = saveTagDrafts
+        self.playlistDraftSaver = playlistDraftSaver
         self.resultHistory = resultHistory
         self.feedback = feedback
+        self.backupDirectory = backupDirectory
+        refreshWriteBackups()
+        loadRecentPlaylists()
     }
 
     var phase: Phase = .idle
@@ -72,7 +86,7 @@ final class LibraryStore {
     private(set) var duplicateGroups: [LibraryRead.DuplicateGroup] = []
     private(set) var displayDuplicateGroups: [LibraryRead.DuplicateGroup] = []
     private(set) var filterCounts: [LibraryFilter: Int] = [:]
-    private(set) var playlistCounts: [String: Int] = [:]
+    var playlistCounts: [String: Int] = [:]
     var isLoading: Bool { if case .loading = phase { true } else { false } }
 
     var sidebar: SidebarItem = .filter(.all) {
@@ -89,11 +103,31 @@ final class LibraryStore {
             refreshBase()
         }
     }
-    private(set) var playlistTree: [PlaylistNode] = []
-    private var playlistIndex: [String: PlaylistNode] = [:] { didSet { playlistCount = playlistIndex.values.filter { !$0.isFolder }.count } }
+    /// 사이드바 재생 목록 트리(rekordbox 상태에 재생 목록 초안을 얹은 모양, LibraryStore+Playlists)
+    var playlistTree: [PlaylistOutlineNode] = []
+    var playlistIndex: [String: PlaylistOutlineNode] = [:] { didSet { playlistCount = playlistIndex.values.filter { !$0.isFolder }.count } }
     /// 폴더를 뺀 rekordbox 플레이리스트 수(사이드바 제목)
     private(set) var playlistCount = 0
-    private(set) var histories: [RekordboxHistory] = []
+    /// 스냅샷에서 읽은 rekordbox 재생 목록(초안을 얹기 전)
+    var rekordboxPlaylists = PlaylistLayout()
+    /// 재생 목록 초안(반영 때 쓴다). 바꿀 때는 `setPlaylistDraft`로(저장·화면·되돌리기).
+    var playlistDraft = PlaylistDraft()
+    /// 초안을 얹은 모양과 편집마다 막힌 이유
+    var playlistProjection = PlaylistDraft().project(onto: PlaylistLayout())
+    /// 목록마다 초안으로 넣은 곡(ContentID). 목록을 볼 때 초안 표식을 붙인다.
+    var playlistAddedTracks: [String: Set<String>] = [:]
+    /// 최근에 곡을 넣은 목록(최근 것부터). 오른쪽 클릭 메뉴 맨 위·'마지막에 쓴 목록에 넣기'.
+    var recentPlaylistIDs: [String] = []
+    /// 사이드바에서 이름을 고치는 중인 목록
+    var renamingPlaylistID: String?
+    /// 재생 목록 편집 결과 안내(넣은 곡 수·이미 든 곡·막힌 이유)
+    var playlistMessage: AppMessage? {
+        didSet { if let playlistMessage { feedback.announce(playlistMessage) } }
+    }
+    /// '재생 목록에 넣기…' 창과 넣을 곡(연 때 고른 곡)
+    var showingPlaylistPicker = false
+    var playlistPickerTracks: [TrackRow] = []
+    var histories: [RekordboxHistory] = []
     private var historyIndex: [String: RekordboxHistory] = [:]
 
     var sidebarTitle: String {
@@ -153,7 +187,11 @@ final class LibraryStore {
     var writeStage: WriteStage?
     /// rekordbox에 쓰는 중(미리 보기 포함)
     var isWritingRekordbox = false {
-        didSet { if isWritingRekordbox { undoManager?.removeAllActions(withTarget: self) } }
+        didSet {
+            if isWritingRekordbox { undoManager?.removeAllActions(withTarget: self) }
+            // 쓰기·되돌리기 실패 때도 백업이 남거나 정리될 수 있다.
+            if oldValue && !isWritingRekordbox { refreshWriteBackups() }
+        }
     }
     /// 쓰는 동안 덱 큐 편집을 잠근다
     var onWriteLock: ((Bool) -> Void)?
@@ -209,7 +247,7 @@ final class LibraryStore {
 
     func count(_ filter: LibraryFilter) -> Int { filterCounts[filter] ?? 0 }
 
-    func count(playlist node: PlaylistNode) -> Int { playlistCounts[node.id] ?? 0 }
+    func count(playlist node: PlaylistOutlineNode) -> Int { playlistCounts[node.id] ?? 0 }
 
     private func schedulePrimaryChange() {
         primaryTask?.cancel()
@@ -357,15 +395,11 @@ final class LibraryStore {
             gridDraftUUIDs = loaded.gridDraftUUIDs
             gainDraftUUIDs = GainDraftStore.uuids()
             editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys)
-            playlistTree = loaded.tree
-            var index: [String: PlaylistNode] = [:]
-            func walk(_ nodes: [PlaylistNode]) { for node in nodes { index[node.id] = node; walk(node.children ?? []) } }
-            walk(loaded.tree)
-            playlistIndex = index
+            rekordboxPlaylists = loaded.playlists
+            playlistDraft = loaded.playlistDraft
+            refreshPlaylists(refreshList: false)
             histories = loaded.histories
             historyIndex = Dictionary(uniqueKeysWithValues: histories.map { ($0.id, $0) })
-            let known = rowsByID
-            playlistCounts = index.mapValues { node in node.trackIDs.lazy.filter { known[$0] != nil }.count }
             snapshotURL = snapshot
             previewRevision += 1
             loadStaged()

@@ -66,6 +66,11 @@ private struct TrackListView: NSViewRepresentable {
             table.addTableColumn(column)
         }
         table.menu = context.coordinator.makeMenu()
+        // 곡을 사이드바 재생 목록으로 끌어 넣고, 목록 안에서 끌어 순서를 바꾼다(#39). 앱 밖으로는 끌지 않는다.
+        table.registerForDraggedTypes([PlaylistDragType.pasteboardTracks])
+        table.setDraggingSourceOperationMask([.copy, .move], forLocal: true)
+        table.setDraggingSourceOperationMask([], forLocal: false)
+        table.draggingDestinationFeedbackStyle = .gap
         table.autosaveName = "djc.trackList.v2"
         table.autosaveTableColumns = !PerfProbe.enabled
         // 머리글을 오른쪽 클릭하면 보일 칸을 고른다(숨김 상태도 자동 저장된다).
@@ -136,7 +141,7 @@ private struct TrackListView: NSViewRepresentable {
         context.coordinator.updateWriteLock(store.isWritingRekordbox)
         context.coordinator.updateTextScale(context.environment.textScale)
         context.coordinator.updateCommentPreset(store.commentPreset)
-        context.coordinator.update(rows: store.displayRows, edited: store.editedUUIDs,
+        context.coordinator.update(rows: store.displayRows, edited: store.listMarkedUUIDs,
                                    selection: store.selection, sortOrder: store.sortOrder, snapshotURL: store.snapshotURL,
                                    previewRevision: store.previewRevision)
         context.coordinator.updateTagRevision(store.tagRevision)
@@ -478,6 +483,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             xml.target = self
             menu.addItem(xml)
         }
+        addPlaylistItems(to: menu, targets: targets)
         let staged = targets.filter(\.isStaged)
         if !staged.isEmpty {
             let add = NSMenuItem(title: String(ui: "rekordbox에 바로 넣기 (\(staged.count)곡)…"), action: #selector(addToRekordbox), keyEquivalent: "")
@@ -494,7 +500,8 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         let removable = targets.filter { !$0.isStaged && !$0.track.isStreaming }
         if !removable.isEmpty {
             menu.addItem(.separator())
-            let remove = NSMenuItem(title: String(ui: "rekordbox에서 빼기 (\(removable.count)곡)…"), action: #selector(deleteFromRekordbox), keyEquivalent: "")
+            // 재생 목록에서 빼기(⌫, 초안)와 헷갈리지 않게 컬렉션에서 지운다는 것을 적는다.
+            let remove = NSMenuItem(title: String(ui: "rekordbox 컬렉션에서 빼기 (\(removable.count)곡)…"), action: #selector(deleteFromRekordbox), keyEquivalent: "")
             remove.target = self
             menu.addItem(remove)
         }
@@ -509,7 +516,8 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     }
 
     @objc private func reflectSelected() {
-        DirectWritePanels.write(store: store, rows: menuTargets())
+        // 고른 곡의 초안만 쓴다(재생 목록 초안은 ⇧⌘E·반영 대기 목록에서).
+        DirectWritePanels.write(store: store, rows: menuTargets(), playlists: false)
     }
 
     @objc private func exportReflectionXML() {
@@ -1021,5 +1029,114 @@ extension CommentEvaluation.Tone {
         case .residue: UIColors.memory.nsColor
         case .secondary: .secondaryLabelColor
         }
+    }
+}
+
+// MARK: - 재생 목록(#39)
+
+extension TrackListCoordinator {
+    /// 오른쪽 클릭 메뉴: '재생 목록에 넣기 ▸'(최근 목록 → 폴더 트리 → 찾아서 넣기·새 목록), 목록을 볼 때 '이 목록에서 빼기'
+    fileprivate func addPlaylistItems(to menu: NSMenu, targets: [TrackRow]) {
+        let tracks = targets.filter { !$0.isStaged }
+        guard !tracks.isEmpty, store.snapshotURL != nil else { return }
+        menu.addItem(.separator())
+        let add = NSMenuItem(title: String(ui: "재생 목록에 넣기"), action: nil, keyEquivalent: "")
+        let submenu = NSMenu()
+        let recent = store.recentPlaylists
+        for item in recent { submenu.addItem(playlistItem(item, path: store.playlistProjection.layout.ancestors(of: item.id).map(\.name))) }
+        if !recent.isEmpty { submenu.addItem(.separator()) }
+        fillPlaylistTree(submenu, parent: PlaylistLayout.root)
+        if submenu.items.last?.isSeparatorItem == false { submenu.addItem(.separator()) }
+        let find = NSMenuItem(title: String(ui: "찾아서 넣기…"), action: #selector(pickPlaylist), keyEquivalent: "")
+        find.target = self
+        submenu.addItem(find)
+        let create = NSMenuItem(title: String(ui: "새 재생 목록으로 (\(tracks.count)곡)"), action: #selector(createPlaylistFromTracks), keyEquivalent: "")
+        create.target = self
+        submenu.addItem(create)
+        add.submenu = submenu
+        menu.addItem(add)
+        if let id = store.editablePlaylistID, let name = store.playlistItem(id)?.name {
+            let remove = NSMenuItem(title: String(ui: "‘\(name)’에서 빼기 (\(tracks.count)곡)"), action: #selector(removeFromPlaylist), keyEquivalent: "\u{8}")
+            remove.keyEquivalentModifierMask = []
+            remove.target = self
+            menu.addItem(remove)
+        }
+    }
+
+    private func fillPlaylistTree(_ menu: NSMenu, parent: String) {
+        for item in store.playlistProjection.layout.children(of: parent) where !item.isSmart {
+            if item.isFolder {
+                let folder = NSMenuItem(title: item.name, action: nil, keyEquivalent: "")
+                folder.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
+                let submenu = NSMenu()
+                fillPlaylistTree(submenu, parent: item.id)
+                if submenu.items.isEmpty {
+                    let empty = NSMenuItem(title: String(ui: "(빈 폴더)"), action: nil, keyEquivalent: "")
+                    empty.isEnabled = false
+                    submenu.addItem(empty)
+                }
+                folder.submenu = submenu
+                menu.addItem(folder)
+            } else {
+                menu.addItem(playlistItem(item, path: []))
+            }
+        }
+    }
+
+    private func playlistItem(_ item: PlaylistLayout.Item, path: [String]) -> NSMenuItem {
+        let title = path.isEmpty ? item.name : (path + [item.name]).joined(separator: " › ")
+        let menuItem = NSMenuItem(title: title, action: #selector(addToPlaylist(_:)), keyEquivalent: "")
+        menuItem.target = self
+        menuItem.representedObject = item.id
+        menuItem.image = NSImage(systemSymbolName: "music.note.list", accessibilityDescription: nil)
+        return menuItem
+    }
+
+    @objc private func addToPlaylist(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        store.addTracks(menuTargets(), toPlaylist: id)
+    }
+
+    @objc private func removeFromPlaylist() {
+        guard let id = store.editablePlaylistID else { return }
+        store.removeTracks(menuTargets(), fromPlaylist: id)
+    }
+
+    @objc private func pickPlaylist() {
+        store.openPlaylistPicker(tracks: menuTargets())
+    }
+
+    @objc private func createPlaylistFromTracks() {
+        store.createPlaylist(isFolder: false, tracks: menuTargets())
+    }
+
+    // MARK: 끌어다 놓기
+
+    /// 곡을 끌면 ContentID를 싣는다(사이드바 목록에 놓아 넣기, 목록 안에서 순서 바꾸기). 추가한 곡은 아직 rekordbox에 없어 싣지 않는다.
+    func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> (any NSPasteboardWriting)? {
+        guard rows.indices.contains(row), !rows[row].isStaged, !isEditing else { return nil }
+        let item = NSPasteboardItem()
+        item.setString(rows[row].track.id, forType: PlaylistDragType.pasteboardTracks)
+        return item
+    }
+
+    /// 목록을 # 순서로 볼 때만 줄 사이에 놓아 순서를 바꾼다.
+    func tableView(_ tableView: NSTableView, validateDrop info: any NSDraggingInfo, proposedRow row: Int,
+                   proposedDropOperation dropOperation: NSTableView.DropOperation) -> NSDragOperation {
+        guard (info.draggingSource as? NSTableView) === tableView, store.canReorderDisplayedTracks else { return [] }
+        if dropOperation == .on { tableView.setDropRow(row, dropOperation: .above) }
+        return .move
+    }
+
+    func tableView(_ tableView: NSTableView, acceptDrop info: any NSDraggingInfo, row: Int,
+                   dropOperation: NSTableView.DropOperation) -> Bool {
+        guard let id = store.editablePlaylistID, store.canReorderDisplayedTracks else { return false }
+        let ids = (info.draggingPasteboard.pasteboardItems ?? []).compactMap { $0.string(forType: PlaylistDragType.pasteboardTracks) }
+        guard !ids.isEmpty else { return false }
+        let moving = Set(ids)
+        // 놓은 자리 아래에서 옮기지 않는 첫 곡 앞으로(없으면 맨 끝)
+        let before = rows[min(row, rows.count)...].first { !moving.contains($0.track.id) }?.track.id
+        store.moveTracks(ids, inPlaylist: id, before: before)
+        return true
     }
 }

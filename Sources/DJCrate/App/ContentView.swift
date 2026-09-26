@@ -65,6 +65,7 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $store.showingWriteResult) { WriteResultView(history: store.resultHistory) }
+        .sheet(isPresented: $store.showingPlaylistPicker) { PlaylistPickerView(store: store) }
         .animation(.easeInOut(duration: 0.15), value: store.writeStage)
         .searchable(text: $store.search, placement: .toolbar, prompt: Text(.ui("제목·아티스트·코멘트")))
         .toolbar(id: "main") { toolbarContent }
@@ -109,6 +110,9 @@ struct ContentView: View {
                         if let message = store.stagingMessage {
                             AppMessageView(message: message, onClose: { store.stagingMessage = nil })
                         }
+                        if let message = store.playlistMessage {
+                            AppMessageView(message: message, onClose: { store.playlistMessage = nil })
+                        }
                     }
                     .onGeometryChange(for: Double.self) { $0.size.height } action: { noticeHeight = $0 }
                     // 먼저 파형을 줄이고, 그리드 편집 등으로도 모자라면 덱만 스크롤한다.
@@ -135,9 +139,11 @@ struct ContentView: View {
                         TagSheetView(store: store)
                             .onDisappear { store.canFillDownTags = false }
                             .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
+                            .overlay { if store.displayRows.isEmpty { emptyLibrary } }
                     } else {
                         TrackTable(store: store, deck: deck)
                             .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
+                            .overlay { if store.displayRows.isEmpty { emptyLibrary } }
                     }
                 }
                 .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
@@ -175,6 +181,32 @@ struct ContentView: View {
                     Button(.ui("실행 중이어도 읽기용 스냅샷 뜨기")) { Task { await store.takeSnapshot(force: true) } }
                 }
             }
+    }
+
+    @ViewBuilder private var emptyLibrary: some View {
+        if !store.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            ContentUnavailableView.search(text: store.search)
+        } else if store.sidebar == .pending {
+            ContentUnavailableView {
+                Label(.ui("반영할 초안이 없습니다"), systemImage: "checkmark.circle")
+            } description: {
+                Text(.ui("곡의 큐·그리드·게인을 고치면 여기에 모입니다."))
+            }
+        } else if store.sidebar == .staged {
+            ContentUnavailableView {
+                Label(.ui("추가한 곡이 없습니다"), systemImage: "music.note")
+            } description: {
+                Text(.ui("음원 파일을 끌어다 놓거나 ‘곡 추가’를 눌러 시작하세요."))
+            } actions: {
+                Button(.ui("곡 추가…")) { StagingPanels.chooseFiles(store: store) }
+            }
+        } else {
+            ContentUnavailableView {
+                Label(.ui("표시할 곡이 없습니다"), systemImage: "music.note.list")
+            } description: {
+                Text(.ui("다른 목록을 선택하거나 새 스냅샷으로 라이브러리를 다시 읽어 보세요."))
+            }
+        }
     }
 
     @ToolbarContentBuilder private var toolbarContent: some CustomizableToolbarContent {

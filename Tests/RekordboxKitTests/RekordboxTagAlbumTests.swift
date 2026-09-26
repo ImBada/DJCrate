@@ -125,4 +125,31 @@ extension RekordboxTagWriterTests {
         #expect(try write(fixture, tags: [tags]).tagWritten.count == 1)
         #expect(try fixture.rows("SELECT ID FROM djmdAlbum WHERE ID = '31'").isEmpty)
     }
+    @Test func 막힌_태그만_있어도_재생_목록_초안은_반영한다() throws {
+        let (fixture, track) = try library()
+        let tags = try draft(fixture, track) { $0.albumArtist = "공유 앨범 변경" }
+        var playlists = PlaylistDraft()
+        try playlists.append(.create(key: "new", name: "새 목록", isFolder: false, parent: .root), rekordbox: PlaylistLayout())
+        let report = try RekordboxWriter.write(drafts: [], tags: [tags], playlistDraft: playlists, to: fixture.database,
+                                               dryRun: false, now: now, backups: fixture.backups, shareRoot: fixture.shareRoot)
+        #expect(report.tagBlocked.count == 1 && report.playlistWritten.count == 1)
+        #expect(try fixture.rows("SELECT ID FROM djmdPlaylist WHERE Name = '새 목록'").count == 1)
+    }
+
+    @Test func 막힌_태그와_변경_없는_큐의_결과를_함께_남긴다() throws {
+        let (fixture, track) = try library()
+        let tags = try draft(fixture, track) { $0.albumArtist = "공유 앨범 변경" }
+        let cue = CueDraft(trackUUID: track.uuid, rekordboxCues: [])
+        let report = try write(fixture, tags: [tags], drafts: [cue])
+        #expect(report.tagBlocked.count == 1 && report.outcomes.first?.status == .unchanged)
+        #expect(report.backup == nil)
+    }
+
+    @Test func 앨범_상태가_NULL이어도_검증된_상태로_보지_않는다() throws {
+        let (fixture, track) = try library()
+        try fixture.execute("UPDATE djmdAlbum SET rb_data_status = NULL WHERE ID = '31'")
+        let tags = try draft(fixture, track) { $0.artist = "새 아티스트" }
+        #expect(try write(fixture, tags: [tags]).tagBlocked.first?.reason?.contains("상태") == true)
+    }
+
 }

@@ -8,11 +8,12 @@ import SwiftUI
 /// rekordbox에 바로 쓰기·되돌리기 버튼의 입구. 흐름은 `ReflectionCoordinator`.
 @MainActor
 enum DirectWritePanels {
-    static func write(store: LibraryStore, rows: [TrackRow]) {
+    /// - Parameter playlists: 재생 목록 초안도 함께 쓸지(곡을 골라 쓰는 오른쪽 클릭 메뉴는 false)
+    static func write(store: LibraryStore, rows: [TrackRow], playlists: Bool = true) {
         guard !store.isWritingRekordbox, store.writeTask == nil else { return }
         store.writeTask = Task {
             defer { store.writeTask = nil }
-            await ReflectionCoordinator(host: store).write(rows: rows)
+            await ReflectionCoordinator(host: store).write(rows: rows, playlists: playlists)
         }
     }
 
@@ -35,7 +36,8 @@ enum DirectWritePanels {
     }
 
     static func restoreLatest(store: LibraryStore) {
-        guard let backup = RekordboxWriter.backups(in: DJCPaths.rekordboxBackups).first(where: \.isWrite) else {
+        store.refreshWriteBackups()
+        guard let backup = RekordboxWriter.backups(in: store.backupDirectory).first(where: \.isWrite) else {
             _ = AlertPrompter().show(ReflectionPrompt(title: String(ui: "되돌릴 쓰기 기록이 없습니다"),
                                                       text: String(ui: "DJCrate가 rekordbox에 쓴 적이 없거나 백업이 정리됐습니다.")))
             return

@@ -66,6 +66,7 @@ struct AppCommands: Commands {
         CommandMenu(Text(verbatim: "rekordbox")) {
             ForEach(LibraryMenuAction.rekordboxActions, id: \.self) { libraryButton($0) }
         }
+        CommandMenu(.ui("재생 목록")) { PlaylistCommands(store: context?.store) }
         CommandMenu(.ui("덱")) {
             ForEach(DeckAction.Group.allCases, id: \.self) { group in
                 if group != .transport { Divider() }

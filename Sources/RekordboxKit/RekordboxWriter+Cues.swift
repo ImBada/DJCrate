@@ -219,7 +219,7 @@ extension RekordboxWriter {
         // 쓰기
         for row in removals {
             guard try db.run("DELETE FROM djmdCue WHERE ID = ? AND ContentID = ?", [.text(row.id), .text(content.id)]) == 1 else {
-                throw DJCError.writeVerificationFailed("큐 행을 지우지 못했습니다(\(content.title))")
+                throw DJCError.writeVerificationFailed(String(ui: "큐 행을 지우지 못했습니다(\(content.title))"))
             }
         }
         var newObjects: [CueJSON.Object] = []

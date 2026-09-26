@@ -16,21 +16,21 @@ public struct AnlzFile: Sendable {
 
     public init(data: Data) throws {
         let bytes = [UInt8](data)
-        guard bytes.count >= 12, bytes[0..<4] == [0x50, 0x4D, 0x41, 0x49] else { throw DJCError.invalidAnalysisFile("PMAI 아님") }
+        guard bytes.count >= 12, bytes[0..<4] == [0x50, 0x4D, 0x41, 0x49] else { throw DJCError.invalidAnalysisFile(String(ui: "PMAI 아님")) }
         let headerLength = Int(Self.u32(bytes, 4))
         guard Int(Self.u32(bytes, 8)) == bytes.count, headerLength >= 12, headerLength <= bytes.count else {
-            throw DJCError.invalidAnalysisFile("PMAI 길이가 맞지 않음")
+            throw DJCError.invalidAnalysisFile(String(ui: "PMAI 길이가 맞지 않음"))
         }
         header = Data(bytes[0..<headerLength])
         tags = []
         var p = headerLength
         while p + 12 <= bytes.count {
             let length = Int(Self.u32(bytes, p + 8))
-            guard length >= 12, p + length <= bytes.count else { throw DJCError.invalidAnalysisFile("태그 길이가 맞지 않음") }
+            guard length >= 12, p + length <= bytes.count else { throw DJCError.invalidAnalysisFile(String(ui: "태그 길이가 맞지 않음")) }
             tags.append(Tag(fourcc: String(decoding: bytes[p..<p + 4], as: UTF8.self), bytes: Data(bytes[p..<p + length])))
             p += length
         }
-        guard p == bytes.count else { throw DJCError.invalidAnalysisFile("끝에 남는 바이트") }
+        guard p == bytes.count else { throw DJCError.invalidAnalysisFile(String(ui: "끝에 남는 바이트")) }
     }
 
     public init(url: URL) throws {

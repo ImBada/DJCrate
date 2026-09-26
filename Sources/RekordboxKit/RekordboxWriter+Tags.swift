@@ -100,11 +100,11 @@ extension RekordboxWriter {
                                       block: (String) -> Blocked) throws {
         let keys = draft.changedKeys
         guard keys.contains(.artist) || keys.contains(.album) || keys.contains(.albumArtist) else { return }
-        var oldState: Int?
+        var oldState = 0
         var oldAlbumArtist = ""
         try db.query("SELECT a.rb_data_status, a.AlbumArtistID FROM djmdAlbum a JOIN djmdContent c ON c.AlbumID = a.ID WHERE c.ID = ?",
-                     [.text(contentID)]) { oldState = $0.int(0); oldAlbumArtist = $0.string(1) ?? "" }
-        if let oldState, oldState != 0 {
+                     [.text(contentID)]) { oldState = $0.int(0) ?? -1; oldAlbumArtist = $0.string(1) ?? "" }
+        if oldState != 0 {
             throw block(String(ui: "이 앨범의 동기화 상태에서는 태그 쓰기를 확인하지 못했으므로 rekordbox에서 직접 고치세요"))
         }
         guard keys.contains(.album) || keys.contains(.albumArtist), !draft.fields.album.isEmpty else { return }
@@ -142,7 +142,7 @@ extension RekordboxWriter {
         try db.query("SELECT c.ArtistID, c.ComposerID, c.GenreID, c.AlbumID, a.AlbumArtistID FROM djmdContent c LEFT JOIN djmdAlbum a ON a.ID = c.AlbumID WHERE c.ID = ?", [.text(content.id)]) {
             old = ($0.string(0), $0.string(1), $0.string(2), $0.string(3), $0.string(4))
         }
-        guard let old else { throw DJCError.writeVerificationFailed("곡 행을 다시 읽지 못했습니다 (\(content.title))") }
+        guard let old else { throw DJCError.writeVerificationFailed(String(ui: "곡 행을 다시 읽지 못했습니다 (\(content.title))")) }
         // 쓴 뒤 읽힐 값(숫자 칸은 읽기 규칙대로 다듬는다. 앨범을 비우면 앨범 아티스트도 빈칸)
         var expected = draft.base
         for key in keys { expected[key] = fields[key] }
@@ -218,7 +218,7 @@ extension RekordboxWriter {
         ]
         let changed = try db.run("UPDATE djmdContent SET \(assignments.joined(separator: ", ")) WHERE ID = ?",
                                  columns.map(\.1) + [.text(trackInfoUpdated), .int(usn), .text(stamp.db), .text(content.id)])
-        guard changed == 1 else { throw DJCError.writeVerificationFailed("곡 정보를 고치지 못했습니다 (\(content.title))") }
+        guard changed == 1 else { throw DJCError.writeVerificationFailed(String(ui: "곡 정보를 고치지 못했습니다 (\(content.title))")) }
 
         // 아무 곡도 안 쓰게 된 옛 이름 행은 지운다(2026-09-27: 아티스트 A·작곡가·장르·앨범). 지운 앨범의 앨범 아티스트 행은 rekordbox도 남겼다.
         var deleted: [(table: String, id: String)] = []
@@ -252,19 +252,19 @@ extension RekordboxWriter {
     /// 곡의 태그·카운터·변경 번호가 쓴 그대로인지 다시 읽어 확인한다(트랜잭션 안과 커밋 뒤).
     static func verifyTags(db: CipherDatabase, _ expected: TagExpectation) throws {
         func fail(_ reason: String) -> DJCError { .writeVerificationFailed("\(reason) (ContentID \(expected.contentID))") }
-        guard try currentTags(db: db, contentID: expected.contentID) == expected.fields else { throw fail("곡 정보가 초안과 다릅니다") }
+        guard try currentTags(db: db, contentID: expected.contentID) == expected.fields else { throw fail(String(ui: "곡 정보가 초안과 다릅니다")) }
         var stored: (info: String?, type: String?, usn: Int?)?
         try db.query("SELECT TrackInfoUpdated, typeof(TrackInfoUpdated), rb_local_usn FROM djmdContent WHERE ID = ?",
                      [.text(expected.contentID)]) { stored = ($0.string(0), $0.string(1), $0.int(2)) }
-        guard stored?.info == expected.trackInfoUpdated, stored?.type == "text" else { throw fail("곡 정보 변경 횟수(TrackInfoUpdated)가 다릅니다") }
-        guard stored?.usn == expected.contentUSN else { throw fail("곡의 변경 번호가 다릅니다") }
+        guard stored?.info == expected.trackInfoUpdated, stored?.type == "text" else { throw fail(String(ui: "곡 정보 변경 횟수(TrackInfoUpdated)가 다릅니다")) }
+        guard stored?.usn == expected.contentUSN else { throw fail(String(ui: "곡의 변경 번호가 다릅니다")) }
         for (id, usn) in expected.touchedAlbums {
             guard try scalar(db, "SELECT rb_local_usn FROM djmdAlbum WHERE ID = ? AND AlbumArtistID IS NOT NULL", [.text(id)]) == usn else {
-                throw fail("앨범 행의 변경 번호가 다릅니다")
+                throw fail(String(ui: "앨범 행의 변경 번호가 다릅니다"))
             }
         }
         for (table, id) in expected.deletedNames {
-            guard try scalar(db, "SELECT count(*) FROM \(table) WHERE ID = ?", [.text(id)]) == 0 else { throw fail("지운 이름 행이 남아 있습니다") }
+            guard try scalar(db, "SELECT count(*) FROM \(table) WHERE ID = ?", [.text(id)]) == 0 else { throw fail(String(ui: "지운 이름 행이 남아 있습니다")) }
         }
     }
 }
