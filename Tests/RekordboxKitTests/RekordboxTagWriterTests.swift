@@ -23,7 +23,7 @@ struct RekordboxTagWriterTests {
                                   attachesAnalysis: RekordboxWriter.attachesAnalysis, tagKeys: keys)
     }
 
-    /// 곡 하나(아티스트 "옛 아티스트", 장르 "옛 장르", 앨범 "옛 앨범"(앨범 아티스트 NULL), 동기화한 적 있는 곡 = 상태 256).
+    /// 곡 하나(아티스트 "옛 아티스트", 장르 "옛 장르", 앨범 "옛 앨범"(앨범 아티스트 NULL), 실험 곡처럼 상태 0).
     /// `shared`면 같은 이름을 쓰는 다른 곡(501)도 둔다(옛 이름 행이 버려지지 않게, 두 실험처럼).
     func library(shared: Bool = true) throws -> (RekordboxFixture, TrackSpec) {
         let fixture = try RekordboxFixture(localUpdateCount: 2000)
@@ -45,7 +45,7 @@ struct RekordboxTagWriterTests {
             neighbor.albumID = "31"
             try fixture.add(neighbor)
         }
-        try fixture.execute("UPDATE djmdContent SET GenreID = '21', Commnt = '', ReleaseYear = 0, ReleaseDate = '', TrackNo = 0 WHERE ID IN ('500', '501')")
+        try fixture.execute("UPDATE djmdContent SET rb_data_status = 0, GenreID = '21', Commnt = '', ReleaseYear = 0, ReleaseDate = '', TrackNo = 0 WHERE ID IN ('500', '501')")
         return (fixture, track)
     }
 
@@ -76,17 +76,16 @@ struct RekordboxTagWriterTests {
     }
 
     @Test func 앱은_확인한_칸만_연다() throws {
-        // 2026-09-27 실험으로 확인한 칸. 앨범·앨범 아티스트는 새 앨범 행의 AlbumArtistID와 여러 곡이 쓰는 앨범을 아직 모른다.
-        #expect(RekordboxWriter.writableTagKeys == [.title, .artist, .genre, .composer, .year, .trackNumber, .comment])
+        #expect(RekordboxWriter.writableTagKeys == Self.allKeys)
         let (fixture, track) = try library()
         let title = try draft(fixture, track) { $0.title = "새 제목" }
         let written = try RekordboxWriter.write(drafts: [], tags: [title], to: fixture.database, dryRun: false, now: now,
                                                 backups: fixture.backups, shareRoot: fixture.shareRoot)
         #expect(written.tagWritten.count == 1 && written.tagBlocked.isEmpty)
         let album = try draft(fixture, track) { $0.album = "새 앨범" }
-        let blocked = try RekordboxWriter.write(drafts: [], tags: [album], to: fixture.database, dryRun: false, now: now,
+        let albumReport = try RekordboxWriter.write(drafts: [], tags: [album], to: fixture.database, dryRun: false, now: now,
                                                 backups: fixture.backups, shareRoot: fixture.shareRoot)
-        #expect(blocked.tagBlocked.first?.reason?.contains("앨범") == true)
+        #expect(albumReport.tagWritten.count == 1 && albumReport.tagBlocked.isEmpty)
     }
 
     @Test func 초안을_만든_뒤_rekordbox에서_곡_정보가_바뀌었으면_쓰지_않는다() throws {
@@ -105,8 +104,6 @@ struct RekordboxTagWriterTests {
             { var f = $0; f.title = " "; return f },
             { var f = $0; f.year = "이천"; return f },
             { var f = $0; f.trackNumber = "-3"; return f },
-            // 아티스트 비우기는 실험하지 않았다(작곡가는 '', 장르는 '0'이라 짐작할 수 없다)
-            { var f = $0; f.artist = ""; return f },
         ]
         for edit in cases {
             let tags = try draft(fixture, track) { $0 = edit($0) }
@@ -116,14 +113,18 @@ struct RekordboxTagWriterTests {
         #expect(try fixture.localUpdateCount() == 2000)
     }
 
-    @Test func 발매일이_있는_곡의_연도는_막는다() throws {
-        // 실험 곡은 ReleaseDate가 비어 있었다('' 그대로). 발매일이 있는 곡에서 연도를 고치면 발매일도 바뀌는지 모른다.
+    @Test func 발매일이_있는_곡의_연도를_고치거나_비워도_발매일은_그대로다() throws {
+        // 2026-09-27 태그 2단계 S3·S4, DJC 실험 태그 날짜: 연도 2012 → 2024 → 0, ReleaseDate 그대로.
         let (fixture, track) = try library()
-        try fixture.execute("UPDATE djmdContent SET ReleaseYear = 2012, ReleaseDate = '2012-02-23' WHERE ID = '500'")
-        let year = try draft(fixture, track) { $0.year = "2013" }
-        #expect(try write(fixture, tags: [year]).tagBlocked.first?.reason?.contains("발매일") == true)
-        let title = try draft(fixture, track) { $0.title = "새 제목" }
-        #expect(try write(fixture, tags: [title]).tagWritten.count == 1, "연도를 고치지 않으면 쓴다")
+        try fixture.execute("UPDATE djmdContent SET ReleaseYear = 2012, ReleaseDate = '1968-09-27' WHERE ID = '500'")
+        for year in ["2024", "0"] {
+            let before = try content(fixture)
+            let tags = try draft(fixture, track) { $0.year = year }
+            #expect(try write(fixture, tags: [tags]).tagWritten.count == 1)
+            let after = try content(fixture)
+            #expect(after["ReleaseDate"] == "1968-09-27" && after["ReleaseYear"] == year)
+            #expect(Set(after.keys.filter { after[$0] != before[$0] }).isSubset(of: ["ReleaseYear", "TrackInfoUpdated", "rb_local_usn", "updated_at"]))
+        }
     }
 
     @Test func 없는_곡과_지운_곡은_막는다() throws {
@@ -170,10 +171,10 @@ struct RekordboxTagWriterTests {
         // 곡 행은 제자리: 바뀐 칸과 카운터·상태·변경 번호·시각만
         let after = try content(fixture)
         let changed = Set(after.keys.filter { after[$0] != before[$0] })
-        #expect(changed == ["Title", "Commnt", "ArtistID", "GenreID", "TrackInfoUpdated", "rb_data_status", "rb_local_usn", "updated_at"])
+        #expect(changed == ["Title", "Commnt", "ArtistID", "GenreID", "TrackInfoUpdated", "rb_local_usn", "updated_at"])
         #expect(after["Title"] == "새 제목" && after["Commnt"] == "TEST")
         #expect(after["ArtistID"] == artist["ID"] && after["GenreID"] == genre["ID"])
-        #expect(after["rb_data_status"] == "257" && after["updated_at"] == stamp)
+        #expect(after["rb_data_status"] == "0" && after["updated_at"] == stamp)
         // 변경 번호: 새 이름 행과 앨범 행이 먼저, 곡 행이 마지막(묶음 2: 아티스트 1003475 → 앨범 1003477 → 장르 1003481 → 곡 1003728)
         #expect(artist["rb_local_usn"] == "2001" && genre["rb_local_usn"] == "2003" && after["rb_local_usn"] == "2004")
         #expect(try fixture.localUpdateCount() == 2004)
@@ -261,7 +262,7 @@ struct RekordboxTagWriterTests {
     }
 
     @Test func 앨범을_비우면_빈_글자이고_버려진_앨범_행은_지우되_앨범_아티스트_행은_둔다() throws {
-        // 실험곡 3 세션 2(앨범 칸은 앱에서 아직 닫혀 있다): AlbumID '', 앨범 행 삭제, 앨범 아티스트 행은 남음. 앨범 아티스트도 함께 빈칸.
+        // 실험곡 3 세션 2: AlbumID '', 앨범 행 삭제, 앨범 아티스트 행은 남음. 앨범 아티스트도 함께 빈칸.
         let (fixture, track) = try library(shared: false)
         try fixture.insert("djmdArtist", ["ID": .text("13"), "Name": .text("앨범 아티스트"), "UUID": .text("a-13"), "rb_local_deleted": .int(0)])
         try fixture.execute("UPDATE djmdAlbum SET AlbumArtistID = '13' WHERE ID = '31'")
@@ -281,22 +282,6 @@ struct RekordboxTagWriterTests {
 
     // MARK: 규칙
 
-    @Test func 앨범은_앨범_아티스트와_짝으로_찾거나_만든다() throws {
-        // 확인 전 가정(앱에서는 닫힌 칸): 곡 넣기처럼 (이름, 앨범 아티스트) 짝으로 찾고 없으면 만든다.
-        let (fixture, track) = try library()
-        let tags = try draft(fixture, track) { $0.album = "옛 앨범"; $0.albumArtist = "앨범 아티스트" }
-        _ = try write(fixture, tags: [tags])
-        let albumArtist = try #require(fixture.rows("SELECT ID FROM djmdArtist WHERE Name = '앨범 아티스트'").first?["ID"])
-        let album = try #require(fixture.rows("SELECT * FROM djmdAlbum WHERE AlbumArtistID = ?", [.text(albumArtist)]).first)
-        #expect(album["Name"] == "옛 앨범" && album["ID"] != "31" && album["Compilation"] == "0" && album["ImagePath"] == "NULL")
-        #expect(try content(fixture)["AlbumID"] == album["ID"])
-        // 옛 앨범 행(앨범 아티스트 없음)은 그대로
-        #expect(try fixture.rows("SELECT AlbumArtistID FROM djmdAlbum WHERE ID = '31'").first?["AlbumArtistID"] == "NULL")
-        // 앨범을 비우면서 새 앨범 아티스트를 넣을 수는 없다(앨범을 비우면 rekordbox가 앨범 아티스트도 비운다)
-        let orphan = try draft(fixture, track) { $0.album = ""; $0.albumArtist = "다른 앨범 아티스트" }
-        #expect(try write(fixture, tags: [orphan]).tagBlocked.count == 1)
-    }
-
     @Test func 숫자_칸은_정수로() throws {
         let (fixture, track) = try library()
         let tags = try draft(fixture, track) { $0.year = "02024"; $0.trackNumber = "7" }
@@ -315,6 +300,7 @@ struct RekordboxTagWriterTests {
         var track = TrackSpec(id: "600", uuid: "track-uuid-600")
         track.cues = [.autoCue(at: 1024)]
         try fixture.add(track)
+        try fixture.execute("UPDATE djmdContent SET rb_data_status = 0 WHERE ID = '600'")
         var cues = CueDraft(trackUUID: track.uuid, rekordboxCues: track.rekordboxCues)
         cues.place(EditableCue(kind: .memory, time: 20.123))
         let tags = try draft(fixture, track) { $0.title = "큐와 태그" }

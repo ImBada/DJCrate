@@ -3979,6 +3979,22 @@
         }
       }
     },
+    "rekordbox 반영 때 라이브러리에만 씁니다. 음원 파일의 태그는 바뀌지 않습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changes are written only to the rekordbox library when you apply them. Audio file tags stay unchanged."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxに反映するとライブラリにのみ書き込みます。音源ファイルのタグは変更されません。"
+          }
+        }
+      }
+    },
     "rekordbox 반영 확인(%@ 묶음): 일치 %lld" : {
       "localizations" : {
         "en" : {
@@ -5877,6 +5893,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同じ一括処理に同じkey（%@）で作成したプレイリストがあります"
+          }
+        }
+      }
+    },
+    "같은 이름의 앨범이 여럿이라 선택 규칙을 확인하지 못했으므로 rekordbox에서 직접 고치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album selection is not verified when several albums have the same name. Edit this in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同名のアルバムが複数ある場合の選択規則は未確認です。rekordboxで直接変更してください。"
           }
         }
       }
@@ -8073,6 +8105,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "デフォルトに戻す"
+          }
+        }
+      }
+    },
+    "기존 앨범의 앨범 아티스트가 달라 다른 곡도 바뀔 수 있으므로 rekordbox에서 직접 고치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The existing album has a different album artist, so other tracks could change too. Edit this in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "既存のアルバムのアルバムアーティストが異なるため、他の曲も変わる可能性があります。rekordboxで直接変更してください。"
           }
         }
       }
@@ -11183,22 +11231,6 @@
         }
       }
     },
-    "발매일이 있는 곡의 연도를 고치는 rekordbox 규칙은 아직 확인하지 않았습니다. 연도는 rekordbox에서 고치세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DJCrate hasn't verified how rekordbox changes the year of a track that has a release date. Change the year in rekordbox."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "リリース日がある曲の年をrekordboxがどう変えるかはまだ確認していません。年はrekordboxで変更してください"
-          }
-        }
-      }
-    },
     "백업 뒤 rekordbox에서 바뀐 것이 있는지 확인하지 못했습니다. 그 뒤 rekordbox에서 한 변경은 함께 사라집니다." : {
       "localizations" : {
         "en" : {
@@ -12281,22 +12313,6 @@
         }
       }
     },
-    "빼지 않는 곡 %lld:" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not removed (%lld):"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "削除しない曲 %lld："
-          }
-        }
-      }
-    },
     "빼지 않음: %@" : {
       "localizations" : {
         "en" : {
@@ -12341,6 +12357,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "削除済み"
+          }
+        }
+      }
+    },
+    "빼지 않는 곡 %lld:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not removed (%lld):"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除しない曲 %lld："
           }
         }
       }
@@ -13361,22 +13393,6 @@
         }
       }
     },
-    "스트리밍 곡은 파형·재생·분석을 할 수 없습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Streaming tracks can't be shown as a waveform, played, or analyzed"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ストリーミングの曲は波形表示・再生・解析ができません"
-          }
-        }
-      }
-    },
     "스트리밍 곡은 편집할 수 없습니다. 파일로 된 곡을 고르세요" : {
       "localizations" : {
         "en" : {
@@ -13405,6 +13421,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ストリーム"
+          }
+        }
+      }
+    },
+    "스트리밍 곡은 파형·재생·분석을 할 수 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Streaming tracks can't be shown as a waveform, played, or analyzed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ストリーミングの曲は波形表示・再生・解析ができません"
           }
         }
       }
@@ -13789,22 +13821,6 @@
         }
       }
     },
-    "아티스트를 비우는 rekordbox 규칙은 아직 확인하지 않았습니다. 아티스트는 rekordbox에서 비우세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DJCrate hasn't verified how rekordbox clears the artist. Clear the artist in rekordbox."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxでアーティストを空にする規則はまだ確認していません。アーティストはrekordboxで空にしてください"
-          }
-        }
-      }
-    },
     "안내된 마디 구간과 곡을 확인한 뒤 다시 시도하세요." : {
       "localizations" : {
         "en" : {
@@ -13833,22 +13849,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "表示された条件とDJCrateのアップデートを確認してから、もう一度お試しください。"
-          }
-        }
-      }
-    },
-    "안전 쓰기(태그 프레임만 교체 + 검증) 구현과 rekordbox Reload Tag 검증 전까지 잠겨 있습니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Locked until safe writing (replacing only the tag frames, then verifying) is implemented and checked with rekordbox's Reload Tag."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "安全な書き込み（タグフレームだけを置き換えて検証）の実装と、rekordboxの[タグを再読み込み]での確認が済むまでロックされています。"
           }
         }
       }
@@ -14141,6 +14141,22 @@
         }
       }
     },
+    "앨범과 앨범 아티스트를 함께 바꾸는 규칙은 확인하지 못했으므로 한 칸씩 반영하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changing the album and album artist together is not verified. Apply one field at a time."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アルバムとアルバムアーティストを同時に変更する規則は未確認です。1項目ずつ反映してください。"
+          }
+        }
+      }
+    },
     "앨범이 없는 곡에는 앨범 아티스트를 쓸 수 없습니다" : {
       "localizations" : {
         "en" : {
@@ -14325,6 +14341,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ここからグリッドを開始"
+          }
+        }
+      }
+    },
+    "여러 곡이 쓰는 앨범이라 앨범 아티스트는 rekordbox에서 직접 고치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This album is shared by multiple tracks. Change its album artist in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数の曲が使うアルバムです。アルバムアーティストはrekordboxで直接変更してください。"
           }
         }
       }
@@ -15211,6 +15243,22 @@
         }
       }
     },
+    "이 곡의 동기화 상태에서는 태그 쓰기를 확인하지 못했으므로 rekordbox에서 직접 고치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag writing is not verified for this track’s sync state. Edit this in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この曲の同期状態でのタグ書き込みは未確認です。rekordboxで直接変更してください。"
+          }
+        }
+      }
+    },
     "이 곡의 섹션·그리드 추정·조성 분석 캐시를 지우고 다시 분석합니다(파형·초안은 그대로)" : {
       "localizations" : {
         "en" : {
@@ -15347,6 +15395,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このテンポ変化点を削除"
+          }
+        }
+      }
+    },
+    "이 앨범의 동기화 상태에서는 태그 쓰기를 확인하지 못했으므로 rekordbox에서 직접 고치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag writing is not verified for this album’s sync state. Edit this in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアルバムの同期状態でのタグ書き込みは未確認です。rekordboxで直接変更してください。"
           }
         }
       }
@@ -19723,6 +19787,22 @@
         }
       }
     },
+    "태그" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タグ"
+          }
+        }
+      }
+    },
     "태그 %lld곡" : {
       "localizations" : {
         "en" : {
@@ -19747,102 +19827,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "タグ%lld曲"
-          }
-        }
-      }
-    },
-    "태그 쓰지 않음: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "tags not written: %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "タグ未反映：%@"
-          }
-        }
-      }
-    },
-    "태그 편집" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Edit Tags"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "タグを編集"
-          }
-        }
-      }
-    },
-    "태그(%@)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "tags (%@)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "タグ（%@）"
-          }
-        }
-      }
-    },
-    "태그는 rekordbox 라이브러리에만 씁니다. 음원 파일의 태그는 그대로라 다른 앱이나 rekordbox '태그 다시 읽기'에서는 예전 값이 보일 수 있습니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tags are written only to the rekordbox library. The tags in your audio files stay the same, so other apps or rekordbox's Reload Tag may show the old values."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "タグはrekordboxのライブラリにだけ書き込みます。音源ファイルのタグはそのままなので、他のアプリやrekordboxの「タグの再読み込み」では以前の値が表示されることがあります。"
-          }
-        }
-      }
-    },
-    "탭" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "TAP"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "TAP"
-          }
-        }
-      }
-    },
-    "태그" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tag"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "タグ"
           }
         }
       }
@@ -19923,6 +19907,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "タグシート：Excelのようにセルを選択・編集・ペーストします"
+          }
+        }
+      }
+    },
+    "태그 편집" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Tags"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タグを編集"
+          }
+        }
+      }
+    },
+    "태그(%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tags (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タグ（%@）"
+          }
+        }
+      }
+    },
+    "태그는 rekordbox 라이브러리에만 씁니다. 음원 파일의 태그는 그대로라 다른 앱이나 rekordbox '태그 다시 읽기'에서는 예전 값이 보일 수 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tags are written only to the rekordbox library. The tags in your audio files stay the same, so other apps or rekordbox's Reload Tag may show the old values."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タグはrekordboxのライブラリにだけ書き込みます。音源ファイルのタグはそのままなので、他のアプリやrekordboxの「タグの再読み込み」では以前の値が表示されることがあります。"
+          }
+        }
+      }
+    },
+    "탭" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TAP"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TAP"
+          }
+        }
+      }
+    },
+    "태그 쓰지 않음: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tags not written: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タグ未反映：%@"
           }
         }
       }
@@ -20259,22 +20323,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ファイル: %@"
-          }
-        }
-      }
-    },
-    "파일에 쓰기…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Write to File…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ファイルに書き込む…"
           }
         }
       }
@@ -20655,22 +20703,6 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "편집본을 추가한 곡에 넣었습니다: %1$@ · %2$@ · 큐 %3$lld개"
-          }
-        }
-      }
-    },
-    "편집은 DJCrate 초안에 저장되고, rekordbox에 반영할 때 rekordbox 곡 정보에 씁니다. 음원 파일의 태그는 바뀌지 않습니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Edits are saved as DJCrate drafts and written to the rekordbox track info when you write to rekordbox. The tags in your audio files are not changed."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "編集はDJCrateの下書きに保存され、rekordboxに反映するときにrekordboxの曲情報に書き込みます。音源ファイルのタグは変更されません。"
           }
         }
       }
