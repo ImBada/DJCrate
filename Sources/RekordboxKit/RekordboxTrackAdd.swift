@@ -32,7 +32,7 @@ public struct TrackAddPlan: Sendable, Codable, Equatable {
     public var duration: Double
     public var dateCreated: String
     public var stockDate: String
-    /// 내장 아트워크 원본(태그). 있으면 rekordbox처럼 아트워크 파일 셋을 만든다(`TrackArtwork`).
+    /// 내장 아트워크 원본(태그). 분석까지 붙여 넣을 때 rekordbox처럼 아트워크 파일 셋을 만든다(`TrackArtwork`).
     public var artwork: Data?
 
     /// rekordbox 파일 형식 번호(라이브러리 7천 곡에서 확인). 다른 형식은 아직 넣지 않는다.

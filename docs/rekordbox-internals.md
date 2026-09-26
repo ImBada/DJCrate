@@ -107,6 +107,8 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 - `.DAT`: `PPTH`(`?/파일 이름` UTF-16BE + NULL) · `PVBR`(머리 0, 탐색표 400칸, 끝값 = MP3는 rekordbox가 세는 프레임 수×1152, AAC·WAV는 0) · `PQTZ` · `PWAV` · `PWV2` · `PCOB`(핫, 빈) · `PCOB`(메모리, 빈). 같은 그리드로 다시 만들면 머리·PPTH·PVBR·PQTZ·PCOB가 바이트까지 같다.
 - `.EXT`·`.2EX`는 파형 생성기(`RekordboxWaveforms`, baken MIT 규칙 이식). 흑백 파형 높이는 99.5% 바이트 일치, 색·3밴드·미리 보기는 근사. rekordbox 7.2.18은 우리 파일을 그대로 표시했다(サラマンダー 복사본).
 - `contentFile` 행은 파일마다(ID `<곡 UUID>_<경로, /는 %2F>`, MD5, 크기, `rb_local_path`, `rb_priority` 50). 없어도 표시는 되지만 rekordbox처럼 넣는다.
+- 변경 번호: 관련 행 → (아트워크 파일 행) → 오토게인 행 → 곡 행 → .2EX → .DAT → .EXT. rekordbox는 곡 행을 먼저 넣고 분석이 끝나면 다시 고쳐 새 번호를 받고, 곡 행 뒤·.2EX 앞에 .3EX 행도 넣는다(2026-09-26 아트워크 실험 세션: 자동 분석을 켜고 넣은 합성 WAV 3곡, 분석 전 곡을 분석한 "DJC 실험 아트"). DJCrate는 곡 행을 한 번만 넣으므로 rekordbox의 마지막 번호 순서를 따른다.
+- 같은 세션에서 rekordbox가 분석한 곡 4개는 `AnalysisUpdated`·`TrackInfoUpdated`가 '1'·'1'이었다(묶음 2의 '3'·'2', 분석 붙이기 실험의 '2'·'1'과 다름). 무엇이 이 값을 정하는지는 모른다. 쓰는 값은 바꾸지 않았다.
 - `ContentLink`는 분석 구성 비트: `0x3C060E` 보통(6,409곡), `0x2C060E` 보컬 분석 없음, +`0x10000` 프레이즈 있음. 우리는 프레이즈·보컬이 없으므로 `0x2C060E`.
 - 만들 수 없는 것: `PSSI`(프레이즈), `PVDI`(보컬), `.3EX`(MessagePack `embedding`, rekordbox AI 특징값). rekordbox에서 Phrase만 분석하면 우리 태그를 바이트 그대로 두고 `PSSI`만 덧붙인다.
 - MP3 프레임 세기: LAME 정보 프레임(첫 프레임 안에 LAME 태그)은 소리로 세고, 다른 인코더(ffmpeg Lavc 등)의 정보 프레임은 세지 않는다. 다음 오디오 프레임에 "LAME3.99U"가 찍힌 ffmpeg 파일이 있어 LAME은 첫 프레임 안에서만 찾는다.
@@ -116,14 +118,20 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
   칸 k = 샘플 `k · floor(전체 샘플 / 400)`이 든 FLAC 프레임(나눗셈을 먼저 버리므로 뒤 칸일수록 조금 앞을 가리킨다). 라이브러리 1,083곡 중 1,081곡 바이트까지 일치(`djc lab pvb2-check`). 나머지 2곡은 시작 샘플은 같고 바이트 위치만 달라 분석 뒤 파일이 바뀐 것으로 본다.
 - 막음: LAME이 아닌 VBR MP3(비트레이트 규칙 들쭉날쭉), 프레임이 중간에 끊긴 MP3·FLAC(STREAMINFO 전체 샘플과 프레임 합이 다름), ALAC.
 
-**아트워크**(#4, 2026-09-26 라이브러리 조사: 스냅샷 사본과 share 읽기 전용, 아트워크 있는 곡 전부·파일 19,914개): rekordbox는 곡을 넣을 때 음원 내장 그림(ID3 APIC·iTunes covr·FLAC PICTURE)으로 파일 셋을 만든다. 분석하지 않은 곡(`Analysed` 0)에도 있어 자동 분석을 꺼도 넣을 때 뽑는다. XML로 들어온 곡(`Analysed` 41)에는 없었다.
+**아트워크**(#4): rekordbox는 곡을 **분석할 때** 음원 내장 그림(ID3 APIC·iTunes covr·FLAC PICTURE)으로 파일 셋을 만든다. 자동 분석을 끄고 넣을 때는 만들지 않는다. XML로 들어온 곡(`Analysed` 41)에도 없었다.
+- 실험(2026-09-26, rekordbox 7.2.18): 1200×900 JPEG 앞표지(APIC)가 든 MP3 "DJC 실험 아트"(라이브러리에 없던 아티스트·앨범)를 자동 분석을 끄고 넣고 종료했다. 다음 세션에서 자동 분석을 켜자 rekordbox가 이 곡을 분석했다. 넣기 전·넣은 직후·분석 뒤 스냅샷을 `djc lab db-diff`로 비교했다(넣기 전 스냅샷은 rekordbox 자동 백업과 같은 상태).
+  - 넣을 때: `djmdArtist` → `djmdAlbum` → `djmdContent` 행만 생기고 변경 번호도 이 순서다(`localUpdateCount` +3). `ImagePath` 빈 값, 파일 행·아트워크 파일 없음, `djmdAlbum.ImagePath` NULL, `imageFile` 표 그대로(0행). 곡 행은 `djc lab track-add-repro`로 19칸 모두 같았다.
+  - 분석할 때: `artwork.jpg` 파일 행이 먼저 번호를 받고(분석 결과를 쓰기 2초 전) → 오토게인 행 → 곡 행(`ImagePath`와 분석 칸) → 파일 행 .3EX → .2EX → .DAT → .EXT. 아트워크 행과 곡 행 사이 번호 일부는 비어 있어(같은 세션의 다른 곡 추가가 섞임) 곡 행이 이 사이에 번호를 몇 번 받았는지는 알 수 없다. `djmdAlbum.ImagePath`·`imageFile`은 그대로.
+  - 이미 분석한 곡은 다시 뽑지 않는다: 아트워크를 넣기 전의 DJCrate로 분석까지 붙여 넣은 곡 중 음원에 그림이 있는 곡(3곡)은 그 뒤 rekordbox를 켜도(위 자동 분석 세션 포함) `ImagePath`가 빈 값이었다.
 - 폴더는 곡 UUID로 정한다: `/PIONEER/Artwork/<UUID 앞 3자>/<나머지>/`(분석 폴더와 같은 규칙, 아트워크 있는 곡 전부 일치). `djmdContent.ImagePath` = 그 안의 `artwork.jpg`, 없으면 빈 값 `''`. `djmdAlbum.ImagePath`는 전부 NULL(건드리지 않는다).
-- 파일 셋: `artwork.jpg`는 원본 크기 그대로, 긴 변이 800을 넘으면 800으로 줄인다(비율 유지, 짧은 변 반올림: 900×784 → 800×697, 3311×3001 → 800×725). `artwork_m.jpg` 240×240·`artwork_s.jpg` 80×80은 정사각에 맞게 키우거나 줄이고 남는 곳은 검은 여백으로 가운데 맞춘다(200×200 원본도 240으로 키움).
+- 파일 셋(라이브러리 조사: 스냅샷 사본과 share 읽기 전용, 아트워크 있는 곡 전부·파일 19,914개): `artwork.jpg`는 원본 크기 그대로, 긴 변이 800을 넘으면 800으로 줄인다(비율 유지, 짧은 변 반올림: 900×784 → 800×697, 3311×3001 → 800×725, 실험 곡 1200×900 → 800×600). `artwork_m.jpg` 240×240·`artwork_s.jpg` 80×80은 정사각에 맞게 키우거나 줄이고 남는 곳은 검은 여백으로 가운데 맞춘다(200×200 원본도 240으로 키움).
 - 셋 다 원본이 JPEG여도 다시 인코딩한 기준선 JPEG다(PNG도 JPEG로): 머리는 SOI · APP0(JFIF 1.01, 비율 1:1, 썸네일 없음) · DQT 둘(libjpeg 품질 85 휘도·색차 표) · SOF0(Y 2x2, Cb·Cr 1x1) · DHT 넷(DC0·AC0·DC1·AC1, 최적화라 그림마다 다름) · SOS. EXIF·ICC 없음. 19,914개 전부 같은 머리.
-- 파일 행(`contentFile`)은 `artwork.jpg` 하나만(`_m`·`_s`는 행 없음, 6,637행). 칸은 분석 파일 행과 같다(ID `<곡 UUID>_<경로, /는 %2F>`, MD5, 크기, `rb_local_path`, `rb_priority` 50).
+- 파일 행(`contentFile`)은 `artwork.jpg` 하나만(`_m`·`_s`는 행 없음, 6,637행). 칸은 분석 파일 행과 같다(ID `<곡 UUID>_<경로, /는 %2F>`, MD5, 크기, `rb_local_path`, `rb_priority` 50). 실험 곡 행도 전 칸이 이 모양이다(`rb_insync_hash`·`rb_insync_local_usn`·`rb_temp_path`·`usn` NULL, 나머지 상태 칸 0, `UUID` 소문자 v4, `created_at` = `updated_at`).
 - 빼면 파일 셋을 지우고 폴더는 남긴다(サラマンダー 복사본 삭제 실험).
-- DJCrate(`TrackArtwork`·`ArtworkJPEG`): 같은 크기·여백·머리로 만든다. 바이트는 다르다(허프만 표가 그림마다 다르고, 축소 방식·DCT가 다름). `djc lab artwork-check`로 라이브러리 곡의 음원 그림을 다시 만들어 비교하면(21곡) `artwork.jpg`는 머리 같음·화소 차이(0~255) 중앙 0.1·최대 1.1·크기 비 0.997~1.009로 거의 같고, `_m`·`_s`는 축소 필터 차이로 중앙 4.4·8.1(시험한 필터 중 CoreGraphics 고품질이 가장 가까움).
-- 확인하지 않은 것: 투명한 PNG(검은 바탕에 그림), EXIF 회전(무시), 그림이 여럿일 때 고르는 그림(AVFoundation이 주는 첫 그림), 곡을 넣을 때 아트워크 파일 행의 변경 번호 순서(실험 곡에 아트워크가 없었고 라이브러리 곡 행은 뒤에 다시 고쳐져 알 수 없음). 순서를 실험으로 확인하기 전에는 `RekordboxTrackWriter.writesArtwork`로 닫아 둔다.
+- DJCrate(`TrackArtwork`·`ArtworkJPEG`): **분석까지 붙여 넣는 곡에만** 넣는다(`RekordboxTrackWriter.writesArtwork`, 위 실험으로 2026-09-26 열었다). 분석 없이 넣는 곡은 rekordbox처럼 넣지 않고, rekordbox에서 분석하면 생긴다고 확인 창에 알린다. 변경 번호는 위 "추가(분석 포함)" 순서에서 오토게인 행 앞이다(`RekordboxTrackArtworkTests`).
+  같은 크기·여백·머리로 만들고 바이트는 다르다(허프만 표가 그림마다 다르고, 축소 방식·DCT가 다름). `djc lab artwork-check`로 라이브러리 곡의 음원 그림을 다시 만들어 비교하면(21곡) `artwork.jpg`는 머리 같음·화소 차이(0~255) 중앙 0.1·최대 1.1·크기 비 0.997~1.009로 거의 같고, `_m`·`_s`는 축소 필터 차이로 중앙 4.4·8.1(시험한 필터 중 CoreGraphics 고품질이 가장 가까움). 실험 곡은 머리 같음·화소 차이 0.1·2.5·4.9·크기 비 1.001·0.95·0.99.
+- 확인하지 않은 것: 투명한 PNG(검은 바탕에 그림), EXIF 회전(무시), 그림이 여럿일 때 고르는 그림(AVFoundation이 주는 첫 그림), 분석 말고 다른 때(곡 선택·덱에 올리기·태그 다시 읽기 등) 아트워크를 뽑는지. 라이브러리의 분석하지 않은 곡(`Analysed` 0)에도 아트워크가 있는데, 넣을 때는 뽑지 않으므로 그런 다른 길이나 옛 버전에서 온 것으로 보인다.
+- 분석 붙이기(`RekordboxWriter+Analysis`, 기존 분석 전 곡)는 아직 아트워크를 넣지 않는다. 위 실험의 "분석할 때"가 바로 그 경우라 rekordbox는 넣는다(따로 열 일).
 - 라이브러리에는 음원에 그림이 없는데 `ImagePath`가 있는 m4a가 있다(파일에 `covr`가 없음). rekordbox에서 직접 붙였거나 넣은 뒤 태그가 바뀐 곡으로 보고, DJCrate는 음원에 그림이 없으면 아트워크를 만들지 않는다.
 
 **삭제**: 삭제 표시가 아니라 행을 실제로 지운다.
