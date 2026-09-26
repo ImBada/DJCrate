@@ -18,7 +18,7 @@ struct WriteResult: Codable, Equatable {
 
     /// 한 번에 쓰는 것의 종류. 종류 이름이 문장 안에서 어순·조사가 달라지므로 종류마다 문장 전체를 번역한다.
     enum Part {
-        case cue, grid, analysis, gain
+        case cue, grid, analysis, gain, tag
 
         /// "큐 3곡" — 확인 창 제목과 결과 제목에 쓴다.
         func summary(_ count: Int) -> String {
@@ -27,6 +27,7 @@ struct WriteResult: Codable, Equatable {
             case .grid: String(ui: "그리드 \(count)곡")
             case .analysis: String(ui: "분석 \(count)곡")
             case .gain: String(ui: "게인 \(count)곡")
+            case .tag: String(ui: "태그 \(count)곡")
             }
         }
 
@@ -36,6 +37,7 @@ struct WriteResult: Codable, Equatable {
             case .grid: String(ui: "그리드 반영 완료")
             case .analysis: String(ui: "분석 반영 완료")
             case .gain: String(ui: "게인 반영 완료")
+            case .tag: String(ui: "태그 반영 완료")
             }
         }
 
@@ -45,6 +47,7 @@ struct WriteResult: Codable, Equatable {
             case .grid: String(ui: "그리드 쓰지 않음: \(reason)")
             case .analysis: String(ui: "분석 쓰지 않음: \(reason)")
             case .gain: String(ui: "게인 쓰지 않음: \(reason)")
+            case .tag: String(ui: "태그 쓰지 않음: \(reason)")
             }
         }
 
@@ -54,6 +57,7 @@ struct WriteResult: Codable, Equatable {
             case .grid: String(ui: "그리드 변경 없음")
             case .analysis: String(ui: "분석 변경 없음")
             case .gain: String(ui: "게인 변경 없음")
+            case .tag: String(ui: "태그 변경 없음")
             }
         }
     }
@@ -64,6 +68,7 @@ struct WriteResult: Codable, Equatable {
             (.grid, report.gridOutcomes ?? [], preview.gridOutcomes ?? []),
             (.analysis, report.analysisOutcomes ?? [], preview.analysisOutcomes ?? []),
             (.gain, report.gainOutcomes ?? [], preview.gainOutcomes ?? []),
+            (.tag, report.tagOutcomes ?? [], preview.tagOutcomes ?? []),
         ]
         var lines: [String] = [], summaries: [String] = [], count = 0, blocked = false
         for (part, actual, predicted) in groups {
@@ -126,7 +131,7 @@ struct WriteResult: Codable, Equatable {
     static func restored(_ backup: RekordboxWriter.Backup, saved: URL) -> Self {
         let titles = Set((backup.report?.written ?? []).map(\.title)
             + (backup.report?.gridWritten ?? []).map(\.title) + (backup.report?.gainWritten ?? []).map(\.title)
-            + (backup.report?.analysisWritten ?? []).map(\.title)
+            + (backup.report?.analysisWritten ?? []).map(\.title) + (backup.report?.tagWritten ?? []).map(\.title)
             + (backup.trackReport?.titles ?? []))
         var lines = [String(ui: "rekordbox 라이브러리 전체를 선택한 백업의 쓰기 전 상태로 되돌렸습니다."),
                      String(ui: "그때 쓴 초안과 추가 목록도 복원했습니다. 되돌리기 직전 상태는 아래 두 번째 백업에 남아 있습니다.")]

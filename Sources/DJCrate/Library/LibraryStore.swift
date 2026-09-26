@@ -177,8 +177,8 @@ final class LibraryStore {
     var draftCueCounts: [String: CueCounts] = [:]
     var draftPreviewCues: [String: [PreviewCueMark]] = [:]
 
-    /// 큐·그리드 초안이 있는 곡(태그 초안은 파일 태그로 반영하므로 여기엔 넣지 않는다)
-    var pendingUUIDs: Set<String> { cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs) }
+    /// 큐·그리드·게인·태그 초안이 있는 곡(태그도 반영하면 rekordbox 곡 정보에 쓴다)
+    var pendingUUIDs: Set<String> { cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys) }
     /// 반영 대기 중인 rekordbox 곡 수(추가한 곡 제외)
     var pendingLibraryCount: Int { pendingUUIDs.filter { rowsByUUID[$0].map { !$0.isStaged } ?? false }.count }
     /// 백그라운드 추정이 초안을 저장했을 때(덱이 같은 곡을 보고 있으면 다시 읽게)
