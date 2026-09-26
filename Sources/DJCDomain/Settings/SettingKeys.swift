@@ -37,6 +37,9 @@ public enum SettingKeys {
 
     // MARK: 화면 상태(창에서 바로 바꾸는 값)
 
+    public static let cueListFilter = SettingKey("deck.cueListFilter", CueListFilter.all.rawValue) {
+        CueListFilter(rawValue: $0)?.rawValue
+    }
     public static let waveformHeight = SettingKey<Double>("waveformHeight", 150, in: nil)
     public static let sheetMode = SettingKey("sheetMode", false)
     public static let showTagEditor = SettingKey("showTagEditor", false)
@@ -67,6 +70,6 @@ public enum SettingKeys {
             + [quantize, carryCues, showSuggestions, keyLock, autoGain, peakProtection, useRekordboxGain,
                sheetMode, showTagEditor, sidebarPlaylistsExpanded, sidebarSummaryExpanded, sidebarHistoriesExpanded,
                commentClassColumnHidden].map(\.name)
-            + [dismissedGainSuggestions, dismissedGridSuggestions, deckShortcuts, waveformColorMode.name, commentPreset.name]
+            + [dismissedGainSuggestions, dismissedGridSuggestions, deckShortcuts, waveformColorMode.name, commentPreset.name, cueListFilter.name]
     }
 }

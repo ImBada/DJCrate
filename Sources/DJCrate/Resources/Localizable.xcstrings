@@ -1,6 +1,70 @@
 {
   "sourceLanguage" : "ko",
   "strings" : {
+    "큐 목록 보기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cue List View"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キュー一覧の表示"
+          }
+        }
+      }
+    },
+    "그리드를 %lldms 왼쪽으로 이동" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move the Grid %lld ms Left"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グリッドを左に%lldms移動"
+          }
+        }
+      }
+    },
+    "그리드를 %lldms 오른쪽으로 이동" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move the Grid %lld ms Right"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グリッドを右に%lldms移動"
+          }
+        }
+      }
+    },
+    "그리드 전체를 옮깁니다 (1초 동안 누르면 반복 · 파형을 끌어도 됩니다)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moves the whole grid (hold for 1 second to repeat, or drag the waveform)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グリッド全体を移動（1秒間押し続けると繰り返し移動・波形のドラッグでも移動できます）"
+          }
+        }
+      }
+    },
     "\nrekordbox 기존 큐 (직접 찍은 것)" : {
       "localizations" : {
         "en" : {
@@ -7675,22 +7739,6 @@
         }
       }
     },
-    "그리드 전체를 옮깁니다 (파형을 끌어도 됩니다)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shifts the whole grid (you can also drag the waveform)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "グリッド全体を移動します（波形をドラッグしても移動できます）"
-          }
-        }
-      }
-    },
     "그리드 초안 버리기" : {
       "localizations" : {
         "en" : {
@@ -13041,22 +13089,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選択したキューを削除"
-          }
-        }
-      }
-    },
-    "설정…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Settings…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "設定…"
           }
         }
       }
