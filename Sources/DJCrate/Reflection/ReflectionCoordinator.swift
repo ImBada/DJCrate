@@ -94,12 +94,13 @@ struct ReflectionCoordinator {
             let preview = try await host.previewWrite(rows: targets)
             host.writeStage = nil
             let report = preview.report
-            guard !report.written.isEmpty || !report.gridWritten.isEmpty || !report.gainWritten.isEmpty else {
+            guard !report.written.isEmpty || !report.gridWritten.isEmpty || !report.analysisWritten.isEmpty || !report.gainWritten.isEmpty else {
                 inform("rekordbox에 쓸 수 있는 초안이 없습니다", Self.reasons(report).prefix(8).joined(separator: "\n"))
                 return
             }
             guard prompter.show(Self.confirmation(report)) else { return }
-            let cues = Set(report.written.map(\.trackUUID)), grids = Set(report.gridWritten.map(\.trackUUID))
+            // 분석을 붙이는 곡도 그리드 초안으로 쓴다.
+            let cues = Set(report.written.map(\.trackUUID)), grids = Set((report.gridWritten + report.analysisWritten).map(\.trackUUID))
             let gains = Set(report.gainWritten.map(\.trackUUID))
             _ = try await host.writeToRekordbox(preview.drafts.filter { cues.contains($0.trackUUID) },
                                                 grids: preview.grids.filter { grids.contains($0.trackUUID) },
@@ -223,29 +224,38 @@ struct ReflectionCoordinator {
     }
 
     static func reasons(_ report: RekordboxWriter.Report) -> [String] {
-        (report.blocked + report.gridBlocked + report.gainBlocked).map { "• \($0.title): \($0.reason ?? "")" }
+        (report.blocked + report.gridBlocked + report.analysisBlocked + report.gainBlocked).map { "• \($0.title): \($0.reason ?? "")" }
     }
 
     /// 쓰기 전 확인 창: 종류별 곡 수, 곡마다 바뀌는 것, 쓰지 않는 것과 이유
     static func confirmation(_ report: RekordboxWriter.Report) -> ReflectionPrompt {
-        let cues = report.written, grids = report.gridWritten, gains = report.gainWritten
+        let cues = report.written, grids = report.gridWritten, analyses = report.analysisWritten, gains = report.gainWritten
         var kinds: [String] = []
         if !cues.isEmpty { kinds.append("큐 \(cues.count)곡") }
         if !grids.isEmpty { kinds.append("그리드 \(grids.count)곡") }
+        if !analyses.isEmpty { kinds.append("분석 \(analyses.count)곡") }
         if !gains.isEmpty { kinds.append("게인 \(gains.count)곡") }
-        let gridBlocked = Set(report.gridBlocked.map(\.trackUUID)), gridWritten = Set(grids.map(\.trackUUID))
+        let gridBlocked = Set((report.gridBlocked + report.analysisBlocked).map(\.trackUUID)), gridWritten = Set(grids.map(\.trackUUID))
+        let analysisWritten = Set(analyses.map(\.trackUUID))
         var body = cues.prefix(12).map { outcome -> String in
             var line = "• \(outcome.title) — 큐 추가 \(outcome.added) · 삭제 \(outcome.removed)"
             if gridWritten.contains(outcome.trackUUID) { line += " · 그리드" }
+            if analysisWritten.contains(outcome.trackUUID) { line += " · 분석 파일 붙이기" }
             if gridBlocked.contains(outcome.trackUUID) { line += " · ⚠︎ 그리드는 안 들어감" }
             return line
         }
         let cueUUIDs = Set(cues.map(\.trackUUID))
         for grid in grids where !cueUUIDs.contains(grid.trackUUID) { body.append("• \(grid.title) — 그리드(박 \(grid.added)개)") }
+        for analysis in analyses where !cueUUIDs.contains(analysis.trackUUID) {
+            body.append("• \(analysis.title) — 분석 파일 붙이기(파형·그리드 박 \(analysis.added)개·오토게인)")
+        }
         for gain in gains { body.append(String(format: "• %@ — 오토게인 %+.1f dB", gain.title, Double(gain.added) / 100)) }
         if cues.count > 12 { body.append("… 외 \(cues.count - 12)곡") }
         let reasons = reasons(report)
         if !reasons.isEmpty { body += ["", "쓰지 않는 것 \(reasons.count):"] + reasons.prefix(8) }
+        if !analyses.isEmpty {
+            body += ["", "분석을 붙이는 곡은 rekordbox 분석 전 곡입니다. 파형·그리드·오토게인을 DJCrate가 만들고, 키·프레이즈·보컬 분석은 없습니다(프레이즈는 rekordbox에서 Phrase만 분석하면 더해집니다)."]
+        }
         body += ["", "쓰기 전에 rekordbox 라이브러리(master.db)와 바꿀 분석 파일을 백업하고, 쓴 뒤 다시 읽어 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요."]
         return ReflectionPrompt(title: "rekordbox에 " + kinds.joined(separator: " · ") + "을 씁니다",
                                 text: body.joined(separator: "\n"), confirm: "rekordbox에 쓰기")

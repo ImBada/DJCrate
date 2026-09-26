@@ -43,6 +43,10 @@ public enum RekordboxWriter {
         public var gridOutcomes: [Outcome]?
         /// 오토게인 쓰기 결과(added = 새 게인 ×100 dB). 옛 보고서에는 없다.
         public var gainOutcomes: [Outcome]?
+        /// 분석 전 곡에 분석 파일을 붙인 결과(added = 박 수). 옛 보고서에는 없다.
+        public var analysisOutcomes: [Outcome]?
+        /// 새로 만든 분석 파일(되돌릴 때 지운다). 옛 보고서에는 없다.
+        public var createdFiles: [String]?
 
         public var written: [Outcome] { outcomes.filter { $0.status == .written } }
         public var blocked: [Outcome] { outcomes.filter { $0.status == .blocked } }
@@ -50,6 +54,8 @@ public enum RekordboxWriter {
         public var gridBlocked: [Outcome] { (gridOutcomes ?? []).filter { $0.status == .blocked } }
         public var gainWritten: [Outcome] { (gainOutcomes ?? []).filter { $0.status == .written } }
         public var gainBlocked: [Outcome] { (gainOutcomes ?? []).filter { $0.status == .blocked } }
+        public var analysisWritten: [Outcome] { (analysisOutcomes ?? []).filter { $0.status == .written } }
+        public var analysisBlocked: [Outcome] { (analysisOutcomes ?? []).filter { $0.status == .blocked } }
     }
 
     public static var liveDatabase: URL { LibrarySnapshot.rekordboxDirectory.appending(path: "master.db") }
@@ -70,10 +76,20 @@ public enum RekordboxWriter {
     ///   - grids: 그리드 초안. 분석 파일(`shareRoot` 아래)을 고친다.
     ///   - shareRoot: 분석 파일 뿌리. 라이브 DB면 rekordbox share 폴더, 사본 DB면 명시해야 그리드를 쓴다(실제 파일을 건드리지 않게).
     ///   - writeGuard: 라이브 DB 판단과 실행·버전 확인(시험에서 바꾼다). DB 구조는 사본이어도 늘 확인한다.
+    ///   - analysisInputs: 분석 전 곡(분석 파일 없음)의 음원 길이·음량(곡 UUID별). 그 곡의 그리드 초안으로 분석 파일을 만들어 붙인다.
     public static func write(drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:],
+                             analysisInputs: [String: AnalysisInput] = [:],
                              to database: URL = liveDatabase, dryRun: Bool,
                              now: Date = .now, backups: URL, shareRoot: URL? = nil,
                              guard writeGuard: RekordboxWriteGuard = .system) throws -> Report {
+        try write(drafts: drafts, grids: grids, gains: gains, analysisInputs: analysisInputs, to: database, dryRun: dryRun, now: now,
+                  backups: backups, shareRoot: shareRoot, guard: writeGuard, attachesAnalysis: attachesAnalysis)
+    }
+
+    /// - Parameter attachesAnalysis: 분석 붙이기를 여는지. 앱은 `attachesAnalysis`를 따르고, 시험과 사본 실험(`djc lab analysis-attach-test`)만 바꾼다.
+    package static func write(drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], analysisInputs: [String: AnalysisInput],
+                              to database: URL, dryRun: Bool, now: Date, backups: URL, shareRoot: URL?,
+                              guard writeGuard: RekordboxWriteGuard = .system, attachesAnalysis: Bool) throws -> Report {
         let stamp = CueJSON.timestamps(now)
         let grids = grids.filter(\.hasChanges)
         guard drafts.contains(where: \.hasChanges) || !grids.isEmpty || !gains.isEmpty else {
@@ -96,12 +112,19 @@ public enum RekordboxWriter {
         // 그리드 계획(파일을 읽기만 한다)
         var gridPlans: [RekordboxGridWriter.Plan] = []
         var gridOutcomes: [Outcome] = []
+        // 분석 전 곡(분석 파일 없음)의 그리드 초안은 분석 파일을 만들어 붙인다(파형·오토게인까지).
+        var attachPlans: [AttachPlan] = []
+        var analysisOutcomes: [Outcome] = []
         if !grids.isEmpty {
             let reader = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
+            defer { reader.close() }
             for draft in grids {
-                var info: (title: String, anlz: String?, bpm: Int, path: String)?
-                try reader.query("SELECT Title, AnalysisDataPath, BPM, FolderPath FROM djmdContent WHERE UUID = ? AND rb_local_deleted = 0",
-                                 [.text(draft.trackUUID)]) { r in info = (r.string(0) ?? "", r.string(1), r.int(2) ?? 0, r.string(3) ?? "") }
+                var info: (title: String, anlz: String?, bpm: Int, path: String, id: String, fileName: String)?
+                try reader.query("""
+                    SELECT Title, AnalysisDataPath, BPM, FolderPath, ID, FileNameL FROM djmdContent WHERE UUID = ? AND rb_local_deleted = 0
+                    """, [.text(draft.trackUUID)]) { r in
+                    info = (r.string(0) ?? "", r.string(1), r.int(2) ?? 0, r.string(3) ?? "", r.string(4) ?? "", r.string(5) ?? "")
+                }
                 guard let info else {
                     gridOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: draft.trackUUID, status: .blocked,
                                                 reason: "rekordbox 컬렉션에서 곡을 찾지 못했습니다", removed: 0, added: 0))
@@ -110,6 +133,20 @@ public enum RekordboxWriter {
                 guard let gridRoot else {
                     gridOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: info.title, status: .blocked,
                                                 reason: "사본 DB에는 분석 파일 경로를 따로 주어야 그리드를 씁니다", removed: 0, added: 0))
+                    continue
+                }
+                if needsAnalysis(info.anlz) {
+                    let fileName = info.fileName.isEmpty ? URL(filePath: info.path).lastPathComponent : info.fileName
+                    do {
+                        let plan = try attachPlan(draft: draft, content: (info.id, info.title, info.path, fileName),
+                                                  input: analysisInputs[draft.trackUUID], share: gridRoot, reader: reader, enabled: attachesAnalysis)
+                        attachPlans.append(plan)
+                        analysisOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: info.title, status: .written, reason: nil,
+                                                        removed: 0, added: plan.ready.beats))
+                    } catch let blocked as Blocked {
+                        analysisOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: blocked.title, status: .blocked,
+                                                        reason: blocked.reason, removed: 0, added: 0))
+                    }
                     continue
                 }
                 do {
@@ -123,7 +160,6 @@ public enum RekordboxWriter {
                                                 reason: blocked.reason, removed: 0, added: 0))
                 }
             }
-            reader.close()
         }
 
         let backup = dryRun ? nil : try makeBackup(of: database, in: backups, now: now, label: "write")
@@ -133,6 +169,7 @@ public enum RekordboxWriter {
         var outcomes: [Outcome] = []
         var gainOutcomes: [Outcome] = []
         var written: [(contentID: String, expectation: Expectation)] = []
+        var attached: [AttachPlan] = []
         var finalUpdateCount: Int?
         var committed = false
         do {
@@ -143,6 +180,22 @@ public enum RekordboxWriter {
 
             var usn = try localUpdateCount(db)
             let startUSN = usn
+            // 분석 붙이기가 먼저: 같은 곡의 큐·게인은 분석한 곡에 쓰는 것과 같게 뒤에 쓴다.
+            for var plan in attachPlans {
+                try db.execute("SAVEPOINT djc_analysis")
+                do {
+                    try applyAttach(&plan, db: db, usn: &usn, stamp: stamp)
+                    try db.execute("RELEASE djc_analysis")
+                    attached.append(plan)
+                } catch let blocked as Blocked {
+                    try db.execute("ROLLBACK TO djc_analysis")
+                    try db.execute("RELEASE djc_analysis")
+                    if let i = analysisOutcomes.firstIndex(where: { $0.trackUUID == plan.trackUUID }) {
+                        analysisOutcomes[i] = Outcome(trackUUID: plan.trackUUID, title: blocked.title, status: .blocked,
+                                                      reason: blocked.reason, removed: 0, added: 0)
+                    }
+                }
+            }
             for draft in drafts {
                 try db.execute("SAVEPOINT djc_track")
                 do {
@@ -189,7 +242,7 @@ public enum RekordboxWriter {
             finalUpdateCount = usn
 
             let databaseChanged = !written.isEmpty || gridPlans.contains { $0.newBPM100 != nil }
-                || gainOutcomes.contains { $0.status == .written }
+                || gainOutcomes.contains { $0.status == .written } || !attached.isEmpty
             if dryRun || !databaseChanged {
                 try db.execute("ROLLBACK")
             } else {
@@ -205,24 +258,28 @@ public enum RekordboxWriter {
         }
 
         // 백업은 시험 실행이 아닐 때만 있다(= 커밋했을 수 있다).
-        if let backup, !written.isEmpty {
+        if let backup, !written.isEmpty || !attached.isEmpty {
             do {
                 try checkIntegrity(of: database)
                 let db = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
                 defer { db.close() }
                 for item in written { try verify(db: db, contentID: item.contentID, item.expectation) }
+                for plan in attached { try verifyAttach(plan, db: db) }
             } catch {
                 throw recover(from: error, database: database, backup: backup, live: live)
             }
         }
 
-        // 그리드: DB가 끝난 뒤 분석 파일을 쓴다. 하나라도 검증에 실패하면 DB·파일 모두 쓰기 전으로 되돌린다.
-        // 큐 없이 BPM·게인만 커밋했어도 DB를 되돌린다.
-        if let backup, !gridPlans.isEmpty {
+        // 분석 파일(붙이기는 새로 만들고, 그리드는 고친다): DB가 끝난 뒤 쓴다. 하나라도 검증에 실패하면 DB·파일 모두 쓰기 전으로
+        // 되돌린다(만든 파일은 지운다). 큐 없이 BPM·게인만 커밋했어도 DB를 되돌린다.
+        var created: [URL] = []
+        if let backup, !gridPlans.isEmpty || !attached.isEmpty {
             do {
+                for plan in attached { try writeAnalysisFiles(plan, created: &created) }
                 for plan in gridPlans { try RekordboxGridWriter.apply(plan) }
             } catch {
                 throw recover(from: error, database: database, backup: backup, live: live, restoreDatabase: committed) {
+                    try removeAnalysisFiles(created)
                     try restoreGridFiles(gridPlans)
                 }
             }
@@ -232,6 +289,8 @@ public enum RekordboxWriter {
                             finalUpdateCount: finalUpdateCount)
         report.gridOutcomes = gridOutcomes.isEmpty ? nil : gridOutcomes
         report.gainOutcomes = gainOutcomes.isEmpty ? nil : gainOutcomes
+        report.analysisOutcomes = analysisOutcomes.isEmpty ? nil : analysisOutcomes
+        report.createdFiles = created.isEmpty ? nil : created.map(\.path)
         if let backup {
             try? save(report, in: backup)
             // 되돌리면 DJCrate 초안도 살릴 수 있게 쓴 초안을 백업 옆에 둔다.
@@ -246,7 +305,8 @@ public enum RekordboxWriter {
                 let written = gains.filter { gainWritten.contains($0.key) }
                 try? JSONEncoder().encode(written).write(to: backup.appending(path: "gain-drafts.json"), options: .atomic)
             }
-            let gridWritten = Set(report.gridWritten.map(\.trackUUID))
+            // 분석을 붙인 곡도 그리드 초안으로 쓴 것이라 함께 둔다(되돌리면 그리드 초안을 살린다).
+            let gridWritten = Set((report.gridWritten + report.analysisWritten).map(\.trackUUID))
             if !gridWritten.isEmpty {
                 let gridFolder = backup.appending(path: "grid-drafts")
                 try? FileManager.default.createDirectory(at: gridFolder, withIntermediateDirectories: true)

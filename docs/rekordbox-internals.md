@@ -2,7 +2,7 @@
 
 rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 diff해서 뽑은 규칙이다. 각 규칙은 "실험 전 사본에 DJCrate로 같은 편집을 쓰고, rekordbox가 쓴 결과와 칸마다 비교"해서 확인했다. 확인하지 못한 규칙은 코드에서 막아 두었다(아래 "막아 둔 것").
 
-코드: `Sources/RekordboxKit/` — `RekordboxWriter`(DB, 역할별 `+Cues`·`+Grid`·`+Gain`·`+Verify`·`+Backup`), `RekordboxGridWriter`(ANLZ), `RekordboxCompatibility`(쓰기 전 버전·구조 확인), `CueJSON`, `AnlzFile`, `SeekInfo`, `CipherDatabase`.
+코드: `Sources/RekordboxKit/` — `RekordboxWriter`(DB, 역할별 `+Cues`·`+Grid`·`+Gain`·`+Analysis`·`+Verify`·`+Backup`), `RekordboxGridWriter`(ANLZ), `RekordboxCompatibility`(쓰기 전 버전·구조 확인), `CueJSON`, `AnlzFile`, `SeekInfo`, `CipherDatabase`.
 
 ## 파일과 열기
 
@@ -16,8 +16,8 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 쓰기 규칙은 rekordbox 7.2.18에서 확인했다. rekordbox가 업데이트로 DB 구조를 바꾸면 규칙이 맞지 않을 수 있어서, 쓰기 전에 다음을 보고 하나라도 다르면 **백업도 뜨지 않고** 막는다.
 
 - 앱 버전: `/Applications/rekordbox N/rekordbox.app`의 `CFBundleShortVersionString` 주.부가 `7.2`(못 찾으면 아래 DB 검사에 맡김). 라이브 DB에만 적용.
-- 새 행을 넣는 표(`djmdCue` 29칸, `contentCue` 13칸)는 칸 이름이 정확히 같아야 한다. 칸이 늘면 rekordbox가 기대하는 값을 빠뜨리게 된다.
-- 고치거나 읽는 칸(`djmdContent`·`contentFile`·`djmdMixerParam`·`agentRegistry`·`djmdProperty`)은 모두 있어야 한다.
+- 새 행을 넣는 표(`djmdCue` 29칸, `contentCue` 13칸, 곡 넣기의 `djmdContent`·`djmdArtist`·`djmdAlbum`·`djmdGenre`, 곡 넣기·분석 붙이기의 `contentFile` 24칸·`djmdMixerParam` 15칸)는 칸 이름이 정확히 같아야 한다. 칸이 늘면 rekordbox가 기대하는 값을 빠뜨리게 된다.
+- 고치거나 읽는 칸(`agentRegistry`·`djmdProperty`·곡 삭제의 `djmdSongPlaylist`·`djmdSongHistory`)은 모두 있어야 한다.
 - `djmdProperty.DBVersion` = `6000`.
 - `localUpdateCount` ≥ `lastUpdateCount`(클라우드 동기화가 본 가장 큰 번호). 로컬 번호가 더 작으면 동기화 때 변경이 되돌려졌다는 사례가 있다(2026-09-26 조사). 2026-09-26 실제 라이브러리: 로컬 1,002,950 · 클라우드 372,628.
 
@@ -70,6 +70,7 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
   - 소수(PQT2)가 없으면 첫 박을 ms + 0.5로 보고 다시 계산한다(바이트까지 재현).
 - 다른 태그는 바이트 그대로 둔다(`AnlzFile`이 태그 단위로 읽고 PMAI 전체 길이만 다시 적는다).
 - **파형 파일(.EXT)이 없는 곡은 rekordbox 분석 전 곡이다**(BPM 0, PQTZ 0박). 그리드만 쓰면 파형 없는 채로 남으므로 막는다(2026-09-26 サラマンダー).
+  분석 파일이 아예 없는 곡은 분석 붙이기로 쓰고(아래 "분석 붙이기"), `.DAT`만 있는 반쪽 곡은 "rekordbox에서 트랙 분석을 다시 한 뒤 쓰세요"로 막는다.
 
 ## 오토게인 (`djmdMixerParam`)
 
@@ -120,12 +121,46 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 - 그 곡만 쓰던 아티스트·앨범 행도 지운다. 분석 폴더는 통째로, 아트워크는 파일만 지운다(폴더는 남김).
 - MyTag·핫큐 뱅크·샘플러·관련 곡·신청곡·검열 구간·클라우드 내보내기에 걸린 곡은 아직 지우지 않는다.
 
+## 분석 붙이기 (분석 전 곡, `RekordboxWriter+Analysis`, #6)
+
+라이브러리에 이미 있는데 분석 파일이 없는 곡에, 반영할 때 그 곡의 그리드 초안으로 분석 파일을 만들어 붙인다. 곡 넣기(분석 포함) 레시피(`RekordboxTrackWriter.prepare`·`fileRow`·`mixerRow`)를 쓰고, 쓰기는 `RekordboxWriter.write`의 안전 절차(사전 확인 → 백업 → 한 트랜잭션 → 다시 읽어 검증 → 무결성 검사 → 실패 시 복원)를 따른다.
+
+**분석 전 곡은 두 가지다**(2026-09-26 라이브러리 조사, 읽기 전용):
+- 분석 파일 없음: `AnalysisDataPath` 빈 값. 자동 분석을 끄고 넣은 곡(`Analysed` 0, `ContentLink` 14)과 XML로 들어온 곡(`Analysed` 41, `ContentLink` 14, BPM·비트레이트·샘플레이트는 XML 값, `AnalysisUpdated`·`TrackInfoUpdated` NULL). 파일 행·오토게인 행이 없다. → 분석을 붙인다.
+- 반쪽 분석: `.DAT`(PQTZ 0박, PWAV·PWV2 전부 0)와 `.3EX`, 그 파일 행(`.DAT`·`.3EX`, 아트워크), 오토게인 행은 있고 `.EXT`·`.2EX`가 없다(`Analysed` 105, BPM 0이거나 태그 BPM, `AnalysisUpdated`·`TrackInfoUpdated` "1"). rekordbox 분석이 실패한 흔적으로 보인다. → 막는다(아래). 그리드가 든 채 `.EXT`만 없는 곡은 라이브러리에 없었다.
+
+**실험**(2026-09-26, rekordbox 7.2.18, 자동 분석 끔, '트랙 분석' 보통 모드·BPM/그리드·키만, 프레이즈·보컬 끔): XML로 들어온 분석 전 곡 The Asterisk War (edit)(WAV)와 반쪽 곡 ヴァンパイア(M4A). 전후 스냅샷을 `djc lab db-diff`로 비교하고, 실험 전 사본에 같은 곡을 `djc lab analysis-attach-test --grid-from <rekordbox .DAT>`로 써서 칸마다 맞췄다.
+
+**rekordbox가 분석 전 곡을 분석하면**(The Asterisk War (edit)):
+- `djmdContent`: `AnalysisDataPath`(곡 UUID 폴더), `Analysed` 41→105, `ContentLink` 14→0x2C060E, `AnalysisUpdated` NULL→'2', `TrackInfoUpdated` NULL→'1'(글자), 변경 번호, `updated_at`. BPM·Length·BitRate·BitDepth·SampleRate는 XML 값이 분석 값과 같아 그대로였다(분석 전 추가 곡은 채운다: 2026-09-26 O-Ku-Ri-Mo-No Sunday! 241→240초 버림). 키 분석을 켰는데도 `KeyID`는 0 그대로였다(#5 참고).
+- `contentFile` 행 4개(.3EX·.2EX·.DAT·.EXT, 곡 넣기와 같은 칸), `djmdMixerParam` 행 1개(피크 1.0).
+- 변경 번호: 오토게인 행 → .3EX 행 → 곡 행 → .2EX → .DAT → .EXT. rekordbox는 두 번에 나눠 쓴다(오토게인·.3EX·.DAT 행을 먼저 만들고 몇 분 뒤 곡 행·나머지 파일 행, .DAT 행은 그때 다시 고침). 파일 행 순서 .2EX → .DAT → .EXT는 O-Ku-Ri-Mo-No Sunday!·ヴァンパイア에서도 같았다.
+
+**DJCrate가 쓰는 것**(골든 테스트 `RekordboxAnalysisAttachTests`: 같은 음원·그리드·음량이면 곡 넣기 결과와 칸·바이트까지 같고, 다른 것은 위 실험의 카운터·순서뿐):
+- 분석 파일 `.DAT`·`.EXT`·`.2EX`를 곡 UUID 폴더(`/PIONEER/USBANLZ/<UUID 앞 3자>/<나머지>`)에 새로 만든다. PPTH의 파일 이름은 `FileNameL`.
+- `djmdContent`: BPM(첫 구간 ×100)·Length(AVFoundation 길이 버림)·BitRate·BitDepth·SampleRate·AnalysisDataPath·`Analysed` 105·`ContentLink` 0x2C060E·`AnalysisUpdated` '2'·`TrackInfoUpdated` '1', 상태 256→257, 변경 번호, `updated_at`. `KeyID`는 건드리지 않는다.
+- `contentFile` 행 3개와 `djmdMixerParam` 행(오토게인, −10 LUFS 목표). 변경 번호는 오토게인 행 → 곡 행 → .2EX → .DAT → .EXT(.3EX는 만들지 못한다).
+- 같은 쓰기의 큐·게인 초안은 분석을 붙인 뒤에 쓴다(분석한 곡을 고치는 순서).
+- 파일은 DB를 커밋하고 다시 읽어 확인한 뒤 쓴다. 파일 쓰기가 실패하면 만든 파일·빈 폴더를 지우고 DB를 백업으로 되돌린다.
+- 되돌리기: 백업 보고서(`report.json`)의 `createdFiles`로 만든 파일과 빈 분석 폴더를 지우고, 백업에 둔 그리드 초안을 살린다.
+
+**사본 재현 결과**(실험 전 사본, rekordbox 그리드를 PQT2 소수까지 가져와서): 곡 행은 바뀐 칸·값이 rekordbox와 같다(변경 번호 값·시각 말고). 파일 행 3개는 ID까지 같고 나머지 칸도 같다. `.DAT`는 머리·PPTH·PVBR·PCOB가 바이트까지 같고, PQTZ는 227박 중 9박만 1ms 다르다(rekordbox 박 간격이 419.49~419.60ms로 흔들려 소수가 ms 경계에 붙은 박). `.2EX`·`.DAT` 크기는 같고 `.EXT`는 PQT2 빈 형태만큼(박당 2바이트) 작다. 파형 태그는 곡 넣기와 같은 근사. 오토게인은 0.09dB 차이(음량 측정 차, 위 ±0.25dB 안).
+
+**막는 것**:
+- 반쪽 분석 곡(.DAT만): "rekordbox에서 트랙 분석을 다시 한 뒤 쓰세요". rekordbox가 다시 분석하면(ヴァンパイア) 곡 행은 BPM·`AnalysisUpdated`+1·`TrackInfoUpdated`+1·변경 번호만 바뀌고(`ContentLink`는 그대로), `.DAT`를 새로 써서 그 파일 행 해시·크기를 고치고, `.3EX` 해시를 고치고, `.2EX`·`.EXT` 파일 행을 넣는다(곡 행 → .3EX → .2EX → .DAT → .EXT). 오토게인 행은 그대로였다. 이 경로는 아직 쓰지 않는다.
+- 카운터(`AnalysisUpdated`·`TrackInfoUpdated`)가 이미 있는 분석 전 곡(rekordbox에서 곡 정보를 고친 곡): 분석하면 얼마나 느는지 확인하지 않았다.
+- 오토게인 행·USBANLZ 파일 기록·분석 폴더 파일이 이미 있는 곡, 음원 파일이 없는 곡, 음원 길이를 재지 못한 곡, base가 있는 초안(초안을 만든 뒤 rekordbox 쪽이 바뀜), 곡 넣기에서 막는 형식(ALAC·LAME이 아닌 VBR MP3·프레임이 끊긴 MP3·FLAC).
+
+`RekordboxWriter.attachesAnalysis`로 경로 전체를 닫을 수 있다(규칙이 어긋나는 것이 드러나면 닫는다).
+
 **rekordbox가 음원 파일도 고친다**: 태그를 고치면 파일 태그를 다시 쓰고(m4a 확인), 분석하면 키 태그(TKEY 등)를 써 넣는다(파일 크기가 커짐). 자동 분석을 켜면 라이브러리의 분석 안 된 곡까지 한꺼번에 분석한다.
 
 ## 막아 둔 것 (규칙 미확인)
 
 - **템포 구간이 여러 개인 곡의 BPM 변경**: 구간 이동은 되지만 BPM 변경은 막는다.
-- **분석을 붙인 곡 추가 중 ALAC·LAME이 아닌 VBR MP3**: 분석 파일 규칙(ALAC)·비트레이트 칸 규칙(비LAME VBR)을 못 찾았다. 분석 전 추가만 한다.
+- **분석을 붙인 곡 추가 중 ALAC·LAME이 아닌 VBR MP3**: 분석 파일 규칙(ALAC)·비트레이트 칸 규칙(비LAME VBR)을 못 찾았다. 분석 전 추가만 한다. 분석 붙이기도 같다.
+- **반쪽 분석 곡(.DAT만 있고 .EXT 없음)의 그리드·분석 붙이기**: rekordbox가 다시 분석한 모양은 한 곡 보았지만(위 "분석 붙이기") 사본 재현으로 확인하지 않았다.
+- **카운터가 이미 있는 분석 전 곡에 분석 붙이기**: `AnalysisUpdated`·`TrackInfoUpdated`가 NULL인 곡만 확인했다.
 
 ## 새 쓰기 경로를 여는 방법
 

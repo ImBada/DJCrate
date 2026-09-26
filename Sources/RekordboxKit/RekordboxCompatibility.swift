@@ -37,12 +37,17 @@ public enum RekordboxCompatibility {
                       "rb_local_data_status", "rb_local_deleted", "rb_local_synced", "usn", "rb_local_usn", "created_at", "updated_at"],
         "djmdGenre": ["ID", "Name", "UUID", "rb_data_status", "rb_local_data_status", "rb_local_deleted", "rb_local_synced", "usn",
                       "rb_local_usn", "created_at", "updated_at"],
+        // 분석까지 붙인 곡 추가·분석 붙이기(파일 행·오토게인 행을 새로 넣는다)
+        "contentFile": ["ID", "ContentID", "Path", "Hash", "Size", "rb_local_path", "rb_insync_hash", "rb_insync_local_usn",
+                        "rb_file_hash_dirty", "rb_local_file_status", "rb_in_progress", "rb_process_type", "rb_temp_path", "rb_priority",
+                        "rb_file_size_dirty", "UUID", "rb_data_status", "rb_local_data_status", "rb_local_deleted", "rb_local_synced",
+                        "usn", "rb_local_usn", "created_at", "updated_at"],
+        "djmdMixerParam": ["ID", "ContentID", "GainHigh", "GainLow", "PeakHigh", "PeakLow", "UUID", "rb_data_status",
+                           "rb_local_data_status", "rb_local_deleted", "rb_local_synced", "usn", "rb_local_usn", "created_at", "updated_at"],
     ]
 
     /// 고치거나 읽는 칸: 있어야 한다
     static let requiredColumns: [String: Set<String>] = [
-        "contentFile": ["ContentID", "Path", "Hash", "Size", "rb_data_status", "rb_local_usn", "updated_at"],
-        "djmdMixerParam": ["ID", "ContentID", "GainHigh", "GainLow", "rb_data_status", "rb_local_deleted", "rb_local_usn", "updated_at"],
         "agentRegistry": ["registry_id", "int_1"],
         "djmdProperty": ["DBVersion"],
         // 곡 삭제 때 지우거나 번호를 당기는 표
