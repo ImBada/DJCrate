@@ -3,7 +3,7 @@ import DJCDomain
 import SwiftUI
 
 /// 설정 창(⌘,). 값은 덱 모델에 바로 묶여 덱 화면과 함께 바뀌고, 바꾸면 곧바로 저장된다.
-/// 파형(#77)·코멘트(#60) 탭은 `SettingsTab`에 경우를 더하고 아래 `TabView`에 붙인다.
+/// 새 설정 묶음은 `SettingsTab`과 아래 `TabView`에 함께 더한다.
 struct SettingsView: View {
     @Bindable var deck: DeckModel
     @State private var tab = SettingsTab.general
@@ -19,13 +19,24 @@ struct SettingsView: View {
             Tab("단축키", systemImage: "keyboard", value: SettingsTab.shortcuts) {
                 ShortcutSettingsView(deck: deck)
             }
+            Tab("파형", systemImage: "waveform", value: SettingsTab.waveform) {
+                Form {
+                    Picker("색 모드", selection: $deck.waveformColorMode) {
+                        ForEach(WaveformColorMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    Text("덱의 확대·전체 파형과 곡 목록 미리 보기에 함께 적용합니다.")
+                        .foregroundStyle(.secondary)
+                }
+                .formStyle(.grouped)
+                .frame(width: 520, height: 180)
+            }
         }
         .background(SettingsWindow.Tracker())
     }
 }
 
 enum SettingsTab: Hashable {
-    case general, deck, shortcuts
+    case general, deck, shortcuts, waveform
 }
 
 /// 지금 열린 설정 창. 설정 창도 주 창이 될 수 있어서, KeyRouter가 이 창의 키(단축키 기록 등)를 덱으로 보내지 않게 한다.

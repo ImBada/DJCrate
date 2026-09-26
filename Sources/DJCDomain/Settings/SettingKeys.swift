@@ -2,6 +2,10 @@
 public enum SettingKeys {
     // MARK: 덱
 
+    public static let waveformColorMode = SettingKey("waveform.colorMode", WaveformColorMode.threeBand.rawValue) {
+        WaveformColorMode(rawValue: $0)?.rawValue
+    }
+
     /// 파형 확대(화면에 보이는 초)
     public static let zoomSeconds = SettingKey<Double>("deck.zoomSeconds", 16, in: 2...64)
     public static let quantize = SettingKey("deck.quantize", true)
@@ -48,6 +52,6 @@ public enum SettingKeys {
          waveformHeight.name]
             + [quantize, carryCues, showSuggestions, keyLock, autoGain, peakProtection, useRekordboxGain,
                sheetMode, sidebarPlaylistsExpanded, sidebarSummaryExpanded].map(\.name)
-            + [dismissedGainSuggestions, dismissedGridSuggestions, deckShortcuts]
+            + [dismissedGainSuggestions, dismissedGridSuggestions, deckShortcuts, waveformColorMode.name]
     }
 }

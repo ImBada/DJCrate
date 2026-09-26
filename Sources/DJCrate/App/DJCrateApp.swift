@@ -12,6 +12,11 @@ struct DJCrateApp: App {
     init() {
         // SwiftPM 실행 파일은 번들이 없어서 Dock·메뉴 막대에 올리려면 직접 지정해야 한다.
         NSApplication.shared.setActivationPolicy(.regular)
+        #if DEBUG
+        // 창이 만들어지기 전에 정해야 SwiftUI와 AppKit 목록이 같은 모양새로 시작한다.
+        if ProcessInfo.processInfo.arguments.contains("--perf-appearance=light") { NSApplication.shared.appearance = NSAppearance(named: .aqua) }
+        if ProcessInfo.processInfo.arguments.contains("--perf-appearance=dark") { NSApplication.shared.appearance = NSAppearance(named: .darkAqua) }
+        #endif
     }
 
     var body: some Scene {

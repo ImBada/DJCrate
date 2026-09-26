@@ -479,7 +479,7 @@ can send private email to the lead developer at drh at sqlite dot org.
 - 고지 기준 커밋: `f695541827cc488af267d6ca8a8e0052598d85a0`
 - 출처: [dylanljones/pyrekordbox](https://github.com/dylanljones/pyrekordbox/tree/f695541827cc488af267d6ca8a8e0052598d85a0)
 - 원문: [LICENSE](https://github.com/dylanljones/pyrekordbox/blob/f695541827cc488af267d6ca8a8e0052598d85a0/LICENSE)
-- DJCrate에서 쓰는 곳: `Sources/RekordboxKit/RekordboxKey.swift`의 키 복원 절차.
+- DJCrate에서 쓰는 곳: `Sources/RekordboxKit/RekordboxKey.swift`의 키 복원 절차, `AnlzPreviewWaveform.swift`의 PWV4 채널·밝기 해석.
 
 ````text
 MIT License
