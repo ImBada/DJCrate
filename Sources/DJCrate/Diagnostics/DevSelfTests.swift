@@ -252,10 +252,25 @@ enum DevSelfTests {
             }
             guard let window = NSApp.windows.first(where: { $0.isVisible }), let table = findTable(window.contentView),
                   let clip = table.enclosingScrollView?.contentView else { log("목록을 찾지 못함"); exit(1) }
-            deck.volume = 0.0003
+            if let column = table.tableColumns.first(where: { $0.identifier.rawValue == "preview" }) {
+                log("미리 보기 컬럼: " + (column.isHidden ? "끔" : "켬"))
+            }
+            // 시험 음량은 오디오에만 주고 저장된 덱 음량은 바꾸지 않는다.
+            deck.audio.volume = 0.0003
             PerfProbe.startRunLoopProbe()
+            // 첫 메모리 큐가 곡 끝에 있어도 측정 도중 재생이 끝나지 않게 한다.
+            deck.seek(0)
             deck.togglePlay()
             await wait(1.5)
+            if let column = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == "preview" }),
+               !table.tableColumns[column].isHidden {
+                let visible = table.rows(in: table.visibleRect)
+                let hasImage = (visible.location..<NSMaxRange(visible)).contains { row in
+                    let cell = table.view(atColumn: column, row: row, makeIfNecessary: false)
+                    return cell?.accessibilityValue() as? String == "곡 전체 파형"
+                }
+                log("미리 보기 비트맵: " + (hasImage ? "표시됨" : "없음"))
+            }
             PerfProbe.reset()
             await wait(3)
             log("가만히: " + PerfProbe.summary())
@@ -280,6 +295,7 @@ enum DevSelfTests {
                     try? await Task.sleep(for: .milliseconds(8))
                 }
                 let sorted = stepCosts.sorted()
+                guard deck.isPlaying else { log("측정 중 재생 종료: 더 긴 곡을 선택하세요"); exit(1) }
                 log("\(name): " + PerfProbe.summary()
                     + String(format: " · 스크롤 한 번 처리 평균 %.2fms · 상위 10%% %.2fms · 최대 %.2fms",
                              stepCosts.reduce(0, +) / Double(max(stepCosts.count, 1)), sorted[Int(Double(sorted.count) * 0.9)], sorted.last ?? 0))

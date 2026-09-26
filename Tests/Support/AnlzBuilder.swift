@@ -3,6 +3,15 @@ import RekordboxKit
 
 /// 합성 rekordbox 분석 파일(ANLZ). PMAI 머리 + 태그들. 그리드 밖 태그는 바이트 보존 검사용으로 채워 둔다.
 public enum AnlzBuilder {
+    /// PWAV: 상위 3비트는 흰 정도, 하위 5비트는 높이.
+    public static func pwav(_ samples: [UInt8]) -> Data {
+        var out = Data("PWAV".utf8)
+        out.append(be(20)); out.append(be(UInt32(20 + samples.count)))
+        out.append(be(UInt32(samples.count))); out.append(be(0x0001_0000))
+        out.append(contentsOf: samples)
+        return out
+    }
+
     /// `.DAT`: PPTH(경로) · PVBR(가짜 400칸) · PQTZ(그리드) · PWAV(가짜 미리보기)
     public static func dat(beats: [BeatGridTags.Beat], path: String = "/Music/시험.mp3") -> Data {
         file([ppth(path), opaque("PVBR", bytes: 1600), BeatGridTags.pqtz(beats), opaque("PWAV", bytes: 400)])
