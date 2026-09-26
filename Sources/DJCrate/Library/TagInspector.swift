@@ -44,15 +44,9 @@ struct TagInspector: View {
                         Label(Set(issues).sorted().joined(separator: " · "), systemImage: "exclamationmark.triangle")
                             .foregroundStyle(UIColors.warning.color).font(.scaled(.caption, textScale))
                     }
-                    HStack {
-                        Button(.ui("되돌리기")) { store.revertTags(rows: rows) }
-                        Spacer()
-                        Button(.ui("파일에 쓰기…")) {}
-                            .disabled(true)
-                            .help(.ui("안전 쓰기(태그 프레임만 교체 + 검증) 구현과 rekordbox Reload Tag 검증 전까지 잠겨 있습니다."))
-                    }
+                    Button(.ui("되돌리기")) { store.revertTags(rows: rows) }
                     // 반영(⌘⇧E)하면 rekordbox 곡 정보에 쓴다. 음원 파일은 읽기만 한다(#1 결정).
-                    Text(.ui("편집은 DJCrate 초안에 저장되고, rekordbox에 반영할 때 rekordbox 곡 정보에 씁니다. 음원 파일의 태그는 바뀌지 않습니다."))
+                    Text(.ui("rekordbox 반영 때 라이브러리에만 씁니다. 음원 파일의 태그는 바뀌지 않습니다."))
                         .font(.scaled(.caption, textScale)).foregroundStyle(.secondary)
                 }
             }
