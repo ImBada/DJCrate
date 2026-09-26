@@ -64,7 +64,8 @@ plutil -replace CFBundleLocalizations -json "$(plutil -extract CFBundleLocalizat
 
 # 서명: Apple Development 인증서가 있으면 그것으로(다시 빌드해도 앱 신원이 같아 외장 드라이브 접근 허용이 유지된다),
 # 없으면 애드혹. DJC_SIGN_IDENTITY로 지정할 수 있다. 프레임워크 먼저.
-IDENTITY="${DJC_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | grep "Apple Development" | head -1 | awk '{print $2}')}"
+# 인증서가 없는 정상 상태에서도 pipefail로 설치 전에 끝나지 않게 한다.
+IDENTITY="${DJC_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | awk '/Apple Development/ && !found { print $2; found = 1 }')}"
 IDENTITY="${IDENTITY:--}"
 codesign --force --timestamp=none --sign "$IDENTITY" "$APP/Contents/Frameworks/SQLCipher.framework"
 codesign --force --timestamp=none --sign "$IDENTITY" "$APP"
