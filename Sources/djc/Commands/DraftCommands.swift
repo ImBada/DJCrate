@@ -26,11 +26,13 @@ enum DraftCommands {
         guard !uuid.isEmpty, !uuid.contains("/"), !uuid.contains("\0"), uuid != ".", uuid != ".." else {
             throw invalid("곡 UUID를 초안 파일 이름으로 쓸 수 없습니다")
         }
-        let directory = DJCPaths.userData.appending(path: "\(options.kind)-drafts")
+        // 기존 HOME과 아직 없는 초안 경로의 /private 표기가 달라지지 않게 먼저 정규화한다.
+        let home = DJCPaths.userData.resolvingSymlinksInPath().standardizedFileURL
+        let directory = home.appending(path: "\(options.kind)-drafts")
         let file = directory.appending(path: "\(uuid).json")
         // DB의 UUID나 외부 링크 때문에 초안 폴더 밖을 고치지 않는다.
-        guard directory.resolvingSymlinksInPath().standardizedFileURL == DJCPaths.userData.resolvingSymlinksInPath().appending(path: "\(options.kind)-drafts").standardizedFileURL,
-              file.resolvingSymlinksInPath().standardizedFileURL == directory.resolvingSymlinksInPath().appending(path: "\(uuid).json").standardizedFileURL else {
+        guard directory.resolvingSymlinksInPath().standardizedFileURL == directory.standardizedFileURL,
+              file.resolvingSymlinksInPath().standardizedFileURL == file.standardizedFileURL else {
             throw invalid("초안 폴더나 파일의 심볼릭 링크를 해제하세요")
         }
         var result = Result(kind: options.kind, action: options.remove ? "remove" : "save", contentID: track.id,
