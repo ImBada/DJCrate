@@ -7055,18 +7055,18 @@
         }
       }
     },
-    "곡을 선택하세요" : {
+    "덱에 곡을 불러오세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Select a Track"
+            "value" : "Load a Track to the Deck"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "曲を選択してください"
+            "value" : "デッキに曲を読み込んでください"
           }
         }
       }
@@ -13805,18 +13805,18 @@
         }
       }
     },
-    "아래 목록에서 곡을 고르면 파형과 큐가 여기 뜹니다." : {
+    "아래 목록에서 곡을 더블클릭하거나 여기로 끌어다 놓으면(⌘→도 됩니다) 파형과 큐가 여기 뜹니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choose a track in the list below to see its waveform and cues here."
+            "value" : "Double-click a track in the list below or drag it here (or press ⌘→) to see its waveform and cues here."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "下のリストで曲を選ぶと、ここに波形とキューが表示されます。"
+            "value" : "下のリストで曲をダブルクリックするか、ここへドラッグすると（⌘→でも可）、ここに波形とキューが表示されます。"
           }
         }
       }
