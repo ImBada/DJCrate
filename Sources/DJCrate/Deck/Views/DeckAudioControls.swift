@@ -6,13 +6,23 @@ import SwiftUI
 
 /// 볼륨 · 메트로놈 · 템포(변속) · 키 고정 · 그리드 편집 전환
 struct AudioBar: View {
+    @Environment(\.textScale) private var textScale
     @Bindable var deck: DeckModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             FlowLayout(spacing: 12) {
                 HStack(spacing: 4) {
-                    Image(systemName: deck.volume == 0 ? "speaker.slash" : "speaker.wave.2").foregroundStyle(.secondary)
+                    // 음파 줄 수가 볼륨을 따라 채워진다. 0이면 꺼진 스피커.
+                    Group {
+                        if deck.volume == 0 {
+                            Image(systemName: "speaker.slash")
+                        } else {
+                            Image(systemName: "speaker.wave.3", variableValue: deck.volume)
+                        }
+                    }
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
                     Slider(value: $deck.volume, in: 0...1).frame(width: 90)
                         .accessibilityLabel("재생 볼륨")
                 }
@@ -27,7 +37,8 @@ struct AudioBar: View {
                     Text("템포").foregroundStyle(.secondary)
                     Slider(value: $deck.tempoPercent, in: -16...16, step: 0.1).frame(width: 120)
                         .accessibilityLabel("재생 템포")
-                    Text(String(format: "%+.1f%%", deck.tempoPercent)).font(.caption.monospacedDigit()).frame(width: 46, alignment: .trailing)
+                    Text(String(format: "%+.1f%%", deck.tempoPercent)).font(.scaled(.caption, textScale).monospacedDigit())
+                        .frame(width: TextScale.length(46, scale: textScale), alignment: .trailing)
                     Button("0") { deck.tempoPercent = 0 }.help("원래 속도로")
                 }
                 Toggle("키 고정", isOn: $deck.keyLock)
@@ -43,7 +54,7 @@ struct AudioBar: View {
                 HStack(spacing: 4) {
                     Image(systemName: "wand.and.stars").foregroundStyle(UIColors.suggestion.color)
                     Text(String(format: "게인 제안 %+.1f dB (rekordbox %+.1f)", suggestion, deck.rekordboxGainDB ?? 0))
-                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        .font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
                         .help(String(format: "rekordbox 오토게인이 이 파일의 실제 음량과 %.1fdB 다릅니다", abs(deck.gainMismatchDB ?? 0)))
                     Button("제안 받기") { deck.acceptGainSuggestion() }
                         .fixedSize()
@@ -54,7 +65,7 @@ struct AudioBar: View {
                 }
             } else if deck.hasGainOverride {
                 Button("게인 초안 취소") { deck.clearGainDraft() }
-                    .font(.caption)
+                    .font(.scaled(.caption, textScale))
                     .help("이 곡의 게인 초안을 지우고 rekordbox 오토게인으로 돌아갑니다")
             }
             // 그리드 편집에 들어가지 않고 DJCrate 제안을 받거나 무시한다.
@@ -62,7 +73,7 @@ struct AudioBar: View {
                deck.dismissedRevision >= 0, !deck.isGridSuggestionDismissed {
                 HStack(spacing: 4) {
                     Image(systemName: "wand.and.stars").foregroundStyle(UIColors.suggestion.color)
-                    Text(note).font(.caption).lineLimit(1).foregroundStyle(.secondary)
+                    Text(note).font(.scaled(.caption, textScale)).lineLimit(1).foregroundStyle(.secondary)
                     Button("제안 받기") { deck.applyGridSuggestion() }
                         .fixedSize()
                         .help("DJCrate가 추정한 그리드로 바꿉니다(초안만, 되돌리기 가능)")
@@ -72,12 +83,13 @@ struct AudioBar: View {
                 }
             }
         }
-        .controlSize(.small)
+        .controlSize(ControlSize.small.scaled(textScale))
     }
 }
 
 /// 게인 버튼: 지금 걸린 게인과 곡 음량을 보여 주고, 누르면 오토게인·트림 설정.
 struct GainControl: View {
+    @Environment(\.textScale) private var textScale
     @Bindable var deck: DeckModel
     @State private var shown = false
 
@@ -85,13 +97,13 @@ struct GainControl: View {
         Button { shown.toggle() } label: {
             HStack(spacing: 4) {
                 Text(deck.autoGain ? (deck.useRekordboxGain && deck.rekordboxGainDB != nil ? "RB AUTO" : "AUTO") : "GAIN")
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.scaled(.caption2, textScale).bold())
                     .padding(.horizontal, 3).padding(.vertical, 1)
                     .background(RoundedRectangle(cornerRadius: 3).fill(deck.autoGain ? Color.accentColor.opacity(0.35) : UIColors.subtleFill))
-                Text(String(format: "%+.1f dB", deck.appliedGain)).font(.caption.monospacedDigit())
+                Text(String(format: "%+.1f dB", deck.appliedGain)).font(.scaled(.caption, textScale).monospacedDigit())
                 if let loudness = deck.loudness, let lufs = loudness.integrated {
                     Text(String(format: "%.1f LUFS", lufs))
-                        .font(.caption.monospacedDigit())
+                        .font(.scaled(.caption, textScale).monospacedDigit())
                         .foregroundStyle(loudness.isHot ? UIColors.warning.color : Color.secondary)
                 }
                 if deck.isGainSuspicious {
@@ -188,6 +200,7 @@ struct GainSettings: View {
 /// 레벨 미터(게인 뒤·볼륨 앞, L/R 피크). 초록 ~−12 · 노랑 −12~−3 · 빨강 −3~0dBFS.
 /// 오른쪽은 곡을 올린 뒤 최고 피크(0dBFS를 넘은 적이 있으면 빨간 점, 누르면 지움).
 struct LevelMeterView: View {
+    @Environment(\.textScale) private var textScale
     let deck: DeckModel
     @State private var ballistics = MeterBallistics()
 
@@ -212,10 +225,10 @@ struct LevelMeterView: View {
                     HStack(spacing: 3) {
                         Circle().fill(UIColors.memory.color).frame(width: 6, height: 6).opacity(clipping ? 1 : 0)
                         Text(reading.maxPeak > 0 ? String(format: "%+.1f", 20 * log10(reading.maxPeak)) : "−∞")
-                            .font(.caption2.monospacedDigit())
+                            .font(.scaled(.caption2, textScale).monospacedDigit())
                             .foregroundStyle(reading.maxPeak >= 1 ? UIColors.memory.color : reading.maxPeak >= 0.708 ? UIColors.warning.color : Color.secondary)
                     }
-                    .frame(width: 44, alignment: .leading)
+                    .frame(width: TextScale.length(44, scale: textScale), alignment: .leading)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

@@ -43,10 +43,12 @@ struct TagSheetView: NSViewRepresentable {
         scroll.hasHorizontalScroller = true
         scroll.autohidesScrollers = true
         context.coordinator.table = table
+        context.coordinator.updateTextScale(context.environment.textScale)
         return scroll
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
+        context.coordinator.updateTextScale(context.environment.textScale)
         context.coordinator.update(rows: store.displayRows, revision: store.tagRevision)
     }
 }
@@ -90,12 +92,23 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
     var cursor = CellPosition(row: 0, column: 1)
     private var editing: CellPosition?
     private var editingOriginal = ""
+    private var textScale = 1.0
+    private var font = SheetCell.font(scale: 1)
 
     init(store: LibraryStore) {
         self.store = store
     }
 
     // MARK: - 데이터
+
+    /// 글자 배율(보기 › 글자 크게·작게)이 바뀌면 글자 크기와 줄 높이를 함께 바꾼다.
+    func updateTextScale(_ scale: Double) {
+        guard scale != textScale, let table else { return }
+        textScale = scale
+        font = SheetCell.font(scale: scale)
+        table.rowHeight = TextScale.length(22, scale: scale)
+        reloadVisible()
+    }
 
     func update(rows: [TrackRow], revision: Int) {
         defer { table?.updateFillDownCommand() }
@@ -133,6 +146,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
         }()
         let spec = SheetColumn.all[column]
         let position = CellPosition(row: row, column: column)
+        if cell.label.font != font { cell.label.font = font }
         cell.configure(text: text(row: row, column: column),
                        edited: spec.key.map { store.isTagEdited(rows[row], $0) } ?? false,
                        readOnly: editableKey(row: row, column: column) == nil,
@@ -469,7 +483,7 @@ final class SheetCell: NSTableCellView {
         wantsLayer = true
         label.translatesAutoresizingMaskIntoConstraints = false
         label.lineBreakMode = .byTruncatingTail
-        label.font = .systemFont(ofSize: 12)
+        label.font = Self.font(scale: 1)
         label.cell?.usesSingleLineMode = true
         label.cell?.isScrollable = true
         addSubview(label)
@@ -483,6 +497,11 @@ final class SheetCell: NSTableCellView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    /// 시트 글자(12pt × 글자 배율)
+    static func font(scale: Double) -> NSFont {
+        .systemFont(ofSize: TextScale.pointSize(12, scale: scale))
+    }
 
     func configure(text: String, edited: Bool, readOnly: Bool, selected: Bool, active: Bool) {
         if label.currentEditor() == nil { label.stringValue = text }

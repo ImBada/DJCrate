@@ -52,6 +52,10 @@ private struct TrackListView: NSViewRepresentable {
                 column.sortDescriptorPrototype = NSSortDescriptor(key: key, ascending: spec.ascendingFirst)
             }
             if !spec.help.isEmpty { column.headerToolTip = spec.help }
+            if spec.id == "edited" {
+                column.headerCell.attributedStringValue = TrackColumn.draftHeader
+                column.headerCell.setAccessibilityLabel(spec.title)
+            }
             column.isHidden = spec.id == "preview"
             table.addTableColumn(column)
         }
@@ -105,10 +109,12 @@ private struct TrackListView: NSViewRepresentable {
         scroll.autohidesScrollers = true
         context.coordinator.table = table
         context.coordinator.updateCommentPreset(store.commentPreset)
+        context.coordinator.updateTextScale(context.environment.textScale)
         return scroll
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
+        context.coordinator.updateTextScale(context.environment.textScale)
         context.coordinator.updateCommentPreset(store.commentPreset)
         context.coordinator.update(rows: store.displayRows, edited: store.editedUUIDs,
                                    selection: store.selection, sortOrder: store.sortOrder, snapshotURL: store.snapshotURL,
@@ -134,7 +140,7 @@ private struct TrackColumn {
     static let all: [TrackColumn] = [
         TrackColumn(id: "index", title: "#", width: 38, minWidth: 30, help: "지금 목록에서 몇 번째 곡인지"),
         TrackColumn(id: "thumb", title: "", width: 26, minWidth: 26),
-        TrackColumn(id: "edited", title: "✎", width: 18, minWidth: 18, help: "DJCrate 초안이 있는 곡 (rekordbox·파일에는 아직 반영 안 됨)"),
+        TrackColumn(id: "edited", title: "초안", width: 18, minWidth: 18, help: "DJCrate 초안이 있는 곡 (rekordbox·파일에는 아직 반영 안 됨)"),
         TrackColumn(id: "title", title: "제목", width: 220, minWidth: 140, flexible: true, sortKey: "title"),
         TrackColumn(id: "preview", title: "미리 보기", width: 160, minWidth: 80,
                     help: "곡 전체 파형과 핫큐·메모리 큐·루프 위치"),
@@ -156,6 +162,20 @@ private struct TrackColumn {
         TrackColumn(id: "memoryCues", title: "메모리", width: 50, minWidth: 40, sortKey: "memoryCues", ascendingFirst: false,
                     help: "직접 찍은 메모리 큐 수(빨강). 큐가 없으면 주황 '없음', rekordbox 자동 큐만 있으면 '자동'"),
     ]
+
+    /// 초안 칸 머리글: 글자 '✎' 대신 pencil 심볼을 머리글 글자색·크기로 넣는다(칸이 좁아 '초안'이 들어가지 않는다).
+    /// 제목 '초안'은 칸 메뉴와 VoiceOver에 쓴다.
+    @MainActor static var draftHeader: NSAttributedString {
+        let attachment = NSTextAttachment()
+        attachment.image = NSImage(systemSymbolName: "pencil", accessibilityDescription: "초안")?
+            .withSymbolConfiguration(.init(pointSize: NSFont.smallSystemFontSize, weight: .regular))
+        let text = NSMutableAttributedString(attachment: attachment)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        text.addAttributes([.foregroundColor: NSColor.headerTextColor, .paragraphStyle: paragraph],
+                           range: NSRange(location: 0, length: text.length))
+        return text
+    }
 
     static func comparator(key: String, ascending: Bool) -> KeyPathComparator<TrackRow>? {
         let order: SortOrder = ascending ? .forward : .reverse
@@ -215,6 +235,8 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     private var classHiddenWhenEnabled = false
     private var waveformMode = WaveformColorMode.threeBand
     private var previewCues: [String: [PreviewCueMark]] = [:]
+    private var textScale = 1.0
+    private var fonts = TextCell.Fonts(scale: 1)
     /// 표 → 스토어로 선택·정렬을 넘기는 중에는 스토어 → 표 동기화를 건너뛴다(되먹임 방지).
     private var syncing = false
 
@@ -236,6 +258,15 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         store.settings.set(SettingKeys.commentClassColumnHidden, classHiddenWhenEnabled)
         commentPreset = preset
         column.isHidden = preset.rule == nil || classHiddenWhenEnabled
+        reloadVisible(table)
+    }
+
+    /// 글자 배율(보기 › 글자 크게·작게)이 바뀌면 글자 크기와 줄 높이를 함께 바꾼다. 보이지 않는 줄은 나타날 때 새 글자로 채운다.
+    func updateTextScale(_ scale: Double) {
+        guard scale != textScale, let table else { return }
+        textScale = scale
+        fonts = TextCell.Fonts(scale: scale)
+        table.rowHeight = TextScale.length(24, scale: scale)
         reloadVisible(table)
     }
 
@@ -458,7 +489,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         for spec in TrackColumn.all {
             if spec.id == "class", commentPreset?.rule == nil { continue }
             guard let column = table.tableColumns.first(where: { $0.identifier.rawValue == spec.id }) else { continue }
-            let title = spec.title.isEmpty ? "앨범 아트" : spec.title == "✎" ? "✎ 초안 표시" : spec.title == "#" ? "# 번호" : spec.title
+            let title = spec.title.isEmpty ? "앨범 아트" : spec.id == "edited" ? "초안 표시" : spec.title == "#" ? "# 번호" : spec.title
             let item = NSMenuItem(title: title, action: #selector(toggleColumn(_:)), keyEquivalent: "")
             item.target = self
             item.state = column.isHidden ? .off : .on
@@ -521,6 +552,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             return cell
         default:
             let cell = reuse(tableView, "text") { TextCell() }
+            cell.fonts = fonts
             configure(cell, column: id, row: row, index: index)
             return cell
         }
@@ -589,8 +621,19 @@ private final class TextCell: NSTableCellView {
         label.textColor = backgroundStyle == .emphasized ? .alternateSelectedControlTextColor : normalColor
     }
 
-    private static let font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
-    private static let digitFont = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+    /// 글자 배율에 맞춘 본문·숫자 글꼴(표가 배율이 바뀔 때 한 번 만든다)
+    struct Fonts {
+        let text: NSFont
+        let digits: NSFont
+
+        init(scale: Double) {
+            let size = TextScale.pointSize(NSFont.systemFontSize, scale: scale)
+            text = NSFont.systemFont(ofSize: size)
+            digits = NSFont.monospacedDigitSystemFont(ofSize: size, weight: .regular)
+        }
+    }
+
+    var fonts = Fonts(scale: 1)
 
     init() {
         super.init(frame: .zero)
@@ -612,7 +655,8 @@ private final class TextCell: NSTableCellView {
         if label.stringValue != text { label.stringValue = text }
         normalColor = color
         updateColor()
-        label.font = digits ? Self.digitFont : Self.font
+        let font = digits ? fonts.digits : fonts.text
+        if label.font != font { label.font = font }
     }
 }
 

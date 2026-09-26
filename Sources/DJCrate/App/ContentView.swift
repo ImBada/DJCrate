@@ -256,15 +256,16 @@ struct ContentView: View {
 
 /// 태그 시트 위 안내 줄.
 struct SheetHeader: View {
+    @Environment(\.textScale) private var textScale
     let store: LibraryStore
 
     var body: some View {
         HStack(spacing: 14) {
-            Text("\(store.sidebarTitle) · \(store.displayRows.count)곡").font(.callout.bold())
+            Text("\(store.sidebarTitle) · \(store.displayRows.count)곡").font(.scaled(.callout, textScale).bold())
             Text("더블클릭·Return·타이핑: 편집  ·  ⌘C/⌘V: 엑셀·시트와 복사·붙여넣기  ·  ⌘D: 아래로 채우기  ·  Delete: 지우기  ·  ⌘Z/⇧⌘Z: 실행 취소·실행 복귀")
-                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                .font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
             Spacer()
-            Text("주황 = 초안(파일·rekordbox 미반영)").font(.caption).foregroundStyle(UIColors.warning.color)
+            Text("주황 = 초안(파일·rekordbox 미반영)").font(.scaled(.caption, textScale)).foregroundStyle(UIColors.warning.color)
         }
         .controlSize(.small)
         .padding(.horizontal, 12)

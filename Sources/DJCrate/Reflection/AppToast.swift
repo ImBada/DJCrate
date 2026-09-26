@@ -1,3 +1,4 @@
+import DJCDomain
 import SwiftUI
 
 /// 창 아래에 잠깐 뜨는 알림. rekordbox 반영이 끝났을 때 결과와 되돌리기를 보여 준다.
@@ -44,6 +45,7 @@ struct AppToast: Identifiable, Equatable {
 /// 토스트 모양: 둥근 카드, 아이콘 + 제목 + 설명 + (되돌리기) + 닫기. 마우스를 올려 두면 사라지지 않는다.
 struct AppToastView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.textScale) private var textScale
     let toast: AppToast
     var onUndo: (() -> Void)?
     var onDetails: (() -> Void)?
@@ -53,25 +55,26 @@ struct AppToastView: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: toast.kind.icon)
-                .font(.system(size: 20, weight: .semibold))
+                .font(.scaled(.title2, textScale))
+                .imageScale(.large)
                 .foregroundStyle(toast.kind.tint)
                 .symbolEffect(.bounce, options: .nonRepeating, isActive: !reduceMotion)
             // 카드는 내용 폭에 맞춘다(긴 설명만 이 폭에서 줄을 바꾼다)
             VStack(alignment: .leading, spacing: 2) {
-                Text(toast.title).font(.system(size: 13, weight: .semibold))
+                Text(toast.title).font(.scaled(.body, textScale).weight(.semibold))
                 if let detail = toast.detail {
-                    Text(detail).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                    Text(detail).font(.scaled(.caption, textScale)).foregroundStyle(.secondary).textSelection(.enabled)
                 }
             }
-            .frame(maxWidth: 420, alignment: .leading)
+            .frame(maxWidth: TextScale.length(420, scale: textScale), alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
-            if let onDetails { Button("결과 보기", action: onDetails).controlSize(.small) }
+            if let onDetails { Button("결과 보기", action: onDetails).controlSize(ControlSize.small.scaled(textScale)) }
             if let onUndo, toast.undoBackup != nil {
                 Button("되돌리기", action: onUndo)
-                    .controlSize(.small)
+                    .controlSize(ControlSize.small.scaled(textScale))
                     .help("rekordbox 라이브러리를 이번 쓰기 직전 백업으로 되돌립니다(rekordbox가 꺼져 있어야 합니다)")
             }
-            Button(action: onClose) { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
+            Button(action: onClose) { Image(systemName: "xmark").font(.scaled(.caption, textScale).bold()) }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .accessibilityLabel("알림 닫기")
@@ -100,6 +103,7 @@ struct AppToastView: View {
 
 /// rekordbox에 쓰는 동안 창 전체를 덮어 다른 조작을 막는다.
 struct WritingOverlay: View {
+    @Environment(\.textScale) private var textScale
     let stage: WriteStage
     var onCancel: () -> Void
 
@@ -109,10 +113,11 @@ struct WritingOverlay: View {
             VStack(spacing: 10) {
                 if let done = stage.completed, let total = stage.total {
                     ProgressView(value: Double(done), total: Double(max(total, 1)))
-                    Text("\(done)/\(total)").font(.caption.monospacedDigit())
+                    Text("\(done)/\(total)").font(.scaled(.caption, textScale).monospacedDigit())
                 } else { ProgressView().controlSize(.regular) }
-                Text(stage.text).font(.system(size: 13, weight: .semibold))
-                Text(stage.cancellable ? "아직 rekordbox에 쓰지 않았습니다" : "끝날 때까지 rekordbox를 켜지 마세요").font(.caption).foregroundStyle(.secondary)
+                Text(stage.text).font(.scaled(.body, textScale).weight(.semibold))
+                Text(stage.cancellable ? "아직 rekordbox에 쓰지 않았습니다" : "끝날 때까지 rekordbox를 켜지 마세요")
+                    .font(.scaled(.caption, textScale)).foregroundStyle(.secondary)
                 if stage.cancellable {
                     Button("취소", action: onCancel).keyboardShortcut(.cancelAction)
                 }

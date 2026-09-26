@@ -106,6 +106,12 @@ clickNode(메트로놈) ──────────────────�
 - 확대 파형 그리기 자체는 약 1ms로 작다. 막대 그리기를 끄는 A/B에서 차이가 없었다.
 - 일부 뷰를 별도 NSHostingView로 떼는 방법은 오히려 느렸다(504ms/초).
 
+## 글자 크기
+
+- macOS는 Dynamic Type을 지원하지 않아(`dynamicTypeSize`를 바꿔도 글자 크기가 그대로다) 앱이 글자 배율을 직접 곱한다. 배율은 `SettingKeys.textScale`(1·1.15·1.3·1.5배, 규칙은 `TextScale`)이고 보기 › 글자 크게·작게(⌘+ · ⌘−)와 설정 › 일반에서 바꾼다.
+- 창마다 `AppTextScale`이 배율을 환경값 `textScale`로 넣는다. SwiftUI 글자는 `Font.scaled(.caption, scale)`(1배면 텍스트 스타일 그대로), 고정 pt(CDJ 패드)는 `Font.scaled(size:…)`, 파형 Canvas는 `WaveformMetrics`, AppKit 표(곡 목록·태그 시트)는 `NSFont` 크기와 `rowHeight`에 곱한다. 1.3배부터는 작은 컨트롤을 한 단계 키운다.
+- 가장 작은 글자는 10pt(macOS 최소)다. 파형 눈금처럼 자리가 모자라면 글자를 줄이지 않고 라벨 수를 줄인다(`BeatRulerLabel`).
+
 ## rekordbox 쓰기
 
 규칙·절차·막아 둔 것, 쓰기 전 확인(버전·DB 구조·카운터)은 `docs/rekordbox-internals.md`.

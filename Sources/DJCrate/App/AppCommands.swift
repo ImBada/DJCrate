@@ -23,6 +23,7 @@ struct AppCommands: Commands {
     @FocusedValue(\.appCommands) private var context
     @Environment(\.openWindow) private var openWindow
     @AppStorage(SettingKeys.sheetMode.name) private var sheetMode = SettingKeys.sheetMode.defaultValue
+    @AppStorage(SettingKeys.textScale.name) private var textScale = SettingKeys.textScale.defaultValue
 
     var body: some Commands {
         SidebarCommands()
@@ -48,6 +49,19 @@ struct AppCommands: Commands {
                 .disabled(context?.waveformHeight?.canGrow != true)
             Button("파형 작게") { context?.waveformHeight?.shrink() }
                 .disabled(context?.waveformHeight?.canShrink != true)
+            Divider()
+            // macOS는 Dynamic Type이 없어 앱 안에서 글자를 키운다(곡 목록·태그 시트·덱·알림).
+            // ⌘+는 Shift 없이 누른 ⌘=로도 온다(KeyRouter가 바꿔 넣는다).
+            let scale = SettingKeys.textScale.value(from: textScale)
+            Button("글자 크게") { textScale = TextScale.stepped(scale, by: 1) }
+                .keyboardShortcut("+", modifiers: .command)
+                .disabled(!TextScale.canStep(scale, by: 1))
+            Button("글자 작게") { textScale = TextScale.stepped(scale, by: -1) }
+                .keyboardShortcut("-", modifiers: .command)
+                .disabled(!TextScale.canStep(scale, by: -1))
+            Button("기본 글자 크기") { textScale = SettingKeys.textScale.defaultValue }
+                .keyboardShortcut("0", modifiers: .command)
+                .disabled(scale == SettingKeys.textScale.defaultValue)
         }
         CommandMenu("rekordbox") {
             ForEach(LibraryMenuAction.rekordboxActions, id: \.self) { libraryButton($0) }

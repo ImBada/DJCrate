@@ -6,27 +6,29 @@ import AppKit
 import SwiftUI
 
 struct OverviewWaveformView: View {
+    @Environment(\.textScale) private var textScale
     @Bindable var deck: DeckModel
     @State private var scrubbing = false
 
     var body: some View {
         GeometryReader { geo in
             let duration = max(deck.duration, 1)
+            let metrics = WaveformMetrics(scale: textScale)
             ZStack(alignment: .bottom) {
-                OverviewStaticLayer(deck: deck, duration: duration)
+                OverviewStaticLayer(deck: deck, duration: duration, metrics: metrics)
                 if deck.isAnalyzingSections {
                     // 섹션 칸(아래 띠) 자리에 분석 진행 표시
                     HStack(spacing: 6) {
                         ProgressView().progressViewStyle(.linear).tint(Palette.section)
-                        Text("섹션 분석 중").font(.system(size: 9)).foregroundStyle(Palette.section)
+                        Text("섹션 분석 중").font(.scaled(.caption2, textScale)).foregroundStyle(Palette.section)
                     }
                     .padding(.horizontal, 6)
-                    .frame(height: 16)
-                    .padding(.bottom, 15)
+                    .frame(height: metrics.sectionBandHeight + 2)
+                    .padding(.bottom, metrics.keyBandHeight + 3)
                     .allowsHitTesting(false)
                     .accessibilityLabel("섹션 분석 중")
                 }
-                OverviewPlayheadLayer(deck: deck, duration: duration)
+                OverviewPlayheadLayer(deck: deck, duration: duration, metrics: metrics)
             }
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0)
@@ -103,6 +105,7 @@ struct OverviewStaticLayer: View {
     @Environment(\.colorSchemeContrast) private var contrast
     let deck: DeckModel
     let duration: Double
+    var metrics = WaveformMetrics()
 
     var body: some View {
         let waveform = deck.waveform
@@ -117,9 +120,10 @@ struct OverviewStaticLayer: View {
         let audioOffset = deck.timelineOffset
         let keys = deck.keySegments.map { (segment: $0, name: deck.keyName(for: $0)) }
         let keyChanges = deck.keySegments.count > 1
+        let metrics = metrics
         Canvas { context, size in
             let xOf = { (t: Double) in CGFloat(t / duration) * size.width }
-            let waveHeight = size.height - 34
+            let waveHeight = size.height - metrics.overviewBandsHeight
             if mode == .threeBand, let waveform {
                 drawBands(context, waveform: waveform, from: -audioOffset, to: duration - audioOffset,
                           in: CGRect(x: 0, y: 2, width: size.width, height: waveHeight - 2))
@@ -132,18 +136,18 @@ struct OverviewStaticLayer: View {
             for e in energies {
                 let norm = e.score.isFinite && hi > lo ? (e.score - lo) / (hi - lo) : 0
                 let rect = CGRect(x: xOf(e.span.start), y: waveHeight + 3,
-                                  width: max(1, xOf(e.span.end) - xOf(e.span.start) - 1), height: 14)
+                                  width: max(1, xOf(e.span.end) - xOf(e.span.start) - 1), height: metrics.sectionBandHeight)
                 context.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(Palette.section.opacity(0.1 + 0.62 * norm * norm)))
             }
-            // 조성 띠(섹션 띠 아래). 바뀌는 곳이 있으면 진하게.
+            // 조성 띠(섹션 띠 아래). 바뀌는 곳이 있으면 진하게. 이름은 띠 안에 다 들어갈 때만 쓴다(글자를 줄이지 않는다).
             for key in keys {
-                let rect = CGRect(x: xOf(key.segment.start), y: waveHeight + 19,
-                                  width: max(1, xOf(key.segment.end) - xOf(key.segment.start) - 1), height: 12)
+                let rect = CGRect(x: xOf(key.segment.start), y: waveHeight + 3 + metrics.sectionBandHeight + 2,
+                                  width: max(1, xOf(key.segment.end) - xOf(key.segment.start) - 1), height: metrics.keyBandHeight)
                 let color = Palette.keyColor(key.name)
                 context.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(color.opacity(Palette.keyBandOpacity(changes: keyChanges))))
-                if rect.width > 24 {
-                    context.draw(Text(key.name).font(.system(size: 9, weight: .bold)).foregroundStyle(Color.white),
-                                 at: CGPoint(x: rect.minX + 4, y: rect.midY), anchor: .leading)
+                let label = context.resolve(Text(key.name).font(.system(size: metrics.labelSize, weight: .bold)).foregroundStyle(Color.white))
+                if label.measure(in: CGSize(width: 200, height: 40)).width + 8 <= rect.width {
+                    context.draw(label, at: CGPoint(x: rect.minX + 4, y: rect.midY), anchor: .leading)
                 }
             }
             for s in suggestions {
@@ -179,14 +183,16 @@ struct OverviewPlayheadLayer: View {
     @Environment(\.colorSchemeContrast) private var contrast
     let deck: DeckModel
     let duration: Double
+    var metrics = WaveformMetrics()
 
     var body: some View {
         // 전체 파형은 넓어서 초당 15번이면 충분하다(창 전체 갱신을 매 프레임 일으키지 않게).
         let t = deck.displayTime
         let zoom = deck.zoomSeconds
+        let metrics = metrics
         Canvas { context, size in
             let xOf = { (time: Double) in CGFloat(time / duration) * size.width }
-            let waveHeight = size.height - 34
+            let waveHeight = size.height - metrics.overviewBandsHeight
             let window = CGRect(x: xOf(t - zoom / 2), y: 0, width: xOf(zoom), height: waveHeight)
             context.fill(Path(window), with: .color(.white.opacity(0.08)))
             context.stroke(Path(window), with: .color(.white.opacity(contrast == .increased ? 0.7 : 0.3)), lineWidth: 1)

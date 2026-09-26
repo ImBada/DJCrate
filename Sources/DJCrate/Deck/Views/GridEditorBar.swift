@@ -6,13 +6,14 @@ import SwiftUI
 
 /// rekordbox식 그리드 편집. 모든 변경은 DJCrate 초안에만 저장된다.
 struct GridEditorBar: View {
+    @Environment(\.textScale) private var textScale
     @Bindable var deck: DeckModel
     @State private var bpmText = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let reason = deck.gridEditBlockedReason {
-                Label(reason, systemImage: "lock").font(.caption).foregroundStyle(UIColors.warning.color)
+                Label(reason, systemImage: "lock").font(.scaled(.caption, textScale)).foregroundStyle(UIColors.warning.color)
             } else {
                 FlowLayout(spacing: 8) {
                     HStack(spacing: 4) {
@@ -24,7 +25,7 @@ struct GridEditorBar: View {
                     .help("그리드 전체를 옮깁니다 (파형을 끌어도 됩니다)")
                     HStack(spacing: 4) {
                         TextField("BPM", text: $bpmText)
-                            .frame(width: 64)
+                            .frame(width: TextScale.length(64, scale: textScale))
                             .onSubmit { if let v = Double(bpmText) { deck.setGridBPM(v) } }
                             .onAppear { bpmText = deck.gridBPM.map { String(format: "%.2f", $0) } ?? "" }
                             .onChange(of: deck.gridBPM) { bpmText = deck.gridBPM.map { String(format: "%.2f", $0) } ?? "" }
@@ -53,14 +54,14 @@ struct GridEditorBar: View {
                         Button("탭") { deck.tapTempo() }
                             .help("탭 템포 (\(deck.shortcuts.keyLabel(for: .tapTempo)))")
                         if let tap = deck.tapBPM {
-                            Text(String(format: "탭 %.2f", tap)).font(.caption.monospacedDigit())
+                            Text(String(format: "탭 %.2f", tap)).font(.scaled(.caption, textScale).monospacedDigit())
                             Button("적용") { deck.setGridBPM(tap) }
                         }
                     }
                 }
                 FlowLayout(spacing: 6) {
                     let segments = deck.gridDraft?.segments ?? []
-                    Text("템포 구간 \(segments.count)").font(.caption).foregroundStyle(.secondary)
+                    Text("템포 구간 \(segments.count)").font(.scaled(.caption, textScale)).foregroundStyle(.secondary)
                     ForEach(Array(segments.prefix(24).enumerated()), id: \.offset) { index, segment in
                         HStack(spacing: 2) {
                             Button(String(format: "%@ · %.2f", segment.start.clockText, segment.bpm)) { deck.seek(segment.start) }
@@ -71,20 +72,20 @@ struct GridEditorBar: View {
                                     .accessibilityLabel("이 변속 지점 삭제")
                             }
                         }
-                        .font(.caption.monospacedDigit())
+                        .font(.scaled(.caption, textScale).monospacedDigit())
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(UIColors.subtleFill, in: Capsule())
                     }
-                    if segments.count > 24 { Text("외 \(segments.count - 24)개").font(.caption).foregroundStyle(.secondary) }
+                    if segments.count > 24 { Text("외 \(segments.count - 24)개").font(.scaled(.caption, textScale)).foregroundStyle(.secondary) }
                     if deck.gridDraft?.hasChanges == true {
-                        Text("그리드 초안 변경됨").font(.caption.bold()).foregroundStyle(UIColors.draft.color)
+                        Text("그리드 초안 변경됨").font(.scaled(.caption, textScale).bold()).foregroundStyle(UIColors.draft.color)
                     }
                     Button("그리드 되돌리기") { deck.revertGrid() }
                         .disabled(deck.gridDraft?.hasChanges != true)
                 }
             }
         }
-        .controlSize(.small)
+        .controlSize(ControlSize.small.scaled(textScale))
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(UIColors.draftFill, in: RoundedRectangle(cornerRadius: 6))
@@ -93,6 +94,7 @@ struct GridEditorBar: View {
 
 /// DJCrate가 추정한 그리드 안내. 그리드가 없는 곡은 편집 모드가 아니어도 보인다.
 struct GridSuggestionRow: View {
+    @Environment(\.textScale) private var textScale
     let deck: DeckModel
     /// 파형 위에 띄우는 작은 배지 모양(줄 끝 채우기·긴 버튼 이름 없이)
     var badge = false
@@ -131,14 +133,14 @@ struct GridSuggestionRow: View {
             }
             .help("이 곡의 섹션·그리드 추정·조성 분석 캐시를 지우고 다시 분석합니다(파형·초안은 그대로)")
         }
-        .font(.caption)
+        .font(.scaled(.caption, textScale))
         .lineLimit(1)
-        .controlSize(.small)
+        .controlSize(ControlSize.small.scaled(textScale))
     }
 
     private func confidence(_ suggestion: GridEstimator.Estimate) -> some View {
         Text(suggestion.isConfident ? "" : "확인 필요")
-            .font(.caption.bold())
+            .font(.scaled(.caption, textScale).bold())
             .foregroundStyle(UIColors.warning.color)
             .help(suggestion.isConfident
                   ? "박이 고르게 잡혔습니다. 1박(마디 첫 박)과 반 박 어긋남은 소리로 한 번 확인하세요."

@@ -1,3 +1,4 @@
+import AppKit
 import DJCDomain
 
 /// 창·포커스 상태만으로 덱 단축키를 받아도 되는지 정한다. 덱 키가 무엇인지는 단축키 표(설정)를 따른다.
@@ -28,5 +29,10 @@ enum KeyRoutingPolicy {
         case .textInput, .control, .table:
             return false
         }
+    }
+
+    /// ⌘=(Shift 없이 누른 ⌘+)도 보기 › 글자 크게로 본다. 메뉴 항목은 '+' 글자에 걸려 ⌘=에는 반응하지 않는다.
+    static func isTextBiggerAlias(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Bool {
+        keyCode == 24 && modifiers.intersection([.command, .shift, .control, .option]) == .command
     }
 }

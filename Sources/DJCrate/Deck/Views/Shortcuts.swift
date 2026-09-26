@@ -17,14 +17,14 @@ struct ShortcutsButton: View {
 }
 
 /// 단축키 목록. 설정에서 바꿨으면 바꾼 표를 동작마다 보인다.
+/// 글자는 텍스트 스타일에 앱 글자 배율(보기 › 글자 크게·작게)을 곱하고, 간격도 같은 배율을 따른다.
 struct ShortcutsList: View {
+    @Environment(\.textScale) private var scale
     var shortcuts = DeckShortcuts.standard
-    /// 기본 창은 1배 크기로 표시한다.
-    var scale: CGFloat = 1
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12 * scale) {
-            Text("단축키").font(.system(size: 20 * scale, weight: .bold))
+            Text("단축키").font(.scaled(.title2, scale).bold())
             Grid(alignment: .leading, horizontalSpacing: 18 * scale, verticalSpacing: 9 * scale) {
                 if shortcuts.isStandard { standardRows } else { customRows }
                 row(["⌘", "⇧", "E"], "rekordbox에 반영")
@@ -32,10 +32,15 @@ struct ShortcutsList: View {
                 row(["⌘", "O"], "곡 추가")
                 row(["⌘", "R"], "새 스냅샷")
                 row(["⌘", "1", "/", "2"], "목록 · 태그 시트")
+                // '+'는 구분 기호로 쓰여서 이 줄은 키캡을 직접 놓는다.
+                GridRow {
+                    HStack(spacing: 4 * scale) { keycap("⌘"); keycap("+"); separator("/"); keycap("⌘"); keycap("−") }
+                    description("글자 크게 · 작게 (⌘0: 기본 크기)")
+                }
                 row(["⌘", "?"], "단축키 창")
             }
             Text("덱 단축키는 설정(⌘,) › 단축키에서 바꿀 수 있습니다.")
-                .font(.system(size: 12 * scale))
+                .font(.scaled(.callout, scale))
                 .foregroundStyle(.secondary)
         }
     }
@@ -92,12 +97,12 @@ struct ShortcutsList: View {
     }
 
     private func separator(_ text: String) -> some View {
-        Text(text).font(.system(size: 14 * scale, weight: .medium)).foregroundStyle(.secondary)
+        Text(text).font(.scaled(.body, scale).weight(.medium)).foregroundStyle(.secondary)
     }
 
     private func keycap(_ key: String) -> some View {
         Text(key)
-            .font(.system(size: 14 * scale, weight: .semibold, design: .rounded))
+            .font(.scaled(.body, design: .rounded, scale).weight(.semibold))
             .padding(.horizontal, 7 * scale).padding(.vertical, 3 * scale)
             .frame(minWidth: 24 * scale)
             .background(RoundedRectangle(cornerRadius: 5 * scale).fill(Color.primary.opacity(0.10)))
@@ -106,7 +111,7 @@ struct ShortcutsList: View {
 
     private func description(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 15 * scale))
+            .font(.scaled(.body, scale))
             .frame(maxWidth: 520 * scale, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
     }
