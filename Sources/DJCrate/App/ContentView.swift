@@ -33,6 +33,19 @@ struct ContentView: View {
                 .navigationSplitViewColumnWidth(min: 210, ideal: 230)
         } detail: {
             detail
+                .overlay(alignment: .top) {
+                    if let toast = store.toast {
+                        AppToastView(toast: toast,
+                                     onUndo: toast.undoBackup.map { url in { store.toast = nil; DirectWritePanels.restore(store: store, backupURL: url) } },
+                                     onDetails: { store.showingWriteResult = true },
+                                     onClose: { if store.toast?.id == toast.id { store.toast = nil } })
+                            .padding(.top, 12)
+                            .padding(.horizontal, 16)
+                            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                            .id(toast.id)
+                    }
+                }
+                .animation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(duration: 0.35), value: store.toast?.id)
         }
         // rekordbox에 쓰는 동안은 창 전체를 덮어 다른 조작을 막는다.
         .overlay {
@@ -40,19 +53,6 @@ struct ContentView: View {
                 WritingOverlay(stage: stage, onCancel: { store.cancelWritePreparation() }).transition(.opacity)
             }
         }
-        .overlay(alignment: .bottom) {
-            if let toast = store.toast {
-                AppToastView(toast: toast,
-                             onUndo: toast.undoBackup.map { url in { store.toast = nil; DirectWritePanels.restore(store: store, backupURL: url) } },
-                             onDetails: { store.showingWriteResult = true },
-                             onClose: { if store.toast?.id == toast.id { store.toast = nil } })
-                    .padding(.bottom, 22)
-                    .padding(.horizontal, 16)
-                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
-                    .id(toast.id)
-            }
-        }
-        .animation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(duration: 0.35), value: store.toast?.id)
         .sheet(isPresented: $store.showingWriteResult) { WriteResultView(history: store.resultHistory) }
         .animation(.easeInOut(duration: 0.15), value: store.writeStage)
         .searchable(text: $store.search, placement: .toolbar, prompt: "제목·아티스트·코멘트")
@@ -199,6 +199,9 @@ struct ContentView: View {
                 }
                 .disabled(store.isLoading)
                 .help("rekordbox master.db 사본을 새로 떠서 다시 읽습니다(원본은 읽기만). rekordbox에서 반영 XML을 가져온 뒤 누르면 자동으로 검증합니다.")
+            }
+            ToolbarItem(id: "reflection", placement: .primaryAction) {
+                ReflectionMenu(store: store)
             }
     }
 

@@ -52,10 +52,10 @@ struct Sidebar: View {
             }
             if let report = store.report {
                 Section("현황", isExpanded: $summaryExpanded) {
-                    LabeledContent("실제 컬렉션", value: "\(report.liveTracks)")
-                    LabeledContent("삭제 행(제외)", value: "\(report.deletedRows)")
-                    LabeledContent("규칙 코멘트", value: "\(report.commentClasses[.convention, default: 0])")
-                    LabeledContent("수동 큐 곡", value: "\(report.tracksWithManualCues)")
+                    LabeledContent("실제 컬렉션", value: report.liveTracks.formatted())
+                    LabeledContent("삭제 행(제외)", value: report.deletedRows.formatted())
+                    LabeledContent("규칙 코멘트", value: report.commentClasses[.convention, default: 0].formatted())
+                    LabeledContent("수동 큐 곡", value: report.tracksWithManualCues.formatted())
                 }
                 .font(.callout)
             }
@@ -68,48 +68,6 @@ struct Sidebar: View {
                 }
             }
         }
-        // 일괄 반영은 사이드바 맨 아래에 둔다(툴바의 공유 모양 아이콘과 헷갈리지 않게).
-        .safeAreaInset(edge: .bottom, spacing: 0) { ReflectFooter(store: store) }
-    }
-}
-
-/// 사이드바 아래 고정: 반영 대기 곡 수와 rekordbox 일괄 반영 버튼(⌘⇧E).
-struct ReflectFooter: View {
-    let store: LibraryStore
-
-    var body: some View {
-        let targets = store.reflectionTargets
-        let selectedOnly = targets.contains { store.selection.contains($0.id) }
-        VStack(alignment: .leading, spacing: 6) {
-            Divider()
-            Button {
-                DirectWritePanels.write(store: store, rows: targets)
-            } label: {
-                Label(store.isWritingRekordbox ? "rekordbox에 쓰는 중…"
-                      : selectedOnly ? "선택한 \(targets.count)곡 rekordbox에 반영" : "rekordbox에 반영 (\(store.pendingLibraryCount)곡)",
-                      systemImage: "square.and.arrow.up.on.square")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .disabled(store.pendingLibraryCount == 0 || store.isWritingRekordbox)
-            .help("선택한 곡에 초안이 있으면 그 곡들만, 없으면 반영 대기 곡 전체의 큐를 rekordbox 라이브러리에 바로 씁니다. 미리 보기로 확인한 뒤, rekordbox가 꺼져 있을 때만 씁니다 (⌘⇧E).")
-            // 마지막 반영 되돌리기(토스트가 사라진 뒤에도)
-            if store.lastWriteBackup != nil {
-                Button { DirectWritePanels.restoreLatest(store: store) } label: {
-                    Label("마지막 반영 되돌리기…", systemImage: "arrow.uturn.backward")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-                .disabled(store.isWritingRekordbox)
-                .help("DJCrate가 마지막으로 rekordbox에 쓰기 직전 백업으로 되돌립니다(rekordbox가 꺼져 있어야 합니다)")
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.bottom, 10)
-        .background(.bar)
     }
 }
 
