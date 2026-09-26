@@ -1,3 +1,4 @@
+@testable import DJCrate
 import DJCStorage
 import DJCDomain
 import DJCTestSupport
@@ -250,7 +251,7 @@ struct LibraryReadTests {
         let beats = AnlzBuilder.beats(bpm: 120, first: 0, count: 16) + AnlzBuilder.beats(bpm: 160, first: 8000, count: 16)
         try fixture.putAnalysis(for: first, dat: AnlzBuilder.dat(beats: beats), ext: nil)
         let read = try reader(fixture)
-        let expected: [LibraryFilter: [String]] = [.backlog: ["102"], .emptyComment: ["102"], .offConvention: ["104"],
+        let expected: [LibraryFilter: [String]] = [.emptyComment: ["102"], .offConvention: ["104"],
             .noCues: ["102", "104"], .played: ["101"], .streaming: ["104"], .noBPM: ["102"], .tempoChange: ["101"], .all: ["101", "102", "104"]]
         for filter in LibraryFilter.allCases {
             #expect(try read.search(query: "", filter: filter).tracks.map(\.id) == expected[filter])
@@ -260,6 +261,56 @@ struct LibraryReadTests {
         #expect(try read.search(query: "Alpha", bpm: 129...130).tracks.isEmpty)
         #expect(try read.search(query: "Alpha", key: "8B").tracks.isEmpty)
         #expect(try read.search(query: "", playlistID: "f1").tracks.map(\.id) == ["101", "102"])
-        #expect(Set(LibraryFilter.allCases.map(\.cliName)) == ["all", "backlog", "empty-comment", "off-convention", "no-cues", "played", "streaming", "no-bpm", "tempo-change"])
+        #expect(Set(LibraryFilter.allCases.map(\.cliName)) == ["all", "empty-comment", "off-convention", "no-cues", "played", "streaming", "no-bpm", "tempo-change"])
+    }
+
+    @Test @MainActor func 사이드바_기본_선택은_전체다() {
+        let store = LibraryStore(saveTagDrafts: { _ in })
+        #expect(store.sidebar == .filter(.all))
+        #expect(store.sidebarTitle == "전체")
+    }
+
+    @Test func 빈_코멘트는_연도와_스트리밍을_제한하지_않는다() throws {
+        let fixture = try fixture()
+        var streaming = TrackSpec(id: "104")
+        streaming.folderPath = "spotify:synthetic"
+        try fixture.add(streaming)
+        try fixture.execute("UPDATE djmdContent SET StockDate = '2024-01-01' WHERE ID = '102'")
+        try fixture.execute("UPDATE djmdContent SET StockDate = '2027-01-01' WHERE ID = '104'")
+        #expect(try reader(fixture).search(query: "", filter: .emptyComment).tracks.map(\.id) == ["102", "104"])
+    }
+
+    @Test(arguments: [false, true])
+    func CLI는_삭제한_필터를_DB를_열기_전에_거절한다(json: Bool) throws {
+        let fixture = try RekordboxFixture()
+        let root = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let candidates = [".build/debug/djc", ".build/out/Products/Debug/djc"]
+        let executable = try #require(candidates.map { root.appending(path: $0) }.first { FileManager.default.isExecutableFile(atPath: $0.path) })
+        let process = Process(), out = Pipe(), err = Pipe()
+        process.executableURL = executable
+        process.arguments = ["search", "", "--filter", "backlog", "--db", fixture.root.appending(path: "missing.db").path]
+            + (json ? ["--json"] : [])
+        process.environment = ProcessInfo.processInfo.environment.merging([
+            "DJC_HOME": fixture.root.appending(path: "home").path,
+            "DJC_REKORDBOX_DIR": fixture.root.path,
+        ]) { _, new in new }
+        process.standardOutput = out; process.standardError = err
+        try process.run()
+        let stdout = out.fileHandleForReading.readDataToEndOfFile()
+        let stderr = err.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 1 && stdout.isEmpty)
+        let message: String
+        if json {
+            let document = try #require(JSONSerialization.jsonObject(with: stderr) as? [String: Any])
+            #expect(document["schemaVersion"] as? Int == 1 && document["command"] as? String == "search")
+            let error = try #require(document["error"] as? [String: String])
+            #expect(error["code"] == "invalid_arguments")
+            message = try #require(error["message"])
+        } else {
+            message = String(decoding: stderr, as: UTF8.self)
+        }
+        #expect(message.contains("backlog"))
+        #expect(message.contains("--filter empty-comment"))
     }
 }

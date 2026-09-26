@@ -31,7 +31,6 @@ djc compat --db /tmp/djc-fixture/master.db --json
 | 이름 | 조건 |
 |---|---|
 | `all` | 전체 컬렉션 |
-| `backlog` | 2025~2026년에 추가한 로컬 곡 중 빈 코멘트 |
 | `empty-comment` | 빈 코멘트 |
 | `off-convention` | 규칙 밖 코멘트(구형·잔재·크레딧·기타) |
 | `no-cues` | 자동 큐를 포함해 큐가 하나도 없음 |
