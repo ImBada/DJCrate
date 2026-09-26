@@ -14,6 +14,11 @@ struct AppErrorMessageTests {
         #expect(AppErrorMessage.message(for: DJCError.rekordboxRunning) == "rekordbox가 실행 중입니다: rekordbox를 완전히 종료한 뒤 다시 시도하세요.")
     }
 
+    @Test func 일본어_마침표도_안내_연결_전에_걷어낸다() {
+        let message = AppErrorMessage.message(for: DJCError.writeRefused("もう一度お試しください。"))
+        #expect(message == "もう一度お試しください: 안내된 조건과 DJCrate 업데이트를 확인한 뒤 다시 시도하세요.")
+    }
+
     @Test func 알_수_없는_오류는_현지화_원문도_보여_주지_않는다() {
         let error = NSError(domain: NSCocoaErrorDomain, code: NSFileWriteOutOfSpaceError,
                             userInfo: [NSLocalizedDescriptionKey: "Error Domain=NSCocoaErrorDomain fixture SQL",
