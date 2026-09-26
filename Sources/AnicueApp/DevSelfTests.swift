@@ -14,6 +14,7 @@ enum DevSelfTests {
         runCarrySelfTestIfRequested(deck: deck)
         runScrollPerfIfRequested(deck: deck)
         runLoopAudioSelfTestIfRequested()
+        runMetronomeSelfTestIfRequested()
         guard ProcessInfo.processInfo.arguments.contains("--switch-selftest") else { return }
         Task {
             @MainActor func mark(_ text: String) {
@@ -384,6 +385,61 @@ enum DevSelfTests {
             log(ok ? "통과: 루프 이음새가 모두 샘플 단위로 맞음" : "실패: 예상 밖 이음새 \(unexpected.prefix(5))")
             exit(ok ? 0 : 1)
         }
+    }
+}
+
+/// 개발용: 메트로놈이 박마다 한 번씩 빠짐없이 치는지 실제 재생 경로로 센다(`--metronome-selftest`, 스피커 음소거).
+/// 무음 WAV + 120BPM 그리드로 12초 재생(그중 루프 구간 포함), 클릭 노드 출력에서 클릭 시작을 찾아 박 수와 비교한다.
+@MainActor
+func runMetronomeSelfTestIfRequested() {
+    guard ProcessInfo.processInfo.arguments.contains("--metronome-selftest") else { return }
+    func log(_ text: String) { FileHandle.standardError.write(Data("[메트로놈 시험] \(text)\n".utf8)) }
+    Task { @MainActor in
+        func wait(_ seconds: Double) async { try? await Task.sleep(for: .seconds(seconds)) }
+        let rate = 44_100.0, seconds = 40
+        let url = FileManager.default.temporaryDirectory.appending(path: "anicue-silence.wav")
+        do {
+            let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: rate, channels: 1, interleaved: false)!
+            let file = try AVAudioFile(forWriting: url, settings: format.settings, commonFormat: .pcmFormatFloat32, interleaved: false)
+            let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(Int(rate) * seconds))!
+            buffer.frameLength = buffer.frameCapacity
+            try file.write(from: buffer)
+        } catch { log("무음 파일을 만들지 못함: \(error)"); exit(1) }
+        var beats: [BeatGrid.Beat] = []
+        for k in 0..<80 { beats.append(BeatGrid.Beat(number: k % 4 + 1, bpm: 120, time: 0.25 + Double(k) * 0.5)) }
+        let grid = BeatGrid(beats: beats)
+        let audio = DeckAudio()
+        try? audio.load(url: url)
+        for _ in 0..<100 where !audio.canLoopSampleAccurately { await wait(0.05) }
+        let captured = Captured()
+        audio.debugCaptureClicks { buffer in
+            guard let data = buffer.floatChannelData else { return }
+            // 클릭 시작 = 조용하다가 소리가 나는 순간(버퍼 단위로 모아 보낸다: 1 = 소리, 0 = 조용)
+            captured.append((0..<Int(buffer.frameLength)).map { abs(data[0][$0]) > 0.01 ? 1 : 0 })
+        }
+        audio.metronome = true
+        audio.play(from: 1.0)
+        // 화면 틱처럼 약 14ms마다 예약한다(창 경계가 박 가까이에 자주 걸리게 조금씩 흔든다).
+        let started = ProcessInfo.processInfo.systemUptime
+        var i = 0
+        while ProcessInfo.processInfo.systemUptime - started < 12 {
+            audio.scheduleClicks(grid)
+            i += 1
+            try? await Task.sleep(for: .milliseconds(13 + i % 3))
+        }
+        audio.stop()
+        await wait(0.2)
+        // 소리 덩어리(클릭) 수: 0→1로 바뀌는 곳. 클릭 30ms 안의 작은 끊김은 합친다.
+        var onsets = 0, silentRun = 10_000
+        for v in captured.values {
+            if v == 1 { if silentRun > 400 { onsets += 1 }; silentRun = 0 } else { silentRun += 1 }
+        }
+        let played = 12.0
+        let expected = grid.beats.filter { $0.time >= 1.0 && $0.time < 1.0 + played - 0.3 }.count
+        log("예상 박 약 \(expected)개(마지막 0.3초 제외) · 들린 클릭 \(onsets)개")
+        let ok = onsets >= expected && onsets <= expected + 1
+        log(ok ? "통과: 클릭이 빠지지 않음" : "실패: 클릭 수가 다름")
+        exit(ok ? 0 : 1)
     }
 }
 

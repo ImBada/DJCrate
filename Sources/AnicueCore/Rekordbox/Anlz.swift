@@ -11,6 +11,12 @@ public struct BeatGrid: Sendable, Hashable {
         public var bpm: Double
         public var time: Double
         public var isDownbeat: Bool { number == 1 }
+
+        public init(number: Int, bpm: Double, time: Double) {
+            self.number = number
+            self.bpm = bpm
+            self.time = time
+        }
     }
 
     public let beats: [Beat]
