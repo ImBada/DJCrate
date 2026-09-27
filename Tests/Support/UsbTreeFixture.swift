@@ -39,16 +39,18 @@ public struct UsbTreeFixture {
     }
 
     /// 상대 경로(NFC) → SHA-256(소문자 16진). 일반 파일만, 순회 코드와 따로 센다.
+    /// 받은 상대 경로를 그대로 쓴다(Foundation 경로 정규화는 /private를 떼어 어긋난다). 링크는 따라가지 않는다.
+    /// `enumerator(atPath:)`는 짝 파일이 있는 AppleDouble("._*")을 숨기므로 `subpathsOfDirectory`를 쓴다.
     public func tree() -> [String: String] {
         var result: [String: String] = [:]
-        let keys: [URLResourceKey] = [.isRegularFileKey]
-        guard let walker = FileManager.default.enumerator(at: base, includingPropertiesForKeys: keys) else { return [:] }
-        let prefix = base.resolvingSymlinksInPath().path + "/"
-        for case let file as URL in walker {
-            guard (try? file.resourceValues(forKeys: Set(keys)))?.isRegularFile == true,
-                  let data = try? Data(contentsOf: file) else { continue }
-            let path = file.resolvingSymlinksInPath().path
-            let relative = path.hasPrefix(prefix) ? String(path.dropFirst(prefix.count)) : file.lastPathComponent
+        guard let paths = try? FileManager.default.subpathsOfDirectory(atPath: base.path) else {
+            preconditionFailure("시험 트리를 열거하지 못함")
+        }
+        for relative in paths {
+            let full = base.path + "/" + relative
+            // attributesOfItem은 링크를 따라가지 않는다(링크는 .typeSymbolicLink).
+            guard (try? FileManager.default.attributesOfItem(atPath: full)[.type] as? FileAttributeType) == .typeRegular else { continue }
+            guard let data = FileManager.default.contents(atPath: full) else { preconditionFailure("시험 파일을 읽지 못함: \(relative)") }
             result[relative.precomposedStringWithCanonicalMapping] = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
         }
         return result

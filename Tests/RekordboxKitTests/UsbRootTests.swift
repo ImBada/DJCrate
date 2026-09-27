@@ -70,6 +70,7 @@ struct UsbRootTests {
         let sizes = try UsbTree.fingerprint(fixture.root, hashing: false)
         #expect(sizes.files["Contents/a.mp3"] == UsbTreeStamp(size: 1, sha256: nil))
         #expect(print.files["Contents/a.mp3"]?.sha256 == fixture.tree()["Contents/a.mp3"])
+        #expect(Set(fixture.tree().keys) == ["Contents/a.mp3", "Contents/._a.mp3", "._Contents"])
     }
 
     @Test("심볼릭 링크는 따라가지 않는다")
@@ -89,6 +90,32 @@ struct UsbRootTests {
         let print = try UsbTree.fingerprint(fixture.root)
         #expect(print.files["Contents/linkfile"]?.sha256 == nil)
         #expect(print.files["Contents/linkdir/file.txt"] == nil)
+        // 시험 도우미의 트리도 링크를 따라가지 않는다(대상 파일이 다른 이름으로 끼어들지 않는다).
+        #expect(Set(fixture.tree().keys) == ["Contents/a.mp3"])
+    }
+
+    @Test("링크를 거쳐 가는 경로는 열지 않는 곳에 닿지 못한다")
+    func symlinkedPathRejected() throws {
+        let fixture = UsbTreeFixture()
+        defer { fixture.remove() }
+        fixture.write("PIONEER/extracted/GCRED.DAT", "SECRET")
+        fixture.write("PIONEER/rekordbox/export.pdb", "pdb")
+        // 폴더는 열 수 있게 두고 파일만 잠근다. 링크를 따라가면 이름·크기가 결과에 나온다.
+        #expect(chmod(fixture.url("PIONEER/extracted/GCRED.DAT").path, 0) == 0)
+        defer { chmod(fixture.url("PIONEER/extracted/GCRED.DAT").path, 0o644) }
+        fixture.symlink("Contents/link", to: "../PIONEER/extracted")
+        fixture.symlink("Contents/alias", to: "../PIONEER/rekordbox")
+
+        for bad in ["Contents/link/GCRED.DAT", "Contents/link", "Contents/alias/export.pdb", "./Contents/link/GCRED.DAT"] {
+            #expect(throws: UsbError.self, "\(bad)") { try fixture.root.url(for: bad) }
+        }
+        #expect(throws: UsbError.self) { try UsbTree.walk(fixture.root, under: "Contents/link") }
+        #expect(throws: UsbError.self) { try UsbTree.walk(fixture.root, under: "Contents/alias") }
+        // 없는 경로(새 파일)는 링크가 아니므로 그대로 받는다.
+        #expect(try fixture.root.url(for: "PIONEER/rekordbox/new/x.db").path == fixture.url("PIONEER/rekordbox/new/x.db").path)
+        // 전체 순회는 링크를 항목으로만 남긴다.
+        let paths = try UsbTree.walk(fixture.root).map(\.relativePath)
+        #expect(paths == ["Contents", "Contents/alias", "Contents/link", "PIONEER", "PIONEER/rekordbox", "PIONEER/rekordbox/export.pdb"])
     }
 
     @Test("상대 경로는 열지 않는 곳·상위 폴더·절대 경로를 거부한다")

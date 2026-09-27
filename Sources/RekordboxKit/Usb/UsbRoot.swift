@@ -12,11 +12,24 @@ public struct UsbRoot: Sendable, Hashable {
     }
 
     /// 상대 경로 → URL. 열지 않는 경로·".."·절대 경로면 던진다.
+    /// 심볼릭 링크를 거쳐 가는 경로(끝 성분이 링크인 경로 포함)도 던진다. 문자열 검사만으로는 링크를 통해
+    /// 열지 않는 경로에 닿을 수 있어서다. 이미 있는 성분만 lstat으로 보고, 없는 성분부터는(새 파일 자리) 보지 않는다.
     public func url(for relativePath: String) throws -> URL {
         if relativePath.hasPrefix("/") { throw refused(relativePath, "absolutePath") }
         let components = relativePath.split(separator: "/", omittingEmptySubsequences: true)
         if components.contains("..") { throw refused(relativePath, "parentReference") }
         if UsbLayout.isNeverRead(relativePath) { throw refused(relativePath, "neverRead") }
+        var current = url.path
+        for component in components where component != "." {
+            current += "/" + String(component)
+            var info = stat()
+            guard lstat(current, &info) == 0 else {
+                let code = errno
+                if code == ENOENT { break }
+                throw refused(relativePath, "lstat: \(String(cString: strerror(code)))")
+            }
+            if info.st_mode & S_IFMT == S_IFLNK { throw refused(relativePath, "symlink") }
+        }
         return components.reduce(url) { $0.appending(path: String($1)) }
     }
 
@@ -94,9 +107,17 @@ public enum UsbTree {
     }
 
     /// 한 폴더를 읽는다. 파일 시스템 접근은 readdir가 준 이름 그대로, 결과 경로는 NFC(msdos는 NFD로 돌려준다).
+    /// 폴더는 O_NOFOLLOW로 연다. 확인한 뒤 링크로 바뀌어도 따라가지 않는다.
     private static func walk(directory: String, relative: String, into entries: inout [(entry: UsbTreeEntry, path: String)]) throws {
-        guard let handle = opendir(directory) else {
-            throw UsbError.readFailed(detail: "opendir \(relative.isEmpty ? "." : relative): \(String(cString: strerror(errno)))")
+        func failure() -> UsbError {
+            .readFailed(detail: "opendir \(relative.isEmpty ? "." : relative): \(String(cString: strerror(errno)))")
+        }
+        let descriptor = open(directory, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw failure() }
+        guard let handle = fdopendir(descriptor) else {
+            let error = failure()
+            close(descriptor)
+            throw error
         }
         var names: [String] = []
         while let entry = readdir(handle) {

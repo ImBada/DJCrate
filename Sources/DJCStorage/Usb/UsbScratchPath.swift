@@ -18,6 +18,8 @@ public enum UsbScratchPath {
         // ① 모양: 끝 성분의 링크를 따라가지 않고 본다.
         var info = stat()
         let exists: Bool
+        // 있는 출력 폴더가 비었는지는 ③·④를 통과한 뒤에 본다. 먼저 열면 거부할 폴더(USB 볼륨 맨 위 등)를 열거하게 된다.
+        var needsEmptyCheck = false
         let status = lstat(path, &info), code = errno
         if status == 0 {
             exists = true
@@ -30,8 +32,7 @@ public enum UsbScratchPath {
             case .newFile: throw refuse("exists")
             case .outputDirectory:
                 if type != S_IFDIR { throw refuse("kindMismatch") }
-                guard let items = try? FileManager.default.contentsOfDirectory(atPath: path) else { throw refuse("unreadable") }
-                if !items.isEmpty { throw refuse("notEmpty") }
+                needsEmptyCheck = true
             }
         } else if code == ENOENT {
             exists = false
@@ -60,6 +61,11 @@ public enum UsbScratchPath {
         guard UsbScratchRoots.isUnderAllowedRoot(resolved) else { throw refuse("outsideScratch") }
         // ④ 허용 뿌리 안이어도 장치·볼륨·rekordbox 라이브러리는 거부
         if deniedPrefixes().contains(where: { resolved == $0 || resolved.hasPrefix($0 + "/") }) { throw refuse("deniedPrefix") }
+        // 출력 폴더는 비어 있어야 한다(허용된 곳만 연다).
+        if needsEmptyCheck {
+            guard let items = try? FileManager.default.contentsOfDirectory(atPath: resolved) else { throw refuse("unreadable") }
+            if !items.isEmpty { throw refuse("notEmpty") }
+        }
         return resolved
     }
 

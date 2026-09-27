@@ -93,6 +93,13 @@ struct UsbScratchPathTests {
         #expect(reason(NSHomeDirectory(), .existingDirectory) == "outsideScratch")
     }
 
+    @Test("출력 폴더는 임시 폴더 밖이면 목록을 읽기 전에 거부한다")
+    func outputDirectoryOutsideScratchRejectedBeforeListing() {
+        // 비었는지 보려고 폴더를 열면 USB 볼륨 맨 위를 열거하게 된다. 뿌리 확인이 먼저다.
+        #expect(reason(NSHomeDirectory(), .outputDirectory) == "outsideScratch")
+        #expect(reason("/Volumes", .outputDirectory) == "outsideScratch")
+    }
+
     @Test func newFileMustNotExist() throws {
         try withFolder { folder in
             FileManager.default.createFile(atPath: folder + "/a.img", contents: Data())
