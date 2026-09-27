@@ -24,6 +24,14 @@ final class SettingsStore: @unchecked Sendable {
         defaults.set(value, forKey: key.name)
     }
 
+    /// 저장된 Q가 우선이다. Q를 저장한 적 없는 구버전은 등록 퀀타이즈 설정을 이어받는다.
+    var quantize: Bool {
+        guard persist else { return SettingKeys.playQuantize.defaultValue }
+        let key = defaults.object(forKey: SettingKeys.playQuantize.name) != nil
+            ? SettingKeys.playQuantize : SettingKeys.quantize
+        return value(key)
+    }
+
     var commentPreset: CommentPreset {
         get { CommentPreset(rawValue: value(SettingKeys.commentPreset)) ?? .none }
         set { set(SettingKeys.commentPreset, newValue.rawValue) }

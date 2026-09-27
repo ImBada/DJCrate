@@ -1,6 +1,54 @@
 {
   "sourceLanguage" : "ko",
   "strings" : {
+    "퀀타이즈(Q): 큐·루프 등록과 핫큐 점프" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quantize (Q): Cue\/Loop Placement and Hot Cue Jumps"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クオンタイズ（Q）：キュー・ループ登録とホットキュージャンプ"
+          }
+        }
+      }
+    },
+    "퀀타이즈(Q): 큐·루프를 등록할 때 비트 그리드의 박에 맞추고, 재생 중 핫큐를 누르면 다음 박에서 저장된 핫큐 위치로 이동해 재생합니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quantize (Q): snap cues and loops to the beat grid when placing them. During playback, pressing a hot cue starts playback from its saved position on the next beat."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クオンタイズ（Q）：キュー・ループ登録時はビートグリッドの拍に合わせます。再生中にホットキューを押すと、次の拍で保存されたホットキューの位置から再生します。"
+          }
+        }
+      }
+    },
+    "큐 제안 표시" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Cue Suggestions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キュー候補を表示"
+          }
+        }
+      }
+    },
     "\nrekordbox 기존 큐 (직접 찍은 것)" : {
       "localizations" : {
         "en" : {
@@ -269,54 +317,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : ".EXTの%@が変わりました"
-          }
-        }
-      }
-    },
-    "1\/2박" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1\/2 beat"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1\/2拍"
-          }
-        }
-      }
-    },
-    "1\/4박" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1\/4 beat"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1\/4拍"
-          }
-        }
-      }
-    },
-    "1박" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 beat"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1拍"
           }
         }
       }
@@ -2495,86 +2495,6 @@
         }
       }
     },
-    "재생 퀀타이즈" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Playback Quantize"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "再生クオンタイズ"
-          }
-        }
-      }
-    },
-    "재생 퀀타이즈 단위" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Playback Quantize Unit"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "再生クオンタイズの単位"
-          }
-        }
-      }
-    },
-    "재생 퀀타이즈(재생 중 핫큐를 박 경계에서 넘김)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Playback quantize (hot cues pressed during playback jump on a beat boundary)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "再生クオンタイズ（再生中に押したホットキューを拍の区切りで移動）"
-          }
-        }
-      }
-    },
-    "재생 퀀타이즈: 켜면 재생 중 핫큐를 누른 뒤 다음 %@ 경계에서 박자를 이어 넘어갑니다. 단위는 설정 › 덱에서 바꿉니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Playback quantize: when on, a hot cue pressed during playback jumps at the next %@ boundary, keeping the beat. Change the unit in Settings › Deck."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "再生クオンタイズ：オンにすると、再生中に押したホットキューは次の%@の区切りで拍を保ったまま移動します。単位は設定 › デッキで変更します。"
-          }
-        }
-      }
-    },
-    "켜짐, %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "On, %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "オン、%@"
-          }
-        }
-      }
-    },
     "🔒 Spotify 곡 (제목 암호화됨)" : {
       "localizations" : {
         "en" : {
@@ -4351,22 +4271,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxの解析が終わっていない曲です（波形ファイルなし）。グリッドを書き込むには、rekordboxで楽曲をもう一度解析してください。"
-          }
-        }
-      }
-    },
-    "rekordbox 비트 그리드의 박에 맞춤" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Snaps to the beats of the rekordbox beat grid"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxのビートグリッドの拍に合わせます"
           }
         }
       }
@@ -19715,38 +19619,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "クエリに失敗しました: %1$@\n%2$@"
-          }
-        }
-      }
-    },
-    "퀀타이즈" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Quantize"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "クオンタイズ"
-          }
-        }
-      }
-    },
-    "퀀타이즈(큐·루프를 비트 그리드의 박에 맞춤)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Quantize (snap cues and loops to beats on the beat grid)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "クオンタイズ（キュー・ループをビートグリッドの拍に合わせる）"
           }
         }
       }
