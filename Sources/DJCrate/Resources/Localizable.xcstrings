@@ -3233,6 +3233,22 @@
         }
       }
     },
+    "FAT32는 4GB 넘는 파일을 담을 수 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FAT32 can't hold files larger than 4 GB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FAT32には4GBを超えるファイルを保存できません"
+          }
+        }
+      }
+    },
     "Finder에서 백업 보기" : {
       "localizations" : {
         "en" : {
@@ -4328,6 +4344,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxの解析が終わっていない曲です（波形ファイルなし）。グリッドを書き込むには、rekordboxで楽曲をもう一度解析してください。"
+          }
+        }
+      }
+    },
+    "rekordbox 분석이 스냅샷 뒤에 바뀌었습니다. 새 스냅샷을 뜬 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The rekordbox analysis changed after the snapshot was taken. Take a new snapshot and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スナップショットの作成後にrekordboxの解析が変わりました。スナップショットを取り直してから、もう一度お試しください"
           }
         }
       }
@@ -5738,6 +5770,22 @@
         }
       }
     },
+    "rekordbox에서 트랙 분석을 다시 한 뒤 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analyze the track again in rekordbox, then export"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxで楽曲を解析し直してからエクスポートしてください"
+          }
+        }
+      }
+    },
     "rekordbox에서 트랙 분석을 다시 한 뒤 시도하세요." : {
       "localizations" : {
         "en" : {
@@ -6172,6 +6220,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "USB에 쓴 결과를 확인하지 못했고 쓰기 전 상태로 되돌리지도 못했습니다. USB를 기기에 꽂지 말고 `djc usb-recover`로 회복하세요.\n백업: %1$@\n확인 실패: %2$@\n복원 실패: %3$@"
+          }
+        }
+      }
+    },
+    "USB에 쓸 수 없는 종류의 큐가 있어 빼고 내보냅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some cues are of a type that can't be written to USB, so they'll be left out of the export"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに書き込めない種類のキューがあるため、除いてエクスポートします"
           }
         }
       }
@@ -6620,6 +6684,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同名のアルバムが複数ある場合の選択規則は未確認です。rekordboxで直接変更してください。"
+          }
+        }
+      }
+    },
+    "같은 이름의 파일이 너무 많아 내보낼 수 없습니다. 파일 이름을 바꾼 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too many files have the same name, so this track can't be exported. Rename the file and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ名前のファイルが多すぎるため、エクスポートできません。ファイル名を変更してから、もう一度お試しください"
           }
         }
       }
@@ -14612,6 +14692,38 @@
         }
       }
     },
+    "인텔리전트 재생 목록은 아직 내보낼 수 없습니다. 일반 목록으로 복사한 뒤 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intelligent Playlists can't be exported yet. Copy the playlist to a regular playlist, then export"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インテリジェントプレイリストはまだエクスポートできません。通常のプレイリストにコピーしてからエクスポートしてください"
+          }
+        }
+      }
+    },
+    "스트리밍 곡은 USB로 내보낼 수 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Streaming tracks can't be exported to USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ストリーミングの曲はUSBにエクスポートできません"
+          }
+        }
+      }
+    },
     "스트리밍 곡은 XML로 만들 수 없습니다" : {
       "localizations" : {
         "en" : {
@@ -15312,6 +15424,22 @@
         }
       }
     },
+    "아트워크 파일이 없어 그림 없이 내보냅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The artwork file is missing, so the track will be exported without artwork"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アートワークファイルがないため、アートワークなしでエクスポートします"
+          }
+        }
+      }
+    },
     "아트워크가 없는 곡의 처리" : {
       "localizations" : {
         "en" : {
@@ -15436,6 +15564,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不明なオプションです"
+          }
+        }
+      }
+    },
+    "알 수 없는 음원 형식이라 내보낼 수 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The audio format is unknown, so this track can't be exported"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不明な音源形式のため、エクスポートできません"
           }
         }
       }
@@ -16642,6 +16786,22 @@
         }
       }
     },
+    "음원 파일이 rekordbox 분석 뒤 바뀌었습니다. rekordbox에서 트랙 정보를 다시 읽고 분석한 뒤 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The audio file changed after rekordbox analyzed it. Reload the track information and analyze the track in rekordbox, then export"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxの解析後に音源ファイルが変更されました。rekordboxでトラック情報を読み込み直して解析してからエクスポートしてください"
+          }
+        }
+      }
+    },
     "음원 파일이 없습니다" : {
       "localizations" : {
         "en" : {
@@ -16654,6 +16814,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "音源ファイルがありません"
+          }
+        }
+      }
+    },
+    "음원 파일이 없습니다. rekordbox에서 파일 위치를 다시 잡은 뒤 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The audio file is missing. Relocate the file in rekordbox, then export"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音源ファイルがありません。rekordboxでファイルの場所を再設定してからエクスポートしてください"
           }
         }
       }
@@ -17082,6 +17258,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "この曲の同期状態でのタグ書き込みは未確認です。rekordboxで直接変更してください。"
+          }
+        }
+      }
+    },
+    "이 곡의 분석 파일 위치를 정할 수 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't determine where to put this track's analysis files"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この曲の解析ファイルの場所を決められません"
           }
         }
       }
@@ -23390,6 +23582,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィルターは%@のいずれかを指定してください"
+          }
+        }
+      }
+    },
+    "한 폴더에 파일이 너무 많습니다. 곡 수를 나눠 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too many files in one folder. Export the tracks in smaller batches"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1つのフォルダ内のファイルが多すぎます。曲を分けてエクスポートしてください"
           }
         }
       }
