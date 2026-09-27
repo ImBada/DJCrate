@@ -1,3 +1,4 @@
+import CryptoKit
 import DJCDomain
 import Darwin
 import Foundation
@@ -173,6 +174,24 @@ public enum UsbExportCandidates {
         guard let small = regularFile(smallPath), let medium = regularFile(mediumPath) else { return (nil, true) }
         return (UsbArtworkSource(smallPath: smallPath, mediumPath: mediumPath, smallBytes: Int(small.size), mediumBytes: Int(medium.size)),
                 false)
+    }
+
+    /// 로컬 음원과 USB 파일이 같은 내용인지: 크기가 같고 SHA-256이 같음. 둘 다 읽기만 하고, 링크·폴더·없는 파일은 다르다고 본다.
+    public static func sameContent(sourcePath: String, usbFile: URL) -> Bool {
+        guard let source = regularFile(sourcePath), let target = regularFile(usbFile.path), source.size == target.size,
+              let left = sha256(sourcePath), let right = sha256(usbFile.path)
+        else { return false }
+        return left == right
+    }
+
+    static func sha256(_ path: String) -> SHA256.Digest? {
+        guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while let chunk = try? handle.read(upToCount: 1 << 20), !chunk.isEmpty {
+            hasher.update(data: chunk)
+        }
+        return hasher.finalize()
     }
 
     // MARK: - 목록 항목

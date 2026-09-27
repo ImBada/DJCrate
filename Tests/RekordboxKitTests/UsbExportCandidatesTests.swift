@@ -228,6 +228,21 @@ struct UsbExportCandidatesTests {
         #expect(tree.map(\.attribute) == [4, 4, 0])
     }
 
+    @Test("같은 내용은 크기와 SHA-256이 모두 같을 때만")
+    func sameContentBySizeAndHash() throws {
+        let fixture = try RekordboxFixture()
+        let source = fixture.audio.appending(path: "a.mp3"), same = fixture.audio.appending(path: "b.mp3")
+        let other = fixture.audio.appending(path: "c.mp3"), longer = fixture.audio.appending(path: "d.mp3")
+        try Data("abcdef".utf8).write(to: source)
+        try Data("abcdef".utf8).write(to: same)
+        try Data("abcdeg".utf8).write(to: other)
+        try Data("abcdefg".utf8).write(to: longer)
+        #expect(UsbExportCandidates.sameContent(sourcePath: source.path, usbFile: same))
+        #expect(!UsbExportCandidates.sameContent(sourcePath: source.path, usbFile: other))
+        #expect(!UsbExportCandidates.sameContent(sourcePath: source.path, usbFile: longer))
+        #expect(!UsbExportCandidates.sameContent(sourcePath: source.path, usbFile: fixture.audio.appending(path: "none.mp3")))
+    }
+
     @Test("라이브 master.db면 읽지 않는다")
     func refusesLiveDatabasePath() throws {
         let fixture = try RekordboxFixture()
