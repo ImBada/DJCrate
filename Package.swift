@@ -54,14 +54,15 @@ let package = Package(
         // 테스트 재료: 구조만 있는 rekordbox DB, 합성 분석 파일·음원(실데이터 없음)
         .target(
             name: "DJCTestSupport",
-            dependencies: ["DJCDomain", "RekordboxKit", .product(name: "SQLCipher", package: "SQLCipher.swift")],
+            dependencies: ["DJCDomain", "RekordboxKit", "DJCStorage", .product(name: "SQLCipher", package: "SQLCipher.swift")],
             path: "Tests/Support",
             resources: [.copy("Resources")]
         ),
-        .testTarget(name: "DJCDomainTests", dependencies: ["DJCDomain"]),
+        // USB 시험이 DJCStorage 도구를 가짜로 바꾸고, 도메인 시험도 공용 가짜 볼륨을 쓴다
+        .testTarget(name: "DJCDomainTests", dependencies: ["DJCDomain", "DJCTestSupport"]),
         .testTarget(name: "RekordboxKitTests", dependencies: ["RekordboxKit", "DJCDomain", "DJCTestSupport"]),
         .testTarget(name: "DJCAnalysisTests", dependencies: ["DJCAnalysis", "DJCDomain", "DJCTestSupport"]),
-        .testTarget(name: "djcTests", dependencies: ["djc", "DJCAnalysis", "RekordboxKit", "DJCTestSupport"]),
+        .testTarget(name: "djcTests", dependencies: ["djc", "DJCAnalysis", "RekordboxKit", "DJCStorage", "DJCTestSupport"]),
         // 앱 화면 모델(덱·목록·반영 흐름)을 가짜 오디오·저장소로 시험한다.
         .testTarget(name: "DJCrateTests", dependencies: ["DJCrate", "DJCDomain", "DJCStorage", "DJCTestSupport"]),
     ]

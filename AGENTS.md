@@ -15,6 +15,10 @@ rekordbox 7용 DJ 라이브러리 관리 macOS 앱 DJCrate(약칭 DJC, CLI `djc`
 - rekordbox 규칙은 rekordbox 화면에서 편집한 결과 파일을 비교해서만 알아낸다. rekordbox 실행 파일(본체·rb_http_server 등)은 strings·디스어셈블을 포함해 분석하지 않는다.
 - 라이선스가 없는 외부 코드·문서는 쓰지 않는다. 외부 코드를 옮기면 라이선스를 확인하고 THIRD_PARTY_NOTICES.md에 더한다.
 - 내보내는 파일(USB 등)은 칸 단위로 만든다. rekordbox가 만든 파일의 페이지·표 바이트를 통째로 넣지 않는다.
+- USB 쓰기는 `UsbWriter.write` 한 곳으로만 한다. rekordbox·rekordboxAgent가 켜져 있으면 USB에도 쓰지 않는다.
+- USB의 DB(`exportLibrary.db`·`export.pdb`·`exportExt.pdb`)는 Mac 사본에서만 연다. USB 위에서 SQLite를 열지 않는다.
+- 실물 USB 쓰기는 코드에서 닫혀 있다(`UsbPhysicalWriteGate.buildEnabled`). 시험 쓰기는 `djc lab usb-image`로 만든 디스크 이미지에만 한다. 이미지·lab 출력은 임시 폴더 아래만(`UsbScratchPath`).
+- `PIONEER/extracted`·`PIONEER/CDP`·`djprofile.nxs`는 열거·읽기·복사하지 않는다.
 
 ## 명령
 
@@ -81,11 +85,17 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
   - `Library/`: `LibraryStore`(+Writing·Staging·Tags), `TrackTable`(NSTableView), 태그 편집
   - `Reflection/`: `ReflectionCoordinator`(미리 보기 → 확인 → 쓰기 → 토스트), 토스트, XML 연동
   - `App/`: 창·사이드바·`KeyRouter`(단축키). `Settings/`: 설정 창(⌘,)·설정 저장소(`SettingsStore`, 이름·기본값은 `DJCDomain/Settings`). `Diagnostics/`: 자가 테스트·성능 기록(디버그 전용)
+- USB 라이브러리(`.claude/rules/usb-write.md`, `docs/usb-internals.md`)
+  - `Sources/DJCDomain/Usb/`: 형식·확인 안 된 규칙(`UsbProvisionalRule`)·볼륨 정책·실물 쓰기 관문·막힘·오류·USB 경로 규칙(`UsbLayout`)
+  - `Sources/RekordboxKit/Usb/`: USB 루트 순회·지문, OneLibrary·Device Library 읽기, ANLZ 변환. 쓰기는 `Usb/Write/`(쓰기 커버리지 80%)
+  - `Sources/DJCStorage/Usb/`: USB 초안·세션·백업 경로, 실험 도구의 임시 폴더 제한(`UsbScratchPath`)
+  - `Sources/DJCrate/Usb/`: USB 화면(보기·내보내기·고치기)
 - `Sources/djc/` — CLI. `Commands/`(늘 쓰는 명령), `Lab/`(규칙을 알아낼 때 쓴 실험, `djc lab …`)
 - `Tests/` — 타깃별 테스트 + `Support/`(rekordbox 픽스처·합성 ANLZ·합성 음원, 실데이터 없음)
 - 사용자 데이터: `~/Library/Application Support/DJCrate/`
   - 초안: `cue-drafts/`, `grid-drafts/`, `gain-drafts.json`, `tag-drafts/`, `playlist-drafts.json`(재생 목록 편집, 순서대로)
   - 그 밖: `staged.json`, `snapshots/`, `rekordbox-backups/`, 캐시(`analysis/`, `waveforms/`, `loudness.json`)
+  - USB: `usb-backups/`, `usb-snapshots/`(USB DB의 Mac 사본), `usb-drafts/`, `usb-sessions/`(저널·잠금), `usb-staging/`
 
 ## 핵심 설계 결정 (코드만 봐서는 모르는 것)
 

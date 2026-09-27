@@ -84,7 +84,7 @@ xcrun llvm-cov report "$first" "${rest[@]}" -instr-profile "$PROF" -ignore-filen
 awk '
     function add(group, lines, missed) { total[group] += lines; miss[group] += missed }
     {
-        if ($1 ~ /^RekordboxKit\/(RekordboxWriter|RekordboxGridWriter|RekordboxCompatibility|RekordboxTrackWriter|RekordboxTrackAdd)/) add("쓰기", $2, $3)
+        if ($1 ~ /^RekordboxKit\/(RekordboxWriter|RekordboxGridWriter|RekordboxCompatibility|RekordboxTrackWriter|RekordboxTrackAdd)/ || $1 ~ /^RekordboxKit\/Usb\/Write\//) add("쓰기", $2, $3)
         if ($1 ~ /^(DJCDomain|RekordboxKit|DJCStorage|DJCAnalysis)\//) add("코어", $2, $3)
         if ($1 ~ /^DJCrate\//) add("앱", $2, $3)
     }
