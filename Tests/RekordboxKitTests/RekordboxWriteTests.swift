@@ -43,15 +43,16 @@ struct RekordboxWriteTests {
         #expect((0..<8).map { RekordboxWriter.kind(for: .hot($0)) } == [1, 2, 3, 5, 6, 7, 8, 9])
     }
 
-    @Test func 마디_박_표시는_박을_0부터() {
+    /// #118: 덱 눈금과 같이 rekordbox처럼 박을 1부터 센다.
+    @Test func 마디_박_표시는_박을_1부터() {
         let grid = BeatGrid(beats: (0..<12).map { .init(number: ($0 + 3) % 4 + 1, bpm: 120, time: 1 + Double($0) * 0.5) })
         // 첫 박은 4박(마디 전), 둘째 박부터 1마디
         #expect(grid.position(at: 0.5) == nil)
-        #expect(grid.positionText(at: 1.0) == "0.3")
-        #expect(grid.positionText(at: 1.5) == "1.0")
-        #expect(grid.positionText(at: 2.2) == "1.1")
-        #expect(grid.positionText(at: 3.5) == "2.0")
-        #expect(grid.positionText(at: 3.4999) == "2.0", "1ms 안쪽은 다음 박으로 본다")
+        #expect(grid.positionText(at: 1.0) == "0.4")
+        #expect(grid.positionText(at: 1.5) == "1.1")
+        #expect(grid.positionText(at: 2.2) == "1.2")
+        #expect(grid.positionText(at: 3.5) == "2.1")
+        #expect(grid.positionText(at: 3.4999) == "2.1", "1ms 안쪽은 다음 박으로 본다")
     }
 
     @Test func 루프_박_수는_rekordbox_BeatLoopSize와_같다() {
