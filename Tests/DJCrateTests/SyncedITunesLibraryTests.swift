@@ -108,6 +108,11 @@ struct SyncedITunesLibraryTests {
         try Data("<PROPERTIES><VALUE name='MusicAppLoadingType' val='0'/><VALUE name='itunesLibraryFile' val='\(xml.path)'/></PROPERTIES>".utf8).write(to: settings)
         let snapshot = RekordboxITunesReader.capture(directory: directory, settings: settings)
         #expect(snapshot.status == .ready && snapshot.playlists.map(\.name) == ["선택"])
+        #expect(snapshot.sourcePlaylists?.map(\.name) == ["선택", "제외"])
+        try FileManager.default.removeItem(at: directory.appending(path: "playlists3.sync"))
+        let unselected = RekordboxITunesReader.capture(directory: directory, settings: settings)
+        #expect(unselected.status == .ready && unselected.playlists.isEmpty)
+        #expect(unselected.sourcePlaylists?.count == 2)
         try Data("<PROPERTIES><VALUE name='MusicAppLoadingType' val='unknown'/></PROPERTIES>".utf8).write(to: settings)
         #expect(RekordboxITunesReader.capture(directory: directory, settings: settings).status == .unavailable)
     }

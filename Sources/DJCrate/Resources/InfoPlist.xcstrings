@@ -152,19 +152,19 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "rekordbox에서 동기화한 iTunes 목록의 이름과 곡 순서를 읽으려면 접근이 필요합니다."
+            "value": "iTunes 동기화 목록을 선택하고 곡 순서를 읽으려면 Music 보관함 접근이 필요합니다."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "DJCrate needs access to read the names and track order of iTunes playlists synced in rekordbox."
+            "value": "DJCrate needs access to your Music library to choose iTunes playlists to sync and read their track order."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "rekordboxで同期したiTunesプレイリストの名前と曲順を読み取るためにアクセスが必要です。"
+            "value": "同期するiTunesプレイリストを選択して曲順を読み取るには、Musicライブラリへのアクセスが必要です。"
           }
         }
       }

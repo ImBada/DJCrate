@@ -15489,22 +15489,6 @@
         }
       }
     },
-    "원본에서 찾지 못한 목록 %lld개 · rekordbox에서 동기화를 확인하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld playlists missing from the source · Check sync in rekordbox"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "元のライブラリで見つからないプレイリスト%lld個 · rekordboxで同期を確認してください"
-          }
-        }
-      }
-    },
     "원본에서 풀스케일에 붙은 구간" : {
       "localizations" : {
         "en" : {
@@ -22829,6 +22813,270 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ホイール"
+          }
+        }
+      }
+    },
+    "DJCrate 동기화 목록" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate Synced Playlists"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateの同期プレイリスト"
+          }
+        }
+      }
+    },
+    "iTunes 동기화" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iTunes Sync"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iTunes同期"
+          }
+        }
+      }
+    },
+    "iTunes 동기화 선택을 읽지 못했습니다. 동기화 창에서 목록을 다시 선택해 저장하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read your iTunes sync selection. Select and save playlists again in the sync window."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iTunesの同期選択を読み取れませんでした。同期ウインドウでプレイリストを選び直して保存してください。"
+          }
+        }
+      }
+    },
+    "iTunes 동기화…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iTunes Sync…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iTunes同期…"
+          }
+        }
+      }
+    },
+    "동기화" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期"
+          }
+        }
+      }
+    },
+    "동기화 선택을 저장하지 못했습니다. 라이브러리와 저장 폴더를 확인한 뒤 다시 시도하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not save your sync selection. Check the library and save folder, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期する項目を保存できませんでした。ライブラリと保存先フォルダを確認してから再試行してください。"
+          }
+        }
+      }
+    },
+    "동기화할 목록을 선택하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select playlists to sync"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期するプレイリストを選択してください"
+          }
+        }
+      }
+    },
+    "동기화할 폴더와 플레이리스트를 선택하세요. 폴더를 선택하면 하위 목록도 포함됩니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose folders and playlists to sync. Selecting a folder includes its playlists."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期するフォルダとプレイリストを選択してください。フォルダを選択すると、その中のプレイリストも含まれます。"
+          }
+        }
+      }
+    },
+    "라이브러리가 바뀌었거나 목록을 읽지 못했습니다. 동기화 창을 다시 여세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The library changed or the playlists could not be read. Reopen the sync window."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリが変更されたか、プレイリストを読み取れませんでした。同期ウインドウを開き直してください。"
+          }
+        }
+      }
+    },
+    "목록 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld playlist"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld playlists"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld個のプレイリスト"
+          }
+        }
+      }
+    },
+    "선택 해제" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deselect All"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべての選択を解除"
+          }
+        }
+      }
+    },
+    "선택한 목록은 DJCrate에 저장됩니다. 목록의 곡 구성은 Music에서 편집하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your selection is saved in DJCrate. Edit playlist contents in Music."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した項目はDJCrateに保存されます。プレイリストの曲構成はMusicで編集してください。"
+          }
+        }
+      }
+    },
+    "원본에서 찾지 못한 목록 %lld개 · 동기화 선택을 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld playlist missing from the source · Check your sync selection"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld playlists missing from the source · Check your sync selection"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元のライブラリに見つからないプレイリスト%lld個 · 同期選択を確認してください"
+          }
+        }
+      }
+    },
+    "읽을 수 있는 iTunes 목록이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No iTunes playlists available"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み取れるiTunesプレイリストがありません"
+          }
+        }
+      }
+    },
+    "전체 선택" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select All"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべて選択"
           }
         }
       }

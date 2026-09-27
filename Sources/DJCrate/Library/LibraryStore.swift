@@ -74,6 +74,7 @@ final class LibraryStore {
          playlistDraftSaver: @escaping (PlaylistDraft) throws -> Void = { try PlaylistDraftStore.save($0) },
          mergeDraftSaver: @escaping ([DuplicateMergeDraft]) throws -> Void = { try DuplicateMergeDraftStore.save($0) },
          playlistImportURL: URL? = PlaylistImportStore.url,
+         iTunesSelectionURL: URL = ITunesSyncSelectionStore.url,
          stagingSaver: @escaping ([StagedTrack]) throws -> Void = { try StagingStore.save($0) }) {
         self.settings = settings
         self.commentPreset = settings.commentPreset
@@ -81,6 +82,7 @@ final class LibraryStore {
         self.playlistDraftSaver = playlistDraftSaver
         self.mergeDraftSaver = mergeDraftSaver
         self.playlistImportURL = playlistImportURL
+        self.iTunesSelectionURL = iTunesSelectionURL
         self.stagingSaver = stagingSaver
         self.resultHistory = resultHistory
         self.feedback = feedback
@@ -120,6 +122,10 @@ final class LibraryStore {
     /// 사이드바 재생 목록 트리(rekordbox 상태에 재생 목록 초안을 얹은 모양, LibraryStore+Playlists)
     var playlistTree: [PlaylistOutlineNode] = []
     var iTunesLibrary = SyncedITunesLibrary()
+    var iTunesSnapshot = ITunesLibrarySnapshot(status: .notCaptured)
+    let iTunesSelectionURL: URL
+    var showingITunesSync = false
+    var iTunesSync = ITunesSyncModel()
     var isITunesSelection: Bool { if case .itunesPlaylist = sidebar { true } else { false } }
     /// 새 항목의 부모만 펼치고 다른 폴더의 펼침 상태는 유지한다.
     var expandedPlaylistIDs: Set<String> = []
@@ -498,6 +504,15 @@ final class LibraryStore {
             rekordboxPlaylists = loaded.playlists
             playlistDraft = loaded.playlistDraft
             iTunesLibrary = loaded.iTunesLibrary
+            iTunesSnapshot = loaded.iTunesSnapshot
+            var iTunesError: String?
+            do {
+                if let selection = try ITunesSyncSelectionStore.load(url: iTunesSelectionURL) {
+                    iTunesLibrary = SyncedITunesLibrary(snapshot: try iTunesSnapshot.applying(selection), tracks: loaded.rows.map(\.track))
+                }
+            } catch {
+                iTunesError = String(ui: "iTunes 동기화 선택을 읽지 못했습니다. 동기화 창에서 목록을 다시 선택해 저장하세요.")
+            }
             if case let .itunesPlaylist(id) = sidebar, iTunesLibrary.index[id] == nil { sidebar = .filter(.all) }
             mergeDrafts = DuplicateMergeDraftStore.load()
             refreshPlaylists(refreshList: false)
@@ -520,7 +535,7 @@ final class LibraryStore {
                 PreviewWaveformStore.Source(uuid: $0.track.uuid, url: RekordboxShare.analysisURL($0.track.analysisDataPath))
             }
             previewWarmTask = Task.detached(priority: .background) { await PreviewWaveformStore.shared.warm(previewSources) }
-            lastError = nil
+            lastError = iTunesError
             FileHandle.standardError.write(Data("라이브러리 로드 \(ContinuousClock.now - started) · \(rows.count)곡\n".utf8))
             refreshDeckTrack()
             applyLaunchSelection()

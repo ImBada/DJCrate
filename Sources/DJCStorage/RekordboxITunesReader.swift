@@ -11,15 +11,13 @@ public enum RekordboxITunesReader {
     public static func capture(directory: URL = LibrarySnapshot.rekordboxDirectory, settings: URL = settingsURL) -> ITunesLibrarySnapshot {
         do {
             let sync = directory.appending(path: "playlists3.sync")
-            guard FileManager.default.fileExists(atPath: sync.path) else { return ITunesLibrarySnapshot() }
-            let selectionData = try stableRead(sync)
-            let selection = try RekordboxITunesSelection.parse(selectionData)
-            guard !selection.selectedIDs.isEmpty else { return ITunesLibrarySnapshot() }
+            let selectionData = FileManager.default.fileExists(atPath: sync.path) ? try stableRead(sync) : nil
+            let selection = try RekordboxITunesSelection.parse(selectionData ?? Data("<SYNC_ITUNES_PLAYLIST><PLAYLISTS/></SYNC_ITUNES_PLAYLIST>".utf8))
             let settingsData = try stableRead(settings)
             let config = try configuration(settingsData)
             let playlists: [ITunesLibrarySnapshot.Playlist]
             switch config.method {
-            case "1": playlists = try frameworkPlaylists(selectedIDs: selection.selectedIDs)
+            case "1": playlists = try frameworkPlaylists()
             case "0":
                 guard let path = config.xmlPath, !path.isEmpty else { throw RekordboxITunesSelection.ParseError.invalidFile }
                 playlists = try ITunesLibrarySnapshot.parseLibraryXML(stableRead(URL(filePath: path)))
@@ -27,7 +25,8 @@ public enum RekordboxITunesReader {
             }
             let snapshot = try ITunesLibrarySnapshot.select(selection, from: playlists)
             // 읽는 동안 동기화 선택·읽기 설정이 바뀌었으면 섞인 결과를 쓰지 않는다.
-            guard selectionData == (try Data(contentsOf: sync)), settingsData == (try Data(contentsOf: settings)) else {
+            let latestSelection = FileManager.default.fileExists(atPath: sync.path) ? try Data(contentsOf: sync) : nil
+            guard selectionData == latestSelection, settingsData == (try Data(contentsOf: settings)) else {
                 throw RekordboxITunesSelection.ParseError.invalidFile
             }
             return snapshot
@@ -45,14 +44,14 @@ public enum RekordboxITunesReader {
         return data
     }
 
-    static func frameworkPlaylists(selectedIDs: Set<String>) throws -> [ITunesLibrarySnapshot.Playlist] {
+    static func frameworkPlaylists() throws -> [ITunesLibrarySnapshot.Playlist] {
         let library = try ITLibrary(apiVersion: "1.0")
         return library.allPlaylists.filter { !$0.isPrimary }.map { playlist in
             let id = String(playlist.persistentID.uint64Value, radix: 16, uppercase: true)
             let parent = playlist.parentID.map { String($0.uint64Value, radix: 16, uppercase: true) }
             return ITunesLibrarySnapshot.Playlist(id: id, name: playlist.name, parentID: parent,
                 isFolder: playlist.kind == .folder,
-                paths: selectedIDs.contains(id) && playlist.kind != .folder ? playlist.items.map { item in
+                paths: playlist.kind != .folder ? playlist.items.map { item in
                     guard let url = item.location, url.isFileURL else { return nil }
                     return url.path
                 } : [])

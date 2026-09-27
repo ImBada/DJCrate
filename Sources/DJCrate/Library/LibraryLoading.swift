@@ -24,6 +24,7 @@ struct LoadedLibrary: Sendable {
     var draftPreviewCues: [String: [PreviewCueMark]] = [:]
     var duplicateGroups: [LibraryRead.DuplicateGroup] = []
     var iTunesLibrary = SyncedITunesLibrary()
+    var iTunesSnapshot = ITunesLibrarySnapshot(status: .notCaptured)
 
     static func load(snapshot: URL, commentPreset: CommentPreset = .none, refreshITunes: Bool = false,
                      previousITunesSnapshot: ITunesFallback? = nil,
@@ -83,7 +84,7 @@ struct LoadedLibrary: Sendable {
                              histories: library.histories,
                              draftCueCounts: draftCueCounts, draftPreviewCues: draftPreviewCues,
                              duplicateGroups: LibraryRead.duplicates(in: library).groups,
-                             iTunesLibrary: SyncedITunesLibrary(snapshot: iTunes, tracks: tracks))
+                             iTunesLibrary: SyncedITunesLibrary(snapshot: iTunes, tracks: tracks), iTunesSnapshot: iTunes)
     }
 
     private static func staleITunesSnapshot(current: ITunesLibrarySnapshot, snapshot: URL,

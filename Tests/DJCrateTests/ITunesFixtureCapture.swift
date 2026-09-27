@@ -21,10 +21,13 @@ struct ITunesFixtureCapture {
             paths.append(track.folderPath)
         }
         try FileManager.default.copyItem(at: fixture.root, to: root)
-        try ITunesLibrarySnapshot(playlists: [
+        let selected: [ITunesLibrarySnapshot.Playlist] = [
             .init(id: "F", name: "iTunes 합성 폴더", isFolder: true),
             .init(id: "A", name: "iTunes 합성 목록", parentID: "F", paths: [paths[1], paths[0], paths[1], nil]),
             .init(id: "B", name: "빈 동기화 목록", parentID: "F"),
-        ]).save(for: root.appending(path: "master.db"))
+        ]
+        try ITunesLibrarySnapshot(playlists: selected,
+                                  sourcePlaylists: selected + [.init(id: "C", name: "추가할 iTunes 목록", paths: [paths[0]])],
+                                  selectedIDs: ["A", "B"]).save(for: root.appending(path: "master.db"))
     }
 }

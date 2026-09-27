@@ -33,9 +33,22 @@ public struct ITunesLibrarySnapshot: Codable, Sendable {
     public var playlists: [Playlist]
     public var status: Status
     public var unavailablePlaylistCount: Int
+    /// 선택 창과 이후 선택 변경에 쓰는 전체 보관함. 옛 사본에는 없다.
+    public var sourcePlaylists: [Playlist]?
+    public var selectedIDs: Set<String>?
+    public var availablePlaylists: [Playlist] { sourcePlaylists ?? playlists }
+    public var selectionNodes: [ITunesSyncSelection.Node] {
+        availablePlaylists.map { .init(id: $0.id, parentID: $0.parentID, isFolder: $0.isFolder) }
+    }
+    public var initialSelection: ITunesSyncSelection {
+        // 옛 사본의 조상 폴더를 전체 선택으로 오해하지 않는다.
+        ITunesSyncSelection(selectedIDs: selectedIDs ?? Set(playlists.filter { !$0.isFolder }.map(\.id)))
+    }
 
-    public init(playlists: [Playlist] = [], status: Status = .ready, unavailablePlaylistCount: Int = 0) {
+    public init(playlists: [Playlist] = [], status: Status = .ready, unavailablePlaylistCount: Int = 0,
+                sourcePlaylists: [Playlist]? = nil, selectedIDs: Set<String>? = nil) {
         self.playlists = playlists; self.status = status; self.unavailablePlaylistCount = unavailablePlaylistCount
+        self.sourcePlaylists = sourcePlaylists; self.selectedIDs = selectedIDs
     }
 
     public static func url(for database: URL) -> URL { database.appendingPathExtension("itunes.json") }
@@ -63,12 +76,24 @@ public struct ITunesLibrarySnapshot: Codable, Sendable {
             let snapshot = try JSONDecoder().decode(Self.self, from: Data(contentsOf: file))
             guard snapshot.version == 1 else { return Self(status: .unavailable) }
             try validate(snapshot.playlists)
+            if let source = snapshot.sourcePlaylists { try validate(source) }
             return snapshot
         } catch { return Self(status: .unavailable) }
     }
 
     /// 동기화 ID로만 고르고, 그 목록을 찾아갈 수 있도록 현재 조상 폴더를 함께 남긴다.
     public static func select(_ selection: RekordboxITunesSelection, from source: [Playlist]) throws -> Self {
+        try select(ids: selection.selectedIDs, from: source)
+    }
+
+    public func applying(_ selection: ITunesSyncSelection) throws -> Self {
+        var result = try Self.select(ids: selection.expandedIDs(in: selectionNodes), from: availablePlaylists)
+        result.status = status
+        result.selectedIDs = selection.selectedIDs
+        return result
+    }
+
+    private static func select(ids: Set<String>, from source: [Playlist]) throws -> Self {
         let normalized = try source.map { playlist -> Playlist in
             guard let id = RekordboxITunesSelection.normalizedID(playlist.id) else { throw RekordboxITunesSelection.ParseError.invalidFile }
             var result = playlist
@@ -81,7 +106,7 @@ public struct ITunesLibrarySnapshot: Codable, Sendable {
         }
         try validate(normalized)
         let byID = Dictionary(uniqueKeysWithValues: normalized.map { ($0.id, $0) })
-        var included = selection.selectedIDs.intersection(byID.keys)
+        var included = ids.intersection(byID.keys)
         for id in Array(included) {
             var parent = byID[id]?.parentID
             while let ancestor = parent {
@@ -90,7 +115,8 @@ public struct ITunesLibrarySnapshot: Codable, Sendable {
             }
         }
         return Self(playlists: normalized.filter { included.contains($0.id) },
-                    unavailablePlaylistCount: selection.selectedIDs.subtracting(byID.keys).count)
+                    unavailablePlaylistCount: ids.subtracting(byID.keys).count,
+                    sourcePlaylists: normalized, selectedIDs: ids)
     }
 
     static func validate(_ playlists: [Playlist]) throws {
