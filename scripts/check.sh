@@ -3,6 +3,14 @@
 set -euo pipefail
 cd "${0:A:h}/.."
 
+# CI는 별도 러너에서 두 묶음을 동시에 검사한다. 인자가 없으면 기존 전체 검사를 유지한다.
+case "$#:${1:-}" in
+    0:) mode=full ;;
+    1:--coverage) mode=coverage ;;
+    1:--release) mode=release ;;
+    *) echo '사용: scripts/check.sh [--coverage|--release]' >&2; exit 2 ;;
+esac
+
 # 실행마다 다른 폴더를 써서 이전 실패·취소 로그와 섞이지 않게 한다.
 log_root=${DJC_CHECK_LOG_ROOT:-.build/check-logs}
 mkdir -p "$log_root"
@@ -104,9 +112,15 @@ awk '
 }
 
 # 디버그 앱·CLI·테스트를 같은 계측 설정으로 한 번 빌드해 설정 전환에 따른 재컴파일을 줄인다.
-run_stage "디버그·테스트 빌드(커버리지 계측)" debug-build swift build --build-tests --enable-code-coverage
-run_stage "릴리스 앱 빌드" release-build swift build -c release --product DJCrate
-run_stage "번역(en·ja 누락·안 쓰는 문구·자리표시자)" translations swift scripts/i18n.swift check --enable-code-coverage
-run_stage "전체 테스트 실행·프로파일 수집(빌드 생략)" test swift test --skip-build --enable-code-coverage
-run_stage "커버리지 보고·목표 검사" coverage coverage
+if [[ "$mode" != release ]]; then
+    run_stage "디버그·테스트 빌드(커버리지 계측)" debug-build swift build --build-tests --enable-code-coverage
+fi
+if [[ "$mode" != coverage ]]; then
+    run_stage "릴리스 앱 빌드" release-build swift build -c release --product DJCrate
+fi
+if [[ "$mode" != release ]]; then
+    run_stage "번역(en·ja 누락·안 쓰는 문구·자리표시자)" translations swift scripts/i18n.swift check --enable-code-coverage
+    run_stage "전체 테스트 실행·프로파일 수집(빌드 생략)" test swift test --skip-build --enable-code-coverage
+    run_stage "커버리지 보고·목표 검사" coverage coverage
+fi
 echo "▸ 통과"

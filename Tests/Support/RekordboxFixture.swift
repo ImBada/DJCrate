@@ -1,7 +1,6 @@
 import DJCDomain
 import Foundation
 import RekordboxKit
-import SQLCipher
 
 /// 테스트용 rekordbox 라이브러리.
 ///
@@ -21,26 +20,19 @@ public final class RekordboxFixture {
         for dir in [shareRoot, backups, audio] { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) }
         let url = try TestResources.url("rekordbox-7.2.18-schema.sql")
         let schema = try String(contentsOf: url, encoding: .utf8)
-        var handle: OpaquePointer?
-        guard sqlite3_open_v2(database.path, &handle, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nil) == SQLITE_OK else {
+        guard FileManager.default.createFile(atPath: database.path, contents: nil) else {
             throw FixtureError("DB를 만들지 못했습니다")
         }
-        defer { sqlite3_close_v2(handle) }
-        let key = try RekordboxKey.derive()
-        for sql in ["PRAGMA key = '\(key)'", schema] {
-            var error: UnsafeMutablePointer<CChar>?
-            guard sqlite3_exec(handle, sql, nil, nil, &error) == SQLITE_OK else {
-                let message = error.map { String(cString: $0) } ?? "?"
-                sqlite3_free(error)
-                throw FixtureError("스키마 적용 실패: \(message)")
-            }
-        }
+        // 스키마·초기 행을 한 연결·트랜잭션으로 준비해 키 유도와 디스크 동기화를 줄인다.
         let db = try open()
+        defer { db.close() }
+        try db.execute("BEGIN")
+        try db.execute(schema)
         try db.run("INSERT INTO agentRegistry (registry_id, int_1, created_at, updated_at) VALUES ('localUpdateCount', ?, ?, ?)",
                    [.int(localUpdateCount), .text(Self.stamp), .text(Self.stamp)])
         try db.run("INSERT INTO djmdProperty (DBID, DBVersion, created_at, updated_at) VALUES ('1', '6000', ?, ?)",
                    [.text(Self.stamp), .text(Self.stamp)])
-        db.close()
+        try db.execute("COMMIT")
     }
 
     deinit {
@@ -61,6 +53,7 @@ public final class RekordboxFixture {
     public func add(_ track: TrackSpec) throws -> TrackSpec {
         let db = try open()
         defer { db.close() }
+        try db.execute("BEGIN")
         try db.run("""
             INSERT INTO djmdContent (ID, UUID, Title, FileType, BitRate, Analysed, Length, BPM, FolderPath, CueUpdated, AnalysisDataPath,
                 AnalysisUpdated, TrackInfoUpdated, MasterDBID, DeviceID, ArtistID, AlbumID, ComposerID, ImagePath,
@@ -103,6 +96,7 @@ public final class RekordboxFixture {
                 """, [.text("mp-\(track.id)"), .text(track.id), .int(gain.high), .int(gain.low),
                       .text(UUID().uuidString.lowercased()), .text(Self.stamp), .text(Self.stamp)])
         }
+        try db.execute("COMMIT")
         return track
     }
 
@@ -125,6 +119,7 @@ public final class RekordboxFixture {
     public func add(_ playlist: PlaylistSpec) throws -> PlaylistSpec {
         let db = try open()
         defer { db.close() }
+        try db.execute("BEGIN")
         try db.run("""
             INSERT INTO djmdPlaylist (ID, Seq, Name, ImagePath, Attribute, ParentID, SmartList, UUID, rb_data_status, rb_local_data_status,
                 rb_local_deleted, rb_local_synced, usn, rb_local_usn, created_at, updated_at)
@@ -144,6 +139,7 @@ public final class RekordboxFixture {
                 """, [.text(UUID().uuidString.lowercased()), .text(playlist.id), .text(contentID), .int(index + 1),
                       .text(UUID().uuidString.lowercased()), .text(Self.stamp), .text(Self.stamp)])
         }
+        try db.execute("COMMIT")
         return playlist
     }
 

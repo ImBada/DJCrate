@@ -103,26 +103,33 @@ extension DeckStorage {
 
 /// 덱 하나 + 가짜 오디오 + 메모리 저장소 + 합성 WAV 곡
 @MainActor
-struct DeckHarness {
+final class DeckHarness {
     let deck: DeckModel
     let audio: FakeDeckAudio
     let drafts: MemoryDrafts
-    let fixture: RekordboxFixture
+    let root: URL
 
     /// - Parameter gridBase: 그리드 초안의 "rekordbox 원래 그리드"(되돌리기 대상). 비우면 분석 전 곡처럼 원래 그리드가 없다.
     init(cues: [Cue] = [], grid: [GridSegment]? = [GridSegment(start: 0.5, bpm: 120, firstBeatNumber: 1)],
          gridBase: [GridSegment] = [], autoGain: RekordboxAutoGain? = nil) throws {
-        fixture = try RekordboxFixture()
+        root = FileManager.default.temporaryDirectory.appending(path: "djc-deck-\(UUID().uuidString)")
         audio = FakeDeckAudio()
         drafts = MemoryDrafts()
-        let url = try AudioFixture.wav(seconds: 1, in: fixture.audio)
+        deck = DeckModel(audio: audio, storage: .memory(drafts), runsAnalysis: false)
+        // 메모리 저장소를 쓰는 덱 시험에는 DB 없이 합성 음원 폴더만 필요하다.
+        let directory = root.appending(path: "audio")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = try AudioFixture.wav(seconds: 1, in: directory)
         let track = Track(id: "1", uuid: "track-1", title: "시험 곡", artist: nil, album: nil, albumArtist: nil, genre: nil,
                           composer: nil, releaseYear: nil, trackNumber: nil, key: "8B", bpm: 120, lengthSeconds: 180,
                           folderPath: url.path, comment: "", importedOn: nil, analysisDataPath: nil, imagePath: nil, isDeleted: false)
         // 그리드는 rekordbox 분석 파일 대신 초안으로 준다(분석 경로가 없는 곡)
         if let grid { drafts.save(GridDraft(trackUUID: track.uuid, base: gridBase, segments: grid)) }
-        deck = DeckModel(audio: audio, storage: .memory(drafts), runsAnalysis: false)
         deck.load(TrackRow(track: track, cues: cues, playCount: 0, autoGain: autoGain))
+    }
+
+    deinit {
+        try? FileManager.default.removeItem(at: root)
     }
 
     /// 백그라운드에서 초안·그리드를 다 읽을 때까지

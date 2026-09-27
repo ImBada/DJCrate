@@ -35,7 +35,7 @@ struct ExternalDraftTests {
         store.phase = .loaded
         let row = try #require(h.deck.row)
         store.rowsByUUID[row.track.uuid] = row
-        let home = h.fixture.root.appending(path: "home")
+        let home = h.root.appending(path: "home")
         let directory = home.appending(path: "tag-drafts")
         h.deck.pressHotCue(slot: 0)
         store.setTag(.title, "첫 제목", rows: [row])
@@ -77,7 +77,7 @@ struct ExternalDraftTests {
         let row = try #require(h.deck.row)
         store.rowsByUUID[row.track.uuid] = row
         store.onCueDraftsReloaded = { drafts in h.deck.reloadExternalCueDraft(drafts[row.track.uuid]) }
-        let home = h.fixture.root.appending(path: "home")
+        let home = h.root.appending(path: "home")
         let directory = home.appending(path: "cue-drafts")
         store.setTag(.title, "앱에서 고친 제목", rows: [row])
         let tag = try #require(store.tagDrafts[row.track.uuid])
