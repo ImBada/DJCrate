@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import iTunesLibrary
 import RekordboxKit
 
@@ -13,29 +14,46 @@ public enum RekordboxITunesReader {
     }
 
     public static func capture(directory: URL = LibrarySnapshot.rekordboxDirectory, settings: URL = settingsURL) -> ITunesLibrarySnapshot {
+        var stage = "selection.read"
         do {
             let sync = directory.appending(path: "playlists3.sync")
             let selectionData = FileManager.default.fileExists(atPath: sync.path) ? try stableRead(sync) : nil
+            stage = "selection.parse"
             let selection = try RekordboxITunesSelection.parse(selectionData ?? Data("<SYNC_ITUNES_PLAYLIST><PLAYLISTS/></SYNC_ITUNES_PLAYLIST>".utf8))
+            stage = "settings.read"
             let settingsData = try stableRead(settings)
+            stage = "settings.parse"
             let config = try configuration(settingsData)
             let playlists: [ITunesLibrarySnapshot.Playlist]
             switch config.method {
-            case "1": playlists = try frameworkPlaylists()
+            case "1":
+                stage = "source.framework"
+                playlists = try frameworkPlaylists()
             case "0":
                 guard let path = config.xmlPath, !path.isEmpty else { throw RekordboxITunesSelection.ParseError.invalidFile }
-                playlists = try ITunesLibrarySnapshot.parseLibraryXML(stableRead(URL(filePath: path)))
+                stage = "source.xml.read"
+                let data = try stableRead(URL(filePath: path))
+                stage = "source.xml.parse"
+                playlists = try ITunesLibrarySnapshot.parseLibraryXML(data)
             default: throw RekordboxITunesSelection.ParseError.invalidFile
             }
+            stage = "selection.apply"
             var snapshot = try ITunesLibrarySnapshot.select(selection, from: playlists)
             snapshot.syncData = selectionData
             // 읽는 동안 동기화 선택·읽기 설정이 바뀌었으면 섞인 결과를 쓰지 않는다.
+            stage = "source.verify"
             let latestSelection = FileManager.default.fileExists(atPath: sync.path) ? try Data(contentsOf: sync) : nil
             guard selectionData == latestSelection, settingsData == (try Data(contentsOf: settings)) else {
                 throw RekordboxITunesSelection.ParseError.invalidFile
             }
             return snapshot
-        } catch { return ITunesLibrarySnapshot(status: .unavailable) }
+        } catch {
+            let failure = error as NSError
+            // 경로·목록·userInfo 없이 설치 앱에서도 실패 단계를 구분한다.
+            Logger(subsystem: "com.fotone.djcrate", category: "iTunesRead")
+                .error("iTunes 읽기 실패 stage=\(stage, privacy: .public) domain=\(failure.domain, privacy: .public) code=\(failure.code)")
+            return ITunesLibrarySnapshot(status: .unavailable)
+        }
     }
 
     static func stableRead(_ url: URL) throws -> Data {
@@ -103,15 +121,33 @@ public enum RekordboxITunesReader {
             guard let key = attributes.first(where: { (tag as NSString).substring(with: $0.range(at: 1)) == "name" }),
                   let val = attributes.first(where: { (tag as NSString).substring(with: $0.range(at: 1)) == "val" }) else { continue }
             let name = (tag as NSString).substring(with: key.range(at: 3))
-            // 참조로 쓴 이름은 필수 키일 수 있으므로 원문 그대로 엄격하게 파싱한다.
-            guard !name.contains("&"), !["MusicAppLoadingType", "itunesLibraryFile"].contains(name) else { continue }
-            for match in reference.matches(in: tag, range: val.range(at: 3)) {
+            let forbidden = reference.matches(in: tag, range: tagRange).filter { match in
                 let number = (tag as NSString).substring(with: match.range(at: 1))
                 let hex = number.hasPrefix("x")
-                guard let scalar = UInt32(hex ? String(number.dropFirst()) : number, radix: hex ? 16 : 10) else { continue }
-                // XML 1.0 §2.2 Char: 무관한 VALUE의 val에 있는 금지 숫자 참조만 바꾼다.
-                if scalar == 9 || scalar == 10 || scalar == 13 || (0x20...0xD7FF).contains(scalar)
-                    || (0xE000...0xFFFD).contains(scalar) || (0x10000...0x10FFFF).contains(scalar) { continue }
+                guard let scalar = UInt32(hex ? String(number.dropFirst()) : number, radix: hex ? 16 : 10) else { return false }
+                // XML 1.0 §2.2 Char에 없는 숫자 참조만 다룬다.
+                return !(scalar == 9 || scalar == 10 || scalar == 13 || (0x20...0xD7FF).contains(scalar)
+                    || (0xE000...0xFFFD).contains(scalar) || (0x10000...0x10FFFF).contains(scalar))
+            }
+            let nameReferences = forbidden.filter { NSLocationInRange($0.range.location, key.range(at: 3)) }
+            if !nameReferences.isEmpty {
+                // 금지 참조를 뺀 이름도 필수 키라면 거부한다. 정상 엔티티 표기도 같은 파서로 판별한다.
+                let candidate = NSMutableString(string: (tag as NSString).substring(with: key.range))
+                for match in nameReferences.reversed() {
+                    candidate.replaceCharacters(in: NSRange(location: match.range.location - key.range.location,
+                                                            length: match.range.length), with: "")
+                }
+                let reader = SettingsReader()
+                let parser = XMLParser(data: Data("<PROPERTIES><VALUE \(candidate) val=''/></PROPERTIES>".utf8))
+                parser.shouldResolveExternalEntities = false
+                parser.delegate = reader
+                guard parser.parse(), reader.values.isEmpty else { throw RekordboxITunesSelection.ParseError.invalidFile }
+            } else {
+                // 그 밖의 참조 이름은 필수 키일 수 있으므로 원문 그대로 엄격하게 파싱한다.
+                guard !name.contains("&"), !["MusicAppLoadingType", "itunesLibraryFile"].contains(name) else { continue }
+            }
+            for match in forbidden where NSLocationInRange(match.range.location, key.range(at: 3))
+                || NSLocationInRange(match.range.location, val.range(at: 3)) {
                 replacements.append(NSRange(location: token.range.location + match.range.location, length: match.range.length))
             }
         }
