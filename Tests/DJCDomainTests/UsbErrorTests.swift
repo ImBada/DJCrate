@@ -41,4 +41,13 @@ struct UsbErrorTests {
         #expect(refused.description.contains("[notFAT32] 막힘"))
         #expect(refused.localizedDescription == "막힘")
     }
+
+    @Test("CLI 상세는 확인 안 된 규칙의 이름을 함께 적는다")
+    func cliDescriptionNamesProvisionalRule() {
+        // --allow-provisional에 줄 이름을 CLI에서 볼 수 있어야 한다. 앱 문구에는 넣지 않는다.
+        let block = UsbBlock(code: "provisional", scope: .volume, message: "막힘", rule: .cueVariant)
+        let refused = UsbError.writeRefused([block])
+        #expect(refused.description.contains("[provisional:cueVariant] 막힘"))
+        #expect(refused.localizedDescription == "막힘")
+    }
 }

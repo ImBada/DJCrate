@@ -15258,6 +15258,22 @@
         }
       }
     },
+    "알 수 없는 파티션 형식" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "unknown partition type"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不明なパーティション形式"
+          }
+        }
+      }
+    },
     "알 수 없음" : {
       "localizations" : {
         "en" : {

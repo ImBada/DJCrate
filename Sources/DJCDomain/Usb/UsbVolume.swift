@@ -119,7 +119,7 @@ public enum UsbVolumePolicy {
         }
         if volume.fileSystem != .fat32 || !fat32Contents.contains(volume.partitionContent ?? "") {
             // 파일 시스템은 FAT32인데 파티션 형식이 다르면 파티션 형식 이름을 보여 준다.
-            let format = volume.fileSystem == .fat32 ? (volume.partitionContent ?? volume.fileSystem.displayName) : volume.fileSystem.displayName
+            let format = volume.fileSystem == .fat32 ? partitionDisplayName(volume.partitionContent) : volume.fileSystem.displayName
             add("notFAT32", purpose == .edit
                 ? String(ui: "이 USB 형식(\(format))은 아직 고칠 수 없습니다. FAT32로 포맷한 다른 USB에 새로 내보내세요")
                 : reformat)
@@ -131,6 +131,16 @@ public enum UsbVolumePolicy {
             add("sectorSize", String(ui: "섹터 크기가 512바이트가 아닌 USB는 아직 쓸 수 없습니다"))
         }
         return problems
+    }
+
+    /// DiskArbitration 파티션 형식 식별자 → 문구에 넣는 이름. MBR 0x07은 exFAT·NTFS가 함께 쓴다. 모르는 식별자는 그대로 적는다.
+    /// 식별자가 없을 때 파일 시스템 이름(FAT32)을 적으면 "이 형식(FAT32)은 … FAT32로 포맷한" 문구가 스스로 어긋난다.
+    static func partitionDisplayName(_ content: String?) -> String {
+        guard let content else { return String(ui: "알 수 없는 파티션 형식") }
+        if content.contains("FAT_12") { return "FAT12" }
+        if content.contains("FAT_16") { return "FAT16" }
+        if content == "Windows_NTFS" { return "exFAT/NTFS" }
+        return content
     }
 
     /// 볼륨 문제를 볼륨 범위 막힘으로

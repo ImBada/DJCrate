@@ -103,6 +103,28 @@ struct UsbVolumePolicyTests {
         #expect(gpt.first { $0.code == "notMBR" }?.message.contains("다른 USB에 새로 내보내세요") == true)
     }
 
+    @Test("고칠 때 문구는 파티션 형식을 읽을 수 있는 이름으로 적는다")
+    func editPurposeNamesPartitionFormat() {
+        func editMessage(_ volume: UsbVolumeInfo) -> String? {
+            UsbVolumePolicy.problems(volume, purpose: .edit).first { $0.code == "notFAT32" }?.message
+        }
+        // 파일 시스템은 FAT32인데 파티션 형식을 모르면 "FAT32"라고 적지 않는다(스스로 어긋나는 문구).
+        var unknown = FakeUsbVolume.physicalFAT32()
+        unknown.partitionContent = nil
+        let unknownMessage = editMessage(unknown)
+        #expect(unknownMessage?.contains("알 수 없는 파티션 형식") == true)
+        #expect(unknownMessage?.contains("(FAT32)") == false)
+        // DiskArbitration 식별자 대신 형식 이름을 적는다.
+        let fat16Message = editMessage(FakeUsbVolume.physicalFAT32(content: "DOS_FAT_16"))
+        #expect(fat16Message?.contains("(FAT16)") == true)
+        #expect(fat16Message?.contains("DOS_FAT_16") == false)
+        #expect(editMessage(FakeUsbVolume.physicalFAT32(content: "Windows_FAT_16"))?.contains("(FAT16)") == true)
+        #expect(editMessage(FakeUsbVolume.physicalFAT32(content: "DOS_FAT_12"))?.contains("(FAT12)") == true)
+        #expect(editMessage(FakeUsbVolume.physicalFAT32(content: "Windows_NTFS"))?.contains("(exFAT/NTFS)") == true)
+        // 파일 시스템이 FAT32가 아니면 파일 시스템 이름을 적는다.
+        #expect(editMessage(FakeUsbVolume.fat16())?.contains("(FAT16)") == true)
+    }
+
     @Test("읽기는 모든 모양을 허용한다")
     func readPurposeHasNoProblems() {
         let volumes = [FakeUsbVolume.exfat(), FakeUsbVolume.gpt(), FakeUsbVolume.internal(), FakeUsbVolume.readOnly(),
