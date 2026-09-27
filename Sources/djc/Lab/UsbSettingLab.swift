@@ -36,9 +36,25 @@ enum UsbSettingLab {
         }
     }
 
+    struct ExportResult {
+        var lines: [String]
+        /// 만든 파일 수
+        var made: Int
+    }
+
+    struct ExportIncomplete: Error, Equatable, CustomStringConvertible {
+        let made: Int, total: Int
+        var description: String { "설정 파일 \(total)개 중 \(total - made)개를 만들지 않았습니다" }
+    }
+
     static func exportCommand(_ args: [String]) async throws {
         guard let local = value(after: "--local", in: args), let out = value(after: "--out", in: args) else { throw UsageError() }
-        try export(local: local, out: out).forEach { print($0) }
+        let result = try export(local: local, out: out)
+        result.lines.forEach { print($0) }
+        // 하나라도 못 만들면 실패로 끝낸다(스크립트가 성공으로 보지 않게)
+        if result.made < DeviceSettingFile.Kind.exported.count {
+            throw ExportIncomplete(made: result.made, total: DeviceSettingFile.Kind.exported.count)
+        }
     }
 
     /// 세 파일 이름만 연다(폴더를 훑지 않는다). 파일도 임시 폴더 아래의 보통 파일일 때만 읽는다.
@@ -71,27 +87,40 @@ enum UsbSettingLab {
     }
 
     /// `--out`을 먼저 확인한 뒤에만 로컬 파일을 연다. 검증에 실패한 파일은 만들지 않고 이유를 적는다.
-    static func export(local: String, out: String) throws -> [String] {
+    /// 하나도 만들지 못하면 이번에 만든 빈 출력 폴더는 지운다
+    static func export(local: String, out: String) throws -> ExportResult {
         let target = try UsbScratchPath.check(out, as: .outputDirectory)
-        if !FileManager.default.fileExists(atPath: target) {
+        let created = !FileManager.default.fileExists(atPath: target)
+        if created {
             try FileManager.default.createDirectory(atPath: target, withIntermediateDirectories: false)
         }
         let folder = URL(filePath: local, directoryHint: .isDirectory)
-        var lines: [String] = []
+        var result = ExportResult(lines: [], made: 0)
         for kind in DeviceSettingFile.Kind.exported {
             let name = kind.fileName
             do {
                 let (source, output) = try DeviceSettingPatch.readForExport(localFile: folder.appending(path: name))
                 try output.bytes.write(to: URL(filePath: target).appending(path: name), options: .withoutOverwriting)
+                result.made += 1
                 let changed = zip(source.bytes, output.bytes).enumerated()
                     .filter { $0.element.0 != $0.element.1 && $0.offset < output.bytes.count - 4 }
                     .map { "\(hex($0.offset)) \(hex($0.element.0))→\(hex($0.element.1))" }
-                lines.append("\(name): 만듦 · " + (changed.isEmpty ? "바꾼 칸 없음" : "바꾼 칸 " + changed.joined(separator: ", ") + " · CRC 다시 계산"))
+                result.lines.append("\(name): 만듦 · " + (changed.isEmpty ? "바꾼 칸 없음" : "바꾼 칸 " + changed.joined(separator: ", ") + " · CRC 다시 계산"))
             } catch {
-                lines.append("\(name): 만들지 않음 · \(error)")
+                result.lines.append("\(name): 만들지 않음 · " + reason(error))
             }
         }
-        return lines
+        if result.made == 0 && created { try? FileManager.default.removeItem(atPath: target) }
+        return result
+    }
+
+    /// 만들지 않은 이유. 파일 오류는 경로 전체를 적지 않는다
+    static func reason(_ error: any Error) -> String {
+        switch error {
+        case let error as DeviceSettingError: error.description
+        case let error as CocoaError where error.code == .fileReadNoSuchFile: "없음"
+        default: (error as NSError).localizedDescription
+        }
     }
 
     static func hex(_ value: some BinaryInteger) -> String {

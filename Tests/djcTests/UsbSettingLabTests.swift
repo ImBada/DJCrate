@@ -15,6 +15,13 @@ struct UsbSettingLabTests {
         try body(folder)
     }
 
+    func withFolderAsync(_ body: (URL) async throws -> Void) async throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "djc-setting-lab-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try await body(folder)
+    }
+
     /// 지어낸 로컬 설정 파일 셋(MYSETTING2는 새 칸이 0인 옛 모양)
     func writeLocalFiles(in folder: URL) throws {
         var body = DeviceSettingFixture.syntheticBody(count: 40, seed: 5)
@@ -77,8 +84,9 @@ struct UsbSettingLabTests {
             try DeviceSettingFixture.write(DeviceSettingFixture.make(.devSetting), as: .devSetting, in: local)
             try Data("profile".utf8).write(to: local.appending(path: "djprofile.nxs"))
 
-            let lines = try UsbSettingLab.export(local: local.path, out: out.path)
-            #expect(lines.count == 3)
+            let exported = try UsbSettingLab.export(local: local.path, out: out.path)
+            let lines = exported.lines
+            #expect(lines.count == 3 && exported.made == 3)
             #expect(Set(try FileManager.default.contentsOfDirectory(atPath: out.path))
                 == ["MYSETTING.DAT", "MYSETTING2.DAT", "DJMMYSETTING.DAT"])
             for kind in [DeviceSettingFile.Kind.mySetting, .djmMySetting] {
@@ -107,17 +115,47 @@ struct UsbSettingLabTests {
         }
     }
 
-    @Test("로컬 파일이 검증에 실패하면 그 파일은 만들지 않는다")
-    func exportSkipsInvalidLocalFile() throws {
-        try withFolder { folder in
+    @Test("로컬 파일이 검증에 실패하면 그 파일은 만들지 않고, 명령은 실패로 끝난다")
+    func exportSkipsInvalidLocalFile() async throws {
+        try await withFolderAsync { folder in
             let local = folder.appending(path: "local"), out = folder.appending(path: "out")
             try FileManager.default.createDirectory(at: local, withIntermediateDirectories: false)
             try writeLocalFiles(in: local)
             try DeviceSettingFixture.write(DeviceSettingFixture.make(.mySetting, size: 150), as: .mySetting, in: local)
-            let lines = try UsbSettingLab.export(local: local.path, out: out.path)
+            let result = try UsbSettingLab.export(local: local.path, out: out.path)
+            #expect(result.made == 2)
             #expect(!FileManager.default.fileExists(atPath: out.appending(path: "MYSETTING.DAT").path))
-            #expect(lines.contains { $0.hasPrefix("MYSETTING.DAT") && $0.contains("만들지 않음") })
+            #expect(result.lines.contains { $0.hasPrefix("MYSETTING.DAT") && $0.contains("만들지 않음") })
             #expect(FileManager.default.fileExists(atPath: out.appending(path: "MYSETTING2.DAT").path))
+
+            // 명령으로 부르면 하나라도 못 만들었을 때 실패로 끝난다(스크립트가 성공으로 보지 않게).
+            let again = folder.appending(path: "again")
+            await #expect(throws: UsbSettingLab.ExportIncomplete(made: 2, total: 3)) {
+                try await UsbSettingLab.exportCommand(["setting-export", "--local", local.path, "--out", again.path])
+            }
+        }
+    }
+
+    @Test("로컬 폴더가 틀리면 아무것도 만들지 않고, 만든 빈 출력 폴더도 남기지 않는다")
+    func exportWithMissingLocalFolder() async throws {
+        try await withFolderAsync { folder in
+            let local = folder.appending(path: "nonexistent"), out = folder.appending(path: "out")
+            let result = try UsbSettingLab.export(local: local.path, out: out.path)
+            #expect(result.made == 0 && result.lines.count == 3)
+            #expect(result.lines.allSatisfy { $0.contains("만들지 않음") && $0.contains("없음") })
+            // 로컬 경로 전체를 출력에 적지 않는다.
+            #expect(!result.lines.contains { $0.contains(local.path) })
+            #expect(!FileManager.default.fileExists(atPath: out.path))
+
+            await #expect(throws: UsbSettingLab.ExportIncomplete(made: 0, total: 3)) {
+                try await UsbSettingLab.exportCommand(["setting-export", "--local", local.path, "--out", out.path])
+            }
+            #expect(!FileManager.default.fileExists(atPath: out.path))
+
+            // 이미 있던 빈 폴더는 지우지 않는다.
+            try FileManager.default.createDirectory(at: out, withIntermediateDirectories: false)
+            #expect(try UsbSettingLab.export(local: local.path, out: out.path).made == 0)
+            #expect(FileManager.default.fileExists(atPath: out.path))
         }
     }
 }
