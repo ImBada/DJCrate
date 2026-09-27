@@ -3463,18 +3463,18 @@
         }
       }
     },
-    "iTunes 목록 사본이 없으니 새 스냅샷을 뜨세요." : {
+    "새 스냅샷을 뜨고 있습니다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No iTunes playlist snapshot is available. Take a new snapshot."
+            "value" : "Taking a new snapshot…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "iTunesプレイリストのコピーがないため、新しいスナップショットを作成してください。"
+            "value" : "新しいスナップショットを作成しています。"
           }
         }
       }
