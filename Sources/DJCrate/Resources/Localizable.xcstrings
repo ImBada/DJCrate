@@ -1,6 +1,86 @@
 {
   "sourceLanguage" : "ko",
   "strings" : {
+    "Music 보관함을 읽는 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading the Music library…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ミュージックのライブラリを読み込み中…"
+          }
+        }
+      }
+    },
+    "iTunes 목록 사본을 읽는 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading the iTunes playlist snapshot…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iTunesプレイリストのスナップショットを読み込み中…"
+          }
+        }
+      }
+    },
+    "rekordbox 라이브러리를 읽는 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading the rekordbox library…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxライブラリを読み込み中…"
+          }
+        }
+      }
+    },
+    "곡 목록을 준비하는 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing the track list…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲一覧を準備中…"
+          }
+        }
+      }
+    },
+    "쓴 라이브러리를 다시 읽는 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reloading the updated library…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込み後のライブラリを再読み込み中…"
+          }
+        }
+      }
+    },
     "퀀타이즈(Q): 큐·루프 등록과 핫큐 점프" : {
       "localizations" : {
         "en" : {
@@ -9808,22 +9888,6 @@
         }
       }
     },
-    "라이브러리를 읽는 중…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reading the library…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ライブラリを読み込み中…"
-          }
-        }
-      }
-    },
     "라이브러리와 분석 파일의 상태를 확인하지 못했습니다" : {
       "localizations" : {
         "en" : {
@@ -11568,22 +11632,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "反映待ちの下書きがありません"
-          }
-        }
-      }
-    },
-    "쓰기 확인 중…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Checking Write…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込みを確認中…"
           }
         }
       }

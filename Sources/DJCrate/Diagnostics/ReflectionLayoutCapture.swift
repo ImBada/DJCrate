@@ -32,10 +32,19 @@ extension DevSelfTests {
             let detail = String(ui: "합성 데이터의 화면 배치 시험입니다")
             store.resultHistory.record(WriteResult(kind: .warning, title: title, text: detail))
             store.toast = AppToast(kind: .warning, title: title, detail: detail, undoBackup: backup)
-            if argument.contains("locked-") {
+            if argument.contains("locked-") || argument.contains("reload-") {
                 store.toast = nil
                 store.setWriteLock(true)
-                store.writeStage = WriteStage(String(ui: "rekordbox에 쓰는 중…"))
+                store.writeStage = argument.contains("reload-") ? .reloadingLibrary : WriteStage(String(ui: "rekordbox에 쓰는 중…"))
+            }
+            if let capture = args.first(where: { $0.hasPrefix("--reflection-capture=") }) {
+                try? await Task.sleep(for: .milliseconds(500))
+                let command = Process()
+                command.executableURL = URL(filePath: "/usr/sbin/screencapture")
+                command.arguments = ["-x", "-l", String(window.windowNumber), String(capture.dropFirst("--reflection-capture=".count))]
+                try? command.run()
+                command.waitUntilExit()
+                exit(command.terminationStatus)
             }
         }
     }

@@ -100,8 +100,8 @@ extension LibraryStore {
         })
         DraftWriter.flush()
         // 화면을 처음부터 다시 불러오지 않고 뒤에서 조용히 다시 읽는다.
-        writeStage = WriteStage(String(ui: "쓰기 확인 중…"))
-        await takeSnapshot(quiet: true)
+        writeStage = .reloadingLibrary
+        await takeSnapshot(quiet: true, refreshITunes: false)
         // 그리드만 바뀐 곡은 DB가 그대로라 목록 줄이 같다. 덱이 그 곡을 보고 있으면 초안·그리드만 다시 읽게 한다.
         onRekordboxWritten?(Set(report.written.map(\.trackUUID)).union(report.gridWritten.map(\.trackUUID)).union(report.gainWritten.map(\.trackUUID))
             .union(report.analysisWritten.map(\.trackUUID)).union(tagWritten).union(merges.filter { merged.contains($0.id) }.flatMap { $0.members.map(\.trackUUID) }))
@@ -132,7 +132,7 @@ extension LibraryStore {
         replaceTagDrafts(tags)
         DraftWriter.flush()
         writeStage = WriteStage(String(ui: "복원한 라이브러리를 읽는 중…"))
-        await takeSnapshot(quiet: true)
+        await takeSnapshot(quiet: true, refreshITunes: false)
         // 재생 목록 편집은 되돌린 rekordbox 상태에 다시 쌓는다(쌓지 못한 편집은 알린다).
         let unrestored = restorePlaylistEdits(RekordboxWriter.playlistEdits(in: backup.url))
         if unrestored > 0 {

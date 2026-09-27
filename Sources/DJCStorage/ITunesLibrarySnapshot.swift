@@ -3,7 +3,7 @@ import Foundation
 import RekordboxKit
 
 /// DB 스냅샷 옆에 보관하는 iTunes 목록 사본. Music·rekordbox에는 쓰지 않는다.
-public struct ITunesLibrarySnapshot: Codable, Sendable {
+public struct ITunesLibrarySnapshot: Codable, Equatable, Sendable {
     public struct Playlist: Codable, Equatable, Sendable {
         public var id: String
         public var name: String
