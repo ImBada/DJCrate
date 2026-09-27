@@ -1,10 +1,10 @@
 # djc 읽기·초안 명령과 JSON
 
-`search`, `track`, `duplicates`, `playlists`, `playlist`, `drafts`는 기존 최신 `LibrarySnapshot`을 읽는다. 스냅샷이 없으면 오류이며 라이브 DB로 대체하거나 자동으로 스냅샷을 만들지 않는다. 먼저 `djc snapshot`을 실행하거나 `--db <사본.db>`를 준다. 실제 라이브 `master.db` 경로와 그 심볼릭 링크·하드 링크는 거부한다. 읽기 명령은 초안·DB·음원을 변경하지 않는다.
+`search`, `track`, `duplicates`, `playlists`, `playlist`, `histories`, `history`, `drafts`는 기존 최신 `LibrarySnapshot`을 읽는다. 스냅샷이 없으면 오류이며 라이브 DB로 대체하거나 자동으로 스냅샷을 만들지 않는다. 먼저 `djc snapshot`을 실행하거나 `--db <사본.db>`를 준다. 실제 라이브 `master.db` 경로와 그 심볼릭 링크·하드 링크는 거부한다. 읽기 명령은 초안·DB·음원을 변경하지 않는다.
 
-에이전트(Claude Code·Codex)에게 이 명령으로 조회·제안하고 사용자가 고른 것만 초안으로 만들게 하는 스킬은 `skills/djcrate/SKILL.md`다(`.claude/skills/djcrate`·`.agents/skills/djcrate`는 그 폴더의 링크). 명령·JSON 계약을 바꾸면 스킬도 함께 고친다.
+에이전트(Claude Code·Codex)에게 이 명령으로 조회·제안하고 사용자가 고른 것만 초안으로 만들게 하는 스킬은 `skills/djcrate/SKILL.md`다(`.claude/skills/djcrate`·`.agents/skills/djcrate`는 그 폴더의 링크). 명령·JSON 계약을 바꾸면 스킬도 함께 고친다. AI 연동에는 CLI와 스킬을 사용하며 MCP 서버·별도 플러그인은 설치하지 않아도 된다.
 
-`--db`는 이 문서의 DB 읽기 명령에서 쓸 수 있다. 이때 그리드 파일은 사본 DB 옆 `share/PIONEER/USBANLZ`에서 읽으며, 없는 경우 라이브 분석 파일로 대체하지 않는다. 기본 스냅샷은 `DJC_REKORDBOX_DIR` 또는 기본 rekordbox 폴더의 `share`에서 분석 파일을 읽는다. 초안은 `DJC_HOME` 또는 기본 DJCrate 데이터 폴더에서 읽는다.
+`--db`는 이 문서의 DB 읽기 명령에서 쓸 수 있다. 이때 그리드 파일은 사본 DB 옆 `share/PIONEER/USBANLZ`에서 읽으며, 없는 경우 라이브 분석 파일로 대체하지 않는다. 기본 스냅샷은 `DJC_REKORDBOX_DIR` 또는 기본 rekordbox 폴더의 `share`에서 분석 파일을 읽는다. 초안은 `DJC_HOME` 또는 기본 DJCrate 데이터 폴더에서 읽는다. `DJC_DB`는 이 CLI 조회·초안 명령의 DB 선택에 쓰이지 않으므로 사본은 `--db`로 지정한다. 시험할 때는 `--db`와 별개로 임시 `DJC_HOME`과 합성 또는 사본 폴더인 `DJC_REKORDBOX_DIR`을 함께 지정한다.
 
 사람이 읽는 문구는 macOS 언어 설정(`Locale.preferredLanguages`)을 따르며 `DJC_LANG=ko|en|ja`로 우선 지정할 수 있다(예: `DJC_LANG=en djc search '시험' --json`, 지원하지 않는 언어는 영어). JSON의 `code`·칸 이름·데이터는 그대로 두고 오류 `message`만 번역한다.
 
@@ -20,6 +20,8 @@ djc track 101 --db /tmp/djc-fixture/master.db --json
 djc duplicates --db /tmp/djc-fixture/master.db --json
 djc playlists --tree --db /tmp/djc-fixture/master.db --json
 djc playlist p1 --db /tmp/djc-fixture/master.db --json
+djc histories --db /tmp/djc-fixture/master.db --json
+djc history h1 --db /tmp/djc-fixture/master.db --json
 djc drafts --db /tmp/djc-fixture/master.db --json
 djc report --db /tmp/djc-fixture/master.db --files --json
 djc path '시험' --db /tmp/djc-fixture/master.db --json
@@ -27,9 +29,11 @@ djc parse 'TVA 시험 OP 1' --json
 djc compat --db /tmp/djc-fixture/master.db --json
 ```
 
-`--json`을 빼면 사람이 읽는 출력이다. 기존 `report`, `path`, `parse`, `compat`의 일반 출력은 유지한다. 분석·파일 생성·실험·쓰기 명령(`analyze`, `snapshot`, `schema-dump`, `lab`, `reflection-dry-run`, `cue-write`, `track-add`, `track-delete`, `rekordbox-restore`)은 이 JSON 계약에 포함하지 않는다.
+`--json`을 빼면 사람이 읽는 출력이다. 기존 `report`, `path`, `parse`, `compat`의 일반 출력은 유지한다. 분석·파일 생성·실험·쓰기 명령(`analyze`, `snapshot`, `schema-dump`, `lab`, `reflection-dry-run`, `cue-write`, `track-add`, `track-delete`, `playlist-write`, `rekordbox-restore`)은 이 JSON 계약에 포함하지 않는다.
 
 검색은 제목·아티스트·코멘트·장르에 대한 대소문자 무시 부분 검색이다. 빈 검색어 `''`는 전체이며 삭제된 곡은 항상 제외한다. BPM은 양 끝을 포함하는 양수 범위, 키는 대소문자를 무시한 정확한 일치이고 조건은 모두 함께 적용한다. 암호화된 Spotify 제목·아티스트는 검색 대상에서 제외한다. `path`는 기존과 같이 제목의 대소문자를 구분하고 로컬 곡만 찾는다.
+
+`search`·`report`는 `--comment-preset none|anisong`을 받으며 기본값은 `none`이다. `off-convention`은 `--comment-preset anisong`이 있어야 하고, 없으면 `invalid_arguments`로 거절한다. `report`의 `commentClasses`·`prefixes`·`usages`는 이 프리셋을 지정할 때만 나온다. `parse`는 프리셋 옵션 없이 애니송 코멘트 규칙을 검사한다.
 
 `--filter`는 다음 이름 중 하나다. 앱과 동일한 판정을 사용하며 생략하면 `all`이다.
 
@@ -81,6 +85,8 @@ djc compat --db /tmp/djc-fixture/master.db --json
 | `playlists` | `{playlists: Playlist[]}`; `--tree`면 루트부터 `children`으로 중첩 |
 | `playlist` | `{playlist: Playlist, tracks: Track[]}` |
 | `drafts` | `{drafts: Draft[]}`; UUID 순서, 컬렉션에 없는 초안도 포함 |
+| `histories` | `{histories: History[]}` |
+| `history` | `{history: History, entries: HistoryEntry[]}` |
 | `report` | 아래 집계 필드 |
 | `path` | `{paths: string[]}` |
 | `parse` | `{classification: string, parsed?: ParsedComment}` |
@@ -92,9 +98,11 @@ djc compat --db /tmp/djc-fixture/master.db --json
 - `Grid`: `status`(`available` 또는 `unavailable`), `beatCount`, `segments`, `tempoChanges`. 각 구간은 `{start: number, bpm: number, firstBeatNumber: number}`이며 `start`는 rekordbox 시간축의 초다. 분석 경로·파일·유효한 박이 없으면 `unavailable`, 개수 0, 빈 배열을 반환한다.
 - `Gain`: `linear`, `decibels`, 선택 `peak`(선형 피크). 유효한 게인 행이 없으면 `gain`을 생략한다.
 - `Playlist`: `id`, `name`, `parentID`, `sequence`, `isFolder`, `trackCount`; `--tree`의 폴더에만 `children` 배열이 있다. `trackCount`는 조회 가능한 곡 수이며 폴더는 중복을 제거한 수다. 곡 상세의 소속은 직접 포함된 재생 목록만 담는다.
+- `History`: `id`, `name`, `trackCount`; 선택 문자열 `dateCreated`. `histories`는 날짜순이며 `trackCount`는 반복 재생을 포함한 조회 가능한 항목 수다.
+- `HistoryEntry`: `id`, 정수 `trackNumber`, `track`(Track). 같은 곡을 여러 번 재생한 항목은 그대로 남긴다.
 - `DraftState`: `cue`, `grid`, `gain`, `tag` 불리언 네 개다.
 - `Draft`: `trackUUID`, `kinds`(`cue`, `grid`, `gain`, `tag` 순서), 선택 `contentID`, `title`. 컬렉션에 없으면 마지막 두 필드를 생략한다. 큐·그리드·태그는 읽을 수 있고 실제 변경이 있는 초안만, 게인은 저장된 값이 있는 초안만 센다. 손상된 초안의 진단·반영 가능 여부 판정은 하지 않는다.
-- `report`: 정수 `totalRows`, `deletedRows`, `liveTracks`, `streamingTracks`, `tracksWithCues`, `tracksWithManualCues`, `tracksWithOnlyAutoCues`, `tracksWithoutCues`, `playedTracks`, `emptyCommentPlayed`; 문자열→정수 사전 `extensions`, `commentClasses`, `prefixes`, `usages`, `emptyByImportYear`, `hotCueSlots`. `--files`를 주면 정수 `missingFiles`를 더한다.
+- `report`: 정수 `totalRows`, `deletedRows`, `liveTracks`, `streamingTracks`, `tracksWithCues`, `tracksWithManualCues`, `tracksWithOnlyAutoCues`, `tracksWithoutCues`, `playedTracks`, `emptyCommentPlayed`; 문자열→정수 사전 `extensions`, `emptyByImportYear`, `hotCueSlots`; `--comment-preset anisong`일 때만 `commentClasses`, `prefixes`, `usages`. `--files`를 주면 정수 `missingFiles`를 더한다.
 - `ParsedComment`: `prefix`, `workRef`, `workName`, `abbreviations`, `usages`(`{kind, numbers}` 배열), `episodes`, `isCharacterSong`, `isTVSize`, `variants`, `isFormerAffiliation`, `boomboxVolumes`; 선택 `season`, `seasonStyle`(`parenthesized`, `plain`, `season`), `airingYear`, `airingQuarter`, `movieYear`. `classification`은 `convention`, `legacy`, `residue`, `credit`, `empty`, `other` 중 하나다.
 
 `compat` 성공은 기존 앱 버전·DB 구조·카운터 검사 통과를 뜻한다. rekordbox 실행 여부 등 실제 쓰기 사전 확인을 대체하지 않는다.
@@ -120,10 +128,10 @@ djc draft rm tag 101 --db /tmp/djc-fixture/master.db
 - `draft rm cue|tag <ContentID>`는 해당 종류의 **초안 전체**를 버린다. 개별 큐나 rekordbox 원본을 지우지 않는다. 이미 없는 초안을 지우는 것은 성공이다. 그리드·게인 초안은 그대로 둔다.
 - `--dry-run`은 같은 검증을 거쳐 결과를 보여 주고 폴더·파일을 만들거나 지우지 않는다. 기존 초안이 손상되었으면 덮어쓰지 않고 오류를 낸다.
 
-앱은 실행 중 약 1초마다 큐·태그 초안 파일 변경을 확인한다. 목록의 편집 표시·큐 개수·태그 편집기와 현재 덱의 큐를 갱신하며 재생 위치를 유지한다. 큐·그리드를 드래그하는 동안에는 저장 후에 다시 읽는다. 태그가 외부에서 바뀌면 오래된 되돌리기 기록은 비운다. 태그 초안은 기존 앱과 같이 태그 편집기에 표시되며, rekordbox 반영 대기 목록은 큐·그리드·게인만 포함한다. 같은 곡을 앱과 CLI에서 동시에 편집하면 마지막 저장이 앞선 저장을 덮을 수 있으므로 편집을 마친 뒤 다음 명령을 실행한다.
+앱은 실행 중 약 1초마다 큐·태그 초안 파일 변경을 확인한다. 목록의 편집 표시·큐 개수·태그 편집기와 현재 덱의 큐를 갱신하며 재생 위치를 유지한다. 큐·그리드를 드래그하는 동안에는 저장 후에 다시 읽는다. 태그가 외부에서 바뀌면 오래된 되돌리기 기록은 비운다. 태그 초안은 태그 편집기와 쓰기를 기다리는 초안 목록에 표시된다. 앱에서 사람이 큐·그리드·게인·태그와 재생 목록 초안을 미리 보고 rekordbox에 쓸 수 있다. 태그는 rekordbox 곡 정보에만 쓰고 음원 파일의 태그는 바꾸지 않는다. 같은 곡을 앱과 CLI에서 동시에 편집하면 마지막 저장이 앞선 저장을 덮을 수 있으므로 편집을 마친 뒤 다음 명령을 실행한다.
 
 `--json`은 위 JSON v1 성공/오류 출력 규칙을 따른다. `command`는 `draft`, `data`는 `{kind: "cue"|"tag", action: "save"|"remove", contentID, trackUUID, dryRun, hasChanges, cue?, tag?}`다. 저장·미리보기의 `cue` 또는 `tag`에는 앱 파일과 같은 초안 전체(`base` 포함)가 담긴다. `hasChanges`는 명령 적용 후 남을 초안의 변경 여부이며 삭제는 `false`다. 원본으로 되돌아간 초안은 저장소에서 제거된다.
 
 추가 오류 코드는 `invalid_draft`(기존 초안 손상·큐 한도), `draft_io_failed`(초안 저장·삭제 실패)다. 기존 `invalid_arguments`, `not_found`, `live_database`, `read_failed`도 사용한다. 실패 시 종료 코드 1이며 JSON은 stderr에만 나온다.
 
-재생 목록 초안은 #39에서 저장 방식이 정해진 뒤 다룬다. 이번 명령의 대상은 큐·태그다.
+앱은 재생 목록 초안을 지원하지만 `djc draft`의 대상은 큐·태그뿐이다. `playlist-write`는 JSON 편집을 DB에 쓰는 명령이며 DJCrate 재생 목록 초안 생성 명령이 아니다. 에이전트 스킬에서는 실행하지 않고 사람이 앱에서 재생 목록 초안을 만들도록 안내한다.
