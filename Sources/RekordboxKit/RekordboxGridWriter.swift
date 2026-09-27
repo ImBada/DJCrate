@@ -10,28 +10,51 @@ import Foundation
 /// - `.EXT`의 PQT2는 빈 형태(머리 0, 본문 없음)로 바꾼다. 다른 태그는 그대로.
 /// - DB(`contentFile` 해시·크기, `djmdContent`)는 건드리지 않는다. rekordbox도 이동만 했을 때는 DB를 고치지 않았다.
 /// 박 시각은 정밀 시각(ms)을 내림해 적고, 곡 앞쪽 −1ms 안의 박은 0으로 적는다(rekordbox가 만든 그리드와 전 박 일치 확인).
-/// BPM이 바뀌면(BPM 244→245 실험) `.DAT`의 `contentFile` 해시·크기·상태·변경 번호와 `djmdContent`의 BPM·AnalysisUpdated·
-/// TrackInfoUpdated·상태·변경 번호도 고친다. 템포가 여러 개인 곡의 BPM 변경은 막는다.
+/// 단일 템포 BPM 변경은 분석 기록도 갱신한다. 다구간 편집은 분석 기록을 보존하고,
+/// 첫 구간의 BPM이 바뀔 때만 곡 BPM·TrackInfoUpdated를 갱신한다(2026-09-28 별도 BPM 입력창 실험).
 public enum RekordboxGridWriter {
     /// 그리드 구간 → rekordbox PQTZ 박
     public static func beats(segments: [GridSegment], duration: Double) -> [BeatGridTags.Beat] {
+        generate(segments: segments, duration: duration, preserving: [:]).beats
+    }
+
+    static func generate(segments: [GridSegment], duration: Double,
+                         preserving originals: [Int: [BeatGridTags.Beat]],
+                         unchangedBoundaries: Set<Int> = [],
+                         fillsLeadIn: Bool = false) -> (beats: [BeatGridTags.Beat], counts: [Int]) {
         var beats: [BeatGridTags.Beat] = []
+        var counts = [Int](repeating: 0, count: segments.count)
         for (index, segment) in segments.enumerated() where segment.bpm > 0 {
+            let before = beats.count
             let interval = 60 / segment.bpm
-            let end = index + 1 < segments.count ? segments[index + 1].start : duration
+            // 새로 만든 박만 가까운 다음 구간 박으로 대체한다. 원본 박은 실제 경계까지 보존한다.
+            let end = index + 1 < segments.count
+                ? segments[index + 1].start - (unchangedBoundaries.contains(index) ? 0 : interval / 2)
+                : duration
             var k = index == 0 ? -Int(((segment.start + 0.001) / interval).rounded(.up)) : 0
             let bpm100 = Int((segment.bpm * 100).rounded())
-            while true {
-                let t = segment.start + Double(k) * interval
-                if t >= end - 0.0005 { break }
-                if t > -0.001 {
-                    let number = ((segment.firstBeatNumber - 1 + k) % 4 + 4) % 4 + 1
-                    beats.append(BeatGridTags.Beat(number: number, bpm100: bpm100, time: max(0, t * 1000)))
+            func append(until stop: Int?) {
+                while stop.map({ k < $0 }) ?? true {
+                    let t = segment.start + Double(k) * interval
+                    if t >= end - 0.0005 { break }
+                    if t > -0.001 {
+                        let number = ((segment.firstBeatNumber - 1 + k) % 4 + 4) % 4 + 1
+                        beats.append(BeatGridTags.Beat(number: number, bpm100: bpm100, time: max(0, t * 1000)))
+                    }
+                    k += 1
                 }
-                k += 1
             }
+            if let original = originals[index] {
+                // 첫 구간을 뒤로 옮기면 원본 첫 박 앞이 빈다. 옮겼을 때만 원본 없이 만들 때처럼 곡 시작까지 채운다.
+                if fillsLeadIn { append(until: 0) }
+                beats.append(contentsOf: original.filter { $0.time > -1 && $0.time < (end - 0.0005) * 1000 })
+                // 다음 경계를 뒤로 옮겼다면 기존 박 뒤에 필요한 박만 이어 붙인다.
+                k = original.count
+            }
+            append(until: nil)
+            counts[index] = beats.count - before
         }
-        return beats
+        return (beats, counts)
     }
 
     /// 곡 하나를 쓰기 위한 계획(파일 바이트까지 미리 만든다).
@@ -47,6 +70,8 @@ public enum RekordboxGridWriter {
         public var beats: [BeatGridTags.Beat]
         /// BPM이 바뀌면 새 `djmdContent.BPM`(BPM×100). 그대로면 nil(DB를 건드리지 않는다).
         public var newBPM100: Int?
+        /// 전체를 단일 템포로 고칠 때만 분석 카운터와 파일 행도 갱신한다.
+        public var updatesAnalysis: Bool
         /// `.DAT`의 DB 경로(`contentFile.Path`와 같다)
         public var analysisDataPath: String
     }
@@ -56,24 +81,41 @@ public enum RekordboxGridWriter {
         public var reason: String
     }
 
+    /// 음원 안의 구간에 박이 하나도 없으면 대표 BPM과 실제 그리드가 어긋난다.
+    static func hasEmptyVisibleSegment(segments: [GridSegment], counts: [Int], duration: Double) -> Bool {
+        segments.enumerated().contains { index, segment in
+            segment.start >= 0 && segment.start < duration && counts[index] == 0
+        }
+    }
+
     /// 계획을 만든다. 막히면 `Blocked`를 던진다.
     /// - Parameters:
-    ///   - rekordboxBPM100: `djmdContent.BPM`(BPM×100). 초안의 BPM이 이와 다르면 막는다.
+    ///   - rekordboxBPM100: `djmdContent.BPM`(BPM×100). 구간 BPM과 달라도 이동만 할 때는 보존한다.
     public static func plan(draft: GridDraft, title: String, analysisDataPath: String?, rekordboxBPM100: Int,
                             audioPath: String, shareRoot: URL = RekordboxShare.directory) throws -> Plan {
         func block(_ reason: String) -> Blocked { Blocked(title: title, reason: reason) }
         guard draft.hasChanges else { throw block(String(ui: "그리드 변경이 없습니다")) }
+        // PQTZ의 BPM은 u16, 시각은 u32다. 잘못된 초안을 정수로 바꾸다 앱이 종료되지 않게 먼저 거른다.
+        guard !draft.segments.isEmpty, draft.segments.allSatisfy({
+            $0.start.isFinite && abs($0.start) < Double(UInt32.max) / 1000
+                && (20...655.35).contains($0.bpm) && (1...4).contains($0.firstBeatNumber)
+        }), zip(draft.segments, draft.segments.dropFirst()).allSatisfy({ $0.start < $1.start }) else {
+            throw block(String(ui: "그리드를 쓸 수 없습니다. BPM을 20~655.35로 맞추고 변속 지점의 위치와 순서를 확인하세요"))
+        }
         let datURL = analysisDataPath.flatMap { $0.isEmpty ? nil : shareRoot.appending(path: String($0.drop(while: { $0 == "/" }))) }
         guard let datURL, FileManager.default.fileExists(atPath: datURL.path) else {
             throw block(String(ui: "rekordbox 분석 파일이 없습니다. rekordbox에서 트랙 분석을 먼저 하세요"))
         }
-        // BPM이 그대로면 파일만, 바뀌면 DB의 BPM도 고친다(템포가 하나인 그리드만).
+        // 구간 편집의 대표 BPM은 첫 구간을 바꿀 때만 갱신한다. 분석 기록은 전체 BPM 편집만 바꾼다.
         let bpmChanged = draft.segments.count != draft.base.count
             || zip(draft.segments, draft.base).contains { abs($0.bpm - $1.bpm) >= 0.005 }
             || rekordboxBPM100 == 0
-        if bpmChanged, draft.segments.count != 1 {
-            throw block(String(ui: "템포가 바뀌는 곡(구간 여러 개)의 BPM 변경은 아직 직접 쓰지 않습니다"))
-        }
+        let updatesAnalysis = draft.segments.count == 1
+        let firstBPMChanged = draft.segments.first.map { first in
+            draft.base.first.map { abs(first.bpm - $0.bpm) >= 0.005 } ?? true
+        } ?? false
+        let newBPM100 = (updatesAnalysis ? bpmChanged : firstBPMChanged)
+            ? draft.segments.first.map { Int(($0.bpm * 100).rounded()) } : nil
         let datFile: AnlzFile
         let originalDat: Data
         do {
@@ -92,7 +134,7 @@ public enum RekordboxGridWriter {
         }
         let originalExt = try? Data(contentsOf: extURL)
         let extFile = originalExt.flatMap { try? AnlzFile(data: $0) }
-        if originalExt != nil, extFile == nil { throw block(String(ui: "확장 분석 파일(.EXT)을 읽지 못했습니다")) }
+        guard originalExt != nil, extFile != nil else { throw block(String(ui: "확장 분석 파일(.EXT)을 읽지 못했습니다")) }
 
         // 초안을 시작한 뒤 rekordbox에서 그리드가 바뀌었으면 쓰지 않는다.
         let current = BeatGridTags.decode(pqtz: pqtz.bytes, pqt2: extFile?.tag("PQT2")?.bytes).beats
@@ -104,19 +146,48 @@ public enum RekordboxGridWriter {
 
         // 초안은 PQTZ의 ms(내림)로 만든 것이다. 실제 박은 그 ms 안 어딘가에 있어서, rekordbox는 소수(PQT2)를 알면 그 값을,
         // 모르면 ms 한가운데(+0.5ms)를 기준으로 다시 계산한다(BPM 244→245 실험에서 바이트까지 확인).
+        let anchors = Dictionary(current.map { (Int($0.time.rounded(.down)), $0.time) }, uniquingKeysWith: { first, _ in first })
         var segments = draft.segments
-        if let firstMs = current.first.map({ $0.time.rounded(.down) }), let first = current.first {
-            let fraction = first.time - firstMs
-            let offset = fraction > 0 ? fraction : 0.5
-            segments = segments.map { var s = $0; s.start += offset / 1000; return s }
+        for index in segments.indices {
+            let originalStart = draft.base.count == segments.count ? draft.base[index].start : segments[index].start
+            let precise = anchors[Int((originalStart * 1000).rounded())]
+            let fraction = precise.map { $0 - $0.rounded(.down) } ?? 0
+            segments[index].start += (fraction > 0 ? fraction : 0.5) / 1000
         }
 
         // 곡 길이(rekordbox 시간축): 음원 길이 + 인코더 지연
         let url = URL(filePath: audioPath)
         guard let audio = try? AVAudioFile(forReading: url) else { throw block(String(ui: "음원 파일을 열지 못했습니다")) }
         let duration = Double(audio.length) / audio.processingFormat.sampleRate + RekordboxTimeline.predictedOffset(url: url)
-        let beats = beats(segments: segments, duration: duration)
+        // 그대로인 구간은 실측 BPM으로 다시 만들면 1ms씩 흔들릴 수 있다. 원래 PQTZ 칸을 보존한다.
+        var preserved: [Int: [BeatGridTags.Beat]] = [:]
+        let matched = draft.matchingBaseIndices()
+        let unchangedBoundaries = Set(draft.segments.indices.filter { draft.preservesBoundary(after: $0, matched: matched) })
+        if segments.count > 1 {
+            for (index, segment) in draft.segments.enumerated() {
+                guard let oldIndex = matched[index], abs(segment.bpm - draft.base[oldIndex].bpm) < 0.005 else { continue }
+                let base = draft.base[oldIndex]
+                let lower = currentGrid.firstIndex(atOrAfter: currentSegments[oldIndex].start)
+                let upper = oldIndex + 1 < currentSegments.count
+                    ? currentGrid.firstIndex(atOrAfter: currentSegments[oldIndex + 1].start) : current.count
+                let delta = segment.start - base.start
+                let numberDelta = segment.firstBeatNumber - base.firstBeatNumber
+                preserved[index] = current[lower..<upper].map { beat in
+                    let number = (beat.number - 1 + numberDelta + 4) % 4 + 1
+                    return BeatGridTags.Beat(number: number, bpm100: beat.bpm100,
+                                             time: beat.time + delta * 1000)
+                }
+            }
+        }
+        // 첫 구간을 옮겼을 때만 곡 시작 쪽을 채운다. 그대로인 구간은 원본 박만 둔다.
+        let movesFirst = matched.first.flatMap { $0 }.map { abs(draft.segments[0].start - draft.base[$0].start) >= 0.0005 } ?? false
+        let generated = generate(segments: segments, duration: duration, preserving: preserved,
+                                 unchangedBoundaries: unchangedBoundaries, fillsLeadIn: movesFirst)
+        let beats = generated.beats
         guard beats.count >= 8 else { throw block(String(ui: "만든 박이 너무 적습니다")) }
+        guard !hasEmptyVisibleSegment(segments: segments, counts: generated.counts, duration: duration) else {
+            throw block(String(ui: "그리드 구간의 첫 박이 사라집니다. 변속 지점이나 BPM을 조정하세요"))
+        }
 
         var newDatFile = datFile
         newDatFile.replace("PQTZ", with: BeatGridTags.pqtz(beats))
@@ -127,7 +198,7 @@ public enum RekordboxGridWriter {
         }
         return Plan(trackUUID: draft.trackUUID, title: title, datURL: datURL, extURL: originalExt == nil ? nil : extURL,
                     originalDat: originalDat, originalExt: originalExt, newDat: newDatFile.serialized(), newExt: newExt, beats: beats,
-                    newBPM100: bpmChanged ? Int((draft.segments[0].bpm * 100).rounded()) : nil,
+                    newBPM100: newBPM100, updatesAnalysis: updatesAnalysis,
                     analysisDataPath: analysisDataPath ?? "")
     }
 

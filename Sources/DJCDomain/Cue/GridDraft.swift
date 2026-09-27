@@ -72,9 +72,14 @@ public struct GridDraft: Codable, Equatable, Sendable {
     /// 구간으로 박을 다시 만든다. 첫 구간은 곡 시작 쪽으로도 늘린다.
     public func grid(duration: Double) -> BeatGrid {
         var beats: [BeatGrid.Beat] = []
+        let matched = matchingBaseIndices()
         for (index, segment) in segments.enumerated() where segment.bpm > 0 {
             let interval = 60 / segment.bpm
-            let end = index + 1 < segments.count ? segments[index + 1].start : duration + 0.0005
+            // 상대 경계와 이전 BPM이 그대로면 기존 경계 직전 박도 유효하다.
+            let retainsBoundary = preservesBoundary(after: index, matched: matched)
+            let end = index + 1 < segments.count
+                ? segments[index + 1].start - (retainsBoundary ? 0 : interval / 2)
+                : duration + 0.0005
             var k = index == 0 ? -Int((segment.start / interval).rounded(.down)) : 0
             while true {
                 let t = segment.start + Double(k) * interval
@@ -88,6 +93,64 @@ public struct GridDraft: Codable, Equatable, Sendable {
         }
         return BeatGrid(beats: beats)
     }
+
+    /// 원본과 현재 구간의 대응. 시작 시각이 같거나 이웃과 함께 이동한 원본만 연결한다.
+    /// 번호·BPM 편집은 구간의 정체성을 바꾸지 않지만, 새로 넣은 변속 지점은 연결하지 않는다.
+    public func matchingBaseIndices() -> [Int?] {
+        if segments.count == base.count, let first = segments.first, let oldFirst = base.first {
+            let shift = first.start - oldFirst.start
+            if zip(segments, base).allSatisfy({ abs(($0.start - $1.start) - shift) < 0.0005 }) {
+                return base.indices.map { Optional($0) }
+            }
+        }
+        var matches = [Int?](repeating: nil, count: segments.count)
+        for index in segments.indices {
+            let candidates = base.indices.filter { abs(base[$0].start - segments[index].start) < 0.0005 }
+            if candidates.count == 1 { matches[index] = candidates[0] }
+        }
+        guard segments.count > 1, base.count > 1 else { return matches }
+        let candidatePairs: [[Int]] = (0..<(segments.count - 1)).map { index in
+            let gap = segments[index + 1].start - segments[index].start
+            return base.indices.dropLast().filter { oldIndex in
+                abs(segments[index].bpm - base[oldIndex].bpm) < 0.005
+                    && abs(gap - (base[oldIndex + 1].start - base[oldIndex].start)) < 0.0005
+            }
+        }
+        var changed = true
+        while changed {
+            changed = false
+            for index in 0..<(segments.count - 1) {
+                let lower = matches[..<index].compactMap { $0 }.last ?? -1
+                let upper = matches[(index + 2)...].compactMap { $0 }.first ?? base.count
+                let candidates = candidatePairs[index].filter { oldIndex in
+                    (matches[index].map { $0 == oldIndex } ?? true)
+                        && (matches[index + 1].map { $0 == oldIndex + 1 } ?? true)
+                        && oldIndex > lower && oldIndex + 1 < upper
+                }
+                if candidates.count == 1, let oldIndex = candidates.first {
+                    if matches[index] == nil { matches[index] = oldIndex; changed = true }
+                    if matches[index + 1] == nil { matches[index + 1] = oldIndex + 1; changed = true }
+                }
+            }
+        }
+        return matches
+    }
+
+    /// 원본의 인접 구간과 상대 경계가 같은지 확인한다. 박 번호 변경은 박 시각에 영향을 주지 않는다.
+    public func preservesBoundary(after index: Int) -> Bool {
+        preservesBoundary(after: index, matched: matchingBaseIndices())
+    }
+
+    /// 여러 경계를 순회할 때 한 번 계산한 원본 대응을 재사용한다.
+    public func preservesBoundary(after index: Int, matched: [Int?]) -> Bool {
+        guard segments.indices.contains(index), index + 1 < segments.count,
+              matched.count == segments.count,
+              let oldIndex = matched[index], matched[index + 1] == oldIndex + 1 else { return false }
+        return abs(segments[index].bpm - base[oldIndex].bpm) < 0.005
+            && abs((segments[index + 1].start - segments[index].start)
+                   - (base[oldIndex + 1].start - base[oldIndex].start)) < 0.0005
+    }
+
 
     public func segmentIndex(at time: Double) -> Int {
         segments.lastIndex { $0.start <= time + 0.0005 } ?? 0
@@ -187,8 +250,8 @@ public extension GridDraft {
             let anchor = o.start + k * interval
             return n.start + (time - anchor) * o.bpm / n.bpm
         }
-        let oldGrid = GridDraft(trackUUID: "", base: [], segments: old).grid(duration: duration)
-        let newGrid = GridDraft(trackUUID: "", base: [], segments: new).grid(duration: duration)
+        let oldGrid = GridDraft(trackUUID: "", base: old, segments: old).grid(duration: duration)
+        let newGrid = GridDraft(trackUUID: "", base: old, segments: new).grid(duration: duration)
         guard !oldGrid.beats.isEmpty, !newGrid.beats.isEmpty else { return time }
         let beat = oldGrid.snap(time)
         let oldBPM = oldGrid.beats[max(0, oldGrid.firstIndex(atOrAfter: beat - 0.0005))].bpm
