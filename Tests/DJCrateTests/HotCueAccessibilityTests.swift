@@ -24,6 +24,7 @@ struct HotCueAccessibilityTests {
         h.deck.pressHotCue(slot: 0)
         #expect(h.deck.hotCueAccessibility(slot: 0).label == "루프 핫큐 A")
         #expect(h.deck.hotCueAccessibility(slot: 0).value == "4박, 반복 중")
+        h.deck.togglePlay()
         h.deck.pressHotCue(slot: 0)
         #expect(h.deck.hotCueAccessibility(slot: 0).value == "4박, 반복 꺼짐")
         h.deck.pressHotCue(slot: 0)

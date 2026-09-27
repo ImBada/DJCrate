@@ -48,13 +48,62 @@ struct DeckPlayQuantizeTests {
         #expect(h.audio.log.last == "jump 11.000→30.000")
     }
 
-    @Test func 멈춰_있으면_바로_큐로() async throws {
+    @Test(arguments: [false, true], [0, 1])
+    func 멈춰_있으면_바로_큐부터_재생한다(quantized: Bool, slot: Int) async throws {
         let h = try harness()
         try await h.loaded()
+        h.deck.playQuantize = quantized
         h.deck.seek(10.6)
-        h.deck.pressHotCue(slot: 0)
-        #expect(h.deck.playhead == 30)
+        h.deck.pressHotCue(slot: slot)
+        let cue = try #require(h.deck.hotCue(slot: slot))
+        #expect(h.deck.playhead == cue.time)
+        #expect(h.deck.isPlaying && h.audio.isPlaying)
+        #expect(h.audio.log.last == String(format: "play %.3f", cue.time))
+        #expect(h.deck.selectedCueID == cue.id)
+        #expect(h.audio.loop == cue.loop.map { cue.time...$0.end })
         #expect(!h.audio.log.contains { $0.hasPrefix("jump") })
+        #expect(h.deck.pendingJump == nil && h.deck.scheduledJump == nil)
+    }
+
+    @Test(arguments: [false, true])
+    func 루프를_재생하다_멈춘_뒤_같은_핫큐를_누르면_처음부터_반복한다(quantized: Bool) async throws {
+        let h = try harness()
+        try await h.loaded()
+        h.deck.playQuantize = quantized
+        h.deck.seek(40)
+        h.deck.engagedLoopID = h.deck.hotCue(slot: 1)?.id
+        h.deck.syncAudioLoop()
+        h.deck.togglePlay()
+        h.audio.position = 41
+        h.deck.togglePlay()
+        h.deck.pressHotCue(slot: 1)
+        #expect(h.deck.isPlaying && h.audio.isPlaying)
+        #expect(h.deck.playhead == 40 && h.audio.log.last == "play 40.000")
+        #expect(h.deck.engagedLoopID == h.deck.hotCue(slot: 1)?.id)
+        #expect(h.audio.loop == 40...42 && h.audio.handlesLoop)
+    }
+
+    @Test(arguments: [false, true], [false, true])
+    func 빈_슬롯_등록은_정지_상태를_유지한다(quantized: Bool, loop: Bool) async throws {
+        let h = try harness()
+        try await h.loaded()
+        h.deck.playQuantize = quantized
+        h.deck.seek(10.5)
+        if loop { h.deck.toggleLoop() }
+        h.deck.pressHotCue(slot: 2)
+        let cue = try #require(h.deck.hotCue(slot: 2))
+        #expect(cue.time == 10.5 && (cue.loop != nil) == loop)
+        #expect(!h.deck.isPlaying && !h.audio.isPlaying)
+        #expect(!h.audio.log.contains { $0.hasPrefix("play ") || $0.hasPrefix("jump ") })
+    }
+
+    @Test func 재생할_수_없는_곡은_핫큐를_골라도_재생을_시도하지_않는다() async throws {
+        let h = try harness()
+        try await h.loaded()
+        h.deck.canPlay = false
+        h.deck.pressHotCue(slot: 0)
+        #expect(h.deck.playhead == 30 && !h.deck.isPlaying)
+        #expect(!h.audio.log.contains { $0.hasPrefix("play ") })
     }
 
     @Test func 끄면_누르는_즉시_넘어간다() async throws {

@@ -37,7 +37,8 @@ struct DeckLoopTests {
         #expect(stored.time == 10.5 && stored.loop == EditableCue.Loop(end: 12.5, active: false, beats: 4))
         #expect(h.deck.instantLoop == nil && h.deck.engagedLoopID == stored.id && h.deck.isLooping)
         #expect(h.drafts.cue("track-1")?.cues.contains { $0.id == stored.id } == true, "초안은 저장된다")
-        // 반복 중인 그 칸을 다시 누르면 빠져나온다
+        // 재생 중인 그 칸을 다시 누르면 빠져나온다
+        h.deck.togglePlay()
         h.deck.pressHotCue(slot: 2)
         #expect(!h.deck.isLooping)
     }

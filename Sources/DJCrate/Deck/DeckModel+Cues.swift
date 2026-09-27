@@ -82,15 +82,17 @@ extension DeckModel {
     func pressHotCue(slot: Int) {
         AudioEvents.record("조작 핫큐 \(String(UnicodeScalar(UInt8(65 + slot)))) · 재생 중=\(isPlaying) · 위치 \(String(format: "%.2f", playhead))")
         if let cue = hotCue(slot: slot) {
-            // 루프 핫큐: 누르면 그 루프를 반복하고, 반복 중에 다시 누르면 빠져나온다.
-            if cue.loop != nil, engagedLoopID == cue.id {
+            // 루프 핫큐: 재생 중에 같은 루프를 다시 누르면 빠져나오고, 정지 중이면 처음부터 재생한다.
+            if isPlaying, cue.loop != nil, engagedLoopID == cue.id {
                 exitLoop()
                 return
             }
             // 재생 퀀타이즈가 켜져 있으면 다음 박 조각 경계에서 넘어간다(멈춰 있으면 바로).
             if !quantizedJump(to: cue) {
+                let startsPlayback = !isPlaying && canPlay
                 seek(cue.time)
                 if cue.loop != nil { instantLoop = nil; engagedLoopID = cue.id; syncAudioLoop() }
+                if startsPlayback { startPlayback(from: playhead) }
             }
             selectedCueID = cue.id
         } else if let loop = instantLoop {
