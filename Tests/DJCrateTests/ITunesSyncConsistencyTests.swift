@@ -238,12 +238,14 @@ struct ITunesSyncConsistencyTests {
         #expect(store.rows.count == 1)
         let gate = ITunesSyncCaptureGate(), sourceDB = fixture.database
         let pending = Task {
+            // CI의 사본 경로 설정과 무관하게 캡처 실패 뒤 메모리 복구를 검증한다.
             await store.takeSnapshot(force: true, quiet: true, snapshotDirectory: directory,
                                      snapshotCopy: { force in
                                          gate.started.signal()
                                          _ = gate.resume.wait(timeout: .now() + 15)
                                          return try LibrarySnapshot.take(from: sourceDB, into: directory, force: force, now: stamp)
-                                     }, captureITunes: { ITunesLibrarySnapshot(status: .unavailable) })
+                                     }, captureITunes: { ITunesLibrarySnapshot(status: .unavailable) },
+                                     arguments: ["test"], environment: [:])
         }
         let started = await withCheckedContinuation { continuation in
             DispatchQueue.global().async { continuation.resume(returning: gate.started.wait(timeout: .now() + 15) == .success) }
