@@ -22,16 +22,16 @@ struct WaveformAccessibilityTests {
 
     @Test func 확대_파형_값은_위치_마디_다음_메모리_큐까지() {
         let cues = [EditableCue(kind: .memory, time: 87), EditableCue(kind: .hot(0), time: 84)]
-        #expect(WaveformAccessibility.zoomValue(time: 83.2, grid: grid, cues: cues) == "1분 23초, 42.2마디, 다음 메모리 큐까지 8박")
+        #expect(WaveformAccessibility.zoomValue(time: 83.2, grid: grid, cues: cues) == "1분 23초, 42.3마디, 다음 메모리 큐까지 8박")
         #expect(WaveformAccessibility.zoomValue(time: 83.2, grid: nil, cues: cues) == "1분 23초, 다음 메모리 큐까지 4초")
-        #expect(WaveformAccessibility.zoomValue(time: 90, grid: grid, cues: cues) == "1분 30초, 46.0마디")
+        #expect(WaveformAccessibility.zoomValue(time: 90, grid: grid, cues: cues) == "1분 30초, 46.1마디")
         let far = [EditableCue(kind: .memory, time: 100)]
-        #expect(WaveformAccessibility.zoomValue(time: 20, grid: grid, cues: far) == "20초, 11.0마디, 다음 메모리 큐까지 40마디")
-        #expect(WaveformAccessibility.zoomValue(time: 67, grid: grid, cues: far) == "1분 7초, 34.2마디, 다음 메모리 큐까지 16마디 2박")
+        #expect(WaveformAccessibility.zoomValue(time: 20, grid: grid, cues: far) == "20초, 11.1마디, 다음 메모리 큐까지 40마디")
+        #expect(WaveformAccessibility.zoomValue(time: 67, grid: grid, cues: far) == "1분 7초, 34.3마디, 다음 메모리 큐까지 16마디 2박")
     }
 
     @Test func 전체_파형_값은_곡_길이_중_위치() {
-        #expect(WaveformAccessibility.overviewValue(time: 83.2, duration: 180, grid: grid) == "전체 3분 0초 중 1분 23초, 42.2마디")
+        #expect(WaveformAccessibility.overviewValue(time: 83.2, duration: 180, grid: grid) == "전체 3분 0초 중 1분 23초, 42.3마디")
         #expect(WaveformAccessibility.overviewValue(time: 5, duration: 180, grid: nil) == "전체 3분 0초 중 5초")
     }
 
