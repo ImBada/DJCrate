@@ -20920,22 +20920,6 @@
         }
       }
     },
-    "템포가 바뀌는 곡(구간 여러 개)의 BPM 변경은 아직 직접 쓰지 않습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "BPM changes for tracks whose tempo changes (multiple sections) aren't written directly yet"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "テンポが変わる曲（複数区間）のBPM変更はまだ直接書き込みません"
-          }
-        }
-      }
-    },
     "템포가 바뀌는 곡(템포 구간 %lld개)은 아직 편집하지 않습니다. 템포 구간이 하나인 곡을 고르세요" : {
       "localizations" : {
         "en" : {
@@ -23112,6 +23096,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選択したプレイリストをrekordboxとDJCrateに同じように反映します。先にrekordboxを終了してください。"
+          }
+        }
+      }
+    },
+    "그리드를 쓸 수 없습니다. BPM을 20~655.35로 맞추고 변속 지점의 위치와 순서를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot write the grid. Set BPM between 20 and 655.35, and check the positions and order of tempo changes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グリッドを書き込めません。BPMを20～655.35に設定し、テンポ変更点の位置と順序を確認してください。"
+          }
+        }
+      }
+    },
+    "그리드 구간의 첫 박이 사라집니다. 변속 지점이나 BPM을 조정하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The first beat of a grid segment would disappear. Adjust the tempo change point or BPM."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グリッド区間の最初の拍が消えてしまいます。テンポ変更位置または BPM を調整してください。"
           }
         }
       }
