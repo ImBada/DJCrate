@@ -166,6 +166,8 @@ struct SyncedITunesLibraryTests {
         "<VALUE name='MusicAppLoadingType' val='0'/><VALUE name='unrelated' name='itunesLibraryFile' val='&#2;'/>",
         "<VALUE name='MusicAppLoadingType' val='0'/><VALUE name='itunesLibraryFile' val='/a&#x05;b'/>",
         "<VALUE name='MusicAppLoadingType' val='0'/><VALUE name='unrelated' val='&#2;'></BROKEN>",
+        "<VALUE name='MusicAppLoadingType' val='0'/><VALUE name='unrelated' val='&am&#2;p;'/>",
+        "<VALUE name='MusicAppLoadingType' val='0'/><VALUE name='unrelated' val='&&#5;#48;'/>",
     ])
     func 필수_설정_손상과_깨진_구조는_복구하지_않는다(values: String) {
         #expect(throws: (any Error).self) {

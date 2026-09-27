@@ -84,7 +84,7 @@ public enum RekordboxITunesReader {
         let attribute = try NSRegularExpression(pattern: #"(name|val)[ \t\r\n]*=[ \t\r\n]*(["'])([\s\S]*?)\2"#)
         let reference = try NSRegularExpression(pattern: #"&#(x[0-9a-fA-F]+|[0-9]+);"#)
         var cursor = 0
-        var removals: [NSRange] = []
+        var replacements: [NSRange] = []
         while cursor < source.length {
             let start = source.range(of: "<", range: NSRange(location: cursor, length: source.length - cursor))
             if start.location == NSNotFound { break }
@@ -109,13 +109,14 @@ public enum RekordboxITunesReader {
                 let number = (tag as NSString).substring(with: match.range(at: 1))
                 let hex = number.hasPrefix("x")
                 guard let scalar = UInt32(hex ? String(number.dropFirst()) : number, radix: hex ? 16 : 10) else { continue }
-                // XML 1.0 §2.2 Char: 무관한 VALUE의 val에 있는 금지 숫자 참조만 제외한다.
+                // XML 1.0 §2.2 Char: 무관한 VALUE의 val에 있는 금지 숫자 참조만 바꾼다.
                 if scalar == 9 || scalar == 10 || scalar == 13 || (0x20...0xD7FF).contains(scalar)
                     || (0xE000...0xFFFD).contains(scalar) || (0x10000...0x10FFFF).contains(scalar) { continue }
-                removals.append(NSRange(location: token.range.location + match.range.location, length: match.range.length))
+                replacements.append(NSRange(location: token.range.location + match.range.location, length: match.range.length))
             }
         }
-        for range in removals.reversed() { result.deleteCharacters(in: range) }
+        // 삭제하면 &am&#2;p;처럼 깨진 참조가 합쳐질 수 있어 공백으로 경계를 남긴다.
+        for range in replacements.reversed() { result.replaceCharacters(in: range, with: " ") }
         return Data((result as String).utf8)
     }
 
