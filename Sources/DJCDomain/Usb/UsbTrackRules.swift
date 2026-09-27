@@ -38,10 +38,11 @@ public enum UsbTrackRules {
     public static let longAsciiThreshold = 127
 
     /// 로컬 djmdContent.FileType → USB 파일 확장자. 모르면 nil(내보내지 않는다).
-    /// 1 MP3, 3 MP4(AAC), 4 M4A, 5 FLAC, 6 M4A(ALAC), 11 WAV, 12 AIFF. 25·26(스트리밍)은 파일이 없다.
+    /// 1 MP3, 4 M4A, 5 FLAC, 11 WAV, 12 AIFF. 3 → mp4·6 → m4a 대응은 추정(확인 전)이라 fileTypeUnverified로 막는다.
+    /// 그 밖의 값은 모른다. 1·4·5 밖의 형식은 모두 fileTypeUnverified를 싣는다.
     public static let knownFileTypes: [Int: String] = [1: "mp3", 3: "mp4", 4: "m4a", 5: "flac", 6: "m4a", 11: "wav", 12: "aiff"]
 
-    /// 골든에서 본 음원 형식(MP3·M4A·FLAC)
+    /// rekordbox 7.2.18 골든 관찰(2026-09-26 내보내기)
     static let verifiedFileTypes: Set<Int> = [1, 4, 5]
 
     public static func rules(fileType: Int, metadata: UsbTrackMetadataFlags, pdbStrings: [String]) -> Set<UsbProvisionalRule> {

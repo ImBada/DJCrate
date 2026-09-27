@@ -43,16 +43,10 @@ enum UsbPlanLab {
         }
 
         let candidates = try UsbExportCandidates.load(database: database, share: URL(filePath: shareArgument), contentIDs: ids)
-        // 빈 USB 계획이라 USB에 있는 파일과 겹칠 일이 없다(겹치면 크기·SHA-256으로 비교한다).
-        let usbRoot: URL? = nil
-        let sources = Dictionary(candidates.map { ($0.localContentID, $0.sourcePath) }, uniquingKeysWith: { first, _ in first })
+        // 빈 USB 계획이라 USB에 있는 파일과 겹치지 않아 같은 내용 비교를 부르지 않는다(기본값을 쓴다).
         let plan = UsbExportPlanner.plan(UsbExportRequest(
             candidates: candidates, playlists: playlists, existing: nil, formats: UsbFormat.defaultSet, naming: IdentifierAnalysisNaming(),
-            snapshotTakenAt: snapshot.date, clusterSize: clusterSize,
-            sameContent: { id, relative in
-                guard let usbRoot, let source = sources[id] ?? nil else { return false }
-                return UsbExportCandidates.sameContent(sourcePath: source, usbFile: usbRoot.appending(path: relative))
-            }))
+            snapshotTakenAt: snapshot.date, clusterSize: clusterSize))
 
         print("후보 \(ids.count) · 읽은 곡 \(candidates.count) · 계획 \(plan.tracks.count)곡 · 목록 \(plan.playlists.count) · "
             + "막힘 \(plan.blocked.count) · 경고 \(plan.warnings.count)")

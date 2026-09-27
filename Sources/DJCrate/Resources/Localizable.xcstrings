@@ -14515,7 +14515,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Intelligent Playlists can't be exported yet. Copy it to a regular playlist, then export"
+            "value" : "Intelligent Playlists can't be exported yet. Copy the playlist to a regular playlist, then export"
           }
         },
         "ja" : {
