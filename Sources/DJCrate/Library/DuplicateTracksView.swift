@@ -31,10 +31,14 @@ struct DuplicateTracksView: View {
                 GeometryReader { geometry in
                     ScrollView(.horizontal) {
                         VStack(spacing: 0) {
-                            columns(title: String(ui: "곡 · 파일 경로"), length: String(ui: "길이"), cues: String(ui: "큐"), playlists: String(ui: "재생 목록"),
-                                    plays: String(ui: "재생 횟수"), format: String(ui: "형식"), bitrate: String(ui: "비트레이트"))
-                                .font(.caption).foregroundStyle(.secondary)
-                                .padding(.horizontal, 16).padding(.vertical, 6)
+                            HStack(spacing: Self.artworkSpacing) {
+                                Image(systemName: "photo").frame(width: Self.artworkSide)
+                                    .accessibilityLabel(Text(.ui("앨범 아트")))
+                                columns(title: String(ui: "곡 · 파일 경로"), length: String(ui: "길이"), cues: String(ui: "큐"), playlists: String(ui: "재생 목록"),
+                                        plays: String(ui: "재생 횟수"), format: String(ui: "형식"), bitrate: String(ui: "비트레이트"))
+                            }
+                            .font(.caption).foregroundStyle(.secondary)
+                            .padding(.horizontal, 16).padding(.vertical, 6)
                             List(selection: $store.selection) {
                                 ForEach(store.displayDuplicateGroups) { group in
                                     Section {
@@ -71,7 +75,20 @@ struct DuplicateTracksView: View {
         store.displayRows.first { ids.contains($0.id) }
     }
 
+    /// 곡 목록의 앨범 아트 칸과 같은 크기
+    private static let artworkSide: CGFloat = 22
+    private static let artworkSpacing: CGFloat = 12
+
     private func candidate(_ member: LibraryRead.DuplicateMember, group: LibraryRead.DuplicateGroup) -> some View {
+        HStack(alignment: .top, spacing: Self.artworkSpacing) {
+            ArtworkThumbnail(imagePath: member.imagePath, id: member.id)
+                .frame(width: Self.artworkSide, height: Self.artworkSide)
+            details(member, group: group)
+        }
+        .padding(.vertical, 3)
+    }
+
+    private func details(_ member: LibraryRead.DuplicateMember, group: LibraryRead.DuplicateGroup) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             columns(title: member.track.title, length: String(ui: "\(member.track.lengthSeconds)초"), cues: "\(member.cueCount)",
                     playlists: "\(member.playlistCount)", plays: "\(member.playCount)", format: member.format,
@@ -96,7 +113,6 @@ struct DuplicateTracksView: View {
                 .disabled(preparing || group.tracks.contains { store.pendingUUIDs.contains($0.track.uuid) })
             }
         }
-        .padding(.vertical, 3)
     }
 
     private func columns(title: String, length: String, cues: String, playlists: String,
@@ -111,5 +127,32 @@ struct DuplicateTracksView: View {
             Text(bitrate).frame(width: 100, alignment: .trailing)
         }
         .monospacedDigit()
+    }
+}
+
+/// 곡 목록의 앨범 아트 칸(`ThumbnailCell`)과 같은 모양·같은 디코딩·같은 캐시 키(ContentID)를 쓴다.
+/// 줄마다 AppKit 셀을 만들면 빠르게 훑을 때 한 번 처리가 늘어서 SwiftUI로 그린다.
+private struct ArtworkThumbnail: View {
+    let imagePath: String?
+    let id: String
+    @State private var artwork: Thumbnails.Box?
+
+    var body: some View {
+        ZStack {
+            if let artwork {
+                Image(decorative: artwork.image, scale: 1).resizable().scaledToFit()
+            } else {
+                Color(nsColor: .quaternarySystemFill)
+                Image(systemName: "music.note").font(.system(size: 8)).foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 3))
+        .accessibilityElement()
+        .accessibilityLabel(artwork == nil ? Text(.ui("앨범 커버 없음")) : Text(.ui("앨범 커버")))
+        // 스크롤로 지나친 줄은 작업이 취소되어 디코딩하지 않는다(`Thumbnails`).
+        .task(id: id) {
+            let box = await Thumbnails.shared.image(imagePath: imagePath, key: id)
+            if !Task.isCancelled { artwork = box }
+        }
     }
 }
