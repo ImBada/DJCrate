@@ -50,28 +50,21 @@ struct TransportBar: View {
                 ZoomControl(deck: deck)
                 ShortcutsButton()
                 TrackEditButton(deck: deck)
-                HStack(spacing: 8) {
-                    Toggle(.ui("퀀타이즈"), isOn: $deck.quantize)
-                        .toggleStyle(.checkbox)
-                        .help(.ui("rekordbox 비트 그리드의 박에 맞춤"))
-                    Toggle(.ui("제안"), isOn: $deck.showSuggestions)
-                        .toggleStyle(.checkbox)
-                        .help(.ui("섹션 경계 기반 메모리 큐 제안 표시. 초록 + 를 클릭하면 추가"))
-                }
+                Toggle(.ui("큐 제안 표시"), isOn: $deck.showSuggestions)
+                    .toggleStyle(.checkbox)
+                    .help(.ui("섹션 경계 기반 메모리 큐 제안 표시. 초록 + 를 클릭하면 추가"))
             }
         }
         .controlSize(ControlSize.small.scaled(textScale))
     }
 }
 
-/// 재생 퀀타이즈(Q): 켜면 재생 중 핫큐가 다음 박 조각 경계에서 박자를 이어 넘어간다. 단위는 설정 › 덱.
-/// 큐를 찍을 때 박에 맞추는 '퀀타이즈' 체크와는 따로다.
+/// Q 하나로 큐·루프 등록 스냅과 재생 중 핫큐 점프 퀀타이즈를 함께 켠다.
 struct PlayQuantizeToggle: View {
     @Environment(\.textScale) private var textScale
     let deck: DeckModel
 
     var body: some View {
-        let unit = PlayQuantize.unitText(deck.playQuantizeBeats)
         let on = deck.playQuantize
         // CUE·루프 버튼처럼 켜지면 색이 찬다(핫큐·메모리·루프 색과 겹치지 않는 파랑).
         Button { deck.playQuantize.toggle() } label: {
@@ -85,20 +78,9 @@ struct PlayQuantizeToggle: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(.isToggle)
-        .help(.ui("재생 퀀타이즈: 켜면 재생 중 핫큐를 누른 뒤 다음 \(unit) 경계에서 박자를 이어 넘어갑니다. 단위는 설정 › 덱에서 바꿉니다"))
-        .accessibilityLabel(.ui("재생 퀀타이즈"))
-        .accessibilityValue(on ? String(ui: "켜짐, \(unit)") : String(ui: "꺼짐"))
-    }
-}
-
-extension PlayQuantize {
-    /// 설정·도움말에 보이는 단위 이름
-    static func unitText(_ beats: Double) -> String {
-        switch beats {
-        case 0.25: String(ui: "1/4박")
-        case 0.5: String(ui: "1/2박")
-        default: String(ui: "1박")
-        }
+        .help(.ui("퀀타이즈(Q): 큐·루프를 등록할 때 비트 그리드의 박에 맞추고, 재생 중 핫큐를 누르면 다음 박에서 저장된 핫큐 위치로 이동해 재생합니다"))
+        .accessibilityLabel(.ui("퀀타이즈(Q): 큐·루프 등록과 핫큐 점프"))
+        .accessibilityValue(on ? String(ui: "켜짐") : String(ui: "꺼짐"))
     }
 }
 

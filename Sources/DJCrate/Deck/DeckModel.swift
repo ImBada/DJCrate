@@ -49,10 +49,19 @@ final class DeckModel {
     /// CUE를 누르고 있는 동안의 미리 듣기.
     var isCuePreviewing = false
     var placeAtFirstMemoryCue = false
-    var quantize = true { didSet { storage.settings.set(SettingKeys.quantize, quantize) } }
-    /// 재생 퀀타이즈(Q): 재생 중 핫큐를 누르면 다음 박 조각(`playQuantizeBeats`) 경계에서 넘어간다.
-    var playQuantize = true { didSet { storage.settings.set(SettingKeys.playQuantize, playQuantize) } }
-    /// 재생 퀀타이즈 단위(박): 1/4 · 1/2 · 1
+    /// 큐·루프 등록도 Q와 같은 상태를 읽는다. 기존 편집 호출부는 이 이름을 유지한다.
+    var quantize: Bool {
+        get { playQuantize }
+        set { playQuantize = newValue }
+    }
+    /// Q 하나로 큐·루프 등록 스냅과 재생 중 핫큐 점프 퀀타이즈를 함께 켠다.
+    var playQuantize = true {
+        didSet {
+            storage.settings.set(SettingKeys.playQuantize, playQuantize)
+            storage.settings.set(SettingKeys.quantize, playQuantize)
+        }
+    }
+    /// 이전 박 간격 저장값의 호환용. 재생 경계는 이 값과 관계없이 다음 한 박이다.
     var playQuantizeBeats = PlayQuantize.defaultBeats {
         didSet { storage.settings.set(SettingKeys.playQuantizeBeats, playQuantizeBeats) }
     }
@@ -247,12 +256,12 @@ final class DeckModel {
         self.audio = audio
         self.storage = storage
         self.runsAnalysis = runsAnalysis
-        // 설정은 저장소에서 읽는다(여기서 넣는 값은 didSet이 돌지 않아 다시 저장하지 않는다).
+        // 설정은 저장소에서 읽는다.
         let settings = storage.settings
         zoomSeconds = settings.value(SettingKeys.zoomSeconds)
         waveformColorMode = WaveformColorMode(rawValue: settings.value(SettingKeys.waveformColorMode)) ?? .threeBand
-        quantize = settings.value(SettingKeys.quantize)
-        playQuantize = settings.value(SettingKeys.playQuantize)
+        // 관찰 프로퍼티의 setter를 거치지 않아 초기화 때 기존 두 저장값을 덮어쓰지 않는다.
+        _playQuantize = settings.quantize
         playQuantizeBeats = settings.value(SettingKeys.playQuantizeBeats)
         carryCues = settings.value(SettingKeys.carryCues)
         showSuggestions = settings.value(SettingKeys.showSuggestions)

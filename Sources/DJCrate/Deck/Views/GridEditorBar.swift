@@ -108,6 +108,9 @@ struct GridEditorBar: View {
                         .disabled(deck.gridDraft?.hasChanges != true)
                 }
             }
+            Toggle(.ui("큐 제안 표시"), isOn: $deck.showSuggestions)
+                .toggleStyle(.checkbox)
+                .help(.ui("섹션 경계 기반 메모리 큐 제안 표시. 초록 + 를 클릭하면 추가"))
         }
         .controlSize(ControlSize.small.scaled(textScale))
         .padding(8)
