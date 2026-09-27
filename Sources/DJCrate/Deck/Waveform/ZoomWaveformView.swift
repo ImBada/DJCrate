@@ -68,14 +68,12 @@ struct ZoomWaveformView: View {
         /// 큐를 잡았다. 3px 넘게 끌기 전에는 움직이지 않는다(클릭만으로 큐가 바뀌지 않도록).
         case cue(EditableCue.ID, originalTime: Double)
         case scrub(from: Double)
-        case grid
 
         /// 끄는 동안의 포인터 모양은 끌기 시작한 대상을 따른다.
         var target: ZoomPointerTarget {
             switch self {
             case let .cue(id, _): .cue(id)
             case .scrub: .empty
-            case .grid: .grid
             }
         }
     }
@@ -98,9 +96,6 @@ struct ZoomWaveformView: View {
                         .onChanged { value in
                             if drag == nil {
                                 switch pointerTarget(atX: value.startLocation.x, xOf: xOf, suggestions: []) {
-                                case .grid:
-                                    deck.beginGridDrag()
-                                    drag = .grid
                                 case let .cue(hit):
                                     deck.selectedCueID = hit
                                     drag = .cue(hit, originalTime: deck.cue(hit)?.time ?? center)
@@ -116,8 +111,6 @@ struct ZoomWaveformView: View {
                                 deck.move(id, to: originalTime + Double(value.translation.width) * secondsPerPoint, save: false)
                             case let .scrub(from):
                                 deck.scrub(to: from - Double(value.translation.width) * secondsPerPoint)
-                            case .grid:
-                                deck.dragGrid(by: Double(value.translation.width) * secondsPerPoint)
                             case nil:
                                 break
                             }
@@ -126,12 +119,10 @@ struct ZoomWaveformView: View {
                             switch drag {
                             case .cue:
                                 if abs(value.translation.width) > 3 { deck.commitDraft() }
-                            case .grid:
-                                deck.endGridDrag()
                             case .scrub:
                                 // 제안 마커를 짧게 클릭하면 메모리 큐로 받아들인다.
                                 if abs(value.translation.width) < 2,
-                                   case let .suggestion(s) = pointerTarget(atX: value.location.x, xOf: xOf, gridEditing: false) {
+                                   case let .suggestion(s) = pointerTarget(atX: value.location.x, xOf: xOf) {
                                     deck.acceptSuggestion(s)
                                 }
                                 deck.endScrub()
@@ -183,14 +174,12 @@ struct ZoomWaveformView: View {
     }
 
     /// 끌기 시작·짧은 클릭·호버가 같은 규칙으로 대상을 고른다.
-    private func pointerTarget(atX x: CGFloat, xOf: (Double) -> CGFloat, suggestions: [Double]? = nil,
-                               gridEditing: Bool? = nil) -> ZoomPointerTarget {
-        ZoomPointerTarget.at(x: x, cues: deck.draft?.cues ?? [], suggestions: suggestions ?? deck.suggestions,
-                             gridEditing: gridEditing ?? (deck.gridEditing && deck.canEditGrid), xOf: xOf)
+    private func pointerTarget(atX x: CGFloat, xOf: (Double) -> CGFloat, suggestions: [Double]? = nil) -> ZoomPointerTarget {
+        ZoomPointerTarget.at(x: x, cues: deck.draft?.cues ?? [], suggestions: suggestions ?? deck.suggestions, xOf: xOf)
     }
 
     private func hitCue(atX x: CGFloat, xOf: (Double) -> CGFloat) -> EditableCue.ID? {
-        if case let .cue(id) = pointerTarget(atX: x, xOf: xOf, suggestions: [], gridEditing: false) { return id }
+        if case let .cue(id) = pointerTarget(atX: x, xOf: xOf, suggestions: []) { return id }
         return nil
     }
 
@@ -400,17 +389,15 @@ struct ZoomWaveformView: View {
     }
 }
 
-/// 확대 파형에서 포인터 아래 대상. 끌기 시작(그리드·큐·스크럽)·제안 짧은 클릭·호버 표시가 같은 규칙을 쓴다.
+/// 확대 파형에서 포인터 아래 대상. 끌기 시작(큐·스크럽)·제안 짧은 클릭·호버 표시가 같은 규칙을 쓴다.
+/// 그리드 편집 중에도 같다: 그리드는 편집 막대의 ‹ ›·단축키로만 옮긴다(rekordbox처럼, #117).
 enum ZoomPointerTarget: Equatable {
     case empty
     case cue(EditableCue.ID)
     case suggestion(Double)
-    /// 그리드 편집 중에는 어디를 끌어도 그리드를 옮긴다.
-    case grid
 
     /// 큐 선 7pt, 제안 11pt 안(가장 가까운 것). 큐가 제안보다 먼저다.
-    static func at(x: CGFloat, cues: [EditableCue], suggestions: [Double], gridEditing: Bool, xOf: (Double) -> CGFloat) -> Self {
-        if gridEditing { return .grid }
+    static func at(x: CGFloat, cues: [EditableCue], suggestions: [Double], xOf: (Double) -> CGFloat) -> Self {
         if let hit = cues.map({ ($0.id, abs(xOf($0.time) - x)) }).filter({ $0.1 < 7 }).min(by: { $0.1 < $1.1 }) {
             return .cue(hit.0)
         }
@@ -433,16 +420,16 @@ enum ZoomPointerTarget: Equatable {
         }
     }
 
-    /// 빈 곳은 펼친 손(끌면 스크럽), 끄는 중은 쥔 손, 큐 선·그리드 편집은 좌우 화살표, 제안 배지는 기본 화살표(누르면 받기).
+    /// 빈 곳은 펼친 손(끌면 스크럽), 끄는 중은 쥔 손, 큐 선은 좌우 화살표, 제안 배지는 기본 화살표(누르면 받기).
     static func pointer(hover: Self, drag: Self?) -> Pointer {
         if let drag {
             switch drag {
-            case .cue, .grid: return .columnResize
+            case .cue: return .columnResize
             case .empty, .suggestion: return .grabActive
             }
         }
         switch hover {
-        case .cue, .grid: return .columnResize
+        case .cue: return .columnResize
         case .suggestion: return .arrow
         case .empty: return .grabIdle
         }
