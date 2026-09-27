@@ -12,7 +12,7 @@ rekordbox 7이 USB에 내보내는 라이브러리(OneLibrary·Device Library)�
 
 ## 4. ANLZ 변환
 
-로컬 분석 파일(`share` + `djmdContent.AnalysisDataPath`에서 확장자만 바꾼 `.DAT`·`.EXT`·`.2EX`)과 `djmdCue`로 USB 분석 파일 세 개를 만든다(`UsbAnlzTransform`). 로컬 파일 이름은 `ANLZ0000`이 아닐 수 있어 가정하지 않는다. 근거는 모두 rekordbox 7.2.18 골든 관찰이고, 골든 전 곡에서 세 파일이 바이트까지 같았다. 모든 칸은 빅엔디언이다.
+로컬 분석 파일(`share` + `djmdContent.AnalysisDataPath`에서 확장자만 바꾼 `.DAT`·`.EXT`·`.2EX`)과 `djmdCue`로 USB 분석 파일 세 개를 만든다(`UsbAnlzTransform`). 로컬 파일 이름은 `ANLZ0000`이 아닐 수 있어 가정하지 않는다. 근거는 모두 rekordbox 7.2.18 골든 관찰이다. 골든의 곡을 로컬 곡과 짝지어 다시 만들면, 스냅샷을 뜬 뒤 로컬 분석 파일이 바뀐 곡을 빼고 세 파일이 바이트까지 같았다(§4.10). 모든 칸은 빅엔디언이다.
 
 ### 4.1 파일 머리
 
@@ -28,7 +28,7 @@ rekordbox 7이 USB에 내보내는 라이브러리(OneLibrary·Device Library)�
 | `PVBR` `PQTZ` `PWAV` `PWV2` `PWV3` `PWV4` `PWV5` `PWV6` `PWV7` `PWVC` `PVB2`, 비지 않은 `PQT2`, 모르는 태그 | 바이트 그대로 |
 | `.DAT` `PCOB` 둘, `.EXT` `PCOB` 둘·`PCO2` 둘 | `djmdCue`로 새로(§4.4–4.6). 로컬 share의 큐 태그는 비어 있다 |
 | `.EXT` `PSSI` | 평문(mood 1–3)이면 마스크(§4.7). 이미 마스크된 모양이면 빼고 경고 `maskedLocalPSSIDropped` |
-| `.2EX` `PVDI` | 마스크(§4.8). 없으면 빈 `PVDI`를 파일 끝에 붙인다 |
+| `.2EX` `PVDI` | 평문이면 마스크(§4.8). 이미 마스크된 모양이면 그대로 두고 경고, 모르는 모양이면 그 자리에 빈 `PVDI`를 두고 경고. 없으면 빈 `PVDI`를 파일 끝에 붙인다 |
 | `.EXT` 빈 `PQT2` | 뺀다(§4.9) |
 | `.3EX` | 만들지 않는다 |
 
@@ -122,7 +122,7 @@ SeekInfo는 `"a,b,c"` 글자이고 `"0,0,0"`·NULL·빈 글자는 0으로 쓴다
 
 ### 4.8 PVDI 마스크
 
-로컬 PVDI 머리 24바이트는 `PVDI` · len_header 0x18 · len_tag · `00 00 04 00` · `56 22 00 01` · 본문 길이 u32(= len_tag − 24)다. USB에서는 바이트 12를 `0x00` → `0x80`으로 바꾸고, 바이트 24부터 끝까지 `b[i] ^= 키[(i − 24) % 19]`를 한다. 키는 `AnlzMasks.pvdiKey`(골든과 로컬의 같은 곡 PVDI를 XOR해 얻은 관찰값, 길이와 관계없이 같다). 로컬에 PVDI가 없으면 `.2EX` 끝에 빈 PVDI(`AnlzMasks.emptyPVDI`: `PVDI` · 0x18 · 0x18 · `00 00 04 00` · `56 22 00 01` · 0, 플래그 0)를 붙인다. 로컬 PVDI의 바이트 12가 이미 `0x80`이면 그대로 옮기고 경고 `maskedLocalPVDIKept`(로컬에서 본 적 없는 모양).
+로컬 PVDI 머리 24바이트는 `PVDI` · len_header 0x18 · len_tag · `00 00 04 00` · `56 22 00 01` · 본문 길이 u32(= len_tag − 24)다. USB에서는 바이트 12를 `0x00` → `0x80`으로 바꾸고, 바이트 24부터 끝까지 `b[i] ^= 키[(i − 24) % 19]`를 한다. 키는 `AnlzMasks.pvdiKey`(골든과 로컬의 같은 곡 PVDI를 XOR해 얻은 관찰값, 길이와 관계없이 같다). 로컬에 PVDI가 없으면 `.2EX` 끝에 빈 PVDI(`AnlzMasks.emptyPVDI`: `PVDI` · 0x18 · 0x18 · `00 00 04 00` · `56 22 00 01` · 0, 플래그 0)를 붙인다. 로컬 PVDI의 바이트 12가 이미 `0x80`이면 그대로 옮기고 경고 `maskedLocalPVDIKept`(로컬에서 본 적 없는 모양). 24바이트보다 짧거나 바이트 12가 `0x00`·`0x80`이 아닌 PVDI는 마스크를 씌울 수도 그대로 옮길 수도 없어, 로컬에 PVDI가 없는 곡처럼 빈 PVDI를 두되 태그 순서를 지키려고 그 자리에 두고 경고 `unknownLocalPVDIDropped`.
 
 ### 4.9 빈 PQT2
 
@@ -130,7 +130,7 @@ len_tag 56이고 0x0C부터 `00 00 00 00 01 00 00 02`, 나머지가 0인 `PQT2`�
 
 ### 4.10 확인 안 된 규칙
 
-변환 결과의 규칙 표시(`UsbAnlzResult.rules`)는 곡 큐 모양 분류(`UsbCueRules.rules`) 그대로다(§9 `cueVariant`·`cueSeekFields`). 실험 명령 `djc lab usb-anlz-check`는 USB 폴더의 분석 파일을 로컬 분석 파일·큐로 다시 만들어 바이트를 비교한다(모두 읽기만).
+변환 결과의 규칙 표시(`UsbAnlzResult.rules`)는 곡 큐 모양 분류(`UsbCueRules.rules`) 그대로다(§9 `cueVariant`·`cueSeekFields`). 실험 명령 `djc lab usb-anlz-check`는 USB 폴더의 분석 파일을 로컬 분석 파일·큐로 다시 만들어 바이트를 비교한다(모두 읽기만). 곡은 USB `PPTH` 경로의 음원 파일 이름·크기를 로컬 `djmdContent`의 (`FileNameL`, `FileSize`)와 맞춰 짝짓고, 맞는 로컬 곡이 하나가 아니면 짝 없음으로 센다. 라이브러리에 이름·크기가 같은 곡이 여럿이면 `--playlist <재생 목록 ID>`로 내보낸 재생 목록의 곡만 후보로 둔다. 스냅샷을 뜬 뒤 로컬 분석 파일이 바뀐 곡은 따로 센다.
 
 ## 5. 경로·음원·아트워크
 
