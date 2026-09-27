@@ -96,7 +96,8 @@ struct UsbRootTests {
         let root = UsbRoot(URL(filePath: "/private/tmp/djc-usbroot-fixture"))
         #expect(try root.url(for: "PIONEER/rekordbox/export.pdb").path == "/private/tmp/djc-usbroot-fixture/PIONEER/rekordbox/export.pdb")
         #expect(try root.url(for: "").path == root.url.path)
-        for bad in ["PIONEER/extracted/GCRED.DAT", "pioneer/cdp", "PIONEER/djprofile.nxs", "../x", "Contents/../../x", "/etc/hosts"] {
+        for bad in ["PIONEER/extracted/GCRED.DAT", "pioneer/cdp", "PIONEER/djprofile.nxs", "./PIONEER/extracted/x",
+                    "PIONEER/./djprofile.nxs", "../x", "Contents/../../x", "/etc/hosts"] {
             #expect(throws: UsbError.self, "\(bad)") { try root.url(for: bad) }
         }
     }

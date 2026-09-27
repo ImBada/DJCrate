@@ -36,6 +36,9 @@ struct UsbLayoutTests {
         #expect(!UsbLayout.isNeverRead("PIONEER"))
         #expect(!UsbLayout.isNeverRead("PIONEER/rekordbox/export.pdb"))
         #expect(!UsbLayout.isNeverRead("Contents/PIONEER/extracted"))
+        // "."·빈 성분으로 돌아가도 같은 경로로 본다.
+        #expect(UsbLayout.isNeverRead("./PIONEER//extracted/x"))
+        #expect(UsbLayout.isNeverRead("PIONEER/./CDP"))
     }
 
     @Test("macOS가 만드는 폴더는 비교에서 뺀다")

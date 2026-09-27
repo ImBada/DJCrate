@@ -56,8 +56,9 @@ public enum UsbLayout {
         return String((0..<8).map { _ in alphabet.randomElement()! })
     }
 
+    /// 성분별 충돌 키. "."·빈 성분은 같은 자리라 뺀다(돌아가는 경로로 열지 않는 곳에 닿지 않게).
     private static func keys(_ path: String) -> [String] {
-        path.split(separator: "/", omittingEmptySubsequences: true).map { collisionKey(String($0)) }
+        path.split(separator: "/", omittingEmptySubsequences: true).filter { $0 != "." }.map { collisionKey(String($0)) }
     }
 
     private static func hasPrefix(_ components: [String], _ prefix: [String]) -> Bool {
