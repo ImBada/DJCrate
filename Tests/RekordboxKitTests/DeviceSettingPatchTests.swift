@@ -41,15 +41,19 @@ struct DeviceSettingPatchTests {
         }(), as: .mySetting2))
     }
 
-    @Test("새 칸이 이미 0이 아니면 그 바이트는 두고, 0인 바이트만 채운다")
-    func patchFillsOnlyZeroBytes() throws {
+    @Test("새 칸은 둘 다 0일 때만 채우고, 둘 다 0x80이면 그대로, 그 밖의 모양은 만들지 않는다")
+    func patchFillsOnlyWhenBothZero() throws {
         let already = oldMySetting2(0x80, 0x80)
         #expect(DeviceSettingPatch.forExport(try DeviceSettingFile(kind: .mySetting2, bytes: already))?.bytes == already)
 
-        let half = oldMySetting2(0x81, 0)
-        let output = try #require(DeviceSettingPatch.forExport(try DeviceSettingFile(kind: .mySetting2, bytes: half)))
-        #expect(output.bytes[0x6D] == 0x81 && output.bytes[0x6E] == 0x80)
-        #expect(changedOffsets(half, output.bytes).isSubset(of: [0x6E, 144, 145]))
+        // 확인하지 않은 모양은 한 바이트만 채워 새 모양을 만들지 않는다.
+        for (first, second) in [(UInt8(0x81), UInt8(0)), (0, 0x80), (0x80, 0), (0x80, 0x81), (0x01, 0x01)] {
+            let file = try DeviceSettingFile(kind: .mySetting2, bytes: oldMySetting2(first, second))
+            #expect(DeviceSettingPatch.forExport(file) == nil, "\(first) \(second)")
+            #expect(throws: DeviceSettingError.unconfirmedNewField(first, second)) {
+                try DeviceSettingPatch.exportedFile(from: file)
+            }
+        }
     }
 
     @Test("MYSETTING·DJMMYSETTING은 바이트를 바꾸지 않는다(모르는 칸 그대로)")
@@ -75,6 +79,9 @@ struct DeviceSettingPatchTests {
     func devSettingNotExported() throws {
         let dev = try DeviceSettingFile(kind: .devSetting, bytes: DeviceSettingFixture.make(.devSetting))
         #expect(DeviceSettingPatch.forExport(dev) == nil)
+        #expect(throws: DeviceSettingError.notExported(fileName: "DEVSETTING.DAT")) {
+            try DeviceSettingPatch.exportedFile(from: dev)
+        }
     }
 
     @Test("알려진 칸 한 바이트만 고치고 CRC를 다시 계산한다")
@@ -116,6 +123,13 @@ struct DeviceSettingPatchTests {
         }
         try DeviceSettingFixture.make(.mySetting).write(to: folder.appending(path: "mysetting.dat.bak"))
         #expect(DeviceSettingPatch.forExport(localFile: folder.appending(path: "mysetting.dat.bak")) == nil)
+
+        // 새 칸이 확인하지 않은 모양이면 만들지 않고 이유를 던진다.
+        try DeviceSettingFixture.write(oldMySetting2(0x81, 0), as: .mySetting2, in: folder)
+        #expect(DeviceSettingPatch.forExport(localFile: folder.appending(path: "MYSETTING2.DAT")) == nil)
+        #expect(throws: DeviceSettingError.unconfirmedNewField(0x81, 0)) {
+            try DeviceSettingPatch.readForExport(localFile: folder.appending(path: "MYSETTING2.DAT"))
+        }
 
         // 없는 파일, 검증에 실패한 파일
         #expect(DeviceSettingPatch.forExport(localFile: folder.appending(path: "MYSETTING.DAT")) == nil)

@@ -127,6 +127,8 @@ public enum DeviceSettingError: Error, Equatable, Sendable, CustomStringConverti
     case trailerNotZero(UInt16)
     /// 내보내기로 옮기지 않는 파일 이름(세 파일 밖)
     case notExported(fileName: String)
+    /// MYSETTING2 새 칸 두 바이트가 둘 다 0도, 둘 다 채운 값도 아니다(확인하지 않은 모양)
+    case unconfirmedNewField(UInt8, UInt8)
 
     public var description: String {
         switch self {
@@ -137,6 +139,9 @@ public enum DeviceSettingError: Error, Equatable, Sendable, CustomStringConverti
         case let .crcMismatch(stored, computed): "CRC 어긋남: 적힌 값 \(Self.hex(stored, digits: 4)), 계산한 값 \(Self.hex(computed, digits: 4))"
         case let .trailerNotZero(value): "끝 2바이트가 0이 아님(\(Self.hex(value, digits: 4)))"
         case let .notExported(fileName): "\(fileName)은 내보내기로 옮기지 않는 파일"
+        case let .unconfirmedNewField(first, second):
+            "새 칸 값 \(Self.hex(first)) \(Self.hex(second))은 확인하지 않은 모양(둘 다 0이나 둘 다 "
+                + "\(Self.hex(DeviceSettingPatch.mySetting2NewFieldValue))일 때만 옮김)"
         }
     }
 

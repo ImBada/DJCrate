@@ -12,19 +12,29 @@ public enum DeviceSettingPatch {
     /// 아는 칸 한 바이트를 `value`로 바꾼다. 다른 종류의 칸이면 nil
     public static func setting(_ field: DeviceSettingField, to value: UInt8, in file: DeviceSettingFile) -> DeviceSettingFile? {
         guard field.kind == file.kind else { return nil }
-        return patched(file, [field.offset: value])
+        return try? patched(file, [field.offset: value])
     }
 
-    /// 내보내기용으로 고친 파일. MYSETTING2의 새 칸 중 0인 바이트만 채우고 나머지는 그대로 둔다(CRC만 다시).
-    /// 내보내기로 옮기지 않는 종류(DEVSETTING)면 nil
+    /// 내보내기용으로 고친 파일. 만들지 못하면 nil(이유는 `exportedFile(from:)`이 던진다)
     public static func forExport(_ file: DeviceSettingFile) -> DeviceSettingFile? {
-        guard DeviceSettingFile.Kind.exported.contains(file.kind) else { return nil }
-        guard file.kind == .mySetting2 else { return patched(file, [:]) }
+        try? exportedFile(from: file)
+    }
+
+    /// 내보내기용으로 고친 파일. MYSETTING2의 새 칸이 둘 다 0이면 둘 다 채우고, 둘 다 채운 값이면 그대로 둔다(CRC만 다시).
+    /// 새 칸이 그 밖의 모양이면 rekordbox가 쓴 적을 보지 못한 모양이라 만들지 않는다.
+    /// 내보내기로 옮기지 않는 종류(DEVSETTING)도 만들지 않는다
+    public static func exportedFile(from file: DeviceSettingFile) throws -> DeviceSettingFile {
+        guard DeviceSettingFile.Kind.exported.contains(file.kind) else { throw DeviceSettingError.notExported(fileName: file.kind.fileName) }
         var changes: [Int: UInt8] = [:]
-        for offset in mySetting2NewFieldOffsets where file.bytes[offset] == 0 {
-            changes[offset] = mySetting2NewFieldValue
+        if file.kind == .mySetting2 {
+            let current = mySetting2NewFieldOffsets.map { file.bytes[$0] }
+            if current.allSatisfy({ $0 == 0 }) {
+                for offset in mySetting2NewFieldOffsets { changes[offset] = mySetting2NewFieldValue }
+            } else if !current.allSatisfy({ $0 == mySetting2NewFieldValue }) {
+                throw DeviceSettingError.unconfirmedNewField(current[0], current[1])
+            }
         }
-        return patched(file, changes)
+        return try patched(file, changes)
     }
 
     /// 로컬 rekordbox 설정 파일 하나를 읽어(읽기만) 내보내기용 바이트를 만든다.
@@ -40,18 +50,17 @@ public enum DeviceSettingPatch {
             throw DeviceSettingError.notExported(fileName: name)
         }
         let source = try DeviceSettingFile(kind: kind, bytes: Data(contentsOf: localFile))
-        guard let output = forExport(source) else { throw DeviceSettingError.notExported(fileName: name) }
-        return (source, output)
+        return (source, try exportedFile(from: source))
     }
 
     /// 바이트를 바꾸고 종류별 범위로 CRC를 다시 넣은 뒤, 다시 읽어 검증을 통과할 때만 돌려준다
-    static func patched(_ file: DeviceSettingFile, _ changes: [Int: UInt8]) -> DeviceSettingFile? {
+    static func patched(_ file: DeviceSettingFile, _ changes: [Int: UInt8]) throws -> DeviceSettingFile {
         var bytes = file.bytes
         for (offset, value) in changes { bytes[offset] = value }
         let crcOffset = bytes.count - DeviceSettingFile.trailerLength
         let crc = CRC16XModem.checksum(bytes[DeviceSettingFile.crcRange(kind: file.kind, count: bytes.count)])
         bytes[crcOffset] = UInt8(crc & 0xFF)
         bytes[crcOffset + 1] = UInt8(crc >> 8)
-        return try? DeviceSettingFile(kind: file.kind, bytes: bytes)
+        return try DeviceSettingFile(kind: file.kind, bytes: bytes)
     }
 }
