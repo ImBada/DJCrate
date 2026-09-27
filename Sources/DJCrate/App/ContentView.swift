@@ -12,11 +12,14 @@ struct ContentView: View {
     @Environment(\.undoManager) private var undoManager
     @Bindable var store: LibraryStore
     @Bindable var deck: DeckModel
+    /// 저장된 창 프레임을 적용했는지. 그 전의 기본 크기 폭으로는 사이드바를 접지 않는다(#119).
+    var windowFrameRestored = true
     @AppStorage(SettingKeys.showTagEditor.name) private var showTagEditor = SettingKeys.showTagEditor.defaultValue
     @AppStorage(SettingKeys.waveformHeight.name) private var waveformHeight = SettingKeys.waveformHeight.defaultValue
     @AppStorage(SettingKeys.sheetMode.name) private var sheetMode = SettingKeys.sheetMode.defaultValue
+    @AppStorage(SettingKeys.sidebarVisible.name) private var sidebarVisible = SettingKeys.sidebarVisible.defaultValue
     @State private var keys = KeyRouter()
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var sidebarAutoCollapse = SidebarVisibility()
     @State private var detailHeight = 650.0
     @State private var deckChromeHeight = 240.0
     @State private var noticeHeight = 0.0
@@ -38,8 +41,13 @@ struct ContentView: View {
         return WaveformHeightControl(displayed: displayedWaveformHeight, maximum: maximumWaveformHeight) { waveformHeight = $0 }
     }
 
+    /// 사이드바 표시 상태는 저장해 두고 다음 실행을 같은 모양으로 시작한다(#119).
+    private var columnVisibility: Binding<NavigationSplitViewVisibility> {
+        Binding { SidebarVisibility.columns(visible: sidebarVisible) } set: { sidebarVisible = SidebarVisibility.isVisible($0) }
+    }
+
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
+        NavigationSplitView(columnVisibility: columnVisibility) {
             Sidebar(store: store)
                 .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
                 .navigationSplitViewColumnWidth(min: 210, ideal: 230)
@@ -175,8 +183,12 @@ struct ContentView: View {
                 .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
                     detailHeight = size.height
                     // 인스펙터를 열어 덱 폭이 모자라면 탐색 열을 접어 컨트롤 자리를 남긴다.
-                    if size.width > 0, size.width < DeckLayout.minimumDetailWidth { columnVisibility = .detailOnly }
+                    if sidebarAutoCollapse.shouldCollapse(detailWidth: size.width, windowFrameRestored: windowFrameRestored) {
+                        sidebarVisible = false
+                    }
                 }
+                // 새 스냅샷을 읽고 다시 그릴 때도 첫 측정은 임시 폭이다.
+                .onDisappear { sidebarAutoCollapse.reset() }
                 .inspector(isPresented: $showTagEditor) {
                     TagInspector(store: store)
                         .inspectorColumnWidth(min: 300, ideal: 340, max: 460)
