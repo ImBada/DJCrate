@@ -79,7 +79,7 @@ public enum Reflection {
     /// 루프 끝은 원본 그대로 둔다(이동한 루프는 길이를 유지한다).
     public static func plan(track: Track, rawCues: [Cue], cueDraft: CueDraft?, gridDraft: GridDraft?) -> Plan {
         var blockers: [String] = []
-        if track.isStreaming { blockers.append(String(ui: "스트리밍 곡은 반영할 수 없습니다")) }
+        if track.isStreaming { blockers.append(String(ui: "스트리밍 곡은 XML로 만들 수 없습니다")) }
         if rawCues.contains(where: { $0.activeLoop > 0 }) {
             blockers.append(String(ui: "자동 루프(ActiveLoop) 표시가 있는 큐가 있습니다. XML로는 이 표시를 옮길 수 없습니다"))
         }

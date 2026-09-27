@@ -17,18 +17,18 @@
         }
       }
     },
-    "퀀타이즈(Q): 큐·루프를 등록할 때 비트 그리드의 박에 맞추고, 재생 중 핫큐를 누르면 다음 박에서 저장된 핫큐 위치로 이동해 재생합니다" : {
+    "큐·루프를 박에 맞춥니다(Q). 재생 중 핫큐는 다음 박에서 저장 위치로 점프합니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Quantize (Q): snap cues and loops to the beat grid when placing them. During playback, pressing a hot cue starts playback from its saved position on the next beat."
+            "value" : "Snap cues and loops to beats (Q). Playing Hot Cues jump on the next beat."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "クオンタイズ（Q）：キュー・ループ登録時はビートグリッドの拍に合わせます。再生中にホットキューを押すと、次の拍で保存されたホットキューの位置から再生します。"
+            "value" : "キュー・ループを拍に合わせます（Q）。再生中のホットキューは次の拍で保存位置へ移動します。"
           }
         }
       }
@@ -445,24 +445,24 @@
         }
       }
     },
-    "‘%@’에 %lld곡을 넣었습니다(반영 대기)." : {
+    "‘%@’에 %lld곡을 넣었습니다(쓰기 대기)." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Added to ‘%1$@’ · Tracks: %2$lld (pending write)."
+            "value" : "Added to “%1$@” · Tracks: %2$lld (pending write)."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "「%1$@」に%2$lld曲を追加しました（反映待ち）。"
+            "value" : "「%1$@」に%2$lld曲を追加しました（書き込み待ち）。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "‘%1$@’에 %2$lld곡을 넣었습니다(반영 대기)."
+            "value" : "‘%1$@’에 %2$lld곡을 넣었습니다(쓰기 대기)."
           }
         }
       }
@@ -515,24 +515,24 @@
         }
       }
     },
-    "‘%@’에서 %lld곡을 뺐습니다(반영 대기)." : {
+    "‘%@’에서 %lld곡을 뺐습니다(쓰기 대기)." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Removed from ‘%1$@’ · Tracks: %2$lld (pending write)."
+            "value" : "Removed from “%1$@” · Tracks: %2$lld (pending write)."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "「%1$@」から%2$lld曲を外しました（反映待ち）。"
+            "value" : "「%1$@」から%2$lld曲を除外しました（書き込み待ち）。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "‘%1$@’에서 %2$lld곡을 뺐습니다(반영 대기)."
+            "value" : "‘%1$@’에서 %2$lld곡을 뺐습니다(쓰기 대기)."
           }
         }
       }
@@ -2399,18 +2399,18 @@
         }
       }
     },
-    "= 초안(파일·rekordbox 미반영)" : {
+    "= 초안(파일·rekordbox에 쓰기 전)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "= Draft (not yet in the file or rekordbox)"
+            "value" : "= Draft (not yet written to files or rekordbox)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "= 下書き（ファイル・rekordbox未反映）"
+            "value" : "= 下書き（ファイル・rekordboxへの書き込み前）"
           }
         }
       }
@@ -2463,18 +2463,18 @@
         }
       }
     },
-    "⚠︎ 이 백업 뒤에 rekordbox에서도 라이브러리가 바뀌었습니다(큐·재생 목록·곡 추가 등). 되돌리면 그 변경도 함께 사라집니다." : {
+    "⚠︎ 이 백업 뒤에 rekordbox에서도 라이브러리가 바뀌었습니다(큐·재생 목록·곡 추가 등). 복원하면 그 변경도 함께 사라집니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "⚠︎ The library was also changed in rekordbox after this backup (cues, playlists, added tracks, etc.). Restoring discards those changes too."
+            "value" : "⚠︎ The library changed in rekordbox after this backup (cues, playlists, added tracks, etc.). Restoring also removes those changes."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "⚠︎ このバックアップの後、rekordboxでもライブラリが変更されています（キュー・プレイリスト・曲の追加など）。元に戻すとその変更も失われます。"
+            "value" : "⚠︎ このバックアップ後にrekordboxでもライブラリが変更されています（キュー・プレイリスト・曲の追加など）。復元するとそれらの変更も失われます。"
           }
         }
       }
@@ -2987,24 +2987,24 @@
         }
       }
     },
-    "CUE (%@) — 재생 중: 큐 지점으로 돌아가 정지 · 멈춘 곳: 새 큐 지점 · 큐 지점에서 누르고 있기: 미리 듣기 · 누른 채 재생: 계속 재생\n큐 지점 %@" : {
+    "큐로 돌아가 정지합니다(%@). 정지 중: 큐 설정·누르고 미리 듣기. 큐 %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "CUE (%1$@) — While playing: return to the cue point and stop · While paused: set a new cue point · Hold at the cue point: preview · Press Play while holding: keep playing\nCue point %2$@"
+            "value" : "Return to Cue (%1$@). Stopped: set\/hold to preview. Cue %2$@"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "CUE（%1$@）— 再生中：キューポイントに戻って停止 · 停止中：新しいキューポイント · キューポイントで押し続ける：プレビュー · 押したまま再生：そのまま再生を続ける\nキューポイント %2$@"
+            "value" : "キューに戻って停止（%1$@）。停止中：設定・長押しで試聴。キュー %2$@"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "CUE (%1$@) — 재생 중: 큐 지점으로 돌아가 정지 · 멈춘 곳: 새 큐 지점 · 큐 지점에서 누르고 있기: 미리 듣기 · 누른 채 재생: 계속 재생\n큐 지점 %2$@"
+            "value" : "큐로 돌아가 정지합니다(%1$@). 정지 중: 큐 설정·누르고 미리 듣기. 큐 %2$@"
           }
         }
       }
@@ -3111,34 +3111,34 @@
         }
       }
     },
-    "DJCrate 초안이 있는 곡 (rekordbox·파일에는 아직 반영 안 됨)" : {
+    "DJCrate 초안이 있는 곡 (rekordbox·파일에 쓰기 전)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tracks with DJCrate drafts (not yet written to rekordbox or files)"
+            "value" : "Track with a DJCrate draft, not yet written to rekordbox or files"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "DJCrateの下書きがある曲（rekordbox・ファイルにはまだ反映されていません）"
+            "value" : "DJCrateの下書きがある曲（rekordbox・ファイルへの書き込み前）"
           }
         }
       }
     },
-    "DJCrate 초안이 있습니다 (rekordbox·파일에는 아직 반영 안 됨)" : {
+    "DJCrate 초안이 있습니다 (rekordbox·파일에 쓰기 전)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Has DJCrate drafts (not yet written to rekordbox or files)"
+            "value" : "DJCrate draft, not yet written to rekordbox or files"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "DJCrateの下書きがあります（rekordbox・ファイルにはまだ反映されていません）"
+            "value" : "DJCrateの下書きがあります（rekordbox・ファイルへの書き込み前）"
           }
         }
       }
@@ -3191,50 +3191,50 @@
         }
       }
     },
-    "DJCrate가 마지막으로 rekordbox에 쓰기 직전 백업으로 되돌립니다." : {
+    "라이브러리 전체를 마지막 쓰기 전 백업으로 복원합니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Restores the backup taken right before DJCrate last wrote to rekordbox."
+            "value" : "Restore the entire library to the backup before the last write."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "DJCrateが最後にrekordboxに書き込む直前のバックアップに戻します。"
+            "value" : "ライブラリ全体を最後の書き込み前のバックアップに復元します。"
           }
         }
       }
     },
-    "DJCrate가 추정한 그리드로 바꿉니다(초안만, 되돌리기 가능)" : {
+    "추정 그리드로 초안을 바꿉니다(실행 취소 가능)." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Replaces the grid with the one DJCrate estimated (draft only, can be undone)"
+            "value" : "Replace the draft with the estimated grid (can be undone)."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "DJCrateが推定したグリッドに置き換えます（下書きのみ。元に戻せます）"
+            "value" : "下書きを推定グリッドに変更します（取り消し可能）。"
           }
         }
       }
     },
-    "DJCrate는 반영할 내용을 늘 이 파일에 씁니다(경로를 클립보드에 복사했습니다):\n%@" : {
+    "DJCrate는 XML을 늘 이 파일에 만듭니다(경로를 클립보드에 복사했습니다):\n%@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "DJCrate always writes changes for rekordbox to this file (the path has been copied to the clipboard):\n%@"
+            "value" : "DJCrate always creates XML in this file (path copied to clipboard):\n%@"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "DJCrateは反映する内容を常にこのファイルに書き込みます（パスをクリップボードにコピーしました）：\n%@"
+            "value" : "DJCrateは常にこのファイルにXMLを作成します（パスをクリップボードにコピーしました）：\n%@"
           }
         }
       }
@@ -3726,41 +3726,18 @@
         }
       }
     },
-    "reflection.restore" : {
-      "extractionState" : "extracted_with_value",
+    "추가한 곡을 rekordbox에서 가져올 XML로 만듭니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Restore"
+            "value" : "Create XML to import added tracks into rekordbox."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "元に戻す"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "되돌리기"
-          }
-        }
-      }
-    },
-    "rekordbox › 환경설정 › 고급 › rekordbox xml에서 이 파일을 지정한 뒤, 트리의 rekordbox xml에서 곡을 선택하고 Import To Collection 하세요. 가져온 뒤 새 스냅샷을 뜨면 DJCrate가 그리드가 그대로 들어갔는지 확인합니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Set this file in rekordbox › Preferences › Advanced › rekordbox xml, then select the tracks under rekordbox xml in the tree and choose Import To Collection. Take a new snapshot after importing and DJCrate checks that the grids came through intact."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordbox › 環境設定 › 詳細 › rekordbox xmlでこのファイルを指定してから、ツリーのrekordbox xmlで曲を選び、［コレクションにインポート］してください。インポート後に新しいスナップショットを作成すると、グリッドがそのまま入ったかDJCrateが確認します。"
+            "value" : "追加した曲をrekordboxにインポートするXMLを作成します。"
           }
         }
       }
@@ -3835,18 +3812,18 @@
         }
       }
     },
-    "rekordbox master.db 사본을 새로 떠서 다시 읽습니다(원본은 읽기만). rekordbox에서 반영 XML을 가져온 뒤 누르면 자동으로 검증합니다." : {
+    "라이브러리 사본을 새로 읽고 XML 가져오기 결과를 확인합니다(⌘R)." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Takes a fresh copy of rekordbox's master.db and reloads it (the original is only read). Press this after importing the XML into rekordbox to verify it automatically."
+            "value" : "Reload a library snapshot and check XML import results (⌘R)."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxのmaster.dbのコピーを新しく作成して読み込み直します（元のファイルは読み取るだけです）。rekordboxで反映用のXMLを読み込んだ後に押すと、自動で検証します。"
+            "value" : "ライブラリのコピーを読み直し、XMLのインポート結果を確認します（⌘R）。"
           }
         }
       }
@@ -3867,18 +3844,18 @@
         }
       }
     },
-    "rekordbox XML로 내보내기…" : {
+    "XML 만들기" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Export rekordbox xml…"
+            "value" : "Create XML"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordbox xmlに書き出す…"
+            "value" : "XMLを作成"
           }
         }
       }
@@ -4039,34 +4016,34 @@
         }
       }
     },
-    "rekordbox 라이브러리 상태를 확인하지 못했으므로 rekordbox를 켜지 말고 백업 폴더의 위치와 접근 권한을 확인한 뒤 다시 되돌리세요." : {
+    "rekordbox 라이브러리 상태를 확인하지 못했으므로 rekordbox를 켜지 말고 백업 폴더의 위치와 접근 권한을 확인한 뒤 다시 복원하세요." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The rekordbox library state couldn't be verified. Don't open rekordbox; check the backup folder's location and access permissions, then restore again."
+            "value" : "The rekordbox library state could not be verified. Keep rekordbox closed, check the backup folder location and permissions, then restore again."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxライブラリの状態を確認できなかったため、rekordboxを起動せずに、バックアップフォルダの場所とアクセス権を確認してから、もう一度元に戻してください。"
+            "value" : "rekordboxのライブラリの状態を確認できませんでした。rekordboxを起動せず、バックアップフォルダの場所とアクセス権を確認してから再度復元してください。"
           }
         }
       }
     },
-    "rekordbox 라이브러리 전체를 선택한 백업의 쓰기 전 상태로 되돌렸습니다." : {
+    "rekordbox 라이브러리 전체를 선택한 백업의 쓰기 전 상태로 복원했습니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Restored the entire rekordbox library to its state before the selected backup's write."
+            "value" : "Restored the entire rekordbox library to the state before the selected write."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxライブラリ全体を、選択したバックアップの書き込み前の状態に戻しました。"
+            "value" : "rekordboxのライブラリ全体を選択したバックアップの書き込み前の状態に復元しました。"
           }
         }
       }
@@ -4087,34 +4064,34 @@
         }
       }
     },
-    "rekordbox 라이브러리(master.db)와 분석 파일이 어떤 상태인지 알 수 없습니다. rekordbox를 켜지 말고, 사이드바에서 'rekordbox 반영 대기'를 고른 뒤 목록 위 '되돌리기…'로 쓰기 전 백업을 복원하세요." : {
+    "rekordbox 라이브러리(master.db)와 분석 파일이 어떤 상태인지 알 수 없습니다. rekordbox를 켜지 말고, 사이드바에서 'rekordbox 쓰기 대기'를 고른 뒤 목록 위 '쓰기 전으로 복원…'으로 백업을 복원하세요." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The state of the rekordbox library (master.db) and analysis files is unknown. Don't open rekordbox. In the sidebar, choose 'Pending rekordbox Writes', then use 'Restore…' above the list to restore the backup taken before the write."
+            "value" : "The state of the rekordbox library (master.db) and analysis files is unknown. Keep rekordbox closed, select ‘Pending rekordbox Writes’ in the sidebar, then use ‘Restore Before Write…’ above the list to restore the backup."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxライブラリ（master.db）と解析ファイルがどのような状態か分かりません。rekordboxを起動せずに、サイドバーで「rekordbox反映待ち」を選び、リスト上の「元に戻す…」で書き込み前のバックアップを復元してください。"
+            "value" : "rekordboxのライブラリ（master.db）と解析ファイルの状態が不明です。rekordboxを起動せず、サイドバーの「rekordbox書き込み待ち」を選び、リスト上部の「書き込み前に復元…」からバックアップを復元してください。"
           }
         }
       }
     },
-    "rekordbox 라이브러리를 이번 쓰기 직전 백업으로 되돌립니다(rekordbox가 꺼져 있어야 합니다)" : {
+    "라이브러리 전체를 이번 쓰기 전으로 복원합니다. rekordbox를 먼저 종료하세요." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Restores the rekordbox library to the backup taken just before this write (rekordbox must be closed)"
+            "value" : "Restore the entire library before this write. Quit rekordbox first."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxライブラリを今回の書き込み直前のバックアップに戻します（rekordboxを終了しておく必要があります）"
+            "value" : "ライブラリ全体を今回の書き込み前に復元します。先にrekordboxを終了してください。"
           }
         }
       }
@@ -4135,7 +4112,7 @@
         }
       }
     },
-    "rekordbox 반영 대기" : {
+    "rekordbox 쓰기 대기" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4146,77 +4123,77 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordbox反映待ち"
+            "value" : "rekordbox書き込み待ち"
           }
         }
       }
     },
-    "rekordbox 반영 대기 목록 보기" : {
+    "rekordbox 쓰기 대기 목록 보기" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Show Pending Writes"
+            "value" : "Show Pending rekordbox Writes"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "反映待ちの一覧を表示"
+            "value" : "rekordbox書き込み待ちを表示"
           }
         }
       }
     },
-    "rekordbox 반영 때 라이브러리에만 씁니다. 음원 파일의 태그는 바뀌지 않습니다." : {
+    "rekordbox에 쓸 때 라이브러리에만 저장합니다. 음원 파일의 태그는 바뀌지 않습니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Changes are written only to the rekordbox library when you apply them. Audio file tags stay unchanged."
+            "value" : "Writing to rekordbox only updates the library. Audio file tags stay unchanged."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxに反映するとライブラリにのみ書き込みます。音源ファイルのタグは変更されません。"
+            "value" : "rekordboxへの書き込みではライブラリだけを更新します。音源ファイルのタグは変わりません。"
           }
         }
       }
     },
-    "rekordbox 반영 확인(%@ 묶음): 일치 %lld" : {
+    "rekordbox XML 가져오기 확인(%@ 묶음): 일치 %lld" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordbox write check (batch %@): %lld matched"
+            "value" : "rekordbox XML import check (batch %1$@): %2$lld matched"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordbox反映の確認（%@のまとまり）：一致 %lld"
+            "value" : "rekordbox XMLのインポート確認（%1$@）：%2$lld件一致"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "rekordbox 반영 확인(%1$@ 묶음): 일치 %2$lld"
+            "value" : "rekordbox XML 가져오기 확인(%1$@ 묶음): 일치 %2$lld"
           }
         }
       }
     },
-    "rekordbox 반영이 끝난 뒤 선택한 곡을 다시 추가하세요." : {
+    "rekordbox 쓰기가 끝난 뒤 선택한 곡을 다시 추가하세요." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Add the selected tracks again after the rekordbox write finishes."
+            "value" : "Add the selected tracks again after writing to rekordbox finishes."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxへの反映が終わってから、選択した曲をもう一度追加してください。"
+            "value" : "rekordboxへの書き込みが終わってから、選択した曲をもう一度追加してください。"
           }
         }
       }
@@ -4703,18 +4680,18 @@
         }
       }
     },
-    "rekordbox가 이 곡을 아직 분석하지 않았습니다. 그리드 초안을 반영하면 DJCrate가 파형·그리드·오토게인 분석 파일을 만들어 붙입니다" : {
+    "그리드 초안을 쓰면 이 미분석 곡에 파형·그리드·오토게인 분석 파일을 붙입니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordbox hasn't analyzed this track yet. When you write the grid draft, DJCrate creates and attaches analysis files for the waveform, grid, and Auto Gain."
+            "value" : "Writing the grid draft adds waveform, grid and Auto Gain analysis."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxはまだこの曲を解析していません。グリッドの下書きを反映すると、DJCrateが波形・グリッド・オートゲインの解析ファイルを作成して付けます。"
+            "value" : "グリッドの下書きを書き込むと波形・グリッド・オートゲインの解析ファイルを追加します。"
           }
         }
       }
@@ -4799,18 +4776,18 @@
         }
       }
     },
-    "rekordbox가 켜져 있어 되돌리지 않았습니다" : {
+    "rekordbox가 켜져 있어 복원하지 않았습니다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordbox is running, so nothing was restored"
+            "value" : "Not Restored While rekordbox Is Running"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxが起動しているため元に戻しませんでした"
+            "value" : "rekordboxが起動中のため復元しませんでした"
           }
         }
       }
@@ -4847,7 +4824,7 @@
         }
       }
     },
-    "rekordbox를 되돌리는 중…" : {
+    "rekordbox를 복원하는 중…" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4858,39 +4835,39 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxを元に戻しています…"
+            "value" : "rekordboxを復元中…"
           }
         }
       }
     },
-    "rekordbox를 쓰기 전으로 되돌렸습니다" : {
+    "rekordbox를 쓰기 전으로 복원했습니다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Restored rekordbox to before the write"
+            "value" : "Restored rekordbox to Before the Write"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxを書き込み前の状態に戻しました"
+            "value" : "rekordboxを書き込み前に復元しました"
           }
         }
       }
     },
-    "rekordbox를 쓰기 전으로 되돌릴까요?" : {
+    "rekordbox를 쓰기 전으로 복원할까요?" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Restore rekordbox to before the write?"
+            "value" : "Restore rekordbox to Before the Write?"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxを書き込み前の状態に戻しますか？"
+            "value" : "rekordboxを書き込み前に復元しますか？"
           }
         }
       }
@@ -4975,18 +4952,18 @@
         }
       }
     },
-    "rekordbox를 켜지 말고 ‘rekordbox 반영 대기’의 ‘되돌리기…’로 쓰기 전 백업을 복원하세요." : {
+    "rekordbox를 켜지 말고 ‘rekordbox 쓰기 대기’의 ‘쓰기 전으로 복원…’으로 백업을 복원하세요." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Don't open rekordbox. Use ‘Restore…’ in ‘Pending rekordbox Writes’ to restore the backup made before writing."
+            "value" : "Keep rekordbox closed and use Restore Before Write… in Pending rekordbox Writes to restore the backup."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxを起動せずに、「rekordbox反映待ち」の「元に戻す…」で書き込み前のバックアップを復元してください。"
+            "value" : "rekordboxを起動せず、「rekordbox書き込み待ち」の「書き込み前に復元…」からバックアップを復元してください。"
           }
         }
       }
@@ -5159,54 +5136,6 @@
         }
       }
     },
-    "rekordbox에 반영" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Write to rekordbox"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxに反映"
-          }
-        }
-      }
-    },
-    "rekordbox에 반영…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Write to rekordbox…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxに反映…"
-          }
-        }
-      }
-    },
-    "rekordbox에 반영했습니다 · %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wrote to rekordbox · %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxに反映しました · %@"
-          }
-        }
-      }
-    },
     "rekordbox에 쓰기" : {
       "localizations" : {
         "en" : {
@@ -5219,6 +5148,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxに書き込む"
+          }
+        }
+      }
+    },
+    "rekordbox에 쓰기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write to rekordbox…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxに書き込む…"
+          }
+        }
+      }
+    },
+    "rekordbox에 썼습니다 · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Written to rekordbox · %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxに書き込みました · %@"
           }
         }
       }
@@ -5417,18 +5378,18 @@
         }
       }
     },
-    "rekordbox에 아직 쓰지 않은 재생 목록 편집(만들기·이름·옮기기·지우기·곡 넣기·빼기)을 모두 버립니다. ⌘Z로 되돌릴 수 있습니다." : {
+    "rekordbox에 아직 쓰지 않은 재생 목록 편집(만들기·이름·옮기기·지우기·곡 넣기·빼기)을 모두 버립니다. ⌘Z로 실행 취소할 수 있습니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Discards all playlist edits not yet written to rekordbox (create, rename, move, delete, add and remove tracks). You can undo this with ⌘Z."
+            "value" : "Discards all playlist edits not yet written to rekordbox (create, rename, move, delete, add or remove tracks). You can undo with ⌘Z."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxにまだ書き込んでいないプレイリストの編集（作成・名前・移動・削除・曲の追加・除外）をすべて破棄します。⌘Zで元に戻せます。"
+            "value" : "rekordboxにまだ書き込んでいないプレイリストの編集（作成・名前変更・移動・削除・曲の追加と除外）をすべて破棄します。⌘Zで取り消せます。"
           }
         }
       }
@@ -5553,18 +5514,18 @@
         }
       }
     },
-    "rekordbox에서 불러온 상태로 되돌립니다" : {
+    "큐 초안을 버리고 rekordbox에서 불러온 큐로 돌아갑니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Reverts to the state loaded from rekordbox"
+            "value" : "Discard the cue draft and return to the cues loaded from rekordbox."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxから読み込んだ状態に戻します"
+            "value" : "キューの下書きを破棄し、rekordboxから読み込んだキューに戻します。"
           }
         }
       }
@@ -5889,22 +5850,6 @@
         }
       }
     },
-    "XML로…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Export XML…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "XMLで書き出す…"
-          }
-        }
-      }
-    },
     "XML을 열면 곡과 재생 목록을 고를 수 있습니다." : {
       "localizations" : {
         "en" : {
@@ -6017,18 +5962,18 @@
         }
       }
     },
-    "값을 고친 칸은 왼쪽 위 모서리에 삼각형이 붙습니다. 음원 파일과 rekordbox에는 아직 반영하지 않은 초안입니다" : {
+    "왼쪽 위 삼각형은 초안입니다. 아직 음원 파일과 rekordbox에 쓰지 않았습니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Edited cells get a triangle in the top-left corner. They're drafts not yet written to the audio file or rekordbox"
+            "value" : "A top-left triangle marks a draft not yet written to files or rekordbox."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "値を変更したセルには左上の角に三角形が付きます。音源ファイルやrekordboxにはまだ反映していない下書きです"
+            "value" : "左上の三角形は下書きです。音源ファイルとrekordboxにはまだ書き込んでいません。"
           }
         }
       }
@@ -6065,18 +6010,18 @@
         }
       }
     },
-    "같은 곡의 다른 초안이나 재생 목록 초안이 있습니다. 먼저 반영하거나 버린 뒤 합치세요" : {
+    "같은 곡의 다른 초안이나 재생 목록 초안이 있습니다. 먼저 쓰거나 버린 뒤 합치세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Other drafts for these tracks or Playlist drafts exist. Write or discard them before merging."
+            "value" : "Other drafts for this track or playlist drafts exist. Write or discard them before merging."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "同じ曲の別の下書き、またはプレイリストの下書きがあります。先に反映するか破棄してから統合してください。"
+            "value" : "同じ曲の別の下書き、またはプレイリストの下書きがあります。先に書き込むか破棄してから統合してください。"
           }
         }
       }
@@ -6333,18 +6278,18 @@
         }
       }
     },
-    "게인 반영 완료" : {
+    "게인 쓰기 완료" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "gain written"
+            "value" : "Gain written"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ゲイン反映済み"
+            "value" : "ゲインを書き込みました"
           }
         }
       }
@@ -6483,18 +6428,18 @@
         }
       }
     },
-    "게인(볼륨 페이더 앞). 누르면 오토게인·목표 음량·트림을 정합니다. 느낌표가 붙은 LUFS = 매우 큰 마스터(−6 LUFS 초과)이거나 심한 클리핑" : {
+    "오토게인·목표 음량·트림을 정합니다. LUFS 느낌표는 과도한 음량이나 클리핑 경고입니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gain (before the volume fader). Click to set Auto Gain, target loudness, and trim. LUFS with an exclamation mark = a very loud master (above −6 LUFS) or heavy clipping"
+            "value" : "Set gain, target level and trim. A LUFS warning means high level or clipping."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ゲイン（ボリュームフェーダーの前）。クリックするとオートゲイン・目標音量・トリムを設定します。感嘆符付きのLUFS＝非常に大きいマスター（−6 LUFS超）または激しいクリッピング"
+            "value" : "ゲイン・目標音量・トリムを設定します。LUFSの警告は過大な音量やクリッピングを示します。"
           }
         }
       }
@@ -7319,18 +7264,18 @@
         }
       }
     },
-    "곡은 컬렉션에 그대로 남습니다. 반영(⇧⌘E)할 때 rekordbox에 씁니다." : {
+    "곡은 컬렉션에 그대로 남습니다. ‘rekordbox에 쓰기’(⇧⌘E)로 저장합니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tracks stay in the Collection. The change is written to rekordbox when you write drafts (⇧⌘E)."
+            "value" : "Tracks stay in the collection. Save with Write to rekordbox (⇧⌘E)."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "曲はコレクションに残ります。反映（⇧⌘E）するときにrekordboxに書き込みます。"
+            "value" : "曲はコレクションに残ります。「rekordboxに書き込む」（⇧⌘E）で保存します。"
           }
         }
       }
@@ -7799,18 +7744,18 @@
         }
       }
     },
-    "그때 쓴 초안과 추가 목록도 복원했습니다. 되돌리기 직전 상태는 아래 두 번째 백업에 남아 있습니다." : {
+    "그때 쓴 초안과 추가 목록도 복원했습니다. 복원 직전 상태는 아래 두 번째 백업에 남아 있습니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The drafts and added tracks from that time were restored too. The state just before restoring is kept in the second backup below."
+            "value" : "The drafts and added tracks from that write were also restored. The state before restoring is saved in the second backup below."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "そのときの下書きと追加リストも復元しました。元に戻す直前の状態は、下の2つ目のバックアップに残っています。"
+            "value" : "そのときの下書きと追加した曲も復元しました。復元直前の状態は下の2番目のバックアップに保存されています。"
           }
         }
       }
@@ -7859,18 +7804,18 @@
         }
       }
     },
-    "그리드 되돌리기" : {
+    "그리드 초안 버리기" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Revert Grid"
+            "value" : "Discard Grid Draft"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "グリッドを元に戻す"
+            "value" : "グリッドの下書きを破棄"
           }
         }
       }
@@ -7891,18 +7836,18 @@
         }
       }
     },
-    "그리드 반영 완료" : {
+    "그리드 쓰기 완료" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "grid written"
+            "value" : "Grid written"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "グリッド反映済み"
+            "value" : "グリッドを書き込みました"
           }
         }
       }
@@ -8015,22 +7960,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "グリッド全体を移動（1秒間押し続けると繰り返し移動・波形のドラッグでも移動できます）"
-          }
-        }
-      }
-    },
-    "그리드 초안 버리기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Discard Grid Draft"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "グリッドの下書きを破棄"
           }
         }
       }
@@ -8785,18 +8714,18 @@
         }
       }
     },
-    "넣은 곡은 반영(⇧⌘E)할 때 rekordbox에 씁니다." : {
+    "넣은 곡은 ‘rekordbox에 쓰기’(⇧⌘E)로 저장합니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Added tracks are written to rekordbox when you write drafts (⇧⌘E)."
+            "value" : "Save added tracks with Write to rekordbox (⇧⌘E)."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "追加した曲は反映（⇧⌘E）するときにrekordboxに書き込みます。"
+            "value" : "追加した曲は「rekordboxに書き込む」（⇧⌘E）で保存します。"
           }
         }
       }
@@ -9489,98 +9418,82 @@
         }
       }
     },
-    "되돌리기" : {
+    "쓰기 전으로 복원…" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Revert"
+            "value" : "Restore Before Write…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "元に戻す"
+            "value" : "書き込み前に復元…"
           }
         }
       }
     },
-    "되돌리기…" : {
+    "복원하지 못했습니다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Restore…"
+            "value" : "Could Not Restore"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "元に戻す…"
+            "value" : "復元できませんでした"
           }
         }
       }
     },
-    "되돌리지 못했습니다" : {
+    "복원한 라이브러리를 읽는 중…" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Couldn't restore"
+            "value" : "Reading the Restored Library…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "元に戻せませんでした"
+            "value" : "復元したライブラリを読み込み中…"
           }
         }
       }
     },
-    "되돌린 라이브러리를 읽는 중…" : {
+    "복원할 백업이 없습니다. rekordbox에 쓰면 쓰기 전 백업이 생깁니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Reading the restored library…"
+            "value" : "No backup to restore. Writing to rekordbox creates one first."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "元に戻したライブラリを読み込み中…"
+            "value" : "復元するバックアップがありません。rekordboxへの書き込み前に作成されます。"
           }
         }
       }
     },
-    "되돌릴 백업이 없습니다. rekordbox에 반영하면 쓰기 전 백업이 생깁니다." : {
+    "복원할 쓰기 기록이 없습니다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No backup to restore. Writing to rekordbox creates a backup before making changes."
+            "value" : "No Write History to Restore"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "元に戻せるバックアップがありません。rekordboxに反映すると、書き込む前のバックアップが作成されます。"
-          }
-        }
-      }
-    },
-    "되돌릴 쓰기 기록이 없습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No writes to restore"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "元に戻せる書き込み記録がありません"
+            "value" : "復元する書き込み履歴がありません"
           }
         }
       }
@@ -9783,34 +9696,34 @@
         }
       }
     },
-    "라이브러리 전체를 이 백업으로 되돌립니다." : {
+    "라이브러리 전체를 이 백업으로 복원합니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The entire library is restored to this backup."
+            "value" : "Restores the entire library to this backup."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ライブラリ全体をこのバックアップの状態に戻します。"
+            "value" : "ライブラリ全体をこのバックアップに復元します。"
           }
         }
       }
     },
-    "라이브러리 전체를 이 백업으로 되돌립니다. 그때 쓴 초안(큐·그리드·게인·태그)도 DJCrate에 복원됩니다." : {
+    "라이브러리 전체를 이 백업으로 복원합니다. 그때 쓴 초안(큐·그리드·게인·태그)도 DJCrate에 복원됩니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The entire library is restored to this backup. The drafts written then (cues, grids, gain, tags) are also restored in DJCrate."
+            "value" : "Restores the entire library to this backup. The cue, grid, gain and tag drafts from that write are also restored in DJCrate."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ライブラリ全体をこのバックアップの状態に戻します。そのとき書き込んだ下書き（キュー・グリッド・ゲイン・タグ）もDJCrateに復元されます。"
+            "value" : "ライブラリ全体をこのバックアップに復元します。そのときのキュー・グリッド・ゲイン・タグの下書きもDJCrateに復元されます。"
           }
         }
       }
@@ -9847,18 +9760,18 @@
         }
       }
     },
-    "라이브러리는 반영했지만 합치기 초안 파일을 저장하지 못했습니다. DJCrate 데이터 폴더의 쓰기 권한을 확인하세요" : {
+    "라이브러리에는 썼지만 합치기 초안 파일을 저장하지 못했습니다. DJCrate 데이터 폴더의 쓰기 권한을 확인하세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The library was updated, but the merge draft file could not be saved. Check write permission for the DJCrate data folder."
+            "value" : "The library was written, but the merge draft file could not be saved. Check write permissions for the DJCrate data folder."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ライブラリには反映しましたが、統合の下書きファイルを保存できませんでした。DJCrateデータフォルダの書き込み権限を確認してください。"
+            "value" : "ライブラリに書き込みましたが、統合の下書きファイルを保存できませんでした。DJCrateのデータフォルダの書き込み権限を確認してください。"
           }
         }
       }
@@ -10023,18 +9936,18 @@
         }
       }
     },
-    "로컬 음원만 ‘추가한 곡’에 넣습니다. ‘재생 목록도 만들기’를 켜면 컬렉션에 반영한 뒤 원래 소속과 순서로 목록 초안을 만듭니다." : {
+    "로컬 음원만 ‘추가한 곡’에 넣습니다. ‘재생 목록도 만들기’를 켜면 컬렉션에 넣은 뒤 원래 소속과 순서로 목록 초안을 만듭니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Only local audio files go into Added Tracks. Enable Create Playlists Too to make playlist drafts in their original order after the tracks enter the Collection."
+            "value" : "Only local audio is added to Added Tracks. Enable Create Playlists to draft the original playlist membership and order after adding tracks to the collection."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ローカルの音源だけを「追加した曲」に入れます。「プレイリストも作成」をオンにすると、コレクションへの追加後に元の所属と順序でプレイリストの下書きを作成します。"
+            "value" : "ローカルの音源だけを「追加した曲」に入れます。「プレイリストも作成」をオンにすると、コレクションへの追加後に元の所属と順序でプレイリストの下書きを作ります。"
           }
         }
       }
@@ -10593,22 +10506,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最後の小節は曲の終わりで途切れる"
-          }
-        }
-      }
-    },
-    "마지막 반영 되돌리기…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restore Last Write…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最後の反映を元に戻す…"
           }
         }
       }
@@ -11243,18 +11140,18 @@
         }
       }
     },
-    "목록은 맨 위에 만듭니다. 같은 이름은 ‘ (2)’, ‘ (3)’을 붙여 새로 만들고, 같은 출처는 기존 연결에 이어 넣습니다. 목록 초안은 반영할 때 rekordbox에 씁니다." : {
+    "목록은 맨 위에 만듭니다. 같은 이름은 ‘ (2)’, ‘ (3)’을 붙여 새로 만들고, 같은 출처는 기존 연결에 이어 넣습니다. 목록 초안은 ‘rekordbox에 쓰기’로 저장합니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Playlists are created at the top level. Duplicate names get “ (2)”, “ (3)”, and so on. Tracks from the same source go into the linked playlist. Drafts are written to rekordbox when you apply them."
+            "value" : "Playlists are created at the top level. Duplicate names get “ (2)”, “ (3)”, and so on; the same source reuses its existing link. Save playlist drafts with Write to rekordbox."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "プレイリストは最上位に作成します。同じ名前には「 (2)」「 (3)」を付け、同じ読み込み元の曲はリンク済みのプレイリストに追加します。下書きは反映時にrekordboxに書き込みます。"
+            "value" : "プレイリストは最上位に作成します。同名には「 (2)」「 (3)」を付け、同じ読み込み元は既存の関連付けを使います。下書きは「rekordboxに書き込む」で保存します。"
           }
         }
       }
@@ -11563,18 +11460,18 @@
         }
       }
     },
-    "반영 XML을 쓰지 못했습니다. 저장 위치와 권한을 확인하세요: %@" : {
+    "XML을 만들지 못했습니다. 저장 위치와 권한을 확인하세요: %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Couldn't write the XML. Check the save location and permissions: %@"
+            "value" : "Could not create XML. Check the save location and permissions: %@"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "反映用XMLを書き込めませんでした。保存場所と権限を確認してください：%@"
+            "value" : "XMLを作成できませんでした。保存先と権限を確認してください：%@"
           }
         }
       }
@@ -11595,39 +11492,39 @@
         }
       }
     },
-    "반영 결과가 예상과 달라 변경을 취소했습니다" : {
+    "쓰기 결과가 예상과 달라 변경을 취소했습니다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The write didn't turn out as expected, so the changes were canceled"
+            "value" : "The write result differed from expected, so the changes were cancelled."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "反映結果が想定と異なったため、変更を取り消しました"
+            "value" : "書き込み結果が想定と異なったため、変更を取り消しました。"
           }
         }
       }
     },
-    "반영 결과를 확인하지 못해 쓰기 전 백업으로 되돌렸습니다" : {
+    "쓰기 결과를 확인하지 못해 쓰기 전 백업으로 복원했습니다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The write couldn't be verified, so the library was restored from the backup made before writing"
+            "value" : "The write result could not be verified, so the pre-write backup was restored."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "反映結果を確認できなかったため、書き込み前のバックアップに戻しました"
+            "value" : "書き込み結果を確認できなかったため、書き込み前のバックアップから復元しました。"
           }
         }
       }
     },
-    "반영 대기 목록 보기" : {
+    "쓰기 대기 목록 보기" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11638,7 +11535,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "反映待ちリストを表示"
+            "value" : "書き込み待ちを表示"
           }
         }
       }
@@ -11675,110 +11572,82 @@
         }
       }
     },
-    "반영 확인 중…" : {
+    "쓰기 확인 중…" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verifying the write…"
+            "value" : "Checking Write…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "反映を確認中…"
+            "value" : "書き込みを確認中…"
           }
         }
       }
     },
-    "반영…" : {
+    "아직 쓰지 않은 재생 목록 초안 %lld건" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Write…"
+            "value" : "Pending playlist drafts: %lld"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "反映…"
+            "value" : "未書き込みのプレイリストの下書き%lld件"
           }
         }
       }
     },
-    "반영하지 않은 재생 목록 초안 %lld건" : {
+    "아직 쓰지 않은 목록 초안입니다 · rekordbox에 쓰기(⇧⌘E)로 저장합니다" : {
       "localizations" : {
         "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld playlist draft edit not yet written"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld playlist draft edits not yet written"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pending playlist draft · Use Write to rekordbox (⇧⌘E) to save"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "未反映のプレイリスト下書き%lld件"
+            "value" : "未書き込みのプレイリストの下書きです · rekordboxに書き込む（⇧⌘E）で保存します"
           }
         }
       }
     },
-    "반영하지 않은 초안이 있는 목록입니다 · 반영(⇧⌘E)할 때 rekordbox에 씁니다" : {
+    "XML로 만들 곡이 없습니다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This playlist has drafts not yet written · They are written to rekordbox when you write drafts (⇧⌘E)"
+            "value" : "No Tracks for XML"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "未反映の下書きがあるプレイリストです · 反映（⇧⌘E）するときにrekordboxに書き込みます"
+            "value" : "XMLに出力する曲がありません"
           }
         }
       }
     },
-    "반영할 수 있는 곡이 없습니다" : {
+    "쓸 초안이 없습니다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No tracks can be written"
+            "value" : "No Drafts to Write"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "反映できる曲がありません"
-          }
-        }
-      }
-    },
-    "반영할 초안이 없습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No drafts to write"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "反映する下書きがありません"
+            "value" : "書き込む下書きがありません"
           }
         }
       }
@@ -11943,18 +11812,18 @@
         }
       }
     },
-    "백업한 뒤 되돌리고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요." : {
+    "백업한 뒤 복원하고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "DJCrate backs up, restores, and then verifies. Don't open rekordbox until it finishes."
+            "value" : "Backs up, restores, then verifies. Keep rekordbox closed until it finishes."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "バックアップしてから元に戻し、もう一度確認します。終わるまでrekordboxを起動しないでください。"
+            "value" : "バックアップしてから復元し、再確認します。完了するまでrekordboxを起動しないでください。"
           }
         }
       }
@@ -12355,18 +12224,18 @@
         }
       }
     },
-    "분석 반영 완료" : {
+    "분석 쓰기 완료" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "analysis written"
+            "value" : "Analysis written"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "解析反映済み"
+            "value" : "解析を書き込みました"
           }
         }
       }
@@ -13513,18 +13382,18 @@
         }
       }
     },
-    "선택 빼기" : {
+    "추가 목록에서 제거" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Remove Selected"
+            "value" : "Remove from Added Tracks"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選択した曲を外す"
+            "value" : "追加した曲から除外"
           }
         }
       }
@@ -13557,58 +13426,34 @@
         }
       }
     },
-    "선택한 곡 rekordbox에 반영 (%lld곡)…" : {
+    "선택한 곡 rekordbox에 쓰기 (%lld곡)…" : {
       "localizations" : {
         "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Write Selected to rekordbox (%lld track)…"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Write Selected to rekordbox (%lld tracks)…"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write Selected Tracks to rekordbox (Tracks: %lld)…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選択した曲をrekordboxに反映（%lld曲）…"
+            "value" : "選択した曲をrekordboxに書き込む（%lld曲）…"
           }
         }
       }
     },
-    "선택한 곡 반영 XML 만들기 (%lld곡)…" : {
+    "선택한 곡 XML 만들기 (%lld곡)" : {
       "localizations" : {
         "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Make Write XML for Selected (%lld track)…"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Make Write XML for Selected (%lld tracks)…"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create XML for Selected Tracks (Tracks: %lld)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選択した曲の反映XMLを作成（%lld曲）…"
+            "value" : "選択した曲のXMLを作成（%lld曲）"
           }
         }
       }
@@ -13629,50 +13474,50 @@
         }
       }
     },
-    "선택한 곡(없으면 목록 전체)의 곡 초안(큐·그리드·게인·태그)과 재생 목록 초안을 rekordbox 라이브러리에 바로 씁니다. 미리 보기로 확인한 뒤 씁니다. rekordbox가 꺼져 있어야 합니다." : {
+    "고른 곡(없으면 목록 전체)과 재생 목록 초안을 확인한 뒤 rekordbox에 씁니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Writes the track drafts (cues, grids, gain, tags) of the selected tracks (or the whole list if none are selected) and the playlist drafts directly to the rekordbox library. You check a preview before writing. rekordbox must be closed."
+            "value" : "Preview and write track and playlist drafts to rekordbox."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選択した曲（なければリスト全体）の曲の下書き（キュー・グリッド・ゲイン・タグ）とプレイリストの下書きをrekordboxライブラリに直接書き込みます。プレビューで確認してから書き込みます。rekordboxを終了しておく必要があります。"
+            "value" : "曲とプレイリストの下書きを確認してrekordboxに書き込みます。"
           }
         }
       }
     },
-    "선택한 곡(없으면 추가 목록 전체)을 rekordbox 컬렉션에 바로 넣습니다. 추정 그리드·파형·오토게인까지 만들어 넣고, 미리 보기로 확인한 뒤 rekordbox가 꺼져 있을 때만 씁니다. 되돌리기로 무를 수 있습니다." : {
+    "고른 곡(없으면 추가 목록 전체)을 확인한 뒤 rekordbox 컬렉션에 넣습니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Adds the selected tracks (or the whole added list if none are selected) directly to the rekordbox Collection, including estimated grids, waveforms, and Auto Gain. You check a preview first, and it writes only while rekordbox is closed. You can undo it with Restore."
+            "value" : "Preview and add selected tracks, or all added tracks, to rekordbox."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選択した曲（なければ追加リスト全体）をrekordboxのコレクションに直接追加します。推定グリッド・波形・オートゲインまで作成して追加し、プレビューで確認した後、rekordboxが終了しているときだけ書き込みます。元に戻すで取り消せます。"
+            "value" : "選択した曲（未選択なら追加した全曲）を確認してrekordboxに追加します。"
           }
         }
       }
     },
-    "선택한 곡에 초안이 있으면 그 곡들만, 없으면 반영 대기 전체를 미리 보고 rekordbox에 씁니다 (⇧⌘E). 대상 %@곡" : {
+    "초안을 확인한 뒤 rekordbox에 씁니다(⇧⌘E). 대상 %@곡" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Previews and writes to rekordbox: only the selected tracks if they have drafts, otherwise everything pending (⇧⌘E). Tracks: %@"
+            "value" : "Preview and write drafts to rekordbox (⇧⌘E). Tracks: %@"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選択した曲に下書きがあればその曲だけ、なければ反映待ちをすべてプレビューしてrekordboxに書き込みます（⇧⌘E）。対象%@曲"
+            "value" : "下書きを確認してrekordboxに書き込みます（⇧⌘E）。対象%@曲"
           }
         }
       }
@@ -13763,18 +13608,18 @@
         }
       }
     },
-    "섹션 경계 기반 메모리 큐 제안 표시. 초록 + 를 클릭하면 추가" : {
+    "큐 제안을 표시합니다. 파형 아래 + 배지를 누르면 메모리 큐로 추가합니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Shows Memory Cue suggestions at section boundaries. Click the green + to add one."
+            "value" : "Show cue suggestions. Click a + badge below the waveform to add a Memory Cue."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "セクションの境目にメモリーキューの候補を表示します。緑の＋をクリックすると追加します。"
+            "value" : "キュー候補を表示します。波形の下の＋バッジを押すとメモリーキューに追加します。"
           }
         }
       }
@@ -14041,18 +13886,18 @@
         }
       }
     },
-    "스트리밍 곡은 반영할 수 없습니다" : {
+    "스트리밍 곡은 XML로 만들 수 없습니다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Streaming tracks can't be written"
+            "value" : "Streaming tracks cannot be exported to XML."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ストリーミングの曲は反映できません"
+            "value" : "ストリーミングの曲はXMLに出力できません。"
           }
         }
       }
@@ -14837,18 +14682,18 @@
         }
       }
     },
-    "앨범과 앨범 아티스트를 함께 바꾸는 규칙은 확인하지 못했으므로 한 칸씩 반영하세요" : {
+    "앨범과 앨범 아티스트를 함께 바꾸는 규칙은 확인하지 못했으므로 한 칸씩 쓰세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Changing the album and album artist together is not verified. Apply one field at a time."
+            "value" : "Changing Album and Album Artist together is unverified; write one field at a time."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "アルバムとアルバムアーティストを同時に変更する規則は未確認です。1項目ずつ反映してください。"
+            "value" : "アルバムとアルバムアーティストの同時変更は未確認のため、1項目ずつ書き込んでください。"
           }
         }
       }
@@ -15409,18 +15254,18 @@
         }
       }
     },
-    "왼쪽 위 모서리 삼각형이 붙은 칸은 초안(파일·rekordbox 미반영)" : {
+    "왼쪽 위 모서리 삼각형이 붙은 칸은 초안(파일·rekordbox에 쓰기 전)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cells with a triangle in the top-left corner are drafts (not yet in the file or rekordbox)"
+            "value" : "Cells with a triangle at the top left are drafts, not yet written to files or rekordbox."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "左上の角に三角形が付いたセルは下書き（ファイル・rekordbox未反映）"
+            "value" : "左上に三角形のあるセルは下書きです（ファイル・rekordboxへの書き込み前）。"
           }
         }
       }
@@ -15655,18 +15500,18 @@
         }
       }
     },
-    "음원 파일·폴더를 DJCrate에 추가합니다. BPM·그리드를 추정한 뒤 rekordbox XML로 넘길 수 있습니다(창에 끌어다 놓아도 됩니다)." : {
+    "음원 파일·폴더를 추가합니다. 창에 끌어다 놓아도 됩니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Adds audio files or folders to DJCrate. After estimating BPM and grids, you can hand them to rekordbox as XML (you can also drag them onto the window)."
+            "value" : "Add audio files or folders, or drag them into the window."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "音源ファイル・フォルダをDJCrateに追加します。BPM・グリッドを推定した後、rekordbox xmlで渡せます（ウインドウにドラッグ＆ドロップしても追加できます）。"
+            "value" : "音源ファイル・フォルダを追加します。ウインドウへのドラッグも使えます。"
           }
         }
       }
@@ -16099,22 +15944,6 @@
         }
       }
     },
-    "이 곡의 큐 초안을 rekordbox 라이브러리에 바로 씁니다(미리 보기로 확인한 뒤, rekordbox가 꺼져 있을 때만). 그리드 초안은 아직 XML로만 반영됩니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Writes this track’s cue draft directly to the rekordbox library (after you check the preview, and only while rekordbox is closed). Grid drafts are still written only via XML."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この曲のキューの下書きをrekordboxライブラリに直接書き込みます（プレビューで確認した後、rekordboxが終了しているときのみ）。グリッドの下書きはまだXMLでのみ反映されます。"
-          }
-        }
-      }
-    },
     "이 동작만 기본 키로" : {
       "localizations" : {
         "en" : {
@@ -16218,7 +16047,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このテンポ変化点を削除"
+            "value" : "このテンポ変更点を削除"
           }
         }
       }
@@ -16707,18 +16536,18 @@
         }
       }
     },
-    "이후 반영할 때마다 rekordbox에서:" : {
+    "XML을 만든 뒤 rekordbox에서:" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "After that, each time you write, in rekordbox:"
+            "value" : "After creating XML, in rekordbox:"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "以降、反映するたびにrekordboxで："
+            "value" : "XMLの作成後、rekordboxで："
           }
         }
       }
@@ -16755,18 +16584,18 @@
         }
       }
     },
-    "일부 곡을 반영했습니다" : {
+    "일부 곡을 썼습니다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Some tracks were written"
+            "value" : "Some Tracks Were Written"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "一部の曲を反映しました"
+            "value" : "一部の曲を書き込みました"
           }
         }
       }
@@ -17163,18 +16992,18 @@
         }
       }
     },
-    "재생 목록 반영 완료: %@" : {
+    "재생 목록 쓰기 완료: %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "playlist written: %@"
+            "value" : "Playlist written: %@"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "プレイリスト反映済み：%@"
+            "value" : "プレイリストを書き込みました：%@"
           }
         }
       }
@@ -18721,34 +18550,34 @@
         }
       }
     },
-    "직접 미리 들어 같은 음원인지 확인하세요. 인코더 지연만 보정하며, 곡 앞뒤의 편집 차이는 보정하지 않습니다. 초안은 ⇧⌘E로 반영합니다." : {
+    "직접 미리 들어 같은 음원인지 확인하세요. 인코더 지연만 보정하며, 곡 앞뒤의 편집 차이는 보정하지 않습니다. 초안은 ⇧⌘E로 씁니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Listen to confirm these are the same audio. Only encoder delay is adjusted; edits to the beginning or end are not aligned. Write the draft with ⇧⌘E."
+            "value" : "Listen to check that the audio matches. Only encoder delay is corrected, not edits at the beginning or end. Write the draft with ⇧⌘E."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "試聴して同じ音源か確認してください。エンコーダーの遅延のみ補正し、曲の前後の編集による違いは補正しません。下書きは⇧⌘Eで反映します。"
+            "value" : "試聴して同じ音源か確認してください。エンコーダー遅延のみ補正し、曲の前後の編集差は補正しません。下書きは⇧⌘Eで書き込みます。"
           }
         }
       }
     },
-    "직접 쓰지 않고 rekordbox XML로 만듭니다(그리드 초안은 아직 이 경로로만 반영됩니다)." : {
+    "큐·그리드 초안을 rekordbox에서 가져올 XML로 만듭니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Creates a rekordbox xml instead of writing directly (grid drafts can only be written this way for now)."
+            "value" : "Create XML to import cue and grid drafts into rekordbox."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "直接書き込まずにrekordbox xmlを作成します（グリッドの下書きは今のところこの方法でのみ反映されます）。"
+            "value" : "キュー・グリッドの下書きをrekordboxにインポートするXMLを作成します。"
           }
         }
       }
@@ -18849,18 +18678,18 @@
         }
       }
     },
-    "처음 반영하기 전에 rekordbox › 파일 › 라이브러리 › 라이브러리 백업을 한 번 해 두세요." : {
+    "처음 XML을 가져오기 전에 rekordbox › 파일 › 라이브러리 › 라이브러리 백업을 한 번 해 두세요." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Before your first write, back up once with rekordbox › File › Library › Backup Library."
+            "value" : "Before the first XML import, back up your library in rekordbox › File › Library › Backup Library."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "初めて反映する前に、rekordbox › ファイル › ライブラリ › ライブラリのバックアップを一度行ってください。"
+            "value" : "初めてXMLをインポートする前に、rekordboxのファイル › ライブラリ › ライブラリのバックアップを実行してください。"
           }
         }
       }
@@ -19053,18 +18882,18 @@
         }
       }
     },
-    "초안: 파일·rekordbox에 아직 반영하지 않은 값" : {
+    "초안: 파일·rekordbox에 아직 쓰지 않은 값" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Draft: a value not yet written to the file or rekordbox"
+            "value" : "Draft: not yet written to files or rekordbox"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "下書き：ファイル・rekordboxにまだ反映していない値"
+            "value" : "下書き：ファイル・rekordboxへの書き込み前の値"
           }
         }
       }
@@ -19197,18 +19026,18 @@
         }
       }
     },
-    "초안입니다. rekordbox에 반영하면 rekordbox 오토게인이 이 값으로 바뀝니다" : {
+    "rekordbox에 쓰면 이 곡의 오토게인이 초안 값으로 바뀝니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This is a draft. When you write it to rekordbox, rekordbox Auto Gain changes to this value."
+            "value" : "Writing to rekordbox sets this track’s Auto Gain to the draft value."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "下書きです。rekordboxに反映すると、rekordboxのオートゲインがこの値に変わります"
+            "value" : "rekordboxに書き込むと、この曲のオートゲインが下書きの値に変わります。"
           }
         }
       }
@@ -19333,30 +19162,18 @@
         }
       }
     },
-    "추가한 곡 rekordbox XML로 내보내기 (%lld곡)…" : {
+    "추가한 곡 XML 만들기 (%lld곡)" : {
       "localizations" : {
         "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Export Added Track as rekordbox xml (%lld track)…"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Export Added Tracks as rekordbox xml (%lld tracks)…"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create XML for Added Tracks (Tracks: %lld)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "追加した曲をrekordbox xmlに書き出す（%lld曲）…"
+            "value" : "追加した曲のXMLを作成（%lld曲）"
           }
         }
       }
@@ -19559,18 +19376,18 @@
         }
       }
     },
-    "컬렉션에 들어간 곡은 재생 목록 초안에 연결합니다. 목록은 반영할 때 만듭니다." : {
+    "컬렉션에 들어간 곡은 재생 목록 초안에 연결합니다. 목록은 ‘rekordbox에 쓰기’로 만듭니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tracks in the Collection are linked to playlist drafts. Playlists are created when you apply the drafts."
+            "value" : "Tracks added to the collection are linked to playlist drafts. Create the playlists with Write to rekordbox."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "コレクションに追加した曲はプレイリストの下書きにリンクします。プレイリストは下書きの反映時に作成します。"
+            "value" : "コレクションに追加した曲をプレイリストの下書きに関連付けます。プレイリストは「rekordboxに書き込む」で作成します。"
           }
         }
       }
@@ -20059,18 +19876,18 @@
         }
       }
     },
-    "큐 반영 완료" : {
+    "큐 쓰기 완료" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cues written"
+            "value" : "Cues written"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "キュー反映済み"
+            "value" : "キューを書き込みました"
           }
         }
       }
@@ -20395,18 +20212,18 @@
         }
       }
     },
-    "큐·그리드·게인·태그 초안이 있어 rekordbox에 반영할 곡. 재생 목록 초안도 이 목록 위 ‘rekordbox에 쓰기’로 함께 씁니다." : {
+    "rekordbox에 쓸 곡 초안을 모아 봅니다. 재생 목록 초안도 함께 쓸 수 있습니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tracks with cue, grid, gain, or tag drafts to write to rekordbox. Playlist drafts are written too with ‘Write to rekordbox’ above this list."
+            "value" : "View pending track drafts; playlist drafts can be written with them."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "キュー・グリッド・ゲイン・タグの下書きがあり、rekordboxに反映する曲。プレイリストの下書きもこのリストの上の「rekordboxに書き込む」で一緒に書き込みます。"
+            "value" : "書き込み待ちの曲の下書きを表示します。プレイリストの下書きも一緒に書き込めます。"
           }
         }
       }
@@ -20459,18 +20276,18 @@
         }
       }
     },
-    "큐는 반영 대기: %@" : {
+    "큐는 쓰기 대기: %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "cues pending: %@"
+            "value" : "Cues pending write: %@"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "キューは反映待ち：%@"
+            "value" : "キューは書き込み待ち：%@"
           }
         }
       }
@@ -20815,18 +20632,18 @@
         }
       }
     },
-    "태그 반영 완료" : {
+    "태그 쓰기 완료" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "tags written"
+            "value" : "Tags written"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "タグ反映済み"
+            "value" : "タグを書き込みました"
           }
         }
       }
@@ -20843,22 +20660,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "タグ変更なし"
-          }
-        }
-      }
-    },
-    "태그 시트: 엑셀처럼 셀을 선택·편집·붙여넣기 합니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tag Sheet: select, edit, and paste cells like in Excel"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "タグシート：Excelのようにセルを選択・編集・ペーストします"
           }
         }
       }
@@ -21819,24 +21620,24 @@
         }
       }
     },
-    "폴더 안의 재생 목록 %lld개와 폴더 %lld개도 함께 지웁니다. 곡은 컬렉션에 그대로 남습니다. 반영(⇧⌘E)할 때 rekordbox에 씁니다." : {
+    "폴더 안의 재생 목록 %lld개와 폴더 %lld개도 함께 지웁니다. 곡은 컬렉션에 그대로 남습니다. ‘rekordbox에 쓰기’(⇧⌘E)로 저장합니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Also deletes the playlists (%1$lld) and folders (%2$lld) inside. Tracks stay in the Collection. The change is written to rekordbox when you write drafts (⇧⌘E)."
+            "value" : "Also deletes the contents (Playlists: %1$lld, Folders: %2$lld). Tracks stay in the collection. Save with Write to rekordbox (⇧⌘E)."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "フォルダ内のプレイリスト%1$lld個とフォルダ%2$lld個も削除します。曲はコレクションに残ります。反映（⇧⌘E）するときにrekordboxに書き込みます。"
+            "value" : "中のプレイリスト%1$lld個とフォルダ%2$lld個も削除します。曲はコレクションに残ります。「rekordboxに書き込む」（⇧⌘E）で保存します。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "폴더 안의 재생 목록 %1$lld개와 폴더 %2$lld개도 함께 지웁니다. 곡은 컬렉션에 그대로 남습니다. 반영(⇧⌘E)할 때 rekordbox에 씁니다."
+            "value" : "폴더 안의 재생 목록 %1$lld개와 폴더 %2$lld개도 함께 지웁니다. 곡은 컬렉션에 그대로 남습니다. ‘rekordbox에 쓰기’(⇧⌘E)로 저장합니다."
           }
         }
       }
@@ -22131,46 +21932,40 @@
         }
       }
     },
-    "합치기 반영 대기 · %@ 유지 · %lld곡 빼기" : {
+    "합치기 쓰기 대기 · %@ 유지 · %lld곡 빼기" : {
       "localizations" : {
         "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Merge pending · Keep %1$@ · Remove %2$lld track"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Merge pending · Keep %1$@ · Remove %2$lld tracks"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge pending write · Keep %1$@ · Tracks to remove: %2$lld"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "統合の反映待ち・%1$@を残す・%2$lld曲を削除"
+            "value" : "統合の書き込み待ち · %1$@を残す · %2$lld曲を除外"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "합치기 쓰기 대기 · %1$@ 유지 · %2$lld곡 빼기"
           }
         }
       }
     },
-    "합치기 반영 완료" : {
+    "합치기 쓰기 완료" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Merge complete"
+            "value" : "Merge written"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "統合を反映しました"
+            "value" : "統合を書き込みました"
           }
         }
       }
@@ -22481,34 +22276,18 @@
         }
       }
     },
-    "현재 그리드를 추정 그리드로 바꿉니다(초안만, 되돌리기 가능)." : {
+    "추정 그리드로 초안을 바꿉니다. 신뢰도가 낮으니 소리로 확인하세요(실행 취소 가능)." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Replaces the current grid with the estimated grid (draft only; you can revert)."
+            "value" : "Use the estimated grid. Low confidence: check by ear (can be undone)."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "現在のグリッドを推定グリッドに置き換えます（下書きのみ、元に戻せます）。"
-          }
-        }
-      }
-    },
-    "현재 그리드를 추정 그리드로 바꿉니다(초안만, 되돌리기 가능). 추정 신뢰도가 낮으니 소리로 확인하세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Replaces the current grid with the estimated grid (draft only; you can revert). The estimate has low confidence, so check it by ear."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "現在のグリッドを推定グリッドに置き換えます（下書きのみ、元に戻せます）。推定の信頼度が低いので、音で確認してください。"
+            "value" : "推定グリッドに変更します。信頼度が低いため音で確認してください（取り消し可能）。"
           }
         }
       }
@@ -22829,6 +22608,150 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ホイール"
+          }
+        }
+      }
+    },
+    "곡 목록을 봅니다(⌘1)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the track list (⌘1)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲のリストを表示します（⌘1）。"
+          }
+        }
+      }
+    },
+    "덱에 곡을 먼저 불러오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Load a track into the deck first."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先にデッキに曲を読み込んでください。"
+          }
+        }
+      }
+    },
+    "쓰기 전으로 복원" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore Before Write"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込み前に復元"
+          }
+        }
+      }
+    },
+    "쓰기가 끝난 뒤 다시 시도하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try again after the write finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込みが終わってから再度お試しください。"
+          }
+        }
+      }
+    },
+    "이 곡의 큐·그리드 초안을 확인한 뒤 rekordbox에 씁니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview and write this track’s cue and grid drafts to rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この曲のキュー・グリッドの下書きを確認してrekordboxに書き込みます。"
+          }
+        }
+      }
+    },
+    "추가한 곡 목록에서 먼저 rekordbox 컬렉션에 넣으세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add this track to rekordbox from Added Tracks first."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先に「追加した曲」からrekordboxのコレクションに入れてください。"
+          }
+        }
+      }
+    },
+    "큐·그리드 초안을 고친 뒤 쓰세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit the cue or grid draft before writing."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キューまたはグリッドの下書きを編集してから書き込んでください。"
+          }
+        }
+      }
+    },
+    "태그 초안 버리기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard Tag Draft"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タグの下書きを破棄"
+          }
+        }
+      }
+    },
+    "태그를 표에서 편집합니다(⌘2)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit tags in a spreadsheet (⌘2)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表でタグを編集します（⌘2）。"
           }
         }
       }

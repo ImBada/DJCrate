@@ -84,7 +84,7 @@ struct AudioBar: View {
                     Text(note).font(.scaled(.caption, textScale)).lineLimit(1).foregroundStyle(.secondary)
                     Button(.ui("제안 받기")) { deck.applyGridSuggestion() }
                         .fixedSize()
-                        .help(.ui("DJCrate가 추정한 그리드로 바꿉니다(초안만, 되돌리기 가능)"))
+                        .help(.ui("추정 그리드로 초안을 바꿉니다(실행 취소 가능)."))
                     Button(.ui("무시")) { deck.dismissGridSuggestion() }
                         .fixedSize()
                         .help(.ui("이 곡에서는 제안을 더 보이지 않습니다"))
@@ -125,7 +125,7 @@ struct GainControl: View {
             }
         }
         .buttonStyle(.borderless)
-        .help(.ui("게인(볼륨 페이더 앞). 누르면 오토게인·목표 음량·트림을 정합니다. 느낌표가 붙은 LUFS = 매우 큰 마스터(−6 LUFS 초과)이거나 심한 클리핑"))
+        .help(.ui("오토게인·목표 음량·트림을 정합니다. LUFS 느낌표는 과도한 음량이나 클리핑 경고입니다."))
         .popover(isPresented: $shown, arrowEdge: .bottom) { GainSettings(deck: deck).padding(16).frame(width: 340) }
     }
 }
@@ -190,11 +190,11 @@ struct GainSettings: View {
                             Button { deck.adjustTrackGain(by: 0.1) } label: { Text(verbatim: "+0.1") }
                             Button { deck.adjustTrackGain(by: 1) } label: { Text(verbatim: "+1") }
                             if deck.gainDraft != nil {
-                                Button(.ui("되돌리기")) { deck.clearGainDraft() }
+                                Button(.ui("게인 초안 버리기")) { deck.clearGainDraft() }
                             }
                         }
                         .controlSize(.small)
-                        .help(deck.gainDraft != nil ? String(ui: "초안입니다. rekordbox에 반영하면 rekordbox 오토게인이 이 값으로 바뀝니다") : String(ui: "이 곡의 rekordbox 오토게인을 고칩니다(초안)"))
+                        .help(deck.gainDraft != nil ? String(ui: "rekordbox에 쓰면 이 곡의 오토게인이 초안 값으로 바뀝니다.") : String(ui: "이 곡의 rekordbox 오토게인을 고칩니다(초안)"))
                     } else {
                         Text(.ui("rekordbox 값 없음(분석 전)")).foregroundStyle(.secondary)
                     }

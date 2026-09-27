@@ -49,7 +49,7 @@ struct PlaylistEditingTests {
         #expect(store.playlistIndex["A"]?.trackIDs == ["1", "2", "4"] && store.playlistIndex["A"]?.isDraft == true)
         #expect(store.count(playlist: try #require(store.playlistIndex["A"])) == 3)
         #expect(store.playlistMessage?.kind == .warning)
-        #expect(store.playlistMessage?.text == "‘가’에 1곡을 넣었습니다(반영 대기). 이미 들어 있는 1곡은 넣지 않았습니다. 추가한 곡 1곡은 rekordbox 컬렉션에 넣은 뒤 목록에 넣을 수 있습니다.")
+        #expect(store.playlistMessage?.text == "‘가’에 1곡을 넣었습니다(쓰기 대기). 이미 들어 있는 1곡은 넣지 않았습니다. 추가한 곡 1곡은 rekordbox 컬렉션에 넣은 뒤 목록에 넣을 수 있습니다.")
         #expect(store.lastUsedPlaylist?.id == "A")
         // 목록을 보면 초안으로 넣은 곡에 초안 표식
         store.sidebar = .playlist("A")

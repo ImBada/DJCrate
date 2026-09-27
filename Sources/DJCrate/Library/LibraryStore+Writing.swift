@@ -100,7 +100,7 @@ extension LibraryStore {
         })
         DraftWriter.flush()
         // 화면을 처음부터 다시 불러오지 않고 뒤에서 조용히 다시 읽는다.
-        writeStage = WriteStage(String(ui: "반영 확인 중…"))
+        writeStage = WriteStage(String(ui: "쓰기 확인 중…"))
         await takeSnapshot(quiet: true)
         // 그리드만 바뀐 곡은 DB가 그대로라 목록 줄이 같다. 덱이 그 곡을 보고 있으면 초안·그리드만 다시 읽게 한다.
         onRekordboxWritten?(Set(report.written.map(\.trackUUID)).union(report.gridWritten.map(\.trackUUID)).union(report.gainWritten.map(\.trackUUID))
@@ -112,7 +112,7 @@ extension LibraryStore {
     /// 백업으로 되돌린다: DB를 쓰기 전으로 돌리고, 그때 쓴 초안을 DJCrate에 다시 살린다.
     @discardableResult
     func restoreRekordbox(_ backup: RekordboxWriter.Backup) async throws -> URL {
-        writeStage = WriteStage(String(ui: "rekordbox를 되돌리는 중…"))
+        writeStage = WriteStage(String(ui: "rekordbox를 복원하는 중…"))
         defer { writeStage = nil }
         let saved = try await Task.detached(priority: .userInitiated) {
             try RekordboxWriter.restore(backup.url, backups: DJCPaths.rekordboxBackups)
@@ -131,7 +131,7 @@ extension LibraryStore {
         let tags = RekordboxWriter.tagDrafts(in: backup.url)
         replaceTagDrafts(tags)
         DraftWriter.flush()
-        writeStage = WriteStage(String(ui: "되돌린 라이브러리를 읽는 중…"))
+        writeStage = WriteStage(String(ui: "복원한 라이브러리를 읽는 중…"))
         await takeSnapshot(quiet: true)
         // 재생 목록 편집은 되돌린 rekordbox 상태에 다시 쌓는다(쌓지 못한 편집은 알린다).
         let unrestored = restorePlaylistEdits(RekordboxWriter.playlistEdits(in: backup.url))

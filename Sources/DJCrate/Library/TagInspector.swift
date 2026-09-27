@@ -44,9 +44,9 @@ struct TagInspector: View {
                         Label(Set(issues).sorted().joined(separator: " · "), systemImage: "exclamationmark.triangle")
                             .foregroundStyle(UIColors.warning.color).font(.scaled(.caption, textScale))
                     }
-                    Button(.ui("되돌리기")) { store.revertTags(rows: rows) }
+                    Button(.ui("태그 초안 버리기")) { store.revertTags(rows: rows) }
                     // 반영(⌘⇧E)하면 rekordbox 곡 정보에 쓴다. 음원 파일은 읽기만 한다(#1 결정).
-                    Text(.ui("rekordbox 반영 때 라이브러리에만 씁니다. 음원 파일의 태그는 바뀌지 않습니다."))
+                    Text(.ui("rekordbox에 쓸 때 라이브러리에만 저장합니다. 음원 파일의 태그는 바뀌지 않습니다."))
                         .font(.scaled(.caption, textScale)).foregroundStyle(.secondary)
                 }
             }

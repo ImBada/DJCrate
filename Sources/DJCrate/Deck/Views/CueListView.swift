@@ -14,6 +14,16 @@ struct CueListView: View {
     }
     private var visibleCues: [EditableCue] { (deck.draft?.cues ?? []).filter(filter.includes) }
 
+    private var writeHelp: String {
+        if deck.isWriteLocked { return String(ui: "쓰기가 끝난 뒤 다시 시도하세요.") }
+        guard let row = deck.row else { return String(ui: "덱에 곡을 먼저 불러오세요.") }
+        if row.isStaged { return String(ui: "추가한 곡 목록에서 먼저 rekordbox 컬렉션에 넣으세요.") }
+        if deck.draft?.hasChanges != true && deck.gridDraft?.hasChanges != true {
+            return String(ui: "큐·그리드 초안을 고친 뒤 쓰세요.")
+        }
+        return String(ui: "이 곡의 큐·그리드 초안을 확인한 뒤 rekordbox에 씁니다.")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -57,13 +67,13 @@ struct CueListView: View {
                     .font(.scaled(.caption, textScale)).foregroundStyle(UIColors.warning.color)
             }
             HStack {
-                Button(.ui("되돌리기")) { deck.revertDraft() }
+                Button(.ui("큐 초안 버리기")) { deck.revertDraft() }
                     .disabled(deck.draft?.hasChanges != true)
-                    .help(.ui("rekordbox에서 불러온 상태로 되돌립니다"))
+                    .help(.ui("큐 초안을 버리고 rekordbox에서 불러온 큐로 돌아갑니다."))
                 Spacer()
-                Button(.ui("rekordbox에 반영…")) { if let row = deck.row { deck.onRequestReflection?(row) } }
+                Button(.ui("rekordbox에 쓰기…")) { if let row = deck.row { deck.onRequestReflection?(row) } }
                     .disabled(deck.isWriteLocked || deck.row?.isStaged != false || (deck.draft?.hasChanges != true && deck.gridDraft?.hasChanges != true))
-                    .help(.ui("이 곡의 큐 초안을 rekordbox 라이브러리에 바로 씁니다(미리 보기로 확인한 뒤, rekordbox가 꺼져 있을 때만). 그리드 초안은 아직 XML로만 반영됩니다."))
+                    .help(writeHelp)
             }
             .controlSize(ControlSize.small.scaled(textScale))
             if deck.isWriteLocked {

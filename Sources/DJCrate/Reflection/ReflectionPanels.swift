@@ -19,7 +19,7 @@ enum ReflectionPanels {
             let url = try RekordboxLink.prepare()
             _ = try store.exportReflection(rows: rows, to: url)
         } catch {
-            store.reflectionMessage = AppMessage(kind: .failure, text: String(ui: "반영 XML을 쓰지 못했습니다. 저장 위치와 권한을 확인하세요: \(error.localizedDescription)"))
+            store.reflectionMessage = AppMessage(kind: .failure, text: String(ui: "XML을 만들지 못했습니다. 저장 위치와 권한을 확인하세요: \(error.localizedDescription)"))
             return
         }
         // 재생 목록 이름 "DJCrate 반영"은 XML에 쓰는 이름 그대로다(번역하지 않음).
@@ -33,7 +33,7 @@ enum ReflectionPanels {
     }
 
     static func blockedPrompt(_ blocked: [Reflection.Plan]) -> ReflectionPrompt {
-        ReflectionPrompt(title: String(ui: "반영할 수 있는 곡이 없습니다"),
+        ReflectionPrompt(title: String(ui: "XML로 만들 곡이 없습니다"),
                          text: blocked.isEmpty ? String(ui: "고른 곡에 rekordbox와 다른 큐·그리드 초안이 없습니다.") : "",
                          details: blocked.map { "• \($0.title): \($0.blockers.joined(separator: " / "))" })
     }

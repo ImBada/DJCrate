@@ -122,7 +122,7 @@ final class AppleMusicImportModel {
         }
         // 파일 검사 중 시작된 반영과 곡 추가가 겹치지 않게 다시 확인한다.
         guard store.writeLockPolicy.allowsLibraryInteraction else {
-            message = String(ui: "rekordbox 반영이 끝난 뒤 선택한 곡을 다시 추가하세요.")
+            message = String(ui: "rekordbox 쓰기가 끝난 뒤 선택한 곡을 다시 추가하세요.")
             return
         }
         if !urls.isEmpty {
@@ -142,12 +142,12 @@ private struct AppleMusicImportView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(.ui("Music의 파일 › 보관함 › 보관함 내보내기에서 XML을 저장하세요. 재생 목록 내보내기에서 XML을 골라도 됩니다."))
-            Text(.ui("로컬 음원만 ‘추가한 곡’에 넣습니다. ‘재생 목록도 만들기’를 켜면 컬렉션에 반영한 뒤 원래 소속과 순서로 목록 초안을 만듭니다."))
+            Text(.ui("로컬 음원만 ‘추가한 곡’에 넣습니다. ‘재생 목록도 만들기’를 켜면 컬렉션에 넣은 뒤 원래 소속과 순서로 목록 초안을 만듭니다."))
                 .font(.callout).foregroundStyle(.secondary)
             Toggle(.ui("재생 목록도 만들기"), isOn: $model.createPlaylists)
                 .toggleStyle(.checkbox)
             if model.createPlaylists {
-                Text(.ui("목록은 맨 위에 만듭니다. 같은 이름은 ‘ (2)’, ‘ (3)’을 붙여 새로 만들고, 같은 출처는 기존 연결에 이어 넣습니다. 목록 초안은 반영할 때 rekordbox에 씁니다."))
+                Text(.ui("목록은 맨 위에 만듭니다. 같은 이름은 ‘ (2)’, ‘ (3)’을 붙여 새로 만들고, 같은 출처는 기존 연결에 이어 넣습니다. 목록 초안은 ‘rekordbox에 쓰기’로 저장합니다."))
                     .font(.caption).foregroundStyle(.secondary)
             }
             HStack {
