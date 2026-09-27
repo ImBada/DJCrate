@@ -6,15 +6,20 @@ import Foundation
 /// 로컬 스냅샷 **사본**과 share(읽기만)에서 USB 내보내기 후보·재생 목록을 읽는다.
 /// share의 파일은 lstat만 하고 열지 않는다(크기·시각만 본다). 라이브 master.db를 연 연결이면 읽지 않는다.
 public enum UsbExportCandidates {
-    public static var liveDatabase: URL {
+    /// 라이브 master.db. 공개 함수는 늘 이 경로와 비교한다(바꿀 수 있는 인자로 두지 않는다)
+    static var liveDatabase: URL {
         FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Pioneer/rekordbox/master.db")
     }
 
     /// 한 번에 넘기는 자리표시자 수(SQLite 한계보다 넉넉히 작게)
     static let chunkSize = 500
 
-    public static func load(database: CipherDatabase, share: URL, contentIDs: [String],
-                            liveDatabase: URL = UsbExportCandidates.liveDatabase) throws -> [UsbExportCandidate] {
+    public static func load(database: CipherDatabase, share: URL, contentIDs: [String]) throws -> [UsbExportCandidate] {
+        try load(database: database, share: share, contentIDs: contentIDs, liveDatabase: liveDatabase)
+    }
+
+    /// 시험만 라이브 경로를 바꿔 넘긴다.
+    static func load(database: CipherDatabase, share: URL, contentIDs: [String], liveDatabase: URL) throws -> [UsbExportCandidate] {
         try refuseLive(database, liveDatabase: liveDatabase)
         var seen: Set<String> = []
         let ids = contentIDs.filter { seen.insert($0).inserted }
@@ -54,8 +59,11 @@ public enum UsbExportCandidates {
 
     /// 목록·폴더 트리. 폴더면 안까지 깊이 우선, 형제는 Seq 순. 뿌리의 부모는 nil(USB 맨 위).
     /// 스마트 목록(Attribute 4 또는 SmartList 규칙이 있음)은 attribute 4로 넘기고 계획기가 막는다.
-    public static func playlistTree(database: CipherDatabase, rootIDs: [String],
-                                    liveDatabase: URL = UsbExportCandidates.liveDatabase) throws -> [UsbPlaylistInput] {
+    public static func playlistTree(database: CipherDatabase, rootIDs: [String]) throws -> [UsbPlaylistInput] {
+        try playlistTree(database: database, rootIDs: rootIDs, liveDatabase: liveDatabase)
+    }
+
+    static func playlistTree(database: CipherDatabase, rootIDs: [String], liveDatabase: URL) throws -> [UsbPlaylistInput] {
         try refuseLive(database, liveDatabase: liveDatabase)
         struct Row { var id: String; var seq: Int; var name: String; var attribute: Int; var parentID: String }
         var rows: [String: Row] = [:]
@@ -89,8 +97,11 @@ public enum UsbExportCandidates {
     }
 
     /// 목록의 곡(TrackNo 순, 같은 곡이 여러 번 있을 수 있다)
-    public static func tracks(ofPlaylist id: String, database: CipherDatabase,
-                              liveDatabase: URL = UsbExportCandidates.liveDatabase) throws -> [String] {
+    public static func tracks(ofPlaylist id: String, database: CipherDatabase) throws -> [String] {
+        try tracks(ofPlaylist: id, database: database, liveDatabase: liveDatabase)
+    }
+
+    static func tracks(ofPlaylist id: String, database: CipherDatabase, liveDatabase: URL) throws -> [String] {
         try refuseLive(database, liveDatabase: liveDatabase)
         var result: [String] = []
         try database.query("""
@@ -187,9 +198,18 @@ public enum UsbExportCandidates {
     static func sha256(_ path: String) -> SHA256.Digest? {
         guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
         defer { try? handle.close() }
+        return sha256(reading: handle)
+    }
+
+    /// 읽다가 오류가 나면 nil(앞부분만 해시한 값을 내지 않는다 → 같은 내용으로 보지 않는다)
+    static func sha256(reading handle: FileHandle) -> SHA256.Digest? {
         var hasher = SHA256()
-        while let chunk = try? handle.read(upToCount: 1 << 20), !chunk.isEmpty {
-            hasher.update(data: chunk)
+        do {
+            while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
+                hasher.update(data: chunk)
+            }
+        } catch {
+            return nil
         }
         return hasher.finalize()
     }

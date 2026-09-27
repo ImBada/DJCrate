@@ -1,7 +1,7 @@
 import DJCDomain
 import DJCTestSupport
 import Foundation
-import RekordboxKit
+@testable import RekordboxKit
 import Testing
 
 /// 합성 라이브러리(구조만 있는 DB + 임시 share·음원)에서 USB 내보내기 후보를 읽는다.
@@ -49,8 +49,9 @@ struct UsbExportCandidatesTests {
         try fixture.writeLocalAnalysis(analysisPath: "/PIONEER/USBANLZ/x/y/ANLZ0000.DAT", dat: Data(count: 10), ext: Data(count: 20),
                                        twoEx: Data(count: 30), modified: modified)
         try fixture.writeArtwork(track: track, imagePath: "/PIONEER/Artwork/00/abc/artwork.jpg", small: Data(count: 11), medium: Data(count: 22))
-        try fixture.setMetadata(track: track, rating: 3, searchStr: "tt")
-        try fixture.setStrings(track: track, comment: "comment", isrc: "ISRC0", releaseDate: "2026-01-01")
+        try fixture.setMetadata(track: track, rating: 3, subtitle: "Sub", searchStr: "tt")
+        try fixture.setStrings(track: track, comment: "comment", isrc: "ISRC0", releaseDate: "2026-01-01", dateCreated: "2026-02-02",
+                               stockDate: "2026-03-03")
 
         let db = try open(fixture)
         let candidates = try UsbExportCandidates.load(database: db, share: fixture.shareRoot, contentIDs: ["101"])
@@ -75,8 +76,35 @@ struct UsbExportCandidatesTests {
         #expect(candidate.artwork?.mediumBytes == 22)
         #expect(!candidate.artworkPathSetButMissing)
         #expect(candidate.cues == [UsbCueTraits(kind: 0, colorTableIndex: nil, color: -1, inMsec: 1_000, outMsec: -1)])
-        #expect(candidate.metadata == UsbTrackMetadataFlags(hasRating: true, hasSearchString: true, isCompilation: true))
-        #expect(Set(candidate.pdbStrings).isSuperset(of: ["Title", "comment", "ISRC0", "2026-01-01"]))
+        #expect(candidate.metadata == UsbTrackMetadataFlags(hasRating: true, hasSubtitle: true, hasSearchString: true, isCompilation: true))
+        #expect(Set(candidate.pdbStrings) == ["Title", "comment", "ISRC0", "Sub", "2026-01-01", "2026-02-02", "2026-03-03"])
+    }
+
+    @Test("곡 정보 칸마다 그 플래그 하나만 선다")
+    func metadataFlagPerColumn() throws {
+        let fixture = try RekordboxFixture()
+        let cases: [(String, (RekordboxFixture, TrackSpec) throws -> Void, UsbTrackMetadataFlags)] = [
+            ("1101", { try $0.setMetadata(track: $1, labelID: "7") }, UsbTrackMetadataFlags(hasLabel: true)),
+            ("1102", { try $0.setMetadata(track: $1, remixerID: "7") }, UsbTrackMetadataFlags(hasRemixer: true)),
+            ("1103", { try $0.setMetadata(track: $1, orgArtistID: "7") }, UsbTrackMetadataFlags(hasOriginalArtist: true)),
+            ("1104", { try $0.setMetadata(track: $1, lyricist: "Writer") }, UsbTrackMetadataFlags(hasLyricist: true)),
+            ("1105", { try $0.setMetadata(track: $1, colorID: "3") }, UsbTrackMetadataFlags(hasColor: true)),
+            ("1106", { try $0.setMetadata(track: $1, rating: 2) }, UsbTrackMetadataFlags(hasRating: true)),
+            ("1107", { try $0.setMetadata(track: $1, subtitle: "Mix") }, UsbTrackMetadataFlags(hasSubtitle: true)),
+            ("1108", { try $0.setMetadata(track: $1, searchStr: "abc") }, UsbTrackMetadataFlags(hasSearchString: true)),
+            // 빈 값과 ID "0"은 값이 없는 것으로 본다
+            ("1109", { try $0.setMetadata(track: $1, labelID: "0", remixerID: "", lyricist: "", colorID: "0", rating: 0) },
+             UsbTrackMetadataFlags()),
+        ]
+        for (id, set, _) in cases {
+            let track = try addTrack(fixture, id: id)
+            try set(fixture, track)
+        }
+        let candidates = try UsbExportCandidates.load(database: open(fixture), share: fixture.shareRoot, contentIDs: cases.map(\.0))
+        #expect(candidates.map(\.localContentID) == cases.map(\.0))
+        for (candidate, expected) in zip(candidates, cases.map(\.2)) {
+            #expect(candidate.metadata == expected, "\(candidate.localContentID)")
+        }
     }
 
     @Test("분석 파일 경로는 DB 값 그대로(ANLZ0000으로 가정하지 않음)")
@@ -202,17 +230,21 @@ struct UsbExportCandidatesTests {
         let fixture = try RekordboxFixture()
         try fixture.addPlaylist(id: "10", name: "폴더", seq: 1, attribute: 1)
         try fixture.addPlaylist(id: "12", name: "둘째", parentID: "10", seq: 2, contentIDs: ["3"])
-        try fixture.addPlaylist(id: "11", name: "첫째", parentID: "10", seq: 1, contentIDs: ["2", "1", "2"])
+        try fixture.addPlaylist(id: "11", name: "첫째", parentID: "10", seq: 1, contentIDs: ["2", "1", "3"])
         try fixture.addPlaylist(id: "20", name: "위", seq: 2, contentIDs: ["1"])
         try fixture.execute("UPDATE djmdSongPlaylist SET rb_local_deleted = 1 WHERE ID = '12-0'")
+        // 항목 ID 순서(2·1·3)나 그 반대(3·1·2)와 다른 TrackNo 순서(3·2·1)
+        try fixture.execute("UPDATE djmdSongPlaylist SET TrackNo = 2 WHERE ID = '11-0'")
+        try fixture.execute("UPDATE djmdSongPlaylist SET TrackNo = 3 WHERE ID = '11-1'")
+        try fixture.execute("UPDATE djmdSongPlaylist SET TrackNo = 1 WHERE ID = '11-2'")
         let db = try open(fixture)
         let tree = try UsbExportCandidates.playlistTree(database: db, rootIDs: ["10", "20"])
         #expect(tree.map(\.localID) == ["10", "11", "12", "20"])
         #expect(tree.map(\.parentLocalID) == [nil, "10", "10", nil])
         #expect(tree.map(\.attribute) == [1, 0, 0, 0])
-        #expect(tree.map(\.trackLocalIDs) == [[], ["2", "1", "2"], [], ["1"]])
+        #expect(tree.map(\.trackLocalIDs) == [[], ["3", "2", "1"], [], ["1"]])
         #expect(tree.first?.name == "폴더")
-        #expect(try UsbExportCandidates.tracks(ofPlaylist: "11", database: db) == ["2", "1", "2"])
+        #expect(try UsbExportCandidates.tracks(ofPlaylist: "11", database: db) == ["3", "2", "1"])
         // 폴더 안 목록을 뿌리로 주면 그 목록이 맨 위
         #expect(try UsbExportCandidates.playlistTree(database: db, rootIDs: ["11"]).map(\.parentLocalID) == [nil])
         #expect(throws: (any Error).self) { try UsbExportCandidates.playlistTree(database: db, rootIDs: ["404"]) }
@@ -243,11 +275,26 @@ struct UsbExportCandidatesTests {
         #expect(!UsbExportCandidates.sameContent(sourcePath: source.path, usbFile: fixture.audio.appending(path: "none.mp3")))
     }
 
+    @Test("읽다가 오류가 나면 해시를 내지 않는다")
+    func sha256NilOnReadError() throws {
+        let fixture = try RekordboxFixture()
+        let file = fixture.audio.appending(path: "a.mp3")
+        try Data("abcdef".utf8).write(to: file)
+        #expect(UsbExportCandidates.sha256(file.path) != nil)
+        #expect(UsbExportCandidates.sha256(fixture.audio.appending(path: "none.mp3").path) == nil)
+        // 폴더는 열 수는 있어도 읽으면 오류다(앞부분·빈 내용의 해시로 보지 않는다)
+        let descriptor = Darwin.open(fixture.audio.path, O_RDONLY)
+        try #require(descriptor >= 0)
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        #expect(UsbExportCandidates.sha256(reading: handle) == nil)
+    }
+
     @Test("라이브 master.db면 읽지 않는다")
     func refusesLiveDatabasePath() throws {
         let fixture = try RekordboxFixture()
         try addTrack(fixture, id: "1001")
         let db = try open(fixture)
+        // 공개 함수는 라이브 경로를 바꿀 수 없다. 시험만 안쪽 구현에 픽스처를 라이브 DB로 넘긴다
         #expect(throws: UsbError.self) {
             try UsbExportCandidates.load(database: db, share: fixture.shareRoot, contentIDs: ["1001"], liveDatabase: fixture.database)
         }
@@ -264,5 +311,7 @@ struct UsbExportCandidatesTests {
             try UsbExportCandidates.load(database: db, share: fixture.shareRoot, contentIDs: ["1001"], liveDatabase: link)
         }
         #expect(try UsbExportCandidates.load(database: db, share: fixture.shareRoot, contentIDs: ["1001"]).count == 1)
+        #expect(try UsbExportCandidates.playlistTree(database: db, rootIDs: []).isEmpty)
+        #expect(try UsbExportCandidates.tracks(ofPlaylist: "1", database: db).isEmpty)
     }
 }
