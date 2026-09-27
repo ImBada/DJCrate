@@ -6,6 +6,11 @@ on:
     branches: [dev, main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      use_cache:
+        description: SwiftPM 캐시 복원·저장(비우고 비교할 때 끔)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -52,9 +57,15 @@ jobs:
           {
             echo "DJC_HOME=$DJC_HOME"
             echo "DJC_REKORDBOX_DIR=$DJC_REKORDBOX_DIR"
+            echo "DJC_CHECK_LOG_ROOT=$RUNNER_TEMP/djc-check-logs"
           } >> "$GITHUB_ENV"
 
+      - name: 검사 스크립트 회귀
+        run: python3 scripts/test-check.py 2>&1 | tee "$RUNNER_TEMP/djc-script-tests.log"
+
       - name: SwiftPM 빌드 캐시
+        id: cache
+        if: github.event_name != 'workflow_dispatch' || inputs.use_cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .build
@@ -67,6 +78,14 @@ jobs:
         env:
           CHECK_MODE: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/dev') && 'test' || 'full' }}
         run: |
+          started=$SECONDS
+          finish_check() {
+            code=$?
+            echo "▸ CI 검사 종료: $((SECONDS - started))초, 종료코드 $code"
+            exit "$code"
+          }
+          trap finish_check EXIT
+          echo "▸ CI 검사 시작: $CHECK_MODE ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
           if [[ "$CHECK_MODE" == test ]]; then
             swift test 2>&1 | tee "$RUNNER_TEMP/djc-check.log"
           else
@@ -77,11 +96,14 @@ jobs:
         if: always()
         env:
           CHECK_OUTCOME: ${{ steps.check.outcome }}
+          CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
           CHECK_MODE: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/dev') && '단위 테스트만' || '전체 검사' }}
         run: |
           {
             echo '## 빌드·테스트·커버리지'
             echo "검증 단계 결과: $CHECK_OUTCOME ($CHECK_MODE)"
+            echo "캐시 정확 키 일치: ${CACHE_HIT:-없음}. 다른 키 복원 여부는 캐시 로그를 확인하세요."
+            echo '캐시 복원은 컴파일 재사용을 보장하지 않습니다. 단계별 Build complete 시간과 컴파일 로그를 함께 비교하세요.'
             echo '```text'
             if [[ -f "$RUNNER_TEMP/djc-check.log" ]]; then
               grep -E '▸|✔ Test run|목표 [0-9]+%' "$RUNNER_TEMP/djc-check.log" || true
@@ -90,3 +112,18 @@ jobs:
             fi
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 검사 로그 보존
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: check-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/djc-toolchain.txt
+            ${{ runner.temp }}/djc-script-tests.log
+            ${{ runner.temp }}/djc-check.log
+            ${{ runner.temp }}/djc-check-logs/**/*.log
+            ${{ runner.temp }}/djc-check-logs/**/*.tsv
+            ${{ runner.temp }}/djc-check-logs/**/*.txt
+          retention-days: 14
+          if-no-files-found: warn
