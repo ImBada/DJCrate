@@ -70,9 +70,9 @@ struct AppToastView: View {
             .fixedSize(horizontal: false, vertical: true)
             if let onDetails { Button(.ui("결과 보기"), action: onDetails).controlSize(ControlSize.small.scaled(textScale)) }
             if let onUndo, toast.undoBackup != nil {
-                Button(LocalizedStringResource("reflection.restore", defaultValue: "되돌리기", bundle: UIStrings.bundle), action: onUndo)
+                Button(.ui("쓰기 전으로 복원…"), action: onUndo)
                     .controlSize(ControlSize.small.scaled(textScale))
-                    .help(.ui("rekordbox 라이브러리를 이번 쓰기 직전 백업으로 되돌립니다(rekordbox가 꺼져 있어야 합니다)"))
+                    .help(.ui("라이브러리 전체를 이번 쓰기 전으로 복원합니다. rekordbox를 먼저 종료하세요."))
             }
             Button(action: onClose) {
                 Image(systemName: "xmark").font(.scaled(.caption, textScale).bold())
@@ -82,6 +82,7 @@ struct AppToastView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .accessibilityLabel(.ui("알림 닫기"))
+                .help(.ui("알림 닫기"))
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
         .fixedSize(horizontal: true, vertical: false)

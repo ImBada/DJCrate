@@ -28,10 +28,10 @@ struct Sidebar: View {
                 Label(.ui("추가한 곡"), systemImage: "tray.and.arrow.down")
                     .badge(store.staged.count)
                     .tag(SidebarItem.staged)
-                Label(.ui("rekordbox 반영 대기"), systemImage: "square.and.arrow.up.on.square")
+                Label(.ui("rekordbox 쓰기 대기"), systemImage: "square.and.arrow.up.on.square")
                     .badge(store.pendingLibraryCount)
                     .tag(SidebarItem.pending)
-                    .help(.ui("큐·그리드·게인·태그 초안이 있어 rekordbox에 반영할 곡. 재생 목록 초안도 이 목록 위 ‘rekordbox에 쓰기’로 함께 씁니다."))
+                    .help(.ui("rekordbox에 쓸 곡 초안을 모아 봅니다. 재생 목록 초안도 함께 쓸 수 있습니다."))
                 Button { store.showingWriteResult = true } label: {
                     Label(.ui("마지막 쓰기 결과…"), systemImage: "doc.text.magnifyingglass")
                 }
@@ -100,14 +100,14 @@ struct ListActionBar: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(addTargets.isEmpty || store.isWritingRekordbox)
-                .help(.ui("선택한 곡(없으면 추가 목록 전체)을 rekordbox 컬렉션에 바로 넣습니다. 추정 그리드·파형·오토게인까지 만들어 넣고, 미리 보기로 확인한 뒤 rekordbox가 꺼져 있을 때만 씁니다. 되돌리기로 무를 수 있습니다."))
+                .help(.ui("고른 곡(없으면 추가 목록 전체)을 확인한 뒤 rekordbox 컬렉션에 넣습니다."))
                 Button { StagingPanels.chooseFiles(store: store) } label: { Label(.ui("곡 추가…"), systemImage: "plus") }
-                Button { store.removeStaged(store.selection) } label: { Label(.ui("선택 빼기"), systemImage: "minus") }
+                Button { store.removeStaged(store.selection) } label: { Label(.ui("추가 목록에서 제거"), systemImage: "minus") }
                     .disabled(!store.selection.contains { $0.hasPrefix("djc-") })
                     .help(.ui("추가 목록에서만 뺍니다. 파일은 지우지 않습니다."))
-                Button { StagingPanels.exportXML(store: store) } label: { Label(.ui("XML로…"), systemImage: "doc.text") }
+                Button { StagingPanels.exportXML(store: store) } label: { Label(.ui("XML 만들기"), systemImage: "doc.text") }
                     .disabled(store.staged.isEmpty)
-                    .help(.ui("rekordbox › 환경설정 › 고급 › rekordbox xml에서 이 파일을 지정한 뒤, 트리의 rekordbox xml에서 곡을 선택하고 Import To Collection 하세요. 가져온 뒤 새 스냅샷을 뜨면 DJCrate가 그리드가 그대로 들어갔는지 확인합니다."))
+                    .help(.ui("추가한 곡을 rekordbox에서 가져올 XML로 만듭니다."))
                 if store.staged.contains(where: { $0.importCheck != nil && $0.importCheck?.result != .pending }) {
                     Button { store.removeImportedStaged() } label: { Label(.ui("가져온 곡 정리"), systemImage: "checkmark.circle") }
                         .help(.ui("rekordbox에 들어간 것이 확인된 곡을 추가 목록에서 뺍니다(파일·초안은 그대로)."))
@@ -123,7 +123,7 @@ struct ListActionBar: View {
                           systemImage: "square.and.arrow.up.on.square")
                 }
                 .disabled((targets.isEmpty && playlistEdits == 0) || store.isWritingRekordbox)
-                .help(.ui("선택한 곡(없으면 목록 전체)의 곡 초안(큐·그리드·게인·태그)과 재생 목록 초안을 rekordbox 라이브러리에 바로 씁니다. 미리 보기로 확인한 뒤 씁니다. rekordbox가 꺼져 있어야 합니다."))
+                .help(.ui("고른 곡(없으면 목록 전체)과 재생 목록 초안을 확인한 뒤 rekordbox에 씁니다."))
                 if playlistEdits > 0 {
                     Button { PlaylistPanels.discardAll(store: store) } label: {
                         Label(.ui("재생 목록 초안 버리기…"), systemImage: "trash")
@@ -132,17 +132,17 @@ struct ListActionBar: View {
                     .help(.ui("rekordbox에 아직 쓰지 않은 재생 목록 편집을 모두 버립니다."))
                 }
                 Button { ReflectionPanels.export(store: store, rows: targets) } label: {
-                    Label(.ui("XML로…"), systemImage: "doc.text")
+                    Label(.ui("XML 만들기"), systemImage: "doc.text")
                 }
                 .disabled(targets.isEmpty)
-                .help(.ui("직접 쓰지 않고 rekordbox XML로 만듭니다(그리드 초안은 아직 이 경로로만 반영됩니다)."))
+                .help(.ui("큐·그리드 초안을 rekordbox에서 가져올 XML로 만듭니다."))
                 Button { DirectWritePanels.restoreLatest(store: store) } label: {
-                    Label(.ui("되돌리기…"), systemImage: "arrow.uturn.backward")
+                    Label(.ui("쓰기 전으로 복원…"), systemImage: "arrow.uturn.backward")
                 }
                 .disabled(store.isWritingRekordbox || !store.hasWriteBackup)
                 .help(store.hasWriteBackup
-                      ? String(ui: "DJCrate가 마지막으로 rekordbox에 쓰기 직전 백업으로 되돌립니다.")
-                      : String(ui: "되돌릴 백업이 없습니다. rekordbox에 반영하면 쓰기 전 백업이 생깁니다."))
+                      ? String(ui: "라이브러리 전체를 마지막 쓰기 전 백업으로 복원합니다.")
+                      : String(ui: "복원할 백업이 없습니다. rekordbox에 쓰면 쓰기 전 백업이 생깁니다."))
                 if store.isWritingRekordbox {
                     ProgressView().controlSize(.small)
                     Text(.ui("rekordbox 라이브러리 확인·쓰는 중…")).font(.caption).foregroundStyle(.secondary)
@@ -167,7 +167,7 @@ struct ListActionBar: View {
                             .foregroundStyle(UIColors.warning.color)
                             .lineLimit(2)
                     } else {
-                        Label(.ui("반영하지 않은 초안이 있는 목록입니다 · 반영(⇧⌘E)할 때 rekordbox에 씁니다"), systemImage: DraftMark.symbol)
+                        Label(.ui("아직 쓰지 않은 목록 초안입니다 · rekordbox에 쓰기(⇧⌘E)로 저장합니다"), systemImage: DraftMark.symbol)
                             .foregroundStyle(UIColors.draft.color)
                     }
                     Button(.ui("이 목록의 초안 버리기")) { store.discardPlaylistDraft(id) }

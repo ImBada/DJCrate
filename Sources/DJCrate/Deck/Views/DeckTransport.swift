@@ -52,7 +52,7 @@ struct TransportBar: View {
                 TrackEditButton(deck: deck)
                 Toggle(.ui("큐 제안 표시"), isOn: $deck.showSuggestions)
                     .toggleStyle(.checkbox)
-                    .help(.ui("섹션 경계 기반 메모리 큐 제안 표시. 초록 + 를 클릭하면 추가"))
+                    .help(.ui("큐 제안을 표시합니다. 파형 아래 + 배지를 누르면 메모리 큐로 추가합니다."))
             }
         }
         .controlSize(ControlSize.small.scaled(textScale))
@@ -78,7 +78,7 @@ struct PlayQuantizeToggle: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(.isToggle)
-        .help(.ui("퀀타이즈(Q): 큐·루프를 등록할 때 비트 그리드의 박에 맞추고, 재생 중 핫큐를 누르면 다음 박에서 저장된 핫큐 위치로 이동해 재생합니다"))
+        .help(.ui("큐·루프를 박에 맞춥니다(Q). 재생 중 핫큐는 다음 박에서 저장 위치로 점프합니다."))
         .accessibilityLabel(.ui("퀀타이즈(Q): 큐·루프 등록과 핫큐 점프"))
         .accessibilityValue(on ? String(ui: "켜짐") : String(ui: "꺼짐"))
     }
@@ -173,7 +173,7 @@ struct CueButton: View {
                     pressed = false
                     deck.cueUp()
                 })
-            .help(.ui("CUE (\(deck.shortcuts.keyLabel(for: .cue))) — 재생 중: 큐 지점으로 돌아가 정지 · 멈춘 곳: 새 큐 지점 · 큐 지점에서 누르고 있기: 미리 듣기 · 누른 채 재생: 계속 재생\n큐 지점 \(deck.cuePoint.clockText)"))
+            .help(.ui("큐로 돌아가 정지합니다(\(deck.shortcuts.keyLabel(for: .cue))). 정지 중: 큐 설정·누르고 미리 듣기. 큐 \(deck.cuePoint.clockText)"))
             .accessibilityElement()
             .accessibilityLabel(Text(verbatim: "CUE"))
             .accessibilityAddTraits(.isButton)

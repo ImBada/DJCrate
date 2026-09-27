@@ -80,7 +80,7 @@ struct TrackListControlsTests {
         let actions = menu.items.compactMap(\.action).map(NSStringFromSelector)
         #expect(actions.contains("reflectSelected") == (pending && !staged && selected))
         #expect(actions.contains("exportReflectionXML") == (pending && !staged && selected))
-        #expect(!menu.items.contains { $0.title == "rekordbox에 반영할 초안이 없습니다" })
+        #expect(!menu.items.contains { $0.title == "rekordbox에 쓸 초안이 없습니다" })
         #expect(menu.items.first?.isSeparatorItem == false)
         #expect(menu.items.last?.isSeparatorItem == false)
         #expect(!zip(menu.items, menu.items.dropFirst()).contains { $0.isSeparatorItem && $1.isSeparatorItem })

@@ -124,7 +124,7 @@ struct ReflectionCoordinator {
         let targets = host.writeTargets(rows)
         let withPlaylists = playlists && host.hasPlaylistDrafts
         guard !targets.isEmpty || withPlaylists else {
-            inform(String(ui: "반영할 초안이 없습니다"), String(ui: "고른 곡에 rekordbox와 다른 큐·그리드·게인·태그 초안이 없습니다."))
+            inform(String(ui: "쓸 초안이 없습니다"), String(ui: "고른 곡에 rekordbox와 다른 큐·그리드·게인·태그 초안이 없습니다."))
             return
         }
         host.setWriteLock(true)
@@ -243,7 +243,7 @@ struct ReflectionCoordinator {
     func restore(_ backup: RekordboxWriter.Backup) async {
         guard !host.isWritingRekordbox else { return }
         guard !isRekordboxRunning() else {
-            inform(String(ui: "rekordbox가 켜져 있어 되돌리지 않았습니다"), String(ui: "rekordbox를 완전히 종료한 뒤 다시 누르세요."))
+            inform(String(ui: "rekordbox가 켜져 있어 복원하지 않았습니다"), String(ui: "rekordbox를 완전히 종료한 뒤 다시 누르세요."))
             return
         }
         host.setWriteLock(true)
@@ -259,8 +259,8 @@ struct ReflectionCoordinator {
             host.writeStage = nil
             host.toast = nil
             AppErrorMessage.log(error)
-            let text = String(ui: "rekordbox 라이브러리 상태를 확인하지 못했으므로 rekordbox를 켜지 말고 백업 폴더의 위치와 접근 권한을 확인한 뒤 다시 되돌리세요.")
-            let title = String(ui: "되돌리지 못했습니다")
+            let text = String(ui: "rekordbox 라이브러리 상태를 확인하지 못했으므로 rekordbox를 켜지 말고 백업 폴더의 위치와 접근 권한을 확인한 뒤 다시 복원하세요.")
+            let title = String(ui: "복원하지 못했습니다")
             host.resultHistory.record(WriteResult(kind: .failure, title: title, text: text, backups: [backup.url]))
             _ = prompter.show(ReflectionPrompt(title: title, text: text, critical: true))
         }
@@ -321,7 +321,7 @@ struct ReflectionCoordinator {
         AppErrorMessage.log(error)
         let command = DJCError.restoreCommand(backup: backup, database: database)
         let text = [
-            String(ui: "rekordbox 라이브러리(master.db)와 분석 파일이 어떤 상태인지 알 수 없습니다. rekordbox를 켜지 말고, 사이드바에서 'rekordbox 반영 대기'를 고른 뒤 목록 위 '되돌리기…'로 쓰기 전 백업을 복원하세요."),
+            String(ui: "rekordbox 라이브러리(master.db)와 분석 파일이 어떤 상태인지 알 수 없습니다. rekordbox를 켜지 말고, 사이드바에서 'rekordbox 쓰기 대기'를 고른 뒤 목록 위 '쓰기 전으로 복원…'으로 백업을 복원하세요."),
             String(ui: "터미널에서는: \(command)"),
         ]
         return ReflectionPrompt(title: String(ui: "쓰기 확인에 실패했고 자동 복원도 하지 못했습니다"), text: text.joined(separator: "\n\n"), critical: true)
@@ -458,21 +458,21 @@ struct ReflectionCoordinator {
         if let tracks = backup.trackReport {
             let added = tracks.added.filter(\.written).count, deleted = tracks.deleted.filter(\.written).count
             // 문장마다 번역하고, 문장 뒤 빈칸은 원래 모양 그대로 둔다.
-            var sentences = [String(ui: "라이브러리 전체를 이 백업으로 되돌립니다.")]
+            var sentences = [String(ui: "라이브러리 전체를 이 백업으로 복원합니다.")]
             if added > 0 { sentences.append(String(ui: "넣었던 \(added)곡은 컬렉션에서 빠지고 DJCrate 추가 목록으로 돌아옵니다(분석·아트워크 파일도 삭제).")) }
             if deleted > 0 { sentences.append(String(ui: "뺐던 \(deleted)곡은 큐·재생 목록·분석 파일·아트워크와 함께 복원됩니다.")) }
             lines.append(sentences.map { $0 + " " }.joined())
         } else {
-            lines.append(String(ui: "라이브러리 전체를 이 백업으로 되돌립니다. 그때 쓴 초안(큐·그리드·게인·태그)도 DJCrate에 복원됩니다."))
+            lines.append(String(ui: "라이브러리 전체를 이 백업으로 복원합니다. 그때 쓴 초안(큐·그리드·게인·태그)도 DJCrate에 복원됩니다."))
         }
         switch changed {
-        case true?: lines.append(String(ui: "⚠︎ 이 백업 뒤에 rekordbox에서도 라이브러리가 바뀌었습니다(큐·재생 목록·곡 추가 등). 되돌리면 그 변경도 함께 사라집니다."))
+        case true?: lines.append(String(ui: "⚠︎ 이 백업 뒤에 rekordbox에서도 라이브러리가 바뀌었습니다(큐·재생 목록·곡 추가 등). 복원하면 그 변경도 함께 사라집니다."))
         case nil: lines.append(String(ui: "백업 뒤 rekordbox에서 바뀐 것이 있는지 확인하지 못했습니다. 그 뒤 rekordbox에서 한 변경은 함께 사라집니다."))
         case false?: break
         }
-        lines.append(String(ui: "백업한 뒤 되돌리고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요."))
-        return ReflectionPrompt(title: String(ui: "rekordbox를 쓰기 전으로 되돌릴까요?"),
-                                text: lines.joined(separator: "\n\n"), confirm: String(localized: "reflection.restore", defaultValue: "되돌리기", bundle: UIStrings.bundle),
+        lines.append(String(ui: "백업한 뒤 복원하고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요."))
+        return ReflectionPrompt(title: String(ui: "rekordbox를 쓰기 전으로 복원할까요?"),
+                                text: lines.joined(separator: "\n\n"), confirm: String(ui: "쓰기 전으로 복원"),
                                 critical: changed != false, destructive: changed != false, details: details)
     }
 }

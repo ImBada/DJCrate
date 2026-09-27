@@ -157,7 +157,7 @@ extension LibraryStore {
         if !split.new.isEmpty {
             guard applyPlaylistEdits([.addTracks(playlist: PlaylistRef(id), contentIDs: split.new)], actionName: String(ui: "재생 목록에 넣기")) else { return }
             touchRecent(id)
-            lines.append(String(ui: "‘\(item.name)’에 \(split.new.count)곡을 넣었습니다(반영 대기)."))
+            lines.append(String(ui: "‘\(item.name)’에 \(split.new.count)곡을 넣었습니다(쓰기 대기)."))
         }
         if !split.duplicates.isEmpty {
             kind = .warning
@@ -177,7 +177,7 @@ extension LibraryStore {
         guard !entries.isEmpty else { return }
         if applyPlaylistEdits([.removeTracks(playlist: PlaylistRef(id), entries: entries)], actionName: String(ui: "재생 목록에서 빼기")) {
             let count = Set(entries.map(\.contentID)).count
-            playlistMessage = AppMessage(text: String(ui: "‘\(item.name)’에서 \(count)곡을 뺐습니다(반영 대기)."))
+            playlistMessage = AppMessage(text: String(ui: "‘\(item.name)’에서 \(count)곡을 뺐습니다(쓰기 대기)."))
         }
     }
 
@@ -257,9 +257,9 @@ extension LibraryStore {
         let text: String
         if item.isFolder {
             let lists = inside.filter { !$0.isFolder }.count, folders = inside.filter(\.isFolder).count
-            text = String(ui: "폴더 안의 재생 목록 \(lists)개와 폴더 \(folders)개도 함께 지웁니다. 곡은 컬렉션에 그대로 남습니다. 반영(⇧⌘E)할 때 rekordbox에 씁니다.")
+            text = String(ui: "폴더 안의 재생 목록 \(lists)개와 폴더 \(folders)개도 함께 지웁니다. 곡은 컬렉션에 그대로 남습니다. ‘rekordbox에 쓰기’(⇧⌘E)로 저장합니다.")
         } else {
-            text = String(ui: "곡은 컬렉션에 그대로 남습니다. 반영(⇧⌘E)할 때 rekordbox에 씁니다.")
+            text = String(ui: "곡은 컬렉션에 그대로 남습니다. ‘rekordbox에 쓰기’(⇧⌘E)로 저장합니다.")
         }
         return ReflectionPrompt(title: String(ui: "‘\(item.name)’을 지울까요?"), text: text, confirm: String(ui: "지우기"),
                                 destructive: true)
