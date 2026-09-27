@@ -124,6 +124,45 @@ struct UsbAnlzTransformTests {
         #expect(result.warnings == [UsbAnlzWarning.maskedLocalPVDIKept.rawValue])
     }
 
+    /// PVDI 태그를 바꿔 넣은 로컬 .2EX(PVDI 뒤에 태그를 하나 더 두어 자리가 지켜지는지 본다)
+    func local2EX(pvdi: Data) throws -> Data {
+        var local = try AnlzFile(data: AnlzBuilder.local2EX(pvdi: true))
+        let index = try #require(local.tags.firstIndex { $0.fourcc == "PVDI" })
+        local.tags[index].bytes = pvdi
+        local.tags.append(AnlzFile.Tag(fourcc: "PXYZ", bytes: AnlzBuilder.unknownTag(fourcc: "PXYZ")))
+        return local.serialized()
+    }
+
+    @Test("평문도 마스크된 것도 아닌 로컬 PVDI(모르는 플래그·짧은 태그)는 옮기지 않고 그 자리에 빈 PVDI, 경고")
+    func unknownLocalPVDIReplacedWithEmpty() throws {
+        var flagged = [UInt8](AnlzBuilder.pvdi(bodyBytes: 40))
+        flagged[12] = 0x01
+        var short = [UInt8](AnlzBuilder.pvdi(bodyBytes: 0).prefix(20))
+        short.replaceSubrange(8..<12, with: [0, 0, 0, 20])
+        for bytes in [flagged, short] {
+            let result = try transform(twoEx: try local2EX(pvdi: Data(bytes)))
+            let twoEx = try AnlzFile(data: try #require(result.twoEx))
+            #expect(twoEx.tags.map(\.fourcc) == ["PPTH", "PWV7", "PWV6", "PWVC", "PVDI", "PXYZ"])
+            #expect(twoEx.tag("PVDI")?.bytes == AnlzMasks.emptyPVDI)
+            #expect(result.warnings == [UsbAnlzWarning.unknownLocalPVDIDropped.rawValue])
+        }
+    }
+
+    @Test("거부 이유는 무엇이 없는지 한국어 문장으로 적는다")
+    func refusalReasons() throws {
+        func reason(_ body: () throws -> Void) -> String? {
+            do { try body() } catch let DJCError.invalidAnalysisFile(reason) { return reason } catch { return "\(error)" }
+            return nil
+        }
+        let share = FileManager.default.temporaryDirectory.appending(path: "djc-usb-anlz-\(UUID().uuidString)")
+        #expect(reason { _ = try UsbAnlzTransform.readLocal(share: share, analysisDataPath: "") } == "분석 파일 경로(AnalysisDataPath)가 없음")
+        #expect(reason { _ = try UsbAnlzTransform.readLocal(share: share, analysisDataPath: "/PIONEER/USBANLZ/none/ANLZ0000.DAT") }
+            == "로컬 분석 파일(.DAT)을 읽지 못함")
+        var noPath = try AnlzFile(data: AnlzBuilder.localEXT())
+        noPath.tags.removeAll { $0.fourcc == "PPTH" }
+        #expect(reason { _ = try transform(ext: noPath.serialized()) } == "로컬 .EXT에 경로(PPTH)가 없음")
+    }
+
     @Test("모르는 태그는 자리와 바이트 그대로")
     func unknownTagPreserved() throws {
         let unknown = AnlzBuilder.unknownTag(fourcc: "PXYZ")

@@ -23,8 +23,10 @@ public enum UsbAnlzWarning: String, CaseIterable, Sendable {
     case cueTagMissing
     /// 로컬 PSSI가 이미 마스크된 모양이라 USB에서 뺐다
     case maskedLocalPSSIDropped
-    /// 로컬 PVDI가 이미 마스크된 모양이라 그대로 옮겼다
+    /// 로컬 PVDI가 이미 마스크된 모양(플래그 0x80)이라 그대로 옮겼다
     case maskedLocalPVDIKept
+    /// 로컬 PVDI가 평문도 마스크된 것도 아닌 모양(모르는 플래그·짧은 태그)이라 옮기지 않고 그 자리에 빈 PVDI를 두었다
+    case unknownLocalPVDIDropped
 }
 
 /// 로컬 분석 파일 → USB 분석 파일. rekordbox 7.2.18 골든 관찰(2026-09-26 내보내기).
@@ -32,7 +34,7 @@ public enum UsbAnlzWarning: String, CaseIterable, Sendable {
 /// - 모든 파일의 PPTH는 USB 경로로 새로
 /// - .DAT PCOB 둘, .EXT PCOB 둘·PCO2 둘은 djmdCue로 새로(목록 종류는 태그 0x0C로 가린다)
 /// - .EXT PSSI는 평문이면 마스크, 이미 마스크된 것이면 빼고 경고. 빈 PQT2는 뺀다
-/// - .2EX PVDI는 마스크, 없으면 빈 PVDI를 끝에 붙인다
+/// - .2EX PVDI는 평문이면 마스크, 이미 마스크된 것이면 그대로, 모르는 모양이면 그 자리에 빈 PVDI. 없으면 빈 PVDI를 끝에 붙인다
 /// - 그 밖(파형·박자·탐색표·모르는 태그)은 바이트 그대로
 public enum UsbAnlzTransform {
     public static func transform(localDAT: Data, localEXT: Data, local2EX: Data?, contentsPath: String,
@@ -72,9 +74,15 @@ public enum UsbAnlzTransform {
                 guard tag.fourcc == "PVDI" else { return nil }
                 sawPVDI = true
                 if AnlzMasks.isPlainPVDI(tag.bytes) { return .replace(AnlzMasks.maskPVDI(tag.bytes)) }
-                // 로컬에서 본 적 없는 모양이다. 새로 만들 수 없어 그대로 옮긴다.
-                warnings.append(.maskedLocalPVDIKept)
-                return .keep
+                if AnlzMasks.isMaskedPVDI(tag.bytes) {
+                    // 로컬에서 본 적 없는 모양이다. 새로 만들 수 없어 그대로 옮긴다.
+                    warnings.append(.maskedLocalPVDIKept)
+                    return .keep
+                }
+                // 평문도 마스크된 것도 아니면 마스크를 씌울 수도, 그대로 옮길 수도 없다. 로컬에 PVDI가 없는 곡처럼 빈 PVDI를 두되
+                // 태그 순서는 지키려고 그 자리에 둔다.
+                warnings.append(.unknownLocalPVDIDropped)
+                return .replace(AnlzMasks.emptyPVDI)
             }
             if !sawPVDI {
                 var anlz = try AnlzFile(data: file)
@@ -99,10 +107,12 @@ public enum UsbAnlzTransform {
     /// 로컬 분석 파일을 읽기만 한다. .DAT·.EXT가 없으면 던지고, .2EX가 없으면 nil.
     public static func readLocal(share: URL, analysisDataPath: String) throws -> (dat: Data, ext: Data, twoEx: Data?) {
         guard let files = localFiles(share: share, analysisDataPath: analysisDataPath) else {
-            throw DJCError.invalidAnalysisFile("no AnalysisDataPath")
+            throw DJCError.invalidAnalysisFile(String(ui: "분석 파일 경로(AnalysisDataPath)가 없음"))
         }
         func read(_ url: URL) throws -> Data {
-            do { return try Data(contentsOf: url) } catch { throw DJCError.invalidAnalysisFile("local .\(url.pathExtension) unreadable") }
+            do { return try Data(contentsOf: url) } catch {
+                throw DJCError.invalidAnalysisFile(String(ui: "로컬 분석 파일(.\(url.pathExtension))을 읽지 못함"))
+            }
         }
         let twoEx = FileManager.default.fileExists(atPath: files.twoEx.path) ? try read(files.twoEx) : nil
         return (try read(files.dat), try read(files.ext), twoEx)
@@ -126,7 +136,7 @@ public enum UsbAnlzTransform {
     static func rewrite(_ data: Data, name: String, ppth: Data, warnings: inout [UsbAnlzWarning], expectedCueTags: [CueSlot],
                         fileType: Int, other: (AnlzFile.Tag, inout [UsbAnlzWarning]) -> Action?) throws -> Data {
         var file = try AnlzFile(data: data)
-        guard file.tag("PPTH") != nil else { throw DJCError.invalidAnalysisFile("local .\(name) has no PPTH") }
+        guard file.tag("PPTH") != nil else { throw DJCError.invalidAnalysisFile(String(ui: "로컬 .\(name)에 경로(PPTH)가 없음")) }
         var filled = Set<Int>()
         var tags: [AnlzFile.Tag] = []
         for tag in file.tags {

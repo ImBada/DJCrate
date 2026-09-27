@@ -10512,6 +10512,22 @@
         }
       }
     },
+    "로컬 .%@에 경로(PPTH)가 없음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missing path (PPTH) in local .%@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルの.%@にパス（PPTH）がありません"
+          }
+        }
+      }
+    },
     "로컬 라이브러리 사본을 뜬 시각을 알 수 없습니다. 스냅샷을 다시 뜨거나 --snapshot-time에 시각을 주세요" : {
       "localizations" : {
         "en" : {
@@ -10524,6 +10540,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ローカルライブラリのコピーを作成した時刻が分かりません。スナップショットを取り直すか、--snapshot-timeに時刻を指定してください"
+          }
+        }
+      }
+    },
+    "로컬 분석 파일(.%@)을 읽지 못함" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read local analysis file (.%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルの解析ファイル（.%@）を読み込めませんでした"
           }
         }
       }
@@ -12880,6 +12912,22 @@
         }
       }
     },
+    "분석 파일 경로(AnalysisDataPath)가 없음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missing analysis file path (AnalysisDataPath)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解析ファイルのパス（AnalysisDataPath）がありません"
+          }
+        }
+      }
+    },
     "분석 파일 기록이 여럿입니다" : {
       "localizations" : {
         "en" : {
@@ -13374,18 +13422,34 @@
         }
       }
     },
-    "빼지 않는 곡 %lld:" : {
+    "빼기 완료" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Not removed (%lld):"
+            "value" : "removed"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "削除しない曲 %lld："
+            "value" : "削除完了"
+          }
+        }
+      }
+    },
+    "빼지 않음: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not removed: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未削除：%@"
           }
         }
       }
@@ -13438,34 +13502,18 @@
         }
       }
     },
-    "빼기 완료" : {
+    "빼지 않는 곡 %lld:" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "removed"
+            "value" : "Not removed (%lld):"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "削除完了"
-          }
-        }
-      }
-    },
-    "빼지 않음: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "not removed: %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未削除：%@"
+            "value" : "削除しない曲 %lld："
           }
         }
       }
@@ -14446,22 +14494,6 @@
         }
       }
     },
-    "스트리밍 곡은 가져올 수 없습니다. 로컬 음원을 준비하세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Streaming tracks can't be imported. Use local audio files."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ストリーミングの曲は取り込めません。ローカル音源を用意してください。"
-          }
-        }
-      }
-    },
     "스트리밍 곡은 파형·재생·분석을 할 수 없습니다" : {
       "localizations" : {
         "en" : {
@@ -14506,6 +14538,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ストリーム"
+          }
+        }
+      }
+    },
+    "스트리밍 곡은 가져올 수 없습니다. 로컬 음원을 준비하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Streaming tracks can't be imported. Use local audio files."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ストリーミングの曲は取り込めません。ローカル音源を用意してください。"
           }
         }
       }
@@ -14654,22 +14702,6 @@
         }
       }
     },
-    "쓰기 금지 목록 파일을 읽을 수 없어 실물 USB에 쓰지 않습니다. 목록 파일을 고친 뒤 다시 시도하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The write-deny list file cannot be read, so nothing will be written to a physical USB. Fix the list file and try again"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込み禁止リストのファイルを読み込めないため、実物のUSBには書き込みません。リストファイルを修正してから、もう一度お試しください"
-          }
-        }
-      }
-    },
     "쓰기 금지 목록이 비어 있어 실물 USB에 쓰지 않습니다. 먼저 증거용 USB를 `djc usb-deny`로 등록하세요" : {
       "localizations" : {
         "en" : {
@@ -14782,22 +14814,6 @@
         }
       }
     },
-    "쓰는 도중 USB(%@) 연결이 끊겼습니다. 다시 연결한 뒤 `djc usb-recover`를 실행하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The USB (%@) was disconnected during the write. Reconnect it and run `djc usb-recover`"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込み中にUSB（%@）の接続が切れました。接続し直してから`djc usb-recover`を実行してください"
-          }
-        }
-      }
-    },
     "쓰지 않는 것 %lld:" : {
       "localizations" : {
         "en" : {
@@ -14826,22 +14842,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "書き込み結果が想定と異なるため、rekordboxに書き込みませんでした: %@"
-          }
-        }
-      }
-    },
-    "쓴 결과를 확인하지 못해 쓰기 전 백업으로 되돌렸습니다: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Could not verify the write; restored the pre-write backup: %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込み結果を確認できなかったため、書き込み前のバックアップに復元しました: %@"
           }
         }
       }
@@ -14954,6 +14954,22 @@
         }
       }
     },
+    "쓰기 금지 목록 파일을 읽을 수 없어 실물 USB에 쓰지 않습니다. 목록 파일을 고친 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The write-deny list file cannot be read, so nothing will be written to a physical USB. Fix the list file and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込み禁止リストのファイルを読み込めないため、実物のUSBには書き込みません。リストファイルを修正してから、もう一度お試しください"
+          }
+        }
+      }
+    },
     "쓰기 전 확인: rekordbox 버전·DB 구조가 확인한 모양인지" : {
       "localizations" : {
         "en" : {
@@ -14966,6 +14982,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "書き込み前の確認: rekordboxのバージョンとDB構造を検証"
+          }
+        }
+      }
+    },
+    "쓰는 도중 USB(%@) 연결이 끊겼습니다. 다시 연결한 뒤 `djc usb-recover`를 실행하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB (%@) was disconnected during the write. Reconnect it and run `djc usb-recover`"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込み中にUSB（%@）の接続が切れました。接続し直してから`djc usb-recover`を実行してください"
+          }
+        }
+      }
+    },
+    "쓴 결과를 확인하지 못해 쓰기 전 백업으로 되돌렸습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not verify the write; restored the pre-write backup: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込み結果を確認できなかったため、書き込み前のバックアップに復元しました: %@"
           }
         }
       }
@@ -21876,6 +21924,22 @@
         }
       }
     },
+    "탭" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TAP"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TAP"
+          }
+        }
+      }
+    },
     "태그 길이가 맞지 않음" : {
       "localizations" : {
         "en" : {
@@ -22016,22 +22080,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "タグはrekordboxのライブラリにだけ書き込みます。音源ファイルのタグはそのままなので、他のアプリやrekordboxの「タグの再読み込み」では以前の値が表示されることがあります。"
-          }
-        }
-      }
-    },
-    "탭" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "TAP"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "TAP"
           }
         }
       }

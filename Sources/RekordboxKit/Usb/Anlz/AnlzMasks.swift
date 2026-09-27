@@ -72,4 +72,9 @@ public enum AnlzMasks {
     static func isPlainPVDI(_ tag: Data) -> Bool {
         tag.count >= pvdiBodyStart && tag[tag.startIndex + pvdiFlagOffset] == 0
     }
+
+    /// PVDI 머리 0x0C의 플래그가 USB 마스크(0x80)인지. 평문도 이것도 아니면 모르는 모양이다.
+    static func isMaskedPVDI(_ tag: Data) -> Bool {
+        tag.count >= pvdiBodyStart && tag[tag.startIndex + pvdiFlagOffset] == pvdiMaskedFlag
+    }
 }
