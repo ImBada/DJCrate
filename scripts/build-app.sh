@@ -1,10 +1,45 @@
 #!/bin/zsh
 # DJCrate.app을 만든다: 릴리스 빌드 → 번들(실행 파일·SQLCipher 프레임워크·Info.plist·아이콘) → 로컬 서명.
-# 사용: scripts/build-app.sh [--install]   (--install이면 /Applications에 복사)
+# 사용: scripts/build-app.sh [--version X.Y.Z | --tag vX.Y.Z] [--package | --install]
 set -euo pipefail
 cd "${0:A:h}/.."
 
-VERSION="0.1"
+VERSION=""
+INSTALL=false
+PACKAGE=false
+fail() { print -u2 -- "$1"; exit 1; }
+while (( $# )); do
+    case "$1" in
+        --version|--tag)
+            [[ -z "$VERSION" && $# -ge 2 ]] || fail "버전은 --version X.Y.Z 또는 --tag vX.Y.Z로 한 번만 지정하세요."
+            option="$1"
+            VERSION="$2"
+            if [[ "$option" == --tag ]]; then
+                [[ "$VERSION" == v* ]] || fail "태그는 vX.Y.Z 형식으로 지정하세요."
+                VERSION="${VERSION#v}"
+            fi
+            [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || fail "버전은 앞자리 0이나 접미사 없이 X.Y.Z 형식으로 지정하세요."
+            shift 2 ;;
+        --install) INSTALL=true; shift ;;
+        --package) PACKAGE=true; shift ;;
+        --help|-h)
+            print '사용: scripts/build-app.sh [--version X.Y.Z | --tag vX.Y.Z] [--package | --install]'
+            exit 0 ;;
+        *) fail "알 수 없는 인자입니다. --help로 사용법을 확인하세요." ;;
+    esac
+done
+[[ "$INSTALL" != true || "$PACKAGE" != true ]] || fail "배포 패키지와 설치는 --package 또는 --install로 따로 실행하세요."
+if [[ -z "$VERSION" ]]; then
+    TAG=$(git describe --tags --exact-match --match 'v[0-9]*' HEAD 2>/dev/null || true)
+    if [[ -n "$TAG" ]]; then
+        VERSION="${TAG#v}"
+        [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || fail "현재 태그가 vX.Y.Z 형식이 아닙니다. --version으로 버전을 지정하세요."
+    elif [[ "$PACKAGE" == true ]]; then
+        fail "배포 패키지는 --version X.Y.Z 또는 --tag vX.Y.Z로 버전을 지정하세요."
+    else
+        VERSION="0.1"
+    fi
+fi
 BUILD=$(git rev-list --count HEAD 2>/dev/null || echo 1)
 BUNDLE_ID="com.fotone.djcrate"
 APP="dist/DJCrate.app"
@@ -68,14 +103,33 @@ plutil -replace UTExportedTypeDeclarations -json "$(plutil -extract UTExportedTy
 # 서명: Apple Development 인증서가 있으면 그것으로(다시 빌드해도 앱 신원이 같아 외장 드라이브 접근 허용이 유지된다),
 # 없으면 애드혹. DJC_SIGN_IDENTITY로 지정할 수 있다. 프레임워크 먼저.
 # 인증서가 없는 정상 상태에서도 pipefail로 설치 전에 끝나지 않게 한다.
-IDENTITY="${DJC_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | awk '/Apple Development/ && !found { print $2; found = 1 }')}"
-IDENTITY="${IDENTITY:--}"
+if [[ "$PACKAGE" == true ]]; then
+    # 배포는 인증서·키체인 설정과 무관하게 ad-hoc만 쓴다. Developer ID 서명이나 공증이 아니다.
+    IDENTITY="-"
+else
+    IDENTITY="${DJC_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | awk '/Apple Development/ && !found { print $2; found = 1 }')}"
+    IDENTITY="${IDENTITY:--}"
+fi
 codesign --force --timestamp=none --sign "$IDENTITY" "$APP/Contents/Frameworks/SQLCipher.framework"
 codesign --force --timestamp=none --sign "$IDENTITY" "$APP"
 codesign --verify --deep --strict "$APP"
 echo "만듦: $APP ($VERSION, 빌드 $BUILD, 서명 ${IDENTITY:0:8})"
 
-if [[ "${1:-}" == "--install" ]]; then
+if [[ "$PACKAGE" == true ]]; then
+    ARCH=$(lipo -archs "$APP/Contents/MacOS/DJCrate")
+    case "$ARCH" in
+        arm64|x86_64) ;;
+        'x86_64 arm64'|'arm64 x86_64') ARCH=universal ;;
+        *) fail "패키지 이름을 정할 수 없는 아키텍처입니다. 실행 파일을 확인하세요." ;;
+    esac
+    ARCHIVE="DJCrate-${VERSION}-macOS-${ARCH}.zip"
+    rm -f "dist/$ARCHIVE" "dist/$ARCHIVE.sha256"
+    ditto -c -k --keepParent "$APP" "dist/$ARCHIVE"
+    (cd dist && shasum -a 256 "$ARCHIVE" > "$ARCHIVE.sha256")
+    echo "패키지: dist/$ARCHIVE (Developer ID 서명·공증 없음)"
+fi
+
+if [[ "$INSTALL" == true ]]; then
     DEST="/Applications/DJCrate.app"
     [[ -w /Applications ]] || DEST="$HOME/Applications/DJCrate.app"
     mkdir -p "${DEST:h}"

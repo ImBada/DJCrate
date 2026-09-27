@@ -32,8 +32,55 @@ struct BuildAppScriptTests {
         #expect(result.exportedTypes.contains("com.djcrate.deck-track"))
     }
 
-    private func run(identity: String, install: Bool, signingFails: Bool = false) throws
-        -> (status: Int32, output: String, installed: Bool, signatures: String, exportedTypes: [String]) {
+    @Test(arguments: [["--version", "1.2.3"], ["--tag", "v1.2.3"]])
+    func 명시한_버전으로_패키지를_만들고_개발_인증서는_쓰지_않는다(_ arguments: [String]) throws {
+        let result = try run(identity: "override", arguments: arguments + ["--package"])
+        #expect(result.status == 0, "\(result.output)")
+        #expect(result.version == "1.2.3")
+        #expect(!result.installed)
+        #expect(result.signatures.contains("--sign - "))
+        #expect(!result.signatures.contains("TEST_IDENTITY"))
+        #expect(result.packageFiles.contains("DJCrate-1.2.3-macOS-arm64.zip"))
+        #expect(result.packageFiles.contains("DJCrate-1.2.3-macOS-arm64.zip.sha256"))
+    }
+
+    @Test func 현재_태그에서_패키지_버전을_읽는다() throws {
+        let result = try run(identity: "none", arguments: ["--package"], tag: "v2.3.4")
+        #expect(result.status == 0, "\(result.output)")
+        #expect(result.version == "2.3.4")
+        #expect(result.packageFiles.contains("DJCrate-2.3.4-macOS-arm64.zip"))
+    }
+
+    @Test(arguments: [
+        ["--version"], ["--version", ""], ["--version", "1.2"], ["--version", "01.2.3"],
+        ["--version", "1.2.3-beta"], ["--version", "1.2.3/foo"], ["--tag", "1.2.3"],
+        ["--tag", "v1.2.3.4"], ["--unknown"], ["--version", "1.2.3", "--tag", "v1.2.3"],
+        ["--package"], ["--package", "--install", "--version", "1.2.3"],
+    ])
+    func 잘못된_버전과_옵션은_빌드_전에_막는다(_ arguments: [String]) throws {
+        let result = try run(identity: "none", arguments: arguments)
+        #expect(result.status != 0)
+        #expect(!result.buildStarted)
+        #expect(!result.installed)
+        #expect(result.signatures.isEmpty)
+    }
+
+    @Test func 잘못된_현재_태그는_빌드_전에_막는다() throws {
+        let result = try run(identity: "none", tag: "v1.2.3-beta")
+        #expect(result.status != 0)
+        #expect(!result.buildStarted)
+    }
+
+    @Test func 태그가_없는_일반_빌드는_기존_버전을_유지한다() throws {
+        let result = try run(identity: "none")
+        #expect(result.status == 0, "\(result.output)")
+        #expect(result.version == "0.1")
+    }
+
+    private func run(identity: String, install: Bool = false, signingFails: Bool = false,
+                     arguments: [String]? = nil, tag: String = "") throws
+        -> (status: Int32, output: String, installed: Bool, signatures: String, exportedTypes: [String],
+            version: String, packageFiles: [String], buildStarted: Bool) {
         let fm = FileManager.default
         let root = fm.temporaryDirectory.appending(path: "djc-build-script-\(UUID())")
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
@@ -56,8 +103,15 @@ struct BuildAppScriptTests {
         #!/bin/zsh
         set -e
         case "${0:t}" in
-          swift|install_name_tool) exit 0 ;;
-          git) echo 17 ;;
+          swift) /usr/bin/touch "$DJC_TEST_ROOT/build-started"; exit 0 ;;
+          install_name_tool) exit 0 ;;
+          git)
+            case "$1" in
+              rev-list) echo 17 ;;
+              describe) [[ -n "$DJC_TEST_TAG" ]] || exit 1; print -r -- "$DJC_TEST_TAG" ;;
+              *) exit 99 ;;
+            esac ;;
+          lipo) echo arm64 ;;
           security)
             if [[ "$DJC_TEST_IDENTITY" == found ]]; then
               echo '  1) TEST_IDENTITY "Apple Development: Synthetic"'
@@ -84,17 +138,18 @@ struct BuildAppScriptTests {
         esac
         """#)
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: root.appending(path: "bin/tool").path)
-        for tool in ["swift", "git", "security", "codesign", "plutil", "mktemp", "iconutil", "install_name_tool", "cp", "rm", "mkdir"] {
+        for tool in ["swift", "git", "lipo", "security", "codesign", "plutil", "mktemp", "iconutil", "install_name_tool", "cp", "rm", "mkdir"] {
             try fm.createSymbolicLink(atPath: root.appending(path: "bin/\(tool)").path, withDestinationPath: "tool")
         }
         let process = Process(), output = Pipe()
         process.executableURL = URL(filePath: "/bin/zsh")
-        process.arguments = [root.appending(path: "scripts/build-app.sh").path] + (install ? ["--install"] : [])
+        process.arguments = [root.appending(path: "scripts/build-app.sh").path] + (arguments ?? (install ? ["--install"] : []))
         var environment = ProcessInfo.processInfo.environment
         environment["PATH"] = root.appending(path: "bin").path + ":/usr/bin:/bin"
         environment["DJC_TEST_ROOT"] = root.path
         environment["DJC_TEST_IDENTITY"] = identity
         environment["DJC_TEST_SIGN_FAIL"] = signingFails ? "1" : "0"
+        environment["DJC_TEST_TAG"] = tag
         environment["DJC_SIGN_IDENTITY"] = identity == "override" ? "TEST_IDENTITY" : nil
         process.environment = environment
         process.standardOutput = output; process.standardError = output
@@ -106,6 +161,9 @@ struct BuildAppScriptTests {
         let declarations = bundleInfo?["UTExportedTypeDeclarations"] as? [[String: Any]] ?? []
         return (process.terminationStatus, text,
                 fm.fileExists(atPath: root.appending(path: "installed/DJCrate.app/Contents/MacOS/DJCrate").path), signatures,
-                declarations.compactMap { $0["UTTypeIdentifier"] as? String })
+                declarations.compactMap { $0["UTTypeIdentifier"] as? String },
+                bundleInfo?["CFBundleShortVersionString"] as? String ?? "",
+                (try? fm.contentsOfDirectory(atPath: root.appending(path: "dist").path)) ?? [],
+                fm.fileExists(atPath: root.appending(path: "build-started").path))
     }
 }
