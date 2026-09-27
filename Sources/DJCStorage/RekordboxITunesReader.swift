@@ -65,13 +65,58 @@ public enum RekordboxITunesReader {
 
     static func configuration(_ data: Data) throws -> (method: String, xmlPath: String?) {
         let reader = SettingsReader()
-        let parser = XMLParser(data: data)
+        let parser = XMLParser(data: try readableSettings(data))
         parser.shouldResolveExternalEntities = false
         parser.delegate = reader
         guard parser.parse(), reader.hasRoot, let method = reader.values["MusicAppLoadingType"] else {
             throw RekordboxITunesSelection.ParseError.invalidFile
         }
         return (method, reader.values["itunesLibraryFile"])
+    }
+
+    private static func readableSettings(_ data: Data) throws -> Data {
+        guard let text = String(data: data, encoding: .utf8) else { return data }
+        let source = text as NSString
+        let result = NSMutableString(string: text)
+        // 주석·CDATA·속성 안의 가짜 태그를 건드리지 않고, 최종 구조 검증은 XMLParser에 맡긴다.
+        let markup = try NSRegularExpression(pattern: #"<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<(?:[^<>"']|"[^"]*"|'[^']*')*>"#)
+        let value = try NSRegularExpression(pattern: #"^<VALUE(?:[ \t\r\n]+(?:name|val)[ \t\r\n]*=[ \t\r\n]*(?:"[^"<]*"|'[^'<]*')){2}[ \t\r\n]*/?>$"#)
+        let attribute = try NSRegularExpression(pattern: #"(name|val)[ \t\r\n]*=[ \t\r\n]*(["'])([\s\S]*?)\2"#)
+        let reference = try NSRegularExpression(pattern: #"&#(x[0-9a-fA-F]+|[0-9]+);"#)
+        var cursor = 0
+        var removals: [NSRange] = []
+        while cursor < source.length {
+            let start = source.range(of: "<", range: NSRange(location: cursor, length: source.length - cursor))
+            if start.location == NSNotFound { break }
+            guard let token = markup.firstMatch(in: text, options: .anchored,
+                range: NSRange(location: start.location, length: source.length - start.location)) else {
+                throw RekordboxITunesSelection.ParseError.invalidFile
+            }
+            cursor = NSMaxRange(token.range)
+            let tag = source.substring(with: token.range)
+            if tag.hasPrefix("<!--") || tag.hasPrefix("<![CDATA[") || tag.hasPrefix("<?") { continue }
+            // 설정에 DTD는 필요 없으며, 내부·외부 엔티티 선언으로 키 해석이 달라지는 것도 막는다.
+            guard !tag.hasPrefix("<!") else { throw RekordboxITunesSelection.ParseError.invalidFile }
+            let tagRange = NSRange(location: 0, length: (tag as NSString).length)
+            guard value.firstMatch(in: tag, range: tagRange) != nil else { continue }
+            let attributes = attribute.matches(in: tag, range: tagRange)
+            guard let key = attributes.first(where: { (tag as NSString).substring(with: $0.range(at: 1)) == "name" }),
+                  let val = attributes.first(where: { (tag as NSString).substring(with: $0.range(at: 1)) == "val" }) else { continue }
+            let name = (tag as NSString).substring(with: key.range(at: 3))
+            // 참조로 쓴 이름은 필수 키일 수 있으므로 원문 그대로 엄격하게 파싱한다.
+            guard !name.contains("&"), !["MusicAppLoadingType", "itunesLibraryFile"].contains(name) else { continue }
+            for match in reference.matches(in: tag, range: val.range(at: 3)) {
+                let number = (tag as NSString).substring(with: match.range(at: 1))
+                let hex = number.hasPrefix("x")
+                guard let scalar = UInt32(hex ? String(number.dropFirst()) : number, radix: hex ? 16 : 10) else { continue }
+                // XML 1.0 §2.2 Char: 무관한 VALUE의 val에 있는 금지 숫자 참조만 제외한다.
+                if scalar == 9 || scalar == 10 || scalar == 13 || (0x20...0xD7FF).contains(scalar)
+                    || (0xE000...0xFFFD).contains(scalar) || (0x10000...0x10FFFF).contains(scalar) { continue }
+                removals.append(NSRange(location: token.range.location + match.range.location, length: match.range.length))
+            }
+        }
+        for range in removals.reversed() { result.deleteCharacters(in: range) }
+        return Data((result as String).utf8)
     }
 
     private final class SettingsReader: NSObject, XMLParserDelegate {
