@@ -96,7 +96,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
   - 루프는 재생 노드에 버퍼를 예약해 샘플 단위로 잇는다. 무엇을 언제 예약할지는 `LoopPlanner`(순수, 테스트됨)가 정하고 `DeckAudio.setLoop`은 그대로 실행한다. 예약은 렌더 블록보다 앞서야 한다(그러면 되풀이 버퍼도 바퀴 중간에서 정확히 끊긴다). ½은 CDJ처럼 바로, 나가기는 이번 바퀴 끝에서.
 - 화면: 재생 중 매 프레임 바뀌는 관찰 값은 큰 뷰가 읽지 않게 한다. 글자·전체 파형 재생선은 `displayTime`(15Hz), 레벨 미터는 재생 틱(`meterFrame`)으로 갱신한다.
 - 그리드 쓰기는 파형 파일(`.EXT`)이 있는 곡만 한다. 분석 파일이 없는 곡은 분석 파일을 만들어 붙이고(`RekordboxWriter+Analysis`), `.DAT`만 있는 반쪽 곡은 막는다.
-- 새 곡은 rekordbox XML(Import To Collection)로 넘긴다. 이미 컬렉션에 있는 경로는 막는다(기존 큐 덮어쓰기 방지).
+- 새 곡은 미리 보기를 거쳐 rekordbox 컬렉션에 직접 넣거나, 기존 호환 경로인 rekordbox XML(Import To Collection)로 넘긴다. 추가 목록에는 이미 컬렉션에 있는 경로를 넣지 않는다(기존 큐 덮어쓰기 방지). 기존 곡의 XML 경로는 큐·그리드 초안만 다루며, 직접 쓰기와 지원 범위가 다르다([안내](README.md#xml-호환-경로)).
 - 설정: 이름·기본값·범위는 `SettingKeys`에 모은다. 이름은 옛 UserDefaults 키 그대로다(바꾸면 쓰던 값을 잃는다). 덱 단축키는 키 위치(키 코드)로 정하고, 기본과 다른 동작만 저장한다. ⌘·⌃·⌥ 조합과 목록 확정·이동 키(`DeckShortcuts.reservedKeys`)는 지정할 수 없다.
 
 ## 코드 스타일

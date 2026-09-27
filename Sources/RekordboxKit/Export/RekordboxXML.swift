@@ -3,7 +3,7 @@ import Foundation
 
 /// rekordbox XML(환경설정 › 고급 › rekordbox xml로 불러와 "Import To Collection"하는 형식).
 ///
-/// DJCrate는 rekordbox DB를 직접 고치지 않는다. 새로 추가한 곡은 이 XML로 넘기고,
+/// 새로 추가한 곡을 직접 쓰기 대신 XML로 넘길 때 쓴다. 이 경로에서는 DB를 고치지 않고,
 /// 가져오기는 rekordbox에서 사용자가 한다. 시각은 모두 rekordbox 시간축(초)이어야 한다.
 public enum RekordboxXML {
     public struct Entry: Sendable {
