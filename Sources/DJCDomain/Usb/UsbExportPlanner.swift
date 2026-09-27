@@ -556,7 +556,7 @@ private struct PlanState {
             guard visited.insert(input.localID).inserted else { return }
             // 인텔리전트(스마트) 목록은 규칙을 USB에 옮기는 방법을 확인하지 않았다.
             guard input.attribute == 0 || input.attribute == 1 else {
-                let message = String(ui: "스마트 재생 목록은 아직 내보낼 수 없습니다. 일반 목록으로 복사한 뒤 내보내세요")
+                let message = String(ui: "인텔리전트 재생 목록은 아직 내보낼 수 없습니다. 일반 목록으로 복사한 뒤 내보내세요")
                 state.blocked.append(UsbBlock(code: "smartPlaylist", scope: .playlist(input.localID), message: message))
                 return
             }

@@ -144,12 +144,12 @@ struct UsbExportPlannerTests {
         #expect(result.playlists.first?.contentIDs == [1, 2])
     }
 
-    @Test("스마트 재생 목록은 막고 그 곡은 곡 선택대로 간다")
+    @Test("인텔리전트 재생 목록은 막고 그 곡은 곡 선택대로 간다")
     func smartPlaylistBlocked() {
         let result = plan([candidate("1")], playlists: [list("s", "스마트", attribute: 4, tracks: ["1"]), list("p", "목록", tracks: ["1"])])
         #expect(result.blocked.map(\.code) == ["smartPlaylist"])
         #expect(result.blocked.first?.scope == .playlist("s"))
-        #expect(result.blocked.first?.message == "스마트 재생 목록은 아직 내보낼 수 없습니다. 일반 목록으로 복사한 뒤 내보내세요")
+        #expect(result.blocked.first?.message == "인텔리전트 재생 목록은 아직 내보낼 수 없습니다. 일반 목록으로 복사한 뒤 내보내세요")
         #expect(result.playlists.map(\.localID) == ["p"])
         #expect(result.playlists.first?.playlistID == 1)
         #expect(result.tracks.count == 1)
