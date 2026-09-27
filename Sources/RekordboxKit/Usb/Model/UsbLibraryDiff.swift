@@ -60,14 +60,24 @@ public enum UsbLibraryDiff {
     public static let onlyRight = "onlyRight"
 
     public static func compare(_ a: UsbLibrary, _ b: UsbLibrary, options: Options) -> (summaries: [TableSummary], differences: [Difference]) {
-        var left = a, right = b
-        if options.ignoreAnalysisFolder {
-            for index in left.tracks.indices { left.tracks[index].analysisDataPath = fileName(left.tracks[index].analysisDataPath) }
-            for index in right.tracks.indices { right.tracks[index].analysisDataPath = fileName(right.tracks[index].analysisDataPath) }
+        let formats = options.formats
+        let inFormats: (Set<UsbFormat>) -> Bool = { !$0.isDisjoint(with: formats) }
+        // 비교하지 않는 형식의 곡·목록·연결·기록은 뺀다
+        func restricted(_ library: UsbLibrary) -> UsbLibrary {
+            var library = library
+            library.tracks = library.tracks.filter { inFormats($0.presentIn) }
+            library.playlists = library.playlists.filter { inFormats($0.presentIn) }
+            library.myTagLinks = library.myTagLinks.filter { inFormats($0.presentIn) }
+            library.histories = library.histories.filter { formats.contains($0.format) }
+            library.unknownRows = library.unknownRows.filter { formats.contains($0.format) }
+            if options.ignoreAnalysisFolder {
+                for index in library.tracks.indices { library.tracks[index].analysisDataPath = fileName(library.tracks[index].analysisDataPath) }
+            }
+            return library
         }
         let natural = options.ignoreIDs
-        if natural { right = remap(right, onto: left) }
-        let formats = options.formats
+        let remapped = natural ? remap(b, onto: a, formats: formats) : b
+        let left = restricted(a), right = restricted(remapped)
         let ordered = UsbFormat.allCases.filter(formats.contains)
         var comparer = Comparer(skipTables: options.skipTables)
 
@@ -79,13 +89,12 @@ public enum UsbLibraryDiff {
                            fields: fields(UsbFieldFormats.namedRow))
         }
 
-        let inFormats: (Set<UsbFormat>) -> Bool = { !$0.isDisjoint(with: formats) }
         var trackFields = fields(UsbFieldFormats.track)
         trackFields.append(Field(name: "presentIn") { $0.presentIn.intersection(formats) == $1.presentIn.intersection(formats) })
         for format in ordered {
             trackFields.append(Field(name: "deviceFields.\(format.rawValue)") { $0.deviceFields[format] == $1.deviceFields[format] })
         }
-        comparer.table("content", left.tracks.filter { inFormats($0.presentIn) }, right.tracks.filter { inFormats($0.presentIn) },
+        comparer.table("content", left.tracks, right.tracks,
                        key: { natural ? NaturalKeys.hash("path", $0.path) : String($0.id) }, fields: trackFields)
         named("artist", left.artists, right.artists)
         comparer.table("album", left.albums, right.albums, key: { natural ? NaturalKeys.hash("name", $0.name) : String($0.id) },
@@ -104,24 +113,24 @@ public enum UsbLibraryDiff {
             playlistFields.append(Field(name: "entries.\(format.rawValue)") { ($0.entries[format] ?? []) == ($1.entries[format] ?? []) })
         }
         // 오른쪽 id는 이미 왼쪽 id로 옮겼다(짝이 없으면 음수). 그래서 두 쪽 경로 표를 합쳐도 id가 겹치지 않는다.
+        // 경로는 형식으로 거르기 전 목록에서 구한다(짝지을 때와 같은 키라야 짝과 비교 순서가 맞는다).
         let playlistPaths = natural
-            ? NaturalKeys.playlistPaths(left.playlists).merging(NaturalKeys.playlistPaths(right.playlists)) { first, _ in first } : [:]
-        comparer.table("playlist", left.playlists.filter { inFormats($0.presentIn) }, right.playlists.filter { inFormats($0.presentIn) },
+            ? NaturalKeys.playlistPaths(a.playlists).merging(NaturalKeys.playlistPaths(remapped.playlists)) { first, _ in first } : [:]
+        comparer.table("playlist", left.playlists, right.playlists,
                        key: { natural ? NaturalKeys.hash("playlist", playlistPaths[$0.id] ?? $0.name) : String($0.id) },
                        fields: playlistFields)
         comparer.table("myTag", left.myTags, right.myTags, key: { String($0.id) }, fields: fields(UsbFieldFormats.myTag))
-        comparer.table("myTag_content", left.myTagLinks.filter { inFormats($0.presentIn) }, right.myTagLinks.filter { inFormats($0.presentIn) },
+        comparer.table("myTag_content", left.myTagLinks, right.myTagLinks,
                        key: { "\($0.myTagID):\($0.contentID)" },
                        fields: [Field(name: "presentIn") { $0.presentIn.intersection(formats) == $1.presentIn.intersection(formats) }])
         comparer.table("menuItem", left.menuItems, right.menuItems, key: { String($0.id) }, fields: fields(UsbFieldFormats.menuItem))
         comparer.table("category", left.categories, right.categories, key: { String($0.id) }, fields: fields(UsbFieldFormats.category))
         comparer.table("sort", left.sorts, right.sorts, key: { String($0.id) }, fields: fields(UsbFieldFormats.sort))
         comparer.table("property", [left.property], [right.property], key: { _ in "property" }, fields: fields(UsbFieldFormats.property))
-        comparer.table("history", left.histories.filter { formats.contains($0.format) }, right.histories.filter { formats.contains($0.format) },
+        comparer.table("history", left.histories, right.histories,
                        key: { "\($0.format.rawValue):\($0.id)" },
                        fields: [Field(name: "name") { $0.name == $1.name }, Field(name: "entries") { $0.entries == $1.entries }])
-        comparer.table("unknownRows", left.unknownRows.filter { formats.contains($0.format) },
-                       right.unknownRows.filter { formats.contains($0.format) },
+        comparer.table("unknownRows", left.unknownRows, right.unknownRows,
                        key: { "\($0.format.rawValue):\($0.file):\($0.tableType)" }, fields: [Field(name: "liveRows") { $0.liveRows == $1.liveRows }])
         // pdb에만 있는 표. 죽은 행 ID는 ID 자체라 ID를 무시할 때는 보지 않는다.
         if formats.contains(.deviceLibrary) {
@@ -140,25 +149,42 @@ public enum UsbLibraryDiff {
     }
 
     /// 오른쪽 모델의 id와 참조를 자연 키로 짝지은 왼쪽 id로 옮긴다. 짝이 없는 id는 왼쪽에 없는 음수로 옮겨 우연히 같아지지 않게 한다.
-    static func remap(_ right: UsbLibrary, onto left: UsbLibrary) -> UsbLibrary {
-        func pairs(_ right: [(Int, String)], _ left: [(Int, String)]) -> [Int: Int] {
-            var leftByKey: [String: Int] = [:]
-            for (id, key) in left where leftByKey[key] == nil { leftByKey[key] = id }
-            var map: [Int: Int] = [:]
-            for (id, key) in right where map[id] == nil { map[id] = leftByKey[key] }
+    /// 곡·목록은 `formats`에 드는 행(비교하는 행)끼리 먼저 짝짓고, 나머지는 참조를 옮기려고 따로 짝짓는다.
+    static func remap(_ right: UsbLibrary, onto left: UsbLibrary, formats: Set<UsbFormat> = UsbFormat.defaultSet) -> UsbLibrary {
+        /// 같은 키가 여럿이면 나온 순서대로 짝짓는다(오른쪽 n번째 ↔ 왼쪽 n번째). `Comparer.unique`의 "#n"과 같은 규칙이라야
+        /// 이름이 같은 앨범·아티스트·폴더가 있어도 같은 라이브러리끼리 차이가 나지 않는다.
+        func pairs(_ right: [(id: Int, key: String)], _ left: [(id: Int, key: String)]) -> [Int: Int] {
+            var leftByKey: [String: [Int]] = [:]
+            for row in left { leftByKey[row.key, default: []].append(row.id) }
+            var seen: [String: Int] = [:], map: [Int: Int] = [:]
+            for row in right {
+                let occurrence = seen[row.key, default: 0]
+                seen[row.key] = occurrence + 1
+                if map[row.id] == nil, let ids = leftByKey[row.key], occurrence < ids.count { map[row.id] = ids[occurrence] }
+            }
             return map
+        }
+        typealias Keyed = (id: Int, key: String, compared: Bool)
+        func splitPairs(_ right: [Keyed], _ left: [Keyed]) -> [Int: Int] {
+            func part(_ rows: [Keyed], _ wanted: Bool) -> [(id: Int, key: String)] {
+                rows.filter { $0.compared == wanted }.map { ($0.id, $0.key) }
+            }
+            return pairs(part(right, true), part(left, true)).merging(pairs(part(right, false), part(left, false))) { first, _ in first }
         }
         func namedPairs(_ right: [UsbNamedRow], _ left: [UsbNamedRow]) -> [Int: Int] {
             pairs(right.map { ($0.id, UsbLayout.nfc($0.name)) }, left.map { ($0.id, UsbLayout.nfc($0.name)) })
         }
-        let tracks = pairs(right.tracks.map { ($0.id, UsbLayout.nfc($0.path)) }, left.tracks.map { ($0.id, UsbLayout.nfc($0.path)) })
+        let compared: (Set<UsbFormat>) -> Bool = { !$0.isDisjoint(with: formats) }
+        let tracks = splitPairs(right.tracks.map { ($0.id, UsbLayout.nfc($0.path), compared($0.presentIn)) },
+                                left.tracks.map { ($0.id, UsbLayout.nfc($0.path), compared($0.presentIn)) })
         let artists = namedPairs(right.artists, left.artists)
         let albums = pairs(right.albums.map { ($0.id, UsbLayout.nfc($0.name)) }, left.albums.map { ($0.id, UsbLayout.nfc($0.name)) })
         let genres = namedPairs(right.genres, left.genres)
         let keys = namedPairs(right.keys, left.keys)
         let labels = namedPairs(right.labels, left.labels)
         let rightPaths = NaturalKeys.playlistPaths(right.playlists), leftPaths = NaturalKeys.playlistPaths(left.playlists)
-        let playlists = pairs(right.playlists.map { ($0.id, rightPaths[$0.id] ?? "") }, left.playlists.map { ($0.id, leftPaths[$0.id] ?? "") })
+        let playlists = splitPairs(right.playlists.map { ($0.id, rightPaths[$0.id] ?? "", compared($0.presentIn)) },
+                                   left.playlists.map { ($0.id, leftPaths[$0.id] ?? "", compared($0.presentIn)) })
 
         func move(_ id: Int, _ map: [Int: Int]) -> Int { map[id] ?? (-1 - id) }
         // 참조 칸의 0은 "없음"이라 그대로 둔다(목록 parentID·작사가 artist 등)

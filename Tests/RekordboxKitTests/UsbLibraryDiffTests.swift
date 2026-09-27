@@ -110,6 +110,62 @@ struct UsbLibraryDiffTests {
         #expect(!changed.contains { $0.key.contains("시험") || $0.key.contains("/") })
     }
 
+    /// 이름이 같은 앨범·아티스트, 같은 부모 아래 같은 이름 폴더가 여럿이어도 나온 순서대로 짝지어 같은 라이브러리는 차이 0이다.
+    @Test func ignoreIDsDuplicateNamesSameLibraryIsZero() {
+        var a = Self.merged()
+        a.artists.append(UsbNamedRow(id: 2, name: a.artists[0].name, nameForSearch: nil))
+        a.albums = [UsbAlbum(id: 10, name: "같은 앨범", artistID: 1, imageID: nil, isCompilation: 0, nameForSearch: nil),
+                    UsbAlbum(id: 11, name: "같은 앨범", artistID: 2, imageID: nil, isCompilation: 0, nameForSearch: nil)]
+        a.tracks[0].artistID = 1
+        a.tracks[0].albumID = 10
+        a.tracks[1].artistID = 2
+        a.tracks[1].albumID = 11
+        for (id, name, parentID, attribute, entries) in [(20, "같은 폴더", 0, 1, [Int]()), (21, "같은 폴더", 0, 1, []),
+                                                          (22, "하위", 20, 0, [1]), (23, "하위", 21, 0, [2])] {
+            a.playlists.append(UsbPlaylist(id: id, name: name, parentID: parentID, attribute: attribute, imageID: nil,
+                                           presentIn: UsbFormat.defaultSet, sortOrder: [.oneLibrary: 1, .deviceLibrary: 1],
+                                           entries: entries.isEmpty ? [:] : [.oneLibrary: entries, .deviceLibrary: entries]))
+        }
+        #expect(UsbLibraryDiff.compare(a, a, options: .init()).differences.isEmpty)
+        for formats in [UsbFormat.defaultSet, [.oneLibrary], [.deviceLibrary]] {
+            #expect(UsbLibraryDiff.compare(a, a, options: .init(ignoreIDs: true, formats: formats)).differences.isEmpty)
+        }
+
+        // 같은 순서로 id만 옮긴 사본도 차이 0
+        let shift = 100
+        var b = a
+        b.tracks = a.tracks.map { track in
+            var track = track
+            track.id += shift
+            track.artistID = track.artistID.map { $0 + shift }
+            track.albumID = track.albumID.map { $0 + shift }
+            return track
+        }
+        b.artists = a.artists.map { UsbNamedRow(id: $0.id + shift, name: $0.name, nameForSearch: $0.nameForSearch) }
+        b.albums = a.albums.map { album in
+            var album = album
+            album.id += shift
+            album.artistID = album.artistID.map { $0 + shift }
+            return album
+        }
+        b.playlists = a.playlists.map { playlist in
+            var playlist = playlist
+            playlist.id += shift
+            if playlist.parentID != 0 { playlist.parentID += shift }
+            playlist.entries = playlist.entries.mapValues { $0.map { $0 + shift } }
+            return playlist
+        }
+        b.myTagLinks = a.myTagLinks.map { UsbMyTagLink(myTagID: $0.myTagID, contentID: $0.contentID + shift, presentIn: $0.presentIn) }
+        b.histories = a.histories.map { UsbHistory(format: $0.format, id: $0.id, name: $0.name, entries: $0.entries.map { $0 + shift }) }
+        b.trackRowExtras = Dictionary(uniqueKeysWithValues: a.trackRowExtras.map { ($0.key + shift, $0.value) })
+        #expect(UsbLibraryDiff.compare(a, b, options: .init(ignoreIDs: true)).differences.isEmpty)
+
+        // 둘째 폴더의 하위 목록 항목이 바뀌면 그 목록만 차이
+        var c = b
+        c.playlists[c.playlists.count - 1].entries[.oneLibrary] = [1 + shift]
+        #expect(UsbLibraryDiff.compare(a, c, options: .init(ignoreIDs: true)).differences.map(\.field) == ["entries.oneLibrary"])
+    }
+
     @Test func skipTables() {
         let a = Self.merged()
         var b = a
