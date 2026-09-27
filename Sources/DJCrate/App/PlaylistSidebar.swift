@@ -42,6 +42,7 @@ struct PlaylistSection: View {
                 .help(.ui("새 재생 목록·폴더(맨 위)"))
                 .accessibilityLabel(.ui("새 재생 목록·폴더"))
             }
+            .sidebarSectionHeader()
             // 제목 줄에 놓으면 맨 위의 맨 끝으로 옮긴다.
             .onDrop(of: [PlaylistDragType.playlist], isTargeted: nil) { providers in
                 PlaylistDrop.movePlaylist(providers) { store.movePlaylist($0, into: PlaylistLayout.root) }

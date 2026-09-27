@@ -31,25 +31,30 @@ struct ITunesPlaylistSection: View {
             HStack {
                 Text(.ui("iTunes 동기화 목록"))
                 Spacer(minLength: 0)
-                Button {
-                    store.presentITunesSync()
+                // 비슷한 원형 화살표 버튼 둘이 펼침 화살표 옆에 붙어 헷갈려 메뉴 하나로 모은다(#120).
+                Menu {
+                    Button {
+                        store.presentITunesSync()
+                    } label: {
+                        Label(.ui("iTunes 동기화…"), systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .disabled(store.isLoading || store.isWritingRekordbox || store.snapshotURL == nil)
+                    Button {
+                        Task { await store.refreshITunesPlaylists() }
+                    } label: {
+                        Label(.ui("iTunes 동기화 목록 새로고침"), systemImage: "arrow.clockwise")
+                    }
+                    .disabled(store.isLoading || store.isWritingRekordbox)
                 } label: {
-                    Image(systemName: "arrow.triangle.2.circlepath")
+                    Image(systemName: "ellipsis.circle")
                 }
-                .buttonStyle(.plain)
-                .disabled(store.isLoading || store.isWritingRekordbox || store.snapshotURL == nil)
-                .help(.ui("iTunes 동기화…"))
-                .accessibilityLabel(.ui("iTunes 동기화…"))
-                Button {
-                    Task { await store.refreshITunesPlaylists() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(.plain)
-                .disabled(store.isLoading || store.isWritingRekordbox)
-                .help(.ui("iTunes 동기화 목록 새로고침"))
-                .accessibilityLabel(.ui("iTunes 동기화 목록 새로고침"))
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help(.ui("동기화할 iTunes 목록 고르기·새로고침"))
+                .accessibilityLabel(.ui("iTunes 동기화 목록 작업"))
             }
+            .sidebarSectionHeader()
         }
         .sheet(isPresented: $store.showingITunesSync) { ITunesSyncView(store: store) }
     }

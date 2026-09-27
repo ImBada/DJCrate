@@ -43,6 +43,15 @@ struct SettingsTests {
         #expect(SettingKeys.deckShortcuts == "shortcuts.deck")
     }
 
+    /// 현황·스냅샷 파일 이름은 늘 볼 필요가 없어 기본으로 숨기고 설정 › 일반에서 켠다(#120).
+    @Test func 사이드바_현황은_기본으로_숨긴다() {
+        #expect(SettingKeys.sidebarShowsStatus.name == "sidebar.showsStatus")
+        #expect(SettingKeys.sidebarShowsStatus.defaultValue == false)
+        #expect(SettingKeys.sidebarShowsStatus.value(from: nil) == false)
+        #expect(SettingKeys.sidebarShowsStatus.value(from: true) == true)
+        #expect(SettingKeys.all.contains(SettingKeys.sidebarShowsStatus.name))
+    }
+
     /// 사이드바를 연 채·닫은 채 끈 그대로 다음에 뜬다(#119). 처음에는 열린 채로 시작한다.
     @Test func 사이드바_표시_상태를_저장한다() {
         #expect(SettingKeys.sidebarVisible.name == "sidebar.visible")
