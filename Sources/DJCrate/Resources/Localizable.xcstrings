@@ -3223,6 +3223,22 @@
         }
       }
     },
+    "DJCrate가 소리로 추정한 키입니다. rekordbox 분석과 다를 수 있습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key estimated by DJCrate from the audio. It may differ from rekordbox analysis."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateが音から推定したキーです。rekordboxの解析結果と異なる場合があります"
+          }
+        }
+      }
+    },
     "DJCrate는 XML을 늘 이 파일에 만듭니다(경로를 클립보드에 복사했습니다):\n%@" : {
       "localizations" : {
         "en" : {
@@ -19206,6 +19222,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "追加できる音源がありません。MP3・M4A・WAV・AIFF・FLACファイルを選んでください。"
+          }
+        }
+      }
+    },
+    "추정" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "estimated"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "推定"
           }
         }
       }

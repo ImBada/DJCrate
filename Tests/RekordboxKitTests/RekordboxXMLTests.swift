@@ -10,6 +10,15 @@ struct RekordboxXMLTests {
                     comment: "TVA 테큐 OP 2", duration: 269.4, addedOn: "2026-09-25")
     }
 
+    @Test func 추가한_곡의_키는_XML에_넣지_않는다() {
+        // 목록에만 보이는 키(태그·추정)다. rekordbox에 키를 넣는 것은 사용자가 확인한 조성만 쓰는 #5에서 한다.
+        var track = staged()
+        track.key = "8A"
+        track.keySource = .estimate
+        let xml = RekordboxXML.document(entries: [RekordboxXML.Entry(track: track, tempos: [], cues: [])], playlistName: "DJCrate 추가")
+        #expect(!xml.contains("Tonality"))
+    }
+
     @Test func 첫_템포_구간은_곡_시작_쪽_첫_박으로_당긴다() {
         // 154 BPM, 첫 박 번호 1인 박이 10.0초 → 0~0.39초 사이 첫 박으로, 박 번호도 함께 되돌린다.
         let period = 60 / 154.0
