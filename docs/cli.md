@@ -135,3 +135,18 @@ djc draft rm tag 101 --db /tmp/djc-fixture/master.db
 추가 오류 코드는 `invalid_draft`(기존 초안 손상·큐 한도), `draft_io_failed`(초안 저장·삭제 실패)다. 기존 `invalid_arguments`, `not_found`, `live_database`, `read_failed`도 사용한다. 실패 시 종료 코드 1이며 JSON은 stderr에만 나온다.
 
 앱은 재생 목록 초안을 지원하지만 `djc draft`의 대상은 큐·태그뿐이다. `playlist-write`는 JSON 편집을 DB에 쓰는 명령이며 DJCrate 재생 목록 초안 생성 명령이 아니다. 에이전트 스킬에서는 실행하지 않고 사람이 앱에서 재생 목록 초안을 만들도록 안내한다.
+
+## USB 쓰기 되돌리기·회복
+
+USB 쓰기는 앱(또는 USB 내보내기·수정 명령)이 `UsbWriter.write` 한 곳으로 한다. 아래 두 명령은 그 쓰기를 되돌리거나 끊긴 쓰기를 마무리한다. 둘 다 쓰기와 같은 확인을 먼저 거친다: rekordbox·rekordboxAgent가 켜져 있으면 막고, 실물 USB 쓰기가 열리기 전에는 임시 폴더 아래에 붙인 디스크 이미지만 받는다. `--volume`에 rekordbox 라이브러리나 DJCrate 데이터 폴더를 주면 거부한다. 백업·저널은 `DJC_HOME`(또는 기본 DJCrate 데이터 폴더)의 `usb-backups/`·`usb-sessions/`에 있다. JSON 계약에는 포함하지 않는다.
+
+```sh
+djc usb-recover --volume <마운트> [--discard-temp] [--confirm <볼륨 이름>]
+djc usb-restore --volume <마운트> [--backup <폴더>] [--discard-device-changes] [--confirm <볼륨 이름>] [--dry-run]
+```
+
+- `usb-recover`: 이 볼륨의 끝나지 않은 쓰기(닫히지 않은 저널)를 DB 해시로 판정해 마저 쓰거나 되돌린다. 기기가 그 사이 DB를 바꿨으면 이어 쓰지 않고 "다시 계획"으로 닫는다(지금 USB로 다시 미리 보기한 뒤 쓴다). 끊긴 `usb-restore`는 되돌리기로 마저 한다. 저널이 없으면 "회복할 쓰기가 없습니다"로 끝내고, USB에 `.djc-part-*` 임시 파일이 있으면 보고만 하며 `--discard-temp`를 주면 지운다. 저널을 읽지 못하거나 저널의 경로가 USB 루트 밖을 가리키면 아무것도 하지 않고 `usb-sessions`를 확인하라고 알린다.
+- `usb-restore`: 끝난 쓰기를 그 쓰기 전 백업으로 되돌린다. `--backup`을 빼면 이 볼륨의 가장 최근 백업이다. `--backup`은 이 볼륨의 `usb-backups/<볼륨>/` 바로 아래 폴더만 받는다(다른 곳에 복사한 백업·링크는 거부). 그 뒤 기기가 USB에 기록을 남겼으면(DB 해시가 쓰기 결과와 다르거나 `-wal`·`-journal`이 있음) 막고, `--discard-device-changes`를 줘야 그 변경을 버리고 되돌린다. 쓰기가 만든 파일·폴더·DB는 지우고, 덮어쓴 파일은 백업에서 되살리며, 지웠던 음원은 로컬 원본이 그대로일 때만 다시 복사하고, 원본이 없거나 바뀌었으면 알리고 나머지를 되돌린다. 되돌린 백업으로 다시 돌리면 "이미 되돌렸습니다"로 끝낸다. `--dry-run`은 판정만 하고 USB를 바꾸지 않는다.
+- `--confirm <볼륨 이름>`은 실물 USB 쓰기가 열린 뒤 실물에 쓸 때 요구하는 볼륨 이름 확인이다.
+- 출력은 결과·백업 폴더·파일 수다. USB 경로가 붙은 알림(건너뛴 분석 파일 등)은 이유별 개수만 찍는다.
+- 종료 코드는 성공 0, 막힘·실패 1이다. 막힘 이유는 무엇을 하면 되는지까지 한 문장으로 나온다.

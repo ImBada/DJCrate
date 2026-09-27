@@ -39,8 +39,16 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 .build/debug/djc playlist-write --db <사본.db> [--dry-run] <편집.json>        # 재생 목록 편집(JSON), 사본에만
 .build/debug/djc lab                                   # 실험 명령 목록(sql·loop-repro·seekinfo-check …)
 .build/debug/djc lab sql <사본.db> "SELECT …"           # 사본에 읽기 전용 질의
+.build/debug/djc usb-restore --volume <마운트> [--backup <폴더>] [--discard-device-changes]   # USB 쓰기를 그 전 백업으로 되돌리기
+.build/debug/djc usb-recover --volume <마운트> [--discard-temp]                             # 끝나지 않은 USB 쓰기를 마저 쓰거나 되돌리기
+.build/debug/djc lab usb-image create|attach|detach|info <이미지>   # 임시 폴더 아래 FAT32 디스크 이미지(attach는 --mount <폴더>)
+.build/debug/djc lab usb-image seed --image <이미지> --from <폴더>   # 붙인 이미지에 폴더 내용을 데이터만 복사
+.build/debug/djc lab usb-tree <루트>                                 # USB 트리(NFC 경로·크기·SHA-256, 마지막 줄 ._ 수)
+.build/debug/djc lab usb-write-check --volume <마운트>               # 합성 묶음을 디스크 이미지에 써 보고 다시 붙여 검증
+.build/debug/djc lab usb-commit-crash --image <빈 이미지> --repeat N # 쓰는 도중 강제 분리 → 회복을 되풀이
 ```
 
+- USB 쓰기 시험은 `usb-image`로 만든 디스크 이미지에만 한다. rekordbox가 켜져 있으면 이미지 명령(만들기·붙이기·채우기·쓰기 시험)은 거부된다. 이미지·마운트 지점은 임시 폴더 아래만, `DJC_HOME=<임시 폴더>`를 함께 준다.
 - 앱 개발용 실행 인자: `--db <스냅샷>`(그 사본을 연다), `--select <ContentID>`(곡을 골라 둔다).
 - 환경 변수: `DJC_HOME`(초안·백업 폴더를 바꿈), `DJC_REKORDBOX_DIR`(rekordbox 폴더 사본), `DJC_DB`(열 스냅샷), `DJC_IDLE_SECONDS`(재생 멈춘 뒤 엔진 끄기까지, 설정 › 일반보다 먼저).
 
@@ -69,6 +77,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 
 예: `DJC_HOME=$(mktemp -d) .build/debug/DJCrate --db <스냅샷> --select 32395449 --loop-selftest 2>&1 | grep "루프 시험"`
 
+- USB 쓰기 전 과정은 디스크 이미지로 확인한다(임시 `DJC_HOME`, rekordbox가 꺼져 있을 때만): `lab usb-image create` → `attach --mount` → `lab usb-write-check`("USB 쓰기 시험 통과" 줄) → `usb-restore`로 쓰기 전 트리(`lab usb-tree` 비교) → `detach`. 강제 분리는 `lab usb-commit-crash --image <붙이지 않은 빈 이미지>`("N/N 파일마다 옛것 또는 새것, 회복 N/N" 줄). 끝나면 `hdiutil info`에 그 폴더의 이미지가 남지 않아야 한다.
 - 결과는 추측하지 말고 명령 출력(통과/실패 줄, 수치)을 보여 준다.
 - 새 앱 인자는 `--이름=값` 한 덩어리로 만든다. 값을 따로 쓴 `--perf-hide zoom`은 AppKit이 값을 열 파일로 보고 앱이 멈췄다.
 
