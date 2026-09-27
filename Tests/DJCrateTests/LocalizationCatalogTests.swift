@@ -21,7 +21,13 @@ struct LocalizationCatalogTests {
     @Test func 뜻이_다른_같은_원문은_키를_나눠_번역한다() {
         #expect(lookup("재생", in: "en") == "Playback")
         #expect(lookup("library.column.plays", in: "en") == "Plays")
-        #expect(lookup("reflection.restore", in: "ja") == "元に戻す")
+    }
+
+    @Test func 복원은_쓰기_전_상태를_명시하고_확인_버튼에는_말줄임표가_없다() {
+        #expect(lookup("쓰기 전으로 복원…", in: "en") == "Restore Before Write…")
+        #expect(lookup("쓰기 전으로 복원…", in: "ja") == "書き込み前に復元…")
+        #expect(lookup("쓰기 전으로 복원", in: "en") == "Restore Before Write")
+        #expect(lookup("쓰기 전으로 복원", in: "ja") == "書き込み前に復元")
     }
 
     @Test func 영어는_수에_따라_복수형을_고른다() throws {
