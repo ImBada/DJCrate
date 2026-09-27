@@ -112,7 +112,8 @@ public struct UsbExistingState: Sendable {
     /// 폴더 키 → 그 안 이름(파일·폴더)의 collisionKey
     public var usedCollisionKeys: [String: Set<String>]
     /// 경로 키 → 실제 철자 경로(폴더·파일 모두, 예: "contents/artist" → "Contents/ARTIST",
-    /// "contents/artist/album/x.mp3" → "Contents/ARTIST/Album/X.MP3"). 같은 내용을 다시 쓸 때 USB의 철자를 가리키는 데 쓴다
+    /// "contents/artist/album/x.mp3" → "Contents/ARTIST/Album/X.MP3"). 같은 내용을 다시 쓸 때 USB의 철자를 가리키는 데 쓴다.
+    /// 파일 철자를 넣지 않으면 후보 철자로 가리킨다(FAT는 대소문자를 가리지 않아 같은 파일이지만 DB의 철자가 USB와 달라진다)
     public var folderSpelling: [String: String]
     public var ids: UsbIDAllocator
     public var artworkLayout: UsbArtworkLayout
