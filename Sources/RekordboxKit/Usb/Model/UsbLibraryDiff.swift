@@ -100,7 +100,8 @@ public enum UsbLibraryDiff {
         playlistFields.append(Field(name: "presentIn") { $0.presentIn.intersection(formats) == $1.presentIn.intersection(formats) })
         for format in ordered {
             playlistFields.append(Field(name: "sortOrder.\(format.rawValue)") { $0.sortOrder[format] == $1.sortOrder[format] })
-            playlistFields.append(Field(name: "entries.\(format.rawValue)") { $0.entries[format] == $1.entries[format] })
+            // 항목이 없는 것과 빈 항목은 같다(형식 리더마다 폴더를 다르게 둘 수 있다)
+            playlistFields.append(Field(name: "entries.\(format.rawValue)") { ($0.entries[format] ?? []) == ($1.entries[format] ?? []) })
         }
         // 오른쪽 id는 이미 왼쪽 id로 옮겼다(짝이 없으면 음수). 그래서 두 쪽 경로 표를 합쳐도 id가 겹치지 않는다.
         let playlistPaths = natural

@@ -11,6 +11,8 @@ public final class OneLibraryFixture {
 
     public let folder: URL
     public var url: URL { folder.appending(path: "exportLibrary.db") }
+    /// 행을 넣는 연결(열 때마다 키 유도가 느려 하나를 계속 쓴다). 파일을 복사하기 전에는 `close()`로 닫는다.
+    private var writer: CipherDatabase?
 
     /// - Parameters:
     ///   - statements: 표를 만들 문장(기본 `OneLibrarySchema.ddl()`)
@@ -19,7 +21,7 @@ public final class OneLibraryFixture {
         folder = FileManager.default.temporaryDirectory.appending(path: "djc-onelib-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let db = try CipherDatabase(path: url.path, key: .passphrase(RekordboxKey.oneLibrary()), mode: .create)
-        defer { db.close() }
+        writer = db
         try db.execute("PRAGMA journal_mode = \(journalMode.rawValue)")
         for sql in statements ?? OneLibrarySchema.ddl() { try db.execute(sql) }
         if property {
@@ -31,7 +33,14 @@ public final class OneLibraryFixture {
     }
 
     deinit {
+        writer?.close()
         try? FileManager.default.removeItem(at: folder)
+    }
+
+    /// 넣는 연결을 닫는다(WAL을 파일에 합치고 -wal·-shm을 지운다). 파일을 복사하기 전에 부른다.
+    public func close() {
+        writer?.close()
+        writer = nil
     }
 
     /// 시험 리소스의 스키마 문장(끝 ";" 뗌)
@@ -49,9 +58,8 @@ public final class OneLibraryFixture {
     }
 
     public func execute(_ sql: String, _ values: [CipherDatabase.Value] = []) throws {
-        let db = try open()
-        defer { db.close() }
-        try db.run(sql, values)
+        if writer == nil { writer = try open() }
+        try writer!.run(sql, values)
     }
 
     /// 아무 표에나 행 하나
