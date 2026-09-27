@@ -9,6 +9,9 @@ struct ITunesSyncView: View {
     private var model: ITunesSyncModel { store.iTunesSync }
 
     var body: some View {
+        let tree = model.tree
+        let preview = model.preview
+        let nodes = model.nodes
         VStack(alignment: .leading, spacing: 16) {
             Text(.ui("iTunes 동기화")).font(.title2.bold())
             Text(.ui("동기화할 폴더와 플레이리스트를 선택하세요. 폴더를 선택하면 하위 목록도 포함됩니다."))
@@ -22,15 +25,16 @@ struct ITunesSyncView: View {
                         Button(.ui("선택 해제")) { model.selection = ITunesSyncSelection() }
                     }
                     List {
-                        OutlineGroup(model.tree, children: \.children) { node in
+                        OutlineGroup(tree, children: \.children) { node in
                             let id = String(node.id.dropFirst("itunes:".count))
                             HStack {
                                 Label(node.name, systemImage: node.isFolder ? "folder" : "music.note.list")
                                     .lineLimit(1).help(node.name)
                                 Spacer(minLength: 8)
-                                ITunesSyncCheckbox(name: node.name, id: id, state: model.selection.state(of: id, in: model.nodes)) {
-                                    model.selection.setSelected(model.selection.state(of: id, in: model.nodes) != .on,
-                                                                id: id, in: model.nodes)
+                                ITunesSyncCheckbox(name: node.name, id: id, state: model.selection.state(of: id, in: nodes)) {
+                                    let currentNodes = model.nodes
+                                    model.selection.setSelected(model.selection.state(of: id, in: currentNodes) != .on,
+                                                                id: id, in: currentNodes)
                                 }
                                 .frame(width: 18, height: 18)
                             }
@@ -38,7 +42,7 @@ struct ITunesSyncView: View {
                     }
                     .overlay {
                         if model.isLoading { ProgressView() }
-                        else if model.tree.isEmpty { Text(.ui("읽을 수 있는 iTunes 목록이 없습니다")).foregroundStyle(.secondary) }
+                        else if tree.isEmpty { Text(.ui("읽을 수 있는 iTunes 목록이 없습니다")).foregroundStyle(.secondary) }
                     }
                 }
                 Image(systemName: "arrow.right").font(.title2).foregroundStyle(.secondary)
@@ -46,16 +50,16 @@ struct ITunesSyncView: View {
                     HStack {
                         Text(.ui("rekordbox 동기화 목록")).font(.headline)
                         Spacer()
-                        Text(.ui("목록 \(model.preview.playlistCount)개")).foregroundStyle(.secondary)
+                        Text(.ui("목록 \(preview.playlistCount)개")).foregroundStyle(.secondary)
                     }.frame(height: 24)
                     List {
-                        OutlineGroup(model.preview.tree, children: \.children) { node in
+                        OutlineGroup(preview.tree, children: \.children) { node in
                             Label(node.name, systemImage: node.isFolder ? "folder" : "music.note.list")
                                 .lineLimit(1).help(node.name)
                         }
                     }
                     .overlay {
-                        if model.preview.tree.isEmpty {
+                        if preview.tree.isEmpty {
                             Text(.ui("동기화할 목록을 선택하세요")).foregroundStyle(.secondary)
                         }
                     }

@@ -3,6 +3,7 @@ import AppKit
 import DJCDomain
 import DJCStorage
 import Foundation
+import RekordboxKit
 
 extension DevSelfTests {
     static func runITunesSelfTestIfRequested(store: LibraryStore, deck: DeckModel) {
@@ -25,7 +26,9 @@ extension DevSelfTests {
                 log("실패 · 합성 라이브러리 로드"); exit(1)
             }
             check(store.iTunesLibrary.index["itunes:A"]?.name == "iTunes 합성 목록", "합성 iTunes 목록 로드")
-            let syncURL = snapshot.deletingLastPathComponent().appending(path: "playlists3.sync")
+            let explicitDatabase = LibraryStore.explicitDatabaseRequested(arguments: ProcessInfo.processInfo.arguments, environment: env)
+            let syncDirectory = explicitDatabase ? snapshot.deletingLastPathComponent() : LibrarySnapshot.rekordboxDirectory(in: env)
+            let syncURL = syncDirectory.appending(path: "playlists3.sync")
             let syncBefore = try? Data(contentsOf: syncURL)
             @MainActor func button(_ id: String, in view: NSView) -> NSButton? {
                 if let button = view as? NSButton, button.identifier?.rawValue == id { return button }
@@ -69,8 +72,12 @@ extension DevSelfTests {
             check(synced && store.iTunesLibrary.index["itunes:C"] != nil, "동기화 즉시 사이드바에 추가")
             check((try? Data(contentsOf: syncURL)) != syncBefore, "rekordbox 동기화 파일에 반영")
             store.showingITunesSync = false
-            await store.load(snapshot: snapshot)
+            await store.refreshITunesPlaylists()
             check(store.iTunesLibrary.index["itunes:C"] != nil, "다시 읽은 뒤에도 선택 유지")
+            if !explicitDatabase {
+                check(store.snapshotURL.map { LibrarySnapshot.sameDirectory($0.deletingLastPathComponent(), LibrarySnapshot.defaultDirectory(in: env)) } == true,
+                      "사본 폴더 모드의 새 스냅샷으로 갱신")
+            }
             store.sidebar = .itunesPlaylist("itunes:A")
             check(store.displayRows.map(\.track.id) == ["2", "1", "2"]
                   && Set(store.displayRows.map(\.id)).count == 3

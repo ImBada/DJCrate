@@ -13,12 +13,14 @@ final class ITunesSyncModel {
     var error: String?
     var canSync: Bool { !isLoading && !isSyncing && source.status == .ready && source.syncData != nil && database != nil }
     var nodes: [ITunesSyncSelection.Node] { source.selectionNodes }
-    var tree: [SyncedITunesLibrary.Node] {
-        SyncedITunesLibrary(snapshot: ITunesLibrarySnapshot(playlists: source.availablePlaylists), tracks: []).tree
+    var tree: [ITunesSyncOutline.Node] {
+        guard let snapshot = try? source.applying(.init(selectedIDs: ["0"])) else { return [] }
+        return ITunesSyncOutline(playlists: snapshot.playlists).tree
     }
-    var preview: SyncedITunesLibrary {
-        guard let snapshot = try? source.applying(selection) else { return SyncedITunesLibrary() }
-        return SyncedITunesLibrary(snapshot: snapshot, tracks: [])
+    var preview: ITunesSyncOutline {
+        guard source.status == .ready || source.status == .stale,
+              let snapshot = try? source.applying(selection) else { return ITunesSyncOutline() }
+        return ITunesSyncOutline(playlists: snapshot.playlists)
     }
 
     func load(store: LibraryStore) async {
@@ -46,5 +48,35 @@ final class ITunesSyncModel {
             self.error = DJCError.reason(of: error)
             return false
         }
+    }
+}
+
+/// 선택 창은 목록 이름과 계층만 쓰므로 곡 경로를 연결하지 않는다.
+struct ITunesSyncOutline {
+    struct Node: Identifiable {
+        let id: String
+        let name: String
+        let children: [Node]?
+        var isFolder: Bool { children != nil }
+    }
+
+    var tree: [Node] = []
+    var playlistCount = 0
+
+    init() {}
+
+    init(playlists: [ITunesLibrarySnapshot.Playlist]) {
+        let byParent = Dictionary(grouping: playlists, by: { $0.parentID ?? "0" })
+        func build(_ parent: String) -> [Node] {
+            (byParent[parent] ?? []).map { playlist in
+                if playlist.isFolder {
+                    return Node(id: "itunes:\(playlist.id)", name: playlist.name,
+                                children: build(playlist.id))
+                }
+                playlistCount += 1
+                return Node(id: "itunes:\(playlist.id)", name: playlist.name, children: nil)
+            }
+        }
+        tree = build("0")
     }
 }
