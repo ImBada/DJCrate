@@ -98,7 +98,9 @@ enum UsbImageLab {
         let session = UsbLayout.newSessionID()
         print("SESSION \(session)")
         let staging = paths.staging.appending(path: session)
-        defer { try? FileManager.default.removeItem(at: staging) }
+        // 저널이 열린 채 끝나면(볼륨 사라짐 등) 회복이 마저 쓸 수 있게 준비 폴더를 남긴다. 그 밖에는 지운다
+        var keepStaging = false
+        defer { if !keepStaging { try? FileManager.default.removeItem(at: staging) } }
         let changes = try UsbSyntheticChanges.make(session: session, staging: staging)
         let root = UsbRoot(URL(filePath: volume))
         let fileSystem: any UsbFileSystem = slow > 0 ? SlowUsbFileSystem(inner: PosixUsbFileSystem(), delayMilliseconds: slow) : PosixUsbFileSystem()
@@ -110,6 +112,10 @@ enum UsbImageLab {
         do {
             report = try UsbWriter.write(changes, root: root, paths: paths, guard: .system, fileSystem: fileSystem, options: options)
         } catch {
+            switch error {
+            case UsbError.volumeLost, UsbError.restorePending, UsbError.restoreFailed: keepStaging = true
+            default: break
+            }
             // usb-commit-crash가 자식의 끝 상태를 언어와 무관하게 읽는 줄
             if case UsbError.volumeLost = error { print("RESULT volumeLost") } else { print("RESULT error") }
             throw error
@@ -186,6 +192,19 @@ enum UsbImageLab {
         for (key, count) in distribution.sorted(by: { $0.key < $1.key }) { print("  \(key): \(count)번") }
     }
 
+    /// 틀 이미지의 크기·MBR 파티션 형식·FAT32 볼륨 이름(부트 섹터 0x47의 11바이트)
+    static func templateShape(_ path: String) throws -> (size: Int64, type: UInt8, name: String) {
+        guard let handle = FileHandle(forReadingAtPath: path) else { throw failure("틀을 읽지 못했다") }
+        defer { try? handle.close() }
+        let mbr = try handle.read(upToCount: 512) ?? Data()
+        try handle.seek(toOffset: 2048 * 512)
+        let boot = try handle.read(upToCount: 512) ?? Data()
+        let size = try handle.seekToEnd()
+        guard mbr.count == 512, boot.count == 512 else { throw failure("틀의 MBR·부트 섹터가 짧다") }
+        let label = String(decoding: boot[0x47..<0x52], as: UTF8.self).trimmingCharacters(in: .whitespaces)
+        return (Int64(size), mbr[0x1C2], label.isEmpty ? "DJCTEST" : label)
+    }
+
     /// 한 반복: 틀 복제 → 붙이고 빈 상태 확인 → 자식 쓰기 → (강제 분리) → 자식 끝 기다림 → 마운트 지점이 비었는지 →
     /// 다시 붙여 원시 판정 → 회복 → 판정 → 떼고 복제본 지우기
     static func crashRun(index: Int, template: String, djc: String, paths: UsbWritePaths, detachAfter delay: Double?) throws -> RunResult {
@@ -198,7 +217,11 @@ enum UsbImageLab {
         }
         // 0. 시작 상태: 틀의 APFS 복제본(볼륨 UUID가 같다)
         _ = try UsbScratchPath.check(clone, as: .newFile)
-        guard clonefile(template, clone, 0) == 0 else { throw failure("틀을 복제하지 못했다: \(String(cString: strerror(errno)))") }
+        if clonefile(template, clone, 0) != 0 {
+            // APFS 복제가 안 되면 틀과 같은 크기·파티션 형식·볼륨 이름으로 새로 만든다
+            let shape = try templateShape(template)
+            _ = try UsbDiskImage.create(image: clone, size: shape.size, type: shape.type, name: shape.name)
+        }
         try FileManager.default.createDirectory(atPath: mount, withIntermediateDirectories: false)
         // 1. 붙이고 빈 상태인지
         let attached = try UsbDiskImage.attach(image: clone, mountPoint: mount)
@@ -269,8 +292,10 @@ enum UsbImageLab {
         let temps = beforeTree.files.keys.filter { UsbLayout.isTemp(($0 as NSString).lastPathComponent) }.count
         let raw = "없음 \(absent)·새것 \(fresh)·그 밖 \(other)·임시 \(temps)"
         if other > 0 { problems.append("옛것도 새것도 아닌 파일 \(other)개") }
-        // 7. 회복
-        let report = try UsbWriter.recover(root: root, paths: paths, guard: .system)
+        // 7. 회복: 사람이 쓰는 명령 그대로(djc usb-recover). 자식이 남긴 준비 폴더는 회복이 끝난 뒤 지운다
+        let recoverStatus = try runRecover(djc: djc, volume: attached.mountPoint)
+        if let session { try? FileManager.default.removeItem(at: paths.staging.appending(path: session)) }
+        if recoverStatus.code != 0 { problems.append("usb-recover rc=\(recoverStatus.code): \(recoverStatus.output.prefix(300))") }
         // 8. 판정
         let tree = try UsbTree.fingerprint(root)
         let target = ours?.target.mustExist ?? [:]
@@ -295,7 +320,25 @@ enum UsbImageLab {
             if saved == nil || !copy { problems.append("백업 폴더에 journal.json·report.json이 없다") }
             if let saved, saved.resultDatabases != current { problems.append("report.json의 결과 DB 해시가 지금 USB와 다르다") }
         }
-        return RunResult(elapsed: elapsed, child: child, stage: stage, raw: raw, outcome: report.outcome.rawValue, problems: problems)
+        let outcome = ours == nil ? "저널 없음" : closed.map { "\($0.state.rawValue)" } ?? "저널 없음"
+        return RunResult(elapsed: elapsed, child: child, stage: stage, raw: raw, outcome: "rc \(recoverStatus.code), \(outcome)", problems: problems)
+    }
+
+    /// `djc usb-recover --volume <마운트>`를 자식으로 돌린다(같은 DJC_HOME). 문구는 한국어로 고정
+    static func runRecover(djc: String, volume: String) throws -> (code: Int32, output: String) {
+        let process = Process()
+        process.executableURL = URL(filePath: djc)
+        process.arguments = ["usb-recover", "--volume", volume]
+        var environment = ProcessInfo.processInfo.environment
+        environment["DJC_LANG"] = "ko"
+        process.environment = environment
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        try process.run()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return (process.terminationStatus, String(decoding: data, as: UTF8.self))
     }
 }
 
