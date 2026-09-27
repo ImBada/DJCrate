@@ -105,7 +105,8 @@ public struct UsbLibrary: Sendable, Hashable {
     /// 두 형식을 한 모델로 합친다. 각 입력은 그 형식으로 투영해서 쓴다.
     /// - 한 형식에만 있는 칸은 그 형식 값을 그대로 가진다(비교하지 않는다).
     /// - 두 형식 모두의 칸은 OneLibrary 값이 앞서고, 다르면 불일치로 보고한다.
-    /// - 같은 id가 다른 파일을 가리키면 합치지 않고 OneLibrary 곡만 남긴다(편집 금지 불일치).
+    /// - 같은 id가 다른 파일을 가리키는 곡, 같은 id인데 이름·부모·종류가 다른 목록은 합치지 않고 OneLibrary 쪽만 남긴다(편집 금지 불일치).
+    /// - artist·album 같은 공유 표 행이 한 형식에만 있으면 합집합에 두고 `sharedRowDiffers`로 보고한다.
     public static func merge(oneLibrary: UsbLibrary?, deviceLibrary: UsbLibrary?) -> (UsbLibrary, [UsbFormatMismatch]) {
         guard let oneLibrary else { return (deviceLibrary ?? .empty, []) }
         guard let deviceLibrary else { return (oneLibrary, []) }
@@ -151,9 +152,15 @@ public struct UsbLibrary: Sendable, Hashable {
             return playlist
         }
 
+        // 공유 표 행에는 형식별 소속이 없어 투영이 거를 수 없다. 한 형식에만 있는 행은 합집합에 두되 불일치로 보고한다
+        // (보고하지 않으면 "불일치 없는 USB의 투영 = 한 형식 모델"이 깨진다).
         func shared<Row>(_ table: String, _ left: [Row], _ right: [Row], id: KeyPath<Row, Int>, rules: [UsbFieldRule<Row>]) -> [Row] {
             union(left, right, id: id).map { left, right in
-                guard let left, let right else { return (left ?? right)! }
+                guard let left, let right else {
+                    let only = (left ?? right)!
+                    mismatches.append(.sharedRowDiffers(table: table, id: only[keyPath: id]))
+                    return only
+                }
                 let (row, differing) = rules.merging(oneLibrary: left, deviceLibrary: right)
                 if !differing.isEmpty { mismatches.append(.sharedRowDiffers(table: table, id: left[keyPath: id])) }
                 return row

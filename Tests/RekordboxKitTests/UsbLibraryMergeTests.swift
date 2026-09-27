@@ -145,6 +145,10 @@ struct UsbLibraryMergeTests {
         #expect(Set(mismatches) == [.playlistConflict(id: 10), .playlistOnlyIn(.deviceLibrary, id: 11)])
         #expect(merged.playlists.first { $0.id == 10 }?.name == "시험 목록")
         #expect(merged.playlists.first { $0.id == 11 }?.presentIn == [.deviceLibrary])
+        // 합친 모델에는 OneLibrary 목록만 남아 Device Library 목록과 항목이 빠진다. 그대로 고쳐 쓰면 그 목록을 잃으므로 편집을 막는다.
+        #expect(merged.projected(to: .deviceLibrary).playlists.map(\.id) == [11])
+        #expect(mismatches.first { $0 == .playlistConflict(id: 10) }?.blocksEditing == true)
+        #expect(mismatches.first { $0 == .playlistOnlyIn(.deviceLibrary, id: 11) }?.blocksEditing == false)
     }
 
     @Test func sharedFieldDifferencesReported() {
@@ -156,9 +160,9 @@ struct UsbLibraryMergeTests {
         dl.menuItems.append(UsbMenuItem(id: 2, kind: 258, name: "시험 메뉴 2"))
         let (merged, mismatches) = UsbLibrary.merge(oneLibrary: ol, deviceLibrary: dl)
         #expect(Set(mismatches) == [.trackFieldDiffers(id: 1, field: "title"), .sharedRowDiffers(table: "artist", id: 1),
-                                    .propertyDiffers(field: "numberOfContents")])
+                                    .propertyDiffers(field: "numberOfContents"), .sharedRowDiffers(table: "menuItem", id: 2)])
         #expect(!mismatches.contains { $0.blocksEditing })
-        // 두 형식 모두의 칸은 OneLibrary 값, 한쪽에만 있는 행은 합집합
+        // 두 형식 모두의 칸은 OneLibrary 값, 한쪽에만 있는 행은 합집합(보고도 한다)
         #expect(merged.tracks[0].title == ol.tracks[0].title)
         #expect(merged.artists[0].name == ol.artists[0].name)
         #expect(merged.property.numberOfContents == ol.property.numberOfContents)
@@ -244,5 +248,18 @@ struct UsbLibraryMergeTests {
         #expect(merged2.projected(to: .deviceLibrary) == dl2)
         #expect(!merged2.projected(to: .oneLibrary).tracks.contains { $0.id == 3 })
         #expect(!merged2.projected(to: .deviceLibrary).playlists.contains { $0.id == 12 })
+
+        // 공유 표(artist 등) 행이 한 형식에만 있으면 투영으로 거를 수 없으니 불일치로 보고한다(불일치 없는 USB가 아니다)
+        var dl3 = dl
+        dl3.artists.append(UsbNamedRow(id: 2, name: "다른 아티스트", nameForSearch: nil))
+        let (merged3, mismatches3) = UsbLibrary.merge(oneLibrary: ol, deviceLibrary: dl3)
+        #expect(mismatches3 == [.sharedRowDiffers(table: "artist", id: 2)])
+        #expect(!mismatches3.contains { $0.blocksEditing })
+        #expect(merged3.artists.map(\.id) == [1, 2])
+        #expect(merged3.projected(to: .deviceLibrary) == dl3)
+        #expect(merged3.projected(to: .oneLibrary) != ol)
+        var ol3 = ol
+        ol3.menuItems.append(UsbMenuItem(id: 2, kind: 258, name: "시험 메뉴 2"))
+        #expect(UsbLibrary.merge(oneLibrary: ol3, deviceLibrary: dl).1 == [.sharedRowDiffers(table: "menuItem", id: 2)])
     }
 }
