@@ -49,7 +49,12 @@ run_stage() {
     stage_started=$SECONDS
     echo "▸ 시작: $name ($(date -u +%Y-%m-%dT%H:%M:%SZ), 로그: $log_dir/$file.log)"
     # 비동기 wait는 셸에 온 취소 신호를 즉시 처리한다. pipefail로 명령·tee 실패를 보존한다.
-    ( "$@" 2>&1 | tee "$log_dir/$file.log" ) &
+    # tee의 바이트 청크 사이에 진행 알림이 끼어 UTF-8·한 줄을 나누지 않도록 화면에는 줄로 보낸다.
+    (
+        "$@" 2>&1 | tee "$log_dir/$file.log" | while IFS= read -r line || [[ -n "$line" ]]; do
+            print -r -- "$line"
+        done
+    ) &
     stage_pid=$!
     (
         while sleep 30; do

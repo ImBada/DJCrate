@@ -13,7 +13,7 @@ SOURCE = Path(__file__).with_name("check.sh")
 CASES = {
     "debug-fail": 23, "release-fail": 24, "translation-fail": 25,
     "test-fail": 26, "coverage-fail": 27, "pipe-fail": 28,
-    "low-coverage": 1, "empty-coverage": 1, "ok": 0,
+    "low-coverage": 1, "empty-coverage": 1, "ok": 0, "split-output": 0,
     "term": 143, "int": 130, "int-group": 130,
 }
 CANCELLATIONS = {"term", "int", "int-group"}
@@ -25,7 +25,7 @@ def prepare(root):
     (root / ".build/out/Products/Debug/FakeTests.xctest/Contents/MacOS").mkdir(parents=True)
     shutil.copy(SOURCE, root / "scripts/check.sh")
     (root / "bin/swift").write_text(f"#!{sys.executable}\n" + r'''
-import os, pathlib, subprocess, sys
+import os, pathlib, subprocess, sys, time
 args = sys.argv[1:]
 mode = os.environ["CASE"]
 root = pathlib.Path.cwd()
@@ -37,6 +37,10 @@ if mode == "debug-fail" and args[0] == "build" and "-c" not in args:
     if not flag.exists():
         flag.touch()
         sys.exit(23)
+if mode == "split-output" and args[0] == "build" and "-c" not in args:
+    os.write(1, b"\xe2")
+    time.sleep(0.3)
+    os.write(1, b"\x98\x83\n")
 if mode == "release-fail" and "-c" in args:
     sys.exit(24)
 if mode == "translation-fail" and args[0] == "scripts/i18n.swift":
@@ -62,6 +66,12 @@ printf 'DJCDomain/Cue.swift 0 0 0 0 0 0 100 %s 95%%\n' "$missed"
     (root / "bin/tee").write_text('''#!/bin/sh
 [ "$CASE" = pipe-fail ] && exit 28
 exec /usr/bin/tee "$@"
+''')
+    (root / "bin/sleep").write_text('''#!/bin/sh
+if [ "$CASE" = split-output ] && [ "$1" = 30 ]; then
+    exec /bin/sleep 0.1
+fi
+exec /bin/sleep "$@"
 ''')
     for executable in (root / "bin").iterdir():
         executable.chmod(0o755)
@@ -120,6 +130,8 @@ def check_case(case, expected):
                 errors.append("원래 명령 출력 누락")
             if case in CANCELLATIONS and "취소 전 출력" not in (run / "debug-build.log").read_text():
                 errors.append("취소 전 로그 유실")
+        if case == "split-output" and ("☃" not in content or "▸ 진행:" not in content):
+            errors.append("나뉜 UTF-8 출력이나 진행 알림 유실")
         calls = (root / "calls.txt").read_text().splitlines()
         if case == "debug-fail" and len(calls) != 1:
             errors.append("실패 뒤에도 다음 명령 실행")
@@ -136,7 +148,7 @@ for case, expected in CASES.items():
     try:
         check_case(case, expected)
         print(f"✔ {case}")
-    except (AssertionError, OSError, subprocess.TimeoutExpired) as error:
+    except (AssertionError, OSError, UnicodeError, subprocess.TimeoutExpired) as error:
         failures += 1
         print(f"✘ {case}: {error}")
 print(f"검사 스크립트 회귀: {len(CASES)}개 중 {len(CASES) - failures}개 통과")
