@@ -27,7 +27,7 @@ struct PlaylistSection: View {
                 if store.hasPlaylistDrafts {
                     Image(systemName: DraftMark.symbol)
                         .foregroundStyle(UIColors.draft.color)
-                        .help(.ui("반영하지 않은 재생 목록 초안 \(store.playlistDraft.steps.count)건"))
+                        .help(.ui("아직 쓰지 않은 재생 목록 초안 \(store.playlistDraft.steps.count)건"))
                         .accessibilityLabel(.ui("재생 목록 초안 \(store.playlistDraft.steps.count)건"))
                 }
                 Spacer(minLength: 0)
@@ -338,7 +338,7 @@ enum PlaylistPanels {
         let count = store.playlistDraft.steps.count
         guard count > 0, prompter.show(ReflectionPrompt(
             title: String(ui: "재생 목록 초안 \(count)건을 버릴까요?"),
-            text: String(ui: "rekordbox에 아직 쓰지 않은 재생 목록 편집(만들기·이름·옮기기·지우기·곡 넣기·빼기)을 모두 버립니다. ⌘Z로 되돌릴 수 있습니다."),
+            text: String(ui: "rekordbox에 아직 쓰지 않은 재생 목록 편집(만들기·이름·옮기기·지우기·곡 넣기·빼기)을 모두 버립니다. ⌘Z로 실행 취소할 수 있습니다."),
             confirm: String(ui: "버리기"), destructive: true)) else { return }
         store.discardPlaylistDraft()
     }

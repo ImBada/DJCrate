@@ -13,11 +13,11 @@ enum LibraryMenuAction: CaseIterable {
         case .addFiles: String(ui: "곡 추가…")
         case .importAppleMusic: String(ui: "Apple Music XML 가져오기…")
         case .snapshot: String(ui: "새 스냅샷")
-        case .exportXML: String(ui: "rekordbox XML로 내보내기…")
-        case .reflect: String(ui: "반영…")
-        case .pending: String(ui: "반영 대기 목록 보기")
+        case .exportXML: String(ui: "XML 만들기")
+        case .reflect: String(ui: "rekordbox에 쓰기…")
+        case .pending: String(ui: "쓰기 대기 목록 보기")
         case .writeResult: String(ui: "마지막 쓰기 결과…")
-        case .restore: String(ui: "마지막 반영 되돌리기…")
+        case .restore: String(ui: "쓰기 전으로 복원…")
         case .removeTracks: String(ui: "rekordbox에서 빼기…")
         }
     }

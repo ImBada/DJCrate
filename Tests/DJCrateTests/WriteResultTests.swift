@@ -55,7 +55,7 @@ struct WriteResultTests {
             tracks.deleted = [Fixture.track("deleted")]
             let backup = RekordboxWriter.Backup(url: backupURL, createdAt: .now, isWrite: true, report: nil, trackReport: tracks)
             await coordinator.restore(backup)
-            expected = ["쓰기 전 상태로 되돌렸습니다", "곡 deleted"]
+            expected = ["쓰기 전 상태로 복원했습니다", "곡 deleted"]
         }
         host.toast = nil
         let result = try #require(WriteResultHistory(url: url).latest)
@@ -70,8 +70,8 @@ struct WriteResultTests {
         let predicted = preview.report
         preview.report.tagOutcomes = [Fixture.tagOutcome("t", .written)]
         let result = WriteResult.written(preview.report, preview: predicted)
-        #expect(result.title == "rekordbox에 반영했습니다 · 태그 1곡" && result.kind == .warning)
-        #expect(result.text.contains("• 곡 t — 태그 반영 완료") && result.text.contains("• 곡 x — 태그 쓰지 않음: 바뀜"))
+        #expect(result.title == "rekordbox에 썼습니다 · 태그 1곡" && result.kind == .warning)
+        #expect(result.text.contains("• 곡 t — 태그 쓰기 완료") && result.text.contains("• 곡 x — 태그 쓰지 않음: 바뀜"))
         let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b"), createdAt: .now, isWrite: true, report: preview.report)
         #expect(WriteResult.restored(backup, saved: URL(filePath: "/tmp/s")).text.contains("• 곡 t"))
     }

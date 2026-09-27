@@ -135,7 +135,7 @@ struct ReflectionCoordinatorTests {
     @Test func 쓸_초안이_없으면_알린다() async {
         host.targets = []
         await coordinator().write(rows: [Self.row("a")])
-        #expect(prompter.shown.first?.title == "반영할 초안이 없습니다" && host.locks.isEmpty)
+        #expect(prompter.shown.first?.title == "쓸 초안이 없습니다" && host.locks.isEmpty)
     }
 
     @Test func 모두_막히면_이유를_보여_주고_쓰지_않는다() async {
@@ -197,14 +197,14 @@ struct ReflectionCoordinatorTests {
         // 쓰기에는 초안 전체를 넘긴다(결과가 편집 순서와 같아야 쓴 편집만 뺄 수 있다)
         #expect(host.wrotePlaylists == .some(preview.playlists))
         #expect(host.wrote?.drafts == [] && host.locks == [true, false])
-        #expect(host.toast?.title == "rekordbox에 반영했습니다 · 재생 목록 1건")
+        #expect(host.toast?.title == "rekordbox에 썼습니다 · 재생 목록 1건")
     }
 
     @Test func 곡을_골라_쓸_때는_재생_목록_초안을_넣지_않는다() async {
         host.targets = []
         host.hasPlaylistDrafts = true
         await coordinator().write(rows: [Self.row("a")], playlists: false)
-        #expect(prompter.shown.first?.title == "반영할 초안이 없습니다" && host.previewedPlaylists == nil)
+        #expect(prompter.shown.first?.title == "쓸 초안이 없습니다" && host.previewedPlaylists == nil)
         // 곡 초안이 있으면 곡만 미리 본다
         host.targets = nil
         host.preview = .success(Self.preview(cues: [Self.outcome("a", .written)]))
@@ -232,9 +232,9 @@ struct ReflectionCoordinatorTests {
             Self.playlistOutcome(.rename(playlist: .id("3"), name: "같음"), "같음", .unchanged),
         ]
         let result = WriteResult.written(report, preview: report)
-        #expect(result.kind == .warning && result.title == "rekordbox에 반영했습니다 · 재생 목록 1건")
+        #expect(result.kind == .warning && result.title == "rekordbox에 썼습니다 · 재생 목록 1건")
         #expect(result.text.components(separatedBy: "\n") == [
-            "• 목록 — 재생 목록 반영 완료: 1곡 빼기",
+            "• 목록 — 재생 목록 쓰기 완료: 1곡 빼기",
             "• 폴더 — 재생 목록 쓰지 않음(지우기): rekordbox에서 지운 목록입니다",
             "• 같음 — 재생 목록 변경 없음(이름 바꾸기)",
         ])
@@ -323,7 +323,7 @@ struct ReflectionCoordinatorTests {
         #expect(alert?.title == "쓰기 확인에 실패했고 자동 복원도 하지 못했습니다")
         let text = alert?.text ?? ""
         // 반영·넣기·빼기 모두 같은 버튼(가장 최근 쓰기 백업으로 되돌림). 사이드바 아래 '마지막 반영 되돌리기…'는 성공한 쓰기 뒤에만 보여 안내하지 않는다.
-        #expect(text.contains("rekordbox를 켜지 말고, 사이드바에서 'rekordbox 반영 대기'를 고른 뒤 목록 위 '되돌리기…'로 쓰기 전 백업을 복원하세요."))
+        #expect(text.contains("rekordbox를 켜지 말고, 사이드바에서 'rekordbox 쓰기 대기'를 고른 뒤 목록 위 '쓰기 전으로 복원…'으로 백업을 복원하세요."))
         #expect(!text.contains("마지막 반영 되돌리기"))
         #expect(text.contains("djc rekordbox-restore --backup '\(backup)' --live"))
         #expect(!text.contains("무결성 검사 실패: x") && !text.contains("master.db: 권한 없음"))
@@ -337,7 +337,7 @@ struct ReflectionCoordinatorTests {
         await failEveryWrite(with: DJCError.writeRolledBack("무결성 검사 실패: x"))
         #expect(prompter.shown.allSatisfy { $0.confirm != nil }, "경고 창은 띄우지 않는다")
         #expect(host.toast?.kind == .failure && host.toast?.title == "rekordbox에서 빼지 않았습니다")
-        #expect(host.toast?.detail?.contains("쓰기 전 백업으로 되돌렸습니다") == true)
+        #expect(host.toast?.detail?.contains("쓰기 전 백업으로 복원했습니다") == true)
         #expect(host.toast?.detail?.contains("초안을 확인") == true)
         #expect(host.toast?.detail?.contains("무결성 검사 실패: x") == false)
     }
@@ -380,10 +380,10 @@ struct ReflectionCoordinatorTests {
         }
         let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b"), createdAt: .now, isWrite: true, report: nil)
         let restore = ReflectionCoordinator.restoreConfirmation(backup, changedSince: true)
-        #expect(restore.title == "rekordbox를 쓰기 전으로 되돌릴까요?")
+        #expect(restore.title == "rekordbox를 쓰기 전으로 복원할까요?")
         #expect(restore.text.contains("백업: "))
         #expect(restore.text.contains("그 변경도 함께 사라집니다"))
-        #expect(restore.text.hasSuffix("백업한 뒤 되돌리고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요."))
+        #expect(restore.text.hasSuffix("백업한 뒤 복원하고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요."))
         #expect(restore.critical && restore.destructive)
     }
 
@@ -426,7 +426,7 @@ struct ReflectionCoordinatorTests {
         #expect(prompter.shown.last?.critical == true)
         #expect(prompter.shown.last?.confirm == nil)
         #expect(prompter.shown.last?.text.contains("rekordbox를 켜지 말고") == true)
-        #expect(prompter.shown.last?.text.contains("다시 되돌리세요") == true)
+        #expect(prompter.shown.last?.text.contains("다시 복원하세요") == true)
         #expect(prompter.shown.last?.text.contains("미리 보기 실패") == false)
         #expect(host.resultHistory.latest?.kind == .failure)
         #expect(host.resultHistory.latest?.backups == [backup.url])
@@ -497,7 +497,7 @@ struct ReflectionCoordinatorTests {
         #expect(backup.finalUpdateCount == nil)
         host.changedSinceBackup = nil
         await coordinator().restore(backup)
-        #expect(prompter.shown.map(\.confirm) == ["되돌리기"] && prompter.shown.first?.text.contains("확인하지 못했습니다") == true)
+        #expect(prompter.shown.map(\.confirm) == ["쓰기 전으로 복원"] && prompter.shown.first?.text.contains("확인하지 못했습니다") == true)
         #expect(host.restored == [backup.url])
     }
 
@@ -505,7 +505,7 @@ struct ReflectionCoordinatorTests {
         let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b"), createdAt: .now, isWrite: true, report: nil)
         host.changedSinceBackup = true
         await coordinator().restore(backup)
-        #expect(prompter.shown.first?.critical == true && prompter.shown.first?.confirm == "되돌리기")
+        #expect(prompter.shown.first?.critical == true && prompter.shown.first?.confirm == "쓰기 전으로 복원")
         #expect(host.restored == [backup.url] && host.locks == [true, false])
         prompter.answer = false
         await coordinator().restore(backup)

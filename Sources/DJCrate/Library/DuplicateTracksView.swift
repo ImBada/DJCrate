@@ -15,7 +15,7 @@ struct DuplicateTracksView: View {
                 .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.bottom, 8)
             ForEach(store.mergeDrafts) { draft in
                 HStack {
-                    Text(.ui("합치기 반영 대기 · \(draft.keeping.title) 유지 · \(draft.removing.count)곡 빼기"))
+                    Text(.ui("합치기 쓰기 대기 · \(draft.keeping.title) 유지 · \(draft.removing.count)곡 빼기"))
                     Spacer()
                     Button(.ui("초안 버리기")) {
                         do { try store.setMergeDrafts(store.mergeDrafts.filter { $0.id != draft.id }) }
