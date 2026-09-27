@@ -7,8 +7,46 @@ import RekordboxKit
 import Testing
 
 private final class ITunesSyncCaptureGate: @unchecked Sendable {
-    let started = DispatchSemaphore(value: 0)
-    let resume = DispatchSemaphore(value: 0)
+    private let started = DispatchSemaphore(value: 0)
+    private let resume = DispatchSemaphore(value: 0)
+
+    func pause() {
+        started.signal()
+        // 쓰기가 얼마나 걸리든 명시적으로 해제하기 전에는 캡처를 끝내지 않는다.
+        resume.wait()
+    }
+
+    func release() { resume.signal() }
+
+    func finish<Value: Sendable, Failure: Error>(
+        _ pending: Task<Value, Failure>, isolation: isolated (any Actor)? = #isolation,
+        after operation: () async throws -> Void
+    ) async throws -> Value {
+        try await withTaskCancellationHandler {
+            do {
+                let didStart = await withCheckedContinuation { continuation in
+                    DispatchQueue.global().async {
+                        continuation.resume(returning: self.started.wait(timeout: .now() + 15) == .success)
+                    }
+                }
+                try #require(didStart)
+                try Task.checkCancellation()
+                try await operation()
+                try Task.checkCancellation()
+                release()
+                let value = try await pending.value
+                try Task.checkCancellation()
+                return value
+            } catch {
+                // 시작 실패·쓰기 오류에서도 먼저 해제하고 작업을 회수해 사본 수명을 지킨다.
+                release()
+                _ = try? await pending.value
+                throw error
+            }
+        } onCancel: {
+            self.release()
+        }
+    }
 }
 
 @Suite("iTunes 동기화 일관성", .serialized)
@@ -40,21 +78,14 @@ struct ITunesSyncConsistencyTests {
         let gate = ITunesSyncCaptureGate()
         let first = Task.detached {
             try LoadedLibrary.load(snapshot: database, refreshITunes: true, captureITunes: {
-                gate.started.signal()
-                _ = gate.resume.wait(timeout: .now() + 15)
+                gate.pause()
                 return source
             })
         }
-        let started = await withCheckedContinuation { continuation in
-            DispatchQueue.global().async { continuation.resume(returning: gate.started.wait(timeout: .now() + 15) == .success) }
+        let late = try await gate.finish(first) {
+            try await store.syncITunesPlaylists(.init(selectedIDs: ["B"]), source: source, database: database,
+                                               arguments: ["test", "--db", database.path], environment: [:])
         }
-        #expect(started)
-        defer { gate.resume.signal() }
-        guard started else { _ = try? await first.value; return }
-        try await store.syncITunesPlaylists(.init(selectedIDs: ["B"]), source: source, database: database,
-                                           arguments: ["test", "--db", database.path], environment: [:])
-        gate.resume.signal()
-        let late = try await first.value
         #expect(late.iTunesSnapshot.selectedIDs == ["B"])
         #expect(ITunesLibrarySnapshot.load(for: database).selectedIDs == ["B"])
         #expect(store.iTunesSnapshot.selectedIDs == ["B"])
@@ -69,21 +100,14 @@ struct ITunesSyncConsistencyTests {
         let gate = ITunesSyncCaptureGate()
         let loading = Task {
             await store.load(snapshot: database, quiet: true, refreshITunes: true, captureITunes: {
-                gate.started.signal()
-                _ = gate.resume.wait(timeout: .now() + 15)
+                gate.pause()
                 return source
             })
         }
-        let started = await withCheckedContinuation { continuation in
-            DispatchQueue.global().async { continuation.resume(returning: gate.started.wait(timeout: .now() + 15) == .success) }
+        try await gate.finish(loading) {
+            try await store.syncITunesPlaylists(.init(selectedIDs: ["B"]), source: source, database: database,
+                                               arguments: ["test", "--db", database.path], environment: [:])
         }
-        #expect(started)
-        defer { gate.resume.signal() }
-        guard started else { await loading.value; return }
-        try await store.syncITunesPlaylists(.init(selectedIDs: ["B"]), source: source, database: database,
-                                           arguments: ["test", "--db", database.path], environment: [:])
-        gate.resume.signal()
-        await loading.value
         #expect(store.iTunesSnapshot.selectedIDs == ["B"])
         #expect(store.iTunesLibrary.index["itunes:B"] != nil)
         #expect(ITunesLibrarySnapshot.load(for: database).selectedIDs == ["B"])
@@ -141,33 +165,28 @@ struct ITunesSyncConsistencyTests {
         let gate = ITunesSyncCaptureGate()
         let pending = Task.detached {
             try LoadedLibrary.load(snapshot: before, refreshITunes: true, sourceDatabase: rootDB, captureITunes: {
-                gate.started.signal()
-                _ = gate.resume.wait(timeout: .now() + 15)
+                gate.pause()
                 return source
             })
         }
-        let started = await withCheckedContinuation { continuation in
-            DispatchQueue.global().async { continuation.resume(returning: gate.started.wait(timeout: .now() + 15) == .success) }
+        var replaced: URL?
+        let late = try await gate.finish(pending) {
+            _ = try RekordboxWriter.write(drafts: [], iTunesSync: .init(base: base, source: source.selectionNodes,
+                                                                       selection: .init(selectedIDs: ["B"])),
+                                          to: rootDB, dryRun: false, backups: fixture.backups)
+            try source.applyingRekordboxSelection(Data(contentsOf: sync)).save(for: rootDB)
+            let stamp = Date(timeIntervalSince1970: 1_800_000_060)
+            let fresh = try LibrarySnapshot.take(from: rootDB, into: directory, force: true, now: stamp)
+            let newest = try LoadedLibrary.load(snapshot: fresh, sourceDatabase: rootDB)
+            ITunesRefreshCoordinator.shared.invalidateSnapshots([fresh])
+            let replacement = try LibrarySnapshot.take(from: rootDB, into: directory, force: true, now: stamp)
+            let sameSecond = try LoadedLibrary.load(snapshot: replacement, sourceDatabase: rootDB)
+            #expect(newest.iTunesSnapshot.selectedIDs == ["B"])
+            #expect(sameSecond.iTunesSnapshot.selectedIDs == ["B"])
+            replaced = replacement
         }
-        #expect(started)
-        defer { gate.resume.signal() }
-        guard started else { _ = try? await pending.value; return }
-        _ = try RekordboxWriter.write(drafts: [], iTunesSync: .init(base: base, source: source.selectionNodes,
-                                                                   selection: .init(selectedIDs: ["B"])),
-                                      to: rootDB, dryRun: false, backups: fixture.backups)
-        try source.applyingRekordboxSelection(Data(contentsOf: sync)).save(for: rootDB)
-        let stamp = Date(timeIntervalSince1970: 1_800_000_060)
-        let fresh = try LibrarySnapshot.take(from: rootDB, into: directory, force: true, now: stamp)
-        let newest = try LoadedLibrary.load(snapshot: fresh, sourceDatabase: rootDB)
-        ITunesRefreshCoordinator.shared.invalidateSnapshots([fresh])
-        let replaced = try LibrarySnapshot.take(from: rootDB, into: directory, force: true, now: stamp)
-        let sameSecond = try LoadedLibrary.load(snapshot: replaced, sourceDatabase: rootDB)
-        gate.resume.signal()
-        let late = try await pending.value
-        #expect(newest.iTunesSnapshot.selectedIDs == ["B"])
-        #expect(sameSecond.iTunesSnapshot.selectedIDs == ["B"])
         #expect(late.iTunesSnapshot.selectedIDs == ["B"])
-        #expect(ITunesLibrarySnapshot.load(for: replaced).selectedIDs == ["B"])
+        #expect(ITunesLibrarySnapshot.load(for: try #require(replaced)).selectedIDs == ["B"])
     }
 
     @Test func 명시한_읽기_전용_사본의_정상_캐시는_재저장하지_않는다() throws {
@@ -241,23 +260,16 @@ struct ITunesSyncConsistencyTests {
             // CI의 사본 경로 설정과 무관하게 캡처 실패 뒤 메모리 복구를 검증한다.
             await store.takeSnapshot(force: true, quiet: true, snapshotDirectory: directory,
                                      snapshotCopy: { force in
-                                         gate.started.signal()
-                                         _ = gate.resume.wait(timeout: .now() + 15)
+                                         gate.pause()
                                          return try LibrarySnapshot.take(from: sourceDB, into: directory, force: force, now: stamp)
                                      }, captureITunes: { ITunesLibrarySnapshot(status: .unavailable) },
                                      arguments: ["test"], environment: [:])
         }
-        let started = await withCheckedContinuation { continuation in
-            DispatchQueue.global().async { continuation.resume(returning: gate.started.wait(timeout: .now() + 15) == .success) }
+        try await gate.finish(pending) {
+            #expect(!store.isLoading)
+            try await store.syncITunesPlaylists(.init(selectedIDs: ["B"]), source: source, database: database,
+                                               arguments: ["test", "--db", database.path], environment: [:])
         }
-        #expect(started)
-        defer { gate.resume.signal() }
-        guard started else { await pending.value; return }
-        #expect(!store.isLoading)
-        try await store.syncITunesPlaylists(.init(selectedIDs: ["B"]), source: source, database: database,
-                                           arguments: ["test", "--db", database.path], environment: [:])
-        gate.resume.signal()
-        await pending.value
         #expect(store.iTunesSnapshot.status == .stale)
         #expect(store.iTunesSnapshot.selectedIDs == ["B"])
         #expect(store.iTunesLibrary.index["itunes:B"] != nil)
@@ -282,24 +294,17 @@ struct ITunesSyncConsistencyTests {
         let pending = Task {
             await store.takeSnapshot(force: true, quiet: true, snapshotDirectory: directory,
                                      snapshotCopy: { force in
-                                         gate.started.signal()
-                                         _ = gate.resume.wait(timeout: .now() + 15)
+                                         gate.pause()
                                          return try LibrarySnapshot.take(from: sourceDB, into: directory, force: force, now: stamp)
                                      }, captureITunes: { ITunesLibrarySnapshot(status: .unavailable) },
                                      arguments: arguments, environment: environment)
         }
-        let started = await withCheckedContinuation { continuation in
-            DispatchQueue.global().async { continuation.resume(returning: gate.started.wait(timeout: .now() + 15) == .success) }
+        try await gate.finish(pending) {
+            #expect(!store.isLoading)
+            try await store.syncITunesPlaylists(.init(selectedIDs: ["B"]), source: source, database: database,
+                                               arguments: arguments, environment: environment)
+            #expect(ITunesLibrarySnapshot.load(for: fixture.database).status == .notCaptured)
         }
-        #expect(started)
-        defer { gate.resume.signal() }
-        guard started else { await pending.value; return }
-        #expect(!store.isLoading)
-        try await store.syncITunesPlaylists(.init(selectedIDs: ["B"]), source: source, database: database,
-                                           arguments: arguments, environment: environment)
-        #expect(ITunesLibrarySnapshot.load(for: fixture.database).status == .notCaptured)
-        gate.resume.signal()
-        await pending.value
         #expect(store.iTunesSnapshot.status == .ready)
         #expect(store.iTunesSnapshot.selectedIDs == ["B"])
         #expect(store.iTunesLibrary.index["itunes:B"] != nil)
@@ -389,35 +394,27 @@ struct ITunesSyncConsistencyTests {
         let first = Task.detached {
             try LoadedLibrary.load(snapshot: firstURL, refreshITunes: true, fallbackDirectory: directory,
                                    sourceDatabase: sourceDatabase, captureITunes: {
-                                       firstGate.started.signal()
-                                       _ = firstGate.resume.wait(timeout: .now() + 15)
+                                       firstGate.pause()
                                        return source
                                    })
         }
-        let firstStarted = await withCheckedContinuation { continuation in
-            DispatchQueue.global().async { continuation.resume(returning: firstGate.started.wait(timeout: .now() + 15) == .success) }
+        let good = try await firstGate.finish(first) {
+            let second = Task.detached {
+                try LoadedLibrary.load(snapshot: secondURL, refreshITunes: true, fallbackDirectory: directory,
+                                       sourceDatabase: sourceDatabase, captureITunes: {
+                                           secondGate.pause()
+                                           return ITunesLibrarySnapshot(status: .unavailable)
+                                       })
+            }
+            let fallback = try await secondGate.finish(second) {
+                firstGate.release()
+                _ = try await first.value
+            }
+            #expect(fallback.iTunesSnapshot.status == .stale)
+            #expect(fallback.iTunesSnapshot.selectedIDs == ["A"])
         }
-        #expect(firstStarted)
-        let second = Task.detached {
-            try LoadedLibrary.load(snapshot: secondURL, refreshITunes: true, fallbackDirectory: directory,
-                                   sourceDatabase: sourceDatabase, captureITunes: {
-                                       secondGate.started.signal()
-                                       _ = secondGate.resume.wait(timeout: .now() + 15)
-                                       return ITunesLibrarySnapshot(status: .unavailable)
-                                   })
-        }
-        let secondStarted = await withCheckedContinuation { continuation in
-            DispatchQueue.global().async { continuation.resume(returning: secondGate.started.wait(timeout: .now() + 15) == .success) }
-        }
-        #expect(secondStarted)
-        firstGate.resume.signal()
-        let good = try await first.value
-        secondGate.resume.signal()
-        let fallback = try await second.value
         #expect(good.iTunesSnapshot.status == .ready)
         #expect(ITunesLibrarySnapshot.load(for: firstURL).selectedIDs == ["A"])
-        #expect(fallback.iTunesSnapshot.status == .stale)
-        #expect(fallback.iTunesSnapshot.selectedIDs == ["A"])
     }
 
     @MainActor @Test func 명시_DB가_기본_사본_폴더에_있어도_활성화_새로고침은_출처를_바꾸지_않는다() async throws {
@@ -435,5 +432,59 @@ struct ITunesSyncConsistencyTests {
         #expect(store.iTunesSnapshot.selectedIDs == ["A"])
         #expect(store.lastError == nil)
         #expect(try LibrarySnapshot.latest(in: directory).standardizedFileURL.path == database.standardizedFileURL.path)
+    }
+}
+
+@Suite("iTunes 캡처 gate 정리", .serialized)
+struct ITunesSyncCaptureGateTests {
+    private enum WriteFailure: Error { case expected }
+
+    @Test func 쓰기_오류에도_읽기를_해제하고_회수한다() async {
+        let gate = ITunesSyncCaptureGate(), finished = DispatchSemaphore(value: 0)
+        let pending = Task.detached {
+            gate.pause()
+            finished.signal()
+        }
+        await #expect(throws: WriteFailure.self) {
+            try await gate.finish(pending) { throw WriteFailure.expected }
+        }
+        func didFinish() -> Bool { finished.wait(timeout: .now()) == .success }
+        #expect(didFinish())
+    }
+
+    @Test func 취소는_쓰기_대기_중에도_읽기를_해제한다() async throws {
+        let gate = ITunesSyncCaptureGate(), finished = DispatchSemaphore(value: 0)
+        let writeStarted = DispatchSemaphore(value: 0), writeResume = DispatchSemaphore(value: 0)
+        let pending = Task.detached {
+            gate.pause()
+            finished.signal()
+        }
+        let operation = Task {
+            try await gate.finish(pending) {
+                await withCheckedContinuation { continuation in
+                    DispatchQueue.global().async {
+                        writeStarted.signal()
+                        writeResume.wait()
+                        continuation.resume()
+                    }
+                }
+            }
+        }
+        let started = await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                continuation.resume(returning: writeStarted.wait(timeout: .now() + 15) == .success)
+            }
+        }
+        operation.cancel()
+        let released = await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                continuation.resume(returning: finished.wait(timeout: .now() + 15) == .success)
+            }
+        }
+        // 실패를 보고하기 전에도 쓰기 대기와 그 소유 작업을 모두 정리한다.
+        writeResume.signal()
+        await #expect(throws: CancellationError.self) { try await operation.value }
+        #expect(started)
+        #expect(released)
     }
 }
