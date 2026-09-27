@@ -20,7 +20,8 @@ public enum RekordboxGridWriter {
 
     static func generate(segments: [GridSegment], duration: Double,
                          preserving originals: [Int: [BeatGridTags.Beat]],
-                         unchangedBoundaries: Set<Int> = []) -> (beats: [BeatGridTags.Beat], counts: [Int]) {
+                         unchangedBoundaries: Set<Int> = [],
+                         fillsLeadIn: Bool = false) -> (beats: [BeatGridTags.Beat], counts: [Int]) {
         var beats: [BeatGridTags.Beat] = []
         var counts = [Int](repeating: 0, count: segments.count)
         for (index, segment) in segments.enumerated() where segment.bpm > 0 {
@@ -31,21 +32,26 @@ public enum RekordboxGridWriter {
                 ? segments[index + 1].start - (unchangedBoundaries.contains(index) ? 0 : interval / 2)
                 : duration
             var k = index == 0 ? -Int(((segment.start + 0.001) / interval).rounded(.up)) : 0
+            let bpm100 = Int((segment.bpm * 100).rounded())
+            func append(until stop: Int?) {
+                while stop.map({ k < $0 }) ?? true {
+                    let t = segment.start + Double(k) * interval
+                    if t >= end - 0.0005 { break }
+                    if t > -0.001 {
+                        let number = ((segment.firstBeatNumber - 1 + k) % 4 + 4) % 4 + 1
+                        beats.append(BeatGridTags.Beat(number: number, bpm100: bpm100, time: max(0, t * 1000)))
+                    }
+                    k += 1
+                }
+            }
             if let original = originals[index] {
+                // 첫 구간을 뒤로 옮기면 원본 첫 박 앞이 빈다. 옮겼을 때만 원본 없이 만들 때처럼 곡 시작까지 채운다.
+                if fillsLeadIn { append(until: 0) }
                 beats.append(contentsOf: original.filter { $0.time > -1 && $0.time < (end - 0.0005) * 1000 })
                 // 다음 경계를 뒤로 옮겼다면 기존 박 뒤에 필요한 박만 이어 붙인다.
                 k = original.count
             }
-            let bpm100 = Int((segment.bpm * 100).rounded())
-            while true {
-                let t = segment.start + Double(k) * interval
-                if t >= end - 0.0005 { break }
-                if t > -0.001 {
-                    let number = ((segment.firstBeatNumber - 1 + k) % 4 + 4) % 4 + 1
-                    beats.append(BeatGridTags.Beat(number: number, bpm100: bpm100, time: max(0, t * 1000)))
-                }
-                k += 1
-            }
+            append(until: nil)
             counts[index] = beats.count - before
         }
         return (beats, counts)
@@ -173,8 +179,10 @@ public enum RekordboxGridWriter {
                 }
             }
         }
+        // 첫 구간을 옮겼을 때만 곡 시작 쪽을 채운다. 그대로인 구간은 원본 박만 둔다.
+        let movesFirst = matched.first.flatMap { $0 }.map { abs(draft.segments[0].start - draft.base[$0].start) >= 0.0005 } ?? false
         let generated = generate(segments: segments, duration: duration, preserving: preserved,
-                                 unchangedBoundaries: unchangedBoundaries)
+                                 unchangedBoundaries: unchangedBoundaries, fillsLeadIn: movesFirst)
         let beats = generated.beats
         guard beats.count >= 8 else { throw block(String(ui: "만든 박이 너무 적습니다")) }
         guard !hasEmptyVisibleSegment(segments: segments, counts: generated.counts, duration: duration) else {

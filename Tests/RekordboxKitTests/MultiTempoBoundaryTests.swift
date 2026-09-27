@@ -6,7 +6,7 @@ import Testing
 
 @Suite("변속 경계 보존")
 struct MultiTempoBoundaryTests {
-    func fixture(firstBPM: Double = 120, firstCount: Int = 3, secondStart: Double = 1700,
+    func fixture(firstBPM: Double = 120, first: Double = 500, firstCount: Int = 3, secondStart: Double = 1700,
                  secondBPM: Double = 300) throws -> (RekordboxFixture, TrackSpec, GridDraft) {
         let fixture = try RekordboxFixture()
         var track = TrackSpec(uuid: "12345678-1111-2222-3333-444444444444")
@@ -16,7 +16,7 @@ struct MultiTempoBoundaryTests {
         track.analysisDataPath = "/PIONEER/USBANLZ/123/45678-1111-2222-3333-444444444444/ANLZ0000.DAT"
         try fixture.add(track)
         let thirdStart = secondStart + 50 * 60000 / secondBPM
-        let beats = AnlzBuilder.beats(bpm: firstBPM, first: 500, count: firstCount)
+        let beats = AnlzBuilder.beats(bpm: firstBPM, first: first, count: firstCount)
             + AnlzBuilder.beats(bpm: secondBPM, first: secondStart, count: 50)
             + AnlzBuilder.beats(bpm: 100, first: thirdStart, count: Int((49000 - thirdStart) / 600) + 1)
         let dat = AnlzBuilder.dat(beats: beats)
@@ -46,6 +46,23 @@ struct MultiTempoBoundaryTests {
         #expect(report.gridWritten.count == 1)
         let output = try BeatGrid.load(anlz: fixture.analysisURL(for: track))
         #expect(output.beats.contains { $0.time == 1.51 && $0.bpm == 120 })
+    }
+
+    @Test func 전체를_뒤로_옮기면_첫_박_앞도_곡_시작까지_채운다() throws {
+        // PR #131 검토(2026-09-28): 원본 박을 보존하면서 곡 앞 채움이 빠졌다. 기대값은 보존 전 코드(9557294)가 같은 초안으로 쓴 결과다.
+        let (fixture, track, original) = try fixture(first: 200)
+        let dat = fixture.analysisURL(for: track), ext = fixture.analysisURL(for: track, ext: "EXT")
+        let oldExt = try Data(contentsOf: ext)
+        var draft = original
+        draft.shift(by: 0.4)
+        #expect(draft.grid(duration: 49).beats.first?.time == 0.1)
+        let report = try RekordboxWriter.write(drafts: [], grids: [draft], to: fixture.database, dryRun: false,
+                                               backups: fixture.backups, shareRoot: fixture.shareRoot)
+        try #require(report.gridWritten.count == 1)
+        let expected = [BeatGridTags.Beat(number: 4, bpm100: 12000, time: 100)] + AnlzBuilder.beats(bpm: 120, first: 600, count: 3)
+            + AnlzBuilder.beats(bpm: 300, first: 2100, count: 50) + AnlzBuilder.beats(bpm: 100, first: 12100, count: 62)
+        #expect(try #require(AnlzFile(url: dat).tag("PQTZ")).bytes == BeatGridTags.pqtz(expected))
+        #expect(try Data(contentsOf: ext) == oldExt)
     }
 
     @Test func 박_번호만_바꿔도_경계_직전_박의_시각을_보존한다() throws {
