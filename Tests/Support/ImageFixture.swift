@@ -5,15 +5,15 @@ import UniformTypeIdentifiers
 
 /// 합성 그림(그러데이션)과 음원 내장 아트워크. 아트워크 시험용(실데이터 없음).
 public enum ImageFixture {
-    /// 가장자리까지 밝은 그러데이션 그림. 레터박스(검은 여백)와 구별된다.
-    public static func image(width: Int, height: Int, type: UTType = .jpeg) -> Data {
+    /// 가장자리까지 밝은 그러데이션 그림. 레터박스(검은 여백)와 구별된다. `blue`를 바꾸면 곡마다 다른 그림이 된다.
+    public static func image(width: Int, height: Int, type: UTType = .jpeg, blue: UInt8 = 153) -> Data {
         var rgba = [UInt8](repeating: 255, count: width * height * 4)
         for y in 0..<height {
             for x in 0..<width {
                 let i = (y * width + x) * 4
                 rgba[i] = UInt8(77 + 178 * x / width)
                 rgba[i + 1] = UInt8(77 + 178 * y / height)
-                rgba[i + 2] = 153
+                rgba[i + 2] = blue
             }
         }
         let provider = CGDataProvider(data: Data(rgba) as CFData)!

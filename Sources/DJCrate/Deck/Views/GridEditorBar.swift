@@ -26,7 +26,7 @@ struct GridEditorBar: View {
                             GridShiftButton(deck: deck, milliseconds: milliseconds).fixedSize()
                         }
                     }
-                    .help(.ui("그리드 전체를 옮깁니다 (1초 동안 누르면 반복 · 파형을 끌어도 됩니다)"))
+                    .help(.ui("그리드 전체를 옮깁니다 (1초 동안 누르면 반복)"))
                     HStack(spacing: 4) {
                         TextField("BPM" as String, value: $bpm, format: .number.precision(.fractionLength(2)))
                             .id(bpmFieldRevision)
