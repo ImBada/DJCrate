@@ -172,10 +172,12 @@ public enum TrackAnalysisFiles {
 
     /// PPTH: "?/파일 이름"을 UTF-16BE로(끝 NULL 포함)
     static func ppth(fileName: String) -> Data {
-        var text = [UInt8]()
-        for unit in ("?/" + fileName).utf16 { text += [UInt8(unit >> 8), UInt8(unit & 0xFF)] }
-        text += [0, 0]
-        return RekordboxWaveforms.section("PPTH", headerLength: 0x10, RekordboxWaveforms.be32(UInt32(text.count)) + text)
+        ppth(path: "?/" + fileName)
+    }
+
+    /// PPTH: 경로 그대로(USB는 "/Contents/…")
+    static func ppth(path: String) -> Data {
+        AnlzPathTag.encode(path)
     }
 
     /// PVBR: 머리 u32 0 · 탐색표 400칸(CBR은 0) · 끝값(전체 샘플)
