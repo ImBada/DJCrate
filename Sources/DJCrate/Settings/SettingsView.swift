@@ -118,11 +118,7 @@ struct DeckSettingsView: View {
         Form {
             Section(.ui("재생")) {
                 Toggle(.ui("키 고정(템포를 바꿔도 음정 유지)"), isOn: $deck.keyLock)
-                Toggle(.ui("재생 퀀타이즈(재생 중 핫큐를 박 경계에서 넘김)"), isOn: $deck.playQuantize)
-                Picker(.ui("재생 퀀타이즈 단위"), selection: $deck.playQuantizeBeats) {
-                    ForEach(PlayQuantize.choices, id: \.self) { Text(PlayQuantize.unitText($0)).tag($0) }
-                }
-                .disabled(!deck.playQuantize)
+                Toggle(.ui("퀀타이즈(Q): 큐·루프 등록과 핫큐 점프"), isOn: $deck.playQuantize)
                 LabeledContent(.ui("메트로놈 소리 크기")) {
                     HStack {
                         Slider(value: $deck.metronomeVolume, in: 0...1)
@@ -134,7 +130,6 @@ struct DeckSettingsView: View {
                 }
             }
             Section(.ui("편집")) {
-                Toggle(.ui("퀀타이즈(큐·루프를 비트 그리드의 박에 맞춤)"), isOn: $deck.quantize)
                 Toggle(.ui("그리드를 고칠 때 큐도 함께 옮기기(핫큐·메모리 큐·루프)"), isOn: $deck.carryCues)
                 Toggle(.ui("메모리 큐 제안 보이기(섹션 경계)"), isOn: $deck.showSuggestions)
             }

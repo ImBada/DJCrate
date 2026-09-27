@@ -13,9 +13,9 @@ public enum SettingKeys {
     /// 파형 확대(화면에 보이는 초)
     public static let zoomSeconds = SettingKey<Double>("deck.zoomSeconds", 16, in: 2...64)
     public static let quantize = SettingKey("deck.quantize", true)
-    /// 재생 퀀타이즈: 재생 중 핫큐를 다음 박 조각 경계에서 넘긴다(`PlayQuantize`). 큐를 찍을 때의 퀀타이즈와 따로다.
+    /// Q 하나로 큐·루프 등록 스냅과 재생 중 핫큐 점프 퀀타이즈를 함께 켠다.
     public static let playQuantize = SettingKey("deck.playQuantize", true)
-    /// 재생 퀀타이즈 단위(박). 고를 수 있는 값(`PlayQuantize.choices`)이 아니면 기본값(1/4박).
+    /// 이전 박 간격 저장값의 호환용. 재생 경계는 다음 한 박이며 이 값은 사용하지 않는다.
     public static let playQuantizeBeats = SettingKey<Double>("deck.playQuantizeBeats", PlayQuantize.defaultBeats) {
         PlayQuantize.choices.contains($0) ? $0 : nil
     }
