@@ -87,6 +87,141 @@ rekordbox 7이 USB에 내보내는 라이브러리(OneLibrary·Device Library)�
 
 ## 3. Device Library(export.pdb·exportExt.pdb)
 
+근거: rekordbox 7.2.18 골든(2026-09-26 내보내기) 관찰. 먼 오프셋 행 모양(아래 "먼 모양")은 골든에서 보지 못해 읽기만 한다. 코드는 `Sources/RekordboxKit/Usb/DeviceLibrary/`(`PdbFile`·`PdbPage`·`PdbString`·`PdbRows`·`PdbReader`), 시험 재료는 칸 값으로 쪽을 조립하는 `PdbBuilder`다.
+
+### 3.1 파일 머리
+
+파일은 4096바이트 쪽의 배열이다. 쪽 0이 파일 머리이고 쪽 `i`는 바이트 `i × 4096`에서 시작한다. 모든 정수는 little-endian이다.
+
+| 오프셋 | 크기 | 칸 | 값 |
+|---|---|---|---|
+| 0x00 | u32 | | 0 |
+| 0x04 | u32 | len_page | 4096 |
+| 0x08 | u32 | num_tables | export 20, exportExt 9 |
+| 0x0C | u32 | next_unused_page | 할당된 가장 큰 쪽 번호 + 1(파일 끝 너머 후보 포함) |
+| 0x10 | u32 | (flag10) | 5 = rekordbox가 정상으로 닫음. 열린 채 뽑힌 USB에서는 다른 값 |
+| 0x14 | u32 | sequence | 다음 쪽 순번(모든 쪽 순번보다 큼) |
+| 0x18 | u32 | gap | 0 |
+| 0x1C | 16 × num_tables | 표 포인터 | `{u32 type, u32 empty_candidate, u32 first_page, u32 last_page}`, type 0부터 오름차순 |
+
+- first_page는 그 표의 인덱스 쪽이다. last_page는 사슬의 마지막 쪽(데이터가 없으면 인덱스 쪽)이고, 그 쪽 머리의 next_page가 empty_candidate다. empty_candidate는 0으로 채운 쪽이거나 파일 끝 너머다.
+- 쪽 크기가 4096이 아니거나 표 수가 20·9가 아니면 `UsbError.readFailed`로 읽지 않는다. flag10은 보고서에 값만 남긴다(막을지는 쓰기 쪽이 정한다).
+
+### 3.2 쪽 머리(0x00–0x27)
+
+| 오프셋 | 크기 | 칸 | 데이터 쪽 | 인덱스 쪽 |
+|---|---|---|---|---|
+| 0x04 | u32 | page_index | 자기 쪽 번호 | 같음 |
+| 0x08 | u32 | type | 표 번호 | 같음 |
+| 0x0C | u32 | next_page | 다음 쪽(마지막이면 empty_candidate) | 첫 데이터 쪽(없으면 empty_candidate) |
+| 0x10 | u32 | seq | 그 쪽을 마지막으로 고친 순번 | 1 |
+| 0x14 | u32 | u2 | 0 | 0 |
+| 0x18–0x1A | 24비트 | 행 수 묶음 | `nro + (nr << 13)`: 아래 13비트 nro = 할당한 행 자리 수, 위 11비트 nr = 산 행 수 | 0 |
+| 0x1B | u8 | flags | 0x24(지운 행 없음) / 0x34(nr < nro) | 0x64 |
+| 0x1C | u16 | free | `4096 − 0x28 − used − 2·nro − 4·⌈nro/16⌉` | 0 |
+| 0x1E | u16 | used | 힙 할당 바이트 합(죽은 행 포함) | 0 |
+| 0x20·0x22 | u16 | tx_row_count·tx_row_index | 마지막 트랜잭션이 건드린 자리 수·첫 자리 | 보통 0x1FFF |
+| 0x24 | u16 | u6 | 0 | 0x03EC |
+| 0x26 | u16 | u7 | 0 | 인덱스 항목 수 |
+
+- 예: 7자리·6행 → `07 C0 00`, 284자리·284행 → `1C 81 23`. 0x18을 u8 행 수로 읽으면 255행 넘는 쪽(12바이트 행)에서 행을 잃는다.
+- 인덱스 쪽 본문: 0x28 자기 쪽 번호, 0x2C 첫 데이터 쪽(없으면 0x03FFFFFF), 0x30 0x03FFFFFF, 0x34 0, 0x38 u16 항목 수, 0x3A 0x1FFF, 0x3C부터 u32 항목 1004개(빈 것 0x1FFFFFF8, 항목 = `(쪽 번호 << 3) | 아래 3비트` = 지운 행이 있는 데이터 쪽), 0xFEC–0xFFF 0. 읽기는 인덱스 항목을 쓰지 않는다.
+
+### 3.3 행 인덱스
+
+쪽 끝에서 거꾸로 16자리씩 묶는다. 자리 `k`는 묶음 `g = k / 16`, `j = k % 16`, `base = 4096 − g × 0x24`에서:
+
+- `base − 2`: u16 tx 비트(j번 비트)
+- `base − 4`: u16 presence 비트(산 행)
+- `base − 6 − 2j`: u16 행 오프셋(힙 시작 0x28 기준)
+
+마지막(덜 찬) 묶음도 같은 계산이다. 행 바이트는 그 오프셋부터 힙에서 다음 행 오프셋까지, 마지막 행은 used까지다. 행 해석은 표별 고정 칸과 문자열 오프셋으로 하고, 범위는 행 밖 읽기를 막는 데만 쓴다.
+
+### 3.4 문자열(DeviceSQL)
+
+| 첫 바이트 | 모양 | 구조 |
+|---|---|---|
+| 홀수 `((n+1)<<1)+1` | 짧은 ASCII | 첫 바이트 + ASCII n바이트(끝 표시 없음). 빈 문자열 `03`, n ≤ 126 |
+| `0x40` | 긴 ASCII | `40`, u16 길이(머리 4 포함), `00`, ASCII |
+| `0x90` | UTF-16LE | `90`, u16 길이(머리 4 포함), `00`, UTF-16LE |
+| `0x90` + 다섯째 바이트 `03` | ISRC 특수형 | `90`, u16 길이 = 4 + 1 + k + 1, `00`, `03`, ASCII k, `00`(트랙 문자열 0에만) |
+
+- 126자까지의 ASCII는 짧은 ASCII, 그 밖은 UTF-16LE다. 긴 ASCII는 읽기만 한다(`pdbLongAscii`).
+- UTF-16 문자열은 행 시작 기준 4바이트 경계에서 시작한다(앞 빈 바이트 0). 짧은 ASCII는 앞 문자열 바로 뒤에 붙는다.
+- 모르는 첫 바이트, 행 밖으로 나가는 길이, 잘못된 UTF-16은 그 행만 문제로 남기고 계속 읽는다.
+
+### 3.5 export.pdb 표
+
+| 번호 | 표 | 행 |
+|---|---|---|
+| 0 | tracks | 아래 표 |
+| 1·4 | genres·labels | u32 id, 문자열 @0x04 |
+| 2 | artists | subtype 0x0060: 0x04 u32 id, 0x08 u8 0x03, 0x09 u8 이름 오프셋(ASCII 0x0A, UTF-16 0x0C). 먼 모양 0x0064: 0x0A u16 오프셋 |
+| 3 | albums | subtype 0x0080: 0x08 u32 앨범 아티스트(0 없음), 0x0C u32 id, 0x14 u8 0x03, 0x15 u8 이름 오프셋(ASCII 0x16, UTF-16 0x18). 먼 모양 0x0084: 0x16 u16 오프셋 |
+| 5 | keys | u32 id, u32 id(같은 값), 문자열 @0x08 |
+| 6 | colors | u32 0, u8 id, u16 id, u8 0, 문자열 @0x08 |
+| 7 | playlist_tree | u32 parent_id, u32 0, u32 sort_order, u32 id, u32 is_folder, 문자열 @0x14 |
+| 8 | playlist_entries | u32 entry_index(1부터), u32 track_id, u32 playlist_id(12바이트). 항목은 entry_index 순 |
+| 11·12 | history_playlists·history_entries | u32 id, 문자열 @0x04 / u32 track_id, u32 playlist_id, u32 entry_index. 해석되지 않으면 두 표 모두 행 수만 `unknownRows`로 |
+| 13 | artwork | u32 id, 짧은 ASCII 경로 @0x04(`/PIONEER/Artwork/%05d/a%d.jpg`) |
+| 16 | columns | u16 id, u16 code(= Class + 256), UTF-16 이름 @0x04(U+FFFA … U+FFFB로 감쌈) |
+| 17 | category | u16 menuItemID, u16 id, u8 InfoOrder, u8 Disable, u16 Seq(8바이트). 보임 = Disable ≠ 1 |
+| 18 | sort | u16 menuItemID, u16 id, u8 Disable, u8 Seq, u16 0(8바이트). 보임 = Disable ≠ 1, 보조 칸 = Disable = 2 |
+| 19 | property | subtype 0x0280(40바이트): 0x04 u32 곡 수, 0x0C 짧은 ASCII 날짜(YYYY-MM-DD), 0x17 u8 버전 문자열("1000") 오프셋, 0x18 u8 두 번째 문자열 오프셋 |
+| 9·10·14·15 | (모름) | 산 행 수만 `unknownRows` |
+
+tracks(subtype 0x0024, 16비트 문자열 오프셋):
+
+| 오프셋 | 크기 | 칸 | 모델(`UsbTrack`) |
+|---|---|---|---|
+| 0x00 | u16 | subtype 0x0024 | `trackRowExtras` |
+| 0x02 | u16 | index_shift | 쓰지 않음 |
+| 0x04 | u32 | bitmask | `trackRowExtras` |
+| 0x08 | u32 | sample_rate | sampleRate |
+| 0x0C | u32 | composer_id | composerID |
+| 0x10 | u32 | file_size | fileSize |
+| 0x14 | u32 | (로컬 MasterSongID) | masterContentId |
+| 0x18 | u32 | master_db_id | masterDbId |
+| 0x1C | u32 | artwork_id | imageID |
+| 0x20·0x24·0x28·0x2C | u32 | key_id·original_artist_id·label_id·remixer_id | keyID·originalArtistID·labelID·remixerID |
+| 0x30·0x34·0x38 | u32 | bitrate·track_number·tempo(BPM × 100) | bitrate·trackNo·bpmx100 |
+| 0x3C·0x40·0x44·0x48 | u32 | genre_id·album_id·artist_id·id | genreID·albumID·artistID·id |
+| 0x4C·0x4E·0x50·0x52·0x54 | u16 | disc_number·play_count·year·sample_depth·duration(초) | discNo·djPlayCount·releaseYear·bitDepth·lengthSeconds |
+| 0x56 | u16 | u5 | `trackRowExtras` |
+| 0x58·0x59 | u8 | color_id·rating | colorID·rating |
+| 0x5A | u16 | file_type | fileType |
+| 0x5C | u16 | u7 | `trackRowExtras` |
+| 0x5E | u16 × 21 | 문자열 오프셋(행 시작 기준) | |
+
+- id 칸 0은 "없음"(nil)이다. play_count·rating은 기기 칸(`deviceFields[.deviceLibrary]`)에도 넣는다.
+- 문자열 21개: 0 ISRC(특수형) → isrc, 1 작사가 → lyricist, 2·3·4 정보·분석·큐 갱신 횟수 → informationUpdateCount·analysisDataUpdateCount·cueUpdateCount, 5 message, 6 kuvo_public("ON" → kuvoDeliver), 7 autoload_hotcues("ON" → hotCueAutoLoad), 8·9 모름, 10 dateCreated, 11 releaseDate, 12 mix_name → subtitle, 13 모름, 14 분석 파일 경로 → analysisDataPath, 15 dateAdded, 16 comment, 17 title, 18 모름, 19 파일 이름 → fileName, 20 파일 경로 → path.
+- 뜻 모를 문자열(5·8·9·13·18)의 값과 문자열 21개의 모양은 `UsbPdbTrackExtras`에 남긴다(다시 쓸 때 비어 있지 않은 값을 잃지 않게).
+- OneLibrary에만 있는 칸(titleForSearch, lyricistArtistID, kuvoDeliveryComment 등)은 Device Library 리더의 기본값으로 둔다(§2.6).
+
+### 3.6 exportExt.pdb 표
+
+| 번호 | 표 | 행 |
+|---|---|---|
+| 3 | tags | subtype 0x0680: 0x0C u32 부모(분류면 0), 0x10 u32 부모 안 순서(0부터), 0x14 u32 id, 0x1B u8 분류면 1, 0x1C u8 0x03, 0x1D u8 이름 오프셋(ASCII 0x1F, UTF-16 0x20), 0x1E u8 두 번째 문자열 오프셋. 먼 모양 0x0684는 0x20·0x22 u16 오프셋으로 읽는다(확인 안 됨) |
+| 4 | tag_tracks | u32 0, u32 track_id, u32 tag_id, u32 3 |
+| 7 | (My Tag property) | subtype 0x0700(60바이트): 0x18 u32 myTagMasterDBID, 0x1C u8 0x03, 0x1D–0x21 빈 문자열 오프셋 다섯 |
+| 0·1·2·5·6·8 | (모름) | 산 행 수만 `unknownRows` |
+
+My Tag ID와 myTagMasterDBID는 u32라 Int32를 넘을 수 있어 64비트로 담는다.
+
+### 3.7 읽기가 견뎌야 할 것
+
+rekordbox는 Device Library를 제자리에서 고친다. 읽기는 아래를 견딘다(`PdbReader`).
+
+- **죽은 행:** 산 행은 presence 비트가 켜진 자리만이다. 죽은 행이 멀쩡한 복제(같은 id 두 벌)일 수 있어 행 수를 짐작하지 않는다. 해석되는 죽은 행(tracks·artists·albums·genres·keys·labels·artwork·playlist_tree)의 id는 `deadIDs`에 모은다(지운 ID를 다시 쓰지 않게).
+- **flags 0x34:** 지운 행이 있는 쪽. 인덱스 쪽의 항목 목록도 쓰지 않는다.
+- **index_shift:** 행 0x02의 index_shift는 산 행 순번이 아니라 자리 × 0x20이라 해석에 쓰지 않는다.
+- **패딩:** 행 사이 패딩 바이트는 보지 않는다.
+- **파일 끝 너머 후보:** empty_candidate와 next_unused_page가 파일 끝 너머를 가리킬 수 있다. 사슬은 empty_candidate에서 끝난다.
+- **flag10 ≠ 5:** 열린 채 뽑힌 USB. 읽기는 멈추지 않고 보고서에 값을 남긴다.
+- **멈추지 않는 구조 문제:** 쪽 번호 ≠ 위치, 파일 밖 쪽, 순환 사슬, 다른 표의 쪽, last_page에서 끝나지 않는 사슬, 힙 밖 행 오프셋, 산 행끼리 같은 자리, 산 행 수 ≠ presence 비트 수, 해석되지 않는 산 행, 같은 id 산 행 → `PdbReadReport.issues`에 종류·표·쪽·자리만 넣고(값은 넣지 않음) 그 표는 읽은 데까지만 쓴다.
+- `djc lab pdb-dump <파일> [--pages] [--rows <표>]`는 임시 폴더 아래 파일을 임시 사본으로 떠서 머리·표 포인터·표마다 산 행/자리·쪽 수와 마지막 줄 `issues <수>`를 찍는다(0이 아니면 종류별 수와 쪽 번호). `--rows`는 자리·오프셋·산/죽음·index_shift와 문자열 모양·길이만 찍는다. `djc lab usb-diff`는 `--onelibrary`·`--device-library`로 한 형식만, 기본은 두 형식을 합친 모델끼리 비교하고 각 쪽의 형식 불일치 종류·수를 먼저 찍는다.
+
 ## 4. ANLZ 변환
 
 로컬 분석 파일(`share` + `djmdContent.AnalysisDataPath`에서 확장자만 바꾼 `.DAT`·`.EXT`·`.2EX`)과 `djmdCue`로 USB 분석 파일 세 개를 만든다(`UsbAnlzTransform`). 로컬 파일 이름은 `ANLZ0000`이 아닐 수 있어 가정하지 않는다. 근거는 모두 rekordbox 7.2.18 골든 관찰이다. 골든의 곡을 로컬 곡과 짝지어 다시 만들면, 스냅샷을 뜬 뒤 로컬 분석 파일이 바뀐 곡을 빼고 세 파일이 바이트까지 같았다(§4.10). 모든 칸은 빅엔디언이다.
