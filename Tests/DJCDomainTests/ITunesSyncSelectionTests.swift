@@ -35,4 +35,20 @@ struct ITunesSyncSelectionTests {
         #expect(selection.state(of: "E", in: Array(nodes.prefix(3))) == .on)
         #expect(selection.selectedIDs.contains("9"))
     }
+
+    @Test func 하위_목록을_모두_다시_골라도_부모는_부분_선택을_유지한다() {
+        let selection = ITunesSyncSelection(selectedIDs: ["A", "B"])
+        #expect(selection.state(of: "F", in: nodes) == .mixed)
+        #expect(selection.state(of: "E", in: nodes) == .mixed)
+    }
+
+    @Test func 전체_선택에서_하나를_해제하면_명시한_하위_선택만_남는다() {
+        var selection = ITunesSyncSelection(selectedIDs: ["0"])
+        #expect(selection.expandedIDs(in: nodes) == Set(nodes.map(\.id)))
+        #expect(selection.state(of: "0", in: nodes) == .on)
+        selection.setSelected(false, id: "A", in: nodes)
+        #expect(!selection.selectedIDs.contains("0"))
+        #expect(selection.expandedIDs(in: nodes) == ["E", "B", "C"])
+        #expect(selection.state(of: "F", in: nodes) == .mixed)
+    }
 }

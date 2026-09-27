@@ -4,6 +4,10 @@ import RekordboxKit
 
 /// rekordbox의 동기화 선택을 기준으로 같은 읽기 방식(Framework 또는 XML)을 사용한다.
 public enum RekordboxITunesReader {
+    public static func selectionChanged(since data: Data?, directory: URL = LibrarySnapshot.rekordboxDirectory) -> Bool {
+        (try? stableRead(directory.appending(path: "playlists3.sync"))) != data
+    }
+
     public static var settingsURL: URL {
         FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Application Support/Pioneer/rekordbox6/rekordbox3.settings")
     }
@@ -23,7 +27,8 @@ public enum RekordboxITunesReader {
                 playlists = try ITunesLibrarySnapshot.parseLibraryXML(stableRead(URL(filePath: path)))
             default: throw RekordboxITunesSelection.ParseError.invalidFile
             }
-            let snapshot = try ITunesLibrarySnapshot.select(selection, from: playlists)
+            var snapshot = try ITunesLibrarySnapshot.select(selection, from: playlists)
+            snapshot.syncData = selectionData
             // 읽는 동안 동기화 선택·읽기 설정이 바뀌었으면 섞인 결과를 쓰지 않는다.
             let latestSelection = FileManager.default.fileExists(atPath: sync.path) ? try Data(contentsOf: sync) : nil
             guard selectionData == latestSelection, settingsData == (try Data(contentsOf: settings)) else {

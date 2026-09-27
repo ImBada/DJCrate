@@ -18,7 +18,7 @@ struct ITunesSyncView: View {
                     HStack {
                         Text(verbatim: "iTunes").font(.headline)
                         Spacer()
-                        Button(.ui("전체 선택")) { model.selection = ITunesSyncSelection(selectedIDs: Set(model.nodes.map(\.id))) }
+                        Button(.ui("전체 선택")) { model.selection = ITunesSyncSelection(selectedIDs: ["0"]) }
                         Button(.ui("선택 해제")) { model.selection = ITunesSyncSelection() }
                     }
                     List {
@@ -44,7 +44,7 @@ struct ITunesSyncView: View {
                 Image(systemName: "arrow.right").font(.title2).foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text(.ui("DJCrate 동기화 목록")).font(.headline)
+                        Text(.ui("rekordbox 동기화 목록")).font(.headline)
                         Spacer()
                         Text(.ui("목록 \(model.preview.playlistCount)개")).foregroundStyle(.secondary)
                     }.frame(height: 24)
@@ -61,17 +61,18 @@ struct ITunesSyncView: View {
                     }
                 }
             }
-            .disabled(model.isLoading || model.source.status != .ready)
+            .disabled(model.isLoading || model.isSyncing || model.source.status != .ready)
             if let message = model.error ?? model.source.status.message {
                 Text(message).font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             }
             HStack {
-                Text(.ui("선택한 목록은 DJCrate에 저장됩니다. 목록의 곡 구성은 Music에서 편집하세요."))
+                Text(.ui("선택한 목록을 rekordbox와 DJCrate에 동일하게 반영합니다. 먼저 rekordbox를 종료하세요."))
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button(.ui("취소")) { dismiss() }.keyboardShortcut(.cancelAction)
+                    .disabled(model.isSyncing)
                 Button(.ui("동기화")) {
-                    if model.sync(store: store) { dismiss() }
+                    Task { if await model.sync(store: store) { dismiss() } }
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!model.canSync || store.isLoading || store.isWritingRekordbox)
@@ -80,6 +81,7 @@ struct ITunesSyncView: View {
         }
         .padding(24)
         .frame(width: 860, height: 560)
+        .interactiveDismissDisabled(model.isSyncing)
         .task { await model.load(store: store) }
     }
 }

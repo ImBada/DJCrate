@@ -25,6 +25,8 @@ extension DevSelfTests {
                 log("실패 · 합성 라이브러리 로드"); exit(1)
             }
             check(store.iTunesLibrary.index["itunes:A"]?.name == "iTunes 합성 목록", "합성 iTunes 목록 로드")
+            let syncURL = snapshot.deletingLastPathComponent().appending(path: "playlists3.sync")
+            let syncBefore = try? Data(contentsOf: syncURL)
             @MainActor func button(_ id: String, in view: NSView) -> NSButton? {
                 if let button = view as? NSButton, button.identifier?.rawValue == id { return button }
                 return view.subviews.lazy.compactMap { button(id, in: $0) }.first
@@ -43,13 +45,14 @@ extension DevSelfTests {
                   "체크박스로 선택하고 적용 전 기존 목록 유지")
             store.showingITunesSync = false
             try? await Task.sleep(for: .milliseconds(300))
-            check(!FileManager.default.fileExists(atPath: store.iTunesSelectionURL.path), "취소하면 선택 파일을 만들지 않음")
+            check((try? Data(contentsOf: syncURL)) == syncBefore, "취소하면 rekordbox 동기화 선택 불변")
             store.presentITunesSync()
             for _ in 0..<100 {
                 if !store.iTunesSync.isLoading, checkbox("C") != nil { break }
                 try? await Task.sleep(for: .milliseconds(100))
             }
             checkbox("C")?.performClick(nil)
+            if store.iTunesSync.selection.state(of: "F", in: store.iTunesSync.nodes) == .on { checkbox("F")?.performClick(nil) }
             checkbox("F")?.performClick(nil)
             check(store.iTunesSync.selection.state(of: "F", in: store.iTunesSync.nodes) == .on, "폴더와 하위 목록 전체 선택")
             try? await Task.sleep(for: .milliseconds(300))
@@ -62,7 +65,9 @@ extension DevSelfTests {
                 capture.waitUntilExit()
                 check(capture.terminationStatus == 0, "선택 창 화면 저장")
             }
-            check(store.iTunesSync.sync(store: store) && store.iTunesLibrary.index["itunes:C"] != nil, "동기화 즉시 사이드바에 추가")
+            let synced = await store.iTunesSync.sync(store: store)
+            check(synced && store.iTunesLibrary.index["itunes:C"] != nil, "동기화 즉시 사이드바에 추가")
+            check((try? Data(contentsOf: syncURL)) != syncBefore, "rekordbox 동기화 파일에 반영")
             store.showingITunesSync = false
             await store.load(snapshot: snapshot)
             check(store.iTunesLibrary.index["itunes:C"] != nil, "다시 읽은 뒤에도 선택 유지")

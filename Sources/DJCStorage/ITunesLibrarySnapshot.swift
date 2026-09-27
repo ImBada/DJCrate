@@ -36,13 +36,18 @@ public struct ITunesLibrarySnapshot: Codable, Sendable {
     /// 선택 창과 이후 선택 변경에 쓰는 전체 보관함. 옛 사본에는 없다.
     public var sourcePlaylists: [Playlist]?
     public var selectedIDs: Set<String>?
+    /// 선택 창을 연 뒤 외부에서 동기화 선택을 바꿨는지 검사할 원문.
+    public var syncData: Data?
     public var availablePlaylists: [Playlist] { sourcePlaylists ?? playlists }
     public var selectionNodes: [ITunesSyncSelection.Node] {
         availablePlaylists.map { .init(id: $0.id, parentID: $0.parentID, isFolder: $0.isFolder) }
     }
     public var initialSelection: ITunesSyncSelection {
         // 옛 사본의 조상 폴더를 전체 선택으로 오해하지 않는다.
-        ITunesSyncSelection(selectedIDs: selectedIDs ?? Set(playlists.filter { !$0.isFolder }.map(\.id)))
+        var ids = selectedIDs ?? Set(playlists.filter { !$0.isFolder }.map(\.id))
+        if let syncData, let parsed = try? RekordboxITunesSelection.parse(syncData),
+           parsed.nodes.contains(where: { $0.id == "0" && $0.isSelected }) { ids.insert("0") }
+        return ITunesSyncSelection(selectedIDs: ids)
     }
 
     public init(playlists: [Playlist] = [], status: Status = .ready, unavailablePlaylistCount: Int = 0,
@@ -90,6 +95,14 @@ public struct ITunesLibrarySnapshot: Codable, Sendable {
         var result = try Self.select(ids: selection.expandedIDs(in: selectionNodes), from: availablePlaylists)
         result.status = status
         result.selectedIDs = selection.selectedIDs
+        result.syncData = syncData
+        return result
+    }
+
+    public func applyingRekordboxSelection(_ data: Data) throws -> Self {
+        var result = try Self.select(RekordboxITunesSelection.parse(data), from: availablePlaylists)
+        result.status = status
+        result.syncData = data
         return result
     }
 

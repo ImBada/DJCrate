@@ -156,6 +156,15 @@ public struct RekordboxWriteGuard: Sendable {
     public static let system = RekordboxWriteGuard(isRekordboxRunning: LibrarySnapshot.isRekordboxRunning,
                                                    appVersion: { RekordboxCompatibility.installedAppVersion() })
 
+    /// 사본 옆 파일이 라이브 동기화 파일의 링크여도 원본 경계로 판단한다.
+    func checkAdjacentFile(_ file: URL, database: URL) throws {
+        for directory in liveDirectories where Self.sameFile(file, directory.appending(path: file.lastPathComponent)) {
+            guard Self.sameFile(database, directory.appending(path: "master.db")) else {
+                throw DJCError.writeRefused(String(ui: "사본 DB에 라이브 동기화 파일을 사용할 수 없습니다. 동기화 파일도 실제 사본으로 복사하세요."))
+            }
+        }
+    }
+
     /// DB와 share를 함께 검사하고, 생략된 라이브 share는 같은 라이브러리에서 고른다.
     func checkTargets(_ database: URL, shareRoot: URL?, dryRun: Bool) throws -> URL? {
         let share = try resolveShareRoot(database, shareRoot: shareRoot)

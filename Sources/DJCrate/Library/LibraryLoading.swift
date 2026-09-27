@@ -35,6 +35,12 @@ struct LoadedLibrary: Sendable {
         let library = try RekordboxLibrary.load(snapshot: snapshot)
         let tracks = library.tracks
         var iTunes = ITunesLibrarySnapshot.load(for: snapshot)
+        // 명시한 사본에 동기화 파일도 있으면 그 파일을 기준으로 고른다. 라이브 폴더로 되돌아가지 않는다.
+        let syncURL = snapshot.deletingLastPathComponent().appending(path: "playlists3.sync")
+        if !refreshITunes, iTunes.status == .ready, FileManager.default.fileExists(atPath: syncURL.path) {
+            do { iTunes = try iTunes.applyingRekordboxSelection(Data(contentsOf: syncURL)) }
+            catch { iTunes.status = .stale }
+        }
         if let refreshTicket {
             let captured = captureITunes()
             iTunes = ITunesRefreshCoordinator.shared.commit(refreshTicket, snapshot: snapshot) {

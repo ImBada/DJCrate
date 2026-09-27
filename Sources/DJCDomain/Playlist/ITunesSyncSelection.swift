@@ -14,6 +14,8 @@ public struct ITunesSyncSelection: Codable, Equatable, Sendable {
     public init(selectedIDs: Set<String> = []) { self.selectedIDs = selectedIDs }
 
     public func expandedIDs(in nodes: [Node]) -> Set<String> {
+        // ID 0은 실제 목록이 아니라 rekordbox의 'All Playlist' 선택이다.
+        if selectedIDs.contains("0") { return Set(nodes.map(\.id)).union(selectedIDs.subtracting(["0"])) }
         var result = selectedIDs
         let children = Dictionary(grouping: nodes, by: { $0.parentID ?? "0" })
         var pending = nodes.filter { $0.isFolder && selectedIDs.contains($0.id) }.map(\.id)
@@ -30,7 +32,7 @@ public struct ITunesSyncSelection: Codable, Equatable, Sendable {
 
     public func state(of id: String, in nodes: [Node]) -> State {
         let expanded = expandedIDs(in: nodes)
-        if expanded.contains(id) { return .on }
+        if expanded.contains(id) || (id == "0" && selectedIDs.contains("0")) { return .on }
         let subtree = Self(selectedIDs: [id]).expandedIDs(in: nodes)
         return expanded.isDisjoint(with: subtree) ? .off : .mixed
     }
