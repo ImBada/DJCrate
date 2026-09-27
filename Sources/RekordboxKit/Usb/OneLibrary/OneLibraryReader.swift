@@ -12,6 +12,11 @@ public enum OneLibraryReader {
     public static func read(copyAt url: URL) throws -> UsbLibrary {
         let db = try CipherDatabase(path: url.path, key: .passphrase(RekordboxKey.oneLibrary()), mode: .readOnly)
         defer { db.close() }
+        return try read(connection: db)
+    }
+
+    /// 이미 연 연결에서 읽는다(작성기가 쓰기 트랜잭션 안에서 다시 읽을 때). 호환 검사도 한다.
+    static func read(connection db: CipherDatabase) throws -> UsbLibrary {
         try OneLibraryCompatibility.check(db)
         var library = UsbLibrary(formats: [.oneLibrary], property: try property(db))
         library.tracks = try tracks(db)
