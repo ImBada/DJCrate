@@ -87,7 +87,7 @@ extension DeckModel {
                 exitLoop()
                 return
             }
-            // 재생 퀀타이즈가 켜져 있으면 다음 박 조각 경계에서 넘어간다(멈춰 있으면 바로).
+            // 재생 중 퀀타이즈가 켜져 있으면 다음 큰 박선에서 저장 큐로 넘어간다(정지 중이면 바로 재생).
             if !quantizedJump(to: cue) {
                 let startsPlayback = !isPlaying && canPlay
                 seek(cue.time)

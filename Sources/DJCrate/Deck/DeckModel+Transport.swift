@@ -53,8 +53,8 @@ extension DeckModel {
         }
     }
 
-    /// 재생 퀀타이즈(#90): 재생 중이면 핫큐로 바로 넘어가지 않고 누른 뒤 다음 박 조각 경계에서 넘어간다
-    /// (규칙은 `PlayQuantize`, 경계의 박 안 위치를 큐 쪽에서도 지킨다). 오디오가 샘플 단위로 예약하고,
+    /// 재생 퀀타이즈: 현재 박을 계속 재생하다 다음 큰 박선에서 저장 핫큐로 넘어간다.
+    /// 경계·착지 규칙은 `PlayQuantize`이며, 오디오가 샘플 단위로 예약하고,
     /// 못 하면(곡을 메모리에 풀기 전) 화면 틱이 경계를 지날 때 넘긴다. 이렇게 처리했으면 true(부른 쪽은 바로 옮기지 않는다).
     func quantizedJump(to cue: EditableCue) -> Bool {
         guard playQuantize, isPlaying, !isCuePreviewing,
