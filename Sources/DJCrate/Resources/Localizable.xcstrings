@@ -3640,6 +3640,92 @@
         }
       }
     },
+    "OneLibrary %@ 표의 칸이 확인한 모양과 다릅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The columns of the OneLibrary %@ table differ from the verified layout"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OneLibraryの%@テーブルの列が確認済みの形と異なります"
+          }
+        }
+      }
+    },
+    "OneLibrary property 행이 1개가 아닙니다(%lld개)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OneLibrary must have exactly one property row (found %lld)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OneLibraryのpropertyの行が1行ではありません（%lld行）"
+          }
+        }
+      }
+    },
+    "OneLibrary 인덱스가 확인한 모양과 다릅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The OneLibrary indexes differ from the verified layout"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OneLibraryのインデックスが確認済みの形と異なります"
+          }
+        }
+      }
+    },
+    "OneLibrary 표 구성이 확인한 모양과 다릅니다(없는 표: %@, 모르는 표: %@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The OneLibrary tables differ from the verified layout (missing: %1$@, unknown: %2$@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OneLibraryのテーブル構成が確認済みの形と異なります（ないテーブル: %1$@、不明なテーブル: %2$@）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "OneLibrary 표 구성이 확인한 모양과 다릅니다(없는 표: %1$@, 모르는 표: %2$@)"
+          }
+        }
+      }
+    },
+    "OneLibrary에 확인하지 않은 뷰나 트리거가 있습니다(%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OneLibrary contains unverified views or triggers (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OneLibraryに確認していないビューまたはトリガーがあります（%@）"
+          }
+        }
+      }
+    },
     "playlist-write는 사본에만 씁니다. rekordbox 라이브러리는 앱의 반영으로 쓰세요" : {
       "localizations" : {
         "en" : {
@@ -4016,6 +4102,22 @@
         }
       }
     },
+    "rekordbox 라이브러리 폴더에는 새 DB를 만들지 않습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate does not create a new DB in the rekordbox library folder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxのライブラリフォルダには新しいDBを作成しません"
+          }
+        }
+      }
+    },
     "rekordbox 라이브러리 확인·쓰는 중…" : {
       "localizations" : {
         "en" : {
@@ -4226,6 +4328,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxの解析が終わっていない曲です（波形ファイルなし）。グリッドを書き込むには、rekordboxで楽曲をもう一度解析してください。"
+          }
+        }
+      }
+    },
+    "rekordbox 새 버전이 만든 USB라 아직 읽거나 고칠 수 없습니다(dbVersion %@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This USB was made by a newer version of rekordbox and cannot be read or edited yet (dbVersion %@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいバージョンのrekordboxで作成されたUSBのため、まだ読み込みや編集ができません（dbVersion %@）"
           }
         }
       }
@@ -13626,6 +13744,22 @@
         }
       }
     },
+    "새 DB를 만들 폴더가 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The folder for the new DB does not exist"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいDBを作成するフォルダがありません"
+          }
+        }
+      }
+    },
     "새 곡 제목" : {
       "localizations" : {
         "en" : {
@@ -17356,6 +17490,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "すでに入っている%lld曲は追加しませんでした。"
+          }
+        }
+      }
+    },
+    "이미 있는 파일이라 새 DB를 만들지 않았습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Did not create a new DB because the file already exists"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルがすでにあるため、新しいDBを作成しませんでした"
           }
         }
       }
