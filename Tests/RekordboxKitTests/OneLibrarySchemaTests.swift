@@ -55,7 +55,7 @@ struct OneLibrarySchemaTests {
 
     /// 한 가지씩 바꾼 스키마는 모두 거부한다.
     @Test(arguments: ["extraColumn", "missingColumn", "missingTable", "typeDiffers", "dbVersion", "extraTable", "missingIndex", "columnOrder",
-                      "noProperty"])
+                      "noProperty", "notNull", "defaultValue", "autoincrement", "unique", "check"])
     func compatibilityRejects(_ change: String) throws {
         var statements = OneLibrarySchema.ddl()
         func replace(_ table: String, _ transform: (String) -> String) {
@@ -72,6 +72,12 @@ struct OneLibrarySchemaTests {
         case "extraTable": statements.append("CREATE TABLE futureTable(id integer primary key)")
         case "missingIndex": statements.removeAll { $0.hasPrefix("CREATE INDEX index_myTag_content_content_id ") }
         case "columnOrder": replace("color") { _ in "CREATE TABLE color(name varchar, color_id integer primary key)" }
+        // 기본 키 말고 제약이 있는 모양(칸 이름·자료형은 같다)
+        case "notNull": replace("genre") { $0.replacingOccurrences(of: "name varchar)", with: "name varchar NOT NULL)") }
+        case "defaultValue": replace("genre") { $0.replacingOccurrences(of: "name varchar)", with: "name varchar DEFAULT 'x')") }
+        case "autoincrement": replace("genre") { $0.replacingOccurrences(of: "integer primary key", with: "integer primary key autoincrement") }
+        case "unique": replace("genre") { $0.replacingOccurrences(of: "name varchar)", with: "name varchar UNIQUE)") }
+        case "check": replace("genre") { $0.replacingOccurrences(of: "name varchar)", with: "name varchar CHECK(name <> ''))") }
         default: break
         }
         let fixture = try OneLibraryFixture(statements: statements, property: change != "noProperty")

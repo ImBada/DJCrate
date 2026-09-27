@@ -98,10 +98,16 @@ public enum OneLibrarySchema {
     /// "CREATE TABLE <t>(<c> <type>[ primary key], …)" / "CREATE INDEX <i> on <t>(<c>)".
     /// rekordbox가 만든 `sqlite_master.sql`과 글자까지 같은 모양(끝 ";" 없음)
     public static func ddl() -> [String] {
-        tables.map { table in
-            "CREATE TABLE \(table.name)("
-                + table.columns.map { "\($0.name) \($0.type)" + ($0.primaryKey ? " primary key" : "") }.joined(separator: ", ") + ")"
-        } + indexes.map { "CREATE INDEX \($0.name) on \($0.table)(\($0.column))" }
+        tables.map(statement) + indexes.map(statement)
+    }
+
+    static func statement(_ table: Table) -> String {
+        "CREATE TABLE \(table.name)("
+            + table.columns.map { "\($0.name) \($0.type)" + ($0.primaryKey ? " primary key" : "") }.joined(separator: ", ") + ")"
+    }
+
+    static func statement(_ index: Index) -> String {
+        "CREATE INDEX \(index.name) on \(index.table)(\(index.column))"
     }
 
     public static func table(named name: String) -> Table? {
