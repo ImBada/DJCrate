@@ -7964,18 +7964,18 @@
         }
       }
     },
-    "그리드 전체를 옮깁니다 (1초 동안 누르면 반복 · 파형을 끌어도 됩니다)" : {
+    "그리드 전체를 옮깁니다 (1초 동안 누르면 반복)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Moves the whole grid (hold for 1 second to repeat, or drag the waveform)"
+            "value" : "Moves the whole grid (hold for 1 second to repeat)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "グリッド全体を移動（1秒間押し続けると繰り返し移動・波形のドラッグでも移動できます）"
+            "value" : "グリッド全体を移動（1秒間押し続けると繰り返し移動）"
           }
         }
       }
@@ -19472,18 +19472,18 @@
         }
       }
     },
-    "켜면 파형을 끌어 그리드를 옮기고, 아래 막대로 BPM·1박·변속 지점을 고칩니다." : {
+    "켜면 아래 막대로 그리드를 옮기고 BPM·1박·변속 지점을 고칩니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "When on, drag the waveform to move the grid, and use the bar below to fix the BPM, first beat, and tempo-change points."
+            "value" : "When on, use the bar below to move the grid and fix the BPM, first beat, and tempo-change points."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "オンにすると波形をドラッグしてグリッドを動かし、下のバーでBPM・1拍目・テンポ変化点を修正します。"
+            "value" : "オンにすると下のバーでグリッドを動かし、BPM・1拍目・テンポ変化点を修正します。"
           }
         }
       }

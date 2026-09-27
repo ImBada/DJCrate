@@ -43,6 +43,13 @@ struct SettingsTests {
         #expect(SettingKeys.deckShortcuts == "shortcuts.deck")
     }
 
+    /// 사이드바를 연 채·닫은 채 끈 그대로 다음에 뜬다(#119). 처음에는 열린 채로 시작한다.
+    @Test func 사이드바_표시_상태를_저장한다() {
+        #expect(SettingKeys.sidebarVisible.name == "sidebar.visible")
+        #expect(SettingKeys.sidebarVisible.defaultValue == true)
+        #expect(SettingKeys.all.contains(SettingKeys.sidebarVisible.name))
+    }
+
     @Test func 설정_이름은_겹치지_않는다() {
         let names = SettingKeys.all
         #expect(Set(names).count == names.count)

@@ -12,6 +12,7 @@ struct DJCrateApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var store = LibraryStore()
     @State private var deck = DeckModel()
+    @State private var windowFrameRestored = false
 
     init() {
         // SwiftPM 실행 파일은 번들이 없어서 Dock·메뉴 막대에 올리려면 직접 지정해야 한다.
@@ -26,10 +27,10 @@ struct DJCrateApp: App {
     var body: some Scene {
         // 단일 창: ⌘N 새 창이 같은 상태를 공유하며 라이브러리를 다시 읽는 문제를 막는다.
         Window(Text(verbatim: "DJCrate"), id: "main") {
-            ContentView(store: store, deck: deck)
+            ContentView(store: store, deck: deck, windowFrameRestored: windowFrameRestored)
                 .modifier(AppTextScale())
                 .frame(minWidth: 1100, minHeight: 700)
-                .background(MainWindowFrame())
+                .background(MainWindowFrame { windowFrameRestored = true })
                 .task {
                     appDelegate.store = store
                     NSApplication.shared.activate()
@@ -72,11 +73,22 @@ struct DJCrateApp: App {
 
 /// SwiftUI 장면 복원은 끈 채 창 위치·크기만 AppKit에 맡긴다.
 private struct MainWindowFrame: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { TrackingView() }
+    /// 저장된 프레임을 적용한 뒤(저장된 게 없으면 기본 크기로 정해진 뒤) 부른다.
+    var onRestore: @MainActor () -> Void
+
+    func makeNSView(context: Context) -> NSView { TrackingView(onRestore: onRestore) }
     func updateNSView(_ nsView: NSView, context: Context) {}
 
     final class TrackingView: NSView {
         private weak var sizedSearchField: NSSearchField?
+        private let onRestore: @MainActor () -> Void
+
+        init(onRestore: @escaping @MainActor () -> Void) {
+            self.onRestore = onRestore
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
         override func layout() {
             super.layout()
@@ -93,9 +105,12 @@ private struct MainWindowFrame: NSViewRepresentable {
             super.viewDidMoveToWindow()
             // SwiftUI가 기본 크기를 잡은 뒤 저장된 프레임을 적용한다.
             DispatchQueue.main.async { [weak self] in
-                guard let window = self?.window, window.frameAutosaveName != "djc.mainWindow" else { return }
-                window.setFrameUsingName("djc.mainWindow")
-                window.setFrameAutosaveName("djc.mainWindow")
+                guard let self, let window else { return }
+                if window.frameAutosaveName != "djc.mainWindow" {
+                    window.setFrameUsingName("djc.mainWindow")
+                    window.setFrameAutosaveName("djc.mainWindow")
+                }
+                onRestore()
             }
         }
     }
