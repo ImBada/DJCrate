@@ -13,6 +13,8 @@ struct PdbRowReader {
     let data: Data
     private let bytes: [UInt8]
     private(set) var strings: [DecodedString] = []
+    /// 먼 오프셋 모양(0x0064·0x0084·0x0684)으로 읽었는지. 쓰는 쪽이 `pdbFarOffsetRows`로 막을 수 있게 보고서에 센다
+    private(set) var farShape = false
 
     init(_ data: Data) {
         self.data = Data(data)
@@ -46,6 +48,10 @@ struct PdbRowReader {
         return value == 0 ? nil : value
     }
 
+    mutating func markFarShape() {
+        farShape = true
+    }
+
     mutating func string(_ at: Int, isrcAllowed: Bool = false) throws -> (value: String, kind: PdbStringKind) {
         let decoded = try PdbStringDecoder.decode(data, at: at, isrcAllowed: isrcAllowed)
         strings.append(DecodedString(kind: decoded.kind, offset: at, length: decoded.value.utf16.count))
@@ -54,7 +60,7 @@ struct PdbRowReader {
 }
 
 /// 표별 행 해석. rekordbox 7.2.18 골든 관찰(2026-09-26 내보내기)로 칸을 정했다. 먼 오프셋 모양(0x0064·0x0084·0x0684)은
-/// 골든에서 보지 못한 모양이라 읽기만 한다.
+/// 골든에서 보지 못한 모양이라 읽기만 하고 `PdbRowReader.farShape`로 표시한다.
 enum PdbRows {
     /// 트랙 행 고정 칸 길이(문자열 오프셋 21개까지)
     static let trackFixedSize = 0x5E + 2 * trackStringCount
@@ -108,7 +114,9 @@ enum PdbRows {
         let offset: Int
         switch subtype {
         case 0x0060: offset = try row.u8(0x09)
-        case 0x0064: offset = try row.u16(0x0A)
+        case 0x0064:
+            offset = try row.u16(0x0A)
+            row.markFarShape()
         default: throw UsbError.readFailed(detail: String(format: "pdb artist subtype 0x%04X", subtype))
         }
         return UsbNamedRow(id: Int(try row.u32(0x04)), name: try row.string(offset).value)
@@ -120,7 +128,9 @@ enum PdbRows {
         let offset: Int
         switch subtype {
         case 0x0080: offset = try row.u8(0x15)
-        case 0x0084: offset = try row.u16(0x16)
+        case 0x0084:
+            offset = try row.u16(0x16)
+            row.markFarShape()
         default: throw UsbError.readFailed(detail: String(format: "pdb album subtype 0x%04X", subtype))
         }
         return UsbAlbum(id: Int(try row.u32(0x0C)), name: try row.string(offset).value, artistID: try row.reference(0x08))
@@ -195,13 +205,25 @@ enum PdbRows {
                            name: try row.string(nameOffset).value)
     }
 
-    /// exportExt tags. 가까운 모양 0x0680: u8 이름 오프셋 @0x1D, 먼 모양 0x0684: u16 @0x20(골든에서 보지 못함)
+    /// 먼 모양 태그 행에서 문자열이 시작할 수 있는 가장 앞 자리(u16 오프셋 두 칸 뒤)
+    static let farTagFixedSize = 0x24
+
+    /// exportExt tags. 가까운 모양 0x0680: u8 이름 오프셋 @0x1D.
+    /// 먼 모양 0x0684는 칸 자리를 확인하지 못했다(골든에 없음). u16 @0x20·@0x22로 읽되 오프셋 순서가 맞지 않으면
+    /// 틀린 이름을 조용히 읽지 않도록 행을 버리고, 읽은 행도 읽는 쪽이 구조 문제로 남긴다.
     static func tag(_ row: inout PdbRowReader) throws -> UsbMyTag {
         let subtype = try row.u16(0)
         let offset: Int
         switch subtype {
         case 0x0680: offset = try row.u8(0x1D)
-        case 0x0684: offset = try row.u16(0x20)
+        case 0x0684:
+            offset = try row.u16(0x20)
+            let second = try row.u16(0x22)
+            guard offset >= farTagFixedSize, offset < second else {
+                throw UsbError.readFailed(detail: "pdb far tag row offsets \(offset)/\(second)")
+            }
+            _ = try PdbStringDecoder.decode(row.data, at: second)
+            row.markFarShape()
         default: throw UsbError.readFailed(detail: String(format: "pdb tag subtype 0x%04X", subtype))
         }
         return UsbMyTag(id: try row.u32(0x14), parentID: try row.u32(0x0C), sequenceNo: Int(try row.u32(0x10)),

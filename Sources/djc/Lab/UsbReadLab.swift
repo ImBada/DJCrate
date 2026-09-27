@@ -177,8 +177,16 @@ enum UsbReadLab {
                 }
             }
         }
+        lines.append(renderFarShapeRows(report.farShapeRows))
         lines.append(renderIssues(report.issues))
         return lines
+    }
+
+    /// "far_shape_rows <수>", 0이 아니면 표마다 수를 덧붙인다(먼 오프셋 모양은 쓰기가 확인하지 않은 모양)
+    static func renderFarShapeRows(_ counts: [String: Int]) -> String {
+        let total = counts.values.reduce(0, +)
+        guard total > 0 else { return "far_shape_rows 0" }
+        return "far_shape_rows \(total): " + counts.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", ")
     }
 
     /// "issues <수>", 0이 아니면 종류별 수와 쪽 번호만 덧붙인다

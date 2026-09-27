@@ -55,6 +55,10 @@ public struct PdbIssue: Sendable, Hashable, CustomStringConvertible {
         case duplicateID
         /// 한 행이어야 할 표에 산 행이 여럿
         case multipleRows
+        /// 확인 안 된 행 모양(먼 오프셋 My Tag 행). 쓰기·편집이 막히도록 문제로 남긴다
+        case unconfirmedRowShape
+        /// 목록 항목이 없는 목록을 가리킴
+        case orphanEntry
     }
 
     public var kind: Kind

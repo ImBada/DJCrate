@@ -127,6 +127,7 @@ struct UsbReadLabTests {
         #expect(status == 0)
         let lines = output.split(separator: "\n").map(String.init)
         #expect(lines.last == "issues 0")
+        #expect(lines.contains("far_shape_rows 0"))
         #expect(lines.contains { $0.contains("tables 20") && $0.contains("flag10 5") })
         #expect(lines.contains { $0.hasPrefix("table 0 tracks") && $0.contains("2/3") })
         #expect(lines.contains { $0.hasPrefix("table 19 history19") && $0.contains("1/1") })
@@ -158,6 +159,28 @@ struct UsbReadLabTests {
         let last = try #require(output.split(separator: "\n").last.map(String.init))
         #expect(last.hasPrefix("issues 1"))
         #expect(last.contains("pageIndexMismatch"))
+    }
+
+    @Test func pdbDumpCountsFarShapeRows() throws {
+        let tree = UsbTreeFixture()
+        defer { tree.remove() }
+        var export = PdbBuilder(kind: .export)
+        export.add(.artists, PdbBuilder.artistRow(1, "시험 아티스트", far: true))
+        export.add(.artists, PdbBuilder.artistRow(2, "시험 아티스트 2"))
+        tree.write(UsbLayout.exportPdb, export.build().data)
+        var ext = PdbBuilder(kind: .exportExt)
+        ext.add(.tags, PdbBuilder.tagRow(id: 7, name: "시험 분류", position: 0, isCategory: true, far: true))
+        tree.write(UsbLayout.exportExtPdb, ext.build().data)
+
+        let (_, output) = try run(["pdb-dump", tree.url(UsbLayout.exportPdb).path])
+        let lines = output.split(separator: "\n").map(String.init)
+        #expect(lines.contains("far_shape_rows 1: artists 1"))
+        #expect(lines.last == "issues 0")
+        let (_, extOutput) = try run(["pdb-dump", tree.url(UsbLayout.exportExtPdb).path])
+        let extLines = extOutput.split(separator: "\n").map(String.init)
+        #expect(extLines.contains("far_shape_rows 1: exportExt.tags 1"))
+        #expect(extLines.last?.hasPrefix("issues 1: unconfirmedRowShape×1") == true)
+        #expect(!output.contains("시험") && !extOutput.contains("시험"))
     }
 
     @Test func pdbDumpRefusesPathOutsideScratch() throws {

@@ -237,10 +237,10 @@ extension PdbBuilder {
             for index in 0..<4 { bytes[offset + index] = UInt8(truncatingIfNeeded: value >> (8 * index)) }
         }
 
-        /// 문자열을 끝에 붙이고 그 오프셋을 돌려준다
+        /// 문자열을 끝에 붙이고 그 오프셋을 돌려준다. 127자 이상 순수 ASCII는 확인 안 된 모양이라 읽기 시험용으로 UTF-16LE로 둔다
         @discardableResult
         public mutating func append(_ value: String, isrc: Bool = false) -> Int {
-            let encoded = isrc ? PdbStringEncoder.encodeISRC(value) : PdbStringEncoder.encode(value)
+            let encoded = isrc ? PdbStringEncoder.encodeISRC(value) : PdbStringEncoder.encode(value) ?? PdbStringEncoder.encodeUTF16(value)
             if encoded.first == 0x90 { while bytes.count % 4 != 0 { bytes.append(0) } }
             let offset = bytes.count
             bytes.append(encoded)
@@ -411,7 +411,8 @@ extension PdbBuilder {
 
     // MARK: exportExt.pdb 표
 
-    /// My Tag 행. 분류면 category 0·바이트 0x1B = 1. 먼 모양(0x0684)은 u16 오프셋을 0x20·0x22에 둔다.
+    /// My Tag 행. 분류면 category 0·바이트 0x1B = 1. 먼 모양(0x0684)은 리더와 같은 추정 자리(u16 @0x20·@0x22)에 둔다.
+    /// 확인 안 된 모양이라 이 행으로는 리더와 빌더가 서로 맞는지만 볼 수 있다(리더는 이 행을 구조 문제로 남긴다).
     public static func tagRow(id: Int64, name: String, parentID: Int64 = 0, position: Int, isCategory: Bool, far: Bool = false) -> Row {
         var row = RowBytes(count: far ? 0x24 : 0x1F)
         row.u16(far ? 0x0684 : 0x0680, at: 0)

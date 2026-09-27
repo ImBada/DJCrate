@@ -15,9 +15,9 @@ public enum PdbStringKind: String, Sendable, Hashable, CaseIterable {
 
 public enum PdbStringDecoder {
     /// 행 시작 기준 offset에서 DeviceSQL 문자열 하나를 읽는다. `isrcAllowed`는 트랙 문자열 0(ISRC)에서만 참으로 준다
-    /// (그 밖의 칸에서 `90 … 00 03`은 첫 글자 아래 바이트가 3인 UTF-16이다).
+    /// (그 밖의 칸에서 `90 … 00 03`은 첫 글자 아래 바이트가 3인 UTF-16이다. 그래서 기본은 거짓).
     /// 모르는 첫 바이트·행 밖으로 나가는 길이·잘못된 글자는 `UsbError.readFailed`.
-    public static func decode(_ row: Data, at offset: Int, isrcAllowed: Bool = true) throws -> (value: String, kind: PdbStringKind, byteLength: Int) {
+    public static func decode(_ row: Data, at offset: Int, isrcAllowed: Bool = false) throws -> (value: String, kind: PdbStringKind, byteLength: Int) {
         let bytes = [UInt8](row)
         guard offset >= 0, offset < bytes.count else { throw failure("offset \(offset) outside row \(bytes.count)") }
         let first = bytes[offset]
@@ -55,8 +55,7 @@ public enum PdbStringDecoder {
     }
 }
 
-/// DeviceSQL 문자열 만들기. rekordbox 7.2.18 골든 관찰(2026-09-26 내보내기): 126자까지의 ASCII는 짧은 ASCII,
-/// 그 밖은 UTF-16LE로 쓰고 긴 ASCII(0x40)는 쓰지 않는다. UTF-16 문자열을 행 안 4바이트 경계에 두는 것은 행을 만드는 쪽 몫이다.
+/// DeviceSQL 문자열 만들기. UTF-16 문자열을 행 안 4바이트 경계에 두는 것은 행을 만드는 쪽 몫이다.
 public enum PdbStringEncoder {
     /// 짧은 ASCII 최대 글자 수
     public static let shortASCIIMaxLength = 126
@@ -67,12 +66,15 @@ public enum PdbStringEncoder {
         return UInt8(((length + 1) << 1) + 1)
     }
 
-    public static func encode(_ value: String) -> Data {
+    /// 확인한 모양으로만 만든다.
+    /// rekordbox 7.2.18 골든 관찰(2026-09-26 내보내기): 126자까지의 ASCII는 짧은 ASCII, ASCII가 아닌 글자가 있으면 UTF-16LE.
+    /// 127자 이상 순수 ASCII의 모양은 확인 안 됨(`pdbLongAscii`)이라 nil을 돌려준다. 쓰는 쪽이 그 규칙을 허용할 때만
+    /// `encodeUTF16` 등으로 명시해서 쓴다(긴 ASCII 0x40은 읽기만 한다).
+    public static func encode(_ value: String) -> Data? {
         let ascii = Array(value.utf8)
-        if ascii.count <= shortASCIIMaxLength, ascii.allSatisfy({ $0 < 0x80 }) {
-            return Data([shortASCIIHeader(length: ascii.count)] + ascii)
-        }
-        return encodeUTF16(value)
+        guard ascii.allSatisfy({ $0 < 0x80 }) else { return encodeUTF16(value) }
+        guard ascii.count <= shortASCIIMaxLength else { return nil }
+        return Data([shortASCIIHeader(length: ascii.count)] + ascii)
     }
 
     /// 늘 UTF-16LE(메뉴 이름처럼 ASCII여도 UTF-16인 칸)

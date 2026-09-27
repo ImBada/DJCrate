@@ -294,8 +294,57 @@ struct PdbReadTests {
             ]
         }
         let (library, report) = try Self.read(export, ext)
-        #expect(report.issues.isEmpty)
+        // 아티스트·앨범 먼 모양은 칸 자리가 알려져 문제가 아니다. 먼 모양 태그 행은 칸 자리를 확인하지 못해
+        // 모델에 넣되 구조 문제로 남긴다(편집·다시 쓰기가 막히게)
+        #expect(report.issueDetails.map(\.kind) == [.unconfirmedRowShape, .unconfirmedRowShape])
+        #expect(report.issueDetails.allSatisfy { $0.table == "exportExt.tags" && $0.page != nil && $0.slot != nil })
+        #expect(report.farShapeRows == ["artists": 2, "albums": 2, "exportExt.tags": 2])
         #expect(library == (try Self.read()).0)
+        #expect(try Self.read().1.farShapeRows.isEmpty)
+        let inspected = try PdbReader.inspect(export.build().data)
+        #expect(inspected.farShapeRows == ["artists": 2, "albums": 2])
+    }
+
+    @Test func farTagRowWithInconsistentOffsetsIsUnreadable() throws {
+        // 먼 모양 태그 행의 두 오프셋이 거꾸로면(이름 ≥ 두 번째) 조용히 틀린 이름을 읽지 않고 행을 버린다
+        var swapped = PdbBuilder.tagRow(id: 4_000_000_003, name: "Tag 2", parentID: 4_000_000_001, position: 1, isCategory: false, far: true)
+        let name = Int(swapped.bytes[0x20]) | Int(swapped.bytes[0x21]) << 8
+        let second = Int(swapped.bytes[0x22]) | Int(swapped.bytes[0x23]) << 8
+        swapped.bytes[0x20] = UInt8(second & 0xFF)
+        swapped.bytes[0x21] = UInt8(second >> 8)
+        swapped.bytes[0x22] = UInt8(name & 0xFF)
+        swapped.bytes[0x23] = UInt8(name >> 8)
+        let ext = Self.sampleExt { builder in
+            builder.tables[PdbExtTableType.tags.rawValue] = [
+                PdbBuilder.tagRow(id: 4_000_000_001, name: "시험 분류", position: 0, isCategory: true),
+                swapped,
+            ]
+        }
+        let (library, report) = try Self.read(Self.sampleExport(), ext)
+        #expect(report.issueDetails.map(\.kind) == [.rowUnreadable])
+        #expect(library.myTags.map(\.id) == [4_000_000_001])
+        #expect(report.farShapeRows.isEmpty)
+    }
+
+    @Test func orphanPlaylistEntryReported() throws {
+        // 산 목록 항목이 없는 목록을 가리키면 모델에는 담을 곳이 없어 빠지므로 구조 문제로 남긴다
+        let export = Self.sampleExport { builder in
+            builder.add(.playlistEntries, PdbBuilder.playlistEntryRow(index: 1, trackID: 1, playlistID: 99))
+        }
+        let (library, report) = try Self.read(export)
+        #expect(report.issueDetails.map(\.kind) == [.orphanEntry])
+        let issue = try #require(report.issueDetails.first)
+        #expect(issue.table == "playlist_entries" && issue.page != nil && issue.slot == 3)
+        #expect(library.playlists == (try Self.read()).0.playlists)
+        #expect(report.tableCounts["playlist_entries"]?.live == 4)
+
+        // 죽은 항목은 문제가 아니다(rekordbox는 지운 목록의 항목을 함께 죽인다)
+        let dead = Self.sampleExport { builder in
+            var entry = PdbBuilder.playlistEntryRow(index: 1, trackID: 1, playlistID: 99)
+            entry.live = false
+            builder.add(.playlistEntries, entry)
+        }
+        #expect(try Self.read(dead).1.issues.isEmpty)
     }
 
     @Test func unknownTablesCounted() throws {

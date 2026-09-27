@@ -114,7 +114,7 @@ rekordbox 7이 USB에 내보내는 라이브러리(OneLibrary·Device Library)�
 | 0x04 | u32 | page_index | 자기 쪽 번호 | 같음 |
 | 0x08 | u32 | type | 표 번호 | 같음 |
 | 0x0C | u32 | next_page | 다음 쪽(마지막이면 empty_candidate) | 첫 데이터 쪽(없으면 empty_candidate) |
-| 0x10 | u32 | seq | 그 쪽을 마지막으로 고친 순번 | 1 |
+| 0x10 | u32 | seq | 그 쪽을 마지막으로 고친 순번 | 새로 만든 파일에서 1(rekordbox가 고치면 그때 순번) |
 | 0x14 | u32 | u2 | 0 | 0 |
 | 0x18–0x1A | 24비트 | 행 수 묶음 | `nro + (nr << 13)`: 아래 13비트 nro = 할당한 행 자리 수, 위 11비트 nr = 산 행 수 | 0 |
 | 0x1B | u8 | flags | 0x24(지운 행 없음) / 0x34(nr < nro) | 0x64 |
@@ -146,7 +146,8 @@ rekordbox 7이 USB에 내보내는 라이브러리(OneLibrary·Device Library)�
 | `0x90` | UTF-16LE | `90`, u16 길이(머리 4 포함), `00`, UTF-16LE |
 | `0x90` + 다섯째 바이트 `03` | ISRC 특수형 | `90`, u16 길이 = 4 + 1 + k + 1, `00`, `03`, ASCII k, `00`(트랙 문자열 0에만) |
 
-- 126자까지의 ASCII는 짧은 ASCII, 그 밖은 UTF-16LE다. 긴 ASCII는 읽기만 한다(`pdbLongAscii`).
+- 126자까지의 ASCII는 짧은 ASCII, ASCII가 아닌 글자가 든 문자열은 UTF-16LE다. 127자 이상 순수 ASCII를 rekordbox가 어떤 모양으로 쓰는지는 확인 안 됨(`pdbLongAscii`)이라 `PdbStringEncoder.encode`는 nil을 돌려준다. 긴 ASCII(0x40)는 읽기만 한다.
+- ISRC 특수형은 트랙 문자열 0에서만 읽는다(`isrcAllowed`, 기본 거짓). 다른 칸의 `90 … 00 03 …`은 첫 글자 아래 바이트가 3인 UTF-16이다.
 - UTF-16 문자열은 행 시작 기준 4바이트 경계에서 시작한다(앞 빈 바이트 0). 짧은 ASCII는 앞 문자열 바로 뒤에 붙는다.
 - 모르는 첫 바이트, 행 밖으로 나가는 길이, 잘못된 UTF-16은 그 행만 문제로 남기고 계속 읽는다.
 
@@ -202,7 +203,7 @@ tracks(subtype 0x0024, 16비트 문자열 오프셋):
 
 | 번호 | 표 | 행 |
 |---|---|---|
-| 3 | tags | subtype 0x0680: 0x0C u32 부모(분류면 0), 0x10 u32 부모 안 순서(0부터), 0x14 u32 id, 0x1B u8 분류면 1, 0x1C u8 0x03, 0x1D u8 이름 오프셋(ASCII 0x1F, UTF-16 0x20), 0x1E u8 두 번째 문자열 오프셋. 먼 모양 0x0684는 0x20·0x22 u16 오프셋으로 읽는다(확인 안 됨) |
+| 3 | tags | subtype 0x0680: 0x0C u32 부모(분류면 0), 0x10 u32 부모 안 순서(0부터), 0x14 u32 id, 0x1B u8 분류면 1, 0x1C u8 0x03, 0x1D u8 이름 오프셋(ASCII 0x1F, UTF-16 0x20), 0x1E u8 두 번째 문자열 오프셋. 먼 모양 0x0684는 칸 자리를 확인하지 못해 0x20·0x22 u16 오프셋으로 읽되(이름 < 두 번째, 둘 다 0x24 이상이 아니면 그 행을 버림), 읽은 행도 구조 문제(`unconfirmedRowShape`)로 남겨 rekordbox 실험으로 확인하기 전까지 Device Library 편집이 막히게 한다 |
 | 4 | tag_tracks | u32 0, u32 track_id, u32 tag_id, u32 3 |
 | 7 | (My Tag property) | subtype 0x0700(60바이트): 0x18 u32 myTagMasterDBID, 0x1C u8 0x03, 0x1D–0x21 빈 문자열 오프셋 다섯 |
 | 0·1·2·5·6·8 | (모름) | 산 행 수만 `unknownRows` |
@@ -219,8 +220,9 @@ rekordbox는 Device Library를 제자리에서 고친다. 읽기는 아래를 �
 - **패딩:** 행 사이 패딩 바이트는 보지 않는다.
 - **파일 끝 너머 후보:** empty_candidate와 next_unused_page가 파일 끝 너머를 가리킬 수 있다. 사슬은 empty_candidate에서 끝난다.
 - **flag10 ≠ 5:** 열린 채 뽑힌 USB. 읽기는 멈추지 않고 보고서에 값을 남긴다.
-- **멈추지 않는 구조 문제:** 쪽 번호 ≠ 위치, 파일 밖 쪽, 순환 사슬, 다른 표의 쪽, last_page에서 끝나지 않는 사슬, 힙 밖 행 오프셋, 산 행끼리 같은 자리, 산 행 수 ≠ presence 비트 수, 해석되지 않는 산 행, 같은 id 산 행 → `PdbReadReport.issues`에 종류·표·쪽·자리만 넣고(값은 넣지 않음) 그 표는 읽은 데까지만 쓴다.
-- `djc lab pdb-dump <파일> [--pages] [--rows <표>]`는 임시 폴더 아래 파일을 임시 사본으로 떠서 머리·표 포인터·표마다 산 행/자리·쪽 수와 마지막 줄 `issues <수>`를 찍는다(0이 아니면 종류별 수와 쪽 번호). `--rows`는 자리·오프셋·산/죽음·index_shift와 문자열 모양·길이만 찍는다. `djc lab usb-diff`는 `--onelibrary`·`--device-library`로 한 형식만, 기본은 두 형식을 합친 모델끼리 비교하고 각 쪽의 형식 불일치 종류·수를 먼저 찍는다.
+- **멈추지 않는 구조 문제:** 쪽 번호 ≠ 위치, 파일 밖 쪽, 순환 사슬, 다른 표의 쪽, last_page에서 끝나지 않는 사슬, 힙 밖 행 오프셋, 산 행끼리 같은 자리, 산 행 수 ≠ presence 비트 수, 해석되지 않는 산 행, 같은 id 산 행, 확인 안 된 행 모양(먼 모양 My Tag 행), 없는 목록을 가리키는 산 목록 항목(`orphanEntry`, rekordbox는 목록을 지울 때 그 항목도 함께 죽인다) → `PdbReadReport.issues`에 종류·표·쪽·자리만 넣고(값은 넣지 않음) 그 표는 읽은 데까지만 쓴다.
+- **먼 오프셋 모양:** 아티스트·앨범·My Tag 행을 먼 모양(0x0064·0x0084·0x0684)으로 읽으면 `PdbReadReport.farShapeRows`에 표마다 수를 센다. 쓰는 쪽은 이 수로 `pdbFarOffsetRows`를 판단한다.
+- `djc lab pdb-dump <파일> [--pages] [--rows <표>]`는 임시 폴더 아래 파일을 임시 사본으로 떠서 머리·표 포인터·표마다 산 행/자리·쪽 수, `far_shape_rows <수>`와 마지막 줄 `issues <수>`를 찍는다(0이 아니면 종류별 수와 쪽 번호). `--rows`는 자리·오프셋·산/죽음·index_shift와 문자열 모양·길이만 찍는다. `djc lab usb-diff`는 `--onelibrary`·`--device-library`로 한 형식만, 기본은 두 형식을 합친 모델끼리 비교하고 각 쪽의 형식 불일치 종류·수를 먼저 찍는다.
 
 ## 4. ANLZ 변환
 

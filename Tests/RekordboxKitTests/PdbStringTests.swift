@@ -22,7 +22,7 @@ struct PdbStringTests {
         #expect(empty.value == "" && empty.kind == .shortASCII && empty.byteLength == 1)
         // 126자까지
         let long = String(repeating: "x", count: 126)
-        let encoded = PdbStringEncoder.encode(long)
+        let encoded = try #require(PdbStringEncoder.encode(long))
         #expect(encoded.count == 127)
         #expect(try PdbStringDecoder.decode(encoded, at: 0).value == long)
     }
@@ -32,10 +32,12 @@ struct PdbStringTests {
         let row = Data([0, 0, 0, 0, 0x90, 0x08, 0x00, 0x00, 0xDC, 0xC2, 0xD8, 0xD5])
         let decoded = try PdbStringDecoder.decode(row, at: 4)
         #expect(decoded.value == "시험" && decoded.kind == .utf16LE && decoded.byteLength == 8)
-        // ASCII가 아니거나 126자를 넘으면 UTF-16LE로 쓴다
+        // ASCII가 아닌 글자가 있으면 UTF-16LE로 쓴다
         #expect(PdbStringEncoder.encode("시험") == Data([0x90, 0x08, 0x00, 0x00, 0xDC, 0xC2, 0xD8, 0xD5]))
+        // 126자를 넘는 ASCII의 UTF-16LE는 확인 안 된 임시 모양(pdbLongAscii)이라 encode는 고르지 않는다. 부르는 쪽이 명시해서 쓴다
         let long = String(repeating: "y", count: 127)
-        let encoded = PdbStringEncoder.encode(long)
+        #expect(PdbStringEncoder.encode(long) == nil)
+        let encoded = PdbStringEncoder.encodeUTF16(long)
         #expect(encoded.first == 0x90 && encoded.count == 4 + 254)
         #expect(try PdbStringDecoder.decode(encoded, at: 0).value == long)
         // 짝이 맞지 않는 대리 쌍·홀수 길이는 오류
@@ -52,14 +54,19 @@ struct PdbStringTests {
     @Test func decodeISRCSpecial() throws {
         // 90, u16 길이 = 4 + 1 + k + 1, 00, 03, ASCII k, 00
         let row = Data([0x90, 0x09, 0x00, 0x00, 0x03, 0x41, 0x42, 0x43, 0x00])
-        let decoded = try PdbStringDecoder.decode(row, at: 0)
+        let decoded = try PdbStringDecoder.decode(row, at: 0, isrcAllowed: true)
         #expect(decoded.value == "ABC" && decoded.kind == .isrc && decoded.byteLength == 9)
         #expect(PdbStringEncoder.encodeISRC("ABC") == row)
         // 트랙 문자열 0이 아닌 곳에서는 같은 바이트도 UTF-16으로 읽는다(짝수 길이면)
         let utf16 = Data([0x90, 0x08, 0x00, 0x00, 0x03, 0x01, 0x41, 0x00])
         #expect(try PdbStringDecoder.decode(utf16, at: 0, isrcAllowed: false).kind == .utf16LE)
+        // 기본은 특수형을 보지 않는다: 첫 글자 아래 바이트가 3이고 끝 바이트가 0인 UTF-16("七A")을 ISRC로 잘못 읽지 않게
+        let seven = try PdbStringDecoder.decode(Data([0x90, 0x08, 0x00, 0x00, 0x03, 0x4E, 0x41, 0x00]), at: 0)
+        #expect(seven.value == "七A" && seven.kind == .utf16LE)
         // 끝 00이 없으면 오류
-        #expect(throws: UsbError.self) { try PdbStringDecoder.decode(Data([0x90, 0x09, 0x00, 0x00, 0x03, 0x41, 0x42, 0x43, 0x44]), at: 0) }
+        #expect(throws: UsbError.self) {
+            try PdbStringDecoder.decode(Data([0x90, 0x09, 0x00, 0x00, 0x03, 0x41, 0x42, 0x43, 0x44]), at: 0, isrcAllowed: true)
+        }
     }
 
     @Test func unknownFirstByteIsError() {

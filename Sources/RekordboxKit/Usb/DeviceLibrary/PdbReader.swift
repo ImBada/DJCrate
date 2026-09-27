@@ -19,6 +19,8 @@ public struct PdbReadReport: Sendable {
     public var longestShortASCII: Int
     /// 행 시작 기준 4바이트 경계에 있지 않은 UTF-16 문자열 수
     public var misalignedUTF16: Int
+    /// 표 이름 → 먼 오프셋 모양(0x0064·0x0084·0x0684)으로 읽은 산 행 수. 쓰는 쪽이 `pdbFarOffsetRows`로 막는 근거
+    public var farShapeRows: [String: Int]
 }
 
 /// 파일 하나를 읽은 결과(lab·진단용). 쪽까지 들고 있다.
@@ -35,6 +37,8 @@ public struct PdbFileReport: Sendable {
     public var unknownRows: [UsbUnknownRows]
     /// 사슬에 든 쪽 순번 중 가장 큰 것(파일 머리 순번보다 작아야 한다)
     public var maxPageSequence: UInt32
+    /// 표 이름 → 먼 오프셋 모양으로 읽은 산 행 수
+    public var farShapeRows: [String: Int]
 }
 
 /// `export.pdb`·`exportExt.pdb` → `UsbLibrary`(formats = [.deviceLibrary]).
@@ -59,19 +63,21 @@ public enum PdbReader {
         let library = parser.finish()
         let files = [exportReport] + (extReport.map { [$0] } ?? [])
         var counts: [String: (live: Int, slots: Int)] = [:], pages: [String: Int] = [:], kinds: [String: Int] = [:]
+        var farShapeRows: [String: Int] = [:]
         for file in files {
             for table in file.tables {
                 counts[table.name] = (table.liveRows, table.slotCount)
                 pages[table.name] = table.pages.count
             }
             kinds.merge(file.stringKinds) { $0 + $1 }
+            farShapeRows.merge(file.farShapeRows) { $0 + $1 }
         }
         let issues = files.flatMap(\.issues)
         let report = PdbReadReport(exportHeader: exportReport.header, extHeader: extReport?.header, tableCounts: counts,
                                    unknownRows: library.unknownRows, issues: issues.map(\.description), stringKinds: kinds,
                                    issueDetails: issues, pageCounts: pages,
                                    longestShortASCII: files.map(\.longestShortASCII).max() ?? 0,
-                                   misalignedUTF16: files.reduce(0) { $0 + $1.misalignedUTF16 })
+                                   misalignedUTF16: files.reduce(0) { $0 + $1.misalignedUTF16 }, farShapeRows: farShapeRows)
         return (library, report)
     }
 
@@ -126,13 +132,14 @@ public enum PdbReader {
         var propertyRow: PdbRows.PropertyRow?
         var myTagMasterDBID: Int64 = 0
         var nodes: [PdbRows.PlaylistNode] = []
-        var entries: [(index: Int, trackID: Int, playlistID: Int)] = []
+        var entries: [(ref: RowRef, index: Int, trackID: Int, playlistID: Int)] = []
 
         /// 파일 하나를 읽는 동안의 통계
         private var issues: [PdbIssue] = []
         private var stringKinds: [String: Int] = [:]
         private var longestShortASCII = 0
         private var misalignedUTF16 = 0
+        private var farShapeRows: [String: Int] = [:]
 
         struct RowRef {
             var page: Int
@@ -145,6 +152,7 @@ public enum PdbReader {
             stringKinds = [:]
             longestShortASCII = 0
             misalignedUTF16 = 0
+            farShapeRows = [:]
             var unknown: [UsbUnknownRows] = []
             let scans = file.header.tables.map(file.walk)
             for (position, pointer) in file.header.tables.enumerated() where pointer.type != UInt32(position) {
@@ -175,12 +183,16 @@ public enum PdbReader {
                     }
                 }
             }
-            if file.kind == .export { unknown += histories(file, historyRows) }
+            if file.kind == .export {
+                unknown += histories(file, historyRows)
+                reportOrphanEntries()
+            }
             library.unknownRows += unknown
             let maxSequence = scans.flatMap(\.pages).map(\.header.sequence).max() ?? 0
             return PdbFileReport(kind: file.kind, header: file.header, tables: scans, issues: issues, stringKinds: stringKinds,
                                  longestShortASCII: longestShortASCII, misalignedUTF16: misalignedUTF16,
-                                 unknownRows: unknown.sorted { $0.tableType < $1.tableType }, maxPageSequence: maxSequence)
+                                 unknownRows: unknown.sorted { $0.tableType < $1.tableType }, maxPageSequence: maxSequence,
+                                 farShapeRows: farShapeRows)
         }
 
         /// 모델에 담는 export 표(기록 표는 따로)
@@ -226,7 +238,8 @@ public enum PdbReader {
             return (live, dead)
         }
 
-        /// 행을 하나씩 해석한다. 실패한 행은 문제 목록에 넣고 건너뛴다. 해석에 성공한 행의 문자열만 통계에 넣는다.
+        /// 행을 하나씩 해석한다. 실패한 행은 문제 목록에 넣고 건너뛴다. 해석에 성공한 행의 문자열·먼 모양만 통계에 넣는다.
+        /// 돌려주는 RowRef의 reader는 해석을 마친 것이다(`farShape` 등).
         mutating func each<Value>(_ rows: [RowRef], table: String, _ parse: (inout PdbRowReader) throws -> Value) -> [(RowRef, Value)] {
             var values: [(RowRef, Value)] = []
             for row in rows {
@@ -234,7 +247,8 @@ public enum PdbReader {
                 do {
                     let value = try parse(&reader)
                     record(reader.strings)
-                    values.append((row, value))
+                    if reader.farShape { farShapeRows[table, default: 0] += 1 }
+                    values.append((RowRef(page: row.page, slot: row.slot, reader: reader), value))
                 } catch {
                     issues.append(PdbIssue(kind: .rowUnreadable, table: table, page: row.page, slot: row.slot))
                 }
@@ -284,7 +298,8 @@ public enum PdbReader {
             case .playlistTree:
                 nodes = unique(each(rows, table: table, PdbRows.playlistTree), table: table) { Int64($0.id) }
             case .playlistEntries:
-                entries = each(rows, table: table) { try PdbRows.playlistEntry($0) }.map(\.1)
+                entries = each(rows, table: table) { try PdbRows.playlistEntry($0) }
+                    .map { (ref: $0.0, index: $0.1.index, trackID: $0.1.trackID, playlistID: $0.1.playlistID) }
             case .artwork:
                 library.images = unique(each(rows, table: table, PdbRows.idName), table: table) { Int64($0.id) }
                     .map { UsbImage(id: $0.id, oneLibraryPath: nil, pdbPath: $0.name) }
@@ -312,7 +327,12 @@ public enum PdbReader {
         mutating func extRows(_ type: PdbExtTableType, _ rows: [RowRef], table: String) {
             switch type {
             case .tags:
-                library.myTags = unique(each(rows, table: table, PdbRows.tag), table: table) { $0.id }
+                let parsed = each(rows, table: table, PdbRows.tag)
+                // 먼 모양 태그 행은 칸 자리를 확인하지 못했다. 모델에는 넣되 편집·다시 쓰기가 막히게 문제로 남긴다
+                for (row, _) in parsed where row.reader.farShape {
+                    issues.append(PdbIssue(kind: .unconfirmedRowShape, table: table, page: row.page, slot: row.slot))
+                }
+                library.myTags = unique(parsed, table: table) { $0.id }
             case .tagTracks:
                 library.myTagLinks = each(rows, table: table) { try PdbRows.tagTrack($0) }.map(\.1)
             case .myTagProperty:
@@ -358,6 +378,15 @@ public enum PdbReader {
             return [(playlistScan, playlistRows.count), (entryScan, entryRows.count)].compactMap { scan, count in
                 guard let scan, count > 0 else { return nil }
                 return unknownRows(file, scan, count)
+            }
+        }
+
+        /// 산 목록 항목이 산 목록을 가리키지 않으면 모델에 담을 곳이 없어 빠진다. 다시 쓸 때 조용히 지워지지 않게 문제로 남긴다
+        /// (rekordbox는 목록을 지울 때 그 항목도 함께 죽인다)
+        mutating func reportOrphanEntries() {
+            let ids = Set(nodes.map(\.id))
+            for entry in entries where !ids.contains(entry.playlistID) {
+                issues.append(PdbIssue(kind: .orphanEntry, table: PdbTableType.playlistEntries.name, page: entry.ref.page, slot: entry.ref.slot))
             }
         }
 
