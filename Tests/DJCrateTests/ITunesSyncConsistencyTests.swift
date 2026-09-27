@@ -76,7 +76,7 @@ struct ITunesSyncConsistencyTests {
         let store = store(fixture)
         await store.load(snapshot: database)
         let gate = ITunesSyncCaptureGate()
-        let first = Task.detached {
+        let first = iTunesBlockingTask {
             try LoadedLibrary.load(snapshot: database, refreshITunes: true, captureITunes: {
                 gate.pause()
                 return source
@@ -163,7 +163,7 @@ struct ITunesSyncConsistencyTests {
         let before = try LibrarySnapshot.take(from: rootDB, into: directory, force: true,
                                               now: Date(timeIntervalSince1970: 1_800_000_000))
         let gate = ITunesSyncCaptureGate()
-        let pending = Task.detached {
+        let pending = iTunesBlockingTask {
             try LoadedLibrary.load(snapshot: before, refreshITunes: true, sourceDatabase: rootDB, captureITunes: {
                 gate.pause()
                 return source
@@ -391,7 +391,7 @@ struct ITunesSyncConsistencyTests {
         let secondURL = directory.appending(path: "master-2026-01-01T000002.db")
         for url in [firstURL, secondURL] { try FileManager.default.copyItem(at: fixture.database, to: url) }
         let firstGate = ITunesSyncCaptureGate(), secondGate = ITunesSyncCaptureGate()
-        let first = Task.detached {
+        let first = iTunesBlockingTask {
             try LoadedLibrary.load(snapshot: firstURL, refreshITunes: true, fallbackDirectory: directory,
                                    sourceDatabase: sourceDatabase, captureITunes: {
                                        firstGate.pause()
@@ -399,7 +399,7 @@ struct ITunesSyncConsistencyTests {
                                    })
         }
         let good = try await firstGate.finish(first) {
-            let second = Task.detached {
+            let second = iTunesBlockingTask {
                 try LoadedLibrary.load(snapshot: secondURL, refreshITunes: true, fallbackDirectory: directory,
                                        sourceDatabase: sourceDatabase, captureITunes: {
                                            secondGate.pause()
@@ -441,7 +441,7 @@ struct ITunesSyncCaptureGateTests {
 
     @Test func 쓰기_오류에도_읽기를_해제하고_회수한다() async {
         let gate = ITunesSyncCaptureGate(), finished = DispatchSemaphore(value: 0)
-        let pending = Task.detached {
+        let pending = iTunesBlockingTask {
             gate.pause()
             finished.signal()
         }
@@ -455,7 +455,7 @@ struct ITunesSyncCaptureGateTests {
     @Test func 취소는_쓰기_대기_중에도_읽기를_해제한다() async throws {
         let gate = ITunesSyncCaptureGate(), finished = DispatchSemaphore(value: 0)
         let writeStarted = DispatchSemaphore(value: 0), writeResume = DispatchSemaphore(value: 0)
-        let pending = Task.detached {
+        let pending = iTunesBlockingTask {
             gate.pause()
             finished.signal()
         }

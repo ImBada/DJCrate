@@ -477,7 +477,7 @@ final class LibraryStore {
         let quiet = quiet && hadRows && isLoaded
         if !quiet { phase = .loading(String(ui: "rekordbox DB 스냅샷을 뜨는 중…")) }
         do {
-            let url = try await Task.detached { try snapshotCopy(force) }.value
+            let url = try await Self.runBlockingLibraryWork { try snapshotCopy(force) }
             ITunesRefreshCoordinator.shared.invalidateSnapshots([url])
             await load(snapshot: url, quiet: quiet, refreshITunes: refreshITunes,
                        previousITunesSnapshot: latestITunesFallback(previousITunesSnapshot),
@@ -520,11 +520,11 @@ final class LibraryStore {
                 ? LibrarySnapshot.rekordboxDirectory(in: environment).appending(path: "master.db") : nil
             // 메인 액터에서 정한 요청 순서를 캡처가 끝날 때까지 유지한다.
             let refreshTicket = ITunesRefreshCoordinator.shared.begin(snapshot: snapshot, sourceDatabase: sourceDatabase)
-            let loaded = try await Task.detached(priority: .userInitiated) {
+            let loaded = try await Self.runBlockingLibraryWork {
                 try LoadedLibrary.load(snapshot: snapshot, commentPreset: preset, refreshITunes: refreshITunes,
                                        previousITunesSnapshot: previousITunesSnapshot, refreshTicket: refreshTicket,
                                        sourceDatabase: sourceDatabase, captureITunes: captureITunes)
-            }.value
+            }
             // 더 나중에 시작한 로드가 있으면 이 결과는 버린다.
             guard generation == loadGeneration else { return }
             undoManager?.removeAllActions(withTarget: self)
@@ -581,6 +581,17 @@ final class LibraryStore {
                 lastError = AppErrorMessage.message(for: error)
             } else {
                 phase = .failed(AppErrorMessage.message(for: error))
+            }
+        }
+    }
+
+    // 동기 읽기·복사의 대기가 cooperative pool을 점유하지 않게 한다.
+    private nonisolated static func runBlockingLibraryWork<Value: Sendable>(
+        _ operation: @escaping @Sendable () throws -> Value
+    ) async throws -> Value {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(with: Result(catching: operation))
             }
         }
     }

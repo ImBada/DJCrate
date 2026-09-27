@@ -53,9 +53,10 @@ struct ITunesRefreshRegressionTests {
         let database = fixture.database
         let old = ITunesLibrarySnapshot(playlists: [.init(id: "A", name: "이전 정상")])
         let gate = ITunesCaptureGate()
-        let first = Task.detached {
+        let previousURL = fixture.root.appending(path: "previous.db")
+        let first = iTunesBlockingTask {
             try LoadedLibrary.load(snapshot: database, refreshITunes: true,
-                                   previousITunesSnapshot: .init(source: fixture.root.appending(path: "previous.db"), contents: old),
+                                   previousITunesSnapshot: .init(source: previousURL, contents: old),
                                    captureITunes: {
                                        gate.started.signal()
                                        // 최신 읽기가 끝날 때까지 자동으로 캡처를 재개하지 않는다.
