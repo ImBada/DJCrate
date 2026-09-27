@@ -13,7 +13,7 @@ SOURCE = Path(__file__).with_name("check.sh")
 CASES = {
     "debug-fail": 23, "release-fail": 24, "translation-fail": 25,
     "test-fail": 26, "coverage-fail": 27, "pipe-fail": 28,
-    "low-coverage": 1, "empty-coverage": 1, "ok": 0, "split-output": 0,
+    "low-coverage": 1, "empty-coverage": 1, "ok": 0, "split-output": 0, "empty-output": 0, "partial-output": 0,
     "term": 143, "int": 130, "int-group": 130,
 }
 CANCELLATIONS = {"term", "int", "int-group"}
@@ -31,6 +31,14 @@ mode = os.environ["CASE"]
 root = pathlib.Path.cwd()
 with open("calls.txt", "a") as log:
     log.write(" ".join(args) + "\n")
+if args[0] == "build" and "-c" not in args:
+    if mode == "empty-output":
+        sys.exit(0)
+    if mode == "partial-output":
+        os.write(1, b"stdout\n")
+        os.write(2, b"stderr\n")
+        os.write(1, "개행 없는 마지막".encode())
+        sys.exit(0)
 print("합성 출력: " + " ".join(args), flush=True)
 if mode == "debug-fail" and args[0] == "build" and "-c" not in args:
     flag = root / "failed-once"
@@ -126,10 +134,16 @@ def check_case(case, expected):
                 errors.append("보존한 종료코드 불일치")
             if len((run / "timings.tsv").read_text().splitlines()) < 2:
                 errors.append("단계별 시간 파일 누락")
-            if case != "pipe-fail" and "합성 출력" not in (run / "debug-build.log").read_text():
+            if case not in {"pipe-fail", "empty-output", "partial-output"} and "합성 출력" not in (run / "debug-build.log").read_text():
                 errors.append("원래 명령 출력 누락")
             if case in CANCELLATIONS and "취소 전 출력" not in (run / "debug-build.log").read_text():
                 errors.append("취소 전 로그 유실")
+            if case == "empty-output" and (run / "debug-build.log").read_bytes() != b"":
+                errors.append("빈 원문 출력이 바뀜")
+            if case == "partial-output":
+                original = "stdout\nstderr\n개행 없는 마지막"
+                if (run / "debug-build.log").read_text() != original or original not in content:
+                    errors.append("stdout/stderr 순서나 개행 없는 마지막 출력 유실")
         if case == "split-output" and ("☃" not in content or "▸ 진행:" not in content):
             errors.append("나뉜 UTF-8 출력이나 진행 알림 유실")
         calls = (root / "calls.txt").read_text().splitlines()
