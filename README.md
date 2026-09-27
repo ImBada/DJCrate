@@ -58,6 +58,8 @@ scripts/build-app.sh --install        # 빌드해서 /Applications/DJCrate.app�
 swift build -c release --product djc  # 명령줄 도구: .build/release/djc
 ```
 
+앱 아이콘은 Xcode 27의 `actool`로 `Assets/AppIcon.icon`을 컴파일한다. 전경 SVG를 바꿀 때는 `swift scripts/make-icon.swift`로 다시 만들고, Icon Composer에서 배경·레이어 순서와 기본·다크·모노 외관을 확인한다. 모서리·반사 효과는 시스템이 입히므로 원본에 그리지 않는다.
+
 ## 쓰는 법
 
 1. DJCrate를 열고 툴바의 ⟳(새 스냅샷)로 라이브러리 사본을 뜬다. rekordbox가 켜져 있어도 읽기용 사본은 뜬다.
