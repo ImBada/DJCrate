@@ -21,6 +21,7 @@ extension RekordboxWriter {
             let written = report.map { $0.written + $0.analysisWritten + $0.tagWritten + $0.mergeWritten } ?? []
             return written.filter { seen.insert($0.trackUUID).inserted }.map(\.title) + (report?.playlistWritten.map(\.name) ?? [])
                 + (trackReport?.titles ?? [])
+                + (report?.iTunesSyncWritten == true ? [String(ui: "iTunes 동기화 목록")] : [])
         }
         /// 쓴 직후 rekordbox 변경 카운터(옛 백업에는 없다)
         public var finalUpdateCount: Int? { report?.finalUpdateCount ?? trackReport?.finalUpdateCount }
@@ -114,6 +115,7 @@ extension RekordboxWriter {
                 throw DJCError.writeRefused(String(ui: "rekordbox가 켜져 있습니다. rekordbox를 완전히 종료한 뒤 되돌리세요"))
             }
         }
+        if let saved = try restoreITunesSync(backup, to: database, now: now, backups: backups, guard: writeGuard) { return saved }
         // 백업이 멀쩡한지 먼저 본다.
         for name in ["master.db", "master.db-wal", "master.db-shm", "masterPlaylists6.xml"] {
             try validateBackupFile(backup.appending(path: name), under: backup, required: name == "master.db")

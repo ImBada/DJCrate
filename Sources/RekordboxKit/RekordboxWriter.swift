@@ -58,6 +58,7 @@ public enum RekordboxWriter {
         public var tagOutcomes: [Outcome]?
         /// 중복 묶음 합치기 결과(removed = 컬렉션에서 뺀 곡 수).
         public var mergeOutcomes: [Outcome]?
+        public var iTunesSyncWritten: Bool?
         public var mergeWritten: [Outcome] { (mergeOutcomes ?? []).filter { $0.status == .written } }
         public var mergeBlocked: [Outcome] { (mergeOutcomes ?? []).filter { $0.status == .blocked } }
 
@@ -99,11 +100,16 @@ public enum RekordboxWriter {
     ///   - playlistDraft: 앱의 재생 목록 초안. `playlists` 대신 준다. 초안을 만든 뒤 rekordbox에서 바뀐 목록(base와 다름)의 편집은 쓰지 않는다.
     public static func write(drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:], tags: [TagDraft] = [],
                              analysisInputs: [String: AnalysisInput] = [:], playlists: [PlaylistEdit] = [],
-                             playlistDraft: PlaylistDraft? = nil, merges: [DuplicateMergeDraft] = [],
+                             playlistDraft: PlaylistDraft? = nil, merges: [DuplicateMergeDraft] = [], iTunesSync: RekordboxITunesSyncChange? = nil,
                              to database: URL = liveDatabase, dryRun: Bool,
                              now: Date = .now, backups: URL, shareRoot: URL? = nil,
                              guard writeGuard: RekordboxWriteGuard = .system) throws -> Report {
-        try write(drafts: drafts, grids: grids, gains: gains, tags: tags, analysisInputs: analysisInputs, playlists: playlists,
+        if let iTunesSync {
+            guard drafts.isEmpty, grids.isEmpty, gains.isEmpty, tags.isEmpty, analysisInputs.isEmpty,
+                  playlists.isEmpty, playlistDraft == nil, merges.isEmpty else { throw RekordboxITunesSyncChange.invalidSource }
+            return try writeITunesSync(iTunesSync, to: database, dryRun: dryRun, now: now, backups: backups, guard: writeGuard)
+        }
+        return try write(drafts: drafts, grids: grids, gains: gains, tags: tags, analysisInputs: analysisInputs, playlists: playlists,
                   playlistDraft: playlistDraft, merges: merges, to: database,
                   dryRun: dryRun, now: now, backups: backups, shareRoot: shareRoot, guard: writeGuard, attachesAnalysis: attachesAnalysis,
                   writesArtwork: RekordboxTrackWriter.writesArtwork)

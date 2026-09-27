@@ -53,29 +53,44 @@ struct ITunesRefreshRegressionTests {
         let database = fixture.database
         let old = ITunesLibrarySnapshot(playlists: [.init(id: "A", name: "이전 정상")])
         let gate = ITunesCaptureGate()
-        let first = Task.detached {
+        let previousURL = fixture.root.appending(path: "previous.db")
+        let first = iTunesBlockingTask {
             try LoadedLibrary.load(snapshot: database, refreshITunes: true,
-                                   previousITunesSnapshot: .init(source: fixture.root.appending(path: "previous.db"), contents: old),
+                                   previousITunesSnapshot: .init(source: previousURL, contents: old),
                                    captureITunes: {
                                        gate.started.signal()
-                                       _ = gate.resume.wait(timeout: .now() + 10)
+                                       // 최신 읽기가 끝날 때까지 자동으로 캡처를 재개하지 않는다.
+                                       gate.resume.wait()
                                        return firstFails ? ITunesLibrarySnapshot(status: .unavailable) : old
                                    })
         }
-        let started = await withCheckedContinuation { continuation in
-            DispatchQueue.global().async {
-                continuation.resume(returning: gate.started.wait(timeout: .now() + 10) == .success)
+        try await withTaskCancellationHandler {
+            do {
+                let started = await withCheckedContinuation { continuation in
+                    DispatchQueue.global().async {
+                        continuation.resume(returning: gate.started.wait(timeout: .now() + 10) == .success)
+                    }
+                }
+                try #require(started)
+                try Task.checkCancellation()
+                let newer = ITunesLibrarySnapshot(playlists: [.init(id: "B", name: "새 정상")])
+                let second = try LoadedLibrary.load(snapshot: database, refreshITunes: true, captureITunes: { newer })
+                try Task.checkCancellation()
+                gate.resume.signal()
+                let late = try await first.value
+                try Task.checkCancellation()
+                #expect(second.iTunesLibrary.index["itunes:B"] != nil)
+                #expect(late.iTunesLibrary.index["itunes:B"] != nil)
+                #expect(ITunesLibrarySnapshot.load(for: database).playlists.map(\.id) == ["B"])
+            } catch {
+                // 시작 실패·읽기 오류·취소에서도 작업을 회수한 뒤 사본 수명을 끝낸다.
+                gate.resume.signal()
+                _ = try? await first.value
+                throw error
             }
+        } onCancel: {
+            gate.resume.signal()
         }
-        #expect(started)
-        guard started else { gate.resume.signal(); _ = try? await first.value; return }
-        let newer = ITunesLibrarySnapshot(playlists: [.init(id: "B", name: "새 정상")])
-        let second = try LoadedLibrary.load(snapshot: database, refreshITunes: true, captureITunes: { newer })
-        gate.resume.signal()
-        let late = try await first.value
-        #expect(second.iTunesLibrary.index["itunes:B"] != nil)
-        #expect(late.iTunesLibrary.index["itunes:B"] != nil)
-        #expect(ITunesLibrarySnapshot.load(for: database).playlists.map(\.id) == ["B"])
     }
 
     @Test func 작업_예약_순서가_실제_백그라운드_시작_순서와_달라도_최신_요청을_보존한다() throws {

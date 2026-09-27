@@ -17,9 +17,21 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 - rekordbox 폴더의 `playlists3.sync`는 `SYNC_ITUNES_PLAYLIST/PLAYLISTS/NODE` XML이다. `Lib_Type="1"` 노드에 iTunes 영구 ID(`Id`), 부모 ID(`ParentId`), 폴더 여부(`Attribute`: 1 폴더·0 목록), 동기화 선택(`CheckType="1"`)이 있다. 이름·곡 목록은 없다. ID는 앞의 0을 생략한 UInt64 16진수다.
 - `rekordbox6/rekordbox3.settings`의 `showAllItunesPlaylist="0"`과 rekordbox 화면의 동기화 목록만 표시하는 상태가 일치했다. `MusicAppLoadingType="1"`인 환경에서 동기화 ID를 Apple `ITLibrary` API와 대조해 목록과 곡 순서를 확인했다. 일반 DB에서 해당 목록 이름은 발견되지 않았다.
 - 공식 개발진은 Framework 방식이 Apple의 `ITLibrary`에서 Music 보관함 정보를 읽고, XML 방식과 선택할 수 있다고 설명한다([공식 답변](https://forums.pioneerdj.com/hc/en-us/community/posts/900001887506-What-does-Framework-in-iTunes-load-method-mean-and-imply-for-the-sync-manage), [Apple API](https://developer.apple.com/documentation/ituneslibrary/itlibrary)). 동기화 선택 정보가 존재한다는 것만으로 마지막 동기화 당시 이름·곡 순서까지 별도 DB에 보존된다고 가정하지 않는다.
-- DJCrate는 동기화 ID로 대상을 제한하고, rekordbox의 읽기 설정에 따라 현재 목록 본문을 읽는다(`RekordboxITunesReader`). Framework는 `ITLibrary`, XML은 설정의 `itunesLibraryFile`이다. 실제 화면에서 Framework가 선택된 상태와 설정값 1, 동기화 파일과 API의 목록 순서·화면에 표시된 목록의 기존 컬렉션 연결을 확인했다. XML 방식(값 0)은 합성 설정·XML로 검증했다.
-- 앱 시작·새 스냅샷·iTunes 목록 새로고침 때 읽고 `<DB 스냅샷>.itunes.json`에 사본을 보관한다. 읽기에 실패하면 마지막 정상 사본을 덮어쓰지 않고, 현재 화면과 새 DB 스냅샷에는 이전 목록을 오래된 자료로 표시한다. 직전 사본이 손상됐으면 같은 스냅샷 폴더에서 더 이른 정상 사본을 찾는다. 새 DB를 뜨기 전에 이전 목록을 메모리에 보관해 같은 초에 파일 이름을 재사용해도 복구할 수 있게 한다. 같은 DB의 갱신은 요청 순서로 채택하며 sidecar 확인·저장을 한 잠금 안에서 끝내고, 겹친 DB 스냅샷 생성은 순서대로 처리한다. 명시한 `--db`·`DJC_DB` 모드의 iTunes 새로고침 버튼은 현재 DB와 그 옆 사본만 다시 읽으며, 별도의 새 스냅샷 메뉴는 원래 동작을 따른다. 비어 있지 않은 `DJC_REKORDBOX_DIR` 사본도 그 폴더의 DB와 목록만 읽어 실제 Music 보관함과 섞지 않는다. 오래된 DB를 정리할 때 목록 사본도 지운다.
+- DJCrate는 동기화 ID로 표시할 대상을 고르고, 선택 창에서 바꿀 수 있도록 전체 목록 본문도 사본에 보관한다. 읽기는 rekordbox의 설정을 따른다(`RekordboxITunesReader`). Framework는 `ITLibrary`, XML은 설정의 `itunesLibraryFile`이다. 실제 화면에서 Framework가 선택된 상태와 설정값 1, 동기화 파일과 API의 목록 순서·화면에 표시된 목록의 기존 컬렉션 연결을 확인했다. XML 방식(값 0)은 합성 설정·XML로 검증했다.
+- 앱 시작·새 스냅샷·iTunes 목록 새로고침 때 읽고 `<DB 스냅샷>.itunes.json`에 사본을 보관한다. 읽기에 실패하면 마지막 정상 사본을 덮어쓰지 않고, 현재 화면과 새 DB 스냅샷에는 이전 목록을 오래된 자료로 표시한다. 직전 사본이 손상됐으면 같은 스냅샷 폴더에서 더 이른 정상 사본을 찾는다. 새 DB를 뜨기 전에 이전 목록을 메모리에 보관해 같은 초에 파일 이름을 재사용해도 복구할 수 있게 한다. 같은 DB의 갱신은 요청 순서로 채택하며 sidecar 확인·저장을 한 잠금 안에서 끝내고, 겹친 DB 스냅샷 생성은 순서대로 처리한다. 명시한 `--db`·`DJC_DB` 모드의 iTunes 새로고침 버튼은 현재 DB와 그 옆 목록 사본·동기화 파일만 다시 읽으며, 별도의 새 스냅샷 메뉴는 원래 동작을 따른다. 비어 있지 않은 `DJC_REKORDBOX_DIR` 사본도 그 폴더의 DB와 목록만 읽어 실제 Music 보관함과 섞지 않는다. 오래된 DB를 정리할 때 목록 사본도 지운다.
 - `SyncedITunesLibrary`는 정규화한 파일 경로가 유일하게 일치하는 기존 컬렉션 곡만 연결한다(삭제 행 제외). 없는 곡·모호한 경로는 개수를 알리고, 같은 곡의 반복과 원래 순번을 유지한다. 행 ID는 목록 ID·기존 곡 ID·곡별 등장 순번으로 만들고 편집은 기존 곡 ID로 연결한다. 별도 사이드바 항목·`itunes:` ID를 써서 재생 목록 초안에 섞지 않는다. 목록 구성·순서·삭제는 막고, 기존 곡의 큐·태그 초안과 반영 경로를 그대로 사용한다.
+
+### iTunes 동기화 선택 쓰기 (2026-09-27, rekordbox 7.2.14.0323)
+
+- 실제 설치 버전 `7.2.14.0323`에서 사용자가 선택된 플레이리스트 하나를 해제하고 SYNC 후 종료한 전후 사본을 비교했다. `playlists3.sync`의 해당 NODE는 없어졌고, 상위 폴더는 `CheckType` 1→2가 됐다. 남은 iTunes 노드의 `Timestamp`는 동기화 시점의 Unix 밀리초로 갱신됐고 루트(ID 0)는 시각 0을 유지했다.
+- 루트·PRODUCT 메타데이터, 남은 노드의 순서, `masterPlaylists6.xml`, iTunes 읽기·표시 설정은 같았다. 인증 표를 제외한 DB의 표·행·칸에도 변화가 없었다. Music API의 폴더별 선행 순회가 파일의 노드 순서와 같았다.
+- `ITunesSyncExperimentRepro`는 전후 파일의 모든 NODE 속성과 순서를 사본에서 재현한다. 실행 시각은 전후 대조용으로 주입하고, 실제 `RekordboxWriter.write` 경로도 사본에서 실행해 시각 외 모든 칸·순서 일치와 DB 바이트 불변을 확인한다. 실제 파일은 저장소에 넣지 않는다.
+- 같은 목록을 다시 체크해 SYNC한 결과, 목록 NODE는 제자리로 돌아왔지만 부모의 `CheckType`은 **2를 유지**했다. 하위를 모두 고른 상태와 폴더 자체를 고른 상태는 다르다. DJCrate도 부모를 직접 고를 때만 1로 쓰고, 하위 선택만 있으면 2로 쓴다. ID 0은 `All Playlist`의 명시적인 선택으로 별도 보존한다.
+- 추가·해제 두 방향 모두 모든 속성·순서 재현을 통과해 `RekordboxWriter.write(iTunesSync:)`를 열었다. 실행·버전·DB 구조·카운터 검사 → 전체 DB와 동기화 파일 백업 → 선택 원문(base) 재확인 → 동기화 파일 원자적 교체 → 다시 읽기·무결성 검사 순서다. DB와 Music 보관함에는 쓰지 않는다. 실패 시 동기화 파일을 복원하고, 이후 외부에서 선택을 바꾸면 되돌리기도 덮어쓰지 않는다.
+- DJCrate 전용 선택 파일은 더 이상 읽지 않는다. 선택은 `playlists3.sync`를 기준으로 하며, DB가 그대로인 동기화 변경도 창으로 돌아올 때 감지한다. 명시한 DB 사본에서는 그 옆 동기화 파일만 쓴다.
+- 읽기 요청 순서는 스냅샷 URL별로, 동기화 쓰기 세대는 출처 DB별로 관리한다. 쓰기가 완료되면 같은 출처의 오래된 캡처와 화면 로드를 무효화한다. 서로 다른 URL의 정상 캡처는 각각 보존해 뒤의 갱신 실패 때 복구 자료로 쓸 수 있게 한다.
+- `DJC_REKORDBOX_DIR`만 지정한 모드는 사본 루트의 현재 동기화 파일을 적용한다. 새 스냅샷을 뜰 때 같은 출처의 현재 목록도 메모리에 보관해 같은 초 파일명 재사용, 없는 루트 캐시, 오래된 루트 캐시 때문에 선택·전체 목록이 돌아가지 않게 한다. 명시한 `--db`·`DJC_DB`는 기본 스냅샷 폴더 안에 있어도 자동으로 다른 DB를 열지 않는다.
+- 선택 창은 `ITunesSyncOutline`으로 이름·계층만 구성한다. 곡 경로 정규화와 컬렉션 곡 연결은 실제 라이브러리 목록을 읽을 때만 수행하며, 선택 창의 화면 계산에서는 트리·미리보기를 한 번씩 만든다.
 
 ## 쓰기 전 확인 (`RekordboxCompatibility`)
 

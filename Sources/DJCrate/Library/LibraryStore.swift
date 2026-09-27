@@ -120,6 +120,9 @@ final class LibraryStore {
     /// 사이드바 재생 목록 트리(rekordbox 상태에 재생 목록 초안을 얹은 모양, LibraryStore+Playlists)
     var playlistTree: [PlaylistOutlineNode] = []
     var iTunesLibrary = SyncedITunesLibrary()
+    var iTunesSnapshot = ITunesLibrarySnapshot(status: .notCaptured)
+    var showingITunesSync = false
+    var iTunesSync = ITunesSyncModel()
     var isITunesSelection: Bool { if case .itunesPlaylist = sidebar { true } else { false } }
     /// 새 항목의 부모만 펼치고 다른 폴더의 펼침 상태는 유지한다.
     var expandedPlaylistIDs: Set<String> = []
@@ -238,8 +241,10 @@ final class LibraryStore {
     private var sortedBase: [TrackRow] = []
     private var suppressRefresh = false
     private var loadGeneration = 0
+    func invalidatePendingLoads() { loadGeneration += 1 }
     @ObservationIgnored private let snapshotRequests = SnapshotRequestQueue()
     private(set) var lastError: String?
+    func reportLibraryError(_ message: String) { lastError = message }
 
     /// 불러오기 명령(⌘→·메뉴)이 덱에 올릴 곡: 선택 중 표 순서로 첫 곡.
     var primaryRow: TrackRow? {
@@ -417,40 +422,66 @@ final class LibraryStore {
 
     /// 창으로 돌아올 때: 지금 읽은 스냅샷 뒤에 rekordbox가 라이브러리를 바꿨으면 뒤에서 조용히 새로 읽는다.
     /// rekordbox가 켜져 있어도 읽기용 사본(WAL까지 사본 안에서 합침)으로 뜬다. 원본은 읽기만 한다.
-    func refreshIfRekordboxChanged() async {
+    func refreshIfRekordboxChanged(arguments: [String] = ProcessInfo.processInfo.arguments,
+                                  environment: [String: String] = ProcessInfo.processInfo.environment) async {
         guard case .loaded = phase, !isLoading, !isWritingRekordbox, let snapshotURL,
-              snapshotURL.deletingLastPathComponent().standardizedFileURL.path == LibrarySnapshot.defaultDirectory.standardizedFileURL.path,
-              LibrarySnapshot.changed(since: snapshotURL) else { return }
+              !Self.explicitDatabaseRequested(arguments: arguments, environment: environment),
+              LibrarySnapshot.sameDirectory(snapshotURL.deletingLastPathComponent(),
+                                            LibrarySnapshot.defaultDirectory(in: environment)) else { return }
+        if !LibrarySnapshot.changed(since: snapshotURL,
+                                    source: LibrarySnapshot.rekordboxDirectory(in: environment).appending(path: "master.db")) {
+            if !LibrarySnapshot.hasRekordboxDirectoryOverride(in: environment),
+               RekordboxITunesReader.selectionChanged(since: iTunesSnapshot.syncData) {
+                await load(snapshot: snapshotURL, quiet: true, refreshITunes: true)
+            }
+            return
+        }
         FileHandle.standardError.write(Data("rekordbox 라이브러리가 바뀌어 다시 읽습니다\n".utf8))
         await takeSnapshot(force: true, quiet: true)
     }
 
     /// - Parameter quiet: 화면을 로딩으로 바꾸지 않고 뒤에서 다시 읽는다(rekordbox에 쓴 뒤 등).
-    func takeSnapshot(force: Bool = false, quiet: Bool = false) async {
+    func takeSnapshot(force: Bool = false, quiet: Bool = false,
+                      snapshotDirectory: URL = LibrarySnapshot.defaultDirectory,
+                      snapshotCopy: @escaping @Sendable (Bool) throws -> URL = { try LibrarySnapshot.take(force: $0) },
+                      captureITunes: @escaping @Sendable () -> ITunesLibrarySnapshot = { RekordboxITunesReader.capture() },
+                      arguments: [String] = ProcessInfo.processInfo.arguments,
+                      environment: [String: String] = ProcessInfo.processInfo.environment) async {
         guard !isLoading || snapshotRequests.isRunning else { return }
         await snapshotRequests.run(force: force, quiet: quiet) { [self] force, quiet in
-            await takeSnapshotOnce(force: force, quiet: quiet)
+            await takeSnapshotOnce(force: force, quiet: quiet, snapshotDirectory: snapshotDirectory,
+                                   snapshotCopy: snapshotCopy, captureITunes: captureITunes,
+                                   arguments: arguments, environment: environment)
         }
     }
 
-    private func takeSnapshotOnce(force: Bool, quiet: Bool) async {
+    private func takeSnapshotOnce(force: Bool, quiet: Bool, snapshotDirectory: URL,
+                                  snapshotCopy: @escaping @Sendable (Bool) throws -> URL,
+                                  captureITunes: @escaping @Sendable () -> ITunesLibrarySnapshot,
+                                  arguments: [String], environment: [String: String]) async {
+        invalidatePendingLoads()
         let hadRows = !rows.isEmpty
-        let refreshITunes = !LibrarySnapshot.hasRekordboxDirectoryOverride()
-        let explicitDatabase = Self.explicitDatabaseRequested(arguments: ProcessInfo.processInfo.arguments,
-                                                              environment: ProcessInfo.processInfo.environment)
+        let refreshITunes = !LibrarySnapshot.hasRekordboxDirectoryOverride(in: environment)
+        let explicitDatabase = Self.explicitDatabaseRequested(arguments: arguments, environment: environment)
         // 같은 초에 DB 파일 이름을 재사용해도 마지막 정상 iTunes 사본을 잃지 않게 먼저 읽는다.
-        let previousURL = !explicitDatabase && refreshITunes
-            && snapshotURL.map { LibrarySnapshot.sameDirectory($0.deletingLastPathComponent(), LibrarySnapshot.defaultDirectory) } == true
+        let previousURL = !explicitDatabase
+            && snapshotURL.map { LibrarySnapshot.sameDirectory($0.deletingLastPathComponent(), snapshotDirectory) } == true
             ? snapshotURL : nil
+        let sourceDatabase = LibrarySnapshot.sameDirectory(snapshotDirectory, LibrarySnapshot.defaultDirectory(in: environment))
+            ? LibrarySnapshot.rekordboxDirectory(in: environment).appending(path: "master.db") : nil
         let previousITunesSnapshot = previousURL.map {
-            LoadedLibrary.ITunesFallback(source: $0, contents: ITunesLibrarySnapshot.load(for: $0))
+            LoadedLibrary.ITunesFallback(source: $0, contents: ITunesLibrarySnapshot.load(for: $0),
+                sourceDatabase: sourceDatabase)
         }
         var isLoaded: Bool { if case .loaded = phase { true } else { false } }
         let quiet = quiet && hadRows && isLoaded
         if !quiet { phase = .loading(String(ui: "rekordbox DB 스냅샷을 뜨는 중…")) }
         do {
-            let url = try await Task.detached { try LibrarySnapshot.take(force: force) }.value
-            await load(snapshot: url, quiet: quiet, refreshITunes: refreshITunes, previousITunesSnapshot: previousITunesSnapshot)
+            let url = try await Self.runBlockingLibraryWork { try snapshotCopy(force) }
+            ITunesRefreshCoordinator.shared.invalidateSnapshots([url])
+            await load(snapshot: url, quiet: quiet, refreshITunes: refreshITunes,
+                       previousITunesSnapshot: latestITunesFallback(previousITunesSnapshot),
+                       arguments: arguments, environment: environment, captureITunes: captureITunes)
         } catch {
             // 이미 라이브러리가 있으면 그대로 두고 오류만 알린다.
             let message = AppErrorMessage.message(for: error)
@@ -463,8 +494,20 @@ final class LibraryStore {
         }
     }
 
+    /// 사본을 뜨는 동안 동기화 선택을 저장했다면, 뜨기 전에 붙든 이전 선택보다 현재 화면을 우선한다.
+    func latestITunesFallback(_ previous: LoadedLibrary.ITunesFallback?) -> LoadedLibrary.ITunesFallback? {
+        guard let previous, snapshotURL == previous.source,
+              iTunesSnapshot.status == .ready || iTunesSnapshot.status == .stale else { return previous }
+        return .init(source: previous.source, contents: iTunesSnapshot,
+                     preferOverCurrent: previous.contents.syncData != iTunesSnapshot.syncData,
+                     sourceDatabase: previous.sourceDatabase)
+    }
+
     func load(snapshot: URL, quiet: Bool = false, refreshITunes: Bool = false,
-              previousITunesSnapshot: LoadedLibrary.ITunesFallback? = nil) async {
+              previousITunesSnapshot: LoadedLibrary.ITunesFallback? = nil,
+              arguments: [String] = ProcessInfo.processInfo.arguments,
+              environment: [String: String] = ProcessInfo.processInfo.environment,
+              captureITunes: @escaping @Sendable () -> ITunesLibrarySnapshot = { RekordboxITunesReader.capture() }) async {
         previewWarmTask?.cancel()
         loadGeneration += 1
         let generation = loadGeneration
@@ -472,12 +515,16 @@ final class LibraryStore {
         if !quiet { phase = .loading(String(ui: "라이브러리를 읽는 중…")) }
         do {
             let preset = commentPreset
+            let sourceDatabase: URL? = !Self.explicitDatabaseRequested(arguments: arguments, environment: environment)
+                && LibrarySnapshot.sameDirectory(snapshot.deletingLastPathComponent(), LibrarySnapshot.defaultDirectory(in: environment))
+                ? LibrarySnapshot.rekordboxDirectory(in: environment).appending(path: "master.db") : nil
             // 메인 액터에서 정한 요청 순서를 캡처가 끝날 때까지 유지한다.
-            let refreshTicket = refreshITunes ? ITunesRefreshCoordinator.shared.begin(snapshot: snapshot) : nil
-            let loaded = try await Task.detached(priority: .userInitiated) {
+            let refreshTicket = ITunesRefreshCoordinator.shared.begin(snapshot: snapshot, sourceDatabase: sourceDatabase)
+            let loaded = try await Self.runBlockingLibraryWork {
                 try LoadedLibrary.load(snapshot: snapshot, commentPreset: preset, refreshITunes: refreshITunes,
-                                       previousITunesSnapshot: previousITunesSnapshot, refreshTicket: refreshTicket)
-            }.value
+                                       previousITunesSnapshot: previousITunesSnapshot, refreshTicket: refreshTicket,
+                                       sourceDatabase: sourceDatabase, captureITunes: captureITunes)
+            }
             // 더 나중에 시작한 로드가 있으면 이 결과는 버린다.
             guard generation == loadGeneration else { return }
             undoManager?.removeAllActions(withTarget: self)
@@ -498,6 +545,7 @@ final class LibraryStore {
             rekordboxPlaylists = loaded.playlists
             playlistDraft = loaded.playlistDraft
             iTunesLibrary = loaded.iTunesLibrary
+            iTunesSnapshot = loaded.iTunesSnapshot
             if case let .itunesPlaylist(id) = sidebar, iTunesLibrary.index[id] == nil { sidebar = .filter(.all) }
             mergeDrafts = DuplicateMergeDraftStore.load()
             refreshPlaylists(refreshList: false)
@@ -533,6 +581,17 @@ final class LibraryStore {
                 lastError = AppErrorMessage.message(for: error)
             } else {
                 phase = .failed(AppErrorMessage.message(for: error))
+            }
+        }
+    }
+
+    // 동기 읽기·복사의 대기가 cooperative pool을 점유하지 않게 한다.
+    private nonisolated static func runBlockingLibraryWork<Value: Sendable>(
+        _ operation: @escaping @Sendable () throws -> Value
+    ) async throws -> Value {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(with: Result(catching: operation))
             }
         }
     }

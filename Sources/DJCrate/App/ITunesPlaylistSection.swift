@@ -9,6 +9,7 @@ struct ITunesPlaylistSection: View {
     @State private var isExpanded = true
 
     var body: some View {
+        @Bindable var store = store
         Section(isExpanded: $isExpanded) {
             if let message = store.iTunesLibrary.status.message {
                 Text(message).font(.caption).foregroundStyle(.secondary)
@@ -16,7 +17,7 @@ struct ITunesPlaylistSection: View {
                 Text(.ui("동기화한 iTunes 목록이 없습니다")).foregroundStyle(.secondary)
             }
             if store.iTunesLibrary.unavailablePlaylistCount > 0 {
-                Text(.ui("원본에서 찾지 못한 목록 \(store.iTunesLibrary.unavailablePlaylistCount)개 · rekordbox에서 동기화를 확인하세요"))
+                Text(.ui("원본에서 찾지 못한 목록 \(store.iTunesLibrary.unavailablePlaylistCount)개 · 동기화 선택을 확인하세요"))
                     .font(.caption).foregroundStyle(.secondary)
             }
             OutlineGroup(store.iTunesLibrary.tree, children: \.children) { node in
@@ -31,6 +32,15 @@ struct ITunesPlaylistSection: View {
                 Text(.ui("iTunes 동기화 목록"))
                 Spacer(minLength: 0)
                 Button {
+                    store.presentITunesSync()
+                } label: {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                }
+                .buttonStyle(.plain)
+                .disabled(store.isLoading || store.isWritingRekordbox || store.snapshotURL == nil)
+                .help(.ui("iTunes 동기화…"))
+                .accessibilityLabel(.ui("iTunes 동기화…"))
+                Button {
                     Task { await store.refreshITunesPlaylists() }
                 } label: {
                     Image(systemName: "arrow.clockwise")
@@ -41,5 +51,6 @@ struct ITunesPlaylistSection: View {
                 .accessibilityLabel(.ui("iTunes 동기화 목록 새로고침"))
             }
         }
+        .sheet(isPresented: $store.showingITunesSync) { ITunesSyncView(store: store) }
     }
 }
