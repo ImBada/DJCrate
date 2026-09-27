@@ -1,7 +1,8 @@
 import Foundation
 
 /// USB OneLibrary(`PIONEER/rekordbox/exportLibrary.db`)의 표 구성.
-/// rekordbox 7.2.18 골든 관찰(2026-09-26 내보내기). 철자(`isComplation`, `OutFileOffsetInBlock`)도 그대로 둔다.
+/// 철자(`isComplation`, `OutFileOffsetInBlock`)도 그대로 둔다.
+/// rekordbox 7.2.18 골든 관찰(2026-09-26 내보내기)
 public enum OneLibrarySchema {
     public struct Column: Sendable, Hashable {
         public let name: String
