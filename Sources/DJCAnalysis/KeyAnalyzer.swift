@@ -7,7 +7,7 @@ import Foundation
 /// 1. 크로마: 16384점 FFT(홉 8192) 크기를 60Hz~2.2kHz에서 12음으로 접는다(반음 중심에서 멀수록 작게).
 /// 2. 마디(그리드가 없으면 2초)마다 크로마를 모아, 12개 조표(장조 으뜸음 기준, 나란한조 포함)와 상관을 본다.
 /// 3. 바꾸는 데 벌점을 준 비터비로 흐름을 고르고, 짧은 구간(기본 8마디 미만)은 옆 구간에 합친다.
-/// 장·단(A/B)은 가리지 않고 조표만 본다. 표시할 때 장·단은 rekordbox 키를 따른다.
+/// 흐름은 장·단(A/B)을 가리지 않고 조표만 본다. 표시할 때 장·단은 rekordbox 키를 따르고, 키가 없으면 `isMinor`로 정한다.
 public enum KeyAnalyzer {
     public struct Chroma: Sendable {
         /// 프레임 간격(초)
@@ -125,19 +125,29 @@ public enum KeyAnalyzer {
         }
     }
 
+    /// 크로마와 음 분포 틀(으뜸음을 `rotate`로 돌림)의 상관
+    static func correlation(_ chroma: [Double], _ profile: [Double], rotate: Int) -> Double {
+        let p = (0..<12).map { profile[(($0 - rotate) % 12 + 12) % 12] }
+        let mx = chroma.reduce(0, +) / 12, mp = p.reduce(0, +) / 12
+        var num = 0.0, dx = 0.0, dp = 0.0
+        for i in 0..<12 {
+            num += (chroma[i] - mx) * (p[i] - mp); dx += (chroma[i] - mx) * (chroma[i] - mx); dp += (p[i] - mp) * (p[i] - mp)
+        }
+        return dx > 0 && dp > 0 ? num / sqrt(dx * dp) : 0
+    }
+
     /// 조표마다 창 크로마와의 상관(장조 틀과 나란한 단조 틀 중 큰 쪽)
     static func scores(_ chroma: [Double], profiles: Profiles = profiles) -> [Double] {
         guard chroma.contains(where: { $0 > 0 }) else { return [Double](repeating: 0, count: 12) }
-        func correlation(_ profile: [Double], rotate: Int) -> Double {
-            let p = (0..<12).map { profile[(($0 - rotate) % 12 + 12) % 12] }
-            let mx = chroma.reduce(0, +) / 12, mp = p.reduce(0, +) / 12
-            var num = 0.0, dx = 0.0, dp = 0.0
-            for i in 0..<12 {
-                num += (chroma[i] - mx) * (p[i] - mp); dx += (chroma[i] - mx) * (chroma[i] - mx); dp += (p[i] - mp) * (p[i] - mp)
-            }
-            return dx > 0 && dp > 0 ? num / sqrt(dx * dp) : 0
+        return (0..<12).map { s in
+            max(correlation(chroma, profiles.major, rotate: s), correlation(chroma, profiles.minor, rotate: (s + 9) % 12))
         }
-        return (0..<12).map { s in max(correlation(profiles.major, rotate: s), correlation(profiles.minor, rotate: (s + 9) % 12)) }
+    }
+
+    /// `start`~`end`초 크로마 합
+    static func total(_ chroma: Chroma, from start: Double, to end: Double, into sum: inout [Double]) {
+        let a = max(0, Int((start / chroma.hop).rounded(.down))), b = min(chroma.frames.count, Int((end / chroma.hop).rounded(.up)))
+        if a < b { for f in a..<b { for i in 0..<12 { sum[i] += Double(chroma.frames[f][i]) } } }
     }
 
     /// 조표 흐름. `windows`는 (시작, 끝) 초. 벌점이 클수록 덜 바꾼다.
@@ -147,8 +157,7 @@ public enum KeyAnalyzer {
         // 창마다 크로마 합
         let emissions: [[Double]] = windows.map { w in
             var sum = [Double](repeating: 0, count: 12)
-            let a = max(0, Int((w.0 / chroma.hop).rounded(.down))), b = min(chroma.frames.count, Int((w.1 / chroma.hop).rounded(.up)))
-            if a < b { for f in a..<b { for i in 0..<12 { sum[i] += Double(chroma.frames[f][i]) } } }
+            total(chroma, from: w.0, to: w.1, into: &sum)
             return scores(sum, profiles: profiles)
         }
         // 비터비
@@ -201,6 +210,33 @@ public enum KeyAnalyzer {
         return (segments, totals.indices.max { totals[$0] < totals[$1] })
     }
 
+    /// 조표 `signature` 구간들의 크로마가 장조(으뜸음 = 조표)보다 나란한 단조(으뜸음 = 조표 + 9)에 더 맞는지.
+    /// 조표 흐름은 장·단을 가리지 않으므로, rekordbox 키가 없을 때 장·단을 이것으로 정한다.
+    public static func isMinor(chroma: Chroma, signature: Int, segments: [Segment], profiles: Profiles = profiles) -> Bool {
+        var sum = [Double](repeating: 0, count: 12)
+        for segment in segments where segment.signature == signature {
+            total(chroma, from: segment.start, to: segment.end, into: &sum)
+        }
+        return correlation(sum, profiles.minor, rotate: (signature + 9) % 12) > correlation(sum, profiles.major, rotate: signature)
+    }
+
+    /// 곡 전체의 주 조성
+    public struct MainKey: Sendable, Hashable {
+        public var signature: Int
+        public var minor: Bool
+        public var camelot: String { KeyNotation.camelot(signature: signature, minor: minor) }
+    }
+
+    /// 곡 전체의 주 조성: 조표 흐름에서 가장 긴 조표를 고르고, 그 구간의 크로마로 장·단을 가른다(덱과 같은 벌점·최소 길이).
+    /// 소리가 없으면 nil.
+    public static func mainKey(chroma: Chroma, windows: [(Double, Double)], switchPenalty: Double = 5, minWindows: Int = 16,
+                               profiles: Profiles = profiles) -> MainKey? {
+        guard chroma.frames.contains(where: { $0.contains { $0 > 0 } }) else { return nil }
+        let result = segments(chroma: chroma, windows: windows, switchPenalty: switchPenalty, minWindows: minWindows, profiles: profiles)
+        guard let main = result.main else { return nil }
+        return MainKey(signature: main, minor: isMinor(chroma: chroma, signature: main, segments: result.segments, profiles: profiles))
+    }
+
     /// 마디(다운비트 사이) 창. 그리드가 없으면 2초 창.
     public static func windows(grid: BeatGrid?, duration: Double) -> [(Double, Double)] {
         if let grid, grid.downbeats.count > 4 {
@@ -236,5 +272,34 @@ public enum KeyAnalyzer {
         guard let letter = text.last, letter == "A" || letter == "B", let number = Int(text.dropLast()), (1...12).contains(number) else { return nil }
         guard let signature = (0..<12).first(where: { camelotNumber(signature: $0) == number }) else { return nil }
         return (signature, letter == "A")
+    }
+}
+
+import AVFoundation
+
+public extension KeyAnalyzer {
+    /// 파일 전체를 읽어 크로마를 만든다(음원은 읽기만 한다). 채널을 더해 넘기므로 덱(`DecodedAudio.chroma`)과 같은 값이다.
+    static func chroma(fileAt url: URL) throws -> Chroma {
+        let file = try AVAudioFile(forReading: url)
+        let format = file.processingFormat
+        let chunk: AVAudioFrameCount = 1 << 16
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: chunk) else { return Chroma(hop: 0.2, frames: []) }
+        var mono: [Float] = []
+        mono.reserveCapacity(Int(file.length))
+        let channels = Int(format.channelCount)
+        while file.framePosition < file.length {
+            try Task.checkCancellation()
+            try file.read(into: buffer, frameCount: chunk)
+            let n = Int(buffer.frameLength)
+            guard n > 0, let data = buffer.floatChannelData else { break }
+            let start = mono.count
+            mono.append(contentsOf: UnsafeBufferPointer(start: data[0], count: n))
+            for c in 1..<max(channels, 1) {
+                mono.withUnsafeMutableBufferPointer { all in
+                    for i in 0..<n { all[start + i] += data[c][i] }
+                }
+            }
+        }
+        return mono.withUnsafeBufferPointer { chroma(channels: [$0], sampleRate: format.sampleRate) }
     }
 }

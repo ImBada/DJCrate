@@ -271,7 +271,13 @@ public enum RekordboxTrackWriter {
         guard let first = analysis.segments.first, first.bpm > 0 else { ready.blocked = String(ui: "그리드가 없습니다"); return ready }
         let waveforms = try RekordboxWaveforms.analyze(url: url)
         let waveformDuration = Double(waveforms.columns) / RekordboxWaveforms.columnsPerSecond
-        let beats = RekordboxGridWriter.beats(segments: analysis.segments, duration: waveformDuration)
+        let generated = RekordboxGridWriter.generate(segments: analysis.segments, duration: waveformDuration, preserving: [:])
+        let beats = generated.beats
+        guard !RekordboxGridWriter.hasEmptyVisibleSegment(segments: analysis.segments, counts: generated.counts,
+                                                    duration: waveformDuration) else {
+            ready.blocked = String(ui: "그리드 구간의 첫 박이 사라집니다. 변속 지점이나 BPM을 조정하세요")
+            return ready
+        }
         ready.beats = beats.count
         let files = try TrackAnalysisFiles.make(fileName: fileName, beats: beats, waveforms: waveforms, facts: facts)
         let folder = analysisFolder(uuid: uuid)

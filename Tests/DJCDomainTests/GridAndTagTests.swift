@@ -77,6 +77,19 @@ struct GridDraftTests {
         #expect(draft.segments.count == 1)
     }
 
+    @Test func 변속_경계에_가까운_이전_박은_새_구간의_첫_박으로_대체한다() {
+        // 2026-09-28 rekordbox 7.2.18, DJC 다구간 BPM 실험 B 중간 구간.
+        // 151 BPM으로 늘인 29.209초 박은 29.305초 경계 박과 중복해서 만들지 않는다.
+        let draft = GridDraft(trackUUID: "t", base: [], segments: [
+            .init(start: 0.494, bpm: 120, firstBeatNumber: 1),
+            .init(start: 16.494, bpm: 151, firstBeatNumber: 1),
+            .init(start: 29.305, bpm: 100, firstBeatNumber: 1),
+        ])
+        let beats = draft.grid(duration: 49).beats
+        #expect(beats.count == 97)
+        #expect(beats.filter { $0.time >= 28.8 && $0.time <= 29.4 }.map(\.time) == [28.812, 29.305])
+    }
+
     @Test func 템포가_같아도_위상이_튀면_구간을_나눈다() {
         var beats = constantGrid(count: 20).beats
         beats += (0..<20).map { i in .init(number: i % 4 + 1, bpm: 120, time: 10.3 + Double(i) * 0.5) }
@@ -213,6 +226,20 @@ struct GridCarryTests {
     @Test func 변속_지점을_더해도_박_위치가_같으면_그대로() {
         let new = old + [GridSegment(start: 20.5, bpm: 120, firstBeatNumber: 1)]
         #expect(abs(GridDraft.carry(30.5, from: old, to: new, duration: 60) - 30.5) < 1e-6)
+    }
+
+    @Test func 뒤쪽_변속_지점_추가에서_앞쪽_경계_박의_큐는_그대로다() {
+        let original = [
+            GridSegment(start: 0.5, bpm: 120, firstBeatNumber: 1),
+            GridSegment(start: 1.7, bpm: 300, firstBeatNumber: 1),
+            GridSegment(start: 11.7, bpm: 100, firstBeatNumber: 1),
+        ]
+        let added = original + [GridSegment(start: 25.7, bpm: 110, firstBeatNumber: 1)]
+        let draft = GridDraft(trackUUID: "t", base: original, segments: added)
+        #expect(draft.grid(duration: 49).beats.contains { $0.time == 1.5 })
+        #expect(abs(GridDraft.carry(1.5, from: original, to: added, duration: 49) - 1.5) < 0.001)
+        let removed = Array(original.prefix(2))
+        #expect(GridDraft(trackUUID: "t", base: original, segments: removed).grid(duration: 49).beats.contains { $0.time == 1.5 })
     }
 }
 
