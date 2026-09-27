@@ -42,13 +42,13 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 2. 가드로 볼륨 정보를 읽는다(읽기만). 볼륨 UUID가 없으면 `noVolumeUUID`(잠금 전이라 잠금 파일이 생기지 않는다).
 3. 잠금: `usb-sessions/<볼륨 UUID>.lock`에 `flock(LOCK_EX | LOCK_NB)`. 못 잡으면 `volumeBusy`. 쓰기·되돌리기·회복이 끝날 때까지 쥔다.
 4. rekordbox 실행(`rekordboxRunning`), 볼륨 정책(`UsbVolumePolicy`)과 보호 경로(`protectedPath`), 실물 관문(`UsbRuleCheck`)과 가드 값이 실물이면 `physicalDisabled`.
-5. 닫히지 않은 저널이 있으면 `recoveryNeeded`. 닫힌 상태는 `UsbJournal.closedStates` = verified·rolledBack·restored·recovered·dryRun·needsReplan 한 곳에 둔다. 드라이 런은 USB에 아무것도 쓰지 않으므로, needsReplan은 회복이 우리 임시 파일을 이미 지웠으므로 다음 쓰기를 막지 않는다.
+5. 닫히지 않은 저널이 있으면 `recoveryNeeded`. 닫힌 상태는 `UsbJournal.closedStates` = verified·rolledBack·restored·recovered·dryRun·needsReplan 한 곳에 둔다. 드라이 런은 USB에 아무것도 쓰지 않으므로, needsReplan은 회복이 우리 임시 파일을 이미 지웠으므로 다음 쓰기를 막지 않는다. 저널 파일을 읽지 못하면 쓰기·되돌리기·회복 모두 `journalUnreadable`로 막는다(회복도 거부하므로 회복하라고 안내하지 않는다). 앱은 `UsbWriter.journalStatus`로 없음·열림·닫힘·깨짐을 가른다.
 6. 우리 폴더(`PIONEER/rekordbox`, `PIONEER/USBANLZ`, `PIONEER/Artwork`, `Contents`)에 `.djc-part-*`가 있으면 `tempFilesPresent`(다른 Mac·다른 `DJC_HOME`의 쓰기 흔적). 이름만 본다.
-7. 수정: 지금 DB 지문(크기·mtime·SHA-256, 사이드카 포함)이 계획 때 base와 같아야 한다. 아니면 `usbChanged`. 내보내기: `PIONEER/` 바로 아래에 `.`으로 시작하지 않는 이름이 없어야 한다(`notEmpty`). 개수는 바로 아래 이름만 세고 열지 않는 경로로 내려가지 않는다.
-8. 형식 검사기(`UsbWriteInspector`)의 막힘.
+7. 수정: 지금 DB 지문(크기·SHA-256, 사이드카 포함 — mtime은 FAT 2초 단위·복원 때 바뀌어 비교하지 않는다)이 계획 때 base와 같아야 한다. 아니면 `usbChanged`. 내보내기: `PIONEER/` 바로 아래에 `.`으로 시작하지 않는 이름이 없어야 한다(`notEmpty`). 개수는 바로 아래 이름만 세고 열지 않는 경로로 내려가지 않는다.
+8. 형식 검사기(`UsbWriteInspector`)의 막힘. 10의 경로 막힘이 있으면 부르지 않는다(받을 수 없는 경로를 검사기가 읽지 않게).
 9. 용량: 새로 쓸 크기(클러스터 단위 올림) + 가장 큰 DB × 2 + max(64 MiB, 가용 1%) − 지울 크기 ≤ 가용.
-10. 대상 경로: 상대 경로, `..` 없음, 열지 않는 경로 아님, 부모 경로에 심볼릭 링크 없음.
-11. **만들 대상 충돌(`destinationExists`):** rename(2)은 대상이 있으면 조용히 바꿔치고, FAT(macOS msdos)는 대소문자·NFC/NFD만 다른 이름을 같은 이름으로 본다. 만들 파일·내보내기의 DB·새 폴더마다 부모 폴더 목록에 같은 `UsbLayout.collisionKey`의 이름이 있으면 막는다. 폴더는 NFC까지 같은 철자면 있는 폴더로 쓰고, 철자만 다르면 막는다. D 단계의 rename 직전에 한 번 더 본다. 그 사이 생긴 이름은 우리 것이 아니므로 H도 건드리지 않는다. 백업에도 없는 사용자 파일(예: `Contents/`에 직접 넣은 음원)을 잃지 않게 하는 규칙이다.
+10. 대상 경로: 상대 경로, `..` 없음, 열지 않는 경로 아님, 부모 경로에 심볼릭 링크 없음. 모양 규칙(`UsbWriter.isSafeRelativePath`: 첫 성분 PIONEER·Contents, ""·"."·".." 성분 없음)은 되돌리기·회복이 기록을 읽을 때도 같이 쓴다. 세션 번호는 임시 이름이 되므로 영문·숫자·`-`·`_`만 받는다.
+11. **만들 대상 충돌(`destinationExists`):** rename(2)은 대상이 있으면 조용히 바꿔치고, FAT(macOS msdos)는 대소문자·NFC/NFD만 다른 이름을 같은 이름으로 본다. 만들 파일·내보내기의 DB·새 폴더마다 부모 폴더 목록에 같은 `UsbLayout.collisionKey`의 이름이 있으면 막는다. 받을 수 없는 경로는 stat·열거하지 않고 건너뛴다(10이 막는다). 폴더는 NFC까지 같은 철자면 있는 폴더로 쓰고, 철자만 다르면 막는다. D 단계의 rename 직전에 한 번 더 본다. 그 사이 생긴 이름은 우리 것이 아니므로 H도 건드리지 않는다. 백업에도 없는 사용자 파일(예: `Contents/`에 직접 넣은 음원)을 잃지 않게 하는 규칙이다.
 
 ### 7.3 파일 하나 쓰기
 
@@ -56,12 +56,12 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 - 저널 항목(pending)을 먼저 적는다 → 데이터만 복사(`O_EXCL`, 확장 속성·ACL 없음) 또는 준비 파일 쓰기 → 음원·아트워크는 원본 mtime → `F_FULLFSYNC` → 덮어쓰기면 대상의 지금 SHA-256(분석 파일은 PPTH도)이 계획과 같은지, 만들기면 충돌 재확인 → rename → 정확한 이름 `._<대상>`·`._<임시>`만 지움 → 폴더 fsync → 저널 done.
 - `._` 파일은 패턴으로 쓸지 않는다. 사용자의 `._` 파일은 남는다.
 - `RENAME_SWAP`·`renamex_np`를 쓰지 않는다. FAT에서는 맞바꾸지 않고 덮어쓴다.
-- 재사용은 크기·SHA-256만 확인하고 쓰지 않는다. 음원은 덮어쓰지 않는다.
+- 재사용은 쓰지 않고 크기와 내용 해시만 확인한다. 분석 파일·아트워크는 계획 SHA-256, 음원은 목표 지문의 SHA-256, 없으면 로컬 원본의 SHA-1과 비교한다. 음원에 둘 다 없을 때만 크기만 본다. 음원은 덮어쓰지 않는다.
 
 ### 7.4 Mac 쪽 내구 쓰기와 저널
 
 - 저널·manifest·보고서는 같은 폴더 임시 파일 → write → `F_FULLFSYNC` → rename → 폴더 fsync로 쓴다(`UsbDurableFile`).
-- 저널(`usb-sessions/<볼륨 UUID>.json`)은 파일·DB 항목(created·reused·overwritten, pending·done), 만든 폴더, 지운 사이드카, 지우기 상태(removed·skipped와 이유), 백업 폴더를 담는다.
+- 저널(`usb-sessions/<볼륨 UUID>.json`)은 파일·DB 항목(created·reused·overwritten, pending·done), 만든 폴더, 지운 사이드카, 지우기 상태(removed·skipped와 이유), 백업 폴더를 담는다. 상태 값은 `committing`·`committed` 하나씩이고, 형식별 진행은 DB 항목에서 읽는다(`committedFormats`·`committingFormat`).
 - 저널 파일은 볼륨마다 하나라 새 세션(드라이 런 포함)이 닫힌 옛 저널을 덮는다. 그래서 되돌리기와 백업 정리는 백업 폴더의 `journal.json`·`report.json`을 읽는다.
 
 ### 7.5 마운트 확인과 볼륨이 사라질 때
@@ -74,11 +74,14 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 
 - 마운트 확인(사라졌으면 멈춤) → rekordbox 재확인(켜져 있으면 저널 `restorePending`) → pending 항목은 임시 이름만 지운다(대상 이름의 파일은 우리 것이 아닐 수 있다) → 만든 파일을 지운다(+ 정확한 `._`) → 덮어쓴 파일은 백업에서 임시 이름 → rename.
 - DB는 저널의 DB 항목대로 한다. 쓰기 전에 없던 DB(내보내기)는 그 DB·`-wal`·`-shm`·`-journal`과 정확한 이름의 `._`만 지운다. 덮어쓴 DB(수정)는 USB 사이드카를 지우고 백업의 DB·사이드카·원래 있던 `._<DB>`를 되살린다.
+- 지운 파일은 백업에서 되살린다. 지운 음원은 로컬 원본의 SHA-1이 같을 때만 다시 복사하고, 원본이 없거나 바뀌었으면 알림만 남기고 지문 비교에서 뺀다(되돌릴 수 없는 것을 실패로 세면 회복이 끝나지 않는다). 쓰기 전에 이미 없던 파일은 되살릴 것이 없다.
 - 만든 폴더는 거꾸로 비었으면 지운다. 우리 경로 지문이 쓰기 전과 같으면 `rolledBack`, 아니면 `restoreFailed`.
 
 ### 7.7 회복(`djc usb-recover`) — 대상 먼저
 
 - 쓰기와 같은 확인(7.2의 1–4, 관문 포함)을 먼저 거친다. 회복도 USB 파일을 지우고 이름을 바꾸는 쓰기다. 앱의 회복도 같다.
+- 저널의 경로·임시 이름·세션이 7.2-10의 모양 규칙을 어기거나 백업 폴더가 이 볼륨의 `usb-backups/<볼륨>/` 밖이면 파일 연산 없이 `journalUnreadable`로 막는다. 없어진 백업 폴더는 없는 것으로 보고 기록을 새로 만들지 않는다.
+- `usb-restore`가 연 저널(끊긴 되돌리기)은 되돌리기로 마저 하고 `restored`로 닫는다. 그 쓰기의 백업 기록은 바꾸지 않는다.
 - DB마다 옛 해시·새 해시·없음·그 밖으로 나눈다. "그 밖"(기기가 바꿈)이 하나라도 있으면 저널에 적힌 우리 임시 파일만 지우고 `needsReplan`으로 닫는다. 다음 쓰기는 지금 USB를 다시 읽어 만든 새 계획이어야 한다(옛 계획은 `usbChanged`로 막힌다).
 - 대상이 없고 임시 파일이 새 해시와 같으면 rename을 마친다(만들기는 충돌 재확인 뒤). 모든 DB가 새것이면 F·G를 다시 해 `recovered`. 일부만 바뀌었으면 준비 폴더가 온전하고 남은 DB가 옛것일 때 마저 쓰고, 아니면 H로 `rolledBack`.
 - 저널에 적힌 임시 파일은 판정이 끝난 뒤 지운다. 저널이 없으면 USB의 `.djc-part-*`를 보고만 하고 `--discard-temp`일 때만 지운다.
@@ -86,7 +89,8 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 
 ### 7.8 되돌리기(`djc usb-restore`)
 
-- 같은 확인을 먼저 거친다. 무엇을 되돌릴지는 그 백업 폴더의 `journal.json`에서 읽는다.
+- 같은 확인을 먼저 거친다. 무엇을 되돌릴지는 그 백업 폴더의 `journal.json`에서 읽는다. 백업 폴더는 realpath가 이 볼륨의 `usb-backups/<볼륨>/` 바로 아래여야 하고(`backupOutside`), `journal.json`·`manifest.json`의 경로가 7.2-10의 모양 규칙을 어기면 파일 연산 없이 `backupUnreadable`로 막는다.
+- 되돌리기를 마치면 백업 폴더에 `restored.json`을 남긴다. 같은 백업으로 다시 되돌리면 "이미 되돌렸습니다"로 끝낸다(그 뒤 USB를 바꾼 것은 기기가 아니라 이 되돌리기다). `--backup`을 빼도 가장 최근 백업을 고르므로 두 번 돌려 더 옛 쓰기까지 되돌리지는 않는다.
 - 지금 DB 해시가 `report.json`의 결과 해시와 같고 USB에 `-wal`·`-journal`이 없을 때만 진행한다. 아니면(기기가 쓴 기록 등) 막고, `--discard-device-changes`를 줘야 기기 변경을 버리고 되돌린다. 회복이 needsReplan으로 닫은 쓰기는 해시가 같아도 이 인자를 요구한다.
 - 만든 파일·폴더·DB는 지우고, 덮어쓴 것은 백업에서 되살리고, 재사용한 것은 그대로 둔다. 지웠던 음원은 로컬 원본의 SHA-1이 manifest와 같을 때만 다시 복사한다. 그래서 내보내기 직후 되돌리면 빈 USB로 돌아간다.
 
