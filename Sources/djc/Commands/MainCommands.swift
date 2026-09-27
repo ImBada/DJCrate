@@ -22,7 +22,7 @@ enum MainCommands {
         Command("schema-dump", String(ui: "<사본.db> <출력.sql>"), String(ui: "사본 DB의 구조(CREATE 문)만 뽑는다"), schemaDump),
         Command("path", String(ui: "<제목> [--db PATH] [--json]"), String(ui: "제목으로 파일 경로 찾기"), path),
         Command("parse", String(ui: "\"<코멘트>\" [--json]"), String(ui: "애니송 프리셋으로 코멘트 파싱"), parse),
-    ] + ReadCommands.all
+    ] + ReadCommands.all + UsbCommands.all
 
     static func snapshot(_ args: [String]) async throws {
         let url = try LibrarySnapshot.take(force: args.contains("--force"))
