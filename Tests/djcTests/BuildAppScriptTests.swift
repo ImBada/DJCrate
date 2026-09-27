@@ -32,6 +32,23 @@ struct BuildAppScriptTests {
         #expect(result.exportedTypes.contains("com.djcrate.deck-track"))
     }
 
+    @Test func 레이어_아이콘을_컴파일하고_번들에_연결한다() throws {
+        let result = try run(identity: "none")
+        #expect(result.status == 0, "\(result.output)")
+        #expect(result.iconName == "AppIcon")
+        #expect(result.hasIconAssets)
+        #expect(result.iconCompilation.contains("AppIcon.icon"))
+        #expect(result.iconCompilation.contains("--platform macosx"))
+        #expect(result.iconCompilation.contains("--minimum-deployment-target 27.0"))
+    }
+
+    @Test func 아이콘_컴파일_실패시_서명과_설치를_막는다() throws {
+        let result = try run(identity: "none", install: true, iconCompilationFails: true)
+        #expect(result.status != 0)
+        #expect(!result.installed)
+        #expect(result.signatures.isEmpty)
+    }
+
     @Test(arguments: [["--version", "1.2.3"], ["--tag", "v1.2.3"]])
     func 명시한_버전으로_패키지를_만들고_개발_인증서는_쓰지_않는다(_ arguments: [String]) throws {
         let result = try run(identity: "override", arguments: arguments + ["--package"])
@@ -78,9 +95,10 @@ struct BuildAppScriptTests {
     }
 
     private func run(identity: String, install: Bool = false, signingFails: Bool = false,
-                     arguments: [String]? = nil, tag: String = "") throws
+                     arguments: [String]? = nil, tag: String = "", iconCompilationFails: Bool = false) throws
         -> (status: Int32, output: String, installed: Bool, signatures: String, exportedTypes: [String],
-            version: String, packageFiles: [String], buildStarted: Bool) {
+            version: String, packageFiles: [String], buildStarted: Bool,
+            iconName: String, hasIconAssets: Bool, iconCompilation: String) {
         let fm = FileManager.default
         let root = fm.temporaryDirectory.appending(path: "djc-build-script-\(UUID())")
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
@@ -124,6 +142,21 @@ struct BuildAppScriptTests {
           plutil) /usr/bin/plutil "$@" ;;
           mktemp) /bin/mkdir -p "$DJC_TEST_ROOT/icon-temp"; echo "$DJC_TEST_ROOT/icon-temp" ;;
           iconutil) /usr/bin/touch "$5" ;;
+          xcrun)
+            [[ "$1" == actool ]] || exit 99
+            print -r -- "$*" >> "$DJC_TEST_ROOT/icon-compilation"
+            [[ "$DJC_TEST_ICON_FAIL" != 1 ]] || exit 1
+            while (( $# )); do
+              case "$1" in
+                --compile) destination="$2"; shift 2 ;;
+                --output-partial-info-plist) partial="$2"; shift 2 ;;
+                *) shift ;;
+              esac
+            done
+            /usr/bin/touch "$destination/Assets.car" "$destination/AppIcon.icns"
+            /usr/bin/plutil -create xml1 "$partial"
+            /usr/bin/plutil -insert CFBundleIconName -string AppIcon "$partial"
+            /usr/bin/plutil -insert CFBundleIconFile -string AppIcon "$partial" ;;
           cp|rm|mkdir)
             args=()
             for arg in "$@"; do
@@ -138,7 +171,7 @@ struct BuildAppScriptTests {
         esac
         """#)
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: root.appending(path: "bin/tool").path)
-        for tool in ["swift", "git", "lipo", "security", "codesign", "plutil", "mktemp", "iconutil", "install_name_tool", "cp", "rm", "mkdir"] {
+        for tool in ["swift", "git", "lipo", "security", "codesign", "plutil", "mktemp", "iconutil", "xcrun", "install_name_tool", "cp", "rm", "mkdir"] {
             try fm.createSymbolicLink(atPath: root.appending(path: "bin/\(tool)").path, withDestinationPath: "tool")
         }
         let process = Process(), output = Pipe()
@@ -149,6 +182,7 @@ struct BuildAppScriptTests {
         environment["DJC_TEST_ROOT"] = root.path
         environment["DJC_TEST_IDENTITY"] = identity
         environment["DJC_TEST_SIGN_FAIL"] = signingFails ? "1" : "0"
+        environment["DJC_TEST_ICON_FAIL"] = iconCompilationFails ? "1" : "0"
         environment["DJC_TEST_TAG"] = tag
         environment["DJC_SIGN_IDENTITY"] = identity == "override" ? "TEST_IDENTITY" : nil
         process.environment = environment
@@ -164,6 +198,9 @@ struct BuildAppScriptTests {
                 declarations.compactMap { $0["UTTypeIdentifier"] as? String },
                 bundleInfo?["CFBundleShortVersionString"] as? String ?? "",
                 (try? fm.contentsOfDirectory(atPath: root.appending(path: "dist").path)) ?? [],
-                fm.fileExists(atPath: root.appending(path: "build-started").path))
+                fm.fileExists(atPath: root.appending(path: "build-started").path),
+                bundleInfo?["CFBundleIconName"] as? String ?? "",
+                fm.fileExists(atPath: root.appending(path: "dist/DJCrate.app/Contents/Resources/Assets.car").path),
+                (try? String(contentsOf: root.appending(path: "icon-compilation"), encoding: .utf8)) ?? "")
     }
 }

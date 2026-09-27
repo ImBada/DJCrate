@@ -62,9 +62,12 @@ done
 # 실행 파일은 @loader_path에서 프레임워크를 찾는다. 번들 안 Frameworks 폴더도 찾게 한다.
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/DJCrate"
 
-ICONSET=$(mktemp -d)/AppIcon.iconset
-swift scripts/make-icon.swift "$ICONSET" >/dev/null
-iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
+ICON_TEMP=$(mktemp -d)
+trap 'rm -rf "$ICON_TEMP"' EXIT
+# Composer 원본으로 시스템 레이어 자산과 예비 ICNS를 함께 만든다.
+xcrun actool Assets/AppIcon.icon --compile "$APP/Contents/Resources" \
+    --app-icon AppIcon --platform macosx --minimum-deployment-target 27.0 \
+    --output-partial-info-plist "$ICON_TEMP/Info.plist"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -78,7 +81,6 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>${VERSION}</string>
     <key>CFBundleVersion</key><string>${BUILD}</string>
-    <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>LSMinimumSystemVersion</key><string>27.0</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.music</string>
     <key>NSHighResolutionCapable</key><true/>
@@ -93,6 +95,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </dict>
 </plist>
 PLIST
+# 아이콘 이름은 컴파일러가 실제로 만든 결과와 맞춘다.
+for key in CFBundleIconFile CFBundleIconName; do
+    value=$(plutil -extract "$key" raw "$ICON_TEMP/Info.plist")
+    plutil -insert "$key" -string "$value" "$APP/Contents/Info.plist"
+done
 # 언어 목록(ko·en·ja, 없는 언어는 영어)은 개발 빌드 실행 파일에 넣는 Sources/DJCrate/Info.plist와 같게 둔다.
 LANGUAGES=Sources/DJCrate/Info.plist
 plutil -replace CFBundleDevelopmentRegion -string "$(plutil -extract CFBundleDevelopmentRegion raw "$LANGUAGES")" "$APP/Contents/Info.plist"

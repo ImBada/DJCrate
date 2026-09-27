@@ -1,93 +1,50 @@
-// DJCrate 앱 아이콘을 그린다: 어두운 둥근 사각형 위, 레코드 세 장이 꽂힌 크레이트.
-// 레코드 라벨은 덱 3밴드 파형 색(저역 파랑·중역 주황·고역 흰색)을 따른다.
-// 사용: swift scripts/make-icon.swift <출력 .iconset 폴더> [미리 보기 .png]
-import AppKit
+// DJCrate의 레코드 세 장과 크레이트를 Icon Composer용 SVG 레이어로 만든다.
+// 사용: swift scripts/make-icon.swift [출력 폴더, 기본 Assets/AppIcon.icon/Assets]
+// 배경·모서리·빛 반사는 Composer와 시스템이 입힌다. 레이어는 1024 정사각 캔버스를 공유한다.
+import Foundation
 
-let output = URL(filePath: CommandLine.arguments[1])
-try? FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+let output = URL(filePath: CommandLine.arguments.count > 1
+    ? CommandLine.arguments[1] : "Assets/AppIcon.icon/Assets")
+try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
 
-func color(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat, _ a: CGFloat = 1) -> NSColor { NSColor(red: r, green: g, blue: b, alpha: a) }
+func write(_ name: String, _ content: String) throws {
+    let svg = """
+    <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+    \(content)
+    </svg>
 
-func render(_ size: Int) -> Data {
-    let s = CGFloat(size)
-    let image = NSImage(size: NSSize(width: s, height: s), flipped: false) { _ in
-        let inset = s * 0.09
-        let rect = NSRect(x: inset, y: inset, width: s - inset * 2, height: s - inset * 2)
-        let background = NSBezierPath(roundedRect: rect, xRadius: s * 0.19, yRadius: s * 0.19)
-        NSGradient(starting: color(0.13, 0.14, 0.18), ending: color(0.04, 0.045, 0.06))?.draw(in: background, angle: -90)
-        NSGraphicsContext.saveGraphicsState()
-        background.addClip()
-
-        // 레코드: 크레이트 뒤에서 위로 비스듬히 솟은 원판 세 장
-        let labels = [color(0.23, 0.44, 0.96), color(0.94, 0.64, 0.24), color(0.95, 0.94, 0.91)]
-        let radius = rect.width * 0.25
-        let crateTop = rect.minY + rect.height * 0.46
-        let centers: [(CGFloat, CGFloat, CGFloat)] = [   // (x 비율, 위로 솟은 정도, 기울기 도)
-            (0.30, 0.20, 10), (0.50, 0.26, 0), (0.70, 0.18, -10),
-        ]
-        for (i, c) in centers.enumerated() {
-            let center = NSPoint(x: rect.minX + rect.width * c.0, y: crateTop + rect.height * c.1 - radius * 0.35)
-            let transform = NSAffineTransform()
-            transform.translateX(by: center.x, yBy: center.y)
-            transform.rotate(byDegrees: c.2)
-            NSGraphicsContext.saveGraphicsState()
-            transform.concat()
-            let disc = NSBezierPath(ovalIn: NSRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2))
-            NSGradient(starting: color(0.20, 0.20, 0.24), ending: color(0.06, 0.06, 0.08))?.draw(in: disc, angle: 60)
-            // 가장자리 빛(어두운 배경에서 원판이 묻히지 않게)
-            color(1, 1, 1, 0.22).setStroke()
-            disc.lineWidth = max(1, s * 0.006)
-            disc.stroke()
-            // 홈(동심원)
-            color(1, 1, 1, 0.07).setStroke()
-            for k in 1...5 {
-                let r = radius * (0.48 + 0.1 * CGFloat(k))
-                let groove = NSBezierPath(ovalIn: NSRect(x: -r, y: -r, width: r * 2, height: r * 2))
-                groove.lineWidth = max(0.5, s * 0.003)
-                groove.stroke()
-            }
-            // 빛 반사
-            let shine = NSBezierPath()
-            shine.appendArc(withCenter: .zero, radius: radius * 0.86, startAngle: 100, endAngle: 150)
-            shine.lineWidth = max(1, s * 0.012)
-            color(1, 1, 1, 0.14).setStroke()
-            shine.stroke()
-            // 라벨과 가운데 구멍
-            labels[i].setFill()
-            NSBezierPath(ovalIn: NSRect(x: -radius * 0.36, y: -radius * 0.36, width: radius * 0.72, height: radius * 0.72)).fill()
-            color(0.04, 0.045, 0.06).setFill()
-            NSBezierPath(ovalIn: NSRect(x: -radius * 0.06, y: -radius * 0.06, width: radius * 0.12, height: radius * 0.12)).fill()
-            NSGraphicsContext.restoreGraphicsState()
-        }
-
-        // 크레이트 앞판(주황 계열 나무 상자) + 손잡이 구멍 + 널빤지 줄
-        let front = NSRect(x: rect.minX + rect.width * 0.12, y: rect.minY + rect.height * 0.12,
-                           width: rect.width * 0.76, height: crateTop - rect.minY - rect.height * 0.12)
-        let crate = NSBezierPath(roundedRect: front, xRadius: s * 0.035, yRadius: s * 0.035)
-        NSGradient(starting: color(0.98, 0.62, 0.22), ending: color(0.86, 0.40, 0.10))?.draw(in: crate, angle: -90)
-        color(0.55, 0.22, 0.04, 0.55).setFill()
-        for k in 1...2 {
-            let y = front.minY + front.height * CGFloat(k) / 3
-            NSRect(x: front.minX + s * 0.02, y: y - s * 0.004, width: front.width - s * 0.04, height: s * 0.008).fill()
-        }
-        let handle = NSRect(x: front.midX - front.width * 0.17, y: front.maxY - front.height * 0.3,
-                            width: front.width * 0.34, height: front.height * 0.14)
-        color(0.30, 0.11, 0.02).setFill()
-        NSBezierPath(roundedRect: handle, xRadius: handle.height / 2, yRadius: handle.height / 2).fill()
-        // 윗면 테두리(앞판 위 밝은 선)
-        color(1, 0.85, 0.6, 0.6).setFill()
-        NSRect(x: front.minX + s * 0.02, y: front.maxY - s * 0.012, width: front.width - s * 0.04, height: s * 0.008).fill()
-        NSGraphicsContext.restoreGraphicsState()
-        return true
-    }
-    guard let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
-          let png = rep.representation(using: .png, properties: [:]) else { fatalError("아이콘을 만들지 못했습니다") }
-    return png
+    """
+    try Data(svg.utf8).write(to: output.appending(path: name))
 }
 
-for base in [16, 32, 128, 256, 512] {
-    try render(base).write(to: output.appending(path: "icon_\(base)x\(base).png"))
-    try render(base * 2).write(to: output.appending(path: "icon_\(base)x\(base)@2x.png"))
+// 기존 원판·라벨 위치와 덱 3밴드 색을 유지한다. 작은 크기에서 사라지는 홈과 흰 반사 호는 뺐다.
+let records: [(String, Double, Double, String)] = [
+    ("01-record-blue.svg", 344.064, 450.9696, "#3b70f5"),
+    ("02-record-orange.svg", 512, 400.5888, "#f0a33d"),
+    ("03-record-white.svg", 679.936, 467.7632, "#f2f0e8"),
+]
+for (name, x, y, label) in records {
+    try write(name, """
+      <defs>
+        <linearGradient id="disc" x1="0" y1="0" x2="1" y2="1">
+          <stop stop-color="#33333d"/><stop offset="1" stop-color="#0f0f14"/>
+        </linearGradient>
+      </defs>
+      <circle cx="\(x)" cy="\(y)" r="209.92" fill="url(#disc)"/>
+      <circle cx="\(x)" cy="\(y)" r="75.5712" fill="\(label)"/>
+      <circle cx="\(x)" cy="\(y)" r="12.5952" fill="#0a0b0f"/>
+    """)
 }
-if CommandLine.arguments.count > 2 { try render(512).write(to: URL(filePath: CommandLine.arguments[2])) }
-print("아이콘: \(output.path)")
+
+// 크레이트 앞판의 색·손잡이는 유지하고, 윗면의 밝은 반사 선은 시스템 효과에 맡긴다.
+try write("04-crate.svg", """
+  <defs>
+    <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#fa9e38"/><stop offset="1" stop-color="#db661a"/>
+    </linearGradient>
+  </defs>
+  <rect x="192.9216" y="545.5872" width="638.1568" height="285.4912" rx="35.84" fill="url(#wood)"/>
+  <path d="M213.4016 640.7509H810.5984 M213.4016 735.9147H810.5984" stroke="#8c380a" stroke-opacity="0.55" stroke-width="8.192"/>
+  <rect x="403.5133" y="591.2658" width="216.9733" height="39.9688" rx="19.9844" fill="#4d1c05"/>
+""")
+print("아이콘 레이어: \(output.path)")
