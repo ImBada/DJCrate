@@ -85,6 +85,101 @@ rekordbox 7이 USB에 내보내는 라이브러리(OneLibrary·Device Library)�
 - `projected(to:)`: 그 형식에 있는 곡·목록·My Tag 연결과 그 형식 몫(기록·항목·기기 칸)만 남기고, 그 형식이 담지 않는 칸은 그 형식 리더의 기본값으로 바꾼다. 불일치 없는 USB(위 보고가 하나도 없음)에서는 `merge(ol, dl).projected(to: .oneLibrary) == ol`이다. 쓰기·검증은 늘 형식별 투영과 비교한다(`UsbLibraryDiff`의 `formats`).
 - `UsbLibraryDiff`와 `djc lab usb-diff`는 칸 이름·ID·수만 출력한다(제목·이름·경로 값은 찍지 않음). ID를 무시하고 견줄 때 이름(경로)이 같은 행이 여럿이면 나온 순서대로 짝짓는다.
 
+### 2.7 쓰기: 로컬 → 목표 모델(`UsbLibraryBuilder`)
+
+로컬 스냅샷 사본(`UsbLocalSource`, 라이브 master.db를 연 연결이면 읽지 않음)과 내보내기 계획(§5)으로 목표 모델과 파일 작업 목록을 만든다. 파일은 옮기지 않는다(음원·아트워크 복사, 분석 파일 변환은 쓰기 단계 몫).
+
+- 파일 작업: 새로 쓰는 음원(계획이 `create`인 것만 — 같은 음원을 함께 쓰는 곡과 USB에 이미 있는 음원은 빼고), 아트워크(`artwork_s.jpg` → `a{id}.jpg`·`b{id}.jpg`, `artwork_m.jpg` → `a{id}_m.jpg`·`b{id}_m.jpg`. Device Library를 쓸 때만 `a`, OneLibrary를 쓸 때만 `b`), 분석 파일(로컬 `.DAT`·`.EXT`·`.2EX` → 계획의 `.DAT` 경로). 목적지는 USB 루트 기준 상대 경로다.
+- ID
+  - content·image·재생 목록은 계획 값이다(§5 ID).
+  - artist: 곡을 content ID 순서로 돌며 곡마다 곡 아티스트 → 앨범 아티스트 → 작곡가 → 리믹서 → 원곡자 순서로, 처음 나올 때 새 번호를 준다. 같은 로컬 아티스트 ID는 같은 USB 번호를 받는다([추정] 로컬 ID로만 합친다 — 이름이 같은 다른 로컬 행은 따로 둔다. 리믹서·원곡자의 순서는 값이 있는 곡을 보지 못했다).
+  - album·genre·key·label: 곡 순서대로 처음 나올 때 새 번호(label은 [추정] genre와 같은 방식).
+  - color·menuItem·category·sort·My Tag: 로컬 ID 그대로.
+  - 로컬 ID가 비었거나 조인할 이름 행이 없으면 참조 칸은 NULL이다. 곡이 쓰지 않는 artist·album·genre·key·label 행은 넣지 않는다. color는 로컬 색을 모두 넣는다.
+- 표별 행(새 USB)
+
+| 표 | 행 | 값 |
+|---|---|---|
+| content | 곡마다 | §2.8 |
+| genre·key·label | 쓰인 것 | name = djmdGenre.Name·djmdKey.ScaleName·djmdLabel.Name |
+| artist | 쓰인 것 | name = djmdArtist.Name, nameForSearch NULL |
+| album | 쓰인 것 | name, artist_id = AlbumArtistID의 USB 번호(NULL·빈 글자 → NULL), image_id NULL, isComplation = Compilation, nameForSearch NULL |
+| color | 로컬 지우지 않은 색 모두 | color_id = ID, name = Commnt |
+| image | 그림 있는 곡마다 | path = `/PIONEER/Artwork/%05d/b{id}.jpg` |
+| playlist | 계획 목록·폴더 | sequenceNo = 계획의 형제 순번, image_id NULL, attribute 0 목록·1 폴더, playlist_id_parent(맨 위 0) |
+| playlist_content | 목록 항목 | (playlist_id, content_id, sequenceNo 1..N). 목록 id 순, 순번 순으로 넣는다(PK 없는 표라 넣는 순서가 rowid) |
+| myTag | 로컬 지우지 않은 행 모두 | myTag_id = ID(64비트), sequenceNo = Seq − 1, attribute 1 분류·0 태그, myTag_id_parent(root → 0). 곡에 안 쓰인 태그도 넣는다 |
+| myTag_content | 0 | 쓰지 않는다(`myTagLinks`) |
+| menuItem | 로컬 모두 | kind = Class + 256, name = U+FFFA + Name + U+FFFB |
+| category | 로컬 지우지 않은 행 | sequenceNo = Seq, isVisible = Disable ≠ 1. InfoOrder·Disable은 Device Library 몫으로 모델에만 둔다 |
+| sort | 로컬 지우지 않은 행 | sequenceNo = Seq, isVisible = Disable ≠ 1, isSelectedAsSubColumn = Disable = 2 |
+| property | 1 | deviceName '', dbVersion '1000', numberOfContents = 곡 수, createdDate = 오늘(YYYY-MM-DD), backGroundColorType 0, myTagMasterDBID = 1 … 2³¹−1 난수(`myTagMasterDBID`) |
+| cue·history·history_content·recommendedLike·hotCueBankList·hotCueBankList_cue | 0 | 로컬에 자료가 있어도 비운다(큐는 분석 파일에만) |
+
+### 2.8 content 칸(로컬 `djmdContent` = c)
+
+| 칸 | 값 |
+|---|---|
+| content_id | 계획 ID |
+| title·subtitle·djComment(c.Commnt)·releaseDate·dateCreated·dateAdded(c.StockDate)·isrc·kuvoDeliveryComment(c.DeliveryComment) | 로컬 글자 그대로, NULL → '' |
+| titleForSearch | NULL |
+| bpmx100·length·trackNo·discNo·rating·releaseYear·fileSize·fileType·bitrate·bitDepth·samplingRate·djPlayCount·analysedBits | c.BPM(이미 ×100)·Length(초)·TrackNo·DiscNo·Rating·ReleaseYear·FileSize·FileType·BitRate·BitDepth·SampleRate·DJPlayCount·Analysed, NULL → 0 |
+| artist_id_artist·_remixer·_originalArtist·_composer | 로컬 아티스트의 USB 번호, 없으면 NULL |
+| artist_id_lyricist | 0(작사가는 로컬에 글자로만 있다. 값이 있으면 `metadataSeenEmptyOnly`) |
+| album_id·genre_id·label_id·key_id | 로컬 행의 USB 번호, 없으면 NULL |
+| color_id | CAST(c.ColorID AS INTEGER), NULL → 0 |
+| image_id | 계획 image ID, 그림 없으면 NULL(`artworkMissing`) |
+| path·fileName | 계획 경로(NFC)와 그 끝 성분 |
+| isHotCueAutoLoadOn·isKuvoDeliverStatusOn | c.HotCueAutoLoad·c.DeliveryControl이 'on'(대소문자 무시)이면 1, 아니면 0 |
+| masterDbId·masterContentId | CAST(c.MasterDBID·c.MasterSongID AS INTEGER) |
+| analysisDataFilePath | 계획 분석 경로 |
+| contentLink | 0x0C0700 \| (c.ContentLink & 0x100000). 0x100000은 로컬 `.2EX`에 PVDI가 있다는 뜻 |
+| hasModified | 0 |
+| cueUpdateCount·analysisDataUpdateCount·informationUpdateCount | c.CueUpdated·AnalysisUpdated·TrackInfoUpdated를 TEXT로 넣는다(NULL → ''). INTEGER 친화성 때문에 숫자 글자는 INTEGER, ''는 TEXT로 남는다 |
+
+- 글자 칸은 늘 TEXT(빈 글자 포함)이고, 없을 수 있는 정수 칸(참조·image_id)만 NULL이 된다. NFC로 맞추는 것은 path·fileName뿐이다.
+- 모델에는 Device Library용 칸도 채운다: `lyricist` = c.Lyricist, 형식별 기기 칸(rating·재생 횟수, OneLibrary만 hasModified 0).
+
+### 2.9 새 파일 만들기(`OneLibraryWriter.create`)
+
+Mac 준비 폴더에 새 `exportLibrary.db`를 만든다. 파일이나 사이드카가 이미 있으면 만들지 않는다. 모델의 OneLibrary 투영만 쓰고, 기기 기록이나 모델에 담지 않는 표의 행이 든 모델은 다시 만들 수 없어 막는다(`carriedDeviceRows`).
+
+1. 문자열 키로 새 파일을 연다(다른 cipher PRAGMA 없음).
+2. 표를 만들기 **전에** `PRAGMA journal_mode=WAL`(파일 머리가 WAL 모양이 된다).
+3. `BEGIN` → 스키마 26문장(§2.2 순서) → 행 → `COMMIT`. `integer primary key` 표는 id 순서로 넣어 rowid = id가 된다.
+4. `PRAGMA wal_checkpoint(TRUNCATE)` = (0, 0, 0), integrity ok, cipher_integrity_check 0줄 → 닫기 → `-wal`·`-shm`이 없어야 한다.
+5. 다시 열어 확인(`verify`): 사이드카 없음, 호환 검사(§2.4), integrity, 다시 읽은 모델 = 모델의 OneLibrary 투영(OneLibrary 칸만 비교). 실패하면 만든 파일을 지운다.
+
+- 기기(SQLite 3.33)에 없는 기능(STRICT·생성 칸 등)을 쓰지 않는다. sqlite_master rowid·schema cookie·change counter·SQLite 버전 도장은 맞추지 않는다.
+- 읽기 전용 연결은 WAL 모양 파일 옆에 `-wal`·`-shm`을 남긴다. 확인은 쓰기 가능하게 열고 `query_only`로 막아, 닫을 때 SQLite가 치우게 한다.
+
+### 2.10 USB 사본 고치기(`OneLibraryWriter.apply`)
+
+USB DB **사본**(`UsbSnapshot`으로 병합 끝난 것)에 편집 단계마다 차이만 SQL로 적용한다. 받는 모델은 두 형식을 합친 모델이어도 된다.
+
+1. 쓰기 가능하게 열어 호환 검사 → `BEGIN IMMEDIATE`. 받아들인 모델 = 지금 모델.
+2. 단계마다 `SAVEPOINT` → 편집을 적용한 모델을 다듬고(아래) → 받아들인 모델과의 OneLibrary 차이를 SQL로 → 성공하면 `RELEASE`하고 받아들인다. 모델 적용이나 SQL이 실패하면 `ROLLBACK TO`·`RELEASE`하고 그 편집만 건너뛴다(이유는 기술 정보로 남긴다). 다음 편집은 건너뛴 편집이 빠진 모델 위에 적용된다.
+3. 같은 연결로 다시 읽어 **받아들인 모델의 OneLibrary 투영**과 OneLibrary 칸만 비교한다. 원래 목표(모든 편집)와 견주면 건너뛴 편집 때문에, 투영 없이 합친 모델과 견주면 Device Library 전용 칸·곡·목록 때문에 늘 어긋난다. 다르면 전체 `ROLLBACK`.
+4. `COMMIT` → `wal_checkpoint(TRUNCATE)` → 닫기 → 확인(§2.9의 5). 돌려주는 적용 모델은 투영하지 않은 합친 모델이다(Device Library를 같은 편집 집합으로 다시 만들 때 쓴다).
+
+- 차이 SQL: 지우기를 먼저 한다. 곡 빼기는 content 행과 그 곡의 myTag_content 행을 지우고, 더하기는 INSERT, 바뀐 곡은 UPDATE(rating·djPlayCount·hasModified는 쓰지 않음). artist·album·genre·key·label·image는 id로 짝지어 지우기·더하기·고치기. 목록은 행을 고치고, 항목이 바뀐 목록만 playlist_content를 지운 뒤 1..N으로 다시 넣는다. property는 numberOfContents만 고친다.
+- 모델 다듬기: 두 쪽에 다 있는 곡의 기기 칸, 색·메뉴·카테고리·정렬·My Tag·기록·모르는 표 행, property의 deviceName·dbVersion·createdDate·backGroundColorType·myTagMasterDBID는 USB 값을 지킨다. My Tag 연결은 더하지 않고 뺀 곡의 연결만 없앤다. 이 편집으로 아무도 가리키지 않게 된 album·artist·genre·key·label·image 행은 뺀다(원래 쓰이지 않던 행은 그대로).
+- 건드리지 않는 것: history·history_content·cue·recommendedLike·hotCueBankList·hotCueBankList_cue(기기 행). 기기가 남긴 큐·추천이 가리키는 곡을 빼는 편집, 목록 항목이 없는 곡을 가리키는 편집은 건너뛴다.
+- 파일 머리 모양(WAL 2/2·롤백 1/1)은 바꾸지 않는다(`journal_mode`를 건드리지 않음).
+
+### 2.11 쓰기 실험 명령
+
+- `djc lab onelib-rebuild <USB 폴더> <출력 폴더>`: USB OneLibrary를 사본으로 떠서 모델로 읽고, 그 모델로 `<출력>/PIONEER/rekordbox/exportLibrary.db`를 새로 만든 뒤 표마다 rowid·typeof·값과 sqlite_master.sql을 비교한다(수만 출력).
+- `djc lab onelib-export --db <사본> --share <share> (--playlist <ID> | --tracks <ID,…>) --out <출력 폴더> [--snapshot-time <ISO 8601>]`: 로컬 사본의 곡·목록으로 계획 → 모델 → `exportLibrary.db`만 만든다(음원·분석 파일·Device Library는 쓰지 않음). 이어서 `djc lab usb-diff --onelibrary <골든> <출력>`으로 칸 단위로 견준다.
+- 두 명령 모두 입력·출력은 임시 폴더 아래만 받는다(출력 폴더는 없거나 비어 있어야 함).
+
+### 2.12 확인 안 된 것
+
+- label 행의 번호·이름(값이 있는 곡을 보지 못함), 리믹서·원곡자 번호 순서, 작사가 글자가 있는 곡의 `artist_id_lyricist`(`metadataSeenEmptyOnly`).
+- 검색 칸(titleForSearch·nameForSearch)은 NULL로만 봤다.
+- My Tag 연결(`myTag_content`)은 쓰지 않는다(`myTagLinks`). myTagMasterDBID는 난수로 짓는다(`myTagMasterDBID`).
+- 같은 이름의 다른 로컬 아티스트 행을 rekordbox가 합치는지(지금은 로컬 ID로만 합친다).
+
 ## 3. Device Library(export.pdb·exportExt.pdb)
 
 ## 4. ANLZ 변환
