@@ -463,7 +463,10 @@ final class DeckAudio {
         }
         latency = currentLatency()
         updateJumpLead()
-        let startHost = mach_absolute_time() + AVAudioTime.hostTime(forSeconds: 0.02)
+        // 렌더는 현재 호스트 시각보다 앞설 수 있다. 이미 그린 시각으로 play하면 클릭 시작이 밀리므로
+        // 두 노드가 그린 곳 뒤에 공통 시작을 잡는다(2026-09-27 점프 메트로놈 시험).
+        let renderHost = max(trackNode.lastRenderTime?.hostTime ?? 0, clickNode.lastRenderTime?.hostTime ?? 0)
+        let startHost = max(mach_absolute_time(), renderHost) + AVAudioTime.hostTime(forSeconds: 0.02)
         let when = AVAudioTime(hostTime: startHost)
         let trackStart = AVAudioTime(hostTime: startHost + AVAudioTime.hostTime(forSeconds: leadIn / rate))
         trackNode.play(at: leadIn > 0 ? trackStart : when)
