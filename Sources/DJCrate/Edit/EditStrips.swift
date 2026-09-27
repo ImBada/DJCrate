@@ -53,6 +53,86 @@ private struct LaneFrame: ViewModifier {
     }
 }
 
+// MARK: - 누르기·끌기
+
+/// 두 줄의 누르기·끌기를 편집 동작으로 바꾼다. 뷰의 DragGesture는 좌표를 시각으로 바꿔 넘기기만 한다.
+/// 위 눈금은 재생선만(끄는 동안 소리를 멈췄다가 손을 떼면 잇는다), 원곡 파형은 누르기 = 재생선·끌기 = 마디 구간 고르기,
+/// 결과는 클립 누르기 = 고르기·재생선, 클립 끌기 = 순서 바꾸기.
+struct EditPointer {
+    enum Mode: Equatable {
+        case scrub
+        /// 누른 클립(결과 줄, 없으면 nil)
+        case press(clip: Int?)
+        case select
+        case move(TrackEditModel.Entry.ID)
+    }
+
+    /// 이만큼(포인트) 움직이면 누르기가 아니라 끌기다.
+    static let slop: CGFloat = 4
+
+    private(set) var mode: Mode?
+    /// 끄는 클립을 놓을 자리(옮기기 전 기준 앞 클립 수)
+    private(set) var dropOffset: Int?
+
+    var dragging: TrackEditModel.Entry.ID? {
+        if case .move(let id) = mode { id } else { nil }
+    }
+
+    @MainActor
+    mutating func source(_ model: TrackEditModel, from start: Double, to time: Double, inRuler: Bool, moved: CGFloat) {
+        if mode == nil { mode = inRuler ? .scrub : .press(clip: nil) }
+        if mode == .press(clip: nil), moved > Self.slop { mode = .select }
+        switch mode {
+        case .scrub: model.scrub(.source, to: time)
+        case .select: model.select(from: start, to: time)
+        default: model.focus = .source
+        }
+    }
+
+    @MainActor
+    mutating func endSource(_ model: TrackEditModel, at time: Double) {
+        switch mode {
+        case .scrub: model.endScrub()
+        case .select: model.finishSelection()
+        default: model.seek(.source, to: time)
+        }
+        mode = nil
+    }
+
+    @MainActor
+    mutating func output(_ model: TrackEditModel, from start: Double, to time: Double, inRuler: Bool, moved: CGFloat) {
+        if mode == nil { mode = inRuler ? .scrub : .press(clip: model.clipLayout.clipIndex(atOutput: start)) }
+        switch mode {
+        case .scrub:
+            model.scrub(.output, to: time)
+        case .press(let index?) where moved > Self.slop && model.entries.indices.contains(index):
+            mode = .move(model.entries[index].id)
+            dropOffset = model.clipLayout.dropOffset(atOutput: time)
+        case .move:
+            dropOffset = model.clipLayout.dropOffset(atOutput: time)
+        default:
+            model.focus = .output
+        }
+    }
+
+    @MainActor
+    mutating func endOutput(_ model: TrackEditModel, at time: Double) {
+        switch mode {
+        case .scrub:
+            model.endScrub()
+        case .move(let id):
+            if let dropOffset { model.moveClip(id, toOffset: dropOffset) }
+        case .press(let index):
+            model.selectedClip = index.flatMap { model.entries.indices.contains($0) ? model.entries[$0].id : nil }
+            if model.edit != nil { model.seek(.output, to: time) }
+        case .select, nil:
+            break
+        }
+        mode = nil
+        dropOffset = nil
+    }
+}
+
 // MARK: - 재생선
 
 /// 재생선(재생 중에만 초당 30번 다시 그린다). 누르지 않는다.
@@ -91,9 +171,7 @@ struct EditPlayhead: View {
 /// 위 눈금을 누르거나 끌면 재생선, 파형을 누르면 재생선, 파형을 끌면 마디 구간 고르기.
 struct EditSourceStrip: View {
     let model: TrackEditModel
-    @State private var gesture: Gesture?
-
-    private enum Gesture { case scrub, press, select }
+    @State private var pointer = EditPointer()
 
     var body: some View {
         GeometryReader { geo in
@@ -105,20 +183,10 @@ struct EditSourceStrip: View {
             }
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0).onChanged { value in
-                if gesture == nil { gesture = value.startLocation.y < EditMetrics.ruler ? .scrub : .press }
-                if gesture == .press, abs(value.translation.width) > 3 { gesture = .select }
-                switch gesture {
-                case .scrub: model.scrub(.source, to: time(value.location.x))
-                case .select: model.select(from: time(value.startLocation.x), to: time(value.location.x))
-                default: model.focus = .source
-                }
+                pointer.source(model, from: time(value.startLocation.x), to: time(value.location.x),
+                               inRuler: value.startLocation.y < EditMetrics.ruler, moved: abs(value.translation.width))
             }.onEnded { value in
-                switch gesture {
-                case .scrub: model.endScrub()
-                case .select: model.finishSelection()
-                default: model.seek(.source, to: time(value.location.x))
-                }
-                gesture = nil
+                pointer.endSource(model, at: time(value.location.x))
             })
         }
         .modifier(LaneFrame(focused: model.focus == .source))
@@ -186,11 +254,7 @@ private struct EditSelectionLayer: View {
 /// 위 눈금을 누르거나 끌면 재생선만 옮긴다. 아래 줄의 가위 단추로 이음새 앞뒤를 들어 본다.
 struct EditOutputStrip: View {
     let model: TrackEditModel
-    @State private var gesture: Gesture?
-    /// 끄는 클립과 지금 놓을 자리(옮기기 전 기준 앞 클립 수)
-    @State private var drag: (id: TrackEditModel.Entry.ID, offset: Int)?
-
-    private enum Gesture { case scrub, press(Int?), move }
+    @State private var pointer = EditPointer()
 
     var body: some View {
         VStack(spacing: 4) {
@@ -198,43 +262,18 @@ struct EditOutputStrip: View {
                 let length = max(model.clipLayout.last?.outputEnd ?? 0, 0.001)
                 let time = { (x: CGFloat) in Double(x / max(geo.size.width, 1)) * length }
                 ZStack {
-                    EditOutputLayer(model: model, dragging: drag?.id)
-                    if let drag {
-                        EditDropMarker(model: model, offset: drag.offset)
+                    EditOutputLayer(model: model, dragging: pointer.dragging)
+                    if let offset = pointer.dropOffset {
+                        EditDropMarker(model: model, offset: offset)
                     }
                     EditPlayhead(model: model, lane: .output)
                 }
                 .contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: 0).onChanged { value in
-                    if gesture == nil {
-                        gesture = value.startLocation.y < EditMetrics.ruler
-                            ? .scrub : .press(model.clipLayout.clipIndex(atOutput: time(value.startLocation.x)))
-                    }
-                    switch gesture {
-                    case .scrub:
-                        model.scrub(.output, to: time(value.location.x))
-                    case .press(let index?) where abs(value.translation.width) > 4 && model.entries.indices.contains(index):
-                        gesture = .move
-                        drag = (model.entries[index].id, model.clipLayout.dropOffset(atOutput: time(value.location.x)))
-                    case .move:
-                        if let id = drag?.id { drag = (id, model.clipLayout.dropOffset(atOutput: time(value.location.x))) }
-                    default:
-                        model.focus = .output
-                    }
+                    pointer.output(model, from: time(value.startLocation.x), to: time(value.location.x),
+                                   inRuler: value.startLocation.y < EditMetrics.ruler, moved: abs(value.translation.width))
                 }.onEnded { value in
-                    switch gesture {
-                    case .scrub:
-                        model.endScrub()
-                    case .move:
-                        if let drag { model.moveClip(drag.id, toOffset: drag.offset) }
-                    case .press(let index):
-                        model.selectedClip = index.flatMap { model.entries.indices.contains($0) ? model.entries[$0].id : nil }
-                        if model.edit != nil { model.seek(.output, to: time(value.location.x)) }
-                    case nil:
-                        break
-                    }
-                    gesture = nil
-                    drag = nil
+                    pointer.endOutput(model, at: time(value.location.x))
                 })
             }
             .modifier(LaneFrame(focused: model.focus == .output))

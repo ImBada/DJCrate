@@ -258,6 +258,59 @@ struct TrackEditModelTests {
         #expect(model.planError == nil && model.edit != nil)
     }
 
+    @Test func 원곡_줄_누르기와_끌기() async throws {
+        let h = try EditHarness()
+        defer { h.remove() }
+        let model = try await h.loaded()
+        var pointer = EditPointer()
+        // 파형을 조금만 움직였다 떼면 누르기: 재생선만 옮긴다
+        pointer.source(model, from: 8.7, to: 8.8, inRuler: false, moved: 2)
+        pointer.endSource(model, at: 8.8)
+        #expect(model.position(.source) == 8.8 && model.selection == nil && model.focus == .source)
+        // 끌면 마디 구간을 고르고, 떼면 재생선을 구간 처음에
+        pointer.source(model, from: 4.4, to: 5, inRuler: false, moved: 3)
+        pointer.source(model, from: 4.4, to: 8.6, inRuler: false, moved: 40)
+        #expect(model.selection == BarRange(3, 4))
+        pointer.source(model, from: 4.4, to: 10.4, inRuler: false, moved: 60)
+        pointer.endSource(model, at: 10.4)
+        #expect(model.selection == BarRange(3, 5) && model.position(.source) == 4.5)
+        // 눈금을 끌면 재생 중에는 멈췄다가 손을 떼면 그 자리에서 잇는다
+        model.play(.source)
+        pointer.source(model, from: 12, to: 12, inRuler: true, moved: 0)
+        pointer.source(model, from: 12, to: 14, inRuler: true, moved: 20)
+        #expect(model.playing == nil && model.position(.source) == 14 && model.selection == BarRange(3, 5))
+        pointer.endSource(model, at: 14)
+        #expect(model.playing == .source && h.player.plays.last?.frame == 617_400)
+    }
+
+    @Test func 결과_줄_누르기와_클립_끌기() async throws {
+        let h = try EditHarness()
+        defer { h.remove() }
+        let model = try await h.loaded()
+        model.entries = [BarRange(1, 2), BarRange(5, 6), BarRange(9, 10)].map { TrackEditModel.Entry(range: $0) }
+        let ids = model.entries.map(\.id)
+        var pointer = EditPointer()
+        // 클립을 누르면 고르고 재생선을 그 자리로
+        pointer.output(model, from: 5, to: 5, inRuler: false, moved: 0)
+        pointer.endOutput(model, at: 5)
+        #expect(model.selectedClip == ids[1] && model.position(.output) == 5 && model.focus == .output)
+        // 세 번째 클립(8~12초)을 맨 앞(가운데 2초 앞)으로 끌어 놓는다. 끄는 동안 놓을 자리를 보여 준다.
+        pointer.output(model, from: 10, to: 9.5, inRuler: false, moved: 3)
+        #expect(pointer.dragging == nil)
+        pointer.output(model, from: 10, to: 1, inRuler: false, moved: 90)
+        #expect(pointer.dragging == ids[2] && pointer.dropOffset == 0)
+        pointer.endOutput(model, at: 1)
+        #expect(model.entries.map(\.id) == [ids[2], ids[0], ids[1]] && model.selectedClip == ids[2] && pointer.dragging == nil)
+        // 빈 곳(결과 밖)을 누르면 고른 클립을 놓는다
+        pointer.output(model, from: 30, to: 30, inRuler: false, moved: 0)
+        pointer.endOutput(model, at: 30)
+        #expect(model.selectedClip == nil)
+        // 눈금은 재생선만
+        pointer.output(model, from: 3, to: 7, inRuler: true, moved: 40)
+        pointer.endOutput(model, at: 7)
+        #expect(model.position(.output) == 7 && model.entries.map(\.id) == [ids[2], ids[0], ids[1]])
+    }
+
     @Test func 편집_창_단축키는_키_위치로_정한다() async throws {
         #expect(TrackEditCommand(keyCode: 49, modifiers: []) == .togglePlay)
         #expect(TrackEditCommand(keyCode: 124, modifiers: [.numericPad, .function]) == .step(1))

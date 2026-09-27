@@ -70,6 +70,11 @@ extension TrackEditWindow {
                 await wait(0.05)
             }
         }
+        // 편집 메뉴(⌘Z·⇧⌘Z)가 이 창이 앞일 때 타는 길: 창의 응답자 사슬 → 창의 실행 취소 관리자.
+        // 자가 테스트 중에는 앱이 앞에 없어 키 창이 없을 수 있어 창의 첫 응답자부터 직접 보낸다.
+        func menu(_ action: String) -> Bool {
+            (window.firstResponder ?? window).tryToPerform(Selector((action)), with: nil)
+        }
         check(model.isAudioReady, "원곡을 메모리에 풀어 창에서 재생할 수 있음")
 
         // 1) 스페이스바: 편집 창이 앞(주 창)이면 창 재생기가 마지막으로 누른 줄(결과)을 재생하고 덱은 그대로다.
@@ -133,11 +138,6 @@ extension TrackEditWindow {
         let edited = model.entries.map(\.range)
         check(edited == original.prefix(3) + [BarRange(49, 52), BarRange(53, 64)] + original.suffix(1) && model.edit != nil,
               "⏎ 넣기·⌘B 자르기·⌘D 복제·끌어 옮기기·⌫ 지우기 → \(edited.map(\.description).joined(separator: ","))")
-        // 편집 메뉴(⌘Z·⇧⌘Z)가 이 창이 앞일 때 타는 길: 창의 응답자 사슬 → 창의 실행 취소 관리자.
-        // 자가 테스트 중에는 앱이 앞에 없어 키 창이 없을 수 있어 창의 첫 응답자부터 직접 보낸다.
-        func menu(_ action: String) -> Bool {
-            (window.firstResponder ?? window).tryToPerform(Selector((action)), with: nil)
-        }
         var handled = (0..<5).map { _ in menu("undo:") }
         let undone = model.entries.map(\.range)
         handled.append(menu("redo:"))
