@@ -159,7 +159,7 @@ final class LibraryStore {
         case let .history(id): historyIndex[id].map(historyTitle) ?? String(ui: "재생 기록")
         case .duplicates: String(ui: "중복 후보")
         case .staged: String(ui: "추가한 곡")
-        case .pending: String(ui: "rekordbox 반영 대기")
+        case .pending: String(ui: "rekordbox 쓰기 대기")
         }
     }
     var search = "" { didSet { if search != oldValue { refreshFiltered() } } }

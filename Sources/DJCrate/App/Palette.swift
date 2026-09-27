@@ -100,7 +100,7 @@ enum UIColors: String, CaseIterable {
 enum DraftMark {
     static let symbol = "pencil.circle.fill"
     static var spoken: String { String(ui: "초안") }
-    static var help: String { String(ui: "초안: 파일·rekordbox에 아직 반영하지 않은 값") }
+    static var help: String { String(ui: "초안: 파일·rekordbox에 아직 쓰지 않은 값") }
 }
 
 /// 경고 표식: 경고 주황 글자에는 늘 이 심볼을 붙인다(초안 주황과 모양으로 구분).

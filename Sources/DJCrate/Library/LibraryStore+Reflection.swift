@@ -70,7 +70,7 @@ extension LibraryStore {
             try? ReflectionStore.save(batch)
             reflectionBatch = batch
         }
-        var parts = [String(ui: "rekordbox 반영 확인(\(batch.createdAt) 묶음): 일치 \(matched)")]
+        var parts = [String(ui: "rekordbox XML 가져오기 확인(\(batch.createdAt) 묶음): 일치 \(matched)")]
         if notYet > 0 { parts.append(String(ui: "아직 가져오지 않음 \(notYet)")) }
         if !mismatched.isEmpty { parts.append(String(ui: "불일치 \(mismatched.count) — \(mismatched.prefix(2).joined(separator: " · "))")) }
         reflectionMessage = AppMessage(kind: mismatched.isEmpty && notYet == 0 ? .success : .warning, text: parts.joined(separator: " · "))

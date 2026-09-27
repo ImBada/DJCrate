@@ -38,7 +38,7 @@ enum DirectWritePanels {
     static func restoreLatest(store: LibraryStore) {
         store.refreshWriteBackups()
         guard let backup = RekordboxWriter.backups(in: store.backupDirectory).first(where: \.isWrite) else {
-            _ = AlertPrompter().show(ReflectionPrompt(title: String(ui: "되돌릴 쓰기 기록이 없습니다"),
+            _ = AlertPrompter().show(ReflectionPrompt(title: String(ui: "복원할 쓰기 기록이 없습니다"),
                                                       text: String(ui: "DJCrate가 rekordbox에 쓴 적이 없거나 백업이 정리됐습니다.")))
             return
         }

@@ -166,7 +166,7 @@ struct TrackColumn {
     static let all: [TrackColumn] = [
         TrackColumn(id: "index", title: "#", width: 48, minWidth: 48, help: String(ui: "지금 목록에서 몇 번째 곡인지")),
         TrackColumn(id: "thumb", title: String(ui: "앨범 아트"), width: 26, minWidth: 26, help: String(ui: "앨범 아트")),
-        TrackColumn(id: "edited", title: String(ui: "초안"), width: 18, minWidth: 18, help: String(ui: "DJCrate 초안이 있는 곡 (rekordbox·파일에는 아직 반영 안 됨)")),
+        TrackColumn(id: "edited", title: String(ui: "초안"), width: 18, minWidth: 18, help: String(ui: "DJCrate 초안이 있는 곡 (rekordbox·파일에 쓰기 전)")),
         TrackColumn(id: "title", title: String(ui: "제목"), width: 220, minWidth: 140, flexible: true, sortKey: "title"),
         TrackColumn(id: "preview", title: String(ui: "미리 보기"), width: 160, minWidth: 80,
                     help: String(ui: "곡 전체 파형과 핫큐·메모리 큐·루프 위치")),
@@ -511,11 +511,11 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         let pending = targets.filter { !$0.isStaged && store.pendingUUIDs.contains($0.track.uuid) }
         if !pending.isEmpty {
             menu.addItem(.separator())
-            let reflect = NSMenuItem(title: String(ui: "선택한 곡 rekordbox에 반영 (\(pending.count)곡)…"),
+            let reflect = NSMenuItem(title: String(ui: "선택한 곡 rekordbox에 쓰기 (\(pending.count)곡)…"),
                                      action: #selector(reflectSelected), keyEquivalent: "")
             reflect.target = self
             menu.addItem(reflect)
-            let xml = NSMenuItem(title: String(ui: "선택한 곡 반영 XML 만들기 (\(pending.count)곡)…"), action: #selector(exportReflectionXML), keyEquivalent: "")
+            let xml = NSMenuItem(title: String(ui: "선택한 곡 XML 만들기 (\(pending.count)곡)"), action: #selector(exportReflectionXML), keyEquivalent: "")
             xml.target = self
             menu.addItem(xml)
         }
@@ -526,12 +526,12 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             let add = NSMenuItem(title: String(ui: "rekordbox에 바로 넣기 (\(staged.count)곡)…"), action: #selector(addToRekordbox), keyEquivalent: "")
             add.target = self
             menu.addItem(add)
-            let export = NSMenuItem(title: String(ui: "추가한 곡 rekordbox XML로 내보내기 (\(staged.count)곡)…"), action: #selector(exportStaged), keyEquivalent: "")
+            let export = NSMenuItem(title: String(ui: "추가한 곡 XML 만들기 (\(staged.count)곡)"), action: #selector(exportStaged), keyEquivalent: "")
             export.target = self
             menu.addItem(export)
         }
         menu.addItem(.separator())
-        let pendingList = NSMenuItem(title: String(ui: "rekordbox 반영 대기 목록 보기"), action: #selector(showPending), keyEquivalent: "")
+        let pendingList = NSMenuItem(title: String(ui: "rekordbox 쓰기 대기 목록 보기"), action: #selector(showPending), keyEquivalent: "")
         pendingList.target = self
         menu.addItem(pendingList)
         let removable = targets.filter { !$0.isStaged && !$0.track.isStreaming }
@@ -1215,7 +1215,7 @@ private final class EditedMarkCell: NSTableCellView {
 
     func configure(edited: Bool) {
         mark.image = edited ? Self.image : nil
-        toolTip = edited ? String(ui: "DJCrate 초안이 있습니다 (rekordbox·파일에는 아직 반영 안 됨)") : nil
+        toolTip = edited ? String(ui: "DJCrate 초안이 있습니다 (rekordbox·파일에 쓰기 전)") : nil
     }
 }
 

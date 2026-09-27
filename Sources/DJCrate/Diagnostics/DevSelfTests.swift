@@ -619,8 +619,8 @@ func runMetronomeSelfTestIfRequested() {
         while ProcessInfo.processInfo.systemUptime - started < played {
             audio.scheduleClicks(grid)
             i += 1
-            if testsJump, i == 6 {
-                // 첫 클릭(1.25초) 전에 점프를 예약한다. 착지 그리드는 180 BPM의 강박부터 시작한다.
+            if testsJump, jump == nil, audio.position >= 1.5 {
+                // 첫 클릭(1.25초) 뒤에 요청해 시작 시계와 점프 시계 사이의 한 박 간격도 반드시 검사한다.
                 jump = audio.scheduleJump(to: 8.1, loop: nil, quantize: PlayQuantize(grid: grid, beats: 1)!)
             }
             try? await Task.sleep(for: .milliseconds(13 + i % 3))

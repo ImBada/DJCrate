@@ -31,11 +31,14 @@ rekordbox master.db ──(스냅샷 사본)──▶ RekordboxLibrary ──▶
         │                                            편집은 초안으로 쌓임
         │                           CueDraft · GridDraft · 게인 초안 · TagDraft · PlaylistDraft
         │                                                         │
-        └──── RekordboxWriter / RekordboxGridWriter ◀── 반영(rekordbox 꺼져 있을 때만)
-                                                                  │
-                        새 곡 ── StagedTrack ── rekordbox XML ──▶ rekordbox가 Import
+        └──── RekordboxWriter / RekordboxGridWriter ◀── rekordbox에 쓰기(rekordbox 꺼져 있을 때만)
+
+새 곡 ── StagedTrack ──┬── RekordboxTrackWriter ──▶ 컬렉션에 직접 넣기(rekordbox 꺼져 있을 때만)
+                      └── RekordboxXML ──▶ XML 만들기 ──▶ 사용자가 rekordbox에서 Import To Collection
+기존 곡의 큐·그리드 초안 ── Reflection ──▶ XML 만들기 ──▶ 사용자가 rekordbox에서 Import To Collection
 ```
 
+- **XML은 별도의 호환 경로다.** 기존 곡은 `Reflection.plan`으로 큐·그리드 변경과 옮길 수 없는 정보를 확인하고, `Reflection.document`로 내보낸다. 새 곡은 `RekordboxXML.document`로 곡 정보·그리드·점 큐를 내보낸다. 두 경로는 같은 연동 파일을 덮어쓰되 재생 목록 이름은 각각 `DJCrate 반영`·`DJCrate 추가`로 유지한다. 새 스냅샷에서 기존 곡은 `Reflection.verify`로 큐·그리드·곡 정보를, 새 곡은 `StagedTrack.ImportCheck`로 그리드를 비교한다. 태그·게인·재생 목록 초안까지 다루는 직접 쓰기와 범위가 같지 않으며 전체 라이브러리 입출력도 아니다([지원 범위와 사용법](../README.md#xml-호환-경로)).
 - **목록 선택과 덱은 따로다(#93).** 목록 한 번 클릭·↑↓·태그 시트 커서는 고른 곡(`LibraryStore.selection`)만 바꾸고 덱은 그대로다. 덱은 불러오기 명령(`LibraryStore.loadToDeck`: 더블클릭·⌘→·오른쪽 클릭 "덱에 불러오기"·덱으로 끌어다 놓기)으로만 바뀐다. 재생 기록의 반복 행도 컬렉션 곡으로 올리고(`deckTrackID` = ContentID), 스냅샷을 새로 읽으면 덱의 곡만 새 값으로 맞추거나 지워졌으면 내린다. 곡을 추가해도 덱은 그대로고, 덱의 곡을 편집해 렌더한 편집본과 덱에 올린 추가한 곡을 rekordbox에 넣은 경우만 덱을 바꿔 올린다.
 - **읽기는 사본에서만.** 라이브 DB를 열어 두면 rekordbox와 잠금·WAL이 얽힌다. `LibrarySnapshot`이 사본을 뜨고, rekordbox가 켜져 있으면 `--force`일 때만 WAL까지 합친 읽기용 사본을 뜬다.
 - **편집은 초안.** 초안은 JSON으로 `~/Library/Application Support/DJCrate/`에 저장된다. 앱을 꺼도 남고, 반영하면 지운다. 초안마다 만들 때의 rekordbox 상태(`base`)가 있어서, 그 뒤 rekordbox에서 바뀐 곡은 쓰지 않는다(덮어쓰기 방지).

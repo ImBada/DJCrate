@@ -182,7 +182,7 @@ public enum RekordboxWriter {
                 do {
                     let ids = Set(draft.members.map(\.trackUUID))
                     guard ids.isDisjoint(with: edited), ids.isDisjoint(with: reserved), playlistSteps.isEmpty else {
-                        throw DuplicateMerge.Blocked(String(ui: "같은 곡의 다른 초안이나 재생 목록 초안이 있습니다. 먼저 반영하거나 버린 뒤 합치세요"))
+                        throw DuplicateMerge.Blocked(String(ui: "같은 곡의 다른 초안이나 재생 목록 초안이 있습니다. 먼저 쓰거나 버린 뒤 합치세요"))
                     }
                     _ = try checkMerge(draft, db: reader)
                     mergePlans.append(draft); reserved.formUnion(ids)
