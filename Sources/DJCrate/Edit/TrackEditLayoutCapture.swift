@@ -6,8 +6,10 @@ import DJCStorage
 
 extension TrackEditWindow {
     /// 개발용. 합성 라이브러리(EditLayoutFixtureCapture)의 곡으로 편집 창을 띄운다. 초안이 섞이지 않게 `DJC_HOME`이 있을 때만.
-    /// - `--edit-layout=light|dark`: 창 번호를 표준 오류에 적는다(`screencapture -l`로 그 창만 찍는다).
-    /// - `--edit-selftest`: 이음새 미리 듣기(실제 재생기) → 렌더 → 추가한 곡으로 이동 → 덱에 편집본이 올라오는지까지 돌린다.
+    /// - `--edit-layout=light|dark`: 클립 넷·원곡에서 고른 구간·고른 클립 상태로 띄우고 창 번호를 표준 오류에 적는다
+    ///   (`screencapture -l`로 그 창만 찍는다).
+    /// - `--edit-selftest`: 창 재생기(스페이스바·시킹·이음새 듣기, 덱은 그대로) → 고르기·자르기·복제·옮기기·지우기와
+    ///   편집 메뉴 실행 취소·복귀 → 렌더 → 추가한 곡으로 이동 → 덱에 편집본이 올라오는지까지 돌린다.
     func runLayoutCaptureIfRequested() {
         let args = ProcessInfo.processInfo.arguments
         let layout = args.first { $0.hasPrefix("--edit-layout=") }
@@ -29,9 +31,15 @@ extension TrackEditWindow {
             guard deck.waveform != nil else { Self.log("파형을 읽지 못함"); return }
             deck.seek(deck.duration * 0.42)
             open(entries: [BarRange(0, 16), BarRange(1, 16), BarRange(17, 48), BarRange(81, 96)])
-            model?.barsToAdd = 8
-            try? await Task.sleep(for: .milliseconds(800))
+            guard let model, let bars = model.layout else { Self.log("편집 창을 열지 못함"); return }
+            for _ in 0..<100 where !model.isAudioReady { try? await Task.sleep(for: .milliseconds(50)) }
             if layout != nil {
+                // 원곡에서 49~64마디를 고르고, 결과의 세 번째 클립을 고른 상태
+                model.select(from: bars.start(ofBar: 49), to: bars.start(ofBar: 65))
+                model.finishSelection()
+                model.selectedClip = model.entries[2].id
+                model.seek(.output, to: (model.edit?.clips[2].outputStart ?? 0) + 6 * bars.barLength)
+                try? await Task.sleep(for: .milliseconds(800))
                 Self.log("창 번호 \(window?.windowNumber ?? -1)")
             }
             if selfTest { await runSelfTest(deck: deck, store: store) }
@@ -39,25 +47,112 @@ extension TrackEditWindow {
     }
 
     private func runSelfTest(deck: DeckModel, store: LibraryStore) async {
-        guard let model, let seam = model.seams.first, let edit = model.edit else { Self.log("실패: 편집 계획 없음"); return }
+        guard let model, let window, let layout = model.layout, let first = model.edit, first.pieces.count > 1 else {
+            Self.log("실패: 편집 계획 없음")
+            return
+        }
         var passed = true
         func check(_ ok: Bool, _ text: String) {
             passed = passed && ok
             Self.log("\(ok ? "통과" : "실패"): \(text)")
         }
-        // 1) 이음새 미리 듣기: 실제 재생기가 소리를 내기 시작하는지(바로 멈춘다)
-        model.previewSeam(seam.index)
-        for _ in 0..<100 where !model.player.isPlaying { try? await Task.sleep(for: .milliseconds(50)) }
-        let previews = (try? FileManager.default.contentsOfDirectory(at: model.previewDirectory, includingPropertiesForKeys: nil)) ?? []
-        let seconds = previews.first.flatMap { try? AVAudioFile(forReading: $0) }.map { Double($0.length) / $0.processingFormat.sampleRate }
-        check(model.player.isPlaying && model.preview == .seam(seam.index),
-              String(format: "이음새(%@) 미리 듣기 재생 · 임시 파일 %.2f초", seam.preview.map(\.description).joined(separator: "→"), seconds ?? -1))
-        model.stopPreview()
+        func wait(_ seconds: Double) async { try? await Task.sleep(for: .seconds(seconds)) }
+        func until(_ seconds: Double, _ condition: () -> Bool) async {
+            for _ in 0..<Int(seconds * 20) where !condition() { await wait(0.05) }
+        }
+        func press(_ keyCode: UInt16, _ characters: String, modifiers: NSEvent.ModifierFlags = []) async {
+            for type: NSEvent.EventType in [.keyDown, .keyUp] {
+                guard let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: modifiers,
+                                                   timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                                                   context: nil, characters: characters, charactersIgnoringModifiers: characters,
+                                                   isARepeat: false, keyCode: keyCode) else { return }
+                NSApp.postEvent(event, atStart: false)
+                await wait(0.05)
+            }
+        }
+        check(model.isAudioReady, "원곡을 메모리에 풀어 창에서 재생할 수 있음")
 
-        // 2) 렌더 → 추가한 곡
+        // 1) 스페이스바: 편집 창이 앞(주 창)이면 창 재생기가 마지막으로 누른 줄(결과)을 재생하고 덱은 그대로다.
+        NSApp.activate()
+        window.makeKeyAndOrderFront(nil)
+        window.makeMain()
+        window.makeFirstResponder(window.contentView)
+        await until(2) { NSApp.keyWindow === window }
+        model.seek(.output, to: 10)
+        await press(49, " ")
+        await until(2) { model.playing == .output }
+        let before = model.position(.output)
+        await wait(0.6)
+        let after = model.position(.output)
+        check(model.playing == .output && !deck.isPlaying && after - before > 0.3,
+              String(format: "스페이스바 → 결과 재생(주 창=%@, 덱 멈춤 그대로) · 0.6초 동안 %.2f초 진행", window === NSApp.mainWindow ? "편집 창" : "다른 창", after - before))
+        await press(49, " ")
+        await until(1) { model.playing == nil }
+        check(model.playing == nil && abs(model.position(.output) - after) < 0.5 && !deck.isPlaying,
+              String(format: "다시 스페이스바 → 일시정지, 재생선 %.2f초에 멈춤", model.position(.output)))
+
+        // 2) 결과 어디서든: 재생 중 시킹하면 그 자리에서 잇는다.
+        model.play(.output)
+        await wait(0.2)
+        model.seek(.output, to: 60)
+        await wait(0.4)
+        let seeked = model.position(.output)
+        check(model.playing == .output && seeked > 60.1 && seeked < 61, String(format: "재생 중 60초로 시킹 → 0.4초 뒤 %.2f초", seeked))
+        model.pause()
+
+        // 3) 이음새 듣기: 원곡이 이어지지 않는 자리 앞 2마디부터 뒤 2마디까지 듣고 멈춘다.
+        let seam = first.pieces[1].outputStart, span = 2 * layout.barLength
+        model.auditionSeam(1)
+        let auditionStart = model.position(.output)
+        await until(span + 1.5) { model.position(.output) > seam + 0.1 || model.playing == nil }
+        let crossed = model.position(.output)
+        await until(span * 2 + 2) { model.playing == nil }
+        check(abs(auditionStart - (seam - span)) < 0.05 && crossed > seam && model.playing == nil
+              && abs(model.position(.output) - (seam + span)) < 0.1,
+              String(format: "이음새 %.2f초: %.2f초부터 들어 이음새를 지나 %.2f초에서 멈춤", seam, auditionStart, model.position(.output)))
+
+        // 4) 원곡 줄: 덱과 따로 원곡을 재생한다.
+        model.seek(.source, to: 30)
+        model.play(.source)
+        await wait(0.5)
+        let source = model.position(.source)
+        model.pause()
+        check(source > 30.25 && source < 31 && !deck.isPlaying, String(format: "원곡 30초부터 재생 → 0.5초 뒤 %.2f초", source))
+
+        // 5) 원곡에서 끌어 고르기 → 고른 클립(17-48) 뒤에 넣기 → 자르기 → 복제 → 끌어 옮기기 → 지우기, 편집 메뉴 실행 취소·복귀
+        let original = model.entries.map(\.range)
+        model.selectedClip = model.entries[2].id
+        model.select(from: layout.start(ofBar: 49) + 0.2, to: layout.start(ofBar: 65) - 0.3)
+        await press(36, "\r")
+        guard model.selectedIndex == 3, model.clipLayout.count == 5 else { check(false, "결과에 넣지 못함"); return }
+        model.seek(.output, to: model.clipLayout[3].outputStart + 4 * layout.barLength + 0.3)
+        await press(11, "b", modifiers: .command)
+        await press(2, "d", modifiers: .command)
+        if let copy = model.selectedClip { model.moveClip(copy, toOffset: 3) }
+        await press(51, "\u{8}")
+        let edited = model.entries.map(\.range)
+        check(edited == original.prefix(3) + [BarRange(49, 52), BarRange(53, 64)] + original.suffix(1) && model.edit != nil,
+              "⏎ 넣기·⌘B 자르기·⌘D 복제·끌어 옮기기·⌫ 지우기 → \(edited.map(\.description).joined(separator: ","))")
+        // 편집 메뉴(⌘Z·⇧⌘Z)가 이 창이 앞일 때 타는 길: 창의 응답자 사슬 → 창의 실행 취소 관리자.
+        // 자가 테스트 중에는 앱이 앞에 없어 키 창이 없을 수 있어 창의 첫 응답자부터 직접 보낸다.
+        func menu(_ action: String) -> Bool {
+            (window.firstResponder ?? window).tryToPerform(Selector((action)), with: nil)
+        }
+        var handled = (0..<5).map { _ in menu("undo:") }
+        let undone = model.entries.map(\.range)
+        handled.append(menu("redo:"))
+        let redone = model.entries.map(\.range)
+        handled.append(menu("undo:"))
+        passed = passed && handled.allSatisfy { $0 }
+        check(undone == original && redone == original.prefix(3) + [BarRange(49, 64)] + original.suffix(1)
+              && model.entries.map(\.range) == original,
+              "편집 › 실행 취소 5번 → \(undone.map(\.description).joined(separator: ",")), 실행 복귀 → \(redone.map(\.description).joined(separator: ","))")
+
+        // 6) 렌더 → 추가한 곡
+        guard let edit = model.edit else { check(false, "편집 계획 없음"); return }
         let started = Date()
         model.render()
-        for _ in 0..<600 where model.staged == nil && model.renderProgress != nil { try? await Task.sleep(for: .milliseconds(100)) }
+        for _ in 0..<600 where model.staged == nil && model.renderProgress != nil { await wait(0.1) }
         guard let staged = model.staged else { check(false, "렌더: \(model.message?.text ?? "끝나지 않음")"); return }
         let rendered = try? AVAudioFile(forReading: URL(filePath: staged.path))
         let length = rendered.map { Double($0.length) / $0.processingFormat.sampleRate } ?? -1
@@ -65,10 +160,10 @@ extension TrackEditWindow {
               String(format: "렌더 %.1f초 걸림 · 결과 %.3f초(계획 %.3f초) · %@", Date().timeIntervalSince(started), length, edit.duration,
                      URL(filePath: staged.path).lastPathComponent))
 
-        // 3) 창이 닫히고 추가한 곡에서 편집본이 덱에 올라온다(변환한 그리드·옮긴 큐)
-        for _ in 0..<100 where deck.row?.track.uuid != staged.uuid || deck.draft == nil { try? await Task.sleep(for: .milliseconds(100)) }
+        // 7) 창이 닫히고 추가한 곡에서 편집본이 덱에 올라온다(변환한 그리드·옮긴 큐)
+        for _ in 0..<100 where deck.row?.track.uuid != staged.uuid || deck.draft == nil { await wait(0.1) }
         check(store.sidebar == .staged && store.selection == [staged.id] && self.model == nil
-              && window?.isVisible != true, "창 닫고 추가한 곡에서 고름")
+              && window.isVisible != true && !model.audio.isPlaying, "창 닫고(재생기 멈춤) 추가한 곡에서 고름")
         check(deck.row?.track.uuid == staged.uuid && deck.gridDraft?.segments == [edit.outputGrid]
               && deck.draft?.cues.count == model.carry?.placed.count,
               "덱에 편집본 · 그리드 \(deck.gridDraft?.segments.first.map { String(format: "%.2f BPM", $0.bpm) } ?? "없음") · 큐 \(deck.draft?.cues.count ?? 0)개")
