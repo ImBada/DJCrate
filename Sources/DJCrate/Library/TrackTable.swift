@@ -190,7 +190,7 @@ struct TrackColumn {
         TrackColumn(id: "hotCues", title: String(ui: "핫큐"), width: 42, minWidth: 34, sortKey: "hotCues", ascendingFirst: false,
                     help: String(ui: "직접 찍은 핫큐 수(초록)")),
         TrackColumn(id: "memoryCues", title: String(ui: "메모리"), width: 50, minWidth: 40, sortKey: "memoryCues", ascendingFirst: false,
-                    help: String(ui: "직접 찍은 메모리 큐 수(빨강). 큐가 없으면 주황 '없음', rekordbox 자동 큐만 있으면 '자동'")),
+                    help: String(ui: "직접 찍은 메모리 큐 수(빨강). rekordbox 자동 큐만 있으면 '자동'")),
     ]
 
     /// 처음에 숨기는 칸(머리글 오른쪽 클릭으로 보인다). 태그 칸은 모두 목록에서 바로 고칠 수 있게 두되(#88) 자주 쓰지 않는 칸은 숨긴다.
@@ -714,16 +714,9 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             cell.set(hot > 0 ? "\(hot)" : "", color: UIColors.hot.nsColor, digits: true)
         case "memoryCues":
             // DJCrate에서 찍은 큐(초안)가 있으면 그 개수를 보여 준다(반영 전이라도).
-            if let counts = cueCounts[row.track.uuid] {
-                cell.set(counts.memory > 0 ? "\(counts.memory)" : (counts.hot > 0 ? "" : String(ui: "없음")),
-                         color: counts.memory > 0 ? UIColors.memory.nsColor : UIColors.warning.nsColor, digits: true)
-                break
-            }
-            switch row.cueState {
-            case .none: cell.set(String(ui: "없음"), color: UIColors.warning.nsColor)
-            case .autoOnly: cell.set(String(ui: "자동"), color: .tertiaryLabelColor)
-            case .manual: cell.set(row.memoryCueCount > 0 ? "\(row.memoryCueCount)" : "", color: UIColors.memory.nsColor, digits: true)
-            }
+            // 큐 없는 곡은 핫큐 칸처럼 비운다(사이드바 '큐 없음'으로 찾는다, #121).
+            let label = row.memoryCueLabel(draft: cueCounts[row.track.uuid])
+            cell.set(label.text, color: label == .autoOnly ? .tertiaryLabelColor : UIColors.memory.nsColor, digits: label != .autoOnly)
         default: cell.set("", color: .labelColor)
         }
     }
@@ -731,8 +724,10 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     /// 태그 칸: 초안 값이면 초안 색·모서리 표식·VoiceOver "초안"으로 보인다(태그 시트와 같다, #34).
     private func configureTag(_ cell: TrackTextCell, key: TagFields.Key, row: TrackRow) {
         let (text, edited) = TrackListTagEditing.text(row, key, draft: store.tagDrafts[row.track.uuid])
+        // 스트리밍 곡은 제목 앞 아이콘과 흐린 글자로 로컬 곡과 구분한다(사이드바 '스트리밍'과 같은 아이콘, #121).
+        let streaming = key == .title && row.track.isStreaming
         let color: NSColor = switch key {
-        case .title: .labelColor
+        case .title: streaming ? .secondaryLabelColor : .labelColor
         case .comment: row.commentEvaluation?.isMatch == true ? .labelColor : .secondaryLabelColor
         default: .secondaryLabelColor
         }
@@ -740,7 +735,8 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             cell.set("—", color: edited ? UIColors.draft.nsColor : .tertiaryLabelColor, draft: edited)
         } else {
             cell.set(text, color: edited ? UIColors.draft.nsColor : color,
-                     digits: key == .year || key == .trackNumber, draft: edited)
+                     digits: key == .year || key == .trackNumber, draft: edited,
+                     symbol: streaming ? LibraryFilter.streaming.systemImage : nil, symbolLabel: streaming ? String(ui: "스트리밍 곡") : nil)
         }
     }
 
@@ -964,6 +960,12 @@ final class TrackTextCell: NSTableCellView {
     let label = NSTextField(labelWithString: "")
     private let draftMark = DraftCornerView()
     private var normalColor = NSColor.labelColor
+    /// 글자 앞 작은 심볼(스트리밍 곡 제목, #121). 쓰는 칸이 드물어 처음 필요할 때 만든다.
+    private var icon: NSImageView?
+    private var labelLeading: NSLayoutConstraint!
+    /// 보이는 글자 앞 심볼 이름(시험용)
+    private(set) var leadingSymbol: String?
+    private var iconPointSize: CGFloat = 0
     /// 접근성 값을 한 번이라도 덮었는지. 셀에 nil을 넣으면 기본값으로 돌아가지 않아 그 뒤로는 글자를 계속 넣는다.
     private var speaksCustomValue = false
     private var field: NSTextField?
@@ -975,6 +977,7 @@ final class TrackTextCell: NSTableCellView {
     private func updateColor() {
         let emphasized = backgroundStyle == .emphasized
         label.textColor = emphasized ? .alternateSelectedControlTextColor : normalColor
+        icon?.contentTintColor = label.textColor
         draftMark.color = emphasized ? .alternateSelectedControlTextColor : UIColors.draft.nsColor
     }
 
@@ -1009,8 +1012,9 @@ final class TrackTextCell: NSTableCellView {
         draftMark.translatesAutoresizingMaskIntoConstraints = false
         draftMark.isHidden = true
         addSubview(draftMark)
+        labelLeading = label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2)
         NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
+            labelLeading,
             label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
             draftMark.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -1024,12 +1028,17 @@ final class TrackTextCell: NSTableCellView {
 
     /// - Parameter draft: 반영 전 초안 값. 색과 함께 모서리 표식·VoiceOver "초안"으로도 알린다.
     /// - Parameter estimated: DJCrate 추정값. 색과 함께 기울임·툴팁·VoiceOver "추정"으로도 알린다.
-    func set(_ text: String, color: NSColor, digits: Bool = false, draft: Bool = false, estimated: Bool = false) {
+    /// - Parameter symbol: 글자 앞 SF 심볼. 칸을 다시 쓸 때마다 부르므로 nil이면 지운다.
+    func set(_ text: String, color: NSColor, digits: Bool = false, draft: Bool = false, estimated: Bool = false,
+             symbol: String? = nil, symbolLabel: String? = nil) {
         if label.stringValue != text { label.stringValue = text }
-        normalColor = color
-        updateColor()
         let font = estimated ? fonts.estimated : digits ? fonts.digits : fonts.text
         if label.font != font { label.font = font }
+        if symbol != leadingSymbol || (symbol != nil && iconPointSize != font.pointSize) {
+            showSymbol(symbol, label: symbolLabel, pointSize: font.pointSize)
+        }
+        normalColor = color
+        updateColor()
         if draftMark.isHidden == draft { draftMark.isHidden = !draft }
         let tip = estimated ? String(ui: "DJCrate가 소리로 추정한 키입니다. rekordbox 분석과 다를 수 있습니다") : nil
         if toolTip != tip { toolTip = tip }
@@ -1038,6 +1047,39 @@ final class TrackTextCell: NSTableCellView {
             label.cell?.setAccessibilityValue(spoken)
             speaksCustomValue = true
         }
+    }
+
+    private func showSymbol(_ name: String?, label text: String?, pointSize: CGFloat) {
+        leadingSymbol = name
+        iconPointSize = pointSize
+        if name != nil, icon == nil {
+            let view = NSImageView()
+            view.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(view)
+            NSLayoutConstraint.activate([
+                view.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
+                view.centerYAnchor.constraint(equalTo: centerYAnchor),
+            ])
+            icon = view
+        }
+        let image = name.flatMap { Self.symbolImage($0, label: text, pointSize: round(pointSize * 0.85)) }
+        icon?.image = image
+        icon?.toolTip = image == nil ? nil : text
+        icon?.isHidden = image == nil
+        // 제약을 켜고 끄지 않고 글자 시작점만 옮긴다(스크롤 중 칸을 다시 쓸 때 배치 비용을 줄인다).
+        labelLeading.constant = 2 + (image.map { ceil($0.size.width) + 3 } ?? 0)
+    }
+
+    /// 스크롤로 칸을 다시 쓸 때마다 심볼 이미지를 새로 만들지 않는다.
+    private static var symbolImages: [String: NSImage] = [:]
+
+    private static func symbolImage(_ name: String, label: String?, pointSize: CGFloat) -> NSImage? {
+        let key = "\(name)|\(label ?? "")|\(pointSize)"
+        if let image = symbolImages[key] { return image }
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: label)?
+            .withSymbolConfiguration(.init(pointSize: pointSize, weight: .regular))
+        symbolImages[key] = image
+        return image
     }
 
     /// 칸 자리에 입력 칸을 띄운다(목록 글자는 가린다). 끝나면 `endEditing`으로 걷는다.
