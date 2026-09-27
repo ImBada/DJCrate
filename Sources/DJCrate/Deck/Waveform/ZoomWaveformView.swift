@@ -209,8 +209,8 @@ struct ZoomWaveformView: View {
                         .foregroundStyle(beat.isDownbeat ? Palette.mid : Palette.rulerText),
                                  at: CGPoint(x: x + 2, y: size.height - metrics.beatNumberInset), anchor: .leading)
                 }
-                // 상단 위치 표시(마디.박, 박은 0부터). 자리가 모자라면 글자를 줄이지 않고 라벨 수를 줄인다(`BeatRulerLabel`).
-                if let label = BeatRulerLabel.text(bar: grid.bar(at: beat.time), beatIndex: max(beat.number - 1, 0),
+                // 상단 위치 표시(마디.박, rekordbox처럼 박은 1부터). 자리가 모자라면 글자를 줄이지 않고 라벨 수를 줄인다(`BeatRulerLabel`).
+                if let label = BeatRulerLabel.text(bar: grid.bar(at: beat.time), beat: max(beat.number, 1),
                                                    isDownbeat: beat.isDownbeat, beatWidth: beatWidth, charWidth: metrics.charWidth),
                    x + 3 + CGFloat(label.count) * metrics.charWidth < size.width - 1 {
                     context.draw(Text(label)
