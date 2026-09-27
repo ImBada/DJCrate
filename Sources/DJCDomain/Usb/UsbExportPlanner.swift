@@ -424,8 +424,8 @@ private struct PlanState {
                 result.append(trackBlock("fileTooLarge", candidate, String(ui: "FAT32는 4GB 넘는 파일을 담을 수 없습니다")))
             }
             if actual != candidate.fileSize {
-                result.append(trackBlock("audioSizeMismatch", candidate, String(
-                    ui: "음원 파일이 rekordbox 분석 뒤 바뀌었습니다. rekordbox에서 트랙 정보를 다시 읽고 분석한 뒤 내보내세요")))
+                let message = String(ui: "음원 파일이 rekordbox 분석 뒤 바뀌었습니다. rekordbox에서 트랙 정보를 다시 읽고 분석한 뒤 내보내세요")
+                result.append(trackBlock("audioSizeMismatch", candidate, message))
             }
         }
         if candidate.analysis != .complete {
@@ -548,8 +548,8 @@ private struct PlanState {
             guard visited.insert(input.localID).inserted else { return }
             // 인텔리전트(스마트) 목록은 규칙을 USB에 옮기는 방법을 확인하지 않았다.
             guard input.attribute == 0 || input.attribute == 1 else {
-                state.blocked.append(UsbBlock(code: "smartPlaylist", scope: .playlist(input.localID), message: String(
-                    ui: "스마트 재생 목록은 아직 내보낼 수 없습니다. 일반 목록으로 복사한 뒤 내보내세요")))
+                let message = String(ui: "스마트 재생 목록은 아직 내보낼 수 없습니다. 일반 목록으로 복사한 뒤 내보내세요")
+                state.blocked.append(UsbBlock(code: "smartPlaylist", scope: .playlist(input.localID), message: message))
                 return
             }
             let id = state.ids.next(.playlist)
