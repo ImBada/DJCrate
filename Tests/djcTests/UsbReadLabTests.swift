@@ -27,11 +27,11 @@ struct UsbReadLabTests {
 
     @Test func renderPrintsCountsAndFieldNamesOnly() {
         let summaries = [
-            UsbLibraryDiff.TableSummary(table: "content", matchedRows: 27, leftRows: 28, rightRows: 28, differingFields: ["title": 1]),
+            UsbLibraryDiff.TableSummary(table: "content", matchedRows: 2, leftRows: 3, rightRows: 3, differingFields: ["title": 1]),
             UsbLibraryDiff.TableSummary(table: "artist", matchedRows: 5, leftRows: 5, rightRows: 5, differingFields: [:]),
         ]
         let lines = UsbReadLab.render((summaries, [UsbLibraryDiff.Difference(table: "content", key: "3", field: "title")]))
-        #expect(lines == ["content 27/28행 일치, 다른 칸: title×1", "artist 5/5행 일치", "차이 1"])
+        #expect(lines == ["content 2/3행 일치, 다른 칸: title×1", "artist 5/5행 일치", "차이 1"])
     }
 
     @Test func oneLibrarySQLReadsTemporaryCopyAndBlocksCredentials() throws {
