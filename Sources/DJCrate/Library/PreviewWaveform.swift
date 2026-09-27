@@ -14,37 +14,46 @@ struct PreviewWaveformRequest: Hashable, Sendable {
     var trackKey = ""
     var cues: [PreviewCueMark] = []
     var duration: Double = 0
+    /// 칸의 파형 자리 크기(pt)와 화면 배율. 눈금은 이 크기로 그린다(#121).
+    var size = CGSize(width: 400, height: 40)
+    var scale: Double = 1
 
     var cacheKey: NSString {
         let positions = cues.map { "\($0.time):\($0.end ?? -1):\($0.hot)" }.joined(separator: ",")
+        // 눈금이 없으면 파형 비트맵 하나를 칸에 늘려 쓰므로 크기가 달라도 같은 그림이다.
+        let drawing = cues.isEmpty ? "" : "\(size.width)x\(size.height)@\(scale)"
         return [url?.absoluteString ?? "", revision, appearance, mode.rawValue, String(emphasized), audioURL?.absoluteString ?? "", trackKey,
-                positions, String(duration)]
+                positions, String(duration), drawing]
             .joined(separator: "\u{1F}") as NSString
     }
 }
 
 /// 색 선택과 그리기를 한곳에 모으고, 셀에는 완성된 이미지만 넘긴다.
 enum PreviewWaveformRenderer {
+    /// 파형만 있으면 400×40 비트맵을 칸에 늘려 쓴다. 눈금이 있으면 칸의 실제 픽셀 크기(`size` pt × `scale`)로 다시 그린다.
+    /// 400×40에 그려 칸에 줄여 넣으면 기본 칸에서 눈금이 1pt 남짓으로 작아진다(#121).
     static func image(_ waveform: AnlzPreviewWaveform?, mode: WaveformColorMode,
-                      appearance: String, emphasized: Bool = false, cues: [PreviewCueMark] = [], duration: Double = 0) -> CGImage? {
+                      appearance: String, emphasized: Bool = false, cues: [PreviewCueMark] = [], duration: Double = 0,
+                      size: CGSize = CGSize(width: 400, height: 40), scale: CGFloat = 1) -> CGImage? {
         let reduced = waveform?.downsampled(to: 400)
         let columns = mode == .blue ? reduced?.blueColumns : (reduced?.colorColumns ?? reduced?.blueColumns)
         // 선택 배경에서도 밴드·RGB 구분을 남기고 어두운 배경용 대비를 쓴다.
         let name = emphasized ? NSAppearance.Name.darkAqua : NSAppearance.Name(appearance)
         let image = columns.flatMap { WaveformBitmap.image($0, mode: mode, appearance: name, height: 40, width: 400) }
-        let shapes = PreviewCueMark.shapes(cues, duration: duration, width: 400, height: 40)
-        guard !shapes.isEmpty,
-              let context = CGContext(data: nil, width: 400, height: 40, bitsPerComponent: 8, bytesPerRow: 1600,
+        let shapes = PreviewCueMark.shapes(cues, duration: duration, width: size.width, height: size.height)
+        let width = Int((size.width * scale).rounded()), height = Int((size.height * scale).rounded())
+        guard !shapes.isEmpty, width > 0, height > 0,
+              let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
                                       space: CGColorSpace(name: CGColorSpace.sRGB)!,
                                       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return image }
-        if let image { context.draw(image, in: CGRect(x: 0, y: 0, width: 400, height: 40)) }
-        context.translateBy(x: 0, y: 40)
-        context.scaleBy(x: 1, y: -1)
+        if let image { context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height)) }
+        context.translateBy(x: 0, y: CGFloat(height))
+        context.scaleBy(x: scale, y: -scale)
         context.setShouldAntialias(false)
         for shape in shapes {
-            // 반대 명도의 테두리로 어느 파형 색 위에서도 눈금 경계를 남긴다.
+            // 반대 명도의 테두리(기기 픽셀 한 칸)로 어느 파형 색 위에서도 눈금 경계를 남긴다.
             context.setFillColor(UIColors.onFillVariants.resolved(for: name).cgColor)
-            context.fill(shape.rect.insetBy(dx: -1, dy: -1))
+            context.fill(shape.rect.insetBy(dx: -1 / scale, dy: -1 / scale))
             context.setFillColor(shape.color.variants.resolved(for: name).cgColor)
             context.fill(shape.rect)
         }
@@ -98,7 +107,7 @@ actor PreviewWaveformCache {
         if !Task.isCancelled {
             image = PreviewWaveformRenderer.image(waveform, mode: request.mode,
                                                  appearance: request.appearance, emphasized: request.emphasized,
-                                                 cues: request.cues, duration: request.duration)
+                                                 cues: request.cues, duration: request.duration, size: request.size, scale: request.scale)
         }
         guard !Task.isCancelled else { return nil }
         cache.setObject(Entry(image), forKey: imageKey, cost: image.map { $0.bytesPerRow * $0.height } ?? 1)
@@ -111,7 +120,7 @@ final class PreviewWaveformCell: NSTableCellView {
     private let waveformLayer = CALayer()
     private var source: (url: URL?, revision: String, mode: WaveformColorMode, audioURL: URL?, key: String,
                          cues: [PreviewCueMark], duration: Double)?
-    private var request: PreviewWaveformRequest?
+    private(set) var request: PreviewWaveformRequest?
     private var task: Task<Void, Never>?
 
     init() {
@@ -153,23 +162,44 @@ final class PreviewWaveformCell: NSTableCellView {
 
     override func layout() {
         super.layout()
+        let frame = bounds.insetBy(dx: 3, dy: 2)
+        guard waveformLayer.frame != frame else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        waveformLayer.frame = bounds.insetBy(dx: 3, dy: 2)
+        waveformLayer.frame = frame
         CATransaction.commit()
+        // 눈금은 칸 크기대로 그리므로 칸 크기가 바뀌면 다시 요청한다(#121).
+        if waveformLayer.bounds.size != request?.size { refresh() }
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        refresh()
     }
 
     private func refresh() {
         guard let source else { return }
+        // 배치 전(크기 0)에는 그리지 않는다. 크기가 정해지면 layout에서 다시 부른다.
+        let size = waveformLayer.bounds.size
+        guard size.width > 0, size.height > 0 else { return }
         let appearance = effectiveAppearance.bestMatch(from: [.accessibilityHighContrastAqua,
             .accessibilityHighContrastDarkAqua, .aqua, .darkAqua]) ?? .aqua
-        let next = PreviewWaveformRequest(url: source.url, revision: source.revision,
+        var next = PreviewWaveformRequest(url: source.url, revision: source.revision,
                                           appearance: appearance.rawValue, mode: source.mode, emphasized: backgroundStyle == .emphasized,
                                           audioURL: source.audioURL, trackKey: source.key, cues: source.cues, duration: source.duration)
+        next.size = size
+        next.scale = Double(window?.backingScaleFactor ?? 2)
         guard request != next else { return }
+        // 크기만 바뀌면(칸 너비 조절) 새 그림이 올 때까지 옛 그림을 늘려 둔다(깜박이지 않게).
+        let resizedOnly = request.map { old in
+            var old = old
+            old.size = next.size
+            old.scale = next.scale
+            return old == next
+        } ?? false
         request = next
         task?.cancel()
-        show(nil)
+        if !resizedOnly { show(nil) }
         task = Task(priority: .utility) { [weak self] in
             let image = await PreviewWaveformCache.shared.image(for: next)
             guard !Task.isCancelled, let self, self.request == next else { return }

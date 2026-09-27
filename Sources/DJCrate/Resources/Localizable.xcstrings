@@ -13886,6 +13886,22 @@
         }
       }
     },
+    "스트리밍 곡" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Streaming track"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ストリーミング曲"
+          }
+        }
+      }
+    },
     "스트리밍 곡은 XML로 만들 수 없습니다" : {
       "localizations" : {
         "en" : {
@@ -18566,18 +18582,18 @@
         }
       }
     },
-    "직접 찍은 메모리 큐 수(빨강). 큐가 없으면 주황 '없음', rekordbox 자동 큐만 있으면 '자동'" : {
+    "직접 찍은 메모리 큐 수(빨강). rekordbox 자동 큐만 있으면 '자동'" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Number of memory cues you set (red). Orange 'None' if there are no cues, 'Auto' if there are only rekordbox auto cues"
+            "value" : "Number of memory cues you set (red). 'Auto' if there are only rekordbox auto cues"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自分で設定したメモリーキューの数（赤）。キューがなければオレンジの「なし」、rekordboxの自動キューだけなら「自動」"
+            "value" : "自分で設定したメモリーキューの数（赤）。rekordboxの自動キューだけなら「自動」"
           }
         }
       }
