@@ -14,6 +14,7 @@ import Foundation
 @MainActor
 enum DevSelfTests {
     static func runIfRequested(store: LibraryStore, deck: DeckModel) {
+        runITunesSelfTestIfRequested(store: store, deck: deck)
         runSearchLayoutIfRequested()
         runReflectionLayoutIfRequested(store: store)
         runWriteSelfTestIfRequested(store: store, deck: deck)

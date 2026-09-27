@@ -144,6 +144,30 @@
           }
         }
       }
+    },
+    "NSAppleMusicUsageDescription": {
+      "comment": "iTunes 동기화 목록 읽기 권한 안내",
+      "extractionState": "manual",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "rekordbox에서 동기화한 iTunes 목록의 이름과 곡 순서를 읽으려면 접근이 필요합니다."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DJCrate needs access to read the names and track order of iTunes playlists synced in rekordbox."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "rekordboxで同期したiTunesプレイリストの名前と曲順を読み取るためにアクセスが必要です。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

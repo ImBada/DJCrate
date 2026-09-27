@@ -28,7 +28,7 @@ enum DirectWritePanels {
 
     /// rekordbox 컬렉션에서 곡을 뺀다(음원 파일은 그대로).
     static func deleteTracks(store: LibraryStore, rows: [TrackRow]) {
-        guard !store.isWritingRekordbox, store.writeTask == nil else { return }
+        guard !store.isITunesSelection, !store.isWritingRekordbox, store.writeTask == nil else { return }
         store.writeTask = Task {
             defer { store.writeTask = nil }
             await ReflectionCoordinator(host: store).deleteTracks(rows: rows)
