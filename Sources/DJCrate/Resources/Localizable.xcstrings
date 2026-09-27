@@ -7284,6 +7284,22 @@
         }
       }
     },
+    "결과: 회복할 쓰기가 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Result: There is no write to recover"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "結果: 回復する書き込みはありません"
+          }
+        }
+      }
+    },
     "결과를 파일에 보관하지 못했습니다. 앱을 닫기 전에 내용을 복사하고 DJCrate 데이터 폴더의 쓰기 권한을 확인하세요: %@" : {
       "localizations" : {
         "en" : {
@@ -8536,6 +8552,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "その書き込みはすでに元に戻されているため、変更するものはありません"
+          }
+        }
+      }
+    },
+    "그 쓰기는 이미 되돌렸습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That write has already been restored"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その書き込みはすでに元に戻しました"
           }
         }
       }
@@ -17128,6 +17160,22 @@
         }
       }
     },
+    "음원 원본이 없어 다시 복사하지 못했습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not copy the audio file again because the original is missing: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音源の元ファイルがないため、もう一度コピーできませんでした: %@"
+          }
+        }
+      }
+    },
     "음원 파일·폴더를 추가합니다. 창에 끌어다 놓아도 됩니다." : {
       "localizations" : {
         "en" : {
@@ -17450,6 +17498,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このUSBに終わっていない書き込みがあります。先に`djc usb-recover`で回復してください"
+          }
+        }
+      }
+    },
+    "이 USB의 DJCrate 백업 폴더(usb-backups 안)만 되돌릴 수 있습니다. 그 안의 폴더를 주세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only this USB's DJCrate backup folders (in usb-backups) can be restored. Give a folder from there"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSBのDJCrateバックアップフォルダ（usb-backups内）だけを元に戻せます。その中のフォルダを指定してください"
           }
         }
       }
