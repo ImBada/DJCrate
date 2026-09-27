@@ -8,6 +8,7 @@ xcuserdata/
 *.db
 *.db-wal
 *.db-shm
+*.db.itunes.json
 *.part
 snapshots/
 dist/

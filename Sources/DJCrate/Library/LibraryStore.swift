@@ -9,6 +9,7 @@ import Observation
 enum SidebarItem: Hashable, Sendable {
     case filter(LibraryFilter)
     case playlist(String)
+    case itunesPlaylist(String)
     case history(String)
     case duplicates
     /// DJCrate에 추가한 곡(아직 rekordbox에 없음)
@@ -108,7 +109,7 @@ final class LibraryStore {
             // 플레이리스트는 rekordbox 순서가 기본, 필터는 임포트 최신순이 기본.
             suppressRefresh = true
             switch sidebar {
-            case .playlist, .history, .duplicates, .staged, .pending: sortOrder = []
+            case .playlist, .itunesPlaylist, .history, .duplicates, .staged, .pending: sortOrder = []
             case .filter:
                 if case .filter = oldValue {} else { sortOrder = [KeyPathComparator(\TrackRow.importedOn, order: .reverse)] }
             }
@@ -118,6 +119,8 @@ final class LibraryStore {
     }
     /// 사이드바 재생 목록 트리(rekordbox 상태에 재생 목록 초안을 얹은 모양, LibraryStore+Playlists)
     var playlistTree: [PlaylistOutlineNode] = []
+    var iTunesLibrary = SyncedITunesLibrary()
+    var isITunesSelection: Bool { if case .itunesPlaylist = sidebar { true } else { false } }
     /// 새 항목의 부모만 펼치고 다른 폴더의 펼침 상태는 유지한다.
     var expandedPlaylistIDs: Set<String> = []
     var playlistIndex: [String: PlaylistOutlineNode] = [:] { didSet { playlistCount = playlistIndex.values.filter { !$0.isFolder }.count } }
@@ -149,6 +152,7 @@ final class LibraryStore {
         switch sidebar {
         case let .filter(filter): filter.title
         case let .playlist(id): playlistIndex[id]?.name ?? String(ui: "플레이리스트")
+        case let .itunesPlaylist(id): iTunesLibrary.index[id]?.name ?? String(ui: "iTunes 동기화 목록")
         case let .history(id): historyIndex[id].map(historyTitle) ?? String(ui: "재생 기록")
         case .duplicates: String(ui: "중복 후보")
         case .staged: String(ui: "추가한 곡")
@@ -234,6 +238,7 @@ final class LibraryStore {
     private var sortedBase: [TrackRow] = []
     private var suppressRefresh = false
     private var loadGeneration = 0
+    @ObservationIgnored private let snapshotRequests = SnapshotRequestQueue()
     private(set) var lastError: String?
 
     /// 불러오기 명령(⌘→·메뉴)이 덱에 올릴 곡: 선택 중 표 순서로 첫 곡.
@@ -310,6 +315,16 @@ final class LibraryStore {
         switch sidebar {
         case let .filter(filter): base = rows.filter(filter.includes)
         case let .playlist(id): base = (playlistIndex[id]?.trackIDs ?? []).compactMap { rowsByID[$0] }
+        case let .itunesPlaylist(id):
+            let node = iTunesLibrary.index[id]
+            var occurrences: [String: Int] = [:]
+            base = zip(node?.trackIDs ?? [], node?.trackNumbers ?? []).compactMap { trackID, number in
+                guard var row = rowsByID[trackID] else { return nil }
+                let occurrence = occurrences[trackID, default: 0]
+                occurrences[trackID] = occurrence + 1
+                row.playlistOccurrence = .init(id: "\(id):\(trackID):\(occurrence)", number: number)
+                return row
+            }
         case let .history(id):
             base = (historyIndex[id]?.entries ?? []).compactMap { entry in
                 guard var row = rowsByID[entry.contentID] else { return nil }
@@ -367,6 +382,22 @@ final class LibraryStore {
 
     // MARK: - 로드
 
+    static func explicitDatabaseRequested(arguments: [String], environment: [String: String]) -> Bool {
+        arguments.contains("--db") || environment["DJC_DB"] != nil
+    }
+
+    /// iTunes 버튼은 명시한 DB를 벗어나지 않는다. 사본 모드에서는 현재 DB 옆 목록만 다시 읽는다.
+    func refreshITunesPlaylists(arguments: [String] = ProcessInfo.processInfo.arguments,
+                                environment: [String: String] = ProcessInfo.processInfo.environment) async {
+        guard !isLoading, !isWritingRekordbox else { return }
+        if Self.explicitDatabaseRequested(arguments: arguments, environment: environment) {
+            guard let snapshotURL else { return }
+            await load(snapshot: snapshotURL)
+        } else {
+            await takeSnapshot(force: LibrarySnapshot.isRekordboxRunning())
+        }
+    }
+
     /// `--db PATH` 또는 `DJC_DB`가 있으면 그 사본을, 없으면 최신 스냅샷을 연다.
     func loadInitial() async {
         guard !isLoading, rows.isEmpty else { return }
@@ -376,7 +407,7 @@ final class LibraryStore {
         if let override {
             await load(snapshot: URL(filePath: override))
         } else if let latest = try? LibrarySnapshot.latest() {
-            await load(snapshot: latest)
+            await load(snapshot: latest, refreshITunes: !LibrarySnapshot.hasRekordboxDirectoryOverride())
             // 켠 순간의 창 활성화는 읽는 도중이라 건너뛰므로, 읽은 뒤 한 번 더 본다
             await refreshIfRekordboxChanged()
         } else {
@@ -396,14 +427,30 @@ final class LibraryStore {
 
     /// - Parameter quiet: 화면을 로딩으로 바꾸지 않고 뒤에서 다시 읽는다(rekordbox에 쓴 뒤 등).
     func takeSnapshot(force: Bool = false, quiet: Bool = false) async {
-        guard !isLoading else { return }
+        guard !isLoading || snapshotRequests.isRunning else { return }
+        await snapshotRequests.run(force: force, quiet: quiet) { [self] force, quiet in
+            await takeSnapshotOnce(force: force, quiet: quiet)
+        }
+    }
+
+    private func takeSnapshotOnce(force: Bool, quiet: Bool) async {
         let hadRows = !rows.isEmpty
+        let refreshITunes = !LibrarySnapshot.hasRekordboxDirectoryOverride()
+        let explicitDatabase = Self.explicitDatabaseRequested(arguments: ProcessInfo.processInfo.arguments,
+                                                              environment: ProcessInfo.processInfo.environment)
+        // 같은 초에 DB 파일 이름을 재사용해도 마지막 정상 iTunes 사본을 잃지 않게 먼저 읽는다.
+        let previousURL = !explicitDatabase && refreshITunes
+            && snapshotURL.map { LibrarySnapshot.sameDirectory($0.deletingLastPathComponent(), LibrarySnapshot.defaultDirectory) } == true
+            ? snapshotURL : nil
+        let previousITunesSnapshot = previousURL.map {
+            LoadedLibrary.ITunesFallback(source: $0, contents: ITunesLibrarySnapshot.load(for: $0))
+        }
         var isLoaded: Bool { if case .loaded = phase { true } else { false } }
         let quiet = quiet && hadRows && isLoaded
         if !quiet { phase = .loading(String(ui: "rekordbox DB 스냅샷을 뜨는 중…")) }
         do {
             let url = try await Task.detached { try LibrarySnapshot.take(force: force) }.value
-            await load(snapshot: url, quiet: quiet)
+            await load(snapshot: url, quiet: quiet, refreshITunes: refreshITunes, previousITunesSnapshot: previousITunesSnapshot)
         } catch {
             // 이미 라이브러리가 있으면 그대로 두고 오류만 알린다.
             let message = AppErrorMessage.message(for: error)
@@ -416,7 +463,8 @@ final class LibraryStore {
         }
     }
 
-    func load(snapshot: URL, quiet: Bool = false) async {
+    func load(snapshot: URL, quiet: Bool = false, refreshITunes: Bool = false,
+              previousITunesSnapshot: LoadedLibrary.ITunesFallback? = nil) async {
         previewWarmTask?.cancel()
         loadGeneration += 1
         let generation = loadGeneration
@@ -424,7 +472,12 @@ final class LibraryStore {
         if !quiet { phase = .loading(String(ui: "라이브러리를 읽는 중…")) }
         do {
             let preset = commentPreset
-            let loaded = try await Task.detached(priority: .userInitiated) { try LoadedLibrary.load(snapshot: snapshot, commentPreset: preset) }.value
+            // 메인 액터에서 정한 요청 순서를 캡처가 끝날 때까지 유지한다.
+            let refreshTicket = refreshITunes ? ITunesRefreshCoordinator.shared.begin(snapshot: snapshot) : nil
+            let loaded = try await Task.detached(priority: .userInitiated) {
+                try LoadedLibrary.load(snapshot: snapshot, commentPreset: preset, refreshITunes: refreshITunes,
+                                       previousITunesSnapshot: previousITunesSnapshot, refreshTicket: refreshTicket)
+            }.value
             // 더 나중에 시작한 로드가 있으면 이 결과는 버린다.
             guard generation == loadGeneration else { return }
             undoManager?.removeAllActions(withTarget: self)
@@ -444,6 +497,8 @@ final class LibraryStore {
             editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys)
             rekordboxPlaylists = loaded.playlists
             playlistDraft = loaded.playlistDraft
+            iTunesLibrary = loaded.iTunesLibrary
+            if case let .itunesPlaylist(id) = sidebar, iTunesLibrary.index[id] == nil { sidebar = .filter(.all) }
             mergeDrafts = DuplicateMergeDraftStore.load()
             refreshPlaylists(refreshList: false)
             histories = loaded.histories

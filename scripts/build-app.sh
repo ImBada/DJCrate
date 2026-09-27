@@ -49,6 +49,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>NSHighResolutionCapable</key><true/>
     <!-- 아래 설명·권한 안내 문구를 바꾸면 Sources/DJCrate/Resources/InfoPlist.xcstrings(ko·en·ja)도 함께 고친다. -->
     <key>NSHumanReadableCopyright</key><string>개인용 rekordbox 애니송 라이브러리 도구</string>
+    <key>NSAppleMusicUsageDescription</key><string>rekordbox에서 동기화한 iTunes 목록의 이름과 곡 순서를 읽으려면 접근이 필요합니다.</string>
     <key>NSRemovableVolumesUsageDescription</key><string>외장 드라이브에 있는 음원을 재생·분석하려면 접근이 필요합니다. DJCrate는 음원 파일을 고치지 않습니다.</string>
     <key>NSNetworkVolumesUsageDescription</key><string>네트워크 드라이브에 있는 음원을 재생·분석하려면 접근이 필요합니다.</string>
     <key>NSDocumentsFolderUsageDescription</key><string>문서 폴더에 있는 음원을 재생·분석하거나 rekordbox XML을 저장하려면 접근이 필요합니다.</string>

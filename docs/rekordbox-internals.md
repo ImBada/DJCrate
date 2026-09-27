@@ -11,6 +11,16 @@ rekordbox 7.2.18에서 사용자가 직접 편집한 결과를 스냅샷끼리 d
 - 삭제 행이 절반쯤 있다(`rb_local_deleted=1`). 집계·쓰기는 항상 삭제되지 않은 행만.
 - `agentRegistry`에는 클라우드 인증값이 들어 있다. 읽거나 출력하지 않는다(`djc lab sql`은 이 테이블 질의를 막는다). 예외: 쓰기 모듈이 `localUpdateCount`를 읽고 쓰고, `lastUpdateCount`의 정수 칸만 읽는다.
 
+### iTunes 동기화 목록 읽기 (2026-09-27, #100)
+
+- iTunes 아래의 동기화 목록은 일반 `djmdPlaylist` 목록과 구분한다. 목록 구성·순서는 읽기 전용이며, 컬렉션에 등록된 곡의 큐·태그는 기존 rekordbox 곡에 연결해야 한다.
+- rekordbox 폴더의 `playlists3.sync`는 `SYNC_ITUNES_PLAYLIST/PLAYLISTS/NODE` XML이다. `Lib_Type="1"` 노드에 iTunes 영구 ID(`Id`), 부모 ID(`ParentId`), 폴더 여부(`Attribute`: 1 폴더·0 목록), 동기화 선택(`CheckType="1"`)이 있다. 이름·곡 목록은 없다. ID는 앞의 0을 생략한 UInt64 16진수다.
+- `rekordbox6/rekordbox3.settings`의 `showAllItunesPlaylist="0"`과 rekordbox 화면의 동기화 목록만 표시하는 상태가 일치했다. `MusicAppLoadingType="1"`인 환경에서 동기화 ID를 Apple `ITLibrary` API와 대조해 목록과 곡 순서를 확인했다. 일반 DB에서 해당 목록 이름은 발견되지 않았다.
+- 공식 개발진은 Framework 방식이 Apple의 `ITLibrary`에서 Music 보관함 정보를 읽고, XML 방식과 선택할 수 있다고 설명한다([공식 답변](https://forums.pioneerdj.com/hc/en-us/community/posts/900001887506-What-does-Framework-in-iTunes-load-method-mean-and-imply-for-the-sync-manage), [Apple API](https://developer.apple.com/documentation/ituneslibrary/itlibrary)). 동기화 선택 정보가 존재한다는 것만으로 마지막 동기화 당시 이름·곡 순서까지 별도 DB에 보존된다고 가정하지 않는다.
+- DJCrate는 동기화 ID로 대상을 제한하고, rekordbox의 읽기 설정에 따라 현재 목록 본문을 읽는다(`RekordboxITunesReader`). Framework는 `ITLibrary`, XML은 설정의 `itunesLibraryFile`이다. 실제 화면에서 Framework가 선택된 상태와 설정값 1, 동기화 파일과 API의 목록 순서·화면에 표시된 목록의 기존 컬렉션 연결을 확인했다. XML 방식(값 0)은 합성 설정·XML로 검증했다.
+- 앱 시작·새 스냅샷·iTunes 목록 새로고침 때 읽고 `<DB 스냅샷>.itunes.json`에 사본을 보관한다. 읽기에 실패하면 마지막 정상 사본을 덮어쓰지 않고, 현재 화면과 새 DB 스냅샷에는 이전 목록을 오래된 자료로 표시한다. 직전 사본이 손상됐으면 같은 스냅샷 폴더에서 더 이른 정상 사본을 찾는다. 새 DB를 뜨기 전에 이전 목록을 메모리에 보관해 같은 초에 파일 이름을 재사용해도 복구할 수 있게 한다. 같은 DB의 갱신은 요청 순서로 채택하며 sidecar 확인·저장을 한 잠금 안에서 끝내고, 겹친 DB 스냅샷 생성은 순서대로 처리한다. 명시한 `--db`·`DJC_DB` 모드의 iTunes 새로고침 버튼은 현재 DB와 그 옆 사본만 다시 읽으며, 별도의 새 스냅샷 메뉴는 원래 동작을 따른다. 비어 있지 않은 `DJC_REKORDBOX_DIR` 사본도 그 폴더의 DB와 목록만 읽어 실제 Music 보관함과 섞지 않는다. 오래된 DB를 정리할 때 목록 사본도 지운다.
+- `SyncedITunesLibrary`는 정규화한 파일 경로가 유일하게 일치하는 기존 컬렉션 곡만 연결한다(삭제 행 제외). 없는 곡·모호한 경로는 개수를 알리고, 같은 곡의 반복과 원래 순번을 유지한다. 행 ID는 목록 ID·기존 곡 ID·곡별 등장 순번으로 만들고 편집은 기존 곡 ID로 연결한다. 별도 사이드바 항목·`itunes:` ID를 써서 재생 목록 초안에 섞지 않는다. 목록 구성·순서·삭제는 막고, 기존 곡의 큐·태그 초안과 반영 경로를 그대로 사용한다.
+
 ## 쓰기 전 확인 (`RekordboxCompatibility`)
 
 쓰기 규칙은 rekordbox 7.2.18에서 확인했다. rekordbox가 업데이트로 DB 구조를 바꾸면 규칙이 맞지 않을 수 있어서, 쓰기 전에 다음을 보고 하나라도 다르면 **백업도 뜨지 않고** 막는다.

@@ -27,7 +27,14 @@ struct TrackRow: Identifiable, Hashable, Sendable {
     /// 같은 곡을 다시 재생한 행도 따로 선택하고 원래 순번을 표시한다.
     var historyEntry: RekordboxHistory.Entry?
     var historyTrackNumber: Int? { historyEntry?.trackNumber }
-    var id: String { historyEntry.map { "history:\($0.id)" } ?? track.id }
+    /// iTunes 목록의 반복 곡은 행마다 고유 ID를 쓰되 편집 대상은 `track.id`로 찾는다.
+    struct PlaylistOccurrence: Hashable, Sendable {
+        let id: String
+        let number: Int
+    }
+    var playlistOccurrence: PlaylistOccurrence?
+    var playlistTrackNumber: Int? { playlistOccurrence?.number }
+    var id: String { historyEntry.map { "history:\($0.id)" } ?? playlistOccurrence?.id ?? track.id }
     /// DJCrate에 추가했지만 아직 rekordbox 컬렉션에 없는 곡.
     var isStaged: Bool { track.id.hasPrefix("djc-") }
     /// rekordbox는 Spotify 곡의 제목·아티스트를 `$A7:v1:…`로 암호화해 저장한다.

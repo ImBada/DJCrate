@@ -388,6 +388,7 @@ struct LibraryFileDropDelegate: DropDelegate {
 
     func validateDrop(info: DropInfo) -> Bool {
         store.writeLockPolicy.allowsLibraryInteraction
+            && !store.isITunesSelection
             && Self.accepts(info.itemProviders(for: [.fileURL, DeckDragType.track, PlaylistDragType.tracks]))
     }
 

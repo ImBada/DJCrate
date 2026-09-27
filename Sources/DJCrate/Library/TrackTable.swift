@@ -370,7 +370,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             let ids = rows.map(\.id)
             let reordered = ids != rowIDs
             self.rows = rows
-            largestRowIndex = max(rows.count, rows.compactMap(\.historyTrackNumber).max() ?? 0)
+            largestRowIndex = max(rows.count, rows.compactMap { $0.historyTrackNumber ?? $0.playlistTrackNumber }.max() ?? 0)
             rowIDs = ids
             self.edited = edited
             if reordered {
@@ -535,7 +535,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         pendingList.target = self
         menu.addItem(pendingList)
         let removable = targets.filter { !$0.isStaged && !$0.track.isStreaming }
-        if !removable.isEmpty {
+        if !store.isITunesSelection, !removable.isEmpty {
             menu.addItem(.separator())
             // 재생 목록에서 빼기(⌫, 초안)와 헷갈리지 않게 컬렉션에서 지운다는 것을 적는다.
             let remove = NSMenuItem(title: String(ui: "rekordbox 컬렉션에서 빼기 (\(removable.count)곡)…"), action: #selector(deleteFromRekordbox), keyEquivalent: "")
@@ -664,7 +664,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             return cell
         case "index":
             let cell = reuse(tableView, "index") { TrackIndexCell() }
-            cell.configure(number: "\(row.historyTrackNumber ?? (index + 1))", font: fonts.digits,
+            cell.configure(number: "\(row.historyTrackNumber ?? row.playlistTrackNumber ?? (index + 1))", font: fonts.digits,
                            deck: row.track.id == deckTrackID ? .init(playing: deckPlaying) : nil)
             return cell
         default:

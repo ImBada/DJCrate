@@ -41,7 +41,7 @@ enum LibraryMenuAction: CaseIterable {
         case .reflect: return store.pendingLibraryCount > 0 || store.hasPlaylistDrafts
         case .pending, .writeResult: return true
         case .restore: return store.hasWriteBackup
-        case .removeTracks: return store.selectedRows.contains { !$0.isStaged && !$0.track.isStreaming }
+        case .removeTracks: return !store.isITunesSelection && store.selectedRows.contains { !$0.isStaged && !$0.track.isStreaming }
         }
     }
 

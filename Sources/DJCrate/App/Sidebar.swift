@@ -46,6 +46,7 @@ struct Sidebar: View {
             }
             if case .loaded = store.phase {
                 PlaylistSection(store: store, isExpanded: $playlistsExpanded)
+                ITunesPlaylistSection(store: store)
             }
             Section(.ui("재생 기록"), isExpanded: $historiesExpanded) {
                 if store.histories.isEmpty {
@@ -147,6 +148,15 @@ struct ListActionBar: View {
                     Text(.ui("rekordbox 라이브러리 확인·쓰는 중…")).font(.caption).foregroundStyle(.secondary)
                 } else {
                     Text(.ui("rekordbox가 꺼져 있을 때만 씁니다 · 쓰기 전에 전체 백업")).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        case let .itunesPlaylist(id):
+            bar {
+                Label(.ui("목록 구성과 순서는 Music에서 바꿉니다 · 큐·태그는 여기서 편집할 수 있습니다"), systemImage: "lock")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let node = store.iTunesLibrary.index[id], node.unavailableTrackCount > 0 {
+                    Text(.ui("연결하지 못한 \(node.unavailableTrackCount)곡은 rekordbox 컬렉션 등록과 파일 위치를 확인하세요"))
+                        .font(.caption).foregroundStyle(UIColors.warning.color)
                 }
             }
         case let .playlist(id):

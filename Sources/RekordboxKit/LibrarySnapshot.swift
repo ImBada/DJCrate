@@ -4,9 +4,18 @@ import Foundation
 /// rekordbox 라이브 DB를 건드리지 않기 위한 스냅샷.
 /// 툴의 모든 읽기는 이 사본에서 한다.
 public enum LibrarySnapshot {
+    /// URL의 디렉터리 힌트(`/`)가 달라도 같은 파일시스템 폴더면 같은 출처다.
+    public static func sameDirectory(_ lhs: URL, _ rhs: URL) -> Bool {
+        lhs.standardizedFileURL.path == rhs.standardizedFileURL.path
+    }
+
+    public static func hasRekordboxDirectoryOverride(in environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool {
+        environment["DJC_REKORDBOX_DIR"]?.isEmpty == false
+    }
+
     /// rekordbox 라이브러리 폴더. 개발 시험은 `DJC_REKORDBOX_DIR`로 사본 폴더를 가리킨다(실제 라이브러리를 건드리지 않게).
     public static var rekordboxDirectory: URL {
-        if let override = ProcessInfo.processInfo.environment["DJC_REKORDBOX_DIR"], !override.isEmpty {
+        if hasRekordboxDirectoryOverride(), let override = ProcessInfo.processInfo.environment["DJC_REKORDBOX_DIR"] {
             return URL(filePath: override)
         }
         return FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Pioneer/rekordbox")
@@ -14,7 +23,7 @@ public enum LibrarySnapshot {
 
     public static var defaultDirectory: URL {
         // 사본 rekordbox 폴더로 시험할 때는 스냅샷도 그 안에 둔다(사용자 스냅샷과 섞이지 않게).
-        if let override = ProcessInfo.processInfo.environment["DJC_REKORDBOX_DIR"], !override.isEmpty {
+        if hasRekordboxDirectoryOverride(), let override = ProcessInfo.processInfo.environment["DJC_REKORDBOX_DIR"] {
             return URL(filePath: override).appending(path: "djc-snapshots")
         }
         return DJCIdentity.supportDirectory.appending(path: "snapshots")
@@ -58,6 +67,8 @@ public enum LibrarySnapshot {
 
         try fm.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let before = try fm.attributesOfItem(atPath: source.path)
+        // 명시한 사본을 다시 뜰 때는 그 사본의 iTunes 목록만 함께 가져온다.
+        let iTunesData = try? Data(contentsOf: source.appendingPathExtension("itunes.json"))
 
         let stamp = now.formatted(.iso8601.year().month().day().time(includingFractionalSeconds: false).dateTimeSeparator(.standard))
             .replacingOccurrences(of: ":", with: "")
@@ -77,6 +88,9 @@ public enum LibrarySnapshot {
         try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: partial.path)
         if fm.fileExists(atPath: destination.path) { try? fm.removeItem(at: destination) }
         try fm.moveItem(at: partial, to: destination)
+        let iTunesDestination = destination.appendingPathExtension("itunes.json")
+        // 같은 초의 파일 이름을 재사용해도 이전 DB의 목록을 붙들지 않는다.
+        try? fm.removeItem(at: iTunesDestination)
 
         // rekordbox가 켜져 있으면 최근 변경이 WAL에만 있다. WAL도 사본 옆에 복사해 사본 안에서 합친다.
         let sourceWAL = source.deletingLastPathComponent().appending(path: source.lastPathComponent + "-wal")
@@ -94,6 +108,10 @@ public enum LibrarySnapshot {
             try? fm.removeItem(at: copyWAL)
             try? fm.removeItem(at: URL(filePath: destination.path + "-shm"))
         }
+        if let iTunesData {
+            try iTunesData.write(to: iTunesDestination, options: .atomic)
+            try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: iTunesDestination.path)
+        }
         prune(keeping: 3, in: directory)
         return destination
     }
@@ -104,7 +122,10 @@ public enum LibrarySnapshot {
         let files = ((try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [])
             .filter { $0.pathExtension == "db" }
             .sorted { $0.lastPathComponent > $1.lastPathComponent }
-        for old in files.dropFirst(keeping) { try? fm.removeItem(at: old) }
+        for old in files.dropFirst(keeping) {
+            try? fm.removeItem(at: old)
+            if !fm.fileExists(atPath: old.path) { try? fm.removeItem(at: old.appendingPathExtension("itunes.json")) }
+        }
         // 읽는 연결이 남긴 -shm·-wal 중 본 파일이 지워진 것
         for leftover in ((try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [])
         where ["db-shm", "db-wal"].contains(leftover.pathExtension) {

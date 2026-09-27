@@ -161,7 +161,7 @@ extension LibraryStore {
 
     // MARK: - 빼기
 
-    func trackDeleteTargets(_ rows: [TrackRow]) -> [TrackRow] { rows.filter { !$0.isStaged && !$0.track.isStreaming } }
+    func trackDeleteTargets(_ rows: [TrackRow]) -> [TrackRow] { isITunesSelection ? [] : rows.filter { !$0.isStaged && !$0.track.isStreaming } }
 
     func previewTrackDelete(rows: [TrackRow]) async throws -> TrackDeletePreview {
         let ids = trackDeleteTargets(rows).map(\.track.id)
@@ -177,6 +177,7 @@ extension LibraryStore {
     }
 
     func deleteTracksFromRekordbox(_ preview: TrackDeletePreview) async throws -> RekordboxTrackWriter.Report {
+        guard !isITunesSelection else { throw DJCError.writeRefused(String(ui: "iTunes 동기화 목록의 곡은 Music에서 빼세요.")) }
         let ids = preview.report.deleted.filter(\.written).compactMap(\.contentID)
         try Task.checkCancellation()
         writeStage = WriteStage(String(ui: "rekordbox에서 곡을 빼는 중…"))

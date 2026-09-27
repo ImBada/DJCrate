@@ -3383,6 +3383,118 @@
         }
       }
     },
+    "iTunes 동기화 목록" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synced iTunes Playlists"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iTunes同期プレイリスト"
+          }
+        }
+      }
+    },
+    "iTunes 동기화 목록 새로고침" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh Synced iTunes Playlists"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iTunes同期プレイリストを更新"
+          }
+        }
+      }
+    },
+    "iTunes 동기화 목록의 곡은 Music에서 빼세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove tracks from synced iTunes playlists in Music."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iTunes同期プレイリストの曲はMusicで削除してください。"
+          }
+        }
+      }
+    },
+    "iTunes 동기화 정보를 읽을 수 없습니다. rekordbox에서 iTunes 목록을 다시 동기화한 뒤 새 스냅샷을 뜨세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to read iTunes sync settings. Sync the iTunes playlists again in rekordbox, then take a new snapshot."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iTunesの同期情報を読み込めません。rekordboxでiTunesのプレイリストを再度同期してから、新しいスナップショットを作成してください。"
+          }
+        }
+      }
+    },
+    "iTunes 목록 갱신에 실패해 이전 사본을 표시합니다. Music 접근 권한과 rekordbox의 iTunes 읽기 설정을 확인한 뒤 새로고침하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The iTunes playlist refresh failed, so an older snapshot is shown. Check Music access permissions and the iTunes loading settings in rekordbox, then refresh."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iTunesプレイリストの更新に失敗したため、以前のコピーを表示しています。Musicへのアクセス権とrekordboxのiTunes読み込み設定を確認してから更新してください。"
+          }
+        }
+      }
+    },
+    "iTunes 목록 사본이 없으니 새 스냅샷을 뜨세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No iTunes playlist snapshot is available. Take a new snapshot."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iTunesプレイリストのコピーがないため、新しいスナップショットを作成してください。"
+          }
+        }
+      }
+    },
+    "iTunes 목록을 읽지 못했으니 Music 접근 권한과 rekordbox의 iTunes 읽기 설정을 확인한 뒤 새로고침하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to read iTunes playlists. Check Music access permissions and the iTunes loading settings in rekordbox, then refresh."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iTunesプレイリストを読み込めません。Musicへのアクセス権とrekordboxのiTunes読み込み設定を確認してから更新してください。"
+          }
+        }
+      }
+    },
     "library.column.plays" : {
       "extractionState" : "extracted_with_value",
       "localizations" : {
@@ -9361,6 +9473,22 @@
         }
       }
     },
+    "동기화한 iTunes 목록이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No synced iTunes playlists"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期済みのiTunesプレイリストはありません"
+          }
+        }
+      }
+    },
     "되돌리기" : {
       "localizations" : {
         "en" : {
@@ -11031,6 +11159,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "リスト・タグシート"
+          }
+        }
+      }
+    },
+    "목록 구성과 순서는 Music에서 바꿉니다 · 큐·태그는 여기서 편집할 수 있습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit playlist contents and order in Music · Cues and tags can be edited here"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストの内容と曲順はMusicで変更します · キューとタグはここで編集できます"
           }
         }
       }
@@ -14913,6 +15057,22 @@
         }
       }
     },
+    "연결하지 못한 %lld곡은 rekordbox 컬렉션 등록과 파일 위치를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For %lld unlinked tracks, check collection membership and file locations in rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未接続の%lld曲はrekordboxのコレクション登録とファイルの場所を確認してください"
+          }
+        }
+      }
+    },
     "연결할 재생 목록이 없습니다. 추가한 곡을 원하는 목록에 다시 놓으세요." : {
       "localizations" : {
         "en" : {
@@ -15325,6 +15485,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "元の音源には書き込みません。別の出力ファイル名を指定してください"
+          }
+        }
+      }
+    },
+    "원본에서 찾지 못한 목록 %lld개 · rekordbox에서 동기화를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld playlists missing from the source · Check sync in rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元のライブラリで見つからないプレイリスト%lld個 · rekordboxで同期を確認してください"
           }
         }
       }
