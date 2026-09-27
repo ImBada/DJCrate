@@ -1,7 +1,8 @@
 import DJCDomain
 import Foundation
+import RekordboxKit
 
-/// 실험용 읽기만 지원한다. pyrekordbox(MIT)의 칸 배치·XOR 규칙을 참고했다(제3자 고지 참조).
+/// 실험용 읽기만 지원한다. pyrekordbox(MIT)의 칸 배치를 참고했다(제3자 고지 참조). XOR 규칙은 `AnlzMasks`를 쓴다.
 struct PhraseStructure {
     struct Entry {
         let beat: Int
@@ -25,11 +26,7 @@ struct PhraseStructure {
         let count = word(16)
         guard bytes.count == 32 + count * 24 else { throw invalid }
         masked = !(1...3).contains(word(18))
-        if masked {
-            let mask: [UInt8] = [0xCB, 0xE1, 0xEE, 0xFA, 0xE5, 0xEE, 0xAD, 0xEE, 0xE9, 0xD2,
-                                0xE9, 0xEB, 0xE1, 0xE9, 0xF3, 0xE8, 0xE9, 0xF4, 0xE1]
-            for i in 18..<bytes.count { bytes[i] ^= mask[(i - 18) % mask.count] &+ UInt8(truncatingIfNeeded: count) }
-        }
+        if masked { bytes = [UInt8](AnlzMasks.unmaskPSSI(Data(bytes))) }
         mood = word(18); bank = Int(bytes[30]); endBeat = word(26)
         guard (1...3).contains(mood) else { throw invalid }
         var decoded: [Entry] = []

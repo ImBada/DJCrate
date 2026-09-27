@@ -540,11 +540,11 @@ SOFTWARE.
 ````
 
 
-## pyrekordbox — 프레이즈 읽기 실험
+## pyrekordbox — 프레이즈(PSSI) 마스크
 
 - 기준 커밋: `f695541827cc488af267d6ca8a8e0052598d85a0`
 - 출처: [dylanljones/pyrekordbox](https://github.com/dylanljones/pyrekordbox/tree/f695541827cc488af267d6ca8a8e0052598d85a0)
-- 참고·이식 범위: `anlz/structs.py`의 PSSI 칸 배치, `anlz/file.py`의 XOR 마스크와 복원 규칙을 `Sources/djc/Lab/PhraseStructure.swift`의 실험용 읽기에 사용한다.
+- 참고·이식 범위: `anlz/structs.py`의 PSSI 칸 배치, `anlz/file.py`의 XOR 마스크와 복원 규칙을 읽기 실험과 USB 내보내기에 사용한다. 쓰는 곳: `Sources/djc/Lab/PhraseStructure.swift`(실험용 읽기), `Sources/RekordboxKit/Usb/Anlz/AnlzMasks.swift`(USB 분석 파일의 PSSI 마스크·풀기).
 - 라이선스: MIT. Python 패키지 자체는 배포하지 않는다.
 
 ```text
