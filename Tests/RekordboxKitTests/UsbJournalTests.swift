@@ -77,6 +77,28 @@ struct UsbJournalTests {
         #expect(back.idHighWater == ["content": 7])
     }
 
+    @Test("형식별 진행: DB 항목에서 교체를 마친 형식과 교체 중인 형식을 읽는다")
+    func committedFormatsFromDatabaseEntries() {
+        let fixture = UsbChangeSetFixture()
+        defer { fixture.remove() }
+        var journal = UsbJournal(changes: fixture.exportChanges(), volumeUUID: "00000000-0000-0000-0000-000000000001", volumeName: "DJCTEST",
+                                 now: Date(timeIntervalSince1970: 1_700_000_000))
+        #expect(journal.committedFormats.isEmpty)
+        #expect(journal.committingFormat == nil)
+        func entry(_ destination: String, _ format: UsbFormat, _ state: UsbJournal.EntryState) -> UsbJournal.DatabaseEntry {
+            UsbJournal.DatabaseEntry(destination: destination, format: format, tempName: ".djc-part-abcdefgh-000001", disposition: .created,
+                                     oldSHA256: nil, newSHA256: "00", appleDoublePreexisted: false, sidecarsPreexisted: [], state: state)
+        }
+        journal.databases = [entry(UsbLayout.oneLibrary, .oneLibrary, .done), entry(UsbLayout.exportPdb, .deviceLibrary, .done),
+                             entry(UsbLayout.exportExtPdb, .deviceLibrary, .pending)]
+        // Device Library는 export.pdb·exportExt.pdb 둘 다 바꿔야 마친 것이다
+        #expect(journal.committedFormats == [.oneLibrary])
+        #expect(journal.committingFormat == .deviceLibrary)
+        journal.databases[2].state = .done
+        #expect(journal.committedFormats == [.oneLibrary, .deviceLibrary])
+        #expect(journal.committingFormat == nil)
+    }
+
     @Test("수정 저널은 계획 때 USB DB 지문을 담는다")
     func baseFingerprintStored() throws {
         let base = UsbFingerprint(files: [UsbLayout.exportPdb: .init(size: 10, mtime: Date(timeIntervalSince1970: 1_600_000_000), sha256: "cc")])

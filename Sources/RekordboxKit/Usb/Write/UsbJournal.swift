@@ -112,6 +112,8 @@ public struct UsbJournal: Codable, Sendable, Equatable {
     public var removals: [RemovalEntry] = []
     public var backupDirectory: String?
     public var reportPath: String?
+    /// `usb-restore`가 연 저널. 끊겨도 회복이 같은 방식(되돌리기)으로 마저 하고, 그 쓰기의 백업 기록은 건드리지 않는다
+    public var restoringBackup = false
     /// 다음 임시 이름 번호
     public var nextSequence = 1
     public var updatedAt: Date
@@ -129,6 +131,18 @@ public struct UsbJournal: Codable, Sendable, Equatable {
     public var target: UsbTargetFingerprint { changes.target }
     public var stagingDirectory: String { changes.stagingDirectory }
     public var idHighWater: [String: Int] { changes.idHighWater }
+
+    /// DB 교체를 모두 마친 형식(Device Library는 export.pdb·exportExt.pdb 둘 다). 앱이 형식별 진행을 여기서 읽는다
+    public var committedFormats: Set<UsbFormat> {
+        Set(changes.databases.map(\.format)).filter { format in
+            changes.databases.filter { $0.format == format }.allSatisfy { planned in
+                databases.contains { $0.destination == planned.destination && $0.state == .done }
+            }
+        }
+    }
+
+    /// 지금 교체 중인(저널에 적었으나 rename 전인) DB의 형식
+    public var committingFormat: UsbFormat? { databases.last { $0.state == .pending }?.format }
 
     /// 상태는 앞으로만 간다. 닫힌 저널은 움직이지 않는다(새 세션은 새 저널을 쓴다)
     public func canMove(to next: State) -> Bool {

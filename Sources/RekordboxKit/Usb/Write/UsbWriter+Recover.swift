@@ -6,24 +6,30 @@ import Foundation
 /// 2. rename 도중 끊긴 항목(대상 없음 + 임시 완전)은 rename을 마친다.
 /// 3. 모든 DB가 새것이면 지우기·검증을 다시 → recovered. 일부만이면 준비 폴더가 온전할 때 마저 쓴다. 아니면 되돌린다.
 /// 저널에 적힌 임시 파일은 이 판정들이 끝난 뒤 지운다. 닫을 때 백업 폴더에 journal.json·report.json을 남긴다.
+/// 끊긴 되돌리기(usb-restore가 연 저널)는 되돌리기로 마저 한다. 저널·백업 기록의 경로가 USB 루트 밖을 가리키면 아무것도 하지 않는다.
 extension UsbWriteRun {
     enum DatabaseState: Equatable { case absent, old, new, other }
 
     func recover(discardTemp: Bool, confirmName: String?) throws -> UsbWriteReport {
         let blocks = environmentBlocks(purpose: .edit, required: [], allowProvisional: [], confirmName: confirmName)
         if !blocks.isEmpty { throw UsbError.writeRefused(blocks) }
-        switch UsbWriter.loadJournal(paths: paths, volumeKey: volumeKey) {
+        switch UsbWriter.journalStatus(paths: paths, volumeKey: volumeKey) {
         case .missing, .closed:
             return try recoverWithoutJournal(discardTemp: discardTemp)
         case .corrupt:
-            throw UsbError.writeRefused([UsbBlock(code: "journalUnreadable", scope: .volume,
-                                                  message: String(ui: "회복 기록 파일을 읽지 못했습니다. DJCrate 데이터 폴더의 usb-sessions를 확인하세요"))])
+            throw UsbError.writeRefused([UsbWriter.journalUnreadableBlock])
         case let .open(found):
+            // 깨졌거나 누가 고친 기록이 USB 루트 밖을 가리키면 파일 연산 전에 막는다
+            guard UsbWriter.unsafeEntries(in: found).isEmpty else { throw UsbError.writeRefused([UsbWriter.journalUnreadableBlock]) }
             journal = found
         }
-        backupFolder = journal.backupDirectory.map { URL(filePath: $0) }
-        if let backupFolder {
-            manifest = try? UsbJournal.decoder().decode(UsbManifest.self, from: Data(contentsOf: backupFolder.appending(path: "manifest.json")))
+        // 백업 폴더는 이 볼륨의 usb-backups 아래만. 없어진 폴더는 없는 것으로 본다(기록을 새로 만들지 않는다)
+        if let directory = journal.backupDirectory, FileManager.default.fileExists(atPath: directory) {
+            let folder = URL(filePath: directory)
+            guard isOurBackupFolder(folder) else { throw UsbError.writeRefused([UsbWriter.journalUnreadableBlock]) }
+            backupFolder = folder
+            manifest = try? UsbJournal.decoder().decode(UsbManifest.self, from: Data(contentsOf: folder.appending(path: "manifest.json")))
+            if let manifest, !UsbWriter.unsafeEntries(in: manifest).isEmpty { throw UsbError.writeRefused([UsbWriter.journalUnreadableBlock]) }
         }
         report = UsbWriteReport(outcome: .recovered, session: journal.session, backup: backupFolder?.path)
         report.filesCreated = journal.entries.filter { $0.disposition == .created && $0.state == .done }.count
@@ -37,11 +43,15 @@ extension UsbWriteRun {
 
     private func recoverOpenJournal() throws -> UsbWriteReport {
         try ensureMounted()
+        if journal.restoringBackup {
+            // 끊긴 되돌리기: 기기 변경 여부는 되돌리기를 시작할 때 이미 판정했다. 같은 방식으로 마저 되돌린다
+            guard let backupFolder else { throw UsbError.writeRefused([UsbWriter.journalUnreadableBlock]) }
+            return try finishRestore(errors: rollback(mode: .restore), folder: backupFolder, reason: String(ui: "회복"))
+        }
         if [.planned, .staged].contains(journal.state) {
             // 백업 전에 끊겼다: USB에 쓴 것이 없다
             try removeSessionTemps()
-            if backupFolder == nil || !FileManager.default.fileExists(atPath: backupFolder!.path) {
-                backupFolder = nil
+            if backupFolder == nil {
                 report.notes.append(String(ui: "쓰기 전에 끊겨 USB에 쓴 것이 없습니다(백업 기록 없음)"))
             }
             try closeJournal(.rolledBack, outcome: .rolledBack)

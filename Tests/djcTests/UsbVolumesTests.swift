@@ -129,7 +129,7 @@ struct UsbVolumesTests {
         let export = UsbVolumePolicy.problems(volume, purpose: .export)
         #expect(export.contains { $0.code == "notFAT32" && $0.message == "USB를 MBR·MS-DOS(FAT32)로 포맷한 뒤 다시 시도하세요" })
         #expect(UsbVolumePolicy.problems(volume, purpose: .edit).contains { $0.code == "notFAT32" && $0.message.hasPrefix("이 USB 형식(FAT16)은") })
-        // 이 볼륨으로 쓰기: 4a 확인 말고는 파일 연산 없이 막힌다
+        // 이 볼륨으로 쓰기: 가드와 무관한 마운트 확인 말고는 파일 연산 없이 막힌다
         let fixture = UsbChangeSetFixture()
         defer { fixture.remove() }
         fixture.volume = volume

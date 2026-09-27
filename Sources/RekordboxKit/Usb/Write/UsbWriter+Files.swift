@@ -1,3 +1,4 @@
+import CryptoKit
 import DJCDomain
 import Foundation
 
@@ -47,7 +48,7 @@ extension UsbWriteRun {
         for (index, item) in items.enumerated() {
             if isCancelled() { throw UsbWriteFailure.cancelled }
             try ensureMounted()
-            try place(item) { bytes in
+            try place(item, target: changes.target) { bytes in
                 self.emit(.files, done: index, total: items.count, bytes: doneBytes + bytes, totalBytes: totalBytes, cancellable: true)
             }
             if item.disposition != .reuse { doneBytes += item.size }
@@ -74,12 +75,12 @@ extension UsbWriteRun {
         }
     }
 
-    func place(_ item: FileItem, progress: (Int64) -> Void) throws {
+    func place(_ item: FileItem, target: UsbTargetFingerprint, progress: (Int64) -> Void) throws {
         let destination = item.destination
         let parent = UsbPath.parent(destination), name = UsbPath.name(destination)
         try ensureParents(destination)
         if item.disposition == .reuse {
-            try reuse(item)
+            try reuse(item, target: target)
             return
         }
         let temp = nextTempName()
@@ -132,16 +133,25 @@ extension UsbWriteRun {
         if item.disposition == .overwrite { report.filesOverwritten += 1 } else { report.filesCreated += 1 }
     }
 
-    /// 재사용: USB 파일이 계획과 같은지만 본다(쓰지 않는다)
-    func reuse(_ item: FileItem) throws {
+    /// 재사용: USB 파일이 계획과 같은지만 본다(쓰지 않는다). 크기와 내용 해시를 본다 — 음원은 목표 SHA-256, 없으면 원본 SHA-1,
+    /// 둘 다 없을 때만 크기만. 크기만 같은 다른 파일을 여기서 걸러야 검증 단계에서 쓰기 전체를 되돌리지 않는다
+    func reuse(_ item: FileItem, target: UsbTargetFingerprint) throws {
         let url = usb(item.destination)
-        guard let info = try fs.stat(url), info.kind == .file, info.size == item.size else {
-            throw UsbWriteFailure.failed("reused file differs: \(item.destination)")
-        }
+        let differs = UsbWriteFailure.failed("reused file differs: \(item.destination)")
+        guard let info = try fs.stat(url), info.kind == .file, info.size == item.size else { throw differs }
         var sha: String?
-        if case let .write(write) = item {
+        switch item {
+        case let .write(write):
             sha = try fs.sha256(url, uncached: false)
-            guard sha == write.sha256 else { throw UsbWriteFailure.failed("reused file differs: \(item.destination)") }
+            guard sha == write.sha256 else { throw differs }
+        case let .copy(copy):
+            if let expected = target.mustExist[copy.destination]?.sha256 {
+                sha = try fs.sha256(url, uncached: false)
+                guard sha == expected else { throw differs }
+            } else if let expected = copy.sourceSHA1 {
+                let data = try fs.read(url, maxBytes: Int(item.size))
+                guard PosixUsbFileSystem.hex(Insecure.SHA1.hash(data: data)) == expected else { throw differs }
+            }
         }
         journal.entries.append(.init(destination: item.destination, tempName: nil, disposition: .reused, oldSHA256: sha, newSHA256: sha,
                                      size: item.size, appleDoublePreexisted: false, state: .done))

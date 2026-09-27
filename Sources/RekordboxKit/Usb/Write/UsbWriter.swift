@@ -24,7 +24,8 @@ public enum UsbWriter {
         return try run.write(changes, verifiers: verifiers, inspectors: inspectors, options: options, isCancelled: isCancelled)
     }
 
-    /// 끝나지 않은 쓰기를 마치거나 되돌린다. 대상(DB)을 먼저 보고 방향을 정한다. 쓰기와 같은 확인(관문 포함)을 먼저 거친다
+    /// 끝나지 않은 쓰기를 마치거나 되돌린다. 대상(DB)을 먼저 보고 방향을 정한다. 쓰기와 같은 확인(관문 포함)을 먼저 거친다.
+    /// 보고서의 session이 빈 문자열이면 회복할 저널이 없었다(임시 파일만 알리거나 `discardTemp`로 지웠다)
     public static func recover(root: UsbRoot, paths: UsbWritePaths, guard writeGuard: UsbWriteGuard,
                                fileSystem: any UsbFileSystem = PosixUsbFileSystem(), ppthReader: (@Sendable (Data) -> String?)? = nil,
                                discardTemp: Bool = false, confirmName: String? = nil) throws -> UsbWriteReport {
@@ -44,9 +45,9 @@ public enum UsbWriter {
         return try run.restore(backup: backup, discardDeviceChanges: discardDeviceChanges, confirmName: confirmName, dryRun: dryRun)
     }
 
-    /// 볼륨의 닫히지 않은 저널(닫혔거나 없거나 읽지 못하면 nil)
+    /// 볼륨의 닫히지 않은 저널(닫혔거나 없거나 읽지 못하면 nil). 읽지 못한 저널은 `journalStatus`가 `.corrupt`로 알린다
     public static func pendingJournal(paths: UsbWritePaths, volumeKey: String) -> UsbJournal? {
-        if case let .open(journal) = loadJournal(paths: paths, volumeKey: volumeKey) { return journal }
+        if case let .open(journal) = journalStatus(paths: paths, volumeKey: volumeKey) { return journal }
         return nil
     }
 
@@ -95,10 +96,13 @@ public enum UsbWriter {
 
     static func sha256(_ data: Data) -> String { PosixUsbFileSystem.hex(SHA256.hash(data: data)) }
 
-    enum JournalLoad {
+    /// 볼륨 저널 파일의 상태. 쓰기·되돌리기·회복과 앱이 같은 판정을 쓴다
+    public enum JournalStatus: Equatable, Sendable {
         case missing
+        /// 끝나지 않은 쓰기(회복해야 다음 쓰기를 한다)
         case open(UsbJournal)
         case closed(UsbJournal)
+        /// 파일은 있으나 읽지 못함. 쓰기·되돌리기·회복 모두 `journalUnreadable`로 막는다(usb-sessions를 사람이 봐야 한다)
         case corrupt
     }
 
@@ -106,7 +110,7 @@ public enum UsbWriter {
         paths.sessions.appending(path: volumeKey + ".json")
     }
 
-    static func loadJournal(paths: UsbWritePaths, volumeKey: String) -> JournalLoad {
+    public static func journalStatus(paths: UsbWritePaths, volumeKey: String) -> JournalStatus {
         let url = journalURL(paths: paths, volumeKey: volumeKey)
         guard FileManager.default.fileExists(atPath: url.path) else { return .missing }
         guard let data = try? Data(contentsOf: url), let journal = try? UsbJournal.decoder().decode(UsbJournal.self, from: data) else {
@@ -114,6 +118,14 @@ public enum UsbWriter {
         }
         return journal.isClosed ? .closed(journal) : .open(journal)
     }
+
+    static var journalUnreadableBlock: UsbBlock {
+        UsbBlock(code: "journalUnreadable", scope: .volume,
+                 message: String(ui: "회복 기록 파일을 읽지 못했습니다. DJCrate 데이터 폴더의 usb-sessions를 확인하세요"))
+    }
+
+    /// 되돌리기가 끝난 백업 폴더의 표지(같은 백업으로 다시 되돌리면 "이미 되돌렸다"고 알린다)
+    static let restoredMarkerName = "restored.json"
 }
 
 /// 상대 경로 도우미
@@ -152,7 +164,7 @@ final class UsbWriteRun {
     let ppthReader: (@Sendable (Data) -> String?)?
     let now: Date
     let progress: @Sendable (UsbProgress) -> Void
-    /// 4a에서 얻은 기준 마운트 지점(realpath)
+    /// 가드와 무관한 첫 확인에서 얻은 기준 마운트 지점(realpath)
     let mountPoint: String
     let volume: UsbVolumeInfo
     let volumeKey: String
@@ -180,7 +192,7 @@ final class UsbWriteRun {
         self.lock = lock
     }
 
-    /// 4a(가드와 무관한 확인) → 0 볼륨 정보 → 1 잠금. 여기서 막히면 잠금 파일도 만들지 않는다
+    /// usb-internals 7.2의 1 가드와 무관한 확인 → 2 볼륨 정보 → 3 잠금. 여기서 막히면 잠금 파일도 만들지 않는다
     static func open(root: UsbRoot, paths: UsbWritePaths, guard writeGuard: UsbWriteGuard, fileSystem: any UsbFileSystem,
                      ppthReader: (@Sendable (Data) -> String?)?, now: Date,
                      progress: @escaping @Sendable (UsbProgress) -> Void) throws -> UsbWriteRun {
@@ -223,6 +235,13 @@ final class UsbWriteRun {
 
     var journalURL: URL { UsbWriter.journalURL(paths: paths, volumeKey: volumeKey) }
 
+    /// 이 볼륨의 백업 폴더(`usb-backups/<볼륨키>/` 바로 아래, realpath로 본다)인지. 없는 폴더는 false
+    func isOurBackupFolder(_ folder: URL) -> Bool {
+        guard let base = UsbScratchRoots.realPath(paths.backups.appending(path: volumeKey).path),
+              let real = UsbScratchRoots.realPath(folder.path) else { return false }
+        return (real as NSString).deletingLastPathComponent == base && real != base
+    }
+
     func saveJournal() throws {
         journal.updatedAt = Date()
         try UsbDurableFile.write(journal, to: journalURL, fileSystem: fs)
@@ -248,7 +267,7 @@ final class UsbWriteRun {
         if writeGuard.isRekordboxRunning() { throw UsbWriteFailure.rekordboxRunning }
     }
 
-    /// 2–4: rekordbox, 볼륨 정책·보호 경로, 실물 관문(+ 가드 값으로 실물이면 막음)
+    /// 7.2의 4: rekordbox, 볼륨 정책·보호 경로, 실물 관문(+ 가드 값으로 실물이면 막음)
     func environmentBlocks(purpose: UsbVolumePurpose, required: Set<UsbProvisionalRule>, allowProvisional: Set<UsbProvisionalRule>,
                            confirmName: String?, checkRekordbox: Bool = true) -> [UsbBlock] {
         var blocks: [UsbBlock] = []
@@ -359,11 +378,11 @@ extension UsbWriteRun {
                isCancelled: @Sendable () -> Bool) throws -> UsbWriteReport {
         self.options = options
         report = UsbWriteReport(outcome: .written, session: changes.session)
-        // A 2–4: 여기서 막히면 USB 파일을 열지 않는다
+        // 7.2의 4: 여기서 막히면 USB 파일을 열지 않는다
         let environment = environmentBlocks(purpose: changes.purpose, required: changes.requiredRules,
                                             allowProvisional: options.allowProvisional, confirmName: options.confirmName)
         if !environment.isEmpty { throw UsbError.writeRefused(environment) }
-        // A 5–11
+        // 7.2의 5–11
         let plan = try precheck(changes, inspectors: inspectors)
         stageReached(.precheck)
         // B

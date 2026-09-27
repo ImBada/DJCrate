@@ -210,13 +210,17 @@ enum UsbImageLab {
     static func crashRun(index: Int, template: String, djc: String, paths: UsbWritePaths, detachAfter delay: Double?) throws -> RunResult {
         let clone = template + ".run-\(index).img", mount = template + ".run-\(index).mnt"
         var problems: [String] = []
+        // 남은 복제본·마운트 지점은 건드리지 않고 멈춘다: 정리(떼기·지우기)는 이번 반복이 만든 것에만 건다
+        for leftover in [clone, mount] where FileManager.default.fileExists(atPath: leftover) {
+            throw failure("반복 \(index)의 복제본이 이미 있다. 지우고 다시 실행하라: \(leftover)")
+        }
+        _ = try UsbScratchPath.check(clone, as: .newFile)
         defer {
             _ = try? UsbDiskImage.detach(image: clone, force: true)
             try? FileManager.default.removeItem(atPath: clone)
             rmdir(mount)
         }
         // 0. 시작 상태: 틀의 APFS 복제본(볼륨 UUID가 같다)
-        _ = try UsbScratchPath.check(clone, as: .newFile)
         if clonefile(template, clone, 0) != 0 {
             // APFS 복제가 안 되면 틀과 같은 크기·파티션 형식·볼륨 이름으로 새로 만든다
             let shape = try templateShape(template)

@@ -12,9 +12,11 @@ extension UsbWriter {
 
     static func collisionBlocks(_ changes: UsbChangeSet, root: UsbRoot, fileSystem: any UsbFileSystem,
                                 skipping: Set<String>) throws -> [UsbBlock] {
+        // 받을 수 없는 경로(루트 밖·열지 않는 곳)는 경로 검사가 막는다. 여기서는 stat·열거하지 않고 건너뛴다
+        func checkable(_ path: String) -> Bool { !skipping.contains(path) && isSafeRelativePath(path) }
         var targets = changes.copies.filter { $0.disposition == .create }.map(\.destination)
             + changes.writes.filter { $0.disposition == .create }.map(\.destination)
-        for database in changes.databases {
+        for database in changes.databases where checkable(database.destination) {
             // 수정이어도 없던 DB는 새로 만드는 것이다
             let missing = try fileSystem.stat(root.url.appending(path: database.destination)) == nil
             if changes.base == nil || missing {
@@ -37,13 +39,13 @@ extension UsbWriter {
             blocks.append(UsbBlock(code: "destinationExists", scope: .file(path),
                                    message: String(ui: "USB에 같은 이름의 파일이 이미 있습니다. 빈 USB를 쓰거나 USB 수정으로 여세요")))
         }
-        for target in targets where !skipping.contains(target) {
+        for target in targets where checkable(target) {
             let components = UsbLayout.nfc(target).split(separator: "/").map(String.init)
             var parent = ""
             for (index, component) in components.enumerated() {
                 let path = UsbPath.join(parent, component)
-                // 부모가 새로 만들 폴더면 그 아래에는 충돌이 있을 수 없다
-                guard let listed = try names(parent) else { break }
+                // 열지 않는 폴더는 열거하지 않는다. 부모가 새로 만들 폴더면 그 아래에는 충돌이 있을 수 없다
+                guard parent.isEmpty || !UsbLayout.isNeverRead(parent), let listed = try names(parent) else { break }
                 let key = UsbLayout.collisionKey(component)
                 let matches = listed.filter { UsbLayout.collisionKey($0) == key }
                 if index == components.count - 1 {
@@ -60,6 +62,65 @@ extension UsbWriter {
         }
         return blocks
     }
+
+    /// USB 상대 경로로 받아도 되는지(파일 연산 전에 모양만 본다): 비어 있지 않음, "/"로 시작하지 않음, ""·"."·".." 성분 없음,
+    /// 첫 성분이 PIONEER·Contents(대소문자·NFC 무시), 열지 않는 곳·시스템 폴더가 아님. 쓰기 전 확인·되돌리기·회복이 같이 쓴다
+    public static func isSafeRelativePath(_ path: String) -> Bool {
+        let components = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        guard !path.isEmpty, !path.hasPrefix("/"), !path.contains("\0"),
+              !components.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }),
+              let first = components.first, ["pioneer", "contents"].contains(UsbLayout.collisionKey(first)) else { return false }
+        return !UsbLayout.isNeverRead(path) && !UsbLayout.isSystemIgnored(path)
+    }
+
+    /// 우리 임시 이름(`.djc-part-…`, 폴더 구분자 없음)인지
+    static func isSafeTempName(_ name: String) -> Bool {
+        !name.contains("/") && !name.contains("\0") && UsbLayout.isTemp(name)
+    }
+
+    /// 세션 번호는 임시 이름·준비 폴더 이름에 들어가므로 영문·숫자·-·_만 받는다
+    static func isSafeSession(_ session: String) -> Bool {
+        !session.isEmpty && session.count <= 64 && session.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
+    }
+
+    /// 저널이 가리키는 경로·임시 이름·세션 중 받을 수 없는 것(빈 배열 = 통과). 되돌리기·회복은 백업 폴더·usb-sessions의
+    /// 기록을 읽어 USB 파일을 지우고 이름을 바꾸므로, 깨졌거나 누가 고친 기록이 USB 루트 밖을 가리키면 파일 연산 전에 막는다
+    static func unsafeEntries(in journal: UsbJournal) -> [String] {
+        var bad: [String] = []
+        func path(_ value: String) { if !isSafeRelativePath(value) { bad.append(value) } }
+        func temp(_ value: String) { if !isSafeTempName(value) { bad.append(value) } }
+        func database(_ value: String) { if !databaseOrder.contains(value) { bad.append(value) } }
+        func sidecar(_ value: String) { if !databaseFamily.contains(value) { bad.append(value) } }
+        if !isSafeSession(journal.session) { bad.append(journal.session) }
+        for entry in journal.entries {
+            path(entry.destination)
+            entry.tempName.map(temp)
+        }
+        for entry in journal.databases {
+            database(entry.destination)
+            temp(entry.tempName)
+            entry.sidecarsPreexisted.forEach(sidecar)
+        }
+        journal.plannedDatabases.forEach { database($0.destination) }
+        journal.createdDirs.forEach(path)
+        journal.deletedSidecars.forEach(sidecar)
+        journal.removals.forEach { path($0.path) }
+        let changes = journal.changes
+        changes.databases.forEach { database($0.destination) }
+        changes.copies.forEach { path($0.destination) }
+        changes.writes.forEach { path($0.destination) }
+        changes.removals.forEach { path($0.path) }
+        changes.target.mustExist.keys.forEach(path)
+        changes.target.mustNotExist.forEach(path)
+        return bad
+    }
+
+    /// 백업 목록(manifest)의 경로 중 받을 수 없는 것(빈 배열 = 통과)
+    static func unsafeEntries(in manifest: UsbManifest) -> [String] {
+        let paths = Array(manifest.files.keys) + Array(manifest.before.keys) + manifest.absentBefore + manifest.removedAudio.map(\.path)
+            + manifest.appleDoublesPreexisting
+        return paths.filter { !isSafeRelativePath($0) }
+    }
 }
 
 extension UsbWriteRun {
@@ -71,11 +132,12 @@ extension UsbWriteRun {
     /// 5–11. 하나라도 걸리면 `writeRefused`(USB·백업·저널 그대로)
     func precheck(_ changes: UsbChangeSet, inspectors: [any UsbWriteInspector]) throws -> Plan {
         var blocks: [UsbBlock] = []
-        // 5. 닫히지 않은 저널(깨져 읽지 못하는 것도 닫히지 않은 것으로 본다)
-        switch UsbWriter.loadJournal(paths: paths, volumeKey: volumeKey) {
-        case .open, .corrupt:
+        // 5. 닫히지 않은 저널. 깨져 읽지 못하는 저널은 회복도 거부하므로 회복하라고 하지 않고 회복과 같은 이유로 막는다
+        switch UsbWriter.journalStatus(paths: paths, volumeKey: volumeKey) {
+        case .open:
             blocks.append(UsbBlock(code: "recoveryNeeded", scope: .volume,
                                    message: String(ui: "지난 USB 쓰기가 끝나지 않았습니다. `djc usb-recover`로 먼저 회복하세요")))
+        case .corrupt: blocks.append(UsbWriter.journalUnreadableBlock)
         case .missing, .closed: break
         }
         // 6. 다른 쓰기(다른 맥·다른 DJC_HOME)가 남긴 임시 파일
@@ -98,11 +160,13 @@ extension UsbWriteRun {
                                        message: String(ui: "USB에 이미 PIONEER 폴더 내용(\(count)개)이 있습니다. 빈 USB를 쓰거나 USB 수정으로 여세요")))
             }
         }
-        // 8. 형식별 막힘
-        for inspector in inspectors { blocks += try inspector.blocks(root: root, changes: changes) }
-        // 10. 대상 경로
+        // 10. 대상 경로. 형식 검사기보다 먼저 본다: 받을 수 없는 경로가 있으면 검사기가 그 경로를 읽지 않게 건너뛴다
         let pathBlocks = try pathBlocks(changes)
         blocks += pathBlocks
+        // 8. 형식별 막힘
+        if pathBlocks.isEmpty {
+            for inspector in inspectors { blocks += try inspector.blocks(root: root, changes: changes) }
+        }
         let refused = Set(pathBlocks.compactMap { block -> String? in if case let .file(path) = block.scope { path } else { nil } })
         // 9. 용량
         if let block = capacityBlock(changes) { blocks.append(block) }
@@ -144,9 +208,7 @@ extension UsbWriteRun {
         }
         func check(_ path: String, destination: Bool) throws {
             let components = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
-            guard !path.isEmpty, !path.hasPrefix("/"), !components.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }),
-                  !UsbLayout.isNeverRead(path), !UsbLayout.isSystemIgnored(path), components.count >= 2,
-                  ["pioneer", "contents"].contains(UsbLayout.collisionKey(components[0])) else { return refuse(path) }
+            guard UsbWriter.isSafeRelativePath(path), components.count >= 2 else { return refuse(path) }
             let name = components.last!
             if destination, UsbLayout.isAppleDouble(name) || UsbLayout.isTemp(name) { return refuse(path) }
             var current = root.url
@@ -157,6 +219,10 @@ extension UsbWriteRun {
                 if index < components.count - 1, info.kind != .directory { return refuse(path) }
                 if index == components.count - 1, info.kind != .file { return refuse(path) }
             }
+        }
+        // 세션 번호는 임시 이름이 된다(폴더 구분자가 들어가면 다른 폴더에 쓰게 된다)
+        if !UsbWriter.isSafeSession(changes.session) {
+            blocks.append(UsbBlock(code: "pathRefused", scope: .volume, message: String(ui: "USB에 쓸 수 없는 경로입니다. USB를 다시 읽은 뒤 쓰세요")))
         }
         var seen: [String: String] = [:]
         func duplicate(_ path: String) {

@@ -45,7 +45,7 @@ struct UsbWriteGuardTests {
         #expect(fixture.journal() == nil)
     }
 
-    @Test("볼륨 정보를 잠금보다 먼저 읽는다(4a 마운트 확인 → 볼륨 → 잠금)")
+    @Test("볼륨 정보를 잠금보다 먼저 읽는다(가드와 무관한 마운트 확인 → 볼륨 → 잠금)")
     func volumeReadBeforeLock() throws {
         let fixture = UsbChangeSetFixture()
         defer { fixture.remove() }
@@ -112,7 +112,7 @@ struct UsbWriteGuardTests {
         }
         let fs = fixture.fileSystem()
         #expect(codes { try fixture.write(fixture.exportChanges(), fileSystem: fs) }.contains(code))
-        // 볼륨이 막히면 USB 파일은 읽지도 않는다(4a 마운트 확인만)
+        // 볼륨이 막히면 USB 파일은 읽지도 않는다(가드와 무관한 마운트 확인만)
         #expect(fs.calls == ["mountedOn ."])
         expectUntouched(fixture, before: [:])
     }
@@ -159,9 +159,16 @@ struct UsbWriteGuardTests {
         try FileManager.default.createDirectory(at: fixture.paths.sessions, withIntermediateDirectories: true)
         try UsbJournal.encoder().encode(journal).write(to: fixture.paths.sessions.appending(path: fixture.volumeKey + ".json"))
         #expect(codes { try fixture.write(fixture.exportChanges()) } == ["recoveryNeeded"])
-        // 깨진 저널도 닫히지 않은 것으로 본다.
+        #expect(UsbWriter.journalStatus(paths: fixture.paths, volumeKey: fixture.volumeKey) == .open(journal))
+        // 깨진 저널은 쓰기·되돌리기·회복이 같은 이유로 막는다(회복하라고 안내하면 회복도 거부되므로)
         try Data("{".utf8).write(to: fixture.paths.sessions.appending(path: fixture.volumeKey + ".json"))
-        #expect(codes { try fixture.write(fixture.exportChanges()) } == ["recoveryNeeded"])
+        #expect(UsbWriter.journalStatus(paths: fixture.paths, volumeKey: fixture.volumeKey) == .corrupt)
+        let write = blocks { try fixture.write(fixture.exportChanges()) }
+        #expect(write.map(\.code) == ["journalUnreadable"])
+        #expect(codes { _ = try fixture.restore() } == ["journalUnreadable"])
+        let recover = blocks { _ = try fixture.recover() }
+        #expect(recover.map(\.code) == ["journalUnreadable"])
+        #expect(write.map(\.message) == recover.map(\.message))
     }
 
     @Test("우리 폴더에 임시 파일이 있으면 막는다")
@@ -215,6 +222,38 @@ struct UsbWriteGuardTests {
         let found = blocks { try fixture.write(fixture.exportChanges()) }
         #expect(found.map(\.code) == ["notEmpty"])
         #expect(found.first?.message.contains("2개") == true)
+    }
+
+    @Test("만들 대상 충돌 검사는 열지 않는 폴더를 stat·열거하지 않는다")
+    func createCollisionSkipsNeverRead() throws {
+        let fixture = UsbChangeSetFixture()
+        defer { fixture.remove() }
+        fixture.write("PIONEER/extracted/GCRED.DAT", Data("secret".utf8))
+        let locked = fixture.usb("PIONEER/extracted").path
+        #expect(chmod(locked, 0) == 0)
+        defer { chmod(locked, 0o755) }
+        var changes = fixture.exportChanges()
+        changes.writes[0].destination = "PIONEER/extracted/x.bin"
+        changes.databases[0].destination = "PIONEER/extracted/y.db"
+        let fs = fixture.fileSystem()
+        #expect(try UsbWriter.createCollisionBlocks(changes, root: fixture.root, fileSystem: fs).isEmpty)
+        #expect(!fs.calls.contains { $0.hasPrefix("list PIONEER/extracted") || $0.hasPrefix("stat PIONEER/extracted") })
+        // 쓰기 전 확인도 경로 막힘이 있으면 형식 검사기를 부르지 않는다
+        let inspector = Recording()
+        let found = blocks { try fixture.write(changes, fileSystem: fs, inspectors: [inspector]) }
+        #expect(found.contains { $0.code == "pathRefused" })
+        #expect(!inspector.called)
+        #expect(!fs.calls.contains { $0.hasPrefix("list PIONEER/extracted") || $0.hasPrefix("stat PIONEER/extracted") })
+    }
+
+    final class Recording: UsbWriteInspector, @unchecked Sendable {
+        private let lock = NSLock()
+        private var wasCalled = false
+        var called: Bool { lock.withLock { wasCalled } }
+        func blocks(root: UsbRoot, changes: UsbChangeSet) throws -> [UsbBlock] {
+            lock.withLock { wasCalled = true }
+            return []
+        }
     }
 
     struct Refusing: UsbWriteInspector {

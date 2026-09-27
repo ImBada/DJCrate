@@ -186,6 +186,36 @@ struct UsbDiskImageTests {
         }
     }
 
+    @Test("만든 뒤 떼기가 실패하면 강제로 뗀다(이미지를 붙인 채 두지 않는다)")
+    func createDetachFailureForcesDetach() throws {
+        try withFolder { folder in
+            let image = folder + "/t.img"
+            let runner = FakeToolRunner()
+            runner.plainDetachStatus = 16
+            formatting(runner, image: image)
+            #expect(throws: UsbError.self) {
+                _ = try UsbDiskImage.create(image: image, size: 4 * Self.gib, name: "DJCTEST", environment: environment(runner))
+            }
+            #expect(runner.calls.contains(["/usr/bin/hdiutil", "detach", "-force", runner.whole]))
+            #expect(runner.attachedImage == nil)
+        }
+    }
+
+    @Test("attach 결과에 전체 디스크 모양 항목이 없어도 파티션 이름에서 전체 디스크를 얻어 뗀다")
+    func attachPickFailureDetachesByPartitionEntry() throws {
+        try withFolder { folder in
+            let runner = FakeToolRunner()
+            let partition: [String: Any] = ["dev-entry": "/dev/disk9s1", "content-hint": "DOS_FAT_32"]
+            runner.entities = [partition, partition]
+            #expect(throws: UsbError.self) {
+                _ = try UsbDiskImage.create(image: folder + "/t.img", size: 64 * Self.mib, name: "DJCTEST", environment: environment(runner))
+            }
+            #expect(runner.calls.contains(["/usr/bin/hdiutil", "detach", "-force", "/dev/disk9"]))
+            #expect(runner.attachedImage == nil)
+            #expect(!runner.verbs.contains("newfs_msdos"))
+        }
+    }
+
     @Test("장치 번호는 자기 attach plist에서만 받는다")
     func deviceOnlyFromAttachPlist() throws {
         try withFolder { folder in

@@ -141,6 +141,7 @@ struct UsbRecoverTests {
         #expect(fixture.tree() == before)
 
         // ② 그 사이 끝난(되돌린) 쓰기 다섯 개가 쌓여도 needsReplan 백업은 남는다(더 새 verified가 없음)
+        // 더 새 verified가 있으면 needsReplan 백업이 풀리므로(③에서 확인) 되돌린 쓰기로 쌓는다
         for _ in 0..<5 {
             let small = try fixture.smallEditChanges()
             let fs = fixture.fileSystem()
@@ -257,8 +258,137 @@ struct UsbRecoverTests {
         #expect(fixture.backupFolders().isEmpty)
     }
 
+    struct Failing: UsbWriteVerifier {
+        func verify(root: UsbRoot, changes: UsbChangeSet, fileSystem: any UsbFileSystem, scratch: URL) throws -> [String] {
+            ["합성 검증 실패"]
+        }
+    }
+
+    @Test("다시 복사할 수 없는 음원(원본 없음)이 있어도 회복은 알리고 저널을 닫는다", arguments: [false, true])
+    func recoverAfterUnrecopyableAudioCloses(restoreInitiated: Bool) throws {
+        let fixture = UsbChangeSetFixture()
+        defer { fixture.remove() }
+        fixture.seedEdit()
+        let before = fixture.tree()
+        let changes = try fixture.editChanges()
+        let fs = fixture.fileSystem()
+        // 되돌리며 새 음원을 지우는 연산이 실패해 되돌리기가 끝나지 않는다
+        fs.failWhen = { op, path in op == .remove && path == UsbChangeSetFixture.newAudio }
+        let original = fixture.sources.appending(path: "gone/gone.mp3")
+        if restoreInitiated {
+            try fixture.write(changes)
+            try FileManager.default.removeItem(at: original)
+            #expect {
+                try fixture.restore(fileSystem: fs)
+            } throws: { error in
+                if case UsbError.restoreFailed = error { true } else { false }
+            }
+            #expect(fixture.journal()?.restoringBackup == true)
+        } else {
+            try FileManager.default.removeItem(at: original)
+            #expect {
+                try fixture.write(changes, fileSystem: fs, verifiers: [UsbFingerprintVerifier(), Failing()])
+            } throws: { error in
+                if case UsbError.restoreFailed = error { true } else { false }
+            }
+        }
+        #expect(fixture.journal()?.state == .restoreFailed)
+        let report = try fixture.recover()
+        #expect(report.outcome == (restoreInitiated ? .restored : .rolledBack))
+        #expect(report.notes.filter { $0.contains(UsbChangeSetFixture.goneAudio) }.count == 1)
+        var expected = before
+        expected[UsbChangeSetFixture.goneAudio] = nil
+        #expect(fixture.tree() == expected)
+        #expect(fixture.journal()?.isClosed == true)
+        // 다음 쓰기는 회복을 요구하지 않는다
+        #expect(try fixture.write(fixture.smallEditChanges()).outcome == .written)
+    }
+
+    @Test("쓰기 전에 없던 지울 파일은 되돌릴 때 되살릴 것이 없다(되돌리기 실패가 아님)")
+    func rollbackSkipsRemovalAbsentBeforeWrite() throws {
+        let fixture = UsbChangeSetFixture()
+        defer { fixture.remove() }
+        fixture.seedEdit()
+        let changes = try fixture.editChanges()
+        // 계획 뒤 쓰기 전에 지울 아트워크 하나가 사라졌다
+        try FileManager.default.removeItem(at: fixture.usb(UsbChangeSetFixture.goneArtwork[1]))
+        let before = fixture.tree()
+        #expect {
+            try fixture.write(changes, verifiers: [UsbFingerprintVerifier(), Failing()])
+        } throws: { error in
+            if case UsbError.writeRolledBack = error { true } else { false }
+        }
+        #expect(fixture.tree() == before)
+        #expect(fixture.journal()?.state == .rolledBack)
+    }
+
+    @Test("지우는 도중 끊긴 쓰기를 마저 하면 끊기기 전에 비게 된 우리 폴더도 지운다")
+    func crashDuringRemovals_recoversAndPrunesFolders() throws {
+        let fixture = UsbChangeSetFixture()
+        defer { fixture.remove() }
+        fixture.seedEdit()
+        let changes = try fixture.editChanges()
+        let removals = Set(changes.removals.map(\.path))
+        crash(fixture, changes) { fs in
+            fs.failAt = (operation: .remove, occurrence: 2, mode: .crash)
+            fs.failMatching = { removals.contains($0) }
+        }
+        #expect(!fixture.exists(UsbChangeSetFixture.goneAudio))
+        #expect(fixture.exists(UsbChangeSetFixture.goneAnalysis[0]))
+        #expect(try fixture.recover().outcome == .recovered)
+        for path in changes.target.mustNotExist { #expect(!fixture.exists(path)) }
+        let directories = fixture.directories()
+        #expect(!directories.contains("Contents/Gone/Album"))
+        #expect(!directories.contains("Contents/Gone"))
+        #expect(!directories.contains("PIONEER/USBANLZ/P002"))
+        #expect(directories.contains("PIONEER/Artwork/00001"))
+    }
+
+    @Test("저널의 경로·백업 폴더가 USB 루트·usb-backups 밖을 가리키면 파일 연산 없이 막는다",
+          arguments: ["entry", "database", "session", "backupDirectory"])
+    func recoverRefusesJournalPathOutsideRoot(field: String) throws {
+        let fixture = UsbChangeSetFixture()
+        defer { fixture.remove() }
+        fixture.seedEdit()
+        crash(fixture, try fixture.editChanges()) { $0.failAt = (operation: .writeNew, occurrence: 2, mode: .crash) }
+        let outside = fixture.folder.appending(path: "outside.bin")
+        let outsideData = UsbChangeSetFixture.random(300)
+        try outsideData.write(to: outside)
+        let elsewhere = fixture.folder.appending(path: "elsewhere")
+        try FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: true)
+        let url = fixture.paths.sessions.appending(path: fixture.volumeKey + ".json")
+        var journal = try #require(fixture.journal())
+        switch field {
+        case "entry":
+            let index = try #require(journal.entries.firstIndex { $0.disposition == .created })
+            journal.entries[index].destination = "../outside.bin"
+            journal.entries[index].state = .done
+        case "database": journal.changes.databases[0].destination = "PIONEER/rekordbox/../../../outside.bin"
+        case "session": journal.changes.session = "../../x"
+        default:
+            let backup = URL(filePath: try #require(journal.backupDirectory))
+            try FileManager.default.copyItem(at: backup.appending(path: "manifest.json"), to: elsewhere.appending(path: "manifest.json"))
+            journal.backupDirectory = elsewhere.path
+        }
+        try UsbJournal.encoder().encode(journal).write(to: url)
+        let tree = fixture.tree()
+        let fs = fixture.fileSystem()
+        do {
+            _ = try fixture.recover(fileSystem: fs)
+            Issue.record("막히지 않았다")
+        } catch let UsbError.writeRefused(blocks) {
+            #expect(blocks.map(\.code) == ["journalUnreadable"])
+        }
+        #expect(try Data(contentsOf: outside) == outsideData)
+        #expect(fixture.tree() == tree)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: elsewhere.path).sorted() == (field == "backupDirectory" ? ["manifest.json"] : []))
+        let mutating = ["makeDirectory", "writeNew", "copyDataNew", "rename", "remove", "removeDirectoryIfEmpty", "setModificationDate"]
+        #expect(!fs.calls.contains { mutating.contains(String($0.split(separator: " ")[0])) })
+        #expect(fixture.journal() == journal)
+    }
+
     @Test("실물 USB는 회복도 막는다(쓰기가 열리기 전)")
-    func recoverRefusesPhysicalBeforeB17() throws {
+    func recoverRefusesPhysicalBeforePhysicalWritesOpen() throws {
         let fixture = UsbChangeSetFixture()
         defer { fixture.remove() }
         let changes = fixture.exportChanges()

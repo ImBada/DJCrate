@@ -110,7 +110,13 @@ public enum UsbDiskImage {
             detachQuietly(devices.whole, force: true, env)
             throw error
         }
-        try detachDevice(devices.whole, force: false, env)
+        do {
+            try detachDevice(devices.whole, force: false, env)
+        } catch {
+            // 방금 만든 이미지를 붙인 채 두지 않는다
+            detachQuietly(devices.whole, force: true, env)
+            throw error
+        }
         // FAT32 판정은 BPB로(이미지 파일은 남겨 둔다)
         let boot = try BootSector.parse(readBootSector(real))
         let summary = String(format: "FAT32 만듦: 0x%02X, 클러스터 %ldB × %llu(≥ 65,525)", type, boot.clusterBytes, boot.clusters)
@@ -244,6 +250,12 @@ public enum UsbDiskImage {
         device.range(of: #"^/dev/disk[0-9]+$"#, options: .regularExpression) != nil
     }
 
+    /// `/dev/diskNsM` → `/dev/diskN`(파티션 모양이 아니면 nil)
+    static func wholeDevice(ofPartition device: String) -> String? {
+        guard let range = device.range(of: #"^/dev/disk[0-9]+(?=s[0-9]+$)"#, options: .regularExpression) else { return nil }
+        return String(device[range])
+    }
+
     /// 붙이되 마운트하지 않고, 자기 plist에서 장치를 고른 뒤 그 장치가 이 이미지·디스크 이미지인지 확인한다. 어긋나면 뗀다
     static func attachRaw(_ real: String, _ env: Environment) throws -> (whole: String, partition: String) {
         let result = try env.runner.run(hdiutil, ["attach", "-plist", "-nomount", "-nobrowse", "-imagekey", "diskimage-class=CRawDiskImage", real])
@@ -256,7 +268,9 @@ public enum UsbDiskImage {
         do {
             devices = try pickDevices(entities)
         } catch {
-            for device in entities.compactMap({ $0["dev-entry"] as? String }).filter(isWholeDevice) {
+            // 고르지 못해도 붙인 것은 뗀다: 전체 디스크 모양이 없으면 파티션 이름(diskNsM)에서 전체 디스크(diskN)를 얻는다
+            let entries = entities.compactMap { $0["dev-entry"] as? String }
+            for device in Set(entries.filter(isWholeDevice) + entries.compactMap(wholeDevice(ofPartition:))).sorted() {
                 detachQuietly(device, force: true, env)
             }
             throw error

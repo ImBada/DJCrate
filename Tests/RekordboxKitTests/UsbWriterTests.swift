@@ -158,6 +158,39 @@ struct UsbWriterTests {
         #expect(fixture.tree().filter { changes.target.mustExist[$0.key] != nil } == expected(changes))
     }
 
+    @Test("재사용할 음원은 크기만이 아니라 내용(목표 SHA-256, 없으면 원본 SHA-1)도 본다", arguments: ["sha256", "sha1"])
+    func reuseCopyChecksContentHash(hash: String) throws {
+        for changed in [false, true] {
+            let fixture = UsbChangeSetFixture()
+            defer { fixture.remove() }
+            fixture.seedEdit()
+            let original = try #require(fixture.data(UsbChangeSetFixture.keepAudio))
+            var changes = try fixture.editChanges(removals: false)
+            let keep = try #require(changes.copies.firstIndex { $0.destination == UsbChangeSetFixture.keepAudio })
+            if hash == "sha1" {
+                changes.target.mustExist[UsbChangeSetFixture.keepAudio] = nil
+                changes.copies[keep].sourceSHA1 = UsbChangeSetFixture.sha1(original)
+            }
+            guard changed else {
+                // 같은 내용이면 재사용한다
+                #expect(try fixture.write(changes).filesReused == 2)
+                continue
+            }
+            // 계획 뒤 같은 크기의 다른 내용으로 바뀌었다: 파일 단계에서 멈추고 되돌린다(DB까지 가지 않는다)
+            fixture.write(UsbChangeSetFixture.keepAudio, UsbChangeSetFixture.random(original.count))
+            let before = fixture.tree()
+            let fs = fixture.fileSystem()
+            #expect {
+                try fixture.write(changes, fileSystem: fs)
+            } throws: { error in
+                if case UsbError.writeRolledBack = error { true } else { false }
+            }
+            #expect(!fs.calls.contains { $0.hasPrefix("writeNew PIONEER/rekordbox/") })
+            #expect(fixture.tree() == before)
+            #expect(fixture.journal()?.state == .rolledBack)
+        }
+    }
+
     @Test("덮어쓸 파일의 지금 해시·PPTH를 확인한다")
     func overwriteChecksExistingHashAndPPTH() throws {
         let fixture = UsbChangeSetFixture()
@@ -308,22 +341,25 @@ struct UsbWriterTests {
         #expect(!journal.isClosed)
     }
 
-    @Test("rekordbox를 A·D 전·DB마다·F 전에 다시 본다")
-    func rekordboxRecheckedBeforeFilesEachDBCleanup() throws {
+    @Test("rekordbox를 A·D 전·DB마다(DB 폴더를 만들기 전에도)·F 전에 다시 본다", arguments: [false, true])
+    func rekordboxRecheckedBeforeFilesEachDBCleanup(export: Bool) throws {
         let fixture = UsbChangeSetFixture()
         defer { fixture.remove() }
-        fixture.seedEdit()
-        let changes = try fixture.editChanges()
+        if !export { fixture.seedEdit() }
+        let changes = export ? fixture.exportChanges() : try fixture.editChanges()
         let fs = fixture.fileSystem()
         fixture.recorder = fs
         try fixture.write(changes, fileSystem: fs)
         let calls = fs.calls.filter { $0 == "guard.rekordbox" || !$0.contains("mac:") }
         func isRekordbox(_ i: Int) -> Bool { calls[i] == "guard.rekordbox" }
+        func isMutating(_ call: String) -> Bool {
+            ["copyDataNew", "writeNew", "rename", "remove", "makeDirectory"].contains(String(call.split(separator: " ")[0]))
+        }
         /// 그 호출 바로 앞(USB 파일 연산 사이에서)에 rekordbox 확인이 있는지
         func checkedBefore(_ i: Int) -> Bool {
             var j = i - 1
             while j >= 0, !isRekordbox(j) {
-                if ["copyDataNew", "writeNew", "rename", "remove", "makeDirectory"].contains(String(calls[j].split(separator: " ")[0])) { return false }
+                if isMutating(calls[j]) { return false }
                 j -= 1
             }
             return j >= 0
@@ -333,11 +369,22 @@ struct UsbWriterTests {
         #expect(calls.prefix(firstFile).filter { $0 == "guard.rekordbox" }.count >= 2)
         for db in FixtureOrder.databases {
             let rename = try #require(calls.firstIndex { $0.hasPrefix("rename ") && $0.hasSuffix("-> " + db) })
-            let temp = try #require(calls[..<rename].lastIndex { $0.hasPrefix("writeNew PIONEER/rekordbox/.djc-part-") })
-            #expect(checkedBefore(temp), "\(db)")
+            var first = try #require(calls[..<rename].lastIndex { $0.hasPrefix("writeNew PIONEER/rekordbox/.djc-part-") })
+            // 내보내기의 첫 DB는 DB 폴더를 만든 뒤 임시 파일을 쓴다: 그 폴더 만들기가 이 DB 단계의 첫 USB 쓰기다
+            if let folder = calls[..<first].lastIndex(where: { $0 == "makeDirectory " + UsbLayout.rekordboxDir }),
+               !calls[(folder + 1)..<first].contains(where: isMutating) {
+                first = folder
+            }
+            #expect(checkedBefore(first), "\(db)")
         }
-        let firstRemoval = try #require(calls.firstIndex { $0 == "remove " + UsbChangeSetFixture.goneAudio })
-        #expect(checkedBefore(firstRemoval))
+        if export {
+            // 내보내기는 DB 폴더를 E 단계에서 처음 만든다: 그 폴더를 만들기 전에도 본다
+            let folder = try #require(calls.firstIndex { $0 == "makeDirectory " + UsbLayout.rekordboxDir })
+            #expect(checkedBefore(folder))
+        } else {
+            let firstRemoval = try #require(calls.firstIndex { $0 == "remove " + UsbChangeSetFixture.goneAudio })
+            #expect(checkedBefore(firstRemoval))
+        }
     }
 
     @Test("백업 파일마다 fullSync, 저널 backedUp이 첫 USB 쓰기보다 먼저 디스크에")

@@ -123,6 +123,32 @@ struct UsbCommandTests {
         #expect(lines.first == "결과: 썼습니다")
     }
 
+    @Test("보고: 저널이 없던 회복은 마저 썼다고 하지 않는다")
+    func reportLinesNothingToRecover() {
+        var report = UsbWriteReport(outcome: .recovered, session: "")
+        report.notes = ["끝나지 않은 쓰기가 없습니다"]
+        #expect(UsbCommands.reportLines(report) == ["결과: 회복할 쓰기가 없습니다", "끝나지 않은 쓰기가 없습니다"])
+        #expect(UsbCommands.reportLines(UsbWriteReport(outcome: .recovered, session: "abcdefgh")).first == "결과: 끊긴 쓰기를 마저 썼습니다")
+    }
+
+    @Test("강제 분리 반복: 반복 번호의 복제본이 이미 있으면 건드리지 않고 멈춘다")
+    func crashRunKeepsExistingClone() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "djc-crashrun-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let template = folder.appending(path: "k.img").path
+        FileManager.default.createFile(atPath: template, contents: Data(count: 512))
+        let clone = template + ".run-3.img"
+        let leftover = Data("leftover".utf8)
+        FileManager.default.createFile(atPath: clone, contents: leftover)
+        let (paths, base) = paths()
+        defer { try? FileManager.default.removeItem(at: base) }
+        #expect(throws: UsbError.self) {
+            _ = try UsbImageLab.crashRun(index: 3, template: template, djc: "/nonexistent/djc", paths: paths, detachAfter: nil)
+        }
+        #expect(FileManager.default.contents(atPath: clone) == leftover)
+    }
+
     @Test("--allow-provisional physicalVolume은 받지 않는다")
     func allowProvisionalPhysicalRefused() async {
         let (paths, base) = paths()

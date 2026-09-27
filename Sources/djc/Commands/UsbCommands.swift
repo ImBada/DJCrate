@@ -100,7 +100,9 @@ enum UsbCommands {
         case .restored: String(ui: "쓰기 전 백업으로 되돌렸습니다")
         case .needsReplan: String(ui: "USB가 기기에서 바뀌어 이어 쓰지 않았습니다. 지금 USB 상태로 다시 미리 보기한 뒤 쓰세요")
         }
-        var lines = [String(ui: "결과: \(outcome)")]
+        // 저널이 없던 회복(session 없음)은 한 일이 없다: 마저 썼다고 하지 않는다
+        var lines = [report.outcome == .recovered && report.session.isEmpty ? String(ui: "결과: 회복할 쓰기가 없습니다")
+            : String(ui: "결과: \(outcome)")]
         if let backup = report.backup { lines.append(String(ui: "백업: \(backup)")) }
         if report.filesCreated + report.filesOverwritten + report.filesRemoved > 0 {
             lines.append(String(ui: "파일: 만든 것 \(report.filesCreated)개 · 덮어쓴 것 \(report.filesOverwritten)개 · 지운 것 \(report.filesRemoved)개"))

@@ -38,6 +38,8 @@ public final class FakeToolRunner: UsbToolRunner, @unchecked Sendable {
     public var attachStatus: Int32 = 0
     public var attachStderr = FakeToolRunner.warning
     public var detachStatus: Int32 = 0
+    /// 강제(-force)가 아닌 떼기만 이 값으로 답한다(nil이면 detachStatus)
+    public var plainDetachStatus: Int32?
     public var newfsStatus: Int32 = 0
     public var mountStatus: Int32 = 0
     /// 마운트한 뒤 파티션 정보가 몇 번 옛 값을 되풀이하는지
@@ -79,11 +81,12 @@ public final class FakeToolRunner: UsbToolRunner, @unchecked Sendable {
             output = Output(status: attachStatus, stdout: attachStatus == 0 ? Self.plist(["system-entities": attachEntities]) : Data(),
                             stderr: attachStatus == 0 ? attachStderr : Data("hdiutil: attach failed - synthetic failure\n".utf8))
         case ("hdiutil", "detach"?):
-            if detachStatus == 0 {
+            let status = arguments.contains("-force") ? detachStatus : plainDetachStatus ?? detachStatus
+            if status == 0 {
                 attachedImage = nil
                 mountPoint = nil
             }
-            output = Output(status: detachStatus, stderr: Self.warning)
+            output = Output(status: status, stderr: Self.warning)
         case ("hdiutil", "info"?):
             output = Output(stdout: infoPlist())
         case ("newfs_msdos", _):

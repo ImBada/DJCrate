@@ -31,12 +31,11 @@ extension UsbWriteRun {
                 errors.append("\(what): \(error)")
             }
         }
-        // F 되돌리기(검증 실패로 온 경우)
+        // F 되돌리기(검증 실패로 온 경우). 다시 복사하지 못한 음원은 removed로 남긴다(다음 되돌리기가 다시 해 본다)
         for index in journal.removals.indices.reversed() where journal.removals[index].state == .removed {
             let path = journal.removals[index].path
             try attempt(path) {
-                try restoreRemoved(path, strict: mode != .restore)
-                journal.removals[index].state = .pending
+                if try restoreRemoved(path) { journal.removals[index].state = .pending }
             }
         }
         // E 되돌리기
@@ -69,7 +68,9 @@ extension UsbWriteRun {
     func fingerprintMismatches() throws -> [String] {
         guard let manifest else { return [] }
         var mismatches: [String] = []
-        for (path, stamp) in manifest.before.sorted(by: { $0.key < $1.key }) {
+        // 원본이 없거나 바뀌어 다시 복사하지 못한 음원은 알림으로 남겼다. 되돌릴 수 없는 것을 실패로 세면 회복이 끝나지 않는다
+        let unrecoverable = Set(journal.removals.filter { $0.state == .removed && UsbPath.isAudio($0.path) }.map(\.path))
+        for (path, stamp) in manifest.before.sorted(by: { $0.key < $1.key }) where !unrecoverable.contains(path) {
             let url = usb(path)
             guard let info = try fs.stat(url), info.kind == .file, info.size == stamp.size else {
                 mismatches.append(path)
@@ -209,38 +210,45 @@ extension UsbWriteRun {
         try fs.syncDirectory(usb(parent))
     }
 
-    /// 지운 파일을 되살린다. 음원은 로컬 원본의 SHA-1이 manifest와 같을 때만 다시 복사한다
-    func restoreRemoved(_ path: String, strict: Bool) throws {
-        if UsbPath.isAudio(path) {
-            guard let audio = manifest?.removedAudio.first(where: { $0.path == path }), let original = audio.localOriginal else {
-                throw UsbWriteFailure.failed("no local original for \(path)")
-            }
-            try makeParents(path)
-            let parent = UsbPath.parent(path)
-            let temp = nextTempName()
-            let tempURL = usb(UsbPath.join(parent, temp))
-            try ensureMounted()
-            let copied = try fs.copyDataNew(from: URL(filePath: original), to: tempURL) { _ in }
-            guard audio.localOriginalSHA1.map({ $0 == copied.sha1 }) ?? false else {
-                try fs.remove(tempURL)
-                try removeExactAppleDouble(parent: parent, name: temp)
-                let note = String(ui: "음원 원본이 바뀌어 다시 복사하지 못했습니다: \(path)")
-                if strict { throw UsbWriteFailure.failed(note) }
-                report.notes.append(note)
-                return
-            }
-            if let date = audio.modificationDate { try fs.setModificationDate(tempURL, date) }
-            try fs.fullSync(tempURL)
-            try ensureMounted()
-            try fs.rename(tempURL, to: usb(path))
-            try removeExactAppleDouble(parent: parent, name: temp)
-            try restoreAppleDouble(of: path, preexisted: manifest?.appleDoublesPreexisting.contains(UsbRemovalPolicy.appleDoubleCompanion(of: path) ?? "") ?? false)
-            try fs.syncDirectory(usb(parent))
-            return
-        }
-        try restoreFromBackup(path)
+    /// 지운 파일을 되살린다(되살렸으면 true). 음원은 로컬 원본의 SHA-1이 manifest와 같을 때만 다시 복사한다.
+    /// 원본이 없거나 바뀌었으면 알림만 남기고 false: 되돌릴 수 없는 것을 실패로 세면 되돌리기·회복이 끝나지 않는다
+    func restoreRemoved(_ path: String) throws -> Bool {
+        // 쓰기 전에 이미 없던 파일(백업 때 없음): 되살릴 것이 없다
+        if manifest?.absentBefore.contains(path) == true { return true }
         let companion = UsbRemovalPolicy.appleDoubleCompanion(of: path) ?? ""
-        try restoreAppleDouble(of: path, preexisted: manifest?.appleDoublesPreexisting.contains(companion) ?? false)
+        let appleDoublePreexisted = manifest?.appleDoublesPreexisting.contains(companion) ?? false
+        guard UsbPath.isAudio(path) else {
+            try restoreFromBackup(path)
+            try restoreAppleDouble(of: path, preexisted: appleDoublePreexisted)
+            return true
+        }
+        guard let audio = manifest?.removedAudio.first(where: { $0.path == path }) else {
+            throw UsbWriteFailure.failed("no record of removed audio: \(path)")
+        }
+        guard let original = audio.localOriginal, try fs.stat(URL(filePath: original))?.kind == .file else {
+            report.notes.append(String(ui: "음원 원본이 없어 다시 복사하지 못했습니다: \(path)"))
+            return false
+        }
+        try makeParents(path)
+        let parent = UsbPath.parent(path)
+        let temp = nextTempName()
+        let tempURL = usb(UsbPath.join(parent, temp))
+        try ensureMounted()
+        let copied = try fs.copyDataNew(from: URL(filePath: original), to: tempURL) { _ in }
+        guard audio.localOriginalSHA1.map({ $0 == copied.sha1 }) ?? false else {
+            try fs.remove(tempURL)
+            try removeExactAppleDouble(parent: parent, name: temp)
+            report.notes.append(String(ui: "음원 원본이 바뀌어 다시 복사하지 못했습니다: \(path)"))
+            return false
+        }
+        if let date = audio.modificationDate { try fs.setModificationDate(tempURL, date) }
+        try fs.fullSync(tempURL)
+        try ensureMounted()
+        try fs.rename(tempURL, to: usb(path))
+        try removeExactAppleDouble(parent: parent, name: temp)
+        try restoreAppleDouble(of: path, preexisted: appleDoublePreexisted)
+        try fs.syncDirectory(usb(parent))
+        return true
     }
 
     /// 이 세션 이름으로 시작하는 임시 파일(저널에 적힌 것 + 되돌리며 만든 것)을 지운다
@@ -265,10 +273,11 @@ extension UsbWriteRun {
         }
         let blocks = environmentBlocks(purpose: .edit, required: [], allowProvisional: [], confirmName: confirmName, checkRekordbox: false)
         if !blocks.isEmpty { throw UsbError.writeRefused(blocks) }
-        switch UsbWriter.loadJournal(paths: paths, volumeKey: volumeKey) {
-        case .open, .corrupt:
+        switch UsbWriter.journalStatus(paths: paths, volumeKey: volumeKey) {
+        case .open:
             throw UsbError.writeRefused([UsbBlock(code: "recoveryNeeded", scope: .volume,
                                                   message: String(ui: "지난 USB 쓰기가 끝나지 않았습니다. `djc usb-recover`로 먼저 회복하세요"))])
+        case .corrupt: throw UsbError.writeRefused([UsbWriter.journalUnreadableBlock])
         case .missing, .closed: break
         }
         func refuse(_ code: String, _ message: String) -> UsbError {
@@ -280,21 +289,28 @@ extension UsbWriteRun {
         }) else {
             throw refuse("noBackup", String(ui: "되돌릴 백업이 없습니다. 이 USB에 DJCrate로 쓴 기록이 있는지 확인하세요"))
         }
+        // 되돌리기는 백업 폴더의 기록대로 USB 파일을 지우고 되살린다: DJCrate가 이 USB에 쓸 때 만든 폴더만 받는다
+        guard isOurBackupFolder(folder) else {
+            throw refuse("backupOutside", String(ui: "이 USB의 DJCrate 백업 폴더(usb-backups 안)만 되돌릴 수 있습니다. 그 안의 폴더를 주세요"))
+        }
         let decoder = UsbJournal.decoder()
+        let unreadable = refuse("backupUnreadable", String(ui: "백업 폴더를 읽지 못했습니다. 다른 백업 폴더를 --backup으로 주세요"))
         guard let savedManifest = try? decoder.decode(UsbManifest.self, from: Data(contentsOf: folder.appending(path: "manifest.json"))),
               let saved = try? decoder.decode(UsbJournal.self, from: Data(contentsOf: folder.appending(path: "journal.json"))),
               let savedReport = try? decoder.decode(UsbWriteReport.self, from: Data(contentsOf: folder.appending(path: "report.json")))
-        else {
-            throw refuse("backupUnreadable", String(ui: "백업 폴더를 읽지 못했습니다. 다른 백업 폴더를 --backup으로 주세요"))
-        }
+        else { throw unreadable }
+        // 깨졌거나 누가 고친 기록이 USB 루트 밖을 가리키면 파일 연산 전에 막는다
+        guard UsbWriter.unsafeEntries(in: saved).isEmpty, UsbWriter.unsafeEntries(in: savedManifest).isEmpty else { throw unreadable }
         guard savedManifest.volumeUUID.uppercased() == volumeKey else {
             throw refuse("backupOtherVolume", String(ui: "다른 USB의 백업입니다. 이 USB의 백업 폴더를 주세요"))
         }
         backupFolder = folder
         manifest = savedManifest
-        report = UsbWriteReport(outcome: .restored, session: saved.session, backup: folder.path)
-        if saved.state == .rolledBack || savedReport.outcome == .rolledBack {
-            report.notes.append(String(ui: "그 쓰기는 이미 되돌려져 있어 바꿀 것이 없습니다"))
+        report = UsbWriteReport(outcome: dryRun ? .dryRun : .restored, session: saved.session, backup: folder.path)
+        // 이미 되돌린 백업: 그 뒤 USB를 바꾼 것은 이 되돌리기다(기기가 아니다)
+        let alreadyRestored = FileManager.default.fileExists(atPath: folder.appending(path: UsbWriter.restoredMarkerName).path)
+        if alreadyRestored || saved.state == .rolledBack || savedReport.outcome == .rolledBack {
+            report.notes.append(alreadyRestored ? String(ui: "그 쓰기는 이미 되돌렸습니다") : String(ui: "그 쓰기는 이미 되돌려져 있어 바꿀 것이 없습니다"))
             report.resultDatabases = try currentDatabaseHashes()
             return report
         }
@@ -308,7 +324,6 @@ extension UsbWriteRun {
                          String(ui: "USB가 그 뒤에 바뀌었습니다(기기가 쓴 기록 등). 되돌리면 그 내용을 잃습니다. 그래도 되돌리려면 --discard-device-changes를 주세요"))
         }
         if dryRun {
-            report.outcome = .dryRun
             report.filesCreated = saved.entries.filter { $0.disposition == .created }.count
             report.filesOverwritten = saved.entries.filter { $0.disposition == .overwritten }.count
             report.filesRemoved = saved.removals.filter { $0.state == .removed }.count
@@ -318,15 +333,21 @@ extension UsbWriteRun {
         // 되돌리기도 USB 쓰기다: 끊기면 회복이 이어서 되돌리도록 저널을 restorePending으로 연다
         journal = saved
         journal.state = .restorePending
+        journal.restoringBackup = true
         journal.backupDirectory = folder.path
         try saveJournal()
         options = UsbWriteOptions()
-        let errors: [String]
         do {
-            errors = try rollback(mode: .restore)
+            return try finishRestore(errors: rollback(mode: .restore), folder: folder, reason: String(ui: "되돌리기"))
         } catch UsbWriteFailure.volumeLost {
             throw UsbError.volumeLost(volumeName: volume.name)
         }
+    }
+
+    /// 되돌리기 끝: 실패가 있으면 저널을 restoreFailed로 두고 던진다. 되돌렸으면 백업 폴더에 표지를 남기고 저널을 restored로 닫는다.
+    /// 그 쓰기의 기록(report.json·journal.json)은 바꾸지 않는다(무엇을 되돌렸는지 남긴다)
+    func finishRestore(errors: [String], folder: URL, reason: String) throws -> UsbWriteReport {
+        report.filesCreated = 0
         report.filesRemoved = journal.entries.filter { $0.disposition == .created }.count
         report.filesOverwritten = journal.entries.filter { $0.disposition == .overwritten }.count
         report.resultDatabases = try currentDatabaseHashes()
@@ -334,11 +355,13 @@ extension UsbWriteRun {
             report.outcome = .restoreFailed
             try journal.move(to: .restoreFailed)
             try saveJournal()
-            throw UsbError.restoreFailed(reason: String(ui: "되돌리기"), restoreError: errors.joined(separator: "\n"), backup: folder.path)
+            throw UsbError.restoreFailed(reason: reason, restoreError: errors.joined(separator: "\n"), backup: folder.path)
         }
+        report.outcome = .restored
+        // 표지를 저널을 닫기 전에 쓴다: 그 사이 끊기면 회복이 되돌리기를 한 번 더 할 뿐이다
+        try UsbDurableFile.write(report, to: folder.appending(path: UsbWriter.restoredMarkerName), fileSystem: fs)
         try journal.move(to: .restored)
         try saveJournal()
-        report.outcome = .restored
         return report
     }
 }

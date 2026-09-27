@@ -9,7 +9,6 @@ extension UsbWriteRun {
         try checkRekordbox()
         try ensureMounted()
         emit(.cleanup, total: changes.removals.count, cancellable: false)
-        var removedPaths: [String] = []
         for group in Self.removalGroups(changes.removals) {
             let pending = group.filter { removal in journal.removals.first { $0.path == removal.path }?.state == .pending }
             guard !pending.isEmpty else { continue }
@@ -41,10 +40,10 @@ extension UsbWriteRun {
                 try saveJournal()
                 try removeExactAppleDouble(parent: UsbPath.parent(removal.path), name: UsbPath.name(removal.path))
                 report.filesRemoved += 1
-                removedPaths.append(removal.path)
             }
         }
-        for folder in Self.emptiableFolders(of: removedPaths) {
+        // 비게 된 폴더는 저널 기준으로 본다: 끊긴 쓰기를 회복이 마저 할 때 끊기기 전에 지운 파일의 폴더도 들어간다
+        for folder in Self.emptiableFolders(of: journal.removals.filter { $0.state == .removed }.map(\.path)) {
             try ensureMounted()
             if try fs.removeDirectoryIfEmpty(usb(folder)) {
                 try removeExactAppleDouble(parent: UsbPath.parent(folder), name: UsbPath.name(folder))
