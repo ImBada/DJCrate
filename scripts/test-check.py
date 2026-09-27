@@ -17,6 +17,22 @@ CASES = {
     "term": 143, "int": 130, "int-group": 130,
 }
 CANCELLATIONS = {"term", "int", "int-group"}
+DEBUG = "build --build-tests --enable-code-coverage"
+RELEASE = "build -c release --product DJCrate"
+TRANSLATIONS = "scripts/i18n.swift check --enable-code-coverage"
+TEST = "test --skip-build --enable-code-coverage"
+PARTITIONS = {
+    "coverage-only": (["--coverage"], "ok", 0, [DEBUG, TRANSLATIONS, TEST]),
+    "release-only": (["--release"], "ok", 0, [RELEASE]),
+    "coverage-no-release": (["--coverage"], "release-fail", 0, [DEBUG, TRANSLATIONS, TEST]),
+    "coverage-debug-fail": (["--coverage"], "debug-fail", 23, [DEBUG]),
+    "coverage-translation-fail": (["--coverage"], "translation-fail", 25, [DEBUG, TRANSLATIONS]),
+    "coverage-test-fail": (["--coverage"], "test-fail", 26, [DEBUG, TRANSLATIONS, TEST]),
+    "coverage-threshold-fail": (["--coverage"], "low-coverage", 1, [DEBUG, TRANSLATIONS, TEST]),
+    "release-build-fail": (["--release"], "release-fail", 24, [RELEASE]),
+    "invalid-mode": (["--unknown"], "ok", 2, []),
+    "extra-argument": (["--coverage", "--release"], "ok", 2, []),
+}
 
 
 def prepare(root):
@@ -157,6 +173,27 @@ def check_case(case, expected):
         assert not errors, ", ".join(errors) + "\n" + content
 
 
+def check_partition(arguments, case, expected, expected_calls):
+    with tempfile.TemporaryDirectory(prefix="djc-check-partition-") as directory:
+        root = Path(directory)
+        prepare(root)
+        env = dict(os.environ, PATH=str(root / "bin") + ":" + os.environ["PATH"], CASE=case)
+        env.pop("DJC_CHECK_LOG_ROOT", None)
+        result = subprocess.run(
+            ["/bin/zsh", str(root / "scripts/check.sh"), *arguments], cwd=root, env=env,
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == expected, f"종료코드 {result.returncode}, 기대값 {expected}\n{result.stdout}"
+        calls_file = root / "calls.txt"
+        calls = calls_file.read_text().splitlines() if calls_file.exists() else []
+        assert calls == expected_calls, f"검사 범위 불일치: {calls}"
+        if expected_calls:
+            run, = (root / ".build/check-logs").glob("run.*")
+            assert (run / "exit-code.txt").read_text().strip() == str(expected), "종료코드 보존 누락"
+            if arguments == ["--coverage"] and expected == 0:
+                assert "목표 80%" in result.stdout and "목표 60%" in result.stdout, "커버리지 목표 검사 누락"
+
+
 failures = 0
 for case, expected in CASES.items():
     try:
@@ -165,5 +202,13 @@ for case, expected in CASES.items():
     except (AssertionError, OSError, UnicodeError, subprocess.TimeoutExpired) as error:
         failures += 1
         print(f"✘ {case}: {error}")
-print(f"검사 스크립트 회귀: {len(CASES)}개 중 {len(CASES) - failures}개 통과")
+for name, arguments in PARTITIONS.items():
+    try:
+        check_partition(*arguments)
+        print(f"✔ {name}")
+    except (AssertionError, OSError, ValueError, subprocess.TimeoutExpired) as error:
+        failures += 1
+        print(f"✘ {name}: {error}")
+total = len(CASES) + len(PARTITIONS)
+print(f"검사 스크립트 회귀: {total}개 중 {total - failures}개 통과")
 sys.exit(bool(failures))
