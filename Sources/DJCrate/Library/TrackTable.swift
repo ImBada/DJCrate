@@ -700,7 +700,10 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             cell.set(evaluation?.displayName ?? "", color: evaluation?.tone.nsTint ?? .secondaryLabelColor,
                      draft: draft.map { $0.base.comment != $0.fields.comment } ?? false)
         case "bpm": cell.set(row.bpmValue > 0 ? String(format: "%.0f", row.bpmValue) : "", color: .secondaryLabelColor, digits: true)
-        case "key": cell.set(row.keyName, color: .secondaryLabelColor)
+        case "key":
+            // 추가한 곡의 추정 키는 제안 색·기울임으로 구분하고, 툴팁·VoiceOver로 "추정"을 알린다(#124).
+            cell.set(row.keyName, color: row.keyEstimated ? UIColors.suggestion.nsColor : .secondaryLabelColor,
+                     estimated: row.keyEstimated)
         case "length": cell.set(row.lengthText, color: .secondaryLabelColor, digits: true)
         case "format": cell.set(row.formatName, color: .secondaryLabelColor)
         case "tempo": cell.set(row.tempoChangeText, color: UIColors.tempo.nsColor, digits: true)
@@ -982,11 +985,14 @@ final class TrackTextCell: NSTableCellView {
     struct Fonts {
         let text: NSFont
         let digits: NSFont
+        /// 추정값(추가한 곡의 추정 키)
+        let estimated: NSFont
 
         init(scale: Double) {
             let size = TextScale.pointSize(NSFont.systemFontSize, scale: scale)
             text = NSFont.systemFont(ofSize: size)
             digits = NSFont.monospacedDigitSystemFont(ofSize: size, weight: .regular)
+            estimated = NSFontManager.shared.convert(text, toHaveTrait: .italicFontMask)
         }
     }
 
@@ -1021,11 +1027,12 @@ final class TrackTextCell: NSTableCellView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     /// - Parameter draft: 반영 전 초안 값. 색과 함께 모서리 표식·VoiceOver "초안"으로도 알린다.
+    /// - Parameter estimated: DJCrate 추정값. 색과 함께 기울임·툴팁·VoiceOver "추정"으로도 알린다.
     /// - Parameter symbol: 글자 앞 SF 심볼. 칸을 다시 쓸 때마다 부르므로 nil이면 지운다.
-    func set(_ text: String, color: NSColor, digits: Bool = false, draft: Bool = false,
+    func set(_ text: String, color: NSColor, digits: Bool = false, draft: Bool = false, estimated: Bool = false,
              symbol: String? = nil, symbolLabel: String? = nil) {
         if label.stringValue != text { label.stringValue = text }
-        let font = digits ? fonts.digits : fonts.text
+        let font = estimated ? fonts.estimated : digits ? fonts.digits : fonts.text
         if label.font != font { label.font = font }
         if symbol != leadingSymbol || (symbol != nil && iconPointSize != font.pointSize) {
             showSymbol(symbol, label: symbolLabel, pointSize: font.pointSize)
@@ -1033,8 +1040,11 @@ final class TrackTextCell: NSTableCellView {
         normalColor = color
         updateColor()
         if draftMark.isHidden == draft { draftMark.isHidden = !draft }
-        if draft || speaksCustomValue {
-            label.cell?.setAccessibilityValue(draft ? "\(text), \(DraftMark.spoken)" : text)
+        let tip = estimated ? String(ui: "DJCrate가 소리로 추정한 키입니다. rekordbox 분석과 다를 수 있습니다") : nil
+        if toolTip != tip { toolTip = tip }
+        if draft || estimated || speaksCustomValue {
+            let spoken = draft ? "\(text), \(DraftMark.spoken)" : estimated ? "\(text), \(String(ui: "추정"))" : text
+            label.cell?.setAccessibilityValue(spoken)
             speaksCustomValue = true
         }
     }

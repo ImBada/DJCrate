@@ -123,7 +123,7 @@ struct PlayheadLabel: View {
             Text(t.clockText).font(.scaled(.callout, textScale).monospacedDigit().bold())
             if let position = deck.grid?.positionText(at: t) {
                 Text(position).font(.scaled(.caption, textScale).monospacedDigit()).foregroundStyle(.secondary)
-                    .help(.ui("마디.박(박은 0부터)"))
+                    .help(.ui("마디.박"))
             }
             if let key = deck.key(at: t) {
                 HStack(spacing: 3) {

@@ -57,6 +57,8 @@ struct TrackRow: Identifiable, Hashable, Sendable {
     var releaseYear: Int { track.releaseYear ?? 0 }
     var trackNumber: Int { track.trackNumber ?? 0 }
     var keyName: String { track.key ?? "" }
+    /// 추가한 곡의 키를 DJCrate가 추정했는지(목록에 추정으로 표시한다, #124)
+    var keyEstimated = false
     /// rekordbox 그리드의 변속 흐름(BPM 순서, 변속 없으면 빈 배열)
     let tempoChanges: [Double]
     /// rekordbox 오토게인(분석한 곡만)

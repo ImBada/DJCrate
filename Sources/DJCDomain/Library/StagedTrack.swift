@@ -21,11 +21,27 @@ public struct StagedTrack: Codable, Sendable, Hashable, Identifiable {
     public var bpm: Double?
     /// 추정이 믿을 만한지(아니면 확인 필요 표시).
     public var gridConfident: Bool?
+    /// 목록에 보이는 키(Camelot, "8A"). 음원 태그에 키가 있으면 그것, 없으면 DJCrate 추정. rekordbox에는 쓰지 않는다(#5).
+    public var key: String?
+    /// 키를 어디서 얻었는지. nil이면 아직 찾지 않았다(추정했지만 조성을 못 찾으면 `.estimate`에 키 nil).
+    public var keySource: KeySource?
     public var addedOn: String
     /// rekordbox로 가져온 뒤 확인 결과(새 스냅샷에서 같은 경로의 곡을 찾아 그리드를 비교)
     public var importCheck: ImportCheck?
     /// 옛 staged.json도 읽을 수 있도록 출처가 없는 곡은 nil이다.
     public var appleMusicOrigins: [AppleMusicOrigin]?
+
+    public enum KeySource: String, Codable, Sendable {
+        /// 음원 파일 태그(ID3 TKEY 등)
+        case tag
+        /// DJCrate 조성 추정
+        case estimate
+    }
+
+    /// 백그라운드에서 키를 찾아야 하는지(옛 staged.json의 곡 포함)
+    public var needsKey: Bool { keySource == nil }
+    /// 목록에 추정으로 표시할 키인지
+    public var keyEstimated: Bool { key != nil && keySource == .estimate }
 
     public struct ImportCheck: Codable, Sendable, Hashable {
         public enum Result: String, Codable, Sendable {
@@ -83,7 +99,7 @@ public struct StagedTrack: Codable, Sendable, Hashable, Identifiable {
     /// 목록·덱이 rekordbox 곡과 같은 방식으로 다룰 수 있는 모양.
     public var track: Track {
         Track(id: id, uuid: uuid, title: title, artist: artist, album: album, albumArtist: nil, genre: genre,
-              composer: composer, releaseYear: year, trackNumber: trackNumber, key: nil, bpm: bpm,
+              composer: composer, releaseYear: year, trackNumber: trackNumber, key: key, bpm: bpm,
               lengthSeconds: Int(duration.rounded()), folderPath: path, comment: comment, importedOn: addedOn,
               analysisDataPath: nil, imagePath: nil, isDeleted: false)
     }

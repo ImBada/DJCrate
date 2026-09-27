@@ -111,7 +111,7 @@ final class DeckHarness {
 
     /// - Parameter gridBase: 그리드 초안의 "rekordbox 원래 그리드"(되돌리기 대상). 비우면 분석 전 곡처럼 원래 그리드가 없다.
     init(cues: [Cue] = [], grid: [GridSegment]? = [GridSegment(start: 0.5, bpm: 120, firstBeatNumber: 1)],
-         gridBase: [GridSegment] = [], autoGain: RekordboxAutoGain? = nil) throws {
+         gridBase: [GridSegment] = [], autoGain: RekordboxAutoGain? = nil, key: String? = "8B") throws {
         root = FileManager.default.temporaryDirectory.appending(path: "djc-deck-\(UUID().uuidString)")
         audio = FakeDeckAudio()
         drafts = MemoryDrafts()
@@ -121,7 +121,7 @@ final class DeckHarness {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = try AudioFixture.wav(seconds: 1, in: directory)
         let track = Track(id: "1", uuid: "track-1", title: "시험 곡", artist: nil, album: nil, albumArtist: nil, genre: nil,
-                          composer: nil, releaseYear: nil, trackNumber: nil, key: "8B", bpm: 120, lengthSeconds: 180,
+                          composer: nil, releaseYear: nil, trackNumber: nil, key: key, bpm: 120, lengthSeconds: 180,
                           folderPath: url.path, comment: "", importedOn: nil, analysisDataPath: nil, imagePath: nil, isDeleted: false)
         // 그리드는 rekordbox 분석 파일 대신 초안으로 준다(분석 경로가 없는 곡)
         if let grid { drafts.save(GridDraft(trackUUID: track.uuid, base: gridBase, segments: grid)) }
