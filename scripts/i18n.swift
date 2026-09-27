@@ -203,9 +203,15 @@ func translationProblems(_ catalog: [String: Any], name: String, languages: [Str
     return problems
 }
 
+// 전체 검사와 같은 계측 설정을 써서 번역 확인 때문에 디버그 빌드를 다시 하지 않는다.
+let buildArguments = Array(CommandLine.arguments.dropFirst(2))
+guard buildArguments.isEmpty || buildArguments == ["--enable-code-coverage"] else {
+    fail("사용: swift scripts/i18n.swift sync|check [--enable-code-coverage]")
+}
+
 func buildDebug() {
-    guard run(["swift", "build", "--product", "DJCrate"], quiet: true) == 0 else { fail("swift build가 실패했습니다. 먼저 빌드 오류를 고치세요") }
-    guard run(["swift", "build", "--product", "djc"], quiet: true) == 0 else { fail("djc 빌드가 실패했습니다. 먼저 빌드 오류를 고치세요") }
+    guard run(["swift", "build", "--product", "DJCrate"] + buildArguments, quiet: buildArguments.isEmpty) == 0 else { fail("swift build가 실패했습니다. 먼저 빌드 오류를 고치세요") }
+    guard run(["swift", "build", "--product", "djc"] + buildArguments, quiet: buildArguments.isEmpty) == 0 else { fail("djc 빌드가 실패했습니다. 먼저 빌드 오류를 고치세요") }
 }
 
 func report(_ problems: [String], limit: Int = 40) {
