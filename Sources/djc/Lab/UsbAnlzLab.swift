@@ -6,7 +6,7 @@ import RekordboxKit
 /// USB 분석 파일(ANLZ) 실험
 enum UsbAnlzLab {
     static let all: [Command] = [
-        Command("usb-anlz-check", "--db <스냅샷 사본> --share <share> [--snapshot-time <ISO 8601>] <USB 폴더>",
+        Command("usb-anlz-check", "--db <스냅샷 사본> --share <share> [--snapshot-time <ISO 8601>] [--playlist <재생 목록 ID>] <USB 폴더>",
                 "USB 분석 파일을 로컬 분석 파일·큐로 다시 만들어 바이트 비교(모두 읽기만)", UsbAnlzLab.check),
     ]
 
@@ -38,14 +38,9 @@ enum UsbAnlzLab {
         guard let dbArgument = value(after: "--db", in: args), let shareArgument = value(after: "--share", in: args) else {
             throw UsageError()
         }
-        let flags: Set = ["--db", "--share", "--snapshot-time"]
-        var positional: [String] = []
-        var index = 1
-        while index < args.count {
-            if flags.contains(args[index]) { index += 2 } else { positional.append(args[index]); index += 1 }
-        }
-        guard positional.count == 1 else { throw UsageError() }
-        let usbPath = try UsbScratchPath.check(positional[0], as: .existingDirectory)
+        let folders = positional(args)
+        guard folders.count == 1 else { throw UsageError() }
+        let usbPath = try UsbScratchPath.check(folders[0], as: .existingDirectory)
         let dbPath = try UsbScratchPath.check(dbArgument, as: .existingFile)
         let snapshot = try UsbSnapshotTime.resolve(explicit: value(after: "--snapshot-time", in: args), database: URL(filePath: dbPath))
         print("스냅샷 시각: \(snapshot.source.rawValue)")
@@ -53,14 +48,7 @@ enum UsbAnlzLab {
 
         let db = try CipherDatabase.diagnostic(path: dbPath, key: RekordboxKey.derive())
         defer { db.close() }
-        var local: [String: [LocalTrack]] = [:]
-        try db.query("""
-            SELECT ID, FileNameL, FileSize, AnalysisDataPath, FileType FROM djmdContent
-            WHERE rb_local_deleted = 0 AND FileNameL IS NOT NULL AND AnalysisDataPath IS NOT NULL AND AnalysisDataPath != ''
-            """) { row in
-            guard let id = row.string(0), let name = row.string(1), let size = row.int(2), let path = row.string(3) else { return }
-            local[key(name: name, size: Int64(size)), default: []].append(LocalTrack(id: id, analysisDataPath: path, fileType: row.int(4) ?? 0))
-        }
+        let local = try localTracks(db: db, playlistID: value(after: "--playlist", in: args))
 
         let root = UsbRoot(URL(filePath: usbPath))
         let audioSizes = Dictionary(try UsbTree.walk(root, under: "Contents").filter { !$0.isDirectory }.map { ($0.relativePath, $0.size) },
@@ -143,6 +131,35 @@ enum UsbAnlzLab {
             }
             print("참고 — 로컬 곡 여럿 \(ambiguous.count)곡(후보 \(ambiguous.map(\.candidates.count))): 파일 셋이 모두 같은 후보 수 \(counts)")
         }
+    }
+
+    /// 값을 받는 옵션. 그 값은 USB 폴더 인자로 세지 않는다.
+    static let valueFlags: Set = ["--db", "--share", "--snapshot-time", "--playlist"]
+
+    /// 명령 이름(args[0])과 옵션·그 값을 뺀 나머지
+    static func positional(_ args: [String]) -> [String] {
+        var positional: [String] = []
+        var index = 1
+        while index < args.count {
+            if valueFlags.contains(args[index]) { index += 2 } else { positional.append(args[index]); index += 1 }
+        }
+        return positional
+    }
+
+    /// 로컬 곡을 (음원 파일 이름, 크기)로 묶는다. 이름·크기가 같은 곡이 라이브러리에 여럿이면 짝이 하나로 정해지지 않으므로,
+    /// 내보낸 재생 목록 ID를 주면 그 목록(지우지 않은 항목)의 곡으로만 좁힌다.
+    static func localTracks(db: CipherDatabase, playlistID: String?) throws -> [String: [LocalTrack]] {
+        var local: [String: [LocalTrack]] = [:]
+        let playlist: CipherDatabase.Value = playlistID.map { .text($0) } ?? .null
+        try db.query("""
+            SELECT ID, FileNameL, FileSize, AnalysisDataPath, FileType FROM djmdContent
+            WHERE rb_local_deleted = 0 AND FileNameL IS NOT NULL AND AnalysisDataPath IS NOT NULL AND AnalysisDataPath != ''
+              AND (? IS NULL OR ID IN (SELECT ContentID FROM djmdSongPlaylist WHERE PlaylistID = ? AND rb_local_deleted = 0))
+            """, [playlist, playlist]) { row in
+            guard let id = row.string(0), let name = row.string(1), let size = row.int(2), let path = row.string(3) else { return }
+            local[key(name: name, size: Int64(size)), default: []].append(LocalTrack(id: id, analysisDataPath: path, fileType: row.int(4) ?? 0))
+        }
+        return local
     }
 
     static func compare(_ usb: UsbTrack, _ track: LocalTrack, root: UsbRoot, share: URL, db: CipherDatabase) throws -> Comparison {
