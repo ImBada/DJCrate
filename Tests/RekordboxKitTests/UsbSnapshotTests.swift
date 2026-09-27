@@ -227,5 +227,95 @@ struct UsbSnapshotTests {
         defer { try? FileManager.default.removeItem(at: out) }
         let error = #expect(throws: UsbError.self) { try UsbSnapshot.take(root: tree.root, into: out) }
         if let error, case .readFailed = error {} else { Issue.record("readFailed가 아님") }
+        // 버린 사본과 사본을 연 SQLite가 만든 사이드카를 남기지 않는다(같은 폴더로 다시 뜰 수 있게)
+        let left = (try? FileManager.default.contentsOfDirectory(atPath: out.path)) ?? []
+        #expect(!left.contains { $0.hasPrefix("exportLibrary.db") })
+        let again = #expect(throws: UsbError.self) { try UsbSnapshot.take(root: tree.root, into: out) }
+        if let again, case .readFailed(let detail) = again {
+            #expect(!detail.contains("File exists"))
+        } else {
+            Issue.record("readFailed가 아님")
+        }
+    }
+
+    /// 사본 폴더가 USB 안(뿌리 자신 포함)이면 폴더를 만들거나 SQLite로 열기 전에 거부한다.
+    @Test func snapshotIntoRootRefused() throws {
+        let tree = try Self.tree()
+        defer { tree.remove() }
+        tree.symlink("link-to-pioneer", to: tree.url("PIONEER").path)
+        let before = tree.tree()
+        let outside = Self.output()
+        defer { try? FileManager.default.removeItem(at: outside) }
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        let viaLink = outside.appending(path: "usb")
+        try FileManager.default.createSymbolicLink(atPath: viaLink.path, withDestinationPath: tree.base.path)
+        for directory in [tree.base, tree.url("PIONEER/copy"), tree.url("PIONEER/rekordbox"), tree.url("link-to-pioneer/copy"),
+                          viaLink.appending(path: "PIONEER/copy"), tree.url("PIONEER/new/deeper")] {
+            let error = #expect(throws: UsbError.self) { try UsbSnapshot.take(root: tree.root, into: directory) }
+            if let error, case .readFailed = error {} else { Issue.record("readFailed가 아님: \(directory.lastPathComponent)") }
+        }
+        #expect(tree.tree() == before)
+        #expect(!FileManager.default.fileExists(atPath: tree.url("PIONEER/copy").path))
+        #expect(!FileManager.default.fileExists(atPath: tree.url("PIONEER/new").path))
+        // ".."로 돌아 들어가는 경로도 거부한다
+        let dotted = URL(filePath: outside.path + "/../" + outside.lastPathComponent + "/x")
+        #expect(throws: UsbError.self) { try UsbSnapshot.take(root: tree.root, into: dotted) }
+    }
+
+    /// 사본 폴더에 남은 파일(짝 없는 -wal·-shm 등)이 있으면 SQLite가 그것을 집어 가므로 받지 않는다.
+    @Test func snapshotIntoNonEmptyDirectoryRefused() throws {
+        let tree = try Self.tree()
+        defer { tree.remove() }
+        let out = Self.output()
+        defer { try? FileManager.default.removeItem(at: out) }
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        try Data("stale wal".utf8).write(to: out.appending(path: "exportLibrary.db-wal"))
+        let error = #expect(throws: UsbError.self) { try UsbSnapshot.take(root: tree.root, into: out) }
+        if let error, case .readFailed = error {} else { Issue.record("readFailed가 아님") }
+        #expect(try Data(contentsOf: out.appending(path: "exportLibrary.db-wal")) == Data("stale wal".utf8))
+        #expect(!FileManager.default.fileExists(atPath: out.appending(path: "exportLibrary.db").path))
+
+        // 비어 있는 폴더는 받는다
+        let empty = Self.output()
+        defer { try? FileManager.default.removeItem(at: empty) }
+        try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
+        #expect(try UsbSnapshot.take(root: tree.root, into: empty).oneLibrary != nil)
+    }
+
+    /// DB 파일 하나를 사이드카와 함께 새 폴더로 복사해 사본 안에서 정리한다. 원본은 그대로다.
+    @Test func copyDatabaseLeavesSourceUnchanged() throws {
+        let fixture = try OneLibraryFixture()
+        try fixture.add(track: OneLibraryTrackSpec(id: 1))
+        fixture.close()
+        try fixture.execute("PRAGMA wal_autocheckpoint = 0")
+        try fixture.add(track: OneLibraryTrackSpec(id: 2))
+        let source = UsbTreeFixture()
+        defer { source.remove() }
+        for suffix in ["", "-wal", "-shm"] { source.write("exportLibrary.db" + suffix, try Data(contentsOf: URL(filePath: fixture.url.path + suffix))) }
+        fixture.close()
+        let before = source.tree()
+        #expect(before["exportLibrary.db-wal"] != nil)
+        let out = Self.output()
+        defer { try? FileManager.default.removeItem(at: out) }
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+
+        let copy = try UsbSnapshot.copyDatabase(source.url("exportLibrary.db"), into: out)
+        #expect(copy == out.appending(path: "exportLibrary.db"))
+        #expect(source.tree() == before)
+        // WAL은 사본에 합쳐졌고 -shm은 가져오지 않았다
+        #expect(try FileManager.default.contentsOfDirectory(atPath: out.path) == ["exportLibrary.db"])
+        #expect(try OneLibraryReader.read(copyAt: copy).tracks.map(\.id) == [1, 2])
+
+        // 대상 자리에 이미 파일(사이드카 포함)이 있으면 거부한다
+        let stale = Self.output()
+        defer { try? FileManager.default.removeItem(at: stale) }
+        try FileManager.default.createDirectory(at: stale, withIntermediateDirectories: true)
+        try Data("stale".utf8).write(to: stale.appending(path: "exportLibrary.db-shm"))
+        #expect(throws: UsbError.self) { try UsbSnapshot.copyDatabase(source.url("exportLibrary.db"), into: stale) }
+        #expect(!FileManager.default.fileExists(atPath: stale.appending(path: "exportLibrary.db").path))
+        // 링크는 복사하지 않는다
+        source.symlink("linked.db", to: source.url("exportLibrary.db").path)
+        #expect(throws: UsbError.self) { try UsbSnapshot.copyDatabase(source.url("linked.db"), into: Self.output()) }
+        #expect(source.tree() == before)
     }
 }

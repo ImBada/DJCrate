@@ -26,7 +26,7 @@ public struct SnapshotFileAccess: Sendable {
     public var copyData: @Sendable (_ from: URL, _ to: URL) throws -> Void
     /// 원본 지문용(O_RDONLY)
     public var sha256: @Sendable (URL) throws -> String
-    /// 사본 폴더 안에서만 부른다(-shm 사본 지우기)
+    /// 사본 폴더 안에서만 부른다(-shm 사본·실패한 사본 지우기)
     public var remove: @Sendable (URL) throws -> Void
 
     public init(stat: @escaping @Sendable (URL) throws -> SnapshotFileStamp?,
@@ -150,9 +150,13 @@ public struct UsbSnapshot: Sendable {
     }
 
     /// root에서 DB 파일과 사이드카만 복사한다. 열지 않는 경로(`UsbLayout.neverRead`)는 건드리지 않는다.
+    /// 사본 폴더는 USB 밖이고 비어 있거나 없어야 한다(USB에 폴더·파일을 만들거나 남은 사이드카를 SQLite가 집어 가지 않게).
     /// 복사 전후 크기·mtime이 다르면 `DJCError.sourceChangedDuringCopy`, 사본이 온전하지 않으면 `UsbError.readFailed`.
     public static func take(root: UsbRoot, into directory: URL, fileSystem: SnapshotFileAccess = .posix) throws -> UsbSnapshot {
+        try checkDirectory(directory, root: root)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        // 만든 뒤 한 번 더(사이에 링크로 바뀐 경우)
+        try checkDirectory(directory, root: root)
         let database = UsbLayout.oneLibrary
         let candidates = [database] + UsbLayout.oneLibrarySidecarSuffixes.map { database + $0 } + [UsbLayout.exportPdb, UsbLayout.exportExtPdb]
         var stamps: [String: UsbFingerprint.Stamp] = [:], copies: [String: URL] = [:]
@@ -209,9 +213,11 @@ public struct UsbSnapshot: Sendable {
                 }
                 // ④ 읽기 전용으로 다시 열어 무결성 확인, ⑤ 머리는 암호화돼 있어 journal_mode로 모양을 본다
                 flags.headerMode = try verify(copyAt: copy, key: key)
-            } catch let error as UsbError {
-                throw error
             } catch {
+                // 뜬 사본과, 사본을 연 SQLite가 만든 사이드카를 지운다(같은 폴더로 다시 뜰 수 있게)
+                discard()
+                for suffix in UsbLayout.oneLibrarySidecarSuffixes { try? fileSystem.remove(URL(filePath: copy.path + suffix)) }
+                if let error = error as? UsbError { throw error }
                 throw UsbError.readFailed(detail: "\(copy.lastPathComponent): \(error)")
             }
         }
@@ -219,9 +225,78 @@ public struct UsbSnapshot: Sendable {
                            exportExtPdb: copies[UsbLayout.exportExtPdb], fingerprint: UsbFingerprint(files: stamps), flags: flags)
     }
 
+    /// 사본 폴더 확인: ".." 성분이 없고, USB 뿌리와 같거나 그 아래가 아니고, 있으면 비어 있어야 한다.
+    static func checkDirectory(_ directory: URL, root: UsbRoot) throws {
+        let path = directory.absoluteURL.path
+        if path.split(separator: "/").contains("..") {
+            throw UsbError.readFailed(detail: "snapshot directory has parent reference")
+        }
+        if isInside(path, root: root.url.absoluteURL.path) {
+            throw UsbError.readFailed(detail: "snapshot directory inside USB root")
+        }
+        if let entries = try? FileManager.default.contentsOfDirectory(atPath: path), !entries.isEmpty {
+            throw UsbError.readFailed(detail: "snapshot directory not empty")
+        }
+    }
+
+    /// path가 root와 같거나 그 아래면 참. 이미 있는 가장 가까운 조상을 realpath로 푼 뒤 위로 올라가며 장치·inode를 root와 견준다
+    /// (링크·대소문자가 달라도 같은 폴더를 알아본다).
+    static func isInside(_ path: String, root: String) -> Bool {
+        var rootInfo = Darwin.stat()
+        guard let rootPath = UsbScratchRoots.realPath(root), lstat(rootPath, &rootInfo) == 0 else { return false }
+        var existing = path
+        while UsbScratchRoots.realPath(existing) == nil {
+            let parent = (existing as NSString).deletingLastPathComponent
+            if parent == existing || parent.isEmpty { return false }
+            existing = parent
+        }
+        guard var current = UsbScratchRoots.realPath(existing) else { return false }
+        while true {
+            var info = Darwin.stat()
+            // realpath로 푼 경로라 성분에 링크가 없다
+            if lstat(current, &info) == 0, info.st_dev == rootInfo.st_dev, info.st_ino == rootInfo.st_ino { return true }
+            let parent = (current as NSString).deletingLastPathComponent
+            if parent == current || parent.isEmpty { return false }
+            current = parent
+        }
+    }
+
+    /// OneLibrary DB 파일 하나를 -wal·-journal과 함께 이미 있는 `directory`에 새 파일로 복사하고, 사이드카가 있었으면
+    /// 그 사본 안에서만 정리한다(WAL 합치기·hot journal 롤백). 원본은 읽기만 한다. -shm은 가져오지 않는다(SQLite가 다시 만든다).
+    /// 대상 자리에 같은 이름 파일이나 사이드카가 이미 있으면 SQLite가 그것을 집어 가므로 거부한다.
+    public static func copyDatabase(_ file: URL, into directory: URL, fileSystem: SnapshotFileAccess = .posix) throws -> URL {
+        let copy = directory.appending(path: file.lastPathComponent)
+        let suffixes = [""] + UsbLayout.oneLibrarySidecarSuffixes
+        for suffix in suffixes {
+            if try fileSystem.stat(URL(filePath: copy.path + suffix)) != nil {
+                throw UsbError.readFailed(detail: "copy target exists: \(copy.lastPathComponent + suffix)")
+            }
+        }
+        var copied: [URL] = []
+        do {
+            for suffix in suffixes where suffix != "-shm" {
+                let source = URL(filePath: file.path + suffix)
+                guard let stamp = try fileSystem.stat(source) else {
+                    if suffix.isEmpty { throw UsbError.readFailed(detail: "missing: \(file.lastPathComponent)") }
+                    continue
+                }
+                guard stamp.isRegularFile else { throw UsbError.readFailed(detail: "not a regular file: \(source.lastPathComponent)") }
+                let target = URL(filePath: copy.path + suffix)
+                try fileSystem.copyData(source, target)
+                copied.append(target)
+            }
+            if copied.count > 1 { _ = try settle(copyAt: copy, key: .passphrase(RekordboxKey.oneLibrary())) }
+        } catch {
+            // 시작할 때 대상 자리는 모두 비어 있었다. 복사한 파일과 SQLite가 만든 사이드카를 지운다.
+            for suffix in suffixes { try? fileSystem.remove(URL(filePath: copy.path + suffix)) }
+            throw error
+        }
+        return copy
+    }
+
     /// 사본에 딸린 -wal·-journal을 사본 안에서 정리한다: 쓰기 가능하게 한 번 열어(hot journal 롤백) WAL을 합치고 닫는다.
-    /// USB 원본에는 절대 부르지 않는다.
-    public static func settle(copyAt url: URL, key: CipherKey) throws -> (walMerged: Bool, journalRolledBack: Bool) {
+    /// 쓰기 연결로 여는 기본 동작이라 이 파일 밖에서 부르지 않는다(방금 만든 사본에만 — `take`·`copyDatabase`).
+    static func settle(copyAt url: URL, key: CipherKey) throws -> (walMerged: Bool, journalRolledBack: Bool) {
         let fm = FileManager.default
         let wal = url.path + "-wal", journal = url.path + "-journal"
         let hadWAL = fm.fileExists(atPath: wal), hadJournal = fm.fileExists(atPath: journal)

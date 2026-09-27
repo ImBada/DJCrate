@@ -21,7 +21,7 @@ enum UsbReadLab {
         let work = FileManager.default.temporaryDirectory.appending(path: "djc-onelib-sql-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         defer { try? FileManager.default.removeItem(at: work) }
-        let copy = try temporaryCopy(of: URL(filePath: database), into: work)
+        let copy = try UsbSnapshot.copyDatabase(URL(filePath: database), into: work)
         let db = try CipherDatabase.diagnostic(path: copy.path, key: .passphrase(RekordboxKey.oneLibrary()))
         defer { db.close() }
         try db.query(sql) { row in print((Int32(0)..<Int32(row.count)).map { row.string($0) ?? "nil" }.joined(separator: " | ")) }
@@ -36,23 +36,6 @@ enum UsbReadLab {
         guard lower.hasPrefix("pragma") else { return false }
         let name = lower.dropFirst("pragma".count).drop { $0.isWhitespace }.prefix { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "." }
         return !name.isEmpty && !name.contains("key")
-    }
-
-    /// db와 -wal·-journal을 같이 복사하고 사본 안에서 정리한다(WAL 합치기·hot journal 롤백).
-    /// -shm은 `UsbSnapshot`처럼 버린다(가져오지 않는다) — SQLite가 WAL에서 다시 만든다.
-    static func temporaryCopy(of database: URL, into work: URL) throws -> URL {
-        let access = SnapshotFileAccess.posix
-        let copy = work.appending(path: database.lastPathComponent)
-        var sidecars = false
-        for suffix in ["", "-wal", "-journal"] {
-            let source = URL(filePath: database.path + suffix)
-            guard let stamp = try access.stat(source) else { continue }
-            guard stamp.isRegularFile else { throw UsbError.readFailed(detail: "not a regular file: \(source.lastPathComponent)") }
-            try access.copyData(source, URL(filePath: copy.path + suffix))
-            if !suffix.isEmpty { sidecars = true }
-        }
-        if sidecars { _ = try UsbSnapshot.settle(copyAt: copy, key: .passphrase(RekordboxKey.oneLibrary())) }
-        return copy
     }
 
     /// 두 USB 폴더(임시 폴더 아래 사본·디스크 이미지 마운트 지점)의 모델 비교
