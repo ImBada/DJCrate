@@ -10,10 +10,11 @@ struct Sidebar: View {
     @AppStorage(SettingKeys.sidebarPlaylistsExpanded.name) private var playlistsExpanded = SettingKeys.sidebarPlaylistsExpanded.defaultValue
     @AppStorage(SettingKeys.sidebarSummaryExpanded.name) private var summaryExpanded = SettingKeys.sidebarSummaryExpanded.defaultValue
     @AppStorage(SettingKeys.sidebarHistoriesExpanded.name) private var historiesExpanded = SettingKeys.sidebarHistoriesExpanded.defaultValue
+    @AppStorage(SettingKeys.sidebarShowsStatus.name) private var showsStatus = SettingKeys.sidebarShowsStatus.defaultValue
 
     var body: some View {
         List(selection: $store.sidebar) {
-            Section(.ui("라이브러리")) {
+            Section {
                 ForEach(LibraryFilter.visible(commentPreset: store.commentPreset)) { filter in
                     Label(filter.title, systemImage: filter.systemImage)
                         .badge(store.count(filter))
@@ -23,8 +24,10 @@ struct Sidebar: View {
                     .badge(store.duplicateGroups.count)
                     .tag(SidebarItem.duplicates)
                     .help(.ui("제목·아티스트가 같고 길이 차이가 2초 이내인 후보 묶음"))
+            } header: {
+                Text(.ui("라이브러리")).sidebarSectionHeader()
             }
-            Section("DJCrate" as String) {
+            Section {
                 Label(.ui("추가한 곡"), systemImage: "tray.and.arrow.down")
                     .badge(store.staged.count)
                     .tag(SidebarItem.staged)
@@ -43,44 +46,63 @@ struct Sidebar: View {
                         Text(.ui("그리드 추정 \(job.done)/\(job.total)")).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                     }
                 }
+            } header: {
+                Text(verbatim: "DJCrate").sidebarSectionHeader()
             }
             if case .loaded = store.phase {
                 PlaylistSection(store: store, isExpanded: $playlistsExpanded)
                 ITunesPlaylistSection(store: store)
             }
-            Section(.ui("재생 기록"), isExpanded: $historiesExpanded) {
+            Section(isExpanded: $historiesExpanded) {
                 if store.histories.isEmpty {
                     Text(.ui("재생 기록이 없습니다")).foregroundStyle(.secondary)
                 }
+                // 날짜로 시작하는 이름이라 아이콘 없이도 알아본다. 아이콘 자리만큼 이름이 덜 잘린다.
                 ForEach(store.histories) { history in
-                    Label(store.historyTitle(history), systemImage: "clock")
+                    Text(store.historyTitle(history))
                         .badge(store.count(history: history))
                         .lineLimit(1)
                         .help(store.historyTitle(history))
                         .tag(SidebarItem.history(history.id))
                 }
+            } header: {
+                Text(.ui("재생 기록")).sidebarSectionHeader()
             }
-            if let report = store.report {
-                Section(.ui("현황"), isExpanded: $summaryExpanded) {
+            if showsStatus, let report = store.report {
+                Section(isExpanded: $summaryExpanded) {
                     LabeledContent(.ui("실제 컬렉션"), value: report.liveTracks.formatted())
                     LabeledContent(.ui("삭제 행(제외)"), value: report.deletedRows.formatted())
                     if store.commentRuleEnabled {
                         LabeledContent(.ui("규칙 코멘트"), value: report.matchingComments.formatted())
                     }
                     LabeledContent(.ui("수동 큐 곡"), value: report.tracksWithManualCues.formatted())
+                } header: {
+                    Text(.ui("현황")).sidebarSectionHeader()
                 }
                 .font(.callout)
             }
-            if let url = store.snapshotURL {
-                Section(.ui("스냅샷")) {
+            if showsStatus, let url = store.snapshotURL {
+                Section {
                     Text(url.lastPathComponent)
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
+                } header: {
+                    Text(.ui("스냅샷")).sidebarSectionHeader()
                 }
             }
         }
         .modifier(PlaylistSidebarMenu(store: store))
+    }
+}
+
+extension View {
+    /// 사이드바 섹션 제목(#120). 시스템 기본보다 크고 진하게, 위를 더 띄워 섹션끼리 나뉘어 보이게 한다.
+    /// 제목 줄의 버튼도 같은 크기·색을 따른다.
+    func sidebarSectionHeader() -> some View {
+        font(.callout.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.top, 10)
     }
 }
 

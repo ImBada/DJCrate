@@ -43,6 +43,15 @@ struct SettingsTests {
         #expect(SettingKeys.deckShortcuts == "shortcuts.deck")
     }
 
+    /// 현황·스냅샷 파일 이름은 늘 볼 필요가 없어 기본으로 숨기고 설정 › 일반에서 켠다(#120).
+    @Test func 사이드바_현황은_기본으로_숨긴다() {
+        #expect(SettingKeys.sidebarShowsStatus.name == "sidebar.showsStatus")
+        #expect(SettingKeys.sidebarShowsStatus.defaultValue == false)
+        #expect(SettingKeys.sidebarShowsStatus.value(from: nil) == false)
+        #expect(SettingKeys.sidebarShowsStatus.value(from: true) == true)
+        #expect(SettingKeys.all.contains(SettingKeys.sidebarShowsStatus.name))
+    }
+
     @Test func 설정_이름은_겹치지_않는다() {
         let names = SettingKeys.all
         #expect(Set(names).count == names.count)
