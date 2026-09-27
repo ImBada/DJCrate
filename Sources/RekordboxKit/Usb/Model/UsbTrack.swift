@@ -149,6 +149,28 @@ public struct UsbTrackDeviceFields: Sendable, Hashable {
 }
 
 /// pdb 트랙 행의 상수 칸 관찰값(왕복 검사용). Device Library 읽기가 채운다.
+/// 뜻 모를 문자열 칸이 비어 있지 않으면 다시 쓸 때 막도록 값을 그대로 둔다.
 public struct UsbPdbTrackExtras: Sendable, Hashable {
-    public init() {}
+    /// 행 0x00(0x0024)
+    public var subtype: UInt16
+    /// 행 0x04
+    public var bitmask: UInt32
+    /// 행 0x56
+    public var u5: UInt16
+    /// 행 0x5C
+    public var u7: UInt16
+    /// 뜻 모를 문자열 칸(번호 5·8·9·13·18) → 값
+    public var unknownStrings: [Int: String]
+    /// 문자열 21개 각각의 모양(번호 순서)
+    public var stringKinds: [PdbStringKind]
+
+    public init(subtype: UInt16 = 0, bitmask: UInt32 = 0, u5: UInt16 = 0, u7: UInt16 = 0, unknownStrings: [Int: String] = [:],
+                stringKinds: [PdbStringKind] = []) {
+        self.subtype = subtype
+        self.bitmask = bitmask
+        self.u5 = u5
+        self.u7 = u7
+        self.unknownStrings = unknownStrings
+        self.stringKinds = stringKinds
+    }
 }
