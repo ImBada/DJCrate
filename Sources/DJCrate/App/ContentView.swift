@@ -208,7 +208,7 @@ struct ContentView: View {
             ContentUnavailableView.search(text: store.search)
         } else if store.sidebar == .pending {
             ContentUnavailableView {
-                Label(.ui("반영할 초안이 없습니다"), systemImage: "checkmark.circle")
+                Label(.ui("쓸 초안이 없습니다"), systemImage: "checkmark.circle")
             } description: {
                 Text(.ui("곡의 큐·그리드·게인을 고치면 여기에 모입니다."))
             }
@@ -236,11 +236,12 @@ struct ContentView: View {
             ToolbarItem(id: "viewMode", placement: .principal) {
                 Picker(.ui("보기"), selection: $sheetMode) {
                     Label(.ui("목록"), systemImage: "list.bullet").tag(false)
+                        .help(.ui("곡 목록을 봅니다(⌘1)."))
                     Label(.ui("태그 시트"), systemImage: "tablecells").tag(true)
+                        .help(.ui("태그를 표에서 편집합니다(⌘2)."))
                 }
                 .pickerStyle(.segmented)
                 .disabled(!store.writeLockPolicy.allowsLibraryInteraction || store.sidebar == .duplicates)
-                .help(.ui("태그 시트: 엑셀처럼 셀을 선택·편집·붙여넣기 합니다"))
             }
             ToolbarItem(id: "addFiles") {
                 Button {
@@ -249,7 +250,7 @@ struct ContentView: View {
                     Label(.ui("곡 추가"), systemImage: "plus")
                 }
                 .disabled(!LibraryMenuAction.addFiles.isEnabled(in: store))
-                .help(.ui("음원 파일·폴더를 DJCrate에 추가합니다. BPM·그리드를 추정한 뒤 rekordbox XML로 넘길 수 있습니다(창에 끌어다 놓아도 됩니다)."))
+                .help(.ui("음원 파일·폴더를 추가합니다. 창에 끌어다 놓아도 됩니다."))
             }
             ToolbarItem(id: "tagEditor") {
                 Button {
@@ -268,7 +269,7 @@ struct ContentView: View {
                     Label(.ui("새 스냅샷"), systemImage: "arrow.clockwise")
                 }
                 .disabled(!LibraryMenuAction.snapshot.isEnabled(in: store))
-                .help(.ui("rekordbox master.db 사본을 새로 떠서 다시 읽습니다(원본은 읽기만). rekordbox에서 반영 XML을 가져온 뒤 누르면 자동으로 검증합니다."))
+                .help(.ui("라이브러리 사본을 새로 읽고 XML 가져오기 결과를 확인합니다(⌘R)."))
             }
             ToolbarItem(id: "reflection", placement: .primaryAction) {
                 ReflectionMenu(store: store)
@@ -319,12 +320,12 @@ struct SheetHeader: View {
                 .font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
             Spacer()
             // 색이 아니라 칸의 모양(왼쪽 위 모서리 삼각형)으로 알린다.
-            Label { Text(.ui("= 초안(파일·rekordbox 미반영)")) } icon: { DraftCornerSwatch() }
+            Label { Text(.ui("= 초안(파일·rekordbox에 쓰기 전)")) } icon: { DraftCornerSwatch() }
                 .font(.scaled(.caption, textScale)).foregroundStyle(.secondary)
-                .help(.ui("값을 고친 칸은 왼쪽 위 모서리에 삼각형이 붙습니다. 음원 파일과 rekordbox에는 아직 반영하지 않은 초안입니다"))
+                .help(.ui("왼쪽 위 삼각형은 초안입니다. 아직 음원 파일과 rekordbox에 쓰지 않았습니다."))
                 .accessibilityElement(children: .ignore)
                 .accessibilityAddTraits(.isStaticText)
-                .accessibilityLabel(.ui("왼쪽 위 모서리 삼각형이 붙은 칸은 초안(파일·rekordbox 미반영)"))
+                .accessibilityLabel(.ui("왼쪽 위 모서리 삼각형이 붙은 칸은 초안(파일·rekordbox에 쓰기 전)"))
         }
         .controlSize(.small)
         .padding(.horizontal, Spacing.edge)

@@ -34,12 +34,12 @@ struct WriteResult: Codable, Equatable {
 
         var written: String {
             switch self {
-            case .cue: String(ui: "큐 반영 완료")
-            case .grid: String(ui: "그리드 반영 완료")
-            case .analysis: String(ui: "분석 반영 완료")
-            case .gain: String(ui: "게인 반영 완료")
-            case .tag: String(ui: "태그 반영 완료")
-            case .merge: String(ui: "합치기 반영 완료")
+            case .cue: String(ui: "큐 쓰기 완료")
+            case .grid: String(ui: "그리드 쓰기 완료")
+            case .analysis: String(ui: "분석 쓰기 완료")
+            case .gain: String(ui: "게인 쓰기 완료")
+            case .tag: String(ui: "태그 쓰기 완료")
+            case .merge: String(ui: "합치기 쓰기 완료")
             }
         }
 
@@ -103,7 +103,7 @@ struct WriteResult: Codable, Equatable {
         lines += playlists.map(PlaylistWriteText.result)
         return Self(kind: blocked || count == 0 ? .warning : .success,
                     title: count == 0 ? String(ui: "rekordbox에 쓴 것이 없습니다")
-                        : String(ui: "rekordbox에 반영했습니다 · \(summaries.joined(separator: " · "))"),
+                        : String(ui: "rekordbox에 썼습니다 · \(summaries.joined(separator: " · "))"),
                     text: lines.joined(separator: "\n"), backups: report.backup.map { [URL(filePath: $0)] } ?? [])
     }
 
@@ -126,7 +126,7 @@ struct WriteResult: Codable, Equatable {
                 if let count = outcome.cuesWritten { parts.append(String(ui: "큐 \(count)개")) }
                 if let reason = outcome.cueReason {
                     warning = true
-                    parts.append(String(ui: "큐는 반영 대기: \(reason)"))
+                    parts.append(String(ui: "큐는 쓰기 대기: \(reason)"))
                 }
             } else {
                 warning = true
@@ -148,12 +148,12 @@ struct WriteResult: Codable, Equatable {
             + (report?.analysisWritten ?? []) + (report?.tagWritten ?? []) + (report?.mergeWritten ?? [])
         let names: [String] = (report?.playlistWritten ?? []).map(\.name) + (backup.trackReport?.titles ?? [])
         let titles = Set(outcomes.map(\.title) + names)
-        var lines = [String(ui: "rekordbox 라이브러리 전체를 선택한 백업의 쓰기 전 상태로 되돌렸습니다."),
-                     String(ui: "그때 쓴 초안과 추가 목록도 복원했습니다. 되돌리기 직전 상태는 아래 두 번째 백업에 남아 있습니다.")]
+        var lines = [String(ui: "rekordbox 라이브러리 전체를 선택한 백업의 쓰기 전 상태로 복원했습니다."),
+                     String(ui: "그때 쓴 초안과 추가 목록도 복원했습니다. 복원 직전 상태는 아래 두 번째 백업에 남아 있습니다.")]
         lines += titles.sorted().map { "• \($0)" }
         let fileWarning = RekordboxWriter.fileWarning(in: saved)
         if let fileWarning { lines.append(fileWarning) }
-        return Self(kind: fileWarning == nil ? .success : .warning, title: String(ui: "rekordbox를 쓰기 전으로 되돌렸습니다"), text: lines.joined(separator: "\n"), backups: [backup.url, saved])
+        return Self(kind: fileWarning == nil ? .success : .warning, title: String(ui: "rekordbox를 쓰기 전으로 복원했습니다"), text: lines.joined(separator: "\n"), backups: [backup.url, saved])
     }
 }
 

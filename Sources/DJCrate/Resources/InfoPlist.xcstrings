@@ -74,25 +74,25 @@
       }
     },
     "NSHumanReadableCopyright": {
-      "comment": "앱 정보의 설명 한 줄",
+      "comment": "About 창 저작권 표시",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "A personal rekordbox library tool for anime songs"
+            "value": "© 2026 Hyeonjae Nam"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "rekordbox用の個人向けアニソンライブラリーツール"
+            "value": "© 2026 Hyeonjae Nam"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "개인용 rekordbox 애니송 라이브러리 도구"
+            "value": "© 2026 Hyeonjae Nam"
           }
         }
       }

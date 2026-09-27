@@ -158,6 +158,13 @@ struct MenuCommandTests {
         #expect(LibraryMenuAction.fileActions + LibraryMenuAction.rekordboxActions == LibraryMenuAction.allCases)
     }
 
+    @Test func 쓰기와_복원은_확인을_예고하고_XML은_바로_만든다() {
+        #expect(LibraryMenuAction.reflect.title == "rekordbox에 쓰기…")
+        #expect(LibraryMenuAction.restore.title == "쓰기 전으로 복원…")
+        #expect(LibraryMenuAction.exportXML.title == "XML 만들기")
+        #expect(LibraryMenuAction.pending.title == "쓰기 대기 목록 보기")
+    }
+
     @Test func 앱_명령의_조합_단축키는_서로_겹치지_않는다() {
         #expect(LibraryMenuAction.addFiles.shortcut == KeyboardShortcut("o", modifiers: .command))
         #expect(LibraryMenuAction.snapshot.shortcut == KeyboardShortcut("r", modifiers: .command))

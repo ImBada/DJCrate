@@ -117,7 +117,7 @@ struct ReflectionPromptLayoutTests {
         let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/layout-test"), createdAt: .now, isWrite: true, report: report)
         let prompt = ReflectionCoordinator.restoreConfirmation(backup, changedSince: true)
         #expect(!prompt.text.contains("곡 restore-"))
-        #expect(prompt.text.contains("되돌리면 그 변경도 함께 사라집니다"))
+        #expect(prompt.text.contains("복원하면 그 변경도 함께 사라집니다"))
         #expect(prompt.critical && prompt.destructive)
         let lines = try detailText(prompt).components(separatedBy: "\n")
         for index in 1...100 { #expect(lines.contains("• 곡 restore-\(index)")) }

@@ -94,6 +94,7 @@ struct GridEditorBar: View {
                                 }
                                     .buttonStyle(.plain).foregroundStyle(.secondary)
                                     .accessibilityLabel(.ui("이 변속 지점 삭제"))
+                                    .help(.ui("이 변속 지점 삭제"))
                             }
                         }
                         .font(.scaled(.caption, textScale).monospacedDigit())
@@ -104,13 +105,13 @@ struct GridEditorBar: View {
                     if deck.gridDraft?.hasChanges == true {
                         Text(.ui("그리드 초안 변경됨")).font(.scaled(.caption, textScale).bold()).foregroundStyle(UIColors.draft.color)
                     }
-                    Button(.ui("그리드 되돌리기")) { deck.revertGrid() }
+                    Button(.ui("그리드 초안 버리기")) { deck.revertGrid() }
                         .disabled(deck.gridDraft?.hasChanges != true)
                 }
             }
             Toggle(.ui("큐 제안 표시"), isOn: $deck.showSuggestions)
                 .toggleStyle(.checkbox)
-                .help(.ui("섹션 경계 기반 메모리 큐 제안 표시. 초록 + 를 클릭하면 추가"))
+                .help(.ui("큐 제안을 표시합니다. 파형 아래 + 배지를 누르면 메모리 큐로 추가합니다."))
         }
         .controlSize(ControlSize.small.scaled(textScale))
         .padding(8)
@@ -153,8 +154,8 @@ struct GridSuggestionRow: View {
                 Text(.ui("DJCrate 제안: \(note)")).lineLimit(1)
                 Button(.ui("제안 그리드 적용")) { deck.applyGridSuggestion() }
                     .help(suggestion.isConfident
-                          ? .ui("현재 그리드를 추정 그리드로 바꿉니다(초안만, 되돌리기 가능).")
-                          : .ui("현재 그리드를 추정 그리드로 바꿉니다(초안만, 되돌리기 가능). 추정 신뢰도가 낮으니 소리로 확인하세요."))
+                          ? .ui("추정 그리드로 초안을 바꿉니다(실행 취소 가능).")
+                          : .ui("추정 그리드로 초안을 바꿉니다. 신뢰도가 낮으니 소리로 확인하세요(실행 취소 가능)."))
                 if deck.dismissedRevision >= 0, deck.isGridSuggestionDismissed {
                     Button(.ui("제안 다시 보기")) { deck.restoreGridSuggestion() }
                         .help(.ui("무시했던 제안을 그리드 편집 밖에서도 다시 보이게 합니다"))

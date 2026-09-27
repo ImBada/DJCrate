@@ -109,7 +109,7 @@ extension RekordboxWriter {
         }
         guard keys.contains(.album) || keys.contains(.albumArtist), !draft.fields.album.isEmpty else { return }
         if keys.contains(.album) && keys.contains(.albumArtist) {
-            throw block(String(ui: "앨범과 앨범 아티스트를 함께 바꾸는 규칙은 확인하지 못했으므로 한 칸씩 반영하세요"))
+            throw block(String(ui: "앨범과 앨범 아티스트를 함께 바꾸는 규칙은 확인하지 못했으므로 한 칸씩 쓰세요"))
         }
         var albums: [(id: String, artist: String, state: Int?)] = []
         try db.query("""
