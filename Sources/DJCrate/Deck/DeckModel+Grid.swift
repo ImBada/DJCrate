@@ -38,7 +38,7 @@ extension DeckModel {
 
     func revertGrid() { mutateGrid(name: String(ui: "그리드 초안 버리기")) { $0.revert() } }
 
-    /// 확대 파형을 끌어 그리드 전체를 옮긴다(그리드 편집 모드).
+    /// 그리드 편집 막대의 ‹ › 버튼을 누르고 있는 동안 그리드 전체를 옮긴다(한 번의 편집으로 저장).
     func beginGridDrag() {
         guard canEditGrid else { return }
         pendingDraftUndo = draftSnapshot

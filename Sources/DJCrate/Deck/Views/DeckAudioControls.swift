@@ -55,7 +55,7 @@ struct AudioBar: View {
                 Toggle(isOn: $deck.gridEditing) { Label(.ui("그리드 편집"), systemImage: "grid") }
                     .toggleStyle(.button)
                     .disabled(deck.gridDraft == nil)
-                    .help(deck.gridEditBlockedReason ?? String(ui: "켜면 파형을 끌어 그리드를 옮기고, 아래 막대로 BPM·1박·변속 지점을 고칩니다."))
+                    .help(deck.gridEditBlockedReason ?? String(ui: "켜면 아래 막대로 그리드를 옮기고 BPM·1박·변속 지점을 고칩니다."))
             }
             // 제안 문구가 길어져도 음량·템포 묶음을 밀어내지 않는다.
             if let suggestion = deck.gainSuggestion {
