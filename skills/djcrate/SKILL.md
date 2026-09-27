@@ -5,21 +5,21 @@ description: DJCrate의 명령줄 도구 djc로 rekordbox 라이브러리(스냅
 
 # DJCrate 라이브러리 조회·제안·초안 (djc)
 
-`djc` 읽기 명령으로 rekordbox 라이브러리의 **스냅샷 사본**을 읽고, 고칠 것을 표로 제안한다. 사용자가 고른 것만 `djc draft`로 DJCrate의 **초안**(큐·태그)을 만든다. rekordbox에 쓰는 반영은 사람이 DJCrate 앱에서 한다.
+`djc` 읽기 명령으로 rekordbox 라이브러리의 **스냅샷 사본**을 읽고, 고칠 것을 표로 제안한다. 사용자가 고른 것만 `djc draft`로 DJCrate의 **초안**(큐·태그)을 만든다. rekordbox에 쓰는 반영은 사람이 DJCrate 앱에서 한다. AI 연동은 CLI와 이 스킬로 하며, MCP 서버나 별도 플러그인 설치는 필요 없다.
 
 ## 안전 규칙 (먼저 지킨다)
 
 1. **라이브 DB를 열지 않는다.** `~/Library/Pioneer/rekordbox/master.db`, `share/PIONEER/USBANLZ`, 음원 파일을 sqlite·셸 등으로 직접 열거나 복사하지 않는다. 읽기는 아래 djc 읽기 명령으로만 한다. `--db`에 라이브 DB(링크 포함)를 주면 djc가 `live_database`로 거절한다. 우회하지 않는다.
-2. **rekordbox에 쓰지 않는다.** `cue-write`, `track-add`, `track-delete`, `rekordbox-restore`, `--live`가 붙은 명령, `djc lab …`은 실행하지 않는다. 사람이 시켜도 이 스킬로는 하지 않고, DJCrate 앱에서 하라고 안내한다.
-3. **초안은 `djc draft`로만, 사용자가 고른 것만 만든다.** 초안 폴더(`cue-drafts/`, `grid-drafts/`, `tag-drafts/`, `gain-drafts.json`)의 파일을 직접 만들거나 고치지 않는다. 순서:
+2. **rekordbox에 쓰지 않는다.** `cue-write`, `track-add`, `track-delete`, `playlist-write`, `rekordbox-restore`, `--live`가 붙은 명령, `djc lab …`은 실행하지 않는다. 사람이 시켜도 이 스킬로는 하지 않고, DJCrate 앱에서 하라고 안내한다.
+3. **초안은 `djc draft`로만, 사용자가 고른 것만 만든다.** 초안 폴더(`cue-drafts/`, `grid-drafts/`, `tag-drafts/`, `gain-drafts.json`, `playlist-drafts.json`)의 파일을 직접 만들거나 고치지 않는다. 순서:
    1. 제안을 표로 보여 준다.
    2. 사용자가 고른 곡·값만 대상으로 한다. 동의하지 않은 초안은 만들지 않는다("전부"라고 하면 표 전체).
    3. 같은 명령을 `--dry-run --json`으로 먼저 돌려 결과(`hasChanges`, 바뀐 값)를 보여 준다. 오류가 나면 거기서 멈춘다.
    4. `--dry-run`을 빼고 실제 초안을 만든다.
-   5. 앱에서 확인하라고 안내한다: 큐 초안은 사이드바 "rekordbox 반영 대기"와 곡 덱, 태그 초안은 태그 편집(⌘I)·태그 시트. 앱이 켜져 있으면 약 1초 뒤 다시 읽는다.
+   5. 앱에서 확인하라고 안내한다: 큐 초안은 대기 목록과 곡 덱, 태그 초안은 태그 편집(⌘I)·태그 시트와 대기 목록. 앱이 켜져 있으면 약 1초 뒤 다시 읽는다.
    - `djc draft rm`은 사용자가 그 곡의 초안을 버리라고 할 때만 쓴다. 앱에서 한 편집까지 그 종류의 초안 **전체**가 사라진다.
    - 같은 곡을 앱에서 편집하는 중이면 마지막 저장이 앞선 저장을 덮는다. 앱에서 그 곡 편집을 마친 뒤 만든다.
-4. **반영은 사람이 한다.** rekordbox를 완전히 끈 뒤 DJCrate 앱의 "rekordbox에 반영"(⌘⇧E)으로 미리 보기를 확인하고 쓴다. 반영 대상은 큐·그리드·게인 초안이다. 컬렉션 곡의 태그 초안은 아직 rekordbox에 쓰는 길이 없다(이슈 #1). 앱에서 추가한 곡을 rekordbox에 넣을 때만 태그 초안이 들어간다.
+4. **반영은 사람이 한다.** rekordbox를 완전히 끈 뒤 DJCrate 앱에서 초안과 쓰기 미리 보기(⇧⌘E)를 확인하고 rekordbox에 쓴다. 컬렉션 곡의 큐·그리드·게인·태그와 앱에서 만든 재생 목록 초안을 반영할 수 있다. 태그는 rekordbox 곡 정보에만 쓰며 음원 파일의 태그는 바꾸지 않는다. 이 스킬이 만드는 초안은 큐·태그뿐이다.
 5. **라이브러리 정보를 밖으로 내보내지 않는다.** 스냅샷·DB 사본·백업에는 rekordbox 클라우드 토큰이 들어 있다. 복사·업로드·출력하지 않는다. 곡 목록·파일 경로·곡 수를 이슈·PR·웹 서비스에 올리지 않는다.
 
 ## 준비
@@ -29,28 +29,33 @@ description: DJCrate의 명령줄 도구 djc로 rekordbox 라이브러리(스냅
 - 읽기 명령과 `djc draft`는 최신 스냅샷을 읽는다. 스냅샷이 없으면 `read_failed`("스냅샷이 없습니다") 오류가 난다.
 - `djc snapshot`은 라이브 DB를 읽기만 해서 사본을 뜬다(rekordbox에 쓰지 않음). 사람이 rekordbox에서 고친 뒤라면 새로 뜬다. rekordbox가 켜져 있거나 막 끈 뒤 `master.db-wal`이 남아 있으면 막힌다. 그때는 사람에게 rekordbox를 꺼 달라고 하거나 기존 스냅샷을 쓴다. `--force`는 사람이 동의할 때만 쓴다(최근 변경이 빠질 수 있다).
 - `djc draft`는 `DJC_HOME`(기본 `~/Library/Application Support/DJCrate`)의 초안 폴더에 쓴다. 기본값이 곧 앱이 읽는 사용자 초안이다.
-- 연습·시험은 사본과 임시 폴더로 한다: `DJC_REKORDBOX_DIR=<rekordbox 폴더 사본>`, `DJC_HOME=$(mktemp -d)`. 또는 명령마다 `--db <사본.db>`.
+- 연습·시험은 `DJC_HOME=$(mktemp -d)`와 `DJC_REKORDBOX_DIR=<합성 또는 사본 폴더>`를 함께 지정하고, DB를 읽는 명령마다 `--db <그 폴더/master.db>`를 붙인다. `--db`만으로는 사용자 초안 폴더가 격리되지 않는다. 명시한 DB의 그리드는 DB 옆 `share/PIONEER/USBANLZ`에서 읽으며, 분석 파일이 없다고 라이브 파일로 대체하지 않는다.
+- 이 CLI 조회·초안 명령의 DB 선택은 `--db` 또는 최신 스냅샷이다. 앱용 `DJC_DB`만 설정해서는 이 명령의 DB가 바뀌지 않는다.
 
 ## 명령
 
-늘 `--json`을 붙여 기계가 읽는 출력을 받는다. `jq`로 필요한 칸만 뽑는다.
+아래 조회·초안 명령에는 늘 `--json`을 붙여 기계가 읽는 출력을 받는다. `parse`를 제외한 표의 모든 명령에 `--db <사본.db>`를 붙일 수 있다. `jq`로 필요한 칸만 뽑는다.
 
 ### 읽기 (아무것도 바꾸지 않음)
 
 | 명령 | 하는 것 | `data` |
 |---|---|---|
-| `djc search <검색어> [--bpm 최소-최대] [--key 키] [--playlist ID] [--filter 필터] --json` | 곡 찾기. 검색어는 제목·아티스트·코멘트·장르 부분 일치, `''`는 전체. 조건은 모두 함께 적용 | `{tracks}` |
+| `djc search <검색어> [--bpm 최소-최대] [--key 키] [--playlist ID] [--filter 필터] [--comment-preset none\|anisong] --json` | 곡 찾기. 검색어는 제목·아티스트·코멘트·장르 부분 일치, `''`는 전체. 조건은 모두 함께 적용 | `{tracks}` |
 | `djc track <ContentID> --json` | 곡 하나의 태그·큐·그리드·게인·소속 재생 목록·초안 여부 | `{track, cues, grid, gain?, playlists, drafts}` |
 | `djc playlists [--tree] --json` | 재생 목록·폴더 | `{playlists}` |
 | `djc playlist <ID> --json` | 재생 목록 곡을 순서대로(폴더면 하위 목록을 합침) | `{playlist, tracks}` |
+| `djc histories --json` | 재생 기록을 날짜순으로 | `{histories}` |
+| `djc history <ID> --json` | 기록 안의 곡을 재생 순서대로(반복 곡 유지) | `{history, entries}` |
 | `djc duplicates --json` | 중복 후보 묶음·큐 수·직접 소속 목록 수·재생 수·형식·비트레이트 비교(읽기 전용) | `{lengthToleranceSeconds, groups}` |
 | `djc drafts --json` | 초안이 있는 곡과 종류(cue·grid·gain·tag) | `{drafts}` |
-| `djc report [--files] --json` | 라이브러리 현황 집계(코멘트 분류·큐 유무·확장자 등, `--files`면 없는 파일 수) | 집계 칸 |
+| `djc report [--files] [--comment-preset none\|anisong] --json` | 라이브러리 현황 집계(코멘트 분류·큐 유무·확장자 등, `--files`면 없는 파일 수) | 집계 칸 |
 | `djc parse "<코멘트>" --json` | 코멘트가 규칙(`TVA 작품명 OP 1` 꼴)에 맞는지 판정 | `{classification, parsed?}` |
 | `djc path <제목> --json` | 제목으로 파일 경로 찾기(대소문자 구분) | `{paths}` |
 | `djc compat --json` | rekordbox 버전·DB 구조가 쓰기를 확인한 모양인지 | 버전·카운터 |
 
 `duplicates`는 제목·아티스트의 NFC·대소문자·공백을 정규화하고 길이 차이 2초까지 비교한다. 괄호 속 버전은 구분하며 빈 제목·아티스트·길이, 삭제·스트리밍 곡은 제외한다. 한 곡이 여러 후보 묶음에 나올 수 있다. `groups[].tracks[]`는 `track`, `cueCount`, `manualCueCount`, `playlistCount`, `playCount`, `format`, 선택 `bitrateKbps`를 담는다. 같은 녹음이라는 확정이 아니므로 비교할 후보로만 제안하고 합치기·삭제하지 않는다.
+
+`search`·`report`의 코멘트 프리셋 기본값은 `none`이다. 규칙 밖 코멘트를 찾으려면 사용자가 이 규칙을 원할 때 `--comment-preset anisong`을 함께 준다. `report`의 `commentClasses`·`prefixes`·`usages`도 이때만 나온다. `parse`는 프리셋 옵션 없이 애니송 코멘트 규칙을 검사한다.
 
 `--filter` 이름:
 
@@ -58,7 +63,7 @@ description: DJCrate의 명령줄 도구 djc로 rekordbox 라이브러리(스냅
 |---|---|
 | `no-cues` | 자동 큐를 포함해 큐가 하나도 없음 |
 | `empty-comment` | 빈 코멘트 |
-| `off-convention` | 규칙 밖 코멘트(구형·잔재·크레딧·기타) |
+| `off-convention` | 규칙 밖 코멘트(구형·잔재·크레딧·기타), `--comment-preset anisong` 필수 |
 | `no-bpm` | BPM이 없는 로컬 곡 |
 | `tempo-change` | 그리드에 변속이 있음 |
 | `played` · `streaming` · `all` | 재생 이력 있음 · 스트리밍 곡 · 전체(기본) |
@@ -74,19 +79,20 @@ description: DJCrate의 명령줄 도구 djc로 rekordbox 라이브러리(스냅
 | `djc draft rm cue\|tag <ContentID> [--dry-run] --json` | 그 종류의 초안 전체를 버린다(rekordbox 원본·그리드·게인 초안은 그대로). 없는 초안을 지워도 성공 |
 
 - 시각은 **rekordbox 시간축의 초**이고 자동 퀀타이즈하지 않는다. 박에 맞추려면 `djc track <ID> --json`의 `grid.segments[0]`에서 계산한다: 첫 박 `start`, n박 뒤 `start + n × 60 / bpm`(한 마디 = 4박, `bpm`은 박 간격으로 구한 값이라 끝자리가 붙으니 반올림하지 않는다). 마디 첫 박은 `firstBeatNumber`가 1이 아니면 `(5 − firstBeatNumber) mod 4`박 뒤다. `grid.status`가 `unavailable`이거나 `tempoChanges`가 있으면 시각을 계산하지 말고 앱에서 찍으라고 제안만 한다.
-- 메모리 큐는 자동 큐를 포함해 10개까지다(넘으면 `invalid_draft`). 같은 자리 ±30ms에 메모리 큐가 이미 있으면 새로 만들지 않고 이름도 바꾸지 않는다. `--dry-run` 결과로 확인한다.
+- 메모리 큐는 자동 큐를 포함해 10개까지다(넘으면 `invalid_draft`). 같은 자리 ±30ms에 메모리 큐가 이미 있으면 새로 만들지 않고 이름도 바꾸지 않는다(루프 추가 때는 기존 루프만 해당하며 길이도 유지). `--dry-run` 결과로 확인한다.
 - `--slot`을 주기 전에 `djc track <ID> --json`의 `cues[].hotCueSlot`으로 그 자리가 비었는지 보고, 차 있으면 교체해도 되는지 사용자에게 묻는다.
 - 곡에 이미 초안이 있으면 그 초안에 이어 쓴다(처음 만들 때의 rekordbox 값 `base`와 앱에서 한 편집을 유지).
 
 JSON 약속(자세한 칸은 저장소의 `docs/cli.md`):
 
 - 성공: 종료 코드 0, stdout에 `{"schemaVersion":1,"command":…,"data":{…}}` 한 문서.
-- 실패: 종료 코드 1, stdout은 비고 stderr에 `{"error":{"code":…,"message":…}}`. `message`에 할 일이 적혀 있다. `code`:
+- 실패: 종료 코드 1, stdout은 비고 stderr에 `{"schemaVersion":1,"command":…,"error":{"code":…,"message":…}}`. `message`에 할 일이 적혀 있다. `code`:
   - 모든 명령: `invalid_arguments`, `not_found`, `live_database`, `read_failed`
   - `draft`만: `invalid_draft`(기존 초안이 손상됨·메모리 큐 한도), `draft_io_failed`(초안 저장·삭제 실패)
 - ID는 모두 문자열이다. 값이 없는 선택 칸은 키가 빠진다. 모르는 키는 무시한다.
 - `Track`: `id`(ContentID), `title`, `artist`, `genre`, `comment`, `bpm`, `key`, `lengthSeconds`, `path`, `importedOn` 등. 값은 스냅샷 기준이고 초안을 반영하지 않는다.
 - `Cue`: `kind`(0 메모리, 그 밖은 핫큐 슬롯), `hotCueSlot`(A~H), `inMsec`, `isLoop`, `isAutoGenerated`. `Grid`: `status`, `beatCount`, `segments`(`{start, bpm, firstBeatNumber}`, `start`는 초), `tempoChanges`.
+- `history`의 `entries[]`: `{id, trackNumber, track}`. `histories[].trackCount`는 반복 재생을 포함한 조회 가능한 항목 수이며 `dateCreated`는 없으면 생략한다.
 - `draft`의 `data`: `{kind: "cue"|"tag", action: "save"|"remove", contentID, trackUUID, dryRun, hasChanges, cue?, tag?}`.
   - `hasChanges`: 명령 뒤 남을 초안이 rekordbox 값과 다른지. `false`면 원본과 같아 초안이 저장되지 않는다(삭제는 늘 `false`).
   - `cue`: `{trackUUID, base, cues}`. `cues[]`는 `{id, kind, time, name, loop?}`, `kind`는 `{"memory":{}}` 또는 `{"hot":{"_0":슬롯}}`(0=A … 7=H), `loop`는 `{end, beats?, active}`, 시각은 초.
@@ -94,7 +100,7 @@ JSON 약속(자세한 칸은 저장소의 `docs/cli.md`):
 
 ## 예시 흐름
 
-아래 ID·제목·값은 모두 합성 예다. 실제 라이브러리의 곡을 예시로 옮겨 적지 않는다.
+아래 ID·제목·값은 모두 합성 예다. 실제 라이브러리의 곡을 예시로 옮겨 적지 않는다. 예시를 시험할 때는 위 준비 절차로 임시 `DJC_HOME`·합성 `DJC_REKORDBOX_DIR`을 지정하고, `parse`를 제외한 모든 명령에 `--db <합성 폴더/master.db>`를 추가한다. 이 예시 자체는 합성 DB를 만들지 않는다.
 
 ### 1. 조건으로 곡 찾기
 
@@ -123,8 +129,8 @@ djc drafts --json                                      # 이미 초안이 있는
 
 ```sh
 djc track 101 --json | jq -c '.data.grid | {status, tempoChanges, first: .segments[0]}'
-# {"status":"available","tempoChanges":[],"first":{"bpm":128.00108360705698,"firstBeatNumber":1,"start":0.5}}
-# 첫 박 0.5초, 32박(8마디) 뒤는 0.5 + 32 × 60 / 128.001… ≈ 15.4999초
+# {"status":"available","tempoChanges":[],"first":{"bpm":128.00053753506577,"firstBeatNumber":1,"start":0.5}}
+# 첫 박 0.5초, 32박(8마디) 뒤는 0.5 + 32 × 60 / 128.000538… ≈ 15.4999초
 djc draft cue 101 --time 0.5 --name '첫 박' --dry-run --json \
   | jq -c '.data | {hasChanges, cues: [.cue.cues[] | {time, name}]}'
 # {"hasChanges":true,"cues":[{"time":0.5,"name":"첫 박"}]}
@@ -133,13 +139,13 @@ djc drafts --json | jq -r '.data.drafts[] | [.contentID, .title, (.kinds | join(
 # 101	시험 Alpha	cue
 ```
 
-- 끝나면: "DJCrate 앱의 'rekordbox 반영 대기'에서 101 시험 Alpha의 큐를 확인하고, rekordbox를 끈 뒤 반영(⌘⇧E)하세요."
+- 끝나면: "DJCrate 앱에서 101 시험 Alpha의 큐 초안을 확인한 뒤, rekordbox를 끄고 rekordbox에 쓰세요(⇧⌘E)."
 
 ### 3. 코멘트·태그 정리 제안과 태그 초안
 
 ```sh
-djc report --json | jq '.data.commentClasses'          # convention·legacy·residue·credit·empty·other 개수
-djc search '' --filter off-convention --json | jq -r '.data.tracks[] | [.id, .title, .comment] | @tsv'
+djc report --comment-preset anisong --json | jq '.data.commentClasses'          # convention·legacy·residue·credit·empty·other 개수
+djc search '' --filter off-convention --comment-preset anisong --json | jq -r '.data.tracks[] | [.id, .title, .comment] | @tsv'
 djc parse "TVA 시험 OP 1" --json | jq -r '.data.classification'   # 제안한 코멘트가 규칙에 맞는지 → convention
 ```
 
@@ -156,7 +162,7 @@ djc draft tag 102 --comment 'TVA 시험 ED 1' --json | jq '.data.hasChanges'
 djc drafts --json | jq -r '.data.drafts[] | select(.kinds | index("tag")) | [.contentID, .title] | @tsv'
 ```
 
-- 끝나면: "DJCrate 앱의 태그 편집(⌘I)이나 태그 시트에서 확인하세요." 컬렉션 곡의 태그 초안은 아직 rekordbox에 반영되지 않는다고 함께 알린다(안전 규칙 4).
+- 끝나면: "DJCrate 앱에서 태그 초안을 확인한 뒤, rekordbox를 끄고 rekordbox에 쓰세요(⇧⌘E). 음원 파일의 태그는 바뀌지 않습니다."
 
 ### 4. 세트용 곡 후보 뽑기
 
@@ -171,14 +177,14 @@ djc track 101 --json | jq '{cues: (.data.cues | length), tempo: .data.grid.tempo
 
 - 후보마다 `track`으로 큐가 있는지(없으면 믹스 지점을 잡기 어렵다), 변속(`tempoChanges`)이 있는지, 게인이 튀는지 본다.
 - 순서는 BPM을 조금씩 옮기고, 키는 Camelot 이웃(같은 숫자의 A↔B, 같은 글자의 숫자 ±1)으로 잇는다. `lengthSeconds`를 더해 목표 길이에 맞춘다.
-- 제안 표: `순번 | ContentID | 제목 | BPM | 키 | 이음 이유`. 재생 목록으로 만드는 일은 사람이 한다(재생 목록 초안은 준비 중).
+- 제안 표: `순번 | ContentID | 제목 | BPM | 키 | 이음 이유`. 재생 목록 초안은 사람이 앱에서 만든다. `djc draft`에는 재생 목록 초안 명령이 없으며, `playlist-write`는 초안 생성이 아니라 DB 쓰기라 이 스킬에서는 실행하지 않는다.
 
 ## 제안을 보여 줄 때
 
 - 곡마다 ContentID와 제목을 함께 적는다(사람이 앱에서 찾을 수 있게).
 - 바꿀 값은 "지금 값 → 제안 값"과 이유 한 줄로 쓴다. 확실하지 않으면 그렇다고 적는다.
 - 표 끝에 "고른 줄만 초안으로 만들까요?"라고 묻는다. 답을 받기 전에는 `djc draft`를 실행하지 않는다.
-- 초안을 만든 뒤에는 만든 곡·종류와 앱에서 확인할 곳을 적고, "반영은 rekordbox를 끄고 DJCrate 앱의 'rekordbox에 반영'(⌘⇧E)으로 하세요"를 한 줄 붙인다.
+- 초안을 만든 뒤에는 만든 곡·종류와 앱에서 확인할 곳을 적고, "DJCrate 앱에서 초안을 확인한 뒤, rekordbox를 끄고 rekordbox에 쓰세요(⇧⌘E)"를 한 줄 붙인다.
 
 ## 문제 해결
 
@@ -186,7 +192,7 @@ djc track 101 --json | jq '{cues: (.data.cues | length), tempo: .data.grid.tempo
 |---|---|
 | `live_database` | `--db`에서 라이브 경로를 빼고 스냅샷을 읽는다 |
 | `read_failed` "스냅샷이 없습니다" | `djc snapshot`(rekordbox가 켜져 있으면 사람에게 먼저 묻는다) |
-| `not_found` | `djc search`로 ContentID, `djc playlists`로 재생 목록 ID를 확인한다 |
+| `not_found` | `djc search`로 ContentID, `djc playlists`로 재생 목록 ID, `djc histories`로 재생 기록 ID를 확인한다 |
 | `invalid_arguments` | `message`대로 인자를 고친다(시각은 곡 길이 안, 루프 끝은 시작 뒤, 슬롯은 A~H). 사용법은 인자 없이 `djc` |
 | `invalid_draft` 메모리 큐 한도 | 앱에서 기존 메모리 큐를 정리하라고 안내한다. 초안 파일을 고치지 않는다 |
 | `invalid_draft` 초안 손상 | 사람에게 알리고 멈춘다. 초안 파일을 고치거나 `draft rm`으로 지우지 않는다 |
