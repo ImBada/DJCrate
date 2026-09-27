@@ -131,6 +131,9 @@ clickNode(메트로놈) ──────────────────�
 - **한 모델, 두 형식**: USB 라이브러리를 곡·재생 목록·큐 모델 하나로 읽고, 쓸 때 그 모델에서 OneLibrary(`exportLibrary.db`)와 Device Library(`export.pdb`·`exportExt.pdb`)를 따로 만든다(`UsbFormat`). 두 형식이 같은 내용을 담도록 계획은 한 곳에서 세운다.
 - **파일 먼저, DB 마지막**: 음원·분석 파일·아트워크를 먼저 쓰고 라이브러리 DB를 마지막에 바꾼다. 중간에 멈춰도 기기는 옛 DB를 읽어 없는 파일을 가리키지 않는다. 새 파일은 임시 이름(`.djc-part-…`)으로 쓴 뒤 이름을 바꾼다.
 - **저널은 Mac에**: 쓰기 전 백업과 진행 기록(저널)은 USB가 아니라 DJCrate 데이터 폴더(`usb-sessions/`)에 둔다. USB가 뽑혀도 회복할 근거가 남는다.
+- **쓰는 길은 하나**: `UsbWriter.write`만 USB에 쓴다(막힘 확인 → Mac 백업 → 파일 → DB 교체 → 지우기 → 검증, 실패는 백업으로 되돌림). 형식을 모르는 변경 묶음(`UsbChangeSet`)을 받고, 형식별 막힘·검증은 `UsbWriteInspector`·`UsbWriteVerifier`로 주입한다. 되돌리기(`restore`)와 회복(`recover`)도 같은 확인을 먼저 거친다. 파일 연산은 `UsbFileSystem` 프로토콜 뒤에 있어 시험이 실패·끊김·분리를 흉내 낸다.
+- **회복은 대상 먼저**: 끊긴 쓰기는 USB의 DB 해시로 방향을 정한다(마저 쓰기·되돌리기, 기기가 바꿨으면 다시 계획). 단계마다 볼륨이 아직 붙어 있는지 보고, 사라졌으면 되돌리지 않고 멈춘다(떼어진 마운트 지점 폴더에 쓰면 Mac에 쓰게 된다).
 - **USB 위에서 SQLite를 열지 않는다**: USB의 DB는 Mac 사본에서 열고 고친 뒤 완성된 파일을 복사한다. FAT 위에 WAL·잠금 파일을 만들지 않고, 쓰다 뽑혀도 DB가 반쯤 바뀐 채 남지 않게 한다.
 - **`._*` 파일**: macOS는 FAT에 확장 속성을 `._이름` 파일로 남긴다. 비교·지문에서는 세기만 하고, 임시 이름은 이 모양과 겹치지 않게 짓는다(`UsbLayout.tempName`).
-- **실물 쓰기는 코드 상수로 닫힘**: `UsbPhysicalWriteGate.buildEnabled`가 false인 동안 실물 USB에는 쓰지 않고 디스크 이미지로만 시험한다. 열린 뒤에도 쓰기 금지 목록(fail-closed)·허용 목록·`--confirm` 볼륨 이름을 거친다. 확인하지 않은 규칙(`UsbProvisionalRule`)이 필요한 계획은 실물에 쓰지 않는다.
+- **실물 쓰기는 코드 상수로 닫힘**: `UsbPhysicalWriteGate.buildEnabled`가 false인 동안 실물 USB에는 쓰지 않고 디스크 이미지로만 시험한다. 이 동안은 볼륨 정보(가드)와 무관하게 루트가 임시 폴더 아래 마운트 지점이어야 한다(가드 값 하나가 틀려도 실물에 닿지 않게). 열린 뒤에도 쓰기 금지 목록(fail-closed)·허용 목록·`--confirm` 볼륨 이름을 거친다. 확인하지 않은 규칙(`UsbProvisionalRule`)이 필요한 계획은 실물에 쓰지 않는다.
+- **볼륨 정보는 DiskArbitration으로**: 디스크 이미지 판정·FAT32 판정은 DA 설명 사전 + statfs + `hdiutil info` 짝을 순수 함수(`UsbVolumes.make`)로 합쳐 정한다. 모르면 실물·FAT32 아님으로 본다.
