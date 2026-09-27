@@ -3,8 +3,7 @@ import DJCDomain
 import Foundation
 import Testing
 
-/// 재생 퀀타이즈(#90): 재생 중 핫큐(버튼·단축키·메뉴 모두 `pressHotCue`)는 누른 뒤 다음 박 조각 경계에서 넘어가고,
-/// 경계의 박 안 위치를 큐 쪽에서도 지킨다. 120 BPM(0.5초부터 박), 핫큐 A 30초, 핫큐 B 40~42초 루프.
+/// 재생 퀀타이즈(#90): 재생 중 핫큐(버튼·단축키·메뉴 모두 `pressHotCue`)는 현재 박을 재생한 뒤 다음 큰 박선에서 저장 큐로 넘어간다. 120 BPM(0.5초부터 박), 핫큐 A 30초, 핫큐 B 40~42초 루프.
 @MainActor
 @Suite("덱 — 재생 퀀타이즈")
 struct DeckPlayQuantizeTests {
@@ -32,8 +31,8 @@ struct DeckPlayQuantizeTests {
         try await h.loaded()
         playing(h)
         h.deck.pressHotCue(slot: 0)
-        // 10.6초 = 20.2박째 → 20.25박째(10.625초)에 30초 + ¼박(0.125초)으로
-        #expect(h.audio.log.last == "jump 10.625→30.125")
+        // 10.6초에 눌러도 11초 큰 박선까지 재생한 뒤 저장 큐 30초로
+        #expect(h.audio.log.last == "jump 11.000→30.000")
         #expect(!h.audio.log.contains("play 30.000"), "바로 다시 재생하지 않는다")
         #expect(h.deck.isPlaying)
         #expect(h.deck.selectedCueID == h.deck.hotCue(slot: 0)?.id)
@@ -129,11 +128,11 @@ struct DeckPlayQuantizeTests {
         playing(h)
         h.deck.pressHotCue(slot: 1)
         let loopCue = try #require(h.deck.hotCue(slot: 1))
-        #expect(h.audio.log.last == "jump 10.625→40.125 loop 40.000~42.000")
+        #expect(h.audio.log.last == "jump 11.000→40.000 loop 40.000~42.000")
         #expect(h.deck.engagedLoopID == loopCue.id && h.audio.loop == 40...42)
         // 다음 틱이 루프를 다시 걸어 예약을 지우지 않는다
         h.deck.tick()
-        #expect(h.audio.log.last == "jump 10.625→40.125 loop 40.000~42.000")
+        #expect(h.audio.log.last == "jump 11.000→40.000 loop 40.000~42.000")
     }
 
     @Test func 즉석_루프_중에_누르면_경계에서_루프를_빠져나가_큐로() async throws {
@@ -144,10 +143,10 @@ struct DeckPlayQuantizeTests {
         h.deck.togglePlay()
         h.audio.position = 10.6
         h.deck.pressHotCue(slot: 0)
-        #expect(h.audio.log.last == "jump 10.625→30.125")
+        #expect(h.audio.log.last == "jump 11.000→30.000")
         #expect(!h.deck.isLooping && h.audio.loop == nil)
         h.deck.tick()
-        #expect(h.audio.log.last == "jump 10.625→30.125", "틱이 루프 나가기를 따로 예약하지 않는다")
+        #expect(h.audio.log.last == "jump 11.000→30.000", "틱이 루프 나가기를 따로 예약하지 않는다")
     }
 
     @Test func 앞으로_건너뛴_구간의_활성_루프는_걸지_않는다() async throws {
@@ -159,7 +158,7 @@ struct DeckPlayQuantizeTests {
         try await h.loaded()
         playing(h)
         h.deck.pressHotCue(slot: 0)
-        h.audio.position = 10.62
+        h.audio.position = 10.99
         h.deck.tick()
         h.audio.hasPendingJump = false
         h.audio.position = 30.15
@@ -178,15 +177,15 @@ struct DeckPlayQuantizeTests {
         h.audio.schedulesJumps = false
         playing(h)
         h.deck.pressHotCue(slot: 0)
-        #expect(h.deck.pendingJump?.jump == PlayQuantize.Jump(at: 10.625, to: 30.125))
+        #expect(h.deck.pendingJump?.jump == PlayQuantize.Jump(at: 11, to: 30))
         #expect(h.audio.log.last == "play 10.600")
-        h.audio.position = 10.62
+        h.audio.position = 10.99
         h.deck.tick()
         #expect(h.audio.log.last == "play 10.600", "경계 전에는 넘어가지 않는다")
-        h.audio.position = 10.63
+        h.audio.position = 11.005
         h.deck.tick()
         // 틱이 늦은 만큼(5ms) 착지 뒤에서 이어 간다
-        #expect(h.audio.log.last == "play 30.130")
+        #expect(h.audio.log.last == "play 30.005")
         #expect(h.deck.pendingJump == nil)
     }
 
@@ -201,7 +200,7 @@ struct DeckPlayQuantizeTests {
         h.deck.togglePlay()
         h.audio.position = 11
         h.deck.tick()
-        #expect(!h.audio.log.contains("play 30.125") && !h.audio.log.contains { $0.hasPrefix("play 30.") })
+        #expect(!h.audio.log.contains("play 30.000") && !h.audio.log.contains { $0.hasPrefix("play 30.") })
     }
 
     @Test func 루프_다음_바퀴에서_점프해도_착지를_알아본다() throws {
@@ -214,7 +213,7 @@ struct DeckPlayQuantizeTests {
 
     @Test func 화면_틱이_늦어져도_착지를_알아본다() throws {
         let h = try harness()
-        h.deck.scheduledJump = .init(at: 10.625, to: 30.125)
+        h.deck.scheduledJump = .init(at: 11, to: 30)
         h.deck.playhead = 30.9
         #expect(h.deck.landedPosition(previous: 10.6) == 30.9)
         #expect(h.deck.scheduledJump == nil)
@@ -228,9 +227,9 @@ struct DeckPlayQuantizeTests {
         h.deck.pressHotCue(slot: 0)
         h.deck.pressHotCue(slot: 1)
         #expect(h.deck.pendingJump?.loopCueID == h.deck.hotCue(slot: 1)?.id)
-        h.audio.position = 10.63
+        h.audio.position = 11.005
         h.deck.tick()
-        #expect(h.audio.log.last == "play 40.130")
+        #expect(h.audio.log.last == "play 40.005")
         #expect(h.audio.loop == 40...42)
     }
 

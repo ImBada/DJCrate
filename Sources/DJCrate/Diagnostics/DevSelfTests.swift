@@ -468,7 +468,7 @@ enum DevSelfTests {
 extension DevSelfTests {
     /// 개발용: 재생 퀀타이즈 핫큐 점프가 박 경계에서 샘플 단위로 넘어가는지 실제 재생 경로로 확인한다(`--jump-audio-selftest`, 스피커 음소거).
     /// 값이 곧 프레임 번호인 램프 WAV(120BPM 그리드, 0.5초부터 박)를 틀고, 곡 믹서 출력에서 "프레임이 +1이 아닌 곳"을 모두 찾아
-    /// 예약한 점프(경계 직전 프레임 → 착지 프레임)·루프 되풀이 말고는 이음새가 없는지, 경계가 박 조각 위이고 박 안 위치가 이어지는지 본다.
+    /// 예약한 점프(경계 직전 프레임 → 착지 프레임)·루프 되풀이 말고는 이음새가 없는지, 경계가 실제 비트그리드 선이고 저장 큐의 첫 샘플에 착지하는지 본다.
     static func runJumpAudioSelfTestIfRequested() {
         guard ProcessInfo.processInfo.arguments.contains("--jump-audio-selftest") else { return }
         func log(_ text: String) { FileHandle.standardError.write(Data("[점프 소리 시험] \(text)\n".utf8)) }
@@ -507,33 +507,42 @@ extension DevSelfTests {
             func frame(_ t: Double) -> Int { Int((t * rate).rounded()) }
             var expected: [String: String] = [:]
             var failures: [String] = []
-            /// 점프 하나: 경계는 박 조각 위, 착지의 박 안 위치는 경계와 같아야 한다.
+            /// 점프 하나: 경계는 실제 그리드 선이며 착지는 저장 큐다(제품의 분할/착지 함수를 정답으로 쓰지 않는다).
             /// `flowLoop`: 누를 때 되풀이 중이던 루프. 경계가 그 시작이면 되풀이 순간(루프 끝 직전 프레임)에서 넘어간다.
-            @MainActor func expect(_ jump: PlayQuantize.Jump?, _ name: String, unit: Double, cue: Double, flowLoop: ClosedRange<Double>? = nil) {
+            @MainActor func expect(_ jump: PlayQuantize.Jump?, _ name: String, cue: Double, flowLoop: ClosedRange<Double>? = nil) {
                 guard let jump else { failures.append("\(name): 예약 못 함"); return }
-                if flowLoop == nil, let first = audio.debugExpectedJumpBoundary, abs(jump.at - first) > 1e-6 {
-                    failures.append(String(format: "%@: 예약 가능한 첫 경계 %.4f초를 건너뛰고 %.4f초로 예약함", name, first, jump.at))
+                if let timing = audio.debugJumpTiming {
+                    log(String(format: "%@ 계측: 입력host %.6f 청취 %.6f rendered %lld ahead %lld 예약직전 %lld 준비ms %.3f 선택node %lld target %lld",
+                               name, timing.requestedHost, timing.audiblePosition, timing.renderedNode, timing.ahead,
+                               timing.beforeScheduleNode, (timing.beforeScheduleHost - timing.requestedHost) * 1000,
+                               timing.selectedNode, timing.targetFrame))
+                    // 제품의 boundary 함수가 아닌 실제 그리드 목록에서 예약 가능한 첫 큰 박을 찾는다.
+                    if flowLoop == nil, let first = grid.beats.first(where: { $0.time >= timing.earliestPosition - 1e-9 }),
+                       abs(jump.at - first.time) > 1e-6 {
+                        failures.append(String(format: "%@: 첫 큰 박 %.4f초 대신 %.4f초 예약", name, first.time, jump.at))
+                    }
+                    if timing.selectedNode < timing.ahead { failures.append("\(name): 렌더 여유보다 앞에 예약함") }
                 }
-                let at = grid.beatCoordinate(at: jump.at), to = grid.beatCoordinate(at: jump.to) - grid.beatCoordinate(at: cue)
-                if abs((at / unit).rounded() - at / unit) > 1e-6 { failures.append("\(name): 경계가 \(unit)박 조각 위가 아님(\(at)박째)") }
-                if abs((at - at.rounded(.down)) - to) > 1e-6 { failures.append("\(name): 박 안 위치가 이어지지 않음") }
+                let at = grid.beatCoordinate(at: jump.at)
+                if !grid.beats.contains(where: { abs($0.time - jump.at) < 1e-6 }) { failures.append("\(name): 큰 박선 전에 점프함") }
+                if abs(jump.to - cue) > 1e-9 { failures.append("\(name): 저장 큐의 앞부분을 생략함") }
                 let before = flowLoop.map { abs($0.lowerBound - jump.at) < 1e-6 ? frame($0.upperBound) - 1 : frame(jump.at) - 1 } ?? frame(jump.at) - 1
-                expected["\(before)→\(frame(jump.to))"] = name
+                expected["\(before)→\(frame(cue))"] = name
                 log(String(format: "%@ 예약: %.4f초(%.2f박째) → %.4f초", name, jump.at, at, jump.to))
             }
 
-            // 1) 1초부터 재생 → ¼박으로 10초 핫큐 → 1박으로 20초 핫큐 → ½박으로 5~6초 루프 핫큐(되풀이)
+            // 1) 이전 단위값 ¼·1·½ 각각 큰 박선에서 10초·20초·5~6초 루프 핫큐로 진입
             // → 루프 안에서 12초 핫큐를 누르고 바로 15초 핫큐(나중 것만 넘어가야 한다)
             audio.play(from: 1.0)
             await wait(0.5)
-            expect(audio.scheduleJump(to: 10, loop: nil, quantize: quantize(0.25)), "¼박", unit: 0.25, cue: 10)
+            expect(audio.scheduleJump(to: 10, loop: nil, quantize: quantize(0.25)), "이전 ¼ 값", cue: 10)
             await wait(1.0)
-            expect(audio.scheduleJump(to: 20, loop: nil, quantize: quantize(1)), "1박", unit: 1, cue: 20)
+            expect(audio.scheduleJump(to: 20, loop: nil, quantize: quantize(1)), "이전 1 값", cue: 20)
             await wait(1.2)
-            expect(audio.scheduleJump(to: 5, loop: 5...6, quantize: quantize(0.5)), "½박 루프", unit: 0.5, cue: 5)
+            expect(audio.scheduleJump(to: 5, loop: 5...6, quantize: quantize(0.5)), "이전 ½ 값 루프", cue: 5)
             await wait(2.6)
             let overridden = audio.scheduleJump(to: 12, loop: nil, quantize: quantize(1))
-            expect(audio.scheduleJump(to: 15, loop: nil, quantize: quantize(1)), "다시 누름", unit: 1, cue: 15, flowLoop: 5...6)
+            expect(audio.scheduleJump(to: 15, loop: nil, quantize: quantize(1)), "다시 누름", cue: 15, flowLoop: 5...6)
             let positionCheck = audio.position
             await wait(1.2)
             let after = audio.position

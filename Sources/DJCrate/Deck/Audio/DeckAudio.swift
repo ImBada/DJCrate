@@ -34,7 +34,18 @@ final class DeckAudio {
     private(set) var hasPendingJump = false
     private var jumpLeadFrames: Int64 = 1024
     #if DEBUG
-    private(set) var debugExpectedJumpBoundary: Double?
+    struct JumpTiming {
+        let requestedHost: Double
+        let audiblePosition: Double
+        let renderedNode: Int64
+        let ahead: Int64
+        let earliestPosition: Double
+        let beforeScheduleNode: Int64
+        let beforeScheduleHost: Double
+        let selectedNode: Int64
+        let targetFrame: Int64
+    }
+    private(set) var debugJumpTiming: JumpTiming?
     #endif
     private var decodeTask: Task<Void, Never>?
     private var loadGeneration = 0
@@ -130,13 +141,15 @@ final class DeckAudio {
     /// 경계 샘플에서 착지 지점으로 넘어간다. 루프 핫큐면 착지 뒤 루프 끝까지 흘리고 되풀이한다.
     /// - Returns: 예약한 점프. 곡을 메모리에 풀기 전이거나 계획할 수 없으면 nil(부른 쪽이 화면 틱으로 넘긴다).
     func scheduleJump(to cue: Double, loop: ClosedRange<Double>?, quantize: PlayQuantize) -> PlayQuantize.Jump? {
+        #if DEBUG
+        debugJumpTiming = nil
+        let requestedHost = Self.now()
+        let audiblePosition = position
+        #endif
         guard isPlaying, let decoded, file != nil else { return nil }
         // 출력 지연은 renderedNode에 이미 포함됐다. 0.1초를 더하면 빠른 곡의 ¼박을 매번 건너뛴다.
         let now = Int64(renderedNode)
         let ahead = now + jumpLeadFrames
-        #if DEBUG
-        debugExpectedJumpBoundary = quantize.boundary(atOrAfter: songPosition(atNode: Double(now + jumpLeadFrames))).time
-        #endif
         guard let plan = JumpPlanner.plan(schedule: schedule, ahead: ahead, quantize: quantize, cue: cue, loop: loop,
                                           frameCount: decoded.frameCount) else { return nil }
         var buffers: [(AVAudioPCMBuffer, LoopPlanner.Buffer)] = []
@@ -144,6 +157,14 @@ final class DeckAudio {
             guard let buffer = decoded.segment(from: item.from, to: item.to) else { return nil }
             buffers.append((buffer, item))
         }
+        #if DEBUG
+        if let first = plan.buffers.first {
+            debugJumpTiming = JumpTiming(requestedHost: requestedHost, audiblePosition: audiblePosition,
+                                         renderedNode: now, ahead: ahead, earliestPosition: songPosition(atNode: Double(ahead)),
+                                         beforeScheduleNode: Int64(renderedNode), beforeScheduleHost: Self.now(),
+                                         selectedNode: first.at, targetFrame: first.from)
+        }
+        #endif
         for (buffer, item) in buffers {
             var options: AVAudioPlayerNodeBufferOptions = []
             if item.interrupts { options.insert(.interrupts) }
