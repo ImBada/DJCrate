@@ -6,19 +6,27 @@ import DJCTestSupport
 import Foundation
 import Testing
 
-/// 소리를 내지 않는 미리 듣기 재생기
+/// 소리를 내지 않는 편집 창 재생기. 들린 시간(`elapsed`)은 시험이 정한다.
 @MainActor
-final class FakePreviewPlayer: EditPreviewPlayer {
-    var played: [URL] = []
+final class FakeEditAudio: EditAudio {
+    var isReady = true
+    var sampleRate = 44_100.0
     var isPlaying = false
-    var currentTime = 0.0
+    var elapsed = 0.0
+    var plays: [(items: [EditPlaybackItem], frame: Int64)] = []
+    var closed = false
 
-    func play(_ url: URL, volume: Float) throws {
-        played.append(url)
+    func prepare(url: URL, done: @escaping @MainActor (Bool) -> Void) { done(isReady) }
+
+    func play(_ items: [EditPlaybackItem], from frame: Int64, volume: Float) -> Bool {
+        plays.append((items, frame))
         isPlaying = true
+        elapsed = 0
+        return true
     }
 
     func stop() { isPlaying = false }
+    func close() { closed = true }
 }
 
 /// 덱(가짜 오디오·메모리 저장소)에 합성 WAV 곡을 올리고 편집 창 모델을 만든다.
@@ -27,7 +35,7 @@ struct EditHarness {
     let deck: DeckModel
     let audio = FakeDeckAudio()
     let drafts = MemoryDrafts()
-    let player = FakePreviewPlayer()
+    let player = FakeEditAudio()
     let home: URL
     let source: URL
 
@@ -53,7 +61,7 @@ struct EditHarness {
 
     func loaded() async throws -> TrackEditModel {
         for _ in 0..<200 where deck.draft == nil { try await Task.sleep(for: .milliseconds(10)) }
-        return try #require(TrackEditModel(deck: deck, player: player, home: home))
+        return try #require(TrackEditModel(deck: deck, audio: player, home: home))
     }
 
     func remove() { try? FileManager.default.removeItem(at: home) }
@@ -71,83 +79,255 @@ func frames(_ url: URL) throws -> Int64 { try AVAudioFile(forReading: url).lengt
 @MainActor
 @Suite("곡 편집 창 모델")
 struct TrackEditModelTests {
-    @Test func 덱_재생_위치에서_N마디를_쌓고_출력을_센다() async throws {
+    @Test func 원곡에서_끌어_고른_구간을_결과에_넣는다() async throws {
         let h = try EditHarness()
         defer { h.remove() }
         let model = try await h.loaded()
-        #expect(model.blockedReason == nil && model.layout?.count == 10)
+        #expect(model.blockedReason == nil && model.layout?.count == 10 && model.isAudioReady)
         #expect(model.title == "시험 곡 (Edit)")
 
-        // 첫 다운비트 앞: 목록이 비었으니 곡 머리까지
-        model.barsToAdd = 2
-        h.deck.seek(0.2)
-        model.addHere()
-        // 3마디 안(4.6초) → 3~4마디: 앞 구간과 원본에서 이어져 이음새가 아니다
-        h.deck.seek(4.6)
-        model.addHere()
-        // 다시 1마디부터: 이음새 하나
-        h.deck.seek(0.6)
-        model.addHere()
-        #expect(model.entries.map(\.range) == [BarRange(0, 2), BarRange(3, 4), BarRange(1, 2)])
-        #expect(model.seams == [EditSeam(index: 2, preview: [BarRange(3, 4), BarRange(1, 2)])])
-        let edit = try #require(model.edit)
-        #expect(model.planError == nil && edit.barCount == 6 && abs(edit.duration - 12.5) < 1e-9)
-        #expect(model.canRender)
-
-        // 곡 끝에서는 고를 마디가 없다고 알린다
-        h.deck.seek(20.5)
-        model.addHere()
+        // 곡 머리 쪽에서 4.4초까지 끌면 가까운 마디 줄에 붙어 곡 머리 + 1~2마디. 결과가 비었으니 곡 머리까지 넣는다.
+        model.select(from: 0.2, to: 4.4)
+        #expect(model.selection == BarRange(0, 2) && model.focus == .source)
+        model.finishSelection()
+        #expect(model.position(.source) == 0)
+        model.addSelection()
+        #expect(model.entries.map(\.range) == [BarRange(0, 2)] && model.selectedClip == model.entries[0].id)
+        // 고른 클립 뒤에 넣으면 곡 머리는 뺀다(0마디는 맨 앞에만)
+        model.select(from: 0.1, to: 2.4)
+        model.addSelection()
+        #expect(model.entries.map(\.range) == [BarRange(0, 2), BarRange(1, 1)] && model.selectedIndex == 1)
+        // 고른 클립이 가운데면 그 뒤에 끼운다
+        model.selectedClip = model.entries[0].id
+        model.select(from: 12.5, to: 16.5)
+        model.addSelection()
+        #expect(model.entries.map(\.range) == [BarRange(0, 2), BarRange(7, 8), BarRange(1, 1)])
+        // 곡 머리뿐인 구간은 뒤에 넣을 수 없다고 알린다
+        model.selectedClip = nil
+        model.select(from: 0, to: 0.2)
+        #expect(model.selection == BarRange(0, 0))
+        model.addSelection()
         #expect(model.entries.count == 3 && model.message?.kind == .warning)
+        let edit = try #require(model.edit)
+        #expect(model.planError == nil && edit.barCount == 5 && abs(edit.duration - 10.5) < 1e-9 && model.canRender)
+        // Esc: 고른 클립 → 고른 구간 순서로 놓는다
+        model.selectedClip = model.entries[1].id
+        #expect(model.clearSelection() && model.selectedClip == nil && model.selection != nil)
+        #expect(model.clearSelection() && model.selection == nil && !model.clearSelection())
     }
 
-    @Test func 덱에_다른_곡이_있으면_창에서_찍은_위치를_쓴다() async throws {
+    @Test func 창_재생기로_원곡을_재생하고_멈추고_시킹한다() async throws {
         let h = try EditHarness()
         defer { h.remove() }
         let model = try await h.loaded()
-        model.place(at: 8.7)
-        // 같은 곡이면 덱도 그 자리로
-        #expect(h.deck.playhead == 8.7)
-        h.deck.load(nil)
-        model.place(at: 12.6)
-        model.barsToAdd = 1
-        model.addHere()
-        #expect(model.entries.map(\.range) == [BarRange(7, 7)])
+        // 덱이 재생 중이면 멈추고 창에서 재생한다(두 소리가 겹치지 않게)
+        h.deck.togglePlay()
+        model.seek(.source, to: 4.5)
+        model.play(.source)
+        #expect(model.playing == .source && !h.deck.isPlaying)
+        // 원곡 그대로 한 칸(인코더 지연 없음), 재생선 프레임부터
+        #expect(h.player.plays.last?.items == [EditPlaybackItem(outputFrame: 0, frameCount: 904_050, sourceFrame: 0)])
+        #expect(h.player.plays.last?.frame == 198_450)
+        h.player.elapsed = 1
+        #expect(model.position(.source) == 5.5)
+        model.pause()
+        #expect(model.playing == nil && !h.player.isPlaying && model.position(.source) == 5.5)
+        // 스페이스바는 마지막으로 누른 줄을 재생선부터
+        model.togglePlay()
+        #expect(model.playing == .source && h.player.plays.last?.frame == 242_550)
+        // 재생 중 시킹은 그 자리에서 잇는다
+        model.seek(.source, to: 10)
+        #expect(model.playing == .source && h.player.plays.count == 3 && h.player.plays.last?.frame == 441_000)
+        // 재생선을 끄는 동안은 멈췄다가 손을 떼면 그 자리에서 잇는다
+        model.scrub(.source, to: 12)
+        #expect(model.playing == nil && model.position(.source) == 12)
+        model.endScrub()
+        #expect(model.playing == .source && h.player.plays.last?.frame == 529_200)
+        // ←→는 마디 줄로(1마디 2초, 첫 다운비트 0.5초)
+        model.step(bars: 1)
+        #expect(model.position(.source) == 12.5 && h.player.plays.last?.frame == 551_250)
+        model.pause()
+        model.step(bars: -4)
+        #expect(model.position(.source) == 4.5)
+        model.jump(toEnd: true)
+        #expect(model.position(.source) == 20.5)
+        // 끝에서 재생하면 처음부터
+        model.play(.source)
+        #expect(h.player.plays.last?.frame == 0)
+        model.close()
+        #expect(h.player.closed && model.playing == nil)
     }
 
-    @Test func 구간_순서를_바꾸고_지우고_마디를_고친다() async throws {
+    @Test func 결과를_어디서든_렌더하지_않고_재생한다() async throws {
+        let h = try EditHarness()
+        defer { h.remove() }
+        let model = try await h.loaded()
+        #expect(!model.canPlay(.output))
+        model.entries = [BarRange(1, 2), BarRange(1, 2)].map { TrackEditModel.Entry(range: $0) }
+        let edit = try #require(model.edit)
+        model.seek(.output, to: 3)
+        model.play(.output)
+        // 렌더러와 같은 예약표(조각·이음새 섞기)를 결과 3초 프레임부터
+        #expect(h.player.plays.last?.items == TrackEdit.playbackItems(edit.frames(sampleRate: 44_100, sourceOffset: 0)))
+        #expect(h.player.plays.last?.frame == 132_300 && model.focus == .output)
+        // 끝까지 들으면 멈추고 재생선은 끝에
+        h.player.elapsed = 6
+        try await until { model.playing == nil }
+        #expect(model.position(.output) == 8 && !h.player.isPlaying)
+        // 결과를 고치면 재생을 멈춘다(바뀐 결과를 다시 재생)
+        model.play(.output)
+        #expect(h.player.plays.last?.frame == 0)
+        model.entries.append(TrackEditModel.Entry(range: BarRange(9, 10)))
+        #expect(model.playing == nil && !h.player.isPlaying)
+    }
+
+    @Test func 이음새_앞뒤_2마디를_듣고_멈춘다() async throws {
+        let h = try EditHarness()
+        defer { h.remove() }
+        let model = try await h.loaded()
+        model.entries = [BarRange(1, 4), BarRange(1, 4)].map { TrackEditModel.Entry(range: $0) }
+        model.auditionSeam(1)
+        // 이음새 8초: 4초부터 12초까지
+        #expect(model.playing == .output && model.auditioning == 1 && h.player.plays.last?.frame == 176_400)
+        h.player.elapsed = 8.5
+        try await until { model.playing == nil }
+        #expect(model.position(.output) == 12 && model.auditioning == nil)
+        // 조각이 2마디보다 짧으면 그 조각 안에서
+        model.entries = [BarRange(1, 1), BarRange(5, 5)].map { TrackEditModel.Entry(range: $0) }
+        model.auditionSeam(1)
+        #expect(h.player.plays.last?.frame == 0)
+        h.player.elapsed = 5
+        try await until { model.playing == nil }
+        #expect(model.position(.output) == 4)
+        // 덱을 재생하면 창의 재생은 멈춘다(뷰가 pause를 부른다)
+        model.auditionSeam(9)
+        #expect(model.playing == nil)
+    }
+
+    @Test func 자르고_복제하고_옮기고_지우고_실행_취소한다() async throws {
+        let h = try EditHarness()
+        defer { h.remove() }
+        let model = try await h.loaded()
+        let undo = UndoManager()
+        model.undoManager = undo
+        model.entries = [TrackEditModel.Entry(range: BarRange(1, 8))]
+        #expect(!model.canUndo)
+
+        // 재생선 5.2초 → 가장 가까운 마디 줄(6초, 4마디)에서 자르고 오른쪽을 고른다
+        model.seek(.output, to: 5.2)
+        model.splitAtPlayhead()
+        #expect(model.entries.map(\.range) == [BarRange(1, 3), BarRange(4, 8)] && model.selectedIndex == 1)
+        #expect(model.position(.output) == 6 && model.canUndo && undo.undoActionName == "자르기")
+        // 클립 끝이 더 가까우면 자르지 않고 알린다
+        model.seek(.output, to: 5.9)
+        model.splitAtPlayhead()
+        #expect(model.entries.count == 2 && model.message?.kind == .warning)
+
+        model.duplicateSelected()
+        #expect(model.entries.map(\.range) == [BarRange(1, 3), BarRange(4, 8), BarRange(4, 8)] && model.selectedIndex == 2)
+        let copy = try #require(model.selectedClip)
+        // 끌어서 맨 앞으로(놓을 자리 = 앞 클립 수)
+        model.moveClip(copy, toOffset: 0)
+        #expect(model.entries.map(\.range) == [BarRange(4, 8), BarRange(1, 3), BarRange(4, 8)] && model.selectedIndex == 0)
+        model.removeSelected()
+        #expect(model.entries.map(\.range) == [BarRange(1, 3), BarRange(4, 8)] && model.selectedIndex == 0)
+        // 앞뒤 단추·마디 칸
+        model.move(model.entries[0].id, by: 1)
+        #expect(model.entries.map(\.range) == [BarRange(4, 8), BarRange(1, 3)])
+        model.setLast(model.entries[0].id, 99)
+        #expect(model.entries[0].range == BarRange(4, 10))
+
+        // 실행 취소 6번(마디·앞뒤·지우기·옮기기·복제·자르기) → 처음, 실행 복귀 → 자른 모양
+        for _ in 0..<6 { undo.undo() }
+        #expect(model.entries.map(\.range) == [BarRange(1, 8)] && !model.canUndo && model.canRedo)
+        undo.redo()
+        #expect(model.entries.map(\.range) == [BarRange(1, 3), BarRange(4, 8)] && model.selectedIndex == 1)
+        // 창을 닫으면 이 창의 실행 취소를 비운다
+        model.close()
+        #expect(!undo.canUndo && !undo.canRedo)
+    }
+
+    @Test func 규칙에_맞지_않는_목록도_타임라인에_그려_고칠_수_있다() async throws {
+        let h = try EditHarness()
+        defer { h.remove() }
+        let model = try await h.loaded()
+        model.entries = [BarRange(1, 2), BarRange(0, 2)].map { TrackEditModel.Entry(range: $0) }
+        #expect(model.edit == nil && model.planError?.contains("0마디") == true && !model.canRender && !model.canPlay(.output))
+        #expect(model.clipLayout.count == 2)
+        model.moveClip(model.entries[1].id, toOffset: 0)
+        #expect(model.planError == nil && model.edit != nil)
+    }
+
+    @Test func 원곡_줄_누르기와_끌기() async throws {
+        let h = try EditHarness()
+        defer { h.remove() }
+        let model = try await h.loaded()
+        var pointer = EditPointer()
+        // 파형을 조금만 움직였다 떼면 누르기: 재생선만 옮긴다
+        pointer.source(model, from: 8.7, to: 8.8, inRuler: false, moved: 2)
+        pointer.endSource(model, at: 8.8)
+        #expect(model.position(.source) == 8.8 && model.selection == nil && model.focus == .source)
+        // 끌면 마디 구간을 고르고, 떼면 재생선을 구간 처음에
+        pointer.source(model, from: 4.4, to: 5, inRuler: false, moved: 3)
+        pointer.source(model, from: 4.4, to: 8.6, inRuler: false, moved: 40)
+        #expect(model.selection == BarRange(3, 4))
+        pointer.source(model, from: 4.4, to: 10.4, inRuler: false, moved: 60)
+        pointer.endSource(model, at: 10.4)
+        #expect(model.selection == BarRange(3, 5) && model.position(.source) == 4.5)
+        // 눈금을 끌면 재생 중에는 멈췄다가 손을 떼면 그 자리에서 잇는다
+        model.play(.source)
+        pointer.source(model, from: 12, to: 12, inRuler: true, moved: 0)
+        pointer.source(model, from: 12, to: 14, inRuler: true, moved: 20)
+        #expect(model.playing == nil && model.position(.source) == 14 && model.selection == BarRange(3, 5))
+        pointer.endSource(model, at: 14)
+        #expect(model.playing == .source && h.player.plays.last?.frame == 617_400)
+    }
+
+    @Test func 결과_줄_누르기와_클립_끌기() async throws {
         let h = try EditHarness()
         defer { h.remove() }
         let model = try await h.loaded()
         model.entries = [BarRange(1, 2), BarRange(5, 6), BarRange(9, 10)].map { TrackEditModel.Entry(range: $0) }
         let ids = model.entries.map(\.id)
-        model.move(ids[2], by: -1)
-        #expect(model.entries.map(\.range) == [BarRange(1, 2), BarRange(9, 10), BarRange(5, 6)])
-        // 끝에서 더 옮기면 그대로
-        model.move(ids[0], by: -1)
-        #expect(model.entries.map(\.id) == [ids[0], ids[2], ids[1]])
-        model.remove(ids[0])
-        model.duplicate(ids[1])
-        #expect(model.entries.map(\.range) == [BarRange(9, 10), BarRange(5, 6), BarRange(5, 6)])
-        #expect(model.entries[1].id == ids[1] && model.entries[2].id != ids[1])
+        var pointer = EditPointer()
+        // 클립을 누르면 고르고 재생선을 그 자리로
+        pointer.output(model, from: 5, to: 5, inRuler: false, moved: 0)
+        pointer.endOutput(model, at: 5)
+        #expect(model.selectedClip == ids[1] && model.position(.output) == 5 && model.focus == .output)
+        // 세 번째 클립(8~12초)을 맨 앞(가운데 2초 앞)으로 끌어 놓는다. 끄는 동안 놓을 자리를 보여 준다.
+        pointer.output(model, from: 10, to: 9.5, inRuler: false, moved: 3)
+        #expect(pointer.dragging == nil)
+        pointer.output(model, from: 10, to: 1, inRuler: false, moved: 90)
+        #expect(pointer.dragging == ids[2] && pointer.dropOffset == 0)
+        pointer.endOutput(model, at: 1)
+        #expect(model.entries.map(\.id) == [ids[2], ids[0], ids[1]] && model.selectedClip == ids[2] && pointer.dragging == nil)
+        // 빈 곳(결과 밖)을 누르면 고른 클립을 놓는다
+        pointer.output(model, from: 30, to: 30, inRuler: false, moved: 0)
+        pointer.endOutput(model, at: 30)
+        #expect(model.selectedClip == nil)
+        // 눈금은 재생선만
+        pointer.output(model, from: 3, to: 7, inRuler: true, moved: 40)
+        pointer.endOutput(model, at: 7)
+        #expect(model.position(.output) == 7 && model.entries.map(\.id) == [ids[2], ids[0], ids[1]])
+    }
 
-        // 시작·끝 마디는 곡 안, 시작 ≤ 끝으로만 고쳐진다
-        model.setFirst(ids[2], 3)
-        model.setLast(ids[2], 99)
-        #expect(model.entries[0].range == BarRange(3, 10))
-        model.setFirst(ids[2], 12)
-        #expect(model.entries[0].range == BarRange(10, 10))
-        model.setLast(ids[2], 4)
-        #expect(model.entries[0].range == BarRange(10, 10))
+    @Test func 편집_창_단축키는_키_위치로_정한다() async throws {
+        #expect(TrackEditCommand(keyCode: 49, modifiers: []) == .togglePlay)
+        #expect(TrackEditCommand(keyCode: 124, modifiers: [.numericPad, .function]) == .step(1))
+        #expect(TrackEditCommand(keyCode: 123, modifiers: .shift) == .step(-4))
+        #expect(TrackEditCommand(keyCode: 11, modifiers: .command) == .split && TrackEditCommand(keyCode: 11, modifiers: []) == nil)
+        #expect(TrackEditCommand(keyCode: 2, modifiers: .command) == .duplicateClip)
+        #expect(TrackEditCommand(keyCode: 51, modifiers: []) == .removeClip && TrackEditCommand(keyCode: 36, modifiers: []) == .addSelection)
+        // ⌘Z는 편집 메뉴(창의 실행 취소)에 맡긴다
+        #expect(TrackEditCommand(keyCode: 6, modifiers: .command) == nil)
 
-        // 0마디(곡 머리)는 맨 앞에만: 가운데 두면 이유를 보여 주고 렌더를 막는다
-        model.setFirst(ids[1], 0)
-        #expect(model.entries[1].range == BarRange(0, 6))
-        #expect(model.edit == nil && model.planError?.contains("0마디") == true && !model.canRender)
-        model.remove(model.entries[0].id)
-        #expect(model.planError == nil && model.edit?.barCount == 8)
-        // 다 지우면 렌더할 것이 없다
-        for entry in model.entries { model.remove(entry.id) }
-        #expect(model.edit == nil && model.planError == nil && !model.canRender)
+        let h = try EditHarness()
+        defer { h.remove() }
+        let model = try await h.loaded()
+        // 고른 것이 없으면 키를 넘긴다(다른 곳에서 경고음·기본 동작)
+        #expect(!TrackEditCommand.removeClip.perform(on: model) && !TrackEditCommand.addSelection.perform(on: model))
+        #expect(!TrackEditCommand.split.perform(on: model) && !TrackEditCommand.clearSelection.perform(on: model))
+        #expect(TrackEditCommand.togglePlay.perform(on: model) && model.playing == .source)
     }
 
     @Test func 변속_곡과_그리드_없는_곡은_이유와_할_일을_보여_주고_막는다() async throws {
@@ -156,57 +336,14 @@ struct TrackEditModelTests {
         defer { tempo.remove() }
         let changing = try await tempo.loaded()
         #expect(changing.blockedReason?.contains("템포 구간 2개") == true && changing.layout == nil)
-        tempo.deck.seek(4.6)
-        changing.addHere()
-        #expect(changing.entries.isEmpty && !changing.canRender)
+        changing.select(from: 4.6, to: 8.6)
+        changing.addSelection()
+        #expect(changing.entries.isEmpty && !changing.canRender && !changing.canPlay(.source))
 
         let bare = try EditHarness(grid: nil)
         defer { bare.remove() }
         let none = try await bare.loaded()
         #expect(none.blockedReason == "그리드가 없습니다. 덱에서 추정 그리드를 적용하거나 rekordbox에서 트랙 분석을 한 뒤 편집하세요")
-    }
-
-    @Test func 이음새와_전체를_짧게_렌더해_미리_듣는다() async throws {
-        let h = try EditHarness()
-        defer { h.remove() }
-        let model = try await h.loaded()
-        model.entries = [BarRange(1, 4), BarRange(1, 4)].map { TrackEditModel.Entry(range: $0) }
-        // 덱이 재생 중이면 멈추고 듣는다
-        h.deck.togglePlay()
-        #expect(h.deck.isPlaying)
-        model.previewSeam(1)
-        #expect(model.preview == .seam(1) && !h.deck.isPlaying)
-        try await until { !h.player.played.isEmpty }
-        // 이음새 앞 2마디 + 뒤 2마디 = 8초, DJCrate 데이터 폴더 아래 임시 파일
-        let seam = try #require(h.player.played.last)
-        #expect(seam.path.hasPrefix(h.home.appending(path: "edit-previews").path))
-        #expect(try frames(seam) == 8 * 44_100 && !model.isPreparingPreview)
-        model.stopPreview()
-        #expect(model.preview == nil && !h.player.isPlaying)
-
-        model.previewAll()
-        try await until { h.player.played.count == 2 }
-        #expect(try frames(h.player.played[1]) == 16 * 44_100 && model.preview == .all)
-        // 같은 편집을 다시 들으면 렌더한 파일을 다시 쓴다
-        model.previewAll()
-        try await until { h.player.played.count == 3 }
-        #expect(h.player.played[2] == h.player.played[1])
-        // 끝까지 들으면 미리 듣기 표시를 끈다
-        h.player.isPlaying = false
-        try await until { model.preview == nil }
-        // 구간을 바꿔 다시 전체를 들으면 이전 전체 미리 듣기 파일은 지운다(긴 WAV가 쌓이지 않게)
-        let oldAll = h.player.played[1]
-        model.entries.append(TrackEditModel.Entry(range: BarRange(9, 10)))
-        model.previewAll()
-        try await until { h.player.played.count == 4 }
-        #expect(try frames(h.player.played[3]) == 20 * 44_100)
-        #expect(!FileManager.default.fileExists(atPath: oldAll.path) && FileManager.default.fileExists(atPath: seam.path))
-        model.stopPreview()
-
-        // 창을 닫으면 임시 파일을 지운다
-        model.close()
-        let left = (try? FileManager.default.contentsOfDirectory(atPath: h.home.appending(path: "edit-previews").path)) ?? []
-        #expect(left.isEmpty)
     }
 
     @Test func 렌더해서_추가한_곡에_넣는다() async throws {
