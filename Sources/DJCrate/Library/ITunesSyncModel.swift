@@ -11,6 +11,7 @@ final class ITunesSyncModel {
     var isLoading = true
     var isSyncing = false
     var error: String?
+    @ObservationIgnored private var loadSequence = 0
     var canSync: Bool { !isLoading && !isSyncing && source.status == .ready && source.syncData != nil && database != nil }
     var nodes: [ITunesSyncSelection.Node] { source.selectionNodes }
     var tree: [ITunesSyncOutline.Node] {
@@ -23,14 +24,50 @@ final class ITunesSyncModel {
         return ITunesSyncOutline(playlists: snapshot.playlists)
     }
 
-    func load(store: LibraryStore) async {
+    func load(store: LibraryStore, forceRefresh: Bool = false,
+              arguments: [String] = ProcessInfo.processInfo.arguments,
+              environment: [String: String] = ProcessInfo.processInfo.environment,
+              captureITunes: @escaping @Sendable () -> ITunesLibrarySnapshot = {
+                  RekordboxITunesReader.capture()
+              }) async {
+        loadSequence += 1
+        let sequence = loadSequence
+        let previousSource = source
+        let previousSelection = selection
+        let hadSource = previousSource.status == .ready || previousSource.status == .stale
+        let selectionEdited = hadSource && previousSelection != previousSource.initialSelection
         isLoading = true
         error = nil
-        database = store.snapshotURL
-        let captured = await store.iTunesSyncSource()
-        guard !Task.isCancelled else { return }
+        let requestedDatabase = store.snapshotURL
+        let requestedRevision = store.previewRevision
+        database = requestedDatabase
+        let captured = await store.iTunesSyncSource(forceRefresh: forceRefresh, arguments: arguments,
+                                                     environment: environment, captureITunes: captureITunes)
+        guard sequence == loadSequence else { return }
+        guard !Task.isCancelled, store.iTunesSync === self, store.showingITunesSync else {
+            isLoading = false
+            return
+        }
+        guard store.snapshotURL == requestedDatabase, store.previewRevision == requestedRevision else {
+            database = nil
+            isLoading = false
+            error = String(ui: "라이브러리가 바뀌었거나 목록을 읽지 못했습니다. 동기화 창을 다시 여세요.")
+            return
+        }
+        if captured.status != .ready, hadSource {
+            source = previousSource
+            source.status = .stale
+            selection = previousSelection
+            isLoading = false
+            return
+        }
         source = captured
-        selection = source.initialSelection
+        if selectionEdited {
+            let available = Set(source.selectionNodes.map(\.id)).union(["0"])
+            selection = ITunesSyncSelection(selectedIDs: previousSelection.selectedIDs.intersection(available))
+        } else {
+            selection = source.initialSelection
+        }
         if source.status == .ready, source.syncData == nil {
             error = String(ui: "rekordbox 동기화 파일 사본이 없습니다. rekordbox에서 한 번 동기화한 뒤 새로고침하세요.")
         }

@@ -13,7 +13,19 @@ struct ITunesSyncView: View {
         let preview = model.preview
         let nodes = model.nodes
         VStack(alignment: .leading, spacing: 16) {
-            Text(.ui("iTunes 동기화")).font(.title2.bold())
+            HStack {
+                Text(.ui("iTunes 동기화")).font(.title2.bold())
+                Spacer()
+                Button {
+                    Task { await model.load(store: store, forceRefresh: true) }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .disabled(model.isLoading || model.isSyncing || store.isLoading || store.isWritingRekordbox)
+                .help(.ui("iTunes 동기화 목록 새로고침"))
+                .accessibilityLabel(.ui("iTunes 동기화 목록 새로고침"))
+                .accessibilityIdentifier("itunes-sync-refresh")
+            }
             Text(.ui("동기화할 폴더와 플레이리스트를 선택하세요. 폴더를 선택하면 하위 목록도 포함됩니다."))
                 .foregroundStyle(.secondary)
             HStack(spacing: 16) {
