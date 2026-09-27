@@ -65,9 +65,12 @@ public enum UsbPathRules {
 
     /// 같은 이름이 있을 때 붙이는 번호: "x (2).mp3". 48 스칼라 안으로 줄기를 더 자른다.
     public static func withSuffix(_ fileName: String, number: Int) -> String {
-        let (stem, ext) = split(Array(fileName.unicodeScalars))
+        let scalars = Array(fileName.unicodeScalars)
+        let (stem, ext) = split(scalars)
         let suffix = Array(" (\(number))".unicodeScalars)
         let limit = maxScalars - suffix.count - (ext.map { $0.count + 1 } ?? 0)
+        // 확장자가 길어 줄기를 한 글자도 남길 수 없으면 이름 전체를 줄기로 보고 자른다(48 스칼라를 넘기지 않는다).
+        guard limit >= 1 else { return string(trimmedStem(scalars, limit: maxScalars - suffix.count) + suffix) }
         let head = stem.count > limit ? trimmedStem(stem, limit: limit) : stem
         return string(head + suffix + (ext.map { ["."] + $0 } ?? []))
     }

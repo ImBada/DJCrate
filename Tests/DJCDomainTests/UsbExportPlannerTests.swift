@@ -38,7 +38,7 @@ struct UsbExportPlannerTests {
         UsbPlaylistInput(localID: id, name: name, parentLocalID: parent, attribute: attribute, trackLocalIDs: tracks)
     }
 
-    /// Contents/ 아래 파일만 있는 USB(라이브러리 없음)
+    /// Contents/ 아래 파일만 있는 USB(라이브러리 없음). 폴더·파일 철자를 모두 적는다
     func contentsOnly(_ paths: [String]) -> UsbExistingState {
         var used: [String: Set<String>] = [:], spelling: [String: String] = [:]
         for path in paths {
@@ -46,9 +46,7 @@ struct UsbExportPlannerTests {
             for index in parts.indices {
                 let parentKey = parts[..<index].map(UsbLayout.collisionKey).joined(separator: "/")
                 used[parentKey, default: []].insert(UsbLayout.collisionKey(parts[index]))
-                if index < parts.count - 1 {
-                    spelling[parts[...index].map(UsbLayout.collisionKey).joined(separator: "/")] = parts[...index].joined(separator: "/")
-                }
+                spelling[parts[...index].map(UsbLayout.collisionKey).joined(separator: "/")] = parts[...index].joined(separator: "/")
             }
         }
         return UsbExistingState.contentsOnly(usedCollisionKeys: used, folderSpelling: spelling)
@@ -236,6 +234,25 @@ struct UsbExportPlannerTests {
         #expect(result.tracks.first?.contentsPath == "/Contents/Artist/Album/x.mp3")
         #expect(result.tracks.first?.rules.contains(.pathCollision) == false)
         #expect(calls.values == ["1|Contents/Artist/Album/x.mp3"])
+    }
+
+    @Test("USB 파일을 다시 쓰면 USB에 있는 철자로 가리키고 철자가 다르면 pathCollision")
+    func collisionReuseKeepsUsbFileSpelling() {
+        let calls = Calls()
+        let result = plan([candidate("1", file: "x.mp3")], existing: contentsOnly(["Contents/Artist/Album/X.MP3"]),
+                          sameContent: { id, path in calls.add(id + "|" + path); return true })
+        let track = result.tracks.first
+        #expect(track?.audioDisposition == .reuse)
+        #expect(track?.contentsPath == "/Contents/Artist/Album/X.MP3")
+        #expect(track?.fileName == "X.MP3")
+        #expect(track?.rules.contains(.pathCollision) == true)
+        #expect(calls.values == ["1|Contents/Artist/Album/X.MP3"])
+        // 철자를 모르면(파일 철자를 적지 않은 상태) 후보 철자 그대로
+        var unknown = contentsOnly(["Contents/Artist/Album/X.MP3"])
+        unknown.folderSpelling["contents/artist/album/x.mp3"] = nil
+        let fallback = plan([candidate("1", file: "x.mp3")], existing: unknown, sameContent: { _, _ in true }).tracks.first
+        #expect(fallback?.contentsPath == "/Contents/Artist/Album/x.mp3")
+        #expect(fallback?.audioDisposition == .reuse)
     }
 
     @Test("내용이 다르면 번호를 붙인다")

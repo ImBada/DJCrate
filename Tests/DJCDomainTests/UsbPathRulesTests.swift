@@ -143,6 +143,24 @@ struct UsbPathRulesTests {
         #expect(UsbPathRules.withSuffix(spaced, number: 2) == String(repeating: "s", count: 39) + " (2).mp3")
     }
 
+    @Test("확장자가 길어 줄기를 남길 수 없어도 번호를 붙인 이름은 48 스칼라 안")
+    func withSuffixLongExtensionFits48() {
+        for extensionLength in 38...45 {
+            let name = "a." + String(repeating: "x", count: extensionLength)
+            #expect(UsbPathRules.fileName(name).value == name)
+            for number in [2, 10, 99] {
+                let suffixed = UsbPathRules.withSuffix(name, number: number)
+                #expect(suffixed.unicodeScalars.count <= UsbPathRules.maxScalars, "\(extensionLength) \(number)")
+                #expect(suffixed.hasSuffix(" (\(number))") || suffixed.hasSuffix("." + String(repeating: "x", count: extensionLength)))
+                #expect(UsbLayout.collisionKey(suffixed) != UsbLayout.collisionKey(name))
+            }
+        }
+        // 줄기를 남길 수 없으면 이름 전체를 줄기로 보고 자른다
+        let name = "a." + String(repeating: "x", count: 45)
+        #expect(UsbPathRules.withSuffix(name, number: 2) == "a." + String(repeating: "x", count: 42) + " (2)")
+        #expect(UsbPathRules.withSuffix(name, number: 99) == "a." + String(repeating: "x", count: 41) + " (99)")
+    }
+
     @Test("Contents 경로는 성분 규칙을 모은다")
     func contentsPathJoinsComponents() {
         let path = UsbPathRules.contentsPath(artist: "Artist", album: nil, fileName: "a?b.mp3")

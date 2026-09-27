@@ -111,7 +111,8 @@ public struct UsbExistingState: Sendable {
     public var hasLibrary: Bool
     /// 폴더 키 → 그 안 이름(파일·폴더)의 collisionKey
     public var usedCollisionKeys: [String: Set<String>]
-    /// 폴더 키 → 실제 철자 경로(예: "Contents/ARTIST")
+    /// 경로 키 → 실제 철자 경로(폴더·파일 모두, 예: "contents/artist" → "Contents/ARTIST",
+    /// "contents/artist/album/x.mp3" → "Contents/ARTIST/Album/X.MP3"). 같은 내용을 다시 쓸 때 USB의 철자를 가리키는 데 쓴다
     public var folderSpelling: [String: String]
     public var ids: UsbIDAllocator
     public var artworkLayout: UsbArtworkLayout
@@ -135,7 +136,8 @@ public struct UsbExistingState: Sendable {
         self.siblingMax = siblingMax
     }
 
-    /// 내보내기: PIONEER/ 아래는 비었지만 Contents/에 파일이 있는 USB. ID·아트워크·분석 파일·형제 순번은 새 USB와 같다
+    /// 내보내기: PIONEER/ 아래는 비었지만 Contents/에 파일이 있는 USB. ID·아트워크·분석 파일·형제 순번은 새 USB와 같다.
+    /// folderSpelling에는 Contents/ 아래 폴더와 파일의 철자를 모두 넣는다
     public static func contentsOnly(usedCollisionKeys: [String: Set<String>], folderSpelling: [String: String]) -> UsbExistingState {
         UsbExistingState(hasLibrary: false, usedCollisionKeys: usedCollisionKeys, folderSpelling: folderSpelling)
     }
@@ -474,18 +476,23 @@ private struct PlanState {
         let names = [file.value] + (2...99).map { UsbPathRules.withSuffix(file.value, number: $0) }
         for (index, name) in names.enumerated() {
             let nameKey = UsbLayout.collisionKey(name)
-            let relative = parentSpelling + "/" + name
             var disposition = UsbTrackPlan.Disposition.create
+            var finalName = name
             if let planned = files[parentKey]?[nameKey] {
                 // 같은 음원 파일을 가리키는 곡끼리는 한 파일을 함께 쓴다.
                 guard let source = candidate.sourcePath, planned.source == source else { continue }
                 disposition = .reuse
+                finalName = planned.name
             } else if existing?.usedCollisionKeys[parentKey]?.contains(nameKey) == true {
-                guard request.sameContent(candidate.localContentID, relative) else { continue }
+                // USB에 있는 파일은 그 철자로 가리킨다. 기기가 대소문자를 가려 찾는지 확인하지 않았으니 철자가 다르면 규칙에 싣는다.
+                let onDisk = existing?.folderSpelling[parentKey + "/" + nameKey].flatMap { $0.split(separator: "/").last.map(String.init) }
+                    ?? name
+                guard request.sameContent(candidate.localContentID, parentSpelling + "/" + onDisk) else { continue }
                 disposition = .reuse
+                finalName = onDisk
+                if UsbLayout.nfc(onDisk) != name { rules.insert(.pathCollision) }
             }
             if index > 0 { rules.insert(.pathCollision) }
-            let finalName = disposition == .reuse ? (files[parentKey]?[nameKey]?.name ?? name) : name
             return ResolvedPath(folders: chain, directoryKey: parentKey, contentsPath: UsbLayout.nfc("/" + parentSpelling + "/" + finalName),
                                 fileName: UsbLayout.nfc(finalName), disposition: disposition, source: candidate.sourcePath, rules: rules)
         }
