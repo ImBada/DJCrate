@@ -80,8 +80,9 @@ struct ZoomPointerTests {
     /// 8초가 왼쪽 끝, 1초 = 100pt
     let xOf = { (t: Double) in CGFloat((t - 8) * 100) }
 
-    func target(_ x: CGFloat, suggestions: [Double] = [12], gridEditing: Bool = false, cues: [EditableCue]? = nil) -> ZoomPointerTarget {
-        ZoomPointerTarget.at(x: x, cues: cues ?? [cue], suggestions: suggestions, gridEditing: gridEditing, xOf: xOf)
+    /// 그리드 편집 여부는 받지 않는다: 그리드 편집 중에도 파형 끌기는 스크럽·큐 끌기다(#117).
+    func target(_ x: CGFloat, suggestions: [Double] = [12], cues: [EditableCue]? = nil) -> ZoomPointerTarget {
+        ZoomPointerTarget.at(x: x, cues: cues ?? [cue], suggestions: suggestions, xOf: xOf)
     }
 
     @Test func 큐_선은_7pt_제안은_11pt_안이면_잡힌다() {
@@ -91,22 +92,18 @@ struct ZoomPointerTests {
         #expect(target(412) == .empty)
     }
 
-    @Test func 큐가_제안보다_먼저_그리드_편집은_어디서나() {
+    @Test func 큐가_제안보다_먼저() {
         let onSuggestion = EditableCue(kind: .hot(1), time: 12.02)
         #expect(target(400, cues: [cue, onSuggestion]) == .cue(onSuggestion.id))
-        #expect(target(205, gridEditing: true) == .grid)
-        #expect(target(50, gridEditing: true) == .grid)
     }
 
     @Test func 포인터_모양() {
         #expect(ZoomPointerTarget.pointer(hover: .empty, drag: nil) == .grabIdle)
         #expect(ZoomPointerTarget.pointer(hover: .cue(cue.id), drag: nil) == .columnResize)
-        #expect(ZoomPointerTarget.pointer(hover: .grid, drag: nil) == .columnResize)
         #expect(ZoomPointerTarget.pointer(hover: .suggestion(12), drag: nil) == .arrow)
         #expect(ZoomPointerTarget.pointer(hover: .cue(cue.id), drag: .empty) == .grabActive, "끄는 중에는 끌기 시작한 대상을 따른다")
         #expect(ZoomPointerTarget.pointer(hover: .empty, drag: .suggestion(12)) == .grabActive)
         #expect(ZoomPointerTarget.pointer(hover: .empty, drag: .cue(cue.id)) == .columnResize)
-        #expect(ZoomPointerTarget.pointer(hover: .empty, drag: .grid) == .columnResize)
     }
 }
 
