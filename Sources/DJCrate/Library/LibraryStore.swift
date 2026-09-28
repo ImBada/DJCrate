@@ -235,7 +235,8 @@ final class LibraryStore {
     var draftCueCounts: [String: CueCounts] = [:]
     var draftPreviewCues: [String: [PreviewCueMark]] = [:]
 
-    /// 큐·그리드·게인·태그 초안이 있는 곡(태그도 반영하면 rekordbox 곡 정보에 쓴다)
+    /// 큐·그리드·게인·태그 초안이 있는 곡(태그도 반영하면 rekordbox 곡 정보에 쓴다).
+    /// 부를 때마다 합집합을 새로 만든다. 곡마다 거를 때는 한 번 받아 두고 쓴다(#129: 초안 600곡이면 곡을 고를 때마다 수백 ms였다).
     var pendingUUIDs: Set<String> { cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys)
         .union(mergeDrafts.flatMap { $0.members.map(\.trackUUID) }) }
     /// 반영 대기 중인 rekordbox 곡 수(추가한 곡 제외)
@@ -345,7 +346,9 @@ final class LibraryStore {
                 return row
             }
         case .staged: base = stagedRows
-        case .pending: base = rows.filter { pendingUUIDs.contains($0.track.uuid) }
+        case .pending:
+            let pending = pendingUUIDs
+            base = rows.filter { pending.contains($0.track.uuid) }
         case .duplicates:
             var seen = Set<String>()
             base = duplicateGroups.flatMap(\.tracks).compactMap { member in

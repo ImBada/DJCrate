@@ -8,14 +8,16 @@ import Foundation
 extension LibraryStore {
     /// 툴바 버튼의 대상: 선택한 곡 중 초안이 있는 곡, 없으면 반영 대기 곡 전체.
     var reflectionTargets: [TrackRow] {
-        let selected = selectedRows.filter { !$0.isStaged && pendingUUIDs.contains($0.track.uuid) }
+        let pending = pendingUUIDs
+        let selected = selectedRows.filter { !$0.isStaged && pending.contains($0.track.uuid) }
         if !selected.isEmpty { return selected }
-        return rows.filter { pendingUUIDs.contains($0.track.uuid) }
+        return rows.filter { pending.contains($0.track.uuid) }
     }
 
     /// 곡마다 반영 계획을 만든다(초안이 없는 곡은 대상이 아니다).
     func reflectionPlans(for rows: [TrackRow]) -> [Reflection.Plan] {
-        rows.filter { !$0.isStaged && pendingUUIDs.contains($0.track.uuid) }.map { row in
+        let pending = pendingUUIDs
+        return rows.filter { !$0.isStaged && pending.contains($0.track.uuid) }.map { row in
             Reflection.plan(track: row.track, rawCues: row.cues,
                             cueDraft: CueDraftStore.load(trackUUID: row.track.uuid),
                             gridDraft: GridDraftStore.load(trackUUID: row.track.uuid))

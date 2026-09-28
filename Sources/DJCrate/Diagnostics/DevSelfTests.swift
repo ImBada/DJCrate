@@ -23,6 +23,7 @@ enum DevSelfTests {
         runTrackSelfTestIfRequested(store: store)
         runLoopSelfTestIfRequested(deck: deck)
         runScrollPerfIfRequested(deck: deck)
+        UIPerfSelfTest.runIfRequested(store: store, deck: deck)
         runLoopAudioSelfTestIfRequested()
         runHotCueClickSelfTestIfRequested(store: store, deck: deck)
         runPausedHotCueSelfTestIfRequested(store: store, deck: deck)
@@ -290,7 +291,7 @@ enum DevSelfTests {
 
     /// 개발용: 재생 중에 곡 목록을 스크롤할 때 파형 갱신이 끊기는지 잰다(`--scroll-perf`).
     static func runScrollPerfIfRequested(deck: DeckModel) {
-        guard PerfProbe.enabled else { return }
+        guard ProcessInfo.processInfo.arguments.contains("--scroll-perf") else { return }
         func log(_ text: String) { FileHandle.standardError.write(Data("[스크롤 성능] \(text)\n".utf8)) }
         Task {
             let args = ProcessInfo.processInfo.arguments
