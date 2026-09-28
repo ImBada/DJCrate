@@ -100,4 +100,23 @@ struct UsbPdbLabTests {
         ])
         #expect(UsbExportLab.pdbVerifySummary(report) == "export 머리 1/1 + 데이터 쪽 0/1개 바이트 같음(쪽 번호·next·seq는 원본 값)")
     }
+
+    /// 다시 만들지 못한 쪽은 이유를 찍는다(행이 쪽에 들어가지 않으면 행 크기도)
+    @Test func verifyLinesNameRebuildFailure() {
+        let report = PdbPageCheck.Report(
+            kind: .export, pageCount: 4,
+            compared: [
+                PdbPageCheck.Page(number: 2, category: .data, table: "genres", firstDifference: -1,
+                                  rows: [PdbPageCheck.RowDifference(slot: 0, originalSize: 208, rebuiltSize: 408, firstDifference: 0x004)],
+                                  rebuildFailure: .rowsDoNotFit),
+                PdbPageCheck.Page(number: 3, category: .data, table: "labels", firstDifference: -1, rebuildFailure: .rowUnreadable),
+            ],
+            excluded: [])
+        let lines = UsbExportLab.pdbVerifyLines(report)
+        #expect(Array(lines.dropFirst(2)) == [
+            "  다른 쪽 2 data genres 행을 다시 만들지 못함(다시 만든 행이 한 쪽에 들어가지 않음)",
+            "    자리 0: 크기 208 → 408, 행 안 처음 다른 자리 0x004",
+            "  다른 쪽 3 data labels 행을 다시 만들지 못함(행 해석 실패)",
+        ])
+    }
 }

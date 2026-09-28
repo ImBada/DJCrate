@@ -56,7 +56,7 @@ public enum PdbWriter {
             guard fileTypeMatchesExtension(track) else { throw refused("pdbFileTypeMismatch", scope: scope) }
             let (row, kinds) = try encoding(scope) { try PdbRowEncoder.track(track) }
             if !row.rules.isEmpty { rulesByTrack[track.id] = row.rules }
-            extras[track.id] = observedExtras(kinds)
+            extras[track.id] = observedExtras(kinds, flagStrings: PdbRowEncoder.trackFlagStrings(track))
             return try fitting(row, scope)
         }
         func rows<Row>(_ values: [Row], sortedBy less: (Row, Row) -> Bool, _ encode: (Row) throws -> PdbEncodedRow) throws -> [PdbEncodedRow] {
@@ -183,11 +183,12 @@ public enum PdbWriter {
 
     // MARK: - 쓴 모델
 
-    /// 작성기가 쓰는 트랙 행 관찰값(뜻 모를 문자열은 모두 빈 값)
-    static func observedExtras(_ kinds: [PdbStringKind]) -> UsbPdbTrackExtras {
+    /// 작성기가 쓰는 트랙 행 관찰값(뜻 모를 문자열은 모두 빈 값, 참·거짓 문자열은 곡마다 "ON"·'')
+    static func observedExtras(_ kinds: [PdbStringKind], flagStrings: [Int: String] = [:]) -> UsbPdbTrackExtras {
         UsbPdbTrackExtras(subtype: UInt16(PdbRowEncoder.trackSubtype), bitmask: UInt32(PdbRowEncoder.trackBitmask),
                           u5: UInt16(PdbRowEncoder.trackU5), u7: UInt16(PdbRowEncoder.trackU7),
-                          unknownStrings: Dictionary(uniqueKeysWithValues: PdbRows.trackUnknownStrings.map { ($0, "") }), stringKinds: kinds)
+                          unknownStrings: Dictionary(uniqueKeysWithValues: PdbRows.trackUnknownStrings.map { ($0, "") }), stringKinds: kinds,
+                          flagStrings: flagStrings)
     }
 
     static func written(_ model: UsbLibrary, date: String, extras: [Int: UsbPdbTrackExtras]) -> UsbLibrary {

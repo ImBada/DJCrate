@@ -75,6 +75,11 @@ struct PdbLayout {
         page.used + row.bytes.count + PdbPage.indexSize(slots: page.rows.count + 1) <= PdbRowSize.pageCapacity
     }
 
+    /// 행이 모두 빈 쪽 하나에 들어가는지: 행 크기 합 + 행 인덱스 ≤ 4056(`dataPage`를 부르기 전에 확인한다)
+    static func fitsOnePage(_ rows: [PdbEncodedRow]) -> Bool {
+        rows.reduce(0) { $0 + $1.bytes.count } + PdbPage.indexSize(slots: rows.count) <= PdbRowSize.pageCapacity
+    }
+
     /// `rows`: 표 번호 → 행(쪽 안 자리 순서). 행은 모두 빈 쪽 하나에 들어가야 한다.
     init(kind: PdbFileKind, rows: [Int: [PdbEncodedRow]]) {
         precondition(rows.allSatisfy { $0.value.isEmpty || Self.insertOrder(kind).contains($0.key) }, "넣는 순서에 없는 표")
@@ -213,8 +218,10 @@ struct PdbLayout {
         return page.data
     }
 
-    /// 데이터 쪽: flags 0x24, 행 수 묶음 nro + (nr << 13), free·used, 모양대로 0x20·0x22, 힙과 쪽 끝의 행 인덱스
+    /// 데이터 쪽: flags 0x24, 행 수 묶음 nro + (nr << 13), free·used, 모양대로 0x20·0x22, 힙과 쪽 끝의 행 인덱스.
+    /// 행은 한 쪽에 들어가야 한다(`fitsOnePage`)
     static func dataPage(number: UInt32, type: UInt32, next: UInt32, sequence: UInt32, rows: [PdbEncodedRow], shape: PdbPageShape) -> Data {
+        precondition(fitsOnePage(rows), "한 쪽에 들어가지 않는 행")
         var page = PdbPageBytes()
         let count = rows.count, used = rows.reduce(0) { $0 + $1.bytes.count }
         page.u32(number, at: 0x04)

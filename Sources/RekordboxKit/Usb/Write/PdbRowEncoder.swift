@@ -157,12 +157,22 @@ enum PdbRowEncoder {
     static func trackStrings(_ track: UsbTrack) -> [PdbStringEncoder.Encoded] {
         let values: [String] = [
             track.isrc, track.lyricist, track.informationUpdateCount, track.analysisDataUpdateCount, track.cueUpdateCount, "",
-            track.kuvoDeliver ? "ON" : "", track.hotCueAutoLoad ? "ON" : "", "", "", track.dateCreated, track.releaseDate, track.subtitle, "",
+            flagString(track.kuvoDeliver), flagString(track.hotCueAutoLoad), "", "", track.dateCreated, track.releaseDate, track.subtitle, "",
             track.analysisDataPath, track.dateAdded, track.comment, track.title, "", track.fileName, track.path,
         ]
         return values.enumerated().map { index, value in
             index == 0 ? PdbStringEncoder.encodedISRC(value) : PdbStringEncoder.encoded(value)
         }
+    }
+
+    /// 참·거짓 문자열(트랙 문자열 6·7): 참 "ON", 거짓 ''
+    static func flagString(_ on: Bool) -> String {
+        on ? "ON" : ""
+    }
+
+    /// 작성기가 쓰는 참·거짓 문자열 칸 → 값(`UsbPdbTrackExtras.flagStrings`와 같은 모양)
+    static func trackFlagStrings(_ track: UsbTrack) -> [Int: String] {
+        [6: flagString(track.kuvoDeliver), 7: flagString(track.hotCueAutoLoad)]
     }
 
     static func trackSize(_ strings: [PdbStringEncoder.Encoded]) -> Int {

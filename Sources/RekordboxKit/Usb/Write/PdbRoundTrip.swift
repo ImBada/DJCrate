@@ -5,7 +5,7 @@ import Foundation
 /// 작성기가 이 파일의 모든 알려진 칸을 다시 만들 수 있을 때만 통과한다.
 public enum PdbRoundTrip {
     /// 읽기(`PdbReader`) → 모델 → 쓰기 → 다시 읽기. 알려진 표의 칸이 같고 상수 칸(bitmask 0x000C0700, u5 0x29, u7 3, 빈 문자열 칸 5·8·9·13·18)이
-    /// 관찰값과 같아야 통과. 칸 비교는 `UsbLibraryDiff.Options(formats: [.deviceLibrary])`로 한다.
+    /// 관찰값과 같고 참·거짓 문자열 칸 6·7이 "ON"·''여야 통과. 칸 비교는 `UsbLibraryDiff.Options(formats: [.deviceLibrary])`로 한다.
     /// 문제는 영어 고정 표기(표·id·칸 이름·수)만 넣고 글자 값은 넣지 않는다. 빈 배열 = 통과.
     /// - 원본의 구조 문제·먼 오프셋 행, 작성기가 막는 행(기록·모르는 표·My Tag 연결 등)도 문제로 남긴다.
     /// - 지운 행 id(`deadIDs`)는 다시 쓰면 사라지는 것이 정상이라 비교하지 않는다(ID를 다시 쓰지 않게 지키는 것은 편집 쪽 몫).
@@ -28,7 +28,8 @@ public enum PdbRoundTrip {
         return problems + differences.map { "\($0.table) \($0.key) \($0.field)" }
     }
 
-    /// 트랙 행 상수 칸이 작성기가 쓰는 관찰값과 다른 곡
+    /// 트랙 행 상수 칸이 작성기가 쓰는 관찰값과 다른 곡.
+    /// 문자열 6·7은 모델이 참·거짓만 들고 있어 "ON"·''가 아닌 값은 모델이 같아도 다시 쓰면 바뀐다
     /// rekordbox 7.2.18 골든 관찰(2026-09-26 내보내기)
     static func constantProblems(_ model: UsbLibrary) -> [String] {
         let observed = PdbWriter.observedExtras([])
@@ -40,6 +41,10 @@ public enum PdbRoundTrip {
             if extras.u7 != observed.u7 { problems.append("content \(id) u7 \(extras.u7)") }
             for (index, value) in extras.unknownStrings.sorted(by: { $0.key < $1.key }) where !value.isEmpty {
                 problems.append("content \(id) unknownString\(index) not empty")
+            }
+            for (index, value) in extras.flagStrings.sorted(by: { $0.key < $1.key })
+            where value != PdbRowEncoder.flagString(true) && value != PdbRowEncoder.flagString(false) {
+                problems.append("content \(id) string\(index) not ON or empty")
             }
         }
         return problems

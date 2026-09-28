@@ -254,8 +254,10 @@ enum UsbExportLab {
             guard !pages.isEmpty else { continue }
             lines.append("  뺀 쪽(\(label)) \(pages.count): " + pages.map(String.init).joined(separator: ","))
         }
+        let failures: [PdbPageCheck.RebuildFailure: String] = [.rowUnreadable: "행 해석 실패", .rowsDoNotFit: "다시 만든 행이 한 쪽에 들어가지 않음"]
         for page in report.compared where !page.isSame {
-            let offset = page.firstDifference.map { $0 < 0 ? "행을 다시 만들지 못함" : String(format: "오프셋 0x%03X", $0) } ?? ""
+            let failure = page.rebuildFailure.flatMap { failures[$0] }.map { "(\($0))" } ?? ""
+            let offset = page.firstDifference.map { $0 < 0 ? "행을 다시 만들지 못함\(failure)" : String(format: "오프셋 0x%03X", $0) } ?? ""
             lines.append("  다른 쪽 \(page.number) \(page.category.rawValue) \(page.table.isEmpty ? "-" : page.table) \(offset)")
             for row in page.rows {
                 lines.append("    자리 \(row.slot): 크기 \(row.originalSize) → \(row.rebuiltSize), 행 안 처음 다른 자리 "

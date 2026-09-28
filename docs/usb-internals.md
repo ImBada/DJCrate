@@ -294,7 +294,7 @@ tracks(subtype 0x0024, 16비트 문자열 오프셋):
 
 - id 칸 0은 "없음"(nil)이다. play_count·rating은 기기 칸(`deviceFields[.deviceLibrary]`)에도 넣는다.
 - 문자열 21개: 0 ISRC(특수형) → isrc, 1 작사가 → lyricist, 2·3·4 정보·분석·큐 갱신 횟수 → informationUpdateCount·analysisDataUpdateCount·cueUpdateCount, 5 message, 6 kuvo_public("ON" → kuvoDeliver), 7 autoload_hotcues("ON" → hotCueAutoLoad), 8·9 모름, 10 dateCreated, 11 releaseDate, 12 mix_name → subtitle, 13 모름, 14 분석 파일 경로 → analysisDataPath, 15 dateAdded, 16 comment, 17 title, 18 모름, 19 파일 이름 → fileName, 20 파일 경로 → path.
-- 뜻 모를 문자열(5·8·9·13·18)의 값과 문자열 21개의 모양은 `UsbPdbTrackExtras`에 남긴다(다시 쓸 때 비어 있지 않은 값을 잃지 않게).
+- 뜻 모를 문자열(5·8·9·13·18)의 값, 참·거짓 문자열(6·7)의 원래 값, 문자열 21개의 모양은 `UsbPdbTrackExtras`에 남긴다(다시 쓸 때 비어 있지 않은 값이나 "ON"·''가 아닌 값을 잃지 않게).
 - OneLibrary에만 있는 칸(titleForSearch, lyricistArtistID, kuvoDeliveryComment 등)은 Device Library 리더의 기본값으로 둔다(§2.6).
 
 ### 3.6 exportExt.pdb 표
@@ -376,13 +376,13 @@ next_unused = next
 
 **쓴 모델과 확인**: `PdbFiles.written`은 입력 투영에 작성기가 정하는 칸(트랙 행 관찰값, 표 19 곡 수·날짜·버전·두 번째 문자열, 기기 칸의 평점·재생 수, Disable, 폴더 여부, 0인 참조 → nil, Device Library 경로가 없는 아트워크는 뺌)을 채운 모델이다. 쓴 두 파일을 다시 읽은 모델은 이것과 `UsbLibraryDiff`(formats: [.deviceLibrary]) 차이가 0이어야 한다. Device Library에서 읽은 모델을 쓰면 입력의 투영과 같다.
 
-**왕복 검사**(`PdbRoundTrip.check`): 고쳐 쓰기 전에 읽기 → 모델 → 쓰기(편집 모드) → 다시 읽기를 해, 알려진 표의 칸이 모두 같고 트랙 상수 칸이 관찰값이어야 통과한다(빈 배열). 원본의 구조 문제·먼 모양 행, 작성기가 막는 행, 쓰지 않는 문자열 모양(긴 ASCII 0x40 등)도 문제로 남긴다. 지운 행 id는 다시 쓰면 사라지는 것이 정상이라 비교하지 않는다(지운 ID를 다시 쓰지 않게 지키는 것은 편집 쪽 몫).
+**왕복 검사**(`PdbRoundTrip.check`): 고쳐 쓰기 전에 읽기 → 모델 → 쓰기(편집 모드) → 다시 읽기를 해, 알려진 표의 칸이 모두 같고 트랙 상수 칸이 관찰값이어야 통과한다(빈 배열). 원본의 구조 문제·먼 모양 행, 작성기가 막는 행, 쓰지 않는 문자열 모양(긴 ASCII 0x40 등)도 문제로 남긴다. 트랙 문자열 6·7(kuvo 공개·핫큐 자동 불러오기)은 "ON"만 참으로 읽고 작성기는 "ON"·''만 쓰므로, 읽기가 원래 값을 `UsbPdbTrackExtras.flagStrings`에 남기고 둘 중 어느 것도 아닌 값이 든 곡을 문제로 남긴다(모델은 같아도 다시 쓰면 바뀐다). 지운 행 id는 다시 쓰면 사라지는 것이 정상이라 비교하지 않는다(지운 ID를 다시 쓰지 않게 지키는 것은 편집 쪽 몫).
 
 **v1에 없는 것**: 먼 오프셋 모양 행(0x0064·0x0084·0x0684), 긴 ASCII(0x40), 기기 기록 표(11·12)의 행, My Tag 연결(tag_tracks), 모르는 표의 행, 제자리 수정(지운 행·지운 쪽 목록).
 
 **실험 명령**
 
-- `djc lab pdb-verify <USB 폴더>`: 두 pdb를 사본으로 떠서 쪽마다 칸 값만으로 다시 만들어 바이트를 비교한다(쪽 번호·next·순번·행 자리 순서는 원본 값). 제자리 수정 이력이 있는 쪽은 뺀다: 지운 행이 있는 데이터 쪽, 지운 쪽 목록이 있는 인덱스 쪽, 지운 행은 없지만 0x20·0x22가 그 표의 쓰기 모양(한 번에 씀 = (자리 수, 0), 덧붙임 = (1, 마지막 자리), 행 하나면 (1, 0))과 다른 데이터 쪽(rekordbox가 제자리에서 고친 행은 할당 크기가 이 규칙보다 클 수 있다. 읽기는 문제없다). 다른 쪽은 쪽 번호·처음 다른 오프셋과 행마다 할당 크기만 찍는다.
+- `djc lab pdb-verify <USB 폴더>`: 두 pdb를 사본으로 떠서 쪽마다 칸 값만으로 다시 만들어 바이트를 비교한다(쪽 번호·next·순번·행 자리 순서는 원본 값). 제자리 수정 이력이 있는 쪽은 뺀다: 지운 행이 있는 데이터 쪽, 지운 쪽 목록이 있는 인덱스 쪽, 지운 행은 없지만 0x20·0x22가 그 표의 쓰기 모양(한 번에 씀 = (자리 수, 0), 덧붙임 = (1, 마지막 자리), 행 하나면 (1, 0))과 다른 데이터 쪽(rekordbox가 제자리에서 고친 행은 할당 크기가 이 규칙보다 클 수 있다. 읽기는 문제없다). 다른 쪽은 쪽 번호·처음 다른 오프셋과 행마다 할당 크기만 찍는다. 행을 해석하지 못하거나 다시 만든 행이 원본보다 커서 한 쪽에 들어가지 않으면(긴 ASCII 0x40 → UTF-16 등) 쪽을 만들지 않고 "행을 다시 만들지 못함"과 이유를 찍는다(들어가지 않을 때는 행마다 크기도).
 - `djc lab pdb-export --db <사본> --share <share> (--playlist <ID> | --tracks <ID,…>) --out <폴더> [--snapshot-time <ISO 8601>]`: 로컬 사본으로 두 형식 모델을 만들어 `<폴더>/PIONEER/rekordbox/export.pdb`·`exportExt.pdb`만 쓰고, 다시 읽기 차이·왕복 문제 수를 찍는다. 골든과는 `djc lab usb-diff --device-library`로 비교한다.
 
 ## 4. ANLZ 변환

@@ -4,10 +4,19 @@ import Foundation
 /// 있는 Device Library 파일의 쪽을 칸 값만으로 다시 만들어 바이트를 비교한다(작성기 규칙 확인용, `djc lab pdb-verify`).
 /// 쪽 번호·next·순번·행 자리 순서는 원본 값을 쓰고, 파일 머리·쪽 머리·행·행 인덱스는 작성기 규칙으로 만든다.
 /// 제자리 수정 이력이 있는 쪽(지운 행이 있는 데이터 쪽, 0x20·0x22가 한 번에 씀·덧붙임 모양이 아닌 데이터 쪽,
-/// 지운 쪽 목록이 있는 인덱스 쪽)은 대상에서 뺀다.
+/// 지운 쪽 목록이 있는 인덱스 쪽)은 대상에서 뺀다. 행을 해석하지 못하거나 다시 만든 행이 한 쪽에 들어가지 않는 데이터 쪽은
+/// 쪽을 만들지 않고 이유와 함께 다른 쪽으로 남긴다.
 public enum PdbPageCheck {
     public enum Category: String, Sendable, CaseIterable {
         case header, index, zero, data
+    }
+
+    /// 데이터 쪽을 다시 만들지 못한 이유
+    public enum RebuildFailure: String, Sendable, Hashable {
+        /// 원본 행을 표 규칙으로 해석하지 못함
+        case rowUnreadable
+        /// 다시 만든 행이 원본보다 커서 한 쪽에 들어가지 않음(긴 ASCII 0x40 → UTF-16 등)
+        case rowsDoNotFit
     }
 
     public struct Page: Sendable, Hashable {
@@ -15,19 +24,22 @@ public enum PdbPageCheck {
         public var category: Category
         /// 표 이름(파일 머리·빈 쪽은 "")
         public var table: String
-        /// 처음 다른 바이트 자리(쪽 시작 기준). nil = 같음, -1 = 행을 다시 만들지 못함
+        /// 처음 다른 바이트 자리(쪽 시작 기준). nil = 같음, -1 = 쪽을 다시 만들지 못함(이유는 `rebuildFailure`)
         public var firstDifference: Int?
         /// 데이터 쪽이 다를 때 다른 행: 자리, 원본 할당 크기, 다시 만든 크기, 행 안 처음 다른 자리
         public var rows: [RowDifference] = []
+        public var rebuildFailure: RebuildFailure?
 
         public var isSame: Bool { firstDifference == nil }
 
-        public init(number: Int, category: Category, table: String, firstDifference: Int?, rows: [RowDifference] = []) {
+        public init(number: Int, category: Category, table: String, firstDifference: Int?, rows: [RowDifference] = [],
+                    rebuildFailure: RebuildFailure? = nil) {
             self.number = number
             self.category = category
             self.table = table
             self.firstDifference = firstDifference
             self.rows = rows
+            self.rebuildFailure = rebuildFailure
         }
     }
 
@@ -88,9 +100,8 @@ public enum PdbPageCheck {
         func original(_ number: Int) -> Data {
             Data(data[(number * PdbPage.size)..<((number + 1) * PdbPage.size)])
         }
-        func compare(_ number: Int, _ category: Category, _ table: String, _ rebuilt: Data?) {
-            let difference = rebuilt.map { firstDifference(original(number), $0) } ?? -1
-            compared.append(Page(number: number, category: category, table: table, firstDifference: difference))
+        func compare(_ number: Int, _ category: Category, _ table: String, _ rebuilt: Data) {
+            compared.append(Page(number: number, category: category, table: table, firstDifference: firstDifference(original(number), rebuilt)))
         }
 
         let header = file.header
@@ -124,11 +135,19 @@ public enum PdbPageCheck {
                 excluded.append(Excluded(number: number, table: table, reason: "inPlaceShape"))
                 continue
             }
-            let rows = try? page.slots.map { try reencode(file.kind, Int(h.type), page.row($0)) }
-            compare(number, .data, table, rows.map {
-                PdbLayout.dataPage(number: h.pageIndex, type: h.type, next: h.nextPage, sequence: h.sequence, rows: $0, shape: shape)
-            })
-            if let rows, !compared[compared.count - 1].isSame {
+            guard let rows = try? page.slots.map({ try reencode(file.kind, Int(h.type), page.row($0)) }) else {
+                compared.append(Page(number: number, category: .data, table: table, firstDifference: -1, rebuildFailure: .rowUnreadable))
+                continue
+            }
+            // 다시 만든 행이 원본보다 크면 한 쪽에 들어가지 않을 수 있다. 쪽은 만들지 않고 행마다 크기만 남긴다
+            guard PdbLayout.fitsOnePage(rows) else {
+                compared.append(Page(number: number, category: .data, table: table, firstDifference: -1, rows: rowDifferences(page, rows),
+                                     rebuildFailure: .rowsDoNotFit))
+                continue
+            }
+            compare(number, .data, table,
+                    PdbLayout.dataPage(number: h.pageIndex, type: h.type, next: h.nextPage, sequence: h.sequence, rows: rows, shape: shape))
+            if !compared[compared.count - 1].isSame {
                 compared[compared.count - 1].rows = rowDifferences(page, rows)
             }
         }

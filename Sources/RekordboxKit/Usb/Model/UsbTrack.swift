@@ -163,14 +163,18 @@ public struct UsbPdbTrackExtras: Sendable, Hashable {
     public var unknownStrings: [Int: String]
     /// 문자열 21개 각각의 모양(번호 순서)
     public var stringKinds: [PdbStringKind]
+    /// 참·거짓 문자열 칸(번호 6 kuvo 공개·7 핫큐 자동 불러오기) → 원래 값. 모델 칸(`kuvoDeliver`·`hotCueAutoLoad`)은 "ON"만 참으로 읽고
+    /// 작성기는 "ON"·''만 쓰므로, 다른 값이면 다시 쓸 때 막도록 그대로 둔다
+    public var flagStrings: [Int: String]
 
     public init(subtype: UInt16 = 0, bitmask: UInt32 = 0, u5: UInt16 = 0, u7: UInt16 = 0, unknownStrings: [Int: String] = [:],
-                stringKinds: [PdbStringKind] = []) {
+                stringKinds: [PdbStringKind] = [], flagStrings: [Int: String] = [:]) {
         self.subtype = subtype
         self.bitmask = bitmask
         self.u5 = u5
         self.u7 = u7
         self.unknownStrings = unknownStrings
         self.stringKinds = stringKinds
+        self.flagStrings = flagStrings
     }
 }

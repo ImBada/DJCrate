@@ -126,6 +126,24 @@ struct PdbRoundTripTests {
         #expect(problems.contains { $0.contains("13") })
     }
 
+    /// 문자열 6·7은 "ON"만 참으로 읽고 작성기는 참을 "ON", 거짓을 ''로 쓴다.
+    /// 다른 값("OFF"·"1")이 든 파일은 모델이 같아도 다시 쓰면 바뀌므로 문제로 남긴다(글자 값은 문제에 넣지 않는다)
+    @Test func roundTripDetectsFlagStringOtherThanOnOrEmpty() throws {
+        var tracks = Self.sampleTracks()
+        tracks[1][.kuvoPublic] = "OFF"
+        tracks[2][.autoloadHotcues] = "1"
+        let (export, ext) = Self.sample { $0.tables[PdbTableType.tracks.rawValue] = tracks.map(PdbBuilder.trackRow) }
+        // 읽기는 원래 값을 남긴다(모델 칸은 거짓)
+        let model = try PdbReader.read(export: export, exportExt: ext).0
+        #expect(model.trackRowExtras[1]?.flagStrings == [6: "ON", 7: "ON"])
+        #expect(model.trackRowExtras[2]?.flagStrings[6] == "OFF" && model.tracks[1].kuvoDeliver == false)
+        let problems = try PdbRoundTrip.check(export: export, exportExt: ext)
+        #expect(problems.contains("content 2 string6 not ON or empty"))
+        #expect(problems.contains("content 3 string7 not ON or empty"))
+        #expect(!problems.contains { $0.hasPrefix("content 1 ") })
+        #expect(!problems.contains { $0.contains("OFF") })
+    }
+
     /// 0x40 긴 ASCII는 쓰지 않는 모양이라 다시 쓰면 모양이 바뀐다
     @Test func roundTripDetectsStringKindDifference() throws {
         var tracks = Self.sampleTracks()
