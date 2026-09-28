@@ -13,6 +13,14 @@ enum UsbExportLab {
                 "--db <사본> --share <share> (--playlist <ID> | --tracks <ID,…>) --out <출력 폴더> [--snapshot-time <ISO 8601>]",
                 "로컬 사본의 곡·목록으로 <출력>/PIONEER/rekordbox/exportLibrary.db만 만든다(음원·분석 파일·다른 형식은 쓰지 않음)",
                 UsbExportLab.export),
+        Command("pdb-verify", "<USB 폴더>",
+                "USB의 export.pdb·exportExt.pdb를 사본으로 떠서 쪽마다 칸 값만으로 다시 만들어 바이트 비교"
+                    + "(쪽 번호·next·순번은 원본 값, 지운 행이 있는 쪽은 뺌, 값은 찍지 않음)",
+                UsbExportLab.pdbVerify),
+        Command("pdb-export",
+                "--db <사본> --share <share> (--playlist <ID> | --tracks <ID,…>) --out <출력 폴더> [--snapshot-time <ISO 8601>]",
+                "로컬 사본의 곡·목록으로 <출력>/PIONEER/rekordbox/export.pdb·exportExt.pdb만 만든다(음원·분석 파일·다른 형식은 쓰지 않음)",
+                UsbExportLab.pdbExport),
     ]
 
     static let clusterSize = 32_768
@@ -125,6 +133,17 @@ enum UsbExportLab {
     // MARK: - onelib-export
 
     static func export(_ args: [String]) async throws {
+        let (model, output) = try plannedModel(args, formats: [.oneLibrary])
+        let target = try database(in: output)
+        try OneLibraryWriter.create(model.library, at: target)
+        let library = model.library
+        print("exportLibrary.db: " + modelCounts(library))
+        printFileKinds(model)
+        print("확인 문제 \(try OneLibraryWriter.verify(target, expected: library).count)")
+    }
+
+    /// 로컬 사본 → 내보내기 계획 → 목표 모델(onelib-export·pdb-export 공통). 계획 줄을 찍는다
+    static func plannedModel(_ args: [String], formats: Set<UsbFormat>) throws -> (model: UsbExportModel, output: String) {
         guard let dbArgument = value(after: "--db", in: args), let shareArgument = value(after: "--share", in: args),
               let outArgument = value(after: "--out", in: args) else { throw UsageError() }
         // 사본은 임시 폴더 아래만 연다(라이브 master.db·DJCrate 스냅샷 폴더는 거부된다). share는 읽기만 해 확인하지 않는다
@@ -148,22 +167,25 @@ enum UsbExportLab {
         }
         let share = URL(filePath: shareArgument)
         let candidates = try UsbExportCandidates.load(database: db, share: share, contentIDs: ids)
-        let formats: Set<UsbFormat> = [.oneLibrary]
         let plan = UsbExportPlanner.plan(UsbExportRequest(
             candidates: candidates, playlists: playlists, existing: nil, formats: formats, naming: IdentifierAnalysisNaming(),
             snapshotTakenAt: snapshot.date, clusterSize: clusterSize))
         print("후보 \(ids.count) · 계획 \(plan.tracks.count)곡 · 목록 \(plan.playlists.count) · 막힘 \(plan.blocked.count)"
             + (plan.blocked.isEmpty ? "" : "(\(UsbPlanLab.counts(plan.blocked.map(\.code))))"))
-
         let model = try UsbLibraryBuilder.build(plan: plan, formats: formats, local: UsbLocalSource(database: db), share: share,
                                                 myTagMasterDBID: UsbLibraryBuilder.randomMyTagMasterDBID(), createdDate: today())
-        let target = try database(in: output)
-        try OneLibraryWriter.create(model.library, at: target)
-        let library = model.library
-        print("exportLibrary.db: 곡 \(library.tracks.count) · artist \(library.artists.count) · album \(library.albums.count) · "
+        return (model, output)
+    }
+
+    /// 표마다 행 수(값은 찍지 않는다)
+    static func modelCounts(_ library: UsbLibrary) -> String {
+        "곡 \(library.tracks.count) · artist \(library.artists.count) · album \(library.albums.count) · "
             + "genre \(library.genres.count) · key \(library.keys.count) · label \(library.labels.count) · color \(library.colors.count) · "
             + "image \(library.images.count) · 목록 \(library.playlists.count) · myTag \(library.myTags.count) · "
-            + "menuItem \(library.menuItems.count) · category \(library.categories.count) · sort \(library.sorts.count)")
+            + "menuItem \(library.menuItems.count) · category \(library.categories.count) · sort \(library.sorts.count)"
+    }
+
+    static func printFileKinds(_ model: UsbExportModel) {
         let kinds = model.files.map { file -> String in
             switch file.kind {
             case .audio: "음원"
@@ -172,7 +194,86 @@ enum UsbExportLab {
             }
         }
         print("파일 작업(옮기지 않음): \(UsbPlanLab.counts(kinds))")
-        print("확인 문제 \(try OneLibraryWriter.verify(target, expected: library).count)")
+    }
+
+    // MARK: - pdb-export
+
+    /// 두 형식 모델(실제 내보내기와 같게)을 만들어 Device Library 두 파일만 쓴다
+    static func pdbExport(_ args: [String]) async throws {
+        let (model, output) = try plannedModel(args, formats: UsbFormat.defaultSet)
+        let files = try PdbWriter.files(model.library, mode: .fresh)
+        let folder = URL(filePath: output).appending(path: (UsbLayout.exportPdb as NSString).deletingLastPathComponent)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try files.export.write(to: URL(filePath: output).appending(path: UsbLayout.exportPdb), options: .withoutOverwriting)
+        try files.exportExt.write(to: URL(filePath: output).appending(path: UsbLayout.exportExtPdb), options: .withoutOverwriting)
+        print("Device Library: " + modelCounts(files.written))
+        printFileKinds(model)
+        print("export.pdb \(files.export.count / PdbPage.size)쪽 · exportExt.pdb \(files.exportExt.count / PdbPage.size)쪽")
+        print("확인 안 된 규칙: " + (files.rules.isEmpty ? "없음" : files.rules.map(\.rawValue).sorted().joined(separator: ", "))
+            + " · 규칙이 붙은 곡 \(files.rulesByTrack.count)")
+        let (reread, report) = try PdbReader.read(export: files.export, exportExt: files.exportExt)
+        let differences = UsbLibraryDiff.compare(reread, files.written, options: .init(formats: [.deviceLibrary])).differences
+        print("다시 읽기: 구조 문제 \(report.issues.count) · 확인 차이 \(differences.count)")
+        print("왕복 문제 \(try PdbRoundTrip.check(export: files.export, exportExt: files.exportExt).count)")
+    }
+
+    // MARK: - pdb-verify
+
+    static func pdbVerify(_ args: [String]) async throws {
+        guard args.count == 2 else { throw UsageError() }
+        let input = try UsbScratchPath.check(args[1], as: .existingDirectory)
+        let work = FileManager.default.temporaryDirectory.appending(path: "djc-pdb-verify-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: work) }
+        let snapshot = try UsbSnapshot.take(root: UsbRoot(URL(filePath: input)), into: work)
+        guard let export = snapshot.exportPdb else {
+            print("입력에 Device Library(export.pdb)가 없다")
+            return
+        }
+        var summaries: [String] = []
+        for url in [snapshot.exportExtPdb, export].compactMap({ $0 }) {
+            let report = try PdbPageCheck.check(try Data(contentsOf: url))
+            pdbVerifyLines(report).forEach { print($0) }
+            summaries.append(pdbVerifySummary(report))
+        }
+        summaries.forEach { print($0) }
+    }
+
+    /// 파일 하나: 분류별 같은 쪽 수, 뺀 쪽, 다른 쪽 번호·오프셋(값은 찍지 않는다)
+    static func pdbVerifyLines(_ report: PdbPageCheck.Report) -> [String] {
+        let same = report.compared.filter(\.isSame).count
+        var lines = ["\(report.kind.fileName) \(same)/\(report.compared.count)쪽 바이트 같음(파일 \(report.pageCount)쪽, 뺀 쪽 \(report.excluded.count))"]
+        let names: [PdbPageCheck.Category: String] = [.header: "머리", .index: "인덱스 쪽", .zero: "빈 쪽", .data: "데이터 쪽"]
+        lines.append("  " + PdbPageCheck.Category.allCases.map { category in
+            let count = report.count(category)
+            return "\(names[category] ?? category.rawValue) \(count.same)/\(count.total)"
+        }.joined(separator: " · "))
+        for reason in ["deadRows", "indexEntries"] {
+            let pages = report.excluded.filter { $0.reason == reason }.map(\.number)
+            guard !pages.isEmpty else { continue }
+            let label = reason == "deadRows" ? "지운 행이 있는 데이터 쪽" : "지운 쪽 목록이 있는 인덱스 쪽"
+            lines.append("  뺀 쪽(\(label)) \(pages.count): " + pages.map(String.init).joined(separator: ","))
+        }
+        for page in report.compared where !page.isSame {
+            let offset = page.firstDifference.map { $0 < 0 ? "행을 다시 만들지 못함" : String(format: "오프셋 0x%03X", $0) } ?? ""
+            lines.append("  다른 쪽 \(page.number) \(page.category.rawValue) \(page.table.isEmpty ? "-" : page.table) \(offset)")
+            for row in page.rows {
+                lines.append("    자리 \(row.slot): 크기 \(row.originalSize) → \(row.rebuiltSize), 행 안 처음 다른 자리 "
+                    + String(format: "0x%03X", row.firstDifference))
+            }
+        }
+        return lines
+    }
+
+    /// 완료 기준 한 줄: exportExt는 파일 전체 쪽, export는 머리 + 데이터 쪽
+    static func pdbVerifySummary(_ report: PdbPageCheck.Report) -> String {
+        switch report.kind {
+        case .exportExt:
+            let same = report.compared.filter(\.isSame).count
+            return "exportExt \(same)/\(report.pageCount)쪽 바이트 같음"
+        case .export:
+            let header = report.count(.header), data = report.count(.data)
+            return "export 머리 \(header.same)/\(header.total) + 데이터 쪽 \(data.same)/\(data.total)개 바이트 같음(쪽 번호·next·seq는 원본 값)"
+        }
     }
 
     /// 오늘(이 Mac의 시간대) "YYYY-MM-DD"
