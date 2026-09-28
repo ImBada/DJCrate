@@ -352,7 +352,8 @@ struct ZoomWaveformView: View {
         for cue in state.cues where !cue.name.isEmpty && cue.time >= start - 1 && cue.time <= end + 1 {
             let x = xOf(cue.time)
             let trailing = x > size.width - 90 * metrics.scale
-            let label = context.resolve(Text(cue.name).font(.system(size: metrics.labelSize, weight: .semibold)).foregroundStyle(Color.white))
+            let label = context.resolve(Text(WaveformAccessibility.cueName(cue)).font(.system(size: metrics.labelSize, weight: .semibold))
+                .foregroundStyle(Color.white))
             names.append((label, trailing ? x - 5 : x + 5, trailing))
         }
         let spans = names.map { name -> (start: Double, end: Double) in

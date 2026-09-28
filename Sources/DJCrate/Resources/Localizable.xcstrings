@@ -1799,6 +1799,22 @@
         }
       }
     },
+    "%@ · 자동" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · Auto"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · 自動"
+          }
+        }
+      }
+    },
     "%@ %.3f초%@" : {
       "localizations" : {
         "en" : {
@@ -5456,6 +5472,22 @@
         }
       }
     },
+    "rekordbox 자동 큐" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox auto cue"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxの自動キュー"
+          }
+        }
+      }
+    },
     "rekordbox 컬렉션에 없는 곡입니다(ContentID %@)" : {
       "localizations" : {
         "en" : {
@@ -5608,6 +5640,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxが終了しているときだけ書き込みます・書き込み前に全体をバックアップ"
+          }
+        }
+      }
+    },
+    "rekordbox가 분석 때 넣은 메모리 큐입니다. 고치면 일반 큐가 됩니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memory cue added by rekordbox during analysis. Editing it makes it a regular cue"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxが解析時に追加したメモリーキューです。編集すると通常のキューになります"
           }
         }
       }
@@ -11512,6 +11560,22 @@
         }
       }
     },
+    "메모리 큐 수(빨강, rekordbox 자동 큐 포함). 자동 큐뿐이면 흐린 글자" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Number of memory cues (red, including rekordbox auto cues). Dimmed if they are all auto cues"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリーキューの数（赤、rekordboxの自動キューを含む）。自動キューだけなら薄い文字"
+          }
+        }
+      }
+    },
     "메모리 큐 제안 보이기(섹션 경계)" : {
       "localizations" : {
         "en" : {
@@ -11624,34 +11688,50 @@
         }
       }
     },
-    "메모리 큐는 곡당 %lld개까지입니다(rekordbox 제한, 자동 큐 포함)" : {
+    "메모리 큐는 rekordbox 자동 큐를 포함해 10개까지입니다. 기존 큐를 앱에서 정리하세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Each track can have up to %lld memory cues (rekordbox limit, including auto cues)"
+            "value" : "Up to 10 Memory Cues are allowed, including rekordbox auto cues. Organize existing cues in the app"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "メモリーキューは1曲につき%lld個までです（rekordboxの制限、自動キューを含む）"
+            "value" : "メモリーキューはrekordboxの自動キューを含めて10個までです。アプリで既存のキューを整理してください"
           }
         }
       }
     },
-    "메모리 큐는 자동 큐를 포함해 10개까지입니다. 기존 큐를 앱에서 정리하세요" : {
+    "메모리 큐는 곡당 %lld개까지입니다(rekordbox 자동 큐 %lld개 포함). 쓰지 않는 메모리 큐를 지운 뒤 찍으세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Up to 10 Memory Cues are allowed, including auto-generated cues. Organize existing cues in the app"
+            "value" : "Each track can have up to %1$lld memory cues (rekordbox auto cues: %2$lld). Delete unused memory cues, then set one"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "メモリーキューは自動キューを含めて10個までです。アプリで既存のキューを整理してください"
+            "value" : "メモリーキューは1曲につき%1$lld個までです（rekordboxの自動キュー%2$lld個を含む）。使わないメモリーキューを削除してから保存してください"
+          }
+        }
+      }
+    },
+    "메모리 큐는 곡당 %lld개까지입니다(rekordbox 제한). 쓰지 않는 메모리 큐를 지운 뒤 찍으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each track can have up to %lld memory cues (rekordbox limit). Delete unused memory cues, then set one"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリーキューは1曲につき%lld個までです（rekordboxの制限）。使わないメモリーキューを削除してから保存してください"
           }
         }
       }
@@ -19134,22 +19214,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キュー・グリッドの下書きをrekordboxにインポートするXMLを作成します。"
-          }
-        }
-      }
-    },
-    "직접 찍은 메모리 큐 수(빨강). rekordbox 자동 큐만 있으면 '자동'" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Number of memory cues you set (red). 'Auto' if there are only rekordbox auto cues"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自分で設定したメモリーキューの数（赤）。rekordboxの自動キューだけなら「自動」"
           }
         }
       }
