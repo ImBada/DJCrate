@@ -188,10 +188,13 @@ extension LibraryStore {
     }
 
     /// 백업 뒤 rekordbox에서 라이브러리가 바뀌었는지(되돌리면 그 변경도 사라진다).
+    /// 명시한 사본으로 연 창은 스냅샷을 뜨지 않으므로 모른다(nil).
     func libraryChangedSince(_ backup: RekordboxWriter.Backup) async -> Bool? {
-        guard let expected = backup.finalUpdateCount else { return nil }
+        guard Self.snapshotTakeAllowed(arguments: launchArguments, environment: launchEnvironment),
+              let expected = backup.finalUpdateCount else { return nil }
+        let take = takeLiveSnapshot
         return try? await Task.detached {
-            let snapshot = try LibrarySnapshot.take()
+            let snapshot = try take(false)
             return try RekordboxWriter.updateCount(of: snapshot) != expected
         }.value
     }

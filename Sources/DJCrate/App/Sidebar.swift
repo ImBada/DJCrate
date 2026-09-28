@@ -60,6 +60,9 @@ struct Sidebar: View {
                         .tag(SidebarItem.history(history.id))
                 }
             }
+            if let usb = store.usb {
+                UsbSidebarSection(usb: usb)
+            }
             if let report = store.report {
                 Section(.ui("현황"), isExpanded: $summaryExpanded) {
                     LabeledContent(.ui("실제 컬렉션"), value: report.liveTracks.formatted())
@@ -175,6 +178,15 @@ struct ListActionBar: View {
                 }
             } else {
                 EmptyView()
+            }
+        case let .usb(target):
+            bar {
+                Label(.ui("USB의 곡·재생 목록은 읽기만 합니다"), systemImage: "lock")
+                    .font(.caption).foregroundStyle(.secondary)
+                if store.usb?.infos[target.volumeKey].map({ $0.consistency.playlistMismatches > 0 }) == true {
+                    Label(.ui("두 형식의 재생 목록 내용이 다릅니다"), systemImage: WarningMark.symbol)
+                        .font(.caption).foregroundStyle(UIColors.warning.color)
+                }
             }
         case .filter(.noBPM):
             bar {

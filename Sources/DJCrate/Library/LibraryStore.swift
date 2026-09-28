@@ -16,6 +16,8 @@ enum SidebarItem: Hashable, Sendable {
     case staged
     /// 큐·그리드 초안이 있어 rekordbox에 반영할 곡
     case pending
+    /// 연결한 USB의 컬렉션·재생 목록(읽기 전용)
+    case usb(UsbSidebarTarget)
 }
 
 @MainActor
@@ -109,7 +111,7 @@ final class LibraryStore {
             // 플레이리스트는 rekordbox 순서가 기본, 필터는 임포트 최신순이 기본.
             suppressRefresh = true
             switch sidebar {
-            case .playlist, .itunesPlaylist, .history, .duplicates, .staged, .pending: sortOrder = []
+            case .playlist, .itunesPlaylist, .history, .duplicates, .staged, .pending, .usb: sortOrder = []
             case .filter:
                 if case .filter = oldValue {} else { sortOrder = [KeyPathComparator(\TrackRow.importedOn, order: .reverse)] }
             }
@@ -121,6 +123,12 @@ final class LibraryStore {
     var playlistTree: [PlaylistOutlineNode] = []
     var iTunesLibrary = SyncedITunesLibrary()
     var isITunesSelection: Bool { if case .itunesPlaylist = sidebar { true } else { false } }
+    /// USB 목록을 보는 중(읽기 전용: 편집·쓰기·끌기·덱 불러오기를 막는다)
+    var isUsbSelection: Bool { if case .usb = sidebar { true } else { false } }
+    /// 사이드바 USB 절(앱이 붙인다. 시험·캡처에서는 없다)
+    var usb: UsbStore? {
+        didSet { usb?.onChange = { [weak self] in self?.usbChanged() } }
+    }
     /// 새 항목의 부모만 펼치고 다른 폴더의 펼침 상태는 유지한다.
     var expandedPlaylistIDs: Set<String> = []
     var playlistIndex: [String: PlaylistOutlineNode] = [:] { didSet { playlistCount = playlistIndex.values.filter { !$0.isFolder }.count } }
@@ -157,6 +165,7 @@ final class LibraryStore {
         case .duplicates: String(ui: "중복 후보")
         case .staged: String(ui: "추가한 곡")
         case .pending: String(ui: "rekordbox 쓰기 대기")
+        case let .usb(target): usb?.title(for: target) ?? "USB"
         }
     }
     var search = "" { didSet { if search != oldValue { refreshFiltered() } } }
@@ -167,6 +176,13 @@ final class LibraryStore {
     var selection: Set<TrackRow.ID> = []
     /// 덱에 곡을 올리거나(nil이면 내리기) 새로 읽은 값으로 맞춘다. 덱과 잇는 곳은 여기 하나다.
     var onLoadToDeck: ((TrackRow?) -> Void)?
+    /// 스냅샷을 새로 읽었을 때(USB 갱신 상태의 로컬 짝짓기 키를 다시 읽는다)
+    @ObservationIgnored var onSnapshotLoaded: ((URL) -> Void)?
+    /// 띄운 인자·환경. 스냅샷을 새로 떠도 되는지(`snapshotTakeAllowed`) 정한다. 시험은 바꿔 넣는다
+    @ObservationIgnored var launchArguments = ProcessInfo.processInfo.arguments
+    @ObservationIgnored var launchEnvironment = ProcessInfo.processInfo.environment
+    /// rekordbox 폴더의 master.db에서 기본 스냅샷 폴더로 사본을 뜬다(`force`). 시험은 라이브를 건드리지 않게 바꿔 넣는다
+    @ObservationIgnored var takeLiveSnapshot: @Sendable (Bool) throws -> URL = { try LibrarySnapshot.take(force: $0) }
     /// 덱에 올린 곡(ContentID, 추가한 곡은 djc- ID). 목록의 덱 표시와 새로 읽을 때 덱을 맞추는 데 쓴다.
     private(set) var deckTrackID: String?
 
@@ -254,9 +270,10 @@ final class LibraryStore {
     }
 
     /// 재생 기록의 반복 행을 함께 골라도 곡 편집·반영 대상은 한 번만 넘긴다.
+    /// USB 곡은 읽기 전용이라 편집·쓰기·재생 목록 대상에 넣지 않는다.
     func uniqueTracks(_ candidates: [TrackRow]) -> [TrackRow] {
         var seen = Set<String>()
-        return candidates.filter { seen.insert($0.track.id).inserted }.map { rowsByID[$0.track.id] ?? $0 }
+        return candidates.filter { !$0.isUsb && seen.insert($0.track.id).inserted }.map { rowsByID[$0.track.id] ?? $0 }
     }
 
     func historyTitle(_ history: RekordboxHistory) -> String {
@@ -277,11 +294,12 @@ final class LibraryStore {
     /// 이 곡을 덱에 올린다(더블클릭·⌘→·오른쪽 클릭·끌어다 놓기). 재생 기록의 반복 행도 컬렉션 곡으로 올린다.
     /// rekordbox에 쓰는 동안은 덱을 바꾸지 않는다.
     func loadToDeck(_ row: TrackRow?) {
-        guard writeLockPolicy.allowsLibraryInteraction, let row else { return }
+        // USB 곡은 아직 덱에 올리지 않는다(덱이 로컬 분석 파일·초안을 기준으로 읽는다)
+        guard writeLockPolicy.allowsLibraryInteraction, let row, !row.isUsb else { return }
         setDeckTrack(rowsByID[row.track.id] ?? row)
     }
 
-    var canLoadSelectionToDeck: Bool { writeLockPolicy.allowsLibraryInteraction && primaryRow != nil }
+    var canLoadSelectionToDeck: Bool { writeLockPolicy.allowsLibraryInteraction && primaryRow.map { !$0.isUsb } == true }
 
     /// 고른 곡 중 표 순서로 첫 곡을 덱에 올린다(⌘→·덱 메뉴).
     func loadSelectionToDeck() {
@@ -333,6 +351,7 @@ final class LibraryStore {
             }
         case .staged: base = stagedRows
         case .pending: base = rows.filter { pendingUUIDs.contains($0.track.uuid) }
+        case let .usb(target): base = usb?.rows(for: target) ?? []
         case .duplicates:
             var seen = Set<String>()
             base = duplicateGroups.flatMap(\.tracks).compactMap { member in
@@ -386,6 +405,16 @@ final class LibraryStore {
         arguments.contains("--db") || environment["DJC_DB"] != nil
     }
 
+    /// 스냅샷을 새로 떠도 되는지. 명시한 사본(`--db`·`DJC_DB`)으로 띄웠는데 사본 rekordbox 폴더(`DJC_REKORDBOX_DIR`)가 없으면 거짓:
+    /// 그때 뜨면 라이브 master.db를 원본으로 읽고 사용자 스냅샷 폴더에 새 사본을 만들고 옛 사본을 정리한다(`DJC_HOME`은 스냅샷을 옮기지 않는다).
+    static func snapshotTakeAllowed(arguments: [String], environment: [String: String]) -> Bool {
+        !(explicitDatabaseRequested(arguments: arguments, environment: environment)
+            && !LibrarySnapshot.hasRekordboxDirectoryOverride(in: environment))
+    }
+
+    /// 스냅샷을 뜨지 않은 이유(`snapshotTakeAllowed`가 거짓일 때)
+    static var snapshotRefusedMessage: String { String(ui: "명시한 사본(--db)으로 연 창에서는 스냅샷을 뜨지 않습니다. --db 없이 다시 여세요") }
+
     /// iTunes 버튼은 명시한 DB를 벗어나지 않는다. 사본 모드에서는 현재 DB 옆 목록만 다시 읽는다.
     func refreshITunesPlaylists(arguments: [String] = ProcessInfo.processInfo.arguments,
                                 environment: [String: String] = ProcessInfo.processInfo.environment) async {
@@ -418,7 +447,8 @@ final class LibraryStore {
     /// 창으로 돌아올 때: 지금 읽은 스냅샷 뒤에 rekordbox가 라이브러리를 바꿨으면 뒤에서 조용히 새로 읽는다.
     /// rekordbox가 켜져 있어도 읽기용 사본(WAL까지 사본 안에서 합침)으로 뜬다. 원본은 읽기만 한다.
     func refreshIfRekordboxChanged() async {
-        guard case .loaded = phase, !isLoading, !isWritingRekordbox, let snapshotURL,
+        guard Self.snapshotTakeAllowed(arguments: launchArguments, environment: launchEnvironment),
+              case .loaded = phase, !isLoading, !isWritingRekordbox, let snapshotURL,
               snapshotURL.deletingLastPathComponent().standardizedFileURL.path == LibrarySnapshot.defaultDirectory.standardizedFileURL.path,
               LibrarySnapshot.changed(since: snapshotURL) else { return }
         FileHandle.standardError.write(Data("rekordbox 라이브러리가 바뀌어 다시 읽습니다\n".utf8))
@@ -435,6 +465,12 @@ final class LibraryStore {
 
     private func takeSnapshotOnce(force: Bool, quiet: Bool) async {
         let hadRows = !rows.isEmpty
+        // 명시한 사본으로 연 창은 라이브에서 새로 뜨지 않는다(지금 라이브러리는 그대로 둔다)
+        guard Self.snapshotTakeAllowed(arguments: launchArguments, environment: launchEnvironment) else {
+            let message = Self.snapshotRefusedMessage
+            if hadRows { lastError = message } else { phase = .failed(message) }
+            return
+        }
         let refreshITunes = !LibrarySnapshot.hasRekordboxDirectoryOverride()
         let explicitDatabase = Self.explicitDatabaseRequested(arguments: ProcessInfo.processInfo.arguments,
                                                               environment: ProcessInfo.processInfo.environment)
@@ -449,7 +485,8 @@ final class LibraryStore {
         let quiet = quiet && hadRows && isLoaded
         if !quiet { phase = .loading(String(ui: "rekordbox DB 스냅샷을 뜨는 중…")) }
         do {
-            let url = try await Task.detached { try LibrarySnapshot.take(force: force) }.value
+            let take = takeLiveSnapshot
+            let url = try await Task.detached { try take(force) }.value
             await load(snapshot: url, quiet: quiet, refreshITunes: refreshITunes, previousITunesSnapshot: previousITunesSnapshot)
         } catch {
             // 이미 라이브러리가 있으면 그대로 두고 오류만 알린다.
@@ -504,6 +541,7 @@ final class LibraryStore {
             histories = loaded.histories
             historyIndex = Dictionary(uniqueKeysWithValues: histories.map { ($0.id, $0) })
             snapshotURL = snapshot
+            onSnapshotLoaded?(snapshot)
             previewRevision += 1
             loadStaged()
             // 기다리는 동안 설정이 바뀌었으면 최신 프리셋으로 맞춘다.
@@ -549,6 +587,12 @@ final class LibraryStore {
     }
 
     // MARK: - 초안 표시
+
+    /// USB 목록·라이브러리가 바뀌었다: 보고 있던 USB 대상이 없어졌으면 라이브러리로 돌아가고, 아니면 줄을 다시 만든다.
+    func usbChanged() {
+        guard case let .usb(target) = sidebar else { return }
+        if usb?.contains(target) == true { refreshBase() } else { sidebar = .filter(.all) }
+    }
 
     /// CLI·외부 편집의 원자적 파일 교체를 확인한다. DB·파형·재생은 다시 불러오지 않는다.
     func refreshExternalDrafts(home: URL = DJCPaths.userData) {

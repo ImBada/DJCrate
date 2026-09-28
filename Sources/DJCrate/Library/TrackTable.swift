@@ -61,7 +61,7 @@ private struct TrackListView: NSViewRepresentable {
                 column.headerCell.attributedStringValue = TrackColumn.draftHeader
                 column.headerCell.setAccessibilityLabel(spec.title)
             }
-            column.isHidden = TrackColumn.hiddenByDefault.contains(spec.id)
+            column.isHidden = TrackColumn.hiddenByDefault.contains(spec.id) || spec.id == TrackColumn.usbSyncID
             table.addTableColumn(column)
         }
         table.menu = context.coordinator.makeMenu()
@@ -138,6 +138,7 @@ private struct TrackListView: NSViewRepresentable {
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         context.coordinator.updateWriteLock(store.isWritingRekordbox)
+        context.coordinator.updateUsbMode(store.isUsbSelection)
         context.coordinator.updateTextScale(context.environment.textScale)
         context.coordinator.updateCommentPreset(store.commentPreset)
         context.coordinator.update(rows: store.displayRows, edited: store.listMarkedUUIDs,
@@ -191,7 +192,19 @@ struct TrackColumn {
                     help: String(ui: "직접 찍은 핫큐 수(초록)")),
         TrackColumn(id: "memoryCues", title: String(ui: "메모리"), width: 50, minWidth: 40, sortKey: "memoryCues", ascendingFirst: false,
                     help: String(ui: "직접 찍은 메모리 큐 수(빨강). 큐가 없으면 주황 '없음', rekordbox 자동 큐만 있으면 '자동'")),
+        TrackColumn(id: usbSyncID, title: String(ui: "갱신 상태"), width: 96, minWidth: 60, sortKey: usbSyncID,
+                    help: String(ui: "로컬 rekordbox 곡과 견준 USB 곡의 상태(USB 목록에서만 보인다)")),
     ]
+
+    /// USB 갱신 상태 칸. USB 목록을 볼 때만 보이고 다른 목록에서는 숨긴다
+    static let usbSyncID = "usbSync"
+
+    /// USB 목록에서 보이는 칸: # 번호·제목·아티스트·BPM·키·갱신 상태. 나머지는 USB에서 읽지 않았거나(큐·그리드·미리 보기)
+    /// 로컬 초안·분류에 쓰는 칸이라 숨긴다
+    static let usbColumns: Set<String> = ["index", "title", "artist", "bpm", "key", usbSyncID]
+
+    /// USB 곡에서 읽지 않은 값의 칸(칸이 보이더라도 비운다 — 큐 없음·자동 같은 표시가 틀린 정보가 된다)
+    static let usbUnreadColumns: Set<String> = ["hotCues", "memoryCues", "tempo"]
 
     /// 처음에 숨기는 칸(머리글 오른쪽 클릭으로 보인다). 태그 칸은 모두 목록에서 바로 고칠 수 있게 두되(#88) 자주 쓰지 않는 칸은 숨긴다.
     static let hiddenByDefault: Set<String> = ["preview", "albumArtist", "composer", "year", "trackNumber"]
@@ -241,6 +254,7 @@ struct TrackColumn {
         case "plays": return KeyPathComparator(\TrackRow.playCount, order: order)
         case "hotCues": return KeyPathComparator(\TrackRow.hotCueCount, order: order)
         case "memoryCues": return KeyPathComparator(\TrackRow.memoryCueCount, order: order)
+        case usbSyncID: return KeyPathComparator(\TrackRow.usbSyncText, order: order)
         default: return nil
         }
     }
@@ -267,6 +281,7 @@ struct TrackColumn {
         case \TrackRow.playCount: "plays"
         case \TrackRow.hotCueCount: "hotCues"
         case \TrackRow.memoryCueCount: "memoryCues"
+        case \TrackRow.usbSyncText: usbSyncID
         default: nil
         }
     }
@@ -289,6 +304,14 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     private var textScale = 1.0
     private var fonts = TrackTextCell.Fonts(scale: 1)
     private var tagRevision = 0
+    /// USB 목록을 보는 중(읽기 전용, 갱신 상태 칸을 보인다). 처음 한 번은 저장된 칸 배치와 무관하게 맞추려고 nil에서 시작한다
+    private var usbMode: Bool?
+    /// USB 목록에 들어가기 전의 칸 숨김 상태와 칸 배치 자동 저장 여부. 나오면 되돌린다
+    private struct SavedLayout {
+        var hidden: [String: Bool]
+        var autosave: Bool
+    }
+    private var usbSavedLayout: SavedLayout?
     /// 표 → 스토어로 선택·정렬을 넘기는 중에는 스토어 → 표 동기화를 건너뛴다(되먹임 방지).
     private var syncing = false
 
@@ -322,14 +345,20 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         guard commentPreset != preset, let table,
               let column = table.tableColumns.first(where: { $0.identifier.rawValue == "class" }) else { return }
         // 강제로 숨긴 상태가 사용자가 고른 열 숨김 설정을 덮지 않게 따로 기억한다.
+        // USB 목록을 보는 중이면 들어가기 전 상태를 기준으로 하고, 바뀐 숨김도 나올 때 돌릴 상태에 둔다.
+        let hidden = usbSavedLayout?.hidden["class"] ?? column.isHidden
         if commentPreset == nil {
-            classHiddenWhenEnabled = store.settings.defaults.object(forKey: SettingKeys.commentClassColumnHidden.name) as? Bool ?? column.isHidden
+            classHiddenWhenEnabled = store.settings.defaults.object(forKey: SettingKeys.commentClassColumnHidden.name) as? Bool ?? hidden
         } else if commentPreset?.rule != nil {
-            classHiddenWhenEnabled = column.isHidden
+            classHiddenWhenEnabled = hidden
         }
         store.settings.set(SettingKeys.commentClassColumnHidden, classHiddenWhenEnabled)
         commentPreset = preset
-        column.isHidden = preset.rule == nil || classHiddenWhenEnabled
+        if usbSavedLayout != nil {
+            usbSavedLayout?.hidden["class"] = preset.rule == nil || classHiddenWhenEnabled
+        } else {
+            column.isHidden = preset.rule == nil || classHiddenWhenEnabled
+        }
         cancelEditing()
         reloadVisible(table)
     }
@@ -501,6 +530,10 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     func menuNeedsUpdate(_ menu: NSMenu) {
         if menu.identifier?.rawValue == "columns" { fillColumnMenu(menu); return }
         menu.removeAllItems()
+        if store.isUsbSelection || menuTargetsIncludeUsb {
+            addReadOnlyItems(to: menu)
+            return
+        }
         let targets = menuTargets()
         // 누른 줄(없으면 고른 첫 줄)을 덱에 올린다(#93). ⌘→는 고른 첫 곡을 올린다.
         let load = NSMenuItem(title: String(ui: "덱에 불러오기"), action: loadMenuRowIndex == nil ? nil : #selector(loadMenuRow),
@@ -542,6 +575,24 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             remove.target = self
             menu.addItem(remove)
         }
+    }
+
+    /// 오른쪽 클릭한 줄·고른 줄에 USB 곡이 있는지(USB 곡은 편집·쓰기 메뉴를 달지 않는다)
+    private var menuTargetsIncludeUsb: Bool {
+        guard let table else { return false }
+        let clicked = table.clickedRow
+        let indexes = clicked >= 0 && !table.selectedRowIndexes.contains(clicked) ? IndexSet(integer: clicked) : table.selectedRowIndexes
+        return indexes.contains { rows.indices.contains($0) && rows[$0].isUsb }
+    }
+
+    /// USB 목록은 읽기 전용: 덱 불러오기도 아직 닫혀 있음을 비활성 항목으로 알린다
+    private func addReadOnlyItems(to menu: NSMenu) {
+        let load = NSMenuItem(title: String(ui: "덱에 불러오기"), action: nil, keyEquivalent: "")
+        load.isEnabled = false
+        menu.addItem(load)
+        let note = NSMenuItem(title: String(ui: "USB 곡은 읽기만 합니다"), action: nil, keyEquivalent: "")
+        note.isEnabled = false
+        menu.addItem(note)
     }
 
     /// 메뉴의 '덱에 불러오기'가 올릴 줄: 오른쪽 클릭한 줄, 없으면 고른 첫 줄.
@@ -598,9 +649,12 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         menu.addItem(.sectionHeader(title: String(ui: "보일 칸")))
         for spec in TrackColumn.all {
             if spec.id == "class", commentPreset?.rule == nil { continue }
+            // 갱신 상태 칸은 USB 목록이 정한다
+            if spec.id == TrackColumn.usbSyncID { continue }
             guard let column = table.tableColumns.first(where: { $0.identifier.rawValue == spec.id }) else { continue }
             let title = spec.title.isEmpty ? String(ui: "앨범 아트") : spec.id == "edited" ? String(ui: "초안 표시") : spec.title == "#" ? String(ui: "# 번호") : spec.title
-            let item = NSMenuItem(title: title, action: #selector(toggleColumn(_:)), keyEquivalent: "")
+            // USB 목록의 칸은 정해져 있다(상태만 보이고 바꾸지 않는다)
+            let item = NSMenuItem(title: title, action: usbMode == true ? nil : #selector(toggleColumn(_:)), keyEquivalent: "")
             item.target = self
             item.state = column.isHidden ? .off : .on
             item.representedObject = spec.id
@@ -609,7 +663,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             menu.addItem(item)
         }
         menu.addItem(.separator())
-        let reset = NSMenuItem(title: String(ui: "모든 칸 보이기"), action: #selector(showAllColumns), keyEquivalent: "")
+        let reset = NSMenuItem(title: String(ui: "모든 칸 보이기"), action: usbMode == true ? nil : #selector(showAllColumns), keyEquivalent: "")
         reset.target = self
         menu.addItem(reset)
     }
@@ -617,15 +671,19 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     @objc private func toggleColumn(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? String,
               let column = table?.tableColumns.first(where: { $0.identifier.rawValue == id }) else { return }
-        guard id != "class" || commentPreset?.rule != nil else { return }
+        guard id != "class" || commentPreset?.rule != nil, usbMode != true else { return }
         finishEditing(commit: true, restoreFocus: true)
         column.isHidden.toggle()
         if id == "class" { store.settings.set(SettingKeys.commentClassColumnHidden, column.isHidden) }
     }
 
     @objc func showAllColumns() {
+        guard usbMode != true else { return }
         finishEditing(commit: true, restoreFocus: true)
-        table?.tableColumns.forEach { $0.isHidden = $0.identifier.rawValue == "class" && commentPreset?.rule == nil }
+        table?.tableColumns.forEach {
+            let id = $0.identifier.rawValue
+            $0.isHidden = (id == "class" && commentPreset?.rule == nil) || id == TrackColumn.usbSyncID
+        }
         if commentPreset?.rule != nil { store.settings.set(SettingKeys.commentClassColumnHidden, false) }
     }
 
@@ -648,9 +706,10 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         switch id {
         case "preview":
             let cell = reuse(tableView, "preview") { PreviewWaveformCell() }
+            // USB 곡은 음원에서 파형을 새로 만들지 않는다(USB를 오래 읽고 로컬 캐시를 채운다)
             cell.configure(url: RekordboxShare.analysisURL(row.track.analysisDataPath),
                            revision: "\(snapshotURL?.absoluteString ?? ""):\(previewRevision)", mode: waveformMode,
-                           audioURL: row.track.isStreaming ? nil : URL(filePath: row.track.folderPath), key: row.track.uuid,
+                           audioURL: row.track.isStreaming || row.isUsb ? nil : URL(filePath: row.track.folderPath), key: row.track.uuid,
                            cues: PerfProbe.previewCuesVisible ? PreviewCueMark.current(saved: row.cues, draft: previewCues[row.track.uuid]) : [],
                            duration: Double(row.track.lengthSeconds))
             return cell
@@ -688,6 +747,10 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     }
 
     private func configure(_ cell: TrackTextCell, column: String, row: TrackRow, index: Int) {
+        if row.isUsb, TrackColumn.usbUnreadColumns.contains(column) {
+            cell.set("", color: .secondaryLabelColor)
+            return
+        }
         if let key = TrackListTagEditing.key(forColumn: column) {
             configureTag(cell, key: key, row: row)
             return
@@ -703,6 +766,10 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         case "key": cell.set(row.keyName, color: .secondaryLabelColor)
         case "length": cell.set(row.lengthText, color: .secondaryLabelColor, digits: true)
         case "format": cell.set(row.formatName, color: .secondaryLabelColor)
+        case TrackColumn.usbSyncID:
+            // 최신이 아니면(갱신 가능·기기에서 고침·로컬에 없음) 주의 색
+            let settled = row.usbSync.map { if case .upToDate = $0 { true } else { false } } ?? true
+            cell.set(row.usbSyncText, color: settled ? .secondaryLabelColor : UIColors.warning.nsColor)
         case "tempo": cell.set(row.tempoChangeText, color: UIColors.tempo.nsColor, digits: true)
         case "imported": cell.set(row.importedOn, color: .secondaryLabelColor, digits: true)
         case "plays": cell.set(row.playCount > 0 ? "\(row.playCount)" : "", color: .labelColor, digits: true)
@@ -754,6 +821,36 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     /// rekordbox에 쓰기 시작하면 고치던 칸을 닫는다(쓰는 동안에는 초안을 바꾸지 않는다).
     func updateWriteLock(_ locked: Bool) {
         if locked { cancelEditing() }
+    }
+
+    /// USB 목록이면 USB 칸(`TrackColumn.usbColumns`)만 보이고 갱신 상태 칸을 키 칸 바로 뒤에 둔다.
+    /// 나오면 들어가기 전 칸 숨김 상태로 돌리고 갱신 상태 칸은 숨긴다. 고치던 칸은 닫는다.
+    func updateUsbMode(_ usb: Bool) {
+        guard usbMode != usb else { return }
+        usbMode = usb
+        cancelPendingEdit()
+        cancelEditing()
+        guard let table else { return }
+        if usb {
+            // USB 목록의 칸 배치가 사용자 칸 배치로 저장되지 않게 자동 저장을 멈춘 뒤 바꾼다(켠 채 앱을 끝내도 로컬 배치가 남게)
+            usbSavedLayout = SavedLayout(hidden: Dictionary(table.tableColumns.map { ($0.identifier.rawValue, $0.isHidden) },
+                                                            uniquingKeysWith: { first, _ in first }),
+                                         autosave: table.autosaveTableColumns)
+            table.autosaveTableColumns = false
+            for column in table.tableColumns { column.isHidden = !TrackColumn.usbColumns.contains(column.identifier.rawValue) }
+            let ids = table.tableColumns.map(\.identifier.rawValue)
+            if let from = ids.firstIndex(of: TrackColumn.usbSyncID), let key = ids.firstIndex(of: "key"), from != key + 1 {
+                table.moveColumn(from, toColumn: from > key ? key + 1 : key)
+            }
+        } else {
+            let saved = usbSavedLayout
+            usbSavedLayout = nil
+            for column in table.tableColumns {
+                let id = column.identifier.rawValue
+                column.isHidden = id == TrackColumn.usbSyncID || (saved?.hidden[id] ?? column.isHidden)
+            }
+            if let saved { table.autosaveTableColumns = saved.autosave }
+        }
     }
 
     private func refreshTagCells(_ table: NSTableView) {
@@ -815,7 +912,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     /// 이미 고른 줄의 태그 칸을 다시 누르면, 더블클릭이 아닌 것을 확인한 뒤(더블클릭 간격) 그 칸을 고친다(Finder 이름 바꾸기처럼).
     func scheduleEdit(row index: Int, column: String, after delay: Duration = .seconds(NSEvent.doubleClickInterval)) {
         cancelPendingEdit()
-        guard TrackListTagEditing.key(forColumn: column) != nil, rows.indices.contains(index) else { return }
+        guard TrackListTagEditing.key(forColumn: column) != nil, rows.indices.contains(index), !rows[index].isUsb else { return }
         let id = rows[index].id
         pendingEdit = Task { [weak self] in
             try? await Task.sleep(for: delay)
@@ -842,7 +939,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     @discardableResult
     func beginEditingSelection() -> Bool {
         guard let table, let column = TrackListTagEditing.firstColumn(in: visibleColumnIDs(table)),
-              let row = table.selectedRowIndexes.first(where: { rows.indices.contains($0) && !rows[$0].track.isStreaming })
+              let row = table.selectedRowIndexes.first(where: { rows.indices.contains($0) && !rows[$0].track.isStreaming && !rows[$0].isUsb })
         else { return false }
         return beginEditing(row: row, column: column)
     }
@@ -850,7 +947,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     /// 칸 자리에 입력 칸을 띄운다. 고른 줄 안이면 고른 곡 모두가 대상이다(인스펙터 여러 곡 편집과 같다).
     @discardableResult
     func beginEditing(row index: Int, column: String) -> Bool {
-        guard inlineEdit == nil, store.writeLockPolicy.allowsLibraryInteraction, let table, rows.indices.contains(index),
+        guard inlineEdit == nil, store.writeLockPolicy.allowsLibraryInteraction, let table, rows.indices.contains(index), !rows[index].isUsb,
               let key = TrackListTagEditing.key(forColumn: column),
               let columnIndex = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == column && !$0.isHidden })
         else { return false }
@@ -1316,7 +1413,8 @@ extension TrackListCoordinator {
     /// 곡을 끌면 ID를 싣는다: 덱 위에 놓아 불러오기(#93), 사이드바 목록에 놓아 넣기, 목록 안에서 순서 바꾸기.
     /// 추가한 곡은 아직 rekordbox에 없어 재생 목록용으로는 싣지 않는다(덱에는 올릴 수 있다).
     func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> (any NSPasteboardWriting)? {
-        guard rows.indices.contains(row), !isEditing else { return nil }
+        // USB 곡은 덱·재생 목록·앱 밖 어디로도 끌지 않는다(읽기 전용)
+        guard rows.indices.contains(row), !isEditing, !rows[row].isUsb else { return nil }
         let item = NSPasteboardItem()
         item.setString(rows[row].track.id, forType: DeckDragType.pasteboard)
         if !rows[row].isStaged { item.setString(rows[row].track.id, forType: PlaylistDragType.pasteboardTracks) }
