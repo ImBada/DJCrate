@@ -6,6 +6,24 @@ rekordbox 7이 USB에 내보내는 라이브러리(OneLibrary·Device Library)�
 
 ## 1. USB 파일 목록
 
+경로는 USB 루트 기준(`UsbLayout`)이다.
+
+| 경로 | 무엇 | DJCrate |
+|---|---|---|
+| `PIONEER/rekordbox/exportLibrary.db` | OneLibrary(§2) | 만든다·고친다 |
+| `PIONEER/rekordbox/export.pdb`·`exportExt.pdb` | Device Library(§3) | 만든다·고친다 |
+| `PIONEER/USBANLZ/P???/????????/ANLZ000N.DAT`·`.EXT`·`.2EX` | 곡마다 분석 파일 셋(§4) | 만든다. 폴더 이름은 §5 "분석 파일(ANLZ) 자리" |
+| `PIONEER/Artwork/%05d/a{id}.jpg`·`a{id}_m.jpg`·`b{id}.jpg`·`b{id}_m.jpg` | 아트워크(a는 Device Library, b는 OneLibrary) | 만든다(§5) |
+| `Contents/…` | 음원 | 복사한다(§5) |
+| `PIONEER/MYSETTING.DAT`·`MYSETTING2.DAT`·`DJMMYSETTING.DAT` | 기기 설정(§6) | 첫 판 내보내기는 만들지 않는다(선택으로 켜는 옮기기만) |
+| `PIONEER/DEVSETTING.DAT` | 기기 설정 | 만들지 않는다(rekordbox 내보내기도 만들지 않음) |
+| `PIONEER/rekordbox/exportLibrary.db-wal`·`-shm`·`-journal` | SQLite 사이드카 | 만들지 않는다. 읽을 때는 사본에서만 정리한다(§2.3) |
+| `.djc-part-*` | DJCrate가 쓰는 도중의 임시 파일 | 쓰기가 끝나면 남지 않는다(§7) |
+| `.fseventsd`·`.Spotlight-V100`·`.Trashes`·`.TemporaryItems`, `._*` | macOS가 만드는 것 | 비교·지문에서 뺀다(`systemIgnored`, AppleDouble) |
+| `PIONEER/extracted/`·`PIONEER/CDP/`·`PIONEER/djprofile.nxs` | 자격 증명·프로필 | **열지 않는다**: 열거·읽기·복사·해시하지 않고, 트리 순회는 이름만 보고 건너뛴다. "있음"도 알리지 않는다(`UsbLayout.neverRead`) |
+
+기기(CDJ·OPUS-QUAD 등)가 만드는 것: 재생 기록(OneLibrary history·history_content, Device Library 표 11·12), OneLibrary cue·recommendedLike·hotCueBankList·hotCueBankList_cue 행, 곡의 기기 칸(rating·재생 횟수·hasModified), 기기가 연 뒤의 롤백 모드 머리와 `-wal`·`-journal`. DJCrate는 이 행을 지우거나 다시 만들지 않는다(§2.10, `carriedDeviceRows`).
+
 ## 2. OneLibrary(exportLibrary.db)
 
 근거: rekordbox 7.2.18 골든(2026-09-26 내보내기) 관찰.
@@ -648,6 +666,35 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 디스크 이미지 강제 분리 시험(`djc lab usb-commit-crash`): 빈 FAT32 틀의 복제본에 합성 묶음을 쓰는 도중 무작위 시점에 강제로 떼고, 다시 붙여 원시 상태를 본 뒤 회복한다. 반복 시험에서 파일마다 옛것 또는 새것이었고, 회복 뒤 트리는 쓰기 전 또는 목표와 같았으며 분리 뒤 Mac 폴더에 쓴 흔적은 없었다.
 
 ## 8. USB 안 수정
+
+### 8.1 읽기 점검(`UsbRead`, `djc usb-info`)
+
+고치기 전, 그리고 앱 사이드바가 USB를 보여 줄 때 USB를 읽기만 해서 무엇이 있는지·건강한지 본다. USB에는 아무것도 쓰지 않는다. 명령과 JSON 모양은 `docs/cli.md`의 "USB 읽기".
+
+1. 볼륨 판정: 대상 경로의 `statfs` 마운트 지점이 Mac 시동 볼륨(`/`·`/System/Volumes/Data`)이 아니면 — 볼륨 맨 위가 아닌 하위 폴더여도 — 그 볼륨(`UsbVolumes.info`)으로 보고 `UsbRead.readRefusal`로 먼저 판정한다. 막히면 사본도 뜨지 않는다.
+   1. 볼륨 UUID가 쓰기 금지 목록에 있음 → `denylisted`(디스크 이미지여도)
+   2. 디스크 이미지 → 읽는다
+   3. 목록 파일이 깨짐(고정 위치·`DJC_HOME` 어느 쪽이든) → `denyListUnreadable`
+   4. 고정 위치 목록이 없거나 항목이 0 → `denyListNotRegistered`. 증거용 USB를 가려낼 수단이 거부 목록뿐이라, 등록 전에는 실물 USB를 읽지 않는다
+   5. 그 밖 → 읽는다. 볼륨 정책 문제(`UsbVolumePolicy`, 내보내기·고치기 각각)를 함께 적는다
+2. 형식: `PIONEER/rekordbox/` 바로 아래 파일 이름만 본다(`exportLibrary.db` → OneLibrary, `export.pdb` → Device Library).
+3. DB: `UsbSnapshot.take`로 Mac 쪽 사본을 떠서(§2.3) 읽고 끝나면 지운다.
+   - OneLibrary: 사이드카(`-wal`·`-journal`) 유무, 머리 모양(wal·rollback), `integrity_check`·`cipher_integrity_check`, 호환 검사(§2.4), 곡·재생 목록·My Tag·기록 수. 사본이 온전하지 않으면 OneLibrary는 읽지 못한 것으로 적고 pdb 둘만 따로 떠서 읽는다.
+   - Device Library: 머리 0x10(두 파일, 5가 아니면 rekordbox가 정상으로 닫지 않은 것), 기록 표 산 행, 모르는 표 산 행, 구조 문제 수(§3.7). 왕복 검사(읽은 모델로 다시 만든 바이트 = 원본)는 아직 하지 않는다.
+4. 두 형식 일치(`UsbLibrary.merge`, §2.6): 곡 ID·경로가 같은지, 다른 재생 목록 수, 고치기를 막는 불일치(`blocksEditing`)가 있는지, 모든 곡의 masterDbId가 한 값인지, 두 형식의 myTagMasterDBID가 같은지. 식별값 자체는 내지 않는다.
+5. 분석 파일: 곡마다 두 DB가 가리키는 경로(같으면 한 번)의 `.DAT`·`.EXT`·`.2EX`가 일반 파일로 있는지, `.DAT` PPTH = 곡 경로(NFC)인지(§4.3), 파일 번호가 0이 아닌지(§5). DB 경로가 열지 않는 경로·링크를 거치면 열지 않고 없는 파일로 센다.
+6. 이 Mac의 rekordbox 버전이 확인한 버전인지(`RekordboxCompatibility.verifiedAppVersions`).
+
+경고 code: `pdbOpenFlag`, `unknownTableRows`, `pdbStructure`, `deviceLibraryUnreadable`, `oneLibrarySidecar`, `oneLibraryUnsupported`, `oneLibraryUnreadable`, `formatMismatch`, `analysisMissing`, `analysisPathMismatch`. 곡마다 파일 번호가 0이 아닌 것, 두 형식의 항목만 다른 재생 목록(rekordbox도 만드는 모양)은 수로만 적고 경고하지 않는다.
+
+### 8.2 실험 도구
+
+- `djc lab usb-diff <A> <B> --files --anlz`: 모델 비교(§2.6)에 더해 파일 트리(NFC 경로·크기·SHA-256, macOS 파일·`._*`·열지 않는 경로 제외)와 분석 파일(PPTH·확장자로 짝지어 태그 목록·태그 바이트)을 비교한다. 경로 대신 묶음 이름(DB·설정·USBANLZ·Artwork·Contents)·곡 id·태그 이름·수만 찍는다. `--ignore-anlz-folder`면 파일 트리에서도 USBANLZ 파일을 (PPTH, 확장자)로 짝짓는다.
+- `djc lab usb-anlz-relocate <USB 사본> --track <id> --folder <P???/????????> [--db-only|--files-only|--decoy-slot0|--cue-variant]`: 기기가 분석 파일을 DB 경로로 찾는지 확인하려고 한 곡을 일부러 어긋나게 만든다. 임시 폴더 아래의 **사본 폴더**에만 쓴다(볼륨 맨 위·링크·임시 폴더 밖·rekordbox 실행 중이면 거부). pdb 분석 경로는 같은 길이 문자열로 제자리 교체하고(길이가 다르면 거부), OneLibrary는 `UPDATE` 뒤 `wal_checkpoint(TRUNCATE)`로 사이드카를 남기지 않는다. 모든 확인을 먼저 하고 하나라도 걸리면 아무것도 바꾸지 않는다.
+  - 기본·`--db-only`: 파일을 새 폴더로 옮기고 두 DB 경로도 옮긴다.
+  - `--files-only`: 파일은 그대로, 두 DB 경로만 같은 길이의 없는 폴더로.
+  - `--cue-variant`: 새 폴더에 파일을 복사하고 그쪽 `.DAT`의 핫큐 A 위치만 바꾼다(인코더로 원래 핫큐 목록을 다시 만든 바이트가 원본과 같을 때만). DB는 새 폴더.
+  - `--decoy-slot0`(`--folder` 없음): 원래 폴더의 `ANLZ0000`은 PPTH만 바꾼 가짜, 진짜는 `ANLZ0001`, DB는 `ANLZ0001.DAT`.
 
 ## 9. 확인 안 된 규칙
 
