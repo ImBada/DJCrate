@@ -62,7 +62,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 | `--metronome-selftest` | 메트로놈 클릭이 빠지지 않는지(실제 엔진으로 12초 재생해 클릭 수를 셈) | — |
 | `--switch-selftest` | 곡 전환·일시정지 뒤 소리 | — |
 | `--scroll-perf` | 재생 중 목록 스크롤 때 프레임 간격 | `--perf-hide=zoom,label,…`로 A/B |
-| `--ui-perf=all` | 조작마다(사이드바·인스펙터 열고 닫기, 창 크기, 스크롤, 선택, 사이드바 항목, 정렬, 검색, 덱에 올리기, 확대·축소, 스크럽, 재생, 태그 시트, 곡 편집 창, 쓰기 미리 보기) 메인 스레드 일한 시간·프레임 간격. `--ui-perf=sidebar,sort`처럼 골라 재고, 조작마다 관심 지점 구간을 남겨 `xctrace` Time Profiler로 원인을 나눠 본다 | `DJC_UI_PERF_FIXTURE=<폴더> swift test --filter UIPerfFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로 |
+| `--ui-perf=all` | 조작마다(사이드바·인스펙터 열고 닫기, 창 크기, 스크롤, 선택, 사이드바 항목, 정렬, 검색, 덱에 올리기, 확대·축소, 스크럽, 재생, 태그 시트, 곡 편집 창, 쓰기 미리 보기) 메인 스레드 일한 시간·프레임 간격. `--ui-perf=sidebar,sort`처럼 골라 재고, 조작마다 관심 지점 구간을 남겨 `xctrace` Time Profiler로 원인을 나눠 본다. `grid`(그리드 일괄 추정 중 메인 스레드)·`drafts`·`capture`는 `all`에 없다. `--ui-perf-delay=<초>`는 조작 전에 기다려 `xctrace record --attach <PID>`를 붙일 시간을 준다 | `DJC_UI_PERF_FIXTURE=<폴더> swift test --filter UIPerfFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로 |
 | `--edit-selftest` | 곡 편집 창: 창 재생기(스페이스바·시킹·이음새 듣기, 덱은 그대로)·넣기·자르기·복제·옮기기·지우기와 편집 메뉴 실행 취소·확대 키·실제 마우스 끌기(클립 끝 다듬기·원곡 구간 끌어 넣기, 앱이 앞에 있을 때만)·렌더·추가한 곡으로 이동·덱에 편집본 | `EditLayoutFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로 |
 
 예: `DJC_HOME=$(mktemp -d) .build/debug/DJCrate --db <스냅샷> --select 32395449 --loop-selftest 2>&1 | grep "루프 시험"`
