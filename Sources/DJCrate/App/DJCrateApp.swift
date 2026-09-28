@@ -33,6 +33,7 @@ struct DJCrateApp: App {
                 .task {
                     appDelegate.store = store
                     NSApplication.shared.activate()
+                    UsbAppSetup.attach(to: store)
                     await store.loadInitial()
                 }
         }

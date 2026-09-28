@@ -981,6 +981,22 @@
         }
       }
     },
+    "%@ · USB 쓰기 대기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · Pending USB Changes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · USB書き込み待ち"
+          }
+        }
+      }
+    },
     "%@ · 쓴 곡 %lld · 막힌 곡 %lld · 백업 %@" : {
       "localizations" : {
         "en" : {
@@ -1031,6 +1047,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@ · 원곡 %2$@–%3$@"
+          }
+        }
+      }
+    },
+    "%@ · 컬렉션" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · Collection"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · コレクション"
           }
         }
       }
@@ -1168,6 +1200,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@を既定のキーに戻す"
+          }
+        }
+      }
+    },
+    "%@ 꺼내기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eject %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@を取り出す"
           }
         }
       }
@@ -3223,6 +3271,22 @@
         }
       }
     },
+    "Device Library만" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device Library only"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device Libraryのみ"
+          }
+        }
+      }
+    },
     "Device Library에 DJCrate가 모르는 표의 행이 있습니다. 고치기 전에 rekordbox로 USB를 다시 내보내세요" : {
       "localizations" : {
         "en" : {
@@ -3940,6 +4004,22 @@
         }
       }
     },
+    "OneLibrary만" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OneLibrary only"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OneLibraryのみ"
+          }
+        }
+      }
+    },
     "OneLibrary에 기기가 쓰다 남긴 파일(-wal·-journal)이 있습니다. 기기에서 USB를 정상적으로 꺼낸 뒤 다시 읽으세요" : {
       "localizations" : {
         "en" : {
@@ -4392,6 +4472,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxのライブラリ（master.db）と解析ファイルの状態が不明です。rekordboxを起動せず、サイドバーの「rekordbox書き込み待ち」を選び、リスト上部の「書き込み前に復元…」からバックアップを復元してください。"
+          }
+        }
+      }
+    },
+    "rekordbox 라이브러리가 없는 FAT32 USB입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FAT32 USB with no rekordbox library"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxライブラリがないFAT32のUSBです"
           }
         }
       }
@@ -6240,6 +6336,38 @@
         }
       }
     },
+    "USB 곡은 읽기만 합니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB tracks are read-only"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの曲は読み込みのみです"
+          }
+        }
+      }
+    },
+    "USB 다시 읽기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reload USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを再読み込み"
+          }
+        }
+      }
+    },
     "USB 라이브러리 사본을 고친 뒤 확인하지 못했습니다. USB를 다시 읽은 뒤 다시 시도하세요" : {
       "localizations" : {
         "en" : {
@@ -6534,6 +6662,38 @@
         }
       }
     },
+    "USB로 내보내기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export to USB…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBにエクスポート…"
+          }
+        }
+      }
+    },
+    "USB로 내보내기는 아직 준비 중입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export to USB isn't available yet"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBへのエクスポートはまだ準備中です"
+          }
+        }
+      }
+    },
     "USB를 MBR·MS-DOS(FAT32)로 포맷한 뒤 다시 시도하세요" : {
       "localizations" : {
         "en" : {
@@ -6562,6 +6722,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBの編集時にDevice Libraryを作り直す方法"
+          }
+        }
+      }
+    },
+    "USB를 꺼내지 못했습니다. 사용 중인 앱을 닫고 Finder에서 꺼내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't eject the USB. Quit apps using it, then eject it in Finder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを取り出せませんでした。使用中のアプリを終了してから、Finderで取り出してください"
+          }
+        }
+      }
+    },
+    "USB를 다시 읽거나 다른 재생 목록을 고르세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reload the USB or choose another playlist."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを再読み込みするか、別のプレイリストを選んでください。"
           }
         }
       }
@@ -6658,6 +6850,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBに終わっていない書き込みの一時ファイルがあります。`djc usb-recover --discard-temp`で削除してから、もう一度お試しください"
+          }
+        }
+      }
+    },
+    "USB에 쓰는 중입니다. 쓰기가 끝난 뒤 꺼내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing to the USB. Eject it after the write finishes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに書き込み中です。書き込みが終わってから取り出してください"
           }
         }
       }
@@ -6888,6 +7096,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBから削除した曲のファイルの整理"
+          }
+        }
+      }
+    },
+    "USB의 곡·재생 목록은 읽기만 합니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks and playlists on the USB are read-only"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの曲・プレイリストは読み込みのみです"
           }
         }
       }
@@ -7464,6 +7688,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同じホットキュースロットにキューが2つ以上あります"
+          }
+        }
+      }
+    },
+    "갱신 가능" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Needs Update"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新あり"
+          }
+        }
+      }
+    },
+    "갱신 상태" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update Status"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新状態"
           }
         }
       }
@@ -9744,6 +10000,22 @@
         }
       }
     },
+    "기기에서 고침" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modified on Device"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "機器で変更"
+          }
+        }
+      }
+    },
     "기록의 곡을 재생 순서대로 보기" : {
       "localizations" : {
         "en" : {
@@ -9948,6 +10220,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "長さ: %lld秒"
+          }
+        }
+      }
+    },
+    "꺼내기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eject"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取り出し"
           }
         }
       }
@@ -11116,6 +11404,22 @@
         }
       }
     },
+    "두 형식의 재생 목록 내용이 다릅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The playlists differ between the two formats"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2つの形式でプレイリストの内容が異なります"
+          }
+        }
+      }
+    },
     "뒤로" : {
       "localizations" : {
         "en" : {
@@ -11682,6 +11986,22 @@
         }
       }
     },
+    "로컬 rekordbox 곡과 견준 USB 곡의 상태(USB 목록에서만 보인다)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status of the USB track compared with the local rekordbox track (USB lists only)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルのrekordboxの曲と比べたUSBの曲の状態（USBの一覧のみ）"
+          }
+        }
+      }
+    },
     "로컬 라이브러리 사본을 뜬 시각을 알 수 없습니다. 스냅샷을 다시 뜨거나 --snapshot-time에 시각을 주세요" : {
       "localizations" : {
         "en" : {
@@ -11774,6 +12094,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ローカルファイルの場所がありません。音源をダウンロードしてから、XMLを書き出し直してください。"
+          }
+        }
+      }
+    },
+    "로컬에 없음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not in Local Library"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルにない"
           }
         }
       }
@@ -12770,6 +13106,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "コマンド引数の数が正しくありません"
+          }
+        }
+      }
+    },
+    "명시한 사본(--db)으로 연 창에서는 스냅샷을 뜨지 않습니다. --db 없이 다시 여세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A window opened with an explicit copy (--db) doesn't take snapshots. Reopen it without --db"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "明示したコピー（--db）で開いたウインドウではスナップショットを作成しません。--dbなしで開き直してください"
           }
         }
       }
@@ -16144,6 +16496,22 @@
         }
       }
     },
+    "쓰기 금지 볼륨" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write-Denied Volume"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込み禁止ボリューム"
+          }
+        }
+      }
+    },
     "쓰기 기록은 없고 임시 파일 %lld개가 있습니다. 지우려면 --discard-temp를 주세요" : {
       "localizations" : {
         "en" : {
@@ -17380,6 +17748,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "複数の曲が使うアルバムです。アルバムアーティストはrekordboxで直接変更してください。"
+          }
+        }
+      }
+    },
+    "연결된 USB가 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No USB connected"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接続されたUSBはありません"
           }
         }
       }
@@ -19450,6 +19834,22 @@
         }
       }
     },
+    "읽는 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込み中…"
+          }
+        }
+      }
+    },
     "읽지 못했습니다: %@. 사본과 접근 권한을 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -20458,6 +20858,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレイリストが計画と異なります"
+          }
+        }
+      }
+    },
+    "재생 목록이 형식마다 다릅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists differ by format"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "形式ごとにプレイリストが異なります"
           }
         }
       }
@@ -22038,6 +22454,22 @@
         }
       }
     },
+    "최신" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up to Date"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新"
+          }
+        }
+      }
+    },
     "추가" : {
       "localizations" : {
         "en" : {
@@ -22388,6 +22820,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "列"
+          }
+        }
+      }
+    },
+    "컬렉션" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collection"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コレクション"
           }
         }
       }
@@ -24954,6 +25402,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "表示中の曲の選択を解除"
+          }
+        }
+      }
+    },
+    "표시할 USB 곡이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No USB tracks to show"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示するUSBの曲がありません"
           }
         }
       }

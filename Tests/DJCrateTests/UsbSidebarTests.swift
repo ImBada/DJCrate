@@ -1,0 +1,173 @@
+@testable import DJCrate
+import AppKit
+import DJCDomain
+import DJCStorage
+import DJCTestSupport
+import Foundation
+import RekordboxKit
+import Testing
+
+@MainActor
+@Suite("USB 사이드바와 읽기 전용 목록")
+struct UsbSidebarTests {
+    private func libraryStore() -> LibraryStore {
+        LibraryStore(settings: SettingsStore(defaults: UserDefaults(suiteName: "djc.test.usb.\(UUID())")!, persist: false),
+                     resultHistory: WriteResultHistory(url: nil), saveTagDrafts: { _ in }, playlistDraftSaver: { _ in },
+                     mergeDraftSaver: { _ in }, playlistImportURL: nil, stagingSaver: { _ in })
+    }
+
+    /// 합성 USB 폴더(`UsbLibraryFixture`)를 사본으로 읽은 라이브러리
+    private func fixtureLibrary() throws -> UsbLibrary {
+        let tree = UsbTreeFixture()
+        defer { tree.remove() }
+        try UsbLibraryFixture().write(to: tree)
+        let snapshots = FileManager.default.temporaryDirectory.appending(path: "djc-usbsidebar-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: snapshots) }
+        return try UsbRead.library(root: tree.base, snapshots: snapshots, volumeKey: "FIXTURE", volume: nil,
+                                   lists: UsbTestData.lists()).library
+    }
+
+    private func physical(_ volume: UsbVolumeInfo, uuid: String) -> UsbVolumeInfo {
+        var volume = volume
+        volume.volumeUUID = uuid
+        return volume
+    }
+
+    @Test("빈 FAT32는 내보내기(비활성), rekordbox USB는 컬렉션·목록, 쓸 수 없는 모양은 경고와 이유")
+    func sidebarShapes() async throws {
+        let empty = FakeUsbVolume.diskImageFAT32(name: "DJCEMPTY", uuid: "00000000-0000-0000-0000-000000000011")
+        let rekordbox = FakeUsbVolume.diskImageFAT32(name: "DJCTEST", uuid: "00000000-0000-0000-0000-000000000012")
+        let unsupported = [
+            physical(FakeUsbVolume.gpt(), uuid: "00000000-0000-0000-0000-0000000000A2"),
+            physical(FakeUsbVolume.exfat(), uuid: "00000000-0000-0000-0000-0000000000A3"),
+            physical(FakeUsbVolume.apfs(), uuid: "00000000-0000-0000-0000-0000000000A4"),
+            physical(FakeUsbVolume.fat16(), uuid: "00000000-0000-0000-0000-0000000000A5"),
+        ]
+        let host = FakeUsbHost([empty, rekordbox] + unsupported)
+        host.serveEmpty(empty)
+        host.serve(rekordbox, library: try fixtureLibrary())
+        let store = UsbTestData.store(host)
+        await store.refresh()
+        let rows = Dictionary(uniqueKeysWithValues: UsbSidebarModel.volumes(store).map { ($0.id, $0) })
+
+        let emptyRow = try #require(rows[empty.usbKey])
+        #expect(emptyRow.showsExport && emptyRow.collection == nil && !emptyRow.isWarning && emptyRow.canEject)
+
+        let rekordboxRow = try #require(rows[rekordbox.usbKey])
+        #expect(rekordboxRow.collection == .collection(volumeKey: rekordbox.usbKey))
+        #expect(rekordboxRow.collectionCount == 3)
+        #expect(rekordboxRow.playlists.map(\.name) == ["시험 목록"])
+        #expect(rekordboxRow.playlists.first?.count == 2)
+        #expect(!rekordboxRow.showsExport && !rekordboxRow.isWarning)
+
+        let reformat = "USB를 MBR·MS-DOS(FAT32)로 포맷한 뒤 다시 시도하세요"
+        for volume in unsupported {
+            let row = try #require(rows[volume.usbKey])
+            #expect(row.isWarning && row.help == reformat && row.symbol == "exclamationmark.triangle")
+            #expect(!row.showsExport && row.collection == nil && row.playlists.isEmpty)
+            #expect(!host.infoCalls.contains(volume.usbKey) && !host.libraryCalls.contains(volume.usbKey))
+        }
+        // 쓰기 금지 목록 볼륨은 이름과 '쓰기 금지 볼륨'만
+        let denied = UsbTestData.store(host, lists: UsbTestData.lists(deny: [empty.volumeUUID!]))
+        await denied.refresh()
+        let deniedRow = try #require(UsbSidebarModel.volumes(denied).first { $0.id == empty.usbKey })
+        #expect(deniedRow.status == "쓰기 금지 볼륨" && deniedRow.isWarning && !deniedRow.showsExport)
+    }
+
+    @Test("USB 목록은 읽기 전용: 쓰기·편집·끌기·재생 목록 메뉴가 없다")
+    func readOnlyListBlocksWriteMenus() async throws {
+        let fixture = try historyFixture()
+        let store = libraryStore()
+        await store.load(snapshot: fixture.database)
+        let image = FakeUsbVolume.diskImageFAT32()
+        let host = FakeUsbHost([image])
+        host.serve(image, library: UsbTestData.library())
+        let usb = UsbTestData.store(host)
+        store.usb = usb
+        await usb.refresh()
+
+        store.sidebar = .usb(.collection(volumeKey: image.usbKey))
+        #expect(store.isUsbSelection)
+        #expect(store.displayRows.map(\.title) == ["시험 곡 1", "시험 곡 2", "시험 곡 3"])
+        #expect(store.displayRows.allSatisfy { $0.isUsb })
+        #expect(store.displayRows.first?.keyName == "8A" && store.displayRows.first?.artist == "시험 아티스트")
+        #expect(store.displayRows.first?.track.folderPath == image.mountPoint + "/Contents/시험 아티스트/test1.mp3")
+        // 로컬 share를 가리키지 않게 분석·아트워크 경로는 비운다
+        #expect(store.displayRows.allSatisfy { $0.track.analysisDataPath == nil && $0.track.imagePath == nil })
+        store.selection = Set(store.displayRows.map(\.id))
+        #expect(store.selectedRows.isEmpty)
+        #expect(!store.canLoadSelectionToDeck)
+        #expect(!LibraryMenuAction.removeTracks.isEnabled(in: store))
+
+        _ = NSApplication.shared
+        let coordinator = TrackListCoordinator(store: store)
+        let table = NSTableView()
+        table.allowsMultipleSelection = true
+        table.dataSource = coordinator
+        table.delegate = coordinator
+        for id in ["title", "usbSync"] { table.addTableColumn(NSTableColumn(identifier: .init(id))) }
+        coordinator.table = table
+        coordinator.update(rows: store.displayRows, edited: [], selection: store.selection, sortOrder: [], snapshotURL: store.snapshotURL,
+                           previewRevision: 0)
+        let menu = coordinator.makeMenu()
+        coordinator.menuNeedsUpdate(menu)
+        let actions = Set(menu.items.compactMap(\.action).map(NSStringFromSelector))
+        let writes: Set<String> = ["reflectSelected", "exportReflectionXML", "addToRekordbox", "exportStaged", "deleteFromRekordbox",
+                                   "pickPlaylist", "createPlaylistFromTracks", "removeFromPlaylist", "loadMenuRow"]
+        #expect(actions.isDisjoint(with: writes))
+        #expect(!menu.items.contains { $0.title == "재생 목록에 넣기" })
+        #expect(menu.items.first { $0.title == "덱에 불러오기" }?.action == nil)
+        #expect(coordinator.tableView(table, pasteboardWriterForRow: 0) == nil)
+        #expect(!coordinator.beginEditing(row: 0, column: "title"))
+        store.setTag(.title, "고친 제목", rows: store.displayRows)
+        #expect(!store.tagDrafts.keys.contains { $0.hasPrefix(UsbLibraryRows.idPrefix) })
+        store.loadToDeck(store.displayRows.first)
+        #expect(store.deckTrackID == nil)
+        withExtendedLifetime(table) {}
+
+        // 재생 목록: 같은 곡이 두 번 들어 있어도 줄마다 따로 고르고 순번을 보인다
+        store.sidebar = .usb(.playlist(volumeKey: image.usbKey, id: 10))
+        #expect(store.displayRows.map(\.title) == ["시험 곡 2", "시험 곡 1", "시험 곡 2"])
+        #expect(Set(store.displayRows.map(\.id)).count == 3)
+        #expect(store.displayRows.map(\.playlistTrackNumber) == [1, 2, 3])
+        #expect(store.sidebarTitle == "시험 목록")
+
+        // 볼륨이 빠지면 라이브러리 목록으로 돌아간다
+        host.mounted = []
+        await usb.refresh()
+        #expect(store.sidebar == .filter(.all))
+    }
+
+    @Test("한 형식에만 있는 목록은 표시를 달고, 두 형식의 항목이 다르면 경고한다")
+    func playlistFormatMarkers() {
+        let both = UsbFormat.defaultSet
+        let library = UsbTestData.library(playlists: [
+            UsbPlaylist(id: 1, name: "같음", presentIn: both, sortOrder: [.oneLibrary: 1, .deviceLibrary: 1],
+                        entries: [.oneLibrary: [1, 2], .deviceLibrary: [1, 2]]),
+            UsbPlaylist(id: 2, name: "OneLibrary 쪽", presentIn: [.oneLibrary], sortOrder: [.oneLibrary: 2], entries: [.oneLibrary: [1]]),
+            UsbPlaylist(id: 3, name: "Device Library 쪽", presentIn: [.deviceLibrary], sortOrder: [.deviceLibrary: 3],
+                        entries: [.deviceLibrary: [2]]),
+            UsbPlaylist(id: 4, name: "다름", presentIn: both, sortOrder: [.oneLibrary: 4, .deviceLibrary: 4],
+                        entries: [.oneLibrary: [1, 2, 3], .deviceLibrary: [3, 1, 2, 3]]),
+            UsbPlaylist(id: 5, name: "폴더", attribute: 1, presentIn: both, sortOrder: [.oneLibrary: 0, .deviceLibrary: 0]),
+            UsbPlaylist(id: 6, name: "폴더 안", parentID: 5, presentIn: both, sortOrder: [.oneLibrary: 0, .deviceLibrary: 0],
+                        entries: [.oneLibrary: [3], .deviceLibrary: [3]]),
+        ])
+        let nodes = UsbPlaylistTree.build(library)
+        #expect(nodes.map(\.name) == ["폴더", "같음", "OneLibrary 쪽", "Device Library 쪽", "다름"])
+        let byName = Dictionary(uniqueKeysWithValues: nodes.map { ($0.name, $0) })
+        #expect(byName["같음"]?.marker == nil && byName["같음"]?.entriesDiffer == false)
+        #expect(byName["OneLibrary 쪽"]?.marker == "OneLibrary만")
+        #expect(byName["Device Library 쪽"]?.marker == "Device Library만")
+        #expect(byName["다름"]?.entriesDiffer == true && byName["다름"]?.marker == nil)
+        #expect(byName["다름"]?.count == 3)
+        #expect(byName["폴더"]?.isFolder == true && byName["폴더"]?.children?.map(\.name) == ["폴더 안"])
+        #expect(UsbPlaylistTree.mismatchHelp == "두 형식의 재생 목록 내용이 다릅니다")
+        // 한 형식만 있는 USB에는 표시를 달지 않는다
+        let single = UsbPlaylistTree.build(UsbTestData.library(formats: [.oneLibrary]))
+        #expect(single.allSatisfy { $0.marker == nil && !$0.entriesDiffer })
+        // Device Library에만 있는 목록은 그 형식의 항목을 보인다
+        let rows = UsbLibraryRows.playlist(3, library: library, volumeKey: "K", mountPoint: "/Volumes/K", badges: [:])
+        #expect(rows.map(\.title) == ["시험 곡 2"])
+    }
+}

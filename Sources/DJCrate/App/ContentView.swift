@@ -24,6 +24,8 @@ struct ContentView: View {
     @State private var isFileDropTargeted = false
 
     private var otherHeight: Double { noticeHeight + listHeaderHeight + DeckLayout.splitHandleHeight }
+    /// 태그 시트는 편집 화면이라 중복 후보·USB(읽기 전용) 목록에서는 곡 목록으로 보인다
+    private var showsSheet: Bool { sheetMode && store.sidebar != .duplicates && !store.isUsbSelection }
     private var displayedWaveformHeight: Double {
         DeckLayout.waveformHeight(requested: waveformHeight, detailHeight: detailHeight,
                                   deckChromeHeight: deckChromeHeight, otherHeight: otherHeight)
@@ -141,14 +143,14 @@ struct ContentView: View {
                     SplitHandle(height: $waveformHeight, displayedHeight: displayedHeight, maximumHeight: maximumHeight)
                     VStack(spacing: 0) {
                         ListActionBar(store: store)
-                        if sheetMode && store.sidebar != .duplicates { SheetHeader() }
+                        if showsSheet { SheetHeader() }
                     }
                     .onGeometryChange(for: Double.self) { $0.size.height } action: { listHeaderHeight = $0 }
                     Group {
                         if store.sidebar == .duplicates {
                             DuplicateTracksView(store: store)
                                 .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
-                        } else if sheetMode {
+                        } else if showsSheet {
                             TagSheetView(store: store)
                                 .onDisappear { store.canFillDownTags = false }
                                 .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
@@ -212,6 +214,12 @@ struct ContentView: View {
             } description: {
                 Text(.ui("곡의 큐·그리드·게인을 고치면 여기에 모입니다."))
             }
+        } else if store.isUsbSelection {
+            ContentUnavailableView {
+                Label(.ui("표시할 USB 곡이 없습니다"), systemImage: "externaldrive")
+            } description: {
+                Text(.ui("USB를 다시 읽거나 다른 재생 목록을 고르세요."))
+            }
         } else if store.sidebar == .staged {
             ContentUnavailableView {
                 Label(.ui("추가한 곡이 없습니다"), systemImage: "music.note")
@@ -241,7 +249,7 @@ struct ContentView: View {
                         .help(.ui("태그를 표에서 편집합니다(⌘2)."))
                 }
                 .pickerStyle(.segmented)
-                .disabled(!store.writeLockPolicy.allowsLibraryInteraction || store.sidebar == .duplicates)
+                .disabled(!store.writeLockPolicy.allowsLibraryInteraction || store.sidebar == .duplicates || store.isUsbSelection)
             }
             ToolbarItem(id: "addFiles") {
                 Button {
@@ -390,6 +398,7 @@ struct LibraryFileDropDelegate: DropDelegate {
     func validateDrop(info: DropInfo) -> Bool {
         store.writeLockPolicy.allowsLibraryInteraction
             && !store.isITunesSelection
+            && !store.isUsbSelection
             && Self.accepts(info.itemProviders(for: [.fileURL, DeckDragType.track, PlaylistDragType.tracks]))
     }
 

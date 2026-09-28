@@ -48,7 +48,8 @@ extension LibraryStore {
         guard !isWritingRekordbox else { return }
         var before: [String: TagDraft] = [:]
         var after: [String: TagDraft] = [:]
-        for change in changes where !change.row.track.isStreaming {
+        // USB 곡은 읽기 전용이다(초안을 만들지 않는다)
+        for change in changes where !change.row.track.isStreaming && !change.row.isUsb {
             let uuid = change.row.track.uuid
             let original = tagDraft(for: change.row)
             before[uuid] = original
