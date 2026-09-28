@@ -725,9 +725,11 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     private func configureTag(_ cell: TrackTextCell, key: TagFields.Key, row: TrackRow) {
         let (text, edited) = TrackListTagEditing.text(row, key, draft: store.tagDrafts[row.track.uuid])
         // 스트리밍 곡은 제목 앞 아이콘과 흐린 글자로 로컬 곡과 구분한다(사이드바 '스트리밍'과 같은 아이콘, #121).
+        // 파일이 없는 곡도 흐린 글자에 경고 아이콘을 붙인다(#126).
         let streaming = key == .title && row.track.isStreaming
+        let missing = key == .title && row.fileMissing
         let color: NSColor = switch key {
-        case .title: streaming ? .secondaryLabelColor : .labelColor
+        case .title: streaming || missing ? .secondaryLabelColor : .labelColor
         case .comment: row.commentEvaluation?.isMatch == true ? .labelColor : .secondaryLabelColor
         default: .secondaryLabelColor
         }
@@ -736,7 +738,9 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         } else {
             cell.set(text, color: edited ? UIColors.draft.nsColor : color,
                      digits: key == .year || key == .trackNumber, draft: edited,
-                     symbol: streaming ? LibraryFilter.streaming.systemImage : nil, symbolLabel: streaming ? String(ui: "스트리밍 곡") : nil)
+                     symbol: streaming ? LibraryFilter.streaming.systemImage : missing ? WarningMark.symbol : nil,
+                     symbolLabel: streaming ? String(ui: "스트리밍 곡") : missing ? String(ui: "파일을 찾지 못한 곡") : nil,
+                     symbolColor: missing ? UIColors.warning.nsColor : nil)
         }
     }
 
@@ -960,11 +964,14 @@ final class TrackTextCell: NSTableCellView {
     let label = NSTextField(labelWithString: "")
     private let draftMark = DraftCornerView()
     private var normalColor = NSColor.labelColor
+    /// 심볼만 따로 칠할 색(파일이 없는 곡의 경고 아이콘, #126). nil이면 글자색을 따른다.
+    private var symbolColor: NSColor?
     /// 글자 앞 작은 심볼(스트리밍 곡 제목, #121). 쓰는 칸이 드물어 처음 필요할 때 만든다.
     private var icon: NSImageView?
     private var labelLeading: NSLayoutConstraint!
-    /// 보이는 글자 앞 심볼 이름(시험용)
+    /// 보이는 글자 앞 심볼 이름·색(시험용)
     private(set) var leadingSymbol: String?
+    var symbolTint: NSColor? { icon?.contentTintColor }
     private var iconPointSize: CGFloat = 0
     /// 접근성 값을 한 번이라도 덮었는지. 셀에 nil을 넣으면 기본값으로 돌아가지 않아 그 뒤로는 글자를 계속 넣는다.
     private var speaksCustomValue = false
@@ -977,7 +984,7 @@ final class TrackTextCell: NSTableCellView {
     private func updateColor() {
         let emphasized = backgroundStyle == .emphasized
         label.textColor = emphasized ? .alternateSelectedControlTextColor : normalColor
-        icon?.contentTintColor = label.textColor
+        icon?.contentTintColor = emphasized ? label.textColor : symbolColor ?? label.textColor
         draftMark.color = emphasized ? .alternateSelectedControlTextColor : UIColors.draft.nsColor
     }
 
@@ -1030,7 +1037,7 @@ final class TrackTextCell: NSTableCellView {
     /// - Parameter estimated: DJCrate 추정값. 색과 함께 기울임·툴팁·VoiceOver "추정"으로도 알린다.
     /// - Parameter symbol: 글자 앞 SF 심볼. 칸을 다시 쓸 때마다 부르므로 nil이면 지운다.
     func set(_ text: String, color: NSColor, digits: Bool = false, draft: Bool = false, estimated: Bool = false,
-             symbol: String? = nil, symbolLabel: String? = nil) {
+             symbol: String? = nil, symbolLabel: String? = nil, symbolColor: NSColor? = nil) {
         if label.stringValue != text { label.stringValue = text }
         let font = estimated ? fonts.estimated : digits ? fonts.digits : fonts.text
         if label.font != font { label.font = font }
@@ -1038,6 +1045,7 @@ final class TrackTextCell: NSTableCellView {
             showSymbol(symbol, label: symbolLabel, pointSize: font.pointSize)
         }
         normalColor = color
+        self.symbolColor = symbolColor
         updateColor()
         if draftMark.isHidden == draft { draftMark.isHidden = !draft }
         let tip = estimated ? String(ui: "DJCrate가 소리로 추정한 키입니다. rekordbox 분석과 다를 수 있습니다") : nil

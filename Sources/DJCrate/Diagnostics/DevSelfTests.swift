@@ -18,6 +18,7 @@ enum DevSelfTests {
         runSearchLayoutIfRequested()
         runReflectionLayoutIfRequested(store: store)
         runDuplicateLayoutIfRequested(store: store)
+        runMissingFilesCaptureIfRequested(store: store)
         runWriteSelfTestIfRequested(store: store, deck: deck)
         runTrackSelfTestIfRequested(store: store)
         runLoopSelfTestIfRequested(deck: deck)
@@ -26,6 +27,7 @@ enum DevSelfTests {
         runLoopAudioSelfTestIfRequested()
         runHotCueClickSelfTestIfRequested(store: store, deck: deck)
         runPausedHotCueSelfTestIfRequested(store: store, deck: deck)
+        runScrubHotCueSelfTestIfRequested(store: store, deck: deck)
         runJumpAudioSelfTestIfRequested()
         runMetronomeSelfTestIfRequested()
         guard ProcessInfo.processInfo.arguments.contains("--switch-selftest") else { return }

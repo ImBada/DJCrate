@@ -58,15 +58,16 @@ struct ContentView: View {
             detail
                 .modifier(LibraryWindowTitle(store: store))
                 .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
-                .overlay(alignment: .top) {
+                // 위쪽 알림 줄(스냅샷 오류·반영·곡 추가)과 겹치지 않게 아래에 띄운다(#122).
+                .overlay(alignment: .bottom) {
                     if let toast = store.toast {
                         AppToastView(toast: toast,
                                      onUndo: toast.undoBackup.map { url in { store.toast = nil; DirectWritePanels.restore(store: store, backupURL: url) } },
                                      onDetails: { store.showingWriteResult = true },
                                      onClose: { if store.toast?.id == toast.id { store.toast = nil } })
-                            .padding(.top, 12)
+                            .padding(.bottom, 16)
                             .padding(.horizontal, 16)
-                            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                            .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                             .id(toast.id)
                     }
                 }

@@ -1824,6 +1824,40 @@
         }
       }
     },
+    "%@(%lld곡)" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@ (%2$lld track)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@ (%2$lld tracks)"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@（%2$lld曲）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@(%2$lld곡)"
+          }
+        }
+      }
+    },
     "%@%@" : {
       "localizations" : {
         "en" : {
@@ -9516,6 +9550,22 @@
         }
       }
     },
+    "다시 확인" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check Again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再確認"
+          }
+        }
+      }
+    },
     "다음 메모리 큐까지 %@" : {
       "localizations" : {
         "en" : {
@@ -15292,6 +15342,22 @@
         }
       }
     },
+    "연결되지 않은 외장 디스크: %@ · 연결하면 다시 확인합니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "External drives not connected: %@ · Checks again when you connect one"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未接続の外部ディスク：%@・接続すると再確認します"
+          }
+        }
+      }
+    },
     "연결하지 못한 %lld곡은 rekordbox 컬렉션 등록과 파일 위치를 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -15528,6 +15594,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "移動"
+          }
+        }
+      }
+    },
+    "옮긴 음원은 rekordbox의 Relocate로 다시 연결하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Relink moved audio files with Relocate in rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動した音源はrekordboxの再配置でつなぎ直してください"
           }
         }
       }
@@ -15982,6 +16064,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "音源ファイルがありません。外部ドライブが接続されているか確認してください。"
+          }
+        }
+      }
+    },
+    "음원 파일이 있는지 다시 확인합니다. rekordbox에는 쓰지 않습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checks again whether the audio files exist. Nothing is written to rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音源ファイルがあるかを再確認します。rekordboxには書き込みません。"
           }
         }
       }
@@ -21298,6 +21396,22 @@
         }
       }
     },
+    "파일 없음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missing Files"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "見つからないファイル"
+          }
+        }
+      }
+    },
     "파일 위치를 읽을 수 없습니다. 이 Mac에서 XML을 다시 내보내세요." : {
       "localizations" : {
         "en" : {
@@ -21438,6 +21552,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ファイルが見つかりません。外部ドライブが接続されているか確認してください。"
+          }
+        }
+      }
+    },
+    "파일을 찾지 못한 곡" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missing file"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルが見つからない曲"
+          }
+        }
+      }
+    },
+    "파일을 확인하는 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking files…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルを確認中…"
           }
         }
       }

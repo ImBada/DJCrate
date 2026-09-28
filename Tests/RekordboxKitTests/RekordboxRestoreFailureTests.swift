@@ -149,6 +149,132 @@ struct RekordboxRestoreFailureTests {
                 "분석 파일 원본도 백업에 있어 명령 하나로 되돌린다")
     }
 
+    // MARK: BPM·게인만 쓴 쓰기 (#135)
+
+    /// 곡 BPM이 바뀌는 그리드(단일 템포) 쓰기가 고치는 칸. 트랜잭션 안 확인 뒤 하나씩 바꿔 두면 커밋 뒤 다시 읽기가 잡아야 한다.
+    static let gridTampers = [
+        "UPDATE djmdContent SET BPM = BPM + 1",
+        "UPDATE djmdContent SET TrackInfoUpdated = TrackInfoUpdated || '0'",
+        "UPDATE djmdContent SET AnalysisUpdated = AnalysisUpdated || '0'",
+        "UPDATE djmdContent SET rb_data_status = 256",
+        "UPDATE djmdContent SET rb_local_usn = rb_local_usn - 1",
+        "UPDATE djmdContent SET updated_at = '2000-01-01 00:00:00.000 +00:00'",
+        "UPDATE contentFile SET Hash = 'x'",
+        "UPDATE contentFile SET Size = Size + 1",
+        "UPDATE contentFile SET rb_local_usn = rb_local_usn - 1",
+    ]
+
+    @Test(arguments: gridTampers)
+    func BPM만_바꾼_그리드도_커밋_뒤_다시_읽어_다르면_되돌린다(tamper: String) throws {
+        let fixture = try RekordboxFixture(localUpdateCount: 900)
+        let (grid, track) = try gridDraft(fixture)
+        let dat = try Data(contentsOf: fixture.analysisURL(for: track))
+        try tamperOnCommit(fixture, tamper)
+        let before = try state(fixture)
+        let error = try #require(throws: DJCError.self) { try writeGrid(fixture, grid) }
+        guard case let .writeRolledBack(reason) = error else { Issue.record("되돌림 오류가 아님: \(error)"); return }
+        #expect(reason.hasPrefix("곡 BPM 확인 실패"))
+        #expect(try state(fixture) == before)
+        #expect(try Data(contentsOf: fixture.analysisURL(for: track)) == dat, "분석 파일은 DB를 확인한 뒤에 쓴다")
+    }
+
+    @Test func 다구간_첫_BPM만_바꾼_그리드도_커밋_뒤_다시_읽어_다르면_되돌린다() throws {
+        let (fixture, track, original) = try MultiTempoGridWriterTests().fixture(middleBPM: 151, lastStart: 29305)
+        var grid = original
+        grid.segments[0].bpm = 121
+        let dat = try Data(contentsOf: fixture.analysisURL(for: track))
+        try tamperOnCommit(fixture, "UPDATE djmdContent SET TrackInfoUpdated = '99'")
+        let before = try state(fixture)
+        let error = try #require(throws: DJCError.self) { try writeGrid(fixture, grid) }
+        guard case let .writeRolledBack(reason) = error else { Issue.record("되돌림 오류가 아님: \(error)"); return }
+        #expect(reason.hasPrefix("곡 BPM 확인 실패"))
+        #expect(try state(fixture) == before)
+        #expect(try Data(contentsOf: fixture.analysisURL(for: track)) == dat)
+    }
+
+    func gains(_ fixture: RekordboxFixture) throws -> [String: Double] {
+        var track = TrackSpec()
+        track.gain = (high: 16256, low: 0)   // 선형 1.0
+        try fixture.add(track)
+        return [track.uuid: -3]
+    }
+
+    func writeGains(_ fixture: RekordboxFixture, _ gains: [String: Double]) throws -> RekordboxWriter.Report {
+        try RekordboxWriter.write(drafts: [], gains: gains, to: fixture.database, dryRun: false, now: now, backups: fixture.backups)
+    }
+
+    @Test(arguments: [
+        "UPDATE djmdMixerParam SET GainHigh = GainHigh + 1",
+        "UPDATE djmdMixerParam SET GainLow = GainLow + 1",
+        "UPDATE djmdMixerParam SET rb_data_status = 256",
+        "UPDATE djmdMixerParam SET rb_local_usn = rb_local_usn - 1",
+        "UPDATE djmdMixerParam SET updated_at = '2000-01-01 00:00:00.000 +00:00'",
+    ])
+    func 게인만_쓴_쓰기도_커밋_뒤_다시_읽어_다르면_되돌린다(tamper: String) throws {
+        let fixture = try RekordboxFixture()
+        let gains = try gains(fixture)
+        try tamperOnCommit(fixture, tamper)
+        let before = try state(fixture)
+        let error = try #require(throws: DJCError.self) { try writeGains(fixture, gains) }
+        guard case let .writeRolledBack(reason) = error else { Issue.record("되돌림 오류가 아님: \(error)"); return }
+        #expect(reason.hasPrefix("오토게인 확인 실패"))
+        #expect(try state(fixture) == before)
+    }
+
+    @Test func 게인만_쓴_쓰기가_커밋_뒤_확인도_복원도_실패하면_복원_실패() throws {
+        let fixture = try RekordboxFixture()
+        defer { unlock(fixture) }
+        let gains = try gains(fixture)
+        try tamperOnCommit(fixture, "UPDATE djmdMixerParam SET GainHigh = GainHigh + 1")
+        try blockRestore(fixture)
+        let error = try #require(throws: DJCError.self) { try writeGains(fixture, gains) }
+        guard case let .restoreFailed(reason, restoreError, _, database) = error else { Issue.record("복원 실패 오류가 아님: \(error)"); return }
+        #expect(reason.hasPrefix("오토게인 확인 실패") && restoreError.contains("master.db"))
+        #expect(database == fixture.database.path)
+    }
+
+    @Test(arguments: ["UPDATE djmdContent SET BPM = BPM + 1 WHERE AnalysisDataPath IS NOT NULL",
+                      "UPDATE djmdMixerParam SET GainHigh = GainHigh + 1"])
+    func 큐와_함께_쓴_BPM·게인도_커밋_뒤_다시_읽는다(tamper: String) throws {
+        let fixture = try RekordboxFixture(localUpdateCount: 900)
+        let (grid, _) = try gridDraft(fixture)
+        let cue = try cueDraft(fixture)
+        let gains = try gains(fixture)
+        try tamperOnCommit(fixture, tamper)
+        let before = try state(fixture)
+        let error = try #require(throws: DJCError.self) {
+            try RekordboxWriter.write(drafts: [cue], grids: [grid], gains: gains, to: fixture.database, dryRun: false, now: now,
+                                      backups: fixture.backups, shareRoot: fixture.shareRoot)
+        }
+        guard case .writeRolledBack = error else { Issue.record("되돌림 오류가 아님: \(error)"); return }
+        #expect(try state(fixture) == before)
+    }
+
+    /// 한 곡에 큐·BPM·태그·게인을 함께 쓰면 곡 행을 여러 번 고친다. 커밋 뒤 확인은 마지막 값(태그가 올린 곡 정보 횟수·번호)을 봐야 한다.
+    @Test func 한_곡의_큐·BPM·태그·게인을_함께_써도_커밋_뒤_확인을_통과한다() throws {
+        let fixture = try RekordboxFixture(localUpdateCount: 900)
+        let (grid, track) = try gridDraft(fixture)
+        // 태그 쓰기를 확인한 상태(0)로 둔다
+        try fixture.execute("UPDATE djmdContent SET rb_data_status = 0 WHERE ID = ?", [.text(track.id)])
+        try fixture.insert("djmdMixerParam", ["ID": .text("mp-\(track.id)"), "ContentID": .text(track.id), "GainHigh": .int(16256),
+                                              "GainLow": .int(0), "rb_data_status": .int(256), "rb_local_deleted": .int(0), "rb_local_usn": .int(12)])
+        var cue = CueDraft(trackUUID: track.uuid, rekordboxCues: [])
+        cue.place(EditableCue(kind: .memory, time: 30))
+        let db = try fixture.open()
+        let base = try #require(try RekordboxWriter.currentTags(db: db, contentID: track.id))
+        db.close()
+        var tags = TagDraft(trackUUID: track.uuid, base: base)
+        tags.fields.title = "새 제목"
+        let report = try RekordboxWriter.write(drafts: [cue], grids: [grid], gains: [track.uuid: -3], tags: [tags], analysisInputs: [:],
+                                               to: fixture.database, dryRun: false, now: now, backups: fixture.backups,
+                                               shareRoot: fixture.shareRoot, attachesAnalysis: false)
+        #expect(report.written.count == 1 && report.gridWritten.count == 1 && report.gainWritten.count == 1 && report.tagWritten.count == 1)
+        let row = try #require(fixture.rows("SELECT * FROM djmdContent WHERE ID = ?", [.text(track.id)]).first)
+        #expect(row["BPM"] == "13000" && row["Title"] == "새 제목")
+        #expect(row["AnalysisUpdated"] == "2" && row["TrackInfoUpdated"] == "3", "그리드 +1, 태그 +1")
+        #expect(try Int(row["rb_local_usn"] ?? "") == fixture.localUpdateCount(), "곡 행이 마지막 번호")
+    }
+
     // MARK: 곡 넣기
 
     func addWithAnalysis(_ fixture: RekordboxFixture, now: Date) async throws -> RekordboxTrackWriter.Report {

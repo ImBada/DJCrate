@@ -100,6 +100,14 @@ final class LibraryStore {
     private(set) var duplicateGroups: [LibraryRead.DuplicateGroup] = []
     private(set) var displayDuplicateGroups: [LibraryRead.DuplicateGroup] = []
     private(set) var filterCounts: [LibraryFilter: Int] = [:]
+    /// 마지막 파일 확인 결과(#126). 연결되지 않은 외장 디스크는 목록 위 작업 줄에 알린다.
+    private(set) var missingFiles = MissingFiles()
+    private(set) var isCheckingFiles = false
+    @ObservationIgnored var missingFileTask: Task<Void, Never>?
+    /// 파일 확인(시험은 가짜로 바꾼다). 메인 스레드 밖에서 부른다.
+    @ObservationIgnored var fileExists: @Sendable (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
+    /// 지난 확인에서 없던 경로. 다시 읽은 직후 확인이 끝날 때까지 이것으로 표시해 개수가 0으로 깜빡이지 않게 한다.
+    @ObservationIgnored private var missingPathCache: Set<String> = []
     var playlistCounts: [String: Int] = [:]
     var isLoading: Bool { if case .loading = phase { true } else { false } }
 
@@ -202,7 +210,7 @@ final class LibraryStore {
     var reflectionBatch: ReflectionStore.Batch?
     /// 이번 실행에서 rekordbox에 쓴 마지막 백업(토스트·툴바의 되돌리기)
     var lastWriteBackup: URL?
-    /// detail 위쪽에 뜨는 알림(rekordbox 반영 완료 등)
+    /// detail 아래쪽에 뜨는 알림(rekordbox 반영 완료 등)
     var toast: AppToast? {
         didSet {
             if let toast { feedback.announce(AppMessage(kind: toast.kind, text: [toast.title, toast.detail].compactMap { $0 }.joined(separator: "\n"))) }
@@ -531,11 +539,17 @@ final class LibraryStore {
             // 더 나중에 시작한 로드가 있으면 이 결과는 버린다.
             guard generation == loadGeneration else { return }
             undoManager?.removeAllActions(withTarget: self)
-            rows = loaded.rows
-            rowsByID = Dictionary(loaded.rows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-            rowsByUUID = Dictionary(loaded.rows.map { ($0.track.uuid, $0) }, uniquingKeysWith: { first, _ in first })
+            let loadedRows = loaded.rows.map { row in
+                var row = row
+                row.fileMissing = missingPathCache.contains(row.track.folderPath)
+                return row
+            }
+            rows = loadedRows
+            rowsByID = Dictionary(loadedRows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            rowsByUUID = Dictionary(loadedRows.map { ($0.track.uuid, $0) }, uniquingKeysWith: { first, _ in first })
             report = loaded.report
             filterCounts = loaded.filterCounts
+            filterCounts[.missingFile] = rows.lazy.filter(LibraryFilter.missingFile.includes).count
             duplicateGroups = loaded.duplicateGroups
             draftFileStamps = nil
             tagDrafts = loaded.tagDrafts
@@ -574,6 +588,7 @@ final class LibraryStore {
             lastError = nil
             FileHandle.standardError.write(Data("라이브러리 로드 \(ContinuousClock.now - started) · \(rows.count)곡\n".utf8))
             refreshDeckTrack()
+            checkMissingFiles()
             applyLaunchSelection()
             runLaunchStagingTest()
             // 캐시 용량 상한(최근 사용 순)은 뒤에서 조용히 정리한다.
@@ -586,6 +601,51 @@ final class LibraryStore {
                 phase = .failed(AppErrorMessage.message(for: error))
             }
         }
+    }
+
+    // MARK: - 파일이 없는 곡(#126)
+
+    /// 음원 파일이 있는지 뒤에서 확인해 행·'파일 없음' 개수에 반영한다. 읽은 뒤·디스크를 연결하거나 뺄 때·다시 확인 버튼에서 부른다.
+    /// 큰 라이브러리의 확인(곡마다 파일 시스템 조회)이 메인 스레드를 막지 않게 한다.
+    func checkMissingFiles() {
+        missingFileTask?.cancel()
+        let generation = loadGeneration
+        let tracks = rows.map(\.track)
+        let exists = fileExists
+        isCheckingFiles = true
+        missingFileTask = Task { [weak self] in
+            let result = await Task.detached(priority: .utility) { MissingFiles.scan(tracks, exists: exists) }.value
+            guard let self, !Task.isCancelled else { return }
+            // 그사이 다시 읽기 시작했으면 버린다(새로 읽은 뒤 다시 확인한다).
+            guard generation == loadGeneration else {
+                isCheckingFiles = false
+                return
+            }
+            applyMissingFiles(result)
+        }
+    }
+
+    private func applyMissingFiles(_ result: MissingFiles) {
+        isCheckingFiles = false
+        missingFiles = result
+        // 사본을 고쳐 한 번에 넣는다(곡마다 고치면 관찰 알림이 곡 수만큼 나간다).
+        var updated = rows, byID = rowsByID, byUUID = rowsByUUID
+        var changed = false
+        for index in updated.indices {
+            let missing = result.trackIDs.contains(updated[index].track.id)
+            guard updated[index].fileMissing != missing else { continue }
+            updated[index].fileMissing = missing
+            byID[updated[index].id] = updated[index]
+            byUUID[updated[index].track.uuid] = updated[index]
+            changed = true
+        }
+        missingPathCache = Set(updated.lazy.filter(\.fileMissing).map(\.track.folderPath))
+        filterCounts[.missingFile] = updated.lazy.filter(LibraryFilter.missingFile.includes).count
+        guard changed else { return }
+        rows = updated
+        rowsByID = byID
+        rowsByUUID = byUUID
+        refreshBase()
     }
 
     // 동기 읽기·복사의 대기가 cooperative pool을 점유하지 않게 한다.
