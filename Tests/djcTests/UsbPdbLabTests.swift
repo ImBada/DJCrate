@@ -41,6 +41,8 @@ struct UsbPdbLabTests {
         #expect(status == 0)
         #expect(output.contains("뺀 쪽(지운 행이 있는 데이터 쪽) 1"))
         #expect(output.contains("뺀 쪽(지운 쪽 목록이 있는 인덱스 쪽) 1"))
+        // 조립기는 tx 칸을 비워 두어(0x20 = 0) 나머지 데이터 쪽은 제자리 수정 모양으로 빠진다
+        #expect(output.contains("뺀 쪽(제자리 수정 모양 데이터 쪽)"))
         #expect(!output.contains("exportExt"))
         #expect(!output.contains("시험"))
 
@@ -50,9 +52,13 @@ struct UsbPdbLabTests {
         var export = PdbBuilder(kind: .export)
         for id in [1, 2] { export.add(.tracks, PdbBuilder.trackRow(PdbTrackSpec(id: id))) }
         export.add(.history19, PdbBuilder.propertyRow(count: 2, date: "2026-01-03"))
+        // 덧붙임 모양(tx는 마지막 자리만)이어야 비교 대상이다
+        export.tables[PdbTableType.tracks.rawValue]?[1].inTransaction = true
+        export.tables[PdbTableType.history19.rawValue]?[0].inTransaction = true
         live.write(UsbLayout.exportPdb, export.build().data)
         let (_, differing) = try run(["pdb-verify", live.base.path])
         #expect(differing.contains("다른 쪽") && differing.contains("data tracks") && differing.contains("크기"))
+        #expect(!differing.contains("뺀 쪽("))
         #expect(!differing.contains("시험") && !differing.contains("test1"))
 
         let empty = UsbTreeFixture()
@@ -73,22 +79,24 @@ struct UsbPdbLabTests {
 
     @Test func verifyLinesPrintNumbersOnly() {
         let report = PdbPageCheck.Report(
-            kind: .export, pageCount: 5,
+            kind: .export, pageCount: 6,
             compared: [
                 PdbPageCheck.Page(number: 0, category: .header, table: "", firstDifference: nil),
                 PdbPageCheck.Page(number: 1, category: .index, table: "tracks", firstDifference: nil),
                 PdbPageCheck.Page(number: 2, category: .data, table: "tracks", firstDifference: 0x1C,
-                                  rows: [PdbPageCheck.RowDifference(slot: 3, originalSize: 588, rebuiltSize: 444, firstDifference: 0x115)]),
+                                  rows: [PdbPageCheck.RowDifference(slot: 3, originalSize: 300, rebuiltSize: 256, firstDifference: 0x0A0)]),
                 PdbPageCheck.Page(number: 4, category: .zero, table: "", firstDifference: nil),
             ],
-            excluded: [PdbPageCheck.Excluded(number: 3, table: "genres", reason: "deadRows")])
+            excluded: [PdbPageCheck.Excluded(number: 3, table: "genres", reason: "deadRows"),
+                       PdbPageCheck.Excluded(number: 5, table: "artists", reason: "inPlaceShape")])
         let lines = UsbExportLab.pdbVerifyLines(report)
         #expect(lines == [
-            "export.pdb 3/4쪽 바이트 같음(파일 5쪽, 뺀 쪽 1)",
+            "export.pdb 3/4쪽 바이트 같음(파일 6쪽, 뺀 쪽 2)",
             "  머리 1/1 · 인덱스 쪽 1/1 · 빈 쪽 1/1 · 데이터 쪽 0/1",
             "  뺀 쪽(지운 행이 있는 데이터 쪽) 1: 3",
+            "  뺀 쪽(제자리 수정 모양 데이터 쪽) 1: 5",
             "  다른 쪽 2 data tracks 오프셋 0x01C",
-            "    자리 3: 크기 588 → 444, 행 안 처음 다른 자리 0x115",
+            "    자리 3: 크기 300 → 256, 행 안 처음 다른 자리 0x0A0",
         ])
         #expect(UsbExportLab.pdbVerifySummary(report) == "export 머리 1/1 + 데이터 쪽 0/1개 바이트 같음(쪽 번호·next·seq는 원본 값)")
     }

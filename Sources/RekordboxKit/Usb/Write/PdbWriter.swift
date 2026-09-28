@@ -38,7 +38,8 @@ public struct PdbFiles: Sendable {
 /// 확인한 모양만 쓴다: 먼 오프셋 행·긴 ASCII(0x40)·기기 기록·My Tag 연결·모르는 표의 행은 쓰지 않고 막는다.
 public enum PdbWriter {
     /// 모델의 .deviceLibrary 투영에서 두 파일을 만든다. 곡 0개면 던진다.
-    /// 호출하는 쪽(B9·B10)은 `rules`를 변경 묶음 `requiredRules`에 반드시 합친다 — 계획기(B4)가 모르는 이름(장르·My Tag 등)의 긴 ASCII도 실물 게이트에 걸리게.
+    /// 호출하는 쪽(USB 내보내기·고치기)은 `rules`를 변경 묶음 `requiredRules`에 반드시 합친다 — 계획기(`UsbExportPlanner`)가 모르는 이름(장르·My Tag 등)의 긴 ASCII도 실물 게이트에 걸리게.
+    /// 막힘 문구는 일반 문구라, 호출하는 쪽이 같은 조건(곡 0개·확장자·행 크기 등)을 할 일이 적힌 문구로 먼저 막는다.
     /// 표 19 날짜는 모델의 `pdbDate`(고칠 때 보존한 값), 없으면 OneLibrary `createdDate`(내보낸 날), 그것도 없으면 오늘.
     public static func files(_ library: UsbLibrary, mode: PdbWriteMode) throws -> PdbFiles {
         let model = library.projected(to: .deviceLibrary)
@@ -105,9 +106,14 @@ public enum PdbWriter {
         case .fresh: (0, 0)
         case let .edit(previousExportSequence, previousExtSequence): (previousExportSequence, previousExtSequence)
         }
+        let exportLayout = PdbLayout(kind: .export, rows: export), extLayout = PdbLayout(kind: .exportExt, rows: ext)
+        // 옛 머리 순번은 USB에서 읽은 값이다: 새 순번이 u32를 넘으면 늘 옛 머리보다 크게 쓸 수 없어 막는다
+        guard exportLayout.sequenceFits(base: bases.export), extLayout.sequenceFits(base: bases.ext) else {
+            throw refused("pdbSequenceOverflow")
+        }
         return PdbFiles(
-            export: PdbLayout(kind: .export, rows: export).data(sequenceBase: bases.export),
-            exportExt: PdbLayout(kind: .exportExt, rows: ext).data(sequenceBase: bases.ext),
+            export: exportLayout.data(sequenceBase: bases.export),
+            exportExt: extLayout.data(sequenceBase: bases.ext),
             rules: rules, rulesByTrack: rulesByTrack,
             written: written(model, date: date, extras: extras))
     }
@@ -225,6 +231,12 @@ public enum PdbWriter {
             category.disable = disable
             category.isVisible = disable != 1
             return category
+        }
+        // 분류 행의 부모 칸은 늘 0으로 쓴다
+        result.myTags = model.myTags.map { tag in
+            var tag = tag
+            if tag.isCategory { tag.parentID = 0 }
+            return tag
         }
         result.sorts = model.sorts.map { sort in
             var sort = sort

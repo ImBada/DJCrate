@@ -27,6 +27,30 @@ struct PdbRejectionTests {
         }
     }
 
+    /// 옛 머리 순번이 u32 끝에 가까우면 새 순번이 넘친다: 죽지 않고 막는다. 머리가 끝에 딱 맞으면 쓴다
+    @Test func editSequenceOverflowIsRefused() throws {
+        let fresh = try PdbWriter.files(PdbWriterTests.model(), mode: .fresh)
+        let exportTop = try PdbFile(data: fresh.export).header.sequence, extTop = try PdbFile(data: fresh.exportExt).header.sequence
+        for mode in [PdbWriteMode.edit(previousExportSequence: .max - 2, previousExtSequence: 0),
+                     .edit(previousExportSequence: 0, previousExtSequence: .max),
+                     .edit(previousExportSequence: .max, previousExtSequence: .max),
+                     .edit(previousExportSequence: .max - exportTop + 1, previousExtSequence: 0),
+                     .edit(previousExportSequence: 0, previousExtSequence: .max - extTop + 1)] {
+            do {
+                _ = try PdbWriter.files(PdbWriterTests.model(), mode: mode)
+                Issue.record("순번이 넘치는 파일을 만들었다: \(mode)")
+            } catch let UsbError.writeRefused(blocks) {
+                #expect(blocks.map(\.code) == ["pdbSequenceOverflow"])
+            } catch {
+                Issue.record("\(error)")
+            }
+        }
+        let edge = try PdbWriter.files(PdbWriterTests.model(), mode: .edit(previousExportSequence: .max - exportTop,
+                                                                          previousExtSequence: .max - extTop))
+        #expect(try PdbFile(data: edge.export).header.sequence == .max)
+        #expect(try PdbFile(data: edge.exportExt).header.sequence == .max)
+    }
+
     // rekordbox 7.2.18 골든 관찰(2026-09-26 내보내기)
     @Test func headerFlag10Is5() throws {
         let (export, ext) = try Self.files()

@@ -324,10 +324,11 @@ rekordbox는 Device Library를 제자리에서 고친다. 읽기는 아래를 �
 
 ### 3.8 쓰기(`PdbWriter`)
 
-근거: rekordbox 7.2.18 골든(2026-09-26 내보내기)에서 칸 값만 읽어 아래 규칙으로 다시 만든 쪽이 원본과 바이트가 같았다(`djc lab pdb-verify`, 제자리 수정 이력이 있는 쪽은 뺌). 코드는 `PdbWriter`(두 파일·쓴 모델·규칙), `PdbLayout`(쪽 배치·순번·쪽 바이트), `PdbRowEncoder`(행·`PdbRowSize`), `PdbRoundTrip`(왕복 검사), `PdbPageCheck`(쪽 다시 만들기 비교)다.
+근거: rekordbox 7.2.18 골든(2026-09-26 내보내기)에서 칸 값만 읽어 아래 규칙으로 다시 만든 쪽이 원본과 바이트가 같았다(`djc lab pdb-verify`, 제자리 수정 이력이 있는 쪽은 뺌: 지운 행이 있는 데이터 쪽, 0x20·0x22가 한 번에 씀·덧붙임 모양이 아닌 데이터 쪽, 지운 쪽 목록이 있는 인덱스 쪽). 코드는 `PdbWriter`(두 파일·쓴 모델·규칙), `PdbLayout`(쪽 배치·순번·쪽 바이트), `PdbRowEncoder`(행·`PdbRowSize`), `PdbRoundTrip`(왕복 검사), `PdbPageCheck`(쪽 다시 만들기 비교)다.
 
 - 입력은 모델의 Device Library 투영(`projected(to: .deviceLibrary)`)이다. 두 형식을 합친 모델이어도 되고, OneLibrary에만 있는 칸·곡·목록은 쓰지 않는다.
-- 쓰지 않고 막는 것(`UsbError.writeRefused`의 code): 곡 0개(`pdbNoTracks`), 기기 기록·모르는 표의 행(`carriedDeviceRows`), My Tag 연결(`myTagLinks`, v1의 tag_tracks는 0행), file_type과 파일 이름 확장자가 다른 곡(`pdbFileTypeMismatch`), 가까운 모양에 들어가지 않는 아티스트·앨범·태그 행(`pdbFarOffsetRows`, 할당 크기 255 초과), 빈 쪽에도 들어가지 않는 행(`pdbRowTooLarge`), 칸 크기를 넘는 값(`pdbValueOutOfRange.<칸>`), ASCII가 아닌 ISRC(`pdbISRCNotASCII`).
+- 쓰지 않고 막는 것(`UsbError.writeRefused`의 code): 곡 0개(`pdbNoTracks`), 기기 기록·모르는 표의 행(`carriedDeviceRows`), My Tag 연결(`myTagLinks`, v1의 tag_tracks는 0행), file_type과 파일 이름 확장자가 다른 곡(`pdbFileTypeMismatch`), 가까운 모양에 들어가지 않는 아티스트·앨범·태그 행(`pdbFarOffsetRows`, 할당 크기 255 초과), 빈 쪽에도 들어가지 않는 행(`pdbRowTooLarge`), 칸 크기를 넘는 값(`pdbValueOutOfRange.<칸>`), ASCII가 아닌 ISRC(`pdbISRCNotASCII`), 편집 모드에서 새 순번이 u32를 넘는 경우(`pdbSequenceOverflow`).
+- 이 막힘들(규칙이 없는 것)의 문구는 일반 문구("USB에 쓰지 않았습니다. 조건을 확인한 뒤 다시 시도하세요")다. 쓰는 쪽(USB 내보내기·고치기)은 같은 조건을 계획 단계에서 먼저 막고(`PdbRowSize` 등) 할 일이 적힌 문구를 보여 준다. 작성기의 막힘은 마지막 안전장치다.
 
 **쪽 배치**
 
@@ -361,13 +362,13 @@ next_unused = next
 
 - 한 번에 씀: 0x20 = 자리 수, 0x22 = 0, tx 비트 = presence 비트. 덧붙임: 0x20 = 1, 0x22 = 마지막 자리, tx 비트는 마지막 자리만. 행 하나인 쪽은 둘이 같다.
 - 데이터 쪽: flags 0x24, 0x24·0x26 = 0(0x1FFF를 쓰지 않는다), free = `4096 − 0x28 − used − dir(nro)`, used = 행 할당 크기의 합. 힙과 행 인덱스 사이는 0. 행 0x02 index_shift = 자리 × 0x20(subtype이 있는 행).
-- **편집 모드**(`PdbWriteMode.edit`): 모든 쪽 순번 = 옛 파일 머리 순번 + 위 상대 순번(인덱스 쪽도). 머리는 늘 옛 머리보다 크다.
+- **편집 모드**(`PdbWriteMode.edit`): 모든 쪽 순번 = 옛 파일 머리 순번 + 위 상대 순번(인덱스 쪽도). 머리는 늘 옛 머리보다 크다. 옛 머리 순번은 USB에서 읽은 값이라, 새 머리 순번이 u32를 넘으면 쓰지 않고 막는다(`pdbSequenceOverflow`, 왕복 검사에서는 문제로 남는다).
 
 **행**
 
 - 할당 크기 L(`PdbRowSize`): 단순 행(genre·label·key·color·artwork·columns·playlist_tree) = align4(마지막 문자열 끝), 고정 행 playlist_entries 12·category 8·sort 8·표 19 40, 오프셋 문자열 행 = align4(고정 칸) + Σ align4(문자열 길이) + 4(고정 칸: 트랙 0x88, 아티스트 0x0A, 앨범 0x16, 태그 0x1F, exportExt 표 7 0x22). 트랙 행은 224바이트 이상. 문자열 뒤 할당 끝까지는 0.
 - 트랙 행 상수: 0x04 bitmask 0x000C0700, 0x56 0x0029, 0x5C 3. 평점·재생 수는 `deviceFields[.deviceLibrary]` 값(없으면 모델 칸). 뜻 모를 문자열 5·8·9·13·18은 빈 값, 6·7은 켜짐이면 "ON" 아니면 빈 값(빈 값은 추정).
-- 아티스트 0x08·앨범 0x14·태그 0x1C는 0x03, 앨범 0x04·0x10은 0, 분류 태그는 0x18 = 0x01000000, 태그의 두 번째 문자열은 빈 값(오프셋 = 이름 끝).
+- 아티스트 0x08·앨범 0x14·태그 0x1C는 0x03, 앨범 0x04·0x10은 0, 분류 태그는 0x0C(부모) = 0·0x18 = 0x01000000, 태그의 두 번째 문자열은 빈 값(오프셋 = 이름 끝).
 - keys는 모델 키만 모델 id로 쓴다(고정 24개 표를 쓰지 않는다). colors는 모델 색. category Disable이 없으면 보임 0·숨김 1, sort Disable이 없으면 보조 칸 2·숨김 1·보임 0.
 - 표 19: 곡 수 = 산 트랙 행 수, 날짜 = 모델 `pdbDate`(고칠 때 보존) → 없으면 OneLibrary `createdDate`(내보낸 날) → 없으면 오늘, 버전 "1000", 두 번째 문자열 빈 값. 늘 한 행.
 - exportExt 표 7: myTagMasterDBID와 빈 문자열 다섯(오프셋 0x22–0x26).
@@ -381,7 +382,7 @@ next_unused = next
 
 **실험 명령**
 
-- `djc lab pdb-verify <USB 폴더>`: 두 pdb를 사본으로 떠서 쪽마다 칸 값만으로 다시 만들어 바이트를 비교한다(쪽 번호·next·순번·행 자리 순서는 원본 값). 지운 행이 있는 데이터 쪽과 지운 쪽 목록이 있는 인덱스 쪽은 뺀다. 다른 쪽은 쪽 번호·처음 다른 오프셋과 행마다 할당 크기만 찍는다. rekordbox가 제자리에서 고친 행(지운 행은 없지만 tx가 덧붙임 모양이 아닌 쪽)은 할당 크기가 이 규칙보다 커 다를 수 있다(읽기는 문제없다).
+- `djc lab pdb-verify <USB 폴더>`: 두 pdb를 사본으로 떠서 쪽마다 칸 값만으로 다시 만들어 바이트를 비교한다(쪽 번호·next·순번·행 자리 순서는 원본 값). 제자리 수정 이력이 있는 쪽은 뺀다: 지운 행이 있는 데이터 쪽, 지운 쪽 목록이 있는 인덱스 쪽, 지운 행은 없지만 0x20·0x22가 그 표의 쓰기 모양(한 번에 씀 = (자리 수, 0), 덧붙임 = (1, 마지막 자리), 행 하나면 (1, 0))과 다른 데이터 쪽(rekordbox가 제자리에서 고친 행은 할당 크기가 이 규칙보다 클 수 있다. 읽기는 문제없다). 다른 쪽은 쪽 번호·처음 다른 오프셋과 행마다 할당 크기만 찍는다.
 - `djc lab pdb-export --db <사본> --share <share> (--playlist <ID> | --tracks <ID,…>) --out <폴더> [--snapshot-time <ISO 8601>]`: 로컬 사본으로 두 형식 모델을 만들어 `<폴더>/PIONEER/rekordbox/export.pdb`·`exportExt.pdb`만 쓰고, 다시 읽기 차이·왕복 문제 수를 찍는다. 골든과는 `djc lab usb-diff --device-library`로 비교한다.
 
 ## 4. ANLZ 변환

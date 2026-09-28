@@ -169,6 +169,20 @@ struct PdbRoundTripTests {
         #expect(throws: UsbError.self) { try PdbRoundTrip.check(export: Data(count: 10), exportExt: nil) }
     }
 
+    /// 머리 순번이 u32 끝인 파일(망가진 파일 등): 죽지 않고 막힘을 문제로 돌려준다
+    @Test func roundTripReportsSequenceOverflow() throws {
+        let files = try PdbWriter.files(PdbWriterTests.model(), mode: .fresh)
+        func maxed(_ data: Data) -> Data {
+            var data = data
+            data.replaceSubrange(0x14..<0x18, with: [0xFF, 0xFF, 0xFF, 0xFF])
+            return data
+        }
+        for (export, ext) in [(maxed(files.export), files.exportExt), (files.export, maxed(files.exportExt))] {
+            let problems = try PdbRoundTrip.check(export: export, exportExt: ext)
+            #expect(problems.contains("refused pdbSequenceOverflow"))
+        }
+    }
+
     /// 지운 행 ID는 다시 쓰면 사라진다(왕복 비교에서 뺀다)
     @Test func roundTripIgnoresDeadRows() throws {
         let (export, ext) = Self.sample { builder in

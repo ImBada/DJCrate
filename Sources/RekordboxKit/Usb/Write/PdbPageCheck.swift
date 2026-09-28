@@ -3,7 +3,8 @@ import Foundation
 
 /// 있는 Device Library 파일의 쪽을 칸 값만으로 다시 만들어 바이트를 비교한다(작성기 규칙 확인용, `djc lab pdb-verify`).
 /// 쪽 번호·next·순번·행 자리 순서는 원본 값을 쓰고, 파일 머리·쪽 머리·행·행 인덱스는 작성기 규칙으로 만든다.
-/// 제자리 수정 이력이 있는 쪽(지운 행이 있는 데이터 쪽, 지운 쪽 목록이 있는 인덱스 쪽)은 대상에서 뺀다.
+/// 제자리 수정 이력이 있는 쪽(지운 행이 있는 데이터 쪽, 0x20·0x22가 한 번에 씀·덧붙임 모양이 아닌 데이터 쪽,
+/// 지운 쪽 목록이 있는 인덱스 쪽)은 대상에서 뺀다.
 public enum PdbPageCheck {
     public enum Category: String, Sendable, CaseIterable {
         case header, index, zero, data
@@ -47,7 +48,8 @@ public enum PdbPageCheck {
     public struct Excluded: Sendable, Hashable {
         public var number: Int
         public var table: String
-        /// "deadRows"(지운 행이 있는 데이터 쪽) 또는 "indexEntries"(지운 쪽 목록이 있는 인덱스 쪽)
+        /// "deadRows"(지운 행이 있는 데이터 쪽), "inPlaceShape"(0x20·0x22가 그 표의 쓰기 모양과 다른 데이터 쪽)
+        /// 또는 "indexEntries"(지운 쪽 목록이 있는 인덱스 쪽)
         public var reason: String
 
         public init(number: Int, table: String, reason: String) {
@@ -115,10 +117,16 @@ public enum PdbPageCheck {
                 excluded.append(Excluded(number: number, table: table, reason: "deadRows"))
                 continue
             }
+            // rekordbox가 제자리에서 고친 쪽은 행 할당이 새로 쓴 모양과 달라 비교 대상이 아니다
+            let shape = PdbLayout.shape(file.kind, Int(h.type))
+            let expected = PdbLayout.transactionFields(shape, slots: h.rowSlots)
+            guard h.txRowCount == expected.count, h.txRowIndex == expected.index else {
+                excluded.append(Excluded(number: number, table: table, reason: "inPlaceShape"))
+                continue
+            }
             let rows = try? page.slots.map { try reencode(file.kind, Int(h.type), page.row($0)) }
             compare(number, .data, table, rows.map {
-                PdbLayout.dataPage(number: h.pageIndex, type: h.type, next: h.nextPage, sequence: h.sequence, rows: $0,
-                                   shape: PdbLayout.shape(file.kind, Int(h.type)))
+                PdbLayout.dataPage(number: h.pageIndex, type: h.type, next: h.nextPage, sequence: h.sequence, rows: $0, shape: shape)
             })
             if let rows, !compared[compared.count - 1].isSame {
                 compared[compared.count - 1].rows = rowDifferences(page, rows)

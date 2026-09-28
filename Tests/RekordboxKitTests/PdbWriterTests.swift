@@ -298,14 +298,20 @@ struct PdbWriterTests {
     @Test func tagsCategoryThenTags() throws {
         var model = Self.model()
         model.myTags = [
-            UsbMyTag(id: 11, parentID: 0, sequenceNo: 1, name: "시험 분류 B", isCategory: true),
+            // 모델에 부모가 적힌 분류도 분류 모양(부모 0)으로 쓴다
+            UsbMyTag(id: 11, parentID: 5, sequenceNo: 1, name: "시험 분류 B", isCategory: true),
             UsbMyTag(id: 10, parentID: 0, sequenceNo: 0, name: "Category A", isCategory: true),
             UsbMyTag(id: 21, parentID: 11, sequenceNo: 0, name: "Tag B0", isCategory: false),
             UsbMyTag(id: 22, parentID: 10, sequenceNo: 1, name: "Tag A1", isCategory: false),
             UsbMyTag(id: 20, parentID: 10, sequenceNo: 0, name: "시험 태그 A0", isCategory: false),
         ]
-        let rows = try Self.rows(Self.write(model).2, 3)
+        let (files, _, ext) = try Self.write(model)
+        let rows = try Self.rows(ext, 3)
         #expect(rows.map { Self.u32($0, 0x14) } == [10, 20, 22, 11, 21])
+        #expect(Self.u32(rows[3], 0x0C) == 0 && Self.u32(rows[3], 0x18) == 0x0100_0000)
+        #expect(files.written.myTags.first { $0.id == 11 }?.parentID == 0)
+        let reread = try PdbReader.read(export: files.export, exportExt: files.exportExt).0
+        #expect(PdbRoundTripTests.differences(reread, files.written).isEmpty)
         let first = rows[0], korean = rows[1]
         #expect(Self.u16(first, 0) == 0x0680 && Self.u32(first, 4) == 0 && Self.u32(first, 8) == 0)
         #expect(Self.u32(first, 0x0C) == 0 && Self.u32(first, 0x10) == 0 && Self.u32(first, 0x18) == 0x0100_0000)

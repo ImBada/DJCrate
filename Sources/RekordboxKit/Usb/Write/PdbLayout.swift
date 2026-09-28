@@ -62,6 +62,14 @@ struct PdbLayout {
         bulkTables(kind).contains(type) ? .bulk : .append
     }
 
+    /// 쪽 머리 0x20·0x22: 한 번에 씀은 (자리 수, 0), 덧붙임은 (1, 마지막 자리). 행 하나인 쪽은 둘 다 (1, 0)
+    static func transactionFields(_ shape: PdbPageShape, slots: Int) -> (count: UInt16, index: UInt16) {
+        switch shape {
+        case .bulk: (UInt16(slots), 0)
+        case .append: (1, UInt16(max(slots - 1, 0)))
+        }
+    }
+
     /// 쪽에 행 하나가 더 들어가는지: used + L + 행 인덱스(nro + 1) ≤ 4056
     static func fits(_ page: DataPage, _ row: PdbEncodedRow) -> Bool {
         page.used + row.bytes.count + PdbPage.indexSize(slots: page.rows.count + 1) <= PdbRowSize.pageCapacity
@@ -125,8 +133,15 @@ struct PdbLayout {
         return result
     }
 
-    /// 파일 바이트. 모든 쪽 순번 = `sequenceBase` + 상대 순번, 머리 순번 = 가장 큰 쪽 순번 + 1
+    /// 머리 순번(`base` + 가장 큰 상대 순번 + 1)이 u32에 들어가는지. 옛 머리 순번은 USB 파일에서 읽은 값이라 끝에 가까울 수 있다
+    func sequenceFits(base: UInt32) -> Bool {
+        UInt64(base) + UInt64(relativeSequences().values.max() ?? 0) + 1 <= UInt64(UInt32.max)
+    }
+
+    /// 파일 바이트. 모든 쪽 순번 = `sequenceBase` + 상대 순번, 머리 순번 = 가장 큰 쪽 순번 + 1.
+    /// 부르는 쪽이 `sequenceFits`로 먼저 확인한다
     func data(sequenceBase: UInt32) -> Data {
+        precondition(sequenceFits(base: sequenceBase), "쪽 순번이 u32를 넘는다")
         let relative = relativeSequences()
         var file = Data(count: pageCount * PdbPage.size)
         func place(_ page: Data, _ number: Int) {
@@ -210,13 +225,9 @@ struct PdbLayout {
         page.u8(0x24, at: 0x1B)
         page.u16(UInt16(PdbPage.freeSize(used: used, slots: count)), at: 0x1C)
         page.u16(UInt16(used), at: 0x1E)
-        switch shape {
-        case .bulk:
-            page.u16(UInt16(count), at: 0x20)
-        case .append:
-            page.u16(1, at: 0x20)
-            page.u16(UInt16(max(count - 1, 0)), at: 0x22)
-        }
+        let transaction = transactionFields(shape, slots: count)
+        page.u16(transaction.count, at: 0x20)
+        page.u16(transaction.index, at: 0x22)
         var offsets: [Int] = [], heap = 0
         for (slot, row) in rows.enumerated() {
             var bytes = row.bytes

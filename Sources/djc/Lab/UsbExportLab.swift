@@ -15,7 +15,7 @@ enum UsbExportLab {
                 UsbExportLab.export),
         Command("pdb-verify", "<USB 폴더>",
                 "USB의 export.pdb·exportExt.pdb를 사본으로 떠서 쪽마다 칸 값만으로 다시 만들어 바이트 비교"
-                    + "(쪽 번호·next·순번은 원본 값, 지운 행이 있는 쪽은 뺌, 값은 찍지 않음)",
+                    + "(쪽 번호·next·순번은 원본 값, 제자리 수정 이력이 있는 쪽은 뺌, 값은 찍지 않음)",
                 UsbExportLab.pdbVerify),
         Command("pdb-export",
                 "--db <사본> --share <share> (--playlist <ID> | --tracks <ID,…>) --out <출력 폴더> [--snapshot-time <ISO 8601>]",
@@ -247,10 +247,11 @@ enum UsbExportLab {
             let count = report.count(category)
             return "\(names[category] ?? category.rawValue) \(count.same)/\(count.total)"
         }.joined(separator: " · "))
-        for reason in ["deadRows", "indexEntries"] {
+        let labels = [("deadRows", "지운 행이 있는 데이터 쪽"), ("inPlaceShape", "제자리 수정 모양 데이터 쪽"),
+                      ("indexEntries", "지운 쪽 목록이 있는 인덱스 쪽")]
+        for (reason, label) in labels {
             let pages = report.excluded.filter { $0.reason == reason }.map(\.number)
             guard !pages.isEmpty else { continue }
-            let label = reason == "deadRows" ? "지운 행이 있는 데이터 쪽" : "지운 쪽 목록이 있는 인덱스 쪽"
             lines.append("  뺀 쪽(\(label)) \(pages.count): " + pages.map(String.init).joined(separator: ","))
         }
         for page in report.compared where !page.isSame {

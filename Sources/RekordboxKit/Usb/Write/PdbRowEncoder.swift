@@ -339,12 +339,13 @@ enum PdbRowEncoder {
 
     // MARK: exportExt 표
 
-    /// tags(3), subtype 0x0680: u32 부모 @0x0C, u32 순서 @0x10, u32 id @0x14, 분류면 u32 0x01000000 @0x18,
+    /// tags(3), subtype 0x0680: u32 부모 @0x0C(분류면 0), u32 순서 @0x10, u32 id @0x14, 분류면 u32 0x01000000 @0x18,
     /// 0x03 @0x1C, u8 이름 오프셋 @0x1D, u8 두 번째 문자열('') 오프셋 @0x1E
     static func tag(_ tag: UsbMyTag) throws -> PdbEncodedRow {
         var row = PdbRowBytes(count: tagHeader)
         try row.u16(0x0680, at: 0, "subtype")
-        try row.u32(tag.parentID, at: 0x0C, "parentID")
+        // 부모가 있는 분류 행은 본 적 없는 모양이라 만들지 않는다
+        try row.u32(tag.isCategory ? 0 : tag.parentID, at: 0x0C, "parentID")
         try row.u32(Int64(tag.sequenceNo), at: 0x10, "sequenceNo")
         try row.u32(tag.id, at: 0x14, "id")
         try row.u32(tag.isCategory ? 0x0100_0000 : 0, at: 0x18, "isCategory")
