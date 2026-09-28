@@ -24,7 +24,7 @@ struct ContentView: View {
     @State private var deckChromeHeight = 240.0
     @State private var noticeHeight = 0.0
     @State private var listHeaderHeight = 40.0
-    @State private var isFileDropTargeted = false
+    @State private var fileDropHighlight = DropHighlight()
     /// 인스펙터 내용을 그릴지. 닫혀 있어도 SwiftUI가 내용을 계속 계산해, 곡을 고를 때마다 입력 칸을 새로 만들고
     /// 덱까지 창 레이아웃을 다시 잡았다(#129). 열려 있을 때만 그린다.
     @State private var inspectorContentShown = false
@@ -167,9 +167,9 @@ struct ContentView: View {
                         }
                     }
                     // 내부 곡 끌기는 재생 목록·덱이 맡으므로 파일 추가가 가로채지 않는다.
-                    .onDrop(of: [.fileURL], delegate: LibraryFileDropDelegate(store: store, isTargeted: $isFileDropTargeted))
+                    .onDrop(of: [.fileURL], delegate: LibraryFileDropDelegate(store: store, highlight: $fileDropHighlight))
                     .overlay {
-                        if isFileDropTargeted {
+                        if fileDropHighlight.isTargeted {
                             RoundedRectangle(cornerRadius: 8)
                                 .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 3, dash: [8, 5]))
                                 .padding(4)
@@ -420,7 +420,7 @@ struct SplitHandle: View {
 /// 파일 URL과 내부 곡 ID를 함께 싣는 드래그를 구별해야 하므로 형식을 검사할 수 있는 delegate를 쓴다.
 struct LibraryFileDropDelegate: DropDelegate {
     let store: LibraryStore
-    @Binding var isTargeted: Bool
+    @Binding var highlight: DropHighlight
 
     static func accepts(_ providers: [NSItemProvider]) -> Bool {
         !providers.isEmpty
@@ -435,17 +435,17 @@ struct LibraryFileDropDelegate: DropDelegate {
             && Self.accepts(info.itemProviders(for: [.fileURL, DeckDragType.track, PlaylistDragType.tracks]))
     }
 
-    func dropEntered(info: DropInfo) { isTargeted = validateDrop(info: info) }
-    func dropExited(info: DropInfo) { isTargeted = false }
+    func dropEntered(info: DropInfo) { highlight.enter(accepted: validateDrop(info: info)) }
+    func dropExited(info: DropInfo) { highlight.exit() }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
         let accepted = validateDrop(info: info)
-        isTargeted = accepted
+        highlight.update(accepted: accepted)
         return DropProposal(operation: accepted ? .copy : .cancel)
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        isTargeted = false
+        highlight.drop()
         guard validateDrop(info: info) else { return false }
         let providers = info.itemProviders(for: [.fileURL])
         Task { @MainActor in
