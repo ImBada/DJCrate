@@ -56,7 +56,9 @@ public enum UsbLibraryBuilder {
 
     /// 기존 USB에 곡 더하기: 기존 행·ID는 그대로 두고 새 곡·목록만 더한다.
     /// 새 artist·album·genre·key·label은 같은 이름(NFC)이 이미 있으면 그 행을 쓰고, 없으면 산 행·죽은 ID 중 가장 큰 값 다음 번호.
-    public static func add(plan: UsbExportPlan, into existing: UsbLibrary, local: UsbLocalSource, share: URL) throws -> UsbExportModel {
+    /// highWater: 지운 뒤 모델에 남지 않은 ID(지난 쓰기 저널·기기 기록)까지 넘는 번호를 주려고 받는다
+    public static func add(plan: UsbExportPlan, into existing: UsbLibrary, local: UsbLocalSource, share: URL,
+                           highWater: [UsbIDKind: Int] = [:]) throws -> UsbExportModel {
         let formats = existing.formats.isEmpty ? UsbFormat.defaultSet : existing.formats
         let used = Set(existing.tracks.map(\.id))
         if let clash = plan.tracks.first(where: { used.contains($0.contentID) }) {
@@ -64,7 +66,7 @@ public enum UsbLibraryBuilder {
             throw UsbError.writeRefused([UsbBlock(code: "contentIDInUse", scope: .track("usb:\(clash.contentID)"),
                                                   message: String(ui: "USB에 이미 있는 곡 번호와 겹칩니다. USB를 다시 읽은 뒤 다시 내보내세요"))])
         }
-        var names = NameAllocator(existing: existing)
+        var names = NameAllocator(existing: existing, highWater: highWater)
         return try assemble(plan: plan, into: existing, formats: formats, names: &names, local: local, share: share)
     }
 
@@ -112,38 +114,66 @@ public enum UsbLibraryBuilder {
 
     /// 로컬 곡 한 행 → USB 곡(OneLibrary content 46칸과 pdb용 칸)
     private static func track(_ row: UsbLocalTrackRow, plan: UsbTrackPlan, formats: Set<UsbFormat>, names: inout NameAllocator) -> UsbTrack {
-        // 아티스트 번호는 곡마다 곡 아티스트 → 앨범 아티스트 → 작곡가 → 리믹서 → 원곡자 순으로 처음 나올 때 준다
-        let artistID = names.artists.id(local: row.artistID, name: row.artistName)
-        let albumArtistID = names.artists.id(local: row.albumArtistID, name: row.albumArtistName)
-        let composerID = names.artists.id(local: row.composerID, name: row.composerName)
-        let remixerID = names.artists.id(local: row.remixerID, name: row.remixerName)
-        let originalArtistID = names.artists.id(local: row.orgArtistID, name: row.orgArtistName)
-        let albumID = names.album(local: row.albumID, name: row.albumName, artistID: albumArtistID, compilation: row.albumCompilation ?? 0)
         let rating = row.rating ?? 0, playCount = row.djPlayCount ?? 0
-        return UsbTrack(
-            id: plan.contentID, presentIn: formats, title: row.title ?? "", titleForSearch: nil, subtitle: row.subtitle ?? "",
-            bpmx100: row.bpm ?? 0, lengthSeconds: row.length ?? 0, trackNo: row.trackNo ?? 0, discNo: row.discNo ?? 0,
-            artistID: artistID, remixerID: remixerID, originalArtistID: originalArtistID, composerID: composerID,
-            // 작사가는 글자로만 있어 아티스트 행을 만들지 않는다(값이 있으면 계획이 확인 안 된 규칙으로 표시)
-            lyricistArtistID: 0, lyricist: row.lyricist ?? "",
-            albumID: albumID, genreID: names.genres.id(local: row.genreID, name: row.genreName),
-            labelID: names.labels.id(local: row.labelID, name: row.labelName), keyID: names.keys.id(local: row.keyID, name: row.keyName),
-            colorID: Int(sqliteInteger(row.colorID) ?? 0), imageID: plan.imageID,
-            comment: row.comment ?? "", rating: rating, releaseYear: row.releaseYear ?? 0, releaseDate: row.releaseDate ?? "",
-            dateCreated: row.dateCreated ?? "", dateAdded: row.stockDate ?? "",
+        var track = UsbTrack(
+            id: plan.contentID, presentIn: formats, titleForSearch: nil, imageID: plan.imageID, rating: rating,
             path: UsbLayout.nfc(plan.contentsPath), fileName: UsbLayout.nfc(plan.fileName), fileSize: row.fileSize ?? 0,
-            fileType: row.fileType ?? 0, bitrate: row.bitRate ?? 0, bitDepth: row.bitDepth ?? 0, sampleRate: row.sampleRate ?? 0,
-            isrc: row.isrc ?? "", djPlayCount: playCount, hotCueAutoLoad: isOn(row.hotCueAutoLoad), kuvoDeliver: isOn(row.deliveryControl),
-            kuvoDeliveryComment: row.deliveryComment ?? "",
-            masterDbId: sqliteInteger(row.masterDBID) ?? 0, masterContentId: sqliteInteger(row.masterSongID) ?? 0,
-            analysisDataPath: plan.analysisPath, analysedBits: row.analysed ?? 0,
-            contentLink: contentLinkBase | ((row.contentLink ?? 0) & contentLinkPVDI), hasModified: 0,
+            djPlayCount: playCount, analysisDataPath: plan.analysisPath, hasModified: 0,
             cueUpdateCount: row.cueUpdated ?? "", analysisDataUpdateCount: row.analysisUpdated ?? "",
-            informationUpdateCount: row.trackInfoUpdated ?? "",
             // Device Library에는 hasModified 칸이 없다
             deviceFields: Dictionary(uniqueKeysWithValues: formats.map {
                 ($0, UsbTrackDeviceFields(rating: rating, playCount: playCount, hasModified: $0 == .oneLibrary ? 0 : nil))
             }))
+        applyInfo(row, to: &track, names: &names)
+        applyAnalysis(row, to: &track)
+        return track
+    }
+
+    /// 곡 정보 칸(제목·이름 번호·날짜·형식·곡 정보 갱신 횟수)을 로컬 값으로. USB 곡 정보 갱신도 이것을 쓴다.
+    /// 경로·파일 이름·분석 경로·그림·기기 칸(평점·재생 수·hasModified)·큐·분석 갱신 횟수는 건드리지 않는다
+    static func applyInfo(_ row: UsbLocalTrackRow, to track: inout UsbTrack, names: inout NameAllocator) {
+        // 아티스트 번호는 곡마다 곡 아티스트 → 앨범 아티스트 → 작곡가 → 리믹서 → 원곡자 순으로 처음 나올 때 준다
+        track.artistID = names.artists.id(local: row.artistID, name: row.artistName)
+        let albumArtistID = names.artists.id(local: row.albumArtistID, name: row.albumArtistName)
+        track.composerID = names.artists.id(local: row.composerID, name: row.composerName)
+        track.remixerID = names.artists.id(local: row.remixerID, name: row.remixerName)
+        track.originalArtistID = names.artists.id(local: row.orgArtistID, name: row.orgArtistName)
+        track.albumID = names.album(local: row.albumID, name: row.albumName, artistID: albumArtistID, compilation: row.albumCompilation ?? 0)
+        track.title = row.title ?? ""
+        track.subtitle = row.subtitle ?? ""
+        track.bpmx100 = row.bpm ?? 0
+        track.lengthSeconds = row.length ?? 0
+        track.trackNo = row.trackNo ?? 0
+        track.discNo = row.discNo ?? 0
+        // 작사가는 글자로만 있어 아티스트 행을 만들지 않는다(값이 있으면 계획이 확인 안 된 규칙으로 표시)
+        track.lyricistArtistID = 0
+        track.lyricist = row.lyricist ?? ""
+        track.genreID = names.genres.id(local: row.genreID, name: row.genreName)
+        track.labelID = names.labels.id(local: row.labelID, name: row.labelName)
+        track.keyID = names.keys.id(local: row.keyID, name: row.keyName)
+        track.colorID = Int(sqliteInteger(row.colorID) ?? 0)
+        track.comment = row.comment ?? ""
+        track.releaseYear = row.releaseYear ?? 0
+        track.releaseDate = row.releaseDate ?? ""
+        track.dateCreated = row.dateCreated ?? ""
+        track.dateAdded = row.stockDate ?? ""
+        track.fileType = row.fileType ?? 0
+        track.bitrate = row.bitRate ?? 0
+        track.bitDepth = row.bitDepth ?? 0
+        track.sampleRate = row.sampleRate ?? 0
+        track.isrc = row.isrc ?? ""
+        track.hotCueAutoLoad = isOn(row.hotCueAutoLoad)
+        track.kuvoDeliver = isOn(row.deliveryControl)
+        track.kuvoDeliveryComment = row.deliveryComment ?? ""
+        track.masterDbId = sqliteInteger(row.masterDBID) ?? 0
+        track.masterContentId = sqliteInteger(row.masterSongID) ?? 0
+        track.informationUpdateCount = row.trackInfoUpdated ?? ""
+    }
+
+    /// 분석 파일에서 오는 칸(분석 비트·PVDI 연결)을 로컬 값으로. 분석 파일을 다시 쓸 때만 부른다
+    static func applyAnalysis(_ row: UsbLocalTrackRow, to track: inout UsbTrack) {
+        track.analysedBits = row.analysed ?? 0
+        track.contentLink = contentLinkBase | ((row.contentLink ?? 0) & contentLinkPVDI)
     }
 
     // rekordbox 7.2.18 골든 관찰(2026-09-26 내보내기)
@@ -214,9 +244,9 @@ struct NamedRowAllocator {
     private var next: Int
     private(set) var added: [UsbNamedRow] = []
 
-    init(existing: [UsbNamedRow]?, deadIDs: Set<Int>) {
+    init(existing: [UsbNamedRow]?, deadIDs: Set<Int>, highWater: Int = 0) {
         reuseNames = existing != nil
-        next = ((existing ?? []).map(\.id) + deadIDs).max().map { $0 + 1 } ?? 1
+        next = max(((existing ?? []).map(\.id) + deadIDs).max() ?? 0, highWater) + 1
         for row in existing ?? [] where byName[UsbLayout.nfc(row.name)] == nil { byName[UsbLayout.nfc(row.name)] = row.id }
     }
 
@@ -252,15 +282,16 @@ struct NameAllocator {
 
     struct AlbumKey: Hashable { var name: String; var artistID: Int? }
 
-    init(existing: UsbLibrary?) {
+    /// highWater: 모델 밖에서 본 가장 큰 번호(종류별). 새 번호는 늘 이보다 크다
+    init(existing: UsbLibrary?, highWater: [UsbIDKind: Int] = [:]) {
         let dead = existing?.deadIDs ?? [:]
         func ids(_ kind: UsbIDKind) -> Set<Int> { dead[kind.rawValue] ?? [] }
-        artists = NamedRowAllocator(existing: existing?.artists, deadIDs: ids(.artist))
-        genres = NamedRowAllocator(existing: existing?.genres, deadIDs: ids(.genre))
-        keys = NamedRowAllocator(existing: existing?.keys, deadIDs: ids(.key))
-        labels = NamedRowAllocator(existing: existing?.labels, deadIDs: ids(.label))
+        artists = NamedRowAllocator(existing: existing?.artists, deadIDs: ids(.artist), highWater: highWater[.artist] ?? 0)
+        genres = NamedRowAllocator(existing: existing?.genres, deadIDs: ids(.genre), highWater: highWater[.genre] ?? 0)
+        keys = NamedRowAllocator(existing: existing?.keys, deadIDs: ids(.key), highWater: highWater[.key] ?? 0)
+        labels = NamedRowAllocator(existing: existing?.labels, deadIDs: ids(.label), highWater: highWater[.label] ?? 0)
         reuseAlbums = existing != nil
-        nextAlbum = ((existing?.albums.map(\.id) ?? []) + ids(.album)).max().map { $0 + 1 } ?? 1
+        nextAlbum = max(((existing?.albums.map(\.id) ?? []) + ids(.album)).max() ?? 0, highWater[.album] ?? 0) + 1
         for album in existing?.albums ?? [] {
             let key = AlbumKey(name: UsbLayout.nfc(album.name), artistID: album.artistID)
             if albumByName[key] == nil { albumByName[key] = album.id }

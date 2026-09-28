@@ -109,9 +109,12 @@ public struct UsbInvariantVerifier: UsbWriteVerifier {
     /// 쓰기 전부터 USB에 있던 `._*`(NFC 상대 경로). 사용자·macOS가 둔 것(루트 `._.Trashes`, 사용자 음원 옆 등)은
     /// 쓰기 전 확인이 막지 않으므로 여기서도 세지 않는다. 빈 집합이면 모두 센다
     let preexistingAppleDoubles: Set<String>
+    /// 두 형식의 곡 수가 같아야 하는지. USB 수정에서 한 형식이 막혀 다른 형식만 고쳤으면 끈다(막힌 형식은 그대로 두었다)
+    let checkFormatCounts: Bool
 
-    public init(preexistingAppleDoubles: Set<String> = []) {
+    public init(preexistingAppleDoubles: Set<String> = [], checkFormatCounts: Bool = true) {
         self.preexistingAppleDoubles = preexistingAppleDoubles
+        self.checkFormatCounts = checkFormatCounts
     }
 
     /// 볼륨의 `._*` 항목(NFC 상대 경로, 이름만 본다). 쓰기 직전에 떠서 `preexistingAppleDoubles`로 넘긴다
@@ -142,7 +145,7 @@ public struct UsbInvariantVerifier: UsbWriteVerifier {
                 problems.append("trackCount \(name) \(library.property.numberOfContents) != \(library.tracks.count)")
             }
         }
-        if let oneLibrary, let deviceLibrary, oneLibrary.tracks.count != deviceLibrary.tracks.count {
+        if checkFormatCounts, let oneLibrary, let deviceLibrary, oneLibrary.tracks.count != deviceLibrary.tracks.count {
             problems.append("trackCount formats \(oneLibrary.tracks.count) != \(deviceLibrary.tracks.count)")
         }
 

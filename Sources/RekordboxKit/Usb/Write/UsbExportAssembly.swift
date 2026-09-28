@@ -165,42 +165,10 @@ public enum UsbExportAssembly {
         try fm.createDirectory(at: staging, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
 
         var context = Context(staging: staging)
-        let tracks = Dictionary(model.library.tracks.map { ($0.id, $0) }) { first, _ in first }
-        let files = Dictionary(grouping: model.files, by: \.contentID)
-        let cues = UsbCueSource(database: localDatabase)
-        var warnings = plan.warnings
-        var anlzRules: Set<UsbProvisionalRule> = []
-
-        for (index, trackPlan) in plan.tracks.enumerated() {
-            if isCancelled() { throw UsbError.cancelled }
-            guard let track = tracks[trackPlan.contentID] else { throw UsbError.readFailed(detail: "track missing: \(trackPlan.contentID)") }
-            let id = trackPlan.localContentID
-            for file in files[trackPlan.contentID] ?? [] {
-                switch file.kind {
-                case let .audio(source):
-                    let copy = UsbFileCopy(source: source, destination: UsbLayout.nfc(file.destination), size: track.fileSize, sourceSHA1: nil,
-                                           modificationDate: try modificationDate(source, "audio", content: id), disposition: .create)
-                    context.copies.append(copy)
-                    context.target[copy.destination] = UsbTreeStamp(size: copy.size, sha256: nil)
-                case let .artwork(source):
-                    try context.stage(readLocal(source, "artwork", content: id), at: file.destination,
-                                      modified: modificationDate(source, "artwork", content: id))
-                case let .analysis(localDAT, localEXT, local2EX, localContentID):
-                    let result = try UsbAnlzTransform.transform(
-                        localDAT: readLocal(localDAT, "analysis", content: id), localEXT: readLocal(localEXT, "analysis", content: id),
-                        local2EX: try local2EX.map { try readLocal($0, "analysis", content: id) }, contentsPath: track.path,
-                        cues: cues.cues(contentID: localContentID), fileType: track.fileType)
-                    let base = String(file.destination.dropLast(4))
-                    try context.stage(result.dat, at: base + ".DAT", modified: nil)
-                    try context.stage(result.ext, at: base + ".EXT", modified: nil)
-                    if let twoEx = result.twoEx { try context.stage(twoEx, at: base + ".2EX", modified: nil) }
-                    anlzRules.formUnion(result.rules)
-                    warnings += result.warnings.compactMap { analysisWarning($0, track: trackPlan.localContentID) }
-                }
-            }
-            progress(index + 1, plan.tracks.count)
-        }
-        try addReusedAudio(plan: plan, localDatabase: localDatabase, into: &context)
+        let staged = try stageTracks(model: model, plan: plan, localDatabase: localDatabase, into: &context, progress: progress,
+                                     isCancelled: isCancelled)
+        let warnings = plan.warnings + staged.warnings
+        let anlzRules = staged.rules
 
         var requiredRules = plan.requiredRules.union(anlzRules)
         if let settingsFolder {
@@ -244,6 +212,48 @@ public enum UsbExportAssembly {
                                    stagingDirectory: staging.path, idHighWater: highWater)
         return UsbExportAssembled(changes: changes, warnings: unique(warnings), library: model.library, pdbWritten: pdbWritten,
                                   ruleCounts: ruleCounts)
+    }
+
+    /// 곡마다 음원 복사 목록·아트워크·분석 파일을 준비 폴더에 만든다(내보내기·USB에 곡 더하기가 같이 쓴다).
+    /// 이미 USB에 있는 같은 음원(재사용)도 목록에 넣는다. 돌려주는 것은 분석 파일 변환 경고·규칙
+    static func stageTracks(model: UsbExportModel, plan: UsbExportPlan, localDatabase: CipherDatabase, into context: inout Context,
+                            progress: (Int, Int) -> Void, isCancelled: () -> Bool) throws -> (warnings: [UsbBlock], rules: Set<UsbProvisionalRule>) {
+        let tracks = Dictionary(model.library.tracks.map { ($0.id, $0) }) { first, _ in first }
+        let files = Dictionary(grouping: model.files, by: \.contentID)
+        let cues = UsbCueSource(database: localDatabase)
+        var warnings: [UsbBlock] = []
+        var anlzRules: Set<UsbProvisionalRule> = []
+        for (index, trackPlan) in plan.tracks.enumerated() {
+            if isCancelled() { throw UsbError.cancelled }
+            guard let track = tracks[trackPlan.contentID] else { throw UsbError.readFailed(detail: "track missing: \(trackPlan.contentID)") }
+            let id = trackPlan.localContentID
+            for file in files[trackPlan.contentID] ?? [] {
+                switch file.kind {
+                case let .audio(source):
+                    let copy = UsbFileCopy(source: source, destination: UsbLayout.nfc(file.destination), size: track.fileSize, sourceSHA1: nil,
+                                           modificationDate: try modificationDate(source, "audio", content: id), disposition: .create)
+                    context.copies.append(copy)
+                    context.target[copy.destination] = UsbTreeStamp(size: copy.size, sha256: nil)
+                case let .artwork(source):
+                    try context.stage(readLocal(source, "artwork", content: id), at: file.destination,
+                                      modified: modificationDate(source, "artwork", content: id))
+                case let .analysis(localDAT, localEXT, local2EX, localContentID):
+                    let result = try UsbAnlzTransform.transform(
+                        localDAT: readLocal(localDAT, "analysis", content: id), localEXT: readLocal(localEXT, "analysis", content: id),
+                        local2EX: try local2EX.map { try readLocal($0, "analysis", content: id) }, contentsPath: track.path,
+                        cues: cues.cues(contentID: localContentID), fileType: track.fileType)
+                    let base = String(file.destination.dropLast(4))
+                    try context.stage(result.dat, at: base + ".DAT", modified: nil)
+                    try context.stage(result.ext, at: base + ".EXT", modified: nil)
+                    if let twoEx = result.twoEx { try context.stage(twoEx, at: base + ".2EX", modified: nil) }
+                    anlzRules.formUnion(result.rules)
+                    warnings += result.warnings.compactMap { analysisWarning($0, track: trackPlan.localContentID) }
+                }
+            }
+            progress(index + 1, plan.tracks.count)
+        }
+        try addReusedAudio(plan: plan, localDatabase: localDatabase, into: &context)
+        return (warnings, anlzRules)
     }
 
     /// 쓰기 뒤 검증기: 목표 지문 · (형식별) OneLibrary · Device Library · 불변식.
@@ -304,13 +314,16 @@ public enum UsbExportAssembly {
             return url
         }
 
-        mutating func stage(_ data: Data, at destination: String, modified: Date?) throws {
+        /// replacing: USB에 있던 파일을 바꿀 때 그 파일의 계획 때 해시와(분석 파일이면) 있어야 할 PPTH
+        mutating func stage(_ data: Data, at destination: String, modified: Date?,
+                            replacing existing: (sha256: String, ppth: String?)? = nil) throws {
             let destination = UsbLayout.nfc(destination)
             let url = try prepare(destination)
             try data.write(to: url, options: .withoutOverwriting)
             let hash = UsbExportAssembly.sha256(data)
             writes.append(UsbFileWrite(staged: url.path, destination: destination, sha256: hash, size: Int64(data.count),
-                                       modificationDate: modified, disposition: .create))
+                                       modificationDate: modified, disposition: existing == nil ? .create : .overwrite,
+                                       expectedExistingPPTH: existing?.ppth, expectedExistingSHA256: existing?.sha256))
             target[destination] = UsbTreeStamp(size: Int64(data.count), sha256: hash)
         }
 

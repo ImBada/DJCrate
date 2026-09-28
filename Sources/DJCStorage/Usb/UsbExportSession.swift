@@ -278,6 +278,11 @@ public final class UsbExportSession {
 
     /// 라이브 master.db(링크·같은 inode 포함)면 거부한다. 파일은 열지 않는다(경로·stat만)
     func refuseLive() throws {
+        try Self.refuseLive(database, liveDatabases: liveDatabases)
+    }
+
+    /// USB 수정 세션도 같은 판정을 쓴다
+    static func refuseLive(_ database: URL, liveDatabases: [URL]) throws {
         let live = [FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Pioneer/rekordbox/master.db"),
                     LibrarySnapshot.rekordboxDirectory.appending(path: "master.db")] + liveDatabases
         let target = UsbScratchRoots.realPath(database.path)
@@ -320,14 +325,22 @@ public final class UsbExportSession {
     /// 실물 쓰기가 닫혀 있는 동안은 가드 값과 무관하게 임시 폴더 아래 루트만 받는다(쓰기 절차와 같다)
     static func environmentBlocks(_ volume: UsbVolumeInfo, root: URL, required: Set<UsbProvisionalRule>, options: UsbExportOptions,
                                   guard writeGuard: UsbWriteGuard) -> [UsbBlock] {
-        var blocks = UsbVolumePolicy.blocks(volume, purpose: .export)
+        environmentBlocks(volume, root: root, required: required, allowProvisional: options.allowProvisional, confirmName: options.confirmName,
+                          purpose: .export, guard: writeGuard)
+    }
+
+    /// 내보내기·수정 공통(볼륨 정책 목적만 다르다)
+    static func environmentBlocks(_ volume: UsbVolumeInfo, root: URL, required: Set<UsbProvisionalRule>,
+                                  allowProvisional: Set<UsbProvisionalRule>, confirmName: String?, purpose: UsbVolumePurpose,
+                                  guard writeGuard: UsbWriteGuard) -> [UsbBlock] {
+        var blocks = UsbVolumePolicy.blocks(volume, purpose: purpose)
         let real = UsbScratchRoots.realPath(root.path)
         if isProtected(real ?? root.path, protectedRoots: writeGuard.protectedRoots) {
             blocks.append(UsbBlock(code: "protectedPath", scope: .volume,
                                    message: String(ui: "rekordbox 라이브러리나 DJCrate 데이터 폴더에는 USB처럼 쓸 수 없습니다. USB 볼륨을 고르세요")))
         }
-        blocks += UsbRuleCheck.blocks(required: required, volume: volume, allowProvisional: options.allowProvisional, gate: writeGuard.gate,
-                                      confirmName: options.confirmName)
+        blocks += UsbRuleCheck.blocks(required: required, volume: volume, allowProvisional: allowProvisional, gate: writeGuard.gate,
+                                      confirmName: confirmName)
         let outsideScratch = !(real.map(UsbScratchRoots.isUnderAllowedRoot) ?? false)
         if !UsbPhysicalWriteGate.buildEnabled, (!volume.isDiskImage || outsideScratch), !blocks.contains(where: { $0.code == "physicalDisabled" }) {
             blocks.append(UsbBlock(code: "physicalDisabled", scope: .volume,
