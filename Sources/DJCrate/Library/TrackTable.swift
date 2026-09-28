@@ -190,7 +190,7 @@ struct TrackColumn {
         TrackColumn(id: "hotCues", title: String(ui: "핫큐"), width: 42, minWidth: 34, sortKey: "hotCues", ascendingFirst: false,
                     help: String(ui: "직접 찍은 핫큐 수(초록)")),
         TrackColumn(id: "memoryCues", title: String(ui: "메모리"), width: 50, minWidth: 40, sortKey: "memoryCues", ascendingFirst: false,
-                    help: String(ui: "직접 찍은 메모리 큐 수(빨강). rekordbox 자동 큐만 있으면 '자동'")),
+                    help: String(ui: "메모리 큐 수(빨강, rekordbox 자동 큐 포함). 자동 큐뿐이면 흐린 글자")),
     ]
 
     /// 처음에 숨기는 칸(머리글 오른쪽 클릭으로 보인다). 태그 칸은 모두 목록에서 바로 고칠 수 있게 두되(#88) 자주 쓰지 않는 칸은 숨긴다.
@@ -739,9 +739,10 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             cell.set(hot > 0 ? "\(hot)" : "", color: UIColors.hot.nsColor, digits: true)
         case "memoryCues":
             // DJCrate에서 찍은 큐(초안)가 있으면 그 개수를 보여 준다(반영 전이라도).
-            // 큐 없는 곡은 핫큐 칸처럼 비운다(사이드바 '큐 없음'으로 찾는다, #121).
+            // 큐 없는 곡은 핫큐 칸처럼 비운다(사이드바 '큐 없음'으로 찾는다, #121). 자동 큐뿐이면 흐린 글자(#145).
             let label = row.memoryCueLabel(draft: cueCounts[row.track.uuid])
-            cell.set(label.text, color: label == .autoOnly ? .tertiaryLabelColor : UIColors.memory.nsColor, digits: label != .autoOnly)
+            let autoOnly = if case .autoOnly = label { true } else { false }
+            cell.set(label.text, color: autoOnly ? .tertiaryLabelColor : UIColors.memory.nsColor, digits: true)
         default: cell.set("", color: .labelColor)
         }
     }

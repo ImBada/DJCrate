@@ -67,6 +67,12 @@ struct PreviewCueTests {
         #expect(store.draftPreviewCues["first"] == nil)
     }
 
+    /// #145: rekordbox 자동 큐도 메모리 큐로 보인다(덱 목록과 같다).
+    @Test func savedAutoCuesAreShownAsMemoryCues() {
+        let auto = Cue(id: "auto", contentID: "track", kind: 0, inMsec: 350, name: "1.1Bars", colorTableIndex: 0, color: 255)
+        #expect(PreviewCueMark.current(saved: [auto], draft: nil) == [PreviewCueMark(EditableCue(kind: .memory, time: 0.35))])
+    }
+
     @Test func removingAllCuesInDraftDoesNotShowSavedCuesAgain() {
         let cue = Cue(id: "cue", contentID: "track", kind: 1, inMsec: 1000, name: "", colorTableIndex: nil)
         #expect(PreviewCueMark.current(saved: [cue], draft: nil).count == 1)

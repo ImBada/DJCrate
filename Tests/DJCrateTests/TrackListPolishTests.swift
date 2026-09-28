@@ -26,21 +26,29 @@ struct TrackListPolishTests {
 
     // MARK: - 메모리 칸
 
-    @Test func 메모리_칸은_큐가_없으면_핫큐_칸처럼_비운다() {
+    /// #145: 자동 큐도 덱과 같이 메모리 큐로 센다. 메모리 큐가 아직 고치지 않은 자동 큐뿐이면 수를 흐린 글자로 보인다.
+    @Test func 메모리_칸은_자동_큐도_메모리_큐로_센다() {
         let auto = Self.cue(0, 350, name: "1.1Bars")
         #expect(Self.row("1", cues: []).memoryCueLabel(draft: nil) == .empty)
         #expect(Self.row("2", cues: [Self.cue(1, 1000)]).memoryCueLabel(draft: nil) == .empty)
-        #expect(Self.row("3", cues: [auto]).memoryCueLabel(draft: nil) == .autoOnly)
-        #expect(Self.row("4", cues: [auto, Self.cue(0, 2000), Self.cue(0, 3000)]).memoryCueLabel(draft: nil) == .count(2))
-        // 핫큐가 있으면 자동 큐가 남아 있어도 '자동'이라 하지 않는다(직접 찍은 큐가 있는 곡).
-        #expect(Self.row("5", cues: [auto, Self.cue(1, 1000)]).memoryCueLabel(draft: nil) == .empty)
+        #expect(Self.row("3", cues: [auto]).memoryCueLabel(draft: nil) == .autoOnly(1))
+        #expect(Self.row("4", cues: [auto, Self.cue(0, 2000), Self.cue(0, 3000)]).memoryCueLabel(draft: nil) == .count(3))
+        #expect(Self.row("5", cues: [auto, Self.cue(1, 1000)]).memoryCueLabel(draft: nil) == .autoOnly(1))
+        #expect(Self.row("6", cues: [auto, Self.cue(0, 2000)]).memoryCueCount == 2, "정렬도 같은 수로")
     }
 
-    @Test func 초안이_있으면_초안의_큐_수를_같은_규칙으로_보인다() {
-        let auto = Self.row("1", cues: [Self.cue(0, 350, name: "CUE(Auto)")])
+    @Test func 초안이_있으면_초안의_큐_수를_같은_규칙으로_보인다() throws {
+        let autoCue = Self.cue(0, 350, name: "CUE(Auto)")
+        let auto = Self.row("1", cues: [autoCue])
         let plain = Self.row("2", cues: [Self.cue(0, 1000)])
-        // 초안에서 직접 찍은 큐를 모두 지워도 rekordbox 자동 큐는 남는다.
-        #expect(auto.memoryCueLabel(draft: Self.counts([])) == .autoOnly)
+        let editable = try #require(EditableCue(autoCue))
+        var edited = editable
+        edited.name = ""   // 고친 자동 큐는 일반 큐
+        #expect(auto.memoryCueLabel(draft: Self.counts([editable])) == .autoOnly(1))
+        #expect(auto.memoryCueLabel(draft: Self.counts([edited])) == .count(1))
+        #expect(auto.memoryCueLabel(draft: Self.counts([editable, EditableCue(kind: .memory, time: 5)])) == .count(2))
+        // 초안에서 자동 큐까지 지우면 비운다.
+        #expect(auto.memoryCueLabel(draft: Self.counts([])) == .empty)
         #expect(plain.memoryCueLabel(draft: Self.counts([])) == .empty)
         #expect(plain.memoryCueLabel(draft: Self.counts([EditableCue(kind: .hot(0), time: 1)])) == .empty)
         #expect(plain.memoryCueLabel(draft: Self.counts([EditableCue(kind: .memory, time: 1), EditableCue(kind: .memory, time: 2)])) == .count(2))
@@ -49,7 +57,7 @@ struct TrackListPolishTests {
     @Test func 메모리_칸_글자() {
         #expect(TrackRow.MemoryCueLabel.empty.text.isEmpty)
         #expect(TrackRow.MemoryCueLabel.count(3).text == "3")
-        #expect(TrackRow.MemoryCueLabel.autoOnly.text == String(ui: "자동"))
+        #expect(TrackRow.MemoryCueLabel.autoOnly(2).text == "2")
         let help = TrackColumn.all.first { $0.id == "memoryCues" }?.help ?? ""
         #expect(!help.contains(String(ui: "없음")))
         #expect(help.contains(String(ui: "자동")))
@@ -57,12 +65,15 @@ struct TrackListPolishTests {
 
     @Test func 목록의_메모리_칸에_없음이_보이지_않는다() throws {
         let (coordinator, table) = Self.table(columns: ["memoryCues"],
-                                              rows: [Self.row("1", cues: []), Self.row("2", cues: [Self.cue(0, 350, name: "1.1Bars")])])
+                                              rows: [Self.row("1", cues: []), Self.row("2", cues: [Self.cue(0, 350, name: "1.1Bars")]),
+                                                     Self.row("3", cues: [Self.cue(0, 350, name: "1.1Bars"), Self.cue(0, 900)])])
         let column = try #require(table.tableColumns.first)
         let empty = try #require(coordinator.tableView(table, viewFor: column, row: 0) as? TrackTextCell)
         #expect(empty.text.isEmpty)
         let auto = try #require(coordinator.tableView(table, viewFor: column, row: 1) as? TrackTextCell)
-        #expect(auto.text == String(ui: "자동"))
+        #expect(auto.text == "1" && auto.label.textColor == .tertiaryLabelColor)
+        let mixed = try #require(coordinator.tableView(table, viewFor: column, row: 2) as? TrackTextCell)
+        #expect(mixed.text == "2" && mixed.label.textColor == UIColors.memory.nsColor)
     }
 
     // MARK: - 스트리밍 곡

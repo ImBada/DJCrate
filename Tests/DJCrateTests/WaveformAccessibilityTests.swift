@@ -57,6 +57,14 @@ struct WaveformAccessibilityTests {
         #expect(Set(markers.map(\.id)).count == 2)
     }
 
+    /// #145: rekordbox 자동 큐는 파형 이름·로터에 '자동'을 함께 알린다(고치면 이름이 비어 빠진다).
+    @Test func 자동_큐는_파형_이름과_로터에_자동을_붙인다() {
+        let auto = EditableCue(kind: .memory, time: 1, name: "1.1Bars")
+        #expect(WaveformAccessibility.cueMarkers([auto]).map(\.label) == ["메모리 큐, 1초, 1.1Bars, rekordbox 자동 큐"])
+        #expect(WaveformAccessibility.cueName(auto) == "1.1Bars · 자동")
+        #expect(WaveformAccessibility.cueName(EditableCue(kind: .memory, time: 1, name: "Drop")) == "Drop")
+    }
+
     @Test func 섹션_로터는_에너지를_세_단계로_읽는다() {
         let markers = WaveformAccessibility.sectionMarkers([(start: 0, score: 1), (start: 30, score: 5), (start: 62, score: 9)])
         #expect(markers.map(\.label) == ["섹션 1, 0초, 에너지 약함", "섹션 2, 30초, 에너지 보통", "섹션 3, 1분 2초, 에너지 강함"])

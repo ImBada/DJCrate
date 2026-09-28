@@ -15,7 +15,8 @@ struct DeckPayload: Sendable {
 
     static func load(track: Track, cues: [Cue], duration: Double, storage: DeckStorage) -> DeckPayload {
         // 덱의 시각은 모두 rekordbox 시간축이다(초안·rekordbox 큐·그리드를 그대로 쓴다).
-        let draft = storage.loadCueDraft(track.uuid) ?? CueDraft(trackUUID: track.uuid, rekordboxCues: cues)
+        // 자동 큐를 빼고 만든 옛 초안에는 곡의 자동 큐를 채운다(#145, 목록에 메모리 큐로 보인다).
+        let draft = storage.loadCueDraft(track.uuid)?.includingAutoCues(from: cues) ?? CueDraft(trackUUID: track.uuid, rekordboxCues: cues)
         var payload = DeckPayload(draft: draft)
         payload.artwork = ArtworkCache.downsampled(imagePath: track.imagePath, maxPixels: 360)
 
