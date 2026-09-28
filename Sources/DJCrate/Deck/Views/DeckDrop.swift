@@ -11,13 +11,13 @@ enum DeckDragType {
 /// 덱 영역: 곡 목록에서 끌어 온 곡을 덱에 올린다(rekordbox처럼). Finder에서 끌어 온 음원은 창의 다른 곳과 같이 추가한다.
 struct DeckDropTarget: ViewModifier {
     let store: LibraryStore
-    @State private var isTargeted = false
+    @State private var highlight = DropHighlight()
 
     func body(content: Content) -> some View {
         content
-            .onDrop(of: [DeckDragType.track, .fileURL], delegate: DeckDropDelegate(store: store, isTargeted: $isTargeted))
+            .onDrop(of: [DeckDragType.track, .fileURL], delegate: DeckDropDelegate(store: store, highlight: $highlight))
             .overlay {
-                if isTargeted {
+                if highlight.isTargeted {
                     RoundedRectangle(cornerRadius: 8)
                         .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 3, dash: [8, 5]))
                         .overlay(alignment: .top) {
@@ -37,14 +37,14 @@ struct DeckDropTarget: ViewModifier {
 
 private struct DeckDropDelegate: DropDelegate {
     let store: LibraryStore
-    @Binding var isTargeted: Bool
+    @Binding var highlight: DropHighlight
 
     /// 덱 표시는 곡을 끌 때만(음원 파일은 덱에 올리지 않고 추가한다)
     func dropEntered(info: DropInfo) {
-        isTargeted = info.hasItemsConforming(to: [DeckDragType.track]) && store.writeLockPolicy.allowsLibraryInteraction
+        highlight.enter(accepted: info.hasItemsConforming(to: [DeckDragType.track]) && store.writeLockPolicy.allowsLibraryInteraction)
     }
 
-    func dropExited(info: DropInfo) { isTargeted = false }
+    func dropExited(info: DropInfo) { highlight.exit() }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
         DropProposal(operation: info.hasItemsConforming(to: [DeckDragType.track]) ? .move : .copy)
@@ -55,7 +55,7 @@ private struct DeckDropDelegate: DropDelegate {
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        isTargeted = false
+        highlight.drop()
         let store = store
         if let provider = info.itemProviders(for: [DeckDragType.track]).first {
             // 여러 곡을 끌었으면 첫 곡을 올린다.
