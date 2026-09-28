@@ -374,7 +374,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             rowIDs = ids
             self.edited = edited
             if reordered {
-                table.reloadData()
+                replaceRows(table)
                 applySelection(selection, table: table, scroll: true)
             } else {
                 // 순서는 같고 내용만 바뀜(새 스냅샷): 보이는 줄만 다시 그린다.
@@ -445,6 +445,27 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             syncing = true
             table.sortDescriptors = wanted
             syncing = false
+        }
+    }
+
+    /// 줄이 바뀌면(사이드바 항목·정렬·검색) `reloadData`로 다시 불러오지 않는다. 그러면 만들어 둔 셀·행 뷰를 모두 버리고
+    /// 새로 만들어 목록 전환마다 곡 수와 상관없이 무거웠다(#137). 줄 수만 알리고, 만들어 둔 줄(보이는 줄과 미리 준비한 줄)의 칸을 제자리에서 다시 채운다.
+    /// `reloadData(forRowIndexes:)`도 쓰지 않는다. 칸을 뗐다 붙이며 줄마다 키 뷰 순서를 다시 계산해 그것만으로 전환 비용의 큰 몫이었다.
+    private func replaceRows(_ table: NSTableView) {
+        // 줄 수가 줄며 표가 선택을 잘라도 스토어 선택은 그대로 둔다(바로 뒤에 새 목록 기준으로 다시 고른다).
+        // 표 높이는 기본으로 0.25초 동안 늘고 줄며 프레임마다 창을 다시 배치하므로 애니메이션 없이 바로 바꾼다.
+        syncing = true
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            table.noteNumberOfRowsChanged()
+        }
+        syncing = false
+        let columns = table.tableColumns.map(\.identifier.rawValue)
+        table.enumerateAvailableRowViews { rowView, index in
+            guard rows.indices.contains(index) else { return }
+            for (column, id) in columns.enumerated() {
+                if let cell = rowView.view(atColumn: column) as? NSView { fill(cell, column: id, row: index) }
+            }
         }
     }
 
@@ -644,38 +665,42 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row index: Int) -> NSView? {
         guard let id = tableColumn?.identifier.rawValue, rows.indices.contains(index) else { return nil }
+        let cell: NSView = switch id {
+        case "preview": reuse(tableView, "preview") { PreviewWaveformCell() }
+        case "thumb": reuse(tableView, "thumb") { ThumbnailCell() }
+        case "edited": reuse(tableView, "edited") { EditedMarkCell() }
+        case "index": reuse(tableView, "index") { TrackIndexCell() }
+        default: reuse(tableView, "text") { TrackTextCell() }
+        }
+        // 고치던 칸이 다른 자리로 다시 쓰이면(스크롤로 줄이 사라짐) 그 입력을 확정한다. 대상 곡은 편집을 시작할 때 정해 두었다.
+        if let edit = inlineEdit, edit.cell === cell, edit.row != index || edit.column != id {
+            Task { @MainActor [weak self] in self?.finishEditing(commit: true, restoreFocus: true) }
+        }
+        fill(cell, column: id, row: index)
+        return cell
+    }
+
+    /// 칸 하나를 그 줄의 곡으로 채운다(새로 만들었거나 다시 쓴 칸, 목록이 바뀌어 제자리에서 다시 채우는 칸).
+    private func fill(_ view: NSView, column id: String, row index: Int) {
         let row = rows[index]
-        switch id {
-        case "preview":
-            let cell = reuse(tableView, "preview") { PreviewWaveformCell() }
+        switch view {
+        case let cell as PreviewWaveformCell:
             cell.configure(url: RekordboxShare.analysisURL(row.track.analysisDataPath),
                            revision: "\(snapshotURL?.absoluteString ?? ""):\(previewRevision)", mode: waveformMode,
                            audioURL: row.track.isStreaming ? nil : URL(filePath: row.track.folderPath), key: row.track.uuid,
                            cues: PerfProbe.previewCuesVisible ? PreviewCueMark.current(saved: row.cues, draft: previewCues[row.track.uuid]) : [],
                            duration: Double(row.track.lengthSeconds))
-            return cell
-        case "thumb":
-            let cell = reuse(tableView, "thumb") { ThumbnailCell() }
+        case let cell as ThumbnailCell:
             cell.configure(track: row.track)
-            return cell
-        case "edited":
-            let cell = reuse(tableView, "edited") { EditedMarkCell() }
+        case let cell as EditedMarkCell:
             cell.configure(edited: edited.contains(row.track.uuid))
-            return cell
-        case "index":
-            let cell = reuse(tableView, "index") { TrackIndexCell() }
+        case let cell as TrackIndexCell:
             cell.configure(number: "\(row.historyTrackNumber ?? row.playlistTrackNumber ?? (index + 1))", font: fonts.digits,
                            deck: row.track.id == deckTrackID ? .init(playing: deckPlaying) : nil)
-            return cell
-        default:
-            let cell = reuse(tableView, "text") { TrackTextCell() }
-            // 고치던 칸이 다른 자리로 다시 쓰이면(스크롤로 줄이 사라짐) 그 입력을 확정한다. 대상 곡은 편집을 시작할 때 정해 두었다.
-            if let edit = inlineEdit, edit.cell === cell, edit.row != index || edit.column != id {
-                Task { @MainActor [weak self] in self?.finishEditing(commit: true, restoreFocus: true) }
-            }
+        case let cell as TrackTextCell:
             cell.fonts = fonts
             configure(cell, column: id, row: row, index: index)
-            return cell
+        default: break
         }
     }
 
@@ -968,7 +993,8 @@ final class TrackTextCell: NSTableCellView {
     private var symbolColor: NSColor?
     /// 글자 앞 작은 심볼(스트리밍 곡 제목, #121). 쓰는 칸이 드물어 처음 필요할 때 만든다.
     private var icon: NSImageView?
-    private var labelLeading: NSLayoutConstraint!
+    /// 글자 자리 시작점(심볼이 있으면 그 뒤)
+    private var labelLeading: CGFloat = 2
     /// 보이는 글자 앞 심볼 이름·색(시험용)
     private(set) var leadingSymbol: String?
     var symbolTint: NSColor? { icon?.contentTintColor }
@@ -1013,25 +1039,38 @@ final class TrackTextCell: NSTableCellView {
         super.init(frame: .zero)
         label.lineBreakMode = .byTruncatingTail
         label.cell?.truncatesLastVisibleLine = true
-        label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)
         textField = label
-        draftMark.translatesAutoresizingMaskIntoConstraints = false
         draftMark.isHidden = true
         addSubview(draftMark)
-        labelLeading = label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2)
-        NSLayoutConstraint.activate([
-            labelLeading,
-            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
-            label.centerYAnchor.constraint(equalTo: centerYAnchor),
-            draftMark.leadingAnchor.constraint(equalTo: leadingAnchor),
-            draftMark.topAnchor.constraint(equalTo: topAnchor),
-            draftMark.widthAnchor.constraint(equalToConstant: 7),
-            draftMark.heightAnchor.constraint(equalToConstant: 7),
-        ])
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    // 제약으로 두면 줄을 다시 채울 때마다(글자가 바뀌면 고유 크기도 바뀐다) 제약 엔진이 칸마다 다시 풀어
+    // 목록 전환·스크롤이 무거웠다(#137). 글자 자리·심볼·초안 표식·입력 칸은 칸 크기로 정해지므로 프레임으로 둔다.
+    override func setFrameSize(_ newSize: NSSize) {
+        let resized = newSize != frame.size
+        super.setFrameSize(newSize)
+        if resized { needsLayout = true }
+    }
+
+    override func layout() {
+        super.layout()
+        let height = bounds.height
+        if let icon, !icon.isHidden, let size = icon.image?.size {
+            icon.frame = backingAlignedRect(NSRect(x: 2, y: (height - size.height) / 2, width: size.width, height: size.height),
+                                            options: .alignAllEdgesNearest)
+        }
+        // 글자 자리(정렬 사각형)는 양옆 2pt 안쪽에서 세로 가운데다. 글자 칸 프레임은 정렬 여백만큼 더 넓다.
+        for text in [label, field].compactMap({ $0 }) {
+            let textHeight = text.intrinsicContentSize.height
+            let slot = NSRect(x: labelLeading, y: (height - textHeight) / 2,
+                              width: max(0, bounds.width - labelLeading - 2), height: textHeight)
+            text.frame = backingAlignedRect(text.frame(forAlignmentRect: slot), options: .alignAllEdgesNearest)
+        }
+        draftMark.frame = NSRect(x: 0, y: isFlipped ? 0 : height - 7, width: 7, height: 7)
+    }
 
     /// - Parameter draft: 반영 전 초안 값. 색과 함께 모서리 표식·VoiceOver "초안"으로도 알린다.
     /// - Parameter estimated: DJCrate 추정값. 색과 함께 기울임·툴팁·VoiceOver "추정"으로도 알린다.
@@ -1040,7 +1079,10 @@ final class TrackTextCell: NSTableCellView {
              symbol: String? = nil, symbolLabel: String? = nil, symbolColor: NSColor? = nil) {
         if label.stringValue != text { label.stringValue = text }
         let font = estimated ? fonts.estimated : digits ? fonts.digits : fonts.text
-        if label.font != font { label.font = font }
+        if label.font != font {
+            label.font = font
+            needsLayout = true
+        }
         if symbol != leadingSymbol || (symbol != nil && iconPointSize != font.pointSize) {
             showSymbol(symbol, label: symbolLabel, pointSize: font.pointSize)
         }
@@ -1062,20 +1104,15 @@ final class TrackTextCell: NSTableCellView {
         iconPointSize = pointSize
         if name != nil, icon == nil {
             let view = NSImageView()
-            view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
-            NSLayoutConstraint.activate([
-                view.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
-                view.centerYAnchor.constraint(equalTo: centerYAnchor),
-            ])
             icon = view
         }
         let image = name.flatMap { Self.symbolImage($0, label: text, pointSize: round(pointSize * 0.85)) }
         icon?.image = image
         icon?.toolTip = image == nil ? nil : text
         icon?.isHidden = image == nil
-        // 제약을 켜고 끄지 않고 글자 시작점만 옮긴다(스크롤 중 칸을 다시 쓸 때 배치 비용을 줄인다).
-        labelLeading.constant = 2 + (image.map { ceil($0.size.width) + 3 } ?? 0)
+        labelLeading = 2 + (image.map { ceil($0.size.width) + 3 } ?? 0)
+        needsLayout = true
     }
 
     /// 스크롤로 칸을 다시 쓸 때마다 심볼 이미지를 새로 만들지 않는다.
@@ -1101,15 +1138,12 @@ final class TrackTextCell: NSTableCellView {
         field.backgroundColor = .textBackgroundColor
         field.cell?.usesSingleLineMode = true
         field.cell?.isScrollable = true
-        field.translatesAutoresizingMaskIntoConstraints = false
         addSubview(field)
-        NSLayoutConstraint.activate([
-            field.leadingAnchor.constraint(equalTo: label.leadingAnchor),
-            field.trailingAnchor.constraint(equalTo: label.trailingAnchor),
-            field.centerYAnchor.constraint(equalTo: centerYAnchor),
-        ])
         label.isHidden = true
         self.field = field
+        // 입력을 시작하기 전에 글자 자리에 둔다(필드 편집기가 필드 크기로 뜬다).
+        needsLayout = true
+        layoutSubtreeIfNeeded()
         return field
     }
 
