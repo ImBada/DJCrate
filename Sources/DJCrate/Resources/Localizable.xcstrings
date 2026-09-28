@@ -6048,6 +6048,22 @@
         }
       }
     },
+    "USB 라이브러리 사본을 고친 뒤 확인하지 못했습니다. USB를 다시 읽은 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not verify the USB library copy after changing it. Reload the USB and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBライブラリのコピーを変更した後に確認できませんでした。USBを読み込み直してから、もう一度お試しください"
+          }
+        }
+      }
+    },
     "USB 라이브러리를 읽지 못했습니다: %@" : {
       "localizations" : {
         "en" : {
@@ -6124,6 +6140,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USB内の曲情報の更新"
+          }
+        }
+      }
+    },
+    "USB 안의 라이브러리 파일은 바로 고치지 않습니다. DJCrate의 USB 쓰기로 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The library file on the USB is not edited directly. Try again with a DJCrate USB write"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB内のライブラリファイルは直接変更しません。DJCrateのUSB書き込みでもう一度お試しください"
           }
         }
       }
@@ -6552,6 +6584,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBに書き込めない種類のキューがあるため、除いてエクスポートします"
+          }
+        }
+      }
+    },
+    "USB에 이미 있는 곡 번호와 겹칩니다. USB를 다시 읽은 뒤 다시 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The track ID is already used on the USB. Reload the USB, then export again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBにすでにある楽曲番号と重なっています。USBを読み込み直してから、もう一度エクスポートしてください"
           }
         }
       }
@@ -11330,6 +11378,22 @@
         }
       }
     },
+    "로컬 라이브러리 정보를 읽지 못했습니다. 새 스냅샷을 뜬 뒤 다시 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read the local library information. Take a new snapshot, then export again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルライブラリの情報を読み込めませんでした。スナップショットを取り直してから、もう一度エクスポートしてください"
+          }
+        }
+      }
+    },
     "로컬 분석 파일(.%@)을 읽지 못함" : {
       "localizations" : {
         "en" : {
@@ -15292,6 +15356,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "スナップショット: %@\n"
+          }
+        }
+      }
+    },
+    "스냅샷에서 이 곡을 찾지 못했습니다. 새 스냅샷을 뜬 뒤 다시 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This track was not found in the snapshot. Take a new snapshot, then export again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スナップショットにこの楽曲が見つかりませんでした。スナップショットを取り直してから、もう一度エクスポートしてください"
           }
         }
       }
