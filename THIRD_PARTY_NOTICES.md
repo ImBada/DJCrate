@@ -511,8 +511,9 @@ SOFTWARE.
 - 고지 기준 커밋: `eecb4f798c661ac3a285ab1894ad4257ee923621`
 - 출처: [M-Igashi/baken](https://github.com/M-Igashi/baken/tree/eecb4f798c661ac3a285ab1894ad4257ee923621)
 - 원문: [LICENSE](https://github.com/M-Igashi/baken/blob/eecb4f798c661ac3a285ab1894ad4257ee923621/LICENSE)
-- DJCrate에서 쓰는 곳: `Sources/RekordboxKit/AnlzWaveform.swift`의 파형 규칙.
-- 규칙 출처: [PR #148](https://github.com/M-Igashi/baken/pull/148)
+- DJCrate에서 쓰는 곳: `Sources/RekordboxKit/AnlzWaveform.swift`의 파형 규칙, `Sources/RekordboxKit/Usb/DeviceLibrary/PdbString.swift`(`PdbStringEncoder.encoded`)의 127자 이상 순수 ASCII 문자열 모양 선택.
+- 파형 규칙 출처: [PR #148](https://github.com/M-Igashi/baken/pull/148)
+- 문자열 규칙 참고: `crates/baken-export/src/pdb/string.rs`의 긴 문자열 처리(127자 이상 순수 ASCII 문자열을 UTF-16으로 쓰는 선택, 코드는 옮기지 않음)
 
 ````text
 MIT License

@@ -67,6 +67,8 @@ enum PdbRows {
     static let trackStringCount = 21
     /// 뜻 모를 트랙 문자열 칸 번호(값을 왕복 검사용으로 남긴다)
     static let trackUnknownStrings = [5, 8, 9, 13, 18]
+    /// 참·거짓 트랙 문자열 칸 번호(6 kuvo 공개·7 핫큐 자동 불러오기). "ON"만 참이고, 원래 값을 왕복 검사용으로 남긴다
+    static let trackFlagStrings = [6, 7]
 
     static func track(_ row: inout PdbRowReader) throws -> (UsbTrack, UsbPdbTrackExtras) {
         try row.require(trackFixedSize)
@@ -99,7 +101,8 @@ enum PdbRows {
             deviceFields: [.deviceLibrary: UsbTrackDeviceFields(rating: rating, playCount: playCount, hasModified: nil)])
         let extras = UsbPdbTrackExtras(
             subtype: UInt16(subtype), bitmask: UInt32(try row.u32(0x04)), u5: UInt16(try row.u16(0x56)), u7: UInt16(try row.u16(0x5C)),
-            unknownStrings: Dictionary(uniqueKeysWithValues: trackUnknownStrings.map { ($0, strings[$0]) }), stringKinds: kinds)
+            unknownStrings: Dictionary(uniqueKeysWithValues: trackUnknownStrings.map { ($0, strings[$0]) }), stringKinds: kinds,
+            flagStrings: Dictionary(uniqueKeysWithValues: trackFlagStrings.map { ($0, strings[$0]) }))
         return (track, extras)
     }
 
