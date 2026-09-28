@@ -42,14 +42,21 @@ extension DeckModel {
         }
     }
 
+    /// 출력 장치가 응답하지 않거나(엔진 준비 전) 엔진을 켜지 못해 재생을 막았을 때의 안내(#142)
+    static var audioUnavailableMessage: String {
+        String(ui: "오디오 장치를 쓸 수 없습니다. 소리 출력 장치를 확인하고 잠시 뒤 다시 재생하세요")
+    }
+
     func startPlayback(from time: Double) {
         if audio.play(from: time) {
             isPlaying = true
             ticker.start()
+            if toast?.text == Self.audioUnavailableMessage { toast = nil }
         } else {
             isPlaying = false
             ticker.stop()
             playhead = min(time, duration)
+            if audio.isOutputUnavailable { showToast(Self.audioUnavailableMessage) }
         }
     }
 

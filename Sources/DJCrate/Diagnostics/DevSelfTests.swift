@@ -328,11 +328,19 @@ enum DevSelfTests {
                 let capture = Process()
                 capture.executableURL = URL(filePath: "/usr/sbin/screencapture")
                 capture.arguments = ["-x", "-l", String(window.windowNumber), path]
+                var saved = false
                 do {
                     try capture.run()
                     capture.waitUntilExit()
-                    log("화면 저장: \(capture.terminationStatus == 0 ? "통과" : "실패")")
-                } catch { log("화면 저장 실패") }
+                    saved = capture.terminationStatus == 0
+                } catch {}
+                // 화면 기록 권한이 없으면 창 뷰(제목 막대 포함)를 직접 그린다(`--ui-perf-capture`와 같은 방식).
+                if !saved, let frame = window.contentView?.superview,
+                   let bitmap = frame.bitmapImageRepForCachingDisplay(in: frame.bounds) {
+                    frame.cacheDisplay(in: frame.bounds, to: bitmap)
+                    saved = (try? bitmap.representation(using: .png, properties: [:])?.write(to: URL(filePath: path))) != nil
+                }
+                log("화면 저장: \(saved ? "통과" : "실패")")
             }
             if let column = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == "preview" }),
                !table.tableColumns[column].isHidden {
@@ -401,8 +409,9 @@ enum DevSelfTests {
             let audio = DeckAudio()
             audio.volume = 1   // 값이 곧 프레임 번호여야 한다(볼륨을 곱하지 않게)
             try? audio.load(url: url)
-            for _ in 0..<100 where !audio.canLoopSampleAccurately { await wait(0.05) }
+            for _ in 0..<100 where !audio.canLoopSampleAccurately || !audio.isOutputReady { await wait(0.05) }
             guard audio.canLoopSampleAccurately else { log("메모리 디코딩 안 됨"); exit(1) }
+            guard audio.isOutputReady else { log("오디오 출력을 준비하지 못함(장치 응답 없음)"); exit(1) }
             let captured = Captured()
             audio.debugCaptureTrack { buffer in
                 guard let data = buffer.floatChannelData else { return }
@@ -502,8 +511,9 @@ extension DevSelfTests {
             let audio = DeckAudio()
             audio.volume = 1   // 값이 곧 프레임 번호여야 한다(볼륨을 곱하지 않게)
             try? audio.load(url: url)
-            for _ in 0..<100 where !audio.canLoopSampleAccurately { await wait(0.05) }
+            for _ in 0..<100 where !audio.canLoopSampleAccurately || !audio.isOutputReady { await wait(0.05) }
             guard audio.canLoopSampleAccurately else { log("메모리 디코딩 안 됨"); exit(1) }
+            guard audio.isOutputReady else { log("오디오 출력을 준비하지 못함(장치 응답 없음)"); exit(1) }
             let captured = Captured()
             audio.debugCaptureTrack { buffer in
                 guard let data = buffer.floatChannelData else { return }
@@ -606,7 +616,8 @@ func runMetronomeSelfTestIfRequested() {
         let grid = BeatGrid(beats: beats)
         let audio = DeckAudio()
         try? audio.load(url: url)
-        for _ in 0..<100 where !audio.canLoopSampleAccurately { await wait(0.05) }
+        for _ in 0..<100 where !audio.canLoopSampleAccurately || !audio.isOutputReady { await wait(0.05) }
+        guard audio.isOutputReady else { log("오디오 출력을 준비하지 못함(장치 응답 없음)"); exit(1) }
         let captured = Captured()
         audio.debugCaptureClicks { buffer in
             guard let data = buffer.floatChannelData else { return }
