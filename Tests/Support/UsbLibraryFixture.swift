@@ -11,6 +11,12 @@ public struct UsbLibraryFixture: Sendable {
         public var name: String
         public var oneLibraryEntries: [Int]
         public var deviceLibraryEntries: [Int]
+        /// 목록이 있는 형식(한 형식에만 있는 목록 시험용)
+        public var formats: Set<UsbFormat> = UsbFormat.defaultSet
+        /// Device Library 쪽 이름(nil이면 같게. 다르면 같은 번호 목록이 형식마다 다름)
+        public var deviceLibraryName: String?
+        /// 순서 번호(nil이면 목록 배열 자리)
+        public var sortOrder: Int?
 
         public init(id: Int, name: String, entries: [Int]) {
             self.init(id: id, name: name, oneLibraryEntries: entries, deviceLibraryEntries: entries)
@@ -55,6 +61,10 @@ public struct UsbLibraryFixture: Sendable {
     public var oneLibraryWAL = false
     /// OneLibrary property.dbVersion(확인한 값은 "1000")
     public var oneLibraryDBVersion = "1000"
+    /// 곡마다 그림 id(없으면 곡 id). 두 곡이 한 그림을 함께 쓰는 시험용
+    public var imageIDs: [Int: Int] = [:]
+    /// Device Library 재생 기록(표 11·12) 하나에 넣을 곡
+    public var pdbHistoryEntries: [Int] = []
 
     public init() {}
 
@@ -83,17 +93,28 @@ public struct UsbLibraryFixture: Sendable {
 
     public static func twoEx(path: String) -> Data { AnlzBuilder.local2EX(path: path, pvdi: false) }
 
+    public func imageID(_ track: Int) -> Int { imageIDs[track] ?? track }
+
+    /// 곡들이 쓰는 그림 id(순서대로 한 번씩)
+    var images: [Int] {
+        var seen: Set<Int> = []
+        return (trackIDs + deviceOnlyTrackIDs).map(imageID).filter { seen.insert($0).inserted }
+    }
+
     public func write(to tree: UsbTreeFixture) throws {
         if formats.contains(.oneLibrary) { try writeOneLibrary(to: tree) }
         if formats.contains(.deviceLibrary) { writeDeviceLibrary(to: tree) }
+        if writeArtwork {
+            for image in images {
+                for (prefix, medium) in [("a", false), ("b", false), ("a", true), ("b", true)] {
+                    tree.write(String(format: "PIONEER/Artwork/00001/%@%d%@.jpg", prefix, image, medium ? "_m" : ""),
+                               Self.artwork(image, medium: medium))
+                }
+            }
+        }
         for id in trackIDs + deviceOnlyTrackIDs {
             let path = Self.trackPath(id)
             if writeAudio { tree.write(String(path.dropFirst()), Self.audio(id)) }
-            if writeArtwork {
-                for (prefix, medium) in [("a", false), ("b", false), ("a", true), ("b", true)] {
-                    tree.write(String(format: "PIONEER/Artwork/00001/%@%d%@.jpg", prefix, id, medium ? "_m" : ""), Self.artwork(id, medium: medium))
-                }
-            }
             if writeAnalysis {
                 let base = String(analysisPath(id).dropFirst().dropLast(4))
                 tree.write(base + ".DAT", Self.dat(path: path, hotCueA: hotCueA[id]))
@@ -110,14 +131,16 @@ public struct UsbLibraryFixture: Sendable {
             spec.fileSize = Self.audio(id).count
             spec.masterDbId = Int(masterDbIDs[id] ?? 1_000_001)
             spec.analysisDataFilePath = analysisPath(id)
-            spec.imageID = writeArtwork ? id : nil
+            spec.imageID = writeArtwork ? imageID(id) : nil
             try fixture.add(track: spec)
-            if writeArtwork {
-                try fixture.insert("image", ["image_id": .int(id), "path": .text(String(format: "/PIONEER/Artwork/00001/b%d.jpg", id))])
+        }
+        if writeArtwork {
+            for image in images {
+                try fixture.insert("image", ["image_id": .int(image), "path": .text(String(format: "/PIONEER/Artwork/00001/b%d.jpg", image))])
             }
         }
-        for (index, playlist) in playlists.enumerated() {
-            try fixture.add(playlist: playlist.id, name: playlist.name, sequenceNo: index, entries: playlist.oneLibraryEntries)
+        for (index, playlist) in playlists.enumerated() where playlist.formats.contains(.oneLibrary) {
+            try fixture.add(playlist: playlist.id, name: playlist.name, sequenceNo: playlist.sortOrder ?? index, entries: playlist.oneLibraryEntries)
         }
         for tag in myTags {
             try fixture.add(myTag: tag.id, name: tag.name, parentID: tag.parentID, sequenceNo: tag.sequenceNo, isCategory: tag.isCategory)
@@ -142,12 +165,21 @@ public struct UsbLibraryFixture: Sendable {
             spec.fileSize = Int64(Self.audio(id).count)
             spec.masterDbId = masterDbIDs[id] ?? 1_000_001
             spec[.analyzePath] = analysisPath(id)
-            spec.artworkID = writeArtwork ? id : 0
+            spec.artworkID = writeArtwork ? imageID(id) : 0
             export.add(.tracks, PdbBuilder.trackRow(spec))
-            if writeArtwork { export.add(.artwork, PdbBuilder.idNameRow(id, String(format: "/PIONEER/Artwork/00001/a%d.jpg", id))) }
         }
-        for (index, playlist) in playlists.enumerated() {
-            export.add(.playlistTree, PdbBuilder.playlistTreeRow(id: playlist.id, name: playlist.name, sortOrder: index))
+        if writeArtwork {
+            for image in images { export.add(.artwork, PdbBuilder.idNameRow(image, String(format: "/PIONEER/Artwork/00001/a%d.jpg", image))) }
+        }
+        if !pdbHistoryEntries.isEmpty {
+            export.add(.historyPlaylists, PdbBuilder.idNameRow(1, "HISTORY 001"))
+            for (index, track) in pdbHistoryEntries.enumerated() {
+                export.add(.historyEntries, PdbBuilder.historyEntryRow(trackID: track, playlistID: 1, index: index + 1))
+            }
+        }
+        for (index, playlist) in playlists.enumerated() where playlist.formats.contains(.deviceLibrary) {
+            export.add(.playlistTree, PdbBuilder.playlistTreeRow(id: playlist.id, name: playlist.deviceLibraryName ?? playlist.name,
+                                                                 sortOrder: playlist.sortOrder ?? index))
             for (position, track) in playlist.deviceLibraryEntries.enumerated() {
                 export.add(.playlistEntries, PdbBuilder.playlistEntryRow(index: position + 1, trackID: track, playlistID: playlist.id))
             }

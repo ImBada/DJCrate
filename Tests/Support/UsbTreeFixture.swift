@@ -8,7 +8,12 @@ public struct UsbTreeFixture {
     public let base: URL
 
     public init() {
-        base = FileManager.default.temporaryDirectory.appending(path: "djc-usbtree-\(UUID().uuidString)")
+        self.init(base: FileManager.default.temporaryDirectory.appending(path: "djc-usbtree-\(UUID().uuidString)"))
+    }
+
+    /// 이미 정한 폴더(예: 쓰기 시험의 USB 루트 흉내)에 트리를 만든다
+    public init(base: URL) {
+        self.base = base
         try! FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
     }
 
