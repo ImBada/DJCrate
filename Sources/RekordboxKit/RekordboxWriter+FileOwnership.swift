@@ -57,10 +57,11 @@ extension RekordboxWriter {
             return DeletionFiles(warning: fileOwnershipWarning)
         }
         let audio = Set(tracks.values.map { URL(filePath: $0.audio).resolvingSymlinksInPath().path })
-        let folders = Set(candidates.map { $0.deletingLastPathComponent().path })
+        let folders = Set(candidates.map { $0.deletingLastPathComponent().comparablePath })
         for (otherID, other) in tracks where otherID != id {
             for path in [other.analysis, other.image] {
-                if let url = RekordboxShare.analysisURL(path, root: share), folders.contains(url.resolvingSymlinksInPath().deletingLastPathComponent().path) {
+                if let url = RekordboxShare.analysisURL(path, root: share),
+                   folders.contains(url.resolvingSymlinksInPath().deletingLastPathComponent().comparablePath) {
                     return DeletionFiles(warning: fileOwnershipWarning)
                 }
             }

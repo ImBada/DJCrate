@@ -46,7 +46,7 @@ final class TrackEditWindow: NSObject, NSWindowDelegate {
             window.isReleasedWhenClosed = false
             window.delegate = self
             window.setContentSize(NSSize(width: 980, height: 700))
-            window.contentMinSize = NSSize(width: 760, height: 560)
+            window.contentMinSize = NSSize(width: 760, height: 600)
             window.center()
             window.setFrameAutosaveName("TrackEditWindow")
             self.host = host
@@ -121,6 +121,10 @@ enum TrackEditCommand: Equatable {
     case split
     /// Esc: 고른 클립·구간 놓기
     case clearSelection
+    /// = 확대, − 축소(마지막으로 누른 줄). ⌘+/−는 보기 › 글자 크기 메뉴다.
+    case zoom(in: Bool)
+    /// 0: 줄 전체 보기
+    case fit
 
     init?(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) {
         let keys = modifiers.intersection([.command, .control, .option, .shift])
@@ -137,6 +141,10 @@ enum TrackEditCommand: Equatable {
         case (2, [.command]): self = .duplicateClip
         case (11, [.command]): self = .split
         case (53, []): self = .clearSelection
+        // = 키(⇧를 누르면 +)와 숫자 패드 +, − 키와 숫자 패드 −, 0과 숫자 패드 0
+        case (24, []), (24, [.shift]), (69, []), (69, [.shift]): self = .zoom(in: true)
+        case (27, []), (78, []): self = .zoom(in: false)
+        case (29, []), (82, []): self = .fit
         default: return nil
         }
     }
@@ -165,6 +173,12 @@ enum TrackEditCommand: Equatable {
             model.splitAtPlayhead()
         case .clearSelection:
             return model.clearSelection()
+        case .zoom(let zoomIn):
+            guard model.extent(model.focus) > 0 else { return false }
+            model.zoom(model.focus, by: zoomIn ? 2 : 0.5)
+        case .fit:
+            guard model.extent(model.focus) > 0 else { return false }
+            model.fit(model.focus)
         }
         return true
     }

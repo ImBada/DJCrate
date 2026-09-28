@@ -46,6 +46,7 @@ djc compat --db /tmp/djc-fixture/master.db --json
 | `played` | 재생 이력 있음 |
 | `streaming` | 스트리밍 곡 |
 | `no-bpm` | BPM이 없는 로컬 곡 |
+| `missing-file` | 음원 파일을 찾지 못한 로컬 곡(연결되지 않은 외장 디스크 포함, 스트리밍 곡 제외) |
 | `tempo-change` | 읽은 그리드에 변속 흐름 있음(분석 파일을 읽지 못하면 제외) |
 
 일반 재생 목록은 원래 곡 순서와 중복을 보존한다. 폴더를 `playlist` 또는 검색의 `--playlist`에 주면 하위 목록을 순서대로 합치고 같은 곡은 첫 등장만 남긴다. 삭제되거나 없는 곡 ID는 제외한다. 목록·폴더는 `sequence`, 같은 순번이면 ID 순서이고 검색 결과는 문자열 ID 순서다.

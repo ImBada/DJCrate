@@ -65,6 +65,7 @@ description: DJCrate의 명령줄 도구 djc로 rekordbox 라이브러리(스냅
 | `empty-comment` | 빈 코멘트 |
 | `off-convention` | 규칙 밖 코멘트(구형·잔재·크레딧·기타), `--comment-preset anisong` 필수 |
 | `no-bpm` | BPM이 없는 로컬 곡 |
+| `missing-file` | 음원 파일을 찾지 못한 로컬 곡(스트리밍 곡 제외) |
 | `tempo-change` | 그리드에 변속이 있음 |
 | `played` · `streaming` · `all` | 재생 이력 있음 · 스트리밍 곡 · 전체(기본) |
 

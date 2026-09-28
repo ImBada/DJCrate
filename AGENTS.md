@@ -56,12 +56,14 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 | `--loop-selftest` | 활성 루프·즉석 루프·½·핫큐 저장·나가기 | `--select`로 활성 루프 있는 곡 |
 | `--loop-audio-selftest` | 루프 이음새가 샘플 단위로 맞는지(램프 WAV) | — |
 | `--hotcue-click-selftest` | 2초 스크럽·관성이 실제 파형 모니터에 도착하는지(21·42개), 관성 누출과 핫큐 클릭·이동 확인(물리 트랙패드의 OS 감속·클릭 억제는 별도 확인) | `EditLayoutFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로 |
+| `--scrub-hotcue-selftest` | 확대 파형을 끄는 중 핫큐 키: 진짜 키 이벤트가 KeyRouter에 오지 않는 것, 빈 칸 찍기·저장된 칸으로 옮겨 이어 끌기·놓은 뒤 재생(키는 합성 키보드 상태) | `EditLayoutFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로. 덱 창이 키 창이 돼야 한다(못 하면 exit 2) |
 | `--jump-audio-selftest` | 재생 퀀타이즈 핫큐 점프가 박 경계에서 샘플 단위로 넘어가는지(램프 WAV, ¼·1박·루프 핫큐·다시 누름, `--jump-bpm=180`으로 빠른 곡도 확인) | — |
 | `--metronome-jump-selftest` | 핫큐 점프 직후 60→180 BPM 그리드의 클릭 간격·강박 전환(실제 오디오) | — |
 | `--metronome-selftest` | 메트로놈 클릭이 빠지지 않는지(실제 엔진으로 12초 재생해 클릭 수를 셈) | — |
 | `--switch-selftest` | 곡 전환·일시정지 뒤 소리 | — |
 | `--scroll-perf` | 재생 중 목록 스크롤 때 프레임 간격 | `--perf-hide=zoom,label,…`로 A/B |
-| `--edit-selftest` | 곡 편집 창: 창 재생기(스페이스바·시킹·이음새 듣기, 덱은 그대로)·넣기·자르기·복제·옮기기·지우기와 편집 메뉴 실행 취소·렌더·추가한 곡으로 이동·덱에 편집본 | `EditLayoutFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로 |
+| `--ui-perf=all` | 조작마다(사이드바·인스펙터 열고 닫기, 창 크기, 스크롤, 선택, 사이드바 항목, 정렬, 검색, 덱에 올리기, 확대·축소, 스크럽, 재생, 태그 시트, 곡 편집 창, 쓰기 미리 보기) 메인 스레드 일한 시간·프레임 간격. `--ui-perf=sidebar,sort`처럼 골라 재고, 조작마다 관심 지점 구간을 남겨 `xctrace` Time Profiler로 원인을 나눠 본다 | `DJC_UI_PERF_FIXTURE=<폴더> swift test --filter UIPerfFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로 |
+| `--edit-selftest` | 곡 편집 창: 창 재생기(스페이스바·시킹·이음새 듣기, 덱은 그대로)·넣기·자르기·복제·옮기기·지우기와 편집 메뉴 실행 취소·확대 키·실제 마우스 끌기(클립 끝 다듬기·원곡 구간 끌어 넣기, 앱이 앞에 있을 때만)·렌더·추가한 곡으로 이동·덱에 편집본 | `EditLayoutFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로 |
 
 예: `DJC_HOME=$(mktemp -d) .build/debug/DJCrate --db <스냅샷> --select 32395449 --loop-selftest 2>&1 | grep "루프 시험"`
 
@@ -93,6 +95,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 - 덱·초안의 시각은 모두 **rekordbox 시간축**(음원 시각 + 인코더 지연, `RekordboxTimeline.predictedOffset`)이다. 파형만 음원 시간축이라 `timelineOffset`만큼 당겨 그린다.
 - 오디오:
   - `AVAudioEngine.pause()`를 쓰지 않는다. 멈출 땐 `stop()`. pause 뒤 다시 켜면 시작 시각이 밀려 소리가 늦고 무음이 쌓인다.
+  - 출력 장치를 여는 엔진 호출(`mainMixerNode`·`outputNode`)은 메인 스레드에서 하지 않는다. coreaudiod가 멈추면 앱이 첫 화면 전에 멈췄다(#142). 엔진 그래프는 `AudioEngineQueue`에서 만들어 넘겨받는다.
   - 루프는 재생 노드에 버퍼를 예약해 샘플 단위로 잇는다. 무엇을 언제 예약할지는 `LoopPlanner`(순수, 테스트됨)가 정하고 `DeckAudio.setLoop`은 그대로 실행한다. 예약은 렌더 블록보다 앞서야 한다(그러면 되풀이 버퍼도 바퀴 중간에서 정확히 끊긴다). ½은 CDJ처럼 바로, 나가기는 이번 바퀴 끝에서.
 - 화면: 재생 중 매 프레임 바뀌는 관찰 값은 큰 뷰가 읽지 않게 한다. 글자·전체 파형 재생선은 `displayTime`(15Hz), 레벨 미터는 재생 틱(`meterFrame`)으로 갱신한다.
 - 그리드 쓰기는 파형 파일(`.EXT`)이 있는 곡만 한다. 분석 파일이 없는 곡은 분석 파일을 만들어 붙이고(`RekordboxWriter+Analysis`), `.DAT`만 있는 반쪽 곡은 막는다.

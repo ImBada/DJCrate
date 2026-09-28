@@ -214,6 +214,27 @@ struct LibraryReadTests {
         #expect(try LibraryRead.resolve(database: copyAlias, liveDatabase: live) == copyAlias)
     }
 
+    /// 임시 폴더는 `/tmp`·`/private/tmp` 두 표기로 불린다(#136). 표기가 달라도 라이브는 막고 사본은 연다.
+    @Test(arguments: ["/tmp", "/private/tmp"])
+    func 임시_폴더의_다른_표기로_줘도_라이브_DB를_막고_사본은_연다(_ parent: String) throws {
+        let fixture = try RekordboxFixture(parent: URL(filePath: parent))
+        let alias = { (url: URL) in
+            URL(filePath: url.path.hasPrefix("/private/") ? String(url.path.dropFirst("/private".count)) : "/private" + url.path)
+        }
+        let fm = FileManager.default
+        let live = fixture.root.appending(path: "live/master.db")
+        try fm.createDirectory(at: live.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data().write(to: live)
+        let link = fixture.root.appending(path: "link.db")
+        try fm.createSymbolicLink(at: link, withDestinationURL: alias(live))
+        for candidate in [alias(live), link] {
+            #expect(throws: ReadFailure.self) { try LibraryRead.resolve(database: candidate, liveDatabase: live) }
+        }
+        let copy = fixture.root.appending(path: "copy.db")
+        try fm.copyItem(at: live, to: copy)
+        #expect(try LibraryRead.resolve(database: alias(copy), liveDatabase: live) == alias(copy))
+    }
+
     @Test func 라이브_DB가_없어도_경로와_끊어진_링크를_차단한다() throws {
         let fixture = try RekordboxFixture()
         let fm = FileManager.default
@@ -305,7 +326,7 @@ struct LibraryReadTests {
         try fixture.putAnalysis(for: first, dat: AnlzBuilder.dat(beats: beats), ext: nil)
         let read = try reader(fixture, preset: .anisong)
         let expected: [LibraryFilter: [String]] = [.emptyComment: ["102"], .offConvention: ["104"],
-            .noCues: ["102", "104"], .played: ["101"], .streaming: ["104"], .noBPM: ["102"], .tempoChange: ["101"], .all: ["101", "102", "104"]]
+            .noCues: ["102", "104"], .played: ["101"], .streaming: ["104"], .noBPM: ["102"], .missingFile: ["101", "102"], .tempoChange: ["101"], .all: ["101", "102", "104"]]
         for filter in LibraryFilter.allCases {
             #expect(try read.search(query: "", filter: filter).tracks.map(\.id) == expected[filter])
         }
@@ -314,7 +335,23 @@ struct LibraryReadTests {
         #expect(try read.search(query: "Alpha", bpm: 129...130).tracks.isEmpty)
         #expect(try read.search(query: "Alpha", key: "8B").tracks.isEmpty)
         #expect(try read.search(query: "", playlistID: "f1").tracks.map(\.id) == ["101", "102"])
-        #expect(Set(LibraryFilter.allCases.map(\.cliName)) == ["all", "empty-comment", "off-convention", "no-cues", "played", "streaming", "no-bpm", "tempo-change"])
+        #expect(Set(LibraryFilter.allCases.map(\.cliName)) == ["all", "empty-comment", "off-convention", "no-cues", "played", "streaming",
+                                                               "no-bpm", "missing-file", "tempo-change"])
+    }
+
+    @Test func 파일_없음_필터는_음원을_찾지_못한_로컬_곡만_고른다() throws {
+        let fixture = try fixture()
+        var gone = TrackSpec(id: "105")
+        gone.folderPath = fixture.audio.appending(path: "gone.mp3").path
+        try fixture.add(gone)
+        var external = TrackSpec(id: "106")
+        external.folderPath = "/Volumes/DJC 시험 디스크 \(UUID().uuidString)/a.mp3"
+        try fixture.add(external)
+        var streaming = TrackSpec(id: "107")
+        streaming.folderPath = "spotify:synthetic"
+        try fixture.add(streaming)
+        // 기본 사본의 101·102도 없는 합성 경로(/synthetic/…)다. 스트리밍 곡(104·107)은 세지 않는다.
+        #expect(try reader(fixture).search(query: "", filter: .missingFile).tracks.map(\.id) == ["101", "102", "105", "106"])
     }
 
     @Test @MainActor func 사이드바_기본_선택은_전체다() {

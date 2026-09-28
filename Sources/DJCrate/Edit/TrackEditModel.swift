@@ -49,6 +49,8 @@ final class TrackEditModel {
     var selection: BarRange?
     /// 결과 타임라인에서 고른 클립
     var selectedClip: Entry.ID?
+    /// 원곡에서 고른 구간을 결과로 끄는 동안 놓을 자리(결과 줄에 표시한다)
+    var insertPreview: EditInsertion?
     /// 새 곡 제목(태그 초안)이자 파일 이름
     var title: String
     private(set) var edit: TrackEdit?
@@ -77,6 +79,12 @@ final class TrackEditModel {
     @ObservationIgnored private var playTask: Task<Void, Never>?
     /// 재생선을 끄는 동안 멈춘 재생(손을 떼면 그 자리에서 잇는다)
     @ObservationIgnored private var scrubbing: Lane?
+
+    // MARK: 보기(확대·가로 스크롤)
+
+    /// 줄마다 보이는 자리(#134). 두 줄은 길이가 달라 따로 확대한다.
+    private(set) var sourceView = EditViewport()
+    private(set) var outputView = EditViewport()
 
     // MARK: 실행 취소
 
@@ -173,12 +181,28 @@ final class TrackEditModel {
             message = AppMessage(kind: .warning, text: String(ui: "곡 머리(0마디)는 결과 맨 앞에만 둘 수 있습니다. 1마디 이상을 함께 고르세요"))
             return
         }
+        insert(EditInsertion(offset: index, range: range))
+    }
+
+    /// 원곡 구간을 결과의 `offset` 자리(앞 클립 수)에 넣고 그 클립을 고른다(⏎·끌어 넣기).
+    func insert(_ insertion: EditInsertion) {
         message = nil
-        let entry = Entry(range: range)
+        let entry = Entry(range: insertion.range)
         change(String(ui: "구간 넣기")) {
-            entries.insert(entry, at: index)
+            entries.insert(entry, at: min(max(insertion.offset, 0), entries.count))
             selectedClip = entry.id
         }
+    }
+
+    /// 원곡 시각이 고른 구간 안인지(그 안을 아래로 끌면 결과로 끌어 넣는다)
+    func selectionContains(_ time: Double) -> Bool {
+        guard let selection, let layout else { return false }
+        return time >= layout.start(ofBar: selection.first) && time <= layout.end(ofBar: selection.last)
+    }
+
+    /// 고른 구간을 결과 시각 `time`에 놓으면 들어갈 자리
+    func insertion(atOutput time: Double) -> EditInsertion? {
+        selection.flatMap { clipLayout.insertion(of: $0, atOutput: time) }
     }
 
     // MARK: - 결과 타임라인 편집(실행 취소 가능)
@@ -252,6 +276,22 @@ final class TrackEditModel {
         guard let layout, let index = entries.firstIndex(where: { $0.id == id }) else { return }
         change(String(ui: "마디 고치기")) {
             entries[index].range.last = min(max(bar, entries[index].range.first, 1), layout.count)
+        }
+    }
+
+    /// 클립 가장자리를 `seconds`만큼 끌면 될 구간(마디 줄에 붙인다). 곡 머리는 맨 앞, 끝에서 잘린 마디는 맨 뒤 클립만.
+    func trimmed(_ id: Entry.ID, edge: EditEdge, by seconds: Double) -> BarRange? {
+        guard let layout, let index = entries.firstIndex(where: { $0.id == id }) else { return nil }
+        return layout.trimmed(entries[index].range, edge: edge, by: seconds, leading: index == 0, trailing: index == entries.count - 1)
+    }
+
+    /// 가장자리를 끌어 다듬은 구간으로 바꾸고 그 클립을 고른다.
+    func trim(_ id: Entry.ID, to range: BarRange) {
+        guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
+        focus = .output
+        change(String(ui: "클립 다듬기")) {
+            entries[index].range = range
+            selectedClip = id
         }
     }
 
@@ -399,8 +439,10 @@ final class TrackEditModel {
         playStart = time
         playLimit = min(until ?? length(lane), length(lane))
         playing = lane
-        // 끝(또는 이음새 듣기 끝)에 닿으면 멈춘다.
+        // 끝(또는 이음새 듣기 끝)에 닿으면 멈춘다. 확대해 보는 중에 재생선이 보이는 자리 오른쪽 끝을 넘으면 다음 쪽으로 넘긴다
+        // (다른 곳을 보고 있으면 끌어오지 않는다).
         playTask = Task { [weak self] in
+            var last = time
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(40))
                 guard let self, self.playing == lane else { return }
@@ -408,6 +450,9 @@ final class TrackEditModel {
                     self.pause()
                     return
                 }
+                let now = self.position(lane), end = self.viewport(lane).visible(length: self.extent(lane)).upperBound
+                if last <= end, now > end { self.reveal(lane, now) }
+                last = now
             }
         }
     }
@@ -433,7 +478,7 @@ final class TrackEditModel {
         if lane == .source { sourcePlayhead = time } else { outputPlayhead = time }
     }
 
-    /// 재생선을 옮긴다(누른 자리). 재생 중이면 그 자리에서 잇는다.
+    /// 재생선을 옮긴다(누른 자리·←→·Home·End). 재생 중이면 그 자리에서 잇는다. 보이지 않는 자리면 따라 넘긴다.
     func seek(_ lane: Lane, to time: Double) {
         focus = lane
         if playing == lane {
@@ -441,6 +486,7 @@ final class TrackEditModel {
         } else {
             setPlayhead(lane, time)
         }
+        reveal(lane, position(lane))
     }
 
     /// 재생선을 끄는 동안: 소리를 멈췄다가 `endScrub`에서 그 자리부터 잇는다(덱 휠 이동과 같다).
@@ -470,6 +516,57 @@ final class TrackEditModel {
         seek(focus, to: toEnd ? length(focus) : 0)
     }
 
+    // MARK: - 보기(확대·가로 스크롤)
+
+    func viewport(_ lane: Lane) -> EditViewport {
+        lane == .source ? sourceView : outputView
+    }
+
+    /// 줄에 그리는 길이(초). 결과는 규칙에 맞지 않아 재생할 수 없는 목록도 클립 자리만큼 그린다.
+    func extent(_ lane: Lane) -> Double {
+        lane == .source ? duration : clipLayout.last?.outputEnd ?? 0
+    }
+
+    /// 가장 가깝게 보는 길이: 2마디(마디 하나를 정확히 고를 만큼)
+    var minimumSpan: Double { 2 * (layout?.barLength ?? 2) }
+
+    /// `factor`배 확대한다(1보다 작으면 축소). 기준 자리는 `anchor`(휠·핀치는 포인터 자리),
+    /// 없으면 보이는 재생선, 재생선이 보이지 않으면 보이는 구간 가운데.
+    func zoom(_ lane: Lane, by factor: Double, around anchor: Double? = nil) {
+        let length = extent(lane), visible = viewport(lane).visible(length: length)
+        let playhead = position(lane)
+        let anchor = anchor ?? (visible.contains(playhead) ? playhead : (visible.lowerBound + visible.upperBound) / 2)
+        update(lane) { $0.zoom(by: factor, around: anchor, length: length, minimumSpan: minimumSpan) }
+    }
+
+    /// 줄 전체를 폭에 맞춘다.
+    func fit(_ lane: Lane) {
+        update(lane) { $0.fit() }
+    }
+
+    func scroll(_ lane: Lane, by seconds: Double) {
+        let length = extent(lane)
+        update(lane) { $0.scroll(by: seconds, length: length) }
+    }
+
+    func scroll(_ lane: Lane, to time: Double) {
+        let length = extent(lane)
+        update(lane) { $0.scroll(to: time, length: length) }
+    }
+
+    private func reveal(_ lane: Lane, _ time: Double) {
+        let length = extent(lane)
+        update(lane) { $0.reveal(time, length: length) }
+    }
+
+    /// 바뀔 때만 쓴다(보이는 자리를 읽는 줄만 다시 그린다).
+    private func update(_ lane: Lane, _ body: (inout EditViewport) -> Void) {
+        var view = viewport(lane)
+        body(&view)
+        guard view != viewport(lane) else { return }
+        if lane == .source { sourceView = view } else { outputView = view }
+    }
+
     /// 이음새(`edit.pieces[piece]`의 시작) 앞 2마디부터 뒤 2마디까지 결과를 들어 본다(조각이 짧으면 그 조각 안에서).
     func auditionSeam(_ piece: Int) {
         guard let edit, edit.pieces.indices.contains(piece), piece > 0 else { return }
@@ -479,6 +576,7 @@ final class TrackEditModel {
         guard canPlay(.output) else { return }
         focus = .output
         start(.output, at: from, until: to)
+        reveal(.output, from)
         if playing == .output { auditioning = piece }
     }
 

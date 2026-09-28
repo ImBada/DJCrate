@@ -185,7 +185,7 @@ rekordbox 7.2.18이 하는 것:
 1. rekordbox·rekordboxAgent가 실행 중이면 거부. `-wal`이 남아 있어도 거부.
 2. master.db(+wal/shm) 전체와 바꿀 분석 파일을 `rekordbox-backups/<시각>-write/`에 복사(복사 중 원본이 바뀌면 실패).
 3. `BEGIN IMMEDIATE` 한 트랜잭션에서 쓰고, 같은 연결로 다시 읽어 초안과 칸마다 비교. 비교 기준은 초안의 변경(`CueDraft.changes`, 1ms 미만 차이는 변경 아님)만 base에 반영한 큐 목록(`expectedCues(after:)`)이다. 그리드 따라가기로 1ms 미만 움직인 큐는 rekordbox 값 그대로 둔다(#73).
-4. 커밋 뒤 다시 열어 한 번 더 검증 + `PRAGMA quick_check` + `cipher_integrity_check`. 그 뒤 분석 파일·`masterPlaylists6.xml`을 쓴다(백업에 원본을 함께 둔다).
+4. 커밋 뒤 다시 열어 한 번 더 검증 + `PRAGMA quick_check` + `cipher_integrity_check`. 커밋한 쓰기는 종류와 상관없이 모두 거친다(BPM만 바꾼 그리드·게인만 쓴 경우도 곡 BPM·카운터·파일 행, 오토게인 칸을 다시 읽는다, #135). 그 뒤 분석 파일·`masterPlaylists6.xml`을 쓴다(백업에 원본을 함께 둔다).
 5. 어느 단계든 실패하면 백업으로 되돌린다. 초안을 만든 뒤 rekordbox에서 그 곡이 바뀌었으면(base 불일치) 그 곡은 쓰지 않는다.
 
 ## 곡 추가·삭제 (`RekordboxTrackWriter`, 2026-09-26 묶음 1·2 실험)
@@ -423,10 +423,10 @@ rekordbox 7.2.18이 하는 것:
 경로가 맞지 않아도 컬렉션에서는 빼되 결과에 ‘분석 파일을 지우지 않음(경로가 예상과 다름)’을 남긴다. 파일은 DB 커밋 전에 백업하고, 삭제 실패는 DB와 파일을 함께 복원한다. 백업 복원은 아래 규칙으로 DB를 바꾸기 전에 모든 파일을 검증한다.
 
 - `anlz/manifest.json`과 보고서의 `createdFiles`·`removedFiles`는 `share` 기준 상대 경로(`PIONEER/USBANLZ/…`, `PIONEER/Artwork/…`)로 저장한다. 쓰기 API가 반환하는 보고서는 기존처럼 절대 경로다.
-- 옛 절대 경로는 지정한 share 안에 있을 때만 받아들인다. `..`, 심볼릭 링크, 중복 대상, 허용하지 않은 파일명, 손상된 메타데이터와 없는 백업 원본은 복원을 거부한다. 복원할 DB의 UUID·경로와 같은 파일명 허용 목록도 확인한다.
+- 옛 절대 경로는 지정한 share 안에 있을 때만 받아들인다. 임시 폴더의 `/tmp`·`/private/tmp`(`/var`·`/private/var`)처럼 표기만 다른 같은 폴더는 비교 전에 한 표기로 맞춘다(`URL.comparablePath`, #136). `..`, 심볼릭 링크, 중복 대상, 허용하지 않은 파일명, 손상된 메타데이터와 없는 백업 원본은 복원을 거부한다. 복원할 DB의 UUID·경로와 같은 파일명 허용 목록도 확인한다.
 - 앱의 되돌리기와 `djc rekordbox-restore`는 같은 검증을 쓴다. 사본 DB 옆에 share가 없다면 CLI에 `--share <폴더>`를 명시한다. 모든 검증을 통과한 뒤에만 복원 직전 백업을 만들고 DB·파일을 바꾼다.
 
-회귀 시험(`RekordboxDeletionFilesTests`): 음원 폴더를 가리키는 분석 경로, 다른 UUID 폴더, 폴더·파일 심볼릭 링크, 다른 파일이 섞인 폴더, 옛 백업의 잘못된 복원·삭제 경로. 모두 합성 파일과 DB 사본으로 확인하며 음원은 보존한다.
+회귀 시험(`RekordboxDeletionFilesTests`): 음원 폴더를 가리키는 분석 경로, 다른 UUID 폴더, 폴더·파일 심볼릭 링크, 다른 파일이 섞인 폴더, 옛 백업의 잘못된 복원·삭제 경로. 임시 폴더 사본의 네 표기(`RekordboxTempCopyPathTests`)도 같은 규칙으로 통과·거부하는지 본다. 모두 합성 파일과 DB 사본으로 확인하며 음원은 보존한다.
 
 ## 새 쓰기 경로를 여는 방법
 

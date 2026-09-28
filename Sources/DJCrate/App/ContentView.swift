@@ -24,7 +24,10 @@ struct ContentView: View {
     @State private var deckChromeHeight = 240.0
     @State private var noticeHeight = 0.0
     @State private var listHeaderHeight = 40.0
-    @State private var isFileDropTargeted = false
+    @State private var fileDropHighlight = DropHighlight()
+    /// 인스펙터 내용을 그릴지. 닫혀 있어도 SwiftUI가 내용을 계속 계산해, 곡을 고를 때마다 입력 칸을 새로 만들고
+    /// 덱까지 창 레이아웃을 다시 잡았다(#129). 열려 있을 때만 그린다.
+    @State private var inspectorContentShown = false
 
     private var otherHeight: Double { noticeHeight + listHeaderHeight + DeckLayout.splitHandleHeight }
     private var displayedWaveformHeight: Double {
@@ -53,22 +56,18 @@ struct ContentView: View {
                 .navigationSplitViewColumnWidth(min: 210, ideal: 230)
         } detail: {
             detail
-                .navigationTitle(store.sidebarTitle)
-                .navigationSubtitle(store.sidebar == .duplicates
-                    ? String(ui: "\(store.displayDuplicateGroups.count)묶음 · \(store.displayRows.count)곡")
-                    : store.selection.count > 1
-                    ? String(ui: "\(store.displayRows.count)곡 · \(store.selection.count)곡 선택")
-                    : String(ui: "\(store.displayRows.count)곡"))
+                .modifier(LibraryWindowTitle(store: store))
                 .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
-                .overlay(alignment: .top) {
+                // 위쪽 알림 줄(스냅샷 오류·반영·곡 추가)과 겹치지 않게 아래에 띄운다(#122).
+                .overlay(alignment: .bottom) {
                     if let toast = store.toast {
                         AppToastView(toast: toast,
                                      onUndo: toast.undoBackup.map { url in { store.toast = nil; DirectWritePanels.restore(store: store, backupURL: url) } },
                                      onDetails: { store.showingWriteResult = true },
                                      onClose: { if store.toast?.id == toast.id { store.toast = nil } })
-                            .padding(.top, 12)
+                            .padding(.bottom, 16)
                             .padding(.horizontal, 16)
-                            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                            .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                             .id(toast.id)
                     }
                 }
@@ -160,17 +159,17 @@ struct ContentView: View {
                             TagSheetView(store: store)
                                 .onDisappear { store.canFillDownTags = false }
                                 .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
-                                .overlay { if store.displayRows.isEmpty { emptyLibrary } }
+                                .overlay { EmptyLibraryOverlay(store: store) }
                         } else {
                             TrackTable(store: store, deck: deck)
                                 .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
-                                .overlay { if store.displayRows.isEmpty { emptyLibrary } }
+                                .overlay { EmptyLibraryOverlay(store: store) }
                         }
                     }
                     // 내부 곡 끌기는 재생 목록·덱이 맡으므로 파일 추가가 가로채지 않는다.
-                    .onDrop(of: [.fileURL], delegate: LibraryFileDropDelegate(store: store, isTargeted: $isFileDropTargeted))
+                    .onDrop(of: [.fileURL], delegate: LibraryFileDropDelegate(store: store, highlight: $fileDropHighlight))
                     .overlay {
-                        if isFileDropTargeted {
+                        if fileDropHighlight.isTargeted {
                             RoundedRectangle(cornerRadius: 8)
                                 .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 3, dash: [8, 5]))
                                 .padding(4)
@@ -190,8 +189,14 @@ struct ContentView: View {
                 // 새 스냅샷을 읽고 다시 그릴 때도 첫 측정은 임시 폭이다.
                 .onDisappear { sidebarAutoCollapse.reset() }
                 .inspector(isPresented: $showTagEditor) {
-                    TagInspector(store: store)
+                    Group { if inspectorContentShown { TagInspector(store: store) } }
                         .inspectorColumnWidth(min: 300, ideal: 340, max: 460)
+                }
+                .task(id: showTagEditor) {
+                    if showTagEditor { inspectorContentShown = true; return }
+                    // 접히는 애니메이션이 끝난 뒤에 지운다(빈 패널이 미끄러지지 않게).
+                    try? await Task.sleep(for: .milliseconds(400))
+                    if !Task.isCancelled { inspectorContentShown = false }
                 }
             case .idle:
                 ContentUnavailableView {
@@ -213,32 +218,6 @@ struct ContentView: View {
                     Button(.ui("실행 중이어도 읽기용 스냅샷 뜨기")) { Task { await store.takeSnapshot(force: true) } }
                 }
             }
-    }
-
-    @ViewBuilder private var emptyLibrary: some View {
-        if !store.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            ContentUnavailableView.search(text: store.search)
-        } else if store.sidebar == .pending {
-            ContentUnavailableView {
-                Label(.ui("쓸 초안이 없습니다"), systemImage: "checkmark.circle")
-            } description: {
-                Text(.ui("곡의 큐·그리드·게인을 고치면 여기에 모입니다."))
-            }
-        } else if store.sidebar == .staged {
-            ContentUnavailableView {
-                Label(.ui("추가한 곡이 없습니다"), systemImage: "music.note")
-            } description: {
-                Text(.ui("음원 파일을 끌어다 놓거나 ‘곡 추가’를 눌러 시작하세요."))
-            } actions: {
-                Button(.ui("곡 추가…")) { StagingPanels.chooseFiles(store: store) }
-            }
-        } else {
-            ContentUnavailableView {
-                Label(.ui("표시할 곡이 없습니다"), systemImage: "music.note.list")
-            } description: {
-                Text(.ui("다른 목록을 선택하거나 새 스냅샷으로 라이브러리를 다시 읽어 보세요."))
-            }
-        }
     }
 
     @ToolbarContentBuilder private var toolbarContent: some CustomizableToolbarContent {
@@ -322,6 +301,57 @@ struct ContentView: View {
     }
 }
 
+/// 창 제목·부제(목록 이름·곡 수·선택 수). ContentView 본문이 선택·표시 줄을 읽으면 곡을 고를 때마다
+/// 덱·툴바까지 창 전체를 다시 계산하므로 여기서만 읽는다(#129).
+private struct LibraryWindowTitle: ViewModifier {
+    let store: LibraryStore
+
+    func body(content: Content) -> some View {
+        content
+            .navigationTitle(store.sidebarTitle)
+            .navigationSubtitle(store.sidebar == .duplicates
+                ? String(ui: "\(store.displayDuplicateGroups.count)묶음 · \(store.displayRows.count)곡")
+                : store.selection.count > 1
+                ? String(ui: "\(store.displayRows.count)곡 · \(store.selection.count)곡 선택")
+                : String(ui: "\(store.displayRows.count)곡"))
+    }
+}
+
+/// 목록이 비었을 때 안내. 검색·정렬로 줄이 바뀔 때 ContentView 전체가 아니라 이것만 다시 계산한다(#129).
+private struct EmptyLibraryOverlay: View {
+    let store: LibraryStore
+
+    var body: some View {
+        if store.displayRows.isEmpty { message }
+    }
+
+    @ViewBuilder private var message: some View {
+        if !store.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            ContentUnavailableView.search(text: store.search)
+        } else if store.sidebar == .pending {
+            ContentUnavailableView {
+                Label(.ui("쓸 초안이 없습니다"), systemImage: "checkmark.circle")
+            } description: {
+                Text(.ui("곡의 큐·그리드·게인을 고치면 여기에 모입니다."))
+            }
+        } else if store.sidebar == .staged {
+            ContentUnavailableView {
+                Label(.ui("추가한 곡이 없습니다"), systemImage: "music.note")
+            } description: {
+                Text(.ui("음원 파일을 끌어다 놓거나 ‘곡 추가’를 눌러 시작하세요."))
+            } actions: {
+                Button(.ui("곡 추가…")) { StagingPanels.chooseFiles(store: store) }
+            }
+        } else {
+            ContentUnavailableView {
+                Label(.ui("표시할 곡이 없습니다"), systemImage: "music.note.list")
+            } description: {
+                Text(.ui("다른 목록을 선택하거나 새 스냅샷으로 라이브러리를 다시 읽어 보세요."))
+            }
+        }
+    }
+}
+
 /// 태그 시트 위 안내 줄.
 struct SheetHeader: View {
     @Environment(\.textScale) private var textScale
@@ -390,7 +420,7 @@ struct SplitHandle: View {
 /// 파일 URL과 내부 곡 ID를 함께 싣는 드래그를 구별해야 하므로 형식을 검사할 수 있는 delegate를 쓴다.
 struct LibraryFileDropDelegate: DropDelegate {
     let store: LibraryStore
-    @Binding var isTargeted: Bool
+    @Binding var highlight: DropHighlight
 
     static func accepts(_ providers: [NSItemProvider]) -> Bool {
         !providers.isEmpty
@@ -405,17 +435,17 @@ struct LibraryFileDropDelegate: DropDelegate {
             && Self.accepts(info.itemProviders(for: [.fileURL, DeckDragType.track, PlaylistDragType.tracks]))
     }
 
-    func dropEntered(info: DropInfo) { isTargeted = validateDrop(info: info) }
-    func dropExited(info: DropInfo) { isTargeted = false }
+    func dropEntered(info: DropInfo) { highlight.enter(accepted: validateDrop(info: info)) }
+    func dropExited(info: DropInfo) { highlight.exit() }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
         let accepted = validateDrop(info: info)
-        isTargeted = accepted
+        highlight.update(accepted: accepted)
         return DropProposal(operation: accepted ? .copy : .cancel)
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        isTargeted = false
+        highlight.drop()
         guard validateDrop(info: info) else { return false }
         let providers = info.itemProviders(for: [.fileURL])
         Task { @MainActor in

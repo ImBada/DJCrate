@@ -21,7 +21,8 @@ extension LibraryStore {
 
     /// 대상 곡 중 반영 대기 초안이 있는 곡(추가한 곡 제외)
     func writeTargets(_ rows: [TrackRow]) -> [TrackRow] {
-        rows.filter { !$0.isStaged && pendingUUIDs.contains($0.track.uuid) }
+        let pending = pendingUUIDs
+        return rows.filter { !$0.isStaged && pending.contains($0.track.uuid) }
     }
 
     /// 새 스냅샷을 떠서 그 사본으로 쓰기를 끝까지 해 보고 되돌린다(rekordbox는 건드리지 않는다).

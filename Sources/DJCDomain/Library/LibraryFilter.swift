@@ -8,6 +8,7 @@ public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable {
     case played = "재생한 곡"
     case streaming = "스트리밍"
     case noBPM = "BPM·그리드 없음"
+    case missingFile = "파일 없음"
     case tempoChange = "변속 곡"
     case all = "전체"
 
@@ -21,6 +22,7 @@ public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable {
         case .played: String(ui: "재생한 곡")
         case .streaming: String(ui: "스트리밍")
         case .noBPM: String(ui: "BPM·그리드 없음")
+        case .missingFile: String(ui: "파일 없음")
         case .tempoChange: String(ui: "변속 곡")
         case .all: String(ui: "전체")
         }
@@ -34,6 +36,7 @@ public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable {
         case .played: "played"
         case .streaming: "streaming"
         case .noBPM: "no-bpm"
+        case .missingFile: "missing-file"
         case .tempoChange: "tempo-change"
         case .all: "all"
         }
@@ -45,7 +48,9 @@ public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable {
         allCases.filter { !$0.requiresCommentRule || commentPreset.rule != nil }
     }
 
-    public func includes(track: Track, comment: CommentEvaluation?, hasCues: Bool, playCount: Int, tempoChanges: [Double]) -> Bool {
+    /// - Parameter fileMissing: 음원 파일을 찾지 못한 곡인지(`MissingFiles`). 스트리밍 곡은 세지 않는다.
+    public func includes(track: Track, comment: CommentEvaluation?, hasCues: Bool, playCount: Int, tempoChanges: [Double],
+                         fileMissing: Bool) -> Bool {
         switch self {
         case .emptyComment: comment?.isEmpty == true
         case .offConvention: comment.map { !$0.isEmpty && !$0.isMatch } ?? false
@@ -53,6 +58,7 @@ public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable {
         case .played: playCount > 0
         case .streaming: track.isStreaming
         case .noBPM: !track.isStreaming && (track.bpm ?? 0) <= 0
+        case .missingFile: !track.isStreaming && fileMissing
         case .tempoChange: !tempoChanges.isEmpty
         case .all: true
         }
