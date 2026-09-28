@@ -67,10 +67,21 @@ struct TrackListDragTests {
         window.contentView = host
         defer { window.close() }
         host.layoutSubtreeIfNeeded()
-        try await Task.sleep(for: .milliseconds(100))
         let table = try #require(Self.views(in: host).compactMap { $0 as? TrackListTableView }.first)
-        let scroll = try #require(table.enclosingScrollView)
-        #expect(store.canReorderDisplayedTracks && table.numberOfRows == 60)
+        // 이 시험의 칸 배치·정렬을 다른 시험에 남기지 않는다.
+        table.autosaveTableColumns = false
+        // 다른 시험이 자동 저장한 칸 배치의 정렬이 표에 되살아나 # 순이 아닐 수 있다. 정렬을 비우고 줄이 다 찰 때까지 기다린다.
+        let clock = ContinuousClock()
+        let deadline = clock.now + .seconds(5)
+        while !(store.canReorderDisplayedTracks && table.numberOfRows == 60), clock.now < deadline {
+            store.sortOrder = []
+            host.layoutSubtreeIfNeeded()
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        try #require(store.canReorderDisplayedTracks && table.numberOfRows == 60)
+        // 시험 프로세스가 막 떴을 때 AppKit이 한 번 보내는 스크롤 막대 모양 알림이 스크롤 뷰를 다시 배치해 표 높이를 고친다.
+        // 그 알림이 지나간 뒤에 끈다(앱에서는 끌 때마다 오지 않는다).
+        try await Task.sleep(for: .milliseconds(500))
         let bottom = table.rect(ofRow: table.numberOfRows - 1).maxY
         let session = Self.session()
         let source = table as NSDraggingSource
@@ -89,7 +100,8 @@ struct TrackListDragTests {
         source.draggingSession?(session, endedAt: .zero, operation: .move)
         #expect(table.hiddenRowIndexes.isEmpty)
         try #require(table.frame.height < bottom, "재현 조건: 표 높이가 줄 끝보다 짧아야 한다")
-        try await Task.sleep(for: .milliseconds(50))
+        let settled = clock.now + .seconds(1)
+        while table.frame.height < bottom, clock.now < settled { try await Task.sleep(for: .milliseconds(20)) }
         #expect(table.frame.height >= table.rect(ofRow: table.numberOfRows - 1).maxY)
     }
 }
