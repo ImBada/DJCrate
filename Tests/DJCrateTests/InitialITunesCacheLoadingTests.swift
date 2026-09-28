@@ -1,10 +1,28 @@
 @testable import DJCrate
+import DJCDomain
 import DJCStorage
 import DJCTestSupport
 import Foundation
 import RekordboxKit
 import Synchronization
 import Testing
+
+/// 멈춰 둔 Music 조회(#130 환경의 수 분짜리 조회). 조회 횟수를 세고, 풀어 줄 때까지 기다린다.
+private final class StalledMusic: Sendable {
+    let calls = Mutex(0)
+    let result: ITunesLibrarySnapshot
+    private let gate = DispatchSemaphore(value: 0)
+
+    init(_ result: ITunesLibrarySnapshot) { self.result = result }
+    var started: Bool { calls.withLock { $0 > 0 } }
+    func capture() -> ITunesLibrarySnapshot {
+        calls.withLock { $0 += 1 }
+        gate.wait()
+        return result
+    }
+    /// 잘못 다시 조회해도 시험이 멈추지 않게 넉넉히 푼다.
+    func release() { for _ in 0..<4 { gate.signal() } }
+}
 
 @MainActor
 @Suite("초기 iTunes 캐시 로드", .serialized)
@@ -60,7 +78,7 @@ struct InitialITunesCacheLoadingTests {
         }
         guard started.withLock({ $0 }) else {
             resume.signal(); await loading.value
-            await store.initialITunesRefreshTask?.value
+            await store.iTunesRefresh?.task.value
             Issue.record("Music 최신화가 시작되지 않았습니다")
             return
         }
@@ -76,7 +94,7 @@ struct InitialITunesCacheLoadingTests {
         })
         resume.signal()
         await loading.value
-        await store.initialITunesRefreshTask?.value
+        await store.iTunesRefresh?.task.value
         #expect(returnedBeforeMusic)
         #expect(loadedBeforeMusic)
         #expect(available.sourcePlaylists?.first?.name == "캐시 목록")
@@ -108,7 +126,7 @@ struct InitialITunesCacheLoadingTests {
         guard started.withLock({ $0 }) else {
             resume.signal()
             await loading.value
-            await store.initialITunesRefreshTask?.value
+            await store.iTunesRefresh?.task.value
             Issue.record("Music 최신화가 시작되지 않았습니다")
             return
         }
@@ -119,15 +137,136 @@ struct InitialITunesCacheLoadingTests {
         guard completed.withLock({ $0 }) else {
             resume.signal()
             await loading.value
-            await store.initialITunesRefreshTask?.value
+            await store.iTunesRefresh?.task.value
             Issue.record("Music 최신화를 기다리느라 초기 로드가 끝나지 않았습니다")
             return
         }
         await store.load(snapshot: database, arguments: ["test"], environment: [:])
         resume.signal()
         await loading.value
-        await store.initialITunesRefreshTask?.value
+        await store.iTunesRefresh?.task.value
         #expect(store.iTunesSnapshot.sourcePlaylists?.first?.name == "보존 목록")
+    }
+
+    /// 캐시로 연 뒤 뒤에서 도는 Music 최신화를 멈춰 둔다.
+    private func openWithStalledMusic(_ store: LibraryStore, directory: URL, music: StalledMusic) async -> Bool {
+        let opened = Mutex(false)
+        let loading = Task {
+            await store.loadInitial(snapshotDirectory: directory, arguments: ["test"], environment: [:],
+                                    captureITunes: { music.capture() })
+            opened.withLock { $0 = true }
+        }
+        let deadline = ContinuousClock.now + .seconds(90)
+        while !(music.started && opened.withLock { $0 }) && ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        guard music.started, opened.withLock({ $0 }) else {
+            music.release()
+            await loading.value
+            await store.iTunesRefresh?.task.value
+            Issue.record("캐시로 열고 Music 최신화를 시작하지 못했습니다")
+            return false
+        }
+        return true
+    }
+
+    @Test func 쓰기_뒤_다시_읽기가_버린_Music_최신화를_새_사본에서_이어받는다() async throws {
+        let fixture = try RekordboxFixture()
+        try fixture.add(TrackSpec(id: "1"))
+        let directory = fixture.root.appending(path: "snapshots")
+        let database = try snapshot(fixture, directory: directory)
+        try ITunesLibrarySnapshot(sourcePlaylists: [.init(id: "A", name: "캐시 목록")])
+            .applyingRekordboxSelection(sync).save(for: database)
+        let music = StalledMusic(try ITunesLibrarySnapshot(sourcePlaylists: [.init(id: "A", name: "최신 목록")])
+            .applyingRekordboxSelection(sync))
+        let store = store(fixture)
+        guard await openWithStalledMusic(store, directory: directory, music: music) else { return }
+
+        // 쓰기 뒤 다시 읽기는 Music을 기다리지 않고 캐시로 새 사본을 연다.
+        try fixture.add(TrackSpec(id: "2"))
+        let sourceDB = fixture.database
+        let reloaded = Mutex(false)
+        let reload = Task {
+            await store.takeSnapshot(force: true, quiet: true, refreshITunes: false, snapshotDirectory: directory,
+                                     snapshotCopy: { force in
+                                         try LibrarySnapshot.take(from: sourceDB, into: directory, force: force,
+                                                                  now: Date(timeIntervalSince1970: 1_800_000_060))
+                                     }, captureITunes: { music.capture() }, arguments: ["test"], environment: [:])
+            reloaded.withLock { $0 = true }
+        }
+        let deadline = ContinuousClock.now + .seconds(30)
+        while !reloaded.withLock({ $0 }) && ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        let reloadedBeforeMusic = reloaded.withLock { $0 } && store.rows.count == 2
+        let cachedName = store.iTunesSnapshot.sourcePlaylists?.first?.name
+        music.release()
+        await reload.value
+        // 멈춤이 풀리면 버려진 최신화의 결과가 새 사본에 들어와야 한다(지난 세션 목록이 남지 않게).
+        let appliedDeadline = ContinuousClock.now + .seconds(10)
+        while store.iTunesSnapshot.sourcePlaylists?.first?.name != "최신 목록" && ContinuousClock.now < appliedDeadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        await store.iTunesRefresh?.task.value
+        #expect(reloadedBeforeMusic)
+        #expect(cachedName == "캐시 목록")
+        #expect(store.iTunesSnapshot.sourcePlaylists?.first?.name == "최신 목록")
+        let reloadedDatabase = try #require(store.snapshotURL)
+        #expect(reloadedDatabase != database)
+        #expect(ITunesLibrarySnapshot.load(for: reloadedDatabase).sourcePlaylists?.first?.name == "최신 목록")
+        #expect(music.calls.withLock { $0 } == 1)
+    }
+
+    @Test func Music_최신화_중에는_동기화_쓰기를_막고_끝나면_최신_목록으로_연다() async throws {
+        let fixture = try RekordboxFixture()
+        let directory = fixture.root.appending(path: "snapshots")
+        let database = try snapshot(fixture, directory: directory)
+        try ITunesLibrarySnapshot(sourcePlaylists: [.init(id: "A", name: "캐시 목록")])
+            .applyingRekordboxSelection(sync).save(for: database)
+        let music = StalledMusic(try ITunesLibrarySnapshot(sourcePlaylists: [.init(id: "A", name: "최신 목록")])
+            .applyingRekordboxSelection(sync))
+        let store = store(fixture)
+        guard await openWithStalledMusic(store, directory: directory, music: music) else { return }
+
+        store.presentITunesSync()
+        let model = store.iTunesSync
+        let opening = Task {
+            await model.load(store: store, arguments: ["test"], environment: [:], captureITunes: {
+                Issue.record("선택창이 진행 중인 최신화 대신 Music을 다시 읽었습니다")
+                return .init(status: .unavailable)
+            })
+        }
+        let deadline = ContinuousClock.now + .seconds(10)
+        while model.isLoading && ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        let shownName = model.source.sourcePlaylists?.first?.name
+        let blockedWhileRefreshing = !model.canSync
+        // 창을 거치지 않은 쓰기도 막는다. 막지 못하면 명시한 임시 사본에만 쓴다.
+        var refused: String?
+        let opened = try #require(store.snapshotURL)
+        do {
+            try await store.syncITunesPlaylists(model.selection, source: model.source, database: opened,
+                                                arguments: ["test", "--db", opened.path], environment: [:])
+        } catch DJCError.writeRefused(let reason) {
+            refused = reason
+        } catch {
+            refused = "\(error)"
+        }
+        music.release()
+        await store.iTunesRefresh?.task.value
+        let refreshedDeadline = ContinuousClock.now + .seconds(10)
+        while !(model.source.sourcePlaylists?.first?.name == "최신 목록" && model.canSync)
+                && ContinuousClock.now < refreshedDeadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(shownName == "캐시 목록")
+        #expect(blockedWhileRefreshing)
+        #expect(refused == String(ui: "Music 보관함을 새로 읽는 중이니 목록이 최신으로 바뀐 뒤 동기화하세요."))
+        #expect(model.source.sourcePlaylists?.first?.name == "최신 목록")
+        #expect(model.canSync)
+        store.showingITunesSync = false
+        await opening.value
     }
 
     @Test func 초기_Music_최신화와_선택창_강제_새로고침은_캡처_하나를_공유한다() async throws {
@@ -157,7 +296,7 @@ struct InitialITunesCacheLoadingTests {
         }
         guard started.withLock({ $0 }) else {
             resume.signal(); await initial.value
-            await store.initialITunesRefreshTask?.value
+            await store.iTunesRefresh?.task.value
             Issue.record("초기 Music 최신화가 시작되지 않았습니다")
             return
         }
@@ -170,7 +309,7 @@ struct InitialITunesCacheLoadingTests {
         for _ in 0..<100 { await Task.yield() }
         resume.signal()
         await initial.value
-        await store.initialITunesRefreshTask?.value
+        await store.iTunesRefresh?.task.value
         let result = await forced.value
         #expect(calls.withLock { $0 } == 1)
         #expect(result.sourcePlaylists?.first?.name == "최신 목록")

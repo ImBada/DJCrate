@@ -106,7 +106,9 @@ struct LoadedLibrary: Sendable {
     }
 
     /// DB를 다시 읽지 않고 Music 결과만 채택한다. 캡처 전 발급한 요청 순서로 늦은 결과를 거른다.
+    /// - Parameter alreadyCaptured: 따로 끝낸 Music 조회 결과. 있으면 여기서 다시 조회하지 않는다.
     static func loadITunes(snapshot: URL, refreshITunes: Bool = false,
+                           captured alreadyCaptured: ITunesLibrarySnapshot? = nil,
                            previousITunesSnapshot: ITunesFallback? = nil,
                            fallbackDirectory: URL = LibrarySnapshot.defaultDirectory,
                            refreshTicket: ITunesRefreshCoordinator.Ticket? = nil,
@@ -114,7 +116,7 @@ struct LoadedLibrary: Sendable {
                            progress: @Sendable (Stage) -> Void = { _ in },
                            captureITunes: () -> ITunesLibrarySnapshot = { RekordboxITunesReader.capture() }) -> ITunesLibrarySnapshot {
         let refreshTicket = refreshTicket ?? ITunesRefreshCoordinator.shared.begin(snapshot: snapshot, sourceDatabase: sourceDatabase)
-        let captured = refreshITunes ? Stage.music.measure(progress: progress, captureITunes) : nil
+        let captured = refreshITunes ? alreadyCaptured ?? Stage.music.measure(progress: progress, captureITunes) : nil
         progress(.iTunes)
         let iTunesStarted = ContinuousClock.now
         let iTunes = ITunesRefreshCoordinator.shared.commit(refreshTicket, snapshot: snapshot, current: {

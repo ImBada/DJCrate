@@ -1,6 +1,22 @@
 {
   "sourceLanguage" : "ko",
   "strings" : {
+    "Music 보관함을 새로 읽는 중이니 목록이 최신으로 바뀐 뒤 동기화하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reloading the Music library. Sync after the playlists are up to date."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ミュージックのライブラリを読み込み直しています。プレイリストが最新になってから同期してください。"
+          }
+        }
+      }
+    },
     "Music 보관함을 읽는 중…" : {
       "localizations" : {
         "en" : {

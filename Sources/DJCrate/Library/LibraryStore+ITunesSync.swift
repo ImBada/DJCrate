@@ -39,9 +39,9 @@ extension LibraryStore {
             }
         }
 
-        // 초기 로드가 같은 DB의 Music 전체 목록을 이미 읽는 중이면 그 결과를 함께 쓴다.
-        if let initial = currentInitialITunesRefresh(snapshot: snapshot, revision: revision) {
-            await initial.value
+        // 뒤에서 도는 최신화가 같은 DB의 Music 전체 목록을 이미 읽는 중이면 그 결과를 함께 쓴다.
+        if let refresh = currentITunesRefresh(snapshot: snapshot, revision: revision) {
+            await refresh.value
             guard snapshotURL == snapshot, previewRevision == revision else {
                 return ITunesLibrarySnapshot(status: .unavailable)
             }
@@ -96,6 +96,10 @@ extension LibraryStore {
                              environment: [String: String] = ProcessInfo.processInfo.environment) async throws {
         guard !isLoading, !isWritingRekordbox, snapshotURL == database, source.status == .ready else {
             throw DJCError.writeRefused(String(ui: "라이브러리가 바뀌었거나 목록을 읽지 못했습니다. 동기화 창을 다시 여세요."))
+        }
+        // 최신화가 끝나기 전의 목록으로 쓰면 폴더 계층이 낡을 수 있다.
+        guard currentITunesRefresh(snapshot: database, revision: previewRevision) == nil else {
+            throw DJCError.writeRefused(ITunesSyncModel.waitingForMusicMessage)
         }
         guard let base = source.syncData else {
             throw DJCError.writeRefused(String(ui: "rekordbox 동기화 파일 사본이 없습니다. rekordbox에서 한 번 동기화한 뒤 새로고침하세요."))

@@ -37,6 +37,39 @@ extension DevSelfTests {
             @MainActor func checkbox(_ id: String) -> NSButton? {
                 NSApp.windows.lazy.compactMap { $0.contentView.flatMap { button("itunes-sync-\(id)", in: $0) } }.first
             }
+            @MainActor func captureSyncWindow(_ prefix: String) {
+                guard let arg = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix(prefix) }),
+                      let window = NSApp.windows.first(where: { $0.contentView.flatMap { button("itunes-sync-C", in: $0) } != nil })
+                else { return }
+                let capture = Process()
+                capture.executableURL = URL(filePath: "/usr/sbin/screencapture")
+                capture.arguments = ["-x", "-l", String(window.windowNumber), String(arg.dropFirst(prefix.count))]
+                try? capture.run()
+                capture.waitUntilExit()
+                check(capture.terminationStatus == 0, "선택 창 화면 저장")
+            }
+            // 뒤에서 Music을 읽는 동안 연 선택 창: 캐시를 보여 주되 낡은 폴더 계층으로 쓰지 않게 기다린다.
+            let musicGate = DispatchSemaphore(value: 0)
+            let latestMusic = store.iTunesSnapshot
+            let musicRefresh = store.startSimulatedITunesRefresh { musicGate.wait(); return latestMusic }
+            store.presentITunesSync()
+            for _ in 0..<100 {
+                if !store.iTunesSync.isLoading, checkbox("C") != nil { break }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            try? await Task.sleep(for: .milliseconds(300))
+            captureSyncWindow("--itunes-sync-waiting-capture=")
+            check(store.iTunesSync.isWaitingForMusic && !store.iTunesSync.canSync && checkbox("C") != nil,
+                  "Music을 읽는 동안 캐시 목록을 보여 주고 동기화를 막음")
+            musicGate.signal()
+            await musicRefresh?.value
+            for _ in 0..<50 {
+                if store.iTunesSync.canSync { break }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            check(!store.iTunesSync.isWaitingForMusic && store.iTunesSync.canSync, "Music을 다 읽은 뒤 동기화 허용")
+            store.showingITunesSync = false
+            try? await Task.sleep(for: .milliseconds(300))
             store.presentITunesSync()
             for _ in 0..<100 {
                 if !store.iTunesSync.isLoading, checkbox("C") != nil { break }
@@ -59,15 +92,7 @@ extension DevSelfTests {
             checkbox("F")?.performClick(nil)
             check(store.iTunesSync.selection.state(of: "F", in: store.iTunesSync.nodes) == .on, "폴더와 하위 목록 전체 선택")
             try? await Task.sleep(for: .milliseconds(300))
-            if let arg = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--itunes-sync-capture=") }),
-               let window = NSApp.windows.first(where: { $0.contentView.flatMap { button("itunes-sync-C", in: $0) } != nil }) {
-                let capture = Process()
-                capture.executableURL = URL(filePath: "/usr/sbin/screencapture")
-                capture.arguments = ["-x", "-l", String(window.windowNumber), String(arg.dropFirst("--itunes-sync-capture=".count))]
-                try? capture.run()
-                capture.waitUntilExit()
-                check(capture.terminationStatus == 0, "선택 창 화면 저장")
-            }
+            captureSyncWindow("--itunes-sync-capture=")
             let synced = await store.iTunesSync.sync(store: store)
             check(synced && store.iTunesLibrary.index["itunes:C"] != nil, "동기화 즉시 사이드바에 추가")
             check((try? Data(contentsOf: syncURL)) != syncBefore, "rekordbox 동기화 파일에 반영")

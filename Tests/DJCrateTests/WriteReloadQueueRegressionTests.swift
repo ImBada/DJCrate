@@ -170,14 +170,18 @@ struct WriteReloadQueueRegressionTests {
         }
         let copiedBeforeMusicReturned = writeCopyStarted.withLock { $0 }
         let loadedBeforeMusicReturned = postWriteCompleted.withLock { $0 } && store.rows.count == 2
+        let reusedBeforeMusicReturned = store.iTunesSnapshot.playlists == cached.playlists
         resume.signal()
         await postWrite.value
         await background.value
+        // 쓰기로 버려진 Music 결과는 새 사본에서 이어받는다(같은 조회를 다시 하지 않는다).
+        await store.iTunesRefresh?.task.value
         store.isWritingRekordbox = false
         #expect(copiedBeforeMusicReturned)
         #expect(loadedBeforeMusicReturned)
+        #expect(reusedBeforeMusicReturned)
         #expect(store.snapshotURL == copiedURL.withLock { $0 })
-        #expect(store.iTunesSnapshot.playlists == cached.playlists)
-        #expect(ITunesLibrarySnapshot.load(for: try #require(copiedURL.withLock { $0 })).playlists == cached.playlists)
+        #expect(store.iTunesSnapshot.playlists == late.playlists)
+        #expect(ITunesLibrarySnapshot.load(for: try #require(copiedURL.withLock { $0 })).playlists == late.playlists)
     }
 }

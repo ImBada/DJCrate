@@ -21,7 +21,7 @@ struct ITunesSyncView: View {
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
-                .disabled(model.isLoading || model.isSyncing || store.isLoading || store.isWritingRekordbox)
+                .disabled(model.isLoading || model.isSyncing || model.isWaitingForMusic || store.isLoading || store.isWritingRekordbox)
                 .help(.ui("iTunes 동기화 목록 새로고침"))
                 .accessibilityLabel(.ui("iTunes 동기화 목록 새로고침"))
                 .accessibilityIdentifier("itunes-sync-refresh")
@@ -78,7 +78,15 @@ struct ITunesSyncView: View {
                 }
             }
             .disabled(model.isLoading || model.isSyncing || model.source.status != .ready)
-            if let message = model.error ?? model.source.status.message {
+            if let message = model.error {
+                Text(message).font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+            } else if model.isWaitingForMusic {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text(ITunesSyncModel.waitingForMusicMessage).font(.callout).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else if let message = model.source.status.message {
                 Text(message).font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             }
             HStack {
