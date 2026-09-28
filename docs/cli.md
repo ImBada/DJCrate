@@ -137,6 +137,39 @@ djc draft rm tag 101 --db /tmp/djc-fixture/master.db
 
 앱은 재생 목록 초안을 지원하지만 `djc draft`의 대상은 큐·태그뿐이다. `playlist-write`는 JSON 편집을 DB에 쓰는 명령이며 DJCrate 재생 목록 초안 생성 명령이 아니다. 에이전트 스킬에서는 실행하지 않고 사람이 앱에서 재생 목록 초안을 만들도록 안내한다.
 
+## USB 내보내기(`usb-export`)
+
+```sh
+djc usb-export --volume <마운트> [--db <스냅샷 사본.db>] [--share <폴더>] [--playlist <ID>]… [--tracks <ContentID>,…]
+               [--formats onelibrary,device] [--naming identifier] [--dry-run] [--confirm <볼륨 이름>]
+               [--allow-provisional <규칙,…>] [--verify-audio] [--settings <로컬 설정 폴더>] [--snapshot-time <ISO 8601>]
+
+# 디스크 이미지에 시험(임시 폴더 아래만, rekordbox는 꺼 둔다)
+export DJC_HOME=$(mktemp -d)
+djc lab usb-image create $DJC_HOME/e.img --size 4g --name DJCTEST
+mkdir -p $DJC_HOME/mnt && djc lab usb-image attach $DJC_HOME/e.img --mount $DJC_HOME/mnt
+djc usb-export --volume $DJC_HOME/mnt --db <스냅샷 사본.db> --playlist <ID> --dry-run
+djc usb-export --volume $DJC_HOME/mnt --db <스냅샷 사본.db> --playlist <ID>
+djc usb-info $DJC_HOME/mnt
+djc lab usb-image detach $DJC_HOME/e.img
+```
+
+로컬 스냅샷 사본의 곡·재생 목록을 **빈 FAT32·MBR USB**에 OneLibrary(`exportLibrary.db`)와 Device Library(`export.pdb`·`exportExt.pdb`)로 내보낸다. 음원·분석 파일·아트워크를 함께 쓰고, 쓰기는 `UsbWriter.write` 한 곳으로 한다(백업 → 파일 → DB 교체 → 검증, 실패하면 쓰기 전으로 되돌림). 흐름과 규칙은 `docs/usb-internals.md` §7.12.
+
+- **실물 USB는 막혀 있다**(`physicalDisabled`). `--confirm`·`--allow-provisional`을 줘도 풀리지 않는다. 지금은 임시 폴더 아래에 붙인 디스크 이미지에만 쓴다.
+- `--db`를 빼면 가장 최근 스냅샷(읽기만 한다. 새로 뜨거나 정리하지 않는다). 라이브 master.db는 열지 않고 거부한다(`liveDatabase`). 명령은 받은 사본을 세션 전용 폴더(`usb-snapshots/local-<세션>/`)에 한 번 더 떠서 읽고 끝나면 지운다. `--share`를 빼면 rekordbox 폴더의 `share`(읽기만).
+- `--playlist`는 여러 번 줄 수 있고 폴더면 그 안까지 간다. `--tracks`는 ContentID를 쉼표로. 둘 다 주면 목록 곡 다음에 곡을 더한다.
+- `--snapshot-time`: 사본을 뜬 시각(시간대를 넣은 ISO 8601). 빼면 사본 이름(`master-YYYY-MM-DDTHHMMSS.db`, UTC) → 파일 수정 시각 순으로 푼다. 이 시각 뒤에 로컬 분석 파일이 바뀐 곡은 `analysisNewerThanSnapshot`으로 막는다. 요약 첫 줄에 어디서 풀었는지(`explicit`·`fileName`·`modificationDate`)를 적는다.
+- `--formats`: 기본 둘 다. `onelibrary`·`device` 중 하나만 줄 수 있다. `--naming`은 지금 `identifier`(DJCrate 고유 이름)만 있다.
+- `--dry-run`: 계획·준비·쓰기 전 확인까지 하고 USB에 쓰지 않는다(저널을 `dryRun`으로 닫는다). 같은 명령을 `--dry-run` 없이 다시 부르면 막히지 않고 쓴다. 명령은 늘 지금 USB를 다시 읽어 새로 계획한다.
+- `--allow-provisional <규칙,…>`: 확인 안 된 규칙(요약의 "확인 안 된 규칙" 이름)을 실물에서 풀 때 쓴다. `physicalVolume`은 받지 않는다(`gateOnlyRule`). 디스크 이미지는 확인 안 된 규칙으로 막지 않는다.
+- `--settings <로컬 설정 폴더>`: 로컬 rekordbox 설정 폴더의 `MYSETTING.DAT`·`MYSETTING2.DAT`·`DJMMYSETTING.DAT`를 내보내기 모양으로 `PIONEER/`에 옮긴다(확인 안 된 규칙 `settingFiles`). 빼면 설정 파일을 만들지 않는다. `DEVSETTING.DAT`·`djprofile.nxs`는 만들지 않는다.
+- `--verify-audio`: 음원도 쓴 뒤 USB에서 다시 읽어 해시를 본다.
+- 막힘: 곡 단위 막힘(`audioSizeMismatch`·`analysisNewerThanSnapshot`·`trackRowTooLarge`·`nameTooLongForDeviceLibrary` 등)은 그 곡만 빼고 쓴다. 볼륨 단위 막힘이 하나라도 있으면 쓰지 않는다: `localVersionUnverified`(이 Mac의 rekordbox가 확인한 버전이 아님), `libraryExists`(이미 rekordbox 라이브러리가 있는 USB — USB 수정으로), `leftoverPioneer`(`PIONEER/` 바로 아래에 다른 것이 남음), `myTagNameTooLongForDeviceLibrary`, `noTracks`, 볼륨 정책(FAT32·MBR 등), `insufficientSpace`, 쓰기 절차의 막힘(`rekordboxRunning`·`recoveryNeeded`·`destinationExists` 등).
+- `Contents/`에 사용자가 넣어 둔 음원이 있으면 덮어쓰지 않는다: 같은 이름·같은 내용이면 그 파일을 가리키고(쓰지 않음), 내용이 다르면 ` (2)`처럼 번호를 붙인다.
+- 출력: 진행은 표준 오류에 단계마다 한 줄, 요약은 표준 출력(스냅샷 시각 → 곡·재생 목록·막힌 곡 수 → 막힘 code별 수와 ContentID → 확인 안 된 규칙별 곡 수 → 경고 code별 수 → 필요 공간 → 결과·백업 폴더·파일 수). 곡 제목·USB 경로는 찍지 않는다. 쓴 뒤에는 "USB를 꺼낸 뒤 뽑으세요(Finder 또는 `diskutil eject`)"로 끝난다.
+- 종료 코드는 성공 0, 막힘·실패 1이다. JSON 계약에는 포함하지 않는다.
+
 ## USB 쓰기 되돌리기·회복
 
 USB 쓰기는 앱(또는 USB 내보내기·수정 명령)이 `UsbWriter.write` 한 곳으로 한다. 아래 두 명령은 그 쓰기를 되돌리거나 끊긴 쓰기를 마무리한다. 둘 다 쓰기와 같은 확인을 먼저 거친다: rekordbox·rekordboxAgent가 켜져 있으면 막고, 실물 USB 쓰기가 열리기 전에는 임시 폴더 아래에 붙인 디스크 이미지만 받는다. `--volume`에 rekordbox 라이브러리나 DJCrate 데이터 폴더를 주면 거부한다. 백업·저널은 `DJC_HOME`(또는 기본 DJCrate 데이터 폴더)의 `usb-backups/`·`usb-sessions/`에 있다. JSON 계약에는 포함하지 않는다.
@@ -174,10 +207,10 @@ USB(마운트된 볼륨이나 그 안 폴더, 또는 USB 모양 폴더)를 **읽
 | `formats` | string[] | `oneLibrary`·`deviceLibrary`(`PIONEER/rekordbox/`의 `exportLibrary.db`·`export.pdb` 이름으로 판정) |
 | `volume` | object \| null | 폴더 대상이면 null. `fileSystem`(string, 예 `FAT32`), `partitionScheme`(`mbr`·`gpt`·`apm`·`none`·`unknown`), `isDiskImage`, `writableForExport`, `writableForEdit`(bool, 볼륨 정책 문제가 없는지), `problems`(string[], 정책 문제 code) |
 | `oneLibrary` | object \| null | `schemaOK`(확인한 모양), `headerMode`(`wal`·`rollback`, 사본이 온전하지 않으면 `unknown`), `walPresent`, `journalPresent`, `integrityOK`(bool), `tracks`, `playlists`, `myTags`, `histories`(number) |
-| `deviceLibrary` | object \| null | `exportFlag10`(number, 머리 0x10), `extFlag10`(number \| null), `roundTripChecked`(bool, 지금은 늘 false), `roundTripOK`(bool \| null, 지금은 늘 null), `tracks`, `playlists`, `historyRows`(기록 표 산 행), `unknownTableRows`(모르는 표 산 행), `structureIssues`(number) |
+| `deviceLibrary` | object \| null | `exportFlag10`(number, 머리 0x10), `extFlag10`(number \| null), `roundTripChecked`(bool, pdb가 있으면 늘 채움), `roundTripOK`(bool \| null, 읽기 → 모델 → 다시 쓰기 → 다시 읽기가 같으면 true, 읽지 못했으면 null), `tracks`, `playlists`, `historyRows`(기록 표 산 행), `unknownTableRows`(모르는 표 산 행), `structureIssues`(number) |
 | `consistency` | object | `trackIDsMatch`, `pathsMatch`(bool), `playlistMismatches`(number, 두 형식이 다른 재생 목록 수), `masterDbIdConsistent`(모든 곡이 한 값), `myTagMasterDBIDConsistent`(두 형식 값이 같음), `editBlocked`(고치기를 막는 불일치가 있음) |
 | `analysis` | object | `tracksChecked`, `missingFiles`(DB가 가리키는 `.DAT`·`.EXT`·`.2EX` 중 없는 파일 수), `ppthMismatches`(`.DAT` PPTH ≠ 곡 경로인 곡 수), `slotCollisions`(파일 번호가 0이 아닌 경로 수) |
 | `localCompatibility` | object | `rekordboxVersion`(string \| null, 이 Mac의 rekordbox), `verified`(bool, DJCrate가 확인한 버전인지) |
-| `warnings` | `{code, message}[]` | `pdbOpenFlag`(머리 0x10 ≠ 5), `unknownTableRows`, `pdbStructure`, `deviceLibraryUnreadable`, `oneLibrarySidecar`(`-wal`·`-journal`), `oneLibraryUnsupported`, `oneLibraryUnreadable`, `formatMismatch`(고치기 막힘), `analysisMissing`, `analysisPathMismatch`. `message`만 번역한다 |
+| `warnings` | `{code, message}[]` | `pdbOpenFlag`(머리 0x10 ≠ 5), `unknownTableRows`, `pdbStructure`, `deviceLibraryUnreadable`, `oneLibrarySidecar`(`-wal`·`-journal`), `oneLibraryUnsupported`, `oneLibraryUnreadable`, `formatMismatch`(고치기 막힘), `analysisMissing`, `analysisPathMismatch`, `pdbRoundTripFailed`(DJCrate가 이 Device Library를 그대로 다시 쓸 수 없음 — 문제 수만 적음). `message`만 번역한다 |
 
 종료 코드는 성공 0, 막힘·실패 1이다. 형식이 없는 USB도 성공이며 `formats`가 빈 배열이다.

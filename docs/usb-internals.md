@@ -4,6 +4,12 @@ rekordbox 7이 USB에 내보내는 라이브러리(OneLibrary·Device Library)�
 
 ## 0. 읽는 법·근거 표기
 
+- 경로는 USB 루트 기준 상대 경로(`UsbLayout`, NFC)다. 칸 이름은 두 형식을 합친 모델(`UsbLibrary`)의 이름이고, 파일 안 이름이 다르면 함께 적는다.
+- **근거**: 규칙은 rekordbox 화면에서 만든 결과 파일을 칸 단위로 읽어 알아낸다. rekordbox 실행 파일은 분석하지 않는다. "근거: rekordbox 7.2.18 골든(2026-09-26 내보내기) 관찰"은 rekordbox 7.2.18이 빈 USB에 내보낸 결과를 읽어 본 것이다. 코드는 골든 바이트(쪽·표·파일 덩어리)를 넣지 않고, 칸 하나의 관찰값만 근거 주석을 단 이름 붙은 상수로 둔다. 외부 자료는 `THIRD_PARTY_NOTICES.md`에 적은 것만 쓴다.
+- **[추정]**: 관찰에서 추정했고 rekordbox 실험으로 아직 가르지 못한 것이다.
+- **확인 안 된 규칙**(`UsbProvisionalRule`, §9): 이름이 붙은 동작은 디스크 이미지에는 쓰고 실물 USB에는 막는다. 실험으로 확인한 뒤에만 푼다(§11).
+- 시험 재료는 모두 합성이다(곡 제목·경로·ID는 지어낸 값). 골든·로컬 라이브러리의 수치는 문서·시험에 적지 않는다.
+
 ## 1. USB 파일 목록
 
 경로는 USB 루트 기준(`UsbLayout`)이다.
@@ -728,6 +734,35 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 
 디스크 이미지 강제 분리 시험(`djc lab usb-commit-crash`): 빈 FAT32 틀의 복제본에 합성 묶음을 쓰는 도중 무작위 시점에 강제로 떼고, 다시 붙여 원시 상태를 본 뒤 회복한다. 반복 시험에서 파일마다 옛것 또는 새것이었고, 회복 뒤 트리는 쓰기 전 또는 목표와 같았으며 분리 뒤 Mac 폴더에 쓴 흔적은 없었다.
 
+### 7.12 빈 USB 내보내기(`UsbExportSession`, `djc usb-export`)
+
+로컬 스냅샷 사본의 곡·재생 목록을 빈 FAT32·MBR USB에 두 형식으로 내보낸다. 흐름은 후보 → 계획 → 빌더 → 준비 → 쓰기 → 검증이고, 세션(`UsbExportSession`, DJCStorage)이 순서대로 부른다. 미리 보기(`preview`)와 드라이 런은 준비까지 같고 USB에 쓰지 않는다.
+
+1. **원본**: 받은 사본이 라이브 master.db(`~/Library/Pioneer/rekordbox/master.db`·rekordbox 폴더의 master.db, 실경로·같은 inode)면 열지 않고 `liveDatabase`. 스냅샷 시각을 이때 원본에서 푼다(`UsbSnapshotTime`: `--snapshot-time` → 사본 이름 → 수정 시각). 세션이 다시 뜨는 사본은 이름·시각이 달라지기 때문이다.
+2. **볼륨 단위 막힘**(여기서 막히면 로컬 사본도 뜨지 않는다): 이 Mac의 rekordbox가 확인한 버전이 아님(`localVersionUnverified`), 볼륨 정책(`UsbVolumePolicy`, 내보내기), 실물 관문(`UsbRuleCheck`, 실물이면 `physicalDisabled`), `PIONEER/rekordbox/`에 DB 이름이 있음(`libraryExists` — USB 수정으로 안내), DB는 없지만 `PIONEER/` 바로 아래에 `.`으로 시작하지 않는 이름이 있음(`leftoverPioneer`, 이름만 세고 열지 않는 경로로 내려가지 않는다). rekordbox 실행은 쓰기 절차가 본다(켜진 채 미리 보기는 된다).
+3. **세션 사본**: 받은 사본을 `usb-snapshots/local-<세션>/`에 한 번 더 뜬다(원본 = 받은 사본, `force: true` — 우리 사본이라 실행 중 확인·WAL 거부 없이 곁의 `-wal`을 사본 안에서 합친다. 원본과 그 `-wal`은 읽기만). 사용자 스냅샷 폴더는 목적지·원본으로 쓰지 않고 읽지도 않는다. 세션이 끝나면(성공·실패·취소) 이 폴더를 지운다(클라우드 토큰이 든 DB 사본을 남기지 않게).
+4. **계획**: 이미 `Contents/`가 있으면 그 아래 이름·철자를 모아(`UsbTree.walk`, 파일은 열지 않음) `UsbExistingState.contentsOnly`로 넘긴다. 같은 충돌 키의 파일이 같은 내용(크기·SHA-256)이면 그 파일을 가리키고(쓰지 않음), 다르면 ` (2)`처럼 번호를 붙이며 폴더는 USB 철자를 쓴다(§5). 클러스터 크기는 볼륨 값.
+5. **빌더와 행 크기**: `UsbLibraryBuilder.build`(myTagMasterDBID는 난수, createdDate는 오늘). Device Library를 쓰면 행 크기를 먼저 본다(`PdbRowSize`): 트랙 행이 빈 쪽에도 안 들어가면 그 곡(`trackRowTooLarge`), 아티스트·앨범 행이 가까운 모양(255바이트)에 안 들어가면 그 이름을 쓰는 곡(`nameTooLongForDeviceLibrary`, `pdbFarOffsetRows`), My Tag 행이면 볼륨(`myTagNameTooLongForDeviceLibrary` — My Tag 정의는 곡과 무관하게 모두 들어가므로 곡을 빼서 풀 수 없다). 막힌 곡을 빼고 다시 계획해 ID가 빈틈없게 한다.
+6. **준비**(`UsbExportAssembly`): Mac의 `usb-staging/<세션>/`에 USB와 같은 자리로 만든다.
+   - 곡마다 분석 파일 셋(§4, 경고 `analysisPSSIMasked`·`kind4CueDropped` 등), 아트워크(`artwork_s.jpg` → a·b, `artwork_m.jpg` → a_m·b_m, 바이트 복사·원본 수정 시각, a는 Device Library·b는 OneLibrary를 쓸 때만).
+   - OneLibrary: `OneLibraryWriter.create` → `verify`(준비한 DB를 읽기 전용으로 열지 않는다 — WAL 모양 파일 곁에 사이드카가 남는다). Device Library: `PdbWriter.files(.fresh)` → `PdbRoundTrip.check`가 빈 배열이어야 한다.
+   - 음원은 복사 목록만(원본 → 계획 경로, 크기 = `FileSize`, 원본 수정 시각). `--settings`면 로컬 설정 파일 셋(§6).
+   - 목표 지문: DB 셋·분석 파일·아트워크는 크기·SHA-256, 음원은 크기(해시는 복사하며 잰다).
+   - 확인 안 된 규칙 = 계획 규칙(경로·파일 이름·아티스트·앨범·목록 이름의 `pdbLongAscii` 포함) ∪ 분석 파일 규칙 ∪ Device Library 작성기가 실제로 UTF-16으로 쓴 긴 ASCII(장르·레이블·키·My Tag·메뉴 이름까지) ∪ `settingFiles`(켰을 때). 규칙별 곡 수는 계획 곡 규칙에 작성기의 곡별 규칙을 더해 센다(같은 곡은 한 번).
+7. **막힘 모음**: 곡·목록 단위 막힘은 그 곡·목록만 빼고 쓴다. 볼륨 단위(2·5·확인 안 된 규칙·용량 `insufficientSpace`·곡이 없음 `noTracks`)가 하나라도 있으면 쓰지 않는다.
+8. **쓰기**: `UsbWriter.write`(§7.1) — 검사기 `UsbEmptyVolumeInspector`(A 단계에서 한 번 더: `PIONEER/` 바로 아래 이름 0개, 만들 대상과 충돌 키가 같은 이름 없음), 검증기 `UsbFingerprintVerifier`·`OneLibraryVerifier`·`PdbVerifier`·`UsbInvariantVerifier`, `ppthReader`는 분석 파일의 PPTH 태그.
+9. **정리**: 준비 폴더를 지운다. 끝나지 않은 쓰기(볼륨이 사라짐·되돌리기 실패·되돌리기 미룸)는 회복이 쓸 수 있게 남긴다.
+
+진행 이벤트: 세션이 `planning` → `staging`(곡 n/N, 취소 가능)을 내고, 이어서 쓰기 절차가 `backup` → `files` → `commit`(취소 불가) → `cleanup` → `verify`를 낸다. 준비 중 취소하면 저널도 만들지 않는다.
+
+**검증기**(G 단계, USB에서 다시 사본을 떠서 연다. 문제는 표·칸 이름·곡 id·수만 적는다):
+
+- `OneLibraryVerifier`: 사이드카(`-wal`·`-shm`·`-journal`)가 없고, 사본의 무결성·암호 검사가 통과하고, 다시 읽은 모델 = 기대 모델의 OneLibrary 투영(`UsbLibraryDiff`, formats: [.oneLibrary]).
+- `PdbVerifier`: 두 파일의 칸 = 작성기가 쓴 모델(`PdbFiles.written`)의 Device Library 투영, 머리 0x10 = 5, 머리 순번 > 모든 쪽 순번, 구조 문제·먼 모양 행 0, 표마다 사슬 마지막 쪽 = 포인터 last_page이고 그 쪽 next = 빈 후보, 빈 후보는 0으로 채운 쪽이거나 파일 끝 너머.
+- `UsbInvariantVerifier`: ① 곡마다 pdb 분석 경로 = OneLibrary 분석 경로(NFC) ② `.DAT` PPTH = 두 DB의 곡 경로 ③ 파일 이름 = 경로 끝 성분 ④ DB가 가리키는 파일(음원·분석 파일 셋·아트워크)이 모두 있고 음원 크기 = 파일 크기 칸 ⑤ 분석 파일 폴더 안 같은 번호를 두 곡이 쓰지 않음 ⑥ 곡 수 칸(OneLibrary property·pdb 표 19)과 두 형식의 곡 수가 같음 ⑦ `._*`·`.djc-part-*` 0개.
+
+디스크 이미지에서 확인하는 법: `docs/cli.md`의 "USB 내보내기". 골든과는 `djc lab usb-diff <골든> <이미지> --ignore-anlz-folder --files --anlz --mtime`(재생 목록 표는 rekordbox가 항목을 한 번 더 넣는 모양이 있어 `--skip`으로 뺀다), 다시 만들기는 `djc lab usb-rebuild`로 본다(§8.2). 골든과 달라야 정상인 것: 설정 파일 셋(기본 끔), DB 세 파일의 바이트(칸 비교로 판정), property의 createdDate·myTagMasterDBID(Device Library 날짜 포함), 지운 행 id(새 파일에는 없다), 분석 파일의 수정 시각(쓴 시각).
+
 ## 8. USB 안 수정
 
 ### 8.1 읽기 점검(`UsbRead`, `djc usb-info`)
@@ -746,16 +781,17 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 2. 형식: `PIONEER/rekordbox/` 바로 아래 파일 이름만 본다(`exportLibrary.db` → OneLibrary, `export.pdb` → Device Library).
 3. DB: `UsbSnapshot.take`로 Mac 쪽 사본을 떠서(§2.3) 읽고 끝나면 지운다.
    - OneLibrary: 사이드카(`-wal`·`-journal`) 유무, 머리 모양(wal·rollback), `integrity_check`·`cipher_integrity_check`, 호환 검사(§2.4), 곡·재생 목록·My Tag·기록 수. 사본이 온전하지 않으면 OneLibrary는 읽지 못한 것으로 적고 pdb 둘만 따로 떠서 읽는다.
-   - Device Library: 머리 0x10(두 파일, 5가 아니면 rekordbox가 정상으로 닫지 않은 것), 기록 표 산 행, 모르는 표 산 행, 구조 문제 수(§3.7). 왕복 검사(읽은 모델로 다시 만든 바이트 = 원본)는 아직 하지 않는다.
+   - Device Library: 머리 0x10(두 파일, 5가 아니면 rekordbox가 정상으로 닫지 않은 것), 기록 표 산 행, 모르는 표 산 행, 구조 문제 수(§3.7), 왕복 검사(`PdbRoundTrip.check`, §3.8: 읽기 → 모델 → 다시 쓰기 → 다시 읽기). 왕복 검사가 통과하지 못하면(My Tag 연결·모르는 표 행 등 작성기가 다시 만들 수 없는 것이 있음) 경고 `pdbRoundTripFailed`를 문제 수만 적어 낸다.
 4. 두 형식 일치(`UsbLibrary.merge`, §2.6): 곡 ID·경로가 같은지, 다른 재생 목록 수, 고치기를 막는 불일치(`blocksEditing`)가 있는지, 모든 곡의 masterDbId가 한 값인지, 두 형식의 myTagMasterDBID가 같은지. 식별값 자체는 내지 않는다.
 5. 분석 파일: 곡마다 두 DB가 가리키는 경로(같으면 한 번)의 `.DAT`·`.EXT`·`.2EX`가 일반 파일로 있는지, `.DAT` PPTH = 곡 경로(NFC)인지(§4.3), 파일 번호가 0이 아닌지(§5). DB 경로가 열지 않는 경로·링크를 거치면 열지 않고 없는 파일로 센다.
 6. 이 Mac의 rekordbox 버전이 확인한 버전인지(`RekordboxCompatibility.verifiedAppVersions`).
 
-경고 code: `pdbOpenFlag`, `unknownTableRows`, `pdbStructure`, `deviceLibraryUnreadable`, `oneLibrarySidecar`, `oneLibraryUnsupported`, `oneLibraryUnreadable`, `formatMismatch`, `analysisMissing`, `analysisPathMismatch`. 곡마다 파일 번호가 0이 아닌 것, 두 형식의 항목만 다른 재생 목록(rekordbox도 만드는 모양)은 수로만 적고 경고하지 않는다.
+경고 code: `pdbOpenFlag`, `unknownTableRows`, `pdbStructure`, `pdbRoundTripFailed`, `deviceLibraryUnreadable`, `oneLibrarySidecar`, `oneLibraryUnsupported`, `oneLibraryUnreadable`, `formatMismatch`, `analysisMissing`, `analysisPathMismatch`. 곡마다 파일 번호가 0이 아닌 것, 두 형식의 항목만 다른 재생 목록(rekordbox도 만드는 모양)은 수로만 적고 경고하지 않는다.
 
 ### 8.2 실험 도구
 
-- `djc lab usb-diff <A> <B> --files --anlz`: 모델 비교(§2.6)에 더해 파일 트리(NFC 경로·크기·SHA-256, macOS 파일·`._*`·열지 않는 경로 제외)와 분석 파일(PPTH·확장자로 짝지어 태그 목록·태그 바이트)을 비교한다. 경로 대신 묶음 이름(DB·설정·USBANLZ·Artwork·Contents)·곡 id·태그 이름·수만 찍는다. `--ignore-anlz-folder`면 파일 트리에서도 USBANLZ 파일을 (PPTH, 확장자)로 짝짓는다. 한쪽에 같은 (PPTH, 확장자) 파일이 여럿이면(같은 곡의 분석 파일을 다른 폴더에 한 벌 더 둔 사본 등) 버리지 않고 모두 비교하고 "PPTH 겹침"으로 따로 센다. "n/N 바이트 같음"의 N은 한쪽의 모든 분석 파일 수(큰 쪽)다.
+- `djc lab usb-diff <A> <B> --files --anlz`: 모델 비교(§2.6)에 더해 파일 트리(NFC 경로·크기·SHA-256, macOS 파일·`._*`·열지 않는 경로 제외)와 분석 파일(PPTH·확장자로 짝지어 태그 목록·태그 바이트)을 비교한다. 경로 대신 묶음 이름(DB·설정·USBANLZ·Artwork·Contents)·곡 id·태그 이름·수만 찍는다. `--ignore-anlz-folder`면 파일 트리에서도 USBANLZ 파일을 (PPTH, 확장자)로 짝짓는다. 한쪽에 같은 (PPTH, 확장자) 파일이 여럿이면(같은 곡의 분석 파일을 다른 폴더에 한 벌 더 둔 사본 등) 버리지 않고 모두 비교하고 "PPTH 겹침"으로 따로 센다. "n/N 바이트 같음"의 N은 한쪽의 모든 분석 파일 수(큰 쪽)다. `--mtime`이면 내용이 같은 파일의 수정 시각도 FAT 단위(2초로 내림)로 비교해 묶음별로 센다.
+- `djc lab usb-rebuild <USB 폴더> <출력 폴더>`: USB의 두 형식을 사본으로 떠서 읽어 합친 모델로 DB 셋만 새 내보내기 모양(`OneLibraryWriter.create`, `PdbWriter` fresh)으로 다시 만든다(음원·분석 파일은 복사하지 않는다). `djc lab usb-diff <USB> <출력> --ignore-ids`가 "차이 0"이면 읽기 → 쓰기가 모델을 잃지 않는다. 입력·출력은 임시 폴더 아래만, 출력은 없거나 빈 폴더.
 - `djc lab usb-anlz-relocate <USB 사본> --track <id> --folder <P???/????????> [--db-only|--files-only|--decoy-slot0|--cue-variant]`: 기기가 분석 파일을 DB 경로로 찾는지 확인하려고 한 곡을 일부러 어긋나게 만든다. Mac 데이터 볼륨의 임시 폴더 아래 **사본 폴더**에만 쓴다(마운트된 볼륨의 맨 위나 그 안 폴더·링크·임시 폴더 밖·rekordbox 실행 중이면 거부). pdb 분석 경로는 같은 길이 문자열로 제자리 교체하고(길이가 다르면 거부), OneLibrary는 `UPDATE` 뒤 `wal_checkpoint(TRUNCATE)`로 사이드카를 남기지 않는다. 모든 확인을 먼저 하고 하나라도 걸리면 아무것도 바꾸지 않는다.
   - 기본·`--db-only`: 파일을 새 폴더로 옮기고 두 DB 경로도 옮긴다.
   - `--files-only`: 파일은 그대로, 두 DB 경로만 같은 길이의 없는 폴더로.
@@ -798,6 +834,30 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 
 ## 10. 막아 둔 것
 
+첫 판에서 코드가 막는 것과 쓰지 않는 것이다. 막힘은 이유와 할 일을 한 문장으로 알린다.
+
+| 무엇 | 지금 | 규칙·code |
+|---|---|---|
+| 실물 USB에 쓰기 | 코드 상수로 닫힘. 디스크 이미지(임시 폴더 아래)에만 쓴다. `--confirm`·`--allow-provisional`로도 풀리지 않는다 | `physicalVolume`, `physicalDisabled` |
+| 분석 파일 폴더 이름 | rekordbox 규칙을 따르지 않고 DJCrate 고유 이름(content ID)으로 짓는다 | `analysisFolderNaming` |
+| Device Library 먼 오프셋 행 | 쓰지 않는다. 아티스트·앨범 행이 가까운 모양에 안 들어가면 그 곡을, My Tag 행이면 내보내기 전체를 막는다. 트랙 행이 빈 쪽에도 안 들어가면 그 곡을 막는다 | `pdbFarOffsetRows`, `nameTooLongForDeviceLibrary`, `myTagNameTooLongForDeviceLibrary`, `trackRowTooLarge` |
+| 긴 ASCII(127자 이상 순수 ASCII) | rekordbox의 0x40 모양 대신 UTF-16으로 쓴다 | `pdbLongAscii` |
+| 재생 기록 표 | 쓰지 않는다. 기기 기록 행이 있는 USB를 다시 만드는 쓰기는 디스크 이미지에서도 막는다 | `carriedDeviceRows` |
+| My Tag 연결 | 두 형식 모두 쓰지 않는다. Device Library에 연결이 있는 USB는 다시 쓸 수 없는 모양으로 본다(왕복 검사 실패) | `myTagLinks`, `pdbRoundTripFailed` |
+| 기기 설정 파일 | 기본 끔. `--settings <로컬 설정 폴더>`로 켤 때만 셋을 옮긴다. `DEVSETTING.DAT`·`djprofile.nxs`는 만들지 않는다 | `settingFiles` |
+| 스마트(인텔리전트) 재생 목록 | 내보내지 않는다(그 곡은 다른 선택대로 간다) | `smartPlaylist` |
+| 이미 라이브러리가 있는 USB에 내보내기 | 막고 USB 수정으로 안내한다. DB가 없어도 `PIONEER/`에 무엇이 남아 있으면 막는다 | `libraryExists`, `leftoverPioneer` |
+| 확인하지 않은 로컬 rekordbox 버전 | 내보내기를 막는다(확인: 7.2.x) | `localVersionUnverified` |
+| 스냅샷 뒤에 바뀐 곡 | 음원 크기가 `FileSize`와 다른 곡, 스냅샷 뒤 분석 파일이 바뀐 곡은 그 곡만 막는다(§5 막힘) | `audioSizeMismatch`, `analysisNewerThanSnapshot` |
+| 볼륨 모양 | FAT32·MBR 첫 파티션·512바이트 섹터만. GPT·exFAT·HFS+·APFS·내장·네트워크·읽기 전용은 막는다 | `UsbVolumePolicy` |
+
 ## 11. 새 USB 쓰기 경로를 여는 방법
 
 rekordbox 실험 → 사본 재현 → 칸 단위 일치 → 골든 테스트 → `UsbProvisionalRule.confirmed`에 더함. 더한 뒤 §9 표의 지금 값을 고친다.
+
+1. **rekordbox 실험**: 사용자에게 rekordbox 7.2.x에서 그 동작을 직접 해 달라고 부탁한다(빈 USB에 내보내기·USB 수정 등, 곡 이름을 받고 끝나면 rekordbox 종료). 결과 USB는 폴더 사본이나 디스크 이미지로 떠서 본다(`PIONEER/extracted`·`CDP`·`djprofile.nxs`는 빼고, 실물은 읽기만).
+2. **사본 재현**: 같은 입력을 DJCrate로 디스크 이미지에 쓴다(`djc usb-export`, 필요하면 `--allow-provisional`로 그 규칙만 푼 계획).
+3. **칸 단위 일치**: `djc lab usb-diff <rekordbox 결과> <재현> --files --anlz [--mtime]`로 표·칸·태그·파일 단위 차이가 0이거나, 남은 차이마다 이유(쓴 시각·난수 ID 등)를 설명할 수 있어야 한다. 쪽 바이트는 `djc lab pdb-verify`, 분석 파일은 `djc lab usb-anlz-check`로 본다.
+4. **골든 테스트**: 합성 재료로 그 규칙을 고정하는 시험을 남긴다. 근거 주석은 `// rekordbox 7.2.18 골든 관찰(<날짜> 내보내기)` 한 줄이고, 골든 바이트를 통째로 넣지 않는다.
+5. **확인 목록**: `UsbProvisionalRule.confirmed`에 더하고 §9 표를 고친다. 한 번에 한 규칙씩 연다.
+6. rekordbox가 업데이트되면 `djc compat`·`djc usb-info`로 먼저 보고, 실험으로 다시 확인하기 전에는 확인한 버전·규칙 목록을 넓히지 않는다. 실물 쓰기 관문(`buildEnabled`)을 여는 것은 따로 정한다.

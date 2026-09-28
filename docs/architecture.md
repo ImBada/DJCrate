@@ -129,6 +129,7 @@ clickNode(메트로놈) ──────────────────�
 형식·절차는 `docs/usb-internals.md`, USB 코드를 고칠 때 규칙은 `.claude/rules/usb-write.md`.
 
 - **한 모델, 두 형식**: USB 라이브러리를 곡·재생 목록·큐 모델 하나로 읽고, 쓸 때 그 모델에서 OneLibrary(`exportLibrary.db`)와 Device Library(`export.pdb`·`exportExt.pdb`)를 따로 만든다(`UsbFormat`). 두 형식이 같은 내용을 담도록 계획은 한 곳에서 세운다.
+- **내보내기 흐름**: 후보(`UsbExportCandidates`, 스냅샷 사본·share 읽기만) → 계획(`UsbExportPlanner`, DJCDomain 순수: 경로·ID·막힘·확인 안 된 규칙) → 빌더(`UsbLibraryBuilder`, 계획 → 두 형식 모델, Device Library 행 크기로 막힌 곡은 빼고 다시 계획) → 준비(`UsbExportAssembly`, Mac 준비 폴더에 DB 셋·분석 파일·아트워크를 만들고 변경 묶음을 냄) → 쓰기(`UsbWriter.write`) → 검증(`OneLibraryVerifier`·`PdbVerifier`·`UsbInvariantVerifier`, USB에서 다시 사본을 떠서). 이 순서를 한 번에 부르는 것이 `UsbExportSession`(DJCStorage)이고 CLI `djc usb-export`와 앱이 쓴다. 세션은 넘겨받은 스냅샷 사본을 세션 전용 폴더에 한 번 더 떠서 읽고 끝나면 지운다(사용자 스냅샷 폴더는 건드리지 않는다).
 - **파일 먼저, DB 마지막**: 음원·분석 파일·아트워크를 먼저 쓰고 라이브러리 DB를 마지막에 바꾼다. 중간에 멈춰도 기기는 옛 DB를 읽어 없는 파일을 가리키지 않는다. 새 파일은 임시 이름(`.djc-part-…`)으로 쓴 뒤 이름을 바꾼다.
 - **저널은 Mac에**: 쓰기 전 백업과 진행 기록(저널)은 USB가 아니라 DJCrate 데이터 폴더(`usb-sessions/`)에 둔다. USB가 뽑혀도 회복할 근거가 남는다.
 - **쓰는 길은 하나**: `UsbWriter.write`만 USB에 쓴다(막힘 확인 → Mac 백업 → 파일 → DB 교체 → 지우기 → 검증, 실패는 백업으로 되돌림). 형식을 모르는 변경 묶음(`UsbChangeSet`)을 받고, 형식별 막힘·검증은 `UsbWriteInspector`·`UsbWriteVerifier`로 주입한다. 되돌리기(`restore`)와 회복(`recover`)도 같은 확인을 먼저 거친다. 파일 연산은 `UsbFileSystem` 프로토콜 뒤에 있어 시험이 실패·끊김·분리를 흉내 낸다.
