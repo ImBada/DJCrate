@@ -30,6 +30,8 @@ scripts/build-app.sh --tag v0.0.0 --package   # 태그 문자열을 직접 전�
 
 결과물은 `dist/DJCrate.app`, `dist/DJCrate-X.Y.Z-macOS-<아키텍처>.zip`, 같은 이름의 `.zip.sha256`이다. 아키텍처는 실제 실행 파일에서 읽는다. ZIP은 `DJCrate.app`을 최상위에 담고, 앱에는 실행 파일·SQLCipher 프레임워크·아이콘·한국어/영어/일본어 리소스·`LICENSE`·`THIRD_PARTY_NOTICES.md`가 들어간다. 개발용 데이터나 라이브러리 사본은 넣지 않는다.
 
+CLI `djc`를 앱과 따로 옮기거나 나눠 줄 때는 `LICENSE`·`THIRD_PARTY_NOTICES.md`도 함께 둔다(실행 파일 옆의 `DJCrate_djc.bundle`과 같이).
+
 Apple Silicon에서는 실행 코드 서명이 필요하며 ad-hoc도 이 조건을 충족한다. 기존 스크립트는 `install_name_tool`로 실행 파일을 바꾸므로 마지막에 다시 서명하고 `codesign --verify --deep --strict`로 검증한다. 이는 Developer ID 서명·공증과 별개다. 근거: [Apple Silicon 실행 코드 서명 요구](https://developer.apple.com/documentation/macos-release-notes/macos-big-sur-11_0_1-universal-apps-release-notes/), [ad-hoc 서명의 의미](https://developer.apple.com/documentation/security/seccodesignatureflags/adhoc?language=objc).
 
 ## 태그에서 Release까지
