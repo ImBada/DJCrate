@@ -93,12 +93,19 @@ extension UsbVolumeInfo {
 /// 앱 시작 때 사이드바 USB 절을 붙인다
 @MainActor
 enum UsbAppSetup {
-    /// 실제 USB 호스트로 `UsbStore`를 만들어 붙이고 지켜보기를 시작한다. 로컬 짝짓기 키는 스냅샷을 읽을 때마다 뒤에서 다시 읽는다
+    /// 실제 USB 호스트로 `UsbStore`를 만들어 붙이고 지켜보기를 시작한다. 로컬 짝짓기 키는 스냅샷을 읽을 때마다 뒤에서 다시 읽는다.
+    /// 끝나지 않은 쓰기가 있는 볼륨이 나타나면 알림만 띄운다(회복은 사용자가 누를 때만)
     static func attach(to store: LibraryStore) {
         guard store.usb == nil else { return }
         let policy = UsbReadPolicy.current()
         let keys = LocalLibraryKeysCache()
-        let usb = UsbStore(host: SystemUsbHost.system(policy: policy), readPolicy: policy, localLibrary: { keys.current })
+        let service = SystemUsbWriteService.app()
+        let usb = UsbStore(host: SystemUsbHost.system(policy: policy), readPolicy: policy, localLibrary: { keys.current },
+                           journal: { service.journal(volumeKey: $0) })
+        usb.writeService = service
+        usb.onPendingJournal = { [weak store] volume in
+            Task { await store?.usbCoordinator?.offerRecovery(volume) }
+        }
         #if DEBUG
         // 시험 실행이 어떤 볼륨을 읽는지 로그로 확인한다(버퍼 없이 바로 쓴다)
         FileHandle.standardOutput.write(Data("USB 읽기 정책: \(policy.name)\n".utf8))
@@ -111,5 +118,12 @@ enum UsbAppSetup {
             }
         }
         Task { await usb.watch() }
+    }
+}
+
+extension LibraryStore {
+    /// 앱의 USB 쓰기 흐름(사이드바 USB 절이 붙은 뒤에만)
+    var usbCoordinator: UsbWriteCoordinator? {
+        usb.map { UsbWriteCoordinator(usb: $0, host: self, service: $0.writeService) }
     }
 }

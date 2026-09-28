@@ -282,10 +282,10 @@ struct UsbStoreTests {
         host.ejectError = UsbError.readFailed(detail: "busy")
         #expect(await store.eject(image.usbKey) == "USB를 꺼내지 못했습니다. 사용 중인 앱을 닫고 Finder에서 꺼내세요")
         #expect(store.volumes.count == 1)
-        store.busyVolumes = [image.usbKey]
+        #expect(store.beginWrite(image, title: "시험") != nil)
         #expect(await store.eject(image.usbKey) != nil)
         #expect(host.ejectCalls.count == 1)
-        store.busyVolumes = []
+        store.endWrite(image.usbKey)
         host.ejectError = nil
         #expect(await store.eject(image.usbKey) == nil)
         #expect(store.volumes.isEmpty && store.shapes.isEmpty)

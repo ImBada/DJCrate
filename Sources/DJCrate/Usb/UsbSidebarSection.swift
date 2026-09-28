@@ -58,8 +58,10 @@ struct UsbSidebarVolume: Identifiable, Equatable {
     /// 이름 아래 짧은 안내(읽는 중·막힌 이유 등)
     var status: String?
     var help: String
-    /// "USB로 내보내기…"(빈 FAT32, 이 판에서는 비활성)
+    /// "USB로 내보내기…"(빈 FAT32)
     var showsExport: Bool
+    /// 내보내기를 누를 수 있는지(쓰는 중이 아닐 때)
+    var canExport: Bool
     var collection: UsbSidebarTarget?
     var collectionCount: Int
     var playlists: [UsbPlaylistNode]
@@ -73,12 +75,14 @@ enum UsbSidebarModel {
     static func volumes(_ store: UsbStore) -> [UsbSidebarVolume] {
         store.volumes.map { volume in
             let key = volume.usbKey
+            let idle = !store.busyVolumes.contains(key) && store.activeWrite == nil
             var row = UsbSidebarVolume(id: key, name: volume.name, symbol: "externaldrive", isWarning: false, status: nil, help: volume.name,
-                                       showsExport: false, collection: nil, collectionCount: 0, playlists: [], mismatchHelp: nil,
+                                       showsExport: false, canExport: false, collection: nil, collectionCount: 0, playlists: [], mismatchHelp: nil,
                                        canEject: !store.busyVolumes.contains(key) && !store.ejecting.contains(key))
             switch store.shapes[key] {
             case .emptyExportable:
                 row.showsExport = true
+                row.canExport = idle
                 row.help = String(ui: "rekordbox 라이브러리가 없는 FAT32 USB입니다")
             case let .rekordbox(formats):
                 row.symbol = "externaldrive.fill"
@@ -124,7 +128,7 @@ extension UsbFormat {
     }
 }
 
-/// 사이드바 "USB" 절: 볼륨마다 모양·꺼내기, rekordbox USB는 컬렉션과 재생 목록(읽기 전용)
+/// 사이드바 "USB" 절: 볼륨마다 모양·꺼내기, 빈 FAT32는 내보내기, rekordbox USB는 컬렉션과 재생 목록(읽기 전용)
 struct UsbSidebarSection: View {
     let usb: UsbStore
     @State private var isExpanded = true
@@ -198,9 +202,14 @@ struct UsbSidebarSection: View {
 
     @ViewBuilder private func contents(of volume: UsbSidebarVolume) -> some View {
         if volume.showsExport {
-            Label(.ui("USB로 내보내기…"), systemImage: "square.and.arrow.up")
-                .foregroundStyle(.tertiary)
-                .help(.ui("USB로 내보내기는 아직 준비 중입니다"))
+            Button {
+                usb.exportSheet = UsbExportSheetRequest(volumeKey: volume.id)
+            } label: {
+                Label(.ui("USB로 내보내기…"), systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(.plain)
+            .disabled(!volume.canExport)
+            .help(.ui("로컬 재생 목록·곡을 이 USB에 OneLibrary·Device Library로 내보냅니다"))
         }
         if let collection = volume.collection {
             Label(.ui("컬렉션"), systemImage: "music.note.list")

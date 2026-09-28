@@ -5,7 +5,8 @@ import Observation
 import RekordboxKit
 
 /// 사이드바 USB 절 상태: 연결된 볼륨마다 모양(빈 FAT32·rekordbox USB·쓸 수 없는 모양)과 사본으로 읽은 라이브러리.
-/// USB에는 쓰지 않는다. 읽기는 호스트가 메인 액터 밖에서 사본으로 하고, 여기서는 결과만 받는다.
+/// 여기서는 USB에 쓰지 않는다. 읽기는 호스트가 메인 액터 밖에서 사본으로 하고, 여기서는 결과만 받는다.
+/// 쓰기(`UsbWriteCoordinator`)가 쥐는 볼륨별 잠금·진행과, 끝나지 않은 쓰기가 있는 볼륨이 나타났다는 알림도 여기 둔다.
 @MainActor @Observable final class UsbStore {
     enum Shape: Equatable {
         /// 내보낼 수 있는 빈 FAT32·MBR(rekordbox 라이브러리 없음)
@@ -34,14 +35,28 @@ import RekordboxKit
     private(set) var refusals: [String: String] = [:]
     /// 볼륨키 → content_id → 상태
     private(set) var syncBadges: [String: [Int: UsbSyncStatus]] = [:]
-    /// 볼륨별 잠금(쓰기 중 표시). 잠긴 볼륨은 다시 읽거나 꺼내지 않는다
-    var busyVolumes: Set<String> = []
+    /// 볼륨별 잠금(쓰기 중 표시). 잠긴 볼륨은 다시 읽거나 꺼내지 않는다. `beginWrite`·`endWrite`로만 바꾼다
+    private(set) var busyVolumes: Set<String> = []
     private(set) var ejecting: Set<String> = []
+    /// 지금 쓰는 볼륨과 진행(덮개가 읽는다). 앱은 한 번에 한 볼륨에만 쓴다
+    private(set) var activeWrite: UsbActiveWrite?
+    /// 열 내보내기 시트(볼륨·다시 미리 보기 결과)
+    var exportSheet: UsbExportSheetRequest?
     let readPolicy: UsbReadPolicy
 
+    /// 볼륨키 → 마지막 내보내기(다시 미리 보기에 쓴다)
+    @ObservationIgnored var lastExports: [String: UsbExportJob] = [:]
+    /// 앱의 USB 쓰기 창구(`LibraryStore.usbCoordinator`가 쓴다. 저널 알림과 같은 창구를 붙인다)
+    @ObservationIgnored var writeService: any UsbWriteService = SystemUsbWriteService.app()
+    /// 끝나지 않은 쓰기가 있는 볼륨이 나타났을 때. 알림만 띄운다 — 회복은 사용자가 누를 때만 한다
+    @ObservationIgnored var onPendingJournal: ((UsbVolumeInfo) -> Void)?
     @ObservationIgnored private let host: any UsbHost
     @ObservationIgnored private let localLibrary: @Sendable () -> LocalLibraryKeys?
     @ObservationIgnored private let physicalLists: @Sendable () -> UsbPhysicalLists.Loaded
+    @ObservationIgnored private let journal: @Sendable (String) -> UsbJournalInfo
+    @ObservationIgnored private var cancelFlag: UsbCancelFlag?
+    /// 이번에 붙어 있는 동안 저널을 본 볼륨(떨어지면 지운다: 다시 나타나면 또 본다)
+    @ObservationIgnored private var journalChecked: Set<String> = []
     /// 목록·라이브러리·배지가 바뀐 뒤(보고 있는 USB 목록을 다시 만든다)
     @ObservationIgnored var onChange: (() -> Void)?
     /// 다 읽은 볼륨의 그때 정보(같으면 알림 때 다시 읽지 않는다)
@@ -51,12 +66,15 @@ import RekordboxKit
 
     /// - localLibrary: 로컬 짝짓기 키(앱이 연 스냅샷에서 미리 읽어 둔 값). 메인 액터 밖에서 부른다
     /// - physicalLists: 쓰기 금지·허용 목록 상태(시험은 가짜 값). 메인 액터 밖에서 부른다
+    /// - journal: 볼륨키 → 그 볼륨의 쓰기 저널 상태(앱은 `UsbWriteService.journal`, 기본은 저널을 보지 않는다). 메인 액터 밖에서 부른다
     init(host: any UsbHost, readPolicy: UsbReadPolicy = .current(), localLibrary: @escaping @Sendable () -> LocalLibraryKeys?,
-         physicalLists: @escaping @Sendable () -> UsbPhysicalLists.Loaded = { UsbPhysicalLists.load() }) {
+         physicalLists: @escaping @Sendable () -> UsbPhysicalLists.Loaded = { UsbPhysicalLists.load() },
+         journal: @escaping @Sendable (String) -> UsbJournalInfo = { _ in .none }) {
         self.host = host
         self.readPolicy = readPolicy
         self.localLibrary = localLibrary
         self.physicalLists = physicalLists
+        self.journal = journal
     }
 
     // MARK: - 읽기
@@ -98,6 +116,7 @@ import RekordboxKit
             shapes[key] = nil
             refusals[key] = nil
         }
+        journalChecked.formIntersection(keys)
         defer { onChange?() }
         guard !visible.isEmpty else { return }
         let lists = await Task.detached(priority: .userInitiated) { [physicalLists] in physicalLists() }.value
@@ -112,6 +131,7 @@ import RekordboxKit
                 continue
             }
             refusals[key] = nil
+            await checkJournal(volume)
             if let problem = UsbVolumePolicy.problems(volume, purpose: .export).first {
                 forget(key)
                 shapes[key] = .unsupported(reason: problem.message)
@@ -146,6 +166,17 @@ import RekordboxKit
             forget(key)
             shapes[key] = .failed(Self.message(for: error))
         }
+    }
+
+    /// 읽는 볼륨이 나타나면 한 번 저널을 본다. 끝나지 않은 쓰기(닫힌 상태가 아닌 저널)만 알린다 — 드라이 런·다시 계획은 닫힌 상태다
+    private func checkJournal(_ volume: UsbVolumeInfo) async {
+        let key = volume.usbKey
+        guard journalChecked.insert(key).inserted else { return }
+        let journal = journal
+        let info = await Task.detached(priority: .utility) { journal(key) }.value
+        // 기다리는 동안 떨어졌거나 쓰기가 시작됐으면 알리지 않는다
+        guard info.isPending, journalChecked.contains(key), !busyVolumes.contains(key), self.volume(key) != nil else { return }
+        onPendingJournal?(volume)
     }
 
     private func forget(_ key: String) {
@@ -196,11 +227,55 @@ import RekordboxKit
         }
         // 떨어짐 알림을 기다리지 않고 바로 뺀다
         volumes.removeAll { $0.usbKey == volumeKey }
+        journalChecked.remove(volumeKey)
         forget(volumeKey)
         shapes[volumeKey] = nil
         refusals[volumeKey] = nil
         onChange?()
         return nil
+    }
+
+    // MARK: - 쓰기 잠금·진행
+
+    /// 볼륨을 잠그고 쓰기를 시작한다. 그 볼륨이 이미 잠겼거나 다른 볼륨에 쓰는 중이면 nil.
+    /// 잠근 볼륨은 다시 읽기·꺼내기·끝나지 않은 쓰기 알림에서 빠진다
+    /// - cancellable: 취소를 받는 일인지(회복·되돌리기는 받지 않는다)
+    func beginWrite(_ volume: UsbVolumeInfo, title: String, cancellable: Bool = true) -> UsbCancelFlag? {
+        let key = volume.usbKey
+        guard !busyVolumes.contains(key), activeWrite == nil else { return nil }
+        busyVolumes.insert(key)
+        // 이 쓰기가 연 저널을 "나타난 볼륨의 끝나지 않은 쓰기"로 다시 알리지 않는다(다시 붙이면 본다)
+        journalChecked.insert(key)
+        let flag = UsbCancelFlag()
+        cancelFlag = flag
+        activeWrite = UsbActiveWrite(volumeKey: key, volumeName: volume.name, title: title, cancellable: cancellable, progress: nil)
+        return flag
+    }
+
+    /// 덮개 제목(미리 보기 → 쓰기처럼 단계가 바뀔 때)
+    func setWriteTitle(_ title: String, for key: String) {
+        guard activeWrite?.volumeKey == key else { return }
+        activeWrite?.title = title
+        activeWrite?.progress = nil
+    }
+
+    /// 쓰기 절차의 진행. 지금 쓰는 볼륨의 것만 받는다
+    func report(_ progress: UsbProgress, for key: String) {
+        guard activeWrite?.volumeKey == key else { return }
+        activeWrite?.progress = progress
+    }
+
+    func endWrite(_ key: String) {
+        busyVolumes.remove(key)
+        guard activeWrite?.volumeKey == key else { return }
+        activeWrite = nil
+        cancelFlag = nil
+    }
+
+    /// 취소를 청한다. 취소를 받지 않는 일이거나 DB 교체가 시작된 뒤(`cancellable == false`)에는 받지 않는다
+    func cancelWrite() {
+        guard let cancelFlag, let activeWrite, activeWrite.cancellable, activeWrite.progress?.cancellable != false else { return }
+        cancelFlag.set()
     }
 
     // MARK: - 목록 줄
@@ -254,4 +329,24 @@ public enum UsbSidebarTarget: Hashable, Sendable {
         case let .collection(key), let .playlist(key, _), let .pending(key): key
         }
     }
+}
+
+/// 지금 쓰는 볼륨과 진행
+struct UsbActiveWrite: Equatable {
+    var volumeKey: String
+    var volumeName: String
+    /// 덮개 제목(미리 보기·쓰기·회복·되돌리기)
+    var title: String
+    /// 취소를 받는 일인지(내보내기만)
+    var cancellable: Bool
+    var progress: UsbProgress?
+}
+
+/// 내보내기 시트를 열 때 넘기는 것: 대상 볼륨과, 다시 미리 보기면 그 내보내기·요약
+struct UsbExportSheetRequest: Equatable, Identifiable {
+    var volumeKey: String
+    var job: UsbExportJob?
+    var summary: UsbExportSummary?
+
+    var id: String { volumeKey }
 }

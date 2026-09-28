@@ -1083,6 +1083,28 @@
         }
       }
     },
+    "%@ · 재생 목록 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · Playlists: %2$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · プレイリスト %2$lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · 재생 목록 %2$lld개"
+          }
+        }
+      }
+    },
     "%@ · 컬렉션" : {
       "localizations" : {
         "en" : {
@@ -1537,6 +1559,28 @@
         }
       }
     },
+    "%@에 %@로 씁니다. 쓰기 전에 Mac에 백업하고 쓴 뒤 USB에서 다시 읽어 확인합니다. 끝날 때까지 USB를 뽑지 마세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writes %2$@ to %1$@. The USB is backed up on this Mac first and read back afterward to verify. Don’t unplug the USB until it finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@に%2$@で書き込みます。書き込む前にMacにバックアップし、書き込んだ後にUSBから読み直して確認します。終わるまでUSBを抜かないでください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@에 %2$@로 씁니다. 쓰기 전에 Mac에 백업하고 쓴 뒤 USB에서 다시 읽어 확인합니다. 끝날 때까지 USB를 뽑지 마세요."
+          }
+        }
+      }
+    },
     "%@에 모르는 칸(%@)" : {
       "localizations" : {
         "en" : {
@@ -1555,6 +1599,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@에 모르는 칸(%2$@)"
+          }
+        }
+      }
+    },
+    "%@에 쓰다가 끊긴 기록이 있습니다. 회복하면 USB를 보고 마저 쓰거나 쓰기 전으로 되돌립니다. 되돌리기는 그 쓰기를 백업으로 되돌립니다. 기기에 꽂기 전에 하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A write to %@ was interrupted. Recover checks the USB and either finishes the write or returns the USB to its state before the write. Restore returns the USB to the backup taken before that write. Do this before plugging it into a player."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@への書き込みが途中で止まった記録があります。回復するとUSBを確認し、書き込みを最後まで行うか書き込み前の状態に戻します。復元はその書き込みの前のバックアップに戻します。機器に挿す前に行ってください。"
           }
         }
       }
@@ -1657,6 +1717,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@は--allow-provisionalで解除できません"
+          }
+        }
+      }
+    },
+    "%@은 DJCrate가 쓴 뒤 기기에서 바뀌었습니다. 되돌리면 기기가 그 뒤에 쓴 내용을 잃습니다(재생 기록 등)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ was changed on a player after DJCrate wrote to it. Restoring loses what the player wrote since then (play history, etc.)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@はDJCrateが書き込んだ後に機器で変更されました。復元すると、機器がその後に書き込んだ内容（再生履歴など）が失われます。"
           }
         }
       }
@@ -5278,6 +5354,22 @@
         }
       }
     },
+    "rekordbox가 켜져 있어 USB 복원을 미뤘습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox is running, so restoring the USB was postponed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxが起動しているため、USBの復元を延期しました"
+          }
+        }
+      }
+    },
     "rekordbox가 켜져 있어 USB 복원을 미뤘습니다. rekordbox를 종료한 뒤 `djc usb-recover`로 회복하세요" : {
       "localizations" : {
         "en" : {
@@ -5306,6 +5398,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxが起動しているため、USBの復元を延期しました。rekordboxを終了してから`djc usb-recover`を実行してください: %@"
+          }
+        }
+      }
+    },
+    "rekordbox가 켜져 있어 USB에 쓰지 않았습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox is running, so nothing was written to the USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxが起動しているため、USBに書き込みませんでした"
           }
         }
       }
@@ -6336,6 +6444,22 @@
         }
       }
     },
+    "rekordbox와 rekordboxAgent를 완전히 종료한 뒤 다시 누르세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit rekordbox and rekordboxAgent completely, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxとrekordboxAgentを完全に終了してから、もう一度押してください。"
+          }
+        }
+      }
+    },
     "rekordbox의 변경 사항이 아직 저장되지 않았습니다" : {
       "localizations" : {
         "en" : {
@@ -6512,6 +6636,22 @@
         }
       }
     },
+    "USB 미리 보기를 하지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t preview the USB export"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBのプレビューができませんでした"
+          }
+        }
+      }
+    },
     "USB 볼륨의 맨 위 폴더를 고르세요" : {
       "localizations" : {
         "en" : {
@@ -6540,6 +6680,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USB解析ファイルフォルダの命名規則"
+          }
+        }
+      }
+    },
+    "USB 쓰기를 마저 끝냈습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finished the interrupted USB write"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBへの書き込みを最後まで終えました"
+          }
+        }
+      }
+    },
+    "USB 쓰기를 이어 하지 않았습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB write was not continued"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBへの書き込みを続けませんでした"
+          }
+        }
+      }
+    },
+    "USB 쓰기를 취소했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Canceled the USB write"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBへの書き込みをキャンセルしました"
           }
         }
       }
@@ -6576,6 +6764,22 @@
         }
       }
     },
+    "USB 여유 공간이 모자랍니다. 곡을 줄이거나 공간이 더 있는 USB를 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not enough free space on the USB. Use fewer tracks or a USB with more space"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの空き容量が足りません。曲を減らすか、空き容量の多いUSBを使ってください"
+          }
+        }
+      }
+    },
     "USB 여유 공간이 모자랍니다(필요 %lldMB, 여유 %lldMB). 곡을 줄이거나 공간이 더 있는 USB를 쓰세요" : {
       "localizations" : {
         "en" : {
@@ -6594,6 +6798,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "USB 여유 공간이 모자랍니다(필요 %1$lldMB, 여유 %2$lldMB). 곡을 줄이거나 공간이 더 있는 USB를 쓰세요"
+          }
+        }
+      }
+    },
+    "USB 연결이 끊겼습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB was disconnected"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの接続が切れました"
           }
         }
       }
@@ -6758,6 +6978,54 @@
         }
       }
     },
+    "USB는 쓰기 전 그대로입니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB is unchanged."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBは書き込み前のままです。"
+          }
+        }
+      }
+    },
+    "USB는 쓰기 전 그대로입니다. USB를 다시 읽은 뒤 다시 시도하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB is unchanged. Reload the USB and try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBは書き込み前のままです。USBを読み込み直してから、もう一度お試しください。"
+          }
+        }
+      }
+    },
+    "USB로 내보내기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export to USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBにエクスポート"
+          }
+        }
+      }
+    },
     "USB로 내보내기…" : {
       "localizations" : {
         "en" : {
@@ -6770,22 +7038,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBにエクスポート…"
-          }
-        }
-      }
-    },
-    "USB로 내보내기는 아직 준비 중입니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Export to USB isn't available yet"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "USBへのエクスポートはまだ準備中です"
           }
         }
       }
@@ -6818,6 +7070,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBの編集時にDevice Libraryを作り直す方法"
+          }
+        }
+      }
+    },
+    "USB를 기기에 꽂지 마세요. rekordbox를 종료한 뒤 USB를 다시 연결하면 나오는 알림에서 회복하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Don’t plug the USB into a player. Quit rekordbox, reconnect the USB, and recover it from the alert that appears."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを機器に挿さないでください。rekordboxを終了してからUSBを接続し直し、表示される通知から回復してください。"
+          }
+        }
+      }
+    },
+    "USB를 기기에 꽂지 마세요. USB를 다시 연결하면 나오는 알림에서 회복하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Don’t plug the USB into a player. Reconnect the USB and recover it from the alert that appears."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを機器に挿さないでください。USBを接続し直し、表示される通知から回復してください。"
+          }
+        }
+      }
+    },
+    "USB를 기기에 꽂지 말고 다시 연결하세요. 다시 연결하면 나오는 알림에서 회복할 수 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconnect the USB without plugging it into a player. You can recover it from the alert that appears when you reconnect."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを機器に挿さずに接続し直してください。接続し直すと表示される通知から回復できます。"
+          }
+        }
+      }
+    },
+    "USB를 꺼내지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t eject the USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを取り出せませんでした"
           }
         }
       }
@@ -6886,6 +7202,54 @@
         }
       }
     },
+    "USB를 되돌리는 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restoring the USB…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを復元しています…"
+          }
+        }
+      }
+    },
+    "USB를 되돌리지 않았습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB was not restored"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを復元しませんでした"
+          }
+        }
+      }
+    },
+    "USB를 쓰기 전 상태로 되돌리지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t return the USB to its state before the write"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを書き込み前の状態に戻せませんでした"
+          }
+        }
+      }
+    },
     "USB를 쓰기 전 상태로 되돌리지 못했습니다. 기기에 꽂기 전에 `djc usb-recover`로 회복하세요" : {
       "localizations" : {
         "en" : {
@@ -6902,6 +7266,38 @@
         }
       }
     },
+    "USB를 쓰기 전으로 되돌렸습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restored the USB to its state before the write"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを書き込み前の状態に復元しました"
+          }
+        }
+      }
+    },
+    "USB를 쓰기 전으로 되돌릴까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore the USB to its state before the write?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを書き込み前の状態に復元しますか？"
+          }
+        }
+      }
+    },
     "USB를 읽기만 해서 형식·곡 수·경고를 보여 준다(실물 USB는 쓰기 금지 목록을 등록한 뒤에만)" : {
       "localizations" : {
         "en" : {
@@ -6914,6 +7310,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBを読み込むだけで形式・曲数・警告を表示する（実物のUSBは書き込み禁止リストを登録した後のみ）"
+          }
+        }
+      }
+    },
+    "USB를 회복하는 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recovering the USB…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを回復しています…"
+          }
+        }
+      }
+    },
+    "USB를 회복하지 않았습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB was not recovered"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを回復しませんでした"
           }
         }
       }
@@ -6966,6 +7394,54 @@
         }
       }
     },
+    "USB에 쓰기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write to USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに書き込む"
+          }
+        }
+      }
+    },
+    "USB에 쓰기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write to USB…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに書き込む…"
+          }
+        }
+      }
+    },
+    "USB에 쓰는 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing to the USB…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに書き込んでいます…"
+          }
+        }
+      }
+    },
     "USB에 쓰는 중입니다. 쓰기가 끝난 뒤 꺼내세요" : {
       "localizations" : {
         "en" : {
@@ -6978,6 +7454,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBに書き込み中です。書き込みが終わってから取り出してください"
+          }
+        }
+      }
+    },
+    "USB에 쓰지 않았습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing was written to the USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに書き込みませんでした"
           }
         }
       }
@@ -7062,6 +7554,22 @@
         }
       }
     },
+    "USB에 쓴 결과를 확인하지 못해 쓰기 전으로 되돌렸습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t verify the USB write, so the USB was returned to its state before the write"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBへの書き込み結果を確認できなかったため、書き込み前の状態に戻しました"
+          }
+        }
+      }
+    },
     "USB에 쓴 결과를 확인하지 못했고 쓰기 전 상태로 되돌리지도 못했습니다. USB를 기기에 꽂지 말고 `djc usb-recover`로 회복하세요.\n백업: %@\n확인 실패: %@\n복원 실패: %@" : {
       "localizations" : {
         "en" : {
@@ -7080,6 +7588,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "USB에 쓴 결과를 확인하지 못했고 쓰기 전 상태로 되돌리지도 못했습니다. USB를 기기에 꽂지 말고 `djc usb-recover`로 회복하세요.\n백업: %1$@\n확인 실패: %2$@\n복원 실패: %3$@"
+          }
+        }
+      }
+    },
+    "USB에 쓸 내용을 확인하는 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking what to write to the USB…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに書き込む内容を確認しています…"
           }
         }
       }
@@ -7128,6 +7652,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBに書き込めない種類のキューがあるため、除いてエクスポートします"
+          }
+        }
+      }
+    },
+    "USB에 쓸 수 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can’t write to the USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに書き込めません"
           }
         }
       }
@@ -8514,6 +9054,78 @@
         }
       }
     },
+    "곡 %lld개 · 재생 목록 %lld개 · 빼고 쓰는 곡 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks: %1$lld · Playlists: %2$lld · Skipped tracks: %3$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲 %1$lld · プレイリスト %2$lld · 除外する曲 %3$lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "곡 %1$lld개 · 재생 목록 %2$lld개 · 빼고 쓰는 곡 %3$lld개"
+          }
+        }
+      }
+    },
+    "곡 %lld개·재생 목록 %lld개를 USB에 쓸까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write to the USB? Tracks: %1$lld · Playlists: %2$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld曲・プレイリスト%2$lld個をUSBに書き込みますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "곡 %1$lld개·재생 목록 %2$lld개를 USB에 쓸까요?"
+          }
+        }
+      }
+    },
+    "곡 %lld개를 USB에 썼습니다" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Wrote %lld track to the USB"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Wrote %lld tracks to the USB"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld曲をUSBに書き込みました"
+          }
+        }
+      }
+    },
     "곡 BPM 확인 실패" : {
       "localizations" : {
         "en" : {
@@ -8686,6 +9298,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "曲リスト・タグシート・デッキ・通知の文字を大きくします。表示 › 文字を大きく・文字を小さく（⌘+・⌘−）でも変更できます。"
+          }
+        }
+      }
+    },
+    "곡 목록에서 고른 곡 %lld개도 넣기" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Also include %lld track selected in the track list"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Also include %lld tracks selected in the track list"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲リストで選んだ%lld曲も入れる"
           }
         }
       }
@@ -10480,6 +11120,22 @@
         }
       }
     },
+    "끊긴 USB 쓰기를 되돌렸습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reverted the interrupted USB write"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "途中で止まったUSBへの書き込みを元に戻しました"
+          }
+        }
+      }
+    },
     "끊긴 쓰기를 마저 썼습니다" : {
       "localizations" : {
         "en" : {
@@ -10576,6 +11232,22 @@
         }
       }
     },
+    "끝날 때까지 USB를 뽑지 마세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Don’t unplug the USB until it finishes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終わるまでUSBを抜かないでください"
+          }
+        }
+      }
+    },
     "끝에 남는 바이트" : {
       "localizations" : {
         "en" : {
@@ -10604,6 +11276,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "終わりが始まりより前にあるループがあります"
+          }
+        }
+      }
+    },
+    "나중에" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Later"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "後で"
           }
         }
       }
@@ -10978,6 +11666,22 @@
         }
       }
     },
+    "다른 USB에 쓰는 중입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing to another USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別のUSBに書き込み中です"
+          }
+        }
+      }
+    },
     "다른 USB의 백업입니다. 이 USB의 백업 폴더를 주세요" : {
       "localizations" : {
         "en" : {
@@ -11038,6 +11742,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "別のフォルダへ移動"
+          }
+        }
+      }
+    },
+    "다시 미리 보기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview Again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "もう一度プレビュー"
           }
         }
       }
@@ -11582,6 +12302,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "復元"
+          }
+        }
+      }
+    },
+    "되돌리기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元…"
           }
         }
       }
@@ -12420,6 +13156,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ローカル音源の時間軸を読み取れませんでした。ファイルの場所と形式を確認してください。"
+          }
+        }
+      }
+    },
+    "로컬 재생 목록·곡을 이 USB에 OneLibrary·Device Library로 내보냅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exports local playlists and tracks to this USB as OneLibrary and Device Library"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルのプレイリストと曲をこのUSBにOneLibrary・Device Libraryでエクスポートします"
           }
         }
       }
@@ -14178,6 +14930,22 @@
         }
       }
     },
+    "백업 폴더 열기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Backup Folder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バックアップフォルダを開く"
+          }
+        }
+      }
+    },
     "백업 폴더를 읽지 못했습니다. 다른 백업 폴더를 --backup으로 주세요" : {
       "localizations" : {
         "en" : {
@@ -15468,6 +16236,22 @@
         }
       }
     },
+    "빼고 쓰는 곡 %lld개:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skipped tracks (%lld):"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "除外する曲 %lld曲:"
+          }
+        }
+      }
+    },
     "빼기 완료" : {
       "localizations" : {
         "en" : {
@@ -16744,6 +17528,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開始小節"
+          }
+        }
+      }
+    },
+    "시험 볼륨" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Test Volume"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テスト用ボリューム"
+          }
+        }
+      }
+    },
+    "시험 볼륨(디스크 이미지)입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This is a test volume (disk image)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テスト用ボリューム（ディスクイメージ）です"
           }
         }
       }
@@ -18660,6 +19476,22 @@
         }
       }
     },
+    "원본" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Source"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ソース"
+          }
+        }
+      }
+    },
     "원본 음원에는 쓰지 않습니다. 다른 출력 파일 이름을 주세요" : {
       "localizations" : {
         "en" : {
@@ -19276,6 +20108,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このUSBに終わっていない書き込みがあります。先に`djc usb-recover`で回復してください"
+          }
+        }
+      }
+    },
+    "이 USB에 쓰는 중입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing to this USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSBに書き込み中です"
           }
         }
       }
@@ -20242,6 +21090,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "前のキューへ（%@）"
+          }
+        }
+      }
+    },
+    "인텔리전트 재생 목록은 내보내지 않습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intelligent Playlists are not exported"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インテリジェントプレイリストはエクスポートしません"
           }
         }
       }
@@ -22246,6 +23110,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "現在のピーク %+.0f dB"
+          }
+        }
+      }
+    },
+    "지난 USB 쓰기가 끝나지 않았습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The last USB write did not finish"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前回のUSBへの書き込みが終わっていません"
           }
         }
       }
@@ -26666,6 +27546,22 @@
         }
       }
     },
+    "형식과 원본을 고른 뒤 미리 보기를 누르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose formats and a source, then click Preview"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "形式とソースを選んでから、プレビューを押してください"
+          }
+        }
+      }
+    },
     "호환 키" : {
       "localizations" : {
         "en" : {
@@ -26774,6 +27670,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OK"
+          }
+        }
+      }
+    },
+    "확인 안 된 규칙 %lld개:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unverified rules (%lld):"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未確認のルール %lld件:"
           }
         }
       }
@@ -26982,6 +27894,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "回復記録ファイルを読み込めませんでした。DJCrateのデータフォルダのusb-sessionsを確認してください"
+          }
+        }
+      }
+    },
+    "회복하기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recover"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回復する"
+          }
+        }
+      }
+    },
+    "회복할 USB 쓰기가 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No USB write to recover"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回復するUSBへの書き込みはありません"
           }
         }
       }

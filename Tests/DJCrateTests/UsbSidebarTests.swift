@@ -33,7 +33,7 @@ struct UsbSidebarTests {
         return volume
     }
 
-    @Test("빈 FAT32는 내보내기(비활성), rekordbox USB는 컬렉션·목록, 쓸 수 없는 모양은 경고와 이유")
+    @Test("빈 FAT32는 내보내기, rekordbox USB는 컬렉션·목록, 쓸 수 없는 모양은 경고와 이유")
     func sidebarShapes() async throws {
         let empty = FakeUsbVolume.diskImageFAT32(name: "DJCEMPTY", uuid: "00000000-0000-0000-0000-000000000011")
         let rekordbox = FakeUsbVolume.diskImageFAT32(name: "DJCTEST", uuid: "00000000-0000-0000-0000-000000000012")
@@ -52,6 +52,12 @@ struct UsbSidebarTests {
 
         let emptyRow = try #require(rows[empty.usbKey])
         #expect(emptyRow.showsExport && emptyRow.collection == nil && !emptyRow.isWarning && emptyRow.canEject)
+        #expect(emptyRow.canExport)
+        // 쓰는 동안은 내보내기·꺼내기를 막는다
+        _ = store.beginWrite(empty, title: "시험")
+        let busyRow = try #require(UsbSidebarModel.volumes(store).first { $0.id == empty.usbKey })
+        #expect(busyRow.showsExport && !busyRow.canExport && !busyRow.canEject)
+        store.endWrite(empty.usbKey)
 
         let rekordboxRow = try #require(rows[rekordbox.usbKey])
         #expect(rekordboxRow.collection == .collection(volumeKey: rekordbox.usbKey))

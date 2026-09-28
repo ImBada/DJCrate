@@ -58,7 +58,8 @@ struct ContentView: View {
                     if let toast = store.toast {
                         AppToastView(toast: toast,
                                      onUndo: toast.undoBackup.map { url in { store.toast = nil; DirectWritePanels.restore(store: store, backupURL: url) } },
-                                     onDetails: { store.showingWriteResult = true },
+                                     onDetails: toast.isUsb ? nil : { store.showingWriteResult = true },
+                                     onAction: toast.action.map { action in { Task { await store.usbCoordinator?.perform(action) } } },
                                      onClose: { if store.toast?.id == toast.id { store.toast = nil } })
                             .padding(.top, 12)
                             .padding(.horizontal, 16)
@@ -68,10 +69,17 @@ struct ContentView: View {
                 }
                 .animation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(duration: 0.35), value: store.toast?.id)
         }
-        // rekordbox에 쓰는 동안은 창 전체를 덮어 다른 조작을 막는다.
+        // rekordbox·USB에 쓰는 동안은 창 전체를 덮어 다른 조작을 막는다.
         .overlay {
             if let stage = store.writeStage {
                 WritingOverlay(stage: stage, onCancel: { store.cancelWritePreparation() }).transition(.opacity)
+            } else if let write = store.usb?.activeWrite {
+                UsbWritingOverlay(model: UsbWriteProgressModel(write), onCancel: { store.usb?.cancelWrite() }).transition(.opacity)
+            }
+        }
+        .sheet(item: Binding(get: { store.usb?.exportSheet }, set: { store.usb?.exportSheet = $0 })) { request in
+            if let usb = store.usb, let volume = usb.volume(request.volumeKey) ?? request.job?.volume {
+                UsbExportSheet(store: store, usb: usb, request: request, volume: volume)
             }
         }
         .sheet(isPresented: $store.showingWriteResult) { WriteResultView(history: store.resultHistory) }

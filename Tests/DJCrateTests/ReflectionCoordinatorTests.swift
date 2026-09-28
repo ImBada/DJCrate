@@ -78,8 +78,20 @@ struct FixtureFailure: Error, CustomStringConvertible { var description = "미�
 @MainActor
 final class ScriptedPrompter: ReflectionPrompter {
     var answer = true
+    /// 차례로 쓸 확인 답(비면 `answer`)
+    var answers: [Bool] = []
+    /// 세 갈래 창의 답(비면 `answer`에 따라 확인·취소)
+    var choices: [ReflectionChoice] = []
     var shown: [ReflectionPrompt] = []
-    func show(_ prompt: ReflectionPrompt) -> Bool { shown.append(prompt); return answer }
+    func show(_ prompt: ReflectionPrompt) -> Bool {
+        shown.append(prompt)
+        return answers.isEmpty ? answer : answers.removeFirst()
+    }
+    func choose(_ prompt: ReflectionPrompt) -> ReflectionChoice {
+        shown.append(prompt)
+        if !choices.isEmpty { return choices.removeFirst() }
+        return answer ? .confirm : .cancel
+    }
 }
 
 @MainActor
