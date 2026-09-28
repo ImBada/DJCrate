@@ -473,4 +473,21 @@ struct UsbWriteCoordinatorTests {
         usb.endWrite(image.usbKey)
         #expect(usb.activeWrite == nil)
     }
+
+    // MARK: - 자가 테스트
+
+    @Test("USB 자가 테스트는 임시 DJC_HOME과 명시한 사본(--db·DJC_DB)이 있어야 띄운다")
+    func usbSelfTestRequiresExplicitDatabase() throws {
+        let home = FileManager.default.temporaryDirectory.appending(path: "djc-usbselftest-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let args = ["DJCrate", "--usb-selftest"]
+        #expect(UsbSelfTest.launchRefusal(arguments: args + ["--db", "/tmp/x/m.db"], environment: ["DJC_HOME": home.path]) == nil)
+        #expect(UsbSelfTest.launchRefusal(arguments: args, environment: ["DJC_HOME": home.path])
+            == "USB 시험 실패: --db <스냅샷 사본>으로 띄우세요")
+        #expect(UsbSelfTest.launchRefusal(arguments: args + ["--db"], environment: ["DJC_HOME": home.path]) != nil)
+        #expect(UsbSelfTest.launchRefusal(arguments: args, environment: ["DJC_HOME": home.path, "DJC_DB": "/tmp/x/m.db"]) == nil)
+        #expect(UsbSelfTest.launchRefusal(arguments: args + ["--db", "/tmp/x/m.db"], environment: ["DJC_HOME": NSHomeDirectory()]) != nil)
+        #expect(UsbSelfTest.launchRefusal(arguments: args + ["--db", "/tmp/x/m.db"], environment: [:]) != nil)
+    }
 }
