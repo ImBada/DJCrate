@@ -6,7 +6,7 @@ import RekordboxKit
 /// 인자와 출력만 맡고, 조회·JSON 계약은 DJCStorage에서 검증한다.
 enum ReadCommands {
     static let names: Set<String> = ["search", "track", "playlists", "playlist", "histories", "history", "drafts", "duplicates"]
-    static let jsonNames = names.union(["report", "path", "parse", "compat"])
+    static let jsonNames = names.union(["report", "path", "parse", "compat", "usb-info"])
     static let all: [Command] = [
         Command("search", String(ui: "<검색어> [--bpm 최소-최대] [--key 키] [--playlist ID] [--filter 필터] [--comment-preset none|anisong] [--db PATH] [--json]"), String(ui: "곡 찾기"), run),
         Command("track", "<ContentID> [--db PATH] [--json]", String(ui: "곡 정보·큐·그리드·게인·초안 보기"), run),
@@ -23,6 +23,8 @@ enum ReadCommands {
     }
 
     static func run(_ args: [String]) async throws {
+        // USB 읽기는 인자·출력이 달라 따로 맡긴다(JSON 계약만 같다)
+        if args.first == "usb-info" { try await UsbCommands.info(args); return }
         let options = try Options(args)
         let name = args[0]
         if name == "parse" {

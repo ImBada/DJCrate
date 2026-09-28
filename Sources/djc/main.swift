@@ -90,7 +90,8 @@ enum CLI {
 // 새 읽기 명령과 JSON 조회는 옛 데이터 폴더를 옮기지도 않는다.
 let arguments = Array(CommandLine.arguments.dropFirst())
 if arguments.first != "lab" { CLILocalization.configure() }
-if arguments.first != "draft", !ReadCommands.names.contains(arguments.first ?? ""), !ReadCommands.handlesJSON(arguments) {
+if arguments.first != "draft", arguments.first != "usb-info", !ReadCommands.names.contains(arguments.first ?? ""),
+   !ReadCommands.handlesJSON(arguments) {
     LegacyMigration.run()
 }
 

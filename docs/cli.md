@@ -91,6 +91,7 @@ djc compat --db /tmp/djc-fixture/master.db --json
 | `path` | `{paths: string[]}` |
 | `parse` | `{classification: string, parsed?: ParsedComment}` |
 | `compat` | `{appVersion?: string, verifiedAppVersions: string[], databaseVersion: string, localUpdateCount?: number, cloudUpdateCount?: number}` |
+| `usb-info` | `UsbInfo`(아래 "USB 읽기") |
 
 - `DuplicateMember`: `track`(Track), 정수 `cueCount`, `manualCueCount`, `playlistCount`, `playCount`, 문자열 `format`, 선택 정수 `bitrateKbps`(양수 kbps). 비트레이트를 모르면 키를 생략한다. 묶음 `id`는 첫 곡의 ContentID다.
 - `Track`: `id`, `uuid`, `title`, `lengthSeconds`, `path`, `comment`, `isStreaming`; 선택 필드 `artist`, `album`, `albumArtist`, `genre`, `composer`, `releaseYear`, `trackNumber`, `key`, `bpm`, `importedOn`. 연도·트랙 번호·길이·BPM은 숫자이고 `importedOn`은 `YYYY-MM-DD`다. 값은 사본 DB 기준이며 초안으로 덮어쓰지 않는다.
@@ -150,3 +151,33 @@ djc usb-restore --volume <마운트> [--backup <폴더>] [--discard-device-chang
 - `--confirm <볼륨 이름>`은 실물 USB 쓰기가 열린 뒤 실물에 쓸 때 요구하는 볼륨 이름 확인이다.
 - 출력은 결과·백업 폴더·파일 수다. USB 경로가 붙은 알림(건너뛴 분석 파일 등)은 이유별 개수만 찍는다.
 - 종료 코드는 성공 0, 막힘·실패 1이다. 막힘 이유는 무엇을 하면 되는지까지 한 문장으로 나온다.
+
+## USB 읽기(`usb-info`)
+
+```sh
+djc usb-info <볼륨|폴더> [--json]
+```
+
+USB(마운트된 볼륨이나 그 안 폴더, 또는 USB 모양 폴더)를 **읽기만** 해서 형식·곡 수·두 형식이 맞는지·분석 파일·경고를 보여 준다. 앱 사이드바도 같은 판정(`UsbRead`)을 쓴다. USB에는 아무것도 쓰지 않는다. DB는 `DJC_HOME`(또는 기본 DJCrate 데이터 폴더)의 `usb-snapshots/` 아래에 사본으로 떠서 읽고 끝나면 지운다. `PIONEER/extracted`·`PIONEER/CDP`·`djprofile.nxs`는 열지도 "있음"을 알리지도 않는다. 사람용 출력에는 곡 제목·경로·볼륨 이름을 찍지 않는다.
+
+- **실물 USB는 쓰기 금지 목록(증거용 USB)을 등록한 뒤에만 읽는다. 디스크 이미지·폴더는 늘 읽는다.** 대상 경로의 마운트 지점이 Mac 시동 볼륨이 아니면(볼륨 안 하위 폴더여도) 그 볼륨으로 보고 먼저 판정한다: 볼륨 UUID가 쓰기 금지 목록에 있으면 `denylisted`(디스크 이미지여도), 디스크 이미지면 읽음, 목록 파일이 깨졌으면 `denyListUnreadable`, 고정 위치 목록이 없거나 비었으면 `denyListNotRegistered`, 실물인데 볼륨 UUID를 읽지 못했으면 `noVolumeUUID`(목록과 맞춰 볼 수 없으므로). 막히면 사본도 뜨지 않는다.
+- rekordbox 라이브러리나 DJCrate 데이터 폴더를 주면 거부한다(`liveLibrary`). 없는 경로는 `not_found`.
+- JSON은 위 v1 규칙을 따르되, **`usb-info`는 키를 생략하지 않는다**: 값이 없으면 `null`이다(뒤 판이 값을 채워도 모양이 그대로이게). 오류 코드는 위의 것과 `denylisted`, `denyListUnreadable`, `denyListNotRegistered`, `noVolumeUUID`, `liveLibrary`다.
+- **개인 식별값은 내지 않는다**: masterDbId·myTagMasterDBID·볼륨 UUID는 값 대신 "같은지"만 적는다. 볼륨 이름은 `root`(받은 경로)에만 나올 수 있고 다른 키에는 없다.
+
+`data`(`UsbInfo`, `schemaVersion` 1):
+
+| 키 | 타입 | 뜻 |
+|---|---|---|
+| `schemaVersion` | number | 1 |
+| `root` | string | 받은 경로를 절대 경로로 바꾼 것(링크는 풀지 않는다). 볼륨이면 `/Volumes/<이름>`처럼 볼륨 이름이 들어갈 수 있다 |
+| `formats` | string[] | `oneLibrary`·`deviceLibrary`(`PIONEER/rekordbox/`의 `exportLibrary.db`·`export.pdb` 이름으로 판정) |
+| `volume` | object \| null | 폴더 대상이면 null. `fileSystem`(string, 예 `FAT32`), `partitionScheme`(`mbr`·`gpt`·`apm`·`none`·`unknown`), `isDiskImage`, `writableForExport`, `writableForEdit`(bool, 볼륨 정책 문제가 없는지), `problems`(string[], 정책 문제 code) |
+| `oneLibrary` | object \| null | `schemaOK`(확인한 모양), `headerMode`(`wal`·`rollback`, 사본이 온전하지 않으면 `unknown`), `walPresent`, `journalPresent`, `integrityOK`(bool), `tracks`, `playlists`, `myTags`, `histories`(number) |
+| `deviceLibrary` | object \| null | `exportFlag10`(number, 머리 0x10), `extFlag10`(number \| null), `roundTripChecked`(bool, 지금은 늘 false), `roundTripOK`(bool \| null, 지금은 늘 null), `tracks`, `playlists`, `historyRows`(기록 표 산 행), `unknownTableRows`(모르는 표 산 행), `structureIssues`(number) |
+| `consistency` | object | `trackIDsMatch`, `pathsMatch`(bool), `playlistMismatches`(number, 두 형식이 다른 재생 목록 수), `masterDbIdConsistent`(모든 곡이 한 값), `myTagMasterDBIDConsistent`(두 형식 값이 같음), `editBlocked`(고치기를 막는 불일치가 있음) |
+| `analysis` | object | `tracksChecked`, `missingFiles`(DB가 가리키는 `.DAT`·`.EXT`·`.2EX` 중 없는 파일 수), `ppthMismatches`(`.DAT` PPTH ≠ 곡 경로인 곡 수), `slotCollisions`(파일 번호가 0이 아닌 경로 수) |
+| `localCompatibility` | object | `rekordboxVersion`(string \| null, 이 Mac의 rekordbox), `verified`(bool, DJCrate가 확인한 버전인지) |
+| `warnings` | `{code, message}[]` | `pdbOpenFlag`(머리 0x10 ≠ 5), `unknownTableRows`, `pdbStructure`, `deviceLibraryUnreadable`, `oneLibrarySidecar`(`-wal`·`-journal`), `oneLibraryUnsupported`, `oneLibraryUnreadable`, `formatMismatch`(고치기 막힘), `analysisMissing`, `analysisPathMismatch`. `message`만 번역한다 |
+
+종료 코드는 성공 0, 막힘·실패 1이다. 형식이 없는 USB도 성공이며 `formats`가 빈 배열이다.

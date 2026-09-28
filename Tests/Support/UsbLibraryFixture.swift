@@ -1,0 +1,167 @@
+import DJCDomain
+import Foundation
+import RekordboxKit
+
+/// 합성 USB 라이브러리 폴더: OneLibrary·Device Library·분석 파일 셋·아트워크·음원(작은 합성 파일)을 규격 자리에 둔다.
+/// 형식 작성기 대신 `OneLibraryFixture`·`PdbBuilder`·`AnlzBuilder`로 조립한다. 모든 값(제목·경로·ID)은 지어낸 것이다.
+/// 기본값으로 만든 두 형식은 서로 맞는다(합치면 불일치가 없다). 칸을 바꾼 뒤 `write(to:)`로 쓴다.
+public struct UsbLibraryFixture: Sendable {
+    public struct Playlist: Sendable {
+        public var id: Int
+        public var name: String
+        public var oneLibraryEntries: [Int]
+        public var deviceLibraryEntries: [Int]
+
+        public init(id: Int, name: String, entries: [Int]) {
+            self.init(id: id, name: name, oneLibraryEntries: entries, deviceLibraryEntries: entries)
+        }
+
+        public init(id: Int, name: String, oneLibraryEntries: [Int], deviceLibraryEntries: [Int]) {
+            self.id = id
+            self.name = name
+            self.oneLibraryEntries = oneLibraryEntries
+            self.deviceLibraryEntries = deviceLibraryEntries
+        }
+    }
+
+    public var trackIDs: [Int] = [1, 2, 3]
+    /// Device Library에만 있는 곡(형식 불일치 시험용)
+    public var deviceOnlyTrackIDs: [Int] = []
+    public var formats: Set<UsbFormat> = UsbFormat.defaultSet
+    public var playlists: [Playlist] = [Playlist(id: 10, name: "시험 목록", entries: [1, 2])]
+    /// 분류 하나와 그 아래 태그 하나
+    public var myTags: [UsbMyTag] = [
+        UsbMyTag(id: 7, parentID: 0, sequenceNo: 0, name: "시험 분류", isCategory: true),
+        UsbMyTag(id: 8, parentID: 7, sequenceNo: 0, name: "시험 태그", isCategory: false),
+    ]
+    public var myTagLinks: [(tagID: Int64, trackID: Int)] = [(8, 1)]
+    public var myTagMasterDBID: Int64 = 123_456
+    /// Device Library 쪽 값(nil이면 OneLibrary와 같게)
+    public var deviceMyTagMasterDBID: Int64?
+    /// 곡마다 masterDbId(없으면 1_000_001)
+    public var masterDbIDs: [Int: Int64] = [:]
+    /// 곡마다 두 DB에 적을 분석 경로(없으면 `analysisPath(_:)`)
+    public var analysisPaths: [Int: String] = [:]
+    /// 곡마다 .DAT 핫큐 A(ms). 없는 곡은 핫큐가 없다
+    public var hotCueA: [Int: Int] = [1: 1_000, 2: 2_000, 3: 3_000]
+    public var writeAnalysis = true
+    public var writeArtwork = true
+    public var writeAudio = true
+    /// export.pdb 머리 0x10(rekordbox가 정상으로 닫으면 5)
+    public var pdbFlag10: UInt32 = 5
+    /// 모르는 표(unknown9)에 넣을 산 행 수
+    public var pdbUnknownRows = 0
+    /// OneLibrary를 -wal과 함께 둔다(연결을 닫기 전에 복사)
+    public var oneLibraryWAL = false
+    /// OneLibrary property.dbVersion(확인한 값은 "1000")
+    public var oneLibraryDBVersion = "1000"
+
+    public init() {}
+
+    public static func trackPath(_ id: Int) -> String { "/Contents/시험 아티스트/시험 앨범/test\(id).mp3" }
+
+    public static func analysisPath(_ id: Int) -> String { String(format: "/PIONEER/USBANLZ/P000/%08X/ANLZ0000.DAT", id) }
+
+    public func analysisPath(_ id: Int) -> String { analysisPaths[id] ?? Self.analysisPath(id) }
+
+    /// 작은 합성 음원 바이트
+    public static func audio(_ id: Int) -> Data { Data((0..<256).map { UInt8(truncatingIfNeeded: $0 &* 7 &+ id) }) }
+
+    public static func artwork(_ id: Int, medium: Bool) -> Data { Data([0xFF, 0xD8, 0xFF, UInt8(truncatingIfNeeded: id), medium ? 1 : 0, 0xFF, 0xD9]) }
+
+    /// .DAT: PPTH · PVBR · PQTZ · PWAV · PCOB(핫) · PCOB(메모리)
+    public static func dat(path: String, hotCueA: Int?) -> Data {
+        let hot = hotCueA.map { [UsbCueInput(id: "a", kind: 1, inMsec: $0)] } ?? []
+        return AnlzBuilder.file([AnlzBuilder.ppth(path), AnlzBuilder.opaque("PVBR", bytes: 1_600),
+                                 BeatGridTags.pqtz(AnlzBuilder.beats(bpm: 128, first: 50, count: 8)), AnlzBuilder.opaque("PWAV", bytes: 400),
+                                 AnlzCueTags.pcob(kind: AnlzCueTags.hotList, cues: hot), AnlzCueTags.pcob(kind: AnlzCueTags.memoryList, cues: [])])
+    }
+
+    public static func ext(path: String) -> Data {
+        AnlzBuilder.ext(beats: AnlzBuilder.beats(bpm: 128, first: 50, count: 8), path: path)
+    }
+
+    public static func twoEx(path: String) -> Data { AnlzBuilder.local2EX(path: path, pvdi: false) }
+
+    public func write(to tree: UsbTreeFixture) throws {
+        if formats.contains(.oneLibrary) { try writeOneLibrary(to: tree) }
+        if formats.contains(.deviceLibrary) { writeDeviceLibrary(to: tree) }
+        for id in trackIDs + deviceOnlyTrackIDs {
+            let path = Self.trackPath(id)
+            if writeAudio { tree.write(String(path.dropFirst()), Self.audio(id)) }
+            if writeArtwork {
+                for (prefix, medium) in [("a", false), ("b", false), ("a", true), ("b", true)] {
+                    tree.write(String(format: "PIONEER/Artwork/00001/%@%d%@.jpg", prefix, id, medium ? "_m" : ""), Self.artwork(id, medium: medium))
+                }
+            }
+            if writeAnalysis {
+                let base = String(analysisPath(id).dropFirst().dropLast(4))
+                tree.write(base + ".DAT", Self.dat(path: path, hotCueA: hotCueA[id]))
+                tree.write(base + ".EXT", Self.ext(path: path))
+                tree.write(base + ".2EX", Self.twoEx(path: path))
+            }
+        }
+    }
+
+    private func writeOneLibrary(to tree: UsbTreeFixture) throws {
+        let fixture = try OneLibraryFixture()
+        for id in trackIDs {
+            var spec = OneLibraryTrackSpec(id: id)
+            spec.fileSize = Self.audio(id).count
+            spec.masterDbId = Int(masterDbIDs[id] ?? 1_000_001)
+            spec.analysisDataFilePath = analysisPath(id)
+            spec.imageID = writeArtwork ? id : nil
+            try fixture.add(track: spec)
+            if writeArtwork {
+                try fixture.insert("image", ["image_id": .int(id), "path": .text(String(format: "/PIONEER/Artwork/00001/b%d.jpg", id))])
+            }
+        }
+        for (index, playlist) in playlists.enumerated() {
+            try fixture.add(playlist: playlist.id, name: playlist.name, sequenceNo: index, entries: playlist.oneLibraryEntries)
+        }
+        for tag in myTags {
+            try fixture.add(myTag: tag.id, name: tag.name, parentID: tag.parentID, sequenceNo: tag.sequenceNo, isCategory: tag.isCategory)
+        }
+        for link in myTagLinks { try fixture.link(myTag: link.tagID, content: link.trackID) }
+        try fixture.setProperty(dbVersion: oneLibraryDBVersion, numberOfContents: trackIDs.count, createdDate: "2026-01-02",
+                                myTagMasterDBID: myTagMasterDBID)
+        if oneLibraryWAL {
+            // 연결이 열린 동안에는 쓴 내용이 -wal에만 있다
+            tree.write(UsbLayout.oneLibrary, try Data(contentsOf: fixture.url))
+            tree.write(UsbLayout.oneLibrary + "-wal", try Data(contentsOf: URL(filePath: fixture.url.path + "-wal")))
+        }
+        fixture.close()
+        if !oneLibraryWAL { tree.write(UsbLayout.oneLibrary, try Data(contentsOf: fixture.url)) }
+    }
+
+    private func writeDeviceLibrary(to tree: UsbTreeFixture) {
+        var export = PdbBuilder(kind: .export)
+        export.flag10 = pdbFlag10
+        for id in trackIDs + deviceOnlyTrackIDs {
+            var spec = PdbTrackSpec(id: id)
+            spec.fileSize = Int64(Self.audio(id).count)
+            spec.masterDbId = masterDbIDs[id] ?? 1_000_001
+            spec[.analyzePath] = analysisPath(id)
+            spec.artworkID = writeArtwork ? id : 0
+            export.add(.tracks, PdbBuilder.trackRow(spec))
+            if writeArtwork { export.add(.artwork, PdbBuilder.idNameRow(id, String(format: "/PIONEER/Artwork/00001/a%d.jpg", id))) }
+        }
+        for (index, playlist) in playlists.enumerated() {
+            export.add(.playlistTree, PdbBuilder.playlistTreeRow(id: playlist.id, name: playlist.name, sortOrder: index))
+            for (position, track) in playlist.deviceLibraryEntries.enumerated() {
+                export.add(.playlistEntries, PdbBuilder.playlistEntryRow(index: position + 1, trackID: track, playlistID: playlist.id))
+            }
+        }
+        for _ in 0..<pdbUnknownRows { export.add(PdbTableType.unknown9.rawValue, PdbBuilder.opaqueRow()) }
+        export.add(.history19, PdbBuilder.propertyRow(count: trackIDs.count + deviceOnlyTrackIDs.count, date: "2026-01-03"))
+        var ext = PdbBuilder(kind: .exportExt)
+        for tag in myTags {
+            ext.add(.tags, PdbBuilder.tagRow(id: tag.id, name: tag.name, parentID: tag.parentID, position: tag.sequenceNo,
+                                             isCategory: tag.isCategory))
+        }
+        for link in myTagLinks { ext.add(.tagTracks, PdbBuilder.tagTrackRow(trackID: link.trackID, tagID: link.tagID)) }
+        ext.add(.myTagProperty, PdbBuilder.myTagPropertyRow(masterDBID: deviceMyTagMasterDBID ?? myTagMasterDBID))
+        tree.write(UsbLayout.exportPdb, export.build().data)
+        tree.write(UsbLayout.exportExtPdb, ext.build().data)
+    }
+}
