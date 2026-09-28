@@ -81,6 +81,546 @@
         }
       }
     },
+    "결과" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Result"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "結果"
+          }
+        }
+      }
+    },
+    "결과 재생" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play Result"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "結果を再生"
+          }
+        }
+      }
+    },
+    "결과 재생선에서 가장 가까운 마디 줄로 클립을 둘로 나눕니다(⌘B)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Splits the clip in two at the bar line nearest the result playhead (⌘B)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "結果の再生ヘッドに最も近い小節線でクリップを2つに分割します（⌘B）。"
+          }
+        }
+      }
+    },
+    "결과에 넣기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to Result"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "結果に追加"
+          }
+        }
+      }
+    },
+    "고른 구간 마디 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected bars %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した区間：小節%@"
+          }
+        }
+      }
+    },
+    "고른 구간 마디 %@ · %@ + 곡 머리 · %@–%@" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "고른 구간 마디 %1$@ · %2$@ + 곡 머리 · %3$@–%4$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected bars %1$@ · %2$@ + lead-in · %3$@–%4$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した区間：小節%1$@ · %2$@ + 曲頭 · %3$@–%4$@"
+          }
+        }
+      }
+    },
+    "고른 구간 마디 %@ · %@ · %@–%@" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "고른 구간 마디 %1$@ · %2$@ · %3$@–%4$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected bars %1$@ · %2$@ · %3$@–%4$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した区間：小節%1$@ · %2$@ · %3$@–%4$@"
+          }
+        }
+      }
+    },
+    "고른 구간 없음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No bars selected"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "区間の選択なし"
+          }
+        }
+      }
+    },
+    "고른 구간을 결과의 고른 클립 뒤(없으면 끝)에 넣습니다(⏎). 맨 앞에 넣을 때만 곡 머리(0마디)를 살립니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adds the selected bars after the selected clip in the result, or at the end if no clip is selected (⏎). The lead-in (bar 0) is kept only when added at the very beginning."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した区間を結果の選択中のクリップの後ろ（なければ最後）に追加します（⏎）。曲頭（0小節）は先頭に追加するときだけ残します。"
+          }
+        }
+      }
+    },
+    "고른 클립 바로 뒤에 같은 구간을 하나 더 둡니다(⌘D). 인트로를 늘일 때 씁니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Places another copy of the selected clip right after it (⌘D). Use this to extend an intro."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択中のクリップのすぐ後ろに同じ区間をもう1つ置きます（⌘D）。イントロを延ばすときに使います。"
+          }
+        }
+      }
+    },
+    "고른 클립을 결과에서 뺍니다(⌫)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removes the selected clip from the result (⌫)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択中のクリップを結果から外します（⌫）。"
+          }
+        }
+      }
+    },
+    "곡 머리(0마디)는 결과 맨 앞에만 둘 수 있습니다. 1마디 이상을 함께 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The lead-in (bar 0) can only be at the very beginning of the result. Select at least one bar along with it."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲頭（0小節）は結果の先頭にしか置けません。1小節以上を一緒に選んでください。"
+          }
+        }
+      }
+    },
+    "구간 넣기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Segment"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "区間の追加"
+          }
+        }
+      }
+    },
+    "끌어서 마디 구간을 고르고, 눌러서 재생선을 옮깁니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag to select bars; click to move the playhead."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ドラッグで小節区間を選び、クリックで再生ヘッドを移動します。"
+          }
+        }
+      }
+    },
+    "마디 고치기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change Bars"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "小節の変更"
+          }
+        }
+      }
+    },
+    "복제" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duplicate"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複製"
+          }
+        }
+      }
+    },
+    "실행 복귀" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "やり直す"
+          }
+        }
+      }
+    },
+    "실행 복귀(⇧⌘Z)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redo (⇧⌘Z)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "やり直す（⇧⌘Z）"
+          }
+        }
+      }
+    },
+    "실행 취소" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取り消す"
+          }
+        }
+      }
+    },
+    "실행 취소(⌘Z)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo (⌘Z)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取り消す（⌘Z）"
+          }
+        }
+      }
+    },
+    "원곡" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Original"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原曲"
+          }
+        }
+      }
+    },
+    "원곡 재생" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play Original"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原曲を再生"
+          }
+        }
+      }
+    },
+    "원곡 파형" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Original waveform"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原曲の波形"
+          }
+        }
+      }
+    },
+    "원곡 파형을 끌어 구간을 고른 뒤 ‘결과에 넣기’를 누르면 여기 이어집니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag on the original waveform to select bars, then click ‘Add to Result’ to line them up here."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原曲の波形をドラッグして区間を選び、「結果に追加」を押すとここにつながります。"
+          }
+        }
+      }
+    },
+    "원곡을 메모리에 푸는 중입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading the original track into memory."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原曲をメモリに読み込んでいます。"
+          }
+        }
+      }
+    },
+    "원곡을 메모리에 풀지 못해 창에서 재생할 수 없습니다(20분 넘는 곡 등). 렌더한 뒤 덱에서 들어 보세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t load the original track into memory, so it can’t play in this window (for example, tracks over 20 minutes). Render it, then listen on the deck."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原曲をメモリに読み込めないため、このウインドウでは再生できません（20分を超える曲など）。レンダリングしてからデッキで聴いてください。"
+          }
+        }
+      }
+    },
+    "원곡을 재생·일시정지합니다. 스페이스바는 마지막으로 누른 줄을 재생합니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plays or pauses the original track. The Space bar plays the strip you clicked last."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原曲を再生・一時停止します。スペースキーは最後にクリックした段を再生します。"
+          }
+        }
+      }
+    },
+    "이음새 %lld 듣기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play Seam %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "つなぎ目%lldを試聴"
+          }
+        }
+      }
+    },
+    "이음새 앞 2마디부터 뒤 2마디까지 들어 봅니다(섞는 소리까지 결과와 같습니다)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plays from 2 bars before the seam to 2 bars after it (it sounds exactly like the result, including the crossfade)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "つなぎ目の前2小節から後ろ2小節までを試聴します（重なる音まで結果と同じです）。"
+          }
+        }
+      }
+    },
+    "일시정지" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一時停止"
+          }
+        }
+      }
+    },
+    "자르기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Split"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分割"
+          }
+        }
+      }
+    },
+    "재생선 가까이에 자를 마디 줄이 없습니다. 재생선을 클립 안쪽으로 옮긴 뒤 자르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There’s no bar line to split at near the playhead. Move the playhead inside a clip, then split."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再生ヘッドの近くに分割できる小節線がありません。再生ヘッドをクリップの内側に移動してから分割してください。"
+          }
+        }
+      }
+    },
+    "재생하지 못했습니다. 소리 출력 장치를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t play. Check your audio output device."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再生できませんでした。サウンド出力装置を確認してください。"
+          }
+        }
+      }
+    },
     "퀀타이즈(Q): 큐·루프 등록과 핫큐 점프" : {
       "localizations" : {
         "en" : {
@@ -2575,6 +3115,156 @@
         }
       }
     },
+    "클립 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clip %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップ%lld"
+          }
+        }
+      }
+    },
+    "클립 %lld 뒤로" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Clip %lld Later"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップ%lldを後ろへ"
+          }
+        }
+      }
+    },
+    "클립 %lld 앞으로" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Clip %lld Earlier"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップ%lldを前へ"
+          }
+        }
+      }
+    },
+    "클립 %lld, 마디 %@" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "클립 %1$lld, 마디 %2$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clip %1$lld, bars %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップ%1$lld、小節%2$@"
+          }
+        }
+      }
+    },
+    "클립 옮기기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Clip"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップの移動"
+          }
+        }
+      }
+    },
+    "클립을 누르면 고르고, 끌면 순서를 바꿉니다. 위 눈금을 누르거나 끌면 재생선을 옮깁니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click a clip to select it; drag it to reorder. Click or drag the ruler above to move the playhead."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップをクリックで選択、ドラッグで並べ替えます。上の目盛りをクリックまたはドラッグすると再生ヘッドを移動します。"
+          }
+        }
+      }
+    },
+    "파형을 끌어 마디 구간을 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag on the waveform to select bars"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "波形をドラッグして小節区間を選んでください"
+          }
+        }
+      }
+    },
+    "편집 결과 타임라인" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit result timeline"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集結果のタイムライン"
+          }
+        }
+      }
+    },
+    "편집 결과를 재생·일시정지합니다. 스페이스바는 마지막으로 누른 줄을 재생합니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plays or pauses the edit result. The Space bar plays the strip you clicked last."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集結果を再生・一時停止します。スペースキーは最後にクリックした段を再生します。"
+          }
+        }
+      }
+    },
     "🔒 Spotify 곡 (제목 암호화됨)" : {
       "localizations" : {
         "en" : {
@@ -3299,6 +3989,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下書きを推定グリッドに変更します（取り消し可能）。"
+          }
+        }
+      }
+    },
+    "DJCrate가 소리로 추정한 키입니다. rekordbox 분석과 다를 수 있습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key estimated by DJCrate from the audio. It may differ from rekordbox analysis."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateが音から推定したキーです。rekordboxの解析結果と異なる場合があります"
           }
         }
       }
@@ -6768,38 +7474,6 @@
         }
       }
     },
-    "고른 구간이 없습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No Segments Selected"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選んだ区間がありません"
-          }
-        }
-      }
-    },
-    "고른 위치" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Selected Position"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選んだ位置"
-          }
-        }
-      }
-    },
     "곡 · 파일 경로" : {
       "localizations" : {
         "en" : {
@@ -6908,22 +7582,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "曲の終わりを越えるループは作成できません"
-          }
-        }
-      }
-    },
-    "곡 끝이라 고를 마디가 없습니다. 재생 위치를 앞으로 옮긴 뒤 더하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "There are no bars left at the end of the track. Move the playhead earlier, then add."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "曲の終わりなので選べる小節がありません。再生位置を前に戻してから追加してください。"
           }
         }
       }
@@ -7584,102 +8242,6 @@
         }
       }
     },
-    "구간 %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Segment %lld"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "区間%lld"
-          }
-        }
-      }
-    },
-    "구간 %lld 뒤로" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Move Segment %lld Later"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "区間%lldを後ろへ"
-          }
-        }
-      }
-    },
-    "구간 %lld 복제" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Duplicate Segment %lld"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "区間%lldを複製"
-          }
-        }
-      }
-    },
-    "구간 %lld 빼기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Remove Segment %lld"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "区間%lldを外す"
-          }
-        }
-      }
-    },
-    "구간 %lld 앞으로" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Move Segment %lld Earlier"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "区間%lldを前へ"
-          }
-        }
-      }
-    },
-    "구간을 더하면 결과가 여기 이어져 보입니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add segments to see the joined result here."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "区間を追加すると、つないだ結果がここに表示されます。"
-          }
-        }
-      }
-    },
     "구조 %lld개 → %@ · DBVersion %@" : {
       "localizations" : {
         "en" : {
@@ -8028,18 +8590,18 @@
         }
       }
     },
-    "그리드 전체를 옮깁니다 (1초 동안 누르면 반복 · 파형을 끌어도 됩니다)" : {
+    "그리드 전체를 옮깁니다 (1초 동안 누르면 반복)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Moves the whole grid (hold for 1 second to repeat, or drag the waveform)"
+            "value" : "Moves the whole grid (hold for 1 second to repeat)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "グリッド全体を移動（1秒間押し続けると繰り返し移動・波形のドラッグでも移動できます）"
+            "value" : "グリッド全体を移動（1秒間押し続けると繰り返し移動）"
           }
         }
       }
@@ -8954,22 +9516,6 @@
         }
       }
     },
-    "눌러서 구간을 더할 위치를 고릅니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Click to choose where to add a segment."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "クリックして区間を追加する位置を選びます。"
-          }
-        }
-      }
-    },
     "다른 기준곡을 고르거나 BPM·키·장르·#태그를 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -9274,22 +9820,6 @@
         }
       }
     },
-    "더할 마디 수" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bars to Add"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "追加する小節数"
-          }
-        }
-      }
-    },
     "덱" : {
       "localizations" : {
         "en" : {
@@ -9334,38 +9864,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "デッキの通知を閉じる"
-          }
-        }
-      }
-    },
-    "덱 위치" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deck Position"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "デッキの位置"
-          }
-        }
-      }
-    },
-    "덱에 다른 곡이 올라가 있습니다. 원곡 줄을 눌러 더할 위치를 고르세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A different track is loaded on the deck. Click the original waveform strip to choose where to add."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "デッキには別の曲が読み込まれています。原曲の波形をクリックして追加する位置を選んでください。"
           }
         }
       }
@@ -9430,22 +9928,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "デッキの曲とBPM・キー・ジャンル・コメントの#タグが合う曲を探します"
-          }
-        }
-      }
-    },
-    "덱에서 곡을 들으며(또는 위 원곡 줄을 눌러) 위치를 고른 뒤 ‘여기서 N마디 더하기’를 누르세요. 같은 구간을 두 번 넣으면 늘어나고, 빼면 줄어듭니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose a position while listening on the deck (or click the original waveform strip above), then click ‘Add N Bars Here’. Adding the same segment twice makes it longer; removing one makes it shorter."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "デッキで曲を聴きながら（または上の原曲の波形をクリックして）位置を選び、「ここからN小節を追加」を押してください。同じ区間を2回入れると長くなり、外すと短くなります。"
           }
         }
       }
@@ -10510,34 +10992,18 @@
         }
       }
     },
-    "마디 수" : {
+    "마디.박" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bars"
+            "value" : "Bar.beat"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "小節数"
-          }
-        }
-      }
-    },
-    "마디.박(박은 0부터)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bar.beat (beats start at 0)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "小節.拍（拍は0から）"
+            "value" : "小節.拍"
           }
         }
       }
@@ -11188,22 +11654,6 @@
         }
       }
     },
-    "목록에서 빼기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Remove from List"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "リストから外す"
-          }
-        }
-      }
-    },
     "목록은 맨 위에 만듭니다. 같은 이름은 ‘ (2)’, ‘ (3)’을 붙여 새로 만들고, 같은 출처는 기존 연결에 이어 넣습니다. 목록 초안은 ‘rekordbox에 쓰기’로 저장합니다." : {
       "localizations" : {
         "en" : {
@@ -11280,38 +11730,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無視した候補をグリッド編集以外でも再び表示します"
-          }
-        }
-      }
-    },
-    "미리 듣기를 만들지 못했습니다. %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Couldn’t create the preview. %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "試聴用の音を作成できませんでした。%@"
-          }
-        }
-      }
-    },
-    "미리 듣기를 재생하지 못했습니다. 소리 출력 장치를 확인하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Couldn’t play the preview. Check your audio output device."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "試聴を再生できませんでした。サウンド出力装置を確認してください。"
           }
         }
       }
@@ -11472,22 +11890,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "変更するタグを1つ以上指定してください"
-          }
-        }
-      }
-    },
-    "바로 뒤에 같은 구간을 하나 더(늘이기)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add the same segment right after it (extend)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "すぐ後ろに同じ区間をもう1つ追加（延長）"
           }
         }
       }
@@ -13934,6 +14336,22 @@
         }
       }
     },
+    "스트리밍 곡" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Streaming track"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ストリーミング曲"
+          }
+        }
+      }
+    },
     "스트리밍 곡은 XML로 만들 수 없습니다" : {
       "localizations" : {
         "en" : {
@@ -14874,34 +15292,6 @@
         }
       }
     },
-    "여기서 %lld마디 더하기" : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Add %lld Bar Here"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Add %lld Bars Here"
-                }
-              }
-            }
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ここから%lld小節を追加"
-          }
-        }
-      }
-    },
     "여기서 BPM 변경" : {
       "localizations" : {
         "en" : {
@@ -15330,22 +15720,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用途: "
-          }
-        }
-      }
-    },
-    "원곡 전체 파형과 고른 마디 구간" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Full waveform of the original track with the selected bar segments"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "原曲の全体波形と選んだ小節区間"
           }
         }
       }
@@ -16412,22 +16786,6 @@
         }
       }
     },
-    "이음새 · 마디 %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seam · bars %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "つなぎ目 · 小節 %@"
-          }
-        }
-      }
-    },
     "이음새 %lld곳" : {
       "localizations" : {
         "en" : {
@@ -16452,38 +16810,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "つなぎ目%lldか所"
-          }
-        }
-      }
-    },
-    "이음새 듣기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Play Seam"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "つなぎ目を試聴"
-          }
-        }
-      }
-    },
-    "이음새 앞 2마디부터 뒤 2마디까지 렌더해 들어 봅니다(섞는 소리까지 결과와 같습니다)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Renders and plays from 2 bars before the seam to 2 bars after it (it sounds exactly like the result, including where the audio overlaps)."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "つなぎ目の前2小節から後ろ2小節までをレンダリングして試聴します（重なる音まで結果と同じです）。"
           }
         }
       }
@@ -16692,22 +17018,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アクティブループ（ActiveLoop）の印が付いたキューがあります。XMLではこの印を移せません"
-          }
-        }
-      }
-    },
-    "자주 쓰는 마디 수" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Common Bar Counts"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "よく使う小節数"
           }
         }
       }
@@ -17638,34 +17948,6 @@
         }
       }
     },
-    "재생 위치가 든 마디 처음부터 %lld마디를 목록 끝에 더합니다. 목록이 비었고 첫 다운비트 앞이면 곡 머리까지 넣습니다" : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Adds %lld bar, starting from the beginning of the bar at the playhead, to the end of the list. If the list is empty and the playhead is before the first downbeat, the lead-in is included too."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Adds %lld bars, starting from the beginning of the bar at the playhead, to the end of the list. If the list is empty and the playhead is before the first downbeat, the lead-in is included too."
-                }
-              }
-            }
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "再生位置を含む小節の頭から%lld小節をリストの最後に追加します。リストが空で最初の1拍目より前なら、曲頭も含めます。"
-          }
-        }
-      }
-    },
     "재생 위치에서 가장 가까운 제안을 메모리 큐로 받기" : {
       "localizations" : {
         "en" : {
@@ -17866,22 +18148,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全体の内容とバックアップの場所は「最後の書き込み結果…」でもう一度確認できます。"
-          }
-        }
-      }
-    },
-    "전체 듣기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Play All"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全体を試聴"
           }
         }
       }
@@ -18256,22 +18522,6 @@
         }
       }
     },
-    "준비 중…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preparing…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "準備中…"
-          }
-        }
-      }
-    },
     "중복 곡 합치기 초안" : {
       "localizations" : {
         "en" : {
@@ -18614,18 +18864,18 @@
         }
       }
     },
-    "직접 찍은 메모리 큐 수(빨강). 큐가 없으면 주황 '없음', rekordbox 자동 큐만 있으면 '자동'" : {
+    "직접 찍은 메모리 큐 수(빨강). rekordbox 자동 큐만 있으면 '자동'" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Number of memory cues you set (red). Orange 'None' if there are no cues, 'Auto' if there are only rekordbox auto cues"
+            "value" : "Number of memory cues you set (red). 'Auto' if there are only rekordbox auto cues"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自分で設定したメモリーキューの数（赤）。キューがなければオレンジの「なし」、rekordboxの自動キューだけなら「自動」"
+            "value" : "自分で設定したメモリーキューの数（赤）。rekordboxの自動キューだけなら「自動」"
           }
         }
       }
@@ -19258,6 +19508,22 @@
         }
       }
     },
+    "추정" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "estimated"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "推定"
+          }
+        }
+      }
+    },
     "추정 %.2f BPM" : {
       "localizations" : {
         "en" : {
@@ -19488,18 +19754,18 @@
         }
       }
     },
-    "켜면 파형을 끌어 그리드를 옮기고, 아래 막대로 BPM·1박·변속 지점을 고칩니다." : {
+    "켜면 아래 막대로 그리드를 옮기고 BPM·1박·변속 지점을 고칩니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "When on, drag the waveform to move the grid, and use the bar below to fix the BPM, first beat, and tempo-change points."
+            "value" : "When on, use the bar below to move the grid and fix the BPM, first beat, and tempo-change points."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "オンにすると波形をドラッグしてグリッドを動かし、下のバーでBPM・1拍目・テンポ変化点を修正します。"
+            "value" : "オンにすると下のバーでグリッドを動かし、BPM・1拍目・テンポ変化点を修正します。"
           }
         }
       }
@@ -20920,22 +21186,6 @@
         }
       }
     },
-    "템포가 바뀌는 곡(구간 여러 개)의 BPM 변경은 아직 직접 쓰지 않습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "BPM changes for tracks whose tempo changes (multiple sections) aren't written directly yet"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "テンポが変わる曲（複数区間）のBPM変更はまだ直接書き込みません"
-          }
-        }
-      }
-    },
     "템포가 바뀌는 곡(템포 구간 %lld개)은 아직 편집하지 않습니다. 템포 구간이 하나인 곡을 고르세요" : {
       "localizations" : {
         "en" : {
@@ -21460,60 +21710,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "編集"
-          }
-        }
-      }
-    },
-    "편집 결과 없음" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No edit result"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "編集結果なし"
-          }
-        }
-      }
-    },
-    "편집 결과 전체를 렌더해 처음부터 들어 봅니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Renders the whole edit and plays it from the start."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "編集結果全体をレンダリングして最初から試聴します。"
-          }
-        }
-      }
-    },
-    "편집 결과 파형, %lld조각, 이음새 %lld곳" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Edited waveform. Pieces: %1$lld, seams: %2$lld"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "編集結果の波形、%1$lldピース、つなぎ目%2$lldか所"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "편집 결과 파형, %1$lld조각, 이음새 %2$lld곳"
           }
         }
       }
@@ -22804,6 +23000,22 @@
         }
       }
     },
+    "iTunes 동기화 목록 작업" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synced iTunes Playlist Actions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iTunes同期プレイリストの操作"
+          }
+        }
+      }
+    },
     "iTunes 동기화…" : {
       "localizations" : {
         "en" : {
@@ -23112,6 +23324,102 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選択したプレイリストをrekordboxとDJCrateに同じように反映します。先にrekordboxを終了してください。"
+          }
+        }
+      }
+    },
+    "그리드를 쓸 수 없습니다. BPM을 20~655.35로 맞추고 변속 지점의 위치와 순서를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot write the grid. Set BPM between 20 and 655.35, and check the positions and order of tempo changes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グリッドを書き込めません。BPMを20～655.35に設定し、テンポ変更点の位置と順序を確認してください。"
+          }
+        }
+      }
+    },
+    "그리드 구간의 첫 박이 사라집니다. 변속 지점이나 BPM을 조정하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The first beat of a grid segment would disappear. Adjust the tempo change point or BPM."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グリッド区間の最初の拍が消えてしまいます。テンポ変更位置または BPM を調整してください。"
+          }
+        }
+      }
+    },
+    "동기화할 iTunes 목록 고르기·새로고침" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose or Refresh Synced iTunes Playlists"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期するiTunesプレイリストの選択・更新"
+          }
+        }
+      }
+    },
+    "사이드바" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sidebar"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サイドバー"
+          }
+        }
+      }
+    },
+    "실제 컬렉션·삭제 행·수동 큐 곡 수와 지금 연 스냅샷 파일 이름을 사이드바 맨 아래에 보여 줍니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows the collection, deleted-row, and manual-cue track counts and the open snapshot's file name at the bottom of the sidebar."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実際のコレクション・削除済みの行・手動キューのある曲の数と、開いているスナップショットのファイル名をサイドバーの一番下に表示します。"
+          }
+        }
+      }
+    },
+    "현황·스냅샷 보이기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Summary and Snapshot"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "概要・スナップショットを表示"
           }
         }
       }

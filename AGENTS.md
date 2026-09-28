@@ -10,7 +10,7 @@ rekordbox 7용 DJ 라이브러리 관리 macOS 앱 DJCrate(약칭 DJC, CLI `djc`
 - 사전 확인(`RekordboxCompatibility`, `RekordboxWriteGuard`): rekordbox 7.2.x만, DB 구조(`djmdCue`·`contentCue` 칸이 정확히 같고 고치는 칸이 있음)·`DBVersion` 6000, 로컬 변경 카운터 ≥ 클라우드 동기화 카운터. 막힐 조건은 백업을 뜨기 전에 본다. rekordbox가 업데이트되면 `djc compat`으로 먼저 확인하고, 실험으로 규칙을 다시 확인하기 전에는 허용 목록을 넓히지 않는다.
 - 라이브 DB·음원은 읽기 전용이다. 읽기는 스냅샷 사본(`LibrarySnapshot`)에서 한다.
 - 시험·실험 쓰기는 **사본에만** 한다: `DJC_REKORDBOX_DIR=<사본 폴더>`, `DJC_HOME=<임시 폴더>`. 사본의 `share/PIONEER/USBANLZ`는 심볼릭 링크가 아니라 실제 복사본이어야 한다.
-- 규칙을 확인하지 않은 쓰기(템포 구간 여러 개인 곡의 BPM 변경, 미확인 ALAC 형식, 44.1kHz가 아닌 ffmpeg VBR·그 밖의 비LAME VBR 분석 붙이기)는 막아 둔다. 새 쓰기 경로는 rekordbox 실험 → 사본 재현 → 칸 단위 일치를 확인한 뒤에만 연다(`docs/rekordbox-internals.md` 끝).
+- 규칙을 확인하지 않은 쓰기(미확인 ALAC 형식, 44.1kHz가 아닌 ffmpeg VBR·그 밖의 비LAME VBR 분석 붙이기)는 막아 둔다. 새 쓰기 경로는 rekordbox 실험 → 사본 재현 → 칸 단위 일치를 확인한 뒤에만 연다(`docs/rekordbox-internals.md` 끝).
 - rekordbox DB 사본(`*.db`, `-wal`, `-shm`, `snapshots/`)에는 클라우드 토큰이 들어 있다. 커밋·출력·로그 금지. `agentRegistry`의 인증값은 읽지도 옮기지도 않는다.
 - rekordbox 규칙은 rekordbox 화면에서 편집한 결과 파일을 비교해서만 알아낸다. rekordbox 실행 파일(본체·rb_http_server 등)은 strings·디스어셈블을 포함해 분석하지 않는다.
 - 라이선스가 없는 외부 코드·문서는 쓰지 않는다. 외부 코드를 옮기면 라이선스를 확인하고 THIRD_PARTY_NOTICES.md에 더한다.
@@ -61,7 +61,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 | `--metronome-selftest` | 메트로놈 클릭이 빠지지 않는지(실제 엔진으로 12초 재생해 클릭 수를 셈) | — |
 | `--switch-selftest` | 곡 전환·일시정지 뒤 소리 | — |
 | `--scroll-perf` | 재생 중 목록 스크롤 때 프레임 간격 | `--perf-hide=zoom,label,…`로 A/B |
-| `--edit-selftest` | 곡 편집 창: 이음새 미리 듣기(실제 재생)·렌더·추가한 곡으로 이동·덱에 편집본 | `EditLayoutFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로 |
+| `--edit-selftest` | 곡 편집 창: 창 재생기(스페이스바·시킹·이음새 듣기, 덱은 그대로)·넣기·자르기·복제·옮기기·지우기와 편집 메뉴 실행 취소·렌더·추가한 곡으로 이동·덱에 편집본 | `EditLayoutFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로 |
 
 예: `DJC_HOME=$(mktemp -d) .build/debug/DJCrate --db <스냅샷> --select 32395449 --loop-selftest 2>&1 | grep "루프 시험"`
 

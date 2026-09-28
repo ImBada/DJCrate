@@ -109,7 +109,7 @@ struct RekordboxGridWriterTests {
         #expect(report.gridBlocked.first?.reason?.contains("파형") == true)
     }
 
-    @Test func 템포_구간이_여러_개인_곡의_BPM_변경은_막는다() throws {
+    @Test func 템포_구간이_여러_개여도_BPM을_쓸_수_있다() throws {
         let fixture = try RekordboxFixture()
         let first = AnlzBuilder.beats(bpm: 128, first: 500, count: 60)
         let second = AnlzBuilder.beats(bpm: 140, first: first.last!.time + 60_000 / 128, count: 50)
@@ -117,7 +117,7 @@ struct RekordboxGridWriterTests {
         var grid = try draft(fixture, track)
         #expect(grid.segments.count == 2)
         grid.setBPM(129, at: 1)
-        #expect(try write(fixture, grid).gridBlocked.first?.reason?.contains("구간 여러 개") == true)
+        #expect(try write(fixture, grid).gridWritten.count == 1)
     }
 
     @Test func 되돌리면_분석_파일이_원래_바이트로() throws {

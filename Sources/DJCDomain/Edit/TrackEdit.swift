@@ -109,6 +109,8 @@ public struct TrackEdit: Sendable, Equatable {
 
     public let layout: BarLayout
     public let pieces: [Piece]
+    /// 목록 구간마다 하나(원본에서 이어져도 합치지 않는다). 편집 화면의 클립이다.
+    public let clips: [Piece]
 
     public init(grid: [GridSegment], sourceDuration: Double, bars: [BarRange]) throws {
         let layout = try BarLayout(grid: grid, duration: sourceDuration)
@@ -131,10 +133,18 @@ public struct TrackEdit: Sendable, Equatable {
         for range in bars {
             if let last = merged.last, last.last + 1 == range.first { merged[merged.count - 1].last = range.last } else { merged.append(range) }
         }
-        // 출력 시각은 앞 조각 마디 수 × 마디 길이로 바로 구한다(더해 가면 오차가 쌓인다).
-        let leadIn = merged[0].first == 0 ? layout.firstDownbeat : 0
+        pieces = Self.place(merged, in: layout)
+        clips = Self.place(bars, in: layout)
+        self.layout = layout
+    }
+
+    /// 구간을 차례로 출력에 놓는다. 출력 시각은 앞 구간 마디 수 × 마디 길이로 바로 구한다(더해 가면 오차가 쌓인다).
+    /// 규칙은 보지 않는다: 규칙에 맞지 않는 목록(가운데 곡 머리 등)도 편집 화면이 그려 고칠 수 있게 한다.
+    public static func place(_ ranges: [BarRange], in layout: BarLayout) -> [Piece] {
+        guard let head = ranges.first else { return [] }
+        let leadIn = head.first == 0 ? layout.firstDownbeat : 0
         var barsBefore = 0
-        pieces = merged.enumerated().map { index, range in
+        return ranges.enumerated().map { index, range in
             let wholeBars = range.last - max(range.first, 1) + 1
             let start = index == 0 ? 0 : leadIn + Double(barsBefore) * layout.barLength
             barsBefore += wholeBars
@@ -143,7 +153,6 @@ public struct TrackEdit: Sendable, Equatable {
             let end = partial ? start + (sourceEnd - sourceStart) : leadIn + Double(barsBefore) * layout.barLength
             return Piece(bars: range, sourceStart: sourceStart, sourceEnd: sourceEnd, outputStart: start, outputEnd: end)
         }
-        self.layout = layout
     }
 
     /// 출력 길이(초)

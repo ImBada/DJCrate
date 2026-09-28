@@ -57,6 +57,8 @@ struct TrackRow: Identifiable, Hashable, Sendable {
     var releaseYear: Int { track.releaseYear ?? 0 }
     var trackNumber: Int { track.trackNumber ?? 0 }
     var keyName: String { track.key ?? "" }
+    /// 추가한 곡의 키를 DJCrate가 추정했는지(목록에 추정으로 표시한다, #124)
+    var keyEstimated = false
     /// rekordbox 그리드의 변속 흐름(BPM 순서, 변속 없으면 빈 배열)
     let tempoChanges: [Double]
     /// rekordbox 오토게인(분석한 곡만)
@@ -67,6 +69,28 @@ struct TrackRow: Identifiable, Hashable, Sendable {
     var tempoChangeCount: Int { max(tempoChanges.count - 1, 0) }
     /// 파일 형식(확장자). 스트리밍 곡은 "스트림".
     var formatName: String { track.isStreaming ? String(ui: "스트림") : track.fileExtension.uppercased() }
+
+    /// 메모리 칸(#121): 직접 찍은 메모리 큐 수. 없으면 핫큐 칸처럼 비우고, rekordbox 자동 큐만 남는 곡은 '자동'.
+    enum MemoryCueLabel: Equatable {
+        case count(Int)
+        case autoOnly
+        case empty
+
+        var text: String {
+            switch self {
+            case .count(let count): "\(count)"
+            case .autoOnly: String(ui: "자동")
+            case .empty: ""
+            }
+        }
+    }
+
+    /// `draft`: DJCrate 큐 초안의 개수(반영 전이라도 초안을 따른다). 초안은 자동 큐를 빼고 다루므로 자동 큐는 곡의 것을 본다.
+    func memoryCueLabel(draft: CueCounts?) -> MemoryCueLabel {
+        let hot = draft?.hot ?? hotCueCount, memory = draft?.memory ?? memoryCueCount
+        if memory > 0 { return .count(memory) }
+        return hot == 0 && autoCueCount > 0 ? .autoOnly : .empty
+    }
 
     /// 검색용 소문자 키(제목·아티스트·코멘트·장르). 로딩 때 한 번만 만든다.
     let searchKey: String

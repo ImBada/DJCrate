@@ -19,7 +19,8 @@ struct PreviewCueTests {
         #expect(shapes[0].rect.minX == 100)
         #expect(shapes[0].rect.minY < 10)
         #expect(shapes[1].color == .memory)
-        #expect(shapes[1].rect.minY >= 30)
+        // 메모리 큐는 아래쪽 끝에 붙는다(눈금 높이는 칸 높이에 따라 정한다, #121).
+        #expect(shapes[1].rect.minY >= 20 && shapes[1].rect.maxY == 39)
         #expect(shapes[2].color == .loop)
         #expect(shapes.allSatisfy { $0.rect.minX >= 0 && $0.rect.maxX <= 400 })
         #expect(PreviewCueMark.shapes(marks, duration: 0, width: 400, height: 40).isEmpty)

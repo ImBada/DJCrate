@@ -222,9 +222,10 @@ final class KeyRouter {
         return true
     }
 
-    /// 덱 단축키를 받는 창: 설정·단축키 안내 창을 제외한 주 창.
+    /// 덱 단축키를 받는 창: 설정·단축키 안내 창과 곡 편집 창(자체 재생기·단축키가 있다)을 제외한 주 창.
     private static func isDeckWindow(_ window: NSWindow) -> Bool {
         window === NSApp.mainWindow && window !== SettingsWindow.current && window !== ShortcutsWindow.current
+            && window !== TrackEditWindow.shared.window
     }
 
     // MARK: - 목록 포커스

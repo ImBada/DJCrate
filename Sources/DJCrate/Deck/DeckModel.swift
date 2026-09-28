@@ -138,7 +138,7 @@ final class DeckModel {
     /// 곡 안의 조표 구간(rekordbox 시간축). 주 조표는 rekordbox 키에 맞춘다.
     var keySegments: [KeyAnalyzer.Segment] = []
 
-    /// 장·단(A/B)은 rekordbox 키를 따른다(없으면 장조로 본다).
+    /// 장·단(A/B)은 rekordbox 키를 따른다(없으면 크로마로 정한다).
     var keyMinor = false
 
     @ObservationIgnored var keyChroma: KeyAnalyzer.Chroma?

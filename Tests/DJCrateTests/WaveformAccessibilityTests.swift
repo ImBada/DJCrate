@@ -22,16 +22,16 @@ struct WaveformAccessibilityTests {
 
     @Test func 확대_파형_값은_위치_마디_다음_메모리_큐까지() {
         let cues = [EditableCue(kind: .memory, time: 87), EditableCue(kind: .hot(0), time: 84)]
-        #expect(WaveformAccessibility.zoomValue(time: 83.2, grid: grid, cues: cues) == "1분 23초, 42.2마디, 다음 메모리 큐까지 8박")
+        #expect(WaveformAccessibility.zoomValue(time: 83.2, grid: grid, cues: cues) == "1분 23초, 42.3마디, 다음 메모리 큐까지 8박")
         #expect(WaveformAccessibility.zoomValue(time: 83.2, grid: nil, cues: cues) == "1분 23초, 다음 메모리 큐까지 4초")
-        #expect(WaveformAccessibility.zoomValue(time: 90, grid: grid, cues: cues) == "1분 30초, 46.0마디")
+        #expect(WaveformAccessibility.zoomValue(time: 90, grid: grid, cues: cues) == "1분 30초, 46.1마디")
         let far = [EditableCue(kind: .memory, time: 100)]
-        #expect(WaveformAccessibility.zoomValue(time: 20, grid: grid, cues: far) == "20초, 11.0마디, 다음 메모리 큐까지 40마디")
-        #expect(WaveformAccessibility.zoomValue(time: 67, grid: grid, cues: far) == "1분 7초, 34.2마디, 다음 메모리 큐까지 16마디 2박")
+        #expect(WaveformAccessibility.zoomValue(time: 20, grid: grid, cues: far) == "20초, 11.1마디, 다음 메모리 큐까지 40마디")
+        #expect(WaveformAccessibility.zoomValue(time: 67, grid: grid, cues: far) == "1분 7초, 34.3마디, 다음 메모리 큐까지 16마디 2박")
     }
 
     @Test func 전체_파형_값은_곡_길이_중_위치() {
-        #expect(WaveformAccessibility.overviewValue(time: 83.2, duration: 180, grid: grid) == "전체 3분 0초 중 1분 23초, 42.2마디")
+        #expect(WaveformAccessibility.overviewValue(time: 83.2, duration: 180, grid: grid) == "전체 3분 0초 중 1분 23초, 42.3마디")
         #expect(WaveformAccessibility.overviewValue(time: 5, duration: 180, grid: nil) == "전체 3분 0초 중 5초")
     }
 
@@ -80,8 +80,9 @@ struct ZoomPointerTests {
     /// 8초가 왼쪽 끝, 1초 = 100pt
     let xOf = { (t: Double) in CGFloat((t - 8) * 100) }
 
-    func target(_ x: CGFloat, suggestions: [Double] = [12], gridEditing: Bool = false, cues: [EditableCue]? = nil) -> ZoomPointerTarget {
-        ZoomPointerTarget.at(x: x, cues: cues ?? [cue], suggestions: suggestions, gridEditing: gridEditing, xOf: xOf)
+    /// 그리드 편집 여부는 받지 않는다: 그리드 편집 중에도 파형 끌기는 스크럽·큐 끌기다(#117).
+    func target(_ x: CGFloat, suggestions: [Double] = [12], cues: [EditableCue]? = nil) -> ZoomPointerTarget {
+        ZoomPointerTarget.at(x: x, cues: cues ?? [cue], suggestions: suggestions, xOf: xOf)
     }
 
     @Test func 큐_선은_7pt_제안은_11pt_안이면_잡힌다() {
@@ -91,22 +92,18 @@ struct ZoomPointerTests {
         #expect(target(412) == .empty)
     }
 
-    @Test func 큐가_제안보다_먼저_그리드_편집은_어디서나() {
+    @Test func 큐가_제안보다_먼저() {
         let onSuggestion = EditableCue(kind: .hot(1), time: 12.02)
         #expect(target(400, cues: [cue, onSuggestion]) == .cue(onSuggestion.id))
-        #expect(target(205, gridEditing: true) == .grid)
-        #expect(target(50, gridEditing: true) == .grid)
     }
 
     @Test func 포인터_모양() {
         #expect(ZoomPointerTarget.pointer(hover: .empty, drag: nil) == .grabIdle)
         #expect(ZoomPointerTarget.pointer(hover: .cue(cue.id), drag: nil) == .columnResize)
-        #expect(ZoomPointerTarget.pointer(hover: .grid, drag: nil) == .columnResize)
         #expect(ZoomPointerTarget.pointer(hover: .suggestion(12), drag: nil) == .arrow)
         #expect(ZoomPointerTarget.pointer(hover: .cue(cue.id), drag: .empty) == .grabActive, "끄는 중에는 끌기 시작한 대상을 따른다")
         #expect(ZoomPointerTarget.pointer(hover: .empty, drag: .suggestion(12)) == .grabActive)
         #expect(ZoomPointerTarget.pointer(hover: .empty, drag: .cue(cue.id)) == .columnResize)
-        #expect(ZoomPointerTarget.pointer(hover: .empty, drag: .grid) == .columnResize)
     }
 }
 

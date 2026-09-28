@@ -53,6 +53,10 @@ public enum SettingKeys {
     public static let sidebarSummaryExpanded = SettingKey("sidebar.summaryExpanded", true)
     /// 재생 기록은 날짜마다 한 줄이라 길어서 접어 두고 시작한다.
     public static let sidebarHistoriesExpanded = SettingKey("sidebar.historiesExpanded", false)
+    /// 사이드바 현황·스냅샷 파일 이름. 늘 볼 필요가 없어 숨겨 두고 설정 › 일반에서 켠다.
+    public static let sidebarShowsStatus = SettingKey("sidebar.showsStatus", false)
+    /// 주 창 사이드바를 연 채 두었는지. 저절로 접은 것도 저장해 다음 실행을 같은 모양으로 시작한다(#119).
+    public static let sidebarVisible = SettingKey("sidebar.visible", true)
 
     /// 앱 안 글자 배율(보기 › 글자 크게·작게). 단계 밖의 값은 가장 가까운 단계로 읽는다.
     public static let textScale = SettingKey<Double>("view.textScale", 1) { value in
@@ -74,8 +78,8 @@ public enum SettingKeys {
         [zoomSeconds.name, volume.name, metronomeVolume.name, idleSeconds.name, gainTarget.name, gainTrim.name,
          waveformHeight.name, textScale.name, playQuantizeBeats.name]
             + [quantize, playQuantize, carryCues, showSuggestions, keyLock, autoGain, peakProtection, useRekordboxGain,
-               sheetMode, showTagEditor, sidebarPlaylistsExpanded, sidebarSummaryExpanded, sidebarHistoriesExpanded,
-               commentClassColumnHidden].map(\.name)
+               sheetMode, showTagEditor, sidebarPlaylistsExpanded, sidebarSummaryExpanded, sidebarHistoriesExpanded, sidebarShowsStatus,
+               sidebarVisible, commentClassColumnHidden].map(\.name)
             + [dismissedGainSuggestions, dismissedGridSuggestions, deckShortcuts, waveformColorMode.name, commentPreset.name, cueListFilter.name]
     }
 }

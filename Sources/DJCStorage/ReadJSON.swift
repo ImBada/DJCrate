@@ -78,6 +78,8 @@ public extension LibraryRead {
         public let playCount: Int
         public let format: String
         public let bitrateKbps: Int?
+        /// rekordbox `ImagePath`(`/PIONEER/Artwork/…/artwork.jpg`). 그림이 없으면 nil
+        public let imagePath: String?
         public var id: String { track.id }
     }
 
