@@ -305,7 +305,7 @@ struct LibraryReadTests {
         try fixture.putAnalysis(for: first, dat: AnlzBuilder.dat(beats: beats), ext: nil)
         let read = try reader(fixture, preset: .anisong)
         let expected: [LibraryFilter: [String]] = [.emptyComment: ["102"], .offConvention: ["104"],
-            .noCues: ["102", "104"], .played: ["101"], .streaming: ["104"], .noBPM: ["102"], .tempoChange: ["101"], .all: ["101", "102", "104"]]
+            .noCues: ["102", "104"], .played: ["101"], .streaming: ["104"], .noBPM: ["102"], .missingFile: ["101", "102"], .tempoChange: ["101"], .all: ["101", "102", "104"]]
         for filter in LibraryFilter.allCases {
             #expect(try read.search(query: "", filter: filter).tracks.map(\.id) == expected[filter])
         }
@@ -314,7 +314,23 @@ struct LibraryReadTests {
         #expect(try read.search(query: "Alpha", bpm: 129...130).tracks.isEmpty)
         #expect(try read.search(query: "Alpha", key: "8B").tracks.isEmpty)
         #expect(try read.search(query: "", playlistID: "f1").tracks.map(\.id) == ["101", "102"])
-        #expect(Set(LibraryFilter.allCases.map(\.cliName)) == ["all", "empty-comment", "off-convention", "no-cues", "played", "streaming", "no-bpm", "tempo-change"])
+        #expect(Set(LibraryFilter.allCases.map(\.cliName)) == ["all", "empty-comment", "off-convention", "no-cues", "played", "streaming",
+                                                               "no-bpm", "missing-file", "tempo-change"])
+    }
+
+    @Test func 파일_없음_필터는_음원을_찾지_못한_로컬_곡만_고른다() throws {
+        let fixture = try fixture()
+        var gone = TrackSpec(id: "105")
+        gone.folderPath = fixture.audio.appending(path: "gone.mp3").path
+        try fixture.add(gone)
+        var external = TrackSpec(id: "106")
+        external.folderPath = "/Volumes/DJC 시험 디스크 \(UUID().uuidString)/a.mp3"
+        try fixture.add(external)
+        var streaming = TrackSpec(id: "107")
+        streaming.folderPath = "spotify:synthetic"
+        try fixture.add(streaming)
+        // 기본 사본의 101·102도 없는 합성 경로(/synthetic/…)다. 스트리밍 곡(104·107)은 세지 않는다.
+        #expect(try reader(fixture).search(query: "", filter: .missingFile).tracks.map(\.id) == ["101", "102", "105", "106"])
     }
 
     @Test @MainActor func 사이드바_기본_선택은_전체다() {
