@@ -63,6 +63,75 @@ struct WriteResultTests {
         #expect(result.backups.contains(backupURL))
         #expect(result.kind == (operation == "되돌리기" ? .success : .warning))
         if operation == "되돌리기" { #expect(result.backups.contains(host.restoreSafetyBackup)) }
+        // 경고 알림의 둘째 줄(무엇을 쓰지 않았는지)도 다시 열 때 그대로다(#147).
+        let shortfall = ["쓰기": "큐 1곡 · 그리드 1곡 · 분석 1곡은 쓰지 않았습니다", "넣기": "2곡은 넣지 않았습니다", "빼기": "1곡은 빼지 않았습니다"]
+        if let shortfall = shortfall[operation] { #expect(result.toast.detail?.hasPrefix(shortfall) == true) }
+    }
+
+    /// #147: 막힌 항목이 있으면 알림 둘째 줄에 무엇을 쓰지 않았는지와 할 일을 보인다.
+    /// 막힘 이유는 할 일까지 적은 문장이라 이유가 하나면 그대로 보이고, 여럿이면 결과 보기로 안내한다.
+    @Test func 막힌_항목이_있으면_무엇을_쓰지_않았는지와_할_일을_보인다() {
+        let reason = "rekordbox 분석 파일이 없습니다. rekordbox에서 트랙 분석을 먼저 하세요"
+        let set = Fixture.playlistOutcome(.create(key: "k", name: "세트", isFolder: false, parent: .root), "세트", .written)
+        var predicted = Fixture.preview(cues: [Fixture.outcome("1", .written), Fixture.outcome("2", .written)],
+                                        grids: [Fixture.outcome("3", .written), Fixture.outcome("4", .blocked, reason: reason)]).report
+        predicted.playlistOutcomes = [set]
+        var actual = predicted
+        actual.gridOutcomes?.removeAll { $0.status != .written }
+        let one = WriteResult.written(actual, preview: predicted)
+        #expect(one.kind == .warning)
+        #expect(one.title == "rekordbox에 썼습니다 · 큐 2곡 · 그리드 1곡 · 재생 목록 1건")
+        #expect(one.toast.detail == "그리드 1곡은 쓰지 않았습니다 — " + reason)
+
+        predicted.outcomes.append(Fixture.outcome("5", .blocked, reason: "초안을 만든 뒤 rekordbox에서 큐가 바뀌었습니다"))
+        actual.playlistOutcomes = [set, Fixture.playlistOutcome(.create(key: "e", name: " ", isFolder: false, parent: .root), " ", .blocked,
+                                                                reason: "이름을 적어 주세요")]
+        let many = WriteResult.written(actual, preview: predicted)
+        #expect(many.kind == .warning)
+        #expect(many.toast.detail == "큐 1곡 · 그리드 1곡 · 재생 목록 1건은 쓰지 않았습니다 — 이유와 할 일은 ‘결과 보기’에서 확인하세요")
+    }
+
+    /// #147: 쓴 항목에 붙은 참고 사유(경로가 예상과 달라 분석 파일을 남김)만 있으면 성공으로 보이고, 사유는 결과에 남긴다.
+    /// 곡 빼기·쓰기 전으로 복원도 같은 기준이다.
+    @Test func 참고_사유만_붙으면_성공으로_보인다() throws {
+        let note = RekordboxWriter.fileOwnershipWarning
+        var merge = Fixture.preview(cues: []).report
+        merge.mergeOutcomes = [Fixture.outcome("m", .written, reason: note)]
+        let merged = WriteResult.written(merge, preview: merge)
+        #expect(merged.kind == .success && merged.text.contains(note))
+        #expect(merged.toast.detail == "전체 내용과 백업 위치는 ‘마지막 쓰기 결과…’에서 다시 볼 수 있습니다.")
+
+        var tracks = RekordboxTrackWriter.Report(dryRun: false)
+        tracks.deleted = [Fixture.track("d", reason: note)]
+        let deleted = WriteResult.tracks(tracks, preview: tracks, adding: false)
+        #expect(deleted.kind == .success && deleted.text.contains(note))
+
+        let saved = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: saved, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: saved) }
+        try Data().write(to: saved.appending(path: "file-ownership-warning"))
+        let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b"), createdAt: .now, isWrite: true, report: merge)
+        let restored = WriteResult.restored(backup, saved: saved)
+        #expect(restored.kind == .success && restored.text.contains(note))
+    }
+
+    /// #147: 곡 넣기에서 넣지 않은 곡·분석 없이 넣은 곡·쓰지 않은 큐는 할 일이 남아 경고로 보이고 둘째 줄에 적는다.
+    @Test func 곡_넣기_경고는_넣지_않은_것과_할_일을_보인다() {
+        var report = RekordboxTrackWriter.Report(dryRun: false)
+        report.added = [Fixture.track("a")]
+        let unanalyzed = WriteResult.tracks(report, preview: report, adding: true, withoutAnalysis: ["a": "ALAC"])
+        #expect(unanalyzed.kind == .warning && unanalyzed.title == "rekordbox에 1곡을 넣었습니다")
+        #expect(unanalyzed.toast.detail == "1곡은 분석 없이 넣었습니다 — rekordbox에서 분석하세요")
+
+        var preview = report
+        preview.added.append(Fixture.track("b", written: false, reason: "이미 rekordbox 컬렉션에 있는 파일입니다"))
+        let skipped = WriteResult.tracks(report, preview: preview, adding: true)
+        #expect(skipped.kind == .warning)
+        #expect(skipped.toast.detail == "1곡은 넣지 않았습니다 — 이미 rekordbox 컬렉션에 있는 파일입니다")
+
+        report.added[0].cueReason = "큐가 바뀜"
+        let all = WriteResult.tracks(report, preview: preview, adding: true, withoutAnalysis: ["a": "ALAC"])
+        #expect(all.toast.detail == "1곡은 넣지 않았습니다 · 1곡은 분석 없이 넣었습니다 · 1곡의 큐는 쓰지 않았습니다 — 이유와 할 일은 ‘결과 보기’에서 확인하세요")
     }
 
     @Test func 태그_결과도_곡마다_남긴다() {
