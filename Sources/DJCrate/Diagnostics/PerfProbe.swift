@@ -6,7 +6,8 @@ import QuartzCore
 @MainActor
 enum PerfProbe {
     #if DEBUG
-    static let enabled = ProcessInfo.processInfo.arguments.contains("--scroll-perf")
+    /// `--scroll-perf`·`--ui-perf=`(#129) 측정 중. 표 칸 배치·설정을 저장하지 않는다.
+    static let enabled = ProcessInfo.processInfo.arguments.contains { $0 == "--scroll-perf" || $0.hasPrefix("--ui-perf=") }
     static let previewCuesVisible = !ProcessInfo.processInfo.arguments.contains("--perf-cues=off")
     /// A/B: 확대 파형 막대를 그리지 않는다
     static let skipBands = ProcessInfo.processInfo.arguments.contains("--skip-bands")
