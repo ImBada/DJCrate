@@ -5,6 +5,12 @@ import SwiftUI
 struct TrackEditView: View {
     @Bindable var model: TrackEditModel
     let deck: DeckModel
+    /// 두 줄의 처음 누르기·끌기 상태(끄는 중 모습을 캡처할 때)
+    var sourcePointer = EditPointer()
+    var outputPointer = EditPointer()
+    /// 두 줄 자리(편집 창 좌표). 원곡에서 고른 구간을 결과 줄로 끌어 넣을 때 쓴다.
+    @State private var sourceFrame = CGRect.zero
+    @State private var outputFrame = CGRect.zero
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -20,12 +26,20 @@ struct TrackEditView: View {
                 Spacer(minLength: 0)
             } else {
                 SourceLaneBar(model: model)
-                EditSourceStrip(model: model)
-                    .frame(height: 104)
+                VStack(spacing: 3) {
+                    EditSourceStrip(model: model, outputFrame: outputFrame.offsetBy(dx: -sourceFrame.minX, dy: -sourceFrame.minY),
+                                    pointer: sourcePointer)
+                        .frame(height: 104)
+                        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(EditMetrics.space)) } action: { sourceFrame = $0 }
+                    EditZoomBar(model: model, lane: .source)
+                }
                 Divider().padding(.vertical, 4)
                 OutputLaneBar(model: model)
-                EditOutputStrip(model: model)
-                    .frame(minHeight: 140, maxHeight: 260)
+                VStack(spacing: 3) {
+                    EditOutputStrip(model: model, pointer: outputPointer) { outputFrame = $0 }
+                        .frame(minHeight: 140, maxHeight: 260)
+                    EditZoomBar(model: model, lane: .output)
+                }
                 ClipInspector(model: model)
                 Spacer(minLength: 0)
                 Divider()
@@ -33,7 +47,8 @@ struct TrackEditView: View {
             }
         }
         .padding(16)
-        .frame(minWidth: 760, minHeight: 560)
+        .coordinateSpace(.named(EditMetrics.space))
+        .frame(minWidth: 760, minHeight: 600)
         .background(Color(nsColor: .windowBackgroundColor))
         // 덱을 다시 재생하면 창의 재생은 멈춘다(두 소리가 겹치지 않게).
         .onChange(of: deck.isPlaying) { _, playing in if playing { model.pause() } }
@@ -152,7 +167,7 @@ private struct SourceLaneBar: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(model.selection == nil)
-            .help(.ui("고른 구간을 결과의 고른 클립 뒤(없으면 끝)에 넣습니다(⏎). 맨 앞에 넣을 때만 곡 머리(0마디)를 살립니다"))
+            .help(.ui("고른 구간을 고른 클립 뒤(없으면 끝)에 넣습니다(⏎). 결과로 끌면 원하는 자리에 넣습니다"))
         }
         .controlSize(.small)
     }
@@ -235,7 +250,7 @@ private struct ClipInspector: View {
                 }
                 .buttonStyle(.borderless)
             } else {
-                Text(.ui("클립을 누르면 고르고, 끌면 순서를 바꿉니다. 위 눈금을 누르거나 끌면 재생선을 옮깁니다"))
+                Text(.ui("클립을 누르면 고르고, 끌면 순서를 바꾸고, 가장자리를 끌면 마디 단위로 다듬습니다. 위 눈금을 누르거나 끌면 재생선을 옮깁니다"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)

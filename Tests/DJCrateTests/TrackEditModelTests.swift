@@ -311,6 +311,139 @@ struct TrackEditModelTests {
         #expect(model.position(.output) == 7 && model.entries.map(\.id) == [ids[2], ids[0], ids[1]])
     }
 
+    @Test func 결과_클립_가장자리를_끌어_마디_줄에_붙여_다듬고_실행_취소한다() async throws {
+        let h = try EditHarness()
+        defer { h.remove() }
+        let model = try await h.loaded()
+        let undo = UndoManager()
+        model.undoManager = undo
+        // 출력 0~4, 4~8, 8~12초(1마디 2초)
+        model.entries = [BarRange(1, 2), BarRange(5, 6), BarRange(9, 10)].map { TrackEditModel.Entry(range: $0) }
+        let ids = model.entries.map(\.id)
+        var pointer = EditPointer()
+        // 한 포인트 = 0.04초라 가장자리는 0.2초 안. 첫 클립 끝(4초) 바로 앞을 눌러 오른쪽으로 2.1초 끌면 3마디까지
+        pointer.output(model, from: 3.9, to: 3.9, inRuler: false, moved: 0, secondsPerPoint: 0.04)
+        pointer.output(model, from: 3.9, to: 6.0, inRuler: false, moved: 52, secondsPerPoint: 0.04)
+        #expect(pointer.trimming == EditPointer.Trim(id: ids[0], clip: 0, edge: .end, range: BarRange(1, 3)) && pointer.dragging == nil)
+        // 끄는 동안에는 목록을 바꾸지 않는다(손을 뗄 때 한 번에, 실행 취소 하나)
+        #expect(model.entries.map(\.range) == [BarRange(1, 2), BarRange(5, 6), BarRange(9, 10)])
+        pointer.endOutput(model, at: 6.0)
+        #expect(model.entries.map(\.range) == [BarRange(1, 3), BarRange(5, 6), BarRange(9, 10)] && pointer.trimming == nil)
+        #expect(model.selectedClip == ids[0] && model.focus == .output && undo.undoActionName == "클립 다듬기")
+        // 마지막 클립(10~14초)의 시작을 왼쪽으로 2.2초: 원곡 16.5 − 2.2 = 14.3초 → 8마디 시작(14.5초)
+        pointer.output(model, from: 10.1, to: 10.1, inRuler: false, moved: 0, secondsPerPoint: 0.04)
+        pointer.output(model, from: 10.1, to: 7.9, inRuler: false, moved: 55, secondsPerPoint: 0.04)
+        pointer.endOutput(model, at: 7.9)
+        #expect(model.entries.map(\.range) == [BarRange(1, 3), BarRange(5, 6), BarRange(8, 10)] && model.selectedClip == ids[2])
+        // 가장자리를 눌렀다 떼기만 하면 클립 고르기와 재생선
+        pointer.output(model, from: 5.95, to: 5.96, inRuler: false, moved: 0.25, secondsPerPoint: 0.04)
+        pointer.endOutput(model, at: 5.96)
+        #expect(model.selectedClip == ids[0] && model.position(.output) == 5.96 && model.entries[0].range == BarRange(1, 3))
+        // 가운데를 끌면 그대로 순서 바꾸기
+        pointer.output(model, from: 8, to: 8, inRuler: false, moved: 0, secondsPerPoint: 0.04)
+        pointer.output(model, from: 8, to: 1, inRuler: false, moved: 175, secondsPerPoint: 0.04)
+        #expect(pointer.dragging == ids[1] && pointer.trimming == nil)
+        pointer.endOutput(model, at: 1)
+        #expect(model.entries.map(\.id) == [ids[1], ids[0], ids[2]])
+        // 실행 취소 세 번 → 처음
+        for _ in 0..<3 { undo.undo() }
+        #expect(model.entries.map(\.range) == [BarRange(1, 2), BarRange(5, 6), BarRange(9, 10)] && !model.canUndo)
+    }
+
+    @Test func 원곡에서_고른_구간을_결과의_원하는_자리로_끌어_넣는다() async throws {
+        let h = try EditHarness()
+        defer { h.remove() }
+        let model = try await h.loaded()
+        let undo = UndoManager()
+        model.undoManager = undo
+        // 출력 0~4, 4~8, 8~12초(가운데 2, 6, 10초). 원곡에서 3~4마디(4.5~8.5초)를 고른 상태
+        model.entries = [BarRange(1, 2), BarRange(5, 6), BarRange(9, 10)].map { TrackEditModel.Entry(range: $0) }
+        model.select(from: 4.6, to: 8.6)
+        #expect(model.selection == BarRange(3, 4))
+        var pointer = EditPointer()
+        // 고른 구간 안을 눌러 아래(결과 쪽)로 끌면 넣기. 결과 위를 지나는 동안 놓을 자리를 보여 준다
+        pointer.source(model, from: 6, to: 6.1, inRuler: false, moved: 2, rise: 6)
+        #expect(pointer.mode == .carry && model.insertPreview == nil && model.selection == BarRange(3, 4))
+        pointer.source(model, from: 6, to: 6.3, inRuler: false, moved: 8, rise: 120, output: 7)
+        #expect(model.insertPreview == EditInsertion(offset: 2, range: BarRange(3, 4)))
+        pointer.endSource(model, at: 6.3)
+        #expect(model.entries.map(\.range) == [BarRange(1, 2), BarRange(5, 6), BarRange(3, 4), BarRange(9, 10)])
+        #expect(model.selectedIndex == 2 && model.insertPreview == nil && pointer.mode == nil && undo.undoActionName == "구간 넣기")
+        // 결과 밖에서 놓으면 넣지 않는다
+        pointer.source(model, from: 5, to: 5, inRuler: false, moved: 0, rise: 10)
+        pointer.source(model, from: 5, to: 5, inRuler: false, moved: 0, rise: 30, output: nil)
+        pointer.endSource(model, at: 5)
+        #expect(model.entries.count == 4 && model.insertPreview == nil)
+        // 고른 구간 밖에서 아래로 끌면 누르기(재생선), 안에서 옆으로 끌면 예전처럼 새로 고르기
+        pointer.source(model, from: 12, to: 12.2, inRuler: false, moved: 1, rise: 20)
+        pointer.endSource(model, at: 12.2)
+        #expect(model.position(.source) == 12.2 && model.selection == BarRange(3, 4))
+        pointer.source(model, from: 6, to: 10.4, inRuler: false, moved: 60, rise: 2)
+        pointer.endSource(model, at: 10.4)
+        #expect(model.selection == BarRange(4, 5) && model.entries.count == 4)
+        undo.undo()
+        #expect(model.entries.map(\.range) == [BarRange(1, 2), BarRange(5, 6), BarRange(9, 10)])
+    }
+
+    @Test func 줄마다_확대하고_가로로_스크롤한다() async throws {
+        let h = try EditHarness()
+        defer { h.remove() }
+        let model = try await h.loaded()
+        let length = model.duration
+        // 보이는 재생선(10초)을 그 자리에 두고 4배. 결과 줄은 그대로
+        model.seek(.source, to: 10)
+        model.zoom(.source, by: 4)
+        let zoomed = model.viewport(.source).visible(length: length)
+        #expect(abs(model.viewport(.source).scale(length: length) - 4) < 1e-9 && zoomed.contains(10))
+        #expect(abs(model.viewport(.source).x(of: 10, width: 400, length: length) - 10 / 20.5 * 400) < 1e-6)
+        #expect(model.viewport(.output) == EditViewport())
+        // 가장 가깝게는 2마디(4초)
+        model.zoom(.source, by: 100)
+        let closest = model.viewport(.source).visible(length: length)
+        #expect(abs(closest.upperBound - closest.lowerBound - 4) < 1e-9)
+        model.scroll(.source, by: 100)
+        #expect(model.viewport(.source).visible(length: length) == 16.5...20.5)
+        // 재생선을 보이지 않는 자리로 옮기면(←→·Home 등) 따라 넘긴다
+        model.seek(.source, to: 2)
+        #expect(model.viewport(.source).visible(length: length) == 0...4)
+        model.focus = .source
+        model.step(bars: 2)
+        #expect(model.position(.source) == 4.5 && model.viewport(.source).visible(length: length).contains(4.5))
+        // 키: = 확대, − 축소, 0 전체(⌘가 붙은 키는 보기 › 글자 크기 메뉴에 맡긴다)
+        #expect(TrackEditCommand(keyCode: 24, modifiers: []) == .zoom(in: true) && TrackEditCommand(keyCode: 24, modifiers: .shift) == .zoom(in: true))
+        #expect(TrackEditCommand(keyCode: 69, modifiers: []) == .zoom(in: true) && TrackEditCommand(keyCode: 27, modifiers: []) == .zoom(in: false))
+        #expect(TrackEditCommand(keyCode: 78, modifiers: []) == .zoom(in: false) && TrackEditCommand(keyCode: 29, modifiers: []) == .fit)
+        #expect(TrackEditCommand(keyCode: 24, modifiers: .command) == nil && TrackEditCommand(keyCode: 27, modifiers: .command) == nil)
+        #expect(TrackEditCommand(keyCode: 29, modifiers: .command) == nil)
+        #expect(TrackEditCommand.zoom(in: false).perform(on: model))
+        #expect(abs(model.viewport(.source).scale(length: length) - 20.5 / 8) < 1e-9)
+        #expect(TrackEditCommand.fit.perform(on: model) && model.viewport(.source) == EditViewport())
+        // 결과가 없으면 결과 줄은 확대할 것이 없다
+        model.focus = .output
+        #expect(!TrackEditCommand.zoom(in: true).perform(on: model) && model.viewport(.output) == EditViewport())
+    }
+
+    @Test func 재생선이_보이는_자리를_넘으면_다음_쪽으로_넘긴다() async throws {
+        let h = try EditHarness()
+        defer { h.remove() }
+        let model = try await h.loaded()
+        let length = model.duration
+        model.seek(.source, to: 0)
+        model.zoom(.source, by: 100)
+        #expect(model.viewport(.source).visible(length: length) == 0...4)
+        model.play(.source)
+        h.player.elapsed = 4.5
+        // 오른쪽 끝을 넘으면 재생선을 왼쪽 10% 자리에
+        try await until { model.viewport(.source).visible(length: length).lowerBound > 4 }
+        #expect(abs(model.viewport(.source).visible(length: length).lowerBound - 4.1) < 0.05)
+        // 재생 중에 다른 곳을 보고 있으면 끌어오지 않는다
+        model.scroll(.source, to: 12)
+        h.player.elapsed = 5
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(model.viewport(.source).visible(length: length) == 12...16 && model.playing == .source)
+        model.pause()
+    }
+
     @Test func 편집_창_단축키는_키_위치로_정한다() async throws {
         #expect(TrackEditCommand(keyCode: 49, modifiers: []) == .togglePlay)
         #expect(TrackEditCommand(keyCode: 124, modifiers: [.numericPad, .function]) == .step(1))
