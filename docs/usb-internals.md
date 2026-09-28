@@ -798,6 +798,44 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
   - `--cue-variant`: 새 폴더에 파일을 복사하고 그쪽 `.DAT`의 핫큐 A 위치만 바꾼다(인코더로 원래 핫큐 목록을 다시 만든 바이트가 원본과 같을 때만). DB는 새 폴더.
   - `--decoy-slot0`(`--folder` 없음): 원래 폴더의 `ANLZ0000`은 PPTH만 바꾼 가짜, 진짜는 `ANLZ0001`, DB는 `ANLZ0001.DAT`.
 
+### 8.3 수정(`UsbEditSession`, `UsbEditEngine`, `djc usb-edit`)
+
+이미 라이브러리가 있는 USB에 곡 더하기·빼기·갱신과 재생 목록 편집 8종을 쓴다. 편집은 초안(`usb-drafts/<볼륨 UUID>.json`, 만든 때의 USB DB 지문 `base`)으로 쌓거나 편집 파일로 주고, 반영 때 한 번에 쓴다. 명령과 편집 JSON 모양은 `docs/cli.md`의 "USB 수정".
+
+**순서**(세션): 원본(라이브 master.db 거부) → 볼륨(수정 목적의 볼륨 정책·보호 폴더·실물 관문 — 막히면 USB를 열거하지 않는다) → 저널(닫히지 않은 쓰기는 `recoveryNeeded`, 닫힌 저널의 ID highWater를 이어 받는다) → USB DB 사본(`UsbSnapshot`, 남은 `-wal`·hot `-journal`은 사본에서 합친다) → 읽기·합치기 → (곡 더하기·갱신이 있으면) 세션 전용 로컬 사본(`usb-snapshots/local-<세션>/`, 받은 사본에서 `force`로, 끝나면 지운다) → 계획·준비(`UsbEditEngine.plan`) → 확인 안 된 규칙 → `UsbWriter.write`(검사기 `UsbEditInspector`, 검증기 목표 지문·쓴 형식의 모델·불변식). 초안의 base가 지금과 다르거나 회복이 `needsReplan`으로 닫은 볼륨이면 지금 USB 상태로 계획하고 "USB가 그 사이 바뀌어 다시 계획했습니다"를 알린다(옛 계획을 그대로 쓰는 길은 없다).
+
+**USB 전체 막힘**(모든 편집을 막는다): 곡이 한 형식에만 있거나 같은 id가 다른 파일(`formatTrackMismatch`), 같은 id 재생 목록의 이름·부모·종류가 형식마다 다름(`formatPlaylistConflict` — 합친 모델에 OneLibrary 목록만 남아 고쳐 쓰면 Device Library 목록을 잃는다), 사본 무결성·암호 검사 실패·pdb를 읽지 못함(`libraryCorrupt`), OneLibrary 호환 검사 실패(`oneLibraryUnsupported`), 볼륨 정책(수정 목적 — exFAT·GPT 등은 "이 USB 형식(…)은 아직 고칠 수 없습니다"). 고칠 수 있는 형식이 하나도 없으면(예: Device Library만 있는데 막힘) 그 형식 막힘으로 멈춘다.
+
+**Device Library만 막힘**(그 형식은 그대로 두고 OneLibrary는 쓴다): 두 pdb 머리 0x10 ≠ 5(`pdbNotClosed` — rekordbox에 연결했다가 정상으로 꺼내면 풀린다), 기기 기록·모르는 표의 산 행(export 9·10·11·12·14·15, exportExt 0·1·2·5·6·8 — `carriedDeviceRows`), 왕복 검사(`PdbRoundTrip.check`, 구조 문제·My Tag 연결 포함) 실패(`pdbRoundTripFailed`, 첫 문제를 적는다). USB에 이미 있는 기기 행을 새 파일로 옮기는 일은 아직 하지 않는다(그 USB의 Device Library 편집을 막음). ANLZ 태그를 바이트 그대로 옮기는 것은 rekordbox 자신의 내보내기와 같은 동작이 골든으로 확인됐기 때문이고, 기기 행은 뜻을 모른다는 점이 다르다. 한 형식이 막힌 채 곡을 빼면 그 형식은 곡을 아직 가리키므로 파일 지우기를 미루고(`deferred`) 다음 USB 읽기에서 두 형식 곡이 달라 편집이 막힌다(rekordbox에서 다시 내보내 푼다).
+
+**연산별**(편집 하나가 막히면 그 편집만 빼고 나머지를 쓴다. 대상이 없으면 `targetMissing`):
+
+- 곡 빼기(`editRemoveTracks`): 기기 재생 기록(OneLibrary `history_content`·pdb 표 12)이 가리키는 곡은 막는다(`historyReferenced`). 남는 곡이 0이 되는 형식이 있으면 막는다(`lastTrack`). 행은 content(두 형식)·모든 목록 항목(형식마다 그 목록의 항목에서, 1..N 다시)·My Tag 연결을 빼고, 새로 고아가 된 artist·album·genre·key·label·image 행을 치운다(색·메뉴·카테고리·정렬·My Tag 정의는 USB 값 그대로). 곡 수 칸을 고치고, 지운 id는 다시 쓰지 않는다(저널 highWater). OneLibrary 단계에서 기기 큐·추천 행이 그 곡을 가리키면 그 편집만 되돌린다.
+- 곡 갱신(`editRefreshTracks`, 부분 `info`·`cues`·`grid`·`artwork`): 로컬 짝은 `UsbTrackMatch`(이 곡을 내보낸 라이브러리의 DB ID·곡 ID·파일 이름 NFC가 같은 곡 하나). 짝이 없으면 막는다. `UsbSyncStatus`: 기기에서 고친 곡(OneLibrary hasModified = 1 또는 기기 큐 행)은 통째로 건너뛰고 알리고, 로컬과 같으면 `unchanged`. 로컬 음원의 크기·SHA-1이 USB 파일과 다르면 막는다(`audioChanged` — 음원은 다시 쓰지 않는다). 기존 곡의 음원·분석 파일 경로는 바꾸지 않는다(아티스트 이름이 바뀌어도).
+  - `info`: 곡 정보 칸을 로컬 값으로(평점·재생 수·hasModified·기록은 USB 값). 이름이 바뀐 아티스트·앨범·장르·키·레이블은 USB에 NFC로 정확히 같은 이름 행이 있으면 그 행, 없으면 새 id, 고아가 된 옛 행은 치운다.
+  - `cues`·`grid`: 로컬 분석 파일 + djmdCue를 §4처럼 바꿔 DB에 적힌 자리(폴더·번호 그대로)의 셋을 덮어쓴다. 덮어쓸 USB 파일의 PPTH가 그 곡 경로여야 한다(아니면 그 곡 분석 파일은 고치지 않고 알린다). 갱신 횟수 칸도 로컬 값. 스냅샷 시각 뒤에 로컬 분석 파일이 바뀐 곡은 막는다(`analysisNewerThanSnapshot`).
+  - `artwork`: 로컬 그림이 바뀌었으면 같은 image id·폴더의 a·b·_m을 덮어쓴다(형식별로 a는 Device Library, b는 OneLibrary). 그림이 새로 생긴 곡이나 다른 곡과 함께 쓰던 그림은 새 image id를 마지막 아트워크 폴더에 이어 둔다.
+  - Device Library를 쓰면 바뀐 곡의 트랙 행을 미리 만들어 본다(행 크기·확장자·ISRC·칸 범위·긴 이름, §7.12의 곡 막힘과 같은 code).
+- 곡 더하기(`editAddTracks`): 내보내기 계획기(`UsbExportPlanner`)에 지금 USB 상태(`UsbExistingState` — `Contents/` 이름·철자, ID highWater, 아트워크 폴더 사용량과 마지막 폴더, 새 곡 번호 범위의 분석 폴더 번호·PPTH)를 주고 `UsbLibraryBuilder.add`로 더한다(이름 행은 NFC로 같은 이름이면 다시 쓴다 [추정]). 분석 폴더는 `IdentifierAnalysisNaming` + `UsbAnalysisSlot`(PPTH가 다른 파일이 있으면 다음 번호, `analysisSlotCollision`). 곡 단위 막힘(§7.12의 5)과 이미 USB에 있는 곡(`alreadyOnUsb`)은 빼고 더한다. `playlist`를 주면 그 목록 끝에 넣는다(항목 편집 규칙).
+- 재생 목록(`editPlaylists`): 아래 두 형식 목록 규칙. 만들기는 `playlistSiblingBase`, 폴더면 `playlistFolderRow`.
+- 긴 ASCII(127자 이상 순수 ASCII): 편집이 만들거나 바꾸는 pdb 문자열(더한 곡의 경로·파일 이름·곡 문자열·이름, 갱신한 곡의 문자열과 기존 경로·파일 이름, 목록 이름)을 `UsbTrackRules.pdbStringRules`로 보고, 작성기가 실제로 UTF-16으로 쓴 것(`PdbFiles.rules` — 편집하지 않은 기존 행 포함)을 한 번 더 합친다(`pdbLongAscii`).
+
+**두 형식 목록 규칙**:
+
+- 편집하지 않은 목록은 형식마다 있던 그대로 다시 쓴다(항목이 다른 목록을 맞추지 않는다, 알림 "형식 사이 목록 불일치 N").
+- 만들기: 새 id = 두 형식 모두에서 가장 큰 값 + 1(지난 쓰기 highWater 포함). 목록이 있는 형식 = USB에 있고 이번에 막히지 않은 형식(부모 폴더가 있는 형식). 형제 순번 = 그 부모의 형제 가장 큰 값 + 1(시작값 0·1을 그대로 따른다), 형제가 없으면 0. 순서 바꾸기는 형제의 시작값에서 다시 매긴다.
+- 이름·옮기기·순서·지우기(폴더면 안까지): 그 목록이 있는 형식에(막힌 형식 빼고). 옮기기는 새 부모의 맨 끝, 자기 안으로 옮기기·목록 안에 넣기는 막는다.
+- 항목 편집(곡 넣기·빼기·옮기기): 목록이 있는 형식의 항목이 모두 같은 목록만 두 형식에 같은 결과로(다르면 `playlistEntriesDiffer`). `trackNo`는 1부터의 자리, `contentID`는 그 자리의 USB 곡 — 다르면 막는다. 고친 목록의 OneLibrary `playlist_content`는 그 목록 행을 지우고 1..N으로 다시 넣는다.
+- 한 형식에만 있는 목록·기록은 다른 형식에 만들지 않는다.
+
+**쓰기**: OneLibrary는 준비 폴더의 USB DB 사본에 편집마다 한 단계(`OneLibraryWriter.apply`, SAVEPOINT — SQL이 실패한 편집은 그 단계만 되돌리고 `applyFailed`로 막는다). 단계는 계획 때 id까지 정한 편집을 받은 모델에 다시 적용하므로, 앞 편집이 건너뛰어져 전제(대상·행)가 없으면 그 편집도 건너뛴다. Device Library는 **적용 결과 모델**(`r.applied`)에서 새로 만든다(`PdbWriter.files(.edit(옛 머리 순번))` → `PdbRoundTrip.check` → 다시 읽은 모델 = 작성기 모델(`PdbFiles.written`)). 그래서 두 형식에는 같은 편집 집합만 들어간다. 모델이 바뀌지 않은 형식은 다시 쓰지 않는다. 변경 묶음: `purpose .edit`, `base` = 사본 지문, 확인 안 된 규칙 = 연산 규칙 ∪ 곡 규칙 ∪ 분석 파일 규칙 ∪ 작성기 규칙 ∪ `pdbRegeneratedEdit`(pdb를 쓰면) ∪ `trackRemovalFiles`(지울 파일이 있으면), ID highWater. `UsbEditInspector`는 A 단계에서 한 번 더 본다: 수정은 있던 DB만 바꾸고(`editCreatesDatabase`), pdb를 바꾸면 두 pdb 머리 0x10 = 5.
+
+**파일 지우기**: 지울 파일 = 편집 전 참조 − 편집 뒤 참조. 참조는 두 형식 합집합(막혀서 안 고친 형식의 참조도 넣는다)이고 음원 경로, 분석 파일 `.DAT`와 형제 `.EXT`·`.2EX`, 아트워크 그림과 `_m`이다. 한 형식이 막혀 있으면 모두 미룬다. 같은 음원을 다른 곡이 가리키면 지우지 않는다. 계획에 USB 실파일의 크기·SHA-256을 적고(사본이 아니라 USB 파일을 읽는다), 분석 파일은 셋의 PPTH가 그 곡일 때만(아니면 셋 모두 남기고 "분석 파일이 다른 곡 것이라 지우지 않았습니다"), 음원은 로컬 원본의 크기·SHA-1이 같을 때만(되돌릴 때 원본에서 다시 복사한다, 아니면 남기고 알린다) 넣는다. 허용 목록(`UsbRemovalPolicy`) 밖·기기 파일(다른 곡 PPTH의 분석 파일, `USBMNG.DAT`·`RBFLTR.DAT`·`log/`·`export.pdb.bak`)·모르는 파일은 지우지 않는다. 쓰기 절차의 F 단계가 같은 조건을 다시 본다(§7).
+
+**표별 출처**: 보존(USB 값 그대로) — 메뉴·카테고리·정렬·색, My Tag 정의, property의 createdDate·myTagMasterDBID·deviceName·backGroundColorType, pdb 표 19 날짜, 기기 행(기록·큐·추천·핫큐 뱅크), 곡의 기기 칸(평점·재생 수·hasModified). 한 형식에만 있는 칸은 지우지 않는다: 합친 모델이 pdb 전용 칸(작사가 글자, 카테고리 InfoOrder·Disable, 정렬 Disable, 표 19 날짜·두 번째 문자열, 트랙 행 관찰값)을 pdb 값으로 들고 있고 편집은 그 값을 그대로 넘긴다(편집한 곡의 `info` 갱신만 로컬 값으로). OneLibrary 전용 칸(titleForSearch·artist·album nameForSearch·album·playlist image_id 등)은 고치지 않는 칸이라 USB 값 그대로다. 갱신: 곡 수 칸(property.numberOfContents, 표 19).
+
+**불변식 8**(형식마다): 편집 결과 USB를 읽은 모델 = 편집 뒤 모델을 새로 내보낸 모델. 예외는 ID, 보존한 행·표, pdb 순번, 기존 곡 파일 경로. `djc lab usb-rebuild` + `djc lab usb-diff --ignore-ids`로 본다(차이 0). 시험: `UsbEditInvariantTests`.
+
 ## 9. 확인 안 된 규칙
 
 | 규칙 | 지금 값 | 표시 조건 |
