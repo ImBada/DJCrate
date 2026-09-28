@@ -250,6 +250,8 @@ final class DeckModel {
     var loadTask: Task<Void, Never>?
     var waveformTask: Task<Waveform, Error>?
     var resumeAfterScrub = false
+    /// 확대 파형을 끄는 동안의 기준점(놓으면 nil). 끄는 도중 핫큐로 옮기면 기준도 옮긴다(#133).
+    @ObservationIgnored var scrubAnchor: ScrubAnchor?
     var seekRestartTask: Task<Void, Never>?
 
     init(audio: any DeckAudioEngine = DeckAudio(), storage: DeckStorage = .live, runsAnalysis: Bool = true) {
@@ -387,7 +389,7 @@ final class DeckModel {
         originalGrid = nil; gridDraft = nil; grid = nil; gridBPM = nil; gridEditBlockedReason = nil
         hasRekordboxGrid = false; timelineOffset = 0; gridSuggestion = nil; gridSuggestionNote = nil; suggestedGrid = nil
         suggestionTask?.cancel()
-        gridDragBase = nil; tapBPM = nil; taps = []; resumeAfterScrub = false; isCuePreviewing = false
+        gridDragBase = nil; tapBPM = nil; taps = []; resumeAfterScrub = false; scrubAnchor = nil; isCuePreviewing = false
         if !sameTrack { selectedCueID = nil; playhead = 0; cuePoint = 0; placeAtFirstMemoryCue = true }
         duration = Double(row?.track.lengthSeconds ?? 0)
         canPlay = false
