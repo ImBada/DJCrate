@@ -214,6 +214,27 @@ struct LibraryReadTests {
         #expect(try LibraryRead.resolve(database: copyAlias, liveDatabase: live) == copyAlias)
     }
 
+    /// 임시 폴더는 `/tmp`·`/private/tmp` 두 표기로 불린다(#136). 표기가 달라도 라이브는 막고 사본은 연다.
+    @Test(arguments: ["/tmp", "/private/tmp"])
+    func 임시_폴더의_다른_표기로_줘도_라이브_DB를_막고_사본은_연다(_ parent: String) throws {
+        let fixture = try RekordboxFixture(parent: URL(filePath: parent))
+        let alias = { (url: URL) in
+            URL(filePath: url.path.hasPrefix("/private/") ? String(url.path.dropFirst("/private".count)) : "/private" + url.path)
+        }
+        let fm = FileManager.default
+        let live = fixture.root.appending(path: "live/master.db")
+        try fm.createDirectory(at: live.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data().write(to: live)
+        let link = fixture.root.appending(path: "link.db")
+        try fm.createSymbolicLink(at: link, withDestinationURL: alias(live))
+        for candidate in [alias(live), link] {
+            #expect(throws: ReadFailure.self) { try LibraryRead.resolve(database: candidate, liveDatabase: live) }
+        }
+        let copy = fixture.root.appending(path: "copy.db")
+        try fm.copyItem(at: live, to: copy)
+        #expect(try LibraryRead.resolve(database: alias(copy), liveDatabase: live) == alias(copy))
+    }
+
     @Test func 라이브_DB가_없어도_경로와_끊어진_링크를_차단한다() throws {
         let fixture = try RekordboxFixture()
         let fm = FileManager.default

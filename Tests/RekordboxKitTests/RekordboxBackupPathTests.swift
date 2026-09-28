@@ -8,8 +8,8 @@ import Testing
 struct RekordboxBackupPathTests {
     let relative = "PIONEER/USBANLZ/abc/def/ANLZ0000.DAT"
 
-    func setup() throws -> (RekordboxFixture, URL, URL) {
-        let fixture = try RekordboxFixture()
+    func setup(parent: URL = FileManager.default.temporaryDirectory) throws -> (RekordboxFixture, URL, URL) {
+        let fixture = try RekordboxFixture(parent: parent)
         var track = TrackSpec(id: "1", uuid: "abcdef")
         track.analysisDataPath = "/" + relative
         track.imagePath = "/PIONEER/Artwork/abc/def/artwork.jpg"
