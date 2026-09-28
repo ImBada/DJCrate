@@ -513,6 +513,7 @@ SOFTWARE.
 - 원문: [LICENSE](https://github.com/M-Igashi/baken/blob/eecb4f798c661ac3a285ab1894ad4257ee923621/LICENSE)
 - DJCrate에서 쓰는 곳: `Sources/RekordboxKit/AnlzWaveform.swift`의 파형 규칙.
 - 규칙 출처: [PR #148](https://github.com/M-Igashi/baken/pull/148)
+- 참고한 규칙: 127자 이상 순수 ASCII 문자열을 UTF-16으로 쓰는 선택(코드는 옮기지 않음)
 
 ````text
 MIT License
