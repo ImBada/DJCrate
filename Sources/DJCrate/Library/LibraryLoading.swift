@@ -7,6 +7,31 @@ import Observation
 
 /// 백그라운드에서 만드는 로드 결과.
 struct LoadedLibrary: Sendable {
+    enum Stage: String, Sendable {
+        case database, music, iTunes, tracks
+
+        var message: String {
+            switch self {
+            case .database: String(ui: "rekordbox 라이브러리를 읽는 중…")
+            case .music: String(ui: "Music 보관함을 읽는 중…")
+            case .iTunes: String(ui: "iTunes 목록 사본을 읽는 중…")
+            case .tracks: String(ui: "곡 목록을 준비하는 중…")
+            }
+        }
+
+        func measure<Value>(progress: (Stage) -> Void, _ operation: () throws -> Value) rethrows -> Value {
+            progress(self)
+            let started = ContinuousClock.now
+            defer { logElapsed(since: started) }
+            return try operation()
+        }
+
+        func logElapsed(since started: ContinuousClock.Instant) {
+            // 개인 경로·곡·목록 정보 없이 DB와 Music 대기 시간을 구분한다.
+            FileHandle.standardError.write(Data("라이브러리 단계 \(rawValue) · \(ContinuousClock.now - started)\n".utf8))
+        }
+    }
+
     struct ITunesFallback: Sendable {
         let source: URL
         let contents: ITunesLibrarySnapshot
@@ -33,46 +58,18 @@ struct LoadedLibrary: Sendable {
                      fallbackDirectory: URL = LibrarySnapshot.defaultDirectory,
                      refreshTicket: ITunesRefreshCoordinator.Ticket? = nil,
                      sourceDatabase: URL? = nil,
+                     progress: @Sendable (Stage) -> Void = { _ in },
                      captureITunes: () -> ITunesLibrarySnapshot = { RekordboxITunesReader.capture() }) throws -> LoadedLibrary {
         let refreshTicket = refreshTicket ?? ITunesRefreshCoordinator.shared.begin(snapshot: snapshot, sourceDatabase: sourceDatabase)
-        let library = try RekordboxLibrary.load(snapshot: snapshot)
+        let library = try Stage.database.measure(progress: progress) { try RekordboxLibrary.load(snapshot: snapshot) }
         let tracks = library.tracks
-        let captured = refreshITunes ? captureITunes() : nil
-        let iTunes = ITunesRefreshCoordinator.shared.commit(refreshTicket, snapshot: snapshot, current: {
-            let current = Self.currentITunesSnapshot(snapshot: snapshot, sourceDatabase: sourceDatabase)
-            return Self.recoverCurrentSelection(current, snapshot: snapshot, sourceDatabase: sourceDatabase,
-                                                previous: previousITunesSnapshot)
-        }) {
-            let local = ITunesLibrarySnapshot.load(for: snapshot)
-            let rawCurrent = Self.currentITunesSnapshot(snapshot: snapshot, sourceDatabase: sourceDatabase)
-            let current = captured == nil
-                ? Self.recoverCurrentSelection(rawCurrent, snapshot: snapshot, sourceDatabase: sourceDatabase,
-                                               previous: previousITunesSnapshot) : rawCurrent
-            var result: ITunesLibrarySnapshot
-            if let captured {
-                result = captured.status == .ready ? captured : staleITunesSnapshot(current: current, snapshot: snapshot,
-                    previous: previousITunesSnapshot, fallbackDirectory: fallbackDirectory,
-                    sourceDatabase: sourceDatabase)
-            } else {
-                result = current
-            }
-            if let syncURL = Self.syncURL(snapshot: snapshot, sourceDatabase: sourceDatabase), result.status == .ready {
-                do { result = try result.applyingRekordboxSelection(Data(contentsOf: syncURL)) }
-                catch { result.status = .stale }
-            }
-            let shouldSave = captured != nil || (sourceDatabase != nil && result.syncData != local.syncData)
-            if result.status == .ready && shouldSave {
-                do { try result.save(for: snapshot) }
-                catch {
-                    if captured != nil {
-                        result = staleITunesSnapshot(current: current, snapshot: snapshot,
-                                                     previous: previousITunesSnapshot, fallbackDirectory: fallbackDirectory,
-                                                     sourceDatabase: sourceDatabase)
-                    }
-                }
-            }
-            return result
-        }
+        let iTunes = loadITunes(snapshot: snapshot, refreshITunes: refreshITunes,
+                                previousITunesSnapshot: previousITunesSnapshot, fallbackDirectory: fallbackDirectory,
+                                refreshTicket: refreshTicket, sourceDatabase: sourceDatabase,
+                                progress: progress, captureITunes: captureITunes)
+        progress(.tracks)
+        let tracksStarted = ContinuousClock.now
+        defer { Stage.tracks.logElapsed(since: tracksStarted) }
         // 변속 흐름: 분석 파일의 그리드를 병렬로 훑는다(7천 곡 약 0.2~0.7초).
         let tempo = TempoScan(count: tracks.count)
         DispatchQueue.concurrentPerform(iterations: tracks.count) { i in
@@ -108,6 +105,70 @@ struct LoadedLibrary: Sendable {
                              iTunesLibrary: SyncedITunesLibrary(snapshot: iTunes, tracks: tracks), iTunesSnapshot: iTunes)
     }
 
+    /// DB를 다시 읽지 않고 Music 결과만 채택한다. 캡처 전 발급한 요청 순서로 늦은 결과를 거른다.
+    /// - Parameter alreadyCaptured: 따로 끝낸 Music 조회 결과. 있으면 여기서 다시 조회하지 않는다.
+    static func loadITunes(snapshot: URL, refreshITunes: Bool = false,
+                           captured alreadyCaptured: ITunesLibrarySnapshot? = nil,
+                           previousITunesSnapshot: ITunesFallback? = nil,
+                           fallbackDirectory: URL = LibrarySnapshot.defaultDirectory,
+                           refreshTicket: ITunesRefreshCoordinator.Ticket? = nil,
+                           sourceDatabase: URL? = nil,
+                           progress: @Sendable (Stage) -> Void = { _ in },
+                           captureITunes: () -> ITunesLibrarySnapshot = { RekordboxITunesReader.capture() }) -> ITunesLibrarySnapshot {
+        let refreshTicket = refreshTicket ?? ITunesRefreshCoordinator.shared.begin(snapshot: snapshot, sourceDatabase: sourceDatabase)
+        let captured = refreshITunes ? alreadyCaptured ?? Stage.music.measure(progress: progress, captureITunes) : nil
+        progress(.iTunes)
+        let iTunesStarted = ContinuousClock.now
+        let iTunes = ITunesRefreshCoordinator.shared.commit(refreshTicket, snapshot: snapshot, current: {
+            let current = Self.currentITunesSnapshot(snapshot: snapshot, sourceDatabase: sourceDatabase)
+            return Self.recoverCurrentSelection(current, snapshot: snapshot, sourceDatabase: sourceDatabase,
+                                                previous: previousITunesSnapshot)
+        }) {
+            let local = ITunesLibrarySnapshot.load(for: snapshot)
+            let rawCurrent = Self.currentITunesSnapshot(snapshot: snapshot, sourceDatabase: sourceDatabase)
+            let current = captured == nil
+                ? Self.recoverCurrentSelection(rawCurrent, snapshot: snapshot, sourceDatabase: sourceDatabase,
+                                               previous: previousITunesSnapshot) : rawCurrent
+            var result: ITunesLibrarySnapshot
+            if let captured {
+                result = captured.status == .ready ? captured : staleITunesSnapshot(current: current, snapshot: snapshot,
+                    previous: previousITunesSnapshot, fallbackDirectory: fallbackDirectory,
+                    sourceDatabase: sourceDatabase)
+            } else {
+                result = current
+                // 쓰기 후 Music을 다시 읽지 않아도, 끝난 작업을 '스냅샷을 뜨는 중'으로 남기지 않는다.
+                if result.status == .notCaptured, let previous = previousITunesSnapshot,
+                   previous.preferOverCurrent,
+                   sameSource(previous, snapshot: snapshot, sourceDatabase: sourceDatabase),
+                   previous.contents.status == .notCaptured || previous.contents.status == .unavailable {
+                    result.status = .unavailable
+                }
+            }
+            if let syncURL = Self.syncURL(snapshot: snapshot, sourceDatabase: sourceDatabase), result.status == .ready {
+                do { result = try result.applyingRekordboxSelection(Data(contentsOf: syncURL)) }
+                catch { result.status = .stale }
+            }
+            let shouldSave = captured != nil || (sourceDatabase != nil && result.syncData != local.syncData)
+            // 새 DB 사본에도 재사용한 목록을 남긴다. 같은 초에 교체되거나 정상 자료가 낡음 상태여도 보존한다.
+            let reusedSnapshot = captured == nil && previousITunesSnapshot.map {
+                sameSource($0, snapshot: snapshot, sourceDatabase: sourceDatabase)
+            } == true && result != local && (result.status == .ready || result.status == .stale)
+            if (result.status == .ready && shouldSave) || reusedSnapshot {
+                do { try result.save(for: snapshot) }
+                catch {
+                    if captured != nil {
+                        result = staleITunesSnapshot(current: current, snapshot: snapshot,
+                                                     previous: previousITunesSnapshot, fallbackDirectory: fallbackDirectory,
+                                                     sourceDatabase: sourceDatabase)
+                    }
+                }
+            }
+            return result
+        }
+        Stage.iTunes.logElapsed(since: iTunesStarted)
+        return iTunes
+    }
+
     private static func currentITunesSnapshot(snapshot: URL, sourceDatabase: URL?) -> ITunesLibrarySnapshot {
         let local = ITunesLibrarySnapshot.load(for: snapshot)
         guard let sourceDatabase else { return applyingCurrentSelection(local, snapshot: snapshot, sourceDatabase: nil) }
@@ -133,11 +194,10 @@ struct LoadedLibrary: Sendable {
               previous.contents.status == .ready || previous.contents.status == .stale else { return current }
         let syncData = syncURL(snapshot: snapshot, sourceDatabase: sourceDatabase).flatMap { try? Data(contentsOf: $0) }
         let previousMatchesSync = syncData != nil && previous.contents.syncData == syncData
-        let local = ITunesLibrarySnapshot.load(for: snapshot)
-        let source = sourceDatabase.map { ITunesLibrarySnapshot.load(for: $0) }
-        let diskMatchesSync = syncData != nil && ([local, source].compactMap { $0 }).contains {
-            $0.status == .ready && $0.syncData == syncData
-        }
+        let diskMatchesSync = readySnapshotMatchesSync(snapshot: snapshot, sourceDatabase: sourceDatabase,
+                                                       syncData: syncData)
+        // 현재 선택과 맞는 정상 사본이 있으면 이전 메모리 선택의 강제 우선권도 적용하지 않는다.
+        if current.status == .ready && diskMatchesSync { return current }
         guard previous.preferOverCurrent || current.status != .ready
                 || (previousMatchesSync && !diskMatchesSync) else { return current }
         return applyingCurrentSelection(previous.contents, snapshot: snapshot, sourceDatabase: sourceDatabase)
@@ -156,6 +216,13 @@ struct LoadedLibrary: Sendable {
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
+    private static func readySnapshotMatchesSync(snapshot: URL, sourceDatabase: URL?, syncData: Data?) -> Bool {
+        guard let syncData else { return false }
+        let local = ITunesLibrarySnapshot.load(for: snapshot)
+        let source = sourceDatabase.map { ITunesLibrarySnapshot.load(for: $0) }
+        return ([local, source].compactMap { $0 }).contains { $0.status == .ready && $0.syncData == syncData }
+    }
+
     private static func applyingCurrentSelection(_ value: ITunesLibrarySnapshot, snapshot: URL,
                                                  sourceDatabase: URL?) -> ITunesLibrarySnapshot {
         guard value.status == .ready, let sync = syncURL(snapshot: snapshot, sourceDatabase: sourceDatabase) else { return value }
@@ -167,10 +234,15 @@ struct LoadedLibrary: Sendable {
                                             previous: ITunesFallback?, fallbackDirectory: URL,
                                             sourceDatabase: URL?) -> ITunesLibrarySnapshot {
         var fallback = current
-        if let previous, previous.preferOverCurrent,
+        let syncData = syncURL(snapshot: snapshot, sourceDatabase: sourceDatabase).flatMap { try? Data(contentsOf: $0) }
+        let hasCurrentReadySnapshot = current.status == .ready
+            && readySnapshotMatchesSync(snapshot: snapshot, sourceDatabase: sourceDatabase, syncData: syncData)
+        var usedPreferredPrevious = false
+        if let previous, previous.preferOverCurrent, !hasCurrentReadySnapshot,
            sameSource(previous, snapshot: snapshot, sourceDatabase: sourceDatabase),
            previous.contents.status == .ready || previous.contents.status == .stale {
             fallback = previous.contents
+            usedPreferredPrevious = true
         }
         if fallback.status != .ready && fallback.status != .stale {
             // 명시한 이전 사본은 같은 스냅샷 폴더일 때만 쓴다. 서로 다른 DB 출처를 섞지 않는다.
@@ -191,7 +263,7 @@ struct LoadedLibrary: Sendable {
         guard fallback.status == .ready || fallback.status == .stale else { return ITunesLibrarySnapshot(status: .unavailable) }
         fallback.status = .stale
         // 새 DB 사본에만 낡음 표시를 저장한다. 기존 정상/손상 sidecar는 실패로 덮어쓰지 않는다.
-        if current.status == .notCaptured || previous?.preferOverCurrent == true { try? fallback.save(for: snapshot) }
+        if current.status == .notCaptured || usedPreferredPrevious { try? fallback.save(for: snapshot) }
         return fallback
     }
 }

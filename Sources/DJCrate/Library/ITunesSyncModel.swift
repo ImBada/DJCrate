@@ -10,8 +10,16 @@ final class ITunesSyncModel {
     var database: URL?
     var isLoading = true
     var isSyncing = false
+    /// 뒤에서 Music 최신화가 도는 동안은 캐시를 보여 주되 쓰지 않는다. 끝나면 그 결과로 다시 연다.
+    var isWaitingForMusic = false
     var error: String?
-    var canSync: Bool { !isLoading && !isSyncing && source.status == .ready && source.syncData != nil && database != nil }
+    @ObservationIgnored private var loadSequence = 0
+    var canSync: Bool {
+        !isLoading && !isSyncing && !isWaitingForMusic && source.status == .ready && source.syncData != nil && database != nil
+    }
+    static var waitingForMusicMessage: String {
+        String(ui: "Music 보관함을 새로 읽는 중이니 목록이 최신으로 바뀐 뒤 동기화하세요.")
+    }
     var nodes: [ITunesSyncSelection.Node] { source.selectionNodes }
     var tree: [ITunesSyncOutline.Node] {
         guard let snapshot = try? source.applying(.init(selectedIDs: ["0"])) else { return [] }
@@ -23,18 +31,62 @@ final class ITunesSyncModel {
         return ITunesSyncOutline(playlists: snapshot.playlists)
     }
 
-    func load(store: LibraryStore) async {
+    func load(store: LibraryStore, forceRefresh: Bool = false,
+              arguments: [String] = ProcessInfo.processInfo.arguments,
+              environment: [String: String] = ProcessInfo.processInfo.environment,
+              captureITunes: @escaping @Sendable () -> ITunesLibrarySnapshot = {
+                  RekordboxITunesReader.capture()
+              }) async {
+        loadSequence += 1
+        let sequence = loadSequence
+        isWaitingForMusic = false
+        let previousSource = source
+        let previousSelection = selection
+        let hadSource = previousSource.status == .ready || previousSource.status == .stale
+        let selectionEdited = hadSource && previousSelection != previousSource.initialSelection
         isLoading = true
         error = nil
-        database = store.snapshotURL
-        let captured = await store.iTunesSyncSource()
-        guard !Task.isCancelled else { return }
-        source = captured
-        selection = source.initialSelection
-        if source.status == .ready, source.syncData == nil {
-            error = String(ui: "rekordbox 동기화 파일 사본이 없습니다. rekordbox에서 한 번 동기화한 뒤 새로고침하세요.")
+        let requestedDatabase = store.snapshotURL
+        let requestedRevision = store.previewRevision
+        database = requestedDatabase
+        let captured = await store.iTunesSyncSource(forceRefresh: forceRefresh, arguments: arguments,
+                                                     environment: environment, captureITunes: captureITunes)
+        guard sequence == loadSequence else { return }
+        guard !Task.isCancelled, store.iTunesSync === self, store.showingITunesSync else {
+            isLoading = false
+            return
+        }
+        guard store.snapshotURL == requestedDatabase, store.previewRevision == requestedRevision else {
+            database = nil
+            isLoading = false
+            error = String(ui: "라이브러리가 바뀌었거나 목록을 읽지 못했습니다. 동기화 창을 다시 여세요.")
+            return
+        }
+        if captured.status != .ready, hadSource {
+            source = previousSource
+            source.status = .stale
+            selection = previousSelection
+        } else {
+            source = captured
+            if selectionEdited {
+                let available = Set(source.selectionNodes.map(\.id)).union(["0"])
+                selection = ITunesSyncSelection(selectedIDs: previousSelection.selectedIDs.intersection(available))
+            } else {
+                selection = source.initialSelection
+            }
+            if source.status == .ready, source.syncData == nil {
+                error = String(ui: "rekordbox 동기화 파일 사본이 없습니다. rekordbox에서 한 번 동기화한 뒤 새로고침하세요.")
+            }
         }
         isLoading = false
+        // 최신화가 끝나기 전의 목록으로 쓰면 폴더 계층이 낡을 수 있다. 편집한 체크박스는 다시 열 때 남는다.
+        guard let refresh = store.currentITunesRefresh(snapshot: requestedDatabase, revision: requestedRevision) else { return }
+        isWaitingForMusic = true
+        await refresh.value
+        guard sequence == loadSequence else { return }
+        isWaitingForMusic = false
+        guard !Task.isCancelled, store.iTunesSync === self, store.showingITunesSync else { return }
+        await load(store: store, arguments: arguments, environment: environment, captureITunes: captureITunes)
     }
 
     func sync(store: LibraryStore) async -> Bool {

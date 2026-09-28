@@ -69,14 +69,15 @@ public enum RekordboxITunesReader {
 
     static func frameworkPlaylists() throws -> [ITunesLibrarySnapshot.Playlist] {
         let library = try ITLibrary(apiVersion: "1.0")
+        var locations = ITunesLocationCache()
+        // 선택 창에서 새 목록을 골라도 곡을 잃지 않게 전체 카탈로그는 유지한다.
         return library.allPlaylists.filter { !$0.isPrimary }.map { playlist in
             let id = String(playlist.persistentID.uint64Value, radix: 16, uppercase: true)
             let parent = playlist.parentID.map { String($0.uint64Value, radix: 16, uppercase: true) }
             return ITunesLibrarySnapshot.Playlist(id: id, name: playlist.name, parentID: parent,
                 isFolder: playlist.kind == .folder,
                 paths: playlist.kind != .folder ? playlist.items.map { item in
-                    guard let url = item.location, url.isFileURL else { return nil }
-                    return url.path
+                    locations.path(for: item.persistentID.uint64Value) { item.location }
                 } : [])
         }
     }

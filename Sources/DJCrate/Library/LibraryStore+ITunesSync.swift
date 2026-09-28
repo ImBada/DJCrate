@@ -10,13 +10,85 @@ extension LibraryStore {
     }
 
     /// 사본 실행에서는 Music에 접근하지 않고 함께 캡처한 전체 목록만 쓴다.
-    func iTunesSyncSource(arguments: [String] = ProcessInfo.processInfo.arguments,
-                          environment: [String: String] = ProcessInfo.processInfo.environment) async -> ITunesLibrarySnapshot {
+    func iTunesSyncSource(forceRefresh: Bool = false,
+                          arguments: [String] = ProcessInfo.processInfo.arguments,
+                          environment: [String: String] = ProcessInfo.processInfo.environment,
+                          captureITunes: @escaping @Sendable () -> ITunesLibrarySnapshot = {
+                              RekordboxITunesReader.capture()
+                          }) async -> ITunesLibrarySnapshot {
         if Self.explicitDatabaseRequested(arguments: arguments, environment: environment)
             || LibrarySnapshot.hasRekordboxDirectoryOverride(in: environment) {
             return iTunesSnapshot
         }
-        return await Task.detached(priority: .userInitiated) { RekordboxITunesReader.capture() }.value
+        guard let snapshot = snapshotURL else { return ITunesLibrarySnapshot(status: .unavailable) }
+        let revision = previewRevision
+        let epoch = iTunesSyncCatalogEpoch
+        let sourceDirectory = LibrarySnapshot.sameDirectory(snapshot.deletingLastPathComponent(),
+                                                             LibrarySnapshot.defaultDirectory(in: environment))
+            ? LibrarySnapshot.rekordboxDirectory(in: environment) : snapshot.deletingLastPathComponent()
+
+        if !forceRefresh {
+            if let cached = iTunesSyncCatalogCache, cached.snapshot == snapshot, cached.revision == revision,
+               cached.epoch == epoch,
+               cached.sourceDirectory == sourceDirectory,
+               Self.isCurrentITunesCatalog(cached.contents, directory: sourceDirectory) {
+                return cached.contents
+            }
+            if Self.isCurrentITunesCatalog(iTunesSnapshot, directory: sourceDirectory) {
+                return iTunesSnapshot
+            }
+        }
+
+        // 뒤에서 도는 최신화가 같은 DB의 Music 전체 목록을 이미 읽는 중이면 그 결과를 함께 쓴다.
+        if let refresh = currentITunesRefresh(snapshot: snapshot, revision: revision) {
+            await refresh.value
+            guard snapshotURL == snapshot, previewRevision == revision else {
+                return ITunesLibrarySnapshot(status: .unavailable)
+            }
+            return iTunesSnapshot
+        }
+
+        // 쓸 수 있는 캐시가 없을 때만 진행 중인 Music 읽기를 함께 기다린다.
+        if let pending = iTunesSyncCapture, pending.snapshot == snapshot, pending.revision == revision,
+           pending.epoch == epoch, pending.sourceDirectory == sourceDirectory {
+            let captured = await pending.task.value
+            return currentITunesCatalogIfSuperseded(snapshot: snapshot, revision: revision,
+                                                     epoch: epoch, directory: sourceDirectory) ?? captured
+        }
+
+        let id = UUID()
+        let task = Task(priority: .userInitiated) {
+            (try? await Self.runBlockingLibraryWork(captureITunes)) ?? ITunesLibrarySnapshot(status: .unavailable)
+        }
+        iTunesSyncCapture = .init(id: id, snapshot: snapshot, revision: revision, epoch: epoch,
+                                  sourceDirectory: sourceDirectory, task: task)
+        let captured = await task.value
+        if iTunesSyncCapture?.id == id { iTunesSyncCapture = nil }
+        if let current = currentITunesCatalogIfSuperseded(snapshot: snapshot, revision: revision,
+                                                          epoch: epoch, directory: sourceDirectory) {
+            return current
+        }
+        if snapshotURL == snapshot, previewRevision == revision, iTunesSyncCatalogEpoch == epoch,
+           Self.isCurrentITunesCatalog(captured, directory: sourceDirectory) {
+            iTunesSyncCatalogCache = .init(snapshot: snapshot, revision: revision, epoch: epoch,
+                                            sourceDirectory: sourceDirectory, contents: captured)
+        }
+        return captured
+    }
+
+    private func currentITunesCatalogIfSuperseded(snapshot: URL, revision: Int, epoch: UInt64,
+                                                   directory: URL) -> ITunesLibrarySnapshot? {
+        guard snapshotURL != snapshot || previewRevision != revision || iTunesSyncCatalogEpoch != epoch else { return nil }
+        guard snapshotURL == snapshot, previewRevision == revision,
+              Self.isCurrentITunesCatalog(iTunesSnapshot, directory: directory) else {
+            return ITunesLibrarySnapshot(status: .unavailable)
+        }
+        return iTunesSnapshot
+    }
+
+    private static func isCurrentITunesCatalog(_ value: ITunesLibrarySnapshot, directory: URL) -> Bool {
+        value.status == .ready && value.sourcePlaylists != nil
+            && !RekordboxITunesReader.selectionChanged(since: value.syncData, directory: directory)
     }
 
     func syncITunesPlaylists(_ selection: ITunesSyncSelection, source: ITunesLibrarySnapshot, database: URL,
@@ -24,6 +96,10 @@ extension LibraryStore {
                              environment: [String: String] = ProcessInfo.processInfo.environment) async throws {
         guard !isLoading, !isWritingRekordbox, snapshotURL == database, source.status == .ready else {
             throw DJCError.writeRefused(String(ui: "라이브러리가 바뀌었거나 목록을 읽지 못했습니다. 동기화 창을 다시 여세요."))
+        }
+        // 최신화가 끝나기 전의 목록으로 쓰면 폴더 계층이 낡을 수 있다.
+        guard currentITunesRefresh(snapshot: database, revision: previewRevision) == nil else {
+            throw DJCError.writeRefused(ITunesSyncModel.waitingForMusicMessage)
         }
         guard let base = source.syncData else {
             throw DJCError.writeRefused(String(ui: "rekordbox 동기화 파일 사본이 없습니다. rekordbox에서 한 번 동기화한 뒤 새로고침하세요."))

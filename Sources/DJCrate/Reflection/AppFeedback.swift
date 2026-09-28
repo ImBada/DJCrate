@@ -19,6 +19,8 @@ struct AppFeedback {
 }
 
 struct WriteStage: Equatable {
+    static var reloadingLibrary: Self { Self(String(ui: "쓴 라이브러리를 다시 읽는 중…")) }
+
     var text: String
     var completed: Int?
     var total: Int?

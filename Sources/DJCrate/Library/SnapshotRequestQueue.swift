@@ -6,37 +6,55 @@ final class SnapshotRequestQueue {
     private struct Pending {
         var force: Bool
         var quiet: Bool
-        var operation: @MainActor (Bool, Bool) async -> Void
-        var waiters: [CheckedContinuation<Void, Never>]
+        let refreshITunes: Bool
+        var operation: @MainActor (Bool, Bool) async -> Task<Void, Never>?
+        var waiters: [CheckedContinuation<Task<Void, Never>?, Never>]
     }
 
     private(set) var isRunning = false
-    var waitingCount: Int { pending?.waiters.count ?? 0 }
-    private var pending: Pending?
+    var waitingCount: Int { pending.reduce(0) { $0 + $1.waiters.count } }
+    private var pending: [Pending] = []
 
     func run(force: Bool, quiet: Bool, operation: @escaping @MainActor (Bool, Bool) async -> Void) async {
+        await runWithFollowUp(force: force, quiet: quiet, refreshITunes: false) { force, quiet in
+            await operation(force, quiet)
+            return nil
+        }
+    }
+
+    /// DB 작업만 직렬화한다. 후속 Music 작업은 대기열 밖에서 기다리되 병합한 호출도 완료를 기다린다.
+    func runWithFollowUp(force: Bool, quiet: Bool, refreshITunes: Bool,
+                         operation: @escaping @MainActor (Bool, Bool) async -> Task<Void, Never>?) async {
+        let followUp = await runWork(force: force, quiet: quiet, refreshITunes: refreshITunes, operation: operation)
+        await followUp?.value
+    }
+
+    private func runWork(force: Bool, quiet: Bool, refreshITunes: Bool,
+                         operation: @escaping @MainActor (Bool, Bool) async -> Task<Void, Never>?) async -> Task<Void, Never>? {
         if isRunning {
-            await withCheckedContinuation { continuation in
-                if var queued = pending {
+            return await withCheckedContinuation { continuation in
+                if let last = pending.indices.last, pending[last].refreshITunes == refreshITunes {
+                    var queued = pending[last]
                     queued.force = queued.force || force
                     queued.quiet = queued.quiet && quiet
                     queued.operation = operation
                     queued.waiters.append(continuation)
-                    pending = queued
+                    pending[last] = queued
                 } else {
-                    pending = Pending(force: force, quiet: quiet, operation: operation, waiters: [continuation])
+                    pending.append(Pending(force: force, quiet: quiet, refreshITunes: refreshITunes,
+                                           operation: operation, waiters: [continuation]))
                 }
             }
-            return
         }
 
         isRunning = true
-        await operation(force, quiet)
-        while let queued = pending {
-            pending = nil
-            await queued.operation(queued.force, queued.quiet)
-            for waiter in queued.waiters { waiter.resume() }
+        let followUp = await operation(force, quiet)
+        while !pending.isEmpty {
+            let queued = pending.removeFirst()
+            let queuedFollowUp = await queued.operation(queued.force, queued.quiet)
+            for waiter in queued.waiters { waiter.resume(returning: queuedFollowUp) }
         }
         isRunning = false
+        return followUp
     }
 }
