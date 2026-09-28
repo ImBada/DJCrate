@@ -25,6 +25,8 @@ struct UsbInfoTests {
     /// 합성 USB를 만들어 body에 넘기고 끝나면 지운다
     func withUsb(_ configure: (inout UsbLibraryFixture) -> Void = { _ in }, _ body: (UsbTreeFixture) throws -> Void) throws {
         var usb = UsbLibraryFixture()
+        // Device Library의 My Tag 연결은 DJCrate가 다시 쓸 수 없어 왕복 경고가 난다(UsbInfoRoundTripTests가 따로 본다)
+        usb.myTagLinks = []
         configure(&usb)
         let tree = UsbTreeFixture()
         defer { tree.remove() }
@@ -88,7 +90,7 @@ struct UsbInfoTests {
             #expect(result.oneLibrary == nil)
             let dl = try #require(result.deviceLibrary)
             #expect(dl.exportFlag10 == 5 && dl.extFlag10 == 5)
-            #expect(!dl.roundTripChecked && dl.roundTripOK == nil)
+            #expect(dl.roundTripChecked && dl.roundTripOK == true)
             #expect([dl.tracks, dl.playlists, dl.historyRows, dl.unknownTableRows, dl.structureIssues] == [3, 1, 0, 0, 0] as [Int])
             #expect(result.analysis.tracksChecked == 3 && result.analysis.missingFiles == 0)
             #expect(result.warnings.isEmpty)
@@ -191,7 +193,9 @@ struct UsbInfoTests {
         try withUsb({ $0.pdbUnknownRows = 2 }) { tree in
             let result = try info(tree)
             #expect(result.deviceLibrary?.unknownTableRows == 2)
-            #expect(result.warnings.map(\.code) == ["unknownTableRows"])
+            // 모르는 표 행은 다시 쓰면 잃으므로 왕복 검사도 실패한다
+            #expect(result.deviceLibrary?.roundTripOK == false)
+            #expect(result.warnings.map(\.code) == ["unknownTableRows", "pdbRoundTripFailed"])
         }
     }
 
@@ -256,7 +260,7 @@ struct UsbInfoTests {
                            "writableForEdit": "bool", "problems": [Any]()],
                 "oneLibrary": ["schemaOK": "bool", "headerMode": "string", "walPresent": "bool", "journalPresent": "bool",
                                "integrityOK": "bool", "tracks": "number", "playlists": "number", "myTags": "number", "histories": "number"],
-                "deviceLibrary": ["exportFlag10": "number", "extFlag10": "number", "roundTripChecked": "bool", "roundTripOK": "null",
+                "deviceLibrary": ["exportFlag10": "number", "extFlag10": "number", "roundTripChecked": "bool", "roundTripOK": "bool",
                                   "tracks": "number", "playlists": "number", "historyRows": "number", "unknownTableRows": "number",
                                   "structureIssues": "number"],
                 "consistency": ["trackIDsMatch": "bool", "pathsMatch": "bool", "playlistMismatches": "number",
@@ -269,7 +273,7 @@ struct UsbInfoTests {
             #expect(body["schemaVersion"] as? Int == 1)
             #expect((body["volume"] as? [String: Any])?["fileSystem"] as? String == "FAT32")
             #expect((body["volume"] as? [String: Any])?["partitionScheme"] as? String == "mbr")
-            #expect((body["deviceLibrary"] as? [String: Any])?["roundTripChecked"] as? Bool == false)
+            #expect((body["deviceLibrary"] as? [String: Any])?["roundTripChecked"] as? Bool == true)
         }
         // 폴더 대상·한 형식: 없는 부분도 키는 남는다(null)
         try withUsb({ $0.formats = [.oneLibrary] }) { tree in

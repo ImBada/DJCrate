@@ -94,6 +94,7 @@ public enum UsbRead {
         func warn(_ code: String, _ message: String) { warnings.append(UsbInfo.Warning(code: code, message: message)) }
         var oneLibrary: UsbLibrary?, deviceLibrary: UsbLibrary?
         var report: PdbReadReport?
+        var roundTrip: [String]?
 
         do {
             let snapshot = try UsbSnapshot.take(root: usb, into: databaseCopy)
@@ -115,7 +116,8 @@ public enum UsbRead {
                 }
                 info.oneLibrary = part
             }
-            report = try readDeviceLibrary(snapshot.exportPdb.map { ($0, snapshot.exportExtPdb) }, into: &deviceLibrary, warn: warn)
+            report = try readDeviceLibrary(snapshot.exportPdb.map { ($0, snapshot.exportExtPdb) }, into: &deviceLibrary,
+                                           roundTrip: &roundTrip, warn: warn)
         } catch let error as UsbError where hasOneLibrary && isOneLibraryFailure(error) {
             // OneLibrary 사본이 온전하지 않다(무결성·암호). Device Library는 따로 떠서 읽는다
             info.oneLibrary = UsbInfo.OneLibraryPart(schemaOK: false, headerMode: "unknown",
@@ -123,14 +125,14 @@ public enum UsbRead {
                                                      journalPresent: exists(usb, UsbLayout.oneLibrary + "-journal"),
                                                      integrityOK: false, tracks: 0, playlists: 0, myTags: 0, histories: 0)
             warn("oneLibraryUnreadable", String(ui: "OneLibrary(exportLibrary.db)가 손상돼 읽지 못했습니다. rekordbox로 USB를 다시 내보내세요"))
-            report = try readDeviceLibrary(try copyPdb(usb, into: pdbCopy), into: &deviceLibrary, warn: warn)
+            report = try readDeviceLibrary(try copyPdb(usb, into: pdbCopy), into: &deviceLibrary, roundTrip: &roundTrip, warn: warn)
         }
 
         if let part = info.oneLibrary, part.walPresent || part.journalPresent {
             warn("oneLibrarySidecar", String(ui: "OneLibrary에 기기가 쓰다 남긴 파일(-wal·-journal)이 있습니다. 기기에서 USB를 정상적으로 꺼낸 뒤 다시 읽으세요"))
         }
         if let report {
-            info.deviceLibrary = deviceLibraryPart(report, library: deviceLibrary)
+            info.deviceLibrary = deviceLibraryPart(report, library: deviceLibrary, roundTrip: roundTrip)
             if report.exportHeader.flag10 != 5 || (report.extHeader.map { $0.flag10 != 5 } ?? false) {
                 warn("pdbOpenFlag", String(ui: "rekordbox에 이 USB를 연결했다가 정상적으로 꺼낸 뒤 다시 시도하세요"))
             }
@@ -140,6 +142,10 @@ public enum UsbRead {
                 }
                 if part.structureIssues > 0 {
                     warn("pdbStructure", String(ui: "Device Library 구조에 문제가 있습니다. rekordbox로 USB를 다시 내보내세요"))
+                }
+                if let roundTrip, !roundTrip.isEmpty {
+                    // 문제 수만 적는다(곡 제목·경로·칸 값 없이)
+                    warn("pdbRoundTripFailed", String(ui: "이 USB의 Device Library는 DJCrate가 다시 쓸 수 없는 모양입니다(문제 \(roundTrip.count)개). 고치려면 rekordbox로 USB를 다시 내보내세요"))
                 }
             }
         }
@@ -217,13 +223,20 @@ public enum UsbRead {
         return copies[UsbLayout.exportPdb].map { ($0, copies[UsbLayout.exportExtPdb]) }
     }
 
-    /// pdb 사본을 읽는다. 머리가 달라 읽지 못하면 경고만 남긴다
-    static func readDeviceLibrary(_ files: (URL, URL?)?, into library: inout UsbLibrary?,
+    /// pdb 사본을 읽는다. 머리가 달라 읽지 못하면 경고만 남긴다.
+    /// 읽었으면 왕복 검사(읽기 → 모델 → 다시 쓰기 → 다시 읽기, `PdbRoundTrip`)의 문제 목록도 채운다(빈 배열 = 통과)
+    static func readDeviceLibrary(_ files: (URL, URL?)?, into library: inout UsbLibrary?, roundTrip: inout [String]?,
                                   warn: (String, String) -> Void) throws -> PdbReadReport? {
         guard let (export, ext) = files else { return nil }
         do {
-            let (read, report) = try PdbReader.read(export: Data(contentsOf: export), exportExt: ext.map { try Data(contentsOf: $0) })
+            let exportData = try Data(contentsOf: export), extData = try ext.map { try Data(contentsOf: $0) }
+            let (read, report) = try PdbReader.read(export: exportData, exportExt: extData)
             library = read
+            do {
+                roundTrip = try PdbRoundTrip.check(export: exportData, exportExt: extData)
+            } catch {
+                roundTrip = ["unreadable"]
+            }
             return report
         } catch let error as UsbError {
             guard case .readFailed = error else { throw error }
@@ -232,12 +245,11 @@ public enum UsbRead {
         }
     }
 
-    static func deviceLibraryPart(_ report: PdbReadReport, library: UsbLibrary?) -> UsbInfo.DeviceLibraryPart {
+    static func deviceLibraryPart(_ report: PdbReadReport, library: UsbLibrary?, roundTrip: [String]?) -> UsbInfo.DeviceLibraryPart {
         let history = [PdbTableType.historyPlaylists.name, PdbTableType.historyEntries.name].reduce(0) { $0 + (report.tableCounts[$1]?.live ?? 0) }
         return UsbInfo.DeviceLibraryPart(
             exportFlag10: Int(report.exportHeader.flag10), extFlag10: report.extHeader.map { Int($0.flag10) },
-            // 왕복 검사(다시 만든 바이트 = 원본)는 아직 하지 않는다
-            roundTripChecked: false, roundTripOK: nil,
+            roundTripChecked: roundTrip != nil, roundTripOK: roundTrip.map(\.isEmpty),
             tracks: library?.tracks.count ?? 0, playlists: library?.playlists.count ?? 0, historyRows: history,
             unknownTableRows: report.unknownRows.filter { $0.format == .deviceLibrary }.reduce(0) { $0 + $1.liveRows },
             structureIssues: report.issues.count)

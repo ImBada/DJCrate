@@ -81,6 +81,22 @@
         }
       }
     },
+    "  다시 쓰기 왕복 검사 통과 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "  Rewrite round-trip check passed: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "  再書き込みの往復チェック合格: %@"
+          }
+        }
+      }
+    },
     "  머리 0x10 %lld\/%@ · 모르는 표 행 %lld · 구조 문제 %lld" : {
       "localizations" : {
         "en" : {
@@ -253,6 +269,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "--volume <マウントポイント> [--backup <フォルダ>] [--discard-device-changes] [--confirm <ボリューム名>] [--dry-run]"
+          }
+        }
+      }
+    },
+    "--volume <마운트> [--db <스냅샷 사본.db>] [--share <폴더>] [--playlist <ID>]… [--tracks <ContentID>,…] [--formats onelibrary,device] [--naming identifier] [--dry-run] [--confirm <볼륨 이름>] [--allow-provisional <규칙,…>] [--verify-audio] [--settings <로컬 설정 폴더>] [--snapshot-time <ISO 8601>]" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "--volume <mount point> [--db <snapshot copy.db>] [--share <folder>] [--playlist <ID>]… [--tracks <ContentID>,…] [--formats onelibrary,device] [--naming identifier] [--dry-run] [--confirm <volume name>] [--allow-provisional <rule,…>] [--verify-audio] [--settings <local settings folder>] [--snapshot-time <ISO 8601>]"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "--volume <マウントポイント> [--db <スナップショットのコピー.db>] [--share <フォルダ>] [--playlist <ID>]… [--tracks <ContentID>,…] [--formats onelibrary,device] [--naming identifier] [--dry-run] [--confirm <ボリューム名>] [--allow-provisional <ルール,…>] [--verify-audio] [--settings <ローカル設定フォルダ>] [--snapshot-time <ISO 8601>]"
           }
         }
       }
@@ -3153,6 +3185,22 @@
         }
       }
     },
+    "DB 교체" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replacing databases"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DBの置き換え"
+          }
+        }
+      }
+    },
     "DB 구조: 확인한 모양과 같음(DBVersion %@) · %@" : {
       "localizations" : {
         "en" : {
@@ -3267,6 +3315,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Device Library（export.pdb）を読み込めませんでした。rekordboxでUSBにもう一度エクスポートしてください"
+          }
+        }
+      }
+    },
+    "Device Library를 만들었지만 다시 읽은 결과가 달라 쓰지 않았습니다. 곡을 줄여 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Device Library was built but reading it back gave a different result, so it was not written. Try again with fewer tracks"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device Libraryを作成しましたが、読み直した結果が異なるため書き込みませんでした。曲を減らしてもう一度試してください"
           }
         }
       }
@@ -3607,6 +3671,22 @@
         }
       }
     },
+    "ISRC에 전각·한글처럼 ASCII가 아닌 글자가 있어 Device Library에 쓸 수 없습니다. rekordbox에서 ISRC를 반각 영문·숫자로 고친 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The ISRC contains non-ASCII characters (such as full-width or Hangul characters), so it can't be written to the Device Library. Change the ISRC to half-width letters and numbers in rekordbox and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ISRCに全角文字やハングルなどASCII以外の文字があるため、Device Libraryに書き込めません。rekordboxでISRCを半角英数字に直してからもう一度試してください"
+          }
+        }
+      }
+    },
     "iTunes 동기화 목록" : {
       "localizations" : {
         "en" : {
@@ -3866,6 +3946,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ミュージックの「ファイル › ライブラリ › ライブラリを書き出す」でXMLを保存してください。「プレイリストを書き出す」で書き出したXMLでも構いません。"
+          }
+        }
+      }
+    },
+    "My Tag 이름이 너무 길어 Device Library에 쓸 수 없습니다. rekordbox에서 My Tag 이름을 줄인 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A My Tag name is too long to write to the Device Library. Shorten the My Tag name in rekordbox and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マイタグの名前が長すぎてDevice Libraryに書き込めません。rekordboxでマイタグの名前を短くしてからもう一度試してください"
           }
         }
       }
@@ -6726,6 +6822,22 @@
         }
       }
     },
+    "USB를 꺼낸 뒤 뽑으세요(Finder 또는 `diskutil eject`)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eject the USB before unplugging it (Finder or `diskutil eject`)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを取り出してから抜いてください（Finderまたは`diskutil eject`）"
+          }
+        }
+      }
+    },
     "USB를 꺼내지 못했습니다. 사용 중인 앱을 닫고 Finder에서 꺼내세요" : {
       "localizations" : {
         "en" : {
@@ -7096,6 +7208,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBから削除した曲のファイルの整理"
+          }
+        }
+      }
+    },
+    "USB의 PIONEER 폴더에 다른 파일이 남아 있습니다. 빈 USB를 쓰거나 PIONEER 폴더를 비운 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other files remain in the USB's PIONEER folder. Use an empty USB or empty the PIONEER folder and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBのPIONEERフォルダにほかのファイルが残っています。空のUSBを使うか、PIONEERフォルダを空にしてからもう一度試してください"
           }
         }
       }
@@ -7756,6 +7884,22 @@
         }
       }
     },
+    "검증" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verifying"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "検証"
+          }
+        }
+      }
+    },
     "게인" : {
       "localizations" : {
         "en" : {
@@ -8106,6 +8250,22 @@
         }
       }
     },
+    "경고: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warnings: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "警告: %@"
+          }
+        }
+      }
+    },
     "경고: 없음" : {
       "localizations" : {
         "en" : {
@@ -8134,6 +8294,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "パスに親フォルダーへの移動または空の名前があります"
+          }
+        }
+      }
+    },
+    "계획" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planning"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "計画"
           }
         }
       }
@@ -8670,6 +8846,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "曲情報・キュー・ビートグリッド・ゲイン・下書きを表示"
+          }
+        }
+      }
+    },
+    "곡 정보(%@) 값이 Device Library 칸 범위를 벗어납니다. rekordbox에서 곡 정보를 고친 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A track information value (%@) is out of range for the Device Library. Correct the track information in rekordbox and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲の情報（%@）の値がDevice Libraryの範囲を超えています。rekordboxで曲の情報を直してからもう一度試してください"
+          }
+        }
+      }
+    },
+    "곡 정보가 너무 길어 Device Library에 쓸 수 없습니다. rekordbox에서 주석 등 곡 정보를 줄인 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The track information is too long to write to the Device Library. Shorten the comments or other track information in rekordbox and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲の情報が長すぎてDevice Libraryに書き込めません。rekordboxでコメントなどの曲の情報を短くしてからもう一度試してください"
           }
         }
       }
@@ -10000,6 +10208,22 @@
         }
       }
     },
+    "기기 설정 파일(%@)을 옮길 수 없습니다. 설정 옮기기를 끄고 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot copy the device settings file (%@). Turn off copying settings and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "機器の設定ファイル（%@）をコピーできません。設定のコピーをオフにしてもう一度試してください"
+          }
+        }
+      }
+    },
     "기기에서 고침" : {
       "localizations" : {
         "en" : {
@@ -10428,6 +10652,44 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "書き出せませんでした。保存場所と権限を確認してください：%@"
+          }
+        }
+      }
+    },
+    "내보낼 곡 %lld · 재생 목록 %lld · 막힌 곡 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks to export: %1$lld · Playlists: %2$lld · Blocked tracks: %3$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エクスポートする曲 %1$lld · プレイリスト %2$lld · 止めた曲 %3$lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "내보낼 곡 %1$lld · 재생 목록 %2$lld · 막힌 곡 %3$lld"
+          }
+        }
+      }
+    },
+    "내보낼 곡이 없습니다. 막힌 곡의 이유를 확인한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no tracks to export. Check why the tracks were blocked and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エクスポートする曲がありません。止めた曲の理由を確認してからもう一度試してください"
           }
         }
       }
@@ -11986,6 +12248,22 @@
         }
       }
     },
+    "로컬 rekordbox 버전(%@)은 USB 내보내기를 확인하지 않았습니다. 확인한 버전(7.2.x)의 rekordbox에서 분석한 라이브러리로 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB export has not been verified with the local rekordbox version (%@). Export from a library analyzed with a verified rekordbox version (7.2.x)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルのrekordboxのバージョン（%@）ではUSBへのエクスポートを確認していません。確認済みのバージョン（7.2.x）のrekordboxで解析したライブラリからエクスポートしてください"
+          }
+        }
+      }
+    },
     "로컬 rekordbox 곡과 견준 USB 곡의 상태(USB 목록에서만 보인다)" : {
       "localizations" : {
         "en" : {
@@ -12046,6 +12324,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ローカルの解析ファイル（.%@）を読み込めませんでした"
+          }
+        }
+      }
+    },
+    "로컬 분석 파일에 큐 자리가 없어 일부 큐를 쓰지 못했습니다. rekordbox에서 다시 분석하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The local analysis file has no place for cues, so some cues were not written. Analyze the track again in rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルの解析ファイルにキューの場所がないため、一部のキューを書き込めませんでした。rekordboxでもう一度解析してください"
+          }
+        }
+      }
+    },
+    "로컬 분석 파일의 보컬 정보를 그대로 옮겼습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied the vocal information from the local analysis file as is"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルの解析ファイルのボーカル情報をそのままコピーしました"
+          }
+        }
+      }
+    },
+    "로컬 분석 파일의 보컬 정보를 읽을 수 없어 빼고 내보냅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot read the vocal information in the local analysis file, so it is exported without it"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルの解析ファイルのボーカル情報を読めないため、除いてエクスポートします"
+          }
+        }
+      }
+    },
+    "로컬 분석 파일의 프레이즈 정보를 읽을 수 없어 빼고 내보냅니다. rekordbox에서 다시 분석하면 들어갑니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot read the phrase information in the local analysis file, so it is exported without it. Analyze the track again in rekordbox to include it"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルの解析ファイルのフレーズ情報を読めないため、除いてエクスポートします。rekordboxでもう一度解析すると含まれます"
           }
         }
       }
@@ -12722,6 +13064,28 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "막혀서 뺀 곡 %1$lld: %2$@"
+          }
+        }
+      }
+    },
+    "막힘 %@ %lld: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blocked %1$@ %2$lld: %3$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中止 %1$@ %2$lld: %3$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "막힘 %1$@ %2$lld: %3$@"
           }
         }
       }
@@ -13714,6 +14078,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "採用できる候補がありません"
+          }
+        }
+      }
+    },
+    "백업" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backup"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バックアップ"
           }
         }
       }
@@ -16064,6 +16444,38 @@
         }
       }
     },
+    "스냅샷 사본의 곡·재생 목록을 빈 USB(FAT32·MBR)에 OneLibrary·Device Library로 내보낸다(실물 USB는 아직 막힘, 디스크 이미지만)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export tracks and playlists from a snapshot copy to an empty USB (FAT32, MBR) as OneLibrary and Device Library (physical USBs are still blocked; disk images only)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スナップショットのコピーの曲・プレイリストを空のUSB（FAT32・MBR）にOneLibrary・Device Libraryとしてエクスポートする（実物のUSBはまだ不可、ディスクイメージのみ）"
+          }
+        }
+      }
+    },
+    "스냅샷 시각: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snapshot time: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スナップショットの時刻: %@"
+          }
+        }
+      }
+    },
     "스냅샷 시각(%@)을 읽지 못했습니다. 시간대를 넣은 ISO 8601 시각(예: 2026-09-27T11:41:08Z)으로 주세요" : {
       "localizations" : {
         "en" : {
@@ -17160,6 +17572,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アーティストなし"
+          }
+        }
+      }
+    },
+    "아티스트·앨범 이름이 너무 길어 아직 내보낼 수 없습니다. rekordbox에서 이름을 줄인 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An artist or album name is too long to export yet. Shorten the name in rekordbox and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アーティスト・アルバムの名前が長すぎるため、まだエクスポートできません。rekordboxで名前を短くしてからもう一度試してください"
           }
         }
       }
@@ -18852,6 +19280,38 @@
         }
       }
     },
+    "이 USB에는 이미 rekordbox 라이브러리가 있습니다. USB 수정(`djc usb-edit`)으로 곡을 더하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This USB already has a rekordbox library. Add tracks with USB edit (`djc usb-edit`)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSBにはすでにrekordboxのライブラリがあります。USBの編集（`djc usb-edit`）で曲を追加してください"
+          }
+        }
+      }
+    },
+    "이 USB의 Device Library는 DJCrate가 다시 쓸 수 없는 모양입니다(문제 %lld개). 고치려면 rekordbox로 USB를 다시 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate cannot rewrite this USB's Device Library as it is (%lld problems). To edit it, export the USB again from rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSBのDevice LibraryはDJCrateが書き直せない形です（問題%lld件）。編集するにはrekordboxでUSBにもう一度エクスポートしてください"
+          }
+        }
+      }
+    },
     "이 USB의 DJCrate 백업 폴더(usb-backups 안)만 되돌릴 수 있습니다. 그 안의 폴더를 주세요" : {
       "localizations" : {
         "en" : {
@@ -20220,6 +20680,22 @@
         }
       }
     },
+    "재생 목록 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlist %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト %@"
+          }
+        }
+      }
+    },
     "재생 목록 %lld건" : {
       "localizations" : {
         "en" : {
@@ -21238,6 +21714,22 @@
         }
       }
     },
+    "정리" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleaning up"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "後片付け"
+          }
+        }
+      }
+    },
     "정리되거나 이동한 백업은 열 수 없습니다." : {
       "localizations" : {
         "en" : {
@@ -21556,6 +22048,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "準備中…"
+          }
+        }
+      }
+    },
+    "준비(분석 파일·아트워크·DB)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing (analysis files, artwork, databases)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "準備（解析ファイル・アートワーク・DB）"
           }
         }
       }
@@ -21978,6 +22486,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自分で設定したホットキューの数（緑）"
+          }
+        }
+      }
+    },
+    "진행: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Progress: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "進行: %@"
           }
         }
       }
@@ -23356,6 +23880,22 @@
         }
       }
     },
+    "큐 만든 시각을 읽지 못해 이름 순서로 큐를 놓았습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read when the cues were created, so they were placed in name order"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キューの作成時刻を読めないため、名前の順にキューを配置しました"
+          }
+        }
+      }
+    },
     "큐 목록 보기" : {
       "localizations" : {
         "en" : {
@@ -24694,6 +25234,22 @@
         }
       }
     },
+    "파일 쓰기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing files"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルの書き込み"
+          }
+        }
+      }
+    },
     "파일 위치를 읽을 수 없습니다. 이 Mac에서 XML을 다시 내보내세요." : {
       "localizations" : {
         "en" : {
@@ -24770,6 +25326,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ファイル拡張子（MP3・M4A・FLAC・WAVなど）"
+          }
+        }
+      }
+    },
+    "파일 확장자가 음원 형식과 달라 Device Library에 쓸 수 없습니다. rekordbox에서 트랙 정보를 다시 읽은 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file extension doesn't match the audio format, so the track can't be written to the Device Library. Reload the track information in rekordbox and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルの拡張子が音源形式と異なるため、Device Libraryに書き込めません。rekordboxでトラック情報を読み込み直してからもう一度試してください"
           }
         }
       }
@@ -25556,6 +26128,28 @@
         }
       }
     },
+    "필요 공간 %lldMB · 여유 %lldMB" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Space needed %1$lld MB · Free %2$lld MB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "必要な容量 %1$lldMB · 空き %2$lldMB"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "필요 공간 %1$lldMB · 여유 %2$lldMB"
+          }
+        }
+      }
+    },
     "필터는 %@ 중 하나로 쓰세요" : {
       "localizations" : {
         "en" : {
@@ -26180,6 +26774,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OK"
+          }
+        }
+      }
+    },
+    "확인 안 된 규칙: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unverified rules: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未確認のルール: %@"
+          }
+        }
+      }
+    },
+    "확인 안 된 규칙: 없음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unverified rules: none"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未確認のルール: なし"
           }
         }
       }

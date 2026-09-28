@@ -17,6 +17,10 @@ enum UsbExportLab {
                 "USB의 export.pdb·exportExt.pdb를 사본으로 떠서 쪽마다 칸 값만으로 다시 만들어 바이트 비교"
                     + "(쪽 번호·next·순번은 원본 값, 제자리 수정 이력이 있는 쪽은 뺌, 값은 찍지 않음)",
                 UsbExportLab.pdbVerify),
+        Command("usb-rebuild", "<USB 폴더> <출력 폴더>",
+                "USB의 두 형식을 읽어 합친 모델로 DB 셋(exportLibrary.db·export.pdb·exportExt.pdb)만 새 내보내기 모양으로 다시 만든다"
+                    + "(음원·분석 파일은 복사하지 않음, usb-diff <USB> <출력> --ignore-ids로 비교)",
+                UsbExportLab.usbRebuild),
         Command("pdb-export",
                 "--db <사본> --share <share> (--playlist <ID> | --tracks <ID,…>) --out <출력 폴더> [--snapshot-time <ISO 8601>]",
                 "로컬 사본의 곡·목록으로 <출력>/PIONEER/rekordbox/export.pdb·exportExt.pdb만 만든다(음원·분석 파일·다른 형식은 쓰지 않음)",
@@ -194,6 +198,51 @@ enum UsbExportLab {
             }
         }
         print("파일 작업(옮기지 않음): \(UsbPlanLab.counts(kinds))")
+    }
+
+    // MARK: - usb-rebuild
+
+    /// USB(임시 폴더 아래 사본·디스크 이미지 마운트 지점)의 두 형식을 읽어 합친 모델 → 출력 폴더(없거나 빈 폴더)에 DB 셋만
+    static func usbRebuild(_ args: [String]) async throws {
+        guard args.count == 3 else { throw UsageError() }
+        let input = try UsbScratchPath.check(args[1], as: .existingDirectory)
+        let output = try UsbScratchPath.check(args[2], as: .outputDirectory)
+        let (model, formats) = try readMerged(URL(filePath: input))
+        guard !formats.isEmpty else {
+            print("입력에 USB 라이브러리(exportLibrary.db·export.pdb)가 없다")
+            return
+        }
+        if formats.contains(.oneLibrary) {
+            let target = try database(in: output)
+            try OneLibraryWriter.create(model, at: target)
+            print("exportLibrary.db: 확인 문제 \(try OneLibraryWriter.verify(target, expected: model).count)")
+        }
+        if formats.contains(.deviceLibrary) {
+            let files = try PdbWriter.files(model, mode: .fresh)
+            let folder = URL(filePath: output).appending(path: UsbLayout.rekordboxDir)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try files.export.write(to: URL(filePath: output).appending(path: UsbLayout.exportPdb), options: .withoutOverwriting)
+            try files.exportExt.write(to: URL(filePath: output).appending(path: UsbLayout.exportExtPdb), options: .withoutOverwriting)
+            print("export.pdb \(files.export.count / PdbPage.size)쪽 · exportExt.pdb \(files.exportExt.count / PdbPage.size)쪽")
+        }
+        print("다시 만든 모델: " + modelCounts(model))
+    }
+
+    /// 한 USB 폴더의 두 형식(있는 것만)을 사본으로 떠서 읽어 합친다
+    static func readMerged(_ root: URL) throws -> (UsbLibrary, Set<UsbFormat>) {
+        let work = FileManager.default.temporaryDirectory.appending(path: "djc-usb-rebuild-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: work) }
+        let snapshot = try UsbSnapshot.take(root: UsbRoot(root), into: work)
+        let oneLibrary = try snapshot.oneLibrary.map { try OneLibraryReader.read(copyAt: $0) }
+        let deviceLibrary = try PdbReader.read(snapshot: snapshot)?.0
+        let formats = Set([oneLibrary.map { _ in UsbFormat.oneLibrary }, deviceLibrary.map { _ in UsbFormat.deviceLibrary }].compactMap { $0 })
+        return (UsbLibrary.merge(oneLibrary: oneLibrary, deviceLibrary: deviceLibrary).0, formats)
+    }
+
+    /// 두 USB 폴더의 합친 모델 차이 수(ID 무시, `usb-diff --ignore-ids`와 같은 비교)
+    static func rebuildDifferences(_ a: URL, _ b: URL) throws -> Int {
+        let (left, _) = try readMerged(a), (right, _) = try readMerged(b)
+        return UsbLibraryDiff.compare(left, right, options: .init(ignoreIDs: true)).differences.count
     }
 
     // MARK: - pdb-export
