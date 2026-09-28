@@ -685,6 +685,22 @@
         }
       }
     },
+    "오디오 장치를 쓸 수 없습니다. 소리 출력 장치를 확인하고 잠시 뒤 다시 재생하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The audio device isn’t available. Check your audio output device and try playing again in a moment."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オーディオ装置を使用できません。サウンド出力装置を確認し、しばらくしてからもう一度再生してください。"
+          }
+        }
+      }
+    },
     "퀀타이즈(Q): 큐·루프 등록과 핫큐 점프" : {
       "localizations" : {
         "en" : {

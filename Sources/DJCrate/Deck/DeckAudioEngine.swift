@@ -30,6 +30,8 @@ protocol DeckAudioEngine: AnyObject {
     var handlesLoop: Bool { get }
     /// 마지막 position 조회에서 예약한 점프 경계에 아직 닿지 않았는지
     var hasPendingJump: Bool { get }
+    /// 출력 장치를 쓸 수 없어 재생을 막는지(엔진 준비 전·엔진 시작 실패). `play`가 false를 돌려준 이유를 가른다.
+    var isOutputUnavailable: Bool { get }
 
     func load(url: URL, timelineOffset: Double) throws
     func unload()
