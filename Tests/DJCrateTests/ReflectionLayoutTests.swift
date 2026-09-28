@@ -57,6 +57,32 @@ struct ReflectionLayoutTests {
         #expect(preview >= TextScale.length(240, scale: scale))
     }
 
+    /// 문구가 최소 폭보다 짧아도 표시와 글자는 카드 가운데에 모인다(왼쪽에 붙어 치우쳐 보였다, #148).
+    @Test(arguments: ["light", "dark"]) func 진행_카드의_표시와_글자는_카드_가운데에_있다(_ appearance: String) throws {
+        _ = NSApplication.shared
+        let view = NSHostingView(rootView: WritingStageCard(stage: .reloadingLibrary, onCancel: {}))
+        view.appearance = NSAppearance(named: appearance == "dark" ? .darkAqua : .aqua)
+        view.frame = CGRect(origin: .zero, size: view.fittingSize)
+        view.layoutSubtreeIfNeeded()
+        let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        func brightness(_ x: Int, _ y: Int) -> Double? {
+            guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB), color.alphaComponent > 0.5 else { return nil }
+            return (color.redComponent + color.greenComponent + color.blueComponent) / 3
+        }
+        // 좌우 여백(28pt) 안쪽 한 점을 카드 바탕으로 보고, 바탕과 밝기가 크게 다른 점(글자·표시)의 가로 범위를 잰다.
+        let background = try #require(brightness(4, bitmap.pixelsHigh / 2))
+        var columns: [Int] = []
+        for y in 0..<bitmap.pixelsHigh {
+            for x in 0..<bitmap.pixelsWide {
+                if let value = brightness(x, y), abs(value - background) > 0.3 { columns.append(x) }
+            }
+        }
+        let left = try #require(columns.min()), right = try #require(columns.max())
+        let offset = Double(left + right) / 2 - Double(bitmap.pixelsWide) / 2
+        #expect(abs(offset) <= Double(bitmap.pixelsWide) * 0.02, "내용 가운데가 카드 가운데에서 \(offset)px 벗어남")
+    }
+
     /// 최대 폭을 넘는 긴 문구(번역·큰 글자)는 잘리지 않고 최대 폭에서 줄을 바꿔 카드가 높아진다.
     @Test func 진행_카드의_긴_문구는_최대_폭에서_줄을_바꾼다() {
         _ = NSApplication.shared
