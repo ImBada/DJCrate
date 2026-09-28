@@ -15,8 +15,9 @@ public final class RekordboxFixture {
     public var backups: URL { root.appending(path: "backups") }
     public var audio: URL { root.appending(path: "audio") }
 
-    public init(localUpdateCount: Int = 1000) throws {
-        root = FileManager.default.temporaryDirectory.appending(path: "djc-fixture-\(UUID().uuidString)")
+    /// `parent`: 사본을 둘 폴더. 임시 폴더의 다른 표기(`/tmp`·`/private/tmp`)로 경로 검사를 확인할 때 준다.
+    public init(localUpdateCount: Int = 1000, parent: URL = FileManager.default.temporaryDirectory) throws {
+        root = parent.appending(path: "djc-fixture-\(UUID().uuidString)")
         for dir in [shareRoot, backups, audio] { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) }
         let url = try TestResources.url("rekordbox-7.2.18-schema.sql")
         let schema = try String(contentsOf: url, encoding: .utf8)

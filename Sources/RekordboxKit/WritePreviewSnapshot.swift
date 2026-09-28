@@ -69,7 +69,8 @@ public enum WritePreviewSnapshot {
         let base = root.resolvingSymlinksInPath().standardizedFileURL
         guard !file.pathComponents.contains(".."), !file.pathComponents.contains("."),
               file.path.hasPrefix(root.path + "/"),
-              file.resolvingSymlinksInPath().standardizedFileURL.path == base.appending(path: String(file.path.dropFirst(root.path.count + 1))).path,
+              file.resolvingSymlinksInPath().standardizedFileURL.comparablePath
+                == base.appending(path: String(file.path.dropFirst(root.path.count + 1))).comparablePath,
               (try? file.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) != true else { throw unsafePath() }
     }
 
