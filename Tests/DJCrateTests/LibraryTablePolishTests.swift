@@ -19,13 +19,14 @@ struct LibraryTablePolishTests {
         #expect(spec.width >= spec.minWidth)
     }
 
-    @Test func 시트_칸은_평소_말줄임표와_전체_값_도움말을_쓴다() {
+    @Test func 시트_칸은_평소_말줄임표를_쓰고_전체_값_도움말은_표가_알려_준다() {
         let cell = SheetCell()
         let value = "열 너비보다 긴 제목을 끝까지 보여 주는 도움말"
         cell.configure(text: value, edited: false, readOnly: false, selected: true, active: true)
         #expect(cell.label.cell?.isScrollable == false)
         #expect(cell.label.lineBreakMode == .byTruncatingTail)
-        #expect(cell.toolTip == value)
+        // 도움말은 칸마다 달지 않고 표 하나가 마우스 밑 칸의 전체 값으로 알려 준다(SheetCellLayoutTests, #140)
+        #expect(cell.toolTip == nil)
         let field = cell.beginEditing(text: value)
         #expect(field.cell?.isScrollable == true)
         #expect(cell.label.isHidden)
