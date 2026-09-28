@@ -8,8 +8,12 @@ enum UsbReadLab {
     static let all: [Command] = [
         Command("onelib-sql", "<exportLibrary.db> <SELECT…|PRAGMA…>",
                 "임시 폴더의 OneLibrary를 임시 사본으로 떠서 읽기 전용 질의(인증값 차단)", UsbReadLab.oneLibrarySQL),
-        Command("usb-diff", "[--onelibrary|--device-library] <USB 폴더 A> <USB 폴더 B> [--ignore-anlz-folder] [--ignore-ids] [--skip <표,…>]",
-                "두 USB 폴더를 사본으로 떠서 모델을 표·칸 단위로 비교(기본은 두 형식 모두, 값은 찍지 않음)", UsbReadLab.usbDiff),
+        Command("usb-diff", "[--onelibrary|--device-library] <USB 폴더 A> <USB 폴더 B> [--files] [--anlz] [--ignore-anlz-folder] [--ignore-ids] [--skip <표,…>]",
+                "두 USB 폴더를 사본으로 떠서 모델을 표·칸 단위로 비교(기본은 두 형식 모두, 값은 찍지 않음). --files는 파일 트리, --anlz는 분석 파일 태그도 비교",
+                UsbReadLab.usbDiff),
+        Command("usb-anlz-relocate", "<USB 사본 폴더> --track <id> --folder <P???/????????> [--db-only|--files-only|--decoy-slot0|--cue-variant]",
+                "기기 실험용: 임시 폴더의 USB 사본에서 한 곡의 분석 파일·두 DB 경로를 일부러 어긋나게 만든다(볼륨·원본은 거부)",
+                UsbReadLab.anlzRelocate),
         Command("pdb-dump", "<export.pdb|exportExt.pdb> [--pages] [--rows <표>]",
                 "임시 폴더의 Device Library 파일을 임시 사본으로 떠서 머리·표 포인터·표마다 산 행/자리·구조 문제 수를 찍는다(글자 값은 찍지 않음)",
                 UsbReadLab.pdbDump),
@@ -46,12 +50,17 @@ enum UsbReadLab {
     static func usbDiff(_ args: [String]) async throws {
         var positional: [String] = [], oneLibrary = false, deviceLibrary = false
         var options = UsbLibraryDiff.Options()
+        var fileOptions = UsbFileDiff.Options(files: false, anlz: false)
         var index = 1
         while index < args.count {
             switch args[index] {
             case "--onelibrary": oneLibrary = true
             case "--device-library": deviceLibrary = true
-            case "--ignore-anlz-folder": options.ignoreAnalysisFolder = true
+            case "--files": fileOptions.files = true
+            case "--anlz": fileOptions.anlz = true
+            case "--ignore-anlz-folder":
+                options.ignoreAnalysisFolder = true
+                fileOptions.ignoreAnalysisFolder = true
             case "--ignore-ids": options.ignoreIDs = true
             case "--skip":
                 guard index + 1 < args.count else { throw UsageError() }
@@ -83,7 +92,49 @@ enum UsbReadLab {
             libraries.append(merged)
         }
         let result = UsbLibraryDiff.compare(libraries[0], libraries[1], options: options)
-        render(result).forEach { print($0) }
+        var lines = render(result)
+        if fileOptions.files || fileOptions.anlz {
+            // 분석 파일 차이는 경로 대신 A의 곡 id로 적는다
+            fileOptions.trackIDs = Dictionary(libraries[0].tracks.map { (UsbLayout.nfc($0.path), $0.id) }) { first, _ in first }
+            let files = try UsbFileDiff.compare(UsbRoot(URL(filePath: roots[0])), UsbRoot(URL(filePath: roots[1])), options: fileOptions)
+            let total = result.differences.count + files.differences.count
+            lines.removeLast()
+            lines += [files.fileSummary, files.anlzSummary].filter { !$0.isEmpty } + files.differences + ["차이 \(total)"]
+        }
+        lines.forEach { print($0) }
+    }
+
+    /// 기기 실험 사본 준비. 사본 폴더는 임시 폴더 아래의 폴더만(볼륨 맨 위·링크 거부), rekordbox가 켜져 있으면 하지 않는다
+    static func anlzRelocate(_ args: [String]) async throws {
+        var positional: [String] = [], track: Int?, folder: String?
+        var modes: [UsbAnlzRelocate.Mode] = []
+        var index = 1
+        while index < args.count {
+            switch args[index] {
+            case "--track":
+                guard index + 1 < args.count, let value = Int(args[index + 1]) else { throw UsageError() }
+                track = value
+                index += 1
+            case "--folder":
+                guard index + 1 < args.count else { throw UsageError() }
+                folder = args[index + 1]
+                index += 1
+            case "--db-only": modes.append(.dbOnly)
+            case "--files-only": modes.append(.filesOnly)
+            case "--decoy-slot0": modes.append(.decoySlot0)
+            case "--cue-variant": modes.append(.cueVariant)
+            default: positional.append(args[index])
+            }
+            index += 1
+        }
+        let mode = modes.first ?? .both
+        // 가짜 0번은 계산 폴더 안에서만 바꾸므로 --folder가 없어도 된다
+        guard positional.count == 1, modes.count <= 1, let track, folder != nil || mode == .decoySlot0 else { throw UsageError() }
+        let copy = try UsbScratchPath.check(positional[0], as: .existingDirectory)
+        if LibrarySnapshot.isRekordboxRunning() { throw DJCError.rekordboxRunning }
+        let changes = try UsbAnlzRelocate.apply(copy: UsbRoot(URL(filePath: copy)), trackID: track, newFolder: folder ?? "", mode: mode)
+        print("모드 \(mode.rawValue)")
+        changes.forEach { print($0) }
     }
 
     /// "형식 불일치 A <수>: 종류×수, …"(id·값은 넣지 않는다)

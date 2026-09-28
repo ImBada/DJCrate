@@ -225,4 +225,57 @@ struct UsbReadLabTests {
         let (_, missing) = try run(["usb-diff", "--device-library", empty.base.path, tree.base.path])
         #expect(missing.contains("export.pdb"))
     }
+
+    @Test func usbDiffComparesFilesAndAnalysisTags() throws {
+        let a = UsbTreeFixture()
+        defer { a.remove() }
+        try UsbLibraryFixture().write(to: a)
+        let b = UsbTreeFixture()
+        defer { b.remove() }
+        try FileManager.default.removeItem(at: b.base)
+        try FileManager.default.copyItem(at: a.base, to: b.base)
+        let before = a.tree()
+
+        let (status, same) = try run(["usb-diff", a.base.path, b.base.path, "--files", "--anlz"])
+        #expect(status == 0)
+        let lines = same.split(separator: "\n").map(String.init)
+        #expect(lines.last == "차이 0")
+        #expect(lines.contains("파일 27/27 같음, 한쪽에만 0/0, 내용 다름 0"))
+        #expect(lines.contains("ANLZ 9/9 바이트 같음"))
+
+        b.write(String(UsbLibraryFixture.analysisPath(2).dropFirst()), UsbLibraryFixture.dat(path: UsbLibraryFixture.trackPath(2), hotCueA: 9_000))
+        let (_, changed) = try run(["usb-diff", a.base.path, b.base.path, "--anlz"])
+        let changedLines = changed.split(separator: "\n").map(String.init)
+        #expect(changedLines.contains("ANLZ 8/9 바이트 같음, 다른 태그: PCOB×1"))
+        #expect(changedLines.contains("ANLZ 곡 2 DAT: PCOB"))
+        #expect(changedLines.last == "차이 1")
+        #expect(!changed.contains("test2") && !changed.contains("P000"))
+        // --files·--anlz가 없으면 예전처럼 모델만
+        let (_, model) = try run(["usb-diff", a.base.path, b.base.path])
+        #expect(!model.contains("ANLZ") && model.split(separator: "\n").last == "차이 0")
+        #expect(a.tree() == before)
+    }
+
+    @Test func anlzRelocateChangesCopyOnly() throws {
+        let tree = UsbTreeFixture()
+        defer { tree.remove() }
+        try UsbLibraryFixture().write(to: tree)
+        let (status, output) = try run(["usb-anlz-relocate", tree.base.path, "--track", "1", "--folder", "P123/0ABCDEF0", "--db-only"])
+        #expect(status == 0)
+        let lines = output.split(separator: "\n").map(String.init)
+        #expect(lines.first == "모드 dbOnly")
+        #expect(lines.contains("곡 1: export.pdb 분석 경로 → P123/0ABCDEF0/ANLZ0000.DAT"))
+        #expect(lines.contains("곡 1: exportLibrary.db 분석 경로 → P123/0ABCDEF0/ANLZ0000.DAT"))
+        #expect(FileManager.default.fileExists(atPath: tree.url("PIONEER/USBANLZ/P123/0ABCDEF0/ANLZ0000.EXT").path))
+
+        let (decoyStatus, decoy) = try run(["usb-anlz-relocate", tree.base.path, "--track", "2", "--decoy-slot0"])
+        #expect(decoyStatus == 0 && decoy.hasPrefix("모드 decoySlot0"))
+        // 사용법·거부
+        let (_, usage) = try run(["usb-anlz-relocate", tree.base.path, "--track", "3"])
+        #expect(usage.contains("사용법"))
+        let (_, twoModes) = try run(["usb-anlz-relocate", tree.base.path, "--track", "3", "--folder", "P123/0ABCDEF1", "--db-only", "--files-only"])
+        #expect(twoModes.contains("사용법"))
+        let (homeStatus, home) = try run(["usb-anlz-relocate", NSHomeDirectory(), "--track", "1", "--folder", "P123/0ABCDEF0"])
+        #expect(homeStatus != 0 && home.contains("outsideScratch"))
+    }
 }
