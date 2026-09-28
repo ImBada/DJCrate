@@ -215,7 +215,21 @@ extension DeckModel {
         updateGridBPM()
     }
 
+    /// 확대 파형 끌기 시작: 끈 거리를 지금 자리에서 잰다(`dragScrub(by:)`). 놓으면 `endScrub()`.
+    func beginScrubDrag() {
+        beginScrub()
+        scrubAnchor = ScrubAnchor(at: playhead)
+    }
+
+    /// 확대 파형을 끈 거리(곡 시간, 초). 끌기 중이 아니면 버린다.
+    func dragScrub(by seconds: Double) {
+        guard var anchor = scrubAnchor else { return }
+        scrub(to: anchor.position(dragged: seconds))
+        scrubAnchor = anchor
+    }
+
     func endScrub() {
+        scrubAnchor = nil
         guard resumeAfterScrub else { return }
         resumeAfterScrub = false
         startPlayback(from: playhead)
