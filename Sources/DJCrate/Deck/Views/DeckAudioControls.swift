@@ -4,32 +4,13 @@ import DJCDomain
 import DJCStorage
 import SwiftUI
 
-/// 볼륨 · 메트로놈 · 템포(변속) · 키 고정 · 그리드 편집 전환
+/// 메트로놈 · 템포(변속) · 키 고정 · 큐 제안
 struct AudioBar: View {
     @Environment(\.textScale) private var textScale
     @Bindable var deck: DeckModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            FlowLayout(spacing: 12) {
-                HStack(spacing: 4) {
-                    // 음파 줄 수가 볼륨을 따라 채워진다. 0이면 꺼진 스피커.
-                    Group {
-                        if deck.volume == 0 {
-                            Image(systemName: "speaker.slash")
-                        } else {
-                            Image(systemName: "speaker.wave.3", variableValue: deck.volume)
-                        }
-                    }
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-                    Slider(value: $deck.volume, in: 0...1).frame(width: 90)
-                        .accessibilityLabel(.ui("재생 볼륨"))
-                        .help(String(ui: "재생 볼륨 \(Int((deck.volume * 100).rounded()))%"))
-                }
-                GainControl(deck: deck)
-                Group { if PerfProbe.hidden.contains("meter") { EmptyView() } else { LevelMeterView(deck: deck) } }
-            }
             FlowLayout(spacing: 12) {
                 Toggle(isOn: $deck.metronome) { Label(.ui("메트로놈"), systemImage: "metronome") }
                     .toggleStyle(.button)
@@ -46,16 +27,17 @@ struct AudioBar: View {
                     .frame(width: 120)
                     Text(verbatim: deck.tempoPercent.unitText(signed: true) + "%").font(.scaled(.caption, textScale).monospacedDigit())
                         .frame(width: TextScale.length(46, scale: textScale), alignment: .trailing)
-                    Button { deck.tempoPercent = 0 } label: { Text(verbatim: "0") }.help(.ui("원래 속도로"))
+                    Button { deck.tempoPercent = 0 } label: { Text(verbatim: "RST") }.help(.ui("원래 속도로"))
                         .accessibilityLabel(.ui("템포 0으로"))
                 }
-                Toggle(.ui("키 고정"), isOn: $deck.keyLock)
-                    .toggleStyle(.checkbox)
-                    .help(.ui("켜면 음정을 유지한 채 속도만 바꿉니다(마스터 템포). 끄면 바이닐처럼 음정도 함께 바뀝니다."))
-                Toggle(isOn: $deck.gridEditing) { Label(.ui("그리드 편집"), systemImage: "grid") }
-                    .toggleStyle(.button)
-                    .disabled(deck.gridDraft == nil)
-                    .help(deck.gridEditBlockedReason ?? String(ui: "켜면 아래 막대로 그리드를 옮기고 BPM·1박·변속 지점을 고칩니다."))
+                HStack(spacing: 12) {
+                    Toggle(.ui("키 고정"), isOn: $deck.keyLock)
+                        .toggleStyle(.checkbox)
+                        .help(.ui("켜면 음정을 유지한 채 속도만 바꿉니다(마스터 템포). 끄면 바이닐처럼 음정도 함께 바뀝니다."))
+                    Toggle(.ui("큐 제안 표시"), isOn: $deck.showSuggestions)
+                        .toggleStyle(.checkbox)
+                        .help(.ui("큐 제안을 표시합니다. 파형 아래 + 배지를 누르면 메모리 큐로 추가합니다."))
+                }
             }
             // 제안 문구가 길어져도 음량·템포 묶음을 밀어내지 않는다.
             if let suggestion = deck.gainSuggestion {
@@ -92,6 +74,51 @@ struct AudioBar: View {
             }
         }
         .controlSize(ControlSize.small.scaled(textScale))
+    }
+}
+
+/// 창 상단에서 덱 출력 음량과 재생 피크를 확인한다.
+struct VolumeControl: View {
+    @Environment(\.textScale) private var textScale
+    @Bindable var deck: DeckModel
+    @State private var previewVolume: Double?
+
+    private var shownVolume: Double { previewVolume ?? deck.volume }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 4) {
+                // 아이콘이 바뀌어도 슬라이더의 자리는 고정한다.
+                Group {
+                    if shownVolume == 0 {
+                        Image(systemName: "speaker.slash")
+                    } else {
+                        Image(systemName: "speaker.wave.3", variableValue: shownVolume)
+                    }
+                }
+                .frame(width: TextScale.length(22, scale: textScale), height: TextScale.length(20, scale: textScale))
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+                Slider(value: Binding(get: { shownVolume }, set: { value in
+                    previewVolume = value
+                    deck.previewVolume(value)
+                }), in: 0...1, onEditingChanged: { editing in
+                    if !editing { saveVolume() }
+                })
+                    .frame(width: TextScale.length(90, scale: textScale))
+                    .accessibilityLabel(.ui("재생 볼륨"))
+                    .help(String(ui: "재생 볼륨 \(Int((shownVolume * 100).rounded()))%"))
+            }
+            if !PerfProbe.hidden.contains("meter") { LevelMeterView(deck: deck) }
+        }
+        .controlSize(ControlSize.small.scaled(textScale))
+        .onDisappear { saveVolume() }
+    }
+
+    private func saveVolume() {
+        guard let previewVolume else { return }
+        deck.volume = previewVolume
+        self.previewVolume = nil
     }
 }
 
@@ -224,7 +251,7 @@ struct GainSettings: View {
     }
 }
 
-/// 레벨 미터(게인 뒤·볼륨 앞, L/R 피크). 초록 ~−12 · 노랑 −12~−3 · 빨강 −3~0dBFS.
+/// 상단 레벨 미터(게인 뒤·볼륨 앞, L/R 피크). 초록 ~−12 · 노랑 −12~−3 · 빨강 −3~0dBFS.
 /// 오른쪽은 곡을 올린 뒤 최고 피크(0dBFS를 넘은 적이 있으면 빨간 점, 누르면 지움).
 struct LevelMeterView: View {
     @Environment(\.textScale) private var textScale

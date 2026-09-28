@@ -79,7 +79,19 @@ final class DeckModel {
 
     // 재생 설정
     var volume: Double = 0.9 {
-        didSet { audio.volume = Float(volume); storage.settings.set(SettingKeys.volume, volume) }
+        didSet {
+            audio.volume = Float(volume)
+            guard volume != oldValue else { return }
+            storage.settings.set(SettingKeys.volume, volume)
+        }
+    }
+    @ObservationIgnored private var lastVolumePreviewTime: Double = 0
+    /// 슬라이더를 끄는 동안에는 소리에만 바로 반영하고 저장은 손을 놓을 때 한다.
+    func previewVolume(_ value: Double) {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastVolumePreviewTime >= 1.0 / 30 else { return }
+        lastVolumePreviewTime = now
+        audio.volume = Float(value)
     }
     var metronome = false { didSet { audio.metronome = metronome } }
     /// 메트로놈 소리 크기(0~1). 설정 창 컨트롤이 같은 값을 다시 넣을 때는 저장하지 않는다.

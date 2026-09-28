@@ -47,7 +47,6 @@ struct OverviewWaveformView: View {
         }
         .background(Palette.well)
         .environment(\.colorScheme, .dark)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
         .modifier(OverviewAccessibilityMarkers(deck: deck))
     }
 }

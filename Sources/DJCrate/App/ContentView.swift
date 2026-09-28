@@ -224,6 +224,10 @@ struct ContentView: View {
             ToolbarItem(id: "relatedTracks") {
                 RelatedTracksButton(store: store, deck: deck)
             }
+            ToolbarItem(id: "volume", placement: .principal) {
+                VolumeControl(deck: deck)
+                    .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
+            }
             ToolbarItem(id: "viewMode", placement: .principal) {
                 Picker(.ui("보기"), selection: $sheetMode) {
                     Label(.ui("목록"), systemImage: "list.bullet").tag(false)

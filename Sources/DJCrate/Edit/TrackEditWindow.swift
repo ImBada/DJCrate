@@ -184,16 +184,28 @@ enum TrackEditCommand: Equatable {
     }
 }
 
-/// 덱의 편집 버튼
+/// 확대 파형 오른쪽의 세로 편집 버튼.
 struct TrackEditButton: View {
+    @Environment(\.textScale) private var textScale
     let deck: DeckModel
 
     var body: some View {
         Button {
             TrackEditWindow.shared.open()
         } label: {
-            Label(.ui("편집…"), systemImage: "scissors")
+            VStack(spacing: 4) {
+                Image(systemName: "scissors")
+                    .font(.scaled(.callout, textScale))
+                Text(LocalizedStringResource("deck.editButton", defaultValue: "편집", bundle: UIStrings.bundle))
+                    .font(.scaled(.caption2, textScale))
+            }
+            .foregroundStyle(.white)
+            .frame(width: TextScale.length(46, scale: textScale),
+                   height: TextScale.length(54, scale: textScale))
+            .background(Palette.well.opacity(0.85), in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(.white.opacity(0.2)))
         }
+        .buttonStyle(.plain)
         .disabled(!TrackEditModel.canOpen(deck))
         .help(.ui("마디 단위로 잘라 이은 편집본(인트로 늘이기·짧은 버전)을 만듭니다. 원곡은 그대로 두고 새 곡으로 추가한 곡에 넣습니다"))
     }

@@ -28,8 +28,6 @@ extension DeckModel {
         setGridBPM(bpm + delta)
     }
 
-    func setDownbeatAtPlayhead() { mutateGrid { $0.setDownbeat(nearest: playhead, duration: duration) } }
-
     func setGridAnchorAtPlayhead() { mutateGrid { $0.setAnchor(at: playhead) } }
 
     func addTempoChangeAtPlayhead() { mutateGrid { $0.addTempoChange(nearest: playhead, duration: duration) } }
@@ -94,6 +92,11 @@ extension DeckModel {
         guard taps.count >= 3 else { tapBPM = nil; return }
         let interval = (taps.last! - taps.first!) / Double(taps.count - 1)
         tapBPM = 60 / interval
+    }
+
+    func resetTapTempo() {
+        taps = []
+        tapBPM = nil
     }
 
     func mutateGrid(name: String = String(ui: "그리드 편집"), _ change: (inout GridDraft) -> Void) {
@@ -219,14 +222,6 @@ extension DeckModel {
         audio.resetClicks()
         refreshSuggestionNote()
         if recordingUndo { registerDraftUndo(from: snapshot, name: String(ui: "추정 그리드 적용")) }
-    }
-
-    /// 반 박 옮긴다(추정이 뒷박을 잡았을 때 한 번에 고친다).
-    func shiftGridHalfBeat() {
-        mutateGrid { draft in
-            let segment = draft.segments[draft.segmentIndex(at: playhead)]
-            draft.shift(by: 30 / segment.bpm)
-        }
     }
 
     /// 백그라운드 추정이 이 곡의 초안을 저장했으면 다시 읽는다.

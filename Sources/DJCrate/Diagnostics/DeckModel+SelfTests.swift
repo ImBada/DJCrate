@@ -116,7 +116,7 @@ extension DeckModel {
             await selfTestStep("그리드 편집 켬") { gridEditing = true }
             await selfTestStep("그리드 10ms 이동") { shiftGrid(ms: 10) }
             await selfTestStep("BPM +0.01") { nudgeGridBPM(0.01) }
-            await selfTestStep("여기를 1박으로") { setDownbeatAtPlayhead() }
+            await selfTestStep("여기서 그리드 시작") { setGridAnchorAtPlayhead() }
             await selfTestStep("그리드 끌기") { beginGridDrag(); dragGrid(by: 0.02); dragGrid(by: 0.03); endGridDrag() }
             await selfTestStep("여기서 BPM 변경") { addTempoChangeAtPlayhead() }
             await selfTestStep("메트로놈 켬") { metronome = true }
