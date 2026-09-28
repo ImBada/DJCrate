@@ -32,7 +32,9 @@ extension LibraryStore {
         let targets = writeTargets(rows)
         let uuids = Set(targets.map { $0.track.uuid })
         let merges = mergeDrafts.filter { $0.members.contains { uuids.contains($0.trackUUID) } }
-        let drafts = targets.compactMap { CueDraftStore.load(trackUUID: $0.track.uuid) }.filter(\.hasChanges)
+        // 자동 큐를 빼고 만든 옛 초안에는 곡의 자동 큐를 채운다(#145, 쓰기도 같은 일을 한다).
+        let drafts = targets.compactMap { row in CueDraftStore.load(trackUUID: row.track.uuid)?.includingAutoCues(from: row.cues) }
+            .filter(\.hasChanges)
         let grids = targets.compactMap { GridDraftStore.load(trackUUID: $0.track.uuid) }.filter(\.hasChanges)
         let allGains = GainDraftStore.all()
         let gains = Dictionary(uniqueKeysWithValues: targets.compactMap { row in allGains[row.track.uuid].map { (row.track.uuid, $0) } })

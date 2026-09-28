@@ -829,7 +829,9 @@ final class LibraryStore {
         draftFileStamps = stamps
         var cues: [String: CueDraft] = [:]
         for uuid in CueDraftStore.uuids(directory: cueDirectory) {
-            if let draft = CueDraftStore.load(trackUUID: uuid, directory: cueDirectory), draft.hasChanges { cues[uuid] = draft }
+            // 자동 큐를 빼고 만든 옛 초안에는 곡의 자동 큐를 채운다(#145).
+            if let draft = CueDraftStore.load(trackUUID: uuid, directory: cueDirectory)?.includingAutoCues(from: rowsByUUID[uuid]?.cues ?? []),
+               draft.hasChanges { cues[uuid] = draft }
         }
         var tags: [String: TagDraft] = [:]
         for uuid in TagDraftStore.uuids(directory: tagDirectory) {
