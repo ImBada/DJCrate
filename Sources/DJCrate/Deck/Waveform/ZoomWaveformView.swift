@@ -56,6 +56,8 @@ struct ZoomWaveformView: View {
     @State private var hover = ZoomPointerTarget.empty
     @State private var width: CGFloat = 1
     @State private var scroll = WaveformScrollHandler()
+    /// 끄는 동안 핫큐 키(제스처가 키 이벤트를 삼켜 KeyRouter까지 오지 않는다, #133)
+    @State private var hotCueKeys = DragHotCueKeys()
     @State private var pinchBase: Double?
 
     /// `hover`: 처음 보일 포인터 아래 대상(미리 보기·캡처용)
@@ -67,7 +69,8 @@ struct ZoomWaveformView: View {
     private enum DragMode {
         /// 큐를 잡았다. 3px 넘게 끌기 전에는 움직이지 않는다(클릭만으로 큐가 바뀌지 않도록).
         case cue(EditableCue.ID, originalTime: Double)
-        case scrub(from: Double)
+        /// 끈 거리의 기준점은 덱이 든다(끄는 중 핫큐로 옮기면 기준도 옮긴다, `ScrubAnchor`).
+        case scrub
 
         /// 끄는 동안의 포인터 모양은 끌기 시작한 대상을 따른다.
         var target: ZoomPointerTarget {
@@ -94,28 +97,36 @@ struct ZoomWaveformView: View {
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
+#if DEBUG
+                            ScrubHotCueTrace.recordDrag(ended: false)
+#endif
                             if drag == nil {
                                 switch pointerTarget(atX: value.startLocation.x, xOf: xOf, suggestions: []) {
                                 case let .cue(hit):
                                     deck.selectedCueID = hit
                                     drag = .cue(hit, originalTime: deck.cue(hit)?.time ?? center)
                                 case .empty, .suggestion:
-                                    deck.beginScrub()
-                                    drag = .scrub(from: center)
+                                    deck.beginScrubDrag()
+                                    drag = .scrub
                                 }
+                                hotCueKeys.begin(deck: deck)
                             }
                             let secondsPerPoint = window / Double(max(geo.size.width, 1))
                             switch drag {
                             case let .cue(id, originalTime):
                                 guard abs(value.translation.width) > 3 else { break }
                                 deck.move(id, to: originalTime + Double(value.translation.width) * secondsPerPoint, save: false)
-                            case let .scrub(from):
-                                deck.scrub(to: from - Double(value.translation.width) * secondsPerPoint)
+                            case .scrub:
+                                deck.dragScrub(by: -Double(value.translation.width) * secondsPerPoint)
                             case nil:
                                 break
                             }
                         }
                         .onEnded { value in
+#if DEBUG
+                            ScrubHotCueTrace.recordDrag(ended: true)
+#endif
+                            hotCueKeys.end()
                             switch drag {
                             case .cue:
                                 if abs(value.translation.width) > 3 { deck.commitDraft() }
@@ -166,7 +177,7 @@ struct ZoomWaveformView: View {
         .background { HitProbe { scroll.probe = $0 } }
         .selfTestFrame("zoomWaveform")
         .onAppear { scroll.deck = deck; scroll.install() }
-        .onDisappear { scroll.remove() }
+        .onDisappear { scroll.remove(); hotCueKeys.end() }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(.ui("확대 파형"))
         .accessibilityHint(.ui("드래그로 스크럽하고, 큐를 끌어 옮기고, 더블클릭으로 메모리 큐를 추가합니다. 휠로 확대·축소합니다. 조절하면 1박씩 옮깁니다"))

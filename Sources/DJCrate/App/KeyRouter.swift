@@ -47,6 +47,9 @@ final class KeyRouter {
     /// nil을 돌려주면 이벤트를 삼킨다(다른 곳으로 가지 않는다).
     private func route(_ event: NSEvent) -> NSEvent? {
         if event.type == .keyDown, let bigger = Self.textBiggerEvent(from: event) { return bigger }
+#if DEBUG
+        ScrubHotCueTrace.recordKey(event)
+#endif
         guard let deck else { return event }
         // CUE를 누른 뒤 포커스가 바뀌어도 이미 시작한 미리 듣기는 끝내되, 키는 새 대상에 넘긴다.
         if event.type == .keyUp { handleKeyUp(event.keyCode) }
