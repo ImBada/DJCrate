@@ -89,4 +89,39 @@ struct UsbReadLibraryTests {
         }
         #expect(folders(snapshots, "K4").isEmpty)
     }
+
+    @Test("읽기 직전 다시 본 볼륨이 목록의 볼륨과 다르면(UUID·디스크 이미지·자리) 읽지 않는다")
+    func currentVolumeMustMatch() throws {
+        let tree = UsbTreeFixture()
+        defer { tree.remove() }
+        let real = try #require(UsbScratchRoots.realPath(tree.base.path))
+        var listed = FakeUsbVolume.diskImageFAT32()
+        listed.mountPoint = real
+        let mounted: (String) -> String? = { _ in real }
+        func detail(_ body: () throws -> UsbVolumeInfo) -> String? {
+            do { _ = try body() } catch let UsbError.readFailed(detail) { return detail } catch { return "\(error)" }
+            return nil
+        }
+        // 같은 볼륨이면 지금 읽은 정보를 돌려준다(대소문자만 다른 UUID도 같은 볼륨)
+        var now = listed
+        now.volumeUUID = listed.volumeUUID?.lowercased()
+        now.available = 1
+        #expect(try UsbRead.currentVolume(matching: listed, mountedOn: mounted, volumeInfo: { _ in now }) == now)
+
+        var other = listed
+        other.volumeUUID = "00000000-0000-0000-0000-0000000000FF"
+        var physical = listed
+        physical.isDiskImage = false
+        physical.diskImagePath = nil
+        var otherImage = listed
+        otherImage.diskImagePath = "/private/tmp/djc-fixture/OTHER.img"
+        var elsewhere = listed
+        elsewhere.mountPoint = real + "-2"
+        for changed in [other, physical, otherImage, elsewhere] {
+            #expect(detail { try UsbRead.currentVolume(matching: listed, mountedOn: mounted, volumeInfo: { _ in changed }) } == "volumeChanged")
+        }
+        // 그 자리가 Mac 시동 볼륨이 됐거나(볼륨이 빠짐) 마운트 지점을 모르면 읽지 않는다
+        #expect(detail { try UsbRead.currentVolume(matching: listed, mountedOn: { _ in "/" }, volumeInfo: { _ in listed }) } == "volumeChanged")
+        #expect(detail { try UsbRead.currentVolume(matching: listed, mountedOn: { _ in nil }, volumeInfo: { _ in listed }) } != nil)
+    }
 }

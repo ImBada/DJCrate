@@ -105,10 +105,32 @@ struct UsbSidebarTests {
         table.allowsMultipleSelection = true
         table.dataSource = coordinator
         table.delegate = coordinator
-        for id in ["title", "usbSync"] { table.addTableColumn(NSTableColumn(identifier: .init(id))) }
+        let ids = ["index", "title", "artist", "album", "comment", "bpm", "key", "hotCues", "memoryCues", "tempo", "edited", "usbSync"]
+        for id in ids { table.addTableColumn(NSTableColumn(identifier: .init(id))) }
+        // 사용자가 숨겨 둔 칸(USB 목록에서 나오면 그대로 돌아와야 한다)
+        table.tableColumns.first { $0.identifier.rawValue == "album" }?.isHidden = true
         coordinator.table = table
+        coordinator.updateUsbMode(false)
         coordinator.update(rows: store.displayRows, edited: [], selection: store.selection, sortOrder: [], snapshotURL: store.snapshotURL,
                            previewRevision: 0)
+        func visible() -> [String] { table.tableColumns.filter { !$0.isHidden }.map(\.identifier.rawValue) }
+        #expect(!visible().contains("usbSync"))
+        // USB 목록은 # 번호·제목·아티스트·BPM·키·갱신 상태만, 갱신 상태는 키 바로 뒤에
+        coordinator.updateUsbMode(true)
+        #expect(visible() == ["index", "title", "artist", "bpm", "key", "usbSync"])
+        // 읽지 않은 큐·그리드 값은 칸이 보이더라도 비운다(큐 없음 경고색 '없음'을 달지 않는다)
+        func text(_ column: String) -> String? {
+            let tableColumn = table.tableColumns.first { $0.identifier.rawValue == column }
+            return (coordinator.tableView(table, viewFor: tableColumn, row: 0) as? TrackTextCell)?.text
+        }
+        #expect(text("memoryCues") == "" && text("hotCues") == "" && text("tempo") == "")
+        #expect(text("key") == "8A")
+        // 칸 메뉴로 USB 목록의 칸을 바꾸지 않는다
+        let columnMenu = coordinator.makeColumnMenu(table)
+        coordinator.menuNeedsUpdate(columnMenu)
+        #expect(!columnMenu.items.isEmpty && columnMenu.items.allSatisfy { $0.action == nil })
+        coordinator.showAllColumns()
+        #expect(visible() == ["index", "title", "artist", "bpm", "key", "usbSync"])
         let menu = coordinator.makeMenu()
         coordinator.menuNeedsUpdate(menu)
         let actions = Set(menu.items.compactMap(\.action).map(NSStringFromSelector))
@@ -123,6 +145,9 @@ struct UsbSidebarTests {
         #expect(!store.tagDrafts.keys.contains { $0.hasPrefix(UsbLibraryRows.idPrefix) })
         store.loadToDeck(store.displayRows.first)
         #expect(store.deckTrackID == nil)
+        // 로컬 목록으로 돌아오면 들어가기 전 칸 숨김 상태로 돌린다(갱신 상태 칸만 숨김)
+        coordinator.updateUsbMode(false)
+        #expect(visible() == ids.filter { $0 != "album" && $0 != "usbSync" })
         withExtendedLifetime(table) {}
 
         // 재생 목록: 같은 곡이 두 번 들어 있어도 줄마다 따로 고르고 순번을 보인다

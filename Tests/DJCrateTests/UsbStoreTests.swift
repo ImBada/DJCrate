@@ -4,7 +4,7 @@ import DJCStorage
 import DJCTestSupport
 import Darwin
 import Foundation
-import RekordboxKit
+@testable import RekordboxKit
 import Testing
 
 /// 시험용 USB 호스트: 볼륨·읽기 결과는 지어낸 값만 돌려주고, 부른 횟수를 센다(실제 볼륨·지원 폴더를 읽지 않는다)
@@ -103,12 +103,44 @@ struct UsbStoreTests {
     // MARK: - 로컬 스냅샷 보호
 
     @Test("명시한 사본(--db·DJC_DB)으로 띄우면 사본 폴더가 없는 한 스냅샷을 뜨지 않는다")
-    func explicitDatabaseNeverTakesSnapshot() {
+    func explicitDatabaseNeverTakesSnapshot() async {
         #expect(!LibraryStore.snapshotTakeAllowed(arguments: ["--db", "/tmp/x/m.db"], environment: [:]))
         #expect(!LibraryStore.snapshotTakeAllowed(arguments: [], environment: ["DJC_DB": "/tmp/x/m.db"]))
         #expect(LibraryStore.snapshotTakeAllowed(arguments: ["--db", "/tmp/x/m.db"], environment: ["DJC_REKORDBOX_DIR": "/tmp/x/rb"]))
         #expect(LibraryStore.snapshotTakeAllowed(arguments: [], environment: [:]))
         #expect(!LibraryStore.snapshotTakeAllowed(arguments: ["--db", "/tmp/x/m.db"], environment: ["DJC_HOME": "/tmp/x/home"]))
+
+        // 스냅샷을 뜨는 길(스냅샷 뜨기·창 복귀·곡 추가·빼기 미리 보기·복원 전 확인)이 모두 같은 판정으로 막힌다.
+        // 라이브 master.db를 건드리지 않게 뜨기는 바꿔 넣고, 불린 횟수만 센다
+        let store = LibraryStore(settings: SettingsStore(defaults: UserDefaults(suiteName: "djc.test.usbsnap.\(UUID())")!, persist: false),
+                                 resultHistory: WriteResultHistory(url: nil), saveTagDrafts: { _ in }, playlistDraftSaver: { _ in },
+                                 mergeDraftSaver: { _ in }, playlistImportURL: nil, stagingSaver: { _ in })
+        store.launchArguments = ["DJCrate", "--db", "/tmp/x/m.db"]
+        store.launchEnvironment = ["DJC_HOME": "/tmp/x/home"]
+        let taken = ThreadRecorder()
+        store.takeLiveSnapshot = { _ in
+            taken.record("take", main: false)
+            throw CancellationError()
+        }
+        let refused = "명시한 사본(--db)으로 연 창에서는 스냅샷을 뜨지 않습니다. --db 없이 다시 여세요"
+        func isRefusal(_ error: any Error) -> Bool {
+            if case let DJCError.writeRefused(message)? = error as? DJCError { message == refused } else { false }
+        }
+        await store.takeSnapshot()
+        if case let .failed(message) = store.phase { #expect(message == refused) } else { Issue.record("스냅샷 뜨기가 막히지 않음") }
+        await store.refreshIfRekordboxChanged()
+        await #expect(performing: { _ = try await store.previewTrackAdd(rows: []) }, throws: isRefusal)
+        await #expect(performing: { _ = try await store.previewTrackDelete(rows: []) }, throws: isRefusal)
+        #expect(store.writeStage == nil)
+        let report = RekordboxWriter.Report(outcomes: [], backup: nil, dryRun: false, createdAt: "", finalUpdateCount: 1)
+        let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/x/backup"), createdAt: .now, isWrite: true, report: report)
+        #expect(await store.libraryChangedSince(backup) == nil)
+        #expect(taken.calls.isEmpty)
+
+        // 사본 rekordbox 폴더(DJC_REKORDBOX_DIR)로 띄웠으면 그 사본에서 뜬다(바꿔 넣은 뜨기가 불린다)
+        store.launchEnvironment = ["DJC_REKORDBOX_DIR": "/tmp/x/rb"]
+        #expect(await store.libraryChangedSince(backup) == nil)
+        #expect(taken.calls.count == 1)
     }
 
     // MARK: - 읽기 정책
@@ -309,6 +341,36 @@ struct UsbStoreTests {
         continuation.finish()
         #expect(store.shapes[image.usbKey] == .rekordbox(formats: [.oneLibrary]))
         #expect(recorder.calls == [ThreadRecorder.Call(name: "info", main: false), ThreadRecorder.Call(name: "library", main: false)])
+    }
+
+    @Test("읽기 직전에 그 자리의 볼륨을 다시 보고, 새 정보로 쓰기 금지 목록을 판정한다")
+    func systemReadRechecksVolume() throws {
+        let tree = UsbTreeFixture()
+        defer { tree.remove() }
+        try UsbLibraryFixture().write(to: tree)
+        let snapshots = FileManager.default.temporaryDirectory.appending(path: "djc-usbrecheck-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: snapshots) }
+        // 목록을 훑을 때는 디스크 이미지였는데 읽기 직전 같은 자리에는 실물 볼륨이 붙어 있다(쓰기 금지 목록 미등록)
+        var listed = FakeUsbVolume.diskImageFAT32()
+        listed.mountPoint = tree.base.path
+        var swapped = FakeUsbVolume.physicalFAT32()
+        swapped.mountPoint = tree.base.path
+        let unregistered = UsbTestData.lists(.missing, entries: 0)
+        func refusal(_ body: () throws -> Void) -> String? {
+            do { try body() } catch let UsbError.readFailed(detail) { return detail } catch { return "\(error)" }
+            return nil
+        }
+        let stale = SystemUsbHost.IO.reading(snapshots: snapshots, lists: { unregistered }, recheck: { [swapped] _ in swapped })
+        #expect(refusal { _ = try stale.info(listed) } == "denyListNotRegistered")
+        #expect(refusal { _ = try stale.library(listed) } == "denyListNotRegistered")
+        // 다시 보기가 볼륨이 바뀌었다고 하면 읽지 않는다
+        let changed = SystemUsbHost.IO.reading(snapshots: snapshots, lists: { unregistered },
+                                               recheck: { _ in throw UsbError.readFailed(detail: "volumeChanged") })
+        #expect(refusal { _ = try changed.library(listed) } == "volumeChanged")
+        #expect(!FileManager.default.fileExists(atPath: snapshots.path))
+        // 같은 볼륨이면 그대로 사본을 떠서 읽는다
+        let same = SystemUsbHost.IO.reading(snapshots: snapshots, lists: { unregistered }, recheck: { $0 })
+        #expect(try same.library(listed).tracks.count == 3)
     }
 }
 

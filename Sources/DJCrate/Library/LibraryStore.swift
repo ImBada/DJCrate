@@ -178,6 +178,11 @@ final class LibraryStore {
     var onLoadToDeck: ((TrackRow?) -> Void)?
     /// 스냅샷을 새로 읽었을 때(USB 갱신 상태의 로컬 짝짓기 키를 다시 읽는다)
     @ObservationIgnored var onSnapshotLoaded: ((URL) -> Void)?
+    /// 띄운 인자·환경. 스냅샷을 새로 떠도 되는지(`snapshotTakeAllowed`) 정한다. 시험은 바꿔 넣는다
+    @ObservationIgnored var launchArguments = ProcessInfo.processInfo.arguments
+    @ObservationIgnored var launchEnvironment = ProcessInfo.processInfo.environment
+    /// rekordbox 폴더의 master.db에서 기본 스냅샷 폴더로 사본을 뜬다(`force`). 시험은 라이브를 건드리지 않게 바꿔 넣는다
+    @ObservationIgnored var takeLiveSnapshot: @Sendable (Bool) throws -> URL = { try LibrarySnapshot.take(force: $0) }
     /// 덱에 올린 곡(ContentID, 추가한 곡은 djc- ID). 목록의 덱 표시와 새로 읽을 때 덱을 맞추는 데 쓴다.
     private(set) var deckTrackID: String?
 
@@ -407,6 +412,9 @@ final class LibraryStore {
             && !LibrarySnapshot.hasRekordboxDirectoryOverride(in: environment))
     }
 
+    /// 스냅샷을 뜨지 않은 이유(`snapshotTakeAllowed`가 거짓일 때)
+    static var snapshotRefusedMessage: String { String(ui: "명시한 사본(--db)으로 연 창에서는 스냅샷을 뜨지 않습니다. --db 없이 다시 여세요") }
+
     /// iTunes 버튼은 명시한 DB를 벗어나지 않는다. 사본 모드에서는 현재 DB 옆 목록만 다시 읽는다.
     func refreshITunesPlaylists(arguments: [String] = ProcessInfo.processInfo.arguments,
                                 environment: [String: String] = ProcessInfo.processInfo.environment) async {
@@ -439,7 +447,7 @@ final class LibraryStore {
     /// 창으로 돌아올 때: 지금 읽은 스냅샷 뒤에 rekordbox가 라이브러리를 바꿨으면 뒤에서 조용히 새로 읽는다.
     /// rekordbox가 켜져 있어도 읽기용 사본(WAL까지 사본 안에서 합침)으로 뜬다. 원본은 읽기만 한다.
     func refreshIfRekordboxChanged() async {
-        guard Self.snapshotTakeAllowed(arguments: ProcessInfo.processInfo.arguments, environment: ProcessInfo.processInfo.environment),
+        guard Self.snapshotTakeAllowed(arguments: launchArguments, environment: launchEnvironment),
               case .loaded = phase, !isLoading, !isWritingRekordbox, let snapshotURL,
               snapshotURL.deletingLastPathComponent().standardizedFileURL.path == LibrarySnapshot.defaultDirectory.standardizedFileURL.path,
               LibrarySnapshot.changed(since: snapshotURL) else { return }
@@ -458,8 +466,8 @@ final class LibraryStore {
     private func takeSnapshotOnce(force: Bool, quiet: Bool) async {
         let hadRows = !rows.isEmpty
         // 명시한 사본으로 연 창은 라이브에서 새로 뜨지 않는다(지금 라이브러리는 그대로 둔다)
-        guard Self.snapshotTakeAllowed(arguments: ProcessInfo.processInfo.arguments, environment: ProcessInfo.processInfo.environment) else {
-            let message = String(ui: "명시한 사본(--db)으로 연 창에서는 스냅샷을 뜨지 않습니다. --db 없이 다시 여세요")
+        guard Self.snapshotTakeAllowed(arguments: launchArguments, environment: launchEnvironment) else {
+            let message = Self.snapshotRefusedMessage
             if hadRows { lastError = message } else { phase = .failed(message) }
             return
         }
@@ -477,7 +485,8 @@ final class LibraryStore {
         let quiet = quiet && hadRows && isLoaded
         if !quiet { phase = .loading(String(ui: "rekordbox DB 스냅샷을 뜨는 중…")) }
         do {
-            let url = try await Task.detached { try LibrarySnapshot.take(force: force) }.value
+            let take = takeLiveSnapshot
+            let url = try await Task.detached { try take(force) }.value
             await load(snapshot: url, quiet: quiet, refreshITunes: refreshITunes, previousITunesSnapshot: previousITunesSnapshot)
         } catch {
             // 이미 라이브러리가 있으면 그대로 두고 오류만 알린다.
