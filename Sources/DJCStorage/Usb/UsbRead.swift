@@ -23,12 +23,15 @@ public enum UsbRead {
     }
 
     /// 실물 읽기 허용 판정(순수). nil이면 읽어도 된다. 순서: 거부 목록의 UUID → 디스크 이미지는 허용 → 목록이 깨짐 →
-    /// 고정 위치 목록이 없거나 비었음. 거부 목록이 증거용 USB를 가려낼 유일한 수단이라, 목록 없이는 실물을 읽지 않는다
+    /// 고정 위치 목록이 없거나 비었음 → 볼륨 UUID를 모름. 거부 목록이 증거용 USB를 가려낼 유일한 수단이라, 목록 없이는
+    /// 실물을 읽지 않고, UUID를 모르는 실물은 목록과 맞춰 볼 수 없으니 읽지 않는다(쓰기 관문과 같은 fail-closed)
     public static func readRefusal(volume: UsbVolumeInfo, lists: UsbPhysicalLists.Loaded) -> String? {
-        if let uuid = volume.volumeUUID?.uppercased(), lists.deny.contains(uuid) { return "denylisted" }
+        let uuid = volume.volumeUUID?.uppercased()
+        if let uuid, lists.deny.contains(where: { $0.uppercased() == uuid }) { return "denylisted" }
         if volume.isDiskImage { return nil }
         if lists.denyStatus.fixedLocation == .corrupt || lists.denyStatus.userData == .corrupt { return "denyListUnreadable" }
         if lists.denyStatus.fixedLocation == .missing || lists.denyStatus.fixedEntryCount < 1 { return "denyListNotRegistered" }
+        guard let uuid, !uuid.isEmpty else { return "noVolumeUUID" }
         return nil
     }
 
@@ -38,21 +41,36 @@ public enum UsbRead {
         case "denylisted": String(ui: "쓰기 금지 목록의 USB라 읽지 않습니다")
         case "denyListUnreadable": String(ui: "쓰기 금지 목록 파일을 읽을 수 없어 실물 USB를 읽지 않습니다. 목록 파일을 고친 뒤 다시 시도하세요")
         case "denyListNotRegistered": String(ui: "쓰기 금지 목록(증거용 USB)을 먼저 등록해야 실물 USB를 읽습니다")
+        case "noVolumeUUID": String(ui: "USB의 볼륨 UUID를 읽지 못해 실물 USB를 읽지 않습니다. USB를 다시 연결한 뒤 시도하세요")
         default: UsbError.readFailed(detail: code).errorDescription ?? code
         }
     }
 
     /// 막힘 code 목록
-    public static let refusalCodes: Set<String> = ["denylisted", "denyListUnreadable", "denyListNotRegistered"]
+    public static let refusalCodes: Set<String> = ["denylisted", "denyListUnreadable", "denyListNotRegistered", "noVolumeUUID"]
 
     /// 사본을 떠서(UsbSnapshot) 읽는다. USB에 아무것도 쓰지 않는다. neverRead를 열지 않는다.
     /// - volume: 대상이 든 볼륨(`volume(for:)`), 폴더 대상이면 nil. 볼륨이면 먼저 `readRefusal`로 보고, 막히면 사본도 뜨지 않고
-    ///   `UsbError.readFailed(detail: <막힘 code>)`를 던진다
-    /// - scratch: 사본을 뜰 Mac 쪽 폴더(없거나 비어 있어야 한다). 끝나면 뜬 사본을 지운다
+    ///   `UsbError.readFailed(detail: <막힘 code>)`를 던진다. nil이면 대상이 정말 Mac 시동·데이터 볼륨 위인지 다시 보고,
+    ///   아니면 `volumeNotChecked`를 던진다(부르는 쪽이 볼륨을 빠뜨려도 목록 판정을 건너뛰지 않게)
+    /// - scratch: 사본을 뜰 Mac 쪽 폴더(없거나 비어 있어야 한다. 아니면 `scratch not empty`). 끝나면 이 호출이 뜬 사본만 지운다
     /// - lists: 쓰기 금지 목록 상태. 시험은 임시 값을 넘긴다
+    /// - mountedOn: statfs 마운트 지점(시험은 가짜를 넘긴다)
     public static func info(root: URL, scratch: URL, volume: UsbVolumeInfo?, lists: UsbPhysicalLists.Loaded = UsbPhysicalLists.load(),
+                            mountedOn: (String) -> String? = UsbScratchRoots.mountedOn,
                             appVersion: () -> String? = { RekordboxCompatibility.installedAppVersion() }) throws -> UsbInfo {
-        if let volume, let code = readRefusal(volume: volume, lists: lists) { throw UsbError.readFailed(detail: code) }
+        if let volume {
+            if let code = readRefusal(volume: volume, lists: lists) { throw UsbError.readFailed(detail: code) }
+        } else {
+            guard let real = UsbScratchRoots.realPath(root.path), let mount = mountedOn(real), startupMounts.contains(mount) else {
+                throw UsbError.readFailed(detail: "volumeNotChecked")
+            }
+        }
+        // 이미 무엇이 든 폴더(USB 루트 포함)를 사본 폴더로 받으면 끝낼 때 남의 파일을 지울 수 있다
+        let fm = FileManager.default
+        if fm.fileExists(atPath: scratch.path), (try? fm.contentsOfDirectory(atPath: scratch.path))?.isEmpty != true {
+            throw UsbError.readFailed(detail: "scratch not empty")
+        }
         let usb = UsbRoot(root)
         var info = UsbInfo(root: root.path)
         info.volume = volume.map(volumePart)
@@ -65,7 +83,6 @@ public enum UsbRead {
         info.formats = (hasOneLibrary ? [UsbFormat.oneLibrary.rawValue] : []) + (hasPdb ? [UsbFormat.deviceLibrary.rawValue] : [])
         guard hasOneLibrary || hasPdb else { return info }
 
-        let fm = FileManager.default
         let createdScratch = !fm.fileExists(atPath: scratch.path)
         let databaseCopy = scratch.appending(path: "db"), pdbCopy = scratch.appending(path: "pdb")
         defer {

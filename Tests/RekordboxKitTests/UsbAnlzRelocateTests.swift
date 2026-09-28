@@ -176,6 +176,10 @@ struct UsbAnlzRelocateTests {
         #expect(UsbAnlzRelocate.refusal(resolved: "/Volumes/DJCTEST/copy", mountedOn: "/Volumes/DJCTEST") == "outsideScratch")
         let mounted = UsbScratchRoots.realPath(NSTemporaryDirectory())! + "/mnt"
         #expect(UsbAnlzRelocate.refusal(resolved: mounted, mountedOn: mounted) == "volumeRoot")
+        // 임시 폴더에 붙인 볼륨의 하위 폴더도 받지 않는다(Mac 시동·데이터 볼륨 위의 폴더만)
+        #expect(UsbAnlzRelocate.refusal(resolved: mounted + "/sub", mountedOn: mounted) == "onMountedVolume")
+        #expect(UsbAnlzRelocate.refusal(resolved: "/private/tmp/x/mnt/sub", mountedOn: "/private/tmp/x/mnt") == "onMountedVolume")
+        #expect(UsbAnlzRelocate.refusal(resolved: "/private/tmp/copy", mountedOn: "/") == nil)
         #expect(UsbAnlzRelocate.refusal(resolved: "/private/tmp/copy", mountedOn: "/System/Volumes/Data") == nil)
         #expect(UsbAnlzRelocate.refusal(resolved: "/private/tmp/copy", mountedOn: nil) == "unreadable")
     }

@@ -160,17 +160,17 @@ djc usb-info <볼륨|폴더> [--json]
 
 USB(마운트된 볼륨이나 그 안 폴더, 또는 USB 모양 폴더)를 **읽기만** 해서 형식·곡 수·두 형식이 맞는지·분석 파일·경고를 보여 준다. 앱 사이드바도 같은 판정(`UsbRead`)을 쓴다. USB에는 아무것도 쓰지 않는다. DB는 `DJC_HOME`(또는 기본 DJCrate 데이터 폴더)의 `usb-snapshots/` 아래에 사본으로 떠서 읽고 끝나면 지운다. `PIONEER/extracted`·`PIONEER/CDP`·`djprofile.nxs`는 열지도 "있음"을 알리지도 않는다. 사람용 출력에는 곡 제목·경로·볼륨 이름을 찍지 않는다.
 
-- **실물 USB는 쓰기 금지 목록(증거용 USB)을 등록한 뒤에만 읽는다. 디스크 이미지·폴더는 늘 읽는다.** 대상 경로의 마운트 지점이 Mac 시동 볼륨이 아니면(볼륨 안 하위 폴더여도) 그 볼륨으로 보고 먼저 판정한다: 볼륨 UUID가 쓰기 금지 목록에 있으면 `denylisted`(디스크 이미지여도), 디스크 이미지면 읽음, 목록 파일이 깨졌으면 `denyListUnreadable`, 고정 위치 목록이 없거나 비었으면 `denyListNotRegistered`. 막히면 사본도 뜨지 않는다.
+- **실물 USB는 쓰기 금지 목록(증거용 USB)을 등록한 뒤에만 읽는다. 디스크 이미지·폴더는 늘 읽는다.** 대상 경로의 마운트 지점이 Mac 시동 볼륨이 아니면(볼륨 안 하위 폴더여도) 그 볼륨으로 보고 먼저 판정한다: 볼륨 UUID가 쓰기 금지 목록에 있으면 `denylisted`(디스크 이미지여도), 디스크 이미지면 읽음, 목록 파일이 깨졌으면 `denyListUnreadable`, 고정 위치 목록이 없거나 비었으면 `denyListNotRegistered`, 실물인데 볼륨 UUID를 읽지 못했으면 `noVolumeUUID`(목록과 맞춰 볼 수 없으므로). 막히면 사본도 뜨지 않는다.
 - rekordbox 라이브러리나 DJCrate 데이터 폴더를 주면 거부한다(`liveLibrary`). 없는 경로는 `not_found`.
-- JSON은 위 v1 규칙을 따르되, **`usb-info`는 키를 생략하지 않는다**: 값이 없으면 `null`이다(뒤 판이 값을 채워도 모양이 그대로이게). 오류 코드는 위의 것과 `denylisted`, `denyListUnreadable`, `denyListNotRegistered`, `liveLibrary`다.
-- **개인 식별값은 내지 않는다**: masterDbId·myTagMasterDBID·볼륨 UUID·볼륨 이름은 값 대신 "같은지"만 적는다.
+- JSON은 위 v1 규칙을 따르되, **`usb-info`는 키를 생략하지 않는다**: 값이 없으면 `null`이다(뒤 판이 값을 채워도 모양이 그대로이게). 오류 코드는 위의 것과 `denylisted`, `denyListUnreadable`, `denyListNotRegistered`, `noVolumeUUID`, `liveLibrary`다.
+- **개인 식별값은 내지 않는다**: masterDbId·myTagMasterDBID·볼륨 UUID는 값 대신 "같은지"만 적는다. 볼륨 이름은 `root`(받은 경로)에만 나올 수 있고 다른 키에는 없다.
 
 `data`(`UsbInfo`, `schemaVersion` 1):
 
 | 키 | 타입 | 뜻 |
 |---|---|---|
 | `schemaVersion` | number | 1 |
-| `root` | string | 받은 경로 |
+| `root` | string | 받은 경로를 절대 경로로 바꾼 것(링크는 풀지 않는다). 볼륨이면 `/Volumes/<이름>`처럼 볼륨 이름이 들어갈 수 있다 |
 | `formats` | string[] | `oneLibrary`·`deviceLibrary`(`PIONEER/rekordbox/`의 `exportLibrary.db`·`export.pdb` 이름으로 판정) |
 | `volume` | object \| null | 폴더 대상이면 null. `fileSystem`(string, 예 `FAT32`), `partitionScheme`(`mbr`·`gpt`·`apm`·`none`·`unknown`), `isDiskImage`, `writableForExport`, `writableForEdit`(bool, 볼륨 정책 문제가 없는지), `problems`(string[], 정책 문제 code) |
 | `oneLibrary` | object \| null | `schemaOK`(확인한 모양), `headerMode`(`wal`·`rollback`, 사본이 온전하지 않으면 `unknown`), `walPresent`, `journalPresent`, `integrityOK`(bool), `tracks`, `playlists`, `myTags`, `histories`(number) |

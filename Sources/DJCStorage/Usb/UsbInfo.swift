@@ -1,10 +1,11 @@
 import Foundation
 
-/// `djc usb-info --json`(v1)과 앱 사이드바가 쓰는 USB 읽기 결과. 개인 식별값(masterDbId·myTagMasterDBID·볼륨 UUID·이름)은 담지 않는다.
+/// `djc usb-info --json`(v1)과 앱 사이드바가 쓰는 USB 읽기 결과. 개인 식별값(masterDbId·myTagMasterDBID·볼륨 UUID)은 담지 않는다.
+/// 볼륨 이름은 `root`(받은 경로)에만 나올 수 있고 다른 칸에는 없다.
 /// 키는 늘 있다: 없는 값은 생략하지 않고 null로 쓴다(뒤 판이 값을 채워도 JSON 모양이 그대로이게).
 public struct UsbInfo: Codable, Sendable, Hashable {
     public var schemaVersion = 1
-    /// 받은 경로 그대로
+    /// 받은 경로를 절대 경로로 바꾼 것(링크는 풀지 않는다). 볼륨 대상이면 `/Volumes/<이름>`처럼 볼륨 이름이 들어갈 수 있다
     public var root: String
     /// "oneLibrary", "deviceLibrary"(PIONEER/rekordbox의 파일 이름으로 판정)
     public var formats: [String]

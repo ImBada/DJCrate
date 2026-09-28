@@ -3,7 +3,8 @@ import Darwin
 import Foundation
 
 /// 기기 실험용 사본 준비: 한 곡의 분석 파일 위치·두 DB의 분석 경로를 일부러 어긋나게 만든다.
-/// 임시 폴더 아래의 USB 모양 **사본 폴더**에만 쓴다(볼륨 맨 위·링크·임시 폴더 밖은 거부). USB에 쓰는 길은 `UsbWriter`뿐이다.
+/// Mac 데이터 볼륨의 임시 폴더 아래 USB 모양 **사본 폴더**에만 쓴다(마운트된 볼륨 위·링크·임시 폴더 밖은 거부).
+/// USB에 쓰는 길은 `UsbWriter`뿐이다.
 public enum UsbAnlzRelocate {
     public enum Mode: String, Sendable, CaseIterable {
         /// 파일을 새 폴더로 옮기고 두 DB 경로도 옮긴다(기기가 DB 경로를 따르는지)
@@ -19,6 +20,8 @@ public enum UsbAnlzRelocate {
     }
 
     static let analysisPrefix = "/" + UsbLayout.analysisRoot + "/"
+    /// Mac 시동·데이터 볼륨의 마운트 지점(임시 폴더가 있는 곳). 사본 폴더는 이 위에만 있어야 한다
+    static let macVolumeMounts: Set<String> = ["/", "/System/Volumes/Data"]
     static let extensions = ["DAT", "EXT", "2EX"]
     /// 새 핫큐 A를 옮기는 폭(ms)
     static let cueShift: UInt32 = 4_000
@@ -112,7 +115,7 @@ public enum UsbAnlzRelocate {
 
     // MARK: - 경로 확인
 
-    /// 사본 폴더 확인: 있는 폴더(링크 아님)이고, realpath가 임시 폴더 아래이며 볼륨의 맨 위가 아니어야 한다. 통과하면 realpath
+    /// 사본 폴더 확인: 있는 폴더(링크 아님)이고, realpath가 임시 폴더 아래이며 Mac 시동·데이터 볼륨 위여야 한다. 통과하면 realpath
     static func checkCopy(_ path: String) throws -> String {
         var info = stat()
         guard lstat(path, &info) == 0 else { throw UsbError.pathRefused(path: path, reason: errno == ENOENT ? "notFound" : "unreadable") }
@@ -131,8 +134,9 @@ public enum UsbAnlzRelocate {
         let denied = ["/dev", "/Volumes"] + [UsbScratchRoots.realPath(NSHomeDirectory() + "/Library/Pioneer")].compactMap { $0 }
         if denied.contains(where: { resolved == $0 || resolved.hasPrefix($0 + "/") }) { return "deniedPrefix" }
         guard let mountedOn else { return "unreadable" }
-        // 디스크 이미지 마운트 지점도 받지 않는다(볼륨에 쓰는 길은 UsbWriter뿐)
+        // 임시 폴더에 붙인 디스크 이미지·실물의 맨 위와 그 안 폴더도 받지 않는다(볼륨에 쓰는 길은 UsbWriter뿐)
         if mountedOn == resolved { return "volumeRoot" }
+        if !macVolumeMounts.contains(mountedOn) { return "onMountedVolume" }
         return nil
     }
 

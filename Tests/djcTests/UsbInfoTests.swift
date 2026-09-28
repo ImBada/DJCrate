@@ -243,7 +243,7 @@ struct UsbInfoTests {
             let result = try info(tree, volume: volume)
             let data = try ReadJSON.encode(command: "usb-info", data: result)
             let text = String(decoding: data, as: UTF8.self)
-            // 개인 식별값은 내지 않는다
+            // 개인 식별값은 내지 않는다(볼륨 이름은 root에만 나올 수 있다 — 여기 root는 임시 폴더)
             for secret in [String(masterDbId), String(myTagID), try #require(volume.volumeUUID), volume.name] {
                 #expect(!text.contains(secret))
             }
@@ -292,6 +292,11 @@ struct UsbInfoTests {
             for volume in [image, physical] {
                 let lists = Self.lists(.ok, entries: 1, deny: [try #require(volume.volumeUUID)])
                 #expect(refusal(tree, volume: volume, lists: lists) == "denylisted")
+                // 목록을 손으로 만든 값이어도 UUID 대소문자와 무관하게 막는다
+                let lower = UsbPhysicalLists.Loaded(allow: [], deny: [try #require(volume.volumeUUID).lowercased()],
+                                                    denyStatus: UsbDenyListStatus(fixedLocation: .ok, fixedEntryCount: 1, userData: .missing),
+                                                    allowState: .missing)
+                #expect(refusal(tree, volume: volume, lists: lower) == "denylisted")
             }
             #expect(UsbRead.refusalMessage("denylisted") == "쓰기 금지 목록의 USB라 읽지 않습니다")
         }
@@ -325,6 +330,86 @@ struct UsbInfoTests {
             let read = try info(tree, volume: FakeUsbVolume.physicalFAT32(), lists: Self.lists(.ok, entries: 1, deny: [Self.otherUUID]))
             #expect(read.volume?.isDiskImage == false && read.oneLibrary?.tracks == 3)
             #expect(read.volume?.writableForExport == true && read.volume?.writableForEdit == true)
+
+            // 볼륨 UUID를 모르는 실물은 거부 목록으로 가려낼 수 없어 읽지 않는다. 디스크 이미지는 읽는다
+            let registered = Self.lists(.ok, entries: 1, deny: [Self.otherUUID])
+            for uuid in [nil, ""] as [String?] {
+                var physical = FakeUsbVolume.physicalFAT32()
+                physical.volumeUUID = uuid
+                #expect(UsbRead.readRefusal(volume: physical, lists: registered) == "noVolumeUUID")
+                #expect(refusal(tree, volume: physical, lists: registered) == "noVolumeUUID")
+                // 목록이 없을 때는 목록 막힘이 먼저다
+                #expect(UsbRead.readRefusal(volume: physical, lists: Self.lists(.missing)) == "denyListNotRegistered")
+                var image = FakeUsbVolume.diskImageFAT32()
+                image.volumeUUID = uuid
+                #expect(refusal(tree, volume: image, lists: registered) == nil)
+            }
+            #expect(UsbRead.refusalCodes.contains("noVolumeUUID"))
+            #expect(UsbRead.refusalMessage("noVolumeUUID") == "USB의 볼륨 UUID를 읽지 못해 실물 USB를 읽지 않습니다. USB를 다시 연결한 뒤 시도하세요")
+        }
+    }
+
+    /// info가 던진 readFailed detail(다른 오류면 기록)
+    func readFailure(_ body: () throws -> UsbInfo) -> String? {
+        do {
+            _ = try body()
+            return nil
+        } catch let UsbError.readFailed(detail) {
+            return detail
+        } catch {
+            Issue.record("다른 오류: \(error)")
+            return "other"
+        }
+    }
+
+    @Test func folderTargetMustBeOnStartupVolume() throws {
+        try withUsb { tree in
+            // 볼륨을 nil로 넘겨도 대상이 Mac 시동·데이터 볼륨 위가 아니면 목록 판정 없이 읽지 않는다
+            let scratch = Self.scratch()
+            defer { try? FileManager.default.removeItem(at: scratch) }
+            let before = tree.tree()
+            let detail = readFailure {
+                try UsbRead.info(root: tree.base, scratch: scratch, volume: nil, lists: Self.lists(), mountedOn: { _ in "/Volumes/DJCPHYS" },
+                                 appVersion: { nil })
+            }
+            #expect(detail == "volumeNotChecked")
+            #expect(readFailure {
+                try UsbRead.info(root: tree.base, scratch: scratch, volume: nil, lists: Self.lists(), mountedOn: { _ in nil }, appVersion: { nil })
+            } == "volumeNotChecked")
+            #expect(!FileManager.default.fileExists(atPath: scratch.path))
+            #expect(tree.tree() == before)
+            // Mac 데이터 볼륨의 폴더는 읽는다
+            let read = try UsbRead.info(root: tree.base, scratch: scratch, volume: nil, lists: Self.lists(),
+                                        mountedOn: { _ in "/System/Volumes/Data" }, appVersion: { nil })
+            #expect(read.oneLibrary?.tracks == 3)
+        }
+    }
+
+    @Test func nonEmptyScratchRefusedAndKept() throws {
+        try withUsb { tree in
+            // 사본 폴더에 이미 있던 것은 지우지 않는다(이 호출이 만든 것만 지운다)
+            let scratch = Self.scratch()
+            defer { try? FileManager.default.removeItem(at: scratch) }
+            let keep = scratch.appending(path: "db/keep")
+            try FileManager.default.createDirectory(at: keep.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("synthetic".utf8).write(to: keep)
+            #expect(readFailure {
+                try UsbRead.info(root: tree.base, scratch: scratch, volume: nil, lists: Self.lists(), appVersion: { nil })
+            } == "scratch not empty")
+            #expect(FileManager.default.fileExists(atPath: keep.path))
+            // USB 루트를 사본 폴더로 주어도 USB 안을 지우지 않는다
+            tree.write("db/keep", "synthetic")
+            let before = tree.tree()
+            #expect(readFailure {
+                try UsbRead.info(root: tree.base, scratch: tree.base, volume: nil, lists: Self.lists(), appVersion: { nil })
+            } == "scratch not empty")
+            #expect(tree.tree() == before)
+            // 빈 사본 폴더는 받고, 폴더는 남긴 채 이 호출이 뜬 사본만 지운다
+            let emptyScratch = Self.scratch()
+            try FileManager.default.createDirectory(at: emptyScratch, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: emptyScratch) }
+            _ = try UsbRead.info(root: tree.base, scratch: emptyScratch, volume: nil, lists: Self.lists(), appVersion: { nil })
+            #expect((try FileManager.default.contentsOfDirectory(atPath: emptyScratch.path)).isEmpty)
         }
     }
 
@@ -394,7 +479,7 @@ struct UsbInfoTests {
         }
     }
 
-    func run(_ arguments: [String]) throws -> (status: Int32, stdout: String, stderr: String) {
+    func run(_ arguments: [String], in directory: URL? = nil) throws -> (status: Int32, stdout: String, stderr: String) {
         let root = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let executable = try #require([".build/debug/djc", ".build/out/Products/Debug/djc"].map { root.appending(path: $0) }
             .first { FileManager.default.isExecutableFile(atPath: $0.path) })
@@ -403,6 +488,7 @@ struct UsbInfoTests {
         let process = Process(), output = Pipe(), error = Pipe()
         process.executableURL = executable
         process.arguments = arguments
+        if let directory { process.currentDirectoryURL = directory }
         process.environment = ProcessInfo.processInfo.environment.merging(["DJC_HOME": home.path, "DJC_LANG": "ko"]) { _, new in new }
         process.standardOutput = output
         process.standardError = error
@@ -422,6 +508,12 @@ struct UsbInfoTests {
             let object = try #require(try JSONSerialization.jsonObject(with: Data(json.stdout.utf8)) as? [String: Any])
             #expect(object["command"] as? String == "usb-info")
             #expect((object["data"] as? [String: Any])?["formats"] as? [String] == ["oneLibrary", "deviceLibrary"])
+            // root는 받은 경로를 절대 경로로 바꿔 그대로 적는다(볼륨이면 볼륨 이름이 들어갈 수 있다)
+            #expect((object["data"] as? [String: Any])?["root"] as? String == tree.base.path)
+            let relative = try run(["usb-info", tree.base.lastPathComponent, "--json"], in: tree.base.deletingLastPathComponent())
+            let relativeRoot = ((try JSONSerialization.jsonObject(with: Data(relative.stdout.utf8)) as? [String: Any])?["data"]
+                as? [String: Any])?["root"] as? String
+            #expect(relativeRoot?.hasPrefix("/") == true && relativeRoot?.hasSuffix("/" + tree.base.lastPathComponent) == true)
             let text = try run(["usb-info", tree.base.path])
             #expect(text.status == 0)
             #expect(text.stdout.contains("OneLibrary: 곡 3"))

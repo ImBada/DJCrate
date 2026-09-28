@@ -676,7 +676,10 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
    2. 디스크 이미지 → 읽는다
    3. 목록 파일이 깨짐(고정 위치·`DJC_HOME` 어느 쪽이든) → `denyListUnreadable`
    4. 고정 위치 목록이 없거나 항목이 0 → `denyListNotRegistered`. 증거용 USB를 가려낼 수단이 거부 목록뿐이라, 등록 전에는 실물 USB를 읽지 않는다
-   5. 그 밖 → 읽는다. 볼륨 정책 문제(`UsbVolumePolicy`, 내보내기·고치기 각각)를 함께 적는다
+   5. 볼륨 UUID를 읽지 못함 → `noVolumeUUID`. 목록과 맞춰 볼 수 없으므로 읽지 않는다(쓰기 관문과 같다)
+   6. 그 밖 → 읽는다. 볼륨 정책 문제(`UsbVolumePolicy`, 내보내기·고치기 각각)를 함께 적는다
+
+   부르는 쪽이 볼륨 없이(폴더 대상으로) 넘겨도 `UsbRead.info`가 마운트 지점을 다시 보고, Mac 시동 볼륨이 아니면 읽지 않는다. 사본 폴더는 없거나 비어 있어야 하며(아니면 거부), 끝나면 그 호출이 뜬 사본만 지운다.
 2. 형식: `PIONEER/rekordbox/` 바로 아래 파일 이름만 본다(`exportLibrary.db` → OneLibrary, `export.pdb` → Device Library).
 3. DB: `UsbSnapshot.take`로 Mac 쪽 사본을 떠서(§2.3) 읽고 끝나면 지운다.
    - OneLibrary: 사이드카(`-wal`·`-journal`) 유무, 머리 모양(wal·rollback), `integrity_check`·`cipher_integrity_check`, 호환 검사(§2.4), 곡·재생 목록·My Tag·기록 수. 사본이 온전하지 않으면 OneLibrary는 읽지 못한 것으로 적고 pdb 둘만 따로 떠서 읽는다.
@@ -689,8 +692,8 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 
 ### 8.2 실험 도구
 
-- `djc lab usb-diff <A> <B> --files --anlz`: 모델 비교(§2.6)에 더해 파일 트리(NFC 경로·크기·SHA-256, macOS 파일·`._*`·열지 않는 경로 제외)와 분석 파일(PPTH·확장자로 짝지어 태그 목록·태그 바이트)을 비교한다. 경로 대신 묶음 이름(DB·설정·USBANLZ·Artwork·Contents)·곡 id·태그 이름·수만 찍는다. `--ignore-anlz-folder`면 파일 트리에서도 USBANLZ 파일을 (PPTH, 확장자)로 짝짓는다.
-- `djc lab usb-anlz-relocate <USB 사본> --track <id> --folder <P???/????????> [--db-only|--files-only|--decoy-slot0|--cue-variant]`: 기기가 분석 파일을 DB 경로로 찾는지 확인하려고 한 곡을 일부러 어긋나게 만든다. 임시 폴더 아래의 **사본 폴더**에만 쓴다(볼륨 맨 위·링크·임시 폴더 밖·rekordbox 실행 중이면 거부). pdb 분석 경로는 같은 길이 문자열로 제자리 교체하고(길이가 다르면 거부), OneLibrary는 `UPDATE` 뒤 `wal_checkpoint(TRUNCATE)`로 사이드카를 남기지 않는다. 모든 확인을 먼저 하고 하나라도 걸리면 아무것도 바꾸지 않는다.
+- `djc lab usb-diff <A> <B> --files --anlz`: 모델 비교(§2.6)에 더해 파일 트리(NFC 경로·크기·SHA-256, macOS 파일·`._*`·열지 않는 경로 제외)와 분석 파일(PPTH·확장자로 짝지어 태그 목록·태그 바이트)을 비교한다. 경로 대신 묶음 이름(DB·설정·USBANLZ·Artwork·Contents)·곡 id·태그 이름·수만 찍는다. `--ignore-anlz-folder`면 파일 트리에서도 USBANLZ 파일을 (PPTH, 확장자)로 짝짓는다. 한쪽에 같은 (PPTH, 확장자) 파일이 여럿이면(같은 곡의 분석 파일을 다른 폴더에 한 벌 더 둔 사본 등) 버리지 않고 모두 비교하고 "PPTH 겹침"으로 따로 센다. "n/N 바이트 같음"의 N은 한쪽의 모든 분석 파일 수(큰 쪽)다.
+- `djc lab usb-anlz-relocate <USB 사본> --track <id> --folder <P???/????????> [--db-only|--files-only|--decoy-slot0|--cue-variant]`: 기기가 분석 파일을 DB 경로로 찾는지 확인하려고 한 곡을 일부러 어긋나게 만든다. Mac 데이터 볼륨의 임시 폴더 아래 **사본 폴더**에만 쓴다(마운트된 볼륨의 맨 위나 그 안 폴더·링크·임시 폴더 밖·rekordbox 실행 중이면 거부). pdb 분석 경로는 같은 길이 문자열로 제자리 교체하고(길이가 다르면 거부), OneLibrary는 `UPDATE` 뒤 `wal_checkpoint(TRUNCATE)`로 사이드카를 남기지 않는다. 모든 확인을 먼저 하고 하나라도 걸리면 아무것도 바꾸지 않는다.
   - 기본·`--db-only`: 파일을 새 폴더로 옮기고 두 DB 경로도 옮긴다.
   - `--files-only`: 파일은 그대로, 두 DB 경로만 같은 길이의 없는 폴더로.
   - `--cue-variant`: 새 폴더에 파일을 복사하고 그쪽 `.DAT`의 핫큐 A 위치만 바꾼다(인코더로 원래 핫큐 목록을 다시 만든 바이트가 원본과 같을 때만). DB는 새 폴더.

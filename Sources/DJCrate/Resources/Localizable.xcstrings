@@ -6892,6 +6892,22 @@
         }
       }
     },
+    "USB의 볼륨 UUID를 읽지 못해 실물 USB를 읽지 않습니다. USB를 다시 연결한 뒤 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read the USB's volume UUID, so the physical USB will not be read. Reconnect the USB and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBのボリュームUUIDを読み込めないため、実物のUSBは読み込みません。USBを接続し直してからお試しください"
+          }
+        }
+      }
+    },
     "USB의 볼륨 UUID를 읽지 못해 쓰지 않습니다. USB를 다시 연결한 뒤 시도하세요" : {
       "localizations" : {
         "en" : {

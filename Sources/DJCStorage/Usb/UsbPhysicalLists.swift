@@ -10,9 +10,10 @@ public enum UsbPhysicalLists {
         public var denyStatus: UsbDenyListStatus
         public var allowState: UsbDenyListStatus.State
 
+        /// UUID는 대문자로 맞춘다(읽기·쓰기 판정이 대문자 UUID로 찾는다)
         public init(allow: Set<String>, deny: Set<String>, denyStatus: UsbDenyListStatus, allowState: UsbDenyListStatus.State) {
-            self.allow = allow
-            self.deny = deny
+            self.allow = Set(allow.map { $0.uppercased() })
+            self.deny = Set(deny.map { $0.uppercased() })
             self.denyStatus = denyStatus
             self.allowState = allowState
         }

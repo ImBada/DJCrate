@@ -97,6 +97,34 @@ struct UsbFileDiffTests {
         }
     }
 
+    @Test func duplicatePPTHComparedAndCounted() throws {
+        try pair { a, b in
+            // B: 한 곡의 분석 파일 셋을 원래 폴더보다 뒤에 오는 폴더에 한 벌 더 두고 그쪽 .DAT의 핫큐 A만 바꾼다
+            let old = String(UsbLibraryFixture.analysisPath(1).dropFirst().dropLast(4))
+            let extra = "PIONEER/USBANLZ/P123/0ABCDEF0/ANLZ0000"
+            for ext in [".EXT", ".2EX"] { b.write(extra + ext, try Data(contentsOf: b.url(old + ext))) }
+            b.write(extra + ".DAT", UsbLibraryFixture.dat(path: UsbLibraryFixture.trackPath(1), hotCueA: 9_000))
+            let options = UsbFileDiff.Options(files: false, trackIDs: [UsbLibraryFixture.trackPath(1): 1])
+            // 겹친 파일도 다른 쪽 파일과 비교하고, 분모는 모든 분석 파일이다
+            let result = try UsbFileDiff.compare(a.root, b.root, options: options)
+            #expect(result.anlzSummary == "ANLZ 11/12 바이트 같음, 다른 태그: PCOB×1, PPTH 겹침 0/3")
+            #expect(result.differences == ["ANLZ 곡 1 DAT B 겹침: PCOB"])
+            #expect(!result.anlzSummary.contains("PPTH 못 읽음"))
+            let swapped = try UsbFileDiff.compare(b.root, a.root, options: options)
+            #expect(swapped.anlzSummary == "ANLZ 11/12 바이트 같음, 다른 태그: PCOB×1, PPTH 겹침 3/0")
+            #expect(swapped.differences == ["ANLZ 곡 1 DAT A 겹침: PCOB"])
+            // 같은 트리끼리는 겹친 파일도 차례대로 짝지어 차이가 없다
+            let same = try UsbFileDiff.compare(b.root, b.root, options: options)
+            #expect(same.anlzSummary == "ANLZ 12/12 바이트 같음, PPTH 겹침 3/3")
+            #expect(same.differences.isEmpty)
+            // 다른 쪽에 짝이 없으면 겹친 파일도 짝 없음으로 센다
+            let empty = UsbTreeFixture()
+            defer { empty.remove() }
+            let lonely = try UsbFileDiff.compare(empty.root, b.root, options: options)
+            #expect(lonely.anlzSummary == "ANLZ 0/12 바이트 같음, 짝 없음 0/12, PPTH 겹침 0/3")
+        }
+    }
+
     @Test func groupsNameEachArea() throws {
         try pair { a, b in
             b.write("PIONEER/rekordbox/export.pdb", "changed")

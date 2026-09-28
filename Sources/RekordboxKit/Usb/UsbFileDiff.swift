@@ -116,20 +116,31 @@ public enum UsbFileDiff {
         (path.split(separator: "/").last.map(String.init) ?? path).split(separator: ".").last.map { String($0).uppercased() } ?? ""
     }
 
-    /// USBANLZ 아래 ANLZ*.DAT·.EXT·.2EX 파일 → (키, 파일). PPTH를 읽지 못한 파일은 짝을 짓지 못한 수로만 센다
-    static func analysisFiles(_ root: UsbRoot) throws -> (files: [String: AnlzFile], unreadable: Int) {
+    /// 한 쪽의 분석 파일. 같은 (PPTH, 확장자) 키에 파일이 여럿일 수 있다(같은 곡의 분석 파일을 다른 폴더에 한 벌 더 둔 실험 사본 등)
+    struct AnalysisSide {
+        /// 키 → 그 키의 파일(경로 순)
+        var files: [String: [AnlzFile]] = [:]
+        /// PPTH를 읽지 못한 파일 수
+        var unreadable = 0
+        /// 모든 분석 파일 수(PPTH를 읽지 못한 것 포함)
+        var total: Int { files.values.reduce(unreadable) { $0 + $1.count } }
+        /// 같은 키의 두 번째부터의 파일 수
+        var duplicates: Int { files.values.reduce(0) { $0 + max(0, $1.count - 1) } }
+    }
+
+    /// USBANLZ 아래 ANLZ*.DAT·.EXT·.2EX 파일을 (PPTH, 확장자) 키로 모은다. 같은 키의 파일은 버리지 않고 모두 둔다
+    static func analysisFiles(_ root: UsbRoot) throws -> AnalysisSide {
         let start = UsbLayout.analysisRoot
-        guard (try? root.url(for: start)).map({ FileManager.default.fileExists(atPath: $0.path) }) == true else { return ([:], 0) }
-        var files: [String: AnlzFile] = [:], unreadable = 0
+        var side = AnalysisSide()
+        guard (try? root.url(for: start)).map({ FileManager.default.fileExists(atPath: $0.path) }) == true else { return side }
         for entry in try UsbTree.walk(root, under: start) where !entry.isDirectory && !entry.isSymlink {
             let name = entry.relativePath.split(separator: "/").last.map(String.init) ?? ""
             guard name.uppercased().hasPrefix("ANLZ"), ["DAT", "EXT", "2EX"].contains(extensionOf(name)) else { continue }
             guard let file = try? AnlzFile(data: Data(contentsOf: root.url(for: entry.relativePath))), let tag = file.tag("PPTH"),
-                  let path = try? AnlzPathTag.decode(tag.bytes) else { unreadable += 1; continue }
-            let key = UsbLayout.nfc(path) + "\u{0}" + extensionOf(name)
-            if files[key] == nil { files[key] = file } else { unreadable += 1 }
+                  let path = try? AnlzPathTag.decode(tag.bytes) else { side.unreadable += 1; continue }
+            side.files[UsbLayout.nfc(path) + "\u{0}" + extensionOf(name), default: []].append(file)
         }
-        return (files, unreadable)
+        return side
     }
 
     static func compareAnalysis(_ a: UsbRoot, _ b: UsbRoot, options: Options) throws -> (summary: String, differences: [String]) {
@@ -142,26 +153,34 @@ public enum UsbFileDiff {
             let parts = key.split(separator: "\u{0}", omittingEmptySubsequences: false)
             let label = options.trackIDs[String(parts[0])].map { "곡 \($0)" } ?? "짝 \(index + 1)"
             let ext = parts.count > 1 ? String(parts[1]) : ""
-            switch (left.files[key], right.files[key]) {
-            case let (l?, r?):
-                let tags = differingTags(l, r)
-                if tags.isEmpty { same += 1; continue }
-                for tag in tags { tagCounts[tag, default: 0] += 1 }
-                differences.append("ANLZ \(label) \(ext): " + tags.joined(separator: ", "))
-            case (_?, nil):
-                onlyA += 1
+            let l = left.files[key] ?? [], r = right.files[key] ?? []
+            if r.isEmpty {
+                onlyA += l.count
                 differences.append("ANLZ \(label) \(ext): A에만")
-            case (nil, _?):
-                onlyB += 1
-                differences.append("ANLZ \(label) \(ext): B에만")
-            case (nil, nil): break
+                continue
             }
+            if l.isEmpty {
+                onlyB += r.count
+                differences.append("ANLZ \(label) \(ext): B에만")
+                continue
+            }
+            func record(_ x: AnlzFile, _ y: AnlzFile, note: String) {
+                let tags = differingTags(x, y)
+                if tags.isEmpty { same += 1; return }
+                for tag in tags { tagCounts[tag, default: 0] += 1 }
+                differences.append("ANLZ \(label) \(ext)\(note): " + tags.joined(separator: ", "))
+            }
+            // 같은 차례끼리 짝짓고(같은 트리면 겹친 파일도 그대로 같다), 한쪽에만 남은 겹친 파일은 다른 쪽 첫 파일과 비교한다
+            for i in 0..<min(l.count, r.count) { record(l[i], r[i], note: i == 0 ? "" : " 겹침") }
+            for extra in l.dropFirst(r.count) { record(extra, r[0], note: " A 겹침") }
+            for extra in r.dropFirst(l.count) { record(l[0], extra, note: " B 겹침") }
         }
-        var summary = "ANLZ \(same)/\(max(left.files.count, right.files.count)) 바이트 같음"
+        var summary = "ANLZ \(same)/\(max(left.total, right.total)) 바이트 같음"
         if !tagCounts.isEmpty {
             summary += ", 다른 태그: " + tagCounts.sorted { $0.key < $1.key }.map { "\($0.key)×\($0.value)" }.joined(separator: ", ")
         }
         if onlyA + onlyB > 0 { summary += ", 짝 없음 \(onlyA)/\(onlyB)" }
+        if left.duplicates + right.duplicates > 0 { summary += ", PPTH 겹침 \(left.duplicates)/\(right.duplicates)" }
         if left.unreadable + right.unreadable > 0 { summary += ", PPTH 못 읽음 \(left.unreadable)/\(right.unreadable)" }
         return (summary, differences)
     }
