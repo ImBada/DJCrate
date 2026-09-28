@@ -8,8 +8,9 @@ enum UsbReadLab {
     static let all: [Command] = [
         Command("onelib-sql", "<exportLibrary.db> <SELECT…|PRAGMA…>",
                 "임시 폴더의 OneLibrary를 임시 사본으로 떠서 읽기 전용 질의(인증값 차단)", UsbReadLab.oneLibrarySQL),
-        Command("usb-diff", "[--onelibrary|--device-library] <USB 폴더 A> <USB 폴더 B> [--files] [--anlz] [--ignore-anlz-folder] [--ignore-ids] [--skip <표,…>]",
-                "두 USB 폴더를 사본으로 떠서 모델을 표·칸 단위로 비교(기본은 두 형식 모두, 값은 찍지 않음). --files는 파일 트리, --anlz는 분석 파일 태그도 비교",
+        Command("usb-diff", "[--onelibrary|--device-library] <USB 폴더 A> <USB 폴더 B> [--files] [--mtime] [--anlz] [--ignore-anlz-folder] [--ignore-ids] [--skip <표,…>]",
+                "두 USB 폴더를 사본으로 떠서 모델을 표·칸 단위로 비교(기본은 두 형식 모두, 값은 찍지 않음). --files는 파일 트리"
+                    + "(--mtime이면 내용이 같은 파일의 수정 시각도 FAT 2초 단위로), --anlz는 분석 파일 태그도 비교",
                 UsbReadLab.usbDiff),
         Command("usb-anlz-relocate", "<USB 사본 폴더> --track <id> --folder <P???/????????> [--db-only|--files-only|--decoy-slot0|--cue-variant]",
                 "기기 실험용: 임시 폴더의 USB 사본에서 한 곡의 분석 파일·두 DB 경로를 일부러 어긋나게 만든다(볼륨·원본은 거부)",
@@ -57,6 +58,9 @@ enum UsbReadLab {
             case "--onelibrary": oneLibrary = true
             case "--device-library": deviceLibrary = true
             case "--files": fileOptions.files = true
+            case "--mtime":
+                fileOptions.files = true
+                fileOptions.mtime = true
             case "--anlz": fileOptions.anlz = true
             case "--ignore-anlz-folder":
                 options.ignoreAnalysisFolder = true

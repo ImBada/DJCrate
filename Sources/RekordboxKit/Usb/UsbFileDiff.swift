@@ -13,12 +13,16 @@ public enum UsbFileDiff {
         public var ignoreAnalysisFolder = false
         /// PPTH 경로(NFC) → 곡 id. 분석 파일 차이를 경로 대신 곡 id로 적는다
         public var trackIDs: [String: Int] = [:]
+        /// 내용이 같은 파일의 수정 시각도 비교한다(FAT는 2초 단위로 적으므로 2초 단위로 내려서)
+        public var mtime = false
 
-        public init(files: Bool = true, anlz: Bool = true, ignoreAnalysisFolder: Bool = false, trackIDs: [String: Int] = [:]) {
+        public init(files: Bool = true, anlz: Bool = true, ignoreAnalysisFolder: Bool = false, trackIDs: [String: Int] = [:],
+                    mtime: Bool = false) {
             self.files = files
             self.anlz = anlz
             self.ignoreAnalysisFolder = ignoreAnalysisFolder
             self.trackIDs = trackIDs
+            self.mtime = mtime
         }
     }
 
@@ -57,29 +61,44 @@ public enum UsbFileDiff {
 
     // MARK: - 파일 트리
 
-    /// 비교 키 → (묶음, 크기·해시). ignoreAnalysisFolder면 USBANLZ 파일은 (PPTH, 확장자) 키
-    static func fileKeys(_ root: UsbRoot, options: Options) throws -> [String: (group: String, stamp: UsbTreeStamp)] {
-        var keys: [String: (group: String, stamp: UsbTreeStamp)] = [:]
+    /// 비교 키 → (묶음, 크기·해시, 상대 경로). ignoreAnalysisFolder면 USBANLZ 파일은 (PPTH, 확장자) 키
+    static func fileKeys(_ root: UsbRoot, options: Options) throws -> [String: (group: String, stamp: UsbTreeStamp, path: String)] {
+        var keys: [String: (group: String, stamp: UsbTreeStamp, path: String)] = [:]
         for (path, stamp) in try UsbTree.fingerprint(root).files {
             let group = group(path)
             var key = "path:" + path
             if options.ignoreAnalysisFolder, group == "USBANLZ", let pair = try? analysisKey(root, path) { key = "ppth:" + pair }
             // 같은 PPTH 키가 둘이면 뒤엣것은 경로로 둔다
             if keys[key] != nil { key = "path:" + path }
-            keys[key] = (group, stamp)
+            keys[key] = (group, stamp, path)
         }
         return keys
     }
 
+    /// 수정 시각을 FAT 단위(2초)로 내린 값. 읽지 못하면 nil
+    static func fatTime(_ root: UsbRoot, _ path: String) -> Int64? {
+        guard let url = try? root.url(for: path),
+              let date = try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date else { return nil }
+        let seconds = Int64(date.timeIntervalSince1970.rounded(.down))
+        return seconds - ((seconds % 2) + 2) % 2
+    }
+
     static func compareFiles(_ a: UsbRoot, _ b: UsbRoot, options: Options) throws -> (summary: String, differences: [String]) {
         let left = try fileKeys(a, options: options), right = try fileKeys(b, options: options)
-        var same = 0
-        var onlyA: [String: Int] = [:], onlyB: [String: Int] = [:], changed: [String: Int] = [:]
+        var same = 0, timeSame = 0
+        var onlyA: [String: Int] = [:], onlyB: [String: Int] = [:], changed: [String: Int] = [:], timeChanged: [String: Int] = [:]
         var differences: [String] = []
         for key in Set(left.keys).union(right.keys).sorted() {
             switch (left[key], right[key]) {
             case let (l?, r?):
-                if l.stamp == r.stamp { same += 1 } else {
+                if l.stamp == r.stamp {
+                    same += 1
+                    guard options.mtime else { continue }
+                    if let x = fatTime(a, l.path), x == fatTime(b, r.path) { timeSame += 1 } else {
+                        timeChanged[l.group, default: 0] += 1
+                        differences.append("파일 mtime 다름: \(l.group)")
+                    }
+                } else {
                     changed[l.group, default: 0] += 1
                     differences.append("파일 내용 다름: \(l.group)")
                 }
@@ -100,6 +119,10 @@ public enum UsbFileDiff {
         let parts = [("한쪽에만 A", onlyA), ("한쪽에만 B", onlyB), ("내용 다름", changed)]
             .filter { !$0.1.isEmpty }.map { "\($0.0): \(breakdown($0.1))" }
         if !parts.isEmpty { summary += " (" + parts.joined(separator: " · ") + ")" }
+        if options.mtime {
+            summary += ", mtime(2초 단위) 같음 \(timeSame)/\(same)"
+            if !timeChanged.isEmpty { summary += " (mtime 다름: \(breakdown(timeChanged)))" }
+        }
         return (summary, differences)
     }
 

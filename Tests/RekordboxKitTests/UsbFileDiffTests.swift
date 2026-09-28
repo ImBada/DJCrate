@@ -34,6 +34,31 @@ struct UsbFileDiffTests {
         }
     }
 
+    @Test("--mtime: 같은 내용 파일의 수정 시각을 FAT 2초 단위로 내려 비교한다")
+    func mtimeComparedInFatUnits() throws {
+        try pair { a, b in
+            let base = Date(timeIntervalSince1970: 1_700_000_000)
+            for tree in [a, b] {
+                for (path, _) in tree.tree() {
+                    try FileManager.default.setAttributes([.modificationDate: base], ofItemAtPath: tree.url(path).path)
+                }
+            }
+            let audio = "Contents/시험 아티스트/시험 앨범/test1.mp3"
+            // 같은 2초 칸 안이면 같다
+            try FileManager.default.setAttributes([.modificationDate: base.addingTimeInterval(1.5)], ofItemAtPath: b.url(audio).path)
+            let same = try UsbFileDiff.compare(a.root, b.root, options: UsbFileDiff.Options(anlz: false, mtime: true))
+            #expect(same.fileSummary.contains("mtime(2초 단위) 같음 \(Self.fileCount)/\(Self.fileCount)"))
+            #expect(same.differences.isEmpty)
+            // 옵션이 없으면 시각은 보지 않는다
+            #expect(!(try UsbFileDiff.compare(a.root, b.root, options: UsbFileDiff.Options(anlz: false)).fileSummary.contains("mtime")))
+
+            try FileManager.default.setAttributes([.modificationDate: base.addingTimeInterval(2)], ofItemAtPath: b.url(audio).path)
+            let moved = try UsbFileDiff.compare(a.root, b.root, options: UsbFileDiff.Options(anlz: false, mtime: true))
+            #expect(moved.fileSummary.contains("mtime(2초 단위) 같음 \(Self.fileCount - 1)/\(Self.fileCount) (mtime 다름: Contents 1)"))
+            #expect(moved.differences == ["파일 mtime 다름: Contents"])
+        }
+    }
+
     @Test func nfcNfdPathsEqual() throws {
         let a = UsbTreeFixture(), b = UsbTreeFixture()
         defer { a.remove(); b.remove() }
