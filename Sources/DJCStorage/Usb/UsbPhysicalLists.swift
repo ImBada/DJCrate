@@ -9,6 +9,13 @@ public enum UsbPhysicalLists {
         public var deny: Set<String>
         public var denyStatus: UsbDenyListStatus
         public var allowState: UsbDenyListStatus.State
+
+        public init(allow: Set<String>, deny: Set<String>, denyStatus: UsbDenyListStatus, allowState: UsbDenyListStatus.State) {
+            self.allow = allow
+            self.deny = deny
+            self.denyStatus = denyStatus
+            self.allowState = allowState
+        }
     }
 
     static let allowName = "usb-physical-allow.json"

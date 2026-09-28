@@ -6,6 +6,8 @@ import RekordboxKit
 /// USB 라이브러리 명령(읽기·계획·내보내기·고치기·회복)
 enum UsbCommands {
     static let all: [Command] = [
+        Command("usb-info", String(ui: "<볼륨|폴더> [--json]"),
+                String(ui: "USB를 읽기만 해서 형식·곡 수·경고를 보여 준다(실물 USB는 쓰기 금지 목록을 등록한 뒤에만)"), { try await info($0) }),
         Command("usb-restore", String(ui: "--volume <마운트> [--backup <폴더>] [--discard-device-changes] [--confirm <볼륨 이름>] [--dry-run]"),
                 String(ui: "USB에 쓴 것을 그 쓰기 전 백업으로 되돌린다(그 뒤 기기가 바꾼 것이 있으면 막는다)"), { try await restore($0) }),
         Command("usb-recover", String(ui: "--volume <마운트> [--discard-temp] [--confirm <볼륨 이름>]"),
@@ -73,6 +75,12 @@ enum UsbCommands {
     /// `--volume` 값. rekordbox 라이브러리·DJCrate 데이터 폴더는 USB로 받지 않는다(문자열로 먼저 보고, 그 안은 열지 않는다)
     static func volumeArgument(_ args: [String]) throws -> String {
         guard let volume = value(after: "--volume", in: args), !volume.hasPrefix("--"), !volume.isEmpty else { throw UsageError() }
+        try rejectLiveLibrary(volume)
+        return volume
+    }
+
+    /// rekordbox 라이브러리·DJCrate 데이터 폴더(또는 그 아래)면 거부한다
+    static func rejectLiveLibrary(_ volume: String) throws {
         let absolute = volume.hasPrefix("/") ? volume : FileManager.default.currentDirectoryPath + "/" + volume
         let live = [NSHomeDirectory() + "/Library/Pioneer", LibrarySnapshot.rekordboxDirectory.path, DJCIdentity.supportDirectory.path]
         let candidates = [(absolute as NSString).standardizingPath]
@@ -81,7 +89,83 @@ enum UsbCommands {
             throw UsbError.writeRefused([UsbBlock(code: "liveLibrary", scope: .volume,
                                                   message: String(ui: "rekordbox 라이브러리나 DJCrate 데이터 폴더는 USB가 아닙니다. USB 볼륨의 맨 위 폴더를 주세요"))])
         }
-        return volume
+    }
+
+    // MARK: - usb-info
+
+    /// `usb-info <볼륨|폴더> [--json]`: 읽기만 한다. DB 사본은 DJC_HOME/usb-snapshots 아래에 떴다가 지운다
+    static func info(_ args: [String]) async throws {
+        let json = args.contains("--json")
+        let operands = args.dropFirst().filter { $0 != "--json" }
+        guard operands.count == 1, let target = operands.first, !target.hasPrefix("--"), !target.isEmpty else {
+            if json {
+                throw ReadFailure("invalid_arguments", String(ui: "\(String(ui: "명령 인자 수가 맞지 않습니다")). djc로 사용법을 확인하세요"))
+            }
+            throw UsageError()
+        }
+        let result: UsbInfo
+        do {
+            try rejectLiveLibrary(target)
+            let root = URL(filePath: target)
+            var directory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: target, isDirectory: &directory), directory.boolValue else {
+                throw ReadFailure("not_found", String(ui: "USB 폴더를 찾지 못했습니다. 볼륨이나 폴더 경로를 확인하세요"))
+            }
+            let volume = try UsbRead.volume(for: root)
+            // 폴더 대상은 목록을 보지 않는다(읽을 까닭이 없다)
+            let lists = volume == nil ? UsbPhysicalLists.Loaded(allow: [], deny: [], denyStatus: .missing, allowState: .missing)
+                : UsbPhysicalLists.load()
+            let scratch = DJCPaths.usbSnapshots.appending(path: "info-\(UUID().uuidString)")
+            result = try UsbRead.info(root: root, scratch: scratch, volume: volume, lists: lists)
+        } catch let UsbError.readFailed(detail) where UsbRead.refusalCodes.contains(detail) {
+            throw ReadFailure(detail, UsbRead.refusalMessage(detail))
+        } catch let UsbError.writeRefused(blocks) {
+            throw ReadFailure(blocks.first?.code ?? "read_failed", blocks.map(\.message).joined(separator: "\n"))
+        }
+        if json {
+            print(String(decoding: try ReadJSON.encode(command: "usb-info", data: result), as: UTF8.self))
+        } else {
+            infoLines(result).forEach { print($0) }
+        }
+    }
+
+    /// 사람용 요약: 형식·수·경고만(곡 제목·경로·볼륨 이름은 찍지 않는다)
+    static func infoLines(_ info: UsbInfo) -> [String] {
+        func yes(_ value: Bool) -> String { value ? String(ui: "예") : String(ui: "아니요") }
+        var lines: [String] = []
+        let names = info.formats.map { $0 == UsbFormat.oneLibrary.rawValue ? "OneLibrary" : "Device Library" }
+        lines.append(names.isEmpty ? String(ui: "형식: USB 라이브러리 없음") : String(ui: "형식: \(names.joined(separator: " · "))"))
+        if let volume = info.volume {
+            let kind = volume.isDiskImage ? String(ui: "디스크 이미지") : String(ui: "실물 USB")
+            lines.append(String(ui: "볼륨: \(kind) · \(volume.fileSystem) · \(volume.partitionScheme.uppercased()) · 내보내기 \(yes(volume.writableForExport)) · 고치기 \(yes(volume.writableForEdit))")
+                + (volume.problems.isEmpty ? "" : " (\(volume.problems.joined(separator: ", ")))"))
+        }
+        if let part = info.oneLibrary {
+            lines.append(String(ui: "OneLibrary: 곡 \(part.tracks) · 재생 목록 \(part.playlists) · My Tag \(part.myTags) · 기록 \(part.histories)"))
+            lines.append(String(ui: "  모양 확인 \(yes(part.schemaOK)) · 무결성 \(yes(part.integrityOK)) · 머리 \(part.headerMode) · -wal \(yes(part.walPresent)) · -journal \(yes(part.journalPresent))"))
+        }
+        if let part = info.deviceLibrary {
+            lines.append(String(ui: "Device Library: 곡 \(part.tracks) · 재생 목록 \(part.playlists) · 기록 행 \(part.historyRows)"))
+            let ext = part.extFlag10.map(String.init) ?? "-"
+            lines.append(String(ui: "  머리 0x10 \(part.exportFlag10)/\(ext) · 모르는 표 행 \(part.unknownTableRows) · 구조 문제 \(part.structureIssues)"))
+        }
+        if info.oneLibrary != nil && info.deviceLibrary != nil {
+            let c = info.consistency
+            lines.append(String(ui: "두 형식: 곡 ID 같음 \(yes(c.trackIDsMatch)) · 경로 같음 \(yes(c.pathsMatch)) · 다른 재생 목록 \(c.playlistMismatches) · 고치기 막힘 \(yes(c.editBlocked))"))
+            lines.append(String(ui: "  masterDbId 한 값 \(yes(c.masterDbIdConsistent)) · myTagMasterDBID 같음 \(yes(c.myTagMasterDBIDConsistent))"))
+        }
+        if !info.formats.isEmpty {
+            let a = info.analysis
+            lines.append(String(ui: "분석 파일: 곡 \(a.tracksChecked) · 없는 파일 \(a.missingFiles) · 곡 경로 다름 \(a.ppthMismatches) · 번호 0 아님 \(a.slotCollisions)"))
+        }
+        if let local = info.localCompatibility {
+            lines.append(local.rekordboxVersion.map { version in
+                local.verified ? String(ui: "이 Mac의 rekordbox: \(version)(확인한 버전)") : String(ui: "이 Mac의 rekordbox: \(version)(확인하지 않은 버전)")
+            } ?? String(ui: "이 Mac의 rekordbox: 찾지 못함"))
+        }
+        lines.append(info.warnings.isEmpty ? String(ui: "경고: 없음") : String(ui: "경고 \(info.warnings.count)개:"))
+        lines += info.warnings.map { "- \($0.message)" }
+        return lines
     }
 
     static func printReport(_ report: UsbWriteReport) {
