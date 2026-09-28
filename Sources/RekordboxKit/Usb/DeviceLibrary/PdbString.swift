@@ -93,3 +93,46 @@ public enum PdbStringEncoder {
         return Data([0x90, UInt8(truncatingIfNeeded: length), UInt8(truncatingIfNeeded: length >> 8), 0x00, 0x03] + ascii + [0x00])
     }
 }
+
+// MARK: - 쓰기용 모양 고르기
+
+extension PdbStringEncoder {
+    /// 쓸 바이트, 고른 모양, 그 모양이 필요로 하는 확인 안 된 규칙
+    public struct Encoded: Sendable, Hashable {
+        public var bytes: Data
+        public var kind: PdbStringKind
+        public var rules: Set<UsbProvisionalRule>
+
+        public init(bytes: Data, kind: PdbStringKind, rules: Set<UsbProvisionalRule> = []) {
+            self.bytes = bytes
+            self.kind = kind
+            self.rules = rules
+        }
+
+        /// UTF-16(ISRC 특수형 포함)은 행 안 4바이트 경계에 둔다
+        var needsAlignment: Bool { bytes.first == 0x90 }
+    }
+
+    /// 작성기가 쓰는 모양. 126자까지의 순수 ASCII는 짧은 ASCII, ASCII가 아닌 글자가 있으면 UTF-16LE.
+    /// 127자 이상 순수 ASCII는 확인 안 된 모양이라 UTF-16LE로 두고 `pdbLongAscii`를 붙인다(긴 ASCII 0x40은 쓰지 않는다).
+    /// 판정 기준은 `UsbTrackRules.pdbStringRules`와 같다.
+    public static func encoded(_ value: String) -> Encoded {
+        if let data = encode(value) {
+            return Encoded(bytes: data, kind: data.first == 0x90 ? .utf16LE : .shortASCII)
+        }
+        return Encoded(bytes: encodeUTF16(value), kind: .utf16LE, rules: [.pdbLongAscii])
+    }
+
+    /// 트랙 문자열 0(ISRC). 값이 있으면 특수형, 없으면 짧은 ASCII `03`.
+    /// ASCII가 아닌 ISRC는 특수형에 담을 수 없어 UTF-16LE로 돌려준다(작성기가 그 곡을 막는다).
+    public static func encodedISRC(_ value: String) -> Encoded {
+        if value.isEmpty { return Encoded(bytes: Data([shortASCIIHeader(length: 0)]), kind: .shortASCII) }
+        guard value.utf8.allSatisfy({ $0 < 0x80 }) else { return Encoded(bytes: encodeUTF16(value), kind: .utf16LE) }
+        return Encoded(bytes: encodeISRC(value), kind: .isrc)
+    }
+
+    /// columns 이름: U+FFFA + 이름 + U+FFFB를 늘 UTF-16LE로
+    public static func encodedMenuName(_ name: String) -> Encoded {
+        Encoded(bytes: encodeUTF16("\u{FFFA}\(name)\u{FFFB}"), kind: .utf16LE)
+    }
+}
