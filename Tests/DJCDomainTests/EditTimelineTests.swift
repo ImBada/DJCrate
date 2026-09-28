@@ -131,4 +131,77 @@ struct EditTimelineTests {
         #expect(bars.step(from: 0.5, by: 4) == 8.5 && bars.step(from: 100, by: 1) == 100.5 && bars.step(from: 100.5, by: 1) == 100.5)
         #expect(bars.step(from: 0, by: -1) == 0)
     }
+
+    // MARK: - 클립 가장자리 다듬기(#134)
+
+    @Test func 가장자리를_끌면_가까운_마디_줄에_붙여_다듬는다() throws {
+        // 0마디 0~0.5초, 1마디 0.5~2.5초 … 10마디 18.5~20.5초. 3~6마디 = 원곡 4.5~12.5초
+        let bars = try BarLayout(grid: grid, duration: 20.5)
+        let range = BarRange(3, 6)
+        func trim(_ edge: EditEdge, _ seconds: Double, leading: Bool = false, trailing: Bool = false) -> BarRange {
+            bars.trimmed(range, edge: edge, by: seconds, leading: leading, trailing: trailing)
+        }
+        // 끝: 12.5 + 1.2 = 13.7초 → 14.5초(8마디 시작) 줄이 가깝다 → 7마디까지. 반 마디를 못 넘으면 그대로
+        #expect(trim(.end, 1.2) == BarRange(3, 7) && trim(.end, 0.9) == range && trim(.end, 0) == range)
+        #expect(trim(.end, -3.1) == BarRange(3, 4))
+        // 시작: 4.5 + 2.1 = 6.6초 → 4마디 시작(6.5초), 4.5 − 3.9 = 0.6초 → 1마디 시작
+        #expect(trim(.start, 2.1) == BarRange(4, 6) && trim(.start, -3.9) == BarRange(1, 6))
+        // 적어도 1마디를 남기고, 곡 끝·곡 앞에서 멈춘다
+        #expect(trim(.end, -100) == BarRange(3, 3) && trim(.start, 100) == BarRange(6, 6))
+        #expect(trim(.end, 100) == BarRange(3, 10) && trim(.start, -100) == BarRange(1, 6))
+        // 곡 머리(0마디)는 맨 앞 클립만 가진다
+        #expect(trim(.start, -100, leading: true) == BarRange(0, 6))
+    }
+
+    @Test func 곡_머리와_끝에서_잘린_마디는_맨_앞_맨_뒤_클립만_가진다() throws {
+        let bars = try BarLayout(grid: grid, duration: 20.5)
+        // 곡 머리가 든 맨 앞 클립: 0.3초 넘게 밀면(1마디 시작 0.5초가 더 가깝다) 곡 머리를 뺀다
+        #expect(bars.trimmed(BarRange(0, 4), edge: .start, by: 0.2, leading: true, trailing: false) == BarRange(0, 4))
+        #expect(bars.trimmed(BarRange(0, 4), edge: .start, by: 0.3, leading: true, trailing: false) == BarRange(1, 4))
+        // 21.5초: 11마디(20.5~21.5초)는 끝에서 잘려 맨 뒤 클립만 가진다
+        let cut = try BarLayout(grid: grid, duration: 21.5)
+        #expect(cut.trimmed(BarRange(8, 10), edge: .end, by: 5, leading: false, trailing: true) == BarRange(8, 11))
+        #expect(cut.trimmed(BarRange(8, 10), edge: .end, by: 5, leading: false, trailing: false) == BarRange(8, 10))
+        #expect(cut.trimmed(BarRange(8, 11), edge: .end, by: -1.2, leading: false, trailing: true) == BarRange(8, 10))
+    }
+
+    @Test func 누른_자리의_클립_가장자리를_찾는다() throws {
+        let bars = try BarLayout(grid: grid, duration: 20.5)
+        // 클립 0~4, 4~8, 8~12초
+        let clips = TrackEdit.place([BarRange(1, 2), BarRange(5, 6), BarRange(9, 10)], in: bars)
+        func hit(_ time: Double, _ tolerance: Double = 0.2) -> EditEdgeHit? { clips.edge(atOutput: time, tolerance: tolerance) }
+        #expect(hit(0.1) == EditEdgeHit(clip: 0, edge: .start) && hit(-0.1) == EditEdgeHit(clip: 0, edge: .start))
+        // 두 클립이 맞닿은 줄: 누른 쪽 클립(줄 위는 뒤 클립의 시작)
+        #expect(hit(3.9) == EditEdgeHit(clip: 0, edge: .end) && hit(4) == EditEdgeHit(clip: 1, edge: .start))
+        #expect(hit(4.1) == EditEdgeHit(clip: 1, edge: .start) && hit(12.1) == EditEdgeHit(clip: 2, edge: .end))
+        #expect(hit(6) == nil && hit(12.5) == nil && hit(-0.5) == nil && hit(3.9, 0) == nil)
+        // 좁게 보이는 클립은 가운데 절반을 옮기기로 남긴다(가장자리는 클립 길이의 ¼까지)
+        #expect(hit(4.9, 3) == EditEdgeHit(clip: 1, edge: .start) && hit(7.1, 3) == EditEdgeHit(clip: 1, edge: .end) && hit(5.5, 3) == nil)
+        #expect([TrackEdit.Piece]().edge(atOutput: 0, tolerance: 1) == nil)
+    }
+
+    // MARK: - 원곡 구간을 끌어 넣기(#134)
+
+    @Test func 끌어_넣을_자리는_클립_가운데를_지난_수다() throws {
+        let bars = try BarLayout(grid: grid, duration: 20.5)
+        // 클립 0~4, 4~8, 8~12초(가운데 2, 6, 10초)
+        let clips = TrackEdit.place([BarRange(1, 2), BarRange(5, 6), BarRange(9, 10)], in: bars)
+        #expect(clips.insertion(of: BarRange(3, 4), atOutput: 1) == EditInsertion(offset: 0, range: BarRange(3, 4)))
+        #expect(clips.insertion(of: BarRange(3, 4), atOutput: 7) == EditInsertion(offset: 2, range: BarRange(3, 4)))
+        #expect(clips.insertion(of: BarRange(3, 4), atOutput: 30) == EditInsertion(offset: 3, range: BarRange(3, 4)))
+        // 곡 머리는 맨 앞에 놓을 때만 살린다. 곡 머리뿐이면 맨 앞이 아닌 자리에 넣을 마디가 없다
+        #expect(clips.insertion(of: BarRange(0, 4), atOutput: 1) == EditInsertion(offset: 0, range: BarRange(0, 4)))
+        #expect(clips.insertion(of: BarRange(0, 4), atOutput: 7) == EditInsertion(offset: 2, range: BarRange(1, 4)))
+        #expect(clips.insertion(of: BarRange(0, 0), atOutput: 7) == nil)
+        // 빈 결과에는 맨 앞
+        #expect([TrackEdit.Piece]().insertion(of: BarRange(0, 4), atOutput: 3) == EditInsertion(offset: 0, range: BarRange(0, 4)))
+    }
+
+    @Test func 곡_머리로_시작하는_결과의_맨_앞에는_넣지_않는다() throws {
+        let bars = try BarLayout(grid: grid, duration: 20.5)
+        // 곡 머리는 맨 앞에만 있어야 해서 그 클립 뒤에 넣는다
+        let clips = TrackEdit.place([BarRange(0, 2), BarRange(5, 6)], in: bars)
+        #expect(clips.insertion(of: BarRange(3, 4), atOutput: 0.2) == EditInsertion(offset: 1, range: BarRange(3, 4)))
+        #expect(clips.insertion(of: BarRange(0, 4), atOutput: 0.2) == EditInsertion(offset: 1, range: BarRange(1, 4)))
+    }
 }

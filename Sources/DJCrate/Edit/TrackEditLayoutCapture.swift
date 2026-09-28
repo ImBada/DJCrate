@@ -9,7 +9,8 @@ extension TrackEditWindow {
     /// - `--edit-layout=light|dark`: 클립 넷·원곡에서 고른 구간·고른 클립 상태로 띄우고 창 번호를 표준 오류에 적는다
     ///   (`screencapture -l`로 그 창만 찍는다).
     /// - `--edit-selftest`: 창 재생기(스페이스바·시킹·이음새 듣기, 덱은 그대로) → 고르기·자르기·복제·옮기기·지우기와
-    ///   편집 메뉴 실행 취소·복귀 → 렌더 → 추가한 곡으로 이동 → 덱에 편집본이 올라오는지까지 돌린다.
+    ///   편집 메뉴 실행 취소·복귀 → 확대 키 → 실제 마우스 끌기(클립 끝 다듬기·원곡 구간 끌어 넣기, 앱이 앞에 있을 때만)
+    ///   → 렌더 → 추가한 곡으로 이동 → 덱에 편집본이 올라오는지까지 돌린다.
     func runLayoutCaptureIfRequested() {
         let args = ProcessInfo.processInfo.arguments
         let layout = args.first { $0.hasPrefix("--edit-layout=") }
@@ -69,6 +70,30 @@ extension TrackEditWindow {
                 NSApp.postEvent(event, atStart: false)
                 await wait(0.05)
             }
+        }
+        // SwiftUI `.global`(위 왼쪽 원점) 자리 → 창 좌표(아래 왼쪽 원점)
+        func windowRect(_ name: String) -> CGRect? {
+            guard let rect = SelfTestFrames.frames[name], let content = window.contentView else { return nil }
+            let y = content.isFlipped ? rect.minY : content.bounds.height - rect.maxY
+            return content.convert(NSRect(x: rect.minX, y: y, width: rect.width, height: rect.height), to: nil)
+        }
+        func mouse(_ type: NSEvent.EventType, _ point: CGPoint) async {
+            guard let event = NSEvent.mouseEvent(with: type, location: point, modifierFlags: [],
+                                                 timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                                                 context: nil, eventNumber: 0, clickCount: 1, pressure: type == .leftMouseUp ? 0 : 1)
+            else { return }
+            NSApp.postEvent(event, atStart: false)
+            await wait(0.03)
+        }
+        // 누르고 12번에 나눠 끈 뒤 뗀다.
+        func drag(from a: CGPoint, to b: CGPoint) async {
+            await mouse(.leftMouseDown, a)
+            for step in 1...12 {
+                let t = CGFloat(step) / 12
+                await mouse(.leftMouseDragged, CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t))
+            }
+            await mouse(.leftMouseUp, b)
+            await wait(0.2)
         }
         // 편집 메뉴(⌘Z·⇧⌘Z)가 이 창이 앞일 때 타는 길: 창의 응답자 사슬 → 창의 실행 취소 관리자.
         // 자가 테스트 중에는 앱이 앞에 없어 키 창이 없을 수 있어 창의 첫 응답자부터 직접 보낸다.
@@ -147,6 +172,40 @@ extension TrackEditWindow {
         check(undone == original && redone == original.prefix(3) + [BarRange(49, 64)] + original.suffix(1)
               && model.entries.map(\.range) == original,
               "편집 › 실행 취소 5번 → \(undone.map(\.description).joined(separator: ",")), 실행 복귀 → \(redone.map(\.description).joined(separator: ","))")
+
+        // 5-1) 확대(#134): 결과 줄에서 = 두 번 → 4배(재생선 자리를 둔다), 0 → 전체
+        model.seek(.output, to: 60)
+        await press(24, "=")
+        await press(24, "=")
+        let zoomed = model.viewport(.output).scale(length: model.extent(.output))
+        await press(29, "0")
+        check(abs(zoomed - 4) < 1e-6 && model.viewport(.output) == EditViewport() && model.viewport(.source) == EditViewport(),
+              String(format: "= 두 번 → 결과 %.1f배, 0 → 전체", zoomed))
+
+        // 5-2) 실제 마우스 끌기(#134): 클립 끝 다듬기, 원곡에서 고른 구간을 결과로 끌어 넣기. 창에 마우스 이벤트를 넣어
+        // SwiftUI 제스처까지 가는지 본다. 앱이 앞에 없으면(키 창이 아님) 합성 이벤트가 제스처에 닿지 않아 건너뛴다.
+        if NSApp.keyWindow === window, let output = windowRect("editOutput"), let sourceLane = windowRect("editSource") {
+            let clip = model.clipLayout[2]
+            let scale = EditLaneScale(model, .output, width: output.width)
+            let bar = scale.x(layout.barLength) - scale.x(0)
+            let edge = CGPoint(x: output.minX + scale.x(clip.outputEnd) - 2, y: output.midY)
+            await drag(from: edge, to: CGPoint(x: edge.x + 2.1 * bar, y: edge.y))
+            let trimmed = model.entries.map(\.range)
+            passed = passed && menu("undo:")
+            check(trimmed == original.prefix(2) + [BarRange(17, 50)] + original.suffix(1) && model.entries.map(\.range) == original,
+                  "마우스로 클립 3 끝을 2마디 끌기 → \(trimmed.map(\.description).joined(separator: ",")), 실행 취소 → 처음")
+            model.select(from: layout.start(ofBar: 49), to: layout.start(ofBar: 65))
+            let from = CGPoint(x: sourceLane.minX + EditLaneScale(model, .source, width: sourceLane.width).x(layout.start(ofBar: 55)),
+                               y: sourceLane.midY)
+            let to = CGPoint(x: output.minX + scale.x(model.clipLayout[1].outputStart + 3 * layout.barLength), y: output.midY)
+            await drag(from: from, to: to)
+            let inserted = model.entries.map(\.range)
+            passed = passed && menu("undo:")
+            check(inserted == original.prefix(1) + [BarRange(49, 64)] + original.suffix(3) && model.entries.map(\.range) == original,
+                  "마우스로 원곡 49-64를 결과 클립 2 앞으로 끌어 넣기 → \(inserted.map(\.description).joined(separator: ",")), 실행 취소 → 처음")
+        } else {
+            Self.log("건너뜀: 앱이 앞에 없어(편집 창이 키 창이 아님) 실제 마우스 끌기를 확인하지 못함")
+        }
 
         // 6) 렌더 → 추가한 곡
         guard let edit = model.edit else { check(false, "편집 계획 없음"); return }
