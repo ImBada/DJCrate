@@ -34,9 +34,10 @@ struct DeckToastTests {
         let deck = deck(voiceOver: false)
         deck.showToast("다시 분석합니다", kind: .success)
         let first = deck.toastTask
-        deck.showToast("곡 끝을 넘는 루프는 만들 수 없습니다")
-        #expect(first?.isCancelled == true)
+        // 뒤 알림은 닫히지 않는 종류로 띄워, 시험이 느려져도 앞 알림의 닫기만 본다.
+        deck.showToast("오디오 출력 장치를 열지 못했습니다", kind: .failure)
+        #expect(first?.isCancelled == true && deck.toastTask == nil)
         await first?.value
-        #expect(deck.toast?.text == "곡 끝을 넘는 루프는 만들 수 없습니다")
+        #expect(deck.toast?.text == "오디오 출력 장치를 열지 못했습니다")
     }
 }
