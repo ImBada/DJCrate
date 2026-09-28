@@ -198,6 +198,27 @@ struct ListActionBar: View {
             } else {
                 EmptyView()
             }
+        case .filter(.missingFile):
+            bar {
+                // 빠진 외장 디스크는 곡마다가 아니라 디스크째 알린다(#126).
+                let volumes = store.missingFiles.unmountedVolumes
+                if !volumes.isEmpty {
+                    let names = volumes.map { String(ui: "\($0.name)(\($0.trackCount)곡)") }.joined(separator: ", ")
+                    Label(.ui("연결되지 않은 외장 디스크: \(names) · 연결하면 다시 확인합니다"), systemImage: "externaldrive.badge.xmark")
+                        .foregroundStyle(UIColors.warning.color)
+                        .lineLimit(1)
+                        .help(names)
+                }
+                Button { store.checkMissingFiles() } label: { Label(.ui("다시 확인"), systemImage: "arrow.clockwise") }
+                    .disabled(store.isCheckingFiles)
+                    .help(.ui("음원 파일이 있는지 다시 확인합니다. rekordbox에는 쓰지 않습니다."))
+                if store.isCheckingFiles {
+                    ProgressView().controlSize(.small)
+                    Text(.ui("파일을 확인하는 중…")).font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text(.ui("옮긴 음원은 rekordbox의 Relocate로 다시 연결하세요")).font(.caption).foregroundStyle(.secondary)
+                }
+            }
         case .filter(.noBPM):
             bar {
                 Button { store.estimateGridsForDisplayedRows() } label: {

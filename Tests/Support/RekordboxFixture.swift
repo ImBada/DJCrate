@@ -51,9 +51,20 @@ public final class RekordboxFixture {
     /// 곡 하나를 넣는다(djmdContent + 큐 행 + contentCue JSON + 게인 행).
     @discardableResult
     public func add(_ track: TrackSpec) throws -> TrackSpec {
+        try add(tracks: [track])
+        return track
+    }
+
+    /// 여러 곡을 한 연결·트랜잭션으로 넣는다(곡 수천 개짜리 성능 확인용 라이브러리는 곡마다 열면 느리다).
+    public func add(tracks: [TrackSpec]) throws {
         let db = try open()
         defer { db.close() }
         try db.execute("BEGIN")
+        for track in tracks { try Self.insert(track, into: db) }
+        try db.execute("COMMIT")
+    }
+
+    private static func insert(_ track: TrackSpec, into db: CipherDatabase) throws {
         try db.run("""
             INSERT INTO djmdContent (ID, UUID, Title, FileType, BitRate, Analysed, Length, BPM, FolderPath, CueUpdated, AnalysisDataPath,
                 AnalysisUpdated, TrackInfoUpdated, MasterDBID, DeviceID, ArtistID, AlbumID, ComposerID, ImagePath,
@@ -96,8 +107,6 @@ public final class RekordboxFixture {
                 """, [.text("mp-\(track.id)"), .text(track.id), .int(gain.high), .int(gain.low),
                       .text(UUID().uuidString.lowercased()), .text(Self.stamp), .text(Self.stamp)])
         }
-        try db.execute("COMMIT")
-        return track
     }
 
     /// 분석 파일을 share 아래 `AnalysisDataPath` 자리에 둔다.
@@ -117,9 +126,20 @@ public final class RekordboxFixture {
     /// 재생 목록·폴더 하나(djmdPlaylist + 클라우드 거울 행 + 곡 항목). 동기화를 마친 행처럼 상태 256·usn을 채운다.
     @discardableResult
     public func add(_ playlist: PlaylistSpec) throws -> PlaylistSpec {
+        try add(playlists: [playlist])
+        return playlist
+    }
+
+    /// 여러 재생 목록을 한 연결·트랜잭션으로 넣는다.
+    public func add(playlists: [PlaylistSpec]) throws {
         let db = try open()
         defer { db.close() }
         try db.execute("BEGIN")
+        for playlist in playlists { try Self.insert(playlist, into: db) }
+        try db.execute("COMMIT")
+    }
+
+    private static func insert(_ playlist: PlaylistSpec, into db: CipherDatabase) throws {
         try db.run("""
             INSERT INTO djmdPlaylist (ID, Seq, Name, ImagePath, Attribute, ParentID, SmartList, UUID, rb_data_status, rb_local_data_status,
                 rb_local_deleted, rb_local_synced, usn, rb_local_usn, created_at, updated_at)
@@ -139,8 +159,6 @@ public final class RekordboxFixture {
                 """, [.text(UUID().uuidString.lowercased()), .text(playlist.id), .text(contentID), .int(index + 1),
                       .text(UUID().uuidString.lowercased()), .text(Self.stamp), .text(Self.stamp)])
         }
-        try db.execute("COMMIT")
-        return playlist
     }
 
     /// `.DAT`의 contentFile 행(그리드 BPM 변경 때 해시·크기를 고친다)

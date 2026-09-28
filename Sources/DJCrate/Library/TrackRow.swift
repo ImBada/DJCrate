@@ -59,6 +59,8 @@ struct TrackRow: Identifiable, Hashable, Sendable {
     var keyName: String { track.key ?? "" }
     /// 추가한 곡의 키를 DJCrate가 추정했는지(목록에 추정으로 표시한다, #124)
     var keyEstimated = false
+    /// 음원 파일을 찾지 못한 로컬 곡(#126). 라이브러리를 읽은 뒤 뒤에서 확인해 채운다(`LibraryStore.checkMissingFiles`).
+    var fileMissing = false
     /// rekordbox 그리드의 변속 흐름(BPM 순서, 변속 없으면 빈 배열)
     let tempoChanges: [Double]
     /// rekordbox 오토게인(분석한 곡만)
@@ -126,6 +128,7 @@ extension LibraryFilter {
         case .played: "play.circle"
         case .streaming: "antenna.radiowaves.left.and.right"
         case .noBPM: "metronome"
+        case .missingFile: "questionmark.folder"
         case .tempoChange: "speedometer"
         case .all: "music.note.list"
         }
@@ -133,7 +136,7 @@ extension LibraryFilter {
 
     func includes(_ row: TrackRow) -> Bool {
         includes(track: row.track, comment: row.commentEvaluation, hasCues: !row.cues.isEmpty,
-                 playCount: row.playCount, tempoChanges: row.tempoChanges)
+                 playCount: row.playCount, tempoChanges: row.tempoChanges, fileMissing: row.fileMissing)
     }
 }
 
