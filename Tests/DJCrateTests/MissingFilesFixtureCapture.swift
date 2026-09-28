@@ -15,6 +15,14 @@ struct MissingFilesFixtureCapture {
         guard let path = ProcessInfo.processInfo.environment["DJC_MISSING_FILES_FIXTURE"] else { return }
         let fixture = try RekordboxFixture()
         let root = URL(filePath: path)
+        let deleted = try Self.populate(fixture, audioRoot: root)
+        try FileManager.default.copyItem(at: fixture.root, to: root)
+        // 음원을 옮기거나 지운 뒤의 라이브러리처럼 일부 곡의 음원만 지운다.
+        for name in deleted { try FileManager.default.removeItem(at: root.appending(path: "audio/\(name)")) }
+    }
+
+    /// 곡을 넣고 지울 음원 이름을 돌려준다. 로컬 곡의 경로는 `audioRoot/audio/…`(사본을 옮길 자리)를 가리킨다.
+    static func populate(_ fixture: RekordboxFixture, audioRoot: URL) throws -> [String] {
         try fixture.insert("djmdArtist", ["ID": .text("a1"), "Name": .text("합성 아티스트")])
         enum Kind { case present, deleted, external, streaming }
         let entries: [(String, Kind)] = [
@@ -34,11 +42,11 @@ struct MissingFilesFixtureCapture {
             case .present, .deleted:
                 let name = "missing-\(index + 1).wav"
                 _ = try AudioFixture.wav(seconds: 1, in: fixture.audio, name: name)
-                track.folderPath = root.appending(path: "audio/\(name)").path
+                track.folderPath = audioRoot.appending(path: "audio/\(name)").path
                 track.fileType = 11
                 if entry.1 == .deleted { deleted.append(name) }
             case .external:
-                track.folderPath = "\(Self.unmountedVolume)/Music/external-\(index + 1).mp3"
+                track.folderPath = "\(unmountedVolume)/Music/external-\(index + 1).mp3"
             case .streaming:
                 track.folderPath = "apple-music:\(9_100_000 + index)"
                 track.length = 240
@@ -49,8 +57,6 @@ struct MissingFilesFixtureCapture {
         try fixture.execute("""
             UPDATE djmdContent SET created_at = date('2026-09-20', '-' || (CAST(ID AS INTEGER) - 1) || ' days') || ' 00:00:00.000 +00:00'
             """)
-        try FileManager.default.copyItem(at: fixture.root, to: root)
-        // 음원을 옮기거나 지운 뒤의 라이브러리처럼 일부 곡의 음원만 지운다.
-        for name in deleted { try FileManager.default.removeItem(at: root.appending(path: "audio/\(name)")) }
+        return deleted
     }
 }
