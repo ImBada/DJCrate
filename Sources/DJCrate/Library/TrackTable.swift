@@ -1429,6 +1429,16 @@ extension TrackListCoordinator {
                    forRowIndexes rowIndexes: IndexSet) {
         dragGeneration += 1
         cancelPendingEdit()
+        // 간격 표시는 끄는 동안 끄는 줄을 숨긴다. 숨긴 채 덱에 곡이 올라가 목록 높이가 바뀌면 표 높이가 틀어지므로(#143)
+        // 목록 안에 놓아 순서를 바꿀 수 있을 때만 쓴다.
+        tableView.draggingDestinationFeedbackStyle = store.canReorderDisplayedTracks ? .gap : .regular
+    }
+
+    /// 끄는 줄을 숨긴 채 목록 높이가 바뀌면 AppKit이 표 높이를 줄 끝보다 짧게 잡고, 끌기가 끝나 줄을 다시 보여도 다시 재지 않는다.
+    /// 그러면 놓은 뒤 휠 스크롤이 짧은 높이에 막혔다(#143). 표는 이 대리자를 부른 뒤에 줄을 다시 보이므로 다음 차례에 잰다.
+    func tableView(_ tableView: NSTableView, draggingSession session: NSDraggingSession, endedAt screenPoint: NSPoint,
+                   operation: NSDragOperation) {
+        Task { @MainActor [weak tableView] in tableView?.tile() }
     }
 
     /// 목록을 # 순서로 볼 때만 줄 사이에 놓아 순서를 바꾼다.
