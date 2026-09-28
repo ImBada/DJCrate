@@ -1,12 +1,13 @@
 @testable import DJCrate
 import AppKit
+import DJCDomain
 import SwiftUI
 import Testing
 
 @MainActor
-@Suite("반영 — 창 위쪽 배치", .serialized)
+@Suite("반영 — 알림·진행 표시 배치", .serialized)
 struct ReflectionLayoutTests {
-    @Test(arguments: ["light", "dark"]) func 결과_알림은_최소_창의_detail_위쪽에_보인다(_ appearance: String) async throws {
+    @Test(arguments: ["light", "dark"]) func 결과_알림은_최소_창의_detail_아래쪽에_보인다(_ appearance: String) async throws {
         _ = NSApplication.shared
         let store = LibraryStore(resultHistory: WriteResultHistory(url: nil), feedback: AppFeedback(announce: { _ in }))
         let deck = DeckModel(audio: FakeDeckAudio(), storage: .memory(MemoryDrafts()), runsAnalysis: false)
@@ -34,6 +35,38 @@ struct ReflectionLayoutTests {
             }
         }
         #expect(!orangeY.isEmpty)
-        #expect(orangeY.reduce(0, +) / max(orangeY.count, 1) < bitmap.pixelsHigh / 2)
+        // 아래쪽에 뜨되 창 끝에 붙어 잘리지 않는다(#122).
+        #expect(orangeY.reduce(0, +) / max(orangeY.count, 1) > bitmap.pixelsHigh / 2)
+        #expect((orangeY.max() ?? .max) < bitmap.pixelsHigh - 8)
+    }
+
+    /// 넓은 창에서도 진행 카드는 막대가 남는 폭을 다 차지하지 않고 문구에 맞는 폭(최대 폭 안)으로 뜬다(#122).
+    @Test(arguments: [1.0, 1.4]) func 진행_카드는_넓은_창에서도_최대_폭_안에_뜬다(_ scale: Double) {
+        _ = NSApplication.shared
+        func width(_ stage: WriteStage) -> Double {
+            let card = WritingStageCard(stage: stage, onCancel: {}).environment(\.textScale, scale)
+            return NSHostingController(rootView: card).sizeThatFits(in: CGSize(width: 1800, height: 900)).width
+        }
+        let preview = width(WriteStage(String(ui: "미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…"), completed: 1, total: 2, cancellable: true))
+        let writing = width(WriteStage(String(ui: "rekordbox에 쓰는 중…")))
+        // 내용 최대 폭 400pt(글자 배율만큼) + 좌우 여백 28pt씩
+        let limit = TextScale.length(400, scale: scale) + 56
+        #expect(preview <= limit)
+        #expect(writing <= limit)
+        // 막대가 있어도 단계 문구가 한 줄 이상 읽히는 폭은 남긴다.
+        #expect(preview >= TextScale.length(240, scale: scale))
+    }
+
+    /// 최대 폭을 넘는 긴 문구(번역·큰 글자)는 잘리지 않고 최대 폭에서 줄을 바꿔 카드가 높아진다.
+    @Test func 진행_카드의_긴_문구는_최대_폭에서_줄을_바꾼다() {
+        _ = NSApplication.shared
+        func size(_ text: String) -> CGSize {
+            NSHostingController(rootView: WritingStageCard(stage: WriteStage(text, completed: 1, total: 2), onCancel: {}))
+                .sizeThatFits(in: CGSize(width: 1800, height: 900))
+        }
+        let short = size("짧은 단계")
+        let long = size(String(repeating: "아주 긴 단계 문구 ", count: 8))
+        #expect(abs(long.width - (400 + 56)) < 1)
+        #expect(long.height > short.height)
     }
 }
