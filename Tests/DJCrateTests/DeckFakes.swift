@@ -27,6 +27,7 @@ final class FakeDeckAudio: DeckAudioEngine {
     var position = 0.0
     var handlesLoop = false
     var hasPendingJump = false
+    var isOutputUnavailable = false
     /// 불러오면 이 길이가 된다
     var trackLength = 180.0
     /// 걸려 있는 루프(오디오 쪽)

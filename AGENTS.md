@@ -95,6 +95,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 - 덱·초안의 시각은 모두 **rekordbox 시간축**(음원 시각 + 인코더 지연, `RekordboxTimeline.predictedOffset`)이다. 파형만 음원 시간축이라 `timelineOffset`만큼 당겨 그린다.
 - 오디오:
   - `AVAudioEngine.pause()`를 쓰지 않는다. 멈출 땐 `stop()`. pause 뒤 다시 켜면 시작 시각이 밀려 소리가 늦고 무음이 쌓인다.
+  - 출력 장치를 여는 엔진 호출(`mainMixerNode`·`outputNode`)은 메인 스레드에서 하지 않는다. coreaudiod가 멈추면 앱이 첫 화면 전에 멈췄다(#142). 엔진 그래프는 `AudioEngineQueue`에서 만들어 넘겨받는다.
   - 루프는 재생 노드에 버퍼를 예약해 샘플 단위로 잇는다. 무엇을 언제 예약할지는 `LoopPlanner`(순수, 테스트됨)가 정하고 `DeckAudio.setLoop`은 그대로 실행한다. 예약은 렌더 블록보다 앞서야 한다(그러면 되풀이 버퍼도 바퀴 중간에서 정확히 끊긴다). ½은 CDJ처럼 바로, 나가기는 이번 바퀴 끝에서.
 - 화면: 재생 중 매 프레임 바뀌는 관찰 값은 큰 뷰가 읽지 않게 한다. 글자·전체 파형 재생선은 `displayTime`(15Hz), 레벨 미터는 재생 틱(`meterFrame`)으로 갱신한다.
 - 그리드 쓰기는 파형 파일(`.EXT`)이 있는 곡만 한다. 분석 파일이 없는 곡은 분석 파일을 만들어 붙이고(`RekordboxWriter+Analysis`), `.DAT`만 있는 반쪽 곡은 막는다.

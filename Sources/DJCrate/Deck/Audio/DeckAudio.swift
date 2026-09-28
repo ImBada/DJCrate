@@ -15,16 +15,16 @@ import QuartzCore
 /// 속도가 1.0이면 두 변환 유닛을 우회해 원본 그대로 낸다.
 @MainActor
 final class DeckAudio {
-    private let engine = AVAudioEngine()
-    private let trackNode = AVAudioPlayerNode()
-    /// 곡 게인(오토게인·트림). 대역은 쓰지 않고 전역 게인만 쓴다(−96…+24dB).
-    private let gainUnit = AVAudioUnitEQ(numberOfBands: 1)
-    /// 곡 볼륨(페이더). 미터는 이 앞(게인 뒤)에서 읽는다.
-    private let trackMixer = AVAudioMixerNode()
-    private let clickNode = AVAudioPlayerNode()
-    private let subMixer = AVAudioMixerNode()
-    private let varispeed = AVAudioUnitVarispeed()
-    private let timePitch = AVAudioUnitTimePitch()
+    /// 엔진·노드(`DeckAudioGraph`). 출력 장치를 여는 동안 메인 스레드를 막지 않도록 밖에서 만들어 넘겨받는다(#142).
+    /// 넘겨받기 전에는 nil이다: 곡은 불러 둘 수 있지만 재생은 막는다(`isOutputUnavailable`).
+    private var graph: DeckAudioGraph?
+    private let makeGraph: @Sendable () -> DeckAudioGraph?
+    private var prepareTask: Task<Void, Never>?
+    /// 마지막 재생 시도에서 엔진을 켜지 못했다(장치가 빠졌거나 응답하지 않음).
+    private var startFailed = false
+    private var engine: AVAudioEngine? { graph?.engine }
+    private var trackNode: AVAudioPlayerNode? { graph?.trackNode }
+    private var clickNode: AVAudioPlayerNode? { graph?.clickNode }
     private let clickFormat: AVAudioFormat
     private let downbeatClick: AVAudioPCMBuffer?
     private let beatClick: AVAudioPCMBuffer?
@@ -92,7 +92,7 @@ final class DeckAudio {
 
     /// 재생 노드가 실제로 그려 낸 샘플(없으면 호스트 시각으로 어림)
     private var renderedNode: Double {
-        if let time = trackNode.lastRenderTime, let player = trackNode.playerTime(forNodeTime: time) {
+        if let time = trackNode?.lastRenderTime, let player = trackNode?.playerTime(forNodeTime: time) {
             return Double(player.sampleTime)
         }
         return node(ofLinear: renderPosition)
@@ -125,7 +125,7 @@ final class DeckAudio {
             var options: AVAudioPlayerNodeBufferOptions = []
             if item.interrupts { options.insert(.interrupts) }
             if item.loops { options.insert(.loops) }
-            trackNode.scheduleBuffer(buffer, at: AVAudioTime(sampleTime: item.at, atRate: sampleRate), options: options, completionHandler: nil)
+            trackNode?.scheduleBuffer(buffer, at: AVAudioTime(sampleTime: item.at, atRate: sampleRate), options: options, completionHandler: nil)
         }
         pieces += plan.pieces
         switch plan.kind {
@@ -169,7 +169,7 @@ final class DeckAudio {
             var options: AVAudioPlayerNodeBufferOptions = []
             if item.interrupts { options.insert(.interrupts) }
             if item.loops { options.insert(.loops) }
-            trackNode.scheduleBuffer(buffer, at: AVAudioTime(sampleTime: item.at, atRate: sampleRate), options: options, completionHandler: nil)
+            trackNode?.scheduleBuffer(buffer, at: AVAudioTime(sampleTime: item.at, atRate: sampleRate), options: options, completionHandler: nil)
         }
         pieces = plan.pieces
         jumpNode = plan.buffers.first?.at
@@ -200,9 +200,10 @@ final class DeckAudio {
 
     var rate: Double = 1 { didSet { if rate != oldValue { applyRate() } } }
     var keyLock = true { didSet { if keyLock != oldValue { applyRate() } } }
-    var volume: Float = 0.9 { didSet { trackMixer.outputVolume = volume } }
+    var volume: Float = 0.9 { didSet { graph?.trackMixer.outputVolume = volume } }
     /// 곡 게인(dB). 볼륨 페이더 앞에 걸린다.
-    var gainDB: Float = 0 { didSet { gainUnit.globalGain = min(max(gainDB, -24), 24) } }
+    var gainDB: Float = 0 { didSet { graph?.gainUnit.globalGain = clampedGain } }
+    private var clampedGain: Float { min(max(gainDB, -24), 24) }
     /// 게인 뒤·볼륨 앞 레벨(미터). 오디오 탭이 채우고 화면이 읽는다.
     let meter = LevelMeter()
     /// 메모리 디코딩이 끝나면 곡 음량을 알린다(오토게인).
@@ -211,7 +212,7 @@ final class DeckAudio {
     var onChroma: ((KeyAnalyzer.Chroma) -> Void)?
     /// 캐시가 있으면 끈다(디코딩 뒤 크로마를 다시 계산하지 않는다).
     var needsChroma = true
-    var metronomeVolume: Float = 0.8 { didSet { clickNode.volume = metronomeVolume } }
+    var metronomeVolume: Float = 0.8 { didSet { clickNode?.volume = metronomeVolume } }
     var metronome = false { didSet { if metronome != oldValue { resetClicks() } } }
 
     var isLoaded: Bool { file != nil }
@@ -221,37 +222,60 @@ final class DeckAudio {
     /// 음원을 읽을 때만 이만큼 빼서 프레임을 고른다(rekordbox처럼 앞의 지연 샘플만큼 늦게 소리가 난다).
     private(set) var timelineOffset: Double = 0
 
-    init() {
-        clickFormat = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2)!
+    /// - Parameter makeGraph: 엔진 그래프 만들기. 출력 장치를 열어 오래 걸릴 수 있다(시험에서는 끝나지 않는 가짜를 준다).
+    init(makeGraph: @escaping @Sendable () -> DeckAudioGraph? = DeckAudioGraph.make) {
+        clickFormat = AVAudioFormat(standardFormatWithSampleRate: DeckAudioGraph.clickSampleRate, channels: 2)!
         downbeatClick = Self.makeClick(format: clickFormat, frequency: 1_760)
         beatClick = Self.makeClick(format: clickFormat, frequency: 1_175)
-        for node in [trackNode, gainUnit, trackMixer, clickNode, subMixer, varispeed, timePitch] as [AVAudioNode] { engine.attach(node) }
-        gainUnit.bands[0].bypass = true
-        engine.connect(clickNode, to: subMixer, format: clickFormat)
-        engine.connect(subMixer, to: varispeed, format: nil)
-        engine.connect(varispeed, to: timePitch, format: nil)
-        engine.connect(timePitch, to: engine.mainMixerNode, format: nil)
-        trackMixer.outputVolume = volume
-        clickNode.volume = metronomeVolume
+        self.makeGraph = makeGraph
+        prepareOutput()
+    }
+
+    /// 엔진 그래프를 메인 스레드 밖(`AudioEngineQueue`)에서 만든다. 만들지 못했으면 재생을 누를 때 다시 시도한다
+    /// (장치가 돌아왔을 수 있다). 만드는 중이면 그 결과를 기다린다(끝나지 않아도 메인 스레드는 막히지 않는다).
+    private func prepareOutput() {
+        guard graph == nil, prepareTask == nil else { return }
+        let make = makeGraph, started = Self.now()
+        prepareTask = Task { [weak self] in
+            let graph = await AudioEngineQueue.make(make)
+            guard let self else { return }
+            prepareTask = nil
+            if let graph { adopt(graph, started: started) } else { AudioDebug.log("오디오 출력을 준비하지 못함") }
+        }
+    }
+
+    /// 다 만든 그래프를 넘겨받아 지금 설정과 불러 둔 곡을 잇는다.
+    private func adopt(_ graph: DeckAudioGraph, started: Double) {
+        self.graph = graph
+        graph.trackMixer.outputVolume = volume
+        graph.gainUnit.globalGain = clampedGain
+        graph.clickNode.volume = metronomeVolume
         applyRate()
+        if let file { connectTrack(file, in: graph) }
         // 헤드폰·에어팟 연결 등으로 출력 구성이 바뀌면 엔진이 멈춘다. 위치를 기억하고 정지 상태로 정리한다.
         configObserver = NotificationCenter.default.addObserver(
-            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+            forName: .AVAudioEngineConfigurationChange, object: graph.engine, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.handleConfigurationChange() }
         }
+        AudioDebug.log("오디오 출력 준비 \(String(format: "%.0f", (Self.now() - started) * 1000))ms")
     }
+
+    /// 출력 장치를 쓸 수 없어 재생을 막는지: 엔진 그래프를 아직 넘겨받지 못했거나 마지막에 엔진을 켜지 못했다.
+    var isOutputUnavailable: Bool { graph == nil || startFailed }
+    /// 엔진 그래프를 넘겨받았다(자가 테스트가 재생 전에 기다린다).
+    var isOutputReady: Bool { graph != nil }
 
     /// 다른 앱이 장치를 바꾸거나(샘플레이트·버퍼·기본 출력) 장치가 빠졌다 들어오면 macOS가 엔진을 멈춘다.
     /// 연결을 새 장치 형식으로 다시 잡고, 재생 중이었으면 같은 자리에서 이어서 재생한다.
     private func handleConfigurationChange() {
         let wasPlaying = isPlaying
         let position = self.position
-        AudioEvents.record("출력 구성 변경 · 재생 중=\(wasPlaying) · 엔진 동작=\(engine.isRunning) · \(String(format: "%.2f", position))초 · 장치 \(outputDeviceName())")
+        AudioEvents.record("출력 구성 변경 · 재생 중=\(wasPlaying) · 엔진 동작=\(isEngineRunning) · \(String(format: "%.2f", position))초 · 장치 \(outputDeviceName())")
         jumpNode = nil
         hasPendingJump = false
-        trackNode.stop()
-        clickNode.stop()
+        trackNode?.stop()
+        clickNode?.stop()
         isPlaying = false
         pausedPosition = position
         reconnectOutput()
@@ -261,6 +285,7 @@ final class DeckAudio {
 
     /// 메인 믹서 → 출력 연결을 지금 장치 형식으로 다시 만든다(구성 변경 뒤 옛 형식이 남으면 소리가 안 난다).
     private func reconnectOutput() {
+        guard let engine else { return }
         if engine.isRunning { engine.stop() }
         engine.disconnectNodeOutput(engine.mainMixerNode)
         engine.connect(engine.mainMixerNode, to: engine.outputNode, format: nil)
@@ -287,7 +312,7 @@ final class DeckAudio {
     /// 화면은 재생 중인데 엔진이 멈춰 있으면(알림 없이 멈춘 경우) 같은 자리에서 다시 시작한다.
     /// 디스플레이 갱신마다 부르며, 1초에 한 번만 시도한다.
     func recoverIfStalled() {
-        guard isPlaying, !engine.isRunning else { return }
+        guard isPlaying, !isEngineRunning else { return }
         let now = Self.now()
         guard now - lastRecovery > 1 else { return }
         lastRecovery = now
@@ -295,8 +320,8 @@ final class DeckAudio {
         AudioEvents.record("엔진이 멈춰 있음(재생 중) · \(String(format: "%.2f", position))초에서 복구 · 장치 \(outputDeviceName())")
         jumpNode = nil
         hasPendingJump = false
-        trackNode.stop()
-        clickNode.stop()
+        trackNode?.stop()
+        clickNode?.stop()
         isPlaying = false
         reconnectOutput()
         resume(at: position, attempt: 1)
@@ -306,13 +331,14 @@ final class DeckAudio {
     /// 구성 변경 뒤 재생을 자동으로 이어 갔을 때(화면 갱신 재개용)
     var onRecovered: (() -> Void)?
 
-    var isEngineRunning: Bool { engine.isRunning }
+    var isEngineRunning: Bool { engine?.isRunning ?? false }
 
     /// 진단: 곡 믹서 출력(속도 변환 전)을 받아 본다. 스피커는 음소거한다(개발용 자가 테스트).
     func debugCaptureTrack(_ handler: @escaping @Sendable (AVAudioPCMBuffer) -> Void) {
-        engine.mainMixerNode.outputVolume = 0
-        trackMixer.removeTap(onBus: 0)
-        trackMixer.installTap(onBus: 0, bufferSize: 1024, format: nil, block: Self.captureTap(handler))
+        guard let graph else { return }
+        graph.engine.mainMixerNode.outputVolume = 0
+        graph.trackMixer.removeTap(onBus: 0)
+        graph.trackMixer.installTap(onBus: 0, bufferSize: 1024, format: nil, block: Self.captureTap(handler))
     }
 
     /// 오디오 스레드에서 불리므로 메인 액터 밖에서 만든다.
@@ -322,16 +348,18 @@ final class DeckAudio {
 
     /// 진단: 메트로놈 노드 출력을 받아 본다(클릭이 빠지지 않는지 세는 자가 테스트).
     func debugCaptureClicks(_ handler: @escaping @Sendable (AVAudioPCMBuffer) -> Void) {
+        guard let engine, let clickNode else { return }
         engine.mainMixerNode.outputVolume = 0
         clickNode.removeTap(onBus: 0)
         clickNode.installTap(onBus: 0, bufferSize: 1024, format: nil, block: Self.captureTap(handler))
     }
 
     /// 진단: 알림 없이 엔진이 멈춘 상황을 흉내 낸다.
-    func debugStopEngine() { engine.stop() }
+    func debugStopEngine() { engine?.stop() }
 
     /// 진단: 다른 앱이 장치를 바꿔 엔진이 멈추고 구성 변경 알림이 온 상황을 흉내 낸다.
     func debugConfigurationChange() {
+        guard let engine else { return }
         engine.stop()
         NotificationCenter.default.post(name: .AVAudioEngineConfigurationChange, object: engine)
     }
@@ -343,17 +371,11 @@ final class DeckAudio {
         decoded = nil
         loadGeneration += 1
         let file = try AVAudioFile(forReading: url)
-        gainUnit.removeTap(onBus: 0)
-        for node in [trackNode, gainUnit, trackMixer] as [AVAudioNode] { engine.disconnectNodeOutput(node) }
-        engine.connect(trackNode, to: gainUnit, format: file.processingFormat)
-        engine.connect(gainUnit, to: trackMixer, format: file.processingFormat)
-        engine.connect(trackMixer, to: subMixer, format: file.processingFormat)
-        meter.reset()
-        gainUnit.installTap(onBus: 0, bufferSize: 1024, format: file.processingFormat, block: Self.meterTap(meter))
         self.file = file
         fileDuration = Double(file.length) / file.processingFormat.sampleRate
         pausedPosition = 0
-        engine.prepare()
+        // 엔진 그래프를 아직 넘겨받지 못했으면 넘겨받을 때 잇는다(곡은 먼저 불러 두고 메모리 디코딩도 바로 시작한다).
+        if let graph { connectTrack(file, in: graph) } else { meter.reset() }
         AudioEvents.record("곡 로드 · \(url.lastPathComponent) · \(Int(file.processingFormat.sampleRate))Hz \(file.processingFormat.channelCount)ch · \(String(format: "%.1f", fileDuration))초 · rekordbox 지연 \(String(format: "%.1f", timelineOffset * 1000))ms")
 
         guard fileDuration <= DecodedAudio.maxDuration else { return }
@@ -370,6 +392,19 @@ final class DeckAudio {
             let chroma = wantsChroma ? decoded.chroma() : nil
             await self?.adopt(decoded, loudness: loudness, chroma: chroma, generation: generation, started: started)
         }
+    }
+
+    /// 곡 형식으로 곡 노드 → 게인 → 볼륨 → 서브믹서를 다시 잇고 미터 탭을 건다.
+    private func connectTrack(_ file: AVAudioFile, in graph: DeckAudioGraph) {
+        let engine = graph.engine
+        graph.gainUnit.removeTap(onBus: 0)
+        for node in [graph.trackNode, graph.gainUnit, graph.trackMixer] as [AVAudioNode] { engine.disconnectNodeOutput(node) }
+        engine.connect(graph.trackNode, to: graph.gainUnit, format: file.processingFormat)
+        engine.connect(graph.gainUnit, to: graph.trackMixer, format: file.processingFormat)
+        engine.connect(graph.trackMixer, to: graph.subMixer, format: file.processingFormat)
+        meter.reset()
+        graph.gainUnit.installTap(onBus: 0, bufferSize: 1024, format: file.processingFormat, block: Self.meterTap(meter))
+        engine.prepare()
     }
 
     private func adopt(_ decoded: DecodedAudio, loudness: Loudness, chroma: KeyAnalyzer.Chroma?, generation: Int, started: Double) {
@@ -417,6 +452,14 @@ final class DeckAudio {
     @discardableResult
     func play(from position: Double) -> Bool {
         guard let file else { return false }
+        guard let graph else {
+            // 출력 장치가 아직 응답하지 않았다(#142). 재생만 막고 준비를 다시 시도한다.
+            AudioEvents.record("재생 막음 · 오디오 출력 준비 전 · \(String(format: "%.2f", position))초")
+            pausedPosition = position
+            prepareOutput()
+            return false
+        }
+        let engine = graph.engine, trackNode = graph.trackNode, clickNode = graph.clickNode
         idleTask?.cancel()
         jumpNode = nil
         hasPendingJump = false
@@ -435,11 +478,13 @@ final class DeckAudio {
         if !engine.isRunning {
             do { try engine.start() } catch {
                 AudioEvents.record("엔진 시작 실패: \(error) · 장치 \(outputDeviceName())")
+                startFailed = true
                 isPlaying = false
                 pausedPosition = position
                 return false
             }
         }
+        startFailed = false
         schedule = PlaybackSchedule(sampleRate: sampleRate, timelineOffset: timelineOffset, startLinear: position,
                                     leadInFrames: Int64((leadIn * sampleRate).rounded()),
                                     pieces: [PlaybackPiece(node: 0, frame: startFrame, loop: nil)])
@@ -486,8 +531,8 @@ final class DeckAudio {
         pausedPosition = position
         jumpNode = nil
         hasPendingJump = false
-        trackNode.stop()
-        clickNode.stop()
+        trackNode?.stop()
+        clickNode?.stop()
         isPlaying = false
         scheduleIdlePause()
     }
@@ -497,12 +542,12 @@ final class DeckAudio {
         idleTask?.cancel()
         jumpNode = nil
         hasPendingJump = false
-        trackNode.stop()
-        clickNode.stop()
+        trackNode?.stop()
+        clickNode?.stop()
         isPlaying = false
         // pause()가 아니라 stop(): pause 뒤 다시 켜면 재생 노드가 시작 시각(호스트 시각)을 쉬기 전 기준으로
         // 바꿔서, 엔진이 쉰 시간만큼 소리가 늦게 나고 그 밀림이 쌓인다(곡 전환·오래 멈춤 뒤 무음의 원인).
-        if engine.isRunning { engine.stop() }
+        if let engine, engine.isRunning { engine.stop() }
     }
 
     /// 멈춘 뒤 엔진을 끄기까지의 시간(설정 › 일반). 개발용 `DJC_IDLE_SECONDS`가 있으면 그 값이 먼저다.
@@ -515,8 +560,8 @@ final class DeckAudio {
         let seconds = Self.idleOverride ?? idleSeconds
         idleTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(seconds))
-            guard !Task.isCancelled, let self, !self.isPlaying, self.engine.isRunning else { return }
-            self.engine.stop()
+            guard !Task.isCancelled, let self, !self.isPlaying, let engine = self.engine, engine.isRunning else { return }
+            engine.stop()
             AudioEvents.record("\(Int(seconds))초 유휴 · 엔진 정지")
         }
     }
@@ -530,17 +575,20 @@ final class DeckAudio {
             anchorPosition = renderPosition
             anchorHost = Self.now()
         }
+        // 그래프를 넘겨받기 전이면 넘겨받을 때 다시 부른다(`adopt`).
+        guard let graph else { return }
         let stretching = keyLock && rate != 1
         let resampling = !keyLock && rate != 1
-        timePitch.rate = Float(stretching ? rate : 1)
-        varispeed.rate = Float(resampling ? rate : 1)
-        timePitch.bypass = !stretching
-        varispeed.bypass = !resampling
+        graph.timePitch.rate = Float(stretching ? rate : 1)
+        graph.varispeed.rate = Float(resampling ? rate : 1)
+        graph.timePitch.bypass = !stretching
+        graph.varispeed.bypass = !resampling
         latency = currentLatency()
         updateJumpLead()
     }
 
     private func updateJumpLead() {
+        guard let engine else { return }
         let output = engine.outputNode
         let device = output.auAudioUnit.deviceID
         var frames = output.auAudioUnit.maximumFramesToRender
@@ -555,8 +603,10 @@ final class DeckAudio {
     }
 
     private func currentLatency() -> Double {
-        (timePitch.bypass ? 0 : timePitch.latency) + (varispeed.bypass ? 0 : varispeed.latency)
-            + engine.outputNode.presentationLatency
+        guard let graph else { return 0 }
+        let timePitch = graph.timePitch, varispeed = graph.varispeed
+        return (timePitch.bypass ? 0 : timePitch.latency) + (varispeed.bypass ? 0 : varispeed.latency)
+            + graph.engine.outputNode.presentationLatency
     }
 
     // MARK: - 메트로놈
@@ -571,7 +621,7 @@ final class DeckAudio {
             let offset = click.linear - clickEpochPosition
             guard offset >= 0 else { continue }
             let when = AVAudioTime(sampleTime: AVAudioFramePosition(offset * clickFormat.sampleRate), atRate: clickFormat.sampleRate)
-            clickNode.scheduleBuffer(click.downbeat ? down : beat, at: when, options: [], completionHandler: nil)
+            clickNode?.scheduleBuffer(click.downbeat ? down : beat, at: when, options: [], completionHandler: nil)
         }
         clickScheduledUntil = horizon
     }
@@ -581,9 +631,9 @@ final class DeckAudio {
 
     private func restartClicks(after delay: Double) {
         guard isPlaying else { return }
-        clickNode.stop()
+        clickNode?.stop()
         let startHost = mach_absolute_time() + AVAudioTime.hostTime(forSeconds: delay)
-        clickNode.play(at: AVAudioTime(hostTime: startHost))
+        clickNode?.play(at: AVAudioTime(hostTime: startHost))
         clickEpochPosition = anchorPosition + (AVAudioTime.seconds(forHostTime: startHost) - anchorHost) * rate
         clickScheduledUntil = clickEpochPosition - 0.001
     }
@@ -610,7 +660,7 @@ final class DeckAudio {
 
     /// 엔진이 실제로 소리를 내보내는 장치 이름(기본 출력이 바뀌었는지 확인용).
     func outputDeviceName() -> String {
-        guard let unit = engine.outputNode.audioUnit else { return "?" }
+        guard let unit = engine?.outputNode.audioUnit else { return "?" }
         var device = AudioDeviceID(0)
         var size = UInt32(MemoryLayout<AudioDeviceID>.size)
         guard AudioUnitGetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &device, &size) == noErr else { return "?" }
@@ -626,7 +676,7 @@ final class DeckAudio {
 
     /// 메인 믹서 출력이 무음↔소리로 바뀌는 순간을 기록한다. 재생 예정 시각과 비교해 시작 지연을 잰다.
     private func installDebugTap() {
-        guard !tapInstalled else { return }
+        guard !tapInstalled, let engine else { return }
         tapInstalled = true
         engine.mainMixerNode.installTap(onBus: 0, bufferSize: 512, format: nil, block: Self.silenceLogger())
     }
