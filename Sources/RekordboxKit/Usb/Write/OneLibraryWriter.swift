@@ -30,6 +30,7 @@ public enum OneLibraryWriter {
     /// 새 DB를 만든다. 파일(또는 사이드카)이 이미 있으면 실패한다. 끝나면 -wal·-shm이 없다.
     /// 기기 기록·모델에 담지 않는 표의 행이 든 모델은 다시 만들 수 없어 막는다.
     public static func create(_ library: UsbLibrary, at url: URL) throws {
+        try refuseVolumePath(url)
         let model = library.projected(to: .oneLibrary)
         guard model.histories.isEmpty, model.unknownRows.isEmpty else {
             let rule = UsbProvisionalRule.carriedDeviceRows
@@ -66,18 +67,22 @@ public enum OneLibraryWriter {
 
     /// USB DB **사본**(병합 끝난 것)에 편집 단계마다 차이만 SQL로 적용한다. 한 단계가 실패하면 그 단계만 되돌리고 계속한다.
     /// `current`·단계 모델은 두 형식을 합친 모델이어도 된다 — 쓰기·다시 읽기 비교는 OneLibrary 투영으로 한다.
+    /// - COMMIT 전 다시 읽기가 어긋나면 전체를 되돌리고 `UsbError.writeRolledBack`(사본은 그대로).
+    /// - COMMIT 뒤 확인이 실패하면 `OneLibraryCommittedCopyError`(사본은 이미 고쳐졌다 — 버리고 USB에서 다시 떠야 한다).
     public static func apply(from current: UsbLibrary, steps: [OneLibraryEditStep], database url: URL) throws -> OneLibraryApplyResult {
         try apply(from: current, steps: steps, database: url, stopOnFailure: false, afterSteps: nil)
     }
 
-    /// 단계 하나: 실패하면 전체를 되돌리고 던진다
+    /// 단계 하나: 실패하면 전체를 되돌리고 던진다(COMMIT 뒤 실패는 위와 같이 `OneLibraryCommittedCopyError`)
     public static func apply(from current: UsbLibrary, to target: UsbLibrary, database url: URL) throws {
         _ = try apply(from: current, steps: [OneLibraryEditStep(id: 1) { _ in target }], database: url, stopOnFailure: true, afterSteps: nil)
     }
 
-    /// `afterSteps`는 시험이 모든 단계 뒤(다시 읽기 전)에 같은 연결로 SQL을 더 부를 때만 쓴다.
+    /// `afterSteps`·`afterCommit`은 시험이 모든 단계 뒤(다시 읽기 전)·COMMIT 뒤에 같은 연결로 SQL을 더 부를 때만 쓴다.
     static func apply(from current: UsbLibrary, steps: [OneLibraryEditStep], database url: URL, stopOnFailure: Bool,
-                      afterSteps: ((CipherDatabase) throws -> Void)?) throws -> OneLibraryApplyResult {
+                      afterSteps: ((CipherDatabase) throws -> Void)?,
+                      afterCommit: ((CipherDatabase) throws -> Void)? = nil) throws -> OneLibraryApplyResult {
+        try refuseVolumePath(url)
         let db = try CipherDatabase(path: url.path, key: key(), mode: .readWrite)
         var isOpen = true
         defer { if isOpen { db.close() } }
@@ -114,19 +119,28 @@ public enum OneLibraryWriter {
             try? db.execute("ROLLBACK")
             throw error
         }
-        // 파일 머리 모양(WAL·롤백)은 바꾸지 않는다. 롤백 모양이면 체크포인트는 할 일이 없다
-        guard try walCheckpoint(db).first == 0 else { throw UsbError.writeRolledBack(reason: "wal_checkpoint busy") }
-        db.close()
-        isOpen = false
-        let problems = try verify(url, expected: accepted)
-        guard problems.isEmpty else { throw UsbError.writeRolledBack(reason: "verify: " + problems.prefix(5).joined(separator: "; ")) }
+        // 여기부터는 사본에 이미 COMMIT됐다. 되돌렸다고 알리지 않는다
+        do {
+            try afterCommit?(db)
+            // 파일 머리 모양(WAL·롤백)은 바꾸지 않는다. 롤백 모양이면 체크포인트는 할 일이 없다
+            guard try walCheckpoint(db).first == 0 else { throw failure("wal_checkpoint busy") }
+            db.close()
+            isOpen = false
+            let problems = try verify(url, expected: accepted)
+            guard problems.isEmpty else { throw failure("verify: " + problems.prefix(5).joined(separator: "; ")) }
+        } catch {
+            throw OneLibraryCommittedCopyError(reason: String(describing: error))
+        }
         return OneLibraryApplyResult(applied: accepted, skipped: skipped)
     }
 
     /// 다시 열어 확인한다: 사이드카 없음, 스키마 = `OneLibrarySchema`, integrity ok, cipher_integrity_check 0줄,
     /// 다시 읽은 모델 = `expected`의 OneLibrary 투영(OneLibrary 칸만 비교). 문제마다 한 줄(칸 이름·ID·수만, 값은 넣지 않는다)
+    /// 사이드카가 있으면 DB를 열지 않고 그것만 보고한다(열면 닫을 때 SQLite가 남은 -wal을 본 파일에 합치고 지운다).
     public static func verify(_ url: URL, expected: UsbLibrary) throws -> [String] {
+        try refuseVolumePath(url)
         var problems = UsbLayout.oneLibrarySidecarSuffixes.filter { exists(url.path + $0) }.map { "sidecar \($0)" }
+        guard problems.isEmpty else { return problems }
         // 쓰기 가능하게 열어야 닫을 때 SQLite가 이 연결이 만든 -wal·-shm을 치운다. 읽기만 한다
         let db = try CipherDatabase(path: url.path, key: key(), mode: .readWrite)
         defer { db.close() }
@@ -174,10 +188,12 @@ public enum OneLibraryWriter {
         let remaining = Set(next.tracks.map(\.id))
         next.myTagLinks = accepted.myTagLinks.filter { remaining.contains($0.contentID) }
         pruneNewOrphans(&next, accepted: accepted)
+        // 곡 수는 단계 모델 값을 믿지 않고 OneLibrary에 있는 곡으로 센다(Device Library에만 있는 곡은 빼고)
+        next.property.numberOfContents = next.tracks.filter { $0.presentIn.contains(.oneLibrary) }.count
         return next.canonicalized()
     }
 
-    /// 받아들인 모델에서는 쓰이던 행 중 이 편집 뒤 아무도 가리키지 않는 행만 뺀다(원래 쓰이지 않던 행은 두다)
+    /// 받아들인 모델에서는 쓰이던 행 중 이 편집 뒤 아무도 가리키지 않는 행만 뺀다(원래 쓰이지 않던 행은 둔다)
     static func pruneNewOrphans(_ next: inout UsbLibrary, accepted: UsbLibrary) {
         let old = References(accepted)
         var now = References(next)
@@ -215,6 +231,21 @@ public enum OneLibraryWriter {
 
     // MARK: - 도움
 
+    /// 이 작성기는 Mac 준비 폴더나 USB DB 사본만 다룬다. USB 볼륨(/Volumes 아래)의 파일은 `UsbWriter`만 쓴다
+    /// (백업·저널·실물 관문을 거치지 않고 열면 -wal·-shm이 USB에 생기고 행이 바뀐다). 파일과 그 폴더를 realpath로 본다.
+    static func refuseVolumePath(_ url: URL) throws {
+        let paths = [url.path, url.deletingLastPathComponent().path].compactMap(UsbScratchRoots.realPath)
+        guard paths.contains(where: isOnVolumes) else { return }
+        throw UsbError.writeRefused([UsbBlock(code: "libraryOnVolume", scope: .format(.oneLibrary),
+                                              message: String(ui: "USB 안의 라이브러리 파일은 바로 고치지 않습니다. DJCrate의 USB 쓰기로 다시 시도하세요"))])
+    }
+
+    /// realpath 결과가 /Volumes이거나 그 아래인지(대소문자 무시 — 대소문자를 가리지 않는 볼륨에서도 같은 곳이다)
+    static func isOnVolumes(_ realPath: String?) -> Bool {
+        guard let path = realPath?.lowercased() else { return false }
+        return path == "/volumes" || path.hasPrefix("/volumes/")
+    }
+
     static func key() throws -> CipherKey {
         .passphrase(try RekordboxKey.oneLibrary())
     }
@@ -246,6 +277,23 @@ public enum OneLibraryWriter {
     }
 
     static func failure(_ detail: String) -> OneLibraryWriteFailure { OneLibraryWriteFailure(description: detail) }
+}
+
+/// `apply`가 COMMIT한 뒤의 확인(체크포인트·다시 열어 확인)이 실패했다. 사본에는 편집이 이미 들어가 있다(되돌리지 않았다).
+/// 호출하는 쪽은 이 사본을 버리고 USB에서 다시 떠야 한다. 같은 사본에 다시 적용하면 편집이 두 번 들어간다.
+public struct OneLibraryCommittedCopyError: Error, LocalizedError, CustomStringConvertible, Sendable {
+    /// 기술 정보(번역하지 않음)
+    public let reason: String
+
+    public init(reason: String) {
+        self.reason = reason
+    }
+
+    public var errorDescription: String? {
+        String(ui: "USB 라이브러리 사본을 고친 뒤 확인하지 못했습니다. USB를 다시 읽은 뒤 다시 시도하세요")
+    }
+
+    public var description: String { "OneLibrary copy committed but not confirmed: \(reason)" }
 }
 
 /// 작성기 안쪽 실패(기술 정보, 번역하지 않음)
@@ -373,20 +421,36 @@ enum OneLibraryRows {
 
     /// 받아들인 모델 → 다음 모델의 OneLibrary 차이만 SQL로. 지우기를 먼저 하고 더하기·고치기를 한다.
     /// 기기 행(기록·큐·추천·핫큐 뱅크)과 보존 표(색·메뉴·카테고리·정렬·My Tag)는 건드리지 않는다.
+    /// 기기 행이 가리키는 곡·그림을 빼는 편집은 막는다.
     static func applyDifference(from accepted: UsbLibrary, to next: UsbLibrary, _ db: CipherDatabase) throws {
         let old = accepted.projected(to: .oneLibrary), new = next.projected(to: .oneLibrary)
         let newTrackIDs = Set(new.tracks.map(\.id))
-
-        // 곡 빼기: 기기가 남긴 큐·추천이 그 곡을 가리키면 그 표를 바꿔야 하므로 막는다
         let oldTracks = Dictionary(old.tracks.map { ($0.id, $0) }) { first, _ in first }
-        for id in Set(oldTracks.keys).subtracting(newTrackIDs).sorted() {
+        let removed = Set(oldTracks.keys).subtracting(newTrackIDs)
+
+        // 뺀 곡을 아직 가리키는 목록 항목이 있으면(항목을 고치지 않은 목록도) 기기가 없는 곡을 가리키게 되므로 막는다.
+        // 이번에 뺀 곡만 본다 — USB에 원래 있던 어긋남 때문에 모든 편집이 막히지 않게
+        for list in new.playlists {
+            if let id = (list.entries[.oneLibrary] ?? []).first(where: removed.contains) {
+                throw OneLibraryWriter.failure("playlist \(list.id) entry references removed content \(id)")
+            }
+        }
+        // 곡 빼기: 기기가 남긴 큐·추천·재생 기록이 그 곡을 가리키면 그 표를 바꿔야 하므로 막는다
+        for id in removed.sorted() {
             let cues = try count(db, "SELECT count(*) FROM cue WHERE content_id = ?", id)
             let likes = try count(db, "SELECT count(*) FROM recommendedLike WHERE content_id_1 = ? OR content_id_2 = ?", id, id)
-            guard cues == 0, likes == 0 else {
-                throw OneLibraryWriter.failure("content \(id) referenced by device rows (cue \(cues), recommendedLike \(likes))")
+            let plays = try count(db, "SELECT count(*) FROM history_content WHERE content_id = ?", id)
+            guard cues == 0, likes == 0, plays == 0 else {
+                throw OneLibraryWriter.failure(
+                    "content \(id) referenced by device rows (cue \(cues), recommendedLike \(likes), history_content \(plays))")
             }
             try db.run("DELETE FROM content WHERE content_id = ?", [.int(id)])
             try db.run("DELETE FROM myTag_content WHERE content_id = ?", [.int(id)])
+        }
+        // 그림 빼기: 모델에 담지 않는 핫큐 뱅크가 가리키는 그림이면 그 표를 바꿔야 하므로 막는다
+        for id in Set(old.images.map(\.id)).subtracting(new.images.map(\.id)).sorted() {
+            let banks = try count(db, "SELECT count(*) FROM hotCueBankList WHERE image_id = ?", id)
+            guard banks == 0 else { throw OneLibraryWriter.failure("image \(id) referenced by hotCueBankList (\(banks))") }
         }
         try sync(db, "artist", "artist_id", old.artists, new.artists, id: \.id, values: artist)
         try sync(db, "album", "album_id", old.albums, new.albums, id: \.id, values: album)

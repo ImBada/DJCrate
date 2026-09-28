@@ -587,6 +587,168 @@ struct OneLibraryWriterTests {
         #expect(try Self.rows(folder.database, "SELECT name FROM playlist WHERE playlist_id = 12") == [["시험 새 이름"]])
     }
 
+    /// 곡 2를 빼는 단계(목록 항목도 뺀다)
+    static let removeTrack2 = step(1) { library in
+        library.tracks.removeAll { $0.id == 2 }
+        for index in library.playlists.indices { library.playlists[index].entries[.oneLibrary]?.removeAll { $0 == 2 } }
+    }
+
+    @Test("기기 기록이 가리키는 곡을 빼는 편집은 건너뛴다")
+    func applySkipsRemovingTrackInDeviceHistory() throws {
+        let folder = try TemporaryFolder()
+        try OneLibraryWriter.create(WriterSamples.model(), at: folder.database)
+        do {
+            let db = try Self.open(folder.database, .readWrite)
+            defer { db.close() }
+            try db.execute("INSERT INTO history VALUES (1, 1, '시험 기록', 0, 0)")
+            try db.execute("INSERT INTO history_content VALUES (1, 2, 1)")
+        }
+        let current = try Self.read(folder.database)
+        let historyBefore = try Self.dump(folder.database, "history_content")
+        let rename = Self.step(2) { library in library.playlists[2].name = "시험 새 이름" }
+        let result = try OneLibraryWriter.apply(from: current, steps: [Self.removeTrack2, rename], database: folder.database)
+        #expect(Array(result.skipped.keys) == [1])
+        #expect(try Self.rows(folder.database, "SELECT count(*) FROM content WHERE content_id = 2") == [["1"]])
+        #expect(try Self.dump(folder.database, "history_content") == historyBefore)
+        #expect(try Self.rows(folder.database, "SELECT name FROM playlist WHERE playlist_id = 12") == [["시험 새 이름"]])
+    }
+
+    @Test("뺀 곡을 가리키는 항목이 남은 목록이 있으면 그 편집은 건너뛴다(항목을 고치지 않은 목록도)")
+    func applySkipsRemovingTrackStillInPlaylist() throws {
+        let folder = try TemporaryFolder()
+        let current = WriterSamples.model()
+        try OneLibraryWriter.create(current, at: folder.database)
+        let remove = Self.step(1) { library in
+            library.tracks.removeAll { $0.id == 2 }
+            library.property.numberOfContents = 2
+        }
+        let rename = Self.step(2) { library in library.playlists[2].name = "시험 새 이름" }
+        let result = try OneLibraryWriter.apply(from: current, steps: [remove, rename], database: folder.database)
+        #expect(Array(result.skipped.keys) == [1])
+        #expect(try Self.rows(folder.database, "SELECT count(*) FROM content WHERE content_id = 2") == [["1"]])
+        #expect(try Self.rows(folder.database, "SELECT count(*) FROM playlist_content WHERE content_id NOT IN (SELECT content_id FROM content)")
+            == [["0"]])
+        #expect(try Self.rows(folder.database, "SELECT name FROM playlist WHERE playlist_id = 12") == [["시험 새 이름"]])
+    }
+
+    @Test("모델에 담지 않는 핫큐 뱅크가 가리키는 그림을 지우는 편집은 건너뛴다")
+    func applySkipsRemovingImageInHotCueBank() throws {
+        let folder = try TemporaryFolder()
+        try OneLibraryWriter.create(WriterSamples.model(), at: folder.database)
+        do {
+            let db = try Self.open(folder.database, .readWrite)
+            defer { db.close() }
+            try db.execute("INSERT INTO hotCueBankList VALUES (1, 0, '시험 뱅크', 2, 0, 0)")
+        }
+        let current = try Self.read(folder.database)
+        #expect(current.unknownRows.count == 1)
+        let rename = Self.step(2) { library in library.playlists[2].name = "시험 새 이름" }
+        let result = try OneLibraryWriter.apply(from: current, steps: [Self.removeTrack2, rename], database: folder.database)
+        #expect(Array(result.skipped.keys) == [1])
+        #expect(try Self.rows(folder.database, "SELECT count(*) FROM image WHERE image_id = 2") == [["1"]])
+        #expect(try Self.rows(folder.database, "SELECT count(*) FROM hotCueBankList WHERE image_id NOT IN (SELECT image_id FROM image)")
+            == [["0"]])
+        #expect(try Self.rows(folder.database, "SELECT name FROM playlist WHERE playlist_id = 12") == [["시험 새 이름"]])
+    }
+
+    @Test("numberOfContents는 단계 모델 값이 아니라 OneLibrary 곡 수로 쓴다")
+    func applyCountsOneLibraryTracks() throws {
+        let folder = try TemporaryFolder()
+        let current = WriterSamples.model()
+        try OneLibraryWriter.create(current, at: folder.database)
+        // 곡을 빼면서 numberOfContents는 그대로 둔 단계
+        let result = try OneLibraryWriter.apply(from: current, steps: [Self.removeTrack2], database: folder.database)
+        #expect(result.skipped.isEmpty)
+        #expect(result.applied.property.numberOfContents == 2)
+        #expect(try Self.rows(folder.database, "SELECT numberOfContents, (SELECT count(*) FROM content) FROM property") == [["2", "2"]])
+
+        // 합친 모델: Device Library에만 있는 곡은 세지 않는다
+        let other = try TemporaryFolder()
+        var both = WriterSamples.merged()
+        both.tracks.append(WriterSamples.track(4, artist: 1, album: 1, image: nil, formats: [.deviceLibrary]))
+        both.canonicalize()
+        try OneLibraryWriter.create(both, at: other.database)
+        let bump = Self.step(1) { library in library.property.numberOfContents = 99 }
+        let again = try OneLibraryWriter.apply(from: both, steps: [bump], database: other.database)
+        #expect(again.applied.property.numberOfContents == 3)
+        #expect(try Self.rows(other.database, "SELECT numberOfContents FROM property") == [["3"]])
+    }
+
+    @Test("COMMIT 뒤 확인이 실패하면 되돌렸다고 하지 않는다(사본은 이미 고쳐졌다)")
+    func applyFailureAfterCommitIsNotRollback() throws {
+        let folder = try TemporaryFolder()
+        let current = WriterSamples.model()
+        try OneLibraryWriter.create(current, at: folder.database)
+        let rename = Self.step(1) { library in library.playlists[1].name = "시험 새 이름" }
+        var caught: (any Error)?
+        do {
+            _ = try OneLibraryWriter.apply(from: current, steps: [rename], database: folder.database, stopOnFailure: false,
+                                           afterSteps: nil) { db in
+                try db.execute("UPDATE genre SET name = 'x'")
+            }
+        } catch {
+            caught = error
+        }
+        let error = try #require(caught)
+        #expect(error is OneLibraryCommittedCopyError)
+        if case UsbError.writeRolledBack = error { Issue.record("되돌림 오류로 던졌다") }
+        #expect(!error.localizedDescription.contains("genre"))
+        // 편집은 이미 COMMIT됐다
+        #expect(try Self.rows(folder.database, "SELECT name FROM playlist WHERE playlist_id = 11") == [["시험 새 이름"]])
+    }
+
+    @Test("확인은 사이드카가 있으면 DB를 열지 않는다(남은 -wal·본 파일 바이트 그대로)")
+    func verifyLeavesStaleWal() throws {
+        let folder = try TemporaryFolder()
+        let model = WriterSamples.model()
+        try OneLibraryWriter.create(model, at: folder.database)
+        let original = try Data(contentsOf: folder.database)
+        let wal = URL(filePath: folder.database.path + "-wal")
+        // 체크포인트 전의 -wal을 떠 두고, 본 파일은 고치기 전으로 되돌린다(병합되지 않은 -wal이 남은 모양)
+        var staleWal = Data()
+        do {
+            let db = try Self.open(folder.database, .readWrite)
+            try db.execute("PRAGMA wal_autocheckpoint = 0")
+            try db.execute("UPDATE genre SET name = '시험 바뀐 장르'")
+            staleWal = try Data(contentsOf: wal)
+            db.close()
+        }
+        try original.write(to: folder.database)
+        try staleWal.write(to: wal)
+        #expect(!staleWal.isEmpty)
+
+        let problems = try OneLibraryWriter.verify(folder.database, expected: model)
+        #expect(problems.contains("sidecar -wal"))
+        #expect(try Data(contentsOf: folder.database) == original)
+        #expect(try Data(contentsOf: wal) == staleWal)
+        #expect(try folder.contents() == ["exportLibrary.db", "exportLibrary.db-wal"])
+    }
+
+    @Test("realpath가 /Volumes 아래면 USB 볼륨으로 본다")
+    func volumePathDetection() {
+        for path in ["/Volumes", "/Volumes/TEST USB/PIONEER/rekordbox", "/volumes/test"] {
+            #expect(OneLibraryWriter.isOnVolumes(path), "\(path)")
+        }
+        for path in ["/VolumesX", "/private/tmp/Volumes/test", "/", ""] {
+            #expect(!OneLibraryWriter.isOnVolumes(path), "\(path)")
+        }
+        #expect(!OneLibraryWriter.isOnVolumes(nil))
+    }
+
+    @Test("USB 볼륨 위의 DB는 만들기·고치기·확인 모두 열기 전에 거부한다")
+    func refusesVolumePath() throws {
+        let folder = try TemporaryFolder()
+        // /Volumes를 가리키는 링크 아래 경로: realpath가 /Volumes라 파일을 건드리기 전에 거부해야 한다
+        let link = folder.url.appending(path: "usb")
+        try FileManager.default.createSymbolicLink(atPath: link.path, withDestinationPath: "/Volumes")
+        let database = link.appending(path: "exportLibrary.db")
+        let model = WriterSamples.model()
+        #expect(usbRefusedCodes { try OneLibraryWriter.create(model, at: database) } == ["libraryOnVolume"])
+        #expect(usbRefusedCodes { _ = try OneLibraryWriter.apply(from: model, steps: [], database: database) } == ["libraryOnVolume"])
+        #expect(usbRefusedCodes { try OneLibraryWriter.apply(from: model, to: model, database: database) } == ["libraryOnVolume"])
+        #expect(usbRefusedCodes { _ = try OneLibraryWriter.verify(database, expected: model) } == ["libraryOnVolume"])
+    }
+
     @Test("모르는 모양의 USB DB는 고치지 않는다")
     func applyRefusesUnknownSchema() throws {
         let fixture = try OneLibraryFixture(statements: OneLibrarySchema.ddl() + ["CREATE TABLE extra(x integer)"])

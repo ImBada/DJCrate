@@ -481,10 +481,53 @@ struct UsbLibraryBuilderTests {
         let candidates = try UsbExportCandidates.load(database: db, share: fixture.shareRoot, contentIDs: ["101"])
         let plan = UsbExportPlanner.plan(UsbExportRequest(candidates: candidates, snapshotTakenAt: .distantFuture))
         try fixture.execute("UPDATE djmdContent SET rb_local_deleted = 1 WHERE ID = '101'")
-        #expect(throws: UsbError.self) {
-            try UsbLibraryBuilder.build(plan: plan, formats: UsbFormat.defaultSet, local: UsbLocalSource(database: db),
-                                        share: fixture.shareRoot, myTagMasterDBID: 1, createdDate: "2026-09-01")
-        }
+        #expect(usbRefusedCodes {
+            _ = try UsbLibraryBuilder.build(plan: plan, formats: UsbFormat.defaultSet, local: UsbLocalSource(database: db),
+                                            share: fixture.shareRoot, myTagMasterDBID: 1, createdDate: "2026-09-01")
+        } == ["localTrackMissing"])
+    }
+
+    /// 기존 USB 모델에 로컬 곡 201을 더하는 계획(`existing`의 곡·그림 ID를 계획이 알고 있다)
+    static func addPlan(_ fixture: RekordboxFixture, _ db: CipherDatabase, existing: UsbLibrary, formats: Set<UsbFormat>) throws -> UsbExportPlan {
+        let candidates = try UsbExportCandidates.load(database: db, share: fixture.shareRoot, contentIDs: ["201"])
+        var ids = UsbIDAllocator()
+        for track in existing.tracks { ids.observe(.content, track.id) }
+        for image in existing.images { ids.observe(.image, image.id) }
+        let plan = UsbExportPlanner.plan(UsbExportRequest(candidates: candidates, existing: UsbExistingState(hasLibrary: true, ids: ids),
+                                                          formats: formats, snapshotTakenAt: .distantFuture))
+        #expect(plan.blocked.isEmpty)
+        return plan
+    }
+
+    @Test("기존 USB에 더하기: numberOfContents는 OneLibrary에 있는 곡 수(Device Library에만 있는 곡은 세지 않는다)")
+    func addCountsOneLibraryTracks() throws {
+        let fixture = try RekordboxFixture()
+        try Self.addTrack(fixture, id: "201")
+        var existing = UsbModelSamples.library(.oneLibrary, tracks: [1, 2])
+        existing.formats = UsbFormat.defaultSet
+        existing.tracks.append(UsbModelSamples.track(3, .deviceLibrary))
+        existing.canonicalize()
+        let db = try CipherDatabase(path: fixture.database.path, key: RekordboxKey.derive())
+        defer { db.close() }
+        let plan = try Self.addPlan(fixture, db, existing: existing, formats: UsbFormat.defaultSet)
+        let library = try UsbLibraryBuilder.add(plan: plan, into: existing, local: UsbLocalSource(database: db), share: fixture.shareRoot).library
+        #expect(library.tracks.count == 4)
+        #expect(library.tracks.filter { $0.presentIn.contains(.oneLibrary) }.count == 3)
+        #expect(library.property.numberOfContents == 3)
+    }
+
+    @Test("기존 USB에 있는 곡 번호로 더하려 하면 막는다")
+    func addRefusesContentIDOnUsb() throws {
+        let fixture = try RekordboxFixture()
+        try Self.addTrack(fixture, id: "201")
+        let existing = UsbModelSamples.library(.oneLibrary, tracks: [1, 2])
+        let db = try CipherDatabase(path: fixture.database.path, key: RekordboxKey.derive())
+        defer { db.close() }
+        var plan = try Self.addPlan(fixture, db, existing: existing, formats: [.oneLibrary])
+        plan.tracks[0].contentID = 2
+        #expect(usbRefusedCodes {
+            _ = try UsbLibraryBuilder.add(plan: plan, into: existing, local: UsbLocalSource(database: db), share: fixture.shareRoot)
+        } == ["contentIDInUse"])
     }
 }
 

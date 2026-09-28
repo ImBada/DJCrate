@@ -129,8 +129,9 @@ struct UsbLocalSourceTests {
         let track = try fixture.add(TrackSpec(id: "201"))
         try fixture.setContent(track: track, ["rb_local_deleted": .int(1)])
         let local = try source(fixture)
-        #expect(throws: UsbError.self) { try local.track("201") }
-        #expect(throws: UsbError.self) { try local.track("202") }
+        // 스냅샷 문제라 USB를 다시 연결하라는 읽기 실패가 아니라 막힘으로 알린다
+        #expect(usbRefusedCodes { _ = try local.track("201") } == ["localTrackMissing"])
+        #expect(usbRefusedCodes { _ = try local.track("202") } == ["localTrackMissing"])
     }
 
     @Test("색은 지우지 않은 8개 전부, name = Commnt")
@@ -209,7 +210,7 @@ struct UsbLocalSourceTests {
         try fixture.setDBID("4000000123")
         #expect(try source(fixture).localDBID() == 4_000_000_123)
         try fixture.setDBID("abc")
-        #expect(throws: UsbError.self) { try source(fixture).localDBID() }
+        #expect(usbRefusedCodes { _ = try source(fixture).localDBID() } == ["localDBID"])
     }
 
     @Test("라이브 master.db면 읽지 않는다")
@@ -228,4 +229,16 @@ struct UsbLocalSourceTests {
         #expect(throws: UsbError.self) { try live.localDBID() }
         #expect(try UsbLocalSource(database: db).track("301").id == "301")
     }
+}
+
+/// `UsbError.writeRefused`의 막힘 code들(다른 오류면 "other: …", 던지지 않으면 빈 배열)
+func usbRefusedCodes(_ body: () throws -> Void) -> [String] {
+    do {
+        try body()
+    } catch let UsbError.writeRefused(blocks) {
+        return blocks.map(\.code)
+    } catch {
+        return ["other: \(error)"]
+    }
+    return []
 }

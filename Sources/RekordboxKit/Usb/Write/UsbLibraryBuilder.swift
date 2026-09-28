@@ -60,7 +60,9 @@ public enum UsbLibraryBuilder {
         let formats = existing.formats.isEmpty ? UsbFormat.defaultSet : existing.formats
         let used = Set(existing.tracks.map(\.id))
         if let clash = plan.tracks.first(where: { used.contains($0.contentID) }) {
-            throw UsbError.readFailed(detail: "content id already on USB: \(clash.contentID)")
+            // 계획을 뜬 뒤 USB 모델이 바뀌었다
+            throw UsbError.writeRefused([UsbBlock(code: "contentIDInUse", scope: .track("usb:\(clash.contentID)"),
+                                                  message: String(ui: "USB에 이미 있는 곡 번호와 겹칩니다. USB를 다시 읽은 뒤 다시 내보내세요"))])
         }
         var names = NameAllocator(existing: existing)
         return try assemble(plan: plan, into: existing, formats: formats, names: &names, local: local, share: share)
@@ -98,7 +100,9 @@ public enum UsbLibraryBuilder {
         library.genres += names.genres.added
         library.keys += names.keys.added
         library.labels += names.labels.added
-        library.property.numberOfContents = library.tracks.count
+        // OneLibrary 곡 수(Device Library에만 있는 곡은 세지 않는다). OneLibrary가 없으면 모든 곡
+        library.property.numberOfContents = formats.contains(.oneLibrary)
+            ? library.tracks.filter { $0.presentIn.contains(.oneLibrary) }.count : library.tracks.count
         return UsbExportModel(library: library.canonicalized(), files: files)
     }
 

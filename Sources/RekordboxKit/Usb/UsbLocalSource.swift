@@ -23,7 +23,9 @@ public struct UsbLocalSource {
         var values: [String] = []
         try database.query("SELECT DBID FROM djmdProperty") { values.append($0.string(0) ?? "") }
         guard values.count == 1, let dbid = Int64(values[0]) else {
-            throw UsbError.readFailed(detail: "djmdProperty.DBID: \(values.count) rows")
+            // USB가 아니라 로컬 스냅샷 문제다(USB를 다시 연결해도 풀리지 않는다)
+            throw UsbError.writeRefused([UsbBlock(code: "localDBID", scope: .volume,
+                                                  message: String(ui: "로컬 라이브러리 정보를 읽지 못했습니다. 새 스냅샷을 뜬 뒤 다시 내보내세요"))])
         }
         return dbid
     }
@@ -124,7 +126,10 @@ public struct UsbLocalSource {
                 masterDBID: text(46), masterSongID: text(47), analysisDataPath: text(48), imagePath: text(49),
                 analysed: int(50), contentLink: int(51), cueUpdated: text(52), analysisUpdated: text(53), trackInfoUpdated: text(54))
         }
-        guard let found else { throw UsbError.readFailed(detail: "local content not found: \(contentID)") }
+        guard let found else {
+            throw UsbError.writeRefused([UsbBlock(code: "localTrackMissing", scope: .track(contentID),
+                                                  message: String(ui: "스냅샷에서 이 곡을 찾지 못했습니다. 새 스냅샷을 뜬 뒤 다시 내보내세요"))])
+        }
         return found
     }
 

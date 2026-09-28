@@ -113,7 +113,7 @@ rekordbox 7이 USB에 내보내는 라이브러리(OneLibrary·Device Library)�
 | menuItem | 로컬 모두 | kind = Class + 256, name = U+FFFA + Name + U+FFFB |
 | category | 로컬 지우지 않은 행 | sequenceNo = Seq, isVisible = Disable ≠ 1. InfoOrder·Disable은 Device Library 몫으로 모델에만 둔다 |
 | sort | 로컬 지우지 않은 행 | sequenceNo = Seq, isVisible = Disable ≠ 1, isSelectedAsSubColumn = Disable = 2 |
-| property | 1 | deviceName '', dbVersion '1000', numberOfContents = 곡 수, createdDate = 오늘(YYYY-MM-DD), backGroundColorType 0, myTagMasterDBID = 1 … 2³¹−1 난수(`myTagMasterDBID`) |
+| property | 1 | deviceName '', dbVersion '1000', numberOfContents = OneLibrary에 있는 곡 수(Device Library에만 있는 곡은 세지 않음), createdDate = 오늘(YYYY-MM-DD), backGroundColorType 0, myTagMasterDBID = 1 … 2³¹−1 난수(`myTagMasterDBID`) |
 | cue·history·history_content·recommendedLike·hotCueBankList·hotCueBankList_cue | 0 | 로컬에 자료가 있어도 비운다(큐는 분석 파일에만) |
 
 ### 2.8 content 칸(로컬 `djmdContent` = c)
@@ -148,7 +148,7 @@ Mac 준비 폴더에 새 `exportLibrary.db`를 만든다. 파일이나 사이드
 2. 표를 만들기 **전에** `PRAGMA journal_mode=WAL`(파일 머리가 WAL 모양이 된다).
 3. `BEGIN` → 스키마 26문장(§2.2 순서) → 행 → `COMMIT`. `integer primary key` 표는 id 순서로 넣어 rowid = id가 된다.
 4. `PRAGMA wal_checkpoint(TRUNCATE)` = (0, 0, 0), integrity ok, cipher_integrity_check 0줄 → 닫기 → `-wal`·`-shm`이 없어야 한다.
-5. 다시 열어 확인(`verify`): 사이드카 없음, 호환 검사(§2.4), integrity, 다시 읽은 모델 = 모델의 OneLibrary 투영(OneLibrary 칸만 비교). 실패하면 만든 파일을 지운다.
+5. 다시 열어 확인(`verify`): 사이드카 없음, 호환 검사(§2.4), integrity, 다시 읽은 모델 = 모델의 OneLibrary 투영(OneLibrary 칸만 비교). 실패하면 만든 파일을 지운다. 사이드카가 있으면 DB를 열지 않고 그것만 보고한다(열면 닫을 때 SQLite가 남은 `-wal`을 본 파일에 합치고 지워, 확인할 파일과 증거가 바뀐다).
 
 - 기기(SQLite 3.33)에 없는 기능(STRICT·생성 칸 등)을 쓰지 않는다. sqlite_master rowid·schema cookie·change counter·SQLite 버전 도장은 맞추지 않는다.
 - 읽기 전용 연결은 WAL 모양 파일 옆에 `-wal`·`-shm`을 남긴다. 확인은 쓰기 가능하게 열고 `query_only`로 막아, 닫을 때 SQLite가 치우게 한다.
@@ -159,13 +159,15 @@ USB DB **사본**(`UsbSnapshot`으로 병합 끝난 것)에 편집 단계마다 
 
 1. 쓰기 가능하게 열어 호환 검사 → `BEGIN IMMEDIATE`. 받아들인 모델 = 지금 모델.
 2. 단계마다 `SAVEPOINT` → 편집을 적용한 모델을 다듬고(아래) → 받아들인 모델과의 OneLibrary 차이를 SQL로 → 성공하면 `RELEASE`하고 받아들인다. 모델 적용이나 SQL이 실패하면 `ROLLBACK TO`·`RELEASE`하고 그 편집만 건너뛴다(이유는 기술 정보로 남긴다). 다음 편집은 건너뛴 편집이 빠진 모델 위에 적용된다.
-3. 같은 연결로 다시 읽어 **받아들인 모델의 OneLibrary 투영**과 OneLibrary 칸만 비교한다. 원래 목표(모든 편집)와 견주면 건너뛴 편집 때문에, 투영 없이 합친 모델과 견주면 Device Library 전용 칸·곡·목록 때문에 늘 어긋난다. 다르면 전체 `ROLLBACK`.
-4. `COMMIT` → `wal_checkpoint(TRUNCATE)` → 닫기 → 확인(§2.9의 5). 돌려주는 적용 모델은 투영하지 않은 합친 모델이다(Device Library를 같은 편집 집합으로 다시 만들 때 쓴다).
+3. 같은 연결로 다시 읽어 **받아들인 모델의 OneLibrary 투영**과 OneLibrary 칸만 비교한다. 원래 목표(모든 편집)와 견주면 건너뛴 편집 때문에, 투영 없이 합친 모델과 견주면 Device Library 전용 칸·곡·목록 때문에 늘 어긋난다. 다르면 전체 `ROLLBACK`하고 `UsbError.writeRolledBack`(사본은 그대로).
+4. `COMMIT` → `wal_checkpoint(TRUNCATE)` → 닫기 → 확인(§2.9의 5). 돌려주는 적용 모델은 투영하지 않은 합친 모델이다(Device Library를 같은 편집 집합으로 다시 만들 때 쓴다). COMMIT 뒤의 체크포인트·확인이 실패하면 사본에는 편집이 이미 들어가 있으므로 되돌렸다고 알리지 않는다(`OneLibraryCommittedCopyError`). 호출하는 쪽은 그 사본을 버리고 USB에서 다시 뜬다(같은 사본에 다시 적용하면 편집이 두 번 들어간다).
 
-- 차이 SQL: 지우기를 먼저 한다. 곡 빼기는 content 행과 그 곡의 myTag_content 행을 지우고, 더하기는 INSERT, 바뀐 곡은 UPDATE(rating·djPlayCount·hasModified는 쓰지 않음). artist·album·genre·key·label·image는 id로 짝지어 지우기·더하기·고치기. 목록은 행을 고치고, 항목이 바뀐 목록만 playlist_content를 지운 뒤 1..N으로 다시 넣는다. property는 numberOfContents만 고친다.
+- 차이 SQL: 지우기를 먼저 한다. 곡 빼기는 content 행과 그 곡의 myTag_content 행을 지우고, 더하기는 INSERT, 바뀐 곡은 UPDATE(rating·djPlayCount·hasModified는 쓰지 않음). artist·album·genre·key·label·image는 id로 짝지어 지우기·더하기·고치기. 목록은 행을 고치고, 항목이 바뀐 목록만 playlist_content를 지운 뒤 1..N으로 다시 넣는다. property는 numberOfContents만 고친다(단계 모델 값을 믿지 않고 OneLibrary에 있는 곡 수로 센다).
 - 모델 다듬기: 두 쪽에 다 있는 곡의 기기 칸, 색·메뉴·카테고리·정렬·My Tag·기록·모르는 표 행, property의 deviceName·dbVersion·createdDate·backGroundColorType·myTagMasterDBID는 USB 값을 지킨다. My Tag 연결은 더하지 않고 뺀 곡의 연결만 없앤다. 이 편집으로 아무도 가리키지 않게 된 album·artist·genre·key·label·image 행은 뺀다(원래 쓰이지 않던 행은 그대로).
-- 건드리지 않는 것: history·history_content·cue·recommendedLike·hotCueBankList·hotCueBankList_cue(기기 행). 기기가 남긴 큐·추천이 가리키는 곡을 빼는 편집, 목록 항목이 없는 곡을 가리키는 편집은 건너뛴다.
+- 건드리지 않는 것: history·history_content·cue·recommendedLike·hotCueBankList·hotCueBankList_cue(기기 행). 그 표를 바꿔야 하는 편집은 건너뛴다: 기기가 남긴 큐·추천·재생 기록(history_content)이 가리키는 곡을 빼는 편집, 핫큐 뱅크(hotCueBankList.image_id)가 가리키는 그림이 고아가 되는 편집.
+- 목록 항목이 없는 곡을 가리키게 되는 편집도 건너뛴다. 이번 편집에서 뺀 곡은 항목을 고치지 않은 목록까지 모두 본다(USB에 원래 있던 어긋남 때문에 모든 편집이 막히지 않게 이번에 뺀 곡만 본다).
 - 파일 머리 모양(WAL 2/2·롤백 1/1)은 바꾸지 않는다(`journal_mode`를 건드리지 않음).
+- 만들기·고치기·확인 모두 Mac 준비 폴더나 USB DB 사본만 받는다. 파일이나 그 폴더의 realpath가 `/Volumes` 아래면 열기 전에 막는다(`libraryOnVolume`). USB에는 `UsbWriter`(백업·저널·실물 관문)로만 쓴다.
 
 ### 2.11 쓰기 실험 명령
 
@@ -179,6 +181,7 @@ USB DB **사본**(`UsbSnapshot`으로 병합 끝난 것)에 편집 단계마다 
 - 검색 칸(titleForSearch·nameForSearch)은 NULL로만 봤다.
 - My Tag 연결(`myTag_content`)은 쓰지 않는다(`myTagLinks`). myTagMasterDBID는 난수로 짓는다(`myTagMasterDBID`).
 - 같은 이름의 다른 로컬 아티스트 행을 rekordbox가 합치는지(지금은 로컬 ID로만 합친다).
+- 기기 행(큐·추천·재생 기록·핫큐 뱅크)이 가리키는 곡·그림을 USB에서 뺐을 때 기기·rekordbox가 어떻게 다루는지(그래서 그 편집은 막는다).
 
 ## 3. Device Library(export.pdb·exportExt.pdb)
 
