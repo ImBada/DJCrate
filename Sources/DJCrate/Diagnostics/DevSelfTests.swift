@@ -18,6 +18,7 @@ enum DevSelfTests {
         runSearchLayoutIfRequested()
         runReflectionLayoutIfRequested(store: store)
         runDuplicateLayoutIfRequested(store: store)
+        runMissingFilesCaptureIfRequested(store: store)
         runWriteSelfTestIfRequested(store: store, deck: deck)
         runTrackSelfTestIfRequested(store: store)
         runLoopSelfTestIfRequested(deck: deck)

@@ -53,6 +53,9 @@ public struct LibraryRead {
         }
         let allowed = try playlistID.map { Set(try playlistTracks(id: $0).map(\.id)) }
         let needle = query.lowercased()
+        // 파일 확인은 이 필터를 고를 때만 한다(곡마다 파일 시스템에 묻는다).
+        let missing = filter == .missingFile
+            ? MissingFiles.scan(tracks, exists: { FileManager.default.fileExists(atPath: $0) }).trackIDs : []
         let result = tracks.filter { track in
             let encrypted = track.title.hasPrefix("$A7:")
             let haystack = [encrypted ? "" : track.title, encrypted ? "" : (track.artist ?? ""), track.comment, track.genre ?? ""]
@@ -63,7 +66,8 @@ public struct LibraryRead {
                   allowed?.contains(track.id) ?? true else { return false }
             return filter.includes(track: track, comment: commentRule?.evaluate(track.comment),
                                    hasCues: !library.cues(for: track).isEmpty, playCount: library.playCounts[track.id, default: 0],
-                                   tempoChanges: filter == .tempoChange ? grid(for: track).tempoChanges : [])
+                                   tempoChanges: filter == .tempoChange ? grid(for: track).tempoChanges : [],
+                                   fileMissing: missing.contains(track.id))
         }
         return TrackList(tracks: result.map(TrackRecord.init))
     }
