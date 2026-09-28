@@ -210,7 +210,7 @@ final class LibraryStore {
     var reflectionBatch: ReflectionStore.Batch?
     /// 이번 실행에서 rekordbox에 쓴 마지막 백업(토스트·툴바의 되돌리기)
     var lastWriteBackup: URL?
-    /// detail 위쪽에 뜨는 알림(rekordbox 반영 완료 등)
+    /// detail 아래쪽에 뜨는 알림(rekordbox 반영 완료 등)
     var toast: AppToast? {
         didSet {
             if let toast { feedback.announce(AppMessage(kind: toast.kind, text: [toast.title, toast.detail].compactMap { $0 }.joined(separator: "\n"))) }
