@@ -82,9 +82,10 @@ struct AudioStartupTests {
         let root = try Self.temporaryFolder()
         defer { try? FileManager.default.removeItem(at: root) }
         let audio = DeckAudio(makeGraph: { counter.hit(); return nil })
-        for _ in 0..<200 where counter.calls < 1 || !audio.isOutputUnavailable { try await Task.sleep(for: .milliseconds(5)) }
         // 첫 준비가 끝나(실패) 메인 액터로 결과가 돌아올 때까지
-        for _ in 0..<50 { await Task.yield() }
+        for _ in 0..<400 where audio.isPreparingOutput { try await Task.sleep(for: .milliseconds(5)) }
+        #expect(counter.calls == 1)
+        #expect(!audio.isPreparingOutput && audio.isOutputUnavailable)
         let deck = DeckModel(audio: audio, storage: .memory(MemoryDrafts()), runsAnalysis: false)
         deck.load(try Self.row(in: root))
         deck.togglePlay()

@@ -265,6 +265,8 @@ final class DeckAudio {
     var isOutputUnavailable: Bool { graph == nil || startFailed }
     /// 엔진 그래프를 넘겨받았다(자가 테스트가 재생 전에 기다린다).
     var isOutputReady: Bool { graph != nil }
+    /// 엔진 그래프를 만드는 중이다(결과가 아직 메인 액터로 오지 않았다).
+    var isPreparingOutput: Bool { prepareTask != nil }
 
     /// 다른 앱이 장치를 바꾸거나(샘플레이트·버퍼·기본 출력) 장치가 빠졌다 들어오면 macOS가 엔진을 멈춘다.
     /// 연결을 새 장치 형식으로 다시 잡고, 재생 중이었으면 같은 자리에서 이어서 재생한다.
