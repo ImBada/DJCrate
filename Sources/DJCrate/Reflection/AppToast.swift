@@ -166,6 +166,7 @@ private struct FittingWidthLayout: Layout {
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
+        // 내용이 최소 폭보다 좁으면 왼쪽에 붙어 카드 안에서 치우쳐 보였다(#148). 가운데에 둔다.
+        subviews.first?.place(at: CGPoint(x: bounds.midX, y: bounds.minY), anchor: .top, proposal: ProposedViewSize(bounds.size))
     }
 }
