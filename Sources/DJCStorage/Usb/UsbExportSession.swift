@@ -162,9 +162,12 @@ public final class UsbExportSession {
         }
         let writeOptions = UsbWriteOptions(dryRun: options.dryRun, confirmName: options.confirmName, allowProvisional: options.allowProvisional,
                                            verifyAudio: options.verifyAudio)
+        // 쓰기 직전 USB의 `._*`(루트 `._.Trashes`, 사용자 음원 옆 등): 쓰기 전 확인이 막지 않는 것이라 검증이 이 쓰기가 남긴 것으로 세지 않게
+        let preexisting = try UsbInvariantVerifier.appleDoubles(on: UsbRoot(root))
         do {
             var report = try UsbWriter.write(changes, root: UsbRoot(root), paths: paths, guard: writeGuard, fileSystem: fileSystem,
-                                             verifiers: UsbExportAssembly.verifiers(for: assembled), inspectors: [UsbEmptyVolumeInspector()],
+                                             verifiers: UsbExportAssembly.verifiers(for: assembled, preexistingAppleDoubles: preexisting),
+                                             inspectors: [UsbEmptyVolumeInspector()],
                                              options: writeOptions, ppthReader: UsbExportAssembly.ppthReader, progress: progress,
                                              isCancelled: isCancelled)
             report.blocks += prepared.preview.blocks
@@ -260,7 +263,7 @@ public final class UsbExportSession {
         preview.ruleCounts = assembled.ruleCounts
         preview.requiredBytes = Self.requiredBytes(assembled.changes, volume: volume)
         // 확인 안 된 규칙(Device Library 작성기 규칙까지 합친 뒤)과 용량
-        var late = Self.environmentBlocks(volume, required: assembled.changes.requiredRules, options: options, gate: writeGuard.gate)
+        var late = Self.environmentBlocks(volume, root: root, required: assembled.changes.requiredRules, options: options, guard: writeGuard)
         if preview.requiredBytes > volume.available { late.append(Self.spaceBlock(needed: preview.requiredBytes, available: volume.available)) }
         preview.blocks += late
         if !late.isEmpty {
@@ -291,7 +294,7 @@ public final class UsbExportSession {
         }
     }
 
-    /// 로컬 rekordbox 버전, 볼륨 정책, 이미 라이브러리가 있는 USB, `PIONEER/`에 남은 것, 실물 관문
+    /// 로컬 rekordbox 버전, 볼륨 정책·보호 경로·실물 관문, 이미 라이브러리가 있는 USB, `PIONEER/`에 남은 것
     func volumeBlocks(_ volume: UsbVolumeInfo, usb: UsbRoot, options: UsbExportOptions) throws -> [UsbBlock] {
         var blocks: [UsbBlock] = []
         let version = appVersion()
@@ -300,7 +303,10 @@ public final class UsbExportSession {
             blocks.append(UsbBlock(code: "localVersionUnverified", scope: .volume,
                                    message: String(ui: "로컬 rekordbox 버전(\(shown))은 USB 내보내기를 확인하지 않았습니다. 확인한 버전(7.2.x)의 rekordbox에서 분석한 라이브러리로 내보내세요")))
         }
-        blocks += Self.environmentBlocks(volume, required: [], options: options, gate: writeGuard.gate)
+        let environment = Self.environmentBlocks(volume, root: root, required: [], options: options, guard: writeGuard)
+        blocks += environment
+        // 관문·정책·보호 경로에 막힌 볼륨(실물·쓰기 금지 목록 등)은 이름도 열거하지 않는다(쓰기 절차 A 단계·읽기 관문과 같은 순서)
+        guard environment.isEmpty else { return blocks }
         if try hasLibrary(usb) {
             blocks.append(UsbBlock(code: "libraryExists", scope: .volume,
                                    message: String(ui: "이 USB에는 이미 rekordbox 라이브러리가 있습니다. USB 수정(`djc usb-edit`)으로 곡을 더하세요")))
@@ -310,18 +316,33 @@ public final class UsbExportSession {
         return blocks
     }
 
-    /// 볼륨 정책·실물 관문·확인 안 된 규칙(쓰기 절차의 A 단계와 같은 판정, rekordbox 실행은 쓰기 때 본다)
-    static func environmentBlocks(_ volume: UsbVolumeInfo, required: Set<UsbProvisionalRule>, options: UsbExportOptions,
-                                  gate: UsbPhysicalWriteGate) -> [UsbBlock] {
+    /// 볼륨 정책·보호 경로·실물 관문·확인 안 된 규칙(쓰기 절차의 A 단계와 같은 판정, rekordbox 실행은 쓰기 때 본다).
+    /// 실물 쓰기가 닫혀 있는 동안은 가드 값과 무관하게 임시 폴더 아래 루트만 받는다(쓰기 절차와 같다)
+    static func environmentBlocks(_ volume: UsbVolumeInfo, root: URL, required: Set<UsbProvisionalRule>, options: UsbExportOptions,
+                                  guard writeGuard: UsbWriteGuard) -> [UsbBlock] {
         var blocks = UsbVolumePolicy.blocks(volume, purpose: .export)
-        blocks += UsbRuleCheck.blocks(required: required, volume: volume, allowProvisional: options.allowProvisional, gate: gate,
+        let real = UsbScratchRoots.realPath(root.path)
+        if isProtected(real ?? root.path, protectedRoots: writeGuard.protectedRoots) {
+            blocks.append(UsbBlock(code: "protectedPath", scope: .volume,
+                                   message: String(ui: "rekordbox 라이브러리나 DJCrate 데이터 폴더에는 USB처럼 쓸 수 없습니다. USB 볼륨을 고르세요")))
+        }
+        blocks += UsbRuleCheck.blocks(required: required, volume: volume, allowProvisional: options.allowProvisional, gate: writeGuard.gate,
                                       confirmName: options.confirmName)
-        if !volume.isDiskImage, !UsbPhysicalWriteGate.buildEnabled, !blocks.contains(where: { $0.code == "physicalDisabled" }) {
+        let outsideScratch = !(real.map(UsbScratchRoots.isUnderAllowedRoot) ?? false)
+        if !UsbPhysicalWriteGate.buildEnabled, (!volume.isDiskImage || outsideScratch), !blocks.contains(where: { $0.code == "physicalDisabled" }) {
             blocks.append(UsbBlock(code: "physicalDisabled", scope: .volume,
                                    message: String(ui: "실물 USB 쓰기는 아직 열리지 않았습니다. 디스크 이미지로만 시험할 수 있습니다"),
                                    rule: .physicalVolume))
         }
         return blocks
+    }
+
+    /// 루트(realpath)가 보호 폴더와 같거나 그 안이거나 그것을 품는지(쓰기 절차와 같은 판정)
+    static func isProtected(_ root: String, protectedRoots: [URL]) -> Bool {
+        protectedRoots.contains { protected in
+            let path = UsbScratchRoots.realPath(protected.path) ?? protected.path
+            return root == path || root.hasPrefix(path + "/") || path.hasPrefix(root + "/")
+        }
     }
 
     /// `PIONEER/rekordbox/`(철자 무관) 바로 아래에 DB 파일 이름이 하나라도 있는지. 이름만 본다

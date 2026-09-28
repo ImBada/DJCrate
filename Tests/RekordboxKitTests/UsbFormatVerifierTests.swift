@@ -12,7 +12,9 @@ struct UsbFormatVerifierTests {
         let staged: UsbExportAssemblyTests.Staged
         let scratch = FileManager.default.temporaryDirectory.appending(path: "djc-usbverify-\(UUID().uuidString)")
 
-        init() throws {
+        /// before: 쓰기 전에 USB에 미리 둘 파일(상대 경로 → 바이트)
+        init(before: [String: Data] = [:]) throws {
+            for (path, data) in before { usb.write(path, data) }
             let fixture = try UsbExportFixture()
             try fixture.addTrack(id: "101", artist: ("1", "합성 아티스트"), album: ("30", "합성 앨범"))
             try fixture.addTrack(id: "102", artist: ("1", "합성 아티스트"), album: ("30", "합성 앨범"))
@@ -146,6 +148,31 @@ struct UsbFormatVerifierTests {
         let other = try Written()
         other.usb.write("Contents/.djc-part-abc-1", Data([1]))
         #expect(try other.problems(UsbInvariantVerifier()).contains { $0.hasPrefix("temp") })
+    }
+
+    @Test("쓰기 전부터 있던 ._ 파일(루트 ._.Trashes, 사용자 음원 옆)은 잡지 않는다")
+    func preexistingAppleDoublePasses() throws {
+        let before = ["._.Trashes": Data(count: 4096), "Contents/User/Album/x.mp3": Data([7, 7, 7]),
+                      "Contents/User/Album/._x.mp3": Data(count: 4096)]
+        let written = try Written(before: before)
+        let preexisting = try UsbInvariantVerifier.appleDoubles(on: written.usb.root)
+        #expect(preexisting == ["._.Trashes", "Contents/User/Album/._x.mp3"])
+        #expect(try written.problems(UsbInvariantVerifier(preexistingAppleDoubles: preexisting)) == [])
+        // 미리 있던 것을 모르면 전부 센다
+        #expect(try written.problems(UsbInvariantVerifier()).contains("appledouble 2"))
+        #expect(UsbExportAssembly.verifiers(for: written.staged.assembled, preexistingAppleDoubles: preexisting).count == 4)
+    }
+
+    @Test("쓰기 뒤 새로 생긴 ._ 파일(쓴 파일 옆, PIONEER 아래)은 미리 있던 것과 따로 잡는다")
+    func newAppleDoubleCaughtBesidePreexisting() throws {
+        let written = try Written(before: ["._.Trashes": Data(count: 4096)])
+        let preexisting: Set<String> = ["._.Trashes"]
+        let audio = written.relative(written.track(0).path)
+        let parent = (audio as NSString).deletingLastPathComponent, name = (audio as NSString).lastPathComponent
+        written.usb.write(parent + "/._" + name, Data(count: 4096))
+        #expect(try written.problems(UsbInvariantVerifier(preexistingAppleDoubles: preexisting)).contains("appledouble 1"))
+        written.usb.write("PIONEER/._rekordbox", Data(count: 4096))
+        #expect(try written.problems(UsbInvariantVerifier(preexistingAppleDoubles: preexisting)).contains("appledouble 2"))
     }
 
     @Test("fileName이 경로 끝 성분과 다르면 잡는다")

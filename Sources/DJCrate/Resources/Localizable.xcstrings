@@ -3607,6 +3607,22 @@
         }
       }
     },
+    "ISRC에 전각·한글처럼 ASCII가 아닌 글자가 있어 Device Library에 쓸 수 없습니다. rekordbox에서 ISRC를 반각 영문·숫자로 고친 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The ISRC contains non-ASCII characters (such as full-width or Hangul characters), so it can't be written to the Device Library. Change the ISRC to half-width letters and numbers in rekordbox and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ISRCに全角文字やハングルなどASCII以外の文字があるため、Device Libraryに書き込めません。rekordboxでISRCを半角英数字に直してからもう一度試してください"
+          }
+        }
+      }
+    },
     "iTunes 동기화 목록" : {
       "localizations" : {
         "en" : {
@@ -8574,6 +8590,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "曲情報・キュー・ビートグリッド・ゲイン・下書きを表示"
+          }
+        }
+      }
+    },
+    "곡 정보(%@) 값이 Device Library 칸 범위를 벗어납니다. rekordbox에서 곡 정보를 고친 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A track information value (%@) is out of range for the Device Library. Correct the track information in rekordbox and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲の情報（%@）の値がDevice Libraryの範囲を超えています。rekordboxで曲の情報を直してからもう一度試してください"
           }
         }
       }
@@ -24846,6 +24878,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ファイル拡張子（MP3・M4A・FLAC・WAVなど）"
+          }
+        }
+      }
+    },
+    "파일 확장자가 음원 형식과 달라 Device Library에 쓸 수 없습니다. rekordbox에서 트랙 정보를 다시 읽은 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file extension doesn't match the audio format, so the track can't be written to the Device Library. Reload the track information in rekordbox and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルの拡張子が音源形式と異なるため、Device Libraryに書き込めません。rekordboxでトラック情報を読み込み直してからもう一度試してください"
           }
         }
       }

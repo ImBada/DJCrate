@@ -104,9 +104,20 @@ public struct PdbVerifier: UsbWriteVerifier {
 /// 두 형식과 파일이 서로 맞는지(불변식 1–7):
 /// 1 곡마다 pdb 분석 경로 = OneLibrary 분석 경로(NFC) · 2 `.DAT` PPTH = 두 DB의 곡 경로 · 3 fileName = 경로 끝 성분 ·
 /// 4 DB가 가리키는 파일(음원·분석 파일 셋·아트워크)이 모두 있고 음원 크기 = fileSize · 5 분석 파일 폴더 안 같은 번호를 두 곡이 쓰지 않음 ·
-/// 6 곡 수 칸(OneLibrary property·pdb 표 19)과 곡 수가 같음 · 7 `._*`·`.djc-part-*` 0개
+/// 6 곡 수 칸(OneLibrary property·pdb 표 19)과 곡 수가 같음 · 7 이 쓰기가 남긴 `._*`·`.djc-part-*` 0개
 public struct UsbInvariantVerifier: UsbWriteVerifier {
-    public init() {}
+    /// 쓰기 전부터 USB에 있던 `._*`(NFC 상대 경로). 사용자·macOS가 둔 것(루트 `._.Trashes`, 사용자 음원 옆 등)은
+    /// 쓰기 전 확인이 막지 않으므로 여기서도 세지 않는다. 빈 집합이면 모두 센다
+    let preexistingAppleDoubles: Set<String>
+
+    public init(preexistingAppleDoubles: Set<String> = []) {
+        self.preexistingAppleDoubles = preexistingAppleDoubles
+    }
+
+    /// 볼륨의 `._*` 항목(NFC 상대 경로, 이름만 본다). 쓰기 직전에 떠서 `preexistingAppleDoubles`로 넘긴다
+    public static func appleDoubles(on root: UsbRoot) throws -> Set<String> {
+        Set(try UsbTree.walk(root).filter { UsbLayout.isAppleDouble(($0.relativePath as NSString).lastPathComponent) }.map(\.relativePath))
+    }
 
     public func verify(root: UsbRoot, changes: UsbChangeSet, fileSystem: any UsbFileSystem, scratch: URL) throws -> [String] {
         let folder = scratch.appending(path: "invariants-\(UUID().uuidString)")
@@ -185,9 +196,13 @@ public struct UsbInvariantVerifier: UsbWriteVerifier {
         for paths in slots.sorted(by: { $0.key < $1.key }).map(\.value) where paths.count > 1 {
             problems.append("slotDuplicate \(paths.count)")
         }
-        // 7 남은 `._*`·`.djc-part-*`(이름만 본다)
-        let names = try UsbTree.walk(root).map { ($0.relativePath as NSString).lastPathComponent }
-        let appleDouble = names.filter(UsbLayout.isAppleDouble).count, temp = names.filter(UsbLayout.isTemp).count
+        // 7 남은 `._*`(쓰기 전부터 있던 것 빼고)·`.djc-part-*`(늘 우리 것). 이름만 본다
+        let entries = try UsbTree.walk(root)
+        let names = entries.map { ($0.relativePath as NSString).lastPathComponent }
+        let appleDouble = entries.filter {
+            UsbLayout.isAppleDouble(($0.relativePath as NSString).lastPathComponent) && !preexistingAppleDoubles.contains($0.relativePath)
+        }.count
+        let temp = names.filter(UsbLayout.isTemp).count
         if appleDouble > 0 { problems.append("appledouble \(appleDouble)") }
         if temp > 0 { problems.append("temp \(temp)") }
         return problems

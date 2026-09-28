@@ -385,6 +385,72 @@ struct UsbExportAssemblyTests {
         #expect(oneLibrary.volumeBlocks.isEmpty)
     }
 
+    /// Device Library 작성기가 곡 하나 때문에 내보내기 전체를 거부하는 경우
+    enum WriterRefusal: String, CaseIterable, Sendable {
+        case isrcNotASCII, fileTypeMismatch, discNoOutOfRange, releaseYearOutOfRange
+
+        var code: String {
+            switch self {
+            case .isrcNotASCII: "isrcNotASCIIForDeviceLibrary"
+            case .fileTypeMismatch: "fileTypeMismatchForDeviceLibrary"
+            case .discNoOutOfRange, .releaseYearOutOfRange: "valueOutOfRangeForDeviceLibrary"
+            }
+        }
+
+        /// 곡 102를 이 경우로 만든 합성 라이브러리(101·103은 정상)
+        func fixture() throws -> UsbExportFixture {
+            let fixture = try UsbExportFixture()
+            try fixture.addTrack(id: "101", artist: ("1", "합성 아티스트"))
+            try fixture.addTrack(id: "102", artist: ("1", "합성 아티스트"), fileName: self == .fileTypeMismatch ? "track102.mp4" : nil)
+            try fixture.addTrack(id: "103", artist: ("2", "다른 아티스트"))
+            let (column, value): (String, CipherDatabase.Value) = switch self {
+            case .isrcNotASCII: ("ISRC", .text("ＪＰ－ＡＢＣ"))
+            case .fileTypeMismatch: ("FileType", .int(4))
+            case .discNoOutOfRange: ("DiscNo", .int(70_000))
+            case .releaseYearOutOfRange: ("ReleaseYear", .int(-1))
+            }
+            let db = try fixture.local.open()
+            defer { db.close() }
+            try db.run("UPDATE djmdContent SET \(column) = ? WHERE ID = '102'", [value])
+            return fixture
+        }
+    }
+
+    @Test("Device Library 작성기가 거부할 곡(ISRC·확장자·칸 범위)은 계획 단계에서 그 곡만 로컬 ID로 막고 나머지는 내보낸다",
+          arguments: WriterRefusal.allCases)
+    func deviceLibraryWriterRefusalBlocksTrack(_ refusal: WriterRefusal) throws {
+        let fixture = try refusal.fixture()
+        let db = try fixture.open()
+        defer { db.close() }
+        let build = try fixture.build(db, try fixture.request(db, ids: ["101", "102", "103"]))
+        let blocks = build.blocks.filter { $0.code == refusal.code }
+        #expect(blocks.map(\.scope) == [.track("102")])
+        #expect(!(blocks.first?.message.isEmpty ?? true))
+        #expect(build.volumeBlocks.isEmpty)
+        #expect(build.plan.tracks.map(\.localContentID) == ["101", "103"])
+        // 나머지 두 곡은 작성기까지 막힘 없이 간다
+        let staging = Self.stagingFolder()
+        defer { try? FileManager.default.removeItem(at: staging) }
+        let assembled = try UsbExportAssembly.assembled(model: build.model, plan: build.plan, localDatabase: db, share: fixture.share,
+                                                        staging: staging, formats: UsbFormat.defaultSet, session: UsbLayout.newSessionID())
+        #expect(assembled.pdbWritten?.tracks.count == 2)
+
+        // OneLibrary만 쓰면 막지 않는다
+        let oneLibrary = try fixture.build(db, try fixture.request(db, ids: ["101", "102", "103"], formats: [.oneLibrary]))
+        #expect(!oneLibrary.blocks.contains { $0.code == refusal.code })
+        #expect(oneLibrary.plan.tracks.count == 3)
+    }
+
+    @Test("칸 범위 막힘 문구는 칸 이름을 적는다")
+    func valueOutOfRangeNamesField() throws {
+        let fixture = try WriterRefusal.discNoOutOfRange.fixture()
+        let db = try fixture.open()
+        defer { db.close() }
+        let build = try fixture.build(db, try fixture.request(db, ids: ["101", "102", "103"]))
+        let block = try #require(build.blocks.first { $0.code == "valueOutOfRangeForDeviceLibrary" })
+        #expect(block.message.contains("discNo"))
+    }
+
     @Test("막힌 곡을 빼고 다시 계획하면 content·image ID가 빈틈없이 다시 매겨진다")
     func blockedTrackRemovedAndIDsRenumbered() throws {
         let fixture = try Self.threeTracks()
@@ -441,6 +507,49 @@ struct UsbExportAssemblyTests {
         #expect(throws: UsbError.self) {
             _ = try UsbExportAssembly.assembled(model: build.model, plan: build.plan, localDatabase: db, share: fixture.share, staging: staging,
                                                 formats: UsbFormat.defaultSet, session: UsbLayout.newSessionID(), isCancelled: { true })
+        }
+    }
+
+    /// 준비 중 사라지는 로컬 파일
+    enum VanishingFile: String, CaseIterable, Sendable { case audio, artwork, analysis }
+
+    @Test("준비 중 로컬 파일이 사라지면 오류에 파일 이름·경로 대신 로컬 ID만 적는다", arguments: VanishingFile.allCases)
+    func vanishedLocalFileErrorNamesOnlyContentID(_ vanishing: VanishingFile) throws {
+        let fixture = try UsbExportFixture()
+        try fixture.addTrack(id: "101", artist: ("1", "합성"), fileName: "숨길 아티스트 - 숨길 제목.mp3")
+        let db = try fixture.open()
+        defer { db.close() }
+        let build = try fixture.build(db, try fixture.request(db, ids: ["101"]))
+        let source = try #require(build.model.files.compactMap { file -> String? in
+            switch (vanishing, file.kind) {
+            case let (.audio, .audio(source)), let (.artwork, .artwork(source)): source
+            case let (.analysis, .analysis(localDAT, _, _, _)): localDAT
+            default: nil
+            }
+        }.first)
+        try FileManager.default.removeItem(atPath: source)
+        let staging = Self.stagingFolder()
+        defer { try? FileManager.default.removeItem(at: staging) }
+        do {
+            _ = try UsbExportAssembly.assembled(model: build.model, plan: build.plan, localDatabase: db, share: fixture.share,
+                                                staging: staging, formats: UsbFormat.defaultSet, session: UsbLayout.newSessionID())
+            Issue.record("던지지 않음")
+        } catch let UsbError.readFailed(detail) {
+            #expect(detail.contains("content 101"))
+            #expect(!detail.contains("숨길") && !detail.contains((source as NSString).lastPathComponent) && !detail.contains("/"))
+        } catch {
+            Issue.record("readFailed가 아님: \(type(of: error))")
+        }
+    }
+
+    @Test("재사용 음원 해시: 열지 못하면 로컬 ID만 적는다")
+    func reusedAudioHashErrorNamesOnlyContentID() throws {
+        let missing = FileManager.default.temporaryDirectory.appending(path: "djc-missing-\(UUID().uuidString)/숨길 제목.mp3").path
+        do {
+            _ = try UsbExportAssembly.fileHashes(missing, content: "101")
+            Issue.record("던지지 않음")
+        } catch let UsbError.readFailed(detail) {
+            #expect(detail == "open audio content 101")
         }
     }
 

@@ -68,13 +68,17 @@ public enum UsbExportAssembly {
         }
     }
 
-    /// Device Library 행 크기 막힘(쓰기 전에, 할 일이 적힌 문구로). OneLibrary만 쓰면 없다.
+    /// Device Library 곡 막힘(쓰기 전에, 할 일이 적힌 문구로). OneLibrary만 쓰면 없다.
+    /// 작성기(`PdbWriter.files`)가 곡 하나 때문에 내보내기 전체를 거부하지 않게, 그 곡만 로컬 ID로 막아 빼고 다시 계획한다.
     /// - 트랙 행이 빈 쪽에도 안 들어가면 그 곡
+    /// - 파일 확장자가 file_type과 다르면 그 곡
+    /// - ISRC가 ASCII가 아니거나 칸 크기를 넘는 값(디스크 번호·연도 등)이 있으면 그 곡
     /// - 아티스트·앨범 행이 가까운 모양(할당 255바이트)에 안 들어가면 그 이름을 쓰는 곡(`pdbFarOffsetRows`)
     /// - My Tag 행이 안 들어가면 볼륨(My Tag 정의는 곡과 무관하게 모두 들어간다)
     public static func rowSizeBlocks(model: UsbExportModel, plan: UsbExportPlan, formats: Set<UsbFormat>) -> [UsbBlock] {
         guard formats.contains(.deviceLibrary) else { return [] }
-        let library = model.library
+        // 작성기와 같은 입력(Device Library 투영)으로 본다
+        let library = model.library.projected(to: .deviceLibrary)
         let localIDs = Dictionary(plan.tracks.map { ($0.contentID, $0.localContentID) }) { first, _ in first }
         var blocks: [UsbBlock] = []
         var blocked: Set<Int> = []
@@ -88,6 +92,15 @@ public enum UsbExportAssembly {
         for track in library.tracks {
             if !PdbRowSize.fitsEmptyPage(rowSize: PdbRowSize.track(track, library: library)) {
                 block(track, "trackRowTooLarge", String(ui: "곡 정보가 너무 길어 Device Library에 쓸 수 없습니다. rekordbox에서 주석 등 곡 정보를 줄인 뒤 다시 시도하세요"))
+                continue
+            }
+            if !PdbWriter.fileTypeMatchesExtension(track) {
+                block(track, "fileTypeMismatchForDeviceLibrary",
+                      String(ui: "파일 확장자가 음원 형식과 달라 Device Library에 쓸 수 없습니다. rekordbox에서 트랙 정보를 다시 읽은 뒤 다시 시도하세요"))
+                continue
+            }
+            if let refusal = trackRowRefusal(track) {
+                block(track, refusal.code, refusal.message)
                 continue
             }
             let artists = [track.artistID, track.remixerID, track.originalArtistID, track.composerID, track.albumID.flatMap { albumArtists[$0] ?? nil }]
@@ -104,6 +117,24 @@ public enum UsbExportAssembly {
                                    rule: .pdbFarOffsetRows))
         }
         return blocks
+    }
+
+    /// 트랙 행을 작성기와 같은 인코더로 만들어 본다. 만들 수 없으면 (code, 할 일이 적힌 문구)
+    static func trackRowRefusal(_ track: UsbTrack) -> (code: String, message: String)? {
+        do {
+            _ = try PdbRowEncoder.track(track)
+            return nil
+        } catch PdbRowError.isrcNotASCII {
+            return ("isrcNotASCIIForDeviceLibrary",
+                    String(ui: "ISRC에 전각·한글처럼 ASCII가 아닌 글자가 있어 Device Library에 쓸 수 없습니다. rekordbox에서 ISRC를 반각 영문·숫자로 고친 뒤 다시 시도하세요"))
+        } catch let PdbRowError.valueOutOfRange(field) {
+            return ("valueOutOfRangeForDeviceLibrary",
+                    String(ui: "곡 정보(\(field)) 값이 Device Library 칸 범위를 벗어납니다. rekordbox에서 곡 정보를 고친 뒤 다시 시도하세요"))
+        } catch {
+            // 트랙 행 인코더가 던지는 그 밖의 오류(행 크기)는 행 크기 막힘과 같다
+            return ("trackRowTooLarge",
+                    String(ui: "곡 정보가 너무 길어 Device Library에 쓸 수 없습니다. rekordbox에서 주석 등 곡 정보를 줄인 뒤 다시 시도하세요"))
+        }
     }
 
     // MARK: - 조립
@@ -143,19 +174,21 @@ public enum UsbExportAssembly {
         for (index, trackPlan) in plan.tracks.enumerated() {
             if isCancelled() { throw UsbError.cancelled }
             guard let track = tracks[trackPlan.contentID] else { throw UsbError.readFailed(detail: "track missing: \(trackPlan.contentID)") }
+            let id = trackPlan.localContentID
             for file in files[trackPlan.contentID] ?? [] {
                 switch file.kind {
                 case let .audio(source):
                     let copy = UsbFileCopy(source: source, destination: UsbLayout.nfc(file.destination), size: track.fileSize, sourceSHA1: nil,
-                                           modificationDate: try modificationDate(source), disposition: .create)
+                                           modificationDate: try modificationDate(source, "audio", content: id), disposition: .create)
                     context.copies.append(copy)
                     context.target[copy.destination] = UsbTreeStamp(size: copy.size, sha256: nil)
                 case let .artwork(source):
-                    try context.stage(Data(contentsOf: URL(filePath: source)), at: file.destination, modified: modificationDate(source))
+                    try context.stage(readLocal(source, "artwork", content: id), at: file.destination,
+                                      modified: modificationDate(source, "artwork", content: id))
                 case let .analysis(localDAT, localEXT, local2EX, localContentID):
                     let result = try UsbAnlzTransform.transform(
-                        localDAT: Data(contentsOf: URL(filePath: localDAT)), localEXT: Data(contentsOf: URL(filePath: localEXT)),
-                        local2EX: try local2EX.map { try Data(contentsOf: URL(filePath: $0)) }, contentsPath: track.path,
+                        localDAT: readLocal(localDAT, "analysis", content: id), localEXT: readLocal(localEXT, "analysis", content: id),
+                        local2EX: try local2EX.map { try readLocal($0, "analysis", content: id) }, contentsPath: track.path,
                         cues: cues.cues(contentID: localContentID), fileType: track.fileType)
                     let base = String(file.destination.dropLast(4))
                     try context.stage(result.dat, at: base + ".DAT", modified: nil)
@@ -213,12 +246,13 @@ public enum UsbExportAssembly {
                                   ruleCounts: ruleCounts)
     }
 
-    /// 쓰기 뒤 검증기: 목표 지문 · (형식별) OneLibrary · Device Library · 불변식
-    public static func verifiers(for assembled: UsbExportAssembled) -> [any UsbWriteVerifier] {
+    /// 쓰기 뒤 검증기: 목표 지문 · (형식별) OneLibrary · Device Library · 불변식.
+    /// preexistingAppleDoubles: 쓰기 직전 USB의 `._*`(`UsbInvariantVerifier.appleDoubles(on:)`) — 이 쓰기가 남긴 것만 센다
+    public static func verifiers(for assembled: UsbExportAssembled, preexistingAppleDoubles: Set<String> = []) -> [any UsbWriteVerifier] {
         var result: [any UsbWriteVerifier] = [UsbFingerprintVerifier()]
         if assembled.changes.formats.contains(.oneLibrary) { result.append(OneLibraryVerifier(expected: assembled.library)) }
         if let written = assembled.pdbWritten { result.append(PdbVerifier(expected: written)) }
-        result.append(UsbInvariantVerifier())
+        result.append(UsbInvariantVerifier(preexistingAppleDoubles: preexistingAppleDoubles))
         return result
     }
 
@@ -300,25 +334,31 @@ public enum UsbExportAssembly {
             guard listed.insert(UsbLayout.collisionKey(destination)).inserted else { continue }
             let row = try local.track(trackPlan.localContentID)
             guard let source = row.folderPath else { continue }
-            let hashes = try fileHashes(source)
+            let hashes = try fileHashes(source, content: trackPlan.localContentID)
             context.copies.append(UsbFileCopy(source: source, destination: destination, size: hashes.size, sourceSHA1: hashes.sha1,
-                                              modificationDate: try modificationDate(source), disposition: .reuse))
+                                              modificationDate: try modificationDate(source, "audio", content: trackPlan.localContentID),
+                                              disposition: .reuse))
             context.target[destination] = UsbTreeStamp(size: hashes.size, sha256: hashes.sha256)
         }
     }
 
-    /// 파일을 한 번 읽으며 크기·SHA-1·SHA-256(음원은 커서 통째로 올리지 않는다)
-    static func fileHashes(_ path: String) throws -> (size: Int64, sha1: String, sha256: String) {
+    /// 파일을 한 번 읽으며 크기·SHA-1·SHA-256(음원은 커서 통째로 올리지 않는다).
+    /// 오류에는 로컬 ID만 적는다(음원 파일 이름은 보통 곡 제목이고, CLI는 오류를 그대로 찍는다)
+    static func fileHashes(_ path: String, content: String) throws -> (size: Int64, sha1: String, sha256: String) {
         guard let handle = FileHandle(forReadingAtPath: path) else {
-            throw UsbError.readFailed(detail: "open: \((path as NSString).lastPathComponent)")
+            throw UsbError.readFailed(detail: "open audio content \(content)")
         }
         defer { try? handle.close() }
         var one = Insecure.SHA1(), two = SHA256()
         var size: Int64 = 0
-        while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
-            one.update(data: chunk)
-            two.update(data: chunk)
-            size += Int64(chunk.count)
+        do {
+            while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
+                one.update(data: chunk)
+                two.update(data: chunk)
+                size += Int64(chunk.count)
+            }
+        } catch {
+            throw UsbError.readFailed(detail: "read audio content \(content)")
         }
         func hex(_ digest: some Sequence<UInt8>) -> String { digest.map { String(format: "%02x", $0) }.joined() }
         return (size, hex(one.finalize()), hex(two.finalize()))
@@ -359,11 +399,19 @@ public enum UsbExportAssembly {
         return blocks.filter { seen.insert("\($0.code)\u{0}\($0.scope)").inserted }
     }
 
-    static func modificationDate(_ path: String) throws -> Date {
-        guard let date = try FileManager.default.attributesOfItem(atPath: path)[.modificationDate] as? Date else {
-            throw UsbError.readFailed(detail: "mtime: \((path as NSString).lastPathComponent)")
+    /// 로컬 파일의 수정 시각. 오류에는 파일 이름·경로 없이 종류와 로컬 ID만 적는다
+    static func modificationDate(_ path: String, _ kind: String, content: String) throws -> Date {
+        if let date = (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date { return date }
+        throw UsbError.readFailed(detail: "mtime \(kind) content \(content)")
+    }
+
+    /// 로컬 파일(아트워크·분석 파일)을 읽는다. 오류에는 파일 이름·경로 없이 종류와 로컬 ID만 적는다
+    static func readLocal(_ path: String, _ kind: String, content: String) throws -> Data {
+        do {
+            return try Data(contentsOf: URL(filePath: path))
+        } catch {
+            throw UsbError.readFailed(detail: "read \(kind) content \(content)")
         }
-        return date
     }
 
     static func sha256(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }

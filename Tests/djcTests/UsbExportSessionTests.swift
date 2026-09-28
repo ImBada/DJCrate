@@ -29,9 +29,11 @@ struct UsbExportSessionTests {
         deinit { usb.remove() }
 
         func session(database: URL? = nil, live: [URL] = [], fileSystem: FaultyUsbFileSystem? = nil,
-                     localCopy: (@Sendable (URL, URL) throws -> URL)? = nil) -> UsbExportSession {
+                     localCopy: (@Sendable (URL, URL) throws -> URL)? = nil, gate: UsbPhysicalWriteGate = FakeUsbVolume.gate(),
+                     protectedRoots: [URL] = [], root: URL? = nil) -> UsbExportSession {
             let version = appVersion
-            return UsbExportSession(database: database ?? local.database, share: local.share, root: usb.usbURL, guard: usb.writeGuard(),
+            return UsbExportSession(database: database ?? local.database, share: local.share, root: root ?? usb.usbURL,
+                                    guard: usb.writeGuard(gate: gate, protectedRoots: protectedRoots),
                                     paths: usb.paths, fileSystem: fileSystem ?? usb.fileSystem(),
                                     localCopy: localCopy ?? UsbExportSession.defaultLocalCopy,
                                     localCopies: copies, appVersion: { version }, liveDatabases: live)
@@ -187,22 +189,74 @@ struct UsbExportSessionTests {
         #expect(env.usb.tree() == before)
     }
 
-    @Test("실물 볼륨은 관문이 막는다")
+    /// 관문이 막지 않았다면 모두 풀렸을 선택(허용 목록·볼륨 이름·관문 밖 규칙 전부)
+    static func physicalOptions() -> UsbExportOptions {
+        options {
+            $0.confirmName = "DJCPHYS"
+            $0.allowProvisional = Set(UsbProvisionalRule.allCases.filter { !$0.isGateOnly })
+        }
+    }
+
+    @Test("실물 볼륨은 허용 목록·--confirm·규칙 허용을 모두 줘도 관문이 막는다")
     func physicalBlocked() throws {
         let env = try Env()
         env.usb.volume = FakeUsbVolume.physicalFAT32()
-        let preview = try env.session().preview(selection: .tracks(["101"]), options: Self.options {
-            $0.confirmName = "DJCPHYS"
-            $0.allowProvisional = Set(UsbProvisionalRule.allCases.filter { !$0.isGateOnly })
-        })
+        let gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID])
+        let preview = try env.session(gate: gate).preview(selection: .tracks(["101"]), options: Self.physicalOptions())
         #expect(preview.blocks.contains { $0.code == "physicalDisabled" })
+        #expect(preview.changes == nil)
         do {
-            _ = try env.session().write(selection: .tracks(["101"]), options: Self.options(), progress: { _ in }, isCancelled: { false })
+            _ = try env.session(gate: gate).write(selection: .tracks(["101"]), options: Self.physicalOptions(), progress: { _ in },
+                                                  isCancelled: { false })
             Issue.record("막히지 않음")
         } catch let UsbError.writeRefused(blocks) {
             #expect(blocks.contains { $0.code == "physicalDisabled" })
         }
         #expect(env.usb.tree().isEmpty)
+        #expect(env.leftoverCopies.isEmpty)
+    }
+
+    /// 관문·보호 경로에 막히는 볼륨
+    enum RefusedVolume: String, CaseIterable, Sendable {
+        /// 실물, 쓰기 금지 목록의 디스크 이미지, 보호 폴더, 가드는 디스크 이미지라 하지만 임시 폴더 밖인 루트
+        case physical, deniedDiskImage, protectedRoot, outsideScratchRoot
+
+        var code: String {
+            switch self {
+            case .physical, .outsideScratchRoot: "physicalDisabled"
+            case .deniedDiskImage: "denied"
+            case .protectedRoot: "protectedPath"
+            }
+        }
+    }
+
+    @Test("관문·보호 경로에 막힌 볼륨은 이름도 열거하지 않는다(라이브러리·PIONEER 확인 전에 멈춤)", arguments: RefusedVolume.allCases)
+    func refusedVolumeNotListed(_ refused: RefusedVolume) throws {
+        let env = try Env()
+        env.usb.write(UsbLayout.exportPdb, Data(count: 4096))
+        env.usb.write("PIONEER/Artwork/00001/a1.jpg", Data([1, 2, 3]))
+        env.usb.write("Contents/합성/x.mp3", Data([4, 5, 6]))
+        let before = env.usb.tree()
+        var gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID])
+        var protectedRoots: [URL] = []
+        var root: URL?
+        switch refused {
+        case .physical: env.usb.volume = FakeUsbVolume.physicalFAT32()
+        case .deniedDiskImage: gate = FakeUsbVolume.gate(deny: [try #require(env.usb.volume.volumeUUID)])
+        case .protectedRoot: protectedRoots = [env.usb.usbURL]
+        // 없는 경로라 열거할 것도 없지만, 막히지 않으면 stat·list 기록이 남는다
+        case .outsideScratchRoot: root = URL(filePath: "/djc-not-scratch-\(UUID().uuidString)")
+        }
+        let fileSystem = env.usb.fileSystem()
+        let session = env.session(fileSystem: fileSystem, gate: gate, protectedRoots: protectedRoots, root: root)
+        let preview = try session.preview(selection: .tracks(["101"]), options: Self.physicalOptions())
+        #expect(preview.blocks.contains { $0.code == refused.code })
+        #expect(!preview.blocks.contains { ["libraryExists", "leftoverPioneer"].contains($0.code) })
+        #expect(throws: UsbError.self) {
+            try session.write(selection: .tracks(["101"]), options: Self.physicalOptions(), progress: { _ in }, isCancelled: { false })
+        }
+        #expect(!fileSystem.calls.contains { $0.hasPrefix("list ") || $0.hasPrefix("stat ") })
+        #expect(env.usb.tree() == before)
         #expect(env.leftoverCopies.isEmpty)
     }
 
@@ -275,6 +329,38 @@ struct UsbExportSessionTests {
         #expect(env.usb.tree().isEmpty && env.usb.directories().isEmpty)
         #expect(env.usb.journal()?.state == .dryRun)
         #expect(env.leftoverCopies.isEmpty)
+    }
+
+    @Test("Device Library 작성기가 거부할 곡은 미리 보기·쓰기를 멈추지 않고 그 곡만 로컬 ID로 막는다")
+    func writerRefusalBlocksOnlyThatTrack() throws {
+        let env = try Env()
+        let db = try env.local.local.open()
+        try db.run("UPDATE djmdContent SET ISRC = ? WHERE ID = '102'", [.text("ＪＰ－ＡＢＣ")])
+        db.close()
+        let session = env.session()
+        let preview = try session.preview(selection: .tracks(["101", "102"]), options: Self.options())
+        #expect(preview.blocks.filter { $0.code == "isrcNotASCIIForDeviceLibrary" }.map(\.scope) == [.track("102")])
+        #expect(preview.stopping.isEmpty)
+        #expect(preview.changes != nil)
+        #expect(preview.plan.tracks.map(\.localContentID) == ["101"])
+        let report = try session.write(selection: .tracks(["101", "102"]), options: Self.options(), progress: { _ in }, isCancelled: { false })
+        #expect(report.outcome == .written)
+        #expect(report.blocks.contains { $0.code == "isrcNotASCIIForDeviceLibrary" && $0.scope == .track("102") })
+    }
+
+    @Test("쓰기 전부터 있던 ._ 파일(루트 ._.Trashes, 사용자 음원 옆)은 검증에서 되돌리지 않는다")
+    func preexistingAppleDoubleNotRolledBack() throws {
+        let env = try Env()
+        env.usb.write("._.Trashes", Data(count: 4096))
+        env.usb.write("Contents/User/Album/x.mp3", Data([7, 7, 7]))
+        env.usb.write("Contents/User/Album/._x.mp3", Data(count: 4096))
+        let before = env.usb.tree()
+        let report = try env.session().write(selection: .tracks(["101", "102"]), options: Self.options(), progress: { _ in },
+                                             isCancelled: { false })
+        #expect(report.outcome == .written)
+        #expect(env.usb.journal()?.state == .verified)
+        let after = env.usb.tree()
+        for (path, hash) in before { #expect(after[path] == hash) }
     }
 
     @Test("드라이 런 뒤 같은 선택으로 쓰면 막히지 않는다")
