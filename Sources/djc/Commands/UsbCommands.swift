@@ -8,6 +8,9 @@ enum UsbCommands {
     static let all: [Command] = [
         Command("usb-info", String(ui: "<볼륨|폴더> [--json]"),
                 String(ui: "USB를 읽기만 해서 형식·곡 수·경고를 보여 준다(실물 USB는 쓰기 금지 목록을 등록한 뒤에만)"), { try await info($0) }),
+        Command("usb-export", String(ui: "--volume <마운트> [--db <스냅샷 사본.db>] [--share <폴더>] [--playlist <ID>]… [--tracks <ContentID>,…] [--formats onelibrary,device] [--naming identifier] [--dry-run] [--confirm <볼륨 이름>] [--allow-provisional <규칙,…>] [--verify-audio] [--settings <로컬 설정 폴더>] [--snapshot-time <ISO 8601>]"),
+                String(ui: "스냅샷 사본의 곡·재생 목록을 빈 USB(FAT32·MBR)에 OneLibrary·Device Library로 내보낸다(실물 USB는 아직 막힘, 디스크 이미지만)"),
+                { try await export($0) }),
         Command("usb-restore", String(ui: "--volume <마운트> [--backup <폴더>] [--discard-device-changes] [--confirm <볼륨 이름>] [--dry-run]"),
                 String(ui: "USB에 쓴 것을 그 쓰기 전 백업으로 되돌린다(그 뒤 기기가 바꾼 것이 있으면 막는다)"), { try await restore($0) }),
         Command("usb-recover", String(ui: "--volume <마운트> [--discard-temp] [--confirm <볼륨 이름>]"),
@@ -91,6 +94,174 @@ enum UsbCommands {
         }
     }
 
+    // MARK: - usb-export
+
+    /// `usb-export` 인자
+    struct ExportRequest: Equatable {
+        var volume: String
+        var database: String?
+        var share: String?
+        var playlists: [String] = []
+        var tracks: [String] = []
+        var formats: Set<UsbFormat> = UsbFormat.defaultSet
+        var dryRun = false
+        var confirmName: String?
+        var allowProvisional: Set<UsbProvisionalRule> = []
+        var verifyAudio = false
+        /// 기기 설정 파일을 옮길 로컬 rekordbox 설정 폴더(주지 않으면 옮기지 않는다)
+        var settingsFolder: String?
+        var snapshotTime: String?
+    }
+
+    /// 모르는 인자·값 없는 인자는 사용법. 목록도 곡도 없으면 사용법. `--allow-provisional physicalVolume`은 이유와 함께 거부
+    static func exportRequest(_ args: [String]) throws -> ExportRequest {
+        var volume: String?, database: String?, share: String?, confirm: String?, settings: String?, snapshotTime: String?
+        var playlists: [String] = [], tracks: [String] = []
+        var formats = UsbFormat.defaultSet, allow: Set<UsbProvisionalRule> = []
+        var dryRun = false, verifyAudio = false
+        var index = 1
+        func next() throws -> String {
+            guard index + 1 < args.count, !args[index + 1].hasPrefix("--"), !args[index + 1].isEmpty else { throw UsageError() }
+            index += 1
+            return args[index]
+        }
+        func list(_ text: String) -> [String] {
+            text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        }
+        while index < args.count {
+            switch args[index] {
+            case "--volume": volume = try next()
+            case "--db": database = try next()
+            case "--share": share = try next()
+            case "--playlist": playlists.append(try next())
+            case "--tracks": tracks += list(try next())
+            case "--formats":
+                formats = []
+                for name in list(try next()) {
+                    switch name.lowercased() {
+                    case "onelibrary": formats.insert(.oneLibrary)
+                    case "device", "devicelibrary": formats.insert(.deviceLibrary)
+                    default: throw UsageError()
+                    }
+                }
+                if formats.isEmpty { throw UsageError() }
+            // 지금은 DJCrate 고유 이름(content ID) 하나뿐이다
+            case "--naming": guard try next() == "identifier" else { throw UsageError() }
+            case "--dry-run": dryRun = true
+            case "--confirm": confirm = try next()
+            case "--allow-provisional": allow = try UsbRuleCheck.parseAllowList(try next())
+            case "--verify-audio": verifyAudio = true
+            case "--settings": settings = try next()
+            case "--snapshot-time": snapshotTime = try next()
+            default: throw UsageError()
+            }
+            index += 1
+        }
+        guard let volume, !playlists.isEmpty || !tracks.isEmpty else { throw UsageError() }
+        try rejectLiveLibrary(volume)
+        return ExportRequest(volume: volume, database: database, share: share, playlists: playlists, tracks: tracks, formats: formats,
+                             dryRun: dryRun, confirmName: confirm, allowProvisional: allow, verifyAudio: verifyAudio,
+                             settingsFolder: settings, snapshotTime: snapshotTime)
+    }
+
+    /// 빈 USB에 내보낸다. 진행은 표준 오류로, 요약은 표준 출력으로(첫 줄은 스냅샷 시각). 곡 제목·경로는 찍지 않는다
+    static func export(_ args: [String], paths: @autoclosure () -> UsbWritePaths = .default) async throws {
+        let request = try exportRequest(args)
+        // --db를 주지 않으면 가장 최근 스냅샷(읽기만 한다. 새로 뜨거나 정리하지 않는다)
+        let database = try request.database.map { URL(filePath: $0) } ?? LibrarySnapshot.latest()
+        let share = request.share.map { URL(filePath: $0) } ?? LibrarySnapshot.rekordboxDirectory.appending(path: "share")
+        var options = UsbExportOptions()
+        options.formats = request.formats
+        options.dryRun = request.dryRun
+        options.confirmName = request.confirmName
+        options.allowProvisional = request.allowProvisional
+        options.verifyAudio = request.verifyAudio
+        options.settingsFolder = request.settingsFolder.map { URL(filePath: $0) }
+        options.snapshotTime = request.snapshotTime
+        let selection: UsbSelection = request.playlists.isEmpty ? .tracks(request.tracks)
+            : (request.tracks.isEmpty ? .playlists(request.playlists) : .both(playlists: request.playlists, tracks: request.tracks))
+        let session = UsbExportSession(database: database, share: share, root: URL(filePath: request.volume), paths: paths())
+        let printer = ProgressPrinter()
+        let report: UsbWriteReport
+        do {
+            report = try session.write(selection: selection, options: options, progress: { printer.show($0) }, isCancelled: { false })
+        } catch {
+            // 막혔어도 계획 요약(막힘 code·수)은 보여 준다
+            if let preview = session.lastPreview { exportLines(preview: preview, report: nil).forEach { print($0) } }
+            throw error
+        }
+        guard let preview = session.lastPreview else { return }
+        exportLines(preview: preview, report: report).forEach { print($0) }
+    }
+
+    /// 단계가 바뀔 때만 한 줄
+    final class ProgressPrinter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var last: UsbProgress.Phase?
+
+        func show(_ progress: UsbProgress) {
+            let changed = lock.withLock { () -> Bool in
+                defer { last = progress.phase }
+                return last != progress.phase
+            }
+            guard changed else { return }
+            FileHandle.standardError.write(Data((String(ui: "진행: \(UsbCommands.phaseName(progress.phase))") + "\n").utf8))
+        }
+    }
+
+    static func phaseName(_ phase: UsbProgress.Phase) -> String {
+        switch phase {
+        case .planning: String(ui: "계획")
+        case .staging: String(ui: "준비(분석 파일·아트워크·DB)")
+        case .backup: String(ui: "백업")
+        case .files: String(ui: "파일 쓰기")
+        case .commit: String(ui: "DB 교체")
+        case .cleanup: String(ui: "정리")
+        case .verify: String(ui: "검증")
+        case .restore: String(ui: "되돌리기")
+        case .recover: String(ui: "회복")
+        }
+    }
+
+    /// 사람용 요약: 스냅샷 시각 → 수 → 막힘(code별 수·ContentID) → 확인 안 된 규칙 → 경고 → 결과. 곡 제목·USB 경로는 찍지 않는다
+    static func exportLines(preview: UsbExportPreview, report: UsbWriteReport?) -> [String] {
+        var lines = [String(ui: "스냅샷 시각: \(preview.snapshotSource.rawValue)")]
+        let playlists = preview.plan.playlists.count
+        lines.append(String(ui: "내보낼 곡 \(preview.plan.tracks.count) · 재생 목록 \(playlists) · 막힌 곡 \(preview.blockedTrackCount)"))
+        var byCode: [String: [String]] = [:], order: [String] = []
+        for block in preview.blocks {
+            if byCode[block.code] == nil { order.append(block.code) }
+            let target: String = switch block.scope {
+            case let .track(id): id
+            case let .playlist(id): String(ui: "재생 목록 \(id)")
+            case .volume, .format, .file: ""
+            }
+            byCode[block.code, default: []].append(target)
+        }
+        for code in order {
+            let targets = byCode[code, default: []].filter { !$0.isEmpty }
+            let message = preview.blocks.first { $0.code == code }?.message ?? ""
+            lines.append(String(ui: "막힘 \(code) \(byCode[code, default: []].count): \(message)") + (targets.isEmpty ? "" : " (\(targets.joined(separator: ", ")))"))
+        }
+        let rules = preview.requiredRules.sorted { $0.rawValue < $1.rawValue }.map { rule in
+            preview.ruleCounts[rule].map { "\(rule.rawValue) \($0)" } ?? rule.rawValue
+        }
+        lines.append(rules.isEmpty ? String(ui: "확인 안 된 규칙: 없음") : String(ui: "확인 안 된 규칙: \(rules.joined(separator: ", "))"))
+        if !preview.warnings.isEmpty {
+            var counts: [String: Int] = [:]
+            for warning in preview.warnings { counts[warning.code, default: 0] += 1 }
+            lines.append(String(ui: "경고: \(counts.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", "))"))
+        }
+        if preview.requiredBytes > 0 {
+            let megabyte: Int64 = 1024 * 1024
+            lines.append(String(ui: "필요 공간 \((preview.requiredBytes + megabyte - 1) / megabyte)MB · 여유 \(preview.availableBytes / megabyte)MB"))
+        }
+        guard let report else { return lines }
+        lines += reportLines(report)
+        if report.outcome == .written { lines.append(String(ui: "USB를 꺼낸 뒤 뽑으세요(Finder 또는 `diskutil eject`)")) }
+        return lines
+    }
+
     // MARK: - usb-info
 
     /// `usb-info <볼륨|폴더> [--json]`: 읽기만 한다. DB 사본은 DJC_HOME/usb-snapshots 아래에 떴다가 지운다
@@ -148,6 +319,7 @@ enum UsbCommands {
             lines.append(String(ui: "Device Library: 곡 \(part.tracks) · 재생 목록 \(part.playlists) · 기록 행 \(part.historyRows)"))
             let ext = part.extFlag10.map(String.init) ?? "-"
             lines.append(String(ui: "  머리 0x10 \(part.exportFlag10)/\(ext) · 모르는 표 행 \(part.unknownTableRows) · 구조 문제 \(part.structureIssues)"))
+            if part.roundTripChecked { lines.append(String(ui: "  다시 쓰기 왕복 검사 통과 \(yes(part.roundTripOK == true))")) }
         }
         if info.oneLibrary != nil && info.deviceLibrary != nil {
             let c = info.consistency
