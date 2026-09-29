@@ -85,6 +85,8 @@ struct WaveformMetrics: Equatable {
     var beatNumberInset: Double { TextScale.length(26, scale: scale) }
     /// 눈금 라벨 한 자의 폭(라벨 수 줄이기에 쓴다)
     var charWidth: Double { BeatRulerLabel.charWidth(pointSize: labelSize) }
+    /// 칩·알약 글자를 잴 때 주는 제안 크기(한 줄로 들어가게 넉넉하다)
+    static let chipProposal = CGSize(width: 200, height: 40)
 
     // MARK: 전체 파형
 

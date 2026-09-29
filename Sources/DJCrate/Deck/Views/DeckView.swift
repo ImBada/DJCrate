@@ -326,7 +326,9 @@ struct DeckInfoHeader: View {
 }
 
 /// 재생 틱보다 느린 표시 시각으로 남은 시간·현재 시각만 갱신한다.
-private struct DeckHeaderTime: View {
+/// 글자 자리 크기는 바뀌지 않는 기준 글자(`slot`)가 정한다. 바뀌는 글자를 자리 안에 넣으면 초당 15번 덱 전체
+/// (`ScrollView`)가 크기를 다시 재므로(#139), 그 위에 얹어 크기 계산에 끼지 않게 한다.
+struct DeckHeaderTime: View {
     @Environment(\.textScale) private var textScale
     let deck: DeckModel
 
@@ -334,16 +336,21 @@ private struct DeckHeaderTime: View {
         let elapsed = max(deck.displayTime, 0)
         let remaining = max(deck.duration - elapsed, 0)
         HStack(spacing: 4) {
-            Text(verbatim: "-" + clock(remaining))
+            slot("-" + clock(remaining), width: 76, reference: "-00:00.00")
                 .foregroundStyle(.primary)
-                .frame(width: TextScale.length(76, scale: textScale), alignment: .trailing)
                 .help(.ui("남은 시간"))
-            Text(verbatim: clock(elapsed))
+            slot(clock(elapsed), width: 68, reference: "00:00.00")
                 .foregroundStyle(.secondary)
-                .frame(width: TextScale.length(68, scale: textScale), alignment: .trailing)
                 .help(.ui("재생 위치"))
         }
         .font(.scaled(.callout, textScale).monospacedDigit())
+    }
+
+    private func slot(_ text: String, width: Double, reference: String) -> some View {
+        Text(verbatim: reference)
+            .hidden()
+            .frame(width: TextScale.length(width, scale: textScale), alignment: .trailing)
+            .overlay(alignment: .trailing) { Text(verbatim: text) }
     }
 
     private func clock(_ seconds: Double) -> String {

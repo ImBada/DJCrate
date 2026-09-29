@@ -6,12 +6,16 @@ import Testing
 /// 화면 성능 측정용 합성 라이브러리(#129): 실사용과 비슷한 크기(곡 3천 개, 폴더 20개 아래 재생 목록 300개, 재생 기록 80개).
 /// 로컬 곡은 모두 합성 음원 하나와 그리드·PWAV·PWV4 미리 보기를 쓰고, 아티스트·앨범·장르·키·코멘트를 돌려 가며 채운다.
 /// 실데이터는 쓰지 않는다. `DJC_UI_PERF_FIXTURE=<폴더> swift test --filter UIPerfFixtureCapture`
+/// `DJC_UI_PERF_CUE_NAMES=1`을 더하면 큐에 이름을 붙이고, `--ui-perf=play`가 재생하는 10초 언저리에 이름 있는 메모리 큐 5개를 둔다(확대 파형 글자 측정, #139).
 struct UIPerfFixtureCapture {
     static let trackCount = 3000
     static let folderCount = 20
     static let playlistsPerFolder = 12
     static let rootPlaylistCount = 60
     static let historyCount = 80
+    /// `DJC_UI_PERF_CUE_NAMES=1`이면 이름 없는 큐에 이름을 붙인다.
+    static let namesCues = ProcessInfo.processInfo.environment["DJC_UI_PERF_CUE_NAMES"] != nil
+    static let cueNames = ["Intro", "Build", "Drop", "Break", "Verse", "Hook", "Outro", "Vocal 1", "Bass in"]
 
     @Test(.enabled(if: ProcessInfo.processInfo.environment["DJC_UI_PERF_FIXTURE"] != nil))
     func fixture() throws {
@@ -30,16 +34,26 @@ struct UIPerfFixtureCapture {
         for index in 1...Self.trackCount {
             var track = TrackSpec(id: String(index))
             track.title = "합성 곡 \(index) " + ["Intro Mix", "Extended", "Dub", "Club Edit", "Radio"][index % 5]
-            let shape: [CueSpec] = switch index % 4 {
+            var shape: [CueSpec] = switch index % 4 {
             case 0: []
             case 1: [hot(0, 15), hot(1, 60), CueSpec(kind: 0, inMsec: 350), CueSpec(kind: 0, inMsec: 90_000)]
             case 2: (0..<8).map { hot($0, 5 + Double($0) * 21) } + [CueSpec(kind: 0, inMsec: 30_000)]
             default: [CueSpec.autoCue(at: 350)]
             }
+            // `play` 측정은 10초부터 재생한다. 그 앞뒤에 이름 있는 메모리 큐를 두어 확대 파형에 큐 이름이 그려지게 한다.
+            if Self.namesCues {
+                shape += [(9.0, "Intro"), (11.2, "Build"), (12.4, "Break"), (13.6, "Drop"), (15.0, "Hook")].map { second, name in
+                    var cue = CueSpec(kind: 0, inMsec: Int(second * 1000))
+                    cue.comment = name
+                    return cue
+                }
+            }
             track.cues = shape.enumerated().map { offset, cue in
                 var cue = cue
                 cue.id = String(index * 100 + offset)
                 cue.uuid = UUID().uuidString.lowercased()
+                // 확대 파형의 큐 이름 글자 비용을 재려면 이름이 있어야 한다(#139). 다른 측정 기준은 그대로 두려고 켤 때만 붙인다.
+                if Self.namesCues, cue.comment == nil { cue.comment = Self.cueNames[(index + offset) % Self.cueNames.count] }
                 return cue
             }
             track.bpm100 = 11_800 + (index * 37) % 1_800
