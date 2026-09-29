@@ -21,7 +21,7 @@ struct GridEditorBar: View {
         VStack(alignment: .leading, spacing: 8) {
             FlowLayout(spacing: 12, justified: true, centerItems: true) {
                 headerTitle
-                headerInfo
+                GridEditorHeaderInfo(deck: deck)
                 headerActions
             }
             .frame(maxWidth: .infinity)
@@ -33,6 +33,7 @@ struct GridEditorBar: View {
                     Button { deck.setGridAnchorAtPlayhead() } label: {
                         GridAnchorIcon()
                     }
+                    .buttonStyle(GridEditorControlStyle(height: controlHeight, darkBackground: true))
                     .accessibilityLabel(.ui("여기서 그리드 시작"))
                     .help(.ui("플레이헤드 위치에 박을 정확히 놓고 1박으로"))
                 }
@@ -145,23 +146,6 @@ struct GridEditorBar: View {
         }
     }
 
-    @ViewBuilder private var headerInfo: some View {
-        if let draft = deck.gridDraft, !draft.segments.isEmpty {
-            let index = draft.segmentIndex(at: deck.displayTime)
-            let segment = draft.segments[index]
-            HStack(spacing: 8) {
-                Text(verbatim: "\(index + 1) / \(draft.segments.count)  ·  \(segment.start.clockText)  ·  \(segment.bpm.formatted(.number.precision(.fractionLength(2)).grouping(.never))) BPM")
-                    .font(.scaled(.caption, textScale).monospacedDigit())
-                    .foregroundStyle(.secondary)
-                if draft.hasChanges {
-                    Text(.ui("그리드 초안 변경됨"))
-                        .font(.scaled(.caption, textScale).bold())
-                        .foregroundStyle(UIColors.draft.color)
-                }
-            }
-        }
-    }
-
     private var headerActions: some View {
         HStack(spacing: 8) {
             Toggle(.ui("큐도 함께(핫큐·메모리)"), isOn: $deck.carryCues)
@@ -181,6 +165,29 @@ struct GridEditorBar: View {
         bpm = deck.gridBPM
         // 숫자로 해석할 수 없어 바인딩이 바뀌지 않은 입력도 원래 표시로 돌린다.
         bpmFieldRevision += 1
+    }
+}
+
+/// 재생 중 바뀌는 구간 정보만 관찰해 BPM 입력칸 등 편집 막대의 재평가를 줄인다.
+private struct GridEditorHeaderInfo: View {
+    @Environment(\.textScale) private var textScale
+    let deck: DeckModel
+
+    @ViewBuilder var body: some View {
+        if let draft = deck.gridDraft, !draft.segments.isEmpty {
+            let index = draft.segmentIndex(at: deck.displayTime)
+            let segment = draft.segments[index]
+            HStack(spacing: 8) {
+                Text(verbatim: "\(index + 1) / \(draft.segments.count)  ·  \(segment.start.clockText)  ·  \(segment.bpm.formatted(.number.precision(.fractionLength(2)).grouping(.never))) BPM")
+                    .font(.scaled(.caption, textScale).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                if draft.hasChanges {
+                    Text(.ui("그리드 초안 변경됨"))
+                        .font(.scaled(.caption, textScale).bold())
+                        .foregroundStyle(UIColors.draft.color)
+                }
+            }
+        }
     }
 }
 
@@ -243,16 +250,19 @@ private struct GridAnchorIcon: View {
 private struct GridEditorControlStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
     let height: CGFloat
+    var darkBackground = false
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        let background = darkBackground
+            ? (configuration.isPressed && isEnabled ? Color(white: 0.28) : Palette.controlRail)
+            : (configuration.isPressed && isEnabled ? UIColors.draft.color.opacity(0.3) : UIColors.gridControlFill)
+        return configuration.label
             .foregroundStyle(Color.primary)
             .opacity(isEnabled ? 1 : 0.7)
             .frame(minWidth: height, minHeight: height)
             .frame(height: height)
             .padding(.horizontal, 4)
-            .background(configuration.isPressed && isEnabled ? UIColors.draft.color.opacity(0.3) : UIColors.gridControlFill,
-                        in: RoundedRectangle(cornerRadius: 6))
+            .background(background, in: RoundedRectangle(cornerRadius: 6))
     }
 }
 

@@ -145,6 +145,16 @@ private struct DeckSideControls: View {
     @State private var beatStep = 4
 
     private var playableRows: [TrackRow] { store.displayRows.filter { !$0.track.isStreaming } }
+    /// 넓은 간격에서 필요한 전체 높이. 조작 높이·여백과 함께 글자 배율을 따른다.
+    private var roomyControlsHeight: Double {
+        2 * TextScale.length(24, scale: textScale)
+            + TextScale.length(26, scale: textScale)
+            + 2 * TextScale.length(36, scale: textScale)
+            + TextScale.length(20, scale: textScale)
+            + TextScale.length(48, scale: textScale)
+            + TextScale.length(12, scale: textScale)
+            + 4 + 12 + 2 // 고정 간격·바깥쪽 여백과 레이아웃 반올림 여유
+    }
 
     private func adjacentRow(forward: Bool) -> TrackRow? {
         let rows = playableRows
@@ -166,7 +176,7 @@ private struct DeckSideControls: View {
     var body: some View {
         let previous = adjacentRow(forward: false)
         let next = adjacentRow(forward: true)
-        let compact = availableHeight < TextScale.length(225, scale: textScale)
+        let compact = availableHeight < roomyControlsHeight
         VStack(spacing: 0) {
             HStack(spacing: 4) {
                 Button { load(previous) } label: {
