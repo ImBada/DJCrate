@@ -59,6 +59,8 @@ struct ZoomWaveformView: View {
     /// 끄는 동안 핫큐 키(제스처가 키 이벤트를 삼켜 KeyRouter까지 오지 않는다, #133)
     @State private var hotCueKeys = DragHotCueKeys()
     @State private var pinchBase: Double?
+    /// 해석한 글자(마디.박·큐 이름·칩)를 다음 프레임에도 쓴다(#139)
+    @State private var texts = WaveformTextCache()
 
     /// `hover`: 처음 보일 포인터 아래 대상(미리 보기·캡처용)
     init(deck: DeckModel, hover: ZoomPointerTarget = .empty) {
@@ -91,7 +93,7 @@ struct ZoomWaveformView: View {
 
                 let state = DrawState(deck, hover: hover, metrics: WaveformMetrics(scale: textScale))
                 Canvas { context, size in
-                    PerfProbe.measureDraw { draw(context, size: size, state: state, start: start, window: window, xOf: xOf) }
+                    PerfProbe.measureDraw { draw(context, size: size, state: state, texts: texts, start: start, window: window, xOf: xOf) }
                 }
                 .contentShape(Rectangle())
                 .gesture(
@@ -194,7 +196,7 @@ struct ZoomWaveformView: View {
         return nil
     }
 
-    private func draw(_ context: GraphicsContext, size: CGSize, state: DrawState, start: Double, window: Double, xOf: (Double) -> CGFloat) {
+    private func draw(_ context: GraphicsContext, size: CGSize, state: DrawState, texts: WaveformTextCache, start: Double, window: Double, xOf: (Double) -> CGFloat) {
         let end = start + window
         let metrics = state.metrics
         let ruler = metrics.rulerHeight
@@ -216,17 +218,16 @@ struct ZoomWaveformView: View {
                 let beatWidth = size.width / window * 60 / max(beat.bpm, 1)
                 if state.gridEditing,
                    BeatRulerLabel.showsBeatNumber(isDownbeat: beat.isDownbeat, beatWidth: beatWidth, charWidth: metrics.charWidth) {
-                    context.draw(Text(verbatim: "\(beat.number)").font(.system(size: metrics.labelSize, weight: beat.isDownbeat ? .bold : .regular).monospacedDigit())
-                        .foregroundStyle(beat.isDownbeat ? Palette.mid : Palette.rulerText),
+                    context.draw(texts.resolved(.text("\(beat.number)", size: metrics.labelSize, weight: beat.isDownbeat ? .bold : .regular, digits: true,
+                                                      color: beat.isDownbeat ? Palette.mid : Palette.rulerText), in: context),
                                  at: CGPoint(x: x + 2, y: size.height - metrics.beatNumberInset), anchor: .leading)
                 }
                 // 상단 위치 표시(마디.박, rekordbox처럼 박은 1부터). 자리가 모자라면 글자를 줄이지 않고 라벨 수를 줄인다(`BeatRulerLabel`).
                 if let label = BeatRulerLabel.text(bar: grid.bar(at: beat.time), beat: max(beat.number, 1),
                                                    isDownbeat: beat.isDownbeat, beatWidth: beatWidth, charWidth: metrics.charWidth),
                    x + 3 + CGFloat(label.count) * metrics.charWidth < size.width - 1 {
-                    context.draw(Text(label)
-                        .font(.system(size: metrics.labelSize, weight: beat.isDownbeat ? .semibold : .regular).monospacedDigit())
-                        .foregroundStyle(contrast == .increased ? Color.white : Palette.rulerText),
+                    context.draw(texts.resolved(.text(label, size: metrics.labelSize, weight: beat.isDownbeat ? .semibold : .regular, digits: true,
+                                                      color: contrast == .increased ? Color.white : Palette.rulerText), in: context),
                                  at: CGPoint(x: x + 3, y: ruler / 2), anchor: .leading)
                 }
             }
@@ -258,7 +259,8 @@ struct ZoomWaveformView: View {
             line.move(to: CGPoint(x: x, y: 0)); line.addLine(to: CGPoint(x: x, y: size.height))
             context.stroke(line, with: .color(.yellow), lineWidth: 2)
             let nearRight = x > size.width - 80 * metrics.scale
-            context.draw(Text(verbatim: segment.bpm.formatted(.number.precision(.fractionLength(2)).grouping(.never)) + " BPM").font(.system(size: metrics.labelSize, weight: .bold)).foregroundStyle(Color.yellow),
+            let bpmText = segment.bpm.formatted(.number.precision(.fractionLength(2)).grouping(.never)) + " BPM"
+            context.draw(texts.resolved(.text(bpmText, size: metrics.labelSize, weight: .bold, color: .yellow), in: context),
                          at: CGPoint(x: nearRight ? x - 4 : x + 4, y: ruler + 4), anchor: nearRight ? .trailing : .leading)
         }
         // MU 섹션 경계
@@ -286,7 +288,7 @@ struct ZoomWaveformView: View {
                 context.fill(Path(ellipseIn: badge), with: .color(.white.opacity(0.35)))
                 context.stroke(Path(ellipseIn: badge), with: .color(.white), lineWidth: 1.5)
             }
-            context.draw(Text(Image(systemName: "plus")).font(.system(size: side * 0.6, weight: .bold)).foregroundStyle(Color.black),
+            context.draw(texts.resolved(.init(content: .symbol("plus"), style: .init(size: side * 0.6, weight: .bold, color: .black)), in: context),
                          at: CGPoint(x: badge.midX, y: badge.midY))
         }
         // 루프 구간(큐 선보다 먼저 칠한다). 활성 루프는 진하게 + 반복 심볼
@@ -302,7 +304,7 @@ struct ZoomWaveformView: View {
             endLine.move(to: CGPoint(x: x1, y: ruler)); endLine.addLine(to: CGPoint(x: x1, y: size.height))
             context.stroke(endLine, with: .color(Palette.loop.opacity(contrast == .increased ? 1 : 0.8)), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
             if loop.active, x1 - x0 > 16 * metrics.scale {
-                context.draw(Text(Image(systemName: "repeat")).font(.system(size: metrics.labelSize, weight: .bold)).foregroundStyle(Palette.loop),
+                context.draw(texts.resolved(.init(content: .symbol("repeat"), style: .init(size: metrics.labelSize, weight: .bold, color: Palette.loop)), in: context),
                              at: CGPoint(x: x0 + 3, y: ruler + metrics.loopLabelOffset), anchor: .leading)
             }
         }
@@ -318,8 +320,9 @@ struct ZoomWaveformView: View {
                 context.stroke(edge, with: .color(Palette.loop), lineWidth: 1.5)
             }
             if x1 - x0 > 30 * metrics.scale {
-                context.draw(Text("\(Image(systemName: "repeat")) \(state.loopSizeText)").font(.system(size: metrics.labelSize, weight: .bold))
-                    .foregroundStyle(Palette.loop), at: CGPoint(x: x0 + 5, y: ruler + metrics.loopLabelOffset), anchor: .leading)
+                context.draw(texts.resolved(.init(content: .symbolThenText(symbol: "repeat", text: state.loopSizeText),
+                                                  style: .init(size: metrics.labelSize, weight: .bold, color: Palette.loop)), in: context),
+                             at: CGPoint(x: x0 + 5, y: ruler + metrics.loopLabelOffset), anchor: .leading)
             }
         }
         // 큐 (초안)
@@ -342,26 +345,28 @@ struct ZoomWaveformView: View {
                 context.stroke(line, with: .color(Palette.color(for: cue)), lineWidth: (selected ? 2.5 : 1.8) + hoverWidth)
                 // 루프 핫큐는 슬롯 글자 옆에 반복 심볼을 같은 글꼴로 붙인다(덱 패드와 같다).
                 let letter = cue.kind.slotLetter ?? ""
-                chip(context, cue.loop == nil ? Text(letter) : Text("\(letter)\(Image(systemName: "repeat"))"),
+                let content: WaveformTextCache.Content = cue.loop == nil ? .text(letter) : .textThenSymbol(text: letter, symbol: "repeat")
+                let label = texts.label(.init(content: content, style: .init(size: metrics.labelSize, weight: .bold, color: .black)),
+                                        proposal: WaveformMetrics.chipProposal, in: context)
+                chip(context, resolved: label.text, size: label.size,
                      at: CGPoint(x: x, y: size.height - metrics.chipHeight - 2), color: Palette.color(for: cue), selected: selected,
                      maxX: size.width, metrics: metrics)
             }
         }
         // 큐 이름(선 위에 겹쳐 그린다). 앞 이름과 겹치면 뺀다: 글자 배율이 커도 글자를 줄이지 않는다.
-        var names: [(label: GraphicsContext.ResolvedText, x: CGFloat, trailing: Bool)] = []
+        var names: [(label: WaveformTextCache.Label, x: CGFloat, trailing: Bool)] = []
         for cue in state.cues where !cue.name.isEmpty && cue.time >= start - 1 && cue.time <= end + 1 {
             let x = xOf(cue.time)
             let trailing = x > size.width - 90 * metrics.scale
-            let label = context.resolve(Text(WaveformAccessibility.cueName(cue)).font(.system(size: metrics.labelSize, weight: .semibold))
-                .foregroundStyle(Color.white))
+            let label = texts.label(.text(WaveformAccessibility.cueName(cue), size: metrics.labelSize, weight: .semibold, color: .white),
+                                    proposal: CGSize(width: size.width, height: 100), in: context)
             names.append((label, trailing ? x - 5 : x + 5, trailing))
         }
         let spans = names.map { name -> (start: Double, end: Double) in
-            let width = name.label.measure(in: CGSize(width: size.width, height: 100)).width
-            return name.trailing ? (name.x - width, name.x) : (name.x, name.x + width)
+            name.trailing ? (name.x - name.label.size.width, name.x) : (name.x, name.x + name.label.size.width)
         }
         for (name, visible) in zip(names, WaveformMetrics.visibleLabels(spans, gap: 4)) where visible {
-            context.draw(name.label, at: CGPoint(x: name.x, y: ruler + metrics.cueNameOffset), anchor: name.trailing ? .trailing : .leading)
+            context.draw(name.label.text, at: CGPoint(x: name.x, y: ruler + metrics.cueNameOffset), anchor: name.trailing ? .trailing : .leading)
         }
         // CUE 지점: 위쪽 주황 삼각형(메모리 큐 삼각형보다 위)
         if state.cuePoint >= start, state.cuePoint <= end {
@@ -386,12 +391,13 @@ struct ZoomWaveformView: View {
         // 다음 메모리 큐까지: 재생선 바로 왼쪽 위 알약(파형 높이에 맞춰 글자 크기를 줄인다)
         if let text = Self.countdown(to: state.cues, from: state.playhead, grid: state.grid) {
             let fontSize = min(13 * metrics.scale, max(metrics.labelSize, size.height / 9))
-            let label = context.resolve(Text(text).font(.system(size: fontSize, weight: .bold).monospacedDigit()).foregroundStyle(Palette.memory))
-            let textSize = label.measure(in: CGSize(width: 200, height: 40))
+            let label = texts.label(.text(text, size: fontSize, weight: .bold, digits: true, color: Palette.memory),
+                                    proposal: WaveformMetrics.chipProposal, in: context)
+            let textSize = label.size
             let width = textSize.width + 12
             let pill = CGRect(x: max(2, px - width - 3), y: ruler + 4, width: width, height: textSize.height + 4)
             context.fill(Path(roundedRect: pill, cornerRadius: pill.height / 2), with: .color(.black.opacity(0.65)))
-            context.draw(label, at: CGPoint(x: pill.midX, y: pill.midY))
+            context.draw(label.text, at: CGPoint(x: pill.midX, y: pill.midY))
         }
     }
 

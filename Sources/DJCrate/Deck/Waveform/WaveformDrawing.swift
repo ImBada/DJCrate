@@ -52,7 +52,13 @@ func chip(_ context: GraphicsContext, _ text: String, at point: CGPoint, color: 
 func chip(_ context: GraphicsContext, _ text: Text, at point: CGPoint, color: Color, selected: Bool, maxX: CGFloat = .infinity,
           metrics: WaveformMetrics = WaveformMetrics(), height: Double? = nil) {
     let label = context.resolve(text.font(.system(size: metrics.labelSize, weight: .bold)).foregroundStyle(Color.black))
-    let size = label.measure(in: CGSize(width: 200, height: 40))
+    chip(context, resolved: label, size: label.measure(in: WaveformMetrics.chipProposal), at: point, color: color, selected: selected,
+         maxX: maxX, metrics: metrics, height: height)
+}
+
+/// 이미 해석하고 잰 글자로 칩을 그린다(확대 파형은 `WaveformTextCache`로 프레임마다 다시 해석하지 않는다).
+func chip(_ context: GraphicsContext, resolved label: GraphicsContext.ResolvedText, size: CGSize, at point: CGPoint, color: Color, selected: Bool,
+          maxX: CGFloat = .infinity, metrics: WaveformMetrics = WaveformMetrics(), height: Double? = nil) {
     let half = size.width / 2 + 4
     let cx = min(max(point.x, half + 1), maxX - half - 1)
     let rect = CGRect(x: cx - half, y: point.y, width: size.width + 8, height: height ?? metrics.chipHeight)
