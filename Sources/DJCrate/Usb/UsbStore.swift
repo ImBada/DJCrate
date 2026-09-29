@@ -117,6 +117,8 @@ import RekordboxKit
             refusals[key] = nil
         }
         journalChecked.formIntersection(keys)
+        // 연 내보내기 시트의 볼륨이 빠지면 닫는다(닫을 단추 없는 빈 창으로 남지 않게)
+        if let sheet = exportSheet, !keys.contains(sheet.volumeKey) { exportSheet = nil }
         defer { onChange?() }
         guard !visible.isEmpty else { return }
         let lists = await Task.detached(priority: .userInitiated) { [physicalLists] in physicalLists() }.value
@@ -231,6 +233,7 @@ import RekordboxKit
         forget(volumeKey)
         shapes[volumeKey] = nil
         refusals[volumeKey] = nil
+        if exportSheet?.volumeKey == volumeKey { exportSheet = nil }
         onChange?()
         return nil
     }
@@ -342,11 +345,12 @@ struct UsbActiveWrite: Equatable {
     var progress: UsbProgress?
 }
 
-/// 내보내기 시트를 열 때 넘기는 것: 대상 볼륨과, 다시 미리 보기면 그 내보내기·요약
+/// 내보내기 시트를 열 때 넘기는 것: 대상 볼륨(연 때의 정보)과, 다시 미리 보기면 그 내보내기·요약
 struct UsbExportSheetRequest: Equatable, Identifiable {
-    var volumeKey: String
+    var volume: UsbVolumeInfo
     var job: UsbExportJob?
     var summary: UsbExportSummary?
 
+    var volumeKey: String { volume.usbKey }
     var id: String { volumeKey }
 }

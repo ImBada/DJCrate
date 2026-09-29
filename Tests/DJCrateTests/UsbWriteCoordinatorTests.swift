@@ -20,12 +20,17 @@ final class FakeUsbWriteService: UsbWriteService, @unchecked Sendable {
         var writeProgress: [UsbProgress] = []
         /// 참이면 진행을 보낸 뒤 취소를 기다린다(파일 단계)
         var waitForCancel = false
-        var recoverResult: Result<UsbWriteReport, UsbError> = .success(UsbWriteReport(outcome: .recovered, session: "s1"))
+        var recoverResult: Result<UsbWriteReport, UsbError> = .success(UsbWriteReport(outcome: .recovered, session: "s1",
+                                                                                                 backup: "/tmp/djc-fixture/usb-backups/B/s1"))
         var journalAfterRecover: UsbJournalInfo?
         var restoreResult: Result<UsbWriteReport, UsbError> = .success(UsbWriteReport(outcome: .restored, session: "s1"))
         /// 참이면 기기 변경을 버린다고 하지 않은 되돌리기를 `deviceChanged`로 막는다
         var deviceChanged = false
         var backup: URL?
+        /// 되돌리기에 넘긴 백업 폴더(nil = 가장 최근 백업)
+        var restoredBackups: [URL?] = []
+        /// 가장 최근 백업을 메인 스레드에서 찾았는지(파일 입출력은 메인 액터 밖에서 한다)
+        var latestBackupOnMain: [Bool] = []
         var calls: [String] = []
         /// USB 파일 연산 수(가짜는 끝까지 간 쓰기·회복·되돌리기만 센다)
         var fileOperations = 0
@@ -81,9 +86,10 @@ final class FakeUsbWriteService: UsbWriteService, @unchecked Sendable {
         }
     }
 
-    func restore(_ volume: UsbVolumeInfo, discardDeviceChanges: Bool) throws -> UsbWriteReport {
+    func restore(_ volume: UsbVolumeInfo, backup: URL?, discardDeviceChanges: Bool) throws -> UsbWriteReport {
         try lock.withLock {
             state.calls.append(discardDeviceChanges ? "restore(discard)" : "restore")
+            state.restoredBackups.append(backup)
             if state.deviceChanged, !discardDeviceChanges {
                 throw UsbError.writeRefused([UsbBlock(code: "deviceChanged", scope: .volume, message: "기기 변경")])
             }
@@ -93,7 +99,13 @@ final class FakeUsbWriteService: UsbWriteService, @unchecked Sendable {
         }
     }
 
-    func latestBackup(volumeKey: String) -> URL? { lock.withLock { state.backup } }
+    func latestBackup(volumeKey: String) -> URL? {
+        let onMain = Thread.isMainThread
+        return lock.withLock {
+            state.latestBackupOnMain.append(onMain)
+            return state.backup
+        }
+    }
 }
 
 /// 토스트를 받는 가짜 앱
@@ -185,6 +197,8 @@ struct UsbWriteCoordinatorTests {
         #expect(rolledBack?.text == "USB는 쓰기 전 그대로입니다. USB를 다시 읽은 뒤 다시 시도하세요.")
         #expect(rolledBack?.confirm == "백업 폴더 열기")
         #expect(opened == [backup])
+        // 백업 폴더 찾기(폴더 열거·manifest 읽기)는 메인 액터 밖에서 한다
+        #expect(service.current.latestBackupOnMain == [false])
 
         // 되돌리지도 못함: 기기에 꽂지 말라는 경고
         service.update { $0.writeResult = .failure(.restoreFailed(reason: "verify", restoreError: "rename", backup: backup.path)) }
@@ -273,7 +287,8 @@ struct UsbWriteCoordinatorTests {
         let prompt = prompter.shown.last
         #expect(prompt?.title == "지난 USB 쓰기가 끝나지 않았습니다")
         #expect(prompt?.confirm == "회복하기")
-        #expect(prompt?.alternate == "되돌리기…")
+        // 누르면 바로 되돌린다(기기 변경이 있을 때만 한 번 더 묻는다): 말줄임표를 붙이지 않는다
+        #expect(prompt?.alternate == "되돌리기")
         #expect(prompt?.cancel == "나중에")
         #expect(service.current.calls == ["recover"])
         #expect(host.toast?.title == "USB 쓰기를 마저 끝냈습니다")
@@ -283,6 +298,7 @@ struct UsbWriteCoordinatorTests {
         prompter.choices = [.alternate]
         await coordinator(usb).offerRecovery(image)
         #expect(service.current.calls == ["recover", "restore"])
+        #expect(service.current.restoredBackups == [URL(filePath: "/tmp/djc-fixture/usb-backups/B/s1")])
         #expect(host.toast?.title == "USB를 쓰기 전으로 되돌렸습니다")
 
         // 나중에: 아무것도 하지 않는다
@@ -433,6 +449,151 @@ struct UsbWriteCoordinatorTests {
         #expect(host.toast?.title == "USB를 쓰기 전으로 되돌렸습니다")
     }
 
+    @Test("회복·되돌리기가 실패하면 기기에 꽂지 말라고 알리고, 그 밖의 USB 오류는 그 설명을 보인다")
+    func recoverAndRevertFailureWarnings() async {
+        let (usb, _) = store()
+        let backup = URL(filePath: "/tmp/djc-fixture/usb-backups/B/9")
+        var opened: [URL] = []
+        service.update {
+            $0.journal = .state(.committing)
+            $0.recoverResult = .failure(.restoreFailed(reason: "회복", restoreError: "rename", backup: backup.path))
+        }
+        // 회복 → 되돌리지 못함: 경고와 백업 폴더 열기
+        prompter.choices = [.confirm]
+        prompter.answers = [true]
+        await coordinator(usb, opened: { opened.append($0) }).offerRecovery(image)
+        let failed = prompter.shown.last
+        #expect(failed?.title == "USB를 쓰기 전 상태로 되돌리지 못했습니다")
+        #expect(failed?.text == "USB를 기기에 꽂지 마세요. USB를 다시 연결하면 나오는 알림에서 회복하세요.")
+        #expect(failed?.confirm == "백업 폴더 열기")
+        #expect(failed?.critical == true)
+        #expect(opened == [backup])
+
+        // 회복 중 USB가 빠짐
+        service.update { $0.recoverResult = .failure(.volumeLost(volumeName: "B12T")) }
+        prompter.choices = [.confirm]
+        await coordinator(usb).offerRecovery(image)
+        #expect(prompter.shown.last?.title == "USB 연결이 끊겼습니다")
+        #expect(prompter.shown.last?.text.contains("기기에 꽂지") == true)
+
+        // 되돌리기의 복원이 rekordbox 때문에 미뤄짐·USB가 빠짐
+        service.update {
+            $0.recoverResult = .success(UsbWriteReport(outcome: .recovered, session: "s1", backup: backup.path))
+            $0.restoreResult = .failure(.restorePending(reason: "rekordbox"))
+        }
+        prompter.choices = [.alternate]
+        await coordinator(usb).offerRecovery(image)
+        #expect(prompter.shown.last?.title == "rekordbox가 켜져 있어 USB 복원을 미뤘습니다")
+        #expect(prompter.shown.last?.text.contains("기기에 꽂지 마세요") == true)
+        service.update { $0.restoreResult = .failure(.volumeLost(volumeName: "B12T")) }
+        prompter.choices = [.alternate]
+        await coordinator(usb).offerRecovery(image)
+        #expect(prompter.shown.last?.title == "USB 연결이 끊겼습니다")
+
+        // 그 밖의 USB 오류는 일반 문구 대신 그 설명을 보인다
+        service.update { $0.recoverResult = .failure(.formatUnsupported(detail: "x")) }
+        prompter.choices = [.confirm]
+        await coordinator(usb).offerRecovery(image)
+        #expect(prompter.shown.last?.title == "USB를 회복하지 않았습니다")
+        #expect(prompter.shown.last?.text == UsbError.formatUnsupported(detail: "x").errorDescription)
+        #expect(usb.busyVolumes.isEmpty)
+        #expect(usb.activeWrite == nil)
+    }
+
+    @Test("회복 결과: 끊긴 되돌리기를 마치면 되돌렸다고, 저널이 없었으면 회복할 쓰기가 없다고 알린다")
+    func recoverOutcomeToasts() async {
+        let (usb, _) = store()
+        service.update {
+            $0.journal = .state(.restorePending)
+            $0.recoverResult = .success(UsbWriteReport(outcome: .restored, session: "s1", backup: "/tmp/djc-fixture/usb-backups/B/s1"))
+        }
+        prompter.choices = [.confirm]
+        await coordinator(usb).offerRecovery(image)
+        #expect(host.toast?.title == "USB를 쓰기 전으로 되돌렸습니다")
+        #expect(host.toast?.action == nil)
+
+        service.update { $0.recoverResult = .success(UsbWriteReport(outcome: .recovered, session: "")) }
+        prompter.choices = [.confirm]
+        await coordinator(usb).offerRecovery(image)
+        #expect(host.toast?.title == "회복할 USB 쓰기가 없습니다")
+        #expect(host.toast?.action == nil)
+        #expect(service.current.calls == ["recover", "recover"])
+    }
+
+    @Test("되돌리기는 끝나지 않은 그 쓰기의 백업으로만 되돌린다")
+    func revertUsesPendingWriteBackup() async {
+        let (usb, _) = store()
+        let backup = URL(filePath: "/tmp/djc-fixture/usb-backups/B/7")
+        service.update {
+            $0.journal = .state(.committed)
+            $0.recoverResult = .success(UsbWriteReport(outcome: .recovered, session: "s7", backup: backup.path))
+        }
+        prompter.choices = [.alternate]
+        await coordinator(usb).offerRecovery(image)
+        #expect(service.current.calls == ["recover", "restore"])
+        #expect(service.current.restoredBackups == [backup])
+
+        // 회복이 끊긴 되돌리기를 마쳤으면 다시 되돌리지 않는다
+        service.update {
+            $0.calls = []
+            $0.recoverResult = .success(UsbWriteReport(outcome: .restored, session: "s7", backup: backup.path))
+        }
+        prompter.choices = [.alternate]
+        await coordinator(usb).offerRecovery(image)
+        #expect(service.current.calls == ["recover"])
+        #expect(host.toast?.title == "USB를 쓰기 전으로 되돌렸습니다")
+
+        // 저널이 없었거나(다른 곳에서 닫음) 백업 폴더가 없으면 다른 쓰기의 백업을 고르지 않는다
+        for report in [UsbWriteReport(outcome: .recovered, session: ""), UsbWriteReport(outcome: .recovered, session: "s7", backup: nil)] {
+            service.update {
+                $0.calls = []
+                $0.recoverResult = .success(report)
+            }
+            prompter.choices = [.alternate]
+            await coordinator(usb).offerRecovery(image)
+            #expect(service.current.calls == ["recover"])
+            #expect(prompter.shown.last?.title == "USB를 되돌리지 않았습니다")
+            #expect(prompter.shown.last?.text == "이 쓰기의 백업을 찾지 못했습니다. USB를 다시 읽어 지금 상태를 확인하세요")
+        }
+        #expect(usb.busyVolumes.isEmpty)
+    }
+
+    @Test("쓰기 직전에 다른 곳이 저널을 열면(쓰기 절차의 recoveryNeeded 막힘) 회복 알림으로 간다")
+    func writeRefusedRecoveryNeededOffersRecovery() async {
+        let (usb, _) = store()
+        service.update {
+            $0.writeResult = .failure(.writeRefused([UsbBlock(code: "recoveryNeeded", scope: .volume, message: "회복 먼저")]))
+            $0.journalAfterWrite = .state(.filesWritten)
+        }
+        prompter.choices = [.cancel]
+        await coordinator(usb).export(job())
+        #expect(service.current.calls == ["preview", "write"])
+        #expect(prompter.shown.last?.title == "지난 USB 쓰기가 끝나지 않았습니다")
+        #expect(!prompter.shown.contains { $0.title == "USB에 쓰지 않았습니다" })
+        #expect(usb.busyVolumes.isEmpty)
+    }
+
+    @Test("내보내기 시트는 연 볼륨을 들고 있고, 그 볼륨이 빠지면 닫힌다")
+    func exportSheetClosesWhenVolumeLeaves() async {
+        let (usb, usbHost) = store()
+        await usb.refresh()
+        usb.exportSheet = UsbExportSheetRequest(volume: image)
+        #expect(usb.exportSheet?.volume == image)
+        #expect(usb.exportSheet?.volumeKey == image.usbKey)
+        await usb.refresh()
+        #expect(usb.exportSheet != nil)
+        usbHost.mounted = []
+        await usb.refresh()
+        #expect(usb.exportSheet == nil)
+
+        // 꺼내도 닫힌다
+        usbHost.mounted = [image]
+        await usb.refresh()
+        usb.exportSheet = UsbExportSheetRequest(volume: image)
+        #expect(await usb.eject(image.usbKey) == nil)
+        #expect(usb.exportSheet == nil)
+    }
+
     // MARK: - 토스트·진행
 
     @Test("다 쓰면 곡 수와 꺼내기를 알리고, 꺼내기를 누르면 그 볼륨을 꺼낸다")
@@ -489,5 +650,31 @@ struct UsbWriteCoordinatorTests {
         #expect(UsbSelfTest.launchRefusal(arguments: args, environment: ["DJC_HOME": home.path, "DJC_DB": "/tmp/x/m.db"]) == nil)
         #expect(UsbSelfTest.launchRefusal(arguments: args + ["--db", "/tmp/x/m.db"], environment: ["DJC_HOME": NSHomeDirectory()]) != nil)
         #expect(UsbSelfTest.launchRefusal(arguments: args + ["--db", "/tmp/x/m.db"], environment: [:]) != nil)
+        // 앱 시작 때(라이브러리를 읽기 전) 보는 판정: 자가 테스트 인자가 있을 때만 거부한다
+        #expect(UsbSelfTest.startupRefusal(arguments: ["DJCrate"], environment: [:]) == nil)
+        #expect(UsbSelfTest.startupRefusal(arguments: args, environment: ["DJC_HOME": home.path])
+            == "USB 시험 실패: --db <스냅샷 사본>으로 띄우세요")
+        #expect(UsbSelfTest.startupRefusal(arguments: args + ["--db", "/tmp/x/m.db"], environment: ["DJC_HOME": home.path]) == nil)
+    }
+
+    @Test("provenance: 앱이 쓴 파일 가운데 옆에 ._가 생겨 지운 파일만 센다(임시 이름·폴더의 ._는 빼고)")
+    func provenanceCountsFinalFilesOnly() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: "djc-provenance-\(UUID().uuidString)")
+        let folder = root.appending(path: "PIONEER/USBANLZ")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let names = ["._ANLZ0000.DAT", "._\(UsbLayout.tempPrefix)s-1", "._ANLZ0000.EXT"]
+        for name in names { try Data([0]).write(to: folder.appending(path: name)) }
+        try Data([0]).write(to: root.appending(path: "PIONEER/._USBANLZ"))
+        let recorder = UsbAppleDoubleRecorder()
+        for name in names { try recorder.remove(folder.appending(path: name)) }
+        try recorder.remove(root.appending(path: "PIONEER/._USBANLZ"))
+        #expect(recorder.removedAppleDoubles.count == 4)
+        let written = ["PIONEER/USBANLZ/ANLZ0000.DAT", "PIONEER/USBANLZ/ANLZ0000.2EX", "PIONEER/rekordbox/export.pdb"]
+        #expect(UsbSelfTestScenario.appleDoubleCount(appFiles: written, root: root, removed: recorder.removedAppleDoubles) == 1)
+        // 한글 이름도 NFC·NFD 차이 없이 맞춘다
+        let nfd = "Contents/\("가".decomposedStringWithCanonicalMapping)/a.mp3"
+        let removed = [root.appending(path: "Contents/가/._a.mp3").path]
+        #expect(UsbSelfTestScenario.appleDoubleCount(appFiles: [nfd], root: root, removed: removed) == 1)
     }
 }

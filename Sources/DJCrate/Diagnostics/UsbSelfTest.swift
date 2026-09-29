@@ -28,6 +28,13 @@ enum UsbSelfTest {
         return nil
     }
 
+    /// 앱 시작 때(라이브러리를 읽기 전) 볼 거부. 자가 테스트 인자가 없으면 nil —
+    /// 거부를 시험 Task 안에서만 보면 그 사이 `loadInitial`이 사용자 스냅샷 폴더를 먼저 연다
+    nonisolated static func startupRefusal(arguments: [String], environment: [String: String]) -> String? {
+        guard arguments.contains("--usb-selftest") else { return nil }
+        return launchRefusal(arguments: arguments, environment: environment)
+    }
+
     /// `--db <경로>` 또는 `DJC_DB`
     nonisolated static func explicitDatabase(arguments: [String], environment: [String: String]) -> String? {
         let database = arguments.firstIndex(of: "--db").flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
@@ -98,7 +105,7 @@ struct UsbSelfTestScenario {
 
     /// 앱이 쓰는 창구와 같다. 다만 자가 테스트는 DJC_HOME 아래에 이미지를 붙이므로, 보호 폴더에서 DJC_HOME 전체 대신
     /// DJC_HOME 안의 USB 쓰기 폴더(백업·저널·준비·세션 사본)와 합성 라이브러리만 막는다(실물 관문·임시 폴더 뿌리 확인은 그대로)
-    func makeService() -> SystemUsbWriteService {
+    func makeService(fileSystem: any UsbFileSystem = PosixUsbFileSystem()) -> SystemUsbWriteService {
         let paths = UsbWritePaths(backups: home.appending(path: "usb-backups"), sessions: home.appending(path: "usb-sessions"),
                                   staging: home.appending(path: "usb-staging"))
         let copies = home.appending(path: "usb-snapshots")
@@ -108,7 +115,7 @@ struct UsbSelfTestScenario {
             var writeGuard = UsbWriteGuard.system
             writeGuard.protectedRoots = writeGuard.protectedRoots.filter { (UsbScratchRoots.realPath($0.path) ?? $0.path) != homeReal } + ours
             return writeGuard
-        })
+        }, fileSystem: fileSystem)
     }
 
     /// 통과하면 마지막 줄("USB 시험 통과 …")
@@ -141,7 +148,8 @@ struct UsbSelfTestScenario {
     }
 
     private func exercise(usb: UsbStore, host: any UsbWriteHost, library: UsbSelfTestLibrary.Made) async throws -> String {
-        let service = UsbSelfTestRecordingService(base: makeService())
+        let recorder = UsbAppleDoubleRecorder()
+        let service = UsbSelfTestRecordingService(base: makeService(fileSystem: recorder))
         let prompter = UsbSelfTestPrompter(log: log)
         let coordinator = UsbWriteCoordinator(usb: usb, host: host, service: service, prompter: prompter)
         var volume = try await waitForVolume(usb)
@@ -177,6 +185,9 @@ struct UsbSelfTestScenario {
         let beforePaths = Set(before.map(\.relativePath))
         let appFiles = written.filter { !$0.isDirectory && !beforePaths.contains($0.relativePath)
             && !UsbLayout.isAppleDouble(($0.relativePath as NSString).lastPathComponent) }
+        // 쓰기 절차가 지운 ._ 가운데 앱이 쓴 최종 파일 옆의 것(되돌리기가 지우는 것은 세지 않는다)
+        let doubled = Self.appleDoubleCount(appFiles: appFiles.map(\.relativePath), root: URL(filePath: volume.mountPoint),
+                                            removed: recorder.removedAppleDoubles)
 
         // 토스트의 [꺼내기] → 이미지가 떨어졌는지 → 다시 붙여 읽기
         await coordinator.perform(toast.action!)
@@ -187,8 +198,8 @@ struct UsbSelfTestScenario {
         volume = try await waitForVolume(usb)
         let doublesAfter = try await detached { try UsbInvariantVerifier.appleDoubles(on: root) }
         let left = doublesAfter.subtracting(doublesBefore).count
-        // ._ 생김 = 쓰기 절차가 지운 ._ 수(임시 이름·폴더의 것 포함), 쓸기 뒤 = 꺼냈다 다시 붙인 USB에 남은 새 ._ 수
-        log("USB 시험 provenance: 앱이 쓴 파일 \(appFiles.count)개 중 ._ 생김 \(report.appleDoubleRemoved)개(임시 이름·폴더 포함), 쓸기 뒤 \(left)개")
+        // ._ 생김 = 앱이 쓴 최종 파일 옆에 생겨 쓰기 절차가 지운 ._ 수, 쓸기 뒤 = 꺼냈다 다시 붙인 USB에 남은 새 ._ 수
+        log("USB 시험 provenance: 앱이 쓴 파일 \(appFiles.count)개 중 ._ 생김 \(doubled)개, 쓸기 뒤 \(left)개")
         let reattached = volume
         let scratch = base.appending(path: "info-\(UUID().uuidString)")
         let info = try await detached {
@@ -206,7 +217,8 @@ struct UsbSelfTestScenario {
 
         // 되돌리기(이 쓰기의 백업으로) → 트리가 쓰기 전과 같다
         guard usb.beginWrite(reattached, title: "USB 시험: 되돌리는 중", cancellable: false) != nil else { throw Failure("볼륨을 잠그지 못했습니다") }
-        let restored = await detached { Result { try service.restore(reattached, discardDeviceChanges: false) } }
+        let writtenBackup = report.backup.map { URL(filePath: $0) }
+        let restored = await detached { Result { try service.restore(reattached, backup: writtenBackup, discardDeviceChanges: false) } }
         usb.endWrite(reattached.usbKey)
         guard case let .success(restoreReport) = restored, restoreReport.outcome == .restored else {
             throw Failure("되돌리지 못했습니다(\(restored))")
@@ -240,6 +252,22 @@ struct UsbSelfTestScenario {
         throw Failure("꺼내기로 이미지가 떨어지지 않았습니다")
     }
 
+    /// 앱이 쓴 파일(루트 기준 상대 경로) 가운데 옆의 `._<이름>`을 쓰기 절차가 지운 파일 수.
+    /// 임시 이름·폴더의 `._`는 세지 않는다. 경로는 NFC로 맞춘다(FAT·macOS가 한글을 NFD로 돌려줄 수 있다)
+    nonisolated static func appleDoubleCount(appFiles: [String], root: URL, removed: [String]) -> Int {
+        let roots = Set([root.path, UsbScratchRoots.realPath(root.path)].compactMap { $0 }.map { $0.hasSuffix("/") ? $0 : $0 + "/" })
+        let removedRelative = Set(removed.compactMap { path -> String? in
+            guard let prefix = roots.first(where: { path.hasPrefix($0) }) else { return nil }
+            return String(path.dropFirst(prefix.count)).precomposedStringWithCanonicalMapping
+        })
+        return appFiles.filter { file in
+            let relative = file.precomposedStringWithCanonicalMapping
+            let name = (relative as NSString).lastPathComponent, parent = (relative as NSString).deletingLastPathComponent
+            let double = UsbLayout.appleDoubleName(for: name)
+            return removedRelative.contains(parent.isEmpty ? double : parent + "/" + double)
+        }.count
+    }
+
     private func detached<T: Sendable>(_ body: @escaping @Sendable () throws -> T) async throws -> T {
         try await Task.detached(priority: .userInitiated, operation: body).value
     }
@@ -268,10 +296,41 @@ final class UsbSelfTestRecordingService: UsbWriteService, @unchecked Sendable {
         return report
     }
     func recover(_ volume: UsbVolumeInfo) throws -> UsbWriteReport { try base.recover(volume) }
-    func restore(_ volume: UsbVolumeInfo, discardDeviceChanges: Bool) throws -> UsbWriteReport {
-        try base.restore(volume, discardDeviceChanges: discardDeviceChanges)
+    func restore(_ volume: UsbVolumeInfo, backup: URL?, discardDeviceChanges: Bool) throws -> UsbWriteReport {
+        try base.restore(volume, backup: backup, discardDeviceChanges: discardDeviceChanges)
     }
     func latestBackup(volumeKey: String) -> URL? { base.latestBackup(volumeKey: volumeKey) }
+}
+
+/// 지운 `._` 파일을 적는 USB 파일 연산(나머지는 그대로 POSIX로 한다)
+final class UsbAppleDoubleRecorder: UsbFileSystem, @unchecked Sendable {
+    let base: any UsbFileSystem
+    private let lock = NSLock()
+    private var removed: [String] = []
+
+    init(base: any UsbFileSystem = PosixUsbFileSystem()) { self.base = base }
+
+    var removedAppleDoubles: [String] { lock.withLock { removed } }
+
+    func stat(_ url: URL) throws -> UsbFileStat? { try base.stat(url) }
+    func list(_ directory: URL) throws -> [String] { try base.list(directory) }
+    func makeDirectory(_ url: URL) throws { try base.makeDirectory(url) }
+    func writeNew(_ data: Data, to url: URL) throws { try base.writeNew(data, to: url) }
+    func copyDataNew(from source: URL, to url: URL, progress: (Int64) -> Void) throws -> (size: Int64, sha256: String, sha1: String) {
+        try base.copyDataNew(from: source, to: url, progress: progress)
+    }
+    func setModificationDate(_ url: URL, _ date: Date) throws { try base.setModificationDate(url, date) }
+    func fullSync(_ url: URL) throws { try base.fullSync(url) }
+    func syncDirectory(_ url: URL) throws { try base.syncDirectory(url) }
+    func rename(_ from: URL, to: URL) throws { try base.rename(from, to: to) }
+    func remove(_ url: URL) throws {
+        try base.remove(url)
+        if UsbLayout.isAppleDouble(url.lastPathComponent) { lock.withLock { removed.append(url.path) } }
+    }
+    func removeDirectoryIfEmpty(_ url: URL) throws -> Bool { try base.removeDirectoryIfEmpty(url) }
+    func sha256(_ url: URL, uncached: Bool) throws -> String { try base.sha256(url, uncached: uncached) }
+    func read(_ url: URL, maxBytes: Int) throws -> Data { try base.read(url, maxBytes: maxBytes) }
+    func mountedOn(_ url: URL) throws -> String? { try base.mountedOn(url) }
 }
 
 /// 쓰기 확인 창만 자동으로 확인한다. 그 밖의 창(실패·백업 폴더 열기·끝나지 않은 쓰기)은 적어 두고 누르지 않는다

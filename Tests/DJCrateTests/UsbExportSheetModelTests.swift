@@ -83,9 +83,9 @@ struct UsbExportSheetModelTests {
         ]
         let summary = UsbTestData.summary(blocks: blocks)
         #expect(summary.blockCounts == [
-            UsbExportSummary.BlockCount(code: "analysisMissing", message: "분석 먼저", count: 2),
-            UsbExportSummary.BlockCount(code: "audioSizeMismatch", message: "다시 분석", count: 1),
-            UsbExportSummary.BlockCount(code: "smartPlaylist", message: "스마트 목록", count: 1),
+            UsbExportSummary.BlockCount(code: "analysisMissing", message: "분석 먼저", count: 2, kind: .track),
+            UsbExportSummary.BlockCount(code: "audioSizeMismatch", message: "다시 분석", count: 1, kind: .track),
+            UsbExportSummary.BlockCount(code: "smartPlaylist", message: "스마트 목록", count: 1, kind: .playlist),
         ])
         #expect(summary.blockedTrackCount == 3)
         #expect(summary.stopping.isEmpty)
@@ -99,6 +99,26 @@ struct UsbExportSheetModelTests {
         // 곡이 없거나 준비한 변경이 없으면 쓰지 않는다
         #expect(!UsbTestData.summary(tracks: 0).canWrite)
         #expect(!UsbTestData.summary(hasChanges: false).canWrite)
+    }
+
+    @Test("막힘 줄: 곡 막힘만 빼고 쓰는 곡 아래, 재생 목록 막힘은 따로, 볼륨 막힘은 줄에 넣지 않는다(멈추는 까닭으로만 보인다)")
+    @MainActor
+    func blockLinesByScope() {
+        let blocks = [
+            UsbBlock(code: "analysisMissing", scope: .track("7"), message: "분석 먼저"),
+            UsbBlock(code: "smartPlaylist", scope: .playlist("3"), message: "스마트 목록"),
+            UsbBlock(code: "analysisMissing", scope: .track("9"), message: "분석 먼저"),
+            UsbBlock(code: "insufficientSpace", scope: .volume, message: "공간 모자람"),
+        ]
+        let summary = UsbTestData.summary(blocks: blocks)
+        #expect(summary.stopping == ["공간 모자람"])
+        #expect(UsbWriteCoordinator.blockLines(summary) == [
+            "빼고 쓰는 곡 2개:", "• 분석 먼저 (2)",
+            "빼고 쓰는 재생 목록 1개:", "• 스마트 목록 (1)",
+        ])
+        // 곡 막힘이 없으면 재생 목록 막힘만
+        let playlistsOnly = UsbTestData.summary(blocks: [blocks[1]])
+        #expect(UsbWriteCoordinator.blockLines(playlistsOnly) == ["빼고 쓰는 재생 목록 1개:", "• 스마트 목록 (1)"])
     }
 
     @Test("용량이 모자라면 표시하고 쓰기를 막는다")

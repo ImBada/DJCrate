@@ -78,8 +78,8 @@ struct ContentView: View {
             }
         }
         .sheet(item: Binding(get: { store.usb?.exportSheet }, set: { store.usb?.exportSheet = $0 })) { request in
-            if let usb = store.usb, let volume = usb.volume(request.volumeKey) ?? request.job?.volume {
-                UsbExportSheet(store: store, usb: usb, request: request, volume: volume)
+            if let usb = store.usb {
+                UsbExportSheet(store: store, usb: usb, request: request)
             }
         }
         .sheet(isPresented: $store.showingWriteResult) { WriteResultView(history: store.resultHistory) }

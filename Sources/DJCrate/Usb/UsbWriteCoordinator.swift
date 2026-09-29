@@ -48,7 +48,8 @@ protocol UsbWriteService: Sendable {
     func write(_ job: UsbExportJob, progress: @escaping @Sendable (UsbProgress) -> Void,
                isCancelled: @escaping @Sendable () -> Bool) throws -> UsbWriteReport
     func recover(_ volume: UsbVolumeInfo) throws -> UsbWriteReport
-    func restore(_ volume: UsbVolumeInfo, discardDeviceChanges: Bool) throws -> UsbWriteReport
+    /// backup: 되돌릴 쓰기의 백업 폴더(nil이면 이 볼륨의 가장 최근 백업)
+    func restore(_ volume: UsbVolumeInfo, backup: URL?, discardDeviceChanges: Bool) throws -> UsbWriteReport
     /// 이 볼륨의 가장 최근 백업 폴더(실패 알림의 "백업 폴더 열기")
     func latestBackup(volumeKey: String) -> URL?
 }
@@ -60,6 +61,8 @@ struct SystemUsbWriteService: UsbWriteService {
     var localCopies: URL
     /// 부를 때마다 새로 만든다(앱이 켜진 동안 쓰기 금지·허용 목록이 바뀔 수 있다)
     var writeGuard: @Sendable () -> UsbWriteGuard = { .system }
+    /// USB 파일 연산(자가 테스트는 지운 `._`를 적는 것을 넘긴다)
+    var fileSystem: any UsbFileSystem = PosixUsbFileSystem()
 
     /// 앱이 쓰는 창구. 폴더는 USB에 쓸 때 만든다(저널을 보기만 할 때는 만들지 않는다)
     static func app() -> SystemUsbWriteService {
@@ -89,13 +92,13 @@ struct SystemUsbWriteService: UsbWriteService {
 
     func recover(_ volume: UsbVolumeInfo) throws -> UsbWriteReport {
         try makeFolders()
-        return try UsbWriter.recover(root: UsbRoot(URL(filePath: volume.mountPoint)), paths: paths, guard: writeGuard())
+        return try UsbWriter.recover(root: UsbRoot(URL(filePath: volume.mountPoint)), paths: paths, guard: writeGuard(), fileSystem: fileSystem)
     }
 
-    func restore(_ volume: UsbVolumeInfo, discardDeviceChanges: Bool) throws -> UsbWriteReport {
+    func restore(_ volume: UsbVolumeInfo, backup: URL?, discardDeviceChanges: Bool) throws -> UsbWriteReport {
         try makeFolders()
-        return try UsbWriter.restore(root: UsbRoot(URL(filePath: volume.mountPoint)), paths: paths, backup: nil, guard: writeGuard(),
-                                     discardDeviceChanges: discardDeviceChanges)
+        return try UsbWriter.restore(root: UsbRoot(URL(filePath: volume.mountPoint)), paths: paths, backup: backup, guard: writeGuard(),
+                                     fileSystem: fileSystem, discardDeviceChanges: discardDeviceChanges)
     }
 
     func latestBackup(volumeKey: String) -> URL? {
@@ -103,7 +106,8 @@ struct SystemUsbWriteService: UsbWriteService {
     }
 
     private func session(_ job: UsbExportJob) -> UsbExportSession {
-        UsbExportSession(database: job.database, share: job.share, root: job.root, guard: writeGuard(), paths: paths, localCopies: localCopies)
+        UsbExportSession(database: job.database, share: job.share, root: job.root, guard: writeGuard(), paths: paths, fileSystem: fileSystem,
+                         localCopies: localCopies)
     }
 
     private func makeFolders() throws {
@@ -182,7 +186,7 @@ struct UsbWriteCoordinator {
         case .recoveryNeeded:
             await offerRecovery(job.volume)
         case let .failed(error):
-            failWrite(error, volumeKey: key)
+            await failWrite(error, volumeKey: key, otherwise: String(ui: "USB에 쓰지 않았습니다"))
         }
     }
 
@@ -235,6 +239,8 @@ struct UsbWriteCoordinator {
             switch error as? UsbError {
             case .cancelled?: return .cancelled
             case .recoveryNeeded?: return .recoveryNeeded
+            // 확인 뒤·쓰기 전에 다른 곳(CLI 등)이 저널을 열었다: 쓰기 절차는 막힘으로 알린다
+            case let .writeRefused(blocks)? where blocks.contains(where: { $0.code == "recoveryNeeded" }): return .recoveryNeeded
             default: return .failed(error)
             }
         }
@@ -281,7 +287,7 @@ struct UsbWriteCoordinator {
 
     // MARK: - 끝나지 않은 쓰기
 
-    /// 끝나지 않은 쓰기 알림: [회복] [되돌리기…] [나중에]. 누를 때만 USB에 손댄다
+    /// 끝나지 않은 쓰기 알림: [회복하기] [되돌리기] [나중에]. 누를 때만 USB에 손댄다
     func offerRecovery(_ volume: UsbVolumeInfo) async {
         guard !usb.busyVolumes.contains(volume.usbKey), usb.activeWrite == nil else { return }
         let service = service, key = volume.usbKey
@@ -308,14 +314,18 @@ struct UsbWriteCoordinator {
             case .rolledBack:
                 host.toast = AppToast(kind: .success, title: String(ui: "끊긴 USB 쓰기를 되돌렸습니다"), detail: String(ui: "USB는 쓰기 전 그대로입니다."),
                                       isUsb: true)
-            case .recovered:
+            // 끊긴 되돌리기를 마쳤다
+            case .restored:
+                host.toast = AppToast(kind: .success, title: String(ui: "USB를 쓰기 전으로 되돌렸습니다"), isUsb: true)
+            // 저널이 없었다(session이 빔): 다른 곳에서 이미 닫았다
+            case .recovered where !report.session.isEmpty:
                 host.toast = AppToast(kind: .success, title: String(ui: "USB 쓰기를 마저 끝냈습니다"), action: .ejectUsb(volumeKey: volume.usbKey),
                                       isUsb: true)
             default:
                 host.toast = AppToast(kind: .success, title: String(ui: "회복할 USB 쓰기가 없습니다"), isUsb: true)
             }
         case let .failure(error):
-            fail(String(ui: "USB를 회복하지 않았습니다"), error)
+            await failWrite(error, volumeKey: volume.usbKey, otherwise: String(ui: "USB를 회복하지 않았습니다"))
         }
         await usb.refresh()
     }
@@ -326,24 +336,33 @@ struct UsbWriteCoordinator {
         let key = volume.usbKey, service = service
         guard begin(volume, title: String(ui: "USB를 되돌리는 중…"), cancellable: false) != nil else { return }
         let recovered = await Task.detached(priority: .userInitiated) { Result { try service.recover(volume) } }.value
+        let backup: URL
         switch recovered {
         case let .failure(error):
             usb.endWrite(key)
-            fail(String(ui: "USB를 되돌리지 않았습니다"), error)
+            await failWrite(error, volumeKey: key, otherwise: String(ui: "USB를 되돌리지 않았습니다"))
             return
-        case let .success(report) where report.outcome == .rolledBack:
+        // 회복이 이미 쓰기 전으로 되돌렸다(끊긴 쓰기 되돌림·끊긴 되돌리기 마침)
+        case let .success(report) where report.outcome == .rolledBack || report.outcome == .restored:
             usb.endWrite(key)
             host.toast = AppToast(kind: .success, title: String(ui: "USB를 쓰기 전으로 되돌렸습니다"), isUsb: true)
             await usb.refresh()
             return
-        case .success:
-            break
+        case let .success(report):
+            // 그 쓰기의 백업으로만 되돌린다. 저널이 없었거나(session이 빔) 백업이 없으면 다른 쓰기의 백업을 고르지 않는다
+            guard !report.session.isEmpty, let path = report.backup, !path.isEmpty else {
+                usb.endWrite(key)
+                inform(String(ui: "USB를 되돌리지 않았습니다"), String(ui: "이 쓰기의 백업을 찾지 못했습니다. USB를 다시 읽어 지금 상태를 확인하세요"))
+                await usb.refresh()
+                return
+            }
+            backup = URL(filePath: path)
         }
         var discard = false
         while true {
             let flagged = discard
             let result = await Task.detached(priority: .userInitiated) {
-                Result { try service.restore(volume, discardDeviceChanges: flagged) }
+                Result { try service.restore(volume, backup: backup, discardDeviceChanges: flagged) }
             }.value
             switch result {
             case .success:
@@ -358,7 +377,7 @@ struct UsbWriteCoordinator {
                 discard = true
             case let .failure(error):
                 usb.endWrite(key)
-                fail(String(ui: "USB를 되돌리지 않았습니다"), error)
+                await failWrite(error, volumeKey: key, otherwise: String(ui: "USB를 되돌리지 않았습니다"))
                 return
             }
         }
@@ -373,13 +392,13 @@ struct UsbWriteCoordinator {
         await usb.refresh()
         let key = volume.usbKey
         guard var job = usb.lastExports[key] else {
-            usb.exportSheet = UsbExportSheetRequest(volumeKey: key)
+            usb.exportSheet = usb.volume(key).map { UsbExportSheetRequest(volume: $0) }
             return
         }
         // 다시 붙었으면 마운트 지점이 바뀌었을 수 있다
         job.volume = usb.volume(key) ?? job.volume
         let summary = await preview(job)
-        usb.exportSheet = UsbExportSheetRequest(volumeKey: key, job: job, summary: summary)
+        usb.exportSheet = UsbExportSheetRequest(volume: job.volume, job: job, summary: summary)
     }
 
     // MARK: - 토스트 동작
@@ -398,25 +417,32 @@ struct UsbWriteCoordinator {
         _ = prompter.show(ReflectionPrompt(title: title, text: text, details: details))
     }
 
-    /// 막힘·오류 알림. 막힘(`writeRefused`)은 그 문구(이유와 할 일)를 그대로 보인다
+    /// 막힘·오류 알림. 막힘(`writeRefused`)은 그 문구(이유와 할 일)를 그대로, 그 밖의 USB 오류는 그 설명을 보인다
     private func fail(_ title: String, _ error: any Error) {
         let text: String
         if case let UsbError.writeRefused(blocks)? = error as? UsbError, !blocks.isEmpty {
             var seen: Set<String> = []
             text = blocks.map(\.message).filter { seen.insert($0).inserted }.joined(separator: "\n")
+        } else if let usbError = error as? UsbError, let description = usbError.errorDescription {
+            // UsbError는 DJCError가 아니라 AppErrorMessage가 일반 문구로 바꾼다
+            AppErrorMessage.log(error)
+            text = description
         } else {
             text = AppErrorMessage.message(for: error)
         }
         _ = prompter.show(ReflectionPrompt(title: title, text: text, critical: true))
     }
 
-    /// 쓰기가 시작된 뒤의 실패: 되돌린 결과와 할 일. 백업 폴더가 있으면 열 수 있다
-    private func failWrite(_ error: any Error, volumeKey: String) {
+    /// USB에 손댄 뒤(쓰기·회복·되돌리기)의 실패: 되돌린 결과와 할 일. 백업 폴더가 있으면 열 수 있다.
+    /// 반쯤 쓰였을 수 있는 경우가 아니면 `otherwise` 제목으로 알린다
+    private func failWrite(_ error: any Error, volumeKey: String, otherwise title: String) async {
         let backup: URL?
         let prompt: ReflectionPrompt
         switch error as? UsbError {
         case .writeRolledBack?:
-            backup = service.latestBackup(volumeKey: volumeKey)
+            // 백업 폴더 찾기는 폴더를 열거하고 manifest를 읽는다: 메인 액터 밖에서
+            let service = service
+            backup = await Task.detached(priority: .userInitiated) { service.latestBackup(volumeKey: volumeKey) }.value
             prompt = ReflectionPrompt(title: String(ui: "USB에 쓴 결과를 확인하지 못해 쓰기 전으로 되돌렸습니다"),
                                       text: String(ui: "USB는 쓰기 전 그대로입니다. USB를 다시 읽은 뒤 다시 시도하세요."), critical: true)
         case let .restoreFailed(_, _, folder)?:
@@ -434,7 +460,7 @@ struct UsbWriteCoordinator {
                                       text: String(ui: "USB를 기기에 꽂지 말고 다시 연결하세요. 다시 연결하면 나오는 알림에서 회복할 수 있습니다."),
                                       critical: true)
         default:
-            fail(String(ui: "USB에 쓰지 않았습니다"), error)
+            fail(title, error)
             return
         }
         AppErrorMessage.log(error)
@@ -464,14 +490,18 @@ struct UsbWriteCoordinator {
                                 confirm: String(ui: "USB에 쓰기"), details: details)
     }
 
-    /// 빼고 쓰는 곡(이유별 수)과 확인 안 된 규칙 줄
+    /// 빼고 쓰는 곡·재생 목록(이유별 수)과 확인 안 된 규칙 줄. 쓰기를 멈추는 막힘(볼륨·형식·파일)은 `stopping`으로만 보인다
     static func blockLines(_ summary: UsbExportSummary) -> [String] {
         var lines: [String] = []
-        if summary.blockedTrackCount > 0 {
+        let tracks = summary.blockCounts.filter { $0.kind == .track }
+        if summary.blockedTrackCount > 0, !tracks.isEmpty {
             lines.append(String(ui: "빼고 쓰는 곡 \(summary.blockedTrackCount)개:"))
-            lines += summary.blockCounts.map { "• \($0.message) (\($0.count))" }
-        } else if !summary.blockCounts.isEmpty {
-            lines += summary.blockCounts.map { "• \($0.message) (\($0.count))" }
+            lines += tracks.map { "• \($0.message) (\($0.count))" }
+        }
+        let playlists = summary.blockCounts.filter { $0.kind == .playlist }
+        if summary.blockedPlaylistCount > 0, !playlists.isEmpty {
+            lines.append(String(ui: "빼고 쓰는 재생 목록 \(summary.blockedPlaylistCount)개:"))
+            lines += playlists.map { "• \($0.message) (\($0.count))" }
         }
         if !summary.rules.isEmpty {
             lines.append(String(ui: "확인 안 된 규칙 \(summary.rules.count)개:"))
@@ -490,7 +520,7 @@ struct UsbWriteCoordinator {
     static func pendingPrompt(_ volume: UsbVolumeInfo) -> ReflectionPrompt {
         ReflectionPrompt(title: String(ui: "지난 USB 쓰기가 끝나지 않았습니다"),
                          text: String(ui: "\(volume.name)에 쓰다가 끊긴 기록이 있습니다. 회복하면 USB를 보고 마저 쓰거나 쓰기 전으로 되돌립니다. 되돌리기는 그 쓰기를 백업으로 되돌립니다. 기기에 꽂기 전에 하세요."),
-                         confirm: String(ui: "회복하기"), alternate: String(ui: "되돌리기…"), cancel: String(ui: "나중에"))
+                         confirm: String(ui: "회복하기"), alternate: String(ui: "되돌리기"), cancel: String(ui: "나중에"))
     }
 
     static func discardDeviceChangesPrompt(_ volume: UsbVolumeInfo) -> ReflectionPrompt {

@@ -12306,22 +12306,6 @@
         }
       }
     },
-    "되돌리기…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restore…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "復元…"
-          }
-        }
-      }
-    },
     "되돌리지 못했습니다" : {
       "localizations" : {
         "en" : {
@@ -16248,6 +16232,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "除外する曲 %lld曲:"
+          }
+        }
+      }
+    },
+    "빼고 쓰는 재생 목록 %lld개:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skipped playlists (%lld):"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "除外するプレイリスト %lld個:"
           }
         }
       }
@@ -20574,6 +20574,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このサンプルレートのffmpeg VBRは曲のBPMの規則が未確認のため、先にrekordboxで解析してください。"
+          }
+        }
+      }
+    },
+    "이 쓰기의 백업을 찾지 못했습니다. USB를 다시 읽어 지금 상태를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t find the backup for this write. Reload the USB and check its current state"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この書き込みのバックアップが見つかりませんでした。USBを読み込み直して、現在の状態を確認してください"
           }
         }
       }

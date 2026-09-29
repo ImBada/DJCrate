@@ -7,9 +7,13 @@ import SwiftUI
 struct UsbExportSummary: Equatable, Sendable {
     /// 막힘 code 하나와 그 대상 수(같은 곡·목록은 한 번)
     struct BlockCount: Equatable, Sendable {
+        /// 무엇을 막는지: 곡·재생 목록은 빼고 쓰고, 그 밖(볼륨·형식·파일)은 쓰기를 멈춘다
+        enum Kind: Equatable, Sendable { case track, playlist, stopping }
+
         var code: String
         var message: String
         var count: Int
+        var kind: Kind
     }
 
     struct RuleCount: Equatable, Sendable {
@@ -22,6 +26,8 @@ struct UsbExportSummary: Equatable, Sendable {
     var playlistCount: Int
     /// 빼고 쓰는 곡 수(같은 곡은 한 번)
     var blockedTrackCount: Int
+    /// 빼고 쓰는 재생 목록 수(같은 목록은 한 번)
+    var blockedPlaylistCount: Int
     /// 막힘 code별 수(처음 나온 순서)
     var blockCounts: [BlockCount]
     /// 쓰기를 멈추는 막힘(볼륨·형식·파일 단위)의 문구
@@ -41,21 +47,33 @@ struct UsbExportSummary: Equatable, Sendable {
         self.trackCount = trackCount
         self.playlistCount = playlistCount
         var order: [String] = [], targets: [String: Set<UsbBlock.Scope>] = [:], messages: [String: String] = [:]
-        var tracks: Set<String> = [], stopping: [String] = [], codes: [String] = []
+        var tracks: Set<String> = [], playlists: Set<String> = [], stopping: [String] = [], codes: [String] = []
         for block in blocks {
             if targets[block.code] == nil { order.append(block.code) }
             targets[block.code, default: []].insert(block.scope)
             if messages[block.code] == nil { messages[block.code] = block.message }
             switch block.scope {
             case let .track(id): tracks.insert(id)
-            case .playlist: break
+            case let .playlist(id): playlists.insert(id)
             case .volume, .format, .file:
                 if !stopping.contains(block.message) { stopping.append(block.message) }
                 if !codes.contains(block.code) { codes.append(block.code) }
             }
         }
-        blockCounts = order.map { BlockCount(code: $0, message: messages[$0] ?? "", count: targets[$0]?.count ?? 0) }
+        blockCounts = order.map { code in
+            let scopes = targets[code] ?? []
+            // 한 code가 여러 단위에 걸리면 곡 → 재생 목록 → 멈춤 순으로 본다
+            let kind: BlockCount.Kind = if scopes.contains(where: { if case .track = $0 { true } else { false } }) {
+                .track
+            } else if scopes.contains(where: { if case .playlist = $0 { true } else { false } }) {
+                .playlist
+            } else {
+                .stopping
+            }
+            return BlockCount(code: code, message: messages[code] ?? "", count: scopes.count, kind: kind)
+        }
         blockedTrackCount = tracks.count
+        blockedPlaylistCount = playlists.count
         self.stopping = stopping
         stoppingCodes = codes
         rules = requiredRules.sorted { $0.rawValue < $1.rawValue }.map { RuleCount(rule: $0, count: ruleCounts[$0] ?? 0) }
@@ -173,12 +191,13 @@ struct UsbExportSheet: View {
     @State private var isPreviewing = false
     @Environment(\.dismiss) private var dismiss
 
-    init(store: LibraryStore, usb: UsbStore, request: UsbExportSheetRequest, volume: UsbVolumeInfo) {
+    init(store: LibraryStore, usb: UsbStore, request: UsbExportSheetRequest) {
         self.store = store
         self.usb = usb
         self.request = request
         let tracks = store.selectedRows.filter { !$0.isStaged && !$0.track.isStreaming }.map(\.track.id)
-        var model = UsbExportSheetModel(volume: volume, selectedTrackIDs: tracks)
+        // 연 때의 볼륨으로 그린다(볼륨이 빠지면 UsbStore가 시트를 닫는다)
+        var model = UsbExportSheetModel(volume: request.volume, selectedTrackIDs: tracks)
         // 다시 미리 보기면 그때 고른 것을 되살린다
         if let job = request.job {
             for format in UsbFormat.allCases { model.setFormat(format, on: job.formats.contains(format)) }

@@ -20,6 +20,12 @@ struct DJCrateApp: App {
         // 창이 만들어지기 전에 정해야 SwiftUI와 AppKit 목록이 같은 모양새로 시작한다.
         if ProcessInfo.processInfo.arguments.contains("--perf-appearance=light") { NSApplication.shared.appearance = NSAppearance(named: .aqua) }
         if ProcessInfo.processInfo.arguments.contains("--perf-appearance=dark") { NSApplication.shared.appearance = NSAppearance(named: .darkAqua) }
+        // USB 자가 테스트의 거부는 라이브러리를 읽기 전에 본다(명시한 사본 없이 띄우면 사용자 스냅샷 폴더를 열기 때문)
+        if let refusal = UsbSelfTest.startupRefusal(arguments: ProcessInfo.processInfo.arguments,
+                                                    environment: ProcessInfo.processInfo.environment) {
+            UsbSelfTest.log(refusal)
+            exit(2)
+        }
         #endif
     }
 

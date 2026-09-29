@@ -203,7 +203,7 @@ struct UsbSidebarSection: View {
     @ViewBuilder private func contents(of volume: UsbSidebarVolume) -> some View {
         if volume.showsExport {
             Button {
-                usb.exportSheet = UsbExportSheetRequest(volumeKey: volume.id)
+                if let info = usb.volume(volume.id) { usb.exportSheet = UsbExportSheetRequest(volume: info) }
             } label: {
                 Label(.ui("USB로 내보내기…"), systemImage: "square.and.arrow.up")
             }
