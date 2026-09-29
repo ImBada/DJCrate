@@ -9,8 +9,9 @@ import QuartzCore
 /// 개발용: 화면 조작마다 메인 스레드가 얼마나 일하고 프레임이 얼마나 밀리는지 잰다(`--ui-perf=all` 또는 `--ui-perf=sidebar,sort,…`, #129).
 /// 조작 이름: launch sidebar inspector resize scroll select sidebar-item sort search load zoom scrub play sheet edit preview,
 /// drafts(곡 600개에 태그 초안을 만들어 이후 조작을 초안이 많은 상태에서 잰다), capture(`--ui-perf-capture=<폴더>`에
-/// 인스펙터·빈 목록·여러 곡 선택 화면을 저장한다). 이 둘은 all에 넣지 않는다.
+/// 인스펙터·빈 목록·여러 곡 선택 화면을 저장한다), grid(그리드 일괄 추정 중 메인 스레드, 초안을 남긴다). 이 셋은 all에 넣지 않는다.
 /// 합성 사본(`UIPerfFixtureCapture`)과 `DJC_HOME=<임시 폴더>`로 돌린다. 바꾼 화면 설정(사이드바·인스펙터·태그 시트·창 크기)은 끝나면 되돌린다.
+/// `--ui-perf-delay=<초>`는 조작을 시작하기 전에 기다린다. 이 워크트리의 실행 파일을 띄운 뒤 `xctrace record --attach <PID>`를 붙일 시간이다.
 @MainActor
 enum UIPerfSelfTest {
     static let requested: [String]? = {
@@ -42,6 +43,10 @@ enum UIPerfSelfTest {
         UserDefaults.standard.set(true, forKey: SettingKeys.sidebarVisible.name)
         UserDefaults.standard.set(false, forKey: SettingKeys.showTagEditor.name)
         Task {
+            if let arg = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--ui-perf-delay=") }),
+               let seconds = Double(arg.dropFirst("--ui-perf-delay=".count)) {
+                try? await Task.sleep(for: .seconds(seconds))
+            }
             let recorder = UIPerfRecorder()
             let runner = UIPerfRunner(store: store, deck: deck, recorder: recorder)
             var load = [0.0, 0.0, 0.0]
@@ -235,6 +240,7 @@ final class UIPerfRunner {
             case "preview": await preview()
             case "drafts": await drafts()
             case "capture": await capture()
+            case "grid": await gridBatch()
             default: log("모르는 조작: \(name)")
             }
         }
@@ -542,6 +548,21 @@ final class UIPerfRunner {
         shot("empty")
         store.search = ""
         await wait(0.5)
+    }
+
+    /// 그리드 일괄 추정(#141): 곡마다 초안이 저장되고 진행이 오른다. 사이드바가 이 값을 읽으면 곡마다 재생 목록 List를 다시 비교한다.
+    /// 곡마다 추정이 몇 초씩 돌아 곡 12개로 잰다(끝날 때까지, 최대 3분). 초안은 DJC_HOME에 남는다.
+    private func gridBatch() async {
+        let items = store.rows.prefix(12).map { GridJobItem(uuid: $0.track.uuid, path: $0.track.folderPath, staged: false) }
+        guard !items.isEmpty else { log("그리드 일괄 추정: 곡이 없음"); return }
+        recorder.reset()
+        let start = CACurrentMediaTime()
+        store.enqueueGrid(items)
+        while store.gridJob != nil, CACurrentMediaTime() - start < 180 { await wait(0.1) }
+        let elapsed = (CACurrentMediaTime() - start) * 1000
+        let result = recorder.result(from: start, to: CACurrentMediaTime(), sync: 0)
+        log(String(format: "그리드 일괄 추정 곡 %d개: 걸린 시간 %.0fms · 메인 일한 합 %.0fms · 한 번 최대 %.1fms · 프레임 최대 간격 %.1fms · 25ms 넘은 프레임 %d · 쓰기 대기 %d곡",
+                   items.count, elapsed, result.busy, result.longest, result.maxFrameGap, result.slowFrames, store.pendingLibraryCount))
     }
 
     private func drafts() async {
