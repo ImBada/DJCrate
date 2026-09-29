@@ -59,7 +59,9 @@ struct CueListView: View {
                 ForEach(visibleCues) { cue in
                     CueRow(deck: deck, cue: cue)
                         .tag(cue.id)
-                        .listRowBackground(changedIDs.contains(cue.id) ? UIColors.cueDraftFill : Color.clear)
+                        // 선택색은 List가 그리도록 두고, 선택하지 않은 초안 행만 물들인다.
+                        .listRowBackground(changedIDs.contains(cue.id) && deck.selectedCueID != cue.id
+                                           ? UIColors.cueDraftFill : Color.clear)
                 }
             }
             .listStyle(.bordered)
