@@ -122,6 +122,7 @@ struct WriteReloadQueueRegressionTests {
         let musicStarted = Mutex(false)
         let writeCopyStarted = Mutex(false)
         let resume = DispatchSemaphore(value: 0)
+        let backgroundReturned = Mutex(false)
         let background = Task {
             await store.takeSnapshot(force: true, quiet: sameSecond, snapshotDirectory: directory, snapshotCopy: { force in
                 try LibrarySnapshot.take(from: sourceDB, into: directory, force: force, now: stamp.addingTimeInterval(60))
@@ -130,12 +131,12 @@ struct WriteReloadQueueRegressionTests {
                 resume.wait()
                 return late
             }, arguments: ["test"], environment: [:])
+            backgroundReturned.withLock { $0 = true }
         }
-        let startedDeadline = ContinuousClock.now + .seconds(10)
-        while !musicStarted.withLock({ $0 }) && ContinuousClock.now < startedDeadline {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        guard musicStarted.withLock({ $0 }) else {
+        // Music 조회가 시작될 때까지 기다린다. 시간 제한은 없다. 시작하지 않고 끝난 구현이면 더 기다릴 것이 없다.
+        let captureStarted = await waitForState(giveUp: { backgroundReturned.withLock { $0 } && store.iTunesRefresh == nil },
+                                                until: { musicStarted.withLock { $0 } })
+        guard captureStarted else {
             resume.signal()
             await background.value
             Issue.record("Music 캡처가 시작되지 않았습니다")
@@ -164,10 +165,8 @@ struct WriteReloadQueueRegressionTests {
                                      arguments: ["test"], environment: [:])
             postWriteCompleted.withLock { $0 = true }
         }
-        let deadline = ContinuousClock.now + .seconds(15)
-        while !postWriteCompleted.withLock({ $0 }) && ContinuousClock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        // Music은 막혀 있다. 그 채로 쓰기 뒤 다시 읽기가 끝나야 한다(끝나지 않는 구현은 안전망 시간 뒤에 실패로 끝난다).
+        _ = await waitForState(until: { postWriteCompleted.withLock { $0 } })
         let copiedBeforeMusicReturned = writeCopyStarted.withLock { $0 }
         let loadedBeforeMusicReturned = postWriteCompleted.withLock { $0 } && store.rows.count == 2
         let reusedBeforeMusicReturned = store.iTunesSnapshot.playlists == cached.playlists
