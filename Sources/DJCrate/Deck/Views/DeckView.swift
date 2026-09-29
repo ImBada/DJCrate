@@ -81,9 +81,9 @@ struct DeckView: View {
                         }
                         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                         if !PerfProbe.hidden.contains("meter") {
-                            let gainHeight = TextScale.length(44, scale: textScale)
+                            let gainHeight = TextScale.length(60, scale: textScale)
                             let meterHeight = min(TextScale.length(170, scale: textScale),
-                                                  max(TextScale.length(100, scale: textScale), waveGroupHeight - TextScale.length(75, scale: textScale)))
+                                                  max(TextScale.length(100, scale: textScale), waveGroupHeight - TextScale.length(90, scale: textScale)))
                             VStack(spacing: 6) {
                                 LevelMeterView(deck: deck, meterHeight: meterHeight)
                                 GainControl(deck: deck)

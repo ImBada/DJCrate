@@ -137,6 +137,7 @@ struct GainControl: View {
     @State private var shown = false
 
     var body: some View {
+        let isHot = deck.loudness?.isHot == true
         Button { shown.toggle() } label: {
             VStack(spacing: 2) {
                 HStack(spacing: 2) {
@@ -153,15 +154,7 @@ struct GainControl: View {
                 Text(verbatim: deck.appliedGain.unitText(signed: true) + " dB")
                     .font(.system(size: 9 * textScale).monospacedDigit())
                 if let loudness = deck.loudness, let lufs = loudness.integrated {
-                    // 큰 음량은 색만이 아니라 경고 표식으로도 알린다(초안 주황과 모양으로 구분).
-                    HStack(spacing: 2) {
-                        if loudness.isHot {
-                            Image(systemName: WarningMark.symbol)
-                                .font(.system(size: 8 * textScale))
-                                .accessibilityLabel(.ui("경고"))
-                        }
-                        Text(verbatim: lufs.unitText() + " LUFS")
-                    }
+                    Text(verbatim: lufs.unitText() + " LUFS")
                     .font(.system(size: 9 * textScale).monospacedDigit())
                     .foregroundStyle(loudness.isHot ? UIColors.warning.color : Color.secondary)
                 } else {
@@ -169,6 +162,14 @@ struct GainControl: View {
                         .font(.system(size: 9 * textScale).monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
+                // 경고가 생겨도 위의 수치가 움직이지 않도록 마지막 줄을 늘 확보한다.
+                Image(systemName: WarningMark.symbol)
+                    .font(.system(size: 10 * textScale))
+                    .foregroundStyle(UIColors.warning.color)
+                    .frame(height: TextScale.length(12, scale: textScale))
+                    .opacity(isHot ? 1 : 0)
+                    .accessibilityLabel(.ui("경고"))
+                    .accessibilityHidden(!isHot)
             }
             .lineLimit(1)
             .minimumScaleFactor(0.75)
