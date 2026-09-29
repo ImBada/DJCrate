@@ -25,9 +25,11 @@ struct WriteReloadTests {
                                  mergeDraftSaver: { _ in }, playlistImportURL: nil, stagingSaver: { _ in })
         await store.load(snapshot: previous, arguments: ["test"], environment: [:])
         try fixture.add(TrackSpec(id: "2"))
-        // 잘못 캡처하면 두 번째 행을 적용하지 못한 채 대기한다. 실패해도 반드시 풀어 준다.
+        // Music 조회를 막아 둔 채 쓰기 뒤 다시 읽기가 먼저 끝나는지 순서로 판정한다(걸린 시간이 아니라 끝난 순서라 부하에 상관없다).
+        // 잘못 캡처하면 두 번째 행을 적용하지 못한 채 대기한다. 그때도 조회가 시작되는 즉시 풀어 준다.
         let resume = DispatchSemaphore(value: 0)
         let captureStarted = Mutex(false)
+        let finished = Mutex(false)
         let loading = Task {
             await store.takeSnapshot(force: true, quiet: true, refreshITunes: false, snapshotDirectory: directory,
                                      snapshotCopy: { force in
@@ -38,14 +40,17 @@ struct WriteReloadTests {
                                          resume.wait()
                                          return ITunesLibrarySnapshot(status: .unavailable)
                                      }, arguments: ["test"], environment: [:])
+            finished.withLock { $0 = true }
         }
-        let deadline = ContinuousClock.now + .seconds(15)
-        while store.rows.count != 2 && !captureStarted.withLock({ $0 }) && ContinuousClock.now < deadline {
+        // 다시 읽기가 끝나거나 Music 조회가 시작될 때까지 기다린다. 시간 제한은 없다(느린 실행은 오래 걸릴 뿐 판정은 같다).
+        while !finished.withLock({ $0 }) && !captureStarted.withLock({ $0 }) {
             try? await Task.sleep(for: .milliseconds(10))
         }
-        let finishedBeforeMusic = store.rows.count == 2
+        let finishedBeforeMusic = finished.withLock { $0 }
         resume.signal()
         await loading.value
+        // 뒤늦게 시작한 Music 최신화도 기다려, 조회가 시작됐는지를 경쟁 없이 확인한다.
+        await store.iTunesRefresh?.task.value
         #expect(finishedBeforeMusic)
         #expect(!captureStarted.withLock { $0 })
         #expect(store.rows.map(\.id).sorted() == ["1", "2"])
