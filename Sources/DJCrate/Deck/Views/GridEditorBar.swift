@@ -17,23 +17,18 @@ struct GridEditorBar: View {
     private var bpmWarning: String { String(ui: "BPM은 20…999 사이로 입력하세요.") }
 
     var body: some View {
-        let controlHeight = CGFloat(TextScale.length(28, scale: textScale))
+        let controlHeight = CGFloat(TextScale.length(24, scale: textScale))
         VStack(alignment: .leading, spacing: 8) {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) {
-                    headerStatus.fixedSize(horizontal: true, vertical: false)
-                    Spacer(minLength: 8)
-                    headerActions
-                }
-                VStack(alignment: .trailing, spacing: 6) {
-                    headerStatus.frame(maxWidth: .infinity, alignment: .leading)
-                    headerActions
-                }
+            FlowLayout(spacing: 12, justified: true, centerItems: true) {
+                headerTitle
+                headerInfo
+                headerActions
             }
+            .frame(maxWidth: .infinity)
             if let reason = deck.gridEditBlockedReason {
                 Label(reason, systemImage: "lock").font(.scaled(.caption, textScale)).foregroundStyle(UIColors.warning.color)
             }
-            FlowLayout(spacing: 8) {
+            FlowLayout(spacing: 12, justified: true) {
                 HStack(spacing: 4) {
                     Button { deck.setGridAnchorAtPlayhead() } label: {
                         GridAnchorIcon()
@@ -112,10 +107,13 @@ struct GridEditorBar: View {
                 }
                 HStack(spacing: 4) {
                     ForEach([-10.0, -1.0, 1.0, 10.0], id: \.self) { milliseconds in
-                        GridShiftButton(deck: deck, milliseconds: milliseconds).fixedSize()
+                        GridShiftButton(deck: deck, milliseconds: milliseconds)
+                            .fixedSize()
+                            .background(UIColors.gridControlFill, in: RoundedRectangle(cornerRadius: 6))
                     }
                 }
             }
+            .frame(maxWidth: .infinity)
             .font(.scaled(.caption, textScale))
             .buttonStyle(GridEditorControlStyle(height: controlHeight))
             .disabled(!deck.gridEditing || !deck.canEditGrid)
@@ -126,25 +124,40 @@ struct GridEditorBar: View {
         .background(UIColors.draftFill, in: RoundedRectangle(cornerRadius: 6))
     }
 
-    private var headerStatus: some View {
-        FlowLayout(spacing: 8) {
-            Toggle(isOn: $deck.gridEditing) {
-                Label(.ui("그리드 편집"), systemImage: "grid")
+    private var headerTitle: some View {
+        HStack(spacing: 6) {
+            Button { deck.gridEditing.toggle() } label: {
+                Image(systemName: deck.gridEditing ? "lock.open.fill" : "lock.fill")
+                    .font(.scaled(.caption, textScale))
+                    .frame(width: TextScale.length(24, scale: textScale),
+                           height: TextScale.length(24, scale: textScale))
+                    .foregroundStyle(deck.gridEditing ? UIColors.draft.color : Color.secondary)
+                    .background(UIColors.gridControlFill, in: RoundedRectangle(cornerRadius: 4))
             }
-            .toggleStyle(.button)
+            .buttonStyle(.plain)
             .disabled(!deck.canEditGrid)
+            .accessibilityAddTraits(.isToggle)
+            .accessibilityLabel(.ui("그리드 편집"))
+            .accessibilityValue(deck.gridEditing ? String(ui: "켜짐") : String(ui: "꺼짐"))
             .help(deck.gridEditBlockedReason ?? String(ui: "켜면 아래 막대로 그리드를 옮기고 BPM·1박·변속 지점을 고칩니다."))
-            if let draft = deck.gridDraft, !draft.segments.isEmpty {
-                let index = draft.segmentIndex(at: deck.displayTime)
-                let segment = draft.segments[index]
+            Text(.ui("그리드 편집"))
+                .font(.scaled(.subheadline, textScale).weight(.semibold))
+        }
+    }
+
+    @ViewBuilder private var headerInfo: some View {
+        if let draft = deck.gridDraft, !draft.segments.isEmpty {
+            let index = draft.segmentIndex(at: deck.displayTime)
+            let segment = draft.segments[index]
+            HStack(spacing: 8) {
                 Text(verbatim: "\(index + 1) / \(draft.segments.count)  ·  \(segment.start.clockText)  ·  \(segment.bpm.formatted(.number.precision(.fractionLength(2)).grouping(.never))) BPM")
                     .font(.scaled(.caption, textScale).monospacedDigit())
                     .foregroundStyle(.secondary)
-            }
-            if deck.gridDraft?.hasChanges == true {
-                Text(.ui("그리드 초안 변경됨"))
-                    .font(.scaled(.caption, textScale).bold())
-                    .foregroundStyle(UIColors.draft.color)
+                if draft.hasChanges {
+                    Text(.ui("그리드 초안 변경됨"))
+                        .font(.scaled(.caption, textScale).bold())
+                        .foregroundStyle(UIColors.draft.color)
+                }
             }
         }
     }
@@ -157,6 +170,7 @@ struct GridEditorBar: View {
                 .help(.ui("켜면 그리드를 옮기거나 BPM을 바꿀 때 핫큐·메모리 큐(루프 포함)가 같은 박을 따라 움직입니다"))
             Button(.ui("그리드 초안 버리기")) { deck.revertGrid() }
                 .disabled(!deck.gridEditing || !deck.canEditGrid || deck.gridDraft?.hasChanges != true)
+                .buttonStyle(GridEditorControlStyle(height: TextScale.length(24, scale: textScale)))
                 .help(.ui("그리드 초안을 버리고 원래 그리드로 되돌립니다"))
         }
         .fixedSize()
@@ -212,15 +226,16 @@ private final class TapResetMonitorView: NSView {
     }
 }
 
-/// 현재 위치에 그리드 시작점을 놓는 긴 선.
+/// 현재 위치의 그리드 시작점을 가리키는 두 색 세로선.
 private struct GridAnchorIcon: View {
     var body: some View {
-        HStack(alignment: .top, spacing: 3) {
-            Capsule().fill(UIColors.draft.color).frame(width: 2, height: 19)
-            Capsule().fill(Color.secondary.opacity(0.7)).frame(width: 2, height: 10)
-            Capsule().fill(Color.secondary.opacity(0.7)).frame(width: 2, height: 10)
-        }
-        .frame(width: 20, height: 20)
+        Rectangle()
+            .fill(Color.white)
+            .frame(width: 3, height: 18)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(Palette.memory).frame(height: 9)
+            }
+            .frame(width: 17, height: 18)
     }
 }
 
@@ -231,11 +246,13 @@ private struct GridEditorControlStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .foregroundStyle(Color.primary)
+            .opacity(isEnabled ? 1 : 0.7)
             .frame(minWidth: height, minHeight: height)
+            .frame(height: height)
             .padding(.horizontal, 4)
-            .background(configuration.isPressed ? UIColors.draft.color.opacity(0.22) : UIColors.subtleFill,
+            .background(configuration.isPressed && isEnabled ? UIColors.draft.color.opacity(0.3) : UIColors.gridControlFill,
                         in: RoundedRectangle(cornerRadius: 6))
-            .opacity(isEnabled ? 1 : 0.5)
     }
 }
 

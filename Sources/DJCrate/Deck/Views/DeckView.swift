@@ -101,8 +101,12 @@ struct DeckView: View {
                     .padding(.leading, leftRailWidth + 8)
                     .padding(.trailing, PerfProbe.hidden.contains("meter") ? 0 : rightRailWidth + 8)
                     GridEditorBar(deck: deck)
+                        .padding(.leading, leftRailWidth + 8)
+                        .padding(.trailing, PerfProbe.hidden.contains("meter") ? 0 : rightRailWidth + 8)
                     GridSuggestionRow(deck: deck)
                         .frame(height: TextScale.length(28, scale: textScale))
+                        .padding(.leading, leftRailWidth + 8)
+                        .padding(.trailing, PerfProbe.hidden.contains("meter") ? 0 : rightRailWidth + 8)
                 }
                 .frame(minWidth: 0, maxWidth: .infinity, alignment: .topLeading)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { middleHeight = $0 }
