@@ -1,3 +1,4 @@
+import AppKit
 import RekordboxKit
 import DJCAnalysis
 import DJCDomain
@@ -62,6 +63,10 @@ struct CueListView: View {
                 }
             }
             .listStyle(.bordered)
+            .background {
+                CueListFixedRowHeight(height: segmentHeight)
+                    .allowsHitTesting(false)
+            }
             .onChange(of: visibleCues.map(\.id), initial: true) { _, ids in
                 // 탭이나 큐 종류를 바꿔 숨긴 행을 키보드로 잘못 편집하지 않게 한다.
                 if let selected = deck.selectedCueID, !ids.contains(selected) { deck.selectedCueID = nil }
@@ -98,6 +103,78 @@ struct CueListView: View {
     }
 }
 
+/// SwiftUI List의 AppKit 표가 큐 행마다 자동 높이를 다시 재지 않게 한다.
+private struct CueListFixedRowHeight: NSViewRepresentable {
+    let height: CGFloat
+
+    func makeNSView(context: Context) -> CueListRowHeightProbe { CueListRowHeightProbe(frame: .zero) }
+
+    func updateNSView(_ view: CueListRowHeightProbe, context: Context) {
+        view.rowHeight = height
+        view.scheduleConfiguration()
+    }
+}
+
+private final class CueListRowHeightProbe: NSView {
+    var rowHeight: CGFloat = 28
+    private weak var table: NSTableView?
+    private var scheduled = false
+    private var retries = 0
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        table = nil
+        retries = 0
+        scheduleConfiguration()
+    }
+
+    override func layout() {
+        super.layout()
+        scheduleConfiguration()
+    }
+
+    func scheduleConfiguration() {
+        guard window != nil, !scheduled else { return }
+        if let table, table.window === window,
+           !table.usesAutomaticRowHeights, table.rowHeight == rowHeight { return }
+        scheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.scheduled = false
+            self.configure()
+        }
+    }
+
+    private func configure() {
+        guard let window, let content = window.contentView else { return }
+        if table?.window !== window {
+            let point = convert(NSPoint(x: bounds.midX, y: bounds.midY), to: nil)
+            table = findTable(in: content, covering: point)
+        }
+        guard let table else {
+            if retries < 3 {
+                retries += 1
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in self?.scheduleConfiguration() }
+            }
+            return
+        }
+        if table.usesAutomaticRowHeights { table.usesAutomaticRowHeights = false }
+        if table.rowHeight != rowHeight { table.rowHeight = rowHeight }
+    }
+
+    private func findTable(in view: NSView, covering point: NSPoint) -> NSTableView? {
+        if let table = view as? NSTableView,
+           let scrollView = table.enclosingScrollView,
+           scrollView.convert(scrollView.bounds, to: nil).contains(point) {
+            return table
+        }
+        for child in view.subviews {
+            if let table = findTable(in: child, covering: point) { return table }
+        }
+        return nil
+    }
+}
+
 struct CueRow: View {
     @Environment(\.textScale) private var textScale
     let deck: DeckModel
@@ -105,15 +182,7 @@ struct CueRow: View {
     @State private var showDetails = false
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            row(inlineDetails: true)
-            row(inlineDetails: false)
-        }
-        .frame(height: TextScale.length(28, scale: textScale))
-        .controlSize(ControlSize.small.scaled(textScale))
-    }
-
-    private func row(inlineDetails: Bool) -> some View {
+        // 좁게 고정된 큐 목록에서는 한 가지 행만 그려 높이 측정 때 두 배치를 비교하지 않는다.
         HStack(spacing: 6) {
             Circle().fill(UIColors.color(for: cue)).frame(width: 6, height: 6)
                 .allowsHitTesting(false)
@@ -142,37 +211,33 @@ struct CueRow: View {
             }
             .frame(minWidth: TextScale.length(56, scale: textScale), alignment: .leading)
             .layoutPriority(1)
-            if inlineDetails {
-                loopControls
-                nameField.frame(minWidth: 40).layoutPriority(-1)
-                deleteButton
-            } else {
-                Text(cue.name).font(.scaled(.caption, textScale)).lineLimit(1).layoutPriority(-1)
-                    .allowsHitTesting(false)
-                Spacer(minLength: 0)
-                Button { showDetails.toggle() } label: {
-                    Image(systemName: cue.loop == nil ? "ellipsis.circle" : "repeat.circle")
-                }
-                .buttonStyle(.borderless)
-                .help(.ui("큐 이름·루프 편집 및 삭제"))
-                .accessibilityLabel(.ui("큐 세부 편집"))
-                .popover(isPresented: $showDetails) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 6) {
-                            Text(cue.time.clockText).font(.scaled(.caption, textScale).monospacedDigit().bold())
-                                .lineLimit(1).fixedSize()
-                            Spacer(minLength: 0)
-                            loopControls
-                            deleteButton
-                        }
-                        nameField.textFieldStyle(.roundedBorder)
+            Text(cue.name).font(.scaled(.caption, textScale)).lineLimit(1).layoutPriority(-1)
+                .allowsHitTesting(false)
+            Spacer(minLength: 0)
+            Button { showDetails.toggle() } label: {
+                Image(systemName: cue.loop == nil ? "ellipsis.circle" : "repeat.circle")
+            }
+            .buttonStyle(.borderless)
+            .help(.ui("큐 이름·루프 편집 및 삭제"))
+            .accessibilityLabel(.ui("큐 세부 편집"))
+            .popover(isPresented: $showDetails) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Text(cue.time.clockText).font(.scaled(.caption, textScale).monospacedDigit().bold())
+                            .lineLimit(1).fixedSize()
+                        Spacer(minLength: 0)
+                        loopControls
+                        deleteButton
                     }
-                    .controlSize(ControlSize.small.scaled(textScale))
-                    .padding(10)
-                    .frame(width: TextScale.length(200, scale: textScale))
+                    nameField.textFieldStyle(.roundedBorder)
                 }
+                .controlSize(ControlSize.small.scaled(textScale))
+                .padding(10)
+                .frame(width: TextScale.length(200, scale: textScale))
             }
         }
+        .frame(height: TextScale.length(28, scale: textScale))
+        .controlSize(ControlSize.small.scaled(textScale))
         .frame(maxWidth: .infinity, alignment: .leading)
         // 빈 곳은 이동하되, 위에 놓인 종류·이름·삭제 컨트롤은 자기 동작만 받는다.
         .background {
