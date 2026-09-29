@@ -22,12 +22,17 @@ struct GridShiftButton: NSViewRepresentable {
         button.toolTip = description + " · " + String(ui: "1초 동안 누르면 반복합니다")
         button.isEnabled = context.environment.isEnabled && deck.canEditGrid
         button.controlSize = context.environment.controlSize == .small ? .small : .regular
-        button.font = .systemFont(ofSize: NSFont.smallSystemFontSize * textScale)
+        let font = NSFont.systemFont(ofSize: 11 * textScale, weight: .semibold)
+        button.font = font
+        button.attributedTitle = NSAttributedString(string: button.title, attributes: [
+            .font: font,
+            .foregroundColor: button.isEnabled ? NSColor.labelColor : NSColor.secondaryLabelColor,
+        ])
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: GridShiftControl, context: Context) -> CGSize? {
-        CGSize(width: max(nsView.intrinsicContentSize.width, 36),
-               height: CGFloat(TextScale.length(28, scale: textScale)))
+        CGSize(width: max(nsView.intrinsicContentSize.width, 32),
+               height: CGFloat(TextScale.length(24, scale: textScale)))
     }
 
     static func dismantleNSView(_ button: GridShiftControl, coordinator: ()) {
@@ -58,7 +63,7 @@ final class GridShiftControl: NSButton {
 
     private func configure() {
         setButtonType(.momentaryPushIn)
-        bezelStyle = .rounded
+        isBordered = false
         target = self
         action = #selector(moveGrid)
         isContinuous = true

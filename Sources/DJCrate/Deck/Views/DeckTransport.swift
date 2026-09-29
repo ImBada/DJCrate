@@ -10,19 +10,11 @@ struct TransportBar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            FlowLayout(spacing: 10) {
-                HStack(spacing: 8) {
-                    CueButton(deck: deck)
-                    Button {
-                        deck.togglePlay()
-                    } label: {
-                        Image(systemName: deck.isPlaying ? "pause.fill" : "play.fill").frame(width: 18)
+            FlowLayout(spacing: 22, justified: true) {
+                HStack(spacing: 4) {
+                    ForEach(0..<8, id: \.self) { slot in
+                        HotCuePad(deck: deck, slot: slot)
                     }
-                    .disabled(!deck.canPlay)
-                    .help(.ui("재생/일시정지 (\(deck.shortcuts.keyLabel(for: .playPause)))"))
-                    PlayQuantizeToggle(deck: deck)
-                    Group { if PerfProbe.hidden.contains("label") { EmptyView() } else { PlayheadLabel(deck: deck) } }
-                        .frame(width: TextScale.length(200, scale: textScale), alignment: .leading)
                 }
                 HStack(spacing: 6) {
                     HStack(spacing: 2) {
@@ -38,19 +30,13 @@ struct TransportBar: View {
                     }
                     .help(.ui("CUE 위치에 메모리 큐 추가 (\(deck.shortcuts.keyLabel(for: .memoryCue))). Shift를 누르고 누르면 현재 재생 위치의 메모리 큐를 지웁니다"))
                 }
-                HStack(spacing: 4) {
-                    ForEach(0..<8, id: \.self) { slot in
-                        HotCuePad(deck: deck, slot: slot)
-                    }
-                }
                 LoopControl(deck: deck)
+                HStack(spacing: 6) {
+                    MetronomeToggle(deck: deck)
+                    PlayQuantizeToggle(deck: deck)
+                }
             }
-            // 게인과 단축키 안내는 재생·큐 줄 아래 양쪽 끝에 둔다.
-            HStack(spacing: 10) {
-                GainControl(deck: deck)
-                Spacer()
-                ShortcutsButton()
-            }
+            .frame(maxWidth: .infinity)
         }
         .controlSize(ControlSize.small.scaled(textScale))
     }
@@ -124,42 +110,6 @@ struct ZoomControl: View {
     }
 }
 
-/// 매 프레임 바뀌는 시간 표시만 따로 둔다(컨트롤이 많은 줄 전체가 다시 그려지지 않도록).
-/// 글자 단계: 주 수치(시각·BPM)는 callout 굵게, 보조 수치(마디.박·조성)는 caption, 단위는 caption2.
-struct PlayheadLabel: View {
-    @Environment(\.textScale) private var textScale
-    let deck: DeckModel
-
-    var body: some View {
-        // 글자는 초당 15번이면 읽기에 충분하다(매 프레임 창 전체를 다시 그리지 않게).
-        let t = deck.displayTime
-        HStack(spacing: 6) {
-            Text(t.clockText).font(.scaled(.callout, textScale).monospacedDigit().bold())
-            if let position = deck.grid?.positionText(at: t) {
-                Text(position).font(.scaled(.caption, textScale).monospacedDigit()).foregroundStyle(.secondary)
-                    .help(.ui("마디.박"))
-            }
-            if let key = deck.key(at: t) {
-                HStack(spacing: 3) {
-                    Circle().fill(UIColors.keyDot(key)).frame(width: 6, height: 6)
-                    Text(key).font(.scaled(.caption, textScale).monospacedDigit()).foregroundStyle(.primary)
-                }
-                .help(deck.keySegments.count > 1 ? String(ui: "지금 조성(Camelot, 추정). 이 곡은 조성이 바뀝니다") : String(ui: "지금 조성(Camelot)"))
-            }
-            // 지금 BPM(그리드의 이 구간 BPM × 템포). 템포를 바꾸면 주황색.
-            if let bpm = deck.gridBPM {
-                HStack(alignment: .firstTextBaseline, spacing: 2) {
-                    Text(verbatim: (bpm * deck.rate).formatted(.number.precision(.fractionLength(2)).grouping(.never))).font(.scaled(.callout, textScale).monospacedDigit().bold())
-                    Text(verbatim: "BPM").font(.scaled(.caption2, textScale)).foregroundStyle(.secondary)
-                }
-                .foregroundStyle(deck.tempoPercent == 0 ? Color.primary : UIColors.cue.color)
-                .help(deck.tempoPercent == 0 ? String(ui: "지금 BPM(그리드 기준, 변속 곡은 구간마다 바뀝니다)")
-                      : String(ui: "지금 BPM · 원래 \(bpm, specifier: "%.2f") BPM, 템포 \(deck.tempoPercent, specifier: "%+.1f")%"))
-            }
-        }
-    }
-}
-
 /// CDJ의 CUE 버튼. 누르는 순간과 떼는 순간을 모두 받아야 해서(미리 듣기) Button 대신 제스처를 쓴다.
 struct CueButton: View {
     @Environment(\.textScale) private var textScale
@@ -171,10 +121,10 @@ struct CueButton: View {
         let lit = deck.isCuePreviewing || deck.isAtCue
         Text(verbatim: "CUE")
             .font(.scaled(size: 10, weight: .heavy, textScale))
-            .frame(width: TextScale.length(36, scale: textScale), height: TextScale.length(20, scale: textScale))
-            .foregroundStyle(lit ? UIColors.onFill : UIColors.cue.color)
-            .background(lit ? UIColors.cue.color : Color.clear, in: RoundedRectangle(cornerRadius: 4))
-            .overlay(RoundedRectangle(cornerRadius: 4).stroke(UIColors.cue.color))
+            .frame(width: TextScale.length(36, scale: textScale), height: TextScale.length(36, scale: textScale))
+            .foregroundStyle(lit ? Color.black : Palette.cue)
+            .background(lit ? Palette.cue : Color.clear, in: Circle())
+            .overlay(Circle().stroke(Palette.cue, lineWidth: 2))
             .opacity(deck.canPlay ? 1 : 0.4)
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0)
@@ -192,6 +142,28 @@ struct CueButton: View {
             .accessibilityLabel(Text(verbatim: "CUE"))
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { deck.cueDown(); deck.cueUp() }
+    }
+}
+
+/// 왼쪽 덱 조작 열의 재생·일시정지 버튼.
+struct DeckPlayButton: View {
+    @Environment(\.textScale) private var textScale
+    let deck: DeckModel
+
+    var body: some View {
+        Button { deck.togglePlay() } label: {
+            Image(systemName: deck.isPlaying ? "pause.fill" : "play.fill")
+                .font(.scaled(size: 14, weight: .bold, textScale))
+                .frame(width: TextScale.length(36, scale: textScale), height: TextScale.length(36, scale: textScale))
+                .foregroundStyle(deck.isPlaying ? Color.white : Color.white.opacity(0.75))
+                .background(deck.isPlaying ? Palette.hot.opacity(0.25) : Color.clear, in: Circle())
+                .overlay(Circle().stroke(Palette.hot, lineWidth: 2))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!deck.canPlay)
+        .opacity(deck.canPlay ? 1 : 0.4)
+        .help(.ui("재생/일시정지 (\(deck.shortcuts.keyLabel(for: .playPause)))"))
     }
 }
 
