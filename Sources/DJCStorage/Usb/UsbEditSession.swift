@@ -62,7 +62,8 @@ public final class UsbEditSession {
         try run(.edits(edits), options: options, snapshotTime: snapshotTime, progress: progress, isCancelled: isCancelled)
     }
 
-    /// 이 USB의 초안을 쓴다. 초안을 만든 뒤 USB가 바뀌었으면 지금 상태에 다시 계획한다. 다 쓰면 초안을 지운다
+    /// 이 USB의 초안을 쓴다. 초안을 만든 뒤 USB가 바뀌었으면 지금 상태에 다시 계획한다.
+    /// 쓴 뒤(또는 쓸 것이 없을 때) 초안에는 막힌 편집만 남기고(base는 그때 USB DB 지문), 막힌 것이 없으면 초안을 지운다
     public func writeDraft(options: UsbWriteOptions, snapshotTime: String? = nil, progress: @escaping @Sendable (UsbProgress) -> Void,
                            isCancelled: @escaping @Sendable () -> Bool) throws -> (UsbEditResult, UsbWriteReport?) {
         try run(.draft, options: options, snapshotTime: snapshotTime, progress: progress, isCancelled: isCancelled)
@@ -88,6 +89,8 @@ public final class UsbEditSession {
         var result: UsbEditResult
         var staging: URL?
         var draftKey: String?
+        /// 계획한 편집(적힌 순서, 결과 번호 1부터와 짝)
+        var edits: [UsbLibraryEdit] = []
     }
 
     func run(_ edits: Edits, options: UsbWriteOptions, snapshotTime: String?, progress: @escaping @Sendable (UsbProgress) -> Void,
@@ -99,7 +102,10 @@ public final class UsbEditSession {
         defer { if !keepStaging, let staging = prepared.staging { try? FileManager.default.removeItem(at: staging) } }
         let result = prepared.result
         guard result.blocks.isEmpty else { throw UsbError.writeRefused(result.blocks) }
-        guard let changes = result.changes else { return (result, nil) }
+        guard let changes = result.changes else {
+            if !options.dryRun, let key = prepared.draftKey { try keepBlockedEdits(prepared, volumeKey: key) }
+            return (result, nil)
+        }
         // 쓰기 직전 USB의 `._*`(사용자·macOS가 둔 것)는 검증이 이 쓰기가 남긴 것으로 세지 않게
         let preexisting = try UsbInvariantVerifier.appleDoubles(on: UsbRoot(root))
         do {
@@ -108,7 +114,7 @@ public final class UsbEditSession {
                                              options: options, ppthReader: UsbExportAssembly.ppthReader, progress: progress,
                                              isCancelled: isCancelled)
             report.blocks += result.trackBlocks
-            if report.outcome == .written, let key = prepared.draftKey { try drafts.discard(volumeKey: key) }
+            if report.outcome == .written, let key = prepared.draftKey { try keepBlockedEdits(prepared, volumeKey: key) }
             return (result, report)
         } catch let error as UsbError {
             switch error {
@@ -216,12 +222,28 @@ public final class UsbEditSession {
         }
         guard result.changes != nil else {
             try? FileManager.default.removeItem(at: staging)
-            return Prepared(result: result, draftKey: draftKey)
+            return Prepared(result: result, draftKey: draftKey, edits: list)
         }
-        return Prepared(result: result, staging: staging, draftKey: draftKey)
+        return Prepared(result: result, staging: staging, draftKey: draftKey, edits: list)
     }
 
     static var replannedNote: String { String(ui: "USB가 그 사이 바뀌어 다시 계획했습니다") }
+
+    /// 초안에 막힌 편집만 남긴다(적힌 순서). 막힌 편집은 새 스냅샷·기기 변경 가져오기 등으로 풀릴 수 있어 사용자가 다시 만들지 않게 두고,
+    /// 쓴 편집·바꿀 것이 없던 편집은 뺀다. 새 base는 지금 USB DB 지문이다. 남는 것이 없으면 초안을 지운다
+    func keepBlockedEdits(_ prepared: Prepared, volumeKey: String) throws {
+        let blocked = prepared.result.outcomes.compactMap { entry -> UsbLibraryEdit? in
+            guard case .blocked = entry.outcome, prepared.edits.indices.contains(entry.edit - 1) else { return nil }
+            return prepared.edits[entry.edit - 1]
+        }
+        guard !blocked.isEmpty else {
+            try drafts.discard(volumeKey: volumeKey)
+            return
+        }
+        let createdAt = try drafts.load(volumeKey: volumeKey)?.createdAt ?? Date()
+        try drafts.save(UsbDraft(volumeKey: volumeKey, base: UsbWriter.databaseFingerprint(root: UsbRoot(root), fileSystem: fileSystem),
+                                 edits: blocked, createdAt: createdAt))
+    }
 
     /// 볼륨 정책(수정)·보호 경로·실물 관문·확인 안 된 규칙(쓰기 절차의 A 단계와 같은 판정)
     func environmentBlocks(_ volume: UsbVolumeInfo, required: Set<UsbProvisionalRule>, options: UsbWriteOptions) -> [UsbBlock] {

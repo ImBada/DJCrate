@@ -167,14 +167,18 @@ struct UsbEditPlanner {
                                                        entries: Dictionary(uniqueKeysWithValues: formats.map { ($0, []) }))))
             planned.rules.insert(.playlistSiblingBase)
             if isFolder { planned.rules.insert(.playlistFolderRow) }
-            planned.rules.formUnion(UsbTrackRules.pdbStringRules([name]))
+            // pdb 문자열 규칙은 Device Library에 쓸 때만
+            if formats.contains(.deviceLibrary) { planned.rules.formUnion(UsbTrackRules.pdbStringRules([name])) }
         case let .rename(ref, name):
             let playlist = try target(ref)
-            planned.rules.formUnion(UsbTrackRules.pdbStringRules([name]))
-            if playlist.name != name { planned.op = .playlist(.rename(id: playlist.id, name: name)) }
+            guard playlist.name != name else { return }
+            try requireWritableEverywhere(playlist, ref: ref)
+            if playlist.presentIn.contains(.deviceLibrary) { planned.rules.formUnion(UsbTrackRules.pdbStringRules([name])) }
+            planned.op = .playlist(.rename(id: playlist.id, name: name))
         case let .move(ref, into):
             let playlist = try target(ref)
             let parentID = try folder(into)
+            if parentID != playlist.parentID { try requireWritableEverywhere(playlist, ref: ref) }
             if parentID != 0 {
                 guard parentID != playlist.id, !descendants(of: playlist.id).contains(parentID) else {
                     throw UsbEditBlocked(block: UsbBlock(code: "moveIntoSelf", scope: .playlist(ref.description),
@@ -244,6 +248,15 @@ struct UsbEditPlanner {
         case .root: 0
         case let .id(text): Int(text)
         case let .new(key): newPlaylists[key]
+        }
+    }
+
+    /// 목록 이름·부모는 형식마다 따로 두지 않는다(합친 모델에 한 값). 고칠 수 없는 형식에도 있는 목록을 바꾸면 두 형식이 어긋나
+    /// 다음 읽기부터 USB 전체가 막히므로(`formatPlaylistConflict`) 그런 목록의 이름·부모는 바꾸지 않는다
+    func requireWritableEverywhere(_ playlist: UsbPlaylist, ref: PlaylistRef) throws {
+        guard playlist.presentIn.isSubset(of: writable) else {
+            throw UsbEditBlocked(block: UsbBlock(code: "playlistInBlockedFormat", scope: .playlist(ref.description),
+                                                 message: String(ui: "Device Library를 지금 고칠 수 없어, 두 형식에 함께 있는 재생 목록의 이름과 폴더는 바꾸지 않았습니다. Device Library가 막힌 이유를 먼저 푼 뒤 다시 시도하세요")))
         }
     }
 
@@ -328,4 +341,12 @@ struct UsbEditPlanner {
 
     /// USB 상대 경로("/" 뗌)
     static func relative(_ path: String) -> String { String(path.drop { $0 == "/" }) }
+
+    /// USB DB의 그림 경로(상대)가 아트워크 파일 모양(`PIONEER/Artwork/nnnnn/[ab]n(_m).jpg`, `..`·`._` 없음)인지.
+    /// 아니면 그 자리를 덮어쓰거나 지우지 않는다(손상됐거나 꾸민 USB가 USB·Mac의 다른 파일을 가리키지 못하게)
+    static func isArtworkFile(_ relative: String) -> Bool {
+        UsbRemovalPolicy.allows(relative) && UsbWriter.isSafeRelativePath(relative)
+            && UsbLayout.collisionKey(relative).hasPrefix(UsbLayout.collisionKey(UsbLayout.artworkRoot + "/"))
+            && !UsbLayout.isAppleDouble((relative as NSString).lastPathComponent)
+    }
 }

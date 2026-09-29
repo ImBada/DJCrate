@@ -39,56 +39,83 @@ extension UsbEditPlanner {
         var names = NameAllocator(existing: working, highWater: ids.highWater)
         var upsert = UsbTrackUpsert()
         var strings: [String] = []
-        for id in Self.unique(usbIDs) {
-            guard let track = working.tracks.first(where: { $0.id == id }), !track.presentIn.isDisjoint(with: writable) else {
-                throw Self.vanished(.track("usb:\(id)"))
+        var blocked: [UsbBlock] = []
+        let requested = Self.unique(usbIDs)
+        for id in requested {
+            // 곡 하나가 막히면 그 곡만 뺀다(곡 더하기와 같게). 그 곡을 보며 준비한 파일·이름·번호도 되돌린다
+            let saved = (planned, names, upsert, strings, ids, artwork)
+            do {
+                try refreshTrack(id, parts: parts, database: database, share: share, snapshot: snapshot, local: local, names: &names,
+                                 upsert: &upsert, strings: &strings, into: &planned)
+            } catch let error as UsbEditBlocked {
+                (planned, names, upsert, strings, ids, artwork) = saved
+                blocked.append(error.block)
             }
-            if refreshed.contains(id) { continue }
-            guard let localID = try Self.localMatch(track, database: database) else {
-                throw UsbEditBlocked(block: UsbBlock(code: "localTrackNotFound", scope: .track("usb:\(id)"),
-                                                     message: String(ui: "로컬 라이브러리에서 이 곡을 찾지 못했습니다. USB에서 빼고 다시 넣으세요")))
-            }
-            let row = try local.track(localID)
-            let status = UsbSyncStatus.compare(localInfo: row.trackInfoUpdated, localAnalysis: row.analysisUpdated, localCue: row.cueUpdated,
-                                               usbInfo: track.informationUpdateCount, usbAnalysis: track.analysisDataUpdateCount,
-                                               usbCue: track.cueUpdateCount, hasModified: track.hasModified,
-                                               hasCueRows: try deviceCues(id) > 0)
-            switch status {
-            case .deviceModified:
-                planned.notes.append(String(ui: "기기에서 고친 곡이라 건너뜀. 먼저 기기 변경을 가져오세요(곡 \(id))"))
-                continue
-            case .upToDate, .missingLocal: continue
-            case .localNewer: break
-            }
-            let rewritesAnalysis = !parts.isDisjoint(with: [.cues, .grid])
-            if rewritesAnalysis, let modified = UsbExportCandidates.analysisFiles(share: share, path: row.analysisDataPath).modified,
-               modified > snapshot {
-                throw UsbEditBlocked(block: UsbBlock(code: "analysisNewerThanSnapshot", scope: .track("usb:\(id)"),
-                                                     message: String(ui: "rekordbox 분석이 스냅샷 뒤에 바뀌었습니다. 새 스냅샷을 뜬 뒤 다시 시도하세요")))
-            }
-            try checkAudio(track, row: row)
-            var updated = track
-            if parts.contains(.info) { UsbLibraryBuilder.applyInfo(row, to: &updated, names: &names) }
-            if parts.contains(.cues) { updated.cueUpdateCount = row.cueUpdated ?? "" }
-            if parts.contains(.grid) { updated.analysisDataUpdateCount = row.analysisUpdated ?? "" }
-            let filesBefore = planned.files.writes.count
-            if rewritesAnalysis, try refreshAnalysis(track, localID: localID, row: row, database: database, share: share, into: &planned) {
-                UsbLibraryBuilder.applyAnalysis(row, to: &updated)
-            }
-            if parts.contains(.artwork) { try refreshArtwork(&updated, row: row, share: share, images: &upsert.images, into: &planned) }
-            guard updated != track || planned.files.writes.count > filesBefore else { continue }
-            let rows = newRows(names)
-            if writable.contains(.deviceLibrary), updated.presentIn.contains(.deviceLibrary) { try deviceRowCheck(updated, newRows: rows) }
-            strings += Self.pdbStrings(updated, in: working, extra: rows)
-            upsert.replaced.append(updated)
-            refreshed.insert(id)
         }
+        // 요청한 곡이 모두 막혔을 때만 편집을 막는다
+        if !blocked.isEmpty, blocked.count == requested.count { throw UsbEditBlocked(block: blocked[0]) }
+        planned.trackBlocks += blocked
         guard !upsert.replaced.isEmpty else { return }
         let rows = newRows(names)
         (upsert.artists, upsert.albums, upsert.genres, upsert.keys, upsert.labels) = (rows.artists, rows.albums, rows.genres, rows.keys, rows.labels)
         planned.op = .upsert(upsert)
         planned.rules.formUnion([.editRefreshTracks])
         planned.rules.formUnion(UsbTrackRules.pdbStringRules(strings))
+    }
+
+    /// 곡 하나 갱신. 바꿀 것이 있으면 `upsert.replaced`에 더한다. 막히면 `UsbEditBlocked`
+    mutating func refreshTrack(_ id: Int, parts: Set<UsbRefreshPart>, database: CipherDatabase, share: URL, snapshot: Date, local: UsbLocalSource,
+                               names: inout NameAllocator, upsert: inout UsbTrackUpsert, strings: inout [String],
+                               into planned: inout UsbPlannedEdit) throws {
+        guard let track = working.tracks.first(where: { $0.id == id }), !track.presentIn.isDisjoint(with: writable) else {
+            throw Self.vanished(.track("usb:\(id)"))
+        }
+        if refreshed.contains(id) { return }
+        guard let localID = try Self.localMatch(track, database: database) else {
+            throw UsbEditBlocked(block: UsbBlock(code: "localTrackNotFound", scope: .track("usb:\(id)"),
+                                                 message: String(ui: "로컬 라이브러리에서 이 곡을 찾지 못했습니다. USB에서 빼고 다시 넣으세요")))
+        }
+        let row = try local.track(localID)
+        let status = UsbSyncStatus.compare(localInfo: row.trackInfoUpdated, localAnalysis: row.analysisUpdated, localCue: row.cueUpdated,
+                                           usbInfo: track.informationUpdateCount, usbAnalysis: track.analysisDataUpdateCount,
+                                           usbCue: track.cueUpdateCount, hasModified: track.hasModified,
+                                           hasCueRows: try deviceCues(id) > 0)
+        switch status {
+        case .deviceModified:
+            planned.notes.append(String(ui: "기기에서 고친 곡이라 건너뜀. 먼저 기기 변경을 가져오세요(곡 \(id))"))
+            return
+        case .upToDate, .missingLocal: return
+        case .localNewer: break
+        }
+        let rewritesAnalysis = !parts.isDisjoint(with: [.cues, .grid])
+        if rewritesAnalysis, let modified = UsbExportCandidates.analysisFiles(share: share, path: row.analysisDataPath).modified,
+           modified > snapshot {
+            throw UsbEditBlocked(block: UsbBlock(code: "analysisNewerThanSnapshot", scope: .track("usb:\(id)"),
+                                                 message: String(ui: "rekordbox 분석이 스냅샷 뒤에 바뀌었습니다. 새 스냅샷을 뜬 뒤 다시 시도하세요")))
+        }
+        try checkAudio(track, row: row)
+        var updated = track
+        if parts.contains(.info) { UsbLibraryBuilder.applyInfo(row, to: &updated, names: &names) }
+        let filesBefore = planned.files.writes.count
+        if rewritesAnalysis {
+            let analysis = try refreshAnalysis(track, localID: localID, row: row, database: database, share: share, into: &planned)
+            // 분석 파일을 고치지 않았으면(다른 곡 것) 갱신 횟수도 USB 값 그대로 둔다. 아니면 DB만 최신이라고 적어 다음 갱신이 고치지 않는다
+            if analysis != .foreignPPTH {
+                if parts.contains(.cues) { updated.cueUpdateCount = row.cueUpdated ?? "" }
+                if parts.contains(.grid) { updated.analysisDataUpdateCount = row.analysisUpdated ?? "" }
+            }
+            if analysis == .written { UsbLibraryBuilder.applyAnalysis(row, to: &updated) }
+        }
+        if parts.contains(.artwork) { try refreshArtwork(&updated, row: row, share: share, images: &upsert.images, into: &planned) }
+        guard updated != track || planned.files.writes.count > filesBefore else { return }
+        // Device Library에 쓸 때만 트랙 행을 미리 만들어 보고 pdb 문자열 규칙을 싣는다
+        if writable.contains(.deviceLibrary), updated.presentIn.contains(.deviceLibrary) {
+            let rows = newRows(names)
+            try deviceRowCheck(updated, newRows: rows)
+            strings += Self.pdbStrings(updated, in: working, extra: rows)
+        }
+        upsert.replaced.append(updated)
+        refreshed.insert(id)
     }
 
     /// 이름 표에 새로 생긴 행
@@ -121,10 +148,20 @@ extension UsbEditPlanner {
               local.size == usb.size, local.sha1 == usb.sha1 else { throw changed }
     }
 
+    /// 분석 파일 갱신 결과
+    enum AnalysisRefresh {
+        /// 바뀐 파일을 준비했다
+        case written
+        /// USB 파일이 이미 같다
+        case identical
+        /// 덮어쓸 USB 파일이 다른 곡 것이라 고치지 않았다
+        case foreignPPTH
+    }
+
     /// 분석 파일 셋을 로컬에서 다시 만들어 DB에 적힌 자리(폴더·번호 그대로)에 덮어쓴다. USB `.DAT`의 PPTH가 이 곡이 아니면
-    /// 고치지 않고 알린다. 바꾼 파일이 있으면 참
+    /// 고치지 않고 알린다
     func refreshAnalysis(_ track: UsbTrack, localID: String, row: UsbLocalTrackRow, database: CipherDatabase, share: URL,
-                         into planned: inout UsbPlannedEdit) throws -> Bool {
+                         into planned: inout UsbPlannedEdit) throws -> AnalysisRefresh {
         let incomplete = UsbEditBlocked(block: UsbBlock(code: "analysisIncomplete", scope: .track("usb:\(track.id)"),
                                                         message: String(ui: "rekordbox에서 트랙 분석을 다시 한 뒤 내보내세요")))
         guard let analysisPath = row.analysisDataPath, !analysisPath.isEmpty,
@@ -142,7 +179,7 @@ extension UsbEditPlanner {
             let ppth = UsbExportAssembly.ppthReader(try fileSystem.read(url, maxBytes: Int(info.size)))
             if ppth.map(UsbLayout.nfc) != UsbLayout.nfc(track.path) {
                 planned.notes.append(String(ui: "분석 파일이 다른 곡 것이라 고치지 않았습니다: \(dat)"))
-                return false
+                return .foreignPPTH
             }
         }
         var changed = false
@@ -159,7 +196,7 @@ extension UsbEditPlanner {
         }
         planned.rules.formUnion(result.rules)
         planned.warnings += result.warnings.compactMap { UsbExportAssembly.analysisWarning($0, track: "usb:\(track.id)") }
-        return changed
+        return changed ? .written : .identical
     }
 
     /// 로컬 그림이 바뀌었으면 같은 image id·폴더의 a·b·_m을 덮어쓰고, 그림이 새로 생긴 곡(또는 다른 곡과 함께 쓰는 그림)은 새 image id
@@ -172,7 +209,7 @@ extension UsbEditPlanner {
         let formats = track.presentIn.intersection(writable)
         func place(_ path: String, _ data: Data) throws {
             let relative = Self.relative(path)
-            let url = root.url.appending(path: relative)
+            let url = try root.url(for: relative)
             if let info = try fileSystem.stat(url), info.kind == .file {
                 let hash = try fileSystem.sha256(url, uncached: true)
                 if hash != UsbExportAssembly.sha256(data) {
@@ -185,7 +222,15 @@ extension UsbEditPlanner {
         let trackID = track.id
         if let imageID = track.imageID, let image = working.images.first(where: { $0.id == imageID }),
            !isShared(imageID, except: trackID) {
-            for (format, path) in [(UsbFormat.deviceLibrary, image.pdbPath), (.oneLibrary, image.oneLibraryPath)] {
+            let existing = [(UsbFormat.deviceLibrary, image.pdbPath), (.oneLibrary, image.oneLibraryPath)]
+            // 덮어쓸 자리는 DB에 적힌 경로다. 아트워크 파일 모양이 아니면(`..` 등) 준비 폴더·USB의 다른 곳을 가리킬 수 있어 고치지 않는다
+            for case let (format, path?) in existing where formats.contains(format) {
+                guard Self.isArtworkFile(Self.relative(path)), Self.isArtworkFile(Self.relative(Self.mediumArtworkPath(path))) else {
+                    throw UsbEditBlocked(block: UsbBlock(code: "artworkPathRefused", scope: .track("usb:\(track.id)"),
+                                                         message: String(ui: "USB에 적힌 그림 경로가 아트워크 폴더 모양이 아니라 그림을 고치지 않았습니다. rekordbox에서 USB를 다시 내보내세요")))
+                }
+            }
+            for (format, path) in existing {
                 guard formats.contains(format), let path else { continue }
                 try place(path, small)
                 try place(Self.mediumArtworkPath(path), medium)

@@ -78,6 +78,38 @@ extension UsbEditEngineTests {
         #expect(try env.read(.deviceLibrary)?.playlists.map(\.id) == [1])
     }
 
+    @Test("Device Library가 막힌 USB에서는 두 형식에 있는 목록의 이름·부모를 바꾸지 않아 다음 편집이 USB 전체 막힘이 되지 않는다")
+    func renameMoveBlockedWhileFormatBlocked() throws {
+        let env = try Self.exported()
+        // 두 형식에 폴더를 만들고 목록을 넣어 둔 뒤 Device Library를 막는다
+        let (setup, _) = try env.edit([.playlist(edit: .create(key: "f", name: "합성 폴더", isFolder: true, parent: .root)),
+                                       .playlist(edit: .move(playlist: .id("1"), into: .new("f")))], withLocal: false)
+        #expect(setup.outcomes.allSatisfy { $0.outcome == .written })
+        env.setPdbFlag(4)
+        let (result, report) = try env.edit([
+            .playlist(edit: .rename(playlist: .id("1"), name: "합성 바뀐 이름")),
+            .playlist(edit: .move(playlist: .id("1"), into: .root)),
+            .playlist(edit: .reorder(playlist: .id("1"), index: 0)),
+            .playlist(edit: .create(key: "n", name: "합성 새 목록", isFolder: false, parent: .root)),
+        ], withLocal: false)
+        for index in 1...2 {
+            guard case let .blocked(block) = result.outcome(index) else { Issue.record("막지 않음 \(index)"); continue }
+            #expect(block.code == "playlistInBlockedFormat" && block.message.contains("Device Library"))
+        }
+        #expect(result.outcome(3) == .unchanged && result.outcome(4) == .written)
+        #expect(report.outcome == .written)
+        let source = try env.source()
+        #expect(source.blocks.isEmpty)
+        #expect(!source.mismatches.contains { if case .playlistConflict = $0 { true } else { false } })
+        // 다음 편집도 USB 전체 막힘이 아니다
+        let next = try env.plan([.removeTracks(usbContentIDs: [3])], withLocal: false)
+        #expect(next.blocks.isEmpty && next.changes != nil)
+        // 한 형식에만 있는 목록은 이름을 바꾼다
+        let created = try #require(try env.read(.oneLibrary)?.playlists.first { $0.name == "합성 새 목록" })
+        let renamed = try env.plan([.playlist(edit: .rename(playlist: .id(String(created.id)), name: "합성 바뀐 새 목록"))], withLocal: false)
+        #expect(renamed.outcome(1) == .written)
+    }
+
     @Test("형제 순번은 그 부모의 기존 형제를 따라 가장 큰 값 + 1, 형제가 없으면 0")
     func siblingBaseFollowsExisting() throws {
         let env = try Self.rekordboxStyle {

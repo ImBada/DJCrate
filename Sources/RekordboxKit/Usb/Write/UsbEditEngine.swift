@@ -47,6 +47,8 @@ public struct UsbEditResult: Sendable {
     /// 로컬 사본을 뜬 시각과 그 출처(곡 더하기·갱신이 있을 때만)
     public var snapshotTakenAt: Date?
     public var snapshotSource: UsbSnapshotTime.Source?
+    /// 쓰기 전 USB에 이미 있던 불변식 문제(계획 때 USB DB 사본과 USB 파일로 본다). 검증은 이것을 빼고 새로 생긴 문제만 센다
+    public var preexistingProblems: Set<String> = []
 
     public init(changes: UsbChangeSet? = nil, outcomes: [(edit: Int, outcome: UsbOutcome)] = [], formatsWritten: Set<UsbFormat> = [],
                 formatsBlocked: [UsbFormat: UsbBlock] = [:], mismatches: [UsbFormatMismatch] = [], notes: [String] = [],
@@ -70,13 +72,14 @@ public struct UsbEditResult: Sendable {
         outcomes.first { $0.edit == edit }?.outcome
     }
 
-    /// 쓰기 뒤 검증기: 목표 지문 · 쓴 형식의 모델 · 불변식(한 형식이 막혔으면 두 형식 곡 수 비교는 뺀다).
+    /// 쓰기 뒤 검증기: 목표 지문 · 쓴 형식의 모델 · 불변식(한 형식이 막혔으면 두 형식 곡 수 비교는 뺀다, 쓰기 전부터 있던 문제는 뺀다).
     /// preexistingAppleDoubles: 쓰기 직전 USB의 `._*`(`UsbInvariantVerifier.appleDoubles(on:)`)
     public func verifiers(preexistingAppleDoubles: Set<String> = []) -> [any UsbWriteVerifier] {
         var result: [any UsbWriteVerifier] = [UsbFingerprintVerifier()]
         if formatsWritten.contains(.oneLibrary), let applied { result.append(OneLibraryVerifier(expected: applied)) }
         if formatsWritten.contains(.deviceLibrary), let pdbWritten { result.append(PdbVerifier(expected: pdbWritten)) }
-        result.append(UsbInvariantVerifier(preexistingAppleDoubles: preexistingAppleDoubles, checkFormatCounts: formatsBlocked.isEmpty))
+        result.append(UsbInvariantVerifier(preexistingAppleDoubles: preexistingAppleDoubles, preexistingProblems: preexistingProblems,
+                                           checkFormatCounts: formatsBlocked.isEmpty))
         return result
     }
 }

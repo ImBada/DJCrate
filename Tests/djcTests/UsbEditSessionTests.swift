@@ -101,6 +101,40 @@ struct UsbEditSessionTests {
         #expect(after.tracks.map(\.id) == [1] && after.playlists.map(\.name) == ["합성 초안 이름"])
     }
 
+    @Test("초안을 쓴 뒤에는 막힌 편집만 쓴 뒤 지문을 base로 남기고, 쓸 것이 없고 막힌 것도 없으면 초안을 지운다")
+    func draftKeepsOnlyBlockedEdits() throws {
+        let env = try Env()
+        let key = env.usb.volumeKey
+        let blocked: UsbLibraryEdit = .playlist(edit: .rename(playlist: .id("999"), name: "합성 없는 목록"))
+        try env.session().addToDraft(.playlist(edit: .rename(playlist: .id("1"), name: "합성 초안 이름")))
+        try env.session().addToDraft(blocked)
+        try env.session().addToDraft(.removeTracks(usbContentIDs: [3]))
+        let createdAt = try #require(try env.drafts.load(volumeKey: key)?.createdAt)
+        let (result, report) = try env.session().writeDraft(options: UsbWriteOptions(), snapshotTime: Self.time, progress: { _ in },
+                                                            isCancelled: { false })
+        #expect(report?.outcome == .written)
+        guard case .blocked = result.outcome(2) else { Issue.record("막지 않음"); return }
+        let kept = try #require(try env.drafts.load(volumeKey: key))
+        #expect(kept.edits == [blocked])
+        #expect(kept.createdAt == createdAt)
+        #expect(kept.base.sameContent(as: try UsbWriter.databaseFingerprint(root: env.usb.root, fileSystem: env.usb.fileSystem())))
+        #expect(try env.fixture.read().tracks.map(\.id) == [1, 2])
+
+        // 남은 초안을 다시 쓰면 또 막히므로 그대로 남는다(쓸 것 없음)
+        let (again, none) = try env.session().writeDraft(options: UsbWriteOptions(), snapshotTime: Self.time, progress: { _ in },
+                                                         isCancelled: { false })
+        #expect(none == nil && again.changes == nil)
+        #expect(try env.drafts.load(volumeKey: key)?.edits == [blocked])
+
+        // 바꿀 것이 없고 막힌 것도 없으면 초안을 지운다
+        try env.drafts.discard(volumeKey: key)
+        try env.session().addToDraft(.playlist(edit: .rename(playlist: .id("1"), name: "합성 초안 이름")))
+        let (same, nothing) = try env.session().writeDraft(options: UsbWriteOptions(), snapshotTime: Self.time, progress: { _ in },
+                                                           isCancelled: { false })
+        #expect(nothing == nil && same.changes == nil && same.outcome(1) == .unchanged)
+        #expect(try env.drafts.load(volumeKey: key) == nil)
+    }
+
     @Test("쓴 뒤 되돌리면 트리가 쓰기 전과 같다(지운 음원·분석 파일·아트워크 포함)")
     func writeThenRestoreTreeEqual() throws {
         let env = try Env()

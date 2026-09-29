@@ -11,7 +11,10 @@ struct UsbEditInvariantTests {
     /// 쓴 USB를 읽어 합친 모델을 새 내보내기 모양(OneLibrary 새 파일·pdb fresh)으로 다시 만들어 읽은 모델과 비교하고,
     /// 형식마다 계획의 적용 결과(OneLibrary 투영·pdb 작성기 모델)와도 비교한다
     static func check(_ env: UsbEditFixture, _ result: UsbEditResult) throws {
-        let read = try env.read()
+        // 보존한 기기 행(기록·기기 큐 같은 모르는 표 행)은 새 내보내기가 만들지 않는다(불변식의 예외)
+        var read = try env.read()
+        read.histories = []
+        read.unknownRows = []
         let folder = env.usb.folder.appending(path: "rebuild-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let database = folder.appending(path: "exportLibrary.db")

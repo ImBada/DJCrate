@@ -306,8 +306,9 @@ public enum UsbExportAssembly {
             self.staging = staging
         }
 
-        /// 준비 폴더 안 자리(부모 폴더를 만든다)
+        /// 준비 폴더 안 자리(부모 폴더를 만든다). USB 상대 경로 모양이 아니면(`..`·절대 경로 등) 준비 폴더 밖을 가리킬 수 있어 거부한다
         func prepare(_ relative: String) throws -> URL {
+            guard UsbWriter.isSafeRelativePath(relative) else { throw UsbError.readFailed(detail: "unsafe staging path") }
             let url = staging.appending(path: relative)
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true,
                                                     attributes: [.posixPermissions: 0o700])

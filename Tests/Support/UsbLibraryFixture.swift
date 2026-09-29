@@ -65,6 +65,8 @@ public struct UsbLibraryFixture: Sendable {
     public var imageIDs: [Int: Int] = [:]
     /// Device Library 재생 기록(표 11·12) 하나에 넣을 곡
     public var pdbHistoryEntries: [Int] = []
+    /// pdb 표 19의 두 번째 문자열(DJCrate 작성기는 늘 비워 쓴다)
+    public var pdbPropertyName = ""
 
     public init() {}
 
@@ -185,7 +187,7 @@ public struct UsbLibraryFixture: Sendable {
             }
         }
         for _ in 0..<pdbUnknownRows { export.add(PdbTableType.unknown9.rawValue, PdbBuilder.opaqueRow()) }
-        export.add(.history19, PdbBuilder.propertyRow(count: trackIDs.count + deviceOnlyTrackIDs.count, date: "2026-01-03"))
+        export.add(.history19, PdbBuilder.propertyRow(count: trackIDs.count + deviceOnlyTrackIDs.count, date: "2026-01-03", name: pdbPropertyName))
         var ext = PdbBuilder(kind: .exportExt)
         for tag in myTags {
             ext.add(.tags, PdbBuilder.tagRow(id: tag.id, name: tag.name, parentID: tag.parentID, position: tag.sequenceNo,

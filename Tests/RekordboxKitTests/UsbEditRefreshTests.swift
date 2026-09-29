@@ -32,6 +32,27 @@ extension UsbEditEngineTests {
         #expect(again.outcome(1) == .unchanged)
     }
 
+    @Test("USB 그림 행 경로가 아트워크 모양이 아니면(.. 등) 준비 폴더 밖에 만들지 않고 그 곡 그림 갱신을 막는다")
+    func artworkRefreshRefusesUnsafeImagePath() throws {
+        let env = try Self.exported(["101", "102"], playlist: false)
+        let track = try #require(try env.read().tracks.first { $0.id == 1 })
+        let imageID = try #require(track.imageID)
+        // 준비 폴더(임시 폴더/staging-…/edit-1)에서 다섯 단계 위 = 시험 임시 폴더
+        let escaped = "/PIONEER/Artwork/00001/../../../../../escaped/b\(imageID).jpg"
+        try env.oneLibrarySQL("UPDATE image SET path = ? WHERE image_id = ?", [.text(escaped), .int(imageID)])
+        try Self.setArtwork(env, "101", small: Data([0xFF, 0xD8, 0x07, 0xFF, 0xD9]), medium: Data([0xFF, 0xD8, 0x08, 0xFF, 0xD9]))
+        try env.updateLocal("101", "TrackInfoUpdated = '2'")
+        let result = try env.plan([.refreshTracks(usbContentIDs: [1], parts: [.artwork])])
+        #expect(!FileManager.default.fileExists(atPath: env.usb.folder.appending(path: "escaped").path))
+        #expect(Self.isBlocked(result.outcome(1), "artworkPathRefused"))
+        #expect(!(result.changes?.writes.contains { $0.destination.contains("..") } ?? false))
+        // 다른 곡과 함께 갱신하면 그 곡만 뺀다
+        try env.updateLocal("102", "TrackInfoUpdated = '2', Title = '합성 새 제목'")
+        let both = try env.plan([.refreshTracks(usbContentIDs: [1, 2], parts: [.info, .artwork])])
+        #expect(both.outcome(1) == .written && both.trackBlocks.map(\.code) == ["artworkPathRefused"])
+        #expect(!FileManager.default.fileExists(atPath: env.usb.folder.appending(path: "escaped").path))
+    }
+
     @Test("그림이 새로 생긴 곡은 새 image id를 마지막 아트워크 폴더에 둔다")
     func artworkRefreshAddsNewImage() throws {
         let env = try UsbEditFixture()

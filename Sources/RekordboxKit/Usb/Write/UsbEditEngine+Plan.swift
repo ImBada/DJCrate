@@ -133,10 +133,15 @@ extension UsbEditEngine {
         var ids = planner.ids
         UsbEditPlanner.observe(applied, into: &ids)
         let highWater = Dictionary(uniqueKeysWithValues: ids.highWater.map { ($0.key.rawValue, $0.value) })
+        // 지운 파일은 검증(G)이 없어졌는지 본다(쓰기가 건너뛴 지우기는 쓰기 절차가 뺀다)
+        let mustNotExist = Set(removals.map(\.path)).subtracting(context.target.keys)
         result.changes = UsbChangeSet(session: session, label: "edit", purpose: .edit, formats: result.formatsWritten, requiredRules: rules,
                                       databases: context.databases, copies: context.copies, writes: context.writes, removals: removals,
-                                      base: snapshot.fingerprint, target: UsbTargetFingerprint(mustExist: context.target, mustNotExist: []),
+                                      base: snapshot.fingerprint, target: UsbTargetFingerprint(mustExist: context.target, mustNotExist: mustNotExist),
                                       stagingDirectory: staging.path, idHighWater: highWater)
+        // 편집이 건드리지 않은 곡까지 USB 전체를 보는 검증이 쓰던 USB에 이미 있던 문제로 쓰기를 되돌리지 않게
+        result.preexistingProblems = try UsbInvariantVerifier.problems(snapshot: snapshot, root: root, fileSystem: fileSystem,
+                                                                       checkFormatCounts: source.formatsBlocked.isEmpty)
         return result
     }
 
@@ -208,6 +213,10 @@ extension UsbEditEngine {
             }
             switch reference {
             case .artwork:
+                guard UsbEditPlanner.isArtworkFile(path) else {
+                    plan.notes.append(String(ui: "지워도 되는 파일이 아니라 지우지 않았습니다: \(path)"))
+                    continue
+                }
                 plan.removals.append(UsbFileRemoval(path: path, expectedSHA256: try fileSystem.sha256(url, uncached: true), expectedSize: info.size,
                                                     expectedPPTH: nil, localOriginal: nil, localOriginalSHA1: nil))
             case let .analysis(track):

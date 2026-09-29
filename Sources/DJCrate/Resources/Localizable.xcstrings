@@ -3383,6 +3383,22 @@
         }
       }
     },
+    "Device Library를 지금 고칠 수 없어, 두 형식에 함께 있는 재생 목록의 이름과 폴더는 바꾸지 않았습니다. Device Library가 막힌 이유를 먼저 푼 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Device Library cannot be edited right now, so the name and folder of playlists that exist in both formats were not changed. Resolve why the Device Library is blocked, then try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device Libraryを今は編集できないため、両方の形式にあるプレイリストの名前とフォルダは変更しませんでした。Device Libraryがブロックされている理由を先に解消してから、もう一度お試しください"
+          }
+        }
+      }
+    },
     "Device Library만" : {
       "localizations" : {
         "en" : {
@@ -7304,6 +7320,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBにあった機器の記録行を引き継ぐ方法"
+          }
+        }
+      }
+    },
+    "USB에 적힌 그림 경로가 아트워크 폴더 모양이 아니라 그림을 고치지 않았습니다. rekordbox에서 USB를 다시 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The artwork path recorded on the USB is not in the artwork folder format, so the artwork was not changed. Export the USB again from rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに記録されたアートワークのパスがアートワークフォルダの形ではないため、アートワークを変更しませんでした。rekordboxでUSBにもう一度エクスポートしてください"
           }
         }
       }

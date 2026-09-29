@@ -102,20 +102,21 @@ struct UsbEditEngineTests {
         let env = try Self.exported()
         env.setPdbFlag(4)
         let pdbBefore = env.usb.data(UsbLayout.exportPdb)
-        let (result, report) = try env.edit([.playlist(edit: .rename(playlist: .id("1"), name: "합성 바뀐 이름"))], withLocal: false)
+        let (result, report) = try env.edit([.playlist(edit: .create(key: "n", name: "합성 새 목록", isFolder: false, parent: .root))],
+                                            withLocal: false)
         #expect(result.formatsBlocked[.deviceLibrary]?.code == "pdbNotClosed")
         #expect(result.formatsWritten == [.oneLibrary])
         #expect(result.outcome(1) == .written)
         #expect(result.changes?.databases.map(\.destination) == [UsbLayout.oneLibrary])
         #expect(report.outcome == .written)
         #expect(env.usb.data(UsbLayout.exportPdb) == pdbBefore)
-        #expect(try env.read(.oneLibrary)?.playlists.map(\.name) == ["합성 바뀐 이름"])
+        #expect(try env.read(.oneLibrary)?.playlists.map(\.name) == ["합성 목록", "합성 새 목록"])
     }
 
     @Test("모르는 표에 산 행이 있으면 Device Library만 막는다(기기 행 규칙)")
     func unknownTableRows_DLBlocked() throws {
         let env = try Self.rekordboxStyle { $0.pdbUnknownRows = 2 }
-        let result = try env.plan([.playlist(edit: .rename(playlist: .id("10"), name: "합성 새 이름"))], withLocal: false)
+        let result = try env.plan([.playlist(edit: .create(key: "n", name: "합성 새 목록", isFolder: false, parent: .root))], withLocal: false)
         let block = try #require(result.formatsBlocked[.deviceLibrary])
         #expect(block.code == "carriedDeviceRows" && block.rule == .carriedDeviceRows)
         #expect(result.formatsWritten == [.oneLibrary])
@@ -125,10 +126,18 @@ struct UsbEditEngineTests {
     @Test("다시 쓸 수 없는 Device Library(My Tag 연결)면 그 형식만 막고 이유를 적는다")
     func roundTripFailure_DLBlocked() throws {
         let env = try Self.rekordboxStyle { $0.myTagLinks = [(8, 1)] }
-        let result = try env.plan([.playlist(edit: .rename(playlist: .id("10"), name: "합성 새 이름"))], withLocal: false)
+        let result = try env.plan([.playlist(edit: .create(key: "n", name: "합성 새 목록", isFolder: false, parent: .root))], withLocal: false)
         let block = try #require(result.formatsBlocked[.deviceLibrary])
         #expect(block.code == "pdbRoundTripFailed")
         #expect(block.message.contains("myTagLinks"))
+        #expect(result.formatsWritten == [.oneLibrary])
+    }
+
+    @Test("pdb 표 19의 두 번째 문자열에 값이 있으면 다시 쓸 수 없어 Device Library만 막는다")
+    func pdbDeviceNameBlocksDeviceLibrary() throws {
+        let env = try Self.rekordboxStyle { $0.pdbPropertyName = "SYNTH" }
+        let result = try env.plan([.playlist(edit: .create(key: "n", name: "합성 새 목록", isFolder: false, parent: .root))], withLocal: false)
+        #expect(result.formatsBlocked[.deviceLibrary]?.code == "pdbRoundTripFailed")
         #expect(result.formatsWritten == [.oneLibrary])
     }
 
@@ -258,6 +267,36 @@ struct UsbEditEngineTests {
         let swapped = try env.plan([.refreshTracks(usbContentIDs: [1], parts: [.cues])])
         #expect(swapped.changes?.writes.isEmpty ?? true)
         #expect(swapped.notes.contains { $0.contains("분석 파일이 다른 곡 것이라 고치지 않았습니다") })
+        // 분석 파일을 고치지 않았으니 갱신 횟수도 USB 값 그대로(DB만 최신이라고 적지 않는다)
+        #expect(swapped.changes == nil && swapped.outcome(1) == .unchanged)
+        #expect(swapped.applied?.tracks.first { $0.id == 1 }?.cueUpdateCount == track.cueUpdateCount)
+        // 곡 정보는 고치고 큐 갱신 횟수만 USB 값으로 둔다
+        try env.updateLocal("101", "TrackInfoUpdated = '2', Title = '합성 새 제목'")
+        let mixed = try env.plan([.refreshTracks(usbContentIDs: [1], parts: [.info, .cues])])
+        #expect(mixed.outcome(1) == .written && mixed.changes?.writes.isEmpty == true)
+        let applied = try #require(mixed.applied?.tracks.first { $0.id == 1 })
+        #expect(applied.title == "합성 새 제목" && applied.cueUpdateCount == track.cueUpdateCount)
+    }
+
+    @Test("여러 곡 갱신에서 한 곡만 막히면 그 곡만 빼고 나머지를 쓰고, 모두 막히면 편집을 막는다")
+    func refreshBlocksOnlyThatTrack() throws {
+        let env = try Self.exported(["101", "102"], playlist: false)
+        let row = try env.local.local.rows("SELECT FolderPath FROM djmdContent WHERE ID = '102'")
+        let path = try #require(row.first?["FolderPath"])
+        var data = try Data(contentsOf: URL(filePath: path))
+        data[0] ^= 0xFF
+        try data.write(to: URL(filePath: path))
+        try env.updateLocal("101", "TrackInfoUpdated = '2', Title = '합성 새 제목'")
+        try env.updateLocal("102", "TrackInfoUpdated = '2', Title = '합성 새 제목 둘'")
+        let (result, report) = try env.edit([.refreshTracks(usbContentIDs: [1, 2], parts: [.info])])
+        #expect(result.outcome(1) == .written && report.outcome == .written)
+        #expect(result.trackBlocks.map(\.code) == ["audioChanged"])
+        let after = try env.read()
+        #expect(after.tracks.first { $0.id == 1 }?.title == "합성 새 제목")
+        #expect(after.tracks.first { $0.id == 2 }?.title != "합성 새 제목 둘")
+        let all = try env.plan([.refreshTracks(usbContentIDs: [2, 99], parts: [.info])])
+        #expect(Self.isBlocked(all.outcome(1), "audioChanged"))
+        #expect(all.changes == nil && all.trackBlocks.isEmpty)
     }
 
     @Test("큐 갱신을 쓰면 USB 분석 파일에 새 큐가 들어가고 갱신 횟수도 로컬 값")
@@ -361,6 +400,9 @@ struct UsbEditEngineTests {
         let (result, report) = try env.edit([.removeTracks(usbContentIDs: [2])])
         #expect(result.outcome(1) == .written && report.outcome == .written)
         #expect(result.changes?.requiredRules.contains(.trackRemovalFiles) == true)
+        // 검증(G)이 지운 파일이 실제로 없어졌는지 보게 목표 지문에 적는다
+        let changes = try #require(result.changes)
+        #expect(!changes.removals.isEmpty && changes.target.mustNotExist == Set(changes.removals.map(\.path)))
         let after = try env.read()
         #expect(after.tracks.map(\.id) == [1])
         #expect(after.playlists.first?.entries[.oneLibrary] == [1] && after.playlists.first?.entries[.deviceLibrary] == [1])
@@ -396,6 +438,16 @@ struct UsbEditEngineTests {
         #expect(!(withoutLocal.changes?.removals.contains { $0.path == String(tracks[2].path.dropFirst()) } ?? true))
         #expect(withoutLocal.notes.contains { $0.contains("음원을 USB에 남겼습니다") })
         #expect(withoutLocal.changes?.removals.contains { $0.path.hasPrefix("PIONEER/USBANLZ") } == true)
+        // 로컬 원본이 있지만 내용이 다르면 남기고 알린다
+        let row = try env.local.local.rows("SELECT FolderPath FROM djmdContent WHERE ID = '101'")
+        let path = try #require(row.first?["FolderPath"])
+        var data = try Data(contentsOf: URL(filePath: path))
+        data[0] ^= 0xFF
+        try data.write(to: URL(filePath: path))
+        let changed = try env.plan([.removeTracks(usbContentIDs: [1])])
+        #expect(changed.outcome(1) == .written)
+        #expect(!(changed.changes?.removals.contains { $0.path == String(tracks[0].path.dropFirst()) } ?? true))
+        #expect(changed.notes.contains { $0.contains("음원을 USB에 남겼습니다") })
     }
 
     @Test("같은 음원을 다른 곡이 가리키면 지우지 않는다")
@@ -565,6 +617,7 @@ struct UsbEditEngineTests {
         #expect(device.tracks.map(\.id) == [1, 2, 3])
         #expect(device.playlists.map(\.name).sorted() == ["합성 바뀐 이름", "합성 새 목록"])
         #expect(try env.read(.oneLibrary)?.tracks.map(\.id) == [1, 2, 3])
+        try UsbEditInvariantTests.check(env, result)
     }
 
     @Test("savepoint: 한 편집이 막혀도 앞뒤 편집은 쓴다")
@@ -635,6 +688,19 @@ struct UsbEditEngineTests {
         #expect(rebuilt.categories == device.categories && rebuilt.property.pdbDate == device.property.pdbDate)
         let rebuiltOne = try OneLibraryReader.read(copyAt: folder.appending(path: "exportLibrary.db"))
         #expect(rebuiltOne.tracks.first { $0.id == 1 }?.titleForSearch == "SEARCH")
+
+        // rekordbox가 만든 USB: 표 19 날짜가 OneLibrary createdDate와 달라도(작성기가 createdDate로 다시 만들지 않고) 그대로
+        let made = try Self.rekordboxStyle()
+        let madeDate = try #require(try made.read(.deviceLibrary)?.property.pdbDate)
+        let created = try #require(try made.read(.oneLibrary)?.property.createdDate)
+        #expect(madeDate != created)
+        let (renamed, _) = try made.edit([.playlist(edit: .rename(playlist: .id("10"), name: "합성 새 이름"))], withLocal: false)
+        #expect(renamed.formatsWritten.contains(.deviceLibrary))
+        #expect(try made.read(.deviceLibrary)?.property.pdbDate == madeDate)
+        let (removed, _) = try made.edit([.removeTracks(usbContentIDs: [3])], withLocal: false)
+        #expect(removed.formatsWritten.contains(.deviceLibrary))
+        #expect(try made.read(.deviceLibrary)?.property.pdbDate == madeDate)
+        #expect(try made.read(.oneLibrary)?.property.createdDate == created)
     }
 
     // MARK: - 긴 ASCII
@@ -663,5 +729,50 @@ struct UsbEditEngineTests {
         let rename = try existing.plan([.playlist(edit: .rename(playlist: .id("1"), name: "renamed"))])
         #expect(rename.changes?.requiredRules.contains(.pdbLongAscii) == true)
         #expect(rename.changes?.requiredRules.contains(.pdbRegeneratedEdit) == true)
+
+        // Device Library를 쓰지 않으면(막힘) pdb 문자열 규칙을 싣지 않는다
+        let blocked = try Self.exported(["101", "102"])
+        blocked.setPdbFlag(4)
+        try blocked.updateLocal("101", "TrackInfoUpdated = '2', Title = ?", [.text(long)])
+        let refresh = try blocked.plan([.refreshTracks(usbContentIDs: [1], parts: [.info])])
+        #expect(refresh.outcome(1) == .written && refresh.changes?.requiredRules.contains(.pdbLongAscii) == false)
+        let create = try blocked.plan([.playlist(edit: .create(key: "l", name: long, isFolder: false, parent: .root))])
+        #expect(create.outcome(1) == .written && create.changes?.requiredRules.contains(.pdbLongAscii) == false)
+    }
+
+    // MARK: - 쓰기 전부터 있던 문제
+
+    @Test("쓰기 전부터 분석 파일 번호가 엉킨 곡이 있어도 그 곡을 건드리지 않는 편집은 쓴다(새로 생긴 문제만 센다)")
+    func preexistingInvariantProblemsIgnored() throws {
+        let env = try Self.exported()
+        let tracks = try env.read().tracks
+        let first = String(tracks[0].analysisDataPath.dropFirst().dropLast(4)), second = String(tracks[1].analysisDataPath.dropFirst().dropLast(4))
+        for ext in [".DAT", ".EXT", ".2EX"] { env.usb.write(first + ext, try #require(env.usb.data(second + ext))) }
+        let rename = try env.plan([.playlist(edit: .rename(playlist: .id("1"), name: "합성 바뀐 이름"))], withLocal: false)
+        #expect(rename.preexistingProblems == ["ppth content 1 onelibrary", "ppth content 1 pdb"])
+        #expect(try env.write(rename).outcome == .written)
+        let (removal, report) = try env.edit([.removeTracks(usbContentIDs: [3])])
+        #expect(removal.outcome(1) == .written && report.outcome == .written)
+        #expect(try env.read().tracks.map(\.id) == [1, 2])
+    }
+
+    @Test("불변식 검증기는 쓰기 전부터 있던 문제를 빼고 새로 생긴 문제만 센다")
+    func invariantVerifierCountsOnlyNewProblems() throws {
+        let env = try Self.exported()
+        let tracks = try env.read().tracks
+        let first = String(tracks[0].analysisDataPath.dropFirst().dropLast(4)), second = String(tracks[1].analysisDataPath.dropFirst().dropLast(4))
+        for ext in [".DAT", ".EXT", ".2EX"] { env.usb.write(first + ext, try #require(env.usb.data(second + ext))) }
+        let scratch = env.usb.folder.appending(path: "verify-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+        let fileSystem = env.usb.fileSystem()
+        let before = try UsbInvariantVerifier.problems(on: env.usb.root, fileSystem: fileSystem, scratch: scratch)
+        #expect(before == ["ppth content 1 onelibrary", "ppth content 1 pdb"])
+        let changes = try #require(try env.plan([.playlist(edit: .rename(playlist: .id("1"), name: "합성 바뀐 이름"))], withLocal: false).changes)
+        let verifier = UsbInvariantVerifier(preexistingProblems: before)
+        #expect(try verifier.verify(root: env.usb.root, changes: changes, fileSystem: fileSystem, scratch: scratch).isEmpty)
+        #expect(try UsbInvariantVerifier().verify(root: env.usb.root, changes: changes, fileSystem: fileSystem, scratch: scratch).count == 2)
+        // 새로 생긴 문제는 센다
+        try FileManager.default.removeItem(at: env.usb.usb(String(tracks[1].path.dropFirst())))
+        #expect(try verifier.verify(root: env.usb.root, changes: changes, fileSystem: fileSystem, scratch: scratch) == ["missing audio content 2"])
     }
 }
