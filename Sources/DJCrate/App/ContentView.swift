@@ -158,6 +158,10 @@ struct ContentView: View {
                         if store.sidebar == .duplicates {
                             DuplicateTracksView(store: store)
                                 .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
+                        } else if case let .usb(.pending(volumeKey)) = store.sidebar, let usb = store.usb {
+                            UsbPendingView(store: store, usb: usb, volumeKey: volumeKey)
+                                .id(volumeKey)
+                                .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
                         } else if showsSheet {
                             TagSheetView(store: store)
                                 .onDisappear { store.canFillDownTags = false }

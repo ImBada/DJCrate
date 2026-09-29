@@ -7,6 +7,7 @@ import RekordboxKit
 /// 사이드바 USB 절 상태: 연결된 볼륨마다 모양(빈 FAT32·rekordbox USB·쓸 수 없는 모양)과 사본으로 읽은 라이브러리.
 /// 여기서는 USB에 쓰지 않는다. 읽기는 호스트가 메인 액터 밖에서 사본으로 하고, 여기서는 결과만 받는다.
 /// 쓰기(`UsbWriteCoordinator`)가 쥐는 볼륨별 잠금·진행과, 끝나지 않은 쓰기가 있는 볼륨이 나타났다는 알림도 여기 둔다.
+/// USB 초안(편집 수·빠진 볼륨의 초안)도 여기서 본다. 초안 파일은 `UsbEditActions`가 고친다.
 @MainActor @Observable final class UsbStore {
     enum Shape: Equatable {
         /// 내보낼 수 있는 빈 FAT32·MBR(rekordbox 라이브러리 없음)
@@ -43,6 +44,14 @@ import RekordboxKit
     /// 열 내보내기 시트(볼륨·다시 미리 보기 결과)
     var exportSheet: UsbExportSheetRequest?
     let readPolicy: UsbReadPolicy
+    /// 볼륨키 → 초안 편집 수(없으면 nil)
+    private(set) var draftCounts: [String: Int] = [:]
+    /// 볼륨키 → 초안이 바뀐 횟수(쓰기 대기 목록이 초안을 다시 읽는다)
+    private(set) var draftRevisions: [String: Int] = [:]
+    /// 초안이 남은 채 빠진 볼륨(이번 실행에서 읽은 것만): 그때 볼륨 정보와 라이브러리. 다시 붙으면 뺀다
+    private(set) var absentDrafts: [String: UsbAbsentVolume] = [:]
+    /// USB 초안 폴더(`usb-drafts`). nil이면 초안을 다루지 않는다(시험·캡처의 기본 — 사용자 폴더를 읽지 않게)
+    @ObservationIgnored var draftDirectory: URL?
 
     /// 볼륨키 → 마지막 내보내기(다시 미리 보기에 쓴다)
     @ObservationIgnored var lastExports: [String: UsbExportJob] = [:]
@@ -109,8 +118,12 @@ import RekordboxKit
             let order = lhs.name.localizedStandardCompare(rhs.name)
             return order == .orderedSame ? lhs.mountPoint < rhs.mountPoint : order == .orderedAscending
         }
+        let previous = volumes
         volumes = visible
         let keys = Set(visible.map(\.usbKey))
+        // 초안이 있는 볼륨은 빠져도 쓰기 대기 목록을 남긴다(다시 붙으면 그 볼륨 아래로 돌아간다)
+        for volume in previous where !keys.contains(volume.usbKey) { rememberDraft(volume) }
+        for key in keys { absentDrafts[key] = nil }
         for key in Set(shapes.keys).union(refusals.keys).subtracting(keys) {
             forget(key)
             shapes[key] = nil
@@ -162,6 +175,7 @@ import RekordboxKit
                 libraries[key] = library
                 syncBadges[key] = badges
                 shapes[key] = .rekordbox(formats: formats)
+                await reloadDraftCount(key)
             }
             readVolumes[key] = volume
         } catch {
@@ -228,6 +242,7 @@ import RekordboxKit
             return String(ui: "USB를 꺼내지 못했습니다. 사용 중인 앱을 닫고 Finder에서 꺼내세요")
         }
         // 떨어짐 알림을 기다리지 않고 바로 뺀다
+        rememberDraft(volume)
         volumes.removeAll { $0.usbKey == volumeKey }
         journalChecked.remove(volumeKey)
         forget(volumeKey)
@@ -236,6 +251,52 @@ import RekordboxKit
         if exportSheet?.volumeKey == volumeKey { exportSheet = nil }
         onChange?()
         return nil
+    }
+
+    // MARK: - 초안
+
+    /// 초안 편집을 받는 볼륨: 읽은 rekordbox USB(다시 읽는 중 포함, 볼륨 번호가 있어야 한다)와 초안이 남은 채 빠진 볼륨.
+    /// 쓰기 금지 목록·읽지 못한 볼륨은 받지 않는다(초안 메뉴 자체를 보이지 않는다)
+    func acceptsEdits(_ key: String) -> Bool {
+        guard draftDirectory != nil, refusals[key] == nil else { return false }
+        if let volume = volume(key) {
+            return libraries[key] != nil && (try? UsbEditSession.volumeKey(volume)) == key
+        }
+        return absentDrafts[key] != nil
+    }
+
+    /// 편집 대상 볼륨 이름(빠진 볼륨도)
+    func editName(_ key: String) -> String? { volume(key)?.name ?? absentDrafts[key]?.volume.name }
+
+    /// 편집 대상 라이브러리(빠진 볼륨은 마지막으로 읽은 것)
+    func editLibrary(_ key: String) -> UsbLibrary? { libraries[key] ?? absentDrafts[key]?.library }
+
+    /// 그 볼륨의 초안 편집 수를 다시 읽는다(메인 액터 밖에서 파일을 읽는다)
+    func reloadDraftCount(_ key: String) async {
+        guard let directory = draftDirectory else { return }
+        let count = await Task.detached(priority: .utility) { () -> Int in
+            ((try? UsbDraftStore(directory: directory).load(volumeKey: key)) ?? nil)?.edits.count ?? 0
+        }.value
+        setDraftCount(count, for: key)
+    }
+
+    /// 초안이 바뀌었다(편집 동작·쓰기 뒤). 빠진 볼륨의 초안이 비면 사이드바에서 뺀다
+    func setDraftCount(_ count: Int, for key: String) {
+        draftCounts[key] = count > 0 ? count : nil
+        draftRevisions[key, default: 0] += 1
+        if count == 0, absentDrafts[key] != nil {
+            absentDrafts[key] = nil
+            // 그 볼륨의 쓰기 대기 목록을 보던 중이면 라이브러리로 돌아간다
+            onChange?()
+        }
+    }
+
+    /// 빠지는 볼륨에 초안이 있으면 기억한다(쓰기 금지 목록 볼륨은 빼고)
+    private func rememberDraft(_ volume: UsbVolumeInfo) {
+        let key = volume.usbKey
+        guard draftDirectory != nil, (draftCounts[key] ?? 0) > 0, refusals[key] == nil, libraries[key] != nil,
+              (try? UsbEditSession.volumeKey(volume)) == key else { return }
+        absentDrafts[key] = UsbAbsentVolume(volume: volume, library: libraries[key])
     }
 
     // MARK: - 쓰기 잠금·진행
@@ -299,19 +360,20 @@ import RekordboxKit
         }
     }
 
-    /// 대상이 아직 보이는지(볼륨이 빠지거나 목록이 없어지면 거짓)
+    /// 대상이 아직 보이는지(볼륨이 빠지거나 목록이 없어지면 거짓). 쓰기 대기 목록은 초안이 남은 채 빠진 볼륨에도 있다
     func contains(_ target: UsbSidebarTarget) -> Bool {
+        if case let .pending(key) = target { return acceptsEdits(key) }
         guard volume(target.volumeKey) != nil else { return false }
         switch target {
         case .collection: return libraries[target.volumeKey] != nil || shapes[target.volumeKey] == .reading
         case let .playlist(key, id): return libraries[key]?.playlists.contains { $0.id == id } ?? (shapes[key] == .reading)
-        case .pending: return true
+        case .pending: return false
         }
     }
 
     /// 목록 제목
     func title(for target: UsbSidebarTarget) -> String {
-        let name = volume(target.volumeKey)?.name ?? "USB"
+        let name = editName(target.volumeKey) ?? "USB"
         switch target {
         case .collection: return String(ui: "\(name) · 컬렉션")
         case let .playlist(key, id): return libraries[key]?.playlists.first { $0.id == id }?.name ?? name
@@ -324,7 +386,7 @@ import RekordboxKit
 public enum UsbSidebarTarget: Hashable, Sendable {
     case collection(volumeKey: String)
     case playlist(volumeKey: String, id: Int)
-    /// USB 쓰기 대기(뒤 판에서 쓴다)
+    /// USB 쓰기 대기(그 볼륨의 초안)
     case pending(volumeKey: String)
 
     var volumeKey: String {
@@ -332,6 +394,12 @@ public enum UsbSidebarTarget: Hashable, Sendable {
         case let .collection(key), let .playlist(key, _), let .pending(key): key
         }
     }
+}
+
+/// 초안이 남은 채 빠진 볼륨: 빠질 때의 정보와 마지막으로 읽은 라이브러리
+struct UsbAbsentVolume: Equatable {
+    var volume: UsbVolumeInfo
+    var library: UsbLibrary?
 }
 
 /// 지금 쓰는 볼륨과 진행

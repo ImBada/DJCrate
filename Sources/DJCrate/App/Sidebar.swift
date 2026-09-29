@@ -61,7 +61,7 @@ struct Sidebar: View {
                 }
             }
             if let usb = store.usb {
-                UsbSidebarSection(usb: usb)
+                UsbSidebarSection(store: store, usb: usb)
             }
             if let report = store.report {
                 Section(.ui("현황"), isExpanded: $summaryExpanded) {
@@ -179,10 +179,27 @@ struct ListActionBar: View {
             } else {
                 EmptyView()
             }
+        case .usb(.pending):
+            // 쓰기 대기 목록은 자기 머리에 단추를 둔다
+            EmptyView()
         case let .usb(target):
             bar {
-                Label(.ui("USB의 곡·재생 목록은 읽기만 합니다"), systemImage: "lock")
-                    .font(.caption).foregroundStyle(.secondary)
+                if let actions = store.usbEdits, actions.usb.acceptsEdits(target.volumeKey) {
+                    let key = target.volumeKey
+                    let updatable = actions.updatableTracks(volumeKey: key).count
+                    Button { Task { await actions.refreshLocalChanges(volumeKey: key) } } label: {
+                        Label(.ui("로컬 변경을 USB에 반영 (\(updatable)곡)"), systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .disabled(updatable == 0)
+                    .help(.ui("로컬에서 더 고친 곡(갱신 가능)을 USB 쓰기 대기에 더합니다. USB는 ‘USB에 쓰기…’를 누를 때 바뀝니다."))
+                    Button { store.sidebar = .usb(.pending(volumeKey: key)) } label: {
+                        Label(.ui("USB 쓰기 대기 (\(actions.usb.draftCounts[key] ?? 0)건)"), systemImage: "square.and.arrow.up.on.square")
+                    }
+                    Text(.ui("USB 편집은 초안으로 쌓고 ‘USB에 쓰기…’로 반영합니다")).font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Label(.ui("USB의 곡·재생 목록은 읽기만 합니다"), systemImage: "lock")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 if store.usb?.infos[target.volumeKey].map({ $0.consistency.playlistMismatches > 0 }) == true {
                     Label(.ui("두 형식의 재생 목록 내용이 다릅니다"), systemImage: WarningMark.symbol)
                         .font(.caption).foregroundStyle(UIColors.warning.color)

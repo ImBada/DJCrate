@@ -277,15 +277,18 @@ struct UsbSelfTestScenario {
     }
 }
 
-/// 실제 창구를 그대로 부르고 마지막 쓰기 보고서만 남긴다(provenance 줄에 쓴다)
+/// 실제 창구를 그대로 부르고 마지막 쓰기 보고서만 남긴다(provenance 줄·편집 되돌리기에 쓴다)
 final class UsbSelfTestRecordingService: UsbWriteService, @unchecked Sendable {
     let base: SystemUsbWriteService
     private let lock = NSLock()
     private var written: UsbWriteReport?
+    private var edited: UsbWriteReport?
 
     init(base: SystemUsbWriteService) { self.base = base }
 
     var lastWrite: UsbWriteReport? { lock.withLock { written } }
+    /// 마지막 수정 쓰기 보고서(쓸 것이 없었으면 nil)
+    var lastEdit: UsbWriteReport? { lock.withLock { edited } }
 
     func journal(volumeKey: String) -> UsbJournalInfo { base.journal(volumeKey: volumeKey) }
     func preview(_ job: UsbExportJob) throws -> UsbExportSummary { try base.preview(job) }
@@ -300,6 +303,14 @@ final class UsbSelfTestRecordingService: UsbWriteService, @unchecked Sendable {
         try base.restore(volume, backup: backup, discardDeviceChanges: discardDeviceChanges)
     }
     func latestBackup(volumeKey: String) -> URL? { base.latestBackup(volumeKey: volumeKey) }
+    func draftBase(_ volume: UsbVolumeInfo) throws -> UsbFingerprint { try base.draftBase(volume) }
+    func previewEdit(_ job: UsbEditJob) throws -> UsbEditSummary { try base.previewEdit(job) }
+    func writeEdit(_ job: UsbEditJob, progress: @escaping @Sendable (UsbProgress) -> Void,
+                   isCancelled: @escaping @Sendable () -> Bool) throws -> UsbEditWritten {
+        let written = try base.writeEdit(job, progress: progress, isCancelled: isCancelled)
+        lock.withLock { edited = written.report }
+        return written
+    }
 }
 
 /// 지운 `._` 파일을 적는 USB 파일 연산(나머지는 그대로 POSIX로 한다)
