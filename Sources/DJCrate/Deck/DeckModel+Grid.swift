@@ -188,15 +188,24 @@ extension DeckModel {
     // MARK: 알림(잠깐 떴다 사라진다)
 
 
+    /// 떠 있는 시간(nil이면 닫을 때까지). 경고는 문장이 길어 읽을 시간을 더 준다(#146).
+    static func toastDuration(_ kind: AppToast.Kind) -> Duration? {
+        switch kind {
+        case .success: .seconds(2.5)
+        case .warning: .seconds(5)
+        case .failure: nil
+        }
+    }
+
     func showToast(_ text: String, kind: AppToast.Kind = .warning) {
         toastTask?.cancel()
         toastTask = nil
         let message = AppMessage(kind: kind, text: text)
         toast = message
         feedback.announce(message)
-        guard kind == .success, !feedback.isVoiceOverEnabled() else { return }
+        guard let duration = Self.toastDuration(kind), !feedback.isVoiceOverEnabled() else { return }
         toastTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(2.5))
+            try? await Task.sleep(for: duration)
             guard !Task.isCancelled, let self, !self.feedback.isVoiceOverEnabled() else { return }
             self.toast = nil
         }

@@ -9,11 +9,23 @@ struct WriteResult: Codable, Equatable {
     var kind: AppToast.Kind
     var title: String
     var text: String
+    /// 경고 알림의 둘째 줄: 무엇을 쓰지 않았는지와 할 일(#147)
+    var shortfall: String?
     var backups: [URL] = []
     var createdAt = Date.now
 
     var toast: AppToast {
-        AppToast(kind: kind, title: title, detail: String(ui: "전체 내용과 백업 위치는 ‘마지막 쓰기 결과…’에서 다시 볼 수 있습니다."))
+        AppToast(kind: kind, title: title, detail: shortfall ?? String(ui: "전체 내용과 백업 위치는 ‘마지막 쓰기 결과…’에서 다시 볼 수 있습니다."))
+    }
+
+    /// "그리드 1곡은 쓰지 않았습니다 — 이유". 막힘 이유는 할 일까지 적은 문장이라 하나뿐이면 그대로 보이고, 여럿이면 결과 보기로 안내한다.
+    static func shortfallLine(_ what: [String], reasons: [String]) -> String? {
+        guard !what.isEmpty else { return nil }
+        let what = what.joined(separator: " · ")
+        let reasons = Set(reasons)
+        // 줄 모양은 언어와 관계없고 내용만 번역한다.
+        if reasons.count == 1, let reason = reasons.first { return "\(what) — \(reason)" }
+        return String(ui: "\(what) — 이유와 할 일은 ‘결과 보기’에서 확인하세요")
     }
 
     /// 한 번에 쓰는 것의 종류. 종류 이름이 문장 안에서 어순·조사가 달라지므로 종류마다 문장 전체를 번역한다.
@@ -75,21 +87,25 @@ struct WriteResult: Codable, Equatable {
             (.tag, report.tagOutcomes ?? [], preview.tagOutcomes ?? []),
             (.merge, report.mergeOutcomes ?? [], preview.mergeOutcomes ?? []),
         ]
-        var lines: [String] = [], summaries: [String] = [], count = 0, blocked = false
+        var lines: [String] = [], summaries: [String] = [], skipped: [String] = [], reasons: [String] = [], count = 0
         for (part, actual, predicted) in groups {
             let written = actual.filter { $0.status == .written }.count
             if written > 0 { summaries.append(part.summary(written)) }
             let seen = Set(actual.map(\.trackUUID))
             let outcomes = actual + predicted.filter { $0.status != .written && !seen.contains($0.trackUUID) }
+            let blocked = outcomes.filter { $0.status == .blocked }
+            if !blocked.isEmpty { skipped.append(part.summary(blocked.count)) }
             for outcome in outcomes {
                 switch outcome.status {
                 case .written:
                     count += 1
                     lines.append("• \(outcome.title) — " + part.written)
-                    if let reason = outcome.reason { blocked = true; lines.append(reason) }
+                    // 쓴 항목의 이유는 참고(경로가 예상과 달라 분석 파일을 남김)라 경고로 올리지 않는다.
+                    if let reason = outcome.reason { lines.append(reason) }
                 case .blocked:
-                    blocked = true
-                    lines.append("• \(outcome.title) — " + part.blocked(outcome.reason ?? String(ui: "이유 없음")))
+                    let reason = outcome.reason ?? String(ui: "이유 없음")
+                    reasons.append(reason)
+                    lines.append("• \(outcome.title) — " + part.blocked(reason))
                 case .unchanged: lines.append("• \(outcome.title) — " + part.unchanged)
                 }
             }
@@ -99,12 +115,16 @@ struct WriteResult: Codable, Equatable {
         let playlistWritten = playlists.filter { $0.status == .written }.count
         if playlistWritten > 0 { summaries.append(PlaylistWriteText.summary(playlistWritten)) }
         count += playlistWritten
-        if playlists.contains(where: { $0.status == .blocked }) { blocked = true }
+        let playlistBlocked = playlists.filter { $0.status == .blocked }
+        if !playlistBlocked.isEmpty { skipped.append(PlaylistWriteText.summary(playlistBlocked.count)) }
+        reasons += playlistBlocked.map { $0.reason ?? String(ui: "이유 없음") }
         lines += playlists.map(PlaylistWriteText.result)
-        return Self(kind: blocked || count == 0 ? .warning : .success,
+        return Self(kind: !skipped.isEmpty || count == 0 ? .warning : .success,
                     title: count == 0 ? String(ui: "rekordbox에 쓴 것이 없습니다")
                         : String(ui: "rekordbox에 썼습니다 · \(summaries.joined(separator: " · "))"),
-                    text: lines.joined(separator: "\n"), backups: report.backup.map { [URL(filePath: $0)] } ?? [])
+                    text: lines.joined(separator: "\n"),
+                    shortfall: skipped.isEmpty ? nil : shortfallLine([String(ui: "\(skipped.joined(separator: " · "))은 쓰지 않았습니다")], reasons: reasons),
+                    backups: report.backup.map { [URL(filePath: $0)] } ?? [])
     }
 
     static func tracks(_ report: RekordboxTrackWriter.Report, preview: RekordboxTrackWriter.Report,
@@ -113,33 +133,45 @@ struct WriteResult: Codable, Equatable {
         let predicted = adding ? preview.added : preview.deleted
         let seen = Set(actual.map(\.path))
         let outcomes = actual + predicted.filter { !$0.written && !seen.contains($0.path) }
-        var warning = !unreadable.isEmpty
+        // 할 일이 남은 것만 경고다: 넣지(빼지) 않은 곡, 분석 없이 넣은 곡, 쓰지 않은 큐
+        var notDone = unreadable, unanalyzed = 0, cueReasons: [String] = []
         var lines = outcomes.map { outcome in
             var parts: [String] = []
             if outcome.written {
                 parts.append(adding ? String(ui: "넣기 완료") : String(ui: "빼기 완료"))
-                if let reason = outcome.reason { warning = true; parts.append(reason) }
+                // 쓴 곡의 이유는 참고(경로가 예상과 달라 분석 파일을 남김)다.
+                if let reason = outcome.reason { parts.append(reason) }
                 if adding, let reason = withoutAnalysis[outcome.path] {
-                    warning = true
+                    unanalyzed += 1
                     parts.append(String(ui: "분석 없이 넣음(\(reason)): rekordbox에서 분석하세요"))
                 }
                 if let count = outcome.cuesWritten { parts.append(String(ui: "큐 \(count)개")) }
                 if let reason = outcome.cueReason {
-                    warning = true
+                    cueReasons.append(reason)
                     parts.append(String(ui: "큐는 쓰기 대기: \(reason)"))
                 }
             } else {
-                warning = true
                 let reason = outcome.reason ?? String(ui: "이유 없음")
+                notDone.append(reason)
                 parts.append(adding ? String(ui: "넣지 않음: \(reason)") : String(ui: "빼지 않음: \(reason)"))
             }
             return "• \(outcome.title) — " + parts.joined(separator: " · ")
         }
         lines += unreadable.map { "• " + String(ui: "넣지 않음: \($0)") }
+        var what: [String] = [], reasons = notDone + cueReasons
+        if !notDone.isEmpty {
+            what.append(adding ? String(ui: "\(notDone.count)곡은 넣지 않았습니다") : String(ui: "\(notDone.count)곡은 빼지 않았습니다"))
+        }
+        if unanalyzed > 0 {
+            what.append(String(ui: "\(unanalyzed)곡은 분석 없이 넣었습니다"))
+            reasons.append(String(ui: "rekordbox에서 분석하세요"))
+        }
+        if !cueReasons.isEmpty { what.append(String(ui: "\(cueReasons.count)곡의 큐는 쓰지 않았습니다")) }
         let count = actual.filter(\.written).count
-        return Self(kind: warning || count == 0 ? .warning : .success,
+        return Self(kind: !what.isEmpty || count == 0 ? .warning : .success,
                     title: adding ? String(ui: "rekordbox에 \(count)곡을 넣었습니다") : String(ui: "rekordbox에서 \(count)곡을 뺐습니다"),
-                    text: lines.joined(separator: "\n"), backups: report.backup.map { [URL(filePath: $0)] } ?? [])
+                    text: lines.joined(separator: "\n"), shortfall: shortfallLine(what, reasons: reasons),
+                    backups: report.backup.map { [URL(filePath: $0)] } ?? [])
     }
 
     static func restored(_ backup: RekordboxWriter.Backup, saved: URL) -> Self {
@@ -151,9 +183,9 @@ struct WriteResult: Codable, Equatable {
         var lines = [String(ui: "rekordbox 라이브러리 전체를 선택한 백업의 쓰기 전 상태로 복원했습니다."),
                      String(ui: "그때 쓴 초안과 추가 목록도 복원했습니다. 복원 직전 상태는 아래 두 번째 백업에 남아 있습니다.")]
         lines += titles.sorted().map { "• \($0)" }
-        let fileWarning = RekordboxWriter.fileWarning(in: saved)
-        if let fileWarning { lines.append(fileWarning) }
-        return Self(kind: fileWarning == nil ? .success : .warning, title: String(ui: "rekordbox를 쓰기 전으로 복원했습니다"), text: lines.joined(separator: "\n"), backups: [backup.url, saved])
+        // 경로가 예상과 달라 남긴 분석 파일은 참고로 적는다(복원은 끝났다).
+        if let fileWarning = RekordboxWriter.fileWarning(in: saved) { lines.append(fileWarning) }
+        return Self(kind: .success, title: String(ui: "rekordbox를 쓰기 전으로 복원했습니다"), text: lines.joined(separator: "\n"), backups: [backup.url, saved])
     }
 }
 

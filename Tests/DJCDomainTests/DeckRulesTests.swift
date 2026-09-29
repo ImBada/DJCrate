@@ -164,9 +164,18 @@ struct CueCountdownTests {
     @Test func 박_수로_세고_64박_넘으면_마디() {
         let cues = [EditableCue(kind: .memory, time: 20), EditableCue(kind: .hot(0), time: 12), EditableCue(kind: .memory, time: 100)]
         #expect(CueCountdown.text(to: cues, from: 12.1, grid: grid) == "−16 Beats")
-        #expect(CueCountdown.text(to: cues, from: 20.1, grid: grid) == "−40.0 Bars")
+        #expect(CueCountdown.text(to: cues, from: 20.1, grid: grid) == "−40.4 Bars")
         #expect(CueCountdown.text(to: cues, from: 100.1, grid: grid) == nil)
         #expect(CueCountdown.text(to: cues, from: 12, grid: nil) == "−8.0s")
+    }
+
+    /// #144: 마디.박은 박 번호처럼 .4 → .1로 줄고, .1 다음에 마디가 하나 준다(남은 B박 = −((B−1)/4+1).((B−1)%4+1)).
+    @Test func 마디_표시의_박은_4에서_1로_센다() {
+        let cues = [EditableCue(kind: .memory, time: 100)]  // 200번째 박
+        let texts = [76, 75, 74, 73, 72, 66, 65, 64].map { beats in
+            CueCountdown.text(to: cues, from: Double(200 - beats) * 0.5 + 0.1, grid: grid)
+        }
+        #expect(texts == ["−19.4 Bars", "−19.3 Bars", "−19.2 Bars", "−19.1 Bars", "−18.4 Bars", "−17.2 Bars", "−17.1 Bars", "−64 Beats"])
     }
 
     @Test func 남은_양은_박_또는_초로_센다() {

@@ -181,7 +181,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
         }()
         let spec = SheetColumn.all[column]
         let position = CellPosition(row: row, column: column)
-        if cell.label.font != font { cell.label.font = font }
+        cell.font = font
         cell.configure(text: text(row: row, column: column),
                        edited: spec.key.map { store.isTagEdited(rows[row], $0) } ?? false,
                        readOnly: editableKey(row: row, column: column) == nil,
@@ -439,10 +439,29 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
 }
 
 /// 셀 선택·키보드·마우스를 엑셀처럼 다루는 NSTableView.
-final class SheetTableView: NSTableView {
+final class SheetTableView: NSTableView, NSViewToolTipOwner {
     weak var coordinator: SheetCoordinator?
+    /// 표 하나에 붙인 툴팁 영역(시험용으로 읽는다)
+    private(set) var toolTipTag: NSView.ToolTipTag?
+    private(set) var toolTipRect = NSRect.zero
 
     override var acceptsFirstResponder: Bool { true }
+
+    // 칸마다 toolTip을 달면 칸을 다시 쓸 때마다 추적 영역이 생겨, 스크롤 때 표가 추적 영역을 다시 계산하느라
+    // 프레임이 밀렸다(#140). 표 하나에 영역 하나만 두고 마우스 밑 칸의 글자를 그때 알려 준다.
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        guard toolTipTag == nil || toolTipRect != bounds else { return }
+        if let toolTipTag { removeToolTip(toolTipTag) }
+        toolTipRect = bounds
+        toolTipTag = bounds.isEmpty ? nil : addToolTip(bounds, owner: self, userData: nil)
+    }
+
+    func view(_ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint, userData data: UnsafeMutableRawPointer?) -> String {
+        let hitRow = row(at: point), hitColumn = column(at: point)
+        guard let coordinator, hitRow >= 0, hitColumn >= 0 else { return "" }
+        return coordinator.text(row: hitRow, column: hitColumn)
+    }
 
     override func accessibilitySelectedCells() -> [Any]? {
         guard let coordinator, !coordinator.rows.isEmpty else { return [] }
@@ -646,37 +665,35 @@ struct DraftCornerSwatch: View {
 final class SheetCell: NSTableCellView {
     let label = NSTextField(labelWithString: "")
     private(set) var editingField: NSTextField?
-    private let draftMark = DraftCornerView()
+    /// 초안 칸에만 만든다. 칸마다 뷰가 늘면 스크롤 때 AppKit이 하위 뷰를 모두 훑는 비용이 그만큼 는다(#140).
+    private var draftMark: DraftCornerView?
     private var edited = false
     private var readOnly = false
     private var selected = false
     private var active = false
+    /// 마지막으로 칠한 색 상태. 같으면 그리기 직전 갱신에서 레이어·글자색을 다시 쓰지 않는다.
+    private var paintedState: PaintState?
+
+    private struct PaintState: Equatable {
+        var tone: SheetCellAppearance.Tone
+        var selected: Bool
+        var active: Bool
+        var emphasized: Bool
+        var appearance: NSAppearance.Name
+    }
 
     /// 초안 모서리 표식이 보이는지(시험용)
-    var showsDraftMark: Bool { !draftMark.isHidden }
+    var showsDraftMark: Bool { draftMark?.isHidden == false }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        label.translatesAutoresizingMaskIntoConstraints = false
         label.lineBreakMode = .byTruncatingTail
         label.font = Self.font(scale: 1)
         label.cell?.usesSingleLineMode = true
         label.cell?.isScrollable = false
         addSubview(label)
         textField = label
-        draftMark.translatesAutoresizingMaskIntoConstraints = false
-        draftMark.isHidden = true
-        addSubview(draftMark)
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
-            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
-            label.centerYAnchor.constraint(equalTo: centerYAnchor),
-            draftMark.leadingAnchor.constraint(equalTo: leadingAnchor),
-            draftMark.topAnchor.constraint(equalTo: topAnchor),
-            draftMark.widthAnchor.constraint(equalToConstant: 7),
-            draftMark.heightAnchor.constraint(equalToConstant: 7),
-        ])
     }
 
     @available(*, unavailable)
@@ -687,13 +704,63 @@ final class SheetCell: NSTableCellView {
         .systemFont(ofSize: TextScale.pointSize(12, scale: scale))
     }
 
+    var font: NSFont {
+        get { label.font ?? Self.font(scale: 1) }
+        set {
+            guard label.font != newValue else { return }
+            label.font = newValue
+            needsLayout = true
+        }
+    }
+
+    // 제약으로 두면 스크롤로 칸을 다시 쓸 때마다 제약 엔진이 칸마다 풀어 프레임이 밀렸다(#140, 곡 목록은 #137).
+    // 글자 칸·초안 표식·입력 칸은 칸 크기로 정해지므로 프레임으로 둔다.
+    override func setFrameSize(_ newSize: NSSize) {
+        let resized = newSize != frame.size
+        super.setFrameSize(newSize)
+        if resized { needsLayout = true }
+    }
+
+    override func layout() {
+        super.layout()
+        let height = bounds.height
+        // 글자 자리(정렬 사각형)는 양옆 4pt 안쪽에서 세로 가운데다. 글자 칸 프레임은 정렬 여백만큼 더 넓다.
+        let width = max(0, bounds.width - 8)
+        place(label, width: width, cellHeight: height, alignmentHeight: Self.labelAlignmentHeight(of: label))
+        if let editingField {
+            place(editingField, width: width, cellHeight: height, alignmentHeight: Self.measureAlignmentHeight(of: editingField))
+        }
+        draftMark?.frame = NSRect(x: 0, y: isFlipped ? 0 : height - 7, width: 7, height: 7)
+    }
+
+    private func place(_ view: NSTextField, width: CGFloat, cellHeight: CGFloat, alignmentHeight: CGFloat) {
+        let slot = NSRect(x: 4, y: (cellHeight - alignmentHeight) / 2, width: width, height: alignmentHeight)
+        view.frame = backingAlignedRect(view.frame(forAlignmentRect: slot), options: .alignAllEdgesNearest)
+    }
+
+    /// 글자 칸의 정렬 사각형 높이. 글자 크기마다 한 번만 잰다(칸을 다시 쓸 때마다 재지 않는다).
+    private static var labelAlignmentHeights: [NSFont: CGFloat] = [:]
+
+    private static func labelAlignmentHeight(of label: NSTextField) -> CGFloat {
+        let font = label.font ?? Self.font(scale: 1)
+        if let known = labelAlignmentHeights[font] { return known }
+        let height = measureAlignmentHeight(of: label)
+        labelAlignmentHeights[font] = height
+        return height
+    }
+
+    private static func measureAlignmentHeight(of field: NSTextField) -> CGFloat {
+        let frameHeight = field.intrinsicContentSize.height
+        return field.alignmentRect(forFrame: NSRect(x: 0, y: 0, width: 100, height: frameHeight)).height
+    }
+
     func configure(text: String, edited: Bool, readOnly: Bool, selected: Bool, active: Bool) {
-        label.stringValue = text
-        toolTip = text
+        if label.stringValue != text { label.stringValue = text }
         self.edited = edited
         self.readOnly = readOnly
         self.selected = selected
         self.active = active
+        updateAccessibilityValue()
         updateColors()
     }
 
@@ -707,15 +774,36 @@ final class SheetCell: NSTableCellView {
         super.viewWillDraw()
     }
 
+    private var appearanceState: SheetCellAppearance {
+        SheetCellAppearance(edited: edited, readOnly: readOnly, selected: selected, editing: editingField != nil)
+    }
+
+    /// 글자 칸의 접근성 요소는 셀(NSTextFieldCell)이라 값도 셀에 둔다. 셀에 nil을 넣으면 기본값으로 돌아가지 않고
+    /// 값이 비므로(재사용한 칸을 VoiceOver가 못 읽는다) 초안이 아니어도 글자를 그대로 넣는다.
+    private func updateAccessibilityValue() {
+        label.cell?.setAccessibilityValue(appearanceState.accessibilityValue(for: label.stringValue) ?? label.stringValue)
+    }
+
+    private func showDraftMark(_ visible: Bool) {
+        if visible, draftMark == nil {
+            let mark = DraftCornerView()
+            addSubview(mark)
+            draftMark = mark
+            needsLayout = true
+        }
+        if let draftMark, draftMark.isHidden == visible { draftMark.isHidden = !visible }
+    }
+
     private func updateColors() {
         // AppKit이 창·표 포커스가 바뀔 때 다시 그리므로 선택색도 그때 풀어 쓴다.
         let editing = editingField != nil
         let emphasized = window?.isKeyWindow == true && (window?.firstResponder is SheetTableView || editing)
-        let appearance = SheetCellAppearance(edited: edited, readOnly: readOnly, selected: selected, editing: editing)
-        if draftMark.isHidden == appearance.showsDraftMark { draftMark.isHidden = !appearance.showsDraftMark }
-        // 글자 칸의 접근성 요소는 셀(NSTextFieldCell)이라 값도 셀에 둔다. 셀에 nil을 넣으면 기본값으로 돌아가지 않고
-        // 값이 비므로(재사용한 칸을 VoiceOver가 못 읽는다) 초안이 아니어도 글자를 그대로 넣는다.
-        label.cell?.setAccessibilityValue(appearance.accessibilityValue(for: label.stringValue) ?? label.stringValue)
+        let appearance = appearanceState
+        showDraftMark(appearance.showsDraftMark)
+        let state = PaintState(tone: appearance.tone, selected: selected, active: active, emphasized: emphasized,
+                               appearance: effectiveAppearance.name)
+        guard state != paintedState else { return }
+        paintedState = state
         effectiveAppearance.performAsCurrentDrawingAppearance {
             label.textColor = switch appearance.tone {
             case .primary: .labelColor
@@ -739,15 +827,11 @@ final class SheetCell: NSTableCellView {
         field.cell?.usesSingleLineMode = true
         field.cell?.isScrollable = true
         field.setAccessibilityLabel(label.accessibilityLabel())
-        field.translatesAutoresizingMaskIntoConstraints = false
         addSubview(field)
-        NSLayoutConstraint.activate([
-            field.leadingAnchor.constraint(equalTo: label.leadingAnchor),
-            field.trailingAnchor.constraint(equalTo: label.trailingAnchor),
-            field.centerYAnchor.constraint(equalTo: centerYAnchor),
-        ])
         label.isHidden = true
         editingField = field
+        needsLayout = true
+        updateAccessibilityValue()
         return field
     }
 
@@ -755,6 +839,7 @@ final class SheetCell: NSTableCellView {
         editingField?.removeFromSuperview()
         editingField = nil
         label.isHidden = false
+        updateAccessibilityValue()
         updateColors()
     }
 }

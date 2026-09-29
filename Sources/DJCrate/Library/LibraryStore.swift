@@ -218,7 +218,11 @@ final class LibraryStore {
     var staged: [StagedTrack] = []
     var stagedRows: [TrackRow] = []
     /// 백그라운드 그리드 추정 진행(끝나면 nil)
-    var gridJob: GridJob?
+    var gridJob: GridJob? {
+        didSet { if (oldValue == nil) != (gridJob == nil) { hasGridJob = gridJob != nil } }
+    }
+    /// 추정이 도는 중인지. 진행(`done`)이 오를 때마다가 아니라 시작·끝에만 바뀌어, 사이드바 본문은 이것만 읽고 진행 줄을 넣고 뺀다(#141).
+    private(set) var hasGridJob = false
     var gridQueue: [GridJobItem] = []
     var gridTask: Task<Void, Never>?
     /// 곡 추가·내보내기 결과 안내
