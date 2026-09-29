@@ -109,14 +109,38 @@ public struct UsbInvariantVerifier: UsbWriteVerifier {
     /// 쓰기 전부터 USB에 있던 `._*`(NFC 상대 경로). 사용자·macOS가 둔 것(루트 `._.Trashes`, 사용자 음원 옆 등)은
     /// 쓰기 전 확인이 막지 않으므로 여기서도 세지 않는다. 빈 집합이면 모두 센다
     let preexistingAppleDoubles: Set<String>
+    /// 쓰기 전부터 있던 불변식 1–6 문제(`problems(snapshot:root:fileSystem:checkFormatCounts:)`). USB 수정은 편집이 건드리지 않은 곡까지
+    /// USB 전체를 보므로, 쓰던 USB에 이미 있던 문제(번호가 엉킨 분석 파일·없는 음원 등)는 빼고 이번 쓰기가 새로 만든 문제만 센다
+    let preexistingProblems: Set<String>
+    /// 두 형식의 곡 수가 같아야 하는지. USB 수정에서 한 형식이 막혀 다른 형식만 고쳤으면 끈다(막힌 형식은 그대로 두었다)
+    let checkFormatCounts: Bool
 
-    public init(preexistingAppleDoubles: Set<String> = []) {
+    public init(preexistingAppleDoubles: Set<String> = [], preexistingProblems: Set<String> = [], checkFormatCounts: Bool = true) {
         self.preexistingAppleDoubles = preexistingAppleDoubles
+        self.preexistingProblems = preexistingProblems
+        self.checkFormatCounts = checkFormatCounts
     }
 
     /// 볼륨의 `._*` 항목(NFC 상대 경로, 이름만 본다). 쓰기 직전에 떠서 `preexistingAppleDoubles`로 넘긴다
     public static func appleDoubles(on root: UsbRoot) throws -> Set<String> {
         Set(try UsbTree.walk(root).filter { UsbLayout.isAppleDouble(($0.relativePath as NSString).lastPathComponent) }.map(\.relativePath))
+    }
+
+    /// 지금 USB의 불변식 1–6 문제(DB 사본을 `scratch` 아래에 떠서 읽는다). 쓰기 전에 떠서 `preexistingProblems`로 넘긴다
+    public static func problems(on root: UsbRoot, fileSystem: any UsbFileSystem, scratch: URL, checkFormatCounts: Bool = true) throws -> Set<String> {
+        let folder = scratch.appending(path: "invariants-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        return try problems(snapshot: UsbSnapshot.take(root: root, into: folder), root: root, fileSystem: fileSystem,
+                            checkFormatCounts: checkFormatCounts)
+    }
+
+    /// 이미 뜬 USB DB 사본으로 본 불변식 1–6 문제
+    public static func problems(snapshot: UsbSnapshot, root: UsbRoot, fileSystem: any UsbFileSystem, checkFormatCounts: Bool = true) throws
+        -> Set<String> {
+        let oneLibrary = try snapshot.oneLibrary.map { try OneLibraryReader.read(copyAt: $0) }
+        let deviceLibrary = try PdbReader.read(snapshot: snapshot)?.0
+        return Set(try libraryProblems(oneLibrary: oneLibrary, deviceLibrary: deviceLibrary, root: root, fileSystem: fileSystem,
+                                       checkFormatCounts: checkFormatCounts))
     }
 
     public func verify(root: UsbRoot, changes: UsbChangeSet, fileSystem: any UsbFileSystem, scratch: URL) throws -> [String] {
@@ -134,7 +158,25 @@ public struct UsbInvariantVerifier: UsbWriteVerifier {
         for format in changes.formats {
             if (format == .oneLibrary ? oneLibrary : deviceLibrary) == nil { problems.append("database missing \(format.rawValue)") }
         }
+        problems += try Self.libraryProblems(oneLibrary: oneLibrary, deviceLibrary: deviceLibrary, root: root, fileSystem: fileSystem,
+                                             checkFormatCounts: checkFormatCounts).filter { !preexistingProblems.contains($0) }
 
+        // 7 남은 `._*`(쓰기 전부터 있던 것 빼고)·`.djc-part-*`(늘 우리 것). 이름만 본다
+        let entries = try UsbTree.walk(root)
+        let names = entries.map { ($0.relativePath as NSString).lastPathComponent }
+        let appleDouble = entries.filter {
+            UsbLayout.isAppleDouble(($0.relativePath as NSString).lastPathComponent) && !preexistingAppleDoubles.contains($0.relativePath)
+        }.count
+        let temp = names.filter(UsbLayout.isTemp).count
+        if appleDouble > 0 { problems.append("appledouble \(appleDouble)") }
+        if temp > 0 { problems.append("temp \(temp)") }
+        return problems
+    }
+
+    /// 불변식 1–6. 문제 글은 곡·그림 id와 형식 이름만 담아 쓰기 전후를 견줄 수 있게 한다
+    static func libraryProblems(oneLibrary: UsbLibrary?, deviceLibrary: UsbLibrary?, root: UsbRoot, fileSystem: any UsbFileSystem,
+                                checkFormatCounts: Bool) throws -> [String] {
+        var problems: [String] = []
         // 6 곡 수
         for (name, library) in [("onelibrary", oneLibrary), ("pdb", deviceLibrary)] {
             guard let library else { continue }
@@ -142,7 +184,7 @@ public struct UsbInvariantVerifier: UsbWriteVerifier {
                 problems.append("trackCount \(name) \(library.property.numberOfContents) != \(library.tracks.count)")
             }
         }
-        if let oneLibrary, let deviceLibrary, oneLibrary.tracks.count != deviceLibrary.tracks.count {
+        if checkFormatCounts, let oneLibrary, let deviceLibrary, oneLibrary.tracks.count != deviceLibrary.tracks.count {
             problems.append("trackCount formats \(oneLibrary.tracks.count) != \(deviceLibrary.tracks.count)")
         }
 
@@ -156,7 +198,7 @@ public struct UsbInvariantVerifier: UsbWriteVerifier {
         }
         let all = [("onelibrary", oneLibrary), ("pdb", deviceLibrary)].compactMap { name, library in library.map { (name, $0) } }
         var checked: Set<String> = []
-        var slots: [String: Set<String>] = [:]
+        var slots: [String: (paths: Set<String>, tracks: Set<Int>)] = [:]
         for (name, library) in all {
             for track in library.tracks.sorted(by: { $0.id < $1.id }) {
                 // 3 파일 이름
@@ -164,16 +206,17 @@ public struct UsbInvariantVerifier: UsbWriteVerifier {
                     problems.append("fileName content \(track.id) \(name)")
                 }
                 // 4 음원
-                let audio = Self.relative(track.path)
+                let audio = relative(track.path)
                 if let info = try? stat(root, audio, fileSystem), info.kind == .file {
                     if info.size != track.fileSize { problems.append("audioSize content \(track.id) \(name)") }
                 } else if checked.insert("audio\u{0}" + audio).inserted {
                     problems.append("missing audio content \(track.id)")
                 }
                 // 4·2·5 분석 파일
-                let dat = Self.relative(track.analysisDataPath)
+                let dat = relative(track.analysisDataPath)
                 let base = dat.uppercased().hasSuffix(".DAT") ? String(dat.dropLast(4)) : dat
-                slots[UsbLayout.collisionKey(base), default: []].insert(UsbLayout.nfc(track.path))
+                slots[UsbLayout.collisionKey(base), default: ([], [])].paths.insert(UsbLayout.nfc(track.path))
+                slots[UsbLayout.collisionKey(base), default: ([], [])].tracks.insert(track.id)
                 for ext in [".DAT", ".EXT", ".2EX"] where checked.insert("anlz\u{0}" + base + ext).inserted {
                     guard let info = try? stat(root, base + ext, fileSystem), info.kind == .file else {
                         problems.append("missing \(ext.dropFirst()) content \(track.id)")
@@ -188,30 +231,20 @@ public struct UsbInvariantVerifier: UsbWriteVerifier {
             // 4 아트워크
             for image in library.images.sorted(by: { $0.id < $1.id }) {
                 guard let path = name == "onelibrary" ? image.oneLibraryPath : image.pdbPath else { continue }
-                let relative = Self.relative(path)
-                if (try? stat(root, relative, fileSystem))?.kind != .file { problems.append("missing artwork image \(image.id) \(name)") }
+                if (try? stat(root, relative(path), fileSystem))?.kind != .file { problems.append("missing artwork image \(image.id) \(name)") }
             }
         }
-        // 5 같은 분석 파일을 다른 곡이 가리킴
-        for paths in slots.sorted(by: { $0.key < $1.key }).map(\.value) where paths.count > 1 {
-            problems.append("slotDuplicate \(paths.count)")
+        // 5 같은 분석 파일을 다른 곡(다른 음원)이 가리킴
+        for slot in slots.sorted(by: { $0.key < $1.key }).map(\.value) where slot.paths.count > 1 {
+            problems.append("slotDuplicate content \(slot.tracks.sorted().map(String.init).joined(separator: ","))")
         }
-        // 7 남은 `._*`(쓰기 전부터 있던 것 빼고)·`.djc-part-*`(늘 우리 것). 이름만 본다
-        let entries = try UsbTree.walk(root)
-        let names = entries.map { ($0.relativePath as NSString).lastPathComponent }
-        let appleDouble = entries.filter {
-            UsbLayout.isAppleDouble(($0.relativePath as NSString).lastPathComponent) && !preexistingAppleDoubles.contains($0.relativePath)
-        }.count
-        let temp = names.filter(UsbLayout.isTemp).count
-        if appleDouble > 0 { problems.append("appledouble \(appleDouble)") }
-        if temp > 0 { problems.append("temp \(temp)") }
         return problems
     }
 
     static func relative(_ path: String) -> String { String(path.drop { $0 == "/" }) }
 
     /// 열지 않는 경로·안전하지 않은 경로는 없는 것으로 본다
-    func stat(_ root: UsbRoot, _ relative: String, _ fileSystem: any UsbFileSystem) throws -> UsbFileStat? {
+    static func stat(_ root: UsbRoot, _ relative: String, _ fileSystem: any UsbFileSystem) throws -> UsbFileStat? {
         guard !relative.isEmpty, UsbWriter.isSafeRelativePath(relative) else { return nil }
         return try fileSystem.stat(root.url.appending(path: relative))
     }

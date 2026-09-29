@@ -40,6 +40,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 .build/debug/djc lab                                   # 실험 명령 목록(sql·loop-repro·seekinfo-check …)
 .build/debug/djc lab sql <사본.db> "SELECT …"           # 사본에 읽기 전용 질의
 .build/debug/djc usb-export --volume <마운트> --db <사본.db> (--playlist <ID>… | --tracks <ID,…>) [--dry-run] [--snapshot-time <ISO 8601>]   # 빈 USB에 두 형식으로 내보내기(지금은 디스크 이미지만, 예: --volume $DJC_HOME/mnt)
+.build/debug/djc usb-edit --volume <마운트> (<편집.json> | --draft) --db <사본.db> [--dry-run] [--snapshot-time <ISO 8601>]   # 라이브러리가 있는 USB에 곡 더하기·빼기·갱신·재생 목록 편집(지금은 디스크 이미지만, JSON 모양은 docs/cli.md)
 .build/debug/djc usb-restore --volume <마운트> [--backup <폴더>] [--discard-device-changes]   # USB 쓰기를 그 전 백업으로 되돌리기
 .build/debug/djc usb-recover --volume <마운트> [--discard-temp]                             # 끝나지 않은 USB 쓰기를 마저 쓰거나 되돌리기
 .build/debug/djc usb-info <볼륨|폴더> [--json]                                             # USB 읽기만: 형식·곡 수·두 형식 일치·분석 파일·경고(실물은 쓰기 금지 목록 등록 뒤에만)
@@ -83,7 +84,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 
 예: `DJC_HOME=$(mktemp -d) .build/debug/DJCrate --db <스냅샷> --select 32395449 --loop-selftest 2>&1 | grep "루프 시험"`
 
-- USB 쓰기 전 과정은 디스크 이미지로 확인한다(임시 `DJC_HOME`, rekordbox가 꺼져 있을 때만): `lab usb-image create` → `attach --mount` → `lab usb-write-check`("USB 쓰기 시험 통과" 줄) → `usb-restore`로 쓰기 전 트리(`lab usb-tree` 비교) → `detach`. 강제 분리는 `lab usb-commit-crash --image <붙이지 않은 빈 이미지>`("N/N 파일마다 옛것 또는 새것, 회복 N/N" 줄). 내보내기는 붙인 빈 이미지에 `usb-export --dry-run` → `usb-export`("결과: 썼습니다" 줄) → `usb-info --json`(두 형식, `roundTripOK` true, 경고 없음) → `lab usb-rebuild`·`lab usb-diff … --ignore-ids`("차이 0"). 끝나면 `hdiutil info`에 그 폴더의 이미지가 남지 않아야 한다.
+- USB 쓰기 전 과정은 디스크 이미지로 확인한다(임시 `DJC_HOME`, rekordbox가 꺼져 있을 때만): `lab usb-image create` → `attach --mount` → `lab usb-write-check`("USB 쓰기 시험 통과" 줄) → `usb-restore`로 쓰기 전 트리(`lab usb-tree` 비교) → `detach`. 강제 분리는 `lab usb-commit-crash --image <붙이지 않은 빈 이미지>`("N/N 파일마다 옛것 또는 새것, 회복 N/N" 줄). 내보내기는 붙인 빈 이미지에 `usb-export --dry-run` → `usb-export`("결과: 썼습니다" 줄) → `usb-info --json`(두 형식, `roundTripOK` true, 경고 없음) → `lab usb-rebuild`·`lab usb-diff … --ignore-ids`("차이 0"). 수정은 내보낸 이미지에 `usb-edit … --dry-run`(트리 그대로) → `usb-edit`(편집별 결과 줄) → `usb-info --json` → `lab usb-rebuild`·`usb-diff --ignore-ids`("차이 0") → `usb-restore`(트리가 쓰기 전과 같음). 끝나면 `hdiutil info`에 그 폴더의 이미지가 남지 않아야 한다.
 - 결과는 추측하지 말고 명령 출력(통과/실패 줄, 수치)을 보여 준다.
 - 새 앱 인자는 `--이름=값` 한 덩어리로 만든다. 값을 따로 쓴 `--perf-hide zoom`은 AppKit이 값을 열 파일로 보고 앱이 멈췄다.
 

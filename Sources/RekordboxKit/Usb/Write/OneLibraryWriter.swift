@@ -185,8 +185,14 @@ public enum OneLibraryWriter {
         next.property.createdDate = accepted.property.createdDate
         next.property.backgroundColorType = accepted.property.backgroundColorType
         next.property.myTagMasterDBID = accepted.property.myTagMasterDBID
-        let remaining = Set(next.tracks.map(\.id))
-        next.myTagLinks = accepted.myTagLinks.filter { remaining.contains($0.contentID) }
+        // 연결은 곡이 남은 형식에만 둔다(한 형식에서만 뺀 곡의 연결이 그 형식에 남지 않게)
+        let presence = Dictionary(next.tracks.map { ($0.id, $0.presentIn) }) { first, _ in first }
+        next.myTagLinks = accepted.myTagLinks.compactMap { link in
+            guard let formats = presence[link.contentID] else { return nil }
+            var link = link
+            link.presentIn.formIntersection(formats)
+            return link.presentIn.isEmpty ? nil : link
+        }
         pruneNewOrphans(&next, accepted: accepted)
         // 곡 수는 단계 모델 값을 믿지 않고 OneLibrary에 있는 곡으로 센다(Device Library에만 있는 곡은 빼고)
         next.property.numberOfContents = next.tracks.filter { $0.presentIn.contains(.oneLibrary) }.count

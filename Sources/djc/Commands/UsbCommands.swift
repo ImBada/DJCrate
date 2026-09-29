@@ -11,6 +11,9 @@ enum UsbCommands {
         Command("usb-export", String(ui: "--volume <마운트> [--db <스냅샷 사본.db>] [--share <폴더>] [--playlist <ID>]… [--tracks <ContentID>,…] [--formats onelibrary,device] [--naming identifier] [--dry-run] [--confirm <볼륨 이름>] [--allow-provisional <규칙,…>] [--verify-audio] [--settings <로컬 설정 폴더>] [--snapshot-time <ISO 8601>]"),
                 String(ui: "스냅샷 사본의 곡·재생 목록을 빈 USB(FAT32·MBR)에 OneLibrary·Device Library로 내보낸다(실물 USB는 아직 막힘, 디스크 이미지만)"),
                 { try await export($0) }),
+        Command("usb-edit", String(ui: "--volume <마운트> (<편집.json> | --draft) [--db <스냅샷 사본.db>] [--share <폴더>] [--dry-run] [--confirm <볼륨 이름>] [--allow-provisional <규칙,…>] [--snapshot-time <ISO 8601>]"),
+                String(ui: "이미 라이브러리가 있는 USB에 곡 더하기·빼기·갱신과 재생 목록 편집을 한 번에 쓴다(실물 USB는 아직 막힘, 디스크 이미지만)"),
+                { try await edit($0) }),
         Command("usb-restore", String(ui: "--volume <마운트> [--backup <폴더>] [--discard-device-changes] [--confirm <볼륨 이름>] [--dry-run]"),
                 String(ui: "USB에 쓴 것을 그 쓰기 전 백업으로 되돌린다(그 뒤 기기가 바꾼 것이 있으면 막는다)"), { try await restore($0) }),
         Command("usb-recover", String(ui: "--volume <마운트> [--discard-temp] [--confirm <볼륨 이름>]"),
@@ -262,6 +265,153 @@ enum UsbCommands {
         return lines
     }
 
+    // MARK: - usb-edit
+
+    /// `usb-edit` 인자
+    struct EditRequest: Equatable {
+        var volume: String
+        /// 편집 파일(`[UsbLibraryEdit]` JSON). nil이면 초안
+        var editsFile: String?
+        var draft = false
+        var database: String?
+        var share: String?
+        var dryRun = false
+        var confirmName: String?
+        var allowProvisional: Set<UsbProvisionalRule> = []
+        var snapshotTime: String?
+    }
+
+    /// 편집 파일과 `--draft` 중 하나만. 모르는 인자·값 없는 인자는 사용법. `--allow-provisional physicalVolume`은 이유와 함께 거부
+    static func editRequest(_ args: [String]) throws -> EditRequest {
+        var volume: String?, file: String?, database: String?, share: String?, confirm: String?, snapshotTime: String?
+        var draft = false, dryRun = false, allow: Set<UsbProvisionalRule> = []
+        var index = 1
+        func next() throws -> String {
+            guard index + 1 < args.count, !args[index + 1].hasPrefix("--"), !args[index + 1].isEmpty else { throw UsageError() }
+            index += 1
+            return args[index]
+        }
+        while index < args.count {
+            let arg = args[index]
+            switch arg {
+            case "--volume": volume = try next()
+            case "--db": database = try next()
+            case "--share": share = try next()
+            case "--draft": draft = true
+            case "--dry-run": dryRun = true
+            case "--confirm": confirm = try next()
+            case "--allow-provisional": allow = try UsbRuleCheck.parseAllowList(try next())
+            case "--snapshot-time": snapshotTime = try next()
+            default:
+                guard !arg.hasPrefix("--"), !arg.isEmpty, file == nil else { throw UsageError() }
+                file = arg
+            }
+            index += 1
+        }
+        guard let volume, (file == nil) == draft else { throw UsageError() }
+        try rejectLiveLibrary(volume)
+        return EditRequest(volume: volume, editsFile: file, draft: draft, database: database, share: share, dryRun: dryRun,
+                           confirmName: confirm, allowProvisional: allow, snapshotTime: snapshotTime)
+    }
+
+    /// 편집 파일: `UsbLibraryEdit` 배열(합성 Codable JSON 그대로)
+    static func editList(_ data: Data) throws -> [UsbLibraryEdit] {
+        do {
+            return try JSONDecoder().decode([UsbLibraryEdit].self, from: data)
+        } catch {
+            throw UsbError.writeRefused([UsbBlock(code: "editFileInvalid", scope: .volume,
+                                                  message: String(ui: "편집 파일을 읽지 못했습니다. docs/cli.md의 usb-edit JSON 모양을 확인하세요"))])
+        }
+    }
+
+    static func needsLocal(_ edits: [UsbLibraryEdit]) -> Bool {
+        edits.contains {
+            switch $0 {
+            case .addTracks, .refreshTracks: true
+            case .removeTracks, .playlist: false
+            }
+        }
+    }
+
+    /// USB 안을 고친다. 요약은 표준 출력(첫 줄 스냅샷 시각), 진행은 표준 오류. 곡 제목·경로는 찍지 않는다
+    static func edit(_ args: [String], paths: @autoclosure () -> UsbWritePaths = .default) async throws {
+        let request = try editRequest(args)
+        let root = URL(filePath: request.volume)
+        let edits: [UsbLibraryEdit]
+        if let file = request.editsFile {
+            edits = try editList(Data(contentsOf: URL(filePath: file)))
+        } else {
+            // 초안에 곡 더하기·갱신이 있는지 보려고 볼륨 번호로 초안만 읽는다(USB 파일은 열지 않는다)
+            let key = try UsbEditSession.volumeKey(try UsbVolumes.info(root: root))
+            edits = try UsbDraftStore().load(volumeKey: key)?.edits ?? []
+        }
+        // --db를 주지 않으면 곡 더하기·갱신이 있을 때만 가장 최근 스냅샷을 읽기만 한다(새로 뜨거나 정리하지 않는다)
+        let local = needsLocal(edits)
+        let database = try request.database.map { URL(filePath: $0) } ?? (local ? LibrarySnapshot.latest() : nil)
+        let share = request.share.map { URL(filePath: $0) } ?? (local ? LibrarySnapshot.rekordboxDirectory.appending(path: "share") : nil)
+        let options = UsbWriteOptions(dryRun: request.dryRun, confirmName: request.confirmName, allowProvisional: request.allowProvisional)
+        let session = UsbEditSession(root: root, database: database, share: share, paths: paths())
+        let printer = ProgressPrinter()
+        let written: (UsbEditResult, UsbWriteReport?)
+        do {
+            written = request.draft
+                ? try session.writeDraft(options: options, snapshotTime: request.snapshotTime, progress: { printer.show($0) }, isCancelled: { false })
+                : try session.write(edits, options: options, snapshotTime: request.snapshotTime, progress: { printer.show($0) },
+                                    isCancelled: { false })
+        } catch {
+            if let result = session.lastResult { editLines(result: result, report: nil).forEach { print($0) } }
+            throw error
+        }
+        editLines(result: written.0, report: written.1).forEach { print($0) }
+    }
+
+    /// 사람용 요약: 스냅샷 시각 → 편집별 결과 → 형식 → 알림 → 확인 안 된 규칙 → 쓰기 결과. 곡 제목·USB 경로는 찍지 않는다
+    static func editLines(result: UsbEditResult, report: UsbWriteReport?) -> [String] {
+        var lines = [String(ui: "스냅샷 시각: \(result.snapshotSource?.rawValue ?? String(ui: "없음"))")]
+        for block in result.blocks { lines.append(String(ui: "막힘 \(block.code): \(block.message)")) }
+        for (edit, outcome) in result.outcomes {
+            switch outcome {
+            case let .blocked(block): lines.append(String(ui: "편집 \(edit): \(outcome.name) \(block.code) — \(block.message)"))
+            case let .deferred(reason): lines.append(String(ui: "편집 \(edit): \(outcome.name) — \(reason)"))
+            case .written, .unchanged: lines.append(String(ui: "편집 \(edit): \(outcome.name)"))
+            }
+        }
+        let names: [UsbFormat: String] = [.oneLibrary: "OneLibrary", .deviceLibrary: "Device Library"]
+        let written = UsbFormat.allCases.filter(result.formatsWritten.contains).compactMap { names[$0] }
+        lines.append(written.isEmpty ? String(ui: "쓴 형식: 없음") : String(ui: "쓴 형식: \(written.joined(separator: " · "))"))
+        for format in UsbFormat.allCases {
+            guard let block = result.formatsBlocked[format] else { continue }
+            lines.append(String(ui: "막힌 형식 \(names[format] ?? format.rawValue) \(block.code): \(block.message)"))
+        }
+        var counts: [String: Int] = [:]
+        for block in result.trackBlocks { counts[block.code, default: 0] += 1 }
+        if !counts.isEmpty {
+            lines.append(String(ui: "빼고 쓴 곡: \(counts.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", "))"))
+        }
+        lines += groupedNotes(result.notes)
+        if let changes = result.changes {
+            let rules = changes.requiredRules.map(\.rawValue).sorted()
+            lines.append(rules.isEmpty ? String(ui: "확인 안 된 규칙: 없음") : String(ui: "확인 안 된 규칙: \(rules.joined(separator: ", "))"))
+        }
+        if let report { lines += reportLines(report) }
+        return lines
+    }
+
+    /// 끝에 USB 상대 경로가 붙은 알림은 같은 이유끼리 수로만 적는다(오류 이유 등은 그대로)
+    static func groupedNotes(_ notes: [String]) -> [String] {
+        var lines: [String] = [], counts: [(head: String, count: Int)] = []
+        for note in notes {
+            guard let range = note.range(of: ": "),
+                  ["contents/", "pioneer/"].contains(where: { note[range.upperBound...].lowercased().hasPrefix($0) }) else {
+                lines.append(note)
+                continue
+            }
+            let head = String(note[..<range.lowerBound])
+            if let index = counts.firstIndex(where: { $0.head == head }) { counts[index].count += 1 } else { counts.append((head, 1)) }
+        }
+        return lines + counts.map { String(ui: "\($0.head) (\($0.count)개)") }
+    }
+
     // MARK: - usb-info
 
     /// `usb-info <볼륨|폴더> [--json]`: 읽기만 한다. DB 사본은 DJC_HOME/usb-snapshots 아래에 떴다가 지운다
@@ -363,18 +513,6 @@ enum UsbCommands {
         if report.filesCreated + report.filesOverwritten + report.filesRemoved > 0 {
             lines.append(String(ui: "파일: 만든 것 \(report.filesCreated)개 · 덮어쓴 것 \(report.filesOverwritten)개 · 지운 것 \(report.filesRemoved)개"))
         }
-        var counts: [(head: String, count: Int)] = []
-        for note in report.notes {
-            // 끝에 USB 상대 경로가 붙은 알림만 묶는다(오류 이유 등은 그대로)
-            guard let range = note.range(of: ": "),
-                  ["contents/", "pioneer/"].contains(where: { note[range.upperBound...].lowercased().hasPrefix($0) }) else {
-                lines.append(note)
-                continue
-            }
-            let head = String(note[..<range.lowerBound])
-            if let index = counts.firstIndex(where: { $0.head == head }) { counts[index].count += 1 } else { counts.append((head, 1)) }
-        }
-        for (head, count) in counts { lines.append(String(ui: "\(head) (\(count)개)")) }
-        return lines
+        return lines + groupedNotes(report.notes)
     }
 }
