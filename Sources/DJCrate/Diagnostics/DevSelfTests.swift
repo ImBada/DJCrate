@@ -26,6 +26,7 @@ enum DevSelfTests {
         runPausedHotCueSelfTestIfRequested(store: store, deck: deck)
         runJumpAudioSelfTestIfRequested()
         runMetronomeSelfTestIfRequested()
+        UsbSelfTest.runIfRequested(store: store)
         guard ProcessInfo.processInfo.arguments.contains("--switch-selftest") else { return }
         Task {
             @MainActor func mark(_ text: String) {

@@ -1,0 +1,585 @@
+import AppKit
+import DJCDomain
+import DJCStorage
+import Foundation
+import RekordboxKit
+
+/// 앱의 USB 내보내기 한 번: 로컬 스냅샷 사본의 목록·곡을 어느 볼륨에 어떤 형식으로
+struct UsbExportJob: Sendable, Equatable {
+    /// 로컬 스냅샷 사본(라이브 master.db는 세션이 거부한다)
+    var database: URL
+    /// 로컬 rekordbox share(읽기만)
+    var share: URL
+    var volume: UsbVolumeInfo
+    var selection: UsbSelection
+    var formats: Set<UsbFormat>
+    /// ISO 8601 스냅샷 시각(nil이면 사본 이름 → mtime)
+    var snapshotTime: String?
+
+    var volumeKey: String { volume.usbKey }
+    var root: URL { URL(filePath: volume.mountPoint) }
+
+    var options: UsbExportOptions {
+        var options = UsbExportOptions()
+        options.formats = formats
+        options.snapshotTime = snapshotTime
+        return options
+    }
+}
+
+/// 볼륨 쓰기 저널 상태. 닫힌 상태(`UsbJournal.closedStates`)가 아닌 저널만 끝나지 않은 쓰기로 본다
+enum UsbJournalInfo: Equatable, Sendable {
+    case none
+    case state(UsbJournal.State)
+    /// 저널 파일을 읽지 못함(쓰기·회복 모두 막힌다)
+    case unreadable
+
+    /// 끝나지 않은 쓰기. 드라이 런·다시 계획은 닫힌 상태라 알리지 않는다
+    var isPending: Bool {
+        if case let .state(state) = self { !UsbJournal.closedStates.contains(state) } else { false }
+    }
+}
+
+/// 코디네이터가 USB 쓰기 절차에 닿는 창구. 모두 메인 액터 밖에서 부른다. 앱은 `SystemUsbWriteService`, 시험은 가짜
+protocol UsbWriteService: Sendable {
+    func journal(volumeKey: String) -> UsbJournalInfo
+    /// 계획·막힘·준비까지(USB에 쓰지 않는다)
+    func preview(_ job: UsbExportJob) throws -> UsbExportSummary
+    func write(_ job: UsbExportJob, progress: @escaping @Sendable (UsbProgress) -> Void,
+               isCancelled: @escaping @Sendable () -> Bool) throws -> UsbWriteReport
+    func recover(_ volume: UsbVolumeInfo) throws -> UsbWriteReport
+    /// backup: 되돌릴 쓰기의 백업 폴더(nil이면 이 볼륨의 가장 최근 백업)
+    func restore(_ volume: UsbVolumeInfo, backup: URL?, discardDeviceChanges: Bool) throws -> UsbWriteReport
+    /// 이 볼륨의 가장 최근 백업 폴더(실패 알림의 "백업 폴더 열기")
+    func latestBackup(volumeKey: String) -> URL?
+}
+
+/// 실제 창구: 미리 보기·쓰기는 `UsbExportSession`, 회복·되돌리기는 `UsbWriter`. Mac 쪽 폴더(백업·저널·준비·세션 사본)는 DJC_HOME 아래
+struct SystemUsbWriteService: UsbWriteService {
+    var paths: UsbWritePaths
+    /// 세션 로컬 사본(`local-<세션>/`)을 둘 곳
+    var localCopies: URL
+    /// 부를 때마다 새로 만든다(앱이 켜진 동안 쓰기 금지·허용 목록이 바뀔 수 있다)
+    var writeGuard: @Sendable () -> UsbWriteGuard = { .system }
+    /// USB 파일 연산(자가 테스트는 지운 `._`를 적는 것을 넘긴다)
+    var fileSystem: any UsbFileSystem = PosixUsbFileSystem()
+
+    /// 앱이 쓰는 창구. 폴더는 USB에 쓸 때 만든다(저널을 보기만 할 때는 만들지 않는다)
+    static func app() -> SystemUsbWriteService {
+        SystemUsbWriteService(paths: UsbWritePaths(backups: DJCPaths.usbBackups, sessions: DJCPaths.usbSessions, staging: DJCPaths.usbStaging),
+                              localCopies: DJCPaths.usbSnapshots)
+    }
+
+    func journal(volumeKey: String) -> UsbJournalInfo {
+        switch UsbWriter.journalStatus(paths: paths, volumeKey: volumeKey) {
+        case .missing: .none
+        case let .open(journal), let .closed(journal): .state(journal.state)
+        case .corrupt: .unreadable
+        }
+    }
+
+    func preview(_ job: UsbExportJob) throws -> UsbExportSummary {
+        try makeFolders()
+        let preview = try session(job).preview(selection: job.selection, options: job.options)
+        return UsbExportSummary(preview: preview, volume: job.volume)
+    }
+
+    func write(_ job: UsbExportJob, progress: @escaping @Sendable (UsbProgress) -> Void,
+               isCancelled: @escaping @Sendable () -> Bool) throws -> UsbWriteReport {
+        try makeFolders()
+        return try session(job).write(selection: job.selection, options: job.options, progress: progress, isCancelled: isCancelled)
+    }
+
+    func recover(_ volume: UsbVolumeInfo) throws -> UsbWriteReport {
+        try makeFolders()
+        return try UsbWriter.recover(root: UsbRoot(URL(filePath: volume.mountPoint)), paths: paths, guard: writeGuard(), fileSystem: fileSystem)
+    }
+
+    func restore(_ volume: UsbVolumeInfo, backup: URL?, discardDeviceChanges: Bool) throws -> UsbWriteReport {
+        try makeFolders()
+        return try UsbWriter.restore(root: UsbRoot(URL(filePath: volume.mountPoint)), paths: paths, backup: backup, guard: writeGuard(),
+                                     fileSystem: fileSystem, discardDeviceChanges: discardDeviceChanges)
+    }
+
+    func latestBackup(volumeKey: String) -> URL? {
+        UsbWriter.backups(paths: paths, volumeKey: volumeKey).first
+    }
+
+    private func session(_ job: UsbExportJob) -> UsbExportSession {
+        UsbExportSession(database: job.database, share: job.share, root: job.root, guard: writeGuard(), paths: paths, fileSystem: fileSystem,
+                         localCopies: localCopies)
+    }
+
+    private func makeFolders() throws {
+        for url in [paths.backups, paths.sessions, paths.staging, localCopies] {
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        }
+    }
+}
+
+/// 쓰기 취소 표지. 메인 액터에서 켜고 쓰기 절차(메인 액터 밖)가 읽는다
+final class UsbCancelFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+
+    var isSet: Bool { lock.withLock { value } }
+    func set() { lock.withLock { value = true } }
+}
+
+/// 코디네이터 결과를 보이는 곳(토스트). 앱은 `LibraryStore`
+@MainActor
+protocol UsbWriteHost: AnyObject {
+    var toast: AppToast? { get set }
+}
+
+extension LibraryStore: UsbWriteHost {}
+
+/// USB 내보내기·회복·되돌리기 흐름(`ReflectionCoordinator` 본보기):
+/// rekordbox·Agent 꺼짐 확인 → 볼륨 잠금 → 미리 보기(준비까지) → 확인 창 → 쓰기(진행·DB 교체 전 취소) → 토스트([꺼내기]).
+/// 끝나지 않은 쓰기는 알림만 띄우고, 회복·되돌리기는 사용자가 누를 때만 한다. 파일 입출력은 모두 메인 액터 밖에서 한다.
+@MainActor
+struct UsbWriteCoordinator {
+    let usb: UsbStore
+    let host: any UsbWriteHost
+    let service: any UsbWriteService
+    var prompter: any ReflectionPrompter = AlertPrompter()
+    var isRekordboxRunning: @Sendable () -> Bool = { LibrarySnapshot.isRekordboxRunning() }
+    var openFolder: (URL) -> Void = { NSWorkspace.shared.open($0) }
+
+    // MARK: - 내보내기
+
+    /// 시트의 미리 보기. 막히면(rekordbox·잠금·끝나지 않은 쓰기·오류) 알리고 nil
+    func preview(_ job: UsbExportJob) async -> UsbExportSummary? {
+        guard await ready(job.volume) else { return nil }
+        guard let flag = begin(job.volume, title: String(ui: "USB에 쓸 내용을 확인하는 중…")) else { return nil }
+        let service = service
+        let result = await Task.detached(priority: .userInitiated) { Result { try service.preview(job) } }.value
+        usb.endWrite(job.volumeKey)
+        switch result {
+        case let .success(summary):
+            return flag.isSet ? nil : summary
+        case let .failure(error):
+            fail(String(ui: "USB 미리 보기를 하지 못했습니다"), error)
+            return nil
+        }
+    }
+
+    /// 미리 보기 → 확인 창 → 쓰기 → 토스트. `reusing`이 있으면(시트에서 방금 본 미리 보기) 다시 미리 보지 않는다
+    func export(_ job: UsbExportJob, reusing reused: UsbExportSummary? = nil) async {
+        guard await ready(job.volume) else { return }
+        let key = job.volumeKey
+        guard let flag = begin(job.volume, title: String(ui: "USB에 쓸 내용을 확인하는 중…")) else { return }
+        usb.lastExports[key] = job
+        let outcome = await run(job, reused: reused, flag: flag)
+        usb.endWrite(key)
+        switch outcome {
+        case .stopped:
+            break
+        case let .written(summary):
+            host.toast = AppToast(kind: .success, title: String(ui: "곡 \(summary.trackCount)개를 USB에 썼습니다"),
+                                  detail: String(ui: "\(job.volume.name) · 재생 목록 \(summary.playlistCount)개"),
+                                  action: .ejectUsb(volumeKey: key), isUsb: true)
+            await usb.refresh()
+        case .cancelled:
+            host.toast = AppToast(kind: .success, title: String(ui: "USB 쓰기를 취소했습니다"), detail: String(ui: "USB는 쓰기 전 그대로입니다."),
+                                  isUsb: true)
+        case .recoveryNeeded:
+            await offerRecovery(job.volume)
+        case let .failed(error):
+            await failWrite(error, volumeKey: key, otherwise: String(ui: "USB에 쓰지 않았습니다"))
+        }
+    }
+
+    private enum Outcome {
+        case stopped, cancelled, recoveryNeeded
+        case written(UsbExportSummary)
+        case failed(any Error)
+    }
+
+    /// 잠근 채로 미리 보기·확인·쓰기. 잠금은 부르는 쪽이 푼다
+    private func run(_ job: UsbExportJob, reused: UsbExportSummary?, flag: UsbCancelFlag) async -> Outcome {
+        let service = service, key = job.volumeKey
+        let summary: UsbExportSummary
+        if let reused {
+            summary = reused
+        } else {
+            switch await Task.detached(priority: .userInitiated, operation: { Result { try service.preview(job) } }).value {
+            case let .success(value): summary = value
+            case let .failure(error): return .failed(error)
+            }
+        }
+        if flag.isSet { return .cancelled }
+        guard summary.canWrite else {
+            inform(String(ui: "USB에 쓸 수 없습니다"), Self.stoppingText(summary), details: Self.blockLines(summary))
+            return .stopped
+        }
+        guard prompter.show(Self.confirmation(summary, job: job)) else { return .stopped }
+        // 미리 보기가 남긴 저널(드라이 런)은 닫힌 상태라 막지 않는다. 그 사이 끝나지 않은 쓰기가 생겼으면 회복부터
+        let journal = await Task.detached(priority: .userInitiated) { service.journal(volumeKey: key) }.value
+        if journal.isPending { return .recoveryNeeded }
+        if journal == .unreadable {
+            inform(String(ui: "USB에 쓰지 않았습니다"), Self.journalUnreadableText)
+            return .stopped
+        }
+        usb.setWriteTitle(String(ui: "USB에 쓰는 중…"), for: key)
+        // 진행은 순서대로 받아 메인 액터에서 보인다
+        let (stream, continuation) = AsyncStream.makeStream(of: UsbProgress.self)
+        let usb = usb
+        let consumer = Task { @MainActor in
+            for await progress in stream { usb.report(progress, for: key) }
+        }
+        let result = await Task.detached(priority: .userInitiated) {
+            Result { try service.write(job, progress: { continuation.yield($0) }, isCancelled: { flag.isSet }) }
+        }.value
+        continuation.finish()
+        await consumer.value
+        switch result {
+        case .success: return .written(summary)
+        case let .failure(error):
+            switch error as? UsbError {
+            case .cancelled?: return .cancelled
+            case .recoveryNeeded?: return .recoveryNeeded
+            // 확인 뒤·쓰기 전에 다른 곳(CLI 등)이 저널을 열었다: 쓰기 절차는 막힘으로 알린다
+            case let .writeRefused(blocks)? where blocks.contains(where: { $0.code == "recoveryNeeded" }): return .recoveryNeeded
+            default: return .failed(error)
+            }
+        }
+    }
+
+    /// 시작 전 확인: rekordbox·Agent, 볼륨 잠금, 끝나지 않은 쓰기(회복 알림), 읽지 못한 저널
+    private func ready(_ volume: UsbVolumeInfo) async -> Bool {
+        let running = isRekordboxRunning
+        if await Task.detached(priority: .userInitiated, operation: { running() }).value {
+            inform(String(ui: "rekordbox가 켜져 있어 USB에 쓰지 않았습니다"), String(ui: "rekordbox와 rekordboxAgent를 완전히 종료한 뒤 다시 누르세요."))
+            return false
+        }
+        guard !isBusy(volume) else { return false }
+        let service = service, key = volume.usbKey
+        let journal = await Task.detached(priority: .userInitiated) { service.journal(volumeKey: key) }.value
+        if journal.isPending {
+            await offerRecovery(volume)
+            return false
+        }
+        if journal == .unreadable {
+            inform(String(ui: "USB에 쓰지 않았습니다"), Self.journalUnreadableText)
+            return false
+        }
+        return true
+    }
+
+    /// 잠겨 있으면 알리고 true
+    private func isBusy(_ volume: UsbVolumeInfo) -> Bool {
+        if usb.busyVolumes.contains(volume.usbKey) {
+            inform(String(ui: "이 USB에 쓰는 중입니다"), String(ui: "쓰기가 끝난 뒤 다시 시도하세요."))
+            return true
+        }
+        if usb.activeWrite != nil {
+            inform(String(ui: "다른 USB에 쓰는 중입니다"), String(ui: "쓰기가 끝난 뒤 다시 시도하세요."))
+            return true
+        }
+        return false
+    }
+
+    private func begin(_ volume: UsbVolumeInfo, title: String, cancellable: Bool = true) -> UsbCancelFlag? {
+        guard !isBusy(volume) else { return nil }
+        return usb.beginWrite(volume, title: title, cancellable: cancellable)
+    }
+
+    // MARK: - 끝나지 않은 쓰기
+
+    /// 끝나지 않은 쓰기 알림: [회복하기] [되돌리기] [나중에]. 누를 때만 USB에 손댄다
+    func offerRecovery(_ volume: UsbVolumeInfo) async {
+        guard !usb.busyVolumes.contains(volume.usbKey), usb.activeWrite == nil else { return }
+        let service = service, key = volume.usbKey
+        guard await Task.detached(priority: .userInitiated, operation: { service.journal(volumeKey: key) }).value.isPending else { return }
+        switch prompter.choose(Self.pendingPrompt(volume)) {
+        case .confirm: await recover(volume)
+        case .alternate: await revert(volume)
+        case .cancel: return
+        }
+    }
+
+    /// 회복: USB의 DB를 보고 마저 쓰거나 되돌린다(쓰기와 같은 확인·실물 관문을 먼저 거친다)
+    private func recover(_ volume: UsbVolumeInfo) async {
+        guard begin(volume, title: String(ui: "USB를 회복하는 중…"), cancellable: false) != nil else { return }
+        let service = service
+        let result = await Task.detached(priority: .userInitiated) { Result { try service.recover(volume) } }.value
+        usb.endWrite(volume.usbKey)
+        switch result {
+        case let .success(report):
+            switch report.outcome {
+            case .needsReplan:
+                await offerReplan(volume)
+                return
+            case .rolledBack:
+                host.toast = AppToast(kind: .success, title: String(ui: "끊긴 USB 쓰기를 되돌렸습니다"), detail: String(ui: "USB는 쓰기 전 그대로입니다."),
+                                      isUsb: true)
+            // 끊긴 되돌리기를 마쳤다
+            case .restored:
+                host.toast = AppToast(kind: .success, title: String(ui: "USB를 쓰기 전으로 되돌렸습니다"), isUsb: true)
+            // 저널이 없었다(session이 빔): 다른 곳에서 이미 닫았다
+            case .recovered where !report.session.isEmpty:
+                host.toast = AppToast(kind: .success, title: String(ui: "USB 쓰기를 마저 끝냈습니다"), action: .ejectUsb(volumeKey: volume.usbKey),
+                                      isUsb: true)
+            default:
+                host.toast = AppToast(kind: .success, title: String(ui: "회복할 USB 쓰기가 없습니다"), isUsb: true)
+            }
+        case let .failure(error):
+            await failWrite(error, volumeKey: volume.usbKey, otherwise: String(ui: "USB를 회복하지 않았습니다"))
+        }
+        await usb.refresh()
+    }
+
+    /// 되돌리기: 끝나지 않은 저널을 먼저 닫고(회복) 그 쓰기의 백업으로 되돌린다(되돌리기는 열린 저널을 받지 않는다).
+    /// 기기가 그 뒤에 USB를 바꿨으면 한 번 더 묻는다
+    private func revert(_ volume: UsbVolumeInfo) async {
+        let key = volume.usbKey, service = service
+        guard begin(volume, title: String(ui: "USB를 되돌리는 중…"), cancellable: false) != nil else { return }
+        let recovered = await Task.detached(priority: .userInitiated) { Result { try service.recover(volume) } }.value
+        let backup: URL
+        switch recovered {
+        case let .failure(error):
+            usb.endWrite(key)
+            await failWrite(error, volumeKey: key, otherwise: String(ui: "USB를 되돌리지 않았습니다"))
+            return
+        // 회복이 이미 쓰기 전으로 되돌렸다(끊긴 쓰기 되돌림·끊긴 되돌리기 마침)
+        case let .success(report) where report.outcome == .rolledBack || report.outcome == .restored:
+            usb.endWrite(key)
+            host.toast = AppToast(kind: .success, title: String(ui: "USB를 쓰기 전으로 되돌렸습니다"), isUsb: true)
+            await usb.refresh()
+            return
+        case let .success(report):
+            // 그 쓰기의 백업으로만 되돌린다. 저널이 없었거나(session이 빔) 백업이 없으면 다른 쓰기의 백업을 고르지 않는다
+            guard !report.session.isEmpty, let path = report.backup, !path.isEmpty else {
+                usb.endWrite(key)
+                inform(String(ui: "USB를 되돌리지 않았습니다"), String(ui: "이 쓰기의 백업을 찾지 못했습니다. USB를 다시 읽어 지금 상태를 확인하세요"))
+                await usb.refresh()
+                return
+            }
+            backup = URL(filePath: path)
+        }
+        var discard = false
+        while true {
+            let flagged = discard
+            let result = await Task.detached(priority: .userInitiated) {
+                Result { try service.restore(volume, backup: backup, discardDeviceChanges: flagged) }
+            }.value
+            switch result {
+            case .success:
+                usb.endWrite(key)
+                host.toast = AppToast(kind: .success, title: String(ui: "USB를 쓰기 전으로 되돌렸습니다"), isUsb: true)
+                await usb.refresh()
+                return
+            case let .failure(UsbError.writeRefused(blocks)) where !discard && blocks.contains(where: { $0.code == "deviceChanged" }):
+                usb.endWrite(key)
+                guard prompter.show(Self.discardDeviceChangesPrompt(volume)) else { return }
+                guard begin(volume, title: String(ui: "USB를 되돌리는 중…"), cancellable: false) != nil else { return }
+                discard = true
+            case let .failure(error):
+                usb.endWrite(key)
+                await failWrite(error, volumeKey: key, otherwise: String(ui: "USB를 되돌리지 않았습니다"))
+                return
+            }
+        }
+    }
+
+    /// 회복이 다시 계획하라고 했을 때: 누르면 USB를 다시 읽고 새로 미리 본 뒤 내보내기 시트를 연다
+    private func offerReplan(_ volume: UsbVolumeInfo) async {
+        let prompt = ReflectionPrompt(title: String(ui: "USB 쓰기를 이어 하지 않았습니다"),
+                                      text: String(ui: "USB가 기기에서 바뀌어 이어 쓰지 않았습니다. 지금 USB 상태로 다시 미리 보기한 뒤 쓰세요"),
+                                      confirm: String(ui: "다시 미리 보기"), cancel: String(ui: "닫기"))
+        guard prompter.show(prompt) else { return }
+        await usb.refresh()
+        let key = volume.usbKey
+        guard var job = usb.lastExports[key] else {
+            usb.exportSheet = usb.volume(key).map { UsbExportSheetRequest(volume: $0) }
+            return
+        }
+        // 다시 붙었으면 마운트 지점이 바뀌었을 수 있다
+        job.volume = usb.volume(key) ?? job.volume
+        let summary = await preview(job)
+        usb.exportSheet = UsbExportSheetRequest(volume: job.volume, job: job, summary: summary)
+    }
+
+    // MARK: - 토스트 동작
+
+    func perform(_ action: AppToast.Action) async {
+        switch action {
+        case let .ejectUsb(volumeKey):
+            if host.toast?.action == action { host.toast = nil }
+            if let message = await usb.eject(volumeKey) { inform(String(ui: "USB를 꺼내지 못했습니다"), message) }
+        }
+    }
+
+    // MARK: - 알림
+
+    private func inform(_ title: String, _ text: String, details: [String] = []) {
+        _ = prompter.show(ReflectionPrompt(title: title, text: text, details: details))
+    }
+
+    /// 막힘·오류 알림. 막힘(`writeRefused`)은 그 문구(이유와 할 일)를 그대로, 그 밖의 USB 오류는 그 설명을 보인다
+    private func fail(_ title: String, _ error: any Error) {
+        let text: String
+        if case let UsbError.writeRefused(blocks)? = error as? UsbError, !blocks.isEmpty {
+            var seen: Set<String> = []
+            text = blocks.map(\.message).filter { seen.insert($0).inserted }.joined(separator: "\n")
+        } else if let usbError = error as? UsbError, let description = usbError.errorDescription {
+            // UsbError는 DJCError가 아니라 AppErrorMessage가 일반 문구로 바꾼다
+            AppErrorMessage.log(error)
+            text = description
+        } else {
+            text = AppErrorMessage.message(for: error)
+        }
+        _ = prompter.show(ReflectionPrompt(title: title, text: text, critical: true))
+    }
+
+    /// USB에 손댄 뒤(쓰기·회복·되돌리기)의 실패: 되돌린 결과와 할 일. 백업 폴더가 있으면 열 수 있다.
+    /// 반쯤 쓰였을 수 있는 경우가 아니면 `otherwise` 제목으로 알린다
+    private func failWrite(_ error: any Error, volumeKey: String, otherwise title: String) async {
+        let backup: URL?
+        let prompt: ReflectionPrompt
+        switch error as? UsbError {
+        case .writeRolledBack?:
+            // 백업 폴더 찾기는 폴더를 열거하고 manifest를 읽는다: 메인 액터 밖에서
+            let service = service
+            backup = await Task.detached(priority: .userInitiated) { service.latestBackup(volumeKey: volumeKey) }.value
+            prompt = ReflectionPrompt(title: String(ui: "USB에 쓴 결과를 확인하지 못해 쓰기 전으로 되돌렸습니다"),
+                                      text: String(ui: "USB는 쓰기 전 그대로입니다. USB를 다시 읽은 뒤 다시 시도하세요."), critical: true)
+        case let .restoreFailed(_, _, folder)?:
+            backup = folder.isEmpty ? nil : URL(filePath: folder)
+            prompt = ReflectionPrompt(title: String(ui: "USB를 쓰기 전 상태로 되돌리지 못했습니다"),
+                                      text: String(ui: "USB를 기기에 꽂지 마세요. USB를 다시 연결하면 나오는 알림에서 회복하세요."), critical: true)
+        case .restorePending?:
+            backup = nil
+            prompt = ReflectionPrompt(title: String(ui: "rekordbox가 켜져 있어 USB 복원을 미뤘습니다"),
+                                      text: String(ui: "USB를 기기에 꽂지 마세요. rekordbox를 종료한 뒤 USB를 다시 연결하면 나오는 알림에서 회복하세요."),
+                                      critical: true)
+        case .volumeLost?:
+            backup = nil
+            prompt = ReflectionPrompt(title: String(ui: "USB 연결이 끊겼습니다"),
+                                      text: String(ui: "USB를 기기에 꽂지 말고 다시 연결하세요. 다시 연결하면 나오는 알림에서 회복할 수 있습니다."),
+                                      critical: true)
+        default:
+            fail(title, error)
+            return
+        }
+        AppErrorMessage.log(error)
+        var shown = prompt
+        if backup != nil {
+            shown.confirm = String(ui: "백업 폴더 열기")
+            shown.cancel = String(ui: "닫기")
+        }
+        if prompter.show(shown), let backup { openFolder(backup) }
+    }
+
+    // MARK: - 창 문구
+
+    static var journalUnreadableText: String {
+        String(ui: "회복 기록 파일을 읽지 못했습니다. DJCrate 데이터 폴더의 usb-sessions를 확인하세요")
+    }
+
+    /// 쓰기 전 확인 창: 곡·목록 수, 대상·형식, 시험 볼륨, 공간, 빼고 쓰는 곡(이유별 수), 확인 안 된 규칙
+    static func confirmation(_ summary: UsbExportSummary, job: UsbExportJob) -> ReflectionPrompt {
+        let formats = UsbFormat.allCases.filter(job.formats.contains).map(\.displayName).joined(separator: " · ")
+        var details: [String] = []
+        if summary.isTestVolume { details.append(String(ui: "시험 볼륨(디스크 이미지)입니다")) }
+        details.append(summary.spaceText)
+        details += blockLines(summary)
+        return ReflectionPrompt(title: String(ui: "곡 \(summary.trackCount)개·재생 목록 \(summary.playlistCount)개를 USB에 쓸까요?"),
+                                text: String(ui: "\(job.volume.name)에 \(formats)로 씁니다. 쓰기 전에 Mac에 백업하고 쓴 뒤 USB에서 다시 읽어 확인합니다. 끝날 때까지 USB를 뽑지 마세요."),
+                                confirm: String(ui: "USB에 쓰기"), details: details)
+    }
+
+    /// 빼고 쓰는 곡·재생 목록(이유별 수)과 확인 안 된 규칙 줄. 쓰기를 멈추는 막힘(볼륨·형식·파일)은 `stopping`으로만 보인다
+    static func blockLines(_ summary: UsbExportSummary) -> [String] {
+        var lines: [String] = []
+        let tracks = summary.blockCounts.filter { $0.kind == .track }
+        if summary.blockedTrackCount > 0, !tracks.isEmpty {
+            lines.append(String(ui: "빼고 쓰는 곡 \(summary.blockedTrackCount)개:"))
+            lines += tracks.map { "• \($0.message) (\($0.count))" }
+        }
+        let playlists = summary.blockCounts.filter { $0.kind == .playlist }
+        if summary.blockedPlaylistCount > 0, !playlists.isEmpty {
+            lines.append(String(ui: "빼고 쓰는 재생 목록 \(summary.blockedPlaylistCount)개:"))
+            lines += playlists.map { "• \($0.message) (\($0.count))" }
+        }
+        if !summary.rules.isEmpty {
+            lines.append(String(ui: "확인 안 된 규칙 \(summary.rules.count)개:"))
+            lines += summary.rules.map { $0.count > 0 ? "• \($0.rule.summary) (\($0.count))" : "• \($0.rule.summary)" }
+        }
+        return lines
+    }
+
+    /// 쓰지 못하는 까닭(볼륨 단위 막힘 → 공간 → 곡 없음)
+    static func stoppingText(_ summary: UsbExportSummary) -> String {
+        if !summary.stopping.isEmpty { return summary.stopping.joined(separator: "\n") }
+        if summary.isShortOfSpace { return String(ui: "USB 여유 공간이 모자랍니다. 곡을 줄이거나 공간이 더 있는 USB를 쓰세요") }
+        return String(ui: "내보낼 곡이 없습니다. 막힌 곡의 이유를 확인한 뒤 다시 시도하세요")
+    }
+
+    static func pendingPrompt(_ volume: UsbVolumeInfo) -> ReflectionPrompt {
+        ReflectionPrompt(title: String(ui: "지난 USB 쓰기가 끝나지 않았습니다"),
+                         text: String(ui: "\(volume.name)에 쓰다가 끊긴 기록이 있습니다. 회복하면 USB를 보고 마저 쓰거나 쓰기 전으로 되돌립니다. 되돌리기는 그 쓰기를 백업으로 되돌립니다. 기기에 꽂기 전에 하세요."),
+                         confirm: String(ui: "회복하기"), alternate: String(ui: "되돌리기"), cancel: String(ui: "나중에"))
+    }
+
+    static func discardDeviceChangesPrompt(_ volume: UsbVolumeInfo) -> ReflectionPrompt {
+        ReflectionPrompt(title: String(ui: "USB를 쓰기 전으로 되돌릴까요?"),
+                         text: String(ui: "\(volume.name)은 DJCrate가 쓴 뒤 기기에서 바뀌었습니다. 되돌리면 기기가 그 뒤에 쓴 내용을 잃습니다(재생 기록 등)."),
+                         confirm: String(ui: "되돌리기"), critical: true, destructive: true)
+    }
+}
+
+extension UsbProgress.Phase {
+    /// 진행 덮개에 보일 단계 이름
+    var displayName: String {
+        switch self {
+        case .planning: String(ui: "계획")
+        case .staging: String(ui: "준비(분석 파일·아트워크·DB)")
+        case .backup: String(ui: "백업")
+        case .files: String(ui: "파일 쓰기")
+        case .commit: String(ui: "DB 교체")
+        case .cleanup: String(ui: "정리")
+        case .verify: String(ui: "검증")
+        case .restore: String(ui: "되돌리기")
+        case .recover: String(ui: "회복")
+        }
+    }
+}
+
+/// 쓰는 동안 덮개에 보일 것(순수)
+struct UsbWriteProgressModel: Equatable {
+    var title: String
+    var volumeName: String
+    var phase: String?
+    /// "3/12"
+    var items: String?
+    var bytes: String?
+    var fraction: Double?
+    /// DB 교체가 시작되면(`cancellable == false`) 숨긴다
+    var showsCancel: Bool
+
+    init(_ write: UsbActiveWrite) {
+        title = write.title
+        volumeName = write.volumeName
+        guard let progress = write.progress else {
+            phase = nil
+            items = nil
+            bytes = nil
+            fraction = nil
+            showsCancel = write.cancellable
+            return
+        }
+        phase = progress.phase.displayName
+        items = progress.totalItems > 0 ? "\(progress.completedItems)/\(progress.totalItems)" : nil
+        if progress.totalBytes > 0 {
+            let format = ByteCountFormatStyle(style: .file)
+            bytes = "\(progress.completedBytes.formatted(format)) / \(progress.totalBytes.formatted(format))"
+            fraction = min(1, Double(progress.completedBytes) / Double(progress.totalBytes))
+        } else {
+            bytes = nil
+            fraction = progress.totalItems > 0 ? min(1, Double(progress.completedItems) / Double(progress.totalItems)) : nil
+        }
+        showsCancel = write.cancellable && progress.cancellable
+    }
+}
