@@ -134,7 +134,9 @@ struct UsbPendingView: View {
                         }
                         Spacer(minLength: 0)
                         Button {
-                            Task { await actions?.removeEdit(row.id, volumeKey: volumeKey) }
+                            // 보고 있는 편집일 때만 뺀다(그 사이 초안이 바뀌었으면 번호가 다른 편집을 가리킨다)
+                            let shown = edits.indices.contains(row.id - 1) ? edits[row.id - 1] : nil
+                            Task { await actions?.removeEdit(row.id, volumeKey: volumeKey, matching: shown) }
                         } label: {
                             Image(systemName: "minus.circle")
                         }

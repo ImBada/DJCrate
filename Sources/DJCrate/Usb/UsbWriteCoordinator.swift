@@ -73,6 +73,10 @@ struct SystemUsbWriteService: UsbWriteService {
     var fileSystem: any UsbFileSystem = PosixUsbFileSystem()
     /// USB 초안 폴더(`usb-drafts/<볼륨키>.json`)
     var drafts: URL = DJCPaths.usbDrafts
+    /// USB를 읽기 직전에 그 자리의 볼륨을 다시 본다(사이드바 읽기 `SystemUsbHost.IO.reading`과 같다)
+    var recheck: @Sendable (UsbVolumeInfo) throws -> UsbVolumeInfo = { try UsbRead.currentVolume(matching: $0) }
+    /// 쓰기 금지 목록 상태(부를 때마다 목록 파일을 다시 읽는다)
+    var lists: @Sendable () -> UsbPhysicalLists.Loaded = { UsbPhysicalLists.load() }
 
     /// 앱이 쓰는 창구. 폴더는 USB에 쓸 때 만든다(저널을 보기만 할 때는 만들지 않는다)
     static func app() -> SystemUsbWriteService {
@@ -115,8 +119,12 @@ struct SystemUsbWriteService: UsbWriteService {
         UsbWriter.backups(paths: paths, volumeKey: volumeKey).first
     }
 
+    /// 사이드바가 들고 있던 볼륨 정보는 앞선 훑기 때 것이라, 같은 자리에 다른 볼륨(쓰기 금지 목록 USB·디스크 이미지만 읽는 실행의
+    /// 실물 볼륨 등)이 붙었으면 읽지 않는다. 사이드바 읽기와 같은 판정(다시 보기 → 쓰기 금지 목록)을 지난 뒤에만 DB 파일을 읽는다
     func draftBase(_ volume: UsbVolumeInfo) throws -> UsbFingerprint {
-        try UsbWriter.databaseFingerprint(root: UsbRoot(URL(filePath: volume.mountPoint)), fileSystem: fileSystem)
+        let current = try recheck(volume)
+        if let code = UsbRead.readRefusal(volume: current, lists: lists()) { throw UsbError.readFailed(detail: code) }
+        return try UsbWriter.databaseFingerprint(root: UsbRoot(URL(filePath: current.mountPoint)), fileSystem: fileSystem)
     }
 
     func previewEdit(_ job: UsbEditJob) throws -> UsbEditSummary {
@@ -360,7 +368,7 @@ struct UsbWriteCoordinator {
         case let .failed(error):
             await failWrite(error, volumeKey: volumeKey, otherwise: String(ui: "USB에 쓰지 않았습니다"))
         }
-        await usb.reloadDraftCount(volumeKey)
+        await usb.reloadDraft(volumeKey)
     }
 
     /// 잠근 채로 미리 보기·확인·쓰기. 잠금은 부르는 쪽이 푼다
@@ -387,7 +395,10 @@ struct UsbWriteCoordinator {
         }
         guard prompter.show(Self.editConfirmation(summary, volume: job.volume)) else { return .stopped }
         if let stop: Outcome<UsbEditSummary> = await journalStop(key) { return stop }
-        let result = await perform(key) { progress in try service.writeEdit(job, progress: progress, isCancelled: { flag.isSet }) }
+        // 세션이 초안을 읽고 막힌 편집만 남겨 다시 저장하는 동안 더한 편집을 잃지 않게, 초안 고치기와 한 줄로 선다(그 편집은 쓰기 뒤에 더한다)
+        let result = await usb.draftQueue(key) {
+            await perform(key) { progress in try service.writeEdit(job, progress: progress, isCancelled: { flag.isSet }) }
+        }
         switch result {
         case let .success(written):
             guard written.report != nil else {

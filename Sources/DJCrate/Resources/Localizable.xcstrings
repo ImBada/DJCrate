@@ -1127,6 +1127,22 @@
         }
       }
     },
+    "%@ · ‘%@’ 순서를 처음대로 돌렸습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · Moved ‘%@’ back to its original position"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · 「%@」の順序を元に戻しました"
+          }
+        }
+      }
+    },
     "%@ · 막힌 편집 %lld건은 초안에 남겼습니다" : {
       "localizations" : {
         "en" : {
@@ -7158,6 +7174,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USB書き込み待ちに追加しました"
+          }
+        }
+      }
+    },
+    "USB 쓰기 대기에서 뺐습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removed from Pending USB Changes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB書き込み待ちから外しました"
+          }
+        }
+      }
+    },
+    "USB 쓰기 대기를 고쳤습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updated Pending USB Changes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB書き込み待ちを修正しました"
           }
         }
       }
@@ -18544,18 +18592,18 @@
         }
       }
     },
-    "순서 바꾸기: ‘%@’" : {
+    "순서 바꾸기: ‘%@’ → %lld번째" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Reorder: ‘%@’"
+            "value" : "Reorder: ‘%@’ → position %lld"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "順序を変更: 「%@」"
+            "value" : "順序を変更: 「%@」→ %lld番目"
           }
         }
       }

@@ -1502,10 +1502,12 @@ extension TrackListCoordinator {
         menu.addItem(usbEditItem(String(ui: "USB에서 빼기 (\(ids.count)곡)"), #selector(removeFromUsb), .removeTracks(usbContentIDs: ids),
                                  actions: actions, key: key))
         let updatable = actions.updatableTracks(volumeKey: key, rows: targets)
+        let refreshReason = updatable.isEmpty ? String(ui: "로컬에서 더 고친 곡(갱신 가능)이 없습니다")
+            : actions.refreshBlockReason(volumeKey: key, rows: targets)
         let refresh = NSMenuItem(title: String(ui: "로컬 변경을 USB에 반영 (\(updatable.count)곡)"),
-                                 action: updatable.isEmpty ? nil : #selector(refreshUsbTracks), keyEquivalent: "")
+                                 action: refreshReason == nil ? #selector(refreshUsbTracks) : nil, keyEquivalent: "")
         refresh.target = self
-        if updatable.isEmpty { refresh.toolTip = String(ui: "로컬에서 더 고친 곡(갱신 가능)이 없습니다") }
+        refresh.toolTip = refreshReason
         menu.addItem(refresh)
         menu.addItem(.separator())
         let pending = NSMenuItem(title: String(ui: "USB 쓰기 대기 목록 보기"), action: #selector(showUsbPending), keyEquivalent: "")

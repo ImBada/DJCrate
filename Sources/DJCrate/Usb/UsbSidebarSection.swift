@@ -320,10 +320,8 @@ struct UsbSidebarMenu: View {
                     edit(String(ui: "이름 바꾸기…"), .playlist(edit: .rename(playlist: .id(String(id)), name: playlist.name))) {
                         await actions.renamePlaylist(id, volumeKey: key)
                     }
-                    Button(.ui("위로 옮기기")) { Task { await actions.movePlaylist(id, by: -1, volumeKey: key) } }
-                        .disabled(!actions.canMovePlaylist(id, by: -1, volumeKey: key))
-                    Button(.ui("아래로 옮기기")) { Task { await actions.movePlaylist(id, by: 1, volumeKey: key) } }
-                        .disabled(!actions.canMovePlaylist(id, by: 1, volumeKey: key))
+                    moveButton(String(ui: "위로 옮기기"), id: id, step: -1)
+                    moveButton(String(ui: "아래로 옮기기"), id: id, step: 1)
                     Divider()
                     edit(playlist.attribute == 1 ? String(ui: "폴더 지우기") : String(ui: "재생 목록 지우기"),
                          .playlist(edit: .delete(playlist: .id(String(id))))) {
@@ -357,8 +355,18 @@ struct UsbSidebarMenu: View {
 
     private var refreshButton: some View {
         let count = actions.updatableTracks(volumeKey: key).count
+        let reason = count == 0 ? nil : actions.refreshBlockReason(volumeKey: key)
         return Button(.ui("로컬 변경을 USB에 반영 (\(count)곡)")) { Task { await actions.refreshLocalChanges(volumeKey: key) } }
-            .disabled(count == 0)
+            .disabled(count == 0 || reason != nil)
+            .help(reason ?? String(ui: "로컬에서 더 고친 곡(갱신 가능)을 USB 쓰기 대기에 더합니다. USB는 ‘USB에 쓰기…’를 누를 때 바뀝니다."))
+    }
+
+    /// 같은 부모 안에서 한 칸 옮기기: 초안을 적용한 자리에서 옮길 곳이 없거나 막히면 누를 수 없고, 막힌 이유를 도움말로
+    private func moveButton(_ title: String, id: Int, step: Int) -> some View {
+        let reason = actions.moveBlockReason(id, by: step, volumeKey: key)
+        return Button(title) { Task { await actions.movePlaylist(id, by: step, volumeKey: key) } }
+            .disabled(!actions.canMovePlaylist(id, by: step, volumeKey: key) || reason != nil)
+            .help(reason ?? title)
     }
 
     private var pendingButton: some View {

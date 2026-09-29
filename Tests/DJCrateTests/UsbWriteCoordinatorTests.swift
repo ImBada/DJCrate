@@ -38,6 +38,10 @@ final class FakeUsbWriteService: UsbWriteService, @unchecked Sendable {
         var committed = false
         /// 초안 base로 돌려줄 USB DB 지문
         var base = UsbFingerprint(files: [:])
+        /// 지문을 뜨지 못함(그 자리에 다른 볼륨이 붙음 등)
+        var baseError: UsbError?
+        /// 지문을 뜰 때 부른다(메인 액터 밖, 잠금 밖)
+        var onDraftBase: (@Sendable () -> Void)?
         /// 수정 미리 보기·쓰기가 돌려줄 요약
         var editSummary = UsbTestData.editSummary()
         var editWriteResult: Result<UsbWriteReport?, UsbError> = .success(UsbWriteReport(outcome: .written, session: "e1", filesCreated: 2))
@@ -118,8 +122,13 @@ final class FakeUsbWriteService: UsbWriteService, @unchecked Sendable {
     }
 
     func draftBase(_ volume: UsbVolumeInfo) throws -> UsbFingerprint {
-        lock.withLock {
+        let hook = lock.withLock { () -> (@Sendable () -> Void)? in
             state.calls.append("draftBase")
+            return state.onDraftBase
+        }
+        hook?()
+        return try lock.withLock {
+            if let error = state.baseError { throw error }
             return state.base
         }
     }

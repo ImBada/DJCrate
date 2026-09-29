@@ -7,7 +7,7 @@ import RekordboxKit
 /// 사이드바 USB 절 상태: 연결된 볼륨마다 모양(빈 FAT32·rekordbox USB·쓸 수 없는 모양)과 사본으로 읽은 라이브러리.
 /// 여기서는 USB에 쓰지 않는다. 읽기는 호스트가 메인 액터 밖에서 사본으로 하고, 여기서는 결과만 받는다.
 /// 쓰기(`UsbWriteCoordinator`)가 쥐는 볼륨별 잠금·진행과, 끝나지 않은 쓰기가 있는 볼륨이 나타났다는 알림도 여기 둔다.
-/// USB 초안(편집 수·빠진 볼륨의 초안)도 여기서 본다. 초안 파일은 `UsbEditActions`가 고친다.
+/// USB 초안(편집·빠진 볼륨의 초안)도 여기서 본다. 초안 파일은 `UsbEditActions`·초안 쓰기가 볼륨마다 한 줄(`draftQueue`)로 고친다.
 @MainActor @Observable final class UsbStore {
     enum Shape: Equatable {
         /// 내보낼 수 있는 빈 FAT32·MBR(rekordbox 라이브러리 없음)
@@ -52,6 +52,13 @@ import RekordboxKit
     private(set) var absentDrafts: [String: UsbAbsentVolume] = [:]
     /// USB 초안 폴더(`usb-drafts`). nil이면 초안을 다루지 않는다(시험·캡처의 기본 — 사용자 폴더를 읽지 않게)
     @ObservationIgnored var draftDirectory: URL?
+    /// 볼륨키 → 초안 편집(파일에서 읽은 그대로). 순서 옮기기처럼 초안 위에서 판정하는 메뉴가 읽는다
+    private(set) var draftEdits: [String: [UsbLibraryEdit]] = [:]
+    /// 마운트 지점이 임시 폴더 뿌리 아래인지(realpath). 실물 쓰기가 닫힌 동안 그 밖의 디스크 이미지는 쓰기 때 막힌다(편집 막힘 미리 판정).
+    /// 시험은 지어낸 마운트 지점을 넘긴다
+    @ObservationIgnored var isScratchMount: (String) -> Bool = UsbEditActions.isScratchMount
+    /// 볼륨키 → 초안 고치기 줄(읽고-고치고-쓰기가 겹쳐 편집을 잃지 않게, 누른 차례대로)
+    @ObservationIgnored private var draftChains: [String: Task<Void, Never>] = [:]
 
     /// 볼륨키 → 마지막 내보내기(다시 미리 보기에 쓴다)
     @ObservationIgnored var lastExports: [String: UsbExportJob] = [:]
@@ -175,7 +182,7 @@ import RekordboxKit
                 libraries[key] = library
                 syncBadges[key] = badges
                 shapes[key] = .rekordbox(formats: formats)
-                await reloadDraftCount(key)
+                await reloadDraft(key)
             }
             readVolumes[key] = volume
         } catch {
@@ -271,17 +278,34 @@ import RekordboxKit
     /// 편집 대상 라이브러리(빠진 볼륨은 마지막으로 읽은 것)
     func editLibrary(_ key: String) -> UsbLibrary? { libraries[key] ?? absentDrafts[key]?.library }
 
-    /// 그 볼륨의 초안 편집 수를 다시 읽는다(메인 액터 밖에서 파일을 읽는다)
-    func reloadDraftCount(_ key: String) async {
+    /// 그 볼륨의 초안 고치기를 한 줄로 세운다: 앞서 넣은 일이 끝난 뒤에 body를 돌린다(볼륨마다 따로).
+    /// 초안 파일을 읽고 고쳐 쓰는 일(편집 더하기·빼기·버리기, 초안 쓰기)과 편집 수 다시 읽기는 모두 이 줄로 한다.
+    /// body 안에서 같은 볼륨의 줄을 다시 기다리지 않는다(스스로를 기다려 멈춘다)
+    func draftQueue<T: Sendable>(_ key: String, _ body: @escaping @MainActor () async -> T) async -> T {
+        let previous = draftChains[key]
+        let task = Task { @MainActor () -> T in
+            await previous?.value
+            return await body()
+        }
+        draftChains[key] = Task { _ = await task.value }
+        return await task.value
+    }
+
+    /// 그 볼륨의 초안을 다시 읽는다(메인 액터 밖에서 파일을 읽는다)
+    func reloadDraft(_ key: String) async {
         guard let directory = draftDirectory else { return }
-        let count = await Task.detached(priority: .utility) { () -> Int in
-            ((try? UsbDraftStore(directory: directory).load(volumeKey: key)) ?? nil)?.edits.count ?? 0
-        }.value
-        setDraftCount(count, for: key)
+        await draftQueue(key) { [weak self] in
+            let edits = await Task.detached(priority: .utility) { () -> [UsbLibraryEdit] in
+                ((try? UsbDraftStore(directory: directory).load(volumeKey: key)) ?? nil)?.edits ?? []
+            }.value
+            self?.setDraft(edits, for: key)
+        }
     }
 
     /// 초안이 바뀌었다(편집 동작·쓰기 뒤). 빠진 볼륨의 초안이 비면 사이드바에서 뺀다
-    func setDraftCount(_ count: Int, for key: String) {
+    func setDraft(_ edits: [UsbLibraryEdit], for key: String) {
+        let count = edits.count
+        draftEdits[key] = edits.isEmpty ? nil : edits
         draftCounts[key] = count > 0 ? count : nil
         draftRevisions[key, default: 0] += 1
         if count == 0, absentDrafts[key] != nil {

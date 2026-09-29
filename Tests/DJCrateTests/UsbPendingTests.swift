@@ -47,7 +47,9 @@ struct UsbPendingTests {
             .playlist(edit: .reorder(playlist: .id("10"), index: 1)),
             .playlist(edit: .delete(playlist: .id("5"))),
         ]
-        let blockReason: (UsbLibraryEdit) -> String? = { UsbEditActions.blockReason($0, volume: image, library: library, info: nil) }
+        let blockReason: (UsbLibraryEdit) -> String? = {
+            UsbEditActions.blockReason($0, volume: image, library: library, info: nil, isScratchMount: { _ in true })
+        }
         let waiting = UsbPendingModel(volumeName: "B13T", isConnected: true, edits: edits, library: library, summary: nil, busy: false,
                                       blockReason: blockReason)
         #expect(waiting.rows.map(\.text) == [
@@ -58,7 +60,7 @@ struct UsbPendingTests {
             "이름 바꾸기: ‘새 목록’ → ‘또 새 이름’",
             "‘시험 목록’에서 곡 1개 빼기",
             "곡 2개 로컬 변경 반영",
-            "순서 바꾸기: ‘시험 목록’",
+            "순서 바꾸기: ‘시험 목록’ → 2번째",
             "지우기: ‘폴더’",
         ])
         #expect(waiting.rows.map(\.id) == Array(1...9))
