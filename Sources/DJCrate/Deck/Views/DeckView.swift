@@ -27,7 +27,19 @@ struct DeckView: View {
                 }
                 VStack(alignment: .leading, spacing: 8) {
                     if compact { CompactInfo(deck: deck, row: row) }
-                    Group { if PerfProbe.hidden.contains("zoom") { EmptyView() } else { ZoomWaveformView(deck: deck) } }
+                    Group {
+                        if PerfProbe.hidden.contains("zoom") {
+                            EmptyView()
+                        } else {
+                            ZoomWaveformView(deck: deck)
+                                .overlay(alignment: .leading) {
+                                    ZoomControl(deck: deck, availableHeight: waveformHeight).padding(.leading, 8)
+                                }
+                                .overlay(alignment: .trailing) {
+                                    TrackEditButton(deck: deck).padding(.trailing, 8)
+                                }
+                        }
+                    }
                         .frame(height: waveformHeight)
                         .overlay(alignment: .center) { loadingOverlay }
                         .overlay(alignment: .top) {
@@ -62,12 +74,17 @@ struct DeckView: View {
                         }
                         .animation(.easeOut(duration: 0.15), value: deck.needsGrid)
                         .environment(\.colorScheme, .dark)
-                    Group { if PerfProbe.hidden.contains("overview") { EmptyView() } else { OverviewWaveformView(deck: deck) } }
-                        .frame(height: WaveformMetrics(scale: textScale).overviewHeight)
+                    VStack(spacing: 0) {
+                        Group { if PerfProbe.hidden.contains("overview") { EmptyView() } else { OverviewWaveformView(deck: deck) } }
+                            .frame(height: WaveformMetrics(scale: textScale).overviewHeight)
+                        if deck.gridDraft != nil { GridTempoSegments(deck: deck) }
+                    }
+                    .background(Palette.well)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
                     TransportBar(deck: deck)
                     AudioBar(deck: deck)
-                    if deck.gridEditing { GridSuggestionRow(deck: deck) }
-                    if deck.gridEditing { GridEditorBar(deck: deck) }
+                    if !deck.needsGrid { GridSuggestionRow(deck: deck) }
+                    GridEditorBar(deck: deck)
                 }
                 .frame(minWidth: 0, maxWidth: .infinity, alignment: .topLeading)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { middleHeight = $0 }

@@ -1595,22 +1595,6 @@
         }
       }
     },
-    "%.1f초" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%.1f s"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%.1f秒"
-          }
-        }
-      }
-    },
     "%.3f초" : {
       "localizations" : {
         "en" : {
@@ -3755,22 +3739,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "3Band"
-          }
-        }
-      }
-    },
-    "½박 이동" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shift ½ Beat"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "½拍ずらす"
           }
         }
       }
@@ -9008,22 +8976,6 @@
         }
       }
     },
-    "그리드 전체를 옮깁니다 (1초 동안 누르면 반복)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Moves the whole grid (hold for 1 second to repeat)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "グリッド全体を移動（1秒間押し続けると繰り返し移動）"
-          }
-        }
-      }
-    },
     "그리드 초안 변경됨" : {
       "localizations" : {
         "en" : {
@@ -9278,22 +9230,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "グリッドを修正するときにキューも一緒に動かす（ホットキュー・メモリーキュー・ループ）"
-          }
-        }
-      }
-    },
-    "그리드를 반 박 옮깁니다(추정이 뒷박을 잡았을 때)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shifts the grid by half a beat (when the estimate locked onto the offbeat)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "グリッドを半拍ずらします（推定が裏拍を拾ったとき）"
           }
         }
       }
@@ -15742,22 +15678,6 @@
         }
       }
     },
-    "여기를 1박으로" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Set Downbeat Here"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ここを1拍目に"
-          }
-        }
-      }
-    },
     "여기서 BPM 변경" : {
       "localizations" : {
         "en" : {
@@ -16170,22 +16090,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完了"
-          }
-        }
-      }
-    },
-    "외 %lld개" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "+%lld more"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ほか%lld個"
           }
         }
       }
@@ -21524,22 +21428,6 @@
         }
       }
     },
-    "탭" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "TAP"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "TAP"
-          }
-        }
-      }
-    },
     "태그 시트" : {
       "localizations" : {
         "en" : {
@@ -21552,22 +21440,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "タグシート"
-          }
-        }
-      }
-    },
-    "탭 %.2f" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "TAP %.2f"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "TAP %.2f"
           }
         }
       }
@@ -22276,22 +22148,6 @@
         }
       }
     },
-    "편집…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Edit…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "編集…"
-          }
-        }
-      }
-    },
     "편집본 ‘%@’을 추가한 곡에 넣었습니다. rekordbox에 바로 넣기나 XML로 넘기세요" : {
       "localizations" : {
         "en" : {
@@ -22572,22 +22428,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再生位置へ移動"
-          }
-        }
-      }
-    },
-    "플레이헤드에 가장 가까운 박을 마디 첫 박으로" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Makes the beat nearest the playhead the first beat of the bar"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "再生位置に最も近い拍を小節の1拍目にします"
           }
         }
       }
@@ -23968,6 +23808,68 @@
             "value" : "概要・スナップショットを表示"
           }
         }
+      }
+    },
+    "1초 동안 누르면 반복합니다" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hold for 1 second to repeat." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "1秒間押し続けると繰り返します" } }
+      }
+    },
+    "그리드 초안을 버리고 원래 그리드로 되돌립니다" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Discard the grid draft and restore the original grid." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "グリッドの下書きを破棄して元のグリッドに戻します" } }
+      }
+    },
+    "박자에 맞춰 여러 번 눌러 BPM을 측정합니다" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap several times to the beat to measure BPM." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "拍子に合わせて数回タップし、BPMを測定します" } }
+      }
+    },
+    "측정한 TAP BPM을 현재 템포 구간에 적용합니다" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Apply the measured TAP BPM to the current tempo segment." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "測定したTAP BPMを現在のテンポ区間に適用します" } }
+      }
+    },
+    "현재 템포 구간의 BPM을 두 배로 바꿉니다" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Double the current tempo segment’s BPM." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在のテンポ区間のBPMを2倍にします" } }
+      }
+    },
+    "현재 템포 구간의 BPM을 절반으로 바꿉니다" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Halve the current tempo segment’s BPM." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在のテンポ区間のBPMを半分にします" } }
+      }
+    },
+    "↑·↓로 0.01씩 조정하고 길게 누르면 반복합니다" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Press ↑ or ↓ to adjust by 0.01; hold to repeat." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "↑・↓で0.01ずつ調整し、押し続けると繰り返します" } }
+      }
+    },
+    "TAP 초기화" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reset TAP" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "TAPをリセット" } }
+      }
+    },
+    "우클릭: TAP 초기화" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Right-click: Reset TAP" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "右クリック：TAPをリセット" } }
+      }
+    },
+    "deck.editButton" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "編集" } },
+        "ko" : { "stringUnit" : { "state" : "new", "value" : "편집" } }
       }
     }
   },

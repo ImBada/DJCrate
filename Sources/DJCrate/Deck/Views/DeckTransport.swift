@@ -45,14 +45,11 @@ struct TransportBar: View {
                 }
                 LoopControl(deck: deck)
             }
-            // 재생·큐 묶음 다음 줄에 확대·보기 묶음을 둔다.
-            FlowLayout(spacing: 10) {
-                ZoomControl(deck: deck)
+            // 게인과 단축키 안내는 재생·큐 줄 아래 양쪽 끝에 둔다.
+            HStack(spacing: 10) {
+                GainControl(deck: deck)
+                Spacer()
                 ShortcutsButton()
-                TrackEditButton(deck: deck)
-                Toggle(.ui("큐 제안 표시"), isOn: $deck.showSuggestions)
-                    .toggleStyle(.checkbox)
-                    .help(.ui("큐 제안을 표시합니다. 파형 아래 + 배지를 누르면 메모리 큐로 추가합니다."))
             }
         }
         .controlSize(ControlSize.small.scaled(textScale))
@@ -84,29 +81,46 @@ struct PlayQuantizeToggle: View {
     }
 }
 
-/// 확대 배율: − / + 버튼, 현재 값(누르면 프리셋). 파형 위 휠·핀치로도 조절된다.
+/// 확대 파형 왼쪽의 세로 확대 막대. 현재 값을 누르면 기존 프리셋을 고를 수 있다.
 struct ZoomControl: View {
     @Environment(\.textScale) private var textScale
     let deck: DeckModel
+    let availableHeight: Double
 
     var body: some View {
-        HStack(spacing: 2) {
-            Button { deck.zoom(by: 1.25) } label: { Image(systemName: "minus.magnifyingglass") }
-                .help(.ui("축소 (\(deck.shortcuts.keyLabel(for: .zoomOut)))")).accessibilityLabel(.ui("파형 축소"))
+        let size = TextScale.length(38, scale: textScale)
+        let itemHeight = min(TextScale.length(26, scale: textScale), max(16, (availableHeight - 16) / 3))
+        VStack(spacing: 4) {
+            Button { deck.zoom(by: 0.8) } label: {
+                Image(systemName: "plus.magnifyingglass").frame(width: size, height: itemHeight)
+            }
+            .help(.ui("확대 (\(deck.shortcuts.keyLabel(for: .zoomIn)))"))
+            .accessibilityLabel(.ui("파형 확대"))
             Menu {
                 ForEach([4.0, 8, 16, 32, 64], id: \.self) { seconds in
                     Button(.ui("\(Int(seconds))초")) { deck.setZoom(seconds) }
                 }
             } label: {
-                Text(.ui("\(deck.zoomSeconds, specifier: "%.1f")초")).font(.scaled(.caption, textScale).monospacedDigit())
-                    .frame(width: TextScale.length(46, scale: textScale))
+                Text(.ui("\(Int(deck.zoomSeconds.rounded()))초")).font(.scaled(.caption, textScale).monospacedDigit())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .frame(width: size, height: itemHeight)
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
             .help(.ui("확대 창 폭. 파형 위에서 휠(세로)로 확대·축소, 가로 스크롤로 이동, 핀치로 확대"))
-            Button { deck.zoom(by: 0.8) } label: { Image(systemName: "plus.magnifyingglass") }
-                .help(.ui("확대 (\(deck.shortcuts.keyLabel(for: .zoomIn)))")).accessibilityLabel(.ui("파형 확대"))
+            Button { deck.zoom(by: 1.25) } label: {
+                Image(systemName: "minus.magnifyingglass").frame(width: size, height: itemHeight)
+            }
+            .help(.ui("축소 (\(deck.shortcuts.keyLabel(for: .zoomOut)))"))
+            .accessibilityLabel(.ui("파형 축소"))
         }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white)
+        .controlSize(ControlSize.small.scaled(textScale))
+        .padding(4)
+        .background(Palette.well.opacity(0.85), in: RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(.white.opacity(0.2)))
     }
 }
 
