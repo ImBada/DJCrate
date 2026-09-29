@@ -269,7 +269,7 @@ struct DeckInfoHeader: View {
             HStack(spacing: 10) {
                 cover
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(row.title).font(.scaled(.headline, textScale)).lineLimit(1)
+                    title
                     if !PerfProbe.hidden.contains("label") {
                         HStack(spacing: 8) {
                             DeckHeaderTime(deck: deck)
@@ -290,13 +290,38 @@ struct DeckInfoHeader: View {
 
     private var details: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(row.title).font(.scaled(.headline, textScale)).lineLimit(1)
+            title
             Text([row.artist, row.genre].filter { !$0.isEmpty }.joined(separator: " · "))
                 .font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
             if !row.comment.isEmpty {
                 Text(row.comment).font(.scaled(.caption2, textScale)).foregroundStyle(.tertiary).lineLimit(1)
             }
         }
+    }
+
+    private var title: some View {
+        HStack(spacing: 4) {
+            Text(row.title).font(.scaled(.headline, textScale)).lineLimit(1)
+            if !row.track.isStreaming, !row.isStaged, let note = analysisNote {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(UIColors.warning.color)
+                    .accessibilityLabel(note.title)
+                    .help(note.help)
+            }
+        }
+    }
+
+    /// 분석 파일이 없는 곡과 파형 파일이 빠진 곡은 그리드 쓰기 조건이 다르다.
+    private var analysisNote: (title: String, help: String)? {
+        let path = row.track.analysisDataPath
+        if RekordboxWriter.needsAnalysis(path) {
+            return (String(ui: "rekordbox 분석 전"), RekordboxWriter.attachesAnalysis
+                ? String(ui: "그리드 초안을 쓰면 이 미분석 곡에 파형·그리드·오토게인 분석 파일을 붙입니다.")
+                : String(ui: "rekordbox가 이 곡을 아직 분석하지 않았습니다. rekordbox에서 트랙 분석을 먼저 해야 그리드를 쓸 수 있습니다"))
+        }
+        guard !RekordboxShare.hasWaveformAnalysis(path) else { return nil }
+        return (String(ui: "rekordbox 분석 전 · 파형 없음"),
+                String(ui: "rekordbox 분석이 끝나지 않은 곡입니다(파형 파일 없음). rekordbox에서 트랙 분석을 다시 해야 그리드를 쓸 수 있습니다"))
     }
 }
 
@@ -369,61 +394,6 @@ private struct DeckHeaderMetrics: View {
             .help(.ui("마디.박"))
         }
         .frame(width: TextScale.length(112, scale: textScale), alignment: .trailing)
-    }
-}
-
-// MARK: - 커버·정보
-
-struct DeckInfoColumn: View {
-    @Environment(\.textScale) private var textScale
-    let deck: DeckModel
-    let row: TrackRow
-
-    var body: some View {
-        VStack(alignment: .center, spacing: 8) {
-            CoverView(image: deck.artwork, size: 150)
-            Text(row.title).font(.scaled(.headline, textScale)).lineLimit(2).textSelection(.enabled)
-            Text(row.artist).font(.scaled(.subheadline, textScale)).foregroundStyle(.secondary).lineLimit(1)
-            if let genre = row.track.genre, !genre.trimmingCharacters(in: .whitespaces).isEmpty {
-                Label(genre, systemImage: "guitars").font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
-            }
-            HStack(spacing: 10) {
-                if let bpm = row.track.bpm { Text(verbatim: bpm.formatted(.number.precision(.fractionLength(1)).grouping(.never)) + " BPM") }
-                if let key = row.track.key { Text(key) }
-                Text(Double(row.track.lengthSeconds).clockText.dropLast(3))
-                if row.playCount > 0 { Text(.ui("재생 \(row.playCount)")) }
-            }
-            .font(.scaled(.caption, textScale).monospacedDigit())
-            .foregroundStyle(.secondary)
-            if !row.track.isStreaming, !row.isStaged, let note = analysisNote(row.track.analysisDataPath) {
-                Label(note.title, systemImage: "exclamationmark.triangle.fill")
-                    .font(.scaled(.caption, textScale)).foregroundStyle(UIColors.warning.color)
-                    .help(note.help)
-            }
-            // 코멘트는 적힌 그대로(태그로 나누지 않는다)
-            Text(row.comment.isEmpty ? String(ui: "(빈 코멘트)") : row.comment)
-                .font(.scaled(.callout, textScale))
-                .foregroundStyle(row.comment.isEmpty ? .tertiary : .primary)
-                .lineLimit(3)
-                .textSelection(.enabled)
-                .help(row.comment)
-        }
-        // 글자 길이와 상관없이 칸 가운데 세로축에 맞춘다.
-        .multilineTextAlignment(.center)
-        .frame(maxWidth: .infinity, alignment: .top)
-    }
-
-    /// rekordbox 분석 전 곡 표시. 분석 파일이 없는 곡은 반영 때 DJCrate가 붙일 수 있고(열려 있으면),
-    /// `.DAT`만 있고 파형(.EXT)이 없는 곡은 rekordbox 분석이 끝나지 않은 곡이라 rekordbox에서 다시 분석해야 한다.
-    func analysisNote(_ analysisDataPath: String?) -> (title: String, help: String)? {
-        if RekordboxWriter.needsAnalysis(analysisDataPath) {
-            return (String(ui: "rekordbox 분석 전"), RekordboxWriter.attachesAnalysis
-                ? String(ui: "그리드 초안을 쓰면 이 미분석 곡에 파형·그리드·오토게인 분석 파일을 붙입니다.")
-                : String(ui: "rekordbox가 이 곡을 아직 분석하지 않았습니다. rekordbox에서 트랙 분석을 먼저 해야 그리드를 쓸 수 있습니다"))
-        }
-        guard !RekordboxShare.hasWaveformAnalysis(analysisDataPath) else { return nil }
-        return (String(ui: "rekordbox 분석 전 · 파형 없음"),
-                String(ui: "rekordbox 분석이 끝나지 않은 곡입니다(파형 파일 없음). rekordbox에서 트랙 분석을 다시 해야 그리드를 쓸 수 있습니다"))
     }
 }
 
