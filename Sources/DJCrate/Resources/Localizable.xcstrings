@@ -449,6 +449,22 @@
         }
       }
     },
+    "‘%@’ 곡 순서 바꾸기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reorder Tracks in ‘%@’"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」の曲順を変更"
+          }
+        }
+      }
+    },
     "‘%@’ 빼기" : {
       "localizations" : {
         "en" : {
@@ -547,6 +563,28 @@
         }
       }
     },
+    "‘%@’에 곡 %lld개 넣기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to ‘%1$@’ (Tracks: %2$lld)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」に%2$lld曲を追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "‘%1$@’에 곡 %2$lld개 넣기"
+          }
+        }
+      }
+    },
     "‘%@’에 넣기" : {
       "localizations" : {
         "en" : {
@@ -613,6 +651,28 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "‘%1$@’에서 %2$lld곡을 뺐습니다(쓰기 대기)."
+          }
+        }
+      }
+    },
+    "‘%@’에서 곡 %lld개 빼기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from ‘%1$@’ (Tracks: %2$lld)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」から%2$lld曲を外す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "‘%1$@’에서 곡 %2$lld개 빼기"
           }
         }
       }
@@ -927,6 +987,28 @@
         }
       }
     },
+    "%@ · ‘%@’ 안" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · in ‘%2$@’"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · 「%2$@」内"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · ‘%2$@’ 안"
+          }
+        }
+      }
+    },
     "%@ · %@ · %@ · %lld곡" : {
       "localizations" : {
         "en" : {
@@ -1045,6 +1127,44 @@
         }
       }
     },
+    "%@ · ‘%@’ 순서를 처음대로 돌렸습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · Moved ‘%@’ back to its original position"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · 「%@」の順序を元に戻しました"
+          }
+        }
+      }
+    },
+    "%@ · 막힌 편집 %lld건은 초안에 남겼습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · Blocked edits kept in the draft: %2$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · ブロックされた編集%2$lld件は下書きに残しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · 막힌 편집 %2$lld건은 초안에 남겼습니다"
+          }
+        }
+      }
+    },
     "%@ · 쓴 곡 %lld · 막힌 곡 %lld · 백업 %@" : {
       "localizations" : {
         "en" : {
@@ -1155,6 +1275,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@ (%2$lld개)"
+          }
+        }
+      }
+    },
+    "%@ (연결 안 됨)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (Not Connected)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@（未接続）"
           }
         }
       }
@@ -1392,6 +1528,44 @@
         }
       }
     },
+    "%@: 고침" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: updated"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: 更新"
+          }
+        }
+      }
+    },
+    "%@: 고치지 않음 — %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: not updated — %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: 更新しない — %2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: 고치지 않음 — %2$@"
+          }
+        }
+      }
+    },
     "%@: 이 형식은 아직 rekordbox에 직접 넣지 않습니다" : {
       "localizations" : {
         "en" : {
@@ -1619,6 +1793,38 @@
         }
       }
     },
+    "%@에 새 재생 목록" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Playlist on %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@に新規プレイリスト"
+          }
+        }
+      }
+    },
+    "%@에 새 폴더" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Folder on %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@に新規フォルダ"
+          }
+        }
+      }
+    },
     "%@에 쓰다가 끊긴 기록이 있습니다. 회복하면 USB를 보고 마저 쓰거나 쓰기 전으로 되돌립니다. 되돌리기는 그 쓰기를 백업으로 되돌립니다. 기기에 꽂기 전에 하세요." : {
       "localizations" : {
         "en" : {
@@ -1631,6 +1837,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@への書き込みが途中で止まった記録があります。回復するとUSBを確認し、書き込みを最後まで行うか書き込み前の状態に戻します。復元はその書き込みの前のバックアップに戻します。機器に挿す前に行ってください。"
+          }
+        }
+      }
+    },
+    "%@에 아직 쓰지 않은 편집(곡 더하기·빼기·갱신, 재생 목록 편집)을 모두 버립니다. USB는 바뀌지 않습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discards all edits not yet written to %@ (adding, removing and updating tracks, playlist edits). The USB is not changed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@にまだ書き込んでいない編集（曲の追加・削除・更新、プレイリストの編集）をすべて破棄します。USBは変更されません。"
           }
         }
       }
@@ -1797,6 +2019,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@をrekordboxに書き込みますか？"
+          }
+        }
+      }
+    },
+    "%@의 rekordbox 라이브러리를 고칩니다. 쓰기 전에 Mac에 백업하고 쓴 뒤 USB에서 다시 읽어 확인합니다. 끝날 때까지 USB를 뽑지 마세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edits the rekordbox library on %@. The USB is backed up on this Mac first and read back afterward to verify. Don’t unplug the USB until it finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@のrekordboxライブラリを編集します。書き込む前にMacにバックアップし、書き込んだ後にUSBから読み直して確認します。終わるまでUSBを抜かないでください。"
           }
         }
       }
@@ -2337,6 +2575,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld拍 · %2$lld区間"
+          }
+        }
+      }
+    },
+    "%lld번 편집 빼기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove Edit %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集%lldを外す"
           }
         }
       }
@@ -3443,6 +3697,22 @@
         }
       }
     },
+    "Device Library를 고치지 못해 두 형식의 곡이 달라집니다. 다음부터 이 USB를 고치려면 rekordbox에서 다시 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device Library can’t be updated, so the tracks in the two formats will differ. To edit this USB again, export it again from rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device Libraryを更新できないため、2つの形式の曲が食い違います。このUSBを次に編集するには、rekordboxからもう一度エクスポートしてください"
+          }
+        }
+      }
+    },
     "Device Library를 만들었지만 다시 읽은 결과가 달라 쓰지 않았습니다. 곡을 줄여 다시 시도하세요" : {
       "localizations" : {
         "en" : {
@@ -3535,6 +3805,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "DJCrateのキーボードショートカット"
+          }
+        }
+      }
+    },
+    "DJCrate 데이터 폴더의 usb-drafts를 확인한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check usb-drafts in the DJCrate data folder, then try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateデータフォルダのusb-draftsを確認してから、もう一度お試しください"
           }
         }
       }
@@ -6796,6 +7082,134 @@
         }
       }
     },
+    "USB 쓰기 대기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pending USB Changes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB書き込み待ち"
+          }
+        }
+      }
+    },
+    "USB 쓰기 대기 (%lld건)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pending USB Changes (%lld)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB書き込み待ち（%lld件）"
+          }
+        }
+      }
+    },
+    "USB 쓰기 대기 목록 보기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Pending USB Changes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB書き込み待ちを表示"
+          }
+        }
+      }
+    },
+    "USB 쓰기 대기에 더하지 않았습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not added to Pending USB Changes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB書き込み待ちに追加しませんでした"
+          }
+        }
+      }
+    },
+    "USB 쓰기 대기에 더합니다. USB는 ‘USB에 쓰기…’를 누를 때 바뀝니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adds this to Pending USB Changes. The USB changes only when you click ‘Write to USB…’."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB書き込み待ちに追加します。USBは「USBに書き込む…」を押したときに変更されます。"
+          }
+        }
+      }
+    },
+    "USB 쓰기 대기에 더했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added to Pending USB Changes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB書き込み待ちに追加しました"
+          }
+        }
+      }
+    },
+    "USB 쓰기 대기에서 뺐습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removed from Pending USB Changes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB書き込み待ちから外しました"
+          }
+        }
+      }
+    },
+    "USB 쓰기 대기를 고쳤습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updated Pending USB Changes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB書き込み待ちを修正しました"
+          }
+        }
+      }
+    },
     "USB 쓰기를 마저 끝냈습니다" : {
       "localizations" : {
         "en" : {
@@ -6978,6 +7392,50 @@
         }
       }
     },
+    "USB 초안 %lld건을 버릴까요?" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Discard %lld USB draft edit?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Discard %lld USB draft edits?"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの下書き%lld件を破棄しますか？"
+          }
+        }
+      }
+    },
+    "USB 초안을 고치지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t update the USB draft"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの下書きを更新できませんでした"
+          }
+        }
+      }
+    },
     "USB 파일이 계획 때와 달라 지우지 않았습니다: %@" : {
       "localizations" : {
         "en" : {
@@ -6990,6 +7448,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBのファイルが計画時と異なるため削除しませんでした: %@"
+          }
+        }
+      }
+    },
+    "USB 편집은 초안으로 쌓고 ‘USB에 쓰기…’로 반영합니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB edits are collected as drafts and applied with ‘Write to USB…’"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの編集は下書きとしてためて、「USBに書き込む…」で反映します"
+          }
+        }
+      }
+    },
+    "USB 폴더 이름 규칙이 확인되지 않아 실물 USB에는 곡을 더할 수 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks can’t be added to a physical USB because the USB folder naming rule hasn’t been verified"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBのフォルダ名の規則が確認されていないため、実物のUSBには曲を追加できません"
           }
         }
       }
@@ -7426,6 +7916,38 @@
         }
       }
     },
+    "USB를 연결하면 쓰기 대기의 초안을 쓸 수 있습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect the USB to write its pending draft"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを接続すると書き込み待ちの下書きを書き込めます"
+          }
+        }
+      }
+    },
+    "USB를 연결한 뒤 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect the USB, then write"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを接続してから書き込んでください"
+          }
+        }
+      }
+    },
     "USB를 읽기만 해서 형식·곡 수·경고를 보여 준다(실물 USB는 쓰기 금지 목록을 등록한 뒤에만)" : {
       "localizations" : {
         "en" : {
@@ -7554,6 +8076,22 @@
         }
       }
     },
+    "USB에 넣기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに追加"
+          }
+        }
+      }
+    },
     "USB에 쓰기" : {
       "localizations" : {
         "en" : {
@@ -7614,6 +8152,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBに書き込み中です。書き込みが終わってから取り出してください"
+          }
+        }
+      }
+    },
+    "USB에 쓰는 중입니다. 쓰기가 끝난 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing to the USB. Try again after the write finishes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに書き込み中です。書き込みが終わってからもう一度お試しください"
           }
         }
       }
@@ -7752,6 +8306,22 @@
         }
       }
     },
+    "USB에 쓸 것이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing to write to the USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに書き込むものがありません"
+          }
+        }
+      }
+    },
     "USB에 쓸 내용을 확인하는 중…" : {
       "localizations" : {
         "en" : {
@@ -7880,6 +8450,62 @@
         }
       }
     },
+    "USB에 편집 %lld건을 썼습니다" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Wrote %lld edit to the USB"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Wrote %lld edits to the USB"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに編集%lld件を書き込みました"
+          }
+        }
+      }
+    },
+    "USB에 편집 %lld건을 쓸까요?" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Write %lld edit to the USB?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Write %lld edits to the USB?"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに編集%lld件を書き込みますか？"
+          }
+        }
+      }
+    },
     "USB에서 같은 경로가 되는 곡 파일 이름의 처리" : {
       "localizations" : {
         "en" : {
@@ -7912,6 +8538,34 @@
         }
       }
     },
+    "USB에서 빼기 (%lld곡)" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Remove from USB (%lld Track)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Remove from USB (%lld Tracks)"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBから外す（%lld曲）"
+          }
+        }
+      }
+    },
     "USB에서 뺀 곡의 파일 정리" : {
       "localizations" : {
         "en" : {
@@ -7924,6 +8578,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBから削除した曲のファイルの整理"
+          }
+        }
+      }
+    },
+    "USB에서 지울 파일 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files to delete from the USB: %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBから削除するファイル %lld個"
           }
         }
       }
@@ -9284,6 +9954,112 @@
         }
       }
     },
+    "곡 %lld개 USB에서 빼기" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Remove %lld track from the USB"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Remove %lld tracks from the USB"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld曲をUSBから外す"
+          }
+        }
+      }
+    },
+    "곡 %lld개 더하기" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Add %lld track"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Add %lld tracks"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld曲を追加"
+          }
+        }
+      }
+    },
+    "곡 %lld개 더하기 · ‘%@’에 넣기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add tracks (%1$lld) · into ‘%2$@’"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld曲を追加 · 「%2$@」に入れる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "곡 %1$lld개 더하기 · ‘%2$@’에 넣기"
+          }
+        }
+      }
+    },
+    "곡 %lld개 로컬 변경 반영" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Apply local changes to %lld track"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Apply local changes to %lld tracks"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld曲のローカルの変更を反映"
+          }
+        }
+      }
+    },
     "곡 %lld개·재생 목록 %lld개를 USB에 쓸까요?" : {
       "localizations" : {
         "en" : {
@@ -9966,6 +10742,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxのコレクションから曲を削除（音源ファイルは保持）"
+          }
+        }
+      }
+    },
+    "곡을 오른쪽 클릭해 ‘USB에 넣기’를 고르거나 USB 곡·재생 목록을 오른쪽 클릭해 편집을 더하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right-click tracks and choose ‘Add to USB’, or right-click USB tracks and playlists to add edits."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲を右クリックして「USBに追加」を選ぶか、USBの曲・プレイリストを右クリックして編集を追加してください。"
           }
         }
       }
@@ -13368,6 +14160,34 @@
         }
       }
     },
+    "로컬 변경을 USB에 반영 (%lld곡)" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Apply Local Changes to USB (%lld Track)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Apply Local Changes to USB (%lld Tracks)"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルの変更をUSBに反映（%lld曲）"
+          }
+        }
+      }
+    },
     "로컬 분석 파일(.%@)을 읽지 못함" : {
       "localizations" : {
         "en" : {
@@ -13540,6 +14360,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ローカルにない"
+          }
+        }
+      }
+    },
+    "로컬에서 더 고친 곡(갱신 가능)을 USB 쓰기 대기에 더합니다. USB는 ‘USB에 쓰기…’를 누를 때 바뀝니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adds tracks changed further in the local library (Needs Update) to Pending USB Changes. The USB changes only when you click ‘Write to USB…’."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルでさらに変更した曲（更新あり）をUSB書き込み待ちに追加します。USBは「USBに書き込む…」を押したときに変更されます。"
+          }
+        }
+      }
+    },
+    "로컬에서 더 고친 곡(갱신 가능)이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No tracks were changed further in the local library (Needs Update)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルでさらに変更した曲（更新あり）はありません"
+          }
+        }
+      }
+    },
+    "로컬에서 더 고친 곡이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No tracks were changed further in the local library"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルでさらに変更した曲はありません"
           }
         }
       }
@@ -14156,6 +15024,22 @@
         }
       }
     },
+    "막힌 편집 %lld건(초안에 남깁니다):" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blocked edits (%lld, kept in the draft):"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブロックされた編集 %lld件（下書きに残します）:"
+          }
+        }
+      }
+    },
     "막힌 형식 %@ %@: %@" : {
       "localizations" : {
         "en" : {
@@ -14168,6 +15052,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "止めた形式 %1$@ %2$@: %3$@"
+          }
+        }
+      }
+    },
+    "막힐 수 있음: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "May be blocked: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブロックされる可能性: %@"
           }
         }
       }
@@ -14238,6 +15138,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "生成した拍が少なすぎます"
+          }
+        }
+      }
+    },
+    "만들기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作成"
           }
         }
       }
@@ -15054,6 +15970,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未割り当て"
+          }
+        }
+      }
+    },
+    "바꿀 것 없음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No changes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更なし"
+          }
+        }
+      }
+    },
+    "바꿀 것이 없거나 모든 편집이 막혔습니다. 쓰기 대기 목록에서 이유를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no changes, or all edits are blocked. Check the reasons in Pending USB Changes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更がないか、すべての編集がブロックされました。USB書き込み待ちで理由を確認してください"
           }
         }
       }
@@ -17000,6 +17948,22 @@
         }
       }
     },
+    "새 재생 목록 ‘%@’" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Playlist ‘%@’"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規プレイリスト「%@」"
+          }
+        }
+      }
+    },
     "새 재생 목록 ID를 만들지 못했습니다" : {
       "localizations" : {
         "en" : {
@@ -17044,6 +18008,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新しいプレイリストの行が見つかりませんでした"
+          }
+        }
+      }
+    },
+    "새 재생 목록…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Playlist…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規プレイリスト…"
           }
         }
       }
@@ -17188,6 +18168,22 @@
         }
       }
     },
+    "새 폴더 ‘%@’" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Folder ‘%@’"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規フォルダ「%@」"
+          }
+        }
+      }
+    },
     "새 폴더 만들기" : {
       "localizations" : {
         "en" : {
@@ -17200,6 +18196,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "フォルダを作成"
+          }
+        }
+      }
+    },
+    "새 폴더…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Folder…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規フォルダ…"
           }
         }
       }
@@ -17576,6 +18588,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "並べ替え"
+          }
+        }
+      }
+    },
+    "순서 바꾸기: ‘%@’ → %lld번째" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reorder: ‘%@’ → position %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "順序を変更: 「%@」→ %lld番目"
           }
         }
       }
@@ -18412,6 +19440,22 @@
         }
       }
     },
+    "쓸 USB 편집이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No USB Edits to Write"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込むUSBの編集はありません"
+          }
+        }
+      }
+    },
     "쓸 수 없는 재생 목록 초안 버리기 (%lld건)" : {
       "localizations" : {
         "en" : {
@@ -18456,6 +19500,38 @@
         }
       }
     },
+    "쓸 예정" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To be written"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込み予定"
+          }
+        }
+      }
+    },
+    "쓸 예정 · 파일 지우기를 미룸: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To be written · file deletion postponed: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込み予定 · ファイル削除を延期: %@"
+          }
+        }
+      }
+    },
     "쓸 초안이 없습니다" : {
       "localizations" : {
         "en" : {
@@ -18468,6 +19544,44 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "書き込む下書きがありません"
+          }
+        }
+      }
+    },
+    "쓸 편집 %lld건 · 막힌 편집 %lld건 · 바꿀 것 없는 편집 %lld건" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edits to write: %1$lld · Blocked: %2$lld · No changes: %3$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込む編集 %1$lld件 · ブロック %2$lld件 · 変更なし %3$lld件"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "쓸 편집 %1$lld건 · 막힌 편집 %2$lld건 · 바꿀 것 없는 편집 %3$lld건"
+          }
+        }
+      }
+    },
+    "쓸 편집이 없습니다. 곡 목록·사이드바에서 USB 편집을 더하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no edits to write. Add USB edits from the track list or sidebar"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込む編集がありません。曲リスト・サイドバーからUSBの編集を追加してください"
           }
         }
       }
@@ -19444,6 +20558,22 @@
         }
       }
     },
+    "연결 안 됨" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Connected"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未接続"
+          }
+        }
+      }
+    },
     "연결된 USB가 없습니다" : {
       "localizations" : {
         "en" : {
@@ -19728,6 +20858,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "移動"
+          }
+        }
+      }
+    },
+    "옮기기: ‘%@’ → ‘%@’" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move: ‘%1$@’ → ‘%2$@’"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動: 「%1$@」→「%2$@」"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "옮기기: ‘%1$@’ → ‘%2$@’"
           }
         }
       }
@@ -20640,6 +21792,38 @@
         }
       }
     },
+    "이 USB에 쓸 초안(곡 더하기·빼기·갱신, 재생 목록 편집)을 모아 봅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows the drafts to write to this USB (adding, removing and updating tracks, playlist edits)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSBに書き込む下書き（曲の追加・削除・更新、プレイリストの編集）をまとめて表示します"
+          }
+        }
+      }
+    },
+    "이 USB에 아직 쓰지 않은 편집을 모두 버립니다. USB는 바뀌지 않습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discards all edits not yet written to this USB. The USB is not changed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSBにまだ書き込んでいない編集をすべて破棄します。USBは変更されません。"
+          }
+        }
+      }
+    },
     "이 USB에는 이미 rekordbox 라이브러리가 있습니다. USB 수정(`djc usb-edit`)으로 곡을 더하세요" : {
       "localizations" : {
         "en" : {
@@ -21282,6 +22466,22 @@
         }
       }
     },
+    "이 편집을 초안에서 뺍니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removes this edit from the draft"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この編集を下書きから外します"
+          }
+        }
+      }
+    },
     "이 폴더에" : {
       "localizations" : {
         "en" : {
@@ -21342,6 +22542,44 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "名前を変更"
+          }
+        }
+      }
+    },
+    "이름 바꾸기: ‘%@’ → ‘%@’" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename: ‘%1$@’ → ‘%2$@’"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前を変更: 「%1$@」→「%2$@」"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "이름 바꾸기: ‘%1$@’ → ‘%2$@’"
+          }
+        }
+      }
+    },
+    "이름 바꾸기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前を変更…"
           }
         }
       }
@@ -23834,6 +25072,22 @@
         }
       }
     },
+    "지우기: ‘%@’" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete: ‘%@’"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除: 「%@」"
+          }
+        }
+      }
+    },
     "지운 곡의 참조가 남아 있습니다" : {
       "localizations" : {
         "en" : {
@@ -24198,6 +25452,22 @@
         }
       }
     },
+    "초안 버리기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard Draft…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きを破棄…"
+          }
+        }
+      }
+    },
     "초안 변경 %lld" : {
       "localizations" : {
         "en" : {
@@ -24438,6 +25708,22 @@
         }
       }
     },
+    "초안을 미리 본 뒤 USB에 씁니다. 쓰기 전에 Mac에 백업합니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previews the draft, then writes it to the USB. The USB is backed up on this Mac before writing."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きをプレビューしてからUSBに書き込みます。書き込む前にMacにバックアップします。"
+          }
+        }
+      }
+    },
     "초안을 읽거나 저장하지 못했습니다. DJC_HOME의 초안 파일과 접근 권한을 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -24450,6 +25736,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下書きを読み込みまたは保存できませんでした。DJC_HOMEの下書きファイルとアクセス権限を確認してください"
+          }
+        }
+      }
+    },
+    "초안을 지금 USB 상태로 계획해 편집마다 쓸지·막힐지 봅니다. USB에는 쓰지 않습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plans the draft against the current USB and shows whether each edit will be written or blocked. Nothing is written to the USB."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のUSBの状態で下書きを計画し、編集ごとに書き込むかブロックされるかを確認します。USBには書き込みません。"
           }
         }
       }
@@ -26818,6 +28120,22 @@
         }
       }
     },
+    "파일 지우기를 미룸: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File deletion postponed: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイル削除を延期: %@"
+          }
+        }
+      }
+    },
     "파일 확인 실패: %@" : {
       "localizations" : {
         "en" : {
@@ -27478,6 +28796,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "폴더 안의 재생 목록 %1$lld개와 폴더 %2$lld개도 함께 지웁니다. 곡은 컬렉션에 그대로 남습니다. ‘rekordbox에 쓰기’(⇧⌘E)로 저장합니다."
+          }
+        }
+      }
+    },
+    "폴더 지우기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Folder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダを削除"
           }
         }
       }

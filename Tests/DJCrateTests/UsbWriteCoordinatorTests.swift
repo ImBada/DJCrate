@@ -36,6 +36,20 @@ final class FakeUsbWriteService: UsbWriteService, @unchecked Sendable {
         var fileOperations = 0
         /// DB 교체까지 갔는지
         var committed = false
+        /// 초안 base로 돌려줄 USB DB 지문
+        var base = UsbFingerprint(files: [:])
+        /// 지문을 뜨지 못함(그 자리에 다른 볼륨이 붙음 등)
+        var baseError: UsbError?
+        /// 지문을 뜰 때 부른다(메인 액터 밖, 잠금 밖)
+        var onDraftBase: (@Sendable () -> Void)?
+        /// 수정 미리 보기·쓰기가 돌려줄 요약
+        var editSummary = UsbTestData.editSummary()
+        var editWriteResult: Result<UsbWriteReport?, UsbError> = .success(UsbWriteReport(outcome: .written, session: "e1", filesCreated: 2))
+        var editWriteProgress: [UsbProgress] = []
+        /// 받은 수정 작업(미리 보기·쓰기)
+        var editJobs: [UsbEditJob] = []
+        /// 수정 쓰기 때 부른다(실제 세션이 초안을 고치는 것을 흉내 낸다)
+        var onWriteEdit: (@Sendable () -> Void)?
     }
 
     private let lock = NSLock()
@@ -104,6 +118,42 @@ final class FakeUsbWriteService: UsbWriteService, @unchecked Sendable {
         return lock.withLock {
             state.latestBackupOnMain.append(onMain)
             return state.backup
+        }
+    }
+
+    func draftBase(_ volume: UsbVolumeInfo) throws -> UsbFingerprint {
+        let hook = lock.withLock { () -> (@Sendable () -> Void)? in
+            state.calls.append("draftBase")
+            return state.onDraftBase
+        }
+        hook?()
+        return try lock.withLock {
+            if let error = state.baseError { throw error }
+            return state.base
+        }
+    }
+
+    func previewEdit(_ job: UsbEditJob) throws -> UsbEditSummary {
+        lock.withLock {
+            state.calls.append("previewEdit")
+            state.editJobs.append(job)
+            return state.editSummary
+        }
+    }
+
+    func writeEdit(_ job: UsbEditJob, progress: @escaping @Sendable (UsbProgress) -> Void,
+                   isCancelled: @escaping @Sendable () -> Bool) throws -> UsbEditWritten {
+        let (steps, hook) = lock.withLock { () -> ([UsbProgress], (@Sendable () -> Void)?) in
+            state.calls.append("writeEdit")
+            state.editJobs.append(job)
+            return (state.editWriteProgress, state.onWriteEdit)
+        }
+        for step in steps { progress(step) }
+        hook?()
+        return try lock.withLock {
+            let report = try state.editWriteResult.get()
+            if report != nil { state.fileOperations += 1 }
+            return UsbEditWritten(summary: state.editSummary, report: report)
         }
     }
 }

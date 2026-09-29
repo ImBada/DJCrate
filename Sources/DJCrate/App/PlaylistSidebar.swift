@@ -171,6 +171,8 @@ struct PlaylistSidebarMenu: ViewModifier {
             } else if items.count == 1, case let .history(id)? = items.first {
                 Button(.ui("재생 목록으로 만들기")) { store.createPlaylist(fromHistory: id) }
                     .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
+            } else if items.count == 1, case let .usb(target)? = items.first, let actions = store.usbEdits {
+                UsbSidebarMenu(store: store, actions: actions, target: target)
             }
         } primaryAction: { items in
             guard items.count == 1, case let .playlist(id)? = items.first, let node = store.playlistIndex[id], !node.isSmart,
@@ -297,8 +299,8 @@ enum PlaylistDrop {
         return true
     }
 
-    /// 여러 항목의 글자를 모두 읽은 뒤(순서 그대로) 메인 스레드에서 넘긴다.
-    private static func loadStrings(_ providers: [NSItemProvider], type: UTType, _ done: @escaping @MainActor ([String]) -> Void) {
+    /// 여러 항목의 글자를 모두 읽은 뒤(순서 그대로) 메인 스레드에서 넘긴다(USB 줄에 놓은 곡도 같다).
+    static func loadStrings(_ providers: [NSItemProvider], type: UTType, _ done: @escaping @MainActor ([String]) -> Void) {
         let group = DispatchGroup()
         let box = StringBox(count: providers.count)
         for (index, provider) in providers.enumerated() {

@@ -68,6 +68,10 @@ struct UsbSidebarVolume: Identifiable, Equatable {
     /// 두 형식의 재생 목록이 다를 때의 경고
     var mismatchHelp: String?
     var canEject: Bool
+    /// USB 쓰기 대기(초안을 받는 볼륨만)
+    var pending: UsbSidebarTarget? = nil
+    /// 초안 편집 수
+    var pendingCount = 0
 }
 
 @MainActor
@@ -79,6 +83,10 @@ enum UsbSidebarModel {
             var row = UsbSidebarVolume(id: key, name: volume.name, symbol: "externaldrive", isWarning: false, status: nil, help: volume.name,
                                        showsExport: false, canExport: false, collection: nil, collectionCount: 0, playlists: [], mismatchHelp: nil,
                                        canEject: !store.busyVolumes.contains(key) && !store.ejecting.contains(key))
+            if store.acceptsEdits(key) {
+                row.pending = .pending(volumeKey: key)
+                row.pendingCount = store.draftCounts[key] ?? 0
+            }
             switch store.shapes[key] {
             case .emptyExportable:
                 row.showsExport = true
@@ -114,6 +122,18 @@ enum UsbSidebarModel {
                 }
             }
             return row
+        } + absent(store)
+    }
+
+    /// 초안이 남은 채 빠진 볼륨: 이름·연결 안 됨·쓰기 대기만
+    private static func absent(_ store: UsbStore) -> [UsbSidebarVolume] {
+        store.absentDrafts.values.sorted { $0.volume.name.localizedStandardCompare($1.volume.name) == .orderedAscending }.compactMap { absent in
+            let key = absent.volume.usbKey
+            guard store.acceptsEdits(key) else { return nil }
+            return UsbSidebarVolume(id: key, name: absent.volume.name, symbol: "externaldrive.badge.xmark", isWarning: false,
+                                    status: String(ui: "연결 안 됨"), help: String(ui: "USB를 연결하면 쓰기 대기의 초안을 쓸 수 있습니다"),
+                                    showsExport: false, canExport: false, collection: nil, collectionCount: 0, playlists: [], mismatchHelp: nil,
+                                    canEject: false, pending: .pending(volumeKey: key), pendingCount: store.draftCounts[key] ?? 0)
         }
     }
 }
@@ -128,8 +148,10 @@ extension UsbFormat {
     }
 }
 
-/// 사이드바 "USB" 절: 볼륨마다 모양·꺼내기, 빈 FAT32는 내보내기, rekordbox USB는 컬렉션과 재생 목록(읽기 전용)
+/// 사이드바 "USB" 절: 볼륨마다 모양·꺼내기, 빈 FAT32는 내보내기, rekordbox USB는 컬렉션·재생 목록과 쓰기 대기.
+/// 로컬 곡을 컬렉션·일반 재생 목록에 끌어다 놓으면 곡 더하기 초안이 된다(USB에는 "USB에 쓰기…" 때 쓴다)
 struct UsbSidebarSection: View {
+    let store: LibraryStore
     let usb: UsbStore
     @State private var isExpanded = true
     @State private var collapsed: Set<String> = []
@@ -187,15 +209,17 @@ struct UsbSidebarSection: View {
                 }
             }
             Spacer(minLength: 0)
-            Button {
-                Task { ejectMessage = await usb.eject(volume.id) }
-            } label: {
-                Image(systemName: "eject")
+            if usb.volume(volume.id) != nil {
+                Button {
+                    Task { ejectMessage = await usb.eject(volume.id) }
+                } label: {
+                    Image(systemName: "eject")
+                }
+                .buttonStyle(.borderless)
+                .disabled(!volume.canEject)
+                .help(.ui("꺼내기"))
+                .accessibilityLabel(.ui("\(volume.name) 꺼내기"))
             }
-            .buttonStyle(.borderless)
-            .disabled(!volume.canEject)
-            .help(.ui("꺼내기"))
-            .accessibilityLabel(.ui("\(volume.name) 꺼내기"))
         }
         .help(volume.help)
     }
@@ -212,9 +236,19 @@ struct UsbSidebarSection: View {
             .help(.ui("로컬 재생 목록·곡을 이 USB에 OneLibrary·Device Library로 내보냅니다"))
         }
         if let collection = volume.collection {
-            Label(.ui("컬렉션"), systemImage: "music.note.list")
-                .badge(volume.collectionCount)
-                .tag(SidebarItem.usb(collection))
+            UsbDropRow(store: store, target: collection) {
+                Label(.ui("컬렉션"), systemImage: "music.note.list")
+            }
+            .badge(volume.collectionCount)
+            .tag(SidebarItem.usb(collection))
+        }
+        if let pending = volume.pending {
+            Label(.ui("USB 쓰기 대기"), systemImage: "square.and.arrow.up.on.square")
+                .badge(volume.pendingCount)
+                .tag(SidebarItem.usb(pending))
+                .help(.ui("이 USB에 쓸 초안(곡 더하기·빼기·갱신, 재생 목록 편집)을 모아 봅니다"))
+        }
+        if volume.collection != nil {
             if let help = volume.mismatchHelp {
                 Label(.ui("재생 목록이 형식마다 다릅니다"), systemImage: WarningMark.symbol)
                     .font(.caption)
@@ -222,10 +256,129 @@ struct UsbSidebarSection: View {
                     .help(help)
             }
             OutlineGroup(volume.playlists, children: \.children) { node in
-                UsbPlaylistRow(node: node)
-                    .tag(SidebarItem.usb(.playlist(volumeKey: volume.id, id: node.id)))
+                UsbDropRow(store: store, target: .playlist(volumeKey: volume.id, id: node.id)) {
+                    UsbPlaylistRow(node: node)
+                }
+                .badge(node.isFolder ? 0 : node.count)
+                .tag(SidebarItem.usb(.playlist(volumeKey: volume.id, id: node.id)))
             }
         }
+    }
+}
+
+/// 로컬 곡을 놓을 수 있는 USB 줄(컬렉션·일반 재생 목록). 놓으면 곡 더하기 초안이 된다
+private struct UsbDropRow<Content: View>: View {
+    let store: LibraryStore
+    let target: UsbSidebarTarget
+    @ViewBuilder var content: Content
+    @State private var isTargeted = false
+
+    var body: some View {
+        content
+            .onDrop(of: [PlaylistDragType.tracks], isTargeted: $isTargeted) { providers in
+                UsbDrop.perform(providers, on: target, store: store)
+            }
+            .background(isTargeted ? Color.accentColor.opacity(0.25) : .clear, in: RoundedRectangle(cornerRadius: 4))
+    }
+}
+
+/// 사이드바 USB 줄에 놓은 곡
+@MainActor
+enum UsbDrop {
+    static func perform(_ providers: [NSItemProvider], on target: UsbSidebarTarget, store: LibraryStore) -> Bool {
+        guard store.writeLockPolicy.allowsLibraryInteraction, let actions = store.usbEdits, actions.acceptsDrop(on: target) else { return false }
+        let tracks = providers.filter { $0.hasItemConformingToTypeIdentifier(PlaylistDragType.tracks.identifier) }
+        guard !tracks.isEmpty else { return false }
+        PlaylistDrop.loadStrings(tracks, type: PlaylistDragType.tracks) { ids in
+            Task { await actions.drop(ids, on: target, rows: store.rowsByID) }
+        }
+        return true
+    }
+}
+
+/// 사이드바 USB 줄의 오른쪽 클릭 메뉴(초안): 새 목록·폴더, 이름 바꾸기, 순서, 지우기, 로컬 변경 반영, 쓰기 대기.
+/// 막힐 편집은 누를 수 없게 하고 이유를 도움말로 단다
+struct UsbSidebarMenu: View {
+    let store: LibraryStore
+    let actions: UsbEditActions
+    let target: UsbSidebarTarget
+
+    private var key: String { target.volumeKey }
+
+    var body: some View {
+        if actions.usb.acceptsEdits(key) {
+            switch target {
+            case .collection:
+                createButtons(parent: nil)
+                Divider()
+                refreshButton
+                pendingButton
+            case let .playlist(_, id):
+                if let playlist = actions.usb.editLibrary(key)?.playlists.first(where: { $0.id == id }) {
+                    createButtons(parent: playlist.attribute == 1 ? id : (playlist.parentID == 0 ? nil : playlist.parentID))
+                    Divider()
+                    edit(String(ui: "이름 바꾸기…"), .playlist(edit: .rename(playlist: .id(String(id)), name: playlist.name))) {
+                        await actions.renamePlaylist(id, volumeKey: key)
+                    }
+                    moveButton(String(ui: "위로 옮기기"), id: id, step: -1)
+                    moveButton(String(ui: "아래로 옮기기"), id: id, step: 1)
+                    Divider()
+                    edit(playlist.attribute == 1 ? String(ui: "폴더 지우기") : String(ui: "재생 목록 지우기"),
+                         .playlist(edit: .delete(playlist: .id(String(id))))) {
+                        await actions.deletePlaylist(id, volumeKey: key)
+                    }
+                    Divider()
+                    pendingButton
+                }
+            case .pending:
+                Button(.ui("USB에 쓰기…")) {
+                    Task {
+                        await store.usbCoordinator?.writeDraft(volumeKey: key, database: store.snapshotURL, share: RekordboxShare.directory)
+                    }
+                }
+                .disabled(actions.usb.volume(key) == nil || (actions.usb.draftCounts[key] ?? 0) == 0)
+                Button(.ui("초안 버리기…"), role: .destructive) { Task { await actions.discardDraft(volumeKey: key) } }
+                    .disabled((actions.usb.draftCounts[key] ?? 0) == 0)
+            }
+        }
+    }
+
+    @ViewBuilder private func createButtons(parent: Int?) -> some View {
+        let parentRef: PlaylistRef = parent.map { .id(String($0)) } ?? .root
+        edit(String(ui: "새 재생 목록…"), .playlist(edit: .create(key: "menu", name: "menu", isFolder: false, parent: parentRef))) {
+            await actions.createPlaylist(isFolder: false, parent: parent, volumeKey: key)
+        }
+        edit(String(ui: "새 폴더…"), .playlist(edit: .create(key: "menu", name: "menu", isFolder: true, parent: parentRef))) {
+            await actions.createPlaylist(isFolder: true, parent: parent, volumeKey: key)
+        }
+    }
+
+    private var refreshButton: some View {
+        let count = actions.updatableTracks(volumeKey: key).count
+        let reason = count == 0 ? nil : actions.refreshBlockReason(volumeKey: key)
+        return Button(.ui("로컬 변경을 USB에 반영 (\(count)곡)")) { Task { await actions.refreshLocalChanges(volumeKey: key) } }
+            .disabled(count == 0 || reason != nil)
+            .help(reason ?? String(ui: "로컬에서 더 고친 곡(갱신 가능)을 USB 쓰기 대기에 더합니다. USB는 ‘USB에 쓰기…’를 누를 때 바뀝니다."))
+    }
+
+    /// 같은 부모 안에서 한 칸 옮기기: 초안을 적용한 자리에서 옮길 곳이 없거나 막히면 누를 수 없고, 막힌 이유를 도움말로
+    private func moveButton(_ title: String, id: Int, step: Int) -> some View {
+        let reason = actions.moveBlockReason(id, by: step, volumeKey: key)
+        return Button(title) { Task { await actions.movePlaylist(id, by: step, volumeKey: key) } }
+            .disabled(!actions.canMovePlaylist(id, by: step, volumeKey: key) || reason != nil)
+            .help(reason ?? title)
+    }
+
+    private var pendingButton: some View {
+        Button(.ui("USB 쓰기 대기 목록 보기")) { store.sidebar = .usb(.pending(volumeKey: key)) }
+    }
+
+    /// 막힐 편집이면 누를 수 없게 하고 이유를 도움말로
+    private func edit(_ title: String, _ edit: UsbLibraryEdit, perform: @escaping @MainActor () async -> Void) -> some View {
+        let reason = actions.blockReason(edit, volumeKey: key)
+        return Button(title) { Task { await perform() } }
+            .disabled(reason != nil)
+            .help(reason ?? title)
     }
 }
 
@@ -253,7 +406,6 @@ private struct UsbPlaylistRow: View {
                     .accessibilityLabel(UsbPlaylistTree.mismatchHelp)
             }
         }
-        .badge(node.isFolder ? 0 : node.count)
         .help(node.name)
     }
 }

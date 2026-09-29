@@ -93,7 +93,10 @@ enum UsbTestData {
     @MainActor
     static func store(_ host: FakeUsbHost, policy: UsbReadPolicy = .all, lists: UsbPhysicalLists.Loaded = UsbTestData.lists(),
                       local: LocalLibraryKeys? = nil) -> UsbStore {
-        UsbStore(host: host, readPolicy: policy, localLibrary: { local }, physicalLists: { lists })
+        let store = UsbStore(host: host, readPolicy: policy, localLibrary: { local }, physicalLists: { lists })
+        // 지어낸 디스크 이미지의 마운트 지점(/Volumes/…)은 없는 경로라, 편집 막힘 판정에서는 임시 폴더 아래 이미지로 본다
+        store.isScratchMount = { _ in true }
+        return store
     }
 }
 
