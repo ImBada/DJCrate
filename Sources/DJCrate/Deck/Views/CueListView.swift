@@ -1,3 +1,4 @@
+import AppKit
 import RekordboxKit
 import DJCAnalysis
 import DJCDomain
@@ -13,73 +14,166 @@ struct CueListView: View {
         CueListFilter(rawValue: SettingKeys.cueListFilter.value(from: storedFilter)) ?? .all
     }
     private var visibleCues: [EditableCue] { (deck.draft?.cues ?? []).filter(filter.includes) }
-
-    private var writeHelp: String {
-        if deck.isWriteLocked { return String(ui: "쓰기가 끝난 뒤 다시 시도하세요.") }
-        guard let row = deck.row else { return String(ui: "덱에 곡을 먼저 불러오세요.") }
-        if row.isStaged { return String(ui: "추가한 곡 목록에서 먼저 rekordbox 컬렉션에 넣으세요.") }
-        if deck.draft?.hasChanges != true && deck.gridDraft?.hasChanges != true {
-            return String(ui: "큐·그리드 초안을 고친 뒤 쓰세요.")
-        }
-        return String(ui: "이 곡의 큐·그리드 초안을 확인한 뒤 rekordbox에 씁니다.")
+    private var changedCueIDs: Set<EditableCue.ID> {
+        Set((deck.draft?.changes ?? []).compactMap { change in
+            switch change {
+            case let .added(cue), let .modified(_, cue): cue.id
+            case .removed: nil
+            }
+        })
     }
 
     var body: some View {
+        let cues = deck.draft?.cues ?? []
+        let hotCount = cues.filter { if case .hot = $0.kind { true } else { false } }.count
+        let changedIDs = changedCueIDs
+        let segmentHeight = CGFloat(TextScale.length(28, scale: textScale))
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                let cues = deck.draft?.cues ?? []
-                let hot = cues.filter { if case .hot = $0.kind { true } else { false } }.count
-                Text(.ui("핫큐 \(hot)")).font(.scaled(.headline, textScale)).foregroundStyle(UIColors.hot.color)
-                Text(.ui("메모리 \(cues.count - hot)")).font(.scaled(.headline, textScale)).foregroundStyle(UIColors.memory.color)
-                Spacer()
-                if let changes = deck.draft?.changes, !changes.isEmpty {
-                    Text(.ui("초안 변경 \(changes.count)"))
-                        .font(.scaled(.caption, textScale).bold())
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(UIColors.draftFill, in: Capsule())
-                        .foregroundStyle(UIColors.draft.color)
+            GeometryReader { geometry in
+                let segmentWidth = max(0, (geometry.size.width - 8) / 3)
+                HStack(spacing: 2) {
+                    ForEach(CueListFilter.allCases, id: \.self) { option in
+                        Button { storedFilter = option.rawValue } label: {
+                            filterLabel(option, total: cues.count, hot: hotCount)
+                                .font(.scaled(.caption, textScale).bold())
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                                .foregroundStyle(option == filter ? Color.white : Color.primary)
+                                .frame(width: segmentWidth, height: segmentHeight)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .background(option == filter ? Color.accentColor : Color.clear,
+                                    in: RoundedRectangle(cornerRadius: 6))
+                        .accessibilityAddTraits(option == filter ? [.isSelected] : [])
+                    }
                 }
+                .padding(2)
+                .frame(width: geometry.size.width, height: segmentHeight + 4, alignment: .leading)
+                .background(UIColors.subtleFill, in: RoundedRectangle(cornerRadius: 8))
             }
-            Picker(.ui("큐 목록 보기"), selection: Binding(get: { filter }, set: { storedFilter = $0.rawValue })) {
-                ForEach(CueListFilter.allCases, id: \.self) { filter in
-                    Text(filter.title).tag(filter)
-                }
-            }
-            .pickerStyle(.segmented)
-            .controlSize(ControlSize.small.scaled(textScale))
-            .labelsHidden()
+            .frame(height: segmentHeight + 4)
+            .accessibilityElement(children: .contain)
             .accessibilityLabel(.ui("큐 목록 보기"))
             List(selection: $deck.selectedCueID) {
                 ForEach(visibleCues) { cue in
                     CueRow(deck: deck, cue: cue)
                         .tag(cue.id)
+                        // 선택색은 List가 그리도록 두고, 선택하지 않은 초안 행만 물들인다.
+                        .listRowBackground(changedIDs.contains(cue.id) && deck.selectedCueID != cue.id
+                                           ? UIColors.cueDraftFill : Color.clear)
                 }
             }
             .listStyle(.bordered)
-            .alternatingRowBackgrounds()
+            .background {
+                CueListFixedRowHeight(height: segmentHeight)
+                    .allowsHitTesting(false)
+            }
             .onChange(of: visibleCues.map(\.id), initial: true) { _, ids in
                 // 탭이나 큐 종류를 바꿔 숨긴 행을 키보드로 잘못 편집하지 않게 한다.
                 if let selected = deck.selectedCueID, !ids.contains(selected) { deck.selectedCueID = nil }
+            }
+            HStack {
+                Spacer()
+                Button(.ui("큐 초안 버리기")) { deck.revertDraft() }
+                    .buttonStyle(.plain)
+                    .font(.scaled(.caption, textScale))
+                    .padding(.horizontal, 8).padding(.vertical, 5)
+                    .background(deck.draft?.hasChanges == true ? UIColors.cueDraftFill : UIColors.subtleFill,
+                                in: RoundedRectangle(cornerRadius: 6))
+                    .disabled(deck.draft?.hasChanges != true)
+                    .opacity(deck.draft?.hasChanges == true ? 1 : 0.5)
+                    .help(.ui("큐 초안을 버리고 rekordbox에서 불러온 큐로 돌아갑니다."))
             }
 
             if let issues = deck.draft?.issues(duration: deck.duration), !issues.isEmpty {
                 Label(issues.joined(separator: " · "), systemImage: "exclamationmark.triangle")
                     .font(.scaled(.caption, textScale)).foregroundStyle(UIColors.warning.color)
             }
-            HStack {
-                Button(.ui("큐 초안 버리기")) { deck.revertDraft() }
-                    .disabled(deck.draft?.hasChanges != true)
-                    .help(.ui("큐 초안을 버리고 rekordbox에서 불러온 큐로 돌아갑니다."))
-                Spacer()
-                Button(.ui("rekordbox에 쓰기…")) { if let row = deck.row { deck.onRequestReflection?(row) } }
-                    .disabled(deck.isWriteLocked || deck.row?.isStaged != false || (deck.draft?.hasChanges != true && deck.gridDraft?.hasChanges != true))
-                    .help(writeHelp)
-            }
-            .controlSize(ControlSize.small.scaled(textScale))
             if deck.isWriteLocked {
                 Text(.ui("rekordbox에 쓰는 중이라 큐 편집을 잠시 막았습니다.")).font(.scaled(.caption2, textScale)).foregroundStyle(.secondary)
             }
         }
+    }
+
+    private func filterLabel(_ option: CueListFilter, total: Int, hot: Int) -> Text {
+        switch option {
+        case .all: Text(.ui("전체 \(total)"))
+        case .hot: Text(.ui("핫큐 \(hot)"))
+        case .memory: Text(.ui("메모리 \(total - hot)"))
+        }
+    }
+}
+
+/// SwiftUI List의 AppKit 표가 큐 행마다 자동 높이를 다시 재지 않게 한다.
+private struct CueListFixedRowHeight: NSViewRepresentable {
+    let height: CGFloat
+
+    func makeNSView(context: Context) -> CueListRowHeightProbe { CueListRowHeightProbe(frame: .zero) }
+
+    func updateNSView(_ view: CueListRowHeightProbe, context: Context) {
+        view.rowHeight = height
+        view.scheduleConfiguration()
+    }
+}
+
+private final class CueListRowHeightProbe: NSView {
+    var rowHeight: CGFloat = 28
+    private weak var table: NSTableView?
+    private var scheduled = false
+    private var retries = 0
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        table = nil
+        retries = 0
+        scheduleConfiguration()
+    }
+
+    override func layout() {
+        super.layout()
+        scheduleConfiguration()
+    }
+
+    func scheduleConfiguration() {
+        guard window != nil, !scheduled else { return }
+        if let table, table.window === window,
+           !table.usesAutomaticRowHeights, table.rowHeight == rowHeight { return }
+        scheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.scheduled = false
+            self.configure()
+        }
+    }
+
+    private func configure() {
+        guard let window, let content = window.contentView else { return }
+        if table?.window !== window {
+            let point = convert(NSPoint(x: bounds.midX, y: bounds.midY), to: nil)
+            table = findTable(in: content, covering: point)
+        }
+        guard let table else {
+            if retries < 3 {
+                retries += 1
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in self?.scheduleConfiguration() }
+            }
+            return
+        }
+        if table.usesAutomaticRowHeights { table.usesAutomaticRowHeights = false }
+        if table.rowHeight != rowHeight { table.rowHeight = rowHeight }
+    }
+
+    private func findTable(in view: NSView, covering point: NSPoint) -> NSTableView? {
+        if let table = view as? NSTableView,
+           let scrollView = table.enclosingScrollView,
+           scrollView.convert(scrollView.bounds, to: nil).contains(point) {
+            return table
+        }
+        for child in view.subviews {
+            if let table = findTable(in: child, covering: point) { return table }
+        }
+        return nil
     }
 }
 
@@ -90,14 +184,28 @@ struct CueRow: View {
     @State private var showDetails = false
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            row(inlineDetails: true)
-            row(inlineDetails: false)
+        HStack(spacing: 6) {
+            rowMain
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                .clipped()
+            deleteButton
+                .frame(width: TextScale.length(20, scale: textScale),
+                       height: TextScale.length(28, scale: textScale))
+                .fixedSize()
+                .contentShape(Rectangle())
         }
+        .frame(height: TextScale.length(28, scale: textScale))
         .controlSize(ControlSize.small.scaled(textScale))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // 빈 곳은 이동하되, 위에 놓인 종류·이름·삭제 컨트롤은 자기 동작만 받는다.
+        .background {
+            Color.clear.contentShape(Rectangle())
+                .onTapGesture { deck.selectCueFromList(cue.id) }
+        }
     }
 
-    private func row(inlineDetails: Bool) -> some View {
+    private var rowMain: some View {
+        // 좁게 고정된 큐 목록에서는 한 가지 행만 그려 높이 측정 때 두 배치를 비교하지 않는다.
         HStack(spacing: 6) {
             Circle().fill(UIColors.color(for: cue)).frame(width: 6, height: 6)
                 .allowsHitTesting(false)
@@ -126,42 +234,29 @@ struct CueRow: View {
             }
             .frame(minWidth: TextScale.length(56, scale: textScale), alignment: .leading)
             .layoutPriority(1)
-            if inlineDetails {
-                loopControls
-                nameField.frame(minWidth: 40).layoutPriority(-1)
-                deleteButton
-            } else {
-                Text(cue.name).font(.scaled(.caption, textScale)).lineLimit(1).layoutPriority(-1)
-                    .allowsHitTesting(false)
-                Spacer(minLength: 0)
-                Button { showDetails.toggle() } label: {
-                    Image(systemName: cue.loop == nil ? "ellipsis.circle" : "repeat.circle")
-                }
-                .buttonStyle(.borderless)
-                .help(.ui("큐 이름·루프 편집 및 삭제"))
-                .accessibilityLabel(.ui("큐 세부 편집"))
-                .popover(isPresented: $showDetails) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 6) {
-                            Text(cue.time.clockText).font(.scaled(.caption, textScale).monospacedDigit().bold())
-                                .lineLimit(1).fixedSize()
-                            Spacer(minLength: 0)
-                            loopControls
-                            deleteButton
-                        }
-                        nameField.textFieldStyle(.roundedBorder)
-                    }
-                    .controlSize(ControlSize.small.scaled(textScale))
-                    .padding(10)
-                    .frame(width: TextScale.length(200, scale: textScale))
-                }
+            Text(cue.name).font(.scaled(.caption, textScale)).lineLimit(1).layoutPriority(-1)
+                .allowsHitTesting(false)
+            Spacer(minLength: 0)
+            Button { showDetails.toggle() } label: {
+                Image(systemName: cue.loop == nil ? "ellipsis.circle" : "repeat.circle")
             }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // 빈 곳은 이동하되, 위에 놓인 종류·이름·삭제 컨트롤은 자기 동작만 받는다.
-        .background {
-            Color.clear.contentShape(Rectangle())
-                .onTapGesture { deck.selectCueFromList(cue.id) }
+            .buttonStyle(.borderless)
+            .help(.ui("큐 이름·루프 편집"))
+            .accessibilityLabel(.ui("큐 세부 편집"))
+            .popover(isPresented: $showDetails) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Text(cue.time.clockText).font(.scaled(.caption, textScale).monospacedDigit().bold())
+                            .lineLimit(1).fixedSize()
+                        Spacer(minLength: 0)
+                        loopControls
+                    }
+                    nameField.textFieldStyle(.roundedBorder)
+                }
+                .controlSize(ControlSize.small.scaled(textScale))
+                .padding(10)
+                .frame(width: TextScale.length(200, scale: textScale))
+            }
         }
     }
 
@@ -231,6 +326,9 @@ struct CueRow: View {
 
     private var deleteButton: some View {
         Button(role: .destructive) { deck.delete(cue.id) } label: { Image(systemName: "trash") }
-            .buttonStyle(.borderless).help(.ui("삭제")).accessibilityLabel(.ui("큐 삭제"))
+            .buttonStyle(.borderless)
+            .foregroundStyle(UIColors.memory.color)
+            .help(.ui("삭제"))
+            .accessibilityLabel(.ui("큐 삭제"))
     }
 }

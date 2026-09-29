@@ -22,6 +22,8 @@ struct ContentView: View {
     @State private var sidebarAutoCollapse = SidebarVisibility()
     @State private var detailHeight = 650.0
     @State private var deckChromeHeight = 240.0
+    /// 곡 로드 중 내용 높이 재측정은 파형 높이에 반영하지 않는다(빈 덱 → 곡 덱 전환 때 크기가 튀지 않게).
+    @State private var fittedChromeHeight = 240.0
     @State private var noticeHeight = 0.0
     @State private var listHeaderHeight = 40.0
     @State private var fileDropHighlight = DropHighlight()
@@ -32,11 +34,11 @@ struct ContentView: View {
     private var otherHeight: Double { noticeHeight + listHeaderHeight + DeckLayout.splitHandleHeight }
     private var displayedWaveformHeight: Double {
         DeckLayout.waveformHeight(requested: waveformHeight, detailHeight: detailHeight,
-                                  deckChromeHeight: deckChromeHeight, otherHeight: otherHeight)
+                                  deckChromeHeight: fittedChromeHeight, otherHeight: otherHeight)
     }
     private var maximumWaveformHeight: Double {
         DeckLayout.waveformHeight(requested: DeckLayout.maximumWaveformHeight, detailHeight: detailHeight,
-                                  deckChromeHeight: deckChromeHeight, otherHeight: otherHeight)
+                                  deckChromeHeight: fittedChromeHeight, otherHeight: otherHeight)
     }
     /// 메뉴 '파형 크게·작게'(덱이 보일 때만)
     private var waveformHeightControl: WaveformHeightControl? {
@@ -130,9 +132,9 @@ struct ContentView: View {
                         }
                     }
                     .onGeometryChange(for: Double.self) { $0.size.height } action: { noticeHeight = $0 }
-                    // 먼저 파형을 줄이고, 그리드 편집 등으로도 모자라면 덱만 스크롤한다.
+                    // 파형 높이는 창 크기가 바뀔 때만 다시 맞추고, 덱 내용이 늘면 덱만 스크롤한다.
                     ScrollView(.vertical) {
-                        DeckView(deck: deck, waveformHeight: displayedHeight)
+                        DeckView(store: store, deck: deck, waveformHeight: displayedHeight)
                             .frame(maxWidth: .infinity, alignment: .top)
                             .fixedSize(horizontal: false, vertical: true)
                             .onGeometryChange(for: Double.self) {
@@ -180,6 +182,9 @@ struct ContentView: View {
                 }
                 .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                 .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+                    if deck.row != nil, abs(detailHeight - size.height) > 1 {
+                        fittedChromeHeight = deckChromeHeight
+                    }
                     detailHeight = size.height
                     // 인스펙터를 열어 덱 폭이 모자라면 탐색 열을 접어 컨트롤 자리를 남긴다.
                     if sidebarAutoCollapse.shouldCollapse(detailWidth: size.width, windowFrameRestored: windowFrameRestored) {
@@ -282,10 +287,6 @@ struct ContentView: View {
             store.onGridDraftSaved = { [weak deck] uuid in deck?.gridDraftSavedExternally(uuid) }
             deck.onStagedGridChange = { [weak store] uuid, bpm in store?.stagedGridChanged(uuid: uuid, bpm: bpm) }
             deck.onCueDraftChange = { [weak store] draft in store?.cueDraftChanged(draft) }
-            deck.onRequestReflection = { [weak store] row in
-                guard let store else { return }
-                DirectWritePanels.write(store: store, rows: [row])
-            }
             store.onWriteLock = { [weak deck] locked in deck?.isWriteLocked = locked }
             store.onRekordboxWritten = { [weak deck, weak store] uuids in
                 // 처음부터 다시 불러오지 않고 초안·그리드·게인만 새 rekordbox 값으로 맞춘다(소리·파형은 그대로).
