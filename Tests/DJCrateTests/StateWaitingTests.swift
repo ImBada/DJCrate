@@ -19,10 +19,16 @@ struct StateWaitingTests {
     }
 
     /// 더 기다려도 참이 될 수 없다고 드러나면 안전망 시간을 다 쓰지 않고 거짓으로 돌아온다.
-    /// 안전망 시간이 지나야 끝나는 구현은 조건을 더 자주 보게 되므로 본 횟수가 늘어난다.
+    /// 포기 조건을 무시하고 계속 기다리는 구현은 조건을 더 보게 되므로 `runaway`로 끊어 시험이 멈추지 않게 한다.
     @Test func 포기_조건이_참이면_안전망을_기다리지_않고_거짓을_돌려준다() async {
         var checks = 0
-        let result = await waitForState(safetyNet: .milliseconds(200), giveUp: { true }, until: { checks += 1; return false })
+        var runaway = false
+        let result = await waitForState(giveUp: { true }, until: {
+            checks += 1
+            if checks > 2 { runaway = true; return true }
+            return false
+        })
+        #expect(!runaway)
         #expect(!result)
         #expect(checks == 2, "기다리기 전 한 번, 돌려주기 전 한 번")
     }
@@ -30,11 +36,14 @@ struct StateWaitingTests {
     @Test func 포기_조건이_기다리는_중에_참이_되면_그때_거짓을_돌려준다() async {
         var checks = 0
         var gaveUp = false
-        let result = await waitForState(safetyNet: .milliseconds(200), giveUp: { gaveUp }, until: {
+        var runaway = false
+        let result = await waitForState(giveUp: { gaveUp }, until: {
             checks += 1
             if checks == 5 { gaveUp = true }
+            if checks > 6 { runaway = true; return true }
             return false
         })
+        #expect(!runaway)
         #expect(!result)
         #expect(checks == 6, "포기 조건이 참이 된 다음 한 번만 더 본다")
     }
