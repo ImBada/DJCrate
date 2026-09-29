@@ -72,8 +72,9 @@ struct InitialITunesCacheLoadingTests {
             })
             completed.withLock { $0 = true }
         }
-        let deadline = ContinuousClock.now + .seconds(90)
-        while !started.withLock({ $0 }) && ContinuousClock.now < deadline {
+        // Music 최신화가 시작될 때까지 기다린다. 시간 제한은 없다(부하가 걸리면 오래 걸릴 뿐 판정은 같다).
+        // 시작하지 않는 구현이면 loadInitial이 돌아온 뒤에 남은 최신화 작업이 없으므로 그때 끝낸다.
+        while !started.withLock({ $0 }) && !(completed.withLock({ $0 }) && store.iTunesRefresh == nil) {
             try? await Task.sleep(for: .milliseconds(10))
         }
         guard started.withLock({ $0 }) else {
@@ -82,12 +83,15 @@ struct InitialITunesCacheLoadingTests {
             Issue.record("Music 최신화가 시작되지 않았습니다")
             return
         }
-        let completedDeadline = ContinuousClock.now + .seconds(30)
-        while !completed.withLock({ $0 }) && ContinuousClock.now < completedDeadline {
+        // Music 조회는 막혀 있다. 이 시점에 DB와 행이 이미 열려 있어야 Music을 기다리지 않은 것이다(상태로 본다).
+        let loadedBeforeMusic = !store.isLoading && store.rows.map(\.id) == ["1"]
+        // loadInitial도 막힌 Music을 기다리지 않고 돌아와야 한다. Music이 막혀 있는 채로 돌아온 것만 센다(풀기 전에 확인).
+        while loadedBeforeMusic && !completed.withLock({ $0 }) {
             try? await Task.sleep(for: .milliseconds(10))
         }
         let returnedBeforeMusic = completed.withLock { $0 }
-        let loadedBeforeMusic = !store.isLoading && store.rows.map(\.id) == ["1"]
+        // 이미 Music을 기다린 것으로 드러났다면, 아래 선택창 확인이 막힌 Music에 걸려 멈추지 않게 먼저 풀어 준다(실패로 끝낸다).
+        if !(loadedBeforeMusic && returnedBeforeMusic) { resume.signal() }
         let available = await store.iTunesSyncSource(arguments: ["test"], environment: [:], captureITunes: {
             Issue.record("선택창이 정상 캐시 대신 Music을 다시 읽었습니다")
             return .init(status: .unavailable)
