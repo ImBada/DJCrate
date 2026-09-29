@@ -20608,18 +20608,18 @@
         }
       }
     },
-    "큐 이름·루프 편집 및 삭제" : {
+    "큐 이름·루프 편집" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Edit the cue name and loop, or delete the cue"
+            "value" : "Edit cue name and loop"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "キュー名・ループの編集と削除"
+            "value" : "キュー名・ループを編集"
           }
         }
       }

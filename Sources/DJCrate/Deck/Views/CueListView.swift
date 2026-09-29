@@ -182,6 +182,27 @@ struct CueRow: View {
     @State private var showDetails = false
 
     var body: some View {
+        HStack(spacing: 6) {
+            rowMain
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                .clipped()
+            deleteButton
+                .frame(width: TextScale.length(20, scale: textScale),
+                       height: TextScale.length(28, scale: textScale))
+                .fixedSize()
+                .contentShape(Rectangle())
+        }
+        .frame(height: TextScale.length(28, scale: textScale))
+        .controlSize(ControlSize.small.scaled(textScale))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // 빈 곳은 이동하되, 위에 놓인 종류·이름·삭제 컨트롤은 자기 동작만 받는다.
+        .background {
+            Color.clear.contentShape(Rectangle())
+                .onTapGesture { deck.selectCueFromList(cue.id) }
+        }
+    }
+
+    private var rowMain: some View {
         // 좁게 고정된 큐 목록에서는 한 가지 행만 그려 높이 측정 때 두 배치를 비교하지 않는다.
         HStack(spacing: 6) {
             Circle().fill(UIColors.color(for: cue)).frame(width: 6, height: 6)
@@ -218,7 +239,7 @@ struct CueRow: View {
                 Image(systemName: cue.loop == nil ? "ellipsis.circle" : "repeat.circle")
             }
             .buttonStyle(.borderless)
-            .help(.ui("큐 이름·루프 편집 및 삭제"))
+            .help(.ui("큐 이름·루프 편집"))
             .accessibilityLabel(.ui("큐 세부 편집"))
             .popover(isPresented: $showDetails) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -227,7 +248,6 @@ struct CueRow: View {
                             .lineLimit(1).fixedSize()
                         Spacer(minLength: 0)
                         loopControls
-                        deleteButton
                     }
                     nameField.textFieldStyle(.roundedBorder)
                 }
@@ -235,14 +255,6 @@ struct CueRow: View {
                 .padding(10)
                 .frame(width: TextScale.length(200, scale: textScale))
             }
-        }
-        .frame(height: TextScale.length(28, scale: textScale))
-        .controlSize(ControlSize.small.scaled(textScale))
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // 빈 곳은 이동하되, 위에 놓인 종류·이름·삭제 컨트롤은 자기 동작만 받는다.
-        .background {
-            Color.clear.contentShape(Rectangle())
-                .onTapGesture { deck.selectCueFromList(cue.id) }
         }
     }
 
@@ -312,6 +324,9 @@ struct CueRow: View {
 
     private var deleteButton: some View {
         Button(role: .destructive) { deck.delete(cue.id) } label: { Image(systemName: "trash") }
-            .buttonStyle(.borderless).help(.ui("삭제")).accessibilityLabel(.ui("큐 삭제"))
+            .buttonStyle(.borderless)
+            .foregroundStyle(UIColors.memory.color)
+            .help(.ui("삭제"))
+            .accessibilityLabel(.ui("큐 삭제"))
     }
 }

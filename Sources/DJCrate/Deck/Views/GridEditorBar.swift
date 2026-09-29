@@ -336,6 +336,7 @@ private struct GridTempoSegmentCell: View {
     let isCurrent: Bool
 
     private var name: String { String(ui: "템포 구간 \(index + 1)") }
+    private var shortName: String { String(ui: "템포") + " \(index + 1)" }
     private var bpmText: String { segment.bpm.formatted(.number.precision(.fractionLength(2)).grouping(.never)) }
     private var seekHelp: String {
         [name, bpmText, segment.start.clockText, String(ui: "누르면 이 자리로 옮깁니다")].joined(separator: " · ")
@@ -365,16 +366,18 @@ private struct GridTempoSegmentCell: View {
     }
 
     private var seekLabel: some View {
-        HStack(spacing: 3) {
-            Text(verbatim: name)
-            Text(verbatim: "· " + bpmText)
-            Spacer(minLength: 0)
+        let trailing = deck.gridEditing && index > 0 ? CGFloat(23) : CGFloat(7)
+        let labelWidth = max(0, width - 7 - trailing)
+        return ViewThatFits(in: .horizontal) {
+            Text(verbatim: name + " · " + bpmText).fixedSize(horizontal: true, vertical: false)
+            Text(verbatim: shortName).fixedSize(horizontal: true, vertical: false)
+            Text(verbatim: bpmText).lineLimit(1).minimumScaleFactor(0.65)
         }
         .font(.scaled(.caption, textScale).monospacedDigit())
-        .lineLimit(1)
+        .frame(width: labelWidth, height: height, alignment: .leading)
         .padding(.leading, 7)
-        .padding(.trailing, deck.gridEditing && index > 0 ? 23 : 7)
-        .frame(width: width, height: height)
+        .padding(.trailing, trailing)
+        .frame(width: width, height: height, alignment: .leading)
         .contentShape(Rectangle())
     }
 
