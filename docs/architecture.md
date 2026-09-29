@@ -22,6 +22,8 @@ DJCrate · DJCrate(CLI)
 - rekordbox 쓰기는 실제 라이브러리 없이 시험한다. `Tests/Support/Resources/rekordbox-7.2.18-schema.sql`은 실제 DB에서 **구조만** 뽑은 것(`djc schema-dump`, 데이터 0행)이고, 같은 키로 암호화해 픽스처 DB를 만든다. 분석 파일·음원도 합성한다.
 - 골든 테스트는 rekordbox 실험에서 확인한 칸 값을 그대로 기대값으로 둔다(실험 곡·날짜를 주석으로).
 - 소리·실제 화면은 단위 테스트로 못 잡는 부분만 디버그 빌드의 자가 테스트로 본다(`AGENTS.md`의 표).
+- 시험은 걸린 시간으로 판정하지 않는다(#149·#153·#154). "N초 안에 끝남" 대신 순서·상태·신호로 판정하고, 기다릴 때는 `waitForState`(`Tests/DJCrateTests/StateWaiting.swift`)로 상태를 기다린다. 그 안전망(300초)은 판정이 오지 않는 잘못된 구현에서 시험이 멈추지 않게 할 뿐이다. 실제 마우스·키 상태처럼 시험 밖 상태를 읽는 곳은 주입해 시험이 정한다(`TrackListCoordinator.isMouseDown`). 부하 재현은 `yes`를 여러 개 띄우고 DJCrateTests 전체를 한 프로세스로 돌린다(필터로 좁히면 다른 `@MainActor` 시험과 메인 액터를 나눠 쓰는 정체가 없어 재현되지 않는다).
+- SQLCipher는 프로세스에서 처음 쓰는 순간 여러 스레드가 겹치면 전역 초기화가 끝나기 전에 들어온 스레드가 `PRAGMA key`에서 "sqlcipher not initialized"로 실패한다(4.7 이후 초기화 경쟁). DB는 `CipherDatabase`로만 열어 `sqlite3_initialize`를 한 번 거치게 한다. 새 프로세스에서 처음 여는 경쟁은 `djc lab cipher-cold-open`이 만든다(`Tests/djcTests/CipherColdOpenTests`).
 
 ## 데이터 흐름
 
