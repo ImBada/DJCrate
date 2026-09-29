@@ -65,6 +65,8 @@ struct CueListView: View {
                 }
             }
             .listStyle(.bordered)
+            // 곡이 바뀌어 행이 통째로 교체되면 SwiftUI가 표의 행 높이를 이 기본값으로 되돌린다(기본 24pt). 되돌려도 28pt가 되게 한다.
+            .environment(\.defaultMinListRowHeight, segmentHeight)
             .background {
                 CueListFixedRowHeight(height: segmentHeight)
                     .allowsHitTesting(false)
