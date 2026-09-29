@@ -7,7 +7,14 @@ import SQLCipher
 public final class CipherDatabase {
     private var handle: OpaquePointer?
 
+    /// SQLCipher는 `sqlite3_initialize` 안에서 자기 전역 초기화(정적 뮤텍스·암호 제공자)를 마치는데, 그 초기화가 끝나기 전에
+    /// 다른 스레드의 `sqlite3_initialize`가 "이미 됨"으로 돌아온다. 프로세스에서 처음 여는 순간 스레드가 겹치면 뒤늦게 들어온 스레드가
+    /// `PRAGMA key`에서 "sqlcipher not initialized"로 실패했다(#154). `static let`은 처음 부른 스레드가 끝낼 때까지 다른 스레드를
+    /// 기다리게 하므로, 여는 곳마다 먼저 거치면 초기화가 끝난 뒤에만 열린다.
+    private static let sqlcipherReady: Void = { _ = sqlite3_initialize() }()
+
     public init(path: String, key: String?, writable: Bool = false) throws {
+        Self.sqlcipherReady
         guard sqlite3_open_v2(path, &handle, writable ? SQLITE_OPEN_READWRITE : SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
             let message = handle.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
             sqlite3_close_v2(handle)
@@ -63,6 +70,7 @@ public final class CipherDatabase {
     /// 스냅샷 **사본**에 딸린 WAL을 사본 안으로 합친다(원본 rekordbox DB에는 절대 쓰지 않는다).
     /// rekordbox가 켜져 있으면 최근 변경(예: 방금 가져온 XML)이 아직 WAL에만 있어서 이게 필요하다.
     public static func mergeWriteAheadLog(ofCopyAt path: String, key: String) throws {
+        Self.sqlcipherReady
         var handle: OpaquePointer?
         guard sqlite3_open_v2(path, &handle, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
             let message = handle.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
