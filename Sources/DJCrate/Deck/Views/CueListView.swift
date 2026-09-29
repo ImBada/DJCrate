@@ -22,16 +22,6 @@ struct CueListView: View {
         })
     }
 
-    private var writeHelp: String {
-        if deck.isWriteLocked { return String(ui: "쓰기가 끝난 뒤 다시 시도하세요.") }
-        guard let row = deck.row else { return String(ui: "덱에 곡을 먼저 불러오세요.") }
-        if row.isStaged { return String(ui: "추가한 곡 목록에서 먼저 rekordbox 컬렉션에 넣으세요.") }
-        if deck.draft?.hasChanges != true && deck.gridDraft?.hasChanges != true {
-            return String(ui: "큐·그리드 초안을 고친 뒤 쓰세요.")
-        }
-        return String(ui: "이 곡의 큐·그리드 초안을 확인한 뒤 rekordbox에 씁니다.")
-    }
-
     var body: some View {
         let cues = deck.draft?.cues ?? []
         let hotCount = cues.filter { if case .hot = $0.kind { true } else { false } }.count
@@ -68,7 +58,7 @@ struct CueListView: View {
                 ForEach(visibleCues) { cue in
                     CueRow(deck: deck, cue: cue)
                         .tag(cue.id)
-                        .listRowBackground(changedIDs.contains(cue.id) ? UIColors.draftFill : Color.clear)
+                        .listRowBackground(changedIDs.contains(cue.id) ? UIColors.cueDraftFill : Color.clear)
                 }
             }
             .listStyle(.bordered)
@@ -76,21 +66,23 @@ struct CueListView: View {
                 // 탭이나 큐 종류를 바꿔 숨긴 행을 키보드로 잘못 편집하지 않게 한다.
                 if let selected = deck.selectedCueID, !ids.contains(selected) { deck.selectedCueID = nil }
             }
+            HStack {
+                Spacer()
+                Button(.ui("큐 초안 버리기")) { deck.revertDraft() }
+                    .buttonStyle(.plain)
+                    .font(.scaled(.caption, textScale))
+                    .padding(.horizontal, 8).padding(.vertical, 5)
+                    .background(deck.draft?.hasChanges == true ? UIColors.cueDraftFill : UIColors.subtleFill,
+                                in: RoundedRectangle(cornerRadius: 6))
+                    .disabled(deck.draft?.hasChanges != true)
+                    .opacity(deck.draft?.hasChanges == true ? 1 : 0.5)
+                    .help(.ui("큐 초안을 버리고 rekordbox에서 불러온 큐로 돌아갑니다."))
+            }
 
             if let issues = deck.draft?.issues(duration: deck.duration), !issues.isEmpty {
                 Label(issues.joined(separator: " · "), systemImage: "exclamationmark.triangle")
                     .font(.scaled(.caption, textScale)).foregroundStyle(UIColors.warning.color)
             }
-            HStack {
-                Button(.ui("큐 초안 버리기")) { deck.revertDraft() }
-                    .disabled(deck.draft?.hasChanges != true)
-                    .help(.ui("큐 초안을 버리고 rekordbox에서 불러온 큐로 돌아갑니다."))
-                Spacer()
-                Button(.ui("rekordbox에 쓰기…")) { if let row = deck.row { deck.onRequestReflection?(row) } }
-                    .disabled(deck.isWriteLocked || deck.row?.isStaged != false || (deck.draft?.hasChanges != true && deck.gridDraft?.hasChanges != true))
-                    .help(writeHelp)
-            }
-            .controlSize(ControlSize.small.scaled(textScale))
             if deck.isWriteLocked {
                 Text(.ui("rekordbox에 쓰는 중이라 큐 편집을 잠시 막았습니다.")).font(.scaled(.caption2, textScale)).foregroundStyle(.secondary)
             }

@@ -12,14 +12,6 @@ struct TransportBar: View {
         VStack(alignment: .leading, spacing: 6) {
             FlowLayout(spacing: 10) {
                 HStack(spacing: 8) {
-                    CueButton(deck: deck)
-                    Button {
-                        deck.togglePlay()
-                    } label: {
-                        Image(systemName: deck.isPlaying ? "pause.fill" : "play.fill").frame(width: 18)
-                    }
-                    .disabled(!deck.canPlay)
-                    .help(.ui("재생/일시정지 (\(deck.shortcuts.keyLabel(for: .playPause)))"))
                     PlayQuantizeToggle(deck: deck)
                     Group { if PerfProbe.hidden.contains("label") { EmptyView() } else { PlayheadLabel(deck: deck) } }
                         .frame(width: TextScale.length(200, scale: textScale), alignment: .leading)
@@ -45,10 +37,12 @@ struct TransportBar: View {
                 }
                 LoopControl(deck: deck)
             }
-            // 게인과 단축키 안내는 재생·큐 줄 아래 양쪽 끝에 둔다.
+            // 메트로놈과 단축키 안내는 재생·큐 줄 아래 양쪽 끝에 둔다.
             HStack(spacing: 10) {
-                GainControl(deck: deck)
-                Spacer()
+                Toggle(isOn: $deck.metronome) { Label(.ui("메트로놈"), systemImage: "metronome") }
+                    .toggleStyle(.button)
+                    .help(.ui("그리드의 박마다 클릭 (1박은 높은 음)"))
+                Spacer(minLength: 8)
                 ShortcutsButton()
             }
         }
@@ -171,10 +165,10 @@ struct CueButton: View {
         let lit = deck.isCuePreviewing || deck.isAtCue
         Text(verbatim: "CUE")
             .font(.scaled(size: 10, weight: .heavy, textScale))
-            .frame(width: TextScale.length(36, scale: textScale), height: TextScale.length(20, scale: textScale))
-            .foregroundStyle(lit ? UIColors.onFill : UIColors.cue.color)
-            .background(lit ? UIColors.cue.color : Color.clear, in: RoundedRectangle(cornerRadius: 4))
-            .overlay(RoundedRectangle(cornerRadius: 4).stroke(UIColors.cue.color))
+            .frame(width: TextScale.length(36, scale: textScale), height: TextScale.length(36, scale: textScale))
+            .foregroundStyle(lit ? Color.black : Palette.cue)
+            .background(lit ? Palette.cue : Color.clear, in: Circle())
+            .overlay(Circle().stroke(Palette.cue, lineWidth: 2))
             .opacity(deck.canPlay ? 1 : 0.4)
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0)
@@ -192,6 +186,28 @@ struct CueButton: View {
             .accessibilityLabel(Text(verbatim: "CUE"))
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { deck.cueDown(); deck.cueUp() }
+    }
+}
+
+/// 왼쪽 덱 조작 열의 재생·일시정지 버튼.
+struct DeckPlayButton: View {
+    @Environment(\.textScale) private var textScale
+    let deck: DeckModel
+
+    var body: some View {
+        Button { deck.togglePlay() } label: {
+            Image(systemName: deck.isPlaying ? "pause.fill" : "play.fill")
+                .font(.scaled(size: 14, weight: .bold, textScale))
+                .frame(width: TextScale.length(36, scale: textScale), height: TextScale.length(36, scale: textScale))
+                .foregroundStyle(deck.isPlaying ? Color.white : Color.white.opacity(0.75))
+                .background(deck.isPlaying ? Palette.hot.opacity(0.25) : Color.clear, in: Circle())
+                .overlay(Circle().stroke(Palette.hot, lineWidth: 2))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!deck.canPlay)
+        .opacity(deck.canPlay ? 1 : 0.4)
+        .help(.ui("재생/일시정지 (\(deck.shortcuts.keyLabel(for: .playPause)))"))
     }
 }
 

@@ -216,8 +216,6 @@ final class DeckModel {
     var onStagedGridChange: ((String, Double?) -> Void)?
     /// 큐 초안이 바뀔 때(목록의 핫큐·메모리 숫자용)
     var onCueDraftChange: ((CueDraft) -> Void)?
-    /// 지금 곡의 초안을 rekordbox 반영 XML로 만들기(덱 큐 목록의 버튼)
-    var onRequestReflection: ((TrackRow) -> Void)?
     var tapBPM: Double?
     var taps: [Double] = []
     var gridDragBase: GridDraft?

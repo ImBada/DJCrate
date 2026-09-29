@@ -23082,22 +23082,6 @@
         }
       }
     },
-    "덱에 곡을 먼저 불러오세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Load a track into the deck first."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "先にデッキに曲を読み込んでください。"
-          }
-        }
-      }
-    },
     "쓰기 전으로 복원" : {
       "localizations" : {
         "en" : {
@@ -23110,70 +23094,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "書き込み前に復元"
-          }
-        }
-      }
-    },
-    "쓰기가 끝난 뒤 다시 시도하세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Try again after the write finishes."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込みが終わってから再度お試しください。"
-          }
-        }
-      }
-    },
-    "이 곡의 큐·그리드 초안을 확인한 뒤 rekordbox에 씁니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preview and write this track’s cue and grid drafts to rekordbox."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この曲のキュー・グリッドの下書きを確認してrekordboxに書き込みます。"
-          }
-        }
-      }
-    },
-    "추가한 곡 목록에서 먼저 rekordbox 컬렉션에 넣으세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add this track to rekordbox from Added Tracks first."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "先に「追加した曲」からrekordboxのコレクションに入れてください。"
-          }
-        }
-      }
-    },
-    "큐·그리드 초안을 고친 뒤 쓰세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Edit the cue or grid draft before writing."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "キューまたはグリッドの下書きを編集してから書き込んでください。"
           }
         }
       }
@@ -23710,6 +23630,48 @@
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit" } },
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "編集" } },
         "ko" : { "stringUnit" : { "state" : "new", "value" : "편집" } }
+      }
+    },
+    "이전 곡" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Previous Track" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "前の曲" } }
+      }
+    },
+    "다음 곡" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Next Track" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "次の曲" } }
+      }
+    },
+    "%lld박 뒤로 이동" : {
+      "localizations" : {
+        "en" : { "variations" : { "plural" : {
+          "one" : { "stringUnit" : { "state" : "translated", "value" : "Move back %lld beat" } },
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "Move back %lld beats" } }
+        } } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld拍戻る" } }
+      }
+    },
+    "%lld박 앞으로 이동" : {
+      "localizations" : {
+        "en" : { "variations" : { "plural" : {
+          "one" : { "stringUnit" : { "state" : "translated", "value" : "Move forward %lld beat" } },
+          "other" : { "stringUnit" : { "state" : "translated", "value" : "Move forward %lld beats" } }
+        } } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld拍進む" } }
+      }
+    },
+    "한 번 누를 때 이동할 박 수를 고릅니다" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose how many beats each jump moves." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "1回の操作で移動する拍数を選びます" } }
+      }
+    },
+    "박 이동량" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Beat Jump Size" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ビートジャンプ幅" } }
       }
     }
   },

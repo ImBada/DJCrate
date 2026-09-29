@@ -270,7 +270,7 @@ struct GridTempoSegments: View {
                     .frame(width: 1.5, height: height)
                     .position(x: cursorX, y: height / 2)
                     .allowsHitTesting(false)
-                if deck.gridEditing {
+                if deck.gridEditing && deck.gridDraft != nil {
                     Button { deck.addTempoChangeAtPlayhead() } label: {
                         Image(systemName: "plus")
                             .font(.scaled(.caption, textScale).bold())
@@ -290,9 +290,10 @@ struct GridTempoSegments: View {
         }
         .controlSize(ControlSize.small.scaled(textScale))
         .frame(height: height)
-        .background(UIColors.draftFill)
+        .background(deck.gridDraft == nil ? UIColors.subtleFill : UIColors.draftFill)
         .overlay(alignment: .top) {
-            Rectangle().fill(UIColors.draft.color.opacity(0.35)).frame(height: 1)
+            Rectangle().fill(deck.gridDraft == nil ? Color.secondary.opacity(0.2) : UIColors.draft.color.opacity(0.35))
+                .frame(height: 1)
         }
     }
 }

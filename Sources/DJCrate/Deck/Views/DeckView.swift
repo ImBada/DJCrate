@@ -4,29 +4,34 @@ import DJCDomain
 import DJCStorage
 import SwiftUI
 
-/// A안 위쪽 덱: 커버·정보 | 확대/개요 파형 + 컨트롤 | 큐 목록.
+/// 위쪽 덱: 커버·정보 헤더 / 확대·개요 파형과 컨트롤 | 큐 목록.
 /// 높이는 내용에 맞춰 정해지고(잘리지 않음), 파형 높이만 사용자가 조절한다.
-/// 창이 좁으면 커버 열을 작은 헤더로 접고, 컨트롤 줄은 줄바꿈한다.
+/// 커버는 창 폭과 관계없이 위쪽에 두고, 컨트롤 줄은 필요하면 줄바꿈한다.
 struct DeckView: View {
     @Environment(\.textScale) private var textScale
+    let store: LibraryStore
     @Bindable var deck: DeckModel
     var waveformHeight: Double
     @State private var width: CGFloat = 1400
     @State private var middleHeight: CGFloat = 320
 
-    private var compact: Bool { width < 1150 }
+    private var waveGroupHeight: Double {
+        max(TextScale.length(190, scale: textScale),
+            waveformHeight + 8 + WaveformMetrics(scale: textScale).overviewHeight
+                + TextScale.length(28, scale: textScale))
+    }
     /// 글자 배율의 절반만큼 넓힌다(큐 이름이 보이게 하되 파형 자리를 너무 빼앗지 않게).
     private var cueListWidth: CGFloat { TextScale.length(width < 1400 ? 250 : 290, scale: 1 + (textScale - 1) / 2) }
 
     var body: some View {
         if let row = deck.row {
             HStack(alignment: .top, spacing: 16) {
-                if !compact {
-                    DeckInfoColumn(deck: deck, row: row)
-                        .frame(width: 210)
-                }
                 VStack(alignment: .leading, spacing: 8) {
-                    if compact { CompactInfo(deck: deck, row: row) }
+                    DeckInfoHeader(deck: deck, row: row, coverSize: TextScale.length(66, scale: textScale))
+                    HStack(alignment: .top, spacing: 8) {
+                        DeckSideControls(store: store, deck: deck, availableHeight: waveGroupHeight)
+                            .frame(width: TextScale.length(66, scale: textScale), height: waveGroupHeight)
+                        VStack(alignment: .leading, spacing: 8) {
                     Group {
                         if PerfProbe.hidden.contains("zoom") {
                             EmptyView()
@@ -77,10 +82,26 @@ struct DeckView: View {
                     VStack(spacing: 0) {
                         Group { if PerfProbe.hidden.contains("overview") { EmptyView() } else { OverviewWaveformView(deck: deck) } }
                             .frame(height: WaveformMetrics(scale: textScale).overviewHeight)
-                        if deck.gridDraft != nil { GridTempoSegments(deck: deck) }
+                        GridTempoSegments(deck: deck)
                     }
                     .background(Palette.well)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                        if !PerfProbe.hidden.contains("meter") {
+                            let gainHeight = TextScale.length(44, scale: textScale)
+                            let meterHeight = min(TextScale.length(170, scale: textScale),
+                                                  max(TextScale.length(100, scale: textScale), waveGroupHeight - TextScale.length(75, scale: textScale)))
+                            VStack(spacing: 6) {
+                                LevelMeterView(deck: deck, meterHeight: meterHeight)
+                                GainControl(deck: deck)
+                                    .frame(height: gainHeight)
+                            }
+                            .frame(width: TextScale.length(58, scale: textScale), height: waveGroupHeight)
+                            .background(Palette.controlRail, in: RoundedRectangle(cornerRadius: 6))
+                            .environment(\.colorScheme, .dark)
+                        }
+                    }
                     TransportBar(deck: deck)
                     AudioBar(deck: deck)
                     if !deck.needsGrid { GridSuggestionRow(deck: deck) }
@@ -114,22 +135,126 @@ struct DeckView: View {
 
 }
 
-/// 좁은 창: 커버 열 대신 한 줄 헤더.
-struct CompactInfo: View {
+/// 현재 목록의 곡과 재생 위치를 큰 파형 왼쪽에서 조작한다.
+private struct DeckSideControls: View {
+    @Environment(\.textScale) private var textScale
+    let store: LibraryStore
+    let deck: DeckModel
+    let availableHeight: Double
+    @State private var beatStep = 4
+
+    private var playableRows: [TrackRow] { store.displayRows.filter { !$0.track.isStreaming } }
+
+    private func adjacentRow(forward: Bool) -> TrackRow? {
+        let rows = playableRows
+        guard !rows.isEmpty else { return nil }
+        guard let uuid = deck.row?.track.uuid,
+              let index = rows.firstIndex(where: { $0.track.uuid == uuid }) else {
+            return forward ? rows.first : rows.last
+        }
+        let next = index + (forward ? 1 : -1)
+        return rows.indices.contains(next) ? rows[next] : nil
+    }
+
+    private func load(_ row: TrackRow?) {
+        guard let row else { return }
+        store.selection = [row.id]
+        store.loadToDeck(row)
+    }
+
+    var body: some View {
+        let previous = adjacentRow(forward: false)
+        let next = adjacentRow(forward: true)
+        let compact = availableHeight < TextScale.length(225, scale: textScale)
+        VStack(spacing: 0) {
+            HStack(spacing: 4) {
+                Button { load(previous) } label: {
+                    Image(systemName: "backward.end.fill")
+                        .frame(width: TextScale.length(24, scale: textScale), height: TextScale.length(24, scale: textScale))
+                        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+                }
+                    .disabled(previous == nil || !store.writeLockPolicy.allowsLibraryInteraction)
+                    .help(.ui("이전 곡"))
+                    .accessibilityLabel(.ui("이전 곡"))
+                Button { load(next) } label: {
+                    Image(systemName: "forward.end.fill")
+                        .frame(width: TextScale.length(24, scale: textScale), height: TextScale.length(24, scale: textScale))
+                        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+                }
+                    .disabled(next == nil || !store.writeLockPolicy.allowsLibraryInteraction)
+                    .help(.ui("다음 곡"))
+                    .accessibilityLabel(.ui("다음 곡"))
+            }
+            .padding(.bottom, TextScale.length(compact ? 10 : 20, scale: textScale))
+            HStack(spacing: 4) {
+                Button { deck.beatJump(beats: -beatStep) } label: {
+                    Image(systemName: "chevron.left")
+                        .frame(width: TextScale.length(24, scale: textScale), height: TextScale.length(24, scale: textScale))
+                        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+                }
+                    .help(.ui("\(beatStep)박 뒤로 이동"))
+                    .accessibilityLabel(.ui("\(beatStep)박 뒤로 이동"))
+                Button { deck.beatJump(beats: beatStep) } label: {
+                    Image(systemName: "chevron.right")
+                        .frame(width: TextScale.length(24, scale: textScale), height: TextScale.length(24, scale: textScale))
+                        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+                }
+                    .help(.ui("\(beatStep)박 앞으로 이동"))
+                    .accessibilityLabel(.ui("\(beatStep)박 앞으로 이동"))
+            }
+            .disabled(!deck.canPlay || deck.isWriteLocked)
+            .padding(.bottom, 4)
+            Menu {
+                ForEach([1, 2, 4, 8, 16, 32], id: \.self) { beats in
+                    Button(.ui("\(beats)박")) { beatStep = beats }
+                }
+            } label: {
+                VStack(spacing: 0) {
+                    Text(.ui("\(beatStep)박"))
+                    Image(systemName: "chevron.down").font(.system(size: 8))
+                }
+                .frame(width: TextScale.length(54, scale: textScale), height: TextScale.length(26, scale: textScale))
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .frame(width: TextScale.length(54, scale: textScale), height: TextScale.length(26, scale: textScale))
+            .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+            .help(.ui("한 번 누를 때 이동할 박 수를 고릅니다"))
+            .accessibilityLabel(.ui("박 이동량"))
+            .padding(.bottom, TextScale.length(compact ? 10 : 48, scale: textScale))
+            CueButton(deck: deck)
+                .padding(.bottom, TextScale.length(compact ? 6 : 12, scale: textScale))
+            DeckPlayButton(deck: deck)
+        }
+        .font(.scaled(.caption, textScale))
+        .buttonStyle(.plain)
+        .foregroundStyle(.white)
+        .controlSize(ControlSize.small.scaled(textScale))
+        .padding(6)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .background(Palette.controlRail, in: RoundedRectangle(cornerRadius: 6))
+        .environment(\.colorScheme, .dark)
+    }
+}
+
+/// 창 폭과 관계없이 쓰는 한 줄 곡 정보 헤더.
+struct DeckInfoHeader: View {
     @Environment(\.textScale) private var textScale
     let deck: DeckModel
     let row: TrackRow
+    let coverSize: CGFloat
 
     var body: some View {
         HStack(spacing: 10) {
-            CoverView(image: deck.artwork, size: 40)
+            CoverView(image: deck.artwork, size: coverSize * 0.8)
+                .frame(width: coverSize, height: coverSize, alignment: .center)
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.title).font(.scaled(.headline, textScale)).lineLimit(1)
                 Text([row.artist, row.genre].filter { !$0.isEmpty }.joined(separator: " · "))
                     .font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 8)
-            // 넓은 레이아웃(커버 열)과 같은 서체로 보인다(고정폭으로 바꾸지 않는다).
+            // 코멘트는 글자폭을 고정하지 않고 남은 공간에 한 줄로 보여 준다.
             Text(row.comment.isEmpty ? String(ui: "(빈 코멘트)") : row.comment)
                 .font(.scaled(.caption, textScale)).lineLimit(1)
                 .foregroundStyle(row.comment.isEmpty ? .tertiary : .secondary)
