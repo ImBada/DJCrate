@@ -23673,6 +23673,12 @@
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Beat Jump Size" } },
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "ビートジャンプ幅" } }
       }
+    },
+    "남은 시간" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Time Remaining" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "残り時間" } }
+      }
     }
   },
   "version" : "1.0"

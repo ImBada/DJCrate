@@ -369,8 +369,6 @@ private struct GridTempoSegmentCell: View {
 struct GridSuggestionRow: View {
     @Environment(\.textScale) private var textScale
     let deck: DeckModel
-    /// 파형 위에 띄우는 작은 배지 모양(줄 끝 채우기·긴 버튼 이름 없이)
-    var badge = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -390,21 +388,26 @@ struct GridSuggestionRow: View {
             } else if let note = deck.gridSuggestionNote, let suggestion = deck.gridSuggestion {
                 Image(systemName: "wand.and.stars").foregroundStyle(UIColors.suggestion.color)
                 Text(.ui("DJCrate 제안: \(note)")).lineLimit(1)
-                Button(.ui("제안 그리드 적용")) { deck.applyGridSuggestion() }
-                    .help(suggestion.isConfident
-                          ? .ui("추정 그리드로 초안을 바꿉니다(실행 취소 가능).")
-                          : .ui("추정 그리드로 초안을 바꿉니다. 신뢰도가 낮으니 소리로 확인하세요(실행 취소 가능)."))
-                if deck.dismissedRevision >= 0, deck.isGridSuggestionDismissed {
+                if deck.isGridSuggestionDismissed {
                     Button(.ui("제안 다시 보기")) { deck.restoreGridSuggestion() }
                         .help(.ui("무시했던 제안을 그리드 편집 밖에서도 다시 보이게 합니다"))
+                } else {
+                    Button(.ui("제안 그리드 적용")) { deck.applyGridSuggestion() }
+                        .help(suggestion.isConfident
+                              ? .ui("추정 그리드로 초안을 바꿉니다(실행 취소 가능).")
+                              : .ui("추정 그리드로 초안을 바꿉니다. 신뢰도가 낮으니 소리로 확인하세요(실행 취소 가능)."))
+                    if deck.dismissedRevision >= 0 {
+                        Button(.ui("무시")) { deck.dismissGridSuggestion() }
+                            .help(.ui("이 곡에서는 제안을 더 보이지 않습니다"))
+                    }
                 }
             } else if deck.gridSuggestion != nil {
                 Image(systemName: "checkmark.seal").foregroundStyle(.secondary)
                 Text(.ui("DJCrate 추정과 지금 그리드가 사실상 같습니다")).foregroundStyle(.secondary)
             }
-            if !badge { Spacer(minLength: 0) }
+            Spacer(minLength: 0)
             Button { deck.reanalyze() } label: {
-                if badge { Image(systemName: "arrow.triangle.2.circlepath") } else { Label(.ui("재분석"), systemImage: "arrow.triangle.2.circlepath") }
+                Label(.ui("재분석"), systemImage: "arrow.triangle.2.circlepath")
             }
             .help(.ui("이 곡의 섹션·그리드 추정·조성 분석 캐시를 지우고 다시 분석합니다(파형·초안은 그대로)"))
             .accessibilityLabel(.ui("재분석"))

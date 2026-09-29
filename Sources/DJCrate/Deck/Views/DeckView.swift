@@ -2,6 +2,7 @@ import RekordboxKit
 import DJCAnalysis
 import DJCDomain
 import DJCStorage
+import Foundation
 import SwiftUI
 
 /// 위쪽 덱: 커버·정보 헤더 / 확대·개요 파형과 컨트롤 | 큐 목록.
@@ -22,6 +23,8 @@ struct DeckView: View {
     }
     /// 글자 배율의 절반만큼 넓힌다(큐 이름이 보이게 하되 파형 자리를 너무 빼앗지 않게).
     private var cueListWidth: CGFloat { TextScale.length(width < 1400 ? 250 : 290, scale: 1 + (textScale - 1) / 2) }
+    private var leftRailWidth: CGFloat { TextScale.length(66, scale: textScale) }
+    private var rightRailWidth: CGFloat { TextScale.length(58, scale: textScale) }
 
     var body: some View {
         if let row = deck.row {
@@ -30,62 +33,51 @@ struct DeckView: View {
                     DeckInfoHeader(deck: deck, row: row, coverSize: TextScale.length(66, scale: textScale))
                     HStack(alignment: .top, spacing: 8) {
                         DeckSideControls(store: store, deck: deck, availableHeight: waveGroupHeight)
-                            .frame(width: TextScale.length(66, scale: textScale), height: waveGroupHeight)
+                            .frame(width: leftRailWidth, height: waveGroupHeight)
                         VStack(alignment: .leading, spacing: 8) {
-                    Group {
-                        if PerfProbe.hidden.contains("zoom") {
-                            EmptyView()
-                        } else {
-                            ZoomWaveformView(deck: deck)
-                                .overlay(alignment: .leading) {
-                                    ZoomControl(deck: deck, availableHeight: waveformHeight).padding(.leading, 8)
+                            Group {
+                                if PerfProbe.hidden.contains("zoom") {
+                                    EmptyView()
+                                } else {
+                                    ZoomWaveformView(deck: deck)
+                                        .overlay(alignment: .leading) {
+                                            ZoomControl(deck: deck, availableHeight: waveformHeight).padding(.leading, 8)
+                                        }
+                                        .overlay(alignment: .trailing) {
+                                            TrackEditButton(deck: deck).padding(.trailing, 8)
+                                        }
                                 }
-                                .overlay(alignment: .trailing) {
-                                    TrackEditButton(deck: deck).padding(.trailing, 8)
-                                }
-                        }
-                    }
-                        .frame(height: waveformHeight)
-                        .overlay(alignment: .center) { loadingOverlay }
-                        .overlay(alignment: .top) {
-                            if let toast = deck.toast {
-                                HStack {
-                                    Label(toast.text, systemImage: toast.kind.icon)
-                                        .foregroundStyle(toast.kind.tint)
-                                        .textSelection(.enabled)
-                                    Button { deck.toastTask?.cancel(); deck.toast = nil } label: {
-                                        Image(systemName: "xmark")
+                            }
+                            .frame(height: waveformHeight)
+                            .overlay(alignment: .center) { loadingOverlay }
+                            .overlay(alignment: .top) {
+                                if let toast = deck.toast {
+                                    HStack {
+                                        Label(toast.text, systemImage: toast.kind.icon)
+                                            .foregroundStyle(toast.kind.tint)
+                                            .textSelection(.enabled)
+                                        Button { deck.toastTask?.cancel(); deck.toast = nil } label: {
+                                            Image(systemName: "xmark")
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel(.ui("덱 알림 닫기"))
                                     }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel(.ui("덱 알림 닫기"))
-                                }
                                     .font(.scaled(.callout, textScale).weight(.semibold))
                                     .padding(.horizontal, 12).padding(.vertical, 7)
                                     .background(.regularMaterial, in: Capsule())
                                     .padding(.top, 22)
                                     .transition(.opacity)
+                                }
                             }
-                        }
-                        .animation(.easeOut(duration: 0.15), value: deck.toast)
-                        // 그리드 없는 곡 안내는 파형 위에 띄운다(줄로 끼워 넣으면 덱 높이가 바뀌어 아래 목록이 밀렸다)
-                        .overlay(alignment: .bottomLeading) {
-                            if deck.needsGrid && !deck.gridEditing {
-                                GridSuggestionRow(deck: deck, badge: true)
-                                    .padding(.horizontal, 10).padding(.vertical, 5)
-                                    .background(.regularMaterial, in: Capsule())
-                                    .padding(8)
-                                    .transition(.opacity)
+                            .animation(.easeOut(duration: 0.15), value: deck.toast)
+                            .environment(\.colorScheme, .dark)
+                            VStack(spacing: 0) {
+                                Group { if PerfProbe.hidden.contains("overview") { EmptyView() } else { OverviewWaveformView(deck: deck) } }
+                                    .frame(height: WaveformMetrics(scale: textScale).overviewHeight)
+                                GridTempoSegments(deck: deck)
                             }
-                        }
-                        .animation(.easeOut(duration: 0.15), value: deck.needsGrid)
-                        .environment(\.colorScheme, .dark)
-                    VStack(spacing: 0) {
-                        Group { if PerfProbe.hidden.contains("overview") { EmptyView() } else { OverviewWaveformView(deck: deck) } }
-                            .frame(height: WaveformMetrics(scale: textScale).overviewHeight)
-                        GridTempoSegments(deck: deck)
-                    }
-                    .background(Palette.well)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .background(Palette.well)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
                         }
                         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                         if !PerfProbe.hidden.contains("meter") {
@@ -97,15 +89,20 @@ struct DeckView: View {
                                 GainControl(deck: deck)
                                     .frame(height: gainHeight)
                             }
-                            .frame(width: TextScale.length(58, scale: textScale), height: waveGroupHeight)
+                            .frame(width: rightRailWidth, height: waveGroupHeight)
                             .background(Palette.controlRail, in: RoundedRectangle(cornerRadius: 6))
                             .environment(\.colorScheme, .dark)
                         }
                     }
-                    TransportBar(deck: deck)
-                    AudioBar(deck: deck)
-                    if !deck.needsGrid { GridSuggestionRow(deck: deck) }
+                    VStack(alignment: .leading, spacing: 12) {
+                        TransportBar(deck: deck)
+                        AudioBar(deck: deck)
+                    }
+                    .padding(.leading, leftRailWidth + 8)
+                    .padding(.trailing, PerfProbe.hidden.contains("meter") ? 0 : rightRailWidth + 8)
                     GridEditorBar(deck: deck)
+                    GridSuggestionRow(deck: deck)
+                        .frame(height: TextScale.length(28, scale: textScale))
                 }
                 .frame(minWidth: 0, maxWidth: .infinity, alignment: .topLeading)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { middleHeight = $0 }
@@ -245,20 +242,119 @@ struct DeckInfoHeader: View {
     let coverSize: CGFloat
 
     var body: some View {
-        HStack(spacing: 10) {
-            CoverView(image: deck.artwork, size: coverSize * 0.8)
-                .frame(width: coverSize, height: coverSize, alignment: .center)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(row.title).font(.scaled(.headline, textScale)).lineLimit(1)
-                Text([row.artist, row.genre].filter { !$0.isEmpty }.joined(separator: " · "))
-                    .font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                cover
+                details.fixedSize(horizontal: true, vertical: false)
+                Spacer(minLength: 8)
+                if !PerfProbe.hidden.contains("label") {
+                    DeckHeaderTime(deck: deck)
+                    DeckHeaderMetrics(deck: deck)
+                }
             }
-            Spacer(minLength: 8)
-            // 코멘트는 글자폭을 고정하지 않고 남은 공간에 한 줄로 보여 준다.
-            Text(row.comment.isEmpty ? String(ui: "(빈 코멘트)") : row.comment)
-                .font(.scaled(.caption, textScale)).lineLimit(1)
-                .foregroundStyle(row.comment.isEmpty ? .tertiary : .secondary)
+            HStack(spacing: 10) {
+                cover
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(row.title).font(.scaled(.headline, textScale)).lineLimit(1)
+                    if !PerfProbe.hidden.contains("label") {
+                        HStack(spacing: 8) {
+                            DeckHeaderTime(deck: deck)
+                            Spacer(minLength: 0)
+                            DeckHeaderMetrics(deck: deck)
+                        }
+                    }
+                }
+            }
         }
+        .frame(height: coverSize)
+    }
+
+    private var cover: some View {
+        CoverView(image: deck.artwork, size: coverSize * 0.8)
+            .frame(width: coverSize, height: coverSize, alignment: .center)
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(row.title).font(.scaled(.headline, textScale)).lineLimit(1)
+            Text([row.artist, row.genre].filter { !$0.isEmpty }.joined(separator: " · "))
+                .font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
+            if !row.comment.isEmpty {
+                Text(row.comment).font(.scaled(.caption2, textScale)).foregroundStyle(.tertiary).lineLimit(1)
+            }
+        }
+    }
+}
+
+/// 재생 틱보다 느린 표시 시각으로 남은 시간·현재 시각만 갱신한다.
+private struct DeckHeaderTime: View {
+    @Environment(\.textScale) private var textScale
+    let deck: DeckModel
+
+    var body: some View {
+        let elapsed = max(deck.displayTime, 0)
+        let remaining = max(deck.duration - elapsed, 0)
+        HStack(spacing: 4) {
+            Text(verbatim: "-" + clock(remaining))
+                .foregroundStyle(.primary)
+                .frame(width: TextScale.length(76, scale: textScale), alignment: .trailing)
+                .help(.ui("남은 시간"))
+            Text(verbatim: clock(elapsed))
+                .foregroundStyle(.secondary)
+                .frame(width: TextScale.length(68, scale: textScale), alignment: .trailing)
+                .help(.ui("재생 위치"))
+        }
+        .font(.scaled(.callout, textScale).monospacedDigit())
+    }
+
+    private func clock(_ seconds: Double) -> String {
+        let hundredths = Int((seconds * 100).rounded())
+        return String(format: "%02d:%02d.%02d", hundredths / 6000, (hundredths / 100) % 60, hundredths % 100)
+    }
+}
+
+/// 현재 조성·실제 재생 BPM과 네 박 진행을 헤더 오른쪽에 고정한다.
+private struct DeckHeaderMetrics: View {
+    @Environment(\.textScale) private var textScale
+    let deck: DeckModel
+
+    var body: some View {
+        let t = deck.displayTime
+        let beat = deck.grid?.position(at: t)?.beat ?? 0
+        VStack(alignment: .trailing, spacing: 5) {
+            HStack(spacing: 8) {
+                if let key = deck.key(at: t) {
+                    HStack(spacing: 3) {
+                        Circle().fill(UIColors.keyDot(key)).frame(width: 6, height: 6)
+                        Text(key).font(.scaled(.caption, textScale).monospacedDigit())
+                    }
+                    .help(deck.keySegments.count > 1 ? String(ui: "지금 조성(Camelot, 추정). 이 곡은 조성이 바뀝니다") : String(ui: "지금 조성(Camelot)"))
+                }
+                if let bpm = deck.gridBPM {
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text(verbatim: (bpm * deck.rate).formatted(.number.precision(.fractionLength(2)).grouping(.never)))
+                            .font(.scaled(.callout, textScale).monospacedDigit().bold())
+                        Text(verbatim: "BPM").font(.scaled(.caption2, textScale)).foregroundStyle(.secondary)
+                    }
+                    .foregroundStyle(deck.tempoPercent == 0 ? Color.primary : UIColors.cue.color)
+                    .help(deck.tempoPercent == 0 ? String(ui: "지금 BPM(그리드 기준, 변속 곡은 구간마다 바뀝니다)")
+                          : String(ui: "지금 BPM · 원래 \(bpm, specifier: "%.2f") BPM, 템포 \(deck.tempoPercent, specifier: "%+.1f")%"))
+                }
+            }
+            HStack(spacing: 3) {
+                ForEach(1...4, id: \.self) { number in
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(number == beat ? UIColors.tempo.color
+                              : number < beat ? UIColors.tempo.color.opacity(0.45) : Color.secondary.opacity(0.22))
+                        .frame(width: TextScale.length(7, scale: textScale), height: TextScale.length(7, scale: textScale))
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(.ui("마디.박"))
+            .accessibilityValue(deck.grid?.positionText(at: t) ?? "—")
+            .help(.ui("마디.박"))
+        }
+        .frame(width: TextScale.length(112, scale: textScale), alignment: .trailing)
     }
 }
 

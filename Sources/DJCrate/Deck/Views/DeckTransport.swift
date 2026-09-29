@@ -10,11 +10,11 @@ struct TransportBar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            FlowLayout(spacing: 10) {
-                HStack(spacing: 8) {
-                    PlayQuantizeToggle(deck: deck)
-                    Group { if PerfProbe.hidden.contains("label") { EmptyView() } else { PlayheadLabel(deck: deck) } }
-                        .frame(width: TextScale.length(200, scale: textScale), alignment: .leading)
+            FlowLayout(spacing: 22, justified: true) {
+                HStack(spacing: 4) {
+                    ForEach(0..<8, id: \.self) { slot in
+                        HotCuePad(deck: deck, slot: slot)
+                    }
                 }
                 HStack(spacing: 6) {
                     HStack(spacing: 2) {
@@ -30,21 +30,13 @@ struct TransportBar: View {
                     }
                     .help(.ui("CUE 위치에 메모리 큐 추가 (\(deck.shortcuts.keyLabel(for: .memoryCue))). Shift를 누르고 누르면 현재 재생 위치의 메모리 큐를 지웁니다"))
                 }
-                HStack(spacing: 4) {
-                    ForEach(0..<8, id: \.self) { slot in
-                        HotCuePad(deck: deck, slot: slot)
-                    }
-                }
                 LoopControl(deck: deck)
+                HStack(spacing: 6) {
+                    MetronomeToggle(deck: deck)
+                    PlayQuantizeToggle(deck: deck)
+                }
             }
-            // 메트로놈과 단축키 안내는 재생·큐 줄 아래 양쪽 끝에 둔다.
-            HStack(spacing: 10) {
-                Toggle(isOn: $deck.metronome) { Label(.ui("메트로놈"), systemImage: "metronome") }
-                    .toggleStyle(.button)
-                    .help(.ui("그리드의 박마다 클릭 (1박은 높은 음)"))
-                Spacer(minLength: 8)
-                ShortcutsButton()
-            }
+            .frame(maxWidth: .infinity)
         }
         .controlSize(ControlSize.small.scaled(textScale))
     }
@@ -115,42 +107,6 @@ struct ZoomControl: View {
         .padding(4)
         .background(Palette.well.opacity(0.85), in: RoundedRectangle(cornerRadius: 6))
         .overlay(RoundedRectangle(cornerRadius: 6).stroke(.white.opacity(0.2)))
-    }
-}
-
-/// 매 프레임 바뀌는 시간 표시만 따로 둔다(컨트롤이 많은 줄 전체가 다시 그려지지 않도록).
-/// 글자 단계: 주 수치(시각·BPM)는 callout 굵게, 보조 수치(마디.박·조성)는 caption, 단위는 caption2.
-struct PlayheadLabel: View {
-    @Environment(\.textScale) private var textScale
-    let deck: DeckModel
-
-    var body: some View {
-        // 글자는 초당 15번이면 읽기에 충분하다(매 프레임 창 전체를 다시 그리지 않게).
-        let t = deck.displayTime
-        HStack(spacing: 6) {
-            Text(t.clockText).font(.scaled(.callout, textScale).monospacedDigit().bold())
-            if let position = deck.grid?.positionText(at: t) {
-                Text(position).font(.scaled(.caption, textScale).monospacedDigit()).foregroundStyle(.secondary)
-                    .help(.ui("마디.박"))
-            }
-            if let key = deck.key(at: t) {
-                HStack(spacing: 3) {
-                    Circle().fill(UIColors.keyDot(key)).frame(width: 6, height: 6)
-                    Text(key).font(.scaled(.caption, textScale).monospacedDigit()).foregroundStyle(.primary)
-                }
-                .help(deck.keySegments.count > 1 ? String(ui: "지금 조성(Camelot, 추정). 이 곡은 조성이 바뀝니다") : String(ui: "지금 조성(Camelot)"))
-            }
-            // 지금 BPM(그리드의 이 구간 BPM × 템포). 템포를 바꾸면 주황색.
-            if let bpm = deck.gridBPM {
-                HStack(alignment: .firstTextBaseline, spacing: 2) {
-                    Text(verbatim: (bpm * deck.rate).formatted(.number.precision(.fractionLength(2)).grouping(.never))).font(.scaled(.callout, textScale).monospacedDigit().bold())
-                    Text(verbatim: "BPM").font(.scaled(.caption2, textScale)).foregroundStyle(.secondary)
-                }
-                .foregroundStyle(deck.tempoPercent == 0 ? Color.primary : UIColors.cue.color)
-                .help(deck.tempoPercent == 0 ? String(ui: "지금 BPM(그리드 기준, 변속 곡은 구간마다 바뀝니다)")
-                      : String(ui: "지금 BPM · 원래 \(bpm, specifier: "%.2f") BPM, 템포 \(deck.tempoPercent, specifier: "%+.1f")%"))
-            }
-        }
     }
 }
 

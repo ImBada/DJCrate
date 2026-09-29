@@ -11,30 +11,34 @@ struct AudioBar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            FlowLayout(spacing: 12) {
-                HStack(spacing: 4) {
-                    Text(.ui("템포")).foregroundStyle(.secondary)
-                    Slider(value: Binding(get: { deck.tempoPercent }, set: { deck.tempoPercent = ($0 * 10).rounded() / 10 }),
-                           in: -16...16, neutralValue: 0) {
-                        Text(.ui("재생 템포"))
-                    } ticks: {
-                        SliderTick(-16); SliderTick(-8); SliderTick(0); SliderTick(8); SliderTick(16)
+            HStack(spacing: 10) {
+                FlowLayout(spacing: 12, justified: true) {
+                    HStack(spacing: 4) {
+                        Text(.ui("템포")).foregroundStyle(.secondary)
+                        Slider(value: Binding(get: { deck.tempoPercent }, set: { deck.tempoPercent = ($0 * 10).rounded() / 10 }),
+                               in: -16...16, neutralValue: 0) {
+                            Text(.ui("재생 템포"))
+                        } ticks: {
+                            SliderTick(-16); SliderTick(-8); SliderTick(0); SliderTick(8); SliderTick(16)
+                        }
+                        .labelsHidden()
+                        .frame(width: 120)
+                        Text(verbatim: deck.tempoPercent.unitText(signed: true) + "%").font(.scaled(.caption, textScale).monospacedDigit())
+                            .frame(width: TextScale.length(46, scale: textScale), alignment: .trailing)
+                        Button { deck.tempoPercent = 0 } label: { Text(verbatim: "RST") }.help(.ui("원래 속도로"))
+                            .accessibilityLabel(.ui("템포 0으로"))
                     }
-                    .labelsHidden()
-                    .frame(width: 120)
-                    Text(verbatim: deck.tempoPercent.unitText(signed: true) + "%").font(.scaled(.caption, textScale).monospacedDigit())
-                        .frame(width: TextScale.length(46, scale: textScale), alignment: .trailing)
-                    Button { deck.tempoPercent = 0 } label: { Text(verbatim: "RST") }.help(.ui("원래 속도로"))
-                        .accessibilityLabel(.ui("템포 0으로"))
+                    HStack(spacing: 12) {
+                        Toggle(.ui("키 고정"), isOn: $deck.keyLock)
+                            .toggleStyle(.checkbox)
+                            .help(.ui("켜면 음정을 유지한 채 속도만 바꿉니다(마스터 템포). 끄면 바이닐처럼 음정도 함께 바뀝니다."))
+                        Toggle(.ui("큐 제안 표시"), isOn: $deck.showSuggestions)
+                            .toggleStyle(.checkbox)
+                            .help(.ui("큐 제안을 표시합니다. 파형 아래 + 배지를 누르면 메모리 큐로 추가합니다."))
+                    }
                 }
-                HStack(spacing: 12) {
-                    Toggle(.ui("키 고정"), isOn: $deck.keyLock)
-                        .toggleStyle(.checkbox)
-                        .help(.ui("켜면 음정을 유지한 채 속도만 바꿉니다(마스터 템포). 끄면 바이닐처럼 음정도 함께 바뀝니다."))
-                    Toggle(.ui("큐 제안 표시"), isOn: $deck.showSuggestions)
-                        .toggleStyle(.checkbox)
-                        .help(.ui("큐 제안을 표시합니다. 파형 아래 + 배지를 누르면 메모리 큐로 추가합니다."))
-                }
+                .frame(maxWidth: .infinity)
+                ShortcutsButton()
             }
             // 제안 문구가 길어져도 템포 묶음을 밀어내지 않는다.
             if let suggestion = deck.gainSuggestion {
@@ -55,22 +59,32 @@ struct AudioBar: View {
                     .font(.scaled(.caption, textScale))
                     .help(.ui("이 곡의 게인 초안을 지우고 rekordbox 오토게인으로 돌아갑니다"))
             }
-            // 그리드 편집에 들어가지 않고 DJCrate 제안을 받거나 무시한다.
-            if !deck.gridEditing, !deck.needsGrid, let note = deck.gridSuggestionNote,
-               deck.dismissedRevision >= 0, !deck.isGridSuggestionDismissed {
-                HStack(spacing: 4) {
-                    Image(systemName: "wand.and.stars").foregroundStyle(UIColors.suggestion.color)
-                    Text(note).font(.scaled(.caption, textScale)).lineLimit(1).foregroundStyle(.secondary)
-                    Button(.ui("제안 받기")) { deck.applyGridSuggestion() }
-                        .fixedSize()
-                        .help(.ui("추정 그리드로 초안을 바꿉니다(실행 취소 가능)."))
-                    Button(.ui("무시")) { deck.dismissGridSuggestion() }
-                        .fixedSize()
-                        .help(.ui("이 곡에서는 제안을 더 보이지 않습니다"))
-                }
-            }
         }
         .controlSize(ControlSize.small.scaled(textScale))
+    }
+}
+
+/// Q와 같은 크기로 표시하는 메트로놈 아이콘 버튼.
+struct MetronomeToggle: View {
+    @Environment(\.textScale) private var textScale
+    @Bindable var deck: DeckModel
+
+    var body: some View {
+        let on = deck.metronome
+        Button { deck.metronome.toggle() } label: {
+            Image(systemName: "metronome")
+                .font(.scaled(size: 11, weight: .semibold, textScale))
+                .frame(width: TextScale.length(22, scale: textScale), height: TextScale.length(20, scale: textScale))
+                .foregroundStyle(on ? UIColors.onFill : UIColors.info.color)
+                .background(on ? UIColors.info.color : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(UIColors.info.color))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(.isToggle)
+        .accessibilityLabel(.ui("메트로놈"))
+        .accessibilityValue(on ? String(ui: "켜짐") : String(ui: "꺼짐"))
+        .help(.ui("그리드의 박마다 클릭 (1박은 높은 음)"))
     }
 }
 
