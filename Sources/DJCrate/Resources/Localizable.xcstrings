@@ -1403,22 +1403,6 @@
         }
       }
     },
-    "(빈 코멘트)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "(No comment)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "（コメントなし）"
-          }
-        }
-      }
-    },
     "(빈 폴더)" : {
       "localizations" : {
         "en" : {
@@ -17564,34 +17548,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再生 \/ 一時停止"
-          }
-        }
-      }
-    },
-    "재생 %lld" : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld play"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld plays"
-                }
-              }
-            }
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "再生%lld回"
           }
         }
       }
