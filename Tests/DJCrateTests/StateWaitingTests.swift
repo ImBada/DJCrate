@@ -1,37 +1,42 @@
 import Foundation
-import Synchronization
 import Testing
 
 /// 시험이 시간이 아니라 상태로 판정하게 하는 기다리기 도우미(#154).
+/// 이 시험도 걸린 시간으로 판정하지 않는다. 기다림이 언제 끝났는지는 조건을 몇 번 봤는지로 확인한다.
 @MainActor
 @Suite("상태 기다리기")
 struct StateWaitingTests {
     @Test func 조건이_이미_참이면_바로_참을_돌려준다() async {
-        #expect(await waitForState(until: { true }))
+        var checks = 0
+        #expect(await waitForState(until: { checks += 1; return true }))
+        #expect(checks == 1)
     }
 
     @Test func 조건이_나중에_참이_되면_기다렸다가_참을_돌려준다() async {
-        let flag = Mutex(false)
-        Task { try? await Task.sleep(for: .milliseconds(50)); flag.withLock { $0 = true } }
-        #expect(await waitForState(until: { flag.withLock { $0 } }))
+        var checks = 0
+        #expect(await waitForState(until: { checks += 1; return checks == 5 }))
+        #expect(checks == 5)
     }
 
     /// 더 기다려도 참이 될 수 없다고 드러나면 안전망 시간을 다 쓰지 않고 거짓으로 돌아온다.
+    /// 안전망 시간이 지나야 끝나는 구현은 조건을 더 자주 보게 되므로 본 횟수가 늘어난다.
     @Test func 포기_조건이_참이면_안전망을_기다리지_않고_거짓을_돌려준다() async {
-        let clock = ContinuousClock()
-        let start = clock.now
-        let result = await waitForState(safetyNet: .seconds(60), giveUp: { true }, until: { false })
+        var checks = 0
+        let result = await waitForState(safetyNet: .milliseconds(200), giveUp: { true }, until: { checks += 1; return false })
         #expect(!result)
-        #expect(start.duration(to: clock.now) < .seconds(30))
+        #expect(checks == 2, "기다리기 전 한 번, 돌려주기 전 한 번")
     }
 
-    @Test func 포기_조건이_늦게_참이_되어도_그때_거짓을_돌려준다() async {
-        let gaveUp = Mutex(false)
-        Task { try? await Task.sleep(for: .milliseconds(50)); gaveUp.withLock { $0 = true } }
-        let clock = ContinuousClock()
-        let start = clock.now
-        #expect(!(await waitForState(safetyNet: .seconds(60), giveUp: { gaveUp.withLock { $0 } }, until: { false })))
-        #expect(start.duration(to: clock.now) < .seconds(30))
+    @Test func 포기_조건이_기다리는_중에_참이_되면_그때_거짓을_돌려준다() async {
+        var checks = 0
+        var gaveUp = false
+        let result = await waitForState(safetyNet: .milliseconds(200), giveUp: { gaveUp }, until: {
+            checks += 1
+            if checks == 5 { gaveUp = true }
+            return false
+        })
+        #expect(!result)
+        #expect(checks == 6, "포기 조건이 참이 된 다음 한 번만 더 본다")
     }
 
     /// 판정이 영영 오지 않는 잘못된 구현에서도 시험이 멈춰 있지 않게 안전망 시간이 지나면 거짓을 돌려준다.
