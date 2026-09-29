@@ -307,6 +307,8 @@ final class ListHarness {
         undo.groupsByEvent = false
         self.store.undoManager = undo
         coordinator = TrackListCoordinator(store: self.store)
+        // 다시 누른 칸 고치기는 마우스를 놓은 뒤에만 시작한다. 실제 마우스 상태(사용자가 시험 중에 누르는 것 등)에 시험이 흔들리지 않게 뗀 상태로 둔다.
+        coordinator.isMouseDown = { false }
         table.identifier = KeyRouter.trackListID
         table.coordinator = coordinator
         table.dataSource = coordinator

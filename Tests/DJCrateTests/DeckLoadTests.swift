@@ -222,10 +222,24 @@ struct TrackListDeckLoadTests {
         #expect(!TrackListTagEditing.startsSlowEdit(clickCount: 1, row: -1, selected: [0], modifiers: []))
     }
 
-    /// 기다리던 칸 편집이 끝날 때까지(고쳤거나 취소). 다른 시험이 메인 스레드를 쓰는 동안은 늦게 깬다.
+    /// 기다리던 칸 편집이 끝날 때까지(고쳤거나 취소). 다른 시험이 메인 스레드를 쓰는 동안은 늦게 깨므로 시간이 아니라 상태로 기다린다.
     func finishPendingEdit(_ h: ListHarness) async {
-        for _ in 0..<500 where h.coordinator.hasPendingEdit { try? await Task.sleep(for: .milliseconds(10)) }
-        #expect(!h.coordinator.hasPendingEdit)
+        let finished = await waitForState(until: { !h.coordinator.hasPendingEdit })
+        #expect(finished)
+    }
+
+    /// 다시 누른 칸은 마우스를 놓은 뒤에야 고친다. 실제 마우스 상태는 시험이 정한다(시험 중에 사용자가 마우스를 누르고 있어도 같은 결과).
+    @Test func 다시_누른_태그_칸은_마우스를_아직_누르고_있으면_고치지_않고_놓으면_고친다() async {
+        let (h, _) = harness([a, b], selection: [a.id])
+        defer { h.close() }
+        h.coordinator.isMouseDown = { true }
+        h.coordinator.scheduleEdit(row: 0, column: "title", after: .milliseconds(20))
+        await finishPendingEdit(h)
+        #expect(!h.coordinator.isEditing)
+        h.coordinator.isMouseDown = { false }
+        h.coordinator.scheduleEdit(row: 0, column: "title", after: .milliseconds(20))
+        await finishPendingEdit(h)
+        #expect(h.coordinator.editingColumn == "title")
     }
 
     @Test func 다시_누른_태그_칸은_잠깐_뒤_고치고_그_사이_더블클릭_선택_변경이면_취소한다() async {

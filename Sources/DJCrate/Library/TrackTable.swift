@@ -303,6 +303,8 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     private var inlineEdit: InlineEdit?
     /// 다시 누른 태그 칸을 고치기 전 기다림(더블클릭이면 취소)
     private var pendingEdit: Task<Void, Never>?
+    /// 마우스 버튼이 눌려 있는지(누른 채 끌면 고치지 않는다). 시스템 전체 상태라 시험이 바꿔 끼운다.
+    var isMouseDown: () -> Bool = { NSEvent.pressedMouseButtons != 0 }
     /// 줄 끌기를 시작한 횟수. 누른 줄을 끌었으면(덱에 놓기 등) 그 클릭으로 칸을 고치지 않는다.
     private(set) var dragGeneration = 0
     /// 덱에 올린 곡(ContentID)과 재생 중인지. # 칸에 스피커로 보인다.
@@ -854,7 +856,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             // 선택 알림은 늦게 올 때가 있어 알림으로 취소하지 않고 여기서 본다.
             guard self.rows.indices.contains(index), self.rows[index].id == id,
                   table.selectedRowIndexes == IndexSet(integer: index), table.window?.firstResponder === table,
-                  NSEvent.pressedMouseButtons == 0 else { return }
+                  !self.isMouseDown() else { return }
             self.beginEditing(row: index, column: column)
         }
     }
