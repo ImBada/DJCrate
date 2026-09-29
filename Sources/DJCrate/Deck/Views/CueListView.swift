@@ -13,6 +13,14 @@ struct CueListView: View {
         CueListFilter(rawValue: SettingKeys.cueListFilter.value(from: storedFilter)) ?? .all
     }
     private var visibleCues: [EditableCue] { (deck.draft?.cues ?? []).filter(filter.includes) }
+    private var changedCueIDs: Set<EditableCue.ID> {
+        Set((deck.draft?.changes ?? []).compactMap { change in
+            switch change {
+            case let .added(cue), let .modified(_, cue): cue.id
+            case .removed: nil
+            }
+        })
+    }
 
     private var writeHelp: String {
         if deck.isWriteLocked { return String(ui: "쓰기가 끝난 뒤 다시 시도하세요.") }
@@ -25,38 +33,45 @@ struct CueListView: View {
     }
 
     var body: some View {
+        let cues = deck.draft?.cues ?? []
+        let hotCount = cues.filter { if case .hot = $0.kind { true } else { false } }.count
+        let changedIDs = changedCueIDs
+        let segmentHeight = CGFloat(TextScale.length(28, scale: textScale))
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                let cues = deck.draft?.cues ?? []
-                let hot = cues.filter { if case .hot = $0.kind { true } else { false } }.count
-                Text(.ui("핫큐 \(hot)")).font(.scaled(.headline, textScale)).foregroundStyle(UIColors.hot.color)
-                Text(.ui("메모리 \(cues.count - hot)")).font(.scaled(.headline, textScale)).foregroundStyle(UIColors.memory.color)
-                Spacer()
-                if let changes = deck.draft?.changes, !changes.isEmpty {
-                    Text(.ui("초안 변경 \(changes.count)"))
-                        .font(.scaled(.caption, textScale).bold())
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(UIColors.draftFill, in: Capsule())
-                        .foregroundStyle(UIColors.draft.color)
+            GeometryReader { geometry in
+                let segmentWidth = max(0, (geometry.size.width - 8) / 3)
+                HStack(spacing: 2) {
+                    ForEach(CueListFilter.allCases, id: \.self) { option in
+                        Button { storedFilter = option.rawValue } label: {
+                            filterLabel(option, total: cues.count, hot: hotCount)
+                                .font(.scaled(.caption, textScale).bold())
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                                .foregroundStyle(option == filter ? Color.white : Color.primary)
+                                .frame(width: segmentWidth, height: segmentHeight)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .background(option == filter ? Color.accentColor : Color.clear,
+                                    in: RoundedRectangle(cornerRadius: 6))
+                        .accessibilityAddTraits(option == filter ? [.isSelected] : [])
+                    }
                 }
+                .padding(2)
+                .frame(width: geometry.size.width, height: segmentHeight + 4, alignment: .leading)
+                .background(UIColors.subtleFill, in: RoundedRectangle(cornerRadius: 8))
             }
-            Picker(.ui("큐 목록 보기"), selection: Binding(get: { filter }, set: { storedFilter = $0.rawValue })) {
-                ForEach(CueListFilter.allCases, id: \.self) { filter in
-                    Text(filter.title).tag(filter)
-                }
-            }
-            .pickerStyle(.segmented)
-            .controlSize(ControlSize.small.scaled(textScale))
-            .labelsHidden()
+            .frame(height: segmentHeight + 4)
+            .accessibilityElement(children: .contain)
             .accessibilityLabel(.ui("큐 목록 보기"))
             List(selection: $deck.selectedCueID) {
                 ForEach(visibleCues) { cue in
                     CueRow(deck: deck, cue: cue)
                         .tag(cue.id)
+                        .listRowBackground(changedIDs.contains(cue.id) ? UIColors.draftFill : Color.clear)
                 }
             }
             .listStyle(.bordered)
-            .alternatingRowBackgrounds()
             .onChange(of: visibleCues.map(\.id), initial: true) { _, ids in
                 // 탭이나 큐 종류를 바꿔 숨긴 행을 키보드로 잘못 편집하지 않게 한다.
                 if let selected = deck.selectedCueID, !ids.contains(selected) { deck.selectedCueID = nil }
@@ -81,6 +96,14 @@ struct CueListView: View {
             }
         }
     }
+
+    private func filterLabel(_ option: CueListFilter, total: Int, hot: Int) -> Text {
+        switch option {
+        case .all: Text(.ui("전체 \(total)"))
+        case .hot: Text(.ui("핫큐 \(hot)"))
+        case .memory: Text(.ui("메모리 \(total - hot)"))
+        }
+    }
 }
 
 struct CueRow: View {
@@ -94,6 +117,7 @@ struct CueRow: View {
             row(inlineDetails: true)
             row(inlineDetails: false)
         }
+        .frame(height: TextScale.length(28, scale: textScale))
         .controlSize(ControlSize.small.scaled(textScale))
     }
 

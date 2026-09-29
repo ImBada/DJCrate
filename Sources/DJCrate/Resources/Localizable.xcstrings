@@ -18372,6 +18372,22 @@
         }
       }
     },
+    "전체 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべて %lld"
+          }
+        }
+      }
+    },
     "전체 %@ 중 %@" : {
       "localizations" : {
         "en" : {
@@ -19290,22 +19306,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下書きを破棄"
-          }
-        }
-      }
-    },
-    "초안 변경 %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Draft Changes %lld"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "下書きの変更 %lld"
           }
         }
       }
