@@ -58,10 +58,22 @@ struct TagInspector: View {
     private func field(_ key: TagFields.Key, rows: [TrackRow], axis: Axis = .horizontal) -> some View {
         let current = store.tagValue(key, rows: rows)
         let edited = rows.contains { store.isTagEdited($0, key) }
-        return CommitTextField(label: key.label, value: current.value, mixed: current.mixed, edited: edited, axis: axis) { text in
-            store.setTag(key, text, rows: rows)
+        return VStack(alignment: .leading, spacing: 4) {
+            CommitTextField(label: key.label, value: current.value, mixed: current.mixed, edited: edited, axis: axis) { text in
+                store.setTag(key, text, rows: rows)
+            }
+            .id("\(key.rawValue)-\(store.selection.hashValue)")
+            if rows.count == 1, let row = rows.first, let draft = store.tagDrafts[row.track.uuid],
+               draft.conflictingKeys(with: TagFields(track: row.track)).contains(key) {
+                Text(String(ui: "현재 rekordbox: \(TagFields(track: row.track)[key])"))
+                    .textSelection(.enabled)
+                Text(String(ui: "내 초안: \(draft.fields[key])")).textSelection(.enabled)
+                HStack {
+                    Button(.ui("내 초안 유지")) { store.resolveTagConflict(key, keepingDraft: true, rows: rows) }
+                    Button(.ui("rekordbox 값 사용")) { store.resolveTagConflict(key, keepingDraft: false, rows: rows) }
+                }
+            }
         }
-        .id("\(key.rawValue)-\(store.selection.hashValue)")
     }
 }
 

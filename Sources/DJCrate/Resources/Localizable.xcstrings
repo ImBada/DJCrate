@@ -1981,30 +1981,18 @@
         }
       }
     },
-    "%lld곡을 연동 XML에 썼습니다 · rekordbox: rekordbox xml 새로고침 › \"DJCrate 반영\" › 곡 모두 선택 › Import To Collection → DJCrate 새 스냅샷(⟳)" : {
+    "%lld곡을 연동 XML에 썼습니다 · rekordbox: rekordbox xml 새로고침 › \"DJCrate 반영\" › 곡 모두 선택 › Import To Collection → DJCrate rekordbox와 동기화(⟳)" : {
       "localizations" : {
         "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Wrote %lld track to the link XML · In rekordbox: refresh rekordbox xml › \"DJCrate 반영\" › select all tracks › Import To Collection → New Snapshot (⟳) in DJCrate"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Wrote %lld tracks to the link XML · In rekordbox: refresh rekordbox xml › \"DJCrate 반영\" › select all tracks › Import To Collection → New Snapshot (⟳) in DJCrate"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wrote %lld tracks to the link XML · In rekordbox: refresh rekordbox xml › \"DJCrate 반영\" › select all tracks › Import To Collection → Sync with rekordbox (⟳) in DJCrate"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld曲を連携XMLに書き込みました · rekordbox：rekordbox xmlを更新 › 「DJCrate 반영」 › 曲をすべて選択 › コレクションにインポート → DJCrateで新しいスナップショット（⟳）"
+            "value" : "%lld曲を連携XMLに書き出しました · rekordbox: rekordbox xmlを更新 › 「DJCrate 반영」 › 全曲選択 › Import To Collection → DJCrateでrekordboxと同期（⟳）"
           }
         }
       }
@@ -6754,7 +6742,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Use rekordbox Value"
+            "value" : "Use rekordbox value"
           }
         },
         "ja" : {
@@ -6873,6 +6861,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxのビートグリッドでBPMが変わる流れ（例：175→128→175）"
+          }
+        }
+      }
+    },
+    "rekordbox 내용을 새로 읽고 편집 중인 초안을 보존합니다(⌘R)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reload rekordbox and preserve your drafts (⌘R)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxの内容を読み込み直し、編集中の下書きを保持します（⌘R）。"
           }
         }
       }
@@ -8897,6 +8901,22 @@
         }
       }
     },
+    "rekordbox와 동기화" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync with rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxと同期"
+          }
+        }
+      }
+    },
     "rekordbox의 iTunes 동기화 선택이 바뀌었습니다. 새로고침한 뒤 다시 선택하세요." : {
       "localizations" : {
         "en" : {
@@ -9335,18 +9355,18 @@
         }
       }
     },
-    "• DJCrate에서 새 스냅샷(⟳)을 누르면 곡마다 제대로 들어갔는지 자동으로 확인합니다." : {
+    "• DJCrate에서 rekordbox와 동기화(⟳)를 누르면 곡마다 제대로 들어갔는지 자동으로 확인합니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "• Click New Snapshot (⟳) in DJCrate to check automatically that each track was imported correctly."
+            "value" : "• Click Sync with rekordbox (⟳) in DJCrate to check automatically that each track was imported correctly."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "• DJCrateで新しいスナップショット（⟳）を押すと、曲ごとに正しく取り込まれたか自動で確認します。"
+            "value" : "• DJCrateでrekordboxと同期（⟳）を押すと、曲ごとに正しく取り込まれたか自動で確認します。"
           }
         }
       }
@@ -9699,6 +9719,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同じジャンル"
+          }
+        }
+      }
+    },
+    "같은 칸이 바뀐 %lld곡의 초안을 보존했습니다. 곡 정보에서 현재 값과 초안을 확인하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preserved drafts for %lld tracks with conflicting fields. Review the current values and drafts in Track Info."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ項目が変更された%lld曲の下書きを保持しました。曲情報で現在の値と下書きを確認してください。"
           }
         }
       }
@@ -13061,6 +13097,38 @@
         }
       }
     },
+    "내 초안 유지" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep my draft"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自分の下書きを保持"
+          }
+        }
+      }
+    },
+    "내 초안: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My draft: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自分の下書き: %@"
+          }
+        }
+      }
+    },
     "내보내지 못했습니다. 저장 위치와 권한을 확인하세요: %@" : {
       "localizations" : {
         "en" : {
@@ -13431,18 +13499,18 @@
         }
       }
     },
-    "다른 목록을 선택하거나 새 스냅샷으로 라이브러리를 다시 읽어 보세요." : {
+    "다른 목록을 선택하거나 rekordbox와 동기화로 라이브러리를 다시 읽어 보세요." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Select another list or take a new snapshot to reload the library."
+            "value" : "Select another playlist or reload the library using Sync with rekordbox."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "別のリストを選ぶか、新しいスナップショットを作成してライブラリを読み直してください。"
+            "value" : "別のプレイリストを選ぶか、rekordboxと同期でライブラリを読み込み直してください。"
           }
         }
       }
@@ -14425,22 +14493,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ライブラリのほとんどの曲より大きく聞こえます"
-          }
-        }
-      }
-    },
-    "라이브러리 사본을 새로 읽고 XML 가져오기 결과를 확인합니다(⌘R)." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reload a library snapshot and check XML import results (⌘R)."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ライブラリのコピーを読み直し、XMLのインポート結果を確認します（⌘R）。"
           }
         }
       }
@@ -18693,22 +18745,6 @@
         }
       }
     },
-    "새 스냅샷" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New Snapshot"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新しいスナップショット"
-          }
-        }
-      }
-    },
     "새 스냅샷을 뜨고 있습니다" : {
       "localizations" : {
         "en" : {
@@ -20325,6 +20361,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "書き込みの確認に失敗し、自動復元もできませんでした"
+          }
+        }
+      }
+    },
+    "쓰기가 끝난 뒤 다시 시도하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try again after writing finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込みが完了してからもう一度お試しください。"
           }
         }
       }
@@ -28879,6 +28931,38 @@
         }
       }
     },
+    "태그 초안을 저장하지 못했으니 초안 폴더의 접근 권한을 확인한 뒤 동기화하거나 쓰기를 다시 시도하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not save tag drafts. Check access to the drafts folder, then retry syncing or writing."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タグの下書きを保存できませんでした。下書きフォルダのアクセス権を確認してから、同期または書き込みを再試行してください。"
+          }
+        }
+      }
+    },
+    "태그 충돌을 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review the tag conflicts"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タグの競合を確認してください"
+          }
+        }
+      }
+    },
     "태그 편집" : {
       "localizations" : {
         "en" : {
@@ -30685,6 +30769,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "許可された解析・アートワークのパスではありません"
+          }
+        }
+      }
+    },
+    "현재 rekordbox 내용을 불러왔습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loaded the current rekordbox library"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のrekordboxライブラリを読み込みました"
+          }
+        }
+      }
+    },
+    "현재 rekordbox: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current rekordbox: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のrekordbox: %@"
           }
         }
       }

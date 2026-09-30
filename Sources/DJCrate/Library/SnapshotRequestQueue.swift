@@ -7,6 +7,7 @@ final class SnapshotRequestQueue {
         var force: Bool
         var quiet: Bool
         let refreshITunes: Bool
+        let synchronizingDrafts: Bool
         var operation: @MainActor (Bool, Bool) async -> Task<Void, Never>?
         var waiters: [CheckedContinuation<Task<Void, Never>?, Never>]
     }
@@ -23,17 +24,18 @@ final class SnapshotRequestQueue {
     }
 
     /// DB 작업만 직렬화한다. 후속 Music 작업은 대기열 밖에서 기다리되 병합한 호출도 완료를 기다린다.
-    func runWithFollowUp(force: Bool, quiet: Bool, refreshITunes: Bool,
+    func runWithFollowUp(force: Bool, quiet: Bool, refreshITunes: Bool, synchronizingDrafts: Bool = false,
                          operation: @escaping @MainActor (Bool, Bool) async -> Task<Void, Never>?) async {
-        let followUp = await runWork(force: force, quiet: quiet, refreshITunes: refreshITunes, operation: operation)
+        let followUp = await runWork(force: force, quiet: quiet, refreshITunes: refreshITunes, synchronizingDrafts: synchronizingDrafts, operation: operation)
         await followUp?.value
     }
 
-    private func runWork(force: Bool, quiet: Bool, refreshITunes: Bool,
+    private func runWork(force: Bool, quiet: Bool, refreshITunes: Bool, synchronizingDrafts: Bool,
                          operation: @escaping @MainActor (Bool, Bool) async -> Task<Void, Never>?) async -> Task<Void, Never>? {
         if isRunning {
             return await withCheckedContinuation { continuation in
-                if let last = pending.indices.last, pending[last].refreshITunes == refreshITunes {
+                if let last = pending.indices.last, pending[last].refreshITunes == refreshITunes,
+                   pending[last].synchronizingDrafts == synchronizingDrafts {
                     var queued = pending[last]
                     queued.force = queued.force || force
                     queued.quiet = queued.quiet && quiet
@@ -41,7 +43,7 @@ final class SnapshotRequestQueue {
                     queued.waiters.append(continuation)
                     pending[last] = queued
                 } else {
-                    pending.append(Pending(force: force, quiet: quiet, refreshITunes: refreshITunes,
+                    pending.append(Pending(force: force, quiet: quiet, refreshITunes: refreshITunes, synchronizingDrafts: synchronizingDrafts,
                                            operation: operation, waiters: [continuation]))
                 }
             }

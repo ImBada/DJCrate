@@ -40,7 +40,7 @@ enum RekordboxLink {
             "",
             String(ui: "XML을 만든 뒤 rekordbox에서:"),
             String(ui: "• \"rekordbox xml\" 옆 새로고침 → 재생 목록 \"DJCrate 반영\"(새 곡은 \"DJCrate 추가\") → 곡 모두 선택 → 오른쪽 클릭 › Import To Collection"),
-            String(ui: "• DJCrate에서 새 스냅샷(⟳)을 누르면 곡마다 제대로 들어갔는지 자동으로 확인합니다."),
+            String(ui: "• DJCrate에서 rekordbox와 동기화(⟳)를 누르면 곡마다 제대로 들어갔는지 자동으로 확인합니다."),
             "",
             String(ui: "처음 XML을 가져오기 전에 rekordbox › 파일 › 라이브러리 › 라이브러리 백업을 한 번 해 두세요."),
         ]

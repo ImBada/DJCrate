@@ -146,6 +146,32 @@ struct UsbStoreTests {
         #expect(taken.calls.count == 1)
     }
 
+    @Test("USB 곡의 태그 충돌 선택은 기존 초안·저장·실행 취소를 바꾸지 않는다", arguments: [false, true])
+    func usbTagConflictResolutionIsReadOnly(keepingDraft: Bool) throws {
+        var track = UsbTestData.track(1)
+        track.comment = "현재 USB 코멘트"
+        let row = try #require(UsbLibraryRows.collection(library: UsbTestData.library(tracks: [track]),
+                                                       volumeKey: "synthetic", mountPoint: "/fixture", badges: [:]).first)
+        #expect(row.isUsb && row.track.uuid.hasPrefix(UsbLibraryRows.idPrefix))
+        var draft = TagDraft(track: row.track)
+        draft.base.comment = "예전 코멘트"
+        draft.fields.comment = "내 초안"
+        #expect(draft.conflictingKeys(with: TagFields(track: row.track)).contains(.comment))
+        var saves = 0
+        let store = LibraryStore(settings: SettingsStore(defaults: UserDefaults(suiteName: "djc.test.usbtag.\(UUID())")!, persist: false),
+                                 resultHistory: WriteResultHistory(url: nil), saveTagDrafts: { _ in saves += 1 },
+                                 playlistDraftSaver: { _ in }, mergeDraftSaver: { _ in }, playlistImportURL: nil, stagingSaver: { _ in })
+        let undo = UndoManager()
+        store.undoManager = undo
+        // 보통 USB UUID는 로컬과 겹치지 않지만, 같은 키의 초안이 이미 있어도 읽기 전용 경로는 바꾸지 않는다.
+        store.tagDrafts[row.track.uuid] = draft
+        store.rowsByUUID[row.track.uuid] = row
+        store.resolveTagConflict(.comment, keepingDraft: keepingDraft, rows: [row])
+        #expect(store.tagDrafts[row.track.uuid] == draft)
+        #expect(saves == 0)
+        #expect(!undo.canUndo)
+    }
+
     // MARK: - 읽기 정책
 
     @Test("임시 DJC_HOME·--usb-selftest로 띄운 디버그 실행은 디스크 이미지만 읽는다")

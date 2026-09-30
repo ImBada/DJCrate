@@ -1,5 +1,8 @@
 @testable import DJCrate
 import DJCDomain
+import DJCStorage
+import DJCTestSupport
+import RekordboxKit
 import Foundation
 import Testing
 
@@ -43,4 +46,41 @@ struct TagReflectionTests {
         store.replaceTagDrafts([])
         #expect(saved.count == count, "넘길 초안이 없으면 저장하지 않는다")
     }
+    /// #159: 인스펙터(setTag)와 표 셀(applyTagEdits)의 공통 초안 저장·사본 쓰기를 확인한다.
+    @Test(arguments: [false, true])
+    func 코멘트는_초안에_영속하고_그리드없이_사본에_쓴다(tableCell: Bool) async throws {
+        let fixture = try RekordboxFixture()
+        let spec = TrackSpec()
+        try fixture.add(spec)
+        try fixture.execute("UPDATE djmdContent SET rb_data_status = 0 WHERE ID = ?", [.text(spec.id)])
+        let store = LibraryStore(
+            settings: SettingsStore(defaults: UserDefaults(suiteName: "djc.test.comment.\(UUID())")!, persist: false),
+            resultHistory: WriteResultHistory(url: nil), backupDirectory: fixture.backups,
+            playlistDraftSaver: { _ in }, mergeDraftSaver: { _ in }, playlistImportURL: nil, stagingSaver: { _ in })
+        await store.load(snapshot: fixture.database, arguments: ["test", "--db", fixture.database.path], environment: [:])
+        let row = try #require(store.rowsByUUID[spec.uuid])
+        let comment = "합성 코멘트 日本語\n둘째 줄"
+        if tableCell { store.applyTagEdits([(row, .comment, comment)]) }
+        else { store.setTag(.comment, comment, rows: [row]) }
+        DraftWriter.flush()
+        defer { try? TagDraftStore.remove(trackUUID: spec.uuid, directory: TagDraftStore.directory) }
+        let saved = try #require(TagDraftStore.load(trackUUID: spec.uuid))
+        #expect(saved.changedKeys == [.comment] && saved.fields.comment == comment)
+        #expect(store.writeTargets([row]).map(\.track.uuid) == [spec.uuid])
+        let database = fixture.database, shareRoot = fixture.shareRoot
+        let preview = try await Task.detached {
+            try await WritePreviewSnapshot.withCopy(from: database, shareRoot: shareRoot) { copy, share in
+                try RekordboxWriter.write(drafts: [], tags: [saved], to: copy, dryRun: true,
+                                          backups: copy.deletingLastPathComponent().appending(path: "backups"), shareRoot: share)
+            }
+        }.value
+        #expect(preview.tagWritten.count == 1 && preview.tagBlocked.isEmpty && preview.gridBlocked.isEmpty)
+        #expect(try RekordboxLibrary.load(snapshot: fixture.database).tracks.first?.comment != comment)
+        let report = try RekordboxWriter.write(drafts: [], tags: [saved], to: fixture.database, dryRun: false,
+                                               backups: fixture.backups, shareRoot: fixture.shareRoot)
+        #expect(report.tagWritten.count == 1 && report.tagBlocked.isEmpty && report.gridBlocked.isEmpty)
+        let library = try RekordboxLibrary.load(snapshot: fixture.database)
+        #expect(library.tracks.first?.comment == comment)
+    }
+
 }

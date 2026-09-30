@@ -39,6 +39,34 @@ struct RekordboxGridWriterTests {
                                   backups: fixture.backups, shareRoot: fixture.shareRoot)
     }
 
+    /// #159: 편집기(PQTZ 정수 ms)와 writer(PQT2 정밀 시각)의 BPM 역산 차이를 실제 변경으로 보지 않는다.
+    @Test func 짧고_빠른_구간은_정밀_소수가_있어도_그리드_충돌이_아니다() throws {
+        let fixture = try RekordboxFixture()
+        let first = AnlzBuilder.beats(bpm: 244, first: 500.3, count: 9)
+        let second = AnlzBuilder.beats(bpm: 128, first: first.last!.time + 60_000 / 244, count: 100)
+        let (track, _) = try makeTrack(fixture, beats: first + second)
+        var grid = try draft(fixture, track)
+        #expect(grid.base.count == 2)
+        #expect(abs(grid.base[0].bpm - 244) > 0.01)
+        grid.shift(by: 0.01)
+        let report = try write(fixture, grid)
+        #expect(report.gridWritten.count == 1 && report.gridBlocked.isEmpty)
+    }
+
+    @Test func 실제_그리드_변경은_정밀_소수와_관계없이_계속_막는다() throws {
+        let fixture = try RekordboxFixture()
+        let (track, beats) = try makeTrack(fixture)
+        var grid = try draft(fixture, track)
+        grid.shift(by: 0.01)
+        var changed = beats
+        for index in changed.indices { changed[index].time += 20 }
+        try fixture.putAnalysis(for: track, dat: AnlzBuilder.dat(beats: changed), ext: AnlzBuilder.ext(beats: changed))
+        let before = try Data(contentsOf: fixture.analysisURL(for: track))
+        let report = try write(fixture, grid)
+        #expect(report.gridWritten.isEmpty && report.gridBlocked.first?.reason?.contains("그리드가 바뀌었습니다") == true)
+        #expect(try Data(contentsOf: fixture.analysisURL(for: track)) == before)
+    }
+
     @Test func 이동만_하면_PQTZ만_바뀌고_PQT2는_비고_DB는_그대로() throws {
         let fixture = try RekordboxFixture(localUpdateCount: 700)
         let (track, _) = try makeTrack(fixture)
