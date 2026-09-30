@@ -8,10 +8,10 @@ import SwiftUI
 struct CueListView: View {
     @Environment(\.textScale) private var textScale
     @Bindable var deck: DeckModel
-    @AppStorage(SettingKeys.cueListFilter.name) private var storedFilter = SettingKeys.cueListFilter.defaultValue
+    @State private var storedFilter = ObservedSetting(SettingKeys.cueListFilter)
 
     private var filter: CueListFilter {
-        CueListFilter(rawValue: SettingKeys.cueListFilter.value(from: storedFilter)) ?? .all
+        CueListFilter(rawValue: storedFilter.value) ?? .all
     }
     private var visibleCues: [EditableCue] { (deck.draft?.cues ?? []).filter(filter.includes) }
     private var changedCueIDs: Set<EditableCue.ID> {
@@ -24,6 +24,7 @@ struct CueListView: View {
     }
 
     var body: some View {
+        let _ = PerfProbe.body(Self.self)
         let cues = deck.draft?.cues ?? []
         let hotCount = cues.filter { if case .hot = $0.kind { true } else { false } }.count
         let changedIDs = changedCueIDs
@@ -33,7 +34,7 @@ struct CueListView: View {
                 let segmentWidth = max(0, (geometry.size.width - 8) / 3)
                 HStack(spacing: 2) {
                     ForEach(CueListFilter.allCases, id: \.self) { option in
-                        Button { storedFilter = option.rawValue } label: {
+                        Button { storedFilter.value = option.rawValue } label: {
                             filterLabel(option, total: cues.count, hot: hotCount)
                                 .font(.scaled(.caption, textScale).bold())
                                 .lineLimit(1)

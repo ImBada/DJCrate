@@ -13,8 +13,7 @@ struct DeckView: View {
     let store: LibraryStore
     @Bindable var deck: DeckModel
     var waveformHeight: Double
-    @State private var width: CGFloat = 1400
-    @State private var middleHeight: CGFloat = 320
+    var widthClass: DeckWidthClass
 
     private var waveGroupHeight: Double {
         max(TextScale.length(190, scale: textScale),
@@ -22,14 +21,15 @@ struct DeckView: View {
                 + TextScale.length(28, scale: textScale))
     }
     /// 글자 배율의 절반만큼 넓힌다(큐 이름이 보이게 하되 파형 자리를 너무 빼앗지 않게).
-    private var cueListWidth: CGFloat { TextScale.length(width < 1400 ? 250 : 290, scale: 1 + (textScale - 1) / 2) }
+    private var cueListWidth: CGFloat { TextScale.length(widthClass.cueListWidth, scale: 1 + (textScale - 1) / 2) }
     private var leftRailWidth: CGFloat { TextScale.length(66, scale: textScale) }
     private var rightRailWidth: CGFloat { TextScale.length(58, scale: textScale) }
 
     var body: some View {
+        let _ = PerfProbe.body(Self.self)
+        let _ = PerfProbe.recordWaveformHeight(waveformHeight)
         if let row = deck.row {
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 8) {
                     DeckInfoHeader(deck: deck, row: row, coverSize: TextScale.length(66, scale: textScale))
                     HStack(alignment: .top, spacing: 8) {
                         DeckSideControls(store: store, deck: deck, availableHeight: waveGroupHeight)
@@ -107,14 +107,16 @@ struct DeckView: View {
                         .frame(height: TextScale.length(28, scale: textScale))
                         .padding(.leading, leftRailWidth + 8)
                         .padding(.trailing, PerfProbe.hidden.contains("meter") ? 0 : rightRailWidth + 8)
-                }
-                .frame(minWidth: 0, maxWidth: .infinity, alignment: .topLeading)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { middleHeight = $0 }
+            }
+            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 220, alignment: .topLeading)
+            // 큐 목록 높이는 상태로 다시 재지 않고 가운데 열이 정한 배치에 맞춘다(#138).
+            .padding(.trailing, cueListWidth + 16)
+            .overlay(alignment: .topTrailing) {
                 CueListView(deck: deck)
-                    .frame(width: cueListWidth, height: max(middleHeight, 220))
+                    .frame(width: cueListWidth)
+                    .frame(maxHeight: .infinity)
             }
             .padding(Spacing.edge)
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
             // 단축키는 창 전체에서 KeyRouter가 받는다(포커스 위치와 무관).
         } else {
             ContentUnavailableView(.ui("덱에 곡을 불러오세요"), systemImage: "music.note",

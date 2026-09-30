@@ -137,6 +137,7 @@ private struct TrackListView: NSViewRepresentable {
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
+        PerfProbe.count("TrackListView.update")
         context.coordinator.updateWriteLock(store.isWritingRekordbox)
         context.coordinator.updateTextScale(context.environment.textScale)
         context.coordinator.updateCommentPreset(store.commentPreset)

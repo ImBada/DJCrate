@@ -11,6 +11,7 @@ struct OverviewWaveformView: View {
     @State private var scrubbing = false
 
     var body: some View {
+        let _ = PerfProbe.body(Self.self)
         GeometryReader { geo in
             let duration = max(deck.duration, 1)
             let metrics = WaveformMetrics(scale: textScale)

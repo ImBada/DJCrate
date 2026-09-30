@@ -67,9 +67,10 @@ enum UIPerfSelfTest {
 /// 메인 런루프가 깨어 일한 구간과 화면 갱신(디스플레이 링크) 시각을 모은다.
 @MainActor
 final class UIPerfRecorder: NSObject {
-    private(set) var busy: [(start: Double, end: Double)] = []
+    private(set) var busy: [(start: Double, end: Double, cpu: Double)] = []
     private(set) var frames: [Double] = []
     private var wokeAt: Double = 0
+    private var wokeCPU: Double = 0
     private var observer: CFRunLoopObserver?
     private var link: CADisplayLink?
 
@@ -80,7 +81,13 @@ final class UIPerfRecorder: NSObject {
                 let now = CACurrentMediaTime()
                 MainActor.assumeIsolated {
                     guard let self else { return }
-                    if activity == .afterWaiting { self.wokeAt = now } else if self.wokeAt > 0 { self.busy.append((self.wokeAt, now)); self.wokeAt = 0 }
+                    if activity == .afterWaiting {
+                        self.wokeAt = now
+                        self.wokeCPU = UIPerfRecorder.threadCPU()
+                    } else if self.wokeAt > 0 {
+                        self.busy.append((self.wokeAt, now, UIPerfRecorder.threadCPU() - self.wokeCPU))
+                        self.wokeAt = 0
+                    }
                 }
             }
             CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
@@ -96,10 +103,21 @@ final class UIPerfRecorder: NSObject {
 
     func reset() { busy = []; frames = [] }
 
+    /// 메인 스레드가 쓴 CPU 시간(초). 다른 프로세스 때문에 기다린 시간은 빠진다(부하가 높을 때도 견줄 수 있다).
+    static func threadCPU() -> Double { Double(clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID)) / 1_000_000_000 }
+
     /// `from`부터 `to`까지의 결과. 지금 일하는 중인 구간(측정 코드 자신)은 `now`로 닫는다.
     func result(from start: Double, to end: Double, sync: Double) -> UIPerfSample {
         var spans = busy.filter { $0.end > start && $0.start < end }.map { (max($0.start, start), min($0.end, end)) }
-        if wokeAt > 0, wokeAt < end { spans.append((max(wokeAt, start), min(CACurrentMediaTime(), end))) }
+        // 창에 걸친 구간은 걸친 비율만큼만 CPU 시간에 넣는다.
+        var cpu = busy.filter { $0.end > start && $0.start < end }.reduce(0.0) {
+            let whole = $1.end - $1.start
+            return $0 + ($1.cpu * (whole > 0 ? (min($1.end, end) - max($1.start, start)) / whole : 1))
+        }
+        if wokeAt > 0, wokeAt < end {
+            spans.append((max(wokeAt, start), min(CACurrentMediaTime(), end)))
+            cpu += UIPerfRecorder.threadCPU() - wokeCPU
+        }
         let total = spans.reduce(0) { $0 + ($1.1 - $1.0) }
         let longest = spans.map { $0.1 - $0.0 }.max() ?? 0
         // 조작 뒤 메인 스레드가 100ms 넘게 쉬기 직전까지(애니메이션 프레임처럼 짧게 이어지는 일도 포함)
@@ -110,7 +128,7 @@ final class UIPerfRecorder: NSObject {
         }
         let ticks = frames.filter { $0 >= start && $0 <= end }
         let gaps = zip(ticks.dropFirst(), ticks).map { $0 - $1 }
-        return UIPerfSample(sync: sync * 1000, busy: total * 1000, longest: longest * 1000, settled: (settled - start) * 1000,
+        return UIPerfSample(sync: sync * 1000, busy: total * 1000, cpu: cpu * 1000, longest: longest * 1000, settled: (settled - start) * 1000,
                             maxFrameGap: (gaps.max() ?? 0) * 1000, slowFrames: gaps.filter { $0 > 0.025 }.count)
     }
 }
@@ -121,6 +139,8 @@ struct UIPerfSample {
     var sync: Double
     /// 창 안에서 메인 스레드가 일한 시간 합
     var busy: Double
+    /// 그중 메인 스레드가 실제로 CPU를 쓴 시간(다른 프로세스 때문에 기다린 시간은 뺀다)
+    var cpu: Double
     /// 한 번에 가장 길게 일한 시간(그동안 화면이 멈춘다)
     var longest: Double
     /// 조작부터 메인 스레드가 조용해질 때까지
@@ -174,7 +194,7 @@ final class UIPerfRunner {
             return sorted.isEmpty ? 0 : sorted[sorted.count / 2]
         }
         func pair(_ values: [Double]) -> String { String(format: "%.1f(최대 %.1f)", median(values), values.max() ?? 0) }
-        log("\(name) ×\(samples.count): 호출 \(pair(samples.map(\.sync)))ms · 메인 일한 합 \(pair(samples.map(\.busy)))ms"
+        log("\(name) ×\(samples.count): 호출 \(pair(samples.map(\.sync)))ms · 메인 일한 합 \(pair(samples.map(\.busy)))ms(CPU \(pair(samples.map(\.cpu)))ms)"
             + " · 한 번 최대 \(pair(samples.map(\.longest)))ms · 조용해질 때까지 \(pair(samples.map(\.settled)))ms"
             + " · 프레임 최대 간격 \(pair(samples.map(\.maxFrameGap)))ms · 25ms 넘은 프레임 \(samples.map(\.slowFrames).reduce(0, +))")
     }
@@ -219,6 +239,7 @@ final class UIPerfRunner {
         }
         for name in names where name != "launch" {
             recorder.reset()
+            PerfProbe.resetBodyCounts()
             // Instruments(Time Profiler)에서 조작별 구간을 나눠 보게 관심 지점 구간을 남긴다.
             let state = signposter.beginInterval("ui-perf", id: signposter.makeSignpostID(), "\(name, privacy: .public)")
             defer { signposter.endInterval("ui-perf", state) }
@@ -243,6 +264,7 @@ final class UIPerfRunner {
             case "grid": await gridBatch()
             default: log("모르는 조작: \(name)")
             }
+            if let counts = PerfProbe.bodySummary() { log("  본문 계산 횟수(\(name)): \(counts)") }
         }
         if deck.isPlaying { deck.togglePlay() }
         return !failed
@@ -287,15 +309,17 @@ final class UIPerfRunner {
         guard let window, let original = originalFrame else { return }
         // 끌어서 크기 바꾸기처럼 16ms마다 조금씩(폭 −300 → 되돌리기)
         var costs: [Double] = []
+        var cpuCosts: [Double] = []
         recorder.reset()
         let start = CACurrentMediaTime()
         for step in 0..<40 {
             let offset = CGFloat(step < 20 ? step : 39 - step) * 15
             var frame = original
             frame.size.width -= offset
-            let t0 = CACurrentMediaTime()
+            let t0 = CACurrentMediaTime(), c0 = UIPerfRecorder.threadCPU()
             window.setFrame(frame, display: true)
             costs.append((CACurrentMediaTime() - t0) * 1000)
+            cpuCosts.append((UIPerfRecorder.threadCPU() - c0) * 1000)
             await wait(0.016)
         }
         let whole = recorder.result(from: start, to: CACurrentMediaTime(), sync: 0)
@@ -304,8 +328,10 @@ final class UIPerfRunner {
         UserDefaults.standard.set(true, forKey: SettingKeys.sidebarVisible.name)
         await wait(0.5)
         let sorted = costs.sorted()
-        log(String(format: "창 크기 바꾸기 40단계: 한 단계 평균 %.1fms · 중앙 %.1fms · 최대 %.1fms · 프레임 최대 간격 %.1fms · 25ms 넘은 프레임 %d",
-                   costs.reduce(0, +) / Double(costs.count), sorted[sorted.count / 2], sorted.last ?? 0, whole.maxFrameGap, whole.slowFrames))
+        let cpuSorted = cpuCosts.sorted()
+        log(String(format: "창 크기 바꾸기 40단계: 한 단계 평균 %.1fms · 중앙 %.1fms · 최대 %.1fms · 프레임 최대 간격 %.1fms · 25ms 넘은 프레임 %d · CPU 평균 %.1fms · CPU 중앙 %.1fms",
+                   costs.reduce(0, +) / Double(costs.count), sorted[sorted.count / 2], sorted.last ?? 0, whole.maxFrameGap, whole.slowFrames,
+                   cpuCosts.reduce(0, +) / Double(cpuCosts.count), cpuSorted[cpuSorted.count / 2]))
     }
 
     // MARK: - 목록

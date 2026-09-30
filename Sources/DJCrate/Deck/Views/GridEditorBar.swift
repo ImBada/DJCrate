@@ -17,6 +17,7 @@ struct GridEditorBar: View {
     private var bpmWarning: String { String(ui: "BPM은 20…999 사이로 입력하세요.") }
 
     var body: some View {
+        let _ = PerfProbe.body(Self.self)
         let controlHeight = CGFloat(TextScale.length(24, scale: textScale))
         VStack(alignment: .leading, spacing: 8) {
             FlowLayout(spacing: 12, justified: true, centerItems: true) {
