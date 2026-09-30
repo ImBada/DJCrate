@@ -15,6 +15,10 @@ rekordbox 7용 DJ 라이브러리 관리 macOS 앱 DJCrate(약칭 DJC, CLI `djc`
 - rekordbox 규칙은 rekordbox 화면에서 편집한 결과 파일을 비교해서만 알아낸다. rekordbox 실행 파일(본체·rb_http_server 등)은 strings·디스어셈블을 포함해 분석하지 않는다.
 - 라이선스가 없는 외부 코드·문서는 쓰지 않는다. 외부 코드를 옮기면 라이선스를 확인하고 THIRD_PARTY_NOTICES.md에 더한다.
 - 내보내는 파일(USB 등)은 칸 단위로 만든다. rekordbox가 만든 파일의 페이지·표 바이트를 통째로 넣지 않는다.
+- USB 쓰기는 `UsbWriter.write` 한 곳으로만 한다. rekordbox·rekordboxAgent가 켜져 있으면 USB에도 쓰지 않는다.
+- USB의 DB(`exportLibrary.db`·`export.pdb`·`exportExt.pdb`)는 Mac 사본에서만 연다. USB 위에서 SQLite를 열지 않는다.
+- 실물 USB 쓰기는 코드에서 닫혀 있다(`UsbPhysicalWriteGate.buildEnabled`). 시험 쓰기는 `djc lab usb-image`로 만든 디스크 이미지에만 한다. 이미지·lab 출력은 임시 폴더 아래만(`UsbScratchPath`).
+- `PIONEER/extracted`·`PIONEER/CDP`·`djprofile.nxs`는 열거·읽기·복사하지 않는다.
 
 ## 명령
 
@@ -37,8 +41,22 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 .build/debug/djc playlist-write --db <사본.db> [--dry-run] <편집.json>        # 재생 목록 편집(JSON), 사본에만
 .build/debug/djc lab                                   # 실험 명령 목록(sql·loop-repro·seekinfo-check …)
 .build/debug/djc lab sql <사본.db> "SELECT …"           # 사본에 읽기 전용 질의
+.build/debug/djc usb-export --volume <마운트> --db <사본.db> (--playlist <ID>… | --tracks <ID,…>) [--dry-run] [--snapshot-time <ISO 8601>]   # 빈 USB에 두 형식으로 내보내기(지금은 디스크 이미지만, 예: --volume $DJC_HOME/mnt)
+.build/debug/djc usb-edit --volume <마운트> (<편집.json> | --draft) --db <사본.db> [--dry-run] [--snapshot-time <ISO 8601>]   # 라이브러리가 있는 USB에 곡 더하기·빼기·갱신·재생 목록 편집(지금은 디스크 이미지만, JSON 모양은 docs/cli.md)
+.build/debug/djc usb-restore --volume <마운트> [--backup <폴더>] [--discard-device-changes]   # USB 쓰기를 그 전 백업으로 되돌리기
+.build/debug/djc usb-recover --volume <마운트> [--discard-temp]                             # 끝나지 않은 USB 쓰기를 마저 쓰거나 되돌리기
+.build/debug/djc usb-info <볼륨|폴더> [--json]                                             # USB 읽기만: 형식·곡 수·두 형식 일치·분석 파일·경고(실물은 쓰기 금지 목록 등록 뒤에만)
+.build/debug/djc lab usb-image create|attach|detach|info <이미지>   # 임시 폴더 아래 FAT32 디스크 이미지(attach는 --mount <폴더>)
+.build/debug/djc lab usb-image seed --image <이미지> --from <폴더>   # 붙인 이미지에 폴더 내용을 데이터만 복사
+.build/debug/djc lab usb-tree <루트>                                 # USB 트리(NFC 경로·크기·SHA-256, 마지막 줄 ._ 수)
+.build/debug/djc lab usb-diff <A> <B> [--onelibrary|--device-library] [--files] [--mtime] [--anlz] [--ignore-anlz-folder] [--ignore-ids] [--skip …]   # 두 USB 폴더 비교(모델·파일 트리·ANLZ 태그, 값·경로 없이, --mtime은 FAT 2초 단위)
+.build/debug/djc lab usb-rebuild <USB 폴더> <출력 폴더>              # USB를 읽은 모델로 DB 셋만 새 내보내기 모양으로 다시 만들기(usb-diff --ignore-ids로 비교)
+.build/debug/djc lab usb-anlz-relocate <USB 사본> --track <id> --folder <P???/????????> [--db-only|--files-only|--decoy-slot0|--cue-variant]   # 기기 실험용: 한 곡의 분석 파일·DB 경로를 어긋나게(임시 폴더 사본에만)
+.build/debug/djc lab usb-write-check --volume <마운트>               # 합성 묶음을 디스크 이미지에 써 보고 다시 붙여 검증
+.build/debug/djc lab usb-commit-crash --image <빈 이미지> --repeat N # 쓰는 도중 강제 분리 → 회복을 되풀이
 ```
 
+- USB 쓰기 시험은 `usb-image`로 만든 디스크 이미지에만 한다. rekordbox가 켜져 있으면 이미지 명령(만들기·붙이기·채우기·쓰기 시험)은 거부된다. 이미지·마운트 지점은 임시 폴더 아래만, `DJC_HOME=<임시 폴더>`를 함께 준다.
 - 앱 개발용 실행 인자: `--db <스냅샷>`(그 사본을 연다), `--select <ContentID>`(곡을 골라 둔다).
 - 환경 변수: `DJC_HOME`(초안·백업 폴더를 바꿈), `DJC_REKORDBOX_DIR`(rekordbox 폴더 사본), `DJC_DB`(열 스냅샷), `DJC_IDLE_SECONDS`(재생 멈춘 뒤 엔진 끄기까지, 설정 › 일반보다 먼저).
 
@@ -70,9 +88,11 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 | `--scroll-perf` | 재생 중 목록 스크롤 때 프레임 간격 | `--perf-hide=zoom,label,…`로 A/B |
 | `--ui-perf=all` | 조작마다(사이드바·인스펙터 열고 닫기, 창 크기, 스크롤, 선택, 사이드바 항목, 정렬, 검색, 덱에 올리기, 확대·축소, 스크럽, 재생, 태그 시트, 곡 편집 창, 쓰기 미리 보기) 메인 스레드 일한 시간·프레임 간격. `--ui-perf=sidebar,sort`처럼 골라 재고, 조작마다 관심 지점 구간을 남겨 `xctrace` Time Profiler로 원인을 나눠 본다. 조작마다 주요 뷰 본문이 다시 계산된 횟수(`PerfProbe.body`)와 메인 스레드 CPU 시간도 찍고, `--perf-trace-body`는 다시 계산된 이유를 찍는다. `grid`(그리드 일괄 추정 중 메인 스레드)·`drafts`·`capture`는 `all`에 없다. `--ui-perf-delay=<초>`는 조작 전에 기다려 `xctrace record --attach <PID>`를 붙일 시간을 준다 | `DJC_UI_PERF_FIXTURE=<폴더> swift test --filter UIPerfFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로 |
 | `--edit-selftest` | 곡 편집 창: 창 재생기(스페이스바·시킹·이음새 듣기, 덱은 그대로)·넣기·자르기·복제·옮기기·지우기와 편집 메뉴 실행 취소·확대 키·실제 마우스 끌기(클립 끝 다듬기·원곡 구간 끌어 넣기, 앱이 앞에 있을 때만)·렌더·추가한 곡으로 이동·덱에 편집본 | `EditLayoutFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로 |
+| `--usb-selftest` | 합성 라이브러리 → 디스크 이미지 내보내기 → 꺼내기·다시 붙여 확인 → USB 편집(곡 빼기·목록 만들기·이름 바꾸기 초안 → 미리 보기 → 쓰기 → 다시 읽기 → 되돌리기, "USB 시험 편집 통과" 줄) → 되돌리기("USB 시험 통과" 줄) | rekordbox 꺼짐, `DJC_HOME` 임시 폴더, `--db <스냅샷 사본>`(`DJC_HOME`은 스냅샷을 옮기지 않는다). 앱 없이 같은 흐름: `DJC_USB_SELFTEST_SCRATCH=<임시 폴더> swift test --filter UsbSelfTestScenarioCapture` |
 
 예: `DJC_HOME=$(mktemp -d) .build/debug/DJCrate --db <스냅샷> --select 32395449 --loop-selftest 2>&1 | grep "루프 시험"`
 
+- USB 쓰기 전 과정은 디스크 이미지로 확인한다(임시 `DJC_HOME`, rekordbox가 꺼져 있을 때만): `lab usb-image create` → `attach --mount` → `lab usb-write-check`("USB 쓰기 시험 통과" 줄) → `usb-restore`로 쓰기 전 트리(`lab usb-tree` 비교) → `detach`. 강제 분리는 `lab usb-commit-crash --image <붙이지 않은 빈 이미지>`("N/N 파일마다 옛것 또는 새것, 회복 N/N" 줄). 내보내기는 붙인 빈 이미지에 `usb-export --dry-run` → `usb-export`("결과: 썼습니다" 줄) → `usb-info --json`(두 형식, `roundTripOK` true, 경고 없음) → `lab usb-rebuild`·`lab usb-diff … --ignore-ids`("차이 0"). 수정은 내보낸 이미지에 `usb-edit … --dry-run`(트리 그대로) → `usb-edit`(편집별 결과 줄) → `usb-info --json` → `lab usb-rebuild`·`usb-diff --ignore-ids`("차이 0") → `usb-restore`(트리가 쓰기 전과 같음). 끝나면 `hdiutil info`에 그 폴더의 이미지가 남지 않아야 한다.
 - 결과는 추측하지 말고 명령 출력(통과/실패 줄, 수치)을 보여 준다.
 - 새 앱 인자는 `--이름=값` 한 덩어리로 만든다. 값을 따로 쓴 `--perf-hide zoom`은 AppKit이 값을 열 파일로 보고 앱이 멈췄다.
 
@@ -89,11 +109,17 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
   - `Library/`: `LibraryStore`(+Writing·Staging·Tags), `TrackTable`(NSTableView), 태그 편집
   - `Reflection/`: `ReflectionCoordinator`(미리 보기 → 확인 → 쓰기 → 토스트), 토스트, XML 연동
   - `App/`: 창·사이드바·`KeyRouter`(단축키). `Settings/`: 설정 창(⌘,)·설정 저장소(`SettingsStore`, 이름·기본값은 `DJCDomain/Settings`). `Diagnostics/`: 자가 테스트·성능 기록(디버그 전용)
+- USB 라이브러리(`.claude/rules/usb-write.md`, `docs/usb-internals.md`)
+  - `Sources/DJCDomain/Usb/`: 형식·확인 안 된 규칙(`UsbProvisionalRule`)·볼륨 정책·실물 쓰기 관문·막힘·오류·USB 경로 규칙(`UsbLayout`)
+  - `Sources/RekordboxKit/Usb/`: USB 루트 순회·지문, OneLibrary·Device Library 읽기, ANLZ 변환. 쓰기는 `Usb/Write/`(쓰기 커버리지 80%)
+  - `Sources/DJCStorage/Usb/`: USB 초안·세션·백업 경로, 실험 도구의 임시 폴더 제한(`UsbScratchPath`)
+  - `Sources/DJCrate/Usb/`: USB 화면(보기·내보내기·고치기)
 - `Sources/djc/` — CLI. `Commands/`(늘 쓰는 명령), `Lab/`(규칙을 알아낼 때 쓴 실험, `djc lab …`)
 - `Tests/` — 타깃별 테스트 + `Support/`(rekordbox 픽스처·합성 ANLZ·합성 음원, 실데이터 없음)
 - 사용자 데이터: `~/Library/Application Support/DJCrate/`
   - 초안: `cue-drafts/`, `grid-drafts/`, `gain-drafts.json`, `tag-drafts/`, `playlist-drafts.json`(재생 목록 편집, 순서대로)
   - 그 밖: `staged.json`, `snapshots/`, `rekordbox-backups/`, 캐시(`analysis/`, `waveforms/`, `loudness.json`)
+  - USB: `usb-backups/`, `usb-snapshots/`(USB DB의 Mac 사본), `usb-drafts/`, `usb-sessions/`(저널·잠금), `usb-staging/`
 
 ## 핵심 설계 결정 (코드만 봐서는 모르는 것)
 

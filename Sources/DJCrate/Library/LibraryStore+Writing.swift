@@ -29,7 +29,11 @@ extension LibraryStore {
     /// - Parameter playlists: 재생 목록 초안도 함께 볼지(곡 초안과 달리 곡을 골라 나누지 않는다)
     func previewWrite(rows: [TrackRow], playlists: Bool) async throws -> WritePreview {
         DraftWriter.flush()
+        retryFailedTagSaves()
         let targets = writeTargets(rows)
+        guard failedTagSaves().isDisjoint(with: targets.map { $0.track.uuid }) else {
+            throw DJCError.writeRefused(DraftWriter.tagSaveFailureMessage)
+        }
         let uuids = Set(targets.map { $0.track.uuid })
         let merges = mergeDrafts.filter { $0.members.contains { uuids.contains($0.trackUUID) } }
         // 자동 큐를 빼고 만든 옛 초안에는 곡의 자동 큐를 채운다(#145, 쓰기도 같은 일을 한다).
@@ -156,7 +160,7 @@ extension LibraryStore {
             tagDrafts[draft.trackUUID] = draft.hasChanges ? draft : nil
             updateEdited(draft.trackUUID)
         }
-        saveTagDrafts(drafts)
+        persistTagDrafts(drafts)
         tagRevision += 1
         if case .pending = sidebar { refreshBase() }
     }
@@ -191,10 +195,13 @@ extension LibraryStore {
     }
 
     /// 백업 뒤 rekordbox에서 라이브러리가 바뀌었는지(되돌리면 그 변경도 사라진다).
+    /// 명시한 사본으로 연 창은 스냅샷을 뜨지 않으므로 모른다(nil).
     func libraryChangedSince(_ backup: RekordboxWriter.Backup) async -> Bool? {
-        guard let expected = backup.finalUpdateCount else { return nil }
+        guard Self.snapshotTakeAllowed(arguments: launchArguments, environment: launchEnvironment),
+              let expected = backup.finalUpdateCount else { return nil }
+        let take = takeLiveSnapshot
         return try? await Task.detached {
-            let snapshot = try LibrarySnapshot.take()
+            let snapshot = try take(false)
             return try RekordboxWriter.updateCount(of: snapshot) != expected
         }.value
     }

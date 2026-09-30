@@ -35,6 +35,8 @@ struct TrackRow: Identifiable, Hashable, Sendable {
     }
     var playlistOccurrence: PlaylistOccurrence?
     var playlistTrackNumber: Int? { playlistOccurrence?.number }
+    /// USB 곡의 로컬 대비 갱신 상태(USB 목록에서만, `UsbLibraryRows`)
+    var usbSync: UsbSyncStatus?
     var id: String { historyEntry.map { "history:\($0.id)" } ?? playlistOccurrence?.id ?? track.id }
     /// DJCrate에 추가했지만 아직 rekordbox 컬렉션에 없는 곡.
     var isStaged: Bool { track.id.hasPrefix("djc-") }

@@ -30,7 +30,8 @@ struct Command: Sendable {
 struct UsageError: Error {}
 
 enum CLI {
-    static let lab = CueLab.all + GridLab.all + AudioLab.all + TrackLab.all + EditLab.all + PlaylistLab.all + CipherLab.all
+    static let lab = CueLab.all + GridLab.all + AudioLab.all + TrackLab.all + EditLab.all + PlaylistLab.all + CipherLab.all + UsbLab.all
+        + UsbReadLab.all + UsbAnlzLab.all + UsbPlanLab.all + UsbImageLab.all + UsbExportLab.all + UsbSettingLab.all
 
     static let usage = String(ui: """
         DJCrate(djc) — rekordbox DJ 라이브러리 관리 도구
@@ -89,7 +90,8 @@ enum CLI {
 // 새 읽기 명령과 JSON 조회는 옛 데이터 폴더를 옮기지도 않는다.
 let arguments = Array(CommandLine.arguments.dropFirst())
 if arguments.first != "lab" { CLILocalization.configure() }
-if arguments.first != "draft", !ReadCommands.names.contains(arguments.first ?? ""), !ReadCommands.handlesJSON(arguments) {
+if arguments.first != "draft", arguments.first != "usb-info", !ReadCommands.names.contains(arguments.first ?? ""),
+   !ReadCommands.handlesJSON(arguments) {
     LegacyMigration.run()
 }
 

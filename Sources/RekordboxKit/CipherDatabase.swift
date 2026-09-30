@@ -2,6 +2,36 @@ import DJCDomain
 import Foundation
 import SQLCipher
 
+/// SQLCipher 키. 둘 다 `PRAGMA key = '<키>'`로 넣으므로 글자를 좁혀 SQL 문자열에 넣어도 안전하게 한다.
+public enum CipherKey: Sendable {
+    /// 로컬 `master.db`: 16진수 글자만
+    case hex(String)
+    /// USB OneLibrary(`exportLibrary.db`): `[A-Za-z0-9]`만, 빈 문자열 금지
+    case passphrase(String)
+
+    /// `PRAGMA key` 문장. 허용하지 않는 글자가 있으면 `keyDerivationFailed`
+    func pragma() throws -> String {
+        switch self {
+        case let .hex(key):
+            guard key.allSatisfy(\.isHexDigit) else { throw DJCError.keyDerivationFailed }
+            return "PRAGMA key = '\(key)'"
+        case let .passphrase(key):
+            guard !key.isEmpty, key.unicodeScalars.allSatisfy({ $0.isASCII && CharacterSet.alphanumerics.contains($0) })
+            else { throw DJCError.keyDerivationFailed }
+            return "PRAGMA key = '\(key)'"
+        }
+    }
+}
+
+/// DB를 여는 방식
+public enum OpenMode: Sendable {
+    /// 읽기 전용(`query_only`)
+    case readOnly
+    case readWrite
+    /// 새 파일만 만든다. 이미 있거나 rekordbox 라이브러리 폴더(`~/Library/Pioneer`) 아래면 실패
+    case create
+}
+
 /// SQLCipher C API를 감싼 연결. 기본은 읽기 전용이고 스냅샷 사본을 연다.
 /// 쓰기 연결(`writable`)은 `RekordboxWriter`만 쓴다.
 public final class CipherDatabase {
@@ -13,23 +43,34 @@ public final class CipherDatabase {
     /// 기다리게 하므로, 여는 곳마다 먼저 거치면 초기화가 끝난 뒤에만 열린다.
     private static let sqlcipherReady: Void = { _ = sqlite3_initialize() }()
 
-    public init(path: String, key: String?, writable: Bool = false) throws {
+    /// 기존 호출(16진수 키)은 이 모양 그대로 쓴다.
+    public convenience init(path: String, key: String?, writable: Bool = false) throws {
+        try self.init(path: path, key: key.map { .hex($0) }, mode: writable ? .readWrite : .readOnly)
+    }
+
+    public init(path: String, key: CipherKey?, mode: OpenMode) throws {
+        // 키 글자는 파일을 열기 전에 본다(거부할 키로 새 파일을 만들지 않게).
+        let pragma = try key?.pragma()
+        let flags: Int32
+        switch mode {
+        case .readOnly: flags = SQLITE_OPEN_READONLY
+        case .readWrite: flags = SQLITE_OPEN_READWRITE
+        case .create:
+            try Self.checkNewFile(path)
+            flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
+        }
         Self.sqlcipherReady
-        guard sqlite3_open_v2(path, &handle, writable ? SQLITE_OPEN_READWRITE : SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        guard sqlite3_open_v2(path, &handle, flags, nil) == SQLITE_OK else {
             let message = handle.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
             sqlite3_close_v2(handle)
             handle = nil  // deinit이 한 번 더 닫지 않도록
             throw DJCError.databaseOpenFailed(path: path, message: message)
         }
-        if let key {
-            // 키는 16진수 문자열만 허용하므로 SQL 문자열에 넣어도 안전하다.
-            guard key.allSatisfy(\.isHexDigit) else { throw DJCError.keyDerivationFailed }
-            try execute("PRAGMA key = '\(key)'")
-        }
-        if writable {
-            sqlite3_busy_timeout(handle, 2000)
-        } else {
+        if let pragma { try execute(pragma) }
+        if mode == .readOnly {
             try execute("PRAGMA query_only = ON")
+        } else {
+            sqlite3_busy_timeout(handle, 2000)
         }
         try? execute("PRAGMA cache_size = -65536")
         try? execute("PRAGMA temp_store = MEMORY")
@@ -44,9 +85,39 @@ public final class CipherDatabase {
         sqlite3_close_v2(handle)
     }
 
+    /// 새 DB 자리 확인: 이미 있는 파일(링크 포함)이나 rekordbox 라이브러리 폴더 아래는 거부한다.
+    private static func checkNewFile(_ path: String) throws {
+        var info = stat()
+        if lstat(path, &info) == 0 {
+            throw DJCError.databaseOpenFailed(path: path, message: String(ui: "이미 있는 파일이라 새 DB를 만들지 않았습니다"))
+        }
+        let name = (path as NSString).lastPathComponent
+        let parentPath = (path as NSString).deletingLastPathComponent
+        guard !name.isEmpty, name != ".", name != "..",
+              let parent = UsbScratchRoots.realPath(parentPath.isEmpty ? "." : parentPath)
+        else {
+            throw DJCError.databaseOpenFailed(path: path, message: String(ui: "새 DB를 만들 폴더가 없습니다"))
+        }
+        if isUnderPioneerLibrary((parent == "/" ? "" : parent) + "/" + name) {
+            throw DJCError.databaseOpenFailed(path: path, message: String(ui: "rekordbox 라이브러리 폴더에는 새 DB를 만들지 않습니다"))
+        }
+    }
+
+    /// 실경로가 `~/Library/Pioneer`이거나 그 아래인지. macOS 기본 볼륨은 대소문자를 가리지 않아 대소문자 없이 비교한다.
+    static func isUnderPioneerLibrary(_ resolvedPath: String) -> Bool {
+        let literal = FileManager.default.homeDirectoryForCurrentUser.path + "/Library/Pioneer"
+        let roots = Set([literal, UsbScratchRoots.realPath(literal)].compactMap { $0 }.map { $0.lowercased() })
+        let path = resolvedPath.lowercased()
+        return roots.contains { path == $0 || path.hasPrefix($0 + "/") }
+    }
+
     /// 개발용 조사도 인증값은 읽지 않는다. 뷰·하위 질의도 SQLite가 실제 참조하는 표·칸에서 막는다.
     public static func diagnostic(path: String, key: String?) throws -> CipherDatabase {
-        let db = try CipherDatabase(path: path, key: key)
+        try diagnostic(path: path, key: key.map { CipherKey.hex($0) })
+    }
+
+    public static func diagnostic(path: String, key: CipherKey?) throws -> CipherDatabase {
+        let db = try CipherDatabase(path: path, key: key, mode: .readOnly)
         sqlite3_set_authorizer(db.handle, { _, action, table, column, _, _ in
             guard action == SQLITE_READ else { return SQLITE_OK }
             let table = table.map { String(cString: $0) } ?? ""
@@ -58,7 +129,8 @@ public final class CipherDatabase {
 
     public static func isCredentialIdentifier(_ name: String) -> Bool {
         let name = name.lowercased()
-        return ["agentregistry", "cloudagent", "credential", "token", "password", "secret", "auth", "session"].contains(where: name.contains)
+        return ["agentregistry", "cloudagent", "credential", "token", "password", "secret", "auth", "session", "cloudproperty", "uuididmap"]
+            .contains(where: name.contains)
     }
 
     /// 연결을 바로 닫는다(쓰기 뒤 파일을 다시 열어 검사하기 전에 쓴다).
@@ -70,6 +142,11 @@ public final class CipherDatabase {
     /// 스냅샷 **사본**에 딸린 WAL을 사본 안으로 합친다(원본 rekordbox DB에는 절대 쓰지 않는다).
     /// rekordbox가 켜져 있으면 최근 변경(예: 방금 가져온 XML)이 아직 WAL에만 있어서 이게 필요하다.
     public static func mergeWriteAheadLog(ofCopyAt path: String, key: String) throws {
+        try mergeWriteAheadLog(ofCopyAt: path, key: .hex(key))
+    }
+
+    public static func mergeWriteAheadLog(ofCopyAt path: String, key: CipherKey) throws {
+        let pragma = try key.pragma()
         Self.sqlcipherReady
         var handle: OpaquePointer?
         guard sqlite3_open_v2(path, &handle, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
@@ -78,8 +155,7 @@ public final class CipherDatabase {
             throw DJCError.databaseOpenFailed(path: path, message: message)
         }
         defer { sqlite3_close_v2(handle) }
-        guard key.allSatisfy(\.isHexDigit) else { throw DJCError.keyDerivationFailed }
-        for sql in ["PRAGMA key = '\(key)'", "PRAGMA wal_checkpoint(TRUNCATE)"] {
+        for sql in [pragma, "PRAGMA wal_checkpoint(TRUNCATE)"] {
             var error: UnsafeMutablePointer<CChar>?
             guard sqlite3_exec(handle, sql, nil, nil, &error) == SQLITE_OK else {
                 let message = error.map { String(cString: $0) } ?? "unknown"

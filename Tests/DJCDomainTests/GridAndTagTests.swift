@@ -158,6 +158,38 @@ struct TagDraftTests {
         #expect(draft.changedKeys == [.genre, .comment])
     }
 
+    @Test func 안_고친_칸은_최신값을_받고_코멘트_초안을_보존한다() throws {
+        var draft = TagDraft(track: track())
+        draft.fields.comment = "내 코멘트"
+        var current = draft.base
+        current.title = "현재 제목"
+        current.artist = "현재 아티스트"
+        let rebased = try #require(draft.rebased(onto: current))
+        #expect(rebased.base == current && rebased.fields.title == current.title && rebased.fields.artist == current.artist)
+        #expect(rebased.fields.comment == "내 코멘트" && rebased.changedKeys == [.comment])
+    }
+
+    @Test func 같은_칸의_실제_변경과_앨범_의존칸은_동기화하지_않는다() {
+        var draft = TagDraft(track: track())
+        draft.fields.comment = "내 코멘트"
+        var current = draft.base
+        current.comment = "다른 코멘트"
+        #expect(draft.rebased(onto: current) == nil)
+        draft = TagDraft(track: track())
+        draft.fields.albumArtist = "내 앨범 아티스트"
+        current = draft.base
+        current.album = "다른 앨범"
+        #expect(draft.rebased(onto: current) == nil)
+    }
+
+    @Test func 이미_쓴_값은_다시_쓸_초안으로_남기지_않는다() throws {
+        var draft = TagDraft(track: track())
+        draft.fields.comment = "내 코멘트"
+        var current = draft.base
+        current.comment = draft.fields.comment
+        #expect(try #require(draft.rebased(onto: current)).hasChanges == false)
+    }
+
     @Test func 숫자_필드_검증() {
         var draft = TagDraft(track: track())
         draft.fields.year = "2013년"

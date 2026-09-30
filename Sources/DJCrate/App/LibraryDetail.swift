@@ -25,6 +25,8 @@ struct LibraryDetail: View {
     @State private var fileDropHighlight = DropHighlight()
 
     private var otherHeight: Double { noticeHeight + listHeaderHeight + DeckLayout.splitHandleHeight }
+    /// 태그 시트는 편집 화면이라 중복 후보·USB(읽기 전용) 목록에서는 곡 목록으로 보인다.
+    private var showsSheet: Bool { sheetMode && store.sidebar != .duplicates && !store.isUsbSelection }
     private var displayedWaveformHeight: Double {
         DeckLayout.waveformHeight(requested: waveformHeight, detailHeight: detailHeight,
                                   deckChromeHeight: fittedChromeHeight, otherHeight: otherHeight)
@@ -80,14 +82,18 @@ struct LibraryDetail: View {
             SplitHandle(height: $waveformHeight, displayedHeight: displayedHeight, maximumHeight: maximumHeight)
             VStack(spacing: 0) {
                 ListActionBar(store: store)
-                if sheetMode && store.sidebar != .duplicates { SheetHeader() }
+                if showsSheet { SheetHeader() }
             }
             .onGeometryChange(for: Double.self) { $0.size.height } action: { listHeaderHeight = $0 }
             Group {
                 if store.sidebar == .duplicates {
                     DuplicateTracksView(store: store)
                         .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
-                } else if sheetMode {
+                } else if case let .usb(.pending(volumeKey)) = store.sidebar, let usb = store.usb {
+                    UsbPendingView(store: store, usb: usb, volumeKey: volumeKey)
+                        .id(volumeKey)
+                        .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)
+                } else if showsSheet {
                     TagSheetView(store: store)
                         .onDisappear { store.canFillDownTags = false }
                         .frame(minWidth: 0, maxWidth: .infinity, minHeight: DeckLayout.minimumLibraryHeight, maxHeight: .infinity)

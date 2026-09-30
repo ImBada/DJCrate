@@ -11,6 +11,15 @@ struct ReflectionPrompt: Equatable {
     var critical = false
     var destructive = false
     var details: [String] = []
+    /// 세 갈래 창(`choose`)의 둘째 동작 단추
+    var alternate: String?
+    /// 취소 단추 이름(nil이면 "취소")
+    var cancel: String?
+}
+
+/// 세 갈래 창의 답
+enum ReflectionChoice: Equatable {
+    case confirm, alternate, cancel
 }
 
 /// 창을 띄운다. 시험에서는 정해 둔 답을 돌려준다.
@@ -18,12 +27,27 @@ struct ReflectionPrompt: Equatable {
 protocol ReflectionPrompter {
     /// 확인을 누르면 true
     func show(_ prompt: ReflectionPrompt) -> Bool
+    /// 확인·둘째 동작·취소 중 무엇을 눌렀는지(둘째 동작이 없는 창은 `show`와 같다)
+    func choose(_ prompt: ReflectionPrompt) -> ReflectionChoice
+}
+
+extension ReflectionPrompter {
+    func choose(_ prompt: ReflectionPrompt) -> ReflectionChoice { show(prompt) ? .confirm : .cancel }
 }
 
 struct AlertPrompter: ReflectionPrompter {
     func show(_ prompt: ReflectionPrompt) -> Bool {
+        choose(prompt) == .confirm
+    }
+
+    func choose(_ prompt: ReflectionPrompt) -> ReflectionChoice {
         let response = makeAlert(prompt).runModal()
-        return prompt.confirm != nil && response == .alertFirstButtonReturn
+        guard prompt.confirm != nil else { return .cancel }
+        switch response {
+        case .alertFirstButtonReturn: return .confirm
+        case .alertSecondButtonReturn where prompt.alternate != nil: return .alternate
+        default: return .cancel
+        }
     }
 
     func makeAlert(_ prompt: ReflectionPrompt) -> NSAlert {
@@ -37,8 +61,9 @@ struct AlertPrompter: ReflectionPrompter {
             return alert
         }
         let confirmButton = alert.addButton(withTitle: confirm)
+        if let alternate = prompt.alternate { alert.addButton(withTitle: alternate) }
         // 번들이 없는 디버그 실행에서도 취소 단축키가 동작해야 한다.
-        alert.addButton(withTitle: String(ui: "취소")).keyEquivalent = "\u{1b}"
+        alert.addButton(withTitle: prompt.cancel ?? String(ui: "취소")).keyEquivalent = "\u{1b}"
         if prompt.destructive {
             confirmButton.hasDestructiveAction = true
             confirmButton.keyEquivalent = ""

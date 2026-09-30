@@ -28,14 +28,16 @@ rekordbox 7 라이브러리를 관리하는 macOS 앱. 큐·그리드·오토게
 - **코멘트 프리셋(선택 기능)**: 기본은 꺼짐. 설정 › 일반에서 애니송을 고르면 코멘트 분류·필터·현황·형식 검사를 켠다. CLI의 `parse`는 애니송 전용이며 `report`·`search`는 `--comment-preset anisong`으로 명시한다.
 - **설정(⌘,)**: 일반·덱·단축키. 덱 단축키를 원하는 키로 바꿀 수 있다.
 - **명령줄·AI 에이전트**: `djc`로 라이브러리를 찾아보고 큐·태그 초안을 만든다. Claude Code·Codex용 스킬이 들어 있다([아래](#명령줄과-ai-에이전트)).
+- **USB(시험 기능)**: OneLibrary·Device Library를 함께 읽고 내보내며, USB 곡·재생 목록 편집을 초안으로 쌓아 미리 보기 후 반영한다. 쓰기·복원·회복은 지금은 임시 폴더의 디스크 이미지에만 가능하며 실물 USB 쓰기는 코드에서 닫혀 있다([명령](docs/cli.md), [확인 범위](docs/usb-internals.md#10-막아-둔-것)).
 
 ## 안전 장치
 
 - rekordbox(또는 rekordboxAgent)가 켜져 있으면 쓰지 않는다.
 - 쓰기 규칙을 확인한 rekordbox 버전(7.2.x)과 DB 구조가 아니면 쓰지 않는다. rekordbox를 업데이트했다면 `djc compat`으로 먼저 확인한다.
-- 쓰기 전에 라이브러리 전체와 바꿀 분석 파일을 백업한다. 한 트랜잭션으로 쓰고, 다시 읽어 검증하고, 무결성 검사에 실패하면 백업으로 되돌린다.
+- rekordbox에 쓰기 전에 라이브러리 전체와 바꿀 분석 파일을 백업한다. 한 트랜잭션으로 쓰고, 다시 읽어 검증하고, 무결성 검사에 실패하면 백업으로 되돌린다.
 - rekordbox에서 직접 편집한 결과와 칸 단위로 같은지 확인한 쓰기만 한다. 확인하지 못한 경우는 이유를 보여 주고 막는다.
 - 쓴 뒤에도 툴바 "rekordbox에 쓰기" 메뉴의 "쓰기 전으로 복원…"으로 쓰기 전 상태로 돌릴 수 있다. 이 백업은 DJCrate의 직접 쓰기용이며, rekordbox에서 XML을 가져오는 작업은 별도로 백업한다.
+- USB DB는 Mac 사본에서만 연다. USB 쓰기는 별도 백업·저널·파일 교체·다시 읽기 검증을 거치며, 자격 증명·프로필 파일은 열거하거나 읽거나 복사하지 않는다.
 
 ## 한계
 
@@ -43,6 +45,7 @@ rekordbox 7 라이브러리를 관리하는 macOS 앱. 큐·그리드·오토게
 - DJCrate가 만드는 분석 파일에는 키·프레이즈·보컬 분석이 없다. 필요하면 rekordbox에서 분석한다.
 - 변속 곡은 구간별 BPM·변속 지점을 쓸 수 있지만, 음원 안의 템포 구간에 박이 하나도 남지 않는 편집은 쓰지 않는다([규칙](docs/rekordbox-internals.md#여러-템포-구간의-bpm-편집-11-2026-09-28)).
 - 스트리밍 곡은 파형·재생·분석을 하지 않는다.
+- 실물 USB 쓰기와 실기기 동작은 아직 확인하지 않았다. 분석 파일 폴더 이름 결정·새 rekordbox 골든 실험·실물 허용은 별도 결정과 실험을 기다린다.
 
 ## 요구 사항과 설치
 
@@ -144,6 +147,7 @@ DJCrate is a macOS app for managing a rekordbox 7 library without launching reko
 - **Languages**: the app follows your macOS language setting: English, Japanese or Korean (other languages fall back to English). The `djc` command-line tool is Korean only for now.
 - **Safety**: DJCrate never writes while rekordbox or rekordboxAgent is running, and only writes to rekordbox 7.2.x with a verified database layout. It backs up the whole library first, writes in a single transaction, reads the result back to verify it, and restores the backup if anything fails. The last write can be restored from the app.
 - **Drafts**: every edit is kept as a DJCrate draft until you write it to rekordbox.
+- **USB (experimental)**: reads both OneLibrary and Device Library, exports tracks and playlists, and applies USB edit drafts after a preview. Writing, restoring and recovery are restricted to disk images in temporary folders; physical USB writes remain disabled and hardware behavior is unverified.
 - **Requirements**: macOS 27 or later, a Swift 6.2+ toolchain (Xcode) and rekordbox 7.2.x (verified with 7.2.18). Build and install with `scripts/build-app.sh --install`.
 - **Getting started**: take a library snapshot (⟳ in the toolbar), edit cues and grids on the deck, quit rekordbox completely, then choose Write to rekordbox (⇧⌘E), check the preview and write.
 

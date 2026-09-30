@@ -479,7 +479,7 @@ can send private email to the lead developer at drh at sqlite dot org.
 - 고지 기준 커밋: `f695541827cc488af267d6ca8a8e0052598d85a0`
 - 출처: [dylanljones/pyrekordbox](https://github.com/dylanljones/pyrekordbox/tree/f695541827cc488af267d6ca8a8e0052598d85a0)
 - 원문: [LICENSE](https://github.com/dylanljones/pyrekordbox/blob/f695541827cc488af267d6ca8a8e0052598d85a0/LICENSE)
-- DJCrate에서 쓰는 곳: `Sources/RekordboxKit/RekordboxKey.swift`의 키 복원 절차, `AnlzPreviewWaveform.swift`의 PWV4 채널·밝기 해석.
+- DJCrate에서 쓰는 곳: `Sources/RekordboxKit/RekordboxKey.swift`의 키 복원 절차와 OneLibrary(`exportLibrary.db`) 키 복원(`devicelib_plus/database.py`의 상수), `AnlzPreviewWaveform.swift`의 PWV4 채널·밝기 해석.
 
 ````text
 MIT License
@@ -511,8 +511,9 @@ SOFTWARE.
 - 고지 기준 커밋: `eecb4f798c661ac3a285ab1894ad4257ee923621`
 - 출처: [M-Igashi/baken](https://github.com/M-Igashi/baken/tree/eecb4f798c661ac3a285ab1894ad4257ee923621)
 - 원문: [LICENSE](https://github.com/M-Igashi/baken/blob/eecb4f798c661ac3a285ab1894ad4257ee923621/LICENSE)
-- DJCrate에서 쓰는 곳: `Sources/RekordboxKit/AnlzWaveform.swift`의 파형 규칙.
-- 규칙 출처: [PR #148](https://github.com/M-Igashi/baken/pull/148)
+- DJCrate에서 쓰는 곳: `Sources/RekordboxKit/AnlzWaveform.swift`의 파형 규칙, `Sources/RekordboxKit/Usb/DeviceLibrary/PdbString.swift`(`PdbStringEncoder.encoded`)의 127자 이상 순수 ASCII 문자열 모양 선택.
+- 파형 규칙 출처: [PR #148](https://github.com/M-Igashi/baken/pull/148)
+- 문자열 규칙 참고: `crates/baken-export/src/pdb/string.rs`의 긴 문자열 처리(127자 이상 순수 ASCII 문자열을 UTF-16으로 쓰는 선택, 코드는 옮기지 않음)
 
 ````text
 MIT License
@@ -540,11 +541,11 @@ SOFTWARE.
 ````
 
 
-## pyrekordbox — 프레이즈 읽기 실험
+## pyrekordbox — 프레이즈(PSSI) 마스크
 
 - 기준 커밋: `f695541827cc488af267d6ca8a8e0052598d85a0`
 - 출처: [dylanljones/pyrekordbox](https://github.com/dylanljones/pyrekordbox/tree/f695541827cc488af267d6ca8a8e0052598d85a0)
-- 참고·이식 범위: `anlz/structs.py`의 PSSI 칸 배치, `anlz/file.py`의 XOR 마스크와 복원 규칙을 `Sources/djc/Lab/PhraseStructure.swift`의 실험용 읽기에 사용한다.
+- 참고·이식 범위: `anlz/structs.py`의 PSSI 칸 배치, `anlz/file.py`의 XOR 마스크와 복원 규칙을 읽기 실험과 USB 내보내기에 사용한다. 쓰는 곳: `Sources/djc/Lab/PhraseStructure.swift`(실험용 읽기), `Sources/RekordboxKit/Usb/Anlz/AnlzMasks.swift`(USB 분석 파일의 PSSI 마스크·풀기).
 - 라이선스: MIT. Python 패키지 자체는 배포하지 않는다.
 
 ```text

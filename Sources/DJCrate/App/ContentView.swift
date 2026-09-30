@@ -63,7 +63,8 @@ struct ContentView: View {
                     if let toast = store.toast {
                         AppToastView(toast: toast,
                                      onUndo: toast.undoBackup.map { url in { store.toast = nil; DirectWritePanels.restore(store: store, backupURL: url) } },
-                                     onDetails: { store.showingWriteResult = true },
+                                     onDetails: toast.isUsb ? nil : { store.showingWriteResult = true },
+                                     onAction: toast.action.map { action in { Task { await store.usbCoordinator?.perform(action) } } },
                                      onClose: { if store.toast?.id == toast.id { store.toast = nil } })
                             .padding(.bottom, 16)
                             .padding(.horizontal, 16)
@@ -73,10 +74,17 @@ struct ContentView: View {
                 }
                 .animation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(duration: 0.35), value: store.toast?.id)
         }
-        // rekordbox에 쓰는 동안은 창 전체를 덮어 다른 조작을 막는다.
+        // rekordbox·USB에 쓰는 동안은 창 전체를 덮어 다른 조작을 막는다.
         .overlay {
             if let stage = store.writeStage {
                 WritingOverlay(stage: stage, onCancel: { store.cancelWritePreparation() }).transition(.opacity)
+            } else if let write = store.usb?.activeWrite {
+                UsbWritingOverlay(model: UsbWriteProgressModel(write), onCancel: { store.usb?.cancelWrite() }).transition(.opacity)
+            }
+        }
+        .sheet(item: Binding(get: { store.usb?.exportSheet }, set: { store.usb?.exportSheet = $0 })) { request in
+            if let usb = store.usb {
+                UsbExportSheet(store: store, usb: usb, request: request)
             }
         }
         .sheet(isPresented: $store.showingWriteResult) { WriteResultView(history: store.resultHistory) }
@@ -145,7 +153,7 @@ struct ContentView: View {
                         .help(.ui("태그를 표에서 편집합니다(⌘2)."))
                 }
                 .pickerStyle(.segmented)
-                .disabled(!store.writeLockPolicy.allowsLibraryInteraction || store.sidebar == .duplicates)
+                .disabled(!store.writeLockPolicy.allowsLibraryInteraction || store.sidebar == .duplicates || store.isUsbSelection)
             }
             ToolbarItem(id: "addFiles") {
                 Button {
@@ -168,12 +176,12 @@ struct ContentView: View {
             ToolbarItem(id: "snapshot") {
                 Button {
                     // rekordbox가 켜져 있어도 읽기용 사본을 뜬다(최근 변경이 담긴 WAL까지 사본 안에서 합친다).
-                    Task { await store.takeSnapshot(force: LibrarySnapshot.isRekordboxRunning()) }
+                    Task { await store.synchronizeLibrary() }
                 } label: {
-                    Label(.ui("새 스냅샷"), systemImage: "arrow.clockwise")
+                    Label(.ui("rekordbox와 동기화"), systemImage: "arrow.clockwise")
                 }
                 .disabled(!LibraryMenuAction.snapshot.isEnabled(in: store))
-                .help(.ui("라이브러리 사본을 새로 읽고 XML 가져오기 결과를 확인합니다(⌘R)."))
+                .help(.ui("rekordbox 내용을 새로 읽고 편집 중인 초안을 보존합니다(⌘R)."))
             }
             ToolbarItem(id: "reflection", placement: .primaryAction) {
                 ReflectionMenu(store: store)
@@ -184,6 +192,10 @@ struct ContentView: View {
             deck.feedback = store.feedback
             // 목록 선택은 덱을 바꾸지 않는다. 더블클릭·⌘→·오른쪽 클릭·끌어다 놓기로만 덱에 올린다(#93).
             store.onLoadToDeck = { [weak deck] row in deck?.load(row) }
+            store.allowsLibrarySync = { [weak deck] in
+                guard let deck else { return true }
+                return !deck.hasUncommittedCueEdits && deck.cueDragBase == nil && deck.gridDragBase == nil
+            }
             store.onCueDraftsReloaded = { [weak deck] drafts in
                 guard let deck, let uuid = deck.row?.track.uuid else { return }
                 deck.reloadExternalCueDraft(drafts[uuid])
@@ -243,6 +255,12 @@ struct EmptyLibraryOverlay: View {
             } description: {
                 Text(.ui("곡의 큐·그리드·게인을 고치면 여기에 모입니다."))
             }
+        } else if store.isUsbSelection {
+            ContentUnavailableView {
+                Label(.ui("표시할 USB 곡이 없습니다"), systemImage: "externaldrive")
+            } description: {
+                Text(.ui("USB를 다시 읽거나 다른 재생 목록을 고르세요."))
+            }
         } else if store.sidebar == .staged {
             ContentUnavailableView {
                 Label(.ui("추가한 곡이 없습니다"), systemImage: "music.note")
@@ -255,7 +273,7 @@ struct EmptyLibraryOverlay: View {
             ContentUnavailableView {
                 Label(.ui("표시할 곡이 없습니다"), systemImage: "music.note.list")
             } description: {
-                Text(.ui("다른 목록을 선택하거나 새 스냅샷으로 라이브러리를 다시 읽어 보세요."))
+                Text(.ui("다른 목록을 선택하거나 rekordbox와 동기화로 라이브러리를 다시 읽어 보세요."))
             }
         }
     }
@@ -341,6 +359,7 @@ struct LibraryFileDropDelegate: DropDelegate {
     func validateDrop(info: DropInfo) -> Bool {
         store.writeLockPolicy.allowsLibraryInteraction
             && !store.isITunesSelection
+            && !store.isUsbSelection
             && Self.accepts(info.itemProviders(for: [.fileURL, DeckDragType.track, PlaylistDragType.tracks]))
     }
 

@@ -39,6 +39,10 @@ extension LibraryStore {
 
     /// 곡마다 계획(파일 태그 + 태그 초안)을 만들고, 새 스냅샷 사본으로 DB 쓰기를 시험한다.
     func previewTrackAdd(rows: [TrackRow]) async throws -> TrackAddPreview {
+        // 미리 보기는 라이브에서 스냅샷을 뜬다: 명시한 사본으로 연 창은 사용자 스냅샷 폴더를 바꾸지 않게 막는다
+        guard Self.snapshotTakeAllowed(arguments: launchArguments, environment: launchEnvironment) else {
+            throw DJCError.writeRefused(Self.snapshotRefusedMessage)
+        }
         DraftWriter.flush()
         let tracks = trackAddTargets(rows).compactMap { row in staged.first { $0.id == row.id } }
         var plans: [TrackAddPlan] = [], uuids: [String: String] = [:], without: [String: String] = [:], unreadable: [String] = []
@@ -68,8 +72,9 @@ extension LibraryStore {
         try Task.checkCancellation()
         writeStage = WriteStage(String(ui: "미리 보기 1/2단계 · 사본을 만드는 중…"), completed: 0, total: 2, cancellable: true)
         // 사본으로 DB만 시험한다(분석 파일은 만들지 않지만 큐는 함께 시험해 막히는 이유를 미리 본다).
+        let take = takeLiveSnapshot
         let report = try await Task.detached(priority: .userInitiated) { [plans, cues] in
-            let snapshot = try LibrarySnapshot.take()
+            let snapshot = try take(false)
             await MainActor.run { self.writeStage = WriteStage(String(ui: "미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…"), completed: 1, total: 2, cancellable: true) }
             return try RekordboxTrackWriter.add(plans, cues: cues, to: snapshot, dryRun: true, backups: DJCPaths.rekordboxBackups)
         }.value
@@ -164,11 +169,15 @@ extension LibraryStore {
     func trackDeleteTargets(_ rows: [TrackRow]) -> [TrackRow] { isITunesSelection ? [] : rows.filter { !$0.isStaged && !$0.track.isStreaming } }
 
     func previewTrackDelete(rows: [TrackRow]) async throws -> TrackDeletePreview {
+        guard Self.snapshotTakeAllowed(arguments: launchArguments, environment: launchEnvironment) else {
+            throw DJCError.writeRefused(Self.snapshotRefusedMessage)
+        }
         let ids = trackDeleteTargets(rows).map(\.track.id)
         try Task.checkCancellation()
         writeStage = WriteStage(String(ui: "미리 보기 1/2단계 · 사본을 만드는 중…"), completed: 0, total: 2, cancellable: true)
+        let take = takeLiveSnapshot
         let report = try await Task.detached(priority: .userInitiated) {
-            let snapshot = try LibrarySnapshot.take()
+            let snapshot = try take(false)
             await MainActor.run { self.writeStage = WriteStage(String(ui: "미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…"), completed: 1, total: 2, cancellable: true) }
             return try RekordboxTrackWriter.delete(contentIDs: ids, from: snapshot, dryRun: true, backups: DJCPaths.rekordboxBackups)
         }.value

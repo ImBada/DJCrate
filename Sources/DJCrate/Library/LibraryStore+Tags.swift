@@ -31,6 +31,27 @@ extension LibraryStore {
         })
     }
 
+    /// 현재 값과 충돌한 칸 하나만 사용자가 선택한다. 다른 칸의 충돌은 writer가 계속 막는다.
+    func resolveTagConflict(_ key: TagFields.Key, keepingDraft: Bool, rows: [TrackRow]) {
+        guard !isWritingRekordbox else { return }
+        var before: [String: TagDraft] = [:]
+        var after: [String: TagDraft] = [:]
+        for row in rows where !row.track.isStreaming && !row.isUsb {
+            let uuid = row.track.uuid
+            guard let original = tagDrafts[uuid] else { continue }
+            let current = TagFields(track: (rowsByUUID[uuid] ?? row).track)
+            guard original.conflictingKeys(with: current).contains(key) else { continue }
+            before[uuid] = original
+            var resolved = original
+            resolved.base[key] = current[key]
+            if !keepingDraft { resolved.fields[key] = current[key] }
+            after[uuid] = resolved.rebased(onto: current) ?? resolved
+        }
+        guard let change = DraftChange(before: before, after: after) else { return }
+        applyTagSnapshot(after)
+        registerTagUndo(change)
+    }
+
     // MARK: - 태그 시트(엑셀식) 일괄 편집 + 되돌리기
 
     func tagCell(_ row: TrackRow, _ key: TagFields.Key) -> String {
@@ -48,7 +69,8 @@ extension LibraryStore {
         guard !isWritingRekordbox else { return }
         var before: [String: TagDraft] = [:]
         var after: [String: TagDraft] = [:]
-        for change in changes where !change.row.track.isStreaming {
+        // USB 곡은 읽기 전용이다(초안을 만들지 않는다)
+        for change in changes where !change.row.track.isStreaming && !change.row.isUsb {
             let uuid = change.row.track.uuid
             let original = tagDraft(for: change.row)
             before[uuid] = original
@@ -87,7 +109,7 @@ extension LibraryStore {
         for (uuid, draft) in drafts { updated[uuid] = draft.hasChanges ? draft : nil }
         tagDrafts = updated
         for uuid in drafts.keys { updateEdited(uuid) }
-        saveTagDrafts(Array(drafts.values))
+        persistTagDrafts(Array(drafts.values))
         tagRevision += 1
     }
 }

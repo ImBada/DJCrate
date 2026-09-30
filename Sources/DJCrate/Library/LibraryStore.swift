@@ -16,6 +16,8 @@ enum SidebarItem: Hashable, Sendable {
     case staged
     /// 큐·그리드 초안이 있어 rekordbox에 반영할 곡
     case pending
+    /// 연결한 USB의 컬렉션·재생 목록(읽기 전용)
+    case usb(UsbSidebarTarget)
 }
 
 @MainActor
@@ -32,6 +34,25 @@ final class LibraryStore {
         didSet { if oldValue !== undoManager { oldValue?.removeAllActions(withTarget: self) } }
     }
     @ObservationIgnored let saveTagDrafts: ([TagDraft]) -> Void
+    @ObservationIgnored private var tagSaveAttempts: Set<String> = []
+
+    func persistTagDrafts(_ drafts: [TagDraft]) {
+        tagSaveAttempts.formUnion(drafts.map(\.trackUUID))
+        saveTagDrafts(drafts)
+    }
+
+    func retryFailedTagSaves(in directory: URL = TagDraftStore.directory) {
+        DraftWriter.flush()
+        let failed = failedTagSaves(in: directory)
+        guard !failed.isEmpty else { return }
+        // 실패한 삭제도 재시도한다. 디스크에 남은 옛 초안으로 입력을 되살리지 않는다.
+        persistTagDrafts(failed.map { tagDrafts[$0] ?? TagDraft(trackUUID: $0, base: TagFields()) })
+        DraftWriter.flush()
+    }
+
+    func failedTagSaves(in directory: URL = TagDraftStore.directory) -> Set<String> {
+        DraftWriter.failedTagSaveUUIDs(in: directory).intersection(tagSaveAttempts)
+    }
     @ObservationIgnored let mergeDraftSaver: ([DuplicateMergeDraft]) throws -> Void
     var mergeDrafts: [DuplicateMergeDraft] = []
     /// 재생 목록 초안 파일 쓰기(시험은 메모리로 바꾼다)
@@ -117,7 +138,7 @@ final class LibraryStore {
             // 플레이리스트는 rekordbox 순서가 기본, 필터는 임포트 최신순이 기본.
             suppressRefresh = true
             switch sidebar {
-            case .playlist, .itunesPlaylist, .history, .duplicates, .staged, .pending: sortOrder = []
+            case .playlist, .itunesPlaylist, .history, .duplicates, .staged, .pending, .usb: sortOrder = []
             case .filter:
                 if case .filter = oldValue {} else { sortOrder = [KeyPathComparator(\TrackRow.importedOn, order: .reverse)] }
             }
@@ -155,6 +176,12 @@ final class LibraryStore {
     @ObservationIgnored var iTunesSyncCapture: ITunesSyncCapture?
     @ObservationIgnored var iTunesSyncCatalogEpoch: UInt64 = 0
     var isITunesSelection: Bool { if case .itunesPlaylist = sidebar { true } else { false } }
+    /// USB 목록을 보는 중(읽기 전용: 편집·쓰기·끌기·덱 불러오기를 막는다)
+    var isUsbSelection: Bool { if case .usb = sidebar { true } else { false } }
+    /// 사이드바 USB 절(앱이 붙인다. 시험·캡처에서는 없다)
+    var usb: UsbStore? {
+        didSet { usb?.onChange = { [weak self] in self?.usbChanged() } }
+    }
     /// 새 항목의 부모만 펼치고 다른 폴더의 펼침 상태는 유지한다.
     var expandedPlaylistIDs: Set<String> = []
     var playlistIndex: [String: PlaylistOutlineNode] = [:] { didSet { playlistCount = playlistIndex.values.filter { !$0.isFolder }.count } }
@@ -191,6 +218,7 @@ final class LibraryStore {
         case .duplicates: String(ui: "중복 후보")
         case .staged: String(ui: "추가한 곡")
         case .pending: String(ui: "rekordbox 쓰기 대기")
+        case let .usb(target): usb?.title(for: target) ?? "USB"
         }
     }
     var search = "" { didSet { if search != oldValue { refreshFiltered() } } }
@@ -201,6 +229,16 @@ final class LibraryStore {
     var selection: Set<TrackRow.ID> = []
     /// 덱에 곡을 올리거나(nil이면 내리기) 새로 읽은 값으로 맞춘다. 덱과 잇는 곳은 여기 하나다.
     var onLoadToDeck: ((TrackRow?) -> Void)?
+    /// 스냅샷을 새로 읽었을 때(USB 갱신 상태의 로컬 짝짓기 키를 다시 읽는다)
+    @ObservationIgnored var onSnapshotLoaded: ((URL) -> Void)?
+    /// 띄운 인자·환경. 스냅샷을 새로 떠도 되는지(`snapshotTakeAllowed`) 정한다. 시험은 바꿔 넣는다
+    @ObservationIgnored var launchArguments = ProcessInfo.processInfo.arguments
+    @ObservationIgnored var launchEnvironment = ProcessInfo.processInfo.environment
+    /// rekordbox 폴더의 master.db에서 기본 스냅샷 폴더로 사본을 뜬다(`force`). 시험은 라이브를 건드리지 않게 바꿔 넣는다
+    @ObservationIgnored var takeLiveSnapshot: @Sendable (Bool) throws -> URL = { try LibrarySnapshot.take(force: $0) }
+    var allowsLibrarySync: (() -> Bool)?
+    private(set) var isSynchronizingLibrary = false
+    var canSynchronizeLibrary: Bool { !isLoading && !isSynchronizingLibrary && !isWritingRekordbox && (allowsLibrarySync?() ?? true) }
     /// 덱에 올린 곡(ContentID, 추가한 곡은 djc- ID). 목록의 덱 표시와 새로 읽을 때 덱을 맞추는 데 쓴다.
     private(set) var deckTrackID: String?
 
@@ -309,9 +347,10 @@ final class LibraryStore {
     }
 
     /// 재생 기록의 반복 행을 함께 골라도 곡 편집·반영 대상은 한 번만 넘긴다.
+    /// USB 곡은 읽기 전용이라 편집·쓰기·재생 목록 대상에 넣지 않는다.
     func uniqueTracks(_ candidates: [TrackRow]) -> [TrackRow] {
         var seen = Set<String>()
-        return candidates.filter { seen.insert($0.track.id).inserted }.map { rowsByID[$0.track.id] ?? $0 }
+        return candidates.filter { !$0.isUsb && seen.insert($0.track.id).inserted }.map { rowsByID[$0.track.id] ?? $0 }
     }
 
     func historyTitle(_ history: RekordboxHistory) -> String {
@@ -332,11 +371,12 @@ final class LibraryStore {
     /// 이 곡을 덱에 올린다(더블클릭·⌘→·오른쪽 클릭·끌어다 놓기). 재생 기록의 반복 행도 컬렉션 곡으로 올린다.
     /// rekordbox에 쓰는 동안은 덱을 바꾸지 않는다.
     func loadToDeck(_ row: TrackRow?) {
-        guard writeLockPolicy.allowsLibraryInteraction, let row else { return }
+        // USB 곡은 아직 덱에 올리지 않는다(덱이 로컬 분석 파일·초안을 기준으로 읽는다)
+        guard writeLockPolicy.allowsLibraryInteraction, let row, !row.isUsb else { return }
         setDeckTrack(rowsByID[row.track.id] ?? row)
     }
 
-    var canLoadSelectionToDeck: Bool { writeLockPolicy.allowsLibraryInteraction && primaryRow != nil }
+    var canLoadSelectionToDeck: Bool { writeLockPolicy.allowsLibraryInteraction && primaryRow.map { !$0.isUsb } == true }
 
     /// 고른 곡 중 표 순서로 첫 곡을 덱에 올린다(⌘→·덱 메뉴).
     func loadSelectionToDeck() {
@@ -390,6 +430,7 @@ final class LibraryStore {
         case .pending:
             let pending = pendingUUIDs
             base = rows.filter { pending.contains($0.track.uuid) }
+        case let .usb(target): base = usb?.rows(for: target) ?? []
         case .duplicates:
             var seen = Set<String>()
             base = duplicateGroups.flatMap(\.tracks).compactMap { member in
@@ -442,6 +483,16 @@ final class LibraryStore {
     static func explicitDatabaseRequested(arguments: [String], environment: [String: String]) -> Bool {
         arguments.contains("--db") || environment["DJC_DB"] != nil
     }
+
+    /// 스냅샷을 새로 떠도 되는지. 명시한 사본(`--db`·`DJC_DB`)으로 띄웠는데 사본 rekordbox 폴더(`DJC_REKORDBOX_DIR`)가 없으면 거짓:
+    /// 그때 뜨면 라이브 master.db를 원본으로 읽고 사용자 스냅샷 폴더에 새 사본을 만들고 옛 사본을 정리한다(`DJC_HOME`은 스냅샷을 옮기지 않는다).
+    static func snapshotTakeAllowed(arguments: [String], environment: [String: String]) -> Bool {
+        !(explicitDatabaseRequested(arguments: arguments, environment: environment)
+            && !LibrarySnapshot.hasRekordboxDirectoryOverride(in: environment))
+    }
+
+    /// 스냅샷을 뜨지 않은 이유(`snapshotTakeAllowed`가 거짓일 때)
+    static var snapshotRefusedMessage: String { String(ui: "명시한 사본(--db)으로 연 창에서는 스냅샷을 뜨지 않습니다. --db 없이 다시 여세요") }
 
     /// iTunes 버튼은 명시한 DB를 벗어나지 않는다. 사본 모드에서는 현재 DB 옆 목록만 다시 읽는다.
     func refreshITunesPlaylists(arguments: [String] = ProcessInfo.processInfo.arguments,
@@ -496,8 +547,10 @@ final class LibraryStore {
 
     /// 창으로 돌아올 때: 지금 읽은 스냅샷 뒤에 rekordbox가 라이브러리를 바꿨으면 뒤에서 조용히 새로 읽는다.
     /// rekordbox가 켜져 있어도 읽기용 사본(WAL까지 사본 안에서 합침)으로 뜬다. 원본은 읽기만 한다.
-    func refreshIfRekordboxChanged(arguments: [String] = ProcessInfo.processInfo.arguments,
-                                  environment: [String: String] = ProcessInfo.processInfo.environment) async {
+    func refreshIfRekordboxChanged(arguments: [String]? = nil,
+                                  environment: [String: String]? = nil) async {
+        let arguments = arguments ?? launchArguments
+        let environment = environment ?? launchEnvironment
         guard case .loaded = phase, !isLoading, !isWritingRekordbox, let snapshotURL,
               !Self.explicitDatabaseRequested(arguments: arguments, environment: environment),
               LibrarySnapshot.sameDirectory(snapshotURL.deletingLastPathComponent(),
@@ -515,23 +568,51 @@ final class LibraryStore {
         await takeSnapshot(force: true, quiet: true)
     }
 
+    /// 명시적 동기화만 비충돌 태그 기준을 맞춘다. 사본 모드에서는 지정한 DB를 다시 읽는다.
+    func synchronizeLibrary(arguments: [String]? = nil,
+                            environment: [String: String]? = nil) async {
+        let arguments = arguments ?? launchArguments
+        let environment = environment ?? launchEnvironment
+        guard canSynchronizeLibrary else { return }
+        isSynchronizingLibrary = true
+        defer { isSynchronizingLibrary = false }
+        DraftWriter.flush()
+        retryFailedTagSaves()
+        if Self.explicitDatabaseRequested(arguments: arguments, environment: environment) {
+            guard let snapshotURL else { return }
+            await load(snapshot: snapshotURL, quiet: true, synchronizingDrafts: true, arguments: arguments, environment: environment)
+        } else {
+            await takeSnapshot(force: LibrarySnapshot.isRekordboxRunning(), synchronizingDrafts: true,
+                               arguments: arguments, environment: environment)
+        }
+    }
+
     /// - Parameter quiet: 화면을 로딩으로 바꾸지 않고 뒤에서 다시 읽는다(rekordbox에 쓴 뒤 등).
     /// - Parameter refreshITunes: 쓰기 뒤에는 기존 목록을 재사용해 Music 응답을 기다리지 않는다.
-    func takeSnapshot(force: Bool = false, quiet: Bool = false, refreshITunes: Bool = true,
+    func takeSnapshot(force: Bool = false, quiet: Bool = false, refreshITunes: Bool = true, synchronizingDrafts: Bool = false,
                       snapshotDirectory: URL = LibrarySnapshot.defaultDirectory,
-                      snapshotCopy: @escaping @Sendable (Bool) throws -> URL = { try LibrarySnapshot.take(force: $0) },
+                      snapshotCopy: (@Sendable (Bool) throws -> URL)? = nil,
                       captureITunes: @escaping @Sendable () -> ITunesLibrarySnapshot = { RekordboxITunesReader.capture() },
-                      arguments: [String] = ProcessInfo.processInfo.arguments,
-                      environment: [String: String] = ProcessInfo.processInfo.environment) async {
+                      arguments: [String]? = nil,
+                      environment: [String: String]? = nil) async {
+        guard !synchronizingDrafts || !isWritingRekordbox else { return }
+        let arguments = arguments ?? launchArguments
+        let environment = environment ?? launchEnvironment
+        guard Self.snapshotTakeAllowed(arguments: arguments, environment: environment) else {
+            let message = Self.snapshotRefusedMessage
+            if rows.isEmpty { phase = .failed(message) } else { lastError = message }
+            return
+        }
+        let snapshotCopy = snapshotCopy ?? takeLiveSnapshot
         guard !isLoading || snapshotRequests.isRunning || !refreshITunes else { return }
-        await snapshotRequests.runWithFollowUp(force: force, quiet: quiet, refreshITunes: refreshITunes) { [self] force, quiet in
-            await takeSnapshotOnce(force: force, quiet: quiet, refreshITunes: refreshITunes, snapshotDirectory: snapshotDirectory,
+        await snapshotRequests.runWithFollowUp(force: force, quiet: quiet, refreshITunes: refreshITunes, synchronizingDrafts: synchronizingDrafts) { [self] force, quiet in
+            await takeSnapshotOnce(force: force, quiet: quiet, refreshITunes: refreshITunes, synchronizingDrafts: synchronizingDrafts, snapshotDirectory: snapshotDirectory,
                                    snapshotCopy: snapshotCopy, captureITunes: captureITunes,
                                    arguments: arguments, environment: environment)
         }
     }
 
-    private func takeSnapshotOnce(force: Bool, quiet: Bool, refreshITunes: Bool, snapshotDirectory: URL,
+    private func takeSnapshotOnce(force: Bool, quiet: Bool, refreshITunes: Bool, synchronizingDrafts: Bool, snapshotDirectory: URL,
                                   snapshotCopy: @escaping @Sendable (Bool) throws -> URL,
                                   captureITunes: @escaping @Sendable () -> ITunesLibrarySnapshot,
                                   arguments: [String], environment: [String: String]) async -> Task<Void, Never>? {
@@ -560,7 +641,7 @@ final class LibraryStore {
             ITunesRefreshCoordinator.shared.invalidateSnapshots([url])
             let fallback = latestITunesFallback(previousITunesSnapshot)
             let expectedGeneration = loadGeneration + 1
-            await load(snapshot: url, quiet: quiet, refreshITunes: false,
+            await load(snapshot: url, quiet: quiet, refreshITunes: false, synchronizingDrafts: synchronizingDrafts,
                        previousITunesSnapshot: fallback,
                        arguments: arguments, environment: environment, captureITunes: captureITunes)
             guard loadGeneration == expectedGeneration, snapshotURL == url, lastError == nil else { return nil }
@@ -652,11 +733,14 @@ final class LibraryStore {
                      sourceDatabase: previous.sourceDatabase)
     }
 
-    func load(snapshot: URL, quiet: Bool = false, refreshITunes: Bool = false,
+    func load(snapshot: URL, quiet: Bool = false, refreshITunes: Bool = false, synchronizingDrafts: Bool = false,
               previousITunesSnapshot: LoadedLibrary.ITunesFallback? = nil,
               arguments: [String] = ProcessInfo.processInfo.arguments,
               environment: [String: String] = ProcessInfo.processInfo.environment,
               captureITunes: @escaping @Sendable () -> ITunesLibrarySnapshot = { RekordboxITunesReader.capture() }) async {
+        guard !synchronizingDrafts || !isWritingRekordbox else { return }
+        DraftWriter.flush()
+        let initialTagRevision = tagRevision
         previewWarmTask?.cancel()
         loadGeneration += 1
         let generation = loadGeneration
@@ -682,6 +766,11 @@ final class LibraryStore {
             }
             // 더 나중에 시작한 로드가 있으면 이 결과는 버린다.
             guard generation == loadGeneration else { return }
+            // 기다리는 동안 시작한 쓰기·복원의 초안과 동기화 결과를 섞지 않는다.
+            guard !synchronizingDrafts || !isWritingRekordbox else {
+                if !quiet { phase = rows.isEmpty ? .idle : .loaded }
+                return
+            }
             undoManager?.removeAllActions(withTarget: self)
             let loadedRows = loaded.rows.map { row in
                 var row = row
@@ -696,7 +785,27 @@ final class LibraryStore {
             filterCounts[.missingFile] = rows.lazy.filter(LibraryFilter.missingFile.includes).count
             duplicateGroups = loaded.duplicateGroups
             draftFileStamps = nil
-            tagDrafts = loaded.tagDrafts
+            // 읽는 동안 사용자가 편집했거나 저장에 실패한 입력은 디스크의 오래된 값으로 덮지 않는다.
+            let failedTags = failedTagSaves()
+            var latestTags = tagRevision == initialTagRevision ? loaded.tagDrafts : tagDrafts
+            for uuid in failedTags { latestTags[uuid] = tagDrafts[uuid] }
+            var conflicts = 0
+            var rebased: [TagDraft] = []
+            if synchronizingDrafts {
+                for (uuid, draft) in latestTags where !failedTags.contains(uuid) {
+                    guard let row = rowsByUUID[uuid], let updated = draft.rebased(onto: TagFields(track: row.track)) else {
+                        conflicts += 1
+                        continue
+                    }
+                    if updated != draft {
+                        latestTags[uuid] = updated.hasChanges ? updated : nil
+                        rebased.append(updated)
+                    }
+                }
+            }
+            tagDrafts = latestTags
+            if !rebased.isEmpty { persistTagDrafts(rebased); DraftWriter.flush() }
+            tagRevision += 1
             cueDraftUUIDs = loaded.cueDraftUUIDs
             draftCueCounts = loaded.draftCueCounts
             draftPreviewCues = loaded.draftPreviewCues
@@ -713,6 +822,7 @@ final class LibraryStore {
             histories = loaded.histories
             historyIndex = Dictionary(uniqueKeysWithValues: histories.map { ($0.id, $0) })
             snapshotURL = snapshot
+            onSnapshotLoaded?(snapshot)
             previewRevision += 1
             loadStaged()
             // 기다리는 동안 설정이 바뀌었으면 최신 프리셋으로 맞춘다.
@@ -729,9 +839,21 @@ final class LibraryStore {
                 PreviewWaveformStore.Source(uuid: $0.track.uuid, url: RekordboxShare.analysisURL($0.track.analysisDataPath))
             }
             previewWarmTask = Task.detached(priority: .background) { await PreviewWaveformStore.shared.warm(previewSources) }
-            lastError = nil
+            lastError = failedTagSaves().isEmpty ? nil : DraftWriter.tagSaveFailureMessage
+            if synchronizingDrafts {
+                toast = conflicts == 0
+                    ? AppToast(title: String(ui: "현재 rekordbox 내용을 불러왔습니다"))
+                    : AppToast(kind: .warning, title: String(ui: "태그 충돌을 확인하세요"),
+                               detail: String(ui: "같은 칸이 바뀐 \(conflicts)곡의 초안을 보존했습니다. 곡 정보에서 현재 값과 초안을 확인하세요."))
+            }
             FileHandle.standardError.write(Data("라이브러리 로드 \(ContinuousClock.now - started) · \(rows.count)곡\n".utf8))
-            refreshDeckTrack()
+            // 동기화 중 시작한 드래그는 메모리에만 있을 수 있어 덱을 덮지 않는다.
+            if !synchronizingDrafts || (allowsLibrarySync?() ?? true) {
+                refreshDeckTrack()
+                if synchronizingDrafts, let deckTrackID, let row = rowsByID[deckTrackID] {
+                    onRekordboxWritten?([row.track.uuid])
+                }
+            }
             checkMissingFiles()
             applyLaunchSelection()
             runLaunchStagingTest()
@@ -816,12 +938,21 @@ final class LibraryStore {
 
     // MARK: - 초안 표시
 
+    /// USB 목록·라이브러리가 바뀌었다: 보고 있던 USB 대상이 없어졌으면 라이브러리로 돌아가고, 아니면 줄을 다시 만든다.
+    func usbChanged() {
+        guard case let .usb(target) = sidebar else { return }
+        if usb?.contains(target) == true { refreshBase() } else { sidebar = .filter(.all) }
+    }
+
     /// CLI·외부 편집의 원자적 파일 교체를 확인한다. DB·파형·재생은 다시 불러오지 않는다.
     func refreshExternalDrafts(home: URL = DJCPaths.userData) {
         guard case .loaded = phase, !isWritingRekordbox else { return }
         DraftWriter.flush()
         let cueDirectory = home.appending(path: "cue-drafts")
         let tagDirectory = home.appending(path: "tag-drafts")
+        let failedTags = failedTagSaves(in: tagDirectory)
+        if !failedTags.isEmpty { lastError = DraftWriter.tagSaveFailureMessage }
+        else if lastError == DraftWriter.tagSaveFailureMessage { lastError = nil }
         var stamps: [String: Date] = [:]
         for directory in [cueDirectory, tagDirectory] {
             let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
@@ -841,6 +972,7 @@ final class LibraryStore {
         for uuid in TagDraftStore.uuids(directory: tagDirectory) {
             if let draft = TagDraftStore.load(trackUUID: uuid, directory: tagDirectory), draft.hasChanges { tags[uuid] = draft }
         }
+        for uuid in failedTags { tags[uuid] = tagDrafts[uuid] }
         if tagDrafts.mapValues(\.fields) != tags.mapValues(\.fields) || tagDrafts.mapValues(\.base) != tags.mapValues(\.base) {
             tagDrafts = tags
             // 외부 변경 뒤 옛 되돌리기가 새 초안을 덮지 않게 한다.

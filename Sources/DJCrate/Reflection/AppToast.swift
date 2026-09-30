@@ -23,17 +23,32 @@ struct AppToast: Identifiable, Equatable {
         }
     }
 
+    /// 알림 안의 동작 단추
+    enum Action: Equatable {
+        /// USB 쓰기가 끝난 뒤 그 볼륨 꺼내기
+        case ejectUsb(volumeKey: String)
+
+        var title: String {
+            switch self {
+            case .ejectUsb: String(ui: "꺼내기")
+            }
+        }
+    }
+
     let id = UUID()
     var kind: Kind = .success
     var title: String
     var detail: String?
     /// 되돌리기 버튼(이번 쓰기 직전 백업)
     var undoBackup: URL?
+    var action: Action?
+    /// USB 쓰기 알림(rekordbox 쓰기 결과 보기를 붙이지 않는다)
+    var isUsb = false
 
     /// 실패·경고는 사용자가 닫을 때까지 남긴다.
     var duration: Double {
         switch kind {
-        case .success: undoBackup == nil ? 3.5 : 7
+        case .success: undoBackup == nil && action == nil ? 3.5 : 7
         case .warning, .failure: .infinity
         }
     }
@@ -49,6 +64,7 @@ struct AppToastView: View {
     let toast: AppToast
     var onUndo: (() -> Void)?
     var onDetails: (() -> Void)?
+    var onAction: (() -> Void)?
     var onClose: () -> Void
     @State private var hovering = false
 
@@ -69,6 +85,9 @@ struct AppToastView: View {
             .frame(maxWidth: TextScale.length(420, scale: textScale), alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
             if let onDetails { Button(.ui("결과 보기"), action: onDetails).controlSize(ControlSize.small.scaled(textScale)) }
+            if let onAction, let action = toast.action {
+                Button(action.title, action: onAction).controlSize(ControlSize.small.scaled(textScale))
+            }
             if let onUndo, toast.undoBackup != nil {
                 Button(.ui("쓰기 전으로 복원…"), action: onUndo)
                     .controlSize(ControlSize.small.scaled(textScale))
