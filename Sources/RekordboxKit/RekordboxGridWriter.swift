@@ -138,7 +138,9 @@ public enum RekordboxGridWriter {
 
         // 초안을 시작한 뒤 rekordbox에서 그리드가 바뀌었으면 쓰지 않는다.
         let current = BeatGridTags.decode(pqtz: pqtz.bytes, pqt2: extFile?.tag("PQT2")?.bytes).beats
-        let currentGrid = BeatGrid(beats: current.map { .init(number: $0.number, bpm: Double($0.bpm100) / 100, time: $0.time / 1000) })
+        // 편집기와 같은 PQTZ 정수 ms로 비교한다. PQT2 소수로 BPM을 역산하면 짧고 빠른 구간이 거짓 충돌한다(#159).
+        let baseBeats = BeatGridTags.decode(pqtz: pqtz.bytes, pqt2: nil).beats
+        let currentGrid = BeatGrid(beats: baseBeats.map { .init(number: $0.number, bpm: Double($0.bpm100) / 100, time: $0.time / 1000) })
         let currentSegments = GridDraft.segments(from: currentGrid)
         guard currentSegments.count == draft.base.count,
               zip(currentSegments, draft.base).allSatisfy({ abs($0.start - $1.start) < 0.002 && abs($0.bpm - $1.bpm) < 0.01 && $0.firstBeatNumber == $1.firstBeatNumber })
