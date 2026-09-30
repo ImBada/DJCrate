@@ -954,6 +954,40 @@ final class TrackListTableView: NSTableView {
         }
     }
 
+    private struct ColumnResize {
+        let style: NSTableView.ColumnAutoresizingStyle
+        let clipWidth: CGFloat?
+    }
+    private var columnResize: ColumnResize?
+
+    override func viewWillStartLiveResize() {
+        super.viewWillStartLiveResize()
+        guard columnResize == nil else { return }
+        columnResize = ColumnResize(style: columnAutoresizingStyle,
+                                    clipWidth: enclosingScrollView?.contentView.frame.width)
+        // 연속 조절 중에는 여러 열의 셀을 매 단계 다시 배치하지 않는다.
+        columnAutoresizingStyle = .noColumnAutoresizing
+    }
+
+    override func viewDidEndLiveResize() {
+        guard let resize = columnResize else { super.viewDidEndLiveResize(); return }
+        columnResize = nil
+        let clip = enclosingScrollView?.contentView
+        let finalSize = clip?.frame.size
+        if resize.style != .noColumnAutoresizing, let clip, let width = resize.clipWidth {
+            var size = clip.frame.size
+            size.width = width
+            clip.setFrameSize(size)
+        }
+        columnAutoresizingStyle = resize.style
+        super.viewDidEndLiveResize()
+        // 시작 폭에서 최종 폭으로 한 번만 적용한다. 최소 열 폭·스크롤은 AppKit이 정한다.
+        if resize.style != .noColumnAutoresizing, let clip, let finalSize {
+            clip.setFrameSize(finalSize)
+            enclosingScrollView?.tile()
+        }
+    }
+
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         let row = row(at: point), column = column(at: point)
@@ -1003,6 +1037,7 @@ final class TrackTextCell: NSTableCellView {
     /// 접근성 값을 한 번이라도 덮었는지. 셀에 nil을 넣으면 기본값으로 돌아가지 않아 그 뒤로는 글자를 계속 넣는다.
     private var speaksCustomValue = false
     private var field: NSTextField?
+    private var labelHeight = TrackTextHeight()
 
     override var backgroundStyle: NSView.BackgroundStyle {
         didSet { updateColor() }
@@ -1065,12 +1100,21 @@ final class TrackTextCell: NSTableCellView {
         }
         // 글자 자리(정렬 사각형)는 양옆 2pt 안쪽에서 세로 가운데다. 글자 칸 프레임은 정렬 여백만큼 더 넓다.
         for text in [label, field].compactMap({ $0 }) {
-            let textHeight = text.intrinsicContentSize.height
+            let textHeight = text === label
+                ? labelHeight.value(text: label.stringValue, font: label.font) { label.intrinsicContentSize.height }
+                : text.intrinsicContentSize.height
             let slot = NSRect(x: labelLeading, y: (height - textHeight) / 2,
                               width: max(0, bounds.width - labelLeading - 2), height: textHeight)
-            text.frame = backingAlignedRect(text.frame(forAlignmentRect: slot), options: .alignAllEdgesNearest)
+            let frame = backingAlignedRect(text.frame(forAlignmentRect: slot), options: .alignAllEdgesNearest)
+            if text.frame != frame { text.frame = frame }
         }
         draftMark.frame = NSRect(x: 0, y: isFlipped ? 0 : height - 7, width: 7, height: 7)
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        labelHeight.invalidate()
+        needsLayout = true
     }
 
     /// - Parameter draft: 반영 전 초안 값. 색과 함께 모서리 표식·VoiceOver "초안"으로도 알린다.
