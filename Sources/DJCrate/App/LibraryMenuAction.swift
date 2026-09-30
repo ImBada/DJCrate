@@ -12,7 +12,7 @@ enum LibraryMenuAction: CaseIterable {
         switch self {
         case .addFiles: String(ui: "곡 추가…")
         case .importAppleMusic: String(ui: "Apple Music XML 가져오기…")
-        case .snapshot: String(ui: "새 스냅샷")
+        case .snapshot: String(ui: "rekordbox와 동기화")
         case .exportXML: String(ui: "XML 만들기")
         case .reflect: String(ui: "rekordbox에 쓰기…")
         case .pending: String(ui: "쓰기 대기 목록 보기")
@@ -36,7 +36,7 @@ enum LibraryMenuAction: CaseIterable {
         switch self {
         case .addFiles: return !store.rows.isEmpty
         case .importAppleMusic: return !store.isLoading
-        case .snapshot: return !store.isLoading
+        case .snapshot: return store.canSynchronizeLibrary
         case .exportXML: return store.sidebar == .staged ? !store.staged.isEmpty : !store.reflectionTargets.isEmpty
         case .reflect: return store.pendingLibraryCount > 0 || store.hasPlaylistDrafts
         case .pending, .writeResult: return true
@@ -50,7 +50,7 @@ enum LibraryMenuAction: CaseIterable {
         switch self {
         case .addFiles: StagingPanels.chooseFiles(store: store)
         case .importAppleMusic: AppleMusicImportWindow.shared.open(store: store)
-        case .snapshot: Task { await store.takeSnapshot(force: LibrarySnapshot.isRekordboxRunning()) }
+        case .snapshot: Task { await store.synchronizeLibrary() }
         case .exportXML:
             if store.sidebar == .staged { StagingPanels.exportXML(store: store) }
             else { ReflectionPanels.export(store: store, rows: store.reflectionTargets) }

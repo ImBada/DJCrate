@@ -29,7 +29,11 @@ extension LibraryStore {
     /// - Parameter playlists: 재생 목록 초안도 함께 볼지(곡 초안과 달리 곡을 골라 나누지 않는다)
     func previewWrite(rows: [TrackRow], playlists: Bool) async throws -> WritePreview {
         DraftWriter.flush()
+        retryFailedTagSaves()
         let targets = writeTargets(rows)
+        guard failedTagSaves().isDisjoint(with: targets.map { $0.track.uuid }) else {
+            throw DJCError.writeRefused(DraftWriter.tagSaveFailureMessage)
+        }
         let uuids = Set(targets.map { $0.track.uuid })
         let merges = mergeDrafts.filter { $0.members.contains { uuids.contains($0.trackUUID) } }
         // 자동 큐를 빼고 만든 옛 초안에는 곡의 자동 큐를 채운다(#145, 쓰기도 같은 일을 한다).
@@ -156,7 +160,7 @@ extension LibraryStore {
             tagDrafts[draft.trackUUID] = draft.hasChanges ? draft : nil
             updateEdited(draft.trackUUID)
         }
-        saveTagDrafts(drafts)
+        persistTagDrafts(drafts)
         tagRevision += 1
         if case .pending = sidebar { refreshBase() }
     }

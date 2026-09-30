@@ -96,6 +96,24 @@ public struct TagDraft: Codable, Equatable, Sendable {
     public var changedKeys: [TagFields.Key] { TagFields.Key.allCases.filter { base[$0] != fields[$0] } }
     public var hasChanges: Bool { base != fields }
 
+    /// 쓰는 칸과 그 칸의 앨범 관계만 충돌을 본다. 코멘트 초안은 다른 정보 변경을 덮지 않는다.
+    public func conflictingKeys(with current: TagFields) -> [TagFields.Key] {
+        var protected = Set(changedKeys)
+        let albumKeys: Set<TagFields.Key> = [.artist, .album, .albumArtist]
+        if !protected.isDisjoint(with: albumKeys) { protected.formUnion(albumKeys) }
+        return TagFields.Key.allCases.filter {
+            protected.contains($0) && current[$0] != base[$0] && current[$0] != fields[$0]
+        }
+    }
+
+    /// 같은 칸의 실제 충돌은 보존하고, 안 고친 칸만 최신값으로 맞춘다.
+    public func rebased(onto current: TagFields) -> TagDraft? {
+        guard conflictingKeys(with: current).isEmpty else { return nil }
+        var rebased = TagDraft(trackUUID: trackUUID, base: current)
+        for key in changedKeys { rebased.fields[key] = fields[key] }
+        return rebased
+    }
+
     /// 쓰기 전 확인할 문제.
     public var issues: [String] {
         var issues: [String] = []

@@ -51,4 +51,30 @@ struct SnapshotRequestQueueTests {
         await second.value
         #expect(completed == ["첫 읽기", "두번째 읽기", "두번째 호출 반환"])
     }
+    @Test func 명시적_초안_동기화는_자동_새로읽기와_합쳐_사라지지_않는다() async {
+        let queue = SnapshotRequestQueue(), gate = SnapshotPauseGate()
+        var completed: [String] = []
+        let first = Task { await queue.run(force: false, quiet: true) { _, _ in await gate.pause() } }
+        await gate.waitUntilPaused()
+        let explicit = Task {
+            await queue.runWithFollowUp(force: true, quiet: false, refreshITunes: false, synchronizingDrafts: true) { _, _ in
+                completed.append("명시적 동기화")
+                return nil
+            }
+        }
+        while queue.waitingCount < 1 { await Task.yield() }
+        let automatic = Task {
+            await queue.runWithFollowUp(force: true, quiet: true, refreshITunes: false) { _, _ in
+                completed.append("자동 새로 읽기")
+                return nil
+            }
+        }
+        while queue.waitingCount < 2 { await Task.yield() }
+        await gate.release()
+        await first.value
+        await explicit.value
+        await automatic.value
+        #expect(completed == ["명시적 동기화", "자동 새로 읽기"])
+    }
+
 }

@@ -23,7 +23,7 @@ enum ReflectionPanels {
             return
         }
         // 재생 목록 이름 "DJCrate 반영"은 XML에 쓰는 이름 그대로다(번역하지 않음).
-        var text = String(ui: "\(eligible.count)곡을 연동 XML에 썼습니다 · rekordbox: rekordbox xml 새로고침 › \"DJCrate 반영\" › 곡 모두 선택 › Import To Collection → DJCrate 새 스냅샷(⟳)")
+        var text = String(ui: "\(eligible.count)곡을 연동 XML에 썼습니다 · rekordbox: rekordbox xml 새로고침 › \"DJCrate 반영\" › 곡 모두 선택 › Import To Collection → DJCrate rekordbox와 동기화(⟳)")
         if !blocked.isEmpty {
             let names = blocked.prefix(2).map { "\($0.title)(\($0.blockers.first ?? ""))" }.joined(separator: ", ")
             text += " · " + String(ui: "막혀서 뺀 곡 \(blocked.count): \(names)")
