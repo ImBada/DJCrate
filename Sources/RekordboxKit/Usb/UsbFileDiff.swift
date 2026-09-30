@@ -172,6 +172,9 @@ public enum UsbFileDiff {
         var same = 0, onlyA = 0, onlyB = 0
         var tagCounts: [String: Int] = [:]
         var differences: [String] = []
+        // 읽지 못한 파일을 빼면 비교가 끝나지 않았는데도 "차이 0"으로 보고한다
+        differences.append(contentsOf: repeatElement("ANLZ A: 비교 불가(PPTH 못 읽음)", count: left.unreadable))
+        differences.append(contentsOf: repeatElement("ANLZ B: 비교 불가(PPTH 못 읽음)", count: right.unreadable))
         for (index, key) in keys.enumerated() {
             let parts = key.split(separator: "\u{0}", omittingEmptySubsequences: false)
             let label = options.trackIDs[String(parts[0])].map { "곡 \($0)" } ?? "짝 \(index + 1)"
