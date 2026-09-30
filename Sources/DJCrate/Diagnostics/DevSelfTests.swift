@@ -415,8 +415,8 @@ enum DevSelfTests {
             guard audio.isOutputReady else { log("오디오 출력을 준비하지 못함(장치 응답 없음)"); exit(1) }
             let captured = Captured()
             audio.debugCaptureTrack { buffer in
-                guard let data = buffer.floatChannelData else { return }
-                captured.append((0..<Int(buffer.frameLength)).map { Int((Double(data[0][$0]) * 1_000_000).rounded()) })
+                guard case let .float(data) = buffer.channelData(0) else { return }
+                captured.append((0..<Int(buffer.frameLength)).map { Int((Double(data[$0]) * 1_000_000).rounded()) })
             }
             func frame(_ t: Double) -> Int { Int((t * rate).rounded()) }
             // 루프(2.0~2.5초) 안에서 지금 몇 초째인지 보고 누른다(½이 새 끝 전·후 두 경우를 모두 지나게).
@@ -517,8 +517,8 @@ extension DevSelfTests {
             guard audio.isOutputReady else { log("오디오 출력을 준비하지 못함(장치 응답 없음)"); exit(1) }
             let captured = Captured()
             audio.debugCaptureTrack { buffer in
-                guard let data = buffer.floatChannelData else { return }
-                captured.append((0..<Int(buffer.frameLength)).map { Int((Double(data[0][$0]) * 1_000_000).rounded()) })
+                guard case let .float(data) = buffer.channelData(0) else { return }
+                captured.append((0..<Int(buffer.frameLength)).map { Int((Double(data[$0]) * 1_000_000).rounded()) })
             }
             func frame(_ t: Double) -> Int { Int((t * rate).rounded()) }
             var expected: [String: String] = [:]
@@ -621,9 +621,9 @@ func runMetronomeSelfTestIfRequested() {
         guard audio.isOutputReady else { log("오디오 출력을 준비하지 못함(장치 응답 없음)"); exit(1) }
         let captured = Captured()
         audio.debugCaptureClicks { buffer in
-            guard let data = buffer.floatChannelData else { return }
+            guard case let .float(data) = buffer.channelData(0) else { return }
             // 부호까지 보존해 클릭 간격과 강박(1760Hz)/일반 박(1175Hz)을 함께 검사한다.
-            captured.append((0..<Int(buffer.frameLength)).map { Int(data[0][$0] * 1_000_000) })
+            captured.append((0..<Int(buffer.frameLength)).map { Int(data[$0] * 1_000_000) })
         }
         audio.metronome = true
         audio.play(from: 1.0)

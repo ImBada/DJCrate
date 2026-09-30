@@ -7,6 +7,7 @@ DJCrate 배포물에 포함되거나 옮겨 온 코드의 출처와 라이선스
 - 고지 기준 커밋: `39f212458aeb88e33bdac2200a793a3f0d55d32b`
 - 출처: [sqlcipher/SQLCipher.swift](https://github.com/sqlcipher/SQLCipher.swift/tree/39f212458aeb88e33bdac2200a793a3f0d55d32b)
 - 원문: [LICENSE.md](https://github.com/sqlcipher/SQLCipher.swift/blob/39f212458aeb88e33bdac2200a793a3f0d55d32b/LICENSE.md)
+- 가져오는 방법: 공식 4.19.0 `SQLCipher.xcframework.zip`을 `Package.swift`의 바이너리 타깃으로 직접 지정한다. 공식 패키지와 같은 URL·SHA-256 체크섬을 쓰며 프레임워크는 수정하지 않는다.
 - DJCrate에서 쓰는 곳: `Sources/RekordboxKit/CipherDatabase.swift`의 DB 접근과 앱에 포함하는 `SQLCipher.framework`.
 
 ````text

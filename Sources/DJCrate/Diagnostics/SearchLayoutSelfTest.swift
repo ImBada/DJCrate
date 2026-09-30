@@ -8,7 +8,7 @@ extension DevSelfTests {
               ProcessInfo.processInfo.environment["DJC_HOME"] != nil else { return }
         Task {
             func wait() async { try? await Task.sleep(for: .milliseconds(500)) }
-            func capture(_ window: NSWindow, name: String) -> Bool {
+            @MainActor func capture(_ window: NSWindow, name: String) -> Bool {
                 guard let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--search-layout-captures=") }) else { return true }
                 let directory = String(argument.dropFirst("--search-layout-captures=".count))
                 let command = Process()
@@ -18,7 +18,7 @@ extension DevSelfTests {
                 command.waitUntilExit()
                 return command.terminationStatus == 0
             }
-            func searchWindow() -> NSWindow? {
+            @MainActor func searchWindow() -> NSWindow? {
                 NSApp.windows.first { $0.toolbar?.items.contains(where: { $0 is NSSearchToolbarItem }) == true }
             }
             for _ in 0..<20 {

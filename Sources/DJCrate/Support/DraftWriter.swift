@@ -33,9 +33,9 @@ enum DraftWriter {
             for draft in drafts {
                 do {
                     try TagDraftStore.save(draft, directory: directory)
-                    tagFailures.withLock { $0[key]?.remove(draft.trackUUID) }
+                    _ = tagFailures.withLock { $0[key]?.remove(draft.trackUUID) }
                 } catch {
-                    tagFailures.withLock { $0[key, default: []].insert(draft.trackUUID) }
+                    _ = tagFailures.withLock { $0[key, default: []].insert(draft.trackUUID) }
                 }
             }
         }
