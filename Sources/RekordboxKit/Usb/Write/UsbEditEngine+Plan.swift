@@ -121,6 +121,8 @@ extension UsbEditEngine {
 
         result.outcomes = planned.map { ($0.index, $0.outcome) }
         result.applied = applied
+        let appliedPlaylistIDs = Set(applied.playlists.map(\.id))
+        result.createdPlaylistIDs = planner.newPlaylists.filter { appliedPlaylistIDs.contains($0.value) }
         let written = planned.contains { if case .written = $0.outcome { true } else if case .deferred = $0.outcome { true } else { false } }
         guard written, !(context.databases.isEmpty && context.copies.isEmpty && context.writes.isEmpty && removals.isEmpty) else {
             // 바꾼 것이 없다(적용했지만 결과가 같음)

@@ -234,7 +234,7 @@ public final class UsbEditSession {
     func keepBlockedEdits(_ prepared: Prepared, volumeKey: String) throws {
         let blocked = prepared.result.outcomes.compactMap { entry -> UsbLibraryEdit? in
             guard case .blocked = entry.outcome, prepared.edits.indices.contains(entry.edit - 1) else { return nil }
-            return prepared.edits[entry.edit - 1]
+            return Self.resolveCreatedPlaylists(in: prepared.edits[entry.edit - 1], ids: prepared.result.createdPlaylistIDs)
         }
         guard !blocked.isEmpty else {
             try drafts.discard(volumeKey: volumeKey)
@@ -243,6 +243,33 @@ public final class UsbEditSession {
         let createdAt = try drafts.load(volumeKey: volumeKey)?.createdAt ?? Date()
         try drafts.save(UsbDraft(volumeKey: volumeKey, base: UsbWriter.databaseFingerprint(root: UsbRoot(root), fileSystem: fileSystem),
                                  edits: blocked, createdAt: createdAt))
+    }
+
+    /// 성공한 생성 편집은 초안에서 빠지므로 그 목록을 가리키는 참조는 실제 번호로 남긴다. 아직 만들지 못한 key는 그대로 둔다
+    private static func resolveCreatedPlaylists(in edit: UsbLibraryEdit, ids: [String: Int]) -> UsbLibraryEdit {
+        func ref(_ value: PlaylistRef) -> PlaylistRef {
+            guard case let .new(key) = value, let id = ids[key] else { return value }
+            return .id(String(id))
+        }
+        switch edit {
+        case let .addTracks(localContentIDs, playlist):
+            return .addTracks(localContentIDs: localContentIDs, playlist: playlist.map(ref))
+        case .removeTracks, .refreshTracks: return edit
+        case let .playlist(edit):
+            let resolved: PlaylistEdit
+            switch edit {
+            case let .create(key, name, isFolder, parent):
+                resolved = .create(key: key, name: name, isFolder: isFolder, parent: ref(parent))
+            case let .rename(playlist, name): resolved = .rename(playlist: ref(playlist), name: name)
+            case let .move(playlist, into): resolved = .move(playlist: ref(playlist), into: ref(into))
+            case let .reorder(playlist, index): resolved = .reorder(playlist: ref(playlist), index: index)
+            case let .delete(playlist): resolved = .delete(playlist: ref(playlist))
+            case let .addTracks(playlist, contentIDs): resolved = .addTracks(playlist: ref(playlist), contentIDs: contentIDs)
+            case let .removeTracks(playlist, entries): resolved = .removeTracks(playlist: ref(playlist), entries: entries)
+            case let .moveTracks(playlist, entries, to): resolved = .moveTracks(playlist: ref(playlist), entries: entries, to: to)
+            }
+            return .playlist(edit: resolved)
+        }
     }
 
     /// 볼륨 정책(수정)·보호 경로·실물 관문·확인 안 된 규칙(쓰기 절차의 A 단계와 같은 판정)

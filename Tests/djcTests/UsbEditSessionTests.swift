@@ -135,6 +135,69 @@ struct UsbEditSessionTests {
         #expect(try env.drafts.load(volumeKey: key) == nil)
     }
 
+    @Test("새 목록 생성 뒤 막힌 항목 초안은 실제 목록 번호로 남겨 원인이 풀리면 다시 쓴다")
+    func draftRetryKeepsCreatedPlaylistReference() throws {
+        let env = try Env()
+        let key = env.usb.volumeKey
+        let original = try env.fixture.read().playlists
+        let originalIDs = Set(original.map(\.id))
+        // 이미 같은 이름인 목록이 있어도 이번 생성의 실제 번호만 이어 받는다
+        try env.session().addToDraft(.playlist(edit: .create(key: "retry-list", name: "합성 목록", isFolder: false, parent: .root)))
+        try env.session().addToDraft(.playlist(edit: .addTracks(playlist: .new("retry-list"), contentIDs: ["4"])))
+        let createdAt = try #require(try env.drafts.load(volumeKey: key)?.createdAt)
+        let (first, report) = try env.session().writeDraft(options: UsbWriteOptions(), snapshotTime: Self.time,
+                                                          progress: { _ in }, isCancelled: { false })
+        #expect(report?.outcome == .written && first.outcome(1) == .written)
+        guard case .blocked = first.outcome(2) else { Issue.record("없는 곡 항목이 막히지 않음"); return }
+        let playlist = try #require(try env.fixture.read().playlists.first { !originalIDs.contains($0.id) })
+        let kept = try #require(try env.drafts.load(volumeKey: key))
+        #expect(kept.edits == [.playlist(edit: .addTracks(playlist: .id(String(playlist.id)), contentIDs: ["4"]))])
+        #expect(kept.createdAt == createdAt)
+
+        // 막혔던 USB 곡을 다른 쓰기로 더한 뒤 남은 초안을 새 세션에서 재시도한다
+        try env.fixture.addLocal(["104"])
+        _ = try Self.write(env.session(), [.addTracks(localContentIDs: ["104"], playlist: nil)])
+        let (retried, written) = try env.session().writeDraft(options: UsbWriteOptions(), snapshotTime: Self.time,
+                                                             progress: { _ in }, isCancelled: { false })
+        #expect(written?.outcome == .written && retried.outcome(1) == .written)
+        #expect(try env.drafts.load(volumeKey: key) == nil)
+        let after = try env.fixture.read()
+        #expect(after.playlists.filter { $0.name == playlist.name }.count == 2)
+        #expect(after.playlists.filter { originalIDs.contains($0.id) } == original)
+        let filled = try #require(after.playlists.first { $0.id == playlist.id })
+        #expect(filled.entries[.oneLibrary] == [4] && filled.entries[.deviceLibrary] == [4])
+    }
+
+    @Test("막힌 생성 초안은 부모 번호를 보존하고 아직 만들지 못한 자식 key는 그대로 둔다")
+    func draftRetryKeepsCreatedParentReference() throws {
+        let env = try Env()
+        let key = env.usb.volumeKey
+        try env.session().addToDraft(.playlist(edit: .create(key: "retry-parent", name: "합성 재시도 부모", isFolder: false, parent: .root)))
+        try env.session().addToDraft(.playlist(edit: .create(key: "retry-child", name: "합성 재시도 자식", isFolder: false,
+                                                            parent: .new("retry-parent"))))
+        try env.session().addToDraft(.playlist(edit: .addTracks(playlist: .new("retry-child"), contentIDs: ["1"])))
+        let (first, report) = try env.session().writeDraft(options: UsbWriteOptions(), snapshotTime: Self.time,
+                                                          progress: { _ in }, isCancelled: { false })
+        #expect(report?.outcome == .written && first.outcome(1) == .written)
+        guard case let .blocked(parentBlock) = first.outcome(2), case .blocked = first.outcome(3) else {
+            Issue.record("잘못된 부모 아래 자식과 그 항목이 막히지 않음"); return
+        }
+        #expect(parentBlock.code == "notFolder")
+        let parent = try #require(try env.fixture.read().playlists.first { $0.name == "합성 재시도 부모" })
+        #expect(try env.drafts.load(volumeKey: key)?.edits == [
+            .playlist(edit: .create(key: "retry-child", name: "합성 재시도 자식", isFolder: false, parent: .id(String(parent.id)))),
+            .playlist(edit: .addTracks(playlist: .new("retry-child"), contentIDs: ["1"])),
+        ])
+        // 부모 참조가 사라졌다는 오류로 바뀌지 않고, 사용자가 고쳐야 할 실제 막힘을 그대로 알린다
+        let (retried, written) = try env.session().writeDraft(options: UsbWriteOptions(), snapshotTime: Self.time,
+                                                             progress: { _ in }, isCancelled: { false })
+        #expect(written == nil)
+        guard case let .blocked(retriedBlock) = retried.outcome(1) else { Issue.record("잘못된 부모가 막히지 않음"); return }
+        #expect(retriedBlock.code == "notFolder")
+        #expect(try env.fixture.read().playlists.filter { $0.name == parent.name }.count == 1)
+    }
+
+
     @Test("쓴 뒤 되돌리면 트리가 쓰기 전과 같다(지운 음원·분석 파일·아트워크 포함)")
     func writeThenRestoreTreeEqual() throws {
         let env = try Env()

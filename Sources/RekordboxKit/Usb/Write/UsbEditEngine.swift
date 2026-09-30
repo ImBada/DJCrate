@@ -42,6 +42,8 @@ public struct UsbEditResult: Sendable {
     public var warnings: [UsbBlock]
     /// 편집을 적용한 두 형식 모델(OneLibrary 검증 기대값)
     public var applied: UsbLibrary?
+    /// 이번 묶음에서 만들고 적용 결과에 남은 목록(key → USB ID). 남은 초안의 new 참조를 이어 받을 때 쓴다
+    public var createdPlaylistIDs: [String: Int] = [:]
     /// Device Library 작성기가 쓴 모델(pdb 검증 기대값). Device Library를 쓰지 않으면 nil
     public var pdbWritten: UsbLibrary?
     /// 로컬 사본을 뜬 시각과 그 출처(곡 더하기·갱신이 있을 때만)
