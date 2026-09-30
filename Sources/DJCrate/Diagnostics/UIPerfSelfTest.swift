@@ -139,7 +139,7 @@ struct UIPerfSample {
     var sync: Double
     /// 창 안에서 메인 스레드가 일한 시간 합
     var busy: Double
-    /// 그중 메인 스레드가 실제로 CPU를 쓴 시간(다른 프로세스 때문에 기다린 시간은 뺀다)
+    /// 런루프 구간으로 추정한 메인 스레드 CPU 시간(측정 구간에 걸친 몫은 비율로 나눈다)
     var cpu: Double
     /// 한 번에 가장 길게 일한 시간(그동안 화면이 멈춘다)
     var longest: Double
@@ -194,7 +194,7 @@ final class UIPerfRunner {
             return sorted.isEmpty ? 0 : sorted[sorted.count / 2]
         }
         func pair(_ values: [Double]) -> String { String(format: "%.1f(최대 %.1f)", median(values), values.max() ?? 0) }
-        log("\(name) ×\(samples.count): 호출 \(pair(samples.map(\.sync)))ms · 메인 일한 합 \(pair(samples.map(\.busy)))ms(CPU \(pair(samples.map(\.cpu)))ms)"
+        log("\(name) ×\(samples.count): 호출 \(pair(samples.map(\.sync)))ms · 메인 일한 합 \(pair(samples.map(\.busy)))ms(CPU 추정 \(pair(samples.map(\.cpu)))ms)"
             + " · 한 번 최대 \(pair(samples.map(\.longest)))ms · 조용해질 때까지 \(pair(samples.map(\.settled)))ms"
             + " · 프레임 최대 간격 \(pair(samples.map(\.maxFrameGap)))ms · 25ms 넘은 프레임 \(samples.map(\.slowFrames).reduce(0, +))")
     }
