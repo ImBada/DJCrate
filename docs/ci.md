@@ -2,9 +2,33 @@
 
 `.github/workflows/check.yml`은 실행 계기에 따라 검사 범위가 다르다. `dev` 푸시(작업 브랜치를 합칠 때마다)는 `swift test`로 단위 테스트만 돌리고, PR·`main` 푸시·수동 실행(`workflow_dispatch`)은 전체 검사를 두 러너에 나눠 동시에 실행한다. `coverage`는 커버리지 계측 디버그 앱·CLI·테스트 빌드, 번역 검사, 전체 테스트 실행·줄 커버리지 목표(쓰기 80%, 코어 60%)를 맡고, `release`는 릴리스 앱 빌드를 맡는다. 테스트 수와 커버리지는 Actions의 Job summary에 남긴다. 오디오·UI 앱 자가 테스트, 앱 설치·서명·배포는 실행하지 않는다.
 
+수동 실행에서 `run_stress=true`를 선택하면 별도 러너의 `stress` 검사를 추가한다. 기본값은 `false`이며 푸시·PR이나 자동 스케줄로 stress를 실행하지 않는다. 관련 변경의 수동 stress CI에는 이 입력을 켜야 한다.
+
 마지막 `빌드·테스트·커버리지` job은 기존 필수 체크 이름을 유지한다. 해당 실행의 모든 검사 job이 성공해야 통과하며, 실패·취소·미실행은 통과시키지 않는다. 한 검사 실패로 다른 검사 로그를 잃지 않도록 matrix의 `fail-fast`는 끈다.
 
 로컬·릴리스 배포에서 인자 없이 실행하는 `scripts/check.sh`는 여전히 전체 검사를 순서대로 실행한다. CI 분할용 `--coverage`는 릴리스 빌드만 제외하고, `--release`는 릴리스 빌드만 실행한다. 두 명령을 같은 작업 폴더에서 동시에 실행하지 않는다. CI에서는 서로 다른 러너와 `.build`를 사용하므로 SwiftPM 잠금·산출물이 충돌하지 않는다.
+
+## 로컬 검증 운영
+
+개발 중에는 변경과 관련된 시험으로 실패를 재현하고, 구현 뒤 같은 시험이 통과하는지 확인한다(TDD). 영향 범위의 회귀 시험과 리뷰를 마친 뒤 최종 후보에 full을 한 번 실행한다. 작업 완료에는 full 통과가 필요하며, 디버그·릴리스 앱, 번역, 전체 안전·쓰기 시험과 쓰기 80%·코어 60% 커버리지 목표를 유지한다.
+
+| 명령 | 범위 | 쓰임 |
+|---|---|---|
+| `scripts/check.sh` | 디버그·릴리스 앱, 번역, 전체 시험, 커버리지 보고·목표 | 리뷰 완료 뒤 최종 full |
+| `scripts/check.sh --coverage` | full에서 릴리스 빌드만 제외 | 별도 러너의 `--release`와 함께 전체 CI 구성 |
+| `scripts/check.sh --release` | 릴리스 앱 빌드만 | 별도 러너의 `--coverage`와 함께 전체 CI 구성 |
+| `scripts/check.sh --quick --filter 'WriteGuardTests'` | 필터에 맞는 관련 시험만 | 개발 중 피드백·영향 범위 검증 |
+| `scripts/check.sh --stress` | `CipherColdOpenTests` 필터(경쟁 1개·설정 계약 3개), `DJC_CIPHER_STRESS=1` | 처음 열기 경쟁의 별도 스트레스 검증 |
+
+quick과 stress는 `swift build --build-tests --enable-code-coverage`의 같은 계측 디버그 빌드를 재사용하고, 릴리스 빌드·번역·커버리지 보고를 실행하지 않는다. quick의 필터는 Swift 시험 필터 정규식이며, 빈 필터·선택된 시험 0개·잘못된 인자는 성공시키지 않는다. quick·stress에서 모든 시험을 건너뛰어 실제 통과한 시험이 없는 경우도 실패한다. `--stress`는 단독으로 사용한다. 두 모드의 통과는 full의 대체나 작업 완료 증거가 아니다.
+
+일반 cold-open 회귀는 새 프로세스 4개 × 32스레드, stress는 새 프로세스 100개 × 32스레드이고, 두 경우 모두 동시에 실행하는 프로세스는 최대 4개다. `DJC_CIPHER_STRESS`는 미설정·`0`이면 일반, `1`이면 stress이며, 빈 문자열 등 나머지 값은 실패한다. `CipherDatabase`의 SQLCipher 초기화, `CipherLab`, cold-open 경쟁 관련 변경에는 stress 통과가 필수다. 별도 수동 CI에서도 stress를 실행하며, 다른 안전·쓰기 시험과 full의 커버리지 목표는 줄이지 않는다.
+
+### 통과 결과 재사용
+
+같은 코드 트리·툴체인·빌드 설정·시험 환경에서 얻은 통과만 재사용한다. 실행 명령·필터·환경 조건, 검증한 트리, 원래 로그·종료 코드를 함께 남긴다. 실제 코드·의존성·설정·환경이 바뀌면 영향 범위를 다시 검증하고, 이전 full이 새 상태를 검증하지 못하면 full을 다시 실행한다. 단순 병합으로 커밋만 바뀌고 검증한 트리와 조건이 동일하면 중복 full을 돌리지 않는다. 캐시 복원이나 일부 시험의 통과만으로 최종 full 통과를 인정하지 않는다.
+
+같은 checkout에서는 `swift build`, `swift test`, Swift를 호출하는 검사·번역 스크립트와 성능 측정을 동시에 실행하지 않는다. 공유 작업트리에서는 조정자에게 실행 슬롯을 받아 한 담당자만 실행하고, 다른 담당자는 같은 후보의 로그를 검토한다. 전체 검증 명령을 고정 240초에 끊어 재시작하지 말고, 빌드·시험·보고를 단계별 진행 로그와 종료 코드로 관찰한다. 오디오 실행은 빌드와 별도 구간으로 분리하고 본인이 소유한 `/tmp/djc-audio.lock` 안에서 5분 이하로 끝낸다.
 
 ## 진행 로그·실패 진단
 
@@ -15,13 +39,17 @@
 - 명령이나 `tee`가 실패하면 `pipefail`로 검사가 실패한다. INT·TERM은 각각 130·143으로 끝나며 이 검사에서 시작한 자식 빌드와 진행 알림도 종료한다. 강제 KILL·러너 장애는 종료 요약을 기록할 기회가 없으므로 부분 로그만 남을 수 있다.
 - CI는 로그를 캐시 밖인 러너 임시 폴더에 저장하고, `always()` 단계에서 Job summary와 `check-logs-<mode>-<run_id>-<attempt>` artifact를 남긴다(14일 보관). 업로드 대상은 검사·툴체인 텍스트 로그뿐이며 DB·스냅샷·프로파일·실행물은 포함하지 않는다. 취소 시에도 보존을 시도하지만 강제 종료나 러너 유실 시 업로드는 보장되지 않는다.
 
-디버그 앱·CLI·테스트는 `swift build --build-tests --enable-code-coverage`로 함께 빌드한다. 번역 검사에도 같은 계측 옵션을 전달해 설정 전환으로 다시 컴파일하지 않게 하되, 앱과 CLI를 실제 빌드하는 기존 검증은 유지한다. 이어서 `swift test --skip-build --enable-code-coverage`로 **전체 테스트를 실행**한다. 별도로 실행하는 `swift scripts/i18n.swift check`·`sync`의 기본 빌드 설정은 바뀌지 않는다. 테스트 병렬성·필터·커버리지 목표는 바꾸지 않았다.
+디버그 앱·CLI·테스트는 `swift build --build-tests --enable-code-coverage`로 함께 빌드한다. 번역 검사에도 같은 계측 옵션을 전달해 설정 전환으로 다시 컴파일하지 않게 하되, 앱과 CLI를 실제 빌드하는 기존 검증은 유지한다. full·coverage에서는 이어서 `swift test --skip-build --enable-code-coverage`로 **전체 테스트를 실행**한다. 별도로 실행하는 `swift scripts/i18n.swift check`·`sync`의 기본 빌드 설정은 바뀌지 않는다. full의 테스트 병렬성·커버리지 목표는 유지한다.
 
 ## 테스트 준비 비용
 
 가짜 오디오·메모리 저장소를 쓰는 `DeckHarness`는 합성 WAV와 임시 폴더만 만든다. DB가 필요한 통합 테스트는 계속 `RekordboxFixture`를 쓴다. 이 픽스처는 암호화 설정을 유지하면서 스키마·초기 행을 한 연결·한 트랜잭션으로 준비하고, 곡·재생 목록의 여러 행도 각각 한 트랜잭션으로 넣는다. 준비 중 실패하면 연결을 닫을 때 미완료 트랜잭션이 취소된다. 픽스처마다 독립된 파일을 쓰며, 실제 쓰기·복원 후 다시 읽는 연결은 공유하거나 캐시하지 않는다.
 
 ## 시간 비교 방법과 기준
+
+시험 본문 시간, 전체 CI 시간, 로컬 명령의 wall 시간을 구분해 보고한다. 시험 로그의 `Test run ... passed after ...`는 해당 시험 실행 구간이고, 병렬 suite·test 시간은 겹치므로 합산하지 않는다. `timings.tsv`의 테스트 단계는 SwiftPM 실행·프로파일 수집을 포함한다. 전체 CI 시간은 러너 준비·캐시 복원·검사·캐시 저장을 포함하고, 로컬 wall 시간은 실행한 명령의 시작부터 종료까지다. 서로 다른 범위의 수치를 개선 전후로 비교하지 않는다.
+
+30초는 같은 계측 빌드가 준비된 warm 상태에서 관련 시험에 집중하는 개발 피드백 목표다. cold 빌드·최종 full·전체 호스티드 CI의 제한 시간이 아니며, 같은 필터·트리·툴체인·환경의 실제 측정 전에는 달성을 보장하지 않는다.
 
 [PR #111 기준 실행](https://github.com/fotoner/DJCrate/actions/runs/36303819883/job/108581536945)은 attempt 2, SHA `7f2395c74307299a222175c1a069dce7a79086f5`, `xcode-27`이었다. API의 해당 attempt/job 시각과 로그로 구분하면 다음과 같다.
 
@@ -58,19 +86,19 @@
 
 ## 캐시·데이터·권한
 
-- SwiftPM 의존성과 빌드 결과인 `.build`를 캐시한다. OS·아키텍처·캐시 버전·검사 모드(`test`·`coverage`·`release`)·툴체인 지문·`Package.swift`와 `Package.resolved` 해시·커밋으로 키를 만든다. `restore-keys`도 모드를 포함해 일반 테스트·커버리지·릴리스 산출물이 섞이지 않게 한다. 캐시가 있어도 검증은 매번 실행한다. 새 키를 처음 쓰거나 GitHub의 브랜치 접근 범위 안에 같은 모드 캐시가 없으면 캐시 없이 시작한다.
+- SwiftPM 의존성과 빌드 결과인 `.build`를 캐시한다. OS·아키텍처·캐시 버전·검사 모드(`test`·`coverage`·`release`·`stress`)·툴체인 지문·`Package.swift`와 `Package.resolved` 해시·커밋으로 키를 만든다. `restore-keys`도 모드를 포함해 일반 테스트·커버리지·릴리스·stress 산출물이 섞이지 않게 한다. 캐시가 있어도 검증은 매번 실행한다. 새 키를 처음 쓰거나 GitHub의 브랜치 접근 범위 안에 같은 모드 캐시가 없으면 캐시 없이 시작한다.
 - 테스트는 합성 픽스처만 쓴다. `DJC_HOME`과 `DJC_REKORDBOX_DIR`은 러너 임시 폴더에 두며, 개인 라이브러리·음원·DB·백업을 CI에 올리지 않는다.
 - `GITHUB_TOKEN` 권한은 `contents: read`이고 checkout 뒤 인증 정보를 보관하지 않는다. 별도 비밀값은 필요 없다. Actions 버전은 커밋 SHA로 고정한다.
 - 포크 PR도 GitHub가 제공하는 임시 VM에서 `pull_request`로 실행한다. self-hosted 러너와 `pull_request_target`은 사용하지 않는다. 러너를 등록할 필요가 없다.
 
 ## 워크플로 검사
 
-워크플로를 수정한 뒤 저장소 루트에서 `actionlint`로 검사한다. `python3 scripts/test-check.py`는 합성 명령만으로 빌드·번역·테스트·커버리지·파이프 실패, 빈/미달 커버리지, INT·TERM 취소와 로그 보존을 검사하며 CI에서도 실행한다. 분할 모드의 검사 범위·실패 전파·커버리지 목표 유지와 잘못된 인자의 거부도 확인한다. 실제 Swift 빌드나 라이브러리 접근은 하지 않는다. `.github/actionlint.yaml`은 actionlint 1.7.12가 아직 인식하지 못하는 공개 미리보기 `xcode-27` 라벨만 허용하며, self-hosted 러너를 사용하는 설정은 아니다.
+워크플로를 수정한 뒤 저장소 루트에서 `actionlint`로 검사한다. `python3 scripts/test-check.py`는 합성 명령만으로 빌드·번역·테스트·커버리지·파이프 실패, 빈/미달 커버리지, INT·TERM 취소와 로그 보존을 검사하며 CI에서도 실행한다. 분할 모드·quick·stress의 검사 범위와 실패 전파, 커버리지 목표 유지와 잘못된 인자의 거부도 확인한다. 실제 Swift 빌드나 라이브러리 접근은 하지 않는다. `.github/actionlint.yaml`은 actionlint 1.7.12가 아직 인식하지 못하는 공개 미리보기 `xcode-27` 라벨만 허용하며, self-hosted 러너를 사용하는 설정은 아니다.
 
 ## 푸시 뒤 관리자 확인
 
 1. Actions 설정에서 이 워크플로와 `actions/checkout`, `actions/cache`, `actions/upload-artifact` 실행을 허용한다. 외부 포크 PR은 **모든 외부 기여자의 실행 승인**을 요구하도록 설정하고, 변경 내용을 확인한 뒤 승인한다.
-2. `dev` 푸시에서 `test`, PR·`main`·수동 실행에서 `coverage`와 `release`가 실행되는지 확인한다. 실제 검사 러너는 macOS 27·Xcode 27이며, 결과를 합치는 `빌드·테스트·커버리지` job만 Ubuntu에서 실행된다. 포크 PR도 호스티드 러너에서만 실행되는지 확인한다.
+2. `dev` 푸시에서 `test`, PR·`main`·수동 실행에서 `coverage`와 `release`, `run_stress=true`인 수동 실행에서 추가 `stress`가 실행되는지 확인한다. 선택한 stress의 실패·취소·미실행도 필수 집계 체크를 통과시키지 않아야 한다. 실제 검사 러너는 macOS 27·Xcode 27이며, 결과를 합치는 `빌드·테스트·커버리지` job만 Ubuntu에서 실행된다. 포크 PR도 호스티드 러너에서만 실행되는지 확인한다.
 3. 첫 실행의 캐시 저장과 다음 실행의 복원, Job summary의 테스트 수·커버리지, README의 `dev` 상태 배지를 확인한다.
 4. `dev`·`main` 보호 규칙에 `빌드·테스트·커버리지`를 필수 상태 체크로 추가한다. 워크플로 파일만으로 병합을 차단하지는 못한다.
 

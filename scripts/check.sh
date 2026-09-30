@@ -3,13 +3,26 @@
 set -euo pipefail
 cd "${0:A:h}/.."
 
-# CI는 별도 러너에서 두 묶음을 동시에 검사한다. 인자가 없으면 기존 전체 검사를 유지한다.
+# CI의 두 묶음과 개발 중 부분 검사를 나누되, 인자가 없으면 전체 검사를 유지한다.
+test_filter=""
 case "$#:${1:-}" in
     0:) mode=full ;;
     1:--coverage) mode=coverage ;;
     1:--release) mode=release ;;
-    *) echo '사용: scripts/check.sh [--coverage|--release]' >&2; exit 2 ;;
+    1:--stress) mode=stress; test_filter=CipherColdOpenTests ;;
+    3:--quick)
+        if [[ "$2" != --filter || -z "${3//[[:space:]]/}" || "$3" == --* ]]; then
+            echo '--quick에는 --filter <비어 있지 않은 정규식>이 필요합니다.' >&2
+            exit 2
+        fi
+        mode=quick; test_filter=$3 ;;
+    *) echo '사용: scripts/check.sh [--coverage|--release|--quick --filter <정규식>|--stress]' >&2; exit 2 ;;
 esac
+case "${DJC_CIPHER_STRESS-0}" in
+    0|1) ;;
+    *) echo 'DJC_CIPHER_STRESS는 미설정·0·1만 허용합니다.' >&2; exit 2 ;;
+esac
+if [[ "$mode" == stress ]]; then export DJC_CIPHER_STRESS=1; fi
 
 # 실행마다 다른 폴더를 써서 이전 실패·취소 로그와 섞이지 않게 한다.
 log_root=${DJC_CHECK_LOG_ROOT:-.build/check-logs}
@@ -50,6 +63,27 @@ trap 'finish $?' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+# 부분 검사 결과를 전체 통과로 오인하지 않도록 설정·후보를 원문 로그에도 남긴다.
+check_head=$(git rev-parse --verify HEAD 2>/dev/null || print -r -- unknown)
+check_dirty=unknown
+if check_worktree=$(git status --porcelain 2>/dev/null); then
+    if [[ -n "$check_worktree" ]]; then check_dirty=yes; else check_dirty=no; fi
+fi
+debug_setting=coverage
+release_setting=off
+if [[ "$mode" == release ]]; then debug_setting=off; fi
+if [[ "$mode" == full || "$mode" == release ]]; then release_setting=on; fi
+{
+    print -r -- "mode=$mode"
+    print -r -- "filter=${test_filter:-none}"
+    print -r -- "debug=$debug_setting"
+    print -r -- "release=$release_setting"
+    print -r -- "cipher_stress=${DJC_CIPHER_STRESS-0}"
+    print -r -- "head=$check_head"
+    print -r -- "dirty=$check_dirty"
+} > "$log_dir/run-info.txt"
+cat "$log_dir/run-info.txt"
+
 run_stage() {
     local name=$1 file=$2 code
     shift 2
@@ -79,6 +113,15 @@ run_stage() {
     echo "▸ 종료: $name ($((SECONDS - stage_started))초, 종료코드 $code, $(date -u +%Y-%m-%dT%H:%M:%SZ))"
     # zsh의 함수 실패에 따른 errexit은 EXIT 트랩을 건너뛸 수 있어 명시적으로 끝낸다.
     if (( code != 0 )); then exit "$code"; fi
+}
+
+require_filtered_tests() {
+    # 집계에는 skip된 시험도 들어갈 수 있으므로 실제 개별 시험의 완료를 확인한다.
+    if ! awk '/Test .+ passed after / && !/Test run with / { completed = 1 }
+        END { exit !completed }' "$log_dir/test.log"; then
+        print -r -- "실제로 완료한 시험이 없습니다. 필터를 확인하세요: $test_filter" >&2
+        return 1
+    fi
 }
 
 coverage() {
@@ -115,12 +158,15 @@ awk '
 if [[ "$mode" != release ]]; then
     run_stage "디버그·테스트 빌드(커버리지 계측)" debug-build swift build --build-tests --enable-code-coverage
 fi
-if [[ "$mode" != coverage ]]; then
+if [[ "$mode" == full || "$mode" == release ]]; then
     run_stage "릴리스 앱 빌드" release-build swift build -c release --product DJCrate
 fi
-if [[ "$mode" != release ]]; then
+if [[ "$mode" == full || "$mode" == coverage ]]; then
     run_stage "번역(en·ja 누락·안 쓰는 문구·자리표시자)" translations swift scripts/i18n.swift check --enable-code-coverage
     run_stage "전체 테스트 실행·프로파일 수집(빌드 생략)" test swift test --skip-build --enable-code-coverage
     run_stage "커버리지 보고·목표 검사" coverage coverage
+elif [[ "$mode" == quick || "$mode" == stress ]]; then
+    run_stage "관련 테스트 실행(빌드 생략)" test swift test --skip-build --enable-code-coverage --filter "$test_filter"
+    run_stage "필터 결과(1개 이상 완료)" filter-result require_filtered_tests
 fi
-echo "▸ 통과"
+echo "▸ 통과: $mode"
