@@ -19,7 +19,9 @@ rekordbox 7용 DJ 라이브러리 관리 macOS 앱 DJCrate(약칭 DJC, CLI `djc`
 ## 명령
 
 ```bash
-scripts/check.sh                     # 커밋 전: 빌드(디버그·릴리스 앱) + 번역 누락 + 테스트 + 커버리지 목표(쓰기 80%, 코어 60%)
+scripts/check.sh                     # 리뷰 완료 뒤 최종 full: 디버그·릴리스 앱 + 번역 + 전체 테스트 + 커버리지 목표(쓰기 80%, 코어 60%)
+scripts/check.sh --quick --filter 'WriteGuardTests'  # 개발 중 관련 시험: 같은 계측 빌드 재사용, full 대체 아님
+scripts/check.sh --stress            # SQLCipher 처음 열기 경쟁: 100개 새 프로세스 × 32스레드, full 대체 아님
 swift scripts/i18n.swift sync        # 코드의 화면 문구로 String Catalog 맞추기(새 문구 더하기·안 쓰는 문구 빼기). 뒤에 en·ja 번역을 채운다
 swift build                          # 전체 디버그 빌드
 swift test                           # 단위 테스트(Swift Testing, 테스트 타깃 4개)
@@ -42,7 +44,11 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 
 ## 검증 (작업이 끝났다고 말하기 전에)
 
-- `scripts/check.sh`가 통과해야 한다(빌드·테스트·커버리지 목표).
+- 개발 중에는 변경과 관련된 시험으로 TDD를 진행하고, 영향 범위의 회귀 시험과 리뷰를 마친 뒤 최종 `scripts/check.sh` full을 한 번 실행해 통과해야 한다. full은 디버그·릴리스 앱 빌드, 번역, 전체 안전·쓰기 시험, 커버리지 목표(쓰기 80%, 코어 60%)를 모두 유지한다.
+- `--quick --filter <정규식>`은 관련 시험만 실행하며 릴리스·번역·커버리지 보고를 생략한다. 빈 필터·선택된 시험 0개·모든 시험 건너뜀·잘못된 인자는 실패해야 한다. quick·stress 통과는 full의 대체나 작업 완료 증거가 아니다.
+- 통과 결과는 같은 코드 트리·툴체인·빌드 설정·시험 환경일 때만 재사용한다. 실제 코드·의존성·설정·환경이 바뀌면 영향 범위를 다시 검증하고, 이전 full이 변경된 상태를 검증하지 못하면 full을 다시 실행한다. 단순 병합으로 커밋만 바뀌고 검증한 트리와 조건이 같으면 full을 중복 실행하지 않는다. 원래 로그와 실제 종료 코드로 재사용 근거를 남긴다.
+- SQLCipher 초기화(`CipherDatabase`), `CipherLab`, cold-open 경쟁에 관련된 변경은 `scripts/check.sh --stress`도 반드시 통과해야 하며, 별도 수동 CI에서도 실행한다. stress 필터는 cold-open 경쟁 시험 1개와 같은 파일의 설정 계약 시험 3개를 함께 실행한다. 일반 회귀는 새 프로세스 4개, stress는 100개이며 각각 32스레드·동시 프로세스 4개 상한을 유지한다. `DJC_CIPHER_STRESS`는 미설정·`0`이면 일반, `1`이면 stress이고 그 밖의 값은 실패한다.
+- 같은 checkout에서 Swift 빌드·시험·성능 측정 명령을 동시에 실행하지 않는다. 공유 작업트리는 담당자와 실행 슬롯을 합의하고, 단계별 진행 로그를 남긴다. 전체 명령을 고정 240초에 끊고 반복하지 않는다. 오디오 실행은 빌드와 분리해 본인이 소유한 `/tmp/djc-audio.lock` 안에서 5분 이하로 끝낸다. 자세한 운영·측정 기준은 `docs/ci.md`를 따른다.
 - 테스트 먼저(TDD): 버그는 실패하는 테스트로 재현한 뒤 고친다. 새 규칙은 테스트를 먼저 쓰고 빨간색을 본 뒤 구현한다.
   - 순수 규칙(큐 편집·루프·게인·재생 예약) → `Tests/DJCDomainTests`
   - rekordbox 쓰기 → `Tests/RekordboxKitTests`. 구조만 있는 rekordbox 7.2.18 DB(`RekordboxFixture`)와 합성 분석 파일(`AnlzBuilder`)로 한다. 새 쓰기 규칙은 실험 곡·날짜를 적은 골든 테스트로 남긴다.

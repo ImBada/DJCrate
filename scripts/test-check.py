@@ -21,6 +21,8 @@ DEBUG = "build --build-tests --enable-code-coverage"
 RELEASE = "build -c release --product DJCrate"
 TRANSLATIONS = "scripts/i18n.swift check --enable-code-coverage"
 TEST = "test --skip-build --enable-code-coverage"
+QUICK = TEST + " --filter SampleTests"
+STRESS = TEST + " --filter CipherColdOpenTests"
 PARTITIONS = {
     "coverage-only": (["--coverage"], "ok", 0, [DEBUG, TRANSLATIONS, TEST]),
     "release-only": (["--release"], "ok", 0, [RELEASE]),
@@ -32,6 +34,37 @@ PARTITIONS = {
     "release-build-fail": (["--release"], "release-fail", 24, [RELEASE]),
     "invalid-mode": (["--unknown"], "ok", 2, []),
     "extra-argument": (["--coverage", "--release"], "ok", 2, []),
+    "quick-only": (["--quick", "--filter", "SampleTests"], "ok", 0, [DEBUG, QUICK]),
+    "quick-no-release": (["--quick", "--filter", "SampleTests"], "release-fail", 0, [DEBUG, QUICK]),
+    "quick-no-translations": (["--quick", "--filter", "SampleTests"], "translation-fail", 0, [DEBUG, QUICK]),
+    "quick-no-coverage-report": (["--quick", "--filter", "SampleTests"], "coverage-fail", 0, [DEBUG, QUICK]),
+    "quick-debug-fail": (["--quick", "--filter", "SampleTests"], "debug-fail", 23, [DEBUG]),
+    "quick-test-fail": (["--quick", "--filter", "SampleTests"], "test-fail", 26, [DEBUG, QUICK]),
+    "quick-pipe-fail": (["--quick", "--filter", "SampleTests"], "pipe-fail", 28, [DEBUG]),
+    "quick-zero-tests": (["--quick", "--filter", "SampleTests"], "zero-tests", 1, [DEBUG, QUICK]),
+    "quick-all-skipped": (["--quick", "--filter", "SampleTests"], "all-skipped", 1, [DEBUG, QUICK]),
+    "quick-no-test-summary": (["--quick", "--filter", "SampleTests"], "no-test-summary", 1, [DEBUG, QUICK]),
+    "quick-regex": (["--quick", "--filter", "SampleTests|OtherTests/edge.*"], "ok", 0,
+                    [DEBUG, TEST + " --filter SampleTests|OtherTests/edge.*"]),
+    "quick-dirty-metadata": (["--quick", "--filter", "SampleTests"], "dirty", 0, [DEBUG, QUICK]),
+    "quick-repeat": (["--quick", "--filter", "SampleTests"], "repeat", 0, [DEBUG, QUICK]),
+    "quick-missing-filter": (["--quick"], "ok", 2, []),
+    "quick-missing-value": (["--quick", "--filter"], "ok", 2, []),
+    "quick-empty-filter": (["--quick", "--filter", ""], "ok", 2, []),
+    "quick-whitespace-filter": (["--quick", "--filter", " \t"], "ok", 2, []),
+    "quick-option-value": (["--quick", "--filter", "--stress"], "ok", 2, []),
+    "quick-extra-value": (["--quick", "--filter", "SampleTests", "OtherTests"], "ok", 2, []),
+    "full-filter": (["--filter", "SampleTests"], "ok", 2, []),
+    "stress-only": (["--stress"], "ok", 0, [DEBUG, STRESS]),
+    "stress-zero-tests": (["--stress"], "zero-tests", 1, [DEBUG, STRESS]),
+    "stress-fail": (["--stress"], "test-fail", 26, [DEBUG, STRESS]),
+    "stress-extra-filter": (["--stress", "--filter", "SampleTests"], "ok", 2, []),
+    "quick-stress-env-invalid": (["--quick", "--filter", "SampleTests"], "stress-env-invalid", 2, []),
+    "full-stress-env-invalid": ([], "stress-env-invalid", 2, []),
+    "stress-env-invalid": (["--stress"], "stress-env-invalid", 2, []),
+    "stress-env-empty": (["--stress"], "stress-env-empty", 2, []),
+    "stress-env-zero": (["--stress"], "stress-env-zero", 0, [DEBUG, STRESS]),
+    "quick-env-zero": (["--quick", "--filter", "SampleTests"], "stress-env-zero", 0, [DEBUG, QUICK]),
 }
 
 
@@ -47,6 +80,8 @@ mode = os.environ["CASE"]
 root = pathlib.Path.cwd()
 with open("calls.txt", "a") as log:
     log.write(" ".join(args) + "\n")
+with open("stress-env.txt", "a") as log:
+    log.write(os.environ.get("DJC_CIPHER_STRESS", "unset") + "\n")
 if args[0] == "build" and "-c" not in args:
     if mode == "empty-output":
         sys.exit(0)
@@ -78,7 +113,24 @@ if args[0] == "test":
     if mode == "test-fail":
         print("error: 합성 테스트 실패", flush=True)
         sys.exit(26)
+    if mode == "zero-tests":
+        print("✔ Test run with 0 tests passed after 0.1 seconds.")
+        sys.exit(0)
+    if mode == "no-test-summary":
+        sys.exit(0)
+    if mode == "all-skipped":
+        print("↷ Test synthetic() skipped.")
+        print("✔ Test run with 1 test passed after 0.1 seconds.")
+        sys.exit(0)
+    print("✔ Test synthetic() passed after 0.1 seconds.")
     print("✔ Test run with 1 test passed after 0.1 seconds.")
+''')
+    (root / "bin/git").write_text('''#!/bin/sh
+if [ "$1" = rev-parse ]; then
+    echo synthetic-head
+elif [ "$1" = status ] && [ "$CASE" = dirty ]; then
+    echo ' M scripts/check.sh'
+fi
 ''')
     (root / "bin/xcrun").write_text(r'''#!/bin/sh
 [ "$CASE" = coverage-fail ] && exit 27
@@ -107,6 +159,7 @@ def check_case(case, expected):
         prepare(root)
         env = dict(os.environ, PATH=str(root / "bin") + ":" + os.environ["PATH"], CASE=case)
         env.pop("DJC_CHECK_LOG_ROOT", None)
+        env.pop("DJC_CIPHER_STRESS", None)
         with (root / "output.log").open("w") as output:
             process = subprocess.Popen(
                 ["/bin/zsh", str(root / "scripts/check.sh")], cwd=root, env=env,
@@ -179,6 +232,9 @@ def check_partition(arguments, case, expected, expected_calls):
         prepare(root)
         env = dict(os.environ, PATH=str(root / "bin") + ":" + os.environ["PATH"], CASE=case)
         env.pop("DJC_CHECK_LOG_ROOT", None)
+        env.pop("DJC_CIPHER_STRESS", None)
+        if case.startswith("stress-env-"):
+            env["DJC_CIPHER_STRESS"] = {"stress-env-invalid": "true", "stress-env-empty": "", "stress-env-zero": "0"}[case]
         result = subprocess.run(
             ["/bin/zsh", str(root / "scripts/check.sh"), *arguments], cwd=root, env=env,
             capture_output=True, text=True, timeout=10,
@@ -192,6 +248,30 @@ def check_partition(arguments, case, expected, expected_calls):
             assert (run / "exit-code.txt").read_text().strip() == str(expected), "종료코드 보존 누락"
             if arguments == ["--coverage"] and expected == 0:
                 assert "목표 80%" in result.stdout and "목표 60%" in result.stdout, "커버리지 목표 검사 누락"
+            if arguments and arguments[0] in {"--quick", "--stress"}:
+                mode = arguments[0][2:]
+                info = (run / "run-info.txt").read_text()
+                test_filter = arguments[2] if mode == "quick" else "CipherColdOpenTests"
+                for field in (f"mode={mode}", f"filter={test_filter}", "debug=coverage", "release=off",
+                              "head=synthetic-head", "dirty=" + ("yes" if case == "dirty" else "no")):
+                    assert field in info and field in result.stdout, f"검사 메타데이터 누락: {field}"
+                assert not (run / "coverage.log").exists(), "부분 검사에서 커버리지 목표를 검사함"
+                if expected == 0:
+                    assert f"통과: {mode}" in result.stdout, "부분 성공의 모드 누락"
+                    assert "목표 80%" not in result.stdout, "부분 검사를 전체 커버리지로 보고함"
+                if mode == "stress":
+                    values = (root / "stress-env.txt").read_text().splitlines()
+                    assert values == ["1"] * len(expected_calls), f"stress 모드의 환경값 불일치: {values}"
+                elif case == "stress-env-zero":
+                    assert (root / "stress-env.txt").read_text().splitlines() == ["0", "0"], "일반 모드 환경값을 덮어씀"
+            if case == "repeat":
+                again = subprocess.run(
+                    ["/bin/zsh", str(root / "scripts/check.sh"), *arguments], cwd=root, env=env,
+                    capture_output=True, text=True, timeout=10,
+                )
+                assert again.returncode == 0, "반복 실행 실패"
+                assert calls_file.read_text().splitlines() == expected_calls * 2, "이전 성공으로 검사를 생략함"
+                assert len(list((root / ".build/check-logs").glob("run.*"))) == 2, "반복 로그를 덮어씀"
 
 
 failures = 0
