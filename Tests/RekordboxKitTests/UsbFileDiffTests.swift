@@ -163,4 +163,22 @@ struct UsbFileDiffTests {
                                                     "파일 한쪽에만 B: 설정"])
         }
     }
+
+    @Test("PPTH를 읽지 못한 분석 파일은 비교 불가 차이로 센다", arguments: [false, true])
+    func unreadableAnalysisCountsAsDifference(missingPPTH: Bool) throws {
+        try pair { a, b in
+            let bytes = missingPPTH ? AnlzBuilder.file([]) : Data("broken ANLZ".utf8)
+            b.write("PIONEER/USBANLZ/P123/0ABCDEF0/ANLZ0000.DAT", bytes)
+            let options = UsbFileDiff.Options(files: false)
+            let result = try UsbFileDiff.compare(a.root, b.root, options: options)
+            #expect(result.anlzSummary == "ANLZ 9/10 바이트 같음, PPTH 못 읽음 0/1")
+            #expect(result.differences == ["ANLZ B: 비교 불가(PPTH 못 읽음)"])
+
+            let swapped = try UsbFileDiff.compare(b.root, a.root, options: options)
+            #expect(swapped.differences == ["ANLZ A: 비교 불가(PPTH 못 읽음)"])
+            // 양쪽 모두 읽지 못해도 바이트 일치를 확인한 것은 아니다
+            let unreadableBoth = try UsbFileDiff.compare(b.root, b.root, options: options)
+            #expect(unreadableBoth.differences == ["ANLZ A: 비교 불가(PPTH 못 읽음)", "ANLZ B: 비교 불가(PPTH 못 읽음)"])
+        }
+    }
 }

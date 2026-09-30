@@ -3,6 +3,7 @@ import DJCDomain
 import DJCStorage
 import DJCTestSupport
 import Foundation
+import Observation
 @testable import RekordboxKit
 import Testing
 
@@ -18,8 +19,8 @@ final class FakeUsbWriteService: UsbWriteService, @unchecked Sendable {
         var journalAfterWrite: UsbJournalInfo?
         /// 쓰는 동안 차례로 보낼 진행
         var writeProgress: [UsbProgress] = []
-        /// 참이면 진행을 보낸 뒤 취소를 기다린다(파일 단계)
-        var waitForCancel = false
+        /// 진행을 보낸 뒤 부른다(메인 액터 밖, 잠금 밖). 시험이 풀어 줄 때까지 쓰기를 멈출 수 있다.
+        var onWrite: (@Sendable () -> Void)?
         var recoverResult: Result<UsbWriteReport, UsbError> = .success(UsbWriteReport(outcome: .recovered, session: "s1",
                                                                                                  backup: "/tmp/djc-fixture/usb-backups/B/s1"))
         var journalAfterRecover: UsbJournalInfo?
@@ -70,16 +71,13 @@ final class FakeUsbWriteService: UsbWriteService, @unchecked Sendable {
 
     func write(_ job: UsbExportJob, progress: @escaping @Sendable (UsbProgress) -> Void,
                isCancelled: @escaping @Sendable () -> Bool) throws -> UsbWriteReport {
-        let (steps, wait) = lock.withLock { () -> ([UsbProgress], Bool) in
+        let (steps, hook) = lock.withLock { () -> ([UsbProgress], (@Sendable () -> Void)?) in
             state.calls.append("write")
-            return (state.writeProgress, state.waitForCancel)
+            return (state.writeProgress, state.onWrite)
         }
         for step in steps { progress(step) }
-        if wait {
-            let deadline = Date().addingTimeInterval(5)
-            while !isCancelled(), Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
-            if isCancelled() { throw UsbError.cancelled }
-        }
+        hook?()
+        if isCancelled() { throw UsbError.cancelled }
         return try lock.withLock {
             if let next = state.journalAfterWrite { state.journal = next }
             if case .success = state.writeResult {
@@ -262,25 +260,45 @@ struct UsbWriteCoordinatorTests {
         #expect(usb.busyVolumes.isEmpty)
     }
 
-    @Test("DB 교체 전에 취소하면 USB는 그대로이고 취소를 알린다")
-    func cancelBeforeCommitLeavesVolume() async throws {
+    @Test("DB 교체 전에 취소하면 USB는 그대로이고, 취소하지 않고 풀어 주면 쓰고 알린다", arguments: [true, false])
+    func cancelBeforeCommitLeavesVolume(cancel: Bool) async {
         let (usb, _) = store()
+        let release = DispatchSemaphore(value: 0)
+        let (changes, continuation) = AsyncStream.makeStream(of: Void.self)
         service.update {
             $0.writeProgress = [UsbProgress(phase: .backup, cancellable: true),
                                 UsbProgress(phase: .files, completedItems: 1, totalItems: 9, completedBytes: 10, totalBytes: 90, cancellable: true)]
-            $0.waitForCancel = true
+            $0.onWrite = { release.wait() }
         }
         let coordinator = coordinator(usb)
-        let task = Task { await coordinator.export(job()) }
-        for _ in 0..<500 where usb.activeWrite?.progress?.phase != .files { try await Task.sleep(for: .milliseconds(10)) }
+        let task = Task {
+            await coordinator.export(job())
+            continuation.finish()
+        }
+        // 메인 액터가 파일 단계 진행을 실제로 받을 때까지 변경 알림으로 기다린다.
+        var iterator = changes.makeAsyncIterator()
+        while true {
+            let progress = withObservationTracking { usb.activeWrite?.progress } onChange: { continuation.yield(()) }
+            if progress?.phase == .files { break }
+            guard await iterator.next() != nil else { break }
+        }
         #expect(usb.activeWrite?.progress?.phase == .files)
+        #expect(usb.activeWrite?.progress?.completedItems == 1)
+        #expect(usb.activeWrite?.progress?.cancellable == true)
         #expect(usb.busyVolumes == [image.usbKey])
-        usb.cancelWrite()
-        await task.value
+        #expect(service.current.calls == ["preview", "write"])
         #expect(!service.current.committed)
         #expect(service.current.fileOperations == 0)
-        #expect(host.toast?.title == "USB 쓰기를 취소했습니다")
-        #expect(host.toast?.detail == "USB는 쓰기 전 그대로입니다.")
+        if cancel { usb.cancelWrite() }
+        // 가짜는 메인 액터 밖에서만 기다린다. 취소·계속 쓰기 모두 작업을 회수하기 전에 풀어 준다.
+        release.signal()
+        await task.value
+        #expect(service.current.committed == !cancel)
+        #expect(service.current.fileOperations == (cancel ? 0 : 1))
+        #expect(host.toast?.kind == .success)
+        #expect(host.toast?.title == (cancel ? "USB 쓰기를 취소했습니다" : "곡 3개를 USB에 썼습니다"))
+        #expect(host.toast?.detail == (cancel ? "USB는 쓰기 전 그대로입니다." : "B12T · 재생 목록 1개"))
+        #expect(host.toast?.action == (cancel ? nil : .ejectUsb(volumeKey: image.usbKey)))
         #expect(usb.activeWrite == nil)
         #expect(usb.busyVolumes.isEmpty)
     }
@@ -698,7 +716,8 @@ struct UsbWriteCoordinatorTests {
             == "USB 시험 실패: --db <스냅샷 사본>으로 띄우세요")
         #expect(UsbSelfTest.launchRefusal(arguments: args + ["--db"], environment: ["DJC_HOME": home.path]) != nil)
         #expect(UsbSelfTest.launchRefusal(arguments: args, environment: ["DJC_HOME": home.path, "DJC_DB": "/tmp/x/m.db"]) == nil)
-        #expect(UsbSelfTest.launchRefusal(arguments: args + ["--db", "/tmp/x/m.db"], environment: ["DJC_HOME": NSHomeDirectory()]) != nil)
+        // 격리 실행의 HOME은 임시 폴더일 수 있다. 항상 있는 비임시 경로로 경로 제한 자체를 확인한다.
+        #expect(UsbSelfTest.launchRefusal(arguments: args + ["--db", "/tmp/x/m.db"], environment: ["DJC_HOME": "/"])?.contains("outsideScratch") == true)
         #expect(UsbSelfTest.launchRefusal(arguments: args + ["--db", "/tmp/x/m.db"], environment: [:]) != nil)
         // 앱 시작 때(라이브러리를 읽기 전) 보는 판정: 자가 테스트 인자가 있을 때만 거부한다
         #expect(UsbSelfTest.startupRefusal(arguments: ["DJCrate"], environment: [:]) == nil)

@@ -256,6 +256,26 @@ struct UsbReadLabTests {
         #expect(a.tree() == before)
     }
 
+    @Test("--anlz에서 읽지 못한 파일이 있으면 차이 0을 보고하지 않는다")
+    func usbDiffUnreadableAnalysisIsNotZero() throws {
+        let a = UsbTreeFixture(), b = UsbTreeFixture()
+        defer { a.remove(); b.remove() }
+        try UsbLibraryFixture().write(to: a)
+        try FileManager.default.removeItem(at: b.base)
+        try FileManager.default.copyItem(at: a.base, to: b.base)
+        b.write("PIONEER/USBANLZ/P123/0ABCDEF0/ANLZ0000.DAT", "broken ANLZ")
+        let beforeA = a.tree(), beforeB = b.tree()
+
+        let (status, output) = try run(["usb-diff", a.base.path, b.base.path, "--anlz"])
+        #expect(status == 0)
+        let lines = output.split(separator: "\n").map(String.init)
+        #expect(lines.contains("ANLZ 9/10 바이트 같음, PPTH 못 읽음 0/1"))
+        #expect(lines.contains("ANLZ B: 비교 불가(PPTH 못 읽음)"))
+        #expect(lines.last == "차이 1")
+        #expect(!output.contains("0ABCDEF0") && !output.contains("broken ANLZ"))
+        #expect(a.tree() == beforeA && b.tree() == beforeB)
+    }
+
     @Test func anlzRelocateChangesCopyOnly() throws {
         let tree = UsbTreeFixture()
         defer { tree.remove() }
@@ -275,7 +295,8 @@ struct UsbReadLabTests {
         #expect(usage.contains("사용법"))
         let (_, twoModes) = try run(["usb-anlz-relocate", tree.base.path, "--track", "3", "--folder", "P123/0ABCDEF1", "--db-only", "--files-only"])
         #expect(twoModes.contains("사용법"))
-        let (homeStatus, home) = try run(["usb-anlz-relocate", NSHomeDirectory(), "--track", "1", "--folder", "P123/0ABCDEF0"])
-        #expect(homeStatus != 0 && home.contains("outsideScratch"))
+        // 격리 HOME은 임시 폴더일 수 있어 고정 비임시 경로로 검사한다
+        let (outsideStatus, outside) = try run(["usb-anlz-relocate", "/", "--track", "1", "--folder", "P123/0ABCDEF0"])
+        #expect(outsideStatus != 0 && outside.contains("outsideScratch"))
     }
 }

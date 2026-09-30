@@ -15,7 +15,11 @@ struct SheetEditingTests {
         try fixture.add(TrackSpec(id: "1"))
         try fixture.add(TrackSpec(id: "2"))
         let store = LibraryStore(saveTagDrafts: { _ in })
+        let revisionBeforeLoad = store.tagRevision
         await store.load(snapshot: fixture.database)
+        #expect(store.tagRevision > revisionBeforeLoad)
+        let revisionAfterLoad = store.tagRevision
+        let draftsAfterLoad = store.tagDrafts
         let controller = NSHostingController(rootView: TagSheetView(store: store))
         let window = NSWindow(contentViewController: controller)
         window.isReleasedWhenClosed = false
@@ -24,6 +28,7 @@ struct SheetEditingTests {
         window.contentView?.layoutSubtreeIfNeeded()
         let table = try #require(findTable(in: controller.view))
         let coordinator = try #require(table.coordinator)
+        let tagsAfterLoad = coordinator.rows.map { store.tagDraft(for: $0).fields }
         coordinator.select(.init(row: 1, column: 1), extend: false)
         window.makeFirstResponder(table)
         coordinator.beginEditing()
@@ -32,16 +37,21 @@ struct SheetEditingTests {
             window.contentView?.layoutSubtreeIfNeeded()
             try await Task.sleep(for: .milliseconds(20))
         }
-        #expect(window.firstResponder is NSTextView)
+        let editor = try #require(window.firstResponder as? NSTextView)
+        editor.insertText("취소할 제목", replacementRange: NSRange(location: 0, length: (editor.string as NSString).length))
         coordinator.cancelEditing()
         #expect(!coordinator.isEditing)
-        #expect(store.tagRevision == 0)
+        #expect(store.tagRevision == revisionAfterLoad)
+        #expect(store.tagDrafts == draftsAfterLoad)
+        #expect(coordinator.rows.map { store.tagDraft(for: $0).fields } == tagsAfterLoad)
     }
 
     @Test(arguments: ["더블클릭", "Return", "타이핑"])
     func 편집을_시작해도_덱은_유지하고_Esc는_취소한다(_ entry: String) throws {
         let h = SheetEditingHarness()
         defer { h.window.close() }
+        let revisionBeforeEditing = h.store.tagRevision
+        let draftsBeforeEditing = h.store.tagDrafts
         var loads: [String?] = []
         h.store.onLoadToDeck = { loads.append($0?.id) }
         h.store.loadToDeck(h.coordinator.rows[0])
@@ -68,10 +78,51 @@ struct SheetEditingTests {
         h.window.contentView?.layoutSubtreeIfNeeded()
         #expect(!h.coordinator.isEditing)
         #expect(h.store.tagCell(h.coordinator.rows[1], .title) == "합성 곡 2")
-        #expect(h.store.tagRevision == 0)
+        #expect(h.store.tagRevision == revisionBeforeEditing)
+        #expect(h.store.tagDrafts == draftsBeforeEditing)
         #expect(h.store.selection == ["2"])
         #expect(loads == ["1"] && h.store.deckTrackID == "1")
         #expect(h.window.firstResponder === h.table)
+    }
+
+    @Test func 일본어_코멘트를_입력해_확정하고_다시_편집을_취소하면_초안을_보존한다() throws {
+        let h = SheetEditingHarness()
+        defer { h.window.close() }
+        let column = try #require(SheetColumn.all.firstIndex { $0.key == .comment })
+        let row = h.coordinator.rows[1]
+        let title = h.store.tagCell(row, .title)
+        let revisionBeforeEditing = h.store.tagRevision
+        h.coordinator.select(.init(row: 1, column: column), extend: false)
+        h.table.keyDown(with: try h.key("\r", code: 36))
+        #expect(h.coordinator.isEditing)
+        let field = try h.field()
+        let editor = try #require(field.currentEditor() as? NSTextView)
+        let comment = "合成コメント 日本語の入力 🎵"
+        editor.insertText(comment, replacementRange: NSRange(location: 0, length: (editor.string as NSString).length))
+        #expect(editor.string == comment)
+        #expect(h.coordinator.control(field, textView: editor, doCommandBy: #selector(NSResponder.insertNewline(_:))))
+        h.coordinator.update(rows: h.coordinator.rows, revision: h.store.tagRevision)
+        #expect(!h.coordinator.isEditing)
+        #expect(h.store.tagCell(row, .comment) == comment)
+        #expect(h.store.tagCell(row, .title) == title)
+        let draft = try #require(h.store.tagDrafts[row.track.uuid])
+        #expect(draft.changedKeys == [.comment] && draft.fields.comment == comment)
+        #expect(h.store.tagRevision > revisionBeforeEditing)
+
+        let revisionAfterCommit = h.store.tagRevision
+        let draftsAfterCommit = h.store.tagDrafts
+        h.coordinator.select(.init(row: 1, column: column), extend: false)
+        h.table.keyDown(with: try h.key("\r", code: 36))
+        let reopened = try h.field()
+        let reopenedEditor = try #require(reopened.currentEditor() as? NSTextView)
+        #expect(reopenedEditor.string == comment)
+        reopenedEditor.insertText("取り消す合成コメント", replacementRange: NSRange(location: 0, length: (reopenedEditor.string as NSString).length))
+        #expect(h.coordinator.control(reopened, textView: reopenedEditor, doCommandBy: #selector(NSResponder.cancelOperation(_:))))
+        #expect(!h.coordinator.isEditing && h.window.firstResponder === h.table)
+        #expect(h.store.tagCell(row, .comment) == comment)
+        #expect(h.store.tagCell(row, .title) == title)
+        #expect(h.store.tagRevision == revisionAfterCommit)
+        #expect(h.store.tagDrafts == draftsAfterCommit)
     }
 
     @Test(arguments: ["Return", "Tab", "Shift+Tab"])
