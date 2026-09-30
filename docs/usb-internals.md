@@ -784,9 +784,11 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
    - Device Library: 머리 0x10(두 파일, 5가 아니면 rekordbox가 정상으로 닫지 않은 것), 기록 표 산 행, 모르는 표 산 행, 구조 문제 수(§3.7), 왕복 검사(`PdbRoundTrip.check`, §3.8: 읽기 → 모델 → 다시 쓰기 → 다시 읽기). 왕복 검사가 통과하지 못하면(My Tag 연결·모르는 표 행 등 작성기가 다시 만들 수 없는 것이 있음) 경고 `pdbRoundTripFailed`를 문제 수만 적어 낸다.
 4. 두 형식 일치(`UsbLibrary.merge`, §2.6): 곡 ID·경로가 같은지, 다른 재생 목록 수, 고치기를 막는 불일치(`blocksEditing`)가 있는지, 모든 곡의 masterDbId가 한 값인지, 두 형식의 myTagMasterDBID가 같은지. 식별값 자체는 내지 않는다.
 5. 분석 파일: 곡마다 두 DB가 가리키는 경로(같으면 한 번)의 `.DAT`·`.EXT`·`.2EX`가 일반 파일로 있는지, `.DAT` PPTH = 곡 경로(NFC)인지(§4.3), 파일 번호가 0이 아닌지(§5). DB 경로가 열지 않는 경로·링크를 거치면 열지 않고 없는 파일로 센다.
-6. 이 Mac의 rekordbox 버전이 확인한 버전인지(`RekordboxCompatibility.verifiedAppVersions`).
+6. 음원: 읽은 두 DB의 서로 다른 NFC 음원 경로마다 일반 파일이 있는지만 확인한다. 빈 경로·탈출 경로·금지 경로·링크·폴더는 누락으로 센다. 음원 바이트나 형식은 검사하지 않는다.
+7. 설정 파일: DB 유무와 관계없이 `PIONEER/`의 `MYSETTING.DAT`·`MYSETTING2.DAT`·`DJMMYSETTING.DAT`·`DEVSETTING.DAT`만 고정 이름으로 확인한다(폴더를 훑지 않는다). 기존 `DeviceSettingFile`(§6)로 크기·길이·끝 칸·CRC를 검증하고 파일별 상태와 첫 실패 code만 낸다. 종류별 크기가 맞고 읽을 수 있을 때만 CRC 일치를 적으며, 설정 칸의 뜻은 추측하지 않는다. 없는 파일은 정상이고, 손상·읽기 불가는 경고한다. `UsbRoot`가 거부하는 경로·링크는 열지 않는다.
+8. 이 Mac의 rekordbox 버전이 확인한 버전인지(`RekordboxCompatibility.verifiedAppVersions`).
 
-경고 code: `pdbOpenFlag`, `unknownTableRows`, `pdbStructure`, `pdbRoundTripFailed`, `deviceLibraryUnreadable`, `oneLibrarySidecar`, `oneLibraryUnsupported`, `oneLibraryUnreadable`, `formatMismatch`, `analysisMissing`, `analysisPathMismatch`. 곡마다 파일 번호가 0이 아닌 것, 두 형식의 항목만 다른 재생 목록(rekordbox도 만드는 모양)은 수로만 적고 경고하지 않는다.
+경고 code: `pdbOpenFlag`, `unknownTableRows`, `pdbStructure`, `pdbRoundTripFailed`, `deviceLibraryUnreadable`, `oneLibrarySidecar`, `oneLibraryUnsupported`, `oneLibraryUnreadable`, `formatMismatch`, `analysisMissing`, `analysisPathMismatch`, `mediaMissing`, `settingsInvalid`. 곡마다 파일 번호가 0이 아닌 것, 두 형식의 항목만 다른 재생 목록(rekordbox도 만드는 모양)은 수로만 적고 경고하지 않는다.
 
 ### 8.2 실험 도구
 

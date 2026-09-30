@@ -19281,6 +19281,38 @@
         }
       }
     },
+    "설정 파일 %@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings file %@: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定ファイル %@: %@"
+          }
+        }
+      }
+    },
+    "설정 파일을 확인하지 못했으므로 rekordbox에서 기기 설정을 다시 저장한 뒤 USB로 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not validate the settings files, so save the device settings again in rekordbox, then export them to USB."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定ファイルを確認できなかったため、rekordboxで機器設定を保存し直してからUSBにエクスポートしてください"
+          }
+        }
+      }
+    },
     "세로 휠·핀치·= 키로 확대합니다" : {
       "localizations" : {
         "en" : {
@@ -22503,6 +22535,22 @@
         }
       }
     },
+    "음원 파일이 없는 곡이 있으므로 rekordbox로 USB를 다시 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some tracks are missing their audio files, so export the USB again from rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音源ファイルがない曲があるため、rekordboxからUSBに再度エクスポートしてください"
+          }
+        }
+      }
+    },
     "음원 파일이 없습니다" : {
       "localizations" : {
         "en" : {
@@ -22595,6 +22643,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "音源の形式を読み取れませんでした"
+          }
+        }
+      }
+    },
+    "음원: 곡 %lld · 파일 %lld · 없는 파일 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audio: tracks %lld · files %lld · missing files %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音源: 曲 %lld · ファイル %lld · 不足ファイル %lld"
           }
         }
       }
@@ -24149,6 +24213,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "読み取れるiTunesプレイリストがありません"
+          }
+        }
+      }
+    },
+    "읽지 못함" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unreadable"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み取り不可"
           }
         }
       }
@@ -30917,6 +30997,22 @@
         }
       }
     },
+    "형식 또는 CRC 오류" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format or CRC error"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "形式またはCRCのエラー"
+          }
+        }
+      }
+    },
     "형식 사이 목록 불일치 %lld" : {
       "localizations" : {
         "en" : {
@@ -30961,6 +31057,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "形式: USBライブラリなし"
+          }
+        }
+      }
+    },
+    "형식·CRC 확인" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format and CRC verified"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "形式・CRC確認済み"
           }
         }
       }

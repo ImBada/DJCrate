@@ -229,7 +229,7 @@ djc usb-restore --volume <마운트> [--backup <폴더>] [--discard-device-chang
 djc usb-info <볼륨|폴더> [--json]
 ```
 
-USB(마운트된 볼륨이나 그 안 폴더, 또는 USB 모양 폴더)를 **읽기만** 해서 형식·곡 수·두 형식이 맞는지·분석 파일·경고를 보여 준다. 앱 사이드바도 같은 판정(`UsbRead`)을 쓴다. USB에는 아무것도 쓰지 않는다. DB는 `DJC_HOME`(또는 기본 DJCrate 데이터 폴더)의 `usb-snapshots/` 아래에 사본으로 떠서 읽고 끝나면 지운다. `PIONEER/extracted`·`PIONEER/CDP`·`djprofile.nxs`는 열지도 "있음"을 알리지도 않는다. 사람용 출력에는 곡 제목·경로·볼륨 이름을 찍지 않는다.
+USB(마운트된 볼륨이나 그 안 폴더, 또는 USB 모양 폴더)를 **읽기만** 해서 형식·곡 수·두 형식이 맞는지·음원 누락·분석 파일·설정 파일 상태·경고를 보여 준다. 앱 사이드바도 같은 판정(`UsbRead`)을 쓴다. USB에는 아무것도 쓰지 않는다. DB는 `DJC_HOME`(또는 기본 DJCrate 데이터 폴더)의 `usb-snapshots/` 아래에 사본으로 떠서 읽고 끝나면 지운다. `PIONEER/extracted`·`PIONEER/CDP`·`djprofile.nxs`는 열지도 "있음"을 알리지도 않는다. 사람용 출력에는 곡 제목·경로·볼륨 이름을 찍지 않는다.
 
 - **실물 USB는 쓰기 금지 목록(증거용 USB)을 등록한 뒤에만 읽는다. 디스크 이미지·폴더는 늘 읽는다.** 대상 경로의 마운트 지점이 Mac 시동 볼륨이 아니면(볼륨 안 하위 폴더여도) 그 볼륨으로 보고 먼저 판정한다: 볼륨 UUID가 쓰기 금지 목록에 있으면 `denylisted`(디스크 이미지여도), 디스크 이미지면 읽음, 목록 파일이 깨졌으면 `denyListUnreadable`, 고정 위치 목록이 없거나 비었으면 `denyListNotRegistered`, 실물인데 볼륨 UUID를 읽지 못했으면 `noVolumeUUID`(목록과 맞춰 볼 수 없으므로). 막히면 사본도 뜨지 않는다.
 - rekordbox 라이브러리나 DJCrate 데이터 폴더를 주면 거부한다(`liveLibrary`). 없는 경로는 `not_found`.
@@ -248,7 +248,11 @@ USB(마운트된 볼륨이나 그 안 폴더, 또는 USB 모양 폴더)를 **읽
 | `deviceLibrary` | object \| null | `exportFlag10`(number, 머리 0x10), `extFlag10`(number \| null), `roundTripChecked`(bool, 늘 true), `roundTripOK`(bool: 읽기 → 모델 → 다시 쓰기 → 다시 읽기가 같으면 true, 다시 만들지 못하거나 다르면 false와 경고 `pdbRoundTripFailed`. Device Library를 읽지 못하면 `deviceLibrary`가 null), `tracks`, `playlists`, `historyRows`(기록 표 산 행), `unknownTableRows`(모르는 표 산 행), `structureIssues`(number) |
 | `consistency` | object | `trackIDsMatch`, `pathsMatch`(bool), `playlistMismatches`(number, 두 형식이 다른 재생 목록 수), `masterDbIdConsistent`(모든 곡이 한 값), `myTagMasterDBIDConsistent`(두 형식 값이 같음), `editBlocked`(고치기를 막는 불일치가 있음) |
 | `analysis` | object | `tracksChecked`, `missingFiles`(DB가 가리키는 `.DAT`·`.EXT`·`.2EX` 중 없는 파일 수), `ppthMismatches`(`.DAT` PPTH ≠ 곡 경로인 곡 수), `slotCollisions`(파일 번호가 0이 아닌 경로 수) |
+| `media` | object | `tracksChecked`(읽은 DB의 서로 다른 곡 ID 수), `filesChecked`(서로 다른 NFC 음원 경로 수), `missingFiles`(그중 일반 파일로 없는 경로 수). 두 형식의 같은 경로는 한 번만 센다. 빈 경로·탈출 경로·금지 경로·링크·폴더도 누락으로 센다. 음원 내용·형식·재생 가능 여부는 검사하지 않는다 |
+| `settings` | object[] | `PIONEER/`의 알려진 네 이름(`MYSETTING.DAT`, `MYSETTING2.DAT`, `DJMMYSETTING.DAT`, `DEVSETTING.DAT`) 순서. 각 항목은 `fileName`, `status`(`missing`·`valid`·`invalid`·`unreadable`), `issue`(string \| null), `crcOK`(bool \| null). DB가 없어도 검사하며 설정 파일이 없는 것은 경고하지 않는다 |
 | `localCompatibility` | object | `rekordboxVersion`(string \| null, 이 Mac의 rekordbox), `verified`(bool, DJCrate가 확인한 버전인지) |
-| `warnings` | `{code, message}[]` | `pdbOpenFlag`(머리 0x10 ≠ 5), `unknownTableRows`, `pdbStructure`, `deviceLibraryUnreadable`, `oneLibrarySidecar`(`-wal`·`-journal`), `oneLibraryUnsupported`, `oneLibraryUnreadable`, `formatMismatch`(고치기 막힘), `analysisMissing`, `analysisPathMismatch`, `pdbRoundTripFailed`(DJCrate가 이 Device Library를 그대로 다시 쓸 수 없음 — 문제 수만 적음). `message`만 번역한다 |
+| `warnings` | `{code, message}[]` | `pdbOpenFlag`(머리 0x10 ≠ 5), `unknownTableRows`, `pdbStructure`, `deviceLibraryUnreadable`, `oneLibrarySidecar`(`-wal`·`-journal`), `oneLibraryUnsupported`, `oneLibraryUnreadable`, `formatMismatch`(고치기 막힘), `analysisMissing`, `analysisPathMismatch`, `mediaMissing`, `settingsInvalid`(설정 파일 손상·읽기 불가), `pdbRoundTripFailed`(DJCrate가 이 Device Library를 그대로 다시 쓸 수 없음 — 문제 수만 적음). `message`만 번역한다 |
+
+`settings.issue`는 기존 설정 파서의 첫 검증 실패를 `wrongSize`·`wrongStringsLength`·`wrongDataLength`·`crcMismatch`·`trailerNotZero`로 적거나, 읽기 불가 이유를 `unsafePath`·`notRegularFile`·`readFailed`로 적는다. `crcOK`는 파일을 읽고 종류별 크기가 맞을 때만 계산하며, 그 밖은 null이다. 제조사·버전·설정 칸 값은 내지 않는다. `media`·`settings`는 v1에 추가한 키이며 기존 키·타입은 유지한다. 소비자는 모르는 키를 무시한다.
 
 종료 코드는 성공 0, 막힘·실패 1이다. 형식이 없는 USB도 성공이며 `formats`가 빈 배열이다.

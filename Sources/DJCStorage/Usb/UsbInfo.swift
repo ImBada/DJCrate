@@ -15,6 +15,8 @@ public struct UsbInfo: Codable, Sendable, Hashable {
     public var deviceLibrary: DeviceLibraryPart?
     public var consistency: Consistency
     public var analysis: Analysis
+    public var media: Media
+    public var settings: [Setting]
     public var localCompatibility: Local?
     public var warnings: [Warning]
 
@@ -151,6 +153,48 @@ public struct UsbInfo: Codable, Sendable, Hashable {
         }
     }
 
+    /// 음원 내용은 열지 않고 DB가 가리키는 일반 파일의 존재만 확인한다
+    public struct Media: Codable, Sendable, Hashable {
+        public var tracksChecked: Int
+        /// 두 형식의 같은 NFC 경로는 한 번만 센다
+        public var filesChecked: Int
+        public var missingFiles: Int
+
+        public init(tracksChecked: Int = 0, filesChecked: Int = 0, missingFiles: Int = 0) {
+            self.tracksChecked = tracksChecked
+            self.filesChecked = filesChecked
+            self.missingFiles = missingFiles
+        }
+    }
+
+    /// 알려진 설정 파일의 검증 상태만 담는다(문자열·설정 칸 값은 내지 않는다)
+    public struct Setting: Codable, Sendable, Hashable {
+        public enum Status: String, Codable, Sendable { case missing, valid, invalid, unreadable }
+        public var fileName: String
+        public var status: Status
+        /// 번역하지 않는 첫 실패 code. 정상·부재면 nil
+        public var issue: String?
+        /// 종류별 크기가 맞고 읽을 수 있을 때만 CRC를 계산한다
+        public var crcOK: Bool?
+
+        public init(fileName: String, status: Status, issue: String? = nil, crcOK: Bool? = nil) {
+            self.fileName = fileName
+            self.status = status
+            self.issue = issue
+            self.crcOK = crcOK
+        }
+
+        enum CodingKeys: String, CodingKey { case fileName, status, issue, crcOK }
+
+        public func encode(to encoder: any Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(fileName, forKey: .fileName)
+            try container.encode(status, forKey: .status)
+            try container.encode(issue, forKey: .issue)
+            try container.encode(crcOK, forKey: .crcOK)
+        }
+    }
+
     /// 이 Mac의 rekordbox가 DJCrate가 확인한 버전인지
     public struct Local: Codable, Sendable, Hashable {
         public var rekordboxVersion: String?
@@ -184,7 +228,7 @@ public struct UsbInfo: Codable, Sendable, Hashable {
 
     public init(root: String, formats: [String] = [], volume: Volume? = nil, oneLibrary: OneLibraryPart? = nil,
                 deviceLibrary: DeviceLibraryPart? = nil, consistency: Consistency = Consistency(), analysis: Analysis = Analysis(),
-                localCompatibility: Local? = nil, warnings: [Warning] = []) {
+                media: Media = Media(), settings: [Setting] = [], localCompatibility: Local? = nil, warnings: [Warning] = []) {
         self.root = root
         self.formats = formats
         self.volume = volume
@@ -192,12 +236,31 @@ public struct UsbInfo: Codable, Sendable, Hashable {
         self.deviceLibrary = deviceLibrary
         self.consistency = consistency
         self.analysis = analysis
+        self.media = media
+        self.settings = settings
         self.localCompatibility = localCompatibility
         self.warnings = warnings
     }
 
     enum CodingKeys: String, CodingKey {
-        case schemaVersion, root, formats, volume, oneLibrary, deviceLibrary, consistency, analysis, localCompatibility, warnings
+        case schemaVersion, root, formats, volume, oneLibrary, deviceLibrary, consistency, analysis, media, settings, localCompatibility, warnings
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        root = try container.decode(String.self, forKey: .root)
+        formats = try container.decode([String].self, forKey: .formats)
+        volume = try container.decodeIfPresent(Volume.self, forKey: .volume)
+        oneLibrary = try container.decodeIfPresent(OneLibraryPart.self, forKey: .oneLibrary)
+        deviceLibrary = try container.decodeIfPresent(DeviceLibraryPart.self, forKey: .deviceLibrary)
+        consistency = try container.decode(Consistency.self, forKey: .consistency)
+        analysis = try container.decode(Analysis.self, forKey: .analysis)
+        // v1의 새 진단 키가 없는 기존 입력도 읽는다
+        media = try container.decodeIfPresent(Media.self, forKey: .media) ?? Media()
+        settings = try container.decodeIfPresent([Setting].self, forKey: .settings) ?? []
+        localCompatibility = try container.decodeIfPresent(Local.self, forKey: .localCompatibility)
+        warnings = try container.decode([Warning].self, forKey: .warnings)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -210,6 +273,8 @@ public struct UsbInfo: Codable, Sendable, Hashable {
         try container.encode(deviceLibrary, forKey: .deviceLibrary)
         try container.encode(consistency, forKey: .consistency)
         try container.encode(analysis, forKey: .analysis)
+        try container.encode(media, forKey: .media)
+        try container.encode(settings, forKey: .settings)
         try container.encode(localCompatibility, forKey: .localCompatibility)
         try container.encode(warnings, forKey: .warnings)
     }

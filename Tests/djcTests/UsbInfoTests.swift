@@ -266,6 +266,8 @@ struct UsbInfoTests {
                 "consistency": ["trackIDsMatch": "bool", "pathsMatch": "bool", "playlistMismatches": "number",
                                 "masterDbIdConsistent": "bool", "myTagMasterDBIDConsistent": "bool", "editBlocked": "bool"],
                 "analysis": ["tracksChecked": "number", "missingFiles": "number", "ppthMismatches": "number", "slotCollisions": "number"],
+                "media": ["tracksChecked": "number", "filesChecked": "number", "missingFiles": "number"],
+                "settings": [["fileName": "string", "status": "string", "issue": "null", "crcOK": "null"]],
                 "localCompatibility": ["rekordboxVersion": "string", "verified": "bool"],
                 "warnings": [Any](),
             ]
@@ -483,7 +485,7 @@ struct UsbInfoTests {
         }
     }
 
-    func run(_ arguments: [String], in directory: URL? = nil) throws -> (status: Int32, stdout: String, stderr: String) {
+    func run(_ arguments: [String], in directory: URL? = nil, language: String = "ko") throws -> (status: Int32, stdout: String, stderr: String) {
         let root = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let executable = try #require([".build/debug/djc", ".build/out/Products/Debug/djc"].map { root.appending(path: $0) }
             .first { FileManager.default.isExecutableFile(atPath: $0.path) })
@@ -493,7 +495,7 @@ struct UsbInfoTests {
         process.executableURL = executable
         process.arguments = arguments
         if let directory { process.currentDirectoryURL = directory }
-        process.environment = ProcessInfo.processInfo.environment.merging(["DJC_HOME": home.path, "DJC_LANG": "ko"]) { _, new in new }
+        process.environment = ProcessInfo.processInfo.environment.merging(["DJC_HOME": home.path, "DJC_LANG": language]) { _, new in new }
         process.standardOutput = output
         process.standardError = error
         try process.run()
@@ -512,6 +514,7 @@ struct UsbInfoTests {
             let object = try #require(try JSONSerialization.jsonObject(with: Data(json.stdout.utf8)) as? [String: Any])
             #expect(object["command"] as? String == "usb-info")
             #expect((object["data"] as? [String: Any])?["formats"] as? [String] == ["oneLibrary", "deviceLibrary"])
+            #expect((object["data"] as? [String: Any])?["media"] as? [String: Int] == ["tracksChecked": 3, "filesChecked": 3, "missingFiles": 0])
             // root는 받은 경로를 절대 경로로 바꿔 그대로 적는다(볼륨이면 볼륨 이름이 들어갈 수 있다)
             #expect((object["data"] as? [String: Any])?["root"] as? String == tree.base.path)
             let relative = try run(["usb-info", tree.base.lastPathComponent, "--json"], in: tree.base.deletingLastPathComponent())
@@ -521,6 +524,7 @@ struct UsbInfoTests {
             let text = try run(["usb-info", tree.base.path])
             #expect(text.status == 0)
             #expect(text.stdout.contains("OneLibrary: 곡 3"))
+            #expect(text.stdout.contains("음원: 곡 3 · 파일 3 · 없는 파일 0"))
             #expect(!text.stdout.contains("시험 곡") && !text.stdout.contains("test1"))
             #expect(tree.tree() == before)
 
