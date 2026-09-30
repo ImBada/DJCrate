@@ -90,6 +90,18 @@ struct TrackTextHeightTests {
         #expect(!label.isHidden && field.superview == nil)
     }
 
+    @Test(arguments: [15, 16, 17])
+    func 홀수_픽셀_높이도_픽셀에_맞춰_가운데에_둔다(heightInPixels: Int) {
+        let label = MeasuringLabel(labelWithString: "")
+        let cell = TrackTextCell(label: label)
+        cell.frame = .init(x: 0, y: 0, width: 220, height: 36)
+        label.measuredHeight = cell.convertFromBacking(.init(width: 0, height: CGFloat(heightInPixels))).height
+        cell.set("", color: .labelColor)
+        cell.layout()
+        #expect(label.frame.height == label.measuredHeight)
+        expectPixelAlignedCenter(cell)
+    }
+
     @Test(arguments: ["合成曲 🎵", "합성 곡", "", "Synthetic title"])
     func 실제_글자_높이와_정렬을_보존한다(text: String) {
         let cell = TrackTextCell()
@@ -99,8 +111,16 @@ struct TrackTextHeightTests {
             cell.set(text, color: .labelColor)
             cell.layout()
             #expect(cell.label.frame.height == cell.label.intrinsicContentSize.height)
-            #expect(cell.label.frame.midY == 18)
+            expectPixelAlignedCenter(cell)
         }
+    }
+
+    private func expectPixelAlignedCenter(_ cell: TrackTextCell) {
+        let frame = cell.convertToBacking(cell.label.frame)
+        // 홀수 픽셀 높이는 양끝을 픽셀에 맞추면 중심이 최대 반 픽셀 옮겨진다.
+        #expect(abs(frame.midY - cell.convertToBacking(cell.bounds).midY) <= 0.5)
+        #expect(frame.minY == frame.minY.rounded())
+        #expect(frame.maxY == frame.maxY.rounded())
     }
 }
 
