@@ -10,6 +10,7 @@ struct AudioBar: View {
     @Bindable var deck: DeckModel
 
     var body: some View {
+        let _ = PerfProbe.body(Self.self)
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 FlowLayout(spacing: 12, justified: true) {

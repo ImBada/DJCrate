@@ -84,6 +84,7 @@ struct ZoomWaveformView: View {
     }
 
     var body: some View {
+        let _ = PerfProbe.body(Self.self)
         GeometryReader { geo in
                 let center = deck.currentTime
                 let window = deck.zoomSeconds

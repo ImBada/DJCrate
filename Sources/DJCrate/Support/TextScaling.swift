@@ -8,11 +8,10 @@ extension EnvironmentValues {
 }
 
 /// 저장된 글자 배율을 창의 환경에 넣는다. 디버그 빌드는 `--text-scale=1.3`으로 설정을 건드리지 않고 볼 수 있다.
+/// 이름에 점이 들어 `@AppStorage`로 두면 다른 설정이 바뀔 때마다(창 크기를 바꾸는 동안 창 프레임 자동 저장 등) 다시 계산한다(#138).
 struct AppTextScale: ViewModifier {
-    @AppStorage(SettingKeys.textScale.name) private var stored = SettingKeys.textScale.defaultValue
-
     func body(content: Content) -> some View {
-        content.environment(\.textScale, PerfProbe.textScale ?? SettingKeys.textScale.value(from: stored))
+        content.environment(\.textScale, PerfProbe.textScale ?? SharedSettings.textScale.value)
     }
 }
 

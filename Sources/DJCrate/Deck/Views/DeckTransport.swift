@@ -9,6 +9,7 @@ struct TransportBar: View {
     @Bindable var deck: DeckModel
 
     var body: some View {
+        let _ = PerfProbe.body(Self.self)
         VStack(alignment: .leading, spacing: 6) {
             FlowLayout(spacing: 22, justified: true) {
                 HStack(spacing: 4) {

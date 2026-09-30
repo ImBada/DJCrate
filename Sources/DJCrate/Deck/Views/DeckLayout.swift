@@ -22,6 +22,10 @@ enum DeckLayout {
         min(max(displayed + Double(direction) * waveformHeightStep, minimumWaveformHeight), max(maximum, minimumWaveformHeight))
     }
 
+    /// 본문(덱·목록) 크기 측정인지. 인스펙터(`.inspector`)가 본문을 임시 높이로 한 번 더 배치해, 그 크기도 진짜 본문
+    /// 크기와 번갈아 측정으로 왔다(#138). 본문에는 목록 최소 높이가 늘 들어가므로 그보다 낮은 측정은 버린다.
+    static func isDetailMeasurement(height: Double) -> Bool { height >= minimumLibraryHeight }
+
     static func deckViewportHeight(contentHeight: Double, detailHeight: Double,
                                    otherHeight: Double) -> Double {
         min(contentHeight, max(0, detailHeight - otherHeight - minimumLibraryHeight))
@@ -39,4 +43,15 @@ struct WaveformHeightControl {
 
     func grow() { set(DeckLayout.steppedWaveformHeight(displayed: displayed, direction: 1, maximum: maximum)) }
     func shrink() { set(DeckLayout.steppedWaveformHeight(displayed: displayed, direction: -1, maximum: maximum)) }
+}
+
+/// 덱 폭에 따른 배치 단계. 덱 본문은 폭 자체가 아니라 이 단계만 읽어, 창 크기·사이드바·인스펙터가 움직이는 동안
+/// 프레임마다 덱 전체를 다시 계산하지 않는다(#138).
+struct DeckWidthClass: Equatable {
+    /// 큐 목록 폭(글자 배율 적용 전)
+    var cueListWidth: Double
+
+    init(width: Double) {
+        cueListWidth = width < 1400 ? 250 : 290
+    }
 }

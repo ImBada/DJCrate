@@ -59,4 +59,27 @@ struct SidebarVisibilityTests {
         #expect(collapses([700, minimum]) == [false, false])
         #expect(collapses([700, minimum - 0.5]) == [false, true])
     }
+
+    /// 창 크기를 바꾸거나 사이드바·인스펙터가 움직이는 동안 본문 폭은 프레임마다 바뀐다. 상태가 폭을 그대로 들고 있으면
+    /// 프레임마다 주 창 본문·사이드바 목록·메뉴까지 다시 계산했다(#138). 최소 폭을 넘나들 때만 바뀐다.
+    @Test func 같은_쪽에서_폭만_바뀌면_상태를_바꾸지_않는다() {
+        var sidebar = SidebarVisibility()
+        _ = sidebar.shouldCollapse(detailWidth: 100, windowFrameRestored: true)
+        _ = sidebar.shouldCollapse(detailWidth: 1192, windowFrameRestored: true)
+        let wide = sidebar
+        for width in stride(from: 1190.0, through: DeckLayout.minimumDetailWidth, by: -15) {
+            let collapse = sidebar.shouldCollapse(detailWidth: width, windowFrameRestored: true)
+            #expect(!collapse)
+            #expect(sidebar == wide)
+        }
+        let collapse = sidebar.shouldCollapse(detailWidth: DeckLayout.minimumDetailWidth - 1, windowFrameRestored: true)
+        #expect(collapse)
+        let narrow = sidebar
+        #expect(narrow != wide)
+        for width in [600.0, 560, 610] {
+            let again = sidebar.shouldCollapse(detailWidth: width, windowFrameRestored: true)
+            #expect(!again)
+            #expect(sidebar == narrow)
+        }
+    }
 }

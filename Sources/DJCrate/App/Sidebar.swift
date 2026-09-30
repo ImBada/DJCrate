@@ -13,6 +13,7 @@ struct Sidebar: View {
     @Bindable var store: LibraryStore
 
     var body: some View {
+        let _ = PerfProbe.body(Self.self)
         List(selection: $store.sidebar) {
             Section {
                 ForEach(LibraryFilter.visible(commentPreset: store.commentPreset)) { filter in
