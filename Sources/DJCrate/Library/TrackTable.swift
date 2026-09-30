@@ -990,7 +990,7 @@ final class TrackListTableView: NSTableView {
 /// 목록 글자 칸. 태그 초안이면 왼쪽 위 모서리 표식과 VoiceOver 값 "…, 초안"을 붙이고(#34),
 /// 칸에서 바로 고칠 때(#88)는 목록 글자를 가리고 같은 자리에 입력 칸을 띄운다.
 final class TrackTextCell: NSTableCellView {
-    let label = NSTextField(labelWithString: "")
+    let label: NSTextField
     private let draftMark = DraftCornerView()
     private var normalColor = NSColor.labelColor
     /// 심볼만 따로 칠할 색(파일이 없는 곡의 경고 아이콘, #126). nil이면 글자색을 따른다.
@@ -1006,6 +1006,7 @@ final class TrackTextCell: NSTableCellView {
     /// 접근성 값을 한 번이라도 덮었는지. 셀에 nil을 넣으면 기본값으로 돌아가지 않아 그 뒤로는 글자를 계속 넣는다.
     private var speaksCustomValue = false
     private var field: NSTextField?
+    private var textHeight = TrackTextHeight()
 
     override var backgroundStyle: NSView.BackgroundStyle {
         didSet { updateColor() }
@@ -1039,7 +1040,8 @@ final class TrackTextCell: NSTableCellView {
     var text: String { label.stringValue }
     var showsDraftMark: Bool { !draftMark.isHidden }
 
-    init() {
+    init(label: NSTextField = NSTextField(labelWithString: "")) {
+        self.label = label
         super.init(frame: .zero)
         label.lineBreakMode = .byTruncatingTail
         label.cell?.truncatesLastVisibleLine = true
@@ -1054,9 +1056,15 @@ final class TrackTextCell: NSTableCellView {
     // 제약으로 두면 줄을 다시 채울 때마다(글자가 바뀌면 고유 크기도 바뀐다) 제약 엔진이 칸마다 다시 풀어
     // 목록 전환·스크롤이 무거웠다(#137). 글자 자리·심볼·초안 표식·입력 칸은 칸 크기로 정해지므로 프레임으로 둔다.
     override func setFrameSize(_ newSize: NSSize) {
-        let resized = newSize != frame.size
+        guard newSize != frame.size else { return }
         super.setFrameSize(newSize)
-        if resized { needsLayout = true }
+        needsLayout = true
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        textHeight.invalidate()
+        needsLayout = true
     }
 
     override func layout() {
@@ -1068,10 +1076,14 @@ final class TrackTextCell: NSTableCellView {
         }
         // 글자 자리(정렬 사각형)는 양옆 2pt 안쪽에서 세로 가운데다. 글자 칸 프레임은 정렬 여백만큼 더 넓다.
         for text in [label, field].compactMap({ $0 }) {
-            let textHeight = text.intrinsicContentSize.height
-            let slot = NSRect(x: labelLeading, y: (height - textHeight) / 2,
-                              width: max(0, bounds.width - labelLeading - 2), height: textHeight)
-            text.frame = backingAlignedRect(text.frame(forAlignmentRect: slot), options: .alignAllEdgesNearest)
+            // 입력 칸은 편집 중 내용·필드 편집기가 바뀌므로 높이를 계속 직접 잰다.
+            let measuredHeight = text === label
+                ? textHeight.height(text: text.stringValue, font: text.font) { text.intrinsicContentSize.height }
+                : text.intrinsicContentSize.height
+            let slot = NSRect(x: labelLeading, y: (height - measuredHeight) / 2,
+                              width: max(0, bounds.width - labelLeading - 2), height: measuredHeight)
+            let frame = backingAlignedRect(text.frame(forAlignmentRect: slot), options: .alignAllEdgesNearest)
+            if text.frame != frame { text.frame = frame }
         }
         draftMark.frame = NSRect(x: 0, y: isFlipped ? 0 : height - 7, width: 7, height: 7)
     }
@@ -1081,7 +1093,10 @@ final class TrackTextCell: NSTableCellView {
     /// - Parameter symbol: 글자 앞 SF 심볼. 칸을 다시 쓸 때마다 부르므로 nil이면 지운다.
     func set(_ text: String, color: NSColor, digits: Bool = false, draft: Bool = false, estimated: Bool = false,
              symbol: String? = nil, symbolLabel: String? = nil, symbolColor: NSColor? = nil) {
-        if label.stringValue != text { label.stringValue = text }
+        if label.stringValue != text {
+            label.stringValue = text
+            needsLayout = true
+        }
         let font = estimated ? fonts.estimated : digits ? fonts.digits : fonts.text
         if label.font != font {
             label.font = font
@@ -1152,6 +1167,7 @@ final class TrackTextCell: NSTableCellView {
     }
 
     func endEditing() {
+        textHeight.invalidate()
         field?.removeFromSuperview()
         field = nil
         label.isHidden = false
