@@ -83,6 +83,38 @@ struct UsbEditSessionTests {
         #expect(try env.fixture.read().tracks.map(\.id) == [1, 2])
     }
 
+    @Test("반복 드라이 런 뒤 같은 편집의 신규 곡 번호 참조가 실제 쓰기에도 남는다")
+    func dryRunKeepsAddedTrackReferencesStable() throws {
+        let env = try Env()
+        try env.fixture.addLocal(["104"])
+        let edits: [UsbLibraryEdit] = [
+            .removeTracks(usbContentIDs: [1]),
+            .addTracks(localContentIDs: ["104"], playlist: .id("1")),
+            .playlist(edit: .create(key: "new", name: "합성 새 목록", isFolder: false, parent: .root)),
+            .playlist(edit: .addTracks(playlist: .new("new"), contentIDs: ["2", "4"])),
+        ]
+        let before = env.usb.tree()
+        let previous = try #require(env.usb.journal()?.idHighWater)
+        for _ in 0..<2 {
+            let (result, report) = try Self.write(env.session(), edits, dryRun: true)
+            #expect(result.outcomes.allSatisfy { $0.outcome == .written })
+            #expect(report?.outcome == .dryRun)
+            #expect(result.applied?.tracks.map(\.id).sorted() == [2, 3, 4])
+            #expect(env.usb.journal()?.idHighWater == previous)
+            #expect(env.usb.tree() == before)
+        }
+        let (result, report) = try Self.write(env.session(), edits)
+        #expect(result.outcomes.allSatisfy { $0.outcome == .written })
+        #expect(report?.outcome == .written)
+        #expect(env.usb.journal()?.idHighWater["content"] == 4)
+        #expect(env.usb.journal()?.idHighWater["playlist"] == 2)
+        for format in UsbFormat.allCases {
+            let model = try #require(try env.fixture.read(format))
+            #expect(model.tracks.map(\.id).sorted() == [2, 3, 4])
+            #expect(model.playlists.first { $0.name == "합성 새 목록" }?.entries[format] == [2, 4])
+        }
+    }
+
     @Test("초안을 만든 뒤 USB가 바뀌면 지금 상태에 다시 계획해 쓰고 초안을 지운다")
     func baseChangedReplans() throws {
         let env = try Env()

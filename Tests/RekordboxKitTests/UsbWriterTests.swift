@@ -47,6 +47,30 @@ struct UsbWriterTests {
         #expect(fixture.journal()?.state == .verified)
     }
 
+    @Test("반복 드라이 런은 새 ID를 소비하지 않고 이전 쓰기의 ID 상한을 보존한다", arguments: [false, true])
+    func dryRunPreservesCommittedHighWater(committed: Bool) throws {
+        let fixture = UsbChangeSetFixture()
+        defer { fixture.remove() }
+        let previous = committed ? ["content": 9, "playlist": 7] : [:]
+        if committed {
+            var initial = fixture.exportChanges()
+            initial.idHighWater = previous
+            try fixture.write(initial)
+        }
+        var changes = committed ? try fixture.smallEditChanges() : fixture.exportChanges()
+        changes.idHighWater = ["content": 10, "playlist": 8]
+        let before = fixture.tree()
+        for _ in 0..<2 {
+            let report = try fixture.write(changes, options: UsbWriteOptions(dryRun: true))
+            #expect(report.outcome == .dryRun)
+            #expect(fixture.journal()?.idHighWater == previous)
+            #expect(fixture.tree() == before)
+        }
+        let report = try fixture.write(changes)
+        #expect(report.outcome == .written)
+        #expect(fixture.journal()?.idHighWater == changes.idHighWater)
+    }
+
     @Test("쓰면 트리가 목표와 같다")
     func writeProducesTargetTree() throws {
         let fixture = UsbChangeSetFixture()

@@ -386,7 +386,16 @@ extension UsbWriteRun {
         let plan = try precheck(changes, inspectors: inspectors)
         stageReached(.precheck)
         // B
-        try stage(changes, plan: plan)
+        var stagedChanges = changes
+        if options.dryRun {
+            // 미리 보기는 새 ID를 소비하지 않지만 이전 실제 쓰기의 상한은 다음 계획에도 남겨야 한다
+            if case let .closed(previous) = UsbWriter.journalStatus(paths: paths, volumeKey: volumeKey) {
+                stagedChanges.idHighWater = previous.idHighWater
+            } else {
+                stagedChanges.idHighWater = [:]
+            }
+        }
+        try stage(stagedChanges, plan: plan)
         stageReached(.staged)
         if options.dryRun {
             try journal.move(to: .dryRun)
