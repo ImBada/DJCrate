@@ -74,6 +74,37 @@ struct EditRendererTests {
         }
     }
 
+    @Test func 재생_예약표로_메모리에서_낸_소리는_렌더와_같다() throws {
+        let dir = try directory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let source = try ramp(seconds: 20.5, in: dir)
+        let file = try AVAudioFile(forReading: source.url)
+        let whole = try #require(AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)))
+        try file.read(into: whole)
+        // 곡 머리 + 이음새 둘, MP3처럼 0.05초 늦은 시간축(곡 머리 앞은 무음)
+        let edit = try TrackEdit(grid: grid, sourceDuration: 20.5, bars: BarRange.list("0-2,1-2,9-10"))
+        let output = dir.appending(path: "edit.wav")
+        _ = try EditRenderer.render(edit, source: source.url, sourceOffset: 0.05, to: output, bitDepth: 24)
+        let rendered = try samples(output)
+        let items = TrackEdit.playbackItems(edit.frames(sampleRate: rate, sourceOffset: 0.05))
+        // 처음부터, 그리고 이음새 섞는 구간 가운데부터 이어 붙인 소리가 렌더 파일과 같다
+        let seam = Int64((edit.pieces[1].outputStart * rate).rounded())
+        for start in [Int64(0), seam - 100] {
+            var left: [Float] = [], right: [Float] = []
+            for item in items.starting(at: start) {
+                #expect(item.outputFrame == start + Int64(left.count))
+                let buffer = try #require(EditRenderer.playbackBuffer(item, source: whole))
+                #expect(Int64(buffer.frameLength) == item.frameCount)
+                left += UnsafeBufferPointer(start: buffer.floatChannelData![0], count: Int(buffer.frameLength))
+                right += UnsafeBufferPointer(start: buffer.floatChannelData![1], count: Int(buffer.frameLength))
+            }
+            let expected = rendered.left[Int(start)...]
+            #expect(left.count == expected.count)
+            #expect(zip(left, expected).allSatisfy { abs($0 - $1) < 1e-6 }, "\(start)부터")
+            #expect(zip(right, rendered.right[Int(start)...]).allSatisfy { abs($0 - $1) < 1e-6 })
+        }
+    }
+
     @Test func 인코더_지연만큼_곡_머리에_무음을_채운다() throws {
         let dir = try directory()
         defer { try? FileManager.default.removeItem(at: dir) }

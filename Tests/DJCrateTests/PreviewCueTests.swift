@@ -19,7 +19,8 @@ struct PreviewCueTests {
         #expect(shapes[0].rect.minX == 100)
         #expect(shapes[0].rect.minY < 10)
         #expect(shapes[1].color == .memory)
-        #expect(shapes[1].rect.minY >= 30)
+        // 메모리 큐는 아래쪽 끝에 붙는다(눈금 높이는 칸 높이에 따라 정한다, #121).
+        #expect(shapes[1].rect.minY >= 20 && shapes[1].rect.maxY == 39)
         #expect(shapes[2].color == .loop)
         #expect(shapes.allSatisfy { $0.rect.minX >= 0 && $0.rect.maxX <= 400 })
         #expect(PreviewCueMark.shapes(marks, duration: 0, width: 400, height: 40).isEmpty)
@@ -64,6 +65,12 @@ struct PreviewCueTests {
         #expect(store.draftPreviewCues["second"] == other)
         store.draftChanged(trackUUID: "first", kind: .cue, exists: false)
         #expect(store.draftPreviewCues["first"] == nil)
+    }
+
+    /// #145: rekordbox 자동 큐도 메모리 큐로 보인다(덱 목록과 같다).
+    @Test func savedAutoCuesAreShownAsMemoryCues() {
+        let auto = Cue(id: "auto", contentID: "track", kind: 0, inMsec: 350, name: "1.1Bars", colorTableIndex: 0, color: 255)
+        #expect(PreviewCueMark.current(saved: [auto], draft: nil) == [PreviewCueMark(EditableCue(kind: .memory, time: 0.35))])
     }
 
     @Test func removingAllCuesInDraftDoesNotShowSavedCuesAgain() {

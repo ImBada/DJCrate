@@ -127,13 +127,30 @@ struct AppToastView: View {
 
 /// rekordbox에 쓰는 동안 창 전체를 덮어 다른 조작을 막는다.
 struct WritingOverlay: View {
-    @Environment(\.textScale) private var textScale
     let stage: WriteStage
     var onCancel: () -> Void
 
     var body: some View {
         ZStack {
             Color.black.opacity(0.28)
+            WritingStageCard(stage: stage, onCancel: onCancel)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {}
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+    }
+}
+
+/// 쓰기 진행 카드: 단계 문구 + (진행 막대) + 안내 + (취소).
+struct WritingStageCard: View {
+    @Environment(\.textScale) private var textScale
+    let stage: WriteStage
+    var onCancel: () -> Void
+
+    var body: some View {
+        // 막대가 창 폭을 다 차지하지 않게 문구 폭에 맞추고, 긴 문구만 최대 폭에서 줄을 바꾼다(#122).
+        FittingWidthLayout(minWidth: TextScale.length(240, scale: textScale), maxWidth: TextScale.length(400, scale: textScale)) {
             VStack(spacing: 10) {
                 if let done = stage.completed, let total = stage.total {
                     ProgressView(value: Double(done), total: Double(max(total, 1)))
@@ -147,13 +164,28 @@ struct WritingOverlay: View {
                     Button(.ui("취소"), action: onCancel).keyboardShortcut(.cancelAction)
                 }
             }
-            .padding(.horizontal, 28).padding(.vertical, 20)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .shadow(color: .black.opacity(0.25), radius: 16, y: 6)
+            .multilineTextAlignment(.center)
         }
-        .contentShape(Rectangle())
-        .onTapGesture {}
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(.isModal)
+        .padding(.horizontal, 28).padding(.vertical, 20)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: .black.opacity(0.25), radius: 16, y: 6)
+    }
+}
+
+/// 내용의 한 줄 폭(최소 폭 이상)에 맞추고, 최대 폭을 넘으면 그 폭에서 줄을 바꾼 높이를 쓴다.
+/// frame(maxWidth:) + fixedSize는 높이를 한 줄로 재서 줄 바꾼 문구가 잘린다.
+private struct FittingWidthLayout: Layout {
+    var minWidth: CGFloat
+    var maxWidth: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let content = subviews.first else { return .zero }
+        let width = min(max(content.sizeThatFits(.unspecified).width, minWidth), maxWidth, proposal.width ?? .infinity)
+        return CGSize(width: width, height: content.sizeThatFits(ProposedViewSize(width: width, height: nil)).height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        // 내용이 최소 폭보다 좁으면 왼쪽에 붙어 카드 안에서 치우쳐 보였다(#148). 가운데에 둔다.
+        subviews.first?.place(at: CGPoint(x: bounds.midX, y: bounds.minY), anchor: .top, proposal: ProposedViewSize(bounds.size))
     }
 }

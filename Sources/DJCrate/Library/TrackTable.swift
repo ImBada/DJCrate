@@ -137,6 +137,7 @@ private struct TrackListView: NSViewRepresentable {
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
+        PerfProbe.count("TrackListView.update")
         context.coordinator.updateWriteLock(store.isWritingRekordbox)
         context.coordinator.updateUsbMode(store.isUsbSelection)
         context.coordinator.updateTextScale(context.environment.textScale)
@@ -191,7 +192,7 @@ struct TrackColumn {
         TrackColumn(id: "hotCues", title: String(ui: "핫큐"), width: 42, minWidth: 34, sortKey: "hotCues", ascendingFirst: false,
                     help: String(ui: "직접 찍은 핫큐 수(초록)")),
         TrackColumn(id: "memoryCues", title: String(ui: "메모리"), width: 50, minWidth: 40, sortKey: "memoryCues", ascendingFirst: false,
-                    help: String(ui: "직접 찍은 메모리 큐 수(빨강). 큐가 없으면 주황 '없음', rekordbox 자동 큐만 있으면 '자동'")),
+                    help: String(ui: "메모리 큐 수(빨강, rekordbox 자동 큐 포함). 자동 큐뿐이면 흐린 글자")),
         TrackColumn(id: usbSyncID, title: String(ui: "갱신 상태"), width: 96, minWidth: 60, sortKey: usbSyncID,
                     help: String(ui: "로컬 rekordbox 곡과 견준 USB 곡의 상태(USB 목록에서만 보인다)")),
     ]
@@ -326,6 +327,8 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     private var inlineEdit: InlineEdit?
     /// 다시 누른 태그 칸을 고치기 전 기다림(더블클릭이면 취소)
     private var pendingEdit: Task<Void, Never>?
+    /// 마우스 버튼이 눌려 있는지(누른 채 끌면 고치지 않는다). 시스템 전체 상태라 시험이 바꿔 끼운다.
+    var isMouseDown: () -> Bool = { NSEvent.pressedMouseButtons != 0 }
     /// 줄 끌기를 시작한 횟수. 누른 줄을 끌었으면(덱에 놓기 등) 그 클릭으로 칸을 고치지 않는다.
     private(set) var dragGeneration = 0
     /// 덱에 올린 곡(ContentID)과 재생 중인지. # 칸에 스피커로 보인다.
@@ -403,7 +406,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             rowIDs = ids
             self.edited = edited
             if reordered {
-                table.reloadData()
+                replaceRows(table)
                 applySelection(selection, table: table, scroll: true)
             } else {
                 // 순서는 같고 내용만 바뀜(새 스냅샷): 보이는 줄만 다시 그린다.
@@ -474,6 +477,27 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             syncing = true
             table.sortDescriptors = wanted
             syncing = false
+        }
+    }
+
+    /// 줄이 바뀌면(사이드바 항목·정렬·검색) `reloadData`로 다시 불러오지 않는다. 그러면 만들어 둔 셀·행 뷰를 모두 버리고
+    /// 새로 만들어 목록 전환마다 곡 수와 상관없이 무거웠다(#137). 줄 수만 알리고, 만들어 둔 줄(보이는 줄과 미리 준비한 줄)의 칸을 제자리에서 다시 채운다.
+    /// `reloadData(forRowIndexes:)`도 쓰지 않는다. 칸을 뗐다 붙이며 줄마다 키 뷰 순서를 다시 계산해 그것만으로 전환 비용의 큰 몫이었다.
+    private func replaceRows(_ table: NSTableView) {
+        // 줄 수가 줄며 표가 선택을 잘라도 스토어 선택은 그대로 둔다(바로 뒤에 새 목록 기준으로 다시 고른다).
+        // 표 높이는 기본으로 0.25초 동안 늘고 줄며 프레임마다 창을 다시 배치하므로 애니메이션 없이 바로 바꾼다.
+        syncing = true
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            table.noteNumberOfRowsChanged()
+        }
+        syncing = false
+        let columns = table.tableColumns.map(\.identifier.rawValue)
+        table.enumerateAvailableRowViews { rowView, index in
+            guard rows.indices.contains(index) else { return }
+            for (column, id) in columns.enumerated() {
+                if let cell = rowView.view(atColumn: column) as? NSView { fill(cell, column: id, row: index) }
+            }
         }
     }
 
@@ -704,39 +728,43 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row index: Int) -> NSView? {
         guard let id = tableColumn?.identifier.rawValue, rows.indices.contains(index) else { return nil }
+        let cell: NSView = switch id {
+        case "preview": reuse(tableView, "preview") { PreviewWaveformCell() }
+        case "thumb": reuse(tableView, "thumb") { ThumbnailCell() }
+        case "edited": reuse(tableView, "edited") { EditedMarkCell() }
+        case "index": reuse(tableView, "index") { TrackIndexCell() }
+        default: reuse(tableView, "text") { TrackTextCell() }
+        }
+        // 고치던 칸이 다른 자리로 다시 쓰이면(스크롤로 줄이 사라짐) 그 입력을 확정한다. 대상 곡은 편집을 시작할 때 정해 두었다.
+        if let edit = inlineEdit, edit.cell === cell, edit.row != index || edit.column != id {
+            Task { @MainActor [weak self] in self?.finishEditing(commit: true, restoreFocus: true) }
+        }
+        fill(cell, column: id, row: index)
+        return cell
+    }
+
+    /// 칸 하나를 그 줄의 곡으로 채운다(새로 만들었거나 다시 쓴 칸, 목록이 바뀌어 제자리에서 다시 채우는 칸).
+    private func fill(_ view: NSView, column id: String, row index: Int) {
         let row = rows[index]
-        switch id {
-        case "preview":
-            let cell = reuse(tableView, "preview") { PreviewWaveformCell() }
+        switch view {
+        case let cell as PreviewWaveformCell:
             // USB 곡은 음원에서 파형을 새로 만들지 않는다(USB를 오래 읽고 로컬 캐시를 채운다)
             cell.configure(url: RekordboxShare.analysisURL(row.track.analysisDataPath),
                            revision: "\(snapshotURL?.absoluteString ?? ""):\(previewRevision)", mode: waveformMode,
                            audioURL: row.track.isStreaming || row.isUsb ? nil : URL(filePath: row.track.folderPath), key: row.track.uuid,
                            cues: PerfProbe.previewCuesVisible ? PreviewCueMark.current(saved: row.cues, draft: previewCues[row.track.uuid]) : [],
                            duration: Double(row.track.lengthSeconds))
-            return cell
-        case "thumb":
-            let cell = reuse(tableView, "thumb") { ThumbnailCell() }
+        case let cell as ThumbnailCell:
             cell.configure(track: row.track)
-            return cell
-        case "edited":
-            let cell = reuse(tableView, "edited") { EditedMarkCell() }
+        case let cell as EditedMarkCell:
             cell.configure(edited: edited.contains(row.track.uuid))
-            return cell
-        case "index":
-            let cell = reuse(tableView, "index") { TrackIndexCell() }
+        case let cell as TrackIndexCell:
             cell.configure(number: "\(row.historyTrackNumber ?? row.playlistTrackNumber ?? (index + 1))", font: fonts.digits,
                            deck: row.track.id == deckTrackID ? .init(playing: deckPlaying) : nil)
-            return cell
-        default:
-            let cell = reuse(tableView, "text") { TrackTextCell() }
-            // 고치던 칸이 다른 자리로 다시 쓰이면(스크롤로 줄이 사라짐) 그 입력을 확정한다. 대상 곡은 편집을 시작할 때 정해 두었다.
-            if let edit = inlineEdit, edit.cell === cell, edit.row != index || edit.column != id {
-                Task { @MainActor [weak self] in self?.finishEditing(commit: true, restoreFocus: true) }
-            }
+        case let cell as TrackTextCell:
             cell.fonts = fonts
             configure(cell, column: id, row: row, index: index)
-            return cell
+        default: break
         }
     }
 
@@ -765,7 +793,10 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             cell.set(evaluation?.displayName ?? "", color: evaluation?.tone.nsTint ?? .secondaryLabelColor,
                      draft: draft.map { $0.base.comment != $0.fields.comment } ?? false)
         case "bpm": cell.set(row.bpmValue > 0 ? String(format: "%.0f", row.bpmValue) : "", color: .secondaryLabelColor, digits: true)
-        case "key": cell.set(row.keyName, color: .secondaryLabelColor)
+        case "key":
+            // 추가한 곡의 추정 키는 제안 색·기울임으로 구분하고, 툴팁·VoiceOver로 "추정"을 알린다(#124).
+            cell.set(row.keyName, color: row.keyEstimated ? UIColors.suggestion.nsColor : .secondaryLabelColor,
+                     estimated: row.keyEstimated)
         case "length": cell.set(row.lengthText, color: .secondaryLabelColor, digits: true)
         case "format": cell.set(row.formatName, color: .secondaryLabelColor)
         case TrackColumn.usbSyncID:
@@ -780,16 +811,10 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             cell.set(hot > 0 ? "\(hot)" : "", color: UIColors.hot.nsColor, digits: true)
         case "memoryCues":
             // DJCrate에서 찍은 큐(초안)가 있으면 그 개수를 보여 준다(반영 전이라도).
-            if let counts = cueCounts[row.track.uuid] {
-                cell.set(counts.memory > 0 ? "\(counts.memory)" : (counts.hot > 0 ? "" : String(ui: "없음")),
-                         color: counts.memory > 0 ? UIColors.memory.nsColor : UIColors.warning.nsColor, digits: true)
-                break
-            }
-            switch row.cueState {
-            case .none: cell.set(String(ui: "없음"), color: UIColors.warning.nsColor)
-            case .autoOnly: cell.set(String(ui: "자동"), color: .tertiaryLabelColor)
-            case .manual: cell.set(row.memoryCueCount > 0 ? "\(row.memoryCueCount)" : "", color: UIColors.memory.nsColor, digits: true)
-            }
+            // 큐 없는 곡은 핫큐 칸처럼 비운다(사이드바 '큐 없음'으로 찾는다, #121). 자동 큐뿐이면 흐린 글자(#145).
+            let label = row.memoryCueLabel(draft: cueCounts[row.track.uuid])
+            let autoOnly = if case .autoOnly = label { true } else { false }
+            cell.set(label.text, color: autoOnly ? .tertiaryLabelColor : UIColors.memory.nsColor, digits: true)
         default: cell.set("", color: .labelColor)
         }
     }
@@ -797,8 +822,12 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     /// 태그 칸: 초안 값이면 초안 색·모서리 표식·VoiceOver "초안"으로 보인다(태그 시트와 같다, #34).
     private func configureTag(_ cell: TrackTextCell, key: TagFields.Key, row: TrackRow) {
         let (text, edited) = TrackListTagEditing.text(row, key, draft: store.tagDrafts[row.track.uuid])
+        // 스트리밍 곡은 제목 앞 아이콘과 흐린 글자로 로컬 곡과 구분한다(사이드바 '스트리밍'과 같은 아이콘, #121).
+        // 파일이 없는 곡도 흐린 글자에 경고 아이콘을 붙인다(#126).
+        let streaming = key == .title && row.track.isStreaming
+        let missing = key == .title && row.fileMissing
         let color: NSColor = switch key {
-        case .title: .labelColor
+        case .title: streaming || missing ? .secondaryLabelColor : .labelColor
         case .comment: row.commentEvaluation?.isMatch == true ? .labelColor : .secondaryLabelColor
         default: .secondaryLabelColor
         }
@@ -806,7 +835,10 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             cell.set("—", color: edited ? UIColors.draft.nsColor : .tertiaryLabelColor, draft: edited)
         } else {
             cell.set(text, color: edited ? UIColors.draft.nsColor : color,
-                     digits: key == .year || key == .trackNumber, draft: edited)
+                     digits: key == .year || key == .trackNumber, draft: edited,
+                     symbol: streaming ? LibraryFilter.streaming.systemImage : missing ? WarningMark.symbol : nil,
+                     symbolLabel: streaming ? String(ui: "스트리밍 곡") : missing ? String(ui: "파일을 찾지 못한 곡") : nil,
+                     symbolColor: missing ? UIColors.warning.nsColor : nil)
         }
     }
 
@@ -924,7 +956,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             // 선택 알림은 늦게 올 때가 있어 알림으로 취소하지 않고 여기서 본다.
             guard self.rows.indices.contains(index), self.rows[index].id == id,
                   table.selectedRowIndexes == IndexSet(integer: index), table.window?.firstResponder === table,
-                  NSEvent.pressedMouseButtons == 0 else { return }
+                  !self.isMouseDown() else { return }
             self.beginEditing(row: index, column: column)
         }
     }
@@ -1060,6 +1092,16 @@ final class TrackTextCell: NSTableCellView {
     let label = NSTextField(labelWithString: "")
     private let draftMark = DraftCornerView()
     private var normalColor = NSColor.labelColor
+    /// 심볼만 따로 칠할 색(파일이 없는 곡의 경고 아이콘, #126). nil이면 글자색을 따른다.
+    private var symbolColor: NSColor?
+    /// 글자 앞 작은 심볼(스트리밍 곡 제목, #121). 쓰는 칸이 드물어 처음 필요할 때 만든다.
+    private var icon: NSImageView?
+    /// 글자 자리 시작점(심볼이 있으면 그 뒤)
+    private var labelLeading: CGFloat = 2
+    /// 보이는 글자 앞 심볼 이름·색(시험용)
+    private(set) var leadingSymbol: String?
+    var symbolTint: NSColor? { icon?.contentTintColor }
+    private var iconPointSize: CGFloat = 0
     /// 접근성 값을 한 번이라도 덮었는지. 셀에 nil을 넣으면 기본값으로 돌아가지 않아 그 뒤로는 글자를 계속 넣는다.
     private var speaksCustomValue = false
     private var field: NSTextField?
@@ -1071,6 +1113,7 @@ final class TrackTextCell: NSTableCellView {
     private func updateColor() {
         let emphasized = backgroundStyle == .emphasized
         label.textColor = emphasized ? .alternateSelectedControlTextColor : normalColor
+        icon?.contentTintColor = emphasized ? label.textColor : symbolColor ?? label.textColor
         draftMark.color = emphasized ? .alternateSelectedControlTextColor : UIColors.draft.nsColor
     }
 
@@ -1078,11 +1121,14 @@ final class TrackTextCell: NSTableCellView {
     struct Fonts {
         let text: NSFont
         let digits: NSFont
+        /// 추정값(추가한 곡의 추정 키)
+        let estimated: NSFont
 
         init(scale: Double) {
             let size = TextScale.pointSize(NSFont.systemFontSize, scale: scale)
             text = NSFont.systemFont(ofSize: size)
             digits = NSFont.monospacedDigitSystemFont(ofSize: size, weight: .regular)
+            estimated = NSFontManager.shared.convert(text, toHaveTrait: .italicFontMask)
         }
     }
 
@@ -1096,37 +1142,92 @@ final class TrackTextCell: NSTableCellView {
         super.init(frame: .zero)
         label.lineBreakMode = .byTruncatingTail
         label.cell?.truncatesLastVisibleLine = true
-        label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)
         textField = label
-        draftMark.translatesAutoresizingMaskIntoConstraints = false
         draftMark.isHidden = true
         addSubview(draftMark)
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
-            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
-            label.centerYAnchor.constraint(equalTo: centerYAnchor),
-            draftMark.leadingAnchor.constraint(equalTo: leadingAnchor),
-            draftMark.topAnchor.constraint(equalTo: topAnchor),
-            draftMark.widthAnchor.constraint(equalToConstant: 7),
-            draftMark.heightAnchor.constraint(equalToConstant: 7),
-        ])
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+    // 제약으로 두면 줄을 다시 채울 때마다(글자가 바뀌면 고유 크기도 바뀐다) 제약 엔진이 칸마다 다시 풀어
+    // 목록 전환·스크롤이 무거웠다(#137). 글자 자리·심볼·초안 표식·입력 칸은 칸 크기로 정해지므로 프레임으로 둔다.
+    override func setFrameSize(_ newSize: NSSize) {
+        let resized = newSize != frame.size
+        super.setFrameSize(newSize)
+        if resized { needsLayout = true }
+    }
+
+    override func layout() {
+        super.layout()
+        let height = bounds.height
+        if let icon, !icon.isHidden, let size = icon.image?.size {
+            icon.frame = backingAlignedRect(NSRect(x: 2, y: (height - size.height) / 2, width: size.width, height: size.height),
+                                            options: .alignAllEdgesNearest)
+        }
+        // 글자 자리(정렬 사각형)는 양옆 2pt 안쪽에서 세로 가운데다. 글자 칸 프레임은 정렬 여백만큼 더 넓다.
+        for text in [label, field].compactMap({ $0 }) {
+            let textHeight = text.intrinsicContentSize.height
+            let slot = NSRect(x: labelLeading, y: (height - textHeight) / 2,
+                              width: max(0, bounds.width - labelLeading - 2), height: textHeight)
+            text.frame = backingAlignedRect(text.frame(forAlignmentRect: slot), options: .alignAllEdgesNearest)
+        }
+        draftMark.frame = NSRect(x: 0, y: isFlipped ? 0 : height - 7, width: 7, height: 7)
+    }
+
     /// - Parameter draft: 반영 전 초안 값. 색과 함께 모서리 표식·VoiceOver "초안"으로도 알린다.
-    func set(_ text: String, color: NSColor, digits: Bool = false, draft: Bool = false) {
+    /// - Parameter estimated: DJCrate 추정값. 색과 함께 기울임·툴팁·VoiceOver "추정"으로도 알린다.
+    /// - Parameter symbol: 글자 앞 SF 심볼. 칸을 다시 쓸 때마다 부르므로 nil이면 지운다.
+    func set(_ text: String, color: NSColor, digits: Bool = false, draft: Bool = false, estimated: Bool = false,
+             symbol: String? = nil, symbolLabel: String? = nil, symbolColor: NSColor? = nil) {
         if label.stringValue != text { label.stringValue = text }
+        let font = estimated ? fonts.estimated : digits ? fonts.digits : fonts.text
+        if label.font != font {
+            label.font = font
+            needsLayout = true
+        }
+        if symbol != leadingSymbol || (symbol != nil && iconPointSize != font.pointSize) {
+            showSymbol(symbol, label: symbolLabel, pointSize: font.pointSize)
+        }
         normalColor = color
+        self.symbolColor = symbolColor
         updateColor()
-        let font = digits ? fonts.digits : fonts.text
-        if label.font != font { label.font = font }
         if draftMark.isHidden == draft { draftMark.isHidden = !draft }
-        if draft || speaksCustomValue {
-            label.cell?.setAccessibilityValue(draft ? "\(text), \(DraftMark.spoken)" : text)
+        let tip = estimated ? String(ui: "DJCrate가 소리로 추정한 키입니다. rekordbox 분석과 다를 수 있습니다") : nil
+        if toolTip != tip { toolTip = tip }
+        if draft || estimated || speaksCustomValue {
+            let spoken = draft ? "\(text), \(DraftMark.spoken)" : estimated ? "\(text), \(String(ui: "추정"))" : text
+            label.cell?.setAccessibilityValue(spoken)
             speaksCustomValue = true
         }
+    }
+
+    private func showSymbol(_ name: String?, label text: String?, pointSize: CGFloat) {
+        leadingSymbol = name
+        iconPointSize = pointSize
+        if name != nil, icon == nil {
+            let view = NSImageView()
+            addSubview(view)
+            icon = view
+        }
+        let image = name.flatMap { Self.symbolImage($0, label: text, pointSize: round(pointSize * 0.85)) }
+        icon?.image = image
+        icon?.toolTip = image == nil ? nil : text
+        icon?.isHidden = image == nil
+        labelLeading = 2 + (image.map { ceil($0.size.width) + 3 } ?? 0)
+        needsLayout = true
+    }
+
+    /// 스크롤로 칸을 다시 쓸 때마다 심볼 이미지를 새로 만들지 않는다.
+    private static var symbolImages: [String: NSImage] = [:]
+
+    private static func symbolImage(_ name: String, label: String?, pointSize: CGFloat) -> NSImage? {
+        let key = "\(name)|\(label ?? "")|\(pointSize)"
+        if let image = symbolImages[key] { return image }
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: label)?
+            .withSymbolConfiguration(.init(pointSize: pointSize, weight: .regular))
+        symbolImages[key] = image
+        return image
     }
 
     /// 칸 자리에 입력 칸을 띄운다(목록 글자는 가린다). 끝나면 `endEditing`으로 걷는다.
@@ -1140,15 +1241,12 @@ final class TrackTextCell: NSTableCellView {
         field.backgroundColor = .textBackgroundColor
         field.cell?.usesSingleLineMode = true
         field.cell?.isScrollable = true
-        field.translatesAutoresizingMaskIntoConstraints = false
         addSubview(field)
-        NSLayoutConstraint.activate([
-            field.leadingAnchor.constraint(equalTo: label.leadingAnchor),
-            field.trailingAnchor.constraint(equalTo: label.trailingAnchor),
-            field.centerYAnchor.constraint(equalTo: centerYAnchor),
-        ])
         label.isHidden = true
         self.field = field
+        // 입력을 시작하기 전에 글자 자리에 둔다(필드 편집기가 필드 크기로 뜬다).
+        needsLayout = true
+        layoutSubtreeIfNeeded()
         return field
     }
 
@@ -1574,6 +1672,16 @@ extension TrackListCoordinator {
                    forRowIndexes rowIndexes: IndexSet) {
         dragGeneration += 1
         cancelPendingEdit()
+        // 간격 표시는 끄는 동안 끄는 줄을 숨긴다. 숨긴 채 덱에 곡이 올라가 목록 높이가 바뀌면 표 높이가 틀어지므로(#143)
+        // 목록 안에 놓아 순서를 바꿀 수 있을 때만 쓴다.
+        tableView.draggingDestinationFeedbackStyle = store.canReorderDisplayedTracks ? .gap : .regular
+    }
+
+    /// 끄는 줄을 숨긴 채 목록 높이가 바뀌면 AppKit이 표 높이를 줄 끝보다 짧게 잡고, 끌기가 끝나 줄을 다시 보여도 다시 재지 않는다.
+    /// 그러면 놓은 뒤 휠 스크롤이 짧은 높이에 막혔다(#143). 표는 이 대리자를 부른 뒤에 줄을 다시 보이므로 다음 차례에 잰다.
+    func tableView(_ tableView: NSTableView, draggingSession session: NSDraggingSession, endedAt screenPoint: NSPoint,
+                   operation: NSDragOperation) {
+        Task { @MainActor [weak tableView] in tableView?.tile() }
     }
 
     /// 목록을 # 순서로 볼 때만 줄 사이에 놓아 순서를 바꾼다.

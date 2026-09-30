@@ -91,7 +91,7 @@ public enum EditRenderer {
                     for c in 0..<channels {
                         let a = held.floatChannelData![c], b = body.floatChannelData![c]
                         for k in 0..<fade {
-                            let g = (Float(k) + 0.5) / Float(fade)
+                            let g = TrackEdit.crossfadeGain(Int64(k), of: Int64(fade))
                             a[k] = a[k] * (1 - g) + b[k] * g
                         }
                     }
@@ -128,6 +128,32 @@ public enum EditRenderer {
         progress?(1)
         return Result(frames: written, sampleRate: format.sampleRate, channels: channels,
                       seams: spans.filter { $0.crossfadeFrames > 0 }.count)
+    }
+
+    /// 재생 예약 한 칸(`TrackEdit.playbackItems`)을 메모리에 푼 원본에서 채운 새 버퍼. 렌더 파일의 같은 프레임과 소리가 같다.
+    /// 원본 밖(음수·길이 너머)은 무음이다. 편집 창 재생기가 이음새 섞는 칸을 만들 때 쓴다.
+    public static func playbackBuffer(_ item: EditPlaybackItem, source: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+        guard item.frameCount > 0, item.frameCount <= Int64(UInt32.max),
+              let buffer = AVAudioPCMBuffer(pcmFormat: source.format, frameCapacity: AVAudioFrameCount(item.frameCount)),
+              let from = source.floatChannelData, let to = buffer.floatChannelData else { return nil }
+        let count = Int(item.frameCount), length = Int64(source.frameLength)
+        buffer.frameLength = AVAudioFrameCount(count)
+        // 원본 [start, start + count)에서 있는 만큼을 gain을 곱해 더한다.
+        func add(from start: Int64, gain: (Int) -> Float) {
+            let first = max(0, -start), last = min(Int64(count), length - start)
+            guard first < last else { return }
+            for c in 0..<Int(source.format.channelCount) {
+                for j in Int(first)..<Int(last) { to[c][j] += from[c][Int(start) + j] * gain(j) }
+            }
+        }
+        for c in 0..<Int(source.format.channelCount) { to[c].update(repeating: 0, count: count) }
+        if let fade = item.fade {
+            add(from: item.sourceFrame) { 1 - TrackEdit.crossfadeGain(fade.position + Int64($0), of: fade.length) }
+            add(from: fade.sourceFrame) { TrackEdit.crossfadeGain(fade.position + Int64($0), of: fade.length) }
+        } else {
+            add(from: item.sourceFrame) { _ in 1 }
+        }
+        return buffer
     }
 
     /// 원본 [from, from + count) 프레임을 `buffer` 앞에 채운다. 음수·길이 밖은 무음이다(곡 머리의 인코더 지연·곡 끝 너머).

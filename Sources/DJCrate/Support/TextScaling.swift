@@ -8,11 +8,10 @@ extension EnvironmentValues {
 }
 
 /// 저장된 글자 배율을 창의 환경에 넣는다. 디버그 빌드는 `--text-scale=1.3`으로 설정을 건드리지 않고 볼 수 있다.
+/// 이름에 점이 들어 `@AppStorage`로 두면 다른 설정이 바뀔 때마다(창 크기를 바꾸는 동안 창 프레임 자동 저장 등) 다시 계산한다(#138).
 struct AppTextScale: ViewModifier {
-    @AppStorage(SettingKeys.textScale.name) private var stored = SettingKeys.textScale.defaultValue
-
     func body(content: Content) -> some View {
-        content.environment(\.textScale, PerfProbe.textScale ?? SettingKeys.textScale.value(from: stored))
+        content.environment(\.textScale, PerfProbe.textScale ?? SharedSettings.textScale.value)
     }
 }
 
@@ -85,6 +84,8 @@ struct WaveformMetrics: Equatable {
     var beatNumberInset: Double { TextScale.length(26, scale: scale) }
     /// 눈금 라벨 한 자의 폭(라벨 수 줄이기에 쓴다)
     var charWidth: Double { BeatRulerLabel.charWidth(pointSize: labelSize) }
+    /// 칩·알약 글자를 잴 때 주는 제안 크기(한 줄로 들어가게 넉넉하다)
+    static let chipProposal = CGSize(width: 200, height: 40)
 
     // MARK: 전체 파형
 

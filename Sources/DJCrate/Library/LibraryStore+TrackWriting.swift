@@ -154,7 +154,7 @@ extension LibraryStore {
             try? data.write(to: URL(filePath: backup).appending(path: Self.stagedBackupName))
         }
         writeStage = WriteStage(String(ui: "넣은 곡을 읽는 중…"))
-        await takeSnapshot(quiet: true)
+        await takeSnapshot(quiet: true, refreshITunes: false)
         if let first = report.added.first(where: \.written), let id = first.contentID {
             sidebar = .filter(.all)
             search = ""
@@ -196,7 +196,7 @@ extension LibraryStore {
         }.value
         selection.subtract(Set(report.deleted.filter(\.written).compactMap(\.contentID)))
         writeStage = WriteStage(String(ui: "라이브러리를 다시 읽는 중…"))
-        await takeSnapshot(quiet: true)
+        await takeSnapshot(quiet: true, refreshITunes: false)
         lastWriteBackup = report.backup.map { URL(filePath: $0) }
         return report
     }

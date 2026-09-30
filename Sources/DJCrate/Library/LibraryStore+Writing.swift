@@ -21,7 +21,8 @@ extension LibraryStore {
 
     /// 대상 곡 중 반영 대기 초안이 있는 곡(추가한 곡 제외)
     func writeTargets(_ rows: [TrackRow]) -> [TrackRow] {
-        rows.filter { !$0.isStaged && pendingUUIDs.contains($0.track.uuid) }
+        let pending = pendingUUIDs
+        return rows.filter { !$0.isStaged && pending.contains($0.track.uuid) }
     }
 
     /// 새 스냅샷을 떠서 그 사본으로 쓰기를 끝까지 해 보고 되돌린다(rekordbox는 건드리지 않는다).
@@ -31,7 +32,9 @@ extension LibraryStore {
         let targets = writeTargets(rows)
         let uuids = Set(targets.map { $0.track.uuid })
         let merges = mergeDrafts.filter { $0.members.contains { uuids.contains($0.trackUUID) } }
-        let drafts = targets.compactMap { CueDraftStore.load(trackUUID: $0.track.uuid) }.filter(\.hasChanges)
+        // 자동 큐를 빼고 만든 옛 초안에는 곡의 자동 큐를 채운다(#145, 쓰기도 같은 일을 한다).
+        let drafts = targets.compactMap { row in CueDraftStore.load(trackUUID: row.track.uuid)?.includingAutoCues(from: row.cues) }
+            .filter(\.hasChanges)
         let grids = targets.compactMap { GridDraftStore.load(trackUUID: $0.track.uuid) }.filter(\.hasChanges)
         let allGains = GainDraftStore.all()
         let gains = Dictionary(uniqueKeysWithValues: targets.compactMap { row in allGains[row.track.uuid].map { (row.track.uuid, $0) } })
@@ -100,8 +103,8 @@ extension LibraryStore {
         })
         DraftWriter.flush()
         // 화면을 처음부터 다시 불러오지 않고 뒤에서 조용히 다시 읽는다.
-        writeStage = WriteStage(String(ui: "쓰기 확인 중…"))
-        await takeSnapshot(quiet: true)
+        writeStage = .reloadingLibrary
+        await takeSnapshot(quiet: true, refreshITunes: false)
         // 그리드만 바뀐 곡은 DB가 그대로라 목록 줄이 같다. 덱이 그 곡을 보고 있으면 초안·그리드만 다시 읽게 한다.
         onRekordboxWritten?(Set(report.written.map(\.trackUUID)).union(report.gridWritten.map(\.trackUUID)).union(report.gainWritten.map(\.trackUUID))
             .union(report.analysisWritten.map(\.trackUUID)).union(tagWritten).union(merges.filter { merged.contains($0.id) }.flatMap { $0.members.map(\.trackUUID) }))
@@ -132,7 +135,7 @@ extension LibraryStore {
         replaceTagDrafts(tags)
         DraftWriter.flush()
         writeStage = WriteStage(String(ui: "복원한 라이브러리를 읽는 중…"))
-        await takeSnapshot(quiet: true)
+        await takeSnapshot(quiet: true, refreshITunes: false)
         // 재생 목록 편집은 되돌린 rekordbox 상태에 다시 쌓는다(쌓지 못한 편집은 알린다).
         let unrestored = restorePlaylistEdits(RekordboxWriter.playlistEdits(in: backup.url))
         if unrestored > 0 {

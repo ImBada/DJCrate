@@ -8,8 +8,10 @@ import Foundation
 struct GridJobItem: Sendable, Hashable {
     var uuid: String
     var path: String
-    /// 추가한 곡이면 추정 BPM을 목록에도 적어 둔다.
+    /// 추가한 곡이면 추정 BPM을 목록에도 적어 두고, 키도 찾는다.
     var staged: Bool
+    /// 그리드도 추정할지(추가한 곡의 키만 남았으면 false)
+    var grid = true
 }
 
 struct GridJob: Sendable {
@@ -26,13 +28,19 @@ extension LibraryStore {
         verifyImports()
         resolvePlaylistImports()
         rebuildStagedRows()
-        // 지난번에 추정을 마치지 못한 곡을 이어서 한다.
-        enqueueGrid(staged.filter { $0.bpm == nil }.map { GridJobItem(uuid: $0.uuid, path: $0.path, staged: true) })
+        // 지난번에 추정을 마치지 못한 곡(그리드·키)을 이어서 한다.
+        enqueueGrid(staged.filter { $0.bpm == nil || $0.needsKey }.map {
+            GridJobItem(uuid: $0.uuid, path: $0.path, staged: true, grid: $0.bpm == nil)
+        })
     }
 
     func rebuildStagedRows() {
         for row in stagedRows { rowsByID[row.id] = nil; rowsByUUID[row.track.uuid] = nil }
-        stagedRows = staged.map { TrackRow(track: $0.track, cues: [], playCount: 0, commentRule: commentPreset.rule) }
+        stagedRows = staged.map {
+            var row = TrackRow(track: $0.track, cues: [], playCount: 0, commentRule: commentPreset.rule)
+            row.keyEstimated = $0.keyEstimated
+            return row
+        }
         for row in stagedRows { rowsByID[row.id] = row; rowsByUUID[row.track.uuid] = row }
         if case .staged = sidebar { refreshBase() }
     }
@@ -237,7 +245,9 @@ extension LibraryStore {
     private func runGridQueue() async {
         while !gridQueue.isEmpty {
             let item = gridQueue.removeFirst()
-            await estimateGrid(item)
+            if item.grid { await estimateGrid(item) }
+            // 키는 그리드 뒤에 본다(마디 창을 쓰려고).
+            if item.staged { await findKey(item) }
             gridJob?.done += 1
         }
         gridJob = nil
@@ -271,6 +281,47 @@ extension LibraryStore {
         rebuildStagedRows()
     }
 
+    // MARK: - 추가한 곡 키
+
+    /// 태그에 키가 없던 곡은 조성을 추정해 staged.json에 적어 둔다(다음 실행 때 다시 계산하지 않는다).
+    private func findKey(_ item: GridJobItem) async {
+        guard let track = staged.first(where: { $0.uuid == item.uuid }), track.needsKey,
+              FileManager.default.fileExists(atPath: item.path) else { return }
+        let url = URL(filePath: item.path)
+        let grid = GridDraftStore.load(trackUUID: item.uuid)?.grid(duration: track.duration)
+        guard let found = await Self.stagedKey(fileAt: url, grid: grid, offset: RekordboxTimeline.predictedOffset(url: url),
+                                               duration: track.duration, cacheKey: item.uuid) else { return }
+        setStagedKey(uuid: item.uuid, key: found.key, source: found.source)
+    }
+
+    /// 태그의 키, 없으면 곡 전체의 주 조성 추정(덱과 같은 크로마·마디 창). 파일을 읽지 못하면 nil(다음에 다시 본다).
+    /// `grid`는 rekordbox 시간축이라 `offset`만큼 당겨 크로마(음원 시간축)에 맞춘다. 크로마는 덱과 같은 캐시를 쓴다.
+    nonisolated static func stagedKey(fileAt url: URL, grid: BeatGrid?, offset: Double, duration: Double,
+                                      cacheKey: String?) async -> (key: String?, source: StagedTrack.KeySource)? {
+        if let tag = await StagedTrack.tagKey(fileAt: url) { return (tag, .tag) }
+        return await Task.detached(priority: .utility) { () -> (key: String?, source: StagedTrack.KeySource)? in
+            let chroma: KeyAnalyzer.Chroma
+            if let cacheKey, let cached = AnalysisCache.chroma(key: cacheKey, file: url) {
+                chroma = cached
+            } else {
+                guard let computed = try? KeyAnalyzer.chroma(fileAt: url) else { return nil }
+                if let cacheKey { AnalysisCache.store(computed, key: cacheKey, file: url) }
+                chroma = computed
+            }
+            let windows = KeyAnalyzer.windows(grid: grid, duration: duration).map { ($0.0 - offset, $0.1 - offset) }
+            // 소리가 없어 조성을 못 찾아도 추정한 것으로 적어 두어 되풀이하지 않는다.
+            return (KeyAnalyzer.mainKey(chroma: chroma, windows: windows)?.camelot, .estimate)
+        }.value
+    }
+
+    func setStagedKey(uuid: String, key: String?, source: StagedTrack.KeySource) {
+        guard let index = staged.firstIndex(where: { $0.uuid == uuid }) else { return }
+        staged[index].key = key
+        staged[index].keySource = source
+        persistStaged()
+        rebuildStagedRows()
+    }
+
     /// 덱에서 추가한 곡의 그리드를 바꾸면 목록 BPM도 맞춘다.
     func stagedGridChanged(uuid: String, bpm: Double?) {
         guard let index = staged.firstIndex(where: { $0.uuid == uuid }), staged[index].bpm != bpm else { return }
@@ -294,7 +345,7 @@ extension LibraryStore {
             while gridJob != nil { try? await Task.sleep(for: .milliseconds(300)) }
             for track in staged {
                 let draft = GridDraftStore.load(trackUUID: track.uuid)
-                log("추가한 곡 \(track.title) · BPM \(track.bpm.map { String(format: "%.2f", $0) } ?? "-") · 자신 \(track.gridConfident.map(String.init) ?? "-") · 구간 \(draft?.segments.count ?? 0) · 첫 구간 \(draft?.segments.first.map { String(format: "%.3f초 %d박", $0.start, $0.firstBeatNumber) } ?? "-")")
+                log("추가한 곡 \(track.title) · BPM \(track.bpm.map { String(format: "%.2f", $0) } ?? "-") · 자신 \(track.gridConfident.map(String.init) ?? "-") · 키 \(track.key ?? "-")\(track.keySource.map { "(\($0.rawValue))" } ?? "") · 구간 \(draft?.segments.count ?? 0) · 첫 구간 \(draft?.segments.first.map { String(format: "%.3f초 %d박", $0.start, $0.firstBeatNumber) } ?? "-")")
             }
             if let export {
                 do {

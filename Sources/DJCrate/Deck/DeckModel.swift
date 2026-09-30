@@ -79,7 +79,19 @@ final class DeckModel {
 
     // 재생 설정
     var volume: Double = 0.9 {
-        didSet { audio.volume = Float(volume); storage.settings.set(SettingKeys.volume, volume) }
+        didSet {
+            audio.volume = Float(volume)
+            guard volume != oldValue else { return }
+            storage.settings.set(SettingKeys.volume, volume)
+        }
+    }
+    @ObservationIgnored private var lastVolumePreviewTime: Double = 0
+    /// 슬라이더를 끄는 동안에는 소리에만 바로 반영하고 저장은 손을 놓을 때 한다.
+    func previewVolume(_ value: Double) {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastVolumePreviewTime >= 1.0 / 30 else { return }
+        lastVolumePreviewTime = now
+        audio.volume = Float(value)
     }
     var metronome = false { didSet { audio.metronome = metronome } }
     /// 메트로놈 소리 크기(0~1). 설정 창 컨트롤이 같은 값을 다시 넣을 때는 저장하지 않는다.
@@ -138,7 +150,7 @@ final class DeckModel {
     /// 곡 안의 조표 구간(rekordbox 시간축). 주 조표는 rekordbox 키에 맞춘다.
     var keySegments: [KeyAnalyzer.Segment] = []
 
-    /// 장·단(A/B)은 rekordbox 키를 따른다(없으면 장조로 본다).
+    /// 장·단(A/B)은 rekordbox 키를 따른다(없으면 크로마로 정한다).
     var keyMinor = false
 
     @ObservationIgnored var keyChroma: KeyAnalyzer.Chroma?
@@ -204,8 +216,6 @@ final class DeckModel {
     var onStagedGridChange: ((String, Double?) -> Void)?
     /// 큐 초안이 바뀔 때(목록의 핫큐·메모리 숫자용)
     var onCueDraftChange: ((CueDraft) -> Void)?
-    /// 지금 곡의 초안을 rekordbox 반영 XML로 만들기(덱 큐 목록의 버튼)
-    var onRequestReflection: ((TrackRow) -> Void)?
     var tapBPM: Double?
     var taps: [Double] = []
     var gridDragBase: GridDraft?
@@ -250,6 +260,8 @@ final class DeckModel {
     var loadTask: Task<Void, Never>?
     var waveformTask: Task<Waveform, Error>?
     var resumeAfterScrub = false
+    /// 확대 파형을 끄는 동안의 기준점(놓으면 nil). 끄는 도중 핫큐로 옮기면 기준도 옮긴다(#133).
+    @ObservationIgnored var scrubAnchor: ScrubAnchor?
     var seekRestartTask: Task<Void, Never>?
 
     init(audio: any DeckAudioEngine = DeckAudio(), storage: DeckStorage = .live, runsAnalysis: Bool = true) {
@@ -387,7 +399,7 @@ final class DeckModel {
         originalGrid = nil; gridDraft = nil; grid = nil; gridBPM = nil; gridEditBlockedReason = nil
         hasRekordboxGrid = false; timelineOffset = 0; gridSuggestion = nil; gridSuggestionNote = nil; suggestedGrid = nil
         suggestionTask?.cancel()
-        gridDragBase = nil; tapBPM = nil; taps = []; resumeAfterScrub = false; isCuePreviewing = false
+        gridDragBase = nil; tapBPM = nil; taps = []; resumeAfterScrub = false; scrubAnchor = nil; isCuePreviewing = false
         if !sameTrack { selectedCueID = nil; playhead = 0; cuePoint = 0; placeAtFirstMemoryCue = true }
         duration = Double(row?.track.lengthSeconds ?? 0)
         canPlay = false

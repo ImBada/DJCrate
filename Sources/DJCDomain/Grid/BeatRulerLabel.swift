@@ -1,7 +1,7 @@
 import Foundation
 
-/// 확대 파형 위 눈금 줄의 마디.박 라벨(박은 0부터: 14.0 → 14.1 → 14.2 → 14.3).
-/// 자리가 모자라면 글자를 줄이지 않고 라벨 수를 줄인다: 뒷박은 `.1 .2 .3`으로 줄였다가 빼고,
+/// 확대 파형 위 눈금 줄의 마디.박 라벨(rekordbox처럼 박은 1부터: 14.1 → 14.2 → 14.3 → 14.4).
+/// 자리가 모자라면 글자를 줄이지 않고 라벨 수를 줄인다: 뒷박은 `.2 .3 .4`로 줄였다가 빼고,
 /// 첫 박도 마디 폭에 들어가지 않으면 2·4·8·16마디마다만 쓴다.
 public enum BeatRulerLabel {
     /// 숫자 한 자의 폭(글자 크기의 0.6배, 10pt에서 6pt)
@@ -14,9 +14,9 @@ public enum BeatRulerLabel {
         Double(text.count) * charWidth + charWidth * 5 / 6
     }
 
-    /// `beatWidth`: 한 박의 화면 폭(pt). nil이면 이 박에는 라벨을 쓰지 않는다.
-    public static func text(bar: Int, beatIndex: Int, isDownbeat: Bool, beatWidth: Double, charWidth: Double) -> String? {
-        let full = "\(bar).\(beatIndex)"
+    /// `beat`: 마디 안 박 번호(1~4), `beatWidth`: 한 박의 화면 폭(pt). nil이면 이 박에는 라벨을 쓰지 않는다.
+    public static func text(bar: Int, beat: Int, isDownbeat: Bool, beatWidth: Double, charWidth: Double) -> String? {
+        let full = "\(bar).\(beat)"
         let fullWidth = width(of: full, charWidth: charWidth)
         if isDownbeat {
             let barWidth = beatWidth * 4
@@ -24,9 +24,9 @@ public enum BeatRulerLabel {
             return (bar - 1) % stride == 0 ? full : nil
         }
         // 이 마디 첫 박 라벨이 이 박 자리까지 넘어오면 겹치므로 쓰지 않는다.
-        guard Double(beatIndex) * beatWidth >= width(of: "\(bar).0", charWidth: charWidth) else { return nil }
+        guard Double(beat - 1) * beatWidth >= width(of: "\(bar).1", charWidth: charWidth) else { return nil }
         if beatWidth >= fullWidth { return full }
-        let short = ".\(beatIndex)"
+        let short = ".\(beat)"
         return beatWidth >= width(of: short, charWidth: charWidth) ? short : nil
     }
 

@@ -14,17 +14,25 @@ struct GridShiftButton: NSViewRepresentable {
         button.deck = deck
         button.stepMilliseconds = milliseconds
         let amount = Int(abs(milliseconds))
-        button.title = milliseconds < 0 ? "◀ \(amount)ms" : "\(amount)ms ▶"
-        button.setAccessibilityLabel(milliseconds < 0
+        button.title = milliseconds < 0 ? "◀│\(amount)" : "\(amount)│▶"
+        let description = milliseconds < 0
             ? String(ui: "그리드를 \(amount)ms 왼쪽으로 이동")
-            : String(ui: "그리드를 \(amount)ms 오른쪽으로 이동"))
+            : String(ui: "그리드를 \(amount)ms 오른쪽으로 이동")
+        button.setAccessibilityLabel(description)
+        button.toolTip = description + " · " + String(ui: "1초 동안 누르면 반복합니다")
         button.isEnabled = context.environment.isEnabled && deck.canEditGrid
         button.controlSize = context.environment.controlSize == .small ? .small : .regular
-        button.font = .systemFont(ofSize: NSFont.smallSystemFontSize * textScale)
+        let font = NSFont.systemFont(ofSize: 11 * textScale, weight: .semibold)
+        button.font = font
+        button.attributedTitle = NSAttributedString(string: button.title, attributes: [
+            .font: font,
+            .foregroundColor: button.isEnabled ? NSColor.labelColor : NSColor.secondaryLabelColor,
+        ])
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: GridShiftControl, context: Context) -> CGSize? {
-        nsView.intrinsicContentSize
+        CGSize(width: max(nsView.intrinsicContentSize.width, 32),
+               height: CGFloat(TextScale.length(24, scale: textScale)))
     }
 
     static func dismantleNSView(_ button: GridShiftControl, coordinator: ()) {
@@ -55,7 +63,7 @@ final class GridShiftControl: NSButton {
 
     private func configure() {
         setButtonType(.momentaryPushIn)
-        bezelStyle = .rounded
+        isBordered = false
         target = self
         action = #selector(moveGrid)
         isContinuous = true

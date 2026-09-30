@@ -24,10 +24,11 @@ extension RekordboxWriter {
         let resolvedRoot = root.resolvingSymlinksInPath()
         let relative: String
         if path.hasPrefix("/") {
-            guard let prefix = [root.path + "/", resolvedRoot.path + "/"].first(where: path.hasPrefix) else {
+            let spelled = URL.comparablePath(path)
+            guard let prefix = [root, resolvedRoot].map({ $0.comparablePath + "/" }).first(where: spelled.hasPrefix) else {
                 throw invalidBackup(String(ui: "허용된 분석·아트워크 경로가 아님"))
             }
-            relative = String(path.dropFirst(prefix.count))
+            relative = String(spelled.dropFirst(prefix.count))
         } else { relative = path }
         let components = relative.split(separator: "/")
         let names: [String]
@@ -42,7 +43,7 @@ extension RekordboxWriter {
         let file = root.appending(path: relative)
         try validateBackupFile(file, under: root, required: false)
         let resolved = file.resolvingSymlinksInPath().standardizedFileURL
-        guard resolved.path.hasPrefix(resolvedRoot.appending(path: "PIONEER/\(components[1])").path + "/") else {
+        guard resolved.comparablePath.hasPrefix(resolvedRoot.appending(path: "PIONEER/\(components[1])").comparablePath + "/") else {
             throw invalidBackup(String(ui: "허용된 분석·아트워크 경로가 아님"))
         }
         return (resolved, relative)
@@ -56,10 +57,11 @@ extension RekordboxWriter {
 
     /// 루트 자체와 그 아래 모든 조각을 검사한다. 없는 대상은 허용하지만 링크·디렉터리 파일은 거부한다.
     static func validateBackupFile(_ file: URL, under root: URL, required: Bool) throws {
-        guard file.path.hasPrefix(root.path + "/") else {
+        let filePath = file.comparablePath, rootPath = root.comparablePath
+        guard filePath.hasPrefix(rootPath + "/") else {
             throw invalidBackup(String(ui: "허용된 분석·아트워크 경로가 아님"))
         }
-        let parts = file.path.dropFirst(root.path.count + 1).split(separator: "/")
+        let parts = filePath.dropFirst(rootPath.count + 1).split(separator: "/")
         var current = root
         for index in 0...parts.count {
             if index > 0 { current.append(path: String(parts[index - 1])) }

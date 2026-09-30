@@ -58,6 +58,7 @@ public enum RekordboxWriter {
         public var tagOutcomes: [Outcome]?
         /// 중복 묶음 합치기 결과(removed = 컬렉션에서 뺀 곡 수).
         public var mergeOutcomes: [Outcome]?
+        public var iTunesSyncWritten: Bool?
         public var mergeWritten: [Outcome] { (mergeOutcomes ?? []).filter { $0.status == .written } }
         public var mergeBlocked: [Outcome] { (mergeOutcomes ?? []).filter { $0.status == .blocked } }
 
@@ -99,11 +100,16 @@ public enum RekordboxWriter {
     ///   - playlistDraft: 앱의 재생 목록 초안. `playlists` 대신 준다. 초안을 만든 뒤 rekordbox에서 바뀐 목록(base와 다름)의 편집은 쓰지 않는다.
     public static func write(drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:], tags: [TagDraft] = [],
                              analysisInputs: [String: AnalysisInput] = [:], playlists: [PlaylistEdit] = [],
-                             playlistDraft: PlaylistDraft? = nil, merges: [DuplicateMergeDraft] = [],
+                             playlistDraft: PlaylistDraft? = nil, merges: [DuplicateMergeDraft] = [], iTunesSync: RekordboxITunesSyncChange? = nil,
                              to database: URL = liveDatabase, dryRun: Bool,
                              now: Date = .now, backups: URL, shareRoot: URL? = nil,
                              guard writeGuard: RekordboxWriteGuard = .system) throws -> Report {
-        try write(drafts: drafts, grids: grids, gains: gains, tags: tags, analysisInputs: analysisInputs, playlists: playlists,
+        if let iTunesSync {
+            guard drafts.isEmpty, grids.isEmpty, gains.isEmpty, tags.isEmpty, analysisInputs.isEmpty,
+                  playlists.isEmpty, playlistDraft == nil, merges.isEmpty else { throw RekordboxITunesSyncChange.invalidSource }
+            return try writeITunesSync(iTunesSync, to: database, dryRun: dryRun, now: now, backups: backups, guard: writeGuard)
+        }
+        return try write(drafts: drafts, grids: grids, gains: gains, tags: tags, analysisInputs: analysisInputs, playlists: playlists,
                   playlistDraft: playlistDraft, merges: merges, to: database,
                   dryRun: dryRun, now: now, backups: backups, shareRoot: shareRoot, guard: writeGuard, attachesAnalysis: attachesAnalysis,
                   writesArtwork: RekordboxTrackWriter.writesArtwork)
@@ -265,6 +271,8 @@ public enum RekordboxWriter {
         var outcomes: [Outcome] = []
         var gainOutcomes: [Outcome] = []
         var written: [(contentID: String, expectation: Expectation)] = []
+        var gained: [GainExpectation] = []
+        var regridded: [GridExpectation] = []
         var tagged: [TagExpectation] = []
         var attached: [AttachPlan] = []
         var playlistOutcomes: [PlaylistOutcome] = []
@@ -328,7 +336,9 @@ public enum RekordboxWriter {
             for (uuid, gainDB) in gains.sorted(by: { $0.key < $1.key }) {
                 try db.execute("SAVEPOINT djc_gain")
                 do {
-                    gainOutcomes.append(try applyGain(uuid: uuid, gainDB: gainDB, db: db, usn: &usn, stamp: stamp))
+                    let result = try applyGain(uuid: uuid, gainDB: gainDB, db: db, usn: &usn, stamp: stamp)
+                    gainOutcomes.append(result.outcome)
+                    gained.append(result.expectation)
                     try db.execute("RELEASE djc_gain")
                 } catch let blocked as Blocked {
                     try db.execute("ROLLBACK TO djc_gain")
@@ -409,7 +419,7 @@ public enum RekordboxWriter {
 
             // BPM이 바뀌는 그리드: .DAT 파일 기록과 곡 BPM을 rekordbox처럼 고친다(파일은 커밋 뒤에 쓴다).
             for plan in gridPlans where plan.newBPM100 != nil {
-                try applyGridDatabase(plan, db: db, usn: &usn, stamp: stamp)
+                if let expectation = try applyGridDatabase(plan, db: db, usn: &usn, stamp: stamp) { regridded.append(expectation) }
                 // 같은 곡에 큐도 썼으면 곡의 변경 번호는 이제 그리드 쪽 번호다.
                 for i in written.indices where written[i].expectation.contentUUID == plan.trackUUID {
                     written[i].expectation.contentUSN = usn
@@ -431,6 +441,11 @@ public enum RekordboxWriter {
                     for i in written.indices where written[i].contentID == result.expectation.contentID {
                         written[i].expectation.contentUSN = usn
                     }
+                    // BPM을 고친 곡이면 곡 정보 변경 횟수·변경 번호의 마지막 값은 태그 쪽이다.
+                    for i in regridded.indices where regridded[i].contentID == result.expectation.contentID {
+                        regridded[i].content["TrackInfoUpdated"] = .text(result.expectation.trackInfoUpdated)
+                        regridded[i].content["rb_local_usn"] = .int(usn)
+                    }
                     try db.execute("RELEASE djc_tags")
                 } catch let blocked as Blocked {
                     try db.execute("ROLLBACK TO djc_tags")
@@ -449,8 +464,8 @@ public enum RekordboxWriter {
             guard try localUpdateCount(db) == usn else { throw DJCError.writeVerificationFailed(String(ui: "변경 카운터가 맞지 않습니다")) }
             finalUpdateCount = usn
 
-            let databaseChanged = !written.isEmpty || gridPlans.contains { $0.newBPM100 != nil }
-                || gainOutcomes.contains { $0.status == .written } || !attached.isEmpty || !tagged.isEmpty || playlistWork != nil
+            let databaseChanged = !written.isEmpty || !regridded.isEmpty || !gained.isEmpty || !attached.isEmpty || !tagged.isEmpty
+                || playlistWork != nil || !merged.isEmpty
             if dryRun || !databaseChanged {
                 try db.execute("ROLLBACK")
             } else {
@@ -465,8 +480,8 @@ public enum RekordboxWriter {
             throw error
         }
 
-        // 백업은 시험 실행이 아닐 때만 있다(= 커밋했을 수 있다).
-        if let backup, !written.isEmpty || !attached.isEmpty || !tagged.isEmpty || playlistWork != nil {
+        // 커밋한 쓰기는 모두 무결성 검사와 다시 읽기를 거친다(백업은 시험 실행이 아닐 때만 있다).
+        if let backup, committed {
             do {
                 try checkIntegrity(of: database)
                 let db = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
@@ -476,6 +491,8 @@ public enum RekordboxWriter {
                 let taggedIDs = Set(tagged.map(\.contentID))
                 for plan in attached { try verifyAttach(plan, db: db, skipsTrackInfo: taggedIDs.contains(plan.contentID)) }
                 for expectation in tagged { try verifyTags(db: db, expectation) }
+                for expectation in regridded { try verifyGrid(db: db, expectation) }
+                for expectation in gained { try verifyGain(db: db, expectation) }
                 if let playlistWork { try verifyPlaylists(playlistWork, db: db) }
                 for expectation in merged { try verifyMerge(expectation, db: db) }
             } catch {

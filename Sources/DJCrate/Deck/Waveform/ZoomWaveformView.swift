@@ -56,7 +56,11 @@ struct ZoomWaveformView: View {
     @State private var hover = ZoomPointerTarget.empty
     @State private var width: CGFloat = 1
     @State private var scroll = WaveformScrollHandler()
+    /// 끄는 동안 핫큐 키(제스처가 키 이벤트를 삼켜 KeyRouter까지 오지 않는다, #133)
+    @State private var hotCueKeys = DragHotCueKeys()
     @State private var pinchBase: Double?
+    /// 해석한 글자(마디.박·큐 이름·칩)를 다음 프레임에도 쓴다(#139)
+    @State private var texts = WaveformTextCache()
 
     /// `hover`: 처음 보일 포인터 아래 대상(미리 보기·캡처용)
     init(deck: DeckModel, hover: ZoomPointerTarget = .empty) {
@@ -67,20 +71,20 @@ struct ZoomWaveformView: View {
     private enum DragMode {
         /// 큐를 잡았다. 3px 넘게 끌기 전에는 움직이지 않는다(클릭만으로 큐가 바뀌지 않도록).
         case cue(EditableCue.ID, originalTime: Double)
-        case scrub(from: Double)
-        case grid
+        /// 끈 거리의 기준점은 덱이 든다(끄는 중 핫큐로 옮기면 기준도 옮긴다, `ScrubAnchor`).
+        case scrub
 
         /// 끄는 동안의 포인터 모양은 끌기 시작한 대상을 따른다.
         var target: ZoomPointerTarget {
             switch self {
             case let .cue(id, _): .cue(id)
             case .scrub: .empty
-            case .grid: .grid
             }
         }
     }
 
     var body: some View {
+        let _ = PerfProbe.body(Self.self)
         GeometryReader { geo in
                 let center = deck.currentTime
                 let window = deck.zoomSeconds
@@ -90,48 +94,49 @@ struct ZoomWaveformView: View {
 
                 let state = DrawState(deck, hover: hover, metrics: WaveformMetrics(scale: textScale))
                 Canvas { context, size in
-                    PerfProbe.measureDraw { draw(context, size: size, state: state, start: start, window: window, xOf: xOf) }
+                    PerfProbe.measureDraw { draw(context, size: size, state: state, texts: texts, start: start, window: window, xOf: xOf) }
                 }
                 .contentShape(Rectangle())
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
+#if DEBUG
+                            ScrubHotCueTrace.recordDrag(ended: false)
+#endif
                             if drag == nil {
                                 switch pointerTarget(atX: value.startLocation.x, xOf: xOf, suggestions: []) {
-                                case .grid:
-                                    deck.beginGridDrag()
-                                    drag = .grid
                                 case let .cue(hit):
                                     deck.selectedCueID = hit
                                     drag = .cue(hit, originalTime: deck.cue(hit)?.time ?? center)
                                 case .empty, .suggestion:
-                                    deck.beginScrub()
-                                    drag = .scrub(from: center)
+                                    deck.beginScrubDrag()
+                                    drag = .scrub
                                 }
+                                hotCueKeys.begin(deck: deck)
                             }
                             let secondsPerPoint = window / Double(max(geo.size.width, 1))
                             switch drag {
                             case let .cue(id, originalTime):
                                 guard abs(value.translation.width) > 3 else { break }
                                 deck.move(id, to: originalTime + Double(value.translation.width) * secondsPerPoint, save: false)
-                            case let .scrub(from):
-                                deck.scrub(to: from - Double(value.translation.width) * secondsPerPoint)
-                            case .grid:
-                                deck.dragGrid(by: Double(value.translation.width) * secondsPerPoint)
+                            case .scrub:
+                                deck.dragScrub(by: -Double(value.translation.width) * secondsPerPoint)
                             case nil:
                                 break
                             }
                         }
                         .onEnded { value in
+#if DEBUG
+                            ScrubHotCueTrace.recordDrag(ended: true)
+#endif
+                            hotCueKeys.end()
                             switch drag {
                             case .cue:
                                 if abs(value.translation.width) > 3 { deck.commitDraft() }
-                            case .grid:
-                                deck.endGridDrag()
                             case .scrub:
                                 // 제안 마커를 짧게 클릭하면 메모리 큐로 받아들인다.
                                 if abs(value.translation.width) < 2,
-                                   case let .suggestion(s) = pointerTarget(atX: value.location.x, xOf: xOf, gridEditing: false) {
+                                   case let .suggestion(s) = pointerTarget(atX: value.location.x, xOf: xOf) {
                                     deck.acceptSuggestion(s)
                                 }
                                 deck.endScrub()
@@ -175,7 +180,7 @@ struct ZoomWaveformView: View {
         .background { HitProbe { scroll.probe = $0 } }
         .selfTestFrame("zoomWaveform")
         .onAppear { scroll.deck = deck; scroll.install() }
-        .onDisappear { scroll.remove() }
+        .onDisappear { scroll.remove(); hotCueKeys.end() }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(.ui("확대 파형"))
         .accessibilityHint(.ui("드래그로 스크럽하고, 큐를 끌어 옮기고, 더블클릭으로 메모리 큐를 추가합니다. 휠로 확대·축소합니다. 조절하면 1박씩 옮깁니다"))
@@ -183,18 +188,16 @@ struct ZoomWaveformView: View {
     }
 
     /// 끌기 시작·짧은 클릭·호버가 같은 규칙으로 대상을 고른다.
-    private func pointerTarget(atX x: CGFloat, xOf: (Double) -> CGFloat, suggestions: [Double]? = nil,
-                               gridEditing: Bool? = nil) -> ZoomPointerTarget {
-        ZoomPointerTarget.at(x: x, cues: deck.draft?.cues ?? [], suggestions: suggestions ?? deck.suggestions,
-                             gridEditing: gridEditing ?? (deck.gridEditing && deck.canEditGrid), xOf: xOf)
+    private func pointerTarget(atX x: CGFloat, xOf: (Double) -> CGFloat, suggestions: [Double]? = nil) -> ZoomPointerTarget {
+        ZoomPointerTarget.at(x: x, cues: deck.draft?.cues ?? [], suggestions: suggestions ?? deck.suggestions, xOf: xOf)
     }
 
     private func hitCue(atX x: CGFloat, xOf: (Double) -> CGFloat) -> EditableCue.ID? {
-        if case let .cue(id) = pointerTarget(atX: x, xOf: xOf, suggestions: [], gridEditing: false) { return id }
+        if case let .cue(id) = pointerTarget(atX: x, xOf: xOf, suggestions: []) { return id }
         return nil
     }
 
-    private func draw(_ context: GraphicsContext, size: CGSize, state: DrawState, start: Double, window: Double, xOf: (Double) -> CGFloat) {
+    private func draw(_ context: GraphicsContext, size: CGSize, state: DrawState, texts: WaveformTextCache, start: Double, window: Double, xOf: (Double) -> CGFloat) {
         let end = start + window
         let metrics = state.metrics
         let ruler = metrics.rulerHeight
@@ -216,17 +219,16 @@ struct ZoomWaveformView: View {
                 let beatWidth = size.width / window * 60 / max(beat.bpm, 1)
                 if state.gridEditing,
                    BeatRulerLabel.showsBeatNumber(isDownbeat: beat.isDownbeat, beatWidth: beatWidth, charWidth: metrics.charWidth) {
-                    context.draw(Text(verbatim: "\(beat.number)").font(.system(size: metrics.labelSize, weight: beat.isDownbeat ? .bold : .regular).monospacedDigit())
-                        .foregroundStyle(beat.isDownbeat ? Palette.mid : Palette.rulerText),
+                    context.draw(texts.resolved(.text("\(beat.number)", size: metrics.labelSize, weight: beat.isDownbeat ? .bold : .regular, digits: true,
+                                                      color: beat.isDownbeat ? Palette.mid : Palette.rulerText), in: context),
                                  at: CGPoint(x: x + 2, y: size.height - metrics.beatNumberInset), anchor: .leading)
                 }
-                // 상단 위치 표시(마디.박, 박은 0부터). 자리가 모자라면 글자를 줄이지 않고 라벨 수를 줄인다(`BeatRulerLabel`).
-                if let label = BeatRulerLabel.text(bar: grid.bar(at: beat.time), beatIndex: max(beat.number - 1, 0),
+                // 상단 위치 표시(마디.박, rekordbox처럼 박은 1부터). 자리가 모자라면 글자를 줄이지 않고 라벨 수를 줄인다(`BeatRulerLabel`).
+                if let label = BeatRulerLabel.text(bar: grid.bar(at: beat.time), beat: max(beat.number, 1),
                                                    isDownbeat: beat.isDownbeat, beatWidth: beatWidth, charWidth: metrics.charWidth),
                    x + 3 + CGFloat(label.count) * metrics.charWidth < size.width - 1 {
-                    context.draw(Text(label)
-                        .font(.system(size: metrics.labelSize, weight: beat.isDownbeat ? .semibold : .regular).monospacedDigit())
-                        .foregroundStyle(contrast == .increased ? Color.white : Palette.rulerText),
+                    context.draw(texts.resolved(.text(label, size: metrics.labelSize, weight: beat.isDownbeat ? .semibold : .regular, digits: true,
+                                                      color: contrast == .increased ? Color.white : Palette.rulerText), in: context),
                                  at: CGPoint(x: x + 3, y: ruler / 2), anchor: .leading)
                 }
             }
@@ -258,7 +260,8 @@ struct ZoomWaveformView: View {
             line.move(to: CGPoint(x: x, y: 0)); line.addLine(to: CGPoint(x: x, y: size.height))
             context.stroke(line, with: .color(.yellow), lineWidth: 2)
             let nearRight = x > size.width - 80 * metrics.scale
-            context.draw(Text(verbatim: segment.bpm.formatted(.number.precision(.fractionLength(2)).grouping(.never)) + " BPM").font(.system(size: metrics.labelSize, weight: .bold)).foregroundStyle(Color.yellow),
+            let bpmText = segment.bpm.formatted(.number.precision(.fractionLength(2)).grouping(.never)) + " BPM"
+            context.draw(texts.resolved(.text(bpmText, size: metrics.labelSize, weight: .bold, color: .yellow), in: context),
                          at: CGPoint(x: nearRight ? x - 4 : x + 4, y: ruler + 4), anchor: nearRight ? .trailing : .leading)
         }
         // MU 섹션 경계
@@ -286,7 +289,7 @@ struct ZoomWaveformView: View {
                 context.fill(Path(ellipseIn: badge), with: .color(.white.opacity(0.35)))
                 context.stroke(Path(ellipseIn: badge), with: .color(.white), lineWidth: 1.5)
             }
-            context.draw(Text(Image(systemName: "plus")).font(.system(size: side * 0.6, weight: .bold)).foregroundStyle(Color.black),
+            context.draw(texts.resolved(.init(content: .symbol("plus"), style: .init(size: side * 0.6, weight: .bold, color: .black)), in: context),
                          at: CGPoint(x: badge.midX, y: badge.midY))
         }
         // 루프 구간(큐 선보다 먼저 칠한다). 활성 루프는 진하게 + 반복 심볼
@@ -302,7 +305,7 @@ struct ZoomWaveformView: View {
             endLine.move(to: CGPoint(x: x1, y: ruler)); endLine.addLine(to: CGPoint(x: x1, y: size.height))
             context.stroke(endLine, with: .color(Palette.loop.opacity(contrast == .increased ? 1 : 0.8)), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
             if loop.active, x1 - x0 > 16 * metrics.scale {
-                context.draw(Text(Image(systemName: "repeat")).font(.system(size: metrics.labelSize, weight: .bold)).foregroundStyle(Palette.loop),
+                context.draw(texts.resolved(.init(content: .symbol("repeat"), style: .init(size: metrics.labelSize, weight: .bold, color: Palette.loop)), in: context),
                              at: CGPoint(x: x0 + 3, y: ruler + metrics.loopLabelOffset), anchor: .leading)
             }
         }
@@ -318,8 +321,9 @@ struct ZoomWaveformView: View {
                 context.stroke(edge, with: .color(Palette.loop), lineWidth: 1.5)
             }
             if x1 - x0 > 30 * metrics.scale {
-                context.draw(Text("\(Image(systemName: "repeat")) \(state.loopSizeText)").font(.system(size: metrics.labelSize, weight: .bold))
-                    .foregroundStyle(Palette.loop), at: CGPoint(x: x0 + 5, y: ruler + metrics.loopLabelOffset), anchor: .leading)
+                context.draw(texts.resolved(.init(content: .symbolThenText(symbol: "repeat", text: state.loopSizeText),
+                                                  style: .init(size: metrics.labelSize, weight: .bold, color: Palette.loop)), in: context),
+                             at: CGPoint(x: x0 + 5, y: ruler + metrics.loopLabelOffset), anchor: .leading)
             }
         }
         // 큐 (초안)
@@ -342,25 +346,28 @@ struct ZoomWaveformView: View {
                 context.stroke(line, with: .color(Palette.color(for: cue)), lineWidth: (selected ? 2.5 : 1.8) + hoverWidth)
                 // 루프 핫큐는 슬롯 글자 옆에 반복 심볼을 같은 글꼴로 붙인다(덱 패드와 같다).
                 let letter = cue.kind.slotLetter ?? ""
-                chip(context, cue.loop == nil ? Text(letter) : Text("\(letter)\(Image(systemName: "repeat"))"),
+                let content: WaveformTextCache.Content = cue.loop == nil ? .text(letter) : .textThenSymbol(text: letter, symbol: "repeat")
+                let label = texts.label(.init(content: content, style: .init(size: metrics.labelSize, weight: .bold, color: .black)),
+                                        proposal: WaveformMetrics.chipProposal, in: context)
+                chip(context, resolved: label.text, size: label.size,
                      at: CGPoint(x: x, y: size.height - metrics.chipHeight - 2), color: Palette.color(for: cue), selected: selected,
                      maxX: size.width, metrics: metrics)
             }
         }
         // 큐 이름(선 위에 겹쳐 그린다). 앞 이름과 겹치면 뺀다: 글자 배율이 커도 글자를 줄이지 않는다.
-        var names: [(label: GraphicsContext.ResolvedText, x: CGFloat, trailing: Bool)] = []
+        var names: [(label: WaveformTextCache.Label, x: CGFloat, trailing: Bool)] = []
         for cue in state.cues where !cue.name.isEmpty && cue.time >= start - 1 && cue.time <= end + 1 {
             let x = xOf(cue.time)
             let trailing = x > size.width - 90 * metrics.scale
-            let label = context.resolve(Text(cue.name).font(.system(size: metrics.labelSize, weight: .semibold)).foregroundStyle(Color.white))
+            let label = texts.label(.text(WaveformAccessibility.cueName(cue), size: metrics.labelSize, weight: .semibold, color: .white),
+                                    proposal: CGSize(width: size.width, height: 100), in: context)
             names.append((label, trailing ? x - 5 : x + 5, trailing))
         }
         let spans = names.map { name -> (start: Double, end: Double) in
-            let width = name.label.measure(in: CGSize(width: size.width, height: 100)).width
-            return name.trailing ? (name.x - width, name.x) : (name.x, name.x + width)
+            name.trailing ? (name.x - name.label.size.width, name.x) : (name.x, name.x + name.label.size.width)
         }
         for (name, visible) in zip(names, WaveformMetrics.visibleLabels(spans, gap: 4)) where visible {
-            context.draw(name.label, at: CGPoint(x: name.x, y: ruler + metrics.cueNameOffset), anchor: name.trailing ? .trailing : .leading)
+            context.draw(name.label.text, at: CGPoint(x: name.x, y: ruler + metrics.cueNameOffset), anchor: name.trailing ? .trailing : .leading)
         }
         // CUE 지점: 위쪽 주황 삼각형(메모리 큐 삼각형보다 위)
         if state.cuePoint >= start, state.cuePoint <= end {
@@ -385,12 +392,13 @@ struct ZoomWaveformView: View {
         // 다음 메모리 큐까지: 재생선 바로 왼쪽 위 알약(파형 높이에 맞춰 글자 크기를 줄인다)
         if let text = Self.countdown(to: state.cues, from: state.playhead, grid: state.grid) {
             let fontSize = min(13 * metrics.scale, max(metrics.labelSize, size.height / 9))
-            let label = context.resolve(Text(text).font(.system(size: fontSize, weight: .bold).monospacedDigit()).foregroundStyle(Palette.memory))
-            let textSize = label.measure(in: CGSize(width: 200, height: 40))
+            let label = texts.label(.text(text, size: fontSize, weight: .bold, digits: true, color: Palette.memory),
+                                    proposal: WaveformMetrics.chipProposal, in: context)
+            let textSize = label.size
             let width = textSize.width + 12
             let pill = CGRect(x: max(2, px - width - 3), y: ruler + 4, width: width, height: textSize.height + 4)
             context.fill(Path(roundedRect: pill, cornerRadius: pill.height / 2), with: .color(.black.opacity(0.65)))
-            context.draw(label, at: CGPoint(x: pill.midX, y: pill.midY))
+            context.draw(label.text, at: CGPoint(x: pill.midX, y: pill.midY))
         }
     }
 
@@ -400,17 +408,15 @@ struct ZoomWaveformView: View {
     }
 }
 
-/// 확대 파형에서 포인터 아래 대상. 끌기 시작(그리드·큐·스크럽)·제안 짧은 클릭·호버 표시가 같은 규칙을 쓴다.
+/// 확대 파형에서 포인터 아래 대상. 끌기 시작(큐·스크럽)·제안 짧은 클릭·호버 표시가 같은 규칙을 쓴다.
+/// 그리드 편집 중에도 같다: 그리드는 편집 막대의 ‹ ›·단축키로만 옮긴다(rekordbox처럼, #117).
 enum ZoomPointerTarget: Equatable {
     case empty
     case cue(EditableCue.ID)
     case suggestion(Double)
-    /// 그리드 편집 중에는 어디를 끌어도 그리드를 옮긴다.
-    case grid
 
     /// 큐 선 7pt, 제안 11pt 안(가장 가까운 것). 큐가 제안보다 먼저다.
-    static func at(x: CGFloat, cues: [EditableCue], suggestions: [Double], gridEditing: Bool, xOf: (Double) -> CGFloat) -> Self {
-        if gridEditing { return .grid }
+    static func at(x: CGFloat, cues: [EditableCue], suggestions: [Double], xOf: (Double) -> CGFloat) -> Self {
         if let hit = cues.map({ ($0.id, abs(xOf($0.time) - x)) }).filter({ $0.1 < 7 }).min(by: { $0.1 < $1.1 }) {
             return .cue(hit.0)
         }
@@ -433,16 +439,16 @@ enum ZoomPointerTarget: Equatable {
         }
     }
 
-    /// 빈 곳은 펼친 손(끌면 스크럽), 끄는 중은 쥔 손, 큐 선·그리드 편집은 좌우 화살표, 제안 배지는 기본 화살표(누르면 받기).
+    /// 빈 곳은 펼친 손(끌면 스크럽), 끄는 중은 쥔 손, 큐 선은 좌우 화살표, 제안 배지는 기본 화살표(누르면 받기).
     static func pointer(hover: Self, drag: Self?) -> Pointer {
         if let drag {
             switch drag {
-            case .cue, .grid: return .columnResize
+            case .cue: return .columnResize
             case .empty, .suggestion: return .grabActive
             }
         }
         switch hover {
-        case .cue, .grid: return .columnResize
+        case .cue: return .columnResize
         case .suggestion: return .arrow
         case .empty: return .grabIdle
         }

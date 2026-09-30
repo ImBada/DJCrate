@@ -14,7 +14,8 @@ enum PlaylistDragType {
 /// 바꾼 것은 모두 초안이고 반영(⇧⌘E) 때 rekordbox에 쓴다.
 struct PlaylistSection: View {
     @Bindable var store: LibraryStore
-    @Binding var isExpanded: Bool
+    /// 펼침 설정은 사이드바 본문이 아니라 여기서 든다(`@AppStorage`를 든 뷰는 부모가 다시 계산될 때마다 본문이 새로 계산된다, #141).
+    @AppStorage(SettingKeys.sidebarPlaylistsExpanded.name) private var isExpanded = SettingKeys.sidebarPlaylistsExpanded.defaultValue
 
     var body: some View {
         Section(isExpanded: $isExpanded) {
@@ -42,6 +43,7 @@ struct PlaylistSection: View {
                 .help(.ui("새 재생 목록·폴더(맨 위)"))
                 .accessibilityLabel(.ui("새 재생 목록·폴더"))
             }
+            .sidebarSectionHeader()
             // 제목 줄에 놓으면 맨 위의 맨 끝으로 옮긴다.
             .onDrop(of: [PlaylistDragType.playlist], isTargeted: nil) { providers in
                 PlaylistDrop.movePlaylist(providers) { store.movePlaylist($0, into: PlaylistLayout.root) }

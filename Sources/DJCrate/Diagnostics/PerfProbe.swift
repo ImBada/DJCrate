@@ -1,12 +1,14 @@
 import DJCDomain
 import Foundation
 import QuartzCore
+import SwiftUI
 
 /// 개발용 성능 기록(디버그 빌드의 `--scroll-perf`일 때만). 재생 화면 갱신 간격과 파형 그리기 시간을 잰다.
 @MainActor
 enum PerfProbe {
     #if DEBUG
-    static let enabled = ProcessInfo.processInfo.arguments.contains("--scroll-perf")
+    /// `--scroll-perf`·`--ui-perf=`(#129) 측정 중. 표 칸 배치·설정을 저장하지 않는다.
+    static let enabled = ProcessInfo.processInfo.arguments.contains { $0 == "--scroll-perf" || $0.hasPrefix("--ui-perf=") }
     static let previewCuesVisible = !ProcessInfo.processInfo.arguments.contains("--perf-cues=off")
     /// A/B: 확대 파형 막대를 그리지 않는다
     static let skipBands = ProcessInfo.processInfo.arguments.contains("--skip-bands")
@@ -38,6 +40,52 @@ enum PerfProbe {
     static let hidden: Set<String> = []
     static let previewColumnVisible: Bool? = nil
     static let textScale: Double? = nil
+    #endif
+
+    #if DEBUG
+    /// 뷰 본문이 계산된 횟수(이름별). `--ui-perf=`가 조작마다 찍는다(#138). `--perf-trace-body`는 계산된 이유도 찍는다.
+    private static var bodyCounts: [String: Int] = [:]
+    /// 덱에 전달된 실제 파형 높이. 단독 배치 시험에서 곡 로드·수동 조절 계약을 확인한다.
+    private(set) static var lastWaveformHeight: Double?
+
+    @discardableResult
+    static func recordWaveformHeight(_ height: Double) -> Bool {
+        if countsBodies { lastWaveformHeight = height }
+        return true
+    }
+    /// 측정 중이거나 시험이 켰을 때만 센다.
+    static var countsBodies = enabled
+    private static let tracesBodies = ProcessInfo.processInfo.arguments.contains("--perf-trace-body")
+
+    /// 뷰의 `body` 첫머리에서 `let _ = PerfProbe.body(Self.self)`로 부른다.
+    @discardableResult
+    static func body<V: View>(_ type: V.Type) -> Bool {
+        guard countsBodies else { return true }
+        bodyCounts[String(describing: type), default: 0] += 1
+        if tracesBodies { V._printChanges() }
+        return true
+    }
+
+    /// 뷰가 아닌 갱신 지점(`updateNSView` 등)을 이름으로 센다.
+    static func count(_ name: String) {
+        guard countsBodies else { return }
+        bodyCounts[name, default: 0] += 1
+    }
+
+    static func resetBodyCounts() { bodyCounts = [:] }
+
+    static func bodyCount(_ name: String) -> Int { bodyCounts[name] ?? 0 }
+
+    static func bodySummary() -> String? {
+        guard !bodyCounts.isEmpty else { return nil }
+        return bodyCounts.sorted { $0.value > $1.value }.map { "\($0.key) \($0.value)" }.joined(separator: " · ")
+    }
+    #else
+    @discardableResult
+    static func body<V: View>(_ type: V.Type) -> Bool { true }
+    static func count(_ name: String) {}
+    @discardableResult
+    static func recordWaveformHeight(_ height: Double) -> Bool { true }
     #endif
 
     private static var ticks: [Double] = []

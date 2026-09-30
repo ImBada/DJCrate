@@ -1,7 +1,9 @@
 #if DEBUG
 import AppKit
+import DJCDomain
 import DJCStorage
 import Foundation
+import RekordboxKit
 
 extension DevSelfTests {
     static func runITunesSelfTestIfRequested(store: LibraryStore, deck: DeckModel) {
@@ -24,6 +26,83 @@ extension DevSelfTests {
                 log("실패 · 합성 라이브러리 로드"); exit(1)
             }
             check(store.iTunesLibrary.index["itunes:A"]?.name == "iTunes 합성 목록", "합성 iTunes 목록 로드")
+            let explicitDatabase = LibraryStore.explicitDatabaseRequested(arguments: ProcessInfo.processInfo.arguments, environment: env)
+            let syncDirectory = explicitDatabase ? snapshot.deletingLastPathComponent() : LibrarySnapshot.rekordboxDirectory(in: env)
+            let syncURL = syncDirectory.appending(path: "playlists3.sync")
+            let syncBefore = try? Data(contentsOf: syncURL)
+            @MainActor func button(_ id: String, in view: NSView) -> NSButton? {
+                if let button = view as? NSButton, button.identifier?.rawValue == id { return button }
+                return view.subviews.lazy.compactMap { button(id, in: $0) }.first
+            }
+            @MainActor func checkbox(_ id: String) -> NSButton? {
+                NSApp.windows.lazy.compactMap { $0.contentView.flatMap { button("itunes-sync-\(id)", in: $0) } }.first
+            }
+            @MainActor func captureSyncWindow(_ prefix: String) {
+                guard let arg = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix(prefix) }),
+                      let window = NSApp.windows.first(where: { $0.contentView.flatMap { button("itunes-sync-C", in: $0) } != nil })
+                else { return }
+                let capture = Process()
+                capture.executableURL = URL(filePath: "/usr/sbin/screencapture")
+                capture.arguments = ["-x", "-l", String(window.windowNumber), String(arg.dropFirst(prefix.count))]
+                try? capture.run()
+                capture.waitUntilExit()
+                check(capture.terminationStatus == 0, "선택 창 화면 저장")
+            }
+            // 뒤에서 Music을 읽는 동안 연 선택 창: 캐시를 보여 주되 낡은 폴더 계층으로 쓰지 않게 기다린다.
+            let musicGate = DispatchSemaphore(value: 0)
+            let latestMusic = store.iTunesSnapshot
+            let musicRefresh = store.startSimulatedITunesRefresh { musicGate.wait(); return latestMusic }
+            store.presentITunesSync()
+            for _ in 0..<100 {
+                if !store.iTunesSync.isLoading, checkbox("C") != nil { break }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            try? await Task.sleep(for: .milliseconds(300))
+            captureSyncWindow("--itunes-sync-waiting-capture=")
+            check(store.iTunesSync.isWaitingForMusic && !store.iTunesSync.canSync && checkbox("C") != nil,
+                  "Music을 읽는 동안 캐시 목록을 보여 주고 동기화를 막음")
+            musicGate.signal()
+            await musicRefresh?.value
+            for _ in 0..<50 {
+                if store.iTunesSync.canSync { break }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            check(!store.iTunesSync.isWaitingForMusic && store.iTunesSync.canSync, "Music을 다 읽은 뒤 동기화 허용")
+            store.showingITunesSync = false
+            try? await Task.sleep(for: .milliseconds(300))
+            store.presentITunesSync()
+            for _ in 0..<100 {
+                if !store.iTunesSync.isLoading, checkbox("C") != nil { break }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            check(checkbox("C") != nil && store.iTunesSync.canSync, "실제 동기화 선택 창과 체크박스")
+            checkbox("C")?.performClick(nil)
+            check(store.iTunesSync.selection.selectedIDs.contains("C") && store.iTunesLibrary.index["itunes:C"] == nil,
+                  "체크박스로 선택하고 적용 전 기존 목록 유지")
+            store.showingITunesSync = false
+            try? await Task.sleep(for: .milliseconds(300))
+            check((try? Data(contentsOf: syncURL)) == syncBefore, "취소하면 rekordbox 동기화 선택 불변")
+            store.presentITunesSync()
+            for _ in 0..<100 {
+                if !store.iTunesSync.isLoading, checkbox("C") != nil { break }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            checkbox("C")?.performClick(nil)
+            if store.iTunesSync.selection.state(of: "F", in: store.iTunesSync.nodes) == .on { checkbox("F")?.performClick(nil) }
+            checkbox("F")?.performClick(nil)
+            check(store.iTunesSync.selection.state(of: "F", in: store.iTunesSync.nodes) == .on, "폴더와 하위 목록 전체 선택")
+            try? await Task.sleep(for: .milliseconds(300))
+            captureSyncWindow("--itunes-sync-capture=")
+            let synced = await store.iTunesSync.sync(store: store)
+            check(synced && store.iTunesLibrary.index["itunes:C"] != nil, "동기화 즉시 사이드바에 추가")
+            check((try? Data(contentsOf: syncURL)) != syncBefore, "rekordbox 동기화 파일에 반영")
+            store.showingITunesSync = false
+            await store.refreshITunesPlaylists()
+            check(store.iTunesLibrary.index["itunes:C"] != nil, "다시 읽은 뒤에도 선택 유지")
+            if !explicitDatabase {
+                check(store.snapshotURL.map { LibrarySnapshot.sameDirectory($0.deletingLastPathComponent(), LibrarySnapshot.defaultDirectory(in: env)) } == true,
+                      "사본 폴더 모드의 새 스냅샷으로 갱신")
+            }
             store.sidebar = .itunesPlaylist("itunes:A")
             check(store.displayRows.map(\.track.id) == ["2", "1", "2"]
                   && Set(store.displayRows.map(\.id)).count == 3
@@ -46,7 +125,7 @@ extension DevSelfTests {
             DraftWriter.flush()
             check(CueDraftStore.load(trackUUID: row.track.uuid)?.hasChanges == true, "핫큐 초안 파일 저장")
             check((try? Data(contentsOf: snapshot)) == before && store.playlistDraft.isEmpty, "DB 사본과 목록 구성 불변")
-            log("전체 통과 · 9개 검증")
+            log("전체 통과 · 동기화 선택·취소·저장·다시 읽기·기존 9개 검증")
             exit(0)
         }
     }

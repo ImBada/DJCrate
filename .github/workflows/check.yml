@@ -11,6 +11,10 @@ on:
         description: SwiftPM 캐시 복원·저장(비우고 비교할 때 끔)
         type: boolean
         default: true
+      run_stress:
+        description: SQLCipher 처음 열기 스트레스(100 새 프로세스·각 32스레드)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -20,8 +24,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
-    name: 빌드·테스트·커버리지
+  verify:
+    name: 검사 (${{ matrix.mode }})
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: ${{ fromJSON((github.event_name == 'push' && github.ref == 'refs/heads/dev') && '["test"]' || (github.event_name == 'workflow_dispatch' && inputs.run_stress) && '["coverage", "release", "stress"]' || '["coverage", "release"]') }}
     # macOS 27에서 테스트를 실행하는 호스티드 이미지. 근거·제약은 docs/ci.md.
     runs-on: xcode-27
     timeout-minutes: 30
@@ -30,6 +38,7 @@ jobs:
         shell: bash
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.app/Contents/Developer
+      CHECK_MODE: ${{ matrix.mode }}
     steps:
       - name: 소스 받기
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -61,6 +70,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: 검사 스크립트 회귀
+        if: matrix.mode != 'release'
         run: python3 scripts/test-check.py 2>&1 | tee "$RUNNER_TEMP/djc-script-tests.log"
 
       - name: SwiftPM 빌드 캐시
@@ -69,14 +79,12 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .build
-          key: ${{ runner.os }}-${{ runner.arch }}-swiftpm-${{ steps.toolchain.outputs.cache-key }}-${{ hashFiles('Package.swift', 'Package.resolved') }}-${{ github.sha }}
+          key: ${{ runner.os }}-${{ runner.arch }}-swiftpm-v2-${{ matrix.mode }}-${{ steps.toolchain.outputs.cache-key }}-${{ hashFiles('Package.swift', 'Package.resolved') }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-swiftpm-${{ steps.toolchain.outputs.cache-key }}-${{ hashFiles('Package.swift', 'Package.resolved') }}-
+            ${{ runner.os }}-${{ runner.arch }}-swiftpm-v2-${{ matrix.mode }}-${{ steps.toolchain.outputs.cache-key }}-${{ hashFiles('Package.swift', 'Package.resolved') }}-
 
-      - name: 단위 테스트(dev 푸시) 또는 전체 검사
+      - name: 분담한 검사 실행
         id: check
-        env:
-          CHECK_MODE: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/dev') && 'test' || 'full' }}
         run: |
           started=$SECONDS
           finish_check() {
@@ -86,21 +94,22 @@ jobs:
           }
           trap finish_check EXIT
           echo "▸ CI 검사 시작: $CHECK_MODE ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
-          if [[ "$CHECK_MODE" == test ]]; then
-            swift test 2>&1 | tee "$RUNNER_TEMP/djc-check.log"
-          else
-            scripts/check.sh 2>&1 | tee "$RUNNER_TEMP/djc-check.log"
-          fi
+          case "$CHECK_MODE" in
+            test) swift test 2>&1 | tee "$RUNNER_TEMP/djc-check.log" ;;
+            coverage) scripts/check.sh --coverage 2>&1 | tee "$RUNNER_TEMP/djc-check.log" ;;
+            release) scripts/check.sh --release 2>&1 | tee "$RUNNER_TEMP/djc-check.log" ;;
+            stress) scripts/check.sh --stress 2>&1 | tee "$RUNNER_TEMP/djc-check.log" ;;
+            *) echo "::error::알 수 없는 검사 모드: $CHECK_MODE"; exit 2 ;;
+          esac
 
       - name: 검증 결과 요약
         if: always()
         env:
           CHECK_OUTCOME: ${{ steps.check.outcome }}
           CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
-          CHECK_MODE: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/dev') && '단위 테스트만' || '전체 검사' }}
         run: |
           {
-            echo '## 빌드·테스트·커버리지'
+            echo "## $CHECK_MODE 검사"
             echo "검증 단계 결과: $CHECK_OUTCOME ($CHECK_MODE)"
             echo "캐시 정확 키 일치: ${CACHE_HIT:-없음}. 다른 키 복원 여부는 캐시 로그를 확인하세요."
             echo '캐시 복원은 컴파일 재사용을 보장하지 않습니다. 단계별 Build complete 시간과 컴파일 로그를 함께 비교하세요.'
@@ -117,7 +126,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: check-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          name: check-logs-${{ matrix.mode }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/djc-toolchain.txt
             ${{ runner.temp }}/djc-script-tests.log
@@ -127,3 +136,20 @@ jobs:
             ${{ runner.temp }}/djc-check-logs/**/*.txt
           retention-days: 14
           if-no-files-found: warn
+
+  # 기존 필수 체크 이름을 유지하며, 릴리스·선택한 스트레스의 실패·취소·미실행도 성공으로 통과시키지 않는다.
+  check:
+    name: 빌드·테스트·커버리지
+    needs: verify
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 모든 필수 검사 성공 확인
+        env:
+          VERIFY_RESULT: ${{ needs.verify.result }}
+        run: |
+          if [[ "$VERIFY_RESULT" != success ]]; then
+            echo "::error::필수 검사 결과: $VERIFY_RESULT"
+            exit 1
+          fi

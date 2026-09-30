@@ -28,8 +28,6 @@ extension DeckModel {
         setGridBPM(bpm + delta)
     }
 
-    func setDownbeatAtPlayhead() { mutateGrid { $0.setDownbeat(nearest: playhead, duration: duration) } }
-
     func setGridAnchorAtPlayhead() { mutateGrid { $0.setAnchor(at: playhead) } }
 
     func addTempoChangeAtPlayhead() { mutateGrid { $0.addTempoChange(nearest: playhead, duration: duration) } }
@@ -38,7 +36,7 @@ extension DeckModel {
 
     func revertGrid() { mutateGrid(name: String(ui: "그리드 초안 버리기")) { $0.revert() } }
 
-    /// 확대 파형을 끌어 그리드 전체를 옮긴다(그리드 편집 모드).
+    /// 그리드 편집 막대의 ‹ › 버튼을 누르고 있는 동안 그리드 전체를 옮긴다(한 번의 편집으로 저장).
     func beginGridDrag() {
         guard canEditGrid else { return }
         pendingDraftUndo = draftSnapshot
@@ -94,6 +92,11 @@ extension DeckModel {
         guard taps.count >= 3 else { tapBPM = nil; return }
         let interval = (taps.last! - taps.first!) / Double(taps.count - 1)
         tapBPM = 60 / interval
+    }
+
+    func resetTapTempo() {
+        taps = []
+        tapBPM = nil
     }
 
     func mutateGrid(name: String = String(ui: "그리드 편집"), _ change: (inout GridDraft) -> Void) {
@@ -185,15 +188,24 @@ extension DeckModel {
     // MARK: 알림(잠깐 떴다 사라진다)
 
 
+    /// 떠 있는 시간(nil이면 닫을 때까지). 경고는 문장이 길어 읽을 시간을 더 준다(#146).
+    static func toastDuration(_ kind: AppToast.Kind) -> Duration? {
+        switch kind {
+        case .success: .seconds(2.5)
+        case .warning: .seconds(5)
+        case .failure: nil
+        }
+    }
+
     func showToast(_ text: String, kind: AppToast.Kind = .warning) {
         toastTask?.cancel()
         toastTask = nil
         let message = AppMessage(kind: kind, text: text)
         toast = message
         feedback.announce(message)
-        guard kind == .success, !feedback.isVoiceOverEnabled() else { return }
+        guard let duration = Self.toastDuration(kind), !feedback.isVoiceOverEnabled() else { return }
         toastTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(2.5))
+            try? await Task.sleep(for: duration)
             guard !Task.isCancelled, let self, !self.feedback.isVoiceOverEnabled() else { return }
             self.toast = nil
         }
@@ -219,14 +231,6 @@ extension DeckModel {
         audio.resetClicks()
         refreshSuggestionNote()
         if recordingUndo { registerDraftUndo(from: snapshot, name: String(ui: "추정 그리드 적용")) }
-    }
-
-    /// 반 박 옮긴다(추정이 뒷박을 잡았을 때 한 번에 고친다).
-    func shiftGridHalfBeat() {
-        mutateGrid { draft in
-            let segment = draft.segments[draft.segmentIndex(at: playhead)]
-            draft.shift(by: 30 / segment.bpm)
-        }
     }
 
     /// 백그라운드 추정이 이 곡의 초안을 저장했으면 다시 읽는다.

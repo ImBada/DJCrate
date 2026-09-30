@@ -20,9 +20,10 @@ public enum CueCountdown {
     }
 
     /// 64박 넘으면 마디.박, 그리드가 없으면 초. 다음 메모리 큐가 없으면 nil.
+    /// 마디.박은 눈금의 박 번호처럼 1부터 센다: 76박 → −19.4, 73박 → −19.1, 72박 → −18.4(#144).
     public static func text(to cues: [EditableCue], from time: Double, grid: BeatGrid?) -> String? {
         switch remaining(to: cues, from: time, grid: grid) {
-        case let .beats(beats): beats <= 64 ? "−\(beats) Beats" : "−\(beats / 4).\(beats % 4) Bars"
+        case let .beats(beats): beats <= 64 ? "−\(beats) Beats" : "−\((beats - 1) / 4 + 1).\((beats - 1) % 4 + 1) Bars"
         case let .seconds(seconds): String(format: "−%.1fs", seconds)
         case nil: nil
         }

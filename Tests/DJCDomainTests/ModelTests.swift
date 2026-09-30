@@ -43,7 +43,7 @@ struct BeatGridPositionTests {
         #expect(grid.downbeats == [2.0, 4.0, 6.0, 8.0])
         #expect(grid.bar(at: 1.9) == 0 && grid.bar(at: 2.0) == 1 && grid.bar(at: 5.9) == 2)
         #expect(grid.positionText(at: 0.9) == nil)
-        #expect(grid.positionText(at: 1.0) == "0.2" && grid.positionText(at: 2.0) == "1.0" && grid.positionText(at: 2.6) == "1.1")
+        #expect(grid.positionText(at: 1.0) == "0.3" && grid.positionText(at: 2.0) == "1.1" && grid.positionText(at: 2.6) == "1.2")
     }
 
     @Test func 스냅과_박_이동() {

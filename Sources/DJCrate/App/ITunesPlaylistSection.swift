@@ -9,6 +9,7 @@ struct ITunesPlaylistSection: View {
     @State private var isExpanded = true
 
     var body: some View {
+        @Bindable var store = store
         Section(isExpanded: $isExpanded) {
             if let message = store.iTunesLibrary.status.message {
                 Text(message).font(.caption).foregroundStyle(.secondary)
@@ -16,7 +17,7 @@ struct ITunesPlaylistSection: View {
                 Text(.ui("동기화한 iTunes 목록이 없습니다")).foregroundStyle(.secondary)
             }
             if store.iTunesLibrary.unavailablePlaylistCount > 0 {
-                Text(.ui("원본에서 찾지 못한 목록 \(store.iTunesLibrary.unavailablePlaylistCount)개 · rekordbox에서 동기화를 확인하세요"))
+                Text(.ui("원본에서 찾지 못한 목록 \(store.iTunesLibrary.unavailablePlaylistCount)개 · 동기화 선택을 확인하세요"))
                     .font(.caption).foregroundStyle(.secondary)
             }
             OutlineGroup(store.iTunesLibrary.tree, children: \.children) { node in
@@ -30,16 +31,31 @@ struct ITunesPlaylistSection: View {
             HStack {
                 Text(.ui("iTunes 동기화 목록"))
                 Spacer(minLength: 0)
-                Button {
-                    Task { await store.refreshITunesPlaylists() }
+                // 비슷한 원형 화살표 버튼 둘이 펼침 화살표 옆에 붙어 헷갈려 메뉴 하나로 모은다(#120).
+                Menu {
+                    Button {
+                        store.presentITunesSync()
+                    } label: {
+                        Label(.ui("iTunes 동기화…"), systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .disabled(store.isLoading || store.isWritingRekordbox || store.snapshotURL == nil)
+                    Button {
+                        Task { await store.refreshITunesPlaylists() }
+                    } label: {
+                        Label(.ui("iTunes 동기화 목록 새로고침"), systemImage: "arrow.clockwise")
+                    }
+                    .disabled(store.isLoading || store.isWritingRekordbox)
                 } label: {
-                    Image(systemName: "arrow.clockwise")
+                    Image(systemName: "ellipsis.circle")
                 }
-                .buttonStyle(.plain)
-                .disabled(store.isLoading || store.isWritingRekordbox)
-                .help(.ui("iTunes 동기화 목록 새로고침"))
-                .accessibilityLabel(.ui("iTunes 동기화 목록 새로고침"))
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help(.ui("동기화할 iTunes 목록 고르기·새로고침"))
+                .accessibilityLabel(.ui("iTunes 동기화 목록 작업"))
             }
+            .sidebarSectionHeader()
         }
+        .sheet(isPresented: $store.showingITunesSync) { ITunesSyncView(store: store) }
     }
 }

@@ -47,6 +47,9 @@ final class KeyRouter {
     /// nil을 돌려주면 이벤트를 삼킨다(다른 곳으로 가지 않는다).
     private func route(_ event: NSEvent) -> NSEvent? {
         if event.type == .keyDown, let bigger = Self.textBiggerEvent(from: event) { return bigger }
+#if DEBUG
+        ScrubHotCueTrace.recordKey(event)
+#endif
         guard let deck else { return event }
         // CUE를 누른 뒤 포커스가 바뀌어도 이미 시작한 미리 듣기는 끝내되, 키는 새 대상에 넘긴다.
         if event.type == .keyUp { handleKeyUp(event.keyCode) }
@@ -222,9 +225,10 @@ final class KeyRouter {
         return true
     }
 
-    /// 덱 단축키를 받는 창: 설정·단축키 안내 창을 제외한 주 창.
+    /// 덱 단축키를 받는 창: 설정·단축키 안내 창과 곡 편집 창(자체 재생기·단축키가 있다)을 제외한 주 창.
     private static func isDeckWindow(_ window: NSWindow) -> Bool {
         window === NSApp.mainWindow && window !== SettingsWindow.current && window !== ShortcutsWindow.current
+            && window !== TrackEditWindow.shared.window
     }
 
     // MARK: - 목록 포커스

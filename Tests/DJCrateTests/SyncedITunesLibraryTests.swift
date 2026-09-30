@@ -9,6 +9,19 @@ import Testing
 struct SyncedITunesLibraryTests {
     typealias Playlist = ITunesLibrarySnapshot.Playlist
 
+    @Test func DB를_바꾸지_않는_동기화_선택도_변경을_감지한다() throws {
+        let fixture = try RekordboxFixture()
+        let sync = fixture.root.appending(path: "playlists3.sync")
+        let original = Data("before".utf8)
+        try original.write(to: sync)
+        #expect(!RekordboxITunesReader.selectionChanged(since: original, directory: fixture.root))
+        try Data("after".utf8).write(to: sync)
+        #expect(RekordboxITunesReader.selectionChanged(since: original, directory: fixture.root))
+        try FileManager.default.removeItem(at: sync)
+        #expect(RekordboxITunesReader.selectionChanged(since: original, directory: fixture.root))
+        #expect(!RekordboxITunesReader.selectionChanged(since: nil, directory: fixture.root))
+    }
+
     @Test func 빈_환경값은_실제_재정의가_아니다() {
         #expect(!LibrarySnapshot.hasRekordboxDirectoryOverride(in: [:]))
         #expect(!LibrarySnapshot.hasRekordboxDirectoryOverride(in: ["DJC_REKORDBOX_DIR": ""]))
@@ -108,8 +121,79 @@ struct SyncedITunesLibraryTests {
         try Data("<PROPERTIES><VALUE name='MusicAppLoadingType' val='0'/><VALUE name='itunesLibraryFile' val='\(xml.path)'/></PROPERTIES>".utf8).write(to: settings)
         let snapshot = RekordboxITunesReader.capture(directory: directory, settings: settings)
         #expect(snapshot.status == .ready && snapshot.playlists.map(\.name) == ["선택"])
-        try Data("<PROPERTIES><VALUE name='MusicAppLoadingType' val='unknown'/></PROPERTIES>".utf8).write(to: settings)
-        #expect(RekordboxITunesReader.capture(directory: directory, settings: settings).status == .unavailable)
+        #expect(snapshot.sourcePlaylists?.map(\.name) == ["선택", "제외"])
+        try FileManager.default.removeItem(at: directory.appending(path: "playlists3.sync"))
+        let unselected = RekordboxITunesReader.capture(directory: directory, settings: settings)
+        #expect(unselected.status == .ready && unselected.playlists.isEmpty)
+        #expect(unselected.sourcePlaylists?.count == 2)
+        for values in ["<VALUE name='MusicAppLoadingType' val='unknown'/>",
+                       "<VALUE name='MusicAppLoadingType' val='0'/>", ""] {
+            try Data("<PROPERTIES>\(values)</PROPERTIES>".utf8).write(to: settings)
+            #expect(RekordboxITunesReader.capture(directory: directory, settings: settings).status == .unavailable)
+        }
+    }
+
+    @Test(arguments: ["&#2;", "&#5;", "&#x02;", "&#x05;"], [false, true])
+    func 무관한_설정의_금지_숫자참조는_XML_목록_읽기를_막지_않는다(reference: String, inName: Bool) throws {
+        let fixture = try RekordboxFixture()
+        let settings = fixture.root.appending(path: "settings.xml")
+        let xml = fixture.root.appending(path: "음악 & 목록.xml")
+        let library: [String: Any] = ["Tracks": [String: String](), "Playlists": [["Playlist Persistent ID": "A", "Name": "합성 목록"]]]
+        try PropertyListSerialization.data(fromPropertyList: library, format: .xml, options: 0).write(to: xml)
+        let sync = fixture.root.appending(path: "playlists3.sync")
+        try Data("<SYNC_ITUNES_PLAYLIST><PLAYLISTS><NODE Id='A' ParentId='0' Attribute='0' Lib_Type='1' CheckType='1'/></PLAYLISTS></SYNC_ITUNES_PLAYLIST>".utf8).write(to: sync)
+        let original = Data("""
+            <PROPERTIES><VALUE name="MusicAppLoadingType" val="0"/>
+            <VALUE val='\(inName ? "unchanged" : reference)' name='unrelated\(inName ? reference : "")'/>
+            <VALUE name="itunesLibraryFile" val="\(xml.path.replacingOccurrences(of: "&", with: "&amp;"))"/>
+            <VALUE name="another\(inName ? reference : "")" val="\(inName ? "unchanged" : reference)"/></PROPERTIES>
+            """.utf8)
+        try Data(String(decoding: original, as: UTF8.self).replacingOccurrences(of: reference, with: "").utf8).write(to: settings)
+        #expect(RekordboxITunesReader.capture(directory: fixture.root, settings: settings).status == .ready)
+        try original.write(to: settings)
+        let before = try [settings, sync, xml, fixture.database].map { try Data(contentsOf: $0) }
+        let snapshot = RekordboxITunesReader.capture(directory: fixture.root, settings: settings)
+        #expect(snapshot.status == .ready)
+        #expect(snapshot.playlists.map(\.name) == ["합성 목록"])
+        #expect(try [settings, sync, xml, fixture.database].map { try Data(contentsOf: $0) } == before)
+    }
+
+    @Test(arguments: [
+        "<VALUE name='unrelated' val='&#2;'/>",
+        "<VALUE name='MusicAppLoadingType' val='0&#2;'/>",
+        "<VALUE name='MusicAppLoadingType&#5;' val='0'/>",
+        "<VALUE name='MusicAppLoadingTyp&#101;' val='0&#2;'/>",
+        "<VALUE name='MusicAppLoadingType' val='0'/><VALUE name='unrelated' name='itunesLibraryFile' val='&#2;'/>",
+        "<VALUE name='MusicAppLoadingType' val='0'/><VALUE name='itunesLibraryFile' val='/a&#x05;b'/>",
+        "<VALUE name='MusicAppLoadingType' val='0'/><VALUE name='unrelated' val='&#2;'></BROKEN>",
+        "<VALUE name='MusicAppLoadingType' val='0'/><VALUE name='unrelated' val='&am&#2;p;'/>",
+        "<VALUE name='MusicAppLoadingType' val='0'/><VALUE name='unrelated' val='&&#5;#48;'/>",
+        "<VALUE name='MusicAppLoadingType' val='0'/><VALUE name='MusicAppLoadingType&#5;' val='1'/>",
+        "<VALUE name='MusicAppLoadingType' val='0'/><VALUE name='MusicAppLoadingTyp&#101;&#2;' val='1'/>",
+        "<VALUE name='MusicAppLoadingType' val='0'/><VALUE name='itunesLibrary&#2;File' val='/synthetic.xml'/>",
+        "<VALUE name='MusicAppLoadingType' val='0'/><VALUE name='unrelated&am&#2;p;' val='ok'/>",
+    ])
+    func 필수_설정_손상과_깨진_구조는_복구하지_않는다(values: String) {
+        #expect(throws: (any Error).self) {
+            try RekordboxITunesReader.configuration(Data("<PROPERTIES>\(values)</PROPERTIES>".utf8))
+        }
+    }
+
+    @Test func 정상_참조와_경로를_보존하고_외부_엔티티는_받지_않는다() throws {
+        let config = try RekordboxITunesReader.configuration(Data("""
+            <PROPERTIES><!-- <VALUE name='unrelated' val='&#2;'/> -->
+            <VALUE name='MusicAppLoadingTyp&#101;' val='&#48;'/>
+            <VALUE name='itunesLibraryFile' val='/음악/A&amp;B&quot;&apos;&#x20;목록.xml'/>
+            <VALUE name='unrelated' val='&#9;&#10;&#13;&#32;'/></PROPERTIES>
+            """.utf8))
+        #expect(config.method == "0")
+        #expect(config.xmlPath == "/음악/A&B\"' 목록.xml")
+        #expect(throws: (any Error).self) {
+            try RekordboxITunesReader.configuration(Data("""
+                <!DOCTYPE PROPERTIES [<!ENTITY external SYSTEM 'file:///nonexistent-synthetic-settings'>]>
+                <PROPERTIES><VALUE name='MusicAppLoadingType' val='&external;'/></PROPERTIES>
+                """.utf8))
+        }
     }
 
     @Test func 오래된_DB를_정리할_때_iTunes_사본도_정리한다() throws {

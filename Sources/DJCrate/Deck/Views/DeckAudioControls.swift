@@ -4,60 +4,44 @@ import DJCDomain
 import DJCStorage
 import SwiftUI
 
-/// 볼륨 · 메트로놈 · 템포(변속) · 키 고정 · 그리드 편집 전환
+/// 템포(변속) · 키 고정 · 큐 제안
 struct AudioBar: View {
     @Environment(\.textScale) private var textScale
     @Bindable var deck: DeckModel
 
     var body: some View {
+        let _ = PerfProbe.body(Self.self)
         VStack(alignment: .leading, spacing: 6) {
-            FlowLayout(spacing: 12) {
-                HStack(spacing: 4) {
-                    // 음파 줄 수가 볼륨을 따라 채워진다. 0이면 꺼진 스피커.
-                    Group {
-                        if deck.volume == 0 {
-                            Image(systemName: "speaker.slash")
-                        } else {
-                            Image(systemName: "speaker.wave.3", variableValue: deck.volume)
+            HStack(spacing: 10) {
+                FlowLayout(spacing: 12, justified: true) {
+                    HStack(spacing: 4) {
+                        Text(.ui("템포")).foregroundStyle(.secondary)
+                        Slider(value: Binding(get: { deck.tempoPercent }, set: { deck.tempoPercent = ($0 * 10).rounded() / 10 }),
+                               in: -16...16, neutralValue: 0) {
+                            Text(.ui("재생 템포"))
+                        } ticks: {
+                            SliderTick(-16); SliderTick(-8); SliderTick(0); SliderTick(8); SliderTick(16)
                         }
+                        .labelsHidden()
+                        .frame(width: 120)
+                        Text(verbatim: deck.tempoPercent.unitText(signed: true) + "%").font(.scaled(.caption, textScale).monospacedDigit())
+                            .frame(width: TextScale.length(46, scale: textScale), alignment: .trailing)
+                        Button { deck.tempoPercent = 0 } label: { Text(verbatim: "RST") }.help(.ui("원래 속도로"))
+                            .accessibilityLabel(.ui("템포 0으로"))
                     }
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-                    Slider(value: $deck.volume, in: 0...1).frame(width: 90)
-                        .accessibilityLabel(.ui("재생 볼륨"))
-                        .help(String(ui: "재생 볼륨 \(Int((deck.volume * 100).rounded()))%"))
-                }
-                GainControl(deck: deck)
-                Group { if PerfProbe.hidden.contains("meter") { EmptyView() } else { LevelMeterView(deck: deck) } }
-            }
-            FlowLayout(spacing: 12) {
-                Toggle(isOn: $deck.metronome) { Label(.ui("메트로놈"), systemImage: "metronome") }
-                    .toggleStyle(.button)
-                    .help(.ui("그리드의 박마다 클릭 (1박은 높은 음)"))
-                HStack(spacing: 4) {
-                    Text(.ui("템포")).foregroundStyle(.secondary)
-                    Slider(value: Binding(get: { deck.tempoPercent }, set: { deck.tempoPercent = ($0 * 10).rounded() / 10 }),
-                           in: -16...16, neutralValue: 0) {
-                        Text(.ui("재생 템포"))
-                    } ticks: {
-                        SliderTick(-16); SliderTick(-8); SliderTick(0); SliderTick(8); SliderTick(16)
+                    HStack(spacing: 12) {
+                        Toggle(.ui("키 고정"), isOn: $deck.keyLock)
+                            .toggleStyle(.checkbox)
+                            .help(.ui("켜면 음정을 유지한 채 속도만 바꿉니다(마스터 템포). 끄면 바이닐처럼 음정도 함께 바뀝니다."))
+                        Toggle(.ui("큐 제안 표시"), isOn: $deck.showSuggestions)
+                            .toggleStyle(.checkbox)
+                            .help(.ui("큐 제안을 표시합니다. 파형 아래 + 배지를 누르면 메모리 큐로 추가합니다."))
                     }
-                    .labelsHidden()
-                    .frame(width: 120)
-                    Text(verbatim: deck.tempoPercent.unitText(signed: true) + "%").font(.scaled(.caption, textScale).monospacedDigit())
-                        .frame(width: TextScale.length(46, scale: textScale), alignment: .trailing)
-                    Button { deck.tempoPercent = 0 } label: { Text(verbatim: "0") }.help(.ui("원래 속도로"))
-                        .accessibilityLabel(.ui("템포 0으로"))
                 }
-                Toggle(.ui("키 고정"), isOn: $deck.keyLock)
-                    .toggleStyle(.checkbox)
-                    .help(.ui("켜면 음정을 유지한 채 속도만 바꿉니다(마스터 템포). 끄면 바이닐처럼 음정도 함께 바뀝니다."))
-                Toggle(isOn: $deck.gridEditing) { Label(.ui("그리드 편집"), systemImage: "grid") }
-                    .toggleStyle(.button)
-                    .disabled(deck.gridDraft == nil)
-                    .help(deck.gridEditBlockedReason ?? String(ui: "켜면 파형을 끌어 그리드를 옮기고, 아래 막대로 BPM·1박·변속 지점을 고칩니다."))
+                .frame(maxWidth: .infinity)
+                ShortcutsButton()
             }
-            // 제안 문구가 길어져도 음량·템포 묶음을 밀어내지 않는다.
+            // 제안 문구가 길어져도 템포 묶음을 밀어내지 않는다.
             if let suggestion = deck.gainSuggestion {
                 HStack(spacing: 4) {
                     Image(systemName: "wand.and.stars").foregroundStyle(UIColors.suggestion.color)
@@ -76,57 +60,126 @@ struct AudioBar: View {
                     .font(.scaled(.caption, textScale))
                     .help(.ui("이 곡의 게인 초안을 지우고 rekordbox 오토게인으로 돌아갑니다"))
             }
-            // 그리드 편집에 들어가지 않고 DJCrate 제안을 받거나 무시한다.
-            if !deck.gridEditing, !deck.needsGrid, let note = deck.gridSuggestionNote,
-               deck.dismissedRevision >= 0, !deck.isGridSuggestionDismissed {
-                HStack(spacing: 4) {
-                    Image(systemName: "wand.and.stars").foregroundStyle(UIColors.suggestion.color)
-                    Text(note).font(.scaled(.caption, textScale)).lineLimit(1).foregroundStyle(.secondary)
-                    Button(.ui("제안 받기")) { deck.applyGridSuggestion() }
-                        .fixedSize()
-                        .help(.ui("추정 그리드로 초안을 바꿉니다(실행 취소 가능)."))
-                    Button(.ui("무시")) { deck.dismissGridSuggestion() }
-                        .fixedSize()
-                        .help(.ui("이 곡에서는 제안을 더 보이지 않습니다"))
-                }
-            }
         }
         .controlSize(ControlSize.small.scaled(textScale))
     }
 }
 
-/// 게인 버튼: 지금 걸린 게인과 곡 음량을 보여 주고, 누르면 오토게인·트림 설정.
+/// Q와 같은 크기로 표시하는 메트로놈 아이콘 버튼.
+struct MetronomeToggle: View {
+    @Environment(\.textScale) private var textScale
+    @Bindable var deck: DeckModel
+
+    var body: some View {
+        let on = deck.metronome
+        Button { deck.metronome.toggle() } label: {
+            Image(systemName: "metronome")
+                .font(.scaled(size: 11, weight: .semibold, textScale))
+                .frame(width: TextScale.length(22, scale: textScale), height: TextScale.length(20, scale: textScale))
+                .foregroundStyle(on ? UIColors.onFill : UIColors.info.color)
+                .background(on ? UIColors.info.color : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(UIColors.info.color))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(.isToggle)
+        .accessibilityLabel(.ui("메트로놈"))
+        .accessibilityValue(on ? String(ui: "켜짐") : String(ui: "꺼짐"))
+        .help(.ui("그리드의 박마다 클릭 (1박은 높은 음)"))
+    }
+}
+
+/// 창 상단에서 덱 출력 음량을 조절한다.
+struct VolumeControl: View {
+    @Environment(\.textScale) private var textScale
+    @Bindable var deck: DeckModel
+    @State private var previewVolume: Double?
+
+    private var shownVolume: Double { previewVolume ?? deck.volume }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            // 아이콘이 바뀌어도 슬라이더의 자리는 고정한다.
+            Group {
+                if shownVolume == 0 {
+                    Image(systemName: "speaker.slash")
+                } else {
+                    Image(systemName: "speaker.wave.3", variableValue: shownVolume)
+                }
+            }
+            .frame(width: TextScale.length(22, scale: textScale), height: TextScale.length(20, scale: textScale))
+            .foregroundStyle(.secondary)
+            .accessibilityHidden(true)
+            Slider(value: Binding(get: { shownVolume }, set: { value in
+                previewVolume = value
+                deck.previewVolume(value)
+            }), in: 0...1, onEditingChanged: { editing in
+                if !editing { saveVolume() }
+            })
+                .frame(width: TextScale.length(90, scale: textScale))
+                .accessibilityLabel(.ui("재생 볼륨"))
+                .help(String(ui: "재생 볼륨 \(Int((shownVolume * 100).rounded()))%"))
+        }
+        .controlSize(ControlSize.small.scaled(textScale))
+        .onDisappear { saveVolume() }
+    }
+
+    private func saveVolume() {
+        guard let previewVolume else { return }
+        deck.volume = previewVolume
+        self.previewVolume = nil
+    }
+}
+
+/// 세 줄로 현재 게인·음량을 보여 주고, 누르면 오토게인·트림 설정.
 struct GainControl: View {
     @Environment(\.textScale) private var textScale
     @Bindable var deck: DeckModel
     @State private var shown = false
 
     var body: some View {
+        let isHot = deck.loudness?.isHot == true
         Button { shown.toggle() } label: {
-            HStack(spacing: 4) {
-                Text(verbatim: deck.autoGain ? (deck.useRekordboxGain && deck.rekordboxGainDB != nil ? "RB AUTO" : "AUTO") : "GAIN")
-                    .font(.scaled(.caption2, textScale).bold())
-                    .padding(.horizontal, 3).padding(.vertical, 1)
-                    .background(RoundedRectangle(cornerRadius: 3).fill(deck.autoGain ? Color.accentColor.opacity(0.35) : UIColors.subtleFill))
-                Text(verbatim: deck.appliedGain.unitText(signed: true) + " dB").font(.scaled(.caption, textScale).monospacedDigit())
-                if let loudness = deck.loudness, let lufs = loudness.integrated {
-                    // 큰 음량은 색만이 아니라 경고 표식으로도 알린다(초안 주황과 모양으로 구분).
-                    HStack(spacing: 2) {
-                        if loudness.isHot { Image(systemName: WarningMark.symbol).accessibilityLabel(.ui("경고")) }
-                        Text(verbatim: lufs.unitText() + " LUFS")
+            VStack(spacing: 2) {
+                HStack(spacing: 2) {
+                    Text(verbatim: deck.autoGain ? (deck.useRekordboxGain && deck.rekordboxGainDB != nil ? "RB AUTO" : "AUTO") : "GAIN")
+                        .font(.system(size: 9 * textScale, weight: .semibold))
+                        .foregroundStyle(deck.autoGain ? Color.accentColor : Color.primary)
+                    if deck.isGainSuspicious {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 8 * textScale))
+                            .foregroundStyle(UIColors.warning.color)
+                            .help(.ui("rekordbox 오토게인이 DJCrate 측정과 1.5dB 넘게 다릅니다"))
                     }
-                    .font(.scaled(.caption, textScale).monospacedDigit())
+                }
+                Text(verbatim: deck.appliedGain.unitText(signed: true) + " dB")
+                    .font(.system(size: 9 * textScale).monospacedDigit())
+                if let loudness = deck.loudness, let lufs = loudness.integrated {
+                    Text(verbatim: lufs.unitText() + " LUFS")
+                    .font(.system(size: 9 * textScale).monospacedDigit())
                     .foregroundStyle(loudness.isHot ? UIColors.warning.color : Color.secondary)
+                } else {
+                    Text(verbatim: "— LUFS")
+                        .font(.system(size: 9 * textScale).monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
-                if deck.isGainSuspicious {
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(UIColors.warning.color)
-                        .help(.ui("rekordbox 오토게인이 DJCrate 측정과 1.5dB 넘게 다릅니다"))
-                }
+                // 경고가 생겨도 위의 수치가 움직이지 않도록 마지막 줄을 늘 확보한다.
+                Image(systemName: WarningMark.symbol)
+                    .font(.system(size: 10 * textScale))
+                    .foregroundStyle(UIColors.warning.color)
+                    .frame(height: TextScale.length(12, scale: textScale))
+                    .opacity(isHot ? 1 : 0)
+                    .accessibilityLabel(.ui("경고"))
+                    .accessibilityHidden(!isHot)
             }
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.plain)
         .help(.ui("오토게인·목표 음량·트림을 정합니다. LUFS 느낌표는 과도한 음량이나 클리핑 경고입니다."))
-        .popover(isPresented: $shown, arrowEdge: .bottom) { GainSettings(deck: deck).padding(16).frame(width: 340) }
+        .popover(isPresented: $shown, arrowEdge: .trailing) { GainSettings(deck: deck).padding(16).frame(width: 340) }
     }
 }
 
@@ -224,11 +277,12 @@ struct GainSettings: View {
     }
 }
 
-/// 레벨 미터(게인 뒤·볼륨 앞, L/R 피크). 초록 ~−12 · 노랑 −12~−3 · 빨강 −3~0dBFS.
-/// 오른쪽은 곡을 올린 뒤 최고 피크(0dBFS를 넘은 적이 있으면 빨간 점, 누르면 지움).
+/// 파형 오른쪽의 세로 레벨 미터(게인 뒤·볼륨 앞, L/R 피크).
+/// 아래는 곡을 올린 뒤 최고 피크(0dBFS를 넘은 적이 있으면 빨간 점, 누르면 지움).
 struct LevelMeterView: View {
     @Environment(\.textScale) private var textScale
     let deck: DeckModel
+    let meterHeight: Double
     @State private var ballistics = MeterBallistics()
 
     var body: some View {
@@ -239,10 +293,10 @@ struct LevelMeterView: View {
             let now = ProcessInfo.processInfo.systemUptime
             let state = ballistics.step(reading, now: now, playing: deck.isPlaying)
             let clipping = now - reading.clipTime < 2 || reading.clipCount > 0
-            HStack(spacing: 6) {
+            VStack(spacing: 4) {
                 Canvas { context, size in draw(context, size: size, state: state) }
-                    .frame(width: 130, height: 13)
-                    .background(Palette.well)
+                    .frame(width: TextScale.length(12, scale: textScale), height: meterHeight)
+                    .background(Palette.well, in: RoundedRectangle(cornerRadius: 2))
                     .environment(\.colorScheme, .dark)
                     .accessibilityElement()
                     .accessibilityLabel(.ui("레벨 미터"))
@@ -250,13 +304,14 @@ struct LevelMeterView: View {
                 // 최고 피크. 0dBFS를 넘은 적이 있으면 빨간 점이 켜진다. 누르면 기록을 지운다.
                 Button { deck.meter.resetPeaks() } label: {
                     HStack(spacing: 3) {
-                        Circle().fill(UIColors.memory.color).frame(width: 6, height: 6).opacity(clipping ? 1 : 0)
+                        Circle().fill(UIColors.memory.color).frame(width: 5, height: 5).opacity(clipping ? 1 : 0)
                         Text(verbatim: reading.maxPeak > 0 ? Double(20 * log10(reading.maxPeak)).unitText(signed: true) : "−∞")
-                            .font(.scaled(.caption2, textScale).monospacedDigit())
+                            .font(.system(size: 9 * textScale).monospacedDigit())
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                             .foregroundStyle(reading.maxPeak >= 1 ? UIColors.memory.color : reading.maxPeak >= 0.708 ? UIColors.warning.color : Color.secondary)
                     }
-                    .frame(width: TextScale.length(44, scale: textScale), alignment: .leading)
-                    .frame(minWidth: 20, minHeight: 20)
+                    .frame(width: TextScale.length(52, scale: textScale), height: TextScale.length(18, scale: textScale))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -268,38 +323,40 @@ struct LevelMeterView: View {
                 .accessibilityValue(reading.maxPeak > 0 ? Double(20 * log10(reading.maxPeak)).unitText(signed: true) + " dB" : String(ui: "없음"))
                 .accessibilityHint(.ui("누르면 최고 피크와 클리핑 기록을 지웁니다"))
             }
+            .frame(width: TextScale.length(58, scale: textScale))
         }
     }
 
     private static let floor: Double = -48
     private static let top: Double = 3
 
-    private func x(_ db: Double, _ width: CGFloat) -> CGFloat {
-        CGFloat((min(max(db, Self.floor), Self.top) - Self.floor) / (Self.top - Self.floor)) * width
+    private func y(_ db: Double, _ height: CGFloat) -> CGFloat {
+        CGFloat((Self.top - min(max(db, Self.floor), Self.top)) / (Self.top - Self.floor)) * height
     }
 
     private func draw(_ context: GraphicsContext, size: CGSize, state: MeterBallistics.State) {
-        let barHeight = (size.height - 1) / 2
+        let barWidth = (size.width - 2) / 2
         let zones: [(from: Double, to: Double, color: Color)] = [(-48, -12, Palette.meterLow), (-12, -3, Palette.meterMid), (-3, 3, Palette.meterHigh)]
-        for (row, channel) in [state.left, state.right].enumerated() {
-            let y = CGFloat(row) * (barHeight + 1)
-            context.fill(Path(CGRect(x: 0, y: y, width: size.width, height: barHeight)), with: .color(Palette.well))
-            let level = x(channel.level, size.width)
+        for (column, channel) in [state.left, state.right].enumerated() {
+            let x = CGFloat(column) * (barWidth + 2)
+            context.fill(Path(CGRect(x: x, y: 0, width: barWidth, height: size.height)), with: .color(Palette.well))
+            let level = y(channel.level, size.height)
             for zone in zones {
-                let start = x(zone.from, size.width), end = min(level, x(zone.to, size.width))
-                if end > start {
-                    context.fill(Path(CGRect(x: start, y: y, width: end - start, height: barHeight)), with: .color(zone.color.opacity(0.9)))
+                let bottom = y(zone.from, size.height), top = max(level, y(zone.to, size.height))
+                if bottom > top {
+                    context.fill(Path(CGRect(x: x, y: top, width: barWidth, height: bottom - top)),
+                                 with: .color(zone.color.opacity(0.75)))
                 }
             }
             if channel.hold > Self.floor {
-                let hx = x(channel.hold, size.width)
-                context.fill(Path(CGRect(x: hx - 1, y: y, width: 2, height: barHeight)),
+                let holdY = y(channel.hold, size.height)
+                context.fill(Path(CGRect(x: x, y: holdY - 1, width: barWidth, height: 2)),
                              with: .color(channel.hold >= 0 ? Palette.meterHigh : .white.opacity(0.8)))
             }
         }
         // 0dBFS 눈금
-        let zero = x(0, size.width)
-        context.fill(Path(CGRect(x: zero, y: 0, width: 1, height: size.height)), with: .color(.white.opacity(0.5)))
+        let zero = y(0, size.height)
+        context.fill(Path(CGRect(x: 0, y: zero, width: size.width, height: 1)), with: .color(.white.opacity(0.5)))
     }
 }
 

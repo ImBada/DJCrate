@@ -1,13 +1,19 @@
 import DJCDomain
 import SwiftUI
 
-/// 곡 편집 창: 원곡 줄에서 위치 고르기 → "여기서 N마디" → 구간 목록(순서·마디 고치기) → 결과 줄·미리 듣기 → 렌더.
+/// 곡 편집 창: 원곡 줄(재생·끌어 고르기) → 결과 타임라인(재생·자르기·복제·지우기·끌어 옮기기·실행 취소) → 고른 클립 → 렌더.
 struct TrackEditView: View {
     @Bindable var model: TrackEditModel
     let deck: DeckModel
+    /// 두 줄의 처음 누르기·끌기 상태(끄는 중 모습을 캡처할 때)
+    var sourcePointer = EditPointer()
+    var outputPointer = EditPointer()
+    /// 두 줄 자리(편집 창 좌표). 원곡에서 고른 구간을 결과 줄로 끌어 넣을 때 쓴다.
+    @State private var sourceFrame = CGRect.zero
+    @State private var outputFrame = CGRect.zero
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             EditHeader(model: model)
             if let reason = model.blockedReason {
                 Label(reason, systemImage: "exclamationmark.triangle.fill")
@@ -19,23 +25,33 @@ struct TrackEditView: View {
                     .background(UIColors.subtleFill, in: RoundedRectangle(cornerRadius: 8))
                 Spacer(minLength: 0)
             } else {
-                EditSourceStrip(model: model, deck: deck)
-                    .frame(height: 96)
-                EditAddBar(model: model, deck: deck)
+                SourceLaneBar(model: model)
+                VStack(spacing: 3) {
+                    EditSourceStrip(model: model, outputFrame: outputFrame.offsetBy(dx: -sourceFrame.minX, dy: -sourceFrame.minY),
+                                    pointer: sourcePointer)
+                        .frame(height: 104)
+                        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(EditMetrics.space)) } action: { sourceFrame = $0 }
+                    EditZoomBar(model: model, lane: .source)
+                }
+                Divider().padding(.vertical, 4)
+                OutputLaneBar(model: model)
+                VStack(spacing: 3) {
+                    EditOutputStrip(model: model, pointer: outputPointer) { outputFrame = $0 }
+                        .frame(minHeight: 140, maxHeight: 260)
+                    EditZoomBar(model: model, lane: .output)
+                }
+                ClipInspector(model: model)
+                Spacer(minLength: 0)
                 Divider()
-                EditEntryList(model: model)
-                    .frame(minHeight: 150, maxHeight: .infinity)
-                Divider()
-                EditOutputStrip(model: model)
-                    .frame(height: 78)
                 EditFooter(model: model)
             }
         }
         .padding(16)
-        .frame(minWidth: 760, minHeight: 560)
+        .coordinateSpace(.named(EditMetrics.space))
+        .frame(minWidth: 760, minHeight: 600)
         .background(Color(nsColor: .windowBackgroundColor))
-        // 덱을 다시 재생하면 미리 듣기는 멈춘다(두 소리가 겹치지 않게).
-        .onChange(of: deck.isPlaying) { _, playing in if playing { model.stopPreview() } }
+        // 덱을 다시 재생하면 창의 재생은 멈춘다(두 소리가 겹치지 않게).
+        .onChange(of: deck.isPlaying) { _, playing in if playing { model.pause() } }
     }
 }
 
@@ -62,191 +78,186 @@ private struct EditHeader: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
-            if model.blockedReason == nil, !model.isDeckOnTrack {
-                Label(.ui("덱에 다른 곡이 올라가 있습니다. 원곡 줄을 눌러 더할 위치를 고르세요"), systemImage: "info.circle")
-                    .font(.caption)
-                    .foregroundStyle(UIColors.info.color)
-            }
         }
     }
 }
 
-// MARK: - 더하기
+// MARK: - 줄 머리
 
-private struct EditAddBar: View {
-    @Bindable var model: TrackEditModel
-    let deck: DeckModel
+/// 줄마다 재생·일시정지
+private struct LanePlayButton: View {
+    let model: TrackEditModel
+    let lane: TrackEditModel.Lane
 
     var body: some View {
-        HStack(spacing: 10) {
-            HerePosition(model: model, deck: deck)
-                .frame(minWidth: 170, alignment: .leading)
-            Stepper(value: $model.barsToAdd, in: 1...256) {
-                HStack(spacing: 4) {
-                    TextField(.ui("마디 수"), value: $model.barsToAdd, format: .number)
-                        .frame(width: 44)
-                        .multilineTextAlignment(.trailing)
-                        .accessibilityLabel(.ui("더할 마디 수"))
-                    Text(.ui("마디"))
-                }
+        let playing = model.playing == lane
+        Button {
+            if playing { model.pause() } else { model.play(lane) }
+        } label: {
+            Image(systemName: playing ? "pause.fill" : "play.fill")
+                .frame(width: 16)
+        }
+        .disabled(!model.canPlay(lane))
+        .help(lane == .source
+              ? String(ui: "원곡을 재생·일시정지합니다. 스페이스바는 마지막으로 누른 줄을 재생합니다")
+              : String(ui: "편집 결과를 재생·일시정지합니다. 스페이스바는 마지막으로 누른 줄을 재생합니다"))
+        .accessibilityLabel(playing ? String(ui: "일시정지") : lane == .source ? String(ui: "원곡 재생") : String(ui: "결과 재생"))
+    }
+}
+
+/// 재생선 시각과 마디(재생 중에만 초당 15번 바뀐다. 이 글자만 따로 그린다)
+private struct LaneClock: View {
+    let model: TrackEditModel
+    let lane: TrackEditModel.Lane
+
+    var body: some View {
+        if model.playing == lane {
+            TimelineView(.animation(minimumInterval: 1.0 / 15)) { _ in label(model.position(lane)) }
+        } else {
+            label(model.position(lane))
+        }
+    }
+
+    private func label(_ time: Double) -> some View {
+        let layout = lane == .source ? model.layout : model.outputLayout
+        let bar = layout?.bar(at: time)
+        return HStack(spacing: 6) {
+            Text(lane == .source ? time.clockText : "\(time.clockText) / \(model.length(.output).clockText)")
+                .monospacedDigit()
+            if let bar {
+                // 몇 번째 마디(위치)는 마디 수(개수, "%lld마디")와 번역이 달라서 문자열로 넣어 키("%@마디")를 나눈다.
+                Text(bar == 0 ? String(ui: "곡 머리(0마디)") : String(ui: "\(String(bar))마디")).monospacedDigit().bold()
             }
-            .fixedSize()
-            Menu {
-                ForEach([4, 8, 16, 32, 64], id: \.self) { bars in
-                    Button(.ui("\(bars)마디")) { model.barsToAdd = bars }
-                }
-            } label: {
-                Image(systemName: "chevron.down")
+        }
+        .font(.callout)
+    }
+}
+
+private struct SourceLaneBar: View {
+    let model: TrackEditModel
+
+    var body: some View {
+        HStack(spacing: 8) {
+            LanePlayButton(model: model, lane: .source)
+            Text(.ui("원곡")).font(.headline)
+            LaneClock(model: model, lane: .source)
+            if !model.isAudioReady, model.message == nil {
+                ProgressView().controlSize(.mini)
+                    .help(.ui("원곡을 메모리에 푸는 중입니다"))
             }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .accessibilityLabel(.ui("자주 쓰는 마디 수"))
+            Spacer(minLength: 8)
+            if let selection = model.selection, let layout = model.layout {
+                let bars = String(ui: "\(selection.last - max(selection.first, 1) + 1)마디")
+                let start = layout.start(ofBar: selection.first).clockText, end = layout.end(ofBar: selection.last).clockText
+                Text(selection.first == 0
+                     ? String(ui: "고른 구간 마디 \(selection.description) · \(bars) + 곡 머리 · \(start)–\(end)")
+                     : String(ui: "고른 구간 마디 \(selection.description) · \(bars) · \(start)–\(end)"))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            } else {
+                Text(.ui("파형을 끌어 마디 구간을 고르세요"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Button {
-                model.addHere()
+                model.addSelection()
             } label: {
-                Label(.ui("여기서 \(model.barsToAdd)마디 더하기"), systemImage: "plus")
+                Label(.ui("결과에 넣기"), systemImage: "arrow.down.to.line")
             }
             .buttonStyle(.borderedProminent)
-            .help(.ui("재생 위치가 든 마디 처음부터 \(model.barsToAdd)마디를 목록 끝에 더합니다. 목록이 비었고 첫 다운비트 앞이면 곡 머리까지 넣습니다"))
-            Spacer(minLength: 0)
-            if let message = model.message {
-                Label(message.text, systemImage: message.kind.icon)
-                    .font(.caption)
-                    .foregroundStyle(message.kind.tint)
-                    .lineLimit(2)
-                    .textSelection(.enabled)
+            .disabled(model.selection == nil)
+            .help(.ui("고른 구간을 고른 클립 뒤(없으면 끝)에 넣습니다(⏎). 결과로 끌면 원하는 자리에 넣습니다"))
+        }
+        .controlSize(.small)
+    }
+}
+
+private struct OutputLaneBar: View {
+    let model: TrackEditModel
+
+    var body: some View {
+        HStack(spacing: 8) {
+            LanePlayButton(model: model, lane: .output)
+            Text(.ui("결과")).font(.headline)
+            LaneClock(model: model, lane: .output)
+            Spacer(minLength: 8)
+            HStack(spacing: 4) {
+                Button { model.splitAtPlayhead() } label: { Label(.ui("자르기"), systemImage: "scissors") }
+                    .disabled(model.edit == nil)
+                    .help(.ui("결과 재생선에서 가장 가까운 마디 줄로 클립을 둘로 나눕니다(⌘B)"))
+                Button { model.duplicateSelected() } label: { Label(.ui("복제"), systemImage: "plus.square.on.square") }
+                    .disabled(model.selectedClip == nil)
+                    .help(.ui("고른 클립 바로 뒤에 같은 구간을 하나 더 둡니다(⌘D). 인트로를 늘일 때 씁니다"))
+                Button { model.removeSelected() } label: { Label(.ui("지우기"), systemImage: "trash") }
+                    .disabled(model.selectedClip == nil)
+                    .help(.ui("고른 클립을 결과에서 뺍니다(⌫)"))
+                Divider().frame(height: 16).padding(.horizontal, 4)
+                Button { model.undo() } label: { Label(.ui("실행 취소"), systemImage: "arrow.uturn.backward") }
+                    .labelStyle(.iconOnly)
+                    .disabled(!model.canUndo)
+                    .help(.ui("실행 취소(⌘Z)"))
+                Button { model.redo() } label: { Label(.ui("실행 복귀"), systemImage: "arrow.uturn.forward") }
+                    .labelStyle(.iconOnly)
+                    .disabled(!model.canRedo)
+                    .help(.ui("실행 복귀(⇧⌘Z)"))
             }
         }
         .controlSize(.small)
     }
 }
 
-/// 초당 15번 바뀌는 위치 글자만 따로 둔다(창 전체가 다시 그려지지 않게).
-private struct HerePosition: View {
-    let model: TrackEditModel
-    let deck: DeckModel
+// MARK: - 고른 클립
 
-    var body: some View {
-        let time = model.isDeckOnTrack ? deck.displayTime : model.cursor
-        let bar = model.layout?.bar(at: time) ?? 0
-        HStack(spacing: 6) {
-            Text(model.isDeckOnTrack ? String(ui: "덱 위치") : String(ui: "고른 위치")).foregroundStyle(.secondary)
-            Text(time.clockText).monospacedDigit()
-            // 몇 번째 마디(위치)는 마디 수(개수, "%lld마디")와 번역이 달라서 문자열로 넣어 키("%@마디")를 나눈다.
-            Text(bar == 0 ? String(ui: "곡 머리(0마디)") : String(ui: "\(String(bar))마디")).monospacedDigit().bold()
-        }
-        .font(.callout)
-    }
-}
-
-// MARK: - 구간 목록
-
-private struct EditEntryList: View {
+private struct ClipInspector: View {
     let model: TrackEditModel
 
     var body: some View {
-        if model.entries.isEmpty {
-            ContentUnavailableView {
-                Label(.ui("고른 구간이 없습니다"), systemImage: "scissors")
-            } description: {
-                Text(.ui("덱에서 곡을 들으며(또는 위 원곡 줄을 눌러) 위치를 고른 뒤 ‘여기서 N마디 더하기’를 누르세요. 같은 구간을 두 번 넣으면 늘어나고, 빼면 줄어듭니다."))
-            }
-        } else {
-            List {
-                ForEach(Array(model.entries.enumerated()), id: \.element.id) { index, entry in
-                    VStack(alignment: .leading, spacing: 4) {
-                        if let seam = model.seams.first(where: { $0.index == index }) {
-                            SeamRow(model: model, seam: seam)
-                        }
-                        EntryRow(model: model, index: index, entry: entry)
-                    }
-                }
-                .onMove { model.move(fromOffsets: $0, toOffset: $1) }
-            }
-            .listStyle(.inset)
-            .alternatingRowBackgrounds(.disabled)
-        }
-    }
-}
-
-private struct SeamRow: View {
-    let model: TrackEditModel
-    let seam: EditSeam
-
-    var body: some View {
-        let playing = model.preview == .seam(seam.index)
         HStack(spacing: 8) {
-            Image(systemName: "scissors").foregroundStyle(.secondary).accessibilityHidden(true)
-            Text(.ui("이음새 · 마디 \(seam.preview.map(\.description).joined(separator: " → "))"))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-            Button {
-                model.togglePreview(.seam(seam.index))
-            } label: {
-                if playing && model.isPreparingPreview {
-                    ProgressView().controlSize(.mini)
-                } else {
-                    Label(playing ? String(ui: "멈추기") : String(ui: "이음새 듣기"), systemImage: playing ? "stop.fill" : "play.fill")
+            if let index = model.selectedIndex, let layout = model.layout {
+                let entry = model.entries[index]
+                let minFirst = layout.hasLeadIn ? 0 : 1
+                Text(verbatim: "\(index + 1)")
+                    .font(.caption.bold().monospacedDigit())
+                    .foregroundStyle(.black)
+                    .frame(width: 22, height: 18)
+                    .background(EditColors.entry(index), in: RoundedRectangle(cornerRadius: 4))
+                    .accessibilityLabel(.ui("클립 \(index + 1)"))
+                Text(.ui("마디")).foregroundStyle(.secondary)
+                BarField(label: String(ui: "시작 마디"), value: entry.range.first, range: minFirst...max(minFirst, entry.range.last)) {
+                    model.setFirst(entry.id, $0)
                 }
-            }
-            .controlSize(.mini)
-            .help(.ui("이음새 앞 2마디부터 뒤 2마디까지 렌더해 들어 봅니다(섞는 소리까지 결과와 같습니다)"))
-        }
-        .padding(.leading, 30)
-    }
-}
-
-private struct EntryRow: View {
-    let model: TrackEditModel
-    let index: Int
-    let entry: TrackEditModel.Entry
-
-    var body: some View {
-        let layout = model.layout
-        let minFirst = layout?.hasLeadIn == true ? 0 : 1
-        HStack(spacing: 8) {
-            Text(verbatim: "\(index + 1)")
-                .font(.caption.bold().monospacedDigit())
-                .foregroundStyle(.black)
-                .frame(width: 22, height: 18)
-                .background(EditColors.entry(index), in: RoundedRectangle(cornerRadius: 4))
-                .accessibilityLabel(.ui("구간 \(index + 1)"))
-            Text(.ui("마디")).foregroundStyle(.secondary)
-            BarField(label: String(ui: "시작 마디"), value: entry.range.first, range: minFirst...max(minFirst, entry.range.last)) {
-                model.setFirst(entry.id, $0)
-            }
-            Text(verbatim: "–")
-            BarField(label: String(ui: "끝 마디"), value: entry.range.last, range: max(1, entry.range.first)...max(1, layout?.count ?? 1)) {
-                model.setLast(entry.id, $0)
-            }
-            if let layout {
+                Text(verbatim: "–")
+                BarField(label: String(ui: "끝 마디"), value: entry.range.last, range: max(1, entry.range.first)...max(1, layout.count)) {
+                    model.setLast(entry.id, $0)
+                }
                 let bars = String(ui: "\(entry.range.last - max(entry.range.first, 1) + 1)마디")
                 let start = layout.start(ofBar: entry.range.first).clockText, end = layout.end(ofBar: entry.range.last).clockText
                 Text(entry.range.first == 0 ? String(ui: "\(bars) + 곡 머리 · 원곡 \(start)–\(end)") : String(ui: "\(bars) · 원곡 \(start)–\(end)"))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                Spacer(minLength: 4)
+                HStack(spacing: 2) {
+                    Button { model.move(entry.id, by: -1) } label: { Image(systemName: "arrow.left") }
+                        .disabled(index == 0)
+                        .help(.ui("앞으로"))
+                        .accessibilityLabel(.ui("클립 \(index + 1) 앞으로"))
+                    Button { model.move(entry.id, by: 1) } label: { Image(systemName: "arrow.right") }
+                        .disabled(index == model.entries.count - 1)
+                        .help(.ui("뒤로"))
+                        .accessibilityLabel(.ui("클립 \(index + 1) 뒤로"))
+                }
+                .buttonStyle(.borderless)
+            } else {
+                Text(.ui("클립을 누르면 고르고, 끌면 순서를 바꾸고, 가장자리를 끌면 마디 단위로 다듬습니다. 위 눈금을 누르거나 끌면 재생선을 옮깁니다"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 4)
-            HStack(spacing: 2) {
-                Button { model.move(entry.id, by: -1) } label: { Image(systemName: "arrow.up") }
-                    .disabled(index == 0)
-                    .help(.ui("앞으로"))
-                    .accessibilityLabel(.ui("구간 \(index + 1) 앞으로"))
-                Button { model.move(entry.id, by: 1) } label: { Image(systemName: "arrow.down") }
-                    .disabled(index == model.entries.count - 1)
-                    .help(.ui("뒤로"))
-                    .accessibilityLabel(.ui("구간 \(index + 1) 뒤로"))
-                Button { model.duplicate(entry.id) } label: { Image(systemName: "plus.square.on.square") }
-                    .help(.ui("바로 뒤에 같은 구간을 하나 더(늘이기)"))
-                    .accessibilityLabel(.ui("구간 \(index + 1) 복제"))
-                Button { model.remove(entry.id) } label: { Image(systemName: "trash") }
-                    .help(.ui("목록에서 빼기"))
-                    .accessibilityLabel(.ui("구간 \(index + 1) 빼기"))
-            }
-            .buttonStyle(.borderless)
         }
         .controlSize(.small)
+        .frame(minHeight: 24)
     }
 }
 
@@ -278,35 +289,33 @@ private struct EditFooter: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if let error = model.planError {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(.callout)
-                    .foregroundStyle(UIColors.warning.color)
-                    .textSelection(.enabled)
-            } else if let edit = model.edit {
-                Text(summary(edit))
-                    .font(.callout.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
+            HStack(spacing: 12) {
+                if let error = model.planError {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.callout)
+                        .foregroundStyle(UIColors.warning.color)
+                        .textSelection(.enabled)
+                } else if let edit = model.edit {
+                    Text(summary(edit))
+                        .font(.callout.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+                Spacer(minLength: 0)
+                if let message = model.message {
+                    Label(message.text, systemImage: message.kind.icon)
+                        .font(.caption)
+                        .foregroundStyle(message.kind.tint)
+                        .lineLimit(2)
+                        .textSelection(.enabled)
+                }
             }
             HStack(spacing: 10) {
-                let playing = model.preview == .all
-                Button {
-                    model.togglePreview(.all)
-                } label: {
-                    if playing && model.isPreparingPreview {
-                        HStack(spacing: 6) { ProgressView().controlSize(.small); Text(.ui("준비 중…")) }
-                    } else {
-                        Label(playing ? String(ui: "멈추기") : String(ui: "전체 듣기"), systemImage: playing ? "stop.fill" : "play.fill")
-                    }
-                }
-                .disabled(model.edit == nil || model.renderProgress != nil)
-                .help(.ui("편집 결과 전체를 렌더해 처음부터 들어 봅니다"))
-                Spacer(minLength: 8)
                 Text(.ui("제목")).foregroundStyle(.secondary)
                 TextField(.ui("새 곡 제목"), text: $model.title)
-                    .frame(minWidth: 180, maxWidth: 280)
+                    .frame(minWidth: 180, maxWidth: 320)
                     .disabled(model.renderProgress != nil)
+                Spacer(minLength: 8)
                 if let progress = model.renderProgress {
                     ProgressView(value: progress)
                         .frame(width: 120)

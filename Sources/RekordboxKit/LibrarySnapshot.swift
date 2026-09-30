@@ -15,15 +15,23 @@ public enum LibrarySnapshot {
 
     /// rekordbox 라이브러리 폴더. 개발 시험은 `DJC_REKORDBOX_DIR`로 사본 폴더를 가리킨다(실제 라이브러리를 건드리지 않게).
     public static var rekordboxDirectory: URL {
-        if hasRekordboxDirectoryOverride(), let override = ProcessInfo.processInfo.environment["DJC_REKORDBOX_DIR"] {
+        rekordboxDirectory(in: ProcessInfo.processInfo.environment)
+    }
+
+    public static func rekordboxDirectory(in environment: [String: String]) -> URL {
+        if hasRekordboxDirectoryOverride(in: environment), let override = environment["DJC_REKORDBOX_DIR"] {
             return URL(filePath: override)
         }
         return FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Pioneer/rekordbox")
     }
 
     public static var defaultDirectory: URL {
+        defaultDirectory(in: ProcessInfo.processInfo.environment)
+    }
+
+    public static func defaultDirectory(in environment: [String: String]) -> URL {
         // 사본 rekordbox 폴더로 시험할 때는 스냅샷도 그 안에 둔다(사용자 스냅샷과 섞이지 않게).
-        if hasRekordboxDirectoryOverride(), let override = ProcessInfo.processInfo.environment["DJC_REKORDBOX_DIR"] {
+        if hasRekordboxDirectoryOverride(in: environment), let override = environment["DJC_REKORDBOX_DIR"] {
             return URL(filePath: override).appending(path: "djc-snapshots")
         }
         return DJCIdentity.supportDirectory.appending(path: "snapshots")

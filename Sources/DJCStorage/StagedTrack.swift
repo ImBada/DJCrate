@@ -37,11 +37,32 @@ public extension StagedTrack {
             let number = Int(bytes[2]) << 8 | Int(bytes[3])
             if number > 0 { trackText = String(number) }
         }
-        return StagedTrack(path: url.path, title: title ?? url.deletingPathExtension().lastPathComponent,
-                           artist: artist, album: album, genre: genre, composer: composer,
-                           year: yearText.flatMap { Int($0.prefix(4)) },
-                           trackNumber: trackText.flatMap { Int($0.split(separator: "/").first ?? "") },
-                           comment: comment ?? "", duration: duration.isFinite ? duration : 0, addedOn: addedOn)
+        var track = StagedTrack(path: url.path, title: title ?? url.deletingPathExtension().lastPathComponent,
+                                artist: artist, album: album, genre: genre, composer: composer,
+                                year: yearText.flatMap { Int($0.prefix(4)) },
+                                trackNumber: trackText.flatMap { Int($0.split(separator: "/").first ?? "") },
+                                comment: comment ?? "", duration: duration.isFinite ? duration : 0, addedOn: addedOn)
+        // 태그에 키가 없으면 비워 두고 백그라운드에서 추정한다.
+        if let key = await tagKey(in: items) {
+            track.key = key
+            track.keySource = .tag
+        }
+        return track
+    }
+
+    /// 파일 태그의 키(Camelot). 없거나 읽을 수 없는 표기면 nil. 음원은 읽기만 한다.
+    static func tagKey(fileAt url: URL) async -> String? {
+        await tagKey(in: (try? await AVURLAsset(url: url).load(.metadata)) ?? [])
+    }
+
+    /// ID3 TKEY, iTunes 자유 형식 `initialkey`, Vorbis `KEY` 등 키 칸을 찾아 Camelot으로 바꾼다.
+    private static func tagKey(in items: [AVMetadataItem]) async -> String? {
+        for item in items {
+            let id = item.identifier?.rawValue.lowercased() ?? ""
+            guard id.hasSuffix("/tkey") || id.hasSuffix("initialkey") || id.hasSuffix("/key") else { continue }
+            if let text = try? await item.load(.stringValue), let key = KeyNotation.camelot(from: text) { return key }
+        }
+        return nil
     }
 
     /// 폴더는 펼치고, rekordbox가 못 읽는 형식은 뺀다.

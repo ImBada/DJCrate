@@ -5,85 +5,191 @@ import DJCStorage
 import AppKit
 import SwiftUI
 
+/// 사이드바 본문은 목록 구조(어떤 줄·구역이 있나)만 읽는다. 배지·진행 값·펼침 설정은 줄·구역 뷰가 각자 읽는다(#141).
+/// 본문이 다시 계산되면 List가 재생 목록 수백 개를 모두 다시 비교해(약 50~120ms) 덱에 곡을 올릴 때마다 화면이 멈칫했다.
+/// 그래서 이 뷰는 `@AppStorage`도 들지 않는다. 그런 값을 든 뷰는 부모(ContentView)가 다시 계산될 때마다 바뀐 것으로 보여
+/// 본문이 새로 계산된다.
 struct Sidebar: View {
     @Bindable var store: LibraryStore
-    @AppStorage(SettingKeys.sidebarPlaylistsExpanded.name) private var playlistsExpanded = SettingKeys.sidebarPlaylistsExpanded.defaultValue
-    @AppStorage(SettingKeys.sidebarSummaryExpanded.name) private var summaryExpanded = SettingKeys.sidebarSummaryExpanded.defaultValue
-    @AppStorage(SettingKeys.sidebarHistoriesExpanded.name) private var historiesExpanded = SettingKeys.sidebarHistoriesExpanded.defaultValue
 
     var body: some View {
+        let _ = PerfProbe.body(Self.self)
         List(selection: $store.sidebar) {
-            Section(.ui("라이브러리")) {
+            Section {
                 ForEach(LibraryFilter.visible(commentPreset: store.commentPreset)) { filter in
-                    Label(filter.title, systemImage: filter.systemImage)
-                        .badge(store.count(filter))
+                    SidebarFilterRow(store: store, filter: filter)
                         .tag(SidebarItem.filter(filter))
                 }
-                Label(.ui("중복 후보"), systemImage: "square.on.square")
-                    .badge(store.duplicateGroups.count)
+                SidebarDuplicatesRow(store: store)
                     .tag(SidebarItem.duplicates)
-                    .help(.ui("제목·아티스트가 같고 길이 차이가 2초 이내인 후보 묶음"))
+            } header: {
+                Text(.ui("라이브러리")).sidebarSectionHeader()
             }
-            Section("DJCrate" as String) {
-                Label(.ui("추가한 곡"), systemImage: "tray.and.arrow.down")
-                    .badge(store.staged.count)
+            Section {
+                SidebarStagedRow(store: store)
                     .tag(SidebarItem.staged)
-                Label(.ui("rekordbox 쓰기 대기"), systemImage: "square.and.arrow.up.on.square")
-                    .badge(store.pendingLibraryCount)
+                SidebarPendingRow(store: store)
                     .tag(SidebarItem.pending)
-                    .help(.ui("rekordbox에 쓸 곡 초안을 모아 봅니다. 재생 목록 초안도 함께 쓸 수 있습니다."))
-                Button { store.showingWriteResult = true } label: {
-                    Label(.ui("마지막 쓰기 결과…"), systemImage: "doc.text.magnifyingglass")
-                }
-                .buttonStyle(.plain)
-                .disabled(store.isWritingRekordbox)
-                if let job = store.gridJob {
-                    HStack(spacing: 6) {
-                        ProgressView(value: Double(job.done), total: Double(max(job.total, 1))).controlSize(.small)
-                        Text(.ui("그리드 추정 \(job.done)/\(job.total)")).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                    }
-                }
+                SidebarLastWriteResultRow(store: store)
+                // 진행 줄은 넣고 빼야 해서 본문이 시작·끝만 읽고, 진행(done/total)은 줄이 읽는다.
+                if store.hasGridJob { SidebarGridJobRow(store: store) }
+            } header: {
+                Text(verbatim: "DJCrate").sidebarSectionHeader()
             }
             if case .loaded = store.phase {
-                PlaylistSection(store: store, isExpanded: $playlistsExpanded)
+                PlaylistSection(store: store)
                 ITunesPlaylistSection(store: store)
             }
-            Section(.ui("재생 기록"), isExpanded: $historiesExpanded) {
-                if store.histories.isEmpty {
-                    Text(.ui("재생 기록이 없습니다")).foregroundStyle(.secondary)
-                }
-                ForEach(store.histories) { history in
-                    Label(store.historyTitle(history), systemImage: "clock")
-                        .badge(store.count(history: history))
-                        .lineLimit(1)
-                        .help(store.historyTitle(history))
-                        .tag(SidebarItem.history(history.id))
-                }
-            }
+            SidebarHistorySection(store: store)
             if let usb = store.usb {
                 UsbSidebarSection(store: store, usb: usb)
             }
-            if let report = store.report {
-                Section(.ui("현황"), isExpanded: $summaryExpanded) {
-                    LabeledContent(.ui("실제 컬렉션"), value: report.liveTracks.formatted())
-                    LabeledContent(.ui("삭제 행(제외)"), value: report.deletedRows.formatted())
-                    if store.commentRuleEnabled {
-                        LabeledContent(.ui("규칙 코멘트"), value: report.matchingComments.formatted())
-                    }
-                    LabeledContent(.ui("수동 큐 곡"), value: report.tracksWithManualCues.formatted())
-                }
-                .font(.callout)
-            }
-            if let url = store.snapshotURL {
-                Section(.ui("스냅샷")) {
-                    Text(url.lastPathComponent)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
-            }
+            SidebarStatusSections(store: store)
         }
         .modifier(PlaylistSidebarMenu(store: store))
+    }
+}
+
+/// 라이브러리 필터 줄. 개수는 이 뷰의 본문만 읽는다.
+struct SidebarFilterRow: View {
+    let store: LibraryStore
+    let filter: LibraryFilter
+
+    var body: some View {
+        Label(filter.title, systemImage: filter.systemImage)
+            .badge(store.count(filter))
+    }
+}
+
+struct SidebarDuplicatesRow: View {
+    let store: LibraryStore
+
+    var body: some View {
+        Label(.ui("중복 후보"), systemImage: "square.on.square")
+            .badge(store.duplicateGroups.count)
+            .help(.ui("제목·아티스트가 같고 길이 차이가 2초 이내인 후보 묶음"))
+    }
+}
+
+struct SidebarStagedRow: View {
+    let store: LibraryStore
+
+    var body: some View {
+        Label(.ui("추가한 곡"), systemImage: "tray.and.arrow.down")
+            .badge(store.staged.count)
+    }
+}
+
+/// 쓰기 대기 배지. 개수는 초안 여러 종류의 합집합이라 읽는 값이 많다.
+struct SidebarPendingRow: View {
+    let store: LibraryStore
+
+    var body: some View {
+        Label(.ui("rekordbox 쓰기 대기"), systemImage: "square.and.arrow.up.on.square")
+            .badge(store.pendingLibraryCount)
+            .help(.ui("rekordbox에 쓸 곡 초안을 모아 봅니다. 재생 목록 초안도 함께 쓸 수 있습니다."))
+    }
+}
+
+struct SidebarLastWriteResultRow: View {
+    let store: LibraryStore
+
+    var body: some View {
+        Button { store.showingWriteResult = true } label: {
+            Label(.ui("마지막 쓰기 결과…"), systemImage: "doc.text.magnifyingglass")
+        }
+        .buttonStyle(.plain)
+        .disabled(store.isWritingRekordbox)
+    }
+}
+
+/// 그리드 일괄 추정 진행 줄. 곡마다 진행이 오르므로 이 뷰만 다시 계산된다.
+struct SidebarGridJobRow: View {
+    let store: LibraryStore
+
+    var body: some View {
+        if let job = store.gridJob {
+            HStack(spacing: 6) {
+                ProgressView(value: Double(job.done), total: Double(max(job.total, 1))).controlSize(.small)
+                Text(.ui("그리드 추정 \(job.done)/\(job.total)")).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// 재생 기록 구역. 펼침 설정은 여기서 읽는다.
+struct SidebarHistorySection: View {
+    let store: LibraryStore
+    @AppStorage(SettingKeys.sidebarHistoriesExpanded.name) private var isExpanded = SettingKeys.sidebarHistoriesExpanded.defaultValue
+
+    var body: some View {
+        Section(isExpanded: $isExpanded) {
+            if store.histories.isEmpty {
+                Text(.ui("재생 기록이 없습니다")).foregroundStyle(.secondary)
+            }
+            // 날짜로 시작하는 이름이라 아이콘 없이도 알아본다. 아이콘 자리만큼 이름이 덜 잘린다.
+            ForEach(store.histories) { history in
+                SidebarHistoryRow(store: store, history: history)
+                    .tag(SidebarItem.history(history.id))
+            }
+        } header: {
+            Text(.ui("재생 기록")).sidebarSectionHeader()
+        }
+    }
+}
+
+struct SidebarHistoryRow: View {
+    let store: LibraryStore
+    let history: RekordboxHistory
+
+    var body: some View {
+        Text(store.historyTitle(history))
+            .badge(store.count(history: history))
+            .lineLimit(1)
+            .help(store.historyTitle(history))
+    }
+}
+
+/// 현황·스냅샷 구역(설정의 '현황·스냅샷 보이기'). 켜짐·펼침 설정은 여기서 읽는다.
+struct SidebarStatusSections: View {
+    let store: LibraryStore
+    @AppStorage(SettingKeys.sidebarSummaryExpanded.name) private var summaryExpanded = SettingKeys.sidebarSummaryExpanded.defaultValue
+    @AppStorage(SettingKeys.sidebarShowsStatus.name) private var showsStatus = SettingKeys.sidebarShowsStatus.defaultValue
+
+    var body: some View {
+        if showsStatus, let report = store.report {
+            Section(isExpanded: $summaryExpanded) {
+                LabeledContent(.ui("실제 컬렉션"), value: report.liveTracks.formatted())
+                LabeledContent(.ui("삭제 행(제외)"), value: report.deletedRows.formatted())
+                if store.commentRuleEnabled {
+                    LabeledContent(.ui("규칙 코멘트"), value: report.matchingComments.formatted())
+                }
+                LabeledContent(.ui("수동 큐 곡"), value: report.tracksWithManualCues.formatted())
+            } header: {
+                Text(.ui("현황")).sidebarSectionHeader()
+            }
+            .font(.callout)
+        }
+        if showsStatus, let url = store.snapshotURL {
+            Section {
+                Text(url.lastPathComponent)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            } header: {
+                Text(.ui("스냅샷")).sidebarSectionHeader()
+            }
+        }
+    }
+}
+
+extension View {
+    /// 사이드바 섹션 제목(#120). 시스템 기본보다 크고 진하게, 위를 더 띄워 섹션끼리 나뉘어 보이게 한다.
+    /// 제목 줄의 버튼도 같은 크기·색을 따른다.
+    func sidebarSectionHeader() -> some View {
+        font(.callout.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.top, 10)
     }
 }
 
@@ -205,6 +311,27 @@ struct ListActionBar: View {
                 if store.usb?.infos[target.volumeKey].map({ $0.consistency.playlistMismatches > 0 }) == true {
                     Label(.ui("두 형식의 재생 목록 내용이 다릅니다"), systemImage: WarningMark.symbol)
                         .font(.caption).foregroundStyle(UIColors.warning.color)
+                }
+            }
+        case .filter(.missingFile):
+            bar {
+                // 빠진 외장 디스크는 곡마다가 아니라 디스크째 알린다(#126).
+                let volumes = store.missingFiles.unmountedVolumes
+                if !volumes.isEmpty {
+                    let names = volumes.map { String(ui: "\($0.name)(\($0.trackCount)곡)") }.joined(separator: ", ")
+                    Label(.ui("연결되지 않은 외장 디스크: \(names) · 연결하면 다시 확인합니다"), systemImage: "externaldrive.badge.xmark")
+                        .foregroundStyle(UIColors.warning.color)
+                        .lineLimit(1)
+                        .help(names)
+                }
+                Button { store.checkMissingFiles() } label: { Label(.ui("다시 확인"), systemImage: "arrow.clockwise") }
+                    .disabled(store.isCheckingFiles)
+                    .help(.ui("음원 파일이 있는지 다시 확인합니다. rekordbox에는 쓰지 않습니다."))
+                if store.isCheckingFiles {
+                    ProgressView().controlSize(.small)
+                    Text(.ui("파일을 확인하는 중…")).font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text(.ui("옮긴 음원은 rekordbox의 Relocate로 다시 연결하세요")).font(.caption).foregroundStyle(.secondary)
                 }
             }
         case .filter(.noBPM):

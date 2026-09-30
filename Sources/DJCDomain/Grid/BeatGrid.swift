@@ -107,11 +107,12 @@ public struct BeatGrid: Sendable, Hashable {
         return sequence.count > 1 ? sequence : []
     }
 
-    /// 마디.박 위치. 박은 0부터 센다(14.0 → 14.1 → 14.2 → 14.3 → 15.0). 첫 박 이전은 nil.
+    /// 마디.박 위치. 덱 눈금(`BeatRulerLabel`)과 같이 rekordbox처럼 박은 1부터 센다(14.1 → 14.2 → 14.3 → 14.4 → 15.1).
+    /// 첫 박 이전은 nil.
     public func position(at time: Double) -> (bar: Int, beat: Int)? {
         let index = firstIndex(atOrAfter: time + 0.001) - 1
         guard beats.indices.contains(index) else { return nil }
-        return (bar(at: beats[index].time), max(beats[index].number - 1, 0))
+        return (bar(at: beats[index].time), max(beats[index].number, 1))
     }
 
     public func positionText(at time: Double) -> String? {

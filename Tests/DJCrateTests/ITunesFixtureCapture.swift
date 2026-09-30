@@ -1,4 +1,6 @@
 import DJCStorage
+import DJCDomain
+import RekordboxKit
 import DJCTestSupport
 import Foundation
 import Testing
@@ -21,10 +23,19 @@ struct ITunesFixtureCapture {
             paths.append(track.folderPath)
         }
         try FileManager.default.copyItem(at: fixture.root, to: root)
-        try ITunesLibrarySnapshot(playlists: [
+        let selected: [ITunesLibrarySnapshot.Playlist] = [
             .init(id: "F", name: "iTunes 합성 폴더", isFolder: true),
             .init(id: "A", name: "iTunes 합성 목록", parentID: "F", paths: [paths[1], paths[0], paths[1], nil]),
             .init(id: "B", name: "빈 동기화 목록", parentID: "F"),
-        ]).save(for: root.appending(path: "master.db"))
+        ]
+        var snapshot = ITunesLibrarySnapshot(playlists: selected,
+                                  sourcePlaylists: selected + [.init(id: "C", name: "추가할 iTunes 목록", paths: [paths[0]])],
+                                  selectedIDs: ["A", "B"])
+        let empty = Data("<SYNC_ITUNES_PLAYLIST Version=\"3.0.0\"><PLAYLISTS/></SYNC_ITUNES_PLAYLIST>".utf8)
+        let data = try RekordboxITunesSyncChange(base: empty, source: snapshot.selectionNodes,
+                                                selection: ITunesSyncSelection(selectedIDs: ["A", "B"])).render()
+        snapshot = try snapshot.applyingRekordboxSelection(data)
+        try data.write(to: root.appending(path: "playlists3.sync"))
+        try snapshot.save(for: root.appending(path: "master.db"))
     }
 }

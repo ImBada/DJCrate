@@ -25,6 +25,8 @@ enum Palette {
     static let suggestion = Color(red: 0.35, green: 0.80, blue: 1.0)
     static let section = Color(red: 0.56, green: 0.53, blue: 1.0)
     static let well = Color(red: 0.043, green: 0.047, blue: 0.055)
+    /// 파형 양옆 조작 열은 파형 우물보다 한 단계 밝게 둔다.
+    static let controlRail = Color(white: 0.14)
     static let rulerText = Color(white: 0.65)
     static let meterLow = Color.green
     static let meterMid = Color.yellow
@@ -68,8 +70,15 @@ enum UIColors: String, CaseIterable {
                                                 highLight: 0xFFFFFF, highDark: 0x000000)
     static let draftFillVariants = AppearanceColor("draftFill", light: 0xFFF0DB, dark: 0x493924,
                                                    highLight: 0xFFF6E8, highDark: 0x38291A)
+    static let gridControlFillVariants = AppearanceColor("gridControlFill", light: 0xFFFBF5, dark: 0x211A14,
+                                                         highLight: 0xFFFFFF, highDark: 0x120E0B)
+    /// 큐 초안 줄은 그리드 편집의 주황 배경과 구별되는 푸른 회색을 쓴다.
+    static let cueDraftFillVariants = AppearanceColor("cueDraftFill", light: 0xE8EFF8, dark: 0x293A4A,
+                                                      highLight: 0xDFEBF8, highDark: 0x1F3852)
     static let onFill = Color(nsColor: onFillVariants.nsColor)
     static let draftFill = Color(nsColor: draftFillVariants.nsColor)
+    static let gridControlFill = Color(nsColor: gridControlFillVariants.nsColor)
+    static let cueDraftFill = Color(nsColor: cueDraftFillVariants.nsColor)
     static let subtleFill = Color(nsColor: .quaternarySystemFill)
 
     /// 조성 글자는 기본색으로 읽고, 점은 Camelot 색상을 유지한 채 3:1 이상으로 보정한다.
