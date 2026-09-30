@@ -81,6 +81,11 @@ public enum UsbRead {
         let hasOneLibrary = names.contains((UsbLayout.oneLibrary as NSString).lastPathComponent)
         let hasPdb = names.contains((UsbLayout.exportPdb as NSString).lastPathComponent)
         info.formats = (hasOneLibrary ? [UsbFormat.oneLibrary.rawValue] : []) + (hasPdb ? [UsbFormat.deviceLibrary.rawValue] : [])
+        info.settings = settings(usb)
+        if info.settings.contains(where: { $0.status == .invalid || $0.status == .unreadable }) {
+            info.warnings.append(UsbInfo.Warning(code: "settingsInvalid",
+                message: String(ui: "설정 파일을 확인하지 못했으므로 rekordbox에서 기기 설정을 다시 저장한 뒤 USB로 내보내세요")))
+        }
         guard hasOneLibrary || hasPdb else { return info }
 
         let createdScratch = !fm.fileExists(atPath: scratch.path)
@@ -90,7 +95,7 @@ public enum UsbRead {
             if createdScratch { try? fm.removeItem(at: scratch) }
         }
 
-        var warnings: [UsbInfo.Warning] = []
+        var warnings = info.warnings
         func warn(_ code: String, _ message: String) { warnings.append(UsbInfo.Warning(code: code, message: message)) }
         var oneLibrary: UsbLibrary?, deviceLibrary: UsbLibrary?
         var report: PdbReadReport?
@@ -160,6 +165,10 @@ public enum UsbRead {
         }
         if info.analysis.ppthMismatches > 0 {
             warn("analysisPathMismatch", String(ui: "분석 파일에 적힌 곡 경로가 DB와 다른 곡이 있습니다. rekordbox로 USB를 다시 내보내세요"))
+        }
+        info.media = media(usb, oneLibrary: oneLibrary, deviceLibrary: deviceLibrary)
+        if info.media.missingFiles > 0 {
+            warn("mediaMissing", String(ui: "음원 파일이 없는 곡이 있으므로 rekordbox로 USB를 다시 내보내세요"))
         }
         info.warnings = warnings
         return info

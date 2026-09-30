@@ -96,6 +96,6 @@ struct UsbInfoRoundTripTests {
                                    "unknownTableRows", "structureIssues"])
         #expect(part["roundTripChecked"] as? Bool == true && part["roundTripOK"] as? Bool == true)
         #expect(Set(body.keys) == ["schemaVersion", "root", "formats", "volume", "oneLibrary", "deviceLibrary", "consistency", "analysis",
-                                   "localCompatibility", "warnings"])
+                                   "media", "settings", "localCompatibility", "warnings"])
     }
 }

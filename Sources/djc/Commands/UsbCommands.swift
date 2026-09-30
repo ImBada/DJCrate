@@ -479,6 +479,17 @@ enum UsbCommands {
         if !info.formats.isEmpty {
             let a = info.analysis
             lines.append(String(ui: "분석 파일: 곡 \(a.tracksChecked) · 없는 파일 \(a.missingFiles) · 곡 경로 다름 \(a.ppthMismatches) · 번호 0 아님 \(a.slotCollisions)"))
+            let m = info.media
+            lines.append(String(ui: "음원: 곡 \(m.tracksChecked) · 파일 \(m.filesChecked) · 없는 파일 \(m.missingFiles)"))
+        }
+        for setting in info.settings {
+            let status = switch setting.status {
+            case .missing: String(ui: "없음")
+            case .valid: String(ui: "형식·CRC 확인")
+            case .invalid: String(ui: "형식 또는 CRC 오류")
+            case .unreadable: String(ui: "읽지 못함")
+            }
+            lines.append(String(ui: "설정 파일 \(setting.fileName): \(status)") + (setting.issue.map { " (\($0))" } ?? ""))
         }
         if let local = info.localCompatibility {
             lines.append(local.rekordboxVersion.map { version in
