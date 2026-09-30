@@ -95,19 +95,20 @@ struct ITunesSyncSourceCacheTests {
         let started = Mutex(false)
         let resume = DispatchSemaphore(value: 0)
         let captured = ITunesLibrarySnapshot(playlists: [.init(id: "A", name: "새 목록")])
+        let firstReturned = Mutex(false)
         let first = Task {
-            await store.iTunesSyncSource(arguments: ["test"], environment: [:], captureITunes: {
+            let value = await store.iTunesSyncSource(arguments: ["test"], environment: [:], captureITunes: {
                 calls.withLock { $0 += 1 }
                 started.withLock { $0 = true }
                 resume.wait()
                 return captured
             })
+            firstReturned.withLock { $0 = true }
+            return value
         }
-        let deadline = ContinuousClock.now + .seconds(15)
-        while !started.withLock({ $0 }) && ContinuousClock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        guard started.withLock({ $0 }) else {
+        // 첫 캡처가 시작될 때까지 기다린다. 시간 제한은 없다. 시작하지 않고 끝난 구현이면 더 기다릴 것이 없다.
+        let captureStarted = await waitForState(giveUp: { firstReturned.withLock { $0 } }, until: { started.withLock { $0 } })
+        guard captureStarted else {
             resume.signal(); _ = await first.value
             Issue.record("첫 캡처가 시작되지 않았습니다")
             return
@@ -136,19 +137,19 @@ struct ITunesSyncSourceCacheTests {
         let store = store(fixture)
         await store.load(snapshot: fixture.database, arguments: ["test"], environment: [:])
         let started = Mutex(false)
+        let refreshReturned = Mutex(false)
         let resume = DispatchSemaphore(value: 0)
         let refresh = Task {
-            await store.iTunesSyncSource(forceRefresh: true, arguments: ["test"], environment: [:], captureITunes: {
+            let value = await store.iTunesSyncSource(forceRefresh: true, arguments: ["test"], environment: [:], captureITunes: {
                 started.withLock { $0 = true }
                 resume.wait()
                 return cached
             })
+            refreshReturned.withLock { $0 = true }
+            return value
         }
-        let startDeadline = ContinuousClock.now + .seconds(15)
-        while !started.withLock({ $0 }) && ContinuousClock.now < startDeadline {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        guard started.withLock({ $0 }) else {
+        let captureStarted = await waitForState(giveUp: { refreshReturned.withLock { $0 } }, until: { started.withLock { $0 } })
+        guard captureStarted else {
             resume.signal(); _ = await refresh.value
             Issue.record("강제 캡처가 시작되지 않았습니다")
             return
@@ -162,10 +163,8 @@ struct ITunesSyncSourceCacheTests {
             completed.withLock { $0 = true }
             return value
         }
-        let deadline = ContinuousClock.now + .seconds(10)
-        while !completed.withLock({ $0 }) && ContinuousClock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        // 강제 캡처는 막혀 있다. 그 채로 다시 연 선택창이 돌아와야 한다(돌아오지 않는 구현은 안전망 시간 뒤에 실패로 끝난다).
+        _ = await waitForState(until: { completed.withLock { $0 } })
         let returnedBeforeRefresh = completed.withLock { $0 }
         resume.signal()
         _ = await refresh.value
@@ -202,19 +201,19 @@ struct ITunesSyncSourceCacheTests {
         let newer = try ITunesLibrarySnapshot(sourcePlaylists: [.init(id: "A", name: "최신 목록")])
             .applyingRekordboxSelection(syncA)
         let started = Mutex(false)
+        let loadingReturned = Mutex(false)
         let resume = DispatchSemaphore(value: 0)
         let loading = Task {
-            await store.iTunesSyncSource(arguments: ["test"], environment: [:], captureITunes: {
+            let value = await store.iTunesSyncSource(arguments: ["test"], environment: [:], captureITunes: {
                 started.withLock { $0 = true }
                 resume.wait()
                 return old
             })
+            loadingReturned.withLock { $0 = true }
+            return value
         }
-        let deadline = ContinuousClock.now + .seconds(15)
-        while !started.withLock({ $0 }) && ContinuousClock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        guard started.withLock({ $0 }) else {
+        let captureStarted = await waitForState(giveUp: { loadingReturned.withLock { $0 } }, until: { started.withLock { $0 } })
+        guard captureStarted else {
             resume.signal(); _ = await loading.value
             Issue.record("Music 캡처가 시작되지 않았습니다")
             return
@@ -306,6 +305,7 @@ struct ITunesSyncSourceCacheTests {
         store.presentITunesSync()
         let model = store.iTunesSync
         let started = Mutex(false)
+        let loadingReturned = Mutex(false)
         let resume = DispatchSemaphore(value: 0)
         let loading = Task {
             await model.load(store: store, arguments: ["test"], environment: [:], captureITunes: {
@@ -313,12 +313,10 @@ struct ITunesSyncSourceCacheTests {
                 resume.wait()
                 return ITunesLibrarySnapshot(playlists: [.init(id: "A", name: "늦은 목록")])
             })
+            loadingReturned.withLock { $0 = true }
         }
-        let deadline = ContinuousClock.now + .seconds(15)
-        while !started.withLock({ $0 }) && ContinuousClock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        guard started.withLock({ $0 }) else {
+        let captureStarted = await waitForState(giveUp: { loadingReturned.withLock { $0 } }, until: { started.withLock { $0 } })
+        guard captureStarted else {
             resume.signal(); await loading.value
             Issue.record("Music 캡처가 시작되지 않았습니다")
             return
@@ -339,6 +337,7 @@ struct ITunesSyncSourceCacheTests {
         store.presentITunesSync()
         let old = store.iTunesSync
         let started = Mutex(false)
+        let loadingReturned = Mutex(false)
         let resume = DispatchSemaphore(value: 0)
         let loading = Task {
             await old.load(store: store, arguments: ["test"], environment: [:], captureITunes: {
@@ -346,12 +345,10 @@ struct ITunesSyncSourceCacheTests {
                 resume.wait()
                 return ITunesLibrarySnapshot(playlists: [.init(id: "A", name: "늦은 목록")])
             })
+            loadingReturned.withLock { $0 = true }
         }
-        let deadline = ContinuousClock.now + .seconds(15)
-        while !started.withLock({ $0 }) && ContinuousClock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        guard started.withLock({ $0 }) else {
+        let captureStarted = await waitForState(giveUp: { loadingReturned.withLock { $0 } }, until: { started.withLock { $0 } })
+        guard captureStarted else {
             resume.signal(); await loading.value
             Issue.record("Music 캡처가 시작되지 않았습니다")
             return

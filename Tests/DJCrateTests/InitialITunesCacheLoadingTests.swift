@@ -74,10 +74,9 @@ struct InitialITunesCacheLoadingTests {
         }
         // Music 최신화가 시작될 때까지 기다린다. 시간 제한은 없다(부하가 걸리면 오래 걸릴 뿐 판정은 같다).
         // 시작하지 않는 구현이면 loadInitial이 돌아온 뒤에 남은 최신화 작업이 없으므로 그때 끝낸다.
-        while !started.withLock({ $0 }) && !(completed.withLock({ $0 }) && store.iTunesRefresh == nil) {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        guard started.withLock({ $0 }) else {
+        let musicStarted = await waitForState(giveUp: { completed.withLock { $0 } && store.iTunesRefresh == nil },
+                                              until: { started.withLock { $0 } })
+        guard musicStarted else {
             resume.signal(); await loading.value
             await store.iTunesRefresh?.task.value
             Issue.record("Music 최신화가 시작되지 않았습니다")
@@ -86,9 +85,7 @@ struct InitialITunesCacheLoadingTests {
         // Music 조회는 막혀 있다. 이 시점에 DB와 행이 이미 열려 있어야 Music을 기다리지 않은 것이다(상태로 본다).
         let loadedBeforeMusic = !store.isLoading && store.rows.map(\.id) == ["1"]
         // loadInitial도 막힌 Music을 기다리지 않고 돌아와야 한다. Music이 막혀 있는 채로 돌아온 것만 센다(풀기 전에 확인).
-        while loadedBeforeMusic && !completed.withLock({ $0 }) {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        if loadedBeforeMusic { _ = await waitForState(until: { completed.withLock { $0 } }) }
         let returnedBeforeMusic = completed.withLock { $0 }
         // 이미 Music을 기다린 것으로 드러났다면, 아래 선택창 확인이 막힌 Music에 걸려 멈추지 않게 먼저 풀어 준다(실패로 끝낸다).
         if !(loadedBeforeMusic && returnedBeforeMusic) { resume.signal() }
@@ -123,22 +120,17 @@ struct InitialITunesCacheLoadingTests {
             })
             completed.withLock { $0 = true }
         }
-        let deadline = ContinuousClock.now + .seconds(90)
-        while !started.withLock({ $0 }) && ContinuousClock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        guard started.withLock({ $0 }) else {
+        let musicStarted = await waitForState(giveUp: { completed.withLock { $0 } && store.iTunesRefresh == nil },
+                                              until: { started.withLock { $0 } })
+        guard musicStarted else {
             resume.signal()
             await loading.value
             await store.iTunesRefresh?.task.value
             Issue.record("Music 최신화가 시작되지 않았습니다")
             return
         }
-        let completedDeadline = ContinuousClock.now + .seconds(30)
-        while !completed.withLock({ $0 }) && ContinuousClock.now < completedDeadline {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        guard completed.withLock({ $0 }) else {
+        // Music은 막혀 있다. 그 채로 초기 로드가 돌아와야 한다(돌아오지 않는 구현은 안전망 시간 뒤에 실패로 끝난다).
+        guard await waitForState(until: { completed.withLock { $0 } }) else {
             resume.signal()
             await loading.value
             await store.iTunesRefresh?.task.value
@@ -160,10 +152,9 @@ struct InitialITunesCacheLoadingTests {
                                     captureITunes: { music.capture() })
             opened.withLock { $0 = true }
         }
-        let deadline = ContinuousClock.now + .seconds(90)
-        while !(music.started && opened.withLock { $0 }) && ContinuousClock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        // 캐시로 열린 뒤 남은 최신화 작업이 없는데 Music 조회가 시작되지 않았다면 더 기다려도 시작하지 않는다.
+        _ = await waitForState(giveUp: { opened.withLock { $0 } && store.iTunesRefresh == nil },
+                               until: { music.started && opened.withLock { $0 } })
         guard music.started, opened.withLock({ $0 }) else {
             music.release()
             await loading.value
@@ -198,19 +189,14 @@ struct InitialITunesCacheLoadingTests {
                                      }, captureITunes: { music.capture() }, arguments: ["test"], environment: [:])
             reloaded.withLock { $0 = true }
         }
-        let deadline = ContinuousClock.now + .seconds(30)
-        while !reloaded.withLock({ $0 }) && ContinuousClock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        // Music은 막혀 있다. 그 채로 다시 읽기가 끝나야 한다(끝나지 않는 구현은 안전망 시간 뒤에 실패로 끝난다).
+        _ = await waitForState(until: { reloaded.withLock { $0 } })
         let reloadedBeforeMusic = reloaded.withLock { $0 } && store.rows.count == 2
         let cachedName = store.iTunesSnapshot.sourcePlaylists?.first?.name
         music.release()
         await reload.value
         // 멈춤이 풀리면 버려진 최신화의 결과가 새 사본에 들어와야 한다(지난 세션 목록이 남지 않게).
-        let appliedDeadline = ContinuousClock.now + .seconds(10)
-        while store.iTunesSnapshot.sourcePlaylists?.first?.name != "최신 목록" && ContinuousClock.now < appliedDeadline {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        // 이어받은 최신화는 결과를 채택하고 나서 끝나므로, 그 끝을 기다리면 시간을 재지 않고도 상태가 확정된다.
         await store.iTunesRefresh?.task.value
         #expect(reloadedBeforeMusic)
         #expect(cachedName == "캐시 목록")
@@ -240,10 +226,8 @@ struct InitialITunesCacheLoadingTests {
                 return .init(status: .unavailable)
             })
         }
-        let deadline = ContinuousClock.now + .seconds(10)
-        while model.isLoading && ContinuousClock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        // 캐시 목록을 보여 주며 로딩이 끝나야 한다(최신화를 기다리는 구현은 안전망 시간 뒤에 실패로 끝난다).
+        _ = await waitForState(until: { !model.isLoading })
         let shownName = model.source.sourcePlaylists?.first?.name
         let blockedWhileRefreshing = !model.canSync
         // 창을 거치지 않은 쓰기도 막는다. 막지 못하면 명시한 임시 사본에만 쓴다.
@@ -259,11 +243,8 @@ struct InitialITunesCacheLoadingTests {
         }
         music.release()
         await store.iTunesRefresh?.task.value
-        let refreshedDeadline = ContinuousClock.now + .seconds(10)
-        while !(model.source.sourcePlaylists?.first?.name == "최신 목록" && model.canSync)
-                && ContinuousClock.now < refreshedDeadline {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        // 선택창은 최신화가 끝나면 스스로 다시 읽는다. 그 읽기까지 마치고 돌아오면(opening) 상태가 확정이다.
+        await opening.value
         #expect(shownName == "캐시 목록")
         #expect(blockedWhileRefreshing)
         #expect(refused == String(ui: "Music 보관함을 새로 읽는 중이니 목록이 최신으로 바뀐 뒤 동기화하세요."))
@@ -285,6 +266,7 @@ struct InitialITunesCacheLoadingTests {
         let store = store(fixture)
         let calls = Mutex(0)
         let started = Mutex(false)
+        let initialReturned = Mutex(false)
         let resume = DispatchSemaphore(value: 0)
         let initial = Task {
             await store.loadInitial(snapshotDirectory: directory, arguments: ["test"], environment: [:], captureITunes: {
@@ -293,12 +275,11 @@ struct InitialITunesCacheLoadingTests {
                 resume.wait()
                 return fresh
             })
+            initialReturned.withLock { $0 = true }
         }
-        let deadline = ContinuousClock.now + .seconds(90)
-        while !started.withLock({ $0 }) && ContinuousClock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        guard started.withLock({ $0 }) else {
+        let musicStarted = await waitForState(giveUp: { initialReturned.withLock { $0 } && store.iTunesRefresh == nil },
+                                              until: { started.withLock { $0 } })
+        guard musicStarted else {
             resume.signal(); await initial.value
             await store.iTunesRefresh?.task.value
             Issue.record("초기 Music 최신화가 시작되지 않았습니다")
@@ -325,6 +306,7 @@ struct InitialITunesCacheLoadingTests {
         _ = try snapshot(fixture, directory: directory)
         let store = store(fixture)
         let started = Mutex(false)
+        let returned = Mutex(false)
         let resume = DispatchSemaphore(value: 0)
         let loading = Task {
             await store.loadInitial(snapshotDirectory: directory, arguments: ["test"], environment: [:], captureITunes: {
@@ -332,11 +314,10 @@ struct InitialITunesCacheLoadingTests {
                 resume.wait()
                 return ITunesLibrarySnapshot()
             })
+            returned.withLock { $0 = true }
         }
-        let deadline = ContinuousClock.now + .seconds(90)
-        while !started.withLock({ $0 }) && ContinuousClock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        // 전체 캐시가 없으면 Music을 기다려야 하므로 loadInitial은 Music이 시작된 채 돌아오지 않는다. 시작하지 않고 돌아왔다면 더 기다릴 것이 없다.
+        _ = await waitForState(giveUp: { returned.withLock { $0 } }, until: { started.withLock { $0 } })
         let remainedLoading = store.isLoading && store.rows.isEmpty
         resume.signal()
         await loading.value
