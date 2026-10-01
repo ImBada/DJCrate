@@ -94,7 +94,7 @@ final class EditAudioPlayer: EditAudio {
     /// 원곡 형식으로 재생 노드를 출력에 잇는다(원곡과 그래프가 모두 있을 때).
     private func connect() {
         guard let graph, let decoded else { return }
-        graph.engine.connect(graph.node, to: graph.engine.mainMixerNode, format: decoded.buffer.format)
+        try! graph.engine.connectNode(graph.node, to: graph.engine.mainMixerNode, format: decoded.buffer.format)
         graph.engine.prepare()
     }
 
@@ -124,7 +124,7 @@ final class EditAudioPlayer: EditAudio {
         }
         node.volume = volume
         latency = engine.outputNode.presentationLatency
-        node.play()
+        try! node.playAudio()
         started = true
         return true
     }

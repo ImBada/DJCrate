@@ -59,7 +59,7 @@ struct UsbWriteGuardTests {
             fs.record("guard.rekordbox lock=\(FileManager.default.fileExists(atPath: lockPath))")
             return false
         }, protectedRoots: [], gate: FakeUsbVolume.gate())
-        try UsbWriter.write(fixture.exportChanges(), root: fixture.root, paths: fixture.paths, guard: guard_, fileSystem: fs)
+        _ = try UsbWriter.write(fixture.exportChanges(), root: fixture.root, paths: fixture.paths, guard: guard_, fileSystem: fs)
         let calls = fs.calls
         #expect(calls[0] == "mountedOn .")
         #expect(calls[1] == "guard.volume lock=false")
@@ -71,7 +71,7 @@ struct UsbWriteGuardTests {
         let fixture = UsbChangeSetFixture()
         defer { fixture.remove() }
         fixture.volume.volumeUUID = nil
-        #expect(codes { try UsbWriter.write(fixture.exportChanges(), root: fixture.root, paths: fixture.paths,
+        #expect(codes { _ = try UsbWriter.write(fixture.exportChanges(), root: fixture.root, paths: fixture.paths,
                                             guard: fixture.writeGuard(), fileSystem: fixture.fileSystem()) } == ["noVolumeUUID"])
         #expect(lockFiles(fixture).isEmpty)
     }
@@ -122,7 +122,7 @@ struct UsbWriteGuardTests {
         let fixture = UsbChangeSetFixture()
         defer { fixture.remove() }
         let guard_ = fixture.writeGuard(protectedRoots: [fixture.folder])
-        #expect(codes { try UsbWriter.write(fixture.exportChanges(), root: fixture.root, paths: fixture.paths, guard: guard_,
+        #expect(codes { _ = try UsbWriter.write(fixture.exportChanges(), root: fixture.root, paths: fixture.paths, guard: guard_,
                                             fileSystem: fixture.fileSystem()) } == ["protectedPath"])
     }
 
@@ -134,7 +134,7 @@ struct UsbWriteGuardTests {
         let gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID])
         let fs = fixture.fileSystem()
         let found = codes {
-            try UsbWriter.write(fixture.exportChanges(), root: fixture.root, paths: fixture.paths, guard: fixture.writeGuard(gate: gate),
+            _ = try UsbWriter.write(fixture.exportChanges(), root: fixture.root, paths: fixture.paths, guard: fixture.writeGuard(gate: gate),
                                 fileSystem: fs, options: UsbWriteOptions(confirmName: "DJCPHYS"))
         }
         #expect(found.contains("physicalDisabled"))
@@ -146,7 +146,7 @@ struct UsbWriteGuardTests {
         let fixture = UsbChangeSetFixture()
         defer { fixture.remove() }
         let gate = FakeUsbVolume.gate(deny: [fixture.volumeKey])
-        #expect(codes { try UsbWriter.write(fixture.exportChanges(), root: fixture.root, paths: fixture.paths,
+        #expect(codes { _ = try UsbWriter.write(fixture.exportChanges(), root: fixture.root, paths: fixture.paths,
                                             guard: fixture.writeGuard(gate: gate), fileSystem: fixture.fileSystem()) } == ["denied"])
     }
 

@@ -129,7 +129,8 @@ struct TrackListPolishTests {
         #expect(shapes.count == 4)
         let ticks = shapes.filter { $0.color != .loop }
         #expect(ticks.allSatisfy { $0.rect.width >= 2 && $0.rect.height >= 6 })
-        let loop = try? #require(shapes.first { $0.color == .loop })
+        let loop = shapes.first { $0.color == .loop }
+        #expect(loop != nil)
         #expect((loop?.rect.width ?? 0) >= 3 && (loop?.rect.height ?? 0) >= 2)
         #expect(shapes.allSatisfy { $0.rect.minX >= 0 && $0.rect.maxX <= 154 && $0.rect.minY >= 0 && $0.rect.maxY <= 20 })
         // 핫큐는 위, 메모리 큐는 아래

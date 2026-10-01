@@ -2,9 +2,8 @@ import DJCDomain
 import SwiftUI
 
 /// 주 창 본문: (위) 덱 · (아래) 라이브러리 표.
-/// 덱과 목록이 잰 크기(`detailHeight`·`deckChromeHeight` …)는 창 크기·사이드바·인스펙터가 움직이는 동안 줄바꿈 따위로
-/// 프레임마다 바뀐다. 그 값을 주 창(`ContentView`)이 들면 바뀔 때마다 툴바·사이드바·메뉴까지 본문을 다시 계산하므로
-/// 이 뷰가 든다(#138).
+/// 덱과 목록이 잰 원시 크기는 `LibraryLayoutMetrics`가 들고, 실제 적용 높이는 작은 뷰만 읽는다.
+/// 창 크기 변화가 곡 목록·툴바·사이드바 본문까지 전파되지 않게 한다(#138, #180).
 struct LibraryDetail: View {
     @Bindable var store: LibraryStore
     @Bindable var deck: DeckModel
@@ -16,34 +15,14 @@ struct LibraryDetail: View {
     @AppStorage(SettingKeys.sheetMode.name) private var sheetMode = SettingKeys.sheetMode.defaultValue
     @State private var sidebarAutoCollapse = SidebarVisibility()
     @State private var widthClass = DeckWidthClass(width: 1400)
-    @State private var detailHeight = 650.0
-    @State private var deckChromeHeight = 240.0
-    /// 곡 로드 중 내용 높이 재측정은 파형 높이에 반영하지 않는다(PR #151).
-    @State private var fittedChromeHeight = 240.0
-    @State private var noticeHeight = 0.0
-    @State private var listHeaderHeight = 40.0
+    @State private var layout = LibraryLayoutMetrics()
     @State private var fileDropHighlight = DropHighlight()
 
-    private var otherHeight: Double { noticeHeight + listHeaderHeight + DeckLayout.splitHandleHeight }
     /// 태그 시트는 편집 화면이라 중복 후보·USB(읽기 전용) 목록에서는 곡 목록으로 보인다.
     private var showsSheet: Bool { sheetMode && store.sidebar != .duplicates && !store.isUsbSelection }
-    private var displayedWaveformHeight: Double {
-        DeckLayout.waveformHeight(requested: waveformHeight, detailHeight: detailHeight,
-                                  deckChromeHeight: fittedChromeHeight, otherHeight: otherHeight)
-    }
-    private var maximumWaveformHeight: Double {
-        DeckLayout.waveformHeight(requested: DeckLayout.maximumWaveformHeight, detailHeight: detailHeight,
-                                  deckChromeHeight: fittedChromeHeight, otherHeight: otherHeight)
-    }
-    /// 메뉴 '파형 크게·작게'
-    private var waveformHeightControl: WaveformHeightControl {
-        WaveformHeightControl(displayed: displayedWaveformHeight, maximum: maximumWaveformHeight) { waveformHeight = $0 }
-    }
 
     var body: some View {
         let _ = PerfProbe.body(Self.self)
-        let displayedHeight = displayedWaveformHeight
-        let maximumHeight = maximumWaveformHeight
         // VSplitView(NSSplitView)는 자식 최소 크기가 내용에 따라 바뀌면 레이아웃을 끝없이
         // 다시 잡다가 예외로 죽는다. SwiftUI만으로 나누고, 덱 높이는 핸들로 조절한다.
         VStack(spacing: 0) {
@@ -70,28 +49,16 @@ struct LibraryDetail: View {
                     AppMessageView(message: message, onClose: { store.playlistMessage = nil })
                 }
             }
-            .onGeometryChange(for: Double.self) { $0.size.height } action: { noticeHeight = $0 }
+            .onGeometryChange(for: Double.self) { $0.size.height } action: { layout.measureNotice($0) }
             // 파형은 본문 높이가 바뀔 때만 맞추고, 덱 내용이 늘면 덱만 스크롤한다(PR #151).
-            ScrollView(.vertical) {
-                DeckView(store: store, deck: deck, waveformHeight: displayedHeight, widthClass: widthClass)
-                    .frame(maxWidth: .infinity, alignment: .top)
-                    .fixedSize(horizontal: false, vertical: true)
-                    // 높이는 아래 본문 크기와 같은 배치에서 함께 잰다(인스펙터가 만든 본문 사본의 덱 높이를 걸러 내려고).
-                    .anchorPreference(key: DeckBoundsKey.self, value: .bounds) { $0 }
-            }
-            // 들어맞을 때는 튕기지 않게 해 스크럽 뒤 불필요한 감속을 막는다(#92).
-            .scrollBounceBehavior(.basedOnSize, axes: .vertical)
-            .frame(height: DeckLayout.deckViewportHeight(contentHeight: deckChromeHeight + displayedHeight,
-                                                         detailHeight: detailHeight, otherHeight: otherHeight))
-            // 곡 목록에서 끌어다 놓으면 덱에 올린다(#93)
-            .modifier(DeckDropTarget(store: store))
-            SplitHandle(height: $waveformHeight, displayedHeight: displayedHeight, maximumHeight: maximumHeight)
+            LibraryDeckViewport(store: store, deck: deck, layout: layout, widthClass: widthClass)
+            LibrarySplitHandle(layout: layout, height: $waveformHeight)
             VStack(spacing: 0) {
                 DraftRecoveryBar(store: store, deck: deck)
                 ListActionBar(store: store)
                 if showsSheet { SheetHeader() }
             }
-            .onGeometryChange(for: Double.self) { $0.size.height } action: { listHeaderHeight = $0 }
+            .onGeometryChange(for: Double.self) { $0.size.height } action: { layout.measureListHeader($0) }
             Group {
                 if store.sidebar == .duplicates {
                     DuplicateTracksView(store: store)
@@ -128,19 +95,16 @@ struct LibraryDetail: View {
         // 본문을 두 번씩 다시 계산했다(#138). 본문 크기와 덱 높이를 한 번에 재고 본문이 아닌 측정은 통째로 버린다.
         .backgroundPreferenceValue(DeckBoundsKey.self) { deckBounds in
             Color.clear.onGeometryChange(for: DetailGeometry.self) { proxy in
-                DetailGeometry(size: proxy.size, deckHeight: deckBounds.map { proxy[$0].height } ?? 0)
+                DetailGeometry(size: proxy.size, deckHeight: deckBounds.map { proxy[$0.bounds].height } ?? 0,
+                               waveformHeight: deckBounds?.waveformHeight ?? 0)
             } action: { geometry in
                 guard DeckLayout.isDetailMeasurement(height: geometry.size.height) else { return }
                 // 폭은 창 크기·사이드바·인스펙터가 움직이는 동안 프레임마다 바뀐다. 바뀐 상태만 써서
                 // 이 본문과 덱을 프레임마다 다시 계산하지 않는다(#138).
-                if deck.row != nil, abs(detailHeight - geometry.size.height) > 1 {
-                    fittedChromeHeight = deckChromeHeight
-                }
-                if detailHeight != geometry.size.height { detailHeight = geometry.size.height }
+                layout.measureDetail(height: geometry.size.height, deckHeight: geometry.deckHeight,
+                                     waveformHeight: geometry.waveformHeight, hasTrack: deck.row != nil)
                 let width = DeckWidthClass(width: geometry.size.width)
                 if widthClass != width { widthClass = width }
-                let chrome = max(0, geometry.deckHeight - displayedHeight)
-                if deckChromeHeight != chrome { deckChromeHeight = chrome }
                 // 인스펙터를 열어 덱 폭이 모자라면 탐색 열을 접어 컨트롤 자리를 남긴다.
                 var autoCollapse = sidebarAutoCollapse
                 let collapse = autoCollapse.shouldCollapse(detailWidth: geometry.size.width, windowFrameRestored: windowFrameRestored)
@@ -150,18 +114,66 @@ struct LibraryDetail: View {
         }
         // 새 스냅샷을 읽고 다시 그릴 때도 첫 측정은 임시 폭이다.
         .onDisappear { sidebarAutoCollapse.reset() }
-        .focusedSceneValue(\.waveformHeight, waveformHeightControl)
+        .onChange(of: waveformHeight, initial: true) { layout.request(waveformHeight) }
+        .modifier(LibraryWaveformHeightContext(layout: layout, height: $waveformHeight))
     }
 }
 
 /// 덱 전체(스크롤 안 내용)의 위치·크기
 private struct DeckBoundsKey: PreferenceKey {
-    static let defaultValue: Anchor<CGRect>? = nil
-    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) { value = value ?? nextValue() }
+    static let defaultValue: DeckMeasurement? = nil
+    static func reduce(value: inout DeckMeasurement?, nextValue: () -> DeckMeasurement?) { value = value ?? nextValue() }
+}
+
+private struct DeckMeasurement {
+    var bounds: Anchor<CGRect>
+    var waveformHeight: Double
 }
 
 /// 한 배치에서 함께 잰 본문 크기와 덱 높이
 private struct DetailGeometry: Equatable {
     var size: CGSize
     var deckHeight: Double
+    var waveformHeight: Double
+}
+
+/// 높이 적용값이 바뀔 때만 덱·핸들·메뉴를 갱신하고, 곡 목록까지 다시 만들지 않는다.
+private struct LibraryDeckViewport: View {
+    let store: LibraryStore
+    let deck: DeckModel
+    let layout: LibraryLayoutMetrics
+    var widthClass: DeckWidthClass
+
+    var body: some View {
+        let _ = PerfProbe.body(Self.self)
+        let height = layout.waveformHeight
+        ScrollView(.vertical) {
+            DeckView(store: store, deck: deck, waveformHeight: height, widthClass: widthClass)
+                .frame(maxWidth: .infinity, alignment: .top)
+                .fixedSize(horizontal: false, vertical: true)
+                .anchorPreference(key: DeckBoundsKey.self, value: .bounds) { DeckMeasurement(bounds: $0, waveformHeight: height) }
+        }
+        .scrollBounceBehavior(.basedOnSize, axes: .vertical)
+        .frame(height: layout.viewportHeight)
+        .modifier(DeckDropTarget(store: store))
+    }
+}
+
+private struct LibrarySplitHandle: View {
+    let layout: LibraryLayoutMetrics
+    @Binding var height: Double
+
+    var body: some View {
+        SplitHandle(height: $height, displayedHeight: layout.waveformHeight, maximumHeight: layout.maximumWaveformHeight)
+    }
+}
+
+private struct LibraryWaveformHeightContext: ViewModifier {
+    let layout: LibraryLayoutMetrics
+    @Binding var height: Double
+
+    func body(content: Content) -> some View {
+        content.focusedSceneValue(\.waveformHeight,
+            WaveformHeightControl(displayed: layout.waveformHeight, maximum: layout.maximumWaveformHeight) { height = $0 })
+    }
 }

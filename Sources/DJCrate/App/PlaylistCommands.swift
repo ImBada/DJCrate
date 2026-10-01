@@ -41,7 +41,7 @@ struct PlaylistCommands: View {
         Button(.ui("재생 목록 초안 버리기…")) { if let store { PlaylistPanels.discardAll(store: store) } }
             .disabled(!enabled || store?.hasPlaylistDrafts != true)
         if let store, store.blockedPlaylistEditCount > 0 {
-            Button(.ui("쓸 수 없는 재생 목록 초안 버리기 (\(store.blockedPlaylistEditCount)건)")) { store.discardBlockedPlaylistEdits() }
+            Button(.ui("재생 목록 현재값 가져오기…")) { DraftRecoveryPanels.recoverPlaylists(store: store) }
                 .disabled(!enabled)
         }
     }

@@ -604,7 +604,7 @@ final class TrackEditModel {
         let output = Self.availableURL(in: editsDirectory, name: Self.fileName(for: title))
         let source = source, offset = timelineOffset, home = home, track = row.track, title = title
         renderProgress = 0
-        renderTask = Task {
+        renderTask = Task { [self] in
             defer {
                 renderTask = nil
                 renderProgress = nil

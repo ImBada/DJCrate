@@ -19,6 +19,15 @@ struct DJCrateApp: App {
         // SwiftPM 실행 파일은 번들이 없어서 Dock·메뉴 막대에 올리려면 직접 지정해야 한다.
         NSApplication.shared.setActivationPolicy(.regular)
         #if DEBUG
+        if ResizePerfSelfTest.isRequested {
+            // 측정 창을 띄워도 사용 중인 앱의 포커스를 가져오지 않는다.
+            NSApplication.shared.setActivationPolicy(.accessory)
+            if let refusal = ResizePerfSelfTest.startupRefusal() {
+                ResizePerfSelfTest.log(refusal)
+                exit(2)
+            }
+            ResizePerfSelfTest.saveSettings()
+        }
         // 창이 만들어지기 전에 정해야 SwiftUI와 AppKit 목록이 같은 모양새로 시작한다.
         if ProcessInfo.processInfo.arguments.contains("--perf-appearance=light") { NSApplication.shared.appearance = NSAppearance(named: .aqua) }
         if ProcessInfo.processInfo.arguments.contains("--perf-appearance=dark") { NSApplication.shared.appearance = NSAppearance(named: .darkAqua) }
@@ -41,7 +50,9 @@ struct DJCrateApp: App {
                 .task {
                     appDelegate.store = store
                     #if DEBUG
-                    if !ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("--blocked-reasons-capture=") }) {
+                    if !ResizePerfSelfTest.isRequested,
+                       !ProcessInfo.processInfo.arguments.contains("--playlist-recovery-selftest"),
+                       !ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("--blocked-reasons-capture=") }) {
                         NSApplication.shared.activate()
                     }
                     #else
@@ -120,6 +131,12 @@ private struct MainWindowFrame: NSViewRepresentable {
             // SwiftUI가 기본 크기를 잡은 뒤 저장된 프레임을 적용한다.
             DispatchQueue.main.async { [weak self] in
                 guard let self, let window else { return }
+                #if DEBUG
+                if ResizePerfSelfTest.isRequested || ProcessInfo.processInfo.arguments.contains("--playlist-recovery-selftest") {
+                    onRestore()
+                    return
+                }
+                #endif
                 if window.frameAutosaveName != "djc.mainWindow" {
                     window.setFrameUsingName("djc.mainWindow")
                     window.setFrameAutosaveName("djc.mainWindow")

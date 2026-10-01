@@ -290,7 +290,7 @@ final class DeckAudio {
         guard let engine else { return }
         if engine.isRunning { engine.stop() }
         engine.disconnectNodeOutput(engine.mainMixerNode)
-        engine.connect(engine.mainMixerNode, to: engine.outputNode, format: nil)
+        try! engine.connectNode(engine.mainMixerNode, to: engine.outputNode, format: nil)
         engine.prepare()
     }
 
@@ -336,24 +336,24 @@ final class DeckAudio {
     var isEngineRunning: Bool { engine?.isRunning ?? false }
 
     /// 진단: 곡 믹서 출력(속도 변환 전)을 받아 본다. 스피커는 음소거한다(개발용 자가 테스트).
-    func debugCaptureTrack(_ handler: @escaping @Sendable (AVAudioPCMBuffer) -> Void) {
+    func debugCaptureTrack(_ handler: @escaping @Sendable (AVReadOnlyAudioPCMBuffer) -> Void) {
         guard let graph else { return }
         graph.engine.mainMixerNode.outputVolume = 0
         graph.trackMixer.removeTap(onBus: 0)
-        graph.trackMixer.installTap(onBus: 0, bufferSize: 1024, format: nil, block: Self.captureTap(handler))
+        try! graph.trackMixer.installAudioTap(onBus: 0, bufferSize: 1024, format: nil, tapProvider: Self.captureTap(handler))
     }
 
     /// 오디오 스레드에서 불리므로 메인 액터 밖에서 만든다.
-    nonisolated private static func captureTap(_ handler: @escaping @Sendable (AVAudioPCMBuffer) -> Void) -> AVAudioNodeTapBlock {
+    nonisolated private static func captureTap(_ handler: @escaping @Sendable (AVReadOnlyAudioPCMBuffer) -> Void) -> @Sendable (AVReadOnlyAudioPCMBuffer, AVAudioTime) -> Void {
         { buffer, _ in handler(buffer) }
     }
 
     /// 진단: 메트로놈 노드 출력을 받아 본다(클릭이 빠지지 않는지 세는 자가 테스트).
-    func debugCaptureClicks(_ handler: @escaping @Sendable (AVAudioPCMBuffer) -> Void) {
+    func debugCaptureClicks(_ handler: @escaping @Sendable (AVReadOnlyAudioPCMBuffer) -> Void) {
         guard let engine, let clickNode else { return }
         engine.mainMixerNode.outputVolume = 0
         clickNode.removeTap(onBus: 0)
-        clickNode.installTap(onBus: 0, bufferSize: 1024, format: nil, block: Self.captureTap(handler))
+        try! clickNode.installAudioTap(onBus: 0, bufferSize: 1024, format: nil, tapProvider: Self.captureTap(handler))
     }
 
     /// 진단: 알림 없이 엔진이 멈춘 상황을 흉내 낸다.
@@ -401,11 +401,11 @@ final class DeckAudio {
         let engine = graph.engine
         graph.gainUnit.removeTap(onBus: 0)
         for node in [graph.trackNode, graph.gainUnit, graph.trackMixer] as [AVAudioNode] { engine.disconnectNodeOutput(node) }
-        engine.connect(graph.trackNode, to: graph.gainUnit, format: file.processingFormat)
-        engine.connect(graph.gainUnit, to: graph.trackMixer, format: file.processingFormat)
-        engine.connect(graph.trackMixer, to: graph.subMixer, format: file.processingFormat)
+        try! engine.connectNode(graph.trackNode, to: graph.gainUnit, format: file.processingFormat)
+        try! engine.connectNode(graph.gainUnit, to: graph.trackMixer, format: file.processingFormat)
+        try! engine.connectNode(graph.trackMixer, to: graph.subMixer, format: file.processingFormat)
         meter.reset()
-        graph.gainUnit.installTap(onBus: 0, bufferSize: 1024, format: file.processingFormat, block: Self.meterTap(meter))
+        try! graph.gainUnit.installAudioTap(onBus: 0, bufferSize: 1024, format: file.processingFormat, tapProvider: Self.meterTap(meter))
         engine.prepare()
     }
 
@@ -516,8 +516,8 @@ final class DeckAudio {
         let startHost = max(mach_absolute_time(), renderHost) + AVAudioTime.hostTime(forSeconds: 0.02)
         let when = AVAudioTime(hostTime: startHost)
         let trackStart = AVAudioTime(hostTime: startHost + AVAudioTime.hostTime(forSeconds: leadIn / rate))
-        trackNode.play(at: leadIn > 0 ? trackStart : when)
-        clickNode.play(at: when)
+        try! trackNode.playAudio(at: leadIn > 0 ? trackStart : when)
+        try! clickNode.playAudio(at: when)
         anchorPosition = position
         anchorHost = AVAudioTime.seconds(forHostTime: startHost)
         clickEpochPosition = position
@@ -592,8 +592,8 @@ final class DeckAudio {
     private func updateJumpLead() {
         guard let engine else { return }
         let output = engine.outputNode
-        let device = output.auAudioUnit.deviceID
-        var frames = output.auAudioUnit.maximumFramesToRender
+        let (device, maximumFrames) = output.withAUAudioUnit { ($0.deviceID, $0.maximumFramesToRender) }
+        var frames = maximumFrames
         var size = UInt32(MemoryLayout<UInt32>.size)
         var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyBufferFrameSize,
                                                   mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
@@ -635,7 +635,7 @@ final class DeckAudio {
         guard isPlaying else { return }
         clickNode?.stop()
         let startHost = mach_absolute_time() + AVAudioTime.hostTime(forSeconds: delay)
-        clickNode?.play(at: AVAudioTime(hostTime: startHost))
+        try! clickNode?.playAudio(at: AVAudioTime(hostTime: startHost))
         clickEpochPosition = anchorPosition + (AVAudioTime.seconds(forHostTime: startHost) - anchorHost) * rate
         clickScheduledUntil = clickEpochPosition - 0.001
     }
@@ -662,14 +662,19 @@ final class DeckAudio {
 
     /// 엔진이 실제로 소리를 내보내는 장치 이름(기본 출력이 바뀌었는지 확인용).
     func outputDeviceName() -> String {
-        guard let unit = engine?.outputNode.audioUnit else { return "?" }
-        var device = AudioDeviceID(0)
-        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
-        guard AudioUnitGetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &device, &size) == noErr else { return "?" }
+        guard let output = engine?.outputNode else { return "?" }
+        let device: AudioDeviceID? = output.withAudioUnit { unit in
+            guard let unit else { return nil }
+            var device = AudioDeviceID(0)
+            var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+            guard AudioUnitGetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &device, &size) == noErr else { return nil }
+            return device
+        }
+        guard let device else { return "?" }
+        var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
         var address = AudioObjectPropertyAddress(mSelector: kAudioObjectPropertyName, mScope: kAudioObjectPropertyScopeGlobal,
                                                  mElement: kAudioObjectPropertyElementMain)
         var name: Unmanaged<CFString>?
-        size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
         guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &name) == noErr, let name else { return "#\(device)" }
         return name.takeRetainedValue() as String
     }
@@ -680,21 +685,23 @@ final class DeckAudio {
     private func installDebugTap() {
         guard !tapInstalled, let engine else { return }
         tapInstalled = true
-        engine.mainMixerNode.installTap(onBus: 0, bufferSize: 512, format: nil, block: Self.silenceLogger())
+        try! engine.mainMixerNode.installAudioTap(onBus: 0, bufferSize: 512, format: nil, tapProvider: Self.silenceLogger())
     }
 
     /// 미터 탭: 버퍼마다 채널 피크·RMS를 잰다.
-    nonisolated private static func meterTap(_ meter: LevelMeter) -> AVAudioNodeTapBlock {
+    nonisolated static func meterTap(_ meter: LevelMeter) -> @Sendable (AVReadOnlyAudioPCMBuffer, AVAudioTime) -> Void {
         { @Sendable buffer, _ in
-            guard let data = buffer.floatChannelData else { return }
             let n = vDSP_Length(buffer.frameLength)
-            guard n > 0 else { return }
+            guard n > 0, buffer.format.commonFormat == .pcmFormatFloat32 else { return }
             let channels = Int(buffer.format.channelCount)
             var peaks: [Float] = [], rms: [Float] = []
             for ch in 0..<min(channels, 2) {
                 var peak: Float = 0, level: Float = 0
-                vDSP_maxmgv(data[ch], 1, &peak, n)
-                vDSP_rmsqv(data[ch], 1, &level, n)
+                guard case let .float(samples) = buffer.channelData(ch) else { return }
+                samples.withUnsafeBufferPointer { data in
+                    vDSP_maxmgv(data.baseAddress!, 1, &peak, n)
+                    vDSP_rmsqv(data.baseAddress!, 1, &level, n)
+                }
                 peaks.append(peak); rms.append(level)
             }
             if peaks.count == 1 { peaks.append(peaks[0]); rms.append(rms[0]) }
@@ -704,13 +711,13 @@ final class DeckAudio {
 
     /// 탭 블록은 오디오 스레드에서 불린다. `@MainActor` 안에서 만들면 메인 액터 격리로 추론돼
     /// Swift 6 런타임이 앱을 종료시키므로, 격리되지 않은 정적 함수에서 만든다.
-    nonisolated private static func silenceLogger() -> AVAudioNodeTapBlock {
+    nonisolated private static func silenceLogger() -> @Sendable (AVReadOnlyAudioPCMBuffer, AVAudioTime) -> Void {
         final class State: @unchecked Sendable { var silent: Bool? }
         let state = State()
         return { @Sendable buffer, time in
-            guard let data = buffer.floatChannelData else { return }
+            guard case let .float(samples) = buffer.channelData(0) else { return }
             var peak: Float = 0
-            for i in 0..<Int(buffer.frameLength) { peak = max(peak, abs(data[0][i])) }
+            for i in 0..<buffer.frameLength { peak = max(peak, abs(samples[i])) }
             let silent = peak == 0
             guard silent != state.silent else { return }
             state.silent = silent

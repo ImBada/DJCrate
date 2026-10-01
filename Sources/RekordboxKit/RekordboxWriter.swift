@@ -355,7 +355,7 @@ public enum RekordboxWriter {
                 for step in playlistSteps {
                     let edit = step.edit
                     if let playlistDraft, let rekordbox,
-                       let reason = step.depends.lazy.compactMap({ playlistDraft.staleReason($0, rekordbox: rekordbox) }).first {
+                       let reason = playlistDraft.staleReason(for: step, rekordbox: rekordbox) {
                         let name = work.tree.nodes[edit.playlist.layoutID]?.name ?? edit.playlist.description
                         playlistOutcomes.append(PlaylistOutcome(edit: edit, playlistID: nil, name: name, status: .blocked, reason: reason))
                         continue
