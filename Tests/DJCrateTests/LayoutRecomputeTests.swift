@@ -39,6 +39,8 @@ struct LayoutRecomputeTests {
         let fixture = try historyFixture()
         let snapshot = ProcessInfo.processInfo.environment["DJC_LAYOUT_BENCHMARK_DB"].map { URL(filePath: $0) } ?? fixture.database
         let store = LibraryStore(resultHistory: WriteResultHistory(url: nil), feedback: AppFeedback(announce: { _ in }))
+        store.rekordboxDatabase = fixture.database
+        store.rekordboxShareRoot = fixture.shareRoot
         await store.load(snapshot: snapshot)
         let deck = DeckModel(audio: FakeDeckAudio(), storage: .memory(MemoryDrafts()), runsAnalysis: false)
         let controller = NSHostingController(rootView: ContentView(store: store, deck: deck, windowFrameRestored: false))
@@ -84,6 +86,29 @@ struct LayoutRecomputeTests {
         // 한 단계마다가 아니라 배치 단계(폭 구간)나 덱 높이가 바뀔 때 몇 번뿐이어야 한다(최신 dev 재현: 155·266번).
         #expect(PerfProbe.bodyCount("ContentView") <= 2)
         #expect(PerfProbe.bodyCount("DeckView") <= 5)
+    }
+
+    @Test func 창_높이가_바뀌어도_파형과_덱이_들어맞으면_큰_본문을_다시_계산하지_않는다() async throws {
+        PerfProbe.countsBodies = true
+        defer { PerfProbe.countsBodies = false }
+        let (window, _, close) = try await mainWindow()
+        defer { close() }
+        try await settle(window)
+        let waveformHeight = try #require(PerfProbe.lastWaveformHeight)
+        PerfProbe.resetBodyCounts()
+        for step in 0..<40 {
+            let offset = Double(step < 20 ? step : 39 - step) * 8
+            window.setContentSize(NSSize(width: 1440, height: 900 - offset))
+            window.contentView?.layoutSubtreeIfNeeded()
+            try await Task.sleep(for: .milliseconds(16))
+        }
+        try await settle(window)
+        print("TRACE 창 높이 40단계:", PerfProbe.bodySummary() ?? "-")
+        #expect(PerfProbe.lastWaveformHeight == waveformHeight)
+        #expect(PerfProbe.bodyCount("ContentView") <= 2)
+        #expect(PerfProbe.bodyCount("LibraryDetail") <= 2)
+        #expect(PerfProbe.bodyCount("DeckView") <= 5)
+        #expect(PerfProbe.bodyCount("TrackListView.update") <= 2)
     }
 
     private func splitController(_ view: NSView?) -> NSSplitViewController? {

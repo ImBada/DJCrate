@@ -43,6 +43,10 @@ quick과 stress는 `swift build --build-tests --enable-code-coverage`의 같은 
 
 ## 테스트 준비 비용
 
+창 크기 변경의 본문 재계산 회귀는 `DJC_LAYOUT_RECOMPUTE_TESTS=1 scripts/check.sh --quick --filter 'LayoutRecomputeTests|LibraryLayoutMetricsTests|DeckLayoutTests|ResizePerfTests'`로 단독 실행한다. 덱·파형이 들어맞는 세로 40단계에서 `LibraryDetail`은 2회 이하, `DeckView`는 5회 이하를 유지하며, 낮은 창·내용 변경·수동 파형 높이 복원도 검사한다. 시험 창은 `orderBack`으로 열어 활성화하거나 실제 입력을 보내지 않는다.
+
+시간 회귀를 비교할 때는 같은 합성 `UIPerfFixtureCapture` 사본과 디버그 계측 빌드에 `--resize-perf=all --resize-perf-repeats=3 --perf-preview=off --text-scale=1`을 준다. `DJC_DB`·`DJC_REKORDBOX_DIR`·임시 `DJC_HOME`과 `/tmp/djc-heavy.lock`을 사용한다. 전→후→후→전 순서로 실행하고 첫 왕복을 제외한 `RESIZE_SUMMARY`의 단계 중앙값/최댓값·프레임 간격·CPU·본문 횟수와 1·5·15분 load average를 함께 비교한다. `RESIZE_STEP`은 단계별 원본이며, 크기 요청 자체에서도 배치가 일어날 수 있으므로 `layout_flush_ms`만 전체 레이아웃 비용으로 해석하지 않는다. `display_flush_ms`는 표시 처리 호출 비용, `zoom_draw_ms`는 확대 파형 Canvas 실행 비용이다. 디스플레이 링크 콜백 간격은 실제 화면 표시 FPS나 물리 입력 지연이 아니다.
+
 가짜 오디오·메모리 저장소를 쓰는 `DeckHarness`는 합성 WAV와 임시 폴더만 만든다. DB가 필요한 통합 테스트는 계속 `RekordboxFixture`를 쓴다. 이 픽스처는 암호화 설정을 유지하면서 스키마·초기 행을 한 연결·한 트랜잭션으로 준비하고, 곡·재생 목록의 여러 행도 각각 한 트랜잭션으로 넣는다. 준비 중 실패하면 연결을 닫을 때 미완료 트랜잭션이 취소된다. 픽스처마다 독립된 파일을 쓰며, 실제 쓰기·복원 후 다시 읽는 연결은 공유하거나 캐시하지 않는다.
 
 ## 시간 비교 방법과 기준
