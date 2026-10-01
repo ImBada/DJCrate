@@ -10,7 +10,7 @@ extension DevSelfTests {
               ProcessInfo.processInfo.environment["DJC_HOME"] != nil else { return }
         let directory = String(argument.dropFirst("--draft-notice-capture=".count))
         func log(_ text: String) { FileHandle.standardError.write(Data("[초안 안내 화면] \(text)\n".utf8)) }
-        Task {
+        Task { @MainActor in
             func wait(_ seconds: Double) async { try? await Task.sleep(for: .seconds(seconds)) }
             for _ in 0..<100 {
                 if case .loaded = store.phase { break }
@@ -22,7 +22,8 @@ extension DevSelfTests {
                 exit(2)
             }
             var failures = 0
-            func capture(_ window: NSWindow, _ name: String) {
+            // 지역 함수는 둘러싼 Task의 메인 액터 격리를 물려받지 않으므로 창 번호를 읽는 이 함수에 따로 적는다.
+            @MainActor func capture(_ window: NSWindow, _ name: String) {
                 let process = Process()
                 process.executableURL = URL(filePath: "/usr/sbin/screencapture")
                 process.arguments = ["-x", "-o", "-l", String(window.windowNumber), "\(directory)/\(name).png"]

@@ -44,7 +44,7 @@ struct RestoreTargetTests {
         }
         _ = try await store.writeToRekordbox([draft])
         #expect(try cueCount(fixture) == 1)
-        let backup = try #require(try RekordboxWriter.backups(in: fixture.backups).first(where: \.isWrite))
+        let backup = try #require(RekordboxWriter.backups(in: fixture.backups).first(where: { $0.isWrite }))
         try await store.restoreRekordbox(backup, keepingCurrentDrafts: true)
         #expect(try cueCount(fixture) == 0)
         #expect(!FileManager.default.fileExists(atPath: RekordboxWriter.liveDatabase.path))

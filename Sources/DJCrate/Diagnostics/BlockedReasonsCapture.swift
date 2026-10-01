@@ -9,7 +9,7 @@ extension DevSelfTests {
               ProcessInfo.processInfo.environment["DJC_HOME"] != nil,
               ProcessInfo.processInfo.environment["DJC_REKORDBOX_DIR"] != nil else { return }
         let directory = String(argument.dropFirst("--blocked-reasons-capture=".count))
-        Task {
+        Task { @MainActor in
             for _ in 0..<200 {
                 if case .loaded = store.phase { break }
                 try? await Task.sleep(for: .milliseconds(100))
@@ -20,7 +20,8 @@ extension DevSelfTests {
             FileHandle.standardError.write(Data("[막힘 안내 화면] 앱 비활성 상태 확인\n".utf8))
             window.setContentSize(NSSize(width: 1440, height: 1000))
             var failures = 0
-            func capture(_ window: NSWindow, _ name: String) {
+            // 지역 함수는 둘러싼 Task의 메인 액터 격리를 물려받지 않으므로 창 번호를 읽는 이 함수에 따로 적는다.
+            @MainActor func capture(_ window: NSWindow, _ name: String) {
                 let process = Process()
                 process.executableURL = URL(filePath: "/usr/sbin/screencapture")
                 process.arguments = ["-x", "-o", "-l", String(window.windowNumber), "\(directory)/\(name).png"]

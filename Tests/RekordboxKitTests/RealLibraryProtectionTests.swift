@@ -67,7 +67,7 @@ struct RealLibraryProtectionTests {
         draft.place(EditableCue(kind: .memory, time: 4))
         _ = try RekordboxWriter.write(drafts: [draft], to: source.database, dryRun: false, backups: source.backups,
                                       shareRoot: source.shareRoot, guard: checked)
-        let backup = try #require(try RekordboxWriter.backups(in: source.backups).first)
+        let backup = try #require(RekordboxWriter.backups(in: source.backups).first)
         let other = try RekordboxFixture()
         try other.add(spec)
         try other.execute("UPDATE djmdProperty SET DBID = '2'")
@@ -76,7 +76,7 @@ struct RealLibraryProtectionTests {
             try RekordboxWriter.restore(backup.url, to: other.database, backups: other.backups, guard: checked, shareRoot: other.shareRoot)
         }
         #expect(try Data(contentsOf: other.database) == before)
-        #expect(try RekordboxWriter.backups(in: other.backups).isEmpty)
+        #expect(RekordboxWriter.backups(in: other.backups).isEmpty)
         // 같은 라이브러리의 백업은 그대로 되돌린다.
         _ = try RekordboxWriter.restore(backup.url, to: source.database, backups: source.backups, guard: checked, shareRoot: source.shareRoot)
         #expect(try source.rows("SELECT count(*) AS n FROM djmdCue WHERE rb_local_deleted = 0").first?["n"] == "0")
