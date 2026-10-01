@@ -76,7 +76,7 @@ struct StagedKeyTests {
     @Test func 추정_키_칸은_기울임_툴팁_VoiceOver로도_알린다() {
         func spoken(_ cell: TrackTextCell) -> String? {
             let value = cell.label.accessibilityValue()
-            return (value as? String) ?? (value as? NSAttributedString)?.string
+            return value
         }
         let cell = TrackTextCell()
         cell.set("8A", color: UIColors.suggestion.nsColor, estimated: true)

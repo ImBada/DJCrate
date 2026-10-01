@@ -196,7 +196,7 @@ struct ReflectionCoordinatorTests {
         var preview = Self.preview(cues: [])
         preview.report.playlistOutcomes = outcomes
         var draft = PlaylistDraft()
-        try? draft.append(.create(key: "k", name: "세트", isFolder: false, parent: .root), rekordbox: PlaylistLayout())
+        _ = try? draft.append(.create(key: "k", name: "세트", isFolder: false, parent: .root), rekordbox: PlaylistLayout())
         preview.playlists = draft
         return preview
     }
@@ -341,7 +341,8 @@ struct ReflectionCoordinatorTests {
         // 확인 창 3개 뒤마다 경고 하나씩
         let alerts = prompter.shown.filter { $0.confirm == nil }
         #expect(alerts.count == 3 && alerts.allSatisfy(\.critical))
-        let alert = try? #require(alerts.first)
+        let alert: ReflectionPrompt? = alerts.first
+        #expect(alert != nil)
         #expect(alert?.title == "쓰기 확인에 실패했고 자동 복원도 하지 못했습니다")
         let text = alert?.text ?? ""
         // 반영·넣기·빼기 모두 같은 버튼(가장 최근 쓰기 백업으로 되돌림). 사이드바 아래 '마지막 반영 되돌리기…'는 성공한 쓰기 뒤에만 보여 안내하지 않는다.
@@ -481,7 +482,8 @@ struct ReflectionCoordinatorTests {
         host.addPreview = .success(Self.addPreview([a, b, Self.track("c", written: false, reason: "이미 rekordbox 컬렉션에 있는 파일입니다")],
                                                    without: ["b": "ALAC"]))
         await coordinator().addTracks(rows: ["djc-a", "djc-b", "djc-c"].map(Self.row))
-        let prompt = try? #require(prompter.shown.first)
+        let prompt: ReflectionPrompt? = prompter.shown.first
+        #expect(prompt != nil)
         #expect(prompt?.title == "2곡을 rekordbox에 넣을까요?" && prompt?.confirm == "rekordbox에 넣기" && prompt?.critical == false)
         let lines = prompt?.details ?? []
         #expect(lines.contains("• 곡 a — 그리드·파형·오토게인까지 · 큐 2개") && lines.contains("• 곡 b — 분석 없이(ALAC) · ⚠︎ 큐는 안 들어감(메모리 큐가 11개가 됩니다)"))
@@ -495,7 +497,8 @@ struct ReflectionCoordinatorTests {
         host.deletePreview = .success(.init(report: report, contentIDs: ["id-a", "id-b"]))
         prompter.answer = false
         await coordinator().deleteTracks(rows: [Self.row("a"), Self.row("b")])
-        let prompt = try? #require(prompter.shown.first)
+        let prompt: ReflectionPrompt? = prompter.shown.first
+        #expect(prompt != nil)
         #expect(prompt?.critical == true && prompt?.title == "1곡을 rekordbox에서 뺄까요?" && prompt?.confirm == "rekordbox에서 빼기")
         #expect(prompt?.text.contains("음원 파일은 지우지 않습니다") == true && prompt?.details.contains { $0.contains("djmdSongMyTag") } == true)
         #expect(host.deleted == nil && !host.isWritingRekordbox)

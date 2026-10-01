@@ -288,7 +288,7 @@ struct TrackListTagEditTests {
 
     private func spoken(_ cell: TrackTextCell) -> String? {
         let value = cell.label.accessibilityValue()
-        return (value as? String) ?? (value as? NSAttributedString)?.string
+        return value
     }
 }
 

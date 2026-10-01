@@ -2,6 +2,7 @@
 import AppKit
 import DJCTestSupport
 import SwiftUI
+import Synchronization
 import Testing
 
 /// 재생 중 덱 머리 글자(남은 시간·재생 위치)는 초당 15번 바뀐다. 글자가 바뀔 때마다 덱 전체의 크기를
@@ -10,10 +11,14 @@ import Testing
 struct DeckHeaderLayoutTests {
     /// 자식 크기를 물어 오는 횟수를 센다(바깥 레이아웃이 자식 때문에 다시 계산됐는지 보는 표지).
     struct CountingLayout: Layout {
-        final class Counter { var sizeCalls = 0 }
+        final class Counter: Sendable {
+            private let calls = Mutex(0)
+            var sizeCalls: Int { calls.withLock { $0 } }
+            func hit() { calls.withLock { $0 += 1 } }
+        }
         let counter: Counter
         func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-            counter.sizeCalls += 1
+            counter.hit()
             return subviews.first?.sizeThatFits(proposal) ?? .zero
         }
         func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {

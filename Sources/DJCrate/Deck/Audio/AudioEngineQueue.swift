@@ -42,10 +42,11 @@ final class DeckAudioGraph: @unchecked Sendable {
     private init() {
         for node in [trackNode, gainUnit, trackMixer, clickNode, subMixer, varispeed, timePitch] as [AVAudioNode] { engine.attach(node) }
         gainUnit.bands[0].bypass = true
-        engine.connect(clickNode, to: subMixer, format: AVAudioFormat(standardFormatWithSampleRate: Self.clickSampleRate, channels: 2))
-        engine.connect(subMixer, to: varispeed, format: nil)
-        engine.connect(varispeed, to: timePitch, format: nil)
+        // 옛 API도 잘못된 연결은 예외로 종료했다. 같은 형식·자동 믹서 버스를 쓰고 실패를 숨기지 않는다.
+        try! engine.connectNode(clickNode, to: subMixer, format: AVAudioFormat(standardFormatWithSampleRate: Self.clickSampleRate, channels: 2))
+        try! engine.connectNode(subMixer, to: varispeed, format: nil)
+        try! engine.connectNode(varispeed, to: timePitch, format: nil)
         // 여기서 출력 장치 IO 유닛이 생긴다(coreaudiod가 응답하지 않으면 멈추는 곳).
-        engine.connect(timePitch, to: engine.mainMixerNode, format: nil)
+        try! engine.connectNode(timePitch, to: engine.mainMixerNode, format: nil)
     }
 }
