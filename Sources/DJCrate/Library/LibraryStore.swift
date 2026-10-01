@@ -236,6 +236,10 @@ final class LibraryStore {
     @ObservationIgnored var launchEnvironment = ProcessInfo.processInfo.environment
     /// rekordbox 폴더의 master.db에서 기본 스냅샷 폴더로 사본을 뜬다(`force`). 시험은 라이브를 건드리지 않게 바꿔 넣는다
     @ObservationIgnored var takeLiveSnapshot: @Sendable (Bool) throws -> URL = { try LibrarySnapshot.take(force: $0) }
+    /// 추가한 곡·초안 없는 곡의 그리드 추정(파일, 캐시 키). 시험은 가짜로 바꿔 넣는다
+    @ObservationIgnored var gridEstimator: @Sendable (URL, String) async throws -> GridEstimator.Estimate? = {
+        try await GridSuggestion.estimate(fileAt: $0, cacheKey: $1)
+    }
     var allowsLibrarySync: (() -> Bool)?
     private(set) var isSynchronizingLibrary = false
     var canSynchronizeLibrary: Bool { !isLoading && !isSynchronizingLibrary && !isWritingRekordbox && (allowsLibrarySync?() ?? true) }

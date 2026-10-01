@@ -17,7 +17,7 @@ struct LibrarySyncTests {
                      playlistImportURL: nil, stagingSaver: { _ in })
     }
 
-    @Test(arguments: [false, true])
+    @Test(.enabled(if: LiveDraftHome.isIsolated), arguments: [false, true])
     func 명시적_동기화만_안_고친_태그를_갱신한다(explicit: Bool) async throws {
         let fixture = try RekordboxFixture(), spec = TrackSpec()
         try fixture.add(spec)
@@ -44,7 +44,7 @@ struct LibrarySyncTests {
         } else { #expect(actual == before) }
     }
 
-    @Test func 같은_칸_충돌과_그리드_초안은_파일까지_그대로_보존한다() async throws {
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 같은_칸_충돌과_그리드_초안은_파일까지_그대로_보존한다() async throws {
         let fixture = try RekordboxFixture(), spec = TrackSpec()
         try fixture.add(spec)
         try fixture.execute("UPDATE djmdContent SET rb_data_status = 0 WHERE ID = ?", [.text(spec.id)])
@@ -76,7 +76,7 @@ struct LibrarySyncTests {
         #expect(try RekordboxLibrary.load(snapshot: fixture.database).tracks.first?.comment == "현재 코멘트")
     }
 
-    @Test func 실패한_동기화는_기존_초안을_바꾸지_않는다() async throws {
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 실패한_동기화는_기존_초안을_바꾸지_않는다() async throws {
         let fixture = try RekordboxFixture(), spec = TrackSpec()
         try fixture.add(spec)
         try fixture.execute("UPDATE djmdContent SET rb_data_status = 0 WHERE ID = ?", [.text(spec.id)])
@@ -91,7 +91,7 @@ struct LibrarySyncTests {
         #expect(store.lastError != nil && store.tagDrafts[spec.uuid] == before)
         #expect(TagDraftStore.load(trackUUID: spec.uuid) == before)
     }
-    @Test(arguments: [false, true])
+    @Test(.enabled(if: LiveDraftHome.isIsolated), arguments: [false, true])
     func 같은_칸_충돌은_그_칸만_명시적으로_선택한다(keepingDraft: Bool) async throws {
         let fixture = try RekordboxFixture(), spec = TrackSpec()
         try fixture.add(spec)
@@ -178,7 +178,7 @@ struct LibrarySyncTests {
         #expect(TagDraftStore.load(trackUUID: row.track.uuid, directory: directory)?.fields.comment == "재시도 코멘트")
     }
 
-    @Test(arguments: [false, true], [false, true])
+    @Test(.enabled(if: LiveDraftHome.isIsolated), arguments: [false, true], [false, true])
     func 명시한_DB_모드는_그_사본만_동기화한다(environmentOverride: Bool, launchOverride: Bool) async throws {
         let fixture = try RekordboxFixture(), spec = TrackSpec()
         try fixture.add(spec)
@@ -208,7 +208,7 @@ struct LibrarySyncTests {
         }
     }
 
-    @Test(arguments: [false, true])
+    @Test(.enabled(if: LiveDraftHome.isIsolated), arguments: [false, true])
     func 쓰기나_미저장_드래그_중에는_동기화하지_않는다(writing: Bool) async throws {
         let fixture = try RekordboxFixture(), spec = TrackSpec()
         try fixture.add(spec)
@@ -221,7 +221,7 @@ struct LibrarySyncTests {
         #expect(!store.canSynchronizeLibrary && store.rowsByUUID[spec.uuid]?.track.title == spec.title)
     }
 
-    @Test func 동기화_도중_드래그가_시작하면_덱의_메모리를_덮지_않는다() async throws {
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 동기화_도중_드래그가_시작하면_덱의_메모리를_덮지_않는다() async throws {
         let fixture = try RekordboxFixture(), spec = TrackSpec()
         try fixture.add(spec)
         let store = store(fixture), args = ["test", "--db", fixture.database.path]
@@ -237,7 +237,7 @@ struct LibrarySyncTests {
         #expect(store.rowsByUUID[spec.uuid]?.track.title == "동기화한 제목" && loads.count == 1)
     }
 
-    @Test func 읽는_도중_쓰기가_시작하면_동기화_결과를_버린다() async throws {
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 읽는_도중_쓰기가_시작하면_동기화_결과를_버린다() async throws {
         let fixture = try RekordboxFixture(), spec = TrackSpec()
         try fixture.add(spec)
         let store = store(fixture), args = ["test", "--db", fixture.database.path]

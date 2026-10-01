@@ -47,6 +47,7 @@ extension LibraryStore {
     func verifyReflection() {
         guard var batch = reflectionBatch ?? ReflectionStore.load() else { return }
         var matched = 0, notYet = 0, mismatched: [String] = []
+        var cleared: Set<String> = []
         for plan in batch.plans {
             guard let row = rowsByID[plan.trackID] else { continue }
             let grid = RekordboxShare.analysisURL(row.track.analysisDataPath).flatMap { try? BeatGrid.load(anlz: $0) }
@@ -55,8 +56,10 @@ extension LibraryStore {
             switch check.result {
             case .matched:
                 matched += 1
-                CueDraftStore.remove(trackUUID: plan.uuid)
-                GridDraftStore.remove(trackUUID: plan.uuid)
+                // 저장 실패로 DraftWriter에 남은 기록까지 같이 비우려고 파일을 직접 지우지 않는다(#172).
+                DraftWriter.removeCue(trackUUID: plan.uuid)
+                DraftWriter.removeGrid(trackUUID: plan.uuid)
+                cleared.insert(plan.uuid)
                 draftCueCounts[plan.uuid] = nil
                 draftChanged(trackUUID: plan.uuid, kind: .cue, exists: false)
                 draftChanged(trackUUID: plan.uuid, kind: .grid, exists: false)
@@ -74,10 +77,14 @@ extension LibraryStore {
             try? ReflectionStore.save(batch)
             reflectionBatch = batch
         }
+        // 초안을 지우지 못했으면 알린다(반영은 확인됐지만 덱·쓰기 전 확인이 옛 초안을 계속 볼 수 있다).
+        let cleanupWarning = cleared.isEmpty ? nil : draftSaveWarning(for: cleared)
         var parts = [String(ui: "rekordbox XML 가져오기 확인(\(batch.createdAt) 묶음): 일치 \(matched)")]
         if notYet > 0 { parts.append(String(ui: "아직 가져오지 않음 \(notYet)")) }
         if !mismatched.isEmpty { parts.append(String(ui: "불일치 \(mismatched.count) — \(mismatched.prefix(2).joined(separator: " · "))")) }
-        reflectionMessage = AppMessage(kind: mismatched.isEmpty && notYet == 0 ? .success : .warning, text: parts.joined(separator: " · "))
+        if let cleanupWarning { parts.append(cleanupWarning) }
+        reflectionMessage = AppMessage(kind: mismatched.isEmpty && notYet == 0 && cleanupWarning == nil ? .success : .warning,
+                                       text: parts.joined(separator: " · "))
         FileHandle.standardError.write(Data("[반영 검증] \(reflectionMessage?.text ?? "")\n".utf8))
     }
 }
