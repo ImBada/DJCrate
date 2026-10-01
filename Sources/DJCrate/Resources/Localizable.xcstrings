@@ -22173,6 +22173,22 @@
         }
       }
     },
+    "쓰기 대기가 그 사이 바뀌어 다시 계획했으니 바뀐 내용을 확인한 뒤 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pending USB Changes were edited in the meantime and planned again, so review the changes before writing"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その間にUSB書き込み待ちが変更されたため計画し直しました。変更内容を確認してから書き込んでください"
+          }
+        }
+      }
+    },
     "쓰기 미리 보기에서 최신 목록과 쓸 수 없는 편집을 다시 확인하세요." : {
       "localizations" : {
         "en" : {

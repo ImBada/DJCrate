@@ -59,6 +59,8 @@ import RekordboxKit
     @ObservationIgnored var isScratchMount: (String) -> Bool = UsbEditActions.isScratchMount
     /// 볼륨키 → 초안 고치기 줄(읽고-고치고-쓰기가 겹쳐 편집을 잃지 않게, 누른 차례대로)
     @ObservationIgnored private var draftChains: [String: Task<Void, Never>] = [:]
+    /// 볼륨키 → 그 줄에 선 일 수(돌고 있는 일 포함)
+    @ObservationIgnored private var draftQueueLengths: [String: Int] = [:]
 
     /// 볼륨키 → 마지막 내보내기(다시 미리 보기에 쓴다)
     @ObservationIgnored var lastExports: [String: UsbExportJob] = [:]
@@ -283,13 +285,20 @@ import RekordboxKit
     /// body 안에서 같은 볼륨의 줄을 다시 기다리지 않는다(스스로를 기다려 멈춘다)
     func draftQueue<T: Sendable>(_ key: String, _ body: @escaping @MainActor () async -> T) async -> T {
         let previous = draftChains[key]
+        draftQueueLengths[key, default: 0] += 1
         let task = Task { @MainActor () -> T in
             await previous?.value
-            return await body()
+            let value = await body()
+            let left = (draftQueueLengths[key] ?? 1) - 1
+            draftQueueLengths[key] = left > 0 ? left : nil
+            return value
         }
         draftChains[key] = Task { _ = await task.value }
         return await task.value
     }
+
+    /// 그 볼륨의 초안 줄에 선 일 수(돌고 있는 일 포함). 시험이 뒤 일이 줄에 선 것을 시간 대신 이것으로 기다린다
+    func draftQueueLength(_ key: String) -> Int { draftQueueLengths[key] ?? 0 }
 
     /// 그 볼륨의 초안을 다시 읽는다(메인 액터 밖에서 파일을 읽는다)
     func reloadDraft(_ key: String) async {
