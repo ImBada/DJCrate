@@ -23,6 +23,8 @@ public enum GridDraftStore {
     public static func save(_ draft: GridDraft, directory: URL = directory) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = directory.appending(path: "\(draft.trackUUID).json")
+        // 손상된 파일은 덮거나 지우지 않고 옮겨 보관한다(#174).
+        try DamagedDrafts.preserveIfDamaged(GridDraft.self, at: url, home: directory.deletingLastPathComponent(), trackUUID: draft.trackUUID)
         if draft.hasChanges {
             try JSONEncoder().encode(draft).write(to: url, options: .atomic)
         } else {

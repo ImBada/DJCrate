@@ -20,18 +20,48 @@ public enum EditStaging {
         staged.bpm = edit.outputGrid.bpm
         staged.gridConfident = true
 
-        try GridDraftStore.save(GridDraft(trackUUID: staged.uuid, base: [], segments: [edit.outputGrid]),
-                                directory: home.appending(path: "grid-drafts"))
         var cueDraft = CueDraft(trackUUID: staged.uuid, rekordboxCues: [])
         for cue in cues { cueDraft.place(cue) }
-        try CueDraftStore.save(cueDraft, directory: home.appending(path: "cue-drafts"))
         var tags = TagDraft(track: staged.track)
         if let source { tags.fields = TagFields(track: source) }
         tags.fields.title = title ?? source.map { "\($0.title) (Edit)" } ?? staged.title
-        try TagDraftStore.save(tags, directory: home.appending(path: "tag-drafts"))
 
-        tracks.append(staged)
-        try StagingStore.save(tracks, url: list)
+        // 중간에 실패하면 이 작업이 만든 초안만 되돌린다(전에 있던 파일은 그 내용으로 되살린다, #174).
+        var touched = Touched()
+        do {
+            let grids = home.appending(path: "grid-drafts"), cueDirectory = home.appending(path: "cue-drafts")
+            let tagDirectory = home.appending(path: "tag-drafts")
+            try touched.remember(grids.appending(path: "\(staged.uuid).json"))
+            try GridDraftStore.save(GridDraft(trackUUID: staged.uuid, base: [], segments: [edit.outputGrid]), directory: grids)
+            try touched.remember(cueDirectory.appending(path: "\(staged.uuid).json"))
+            try CueDraftStore.save(cueDraft, directory: cueDirectory)
+            try touched.remember(tagDirectory.appending(path: "\(staged.uuid).json"))
+            try TagDraftStore.save(tags, directory: tagDirectory)
+
+            tracks.append(staged)
+            try StagingStore.save(tracks, url: list)
+        } catch {
+            touched.rollBack()
+            throw error
+        }
         return staged
+    }
+
+    /// 넣기가 바꾼 초안 파일과 그 전 내용(nil이면 없던 파일)
+    struct Touched {
+        private var files: [(url: URL, previous: Data?)] = []
+
+        /// 바꾸기 전 내용을 적어 둔다. 있던 파일을 읽지 못하면 되돌릴 수 없으므로 바꾸지 않는다.
+        mutating func remember(_ url: URL) throws {
+            let previous = FileManager.default.fileExists(atPath: url.path) ? try Data(contentsOf: url) : nil
+            files.append((url, previous))
+        }
+
+        func rollBack() {
+            for file in files.reversed() {
+                if let previous = file.previous { try? previous.write(to: file.url, options: .atomic) }
+                else { try? FileManager.default.removeItem(at: file.url) }
+            }
+        }
     }
 }

@@ -49,17 +49,20 @@ extension LibraryStore {
         DraftWriter.flush()
         retryFailedTagSaves()
         let targets = writeTargets(rows)
-        try requireDraftSaves(for: Set(targets.map { $0.track.uuid }))
-        guard failedTagSaves().isDisjoint(with: targets.map { $0.track.uuid }) else {
+        let uuids = Set(targets.map { $0.track.uuid })
+        // 읽지 못한 초안 파일이 미리 보기에서 조용히 빠지지 않게 먼저 옮기고 알린다(#174).
+        try requireReadableDrafts(for: uuids, playlists: playlists)
+        try requireDraftSaves(for: uuids)
+        guard failedTagSaves().isDisjoint(with: uuids) else {
             throw DJCError.writeRefused(DraftWriter.tagSaveFailureMessage)
         }
-        let uuids = Set(targets.map { $0.track.uuid })
+        if playlists { try requirePlaylistDraftSaved() }
         let merges = mergeDrafts.filter { $0.members.contains { uuids.contains($0.trackUUID) } }
         // 자동 큐를 빼고 만든 옛 초안에는 곡의 자동 큐를 채운다(#145, 쓰기도 같은 일을 한다).
         let drafts = targets.compactMap { row in CueDraftStore.load(trackUUID: row.track.uuid)?.includingAutoCues(from: row.cues) }
             .filter(\.hasChanges)
         let grids = targets.compactMap { GridDraftStore.load(trackUUID: $0.track.uuid) }.filter(\.hasChanges)
-        let allGains = GainDraftStore.all()
+        let allGains = try readGainDrafts()
         let gains = Dictionary(uniqueKeysWithValues: targets.compactMap { row in allGains[row.track.uuid].map { (row.track.uuid, $0) } })
         let tags = targets.compactMap { TagDraftStore.load(trackUUID: $0.track.uuid) }.filter(\.hasChanges)
         let playlistDraft = playlists && !self.playlistDraft.isEmpty ? self.playlistDraft : nil
@@ -101,6 +104,7 @@ extension LibraryStore {
         let uuids = Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID)).union(gains.keys).union(tags.map(\.trackUUID))
             .union(merges.flatMap { $0.members.map(\.trackUUID) })
         try requireDraftSaves(for: uuids)
+        if playlists != nil { try requirePlaylistDraftSaved() }
         let inputs = try await analysisInputs(for: grids, measuringLoudness: true)
         try Task.checkCancellation()
         try requireDraftSaves(for: uuids)
@@ -120,7 +124,8 @@ extension LibraryStore {
         }
         if let playlists { finishPlaylistWrite(playlists, outcomes: report.playlistOutcomes ?? []) }
         for outcome in report.gainWritten {
-            GainDraftStore.remove(trackUUID: outcome.trackUUID)
+            // 저장 실패로 DraftWriter에 남은 기록까지 같이 비우려고 파일을 직접 고치지 않는다(#174).
+            DraftWriter.removeGain(trackUUID: outcome.trackUUID)
             draftChanged(trackUUID: outcome.trackUUID, kind: .gain, exists: false)
         }
         for outcome in report.written {
@@ -170,10 +175,11 @@ extension LibraryStore {
         for draft in drafts { DraftWriter.save(draft) }
         let grids = RekordboxWriter.gridDrafts(in: backup.url)
         for grid in grids { DraftWriter.save(grid) }
-        for (uuid, gain) in RekordboxWriter.gainDrafts(in: backup.url) { GainDraftStore.save(gain, trackUUID: uuid) }
+        for (uuid, gain) in RekordboxWriter.gainDrafts(in: backup.url) { DraftWriter.save(gain: gain, trackUUID: uuid) }
         let tags = RekordboxWriter.tagDrafts(in: backup.url)
         replaceTagDrafts(tags)
-        let saveWarning = draftSaveWarning(for: Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID)), restoring: true)
+        let saveWarning = draftSaveWarning(for: Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID))
+            .union(RekordboxWriter.gainDrafts(in: backup.url).keys), restoring: true)
         writeStage = WriteStage(String(ui: "복원한 라이브러리를 읽는 중…"))
         await takeSnapshot(quiet: true, refreshITunes: false)
         // 재생 목록 편집은 되돌린 rekordbox 상태에 다시 쌓는다(쌓지 못한 편집은 알린다).

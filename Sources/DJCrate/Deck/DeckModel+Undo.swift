@@ -55,7 +55,7 @@ extension DeckModel {
             if row?.isStaged == true { onStagedGridChange?(snapshot.cue.trackUUID, snapshot.grid?.segments.first?.bpm) }
         }
         if previous?.gain != snapshot.gain {
-            storage.saveGain(snapshot.gain, snapshot.cue.trackUUID)
+            persistGain(snapshot.gain, uuid: snapshot.cue.trackUUID)
             onDraftChange?(snapshot.cue.trackUUID, .gain, snapshot.gain != nil)
         }
         if cue(selectedCueID) == nil { selectedCueID = nil }

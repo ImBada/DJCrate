@@ -10205,6 +10205,38 @@
         }
       }
     },
+    "게인 초안 파일을 읽지 못했으니 DJCrate 데이터 폴더의 접근 권한을 확인한 뒤 쓰기를 다시 시도하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read the gain draft file. Check access to the DJCrate data folder, then try writing again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲインの下書きファイルを読み込めませんでした。DJCrateのデータフォルダのアクセス権を確認してから、書き込みを再試行してください。"
+          }
+        }
+      }
+    },
+    "게인 초안을 저장하지 못했습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not save the gain draft."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲインの下書きを保存できませんでした。"
+          }
+        }
+      }
+    },
     "게인 트림" : {
       "localizations" : {
         "en" : {
@@ -24761,6 +24793,22 @@
         }
       }
     },
+    "읽지 못한 초안 파일을 damaged-drafts에 옮겨 두었으니 남은 초안을 확인한 뒤 쓰기를 다시 시도하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unreadable draft files were moved to damaged-drafts. Check the remaining drafts, then try writing again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込めない下書きファイルをdamaged-draftsに移しました。残りの下書きを確認してから、書き込みを再試行してください。"
+          }
+        }
+      }
+    },
     "읽지 못함" : {
       "localizations" : {
         "en" : {
@@ -25493,6 +25541,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレイリスト下書きを保存できませんでした。DJCrateデータフォルダの書き込み権限を確認してください：%@"
+          }
+        }
+      }
+    },
+    "재생 목록 초안을 저장하지 못했으니 DJCrate 데이터 폴더의 쓰기 권한을 확인한 뒤 쓰기를 다시 시도하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not save the playlist draft. Check write access to the DJCrate data folder, then try writing again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストの下書きを保存できませんでした。DJCrateのデータフォルダの書き込み権限を確認してから、書き込みを再試行してください。"
           }
         }
       }
@@ -27325,6 +27389,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下書きの種類を指定してください"
+          }
+        }
+      }
+    },
+    "초안 파일 %lld개를 읽지 못해 DJCrate 데이터 폴더의 damaged-drafts에 옮겨 두었으니 필요한 곡의 초안을 다시 만드세요." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Could not read %lld draft file, so it was moved to damaged-drafts in the DJCrate data folder. Recreate the drafts you need."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Could not read %lld draft files, so they were moved to damaged-drafts in the DJCrate data folder. Recreate the drafts you need."
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きファイル%lld件を読み込めなかったため、DJCrateのデータフォルダのdamaged-draftsに移しました。必要な曲の下書きを作り直してください。"
           }
         }
       }

@@ -203,6 +203,15 @@ final class LibraryStore {
     var playlistMessage: AppMessage? {
         didSet { if let playlistMessage { feedback.announce(playlistMessage) } }
     }
+    /// 재생 목록 초안 저장에 실패해 메모리 초안이 디스크보다 최신이다(쓰기 전에 다시 저장한다, #174).
+    var playlistDraftUnsaved = false
+    /// 읽지 못해 옮겨 보관한 초안 파일 안내(#174). 닫을 때까지 남는다.
+    var draftFileMessage: AppMessage? {
+        didSet { if let draftFileMessage { feedback.announce(draftFileMessage) } }
+    }
+    @ObservationIgnored var damagedDraftCount = 0
+    /// 손상된 초안 파일을 찾아 옮길 데이터 폴더(시험은 바꿔 넣는다)
+    @ObservationIgnored var draftHome = DJCPaths.userData
     /// '재생 목록에 넣기…' 창과 넣을 곡(연 때 고른 곡)
     var showingPlaylistPicker = false
     var playlistPickerTracks: [TrackRow] = []
@@ -253,7 +262,7 @@ final class LibraryStore {
     var isRecoveringDraft = false
     private var cueDraftUUIDs: Set<String> = []
     private var gridDraftUUIDs: Set<String> = []
-    private var gainDraftUUIDs: Set<String> = []
+    private(set) var gainDraftUUIDs: Set<String> = []
     private(set) var editedUUIDs: Set<String> = []
 
     var rowsByID: [TrackRow.ID: TrackRow] = [:]
@@ -761,6 +770,10 @@ final class LibraryStore {
                 ? LibrarySnapshot.rekordboxDirectory(in: environment).appending(path: "master.db") : nil
             // 메인 액터에서 정한 요청 순서를 캡처가 끝날 때까지 유지한다.
             let refreshTicket = ITunesRefreshCoordinator.shared.begin(snapshot: snapshot, sourceDatabase: sourceDatabase)
+            // 초안을 읽기 전에 손상된 파일을 옮겨 보관하고 알린다(빈 값으로 읽어 덮지 않게, #174).
+            let draftHome = draftHome
+            let moved = try await Self.runBlockingLibraryWork { DraftWriter.preserveDamagedDrafts(home: draftHome) }
+            reportDamagedDrafts(moved)
             let loaded = try await Self.runBlockingLibraryWork {
                 try LoadedLibrary.load(snapshot: snapshot, commentPreset: preset, refreshITunes: refreshITunes,
                                        previousITunesSnapshot: previousITunesSnapshot, refreshTicket: refreshTicket,
@@ -793,6 +806,7 @@ final class LibraryStore {
             filterCounts[.missingFile] = rows.lazy.filter(LibraryFilter.missingFile.includes).count
             duplicateGroups = loaded.duplicateGroups
             draftFileStamps = nil
+            let previousTags = tagDrafts, previousPlaylist = playlistDraft
             // 읽는 동안 사용자가 편집했거나 저장에 실패한 입력은 디스크의 오래된 값으로 덮지 않는다.
             let failedTags = failedTagSaves()
             var latestTags = tagRevision == initialTagRevision ? loaded.tagDrafts : tagDrafts
@@ -818,16 +832,18 @@ final class LibraryStore {
             draftCueCounts = loaded.draftCueCounts
             draftPreviewCues = loaded.draftPreviewCues
             gridDraftUUIDs = loaded.gridDraftUUIDs
+            gainDraftUUIDs = loaded.gainDraftUUIDs
             preserveUnsavedDraftIndicators()
-            gainDraftUUIDs = GainDraftStore.uuids()
             editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys)
             rekordboxPlaylists = loaded.playlists
-            playlistDraft = loaded.playlistDraft
+            // 저장하지 못한 재생 목록 초안은 디스크의 옛 초안으로 덮지 않는다(#174).
+            if !playlistDraftUnsaved { playlistDraft = loaded.playlistDraft }
             iTunesLibrary = loaded.iTunesLibrary
             iTunesSnapshot = loaded.iTunesSnapshot
             if case let .itunesPlaylist(id) = sidebar, iTunesLibrary.index[id] == nil { sidebar = .filter(.all) }
             mergeDrafts = DuplicateMergeDraftStore.load()
             refreshPlaylists(refreshList: false)
+            applyMovedDrafts(moved, previousTags: previousTags, previousPlaylist: previousPlaylist, reporting: false)
             histories = loaded.histories
             historyIndex = Dictionary(uniqueKeysWithValues: histories.map { ($0.id, $0) })
             snapshotURL = snapshot
@@ -973,6 +989,9 @@ final class LibraryStore {
         }
         guard stamps != draftFileStamps || !unsaved.isEmpty else { return }
         draftFileStamps = stamps
+        // 바깥에서 바뀐 파일 중 읽지 못하는 것은 옮겨 보관한다. 메모리 태그 초안은 아래에서 다시 저장한다(#174).
+        let moved = DraftWriter.preserveDamagedDrafts(home: home)
+        let previousTags = tagDrafts
         var cues: [String: CueDraft] = [:]
         for uuid in CueDraftStore.uuids(directory: cueDirectory).union(unsaved) {
             // 자동 큐를 빼고 만든 옛 초안에는 곡의 자동 큐를 채운다(#145).
@@ -998,13 +1017,18 @@ final class LibraryStore {
         preserveUnsavedDraftIndicators(home: home)
         editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys)
         if case .pending = sidebar { refreshBase() }
+        applyMovedDrafts(moved, previousTags: previousTags)
         onCueDraftsReloaded?(cues)
     }
 
     /// 실패한 저장의 입력이 디스크보다 최신이므로 다시 읽어도 복구 진입점을 남긴다.
     private func preserveUnsavedDraftIndicators(home: URL = DJCPaths.userData) {
         let cues = home.appending(path: "cue-drafts"), grids = home.appending(path: "grid-drafts")
-        for uuid in DraftWriter.unsavedUUIDs(cueDirectory: cues, gridDirectory: grids) {
+        let gains = home.appending(path: "gain-drafts.json")
+        for uuid in DraftWriter.unsavedUUIDs(cueDirectory: cues, gridDirectory: grids, gainURL: gains) {
+            if let gain = DraftWriter.pendingGain(trackUUID: uuid, url: gains) {
+                if gain != nil { gainDraftUUIDs.insert(uuid) } else { gainDraftUUIDs.remove(uuid) }
+            }
             if let draft = DraftWriter.pendingCue(trackUUID: uuid, directory: cues) {
                 if draft.hasChanges { cueDraftUUIDs.insert(uuid) } else { cueDraftUUIDs.remove(uuid) }
                 cueDraftChanged(draft)

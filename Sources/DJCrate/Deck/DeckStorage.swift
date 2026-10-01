@@ -9,7 +9,7 @@ struct DeckStorage: Sendable {
     var loadGridDraft: @Sendable (String) -> GridDraft?
     var saveGridDraft: @Sendable (GridDraft, @escaping @Sendable (DraftWriter.Failure?) -> Void) -> Void
     var loadGain: @Sendable (String) -> Double?
-    var saveGain: @Sendable (Double?, String) -> Void
+    var saveGain: @Sendable (Double?, String, @escaping @Sendable (DraftWriter.Failure?) -> Void) -> Void
     var removeGridDraft: @Sendable (String, @escaping @Sendable (DraftWriter.Failure?) -> Void) -> Void
     var settings: SettingsStore
     var flushDrafts: @Sendable () -> [DraftWriter.Failure] = { [] }
@@ -31,18 +31,21 @@ struct DeckStorage: Sendable {
             return GridDraftStore.load(trackUUID: uuid)
         },
         saveGridDraft: { DraftWriter.save($0, completion: $1) },
-        loadGain: { GainDraftStore.load(trackUUID: $0) },
-        saveGain: { GainDraftStore.save($0, trackUUID: $1) },
+        loadGain: { uuid in
+            // 저장하지 못한 입력이 디스크보다 최신이다(지우기였으면 nil).
+            if let pending = DraftWriter.pendingGain(trackUUID: uuid) { return pending }
+            return GainDraftStore.load(trackUUID: uuid)
+        },
+        saveGain: { DraftWriter.save(gain: $0, trackUUID: $1, completion: $2) },
         removeGridDraft: { DraftWriter.removeGrid(trackUUID: $0, completion: $1) },
         settings: SettingsStore(),
         flushDrafts: { DraftWriter.flush() },
         draftSaveFailures: { uuid in DraftWriter.failures().filter { $0.trackUUID == uuid } },
         retryDraftSave: { kind, uuid, completion in
-            DraftWriter.retry(kind, trackUUID: uuid, directory: kind == .cue ? CueDraftStore.directory : GridDraftStore.directory,
-                              completion: completion)
+            DraftWriter.retry(kind, trackUUID: uuid, directory: DraftWriter.Locations().url(kind), completion: completion)
         },
         draftSaveResolved: { failure in
-            DraftWriter.isResolved(failure, directory: failure.kind == .cue ? CueDraftStore.directory : GridDraftStore.directory)
+            DraftWriter.isResolved(failure, directory: DraftWriter.Locations().url(failure.kind))
         }
     )
 }

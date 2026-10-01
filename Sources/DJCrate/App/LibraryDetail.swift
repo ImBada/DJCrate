@@ -54,6 +54,9 @@ struct LibraryDetail: View {
                         .padding(.horizontal, Spacing.edge).padding(.vertical, 6)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                if let message = store.draftFileMessage {
+                    AppMessageView(message: message, onClose: { store.draftFileMessage = nil })
+                }
                 if let message = store.reflectionMessage {
                     AppMessageView(message: message, onClose: { store.reflectionMessage = nil })
                 }
