@@ -101,6 +101,7 @@ extension LibraryStore {
                           to database: URL, shareRoot: URL?) async throws -> RekordboxWriter.Report {
         try Task.checkCancellation()
         defer { writeStage = nil }
+        writeFollowUp = []
         let uuids = Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID)).union(gains.keys).union(tags.map(\.trackUUID))
             .union(merges.flatMap { $0.members.map(\.trackUUID) })
         try requireDraftSaves(for: uuids)
@@ -145,53 +146,67 @@ extension LibraryStore {
             return cleared
         })
         let saveWarning = draftSaveWarning(for: uuids)
+        // 쓴 재생 목록 편집을 초안에서 빼지 못하면 다음에 같은 편집을 또 쓸 수 있으니 따로 알린다(#174·#175).
+        let playlistWarning = playlists != nil && playlistDraftUnsaved
+            ? String(ui: "rekordbox에는 썼지만 재생 목록 초안을 정리하지 못했습니다.") + " " + Self.playlistSaveFailureText : nil
         // 화면을 처음부터 다시 불러오지 않고 뒤에서 조용히 다시 읽는다.
+        // 덱은 새 스냅샷을 읽은 뒤에만 그 곡을 다시 읽는다(그리드만 바뀐 곡도 초안·그리드를 맞춘다). 읽지 못하면 다음 읽기까지 미룬다.
         writeStage = .reloadingLibrary
-        await takeSnapshot(quiet: true, refreshITunes: false)
-        // 그리드만 바뀐 곡은 DB가 그대로라 목록 줄이 같다. 덱이 그 곡을 보고 있으면 초안·그리드만 다시 읽게 한다.
-        onRekordboxWritten?(Set(report.written.map(\.trackUUID)).union(report.gridWritten.map(\.trackUUID)).union(report.gainWritten.map(\.trackUUID))
-            .union(report.analysisWritten.map(\.trackUUID)).union(tagWritten).union(merges.filter { merged.contains($0.id) }.flatMap { $0.members.map(\.trackUUID) }))
+        writtenAwaitingReload.formUnion(Set(report.written.map(\.trackUUID)).union(report.gridWritten.map(\.trackUUID))
+            .union(report.gainWritten.map(\.trackUUID)).union(report.analysisWritten.map(\.trackUUID)).union(tagWritten)
+            .union(merges.filter { merged.contains($0.id) }.flatMap { $0.members.map(\.trackUUID) }))
+        let reloaded = await reloadAfterWrite()
         lastWriteBackup = report.backup.map { URL(filePath: $0) }
-        if let saveWarning { reportLibraryError(saveWarning) }
+        finishWriteFollowUp([saveWarning, playlistWarning], reloaded: reloaded, restoring: false)
         return report
     }
 
     /// 백업으로 되돌린다: DB를 쓰기 전으로 돌리고, 그때 쓴 초안을 DJCrate에 다시 살린다.
+    /// 쓴 뒤 같은 곡에 새로 만든 초안은 덮지 않는다(`keepingCurrentDrafts`가 거짓일 때만 백업 초안으로 바꾼다, #175).
     @discardableResult
     func restoreRekordbox(_ backup: RekordboxWriter.Backup) async throws -> URL {
+        try await restoreRekordbox(backup, keepingCurrentDrafts: true)
+    }
+
+    @discardableResult
+    func restoreRekordbox(_ backup: RekordboxWriter.Backup, keepingCurrentDrafts: Bool) async throws -> URL {
+        writeFollowUp = []
         writeStage = WriteStage(String(ui: "rekordbox를 복원하는 중…"))
         defer { writeStage = nil }
+        // 복원 전에 지금 초안을 정해 둔다(복원 뒤 덱이 다시 저장하는 값과 섞지 않게).
+        let kept = keepingCurrentDrafts ? restoreDraftConflicts(backup) : []
         let backups = backupDirectory
         let saved = try await Task.detached(priority: .userInitiated) {
             try RekordboxWriter.restore(backup.url, backups: backups)
         }.value
+        func keeps(_ kind: RestoreDraftConflict.Kind, _ uuid: String) -> Bool { kept.contains(RestoreDraftConflict(kind: kind, uuid: uuid)) }
         let restoredMerges = RekordboxWriter.mergeDrafts(in: backup.url)
         if !restoredMerges.isEmpty {
-            let restoredIDs = Set(restoredMerges.flatMap { $0.members.map(\.trackUUID) })
-            let combined = mergeDrafts.filter { Set($0.members.map(\.trackUUID)).isDisjoint(with: restoredIDs) } + restoredMerges
+            let keptMerges = mergeDrafts.filter { keeps(.merge, $0.id) }
+            let keptIDs = Set(keptMerges.flatMap { $0.members.map(\.trackUUID) })
+            let revived = restoredMerges.filter { Set($0.members.map(\.trackUUID)).isDisjoint(with: keptIDs) }
+            let restoredIDs = Set(revived.flatMap { $0.members.map(\.trackUUID) })
+            let combined = mergeDrafts.filter { Set($0.members.map(\.trackUUID)).isDisjoint(with: restoredIDs) } + revived
             saveMergeDraftsAfterWrite(combined)
         }
         let drafts = RekordboxWriter.contents(of: backup.url).drafts
-        for draft in drafts { DraftWriter.save(draft) }
+        for draft in drafts where !keeps(.cue, draft.trackUUID) { DraftWriter.save(draft) }
         let grids = RekordboxWriter.gridDrafts(in: backup.url)
-        for grid in grids { DraftWriter.save(grid) }
-        for (uuid, gain) in RekordboxWriter.gainDrafts(in: backup.url) { DraftWriter.save(gain: gain, trackUUID: uuid) }
+        for grid in grids where !keeps(.grid, grid.trackUUID) { DraftWriter.save(grid) }
+        let gains = RekordboxWriter.gainDrafts(in: backup.url)
+        for (uuid, gain) in gains where !keeps(.gain, uuid) { DraftWriter.save(gain: gain, trackUUID: uuid) }
         let tags = RekordboxWriter.tagDrafts(in: backup.url)
-        replaceTagDrafts(tags)
-        let saveWarning = draftSaveWarning(for: Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID))
-            .union(RekordboxWriter.gainDrafts(in: backup.url).keys), restoring: true)
+        replaceTagDrafts(tags.filter { !keeps(.tag, $0.trackUUID) })
+        let saveWarning = draftSaveWarning(for: Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID)).union(gains.keys), restoring: true)
+        let keptWarning = kept.isEmpty ? nil : Self.keptDraftsText(conflictTrackUUIDs(kept).count)
         writeStage = WriteStage(String(ui: "복원한 라이브러리를 읽는 중…"))
-        await takeSnapshot(quiet: true, refreshITunes: false)
-        // 재생 목록 편집은 되돌린 rekordbox 상태에 다시 쌓는다(쌓지 못한 편집은 알린다).
-        let unrestored = restorePlaylistEdits(RekordboxWriter.playlistEdits(in: backup.url))
-        if unrestored > 0 {
-            playlistMessage = AppMessage(kind: .warning, text: String(ui: "재생 목록 편집 \(unrestored)건은 초안으로 되살리지 못했습니다."))
-        }
-        let gainUUIDs = Set(RekordboxWriter.gainDrafts(in: backup.url).keys)
-        onRekordboxWritten?(Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID)).union(gainUUIDs).union(tags.map(\.trackUUID)))
+        writtenAwaitingReload.formUnion(Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID)).union(gains.keys).union(tags.map(\.trackUUID)))
+        // 재생 목록 편집은 되돌린 rekordbox 상태에 다시 쌓는다. 다시 읽지 못하면 옛 목록 상태에 쌓지 않고 다음 읽기 뒤에 쌓는다.
+        playlistEditsAwaitingReload += RekordboxWriter.playlistEdits(in: backup.url)
+        let reloaded = await reloadAfterWrite()
         _ = restoreStaged(from: backup)
         lastWriteBackup = nil
-        if let saveWarning { reportLibraryError(saveWarning) }
+        finishWriteFollowUp([saveWarning, keptWarning], reloaded: reloaded, restoring: true)
         return saved
     }
 

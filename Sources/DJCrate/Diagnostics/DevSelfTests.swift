@@ -19,6 +19,7 @@ enum DevSelfTests {
         runReflectionLayoutIfRequested(store: store)
         runDuplicateLayoutIfRequested(store: store)
         runMissingFilesCaptureIfRequested(store: store)
+        runDraftNoticeCaptureIfRequested(store: store)
         runWriteSelfTestIfRequested(store: store, deck: deck)
         runTrackSelfTestIfRequested(store: store)
         runLoopSelfTestIfRequested(deck: deck)
@@ -162,6 +163,7 @@ enum DevSelfTests {
                     if RekordboxWriter.key(now, withSource: false) == key { same += 1 } else { log("  다름: \(row.title)") }
                 }
                 log("쓰기: \(report.written.count)곡 · 다시 읽은 큐가 초안과 같음 \(same)/\(expected.count) · 남은 반영 대기 \(store.pendingLibraryCount)곡")
+                log("쓰기 뒤따른 경고: \(store.writeFollowUp.isEmpty ? "없음" : store.writeFollowUp.joined(separator: " / ")) · 덱 갱신 대기 \(store.writtenAwaitingReload.count)곡")
                 log("덱: \(deck.row?.title.prefix(20) ?? "-") · 덱 초안 변경 \(deck.draft?.changes.count ?? -1) · 알림: \(store.toast?.title ?? "") \(store.toast?.detail ?? "")")
                 // 그리드: 분석 파일을 다시 읽어 초안 그리드와 같은지(박 시각 ±1ms)
                 var gridSame = 0
@@ -197,6 +199,7 @@ enum DevSelfTests {
                 log("되돌리기 전 확인: 백업 뒤 라이브러리 바뀜 = \(String(describing: await store.libraryChangedSince(backup)))")
                 try await store.restoreRekordbox(backup)
                 await wait(1.5)
+                log("되돌림 뒤따른 경고: \(store.writeFollowUp.isEmpty ? "없음" : store.writeFollowUp.joined(separator: " / "))")
                 var restored = 0
                 for uuid in expected.keys where CueDraftStore.load(trackUUID: uuid)?.hasChanges == true { restored += 1 }
                 var gridRestored = 0, filesRestored = 0

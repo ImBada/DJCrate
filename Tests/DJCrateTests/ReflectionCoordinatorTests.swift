@@ -52,6 +52,16 @@ final class FakeReflectionHost: ReflectionHost {
         restored.append(backup.url)
         return restoreSafetyBackup
     }
+    /// 쓰기·복원 뒤따른 경고, 복원 충돌, 복원에 넘긴 선택(#175)
+    var followUp: [String] = []
+    var conflicts: [String] = []
+    var keptCurrentDrafts: Bool?
+    var writeFollowUp: [String] { followUp }
+    func restoreDraftConflictDetails(_ backup: RekordboxWriter.Backup) -> [String] { conflicts }
+    func restoreRekordbox(_ backup: RekordboxWriter.Backup, keepingCurrentDrafts: Bool) async throws -> URL {
+        keptCurrentDrafts = keepingCurrentDrafts
+        return try await restoreRekordbox(backup)
+    }
 
     var addPreview: Result<LibraryStore.TrackAddPreview, Error> = .failure(FixtureFailure())
     var deletePreview: Result<LibraryStore.TrackDeletePreview, Error> = .failure(FixtureFailure())

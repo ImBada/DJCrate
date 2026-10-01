@@ -210,6 +210,9 @@ final class LibraryStore {
         didSet { if let draftFileMessage { feedback.announce(draftFileMessage) } }
     }
     @ObservationIgnored var damagedDraftCount = 0
+    /// 스냅샷 곡·추가한 곡 어디에도 이어지지 않는 초안이 있는 곡(#175). 쓰기 대기 목록에서 보여 주고 고른 것만 버린다.
+    var unlinkedDraftUUIDs: Set<String> = []
+    var showingUnlinkedDrafts = false
     /// 손상된 초안 파일을 찾아 옮길 데이터 폴더(시험은 바꿔 넣는다)
     @ObservationIgnored var draftHome = DJCPaths.userData
     /// '재생 목록에 넣기…' 창과 넣을 곡(연 때 고른 곡)
@@ -309,8 +312,16 @@ final class LibraryStore {
     }
     /// 쓰는 동안 덱 큐 편집을 잠근다
     var onWriteLock: ((Bool) -> Void)?
-    /// rekordbox에 쓰거나 되돌린 곡(UUID). 덱이 그 곡이면 다시 읽는다.
+    /// rekordbox에 쓰거나 되돌린 곡(UUID). 덱이 그 곡이면 다시 읽는다. 새 스냅샷을 읽은 뒤에만 부른다(#175).
     var onRekordboxWritten: ((Set<String>) -> Void)?
+    /// 성공한 라이브러리 읽기 수(쓰기 뒤 다시 읽기가 실제로 끝났는지 본다)
+    @ObservationIgnored private(set) var completedLoadCount = 0
+    /// rekordbox에 쓰거나 되돌렸지만 아직 새 스냅샷으로 다시 읽지 못한 곡. 다음 읽기가 성공하면 덱에 알린다.
+    @ObservationIgnored var writtenAwaitingReload: Set<String> = []
+    /// 복원한 뒤 다시 읽지 못해 아직 쌓지 못한 재생 목록 편집(옛 목록 상태에 쌓지 않게 다음 읽기 뒤에 쌓는다)
+    @ObservationIgnored var playlistEditsAwaitingReload: [PlaylistEdit] = []
+    /// 마지막 쓰기·복원은 끝났지만 뒤따른 일(초안 정리·다시 읽기·복원 충돌)에 남은 경고. 쓰기 결과와 나눠 알린다.
+    @ObservationIgnored var writeFollowUp: [String] = []
 
     /// 큐 초안이 있는 곡의 (핫큐, 메모리 큐) 개수. 목록 숫자는 반영 전에도 초안 기준으로 보여 준다.
     var draftCueCounts: [String: CueCounts] = [:]
@@ -844,6 +855,7 @@ final class LibraryStore {
             mergeDrafts = DuplicateMergeDraftStore.load()
             refreshPlaylists(refreshList: false)
             applyMovedDrafts(moved, previousTags: previousTags, previousPlaylist: previousPlaylist, reporting: false)
+            restoreAwaitingPlaylistEdits()
             histories = loaded.histories
             historyIndex = Dictionary(uniqueKeysWithValues: histories.map { ($0.id, $0) })
             snapshotURL = snapshot
@@ -860,6 +872,8 @@ final class LibraryStore {
             verifyReflection()
             refreshBase()
             phase = .loaded
+            completedLoadCount += 1
+            refreshUnlinkedDrafts()
             let previewSources = loaded.rows.filter { !$0.track.isStreaming }.map {
                 PreviewWaveformStore.Source(uuid: $0.track.uuid, url: RekordboxShare.analysisURL($0.track.analysisDataPath))
             }
@@ -878,6 +892,7 @@ final class LibraryStore {
                 if synchronizingDrafts, let deckTrackID, let row = rowsByID[deckTrackID] {
                     onRekordboxWritten?([row.track.uuid])
                 }
+                deliverWrittenAfterReload()
             }
             checkMissingFiles()
             applyLaunchSelection()
@@ -1018,6 +1033,7 @@ final class LibraryStore {
         editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys)
         if case .pending = sidebar { refreshBase() }
         applyMovedDrafts(moved, previousTags: previousTags)
+        refreshUnlinkedDrafts()
         onCueDraftsReloaded?(cues)
     }
 

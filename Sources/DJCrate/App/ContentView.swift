@@ -89,6 +89,7 @@ struct ContentView: View {
         }
         .sheet(isPresented: $store.showingWriteResult) { WriteResultView(history: store.resultHistory) }
         .sheet(isPresented: $store.showingPlaylistPicker) { PlaylistPickerView(store: store) }
+        .sheet(isPresented: $store.showingUnlinkedDrafts) { UnlinkedDraftsView(store: store) }
         .animation(.easeInOut(duration: 0.15), value: store.writeStage)
         .searchable(text: $store.search, placement: .toolbar, prompt: Text(.ui("제목·아티스트·코멘트")))
         .toolbar(id: "main") { toolbarContent }

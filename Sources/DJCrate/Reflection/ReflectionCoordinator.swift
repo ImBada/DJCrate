@@ -121,6 +121,12 @@ protocol ReflectionHost: AnyObject {
                           playlists: PlaylistDraft?, merges: [DuplicateMergeDraft]) async throws -> RekordboxWriter.Report
     func libraryChangedSince(_ backup: RekordboxWriter.Backup) async -> Bool?
     func restoreRekordbox(_ backup: RekordboxWriter.Backup) async throws -> URL
+    /// 쓰기·복원은 끝났지만 뒤따른 일(초안 정리·다시 읽기·복원 충돌)에 남은 경고(#175)
+    var writeFollowUp: [String] { get }
+    /// 복원이 되살릴 백업 초안과 다른, 쓴 뒤 새로 만든 초안(확인 창에 보일 줄)
+    func restoreDraftConflictDetails(_ backup: RekordboxWriter.Backup) -> [String]
+    /// - Parameter keepingCurrentDrafts: 쓴 뒤 새로 만든 초안을 남기고 그 곡의 백업 초안은 되살리지 않는다
+    func restoreRekordbox(_ backup: RekordboxWriter.Backup, keepingCurrentDrafts: Bool) async throws -> URL
     // 곡 넣기·빼기
     func trackAddTargets(_ rows: [TrackRow]) -> [TrackRow]
     func previewTrackAdd(rows: [TrackRow]) async throws -> LibraryStore.TrackAddPreview
@@ -128,6 +134,14 @@ protocol ReflectionHost: AnyObject {
     func trackDeleteTargets(_ rows: [TrackRow]) -> [TrackRow]
     func previewTrackDelete(rows: [TrackRow]) async throws -> LibraryStore.TrackDeletePreview
     func deleteTracksFromRekordbox(_ preview: LibraryStore.TrackDeletePreview) async throws -> RekordboxTrackWriter.Report
+}
+
+extension ReflectionHost {
+    var writeFollowUp: [String] { [] }
+    func restoreDraftConflictDetails(_ backup: RekordboxWriter.Backup) -> [String] { [] }
+    func restoreRekordbox(_ backup: RekordboxWriter.Backup, keepingCurrentDrafts: Bool) async throws -> URL {
+        try await restoreRekordbox(backup)
+    }
 }
 
 /// rekordbox에 바로 쓰기: rekordbox 꺼짐 확인 → 사본으로 미리 보기 → 확인 창 → 쓸 수 있는 것만 쓰기 → 토스트.
@@ -188,7 +202,8 @@ struct ReflectionCoordinator {
                                                 tags: preview.tags.filter { tags.contains($0.trackUUID) },
                                                 playlists: report.playlistWritten.isEmpty ? nil : preview.playlists,
                                                 merges: preview.merges.filter { draft in report.mergeWritten.contains { $0.trackUUID == draft.id } })
-            publish(.written(written, preview: report), undo: written.backup)
+            // 쓰기 결과와 뒤따른 일(초안 정리·다시 읽기)의 경고를 나눠 알린다(#175).
+            publish(WriteResult.written(written, preview: report).followedUp(host.writeFollowUp), undo: written.backup)
         } catch is CancellationError {
             host.writeStage = nil
             publishCancelled()
@@ -285,11 +300,23 @@ struct ReflectionCoordinator {
         defer { host.setWriteLock(false) }
         host.writeStage = WriteStage(String(ui: "백업 뒤 바뀐 것을 확인하는 중…"))
         let changed = await host.libraryChangedSince(backup)
+        // 쓴 뒤 같은 곡에 새로 만든 초안은 말없이 덮지 않고 고르게 한다(#175).
+        let conflicts = host.restoreDraftConflictDetails(backup)
         host.writeStage = nil
-        guard prompter.show(Self.restoreConfirmation(backup, changedSince: changed)) else { return }
+        let keepingCurrentDrafts: Bool
+        if conflicts.isEmpty {
+            guard prompter.show(Self.restoreConfirmation(backup, changedSince: changed)) else { return }
+            keepingCurrentDrafts = true
+        } else {
+            switch prompter.choose(Self.restoreConfirmation(backup, changedSince: changed, conflicts: conflicts)) {
+            case .confirm: keepingCurrentDrafts = true
+            case .alternate: keepingCurrentDrafts = false
+            case .cancel: return
+            }
+        }
         do {
-            let saved = try await host.restoreRekordbox(backup)
-            publish(.restored(backup, saved: saved))
+            let saved = try await host.restoreRekordbox(backup, keepingCurrentDrafts: keepingCurrentDrafts)
+            publish(WriteResult.restored(backup, saved: saved).followedUp(host.writeFollowUp))
         } catch {
             host.writeStage = nil
             host.toast = nil
@@ -487,9 +514,11 @@ struct ReflectionCoordinator {
     }
 
     /// 되돌리기 확인 창. 백업 뒤 변경이 있거나 확인하지 못했으면 파괴적 경고로 띄운다.
-    static func restoreConfirmation(_ backup: RekordboxWriter.Backup, changedSince changed: Bool?) -> ReflectionPrompt {
+    /// - Parameter conflicts: 쓴 뒤 새로 만든 초안이 있는 곡. 있으면 지금 초안을 남길지(확인), 백업 초안으로 바꿀지(둘째 단추) 고른다.
+    static func restoreConfirmation(_ backup: RekordboxWriter.Backup, changedSince changed: Bool?, conflicts: [String] = []) -> ReflectionPrompt {
         var lines = [String(ui: "백업: \(backup.createdAt.formatted(date: .abbreviated, time: .shortened))")]
-        let details = backup.titles.isEmpty ? [] : [String(ui: "그때 쓴 곡:")] + backup.titles.map { "• \($0)" }
+        var details = backup.titles.isEmpty ? [] : [String(ui: "그때 쓴 곡:")] + backup.titles.map { "• \($0)" }
+        if !conflicts.isEmpty { details += [String(ui: "쓴 뒤 새로 만든 초안:")] + conflicts }
         if let tracks = backup.trackReport {
             let added = tracks.added.filter(\.written).count, deleted = tracks.deleted.filter(\.written).count
             // 문장마다 번역하고, 문장 뒤 빈칸은 원래 모양 그대로 둔다.
@@ -505,10 +534,15 @@ struct ReflectionCoordinator {
         case nil: lines.append(String(ui: "백업 뒤 rekordbox에서 바뀐 것이 있는지 확인하지 못했습니다. 그 뒤 rekordbox에서 한 변경은 함께 사라집니다."))
         case false?: break
         }
+        if !conflicts.isEmpty {
+            lines.append(String(ui: "\(conflicts.count)곡은 쓴 뒤 새로 만든 초안이 백업의 초안과 다릅니다. 지금 초안을 남기면 그 곡의 백업 초안은 되살리지 않고, 백업 초안으로 바꾸면 지금 초안이 사라집니다."))
+        }
         lines.append(String(ui: "백업한 뒤 복원하고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요."))
         return ReflectionPrompt(title: String(ui: "rekordbox를 쓰기 전으로 복원할까요?"),
-                                text: lines.joined(separator: "\n\n"), confirm: String(ui: "쓰기 전으로 복원"),
-                                critical: changed != false, destructive: changed != false, details: details)
+                                text: lines.joined(separator: "\n\n"),
+                                confirm: conflicts.isEmpty ? String(ui: "쓰기 전으로 복원") : String(ui: "복원하고 지금 초안 남기기"),
+                                critical: changed != false, destructive: changed != false, details: details,
+                                alternate: conflicts.isEmpty ? nil : String(ui: "복원하고 백업 초안으로 바꾸기"))
     }
 }
 

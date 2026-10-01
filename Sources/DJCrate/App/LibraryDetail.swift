@@ -57,6 +57,9 @@ struct LibraryDetail: View {
                 if let message = store.draftFileMessage {
                     AppMessageView(message: message, onClose: { store.draftFileMessage = nil })
                 }
+                if store.sidebar == .pending, !store.unlinkedDraftUUIDs.isEmpty {
+                    UnlinkedDraftsBar(store: store)
+                }
                 if let message = store.reflectionMessage {
                     AppMessageView(message: message, onClose: { store.reflectionMessage = nil })
                 }
