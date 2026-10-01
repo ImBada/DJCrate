@@ -9,7 +9,7 @@ import Foundation
 public enum EditStaging {
     public static func stage(fileAt url: URL, edit: TrackEdit, cues: [EditableCue], source: Track?, title: String? = nil,
                              home: URL = DJCPaths.userData, now: Date = .now) async throws -> StagedTrack {
-        let list = home.appending(path: "staged.json")
+        let list = home.appending(path: StagingStore.fileName)
         var tracks = StagingStore.load(url: list)
         let path = url.path.precomposedStringWithCanonicalMapping
         guard !tracks.contains(where: { $0.path.precomposedStringWithCanonicalMapping == path }) else {

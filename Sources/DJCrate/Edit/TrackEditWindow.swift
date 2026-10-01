@@ -222,6 +222,8 @@ extension LibraryStore {
     /// 초안은 편집 창이 파일로 써 두었다.
     func showStagedEdit(_ track: StagedTrack) {
         loadStaged()
+        // 넣기가 손상된 추가 목록을 옮겼으면(옛 목록은 보관만 된다) 알린다. 새로 읽은 목록은 비어 있지 않아 저장 알림 규칙을 쓰지 않는다.
+        applyMovedDrafts(DamagedDrafts.take(home: draftHome ?? DJCPaths.userData))
         refreshExternalDrafts()
         draftChanged(trackUUID: track.uuid, kind: .grid, exists: true)
         search = ""

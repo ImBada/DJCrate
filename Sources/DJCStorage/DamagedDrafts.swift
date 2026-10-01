@@ -44,7 +44,7 @@ public enum DamagedDrafts {
         catch is DraftFileDamaged { try preserve(url, home: home, trackUUID: trackUUID) }
     }
 
-    /// 데이터 폴더의 초안(큐·그리드·태그 폴더, 게인·재생 목록 파일)을 모두 읽어 보고 손상된 파일을 옮긴다.
+    /// 데이터 폴더의 초안(큐·그리드·태그 폴더, 게인·재생 목록·합치기 초안 파일)과 추가 목록을 모두 읽어 보고 손상된 파일을 옮긴다.
     /// 다른 이유로 읽지 못한 파일(권한·폴더)은 그대로 둔다. 옮긴 파일은 `take`로 받는다.
     public static func preserveAll(home: URL) {
         func scan<T: Decodable>(_ type: T.Type, folder: String) {
@@ -61,6 +61,8 @@ public enum DamagedDrafts {
         scan(TagDraft.self, folder: "tag-drafts")
         try? preserveIfDamaged([String: Double].self, at: home.appending(path: "gain-drafts.json"), home: home, trackUUID: nil)
         try? preserveIfDamaged(PlaylistDraft.self, at: home.appending(path: "playlist-drafts.json"), home: home, trackUUID: nil)
+        try? preserveIfDamaged([DuplicateMergeDraft].self, at: home.appending(path: DuplicateMergeDraftStore.fileName), home: home, trackUUID: nil)
+        try? preserveIfDamaged([StagedTrack].self, at: home.appending(path: StagingStore.fileName), home: home, trackUUID: nil)
     }
 
     /// 옮긴 뒤 아직 알리지 않은 파일을 받아 간다(한 번만 돌려준다).
