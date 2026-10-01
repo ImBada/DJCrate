@@ -101,7 +101,7 @@ extension LibraryStore {
     /// rekordbox 라이브러리에 넣는다(큐 초안도 함께). 넣은 곡은 추가 목록에서 빼고(백업에 남긴다),
     /// 큐가 막힌 곡의 큐 초안과 분석을 못 붙인 곡의 그리드 초안은 새 곡으로 옮긴다.
     func addTracksToRekordbox(_ preview: TrackAddPreview) async throws -> RekordboxTrackWriter.Report {
-        try await addTracksToRekordbox(preview, to: RekordboxWriter.liveDatabase, shareRoot: nil)
+        try await addTracksToRekordbox(preview, to: rekordboxDatabase, shareRoot: rekordboxShareRoot)
     }
 
     /// - Parameters:
@@ -201,7 +201,7 @@ extension LibraryStore {
     }
 
     func deleteTracksFromRekordbox(_ preview: TrackDeletePreview) async throws -> RekordboxTrackWriter.Report {
-        try await deleteTracksFromRekordbox(preview, from: RekordboxWriter.liveDatabase, shareRoot: nil)
+        try await deleteTracksFromRekordbox(preview, from: rekordboxDatabase, shareRoot: rekordboxShareRoot)
     }
 
     func deleteTracksFromRekordbox(_ preview: TrackDeletePreview, from database: URL, shareRoot: URL?) async throws -> RekordboxTrackWriter.Report {

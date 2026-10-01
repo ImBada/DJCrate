@@ -87,16 +87,19 @@ public extension StagedTrack {
 
 /// 추가한 곡 목록(Application Support/DJCrate/staged.json).
 public enum StagingStore {
+    public static let fileName = "staged.json"
     public static var url: URL {
-        DJCPaths.userData.appending(path: "staged.json")
+        DJCPaths.userData.appending(path: fileName)
     }
 
+    /// 없거나 읽지 못하면 빈 목록. 앱은 읽기 전에 손상된 파일을 옮겨 보관하고 알린다(`DamagedDrafts.preserveAll`).
     public static func load(url: URL = url) -> [StagedTrack] {
-        guard let data = try? Data(contentsOf: url) else { return [] }
-        return (try? JSONDecoder().decode([StagedTrack].self, from: data)) ?? []
+        (try? DamagedDrafts.read([StagedTrack].self, at: url)) ?? []
     }
 
     public static func save(_ tracks: [StagedTrack], url: URL = url) throws {
+        // 손상된 파일은 새 목록으로 덮지 않고 옮겨 보관한다. 곡 파일 경로가 들어 있어 사용자가 다시 추가할 수 있게 남긴다(#178).
+        try DamagedDrafts.preserveIfDamaged([StagedTrack].self, at: url, home: url.deletingLastPathComponent(), trackUUID: nil)
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

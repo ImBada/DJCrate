@@ -34,6 +34,19 @@ if [[ -z "${DJC_HOME-}" ]]; then
     export DJC_HOME="${log_dir:A}/djc-home"
     mkdir -p "$DJC_HOME"
 fi
+# 시험이 실제 rekordbox 라이브러리를 기본값으로 보지 않게, 따로 주지 않으면 빈 임시 폴더를 DJC_REKORDBOX_DIR로 쓴다(#182).
+if [[ -z "${DJC_REKORDBOX_DIR-}" ]]; then
+    export DJC_REKORDBOX_DIR="${log_dir:A}/rekordbox"
+    mkdir -p "$DJC_REKORDBOX_DIR"
+fi
+# 검사 전후 실제 라이브러리 파일의 크기·수정 시각·inode와 바뀐 분석 파일을 비교한다(#182: 시험이 실제 라이브러리를 덮었다).
+live_library="$HOME/Library/Pioneer/rekordbox"
+touch "$log_dir/live-reference"
+live_fingerprint() {
+    /usr/bin/stat -f '%N %z %m %i' "$live_library"/master.db*(N) "$live_library"/masterPlaylists6.xml(N) 2>/dev/null || true
+    find "$live_library/share/PIONEER/USBANLZ" -newer "$log_dir/live-reference" 2>/dev/null | head -5 || true
+}
+live_before=$(live_fingerprint)
 integer check_started=$SECONDS stage_started=0
 stage_name=""
 stage_pid=""
@@ -61,8 +74,13 @@ finish() {
         stop_tree "$pulse_pid"
         wait "$pulse_pid" 2>/dev/null || true
     fi
+    if [[ "$(live_fingerprint)" != "$live_before" ]]; then
+        echo "✘ 검사 중 실제 rekordbox 라이브러리 파일이 바뀌었습니다. rekordbox를 쓰지 않았다면 시험이 실제 라이브러리를 건드린 것이니 바로 멈추고 알리세요" >&2
+        (( code == 0 )) && code=3
+    fi
     echo "▸ 전체 종료: $((SECONDS - check_started))초, 종료코드 $code (로그: $log_dir)"
     print -r -- "$code" > "$log_dir/exit-code.txt"
+    exit "$code"
 }
 trap 'finish $?' EXIT
 trap 'exit 130' INT

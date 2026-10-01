@@ -8,6 +8,8 @@ public enum DJCIdentity {
     public static let legacyName = "anicue"
     public static let legacyBundleID = "com.fotone.anicue"
 
-    /// `~/Library/Application Support/DJCrate`: 초안·스냅샷·백업·분석 캐시
-    public static var supportDirectory: URL { URL.applicationSupportDirectory.appending(path: name) }
+    /// `~/Library/Application Support/DJCrate`: 초안·스냅샷·백업·분석 캐시. 시험 프로세스는 임시 폴더를 쓴다(사용자 백업을 지우지 않게, #182).
+    public static var supportDirectory: URL {
+        TestProcess.isRunning ? TestProcess.sandbox.appending(path: "support") : URL.applicationSupportDirectory.appending(path: name)
+    }
 }

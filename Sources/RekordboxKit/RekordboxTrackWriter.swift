@@ -85,7 +85,7 @@ public enum RekordboxTrackWriter {
     ///     큐가 막히면 곡만 넣고 이유를 `cueReason`에 남긴다.
     ///   - writesArtwork: 분석까지 붙이는 곡에 음원 내장 아트워크로 아트워크 파일 셋·`ImagePath`·파일 행을 넣는지. 앱은 `writesArtwork`를 따른다.
     public static func add(_ plans: [TrackAddPlan], analyses: [String: Analysis] = [:], cues: [String: [EditableCue]] = [:],
-                           to database: URL = RekordboxWriter.liveDatabase,
+                           to database: URL,
                            shareRoot: URL? = nil, dryRun: Bool, now: Date = .now, backups: URL,
                            guard writeGuard: RekordboxWriteGuard = .system,
                            writesArtwork: Bool = RekordboxTrackWriter.writesArtwork) throws -> Report {
@@ -425,7 +425,7 @@ public enum RekordboxTrackWriter {
 
     // MARK: - 삭제
 
-    public static func delete(contentIDs: [String], from database: URL = RekordboxWriter.liveDatabase, shareRoot: URL? = nil,
+    public static func delete(contentIDs: [String], from database: URL, shareRoot: URL? = nil,
                               dryRun: Bool, now: Date = .now, backups: URL, guard writeGuard: RekordboxWriteGuard = .system) throws -> Report {
         var report = Report(dryRun: dryRun)
         guard !contentIDs.isEmpty else { return report }

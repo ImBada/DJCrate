@@ -13967,6 +13967,22 @@
         }
       }
     },
+    "다른 rekordbox 라이브러리에서 뜬 백업입니다. 이 라이브러리의 백업을 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This backup was taken from a different rekordbox library. Choose a backup of this library."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別の rekordbox ライブラリで作成されたバックアップです。このライブラリのバックアップを選んでください"
+          }
+        }
+      }
+    },
     "다른 기준곡을 고르거나 BPM·키·장르·#태그를 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -20729,6 +20745,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "テスト用ボリューム（ディスクイメージ）です"
+          }
+        }
+      }
+    },
+    "시험 중에는 실제 rekordbox 라이브러리에 쓰지 않습니다. DJC_REKORDBOX_DIR로 사본 폴더를 주세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tests never write to the real rekordbox library. Set DJC_REKORDBOX_DIR to a copy folder."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テスト中は実際の rekordbox ライブラリに書き込みません。DJC_REKORDBOX_DIR でコピーのフォルダを指定してください"
           }
         }
       }
@@ -28269,6 +28301,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "追加した曲のXMLを作成（%lld曲）"
+          }
+        }
+      }
+    },
+    "추가한 곡 목록 파일을 읽지 못해 DJCrate 데이터 폴더의 damaged-drafts에 옮겨 두었으니 추가했던 곡 파일을 다시 추가하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read the added tracks list, so it was moved to damaged-drafts in the DJCrate data folder. Add the track files again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加した曲の一覧ファイルを読み込めなかったため、DJCrateデータフォルダのdamaged-draftsに移しました。追加していた曲のファイルをもう一度追加してください。"
           }
         }
       }

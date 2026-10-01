@@ -138,14 +138,17 @@ public struct RekordboxWriteGuard: Sendable {
     public var isRekordboxRunning: @Sendable () -> Bool
     public var appVersion: @Sendable () -> String?
     private let liveDirectories: [URL]
+    /// 시험 프로세스에서 쓰기·복원을 거부할 폴더. 실제 rekordbox 폴더는 늘 들어 있고, 시험은 합성 폴더를 더해 입구마다 막히는지 본다.
+    private let protectedInTests: [URL]
 
     /// 시험에서는 합성 라이브 루트만 주입한다. 환경 변수로 사본을 골라도 실제 라이브 루트는 보호한다.
     public init(isLive: (@Sendable (URL) -> Bool)? = nil, isRekordboxRunning: @escaping @Sendable () -> Bool,
                 appVersion: @escaping @Sendable () -> String?, liveDirectories: [URL] = [
                     LibrarySnapshot.rekordboxDirectory,
-                    FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Pioneer/rekordbox")
-                ]) {
+                    LibrarySnapshot.realRekordboxDirectory
+                ], protectedInTests: [URL] = []) {
         self.liveDirectories = liveDirectories
+        self.protectedInTests = [LibrarySnapshot.realRekordboxDirectory] + protectedInTests
         self.isLive = isLive ?? { database in
             liveDirectories.contains { RekordboxWriter.isLive(database, liveDatabase: $0.appending(path: "master.db")) }
         }
@@ -174,6 +177,7 @@ public struct RekordboxWriteGuard: Sendable {
 
     /// 복원도 같은 대상 경계를 쓰되, 비상 복원의 버전 검사 예외는 유지한다.
     func resolveShareRoot(_ database: URL, shareRoot: URL?) throws -> URL? {
+        try refuseProtectedInTests([database, shareRoot])
         let directory = liveDirectories.first { Self.sameFile(database, $0.appending(path: "master.db")) }
         let shareRoot = shareRoot ?? (isLive(database) ? directory?.appending(path: "share") ?? RekordboxShare.directory : nil)
         for directory in liveDirectories {
@@ -183,6 +187,15 @@ public struct RekordboxWriteGuard: Sendable {
             }
         }
         return shareRoot
+    }
+
+    /// 시험 프로세스는 실제 rekordbox 폴더에 쓰거나 되돌리지 않는다. 쓰기·복원 입구가 모두 지나는 `resolveShareRoot`에서
+    /// 주입한 `isLive`와 상관없이 막는다(#182: 시험이 실제 라이브러리로 복원해 라이브러리를 덮었다).
+    func refuseProtectedInTests(_ targets: [URL?], isTest: Bool = TestProcess.isRunning) throws {
+        guard isTest else { return }
+        for target in targets.compactMap({ $0 }) where protectedInTests.contains(where: { Self.contains(target, in: $0) }) {
+            throw DJCError.writeRefused(String(ui: "시험 중에는 실제 rekordbox 라이브러리에 쓰지 않습니다. DJC_REKORDBOX_DIR로 사본 폴더를 주세요"))
+        }
     }
 
     /// 경로와 device/inode를 함께 본다. 파일이 아직 없는 끊어진 심볼릭 링크도 경로로 막는다.
