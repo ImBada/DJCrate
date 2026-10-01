@@ -40,7 +40,11 @@ struct DJCrateApp: App {
                 .background(MainWindowFrame { windowFrameRestored = true })
                 .task {
                     appDelegate.store = store
+                    #if DEBUG
+                    if !ProcessInfo.processInfo.arguments.contains("--playlist-recovery-selftest") { NSApplication.shared.activate() }
+                    #else
                     NSApplication.shared.activate()
+                    #endif
                     UsbAppSetup.attach(to: store)
                     await store.loadInitial()
                 }
@@ -114,6 +118,9 @@ private struct MainWindowFrame: NSViewRepresentable {
             // SwiftUI가 기본 크기를 잡은 뒤 저장된 프레임을 적용한다.
             DispatchQueue.main.async { [weak self] in
                 guard let self, let window else { return }
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--playlist-recovery-selftest") { onRestore(); return }
+                #endif
                 if window.frameAutosaveName != "djc.mainWindow" {
                     window.setFrameUsingName("djc.mainWindow")
                     window.setFrameAutosaveName("djc.mainWindow")

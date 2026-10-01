@@ -207,7 +207,7 @@ struct ReflectionCoordinatorTests {
         let preview = Self.playlistPreview([
             Self.playlistOutcome(.create(key: "k", name: "세트", isFolder: false, parent: .root), "세트", .written),
             Self.playlistOutcome(.addTracks(playlist: .id("9"), contentIDs: ["1", "2"]), "옛 목록", .blocked,
-                                 reason: "초안을 만든 뒤 rekordbox에서 이 목록이 바뀌었습니다. 이 목록의 초안을 버리고 다시 편집하세요"),
+                                 reason: "초안을 만든 뒤 rekordbox에서 이 목록이 바뀌었으니 현재 목록을 비교해 다시 적용하거나 초안을 버리세요."),
         ])
         host.preview = .success(preview)
         await coordinator().write(rows: [])

@@ -62,7 +62,7 @@ extension LibraryStore {
 
     /// 초안을 얹은 모양으로 사이드바 트리·곡 수·목록을 다시 만든다.
     func refreshPlaylists(refreshList: Bool = true) {
-        let projection = playlistDraft.project(onto: rekordboxPlaylists)
+        let projection = playlistDraft.project(onto: rekordboxPlaylists, contentIDs: Set(rowsByID.keys))
         playlistProjection = projection
         playlistTree = PlaylistOutlineNode.tree(projection)
         var index: [String: PlaylistOutlineNode] = [:]
@@ -296,7 +296,7 @@ extension LibraryStore {
     /// rekordbox에서 바뀌어 쓸 수 없는 편집만 버린다.
     func discardBlockedPlaylistEdits() {
         var draft = playlistDraft
-        draft.discardBlocked(rekordbox: rekordboxPlaylists)
+        draft.discardBlocked(rekordbox: rekordboxPlaylists, contentIDs: Set(rowsByID.keys))
         setPlaylistDraft(draft, actionName: String(ui: "재생 목록 초안 버리기"))
     }
 
