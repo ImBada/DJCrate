@@ -62,10 +62,12 @@ struct UsbEditSummary: Equatable, Sendable {
     var isTestVolume: Bool
     /// 한 형식이 막힌 채 곡을 더하거나 빼 두 형식의 곡이 달라진다(다음부터 이 USB 편집이 막힌다)
     var formatDrift: Bool
+    /// 이 요약이 계획한 초안 편집(적힌 순서). 쓰기 직전 초안이 이것과 다르면 확인 창에 없던 편집을 쓰지 않게 다시 미리 본다
+    var edits: [UsbLibraryEdit]
 
     init(editCount: Int, outcomes: [Int: Outcome], stopping: [String], skipped: [Count], formats: [FormatResult], removals: Int,
          deferred: [String], notes: [String], warnings: [String], rules: [UsbProvisionalRule], hasChanges: Bool, isTestVolume: Bool,
-         formatDrift: Bool) {
+         formatDrift: Bool, edits: [UsbLibraryEdit] = []) {
         self.editCount = editCount
         self.outcomes = outcomes
         self.stopping = stopping
@@ -79,6 +81,7 @@ struct UsbEditSummary: Equatable, Sendable {
         self.hasChanges = hasChanges
         self.isTestVolume = isTestVolume
         self.formatDrift = formatDrift
+        self.edits = edits
     }
 
     init(result: UsbEditResult, edits: [UsbLibraryEdit], volume: UsbVolumeInfo) {
@@ -119,7 +122,7 @@ struct UsbEditSummary: Equatable, Sendable {
                   removals: result.changes?.removals.count ?? 0, deferred: deferred, notes: Self.grouped(result.notes),
                   warnings: Self.unique(result.warnings.map(\.message)),
                   rules: (result.changes?.requiredRules ?? []).sorted { $0.rawValue < $1.rawValue }, hasChanges: result.changes != nil,
-                  isTestVolume: volume.isDiskImage, formatDrift: !result.formatsBlocked.isEmpty && tracksChanged)
+                  isTestVolume: volume.isDiskImage, formatDrift: !result.formatsBlocked.isEmpty && tracksChanged, edits: edits)
     }
 
     /// 이 USB에 초안이 없다
