@@ -10,6 +10,8 @@ extension RekordboxWriter {
     /// rekordbox 실험으로 쓰기 규칙을 확인한 칸. 이 밖의 칸을 고친 초안은 곡째 막는다(docs/rekordbox-internals.md "태그 (곡 정보)").
     /// 공유 앨범 값 변경·동명 앨범 선택·미확인 상태는 `checkTags`에서 곡째 막는다.
     public static let writableTagKeys: Set<TagFields.Key> = [.title, .artist, .album, .albumArtist, .genre, .composer, .year, .trackNumber, .comment]
+    /// 동기화 상태(256·257)인 곡에서 쓰기 규칙을 확인한 칸(2026-10-01 カクシタワタシ, #171). 상태 0은 `writableTagKeys` 전부, 그 밖의 상태는 없다.
+    public static let syncedWritableTagKeys: Set<TagFields.Key> = [.comment]
 
     /// 쓴 뒤 곡이 가져야 할 태그
     struct TagExpectation {
@@ -17,6 +19,8 @@ extension RekordboxWriter {
         var fields: TagFields
         var trackInfoUpdated: String
         var contentUSN: Int
+        /// 쓴 뒤 곡의 `rb_data_status`(256 → 257, 0·257은 그대로)
+        var dataStatus: Int?
         /// 변경 번호를 준 앨범 행(ID → 번호). 같은 반영 안의 뒤 편집은 마지막 기대값을 맡는다.
         var touchedAlbums: [String: Int] = [:]
         /// 아무 곡도 안 쓰게 되어 지운 이름 행(표, ID)
@@ -62,7 +66,7 @@ extension RekordboxWriter {
     /// 쓰기 전에 막을 조건: 곡 없음·지운 곡·닫힌 칸·잘못된 값·base 불일치. 막히면 `Blocked`, 통과하면 곡 행 정보.
     /// 백업을 뜨기 전(읽기 연결)과 트랜잭션 안에서 두 번 본다.
     static func checkTags(_ draft: TagDraft, db: CipherDatabase,
-                          writable: Set<TagFields.Key>) throws -> (id: String, title: String, trackInfoUpdated: String?) {
+                          writable: Set<TagFields.Key>) throws -> (id: String, title: String, trackInfoUpdated: String?, state: Int?) {
         var contents: [(id: String, title: String, deleted: Bool, trackInfoUpdated: String?, state: Int?)] = []
         try db.query("SELECT ID, Title, rb_local_deleted, TrackInfoUpdated, rb_data_status FROM djmdContent WHERE UUID = ?",
                      [.text(draft.trackUUID)]) { r in
@@ -85,14 +89,40 @@ extension RekordboxWriter {
         if draft.changedKeys.contains(.albumArtist), draft.fields.album.isEmpty, !draft.fields.albumArtist.isEmpty {
             throw block(String(ui: "앨범이 없는 곡에는 앨범 아티스트를 쓸 수 없습니다"))
         }
-        guard content.state == 0 else {
-            throw block(String(ui: "이 곡의 동기화 상태에서는 태그 쓰기를 확인하지 못했으므로 rekordbox에서 직접 고치세요"))
-        }
+        try checkTagState(draft, state: content.state, block: block)
         try checkTagAlbum(draft, contentID: content.id, db: db, block: block)
         guard try currentTags(db: db, contentID: content.id) == draft.base else {
             throw block(String(ui: "초안을 만든 뒤 rekordbox에서 곡 정보가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요"))
         }
-        return (content.id, content.title, content.trackInfoUpdated)
+        return (content.id, content.title, content.trackInfoUpdated, content.state)
+    }
+
+    /// 곡의 동기화 상태마다 확인한 칸만 쓴다. 0은 전부, 256·257은 `syncedWritableTagKeys`(코멘트)뿐이고 그 밖의 상태는 막는다.
+    /// 막힌 칸은 이름을 알려, 그 칸을 되돌리면 같은 곡의 확인한 칸은 쓸 수 있게 한다.
+    private static func checkTagState(_ draft: TagDraft, state: Int?, block: (String) -> Blocked) throws {
+        switch state {
+        case 0:
+            return
+        case 256, 257:
+            // 실험 4는 코멘트 넣기·바꾸기만 보았다. 비우는 저장은 확인하지 않았다.
+            let clearsComment = draft.changedKeys.contains(.comment) && draft.fields.comment.isEmpty
+            let unverified = draft.changedKeys.filter { !syncedWritableTagKeys.contains($0) }
+            guard !unverified.isEmpty else {
+                guard !clearsComment else {
+                    throw block(String(ui: "동기화 상태인 곡의 코멘트 비우기는 아직 확인하지 않았으므로 rekordbox에서 직접 비우세요"))
+                }
+                return
+            }
+            let labels = unverified.map(\.label).joined(separator: "·")
+            let writable = clearsComment ? [] : draft.changedKeys.filter { syncedWritableTagKeys.contains($0) }
+            guard !writable.isEmpty else {
+                throw block(String(ui: "동기화 상태인 곡에서는 \(labels) 칸의 쓰기 규칙을 아직 확인하지 않았으므로 rekordbox에서 직접 고치세요"))
+            }
+            let rest = writable.map(\.label).joined(separator: "·")
+            throw block(String(ui: "동기화 상태인 곡에서는 \(labels) 칸의 쓰기 규칙을 아직 확인하지 않았으니 그 칸을 되돌리면 \(rest)는 쓸 수 있습니다"))
+        default:
+            throw block(String(ui: "이 곡의 동기화 상태에서는 태그 쓰기를 확인하지 못했으므로 rekordbox에서 직접 고치세요"))
+        }
     }
 
     /// 같은 이름이 여러 개인 앨범의 선택 규칙과 선택 밖 곡의 변경은 이번 쓰기 범위에 넣지 않는다.
@@ -207,13 +237,14 @@ extension RekordboxWriter {
         if keys.contains(.trackNumber) { columns.append(("TrackNo", .int(Int(fields.trackNumber) ?? 0))) }
         if keys.contains(.comment) { columns.append(("Commnt", .text(fields.comment))) }
 
-        // 곡 행: 바뀐 칸 + TrackInfoUpdated(글자) 칸마다 +1 + 변경 번호(마지막).
+        // 곡 행: 바뀐 칸 + TrackInfoUpdated(글자) 칸마다 +1 + 동기화 상태 256 → 257 + 변경 번호(마지막).
         // 앨범을 비우며 앨범 아티스트도 비우면 rekordbox에서는 한 번 저장이다.
         let saves = keys.count - (keys.contains(.album) && keys.contains(.albumArtist) && fields.album.isEmpty ? 1 : 0)
         let trackInfoUpdated = String((Int(content.trackInfoUpdated ?? "0") ?? 0) + saves)
         usn += 1
         let assignments = columns.map { "\"\($0.0)\" = ?" } + [
             "TrackInfoUpdated = ?",
+            "rb_data_status = CASE rb_data_status WHEN 256 THEN 257 ELSE rb_data_status END",
             "rb_local_usn = ?", "updated_at = ?",
         ]
         let changed = try db.run("UPDATE djmdContent SET \(assignments.joined(separator: ", ")) WHERE ID = ?",
@@ -242,6 +273,7 @@ extension RekordboxWriter {
         }
 
         let expectation = TagExpectation(contentID: content.id, fields: expected, trackInfoUpdated: trackInfoUpdated, contentUSN: usn,
+                                         dataStatus: content.state == 256 ? 257 : content.state,
                                          touchedAlbums: touchedAlbums, deletedNames: deleted)
         try verifyTags(db: db, expectation)
         let outcome = Outcome(trackUUID: draft.trackUUID, title: content.title, status: .written, reason: nil, removed: 0, added: keys.count,
@@ -253,11 +285,12 @@ extension RekordboxWriter {
     static func verifyTags(db: CipherDatabase, _ expected: TagExpectation) throws {
         func fail(_ reason: String) -> DJCError { .writeVerificationFailed("\(reason) (ContentID \(expected.contentID))") }
         guard try currentTags(db: db, contentID: expected.contentID) == expected.fields else { throw fail(String(ui: "곡 정보가 초안과 다릅니다")) }
-        var stored: (info: String?, type: String?, usn: Int?)?
-        try db.query("SELECT TrackInfoUpdated, typeof(TrackInfoUpdated), rb_local_usn FROM djmdContent WHERE ID = ?",
-                     [.text(expected.contentID)]) { stored = ($0.string(0), $0.string(1), $0.int(2)) }
+        var stored: (info: String?, type: String?, usn: Int?, status: Int?)?
+        try db.query("SELECT TrackInfoUpdated, typeof(TrackInfoUpdated), rb_local_usn, rb_data_status FROM djmdContent WHERE ID = ?",
+                     [.text(expected.contentID)]) { stored = ($0.string(0), $0.string(1), $0.int(2), $0.int(3)) }
         guard stored?.info == expected.trackInfoUpdated, stored?.type == "text" else { throw fail(String(ui: "곡 정보 변경 횟수(TrackInfoUpdated)가 다릅니다")) }
         guard stored?.usn == expected.contentUSN else { throw fail(String(ui: "곡의 변경 번호가 다릅니다")) }
+        guard let stored, stored.status == expected.dataStatus else { throw fail(String(ui: "곡의 동기화 상태(rb_data_status)가 다릅니다")) }
         for (id, usn) in expected.touchedAlbums {
             guard try scalar(db, "SELECT rb_local_usn FROM djmdAlbum WHERE ID = ? AND AlbumArtistID IS NOT NULL", [.text(id)]) == usn else {
                 throw fail(String(ui: "앨범 행의 변경 번호가 다릅니다"))

@@ -275,6 +275,52 @@ struct RekordboxRestoreFailureTests {
         #expect(try Int(row["rb_local_usn"] ?? "") == fixture.localUpdateCount(), "곡 행이 마지막 번호")
     }
 
+    /// 동기화 상태(256)인 곡의 코멘트(#171): 큐·BPM·게인과 함께 써도 상태는 257이고 커밋 뒤 확인을 통과한다.
+    @Test func 동기화된_곡의_큐·BPM·코멘트·게인을_함께_써도_커밋_뒤_확인을_통과한다() throws {
+        let fixture = try RekordboxFixture(localUpdateCount: 900)
+        let (grid, track) = try gridDraft(fixture)
+        try fixture.execute("UPDATE djmdContent SET Commnt = '' WHERE ID = ?", [.text(track.id)])
+        try fixture.insert("djmdMixerParam", ["ID": .text("mp-\(track.id)"), "ContentID": .text(track.id), "GainHigh": .int(16256),
+                                              "GainLow": .int(0), "rb_data_status": .int(256), "rb_local_deleted": .int(0), "rb_local_usn": .int(12)])
+        var cue = CueDraft(trackUUID: track.uuid, rekordboxCues: [])
+        cue.place(EditableCue(kind: .memory, time: 30))
+        let tags = try syncedCommentDraft(fixture, track)
+        let report = try RekordboxWriter.write(drafts: [cue], grids: [grid], gains: [track.uuid: -3], tags: [tags], analysisInputs: [:],
+                                               to: fixture.database, dryRun: false, now: now, backups: fixture.backups,
+                                               shareRoot: fixture.shareRoot, attachesAnalysis: false)
+        #expect(report.written.count == 1 && report.gridWritten.count == 1 && report.gainWritten.count == 1 && report.tagWritten.count == 1)
+        let row = try #require(fixture.rows("SELECT * FROM djmdContent WHERE ID = ?", [.text(track.id)]).first)
+        #expect(row["Commnt"] == "새 코멘트" && row["rb_data_status"] == "257" && row["TrackInfoUpdated"] == "3", "그리드 +1, 태그 +1")
+        #expect(try Int(row["rb_local_usn"] ?? "") == fixture.localUpdateCount(), "곡 행이 마지막 번호")
+    }
+
+    /// 태그 쓰기가 새로 고치는 동기화 상태도 커밋 뒤 다시 읽어 다르면 되돌린다(#171).
+    @Test(arguments: ["UPDATE djmdContent SET rb_data_status = 256", "UPDATE djmdContent SET Commnt = 'x'"])
+    func 동기화된_곡의_코멘트도_커밋_뒤_다시_읽어_다르면_되돌린다(tamper: String) throws {
+        let fixture = try RekordboxFixture(localUpdateCount: 900)
+        let track = try fixture.add(TrackSpec())
+        try fixture.execute("UPDATE djmdContent SET Commnt = '' WHERE ID = ?", [.text(track.id)])
+        let tags = try syncedCommentDraft(fixture, track)
+        try tamperOnCommit(fixture, tamper)
+        let before = try state(fixture)
+        let error = try #require(throws: DJCError.self) {
+            try RekordboxWriter.write(drafts: [], tags: [tags], to: fixture.database, dryRun: false, now: now,
+                                      backups: fixture.backups, shareRoot: fixture.shareRoot)
+        }
+        guard case .writeRolledBack = error else { Issue.record("되돌림 오류가 아님: \(error)"); return }
+        #expect(try state(fixture) == before)
+    }
+
+    /// 픽스처 곡(상태 256)의 코멘트만 고친 초안
+    func syncedCommentDraft(_ fixture: RekordboxFixture, _ track: TrackSpec) throws -> TagDraft {
+        let db = try fixture.open()
+        let base = try #require(try RekordboxWriter.currentTags(db: db, contentID: track.id))
+        db.close()
+        var tags = TagDraft(trackUUID: track.uuid, base: base)
+        tags.fields.comment = "새 코멘트"
+        return tags
+    }
+
     // MARK: 곡 넣기
 
     func addWithAnalysis(_ fixture: RekordboxFixture, now: Date) async throws -> RekordboxTrackWriter.Report {
