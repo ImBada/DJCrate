@@ -742,16 +742,21 @@ final class LibraryStore {
         }
         let id = UUID()
         let task = Task { [self] in
-            defer { if iTunesRefresh?.id == id { iTunesRefresh = nil } }
+            defer {
+                if iTunesRefresh?.id == id {
+                    iTunesRefresh = nil
+                    if Task.isCancelled, generation == loadGeneration, !quiet, isLoading { phase = .loaded }
+                }
+            }
             let captured = await capture.value
-            guard generation == loadGeneration, snapshotURL == snapshot else { return }
+            guard generation == loadGeneration, snapshotURL == snapshot, !Task.isCancelled else { return }
             let result = try? await Self.runBlockingLibraryWork {
                 LoadedLibrary.loadITunes(snapshot: snapshot, refreshITunes: true, captured: captured,
                                          previousITunesSnapshot: previousITunesSnapshot,
                                          fallbackDirectory: fallbackDirectory, refreshTicket: refreshTicket,
                                          sourceDatabase: sourceDatabase)
             }
-            guard generation == loadGeneration, snapshotURL == snapshot else { return }
+            guard generation == loadGeneration, snapshotURL == snapshot, !Task.isCancelled else { return }
             if let result {
                 iTunesSnapshot = result
                 iTunesLibrary = SyncedITunesLibrary(snapshot: result, tracks: rows.map(\.track))
@@ -769,9 +774,9 @@ final class LibraryStore {
 
     #if DEBUG
     /// 자가 테스트용: 사본 모드는 Music을 읽지 않으므로 멈춘 Music 최신화를 흉내 내 선택 창이 기다리는지 본다.
-    func startSimulatedITunesRefresh(capture: @escaping @Sendable () -> ITunesLibrarySnapshot) -> Task<Void, Never>? {
+    func startSimulatedITunesRefresh(quiet: Bool = true, capture: @escaping @Sendable () -> ITunesLibrarySnapshot) -> Task<Void, Never>? {
         guard let snapshotURL else { return nil }
-        return startITunesRefresh(snapshot: snapshotURL, quiet: true, previousITunesSnapshot: nil,
+        return startITunesRefresh(snapshot: snapshotURL, quiet: quiet, previousITunesSnapshot: nil,
                                   fallbackDirectory: snapshotURL.deletingLastPathComponent(),
                                   sourceDatabase: nil, captureITunes: capture)
     }

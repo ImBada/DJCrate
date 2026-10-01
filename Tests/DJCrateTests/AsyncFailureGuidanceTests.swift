@@ -261,4 +261,29 @@ struct AsyncFailureGuidanceTests {
         #expect(h.deck.draft?.trackUUID == row.track.uuid)
         #expect(!h.deck.canPlay)
     }
+
+    @Test(arguments: [false, true])
+    func Music_현재_완료만_적용하고_취소한_완료는_버린다(cancelled: Bool) async throws {
+        let fixture = try RekordboxFixture()
+        try fixture.add(TrackSpec())
+        let store = store(fixture)
+        await store.load(snapshot: fixture.database, arguments: ["test", "--db", fixture.database.path], environment: [:])
+        let before = store.iTunesSnapshot
+        let gate = DispatchSemaphore(value: 0)
+        let (started, signal) = AsyncStream<Void>.makeStream()
+        let task = try #require(store.startSimulatedITunesRefresh(quiet: false) {
+            signal.yield(())
+            gate.wait()
+            return ITunesLibrarySnapshot(status: .unavailable)
+        })
+        for await _ in started { break }
+        #expect(store.isLoading)
+        if cancelled { task.cancel() }
+        gate.signal()
+        await task.value
+        #expect(store.iTunesSnapshot == (cancelled ? before : ITunesLibrarySnapshot(status: .unavailable)))
+        #expect(store.iTunesRefresh == nil)
+        #expect(store.lastError == nil)
+        if case .loaded = store.phase { } else { Issue.record("Music 취소가 로딩 상태를 남김") }
+    }
 }
