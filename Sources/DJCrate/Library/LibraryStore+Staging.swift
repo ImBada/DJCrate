@@ -254,20 +254,30 @@ extension LibraryStore {
         gridTask = nil
     }
 
+    /// 지금의 그리드 초안. 저장에 실패해 DraftWriter에만 남은 입력이 디스크보다 최신이다.
+    private func currentGridDraft(_ uuid: String) -> GridDraft? {
+        if let pending = DraftWriter.pendingGrid(trackUUID: uuid) { return pending.hasChanges ? pending : nil }
+        return GridDraftStore.load(trackUUID: uuid)
+    }
+
     private func estimateGrid(_ item: GridJobItem) async {
         let url = URL(filePath: item.path)
-        if let existing = GridDraftStore.load(trackUUID: item.uuid) {
+        if let existing = currentGridDraft(item.uuid) {
             // 덱에서 이미 적용했거나 편집한 곡: 목록 BPM만 맞춘다.
             if item.staged { updateStaged(item.uuid, bpm: existing.segments.first?.bpm, confident: nil) }
             return
         }
         guard FileManager.default.fileExists(atPath: item.path),
-              let estimate = try? await GridSuggestion.estimate(fileAt: url, cacheKey: item.uuid) else { return }
+              let estimate = try? await gridEstimator(url, item.uuid) else { return }
         // 추정하는 동안 덱에서 초안을 만들었으면 덮지 않는다.
-        guard GridDraftStore.load(trackUUID: item.uuid) == nil else { return }
+        guard currentGridDraft(item.uuid) == nil else { return }
         let offset = RekordboxTimeline.predictedOffset(url: url)
         let draft = GridDraft(trackUUID: item.uuid, base: [], segments: estimate.segments).shifted(by: offset)
-        do { try GridDraftStore.save(draft) } catch { return }
+        // 바로 뒤 키 찾기·덱이 디스크의 초안을 읽으니 저장을 끝낸다. 실패해도 입력은 DraftWriter에 남는다.
+        DraftWriter.save(draft)
+        if let failure = DraftWriter.flush().first(where: { $0.kind == .grid && $0.trackUUID == item.uuid }) {
+            reportLibraryError(failure.message)
+        }
         draftChanged(trackUUID: item.uuid, kind: .grid, exists: true)
         if item.staged { updateStaged(item.uuid, bpm: estimate.bpm, confident: estimate.isConfident) }
         onGridDraftSaved?(item.uuid)
