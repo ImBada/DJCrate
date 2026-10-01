@@ -14411,18 +14411,18 @@
         }
       }
     },
-    "동기화 상태인 곡에서는 %@ 칸의 쓰기 규칙을 아직 확인하지 않았습니다. 그 칸을 되돌리면 %@는 쓸 수 있습니다" : {
+    "동기화 상태인 곡에서는 %@ 칸의 쓰기 규칙을 아직 확인하지 않았으니 그 칸을 되돌리면 %@는 쓸 수 있습니다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Write rules for %1$@ on synced tracks haven't been verified yet. Revert those fields to write %2$@."
+            "value" : "Write rules for %1$@ on synced tracks haven't been verified yet, so revert those fields to write %2$@."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "同期状態の曲では%1$@の書き込み規則をまだ確認していません。その項目を元に戻すと%2$@は書き込めます"
+            "value" : "同期状態の曲では%1$@の書き込み規則をまだ確認していないため、その項目を元に戻すと%2$@は書き込めます"
           }
         }
       }
@@ -14432,7 +14432,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Write rules for %@ on synced tracks haven't been verified yet. Edit this in rekordbox."
+            "value" : "Write rules for %@ on synced tracks haven't been verified yet, so edit this in rekordbox."
           }
         },
         "ja" : {
@@ -14448,7 +14448,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Clearing the comment on synced tracks hasn't been verified yet. Clear it in rekordbox."
+            "value" : "Clearing the comment on synced tracks hasn't been verified yet, so clear it in rekordbox."
           }
         },
         "ja" : {

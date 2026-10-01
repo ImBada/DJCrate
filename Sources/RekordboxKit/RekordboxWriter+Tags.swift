@@ -119,7 +119,7 @@ extension RekordboxWriter {
                 throw block(String(ui: "동기화 상태인 곡에서는 \(labels) 칸의 쓰기 규칙을 아직 확인하지 않았으므로 rekordbox에서 직접 고치세요"))
             }
             let rest = writable.map(\.label).joined(separator: "·")
-            throw block(String(ui: "동기화 상태인 곡에서는 \(labels) 칸의 쓰기 규칙을 아직 확인하지 않았습니다. 그 칸을 되돌리면 \(rest)는 쓸 수 있습니다"))
+            throw block(String(ui: "동기화 상태인 곡에서는 \(labels) 칸의 쓰기 규칙을 아직 확인하지 않았으니 그 칸을 되돌리면 \(rest)는 쓸 수 있습니다"))
         default:
             throw block(String(ui: "이 곡의 동기화 상태에서는 태그 쓰기를 확인하지 못했으므로 rekordbox에서 직접 고치세요"))
         }
