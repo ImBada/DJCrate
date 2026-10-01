@@ -19,29 +19,53 @@ final class ScriptedNamePrompter: UsbNamePrompter {
     }
 }
 
-/// 메인 액터 밖의 가짜 창구를 멈춰 두는 문. 시험이 열 때까지(길어도 5초) 기다린다
+/// 메인 액터 밖의 가짜 창구를 멈춰 두는 문. 시험이 열 때까지 기다린다. 시험이 열지 못하고 끝나도 쓰레드가 남지 않게
+/// 아주 늦으면(2분) 스스로 열고 `timedOut`을 남긴다 — 순서를 시간에 맡기지 않으므로 시험은 그것이 거짓인지 본다
 final class TestGate: @unchecked Sendable {
     private let lock = NSLock()
     private var opened = false
     private var arrived = 0
+    private var expired = false
 
     /// 문 앞에 온 수
     var arrivals: Int { lock.withLock { arrived } }
+    /// 시험이 열기 전에 스스로 열렸는지
+    var timedOut: Bool { lock.withLock { expired } }
     func open() { lock.withLock { opened = true } }
 
     /// 메인 액터 밖에서만 부른다
     func pass() {
         lock.withLock { arrived += 1 }
-        let deadline = Date().addingTimeInterval(5)
-        while !lock.withLock({ opened }), Date() < deadline { Thread.sleep(forTimeInterval: 0.005) }
+        let deadline = Date().addingTimeInterval(120)
+        while !lock.withLock({ opened }) {
+            if Date() >= deadline {
+                lock.withLock { expired = true }
+                return
+            }
+            Thread.sleep(forTimeInterval: 0.005)
+        }
     }
 }
 
-/// 조건이 참이 될 때까지(길어도 timeout) 기다린다
+/// 메인 액터 밖의 가짜 창구가 받은 편집 묶음을 차례로 적는다
+final class EditLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var entries: [[UsbLibraryEdit]] = []
+
+    var all: [[UsbLibraryEdit]] { lock.withLock { entries } }
+    func append(_ edits: [UsbLibraryEdit]) { lock.withLock { entries.append(edits) } }
+}
+
+/// 조건이 참이 될 때까지 기다린다. 참이 되면 true, 아주 늦도록(기본 2분) 거짓이면 false — 부르는 쪽은 false를 실패로 본다
+/// (시간이 다 됐다고 다음 단계로 넘어가면 부하에서 단계 순서가 바뀐다, #184)
 @MainActor
-func waitUntil(timeout: Duration = .seconds(3), _ condition: () -> Bool) async {
+func waitUntil(timeout: Duration = .seconds(120), _ condition: () -> Bool) async -> Bool {
     let clock = ContinuousClock(), deadline = clock.now + timeout
-    while !condition(), clock.now < deadline { try? await Task.sleep(for: .milliseconds(10)) }
+    while !condition() {
+        guard clock.now < deadline else { return false }
+        try? await Task.sleep(for: .milliseconds(10))
+    }
+    return true
 }
 
 /// USB 편집 시험 자료(곡 제목·ID는 지어낸 값)
@@ -107,7 +131,10 @@ struct UsbEditActionsTests {
         let usb = UsbTestData.store(usbHost, lists: lists, local: local)
         usb.writeService = service
         usb.draftDirectory = drafts
-        service.update { $0.base = UsbEditTestData.base }
+        service.update {
+            $0.base = UsbEditTestData.base
+            $0.drafts = drafts
+        }
         await usb.refresh()
         var counter = 0
         let actions = UsbEditActions(usb: usb, host: host, prompter: prompter, namePrompter: names, newKey: {
@@ -496,21 +523,26 @@ struct UsbEditActionsTests {
         defer { cleanUp() }
         let (usb, _, actions) = await setUp()
         let gate = TestGate()
+        defer { gate.open() }
         service.update { $0.onDraftBase = { gate.pass() } }
         let first = UsbLibraryEdit.removeTracks(usbContentIDs: [1]), second = UsbLibraryEdit.removeTracks(usbContentIDs: [2])
         let firstTask = Task { await actions.append(first, to: key) }
-        await waitUntil { gate.arrivals == 1 }
+        try #require(await waitUntil { gate.arrivals == 1 })
+        let queuedBeforeSecond = usb.draftQueueLength(key)
         let secondTask = Task { await actions.append(second, to: key) }
-        // 앞 편집이 지문을 뜨는 동안 뒤 편집은 기다린다(지문을 다시 뜨지 않는다)
-        await waitUntil(timeout: .milliseconds(300)) { gate.arrivals > 1 }
+        // 앞 편집이 지문을 뜨는 동안 뒤 편집은 줄에 서서 기다린다(줄 밖에서 돌면 지문을 다시 뜨러 문에 온다)
+        try #require(await waitUntil { usb.draftQueueLength(key) > queuedBeforeSecond || gate.arrivals > 1 })
         gate.open()
-        _ = await (firstTask.value, secondTask.value)
+        let added = await (firstTask.value, secondTask.value)
+        #expect(added.0 && added.1)
         #expect(try draft()?.edits == [first, second])
         #expect(service.current.calls == ["draftBase"])
         #expect(usb.draftCounts[key] == 2)
+        #expect(!gate.timedOut)
 
         // 쓰는 동안 더한 편집: 쓰기가 초안을 다시 저장한 뒤에 더한다(잃지 않는다)
         let writing = TestGate()
+        defer { writing.open() }
         let drafts = drafts, key = key
         service.update {
             $0.editSummary = UsbTestData.editSummary(editCount: 2)
@@ -525,14 +557,81 @@ struct UsbEditActionsTests {
         prompter.answer = true
         let coordinator = UsbWriteCoordinator(usb: usb, host: host, service: service, prompter: prompter, isRekordboxRunning: { false })
         let write = Task { await coordinator.writeDraft(volumeKey: key, database: nil, share: nil) }
-        await waitUntil { writing.arrivals == 1 }
+        // 쓰기가 줄 안에서 초안을 읽고 문에 멈출 때까지 기다린다(그 전에 더한 편집은 다시 미리 보기로 간다 — 다음 시험)
+        try #require(await waitUntil { writing.arrivals == 1 })
+        let queuedBeforeDuring = usb.draftQueueLength(key)
         let during = UsbLibraryEdit.playlist(edit: .rename(playlist: .id("10"), name: "새 이름"))
         let duringTask = Task { await actions.append(during, to: key) }
-        await waitUntil(timeout: .milliseconds(300)) { ((try? draft()) ?? nil)?.edits.contains(during) == true }
+        // 줄에 서서 쓰기를 기다린다(줄 밖에서 돌면 초안에 바로 나타나고, 쓰기가 그것까지 지운다)
+        try #require(await waitUntil { usb.draftQueueLength(key) > queuedBeforeDuring || ((try? draft()) ?? nil)?.edits.contains(during) == true })
         writing.open()
-        _ = await (write.value, duringTask.value)
+        let (_, appended) = await (write.value, duringTask.value)
+        #expect(appended)
         #expect(try draft()?.edits == [during])
         #expect(usb.draftCounts[key] == 1)
+        #expect(!writing.timedOut)
+    }
+
+    // MARK: - 확인한 것만 쓴다
+
+    @Test("미리 보기(초안 줄 밖) 뒤 더한 편집은 확인 없이 쓰지 않는다: 쓰기 줄에서 초안이 확인한 것과 다르면 지금 초안으로 다시 미리 보고 묻는다")
+    func draftChangedAfterPreviewIsConfirmedAgain() async throws {
+        defer { cleanUp() }
+        let (usb, _, actions) = await setUp()
+        let first = UsbLibraryEdit.removeTracks(usbContentIDs: [1])
+        #expect(await actions.append(first, to: key))
+        let written = EditLog()
+        let drafts = drafts, key = key
+        service.update {
+            // 실제 세션처럼 그때 초안을 읽어 모두 쓴다(→ 초안 지움)
+            $0.onWriteEdit = {
+                let store = UsbDraftStore(directory: drafts)
+                let loaded = try? store.load(volumeKey: key)
+                written.append(loaded?.edits ?? [])
+                if loaded != nil { try? store.discard(volumeKey: key) }
+            }
+        }
+        let coordinator = UsbWriteCoordinator(usb: usb, host: host, service: service, prompter: prompter, isRekordboxRunning: { false })
+        let changed = "쓰기 대기가 그 사이 바뀌어 다시 계획했으니 바뀐 내용을 확인한 뒤 쓰세요"
+
+        // 미리 보는 동안 편집을 더하고 다시 묻는 확인 창에서 취소하면 아무것도 쓰지 않는다(초안은 그대로)
+        let previewing = TestGate()
+        defer { previewing.open() }
+        service.update { $0.onPreviewEdit = { previewing.pass() } }
+        prompter.answers = [true, false]
+        let write = Task { await coordinator.writeDraft(volumeKey: key, database: nil, share: nil) }
+        try #require(await waitUntil { previewing.arrivals == 1 })
+        let during = UsbLibraryEdit.playlist(edit: .rename(playlist: .id("10"), name: "새 이름"))
+        #expect(await actions.append(during, to: key))
+        previewing.open()
+        await write.value
+        #expect(written.all.isEmpty)
+        #expect(service.current.calls == ["draftBase", "previewEdit", "previewEdit"])
+        #expect(prompter.shown.count == 2)
+        #expect(prompter.shown.first?.text.hasPrefix(changed) == false)
+        #expect(prompter.shown.last?.text.hasPrefix(changed) == true)
+        #expect(try draft()?.edits == [first, during])
+        #expect(usb.draftCounts[key] == 2)
+        #expect(!previewing.timedOut)
+
+        // 다시 확인하면 다시 미리 본 초안(그 사이 더한 편집 포함)을 쓴다
+        let again = TestGate()
+        defer { again.open() }
+        service.update { $0.onPreviewEdit = { again.pass() } }
+        prompter.answers = [true, true]
+        let rewrite = Task { await coordinator.writeDraft(volumeKey: key, database: nil, share: nil) }
+        try #require(await waitUntil { again.arrivals == 1 })
+        let later = UsbLibraryEdit.playlist(edit: .rename(playlist: .id("10"), name: "나중 이름"))
+        #expect(await actions.append(later, to: key))
+        again.open()
+        await rewrite.value
+        #expect(written.all == [[first, during, later]])
+        #expect(service.current.calls.suffix(3) == ["previewEdit", "previewEdit", "writeEdit"])
+        #expect(prompter.shown.count == 4)
+        #expect(prompter.shown.last?.text.hasPrefix(changed) == true)
+        #expect(try draft() == nil)
+        #expect(usb.draftCounts[key] == nil)
+        #expect(!again.timedOut)
     }
 
     // MARK: - 초안 base
