@@ -154,7 +154,7 @@ struct GridEditorBar: View {
                 .disabled(!deck.gridEditing || !deck.canEditGrid)
                 .help(.ui("켜면 그리드를 옮기거나 BPM을 바꿀 때 핫큐·메모리 큐(루프 포함)가 같은 박을 따라 움직입니다"))
             Button(.ui("그리드 초안 버리기")) { deck.revertGrid() }
-                .disabled(!deck.gridEditing || !deck.canEditGrid || deck.gridDraft?.hasChanges != true)
+                .disabled(!deck.canDiscardGridDraft)
                 .buttonStyle(GridEditorControlStyle(height: TextScale.length(24, scale: textScale)))
                 .help(.ui("그리드 초안을 버리고 원래 그리드로 되돌립니다"))
         }

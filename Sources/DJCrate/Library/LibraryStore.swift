@@ -244,6 +244,9 @@ final class LibraryStore {
 
     /// 초안 상태(메모리). 표의 ✎ 표시는 디스크를 다시 읽지 않고 이것으로 계산한다.
     var tagDrafts: [String: TagDraft] = [:]
+    @ObservationIgnored var recoveryMemoryInput: ((String, DraftRecoveryKind) -> RecoveryDraft?)?
+    @ObservationIgnored var onDraftRecovered: ((RecoveryDraft, TrackRow?, BeatGrid?) -> Void)?
+    var isRecoveringDraft = false
     private var cueDraftUUIDs: Set<String> = []
     private var gridDraftUUIDs: Set<String> = []
     private var gainDraftUUIDs: Set<String> = []
@@ -662,7 +665,8 @@ final class LibraryStore {
             let message = AppErrorMessage.message(for: error)
             if hadRows {
                 phase = .loaded
-                lastError = message
+                // 목록 위 경고는 초안 저장 오류와 같은 자리이므로 무엇이 실패했는지 앞에 적는다.
+                lastError = String(ui: "스냅샷을 새로 뜨지 못했습니다: \(message)")
             } else {
                 phase = .failed(message)
             }
@@ -810,6 +814,7 @@ final class LibraryStore {
             draftCueCounts = loaded.draftCueCounts
             draftPreviewCues = loaded.draftPreviewCues
             gridDraftUUIDs = loaded.gridDraftUUIDs
+            preserveUnsavedDraftIndicators()
             gainDraftUUIDs = GainDraftStore.uuids()
             editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys)
             rekordboxPlaylists = loaded.playlists
@@ -862,7 +867,7 @@ final class LibraryStore {
         } catch {
             guard generation == loadGeneration else { return }
             if quiet {
-                lastError = AppErrorMessage.message(for: error)
+                lastError = String(ui: "스냅샷을 새로 뜨지 못했습니다: \(AppErrorMessage.message(for: error))")
             } else {
                 phase = .failed(AppErrorMessage.message(for: error))
             }
@@ -950,22 +955,25 @@ final class LibraryStore {
         DraftWriter.flush()
         let cueDirectory = home.appending(path: "cue-drafts")
         let tagDirectory = home.appending(path: "tag-drafts")
+        let gridDirectory = home.appending(path: "grid-drafts")
+        let unsaved = DraftWriter.unsavedUUIDs(cueDirectory: cueDirectory, gridDirectory: gridDirectory)
         let failedTags = failedTagSaves(in: tagDirectory)
         if !failedTags.isEmpty { lastError = DraftWriter.tagSaveFailureMessage }
         else if lastError == DraftWriter.tagSaveFailureMessage { lastError = nil }
         var stamps: [String: Date] = [:]
-        for directory in [cueDirectory, tagDirectory] {
+        for directory in [cueDirectory, tagDirectory, gridDirectory] {
             let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
             for file in files where file.pathExtension == "json" {
                 stamps[file.path] = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
             }
         }
-        guard stamps != draftFileStamps else { return }
+        guard stamps != draftFileStamps || !unsaved.isEmpty else { return }
         draftFileStamps = stamps
         var cues: [String: CueDraft] = [:]
-        for uuid in CueDraftStore.uuids(directory: cueDirectory) {
+        for uuid in CueDraftStore.uuids(directory: cueDirectory).union(unsaved) {
             // 자동 큐를 빼고 만든 옛 초안에는 곡의 자동 큐를 채운다(#145).
-            if let draft = CueDraftStore.load(trackUUID: uuid, directory: cueDirectory)?.includingAutoCues(from: rowsByUUID[uuid]?.cues ?? []),
+            if let draft = (DraftWriter.pendingCue(trackUUID: uuid, directory: cueDirectory)
+                ?? CueDraftStore.load(trackUUID: uuid, directory: cueDirectory))?.includingAutoCues(from: rowsByUUID[uuid]?.cues ?? []),
                draft.hasChanges { cues[uuid] = draft }
         }
         var tags: [String: TagDraft] = [:]
@@ -982,9 +990,25 @@ final class LibraryStore {
         cueDraftUUIDs = Set(cues.keys)
         draftCueCounts = cues.mapValues(CueCounts.init)
         draftPreviewCues = cues.mapValues { $0.cues.map(PreviewCueMark.init) }
+        gridDraftUUIDs = GridDraftStore.uuids(directory: gridDirectory)
+        preserveUnsavedDraftIndicators(home: home)
         editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys)
         if case .pending = sidebar { refreshBase() }
         onCueDraftsReloaded?(cues)
+    }
+
+    /// 실패한 저장의 입력이 디스크보다 최신이므로 다시 읽어도 복구 진입점을 남긴다.
+    private func preserveUnsavedDraftIndicators(home: URL = DJCPaths.userData) {
+        let cues = home.appending(path: "cue-drafts"), grids = home.appending(path: "grid-drafts")
+        for uuid in DraftWriter.unsavedUUIDs(cueDirectory: cues, gridDirectory: grids) {
+            if let draft = DraftWriter.pendingCue(trackUUID: uuid, directory: cues) {
+                if draft.hasChanges { cueDraftUUIDs.insert(uuid) } else { cueDraftUUIDs.remove(uuid) }
+                cueDraftChanged(draft)
+            }
+            if let draft = DraftWriter.pendingGrid(trackUUID: uuid, directory: grids) {
+                if draft.hasChanges { gridDraftUUIDs.insert(uuid) } else { gridDraftUUIDs.remove(uuid) }
+            }
+        }
     }
 
     /// 덱에서 큐를 찍거나 지울 때마다 목록 숫자를 맞춘다.
@@ -1007,6 +1031,32 @@ final class LibraryStore {
         }
         updateEdited(trackUUID)
         if case .pending = sidebar { refreshBase() }
+    }
+
+    func recoveryKinds(for row: TrackRow) -> [DraftRecoveryKind] {
+        guard !row.isUsb, !row.isStaged, !row.track.isStreaming else { return [] }
+        let uuid = row.track.uuid
+        return DraftRecoveryKind.allCases.filter { kind in
+            switch kind {
+            case .tags: tagDrafts[uuid]?.hasChanges == true
+            case .cues: cueDraftUUIDs.contains(uuid) || recoveryMemoryInput?(uuid, kind)?.hasChanges == true
+            case .grid: gridDraftUUIDs.contains(uuid) || recoveryMemoryInput?(uuid, kind)?.hasChanges == true
+            }
+        }
+    }
+
+    /// 선택한 곡의 현재 정보만 갱신한다. 다른 종류의 초안은 다시 읽지 않는다.
+    func updateRecoveryRow(_ current: TrackRow) {
+        let previous = rowsByUUID[current.track.uuid]
+        var row = TrackRow(track: current.track, cues: current.cues, playCount: current.playCount,
+                           tempoChanges: previous?.tempoChanges ?? current.tempoChanges,
+                           autoGain: previous?.autoGain ?? current.autoGain, commentRule: commentPreset.rule)
+        row.fileMissing = previous?.fileMissing ?? current.fileMissing
+        row.keyEstimated = previous?.keyEstimated ?? current.keyEstimated
+        rows = rows.map { $0.track.uuid == row.track.uuid ? row : $0 }
+        rowsByUUID[row.track.uuid] = row
+        rowsByID[row.track.id] = row
+        tagRevision += 1
     }
 
     func updateEdited(_ uuid: String) {

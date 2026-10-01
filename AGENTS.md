@@ -71,6 +71,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
   - 순수 규칙(큐 편집·루프·게인·재생 예약) → `Tests/DJCDomainTests`
   - rekordbox 쓰기 → `Tests/RekordboxKitTests`. 구조만 있는 rekordbox 7.2.18 DB(`RekordboxFixture`)와 합성 분석 파일(`AnlzBuilder`)로 한다. 새 쓰기 규칙은 실험 곡·날짜를 적은 골든 테스트로 남긴다.
   - 덱·반영 흐름 → `Tests/DJCrateTests`. 가짜 오디오(`FakeDeckAudio`)·메모리 저장소(`DeckStorage.memory`)·가짜 창(`ScriptedPrompter`)
+  - 시험은 사용자 초안·백업 폴더를 쓰지 않는다. 폴더를 주입하고(`directory:`·`backupDirectory:`), 앱 기본 폴더(`DJCPaths`)를 써야 하는 시험만 `.enabled(if: LiveDraftHome.isIsolated)`로 `DJC_HOME`이 있을 때 돌린다. `scripts/check.sh`는 `DJC_HOME`이 없으면 실행 로그 폴더 아래를 쓴다.
 - 소리·실제 UI·rekordbox 쓰기 전 과정은 앱 자가 테스트로 확인한다. **디버그 빌드에만 있다**(`.build/debug/DJCrate`). 초안이 사용자 것과 섞이지 않게 항상 `DJC_HOME=<임시 폴더>`를 준다:
 
 | 인자 | 확인하는 것 | 추가 조건 |

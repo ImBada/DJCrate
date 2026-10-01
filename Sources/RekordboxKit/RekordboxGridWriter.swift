@@ -161,6 +161,10 @@ public enum RekordboxGridWriter {
         let url = URL(filePath: audioPath)
         guard let audio = try? AVAudioFile(forReading: url) else { throw block(String(ui: "음원 파일을 열지 못했습니다")) }
         let duration = Double(audio.length) / audio.processingFormat.sampleRate + RekordboxTimeline.predictedOffset(url: url)
+        // 대체 승인은 구간화에서 사라지는 내부 박의 변경도 쓰기 직전에 확인한다.
+        if draft.replacementSource != nil, !draft.isVerifiedReplacement(of: currentGrid, duration: duration) {
+            throw block(String(ui: "초안을 만든 뒤 rekordbox에서 그리드가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요"))
+        }
         // 그대로인 구간은 실측 BPM으로 다시 만들면 1ms씩 흔들릴 수 있다. 원래 PQTZ 칸을 보존한다.
         var preserved: [Int: [BeatGridTags.Beat]] = [:]
         let matched = draft.matchingBaseIndices()

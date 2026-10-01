@@ -36,6 +36,8 @@ final class DeckModel {
     var artwork: NSImage?
     var draft: CueDraft?
     var hasUncommittedCueEdits = false
+    var draftSaveFailures: [DraftWriter.Failure] = []
+    @ObservationIgnored var draftSaveRevisions: [String: UInt64] = [:]
     var selectedCueID: EditableCue.ID?
     var playhead: Double = 0 {
         didSet { updateDisplayTime() }

@@ -29,6 +29,11 @@ log_root=${DJC_CHECK_LOG_ROOT:-.build/check-logs}
 mkdir -p "$log_root"
 log_dir=$(mktemp -d "$log_root/run.XXXXXX")
 printf '단계\t초\t종료코드\n' > "$log_dir/timings.tsv"
+# 시험이 사용자 초안·백업 폴더를 건드리지 않게, 따로 주지 않으면 이번 실행 폴더 아래를 DJC_HOME으로 쓴다(CI는 직접 준다).
+if [[ -z "${DJC_HOME-}" ]]; then
+    export DJC_HOME="${log_dir:A}/djc-home"
+    mkdir -p "$DJC_HOME"
+fi
 integer check_started=$SECONDS stage_started=0
 stage_name=""
 stage_pid=""

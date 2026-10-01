@@ -31,6 +31,17 @@ struct DeckView: View {
         if let row = deck.row {
             VStack(alignment: .leading, spacing: 8) {
                     DeckInfoHeader(deck: deck, row: row, coverSize: TextScale.length(66, scale: textScale))
+                    if !deck.currentDraftSaveFailures.isEmpty {
+                        HStack(alignment: .top) {
+                            Label(deck.currentDraftSaveFailures.map(\.message).joined(separator: "\n"), systemImage: "exclamationmark.triangle")
+                                .foregroundStyle(UIColors.warning.color)
+                                .textSelection(.enabled)
+                            Spacer(minLength: 8)
+                            Button(.ui("다시 저장")) { deck.retryDraftSaves() }
+                                .disabled(deck.isWriteLocked)
+                        }
+                        .font(.scaled(.caption, textScale))
+                    }
                     HStack(alignment: .top, spacing: 8) {
                         DeckSideControls(store: store, deck: deck, availableHeight: waveGroupHeight)
                             .frame(width: leftRailWidth, height: waveGroupHeight)

@@ -5,6 +5,7 @@ import SwiftUI
 struct TrackEditView: View {
     @Bindable var model: TrackEditModel
     let deck: DeckModel
+    var store: LibraryStore? = nil
     /// 두 줄의 처음 누르기·끌기 상태(끄는 중 모습을 캡처할 때)
     var sourcePointer = EditPointer()
     var outputPointer = EditPointer()
@@ -23,6 +24,11 @@ struct TrackEditView: View {
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(UIColors.subtleFill, in: RoundedRectangle(cornerRadius: 8))
+                if let store, store.recoveryKinds(for: model.row).contains(.grid) {
+                    Button(.ui("그리드 현재값 가져오기…")) {
+                        DraftRecoveryPanels.recover(store: store, row: model.row, kind: .grid)
+                    }
+                }
                 Spacer(minLength: 0)
             } else {
                 SourceLaneBar(model: model)

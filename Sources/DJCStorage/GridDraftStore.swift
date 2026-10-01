@@ -26,7 +26,8 @@ public enum GridDraftStore {
         if draft.hasChanges {
             try JSONEncoder().encode(draft).write(to: url, options: .atomic)
         } else {
-            try? FileManager.default.removeItem(at: url)
+            do { try FileManager.default.removeItem(at: url) }
+            catch CocoaError.fileNoSuchFile { }
         }
     }
 

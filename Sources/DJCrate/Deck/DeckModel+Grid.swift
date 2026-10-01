@@ -11,6 +11,12 @@ extension DeckModel {
 
     var canEditGrid: Bool { !isWriteLocked && gridDraft != nil && gridEditBlockedReason == nil }
 
+    /// 그리드 초안 버리기: 편집 중이거나, 편집이 막힌 초안(막히면 편집 잠금을 풀 수 없어도 버릴 수는 있어야 한다)
+    var canDiscardGridDraft: Bool {
+        guard !isWriteLocked, gridDraft?.hasChanges == true else { return false }
+        return gridEditBlockedReason != nil || (canEditGrid && gridEditing)
+    }
+
     /// rekordbox 그리드도, 적용한 추정 그리드도 없는 로컬 곡.
     var needsGrid: Bool { row != nil && row?.track.isStreaming == false && !hasRekordboxGrid && gridDraft == nil }
 
@@ -34,7 +40,10 @@ extension DeckModel {
 
     func removeTempoChange(at index: Int) { mutateGrid { $0.removeTempoChange(at: index) } }
 
-    func revertGrid() { mutateGrid(name: String(ui: "그리드 초안 버리기")) { $0.revert() } }
+    func revertGrid() {
+        guard canDiscardGridDraft || canEditGrid else { return }
+        mutateGrid(name: String(ui: "그리드 초안 버리기"), allowingBlocked: true) { $0.revert() }
+    }
 
     /// 그리드 편집 막대의 ‹ › 버튼을 누르고 있는 동안 그리드 전체를 옮긴다(한 번의 편집으로 저장).
     func beginGridDrag() {
@@ -99,12 +108,17 @@ extension DeckModel {
         tapBPM = nil
     }
 
-    func mutateGrid(name: String = String(ui: "그리드 편집"), _ change: (inout GridDraft) -> Void) {
-        guard canEditGrid, var gridDraft, gridDraft.trackUUID == row?.track.uuid else { return }
+    func mutateGrid(name: String = String(ui: "그리드 편집"), allowingBlocked: Bool = false, _ change: (inout GridDraft) -> Void) {
+        guard canEditGrid || (allowingBlocked && !isWriteLocked), var gridDraft, gridDraft.trackUUID == row?.track.uuid else { return }
         let snapshot = draftSnapshot
         let before = gridDraft.segments
         change(&gridDraft)
         guard self.gridDraft != gridDraft else { return }
+        // 복잡한 원본을 대체한 초안은 승인한 모양(템포 구간 하나)을 벗어나는 편집을 받지 않는다(받으면 편집 전체가 막힌다).
+        if gridDraft.replacementSource != nil, let originalGrid, !gridDraft.isVerifiedReplacement(of: originalGrid, duration: duration) {
+            showToast(String(ui: "복잡한 rekordbox 그리드를 대체한 초안은 템포 구간을 하나로만 둘 수 있으니 변속 지점은 rekordbox에서 편집하세요"), kind: .failure)
+            return
+        }
         self.gridDraft = gridDraft
         moveCuesWithGrid(from: before, to: gridDraft.segments)
         saveGridEdit()
@@ -113,12 +127,28 @@ extension DeckModel {
 
     func saveGridEdit() {
         guard let gridDraft else { return }
+        refreshGridEditEligibility()
         refreshGrid()
-        storage.saveGridDraft(gridDraft)
+        persistGrid(gridDraft)
         onDraftChange?(gridDraft.trackUUID, .grid, gridDraft.hasChanges)
         if row?.isStaged == true { onStagedGridChange?(gridDraft.trackUUID, gridDraft.segments.first?.bpm) }
         audio.resetClicks()
         refreshSuggestionNote()
+    }
+
+    private func refreshGridEditEligibility() {
+        guard let originalGrid else { return }
+        let fresh = GridDraft(trackUUID: row?.track.uuid ?? "", grid: originalGrid)
+        let rebuilt = fresh.grid(duration: max(duration + 1, (originalGrid.beats.last?.time ?? 0) + 0.01))
+        let worst = GridEditEligibility.reconstructionErrorMilliseconds(original: originalGrid, rebuilt: rebuilt)
+        let replacement = gridDraft?.isVerifiedReplacement(of: originalGrid, duration: duration) == true
+        if gridDraft?.replacementSource != nil, !replacement {
+            gridEditBlockedReason = String(ui: "초안을 만든 뒤 rekordbox에서 그리드가 바뀌었으니 그리드 현재값 가져오기로 비교하세요")
+        } else if worst > 2, !replacement {
+            gridEditBlockedReason = String(ui: "이 곡의 그리드는 템포 구간 \(fresh.segments.count)개로 복잡해 정확히 재현되지 않습니다(최대 \(worst, specifier: "%.0f")ms). 편집을 막았습니다.")
+        } else {
+            gridEditBlockedReason = nil
+        }
     }
 
     // MARK: - 그리드 추정·제안
@@ -214,18 +244,34 @@ extension DeckModel {
     /// 추정 그리드를 초안으로 적용한다(원본이 있으면 원본은 그대로 두고 구간만 바꾼다).
     func applyGridSuggestion(recordingUndo: Bool = true) {
         guard !isWriteLocked, let suggestion = gridSuggestion, let uuid = row?.track.uuid else { return }
+        let base = gridDraft?.base ?? []
+        let before = gridDraft?.segments ?? originalGrid.map(GridDraft.segments(from:)) ?? []
+        var draft = GridDraft(trackUUID: uuid, base: base, segments: suggestion.segments)
+        if let originalGrid, !originalGrid.beats.isEmpty {
+            // 초안을 만든 뒤 rekordbox 그리드가 바뀌었으면 어느 쪽도 덮지 않는다.
+            guard base == GridDraft.segments(from: originalGrid) else {
+                showToast(String(ui: "초안을 만든 뒤 rekordbox에서 그리드가 바뀌었으니 그리드 현재값 가져오기로 비교하세요"), kind: .failure)
+                return
+            }
+            // 템포 구간으로 다시 만들 수 없는 원본만 명시 대체로 승인한다(단순한 원본은 보통 초안이다).
+            if GridEditEligibility.reconstructionErrorMilliseconds(of: originalGrid, duration: duration) > 2 {
+                guard let approved = draft.approvingReplacement(of: originalGrid, duration: duration) else {
+                    showToast(String(ui: "rekordbox 그리드가 복잡한 곡은 템포 구간이 하나인 추정 그리드로만 바꿀 수 있습니다"), kind: .failure)
+                    return
+                }
+                draft = approved
+            }
+        }
         // 자동 분석은 새 편집이 아니라 초안의 기준을 바꾸는 로드다.
         if !recordingUndo { clearDraftUndo() }
         let snapshot = draftSnapshot
-        let base = gridDraft?.base ?? []
-        let before = gridDraft?.segments ?? originalGrid.map(GridDraft.segments(from:)) ?? []
-        let draft = GridDraft(trackUUID: uuid, base: base, segments: suggestion.segments)
         gridDraft = draft
         moveCuesWithGrid(from: before, to: draft.segments)
         // 복잡한 원본이라 막아 둔 곡도, 추정 그리드로 바꾸면 편집할 수 있다.
         gridEditBlockedReason = nil
+        refreshGridEditEligibility()
         refreshGrid()
-        storage.saveGridDraft(draft)
+        persistGrid(draft)
         onDraftChange?(uuid, .grid, draft.hasChanges)
         if row?.isStaged == true { onStagedGridChange?(uuid, draft.segments.first?.bpm) }
         audio.resetClicks()

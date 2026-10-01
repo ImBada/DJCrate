@@ -26,6 +26,8 @@ extension LibraryStore {
 
     /// 반영 XML을 쓴다. 막힌 곡은 빼고 이유를 돌려준다.
     func exportReflection(rows: [TrackRow], to url: URL) throws -> (exported: [Reflection.Plan], blocked: [Reflection.Plan]) {
+        // 저장에 실패한 초안이 있으면 디스크의 옛 초안을 XML로 내보내지 않는다(#170).
+        try requireDraftSaves(for: Set(rows.map(\.track.uuid)))
         let plans = reflectionPlans(for: rows)
         let eligible = plans.filter(\.isEligible)
         let blocked = plans.filter { !$0.blockers.isEmpty }

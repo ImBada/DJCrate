@@ -23,6 +23,8 @@ public struct GridDraft: Codable, Equatable, Sendable {
     public var trackUUID: String
     public var base: [GridSegment]
     public var segments: [GridSegment]
+    /// 명시 대체를 승인한 원본 PQTZ 전체 박의 지문. 옛 초안은 nil이다.
+    public var replacementSource: String?
 
     public init(trackUUID: String, grid: BeatGrid) {
         self.trackUUID = trackUUID
@@ -39,6 +41,8 @@ public struct GridDraft: Codable, Equatable, Sendable {
 
     /// 부동소수 오차(±10ms 이동 후 되돌리기 등)는 변경으로 보지 않는다.
     public var hasChanges: Bool {
+        // 구간값이 같아도 복잡 원본의 박을 명시 대체한 초안은 반영할 변경이다.
+        if replacementSource != nil { return true }
         guard segments.count == base.count else { return true }
         return zip(segments, base).contains { a, b in
             abs(a.start - b.start) >= 0.0005 || abs(a.bpm - b.bpm) >= 0.0005 || a.firstBeatNumber != b.firstBeatNumber
@@ -206,6 +210,7 @@ public struct GridDraft: Codable, Equatable, Sendable {
 
     public mutating func revert() {
         segments = base
+        replacementSource = nil
     }
 }
 

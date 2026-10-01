@@ -164,7 +164,17 @@ struct ReflectionCoordinator {
             guard !report.written.isEmpty || !report.gridWritten.isEmpty || !report.analysisWritten.isEmpty || !report.gainWritten.isEmpty
                     || !report.tagWritten.isEmpty || !report.playlistWritten.isEmpty || !report.mergeWritten.isEmpty else {
                 publish(.written(report, preview: report))
-                inform(String(ui: "rekordbox에 쓸 수 있는 초안이 없습니다"), "", details: Self.reasons(report))
+                if let store = host as? LibraryStore, targets.contains(where: { !store.recoveryKinds(for: $0).isEmpty }) {
+                    let prompt = ReflectionPrompt(title: String(ui: "rekordbox에 쓸 수 있는 초안이 없습니다"),
+                                                  text: String(ui: "차단된 곡과 종류를 골라 현재값을 비교하고 초안을 복구할 수 있습니다."),
+                                                  confirm: String(ui: "현재값 비교…"), details: Self.reasons(report))
+                    if prompter.show(prompt) {
+                        host.setWriteLock(false)
+                        await chooseRecoveryTarget(store: store, rows: targets)
+                    }
+                } else {
+                    inform(String(ui: "rekordbox에 쓸 수 있는 초안이 없습니다"), "", details: Self.reasons(report))
+                }
                 return
             }
             guard prompter.show(Self.confirmation(report)) else { return }

@@ -39,11 +39,12 @@ extension LibraryStore {
 
     /// 곡마다 계획(파일 태그 + 태그 초안)을 만들고, 새 스냅샷 사본으로 DB 쓰기를 시험한다.
     func previewTrackAdd(rows: [TrackRow]) async throws -> TrackAddPreview {
+        // 저장에 실패한 큐·그리드 초안이 있으면 디스크의 옛 초안을 넣지 않는다(#170).
+        try requireDraftSaves(for: Set(trackAddTargets(rows).map(\.track.uuid)))
         // 미리 보기는 라이브에서 스냅샷을 뜬다: 명시한 사본으로 연 창은 사용자 스냅샷 폴더를 바꾸지 않게 막는다
         guard Self.snapshotTakeAllowed(arguments: launchArguments, environment: launchEnvironment) else {
             throw DJCError.writeRefused(Self.snapshotRefusedMessage)
         }
-        DraftWriter.flush()
         let tracks = trackAddTargets(rows).compactMap { row in staged.first { $0.id == row.id } }
         var plans: [TrackAddPlan] = [], uuids: [String: String] = [:], without: [String: String] = [:], unreadable: [String] = []
         var cues: [String: [EditableCue]] = [:]
@@ -98,6 +99,8 @@ extension LibraryStore {
     /// rekordbox 라이브러리에 넣는다(큐 초안도 함께). 넣은 곡은 추가 목록에서 빼고(백업에 남긴다),
     /// 큐가 막힌 곡의 큐 초안과 분석을 못 붙인 곡의 그리드 초안은 새 곡으로 옮긴다.
     func addTracksToRekordbox(_ preview: TrackAddPreview) async throws -> RekordboxTrackWriter.Report {
+        // 미리 본 뒤 저장이 실패했을 수도 있다(그러면 디스크의 초안은 옛것이다).
+        try requireDraftSaves(for: Set(preview.stagedUUIDs.values))
         let accepted = Set(preview.report.added.filter(\.written).map(\.path))
         let plans = preview.plans.filter { accepted.contains($0.path) }
         let analysisPlans = plans.filter { preview.withoutAnalysis[$0.path] == nil }
