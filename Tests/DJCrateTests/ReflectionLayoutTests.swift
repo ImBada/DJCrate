@@ -9,27 +9,6 @@ import Testing
 @MainActor
 @Suite("반영 — 알림·진행 표시 배치", .serialized)
 struct ReflectionLayoutTests {
-    /// 경고 알림(주황 아이콘·테두리)이 그려진 줄들. 이미지 좌표는 위에서 아래로 증가한다.
-    private static func orangeRows(in view: NSView) throws -> (rows: [Int], height: Int) {
-        let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-        view.cacheDisplay(in: view.bounds, to: bitmap)
-        var rows: [Int] = []
-        for y in stride(from: 0, to: bitmap.pixelsHigh, by: 2) {
-            for x in stride(from: 0, to: bitmap.pixelsWide, by: 2) {
-                guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
-                if color.redComponent > 0.7, color.greenComponent > 0.2, color.greenComponent < 0.8, color.blueComponent < 0.3 {
-                    rows.append(y)
-                }
-            }
-        }
-        return (rows, bitmap.pixelsHigh)
-    }
-
-    /// 아래쪽에 뜨되 창 끝에 붙어 잘리지 않는다(#122).
-    private static func isAtBottom(_ shot: (rows: [Int], height: Int)) -> Bool {
-        !shot.rows.isEmpty && shot.rows.reduce(0, +) / max(shot.rows.count, 1) > shot.height / 2 && (shot.rows.max() ?? .max) < shot.height - 8
-    }
-
     @Test(arguments: ["light", "dark"]) func 결과_알림은_최소_창의_detail_아래쪽에_보인다(_ appearance: String) async throws {
         _ = NSApplication.shared
         // 시험 프로세스 공용 defaults(swiftpm-testing-helper)에는 이전 실행·다른 워크트리가 남긴 창 배치 값(사이드바·툴바)이 있다.
@@ -50,30 +29,51 @@ struct ReflectionLayoutTests {
         }
         let store = LibraryStore(settings: SettingsStore(defaults: defaults, persist: false),
                                  resultHistory: WriteResultHistory(url: nil), feedback: AppFeedback(announce: { _ in }))
+        store.rekordboxDatabase = fixture.database
+        store.rekordboxShareRoot = fixture.shareRoot
         await store.load(snapshot: fixture.database, arguments: ["test"], environment: [:])
         let deck = DeckModel(audio: FakeDeckAudio(), storage: .memory(MemoryDrafts()), runsAnalysis: false)
         store.toast = AppToast(kind: .warning, title: "배치 시험 결과", detail: "합성 데이터로 확인합니다")
-        let controller = NSHostingController(rootView: ContentView(store: store, deck: deck).defaultAppStorage(defaults))
+        let toastID = try #require(store.toast?.id)
+        let toastKey = "toast.\(toastID)", contentKey = "reflectionLayout.\(toastID)"
+        defer {
+            SelfTestFrames.frames.removeValue(forKey: toastKey)
+            SelfTestFrames.frames.removeValue(forKey: contentKey)
+        }
+        let controller = NSHostingController(rootView: ContentView(store: store, deck: deck)
+            .defaultAppStorage(defaults).selfTestFrame(contentKey))
         let window = NSWindow(contentViewController: controller)
         window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: appearance == "dark" ? .darkAqua : .aqua)
         window.setContentSize(NSSize(width: 1100, height: 700))
-        window.orderFront(nil)
         defer { window.close() }
-        // 고정 시간 대신, 알림이 들어오는 애니메이션과 배치가 끝나 알림이 아래쪽에 자리 잡은 모양이 두 번 연달아 보일 때까지 기다린다.
-        // 부하로 느려져도 같은 결과가 나오게 시간이 아니라 횟수로만 끊고(끝내 자리 잡지 않으면 아래 검사가 마지막 모양으로 실패한다), 검사 내용은 그대로다.
-        // 한 번 확인에 0.4초쯤 걸려, 잘못 붙은 알림은 80번(30~40초) 뒤에 실패로 끝난다.
-        var shot = try Self.orangeRows(in: controller.view)
+        // 비트맵의 주황색도 색 공간 변환 뒤 픽셀 기준에서 빠졌다(#185). 실제 SwiftUI 배치의 카드 전체를 잰다.
+        // 창을 띄우지 않아 화면 잠김·가림·창 뒤 내용에 기대지 않고, 올바른 위치인지와 별개로 배치가 안정됐는지 기다린다.
+        var previous: (content: CGRect, toast: CGRect)?
         var settled = 0
         for _ in 0..<80 where settled < 2 {
-            try await Task.sleep(for: .milliseconds(50))
             window.contentView?.layoutSubtreeIfNeeded()
-            shot = try Self.orangeRows(in: controller.view)
-            settled = Self.isAtBottom(shot) ? settled + 1 : 0
+            if let content = SelfTestFrames.frames[contentKey], let toast = SelfTestFrames.frames[toastKey],
+               !content.isEmpty, !toast.isEmpty {
+                settled = previous?.content == content && previous?.toast == toast ? settled + 1 : 0
+                previous = (content, toast)
+            } else {
+                settled = 0
+                previous = nil
+            }
+            if settled < 2 { try await Task.sleep(for: .milliseconds(50)) }
         }
-        #expect(!shot.rows.isEmpty)
-        #expect(shot.rows.reduce(0, +) / max(shot.rows.count, 1) > shot.height / 2)
-        #expect((shot.rows.max() ?? .max) < shot.height - 8)
+        let content = try #require(SelfTestFrames.frames[contentKey])
+        let toast = try #require(SelfTestFrames.frames[toastKey])
+        let bottomInset = content.maxY - toast.maxY
+        print("[알림 배치] 본문=\(content) 알림=\(toast) 아래 여백=\(bottomInset) 창 표시=\(window.isVisible) 화면 모드=\(appearance)")
+        #expect(settled == 2)
+        #expect(!toast.isEmpty)
+        #expect(toast.midY > content.midY)
+        #expect(bottomInset * window.backingScaleFactor > 8)
+        #expect(abs(bottomInset - 16) < 1)
+        #expect(content.contains(toast))
+        #expect(!window.isVisible)
     }
 
     /// 넓은 창에서도 진행 카드는 막대가 남는 폭을 다 차지하지 않고 문구에 맞는 폭(최대 폭 안)으로 뜬다(#122).
