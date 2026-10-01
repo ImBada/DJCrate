@@ -93,7 +93,8 @@ struct AudioStartupTests {
         deck.togglePlay()
         #expect(!deck.isPlaying)
         #expect(!audio.isPlaying)
-        #expect(deck.toast?.text == DeckModel.audioUnavailableMessage)
+        #expect(audio.isPreparingOutput)
+        #expect(deck.toast?.text == AudioSourceState.preparing.unavailableReason)
         #expect(deck.toast?.kind == .warning)
     }
 
@@ -110,7 +111,8 @@ struct AudioStartupTests {
         deck.load(try Self.row(in: root))
         deck.togglePlay()
         #expect(!deck.isPlaying)
-        #expect(deck.toast?.text == DeckModel.audioUnavailableMessage)
+        #expect(audio.isPreparingOutput)
+        #expect(deck.toast?.text == AudioSourceState.preparing.unavailableReason)
         // 막힌 재생은 출력 준비를 다시 시도한다(장치가 돌아왔으면 다음 재생에 쓴다).
         for _ in 0..<200 where counter.calls < 2 { try await Task.sleep(for: .milliseconds(5)) }
         #expect(counter.calls == 2)

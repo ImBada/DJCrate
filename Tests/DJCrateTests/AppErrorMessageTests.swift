@@ -1,5 +1,6 @@
 @testable import DJCrate
 import DJCDomain
+import DJCTestSupport
 import Foundation
 import Testing
 
@@ -27,14 +28,20 @@ struct AppErrorMessageTests {
     }
 
     @MainActor
-    @Test func 라이브러리_로드_실패도_앱_문구로_표시한다() async {
-        let store = LibraryStore(resultHistory: WriteResultHistory())
-        let missing = FileManager.default.temporaryDirectory.appending(path: "djc-error-\(UUID())/missing.db")
-        await store.load(snapshot: missing)
+    @Test func 라이브러리_로드_실패도_앱_문구로_표시한다() async throws {
+        let fixture = try RekordboxFixture()
+        let store = LibraryStore(settings: SettingsStore(defaults: UserDefaults(suiteName: "djc.test.error.\(UUID())")!, persist: false),
+                                 resultHistory: WriteResultHistory(url: nil), backupDirectory: fixture.backups,
+                                 draftHome: fixture.root.appending(path: "drafts"))
+        store.rekordboxDatabase = fixture.database
+        store.rekordboxShareRoot = fixture.shareRoot
+        let missing = fixture.root.appending(path: "missing.db")
+        await store.load(snapshot: missing, arguments: ["test", "--db", fixture.database.path], environment: [:])
         guard case let .failed(message) = store.phase else {
             Issue.record("사본이 없으면 실패 화면을 보여야 한다")
             return
         }
-        #expect(message == "라이브러리 사본을 열지 못했습니다: rekordbox를 종료한 뒤 스냅샷을 다시 뜨세요.")
+        #expect(store.lastReadFailure == LibraryReadFailure(stage: .opening, keepsPreviousLibrary: false))
+        #expect(message == "라이브러리 사본을 열지 못했으니 사본과 파일 접근 권한을 확인한 뒤 다시 불러오세요")
     }
 }

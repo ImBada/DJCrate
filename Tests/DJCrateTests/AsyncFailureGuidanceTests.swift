@@ -74,6 +74,23 @@ struct AsyncFailureGuidanceTests {
         #expect(h.deck.playbackUnavailableReason?.contains("파일 형식") == false)
     }
 
+    @Test(arguments: [true, false])
+    func 재생_성공은_출력_준비_안내를_지우고_다른_명령_안내는_남긴다(_ preparing: Bool) async throws {
+        let h = try DeckHarness()
+        try await h.loaded()
+        let preparingMessage = try #require(AudioSourceState.preparing.unavailableReason)
+        let message = preparing ? preparingMessage : DeckModel.audioUnavailableMessage
+        h.deck.showToast(message)
+        h.deck.startPlayback(from: 0)
+        #expect(h.deck.isPlaying && h.audio.isPlaying)
+        #expect(h.deck.toast == nil)
+
+        h.deck.rename(UUID(), "큐 입력")
+        let selectionMessage = try #require(h.deck.toast?.text)
+        h.deck.startPlayback(from: 0)
+        #expect(h.deck.toast?.text == selectionMessage)
+    }
+
     @Test func XML_미리_보기는_변경_없는_선택도_이유와_함께_남긴다() throws {
         let fixture = try RekordboxFixture(), store = store(fixture)
         let row = ReflectionCoordinatorTests.row("unchanged")
