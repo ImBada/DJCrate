@@ -44,6 +44,7 @@ struct LoadedLibrary: Sendable {
     var tagDrafts: [String: TagDraft]
     var cueDraftUUIDs: Set<String>
     var gridDraftUUIDs: Set<String>
+    var gainDraftUUIDs: Set<String> = []
     var playlists: PlaylistLayout
     var playlistDraft: PlaylistDraft
     var histories: [RekordboxHistory]
@@ -99,7 +100,8 @@ struct LoadedLibrary: Sendable {
         }
         return LoadedLibrary(rows: rows, report: LibraryReport(library: library, commentRule: commentPreset.rule), filterCounts: counts,
                              tagDrafts: tagDrafts, cueDraftUUIDs: cueUUIDs,
-                             gridDraftUUIDs: GridDraftStore.uuids(), playlists: PlaylistLayout(rekordbox: library.playlists),
+                             gridDraftUUIDs: GridDraftStore.uuids(), gainDraftUUIDs: GainDraftStore.uuids(),
+                             playlists: PlaylistLayout(rekordbox: library.playlists),
                              playlistDraft: PlaylistDraftStore.load(),
                              histories: library.histories,
                              draftCueCounts: draftCueCounts, draftPreviewCues: draftPreviewCues,

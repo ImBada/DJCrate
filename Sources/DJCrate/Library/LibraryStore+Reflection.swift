@@ -44,12 +44,16 @@ extension LibraryStore {
 
     /// 새 스냅샷을 읽은 뒤: 반영 묶음의 곡마다 rekordbox에 의도대로 들어갔는지 확인한다.
     /// 일치한 곡의 초안은 지운다(이제 rekordbox 값이 원본이다). 어긋난 곡은 초안을 그대로 두고 알린다.
+    /// 새 스냅샷에 없는 곡은 확인하지 못한 것으로 남긴다(묶음을 다 확인한 것으로 비우지 않는다, #175).
     func verifyReflection() {
         guard var batch = reflectionBatch ?? ReflectionStore.load() else { return }
-        var matched = 0, notYet = 0, mismatched: [String] = []
+        var matched = 0, notYet = 0, mismatched: [String] = [], unverified: [String] = []
         var cleared: Set<String> = []
         for plan in batch.plans {
-            guard let row = rowsByID[plan.trackID] else { continue }
+            guard let row = rowsByID[plan.trackID] else {
+                unverified.append(plan.title)
+                continue
+            }
             let grid = RekordboxShare.analysisURL(row.track.analysisDataPath).flatMap { try? BeatGrid.load(anlz: $0) }
             let check = Reflection.verify(plan, track: row.track, cues: row.cues, grid: grid)
             batch.checks[plan.trackID] = check
@@ -69,21 +73,27 @@ extension LibraryStore {
                 mismatched.append("\(plan.title): \(check.problems.joined(separator: " / "))")
             }
         }
-        if notYet == 0 && mismatched.isEmpty {
-            // 모두 확인됐다. 다음 묶음을 위해 비운다.
-            try? ReflectionStore.save(nil)
-            reflectionBatch = nil
-        } else {
-            try? ReflectionStore.save(batch)
-            reflectionBatch = batch
+        let finished = notYet == 0 && mismatched.isEmpty && unverified.isEmpty
+        var storeWarning: String?
+        do {
+            // 모두 확인됐으면 다음 묶음을 위해 비운다.
+            try ReflectionStore.save(finished ? nil : batch)
+        } catch {
+            AppErrorMessage.log(error)
+            storeWarning = String(ui: "반영 확인 기록을 저장하지 못했으니 DJCrate 데이터 폴더의 쓰기 권한을 확인한 뒤 rekordbox와 동기화하세요.")
         }
+        reflectionBatch = finished ? nil : batch
         // 초안을 지우지 못했으면 알린다(반영은 확인됐지만 덱·쓰기 전 확인이 옛 초안을 계속 볼 수 있다).
         let cleanupWarning = cleared.isEmpty ? nil : draftSaveWarning(for: cleared)
         var parts = [String(ui: "rekordbox XML 가져오기 확인(\(batch.createdAt) 묶음): 일치 \(matched)")]
         if notYet > 0 { parts.append(String(ui: "아직 가져오지 않음 \(notYet)")) }
         if !mismatched.isEmpty { parts.append(String(ui: "불일치 \(mismatched.count) — \(mismatched.prefix(2).joined(separator: " · "))")) }
+        if !unverified.isEmpty {
+            parts.append(String(ui: "확인하지 못함 \(unverified.count) — 라이브러리에 없는 곡: \(unverified.prefix(2).joined(separator: " · "))"))
+        }
         if let cleanupWarning { parts.append(cleanupWarning) }
-        reflectionMessage = AppMessage(kind: mismatched.isEmpty && notYet == 0 && cleanupWarning == nil ? .success : .warning,
+        if let storeWarning { parts.append(storeWarning) }
+        reflectionMessage = AppMessage(kind: finished && cleanupWarning == nil && storeWarning == nil ? .success : .warning,
                                        text: parts.joined(separator: " · "))
         FileHandle.standardError.write(Data("[반영 검증] \(reflectionMessage?.text ?? "")\n".utf8))
     }

@@ -15,6 +15,8 @@ enum DraftCommands {
         var hasChanges = false
         var cue: CueDraft?
         var tag: TagDraft?
+        /// 지우지 않고 damaged-drafts에 옮긴 읽지 못한 기존 초안 파일(데이터 폴더 기준, #174)
+        var preserved: [String]?
     }
 
     static func run(_ args: [String]) throws {
@@ -91,6 +93,9 @@ enum DraftCommands {
             }
         } catch let error as ReadFailure { throw error }
         catch { throw ReadFailure("draft_io_failed", String(ui: "초안을 읽거나 저장하지 못했습니다. DJC_HOME의 초안 파일과 접근 권한을 확인하세요")) }
+        // 지우기는 읽지 못한 기존 파일을 지우지 않고 옮긴다. 조용히 사라지지 않게 알린다.
+        let preserved = DamagedDrafts.take(home: home).map(\.name)
+        if !preserved.isEmpty { result.preserved = preserved }
         if options.flags.contains("--json") {
             print(String(decoding: try ReadJSON.encode(command: "draft", data: result), as: UTF8.self))
         } else {
@@ -103,6 +108,9 @@ enum DraftCommands {
             }
             if let draft = result.tag {
                 for key in draft.changedKeys { print("  \(key.label): \(draft.base[key]) → \(draft.fields[key])") }
+            }
+            if !preserved.isEmpty {
+                print(String(ui: "  읽지 못한 기존 초안 파일은 지우지 않고 damaged-drafts에 옮겨 두었습니다: \(preserved.joined(separator: ", "))"))
             }
         }
     }

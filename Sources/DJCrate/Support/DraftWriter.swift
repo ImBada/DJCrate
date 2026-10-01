@@ -11,7 +11,7 @@ enum DraftWriter {
     private static let queue = DispatchQueue(label: "djc.draft-writer", qos: .utility)
     private static let tagFailures = Mutex<[String: Set<String>]>([:])
 
-    enum Kind: Hashable, Sendable { case cue, grid }
+    enum Kind: Hashable, Sendable { case cue, grid, gain }
 
     struct Failure: Equatable, Sendable {
         var kind: Kind
@@ -20,7 +20,11 @@ enum DraftWriter {
         var reason: String
 
         var message: String {
-            let title = kind == .cue ? String(ui: "큐 초안을 저장하지 못했습니다.") : String(ui: "그리드 초안을 저장하지 못했습니다.")
+            let title = switch kind {
+            case .cue: String(ui: "큐 초안을 저장하지 못했습니다.")
+            case .grid: String(ui: "그리드 초안을 저장하지 못했습니다.")
+            case .gain: String(ui: "게인 초안을 저장하지 못했습니다.")
+            }
             return title + " " + reason
         }
     }
@@ -38,7 +42,8 @@ enum DraftWriter {
     }
 
     private enum Input: Sendable {
-        case cue(CueDraft), grid(GridDraft)
+        /// 게인은 nil이 초안 지우기다.
+        case cue(CueDraft), grid(GridDraft), gain(Double?)
     }
 
     private struct Record: Sendable {
@@ -56,6 +61,25 @@ enum DraftWriter {
 
     private static func key(_ kind: Kind, _ uuid: String, _ directory: URL) -> Key {
         Key(kind: kind, directory: directory.resolvingSymlinksInPath().standardizedFileURL.path, uuid: uuid)
+    }
+
+    /// 종류마다 저장하는 곳(큐·그리드는 폴더, 게인은 모든 곡을 담은 파일 하나)
+    struct Locations: Sendable {
+        var cue = CueDraftStore.directory
+        var grid = GridDraftStore.directory
+        var gain = GainDraftStore.url
+
+        func url(_ kind: Kind) -> URL {
+            switch kind {
+            case .cue: cue
+            case .grid: grid
+            case .gain: gain
+            }
+        }
+    }
+
+    private static func located(_ key: Key, in locations: Locations) -> Bool {
+        key.directory == Self.key(key.kind, "", locations.url(key.kind)).directory
     }
 
     static func state(_ kind: Kind, trackUUID: String, directory: URL) -> SaveState? {
@@ -78,21 +102,29 @@ enum DraftWriter {
         }
     }
 
-    static func failures(cueDirectory: URL = CueDraftStore.directory, gridDirectory: URL = GridDraftStore.directory) -> [Failure] {
-        let cue = key(.cue, "", cueDirectory).directory, grid = key(.grid, "", gridDirectory).directory
-        return records.withLock { records in
-            records.values.compactMap { key, record in
-                guard key.directory == (key.kind == .cue ? cue : grid) else { return nil }
-                return record.state.failure
-            }
+    /// 저장하지 못한 게인 입력(바깥 nil은 기록 없음, 안쪽 nil은 초안 지우기)
+    static func pendingGain(trackUUID: String, url: URL = GainDraftStore.url) -> Double?? {
+        records.withLock {
+            guard let record = $0.values[key(.gain, trackUUID, url)], record.state.revision != record.state.savedRevision,
+                  case .gain(let gain) = record.input else { return nil }
+            return .some(gain)
         }
     }
 
-    static func unsavedUUIDs(cueDirectory: URL = CueDraftStore.directory, gridDirectory: URL = GridDraftStore.directory) -> Set<String> {
-        let cue = key(.cue, "", cueDirectory).directory, grid = key(.grid, "", gridDirectory).directory
+    static func failures(cueDirectory: URL = CueDraftStore.directory, gridDirectory: URL = GridDraftStore.directory,
+                         gainURL: URL = GainDraftStore.url) -> [Failure] {
+        let locations = Locations(cue: cueDirectory, grid: gridDirectory, gain: gainURL)
+        return records.withLock { records in
+            records.values.compactMap { key, record in located(key, in: locations) ? record.state.failure : nil }
+        }
+    }
+
+    static func unsavedUUIDs(cueDirectory: URL = CueDraftStore.directory, gridDirectory: URL = GridDraftStore.directory,
+                             gainURL: URL = GainDraftStore.url) -> Set<String> {
+        let locations = Locations(cue: cueDirectory, grid: gridDirectory, gain: gainURL)
         return records.withLock { records in
             Set(records.values.compactMap { key, record in
-                key.directory == (key.kind == .cue ? cue : grid) && record.state.revision != record.state.savedRevision ? key.uuid : nil
+                located(key, in: locations) && record.state.revision != record.state.savedRevision ? key.uuid : nil
             })
         }
     }
@@ -135,9 +167,11 @@ enum DraftWriter {
         completion(failure)
     }
 
-    static func retry(trackUUID: String, cueDirectory: URL = CueDraftStore.directory, gridDirectory: URL = GridDraftStore.directory) {
+    static func retry(trackUUID: String, cueDirectory: URL = CueDraftStore.directory, gridDirectory: URL = GridDraftStore.directory,
+                      gainURL: URL = GainDraftStore.url) {
         retry(.cue, trackUUID: trackUUID, directory: cueDirectory)
         retry(.grid, trackUUID: trackUUID, directory: gridDirectory)
+        retry(.gain, trackUUID: trackUUID, directory: gainURL)
     }
 
     /// 마지막으로 맡은 입력(저장이든 지우기든)을 다시 저장한다. 덱이 아직 곡을 읽는 중이어도 그 입력을 쓴다.
@@ -187,6 +221,21 @@ enum DraftWriter {
     }
     static func removeGrid(trackUUID: String, completion: @escaping @Sendable (Failure?) -> Void = { _ in }) {
         save(GridDraft(trackUUID: trackUUID, base: [], segments: []), completion: completion)
+    }
+    /// 게인 초안(nil이면 지우기). 모든 곡이 한 파일이라 다른 곡의 저장과 같은 큐에서 차례로 읽고 쓴다.
+    static func save(gain: Double?, trackUUID: String, url: URL = GainDraftStore.url,
+                     write: @escaping @Sendable (Double?, String, URL) throws -> Void = { try GainDraftStore.save($0, trackUUID: $1, url: $2) },
+                     completion: @escaping @Sendable (Failure?) -> Void = { _ in }) {
+        enqueue(.gain(gain), key: key(.gain, trackUUID, url), write: { try write(gain, trackUUID, url) }, completion: completion)
+    }
+    static func removeGain(trackUUID: String) { save(gain: nil, trackUUID: trackUUID) }
+
+    /// 데이터 폴더의 손상된 초안 파일을 옮겨 보관하고 그 목록을 받는다(저장과 같은 큐에서, 막 쓴 파일을 옮기지 않게).
+    static func preserveDamagedDrafts(home: URL = DJCPaths.userData) -> [DamagedDrafts.Entry] {
+        queue.sync {
+            DamagedDrafts.preserveAll(home: home)
+            return DamagedDrafts.take(home: home)
+        }
     }
     static func save(_ drafts: [TagDraft], directory: URL = TagDraftStore.directory) {
         let key = directory.resolvingSymlinksInPath().standardizedFileURL.path

@@ -118,6 +118,23 @@ struct DraftCommandTests {
         #expect(next.base == draft.base && next.cues.count == 3)
     }
 
+    @Test func 읽지_못한_초안의_삭제는_파일을_지우지_않고_옮겨_알린다() throws {
+        let fixture = try fixture()
+        let directory = directory(fixture, "cue")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let broken = Data("{\"깨진".utf8)
+        try broken.write(to: directory.appending(path: "track-101.json"))
+        // 고치기는 손상된 초안 위에 쓰지 않고 거절한다.
+        #expect(try run(["cue", "101", "--time", "10"], fixture: fixture, json: false).status != 0)
+        let removed = try run(["rm", "cue", "101"], fixture: fixture)
+        #expect(removed.status == 0)
+        #expect((try removed.document()["data"] as? [String: Any])?["preserved"] as? [String] == ["cue-drafts/track-101.json"])
+        let kept = fixture.root.appending(path: "home/\(DamagedDrafts.folderName)/cue-drafts")
+        let files = try FileManager.default.contentsOfDirectory(at: kept, includingPropertiesForKeys: nil)
+        #expect(files.count == 1 && files.allSatisfy { (try? Data(contentsOf: $0)) == broken })
+        #expect(!FileManager.default.fileExists(atPath: directory.appending(path: "track-101.json").path))
+    }
+
     @Test func 태그_편집과_삭제_dry_run() throws {
         let fixture = try fixture(), home = fixture.root.appending(path: "home")
         let preview = try run(["tag", "101", "--title", "새 제목", "--dry-run"], fixture: fixture)

@@ -127,6 +127,16 @@ struct WriteResult: Codable, Equatable {
                     backups: report.backup.map { [URL(filePath: $0)] } ?? [])
     }
 
+    /// 쓰기·복원은 끝났지만 뒤따른 일(초안 정리·다시 읽기·복원 충돌)에 남은 경고를 결과와 나눠 덧붙인다(#175).
+    func followedUp(_ notes: [String]) -> Self {
+        guard !notes.isEmpty else { return self }
+        var result = self
+        result.kind = .warning
+        result.shortfall = ([shortfall].compactMap { $0 } + notes).joined(separator: "\n")
+        result.text = ([text] + notes.map { "• \($0)" }).joined(separator: "\n")
+        return result
+    }
+
     static func tracks(_ report: RekordboxTrackWriter.Report, preview: RekordboxTrackWriter.Report,
                        adding: Bool, withoutAnalysis: [String: String] = [:], unreadable: [String] = []) -> Self {
         let actual = adding ? report.added : report.deleted

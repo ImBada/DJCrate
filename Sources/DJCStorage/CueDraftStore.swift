@@ -10,6 +10,8 @@ public enum CueDraftStore {
     /// CLI는 삭제 실패를 성공으로 보고하지 않는다.
     public static func remove(trackUUID: String, directory: URL) throws {
         let url = directory.appending(path: "\(trackUUID).json")
+        // 손상된 파일은 지우지 않고 옮겨 보관한다(#174).
+        try DamagedDrafts.preserveIfDamaged(CueDraft.self, at: url, home: directory.deletingLastPathComponent(), trackUUID: trackUUID)
         do { try FileManager.default.removeItem(at: url) }
         catch CocoaError.fileNoSuchFile { }
     }
@@ -32,6 +34,7 @@ public enum CueDraftStore {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = directory.appending(path: "\(draft.trackUUID).json")
         if draft.hasChanges {
+            try DamagedDrafts.preserveIfDamaged(CueDraft.self, at: url, home: directory.deletingLastPathComponent(), trackUUID: draft.trackUUID)
             try JSONEncoder().encode(draft).write(to: url, options: .atomic)
         } else {
             try remove(trackUUID: draft.trackUUID, directory: directory)

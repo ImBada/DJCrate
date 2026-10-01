@@ -96,7 +96,7 @@ extension DeckStorage {
         DeckStorage(
             loadCueDraft: { drafts.cue($0) }, saveCueDraft: { draft, completion in drafts.save(draft); completion(nil) },
             loadGridDraft: { drafts.grid($0) }, saveGridDraft: { draft, completion in drafts.save(draft); completion(nil) },
-            loadGain: { drafts.gain($0) }, saveGain: { drafts.save(gain: $0, $1) },
+            loadGain: { drafts.gain($0) }, saveGain: { gain, uuid, completion in drafts.save(gain: gain, uuid); completion(nil) },
             removeGridDraft: { uuid, completion in drafts.removeGrid(uuid); completion(nil) },
             settings: settings)
     }
