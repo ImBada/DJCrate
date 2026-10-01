@@ -1,0 +1,138 @@
+@testable import DJCrate
+import DJCDomain
+import DJCStorage
+import DJCTestSupport
+import Foundation
+import Testing
+
+@MainActor
+@Suite("편집·쓰기 진입 안내")
+struct BlockedEntryReasonTests {
+    @Test func 곡_편집_준비와_쓰기_잠금의_이유를_구분한다() async throws {
+        let h = try DeckHarness()
+        #expect(TrackEditModel.openingUnavailableReason(h.deck)?.contains("불러오") == true)
+        try await h.loaded()
+        #expect(TrackEditModel.openingUnavailableReason(h.deck) == nil)
+        h.deck.isWriteLocked = true
+        #expect(TrackEditModel.openingUnavailableReason(h.deck)?.contains("쓰기") == true)
+        #expect(!TrackEditModel.canOpen(h.deck))
+    }
+
+    @Test func 소리_없는_곡도_그리드가_있으면_빈_핫큐를_만들_수_있다() async throws {
+        let h = try DeckHarness()
+        try await h.loaded()
+        h.deck.canPlay = false
+        h.deck.grid = nil
+        #expect(h.deck.hotCueCreationUnavailableReason != nil)
+        h.deck.instantLoop = .init(start: 1, end: 3, beats: 4)
+        #expect(h.deck.hotCueCreationUnavailableReason == nil)
+        h.deck.pressHotCue(slot: 0)
+        #expect(h.deck.hotCue(slot: 0)?.loop?.end == 3)
+        h.deck.grid = BeatGrid(beats: [.init(number: 1, bpm: 120, time: 0)])
+        #expect(h.deck.hotCueCreationUnavailableReason == nil)
+        h.deck.isWriteLocked = true
+        #expect(h.deck.hotCueCreationUnavailableReason?.contains("쓰기") == true)
+    }
+
+    @Test func 추정_초안은_분석_안내가_있어도_기존대로_편집한다() async throws {
+        let h = try EditHarness()
+        defer { h.remove() }
+        _ = try await h.loaded()
+        #expect(h.deck.canEditGrid)
+        #expect(h.deck.gridUnavailableReason == nil)
+    }
+
+    @Test func 빈_구간_초안도_곡_편집의_기존_가드를_유지한다() async throws {
+        let h = try EditHarness(grid: [])
+        defer { h.remove() }
+        let model = try await h.loaded()
+        #expect(model.blockedReason != nil)
+        #expect(!model.canRender)
+    }
+
+    @Test func 동기화_미확정_입력과_쓰기_대기_없음을_구분한다() throws {
+        let fixture = try RekordboxFixture()
+        let store = LibraryStore(settings: SettingsStore(defaults: UserDefaults(suiteName: "djc.test.entry.\(UUID())")!, persist: false),
+                                 resultHistory: WriteResultHistory(url: nil), backupDirectory: fixture.backups,
+                                 playlistDraftSaver: { _ in }, mergeDraftSaver: { _ in }, playlistImportURL: nil,
+                                 stagingSaver: { _ in }, draftHome: fixture.root.appending(path: "drafts"))
+        store.rekordboxDatabase = fixture.database
+        store.rekordboxShareRoot = fixture.shareRoot
+        #expect(LibraryMenuAction.snapshot.disabledReason(in: store) == nil)
+        store.phase = .loading("합성 읽기")
+        #expect(LibraryMenuAction.snapshot.disabledReason(in: store)?.contains("읽기") == true)
+        store.phase = .idle
+        store.allowsLibrarySync = { false }
+        #expect(LibraryMenuAction.snapshot.disabledReason(in: store)?.contains("확정") == true)
+        #expect(LibraryMenuAction.reflect.disabledReason(in: store)?.contains("초안") == true)
+        #expect(LibraryMenuAction.exportXML.disabledReason(in: store)?.contains("큐·그리드") == true)
+        #expect(LibraryMenuAction.restore.disabledReason(in: store)?.contains("백업") == true)
+        #expect(LibraryMenuAction.removeTracks.disabledReason(in: store)?.contains("고르세요") == true)
+        LibraryMenuAction.reflect.perform(in: store)
+        #expect(store.stagingMessage?.text == LibraryMenuAction.reflect.disabledReason(in: store))
+        store.isWritingRekordbox = true
+        #expect(LibraryMenuAction.snapshot.disabledReason(in: store)?.contains("쓰기") == true)
+    }
+
+    @Test func 루프_길이_한도와_곡_끝을_알리고_기존_값을_보존한다() async throws {
+        let h = try DeckHarness()
+        try await h.loaded()
+        for (size, direction) in [(0.25, -1), (32.0, 1)] {
+            h.deck.loopSize = size
+            h.deck.resizeLoop(direction)
+            #expect(h.deck.loopSize == size)
+            #expect(h.deck.toast?.text.contains("한도") == true)
+        }
+        #expect(h.deck.loopEnd(from: h.deck.duration, beats: 4) == nil)
+        #expect(h.deck.toast?.text.contains("더 짧은 루프") == true)
+        h.deck.canPlay = false
+        h.deck.toggleLoop()
+        #expect(h.deck.instantLoop == nil)
+        #expect(h.deck.toast?.text == h.deck.playbackUnavailableReason)
+    }
+
+    @Test func 태그_시트는_스트리밍과_읽기_전용_열의_이유를_알린다() throws {
+        let local = TrackListTagEditTests.row("1")
+        let stream = TrackListTagEditTests.row("2", streaming: true)
+        #expect(TrackListTagEditing.unavailableReason(local, key: .title) == nil)
+        #expect(TrackListTagEditing.unavailableReason(stream, key: .title)?.contains("스트리밍") == true)
+        #expect(TrackListTagEditing.unavailableReason(local, key: nil)?.contains("태그 칸") == true)
+    }
+
+    @Test func 목록의_셀에도_읽기_전용_도움말이_남는다() throws {
+        let fixture = try RekordboxFixture()
+        let stream = TrackListTagEditTests.row("1", streaming: true)
+        let store = LibraryStore(saveTagDrafts: { _ in }, backupDirectory: fixture.backups,
+                                 playlistDraftSaver: { _ in }, mergeDraftSaver: { _ in }, playlistImportURL: nil,
+                                 stagingSaver: { _ in }, draftHome: fixture.root.appending(path: "drafts"))
+        store.rekordboxDatabase = fixture.database
+        store.rekordboxShareRoot = fixture.shareRoot
+        let h = ListHarness(rows: [stream], selection: [stream.id], store: store)
+        defer { h.close() }
+        #expect(try #require(h.cell(row: 0, column: "title")).toolTip?.contains("스트리밍") == true)
+    }
+
+    @Test func 렌더_대상_없음과_진행_중을_알린다() async throws {
+        let h = try EditHarness()
+        defer { h.remove() }
+        let model = try await h.loaded()
+        #expect(model.renderUnavailableReason?.contains("결과에 넣") == true)
+        model.select(from: 0, to: 4)
+        model.addSelection()
+        #expect(model.renderUnavailableReason == nil)
+        #expect(model.canRender)
+    }
+
+    @Test func BPM_조정은_쓰기_범위를_넘기지_않고_이유를_보인다() async throws {
+        let h = try EditHarness()
+        defer { h.remove() }
+        _ = try await h.loaded()
+        h.deck.gridEditing = true
+        h.deck.setGridBPM(655.35)
+        #expect(h.deck.gridDraft?.segments.first?.bpm == 655.35)
+        let before = h.deck.gridDraft
+        h.deck.scaleGridBPM(2)
+        #expect(h.deck.gridDraft == before)
+        #expect(h.deck.toast?.text.contains("655.35") == true)
+    }
+}

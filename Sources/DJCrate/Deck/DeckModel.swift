@@ -203,6 +203,7 @@ final class DeckModel {
     var softReloadTask: Task<Void, Never>?
     /// 편집 전 재생성 오차가 크면(다이내믹 그리드 등) 그리드 편집을 막는다.
     var gridEditBlockedReason: String?
+    var gridSourceNotice: String?
     /// rekordbox 비트 그리드가 있는 곡인지(없으면 추정 그리드를 권한다)
     var hasRekordboxGrid = false
     /// rekordbox 시간축 − 음원(AVFoundation) 시간축(초). 덱은 rekordbox 시간축을 쓰고,
@@ -363,6 +364,7 @@ final class DeckModel {
             self.originalGrid = payload.originalGrid
             self.gridDraft = payload.gridDraft
             self.gridEditBlockedReason = payload.gridBlockedReason
+            self.gridSourceNotice = payload.gridSourceNotice
             self.hasRekordboxGrid = payload.originalGrid != nil
             self.refreshGrid()
             self.refreshSuggestions()
@@ -398,7 +400,7 @@ final class DeckModel {
         isAnalyzingSections = row.map { !$0.track.isStreaming } ?? false
         suggestions = []; sectionEnergies = []; draft = nil; loudness = nil; keySegments = []; keyChroma = nil; gainDraft = nil
         engagedLoopID = nil; instantLoop = nil
-        originalGrid = nil; gridDraft = nil; grid = nil; gridBPM = nil; gridEditBlockedReason = nil
+        originalGrid = nil; gridDraft = nil; grid = nil; gridBPM = nil; gridEditBlockedReason = nil; gridSourceNotice = nil
         hasRekordboxGrid = false; timelineOffset = 0; gridSuggestion = nil; gridSuggestionNote = nil; suggestedGrid = nil
         suggestionTask?.cancel()
         gridDragBase = nil; tapBPM = nil; taps = []; resumeAfterScrub = false; scrubAnchor = nil; isCuePreviewing = false
@@ -488,6 +490,7 @@ final class DeckModel {
         originalGrid = payload.originalGrid
         gridDraft = payload.gridDraft
         gridEditBlockedReason = payload.gridBlockedReason
+        gridSourceNotice = payload.gridSourceNotice
         hasRekordboxGrid = payload.originalGrid != nil
         if let image = payload.artwork?.image {
             artwork = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))

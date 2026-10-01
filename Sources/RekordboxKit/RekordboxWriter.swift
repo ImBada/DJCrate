@@ -217,7 +217,7 @@ public enum RekordboxWriter {
                 }
                 guard let info else {
                     gridOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: draft.trackUUID, status: .blocked,
-                                                reason: String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했습니다"), removed: 0, added: 0))
+                                                reason: String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했으니 컬렉션에서 곡을 확인한 뒤 DJCrate에서 다시 동기화하세요"), removed: 0, added: 0))
                     continue
                 }
                 guard let gridRoot else {

@@ -20,7 +20,7 @@ extension RekordboxWriter {
                           stamp: (db: String, json: String)) throws -> (outcome: Outcome, expectation: GainExpectation) {
         var content: (id: String, title: String)?
         try db.query("SELECT ID, Title FROM djmdContent WHERE UUID = ? AND rb_local_deleted = 0", [.text(uuid)]) { content = ($0.string(0) ?? "", $0.string(1) ?? "") }
-        guard let content else { throw Blocked(title: uuid, reason: String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했습니다")) }
+        guard let content else { throw Blocked(title: uuid, reason: String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했으니 컬렉션에서 곡을 확인한 뒤 DJCrate에서 다시 동기화하세요")) }
         guard gainDB.isFinite, (-24...24).contains(gainDB) else { throw Blocked(title: content.title, reason: String(ui: "게인이 범위를 벗어납니다")) }
         var rows: [(id: String, status: CipherDatabase.Value)] = []
         try db.query("SELECT ID, rb_data_status FROM djmdMixerParam WHERE ContentID = ? AND rb_local_deleted = 0", [.text(content.id)]) {

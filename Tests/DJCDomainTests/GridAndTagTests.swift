@@ -5,15 +5,15 @@ import Testing
 @Suite("그리드 초안")
 struct GridDraftTests {
     @Test func BPM_범위는_양끝을_포함한다() {
-        #expect(GridDraft.bpmRange == 20...999)
-        for bpm in [20.0, 999.0] {
+        #expect(GridDraft.bpmRange == 20...655.35)
+        for bpm in [20.0, 655.35] {
             var draft = GridDraft(trackUUID: "t", grid: constantGrid())
             draft.setBPM(bpm, at: 1)
             #expect(draft.segments[0].bpm == bpm)
         }
     }
 
-    @Test(arguments: [19.999, 999.001, Double.nan, .infinity, -.infinity])
+    @Test(arguments: [19.999, 655.351, 656, 999, Double.nan, .infinity, -.infinity])
     func BPM_범위_밖은_반올림_전에_거부한다(bpm: Double) {
         var draft = GridDraft(trackUUID: "t", grid: constantGrid())
         let original = draft
@@ -194,6 +194,22 @@ struct TagDraftTests {
         var draft = TagDraft(track: track())
         draft.fields.year = "2013년"
         #expect(!draft.issues.isEmpty)
+    }
+
+    @Test(arguments: [TagFields.Key.year, .trackNumber])
+    func 음수_입력은_초안에서도_쓰기_불가로_알린다(key: TagFields.Key) {
+        var draft = TagDraft(track: track())
+        draft.fields[key] = "-1"
+        #expect(draft.issues.contains { $0.contains(key.label) && $0.contains("0") })
+        draft.fields[key] = "0"
+        #expect(draft.issues.isEmpty)
+    }
+
+    @Test func 앨범이_없는_새_앨범_아티스트는_쓰기_전에_알린다() {
+        var draft = TagDraft(track: track())
+        draft.fields.album = ""
+        draft.fields.albumArtist = "새 아티스트"
+        #expect(draft.issues.contains { $0.contains("앨범 아티스트") })
     }
 }
 

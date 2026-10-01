@@ -18,7 +18,7 @@ public struct GridSegment: Codable, Hashable, Sendable {
 /// 곡 하나의 비트 그리드 초안. 변속곡은 구간이 여러 개다.
 /// rekordbox에는 쓰지 않는다(검증된 반영 경로를 통해서만 나간다).
 public struct GridDraft: Codable, Equatable, Sendable {
-    public static let bpmRange: ClosedRange<Double> = 20...999
+    public static let bpmRange: ClosedRange<Double> = 20...655.35
 
     public var trackUUID: String
     public var base: [GridSegment]

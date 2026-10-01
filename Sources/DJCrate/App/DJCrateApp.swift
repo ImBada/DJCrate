@@ -40,7 +40,13 @@ struct DJCrateApp: App {
                 .background(MainWindowFrame { windowFrameRestored = true })
                 .task {
                     appDelegate.store = store
+                    #if DEBUG
+                    if !ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("--blocked-reasons-capture=") }) {
+                        NSApplication.shared.activate()
+                    }
+                    #else
                     NSApplication.shared.activate()
+                    #endif
                     UsbAppSetup.attach(to: store)
                     await store.loadInitial()
                 }
