@@ -38,6 +38,8 @@ struct TransportBar: View {
                 }
             }
             .frame(maxWidth: .infinity)
+            Text(.ui("덱 단축키를 쓰려면 글자 입력을 끝내고 시트·확인 창을 닫은 뒤 이 창의 파형이나 곡 목록을 누르세요"))
+                .font(.scaled(.caption2, textScale)).foregroundStyle(.secondary)
         }
         .controlSize(ControlSize.small.scaled(textScale))
     }
@@ -200,9 +202,9 @@ struct HotCuePad: View {
         }
         .buttonStyle(.plain)
         .selfTestFrame("hotCue.\(slot)")
-        .help(cue == nil ? (deck.instantLoop != nil ? String(ui: "핫큐 \(letter) (\(keys)): 지금 루프를 루프 핫큐로 저장") : String(ui: "핫큐 \(letter) (\(keys)): 플레이헤드에 설정"))
+        .help((cue == nil ? deck.hotCueCreationUnavailableReason : nil) ?? (cue == nil ? (deck.instantLoop != nil ? String(ui: "핫큐 \(letter) (\(keys)): 지금 루프를 루프 핫큐로 저장") : String(ui: "핫큐 \(letter) (\(keys)): 플레이헤드에 설정"))
               : cue?.loop != nil ? String(ui: "루프 핫큐 \(letter) (\(keys)): 누르면 루프 반복, 반복 중에 다시 누르면 나가기 · Shift+클릭: 지우기")
-              : String(ui: "핫큐 \(letter) (\(keys))로 이동 (\(cue!.time.clockText)) · Shift+클릭 또는 Shift와 단축키: 지우기"))
+              : String(ui: "핫큐 \(letter) (\(keys))로 이동 (\(cue!.time.clockText)) · Shift+클릭 또는 Shift와 단축키: 지우기")))
         .accessibilityLabel(accessibility.label)
         .accessibilityValue(accessibility.value)
         .contextMenu {
@@ -239,8 +241,8 @@ struct LoopControl: View {
             }
             .buttonStyle(.plain)
             .opacity(deck.canPlay ? 1 : 0.4)
-            .help(looping ? String(ui: "루프에서 나가기 (\(deck.shortcuts.keyLabel(for: .loop)))")
-                  : String(ui: "플레이헤드에서 \(deck.loopSizeText)박 루프 (\(deck.shortcuts.keyLabel(for: .loop))). 반복 중에 빈 핫큐 칸을 누르면 루프 핫큐, + 메모리 큐를 누르면 메모리 루프로 저장"))
+            .help(deck.playbackUnavailableReason ?? (looping ? String(ui: "루프에서 나가기 (\(deck.shortcuts.keyLabel(for: .loop)))")
+                  : String(ui: "플레이헤드에서 \(deck.loopSizeText)박 루프 (\(deck.shortcuts.keyLabel(for: .loop))). 반복 중에 빈 핫큐 칸을 누르면 루프 핫큐, + 메모리 큐를 누르면 메모리 루프로 저장")))
             .accessibilityLabel(looping ? String(ui: "루프 나가기") : String(ui: "\(deck.loopSizeText)박 루프"))
             Button { deck.resizeLoop(1) } label: { Text(verbatim: "×2").frame(width: TextScale.length(18, scale: textScale)) }
                 .help(.ui("루프 길이 두 배로 (\(deck.shortcuts.keyLabel(for: .loopDouble)))")).accessibilityLabel(.ui("루프 길이 두 배로"))

@@ -840,6 +840,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
                      symbolLabel: streaming ? String(ui: "스트리밍 곡") : missing ? String(ui: "파일을 찾지 못한 곡") : nil,
                      symbolColor: missing ? UIColors.warning.nsColor : nil)
         }
+        if let reason = TrackListTagEditing.unavailableReason(row, key: key) { cell.toolTip = reason }
     }
 
     // MARK: - 칸에서 바로 태그 고치기(#88)
@@ -981,6 +982,10 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     /// 칸 자리에 입력 칸을 띄운다. 고른 줄 안이면 고른 곡 모두가 대상이다(인스펙터 여러 곡 편집과 같다).
     @discardableResult
     func beginEditing(row index: Int, column: String) -> Bool {
+        if rows.indices.contains(index), let reason = TrackListTagEditing.unavailableReason(rows[index], key: TrackListTagEditing.key(forColumn: column)) {
+            store.stagingMessage = AppMessage(kind: .warning, text: reason)
+            return false
+        }
         guard inlineEdit == nil, store.writeLockPolicy.allowsLibraryInteraction, let table, rows.indices.contains(index), !rows[index].isUsb,
               let key = TrackListTagEditing.key(forColumn: column),
               let columnIndex = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == column && !$0.isHidden })

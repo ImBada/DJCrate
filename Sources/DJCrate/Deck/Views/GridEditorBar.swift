@@ -14,7 +14,7 @@ struct GridEditorBar: View {
     @FocusState private var bpmFocused: Bool
 
     private var invalidBPM: Bool { bpm.map { !GridDraft.bpmRange.contains($0) } ?? true }
-    private var bpmWarning: String { String(ui: "BPM은 20…999 사이로 입력하세요.") }
+    private var bpmWarning: String { String(ui: "BPM은 20…655.35 사이로 입력하세요") }
 
     var body: some View {
         let _ = PerfProbe.body(Self.self)
@@ -26,7 +26,7 @@ struct GridEditorBar: View {
                 headerActions
             }
             .frame(maxWidth: .infinity)
-            if let reason = deck.gridEditBlockedReason {
+            if let reason = deck.gridUnavailableReason ?? deck.gridSourceNotice {
                 Label(reason, systemImage: "lock").font(.scaled(.caption, textScale)).foregroundStyle(UIColors.warning.color)
             }
             FlowLayout(spacing: 12, justified: true) {
@@ -74,9 +74,11 @@ struct GridEditorBar: View {
                             .help(bpmWarning)
                     }
                     Button("×2" as String) { deck.scaleGridBPM(2) }
-                        .help(.ui("현재 템포 구간의 BPM을 두 배로 바꿉니다"))
+                        .disabled(deck.gridBPM.map { !GridDraft.bpmRange.contains($0 * 2) } ?? true)
+                        .help(deck.gridBPM.map { GridDraft.bpmRange.contains($0 * 2) } == true ? String(ui: "현재 템포 구간의 BPM을 두 배로 바꿉니다") : bpmWarning)
                     Button("÷2" as String) { deck.scaleGridBPM(0.5) }
-                        .help(.ui("현재 템포 구간의 BPM을 절반으로 바꿉니다"))
+                        .disabled(deck.gridBPM.map { !GridDraft.bpmRange.contains($0 * 0.5) } ?? true)
+                        .help(deck.gridBPM.map { GridDraft.bpmRange.contains($0 * 0.5) } == true ? String(ui: "현재 템포 구간의 BPM을 절반으로 바꿉니다") : bpmWarning)
                     HStack(spacing: 0) {
                         Button { deck.tapTempo() } label: { Text(verbatim: "TAP") }
                             .help(String(ui: "박자에 맞춰 여러 번 눌러 BPM을 측정합니다") + " · "
@@ -101,11 +103,11 @@ struct GridEditorBar: View {
                         .font(.scaled(.caption, textScale).monospacedDigit())
                         .frame(width: TextScale.length(88, scale: textScale), height: controlHeight)
                     }
-                    .disabled(deck.tapBPM == nil)
+                    .disabled(deck.tapBPM.map { !GridDraft.bpmRange.contains($0) } ?? true)
                     .opacity(deck.tapBPM == nil ? 0 : 1)
                     .allowsHitTesting(deck.tapBPM != nil)
                     .accessibilityHidden(deck.tapBPM == nil)
-                    .help(.ui("측정한 TAP BPM을 현재 템포 구간에 적용합니다"))
+                    .help(deck.tapBPM.map { GridDraft.bpmRange.contains($0) } == true ? String(ui: "측정한 TAP BPM을 현재 템포 구간에 적용합니다") : bpmWarning)
                 }
                 HStack(spacing: 4) {
                     ForEach([-10.0, -1.0, 1.0, 10.0], id: \.self) { milliseconds in
@@ -141,7 +143,7 @@ struct GridEditorBar: View {
             .accessibilityAddTraits(.isToggle)
             .accessibilityLabel(.ui("그리드 편집"))
             .accessibilityValue(deck.gridEditing ? String(ui: "켜짐") : String(ui: "꺼짐"))
-            .help(deck.gridEditBlockedReason ?? String(ui: "켜면 아래 막대로 그리드를 옮기고 BPM·1박·변속 지점을 고칩니다."))
+            .help(deck.gridUnavailableReason ?? String(ui: "켜면 아래 막대로 그리드를 옮기고 BPM·1박·변속 지점을 고칩니다."))
             Text(.ui("그리드 편집"))
                 .font(.scaled(.subheadline, textScale).weight(.semibold))
         }
@@ -162,7 +164,7 @@ struct GridEditorBar: View {
     }
 
     private func commitBPM() {
-        if let bpm, GridDraft.bpmRange.contains(bpm) { deck.setGridBPM(bpm) }
+        if let bpm { deck.setGridBPM(bpm) }
         bpm = deck.gridBPM
         // 숫자로 해석할 수 없어 바인딩이 바뀌지 않은 입력도 원래 표시로 돌린다.
         bpmFieldRevision += 1

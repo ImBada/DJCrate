@@ -476,7 +476,7 @@ struct TrackEditModelTests {
         let bare = try EditHarness(grid: nil)
         defer { bare.remove() }
         let none = try await bare.loaded()
-        #expect(none.blockedReason == "그리드가 없습니다. 덱에서 추정 그리드를 적용하거나 rekordbox에서 트랙 분석을 한 뒤 편집하세요")
+        #expect(none.blockedReason == "rekordbox 분석 파일이 없으니 추정 그리드를 적용하거나 rekordbox에서 트랙 분석을 먼저 하세요")
     }
 
     @Test func 렌더해서_추가한_곡에_넣는다() async throws {
