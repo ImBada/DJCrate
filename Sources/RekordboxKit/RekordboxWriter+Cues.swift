@@ -58,10 +58,10 @@ extension RekordboxWriter {
                              r.int(5) ?? 0, (r.int(6) ?? 0) != 0, r.string(7) ?? "", r.int(8) ?? 0))
         }
         guard contents.count == 1, let content = contents.first else {
-            throw Blocked(title: draft.trackUUID, reason: contents.isEmpty ? String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했습니다") : String(ui: "같은 UUID의 곡이 여럿입니다"))
+            throw Blocked(title: draft.trackUUID, reason: contents.isEmpty ? String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했으니 컬렉션에서 곡을 확인한 뒤 DJCrate에서 다시 동기화하세요") : String(ui: "같은 UUID의 곡이 여럿인 구조는 지원하지 않으니 rekordbox에서 곡을 확인하고 직접 편집하세요"))
         }
         func block(_ reason: String) -> Blocked { Blocked(title: content.title, reason: reason) }
-        guard !content.deleted else { throw block(String(ui: "rekordbox 컬렉션에서 지운 곡입니다")) }
+        guard !content.deleted else { throw block(String(ui: "rekordbox 컬렉션에서 지운 곡이니 컬렉션에서 곡을 확인한 뒤 DJCrate에서 다시 동기화하세요")) }
 
         // 큐 행
         var rows: [CueRow] = []
@@ -75,7 +75,7 @@ extension RekordboxWriter {
                                beatLoopSize: r.int(11) ?? 0,
                                inMpegFrame: r.int(8) ?? 0, hasSeekInfo: r.string(9) != nil, deleted: (r.int(10) ?? 0) != 0))
         }
-        guard !rows.contains(where: \.deleted) else { throw block(String(ui: "삭제 표시된 큐 행이 있습니다")) }
+        guard !rows.contains(where: \.deleted) else { throw block(String(ui: "삭제 표시된 큐 행이 있는 구조는 지원하지 않으니 rekordbox에서 큐를 확인하고 직접 편집하세요")) }
 
         // 형식: FLAC은 rekordbox처럼 큐가 든 프레임의 탐색 위치(SeekInfo)를 계산해 적는다(기존 큐 1,818개와 전수 일치 확인).
         // VBR MP3는 큐마다 MPEG 칸(InMpegFrame·InMpegAbs)을 적는다(기존 VBR 큐 1,118개·루프 끝 6개와 전수 일치 확인).
@@ -113,9 +113,9 @@ extension RekordboxWriter {
         try db.query("SELECT ID, Cues, rb_local_deleted FROM contentCue WHERE ContentID = ?", [.text(content.id)]) { r in
             cueRecords.append((r.string(0) ?? "", r.string(1), (r.int(2) ?? 0) != 0))
         }
-        guard cueRecords.count <= 1 else { throw block(String(ui: "큐 기록(contentCue)이 여럿입니다")) }
-        if let record = cueRecords.first, record.deleted { throw block(String(ui: "큐 기록(contentCue)이 삭제 표시돼 있습니다")) }
-        if cueRecords.isEmpty, !rows.isEmpty { throw block(String(ui: "큐 행은 있는데 큐 기록(contentCue)이 없습니다")) }
+        guard cueRecords.count <= 1 else { throw block(String(ui: "큐 기록(contentCue)이 여럿인 구조는 지원하지 않으니 rekordbox에서 큐를 확인하고 직접 편집하세요")) }
+        if let record = cueRecords.first, record.deleted { throw block(String(ui: "큐 기록(contentCue)이 삭제 표시된 구조는 지원하지 않으니 rekordbox에서 큐를 확인하고 직접 편집하세요")) }
+        if cueRecords.isEmpty, !rows.isEmpty { throw block(String(ui: "큐 행은 있지만 큐 기록(contentCue)이 없는 구조는 지원하지 않으니 rekordbox에서 큐를 확인하고 직접 편집하세요")) }
         let objects: [CueJSON.Object]
         if let record = cueRecords.first {
             guard let text = record.cues, let parsed = try? CueJSON.parse(text) else { throw block(String(ui: "큐 기록(JSON)을 읽지 못했습니다")) }
@@ -217,7 +217,7 @@ extension RekordboxWriter {
         let contentUUID = draft.trackUUID
 
         if cueRecords.isEmpty, try scalar(db, "SELECT count(*) FROM contentCue WHERE ID = ?", [.text(contentUUID)]) != 0 {
-            throw block(String(ui: "같은 ID의 큐 기록(contentCue)이 이미 있습니다"))
+            throw block(String(ui: "같은 ID의 큐 기록(contentCue)이 이미 있는 구조는 지원하지 않으니 rekordbox에서 큐를 확인하고 직접 편집하세요"))
         }
 
         // 쓰기

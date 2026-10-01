@@ -72,7 +72,10 @@ extension DeckModel {
             exitLoop()
             return
         }
-        guard canPlay else { return }
+        guard canPlay else {
+            if let reason = playbackUnavailableReason { showToast(reason) }
+            return
+        }
         let start = snapped(currentTime)
         guard let end = loopEnd(from: start, beats: loopSize) else { return }
         instantLoop = InstantLoop(start: start, end: end, beats: loopSize)
@@ -87,7 +90,10 @@ extension DeckModel {
         if instantLoop == nil, let cue = cue(engagedLoopID) {
             if let beats = cue.loop?.beats { size = beats } else if let beats = loopBeats(cue), beats > 0 { size = Double(beats) }
         }
-        guard let next = LoopRules.resized(size, direction: direction) else { return }
+        guard let next = LoopRules.resized(size, direction: direction) else {
+            showToast(String(ui: "루프 길이 한도에 도달했으니 반대 방향으로 길이를 바꾸세요"))
+            return
+        }
         if let current {
             guard let end = loopEnd(from: current.start, beats: next) else { return }
             engagedLoopID = nil
@@ -106,7 +112,7 @@ extension DeckModel {
     /// `start`에서 `beats`박 뒤(규칙은 `LoopRules.end`). 곡 끝을 넘으면 알리고 nil.
     func loopEnd(from start: Double, beats: Double) -> Double? {
         guard let end = LoopRules.end(from: start, beats: beats, grid: grid, fallbackBPM: gridBPM, duration: duration) else {
-            showToast(String(ui: "곡 끝을 넘는 루프는 만들 수 없습니다"))
+            showToast(String(ui: "루프를 만들 박 정보나 남은 길이가 부족하니 그리드를 확인하고 더 짧은 루프나 앞쪽 위치를 고르세요"))
             return nil
         }
         return end

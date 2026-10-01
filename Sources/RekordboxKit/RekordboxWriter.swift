@@ -217,7 +217,7 @@ public enum RekordboxWriter {
                 }
                 guard let info else {
                     gridOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: draft.trackUUID, status: .blocked,
-                                                reason: String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했습니다"), removed: 0, added: 0))
+                                                reason: String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했으니 컬렉션에서 곡을 확인한 뒤 DJCrate에서 다시 동기화하세요"), removed: 0, added: 0))
                     continue
                 }
                 guard let gridRoot else {
@@ -355,7 +355,7 @@ public enum RekordboxWriter {
                 for step in playlistSteps {
                     let edit = step.edit
                     if let playlistDraft, let rekordbox,
-                       let reason = step.depends.lazy.compactMap({ playlistDraft.staleReason($0, rekordbox: rekordbox) }).first {
+                       let reason = playlistDraft.staleReason(for: step, rekordbox: rekordbox) {
                         let name = work.tree.nodes[edit.playlist.layoutID]?.name ?? edit.playlist.description
                         playlistOutcomes.append(PlaylistOutcome(edit: edit, playlistID: nil, name: name, status: .blocked, reason: reason))
                         continue

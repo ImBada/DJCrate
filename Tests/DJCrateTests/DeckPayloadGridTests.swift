@@ -9,6 +9,27 @@ import Testing
 @MainActor
 @Suite("덱 그리드 편집 진입")
 struct DeckPayloadGridTests {
+    @Test(arguments: ["missing", "unreadable", "empty"])
+    func 분석_파일의_부재와_읽기_실패와_박_없음을_구분한다(kind: String) throws {
+        let fixture = try RekordboxFixture()
+        var spec = TrackSpec(id: "1", uuid: "analysis-issue")
+        spec.analysisDataPath = "/PIONEER/USBANLZ/issue/ANLZ0000.DAT"
+        if kind == "unreadable" {
+            try fixture.putAnalysis(for: spec, dat: Data("broken".utf8), ext: nil)
+        } else if kind == "empty" {
+            try fixture.putAnalysis(for: spec, dat: AnlzBuilder.dat(beats: []), ext: nil)
+        }
+        let track = Track(id: spec.id, uuid: spec.uuid, title: "합성 안내", artist: nil, album: nil,
+                          albumArtist: nil, genre: nil, composer: nil, releaseYear: nil, trackNumber: nil,
+                          key: nil, bpm: 120, lengthSeconds: 5, folderPath: "/unused.wav", comment: "",
+                          importedOn: nil, analysisDataPath: spec.analysisDataPath, imagePath: nil, isDeleted: false)
+        let payload = DeckPayload.load(track: track, cues: [], duration: 5,
+                                       storage: .memory(MemoryDrafts()), analysisRoot: fixture.shareRoot)
+        let reason = try #require(payload.gridBlockedReason)
+        #expect(reason.contains(kind == "missing" ? "없" : kind == "unreadable" ? "읽지 못" : "박 정보"))
+        #expect(reason.contains("rekordbox"))
+        #expect(payload.gridDraft == nil && payload.originalGrid == nil)
+    }
     @Test(arguments: [(0.002).nextDown, 0.002, (0.002).nextUp, 0.00249, (0.003).nextDown, 0.003, (0.003).nextUp])
     func 부동소수점_주변값도_같은_ms로_판정한다(delta: Double) {
         let original = BeatGrid(beats: [.init(number: 1, bpm: 120, time: 1.5 + delta)])

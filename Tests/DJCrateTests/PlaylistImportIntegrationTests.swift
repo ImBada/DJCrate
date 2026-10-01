@@ -68,7 +68,7 @@ struct PlaylistImportIntegrationTests {
         store.rekordboxPlaylists = PlaylistLayout([(.init(id: "P", name: "세트"), 1)])
         store.refreshPlaylists()
         store.staged = [StagedTrack(path: file.path, title: "합성 곡", duration: 0.1, addedOn: "2026-09-27")]
-        let provider = NSItemProvider(item: file as NSURL, typeIdentifier: UTType.fileURL.identifier)
+        let provider = NSItemProvider(object: file as NSURL)
         let node = try #require(store.playlistIndex["P"])
         #expect(PlaylistDrop.perform([provider], on: node, store: store))
         for _ in 0..<100 where store.playlistImports.pendingCount == 0 {

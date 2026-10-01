@@ -99,7 +99,7 @@ struct WritePreviewSnapshotTests {
         let before = try Data(contentsOf: fixture.database)
         let directory = fixture.root.appending(path: "preview")
         do {
-            try await WritePreviewSnapshot.withCopy(from: fixture.database, shareRoot: fixture.shareRoot, grids: [grid], directory: directory) { _, _ in
+            _ = try await WritePreviewSnapshot.withCopy(from: fixture.database, shareRoot: fixture.shareRoot, grids: [grid], directory: directory) { _, _ in
                 Issue.record("위험한 파일 경로로 미리보기를 실행함")
             }
             Issue.record("위험한 경로를 거절하지 않음")

@@ -38,6 +38,8 @@ public struct PlaylistDraft: Codable, Hashable, Sendable {
         public var edit: PlaylistEdit
         /// 이 편집이 기대는 rekordbox 목록(ID, 맨 위는 `root`). 하나라도 `base`와 달라졌으면 쓰지 않는다.
         public var depends: [String]
+        /// 선택해 다시 적용한 편집의 기준. 같은 목록에 기대는 미선택 편집의 기준과 분리한다.
+        public var recoveryBase: [String: Base]?
 
         public init(edit: PlaylistEdit, depends: [String] = []) {
             self.edit = edit
@@ -54,7 +56,7 @@ public struct PlaylistDraft: Codable, Hashable, Sendable {
     public var edits: [PlaylistEdit] { steps.map(\.edit) }
     public var isEmpty: Bool { steps.isEmpty }
 
-    static var changedReason: String { String(ui: "초안을 만든 뒤 rekordbox에서 이 목록이 바뀌었습니다. 이 목록의 초안을 버리고 다시 편집하세요") }
+    static var changedReason: String { String(ui: "초안을 만든 뒤 rekordbox에서 이 목록이 바뀌었으니 현재 목록을 비교해 다시 적용하거나 초안을 버리세요.") }
 
     // MARK: - 쌓기
 
@@ -159,9 +161,9 @@ public struct PlaylistDraft: Codable, Hashable, Sendable {
     }
 
     /// 지금 rekordbox 상태에서 쓸 수 없는 편집을 모두 버린다(그 편집에 기대던 편집도).
-    public mutating func discardBlocked(rekordbox: PlaylistLayout) {
+    public mutating func discardBlocked(rekordbox: PlaylistLayout, contentIDs: Set<String>? = nil) {
         while true {
-            let blocked = project(onto: rekordbox).blocked
+            let blocked = project(onto: rekordbox, contentIDs: contentIDs).blocked
             guard blocked.contains(where: { $0 != nil }) else { break }
             steps = zip(steps, blocked).filter { $0.1 == nil }.map(\.0)
             dropOrphans()
@@ -234,12 +236,16 @@ public struct PlaylistDraft: Codable, Hashable, Sendable {
     }
 
     /// 되돌린 뒤: 되살린 편집을 지금 rekordbox 상태에 차례로 다시 쌓는다(쌓을 수 없는 편집은 `failed`).
-    public static func rebuilt(_ edits: [PlaylistEdit], rekordbox: PlaylistLayout) -> (draft: PlaylistDraft, failed: [PlaylistEdit]) {
-        var draft = PlaylistDraft(), failed: [PlaylistEdit] = []
+    public static func rebuilt(_ edits: [PlaylistEdit], rekordbox: PlaylistLayout) -> (draft: PlaylistDraft, failed: [PlaylistEdit], reasons: [String]) {
+        var draft = PlaylistDraft(), failed: [PlaylistEdit] = [], reasons: [String] = []
         for edit in edits {
-            do { try draft.append(edit, rekordbox: rekordbox) } catch { failed.append(edit) }
+            do { try draft.append(edit, rekordbox: rekordbox) }
+            catch {
+                failed.append(edit)
+                reasons.append((error as? PlaylistLayout.Blocked)?.reason ?? String(describing: error))
+            }
         }
-        return (draft, failed)
+        return (draft, failed, reasons)
     }
 
     // MARK: - 얹어 보기
@@ -263,7 +269,16 @@ public struct PlaylistDraft: Codable, Hashable, Sendable {
 
     /// 지금 rekordbox 상태가 base와 다르면 그 이유
     public func staleReason(_ id: String, rekordbox: PlaylistLayout) -> String? {
-        guard let base = base[id] else { return nil }
+        staleReason(id, base: base, rekordbox: rekordbox)
+    }
+
+    /// 화면과 쓰기 관문이 같은 편집별 기준을 검사한다.
+    public func staleReason(for step: Step, rekordbox: PlaylistLayout) -> String? {
+        step.depends.lazy.compactMap { staleReason($0, base: step.recoveryBase ?? base, rekordbox: rekordbox) }.first
+    }
+
+    private func staleReason(_ id: String, base bases: [String: Base], rekordbox: PlaylistLayout) -> String? {
+        guard let base = bases[id] else { return nil }
         let children = base.childIDs.map { _ in rekordbox.childIDs(of: id) }
         if id == PlaylistLayout.root { return children == base.childIDs ? nil : Self.changedReason }
         guard let now = rekordbox.item(id) else { return String(ui: "rekordbox에서 지운 목록입니다") }
@@ -271,13 +286,17 @@ public struct PlaylistDraft: Codable, Hashable, Sendable {
     }
 
     /// 지금 rekordbox 상태에 편집을 차례로 얹는다. base와 달라진 목록에 기대는 편집, 얹을 수 없는 편집은 막힌 것으로 두고 건너뛴다.
-    public func project(onto rekordbox: PlaylistLayout) -> Projection {
+    public func project(onto rekordbox: PlaylistLayout, contentIDs: Set<String>? = nil) -> Projection {
         var layout = rekordbox
         var blocked: [String?] = [], changed = Set<String>(), targets: [String: String] = [:]
         for step in steps {
             let target = step.edit.playlist.layoutID
             let parent = layout.item(target)?.parentID
-            var reason = step.depends.lazy.compactMap { staleReason($0, rekordbox: rekordbox) }.first
+            var reason = staleReason(for: step, rekordbox: rekordbox)
+            if reason == nil, let contentIDs, case let .addTracks(_, ids) = step.edit,
+               !ids.allSatisfy({ contentIDs.contains($0) }) {
+                reason = String(ui: "넣을 곡이 rekordbox 컬렉션에서 사라졌으니 이 편집을 버리고 곡을 다시 선택하세요.")
+            }
             if reason == nil {
                 do { try layout.apply(step.edit) } catch let error as PlaylistLayout.Blocked { reason = error.reason } catch { reason = "\(error)" }
             }
@@ -294,5 +313,102 @@ public struct PlaylistDraft: Codable, Hashable, Sendable {
         }
         return Projection(layout: layout, edits: edits, blocked: blocked, changed: changed.filter { layout.item($0) != nil },
                           blockedTargets: targets)
+    }
+}
+
+extension PlaylistDraft {
+    public struct Recovery: Hashable, Sendable {
+        public var draft: PlaylistDraft
+        /// 원래 초안의 편집 번호(0부터)
+        public var reapplied: [Int]
+        public var refused: [Int: String]
+    }
+
+    /// 선택한 목록의 막힌 편집만 현재 상태에 차례로 다시 쌓는다. 실패와 미선택 편집은 원래 기준으로 남긴다.
+    public func recovering(playlist id: String, rekordbox: PlaylistLayout, contentIDs: Set<String>) -> Recovery {
+        let blocked = project(onto: rekordbox, contentIDs: contentIDs).blocked
+        var draft = self, layout = rekordbox
+        var reapplied: [Int] = [], refused: [Int: String] = [:]
+        var captured: [Int: [String: Base]] = [:], alreadyCurrent = Set<Int>()
+        for (index, step) in steps.enumerated() {
+            guard blocked[index] != nil, step.edit.playlist.layoutID == id else {
+                if blocked[index] == nil { try? layout.apply(step.edit) }
+                continue
+            }
+            do {
+                let edit = try recoveryEdit(at: index, onto: layout, contentIDs: contentIDs)
+                let needs = Self.needs(edit, in: layout, rekordbox: rekordbox)
+                var current = PlaylistDraft()
+                for need in needs { current.capture(need.id, children: need.children, from: rekordbox) }
+                let rebuilt = Self.rebuilt([edit], rekordbox: layout)
+                if let reason = rebuilt.reasons.first { throw PlaylistLayout.Blocked(reason) }
+                layout = rebuilt.draft.project(onto: layout).layout
+                if rebuilt.draft.isEmpty { alreadyCurrent.insert(index) }
+                var replacement = Step(edit: edit, depends: needs.map(\.id))
+                replacement.recoveryBase = current.base
+                draft.steps[index] = replacement
+                captured[index] = current.base
+                reapplied.append(index)
+            } catch let error as PlaylistLayout.Blocked { refused[index] = error.reason }
+            catch { refused[index] = String(describing: error) }
+        }
+        // 공유 기준을 바꾸면 고르지 않은 편집까지 풀리므로 그 기준은 편집 안에만 둔다.
+        let untouched = Set(steps.enumerated().filter { !reapplied.contains($0.offset) }.flatMap { $0.element.depends })
+        for index in reapplied {
+            for (id, base) in captured[index] ?? [:] where !untouched.contains(id) { draft.base[id] = base }
+        }
+        draft.removeSteps(at: alreadyCurrent)
+        return Recovery(draft: draft, reapplied: reapplied, refused: refused)
+    }
+
+    private func recoveryEdit(at index: Int, onto layout: PlaylistLayout, contentIDs: Set<String>) throws -> PlaylistEdit {
+        let edit = steps[index].edit
+        switch edit {
+        case let .addTracks(ref, ids):
+            guard ids.allSatisfy({ contentIDs.contains($0) }) else {
+                throw PlaylistLayout.Blocked(String(ui: "넣을 곡이 rekordbox 컬렉션에서 사라졌으니 이 편집을 버리고 곡을 다시 선택하세요."))
+            }
+            return .addTracks(playlist: ref, contentIDs: ids)
+        case let .removeTracks(ref, entries):
+            try requireRecoveryTracks(entries, contentIDs: contentIDs)
+            return .removeTracks(playlist: ref, entries: try recoveryEntries(entries, at: index, onto: layout))
+        case let .moveTracks(ref, entries, to):
+            try requireRecoveryTracks(entries, contentIDs: contentIDs)
+            return .moveTracks(playlist: ref, entries: try recoveryEntries(entries, at: index, onto: layout), to: to)
+        default: return edit
+        }
+    }
+
+    private func requireRecoveryTracks(_ entries: [PlaylistEntry], contentIDs: Set<String>) throws {
+        guard entries.allSatisfy({ contentIDs.contains($0.contentID) }) else {
+            throw PlaylistLayout.Blocked(String(ui: "대상 곡이 rekordbox 컬렉션에서 사라졌으니 이 편집을 버리고 곡을 다시 선택하세요."))
+        }
+    }
+
+    private func recoveryEntries(_ entries: [PlaylistEntry], at index: Int, onto layout: PlaylistLayout) throws -> [PlaylistEntry] {
+        let step = steps[index], id = step.edit.playlist.layoutID
+        guard let now = layout.item(id) else {
+            throw PlaylistLayout.Blocked(String(ui: "대상 목록이 사라졌으니 이 편집을 버리고 목록을 다시 선택하세요."))
+        }
+        let originalBase = (step.recoveryBase ?? base)[id]
+        var original = PlaylistLayout([(PlaylistLayout.Item(id: id, name: "", parentID: PlaylistLayout.root, isFolder: false,
+                                                           entries: originalBase?.entries ?? []), 1)])
+        // 자리 번호는 앞 편집의 결과에 기대므로 처음 기준에서 앞의 곡 편집을 재생한다.
+        for earlier in steps.prefix(index) where earlier.edit.playlist.layoutID == id {
+            switch earlier.edit {
+            case .addTracks, .removeTracks, .moveTracks: try original.apply(earlier.edit)
+            default: break
+            }
+        }
+        let before = original.item(id)?.entries ?? []
+        if before == now.entries { return entries }
+        return try entries.map { entry in
+            let oldMatches = before.filter { $0.contentID == entry.contentID }
+            let matches = now.entries.filter { $0.contentID == entry.contentID }
+            guard oldMatches.count == 1, matches.count == 1, let match = matches.first else {
+                throw PlaylistLayout.Blocked(String(ui: "곡이 목록에서 사라졌거나 같은 곡의 대응이 모호하니 이 편집을 버리고 목록을 다시 편집하세요."))
+            }
+            return match
+        }
     }
 }

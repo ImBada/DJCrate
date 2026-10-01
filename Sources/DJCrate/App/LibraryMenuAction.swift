@@ -46,7 +46,10 @@ enum LibraryMenuAction: CaseIterable {
     }
 
     @MainActor func perform(in store: LibraryStore) {
-        guard isEnabled(in: store) else { return }
+        guard isEnabled(in: store) else {
+            if let reason = disabledReason(in: store) { store.stagingMessage = AppMessage(kind: .warning, text: reason) }
+            return
+        }
         switch self {
         case .addFiles: StagingPanels.chooseFiles(store: store)
         case .importAppleMusic: AppleMusicImportWindow.shared.open(store: store)
@@ -60,6 +63,24 @@ enum LibraryMenuAction: CaseIterable {
         case .restore: DirectWritePanels.restoreLatest(store: store)
         case .removeTracks:
             DirectWritePanels.deleteTracks(store: store, rows: store.selectedRows.filter { !$0.isStaged && !$0.track.isStreaming })
+        }
+    }
+
+    @MainActor func disabledReason(in store: LibraryStore) -> String? {
+        guard !isEnabled(in: store) else { return nil }
+        if !store.writeLockPolicy.allowsLibraryInteraction { return String(ui: "rekordbox 쓰기가 끝난 뒤 다시 시도하세요") }
+        switch self {
+        case .snapshot:
+            if store.isLoading || store.isSynchronizingLibrary { return String(ui: "라이브러리 읽기가 끝난 뒤 다시 동기화하세요") }
+            return String(ui: "덱의 큐 입력을 확정하고 끌기를 마친 뒤 동기화하세요")
+        case .removeTracks:
+            if store.isITunesSelection { return String(ui: "iTunes 동기화 목록에서는 곡을 뺄 수 없으니 rekordbox 컬렉션에서 곡을 고르세요") }
+            return String(ui: "rekordbox 컬렉션에서 뺄 로컬 곡을 목록에서 고르세요")
+        case .reflect: return String(ui: "쓸 초안이 없으니 곡을 편집하거나 재생 목록 초안을 먼저 만드세요")
+        case .exportXML: return String(ui: "XML로 넘길 추가한 곡이나 큐·그리드 초안을 먼저 만드세요")
+        case .restore: return String(ui: "쓰기 전 백업이 없으니 마지막 쓰기 결과를 확인하세요")
+        case .addFiles, .importAppleMusic: return String(ui: "라이브러리를 먼저 불러온 뒤 곡을 추가하세요")
+        case .pending, .writeResult: return nil
         }
     }
 }

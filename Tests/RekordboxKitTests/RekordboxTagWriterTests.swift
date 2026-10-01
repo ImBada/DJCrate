@@ -134,7 +134,7 @@ struct RekordboxTagWriterTests {
         missing.trackUUID = "no-such-track"
         try fixture.execute("UPDATE djmdContent SET rb_local_deleted = 1 WHERE ID = '500'")
         let report = try write(fixture, tags: [missing, tags])
-        #expect(report.tagBlocked.map(\.reason) == ["rekordbox 컬렉션에서 곡을 찾지 못했습니다", "rekordbox 컬렉션에서 지운 곡입니다"])
+        #expect(report.tagBlocked.map(\.reason) == ["rekordbox 컬렉션에서 곡을 찾지 못했으니 컬렉션에서 곡을 확인한 뒤 DJCrate에서 다시 동기화하세요", "rekordbox 컬렉션에서 지운 곡이니 컬렉션에서 곡을 확인한 뒤 DJCrate에서 다시 동기화하세요"])
     }
 
     // MARK: 골든(2026-09-26 묶음 2)

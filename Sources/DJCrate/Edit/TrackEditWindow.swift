@@ -36,7 +36,11 @@ final class TrackEditWindow: NSObject, NSWindowDelegate {
 
     /// 덱에 올린 곡으로 연다. 같은 곡을 다시 열면 고른 구간을 이어 쓴다(그리드·큐는 덱에서 새로 읽는다).
     func open(entries: [BarRange]? = nil) {
-        guard let deck, TrackEditModel.canOpen(deck) else { return }
+        guard let deck else { return }
+        guard TrackEditModel.canOpen(deck) else {
+            if let reason = TrackEditModel.openingUnavailableReason(deck) { deck.showToast(reason) }
+            return
+        }
         let kept = model?.row.id == deck.row?.id ? model?.entries.map(\.range) ?? [] : []
         model?.close()
         guard let model = TrackEditModel(deck: deck, entries: entries ?? kept, edits: DJCPaths.editOutput) else { return }
@@ -213,7 +217,7 @@ struct TrackEditButton: View {
         }
         .buttonStyle(.plain)
         .disabled(!TrackEditModel.canOpen(deck))
-        .help(.ui("마디 단위로 잘라 이은 편집본(인트로 늘이기·짧은 버전)을 만듭니다. 원곡은 그대로 두고 새 곡으로 추가한 곡에 넣습니다"))
+        .help(TrackEditModel.openingUnavailableReason(deck) ?? String(ui: "마디 단위로 잘라 이은 편집본(인트로 늘이기·짧은 버전)을 만듭니다. 원곡은 그대로 두고 새 곡으로 추가한 곡에 넣습니다"))
     }
 }
 

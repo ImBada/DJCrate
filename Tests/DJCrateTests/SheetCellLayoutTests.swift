@@ -1,5 +1,6 @@
 @testable import DJCrate
 import AppKit
+import DJCTestSupport
 import Testing
 
 /// 태그 시트 칸을 가볍게 만든 것(#140)이 모양·동작을 바꾸지 않는지 고정한다.
@@ -146,7 +147,9 @@ struct SheetCellLayoutTests {
         }
         // 다른 열은 그 열의 글자
         let file = h.table.frameOfCell(atColumn: 10, row: 0)
-        #expect(h.table.view(h.table, stringForToolTip: 0, point: NSPoint(x: file.midX, y: file.midY), userData: nil) == h.coordinator.text(row: 0, column: 10))
+        let fileReason = try #require(TrackListTagEditing.unavailableReason(h.coordinator.rows[0], key: nil))
+        #expect(h.table.view(h.table, stringForToolTip: 0, point: NSPoint(x: file.midX, y: file.midY), userData: nil)
+                == h.coordinator.text(row: 0, column: 10) + "\n" + fileReason)
         // 줄 밖(빈 곳)은 툴팁 없음
         #expect(h.table.view(h.table, stringForToolTip: 0, point: NSPoint(x: 5, y: h.table.bounds.maxY + 200), userData: nil).isEmpty)
         // 보이는 칸 어디에도 칸별 툴팁이 없다
@@ -166,6 +169,25 @@ struct SheetCellLayoutTests {
         #expect(h.table.toolTipTag != nil)
         #expect(h.table.toolTipTag != first)
         #expect(h.table.toolTipRect == h.table.bounds)
+    }
+
+    @Test func 스트리밍_칸의_전체_글자와_편집_불가_이유를_표_툴팁으로_알린다() throws {
+        let fixture = try RekordboxFixture()
+        let store = LibraryStore(saveTagDrafts: { _ in }, backupDirectory: fixture.backups,
+                                 playlistDraftSaver: { _ in }, mergeDraftSaver: { _ in }, playlistImportURL: nil,
+                                 stagingSaver: { _ in }, draftHome: fixture.root.appending(path: "drafts"))
+        store.rekordboxDatabase = fixture.database
+        store.rekordboxShareRoot = fixture.shareRoot
+        let h = SheetCellLayoutHarness(store: store)
+        defer { h.window.close() }
+        let stream = TrackListTagEditTests.row("stream", streaming: true)
+        h.coordinator.update(rows: [stream], revision: 1)
+        let rect = h.table.frameOfCell(atColumn: 1, row: 0)
+        let reason = try #require(TrackListTagEditing.unavailableReason(stream, key: .title))
+        #expect(h.table.view(h.table, stringForToolTip: 0, point: NSPoint(x: rect.midX, y: rect.midY), userData: nil)
+                == h.coordinator.text(row: 0, column: 1) + "\n" + reason)
+        let cell = try #require(h.table.view(atColumn: 1, row: 0, makeIfNecessary: true) as? SheetCell)
+        #expect(cell.toolTip == nil && cell.label.toolTip == nil)
     }
 
     @Test func 선택과_기준_칸_초안_색이_칸에_반영되고_풀리면_지워진다() {
@@ -201,12 +223,13 @@ struct SheetCellLayoutTests {
 
 @MainActor
 private final class SheetCellLayoutHarness {
-    let store = LibraryStore(saveTagDrafts: { _ in })
+    let store: LibraryStore
     let coordinator: SheetCoordinator
     let table = SheetTableView()
     let window: NSWindow
 
-    init() {
+    init(store: LibraryStore = LibraryStore(saveTagDrafts: { _ in })) {
+        self.store = store
         _ = NSApplication.shared
         coordinator = SheetCoordinator(store: store)
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 400),

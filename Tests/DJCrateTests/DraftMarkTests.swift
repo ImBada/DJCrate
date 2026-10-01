@@ -40,10 +40,9 @@ struct DraftMarkTests {
 
     @MainActor
     @Test func 시트_칸은_초안을_모양과_값으로_보인다() {
-        // 기본값(덮지 않았을 때)은 서식 있는 글자로 온다.
         func spoken(_ cell: SheetCell) -> String? {
             let value = cell.label.accessibilityValue()
-            return (value as? String) ?? (value as? NSAttributedString)?.string
+            return value
         }
         let cell = SheetCell()
         cell.configure(text: "새 제목", edited: true, readOnly: false, selected: true, active: true)

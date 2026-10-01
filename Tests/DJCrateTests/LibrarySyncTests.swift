@@ -228,7 +228,8 @@ struct LibrarySyncTests {
         await store.load(snapshot: fixture.database, arguments: args, environment: [:])
         var loads: [TrackRow?] = []
         store.onLoadToDeck = { loads.append($0) }
-        store.loadToDeck(try #require(store.rowsByUUID[spec.uuid]))
+        let row: TrackRow = try #require(store.rowsByUUID[spec.uuid])
+        store.loadToDeck(row)
         var calls = 0
         store.allowsLibrarySync = { calls += 1; return calls == 1 }
         store.onRekordboxWritten = { _ in Issue.record("미저장 드래그를 다시 읽었습니다") }
