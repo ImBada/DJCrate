@@ -51,6 +51,10 @@ final class FakeUsbWriteService: UsbWriteService, @unchecked Sendable {
         var editJobs: [UsbEditJob] = []
         /// 수정 쓰기 때 부른다(실제 세션이 초안을 고치는 것을 흉내 낸다)
         var onWriteEdit: (@Sendable () -> Void)?
+        /// 수정 미리 보기 때 부른다(메인 액터 밖, 잠금 밖)
+        var onPreviewEdit: (@Sendable () -> Void)?
+        /// 초안 폴더. 주면 실제 창구처럼 미리 보기가 그때 초안 편집을 읽어 요약(`edits`)에 담는다
+        var drafts: URL?
     }
 
     private let lock = NSLock()
@@ -132,11 +136,17 @@ final class FakeUsbWriteService: UsbWriteService, @unchecked Sendable {
     }
 
     func previewEdit(_ job: UsbEditJob) throws -> UsbEditSummary {
-        lock.withLock {
+        let (drafts, hook) = lock.withLock { () -> (URL?, (@Sendable () -> Void)?) in
             state.calls.append("previewEdit")
             state.editJobs.append(job)
-            return state.editSummary
+            return (state.drafts, state.onPreviewEdit)
         }
+        // 실제 창구처럼 초안을 먼저 읽고 계획한다(계획하는 동안 더한 편집은 이 요약에 없다)
+        let edits = try drafts.map { try UsbDraftStore(directory: $0).load(volumeKey: UsbEditSession.volumeKey(job.volume))?.edits ?? [] }
+        hook?()
+        var summary = lock.withLock { state.editSummary }
+        if let edits { summary.edits = edits }
+        return summary
     }
 
     func writeEdit(_ job: UsbEditJob, progress: @escaping @Sendable (UsbProgress) -> Void,

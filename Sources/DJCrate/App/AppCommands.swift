@@ -115,6 +115,7 @@ struct AppCommands: Commands {
             Divider()
             Button(.ui("곡 편집…")) { TrackEditWindow.shared.open() }
                 .disabled(context.map { !TrackEditModel.canOpen($0.deck) } ?? true)
+                .help(context.flatMap { TrackEditModel.openingUnavailableReason($0.deck) } ?? String(ui: "덱에 올린 곡으로 편집 창을 엽니다"))
         }
         CommandGroup(replacing: .help) {
             Button(.ui("DJCrate 단축키")) { openWindow(id: "shortcuts") }
@@ -133,6 +134,7 @@ struct AppCommands: Commands {
         }
         .keyboardShortcut(action.shortcut)
         .disabled(context.map { !action.isEnabled(in: $0.store) } ?? true)
+        .help(context.flatMap { action.disabledReason(in: $0.store) } ?? action.title)
     }
 
     private func deckButton(_ command: DeckMenuCommand) -> some View {

@@ -107,6 +107,12 @@ final class TrackEditModel {
         deck.row != nil && deck.draft != nil && !deck.isWriteLocked
     }
 
+    static func openingUnavailableReason(_ deck: DeckModel) -> String? {
+        if deck.isWriteLocked { return String(ui: "rekordbox 쓰기가 끝난 뒤 곡 편집 창을 여세요") }
+        if deck.row == nil || deck.draft == nil { return String(ui: "곡을 덱에 불러오고 초안 읽기가 끝난 뒤 곡 편집 창을 여세요") }
+        return nil
+    }
+
     /// - Parameter edits: 렌더한 편집본을 둘 폴더. 없으면 `home` 아래 `edits`(테스트용). 앱은 `DJCPaths.editOutput`을 준다.
     init?(deck: DeckModel, entries: [BarRange] = [], audio: any EditAudio = EditAudioPlayer(),
           home: URL = DJCPaths.userData, edits: URL? = nil) {
@@ -130,9 +136,10 @@ final class TrackEditModel {
         } else if !FileManager.default.fileExists(atPath: source.path) {
             reason = String(ui: "음원 파일이 없습니다. 외장 드라이브가 연결됐는지 확인하세요")
         } else if !deck.canPlay {
-            reason = String(ui: "이 파일 형식은 읽지 못해 편집할 수 없습니다. MP3·AAC·WAV·AIFF·FLAC 곡을 고르세요")
+            reason = deck.playbackUnavailableReason
         } else if segments.isEmpty {
-            reason = String(ui: "그리드가 없습니다. 덱에서 추정 그리드를 적용하거나 rekordbox에서 트랙 분석을 한 뒤 편집하세요")
+            reason = deck.gridUnavailableReason ?? deck.gridSourceNotice
+                ?? String(ui: "그리드에 템포 구간이 없으니 추정 그리드를 적용하거나 rekordbox에서 트랙 분석을 먼저 하세요")
         } else if let blocked = deck.gridEditBlockedReason {
             reason = blocked
         } else {
@@ -157,6 +164,13 @@ final class TrackEditModel {
     let editsDirectory: URL
 
     var canRender: Bool { blockedReason == nil && edit != nil && renderProgress == nil }
+
+    var renderUnavailableReason: String? {
+        if let blockedReason { return blockedReason }
+        if renderProgress != nil { return String(ui: "렌더가 끝나거나 취소한 뒤 다시 렌더하세요") }
+        if let planError { return planError }
+        return edit == nil ? String(ui: "렌더할 구간이 없으니 원곡에서 마디 구간을 고른 뒤 결과에 넣으세요") : nil
+    }
 
     // MARK: - 원곡에서 고르기
 

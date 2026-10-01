@@ -155,6 +155,10 @@ struct ContentView: View {
                 }
                 .pickerStyle(.segmented)
                 .disabled(!store.writeLockPolicy.allowsLibraryInteraction || store.sidebar == .duplicates || store.isUsbSelection)
+                .help(!store.writeLockPolicy.allowsLibraryInteraction ? String(ui: "rekordbox 쓰기가 끝난 뒤 다시 시도하세요")
+                      : store.isUsbSelection ? String(ui: "USB 곡은 읽기 전용이니 로컬 라이브러리에서 태그를 편집하세요")
+                      : store.sidebar == .duplicates ? String(ui: "중복 후보에서는 태그 시트를 열 수 없으니 전체 목록에서 곡을 고르세요")
+                      : String(ui: "태그 시트에서 태그 칸을 고르고 입력하세요"))
             }
             ToolbarItem(id: "addFiles") {
                 Button {
@@ -182,7 +186,7 @@ struct ContentView: View {
                     Label(.ui("rekordbox와 동기화"), systemImage: "arrow.clockwise")
                 }
                 .disabled(!LibraryMenuAction.snapshot.isEnabled(in: store))
-                .help(.ui("rekordbox 내용을 새로 읽고 편집 중인 초안을 보존합니다(⌘R)."))
+                .help(LibraryMenuAction.snapshot.disabledReason(in: store) ?? String(ui: "rekordbox 내용을 새로 읽고 편집 중인 초안을 보존합니다(⌘R)."))
             }
             ToolbarItem(id: "reflection", placement: .primaryAction) {
                 ReflectionMenu(store: store)
@@ -219,6 +223,7 @@ struct ContentView: View {
             TrackEditWindow.shared.attach(deck: deck, store: store)
             #if DEBUG
             DevSelfTests.runIfRequested(store: store, deck: deck)
+            DevSelfTests.runBlockedReasonsCaptureIfRequested(store: store, deck: deck)
             #endif
             deck.onDraftChange = { [weak store] uuid, kind, exists in
                 store?.draftChanged(trackUUID: uuid, kind: kind, exists: exists)

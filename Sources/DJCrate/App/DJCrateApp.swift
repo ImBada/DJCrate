@@ -51,7 +51,10 @@ struct DJCrateApp: App {
                     appDelegate.store = store
                     #if DEBUG
                     if !ResizePerfSelfTest.isRequested,
-                       !ProcessInfo.processInfo.arguments.contains("--playlist-recovery-selftest") { NSApplication.shared.activate() }
+                       !ProcessInfo.processInfo.arguments.contains("--playlist-recovery-selftest"),
+                       !ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("--blocked-reasons-capture=") }) {
+                        NSApplication.shared.activate()
+                    }
                     #else
                     NSApplication.shared.activate()
                     #endif

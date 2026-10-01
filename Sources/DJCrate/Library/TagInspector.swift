@@ -27,6 +27,11 @@ struct TagInspector: View {
                     }
                 }
                 Section(.ui("곡 정보")) {
+                    if let row = rows.first(where: { $0.isUsb || $0.track.isStreaming }),
+                       let reason = TrackListTagEditing.unavailableReason(row, key: .title) {
+                        Label(reason, systemImage: "lock")
+                            .font(.scaled(.caption, textScale)).foregroundStyle(UIColors.warning.color)
+                    }
                     ForEach(TagFields.Key.allCases.filter { $0 != .comment }) { key in
                         field(key, rows: rows)
                     }
@@ -67,6 +72,8 @@ struct TagInspector: View {
                 store.setTag(key, text, rows: rows)
             }
             .id("\(key.rawValue)-\(store.selection.hashValue)")
+            .disabled(rows.allSatisfy { $0.isUsb || $0.track.isStreaming })
+            .help(rows.first.flatMap { TrackListTagEditing.unavailableReason($0, key: key) } ?? key.label)
             if rows.count == 1, let row = rows.first, let draft = store.tagDrafts[row.track.uuid],
                draft.conflictingKeys(with: TagFields(track: row.track)).contains(key) {
                 Text(String(ui: "현재 rekordbox: \(TagFields(track: row.track)[key])"))

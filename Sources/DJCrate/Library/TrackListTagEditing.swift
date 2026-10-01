@@ -10,6 +10,11 @@ import DJCDomain
 ///   값이 서로 다르면 빈 칸으로 시작하고, 비운 채 나오면 그대로 둔다.
 /// - 스트리밍 곡(파일 태그 없음)은 고치지 않는다. 저장은 `LibraryStore.setTag`(초안·되돌리기 한 단위)로만 한다.
 enum TrackListTagEditing {
+    static func unavailableReason(_ row: TrackRow, key: TagFields.Key?) -> String? {
+        if row.isUsb { return String(ui: "USB 곡은 읽기 전용이니 로컬 라이브러리에서 태그를 편집하세요") }
+        if row.track.isStreaming { return String(ui: "스트리밍 곡의 태그는 편집할 수 없으니 로컬 음원 파일이 있는 곡을 고르세요") }
+        return key == nil ? String(ui: "이 칸은 읽기 전용이니 제목·아티스트·코멘트 같은 태그 칸을 고르세요") : nil
+    }
     /// 칸 하나를 고치는 동안 들고 있는 값. 대상 곡과 시작 값은 편집을 시작할 때 정한다.
     struct Session: Equatable {
         let key: TagFields.Key

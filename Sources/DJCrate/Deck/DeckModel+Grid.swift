@@ -22,7 +22,13 @@ extension DeckModel {
 
     func shiftGrid(ms: Double) { mutateGrid(name: String(ui: "그리드 옮기기")) { $0.shift(by: ms / 1000) } }
 
-    func setGridBPM(_ bpm: Double) { mutateGrid(name: String(ui: "BPM 변경")) { $0.setBPM(bpm, at: playhead) } }
+    func setGridBPM(_ bpm: Double) {
+        guard GridDraft.bpmRange.contains(bpm) else {
+            showToast(String(ui: "BPM은 20…655.35 사이로 입력하세요"))
+            return
+        }
+        mutateGrid(name: String(ui: "BPM 변경")) { $0.setBPM(bpm, at: playhead) }
+    }
 
     func scaleGridBPM(_ factor: Double) {
         guard let bpm = gridBPM else { return }

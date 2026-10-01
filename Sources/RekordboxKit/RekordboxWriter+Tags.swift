@@ -73,10 +73,10 @@ extension RekordboxWriter {
             contents.append((r.string(0) ?? "", r.string(1) ?? "", (r.int(2) ?? 0) != 0, r.string(3), r.int(4)))
         }
         guard contents.count == 1, let content = contents.first else {
-            throw Blocked(title: draft.trackUUID, reason: contents.isEmpty ? String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했습니다") : String(ui: "같은 UUID의 곡이 여럿입니다"))
+            throw Blocked(title: draft.trackUUID, reason: contents.isEmpty ? String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했으니 컬렉션에서 곡을 확인한 뒤 DJCrate에서 다시 동기화하세요") : String(ui: "같은 UUID의 곡이 여럿인 구조는 지원하지 않으니 rekordbox에서 곡을 확인하고 직접 편집하세요"))
         }
         func block(_ reason: String) -> Blocked { Blocked(title: content.title, reason: reason) }
-        guard !content.deleted else { throw block(String(ui: "rekordbox 컬렉션에서 지운 곡입니다")) }
+        guard !content.deleted else { throw block(String(ui: "rekordbox 컬렉션에서 지운 곡이니 컬렉션에서 곡을 확인한 뒤 DJCrate에서 다시 동기화하세요")) }
         let closed = draft.changedKeys.filter { !writable.contains($0) }
         guard closed.isEmpty else {
             throw block(String(ui: "rekordbox에 쓰는 규칙을 아직 확인하지 않은 칸(\(closed.map(\.label).joined(separator: "·")))이 있습니다. 그 칸을 되돌리면 나머지는 쓸 수 있습니다"))

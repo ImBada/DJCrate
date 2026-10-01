@@ -106,7 +106,10 @@ extension DeckModel {
             engagedLoopID = cue.id
             selectedCueID = cue.id
         } else {
-            guard canPlay || grid != nil else { return }  // 소리·그리드 없이 0초에 박히지 않게
+            guard canPlay || grid != nil else {
+                if let reason = hotCueCreationUnavailableReason { showToast(reason) }
+                return
+            }  // 소리·그리드 없이 0초에 박히지 않게
             let cue = EditableCue(kind: .hot(slot), time: snapped(currentTime))
             mutate(name: String(ui: "핫큐 찍기")) { $0.place(cue) }
             selectedCueID = cue.id

@@ -459,8 +459,10 @@ final class SheetTableView: NSTableView, NSViewToolTipOwner {
 
     func view(_ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint, userData data: UnsafeMutableRawPointer?) -> String {
         let hitRow = row(at: point), hitColumn = column(at: point)
-        guard let coordinator, hitRow >= 0, hitColumn >= 0 else { return "" }
-        return coordinator.text(row: hitRow, column: hitColumn)
+        guard let coordinator, coordinator.rows.indices.contains(hitRow), SheetColumn.all.indices.contains(hitColumn) else { return "" }
+        let text = coordinator.text(row: hitRow, column: hitColumn)
+        guard let reason = TrackListTagEditing.unavailableReason(coordinator.rows[hitRow], key: SheetColumn.all[hitColumn].key) else { return text }
+        return text.isEmpty ? reason : text + "\n" + reason
     }
 
     override func accessibilitySelectedCells() -> [Any]? {
