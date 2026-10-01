@@ -8,7 +8,9 @@ import SwiftUI
 enum PerfProbe {
     #if DEBUG
     /// `--scroll-perf`·`--ui-perf=`(#129) 측정 중. 표 칸 배치·설정을 저장하지 않는다.
-    static let enabled = ProcessInfo.processInfo.arguments.contains { $0 == "--scroll-perf" || $0.hasPrefix("--ui-perf=") }
+    static let enabled = ProcessInfo.processInfo.arguments.contains {
+        $0 == "--scroll-perf" || $0.hasPrefix("--ui-perf=") || $0.hasPrefix("--resize-perf=")
+    }
     static let previewCuesVisible = !ProcessInfo.processInfo.arguments.contains("--perf-cues=off")
     /// A/B: 확대 파형 막대를 그리지 않는다
     static let skipBands = ProcessInfo.processInfo.arguments.contains("--skip-bands")
@@ -75,6 +77,11 @@ enum PerfProbe {
     static func resetBodyCounts() { bodyCounts = [:] }
 
     static func bodyCount(_ name: String) -> Int { bodyCounts[name] ?? 0 }
+
+    static func bodySnapshot() -> [String: Int] { bodyCounts }
+
+    /// 현재 구간의 파형 Canvas 실행 시간(ms). 화면 표시 완료 시간과는 다르다.
+    static func drawSnapshot() -> [Double] { draws.map { $0 * 1000 } }
 
     static func bodySummary() -> String? {
         guard !bodyCounts.isEmpty else { return nil }

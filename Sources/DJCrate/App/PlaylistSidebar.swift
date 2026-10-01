@@ -8,6 +8,18 @@ enum PlaylistDragType {
     static let tracks = UTType(exportedAs: "com.djcrate.track-ids", conformingTo: .data)
     static let playlist = UTType(exportedAs: "com.djcrate.playlist-id", conformingTo: .data)
     static let pasteboardTracks = NSPasteboard.PasteboardType(tracks.identifier)
+
+    static func provider(for node: PlaylistOutlineNode) -> NSItemProvider {
+        let provider = NSItemProvider()
+        // 인텔리전트 목록은 옮기지 않는다(규칙 미확인).
+        guard !node.isSmart else { return provider }
+        let data = Data(node.id.utf8)
+        provider.registerDataRepresentation(forTypeIdentifier: playlist.identifier, visibility: .all) { completion in
+            completion(data, nil)
+            return nil
+        }
+        return provider
+    }
 }
 
 /// 사이드바 재생 목록(#40): 초안을 얹은 트리, 만들기·이름 바꾸기·지우기·옮기기, 곡을 끌어다 놓기(#39).
@@ -112,10 +124,7 @@ struct PlaylistRow: View {
             .badge(store.count(playlist: node))
             .lineLimit(1)
             .help(node.blockedReason.map { String(ui: "이 목록의 초안 일부를 쓸 수 없습니다: \($0)") } ?? title)
-            .onDrag {
-                // 인텔리전트 목록은 옮기지 않는다(규칙 미확인)
-                node.isSmart ? NSItemProvider() : NSItemProvider(item: Data(node.id.utf8) as NSData, typeIdentifier: PlaylistDragType.playlist.identifier)
-            }
+            .onDrag { PlaylistDragType.provider(for: node) }
             .onDrop(of: [PlaylistDragType.tracks, PlaylistDragType.playlist, .fileURL], isTargeted: $isTargeted) { providers in
                 PlaylistDrop.perform(providers, on: node, store: store)
             }

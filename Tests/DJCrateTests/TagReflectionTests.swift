@@ -20,17 +20,17 @@ struct TagReflectionTests {
         #expect(store.pendingUUIDs == ["t"] && store.writeTargets([row]).map(\.track.uuid) == ["t"])
     }
 
-    @Test func 쓴_태그_초안은_비우고_되돌리면_다시_살린다() {
+    @Test func 쓴_태그_초안은_비우고_되돌리면_다시_살린다() throws {
         var saved: [[TagDraft]] = []
         let store = LibraryStore(saveTagDrafts: { saved.append($0) })
         let row = Self.row("t")
         store.rowsByUUID[row.track.uuid] = row
         store.applyTagEdits([(row, .title, "새 제목"), (row, .comment, "코멘트")])
-        let written = try? #require(store.tagDrafts["t"])
+        let written: TagDraft = try #require(store.tagDrafts["t"])
         let revision = store.tagRevision
 
         // 쓰기 뒤: 쓴 초안의 fields를 base로 되돌려 넘긴다(저장소는 변경 없는 초안 파일을 지운다)
-        var cleared = written!
+        var cleared = written
         cleared.fields = cleared.base
         store.replaceTagDrafts([cleared])
         #expect(store.tagDrafts.isEmpty && !store.pendingUUIDs.contains("t") && !store.editedUUIDs.contains("t"))
@@ -38,9 +38,9 @@ struct TagReflectionTests {
         #expect(store.tagRevision > revision, "시트가 다시 그린다")
 
         // 되돌린 뒤: 백업에 둔 초안을 그대로 살린다
-        store.replaceTagDrafts([written!])
+        store.replaceTagDrafts([written])
         #expect(store.tagDrafts["t"] == written && store.pendingUUIDs.contains("t") && store.editedUUIDs.contains("t"))
-        #expect(saved.last == [written!])
+        #expect(saved.last == [written])
 
         let count = saved.count
         store.replaceTagDrafts([])

@@ -117,9 +117,17 @@ public struct TagDraft: Codable, Equatable, Sendable {
     /// 쓰기 전 확인할 문제.
     public var issues: [String] {
         var issues: [String] = []
-        if !fields.year.isEmpty, Int(fields.year) == nil { issues.append(String(ui: "연도는 숫자여야 합니다")) }
-        if !fields.trackNumber.isEmpty, Int(fields.trackNumber) == nil { issues.append(String(ui: "트랙 번호는 숫자여야 합니다")) }
-        if fields.title.trimmingCharacters(in: .whitespaces).isEmpty { issues.append(String(ui: "제목이 비어 있습니다")) }
+        if !fields.year.isEmpty, Int(fields.year) == nil { issues.append(String(ui: "연도를 숫자로 고친 뒤 rekordbox에 쓰세요")) }
+        if !fields.trackNumber.isEmpty, Int(fields.trackNumber) == nil { issues.append(String(ui: "트랙 번호를 숫자로 고친 뒤 rekordbox에 쓰세요")) }
+        if fields.title.trimmingCharacters(in: .whitespaces).isEmpty { issues.append(String(ui: "제목을 입력한 뒤 rekordbox에 쓰세요")) }
+        for key in [TagFields.Key.year, .trackNumber] where changedKeys.contains(key) {
+            if let value = Int(fields[key]), value < 0 {
+                issues.append(String(ui: "\(key.label)를 0 이상으로 고친 뒤 rekordbox에 쓰세요"))
+            }
+        }
+        if changedKeys.contains(.albumArtist), fields.album.isEmpty, !fields.albumArtist.isEmpty {
+            issues.append(String(ui: "앨범이 없는 곡에는 앨범 아티스트를 쓸 수 없으니 앨범을 입력하거나 앨범 아티스트 초안을 되돌리세요"))
+        }
         return issues
     }
 }

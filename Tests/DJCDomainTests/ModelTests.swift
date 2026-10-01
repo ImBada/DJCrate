@@ -90,6 +90,6 @@ struct ImportAndTagTests {
         draft.fields.year = "2024년"
         draft.fields.title = " "
         #expect(draft.changedKeys == [.title, .year, .comment])
-        #expect(draft.issues == ["연도는 숫자여야 합니다", "제목이 비어 있습니다"])
+        #expect(draft.issues == ["연도를 숫자로 고친 뒤 rekordbox에 쓰세요", "제목을 입력한 뒤 rekordbox에 쓰세요"])
     }
 }
