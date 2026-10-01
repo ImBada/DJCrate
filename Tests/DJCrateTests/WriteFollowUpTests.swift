@@ -125,7 +125,7 @@ struct WriteFollowUpTests {
         DraftWriter.save(written)
         DraftWriter.flush()
         _ = try await store.writeToRekordbox([written], to: fixture.database, shareRoot: fixture.shareRoot)
-        let backup = try #require(try RekordboxWriter.backups(in: fixture.backups).first(where: \.isWrite))
+        let backup = try #require(RekordboxWriter.backups(in: fixture.backups).first(where: { $0.isWrite }))
         #expect(store.restoreDraftConflictDetails(backup).isEmpty)
         // 쓴 뒤 같은 곡을 새로 편집했다.
         let row = try #require(store.rowsByUUID[spec.uuid])
