@@ -367,6 +367,8 @@ final class LibraryStore {
         return iTunesRefresh.task
     }
     private(set) var lastError: String?
+    private(set) var lastReadFailure: LibraryReadFailure?
+    var unreadableDraftKinds: [String: Set<WriteResult.Part>] = [:]
     func reportLibraryError(_ message: String) { lastError = message }
 
     /// 불러오기 명령(⌘→·메뉴)이 덱에 올릴 곡: 선택 중 표 순서로 첫 곡.
@@ -415,8 +417,13 @@ final class LibraryStore {
 
     /// 고른 곡 중 표 순서로 첫 곡을 덱에 올린다(⌘→·덱 메뉴).
     func loadSelectionToDeck() {
-        guard canLoadSelectionToDeck else { return }
-        loadToDeck(primaryRow)
+        guard writeLockPolicy.allowsLibraryInteraction else { return }
+        guard let row = primaryRow else {
+            stagingMessage = AppMessage(kind: .warning, text: String(ui: "고른 곡을 찾을 수 없으니 목록에서 곡을 다시 선택한 뒤 덱에 불러오세요"))
+            return
+        }
+        guard !row.isUsb else { return }
+        loadToDeck(row)
     }
 
     /// 덱 위에 놓은 곡(ContentID 또는 추가한 곡 ID) 중 라이브러리에 있는 첫 곡을 올린다.
@@ -654,8 +661,12 @@ final class LibraryStore {
         // 이 다시 읽기가 버리는 Music 최신화는 새 사본에서 이어받는다. 지난 세션 목록이 세션 내내 남지 않게.
         let interrupted = iTunesRefresh.flatMap { $0.generation == loadGeneration ? $0 : nil }
         invalidatePendingLoads()
+        let generation = loadGeneration
         if let snapshotURL { ITunesRefreshCoordinator.shared.invalidateSnapshots([snapshotURL]) }
         let hadRows = !rows.isEmpty
+        defer {
+            if generation == loadGeneration, Task.isCancelled, isLoading { phase = hadRows ? .loaded : .idle }
+        }
         let refreshITunes = refreshITunes && !LibrarySnapshot.hasRekordboxDirectoryOverride(in: environment)
         let explicitDatabase = Self.explicitDatabaseRequested(arguments: arguments, environment: environment)
         // 같은 초에 DB 파일 이름을 재사용해도 마지막 정상 iTunes 사본을 잃지 않게 먼저 읽는다.
@@ -673,6 +684,7 @@ final class LibraryStore {
         if !quiet { phase = .loading(String(ui: "rekordbox DB 스냅샷을 뜨는 중…")) }
         do {
             let url = try await Self.runBlockingLibraryWork { try snapshotCopy(force) }
+            guard generation == loadGeneration, !Task.isCancelled else { return nil }
             ITunesRefreshCoordinator.shared.invalidateSnapshots([url])
             let fallback = latestITunesFallback(previousITunesSnapshot)
             let expectedGeneration = loadGeneration + 1
@@ -693,12 +705,19 @@ final class LibraryStore {
                                       fallbackDirectory: snapshotDirectory, sourceDatabase: sourceDatabase,
                                       captureITunes: captureITunes)
         } catch {
+            guard generation == loadGeneration, !Task.isCancelled, !(error is CancellationError) else {
+                if generation == loadGeneration { phase = hadRows ? .loaded : .idle }
+                return nil
+            }
             // 이미 라이브러리가 있으면 그대로 두고 오류만 알린다.
-            let message = AppErrorMessage.message(for: error)
+            AppErrorMessage.log(error)
+            let failure = LibraryReadFailure(stage: .snapshotCreation, keepsPreviousLibrary: hadRows)
+            lastReadFailure = failure
+            let message = failure.message
             if hadRows {
                 phase = .loaded
                 // 목록 위 경고는 초안 저장 오류와 같은 자리이므로 무엇이 실패했는지 앞에 적는다.
-                lastError = String(ui: "스냅샷을 새로 뜨지 못했습니다: \(message)")
+                lastError = message
             } else {
                 phase = .failed(message)
             }
@@ -781,6 +800,9 @@ final class LibraryStore {
         loadGeneration += 1
         let generation = loadGeneration
         let started = ContinuousClock.now
+        defer {
+            if generation == loadGeneration, Task.isCancelled, isLoading { phase = rows.isEmpty ? .idle : .loaded }
+        }
         if !quiet { phase = .loading(LoadedLibrary.Stage.database.message) }
         do {
             let preset = commentPreset
@@ -792,6 +814,7 @@ final class LibraryStore {
             // 초안을 읽기 전에 손상된 파일을 옮겨 보관하고 알린다(빈 값으로 읽어 덮지 않게, #174).
             let draftHome = draftHome
             let moved = try await Self.runBlockingLibraryWork { draftHome.map { DraftWriter.preserveDamagedDrafts(home: $0) } ?? [] }
+            guard generation == loadGeneration, !Task.isCancelled else { return }
             reportDamagedDrafts(moved)
             let loaded = try await Self.runBlockingLibraryWork {
                 try LoadedLibrary.load(snapshot: snapshot, commentPreset: preset, refreshITunes: refreshITunes,
@@ -805,7 +828,7 @@ final class LibraryStore {
                                        }, captureITunes: captureITunes)
             }
             // 더 나중에 시작한 로드가 있으면 이 결과는 버린다.
-            guard generation == loadGeneration else { return }
+            guard generation == loadGeneration, !Task.isCancelled else { return }
             // 기다리는 동안 시작한 쓰기·복원의 초안과 동기화 결과를 섞지 않는다.
             guard !synchronizingDrafts || !isWritingRekordbox else {
                 if !quiet { phase = rows.isEmpty ? .idle : .loaded }
@@ -880,6 +903,7 @@ final class LibraryStore {
             verifyReflection()
             refreshBase()
             phase = .loaded
+            lastReadFailure = nil
             completedLoadCount += 1
             refreshUnlinkedDrafts()
             let previewSources = loaded.rows.filter { !$0.track.isStreaming }.map {
@@ -909,10 +933,22 @@ final class LibraryStore {
             Task.detached(priority: .background) { CacheMaintenance.prune() }
         } catch {
             guard generation == loadGeneration else { return }
-            if quiet {
-                lastError = String(ui: "스냅샷을 새로 뜨지 못했습니다: \(AppErrorMessage.message(for: error))")
+            guard !Task.isCancelled, !(error is CancellationError) else {
+                phase = rows.isEmpty ? .idle : .loaded
+                return
+            }
+            AppErrorMessage.log(error)
+            let stage: LibraryReadFailure.Stage
+            if case DJCError.databaseOpenFailed = error { stage = .opening }
+            else if case DJCError.keyDerivationFailed = error { stage = .opening }
+            else { stage = .contents }
+            let failure = LibraryReadFailure(stage: stage, keepsPreviousLibrary: !rows.isEmpty)
+            lastReadFailure = failure
+            if !rows.isEmpty {
+                phase = .loaded
+                lastError = failure.message
             } else {
-                phase = .failed(AppErrorMessage.message(for: error))
+                phase = .failed(failure.message)
             }
         }
     }
@@ -1094,6 +1130,14 @@ final class LibraryStore {
             case .cues: cueDraftUUIDs.contains(uuid) || recoveryMemoryInput?(uuid, kind)?.hasChanges == true
             case .grid: gridDraftUUIDs.contains(uuid) || recoveryMemoryInput?(uuid, kind)?.hasChanges == true
             }
+        }
+    }
+
+    func hasDraft(_ kind: DeckModel.DraftKind, trackUUID: String) -> Bool {
+        switch kind {
+        case .cue: cueDraftUUIDs.contains(trackUUID)
+        case .grid: gridDraftUUIDs.contains(trackUUID)
+        case .gain: gainDraftUUIDs.contains(trackUUID)
         }
     }
 

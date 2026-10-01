@@ -29,6 +29,7 @@ final class DeckModel {
         }
     }
     var waveformError: String?
+    var audioSourceState: AudioSourceState = .none
     var analysis: PartAnalysis?
     var analysisError: String?
     /// 섹션(MU) 분석이 끝나기를 기다리는 중(섹션 칸에 로딩 막대)
@@ -358,7 +359,7 @@ final class DeckModel {
             let payload = await Task.detached(priority: .userInitiated) {
                 DeckPayload.load(track: track, cues: cues, duration: length, storage: storage)
             }.value
-            guard !Task.isCancelled, self.row?.id == id else { return }
+            guard !Task.isCancelled, self.row?.id == id, self.row?.track.uuid == track.uuid else { return }
             self.clearDraftUndo()
             self.draft = payload.draft
             self.originalGrid = payload.originalGrid
@@ -392,6 +393,7 @@ final class DeckModel {
         }
         stopPlayback()
         loadTask?.cancel()
+        softReloadTask?.cancel()
         waveformTask?.cancel()
         seekRestartTask?.cancel()
         audio.unload()
@@ -407,6 +409,7 @@ final class DeckModel {
         if !sameTrack { selectedCueID = nil; playhead = 0; cuePoint = 0; placeAtFirstMemoryCue = true }
         duration = Double(row?.track.lengthSeconds ?? 0)
         canPlay = false
+        audioSourceState = row == nil ? .none : .preparing
         guard let row else { return }
 
         let url = URL(filePath: row.track.folderPath)
@@ -417,7 +420,13 @@ final class DeckModel {
             // 조성 크로마 캐시가 있으면 디코딩 때 다시 계산하지 않는다(불러오기 전에 정해야 한다).
             let cachedChroma = AnalysisCache.chroma(key: row.track.uuid, file: url)
             audio.needsChroma = cachedChroma == nil
-            try? audio.load(url: url, timelineOffset: timelineOffset)
+            do {
+                try audio.load(url: url, timelineOffset: timelineOffset)
+                audioSourceState = audio.isLoaded ? .ready : .preparing
+            } catch {
+                audioSourceState = AudioSourceFailure.state(for: error)
+                waveformError = audioSourceState.unavailableReason
+            }
             // 전에 잰 곡이면 디코딩을 기다리지 않고 바로 오토게인을 건다.
             loudness = LoudnessCache.shared.value(for: url)
             gainDraft = storage.loadGain(row.track.uuid)
@@ -428,9 +437,11 @@ final class DeckModel {
                 keyChroma = cachedChroma
                 refreshKeySegments()
             }
-            if !canPlay { waveformError = String(ui: "이 파일 형식은 재생·파형을 지원하지 않습니다.") }
         } else if !row.track.isStreaming {
-            waveformError = String(ui: "파일을 찾을 수 없습니다. 외장 드라이브가 연결됐는지 확인하세요.")
+            audioSourceState = .missing
+            waveformError = audioSourceState.unavailableReason
+        } else {
+            audioSourceState = .streaming
         }
         playhead = min(playhead, duration)
 
@@ -440,11 +451,11 @@ final class DeckModel {
             let payload = await Task.detached(priority: .userInitiated) {
                 DeckPayload.load(track: track, cues: cues, duration: length, storage: storage)
             }.value
-            guard !Task.isCancelled, self.row?.id == id else { return }
+            guard !Task.isCancelled, self.row?.id == id, self.row?.track.uuid == track.uuid else { return }
             self.apply(payload)
             if self.artwork == nil, exists, self.runsAnalysis {
                 let embedded = await ArtworkCache.embeddedArtwork(url: url)
-                guard !Task.isCancelled, self.row?.id == id, self.artwork == nil else { return }
+                guard !Task.isCancelled, self.row?.id == id, self.row?.track.uuid == track.uuid, self.artwork == nil else { return }
                 self.artwork = embedded
             }
 
@@ -454,10 +465,10 @@ final class DeckModel {
             self.waveformTask = job
             do {
                 let waveform = try await job.value
-                guard !Task.isCancelled, self.row?.id == id else { return }
+                guard !Task.isCancelled, self.row?.id == id, self.row?.track.uuid == track.uuid else { return }
                 self.waveform = waveform
             } catch {
-                guard !Task.isCancelled, self.row?.id == id else { return }
+                guard !Task.isCancelled, self.row?.id == id, self.row?.track.uuid == track.uuid else { return }
                 self.waveformError = String(ui: "파형을 만들지 못했습니다: \(error.localizedDescription)")
             }
             #if DEBUG
@@ -466,10 +477,10 @@ final class DeckModel {
 
             // 3) 음악 분석(약 5초): 같은 곡에 1초 머문 뒤에만 시작하고, 곡을 넘기면 취소된다.
             try? await Task.sleep(for: .seconds(1))
-            guard !Task.isCancelled, self.row?.id == id else { return }
+            guard !Task.isCancelled, self.row?.id == id, self.row?.track.uuid == track.uuid else { return }
             do {
                 let analysis = try await PartAnalyzer.analyze(fileAt: url, cacheKey: key)
-                guard !Task.isCancelled, self.row?.id == id else { return }
+                guard !Task.isCancelled, self.row?.id == id, self.row?.track.uuid == track.uuid else { return }
                 let shifted = analysis.shifted(by: self.timelineOffset)
                 self.analysis = shifted
                 self.analysisError = nil
@@ -478,7 +489,7 @@ final class DeckModel {
                 self.refreshSuggestions()
                 self.startGridSuggestion(analysis: analysis, url: url, id: id)
             } catch {
-                guard !Task.isCancelled, self.row?.id == id else { return }
+                guard !Task.isCancelled, self.row?.id == id, self.row?.track.uuid == track.uuid else { return }
                 self.analysisError = String(describing: error)
                 self.isAnalyzingSections = false
             }

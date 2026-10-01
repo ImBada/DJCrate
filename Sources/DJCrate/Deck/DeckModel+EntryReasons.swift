@@ -9,7 +9,7 @@ extension DeckModel {
         if !FileManager.default.fileExists(atPath: row.track.folderPath) {
             return String(ui: "음원 파일이 없으니 외장 드라이브를 연결하거나 rekordbox에서 파일 위치를 확인하세요")
         }
-        return String(ui: "음원 파일을 아직 재생할 수 없으니 불러오기가 끝날 때까지 기다린 뒤 파일 형식과 접근 권한을 확인하세요")
+        return (audioSourceState == .ready ? AudioSourceState.preparing : audioSourceState).unavailableReason
     }
 
     var hotCueCreationUnavailableReason: String? {

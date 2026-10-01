@@ -56,7 +56,8 @@ extension DeckModel {
             isPlaying = false
             ticker.stop()
             playhead = min(time, duration)
-            if audio.isOutputUnavailable { showToast(Self.audioUnavailableMessage) }
+            if audio.isPreparingOutput { showToast(AudioSourceState.preparing.unavailableReason ?? Self.audioUnavailableMessage) }
+            else if audio.isOutputUnavailable { showToast(Self.audioUnavailableMessage) }
         }
     }
 

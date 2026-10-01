@@ -4487,6 +4487,22 @@
         }
       }
     },
+    "USB 곡은 이 라이브러리의 초안 쓰기를 지원하지 않으니 라이브러리에서 곡을 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB tracks cannot use this library’s draft writes, so select a track from the library"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの曲はこのライブラリへの下書きの書き込みに対応していないため、ライブラリから曲を選んでください"
+          }
+        }
+      }
+    },
     "USB 곡은 읽기 전용이니 로컬 라이브러리에서 태그를 편집하세요" : {
       "localizations" : {
         "en" : {
@@ -6339,6 +6355,38 @@
         }
       }
     },
+    "XML 만들기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create XML…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XMLを作成…"
+          }
+        }
+      }
+    },
+    "XML 미리 보기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XML Preview"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XMLプレビュー"
+          }
+        }
+      }
+    },
     "XML 파일 선택…" : {
       "localizations" : {
         "en" : {
@@ -6383,6 +6431,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "XMLに出力する曲がありません"
+          }
+        }
+      }
+    },
+    "XML에 넣지 않는 것:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excluded from XML:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XMLに含めない内容："
           }
         }
       }
@@ -9385,6 +9449,22 @@
         }
       }
     },
+    "rekordbox와 다른 초안 변경이 없으니 변경할 곡과 초안을 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no draft changes that differ from rekordbox, so check the tracks and drafts you want to change"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxと異なる下書きの変更がないため、変更する曲と下書きを確認してください"
+          }
+        }
+      }
+    },
     "rekordbox와 동기화" : {
       "localizations" : {
         "en" : {
@@ -11121,6 +11201,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選択した曲で新規プレイリスト（%lld曲）"
+          }
+        }
+      }
+    },
+    "고른 곡을 찾을 수 없으니 목록에서 곡을 다시 선택한 뒤 덱에 불러오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The selected track cannot be found, so select it again in the list and load it into the deck"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した曲が見つからないため、一覧で曲を選び直してからデッキに読み込んでください"
           }
         }
       }
@@ -13353,6 +13449,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "デフォルトに戻す"
+          }
+        }
+      }
+    },
+    "기존 곡 %lld개의 큐·그리드 초안을 XML로 만드니 대상과 제외 이유를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review the tracks and exclusion reasons before creating XML from the cue and grid drafts of %lld existing tracks"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "既存の%lld曲のキュー・グリッドの下書きをXMLにするため、対象と除外理由を確認してください"
+          }
+        }
+      }
+    },
+    "기존 곡의 XML은 큐·그리드만 지원하니 이 종류의 초안은 ‘rekordbox에 쓰기…’를 사용하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XML for existing tracks supports only cues and grids, so use “Write to rekordbox…” for this kind of draft"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "既存の曲のXMLはキュー・グリッドのみ対応しているため、この種類の下書きは「rekordboxに書き込む…」を使用してください"
           }
         }
       }
@@ -15605,6 +15733,22 @@
         }
       }
     },
+    "라이브러리 사본을 열지 못해 이전 목록을 표시하며 최근 변경은 확인되지 않았으니 사본과 파일 접근 권한을 확인한 뒤 다시 불러오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The library copy could not be opened and the previous list is shown with recent changes unverified, so check the copy and file permissions before reloading"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリのコピーを開けず以前の一覧を表示しており、最近の変更は未確認のため、コピーとファイルのアクセス権を確認してから再度読み込んでください"
+          }
+        }
+      }
+    },
     "라이브러리 사본을 열지 못했습니다" : {
       "localizations" : {
         "en" : {
@@ -15617,6 +15761,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ライブラリのコピーを開けませんでした"
+          }
+        }
+      }
+    },
+    "라이브러리 사본을 열지 못했으니 사본과 파일 접근 권한을 확인한 뒤 다시 불러오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The library copy could not be opened, so check the copy and file permissions before reloading"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリのコピーを開けないため、コピーとファイルのアクセス権を確認してから再度読み込んでください"
+          }
+        }
+      }
+    },
+    "라이브러리 사본의 내용을 읽지 못해 이전 목록을 표시하며 최근 변경은 확인되지 않았으니 사본 상태를 확인하고 새 사본을 만든 뒤 다시 불러오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The library copy could not be read and the previous list is shown with recent changes unverified, so check its condition and create a new copy before reloading"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリのコピーの内容を読み取れず以前の一覧を表示しており、最近の変更は未確認のため、コピーの状態を確認して新しいコピーを作成してから再度読み込んでください"
+          }
+        }
+      }
+    },
+    "라이브러리 사본의 내용을 읽지 못했으니 사본 상태를 확인하고 새 사본을 만든 뒤 다시 불러오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The library copy could not be read, so check its condition and create a new copy before reloading"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリのコピーの内容を読み取れないため、コピーの状態を確認して新しいコピーを作成してから再度読み込んでください"
           }
         }
       }
@@ -17959,6 +18151,22 @@
         }
       }
     },
+    "미리 보기 뒤 초안이 바뀌었으니 XML 미리 보기를 다시 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The drafts changed after the preview, so review the XML preview again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレビュー後に下書きが変更されたため、XMLプレビューを再度確認してください"
+          }
+        }
+      }
+    },
     "미리 보기 파일 경로가 안전하지 않습니다. rekordbox에서 분석 파일 위치를 확인한 뒤 다시 시도하세요" : {
       "localizations" : {
         "en" : {
@@ -18035,6 +18243,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレビューのみ行いました（USBはそのまま）"
+          }
+        }
+      }
+    },
+    "미리 보기에서 제외한 초안" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drafts Excluded from the Preview"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレビューから除外した下書き"
           }
         }
       }
@@ -20689,18 +20913,18 @@
         }
       }
     },
-    "선택한 곡 XML 만들기 (%lld곡)" : {
+    "선택한 곡 XML 만들기 (%lld곡)…" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Create XML for Selected Tracks (Tracks: %lld)"
+            "value" : "Create XML for Selected Tracks (%lld tracks)…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選択した曲のXMLを作成（%lld曲）"
+            "value" : "選択した曲のXMLを作成（%lld曲）…"
           }
         }
       }
@@ -21261,18 +21485,34 @@
         }
       }
     },
-    "스냅샷을 새로 뜨지 못했습니다: %@" : {
+    "스냅샷을 새로 만들지 못해 이전 목록을 표시하며 최근 변경은 확인되지 않았으니 rekordbox를 종료하고 파일 접근 권한을 확인한 뒤 다시 불러오세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Couldn't take a new snapshot: %@"
+            "value" : "A new snapshot could not be created and the previous list is shown with recent changes unverified, so quit rekordbox and check file permissions before reloading"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新しいスナップショットを作成できませんでした：%@"
+            "value" : "新しいスナップショットを作成できず以前の一覧を表示しており、最近の変更は未確認のため、rekordboxを終了しファイルのアクセス権を確認してから再度読み込んでください"
+          }
+        }
+      }
+    },
+    "스냅샷을 새로 만들지 못했으니 rekordbox를 종료하고 파일 접근 권한을 확인한 뒤 다시 불러오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new snapshot could not be created, so quit rekordbox and check file permissions before reloading"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいスナップショットを作成できないため、rekordboxを終了しファイルのアクセス権を確認してから再度読み込んでください"
           }
         }
       }
@@ -24295,22 +24535,6 @@
         }
       }
     },
-    "음원 파일을 아직 재생할 수 없으니 불러오기가 끝날 때까지 기다린 뒤 파일 형식과 접근 권한을 확인하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The audio file is not ready to play, so wait for loading to finish, then check its format and permissions"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "音源ファイルをまだ再生できないため、読み込みの完了を待ってからファイル形式とアクセス権を確認してください"
-          }
-        }
-      }
-    },
     "음원 파일을 열지 못했습니다" : {
       "localizations" : {
         "en" : {
@@ -24339,6 +24563,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "音源ファイルを読み込めないため、VBR MP3かどうか確認できません。rekordboxでファイルの場所を確認してください"
+          }
+        }
+      }
+    },
+    "음원 파일을 읽지 못했으니 파일 접근 권한과 외장 드라이브 연결을 확인한 뒤 다시 불러오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The audio file could not be read, so check file permissions and the external drive connection before reloading"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音源ファイルを読み取れないため、ファイルのアクセス権と外部ドライブの接続を確認してから再度読み込んでください"
           }
         }
       }
@@ -24519,6 +24759,22 @@
         }
       }
     },
+    "음원을 디코딩하지 못했으니 다른 플레이어에서 파일이 정상인지 확인한 뒤 다시 불러오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The audio could not be decoded, so check that the file plays correctly in another player before reloading"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音源をデコードできないため、別のプレーヤーでファイルが正常に再生できるか確認してから再度読み込んでください"
+          }
+        }
+      }
+    },
     "음원의 아트워크는 아직 넣지 않으니, 필요하면 rekordbox 곡 정보 창에서 이미지를 끌어다 붙이세요." : {
       "localizations" : {
         "en" : {
@@ -24547,6 +24803,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "音声ファイルが変わりました。USBから削除して、もう一度追加してください"
+          }
+        }
+      }
+    },
+    "음원이나 오디오 장치를 준비 중이니 불러오기가 끝난 뒤 다시 재생하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The audio or audio device is being prepared, so wait for loading to finish before playing again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音源またはオーディオデバイスを準備中のため、読み込みが完了してから再度再生してください"
           }
         }
       }
@@ -25381,6 +25653,22 @@
         }
       }
     },
+    "이 음원 형식은 지원하지 않으니 WAV·AIFF 등 지원하는 형식의 파일을 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This audio format is unsupported, so choose a file in a supported format such as WAV or AIFF"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この音源形式には対応していないため、WAV・AIFFなど対応する形式のファイルを選んでください"
+          }
+        }
+      }
+    },
     "이 자리 메모리 큐 지우기" : {
       "localizations" : {
         "en" : {
@@ -25457,22 +25745,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このファイル形式（FileType %lld）にはまだ直接書き込みません"
-          }
-        }
-      }
-    },
-    "이 파일 형식은 재생·파형을 지원하지 않습니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This file format isn’t supported for playback or waveforms."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このファイル形式は再生・波形表示に対応していません。"
           }
         }
       }
@@ -27511,6 +27783,22 @@
         }
       }
     },
+    "재생할 곡을 덱에 불러오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Load a track into the deck to play it"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再生する曲をデッキに読み込んでください"
+          }
+        }
+      }
+    },
     "저장" : {
       "localizations" : {
         "en" : {
@@ -29155,6 +29443,22 @@
         }
       }
     },
+    "초안을 불러오지 못했으니 초안 파일과 접근 권한을 확인한 뒤 다시 불러오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The draft could not be loaded, so check its file and permissions before reloading"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きを読み込めないため、下書きファイルとアクセス権を確認してから再度読み込んでください"
+          }
+        }
+      }
+    },
     "초안을 읽거나 저장하지 못했습니다. DJC_HOME의 초안 파일과 접근 권한을 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -29383,6 +29687,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "追加した曲の一覧を保存できませんでした。DJCrateのデータフォルダの書き込み権限を確認してください：%@"
+          }
+        }
+      }
+    },
+    "추가한 곡은 기존 곡의 초안 쓰기에서 제외하니 ‘rekordbox에 넣기…’ 또는 추가 목록의 XML 만들기를 사용하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added tracks are excluded from draft writes for existing tracks, so use “Add to rekordbox…” or create XML from Added Tracks"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加した曲は既存の曲の下書きの書き込みから除外するため、「rekordboxに追加…」または追加した曲のXML作成を使用してください"
           }
         }
       }
@@ -30693,6 +31013,22 @@
         }
       }
     },
+    "큐·그리드 초안에 변경이 없으니 변경할 초안을 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no cue or grid draft changes, so check the drafts you want to change"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キュー・グリッドの下書きに変更がないため、変更する下書きを確認してください"
+          }
+        }
+      }
+    },
     "큐·그리드 초안을 rekordbox에서 가져올 XML로 만듭니다." : {
       "localizations" : {
         "en" : {
@@ -31995,22 +32331,6 @@
         }
       }
     },
-    "파일을 찾을 수 없습니다. 외장 드라이브가 연결됐는지 확인하세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The file can’t be found. Check that the external drive is connected."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ファイルが見つかりません。外部ドライブが接続されているか確認してください。"
-          }
-        }
-      }
-    },
     "파일을 찾지 못한 곡" : {
       "localizations" : {
         "en" : {
@@ -32449,6 +32769,38 @@
         }
       }
     },
+    "편집할 곡의 초안이 준비되지 않았으니 곡을 덱에 다시 불러온 뒤 편집하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The track’s draft is not ready, so reload the track into the deck before editing"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集する曲の下書きが準備できていないため、デッキに曲を再度読み込んでから編集してください"
+          }
+        }
+      }
+    },
+    "편집할 그리드 초안이 준비되지 않았으니 곡을 덱에 다시 불러온 뒤 편집하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The grid draft is not ready, so reload the track into the deck before editing"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集するグリッドの下書きが準備できていないため、デッキに曲を再度読み込んでから編集してください"
+          }
+        }
+      }
+    },
     "편집할 마디 구간이 없습니다. 1-16,1-16,17-64처럼 쓰세요" : {
       "localizations" : {
         "en" : {
@@ -32461,6 +32813,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "編集する小節範囲がありません。1-16,1-16,17-64のように入力してください"
+          }
+        }
+      }
+    },
+    "편집할 큐가 없어졌으니 현재 곡에서 큐를 다시 선택하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The cue to edit no longer exists, so select a cue again in the current track"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集するキューがなくなったため、現在の曲でキューを選び直してください"
           }
         }
       }

@@ -52,6 +52,7 @@ struct ZoomWaveformView: View {
     @Environment(\.textScale) private var textScale
     @Bindable var deck: DeckModel
     @State private var drag: DragMode?
+    @State private var dragTrackUUID: String?
     /// 포인터 아래 대상(바뀔 때만 다시 그린다)
     @State private var hover = ZoomPointerTarget.empty
     @State private var width: CGFloat = 1
@@ -104,6 +105,7 @@ struct ZoomWaveformView: View {
                             ScrubHotCueTrace.recordDrag(ended: false)
 #endif
                             if drag == nil {
+                                dragTrackUUID = deck.row?.track.uuid
                                 switch pointerTarget(atX: value.startLocation.x, xOf: xOf, suggestions: []) {
                                 case let .cue(hit):
                                     deck.selectedCueID = hit
@@ -114,11 +116,12 @@ struct ZoomWaveformView: View {
                                 }
                                 hotCueKeys.begin(deck: deck)
                             }
+                            guard dragTrackUUID == deck.row?.track.uuid else { return }
                             let secondsPerPoint = window / Double(max(geo.size.width, 1))
                             switch drag {
                             case let .cue(id, originalTime):
                                 guard abs(value.translation.width) > 3 else { break }
-                                deck.move(id, to: originalTime + Double(value.translation.width) * secondsPerPoint, save: false)
+                                deck.move(id, to: originalTime + Double(value.translation.width) * secondsPerPoint, save: false, expectedTrackUUID: dragTrackUUID)
                             case .scrub:
                                 deck.dragScrub(by: -Double(value.translation.width) * secondsPerPoint)
                             case nil:
@@ -130,6 +133,7 @@ struct ZoomWaveformView: View {
                             ScrubHotCueTrace.recordDrag(ended: true)
 #endif
                             hotCueKeys.end()
+                            guard dragTrackUUID == deck.row?.track.uuid else { drag = nil; return }
                             switch drag {
                             case .cue:
                                 if abs(value.translation.width) > 3 { deck.commitDraft() }

@@ -7,6 +7,25 @@ import RekordboxKit
 
 /// 큐 편집(초안만 바뀐다, 규칙은 `CueDraft` 확장)
 extension DeckModel {
+    /// 사용자가 지금 실행한 명령만 알린다. 이전 곡의 뷰·드래그 완료는 초안과 안내 모두 건드리지 않는다.
+    func commandDraft(expectedTrackUUID: String? = nil) -> CueDraft? {
+        if let expectedTrackUUID, expectedTrackUUID != row?.track.uuid { return nil }
+        guard !isWriteLocked else { return nil }
+        guard let draft, draft.trackUUID == row?.track.uuid else {
+            showToast(String(ui: "편집할 곡의 초안이 준비되지 않았으니 곡을 덱에 다시 불러온 뒤 편집하세요"), kind: .warning)
+            return nil
+        }
+        return draft
+    }
+
+    func cueForCommand(_ id: EditableCue.ID, expectedTrackUUID: String? = nil) -> EditableCue? {
+        guard let draft = commandDraft(expectedTrackUUID: expectedTrackUUID) else { return nil }
+        guard let cue = draft.cue(id) else {
+            showToast(String(ui: "편집할 큐가 없어졌으니 현재 곡에서 큐를 다시 선택하세요"), kind: .warning)
+            return nil
+        }
+        return cue
+    }
     // MARK: - 큐 편집 (초안만 바뀐다)
 
     func snapped(_ time: Double) -> Double {
@@ -53,7 +72,7 @@ extension DeckModel {
     /// 메모리 큐(루프)를 더한다. 같은 자리(±30ms)에 있으면 그 큐를 고르고, rekordbox 한도(10개)면 알린다. 새로 만들면 그 ID.
     @discardableResult
     func storeMemoryCue(at time: Double, loop: EditableCue.Loop?) -> EditableCue.ID? {
-        guard var edited = draft, !isWriteLocked else { return nil }
+        guard var edited = commandDraft() else { return nil }
         switch edited.addMemory(at: time, loop: loop) {
         case let .existing(id):
             selectedCueID = id
@@ -129,15 +148,15 @@ extension DeckModel {
     }
 
     /// 옮긴다(퀀타이즈면 박에 맞춤). 루프는 길이를 유지한다.
-    func move(_ id: EditableCue.ID, to time: Double, save: Bool = true) {
+    func move(_ id: EditableCue.ID, to time: Double, save: Bool = true, expectedTrackUUID: String? = nil) {
         let target = snapped(time)
-        guard let cue = cue(id), abs(target - cue.time) >= 0.0005 else { return }
+        guard let cue = cueForCommand(id, expectedTrackUUID: expectedTrackUUID), abs(target - cue.time) >= 0.0005 else { return }
         mutate(name: String(ui: "큐 옮기기"), save: save) { $0.move(id, to: target) }
     }
 
     /// 박 단위로 민다(그리드가 없으면 0.5초).
     func nudge(_ id: EditableCue.ID, beats: Int) {
-        guard let cue = cue(id) else { return }
+        guard let cue = cueForCommand(id) else { return }
         let target = grid?.nudge(cue.time, beats: beats) ?? min(max(cue.time + Double(beats) * 0.5, 0), duration)
         mutate(name: String(ui: "큐 옮기기")) { $0.move(id, to: target) }
     }
@@ -145,8 +164,8 @@ extension DeckModel {
     // MARK: 루프
 
     /// 큐를 박 수만큼의 루프로 만든다(nil이면 루프를 없앤다). 그리드가 있으면 박에 맞춘다.
-    func setLoop(_ id: EditableCue.ID, beats: Int?) {
-        guard let cue = cue(id) else { return }
+    func setLoop(_ id: EditableCue.ID, beats: Int?, expectedTrackUUID: String? = nil) {
+        guard let cue = cueForCommand(id, expectedTrackUUID: expectedTrackUUID) else { return }
         guard let beats else {
             mutate(name: String(ui: "루프 편집")) { $0.setLoop(id, end: nil, beats: nil) }
             return
@@ -164,20 +183,21 @@ extension DeckModel {
     /// 루프 박 수(그리드 기준, 대략)
     func loopBeats(_ cue: EditableCue) -> Int? { LoopRules.beats(of: cue, grid: grid, bpm: gridBPM) }
 
-    func setKind(_ id: EditableCue.ID, _ kind: EditableCue.Kind) {
-        guard var cue = cue(id) else { return }
+    func setKind(_ id: EditableCue.ID, _ kind: EditableCue.Kind, expectedTrackUUID: String? = nil) {
+        guard var cue = cueForCommand(id, expectedTrackUUID: expectedTrackUUID) else { return }
         cue.kind = kind
         mutate(name: String(ui: "큐 종류 변경")) { $0.place(cue) }
     }
 
-    func rename(_ id: EditableCue.ID, _ name: String) {
-        guard var cue = cue(id) else { return }
+    func rename(_ id: EditableCue.ID, _ name: String, expectedTrackUUID: String? = nil) {
+        guard var cue = cueForCommand(id, expectedTrackUUID: expectedTrackUUID) else { return }
         cue.name = name
         mutate(name: String(ui: "큐 이름 변경")) { $0.place(cue) }
     }
 
-    func delete(_ id: EditableCue.ID) {
-        let name = cue(id)?.kind.slotLetter == nil ? String(ui: "메모리 큐 지우기") : String(ui: "핫큐 지우기")
+    func delete(_ id: EditableCue.ID, expectedTrackUUID: String? = nil) {
+        guard let cue = cueForCommand(id, expectedTrackUUID: expectedTrackUUID) else { return }
+        let name = cue.kind.slotLetter == nil ? String(ui: "메모리 큐 지우기") : String(ui: "핫큐 지우기")
         mutate(name: name) { $0.remove(id) }
         if selectedCueID == id { selectedCueID = nil }
     }
@@ -247,7 +267,7 @@ extension DeckModel {
     }
 
     func mutate(name: String = String(ui: "큐 편집"), save: Bool = true, recordingUndo: Bool = true, _ change: (inout CueDraft) -> Void) {
-        guard !isWriteLocked, var draft, draft.trackUUID == row?.track.uuid else { return }
+        guard var draft = commandDraft() else { return }
         let before = draftSnapshot
         change(&draft)
         guard self.draft != draft else { return }

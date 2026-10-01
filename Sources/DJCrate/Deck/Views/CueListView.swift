@@ -58,7 +58,7 @@ struct CueListView: View {
             .accessibilityLabel(.ui("큐 목록 보기"))
             List(selection: $deck.selectedCueID) {
                 ForEach(visibleCues) { cue in
-                    CueRow(deck: deck, cue: cue)
+                    CueRow(deck: deck, cue: cue, expectedTrackUUID: deck.row?.track.uuid)
                         .tag(cue.id)
                         // 선택색은 List가 그리도록 두고, 선택하지 않은 초안 행만 물들인다.
                         .listRowBackground(changedIDs.contains(cue.id) && deck.selectedCueID != cue.id
@@ -184,6 +184,7 @@ struct CueRow: View {
     @Environment(\.textScale) private var textScale
     let deck: DeckModel
     let cue: EditableCue
+    var expectedTrackUUID: String? = nil
     @State private var showDetails = false
 
     var body: some View {
@@ -212,7 +213,7 @@ struct CueRow: View {
         HStack(spacing: 6) {
             Circle().fill(UIColors.color(for: cue)).frame(width: 6, height: 6)
                 .allowsHitTesting(false)
-            Picker(.ui("종류"), selection: Binding(get: { cue.kind }, set: { deck.setKind(cue.id, $0) })) {
+            Picker(.ui("종류"), selection: Binding(get: { cue.kind }, set: { deck.setKind(cue.id, $0, expectedTrackUUID: expectedTrackUUID) })) {
                 Text(.ui("메모리")).tag(EditableCue.Kind.memory)
                 ForEach(0..<8, id: \.self) { slot in
                     Text(.ui("핫큐 \(String(UnicodeScalar(UInt8(65 + slot))))")).tag(EditableCue.Kind.hot(slot))
@@ -272,7 +273,7 @@ struct CueRow: View {
             Picker(.ui("루프 길이"), selection: Binding(get: { current }, set: { beats in
                 // 프리셋 밖 현재 값을 다시 골라도 기존 루프 끝은 그대로 둔다.
                 guard beats != current else { return }
-                deck.setLoop(cue.id, beats: beats.map(Int.init))
+                deck.setLoop(cue.id, beats: beats.map(Int.init), expectedTrackUUID: expectedTrackUUID)
             })) {
                 Text(.ui("루프 없음")).tag(nil as Double?)
                 if let current, !presets.contains(current) {
@@ -322,13 +323,13 @@ struct CueRow: View {
     }
 
     private var nameField: some View {
-        TextField(.ui("이름"), text: Binding(get: { cue.name }, set: { deck.rename(cue.id, $0) }))
+        TextField(.ui("이름"), text: Binding(get: { cue.name }, set: { deck.rename(cue.id, $0, expectedTrackUUID: expectedTrackUUID) }))
             .textFieldStyle(.plain)
             .font(.scaled(.caption, textScale))
     }
 
     private var deleteButton: some View {
-        Button(role: .destructive) { deck.delete(cue.id) } label: { Image(systemName: "trash") }
+        Button(role: .destructive) { deck.delete(cue.id, expectedTrackUUID: expectedTrackUUID) } label: { Image(systemName: "trash") }
             .buttonStyle(.borderless)
             .foregroundStyle(UIColors.memory.color)
             .help(.ui("삭제"))

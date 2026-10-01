@@ -224,6 +224,8 @@ struct ContentView: View {
             #if DEBUG
             DevSelfTests.runIfRequested(store: store, deck: deck)
             DevSelfTests.runBlockedReasonsCaptureIfRequested(store: store, deck: deck)
+            DevSelfTests.runAsyncGuidanceCaptureIfRequested(store: store, deck: deck)
+            DevSelfTests.runKeyRoutingSelfTestIfRequested(store: store, deck: deck)
             #endif
             deck.onDraftChange = { [weak store] uuid, kind, exists in
                 store?.draftChanged(trackUUID: uuid, kind: kind, exists: exists)

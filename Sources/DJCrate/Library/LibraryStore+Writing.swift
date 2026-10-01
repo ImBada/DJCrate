@@ -17,6 +17,7 @@ extension LibraryStore {
         /// 함께 쓸 재생 목록 초안(없으면 nil). 결과(`report.playlistOutcomes`)가 편집 순서와 같다.
         var playlists: PlaylistDraft?
         var merges: [DuplicateMergeDraft] = []
+        var exclusions: [String] = []
     }
 
     /// 대상 곡 중 반영 대기 초안이 있는 곡(추가한 곡 제외)
@@ -70,8 +71,9 @@ extension LibraryStore {
         let inputs = try await analysisInputs(for: grids, measuringLoudness: false)
         try requireDraftSaves(for: uuids)
         writeStage = WriteStage(String(ui: "미리 보기 1/2단계 · 사본을 만드는 중…"), completed: 0, total: 2, cancellable: true)
+        let source = rekordboxDatabase, sourceShare = rekordboxShareRoot ?? RekordboxShare.directory
         let task = Task.detached(priority: .userInitiated) {
-            try await WritePreviewSnapshot.withCopy(grids: grids, merges: merges) { snapshot, share in
+            try await WritePreviewSnapshot.withCopy(from: source, shareRoot: sourceShare, grids: grids, merges: merges) { snapshot, share in
                 await MainActor.run { self.writeStage = WriteStage(String(ui: "미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…"), completed: 1, total: 2, cancellable: true) }
                 try Task.checkCancellation()
                 return try RekordboxWriter.write(drafts: drafts, grids: grids, gains: gains, tags: tags, analysisInputs: inputs,
@@ -85,7 +87,8 @@ extension LibraryStore {
             task.cancel()
         }
         try Task.checkCancellation()
-        return WritePreview(report: report, drafts: drafts, grids: grids, gains: gains, tags: tags, playlists: playlistDraft, merges: merges)
+        return WritePreview(report: report, drafts: drafts, grids: grids, gains: gains, tags: tags, playlists: playlistDraft, merges: merges,
+                            exclusions: draftExclusionReasons(for: rows))
     }
 
     /// rekordbox master.db에 쓴다. 쓴 곡의 초안과 쓴 재생 목록 편집은 지우고(백업 폴더에 남는다) 새 스냅샷을 읽는다. 태그는 반영한 값이 새 base가 된다.
