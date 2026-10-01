@@ -264,7 +264,7 @@ struct DraftSaveRecoveryTests {
         #expect(report.written.map(\.trackUUID) == [spec.uuid])
         #expect(try RekordboxLibrary.load(snapshot: fixture.database).cues.contains { $0.inMsec == 4000 })
         // 사본 쓰기의 백업은 저장소에 준 백업 폴더에 남는다(사용자 백업 폴더를 밀어내지 않는다).
-        #expect(try RekordboxWriter.backups(in: fixture.backups).contains(where: \.isWrite))
+        #expect(RekordboxWriter.backups(in: fixture.backups).contains { $0.isWrite })
         #expect(store.lastError?.contains("썼지만") == true)
         #expect(DraftWriter.pendingCue(trackUUID: spec.uuid)?.hasChanges == false)
         #expect(CueDraftStore.load(trackUUID: spec.uuid) == draft)
@@ -282,7 +282,9 @@ struct DraftSaveRecoveryTests {
         h.deck.originalGrid = original
         h.deck.gridDraft = base
         h.deck.gridEditBlockedReason = "합성 재생성 오차"
-        h.deck.gridSuggestion = try #require(GridEstimator.estimate(beats: (0..<40).map { 0.5 + Double($0) * 0.5 }, bars: [0.5, 2.5, 4.5], duration: 20))
+        // 대입 대상이 Optional이면 #require가 nil 검사를 건너뛰므로(경고) 지역 상수로 먼저 받는다.
+        let estimate = try #require(GridEstimator.estimate(beats: (0..<40).map { 0.5 + Double($0) * 0.5 }, bars: [0.5, 2.5, 4.5], duration: 20))
+        h.deck.gridSuggestion = estimate
         h.deck.gridSuggestion?.segments[0].bpm = 125
         h.deck.applyGridSuggestion()
         let approved = try #require(h.deck.gridDraft)
@@ -302,7 +304,8 @@ struct DraftSaveRecoveryTests {
         stale.base[0].start += 0.1
         h.deck.gridDraft = stale
         h.deck.gridEditBlockedReason = "합성 원본 변경"
-        h.deck.gridSuggestion = try #require(GridEstimator.estimate(beats: original.beats.map(\.time), bars: [0.5, 2.5, 4.5], duration: 20))
+        let estimate = try #require(GridEstimator.estimate(beats: original.beats.map(\.time), bars: [0.5, 2.5, 4.5], duration: 20))
+        h.deck.gridSuggestion = estimate
         h.deck.gridSuggestion?.segments[0].bpm = 125
         h.deck.applyGridSuggestion()
         #expect(h.deck.gridDraft == stale && h.deck.gridEditBlockedReason != nil)
