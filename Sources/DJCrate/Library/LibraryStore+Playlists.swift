@@ -135,15 +135,6 @@ extension LibraryStore {
         undoManager.setActionName(actionName)
     }
 
-    func savePlaylistDraft() {
-        do {
-            try playlistDraftSaver(playlistDraft)
-        } catch {
-            playlistMessage = AppMessage(kind: .warning,
-                                         text: String(ui: "재생 목록 초안을 저장하지 못했습니다. DJCrate 데이터 폴더의 쓰기 권한을 확인하세요: \(error.localizedDescription)"))
-        }
-    }
-
     // MARK: - 곡
 
     /// 곡을 목록 끝에 넣는다. 이미 든 곡과 rekordbox에 아직 없는 곡(추가한 곡)은 넣지 않고 알린다.
@@ -163,6 +154,11 @@ extension LibraryStore {
             kind = .warning
             lines.append(String(ui: "이미 들어 있는 \(split.duplicates.count)곡은 넣지 않았습니다."))
         }
+        // 넣은 결과 안내가 저장 실패 경고를 덮지 않게 한다(#174).
+        if playlistDraftUnsaved {
+            kind = .warning
+            lines.append(Self.playlistSaveFailureText)
+        }
         if staged > 0 {
             kind = .warning
             lines.append(String(ui: "추가한 곡 \(staged)곡은 rekordbox 컬렉션에 넣은 뒤 목록에 넣을 수 있습니다."))
@@ -177,7 +173,9 @@ extension LibraryStore {
         guard !entries.isEmpty else { return }
         if applyPlaylistEdits([.removeTracks(playlist: PlaylistRef(id), entries: entries)], actionName: String(ui: "재생 목록에서 빼기")) {
             let count = Set(entries.map(\.contentID)).count
-            playlistMessage = AppMessage(text: String(ui: "‘\(item.name)’에서 \(count)곡을 뺐습니다(쓰기 대기)."))
+            let removed = String(ui: "‘\(item.name)’에서 \(count)곡을 뺐습니다(쓰기 대기).")
+            playlistMessage = playlistDraftUnsaved ? AppMessage(kind: .warning, text: removed + " " + Self.playlistSaveFailureText)
+                : AppMessage(text: removed)
         }
     }
 

@@ -60,7 +60,7 @@ extension DeckModel {
         guard !isWriteLocked, let uuid = row?.track.uuid, let rekordbox = rekordboxGainDB else { return }
         let before = draftSnapshot
         gainDraft = GainPolicy.draft(for: value, rekordbox: rekordbox)
-        storage.saveGain(gainDraft, uuid)
+        persistGain(gainDraft, uuid: uuid)
         onDraftChange?(uuid, .gain, gainDraft != nil)
         applyGain()
         registerDraftUndo(from: before, name: String(ui: "게인 변경"))
@@ -77,7 +77,7 @@ extension DeckModel {
         let before = draftSnapshot
         gainDraft = nil
         dismissedGainSuggestions.remove(uuid)
-        storage.saveGain(nil, uuid)
+        persistGain(nil, uuid: uuid)
         onDraftChange?(uuid, .gain, false)
         applyGain()
         registerDraftUndo(from: before, name: String(ui: "게인 초안 버리기"))

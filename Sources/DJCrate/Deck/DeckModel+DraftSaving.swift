@@ -31,6 +31,10 @@ extension DeckModel {
         storage.removeGridDraft(uuid, draftSaveCompletion(.grid, uuid: uuid))
     }
 
+    func persistGain(_ gain: Double?, uuid: String) {
+        storage.saveGain(gain, uuid, draftSaveCompletion(.gain, uuid: uuid))
+    }
+
     func retryDraftSaves() {
         guard !isWriteLocked, let uuid = row?.track.uuid else { return }
         let failures = currentDraftSaveFailures
@@ -44,5 +48,7 @@ extension DeckModel {
             if let gridDraft, gridDraft.trackUUID == uuid { persistGrid(gridDraft) }
             else { storage.retryDraftSave(.grid, uuid, draftSaveCompletion(.grid, uuid: uuid)) }
         }
+        // 게인은 곡을 고를 때 바로 읽으므로(`loadGain`) 덱의 값이 마지막 입력이다.
+        if failures.contains(where: { $0.kind == .gain }) { persistGain(gainDraft, uuid: uuid) }
     }
 }

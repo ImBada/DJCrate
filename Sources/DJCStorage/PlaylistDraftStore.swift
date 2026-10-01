@@ -6,13 +6,14 @@ import Foundation
 public enum PlaylistDraftStore {
     public static var url: URL { DJCPaths.userData.appending(path: "playlist-drafts.json") }
 
-    /// 없거나 읽지 못하면 빈 초안
+    /// 없거나 읽지 못하면 빈 초안. 앱은 읽기 전에 손상된 파일을 옮겨 보관하고 알린다(`DamagedDrafts.preserveAll`).
     public static func load(url: URL = url) -> PlaylistDraft {
-        guard let data = try? Data(contentsOf: url) else { return PlaylistDraft() }
-        return (try? JSONDecoder().decode(PlaylistDraft.self, from: data)) ?? PlaylistDraft()
+        (try? DamagedDrafts.read(PlaylistDraft.self, at: url)) ?? PlaylistDraft()
     }
 
     public static func save(_ draft: PlaylistDraft, url: URL = url) throws {
+        // 손상된 파일은 덮거나 지우지 않고 옮겨 보관한다(#174).
+        try DamagedDrafts.preserveIfDamaged(PlaylistDraft.self, at: url, home: url.deletingLastPathComponent(), trackUUID: nil)
         guard !draft.isEmpty else {
             do { try FileManager.default.removeItem(at: url) } catch CocoaError.fileNoSuchFile {}
             return
