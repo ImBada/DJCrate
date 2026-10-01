@@ -212,6 +212,7 @@ final class LibraryStore {
         didSet { if let draftFileMessage { feedback.announce(draftFileMessage) } }
     }
     @ObservationIgnored var damagedDraftCount = 0
+    @ObservationIgnored var damagedStagedList = false
     /// 스냅샷 곡·추가한 곡 어디에도 이어지지 않는 초안이 있는 곡(#175). 쓰기 대기 목록에서 보여 주고 고른 것만 버린다.
     var unlinkedDraftUUIDs: Set<String> = []
     var showingUnlinkedDrafts = false
@@ -855,7 +856,7 @@ final class LibraryStore {
             iTunesLibrary = loaded.iTunesLibrary
             iTunesSnapshot = loaded.iTunesSnapshot
             if case let .itunesPlaylist(id) = sidebar, iTunesLibrary.index[id] == nil { sidebar = .filter(.all) }
-            mergeDrafts = DuplicateMergeDraftStore.load()
+            mergeDrafts = DuplicateMergeDraftStore.load(url: mergeDraftURL)
             refreshPlaylists(refreshList: false)
             applyMovedDrafts(moved, previousTags: previousTags, previousPlaylist: previousPlaylist, reporting: false)
             restoreAwaitingPlaylistEdits()

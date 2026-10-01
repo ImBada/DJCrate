@@ -24,7 +24,7 @@ extension LibraryStore {
     // MARK: - 추가한 곡
 
     func loadStaged() {
-        staged = StagingStore.load()
+        staged = StagingStore.load(url: stagedListURL)
         verifyImports()
         resolvePlaylistImports()
         rebuildStagedRows()
@@ -46,7 +46,10 @@ extension LibraryStore {
     }
 
     private func persistStaged() {
-        do { try stagingSaver(staged) } catch { stagingMessage = AppMessage(kind: .failure, text: String(ui: "추가한 곡 목록을 저장하지 못했습니다. DJCrate 데이터 폴더의 쓰기 권한을 확인하세요: \(error.localizedDescription)")) }
+        do {
+            try stagingSaver(staged)
+            reportDraftFilesMovedBySave()
+        } catch { stagingMessage = AppMessage(kind: .failure, text: String(ui: "추가한 곡 목록을 저장하지 못했습니다. DJCrate 데이터 폴더의 쓰기 권한을 확인하세요: \(error.localizedDescription)")) }
     }
 
     /// 파일·폴더를 추가한다. 이미 rekordbox 컬렉션에 있는 파일은 건너뛴다

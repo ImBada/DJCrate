@@ -6,16 +6,43 @@ import Foundation
 /// 손상된 파일은 지우지 않고 `damaged-drafts`에 옮겨 알리고, 메모리에 남은 입력은 다시 저장한다.
 extension LibraryStore {
     /// 옮긴 초안 파일을 알린다(닫을 때까지 남고, 그사이 더 옮기면 수를 더한다).
+    /// 추가 목록(`staged.json`)은 초안이 아니라 곡 파일 경로의 목록이라 파일 수에 세지 않고 다시 추가할 일을 따로 안내한다(#178).
     func reportDamagedDrafts(_ entries: [DamagedDrafts.Entry]) {
         guard !entries.isEmpty else { return }
-        damagedDraftCount = (draftFileMessage == nil ? 0 : damagedDraftCount) + entries.count
+        let fresh = draftFileMessage == nil
+        let drafts = entries.filter { $0.name != StagingStore.fileName }
+        damagedDraftCount = (fresh ? 0 : damagedDraftCount) + drafts.count
+        damagedStagedList = (fresh ? false : damagedStagedList) || drafts.count < entries.count
         FileHandle.standardError.write(Data("[초안 파일] 읽지 못해 옮긴 파일 \(entries.count)개: \(entries.map(\.name).joined(separator: ", "))\n".utf8))
-        draftFileMessage = AppMessage(kind: .warning, text: Self.damagedDraftText(damagedDraftCount))
+        draftFileMessage = AppMessage(kind: .warning, text: Self.damagedDraftText(damagedDraftCount, stagedList: damagedStagedList))
     }
 
-    static func damagedDraftText(_ count: Int) -> String {
-        String(ui: "초안 파일 \(count)개를 읽지 못해 DJCrate 데이터 폴더의 damaged-drafts에 옮겨 두었으니 필요한 곡의 초안을 다시 만드세요.")
+    static func damagedDraftText(_ count: Int, stagedList: Bool = false) -> String {
+        var sentences: [String] = []
+        if count > 0 {
+            sentences.append(String(ui: "초안 파일 \(count)개를 읽지 못해 DJCrate 데이터 폴더의 damaged-drafts에 옮겨 두었으니 필요한 곡의 초안을 다시 만드세요."))
+        }
+        if stagedList {
+            sentences.append(String(ui: "추가한 곡 목록 파일을 읽지 못해 DJCrate 데이터 폴더의 damaged-drafts에 옮겨 두었으니 추가했던 곡 파일을 다시 추가하세요."))
+        }
+        return sentences.joined(separator: " ")
     }
+
+    /// 합치기 초안·추가 목록 저장이 손상된 기존 파일을 옮겼으면 알린다(저장 중 옮긴 파일은 기록만 남는다).
+    /// 메모리 값으로 새 파일을 썼으니 그 목록이 비어 있지 않으면 잃은 것이 없어 알리지 않는다.
+    func reportDraftFilesMovedBySave() {
+        guard let draftHome else { return }
+        applyMovedDrafts(DamagedDrafts.take(home: draftHome).filter {
+            switch $0.name {
+            case StagingStore.fileName: staged.isEmpty
+            case DuplicateMergeDraftStore.fileName: mergeDrafts.isEmpty
+            default: true
+            }
+        })
+    }
+
+    var mergeDraftURL: URL { (draftHome ?? DJCPaths.userData).appending(path: DuplicateMergeDraftStore.fileName) }
+    var stagedListURL: URL { (draftHome ?? DJCPaths.userData).appending(path: StagingStore.fileName) }
 
     /// 데이터 폴더의 손상된 초안 파일을 옮기고 알린다. 메모리에 남은 태그·재생 목록 초안은 다시 저장하고, 옮긴 초안의 표시를 거둔다.
     /// - Returns: 옮긴 파일

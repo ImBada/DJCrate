@@ -16,6 +16,7 @@ extension LibraryStore {
         let before = mergeDrafts
         try mergeDraftSaver(drafts)
         mergeDrafts = drafts
+        reportDraftFilesMovedBySave()
         refreshBase()
         guard let undoManager else { return }
         undoManager.registerUndo(withTarget: self) { target in
@@ -29,8 +30,10 @@ extension LibraryStore {
     /// DB는 이미 반영·복원됐다. 초안 저장 오류를 쓰기 실패로 바꾸면 되돌리기 안내까지 잃는다.
     func saveMergeDraftsAfterWrite(_ drafts: [DuplicateMergeDraft]) {
         mergeDrafts = drafts
-        do { try mergeDraftSaver(drafts) }
-        catch {
+        do {
+            try mergeDraftSaver(drafts)
+            reportDraftFilesMovedBySave()
+        } catch {
             reflectionMessage = AppMessage(kind: .warning, text: String(ui: "라이브러리에는 썼지만 합치기 초안 파일을 저장하지 못했습니다. DJCrate 데이터 폴더의 쓰기 권한을 확인하세요"))
         }
     }
