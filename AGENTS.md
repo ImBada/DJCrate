@@ -10,6 +10,10 @@ rekordbox 7용 DJ 라이브러리 관리 macOS 앱 DJCrate(약칭 DJC, CLI `djc`
 - 사전 확인(`RekordboxCompatibility`, `RekordboxWriteGuard`): rekordbox 7.2.x만, DB 구조(`djmdCue`·`contentCue` 칸이 정확히 같고 고치는 칸이 있음)·`DBVersion` 6000, 로컬 변경 카운터 ≥ 클라우드 동기화 카운터. 막힐 조건은 백업을 뜨기 전에 본다. rekordbox가 업데이트되면 `djc compat`으로 먼저 확인하고, 실험으로 규칙을 다시 확인하기 전에는 허용 목록을 넓히지 않는다.
 - 라이브 DB·음원은 읽기 전용이다. 읽기는 스냅샷 사본(`LibrarySnapshot`)에서 한다.
 - 시험·실험 쓰기는 **사본에만** 한다: `DJC_REKORDBOX_DIR=<사본 폴더>`, `DJC_HOME=<임시 폴더>`. 사본의 `share/PIONEER/USBANLZ`는 심볼릭 링크가 아니라 실제 복사본이어야 한다.
+- 시험은 실제 라이브러리와 사용자 데이터를 절대 쓰지 않는다(#182: 시험이 실제 라이브러리로 복원해 라이브러리를 덮었다).
+  - 시험 프로세스의 기본 rekordbox 폴더·DJCrate 데이터 폴더는 임시 폴더(`TestProcess.sandbox`)다. 실제 rekordbox 폴더 쓰기·복원은 쓰기 관문이 거부한다.
+  - 쓰기·복원 API에 라이브 DB 기본 인자를 두지 않는다(부르는 쪽이 대상을 적는다). 앱은 `LibraryStore.rekordboxDatabase` 한 곳에서 쓰기·복원 대상을 정한다. 복원은 다른 라이브러리(`djmdProperty.DBID`)의 백업을 거부한다.
+  - 시험 환경(검사 스크립트의 환경 변수, 시험 활성 조건)을 바꾸면 그 변경으로 새로 도는 시험이 무엇을 쓰는지 먼저 확인한다.
 - 규칙을 확인하지 않은 쓰기(미확인 ALAC 형식, 44.1kHz가 아닌 ffmpeg VBR·그 밖의 비LAME VBR 분석 붙이기)는 막아 둔다. 새 쓰기 경로는 rekordbox 실험 → 사본 재현 → 칸 단위 일치를 확인한 뒤에만 연다(`docs/rekordbox-internals.md` 끝).
 - rekordbox DB 사본(`*.db`, `-wal`, `-shm`, `snapshots/`)에는 클라우드 토큰이 들어 있다. 커밋·출력·로그 금지. `agentRegistry`의 인증값은 읽지도 옮기지도 않는다.
 - rekordbox 규칙은 rekordbox 화면에서 편집한 결과 파일을 비교해서만 알아낸다. rekordbox 실행 파일(본체·rb_http_server 등)은 strings·디스어셈블을 포함해 분석하지 않는다.
@@ -63,6 +67,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 ## 검증 (작업이 끝났다고 말하기 전에)
 
 - 기본 검증과 최종 검증은 변경 영향에 관련된 시험만 골라 진행한다. 관련 시험으로 TDD와 회귀 확인을 마치고 리뷰한다. 전체 검사는 영향이 저장소 전반에 걸치거나 사용자가 명시적으로 요청한 경우에만 실행한다. `scripts/check.sh` full의 디버그·릴리스 앱 빌드, 번역, 전체 안전·쓰기 시험, 커버리지 목표(쓰기 80%, 코어 60%)는 유지한다.
+- `scripts/check.sh`는 따로 주지 않으면 임시 `DJC_REKORDBOX_DIR`·`DJC_HOME`을 쓰고, 검사 전후 실제 rekordbox 라이브러리 파일(`master.db`·`masterPlaylists6.xml`·분석 파일)이 바뀌면 종료 코드 3으로 실패한다. `swift test`를 직접 돌릴 때도 두 변수를 임시 폴더로 준다.
 - `--quick --filter <정규식>`은 관련 시험만 실행하며 릴리스·번역·커버리지 보고를 생략한다. 빈 필터·선택된 시험 0개·모든 시험 건너뜀·잘못된 인자는 실패해야 한다. 변경 영향에 충분한 시험 범위를 선택해 통과 결과로 작업 완료를 확인하고, 실제 명령·필터·검증 범위를 보고한다.
 - 통과 결과는 같은 검증 대상 코드·툴체인·빌드 설정·시험 환경일 때만 재사용한다. 코드·의존성·설정·환경이 바뀌면 그 영향에 관련된 시험만 다시 검증하고, 영향 없는 시험은 반복하지 않는다. 단순 병합으로 커밋만 바뀌고 검증한 코드와 조건이 같으면 검사를 중복 실행하지 않는다. 원래 로그와 실제 종료 코드로 재사용 근거를 남긴다.
 - SQLCipher 초기화(`CipherDatabase`), `CipherLab`, cold-open 경쟁에 관련된 변경은 `scripts/check.sh --stress`도 반드시 통과해야 하며, 별도 수동 CI에서도 실행한다. stress 필터는 cold-open 경쟁 시험 1개와 같은 파일의 설정 계약 시험 3개를 함께 실행한다. 일반 회귀는 새 프로세스 4개, stress는 100개이며 각각 32스레드·동시 프로세스 4개 상한을 유지한다. `DJC_CIPHER_STRESS`는 미설정·`0`이면 일반, `1`이면 stress이고 그 밖의 값은 실패한다.

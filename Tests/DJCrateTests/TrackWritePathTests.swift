@@ -21,6 +21,8 @@ struct TrackWritePathTests {
         // 미리 보기·쓰고 난 뒤 다시 읽기가 사용자 라이브러리가 아니라 합성 사본을 보게 한다.
         let database = fixture.database
         store.takeLiveSnapshot = { _ in database }
+        store.rekordboxDatabase = database
+        store.rekordboxShareRoot = fixture.shareRoot
         store.launchArguments = ["test"]
         store.launchEnvironment = [:]
         return store
