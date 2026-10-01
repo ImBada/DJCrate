@@ -337,6 +337,22 @@
         }
       }
     },
+    "%.3f초 · %.4f BPM · 박 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%.3f s · %.4f BPM · Beat %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%.3f秒 · %.4f BPM · 拍 %lld"
+          }
+        }
+      }
+    },
     "%@ %.3f초%@" : {
       "localizations" : {
         "en" : {
@@ -470,6 +486,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@ + 곡 머리 · 원곡 %2$@–%3$@"
+          }
+        }
+      }
+    },
+    "%@ · %.3f초 · %@ %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %.3f s · %@ %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %.3f秒 · %@ %@"
           }
         }
       }
@@ -1531,6 +1563,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@をrekordboxに書き込みますか？"
+          }
+        }
+      }
+    },
+    "%@의 %@ 현재값을 가져올까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get the current %2$@ for %1$@?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@の現在の%2$@を取得しますか？"
+          }
+        }
+      }
+    },
+    "%@의 %@ 현재값을 비교하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compare the current %2$@ for %1$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@の現在の%2$@を比較してください"
           }
         }
       }
@@ -8997,6 +9061,22 @@
         }
       }
     },
+    "rekordbox의 현재 그리드는 템포 구간으로 정확히 재현되지 않아 내 그리드 편집을 다시 적용할 수 없으니 현재값을 사용하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current rekordbox grid can’t be reproduced exactly with tempo sections, so your grid edits can’t be reapplied. Use the current values."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxの現在のグリッドはテンポ区間で正確に再現できないため、自分のグリッド編集を再適用できません。現在値を使用してください。"
+          }
+        }
+      }
+    },
     "~%.3f 루프" : {
       "localizations" : {
         "en" : {
@@ -12317,6 +12397,22 @@
         }
       }
     },
+    "그리드 현재값 가져오기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get Current Grid…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のグリッドを取得…"
+          }
+        }
+      }
+    },
     "그리드(박 %lld개)" : {
       "localizations" : {
         "en" : {
@@ -12777,6 +12873,38 @@
         }
       }
     },
+    "기준 큐:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Base cue:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "基準のキュー："
+          }
+        }
+      }
+    },
+    "기준:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Base:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "基準："
+          }
+        }
+      }
+    },
     "기준: %@" : {
       "localizations" : {
         "en" : {
@@ -13189,6 +13317,102 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自分の下書き: %@"
+          }
+        }
+      }
+    },
+    "내 큐 편집을 이 현재 큐에 연결할까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply my cue edits to this current cue?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キューの編集をこの現在のキューに適用しますか？"
+          }
+        }
+      }
+    },
+    "내 편집 유지 때 없어질 현재 큐:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current cues removed when keeping my edits:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集を保持すると削除される現在のキュー："
+          }
+        }
+      }
+    },
+    "내 편집 유지·재적용" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep and Reapply My Edits"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集を保持して再適用"
+          }
+        }
+      }
+    },
+    "내 편집 유지를 선택하면 표시한 현재 원본의 전체 박을 기준으로 단일 템포 대체 그리드를 새로 승인합니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keeping my edits explicitly approves the replacement single-tempo grid against every beat in the current source shown here."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集を保持すると、表示された現在の原本の全拍を基準に、単一テンポの置き換えグリッドを改めて承認します。"
+          }
+        }
+      }
+    },
+    "내 편집:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My edits:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自分の編集："
+          }
+        }
+      }
+    },
+    "내 편집: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My edits: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自分の編集：%@"
           }
         }
       }
@@ -13739,6 +13963,22 @@
         }
       }
     },
+    "다음 초안" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next Draft"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次の下書き"
+          }
+        }
+      }
+    },
     "다음 큐" : {
       "localizations" : {
         "en" : {
@@ -13975,6 +14215,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "デッキ"
+          }
+        }
+      }
+    },
+    "덱 곡 현재값 가져오기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get Current Values for Deck Track…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デッキの曲の現在値を取得…"
           }
         }
       }
@@ -15433,6 +15689,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ループを半分の長さにする（%@）"
+          }
+        }
+      }
+    },
+    "루프 끝 %.3f초 · 활성 %lld · 박 %lf" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loop end %.3f s · Active %lld · Beats %lf"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ループ終点 %.3f秒 · 有効 %lld · 拍数 %lf"
           }
         }
       }
@@ -17523,6 +17795,22 @@
         }
       }
     },
+    "복구할 초안을 확인하지 못했으니 편집을 저장하고 곡을 다시 선택하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not find a draft to recover. Save your edits and select the track again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復旧する下書きを確認できませんでした。編集を保存してから曲を選び直してください。"
+          }
+        }
+      }
+    },
     "복사하는 동안 라이브러리가 바뀌었습니다" : {
       "localizations" : {
         "en" : {
@@ -18329,6 +18617,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "BLUE"
+          }
+        }
+      }
+    },
+    "비교 중 입력이나 현재값이 바뀌어 초안을 그대로 남겼으니 현재값을 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The input or current values changed during comparison. Your draft was preserved; get the current values again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "比較中に入力または現在値が変わったため下書きを保持しました。現在値をもう一度取得してください。"
           }
         }
       }
@@ -19329,6 +19633,22 @@
         }
       }
     },
+    "선택한 곡 현재값 가져오기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get Current Values for Selected Track…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した曲の現在値を取得…"
+          }
+        }
+      }
+    },
     "선택한 곡의 태그를 편집합니다 (⌘I). 여러 곡을 한꺼번에 편집할 수 있습니다." : {
       "localizations" : {
         "en" : {
@@ -19357,6 +19677,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選択したプレイリストをrekordboxとDJCrateに同じように反映します。先にrekordboxを終了してください。"
+          }
+        }
+      }
+    },
+    "선택한 종류의 초안을 저장했습니다. 쓰기 미리 보기에서 지원 제한과 최신 상태를 다시 확인하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved the selected draft type. Check support limits and the latest state again in the write preview."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した種類の下書きを保存しました。書き込みのプレビューで対応範囲と最新の状態を再確認してください。"
           }
         }
       }
@@ -19961,6 +20297,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "スロット%lld"
+          }
+        }
+      }
+    },
+    "시각이나 이름으로 자동 대응하지 않습니다. 아래 두 큐가 같은 대상인지 확인하고 직접 선택하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time and name are not matched automatically. Check whether these two cues are the same target and choose explicitly."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "時刻や名前では自動対応しません。下の二つのキューが同じ対象か確認して、直接選んでください。"
           }
         }
       }
@@ -23395,6 +23747,22 @@
         }
       }
     },
+    "이 곡의 선택한 종류만 비교합니다. 가져오기 자체는 초안을 바꾸지 않습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only the selected draft type for this track is compared. Getting current values preserves your draft."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この曲の選択した種類だけを比較します。現在値を取得しても下書きは変わりません。"
+          }
+        }
+      }
+    },
     "이 곡의 섹션·그리드 추정·조성 분석 캐시를 지우고 다시 분석합니다(파형·초안은 그대로)" : {
       "localizations" : {
         "en" : {
@@ -23739,6 +24107,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このフォルダへ"
+          }
+        }
+      }
+    },
+    "이 현재 큐에 연결" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply to This Current Cue"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この現在のキューに適用"
           }
         }
       }
@@ -26581,6 +26965,22 @@
         }
       }
     },
+    "직접 지정한 큐 대응:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Explicit cue mapping:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "直接指定したキューの対応："
+          }
+        }
+      }
+    },
     "직접 찍은 핫큐 수(초록)" : {
       "localizations" : {
         "en" : {
@@ -26625,6 +27025,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "短いほど待機中のCPU使用量が減り、長いほど停止後のCUE・再生がすぐに鳴ります。"
+          }
+        }
+      }
+    },
+    "차단된 곡과 종류를 골라 현재값을 비교하고 초안을 복구할 수 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a blocked track and draft type to compare current values and recover the draft."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込みができない曲と下書きの種類を選び、現在値を比較して下書きを復旧できます。"
           }
         }
       }
@@ -27025,6 +27441,22 @@
         }
       }
     },
+    "초안을 만든 뒤 rekordbox에서 그리드가 바뀌었으니 그리드 현재값 가져오기로 비교하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The beat grid changed in rekordbox after the draft was made. Compare them with Get Current Grid"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きを作成した後、rekordboxでビートグリッドが変更されました。「現在のグリッドを取得」で比較してください"
+          }
+        }
+      }
+    },
     "초안을 만든 뒤 rekordbox에서 이 곡의 큐가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -27069,6 +27501,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下書きをプレビューしてからUSBに書き込みます。書き込む前にMacにバックアップします。"
+          }
+        }
+      }
+    },
+    "초안을 복구하지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could Not Recover Draft"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きを復旧できませんでした"
+          }
+        }
+      }
+    },
+    "초안을 복구했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draft Recovered"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きを復旧しました"
           }
         }
       }
@@ -27987,6 +28451,38 @@
         }
       }
     },
+    "큐 ID나 그리드 구간의 대응이 모호하므로 내 편집을 그대로 남겼습니다. 현재값을 사용하거나 편집 대상을 다시 지정하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cue IDs or grid segments could not be matched unambiguously. Your edits were preserved; use current values or choose the editing target again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キューIDまたはグリッド区間の対応が不明なため編集を保持しました。現在値を使うか編集対象を指定し直してください。"
+          }
+        }
+      }
+    },
+    "큐 ID나 그리드 구간의 대응이 모호해 자동으로 재적용할 수 없습니다. 내 편집을 남기려면 취소하고 대상을 다시 지정하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cue IDs or grid segments cannot be matched unambiguously for automatic reapplication. Cancel and choose the target again to preserve your edits."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キューIDまたはグリッド区間の対応が不明なため自動で再適用できません。編集を保持するにはキャンセルして対象を指定し直してください。"
+          }
+        }
+      }
+    },
     "큐 기록(JSON) 모양이 rekordbox와 다릅니다" : {
       "localizations" : {
         "en" : {
@@ -28095,6 +28591,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キュー記録の数または変更番号が異なります"
+          }
+        }
+      }
+    },
+    "큐 대상 다시 지정…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Cue Target Again…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キューの対象を指定し直す…"
           }
         }
       }
@@ -28527,6 +29039,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キュー行を削除できませんでした（%@）"
+          }
+        }
+      }
+    },
+    "큐 현재값 가져오기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get Current Cues…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のキューを取得…"
           }
         }
       }
@@ -29231,6 +29759,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "タグを編集"
+          }
+        }
+      }
+    },
+    "태그 현재값 가져오기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get Current Tags…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のタグを取得…"
           }
         }
       }
@@ -31061,6 +31605,22 @@
         }
       }
     },
+    "현재 라이브러리에서 이 곡을 확인하지 못했으니 곡을 다시 선택하세요. 초안은 그대로 남겼습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This track could not be found in the current library. Select it again; your draft was preserved."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のライブラリでこの曲を確認できませんでした。下書きは保持しましたので曲を選び直してください。"
+          }
+        }
+      }
+    },
     "현재 스냅샷에서 조건이 맞는 곡이 없습니다" : {
       "localizations" : {
         "en" : {
@@ -31073,6 +31633,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "現在のスナップショットに条件に合う曲はありません。"
+          }
+        }
+      }
+    },
+    "현재 원본에 대체 그리드를 재적용할 수 없으니 초안을 남기고 그리드 구간을 다시 지정하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The replacement grid cannot be reapplied to the current source. Keep the draft and choose the grid segments again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在の原本に置き換えグリッドを再適用できません。下書きを保持してグリッド区間を指定し直してください。"
+          }
+        }
+      }
+    },
+    "현재 큐:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current cue:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のキュー："
           }
         }
       }
@@ -31121,6 +31713,102 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "現在のテンポ区間のBPMを半分にします"
+          }
+        }
+      }
+    },
+    "현재:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在："
+          }
+        }
+      }
+    },
+    "현재: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在：%@"
+          }
+        }
+      }
+    },
+    "현재값 가져오기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get Current Values"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在値を取得"
+          }
+        }
+      }
+    },
+    "현재값 비교…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compare Current Values…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在値を比較…"
+          }
+        }
+      }
+    },
+    "현재값 사용" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Current Values"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在値を使用"
+          }
+        }
+      }
+    },
+    "현재값 사용을 선택하면 이 곡의 %@ 편집을 버립니다. 다른 곡과 다른 종류의 초안은 그대로 남깁니다. 저장 뒤 쓰기 미리 보기에서 재검사하며 지원 제한은 유지됩니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Using current values discards this track’s %@ edits. Drafts for other tracks and types are preserved. The write preview checks again after saving, and support limits remain in effect."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在値を使うと、この曲の%@の編集を破棄します。他の曲と種類の下書きは保持します。保存後に書き込みのプレビューで再確認し、対応範囲の制限は引き続き適用されます。"
           }
         }
       }

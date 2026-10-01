@@ -39,7 +39,7 @@ struct DeckPayload: Sendable {
         let saved = storage.loadGridDraft(track.uuid)
         let replacement = saved.map { $0.trackUUID == track.uuid && $0.isVerifiedReplacement(of: original, duration: duration) } ?? false
         if saved?.replacementSource != nil, !replacement {
-            payload.gridBlockedReason = String(ui: "초안을 만든 뒤 rekordbox에서 그리드가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요")
+            payload.gridBlockedReason = String(ui: "초안을 만든 뒤 rekordbox에서 그리드가 바뀌었으니 그리드 현재값 가져오기로 비교하세요")
         } else if worst > 2, !replacement {
             payload.gridBlockedReason = String(ui: "이 곡의 그리드는 템포 구간 \(fresh.segments.count)개로 복잡해 정확히 재현되지 않습니다(최대 \(worst, specifier: "%.0f")ms). 편집을 막았습니다.")
         }

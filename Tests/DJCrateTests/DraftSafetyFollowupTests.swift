@@ -8,7 +8,7 @@ import RekordboxKit
 import Synchronization
 import Testing
 
-/// #168·#169·#170 통합 검토에서 찾은 빈틈: 추정 그리드 적용, 저장 실패 확인 경로, 덱 다시 저장.
+/// #168·#169·#170 통합 검토에서 찾은 빈틈: 복잡한 그리드 복구, 추정 그리드 적용, 저장 실패 확인 경로, 덱 다시 저장.
 @MainActor
 @Suite("초안 안전 후속", .serialized)
 struct DraftSafetyFollowupTests {
@@ -27,6 +27,42 @@ struct DraftSafetyFollowupTests {
         var estimate = try #require(GridEstimator.estimate(beats: (0..<40).map { 0.5 + Double($0) * 0.5 }, bars: [0.5, 2.5, 4.5], duration: 20))
         estimate.segments[0].bpm = bpm
         return estimate
+    }
+
+    // MARK: - 그리드 복구
+
+    @Test func 복잡한_현재그리드에는_승인없는_내편집을_재적용하지_않는다() async throws {
+        let fixture = try RekordboxFixture(), store = makeStore(fixture)
+        var spec = TrackSpec(); spec.length = 60; spec.fileType = 11
+        spec.folderPath = try AudioFixture.wav(seconds: 60, in: fixture.audio).path
+        spec.analysisDataPath = "/PIONEER/USBANLZ/followup/ANLZ0000.DAT"
+        try fixture.add(spec)
+        try fixture.execute("UPDATE djmdContent SET rb_data_status = 0 WHERE ID = ?", [.text(spec.id)])
+        let simple = AnlzBuilder.beats(bpm: 120, first: 500, count: 120)
+        try fixture.putAnalysis(for: spec, dat: AnlzBuilder.dat(beats: simple), ext: AnlzBuilder.ext(beats: simple))
+        var draft = GridDraft(trackUUID: spec.uuid, grid: try BeatGrid.load(anlz: fixture.analysisURL(for: spec)))
+        draft.segments[0].bpm = 121
+        let directory = fixture.root.appending(path: "grid-drafts")
+        try GridDraftStore.save(draft, directory: directory)
+        // rekordbox에서 BPM이 바뀌고 한 박이 3ms 어긋났다: 구간은 하나지만 균일한 그리드로 다시 만들 수 없다.
+        var complex = AnlzBuilder.beats(bpm: 125, first: 500, count: 125)
+        complex[2].time += 3
+        try fixture.putAnalysis(for: spec, dat: AnlzBuilder.dat(beats: complex), ext: AnlzBuilder.ext(beats: complex))
+        let current = try BeatGrid.load(anlz: fixture.analysisURL(for: spec))
+        #expect(GridEditEligibility.reconstructionErrorMilliseconds(of: current, duration: 60) > 2)
+        store.launchArguments = ["test", "--db", fixture.database.path]
+        store.launchEnvironment = ["DJC_REKORDBOX_DIR": fixture.root.path]
+        await store.load(snapshot: fixture.database, arguments: store.launchArguments, environment: store.launchEnvironment)
+        let row = try #require(store.rowsByUUID[spec.uuid])
+        let review = try await store.prepareDraftRecovery(row: row, kind: .grid, home: fixture.root)
+        // 비교 창은 미리 "내 편집 유지"를 빼고 이유를 보인다.
+        let refusal = try #require(review.keepRefusal)
+        #expect(ReflectionCoordinator.recoveryConfirmation(review, canKeep: false, keepRefusal: refusal).details.contains(refusal))
+        await #expect(throws: DJCError.self) { try await store.applyDraftRecovery(review, choice: .keepEditing, home: fixture.root) }
+        #expect(GridDraftStore.load(trackUUID: spec.uuid, directory: directory) == draft)
+        // 현재값 사용은 그대로 된다(초안을 정리한다).
+        try await store.applyDraftRecovery(review, choice: .useCurrent, home: fixture.root)
+        #expect(GridDraftStore.load(trackUUID: spec.uuid, directory: directory) == nil)
     }
 
     // MARK: - 추정 그리드 적용

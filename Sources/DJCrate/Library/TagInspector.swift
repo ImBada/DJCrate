@@ -44,6 +44,10 @@ struct TagInspector: View {
                         Label(Set(issues).sorted().joined(separator: " · "), systemImage: "exclamationmark.triangle")
                             .foregroundStyle(UIColors.warning.color).font(.scaled(.caption, textScale))
                     }
+                    if rows.count == 1, let row = rows.first, store.tagDrafts[row.track.uuid] != nil {
+                        Button(.ui("태그 현재값 가져오기…")) { DraftRecoveryPanels.recover(store: store, row: row, kind: .tags) }
+                            .disabled(store.isRecoveringDraft)
+                    }
                     Button(.ui("태그 초안 버리기")) { store.revertTags(rows: rows) }
                     // 반영(⌘⇧E)하면 rekordbox 곡 정보에 쓴다. 음원 파일은 읽기만 한다(#1 결정).
                     Text(.ui("rekordbox에 쓸 때 라이브러리에만 저장합니다. 음원 파일의 태그는 바뀌지 않습니다."))

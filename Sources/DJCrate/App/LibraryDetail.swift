@@ -49,7 +49,7 @@ struct LibraryDetail: View {
         VStack(spacing: 0) {
             VStack(spacing: 0) {
                 if let error = store.lastError {
-                    Label(.ui("스냅샷을 새로 뜨지 못했습니다: \(error)"), systemImage: "exclamationmark.triangle")
+                    Label(error, systemImage: "exclamationmark.triangle")
                         .font(.callout).foregroundStyle(UIColors.warning.color)
                         .padding(.horizontal, Spacing.edge).padding(.vertical, 6)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -81,6 +81,7 @@ struct LibraryDetail: View {
             .modifier(DeckDropTarget(store: store))
             SplitHandle(height: $waveformHeight, displayedHeight: displayedHeight, maximumHeight: maximumHeight)
             VStack(spacing: 0) {
+                DraftRecoveryBar(store: store, deck: deck)
                 ListActionBar(store: store)
                 if showsSheet { SheetHeader() }
             }

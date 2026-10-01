@@ -28,6 +28,12 @@ final class TrackEditWindow: NSObject, NSWindowDelegate {
         #endif
     }
 
+    /// 아직 편집을 시작할 수 없던 창만 다시 판정한다. 열린 편집의 출력 구간은 건드리지 않는다.
+    func draftRecovered(_ uuid: String) {
+        guard model?.row.track.uuid == uuid, model?.blockedReason != nil else { return }
+        open()
+    }
+
     /// 덱에 올린 곡으로 연다. 같은 곡을 다시 열면 고른 구간을 이어 쓴다(그리드·큐는 덱에서 새로 읽는다).
     func open(entries: [BarRange]? = nil) {
         guard let deck, TrackEditModel.canOpen(deck) else { return }
@@ -36,7 +42,7 @@ final class TrackEditWindow: NSObject, NSWindowDelegate {
         guard let model = TrackEditModel(deck: deck, entries: entries ?? kept, edits: DJCPaths.editOutput) else { return }
         model.onStaged = { [weak self] staged in self?.finish(staged) }
         self.model = model
-        let root = TrackEditView(model: model, deck: deck)
+        let root = TrackEditView(model: model, deck: deck, store: store)
         if let host {
             host.rootView = root
         } else {

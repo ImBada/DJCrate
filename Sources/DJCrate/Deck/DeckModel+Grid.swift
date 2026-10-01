@@ -143,7 +143,7 @@ extension DeckModel {
         let worst = GridEditEligibility.reconstructionErrorMilliseconds(original: originalGrid, rebuilt: rebuilt)
         let replacement = gridDraft?.isVerifiedReplacement(of: originalGrid, duration: duration) == true
         if gridDraft?.replacementSource != nil, !replacement {
-            gridEditBlockedReason = String(ui: "초안을 만든 뒤 rekordbox에서 그리드가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요")
+            gridEditBlockedReason = String(ui: "초안을 만든 뒤 rekordbox에서 그리드가 바뀌었으니 그리드 현재값 가져오기로 비교하세요")
         } else if worst > 2, !replacement {
             gridEditBlockedReason = String(ui: "이 곡의 그리드는 템포 구간 \(fresh.segments.count)개로 복잡해 정확히 재현되지 않습니다(최대 \(worst, specifier: "%.0f")ms). 편집을 막았습니다.")
         } else {
@@ -250,7 +250,7 @@ extension DeckModel {
         if let originalGrid, !originalGrid.beats.isEmpty {
             // 초안을 만든 뒤 rekordbox 그리드가 바뀌었으면 어느 쪽도 덮지 않는다.
             guard base == GridDraft.segments(from: originalGrid) else {
-                showToast(String(ui: "초안을 만든 뒤 rekordbox에서 그리드가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요"), kind: .failure)
+                showToast(String(ui: "초안을 만든 뒤 rekordbox에서 그리드가 바뀌었으니 그리드 현재값 가져오기로 비교하세요"), kind: .failure)
                 return
             }
             // 템포 구간으로 다시 만들 수 없는 원본만 명시 대체로 승인한다(단순한 원본은 보통 초안이다).

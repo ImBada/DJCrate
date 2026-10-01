@@ -190,6 +190,11 @@ struct ContentView: View {
 
     private func setUp() {
             deck.feedback = store.feedback
+            store.recoveryMemoryInput = { [weak deck] uuid, kind in deck?.inputForDraftRecovery(uuid: uuid, kind: kind) }
+            store.onDraftRecovered = { [weak deck] draft, row, grid in
+                deck?.applyDraftRecovery(draft, currentRow: row, currentGrid: grid)
+                TrackEditWindow.shared.draftRecovered(draft.uuid)
+            }
             // 목록 선택은 덱을 바꾸지 않는다. 더블클릭·⌘→·오른쪽 클릭·끌어다 놓기로만 덱에 올린다(#93).
             store.onLoadToDeck = { [weak deck] row in deck?.load(row) }
             store.allowsLibrarySync = { [weak deck] in
