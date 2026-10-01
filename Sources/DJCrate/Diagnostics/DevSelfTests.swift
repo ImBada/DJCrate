@@ -26,6 +26,7 @@ enum DevSelfTests {
         runLoopSelfTestIfRequested(deck: deck)
         runScrollPerfIfRequested(deck: deck)
         UIPerfSelfTest.runIfRequested(store: store, deck: deck)
+        ResizePerfSelfTest.runIfRequested(store: store, deck: deck)
         runLoopAudioSelfTestIfRequested()
         runHotCueClickSelfTestIfRequested(store: store, deck: deck)
         runPausedHotCueSelfTestIfRequested(store: store, deck: deck)
