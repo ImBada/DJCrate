@@ -5,7 +5,7 @@ import Foundation
 import Testing
 
 /// 2026-09-27 태그 2단계: DJC 실험곡 1~5·DJC 실험 태그 날짜·중복 A/B, rekordbox 7.2.18.
-/// 사본 S0~S5에서 확인한 칸만 연다. 공유 값 변경·동명 앨범 선택·상태 256은 닫아 둔다.
+/// 사본 S0~S5에서 확인한 칸만 연다. 공유 값 변경·동명 앨범 선택·상태가 0이 아닌 앨범은 닫아 둔다(곡 상태 256·257은 코멘트만, #171).
 extension RekordboxTagWriterTests {
     @Test(arguments: [false, true]) func 아티스트를_비우면_빈_문자열이고_미참조_행만_지운다(shared: Bool) throws {
         // S2 실험곡 2(미참조 삭제), S5 실험곡 1(공유 이름 보존).
@@ -99,7 +99,9 @@ extension RekordboxTagWriterTests {
     @Test func 실험하지_않은_곡과_앨범_상태는_백업_전에_막는다() throws {
         let (fixture, track) = try library()
         try fixture.execute("UPDATE djmdContent SET rb_data_status = 256 WHERE ID = '500'")
-        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.title = "새 제목" }]).tagBlocked.first?.reason?.contains("상태") == true)
+        // 동기화 상태(256)에서 확인한 칸은 코멘트뿐이다(#171, RekordboxTagSyncedTests)
+        let title = try write(fixture, tags: [try draft(fixture, track) { $0.title = "새 제목" }]).tagBlocked.first?.reason
+        #expect(title?.contains("동기화 상태") == true && title?.contains("제목") == true)
         try fixture.execute("UPDATE djmdContent SET rb_data_status = 0 WHERE ID = '500'")
         try fixture.execute("UPDATE djmdAlbum SET rb_data_status = 256 WHERE ID = '31'")
         for key in [TagFields.Key.artist, .album, .albumArtist] {

@@ -11739,6 +11739,22 @@
         }
       }
     },
+    "곡의 동기화 상태(rb_data_status)가 다릅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The track sync state (rb_data_status) differs"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲の同期状態（rb_data_status）が異なります"
+          }
+        }
+      }
+    },
     "곡의 변경 번호가 다릅니다" : {
       "localizations" : {
         "en" : {
@@ -14391,6 +14407,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同期"
+          }
+        }
+      }
+    },
+    "동기화 상태인 곡에서는 %@ 칸의 쓰기 규칙을 아직 확인하지 않았습니다. 그 칸을 되돌리면 %@는 쓸 수 있습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write rules for %1$@ on synced tracks haven't been verified yet. Revert those fields to write %2$@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期状態の曲では%1$@の書き込み規則をまだ確認していません。その項目を元に戻すと%2$@は書き込めます"
+          }
+        }
+      }
+    },
+    "동기화 상태인 곡에서는 %@ 칸의 쓰기 규칙을 아직 확인하지 않았으므로 rekordbox에서 직접 고치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write rules for %@ on synced tracks haven't been verified yet. Edit this in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期状態の曲では%@の書き込み規則をまだ確認していないため、rekordboxで直接変更してください"
           }
         }
       }
