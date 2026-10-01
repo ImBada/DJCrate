@@ -10,7 +10,8 @@ struct DJCrateApp: App {
     /// 옛 이름(anicue) 데이터·설정 옮기기. 목록·덱이 설정을 읽기 전에 돌아야 해서 첫 속성으로 둔다.
     private let migrated = LegacyMigration.run()
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var store = LibraryStore()
+    /// 앱만 데이터 폴더의 손상된 초안 파일을 옮기고 알린다(#174).
+    @State private var store = LibraryStore(draftHome: DJCPaths.userData)
     @State private var deck = DeckModel()
     @State private var windowFrameRestored = false
 

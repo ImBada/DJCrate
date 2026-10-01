@@ -95,7 +95,8 @@ final class LibraryStore {
          playlistDraftSaver: @escaping (PlaylistDraft) throws -> Void = { try PlaylistDraftStore.save($0) },
          mergeDraftSaver: @escaping ([DuplicateMergeDraft]) throws -> Void = { try DuplicateMergeDraftStore.save($0) },
          playlistImportURL: URL? = PlaylistImportStore.url,
-         stagingSaver: @escaping ([StagedTrack]) throws -> Void = { try StagingStore.save($0) }) {
+         stagingSaver: @escaping ([StagedTrack]) throws -> Void = { try StagingStore.save($0) },
+         draftHome: URL? = nil) {
         self.settings = settings
         self.commentPreset = settings.commentPreset
         self.saveTagDrafts = saveTagDrafts
@@ -106,6 +107,7 @@ final class LibraryStore {
         self.resultHistory = resultHistory
         self.feedback = feedback
         self.backupDirectory = backupDirectory
+        self.draftHome = draftHome
         refreshWriteBackups()
         loadRecentPlaylists()
         loadPlaylistImports()
@@ -213,8 +215,9 @@ final class LibraryStore {
     /// 스냅샷 곡·추가한 곡 어디에도 이어지지 않는 초안이 있는 곡(#175). 쓰기 대기 목록에서 보여 주고 고른 것만 버린다.
     var unlinkedDraftUUIDs: Set<String> = []
     var showingUnlinkedDrafts = false
-    /// 손상된 초안 파일을 찾아 옮길 데이터 폴더(시험은 바꿔 넣는다)
-    @ObservationIgnored var draftHome = DJCPaths.userData
+    /// 손상된 초안 파일을 찾아 옮기고 연결되지 않은 초안을 볼 데이터 폴더. 앱만 정한다(nil이면 옮기지 않는다).
+    /// 시험이 `DJC_HOME` 없이 돌아도 사용자 폴더의 파일을 옮기지 않게 기본은 비워 둔다.
+    @ObservationIgnored var draftHome: URL?
     /// '재생 목록에 넣기…' 창과 넣을 곡(연 때 고른 곡)
     var showingPlaylistPicker = false
     var playlistPickerTracks: [TrackRow] = []
@@ -783,7 +786,7 @@ final class LibraryStore {
             let refreshTicket = ITunesRefreshCoordinator.shared.begin(snapshot: snapshot, sourceDatabase: sourceDatabase)
             // 초안을 읽기 전에 손상된 파일을 옮겨 보관하고 알린다(빈 값으로 읽어 덮지 않게, #174).
             let draftHome = draftHome
-            let moved = try await Self.runBlockingLibraryWork { DraftWriter.preserveDamagedDrafts(home: draftHome) }
+            let moved = try await Self.runBlockingLibraryWork { draftHome.map { DraftWriter.preserveDamagedDrafts(home: $0) } ?? [] }
             reportDamagedDrafts(moved)
             let loaded = try await Self.runBlockingLibraryWork {
                 try LoadedLibrary.load(snapshot: snapshot, commentPreset: preset, refreshITunes: refreshITunes,
@@ -1005,7 +1008,7 @@ final class LibraryStore {
         guard stamps != draftFileStamps || !unsaved.isEmpty else { return }
         draftFileStamps = stamps
         // 바깥에서 바뀐 파일 중 읽지 못하는 것은 옮겨 보관한다. 메모리 태그 초안은 아래에서 다시 저장한다(#174).
-        let moved = DraftWriter.preserveDamagedDrafts(home: home)
+        let moved = draftHome == nil ? [] : DraftWriter.preserveDamagedDrafts(home: home)
         let previousTags = tagDrafts
         var cues: [String: CueDraft] = [:]
         for uuid in CueDraftStore.uuids(directory: cueDirectory).union(unsaved) {

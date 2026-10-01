@@ -45,13 +45,13 @@ extension LibraryStore {
             return
         }
         let linked = Set(rowsByUUID.keys).union(staged.map(\.uuid))
-        let unlinked = Set(draftUUIDs(home: draftHome).keys).subtracting(linked)
+        let unlinked = Set(draftUUIDs(home: draftHome ?? DJCPaths.userData).keys).subtracting(linked)
         if unlinked != unlinkedDraftUUIDs { unlinkedDraftUUIDs = unlinked }
     }
 
     /// 연결되지 않은 초안의 자세한 목록(최근에 고친 것부터)
     func unlinkedDrafts() -> [UnlinkedDraft] {
-        let home = draftHome
+        let home = draftHome ?? DJCPaths.userData
         let kinds = draftUUIDs(home: home)
         let folders = ["cue-drafts", "grid-drafts", "tag-drafts"].map { home.appending(path: $0) }
         return unlinkedDraftUUIDs.map { uuid in
@@ -67,7 +67,7 @@ extension LibraryStore {
 
     /// 고른 곡의 초안(큐·그리드·게인·태그)을 버린다. 버리지 못한 곡이 있으면 이유와 할 일을 돌려준다.
     func discardUnlinkedDrafts(_ uuids: Set<String>) -> String? {
-        let home = draftHome
+        let home = draftHome ?? DJCPaths.userData
         let targets = uuids.intersection(unlinkedDraftUUIDs)
         guard !targets.isEmpty, !isWritingRekordbox else { return nil }
         let cues = home.appending(path: "cue-drafts"), grids = home.appending(path: "grid-drafts")

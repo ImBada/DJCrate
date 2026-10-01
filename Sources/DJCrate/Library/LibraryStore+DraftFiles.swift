@@ -22,6 +22,7 @@ extension LibraryStore {
     @discardableResult
     func preserveDamagedDraftFiles(previousTags: [String: TagDraft]? = nil,
                                    previousPlaylist: PlaylistDraft? = nil) -> [DamagedDrafts.Entry] {
+        guard let draftHome else { return [] }
         let moved = DraftWriter.preserveDamagedDrafts(home: draftHome)
         applyMovedDrafts(moved, previousTags: previousTags, previousPlaylist: previousPlaylist)
         return moved
