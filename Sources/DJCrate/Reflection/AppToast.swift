@@ -108,6 +108,8 @@ struct AppToastView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(toast.kind.tint.opacity(0.35)))
         .shadow(color: .black.opacity(0.25), radius: 16, y: 6)
+        .selfTestFrame("toast.\(toast.id)")
+        .onDisappear { SelfTestFrames.frames.removeValue(forKey: "toast.\(toast.id)") }
         .onHover { hovering = $0 }
         .task(id: toast.id) {
             // 올려 둔 동안은 기다린다.
