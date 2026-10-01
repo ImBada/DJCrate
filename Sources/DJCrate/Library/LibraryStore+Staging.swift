@@ -365,6 +365,8 @@ extension LibraryStore {
     /// 반환: 내보낸 곡 수와 그리드가 없는 곡 수.
     func exportStaged(to url: URL, only ids: Set<TrackRow.ID>? = nil) throws -> (count: Int, withoutGrid: Int) {
         let tracks = staged.filter { ids?.contains($0.id) ?? true }
+        // 저장에 실패한 큐·그리드 초안이 있으면 디스크의 옛 초안을 XML로 내보내지 않는다(#170).
+        try requireDraftSaves(for: Set(tracks.map(\.uuid)))
         var withoutGrid = 0
         let entries = tracks.map { original -> RekordboxXML.Entry in
             var track = original

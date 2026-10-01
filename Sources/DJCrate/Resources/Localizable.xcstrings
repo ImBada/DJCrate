@@ -6785,6 +6785,22 @@
         }
       }
     },
+    "rekordbox 그리드가 복잡한 곡은 템포 구간이 하나인 추정 그리드로만 바꿀 수 있습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For tracks with a complex rekordbox grid, you can only replace it with an estimated grid that has one tempo section"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxのグリッドが複雑な曲は、テンポ区間が1つの推定グリッドにのみ置き換えられます"
+          }
+        }
+      }
+    },
     "rekordbox 그리드가 없고, 분석에 실패해 추정하지 못했습니다." : {
       "localizations" : {
         "en" : {
@@ -7923,6 +7939,22 @@
         }
       }
     },
+    "rekordbox는 복원했지만 초안을 저장하지 못했습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox was restored, but the drafts could not be saved."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxは復元しましたが、下書きを保存できませんでした。"
+          }
+        }
+      }
+    },
     "rekordbox를 복원하는 중…" : {
       "localizations" : {
         "en" : {
@@ -8629,6 +8661,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxにすでにある%lld曲を選択しました"
+          }
+        }
+      }
+    },
+    "rekordbox에는 썼지만 초안을 정리하지 못했습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changes were written to rekordbox, but the drafts could not be cleared."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxには書き込みましたが、下書きを削除できませんでした。"
           }
         }
       }
@@ -10563,12 +10611,6 @@
     },
     "고른 구간 마디 %@ · %@ + 곡 머리 · %@–%@" : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "고른 구간 마디 %1$@ · %2$@ + 곡 머리 · %3$@–%4$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10580,17 +10622,17 @@
             "state" : "translated",
             "value" : "選択した区間：小節%1$@ · %2$@ + 曲頭 · %3$@–%4$@"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "고른 구간 마디 %1$@ · %2$@ + 곡 머리 · %3$@–%4$@"
+          }
         }
       }
     },
     "고른 구간 마디 %@ · %@ · %@–%@" : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "고른 구간 마디 %1$@ · %2$@ · %3$@–%4$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -10601,6 +10643,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選択した区間：小節%1$@ · %2$@ · %3$@–%4$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "고른 구간 마디 %1$@ · %2$@ · %3$@–%4$@"
           }
         }
       }
@@ -12199,6 +12247,22 @@
         }
       }
     },
+    "그리드 초안을 저장하지 못했습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not save the grid draft."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グリッドの下書きを保存できませんでした。"
+          }
+        }
+      }
+    },
     "그리드 초안이 비어 있습니다" : {
       "localizations" : {
         "en" : {
@@ -13575,6 +13639,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再試行"
+          }
+        }
+      }
+    },
+    "다시 저장" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save Again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "もう一度保存"
           }
         }
       }
@@ -17535,6 +17615,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "復元する書き込み履歴がありません"
+          }
+        }
+      }
+    },
+    "복잡한 rekordbox 그리드를 대체한 초안은 템포 구간을 하나로만 둘 수 있으니 변속 지점은 rekordbox에서 편집하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A draft that replaces a complex rekordbox grid can have only one tempo section, so edit tempo changes in rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複雑なrekordboxのグリッドを置き換えた下書きはテンポ区間を1つしか持てないため、テンポ変化はrekordboxで編集してください"
           }
         }
       }
@@ -25505,6 +25601,22 @@
         }
       }
     },
+    "저장 장치의 빈 공간을 확보한 뒤 다시 저장하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free up space on the storage device, then save again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存先の空き容量を増やしてから、もう一度保存してください。"
+          }
+        }
+      }
+    },
     "적용" : {
       "localizations" : {
         "en" : {
@@ -26689,6 +26801,22 @@
         }
       }
     },
+    "초안 저장이 끝나지 않았으니 저장을 마친 뒤 쓰기를 다시 시도하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drafts are still being saved. Finish saving them, then try writing again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きの保存が終わっていません。保存を完了してから、もう一度書き込んでください。"
+          }
+        }
+      }
+    },
     "초안 종류는 cue 또는 tag입니다" : {
       "localizations" : {
         "en" : {
@@ -26733,6 +26861,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下書きフォルダーまたはファイルのシンボリックリンクを解除してください"
+          }
+        }
+      }
+    },
+    "초안 폴더와 저장할 파일을 확인한 뒤 다시 저장하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check the draft folder and destination file, then save again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きフォルダと保存先のファイルを確認してから、もう一度保存してください。"
+          }
+        }
+      }
+    },
+    "초안 폴더의 접근 권한을 확인한 뒤 다시 저장하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check the draft folder permissions, then save again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きフォルダのアクセス権を確認してから、もう一度保存してください。"
           }
         }
       }
@@ -28291,6 +28451,22 @@
         }
       }
     },
+    "큐 초안을 저장하지 못했습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not save the cue draft."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キューの下書きを保存できませんでした。"
+          }
+        }
+      }
+    },
     "큐 편집" : {
       "localizations" : {
         "en" : {
@@ -28643,12 +28819,6 @@
     },
     "클립 %lld, 마디 %@" : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "클립 %1$lld, 마디 %2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -28659,6 +28829,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "クリップ%1$lld、小節%2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "클립 %1$lld, 마디 %2$@"
           }
         }
       }

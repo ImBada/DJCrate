@@ -6,6 +6,13 @@ public enum GridEditEligibility {
     public static func reconstructionErrorMilliseconds(original: BeatGrid, rebuilt: BeatGrid) -> Double {
         original.beats.map { abs((rebuilt.snap($0.time) * 1000).rounded() - ($0.time * 1000).rounded()) }.max() ?? 0
     }
+
+    /// 원본을 템포 구간으로 바꿨다가 다시 만든 박과의 최대 차이(ms). 2를 넘는 원본은 구간 편집으로 다룰 수 없다.
+    public static func reconstructionErrorMilliseconds(of original: BeatGrid, duration: Double) -> Double {
+        guard let last = original.beats.last else { return 0 }
+        let rebuilt = GridDraft(trackUUID: "", grid: original).grid(duration: max(duration + 1, last.time + 0.01))
+        return reconstructionErrorMilliseconds(original: original, rebuilt: rebuilt)
+    }
 }
 
 public extension GridDraft {

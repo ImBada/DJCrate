@@ -223,6 +223,7 @@ extension DeckModel {
 
     func reloadExternalCueDraft(_ saved: CueDraft?) {
         guard !isWriteLocked, !hasUncommittedCueEdits, let row, saved == nil || saved?.trackUUID == row.track.uuid else { return }
+        guard !currentDraftSaveFailures.contains(where: { $0.kind == .cue }) else { return }
         let saved = saved?.includingAutoCues(from: row.cues)
         if let saved, saved.base == draft?.base, saved.cues == draft?.cues { return }
         if saved == nil, draft?.hasChanges != true { return }
@@ -263,7 +264,7 @@ extension DeckModel {
 
     func persist(_ draft: CueDraft) {
         hasUncommittedCueEdits = false
-        storage.saveCueDraft(draft)
+        storage.saveCueDraft(draft, draftSaveCompletion(.cue, uuid: draft.trackUUID))
         onCueDraftChange?(draft)
         onDraftChange?(draft.trackUUID, .cue, draft.hasChanges)
     }

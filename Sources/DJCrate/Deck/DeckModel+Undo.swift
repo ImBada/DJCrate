@@ -49,8 +49,8 @@ extension DeckModel {
         gridEditBlockedReason = snapshot.gridBlockedReason
         if previous?.cue != snapshot.cue { persist(snapshot.cue) }
         if previous?.grid != snapshot.grid {
-            if let gridDraft { storage.saveGridDraft(gridDraft) }
-            else { storage.removeGridDraft(snapshot.cue.trackUUID) }
+            if let gridDraft { persistGrid(gridDraft) }
+            else { removeGridDraft(snapshot.cue.trackUUID) }
             onDraftChange?(snapshot.cue.trackUUID, .grid, snapshot.grid?.hasChanges == true)
             if row?.isStaged == true { onStagedGridChange?(snapshot.cue.trackUUID, snapshot.grid?.segments.first?.bpm) }
         }

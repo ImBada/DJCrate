@@ -94,10 +94,10 @@ extension DeckStorage {
                        settings: SettingsStore = SettingsStore(defaults: UserDefaults(suiteName: "djc-test-\(UUID().uuidString)")!,
                                                                persist: true)) -> DeckStorage {
         DeckStorage(
-            loadCueDraft: { drafts.cue($0) }, saveCueDraft: { drafts.save($0) },
-            loadGridDraft: { drafts.grid($0) }, saveGridDraft: { drafts.save($0) },
+            loadCueDraft: { drafts.cue($0) }, saveCueDraft: { draft, completion in drafts.save(draft); completion(nil) },
+            loadGridDraft: { drafts.grid($0) }, saveGridDraft: { draft, completion in drafts.save(draft); completion(nil) },
             loadGain: { drafts.gain($0) }, saveGain: { drafts.save(gain: $0, $1) },
-            removeGridDraft: { drafts.removeGrid($0) },
+            removeGridDraft: { uuid, completion in drafts.removeGrid(uuid); completion(nil) },
             settings: settings)
     }
 }
