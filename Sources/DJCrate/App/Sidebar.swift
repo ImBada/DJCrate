@@ -241,7 +241,7 @@ struct ListActionBar: View {
                     .help(.ui("rekordbox에 아직 쓰지 않은 재생 목록 편집을 모두 버립니다."))
                 }
                 Button { ReflectionPanels.export(store: store, rows: targets) } label: {
-                    Label(.ui("XML 만들기"), systemImage: "doc.text")
+                    Label(.ui("XML 만들기…"), systemImage: "doc.text")
                 }
                 .disabled(targets.isEmpty)
                 .help(.ui("큐·그리드 초안을 rekordbox에서 가져올 XML로 만듭니다."))

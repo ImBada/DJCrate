@@ -29,7 +29,7 @@ struct WriteResult: Codable, Equatable {
     }
 
     /// 한 번에 쓰는 것의 종류. 종류 이름이 문장 안에서 어순·조사가 달라지므로 종류마다 문장 전체를 번역한다.
-    enum Part {
+    enum Part: Hashable {
         case cue, grid, analysis, gain, tag, merge
 
         /// "큐 3곡" — 확인 창 제목과 결과 제목에 쓴다.

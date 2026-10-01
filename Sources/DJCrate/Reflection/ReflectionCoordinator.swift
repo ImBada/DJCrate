@@ -163,7 +163,8 @@ struct ReflectionCoordinator {
         let targets = host.writeTargets(rows)
         let withPlaylists = playlists && host.hasPlaylistDrafts
         guard !targets.isEmpty || withPlaylists else {
-            inform(String(ui: "쓸 초안이 없습니다"), String(ui: "고른 곡에 rekordbox와 다른 큐·그리드·게인·태그 초안이 없습니다."))
+            inform(String(ui: "쓸 초안이 없습니다"), String(ui: "고른 곡에 rekordbox와 다른 큐·그리드·게인·태그 초안이 없습니다."),
+                   details: (host as? LibraryStore)?.draftExclusionReasons(for: rows) ?? [])
             return
         }
         host.setWriteLock(true)
@@ -171,7 +172,7 @@ struct ReflectionCoordinator {
         do {
             host.writeStage = WriteStage(String(ui: "바꿀 내용을 확인하는 중…"), completed: 0, total: targets.count, cancellable: true)
             try Task.checkCancellation()
-            let preview = try await host.previewWrite(rows: targets, playlists: withPlaylists)
+            let preview = try await host.previewWrite(rows: rows, playlists: withPlaylists)
             try Task.checkCancellation()
             host.writeStage = nil
             let report = preview.report
@@ -185,7 +186,7 @@ struct ReflectionCoordinator {
                     let prompt = ReflectionPrompt(title: String(ui: "rekordbox에 쓸 수 있는 초안이 없습니다"),
                                                   text: String(ui: "쓸 수 없는 곡이나 재생 목록의 현재값을 비교해 초안을 다시 적용하거나 버리세요."),
                                                   confirm: tracks ? String(ui: "현재값 비교…") : String(ui: "재생 목록 현재값 가져오기…"),
-                                                  details: Self.reasons(report),
+                                                  details: Self.reasons(report) + preview.exclusions,
                                                   alternate: tracks && playlists ? String(ui: "재생 목록 현재값 가져오기…") : nil)
                     let choice = prompter.choose(prompt)
                     if choice != .cancel {
@@ -194,11 +195,11 @@ struct ReflectionCoordinator {
                         else { await recoverPlaylistDraft(store: store) }
                     }
                 } else {
-                    inform(String(ui: "rekordbox에 쓸 수 있는 초안이 없습니다"), "", details: Self.reasons(report))
+                    inform(String(ui: "rekordbox에 쓸 수 있는 초안이 없습니다"), "", details: Self.reasons(report) + preview.exclusions)
                 }
                 return
             }
-            guard prompter.show(Self.confirmation(report)) else { return }
+            guard prompter.show(Self.confirmation(report, exclusions: preview.exclusions)) else { return }
             // 분석을 붙이는 곡도 그리드 초안으로 쓴다.
             let cues = Set(report.written.map(\.trackUUID)), grids = Set((report.gridWritten + report.analysisWritten).map(\.trackUUID))
             let gains = Set(report.gainWritten.map(\.trackUUID)), tags = Set(report.tagWritten.map(\.trackUUID))
@@ -217,6 +218,8 @@ struct ReflectionCoordinator {
         } catch {
             host.writeStage = nil
             fail(String(ui: "rekordbox에 쓰지 않았습니다"), error)
+            let exclusions = (host as? LibraryStore)?.draftExclusionReasons(for: rows) ?? []
+            if !exclusions.isEmpty { inform(String(ui: "미리 보기에서 제외한 초안"), "", details: exclusions) }
         }
     }
 
@@ -402,7 +405,7 @@ struct ReflectionCoordinator {
     }
 
     /// 쓰기 전 확인 창: 종류별 곡 수, 곡마다 바뀌는 것, 쓰지 않는 것과 이유
-    static func confirmation(_ report: RekordboxWriter.Report) -> ReflectionPrompt {
+    static func confirmation(_ report: RekordboxWriter.Report, exclusions: [String] = []) -> ReflectionPrompt {
         let cues = report.written, grids = report.gridWritten, analyses = report.analysisWritten, gains = report.gainWritten
         let tags = report.tagWritten
         var kinds: [String] = []
@@ -453,7 +456,7 @@ struct ReflectionCoordinator {
         body += report.mergeWritten.map { String(ui: "• \($0.title) 유지 · 중복 \($0.removed)곡을 컬렉션에서 뺍니다") }
         body += report.mergeWritten.compactMap(\.reason)
         if !report.mergeWritten.isEmpty { body += ["", DuplicateMerge.lossNotice] }
-        let reasons = reasons(report)
+        let reasons = reasons(report) + exclusions
         if !reasons.isEmpty { body += ["", String(ui: "쓰지 않는 것 \(reasons.count):")] + reasons }
         if !analyses.isEmpty {
             body += ["", analyses.contains { artwork.contains($0.trackUUID) }

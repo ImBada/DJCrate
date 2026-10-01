@@ -32,6 +32,7 @@ protocol DeckAudioEngine: AnyObject {
     var hasPendingJump: Bool { get }
     /// 출력 장치를 쓸 수 없어 재생을 막는지(엔진 준비 전·엔진 시작 실패). `play`가 false를 돌려준 이유를 가른다.
     var isOutputUnavailable: Bool { get }
+    var isPreparingOutput: Bool { get }
 
     func load(url: URL, timelineOffset: Double) throws
     func unload()
@@ -53,6 +54,7 @@ protocol DeckAudioEngine: AnyObject {
 }
 
 extension DeckAudioEngine {
+    var isPreparingOutput: Bool { false }
     /// 루프를 걸거나 푼다(재생 중이면 지금 흐름에 이어 붙인다).
     @discardableResult func setLoop(_ range: ClosedRange<Double>?) -> Bool { setLoop(range, reschedule: true) }
 }

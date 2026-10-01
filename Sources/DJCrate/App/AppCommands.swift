@@ -129,7 +129,7 @@ struct AppCommands: Commands {
     }
 
     private func libraryButton(_ action: LibraryMenuAction) -> some View {
-        Button(action.title) {
+        Button(context.map { action.menuTitle(in: $0.store) } ?? action.title) {
             if let store = context?.store { action.perform(in: store) }
         }
         .keyboardShortcut(action.shortcut)

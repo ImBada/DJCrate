@@ -9,6 +9,17 @@ extension LibraryStore {
     /// 추가 목록(`staged.json`)은 초안이 아니라 곡 파일 경로의 목록이라 파일 수에 세지 않고 다시 추가할 일을 따로 안내한다(#178).
     func reportDamagedDrafts(_ entries: [DamagedDrafts.Entry]) {
         guard !entries.isEmpty else { return }
+        for entry in entries {
+            guard let uuid = entry.trackUUID else { continue }
+            let kind: WriteResult.Part?
+            switch entry.name.split(separator: "/").first {
+            case "cue-drafts": kind = .cue
+            case "grid-drafts": kind = .grid
+            case "tag-drafts": kind = .tag
+            default: kind = nil
+            }
+            if let kind { unreadableDraftKinds[uuid, default: []].insert(kind) }
+        }
         let fresh = draftFileMessage == nil
         let drafts = entries.filter { $0.name != StagingStore.fileName }
         damagedDraftCount = (fresh ? 0 : damagedDraftCount) + drafts.count

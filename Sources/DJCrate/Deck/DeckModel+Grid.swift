@@ -115,7 +115,15 @@ extension DeckModel {
     }
 
     func mutateGrid(name: String = String(ui: "그리드 편집"), allowingBlocked: Bool = false, _ change: (inout GridDraft) -> Void) {
-        guard canEditGrid || (allowingBlocked && !isWriteLocked), var gridDraft, gridDraft.trackUUID == row?.track.uuid else { return }
+        guard !isWriteLocked else { return }
+        guard var gridDraft, gridDraft.trackUUID == row?.track.uuid else {
+            showToast(String(ui: "편집할 그리드 초안이 준비되지 않았으니 곡을 덱에 다시 불러온 뒤 편집하세요"), kind: .warning)
+            return
+        }
+        guard canEditGrid || allowingBlocked else {
+            if let reason = gridUnavailableReason { showToast(reason, kind: .warning) }
+            return
+        }
         let snapshot = draftSnapshot
         let before = gridDraft.segments
         change(&gridDraft)

@@ -51,12 +51,13 @@ extension DeckModel {
         if audio.play(from: time) {
             isPlaying = true
             ticker.start()
-            if toast?.text == Self.audioUnavailableMessage { toast = nil }
+            if toast?.text == Self.audioUnavailableMessage || toast?.text == AudioSourceState.preparing.unavailableReason { toast = nil }
         } else {
             isPlaying = false
             ticker.stop()
             playhead = min(time, duration)
-            if audio.isOutputUnavailable { showToast(Self.audioUnavailableMessage) }
+            if audio.isPreparingOutput { showToast(AudioSourceState.preparing.unavailableReason ?? Self.audioUnavailableMessage) }
+            else if audio.isOutputUnavailable { showToast(Self.audioUnavailableMessage) }
         }
     }
 

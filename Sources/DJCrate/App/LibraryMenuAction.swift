@@ -31,6 +31,10 @@ enum LibraryMenuAction: CaseIterable {
         }
     }
 
+    @MainActor func menuTitle(in store: LibraryStore) -> String {
+        self == .exportXML && store.sidebar != .staged ? String(ui: "XML 만들기…") : title
+    }
+
     @MainActor func isEnabled(in store: LibraryStore) -> Bool {
         guard store.writeLockPolicy.allowsLibraryInteraction else { return false }
         switch self {
@@ -56,8 +60,8 @@ enum LibraryMenuAction: CaseIterable {
         case .snapshot: Task { await store.synchronizeLibrary() }
         case .exportXML:
             if store.sidebar == .staged { StagingPanels.exportXML(store: store) }
-            else { ReflectionPanels.export(store: store, rows: store.reflectionTargets) }
-        case .reflect: DirectWritePanels.write(store: store, rows: store.reflectionTargets)
+            else { ReflectionPanels.export(store: store, rows: store.reflectionPreviewRows) }
+        case .reflect: DirectWritePanels.write(store: store, rows: store.reflectionPreviewRows)
         case .pending: store.sidebar = .pending
         case .writeResult: store.showingWriteResult = true
         case .restore: DirectWritePanels.restoreLatest(store: store)

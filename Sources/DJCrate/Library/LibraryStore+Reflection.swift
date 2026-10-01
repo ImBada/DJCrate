@@ -14,13 +14,24 @@ extension LibraryStore {
         return rows.filter { pending.contains($0.track.uuid) }
     }
 
-    /// 곡마다 반영 계획을 만든다(초안이 없는 곡은 대상이 아니다).
+    /// 요청한 곡마다 계획을 남겨 대상에서 빠진 이유도 미리 보기에 표시한다.
     func reflectionPlans(for rows: [TrackRow]) -> [Reflection.Plan] {
         let pending = pendingUUIDs
-        return rows.filter { !$0.isStaged && pending.contains($0.track.uuid) }.map { row in
-            Reflection.plan(track: row.track, rawCues: row.cues,
-                            cueDraft: CueDraftStore.load(trackUUID: row.track.uuid),
-                            gridDraft: GridDraftStore.load(trackUUID: row.track.uuid))
+        return rows.map { row in
+            let uuid = row.track.uuid
+            let cue = CueDraftStore.load(trackUUID: uuid), grid = GridDraftStore.load(trackUUID: uuid)
+            let eligibleSource = !row.isStaged && !row.isUsb && pending.contains(uuid)
+            var plan = Reflection.plan(track: row.track, rawCues: row.cues,
+                                       cueDraft: eligibleSource && cue?.trackUUID == uuid ? cue : nil,
+                                       gridDraft: eligibleSource && grid?.trackUUID == uuid ? grid : nil)
+            let reasons = draftExclusionReasons(for: [row], xml: true)
+            if !plan.isEligible {
+                plan.blockers += reasons.map { String($0.dropFirst("• \(row.title): ".count)) }
+                if plan.blockers.isEmpty { plan.blockers.append(String(ui: "큐·그리드 초안에 변경이 없으니 변경할 초안을 확인하세요")) }
+            } else if hasDraft(.cue, trackUUID: uuid) && cue?.trackUUID != uuid || hasDraft(.grid, trackUUID: uuid) && grid?.trackUUID != uuid {
+                plan.blockers += reasons.map { String($0.dropFirst("• \(row.title): ".count)) }
+            }
+            return plan
         }
     }
 

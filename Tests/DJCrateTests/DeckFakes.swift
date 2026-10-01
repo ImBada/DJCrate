@@ -33,8 +33,12 @@ final class FakeDeckAudio: DeckAudioEngine {
     /// 걸려 있는 루프(오디오 쪽)
     var loop: ClosedRange<Double>?
     var log: [String] = []
+    var loadError: (any Error)?
 
-    func load(url: URL, timelineOffset: Double) throws { isLoaded = true; duration = trackLength; log.append("load") }
+    func load(url: URL, timelineOffset: Double) throws {
+        if let loadError { throw loadError }
+        isLoaded = true; duration = trackLength; log.append("load")
+    }
     func unload() { isLoaded = false; isPlaying = false }
     func play(from position: Double) -> Bool {
         self.position = position
