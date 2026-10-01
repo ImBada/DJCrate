@@ -279,8 +279,14 @@ struct ListActionBar: View {
                         Label(.ui("아직 쓰지 않은 목록 초안입니다 · rekordbox에 쓰기(⇧⌘E)로 저장합니다"), systemImage: DraftMark.symbol)
                             .foregroundStyle(UIColors.draft.color)
                     }
-                    Button(.ui("이 목록의 초안 버리기")) { store.discardPlaylistDraft(id) }
-                        .disabled(store.isWritingRekordbox)
+                    if node.blockedReason != nil {
+                        Button(.ui("현재 목록 비교…")) { DraftRecoveryPanels.recoverPlaylists(store: store, playlist: id) }
+                            .fixedSize()
+                            .disabled(store.isWritingRekordbox || store.isRecoveringDraft || store.writeTask != nil)
+                    } else {
+                        Button(.ui("이 목록의 초안 버리기")) { store.discardPlaylistDraft(id) }
+                            .disabled(store.isWritingRekordbox)
+                    }
                 }
             } else {
                 EmptyView()

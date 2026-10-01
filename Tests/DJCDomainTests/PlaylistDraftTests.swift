@@ -162,7 +162,7 @@ struct PlaylistDraftTests {
         var changed = Self.library()
         try changed.apply(.addTracks(playlist: .id("A"), contentIDs: ["7"]))
         let projection = draft.project(onto: changed)
-        #expect(projection.blocked == ["초안을 만든 뒤 rekordbox에서 이 목록이 바뀌었습니다. 이 목록의 초안을 버리고 다시 편집하세요", nil])
+        #expect(projection.blocked == ["초안을 만든 뒤 rekordbox에서 이 목록이 바뀌었으니 현재 목록을 비교해 다시 적용하거나 초안을 버리세요.", nil])
         #expect(projection.ready == [.rename(playlist: .id("C"), name: "새 이름")])
         #expect(projection.layout.item("A")?.trackIDs == ["1", "2", "3", "7"] && projection.layout.item("C")?.name == "새 이름")
         #expect(projection.blockedTargets["A"] != nil && projection.changed == ["C"])
@@ -178,7 +178,7 @@ struct PlaylistDraftTests {
         #expect(Set(draft.base.keys) == ["F", "A", "B"])
         // rekordbox에서 폴더 안에 목록을 새로 만들었다(지우면 함께 사라진다)
         let added = Self.library(extra: [(Self.item("N", "rekordbox에서 만든 목록", parent: "F"), 3)])
-        #expect(draft.project(onto: added).blocked.first??.contains("바뀌었습니다") == true)
+        #expect((draft.project(onto: added).blocked.first ?? nil) == "초안을 만든 뒤 rekordbox에서 이 목록이 바뀌었으니 현재 목록을 비교해 다시 적용하거나 초안을 버리세요.")
         // 안의 목록에 곡이 늘어도
         var grown = Self.library()
         try grown.apply(.addTracks(playlist: .id("B"), contentIDs: ["1"]))
