@@ -58,11 +58,16 @@ public struct ITunesLibrarySnapshot: Codable, Equatable, Sendable {
 
     public static func url(for database: URL) -> URL { database.appendingPathExtension("itunes.json") }
 
+    /// 사본을 쓸 때의 파일 보호 등급. `.completeFileProtectionUnlessOpen`은 화면이 잠기면 닫힌 파일을 다시 열 수 없어(EPERM),
+    /// 잠금 중 백그라운드 갱신이 사본을 읽지 못하고 잃었다(#187). 첫 잠금 해제 뒤에는 잠겨도 읽고 덮어쓸 수 있는 등급을 쓴다.
+    /// 이 파일은 rekordbox 목록 구성 사본이라 인증값이 없어, 잠금 중 열람을 막을 이유가 없다.
+    static let writeOptions: Data.WritingOptions = [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
+
     public func save(for database: URL) throws {
         let destination = Self.url(for: database)
         let pending = destination.deletingLastPathComponent().appending(path: ".\(UUID().uuidString).itunes.part")
         defer { try? FileManager.default.removeItem(at: pending) }
-        try JSONEncoder().encode(self).write(to: pending, options: [.atomic, .completeFileProtectionUnlessOpen])
+        try JSONEncoder().encode(self).write(to: pending, options: Self.writeOptions)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: pending.path)
         if FileManager.default.fileExists(atPath: destination.path) {
             guard (try FileManager.default.attributesOfItem(atPath: destination.path)[.type] as? FileAttributeType) == .typeRegular else {
