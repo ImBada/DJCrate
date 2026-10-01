@@ -50,7 +50,8 @@ struct DJCrateApp: App {
                 .task {
                     appDelegate.store = store
                     #if DEBUG
-                    if !ResizePerfSelfTest.isRequested { NSApplication.shared.activate() }
+                    if !ResizePerfSelfTest.isRequested,
+                       !ProcessInfo.processInfo.arguments.contains("--playlist-recovery-selftest") { NSApplication.shared.activate() }
                     #else
                     NSApplication.shared.activate()
                     #endif
@@ -128,7 +129,7 @@ private struct MainWindowFrame: NSViewRepresentable {
             DispatchQueue.main.async { [weak self] in
                 guard let self, let window else { return }
                 #if DEBUG
-                if ResizePerfSelfTest.isRequested {
+                if ResizePerfSelfTest.isRequested || ProcessInfo.processInfo.arguments.contains("--playlist-recovery-selftest") {
                     onRestore()
                     return
                 }
