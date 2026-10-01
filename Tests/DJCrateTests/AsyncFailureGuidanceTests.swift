@@ -122,6 +122,33 @@ struct AsyncFailureGuidanceTests {
         if case .loaded = store.phase { } else { Issue.record("이전 요청의 실패가 새 목록의 상태를 덮음") }
     }
 
+    @Test(arguments: [true, false])
+    func 같은_URL을_다시_읽어도_이전_복사의_완료와_실패는_버린다(_ fails: Bool) async throws {
+        let fixture = try RekordboxFixture()
+        try fixture.add(TrackSpec())
+        let store = store(fixture), database = fixture.database
+        let args = ["test", "--db", database.path]
+        await store.load(snapshot: database, arguments: args, environment: [:])
+        let gate = DispatchSemaphore(value: 0)
+        let (started, signal) = AsyncStream<Void>.makeStream()
+        let old = Task {
+            await store.takeSnapshot(refreshITunes: false, snapshotDirectory: fixture.root, snapshotCopy: { _ in
+                signal.yield(())
+                gate.wait()
+                if fails { throw FixtureFailure() }
+                return database
+            }, arguments: ["test"], environment: ["DJC_REKORDBOX_DIR": fixture.root.path])
+        }
+        for await _ in started { break }
+        await store.load(snapshot: database, arguments: args, environment: [:])
+        let before = store.rows, count = store.completedLoadCount
+        gate.signal()
+        await old.value
+        #expect(store.completedLoadCount == count && store.rows == before)
+        #expect(store.lastError == nil && store.lastReadFailure == nil)
+        if case .loaded = store.phase { } else { Issue.record("이전 복사가 같은 URL의 새 읽기를 덮음") }
+    }
+
     @Test func 이전_곡의_뷰_콜백은_새_곡의_초안과_알림을_건드리지_않는다() async throws {
         let h = try DeckHarness()
         try await h.loaded()

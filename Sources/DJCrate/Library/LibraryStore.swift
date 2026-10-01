@@ -350,6 +350,8 @@ final class LibraryStore {
     private var sortedBase: [TrackRow] = []
     private var suppressRefresh = false
     private var loadGeneration = 0
+    /// 선택 저장은 사본 복사의 폐기 사유가 아니므로 새 읽기 요청만 따로 추적한다.
+    private var readRequestGeneration = 0
     func invalidatePendingLoads() { loadGeneration += 1 }
     @ObservationIgnored private let snapshotRequests = SnapshotRequestQueue()
     /// 뒤에서 도는 Music 최신화. 쓰기 뒤 다시 읽기가 버리면 새 사본이 같은 조회를 이어받는다.
@@ -662,6 +664,8 @@ final class LibraryStore {
         let interrupted = iTunesRefresh.flatMap { $0.generation == loadGeneration ? $0 : nil }
         invalidatePendingLoads()
         let generation = loadGeneration
+        readRequestGeneration += 1
+        let readRequest = readRequestGeneration
         if let snapshotURL { ITunesRefreshCoordinator.shared.invalidateSnapshots([snapshotURL]) }
         let hadRows = !rows.isEmpty
         defer {
@@ -684,7 +688,7 @@ final class LibraryStore {
         if !quiet { phase = .loading(String(ui: "rekordbox DB 스냅샷을 뜨는 중…")) }
         do {
             let url = try await Self.runBlockingLibraryWork { try snapshotCopy(force) }
-            guard generation == loadGeneration, !Task.isCancelled else { return nil }
+            guard readRequest == readRequestGeneration, !Task.isCancelled else { return nil }
             ITunesRefreshCoordinator.shared.invalidateSnapshots([url])
             let fallback = latestITunesFallback(previousITunesSnapshot)
             let expectedGeneration = loadGeneration + 1
@@ -705,7 +709,7 @@ final class LibraryStore {
                                       fallbackDirectory: snapshotDirectory, sourceDatabase: sourceDatabase,
                                       captureITunes: captureITunes)
         } catch {
-            guard generation == loadGeneration, !Task.isCancelled, !(error is CancellationError) else {
+            guard readRequest == readRequestGeneration, !Task.isCancelled, !(error is CancellationError) else {
                 if generation == loadGeneration { phase = hadRows ? .loaded : .idle }
                 return nil
             }
@@ -802,6 +806,7 @@ final class LibraryStore {
         DraftWriter.flush()
         let initialTagRevision = tagRevision
         previewWarmTask?.cancel()
+        readRequestGeneration += 1
         loadGeneration += 1
         let generation = loadGeneration
         let started = ContinuousClock.now
