@@ -140,6 +140,7 @@ struct UsbPendingTests {
         let drafts = drafts, key = key
         service.update {
             $0.editSummary = summary
+            $0.drafts = drafts
             // 실제 세션처럼 막힌 편집만 초안에 남긴다
             $0.onWriteEdit = {
                 let store = UsbDraftStore(directory: drafts)
@@ -182,8 +183,10 @@ struct UsbPendingTests {
         #expect(usb.draftCounts[key] == 1)
         #expect(usb.busyVolumes.isEmpty && usb.activeWrite == nil)
 
-        // 대기 목록에서 방금 본 미리 보기는 다시 보지 않는다
-        await coordinator.writeDraft(volumeKey: key, database: database, share: share, reusing: summary)
+        // 대기 목록에서 방금 본 미리 보기(지금 초안의 편집을 계획한 것)는 다시 보지 않는다
+        var reused = summary
+        reused.edits = try #require(try UsbDraftStore(directory: drafts).load(volumeKey: key)).edits
+        await coordinator.writeDraft(volumeKey: key, database: database, share: share, reusing: reused)
         #expect(service.current.calls.suffix(2) == ["writeEdit", "writeEdit"])
 
         // USB 전체 막힘이면 쓰지 않고 이유를 알린다

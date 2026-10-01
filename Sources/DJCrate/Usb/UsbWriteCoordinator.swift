@@ -371,45 +371,75 @@ struct UsbWriteCoordinator {
         await usb.reloadDraft(volumeKey)
     }
 
-    /// 잠근 채로 미리 보기·확인·쓰기. 잠금은 부르는 쪽이 푼다
+    /// 잠근 채로 미리 보기·확인·쓰기. 잠금은 부르는 쪽이 푼다.
+    /// 미리 보기는 초안 줄 밖이라 확인하는 동안 초안이 바뀔 수 있다. 쓰기 줄에서 초안이 확인한 편집과 다르면 쓰지 않고 지금 초안으로 다시 미리 보고 묻는다
     private func runEdit(_ job: UsbEditJob, reused: UsbEditSummary?, flag: UsbCancelFlag) async -> Outcome<UsbEditSummary> {
         let service = service, key = job.volumeKey
-        let summary: UsbEditSummary
+        var summary: UsbEditSummary
         if let reused {
             summary = reused
         } else {
-            switch await Task.detached(priority: .userInitiated, operation: { Result { try service.previewEdit(job) } }).value {
+            switch await editPreview(job) {
             case let .success(value): summary = value
             case let .failure(error): return .failed(error)
             }
         }
-        if flag.isSet { return .cancelled }
-        guard summary.stopping.isEmpty else {
-            inform(String(ui: "USB에 쓸 수 없습니다"), summary.stopping.joined(separator: "\n"), details: Self.editLines(summary))
-            return .stopped
-        }
-        guard summary.hasChanges else {
-            inform(String(ui: "USB에 쓸 것이 없습니다"), String(ui: "바꿀 것이 없거나 모든 편집이 막혔습니다. 쓰기 대기 목록에서 이유를 확인하세요"),
-                   details: Self.editLines(summary))
-            return .stopped
-        }
-        guard prompter.show(Self.editConfirmation(summary, volume: job.volume)) else { return .stopped }
-        if let stop: Outcome<UsbEditSummary> = await journalStop(key) { return stop }
-        // 세션이 초안을 읽고 막힌 편집만 남겨 다시 저장하는 동안 더한 편집을 잃지 않게, 초안 고치기와 한 줄로 선다(그 편집은 쓰기 뒤에 더한다)
-        let result = await usb.draftQueue(key) {
-            await perform(key) { progress in try service.writeEdit(job, progress: progress, isCancelled: { flag.isSet }) }
-        }
-        switch result {
-        case let .success(written):
-            guard written.report != nil else {
-                // 확인 뒤 USB가 바뀌어 다시 계획하니 쓸 것이 없었다
-                inform(String(ui: "USB에 쓸 것이 없습니다"), String(ui: "바꿀 것이 없거나 모든 편집이 막혔습니다. 쓰기 대기 목록에서 이유를 확인하세요"),
-                       details: Self.editLines(written.summary))
+        var draftChanged = false
+        while true {
+            if flag.isSet { return .cancelled }
+            guard summary.stopping.isEmpty else {
+                inform(String(ui: "USB에 쓸 수 없습니다"), summary.stopping.joined(separator: "\n"), details: Self.editLines(summary))
                 return .stopped
             }
-            return .written(written.summary)
-        case let .failure(error): return Self.outcome(of: error)
+            guard summary.hasChanges else {
+                inform(String(ui: "USB에 쓸 것이 없습니다"), String(ui: "바꿀 것이 없거나 모든 편집이 막혔습니다. 쓰기 대기 목록에서 이유를 확인하세요"),
+                       details: Self.editLines(summary))
+                return .stopped
+            }
+            guard prompter.show(Self.editConfirmation(summary, volume: job.volume, draftChanged: draftChanged)) else { return .stopped }
+            if let stop: Outcome<UsbEditSummary> = await journalStop(key) { return stop }
+            // 세션이 초안을 읽고 막힌 편집만 남겨 다시 저장하는 동안 더한 편집을 잃지 않게, 초안 고치기와 한 줄로 선다(그 편집은 쓰기 뒤에 더한다).
+            // 세션은 줄 안에서 초안을 다시 읽어 쓰므로, 확인한 것과 다르면(미리 보기 뒤 더하거나 뺌) 확인 창에 없던 편집을 쓰지 않게 멈춘다
+            let confirmed = summary.edits
+            let result = await usb.draftQueue(key) { () -> Result<UsbEditWritten, any Error>? in
+                guard (await draftEdits(key) ?? confirmed) == confirmed else { return nil }
+                return await perform(key) { progress in try service.writeEdit(job, progress: progress, isCancelled: { flag.isSet }) }
+            }
+            guard let result else {
+                switch await editPreview(job) {
+                case let .success(value): summary = value
+                case let .failure(error): return .failed(error)
+                }
+                draftChanged = true
+                continue
+            }
+            switch result {
+            case let .success(written):
+                guard written.report != nil else {
+                    // 확인 뒤 USB가 바뀌어 다시 계획하니 쓸 것이 없었다
+                    inform(String(ui: "USB에 쓸 것이 없습니다"), String(ui: "바꿀 것이 없거나 모든 편집이 막혔습니다. 쓰기 대기 목록에서 이유를 확인하세요"),
+                           details: Self.editLines(written.summary))
+                    return .stopped
+                }
+                return .written(written.summary)
+            case let .failure(error): return Self.outcome(of: error)
+            }
         }
+    }
+
+    /// 지금 초안으로 미리 보기(메인 액터 밖)
+    private func editPreview(_ job: UsbEditJob) async -> Result<UsbEditSummary, any Error> {
+        let service = service
+        return await Task.detached(priority: .userInitiated) { Result { try service.previewEdit(job) } }.value
+    }
+
+    /// 지금 초안 파일의 편집(메인 액터 밖에서 읽는다). 읽지 못하면 빈 목록 — 확인한 것과 달라 다시 미리 보며 오류를 알린다.
+    /// 초안 폴더가 없으면(초안을 다루지 않는 시험·캡처) nil
+    private func draftEdits(_ key: String) async -> [UsbLibraryEdit]? {
+        guard let directory = usb.draftDirectory else { return nil }
+        return await Task.detached(priority: .userInitiated) {
+            ((try? UsbDraftStore(directory: directory).load(volumeKey: key)) ?? nil)?.edits ?? []
+        }.value
     }
 
     /// 시작 전 확인: rekordbox·Agent, 볼륨 잠금, 끝나지 않은 쓰기(회복 알림), 읽지 못한 저널
@@ -683,14 +713,20 @@ struct UsbWriteCoordinator {
         return String(ui: "내보낼 곡이 없습니다. 막힌 곡의 이유를 확인한 뒤 다시 시도하세요")
     }
 
-    /// 수정 쓰기 전 확인 창: 쓸 편집 수, 막힌 편집, 빼고 쓰는 곡, 형식별 결과, 지울 파일·미룸, 확인 안 된 규칙
-    static func editConfirmation(_ summary: UsbEditSummary, volume: UsbVolumeInfo) -> ReflectionPrompt {
+    /// 수정 쓰기 전 확인 창: 쓸 편집 수, 막힌 편집, 빼고 쓰는 곡, 형식별 결과, 지울 파일·미룸, 확인 안 된 규칙.
+    /// draftChanged면 확인하는 동안 초안이 바뀌어 다시 묻는다는 것을 맨 앞에 알린다
+    static func editConfirmation(_ summary: UsbEditSummary, volume: UsbVolumeInfo, draftChanged: Bool = false) -> ReflectionPrompt {
         var details: [String] = []
         if summary.isTestVolume { details.append(String(ui: "시험 볼륨(디스크 이미지)입니다")) }
         details += editLines(summary)
+        let text = String(ui: "\(volume.name)의 rekordbox 라이브러리를 고칩니다. 쓰기 전에 Mac에 백업하고 쓴 뒤 USB에서 다시 읽어 확인합니다. 끝날 때까지 USB를 뽑지 마세요.")
         return ReflectionPrompt(title: String(ui: "USB에 편집 \(summary.writtenCount)건을 쓸까요?"),
-                                text: String(ui: "\(volume.name)의 rekordbox 라이브러리를 고칩니다. 쓰기 전에 Mac에 백업하고 쓴 뒤 USB에서 다시 읽어 확인합니다. 끝날 때까지 USB를 뽑지 마세요."),
+                                text: draftChanged ? draftChangedText + "\n\n" + text : text,
                                 confirm: String(ui: "USB에 쓰기"), details: details)
+    }
+
+    static var draftChangedText: String {
+        String(ui: "쓰기 대기가 그 사이 바뀌어 다시 계획했으니 바뀐 내용을 확인한 뒤 쓰세요")
     }
 
     /// 수정 요약 줄(확인 창·쓰기 대기 목록). blockedEdits가 거짓이면 막힌 편집 줄은 뺀다(대기 목록은 편집마다 보인다)
