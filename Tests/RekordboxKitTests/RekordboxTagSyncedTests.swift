@@ -87,6 +87,21 @@ extension RekordboxTagWriterTests {
         #expect(try content(fixture) == before && fixture.localUpdateCount() == 2000)
     }
 
+    @Test(arguments: [256, 257]) func 동기화된_곡의_코멘트_비우기는_확인하지_않아_막는다(state: Int) throws {
+        // 실험 4는 빈 코멘트에 넣기와 값 바꾸기만 보았다. 값을 비우는 저장은 아직 보지 못했다.
+        let (fixture, track) = try syncedLibrary(state: state)
+        try fixture.execute("UPDATE djmdContent SET Commnt = '옛 코멘트' WHERE ID = '500'")
+        let before = try content(fixture)
+        let cleared = try write(fixture, tags: [try draft(fixture, track) { $0.comment = "" }], keys: RekordboxWriter.writableTagKeys)
+        #expect(cleared.tagWritten.isEmpty && cleared.tagBlocked.first?.reason?.contains("코멘트 비우기") == true && cleared.backup == nil)
+        // 다른 칸과 함께 비우면 되돌려도 코멘트를 쓸 수 없으므로 rekordbox에서 직접 고치라고
+        let mixed = try write(fixture, tags: [try draft(fixture, track) { $0.title = "새 제목"; $0.comment = "" }],
+                              keys: RekordboxWriter.writableTagKeys)
+        let reason = try #require(mixed.tagBlocked.first?.reason)
+        #expect(reason.contains("제목") && reason.contains("rekordbox에서 직접") && !reason.contains("되돌리면"))
+        #expect(try content(fixture) == before && fixture.localUpdateCount() == 2000)
+    }
+
     @Test(arguments: [1, 2, 258, 512]) func 확인하지_않은_동기화_상태는_코멘트도_막는다(state: Int) throws {
         let (fixture, track) = try syncedLibrary(state: state)
         let before = try content(fixture)

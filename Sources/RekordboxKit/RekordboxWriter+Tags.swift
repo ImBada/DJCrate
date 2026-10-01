@@ -104,10 +104,17 @@ extension RekordboxWriter {
         case 0:
             return
         case 256, 257:
+            // 실험 4는 코멘트 넣기·바꾸기만 보았다. 비우는 저장은 확인하지 않았다.
+            let clearsComment = draft.changedKeys.contains(.comment) && draft.fields.comment.isEmpty
             let unverified = draft.changedKeys.filter { !syncedWritableTagKeys.contains($0) }
-            guard !unverified.isEmpty else { return }
+            guard !unverified.isEmpty else {
+                guard !clearsComment else {
+                    throw block(String(ui: "동기화 상태인 곡의 코멘트 비우기는 아직 확인하지 않았으므로 rekordbox에서 직접 비우세요"))
+                }
+                return
+            }
             let labels = unverified.map(\.label).joined(separator: "·")
-            let writable = draft.changedKeys.filter { syncedWritableTagKeys.contains($0) }
+            let writable = clearsComment ? [] : draft.changedKeys.filter { syncedWritableTagKeys.contains($0) }
             guard !writable.isEmpty else {
                 throw block(String(ui: "동기화 상태인 곡에서는 \(labels) 칸의 쓰기 규칙을 아직 확인하지 않았으므로 rekordbox에서 직접 고치세요"))
             }

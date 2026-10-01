@@ -14443,6 +14443,22 @@
         }
       }
     },
+    "동기화 상태인 곡의 코멘트 비우기는 아직 확인하지 않았으므로 rekordbox에서 직접 비우세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clearing the comment on synced tracks hasn't been verified yet. Clear it in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期状態の曲のコメントの消去はまだ確認していないため、rekordboxで直接消去してください"
+          }
+        }
+      }
+    },
     "동기화한 iTunes 목록이 없습니다" : {
       "localizations" : {
         "en" : {
