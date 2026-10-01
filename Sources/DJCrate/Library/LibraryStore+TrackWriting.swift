@@ -74,10 +74,12 @@ extension LibraryStore {
         writeStage = WriteStage(String(ui: "미리 보기 1/2단계 · 사본을 만드는 중…"), completed: 0, total: 2, cancellable: true)
         // 사본으로 DB만 시험한다(분석 파일은 만들지 않지만 큐는 함께 시험해 막히는 이유를 미리 본다).
         let take = takeLiveSnapshot
+        // 백업은 이 저장소의 백업 폴더에 둔다(시험 쓰기가 사용자 백업을 밀어내지 않게).
+        let backups = backupDirectory
         let report = try await Task.detached(priority: .userInitiated) { [plans, cues] in
             let snapshot = try take(false)
             await MainActor.run { self.writeStage = WriteStage(String(ui: "미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…"), completed: 1, total: 2, cancellable: true) }
-            return try RekordboxTrackWriter.add(plans, cues: cues, to: snapshot, dryRun: true, backups: DJCPaths.rekordboxBackups)
+            return try RekordboxTrackWriter.add(plans, cues: cues, to: snapshot, dryRun: true, backups: backups)
         }.value
         return TrackAddPreview(report: report, plans: plans, stagedUUIDs: uuids, withoutAnalysis: without, cues: cues, unreadable: unreadable)
     }
@@ -99,6 +101,13 @@ extension LibraryStore {
     /// rekordbox 라이브러리에 넣는다(큐 초안도 함께). 넣은 곡은 추가 목록에서 빼고(백업에 남긴다),
     /// 큐가 막힌 곡의 큐 초안과 분석을 못 붙인 곡의 그리드 초안은 새 곡으로 옮긴다.
     func addTracksToRekordbox(_ preview: TrackAddPreview) async throws -> RekordboxTrackWriter.Report {
+        try await addTracksToRekordbox(preview, to: RekordboxWriter.liveDatabase, shareRoot: nil)
+    }
+
+    /// - Parameters:
+    ///   - database: 쓸 DB. 합성 사본 시험이 아니면 라이브 DB.
+    ///   - shareRoot: 사본일 때 분석 파일 뿌리(`RekordboxTrackWriter.add`와 같다)
+    func addTracksToRekordbox(_ preview: TrackAddPreview, to database: URL, shareRoot: URL?) async throws -> RekordboxTrackWriter.Report {
         // 미리 본 뒤 저장이 실패했을 수도 있다(그러면 디스크의 초안은 옛것이다).
         try requireDraftSaves(for: Set(preview.stagedUUIDs.values))
         let accepted = Set(preview.report.added.filter(\.written).map(\.path))
@@ -124,8 +133,10 @@ extension LibraryStore {
         try Task.checkCancellation()
         writeStage = WriteStage(String(ui: "rekordbox에 곡과 분석 파일을 넣는 중…"))
         let cues = preview.cues.filter { accepted.contains($0.key) }
+        let backups = backupDirectory
         let report = try await Task.detached(priority: .userInitiated) { [plans, analyses, cues] in
-            try RekordboxTrackWriter.add(plans, analyses: analyses, cues: cues, dryRun: false, backups: DJCPaths.rekordboxBackups)
+            try RekordboxTrackWriter.add(plans, analyses: analyses, cues: cues, to: database, shareRoot: shareRoot,
+                                         dryRun: false, backups: backups)
         }.value
         // 초안 옮기기: 큐가 막힌 곡은 새 곡의 반영 대기로, 그리드는 분석 파일에 들어갔으면 끝(못 붙였으면 새 곡 초안으로).
         var unstaged: Set<String> = []
@@ -179,23 +190,30 @@ extension LibraryStore {
         try Task.checkCancellation()
         writeStage = WriteStage(String(ui: "미리 보기 1/2단계 · 사본을 만드는 중…"), completed: 0, total: 2, cancellable: true)
         let take = takeLiveSnapshot
+        let backups = backupDirectory
         let report = try await Task.detached(priority: .userInitiated) {
             let snapshot = try take(false)
             await MainActor.run { self.writeStage = WriteStage(String(ui: "미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…"), completed: 1, total: 2, cancellable: true) }
-            return try RekordboxTrackWriter.delete(contentIDs: ids, from: snapshot, dryRun: true, backups: DJCPaths.rekordboxBackups)
+            return try RekordboxTrackWriter.delete(contentIDs: ids, from: snapshot, dryRun: true, backups: backups)
         }.value
         try Task.checkCancellation()
         return TrackDeletePreview(report: report, contentIDs: ids)
     }
 
     func deleteTracksFromRekordbox(_ preview: TrackDeletePreview) async throws -> RekordboxTrackWriter.Report {
+        try await deleteTracksFromRekordbox(preview, from: RekordboxWriter.liveDatabase, shareRoot: nil)
+    }
+
+    func deleteTracksFromRekordbox(_ preview: TrackDeletePreview, from database: URL, shareRoot: URL?) async throws -> RekordboxTrackWriter.Report {
         guard !isITunesSelection else { throw DJCError.writeRefused(String(ui: "iTunes 동기화 목록의 곡은 Music에서 빼세요.")) }
         let ids = preview.report.deleted.filter(\.written).compactMap(\.contentID)
         try Task.checkCancellation()
         writeStage = WriteStage(String(ui: "rekordbox에서 곡을 빼는 중…"))
         defer { writeStage = nil }
+        let backups = backupDirectory
         let report = try await Task.detached(priority: .userInitiated) {
-            try RekordboxTrackWriter.delete(contentIDs: ids, dryRun: false, backups: DJCPaths.rekordboxBackups)
+            try RekordboxTrackWriter.delete(contentIDs: ids, from: database, shareRoot: shareRoot,
+                                            dryRun: false, backups: backups)
         }.value
         selection.subtract(Set(report.deleted.filter(\.written).compactMap(\.contentID)))
         writeStage = WriteStage(String(ui: "라이브러리를 다시 읽는 중…"))
@@ -209,12 +227,15 @@ extension LibraryStore {
     /// 곡 추가를 되돌렸으면 그 곡들을 추가 목록에 다시 넣고, 새 곡으로 옮겼던 초안을 지운다. 되살린 곡 수.
     func restoreStaged(from backup: RekordboxWriter.Backup) -> Int {
         resetPlaylistImports(contentIDs: Set(backup.trackReport?.added.filter(\.written).compactMap(\.contentID) ?? []))
-        for uuid in backup.trackReport?.added.compactMap(\.uuid) ?? [] {
-            CueDraftStore.remove(trackUUID: uuid)
-            GridDraftStore.remove(trackUUID: uuid)
+        let added = Set(backup.trackReport?.added.compactMap(\.uuid) ?? [])
+        for uuid in added {
+            // 저장 실패로 DraftWriter에 남은 기록까지 같이 비우려고 파일을 직접 지우지 않는다(#172).
+            DraftWriter.removeCue(trackUUID: uuid)
+            DraftWriter.removeGrid(trackUUID: uuid)
             draftChanged(trackUUID: uuid, kind: .cue, exists: false)
             draftChanged(trackUUID: uuid, kind: .grid, exists: false)
         }
+        if !added.isEmpty, let warning = draftSaveWarning(for: added, restoring: true) { reportLibraryError(warning) }
         guard let data = try? Data(contentsOf: backup.url.appending(path: Self.stagedBackupName)),
               let tracks = try? JSONDecoder().decode([StagedTrack].self, from: data) else { return 0 }
         return restage(tracks)

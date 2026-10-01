@@ -35,7 +35,7 @@ extension LibraryStore {
         }
     }
 
-    private func draftSaveWarning(for uuids: Set<String>, restoring: Bool = false) -> String? {
+    func draftSaveWarning(for uuids: Set<String>, restoring: Bool = false) -> String? {
         DraftWriter.flush()
         guard let failure = DraftWriter.failures().first(where: { uuids.contains($0.trackUUID) }) else { return nil }
         let result = restoring ? String(ui: "rekordbox는 복원했지만 초안을 저장하지 못했습니다.")
