@@ -101,7 +101,7 @@ extension DevSelfTests {
             store.selection = Set(revived.prefix(1).map(\.id))
             store.loadToDeck(revived.first)
             await wait(1.5)
-            let outside = try? RekordboxTrackWriter.delete(contentIDs: revived.map(\.track.id), dryRun: false,
+            let outside = try? RekordboxTrackWriter.delete(contentIDs: revived.map(\.track.id), from: store.rekordboxDatabase, dryRun: false,
                                                            backups: FileManager.default.temporaryDirectory.appending(path: "djc-outside-\(UUID().uuidString)"))
             log("바깥에서 지움: \(outside?.deleted.filter(\.written).count ?? 0)곡 · 새로 읽기 전 목록에 남은 곡 \(rows(at: paths).count)")
             await store.refreshIfRekordboxChanged()

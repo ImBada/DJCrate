@@ -101,7 +101,7 @@ public enum RekordboxWriter {
     public static func write(drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:], tags: [TagDraft] = [],
                              analysisInputs: [String: AnalysisInput] = [:], playlists: [PlaylistEdit] = [],
                              playlistDraft: PlaylistDraft? = nil, merges: [DuplicateMergeDraft] = [], iTunesSync: RekordboxITunesSyncChange? = nil,
-                             to database: URL = liveDatabase, dryRun: Bool,
+                             to database: URL, dryRun: Bool,
                              now: Date = .now, backups: URL, shareRoot: URL? = nil,
                              guard writeGuard: RekordboxWriteGuard = .system) throws -> Report {
         if let iTunesSync {

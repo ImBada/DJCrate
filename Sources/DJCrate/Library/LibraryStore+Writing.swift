@@ -92,7 +92,7 @@ extension LibraryStore {
     func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:],
                           tags: [TagDraft] = [], playlists: PlaylistDraft? = nil, merges: [DuplicateMergeDraft] = []) async throws -> RekordboxWriter.Report {
         try await writeToRekordbox(drafts, grids: grids, gains: gains, tags: tags, playlists: playlists, merges: merges,
-                                  to: RekordboxWriter.liveDatabase, shareRoot: nil)
+                                  to: rekordboxDatabase, shareRoot: rekordboxShareRoot)
     }
 
     /// 같은 앱 쓰기 흐름을 합성 사본에서 확인할 때도 쓰기 관문을 그대로 지난다.
@@ -175,9 +175,9 @@ extension LibraryStore {
         defer { writeStage = nil }
         // 복원 전에 지금 초안을 정해 둔다(복원 뒤 덱이 다시 저장하는 값과 섞지 않게).
         let kept = keepingCurrentDrafts ? restoreDraftConflicts(backup) : []
-        let backups = backupDirectory
+        let backups = backupDirectory, database = rekordboxDatabase, shareRoot = rekordboxShareRoot
         let saved = try await Task.detached(priority: .userInitiated) {
-            try RekordboxWriter.restore(backup.url, backups: backups)
+            try RekordboxWriter.restore(backup.url, to: database, backups: backups, shareRoot: shareRoot)
         }.value
         func keeps(_ kind: RestoreDraftConflict.Kind, _ uuid: String) -> Bool { kept.contains(RestoreDraftConflict(kind: kind, uuid: uuid)) }
         let restoredMerges = RekordboxWriter.mergeDrafts(in: backup.url)

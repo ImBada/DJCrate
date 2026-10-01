@@ -22,7 +22,14 @@ public enum LibrarySnapshot {
         if hasRekordboxDirectoryOverride(in: environment), let override = environment["DJC_REKORDBOX_DIR"] {
             return URL(filePath: override)
         }
-        return FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Pioneer/rekordbox")
+        // 시험 프로세스는 실제 라이브러리 대신 빈 임시 폴더를 기본으로 본다(#182).
+        if TestProcess.isRunning { return TestProcess.sandbox.appending(path: "rekordbox") }
+        return realRekordboxDirectory
+    }
+
+    /// 사용자의 실제 rekordbox 라이브러리 폴더. 환경 변수·시험 여부와 상관없이 늘 이 경로다(보호할 대상을 가리킬 때 쓴다).
+    public static var realRekordboxDirectory: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Pioneer/rekordbox")
     }
 
     public static var defaultDirectory: URL {

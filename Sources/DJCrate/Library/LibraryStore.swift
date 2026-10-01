@@ -62,6 +62,10 @@ final class LibraryStore {
     var playlistImports = PlaylistImports()
     var playlistImportsLoadFailed = false
     @ObservationIgnored let backupDirectory: URL
+    /// 쓰기·복원 대상 rekordbox DB와 분석 파일 뿌리(사본이면 그 share). 앱은 라이브 라이브러리, 시험은 합성 사본을 준다.
+    /// 복원은 늘 이 DB로 되돌린다(#182: 대상 없이 되돌려 시험이 실제 라이브러리를 덮었다).
+    @ObservationIgnored var rekordboxDatabase = RekordboxWriter.liveDatabase
+    @ObservationIgnored var rekordboxShareRoot: URL?
     private(set) var hasWriteBackup = false
 
     func refreshWriteBackups() {

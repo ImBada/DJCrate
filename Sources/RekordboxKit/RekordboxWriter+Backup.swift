@@ -105,7 +105,7 @@ extension RekordboxWriter {
     /// 백업으로 되돌린다. 되돌리기 직전 상태도 따로 백업해 둔다.
     /// 버전·DB 구조는 보지 않는다(되돌리기는 DJCrate가 쓴 것을 무르는 비상구라 막지 않는다). rekordbox 실행만 막는다.
     @discardableResult
-    public static func restore(_ backup: URL, to database: URL = liveDatabase, now: Date = .now,
+    public static func restore(_ backup: URL, to database: URL, now: Date = .now,
                                backups: URL, guard writeGuard: RekordboxWriteGuard = .system, shareRoot: URL? = nil) throws -> URL {
         let copyShare = writeGuard.isLive(database) ? nil : database.deletingLastPathComponent().appending(path: "share")
         let share = try writeGuard.resolveShareRoot(database, shareRoot: shareRoot ?? copyShare)
@@ -115,6 +115,7 @@ extension RekordboxWriter {
                 throw DJCError.writeRefused(String(ui: "rekordbox가 켜져 있습니다. rekordbox를 완전히 종료한 뒤 되돌리세요"))
             }
         }
+        try checkSameLibrary(backup: backup.appending(path: "master.db"), target: database)
         if let saved = try restoreITunesSync(backup, to: database, now: now, backups: backups, guard: writeGuard) { return saved }
         // 백업이 멀쩡한지 먼저 본다.
         for name in ["master.db", "master.db-wal", "master.db-shm", "masterPlaylists6.xml"] {
@@ -131,6 +132,22 @@ extension RekordboxWriter {
         try removeCreatedFiles(created, saveTo: saved, shareRoot: share)
         try checkIntegrity(of: database)
         return saved
+    }
+
+    /// 다른 라이브러리(`djmdProperty.DBID`가 다름)의 백업은 되돌리지 않는다(#182: 합성 사본의 백업이 실제 라이브러리로 되돌려졌다).
+    /// 대상이 없거나 읽히지 않으면(망가진 라이브러리의 비상 복원) 막지 않는다.
+    static func checkSameLibrary(backup: URL, target: URL) throws {
+        guard let source = libraryID(of: backup), let current = libraryID(of: target), source != current else { return }
+        throw DJCError.writeRefused(String(ui: "다른 rekordbox 라이브러리에서 뜬 백업입니다. 이 라이브러리의 백업을 고르세요"))
+    }
+
+    static func libraryID(of database: URL) -> String? {
+        guard FileManager.default.fileExists(atPath: database.path),
+              let db = try? CipherDatabase(path: database.path, key: RekordboxKey.derive()) else { return nil }
+        defer { db.close() }
+        var ids: [String] = []
+        try? db.query("SELECT DBID FROM djmdProperty") { ids.append($0.string(0) ?? "") }
+        return ids.count == 1 && !ids[0].isEmpty ? ids[0] : nil
     }
 
     /// 곡을 넣거나 분석을 붙이며 만든 분석 파일을 지운다(빈 분석 폴더도). 지우기 전 파일은 `saveTo/anlz`에 두어 그 백업으로 다시 살릴 수 있다.
