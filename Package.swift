@@ -17,16 +17,19 @@ let package = Package(
         .executable(name: "djc", targets: ["djc"]),
         .executable(name: "DJCrate", targets: ["DJCrate"]),
     ],
-    dependencies: [
-        .package(url: "https://github.com/sqlcipher/SQLCipher.swift", exact: "4.19.0"),
-    ],
     targets: [
+        // 공식 4.19.0 바이너리·체크섬은 그대로다. 외부 manifest의 폐기된 watchOS 4 선언은 읽지 않는다.
+        .binaryTarget(
+            name: "SQLCipher",
+            url: "https://github.com/sqlcipher/SQLCipher.swift/releases/download/4.19.0/SQLCipher.xcframework.zip",
+            checksum: "39f02d2f04f0de2ba1facf215550bfc6e6e2c9971d5d8ebb0cdd604874781bd7"
+        ),
         // 순수 규칙·모델(입출력 없음)
         .target(name: "DJCDomain"),
         // rekordbox 형식: SQLCipher DB·ANLZ·XML 읽기/쓰기, 스냅샷, 백업
         .target(
             name: "RekordboxKit",
-            dependencies: ["DJCDomain", .product(name: "SQLCipher", package: "SQLCipher.swift")]
+            dependencies: ["DJCDomain", "SQLCipher"]
         ),
         // DJCrate 자신의 파일: 초안·추가한 곡·반영 묶음
         .target(name: "DJCStorage", dependencies: ["DJCDomain", "RekordboxKit"]),
@@ -54,7 +57,7 @@ let package = Package(
         // 테스트 재료: 구조만 있는 rekordbox DB, 합성 분석 파일·음원(실데이터 없음)
         .target(
             name: "DJCTestSupport",
-            dependencies: ["DJCDomain", "RekordboxKit", "DJCStorage", .product(name: "SQLCipher", package: "SQLCipher.swift")],
+            dependencies: ["DJCDomain", "RekordboxKit", "DJCStorage", "SQLCipher"],
             path: "Tests/Support",
             resources: [.copy("Resources")]
         ),

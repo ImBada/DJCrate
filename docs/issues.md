@@ -27,6 +27,7 @@ DJCrate는 **라이브러리 관리 도구**다. rekordbox Export 모드의 라�
 | | `bug` | 잘못 동작함 |
 | | `research` | 결과가 지식인 일(형식 분석·규칙 확인). 결론은 댓글과 문서로 남긴다 |
 | | `chore` | 정리·리팩터링·빌드·도구 |
+| | `perf` | 동작을 유지하는 성능 측정·개선 |
 | | `docs` | 문서 |
 | | `epic` | 상위 이슈. 하위 이슈를 묶기만 하고 직접 작업하지 않는다 |
 | 영역 | `area:rekordbox` | rekordbox DB·분석 파일 읽기·쓰기(`RekordboxKit`) |

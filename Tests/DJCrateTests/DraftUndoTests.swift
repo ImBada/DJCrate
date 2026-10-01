@@ -260,7 +260,8 @@ struct DraftUndoTests {
         try await h.loaded()
         let undo = manager(h.deck)
         let beats = (0..<40).map { Double($0) * 0.5 }
-        h.deck.gridSuggestion = try #require(GridEstimator.estimate(beats: beats, bars: [0, 2, 4, 6], duration: 20))
+        let suggestion: GridEstimator.Estimate = try #require(GridEstimator.estimate(beats: beats, bars: [0, 2, 4, 6], duration: 20))
+        h.deck.gridSuggestion = suggestion
         h.deck.applyGridSuggestion()
         let grid = h.deck.gridDraft
         #expect(grid != nil)

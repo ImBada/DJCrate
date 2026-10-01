@@ -45,7 +45,7 @@ enum CipherLab {
             let thread = Thread {
                 defer { group.leave() }
                 let path = directory.appending(path: "master-\(index).db").path
-                let created = fm.createFile(atPath: path, contents: nil)
+                let created = FileManager.default.createFile(atPath: path, contents: nil)
                 ready.signal()
                 while !start.go.load(ordering: .acquiring) {}
                 do {
