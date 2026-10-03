@@ -801,6 +801,21 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
   - `--files-only`: 파일은 그대로, 두 DB 경로만 같은 길이의 없는 폴더로.
   - `--cue-variant`: 새 폴더에 파일을 복사하고 그쪽 `.DAT`의 핫큐 A 위치만 바꾼다(인코더로 원래 핫큐 목록을 다시 만든 바이트가 원본과 같을 때만). DB는 새 폴더.
   - `--decoy-slot0`(`--folder` 없음): 원래 폴더의 `ANLZ0000`은 PPTH만 바꾼 가짜, 진짜는 `ANLZ0001`, DB는 `ANLZ0001.DAT`.
+- `djc lab usb-fields <USB 폴더> --out <파일.json>`: 두 리더가 읽은 모델을 형식마다 표·행·칸 해시로, Device Library 구조(파일 머리·표 포인터·쪽 사슬·쪽 머리 칸·산 행 오프셋)를 숫자로 JSON에 쓴다. 해시는 정규형(글자 `s:<값>`(NFC로 바꾸지 않음), 정수 `i:<10진>`, 없음 `n`, 참거짓 `b:1|0`, 목록 `l:<a,b,…>`, 형식 `e:<이름>`)의 SHA-256 앞 16자다. 글자 값은 파일·출력에 남기지 않는다. 입력·출력은 임시 폴더 아래만, 출력은 새 파일.
+- **외부 파서 대조(#189)**: `scripts/usb-parser-compare.py`가 같은 USB를 rekordcrate(Device Library, MPL-2.0)와 pyrekordbox(OneLibrary, MIT)로 읽어 같은 정규형으로 해시해 `usb-fields` 결과와 견준다. 외부 코드는 저장소에 넣지 않고 임시 폴더에 받아 돌린다(2026-10-03 대조: rekordcrate `14d54ed`·Rust 1.98, pyrekordbox `5feacbc`).
+  ```sh
+  W=$(mktemp -d)
+  git clone https://github.com/Holzhaus/rekordcrate $W/rekordcrate && git -C $W/rekordcrate checkout 14d54ed
+  # rustup을 RUSTUP_HOME·CARGO_HOME=$W 아래로 깔고(--no-modify-path) $W/rekordcrate에서 cargo build --release --locked
+  git clone https://github.com/dylanljones/pyrekordbox $W/pyrekordbox && git -C $W/pyrekordbox checkout 5feacbc
+  uv venv -p 3.12 $W/venv && VIRTUAL_ENV=$W/venv uv pip install $W/pyrekordbox
+  DJC_USB_PARSER_FIXTURE=$W/fx scripts/check.sh --quick --filter UsbParserFixtureCapture   # 합성 USB: basic·hard·fartag·written
+  DJC_HOME=$(mktemp -d) DJC_REKORDBOX_DIR=$(mktemp -d) .build/debug/djc lab usb-fields $W/fx/hard --out $W/hard.json
+  $W/venv/bin/python scripts/usb-parser-compare.py --djc $W/hard.json --usb $W/fx/hard --rekordcrate $W/rekordcrate/target/release/rekordcrate
+  ```
+  - 출력: 표마다 행 수·짝지은 행·비교한 칸·다른 칸 이름과 수, 차이 위치(형식·표·행 키·칸), 마지막 줄 "차이 N". 종료 코드 0 차이 없음, 1 차이 있음 또는 행이 있는데 비교한 칸이 0인 표, 2 준비 실패(`--rekordcrate`가 없으면 `--only ol`을 줘야 한다). 개인 골든은 `PIONEER/rekordbox`의 DB 셋만 임시 폴더로 복사해 `--no-keys`(행 키를 찍지 않음)로 돌리고, 결과는 표마다 차이 수만 적는다.
+  - 범위: Device Library는 쪽 구조 전부, rekordcrate가 해석하는 표(export 0–8·11·12·13·16·17·19, exportExt 3·4)의 칸, 해석하지 않는 표(export 18 sort, exportExt 7)는 행 수만 견준다. OneLibrary는 모델에 담는 표의 칸과 담지 않는 표(cue 등)의 행 수, pyrekordbox 모델 칸과 고정 스키마를 견준다. DJCrate가 §2.5·§3.5대로 하는 변환(0·NULL → 없음, "ON" → 참, U+FFFA·U+FFFB 떼기, NULL 글자 → "")은 외부 쪽에 같게 적용하고 그 칸을 따로 찍는다(독립 확인 아님). 날짜 세 칸은 pyrekordbox가 datetime으로 바꾸므로 같은 연결에서 원래 글자로 읽는다.
+  - 알려진 외부 파서 쪽 차이(DJCrate는 그대로 둔다): rekordcrate는 0x90 글자의 다섯째 바이트가 0x03이면 칸과 상관없이 ISRC 특수형으로 읽어, 七(U+4E03)처럼 아래 바이트가 3인 글자로 시작하는 UTF-16을 깨뜨린다(§3.4: ISRC 특수형은 트랙 문자열 0만). pyrekordbox는 playlist_content를 (playlist_id, content_id) 기본 키로 매핑해 한 목록에 같은 곡이 두 번 들면 ORM이 행을 합친다(비교기는 같은 연결의 원래 행으로 항목을 한 번 더 견준다). pyrekordbox 모델의 cue `outFileOffsetInBlock`은 스키마 `OutFileOffsetInBlock`과 대소문자만 다르다. rekordcrate는 트랙 문자열 10·15를 date_added·analyze_date로 부른다(값은 번호로 견줘 같다).
 
 ### 8.3 수정(`UsbEditSession`, `UsbEditEngine`, `djc usb-edit`)
 

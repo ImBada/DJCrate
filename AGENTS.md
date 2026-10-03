@@ -57,6 +57,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 .build/debug/djc lab usb-diff <A> <B> [--onelibrary|--device-library] [--files] [--mtime] [--anlz] [--ignore-anlz-folder] [--ignore-ids] [--skip …]   # 두 USB 폴더 비교(모델·파일 트리·ANLZ 태그, 값·경로 없이, --mtime은 FAT 2초 단위)
 .build/debug/djc lab usb-rebuild <USB 폴더> <출력 폴더>              # USB를 읽은 모델로 DB 셋만 새 내보내기 모양으로 다시 만들기(usb-diff --ignore-ids로 비교)
 .build/debug/djc lab usb-migrate-check <USB 폴더>                   # 두 형식이 있는 USB(골든 사본)의 pdb를 옮기기 변환해 그 USB의 OneLibrary와 칸 비교
+.build/debug/djc lab usb-fields <USB 폴더> --out <파일.json>         # 두 리더가 읽은 칸을 해시로(외부 파서 대조 scripts/usb-parser-compare.py, docs/usb-internals.md §8.2)
 .build/debug/djc lab usb-anlz-relocate <USB 사본> --track <id> --folder <P???/????????> [--db-only|--files-only|--decoy-slot0|--cue-variant]   # 기기 실험용: 한 곡의 분석 파일·DB 경로를 어긋나게(임시 폴더 사본에만)
 .build/debug/djc lab usb-write-check --volume <마운트>               # 합성 묶음을 디스크 이미지에 써 보고 다시 붙여 검증
 .build/debug/djc lab usb-commit-crash --image <빈 이미지> --repeat N # 쓰는 도중 강제 분리 → 회복을 되풀이
