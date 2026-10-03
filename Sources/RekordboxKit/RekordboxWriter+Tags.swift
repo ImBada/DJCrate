@@ -158,9 +158,9 @@ extension RekordboxWriter {
                           migratesAlbum: migrates)
     }
 
-    /// 아티스트를 고치거나 비울 때 곡의 앨범 이름을 살아 있는 앨범 둘 이상이 쓰면, rekordbox는 같은 이름의 새 앨범을 만들어 곡을 옮긴다
+    /// 아티스트를 바꿀 때 곡의 앨범 이름을 살아 있는 앨범 둘 이상이 쓰면, rekordbox는 같은 이름의 새 앨범을 만들어 곡을 옮긴다
     /// (#173 S3 V02: 상태 0·앨범 아티스트 있음·이 곡만 씀·나중에 만든 행, S2 U13: 동기화·앨범 아티스트 NULL·공유·가장 먼저 만든 행. 곡 상태와
-    /// 무관하다). 앨범·앨범 아티스트 칸도 고치면 그 칸을 먼저 쓰므로 옮기지 않는다.
+    /// 무관하다). 앨범·앨범 아티스트 칸도 고치면 그 칸을 먼저 쓰므로 옮기지 않는다. 아티스트 비우기는 확인하지 않아 막는다.
     /// 곡의 앨범이 같은 이름 앨범 중 가장 먼저 만든 행이면서 앨범 아티스트가 NULL이 아니면(값이나 '') "먼저 만든 같은 이름 행을 골라 앨범
     /// 아티스트를 비교한다"는 다른 가설과 결과가 갈려 막는다(만든 시각이 같으면 먼저 만든 행으로 본다).
     /// - Returns: 새 앨범으로 옮기는지
@@ -173,7 +173,8 @@ extension RekordboxWriter {
             SELECT count(*) FROM djmdAlbum o WHERE o.Name = ?1 AND o.rb_local_deleted = 0 AND o.ID != ?2
                 AND o.created_at < (SELECT created_at FROM djmdAlbum WHERE ID = ?2)
             """, [.text(name), .text(album)]) ?? 0
-        if earlier == 0, old.albumArtist != nil {
+        // 아티스트 비우기는 보지 못했다(V02·U13은 바꾸기). 같은 규칙으로 보이지만[추정] 확인 전에는 막는다.
+        if draft.fields.artist.isEmpty || (earlier == 0 && old.albumArtist != nil) {
             throw block(String(ui: "같은 이름 앨범이 여럿인 곡이라 rekordbox 저장 규칙을 아직 확인하지 못했으므로 rekordbox에서 직접 고치세요"))
         }
         return true

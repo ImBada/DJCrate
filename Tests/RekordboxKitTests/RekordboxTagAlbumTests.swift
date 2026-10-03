@@ -240,14 +240,18 @@ extension RekordboxTagWriterTests {
         }
     }
 
-    @Test func 동명_앨범인_곡의_아티스트를_비워도_새_앨범으로_옮긴다() throws {
-        // 아티스트 비우기에도 같은 규칙으로 본다[추정].
+    @Test func 동명_앨범인_곡의_아티스트를_비우면_막는다() throws {
+        // 아티스트 비우기는 rekordbox 실험으로 보지 못했다(바꾸기만 S3 V02·S2 U13). 같은 규칙일 것으로 보이지만[추정] 확인 전에는 막는다.
         let (fixture, track) = try library()
         try sameNameAlbums(fixture, mine: (.text("16"), "2026-02-01 00:00:00.000 +00:00"), other: (.text("17"), "2025-01-01 00:00:00.000 +00:00"))
-        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.artist = "" }]).tagWritten.count == 1)
-        let row = try content(fixture)
-        #expect(row["ArtistID"] == "" && !["41", "42"].contains(row["AlbumID"]))
-        #expect(try fixture.rows("SELECT AlbumArtistID FROM djmdAlbum WHERE ID = ?", [.text(row["AlbumID"] ?? "")]).first?["AlbumArtistID"] == "16")
+        let before = try content(fixture)
+        let report = try write(fixture, tags: [try draft(fixture, track) { $0.artist = "" }])
+        #expect(report.tagWritten.isEmpty && report.backup == nil)
+        #expect(report.tagBlocked.first?.reason?.contains("같은 이름 앨범이 여럿") == true)
+        #expect(try content(fixture) == before && fixture.localUpdateCount() == 2000)
+        // 이름이 유일한 앨범의 곡은 그대로 비운다
+        let (unique, other) = try library()
+        #expect(try write(unique, tags: [try draft(unique, other) { $0.artist = "" }]).tagWritten.count == 1)
     }
 
     @Test func 앨범_상태가_NULL이어도_검증된_상태로_보지_않는다() throws {
