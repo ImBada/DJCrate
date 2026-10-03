@@ -1054,6 +1054,18 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
 /// 곡 목록 표. 한 번 클릭은 고르기만 하고, 더블클릭·⌘→로 덱에 올린다(#93).
 /// 곡을 고른 채 Return·Enter를 누르거나 이미 고른 줄의 태그 칸을 다시 누르면 그 칸을 바로 고친다(#88). 나머지 키는 표가 처리한다.
 final class TrackListTableView: NSTableView {
+    override func resize(withOldSuperviewSize oldSize: NSSize) {
+        PerfProbe.measure("table.resize") { super.resize(withOldSuperviewSize: oldSize) }
+    }
+
+    override func sizeToFit() {
+        PerfProbe.measure("table.columns") { super.sizeToFit() }
+    }
+
+    override func layout() {
+        PerfProbe.measure("table.layout") { super.layout() }
+    }
+
     weak var coordinator: TrackListCoordinator? {
         didSet {
             target = coordinator

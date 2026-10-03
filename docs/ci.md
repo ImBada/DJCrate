@@ -64,6 +64,8 @@ quick과 stress는 `swift build --build-tests --enable-code-coverage`의 같은 
 
 시간 회귀를 비교할 때는 같은 합성 `UIPerfFixtureCapture` 사본과 디버그 계측 빌드에 `--resize-perf=all --resize-perf-repeats=3 --perf-preview=off --text-scale=1`을 준다. `DJC_DB`·`DJC_REKORDBOX_DIR`·임시 `DJC_HOME`과 `/tmp/djc-heavy.lock`을 사용한다. 전→후→후→전 순서로 실행하고 첫 왕복을 제외한 `RESIZE_SUMMARY`의 단계 중앙값/최댓값·프레임 간격·CPU·본문 횟수와 1·5·15분 load average를 함께 비교한다. `RESIZE_STEP`은 단계별 원본이며, 크기 요청 자체에서도 배치가 일어날 수 있으므로 `layout_flush_ms`만 전체 레이아웃 비용으로 해석하지 않는다. `display_flush_ms`는 표시 처리 호출 비용, `zoom_draw_ms`는 확대 파형 Canvas 실행 비용이다. 디스플레이 링크 콜백 간격은 실제 화면 표시 FPS나 물리 입력 지연이 아니다.
 
+`interval_ms`는 표의 `resize(withOldSuperviewSize:)`·`sizeToFit()`·`layout()`(`table.resize`·`table.columns`·`table.layout`), 덱의 SwiftUI 제안 크기 측정·배치(`swiftui.deck.size`·`swiftui.deck.place`), 전체 파형의 정적 내용·재생선 Canvas(`overview.static.draw`·`overview.playhead.draw`) 호출을 나눈다. 각 항목의 `count`·`median`·`max`·`total`은 호출 횟수와 ms이며 구간끼리 포함될 수 있어 합산하지 않는다. SwiftUI 경계는 같은 제안을 하위 뷰로 넘기는 디버그 측정용 Layout이고, 경계 밖의 지연된 CoreGraph 갱신이나 GPU 표시 시간 전체를 재는 것은 아니다. 표본이 없는 구간은 해당 호출이 관찰되지 않은 것이며 비용이 없다는 뜻은 아니다. 기본 화면과 `--perf-hide=zoom`·`--perf-hide=overview`를 각각 같은 전→후→후→전 순서로 비교하고 `hidden`·부하·설정 복원 결과를 함께 남긴다. 전체 파형은 같은 원본·시간축·크기의 3밴드 경로를 최대 네 개 보관하며, `WaveformBandPath.build` 본문 횟수로 반복 생성이 줄었는지 확인한다.
+
 가짜 오디오·메모리 저장소를 쓰는 `DeckHarness`는 합성 WAV와 임시 폴더만 만든다. DB가 필요한 통합 테스트는 계속 `RekordboxFixture`를 쓴다. 이 픽스처는 암호화 설정을 유지하면서 스키마·초기 행을 한 연결·한 트랜잭션으로 준비하고, 곡·재생 목록의 여러 행도 각각 한 트랜잭션으로 넣는다. 준비 중 실패하면 연결을 닫을 때 미완료 트랜잭션이 취소된다. 픽스처마다 독립된 파일을 쓰며, 실제 쓰기·복원 후 다시 읽는 연결은 공유하거나 캐시하지 않는다.
 
 ## 시간 비교 방법과 기준

@@ -102,6 +102,7 @@ struct OverviewAccessibilityMarkers: ViewModifier {
 
 /// 파형·섹션 띠·큐·제안. 재생 위치를 읽지 않으므로 재생 중에는 다시 그려지지 않는다.
 struct OverviewStaticLayer: View {
+    @State private var bandPaths = WaveformBandPathCache()
     @Environment(\.colorSchemeContrast) private var contrast
     let deck: DeckModel
     let duration: Double
@@ -122,11 +123,18 @@ struct OverviewStaticLayer: View {
         let keyChanges = deck.keySegments.count > 1
         let metrics = metrics
         Canvas { context, size in
+            let start = PerfProbe.beginInterval()
+            defer { PerfProbe.endInterval("overview.static.draw", from: start) }
             let xOf = { (t: Double) in CGFloat(t / duration) * size.width }
             let waveHeight = size.height - metrics.overviewBandsHeight
             if mode == .threeBand, let waveform {
-                drawBands(context, waveform: waveform, from: -audioOffset, to: duration - audioOffset,
-                          in: CGRect(x: 0, y: 2, width: size.width, height: waveHeight - 2))
+                let rect = CGRect(x: 0, y: 2, width: size.width, height: waveHeight - 2)
+                let paths = bandPaths.paths(waveform: waveform, from: -audioOffset, to: duration - audioOffset, in: rect)
+                var clipped = context
+                clipped.clip(to: Path(rect.insetBy(dx: 0, dy: -rect.height)))
+                for (path, color) in zip(paths, [Palette.low, Palette.mid, Palette.high]) {
+                    clipped.fill(path, with: .color(color))
+                }
             } else {
                 colorWaveform?.draw(context, from: 0, to: duration,
                                     in: CGRect(x: 0, y: 2, width: size.width, height: waveHeight - 2), full: true)
@@ -237,6 +245,8 @@ struct OverviewPlayheadLayer: View {
         let zoom = deck.zoomSeconds
         let metrics = metrics
         Canvas { context, size in
+            let start = PerfProbe.beginInterval()
+            defer { PerfProbe.endInterval("overview.playhead.draw", from: start) }
             let xOf = { (time: Double) in CGFloat(time / duration) * size.width }
             let waveHeight = size.height - metrics.overviewBandsHeight
             let window = CGRect(x: xOf(t - zoom / 2), y: 0, width: xOf(zoom), height: waveHeight)
