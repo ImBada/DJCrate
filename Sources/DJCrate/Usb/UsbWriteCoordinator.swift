@@ -47,6 +47,9 @@ protocol UsbWriteService: Sendable {
     func preview(_ job: UsbExportJob) throws -> UsbExportSummary
     func write(_ job: UsbExportJob, progress: @escaping @Sendable (UsbProgress) -> Void,
                isCancelled: @escaping @Sendable () -> Bool) throws -> UsbWriteReport
+    func previewMigration(_ volume: UsbVolumeInfo) throws -> UsbMigrationSummary
+    func writeMigration(_ volume: UsbVolumeInfo, progress: @escaping @Sendable (UsbProgress) -> Void,
+                        isCancelled: @escaping @Sendable () -> Bool) throws -> UsbMigrationWritten
     func recover(_ volume: UsbVolumeInfo) throws -> UsbWriteReport
     /// backup: 되돌릴 쓰기의 백업 폴더(nil이면 이 볼륨의 가장 최근 백업)
     func restore(_ volume: UsbVolumeInfo, backup: URL?, discardDeviceChanges: Bool) throws -> UsbWriteReport
@@ -61,7 +64,7 @@ protocol UsbWriteService: Sendable {
                    isCancelled: @escaping @Sendable () -> Bool) throws -> UsbEditWritten
 }
 
-/// 실제 창구: 내보내기는 `UsbExportSession`, 수정(초안)은 `UsbEditSession`, 회복·되돌리기는 `UsbWriter`.
+/// 실제 창구: 내보내기는 `UsbExportSession`, 수정(초안)은 `UsbEditSession`, 옮기기는 `UsbMigrateSession`, 회복·되돌리기는 `UsbWriter`.
 /// Mac 쪽 폴더(백업·저널·준비·세션 사본·초안)는 DJC_HOME 아래
 struct SystemUsbWriteService: UsbWriteService {
     var paths: UsbWritePaths
@@ -102,6 +105,23 @@ struct SystemUsbWriteService: UsbWriteService {
                isCancelled: @escaping @Sendable () -> Bool) throws -> UsbWriteReport {
         try makeFolders()
         return try session(job).write(selection: job.selection, options: job.options, progress: progress, isCancelled: isCancelled)
+    }
+
+    func previewMigration(_ volume: UsbVolumeInfo) throws -> UsbMigrationSummary {
+        try makeFolders()
+        let result = try migrationSession(volume).preview(options: UsbWriteOptions())
+        return UsbMigrationSummary(result: result, volume: volume)
+    }
+
+    func writeMigration(_ volume: UsbVolumeInfo, progress: @escaping @Sendable (UsbProgress) -> Void,
+                        isCancelled: @escaping @Sendable () -> Bool) throws -> UsbMigrationWritten {
+        try makeFolders()
+        let (result, report) = try migrationSession(volume).write(options: UsbWriteOptions(), progress: progress, isCancelled: isCancelled)
+        return UsbMigrationWritten(summary: UsbMigrationSummary(result: result, volume: volume), report: report)
+    }
+
+    private func migrationSession(_ volume: UsbVolumeInfo) -> UsbMigrateSession {
+        UsbMigrateSession(root: URL(filePath: volume.mountPoint), guard: writeGuard(), paths: paths, fileSystem: fileSystem, copies: localCopies)
     }
 
     func recover(_ volume: UsbVolumeInfo) throws -> UsbWriteReport {
@@ -222,12 +242,14 @@ struct UsbWriteCoordinator {
         let key = job.volumeKey
         guard let flag = begin(job.volume, title: String(ui: "USB에 쓸 내용을 확인하는 중…")) else { return }
         usb.lastExports[key] = job
+        usb.lastMigrations.remove(key)
         let outcome = await run(job, reused: reused, flag: flag)
         usb.endWrite(key)
         switch outcome {
         case .stopped:
             break
         case let .written(summary):
+            usb.migrationBackups[key] = nil
             host.toast = AppToast(kind: .success, title: String(ui: "곡 \(summary.trackCount)개를 USB에 썼습니다"),
                                   detail: String(ui: "\(job.volume.name) · 재생 목록 \(summary.playlistCount)개"),
                                   action: .ejectUsb(volumeKey: key), isUsb: true)
@@ -316,6 +338,100 @@ struct UsbWriteCoordinator {
         return nil
     }
 
+    // MARK: - Device Library → OneLibrary
+
+    func previewMigration(_ volume: UsbVolumeInfo) async -> UsbMigrationSummary? {
+        guard await ready(volume), let flag = begin(volume, title: String(ui: "USB에 쓸 내용을 확인하는 중…")) else { return nil }
+        let service = service
+        let result = await Task.detached(priority: .userInitiated) { Result { try service.previewMigration(volume) } }.value
+        usb.endWrite(volume.usbKey)
+        switch result {
+        case let .success(summary):
+            usb.migrationBlockReasons[volume.usbKey] = summary.stopping.isEmpty ? nil : summary.stopping
+            return flag.isSet ? nil : summary
+        case let .failure(error):
+            fail(String(ui: "USB 미리 보기를 하지 못했습니다"), error)
+            return nil
+        }
+    }
+
+    /// CLI와 같은 옮기기 세션: 미리 보기 → 확인 → 쓰기 → 다시 읽기. 원래 파일은 세션의 검증기가 확인한다.
+    func migrate(_ volume: UsbVolumeInfo) async {
+        guard await ready(volume), let flag = begin(volume, title: String(ui: "USB에 쓸 내용을 확인하는 중…")) else { return }
+        let key = volume.usbKey
+        usb.lastMigrations.insert(key)
+        usb.lastExports[key] = nil
+        let outcome = await runMigration(volume, flag: flag)
+        usb.endWrite(key)
+        switch outcome {
+        case .stopped: break
+        case let .written(written):
+            if let backup = written.report?.backup { usb.migrationBackups[key] = URL(filePath: backup) }
+            host.toast = AppToast(kind: .success, title: String(ui: "USB에 OneLibrary를 더했습니다"),
+                                  detail: String(ui: "\(volume.name) · 곡 \(written.summary.trackCount)개 · 재생 목록 \(written.summary.playlistCount)개"),
+                                  action: .ejectUsb(volumeKey: key), isUsb: true)
+            await usb.refresh()
+        case .cancelled:
+            host.toast = AppToast(kind: .success, title: String(ui: "USB 쓰기를 취소했습니다"), detail: String(ui: "USB는 쓰기 전 그대로입니다."), isUsb: true)
+        case .recoveryNeeded: await offerRecovery(volume)
+        case let .failed(error):
+            if case let UsbError.writeRefused(blocks) = error {
+                var seen: Set<String> = []
+                usb.migrationBlockReasons[key] = blocks.map(\.message).filter { seen.insert($0).inserted }.joined(separator: "\n")
+            }
+            await failWrite(error, volumeKey: key, otherwise: String(ui: "USB에 쓰지 않았습니다"))
+        }
+    }
+
+    private func runMigration(_ volume: UsbVolumeInfo, flag: UsbCancelFlag) async -> Outcome<UsbMigrationWritten> {
+        let service = service, key = volume.usbKey
+        let result = await Task.detached(priority: .userInitiated) { Result { try service.previewMigration(volume) } }.value
+        let summary: UsbMigrationSummary
+        switch result {
+        case let .success(value): summary = value
+        case let .failure(error): return .failed(error)
+        }
+        if flag.isSet { return .cancelled }
+        usb.migrationBlockReasons[key] = summary.stopping.isEmpty ? nil : summary.stopping
+        guard summary.canWrite else {
+            inform(String(ui: "OneLibrary를 더할 수 없습니다"), summary.stopping.isEmpty
+                   ? String(ui: "옮길 곡이 없습니다. USB를 다시 읽은 뒤 확인하세요") : summary.stopping)
+            return .stopped
+        }
+        guard prompter.show(Self.migrationConfirmation(summary, volume: volume)) else { return .stopped }
+        if let stop: Outcome<UsbMigrationWritten> = await journalStop(key) { return stop }
+        switch await perform(key, { progress in try service.writeMigration(volume, progress: progress, isCancelled: { flag.isSet }) }) {
+        case let .success(written):
+            guard written.report?.outcome == .written else { return .stopped }
+            return .written(written)
+        case let .failure(error): return Self.outcome(of: error)
+        }
+    }
+
+    /// 이 실행에서 옮긴 쓰기의 백업으로만 되돌린다. 다른 쓰기 뒤에는 메뉴를 숨긴다.
+    func restoreMigration(_ volume: UsbVolumeInfo) async {
+        guard let backup = usb.migrationBackups[volume.usbKey], await ready(volume) else { return }
+        guard prompter.show(ReflectionPrompt(title: String(ui: "USB를 쓰기 전으로 되돌릴까요?"),
+                                            text: String(ui: "\(volume.name)에 OneLibrary를 더하기 전의 백업으로 되돌립니다. 끝날 때까지 USB를 뽑지 마세요."),
+                                            confirm: String(ui: "되돌리기"), destructive: true)) else { return }
+        guard begin(volume, title: String(ui: "USB를 되돌리는 중…"), cancellable: false) != nil else { return }
+        await restore(volume, backup: backup)
+    }
+
+    static func migrationConfirmation(_ summary: UsbMigrationSummary, volume: UsbVolumeInfo) -> ReflectionPrompt {
+        var details = [String(ui: "곡 \(summary.trackCount)개 · 재생 목록 \(summary.playlistCount)개 · 새 아트워크 파일 \(summary.artworkFiles)개")]
+        if summary.isTestVolume { details.append(String(ui: "시험 볼륨(디스크 이미지)입니다")) }
+        details += summary.notes
+        if !summary.rules.isEmpty {
+            details.append(String(ui: "확인 안 된 규칙 \(summary.rules.count)개:"))
+            details += summary.rules.map { "• \($0.summary)" }
+            details.append(String(ui: "확인 안 된 규칙은 디스크 이미지에서만 시험하세요"))
+        }
+        return ReflectionPrompt(title: String(ui: "OneLibrary를 더할까요?"),
+                                text: String(ui: "\(volume.name)의 Device Library를 읽어 OneLibrary를 더합니다. 쓰기 전에 Mac에 백업하고 쓴 뒤 USB에서 다시 읽어 확인합니다. 끝날 때까지 USB를 뽑지 마세요."),
+                                confirm: String(ui: "OneLibrary 더하기"), details: details)
+    }
+
     // MARK: - 수정(초안)
 
     /// 쓸 볼륨. 빠져 있으면 초안은 그대로 두고 연결하라고 알린다
@@ -349,12 +465,14 @@ struct UsbWriteCoordinator {
     func writeDraft(volumeKey: String, database: URL?, share: URL?, snapshotTime: String? = nil, reusing reused: UsbEditSummary? = nil) async {
         guard let job = editJob(volumeKey, database: database, share: share, snapshotTime: snapshotTime), await ready(job.volume) else { return }
         guard let flag = begin(job.volume, title: String(ui: "USB에 쓸 내용을 확인하는 중…")) else { return }
+        usb.lastMigrations.remove(volumeKey)
         let outcome = await runEdit(job, reused: reused, flag: flag)
         usb.endWrite(volumeKey)
         switch outcome {
         case .stopped:
             break
         case let .written(summary):
+            usb.migrationBackups[volumeKey] = nil
             let blocked = summary.blockedCount
             host.toast = AppToast(kind: .success, title: String(ui: "USB에 편집 \(summary.writtenCount)건을 썼습니다"),
                                   detail: blocked > 0 ? String(ui: "\(job.volume.name) · 막힌 편집 \(blocked)건은 초안에 남겼습니다") : job.volume.name,
@@ -554,6 +672,11 @@ struct UsbWriteCoordinator {
             }
             backup = URL(filePath: path)
         }
+        await restore(volume, backup: backup)
+    }
+
+    private func restore(_ volume: UsbVolumeInfo, backup: URL) async {
+        let key = volume.usbKey, service = service
         var discard = false
         while true {
             let flagged = discard
@@ -564,6 +687,7 @@ struct UsbWriteCoordinator {
             case .success:
                 usb.endWrite(key)
                 host.toast = AppToast(kind: .success, title: String(ui: "USB를 쓰기 전으로 되돌렸습니다"), isUsb: true)
+                usb.migrationBackups[key] = nil
                 await usb.refresh()
                 return
             case let .failure(UsbError.writeRefused(blocks)) where !discard && blocks.contains(where: { $0.code == "deviceChanged" }):
@@ -587,6 +711,10 @@ struct UsbWriteCoordinator {
         guard prompter.show(prompt) else { return }
         await usb.refresh()
         let key = volume.usbKey
+        if usb.lastMigrations.contains(key), let current = usb.volume(key) {
+            await migrate(current)
+            return
+        }
         guard var job = usb.lastExports[key] else {
             usb.exportSheet = usb.volume(key).map { UsbExportSheetRequest(volume: $0) }
             return

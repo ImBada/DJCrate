@@ -33,6 +33,44 @@ struct UsbSidebarTests {
         return volume
     }
 
+    @Test("Device Library만 있는 USB는 OneLibrary 더하기 진입을 안내한다")
+    func deviceLibraryMigrationEntry() async throws {
+        let image = FakeUsbVolume.diskImageFAT32()
+        let host = FakeUsbHost([image])
+        host.serve(image, library: UsbTestData.library(formats: [.deviceLibrary]))
+        let store = UsbTestData.store(host)
+        await store.refresh()
+        let row = try #require(UsbSidebarModel.volumes(store).first)
+        #expect(row.help == "Device Library만 있습니다. OneLibrary를 더하려면 ‘OneLibrary 더하기…’를 누르세요")
+    }
+
+    @Test("OneLibrary 더하기는 Device Library 전용 USB에만 보인다", arguments: [Set<UsbFormat>(), [.deviceLibrary], [.oneLibrary], UsbFormat.defaultSet])
+    func migrationVisibility(formats: Set<UsbFormat>) async throws {
+        let image = FakeUsbVolume.diskImageFAT32()
+        let host = FakeUsbHost([image])
+        if formats.isEmpty { host.serveEmpty(image) } else { host.serve(image, library: UsbTestData.library(formats: formats)) }
+        let store = UsbTestData.store(host)
+        await store.refresh()
+        let row = try #require(UsbSidebarModel.volumes(store).first)
+        #expect(row.showsMigration == (formats == [.deviceLibrary]))
+        #expect(row.canMigrate == row.showsMigration)
+        _ = store.beginWrite(image, title: "시험")
+        #expect(UsbSidebarModel.volumes(store).first?.canMigrate == false)
+        store.endWrite(image.usbKey)
+    }
+
+    @Test("실물 Device Library에는 더하기를 보여도 쓰기는 닫고 도움말로 안내한다")
+    func physicalMigrationDisabled() async throws {
+        let volume = FakeUsbVolume.physicalFAT32()
+        let host = FakeUsbHost([volume])
+        host.serve(volume, library: UsbTestData.library(formats: [.deviceLibrary]))
+        let store = UsbTestData.store(host)
+        await store.refresh()
+        let row = try #require(UsbSidebarModel.volumes(store).first)
+        #expect(row.showsMigration && !row.canMigrate)
+        #expect(row.migrationHelp == UsbTestData.physicalBlock.message)
+    }
+
     @Test("빈 FAT32는 내보내기, rekordbox USB는 컬렉션·목록, 쓸 수 없는 모양은 경고와 이유")
     func sidebarShapes() async throws {
         let empty = FakeUsbVolume.diskImageFAT32(name: "DJCEMPTY", uuid: "00000000-0000-0000-0000-000000000011")

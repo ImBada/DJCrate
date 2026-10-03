@@ -37,6 +37,7 @@ struct UsbSelfTestScenarioCapture {
         print(passed)
         #expect(passed.hasPrefix("USB 시험 통과"))
         #expect(lines.contains { $0.hasPrefix("USB 시험 provenance: ") })
+        #expect(lines.contains { $0.hasPrefix("USB 시험 옮기기 통과") })
         #expect(try !UsbDiskImage.detach(image: scenario.image.path))
     }
 }

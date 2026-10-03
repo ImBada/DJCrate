@@ -72,6 +72,10 @@ struct UsbSidebarVolume: Identifiable, Equatable {
     var pending: UsbSidebarTarget? = nil
     /// 초안 편집 수
     var pendingCount = 0
+    var showsMigration = false
+    var canMigrate = false
+    var migrationHelp: String?
+    var showsMigrationRestore = false
 }
 
 @MainActor
@@ -83,6 +87,7 @@ enum UsbSidebarModel {
             var row = UsbSidebarVolume(id: key, name: volume.name, symbol: "externaldrive", isWarning: false, status: nil, help: volume.name,
                                        showsExport: false, canExport: false, collection: nil, collectionCount: 0, playlists: [], mismatchHelp: nil,
                                        canEject: !store.busyVolumes.contains(key) && !store.ejecting.contains(key))
+            row.showsMigrationRestore = store.migrationBackups[key] != nil
             if store.acceptsEdits(key) {
                 row.pending = .pending(volumeKey: key)
                 row.pendingCount = store.draftCounts[key] ?? 0
@@ -95,6 +100,15 @@ enum UsbSidebarModel {
             case let .rekordbox(formats):
                 row.symbol = "externaldrive.fill"
                 row.help = UsbFormat.allCases.filter(formats.contains).map(\.displayName).joined(separator: " · ")
+                if formats == [.deviceLibrary] {
+                    row.showsMigration = true
+                    row.help = String(ui: "Device Library만 있습니다. OneLibrary를 더하려면 ‘OneLibrary 더하기…’를 누르세요")
+                    let physical = !UsbPhysicalWriteGate.buildEnabled && (!volume.isDiskImage || !store.isScratchMount(volume.mountPoint))
+                    let reason = store.migrationBlockReasons[key] ?? (physical
+                        ? String(ui: "실물 USB 쓰기는 아직 열리지 않았습니다. 디스크 이미지로만 시험할 수 있습니다") : nil)
+                    row.canMigrate = idle && reason == nil
+                    row.migrationHelp = reason ?? String(ui: "Device Library를 읽어 OneLibrary를 더합니다. 미리 보기에서 확인 안 된 규칙을 확인하세요")
+                }
                 if let library = store.libraries[key] {
                     row.collection = .collection(volumeKey: key)
                     row.collectionCount = library.tracks.count
@@ -222,6 +236,28 @@ struct UsbSidebarSection: View {
             }
         }
         .help(volume.help)
+        .contextMenu { migrationButtons(volume) }
+    }
+
+    @ViewBuilder private func migrationButtons(_ volume: UsbSidebarVolume) -> some View {
+        if volume.showsMigration {
+            Button {
+                if let info = usb.volume(volume.id) { Task { await store.usbCoordinator?.migrate(info) } }
+            } label: {
+                Label(.ui("OneLibrary 더하기…"), systemImage: "plus.rectangle.on.folder")
+            }
+            .buttonStyle(.plain)
+            .disabled(!volume.canMigrate)
+            .help(volume.migrationHelp ?? volume.help)
+        }
+        if volume.showsMigrationRestore {
+            Button(.ui("쓰기 전으로 되돌리기…")) {
+                if let info = usb.volume(volume.id) { Task { await store.usbCoordinator?.restoreMigration(info) } }
+            }
+            .buttonStyle(.plain)
+            .disabled(usb.activeWrite != nil)
+            .help(.ui("이번에 OneLibrary를 더하기 전에 만든 백업으로 USB를 되돌립니다"))
+        }
     }
 
     @ViewBuilder private func contents(of volume: UsbSidebarVolume) -> some View {
@@ -235,6 +271,7 @@ struct UsbSidebarSection: View {
             .disabled(!volume.canExport)
             .help(.ui("로컬 재생 목록·곡을 이 USB에 OneLibrary·Device Library로 내보냅니다"))
         }
+        migrationButtons(volume)
         if let collection = volume.collection {
             UsbDropRow(store: store, target: collection) {
                 Label(.ui("컬렉션"), systemImage: "music.note.list")
