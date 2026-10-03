@@ -1,5 +1,6 @@
 @testable import djc
 import DJCDomain
+import DJCStorage
 import DJCTestSupport
 import Foundation
 import RekordboxKit
@@ -91,6 +92,28 @@ struct UsbReadLabTests {
         let (usageStatus, usage) = try run(["usb-diff", tree.base.path])
         #expect(usageStatus == 0)
         #expect(usage.contains("사용법"))
+    }
+
+    @Test("usb-migrate-check: 옮긴 USB의 OneLibrary는 pdb 변환과 차이 0, 한 형식만 있으면 안내만 한다")
+    func migrateCheckOfMigratedUsbIsZero() throws {
+        let usb = UsbChangeSetFixture()
+        defer { usb.remove() }
+        var fixture = UsbLibraryFixture()
+        fixture.formats = [.deviceLibrary]
+        fixture.myTagLinks = []
+        try fixture.write(to: UsbTreeFixture(base: usb.usbURL))
+        let (_, only) = try run(["usb-migrate-check", usb.usbURL.path])
+        #expect(only.contains("두 형식"))
+        let session = UsbMigrateSession(root: usb.usbURL, guard: usb.writeGuard(), paths: usb.paths, fileSystem: usb.fileSystem(),
+                                        copies: usb.home.appending(path: "usb-snapshots"))
+        _ = try session.write(options: UsbWriteOptions(), progress: { _ in }, isCancelled: { false })
+        let before = usb.tree()
+        let (status, output) = try run(["usb-migrate-check", usb.usbURL.path])
+        #expect(status == 0)
+        let lines = output.split(separator: "\n").map(String.init)
+        #expect(lines.contains("형식 불일치 변환 0") && lines.contains("content 3/3행 일치") && lines.last == "차이 0")
+        #expect(!output.contains("시험") && !output.contains("Contents/"))
+        #expect(usb.tree() == before)
     }
 
     /// 합성 Device Library(곡 2·목록 1·태그 1). 모든 값은 지어낸 것이다.

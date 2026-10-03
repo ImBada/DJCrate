@@ -2783,6 +2783,22 @@
         }
       }
     },
+    "--volume <마운트> [--dry-run] [--confirm <볼륨 이름>] [--allow-provisional <규칙,…>]" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "--volume <mount point> [--dry-run] [--confirm <volume name>] [--allow-provisional <rule,…>]"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "--volume <マウントポイント> [--dry-run] [--confirm <ボリューム名>] [--allow-provisional <ルール,…>]"
+          }
+        }
+      }
+    },
     ".DAT에 경로(PPTH)가 없음" : {
       "localizations" : {
         "en" : {
@@ -3419,6 +3435,22 @@
         }
       }
     },
+    "CDJ가 쓴 기록·목록이 있어 아직 옮길 수 없습니다. rekordbox에서 USB를 다시 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot convert yet because it has histories or lists written by a CDJ. Export the USB again from rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CDJが書き込んだ履歴・リストがあるため、まだ移行できません。rekordboxからUSBをもう一度エクスポートしてください"
+          }
+        }
+      }
+    },
     "CUE — 재생 중: 큐로 돌아가 정지 · 멈춤: 큐 지점 설정 · 누르고 있기: 미리 듣기" : {
       "localizations" : {
         "en" : {
@@ -3777,6 +3809,22 @@
         }
       }
     },
+    "Device Library(export.pdb)만 있는 USB에 OneLibrary(exportLibrary.db)를 더한다. 원래 파일은 그대로 둔다(실물 USB는 아직 막힘, 디스크 이미지만)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add OneLibrary (exportLibrary.db) to a USB that has only Device Library (export.pdb), leaving the original files unchanged (physical USBs are still blocked; disk images only)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device Library（export.pdb）だけのUSBにOneLibrary（exportLibrary.db）を追加する。元のファイルはそのまま残す（実物のUSBはまだ不可、ディスクイメージのみ）"
+          }
+        }
+      }
+    },
     "Device Library: 곡 %lld · 재생 목록 %lld · 기록 행 %lld" : {
       "localizations" : {
         "en" : {
@@ -3869,6 +3917,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Device LibraryにDJCrateが知らないテーブルの行があります。編集する前にrekordboxでUSBにもう一度エクスポートしてください"
+          }
+        }
+      }
+    },
+    "Device Library에서 OneLibrary를 만드는 칸 대응" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Field mapping when building OneLibrary from Device Library"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device LibraryからOneLibraryを作るときの項目の対応"
           }
         }
       }
@@ -4209,6 +4273,22 @@
         }
       }
     },
+    "OneLibrary 아트워크 자리에 다른 파일이 있어 옮기지 않았습니다. rekordbox에서 USB를 다시 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not converted because a different file is already where the OneLibrary artwork goes. Export the USB again from rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OneLibraryのアートワークの場所に別のファイルがあるため移行しませんでした。rekordboxからUSBをもう一度エクスポートしてください"
+          }
+        }
+      }
+    },
     "OneLibrary 인덱스가 확인한 모양과 다릅니다" : {
       "localizations" : {
         "en" : {
@@ -4275,6 +4355,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OneLibrary: 曲 %1$lld · プレイリスト %2$lld · マイタグ %3$lld · 演奏履歴 %4$lld"
+          }
+        }
+      }
+    },
+    "OneLibrary로 옮기기는 있던 파일을 바꾸지 않습니다. USB를 다시 읽은 뒤 옮기세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Converting to OneLibrary does not change existing files. Read the USB again, then convert"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OneLibraryへの移行は既存のファイルを変更しません。USBをもう一度読み込んでから移行してください"
           }
         }
       }
@@ -5029,6 +5125,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBの下書きを更新できませんでした"
+          }
+        }
+      }
+    },
+    "USB 파일이 Device Library와 맞지 않아 옮기지 않았습니다(%@). rekordbox에서 USB를 다시 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not converted because files on the USB don’t match the Device Library (%@). Export the USB again from rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBのファイルがDevice Libraryと一致しないため移行しませんでした（%@）。rekordboxからUSBをもう一度エクスポートしてください"
           }
         }
       }
@@ -6255,6 +6367,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBのボリュームUUIDを読み込めないため書き込みません。USBを接続し直してからお試しください"
+          }
+        }
+      }
+    },
+    "USB의 아트워크 파일이 없거나 경로 모양이 달라 옮기지 않았습니다. rekordbox에서 USB를 다시 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not converted because an artwork file on the USB is missing or its path has an unexpected form. Export the USB again from rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBのアートワークファイルがないかパスの形が異なるため移行しませんでした。rekordboxからUSBをもう一度エクスポートしてください"
           }
         }
       }
@@ -23957,6 +24085,28 @@
         }
       }
     },
+    "옮길 것: 곡 %lld · 재생 목록 %lld · OneLibrary 아트워크 %lld" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "옮길 것: 곡 %1$lld · 재생 목록 %2$lld · OneLibrary 아트워크 %3$lld"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To convert: %1$lld tracks · %2$lld playlists · %3$lld OneLibrary artwork files"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移行するもの: 曲 %1$lld · プレイリスト %2$lld · OneLibraryアートワーク %3$lld"
+          }
+        }
+      }
+    },
     "옮길 수 없는 큐가 있습니다. rekordbox에서 큐를 정리한 뒤 다시 합치세요" : {
       "localizations" : {
         "en" : {
@@ -25101,6 +25251,22 @@
         }
       }
     },
+    "이 USB에는 Device Library(export.pdb)가 없습니다. 빈 USB면 USB로 내보내기를 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This USB has no Device Library (export.pdb). For an empty USB, use Export to USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSBにはDevice Library（export.pdb）がありません。空のUSBならUSBへのエクスポートを使ってください"
+          }
+        }
+      }
+    },
     "이 USB에는 rekordbox 라이브러리가 없습니다. 빈 USB면 USB로 내보내기를 쓰세요" : {
       "localizations" : {
         "en" : {
@@ -25113,6 +25279,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このUSBにはrekordboxのライブラリがありません。空のUSBならUSBへのエクスポートを使ってください"
+          }
+        }
+      }
+    },
+    "이 USB에는 이미 OneLibrary가 있습니다. 옮기지 않고 USB 수정으로 고치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This USB already has OneLibrary. Don’t convert it; edit it with USB edit instead"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSBにはすでにOneLibraryがあります。移行せず、USBの編集で編集してください"
           }
         }
       }
@@ -25149,6 +25331,22 @@
         }
       }
     },
+    "이 USB의 Device Library 버전은 아직 옮길 수 없습니다. rekordbox에서 USB를 다시 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This USB’s Device Library version can’t be converted yet. Export the USB again from rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSBのDevice Libraryのバージョンはまだ移行できません。rekordboxからUSBをもう一度エクスポートしてください"
+          }
+        }
+      }
+    },
     "이 USB의 Device Library는 DJCrate가 다시 쓸 수 없는 모양입니다(%@)" : {
       "localizations" : {
         "en" : {
@@ -25177,6 +25375,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このUSBのDevice LibraryはDJCrateが書き直せない形です（問題%lld件）。編集するにはrekordboxでUSBにもう一度エクスポートしてください"
+          }
+        }
+      }
+    },
+    "이 USB의 Device Library에 곡이 없어 옮길 것이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There is nothing to convert because this USB’s Device Library has no tracks"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSBのDevice Libraryに曲がないため、移行するものがありません"
+          }
+        }
+      }
+    },
+    "이 USB의 Device Library에 읽지 못한 행이 있어 옮기지 않았습니다. rekordbox에서 USB를 다시 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not converted because this USB’s Device Library has rows that couldn’t be read. Export the USB again from rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSBのDevice Libraryに読めない行があるため移行しませんでした。rekordboxからUSBをもう一度エクスポートしてください"
           }
         }
       }
