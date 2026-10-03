@@ -4,16 +4,17 @@ import Foundation
 @testable import RekordboxKit
 import Testing
 
-/// 동기화 상태(256·257)인 곡의 코멘트 쓰기(#171). 2026-10-01 rekordbox 7.2.18, 실험 곡 "カクシタワタシ"(곡·앨범 상태 256):
-/// 곡 정보에서 코멘트만 바꿔 저장하고 종료한 전후 사본과, 같은 곡의 코멘트를 한 번 더 저장한 사본을 칸 단위로 비교했다.
-/// - 첫 저장: `Commnt`·`TrackInfoUpdated`(+1, 글자)·`rb_data_status` 256 → 257·`rb_local_usn`·`updated_at`만 바뀌었다.
-///   클라우드 `usn`·`rb_local_synced`·`rb_local_data_status`와 앨범 행(상태 256)은 그대로였다.
-/// - 다시 저장: 상태 257 그대로, `TrackInfoUpdated` +1.
-/// 다른 칸과 상태가 0이 아닌 앨범은 확인하지 않았으므로 칸 이름과 함께 막는다.
+/// 동기화 상태(256·257)인 곡의 곡 정보 쓰기.
+/// - #171(2026-10-01 rekordbox 7.2.18, 실험 곡 "カクシタワタシ", 곡·앨범 상태 256): 코멘트만 바꿔 저장하고 종료한 전후 사본과,
+///   같은 곡의 코멘트를 한 번 더 저장한 사본을 칸 단위로 비교했다.
+///   첫 저장은 `Commnt`·`TrackInfoUpdated`(+1, 글자)·`rb_data_status` 256 → 257·`rb_local_usn`·`updated_at`만 바뀌었고,
+///   클라우드 `usn`·`rb_local_synced`·`rb_local_data_status`와 앨범 행(상태 256)은 그대로였다. 다시 저장하면 상태 257 그대로, +1.
+/// - #173(2026-10-04 세션 S1·S2·S3): 정보 패널의 아홉 칸 모두 상태 0과 같은 곡 행 칸에 256 → 257을 더한 모양이다(코멘트 비우기 포함).
+/// 0·256·257이 아닌 곡 상태는 막는다.
 extension RekordboxTagWriterTests {
     /// 실험 곡과 같은 상태: 곡·앨범 256, `TrackInfoUpdated` '2', 빈 코멘트(''), 클라우드에서 받은 곡이라 `usn`이 있다.
-    func syncedLibrary(state: Int = 256) throws -> (RekordboxFixture, TrackSpec) {
-        let (fixture, track) = try library()
+    func syncedLibrary(state: Int = 256, shared: Bool = true) throws -> (RekordboxFixture, TrackSpec) {
+        let (fixture, track) = try library(shared: shared)
         try fixture.execute("""
             UPDATE djmdContent SET rb_data_status = ?, TrackInfoUpdated = '2', usn = 363, rb_local_synced = 0, rb_local_data_status = 0
             WHERE ID = '500'
@@ -26,8 +27,43 @@ extension RekordboxTagWriterTests {
         Set(after.keys.filter { after[$0] != before[$0] })
     }
 
-    @Test func 동기화_상태에서_연_칸은_코멘트뿐이다() {
-        #expect(RekordboxWriter.syncedWritableTagKeys == [.comment])
+    // MARK: 골든(#173 2026-10-04 S1·S2)
+
+    @Test(arguments: TagFields.Key.allCases)
+    func 동기화된_곡의_칸마다_rekordbox_7이_저장한_모양으로_쓴다(key: TagFields.Key) throws {
+        // #173 S1 T01 제목, T02 아티스트 새 이름, T04 앨범 새 이름, T06 장르 새 이름, T08 작곡가 넣기, T09 연도, T10 트랙 번호,
+        // T16 코멘트, S2 U01 앨범 아티스트: 곡 행은 그 칸·`TrackInfoUpdated`(+1, 글자)·256 → 257·번호·시각만 바뀐다.
+        let (fixture, track) = try syncedLibrary(shared: false)
+        for (table, id) in [("djmdArtist", "11"), ("djmdGenre", "21"), ("djmdAlbum", "31")] { try sync(fixture, table, id) }
+        let values: [TagFields.Key: String] = [.title: "옛 제목DJC", .artist: "DJC 173 아티스트", .album: "DJC 173 앨범",
+                                               .albumArtist: "DJC 173 앨범 아티스트", .genre: "DJC 173 장르", .composer: "DJC 173 작곡가",
+                                               .year: "2020", .trackNumber: "99", .comment: "DJC 173 코멘트"]
+        let columns: [TagFields.Key: String] = [.title: "Title", .artist: "ArtistID", .album: "AlbumID", .genre: "GenreID",
+                                                .composer: "ComposerID", .year: "ReleaseYear", .trackNumber: "TrackNo", .comment: "Commnt"]
+        let before = try content(fixture)
+        let report = try write(fixture, tags: [try draft(fixture, track) { $0[key] = values[key] ?? "" }], keys: RekordboxWriter.writableTagKeys)
+        #expect(report.tagWritten.first?.fields == [key.rawValue] && report.tagBlocked.isEmpty)
+        let after = try content(fixture)
+        #expect(changedColumns(before, after) == Set(["TrackInfoUpdated", "rb_data_status", "rb_local_usn", "updated_at"] + [columns[key]].compactMap { $0 }))
+        #expect(after["TrackInfoUpdated"] == "3" && after["rb_data_status"] == "257")
+        #expect(after["usn"] == "363" && after["rb_local_synced"] == "0" && after["rb_local_data_status"] == "0")
+        #expect(try Int(after["rb_local_usn"] ?? "") == fixture.localUpdateCount(), "곡 행이 마지막 번호")
+        let db = try fixture.open()
+        defer { db.close() }
+        #expect(try RekordboxWriter.currentTags(db: db, contentID: track.id)?[key] == values[key])
+    }
+
+    @Test(arguments: [256, 257]) func 동기화된_곡의_코멘트를_비우면_빈_글자다(state: Int) throws {
+        // #173 S1 T16: 코멘트 지우기 → `Commnt` ''(NULL 아님), +1, 256 → 257.
+        let (fixture, track) = try syncedLibrary(state: state)
+        try fixture.execute("UPDATE djmdContent SET Commnt = '옛 코멘트' WHERE ID = '500'")
+        let before = try content(fixture)
+        let report = try write(fixture, tags: [try draft(fixture, track) { $0.comment = "" }], keys: RekordboxWriter.writableTagKeys)
+        #expect(report.tagWritten.count == 1)
+        let after = try content(fixture)
+        #expect(changedColumns(before, after).isSubset(of: ["Commnt", "TrackInfoUpdated", "rb_data_status", "rb_local_usn", "updated_at"]))
+        #expect(try fixture.rows("SELECT quote(Commnt) AS c FROM djmdContent WHERE ID = '500'").first?["c"] == "''")
+        #expect(after["rb_data_status"] == "257" && after["TrackInfoUpdated"] == "3")
     }
 
     // MARK: 골든(2026-10-01 カクシタワタシ)
@@ -70,43 +106,13 @@ extension RekordboxTagWriterTests {
 
     // MARK: 막기
 
-    @Test func 동기화된_곡의_확인하지_않은_칸은_칸_이름과_함께_막는다() throws {
-        let (fixture, track) = try syncedLibrary()
-        let before = try content(fixture)
-        // 코멘트가 없으면 rekordbox에서 직접 고치라고
-        let others = try write(fixture, tags: [try draft(fixture, track) { $0.title = "새 제목"; $0.genre = "새 장르" }],
-                               keys: RekordboxWriter.writableTagKeys)
-        let reason = try #require(others.tagBlocked.first?.reason)
-        #expect(reason.contains("제목·장르") && reason.contains("rekordbox에서 직접") && !reason.contains("코멘트"))
-        // 코멘트도 고쳤으면 막힌 칸을 되돌리면 코멘트는 쓸 수 있다고
-        let mixed = try write(fixture, tags: [try draft(fixture, track) { $0.artist = "새 아티스트"; $0.comment = "새 코멘트" }],
-                              keys: RekordboxWriter.writableTagKeys)
-        let mixedReason = try #require(mixed.tagBlocked.first?.reason)
-        #expect(mixedReason.contains("아티스트") && mixedReason.contains("되돌리면 코멘트"))
-        #expect(others.tagWritten.isEmpty && mixed.tagWritten.isEmpty && others.backup == nil && mixed.backup == nil, "백업 전에 막는다")
-        #expect(try content(fixture) == before && fixture.localUpdateCount() == 2000)
-    }
-
-    @Test(arguments: [256, 257]) func 동기화된_곡의_코멘트_비우기는_확인하지_않아_막는다(state: Int) throws {
-        // 실험 4는 빈 코멘트에 넣기와 값 바꾸기만 보았다. 값을 비우는 저장은 아직 보지 못했다.
-        let (fixture, track) = try syncedLibrary(state: state)
-        try fixture.execute("UPDATE djmdContent SET Commnt = '옛 코멘트' WHERE ID = '500'")
-        let before = try content(fixture)
-        let cleared = try write(fixture, tags: [try draft(fixture, track) { $0.comment = "" }], keys: RekordboxWriter.writableTagKeys)
-        #expect(cleared.tagWritten.isEmpty && cleared.tagBlocked.first?.reason?.contains("코멘트 비우기") == true && cleared.backup == nil)
-        // 다른 칸과 함께 비우면 되돌려도 코멘트를 쓸 수 없으므로 rekordbox에서 직접 고치라고
-        let mixed = try write(fixture, tags: [try draft(fixture, track) { $0.title = "새 제목"; $0.comment = "" }],
-                              keys: RekordboxWriter.writableTagKeys)
-        let reason = try #require(mixed.tagBlocked.first?.reason)
-        #expect(reason.contains("제목") && reason.contains("rekordbox에서 직접") && !reason.contains("되돌리면"))
-        #expect(try content(fixture) == before && fixture.localUpdateCount() == 2000)
-    }
-
-    @Test(arguments: [1, 2, 258, 512]) func 확인하지_않은_동기화_상태는_코멘트도_막는다(state: Int) throws {
+    @Test(arguments: [1, 2, 258, 512]) func 확인하지_않은_동기화_상태는_막는다(state: Int) throws {
         let (fixture, track) = try syncedLibrary(state: state)
         let before = try content(fixture)
-        let report = try write(fixture, tags: [try draft(fixture, track) { $0.comment = "새 코멘트" }])
-        #expect(report.tagWritten.isEmpty && report.tagBlocked.first?.reason?.contains("동기화 상태") == true)
+        for edit in [{ (f: inout TagFields) in f.comment = "새 코멘트" }, { (f: inout TagFields) in f.title = "새 제목" }] {
+            let report = try write(fixture, tags: [try draft(fixture, track, edit)])
+            #expect(report.tagWritten.isEmpty && report.tagBlocked.first?.reason?.contains("동기화 상태") == true && report.backup == nil)
+        }
         #expect(try content(fixture) == before && fixture.localUpdateCount() == 2000)
     }
 

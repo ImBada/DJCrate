@@ -9625,6 +9625,38 @@
         }
       }
     },
+    "rekordbox에서 이미 고친 동기화 아티스트·장르라 비우는 규칙을 확인하지 못했으므로 rekordbox에서 직접 고치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This synced artist or genre was already edited in rekordbox, and the rule for releasing it is not verified. Edit this in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxで既に変更された同期済みのアーティスト・ジャンルを手放す規則は未確認です。rekordboxで直接変更してください。"
+          }
+        }
+      }
+    },
+    "rekordbox에서 이미 고친 동기화 앨범이라 비우는 규칙을 확인하지 못했으므로 rekordbox에서 직접 고치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This synced album was already edited in rekordbox, and the rule for releasing it is not verified. Edit this in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxで既に変更された同期済みのアルバムを手放す規則は未確認です。rekordboxで直接変更してください。"
+          }
+        }
+      }
+    },
     "rekordbox에서 재생 목록을 찾지 못했습니다" : {
       "localizations" : {
         "en" : {
@@ -15231,6 +15263,38 @@
         }
       }
     },
+    "더 쓰지 않는 동기화 이름 행의 표시가 다릅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The marking of a released synced name row differs"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使われなくなった同期済みの名前の行の表示が異なります"
+          }
+        }
+      }
+    },
+    "더 쓰지 않는 이름 행을 표시하지 못했습니다 (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not mark a released name row (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使われなくなった名前の行を表示できませんでした（%@）"
+          }
+        }
+      }
+    },
     "더블클릭" : {
       "localizations" : {
         "en" : {
@@ -15547,54 +15611,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同期"
-          }
-        }
-      }
-    },
-    "동기화 상태인 곡에서는 %@ 칸의 쓰기 규칙을 아직 확인하지 않았으니 그 칸을 되돌리면 %@는 쓸 수 있습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Write rules for %1$@ on synced tracks haven't been verified yet, so revert those fields to write %2$@."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "同期状態の曲では%1$@の書き込み規則をまだ確認していないため、その項目を元に戻すと%2$@は書き込めます"
-          }
-        }
-      }
-    },
-    "동기화 상태인 곡에서는 %@ 칸의 쓰기 규칙을 아직 확인하지 않았으므로 rekordbox에서 직접 고치세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Write rules for %@ on synced tracks haven't been verified yet, so edit this in rekordbox."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "同期状態の曲では%@の書き込み規則をまだ確認していないため、rekordboxで直接変更してください"
-          }
-        }
-      }
-    },
-    "동기화 상태인 곡의 코멘트 비우기는 아직 확인하지 않았으므로 rekordbox에서 직접 비우세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clearing the comment on synced tracks hasn't been verified yet, so clear it in rekordbox."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "同期状態の曲のコメントの消去はまだ確認していないため、rekordboxで直接消去してください"
           }
         }
       }
@@ -23631,6 +23647,22 @@
         }
       }
     },
+    "앨범 행의 동기화 상태(rb_data_status)가 다릅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The album row sync state (rb_data_status) differs"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アルバム行の同期状態（rb_data_status）が異なります"
+          }
+        }
+      }
+    },
     "앨범 행의 변경 번호가 다릅니다" : {
       "localizations" : {
         "en" : {
@@ -25915,6 +25947,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "この曲のセクション・グリッド推定・キー解析のキャッシュを消して再解析します（波形と下書きはそのまま）"
+          }
+        }
+      }
+    },
+    "이 곡이 놓는 이름을 rekordbox에서 지운 곡만 쓰고 있어 정리 규칙을 확인하지 못했으므로 rekordbox에서 직접 고치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A name this track releases is used only by tracks deleted in rekordbox, and the cleanup rule is not verified. Edit this in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この曲が手放す名前はrekordboxで削除した曲だけが使っているため、整理の規則は未確認です。rekordboxで直接変更してください。"
+          }
+        }
+      }
+    },
+    "이 곡이 더 쓰지 않게 될 앨범·이름의 동기화 상태에서는 정리 규칙을 확인하지 못했으므로 rekordbox에서 직접 고치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The cleanup rule is not verified for the sync state of the album or name this track releases. Edit this in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この曲が手放すアルバム・名前の同期状態での整理の規則は未確認です。rekordboxで直接変更してください。"
           }
         }
       }

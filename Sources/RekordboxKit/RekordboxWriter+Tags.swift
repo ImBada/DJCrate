@@ -10,8 +10,6 @@ extension RekordboxWriter {
     /// rekordbox 실험으로 쓰기 규칙을 확인한 칸. 이 밖의 칸을 고친 초안은 곡째 막는다(docs/rekordbox-internals.md "태그 (곡 정보)").
     /// 공유 앨범 값 변경·동명 앨범 선택·미확인 상태는 `checkTags`에서 곡째 막는다.
     public static let writableTagKeys: Set<TagFields.Key> = [.title, .artist, .album, .albumArtist, .genre, .composer, .year, .trackNumber, .comment]
-    /// 동기화 상태(256·257)인 곡에서 쓰기 규칙을 확인한 칸(2026-10-01 カクシタワタシ, #171). 상태 0은 `writableTagKeys` 전부, 그 밖의 상태는 없다.
-    public static let syncedWritableTagKeys: Set<TagFields.Key> = [.comment]
     /// 저장하는 앨범 행의 상태로 확인한 것(#173 2026-10-04). 0 그대로, 256 → 257, 257 그대로.
     static let verifiedAlbumStates: Set<Int> = [0, 256, 257]
     /// 저장하는 이름·앨범 행의 상태 칸(rekordbox: 256 → 257, 0·257은 그대로)
@@ -283,30 +281,10 @@ extension RekordboxWriter {
         }
     }
 
-    /// 곡의 동기화 상태마다 확인한 칸만 쓴다. 0은 전부, 256·257은 `syncedWritableTagKeys`(코멘트)뿐이고 그 밖의 상태는 막는다.
-    /// 막힌 칸은 이름을 알려, 그 칸을 되돌리면 같은 곡의 확인한 칸은 쓸 수 있게 한다.
+    /// 곡 상태 0·256·257만 쓴다. 동기화(256·257) 곡도 상태 0과 같은 칸을 쓰고 곡 행만 256 → 257로 올린다
+    /// (#171 2026-10-01 코멘트, #173 2026-10-04 S1·S2: 아홉 칸 모두·코멘트 비우기). 그 밖의 상태는 확인하지 않아 막는다.
     private static func checkTagState(_ draft: TagDraft, state: Int?, block: (String) -> Blocked) throws {
-        switch state {
-        case 0:
-            return
-        case 256, 257:
-            // 실험 4는 코멘트 넣기·바꾸기만 보았다. 비우는 저장은 확인하지 않았다.
-            let clearsComment = draft.changedKeys.contains(.comment) && draft.fields.comment.isEmpty
-            let unverified = draft.changedKeys.filter { !syncedWritableTagKeys.contains($0) }
-            guard !unverified.isEmpty else {
-                guard !clearsComment else {
-                    throw block(String(ui: "동기화 상태인 곡의 코멘트 비우기는 아직 확인하지 않았으므로 rekordbox에서 직접 비우세요"))
-                }
-                return
-            }
-            let labels = unverified.map(\.label).joined(separator: "·")
-            let writable = clearsComment ? [] : draft.changedKeys.filter { syncedWritableTagKeys.contains($0) }
-            guard !writable.isEmpty else {
-                throw block(String(ui: "동기화 상태인 곡에서는 \(labels) 칸의 쓰기 규칙을 아직 확인하지 않았으므로 rekordbox에서 직접 고치세요"))
-            }
-            let rest = writable.map(\.label).joined(separator: "·")
-            throw block(String(ui: "동기화 상태인 곡에서는 \(labels) 칸의 쓰기 규칙을 아직 확인하지 않았으니 그 칸을 되돌리면 \(rest)는 쓸 수 있습니다"))
-        default:
+        guard let state, [0, 256, 257].contains(state) else {
             throw block(String(ui: "이 곡의 동기화 상태에서는 태그 쓰기를 확인하지 못했으므로 rekordbox에서 직접 고치세요"))
         }
     }
