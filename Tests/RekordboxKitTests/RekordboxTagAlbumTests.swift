@@ -103,7 +103,8 @@ extension RekordboxTagWriterTests {
         let title = try write(fixture, tags: [try draft(fixture, track) { $0.title = "새 제목" }]).tagBlocked.first?.reason
         #expect(title?.contains("동기화 상태") == true && title?.contains("제목") == true)
         try fixture.execute("UPDATE djmdContent SET rb_data_status = 0 WHERE ID = '500'")
-        try fixture.execute("UPDATE djmdAlbum SET rb_data_status = 256 WHERE ID = '31'")
+        // 앨범 상태는 0·256·257만 확인했다(#173 S1~S3). 그 밖의 상태는 막는다.
+        try fixture.execute("UPDATE djmdAlbum SET rb_data_status = 2 WHERE ID = '31'")
         for key in [TagFields.Key.artist, .album, .albumArtist] {
             let tags = try draft(fixture, track) { $0[key] = "새 값" }
             #expect(try write(fixture, tags: [tags]).tagBlocked.first?.reason?.contains("상태") == true)

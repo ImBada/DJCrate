@@ -12,6 +12,10 @@ extension RekordboxWriter {
     public static let writableTagKeys: Set<TagFields.Key> = [.title, .artist, .album, .albumArtist, .genre, .composer, .year, .trackNumber, .comment]
     /// 동기화 상태(256·257)인 곡에서 쓰기 규칙을 확인한 칸(2026-10-01 カクシタワタシ, #171). 상태 0은 `writableTagKeys` 전부, 그 밖의 상태는 없다.
     public static let syncedWritableTagKeys: Set<TagFields.Key> = [.comment]
+    /// 저장하는 앨범 행의 상태로 확인한 것(#173 2026-10-04). 0 그대로, 256 → 257, 257 그대로.
+    static let verifiedAlbumStates: Set<Int> = [0, 256, 257]
+    /// 저장하는 이름·앨범 행의 상태 칸(rekordbox: 256 → 257, 0·257은 그대로)
+    static let savedStatus = "rb_data_status = CASE rb_data_status WHEN 256 THEN 257 ELSE rb_data_status END"
 
     /// 쓴 뒤 곡이 가져야 할 태그
     struct TagExpectation {
@@ -21,8 +25,8 @@ extension RekordboxWriter {
         var contentUSN: Int
         /// 쓴 뒤 곡의 `rb_data_status`(256 → 257, 0·257은 그대로)
         var dataStatus: Int?
-        /// 변경 번호를 준 앨범 행(ID → 번호). 같은 반영 안의 뒤 편집은 마지막 기대값을 맡는다.
-        var touchedAlbums: [String: Int] = [:]
+        /// 변경 번호를 준 앨범 행(ID → 번호·상태). 같은 반영 안의 뒤 편집은 마지막 기대값을 맡는다.
+        var touchedAlbums: [String: (usn: Int, status: Int)] = [:]
         /// 아무 곡도 안 쓰게 되어 지운 이름 행(표, ID). 상태 0 행이다.
         var deletedNames: [(table: String, id: String)] = []
         /// 아무 곡도 안 쓰게 되어 258로 표시한 동기화 이름·앨범 행(#173)
@@ -316,7 +320,8 @@ extension RekordboxWriter {
         var oldAlbumArtist = ""
         try db.query("SELECT a.rb_data_status, a.AlbumArtistID FROM djmdAlbum a JOIN djmdContent c ON c.AlbumID = a.ID WHERE c.ID = ?",
                      [.text(contentID)]) { oldState = $0.int(0) ?? -1; oldAlbumArtist = $0.string(1) ?? "" }
-        if oldState != 0 {
+        // 앨범 행은 자기 상태로 저장된다: 0 그대로, 256 → 257, 257 그대로(#173 S1 T02·T03·T05·X1, S2 U01·U02·U07·U14, S3 V01·V03·V05).
+        guard Self.verifiedAlbumStates.contains(oldState) else {
             throw block(String(ui: "이 앨범의 동기화 상태에서는 태그 쓰기를 확인하지 못했으므로 rekordbox에서 직접 고치세요"))
         }
         guard keys.contains(.album) || keys.contains(.albumArtist), !draft.fields.album.isEmpty else { return }
@@ -332,7 +337,7 @@ extension RekordboxWriter {
             throw block(String(ui: "같은 이름의 앨범이 여럿이라 선택 규칙을 확인하지 못했으므로 rekordbox에서 직접 고치세요"))
         }
         guard let album = albums.first else { return }
-        guard album.state == 0 else {
+        guard let state = album.state, Self.verifiedAlbumStates.contains(state) else {
             throw block(String(ui: "이 앨범의 동기화 상태에서는 태그 쓰기를 확인하지 못했으므로 rekordbox에서 직접 고치세요"))
         }
         if keys.contains(.albumArtist) {
@@ -362,23 +367,29 @@ extension RekordboxWriter {
         if fields.album.isEmpty { expected.albumArtist = "" }
 
         var columns: [(String, CipherDatabase.Value)] = []
-        var touchedAlbums: [String: Int] = [:]
+        var touchedAlbums: [String: (usn: Int, status: Int)] = [:]
         func name(_ table: String, _ value: String) throws -> CipherDatabase.Value {
             .text(try RekordboxTrackWriter.findOrCreate(db, table: table, name: value, usn: &usn, stamp: stamp))
+        }
+        /// 기존 앨범 행 저장: 앨범 아티스트(nil이면 NULL만 ''로) + 상태 256 → 257 + 변경 번호·시각
+        func saveAlbum(_ album: String, albumArtist: String?) throws {
+            guard let state = try liveNameState(db, table: "djmdAlbum", id: album), let state, verifiedAlbumStates.contains(state) else {
+                throw Blocked(title: content.title, reason: String(ui: "이 앨범의 동기화 상태에서는 태그 쓰기를 확인하지 못했으므로 rekordbox에서 직접 고치세요"))
+            }
+            usn += 1
+            let artist = albumArtist == nil ? "ifnull(AlbumArtistID, '')" : "?"
+            try db.run("UPDATE djmdAlbum SET AlbumArtistID = \(artist), \(savedStatus), rb_local_usn = ?, updated_at = ? WHERE ID = ?",
+                       (albumArtist.map { [CipherDatabase.Value.text($0)] } ?? []) + [.int(usn), .text(stamp.db), .text(album)])
+            touchedAlbums[album] = (usn, state == 256 ? 257 : state)
         }
         // 정보 패널 칸 순서대로(제목 → 아티스트 → 앨범 → 장르 → 작곡가 → …). 새 이름 행과 앨범 행이 곡 행보다 먼저 번호를 받는다.
         if keys.contains(.title) { columns.append(("Title", .text(fields.title))) }
         if keys.contains(.artist) {
             columns.append(("ArtistID", fields.artist.isEmpty ? .text("") : try name("djmdArtist", fields.artist)))
-            // 아티스트를 고치면 곡의 앨범 행도 저장된다: NULL 앨범 아티스트는 '', 변경 번호·시각(2026-09-27 실험곡 5, 묶음 2)
-            if let album = old.album, !album.isEmpty,
-               try scalar(db, "SELECT count(*) FROM djmdAlbum WHERE ID = ? AND rb_local_deleted = 0", [.text(album)]) == 1 {
-                usn += 1
-                try db.run("""
-                    UPDATE djmdAlbum SET AlbumArtistID = ifnull(AlbumArtistID, ''),
-                        rb_local_usn = ?, updated_at = ? WHERE ID = ?
-                    """, [.int(usn), .text(stamp.db), .text(album)])
-                touchedAlbums[album] = usn
+            // 아티스트를 고치면 곡의 앨범 행도 저장된다: NULL 앨범 아티스트는 '', 변경 번호·시각(2026-09-27 실험곡 5, 묶음 2),
+            // 동기화 앨범은 256 → 257·257 그대로(#173 S1 T02·T05·X1, S2 U07, S3 V01·V03·V05)
+            if let album = old.album, !album.isEmpty, old.albumLive {
+                try saveAlbum(album, albumArtist: nil)
             }
         }
         if keys.contains(.album) || keys.contains(.albumArtist) {
@@ -396,17 +407,15 @@ extension RekordboxWriter {
                 }
                 var existing: String?
                 try db.query("SELECT ID FROM djmdAlbum WHERE Name = ? AND rb_local_deleted = 0", [.text(fields.album)]) { existing = $0.string(0) }
-                let album: String
                 if let existing {
-                    album = existing
-                    usn += 1
-                    try db.run("UPDATE djmdAlbum SET AlbumArtistID = ?, rb_local_usn = ?, updated_at = ? WHERE ID = ?",
-                               [.text(albumArtistID), .int(usn), .text(stamp.db), .text(album)])
+                    // 동기화된 대상 앨범도 256 → 257(#173 S2 U02), 제자리 앨범 아티스트도(S2 U01·U14)
+                    try saveAlbum(existing, albumArtist: albumArtistID)
+                    columns.append(("AlbumID", .text(existing)))
                 } else {
-                    album = try RekordboxTrackWriter.findOrCreateAlbum(db, name: fields.album, albumArtistID: albumArtistID, usn: &usn, stamp: stamp)
+                    let album = try RekordboxTrackWriter.findOrCreateAlbum(db, name: fields.album, albumArtistID: albumArtistID, usn: &usn, stamp: stamp)
+                    columns.append(("AlbumID", .text(album)))
+                    touchedAlbums[album] = (usn, 0)
                 }
-                columns.append(("AlbumID", .text(album)))
-                touchedAlbums[album] = usn
             }
         }
         // 장르를 비우면 '0', 작곡가를 비우면 ''(2026-09-27 실험곡 4 세션 2)
@@ -483,9 +492,12 @@ extension RekordboxWriter {
         guard stored?.info == expected.trackInfoUpdated, stored?.type == "text" else { throw fail(String(ui: "곡 정보 변경 횟수(TrackInfoUpdated)가 다릅니다")) }
         guard stored?.usn == expected.contentUSN else { throw fail(String(ui: "곡의 변경 번호가 다릅니다")) }
         guard let stored, stored.status == expected.dataStatus else { throw fail(String(ui: "곡의 동기화 상태(rb_data_status)가 다릅니다")) }
-        for (id, usn) in expected.touchedAlbums {
-            guard try scalar(db, "SELECT rb_local_usn FROM djmdAlbum WHERE ID = ? AND AlbumArtistID IS NOT NULL", [.text(id)]) == usn else {
+        for (id, album) in expected.touchedAlbums {
+            guard try scalar(db, "SELECT rb_local_usn FROM djmdAlbum WHERE ID = ? AND AlbumArtistID IS NOT NULL", [.text(id)]) == album.usn else {
                 throw fail(String(ui: "앨범 행의 변경 번호가 다릅니다"))
+            }
+            guard try scalar(db, "SELECT rb_data_status FROM djmdAlbum WHERE ID = ? AND rb_local_deleted = 0", [.text(id)]) == album.status else {
+                throw fail(String(ui: "앨범 행의 동기화 상태(rb_data_status)가 다릅니다"))
             }
         }
         for (table, id) in expected.deletedNames {

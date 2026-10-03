@@ -235,6 +235,104 @@ extension RekordboxTagWriterTests {
         #expect(try content(fixture) == before && fixture.localUpdateCount() == 2000)
     }
 
+    // MARK: 3·4. 저장되는 앨범 행은 256 → 257, 257은 그대로
+
+    @Test(arguments: [0, 256, 257]) func 아티스트를_고치면_동기화_앨범은_257이고_257_앨범은_그대로다(state: Int) throws {
+        // #173 S1 T02·T05(AA NULL → '', 256 → 257), X1·S2 U07(상태 0 곡 + 동기화 앨범도 257), S3 V03(257 앨범은 번호·시각만).
+        let (fixture, track) = try library()
+        try sync(fixture, "djmdAlbum", "31", state: state)
+        let before = try #require(try row(fixture, "djmdAlbum", "31"))
+        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.artist = "DJC 173 아티스트" }]).tagWritten.count == 1)
+        let after = try #require(try row(fixture, "djmdAlbum", "31"))
+        let expected: Set<String> = state == 256 ? ["AlbumArtistID", "rb_data_status", "rb_local_usn", "updated_at"]
+            : ["AlbumArtistID", "rb_local_usn", "updated_at"]
+        #expect(Set(after.keys.filter { after[$0] != before[$0] }) == expected)
+        #expect(after["rb_data_status"] == String(state == 256 ? 257 : state) && after["AlbumArtistID"] == "")
+        #expect(after["usn"] == "40" && after["rb_local_synced"] == "1")
+        #expect(try content(fixture)["rb_data_status"] == "0", "상태 0 곡은 그대로")
+    }
+
+    @Test func 동기화된_기존_앨범에_붙이면_대상은_257_옛_앨범은_258이다() throws {
+        // #173 S2 U02: 대상(이름 유일, AA '', 256)은 상태·번호·시각만, 이 곡만 쓰던 옛 앨범은 258.
+        let (fixture, track) = try library(shared: false)
+        try sync(fixture, "djmdAlbum", "31")
+        try fixture.insert("djmdAlbum", ["ID": .text("32"), "Name": .text("DJC 173 있는 앨범"), "AlbumArtistID": .text(""),
+                                         "rb_local_usn": .int(8)])
+        try sync(fixture, "djmdAlbum", "32")
+        let target = try #require(try row(fixture, "djmdAlbum", "32"))
+        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.album = "DJC 173 있는 앨범" }]).tagWritten.count == 1)
+        let saved = try #require(try row(fixture, "djmdAlbum", "32"))
+        #expect(Set(saved.keys.filter { saved[$0] != target[$0] }) == ["rb_data_status", "rb_local_usn", "updated_at"])
+        #expect(saved["rb_data_status"] == "257")
+        let old = try #require(try row(fixture, "djmdAlbum", "31"))
+        #expect(old["rb_data_status"] == "258" && old["rb_local_deleted"] == "1" && old["usn"] == "40")
+        // 번호: 대상 앨범 → 옛 앨범(258) → 곡
+        let numbers = try [saved["rb_local_usn"], old["rb_local_usn"], content(fixture)["rb_local_usn"]].map { Int($0 ?? "") ?? 0 }
+        #expect(try numbers == numbers.sorted() && numbers.last == fixture.localUpdateCount())
+        #expect(try content(fixture)["AlbumID"] == "32" && content(fixture)["TrackInfoUpdated"] == "4")
+    }
+
+    @Test func 동기화된_앨범의_새_이름은_새_앨범이고_옛_앨범은_258이다() throws {
+        // #173 S1 T04: 새 앨범(앨범 아티스트 이어받음, 상태 0), 옛 앨범 258.
+        let (fixture, track) = try library(shared: false)
+        try fixture.execute("UPDATE djmdAlbum SET AlbumArtistID = '11' WHERE ID = '31'")
+        try sync(fixture, "djmdAlbum", "31")
+        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.album = "DJC 173 앨범" }]).tagWritten.count == 1)
+        let fresh = try #require(fixture.rows("SELECT * FROM djmdAlbum WHERE Name = 'DJC 173 앨범'").first)
+        #expect(fresh["AlbumArtistID"] == "11" && fresh["rb_data_status"] == "0" && fresh["usn"] == "NULL")
+        #expect(try row(fixture, "djmdAlbum", "31")?["rb_data_status"] == "258")
+        #expect(try row(fixture, "djmdArtist", "11")?["rb_local_deleted"] == "0", "곡이 계속 쓰는 아티스트")
+    }
+
+    @Test func 동기화된_앨범을_비우면_지운_곡이_가리켜도_258이다() throws {
+        // #173 S2 U04: 앨범 비우기. 지운 곡 여럿이 가리키던 동기화 앨범도 258, 그 앨범의 앨범 아티스트 행은 그대로.
+        let (fixture, track) = try library()
+        try fixture.execute("UPDATE djmdContent SET rb_local_deleted = 1, rb_data_status = 262 WHERE ID = '501'")
+        try fixture.insert("djmdArtist", ["ID": .text("13"), "Name": .text("DJC 173 앨범 아티스트"), "UUID": .text("a-13")])
+        try fixture.execute("UPDATE djmdAlbum SET AlbumArtistID = '13' WHERE ID = '31'")
+        try sync(fixture, "djmdAlbum", "31")
+        try sync(fixture, "djmdArtist", "13")
+        let artist = try row(fixture, "djmdArtist", "13")
+        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.album = "" }]).tagWritten.count == 1)
+        let old = try #require(try row(fixture, "djmdAlbum", "31"))
+        #expect(old["rb_data_status"] == "258" && old["rb_local_deleted"] == "1" && old["AlbumArtistID"] == "13")
+        #expect(try row(fixture, "djmdArtist", "13") == artist)
+        #expect(try fixture.rows("SELECT quote(AlbumID) AS a FROM djmdContent WHERE ID = '500'").first?["a"] == "''")
+    }
+
+    @Test func 동기화된_앨범의_앨범_아티스트를_제자리에서_넣고_비운다() throws {
+        // #173 S2 U01(AA NULL → 기존 이름, 257), U14(AA → '', 257, 이 앨범만 가리키던 옛 AA 행 258).
+        let (fixture, track) = try library(shared: false)
+        try fixture.insert("djmdArtist", ["ID": .text("13"), "Name": .text("DJC 173 앨범 아티스트"), "UUID": .text("a-13")])
+        try sync(fixture, "djmdAlbum", "31")
+        try sync(fixture, "djmdArtist", "13")
+        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.albumArtist = "DJC 173 앨범 아티스트" }]).tagWritten.count == 1)
+        let put = try #require(try row(fixture, "djmdAlbum", "31"))
+        #expect(put["AlbumArtistID"] == "13" && put["rb_data_status"] == "257")
+        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.albumArtist = "" }]).tagWritten.count == 1)
+        let cleared = try #require(try row(fixture, "djmdAlbum", "31"))
+        #expect(cleared["AlbumArtistID"] == "" && cleared["rb_data_status"] == "257")
+        #expect(try row(fixture, "djmdArtist", "13")?["rb_data_status"] == "258")
+        #expect(try content(fixture)["TrackInfoUpdated"] == "5" && content(fixture)["AlbumID"] == "31")
+    }
+
+    @Test func 버려질_앨범이_257이면_백업_전에_막는다() throws {
+        // 257 앨범을 저장하는 것은 확인했지만(S3 V03) 257 앨범이 버려질 때는 보지 못했다.
+        let (fixture, track) = try library(shared: false)
+        try sync(fixture, "djmdAlbum", "31", state: 257)
+        for edit in [{ (f: inout TagFields) in f.album = "DJC 173 앨범" }, { (f: inout TagFields) in f.album = "" }] {
+            let report = try write(fixture, tags: [try draft(fixture, track, edit)])
+            #expect(report.tagWritten.isEmpty && report.backup == nil)
+            #expect(report.tagBlocked.first?.reason?.contains("동기화 앨범") == true)
+        }
+        #expect(try fixture.localUpdateCount() == 2000)
+        // 다른 곡도 쓰면 버려지지 않으므로 쓴다
+        let (shared, other) = try library()
+        try sync(shared, "djmdAlbum", "31", state: 257)
+        #expect(try write(shared, tags: [try draft(shared, other) { $0.album = "DJC 173 앨범" }]).tagWritten.count == 1)
+        #expect(try row(shared, "djmdAlbum", "31")?["rb_data_status"] == "257")
+    }
+
     @Test func 다른_곡이_쓰는_동기화_이름_행은_그대로_둔다() throws {
         // #173 S1 T03·X1: 다른 곡도 쓰는 옛 아티스트는 그대로, S1 T06·T07: 다른 곡도 쓰는 옛 장르는 그대로.
         let (fixture, track) = try library()
