@@ -117,7 +117,8 @@ enum ResizePerfSelfTest {
 
     private static func pair(_ values: [Double]) -> [String: Any] {
         let distribution = ResizePerfDistribution(values)
-        return ["count": distribution.count, "median": distribution.median, "max": distribution.maximum]
+        return ["count": distribution.count, "median": distribution.median, "max": distribution.maximum,
+                "total": values.reduce(0, +)]
     }
 
     private static func capture(_ window: NSWindow) -> Bool {
@@ -177,6 +178,7 @@ enum ResizePerfSelfTest {
                 recorder.reset()
                 PerfProbe.resetBodyCounts()
                 var steps: [Double] = [], layouts: [Double] = [], displays: [Double] = [], cpus: [Double] = []
+                var intervals: [String: [Double]] = [:]
                 var load = [0.0, 0.0, 0.0]
                 getloadavg(&load, 3)
                 let start = CACurrentMediaTime(), cpu = UIPerfRecorder.threadCPU()
@@ -196,6 +198,8 @@ enum ResizePerfSelfTest {
                     await wait(0.016)
                     steps.append(sync); layouts.append((laidOut - resized) * 1000)
                     displays.append((displayed - laidOut) * 1000); cpus.append(syncCPU)
+                    let stepIntervals = PerfProbe.intervalSnapshot()
+                    for (name, values) in stepIntervals { intervals[name, default: []] += values }
                     let bodies = PerfProbe.bodySnapshot().mapValues { $0 }
                         .reduce(into: [String: Int]()) { result, item in
                             let count = item.value - (counts[item.key] ?? 0)
@@ -208,7 +212,8 @@ enum ResizePerfSelfTest {
                         emit("RESIZE_STEP", ["axis": axis.rawValue, "round": round, "step": step,
                             "resize_ms": (resized - t) * 1000, "layout_flush_ms": (laidOut - resized) * 1000,
                             "display_flush_ms": (displayed - laidOut) * 1000, "sync_ms": sync, "sync_cpu_ms": syncCPU,
-                            "zoom_draw_ms": pair(PerfProbe.drawSnapshot()), "frame_gap_ms": pair(stepGaps), "bodies": bodies])
+                            "zoom_draw_ms": pair(PerfProbe.drawSnapshot()), "interval_ms": stepIntervals.mapValues(pair),
+                            "frame_gap_ms": pair(stepGaps), "bodies": bodies])
                     }
                 }
                 let end = CACurrentMediaTime()
@@ -219,6 +224,7 @@ enum ResizePerfSelfTest {
                     "sync_cpu_ms": pair(cpus), "total_cpu_ms": totalCPU,
                     "frame_gap_ms": pair(gaps), "elapsed_ms": (end - start) * 1000,
                     "bodies": PerfProbe.bodySnapshot(), "load_average": load,
+                    "interval_ms": intervals.mapValues(pair), "hidden": PerfProbe.hidden.sorted(),
                     "active": NSApp.isActive, "key_window": window.isKeyWindow])
                 guard !gaps.isEmpty, !NSApp.isActive, !window.isKeyWindow else {
                     log("프레임을 재지 못했거나 포커스가 바뀌어 실패함"); return false
