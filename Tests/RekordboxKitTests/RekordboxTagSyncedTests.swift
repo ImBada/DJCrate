@@ -165,26 +165,45 @@ extension RekordboxTagWriterTests {
         #expect(try content(fixture, "501")["ArtistID"] == "11" && content(fixture, "501")["GenreID"] == "21")
     }
 
-    @Test func 지운_곡이_함께_쓰는_앨범도_단독_앨범으로_보고_앨범_아티스트를_제자리에서_고친다() throws {
-        // #173 S2 U01·U14: 살아 있는 곡 하나와 지운 곡 하나가 쓰는 앨범의 앨범 아티스트를 rekordbox는 제자리에서 넣고 비웠다.
+    @Test(arguments: [0, 256]) func 지운_곡이_함께_쓰는_앨범의_앨범_아티스트는_동기화_앨범만_제자리에서_고친다(state: Int) throws {
+        // #173 S2 U01·U14: 살아 있는 곡 하나와 지운 곡 하나가 쓰는 동기화 앨범의 앨범 아티스트를 rekordbox는 제자리에서 넣고 비웠다.
+        // 상태 0 앨범은 예전처럼 지운 곡까지 세어 여러 곡이 쓰는 앨범으로 보고 막는다(상태 0의 근거는 없다).
         let (fixture, track) = try library()
         try fixture.execute("UPDATE djmdContent SET rb_local_deleted = 1, rb_data_status = 262, ArtistID = '' WHERE ID = '501'")
+        try sync(fixture, "djmdAlbum", "31", state: state)
         let report = try write(fixture, tags: [try draft(fixture, track) { $0.albumArtist = "DJC 173 앨범 아티스트" }])
-        #expect(report.tagWritten.count == 1 && report.tagBlocked.isEmpty)
-        let artist = try #require(fixture.rows("SELECT ID FROM djmdArtist WHERE Name = 'DJC 173 앨범 아티스트'").first?["ID"])
-        #expect(try row(fixture, "djmdAlbum", "31")?["AlbumArtistID"] == artist && content(fixture)["AlbumID"] == "31")
+        if state == 0 {
+            #expect(report.tagWritten.isEmpty && report.backup == nil && report.tagBlocked.first?.reason?.contains("여러 곡") == true)
+        } else {
+            #expect(report.tagWritten.count == 1 && report.tagBlocked.isEmpty)
+            let artist = try #require(fixture.rows("SELECT ID FROM djmdArtist WHERE Name = 'DJC 173 앨범 아티스트'").first?["ID"])
+            #expect(try row(fixture, "djmdAlbum", "31")?["AlbumArtistID"] == artist && content(fixture)["AlbumID"] == "31")
+        }
     }
 
-    @Test func 상태_0인_이름_행을_지운_곡만_가리키면_백업_전에_막는다() throws {
-        // 안전장치: 지우면 지운 곡 행의 참조가 끊기므로 rekordbox 규칙을 확인하기 전에는 쓰지 않는다(라이브러리에 0건).
+    @Test func 상태_0인_이름_행은_지운_곡이_가리키면_남긴다() throws {
+        // 상태 0 행은 예전처럼 지운 곡까지 센다. 지운 곡이 가리키면 지우지 않아 외래 키가 끊기지 않는다(2026-09-27 규칙).
         let (fixture, track) = try library()
         try fixture.execute("UPDATE djmdContent SET rb_local_deleted = 1, rb_data_status = 262 WHERE ID = '501'")
-        let before = try content(fixture)
+        let artist = try row(fixture, "djmdArtist", "11")
         let report = try write(fixture, tags: [try draft(fixture, track) { $0.artist = "DJC 173 아티스트" }])
-        #expect(report.tagWritten.isEmpty && report.backup == nil)
-        #expect(report.tagBlocked.first?.reason?.contains("지운 곡") == true)
-        #expect(try content(fixture) == before && fixture.localUpdateCount() == 2000)
-        #expect(try row(fixture, "djmdArtist", "11") != nil)
+        #expect(report.tagWritten.count == 1 && report.tagBlocked.isEmpty)
+        #expect(try row(fixture, "djmdArtist", "11") == artist, "상태·번호 그대로")
+        #expect(try content(fixture, "501")["ArtistID"] == "11")
+    }
+
+    @Test(arguments: [0, 256]) func 표시한_동기화_앨범의_앨범_아티스트는_상태대로_센다(state: Int) throws {
+        // 앨범과 아티스트를 함께 비우면 이 곡만 쓰던 동기화 앨범은 258(삭제 표시)이고 그 앨범 아티스트 칸은 그대로 남는다(S2 U04).
+        // 옛 아티스트가 그 앨범의 앨범 아티스트이면: 상태 0 아티스트는 지운 행까지 세어 남기고, 동기화 아티스트는 살아 있는 참조가 없어 258.
+        let (fixture, track) = try library(shared: false)
+        try fixture.execute("UPDATE djmdAlbum SET AlbumArtistID = '11' WHERE ID = '31'")
+        try sync(fixture, "djmdAlbum", "31")
+        try sync(fixture, "djmdArtist", "11", state: state)
+        let report = try write(fixture, tags: [try draft(fixture, track) { $0.artist = "DJC 173 아티스트"; $0.album = "" }])
+        #expect(report.tagWritten.count == 1 && report.tagBlocked.isEmpty)
+        #expect(try row(fixture, "djmdAlbum", "31")?["rb_data_status"] == "258")
+        let artist = try #require(try row(fixture, "djmdArtist", "11"))
+        #expect(artist["rb_data_status"] == (state == 0 ? "0" : "258") && artist["rb_local_deleted"] == (state == 0 ? "0" : "1"))
     }
 
     // MARK: 2. 버려진 행은 상태대로

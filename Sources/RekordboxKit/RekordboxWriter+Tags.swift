@@ -195,15 +195,27 @@ extension RekordboxWriter {
 
     // MARK: - 버려지는 이름·앨범 행
 
-    /// 태그 쓰기에서 행이 버려졌는지 보는 참조 수. 살아 있는 곡·앨범만 센다(#173 S2 U04, 2026-10-04: 지운 곡 여럿이 가리키는
-    /// 동기화 앨범도 비우자 258이 됐다). 곡 빼기는 지운 곡까지 세는 `RekordboxTrackWriter.referenceCount`를 그대로 쓴다.
+    /// 참조를 세는 곡·앨범 행
+    enum ReferenceRows {
+        case live, deleted, all
+
+        /// 버려졌는지 볼 때의 범위. 동기화(256·257) 행은 살아 있는 곡·앨범만 센다(#173 S2 U01·U04·U14, 2026-10-04: 지운 곡 여럿이 가리키는
+        /// 동기화 앨범도 비우자 258이 됐다). 상태 0과 그 밖의 행은 예전처럼 지운 곡·앨범까지 센다(지워도 외래 키가 끊기지 않게, 상태 0의 근거는 없다).
+        static func scope(of state: Int?) -> ReferenceRows { state == 256 || state == 257 ? .live : .all }
+    }
+
+    /// 태그 쓰기에서 행이 버려졌는지 보는 참조 수. 곡 빼기는 `RekordboxTrackWriter.referenceCount`를 그대로 쓴다.
     /// - Parameters:
-    ///   - deleted: true면 지운 곡·앨범의 참조만 센다(상태 0 행을 지우면 끊길 참조)
+    ///   - rows: 셀 곡·앨범 행(살아 있는 것·지운 것·모두)
     ///   - excludingContent: 이 곡 행은 세지 않는다(쓰기 전 예측)
     ///   - excludingAlbums: 이 앨범 행들은 세지 않는다(쓰기 전 예측)
-    static func tagReferences(_ db: CipherDatabase, table: String, id: String, deleted: Bool = false,
+    static func tagReferences(_ db: CipherDatabase, table: String, id: String, rows: ReferenceRows = .live,
                               excludingContent: String = "", excludingAlbums: [String] = []) throws -> Int {
-        let alive = deleted ? "rb_local_deleted != 0" : "rb_local_deleted = 0"
+        let alive = switch rows {
+        case .live: "rb_local_deleted = 0"
+        case .deleted: "rb_local_deleted != 0"
+        case .all: "1 = 1"
+        }
         let columns = switch table {
         case "djmdArtist": "(ArtistID = ?1 OR ComposerID = ?1 OR OrgArtistID = ?1 OR RemixerID = ?1)"
         case "djmdAlbum": "AlbumID = ?1"
@@ -237,15 +249,9 @@ extension RekordboxWriter {
 
     /// 버려질 행을 어떻게 정리할지. 0은 지우고 256은 258로 표시한다. 그 밖은 rekordbox 규칙을 확인하지 못해 막는다.
     /// - Returns: 막을 이유(통과면 nil)
-    static func releaseProblem(_ db: CipherDatabase, table: String, id: String, state: Int?) throws -> String? {
+    static func releaseProblem(table: String, state: Int?) -> String? {
         switch state {
-        case 0:
-            // 지우면 지운 곡 행의 참조가 끊긴다(라이브러리 조사에서 0건이라 규칙을 보지 못했다).
-            guard try tagReferences(db, table: table, id: id, deleted: true) == 0 else {
-                return String(ui: "이 곡이 놓는 이름을 rekordbox에서 지운 곡만 쓰고 있어 정리 규칙을 확인하지 못했으므로 rekordbox에서 직접 고치세요")
-            }
-            return nil
-        case 256:
+        case 0, 256:
             return nil
         case 257:
             // #173 S1~S3에서 버려진 옛 행은 모두 256이었다.
@@ -301,10 +307,10 @@ extension RekordboxWriter {
             moved = (nil, old.albumArtist ?? "")
         }
         let albumAfter = moved.map(\.id) ?? oldAlbum
-        var oldAlbumGone = false
+        var oldAlbumGone = false, oldAlbumMarked = false
         for (table, id) in released {
             guard let state = try liveNameState(db, table: table, id: id) else { continue }
-            let references: Int
+            var references: Int
             switch table {
             case "djmdAlbum":
                 references = try tagReferences(db, table: table, id: id, excludingContent: contentID) + (albumAfter == id ? 1 : 0)
@@ -319,9 +325,14 @@ extension RekordboxWriter {
             default:
                 references = try tagReferences(db, table: table, id: id, excludingContent: contentID) + (genre == id ? 1 : 0)
             }
+            if ReferenceRows.scope(of: state) == .all {
+                // 지운 곡·앨범도 센다. 이 쓰기로 258이 될 옛 앨범도 앨범 아티스트 칸을 그대로 가리킨다.
+                references += try tagReferences(db, table: table, id: id, rows: .deleted)
+                    + (table == "djmdArtist" && oldAlbumMarked && oldAlbumArtist == id ? 1 : 0)
+            }
             guard references == 0 else { continue }
-            if let problem = try releaseProblem(db, table: table, id: id, state: state) { throw block(problem) }
-            if table == "djmdAlbum", id == oldAlbum { oldAlbumGone = true }
+            if let problem = releaseProblem(table: table, state: state) { throw block(problem) }
+            if table == "djmdAlbum", id == oldAlbum { oldAlbumGone = true; oldAlbumMarked = state != 0 }
         }
     }
 
@@ -363,8 +374,9 @@ extension RekordboxWriter {
             throw block(String(ui: "이 앨범의 동기화 상태에서는 태그 쓰기를 확인하지 못했으므로 rekordbox에서 직접 고치세요"))
         }
         if keys.contains(.albumArtist) {
-            // 지운 곡은 세지 않는다(#173 S2 U01·U14: 지운 곡도 쓰던 앨범의 앨범 아티스트를 제자리에서 넣고 비웠다)
-            guard try tagReferences(db, table: "djmdAlbum", id: album.id) == 1 else {
+            // 동기화 앨범은 지운 곡을 세지 않는다(#173 S2 U01·U14: 지운 곡도 쓰던 동기화 앨범의 앨범 아티스트를 제자리에서 넣고 비웠다).
+            // 상태 0 앨범은 예전처럼 지운 곡까지 센다.
+            guard try tagReferences(db, table: "djmdAlbum", id: album.id, rows: ReferenceRows.scope(of: state)) == 1 else {
                 throw block(String(ui: "여러 곡이 쓰는 앨범이라 앨범 아티스트는 rekordbox에서 직접 고치세요"))
             }
         } else if album.artist != oldAlbumArtist {
@@ -485,8 +497,8 @@ extension RekordboxWriter {
         var marked: [MarkedName] = []
         for (table, id) in releasedNames(Set(keys), old: old, migratesAlbum: content.migratesAlbum) {
             guard let state = try liveNameState(db, table: table, id: id),
-                  try tagReferences(db, table: table, id: id) == 0 else { continue }
-            if let problem = try releaseProblem(db, table: table, id: id, state: state) { throw Blocked(title: content.title, reason: problem) }
+                  try tagReferences(db, table: table, id: id, rows: ReferenceRows.scope(of: state)) == 0 else { continue }
+            if let problem = releaseProblem(table: table, state: state) { throw Blocked(title: content.title, reason: problem) }
             if state == 0 {
                 _ = try db.run("DELETE FROM \(table) WHERE ID = ?", [.text(id)])
                 deleted.append((table, id))

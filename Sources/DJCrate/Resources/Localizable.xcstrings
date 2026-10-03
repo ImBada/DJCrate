@@ -25983,22 +25983,6 @@
         }
       }
     },
-    "이 곡이 놓는 이름을 rekordbox에서 지운 곡만 쓰고 있어 정리 규칙을 확인하지 못했으므로 rekordbox에서 직접 고치세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A name this track releases is used only by tracks deleted in rekordbox, and the cleanup rule is not verified. Edit this in rekordbox."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この曲が手放す名前はrekordboxで削除した曲だけが使っているため、整理の規則は未確認です。rekordboxで直接変更してください。"
-          }
-        }
-      }
-    },
     "이 곡이 더 쓰지 않게 될 앨범·이름의 동기화 상태에서는 정리 규칙을 확인하지 못했으므로 rekordbox에서 직접 고치세요" : {
       "localizations" : {
         "en" : {
