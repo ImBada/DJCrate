@@ -19,6 +19,12 @@ struct DJCrateApp: App {
         // SwiftPM 실행 파일은 번들이 없어서 Dock·메뉴 막대에 올리려면 직접 지정해야 한다.
         NSApplication.shared.setActivationPolicy(.regular)
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--key-routing-selftest"),
+           KeyRoutingSelfTestMode.requested(arguments: ProcessInfo.processInfo.arguments,
+                                            environment: ProcessInfo.processInfo.environment) == nil {
+            FileHandle.standardError.write(Data("[키 전달] 미검증: 자가 테스트 인자와 두 격리 환경 변수를 확인하세요 · 종료 코드 2\n".utf8))
+            exit(2)
+        }
         if ResizePerfSelfTest.isRequested {
             // 측정 창을 띄워도 사용 중인 앱의 포커스를 가져오지 않는다.
             NSApplication.shared.setActivationPolicy(.accessory)
