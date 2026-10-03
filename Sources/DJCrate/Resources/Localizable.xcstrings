@@ -10607,6 +10607,22 @@
         }
       }
     },
+    "같은 이름 앨범이 여럿인 곡이라 rekordbox 저장 규칙을 아직 확인하지 못했으므로 rekordbox에서 직접 고치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Several albums share this track’s album name, and rekordbox’s save rule for this case is not verified yet. Edit this in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この曲のアルバム名は複数のアルバムで使われており、rekordboxの保存規則はまだ未確認です。rekordboxで直接変更してください。"
+          }
+        }
+      }
+    },
     "같은 이름의 앨범이 여럿이라 선택 규칙을 확인하지 못했으므로 rekordbox에서 직접 고치세요" : {
       "localizations" : {
         "en" : {
@@ -12699,6 +12715,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "曲の解析ファイルを読み込めませんでした"
+          }
+        }
+      }
+    },
+    "곡의 앨범 행이 다릅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The track’s album row differs"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲のアルバム行が異なります"
           }
         }
       }

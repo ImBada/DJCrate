@@ -23,6 +23,8 @@ extension RekordboxWriter {
         var contentUSN: Int
         /// 쓴 뒤 곡의 `rb_data_status`(256 → 257, 0·257은 그대로)
         var dataStatus: Int?
+        /// 곡 행에 쓴 `AlbumID`(앨범 칸을 쓰거나 같은 이름의 새 앨범으로 옮겼을 때). 이름·앨범 아티스트가 같아도 옮겼는지 본다.
+        var albumID: String?
         /// 변경 번호를 준 앨범 행(ID → 번호·상태). 같은 반영 안의 뒤 편집은 마지막 기대값을 맡는다.
         var touchedAlbums: [String: (usn: Int, status: Int)] = [:]
         /// 아무 곡도 안 쓰게 되어 지운 이름 행(표, ID). 상태 0 행이다.
@@ -57,15 +59,16 @@ extension RekordboxWriter {
         var remixer: String?
         /// 곡의 앨범 행이 살아 있는지(지운 앨범 행은 저장하지 않는다)
         var albumLive = false
+        var albumName: String?
 
         static func read(_ db: CipherDatabase, contentID: String) throws -> TagOldNames? {
             var old: TagOldNames?
             try db.query("""
-                SELECT c.ArtistID, c.ComposerID, c.GenreID, c.AlbumID, a.AlbumArtistID, c.OrgArtistID, c.RemixerID, a.rb_local_deleted
+                SELECT c.ArtistID, c.ComposerID, c.GenreID, c.AlbumID, a.AlbumArtistID, c.OrgArtistID, c.RemixerID, a.rb_local_deleted, a.Name
                 FROM djmdContent c LEFT JOIN djmdAlbum a ON a.ID = c.AlbumID WHERE c.ID = ?
                 """, [.text(contentID)]) { r in
                 old = TagOldNames(artist: r.string(0), composer: r.string(1), genre: r.string(2), album: r.string(3), albumArtist: r.string(4),
-                                  orgArtist: r.string(5), remixer: r.string(6), albumLive: r.int(7) == 0)
+                                  orgArtist: r.string(5), remixer: r.string(6), albumLive: r.int(7) == 0, albumName: r.string(8))
             }
             return old
         }
@@ -78,6 +81,8 @@ extension RekordboxWriter {
         var trackInfoUpdated: String?
         var state: Int?
         var old: TagOldNames
+        /// 아티스트를 고치며 같은 이름의 새 앨범으로 옮기는지(`checkSameNameAlbum`)
+        var migratesAlbum = false
     }
 
     /// 백업에 둔 태그 초안(되돌리면 DJCrate에 다시 살린다)
@@ -147,8 +152,31 @@ extension RekordboxWriter {
             throw block(String(ui: "초안을 만든 뒤 rekordbox에서 곡 정보가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요"))
         }
         guard let old = try TagOldNames.read(db, contentID: content.id) else { throw block(String(ui: "곡 행을 다시 읽지 못했습니다 (\(content.title))")) }
-        try checkReleasedNames(draft, contentID: content.id, old: old, db: db, block: block)
-        return CheckedTag(id: content.id, title: content.title, trackInfoUpdated: content.trackInfoUpdated, state: content.state, old: old)
+        let migrates = try checkSameNameAlbum(draft, old: old, db: db, block: block)
+        try checkReleasedNames(draft, contentID: content.id, old: old, migratesAlbum: migrates, db: db, block: block)
+        return CheckedTag(id: content.id, title: content.title, trackInfoUpdated: content.trackInfoUpdated, state: content.state, old: old,
+                          migratesAlbum: migrates)
+    }
+
+    /// 아티스트를 고치거나 비울 때 곡의 앨범 이름을 살아 있는 앨범 둘 이상이 쓰면, rekordbox는 같은 이름의 새 앨범을 만들어 곡을 옮긴다
+    /// (#173 S3 V02: 상태 0·앨범 아티스트 있음·이 곡만 씀·나중에 만든 행, S2 U13: 동기화·앨범 아티스트 NULL·공유·가장 먼저 만든 행. 곡 상태와
+    /// 무관하다). 앨범·앨범 아티스트 칸도 고치면 그 칸을 먼저 쓰므로 옮기지 않는다.
+    /// 곡의 앨범이 같은 이름 앨범 중 가장 먼저 만든 행이면서 앨범 아티스트가 NULL이 아니면(값이나 '') "먼저 만든 같은 이름 행을 골라 앨범
+    /// 아티스트를 비교한다"는 다른 가설과 결과가 갈려 막는다(만든 시각이 같으면 먼저 만든 행으로 본다).
+    /// - Returns: 새 앨범으로 옮기는지
+    private static func checkSameNameAlbum(_ draft: TagDraft, old: TagOldNames, db: CipherDatabase, block: (String) -> Blocked) throws -> Bool {
+        let keys = draft.changedKeys
+        guard keys.contains(.artist), !keys.contains(.album), !keys.contains(.albumArtist), old.albumLive,
+              let album = old.album, !album.isEmpty, let name = old.albumName else { return false }
+        guard try scalar(db, "SELECT count(*) FROM djmdAlbum WHERE Name = ? AND rb_local_deleted = 0", [.text(name)]) ?? 0 >= 2 else { return false }
+        let earlier = try scalar(db, """
+            SELECT count(*) FROM djmdAlbum o WHERE o.Name = ?1 AND o.rb_local_deleted = 0 AND o.ID != ?2
+                AND o.created_at < (SELECT created_at FROM djmdAlbum WHERE ID = ?2)
+            """, [.text(name), .text(album)]) ?? 0
+        if earlier == 0, old.albumArtist != nil {
+            throw block(String(ui: "같은 이름 앨범이 여럿인 곡이라 rekordbox 저장 규칙을 아직 확인하지 못했으므로 rekordbox에서 직접 고치세요"))
+        }
+        return true
     }
 
     // MARK: - 버려지는 이름·앨범 행
@@ -178,9 +206,9 @@ extension RekordboxWriter {
     }
 
     /// 이 초안을 쓰면 놓는 옛 이름·앨범 행(앨범 먼저: 버려진 앨범의 앨범 아티스트 참조가 먼저 빠진다).
-    static func releasedNames(_ keys: Set<TagFields.Key>, old: TagOldNames) -> [(table: String, id: String)] {
+    static func releasedNames(_ keys: Set<TagFields.Key>, old: TagOldNames, migratesAlbum: Bool) -> [(table: String, id: String)] {
         var released: [(table: String, id: String?)] = []
-        if keys.contains(.album) || keys.contains(.albumArtist) { released.append(("djmdAlbum", old.album)) }
+        if keys.contains(.album) || keys.contains(.albumArtist) || migratesAlbum { released.append(("djmdAlbum", old.album)) }
         if keys.contains(.artist) { released.append(("djmdArtist", old.artist)) }
         if keys.contains(.albumArtist), !keys.contains(.album) { released.append(("djmdArtist", old.albumArtist)) }
         if keys.contains(.composer) { released.append(("djmdArtist", old.composer)) }
@@ -224,10 +252,10 @@ extension RekordboxWriter {
 
     /// 쓰기 전에 버려질 행을 미리 보고, 정리 규칙을 확인하지 않은 상태면 막는다(백업 전과 트랜잭션 안).
     /// 쓴 뒤 곡 행·곡의 앨범 행이 가리킬 것을 계산해 다른 곡·앨범의 살아 있는 참조와 더한다. 쓰는 중에 다시 센 값이 기준이다(`applyTags`).
-    private static func checkReleasedNames(_ draft: TagDraft, contentID: String, old: TagOldNames, db: CipherDatabase,
+    private static func checkReleasedNames(_ draft: TagDraft, contentID: String, old: TagOldNames, migratesAlbum: Bool, db: CipherDatabase,
                                            block: (String) -> Blocked) throws {
         let keys = Set(draft.changedKeys), fields = draft.fields
-        let released = releasedNames(keys, old: old)
+        let released = releasedNames(keys, old: old, migratesAlbum: migratesAlbum)
         guard !released.isEmpty else { return }
         /// 이미 있는 이름이면 쓰기가 고를 행(`findOrCreate`와 같은 질의), 빈 값은 "", 새 이름은 nil
         func resolve(_ table: String, _ name: String) throws -> String? {
@@ -255,6 +283,8 @@ extension RekordboxWriter {
             } else {
                 oldAlbumArtist = artist
             }
+        } else if migratesAlbum {
+            moved = (nil, old.albumArtist ?? "")
         }
         let albumAfter = moved.map(\.id) ?? oldAlbum
         var oldAlbumGone = false
@@ -366,7 +396,18 @@ extension RekordboxWriter {
             columns.append(("ArtistID", fields.artist.isEmpty ? .text("") : try name("djmdArtist", fields.artist)))
             // 아티스트를 고치면 곡의 앨범 행도 저장된다: NULL 앨범 아티스트는 '', 변경 번호·시각(2026-09-27 실험곡 5, 묶음 2),
             // 동기화 앨범은 256 → 257·257 그대로(#173 S1 T02·T05·X1, S2 U07, S3 V01·V03·V05)
-            if let album = old.album, !album.isEmpty, old.albumLive {
+            if content.migratesAlbum, let name = old.albumName {
+                // 같은 이름 앨범이 여럿이면 옛 앨범은 저장하지 않고 같은 이름의 새 앨범으로 옮긴다(#173 S3 V02·S2 U13). (이름, 앨범 아티스트)
+                // 짝이 같은 행이 있어도 늘 새로 만든다(`findOrCreateAlbum`을 쓰지 않는다). 앨범 아티스트는 이어받고 NULL이면 ''.
+                let id = try RekordboxTrackWriter.newID(db, table: "djmdAlbum", range: 1..<(1 << 32))
+                usn += 1
+                try RekordboxTrackWriter.insert(db, table: "djmdAlbum", [
+                    "ID": .text(id), "Name": .text(name), "AlbumArtistID": .text(old.albumArtist ?? ""), "ImagePath": .null, "Compilation": .int(0),
+                    "SearchStr": .null, "UUID": .text(UUID().uuidString.lowercased()),
+                ].merging(RekordboxTrackWriter.syncColumns(usn: usn, stamp: stamp)) { a, _ in a })
+                columns.append(("AlbumID", .text(id)))
+                touchedAlbums[id] = (usn, 0)
+            } else if let album = old.album, !album.isEmpty, old.albumLive {
                 try saveAlbum(album, albumArtist: nil)
             }
         }
@@ -422,7 +463,7 @@ extension RekordboxWriter {
         // rekordbox도 남겼다(앨범 칸을 고칠 때는 앨범 아티스트를 놓는 것으로 보지 않는다). 앨범을 먼저 정리해 그 앨범 아티스트 참조가 먼저 빠진다.
         var deleted: [(table: String, id: String)] = []
         var marked: [MarkedName] = []
-        for (table, id) in releasedNames(Set(keys), old: old) {
+        for (table, id) in releasedNames(Set(keys), old: old, migratesAlbum: content.migratesAlbum) {
             guard let state = try liveNameState(db, table: table, id: id),
                   try tagReferences(db, table: table, id: id) == 0 else { continue }
             if let problem = try releaseProblem(db, table: table, id: id, state: state) { throw Blocked(title: content.title, reason: problem) }
@@ -454,6 +495,7 @@ extension RekordboxWriter {
                                          dataStatus: content.state == 256 ? 257 : content.state,
                                          touchedAlbums: touchedAlbums, deletedNames: deleted)
         expectation.markedNames = marked
+        if case let .text(album)? = columns.last(where: { $0.0 == "AlbumID" })?.1 { expectation.albumID = album }
         try verifyTags(db: db, expectation)
         let outcome = Outcome(trackUUID: draft.trackUUID, title: content.title, status: .written, reason: nil, removed: 0, added: keys.count,
                               fields: keys.map(\.rawValue))
@@ -470,6 +512,11 @@ extension RekordboxWriter {
         guard stored?.info == expected.trackInfoUpdated, stored?.type == "text" else { throw fail(String(ui: "곡 정보 변경 횟수(TrackInfoUpdated)가 다릅니다")) }
         guard stored?.usn == expected.contentUSN else { throw fail(String(ui: "곡의 변경 번호가 다릅니다")) }
         guard let stored, stored.status == expected.dataStatus else { throw fail(String(ui: "곡의 동기화 상태(rb_data_status)가 다릅니다")) }
+        if let album = expected.albumID {
+            var stored: String?
+            try db.query("SELECT AlbumID FROM djmdContent WHERE ID = ?", [.text(expected.contentID)]) { stored = $0.string(0) }
+            guard stored == album else { throw fail(String(ui: "곡의 앨범 행이 다릅니다")) }
+        }
         for (id, album) in expected.touchedAlbums {
             guard try scalar(db, "SELECT rb_local_usn FROM djmdAlbum WHERE ID = ? AND AlbumArtistID IS NOT NULL", [.text(id)]) == album.usn else {
                 throw fail(String(ui: "앨범 행의 변경 번호가 다릅니다"))
