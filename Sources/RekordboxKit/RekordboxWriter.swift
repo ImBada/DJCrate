@@ -151,16 +151,9 @@ public enum RekordboxWriter {
         if !tags.isEmpty {
             let reader = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
             defer { reader.close() }
-            tags = try tags.filter { draft in
-                do {
-                    _ = try checkTags(draft, db: reader, writable: tagKeys)
-                    return true
-                } catch let blocked as Blocked {
-                    tagOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: blocked.title, status: .blocked, reason: blocked.reason,
-                                               removed: 0, added: 0))
-                    return false
-                }
-            }
+            let checked = try checkTagDrafts(tags, db: reader, writable: tagKeys)
+            tags = checked.passed
+            tagOutcomes = checked.blocked
         }
         if tags.isEmpty, !tagOutcomes.isEmpty, !drafts.contains(where: \.hasChanges), grids.isEmpty, gains.isEmpty,
            playlistSteps.isEmpty, merges.isEmpty {

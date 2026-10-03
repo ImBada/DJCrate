@@ -19079,6 +19079,22 @@
         }
       }
     },
+    "버리거나 남길 이름 행의 참조가 계산과 다릅니다 (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "References to name rows to release or keep differ from the plan (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手放す・残す名前の行の参照が計算と異なります（%@）"
+          }
+        }
+      }
+    },
     "버리기" : {
       "localizations" : {
         "en" : {

@@ -358,6 +358,65 @@ extension RekordboxTagWriterTests {
         #expect(try row(shared, "djmdAlbum", "31")?["rb_data_status"] == "257")
     }
 
+    // MARK: 여러 초안을 한 번에
+
+    @Test func 두_초안이_같은_257_앨범을_떠나면_백업_전_확인과_쓰기가_같은_곡을_막는다() throws {
+        // 곡 500·501이 함께 쓰는 257 앨범을 둘 다 떠나면, 첫 초안 뒤에도 앨범은 501이 쓰고 둘째 초안에서 버려져 막힌다.
+        // 백업 전 확인도 초안 순서대로 앞 초안이 옮긴 참조를 쌓아 같은 곡을 막아야 한다(트랜잭션 안의 결과와 같게).
+        let (fixture, track) = try library()
+        try sync(fixture, "djmdAlbum", "31", state: 257)
+        let neighbor = TrackSpec(id: "501", uuid: "track-uuid-501")
+        let drafts = [try draft(fixture, track) { $0.album = "DJC 173 앨범 가" }, try draft(fixture, neighbor) { $0.album = "DJC 173 앨범 나" }]
+        let db = try fixture.open()
+        let checked = try RekordboxWriter.checkTagDrafts(drafts, db: db, writable: Self.allKeys)
+        db.close()
+        #expect(checked.passed.map(\.trackUUID) == [track.uuid] && checked.blocked.map(\.trackUUID) == [neighbor.uuid])
+        let preview = try write(fixture, tags: drafts, dryRun: true)
+        #expect(preview.tagWritten.map(\.trackUUID) == [track.uuid] && preview.tagBlocked.map(\.trackUUID) == [neighbor.uuid])
+        let report = try write(fixture, tags: drafts)
+        #expect(report.tagWritten.map(\.trackUUID) == [track.uuid] && report.tagBlocked.map(\.trackUUID) == [neighbor.uuid])
+        #expect(report.tagBlocked.first?.reason?.contains("동기화 앨범") == true)
+        #expect(try row(fixture, "djmdAlbum", "31")?["rb_data_status"] == "257" && content(fixture, "501")["AlbumID"] == "31")
+    }
+
+    @Test func 버릴_행을_다시_센_값이_계획과_다르면_쓰기_전체를_되돌린다() throws {
+        // 버릴 행은 확인 때 정하고(planReleases) 쓰는 중에 다시 센다. 계획 밖에서 참조가 생기면(여기서는 시험용 트리거가 옛 아티스트를
+        // 작곡가 칸에 다시 넣는다) 계산이 틀린 것이므로 막힘이 아니라 검증 실패로 쓰기 전체를 되돌린다.
+        let (fixture, track) = try library(shared: false)
+        try sync(fixture, "djmdArtist", "11")
+        try fixture.execute("""
+            CREATE TRIGGER djc_test_reference AFTER UPDATE OF ArtistID ON djmdContent
+            BEGIN UPDATE djmdContent SET ComposerID = OLD.ArtistID WHERE ID = NEW.ID; END
+            """)
+        let before = try content(fixture), artist = try row(fixture, "djmdArtist", "11")
+        let error = try #require(throws: DJCError.self) {
+            try write(fixture, tags: [try draft(fixture, track) { $0.artist = "DJC 173 아티스트" }])
+        }
+        guard case .writeVerificationFailed = error else { Issue.record("검증 실패가 아님: \(error)"); return }
+        #expect(try content(fixture) == before && row(fixture, "djmdArtist", "11") == artist && fixture.localUpdateCount() == 2000)
+    }
+
+    @Test func 앞_초안이_버린_이름을_뒤_초안이_다시_쓰면_새_행을_만든다() throws {
+        // 앞 초안이 버린 동기화 아티스트(258)는 살아 있는 행이 아니므로 뒤 초안의 같은 이름은 새 행이다. 확인과 쓰기 모두 통과한다.
+        let (fixture, track) = try library(shared: false)
+        try sync(fixture, "djmdArtist", "11")
+        var neighbor = TrackSpec(id: "502", uuid: "track-uuid-502")
+        neighbor.artistID = "12"
+        try fixture.insert("djmdArtist", ["ID": .text("12"), "Name": .text("DJC 173 다른 아티스트"), "UUID": .text("a-12")])
+        try fixture.add(neighbor)
+        try fixture.execute("UPDATE djmdContent SET rb_data_status = 0 WHERE ID = '502'")
+        let drafts = [try draft(fixture, track) { $0.artist = "DJC 173 아티스트" }, try draft(fixture, neighbor) { $0.artist = "옛 아티스트" }]
+        let db = try fixture.open()
+        let checked = try RekordboxWriter.checkTagDrafts(drafts, db: db, writable: Self.allKeys)
+        db.close()
+        #expect(checked.passed.count == 2 && checked.blocked.isEmpty)
+        let report = try write(fixture, tags: drafts)
+        #expect(report.tagWritten.count == 2)
+        #expect(try row(fixture, "djmdArtist", "11")?["rb_data_status"] == "258")
+        let fresh = try #require(fixture.rows("SELECT ID FROM djmdArtist WHERE Name = '옛 아티스트' AND rb_local_deleted = 0").first?["ID"])
+        #expect(try fresh != "11" && content(fixture, "502")["ArtistID"] == fresh)
+    }
+
     // MARK: 7. 앨범과 아티스트를 함께 고치면 앨범 먼저
 
     /// 곡 행·앨범·아티스트 표를 ID·UUID·번호 값·시각 없이(외래 키는 이름으로) 비교할 모양
