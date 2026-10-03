@@ -5,7 +5,12 @@ import DJCStorage
 import Foundation
 
 extension DevSelfTests {
-    /// 앱 큐에만 키를 넣는다. 명시적 active 모드만 앱을 활성화하며 OS 키 입력은 보내지 않는다.
+    static func setKeyRoutingSheetMode(_ value: Bool, settings: SettingsStore) {
+        // 자가 테스트의 persist=false와 별개인 AppStorage 보기만 바꾸고 실행 뒤 원래 값으로 복원한다.
+        settings.defaults.set(value, forKey: SettingKeys.sheetMode.name)
+    }
+
+    /// 앱 큐에만 키를 넣는다. active 모드는 사용자 직접 클릭을 기다리며 OS 키 입력은 보내지 않는다.
     static func runKeyRoutingSelfTestIfRequested(store: LibraryStore, deck: DeckModel) {
         guard ProcessInfo.processInfo.arguments.contains("--key-routing-selftest"),
               ProcessInfo.processInfo.environment["DJC_HOME"] != nil,
@@ -28,6 +33,13 @@ extension DevSelfTests {
                 }
             }
             @MainActor func send(_ window: NSWindow, code: UInt16, text: String) async {
+                if mode == .active {
+                    guard NSApp.isActive, window.isKeyWindow,
+                          NSWorkspace.shared.frontmostApplication?.processIdentifier == ProcessInfo.processInfo.processIdentifier else {
+                        FileHandle.standardError.write(Data("[키 전달] 미검증: 입력 대상의 키 창·활성 상태가 바뀌어 중단 · 종료 코드 2\n".utf8))
+                        exit(2)
+                    }
+                }
                 for type: NSEvent.EventType in [.keyDown, .keyUp] {
                     if let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [],
                                                     timestamp: ProcessInfo.processInfo.systemUptime,
@@ -53,18 +65,27 @@ extension DevSelfTests {
                   let window = NSApp.windows.first(where: { $0.canBecomeMain && $0.isVisible }) else { exit(2) }
             if mode == .inactive { guard !NSApp.isActive else { exit(2) } }
             deck.shortcuts = .standard
-            store.settings.set(SettingKeys.sheetMode, false)
+            setKeyRoutingSheetMode(false, settings: store.settings)
             store.loadToDeck(row)
             await deck.loadTask?.value
             deck.gridDraft = GridDraft(trackUUID: row.track.uuid, base: [], segments: [.init(start: 0, bpm: 120, firstBeatNumber: 1)])
             deck.refreshGrid()
             if mode == .active {
-                NSApp.activate()
-                window.makeKeyAndOrderFront(nil)
-                FileHandle.standardError.write(Data("[키 전달] 사용자 클릭 대기: \(window.title) · 최대 5분 · 키 이벤트 전송 전\n".utf8))
-                let clock = ContinuousClock(), deadline = clock.now.advanced(by: .seconds(300))
-                while !(NSApp.isActive && window.isKeyWindow && NSApp.mainWindow === window), clock.now < deadline {
+                var clicked = false
+                let clickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
+                    if event.window === window { clicked = true }
+                    return event
+                }
+                window.orderFront(nil)
+                FileHandle.standardError.write(Data("[키 전달] 사용자 클릭 대기: \(window.title) · 최대 10분 · 키 이벤트 전송 전\n".utf8))
+                let clock = ContinuousClock(), deadline = clock.now.advanced(by: .seconds(600))
+                while !(clicked && NSApp.isActive && window.isKeyWindow && NSApp.mainWindow === window), clock.now < deadline {
                     try? await Task.sleep(for: .milliseconds(20))
+                }
+                if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
+                guard clicked else {
+                    FileHandle.standardError.write(Data("[키 전달] 미검증: 10분 안에 시험 창 직접 클릭을 확인하지 못함 · 종료 코드 2\n".utf8))
+                    exit(2)
                 }
             } else {
                 window.makeMain()
@@ -120,6 +141,14 @@ extension DevSelfTests {
                 await send(window, code: 24, text: "=")
                 check(deck.zoomSeconds < before, "곡 목록의 덱 확대 키")
                 capture(window, "list-zoom-after")
+                let returnZoom = deck.zoomSeconds
+                capture(window, "list-return-before")
+                await send(window, code: 36, text: "\r")
+                check(table.coordinator?.isEditing == true && KeyRouter.focus(in: window) == .textInput && deck.zoomSeconds == returnZoom,
+                      "곡 목록 Return은 태그 편집으로")
+                capture(window, "list-return-after")
+                await send(window, code: 53, text: "\u{1b}")
+                check(table.coordinator?.isEditing == false && window.firstResponder === table, "곡 목록 Esc는 편집 취소로")
             } else { check(false, "실제 곡 목록 찾기") }
 
             // 실제 검색칸의 필드 에디터가 글자 키를 받으며 덱은 그대로다.
@@ -139,7 +168,7 @@ extension DevSelfTests {
             } else { check(false, "실제 검색칸 찾기") }
 
             // 태그 시트의 방향키는 셀로 전달한다.
-            store.settings.set(SettingKeys.sheetMode, true)
+            setKeyRoutingSheetMode(true, settings: store.settings)
             await waitUntil { find(SheetTableView.self, in: window.contentView) != nil }
             if let sheet = find(SheetTableView.self, in: window.contentView), let coordinator = sheet.coordinator {
                 window.makeFirstResponder(sheet)
@@ -149,6 +178,26 @@ extension DevSelfTests {
                 await send(window, code: 124, text: "\u{f703}")
                 check(coordinator.cursor == .init(row: 0, column: 2) && deck.playhead == before, "태그 시트 방향키")
                 capture(window, "tag-sheet-after")
+                let cues = deck.memoryCueCount, zoom = deck.zoomSeconds
+                capture(window, "tag-input-before")
+                await send(window, code: 46, text: "m")
+                check(coordinator.isEditing && (window.firstResponder as? NSTextView)?.string == "m"
+                      && deck.memoryCueCount == cues && deck.zoomSeconds == zoom, "태그 글자 입력은 덱으로 가지 않음")
+                capture(window, "tag-input-after")
+                capture(window, "tag-return-before")
+                await send(window, code: 36, text: "\r")
+                check(!coordinator.isEditing && window.firstResponder === sheet
+                      && coordinator.cursor == .init(row: 1, column: 2)
+                      && store.tagCell(coordinator.rows[0], .artist) == "m", "태그 Return은 칸 확정으로")
+                capture(window, "tag-return-after")
+                coordinator.select(.init(row: 0, column: 2), extend: false)
+                await send(window, code: 24, text: "=")
+                capture(window, "tag-escape-before")
+                await send(window, code: 53, text: "\u{1b}")
+                check(!coordinator.isEditing && window.firstResponder === sheet
+                      && store.tagCell(coordinator.rows[0], .artist) == "m" && deck.zoomSeconds == zoom,
+                      "태그 Esc는 칸 취소로")
+                capture(window, "tag-escape-after")
             } else { check(false, "실제 태그 시트 찾기") }
 
             // AppKit의 실제 부착 시트·모달 세션 안 글자 입력은 덱을 바꾸지 않는다.
@@ -183,6 +232,44 @@ extension DevSelfTests {
                 }
             }
 
+            // 확인·취소 키도 실제 AppKit 시트와 모달의 버튼으로 전달한다.
+            for modal in [false, true] {
+                for escape in [false, true] {
+                    let alert = NSAlert()
+                    alert.messageText = "합성 키 전달 시험"
+                    alert.addButton(withTitle: "확인")
+                    alert.addButton(withTitle: "취소").keyEquivalent = "\u{1b}"
+                    alert.layout()
+                    let before = deck.zoomSeconds, cues = deck.memoryCueCount
+                    let name = "\(modal ? "modal" : "attached-sheet")-\(escape ? "escape" : "return")"
+                    let expected: NSApplication.ModalResponse = escape ? .alertSecondButtonReturn : .alertFirstButtonReturn
+                    var response: NSApplication.ModalResponse?
+                    let session: NSApplication.ModalSession?
+                    if modal {
+                        session = NSApp.beginModalSession(for: alert.window)
+                        _ = NSApp.runModalSession(session!)
+                    } else {
+                        session = nil
+                        window.beginSheet(alert.window) { response = $0 }
+                    }
+                    alert.window.makeFirstResponder(nil)
+                    capture(alert.window, "\(name)-before")
+                    await send(alert.window, code: escape ? 53 : 36, text: escape ? "\u{1b}" : "\r")
+                    if let session {
+                        response = NSApp.runModalSession(session)
+                        NSApp.endModalSession(session)
+                    } else {
+                        await waitUntil { response != nil }
+                    }
+                    check(response == expected && deck.zoomSeconds == before && deck.memoryCueCount == cues,
+                          "\(modal ? "모달" : "부착 시트") \(escape ? "Esc" : "Return")은 해당 창으로")
+                    if window.attachedSheet === alert.window { window.endSheet(alert.window) }
+                    alert.window.orderOut(nil)
+                    window.makeKeyAndOrderFront(nil)
+                    capture(window, "\(name)-after")
+                }
+            }
+
             // 제품의 곡 편집 창에 온 확대 키는 편집 창만 바꾼다.
             TrackEditWindow.shared.open()
             if let editWindow = TrackEditWindow.shared.window, let model = TrackEditWindow.shared.model {
@@ -197,7 +284,7 @@ extension DevSelfTests {
             if mode == .active {
                 check(NSApp.isActive && NSWorkspace.shared.frontmostApplication?.processIdentifier == ProcessInfo.processInfo.processIdentifier,
                       "활성 모드의 앱 포커스(끝)")
-                check(captureCount == 16 && captureFailures == 0, "대상 창 전후 캡처 16개")
+                check(captureCount == 32 && captureFailures == 0, "대상 창 전후 캡처 32개")
             } else {
                 check(!NSApp.isActive && NSWorkspace.shared.frontmostApplication?.processIdentifier == frontmost, "외부 앱 포커스 보존")
             }
