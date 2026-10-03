@@ -13,6 +13,12 @@ public enum SeekInfo {
         public var startSample: Int
         public var offset: Int
         public var blockSize: Int
+
+        public init(startSample: Int, offset: Int, blockSize: Int) {
+            self.startSample = startSample
+            self.offset = offset
+            self.blockSize = blockSize
+        }
     }
 
     /// FLAC STREAMINFO(샘플레이트·채널·비트·전체 샘플). 전체 샘플이 0이면 파일에 적혀 있지 않은 것.
@@ -81,6 +87,36 @@ public enum SeekInfo {
             }
             return frames.isEmpty ? nil : (sampleRate, frames)
         }
+    }
+
+    /// 마지막을 뺀 모든 프레임의 끝 CRC-16(다항식 0x8005, 초깃값 0)이 맞는지. 프레임 끝은 다음 프레임 머리로 정한다.
+    /// 마지막 프레임은 뒤에 붙은 태그(ID3v1 등)와 끝을 가릴 수 없어 보지 않는다.
+    public static func flacFramesPassCRC(url: URL, frames: [FlacFrame]) -> Bool {
+        flacCRCFailures(url: url, frames: frames)?.isEmpty == true
+    }
+
+    /// CRC-16이 맞지 않는 프레임의 순번(마지막 프레임 제외). 파일을 읽지 못하면 nil.
+    public static func flacCRCFailures(url: URL, frames: [FlacFrame]) -> [Int]? {
+        guard frames.count > 1 else { return frames.isEmpty ? nil : [] }
+        guard let data = try? Data(contentsOf: url, options: .alwaysMapped) else { return nil }
+        return data.withUnsafeBytes { raw -> [Int]? in
+            let b = raw.bindMemory(to: UInt8.self)
+            var failures: [Int] = []
+            for (index, (frame, next)) in zip(frames, frames.dropFirst()).enumerated() {
+                let end = next.offset - 2
+                guard end > frame.offset, next.offset <= b.count else { failures.append(index); continue }
+                var crc: UInt16 = 0
+                for i in frame.offset..<end { crc = crc << 8 ^ flacCRC16Table[Int(UInt8(crc >> 8) ^ b[i])] }
+                if crc != UInt16(b[end]) << 8 | UInt16(b[end + 1]) { failures.append(index) }
+            }
+            return failures
+        }
+    }
+
+    static let flacCRC16Table: [UInt16] = (0..<256).map { byte in
+        var crc = UInt16(byte) << 8
+        for _ in 0..<8 { crc = crc & 0x8000 != 0 ? crc << 1 ^ 0x8005 : crc << 1 }
+        return crc
     }
 
     /// `sample`이 든 프레임의 SeekInfo 문자열
@@ -184,8 +220,11 @@ public enum SeekInfo {
 
     /// rekordbox가 세는 MP3 프레임의 바이트 위치. LAME 정보 프레임(첫 프레임 안에 LAME 태그)은 소리로 세고,
     /// 다른 인코더(ffmpeg Lavc 등)의 정보 프레임은 세지 않는다. 시간축 보정·PVBR·큐 MPEG 칸이 모두 이 규칙이다.
+    /// 인코더 칸이 "L3.99r1"인 정보 프레임도 소리로 센다(#14 곡 F, 2026-10-03: 큐 2개·PVBR 400칸·파형 길이 일치).
+    /// 시간축 보정(`RekordboxTimeline.predictedOffset`)은 이 인코더를 확인하지 않아 그대로 둔다.
     public static func countedMp3Offsets(_ frames: Mp3Frames, url: URL) -> [Int] {
-        guard frames.hasInfoFrame, !RekordboxTimeline.mp3Header(url: url).contains("LAME") else { return frames.offsets }
+        let header = RekordboxTimeline.mp3Header(url: url)
+        guard frames.hasInfoFrame, !header.contains("LAME"), !header.contains("L3.99r1") else { return frames.offsets }
         return Array(frames.offsets.dropFirst())
     }
 

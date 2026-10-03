@@ -14,7 +14,7 @@ rekordbox 7용 DJ 라이브러리 관리 macOS 앱 DJCrate(약칭 DJC, CLI `djc`
   - 시험 프로세스의 기본 rekordbox 폴더·DJCrate 데이터 폴더는 임시 폴더(`TestProcess.sandbox`)다. 실제 rekordbox 폴더 쓰기·복원은 쓰기 관문이 거부한다.
   - 쓰기·복원 API에 라이브 DB 기본 인자를 두지 않는다(부르는 쪽이 대상을 적는다). 앱은 `LibraryStore.rekordboxDatabase` 한 곳에서 쓰기·복원 대상을 정한다. 복원은 다른 라이브러리(`djmdProperty.DBID`)의 백업을 거부한다.
   - 시험 환경(검사 스크립트의 환경 변수, 시험 활성 조건)을 바꾸면 그 변경으로 새로 도는 시험이 무엇을 쓰는지 먼저 확인한다.
-- 규칙을 확인하지 않은 쓰기(미확인 ALAC 형식, 44.1kHz가 아닌 ffmpeg VBR·그 밖의 비LAME VBR 분석 붙이기)는 막아 둔다. 새 쓰기 경로는 rekordbox 실험 → 사본 재현 → 칸 단위 일치를 확인한 뒤에만 연다(`docs/rekordbox-internals.md` 끝).
+- 규칙을 확인하지 않은 쓰기(미확인 ALAC 형식, MPEG-1(32·44.1·48kHz)이 아닌 ffmpeg VBR·그 밖의 비LAME VBR·CRC가 맞지 않는 프레임이 있는 FLAC 분석 붙이기)는 막아 둔다. 새 쓰기 경로는 rekordbox 실험 → 사본 재현 → 칸 단위 일치를 확인한 뒤에만 연다(`docs/rekordbox-internals.md` 끝).
 - rekordbox DB 사본(`*.db`, `-wal`, `-shm`, `snapshots/`)에는 클라우드 토큰이 들어 있다. 커밋·출력·로그 금지. `agentRegistry`의 인증값은 읽지도 옮기지도 않는다.
 - rekordbox 규칙은 rekordbox 화면에서 편집한 결과 파일을 비교해서만 알아낸다. rekordbox 실행 파일(본체·rb_http_server 등)은 strings·디스어셈블을 포함해 분석하지 않는다.
 - 라이선스가 없는 외부 코드·문서는 쓰지 않는다. 외부 코드를 옮기면 라이선스를 확인하고 THIRD_PARTY_NOTICES.md에 더한다.
