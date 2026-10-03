@@ -1,6 +1,6 @@
 import Foundation
 
-/// USB 곡 행에서 로컬 곡을 찾는 열쇠(OneLibrary content의 master_db_id·master_content_id·파일 이름)
+/// USB 곡 행에서 로컬 곡을 찾는 열쇠(OneLibrary content의 masterDbId·masterContentId = pdb 트랙 0x18·0x14, 경로 끝 성분)
 public struct UsbTrackKey: Sendable, Hashable {
     public var masterDbId: Int64
     public var masterContentId: Int64
@@ -27,13 +27,31 @@ public struct UsbLocalTrackKey: Sendable, Hashable {
 }
 
 public enum UsbTrackMatch {
-    /// 이 로컬 라이브러리에서 내보낸 곡이고(DB ID), 곡 ID와 파일 이름(NFC)이 같은 로컬 곡 하나. 없거나 둘 이상이면 nil
+    /// 같은 이름이 있을 때 내보내기가 붙이는 번호(`UsbExportPlanner`: " (2)" … " (99)")
+    static let suffixNumbers = 2...99
+
+    /// 이 로컬 라이브러리에서 내보낸 곡(DB ID)이고 곡 ID(`MasterSongID`)가 같은 로컬 곡 중, USB 경로 끝 성분이 그 곡의 파일 이름인 곡 하나.
+    /// 없거나 둘 이상이면 nil.
+    /// - 경로 끝 성분은 `FileNameL` 그대로이거나 내보내기 이름 규칙(`UsbPathRules.fileName` — 금지 글자·자르기)으로 지은 이름,
+    ///   그 이름에 번호(`withSuffix`)를 붙인 이름이어야 한다. FAT처럼 대소문자·NFC/NFD를 가리지 않는다(같은 파일을 USB 철자로 가리킨다).
+    /// - 그대로 맞는 곡이 번호를 붙여 맞는 곡보다 앞선다.
+    /// - 아티스트·앨범 폴더 성분은 보지 않는다(로컬에서 이름을 바꾼 곡도 갱신할 수 있게).
     public static func match(_ usb: UsbTrackKey, localDBID: Int64, local: [UsbLocalTrackKey]) -> String? {
         guard usb.masterDbId == localDBID else { return nil }
-        let name = UsbLayout.nfc(usb.fileName)
-        let found = Set(local.filter {
-            Int64($0.masterSongID) == usb.masterContentId && UsbLayout.nfc($0.fileNameL) == name
+        let candidates = local.filter { Int64($0.masterSongID) == usb.masterContentId }
+        guard !candidates.isEmpty else { return nil }
+        let name = UsbLayout.collisionKey(usb.fileName)
+        let exact = Set(candidates.filter { exportNames($0.fileNameL).contains(name) }.map(\.contentID))
+        if !exact.isEmpty { return exact.count == 1 ? exact.first : nil }
+        let numbered = Set(candidates.filter { candidate in
+            let base = UsbPathRules.fileName(candidate.fileNameL).value
+            return suffixNumbers.contains { UsbLayout.collisionKey(UsbPathRules.withSuffix(base, number: $0)) == name }
         }.map(\.contentID))
-        return found.count == 1 ? found.first : nil
+        return numbered.count == 1 ? numbered.first : nil
+    }
+
+    /// 로컬 파일 이름이 USB에서 될 수 있는 이름(번호 없음, 충돌 키)
+    static func exportNames(_ fileNameL: String) -> Set<String> {
+        [UsbLayout.collisionKey(fileNameL), UsbLayout.collisionKey(UsbPathRules.fileName(fileNameL).value)]
     }
 }
