@@ -253,12 +253,14 @@ public enum RekordboxWriter {
             }
         }
 
-        // 재생 목록 편집과 곡 정보 쓰기는 DB 옆 masterPlaylists6.xml도 고친다(곡 정보는 그 곡이 든 목록의 Timestamp, #173).
+        // 재생 목록 편집과 곡 정보 쓰기는 DB 옆 masterPlaylists6.xml도 고친다(곡 정보는 확인한 칸을 쓴 곡이 든 목록의 Timestamp, #173).
         // 쓰는 DB 옆 파일만 대상이고 없으면 DB만 쓴다. 사본 옆 파일이 라이브 XML의 링크면, 읽지 못하는 모양이면 백업 전에 막는다.
         let playlistXMLURL = playlistXMLURL(for: database)
         var playlistXML: MasterPlaylistsXML?
-        if !playlistSteps.isEmpty || !merges.isEmpty || !tags.isEmpty { try writeGuard.checkAdjacentFile(playlistXMLURL, database: database) }
-        if (!playlistSteps.isEmpty || !merges.isEmpty || !tags.isEmpty), FileManager.default.fileExists(atPath: playlistXMLURL.path) {
+        let tagsTouchXML = tags.contains { !Set($0.changedKeys).isDisjoint(with: playlistTimestampTagKeys) }
+        let readsXML = !playlistSteps.isEmpty || !merges.isEmpty || tagsTouchXML
+        if readsXML { try writeGuard.checkAdjacentFile(playlistXMLURL, database: database) }
+        if readsXML, FileManager.default.fileExists(atPath: playlistXMLURL.path) {
             let xml = try? MasterPlaylistsXML(contentsOf: playlistXMLURL)
             guard let xml, xml.text.contains("</PLAYLISTS>") else {
                 throw DJCError.writeRefused(String(ui: "masterPlaylists6.xml을 읽지 못했습니다. rekordbox를 한 번 켰다가 종료한 뒤 다시 시도하세요"))
@@ -282,6 +284,8 @@ public enum RekordboxWriter {
         var updatedXML: MasterPlaylistsXML?
         /// XML에 할 일(재생 목록 → 합치기 → 곡 정보 순). 트랜잭션 끝에서 한 번에 계산하고 커밋 뒤에 적는다.
         var xmlChanges: [PlaylistXMLChange] = []
+        /// 곡 정보로 Timestamp를 고칠 목록(한 번씩)
+        var touchedPlaylists: Set<String> = []
         var merged: [MergeExpectation] = []
         var mergeFiles: [URL] = []
         var finalUpdateCount: Int?
@@ -450,9 +454,12 @@ public enum RekordboxWriter {
                         regridded[i].content["rb_local_usn"] = .int(usn)
                     }
                     try db.execute("RELEASE djc_tags")
-                    // 그 곡이 든 살아 있는 목록마다 XML Timestamp를 쓴 시각으로(부모 폴더는 그대로, #173 S1 X1·S2 U11·U12·S3 V07)
-                    for id in try tagPlaylists(db, contentID: result.expectation.contentID) where !xmlChanges.contains(.touch(id)) {
-                        xmlChanges.append(.touch(id))
+                    // 확인한 칸(제목·아티스트·장르)을 썼으면 그 곡이 든 살아 있는 목록마다 XML Timestamp를 쓴 시각으로
+                    // (부모 폴더는 그대로, #173 S1 X1·S2 U11·U12·S3 V07)
+                    if !Set(draft.changedKeys).isDisjoint(with: playlistTimestampTagKeys) {
+                        for id in try tagPlaylists(db, contentID: result.expectation.contentID) where touchedPlaylists.insert(id).inserted {
+                            xmlChanges.append(.touch(id))
+                        }
                     }
                 } catch let blocked as Blocked {
                     try db.execute("ROLLBACK TO djc_tags")

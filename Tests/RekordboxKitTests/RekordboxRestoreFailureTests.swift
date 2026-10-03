@@ -322,7 +322,10 @@ struct RekordboxRestoreFailureTests {
         try parsed.append(id: playlist.id, parentID: playlist.parentID, isFolder: false, timestamp: 1_000)
         let xml = fixture.root.appending(path: "masterPlaylists6.xml")
         try parsed.text.write(to: xml, atomically: true, encoding: .utf8)
-        let tags = try syncedCommentDraft(fixture, track)
+        // XML Timestamp를 고치는 칸(제목)
+        var tags = try syncedCommentDraft(fixture, track)
+        tags.fields.comment = tags.base.comment
+        tags.fields.title = "새 제목"
         let before = try state(fixture), xmlBefore = try Data(contentsOf: xml)
         try acl(["+a", "everyone deny delete", xml.path])
         defer { try? acl(["-R", "-N", fixture.root.path]) }
