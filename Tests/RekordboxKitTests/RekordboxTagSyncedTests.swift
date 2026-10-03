@@ -127,3 +127,122 @@ extension RekordboxTagWriterTests {
         #expect(try Int(row["rb_local_usn"] ?? "") == fixture.localUpdateCount(), "곡 행이 마지막 번호")
     }
 }
+
+/// #173 동기화 상태 곡·이름 행의 곡 정보 쓰기(2026-10-04 rekordbox 7.2.18, 세션 S1·S2·S3, 실험 곡은 역할 이름).
+/// 이름·앨범 행은 자기 상태로 정해진다: 저장되면 256 → 257, 버려지면 0은 지우고 256은 258·`rb_local_deleted` 1(네 칸만).
+/// 버려졌는지는 살아 있는 곡·앨범의 참조로만 센다(S2 U04).
+extension RekordboxTagWriterTests {
+    /// 이름·앨범 행을 클라우드에서 받은 모양으로(상태·`usn`·`rb_local_synced` 1)
+    func sync(_ fixture: RekordboxFixture, _ table: String, _ id: String, state: Int = 256) throws {
+        try fixture.execute("UPDATE \(table) SET rb_data_status = ?, usn = 40, rb_local_synced = 1 WHERE ID = ?", [.int(state), .text(id)])
+    }
+
+    func row(_ fixture: RekordboxFixture, _ table: String, _ id: String) throws -> [String: String]? {
+        try fixture.rows("SELECT * FROM \(table) WHERE ID = ?", [.text(id)]).first
+    }
+
+    // MARK: 1. 참조 수는 살아 있는 것만
+
+    @Test func 지운_곡만_가리키는_이름_행은_버려진_것으로_센다() throws {
+        // #173 S2 U04(2026-10-04): 지운 곡(262) 여럿이 가리키는 동기화 앨범도 비우자 258이 됐다. 아티스트·장르도 같은 참조 규칙이다.
+        let (fixture, track) = try library()
+        try fixture.execute("UPDATE djmdContent SET rb_local_deleted = 1, rb_data_status = 262 WHERE ID = '501'")
+        try sync(fixture, "djmdArtist", "11")
+        try sync(fixture, "djmdGenre", "21")
+        let report = try write(fixture, tags: [try draft(fixture, track) { $0.artist = "DJC 173 아티스트"; $0.genre = "DJC 173 장르" }])
+        #expect(report.tagWritten.count == 1 && report.tagBlocked.isEmpty)
+        for (table, id) in [("djmdArtist", "11"), ("djmdGenre", "21")] {
+            let marked = try #require(try row(fixture, table, id))
+            #expect(marked["rb_data_status"] == "258" && marked["rb_local_deleted"] == "1", "\(table)")
+        }
+        // 지운 곡 행은 그대로 옛 행을 가리킨다
+        #expect(try content(fixture, "501")["ArtistID"] == "11" && content(fixture, "501")["GenreID"] == "21")
+    }
+
+    @Test func 지운_곡이_함께_쓰는_앨범도_단독_앨범으로_보고_앨범_아티스트를_제자리에서_고친다() throws {
+        // #173 S2 U01·U14: 살아 있는 곡 하나와 지운 곡 하나가 쓰는 앨범의 앨범 아티스트를 rekordbox는 제자리에서 넣고 비웠다.
+        let (fixture, track) = try library()
+        try fixture.execute("UPDATE djmdContent SET rb_local_deleted = 1, rb_data_status = 262, ArtistID = '' WHERE ID = '501'")
+        let report = try write(fixture, tags: [try draft(fixture, track) { $0.albumArtist = "DJC 173 앨범 아티스트" }])
+        #expect(report.tagWritten.count == 1 && report.tagBlocked.isEmpty)
+        let artist = try #require(fixture.rows("SELECT ID FROM djmdArtist WHERE Name = 'DJC 173 앨범 아티스트'").first?["ID"])
+        #expect(try row(fixture, "djmdAlbum", "31")?["AlbumArtistID"] == artist && content(fixture)["AlbumID"] == "31")
+    }
+
+    @Test func 상태_0인_이름_행을_지운_곡만_가리키면_백업_전에_막는다() throws {
+        // 안전장치: 지우면 지운 곡 행의 참조가 끊기므로 rekordbox 규칙을 확인하기 전에는 쓰지 않는다(라이브러리에 0건).
+        let (fixture, track) = try library()
+        try fixture.execute("UPDATE djmdContent SET rb_local_deleted = 1, rb_data_status = 262 WHERE ID = '501'")
+        let before = try content(fixture)
+        let report = try write(fixture, tags: [try draft(fixture, track) { $0.artist = "DJC 173 아티스트" }])
+        #expect(report.tagWritten.isEmpty && report.backup == nil)
+        #expect(report.tagBlocked.first?.reason?.contains("지운 곡") == true)
+        #expect(try content(fixture) == before && fixture.localUpdateCount() == 2000)
+        #expect(try row(fixture, "djmdArtist", "11") != nil)
+    }
+
+    // MARK: 2. 버려진 행은 상태대로
+
+    @Test func 동기화된_이름_행이_버려지면_258로_표시하고_4칸만_바꾼다() throws {
+        // #173 S1 T02(아티스트 새 이름: 새 행 → 빈 → 앨범 → 옛 아티스트 258 → 곡), S2 U05(장르 비우기 258), U06(작곡가 비우기 258).
+        // 258 행은 `rb_data_status`·`rb_local_deleted`·`rb_local_usn`·`updated_at`만 바뀌고 `usn`·`rb_local_synced`는 그대로다.
+        let (fixture, track) = try library(shared: false)
+        try fixture.insert("djmdArtist", ["ID": .text("14"), "Name": .text("옛 작곡가"), "UUID": .text("a-14"), "rb_local_usn": .int(9)])
+        try fixture.execute("UPDATE djmdContent SET ComposerID = '14' WHERE ID = '500'")
+        for (table, id) in [("djmdArtist", "11"), ("djmdArtist", "14"), ("djmdGenre", "21")] { try sync(fixture, table, id) }
+        let artist = try #require(try row(fixture, "djmdArtist", "11"))
+        let report = try write(fixture, tags: [try draft(fixture, track) { $0.artist = "DJC 173 아티스트" }])
+        #expect(report.tagWritten.count == 1)
+        let marked = try #require(try row(fixture, "djmdArtist", "11"))
+        #expect(Set(marked.keys.filter { marked[$0] != artist[$0] }) == ["rb_data_status", "rb_local_deleted", "rb_local_usn", "updated_at"])
+        #expect(marked["rb_data_status"] == "258" && marked["rb_local_deleted"] == "1" && marked["updated_at"] == stamp)
+        #expect(marked["usn"] == "40" && marked["rb_local_synced"] == "1")
+        // 번호 순서: 새 아티스트 → 앨범 행 → 옛 아티스트(258) → 곡 행(마지막)
+        let fresh = try #require(fixture.rows("SELECT rb_local_usn FROM djmdArtist WHERE Name = 'DJC 173 아티스트'").first?["rb_local_usn"])
+        let album = try #require(try row(fixture, "djmdAlbum", "31")?["rb_local_usn"])
+        let numbers = try [fresh, album, try #require(marked["rb_local_usn"]), try #require(content(fixture)["rb_local_usn"])].map { Int($0) ?? 0 }
+        #expect(numbers == numbers.sorted() && Set(numbers).count == 4)
+        #expect(try numbers.last == fixture.localUpdateCount())
+        #expect(try content(fixture)["TrackInfoUpdated"] == "4", "저장 한 번")
+
+        // 장르·작곡가 비우기도 같은 쓰기에서 258(rekordbox는 작곡가 행을 다음 아티스트 저장 때 표시했다. 최종 상태는 같다)
+        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.genre = ""; $0.composer = "" }]).tagWritten.count == 1)
+        let last = try Int(content(fixture)["rb_local_usn"] ?? "") ?? 0
+        for (table, id) in [("djmdGenre", "21"), ("djmdArtist", "14")] {
+            let row = try #require(try row(fixture, table, id))
+            #expect(row["rb_data_status"] == "258" && row["rb_local_deleted"] == "1" && row["usn"] == "40", "\(table)")
+            #expect((Int(row["rb_local_usn"] ?? "") ?? 0) < last)
+        }
+        #expect(try last == fixture.localUpdateCount())
+    }
+
+    @Test func 상태_0인_이름_행이_버려지면_지운다() throws {
+        // 2026-09-27 실험 2(상태 0)와 같다: 아무 곡도 안 쓰는 옛 행은 실제로 지우고 번호를 쓰지 않는다.
+        let (fixture, track) = try library(shared: false)
+        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.artist = "DJC 173 아티스트" }]).tagWritten.count == 1)
+        #expect(try row(fixture, "djmdArtist", "11") == nil)
+        #expect(try content(fixture)["rb_local_usn"] == "2003" && fixture.localUpdateCount() == 2003)
+    }
+
+    @Test(arguments: [257, 2, 262]) func 버려질_이름_행이_258로_표시할_수_없는_상태면_백업_전에_막는다(state: Int) throws {
+        // 257 행이 버려질 때는 확인하지 못했다(#173 S1~S3의 옛 행은 모두 256). 그 밖의 상태도 막는다.
+        let (fixture, track) = try library(shared: false)
+        try sync(fixture, "djmdArtist", "11", state: state)
+        let before = try content(fixture)
+        let report = try write(fixture, tags: [try draft(fixture, track) { $0.artist = "DJC 173 아티스트" }])
+        #expect(report.tagWritten.isEmpty && report.backup == nil)
+        #expect(report.tagBlocked.first?.reason?.contains("rekordbox에서 직접") == true)
+        #expect(try content(fixture) == before && fixture.localUpdateCount() == 2000)
+    }
+
+    @Test func 다른_곡이_쓰는_동기화_이름_행은_그대로_둔다() throws {
+        // #173 S1 T03·X1: 다른 곡도 쓰는 옛 아티스트는 그대로, S1 T06·T07: 다른 곡도 쓰는 옛 장르는 그대로.
+        let (fixture, track) = try library()
+        try fixture.execute("UPDATE djmdContent SET GenreID = '21' WHERE ID = '501'")
+        try sync(fixture, "djmdArtist", "11")
+        try sync(fixture, "djmdGenre", "21")
+        let artist = try row(fixture, "djmdArtist", "11"), genre = try row(fixture, "djmdGenre", "21")
+        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.artist = "DJC 173 아티스트"; $0.genre = "DJC 173 장르" }]).tagWritten.count == 1)
+        #expect(try row(fixture, "djmdArtist", "11") == artist && row(fixture, "djmdGenre", "21") == genre)
+    }
+}

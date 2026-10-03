@@ -428,12 +428,12 @@ public enum RekordboxWriter {
             // 태그는 마지막: 곡 행을 한 번 더 고쳐 가장 큰 변경 번호를 받는다(큐·그리드·분석을 쓴 곡이면 그 뒤 편집처럼).
             for draft in tags {
                 try db.execute("SAVEPOINT djc_tags")
+                let savedUSN = usn
                 do {
                     let result = try applyTags(draft, db: db, usn: &usn, stamp: stamp, writable: tagKeys)
                     tagOutcomes.append(result.outcome)
-                    // 여러 곡이 같은 앨범을 저장하거나 마지막 참조를 놓으면 뒤 편집이 그 행 검증을 맡는다.
-                    let replacedAlbums = Set(result.expectation.touchedAlbums.keys)
-                        .union(result.expectation.deletedNames.filter { $0.table == "djmdAlbum" }.map(\.id))
+                    // 여러 곡이 같은 앨범을 저장하거나 마지막 참조를 놓으면(지움·258) 뒤 편집이 그 행 검증을 맡는다.
+                    let replacedAlbums = Set(result.expectation.touchedAlbums.keys).union(result.expectation.releasedAlbums)
                     for i in tagged.indices {
                         for id in replacedAlbums { tagged[i].touchedAlbums.removeValue(forKey: id) }
                     }
@@ -450,6 +450,7 @@ public enum RekordboxWriter {
                 } catch let blocked as Blocked {
                     try db.execute("ROLLBACK TO djc_tags")
                     try db.execute("RELEASE djc_tags")
+                    usn = savedUSN
                     tagOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: blocked.title, status: .blocked, reason: blocked.reason,
                                                removed: 0, added: 0))
                 }
