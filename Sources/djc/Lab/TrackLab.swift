@@ -154,7 +154,32 @@ enum TrackLab {
                   let ext = try? AnlzFile(url: datURL.deletingPathExtension().appendingPathExtension("EXT")), let rb = ext.tag("PVB2") else { continue }
             all += 1
             let facts = AudioFacts.read(url: URL(filePath: row.path))
-            guard facts.unsupported == nil, let ours = TrackAnalysisFiles.pvb2(facts) else { blocked += 1; continue }
+            guard facts.unsupported == nil, let ours = TrackAnalysisFiles.pvb2(facts) else {
+                blocked += 1
+                shown += 1
+                print("· 익명 곡 \(shown) · 분석 막음(비교 제외): \(facts.unsupported ?? "PVB2 없음")")
+                // CRC-16이 맞지 않는 프레임이 있으면 두 후보 규칙을 저장값과 견준다(#14 곡 D: 빼고 이어 매김)
+                let url = URL(filePath: row.path)
+                if let table = SeekInfo.flacFrames(url: url)?.frames, let last = table.last,
+                   let failures = SeekInfo.flacCRCFailures(url: url, frames: table), !failures.isEmpty {
+                    let total = last.startSample + last.blockSize
+                    func pvb2(_ frames: [SeekInfo.FlacFrame]) -> Data? {
+                        var candidate = facts
+                        candidate.flacTotalSamples = UInt64(total)
+                        candidate.flacEntries = AudioFacts.pvb2Entries(frames: frames, total: total)
+                        return TrackAnalysisFiles.pvb2(candidate)
+                    }
+                    let dropped = Set(failures)
+                    var start = 0
+                    let renumbered = table.enumerated().filter { !dropped.contains($0.offset) }.map { _, frame -> SeekInfo.FlacFrame in
+                        defer { start += frame.blockSize }
+                        return SeekInfo.FlacFrame(startSample: start, offset: frame.offset, blockSize: frame.blockSize)
+                    }
+                    print("  CRC-16 안 맞는 프레임 \(failures.count)개 · 머리 번호 규칙 \(pvb2(table) == rb.bytes ? "같음" : "다름")"
+                        + " · 그 프레임 빼고 이어 매김 \(pvb2(renumbered) == rb.bytes ? "같음" : "다름")")
+                }
+                continue
+            }
             let sameCells = (facts.sampleRate, facts.bitDepth, facts.bitRate) == (row.sampleRate, row.bitDepth, row.bitRate)
             if sameCells { cells += 1 }
             if ours == rb.bytes { same += 1 }

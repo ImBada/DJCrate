@@ -5,17 +5,20 @@ import Foundation
 /// 곡을 분석까지 붙여 넣을 때 rekordbox 7.2.18과 같게 적는 음원 정보(2026-09-26 라이브러리·실험으로 확인).
 /// - BitRate: CBR MP3는 프레임 비트레이트, AAC는 파일 머리(esds)에 적힌 평균 비트레이트(없으면 0), WAV는 샘플레이트×비트×채널.
 /// - PVBR 끝값: MP3는 rekordbox가 세는 프레임 수×1152, AAC·WAV는 0(7.2.18이 오늘 분석한 곡 기준).
-///   LAME 정보 프레임은 소리로 세고, 다른 인코더(ffmpeg 등)의 정보 프레임은 세지 않는다(시간축 규칙과 같다).
+///   LAME 정보 프레임은 소리로 세고, 다른 인코더(ffmpeg 등)의 정보 프레임은 세지 않는다(`SeekInfo.countedMp3Offsets`, L3.99r1은 센다).
 /// - VBR MP3 탐색표: 칸 k = rekordbox가 세는 프레임 중 `floor((k+1)·n/400) − 8`번째의 바이트 위치(그 첫 프레임 기준).
 ///   LAME·ffmpeg Xing(Lavc/Lavf)에서 400칸 일치. 8프레임 앞은 디코더 비트 저장소 몫으로 보인다.
 ///   VBR 비트레이트는 LAME이면 0, ffmpeg Xing은 첫 음성 프레임 비트레이트(2026-09-27 합성 3곡·기존 표본).
 /// - FLAC: 비트레이트 0, PVBR은 모두 0. 대신 .EXT 끝에 PVB2(400칸 탐색표)를 붙인다.
 ///   칸 k = 샘플 `k · floor(전체 샘플/400)`이 든 FLAC 프레임의 (시작 샘플, 첫 프레임 기준 바이트 위치, 블록 크기).
-///   라이브러리 FLAC 1,083곡 중 1,081곡이 바이트까지 같다(2026-09-26, 나머지 2곡은 샘플은 같고 바이트 위치만 달라 분석 뒤 파일이 바뀐 것으로 보임).
+///   라이브러리 FLAC 1,083곡 중 1,081곡이 바이트까지 같다(2026-09-26). 나머지 2곡은 재분석(2026-10-03)으로 가렸다:
+///   1곡은 분석 뒤 파일이 바뀌었고, 1곡은 CRC-16이 맞지 않는 프레임이 있다(rekordbox는 PVB2에서 그 프레임을 빼고 번호를 이어 매긴다).
+///   CRC-16이 맞지 않는 프레임이 12개인 다른 곡은 머리 번호 규칙이었다. 손상 모양에 따라 갈리므로 그런 프레임이 있으면 분석을 붙이지 않는다.
 /// - ALAC: AudioToolbox 압축 비트레이트를 kbps로 버림, 원본 비트 깊이, PVBR 모두 0·PVB2 없음.
 ///   2026-09-27 합성 4곡으로 스테레오 16/24비트·44.1/48kHz를 확인했다.
 ///   #95 첫 BPM/Grid 카운터 사본 재현으로 ALAC·44.1kHz ffmpeg VBR 쓰기를 확인했다.
-///   48kHz ffmpeg VBR은 곡 행 BPM과 정밀 박 간격으로 복원한 BPM이 달라 규칙 확인 전까지 막는다.
+///   32·48kHz ffmpeg VBR은 2026-10-03 128 BPM 클릭(묶음 1)으로 음원 칸·PVBR·파형 길이·BPM 칸을 확인해 연다.
+///   MPEG-2 샘플레이트(576샘플 프레임)는 확인하지 않아 막는다.
 public struct AudioFacts: Sendable, Equatable {
     public var sampleRate: Int
     public var bitDepth: Int
@@ -48,7 +51,7 @@ public struct AudioFacts: Sendable, Equatable {
             let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
             guard let last = frames.offsets.last, size - last < 16_384 else {
                 return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: 0, pvbrTotalSamples: 0,
-                                  unsupported: String(ui: "MP3 프레임이 중간에 끊겨 있어(깨진 프레임) 분석을 붙이지 않습니다"))
+                                  unsupported: String(ui: "MP3 프레임이 중간에 끊겨 있어(깨진 프레임) 분석을 붙일 수 없으니 rekordbox에서 먼저 분석하세요"))
             }
             let counted = SeekInfo.countedMp3Offsets(frames, url: url)
             let header = RekordboxTimeline.mp3Header(url: url)
@@ -68,8 +71,8 @@ public struct AudioFacts: Sendable, Equatable {
             let entries = (0..<400).map { k in UInt32(counted[max(0, (k + 1) * n / 400 - 8)] - counted[0]) }
             return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: lame ? 0 : (mp3BitRate(url: url, at: audioFrame) ?? 0),
                               pvbrTotalSamples: total, pvbrEntries: entries,
-                              unsupported: !lame && rate != 44_100
-                                ? String(ui: "이 샘플레이트의 ffmpeg VBR은 곡 BPM 규칙이 확인되지 않았으니 rekordbox에서 먼저 분석하세요") : nil)
+                              unsupported: !lame && ![32_000, 44_100, 48_000].contains(rate)
+                                ? String(ui: "이 샘플레이트의 ffmpeg VBR MP3는 분석 규칙이 확인되지 않았으니 rekordbox에서 먼저 분석하세요") : nil)
         case kAudioFormatMPEG4AAC:
             return AudioFacts(sampleRate: rate, bitDepth: 16, bitRate: aacAverageBitRate(fileID) / 1000, pvbrTotalSamples: 0, unsupported: nil)
         case kAudioFormatLinearPCM:
@@ -99,25 +102,34 @@ public struct AudioFacts: Sendable, Equatable {
 
     static func flac(url: URL) -> AudioFacts {
         guard let info = SeekInfo.flacStreamInfo(url: url), let table = SeekInfo.flacFrames(url: url),
-              let first = table.frames.first, let last = table.frames.last else {
+              let last = table.frames.last else {
             return AudioFacts(sampleRate: 0, bitDepth: 0, bitRate: 0, pvbrTotalSamples: 0, unsupported: String(ui: "FLAC 프레임을 읽지 못했습니다"))
         }
         let total = last.startSample + last.blockSize
         guard info.totalSamples == 0 || info.totalSamples == total else {
             return AudioFacts(sampleRate: info.sampleRate, bitDepth: info.bitsPerSample, bitRate: 0, pvbrTotalSamples: 0,
-                              unsupported: String(ui: "FLAC 프레임이 중간에 끊겨 있어(깨진 프레임) 분석을 붙이지 않습니다"))
+                              unsupported: String(ui: "FLAC에 깨진 프레임이 있어 분석을 붙일 수 없으니 rekordbox에서 먼저 분석하세요"))
         }
-        let starts = table.frames.map(\.startSample)
-        let step = total / 400
-        let entries = (0..<400).map { k -> SeekInfo.FlacFrame in
-            // 샘플 k·step이 든 프레임 = 시작이 그 샘플 이하인 마지막 프레임
-            var lo = 0, hi = starts.count
-            while hi - lo > 1 { let mid = (lo + hi) / 2; if starts[mid] <= k * step { lo = mid } else { hi = mid } }
-            let frame = table.frames[lo]
-            return SeekInfo.FlacFrame(startSample: frame.startSample, offset: frame.offset - first.offset, blockSize: frame.blockSize)
+        // 머리 번호는 이어져도 본문이 잘린 프레임이 있으면 rekordbox의 PVB2가 달라진다(#14 곡 D)
+        guard SeekInfo.flacFramesPassCRC(url: url, frames: table.frames) else {
+            return AudioFacts(sampleRate: info.sampleRate, bitDepth: info.bitsPerSample, bitRate: 0, pvbrTotalSamples: 0,
+                              unsupported: String(ui: "FLAC에 깨진 프레임이 있어 분석을 붙일 수 없으니 rekordbox에서 먼저 분석하세요"))
         }
         return AudioFacts(sampleRate: info.sampleRate, bitDepth: info.bitsPerSample, bitRate: 0, pvbrTotalSamples: 0,
-                          flacTotalSamples: UInt64(total), flacEntries: entries, unsupported: nil)
+                          flacTotalSamples: UInt64(total), flacEntries: pvb2Entries(frames: table.frames, total: total), unsupported: nil)
+    }
+
+    /// PVB2 400칸: 칸 k = 샘플 `k · floor(total/400)`이 든 프레임(시작이 그 샘플 이하인 마지막 프레임)
+    public static func pvb2Entries(frames: [SeekInfo.FlacFrame], total: Int) -> [SeekInfo.FlacFrame] {
+        guard let first = frames.first else { return [] }
+        let starts = frames.map(\.startSample)
+        let step = total / 400
+        return (0..<400).map { k -> SeekInfo.FlacFrame in
+            var lo = 0, hi = starts.count
+            while hi - lo > 1 { let mid = (lo + hi) / 2; if starts[mid] <= k * step { lo = mid } else { hi = mid } }
+            let frame = frames[lo]
+            return SeekInfo.FlacFrame(startSample: frame.startSample, offset: frame.offset - first.offset, blockSize: frame.blockSize)
+        }
     }
 
     static func with(_ facts: AudioFacts, _ reason: String) -> AudioFacts {

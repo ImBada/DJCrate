@@ -4113,18 +4113,18 @@
         }
       }
     },
-    "FLAC 프레임이 중간에 끊겨 있어(깨진 프레임) 분석을 붙이지 않습니다" : {
+    "FLAC에 깨진 프레임이 있어 분석을 붙일 수 없으니 rekordbox에서 먼저 분석하세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The FLAC frames break off partway through (corrupt frames), so no analysis will be added"
+            "value" : "Analyze this track in rekordbox first because the FLAC file has corrupt frames and analysis can't be added."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FLACフレームが途中で途切れている（壊れたフレーム）ため、解析を追加しません"
+            "value" : "FLACに壊れたフレームがあり解析を追加できないため、先にrekordboxで解析してください。"
           }
         }
       }
@@ -4193,18 +4193,18 @@
         }
       }
     },
-    "MP3 프레임이 중간에 끊겨 있어(깨진 프레임) 분석을 붙이지 않습니다" : {
+    "MP3 프레임이 중간에 끊겨 있어(깨진 프레임) 분석을 붙일 수 없으니 rekordbox에서 먼저 분석하세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The MP3 frames break off partway through (corrupt frames), so no analysis will be added"
+            "value" : "Analyze this track in rekordbox first because the MP3 frames break off partway through (corrupt frames) and analysis can't be added."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "MP3フレームが途中で途切れている（壊れたフレーム）ため、解析を追加しません"
+            "value" : "MP3フレームが途中で途切れていて（壊れたフレーム）解析を追加できないため、先にrekordboxで解析してください。"
           }
         }
       }
@@ -26027,18 +26027,18 @@
         }
       }
     },
-    "이 샘플레이트의 ffmpeg VBR은 곡 BPM 규칙이 확인되지 않았으니 rekordbox에서 먼저 분석하세요" : {
+    "이 샘플레이트의 ffmpeg VBR MP3는 분석 규칙이 확인되지 않았으니 rekordbox에서 먼저 분석하세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Analyze this track in rekordbox first because the track BPM rule for ffmpeg VBR at this sample rate has not been verified."
+            "value" : "Analyze this track in rekordbox first because the analysis rules for ffmpeg VBR MP3 at this sample rate have not been verified."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このサンプルレートのffmpeg VBRは曲のBPMの規則が未確認のため、先にrekordboxで解析してください。"
+            "value" : "このサンプルレートのffmpeg VBR MP3は解析規則が未確認のため、先にrekordboxで解析してください。"
           }
         }
       }
