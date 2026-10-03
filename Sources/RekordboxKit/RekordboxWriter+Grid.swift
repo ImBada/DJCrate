@@ -39,8 +39,7 @@ extension RekordboxWriter {
             try db.query("SELECT ID, rb_data_status FROM contentFile WHERE ContentID = ? AND Path = ?",
                          [.text(contentID), .text(plan.analysisDataPath)]) { fileRows.append(($0.string(0) ?? "", raisedStatus($0.int(1)))) }
             let files = try db.run("""
-                UPDATE contentFile SET Hash = ?, Size = ?,
-                    rb_data_status = CASE rb_data_status WHEN 256 THEN 257 ELSE rb_data_status END,
+                UPDATE contentFile SET Hash = ?, Size = ?, \(savedStatus),
                     rb_local_usn = ?, updated_at = ? WHERE ContentID = ? AND Path = ?
                 """, [.text(plan.newDatMD5), .int(plan.newDat.count), .int(usn), .text(stamp.db), .text(contentID), .text(plan.analysisDataPath)])
             guard files <= 1 else { throw fail(String(ui: "분석 파일 기록이 여럿입니다")) }
@@ -58,7 +57,7 @@ extension RekordboxWriter {
             UPDATE djmdContent SET BPM = ?,
                 \(analysisAssignment)
                 TrackInfoUpdated = CAST(CAST(ifnull(TrackInfoUpdated, '0') AS INTEGER) + 1 AS TEXT),
-                rb_data_status = CASE rb_data_status WHEN 256 THEN 257 ELSE rb_data_status END,
+                \(savedStatus),
                 rb_local_usn = ?, updated_at = ? WHERE ID = ?
             """, [.int(bpm100), .int(contentUSN), .text(stamp.db), .text(contentID)])
         guard changed == 1 else { throw fail(String(ui: "곡 BPM을 고치지 못했습니다")) }

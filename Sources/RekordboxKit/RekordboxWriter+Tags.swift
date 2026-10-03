@@ -15,8 +15,6 @@ extension RekordboxWriter {
     static let playlistTimestampTagKeys: Set<TagFields.Key> = [.title, .artist, .genre]
     /// 저장하는 앨범 행의 상태로 확인한 것(#173 2026-10-04). 0 그대로, 256 → 257, 257 그대로.
     static let verifiedAlbumStates: Set<Int> = [0, 256, 257]
-    /// 저장하는 이름·앨범 행의 상태 칸(rekordbox: 256 → 257, 0·257은 그대로)
-    static let savedStatus = "rb_data_status = CASE rb_data_status WHEN 256 THEN 257 ELSE rb_data_status END"
 
     /// 쓴 뒤 곡이 가져야 할 태그
     struct TagExpectation {
@@ -633,7 +631,7 @@ extension RekordboxWriter {
         usn += 1
         let assignments = columns.map { "\"\($0.0)\" = ?" } + [
             "TrackInfoUpdated = ?",
-            "rb_data_status = CASE rb_data_status WHEN 256 THEN 257 ELSE rb_data_status END",
+            savedStatus,
             "rb_local_usn = ?", "updated_at = ?",
         ]
         let changed = try db.run("UPDATE djmdContent SET \(assignments.joined(separator: ", ")) WHERE ID = ?",
