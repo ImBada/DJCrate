@@ -6,6 +6,36 @@ import Testing
 @MainActor
 @Suite("창 크기 성능 기록 계약")
 struct ResizePerfTests {
+    @Test func 포함_구간은_따로_기록하고_초기화하며_꺼졌을_때도_동작은_실행한다() {
+        let original = PerfProbe.measuresIntervals
+        defer { PerfProbe.measuresIntervals = original; PerfProbe.reset() }
+        PerfProbe.measuresIntervals = true
+        PerfProbe.reset()
+        #expect(PerfProbe.measure("parent") { PerfProbe.measure("child") { 42 } } == 42)
+        #expect(PerfProbe.intervalSnapshot()["parent"]?.count == 1)
+        #expect(PerfProbe.intervalSnapshot()["child"]?.count == 1)
+        PerfProbe.reset()
+        #expect(PerfProbe.intervalSnapshot().isEmpty)
+        PerfProbe.measuresIntervals = false
+        #expect(PerfProbe.measure("off") { 7 } == 7)
+        #expect(PerfProbe.intervalSnapshot().isEmpty)
+    }
+
+    @Test func 표_크기와_열_배치_호출을_나누어_기록한다() {
+        let original = PerfProbe.measuresIntervals
+        defer { PerfProbe.measuresIntervals = original; PerfProbe.reset() }
+        PerfProbe.measuresIntervals = true
+        let table = TrackListTableView(frame: NSRect(x: 0, y: 0, width: 800, height: 300))
+        table.addTableColumn(NSTableColumn(identifier: .init("title")))
+        PerfProbe.reset()
+        table.resize(withOldSuperviewSize: NSSize(width: 900, height: 300))
+        table.sizeToFit()
+        table.layout()
+        #expect(PerfProbe.intervalSnapshot()["table.resize"]?.isEmpty == false)
+        #expect(PerfProbe.intervalSnapshot()["table.columns"]?.isEmpty == false)
+        #expect(PerfProbe.intervalSnapshot()["table.layout"]?.isEmpty == false)
+    }
+
     @Test func 두_축을_빠짐없이_선택하고_오타와_빈_축과_중복은_거부한다() {
         #expect(ResizePerfAxis.parse("all") == [.width, .height])
         #expect(ResizePerfAxis.parse("height,width") == [.height, .width])
