@@ -305,15 +305,44 @@ struct PdbReadTests {
         #expect(inspected.farShapeRows == ["artists": 2, "albums": 2])
     }
 
+    /// 먼 모양 태그 행은 아티스트·앨범 먼 모양과 같은 규칙이다: 가까운 모양의 u8 표시 0x03·u8 오프셋 자리에 u16 표시 0x0003·u16 오프셋.
+    /// 근거: Deep Symmetry rekordbox export 분석 문서의 tag rows("For subtype 0684, each is stored in two bytes")와
+    /// rekordcrate(`TagOrCategory`, 오프셋 배열 @0x1C)가 같은 자리를 적는다(#189). rekordbox 실험으로는 아직 확인 못 함.
+    @Test func farTagRowFollowsDocumentedLayout() throws {
+        var row = PdbBuilder.RowBytes(count: 0x22)
+        row.u16(0x0684, at: 0)
+        row.u32(4_000_000_001, at: 0x0C)
+        row.u32(1, at: 0x10)
+        row.u32(4_000_000_003, at: 0x14)
+        row.u16(0x0003, at: 0x1C)
+        let name = row.append("먼 태그")
+        let second = row.append("")
+        row.u16(name, at: 0x1E)
+        row.u16(second, at: 0x20)
+        let ext = Self.sampleExt { builder in
+            builder.tables[PdbExtTableType.tags.rawValue] = [
+                PdbBuilder.tagRow(id: 4_000_000_001, name: "시험 분류", position: 0, isCategory: true),
+                PdbBuilder.Row(row.bytes, hasIndexShift: true),
+            ]
+        }
+        let (library, report) = try Self.read(Self.sampleExport(), ext)
+        #expect(library.myTags.map(\.id) == [4_000_000_001, 4_000_000_003])
+        #expect(library.myTags.last?.name == "먼 태그")
+        #expect(library.myTags.last?.parentID == 4_000_000_001 && library.myTags.last?.sequenceNo == 1)
+        // 칸 자리는 rekordbox로 확인하지 못했으니 편집이 막히게 구조 문제로 남긴다
+        #expect(report.issueDetails.map(\.kind) == [.unconfirmedRowShape])
+        #expect(report.farShapeRows == ["exportExt.tags": 1])
+    }
+
     @Test func farTagRowWithInconsistentOffsetsIsUnreadable() throws {
         // 먼 모양 태그 행의 두 오프셋이 거꾸로면(이름 ≥ 두 번째) 조용히 틀린 이름을 읽지 않고 행을 버린다
         var swapped = PdbBuilder.tagRow(id: 4_000_000_003, name: "Tag 2", parentID: 4_000_000_001, position: 1, isCategory: false, far: true)
-        let name = Int(swapped.bytes[0x20]) | Int(swapped.bytes[0x21]) << 8
-        let second = Int(swapped.bytes[0x22]) | Int(swapped.bytes[0x23]) << 8
-        swapped.bytes[0x20] = UInt8(second & 0xFF)
-        swapped.bytes[0x21] = UInt8(second >> 8)
-        swapped.bytes[0x22] = UInt8(name & 0xFF)
-        swapped.bytes[0x23] = UInt8(name >> 8)
+        let name = Int(swapped.bytes[0x1E]) | Int(swapped.bytes[0x1F]) << 8
+        let second = Int(swapped.bytes[0x20]) | Int(swapped.bytes[0x21]) << 8
+        swapped.bytes[0x1E] = UInt8(second & 0xFF)
+        swapped.bytes[0x1F] = UInt8(second >> 8)
+        swapped.bytes[0x20] = UInt8(name & 0xFF)
+        swapped.bytes[0x21] = UInt8(name >> 8)
         let ext = Self.sampleExt { builder in
             builder.tables[PdbExtTableType.tags.rawValue] = [
                 PdbBuilder.tagRow(id: 4_000_000_001, name: "시험 분류", position: 0, isCategory: true),

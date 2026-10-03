@@ -325,7 +325,7 @@ tracks(subtype 0x0024, 16비트 문자열 오프셋):
 
 | 번호 | 표 | 행 |
 |---|---|---|
-| 3 | tags | subtype 0x0680: 0x0C u32 부모(분류면 0), 0x10 u32 부모 안 순서(0부터), 0x14 u32 id, 0x1B u8 분류면 1, 0x1C u8 0x03, 0x1D u8 이름 오프셋(ASCII 0x1F, UTF-16 0x20), 0x1E u8 두 번째 문자열 오프셋. 먼 모양 0x0684는 칸 자리를 확인하지 못해 0x20·0x22 u16 오프셋으로 읽되(이름 < 두 번째, 둘 다 0x24 이상이 아니면 그 행을 버림), 읽은 행도 구조 문제(`unconfirmedRowShape`)로 남겨 rekordbox 실험으로 확인하기 전까지 Device Library 편집이 막히게 한다 |
+| 3 | tags | subtype 0x0680: 0x0C u32 부모(분류면 0), 0x10 u32 부모 안 순서(0부터), 0x14 u32 id, 0x1B u8 분류면 1, 0x1C u8 0x03, 0x1D u8 이름 오프셋(ASCII 0x1F, UTF-16 0x20), 0x1E u8 두 번째 문자열 오프셋. 먼 모양 0x0684는 아티스트·앨범 먼 모양과 같은 규칙으로 0x1C u16 0x0003, 0x1E u16 이름 오프셋, 0x20 u16 두 번째 문자열 오프셋으로 읽는다([Deep Symmetry 분석 문서](https://djl-analysis.deepsymmetry.org/rekordbox-export-analysis/exports.html)의 tag rows·rekordcrate가 같은 자리, #189). 이름 < 두 번째, 둘 다 0x22 이상이 아니면 그 행을 버리고, 읽은 행도 rekordbox로 확인하지 못한 모양이라 구조 문제(`unconfirmedRowShape`)로 남겨 Device Library 편집이 막히게 한다 |
 | 4 | tag_tracks | u32 0, u32 track_id, u32 tag_id, u32 3 |
 | 7 | (My Tag property) | subtype 0x0700(60바이트): 0x18 u32 myTagMasterDBID, 0x1C u8 0x03, 0x1D–0x21 빈 문자열 오프셋 다섯 |
 | 0·1·2·5·6·8 | (모름) | 산 행 수만 `unknownRows` |

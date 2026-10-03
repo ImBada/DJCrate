@@ -209,10 +209,11 @@ enum PdbRows {
     }
 
     /// 먼 모양 태그 행에서 문자열이 시작할 수 있는 가장 앞 자리(u16 오프셋 두 칸 뒤)
-    static let farTagFixedSize = 0x24
+    static let farTagFixedSize = 0x22
 
-    /// exportExt tags. 가까운 모양 0x0680: u8 이름 오프셋 @0x1D.
-    /// 먼 모양 0x0684는 칸 자리를 확인하지 못했다(골든에 없음). u16 @0x20·@0x22로 읽되 오프셋 순서가 맞지 않으면
+    /// exportExt tags. 가까운 모양 0x0680: u8 0x03 @0x1C, u8 이름 오프셋 @0x1D, u8 두 번째 @0x1E.
+    /// 먼 모양 0x0684는 아티스트·앨범 먼 모양과 같은 규칙으로 u16 0x0003 @0x1C, u16 이름 @0x1E, u16 두 번째 @0x20이다
+    /// (Deep Symmetry 분석 문서·rekordcrate가 같은 자리, #189). 골든에 없어 rekordbox로 확인하지 못했으므로, 오프셋 순서가 맞지 않으면
     /// 틀린 이름을 조용히 읽지 않도록 행을 버리고, 읽은 행도 읽는 쪽이 구조 문제로 남긴다.
     static func tag(_ row: inout PdbRowReader) throws -> UsbMyTag {
         let subtype = try row.u16(0)
@@ -220,8 +221,8 @@ enum PdbRows {
         switch subtype {
         case 0x0680: offset = try row.u8(0x1D)
         case 0x0684:
-            offset = try row.u16(0x20)
-            let second = try row.u16(0x22)
+            offset = try row.u16(0x1E)
+            let second = try row.u16(0x20)
             guard offset >= farTagFixedSize, offset < second else {
                 throw UsbError.readFailed(detail: "pdb far tag row offsets \(offset)/\(second)")
             }

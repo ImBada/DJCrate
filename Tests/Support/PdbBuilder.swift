@@ -411,21 +411,21 @@ extension PdbBuilder {
 
     // MARK: exportExt.pdb 표
 
-    /// My Tag 행. 분류면 category 0·바이트 0x1B = 1. 먼 모양(0x0684)은 리더와 같은 추정 자리(u16 @0x20·@0x22)에 둔다.
-    /// 확인 안 된 모양이라 이 행으로는 리더와 빌더가 서로 맞는지만 볼 수 있다(리더는 이 행을 구조 문제로 남긴다).
+    /// My Tag 행. 분류면 category 0·바이트 0x1B = 1. 먼 모양(0x0684)은 u16 0x0003 @0x1C, u16 이름 @0x1E, u16 두 번째 @0x20
+    /// (Deep Symmetry 분석 문서·rekordcrate와 같은 자리). rekordbox로 확인하지 못한 모양이라 리더는 이 행을 구조 문제로 남긴다.
     public static func tagRow(id: Int64, name: String, parentID: Int64 = 0, position: Int, isCategory: Bool, far: Bool = false) -> Row {
-        var row = RowBytes(count: far ? 0x24 : 0x1F)
+        var row = RowBytes(count: far ? 0x22 : 0x1F)
         row.u16(far ? 0x0684 : 0x0680, at: 0)
         row.u32(parentID, at: 0x0C)
         row.u32(Int64(position), at: 0x10)
         row.u32(id, at: 0x14)
         row.u8(isCategory ? 1 : 0, at: 0x1B)
-        row.u8(0x03, at: 0x1C)
+        if far { row.u16(0x0003, at: 0x1C) } else { row.u8(0x03, at: 0x1C) }
         let nameOffset = row.append(name)
         let secondOffset = row.append("")
         if far {
-            row.u16(nameOffset, at: 0x20)
-            row.u16(secondOffset, at: 0x22)
+            row.u16(nameOffset, at: 0x1E)
+            row.u16(secondOffset, at: 0x20)
         } else {
             row.u8(nameOffset, at: 0x1D)
             row.u8(secondOffset, at: 0x1E)
