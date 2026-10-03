@@ -795,6 +795,7 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 - `djc lab usb-diff <A> <B> --files --anlz`: 모델 비교(§2.6)에 더해 파일 트리(NFC 경로·크기·SHA-256, macOS 파일·`._*`·열지 않는 경로 제외)와 분석 파일(PPTH·확장자로 짝지어 태그 목록·태그 바이트)을 비교한다. 경로 대신 묶음 이름(DB·설정·USBANLZ·Artwork·Contents)·곡 id·태그 이름·수만 찍는다. `--ignore-anlz-folder`면 파일 트리에서도 USBANLZ 파일을 (PPTH, 확장자)로 짝짓는다. 한쪽에 같은 (PPTH, 확장자) 파일이 여럿이면(같은 곡의 분석 파일을 다른 폴더에 한 벌 더 둔 사본 등) 버리지 않고 모두 비교하고 "PPTH 겹침"으로 따로 센다. "n/N 바이트 같음"의 N은 한쪽의 모든 분석 파일 수(큰 쪽)다. `--mtime`이면 내용이 같은 파일의 수정 시각도 FAT 단위(2초로 내림)로 비교해 묶음별로 센다.
   - PPTH를 읽지 못한 분석 파일은 A·B 쪽별로 파일마다 "비교 불가(PPTH 못 읽음)" 차이 한 건으로 센다. 양쪽 모두 읽지 못해도 일치를 확인한 것이 아니므로 "차이 0"을 보고하지 않는다.
 - `djc lab usb-rebuild <USB 폴더> <출력 폴더>`: USB의 두 형식을 사본으로 떠서 읽어 합친 모델로 DB 셋만 새 내보내기 모양(`OneLibraryWriter.create`, `PdbWriter` fresh)으로 다시 만든다(음원·분석 파일은 복사하지 않는다). `djc lab usb-diff <USB> <출력> --ignore-ids`가 "차이 0"이면 읽기 → 쓰기가 모델을 잃지 않는다. 입력·출력은 임시 폴더 아래만, 출력은 없거나 빈 폴더.
+- `djc lab usb-migrate-check <USB 폴더> [--ignore-ids]`: 두 형식이 다 있는 USB(골든 사본 등)의 Device Library를 옮기기 변환(§8.4)으로 OneLibrary 모델로 만들어, 그 USB의 OneLibrary와 표·칸 단위로 비교한다(수·칸 이름만, USB에 쓰지 않음). 입력은 임시 폴더 아래만.
 - `djc lab usb-anlz-relocate <USB 사본> --track <id> --folder <P???/????????> [--db-only|--files-only|--decoy-slot0|--cue-variant]`: 기기가 분석 파일을 DB 경로로 찾는지 확인하려고 한 곡을 일부러 어긋나게 만든다. Mac 데이터 볼륨의 임시 폴더 아래 **사본 폴더**에만 쓴다(마운트된 볼륨의 맨 위나 그 안 폴더·링크·임시 폴더 밖·rekordbox 실행 중이면 거부). pdb 분석 경로는 같은 길이 문자열로 제자리 교체하고(길이가 다르면 거부), OneLibrary는 `UPDATE` 뒤 `wal_checkpoint(TRUNCATE)`로 사이드카를 남기지 않는다. 모든 확인을 먼저 하고 하나라도 걸리면 아무것도 바꾸지 않는다.
   - 기본·`--db-only`: 파일을 새 폴더로 옮기고 두 DB 경로도 옮긴다.
   - `--files-only`: 파일은 그대로, 두 DB 경로만 같은 길이의 없는 폴더로.
@@ -839,6 +840,33 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 
 **불변식 8**(형식마다): 편집 결과 USB를 읽은 모델 = 편집 뒤 모델을 새로 내보낸 모델. 예외는 ID, 보존한 행·표, pdb 순번, 기존 곡 파일 경로. `djc lab usb-rebuild` + `djc lab usb-diff --ignore-ids`로 본다(차이 0). 시험: `UsbEditInvariantTests`.
 
+### 8.4 Device Library만 있는 USB를 OneLibrary로 옮기기(`UsbMigration`, `UsbMigrateSession`, `djc usb-migrate`)
+
+옛 Device Library만 있는 USB는 OneLibrary 전용 기기에서 목록이 보이지 않는다(#46). pdb를 읽어 같은 USB에 `exportLibrary.db`를 더한다. 로컬 라이브러리는 읽지 않고, 원래 파일(pdb 둘·분석 파일·음원·a 그림)은 바꾸지 않는다. 근거는 rekordbox 7.2.18이 두 형식을 함께 쓴 골든(2026-09-26 내보내기)의 pdb와 OneLibrary를 칸 단위로 맞춰 본 것이다. rekordbox의 "Convert from Device Library" 결과와는 아직 견주지 못해 늘 `deviceLibraryMigration`을 싣는다.
+
+**순서**(세션): 볼륨(수정 목적의 정책·보호 경로·실물 관문 — 막히면 USB를 열거하지 않는다) → 저널(닫히지 않은 쓰기는 `recoveryNeeded`) → OneLibrary DB·사이드카가 하나라도 있으면 사본을 뜨지 않고 `oneLibraryExists` → USB DB 사본(`UsbSnapshot`) → 계획(`UsbMigration.plan`, 준비 폴더) → 확인 안 된 규칙 → `UsbWriter.write`(검사기 `UsbMigrationInspector`, 검증기 목표 지문·`OneLibraryVerifier`·`UsbInvariantVerifier`).
+
+**막힘**(옮기기 전체): OneLibrary가 이미 있음(`oneLibraryExists` — rekordbox 변환은 덮어쓰지만 여기서는 덮지 않는다), pdb 없음(`noDeviceLibrary`), 읽기 실패(`libraryCorrupt`), 두 pdb 머리 0x10 ≠ 5(`pdbNotClosed`), 구조 문제·먼 모양 행(`pdbUnreadableRows` — 읽기는 읽은 데까지만 모델에 넣어 그대로 옮기면 행이 조용히 빠진다), 기기 기록·모르는 표 행(`carriedDeviceRows`, 디스크 이미지에도 막음), 표 19 버전 ≠ "1000"(`pdbVersionUnsupported`), 곡 0(`noTracks`), a 그림이 없거나 경로 모양(`/PIONEER/Artwork/nnnnn/a{id}.jpg`)이 아님(`artworkMissingOnUsb`), b 자리에 다른 바이트의 파일(`artworkExists` — 같은 바이트면 다시 쓰지 않는다), 불변식 미리 보기(아래)에서 새 문제(`libraryFilesMismatch`).
+
+**칸**(pdb 모델 → 두 형식 모델, `UsbMigration.model`): Device Library 투영은 입력과 같다. 곡·목록·My Tag 연결은 두 형식 모두에 두고, 목록의 OneLibrary 순서·항목은 pdb 값 그대로(순서·중복까지). OneLibrary에만 있는 칸:
+
+| 칸 | 값 |
+|---|---|
+| content.contentLink | 0x0C0700 \| (USB `.2EX`의 PVDI에 본문이 있으면 0x100000). `.2EX`가 없거나 읽지 못하면 보컬 아님 |
+| content.analysedBits | 105(골든에서 모든 곡이 이 값, pdb에 칸이 없다) |
+| content.artist_id_lyricist / hasModified / titleForSearch / kuvoDeliveryComment | 0 / 0 / NULL / '' |
+| 곡의 OneLibrary 기기 칸 | 평점·재생 수 = pdb 값, hasModified 0 |
+| album image_id·isComplation·nameForSearch, playlist image_id, artist nameForSearch | NULL·0·NULL(내보내기와 같다) |
+| image.path | pdb a 경로의 같은 폴더 `b{id}.jpg` |
+| property | createdDate = pdb 표 19 날짜(내보낸 날), deviceName '', backGroundColorType 0, numberOfContents = 곡 수, dbVersion·myTagMasterDBID는 pdb 값 |
+
+- 파일: 새 `exportLibrary.db`(준비 폴더에서 `OneLibraryWriter.create` — 만들기·확인은 §2.9) + 그림마다 `b{id}.jpg`(a 사본), `a{id}_m.jpg`가 있으면 `b{id}_m.jpg`. 덮어쓰기·지우기·음원 복사는 없다.
+- 변경 묶음: `purpose .edit`, label `migrate`, `formats [.oneLibrary]`, `base` = 사본 지문(pdb 둘), 목표 지문 = 새 DB·b 그림 + **원래 pdb 두 파일의 지금 해시**(G 단계가 "원래 파일 그대로"를 매체에서 다시 확인). `UsbMigrationInspector`가 A 단계에서 한 번 더 본다: DB는 OneLibrary 하나만 만들고 그 파일·사이드카가 없음, 덮어쓰기·지우기·복사 없음, 두 pdb 머리 0x10 = 5.
+- 불변식 미리 보기: 검증의 불변식 1–6(§7.12)을 pdb만으로 본 문제(쓰기 전부터 있던 것 — 없는 음원·분석 파일 등은 두 형식에 같은 문제라 막지 않고 검증에서 뺀다)와 변환 모델의 OneLibrary를 더해 본 문제를 견준다. OneLibrary 쪽에만 새로 생기는 문제(음원 크기·PPTH·파일 이름이 pdb와 어긋남)와 두 형식 불일치(`UsbLibrary.merge`)가 있으면 쓰지 않는다(쓰고 나서 검증이 되돌리지 않게).
+- 확인 안 된 규칙: `deviceLibraryMigration` ∪ 목록 `playlistSiblingBase`(폴더 `playlistFolderRow`) ∪ My Tag 연결 `myTagLinks` ∪ 그림 없는 곡 `artworkMissing` ∪ 빈 값으로만 본 곡 정보 칸(레이블·리믹서·원곡자·작사가·색·평점·부제) `metadataSeenEmptyOnly` ∪ `exportExt.pdb`가 없으면 `myTagMasterDBID`(0으로 둔다).
+- 골든 대조(pdb만 남긴 골든 사본의 디스크 이미지 → `djc usb-migrate` → `djc lab usb-diff --onelibrary <골든> <이미지> --ignore-ids --files --anlz`): 곡·이름 표·그림·My Tag·메뉴·카테고리·정렬·property 칸이 모두 같고, b 그림 바이트·분석 파일이 같다. 설명된 차이 둘: DB 파일 바이트(칸으로 판정), 한 목록의 OneLibrary 항목 — 골든 자체에서 두 형식의 그 목록 항목이 이미 다르다(rekordbox가 두 형식에 같은 곡을 서로 다르게 중복해 넣은 모양, 규칙 미확인). 옮기기는 사용자의 pdb를 원본으로 보고 pdb 항목을 그대로 옮긴다. `djc lab usb-migrate-check <골든 사본>`도 같은 결과다.
+- 확인 안 된 것: rekordbox 변환 결과의 칸(analysedBits·createdDate·myTagMasterDBID·isComplation·목록 항목), rekordbox 5·6이 쓴 옛 pdb(`.2EX`·`exportExt.pdb`가 없는 USB 포함), OneLibrary 기기가 옮긴 USB(중복 항목이 있는 목록 포함)를 그대로 읽는지.
+
 ## 9. 확인 안 된 규칙
 
 | 규칙 | 지금 값 | 표시 조건 |
@@ -872,6 +900,7 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 | `editRemoveTracks` | 확인 안 됨 | USB에서 곡을 뺄 때 |
 | `editAddTracks` | 확인 안 됨 | 이미 내보낸 USB에 곡을 더할 때 |
 | `editPlaylists` | 확인 안 됨 | 이미 내보낸 USB의 재생 목록을 고칠 때 |
+| `deviceLibraryMigration` | 확인 안 됨 | Device Library만 있는 USB에 OneLibrary를 더할 때(§8.4) |
 
 ## 10. 막아 둔 것
 

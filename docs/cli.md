@@ -204,9 +204,23 @@ djc usb-edit --volume <마운트> (<편집.json> | --draft) [--db <스냅샷 사
   {"playlist": {"edit": {"moveTracks": {"playlist": "new:p2", "entries": [{"trackNo": 3, "contentID": "3"}], "to": 1}}}} ]
 ```
 
-- `refreshTracks.parts`: `info`(곡 정보), `cues`(큐), `grid`(박자 그리드·분석 파일), `artwork`(그림). 로컬 곡은 이 곡을 내보낸 라이브러리의 같은 곡(DB ID·곡 ID·파일 이름)으로 찾는다. 로컬과 같은 곡은 `unchanged`, 기기에서 고친 곡(hasModified·기기 큐 행)은 건너뛰고 알린다. 음원이 바뀐 곡은 막는다(음원은 다시 쓰지 않는다).
+- `refreshTracks.parts`: `info`(곡 정보), `cues`(큐), `grid`(박자 그리드·분석 파일), `artwork`(그림). 로컬 곡은 이 곡을 내보낸 라이브러리의 같은 곡(DB ID·곡 ID, USB 경로 끝 성분 = 파일 이름 그대로이거나 내보내기 이름 규칙·번호를 붙인 이름)으로 찾는다. 로컬과 같은 곡은 `unchanged`, 기기에서 고친 곡(hasModified·기기 큐 행)은 건너뛰고 알린다. 음원이 바뀐 곡은 막는다(음원은 다시 쓰지 않는다).
 - `addTracks.playlist`: 주면 더한 곡을 그 목록 끝에 넣는다. 이미 USB에 있는 곡(`alreadyOnUsb`)과 내보내기에서 막히는 곡은 빼고 더한다.
 - 재생 목록 항목 편집(`addTracks`·`removeTracks`·`moveTracks`)은 두 형식의 곡 목록이 같은 목록만 한다(다르면 `playlistEntriesDiffer` — 이름·위치만 바꿀 수 있다). `entries`의 `trackNo`는 1부터의 자리, `contentID`는 그 자리에 있어야 할 USB 곡이다. 지금 그 자리의 곡과 다르면 막는다(`entryMismatch`).
+
+## Device Library만 있는 USB를 OneLibrary로 옮기기(`usb-migrate`)
+
+```sh
+djc usb-migrate --volume <마운트> [--dry-run] [--confirm <볼륨 이름>] [--allow-provisional <규칙,…>]
+```
+
+옛 Device Library(`export.pdb`·`exportExt.pdb`)만 있는 USB를 읽어 같은 USB에 OneLibrary(`exportLibrary.db`)를 더한다. 로컬 라이브러리는 읽지 않는다. 원래 파일(pdb 둘·분석 파일·음원·`a` 아트워크)은 바꾸지 않고, 새 `exportLibrary.db`와 OneLibrary가 가리키는 `b` 아트워크(같은 폴더 `a` 그림의 바이트 사본)만 만든다. 쓰기는 `UsbWriter.write` 한 곳이다(백업 → 파일 → DB 만들기 → 검증, 실패하면 쓰기 전으로 되돌림). 되돌리기는 `usb-restore`. 규칙은 `docs/usb-internals.md` §8.4.
+
+- **실물 USB는 막혀 있다**(`physicalDisabled`). 지금은 임시 폴더 아래에 붙인 디스크 이미지에만 쓴다. `--allow-provisional physicalVolume`은 받지 않는다(`gateOnlyRule`).
+- 막힘(쓰지 않는다): OneLibrary가 이미 있음 — 사이드카만 남아도(`oneLibraryExists`, USB 수정을 쓴다), `export.pdb`가 없음(`noDeviceLibrary`), 곡이 없음(`noTracks`), 머리 0x10이 5가 아님(`pdbNotClosed`), 읽지 못한 행·먼 모양 행(`pdbUnreadableRows`), 기기가 쓴 기록·모르는 표 행(`carriedDeviceRows`), 표 19 버전이 "1000"이 아님(`pdbVersionUnsupported`), `a` 그림이 없거나 경로 모양이 다름(`artworkMissingOnUsb`), `b` 자리에 다른 파일(`artworkExists`), OneLibrary를 더하면 USB 파일과 새로 어긋나는 곳(`libraryFilesMismatch` — 음원 크기·PPTH·파일 이름), 끝나지 않은 쓰기(`recoveryNeeded`), 볼륨 모양·실물 관문.
+- 확인 안 된 규칙: 늘 `deviceLibraryMigration`(rekordbox "Convert from Device Library" 결과와 아직 견주지 않음). 재생 목록이 있으면 `playlistSiblingBase`(폴더면 `playlistFolderRow`), My Tag 연결 `myTagLinks`, 그림 없는 곡 `artworkMissing`, 빈 값으로만 본 곡 정보 칸 `metadataSeenEmptyOnly`, `exportExt.pdb`가 없으면 `myTagMasterDBID`.
+- `--dry-run`: 계획·준비·쓰기 전 확인까지만 하고 USB에 쓰지 않는다.
+- 출력: 진행은 표준 오류, 요약은 표준 출력(막힘 → `옮길 것: 곡 N · 재생 목록 N · OneLibrary 아트워크 N` → 확인 안 된 규칙 → 결과·백업 폴더·파일 수). 곡 제목·USB 경로는 찍지 않는다. 종료 코드는 성공 0, 막힘·실패 1.
 
 ## USB 쓰기 되돌리기·회복
 

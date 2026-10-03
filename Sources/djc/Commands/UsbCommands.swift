@@ -14,6 +14,9 @@ enum UsbCommands {
         Command("usb-edit", String(ui: "--volume <마운트> (<편집.json> | --draft) [--db <스냅샷 사본.db>] [--share <폴더>] [--dry-run] [--confirm <볼륨 이름>] [--allow-provisional <규칙,…>] [--snapshot-time <ISO 8601>]"),
                 String(ui: "이미 라이브러리가 있는 USB에 곡 더하기·빼기·갱신과 재생 목록 편집을 한 번에 쓴다(실물 USB는 아직 막힘, 디스크 이미지만)"),
                 { try await edit($0) }),
+        Command("usb-migrate", String(ui: "--volume <마운트> [--dry-run] [--confirm <볼륨 이름>] [--allow-provisional <규칙,…>]"),
+                String(ui: "Device Library(export.pdb)만 있는 USB에 OneLibrary(exportLibrary.db)를 더한다. 원래 파일은 그대로 둔다(실물 USB는 아직 막힘, 디스크 이미지만)"),
+                { try await migrate($0) }),
         Command("usb-restore", String(ui: "--volume <마운트> [--backup <폴더>] [--discard-device-changes] [--confirm <볼륨 이름>] [--dry-run]"),
                 String(ui: "USB에 쓴 것을 그 쓰기 전 백업으로 되돌린다(그 뒤 기기가 바꾼 것이 있으면 막는다)"), { try await restore($0) }),
         Command("usb-recover", String(ui: "--volume <마운트> [--discard-temp] [--confirm <볼륨 이름>]"),
@@ -410,6 +413,69 @@ enum UsbCommands {
             if let index = counts.firstIndex(where: { $0.head == head }) { counts[index].count += 1 } else { counts.append((head, 1)) }
         }
         return lines + counts.map { String(ui: "\($0.head) (\($0.count)개)") }
+    }
+
+    // MARK: - usb-migrate
+
+    /// `usb-migrate` 인자
+    struct MigrateRequest: Equatable {
+        var volume: String
+        var dryRun = false
+        var confirmName: String?
+        var allowProvisional: Set<UsbProvisionalRule> = []
+    }
+
+    /// 모르는 인자·값 없는 인자는 사용법. `--allow-provisional physicalVolume`은 이유와 함께 거부
+    static func migrateRequest(_ args: [String]) throws -> MigrateRequest {
+        var volume: String?, confirm: String?, dryRun = false, allow: Set<UsbProvisionalRule> = []
+        var index = 1
+        func next() throws -> String {
+            guard index + 1 < args.count, !args[index + 1].hasPrefix("--"), !args[index + 1].isEmpty else { throw UsageError() }
+            index += 1
+            return args[index]
+        }
+        while index < args.count {
+            switch args[index] {
+            case "--volume": volume = try next()
+            case "--dry-run": dryRun = true
+            case "--confirm": confirm = try next()
+            case "--allow-provisional": allow = try UsbRuleCheck.parseAllowList(try next())
+            default: throw UsageError()
+            }
+            index += 1
+        }
+        guard let volume else { throw UsageError() }
+        try rejectLiveLibrary(volume)
+        return MigrateRequest(volume: volume, dryRun: dryRun, confirmName: confirm, allowProvisional: allow)
+    }
+
+    /// Device Library만 있는 USB에 OneLibrary를 더한다. 요약은 표준 출력, 진행은 표준 오류. 곡 제목·경로는 찍지 않는다
+    static func migrate(_ args: [String], paths: @autoclosure () -> UsbWritePaths = .default) async throws {
+        let request = try migrateRequest(args)
+        let options = UsbWriteOptions(dryRun: request.dryRun, confirmName: request.confirmName, allowProvisional: request.allowProvisional)
+        let session = UsbMigrateSession(root: URL(filePath: request.volume), paths: paths())
+        let printer = ProgressPrinter()
+        do {
+            let (result, report) = try session.write(options: options, progress: { printer.show($0) }, isCancelled: { false })
+            migrateLines(result: result, report: report).forEach { print($0) }
+        } catch let UsbError.writeRefused(blocks) {
+            var refused = UsbMigrationResult()
+            refused.blocks = blocks
+            migrateLines(result: refused, report: nil).forEach { print($0) }
+            throw UsbError.writeRefused(blocks)
+        }
+    }
+
+    /// 사람용 요약: 막힘 → 옮길 수 → 알림 → 확인 안 된 규칙 → 쓰기 결과. 곡 제목·USB 경로는 찍지 않는다
+    static func migrateLines(result: UsbMigrationResult, report: UsbWriteReport?) -> [String] {
+        var lines = result.blocks.map { String(ui: "막힘 \($0.code): \($0.message)") }
+        guard let changes = result.changes else { return lines }
+        lines.append(String(ui: "옮길 것: 곡 \(result.trackCount) · 재생 목록 \(result.playlistCount) · OneLibrary 아트워크 \(result.artworkFiles)"))
+        lines += groupedNotes(result.notes)
+        let rules = changes.requiredRules.map(\.rawValue).sorted()
+        lines.append(rules.isEmpty ? String(ui: "확인 안 된 규칙: 없음") : String(ui: "확인 안 된 규칙: \(rules.joined(separator: ", "))"))
+        if let report { lines += reportLines(report) }
+        return lines
     }
 
     // MARK: - usb-info
