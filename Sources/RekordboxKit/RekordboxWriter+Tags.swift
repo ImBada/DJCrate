@@ -390,31 +390,16 @@ extension RekordboxWriter {
                        (albumArtist.map { [CipherDatabase.Value.text($0)] } ?? []) + [.int(usn), .text(stamp.db), .text(album)])
             touchedAlbums[album] = (usn, state == 256 ? 257 : state)
         }
-        // 정보 패널 칸 순서대로(제목 → 아티스트 → 앨범 → 장르 → 작곡가 → …). 새 이름 행과 앨범 행이 곡 행보다 먼저 번호를 받는다.
+        // 정보 패널 칸 순서대로(제목 → 앨범 → 아티스트 → 장르 → 작곡가 → …). 새 이름 행과 앨범 행이 곡 행보다 먼저 번호를 받는다.
+        // 앨범을 아티스트보다 먼저 쓴다(#173 명세 4.2-7): rekordbox에서 앨범 → 아티스트 순으로 저장한 결과와 같게, 아티스트가 저장하는
+        // 앨범 행은 바뀐 뒤의 앨범이다(이 곡만 쓰던 옛 앨범을 저장한 뒤 버리지 않는다).
         if keys.contains(.title) { columns.append(("Title", .text(fields.title))) }
-        if keys.contains(.artist) {
-            columns.append(("ArtistID", fields.artist.isEmpty ? .text("") : try name("djmdArtist", fields.artist)))
-            // 아티스트를 고치면 곡의 앨범 행도 저장된다: NULL 앨범 아티스트는 '', 변경 번호·시각(2026-09-27 실험곡 5, 묶음 2),
-            // 동기화 앨범은 256 → 257·257 그대로(#173 S1 T02·T05·X1, S2 U07, S3 V01·V03·V05)
-            if content.migratesAlbum, let name = old.albumName {
-                // 같은 이름 앨범이 여럿이면 옛 앨범은 저장하지 않고 같은 이름의 새 앨범으로 옮긴다(#173 S3 V02·S2 U13). (이름, 앨범 아티스트)
-                // 짝이 같은 행이 있어도 늘 새로 만든다(`findOrCreateAlbum`을 쓰지 않는다). 앨범 아티스트는 이어받고 NULL이면 ''.
-                let id = try RekordboxTrackWriter.newID(db, table: "djmdAlbum", range: 1..<(1 << 32))
-                usn += 1
-                try RekordboxTrackWriter.insert(db, table: "djmdAlbum", [
-                    "ID": .text(id), "Name": .text(name), "AlbumArtistID": .text(old.albumArtist ?? ""), "ImagePath": .null, "Compilation": .int(0),
-                    "SearchStr": .null, "UUID": .text(UUID().uuidString.lowercased()),
-                ].merging(RekordboxTrackWriter.syncColumns(usn: usn, stamp: stamp)) { a, _ in a })
-                columns.append(("AlbumID", .text(id)))
-                touchedAlbums[id] = (usn, 0)
-            } else if let album = old.album, !album.isEmpty, old.albumLive {
-                try saveAlbum(album, albumArtist: nil)
-            }
-        }
+        var currentAlbum = old.albumLive ? old.album.flatMap { $0.isEmpty ? nil : $0 } : nil
         if keys.contains(.album) || keys.contains(.albumArtist) {
             if fields.album.isEmpty {
                 // 비우면 '' (2026-09-27 실험곡 3)
                 columns.append(("AlbumID", .text("")))
+                currentAlbum = nil
             } else {
                 // S1~S5: 이름이 유일한 기존 앨범은 제자리 저장, 새 앨범의 빈 아티스트는 NULL이 아니라 ''.
                 let albumArtistID: String
@@ -430,11 +415,32 @@ extension RekordboxWriter {
                     // 동기화된 대상 앨범도 256 → 257(#173 S2 U02), 제자리 앨범 아티스트도(S2 U01·U14)
                     try saveAlbum(existing, albumArtist: albumArtistID)
                     columns.append(("AlbumID", .text(existing)))
+                    currentAlbum = existing
                 } else {
                     let album = try RekordboxTrackWriter.findOrCreateAlbum(db, name: fields.album, albumArtistID: albumArtistID, usn: &usn, stamp: stamp)
                     columns.append(("AlbumID", .text(album)))
                     touchedAlbums[album] = (usn, 0)
+                    currentAlbum = album
                 }
+            }
+        }
+        if keys.contains(.artist) {
+            columns.append(("ArtistID", fields.artist.isEmpty ? .text("") : try name("djmdArtist", fields.artist)))
+            // 아티스트를 고치면 곡의 앨범 행도 저장된다: NULL 앨범 아티스트는 '', 변경 번호·시각(2026-09-27 실험곡 5, 묶음 2),
+            // 동기화 앨범은 256 → 257·257 그대로(#173 S1 T02·T05·X1, S2 U07, S3 V01·V03·V05)
+            if content.migratesAlbum, let name = old.albumName {
+                // 같은 이름 앨범이 여럿이면 옛 앨범은 저장하지 않고 같은 이름의 새 앨범으로 옮긴다(#173 S3 V02·S2 U13). (이름, 앨범 아티스트)
+                // 짝이 같은 행이 있어도 늘 새로 만든다(`findOrCreateAlbum`을 쓰지 않는다). 앨범 아티스트는 이어받고 NULL이면 ''.
+                let id = try RekordboxTrackWriter.newID(db, table: "djmdAlbum", range: 1..<(1 << 32))
+                usn += 1
+                try RekordboxTrackWriter.insert(db, table: "djmdAlbum", [
+                    "ID": .text(id), "Name": .text(name), "AlbumArtistID": .text(old.albumArtist ?? ""), "ImagePath": .null, "Compilation": .int(0),
+                    "SearchStr": .null, "UUID": .text(UUID().uuidString.lowercased()),
+                ].merging(RekordboxTrackWriter.syncColumns(usn: usn, stamp: stamp)) { a, _ in a })
+                columns.append(("AlbumID", .text(id)))
+                touchedAlbums[id] = (usn, 0)
+            } else if let album = currentAlbum {
+                try saveAlbum(album, albumArtist: nil)
             }
         }
         // 장르를 비우면 '0', 작곡가를 비우면 ''(2026-09-27 실험곡 4 세션 2)

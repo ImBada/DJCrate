@@ -339,6 +339,50 @@ extension RekordboxTagWriterTests {
         #expect(try row(shared, "djmdAlbum", "31")?["rb_data_status"] == "257")
     }
 
+    // MARK: 7. 앨범과 아티스트를 함께 고치면 앨범 먼저
+
+    /// 곡 행·앨범·아티스트 표를 ID·UUID·번호 값·시각 없이(외래 키는 이름으로) 비교할 모양
+    func canonical(_ fixture: RekordboxFixture) throws -> [String] {
+        let track = try fixture.rows("""
+            SELECT c.Title, a.Name AS artist, al.Name AS album, aa.Name AS albumArtist, c.TrackInfoUpdated, c.rb_data_status, c.usn
+            FROM djmdContent c LEFT JOIN djmdArtist a ON a.ID = c.ArtistID LEFT JOIN djmdAlbum al ON al.ID = c.AlbumID
+            LEFT JOIN djmdArtist aa ON aa.ID = al.AlbumArtistID WHERE c.ID = '500'
+            """).map { $0.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " ") }
+        let albums = try fixture.rows("""
+            SELECT al.Name, aa.Name AS albumArtist, quote(al.AlbumArtistID) IS 'NULL' AS nullArtist, al.rb_data_status, al.rb_local_deleted,
+                al.usn, al.rb_local_synced FROM djmdAlbum al LEFT JOIN djmdArtist aa ON aa.ID = al.AlbumArtistID
+            """).map { $0.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " ") }.sorted()
+        let artists = try fixture.rows("SELECT Name, rb_data_status, rb_local_deleted, usn FROM djmdArtist")
+            .map { $0.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " ") }.sorted()
+        return track + albums + artists
+    }
+
+    @Test(arguments: [false, true]) func 앨범과_아티스트를_함께_바꾸면_앨범을_먼저_저장한_결과와_같다(existingAlbum: Bool) throws {
+        // #173 명세 4.2-7: 아티스트를 먼저 쓰면 이 곡만 쓰는 동기화 앨범이 257이 됐다가 버려져 막힌다. rekordbox에서 앨범 → 아티스트 순으로
+        // 저장한 결과(S1 T04 새 앨범·S2 U02 기존 앨범 → 옛 앨범 258, 그 뒤 S1 T02 아티스트 → 바뀐 앨범을 저장)와 같아야 한다.
+        func prepared() throws -> (RekordboxFixture, TrackSpec) {
+            let (fixture, track) = try syncedLibrary(shared: false)
+            for (table, id) in [("djmdArtist", "11"), ("djmdAlbum", "31")] { try sync(fixture, table, id) }
+            if existingAlbum {
+                try fixture.insert("djmdAlbum", ["ID": .text("32"), "Name": .text("DJC 173 앨범"), "AlbumArtistID": .text(""), "UUID": .text("al-32")])
+                try sync(fixture, "djmdAlbum", "32")
+            }
+            return (fixture, track)
+        }
+        let (together, track) = try prepared()
+        let report = try write(together, tags: [try draft(together, track) { $0.album = "DJC 173 앨범"; $0.artist = "DJC 173 아티스트" }])
+        #expect(report.tagWritten.count == 1 && report.tagBlocked.isEmpty)
+        let (oneByOne, same) = try prepared()
+        #expect(try write(oneByOne, tags: [try draft(oneByOne, same) { $0.album = "DJC 173 앨범" }]).tagWritten.count == 1)
+        #expect(try write(oneByOne, tags: [try draft(oneByOne, same) { $0.artist = "DJC 173 아티스트" }]).tagWritten.count == 1)
+        #expect(try canonical(together) == canonical(oneByOne))
+        #expect(try row(together, "djmdAlbum", "31")?["rb_data_status"] == "258" && row(together, "djmdArtist", "11")?["rb_data_status"] == "258")
+        // 곡이 옮겨 간 앨범이 아티스트 저장의 번호를 받고, 곡 행이 마지막 번호다
+        let album = try #require(together.rows("SELECT rb_local_usn FROM djmdAlbum WHERE Name = 'DJC 173 앨범'").first?["rb_local_usn"])
+        #expect(try (Int(album) ?? 0) < (Int(content(together)["rb_local_usn"] ?? "") ?? 0))
+        #expect(try Int(content(together)["rb_local_usn"] ?? "") == together.localUpdateCount())
+    }
+
     @Test func 다른_곡이_쓰는_동기화_이름_행은_그대로_둔다() throws {
         // #173 S1 T03·X1: 다른 곡도 쓰는 옛 아티스트는 그대로, S1 T06·T07: 다른 곡도 쓰는 옛 장르는 그대로.
         let (fixture, track) = try library()
