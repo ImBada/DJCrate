@@ -463,6 +463,23 @@ struct PdbReadTests {
         #expect(library.myTagLinks == [UsbMyTagLink(myTagID: 4_100_000_000, contentID: 1, presentIn: [.deviceLibrary])])
     }
 
+    /// pdb 트랙 0x14(로컬 MasterSongID)·0x18(MasterDBID)과 경로 끝 성분으로 로컬 곡과 짝짓는다(OneLibrary와 같은 열쇠)
+    @Test func matchesLocalTrackFromDeviceLibrary() throws {
+        var track = PdbTrackSpec(id: 1)
+        track.masterDbId = 3_000_000_000
+        track.masterContentId = 3_000_000_001
+        track[.fileName] = "시험 곡 (2).mp3"
+        track[.filePath] = "/Contents/시험 아티스트/시험 앨범/시험 곡 (2).mp3"
+        let (library, _) = try Self.read(Self.sampleExport(tracks: [track]))
+        let usb = try #require(library.tracks.first)
+        let key = UsbTrackKey(masterDbId: usb.masterDbId, masterContentId: usb.masterContentId, fileName: usb.fileName)
+        let local = [UsbLocalTrackKey(contentID: "71", masterSongID: "3000000001", fileNameL: "시험 곡.mp3"),
+                     UsbLocalTrackKey(contentID: "72", masterSongID: "3000000002", fileNameL: "시험 곡.mp3")]
+        #expect(UsbTrackMatch.match(key, localDBID: 3_000_000_000, local: local) == "71")
+        // 다른 라이브러리에서 내보낸 곡
+        #expect(UsbTrackMatch.match(key, localDBID: 1_000_001, local: local) == nil)
+    }
+
     @Test func flag10NotFiveReported() throws {
         var export = Self.sampleExport()
         export.flag10 = 4

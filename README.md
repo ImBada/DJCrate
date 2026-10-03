@@ -28,7 +28,7 @@ rekordbox 7 라이브러리를 관리하는 macOS 앱. 큐·그리드·오토게
 - **코멘트 프리셋(선택 기능)**: 기본은 꺼짐. 설정 › 일반에서 애니송을 고르면 코멘트 분류·필터·현황·형식 검사를 켠다. CLI의 `parse`는 애니송 전용이며 `report`·`search`는 `--comment-preset anisong`으로 명시한다.
 - **설정(⌘,)**: 일반·덱·단축키. 덱 단축키를 원하는 키로 바꿀 수 있다.
 - **명령줄·AI 에이전트**: `djc`로 라이브러리를 찾아보고 큐·태그 초안을 만든다. Claude Code·Codex용 스킬이 들어 있다([아래](#명령줄과-ai-에이전트)).
-- **USB(시험 기능)**: OneLibrary·Device Library를 함께 읽고 내보내며, USB 곡·재생 목록 편집을 초안으로 쌓아 미리 보기 후 반영한다. 쓰기·복원·회복은 지금은 임시 폴더의 디스크 이미지에만 가능하며 실물 USB 쓰기는 코드에서 닫혀 있다([명령](docs/cli.md), [확인 범위](docs/usb-internals.md#10-막아-둔-것)).
+- **USB(시험 기능)**: OneLibrary·Device Library를 함께 읽고 내보내며, USB 곡·재생 목록 편집을 초안으로 쌓아 미리 보기 후 반영한다. Device Library만 있는 옛 USB에는 원래 파일을 그대로 둔 채 OneLibrary를 더한다(`djc usb-migrate`). 쓰기·복원·회복은 지금은 임시 폴더의 디스크 이미지에만 가능하며 실물 USB 쓰기는 코드에서 닫혀 있다([명령](docs/cli.md), [확인 범위](docs/usb-internals.md#10-막아-둔-것)).
 
 ## 안전 장치
 
@@ -147,7 +147,7 @@ DJCrate is a macOS app for managing a rekordbox 7 library without launching reko
 - **Languages**: the app follows your macOS language setting: English, Japanese or Korean (other languages fall back to English). The `djc` command-line tool is Korean only for now.
 - **Safety**: DJCrate never writes while rekordbox or rekordboxAgent is running, and only writes to rekordbox 7.2.x with a verified database layout. It backs up the whole library first, writes in a single transaction, reads the result back to verify it, and restores the backup if anything fails. The last write can be restored from the app.
 - **Drafts**: every edit is kept as a DJCrate draft until you write it to rekordbox.
-- **USB (experimental)**: reads both OneLibrary and Device Library, exports tracks and playlists, and applies USB edit drafts after a preview. Writing, restoring and recovery are restricted to disk images in temporary folders; physical USB writes remain disabled and hardware behavior is unverified.
+- **USB (experimental)**: reads both OneLibrary and Device Library, exports tracks and playlists, applies USB edit drafts after a preview, and adds OneLibrary to Device Library-only USBs without changing their files (`djc usb-migrate`). Writing, restoring and recovery are restricted to disk images in temporary folders; physical USB writes remain disabled and hardware behavior is unverified.
 - **Requirements**: macOS 27 or later, a Swift 6.2+ toolchain (Xcode) and rekordbox 7.2.x (verified with 7.2.18). Build and install with `scripts/build-app.sh --install`.
 - **Getting started**: take a library snapshot (⟳ in the toolbar), edit cues and grids on the deck, quit rekordbox completely, then choose Write to rekordbox (⇧⌘E), check the preview and write.
 

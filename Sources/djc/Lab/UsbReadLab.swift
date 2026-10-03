@@ -12,6 +12,10 @@ enum UsbReadLab {
                 "두 USB 폴더를 사본으로 떠서 모델을 표·칸 단위로 비교(기본은 두 형식 모두, 값은 찍지 않음). --files는 파일 트리"
                     + "(--mtime이면 내용이 같은 파일의 수정 시각도 FAT 2초 단위로), --anlz는 분석 파일 태그도 비교",
                 UsbReadLab.usbDiff),
+        Command("usb-migrate-check", "<USB 폴더> [--ignore-ids]",
+                "두 형식이 다 있는 USB(골든 사본 등)의 Device Library를 OneLibrary로 옮겼다고 치고, 그 USB의 OneLibrary와 표·칸 단위로 비교"
+                    + "(값은 찍지 않음, USB에 쓰지 않음)",
+                UsbReadLab.migrateCheck),
         Command("usb-anlz-relocate", "<USB 사본 폴더> --track <id> --folder <P???/????????> [--db-only|--files-only|--decoy-slot0|--cue-variant]",
                 "기기 실험용: 임시 폴더의 USB 사본에서 한 곡의 분석 파일·두 DB 경로를 일부러 어긋나게 만든다(볼륨·원본은 거부)",
                 UsbReadLab.anlzRelocate),
@@ -106,6 +110,26 @@ enum UsbReadLab {
             lines += [files.fileSummary, files.anlzSummary].filter { !$0.isEmpty } + files.differences + ["차이 \(total)"]
         }
         lines.forEach { print($0) }
+    }
+
+    /// `usb-migrate-check`: pdb에서 읽은 모델 → 옮기기 변환(`UsbMigration`) → OneLibrary 투영을 그 USB의 OneLibrary와 견준다
+    static func migrateCheck(_ args: [String]) async throws {
+        let ignoreIDs = args.contains("--ignore-ids")
+        let positional = args.dropFirst().filter { $0 != "--ignore-ids" }
+        guard positional.count == 1, let path = positional.first else { throw UsageError() }
+        let root = UsbRoot(URL(filePath: try UsbScratchPath.check(path, as: .existingDirectory)))
+        let work = FileManager.default.temporaryDirectory.appending(path: "djc-usb-migrate-check-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: work) }
+        let snapshot = try UsbSnapshot.take(root: root, into: work)
+        guard let copy = snapshot.oneLibrary, let (deviceLibrary, report) = try PdbReader.read(snapshot: snapshot) else {
+            print("두 형식(exportLibrary.db·export.pdb)이 다 있는 USB만 비교한다")
+            return
+        }
+        if !report.issues.isEmpty { print("구조 문제 \(report.issues.count)") }
+        let actual = try OneLibraryReader.read(copyAt: copy)
+        let converted = try UsbMigration.model(deviceLibrary: deviceLibrary, root: root).projected(to: .oneLibrary)
+        print(renderMismatches("변환", UsbLibrary.merge(oneLibrary: converted, deviceLibrary: deviceLibrary).1))
+        render(UsbLibraryDiff.compare(actual, converted, options: .init(ignoreIDs: ignoreIDs, formats: [.oneLibrary]))).forEach { print($0) }
     }
 
     /// 기기 실험 사본 준비. 사본 폴더는 임시 폴더 아래의 폴더만(볼륨 맨 위·링크 거부), rekordbox가 켜져 있으면 하지 않는다

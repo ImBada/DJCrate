@@ -107,10 +107,14 @@ public struct UsbLibraryFixture: Sendable {
         if formats.contains(.oneLibrary) { try writeOneLibrary(to: tree) }
         if formats.contains(.deviceLibrary) { writeDeviceLibrary(to: tree) }
         if writeArtwork {
+            // Device Library는 a, OneLibrary는 b 그림을 가리킨다(한 형식만 있는 USB에는 그 형식 그림만 있다)
+            let prefixes = (formats.contains(.deviceLibrary) ? ["a"] : []) + (formats.contains(.oneLibrary) ? ["b"] : [])
             for image in images {
-                for (prefix, medium) in [("a", false), ("b", false), ("a", true), ("b", true)] {
-                    tree.write(String(format: "PIONEER/Artwork/00001/%@%d%@.jpg", prefix, image, medium ? "_m" : ""),
-                               Self.artwork(image, medium: medium))
+                for prefix in prefixes {
+                    for medium in [false, true] {
+                        tree.write(String(format: "PIONEER/Artwork/00001/%@%d%@.jpg", prefix, image, medium ? "_m" : ""),
+                                   Self.artwork(image, medium: medium))
+                    }
                 }
             }
         }

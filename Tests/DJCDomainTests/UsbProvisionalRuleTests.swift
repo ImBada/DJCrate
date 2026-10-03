@@ -35,6 +35,7 @@ struct UsbProvisionalRuleTests {
             "settingFiles",
             "pdbRegeneratedEdit", "trackRemovalFiles",
             "editRefreshTracks", "editRemoveTracks", "editAddTracks", "editPlaylists",
+            "deviceLibraryMigration",
         ])
         let decoded = try? JSONDecoder().decode([UsbProvisionalRule].self, from: Data(#"["cueVariant","physicalVolume"]"#.utf8))
         #expect(decoded == [.cueVariant, .physicalVolume])
