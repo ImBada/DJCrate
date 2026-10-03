@@ -31,7 +31,7 @@ struct UsageError: Error {}
 
 enum CLI {
     static let lab = CueLab.all + GridLab.all + AudioLab.all + TrackLab.all + EditLab.all + PlaylistLab.all + CipherLab.all + UsbLab.all
-        + UsbReadLab.all + UsbAnlzLab.all + UsbPlanLab.all + UsbImageLab.all + UsbExportLab.all + UsbSettingLab.all
+        + UsbReadLab.all + UsbFieldsLab.all + UsbAnlzLab.all + UsbPlanLab.all + UsbImageLab.all + UsbExportLab.all + UsbSettingLab.all
 
     static let usage = String(ui: """
         DJCrate(djc) — rekordbox DJ 라이브러리 관리 도구
