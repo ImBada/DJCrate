@@ -13,6 +13,12 @@ final class FakeUsbWriteService: UsbWriteService, @unchecked Sendable {
     struct State {
         var journal: UsbJournalInfo = .none
         var summary = UsbTestData.summary()
+        var migrationSummary = UsbMigrationSummary(trackCount: 3, playlistCount: 1, artworkFiles: 6, blocks: [],
+                                                   rules: [.deviceLibraryMigration], notes: [], hasChanges: true, isTestVolume: true)
+        var migrationPreviewError: UsbError?
+        var migrationWriteResult: Result<UsbWriteReport?, UsbError> = .success(UsbWriteReport(outcome: .written, session: "m1",
+                                                                                          backup: "/tmp/djc-fixture/usb-backups/B/m1"))
+        var migrationOnMain: [Bool] = []
         /// 미리 보기 뒤 저널(실제 절차는 드라이 런 저널을 닫힌 상태로 남길 수 있다)
         var journalAfterPreview: UsbJournalInfo?
         var writeResult: Result<UsbWriteReport, UsbError> = .success(UsbWriteReport(outcome: .written, session: "s1", filesCreated: 12))
@@ -89,6 +95,39 @@ final class FakeUsbWriteService: UsbWriteService, @unchecked Sendable {
                 state.fileOperations += 1
             }
             return try state.writeResult.get()
+        }
+    }
+
+    func previewMigration(_ volume: UsbVolumeInfo) throws -> UsbMigrationSummary {
+        let onMain = Thread.isMainThread
+        return try lock.withLock {
+            state.calls.append("previewMigration")
+            state.migrationOnMain.append(onMain)
+            if let next = state.journalAfterPreview { state.journal = next }
+            if let error = state.migrationPreviewError { throw error }
+            return state.migrationSummary
+        }
+    }
+
+    func writeMigration(_ volume: UsbVolumeInfo, progress: @escaping @Sendable (UsbProgress) -> Void,
+                        isCancelled: @escaping @Sendable () -> Bool) throws -> UsbMigrationWritten {
+        let onMain = Thread.isMainThread
+        let (steps, hook) = lock.withLock { () -> ([UsbProgress], (@Sendable () -> Void)?) in
+            state.calls.append("writeMigration")
+            state.migrationOnMain.append(onMain)
+            return (state.writeProgress, state.onWrite)
+        }
+        for step in steps { progress(step) }
+        hook?()
+        if isCancelled() { throw UsbError.cancelled }
+        return try lock.withLock {
+            if let next = state.journalAfterWrite { state.journal = next }
+            let report = try state.migrationWriteResult.get()
+            if report != nil {
+                state.fileOperations += 1
+                state.committed = true
+            }
+            return UsbMigrationWritten(summary: state.migrationSummary, report: report)
         }
     }
 

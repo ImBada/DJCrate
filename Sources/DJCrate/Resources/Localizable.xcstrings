@@ -678,6 +678,22 @@
         }
       }
     },
+    "%@ · 곡 %lld개 · 재생 목록 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %lld tracks · %lld playlists"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@・%lld曲・プレイリスト%lld件"
+          }
+        }
+      }
+    },
     "%@ · 막힌 편집 %lld건은 초안에 남겼습니다" : {
       "localizations" : {
         "en" : {
@@ -1331,6 +1347,22 @@
         }
       }
     },
+    "%@에 OneLibrary를 더하기 전의 백업으로 되돌립니다. 끝날 때까지 USB를 뽑지 마세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore %@ from the backup made before adding OneLibrary. Keep the USB connected until it finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@をOneLibrary追加前のバックアップから復元します。完了するまでUSBを抜かないでください。"
+          }
+        }
+      }
+    },
     "%@에 모르는 칸(%@)" : {
       "localizations" : {
         "en" : {
@@ -1627,6 +1659,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@の現在の%2$@を比較してください"
+          }
+        }
+      }
+    },
+    "%@의 Device Library를 읽어 OneLibrary를 더합니다. 쓰기 전에 Mac에 백업하고 쓴 뒤 USB에서 다시 읽어 확인합니다. 끝날 때까지 USB를 뽑지 마세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read Device Library on %@ and add OneLibrary. A backup is made on your Mac before writing, then the USB is read again to verify the result. Keep the USB connected until it finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@のDevice Libraryを読み、OneLibraryを追加します。書き込み前にMacにバックアップを作り、書き込み後にUSBを読み直して確認します。完了するまでUSBを抜かないでください。"
           }
         }
       }
@@ -3873,6 +3921,22 @@
         }
       }
     },
+    "Device Library를 읽어 OneLibrary를 더합니다. 미리 보기에서 확인 안 된 규칙을 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read Device Library and add OneLibrary. Review the unverified rules in the preview."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device Libraryを読み、OneLibraryを追加します。プレビューで未確認の規則を確認してください。"
+          }
+        }
+      }
+    },
     "Device Library를 지금 고칠 수 없어, 두 형식에 함께 있는 재생 목록의 이름과 폴더는 바꾸지 않았습니다. Device Library가 막힌 이유를 먼저 푼 뒤 다시 시도하세요" : {
       "localizations" : {
         "en" : {
@@ -3901,6 +3965,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Device Libraryのみ"
+          }
+        }
+      }
+    },
+    "Device Library만 있습니다. OneLibrary를 더하려면 ‘OneLibrary 더하기…’를 누르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only Device Library is present. Choose “Add OneLibrary…” to add OneLibrary."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device Libraryのみです。OneLibraryを追加するには「OneLibraryを追加…」を選んでください。"
           }
         }
       }
@@ -4273,6 +4353,38 @@
         }
       }
     },
+    "OneLibrary 더하기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add OneLibrary"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OneLibraryを追加"
+          }
+        }
+      }
+    },
+    "OneLibrary 더하기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add OneLibrary…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OneLibraryを追加…"
+          }
+        }
+      }
+    },
     "OneLibrary 아트워크 자리에 다른 파일이 있어 옮기지 않았습니다. rekordbox에서 USB를 다시 내보내세요" : {
       "localizations" : {
         "en" : {
@@ -4371,6 +4483,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OneLibraryへの移行は既存のファイルを変更しません。USBをもう一度読み込んでから移行してください"
+          }
+        }
+      }
+    },
+    "OneLibrary를 더할 수 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot Add OneLibrary"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OneLibraryを追加できません"
+          }
+        }
+      }
+    },
+    "OneLibrary를 더할까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add OneLibrary?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OneLibraryを追加しますか？"
           }
         }
       }
@@ -5701,6 +5845,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBを回復しませんでした"
+          }
+        }
+      }
+    },
+    "USB에 OneLibrary를 더했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added OneLibrary to the USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBにOneLibraryを追加しました"
           }
         }
       }
@@ -11535,6 +11695,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "곡 %1$lld개 · 재생 목록 %2$lld개 · 빼고 쓰는 곡 %3$lld개"
+          }
+        }
+      }
+    },
+    "곡 %lld개 · 재생 목록 %lld개 · 새 아트워크 파일 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld tracks · %lld playlists · %lld new artwork files"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld曲・プレイリスト%lld件・新しいアートワークファイル%lld個"
           }
         }
       }
@@ -22429,6 +22605,22 @@
         }
       }
     },
+    "쓰기 전으로 되돌리기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore Before Write…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込み前に復元…"
+          }
+        }
+      }
+    },
     "쓰기 전으로 복원" : {
       "localizations" : {
         "en" : {
@@ -24087,12 +24279,6 @@
     },
     "옮길 것: 곡 %lld · 재생 목록 %lld · OneLibrary 아트워크 %lld" : {
       "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "옮길 것: 곡 %1$lld · 재생 목록 %2$lld · OneLibrary 아트워크 %3$lld"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -24103,6 +24289,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "移行するもの: 曲 %1$lld · プレイリスト %2$lld · OneLibraryアートワーク %3$lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "옮길 것: 곡 %1$lld · 재생 목록 %2$lld · OneLibrary 아트워크 %3$lld"
+          }
+        }
+      }
+    },
+    "옮길 곡이 없습니다. USB를 다시 읽은 뒤 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no tracks to migrate. Reload the USB and check again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移行する曲がありません。USBを読み直して確認してください。"
           }
         }
       }
@@ -26357,6 +26565,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "追加済みの%lld曲を選択しました"
+          }
+        }
+      }
+    },
+    "이번에 OneLibrary를 더하기 전에 만든 백업으로 USB를 되돌립니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore the USB from the backup made before adding OneLibrary this time."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今回OneLibraryを追加する前に作ったバックアップからUSBを復元します。"
           }
         }
       }
@@ -34473,6 +34697,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未確認のルール: なし"
+          }
+        }
+      }
+    },
+    "확인 안 된 규칙은 디스크 이미지에서만 시험하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Test unverified rules on disk images only."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未確認の規則はディスクイメージでのみ試してください。"
           }
         }
       }

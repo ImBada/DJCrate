@@ -9,7 +9,7 @@ import UniformTypeIdentifiers
 // 개발용 자가 시험은 디버그 빌드에만 들어간다(설치하는 릴리스 앱에는 없다).
 #if DEBUG
 /// 개발용: 합성 로컬 라이브러리 → 디스크 이미지 내보내기(앱 흐름 그대로) → 꺼내기·다시 붙여 확인 →
-/// 편집(곡 빼기·목록 만들기·이름 바꾸기 초안 → 미리 보기 → 쓰기 → 다시 읽기 → 되돌리기) → 되돌리기(`--usb-selftest`).
+/// 편집(곡 빼기·목록 만들기·이름 바꾸기 초안 → 미리 보기 → 쓰기 → 다시 읽기 → 되돌리기) → 되돌리기 → Device Library만 내보내기·OneLibrary 더하기·되돌리기(`--usb-selftest`).
 /// 이미지·마운트 지점·합성 라이브러리·초안은 모두 `DJC_HOME` 아래다. 스냅샷을 뜨거나 정리하지 않는다.
 /// 출력은 표준 출력에 "USB 시험 …" 줄로 남긴다. 편집 단계가 통과하면 "USB 시험 편집 통과 …", 마지막 줄은 "USB 시험 통과 …" 또는 "USB 시험 실패: <이유>"다.
 @MainActor
@@ -231,7 +231,50 @@ struct UsbSelfTestScenario {
         let differ = Set(before).symmetricDifference(Set(after)).map(\.relativePath).sorted()
         log("USB 시험 되돌리기: 트리 차이 \(differ.count)" + (differ.isEmpty ? "" : " (\(differ.prefix(5).joined(separator: ", ")))"))
         guard differ.isEmpty else { throw Failure("되돌린 트리가 쓰기 전과 다릅니다") }
+        log(try await exerciseMigration(usb: usb, host: host, coordinator: coordinator, service: service, prompter: prompter,
+                                        volume: reattached, library: library, snapshotTime: snapshotTime))
         return "USB 시험 통과 · 곡 \(first.trackCount) · 재생 목록 \(first.playlistCount) · 앱이 쓴 파일 \(appFiles.count)개 · 되돌린 뒤 트리 같음"
+    }
+
+    /// Device Library만 내보낸 뒤 옮기기. 미리 보기의 USB 불변, 원래 파일 보존, 다시 붙여 읽기, 두 쓰기의 백업 복원을 확인한다.
+    private func exerciseMigration(usb: UsbStore, host: any UsbWriteHost, coordinator: UsbWriteCoordinator, service: UsbSelfTestRecordingService,
+                                   prompter: UsbSelfTestPrompter, volume: UsbVolumeInfo, library: UsbSelfTestLibrary.Made,
+                                   snapshotTime: String) async throws -> String {
+        let root = UsbRoot(URL(filePath: volume.mountPoint))
+        let empty = try await detached { try UsbTree.fingerprint(root).files }
+        let job = UsbExportJob(database: library.database, share: library.share, volume: volume, selection: .playlists([library.playlistID]),
+                               formats: [.deviceLibrary], snapshotTime: snapshotTime)
+        await coordinator.export(job)
+        guard let exported = service.lastWrite, exported.outcome == .written else { throw Failure("Device Library만 내보내지 못했습니다") }
+        let before = try await detached { try UsbTree.fingerprint(root).files }
+        guard let first = await coordinator.previewMigration(volume), let second = await coordinator.previewMigration(volume),
+              first.canWrite, first == second, first.rules.contains(.deviceLibraryMigration) else { throw Failure("옮기기 미리 보기 실패") }
+        let previewTree = try await detached { try UsbTree.fingerprint(root).files }
+        guard before == previewTree else { throw Failure("옮기기 미리 보기가 USB를 바꿈") }
+        log("USB 시험 옮기기 미리 보기: 곡 \(first.trackCount) · 목록 \(first.playlistCount) · 아트워크 \(first.artworkFiles) · 확인 안 된 규칙 \(first.rules.count) · 트리 그대로")
+        await coordinator.migrate(volume)
+        guard service.lastMigration?.outcome == .written, usb.migrationBackups[volume.usbKey] != nil,
+              host.toast?.action == .ejectUsb(volumeKey: volume.usbKey) else { throw Failure("옮기기 쓰기 실패(\(prompter.lastText))") }
+        let after = try await detached { try UsbTree.fingerprint(root).files }
+        guard before.allSatisfy({ after[$0.key] == $0.value }) else { throw Failure("옮기기가 원래 파일을 바꿈") }
+        await coordinator.perform(.ejectUsb(volumeKey: volume.usbKey))
+        try await waitDetached()
+        let (image, mount) = (self.image.path, self.mountPoint.path)
+        _ = try await detached { try UsbDiskImage.attach(image: image, mountPoint: mount) }
+        let current = try await waitForVolume(usb)
+        guard usb.libraries[current.usbKey]?.formats == UsbFormat.defaultSet,
+              let info = usb.infos[current.usbKey], info.oneLibrary?.integrityOK == true, info.deviceLibrary?.roundTripOK == true,
+              info.consistency.trackIDsMatch, info.consistency.playlistMismatches == 0, info.warnings.isEmpty else {
+            throw Failure("옮긴 USB를 다시 붙여 읽은 결과가 다름")
+        }
+        await coordinator.restoreMigration(current)
+        let restored = try await detached { try UsbTree.fingerprint(root).files }
+        guard usb.migrationBackups[current.usbKey] == nil, before == restored else { throw Failure("옮기기 되돌림 트리가 다름") }
+        let backup = exported.backup.map { URL(filePath: $0) }
+        _ = try await detached { try service.restore(current, backup: backup, discardDeviceChanges: false) }
+        let final = try await detached { try UsbTree.fingerprint(root).files }
+        guard final == empty else { throw Failure("Device Library 내보내기 되돌림 트리가 다름") }
+        return "USB 시험 옮기기 통과 · 곡 \(first.trackCount) · 목록 \(first.playlistCount) · 아트워크 \(first.artworkFiles) · 원래 파일 그대로 · 왕복 true · 되돌림 차이 0"
     }
 
     /// 편집 단계: 내보낸 USB에 곡 하나 빼기·새 목록·목록 이름 바꾸기를 앱 동작(`UsbEditActions`)으로 초안에 쌓고,
@@ -371,12 +414,14 @@ final class UsbSelfTestRecordingService: UsbWriteService, @unchecked Sendable {
     private let lock = NSLock()
     private var written: UsbWriteReport?
     private var edited: UsbWriteReport?
+    private var migrated: UsbWriteReport?
 
     init(base: SystemUsbWriteService) { self.base = base }
 
     var lastWrite: UsbWriteReport? { lock.withLock { written } }
     /// 마지막 수정 쓰기 보고서(쓸 것이 없었으면 nil)
     var lastEdit: UsbWriteReport? { lock.withLock { edited } }
+    var lastMigration: UsbWriteReport? { lock.withLock { migrated } }
 
     func journal(volumeKey: String) -> UsbJournalInfo { base.journal(volumeKey: volumeKey) }
     func preview(_ job: UsbExportJob) throws -> UsbExportSummary { try base.preview(job) }
@@ -385,6 +430,13 @@ final class UsbSelfTestRecordingService: UsbWriteService, @unchecked Sendable {
         let report = try base.write(job, progress: progress, isCancelled: isCancelled)
         lock.withLock { written = report }
         return report
+    }
+    func previewMigration(_ volume: UsbVolumeInfo) throws -> UsbMigrationSummary { try base.previewMigration(volume) }
+    func writeMigration(_ volume: UsbVolumeInfo, progress: @escaping @Sendable (UsbProgress) -> Void,
+                        isCancelled: @escaping @Sendable () -> Bool) throws -> UsbMigrationWritten {
+        let written = try base.writeMigration(volume, progress: progress, isCancelled: isCancelled)
+        lock.withLock { migrated = written.report }
+        return written
     }
     func recover(_ volume: UsbVolumeInfo) throws -> UsbWriteReport { try base.recover(volume) }
     func restore(_ volume: UsbVolumeInfo, backup: URL?, discardDeviceChanges: Bool) throws -> UsbWriteReport {
@@ -457,7 +509,8 @@ final class UsbSelfTestPrompter: ReflectionPrompter {
         titles.append(prompt.title)
         lastText = ([prompt.title, prompt.text] + prompt.details).joined(separator: " / ")
         log("USB 시험 창: \(prompt.title)")
-        return prompt.confirm == String(ui: "USB에 쓰기")
+        return prompt.confirm == String(ui: "USB에 쓰기") || prompt.confirm == String(ui: "OneLibrary 더하기")
+            || (prompt.confirm == String(ui: "되돌리기") && !prompt.critical && prompt.title == String(ui: "USB를 쓰기 전으로 되돌릴까요?"))
     }
 
     func choose(_ prompt: ReflectionPrompt) -> ReflectionChoice {

@@ -83,6 +83,25 @@ enum PerfProbe {
     /// 현재 구간의 파형 Canvas 실행 시간(ms). 화면 표시 완료 시간과는 다르다.
     static func drawSnapshot() -> [Double] { draws.map { $0 * 1000 } }
 
+    static var measuresIntervals = enabled
+    private static var intervals: [String: [Double]] = [:]
+
+    /// 서로 포함될 수 있는 호출 구간이다. 다른 이름의 시간을 합산하지 않는다.
+    static func measure<T>(_ name: String, _ body: () -> T) -> T {
+        guard measuresIntervals else { return body() }
+        let start = CACurrentMediaTime()
+        let result = body()
+        intervals[name, default: []].append((CACurrentMediaTime() - start) * 1000)
+        return result
+    }
+
+    static func intervalSnapshot() -> [String: [Double]] { intervals }
+
+    static func beginInterval() -> Double? { measuresIntervals ? CACurrentMediaTime() : nil }
+    static func endInterval(_ name: String, from start: Double?) {
+        if let start { intervals[name, default: []].append((CACurrentMediaTime() - start) * 1000) }
+    }
+
     static func bodySummary() -> String? {
         guard !bodyCounts.isEmpty else { return nil }
         return bodyCounts.sorted { $0.value > $1.value }.map { "\($0.key) \($0.value)" }.joined(separator: " · ")
@@ -93,6 +112,9 @@ enum PerfProbe {
     static func count(_ name: String) {}
     @discardableResult
     static func recordWaveformHeight(_ height: Double) -> Bool { true }
+    static func measure<T>(_ name: String, _ body: () -> T) -> T { body() }
+    static func beginInterval() -> Double? { nil }
+    static func endInterval(_ name: String, from start: Double?) {}
     #endif
 
     private static var ticks: [Double] = []
@@ -128,7 +150,12 @@ enum PerfProbe {
         return result
     }
 
-    static func reset() { ticks = []; draws = []; busy = [] }
+    static func reset() {
+        ticks = []; draws = []; busy = []
+        #if DEBUG
+        intervals = [:]
+        #endif
+    }
 
     /// 갱신 간격(ms): 평균·최대·25ms 넘은 횟수, 파형 그리기(ms): 평균·최대
     static func summary() -> String {

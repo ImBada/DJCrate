@@ -64,6 +64,12 @@ import RekordboxKit
 
     /// 볼륨키 → 마지막 내보내기(다시 미리 보기에 쓴다)
     @ObservationIgnored var lastExports: [String: UsbExportJob] = [:]
+    /// 마지막 옮기기(회복 뒤 재계획할 때 내보내기와 구분한다)
+    @ObservationIgnored var lastMigrations: Set<String> = []
+    /// 이 실행에서 옮긴 쓰기의 백업. 다른 쓰기가 성공하면 버려 이전 편집을 지우는 복원을 막는다.
+    var migrationBackups: [String: URL] = [:]
+    /// 마지막 옮기기 미리 보기의 막힘(사이드바 도움말). 다시 읽으면 새로 확인한다.
+    var migrationBlockReasons: [String: String] = [:]
     /// 앱의 USB 쓰기 창구(`LibraryStore.usbCoordinator`가 쓴다. 저널 알림과 같은 창구를 붙인다)
     @ObservationIgnored var writeService: any UsbWriteService = SystemUsbWriteService.app()
     /// 끝나지 않은 쓰기가 있는 볼륨이 나타났을 때. 알림만 띄운다 — 회복은 사용자가 누를 때만 한다
@@ -169,6 +175,7 @@ import RekordboxKit
     private func read(_ volume: UsbVolumeInfo) async {
         let key = volume.usbKey
         // 다시 읽는 동안에도 앞서 읽은 라이브러리는 보여 두고, 새 결과가 오면 한 번에 바꾼다
+        migrationBlockReasons[key] = nil
         shapes[key] = .reading
         do {
             let info = try await host.info(for: volume)

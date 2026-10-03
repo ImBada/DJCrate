@@ -151,6 +151,7 @@ private struct LibraryDeckViewport: View {
             DeckView(store: store, deck: deck, waveformHeight: height, widthClass: widthClass)
                 .frame(maxWidth: .infinity, alignment: .top)
                 .fixedSize(horizontal: false, vertical: true)
+                .perfMeasuredLayout("swiftui.deck")
                 .anchorPreference(key: DeckBoundsKey.self, value: .bounds) { DeckMeasurement(bounds: $0, waveformHeight: height) }
         }
         .scrollBounceBehavior(.basedOnSize, axes: .vertical)

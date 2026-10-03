@@ -58,7 +58,7 @@ struct DJCrateApp: App {
                     #if DEBUG
                     if !ResizePerfSelfTest.isRequested,
                        !ProcessInfo.processInfo.arguments.contains("--playlist-recovery-selftest"),
-                       !ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("--blocked-reasons-capture=") || $0.hasPrefix("--async-guidance-capture=") || $0 == "--key-routing-selftest" }) {
+                       !ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("--blocked-reasons-capture=") || $0.hasPrefix("--async-guidance-capture=") || $0.hasPrefix("--usb-migrate-capture=") || $0 == "--key-routing-selftest" }) {
                         NSApplication.shared.activate()
                     }
                     #else
