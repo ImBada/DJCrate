@@ -227,7 +227,9 @@ extension RekordboxWriter {
         // 옛 백업에는 없다(그때는 XML을 고치지 않았다).
         let xml = backup.appending(path: "masterPlaylists6.xml")
         if fm.fileExists(atPath: xml.path) {
-            try Data(contentsOf: xml).write(to: playlistXMLURL(for: database), options: .atomic)
+            // 이미 같은 내용이면(쓰기가 원자적으로 실패해 원본 그대로) 다시 쓰지 않는다.
+            let data = try Data(contentsOf: xml), target = playlistXMLURL(for: database)
+            if (try? Data(contentsOf: target)) != data { try data.write(to: target, options: .atomic) }
         }
     }
 

@@ -253,10 +253,12 @@ public enum RekordboxWriter {
             }
         }
 
-        // 재생 목록 편집은 DB 옆 masterPlaylists6.xml도 고친다. 읽지 못하는 모양이면 백업 전에 막는다.
+        // 재생 목록 편집과 곡 정보 쓰기는 DB 옆 masterPlaylists6.xml도 고친다(곡 정보는 그 곡이 든 목록의 Timestamp, #173).
+        // 쓰는 DB 옆 파일만 대상이고 없으면 DB만 쓴다. 사본 옆 파일이 라이브 XML의 링크면, 읽지 못하는 모양이면 백업 전에 막는다.
         let playlistXMLURL = playlistXMLURL(for: database)
         var playlistXML: MasterPlaylistsXML?
-        if (!playlistSteps.isEmpty || !merges.isEmpty), FileManager.default.fileExists(atPath: playlistXMLURL.path) {
+        if !playlistSteps.isEmpty || !merges.isEmpty || !tags.isEmpty { try writeGuard.checkAdjacentFile(playlistXMLURL, database: database) }
+        if (!playlistSteps.isEmpty || !merges.isEmpty || !tags.isEmpty), FileManager.default.fileExists(atPath: playlistXMLURL.path) {
             let xml = try? MasterPlaylistsXML(contentsOf: playlistXMLURL)
             guard let xml, xml.text.contains("</PLAYLISTS>") else {
                 throw DJCError.writeRefused(String(ui: "masterPlaylists6.xml을 읽지 못했습니다. rekordbox를 한 번 켰다가 종료한 뒤 다시 시도하세요"))
@@ -278,6 +280,8 @@ public enum RekordboxWriter {
         var playlistOutcomes: [PlaylistOutcome] = []
         var playlistWork: PlaylistWork?
         var updatedXML: MasterPlaylistsXML?
+        /// XML에 할 일(재생 목록 → 합치기 → 곡 정보 순). 트랜잭션 끝에서 한 번에 계산하고 커밋 뒤에 적는다.
+        var xmlChanges: [PlaylistXMLChange] = []
         var merged: [MergeExpectation] = []
         var mergeFiles: [URL] = []
         var finalUpdateCount: Int?
@@ -375,8 +379,7 @@ public enum RekordboxWriter {
                 }
                 if playlistOutcomes.contains(where: { $0.status == .written }) {
                     try verifyPlaylists(work, db: db)
-                    // XML은 커밋 뒤에 적지만, 적을 수 있는지는 커밋 전에 본다.
-                    updatedXML = try playlistXML.map { try applyPlaylistXML(work.xml, to: $0, now: now) }
+                    xmlChanges += work.xml
                     playlistWork = work
                 }
             }
@@ -413,7 +416,7 @@ public enum RekordboxWriter {
                 }
                 if !merged.isEmpty {
                     playlistWork = work
-                    updatedXML = try playlistXML.map { try applyPlaylistXML(work.xml, to: $0, now: now) }
+                    xmlChanges += work.xml
                 }
             }
 
@@ -447,6 +450,10 @@ public enum RekordboxWriter {
                         regridded[i].content["rb_local_usn"] = .int(usn)
                     }
                     try db.execute("RELEASE djc_tags")
+                    // 그 곡이 든 살아 있는 목록마다 XML Timestamp를 쓴 시각으로(부모 폴더는 그대로, #173 S1 X1·S2 U11·U12·S3 V07)
+                    for id in try tagPlaylists(db, contentID: result.expectation.contentID) where !xmlChanges.contains(.touch(id)) {
+                        xmlChanges.append(.touch(id))
+                    }
                 } catch let blocked as Blocked {
                     try db.execute("ROLLBACK TO djc_tags")
                     try db.execute("RELEASE djc_tags")
@@ -455,6 +462,8 @@ public enum RekordboxWriter {
                                                removed: 0, added: 0))
                 }
             }
+            // XML은 커밋 뒤에 적지만, 적을 수 있는지는 커밋 전에 본다.
+            if !xmlChanges.isEmpty { updatedXML = try playlistXML.map { try applyPlaylistXML(xmlChanges, to: $0, now: now) } }
             if let backup, !merged.isEmpty {
                 try JSONEncoder().encode(merged.map(\.draft)).write(to: backup.appending(path: "merge-drafts.json"), options: .atomic)
             }
@@ -509,6 +518,8 @@ public enum RekordboxWriter {
                 }
             } catch {
                 throw recover(from: error, database: database, backup: backup, live: live) {
+                    // 원자적 쓰기가 실패했으면 원본 그대로다. 같은 내용을 다시 쓰다 같은 이유로 실패해 복원 실패로 알리지 않는다.
+                    guard (try? Data(contentsOf: playlistXMLURL)) != original.data else { return }
                     try original.data.write(to: playlistXMLURL, options: .atomic)
                 }
             }

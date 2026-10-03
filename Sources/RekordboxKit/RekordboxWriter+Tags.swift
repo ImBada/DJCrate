@@ -179,6 +179,16 @@ extension RekordboxWriter {
         return true
     }
 
+    /// 곡이 든 살아 있는 재생 목록(곡 정보를 쓰면 XML Timestamp를 고친다, #173). 지운 목록·지운 곡 항목은 뺀다.
+    static func tagPlaylists(_ db: CipherDatabase, contentID: String) throws -> [String] {
+        var ids: [String] = []
+        try db.query("""
+            SELECT DISTINCT sp.PlaylistID FROM djmdSongPlaylist sp JOIN djmdPlaylist p ON p.ID = sp.PlaylistID
+            WHERE sp.ContentID = ? AND sp.rb_local_deleted = 0 AND p.rb_local_deleted = 0 ORDER BY sp.PlaylistID
+            """, [.text(contentID)]) { if let id = $0.string(0) { ids.append(id) } }
+        return ids
+    }
+
     // MARK: - 버려지는 이름·앨범 행
 
     /// 태그 쓰기에서 행이 버려졌는지 보는 참조 수. 살아 있는 곡·앨범만 센다(#173 S2 U04, 2026-10-04: 지운 곡 여럿이 가리키는

@@ -311,6 +311,39 @@ struct RekordboxRestoreFailureTests {
         #expect(try state(fixture) == before)
     }
 
+    /// 곡 정보를 쓰면 그 곡이 든 목록의 masterPlaylists6.xml도 고친다(#173). XML을 적지 못하면 커밋한 곡 정보도 백업으로 되돌린다.
+    /// XML 파일에만 "지우기 거부" ACL을 걸어 원자적 쓰기(바꿔 넣기)만 실패하게 한다(DB 복원과 백업 권한은 그대로 된다).
+    @Test func XML을_적지_못하면_곡_정보_쓰기도_되돌린다() throws {
+        let fixture = try RekordboxFixture(localUpdateCount: 900)
+        let track = try fixture.add(TrackSpec())
+        try fixture.execute("UPDATE djmdContent SET Commnt = '' WHERE ID = ?", [.text(track.id)])
+        let playlist = try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: [track.id]))
+        var parsed = MasterPlaylistsXML(text: MasterPlaylistsXMLTests.empty)
+        try parsed.append(id: playlist.id, parentID: playlist.parentID, isFolder: false, timestamp: 1_000)
+        let xml = fixture.root.appending(path: "masterPlaylists6.xml")
+        try parsed.text.write(to: xml, atomically: true, encoding: .utf8)
+        let tags = try syncedCommentDraft(fixture, track)
+        let before = try state(fixture), xmlBefore = try Data(contentsOf: xml)
+        try acl(["+a", "everyone deny delete", xml.path])
+        defer { try? acl(["-R", "-N", fixture.root.path]) }
+        let error = try #require(throws: DJCError.self) {
+            try RekordboxWriter.write(drafts: [], tags: [tags], to: fixture.database, dryRun: false, now: now,
+                                      backups: fixture.backups, shareRoot: fixture.shareRoot)
+        }
+        guard case .writeRolledBack = error else { Issue.record("되돌림 오류가 아님: \(error)"); return }
+        #expect(try state(fixture) == before)
+        #expect(try Data(contentsOf: xml) == xmlBefore)
+    }
+
+    func acl(_ arguments: [String]) throws {
+        let process = Process()
+        process.executableURL = URL(filePath: "/bin/chmod")
+        process.arguments = arguments
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { throw FixtureError("chmod \(arguments.joined(separator: " ")) 실패") }
+    }
+
     /// 픽스처 곡(상태 256)의 코멘트만 고친 초안
     func syncedCommentDraft(_ fixture: RekordboxFixture, _ track: TrackSpec) throws -> TagDraft {
         let db = try fixture.open()
