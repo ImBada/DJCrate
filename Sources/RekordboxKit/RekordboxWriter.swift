@@ -509,19 +509,15 @@ public enum RekordboxWriter {
                 throw recover(from: error, database: database, backup: backup, live: live)
             }
         }
-        // masterPlaylists6.xml: DB를 확인한 뒤 적는다. 적지 못하면 DB·XML 모두 쓰기 전으로.
-        if let backup, let updatedXML, let original = playlistXML {
+        // masterPlaylists6.xml: DB를 확인한 뒤 적는다. 적지 못하면 DB·XML 모두 쓰기 전으로(백업에 둔 XML을 `restoreFiles`가 함께 살린다).
+        if let backup, let updatedXML, playlistXML != nil {
             do {
                 try updatedXML.data.write(to: playlistXMLURL, options: .atomic)
                 guard try MasterPlaylistsXML(contentsOf: playlistXMLURL) == updatedXML else {
                     throw DJCError.writeVerificationFailed(String(ui: "masterPlaylists6.xml을 다시 읽으니 적은 것과 다릅니다"))
                 }
             } catch {
-                throw recover(from: error, database: database, backup: backup, live: live) {
-                    // 원자적 쓰기가 실패했으면 원본 그대로다. 같은 내용을 다시 쓰다 같은 이유로 실패해 복원 실패로 알리지 않는다.
-                    guard (try? Data(contentsOf: playlistXMLURL)) != original.data else { return }
-                    try original.data.write(to: playlistXMLURL, options: .atomic)
-                }
+                throw recover(from: error, database: database, backup: backup, live: live)
             }
         }
 
@@ -614,13 +610,14 @@ public enum RekordboxWriter {
     static func recover(from failure: any Error, database: URL, backup: URL, live: Bool, restoreDatabase: Bool = true,
                         files: () throws -> Void = {}) -> DJCError {
         var problems: [String] = []
-        do { try files() } catch { problems.append(String(ui: "분석 파일: \(DJCError.reason(of: error))")) }
+        // files는 분석 파일·아트워크를 되돌린다(그리드·분석 붙이기·합치기). DB와 masterPlaylists6.xml은 restoreFiles가 백업에서 살린다.
+        do { try files() } catch { problems.append(String(ui: "분석·아트워크 파일: \(DJCError.reason(of: error))")) }
         if restoreDatabase {
             do {
                 try restoreFiles(from: backup, to: database)
                 try checkIntegrity(of: database)
             } catch {
-                problems.append("master.db: \(DJCError.reason(of: error))")
+                problems.append("master.db·masterPlaylists6.xml: \(DJCError.reason(of: error))")
             }
         }
         let reason = DJCError.reason(of: failure)

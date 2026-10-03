@@ -19979,22 +19979,6 @@
         }
       }
     },
-    "분석 파일: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Analysis file: %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解析ファイル: %@"
-          }
-        }
-      }
-    },
     "분석 파일: 곡 %lld · 없는 파일 %lld · 곡 경로 다름 %lld · 번호 0 아님 %lld" : {
       "localizations" : {
         "en" : {
@@ -20167,6 +20151,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解析フォルダに既にファイルがあるため、解析を追加しません。rekordboxで楽曲を解析してください"
+          }
+        }
+      }
+    },
+    "분석·아트워크 파일: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analysis and artwork files: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解析・アートワークファイル: %@"
           }
         }
       }
