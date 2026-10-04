@@ -59,17 +59,11 @@ public enum DamagedDrafts {
         scan(CueDraft.self, folder: "cue-drafts")
         scan(GridDraft.self, folder: "grid-drafts")
         scan(TagDraft.self, folder: "tag-drafts")
-        // 그림 초안은 사본(.image)이 맞아야 읽은 것이다. 옮길 때 사본도 함께 옮긴다.
+        // 그림 초안은 가리키는 사본(.image)이 맞아야 읽은 것이다. 옮길 때 그 곡의 사본도 함께 옮긴다. 초안이 가리키지 않는 사본은
+        // 끝나지 않은 저장일 수 있어 손상으로 보지 않는다(그 곡을 저장하거나 버릴 때 지운다).
         let artwork = home.appending(path: ArtworkDraftStore.folderName)
         for uuid in ArtworkDraftStore.uuids(directory: artwork).sorted() {
             try? ArtworkDraftStore.preserveIfDamaged(trackUUID: uuid, directory: artwork)
-        }
-        // 초안 없이 남은 사본(초안 파일을 옮기거나 지운 뒤)도 지우지 않고 옮긴다.
-        let copies = (try? FileManager.default.contentsOfDirectory(atPath: artwork.path)) ?? []
-        for name in copies.sorted() where name.hasSuffix(".image") {
-            let uuid = String(name.dropLast(6))
-            guard !FileManager.default.fileExists(atPath: artwork.appending(path: "\(uuid).json").path) else { continue }
-            try? preserve(artwork.appending(path: name), home: home, trackUUID: uuid, logged: false)
         }
         try? preserveIfDamaged([String: Double].self, at: home.appending(path: "gain-drafts.json"), home: home, trackUUID: nil)
         try? preserveIfDamaged(PlaylistDraft.self, at: home.appending(path: "playlist-drafts.json"), home: home, trackUUID: nil)

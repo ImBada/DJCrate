@@ -208,7 +208,9 @@ extension LibraryStore {
         let tags = RekordboxWriter.tagDrafts(in: backup.url)
         replaceTagDrafts(tags.filter { !keeps(.tag, $0.trackUUID) })
         // 그림 초안·사본도 되살리고, 옛 그림으로 돌아온 곡은 목록·덱이 새로 읽게 한다.
-        let artworkTracks = restoreArtworkDrafts(from: backup) { keeps(.artwork, $0) }
+        let artwork = restoreArtworkDrafts(from: backup) { keeps(.artwork, $0) }
+        let artworkTracks = artwork.tracks
+        let artworkWarning = artwork.failed == 0 ? nil : Self.artworkRestoreFailureText(artwork.failed)
         let saveWarning = draftSaveWarning(for: Set(drafts.map(\.trackUUID)).union(grids.map(\.trackUUID)).union(gains.keys), restoring: true)
         let keptWarning = kept.isEmpty ? nil : Self.keptDraftsText(conflictTrackUUIDs(kept).count)
         writeStage = WriteStage(String(ui: "복원한 라이브러리를 읽는 중…"))
@@ -219,7 +221,7 @@ extension LibraryStore {
         let reloaded = await reloadAfterWrite()
         _ = restoreStaged(from: backup)
         lastWriteBackup = nil
-        finishWriteFollowUp([saveWarning, keptWarning], reloaded: reloaded, restoring: true)
+        finishWriteFollowUp([saveWarning, artworkWarning, keptWarning], reloaded: reloaded, restoring: true)
         return saved
     }
 

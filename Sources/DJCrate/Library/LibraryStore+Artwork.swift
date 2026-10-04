@@ -32,25 +32,34 @@ extension LibraryStore {
             return
         }
         let targets = rows.filter(canEditArtwork)
-        saveArtworkDrafts(targets.map { ArtworkDraftStore.edit(trackUUID: $0.track.uuid, base: artworkBase(for: $0), image: image, imageName: name) })
+        finishArtworkChange(failed: saveArtworkDrafts(targets.map {
+            ArtworkDraftStore.edit(trackUUID: $0.track.uuid, base: artworkBase(for: $0), image: image, imageName: name)
+        }))
     }
 
-    /// 그림 지우기 초안. 그림이 없는 곡은 남은 넣기 초안만 버린다.
+    /// 그림 지우기 초안. 그림이 없는 곡은 남은 넣기 초안만 버린다. 실패는 한 번에 센다(뒤 단계가 앞 단계의 실패 안내를 지우지 않게).
     func deleteArtwork(rows: [TrackRow]) {
         guard !isWritingRekordbox else { return }
         let targets = rows.filter(canEditArtwork)
         let withArtwork = targets.filter { artworkBase(for: $0).hasArtwork }
-        saveArtworkDrafts(withArtwork.map {
+        let saved = saveArtworkDrafts(withArtwork.map {
             ArtworkEdit(draft: ArtworkDraft(trackUUID: $0.track.uuid, change: .delete, base: artworkBase(for: $0)), image: nil)
         })
-        discardArtworkDrafts(rows: targets.filter { !artworkBase(for: $0).hasArtwork })
+        let removed = removeArtworkDrafts(targets.filter { !artworkBase(for: $0).hasArtwork })
+        finishArtworkChange(failed: saved + removed)
     }
 
     /// 초안 버리기(그림)
     func discardArtworkDrafts(rows: [TrackRow]) {
         guard !isWritingRekordbox else { return }
+        finishArtworkChange(failed: removeArtworkDrafts(rows))
+    }
+
+    /// 초안과 사본을 지운다. 지우지 못한 곡 수를 돌려준다.
+    private func removeArtworkDrafts(_ rows: [TrackRow]) -> Int {
         var failed = 0
-        for row in rows where artworkDrafts[row.track.uuid] != nil || ArtworkDraftStore.uuids(directory: artworkDirectory).contains(row.track.uuid) {
+        let stored = ArtworkDraftStore.uuids(directory: artworkDirectory)
+        for row in rows where artworkDrafts[row.track.uuid] != nil || stored.contains(row.track.uuid) {
             do {
                 try ArtworkDraftStore.remove(trackUUID: row.track.uuid, directory: artworkDirectory)
                 artworkDrafts[row.track.uuid] = nil
@@ -58,10 +67,11 @@ extension LibraryStore {
                 updateEdited(row.track.uuid)
             } catch { failed += 1 }
         }
-        finishArtworkChange(failed: failed)
+        return failed
     }
 
-    private func saveArtworkDrafts(_ edits: [ArtworkEdit]) {
+    /// 초안을 저장한다. 저장하지 못한 곡 수를 돌려준다.
+    private func saveArtworkDrafts(_ edits: [ArtworkEdit]) -> Int {
         var failed = 0
         for edit in edits {
             do {
@@ -71,9 +81,10 @@ extension LibraryStore {
                 updateEdited(edit.trackUUID)
             } catch { failed += 1 }
         }
-        finishArtworkChange(failed: failed)
+        return failed
     }
 
+    /// 한 동작을 마친 뒤 한 번만 부른다. 실패가 있으면 안내를 남기고, 모두 되면 지난 안내를 지운다.
     private func finishArtworkChange(failed: Int) {
         artworkMessage = failed == 0 ? nil
             : AppMessage(kind: .warning, text: String(ui: "\(failed)곡의 그림 초안을 저장하지 못했으니 DJCrate 데이터 폴더의 쓰기 권한을 확인한 뒤 다시 하세요"))
@@ -116,11 +127,16 @@ extension LibraryStore {
     }
 
     /// 복원 뒤: 백업의 그림 초안을 되살린다(쓴 뒤 같은 곡에 새로 만든 초안은 `keeps`면 남긴다). 그 곡의 그림을 새로 읽게 한다.
-    func restoreArtworkDrafts(from backup: RekordboxWriter.Backup, keeps: (String) -> Bool) -> Set<String> {
-        let edits = RekordboxWriter.artworkDrafts(in: backup.url)
-        var restored = Set<String>()
-        for edit in edits where !keeps(edit.trackUUID) {
-            guard (try? ArtworkDraftStore.save(edit, directory: artworkDirectory)) != nil else { continue }
+    static func artworkRestoreFailureText(_ count: Int) -> String {
+        String(ui: "rekordbox는 복원했지만 그림 초안 \(count)곡을 되살리지 못했으니 DJCrate 데이터 폴더의 쓰기 권한을 확인한 뒤 그 곡의 그림을 다시 고르세요.")
+    }
+
+    /// 복원 뒤: 백업의 그림 초안을 되살린다(쓴 뒤 같은 곡에 새로 만든 초안은 `keeps`면 남긴다). 그 곡의 그림을 새로 읽게 한다.
+    /// - Returns: 덱이 다시 읽을 곡(되살린 초안·그 백업이 그림을 쓴 곡)과 되살리지 못한 초안 수(알린다)
+    func restoreArtworkDrafts(from backup: RekordboxWriter.Backup, keeps: (String) -> Bool) -> (tracks: Set<String>, failed: Int) {
+        var restored = Set<String>(), failed = 0
+        for edit in RekordboxWriter.artworkDrafts(in: backup.url) where !keeps(edit.trackUUID) {
+            do { try ArtworkDraftStore.save(edit, directory: artworkDirectory) } catch { failed += 1; continue }
             artworkDrafts[edit.trackUUID] = edit.draft
             artworkChangeCount += 1
             updateEdited(edit.trackUUID)
@@ -128,6 +144,6 @@ extension LibraryStore {
         }
         let touched = (backup.report?.artworkWritten ?? []).map(\.trackUUID)
         ArtworkRevisions.bump(touched.compactMap { rowsByUUID[$0]?.track.id })
-        return restored.union(touched)
+        return (restored.union(touched), failed)
     }
 }

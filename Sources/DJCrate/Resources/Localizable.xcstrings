@@ -8883,6 +8883,34 @@
         }
       }
     },
+    "rekordbox는 복원했지만 그림 초안 %lld곡을 되살리지 못했으니 DJCrate 데이터 폴더의 쓰기 권한을 확인한 뒤 그 곡의 그림을 다시 고르세요." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "rekordbox was restored, but the artwork draft for %lld track could not be revived. Check write access to the DJCrate data folder, then choose the image for that track again."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "rekordbox was restored, but the artwork drafts for %lld tracks could not be revived. Check write access to the DJCrate data folder, then choose the images for those tracks again."
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxは復元しましたが、アートワークの下書き%lld曲を戻せませんでした。DJCrateのデータフォルダの書き込み権限を確認してから、その曲の画像を選び直してください。"
+          }
+        }
+      }
+    },
     "rekordbox는 복원했지만 라이브러리를 다시 읽지 못했으니 ‘rekordbox와 동기화’(⌘R)로 다시 읽은 뒤 편집을 이어 가세요." : {
       "localizations" : {
         "en" : {
@@ -14365,6 +14393,22 @@
         }
       }
     },
+    "그림 폴더(share/PIONEER/Artwork) 아래에 링크가 있어 share 밖에 쓸 수 있으니 링크를 실제 폴더로 바꾼 뒤 다시 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There is a link under the artwork folder (share/PIONEER/Artwork), so files could be written outside share. Replace the link with a real folder, then write again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アートワークのフォルダ（share/PIONEER/Artwork）の下にリンクがあり、shareの外に書き込むおそれがあります。リンクを実際のフォルダに置き換えてから書き込み直してください"
+          }
+        }
+      }
+    },
     "그림 폴더가 예상과 달라(링크·다른 곡과 같은 폴더) 쓰지 않으니 rekordbox에서 그림을 직접 고치세요" : {
       "localizations" : {
         "en" : {
@@ -17077,18 +17121,18 @@
         }
       }
     },
-    "라이브러리 전체를 이 백업으로 복원합니다. 그때 쓴 초안(큐·그리드·게인·태그)도 DJCrate에 복원됩니다." : {
+    "라이브러리 전체를 이 백업으로 복원합니다. 그때 쓴 초안(큐·그리드·게인·태그·그림)도 DJCrate에 복원됩니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Restores the entire library to this backup. The cue, grid, gain and tag drafts from that write are also restored in DJCrate."
+            "value" : "Restores the entire library to this backup. The cue, grid, gain, tag and artwork drafts from that write are also restored in DJCrate."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ライブラリ全体をこのバックアップに復元します。そのときのキュー・グリッド・ゲイン・タグの下書きもDJCrateに復元されます。"
+            "value" : "ライブラリ全体をこのバックアップに復元します。そのときのキュー・グリッド・ゲイン・タグ・アートワークの下書きもDJCrateに復元されます。"
           }
         }
       }
@@ -23433,6 +23477,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "書き込みプレビューで最新のプレイリストと書き込めない編集を再確認してください。"
+          }
+        }
+      }
+    },
+    "쓰기 보고서(report.json)를 백업에 다 저장하지 못해 ‘쓰기 전으로 복원…’이 이번에 만든 파일을 지우지 못할 수 있으니 백업 폴더를 확인하세요: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not fully save the write report (report.json) to the backup, so Restore Before Write… may not remove the files created by this write. Check the backup folder: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込みレポート（report.json）をバックアップに保存しきれなかったため、「書き込み前に復元…」で今回作ったファイルを削除できないことがあります。バックアップフォルダを確認してください：%@"
           }
         }
       }

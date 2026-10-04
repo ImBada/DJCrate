@@ -127,4 +127,45 @@ struct ArtworkReflectionTests {
         #expect(store.discardUnlinkedDrafts(["없는-곡"]) == nil)
         #expect(ArtworkDraftStore.uuids(directory: store.artworkDirectory).isEmpty)
     }
+
+    // MARK: 리뷰 4·5
+
+    @Test func 그림_초안_저장_실패는_같은_동작의_나머지가_지우지_않는다() async throws {
+        // 그림 있는 곡의 지우기 초안은 저장에 실패하고 그림 없는 곡은 버릴 초안이 없다. 실패 안내가 남아야 한다.
+        let (fixture, spec) = try library()
+        var art = TrackSpec()
+        art.analysisDataPath = "/PIONEER/USBANLZ/\(art.uuid.prefix(3))/\(art.uuid.dropFirst(3))/ANLZ0000.DAT"
+        art.imagePath = TrackArtwork.imagePath(uuid: art.uuid)
+        try fixture.add(art)
+        let store = await makeStore(fixture)
+        try FileManager.default.createDirectory(at: store.artworkDirectory.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("폴더 자리의 파일".utf8).write(to: store.artworkDirectory)
+        let rows = try [spec.uuid, art.uuid].map { try #require(store.rowsByUUID[$0]) }
+        store.deleteArtwork(rows: rows)
+        #expect(store.artworkDrafts.isEmpty && store.artworkMessage?.text.contains("저장하지 못했으니") == true)
+        store.setArtwork(image, name: nil, rows: rows)
+        #expect(store.artworkMessage?.text.contains("2곡") == true)
+    }
+
+    @Test func 되살리지_못한_그림_초안은_알리고_복원_확인_창은_그림도_적는다() async throws {
+        let (fixture, spec) = try library()
+        let store = await makeStore(fixture)
+        // 백업 모양: artwork-drafts/<UUID>.json·.image
+        let backupURL = fixture.root.appending(path: "backup")
+        let folder = backupURL.appending(path: "artwork-drafts")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let edit = ArtworkDraftStore.edit(trackUUID: spec.uuid, base: ArtworkBase(imagePath: ""), image: image, imageName: nil)
+        try JSONEncoder().encode(edit.draft).write(to: folder.appending(path: "\(spec.uuid).json"))
+        try image.write(to: folder.appending(path: "\(spec.uuid).image"))
+        let backup = RekordboxWriter.Backup(url: backupURL, createdAt: .now, isWrite: true, report: nil, trackReport: nil)
+        try FileManager.default.createDirectory(at: store.artworkDirectory.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("폴더 자리의 파일".utf8).write(to: store.artworkDirectory)
+        let restored = store.restoreArtworkDrafts(from: backup) { _ in false }
+        #expect(restored.failed == 1 && store.artworkDrafts.isEmpty)
+        #expect(LibraryStore.artworkRestoreFailureText(restored.failed).contains("1곡"))
+        try FileManager.default.removeItem(at: store.artworkDirectory)
+        let again = store.restoreArtworkDrafts(from: backup) { _ in false }
+        #expect(again.failed == 0 && again.tracks == [spec.uuid] && store.artworkDrafts[spec.uuid] == edit.draft)
+        #expect(ReflectionCoordinator.restoreConfirmation(backup, changedSince: false).text.contains("그림"))
+    }
 }
