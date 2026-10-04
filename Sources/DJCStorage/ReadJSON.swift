@@ -133,8 +133,10 @@ public extension LibraryRead {
         public let grid: Bool
         public let gain: Bool
         public let tag: Bool
+        /// 그림 초안(#66)
+        public var artwork = false
         public var kinds: [String] {
-            [("cue", cue), ("grid", grid), ("gain", gain), ("tag", tag)].compactMap { $0.1 ? $0.0 : nil }
+            [("cue", cue), ("grid", grid), ("gain", gain), ("tag", tag), ("artwork", artwork)].compactMap { $0.1 ? $0.0 : nil }
         }
     }
 

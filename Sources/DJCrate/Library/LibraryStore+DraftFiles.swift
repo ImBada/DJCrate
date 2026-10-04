@@ -16,6 +16,7 @@ extension LibraryStore {
             case "cue-drafts": kind = .cue
             case "grid-drafts": kind = .grid
             case "tag-drafts": kind = .tag
+            case "artwork-drafts": kind = .artwork
             default: kind = nil
             }
             if let kind { unreadableDraftKinds[uuid, default: []].insert(kind) }
@@ -86,6 +87,10 @@ extension LibraryStore {
                 draftChanged(trackUUID: uuid, kind: .cue, exists: false)
             case "grid-drafts" where DraftWriter.pendingGrid(trackUUID: uuid)?.hasChanges != true:
                 draftChanged(trackUUID: uuid, kind: .grid, exists: false)
+            case ArtworkDraftStore.folderName:
+                // 그림 초안은 사본과 함께 옮겼다(메모리에 그림 바이트가 없어 다시 저장하지 못한다). 그림을 다시 고르게 한다.
+                artworkDrafts[uuid] = nil
+                updateEdited(uuid)
             default: break
             }
         }

@@ -1389,11 +1389,13 @@ private final class ThumbnailCell: NSTableCellView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     func configure(track: Track) {
-        guard key != track.id else { return }
-        key = track.id
+        // 그림을 쓴 곡은 번호가 붙은 새 열쇠라 같은 ContentID여도 다시 읽는다(#66)
+        let id = ArtworkRevisions.key(track.id)
+        guard key != id else { return }
+        key = id
         task?.cancel()
         show(nil)
-        let path = track.imagePath, id = track.id
+        let path = track.imagePath
         task = Task { [weak self] in
             let box = await Thumbnails.shared.image(imagePath: path, key: id)
             guard !Task.isCancelled, let self, self.key == id else { return }

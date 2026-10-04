@@ -39,6 +39,47 @@ public enum TrackArtwork {
         return (max(Int((Double(width) * scale).rounded()), 1), max(Int((Double(height) * scale).rounded()), 1))
     }
 
+    /// 곡 정보에서 고른 그림(#66)을 rekordbox처럼 넣을 수 없으면 그 이유(할 일까지). 넣을 수 있으면 nil.
+    /// rekordbox 7.2.18 실험은 JPEG(묶음 2 S1 1500×1500)·불투명 PNG(S2 1200×675)만 했다. 그 밖의 형식, 투명한 화소가 있는 그림(rekordbox의
+    /// 바탕색 미확인), EXIF 방향이 있는 그림(rekordbox가 돌리는지 미확인)은 막는다.
+    public static func unsupportedReason(_ image: Data) -> String? {
+        let bytes = [UInt8](image.prefix(8))
+        let isJPEG = bytes.starts(with: [0xFF, 0xD8, 0xFF]), isPNG = bytes.starts(with: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        guard isJPEG || isPNG else { return String(ui: "JPEG·PNG가 아닌 그림은 rekordbox에서 확인하지 않았으니 JPEG나 PNG 그림을 고르세요") }
+        guard let source = CGImageSourceCreateWithData(image as CFData, nil),
+              let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil), decoded.width > 0, decoded.height > 0 else {
+            return String(ui: "그림을 읽지 못했으니 다른 JPEG·PNG 그림을 고르세요")
+        }
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        if let orientation = properties?[kCGImagePropertyOrientation] as? Int, orientation != 1 {
+            return String(ui: "회전 정보가 있는 그림은 rekordbox 규칙을 확인하지 않았으니 회전을 적용해 저장한 그림을 고르세요")
+        }
+        if hasTransparency(decoded) {
+            return String(ui: "투명한 부분이 있는 그림은 rekordbox 규칙을 확인하지 않았으니 투명한 곳이 없는 그림을 고르세요")
+        }
+        return nil
+    }
+
+    /// 알파 칸이 있고 실제로 255보다 작은 화소가 있는지(알파 칸만 있고 모두 불투명한 PNG는 통과)
+    static func hasTransparency(_ image: CGImage) -> Bool {
+        switch image.alphaInfo {
+        case .none, .noneSkipFirst, .noneSkipLast: return false
+        default: break
+        }
+        let width = image.width, height = image.height
+        var rgba = [UInt8](repeating: 0, count: width * height * 4)
+        let drawn: Bool = rgba.withUnsafeMutableBytes { buffer in
+            guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+                  let context = CGContext(data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                                          space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            context.clear(CGRect(x: 0, y: 0, width: width, height: height))
+            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        guard drawn else { return true }
+        return stride(from: 3, to: rgba.count, by: 4).contains { rgba[$0] < 255 }
+    }
+
     /// 내장 그림(JPEG·PNG 등 ImageIO가 푸는 것)으로 파일 셋을 만든다. 풀지 못하면 nil.
     public static func make(_ image: Data) -> Files? {
         guard let source = CGImageSourceCreateWithData(image as CFData, nil),

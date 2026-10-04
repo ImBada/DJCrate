@@ -150,8 +150,8 @@ private struct ArtworkThumbnail: View {
         .accessibilityElement()
         .accessibilityLabel(artwork == nil ? Text(.ui("앨범 커버 없음")) : Text(.ui("앨범 커버")))
         // 스크롤로 지나친 줄은 작업이 취소되어 디코딩하지 않는다(`Thumbnails`).
-        .task(id: id) {
-            let box = await Thumbnails.shared.image(imagePath: imagePath, key: id)
+        .task(id: ArtworkRevisions.key(id)) {
+            let box = await Thumbnails.shared.image(imagePath: imagePath, key: ArtworkRevisions.key(id))
             if !Task.isCancelled { artwork = box }
         }
     }

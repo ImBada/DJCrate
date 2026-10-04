@@ -1,9 +1,12 @@
+import CryptoKit
 import DJCTestSupport
 import Foundation
+import RekordboxKit
 import Testing
 
 /// 재생 목록 반영 자가 테스트(`--write-selftest`)·화면 확인용 합성 라이브러리: 합성 곡 다섯(테스트 음원, 곡 102만 키 8A·`djmdKey`에 8A·6A·5A),
 /// 폴더 "합성 폴더" 안 목록 "합성 목록"(곡 둘), 맨 위 목록 "맨 위 목록"(곡 하나), `masterPlaylists6.xml`. 실데이터는 쓰지 않는다.
+/// 그림 편집(#66) 시험용으로 넷째 곡은 분석한 곡(그림 없음), 다섯째 곡은 분석한 곡 + 합성 그림 셋·`artwork.jpg` 파일 행(상태 256)이다.
 /// `DJC_PLAYLIST_FIXTURE=<폴더> swift test --filter PlaylistWriteFixtureCapture` → `DJC_REKORDBOX_DIR=<폴더>`로 앱을 띄운다.
 struct PlaylistWriteFixtureCapture {
     @Test(.enabled(if: ProcessInfo.processInfo.environment["DJC_PLAYLIST_FIXTURE"] != nil))
@@ -14,7 +17,12 @@ struct PlaylistWriteFixtureCapture {
         for (index, title) in ["합성 곡 하나", "합성 곡 둘", "합성 곡 셋", "합성 곡 넷", "합성 곡 다섯"].enumerated() {
             var track = TrackSpec(id: String(101 + index))
             track.title = title
+            if index >= 3 {
+                track.analysisDataPath = "/PIONEER/USBANLZ/\(track.uuid.prefix(3))/\(track.uuid.dropFirst(3))/ANLZ0000.DAT"
+                track.imagePath = ""
+            }
             try fixture.add(track)
+            if index == 4 { try putArtwork(fixture, track) }
         }
         // 키 고르기·쓰기 시험용 키 줄(Camelot, 살아 있음)과 곡 102의 키(8A). 나머지 곡은 키가 없다(`KeyID` NULL).
         for (id, name) in [("1486464042", "8A"), ("3730904205", "6A"), ("1010000005", "5A")] {
@@ -39,5 +47,26 @@ struct PlaylistWriteFixtureCapture {
         try xml.write(to: fixture.root.appending(path: "masterPlaylists6.xml"), atomically: true, encoding: .utf8)
         try FileManager.default.createDirectory(at: fixture.root.appending(path: "share/PIONEER/USBANLZ"), withIntermediateDirectories: true)
         try FileManager.default.copyItem(at: fixture.root, to: root)
+    }
+
+    /// rekordbox가 분석할 때 만든 것 같은 합성 그림 셋과 `artwork.jpg` 파일 행(동기화 상태 256)
+    func putArtwork(_ fixture: RekordboxFixture, _ track: TrackSpec) throws {
+        let files = try #require(TrackArtwork.make(ImageFixture.image(width: 600, height: 600, blue: 210)))
+        let path = TrackArtwork.imagePath(uuid: track.uuid)
+        let folder = fixture.shareRoot.appending(path: String(TrackArtwork.folder(uuid: track.uuid).dropFirst()))
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for (name, data) in zip(["artwork.jpg", "artwork_m.jpg", "artwork_s.jpg"], [files.full, files.medium, files.small]) {
+            try data.write(to: folder.appending(path: name))
+        }
+        let id = "\(track.uuid)_" + (path.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? path)
+        try fixture.insert("contentFile", [
+            "ID": .text(id), "ContentID": .text(track.id), "Path": .text(path),
+            "Hash": .text(Insecure.MD5.hash(data: files.full).map { String(format: "%02x", $0) }.joined()), "Size": .int(files.full.count),
+            "rb_local_path": .text(folder.appending(path: "artwork.jpg").path), "rb_file_hash_dirty": .int(0), "rb_local_file_status": .int(0),
+            "rb_in_progress": .int(0), "rb_process_type": .int(0), "rb_priority": .int(0), "rb_file_size_dirty": .int(0),
+            "UUID": .text(UUID().uuidString.lowercased()), "rb_data_status": .int(256), "rb_local_data_status": .int(0),
+            "rb_local_deleted": .int(0), "rb_local_synced": .int(1), "usn": .int(100), "rb_local_usn": .int(14),
+        ])
+        try fixture.execute("UPDATE djmdContent SET ImagePath = ? WHERE ID = ?", [.text(path), .text(track.id)])
     }
 }

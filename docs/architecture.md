@@ -31,7 +31,7 @@ DJCrate · DJCrate(CLI)
 rekordbox master.db ──(스냅샷 사본)──▶ RekordboxLibrary ──▶ LibraryStore(목록·필터) ──▶ DeckModel(덱)
         ▲                                                         │
         │                                            편집은 초안으로 쌓임
-        │                           CueDraft · GridDraft · 게인 초안 · TagDraft · PlaylistDraft
+        │                  CueDraft · GridDraft · 게인 초안 · TagDraft · ArtworkDraft · PlaylistDraft
         │                                                         │
         └──── RekordboxWriter / RekordboxGridWriter ◀── rekordbox에 쓰기(rekordbox 꺼져 있을 때만)
 

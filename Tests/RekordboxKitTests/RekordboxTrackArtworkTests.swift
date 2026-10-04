@@ -172,3 +172,18 @@ struct RekordboxTrackArtworkTests {
         #expect(try fixture.rows("SELECT * FROM contentFile WHERE ContentID = ? AND Path LIKE '%/Artwork/%'", [.text(id)]).count == 1)
     }
 }
+
+/// share 밖 쓰기 막기(#66 코드 리뷰, 2026-10-04): 그림 폴더 위가 링크면 아직 없는 곡 UUID 폴더를 통해 share 밖에 쓰게 된다.
+extension RekordboxTrackArtworkTests {
+    @Test func 그림_폴더가_링크면_곡을_넣지_않고_share_밖에_쓰지_않는다() async throws {
+        let fixture = try RekordboxFixture(localUpdateCount: 4000)
+        try fixture.add(TrackSpec())
+        let outside = fixture.root.appending(path: "outside")
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: fixture.shareRoot.appending(path: "PIONEER"), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: fixture.shareRoot.appending(path: "PIONEER/Artwork"), withDestinationURL: outside)
+        let report = try add(fixture, [try await plan(fixture)])
+        #expect(report.added.first?.written == false && report.added.first?.reason?.contains("링크") == true)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: outside.path).isEmpty)
+    }
+}

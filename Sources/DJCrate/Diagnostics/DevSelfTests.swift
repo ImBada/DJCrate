@@ -1,5 +1,8 @@
 import RekordboxKit
 import AVFoundation
+import CryptoKit
+import ImageIO
+import UniformTypeIdentifiers
 import QuartzCore
 import AppKit
 import DJCAnalysis
@@ -97,6 +100,19 @@ enum DevSelfTests {
             if !loaded(), !store.isLoading { await store.takeSnapshot() }
             for _ in 0..<600 { if loaded() { break }; await wait(0.1) }
             guard loaded() else { log("라이브러리를 읽지 못했습니다"); exit(1) }
+            // 그림 초안(#66): 그림 없는 분석한 곡에 넣기, 그림 있는 곡에 지우기(지울 옛 그림 바이트는 되돌린 뒤 비교한다)
+            let analysed = store.rows.filter { store.canEditArtwork($0) && !($0.track.analysisDataPath ?? "").isEmpty }
+            let artworkAdd = analysed.first { !store.artworkBase(for: $0).hasArtwork }
+            let artworkDelete = analysed.first { store.artworkBase(for: $0).hasArtwork }
+            let artworkNames = ["artwork.jpg", "artwork_m.jpg", "artwork_s.jpg"]
+            func artworkFiles(_ row: TrackRow) -> [URL] {
+                let folder = RekordboxShare.directory.appending(path: String(TrackArtwork.folder(uuid: row.track.uuid).dropFirst()))
+                return artworkNames.map { folder.appending(path: $0) }
+            }
+            let deletedOriginals = artworkDelete.map { artworkFiles($0).map { try? Data(contentsOf: $0) } } ?? []
+            if let row = artworkAdd { store.setArtwork(Self.selfTestArtwork(), name: "DJC 시험 그림.jpg", rows: [row]) }
+            if let row = artworkDelete { store.deleteArtwork(rows: [row]) }
+            log("그림 초안: 넣기 \(artworkAdd.map { _ in "1곡" } ?? "없음") · 지우기 \(artworkDelete.map { _ in "1곡" } ?? "없음") · 초안 \(store.artworkDrafts.count)곡")
             let targets = store.writeTargets(store.rows)
             log("반영 대기 \(store.pendingLibraryCount)곡 · 대상 \(targets.count)곡")
             // 재생 목록 초안: 새 폴더 안에 새 목록(곡 셋), 있던 목록 하나에 곡 하나
@@ -142,8 +158,12 @@ enum DevSelfTests {
                 let tags = preview.tags.filter { tagUUIDs.contains($0.trackUUID) }
                 log("미리 보기 태그: \(preview.report.tagWritten.count)곡 · 막힘 \(preview.report.tagBlocked.count)")
                 for o in preview.report.tagBlocked { log("  막힘 \(o.title): \(o.reason ?? "")") }
+                let artworkUUIDs = Set(preview.report.artworkWritten.map(\.trackUUID))
+                log("미리 보기 그림: \(preview.report.artworkWritten.map { $0.artwork?.rawValue ?? "-" }.sorted().joined(separator: "·")) · 막힘 \(preview.report.artworkBlocked.count)")
+                for o in preview.report.artworkBlocked { log("  막힘 \(o.title): \(o.reason ?? "")") }
                 let report = try await store.writeToRekordbox(preview.drafts.filter { uuids.contains($0.trackUUID) }, grids: grids + attachGrids,
                                                               gains: preview.gains.filter { gainUUIDs.contains($0.key) }, tags: tags,
+                                                              artworks: preview.artworks.filter { artworkUUIDs.contains($0.trackUUID) },
                                                               playlists: preview.report.playlistWritten.isEmpty ? nil : preview.playlists)
                 // 재생 목록: 다시 읽은 rekordbox에 새 폴더·목록(곡 셋)과 넣은 곡이 있고 초안이 비었는지
                 let rekordbox = store.rekordboxPlaylists
@@ -195,6 +215,18 @@ enum DevSelfTests {
                     if draft.changedKeys.allSatisfy({ now[$0] == draft.fields[$0] }) { tagSame += 1 } else { log("  태그 다름: \(row.title)") }
                 }
                 log("태그 쓰기: \(report.tagWritten.count)곡 · 다시 읽은 곡 정보가 초안과 같음 \(tagSame)/\(tags.count) · 남은 태그 초안 \(tags.filter { store.tagDrafts[$0.trackUUID] != nil }.count)")
+                // 그림: 다시 읽은 곡의 그림 기록(해시·크기)이 넣은 파일과 같은지, 지운 곡은 세 파일이 없고 폴더는 남았는지
+                var artworkMatched = 0, artworkAdds = 0
+                if let added = artworkAdd.flatMap({ store.rowsByUUID[$0.track.uuid] }), artworkUUIDs.contains(added.track.uuid) {
+                    artworkAdds = 1
+                    let file = store.artworkBase(for: added).files.first, data = try? Data(contentsOf: artworkFiles(added)[0])
+                    if let file, let data, file.hash == Self.md5(data), file.size == data.count, added.track.imagePath == TrackArtwork.imagePath(uuid: added.track.uuid) {
+                        artworkMatched = 1
+                    }
+                }
+                let deletedLeft = artworkDelete.map { artworkFiles($0).filter { FileManager.default.fileExists(atPath: $0.path) }.count } ?? 0
+                let folderKept = artworkDelete.map { FileManager.default.fileExists(atPath: artworkFiles($0)[0].deletingLastPathComponent().path) } ?? false
+                log("그림 쓰기: \(report.artworkWritten.count)곡 · 넣은 그림 기록이 파일과 같음 \(artworkMatched)/\(artworkAdds) · 지운 그림 파일 남음 \(deletedLeft)/\(artworkDelete == nil ? 0 : 3) · 폴더 남김 \(folderKept) · 남은 그림 초안 \(store.artworkDrafts.count)")
                 let createdFiles = (report.createdFiles ?? []).map { URL(filePath: $0) }
                 log("분석 붙이기: \(report.analysisWritten.count)곡 · 파형·그리드가 초안과 같음 \(attachSame)/\(attachGrids.count) · 만든 파일 \(createdFiles.count)개")
                 guard let backup = RekordboxWriter.backups(in: DJCPaths.rekordboxBackups).first(where: \.isWrite) else { log("백업 없음!"); exit(1) }
@@ -218,6 +250,10 @@ enum DevSelfTests {
                 let extendedBack = extended.map { store.rekordboxPlaylists.item($0.id)?.trackIDs == $0.before }
                 let redrafted = store.playlistProjection.layout.outline.contains { $0.name == "DJC 시험 목록" && $0.isNew }
                 log("재생 목록 되돌림: rekordbox에서 새 폴더 사라짐 \(rolledBack) · 있던 목록 곡 원래대로 \(extendedBack.map { "\($0)" } ?? "-") · 초안 복구 \(store.playlistDraft.edits.count)/\(report.playlistWritten.count)건 · 초안에 새 목록 \(redrafted)")
+                let addedLeft = artworkAdd.map { artworkFiles($0).filter { FileManager.default.fileExists(atPath: $0.path) }.count } ?? 0
+                let deletedBack = artworkDelete.map { zip(artworkFiles($0), deletedOriginals).filter { (try? Data(contentsOf: $0.0)) == $0.1 }.count } ?? 0
+                let artworkRedrafted = [artworkAdd, artworkDelete].compactMap { $0 }.filter { store.artworkDrafts[$0.track.uuid] != nil }.count
+                log("그림 되돌림: 초안 복구 \(artworkRedrafted)/\(report.artworkWritten.count) · 넣은 그림 파일 남음 \(addedLeft)/\(artworkAdds * 3) · 지운 그림 파일 원래대로 \(deletedBack)/\(deletedOriginals.count)")
                 let createdLeft = createdFiles.filter { FileManager.default.fileExists(atPath: $0.path) }.count
                 log("되돌림: 큐 초안 복구 \(restored)/\(expected.count) · 그리드 초안 복구 \(gridRestored)/\(grids.count + attachGrids.count) · 분석 파일 원본과 같음 \(filesRestored)/\(originals.count) · 붙인 분석 파일 남음 \(createdLeft)/\(createdFiles.count) · 반영 대기 \(store.pendingLibraryCount)곡")
                 log("끝")
@@ -228,6 +264,29 @@ enum DevSelfTests {
             }
         }
     }
+
+    /// 쓰기 시험이 넣을 합성 그림(600×600 그러데이션 JPEG)
+    static func selfTestArtwork() -> Data {
+        let side = 600
+        var rgba = [UInt8](repeating: 255, count: side * side * 4)
+        for y in 0..<side {
+            for x in 0..<side {
+                let i = (y * side + x) * 4
+                rgba[i] = UInt8(60 + 190 * x / side); rgba[i + 1] = UInt8(60 + 190 * y / side); rgba[i + 2] = 120
+            }
+        }
+        guard let provider = CGDataProvider(data: Data(rgba) as CFData), let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let image = CGImage(width: side, height: side, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: side * 4, space: space,
+                                  bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue), provider: provider, decode: nil,
+                                  shouldInterpolate: false, intent: .defaultIntent) else { return Data() }
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(data, UTType.jpeg.identifier as CFString, 1, nil) else { return Data() }
+        CGImageDestinationAddImage(destination, image, nil)
+        CGImageDestinationFinalize(destination)
+        return data as Data
+    }
+
+    static func md5(_ data: Data) -> String { Insecure.MD5.hash(data: data).map { String(format: "%02x", $0) }.joined() }
 
     /// 개발용: 활성 루프가 있는 곡에서 루프 앞부터 재생해 반복되는지 본다(`--loop-selftest`, 음량 −70dB).
     static func runLoopSelfTestIfRequested(deck: DeckModel) {

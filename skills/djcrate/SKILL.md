@@ -47,7 +47,7 @@ description: DJCrate의 명령줄 도구 djc로 rekordbox 라이브러리(스냅
 | `djc histories --json` | 재생 기록을 날짜순으로 | `{histories}` |
 | `djc history <ID> --json` | 기록 안의 곡을 재생 순서대로(반복 곡 유지) | `{history, entries}` |
 | `djc duplicates --json` | 중복 후보 묶음·큐 수·직접 소속 목록 수·재생 수·형식·비트레이트 비교(읽기 전용) | `{lengthToleranceSeconds, groups}` |
-| `djc drafts --json` | 초안이 있는 곡과 종류(cue·grid·gain·tag) | `{drafts}` |
+| `djc drafts --json` | 초안이 있는 곡과 종류(cue·grid·gain·tag·artwork, 그림 초안은 앱에서만 만든다) | `{drafts}` |
 | `djc report [--files] [--comment-preset none\|anisong] --json` | 라이브러리 현황 집계(코멘트 분류·큐 유무·확장자 등, `--files`면 없는 파일 수) | 집계 칸 |
 | `djc parse "<코멘트>" --json` | 코멘트가 규칙(`TVA 작품명 OP 1` 꼴)에 맞는지 판정 | `{classification, parsed?}` |
 | `djc path <제목> --json` | 제목으로 파일 경로 찾기(대소문자 구분) | `{paths}` |

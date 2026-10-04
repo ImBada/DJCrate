@@ -16,6 +16,27 @@ extension RekordboxWriter {
 
     static var fileOwnershipWarning: String { String(ui: "분석 파일을 지우지 않음(경로가 예상과 다름)") }
 
+    /// 그림 파일을 쓸 곳에 링크가 있을 때 막는 이유(곡 정보 그림·분석 붙이기·곡 넣기 공통)
+    static var artworkLinkReason: String {
+        String(ui: "그림 폴더(share/PIONEER/Artwork) 아래에 링크가 있어 share 밖에 쓸 수 있으니 링크를 실제 폴더로 바꾼 뒤 다시 쓰세요")
+    }
+
+    /// `root` 아래 `url`까지 이미 있는 경로 조각 중 심볼릭 링크가 있는지(조각마다 lstat, `root` 자신 포함). 아직 없는 조각부터는 볼 것이 없다.
+    /// `resolvingSymlinksInPath`는 마지막 폴더가 아직 없으면 그 위 링크도 풀지 않아, 새 곡 UUID 폴더를 만들 때 share 밖에 쓰게 된다(#66 리뷰).
+    /// `root` 밖 경로는 참(막음)으로 본다.
+    static func hasSymlinkComponent(_ url: URL, under root: URL) -> Bool {
+        let rootPath = root.standardizedFileURL.path
+        let base = URL.comparablePath(rootPath), path = url.standardizedFileURL.comparablePath
+        guard path.hasPrefix(base + "/") else { return true }
+        var current = rootPath
+        for part in [""] + path.dropFirst(base.count + 1).split(separator: "/").map(String.init) {
+            if !part.isEmpty { current += "/" + part }
+            guard let type = (try? FileManager.default.attributesOfItem(atPath: current))?[.type] as? FileAttributeType else { return false }
+            if type == .typeSymbolicLink { return true }
+        }
+        return false
+    }
+
     static func ownedTracks(_ db: CipherDatabase) throws -> [String: OwnedTrackFiles] {
         var tracks: [String: OwnedTrackFiles] = [:]
         try db.query("SELECT ID, UUID, AnalysisDataPath, ImagePath, FolderPath FROM djmdContent") {
@@ -42,7 +63,7 @@ extension RekordboxWriter {
             for name in names {
                 let file = folder.appending(path: name)
                 let values = try? file.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey])
-                guard values?.isSymbolicLink != true, values?.isDirectory != true else { return nil }
+                guard values?.isSymbolicLink != true, values?.isDirectory != true, !hasSymlinkComponent(file, under: root) else { return nil }
                 candidates.append(file)
             }
         }

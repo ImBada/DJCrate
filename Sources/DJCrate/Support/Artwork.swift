@@ -31,6 +31,20 @@ enum ArtworkCache {
     }
 }
 
+/// rekordbox에 그림을 쓰거나 되돌린 곡(ContentID)마다 올리는 번호(#66). 그림 바꾸기는 `ImagePath`가 그대로라 ContentID만 열쇠로 쓰면
+/// 목록 썸네일 캐시가 옛 그림(그림이 없던 곡이면 "없음")을 계속 보인다. 열쇠에 번호를 붙여 새로 읽게 한다.
+@MainActor
+enum ArtworkRevisions {
+    private(set) static var values: [String: Int] = [:]
+
+    static func bump(_ contentIDs: some Sequence<String>) {
+        for id in contentIDs { values[id, default: 0] += 1 }
+    }
+
+    /// 썸네일 캐시·셀 재사용 열쇠
+    static func key(_ contentID: String) -> String { values[contentID].map { "\(contentID)#\($0)" } ?? contentID }
+}
+
 /// 목록 썸네일: 메인 스레드 밖에서 작게 디코딩해 캐시한다. 스크롤로 지나친 요청은 건너뛴다.
 actor Thumbnails {
     static let shared = Thumbnails()

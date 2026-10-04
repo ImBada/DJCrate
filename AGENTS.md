@@ -127,7 +127,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 - `Sources/djc/` — CLI. `Commands/`(늘 쓰는 명령), `Lab/`(규칙을 알아낼 때 쓴 실험, `djc lab …`)
 - `Tests/` — 타깃별 테스트 + `Support/`(rekordbox 픽스처·합성 ANLZ·합성 음원, 실데이터 없음)
 - 사용자 데이터: `~/Library/Application Support/DJCrate/`
-  - 초안: `cue-drafts/`, `grid-drafts/`, `gain-drafts.json`, `tag-drafts/`, `playlist-drafts.json`(재생 목록 편집, 순서대로)
+  - 초안: `cue-drafts/`, `grid-drafts/`, `gain-drafts.json`, `tag-drafts/`, `artwork-drafts/`(그림 초안과 고른 그림 사본), `playlist-drafts.json`(재생 목록 편집, 순서대로)
   - `damaged-drafts/`: 읽지 못한 초안 파일(합치기 초안 `merge-drafts.json`·추가 목록 `staged.json` 포함)을 지우거나 빈 값으로 덮지 않고 옮겨 둔 곳(앱이 읽기·저장할 때 옮기고 목록 위에 알린다)
   - 그 밖: `staged.json`, `snapshots/`, `rekordbox-backups/`, 캐시(`analysis/`, `waveforms/`, `loudness.json`)
   - USB: `usb-backups/`, `usb-snapshots/`(USB DB의 Mac 사본), `usb-drafts/`, `usb-sessions/`(저널·잠금), `usb-staging/`
@@ -153,7 +153,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 | 동작 | 화면 용어 |
 |---|---|
 | 편집 이력 취소 / 다시 실행 | 실행 취소 / 실행 복귀 |
-| 아직 쓰지 않은 초안 삭제 | 초안 버리기(큐·그리드·게인·태그는 대상을 함께 적음) |
+| 아직 쓰지 않은 초안 삭제 | 초안 버리기(큐·그리드·게인·태그·그림은 대상을 함께 적음) |
 | 쓰기 전 백업으로 라이브러리 전체 복원 | 쓰기 전으로 복원… |
 | 초안을 rekordbox 라이브러리에 직접 쓰기 | rekordbox에 쓰기… / 쓰기 대기 |
 | 정해진 연동 파일에 XML 저장 | XML 만들기 |

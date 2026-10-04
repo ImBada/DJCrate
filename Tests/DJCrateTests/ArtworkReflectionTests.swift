@@ -1,0 +1,171 @@
+@testable import DJCrate
+import DJCDomain
+import DJCStorage
+import DJCTestSupport
+import Foundation
+@testable import RekordboxKit
+import Testing
+
+/// 곡 그림 초안(#66)의 앱 흐름: 그림을 고르면 초안·쓰기 대기, 미리 보기·확인 창 줄, 쓰기 뒤 초안 정리·썸네일 열쇠, 되돌리면 초안과 옛 그림이 돌아온다.
+@MainActor
+@Suite("그림 반영", .serialized)
+struct ArtworkReflectionTests {
+    let image = ImageFixture.image(width: 400, height: 300)
+
+    func makeStore(_ fixture: RekordboxFixture) async -> LibraryStore {
+        let store = LibraryStore(settings: SettingsStore(defaults: UserDefaults(suiteName: "djc.test.artwork.\(UUID())")!, persist: false),
+                                 resultHistory: WriteResultHistory(url: nil), feedback: AppFeedback(announce: { _ in }),
+                                 saveTagDrafts: { _ in }, backupDirectory: fixture.backups,
+                                 playlistDraftSaver: { _ in }, mergeDraftSaver: { _ in }, playlistImportURL: nil, stagingSaver: { _ in })
+        let database = fixture.database
+        store.takeLiveSnapshot = { _ in database }
+        store.launchArguments = ["test"]
+        store.launchEnvironment = [:]
+        store.draftHome = fixture.root.appending(path: "drafts")
+        store.rekordboxDatabase = fixture.database
+        store.rekordboxShareRoot = fixture.shareRoot
+        await store.load(snapshot: fixture.database, arguments: ["test"], environment: [:])
+        return store
+    }
+
+    /// 분석한 곡 하나(그림 없음)
+    func library() throws -> (RekordboxFixture, TrackSpec) {
+        let fixture = try RekordboxFixture()
+        var spec = TrackSpec()
+        spec.analysisDataPath = "/PIONEER/USBANLZ/\(spec.uuid.prefix(3))/\(spec.uuid.dropFirst(3))/ANLZ0000.DAT"
+        spec.imagePath = ""
+        try fixture.add(spec)
+        return (fixture, spec)
+    }
+
+    func folder(_ fixture: RekordboxFixture, _ spec: TrackSpec) -> URL {
+        fixture.shareRoot.appending(path: "PIONEER/Artwork/\(spec.uuid.prefix(3))/\(spec.uuid.dropFirst(3))")
+    }
+
+    @Test func 그림을_고르면_사본과_초안을_두고_쓰기_대기가_된다() async throws {
+        let (fixture, spec) = try library()
+        let store = await makeStore(fixture)
+        let row = try #require(store.rowsByUUID[spec.uuid])
+        #expect(store.writeTargets([row]).isEmpty && !store.artworkBase(for: row).hasArtwork)
+        store.setArtwork(image, name: "표지.jpg", rows: [row])
+        let draft = try #require(store.artworkDrafts[spec.uuid])
+        #expect(draft.kind == .add && draft.imageName == "표지.jpg" && draft.base == ArtworkBase(imagePath: ""))
+        #expect(store.pendingUUIDs.contains(spec.uuid) && store.editedUUIDs.contains(spec.uuid))
+        #expect(store.writeTargets([row]).map(\.track.uuid) == [spec.uuid])
+        #expect(store.artworkDraftImage(trackUUID: spec.uuid) == image, "원본을 옮겨도 사본이 남는다")
+        // 그림이 없는 곡의 지우기는 남은 초안만 버린다
+        store.deleteArtwork(rows: [row])
+        #expect(store.artworkDrafts.isEmpty && !store.pendingUUIDs.contains(spec.uuid))
+        #expect(ArtworkDraftStore.uuids(directory: store.artworkDirectory).isEmpty)
+    }
+
+    @Test func 확인하지_않은_그림은_초안을_만들지_않고_이유를_알린다() async throws {
+        let (fixture, spec) = try library()
+        let store = await makeStore(fixture)
+        let row = try #require(store.rowsByUUID[spec.uuid])
+        store.setArtwork(ImageFixture.image(width: 40, height: 40, type: .gif), name: "움짤.gif", rows: [row])
+        #expect(store.artworkDrafts.isEmpty && store.artworkMessage?.text.contains("JPEG") == true)
+        store.setArtwork(fileAt: fixture.root.appending(path: "없는 그림.jpg"), rows: [row])
+        #expect(store.artworkDrafts.isEmpty && store.artworkMessage?.text.contains("다시 고르세요") == true)
+    }
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated))
+    func 넣기와_지우기를_쓰고_되돌리면_초안과_옛_그림이_돌아온다() async throws {
+        let (fixture, spec) = try library()
+        let store = await makeStore(fixture)
+        var row = try #require(store.rowsByUUID[spec.uuid])
+        store.setArtwork(image, name: "표지.jpg", rows: [row])
+
+        // 미리 보기·확인 창: 넣기 줄과 음원 그림 안내
+        let preview = try await store.previewWrite(rows: [row], playlists: false)
+        #expect(preview.report.artworkWritten.map(\.artwork) == [.add] && preview.artworks.map(\.trackUUID) == [spec.uuid])
+        let prompt = ReflectionCoordinator.confirmation(preview.report)
+        #expect(prompt.title.contains(WriteResult.Part.artwork.summary(1)))
+        #expect(prompt.details.contains { $0.contains(ArtworkWriteKind.add.label) } && prompt.details.contains(ReflectionCoordinator.artworkAudioNote))
+        #expect(!FileManager.default.fileExists(atPath: folder(fixture, spec).path), "미리 보기는 사본에만")
+
+        let before = ArtworkRevisions.key(spec.id)
+        let added = try await store.writeToRekordbox([], artworks: preview.artworks)
+        #expect(added.artworkWritten.count == 1 && store.artworkDrafts.isEmpty && !store.pendingUUIDs.contains(spec.uuid))
+        #expect(ArtworkRevisions.key(spec.id) != before, "같은 ContentID라도 목록 썸네일을 새로 읽는다")
+        #expect(["artwork.jpg", "artwork_m.jpg", "artwork_s.jpg"].allSatisfy { FileManager.default.fileExists(atPath: folder(fixture, spec).appending(path: $0).path) })
+        let result = WriteResult.written(added, preview: preview.report)
+        #expect(result.title.contains(WriteResult.Part.artwork.summary(1)) && result.text.contains(ArtworkWriteKind.add.label))
+
+        // 다시 읽은 곡은 그림이 있다 → 지우기 초안
+        row = try #require(store.rowsByUUID[spec.uuid])
+        #expect(store.artworkBase(for: row).hasArtwork && store.artworkBase(for: row).files.count == 1)
+        store.deleteArtwork(rows: [row])
+        #expect(store.artworkDrafts[spec.uuid]?.kind == .delete)
+        let deletion = try await store.previewWrite(rows: [row], playlists: false)
+        let removed = try await store.writeToRekordbox([], artworks: deletion.artworks)
+        #expect(removed.artworkWritten.map(\.artwork) == [.delete])
+        #expect(!FileManager.default.fileExists(atPath: folder(fixture, spec).appending(path: "artwork.jpg").path))
+
+        // 지우기 쓰기를 되돌리면 그림 셋과 지우기 초안이 돌아온다
+        let backup = try #require(RekordboxWriter.backups(in: fixture.backups).first(where: { $0.isWrite }))
+        #expect(store.restoreDraftConflicts(backup).isEmpty)
+        try await store.restoreRekordbox(backup, keepingCurrentDrafts: true)
+        #expect(FileManager.default.fileExists(atPath: folder(fixture, spec).appending(path: "artwork.jpg").path))
+        #expect(store.artworkDrafts[spec.uuid]?.kind == .delete)
+        row = try #require(store.rowsByUUID[spec.uuid])
+        #expect(store.artworkBase(for: row).hasArtwork)
+
+        // 그 뒤 다른 초안(넣기·바꾸기)을 만들면 같은 백업의 복원은 충돌로 알린다
+        store.setArtwork(image, name: "다른 표지.jpg", rows: [row])
+        #expect(store.restoreDraftConflicts(backup).map(\.kind) == [.artwork])
+        #expect(store.restoreDraftConflictDetails(backup).first?.contains(RestoreDraftConflict(kind: .artwork, uuid: spec.uuid).label) == true)
+    }
+
+    @Test func 연결되지_않은_그림_초안도_목록에_보이고_버린다() async throws {
+        let (fixture, _) = try library()
+        let store = await makeStore(fixture)
+        let edit = ArtworkDraftStore.edit(trackUUID: "없는-곡", base: ArtworkBase(imagePath: ""), image: image, imageName: nil)
+        try ArtworkDraftStore.save(edit, directory: store.artworkDirectory)
+        store.refreshUnlinkedDrafts()
+        #expect(store.unlinkedDrafts().first { $0.uuid == "없는-곡" }?.kinds == [.artwork])
+        #expect(store.discardUnlinkedDrafts(["없는-곡"]) == nil)
+        #expect(ArtworkDraftStore.uuids(directory: store.artworkDirectory).isEmpty)
+    }
+
+    // MARK: 리뷰 4·5
+
+    @Test func 그림_초안_저장_실패는_같은_동작의_나머지가_지우지_않는다() async throws {
+        // 그림 있는 곡의 지우기 초안은 저장에 실패하고 그림 없는 곡은 버릴 초안이 없다. 실패 안내가 남아야 한다.
+        let (fixture, spec) = try library()
+        var art = TrackSpec()
+        art.analysisDataPath = "/PIONEER/USBANLZ/\(art.uuid.prefix(3))/\(art.uuid.dropFirst(3))/ANLZ0000.DAT"
+        art.imagePath = TrackArtwork.imagePath(uuid: art.uuid)
+        try fixture.add(art)
+        let store = await makeStore(fixture)
+        try FileManager.default.createDirectory(at: store.artworkDirectory.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("폴더 자리의 파일".utf8).write(to: store.artworkDirectory)
+        let rows = try [spec.uuid, art.uuid].map { try #require(store.rowsByUUID[$0]) }
+        store.deleteArtwork(rows: rows)
+        #expect(store.artworkDrafts.isEmpty && store.artworkMessage?.text.contains("저장하지 못했으니") == true)
+        store.setArtwork(image, name: nil, rows: rows)
+        #expect(store.artworkMessage?.text.contains("2곡") == true)
+    }
+
+    @Test func 되살리지_못한_그림_초안은_알리고_복원_확인_창은_그림도_적는다() async throws {
+        let (fixture, spec) = try library()
+        let store = await makeStore(fixture)
+        // 백업 모양: artwork-drafts/<UUID>.json·.image
+        let backupURL = fixture.root.appending(path: "backup")
+        let folder = backupURL.appending(path: "artwork-drafts")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let edit = ArtworkDraftStore.edit(trackUUID: spec.uuid, base: ArtworkBase(imagePath: ""), image: image, imageName: nil)
+        try JSONEncoder().encode(edit.draft).write(to: folder.appending(path: "\(spec.uuid).json"))
+        try image.write(to: folder.appending(path: "\(spec.uuid).image"))
+        let backup = RekordboxWriter.Backup(url: backupURL, createdAt: .now, isWrite: true, report: nil, trackReport: nil)
+        try FileManager.default.createDirectory(at: store.artworkDirectory.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("폴더 자리의 파일".utf8).write(to: store.artworkDirectory)
+        let restored = store.restoreArtworkDrafts(from: backup) { _ in false }
+        #expect(restored.failed == 1 && store.artworkDrafts.isEmpty)
+        #expect(LibraryStore.artworkRestoreFailureText(restored.failed).contains("1곡"))
+        try FileManager.default.removeItem(at: store.artworkDirectory)
+        let again = store.restoreArtworkDrafts(from: backup) { _ in false }
+        #expect(again.failed == 0 && again.tracks == [spec.uuid] && store.artworkDrafts[spec.uuid] == edit.draft)
+        #expect(ReflectionCoordinator.restoreConfirmation(backup, changedSince: false).text.contains("그림"))
+    }
+}

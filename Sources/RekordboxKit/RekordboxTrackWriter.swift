@@ -137,6 +137,10 @@ public enum RekordboxTrackWriter {
                     if let reason = ready?.blocked { throw Blocked(reason) }
                     let uuid = uuids[plan.path]!
                     let artwork = artworks[plan.path]
+                    // 그림 폴더 위가 링크면 share 밖에 쓰게 된다(#66 리뷰). 그 곡은 넣지 않는다.
+                    if let artwork, artwork.files.contains(where: { RekordboxWriter.hasSymlinkComponent($0.0, under: artwork.share) }) {
+                        throw Blocked(RekordboxWriter.artworkLinkReason)
+                    }
                     // rekordbox가 분석할 때의 순서: 아트워크 파일 행 → 오토게인 행 → 곡 행 → 분석 파일 행(2026-09-26 실험)
                     var planRows: [InsertedRow] = []
                     func insertRow(_ row: InsertedRow) throws {
@@ -208,6 +212,9 @@ public enum RekordboxTrackWriter {
             var created: [URL] = []
             do {
                 for path in written {
+                    if let artwork = artworks[path], artwork.files.contains(where: { RekordboxWriter.hasSymlinkComponent($0.0, under: artwork.share) }) {
+                        throw DJCError.writeVerificationFailed(RekordboxWriter.artworkLinkReason)
+                    }
                     let analysisFiles = prepared[path].flatMap { $0.blocked == nil ? $0.files : nil } ?? []
                     for (url, data) in analysisFiles + (artworks[path]?.files ?? []) {
                         guard !FileManager.default.fileExists(atPath: url.path) else { throw DJCError.writeVerificationFailed(String(ui: "파일이 이미 있습니다: \(url.path)")) }
@@ -322,15 +329,19 @@ public enum RekordboxTrackWriter {
                         stamp: (db: String, json: String)) -> InsertedRow {
         let share = root?.path ?? ""
         let path = "/" + file.url.path.dropFirst(share.count).drop(while: { $0 == "/" })
-        let encoded = path.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? path
         let row: [String: CipherDatabase.Value] = [
-            "ID": .text("\(uuid)_\(encoded)"), "ContentID": .text(contentID), "Path": .text(path),
+            "ID": .text(fileRowID(uuid: uuid, path: path)), "ContentID": .text(contentID), "Path": .text(path),
             "Hash": .text(Insecure.MD5.hash(data: file.data).map { String(format: "%02x", $0) }.joined()), "Size": .int(file.data.count),
             "rb_local_path": .text(file.url.path), "rb_insync_hash": .null, "rb_insync_local_usn": .null, "rb_file_hash_dirty": .int(0),
             "rb_local_file_status": .int(0), "rb_in_progress": .int(0), "rb_process_type": .int(0), "rb_temp_path": .null,
             "rb_priority": .int(50), "rb_file_size_dirty": .int(0), "UUID": .text(UUID().uuidString.lowercased()),
         ]
         return InsertedRow(table: "contentFile", values: row.merging(syncColumns(usn: usn, stamp: stamp)) { a, _ in a })
+    }
+
+    /// 파일 행 ID: `<곡 UUID>_<share 기준 경로, /는 %2F>`(라이브러리 조사 2026-09-26)
+    static func fileRowID(uuid: String, path: String) -> String {
+        "\(uuid)_\(path.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? path)"
     }
 
     /// 오토게인 `djmdMixerParam` 행

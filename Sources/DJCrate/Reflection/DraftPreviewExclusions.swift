@@ -18,12 +18,14 @@ extension LibraryStore {
             let cue = CueDraftStore.load(trackUUID: uuid)
             let grid = GridDraftStore.load(trackUUID: uuid)
             let tag = TagDraftStore.load(trackUUID: uuid)
+            let artwork = artworkDrafts[uuid] == nil ? nil : (try? ArtworkDraftStore.load(trackUUID: uuid, directory: artworkDirectory)).map { _ in true }
             let known = unreadableDraftKinds[uuid] ?? []
             let candidates: [(WriteResult.Part, Bool, Bool?)] = [
                 (.cue, hasDraft(.cue, trackUUID: uuid) || known.contains(.cue), cue.flatMap { $0.trackUUID == uuid ? $0.hasChanges : nil }),
                 (.grid, hasDraft(.grid, trackUUID: uuid) || known.contains(.grid), grid.flatMap { $0.trackUUID == uuid ? $0.hasChanges : nil }),
                 (.gain, gainDraftUUIDs.contains(uuid) || known.contains(.gain), gains?[uuid].map { _ in true }),
                 (.tag, tagDrafts[uuid] != nil || known.contains(.tag), tag.flatMap { $0.trackUUID == uuid ? $0.hasChanges : nil }),
+                (.artwork, artworkDrafts[uuid] != nil || known.contains(.artwork), artwork),
                 (.merge, mergeDrafts.contains { $0.members.contains { $0.trackUUID == uuid } }, true),
             ]
             var reasons: [String] = []

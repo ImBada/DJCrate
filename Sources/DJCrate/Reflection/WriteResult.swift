@@ -30,7 +30,7 @@ struct WriteResult: Codable, Equatable {
 
     /// 한 번에 쓰는 것의 종류. 종류 이름이 문장 안에서 어순·조사가 달라지므로 종류마다 문장 전체를 번역한다.
     enum Part: Hashable {
-        case cue, grid, analysis, gain, tag, merge
+        case cue, grid, analysis, gain, tag, artwork, merge
 
         /// "큐 3곡" — 확인 창 제목과 결과 제목에 쓴다.
         func summary(_ count: Int) -> String {
@@ -40,6 +40,7 @@ struct WriteResult: Codable, Equatable {
             case .analysis: String(ui: "분석 \(count)곡")
             case .gain: String(ui: "게인 \(count)곡")
             case .tag: String(ui: "태그 \(count)곡")
+            case .artwork: String(ui: "그림 \(count)곡")
             case .merge: String(ui: "합치기 \(count)묶음")
             }
         }
@@ -51,6 +52,7 @@ struct WriteResult: Codable, Equatable {
             case .analysis: String(ui: "분석 쓰기 완료")
             case .gain: String(ui: "게인 쓰기 완료")
             case .tag: String(ui: "태그 쓰기 완료")
+            case .artwork: String(ui: "그림 쓰기 완료")
             case .merge: String(ui: "합치기 쓰기 완료")
             }
         }
@@ -62,6 +64,7 @@ struct WriteResult: Codable, Equatable {
             case .analysis: String(ui: "분석 쓰지 않음: \(reason)")
             case .gain: String(ui: "게인 쓰지 않음: \(reason)")
             case .tag: String(ui: "태그 쓰지 않음: \(reason)")
+            case .artwork: String(ui: "그림 쓰지 않음: \(reason)")
             case .merge: String(ui: "합치지 않음: \(reason)")
             }
         }
@@ -73,6 +76,7 @@ struct WriteResult: Codable, Equatable {
             case .analysis: String(ui: "분석 변경 없음")
             case .gain: String(ui: "게인 변경 없음")
             case .tag: String(ui: "태그 변경 없음")
+            case .artwork: String(ui: "그림 변경 없음")
             case .merge: String(ui: "합치기 변경 없음")
             }
         }
@@ -85,6 +89,7 @@ struct WriteResult: Codable, Equatable {
             (.analysis, report.analysisOutcomes ?? [], preview.analysisOutcomes ?? []),
             (.gain, report.gainOutcomes ?? [], preview.gainOutcomes ?? []),
             (.tag, report.tagOutcomes ?? [], preview.tagOutcomes ?? []),
+            (.artwork, report.artworkOutcomes ?? [], preview.artworkOutcomes ?? []),
             (.merge, report.mergeOutcomes ?? [], preview.mergeOutcomes ?? []),
         ]
         var lines: [String] = [], summaries: [String] = [], skipped: [String] = [], reasons: [String] = [], count = 0
@@ -99,7 +104,8 @@ struct WriteResult: Codable, Equatable {
                 switch outcome.status {
                 case .written:
                     count += 1
-                    lines.append("• \(outcome.title) — " + part.written)
+                    // 그림은 무엇을 했는지(넣기·바꾸기·지우기)까지 적는다.
+                    lines.append("• \(outcome.title) — " + (outcome.artwork.map { "\(part.written) · \($0.label)" } ?? part.written))
                     // 쓴 항목의 이유는 참고(경로가 예상과 달라 분석 파일을 남김)라 경고로 올리지 않는다.
                     if let reason = outcome.reason { lines.append(reason) }
                 case .blocked:
@@ -187,7 +193,7 @@ struct WriteResult: Codable, Equatable {
     static func restored(_ backup: RekordboxWriter.Backup, saved: URL) -> Self {
         let report = backup.report
         let outcomes: [RekordboxWriter.Outcome] = (report?.written ?? []) + (report?.gridWritten ?? []) + (report?.gainWritten ?? [])
-            + (report?.analysisWritten ?? []) + (report?.tagWritten ?? []) + (report?.mergeWritten ?? [])
+            + (report?.analysisWritten ?? []) + (report?.tagWritten ?? []) + (report?.artworkWritten ?? []) + (report?.mergeWritten ?? [])
         let names: [String] = (report?.playlistWritten ?? []).map(\.name) + (backup.trackReport?.titles ?? [])
         let titles = Set(outcomes.map(\.title) + names)
         var lines = [String(ui: "rekordbox 라이브러리 전체를 선택한 백업의 쓰기 전 상태로 복원했습니다."),

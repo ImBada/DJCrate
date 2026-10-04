@@ -18,7 +18,7 @@ extension RekordboxWriter {
         public var titles: [String] {
             // 한 곡에 큐·태그를 함께 썼으면 한 번만
             var seen: Set<String> = []
-            let written = report.map { $0.written + $0.analysisWritten + $0.tagWritten + $0.mergeWritten } ?? []
+            let written = report.map { $0.written + $0.analysisWritten + $0.tagWritten + $0.artworkWritten + $0.mergeWritten } ?? []
             return written.filter { seen.insert($0.trackUUID).inserted }.map(\.title) + (report?.playlistWritten.map(\.name) ?? [])
                 + (trackReport?.titles ?? [])
                 + (report?.iTunesSyncWritten == true ? [String(ui: "iTunes 동기화 목록")] : [])
@@ -70,6 +70,20 @@ extension RekordboxWriter {
             try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
         }
         return folder
+    }
+
+    /// 쓴 뒤 보고서를 백업에 둔다. 저장하지 못해도 커밋한 쓰기를 실패로 돌리지 않고 경고를 돌려준다(조용히 삼키지 않는다, #66 리뷰).
+    /// 만든 파일 경로 때문에 실패했으면 그 칸 없이 다시 저장해 복원·백업 목록이 DB는 되살릴 수 있게 한다.
+    static func saveReport(_ report: Report, in backup: URL, shareRoot: URL?) -> String? {
+        do {
+            try save(report, in: backup, shareRoot: shareRoot)
+            return nil
+        } catch {
+            var fallback = report
+            fallback.createdFiles = nil
+            try? save(fallback, in: backup, shareRoot: shareRoot)
+            return String(ui: "쓰기 보고서(report.json)를 백업에 다 저장하지 못해 ‘쓰기 전으로 복원…’이 이번에 만든 파일을 지우지 못할 수 있으니 백업 폴더를 확인하세요: \(DJCError.reason(of: error))")
+        }
     }
 
     static func save(_ report: Report, in backup: URL, shareRoot: URL? = nil) throws {
