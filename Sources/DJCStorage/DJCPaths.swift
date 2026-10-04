@@ -2,14 +2,10 @@ import DJCDomain
 import Foundation
 
 /// DJCrate가 쓰는 사용자 데이터(초안·추가한 곡) 위치.
-/// `DJC_HOME`을 주면 그쪽을 쓴다(테스트가 사용자 초안을 건드리지 않게). 스냅샷·분석 캐시는 공유한다.
+/// `DJC_HOME`을 주면 그쪽을 쓴다(테스트가 사용자 초안을 건드리지 않게). 파형·분석·음량 캐시도 같은 뿌리를 따른다(`DJCCachePaths`, #195).
+/// 스냅샷만 `DJC_HOME`을 따르지 않는다(`DJC_REKORDBOX_DIR`을 주면 그 안).
 public enum DJCPaths {
-    public static var userData: URL {
-        if let override = ProcessInfo.processInfo.environment["DJC_HOME"], !override.isEmpty {
-            return URL(filePath: override)
-        }
-        return DJCIdentity.supportDirectory
-    }
+    public static var userData: URL { DJCIdentity.dataDirectory }
 
     /// DJCrate가 rekordbox에 쓰기 직전에 뜬 백업
     public static var rekordboxBackups: URL { userData.appending(path: "rekordbox-backups") }

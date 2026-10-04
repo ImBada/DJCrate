@@ -150,11 +150,11 @@ public enum WaveformAnalyzer {
 
 /// 파형은 파일 크기·수정 시각 단위로 디스크에 캐시한다(곡당 약 1초 절약).
 public enum WaveformCache {
-    public static var directory: URL {
-        DJCIdentity.supportDirectory.appending(path: "waveforms")
-    }
+    /// `DJC_HOME`을 주면 그 아래(#195). 없으면 사용자 폴더의 `waveforms`
+    public static var directory: URL { DJCCachePaths.current.waveforms }
 
-    public static func load(fileAt url: URL, key: String) throws -> Waveform {
+    public static func load(fileAt url: URL, key: String, paths: DJCCachePaths = .current) throws -> Waveform {
+        let directory = paths.waveforms
         let cacheURL = directory.appending(path: "\(key)-\(PartAnalyzer.fileStamp(url)).json")
         if let data = try? Data(contentsOf: cacheURL), let cached = try? JSONDecoder().decode(Waveform.self, from: data) {
             return cached
