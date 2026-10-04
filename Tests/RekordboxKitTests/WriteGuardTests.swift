@@ -70,6 +70,24 @@ struct WriteGuardTests {
         #expect(refusal { _ = try write(fixture, track, guard: .system) }?.contains("djmdSongHistory.TrackNo") == true)
     }
 
+    /// 곡 빼기·합치기(#196)가 이력 행의 상태를 고치고 지운 표시를 읽으며, 추천 좋아요가 어느 곡을 가리키는지 읽는다. 칸이 없으면 쓰는 도중 SQL이 실패하므로
+    /// 백업을 뜨기 전에 막는다. 인덱스가 걸린 칸이라 이름을 바꿔 없앤다(`DROP COLUMN`은 인덱스 칸을 못 없앤다).
+    @Test(arguments: [("djmdSongHistory", "rb_data_status"), ("djmdSongHistory", "rb_local_deleted"),
+                      ("djmdRecommendLike", "ContentID1"), ("djmdRecommendLike", "ContentID2")])
+    func 곡_빼기가_읽고_고치는_칸이_없어지면_백업_전에_막는다(_ column: (table: String, name: String)) throws {
+        #expect(RekordboxCompatibility.requiredColumns[column.table]?.contains(column.name) == true)
+        let (fixture, a, _) = try RekordboxTrackWriterTests().deleteFixture()
+        try fixture.execute("ALTER TABLE \(column.table) RENAME COLUMN \(column.name) TO \(column.name)_renamed")
+        let reason = refusal {
+            _ = try RekordboxTrackWriter.delete(contentIDs: [a.id], from: fixture.database, shareRoot: fixture.shareRoot, dryRun: false,
+                                                backups: fixture.backups)
+        }
+        #expect(reason?.contains("\(column.table).\(column.name)") == true, "\(reason ?? "")")
+        #expect(try fixture.rows("SELECT ID FROM djmdContent WHERE ID = ?", [.text(a.id)]).count == 1)
+        #expect(((try? FileManager.default.contentsOfDirectory(atPath: fixture.backups.path)) ?? []).isEmpty, "막힐 쓰기는 백업도 뜨지 않는다")
+        #expect(try fixture.localUpdateCount() == 2000)
+    }
+
     @Test func 재생_목록_표의_칸이_달라지면_쓰지_않는다() throws {
         // 재생 목록 쓰기가 목록·곡 항목·클라우드 거울 행을 새로 넣으므로 칸이 정확히 같아야 한다
         let fixture = try RekordboxFixture()

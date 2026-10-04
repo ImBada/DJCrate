@@ -117,8 +117,11 @@ extension RekordboxWriter {
         var fileWarning: String?
     }
 
+    /// - Parameter renumbered: 원본을 빼며 뒤 순번을 당긴 행의 기대 값. 한 번에 쓰는 묶음들이 같은 이력을 차례로 당기므로 묶음마다 따로 두지 않고
+    ///   이어 간다(`RekordboxTrackWriter.Renumbered`). 막혀 되돌리는 묶음의 몫은 부른 쪽이 SAVEPOINT와 함께 되돌린다.
     static func applyMerge(_ draft: DuplicateMergeDraft, cue: CueDraft, work: inout PlaylistWork,
-                           db: CipherDatabase, usn: inout Int, stamp: (db: String, json: String), share: URL?) throws
+                           db: CipherDatabase, usn: inout Int, stamp: (db: String, json: String), share: URL?,
+                           renumbered: inout RekordboxTrackWriter.Renumbered) throws
         -> (expectation: MergeExpectation, files: [URL]) {
         var expectation = MergeExpectation(draft: draft)
         if cue.hasChanges { expectation.cue = try apply(cue, db: db, usn: &usn, stamp: stamp).expectation }
@@ -129,7 +132,7 @@ extension RekordboxWriter {
         for source in draft.removing {
             let plan = try deletionFiles(source.contentID, db: db, share: share)
             do {
-                _ = try RekordboxTrackWriter.deleteRow(source.contentID, db: db, usn: &usn, stamp: stamp)
+                _ = try RekordboxTrackWriter.deleteRow(source.contentID, db: db, usn: &usn, stamp: stamp, renumbered: &renumbered)
             } catch let blocked as RekordboxTrackWriter.Blocked {
                 // 사전 검사가 먼저 보지만, 여기서 막혀도 어느 원본인지 알린다
                 throw DuplicateMerge.Blocked(mergeSourceReason(blocked.reason, source: source))
@@ -138,6 +141,7 @@ extension RekordboxWriter {
             if let warning = plan.warning { expectation.fileWarning = warning }
         }
         try verifyMerge(expectation, db: db)
+        try RekordboxTrackWriter.verifyRenumbered(renumbered, db: db)
         return (expectation, files)
     }
 

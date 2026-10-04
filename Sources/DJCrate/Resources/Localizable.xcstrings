@@ -12959,6 +12959,22 @@
         }
       }
     },
+    "곡을 뺀 뒤 당긴 재생 목록·이력 항목의 순번이나 상태가 쓴 값과 다릅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The position or state of the playlist/history entries moved up after removing the track differs from what was written"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲を外した後に繰り上げたプレイリスト・履歴の項目の順番または状態が、書き込んだ値と異なります"
+          }
+        }
+      }
+    },
     "곡을 오른쪽 클릭해 ‘USB에 넣기’를 고르거나 USB 곡·재생 목록을 오른쪽 클릭해 편집을 더하세요." : {
       "localizations" : {
         "en" : {

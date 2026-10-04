@@ -522,14 +522,16 @@ public enum RekordboxTrackWriter {
         report.backup = backup?.path
         var gone: [String] = []
         var files: [URL] = []
+        var renumbered = Renumbered()
         report.finalUpdateCount = try transaction(database, dryRun: dryRun) { db, usn in
             for id in contentIDs {
                 try db.execute("SAVEPOINT djc_delete")
+                let savedRenumbered = renumbered
                 var title = id
                 do {
                     try db.query("SELECT Title FROM djmdContent WHERE ID = ?", [.text(id)]) { title = $0.string(0) ?? id }
                     let filePlan = try RekordboxWriter.deletionFiles(id, db: db, share: share)
-                    var deleted = try deleteRow(id, db: db, usn: &usn, stamp: stamp)
+                    var deleted = try deleteRow(id, db: db, usn: &usn, stamp: stamp, renumbered: &renumbered)
                     try RekordboxWriter.backupDeletionFiles(filePlan.files, in: backup, shareRoot: share)
                     deleted.reason = filePlan.warning
                     title = deleted.title
@@ -540,6 +542,7 @@ public enum RekordboxTrackWriter {
                 } catch let blocked as Blocked {
                     try db.execute("ROLLBACK TO djc_delete")
                     try db.execute("RELEASE djc_delete")
+                    renumbered = savedRenumbered
                     report.deleted.append(Outcome(path: "", contentID: id, title: title, written: false, reason: blocked.reason))
                 }
             }
@@ -551,6 +554,7 @@ public enum RekordboxTrackWriter {
             for id in gone where try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdContent WHERE ID = ?", [.text(id)]) != 0 {
                 throw DJCError.writeVerificationFailed(String(ui: "지운 곡이 다시 읽혔습니다"))
             }
+            try verifyRenumbered(renumbered, db: db)
         }
         do {
             try RekordboxWriter.removeOwnedFiles(files)
@@ -565,8 +569,18 @@ public enum RekordboxTrackWriter {
         return report
     }
 
+    /// 뒤 순번을 당긴 행(표 이름 + 행 ID)이 쓴 뒤 가져야 할 순번·상태. 커밋 뒤 다시 읽어 비교한다(`verifyRenumbered`).
+    struct RenumberKey: Hashable {
+        var table: String
+        var id: String
+    }
+    typealias Renumbered = [RenumberKey: (trackNo: Int, status: Int?)]
+
     /// 이미 열린 쓰기 트랜잭션에서 곡 하나를 뺀다. 합치기도 같은 삭제 규칙을 쓴다.
-    static func deleteRow(_ id: String, db: CipherDatabase, usn: inout Int, stamp: (db: String, json: String)) throws -> Outcome {
+    /// - Parameter renumbered: 뒤 순번을 당긴 행의 기대 값. 같은 요청의 앞 곡이 이미 당긴 행은 그 기대 값에서 이어 가고(순번이 곡마다 줄어든다),
+    ///   이 곡이 지우는 행은 뺀다. 막혀서 던지면 부른 쪽이 SAVEPOINT와 함께 되돌린다.
+    static func deleteRow(_ id: String, db: CipherDatabase, usn: inout Int, stamp: (db: String, json: String),
+                          renumbered: inout Renumbered) throws -> Outcome {
         var found: (title: String, path: String)?
         try db.query("SELECT Title, FolderPath FROM djmdContent WHERE ID = ? AND rb_local_deleted = 0", [.text(id)]) { r in
             found = (r.string(0) ?? "", r.string(1) ?? "")
@@ -578,8 +592,12 @@ public enum RekordboxTrackWriter {
         usn += 1
         for (table, list) in renumberedTables {
             var entries: [(list: String, trackNo: Int)] = []
-            try db.query("SELECT \(list), TrackNo FROM \(table) WHERE ContentID = ?", [.text(id)]) { entries.append(($0.string(0) ?? "", $0.int(1) ?? 0)) }
+            try db.query("SELECT \(list), TrackNo, ID FROM \(table) WHERE ContentID = ?", [.text(id)]) {
+                entries.append(($0.string(0) ?? "", $0.int(1) ?? 0))
+                renumbered[RenumberKey(table: table, id: $0.string(2) ?? "")] = nil
+            }
             _ = try db.run("DELETE FROM \(table) WHERE ContentID = ?", [.text(id)])
+            try expectRenumbered(entries, table: table, list: list, db: db, into: &renumbered)
             // 같은 목록의 뒤 순번을 하나씩 당긴다(한 번호로 몰아서). 뒤에서부터 지운 순번만큼. 당기는 살아 있는 행(지운 표시가 남은 행이
             // 있으면 위에서 막았다)이 256이면 재생 목록 편집처럼 257로 올린다.
             for entry in entries.sorted(by: { $0.trackNo > $1.trackNo }) {
@@ -599,6 +617,36 @@ public enum RekordboxTrackWriter {
             throw DJCError.writeVerificationFailed(String(ui: "곡 행이 남아 있습니다"))
         }
         return Outcome(path: track.path, contentID: id, title: track.title, written: true, reason: nil)
+    }
+
+    /// 순번을 당기기 전에(곡의 자기 행은 이미 지웠다) 뒤 항목이 가질 값을 센다. 순번은 그 앞에서 지운 항목 수만큼 줄고(한 목록에서 같은 곡이 여러 번
+    /// 들었어도 그 수만큼), 상태는 256만 257이 된다(`savedState`). 순번이 NULL인 행은 당기는 UPDATE(`TrackNo > ?`)도 건드리지 않으므로 세지 않는다.
+    static func expectRenumbered(_ entries: [(list: String, trackNo: Int)], table: String, list: String, db: CipherDatabase,
+                                 into renumbered: inout Renumbered) throws {
+        for target in Set(entries.map(\.list)).sorted() {
+            let removed = entries.filter { $0.list == target }.map(\.trackNo)
+            guard let first = removed.min() else { continue }
+            var rows: [(id: String, trackNo: Int, status: Int?)] = []
+            try db.query("SELECT ID, TrackNo, rb_data_status FROM \(table) WHERE \(list) = ? AND TrackNo > ?", [.text(target), .int(first)]) {
+                rows.append(($0.string(0) ?? "", $0.int(1) ?? 0, $0.int(2)))
+            }
+            for row in rows {
+                let key = RenumberKey(table: table, id: row.id)
+                let before = renumbered[key] ?? (row.trackNo, row.status)
+                renumbered[key] = (before.trackNo - removed.filter { $0 < row.trackNo }.count, RekordboxWriter.savedState(before.status))
+            }
+        }
+    }
+
+    /// 커밋 뒤(합치기는 쓰기 트랜잭션 안에서도) 당긴 행을 다시 읽어 순번·상태가 기대와 같은지 본다. 다르면 `writeVerificationFailed`.
+    static func verifyRenumbered(_ renumbered: Renumbered, db: CipherDatabase) throws {
+        for (key, expected) in renumbered {
+            var read: (trackNo: Int?, status: Int?)?
+            try db.query("SELECT TrackNo, rb_data_status FROM \(key.table) WHERE ID = ?", [.text(key.id)]) { read = ($0.int(0), $0.int(1)) }
+            guard let read, read.trackNo == expected.trackNo, read.status == expected.status else {
+                throw DJCError.writeVerificationFailed(String(ui: "곡을 뺀 뒤 당긴 재생 목록·이력 항목의 순번이나 상태가 쓴 값과 다릅니다"))
+            }
+        }
     }
 
     /// 이름·앨범 행을 가리키는 곡 행 칸(곡 빼기와 태그 쓰기가 같이 쓴다). 아티스트는 여기에 앨범의 `albumArtistColumn`도 더한다.

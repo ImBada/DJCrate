@@ -59,8 +59,11 @@ public enum RekordboxCompatibility {
         "djmdProperty": ["DBVersion"],
         // 곡의 키: 고를 줄을 찾고(ScaleName, 삭제 표시) 읽는다. 이 표는 고치지 않는다(2026-10-04 키 쓰기).
         "djmdKey": ["ID", "ScaleName", "rb_local_deleted"],
-        // 곡 삭제 때 지우거나 번호를 당기는 표(곡 항목 djmdSongPlaylist는 위에서 칸 전체를 본다)
-        "djmdSongHistory": ["ID", "HistoryID", "ContentID", "TrackNo", "rb_local_usn", "updated_at"],
+        // 곡 삭제 때 지우거나 번호를 당기는 표(곡 항목 djmdSongPlaylist는 위에서 칸 전체를 본다). 당기는 행의 상태(rb_data_status)를 고치고
+        // 순번 자리의 지운 표시(rb_local_deleted)와 동기화 상태를 읽는다(#196).
+        "djmdSongHistory": ["ID", "HistoryID", "ContentID", "TrackNo", "rb_data_status", "rb_local_deleted", "rb_local_usn", "updated_at"],
+        // 곡 삭제·합치기는 이 표가 어느 곡을 가리키는지(ContentID1·ContentID2) 읽어 가리키는 곡을 막는다(#196). 이 표는 고치지 않는다.
+        "djmdRecommendLike": ["ContentID1", "ContentID2"],
     ]
 
     /// DB 구조와 DB 버전을 확인한다. 다르면 `writeRefused`.

@@ -127,6 +127,42 @@ struct SyncedTrackRemovalTests {
         #expect(entry == ["TrackNo": "1", "rb_data_status": "\(status.after)", "rb_local_usn": "2001"], "\(table)")
     }
 
+    /// 쓰기 트랜잭션 안 검증이 끝난 뒤(변경 카운터를 올리는 순간) 당긴 행을 어긋나게 한다. 커밋 뒤 다시 읽어 순번·상태를 기대와 비교하므로
+    /// 백업으로 되돌리고 되돌렸다고 알려야 한다(곡 행·딸린 행·파일 모두 쓰기 전).
+    @Test(arguments: ["djmdSongPlaylist", "djmdSongHistory"], ["TrackNo = TrackNo + 5", "rb_data_status = 256"])
+    func 커밋_뒤_당긴_행의_순번이나_상태가_기대와_다르면_백업으로_되돌리고_그렇게_알린다(_ table: String, _ tamper: String) throws {
+        let (fixture, a, b) = try writer.deleteFixture()
+        try setStatus(fixture, table, "ContentID", b.id, 256)
+        try RekordboxRestoreFailureTests().tamperOnCommit(fixture, "UPDATE \(table) SET \(tamper) WHERE ContentID = '\(b.id)'")
+        let before = try snapshot(fixture)
+        let error = try #require(throws: DJCError.self) { try writer.delete(fixture, [a.id]) }
+        guard case let .writeRolledBack(reason) = error else { Issue.record("되돌림 오류가 아님: \(error)"); return }
+        #expect(reason.contains("순번"), "\(reason)")
+        #expect(try snapshot(fixture) == before)
+        #expect(try fixture.localUpdateCount() == 2000)
+        #expect(FileManager.default.fileExists(atPath: fixture.shareRoot.appending(path: "PIONEER/USBANLZ/aaa/00000-0000-4000-8000-000000000001/ANLZ0000.DAT").path))
+    }
+
+    /// 한 요청에서 여러 곡을 빼면 뒤 항목은 곡마다 한 번씩, 모두 두 번 당겨진다(기대는 곡마다 덮어쓰지 않고 이어 가야 한다).
+    @Test(arguments: ["djmdSongPlaylist", "djmdSongHistory"])
+    func 한_요청에서_여러_곡을_빼면_뒤_항목은_곡마다_당겨진_자리에서_256만_257로_올린다(_ table: String) throws {
+        let (fixture, a, _) = try writer.deleteFixture()
+        let list = table == "djmdSongPlaylist" ? "PlaylistID" : "HistoryID"
+        var middle = TrackSpec(id: "400"), last = TrackSpec(id: "300")
+        middle.dataStatus = 0; last.dataStatus = 0
+        try fixture.add(middle); try fixture.add(last)
+        for (track, trackNo, status) in [(middle, 3, 0), (last, 4, 256)] {
+            try fixture.insert(table, ["ID": .text("x-\(track.id)"), list: .text("L"), "ContentID": .text(track.id), "TrackNo": .int(trackNo),
+                                       "UUID": .text("ux-\(track.id)"), "rb_local_deleted": .int(0), "rb_data_status": .int(status), "rb_local_usn": .int(5)])
+        }
+        let report = try writer.delete(fixture, [a.id, middle.id])
+        #expect(report.deleted.map(\.written) == [true, true])
+        #expect(try fixture.rows("SELECT ContentID, TrackNo, rb_data_status, rb_local_usn FROM \(table) WHERE \(list) = 'L' ORDER BY TrackNo") ==
+                [["ContentID": "200", "TrackNo": "1", "rb_data_status": "0", "rb_local_usn": "2001"],
+                 ["ContentID": "300", "TrackNo": "2", "rb_data_status": "257", "rb_local_usn": "2002"]], "\(table)")
+        #expect(try fixture.localUpdateCount() == 2002)
+    }
+
     func insertDeletedMarked(_ fixture: RekordboxFixture, table: String, list: String, trackNo: Int) throws {
         let column = table == "djmdSongPlaylist" ? "PlaylistID" : "HistoryID"
         try fixture.insert(table, ["ID": .text("gone-\(list)-\(trackNo)"), column: .text(list), "ContentID": .text("999"), "TrackNo": .int(trackNo),
@@ -381,6 +417,58 @@ struct SyncedTrackRemovalTests {
         #expect(try fixture.rows("SELECT TrackNo, rb_data_status FROM djmdSongHistory WHERE ContentID = '300'")
                 == [["TrackNo": "1", "rb_data_status": "\(status.after)"]])
         #expect(try fixture.rows("SELECT ID FROM djmdSongHistory WHERE ContentID = '200'").isEmpty)
+    }
+
+    /// 같은 재생 목록에서 원본(상태 0) 옆에 동기화 항목(256)이 있어도 합치기를 막지 않는다. 원본 항목은 상태 0이라 검증된 목록 편집
+    /// (지운 몫으로 남은 항목을 모두 다시 매기고 256 → 257)이 쓰고, 옆 항목은 자리가 같아도 257이 된다.
+    @Test func 원본_옆에_동기화_항목이_있는_재생_목록도_합치고_옆_항목은_257이_된다() throws {
+        let fixture = try merge.fixture()
+        try setStatus(fixture, "djmdSongPlaylist", "ContentID", "300", 256)
+        let draft = try merge.draft(fixture)
+        let report = try merge.write(fixture, draft)
+        #expect(report.mergeWritten.count == 1 && report.mergeBlocked.isEmpty)
+        #expect(try fixture.rows("SELECT ContentID, TrackNo, rb_data_status FROM djmdSongPlaylist WHERE PlaylistID = '500' ORDER BY TrackNo") ==
+                [["ContentID": "300", "TrackNo": "1", "rb_data_status": "257"],
+                 ["ContentID": "100", "TrackNo": "2", "rb_data_status": "0"],
+                 ["ContentID": "300", "TrackNo": "3", "rb_data_status": "257"]])
+        #expect(try fixture.rows("SELECT ID FROM djmdContent ORDER BY ID").map { $0["ID"] } == ["100", "300"])
+    }
+
+    /// 합치기도 커밋 뒤 다시 읽어 원본 이력 뒤 항목의 순번·상태를 기대와 비교한다.
+    @Test(arguments: ["TrackNo = TrackNo + 5", "rb_data_status = 256"])
+    func 합치기_커밋_뒤_당긴_이력_항목이_기대와_다르면_백업으로_되돌리고_그렇게_알린다(_ tamper: String) throws {
+        let fixture = try merge.fixture()
+        try insertHistory(fixture, id: "h1", contentID: "200", trackNo: 1)
+        try insertHistory(fixture, id: "h2", contentID: "300", trackNo: 2, status: 256)
+        let draft = try merge.draft(fixture)
+        try RekordboxRestoreFailureTests().tamperOnCommit(fixture, "UPDATE djmdSongHistory SET \(tamper) WHERE ContentID = '300'")
+        let before = try snapshot(fixture)
+        let error = try #require(throws: DJCError.self) { try merge.write(fixture, draft) }
+        guard case let .writeRolledBack(reason) = error else { Issue.record("되돌림 오류가 아님: \(error)"); return }
+        #expect(reason.contains("순번"), "\(reason)")
+        #expect(try snapshot(fixture) == before)
+        #expect(try fixture.localUpdateCount() == 1000)
+    }
+
+    /// 한 번에 쓰는 두 묶음이 같은 이력의 뒤 항목을 차례로 당긴다: 기대는 묶음마다 따로 두지 않고 이어 가야 한다.
+    @Test func 두_묶음이_같은_이력의_뒤_항목을_차례로_당겨도_합친_자리를_기대한다() throws {
+        let fixture = try merge.fixture()
+        for id in ["400", "500"] {
+            var track = TrackSpec(id: id, uuid: "u" + id)
+            track.dataStatus = 0; track.fileType = 11; track.length = 30
+            track.folderPath = try AudioFixture.wav(seconds: 30, in: fixture.audio, name: id + ".wav").path
+            try fixture.add(track)
+        }
+        try insertHistory(fixture, id: "h1", contentID: "200", trackNo: 1)
+        try insertHistory(fixture, id: "h2", contentID: "500", trackNo: 2)
+        try insertHistory(fixture, id: "h3", contentID: "300", trackNo: 3, status: 256)
+        let first = try merge.draft(fixture)
+        let second = try RekordboxWriter.prepareMerge(keeping: "400", removing: ["500"], snapshot: fixture.database)
+        let report = try RekordboxWriter.write(drafts: [], merges: [first, second], to: fixture.database, dryRun: false,
+                                               backups: fixture.backups, shareRoot: fixture.shareRoot)
+        #expect(report.mergeWritten.count == 2 && report.mergeBlocked.isEmpty)
+        #expect(try fixture.rows("SELECT ContentID, TrackNo, rb_data_status FROM djmdSongHistory WHERE HistoryID = 'H' ORDER BY TrackNo") ==
+                [["ContentID": "300", "TrackNo": "1", "rb_data_status": "257"]])
     }
 
     // MARK: 합치기: djmdRecommendLike
