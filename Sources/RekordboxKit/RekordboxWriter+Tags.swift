@@ -10,9 +10,6 @@ extension RekordboxWriter {
     /// rekordbox 실험으로 쓰기 규칙을 확인한 칸. 이 밖의 칸을 고친 초안은 곡째 막는다(docs/rekordbox-internals.md "태그 (곡 정보)").
     /// 공유 앨범 값 변경·동명 앨범 선택·미확인 상태는 `checkTags`에서 곡째 막는다.
     public static let writableTagKeys: Set<TagFields.Key> = [.title, .artist, .album, .albumArtist, .genre, .composer, .year, .trackNumber, .comment]
-    /// 쓰면 그 곡이 든 재생 목록의 `masterPlaylists6.xml` Timestamp를 고치는 칸. rekordbox 실험으로 확인한 칸만이다
-    /// (#173 S1 X1 아티스트, S2 U11·U12 제목, S3 V07 장르). 그 밖의 칸은 [미확인]이라 그 칸만 쓴 초안은 XML을 건드리지 않는다.
-    static let playlistTimestampTagKeys: Set<TagFields.Key> = [.title, .artist, .genre]
     /// 태그 쓰기를 확인한 곡·앨범 상태(#171·#173 2026-10-04). 0 그대로, 256 → 257, 257 그대로. 그 밖의 상태는 막는다.
     static let verifiedTagStates: Set<Int> = [0, 256, 257]
 
@@ -201,9 +198,9 @@ extension RekordboxWriter {
         return true
     }
 
-    /// 이 초안을 쓰면 고칠 재생 목록 XML이 있는지: 확인한 칸(제목·아티스트·장르)을 쓰고 그 곡이 든 살아 있는 목록이 있을 때만(백업 전 확인)
+    /// 이 초안을 쓰면 고칠 재생 목록 XML이 있는지: 그 곡이 든 살아 있는 목록이 있을 때만(백업 전 확인). 정보 패널 아홉 칸 모두
+    /// Timestamp를 고친다(#173 S1 X1 아티스트, S2 U11·U12 제목, S3 V07 장르, S4 A1~A6·B2 앨범·앨범 아티스트·작곡가·연도·트랙 번호·코멘트).
     static func tagTouchesPlaylistXML(_ draft: TagDraft, db: CipherDatabase) throws -> Bool {
-        guard !Set(draft.changedKeys).isDisjoint(with: playlistTimestampTagKeys) else { return false }
         var id: String?
         try db.query("SELECT ID FROM djmdContent WHERE UUID = ? AND rb_local_deleted = 0", [.text(draft.trackUUID)]) { id = $0.string(0) }
         guard let id else { return false }

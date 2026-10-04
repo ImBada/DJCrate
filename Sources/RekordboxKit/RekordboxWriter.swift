@@ -157,7 +157,7 @@ public enum RekordboxWriter {
             tagOutcomes = checked.blocked
             xmlTags = checked.touchesXML
         }
-        // 재생 목록 편집과 곡 정보 쓰기는 DB 옆 masterPlaylists6.xml도 고친다(곡 정보는 확인한 칸을 쓴 곡이 든 목록의 Timestamp, #173).
+        // 재생 목록 편집과 곡 정보 쓰기는 DB 옆 masterPlaylists6.xml도 고친다(곡 정보는 그 곡이 든 목록의 Timestamp, #173).
         // 쓰는 DB 옆 파일만 대상이고 없으면 DB만 쓴다. 사본 옆 파일이 라이브 XML의 링크면 백업 전에 막는다. 곡 정보는 그 곡이 든 살아 있는
         // 목록이 있을 때만 읽고, 읽지 못하면 그 곡정보 초안만 막는다. 재생 목록·합치기는 읽지 못하면 예전처럼 쓰기째 막는다.
         let playlistXMLURL = playlistXMLURL(for: database)
@@ -455,9 +455,9 @@ public enum RekordboxWriter {
                         regridded[i].content["rb_local_usn"] = .int(usn)
                     }
                     try db.execute("RELEASE djc_tags")
-                    // 확인한 칸(제목·아티스트·장르)을 썼으면 그 곡이 든 살아 있는 목록마다 XML Timestamp를 쓴 시각으로
-                    // (부모 폴더는 그대로, #173 S1 X1·S2 U11·U12·S3 V07)
-                    if playlistXML != nil, !Set(draft.changedKeys).isDisjoint(with: playlistTimestampTagKeys) {
+                    // 곡 정보를 썼으면 그 곡이 든 살아 있는 목록마다 XML Timestamp를 쓴 시각으로. 아홉 칸 모두 같다
+                    // (부모 폴더는 그대로, #173 S1 X1·S2 U11·U12·S3 V07·S4 A1~A6·B2)
+                    if playlistXML != nil {
                         for id in try tagPlaylists(db, contentID: result.expectation.contentID) where touchedPlaylists.insert(id).inserted {
                             xmlChanges.append(.touch(id))
                         }
