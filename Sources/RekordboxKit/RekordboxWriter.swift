@@ -472,7 +472,7 @@ public enum RekordboxWriter {
                 let savedUSN = usn
                 do {
                     guard !attached.contains(where: { $0.trackUUID == plan.uuid }) else {
-                        throw Blocked(title: plan.title, reason: String(ui: "같은 곡에 분석 붙이기와 그림 쓰기를 함께 하지 않으니 그리드를 먼저 쓴 뒤 그림을 쓰세요"))
+                        throw Blocked(title: plan.title, reason: String(ui: "같은 곡에 분석 붙이기와 앨범아트 쓰기를 함께 하지 않으니 그리드를 먼저 쓴 뒤 앨범아트를 쓰세요"))
                     }
                     let expectation = try applyArtwork(plan, db: db, share: gridRoot, usn: &usn, stamp: stamp)
                     artworkOutcomes.append(Outcome(trackUUID: plan.uuid, title: expectation.plan.title, status: .written, reason: nil,

@@ -16,7 +16,7 @@ struct RestoreDraftConflict: Hashable, Sendable {
         case .grid: String(ui: "그리드")
         case .gain: String(ui: "게인")
         case .tag: String(ui: "태그")
-        case .artwork: String(ui: "그림")
+        case .artwork: String(ui: "앨범아트")
         case .merge: String(ui: "합치기")
         }
     }

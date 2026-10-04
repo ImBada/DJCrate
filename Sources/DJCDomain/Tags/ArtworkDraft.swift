@@ -76,9 +76,9 @@ public enum ArtworkWriteKind: String, Codable, Hashable, Sendable {
     /// "그림 넣기" 등(확인 창·결과 줄)
     public var label: String {
         switch self {
-        case .add: String(ui: "그림 넣기")
-        case .replace: String(ui: "그림 바꾸기")
-        case .delete: String(ui: "그림 지우기")
+        case .add: String(ui: "앨범아트 넣기")
+        case .replace: String(ui: "앨범아트 바꾸기")
+        case .delete: String(ui: "앨범아트 지우기")
         }
     }
 }

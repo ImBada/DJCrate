@@ -493,7 +493,7 @@ struct ReflectionCoordinator {
 
     /// 그림 쓰기 확인 창의 안내: 음원 파일에 든 그림은 그대로다.
     static var artworkAudioNote: String {
-        String(ui: "그림은 rekordbox 라이브러리에만 씁니다. 음원 파일에 든 그림은 그대로라 다른 앱이나 rekordbox '태그 다시 읽기'에서는 예전 그림이 보일 수 있습니다.")
+        String(ui: "앨범아트는 rekordbox 라이브러리에만 씁니다. 음원 파일에 든 앨범아트는 그대로라 다른 앱이나 rekordbox '태그 다시 읽기'에서는 예전 앨범아트가 보일 수 있습니다.")
     }
 
     static func addReasons(_ preview: LibraryStore.TrackAddPreview) -> [String] {
@@ -580,7 +580,7 @@ struct ReflectionCoordinator {
             if deleted > 0 { sentences.append(String(ui: "뺐던 \(deleted)곡은 큐·재생 목록·분석 파일·아트워크와 함께 복원됩니다.")) }
             lines.append(sentences.map { $0 + " " }.joined())
         } else {
-            lines.append(String(ui: "라이브러리 전체를 이 백업으로 복원합니다. 그때 쓴 초안(큐·그리드·게인·태그·그림)도 DJCrate에 복원됩니다."))
+            lines.append(String(ui: "라이브러리 전체를 이 백업으로 복원합니다. 그때 쓴 초안(큐·그리드·게인·태그·앨범아트)도 DJCrate에 복원됩니다."))
         }
         switch changed {
         case true?: lines.append(String(ui: "⚠︎ 이 백업 뒤에 rekordbox에서도 라이브러리가 바뀌었습니다(큐·재생 목록·곡 추가 등). 복원하면 그 변경도 함께 사라집니다."))

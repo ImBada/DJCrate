@@ -12,6 +12,17 @@ import Testing
 struct ArtworkReflectionTests {
     let image = ImageFixture.image(width: 400, height: 300)
 
+    @Test func 사용자에게_보이는_아트워크_문구는_앨범아트다() {
+        #expect(ArtworkWriteKind.add.label == "앨범아트 넣기")
+        #expect(ArtworkWriteKind.replace.label == "앨범아트 바꾸기")
+        #expect(ArtworkWriteKind.delete.label == "앨범아트 지우기")
+        #expect(WriteResult.Part.artwork.summary(2) == "앨범아트 2곡")
+        #expect(WriteResult.Part.artwork.written == "앨범아트 쓰기 완료")
+        #expect(ReflectionCoordinator.artworkAudioNote.contains("앨범아트"))
+        #expect(!ReflectionCoordinator.artworkAudioNote.contains("그림"))
+        #expect(LibraryStore.artworkRestoreFailureText(2).contains("앨범아트 초안 2곡"))
+    }
+
     func makeStore(_ fixture: RekordboxFixture) async -> LibraryStore {
         let store = LibraryStore(settings: SettingsStore(defaults: UserDefaults(suiteName: "djc.test.artwork.\(UUID())")!, persist: false),
                                  resultHistory: WriteResultHistory(url: nil), feedback: AppFeedback(announce: { _ in }),
@@ -166,6 +177,6 @@ struct ArtworkReflectionTests {
         try FileManager.default.removeItem(at: store.artworkDirectory)
         let again = store.restoreArtworkDrafts(from: backup) { _ in false }
         #expect(again.failed == 0 && again.tracks == [spec.uuid] && store.artworkDrafts[spec.uuid] == edit.draft)
-        #expect(ReflectionCoordinator.restoreConfirmation(backup, changedSince: false).text.contains("그림"))
+        #expect(ReflectionCoordinator.restoreConfirmation(backup, changedSince: false).text.contains("앨범아트"))
     }
 }
