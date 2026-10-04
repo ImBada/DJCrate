@@ -19,9 +19,13 @@ public struct ITunesLibrarySnapshot: Codable, Equatable, Sendable {
 
     public enum Status: String, Codable, Sendable {
         case ready, stale, notCaptured, unavailable
+        /// 아직 읽는 중이라 결과가 없다(처음 상태·뒤에서 Music을 읽는 동안). 화면에만 쓰고 사본 파일에는 쓰지 않는다.
+        /// 읽기가 끝난 뒤 캡처한 목록이 없는 `notCaptured`와 구분한다.
+        case loading
         public var message: String? {
             switch self {
             case .ready: nil
+            case .loading: String(ui: "새 스냅샷을 뜨고 있습니다")
             case .stale: String(ui: "iTunes 목록 갱신에 실패해 이전 사본을 표시합니다. Music 접근 권한과 rekordbox의 iTunes 읽기 설정을 확인한 뒤 새로고침하세요.")
             case .notCaptured: String(ui: "이 사본에는 캡처한 iTunes 목록이 없습니다")
             case .unavailable: String(ui: "iTunes 목록을 읽지 못했으니 Music 접근 권한과 rekordbox의 iTunes 읽기 설정을 확인한 뒤 새로고침하세요.")
@@ -84,7 +88,8 @@ public struct ITunesLibrarySnapshot: Codable, Equatable, Sendable {
         guard FileManager.default.fileExists(atPath: file.path) else { return Self(status: .notCaptured) }
         do {
             let snapshot = try JSONDecoder().decode(Self.self, from: Data(contentsOf: file))
-            guard snapshot.version == 1 else { return Self(status: .unavailable) }
+            // 읽는 중은 메모리 상태라 파일에 적혀 있으면 읽지 못한 사본으로 본다(안 그러면 진행 안내가 영영 남는다).
+            guard snapshot.version == 1, snapshot.status != .loading else { return Self(status: .unavailable) }
             try validate(snapshot.playlists)
             if let source = snapshot.sourcePlaylists { try validate(source) }
             return snapshot
