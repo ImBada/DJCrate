@@ -298,6 +298,63 @@ struct TrackWritePathTests {
         #expect(!store.unlinkedDraftUUIDs.contains(uuid) && !store.writeFollowUp.contains { $0.contains("연결되지 않은 초안") })
     }
 
+    /// 키가 막혀 새 곡으로 옮겨 둔 키 초안이 있는 채 넣은 뒤, 옛 백업처럼 그 백업에서 추가한 곡의 초안(`tag-drafts`·`cue-drafts`)을 빼고
+    /// 사용자가 연결 안 된 초안(추가 목록 곡 UUID의 키 초안)을 버린 상태를 만든다. 돌려주는 값: 새 곡 UUID와 되돌릴 백업.
+    func blockedKeyAddWithoutStagedDrafts(_ store: LibraryStore, _ fixture: RekordboxFixture, _ staged: StagedTrack, _ row: TrackRow)
+        async throws -> (uuid: String, backup: RekordboxWriter.Backup) {
+        let preview = try await store.previewTrackAdd(rows: [row])
+        let report = try await store.addTracksToRekordbox(preview, to: fixture.database, shareRoot: fixture.shareRoot)
+        let uuid = try #require(report.added.first?.uuid)
+        let backup = try #require(RekordboxWriter.backups(in: fixture.backups).first)
+        for folder in ["tag-drafts", "cue-drafts", "grid-drafts"] {
+            try? FileManager.default.removeItem(at: backup.url.appending(path: folder))
+        }
+        #expect(RekordboxWriter.tagDrafts(in: backup.url).isEmpty)
+        #expect(store.discardUnlinkedDrafts([staged.uuid]) == nil)
+        DraftWriter.flush()
+        #expect(store.confirmedStagedKey(uuid: staged.uuid) == nil, "버려서 추가 목록 곡에 고른 키가 남아 있지 않다")
+        return (uuid, backup)
+    }
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 초안이_없는_옛_넣기_백업을_되돌려도_옮겨_둔_키_초안을_새_곡에_만든_초안이라고_알리지_않는다() async throws {
+        // #197: 옛 넣기 백업에는 추가한 곡의 초안이 없어, 연결 안 된 키 초안을 버린 뒤에는 옮겨 둔 키 초안인지 사용자가 넣은 뒤 고른 키인지 알 수 없다.
+        // 모르면 지우지 않고(고른 키를 잃지 않는다) 연결 안 된 초안으로 남기며, 알림은 누가 만들었는지 단정하지 않는다.
+        let fixture = try RekordboxFixture()
+        let (store, staged, row) = try await keyedStaged(fixture, key: "12B")
+        defer { clearTagDrafts(store) }
+        let (uuid, backup) = try await blockedKeyAddWithoutStagedDrafts(store, fixture, staged, row)
+        #expect(store.tagDrafts[uuid]?.changedKeys == [.musicalKey])
+
+        try await store.restoreRekordbox(backup, keepingCurrentDrafts: true)
+        DraftWriter.flush()
+        #expect(store.staged.map(\.uuid) == [staged.uuid])
+        let kept = try #require(store.tagDrafts[uuid], "누가 만들었는지 모르면 지우지 않는다")
+        #expect(kept.changedKeys == [.musicalKey] && kept.fields.musicalKey == "12B")
+        #expect(store.unlinkedDraftUUIDs.contains(uuid), "연결 안 된 초안으로 남아 쓰기 대기 목록에서 버릴 수 있다")
+        #expect(store.writeFollowUp == [LibraryStore.keptNewTrackDraftsText(1)].compactMap { $0 }, "\(store.writeFollowUp)")
+        let notice = try #require(store.writeFollowUp.first)
+        #expect(notice.contains("연결되지 않은 초안") && !notice.contains("새 곡에 만든"), "\(notice)")
+    }
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 넣기_백업의_추가_목록_저장이_빠졌어도_새_곡에_남은_초안을_알림_없이_지우지_않는다() async throws {
+        // #197: 백업에 `djc-staged.json`이 없으면(저장 실패) 곡이 추가 목록으로 돌아오지 못하고 옮겨 둔 키가 돌아갈 곳도 없다.
+        // 키 초안을 지우지 않고 남기며, 새 곡에 만든 초안이라고 단정하지 않는 알림을 보인다. 추가 목록이 비는 것은 그대로다(이 시험은 알림만 고정).
+        let fixture = try RekordboxFixture()
+        let (store, staged, row) = try await keyedStaged(fixture, key: "12B")
+        defer { clearTagDrafts(store) }
+        let (uuid, backup) = try await blockedKeyAddWithoutStagedDrafts(store, fixture, staged, row)
+        try FileManager.default.removeItem(at: backup.url.appending(path: LibraryStore.stagedBackupName))
+
+        try await store.restoreRekordbox(backup, keepingCurrentDrafts: true)
+        DraftWriter.flush()
+        #expect(store.staged.isEmpty, "추가 목록을 알 수 없어 곡을 되돌리지 못한다")
+        let kept = try #require(store.tagDrafts[uuid])
+        #expect(kept.changedKeys == [.musicalKey] && kept.fields.musicalKey == "12B")
+        #expect(store.unlinkedDraftUUIDs.contains(uuid))
+        let notice = try #require(store.writeFollowUp.first { $0.contains("연결되지 않은 초안") })
+        #expect(!notice.contains("새 곡에 만든"), "\(notice)")
+    }
+
     // MARK: - 복원 확인 창의 곡 이름
 
     @Test(.enabled(if: LiveDraftHome.isIsolated)) func 복원_확인_창은_넣기_백업의_충돌을_넣은_곡의_제목으로_보인다() async throws {

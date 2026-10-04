@@ -272,13 +272,16 @@ extension LibraryStore {
     struct RestoredStaged {
         /// 추가 목록에 다시 넣은 곡 수
         var restaged = 0
-        /// 되돌린 새 곡에 넣은 뒤 만든 태그 초안 가운데 지우지 않고 연결 안 된 초안으로 남긴 곡 수
+        /// 되돌린 새 곡에 남아 있던 태그 초안 가운데 지우지 않고 연결 안 된 초안으로 남긴 곡 수.
+        /// 사용자가 넣은 뒤 만든 초안이거나, 옮겨 둔 키 초안인지 가릴 수 없는 초안이다.
         var keptTagDrafts = 0
     }
 
     /// 곡 추가를 되돌렸으면 그 곡들을 추가 목록에 다시 넣고, 새 곡으로 옮겼던 초안을 지운다.
-    /// 새 곡에 사용자가 넣은 뒤 만든 태그 초안은 지우지 않고 연결 안 된 초안으로 남긴다(쓰기 대기 목록에서 버릴 수 있다, #197).
-    /// 키가 막혀 새 곡으로 옮겨 둔 키만 있는 초안은 지운다(추가 목록 곡에 돌아온 키 초안이 같은 값을 들고 있어 다시 넣으면 함께 쓴다).
+    /// 새 곡에 남은 태그 초안은 지우지 않고 연결 안 된 초안으로 남긴다(쓰기 대기 목록에서 버릴 수 있다, #197).
+    /// 키가 막혀 새 곡으로 옮겨 둔 키만 있는 초안은, 추가 목록 곡에 돌아온 키 초안이 같은 값을 들고 있다고 확인될 때만 지운다(다시 넣으면 함께 쓴다).
+    /// 확인하지 못하면(옛 백업이라 그 초안이 없거나, 연결 안 된 초안을 버렸거나, 추가 목록 저장이 빠졌을 때) 사용자가 넣은 뒤 고른 키와 가를 수 없어
+    /// 지우지 않는다: 키를 추가 목록 곡으로 옮겨 주지도 않는다(출처를 알 수 없는 초안을 추가 목록 곡의 초안으로 만들지 않는다).
     @discardableResult
     func restoreStaged(from backup: RekordboxWriter.Backup) -> RestoredStaged {
         resetPlaylistImports(contentIDs: Set(backup.trackReport?.added.filter(\.written).compactMap(\.contentID) ?? []))
@@ -297,7 +300,7 @@ extension LibraryStore {
         for outcome in outcomes {
             guard let uuid = outcome.uuid, let draft = tagDrafts[uuid] else { continue }
             let stagedUUID = tracks?.first { URL(filePath: $0.path).path.precomposedStringWithCanonicalMapping == outcome.path }?.uuid
-            // 옮겨 둔 키 그대로인지: 키 막힘 기록이 있고, 키만 고친 초안이며, 그 키가 추가 목록 곡의 고른 키와 같다. 모르면 사용자 초안으로 본다.
+            // 옮겨 둔 키 그대로인지: 키 막힘 기록이 있고, 키만 고친 초안이며, 그 키가 추가 목록 곡의 고른 키와 같다. 확인하지 못하면 지우지 않는다.
             let isMovedKey = outcome.keyReason != nil && draft.changedKeys == [.musicalKey]
                 && stagedUUID.flatMap { confirmedStagedKey(uuid: $0) } == draft.fields.musicalKey
             if isMovedKey { cleared.append(TagDraft(trackUUID: uuid, base: TagFields())) } else { result.keptTagDrafts += 1 }
@@ -311,6 +314,6 @@ extension LibraryStore {
     }
 
     static func keptNewTrackDraftsText(_ count: Int) -> String? {
-        count == 0 ? nil : String(ui: "넣은 뒤 새 곡에 만든 태그 초안 \(count)곡은 지우지 않고 연결되지 않은 초안으로 남겼습니다. 필요 없으면 ‘연결되지 않은 초안 보기…’에서 버리세요.")
+        count == 0 ? nil : String(ui: "넣은 곡에 남아 있던 태그 초안 \(count)곡은 지우지 않고 연결되지 않은 초안으로 남겼습니다. 필요 없으면 ‘연결되지 않은 초안 보기…’에서 버리세요.")
     }
 }
