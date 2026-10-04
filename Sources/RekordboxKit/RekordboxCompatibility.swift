@@ -64,6 +64,17 @@ public enum RekordboxCompatibility {
         "djmdSongHistory": ["ID", "HistoryID", "ContentID", "TrackNo", "rb_data_status", "rb_local_deleted", "rb_local_usn", "updated_at"],
         // 곡 삭제·합치기는 이 표가 어느 곡을 가리키는지(ContentID1·ContentID2) 읽어 가리키는 곡을 막는다(#196). 이 표는 고치지 않는다.
         "djmdRecommendLike": ["ContentID1", "ContentID2"],
+        // 곡 삭제·합치기는 아직 규칙을 확인하지 않은 표 9개(`RekordboxTrackWriter.unverifiedReferenceTables`)에 그 곡이 들어 있는지 ContentID로 읽어
+        // 들어 있으면 막는다(#203). 칸이 없어지면 백업 전에 거절한다. 이 표들은 고치지 않는다.
+        "contentActiveCensor": ["ContentID"],
+        "djmdActiveCensor": ["ContentID"],
+        "djmdCloudExportSongPlaylist": ["ContentID"],
+        "djmdSongHotCueBanklist": ["ContentID"],
+        "djmdSongMyTag": ["ContentID"],
+        "djmdSongRelatedTracks": ["ContentID"],
+        "djmdSongRequestList": ["ContentID"],
+        "djmdSongSampler": ["ContentID"],
+        "djmdSongTagList": ["ContentID"],
     ]
 
     /// DB 구조와 DB 버전을 확인한다. 다르면 `writeRefused`.
