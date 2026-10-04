@@ -517,17 +517,9 @@ public enum RekordboxWriter {
                 throw recover(from: error, database: database, backup: backup, live: live)
             }
         }
-        // masterPlaylists6.xml: DB를 확인한 뒤 적는다. 적지 못하면 DB·XML 모두 쓰기 전으로(백업에 둔 XML을 `restoreFiles`가 함께 살린다).
-        // 고칠 줄이 없으면(곡이 든 목록의 NODE가 없음 등) 같은 내용을 다시 쓰지 않는다.
+        // masterPlaylists6.xml: DB를 확인한 뒤 적는다. 고칠 줄이 없으면(곡이 든 목록의 NODE가 없음 등) 같은 내용을 다시 쓰지 않는다.
         if let backup, let updatedXML, let original = playlistXML, updatedXML != original {
-            do {
-                try updatedXML.data.write(to: playlistXMLURL, options: .atomic)
-                guard try MasterPlaylistsXML(contentsOf: playlistXMLURL) == updatedXML else {
-                    throw DJCError.writeVerificationFailed(String(ui: "masterPlaylists6.xml을 다시 읽으니 적은 것과 다릅니다"))
-                }
-            } catch {
-                throw recover(from: error, database: database, backup: backup, live: live)
-            }
+            try writePlaylistXML(updatedXML, original: original, to: playlistXMLURL, database: database, backup: backup, live: live)
         }
 
         // 분석 파일(붙이기는 새로 만들고, 그리드는 고친다): DB가 끝난 뒤 쓴다. 하나라도 검증에 실패하면 DB·파일 모두 쓰기 전으로
@@ -611,16 +603,38 @@ public enum RekordboxWriter {
 
     // MARK: - 커밋 뒤 실패
 
+    /// masterPlaylists6.xml을 적고 다시 읽어 확인한다(DB를 커밋하고 확인한 뒤). 적거나 다시 읽다 실패하면 DB를 되돌리기 전에 원본 XML부터
+    /// 다시 쓰고(재생 목록 쓰기 #38과 같은 순서라 DB 복원이 실패해도 XML은 원본) DB를 백업으로 되돌린다.
+    /// - Parameter read: 다시 읽기(시험만 바꾼다)
+    static func writePlaylistXML(_ updated: MasterPlaylistsXML, original: MasterPlaylistsXML, to url: URL, database: URL, backup: URL, live: Bool,
+                                 read: (URL) throws -> MasterPlaylistsXML = { try MasterPlaylistsXML(contentsOf: $0) }) throws {
+        do {
+            try updated.data.write(to: url, options: .atomic)
+            guard try read(url) == updated else {
+                throw DJCError.writeVerificationFailed(String(ui: "masterPlaylists6.xml을 다시 읽으니 적은 것과 다릅니다"))
+            }
+        } catch {
+            throw recover(from: error, database: database, backup: backup, live: live, filesLabel: "masterPlaylists6.xml") {
+                // 원자적 쓰기가 실패했으면 원본 그대로다. 같은 내용을 다시 쓰다 같은 이유로 실패해 복원 실패로 알리지 않는다.
+                guard (try? Data(contentsOf: url)) != original.data else { return }
+                try original.data.write(to: url, options: .atomic)
+            }
+        }
+    }
+
     /// 커밋 뒤 확인·분석 파일 쓰기가 실패했을 때 쓰기 전으로 되돌리고 던질 오류를 고른다.
     /// 모두 되돌렸으면 `writeRolledBack`, 하나라도 못 했거나 되돌린 DB가 무결성 검사를 통과하지 못하면 `restoreFailed`.
     /// - Parameters:
     ///   - restoreDatabase: DB를 커밋했으면 true(백업의 master.db로 바꾼다)
     ///   - files: 분석 파일 되돌리기(바꾼 파일은 원본으로, 만든 파일은 지우기)
     static func recover(from failure: any Error, database: URL, backup: URL, live: Bool, restoreDatabase: Bool = true,
-                        files: () throws -> Void = {}) -> DJCError {
+                        filesLabel: String? = nil, files: () throws -> Void = {}) -> DJCError {
         var problems: [String] = []
-        // files는 분석 파일·아트워크를 되돌린다(그리드·분석 붙이기·합치기). DB와 masterPlaylists6.xml은 restoreFiles가 백업에서 살린다.
-        do { try files() } catch { problems.append(String(ui: "분석·아트워크 파일: \(DJCError.reason(of: error))")) }
+        // files는 분석 파일·아트워크(그리드·분석 붙이기·합치기)나 원본 XML(filesLabel)을 되돌린다. DB와 XML은 restoreFiles가 백업에서 살린다.
+        do { try files() } catch {
+            let reason = DJCError.reason(of: error)
+            problems.append(filesLabel.map { "\($0): \(reason)" } ?? String(ui: "분석·아트워크 파일: \(reason)"))
+        }
         if restoreDatabase {
             // restoreFiles는 DB를 되살린 뒤에만 XML을 되살리고, 실패에 꼬리표("master.db:"·"masterPlaylists6.xml:")를 붙여 던진다.
             do { try restoreFiles(from: backup, to: database) } catch { problems.append(DJCError.reason(of: error)) }

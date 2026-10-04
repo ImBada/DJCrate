@@ -366,6 +366,32 @@ struct RekordboxRestoreFailureTests {
         #expect(try Data(contentsOf: xml) == written)
     }
 
+    /// XML을 적은 뒤 다시 읽은 것이 적은 것과 어긋나면, DB를 되돌리기 전에 원본 XML부터 다시 쓴다(dev 재생 목록 쓰기 #38과 같은 순서).
+    /// 그래서 DB 복원이 실패해도 XML은 원본으로 돌아온다. 다시 읽기만 시험에서 바꿔 어긋남을 만든다.
+    @Test(arguments: [false, true]) func 다시_읽기가_적은_것과_어긋나면_XML은_원본으로_돌아온다(blocksDatabase: Bool) throws {
+        let fixture = try RekordboxFixture(localUpdateCount: 900)
+        _ = try fixture.add(TrackSpec())
+        let url = fixture.root.appending(path: "masterPlaylists6.xml")
+        var original = MasterPlaylistsXML(text: MasterPlaylistsXMLTests.empty)
+        try original.append(id: "201", parentID: "root", isFolder: false, timestamp: 1_000)
+        try original.text.write(to: url, atomically: true, encoding: .utf8)
+        let backup = try RekordboxWriter.makeBackup(of: fixture.database, in: fixture.backups, now: now, label: "write")
+        var updated = original
+        updated.touch(ids: ["201"], timestamp: 2_000)
+        if blocksDatabase { try blockRestore(fixture) }
+        defer { unlock(fixture) }
+        let error = try #require(throws: DJCError.self) {
+            try RekordboxWriter.writePlaylistXML(updated, original: original, to: url, database: fixture.database, backup: backup, live: false,
+                                                 read: { _ in original })
+        }
+        #expect(try MasterPlaylistsXML(contentsOf: url) == original, "원본 XML로")
+        switch error {
+        case .writeRolledBack: #expect(!blocksDatabase)
+        case let .restoreFailed(_, restoreError, _, _): #expect(blocksDatabase && restoreError.contains("master.db"))
+        default: Issue.record("되돌림 오류가 아님: \(error)")
+        }
+    }
+
     func acl(_ arguments: [String]) throws {
         let process = Process()
         process.executableURL = URL(filePath: "/bin/chmod")
