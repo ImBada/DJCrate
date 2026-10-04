@@ -240,13 +240,13 @@ extension RekordboxWriter {
         var deleted = 0
 
         init(_ db: CipherDatabase, table: String, id: String) throws {
-            let columns = switch table {
-            case "djmdArtist": ["ArtistID", "ComposerID", "OrgArtistID", "RemixerID"]
-            case "djmdAlbum": ["AlbumID"]
-            default: ["GenreID"]
+            // 칸 목록은 곡 빼기와 같다(RekordboxTrackWriter.contentReferenceColumns)
+            var parts = RekordboxTrackWriter.contentReferenceColumns(table: table).map {
+                "SELECT rb_local_deleted != 0 AS gone FROM djmdContent WHERE \($0) = ?1"
             }
-            var parts = columns.map { "SELECT rb_local_deleted != 0 AS gone FROM djmdContent WHERE \($0) = ?1" }
-            if table == "djmdArtist" { parts.append("SELECT rb_local_deleted != 0 AS gone FROM djmdAlbum WHERE AlbumArtistID = ?1") }
+            if table == "djmdArtist" {
+                parts.append("SELECT rb_local_deleted != 0 AS gone FROM djmdAlbum WHERE \(RekordboxTrackWriter.albumArtistColumn) = ?1")
+            }
             var live = 0, deleted = 0
             try db.query("SELECT gone, count(*) FROM (\(parts.joined(separator: " UNION ALL "))) GROUP BY gone", [.text(id)]) {
                 if $0.int(0) == 1 { deleted += $0.int(1) ?? 0 } else { live += $0.int(1) ?? 0 }

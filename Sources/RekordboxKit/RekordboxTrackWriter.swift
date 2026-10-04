@@ -530,16 +530,28 @@ public enum RekordboxTrackWriter {
         return Outcome(path: track.path, contentID: id, title: track.title, written: true, reason: nil)
     }
 
+    /// 이름·앨범 행을 가리키는 곡 행 칸(곡 빼기와 태그 쓰기가 같이 쓴다). 아티스트는 여기에 앨범의 `albumArtistColumn`도 더한다.
+    static func contentReferenceColumns(table: String) -> [String] {
+        switch table {
+        case "djmdArtist": ["ArtistID", "ComposerID", "OrgArtistID", "RemixerID"]
+        case "djmdAlbum": ["AlbumID"]
+        default: ["GenreID"]
+        }
+    }
+    /// 아티스트를 가리키는 앨범 칸
+    static let albumArtistColumn = "AlbumArtistID"
+
+    /// 곡 빼기에서 아무 곡도 안 쓰게 됐는지 보는 참조 수(지운 곡·앨범도 센다, 묶음 1·2 규칙). 칸 목록은 태그 쓰기와 같다.
     static func referenceCount(_ db: CipherDatabase, artist: String) throws -> Int {
-        let content = try RekordboxWriter.scalar(db, """
-            SELECT count(*) FROM djmdContent WHERE ArtistID = ?1 OR ComposerID = ?1 OR OrgArtistID = ?1 OR RemixerID = ?1
-            """, [.text(artist)]) ?? 1
-        let albums = try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdAlbum WHERE AlbumArtistID = ?", [.text(artist)]) ?? 1
+        let columns = contentReferenceColumns(table: "djmdArtist").map { "\($0) = ?1" }.joined(separator: " OR ")
+        let content = try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdContent WHERE \(columns)", [.text(artist)]) ?? 1
+        let albums = try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdAlbum WHERE \(albumArtistColumn) = ?", [.text(artist)]) ?? 1
         return content + albums
     }
 
     static func referenceCount(_ db: CipherDatabase, album: String) throws -> Int {
-        try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdContent WHERE AlbumID = ?", [.text(album)]) ?? 1
+        let column = contentReferenceColumns(table: "djmdAlbum")[0]
+        return try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdContent WHERE \(column) = ?", [.text(album)]) ?? 1
     }
 
     // MARK: - 공통
