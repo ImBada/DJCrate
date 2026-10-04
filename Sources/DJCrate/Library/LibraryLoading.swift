@@ -147,11 +147,13 @@ struct LoadedLibrary: Sendable {
                     sourceDatabase: sourceDatabase)
             } else {
                 result = current
-                // 쓰기 후 Music을 다시 읽지 않아도, 끝난 작업을 '스냅샷을 뜨는 중'으로 남기지 않는다.
+                // 쓰기 후 Music을 다시 읽지 않아도, 앞서 Music을 조회해 실패했으면 그 실패를 이어 간다(사본 파일은 미캡처로 남는다).
+                // 조회한 적 없는 사본(`DJC_REKORDBOX_DIR`·`--db`)의 미캡처는 그대로 둔다: 읽는 중은 `.loading`이 따로 있어
+                // 미캡처는 "캡처한 목록이 없다"만 뜻하고, 접근 권한 안내로 바꾸면 조회하지도 않은 Music 탓이 된다(#197).
                 if result.status == .notCaptured, let previous = previousITunesSnapshot,
                    previous.preferOverCurrent,
                    sameSource(previous, snapshot: snapshot, sourceDatabase: sourceDatabase),
-                   previous.contents.status == .notCaptured || previous.contents.status == .unavailable {
+                   previous.contents.status == .unavailable {
                     result.status = .unavailable
                 }
             }
