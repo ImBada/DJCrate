@@ -247,13 +247,15 @@ extension RekordboxTagWriterTests {
         #expect(try content(fixture)["rb_local_usn"] == "2003" && fixture.localUpdateCount() == 2003)
     }
 
-    @Test(arguments: [257, 2, 262]) func 버려질_이름_행이_258로_표시할_수_없는_상태면_백업_전에_막는다(state: Int) throws {
-        // 257 행이 버려질 때는 확인하지 못했다(#173 S1~S3의 옛 행은 모두 256). 그 밖의 상태도 막는다.
+    @Test(arguments: [257, 2, 262]) func 버려질_이름_행이_258로_표시할_수_없는_상태면_그_초안만_막는다(state: Int) throws {
+        // 257 행이 버려질 때는 확인하지 못했다(#173 S1~S3의 옛 행은 모두 256). 그 밖의 상태도 막는다. 버려졌는지는 트랜잭션 안에서 실제로 쓴 뒤
+        // 세므로, 그 초안만 SAVEPOINT로 되돌리고(번호도) 막힘으로 보고한다.
         let (fixture, track) = try library(shared: false)
         try sync(fixture, "djmdArtist", "11", state: state)
-        let before = try content(fixture)
+        let before = try content(fixture), artists = try fixture.rows("SELECT * FROM djmdArtist ORDER BY ID")
         let report = try write(fixture, tags: [try draft(fixture, track) { $0.artist = "DJC 173 아티스트" }])
-        #expect(report.tagWritten.isEmpty && report.backup == nil)
+        #expect(report.tagWritten.isEmpty)
+        #expect(try fixture.rows("SELECT * FROM djmdArtist ORDER BY ID") == artists, "새 아티스트 행도 되돌린다")
         #expect(report.tagBlocked.first?.reason?.contains("rekordbox에서 직접") == true)
         #expect(try content(fixture) == before && fixture.localUpdateCount() == 2000)
     }
@@ -339,13 +341,13 @@ extension RekordboxTagWriterTests {
         #expect(try content(fixture)["TrackInfoUpdated"] == "5" && content(fixture)["AlbumID"] == "31")
     }
 
-    @Test func 버려질_앨범이_257이면_백업_전에_막는다() throws {
+    @Test func 버려질_앨범이_257이면_막는다() throws {
         // 257 앨범을 저장하는 것은 확인했지만(S3 V03) 257 앨범이 버려질 때는 보지 못했다.
         let (fixture, track) = try library(shared: false)
         try sync(fixture, "djmdAlbum", "31", state: 257)
         for edit in [{ (f: inout TagFields) in f.album = "DJC 173 앨범" }, { (f: inout TagFields) in f.album = "" }] {
             let report = try write(fixture, tags: [try draft(fixture, track, edit)])
-            #expect(report.tagWritten.isEmpty && report.backup == nil)
+            #expect(report.tagWritten.isEmpty)
             #expect(report.tagBlocked.first?.reason?.contains("동기화 앨범") == true)
         }
         #expect(try fixture.localUpdateCount() == 2000)
@@ -376,23 +378,6 @@ extension RekordboxTagWriterTests {
         #expect(report.tagWritten.map(\.trackUUID) == [track.uuid] && report.tagBlocked.map(\.trackUUID) == [neighbor.uuid])
         #expect(report.tagBlocked.first?.reason?.contains("동기화 앨범") == true)
         #expect(try row(fixture, "djmdAlbum", "31")?["rb_data_status"] == "257" && content(fixture, "501")["AlbumID"] == "31")
-    }
-
-    @Test func 버릴_행을_다시_센_값이_계획과_다르면_쓰기_전체를_되돌린다() throws {
-        // 버릴 행은 확인 때 정하고(planReleases) 쓰는 중에 다시 센다. 계획 밖에서 참조가 생기면(여기서는 시험용 트리거가 옛 아티스트를
-        // 작곡가 칸에 다시 넣는다) 계산이 틀린 것이므로 막힘이 아니라 검증 실패로 쓰기 전체를 되돌린다.
-        let (fixture, track) = try library(shared: false)
-        try sync(fixture, "djmdArtist", "11")
-        try fixture.execute("""
-            CREATE TRIGGER djc_test_reference AFTER UPDATE OF ArtistID ON djmdContent
-            BEGIN UPDATE djmdContent SET ComposerID = OLD.ArtistID WHERE ID = NEW.ID; END
-            """)
-        let before = try content(fixture), artist = try row(fixture, "djmdArtist", "11")
-        let error = try #require(throws: DJCError.self) {
-            try write(fixture, tags: [try draft(fixture, track) { $0.artist = "DJC 173 아티스트" }])
-        }
-        guard case .writeVerificationFailed = error else { Issue.record("검증 실패가 아님: \(error)"); return }
-        #expect(try content(fixture) == before && row(fixture, "djmdArtist", "11") == artist && fixture.localUpdateCount() == 2000)
     }
 
     @Test func 앞_초안이_버린_이름을_뒤_초안이_다시_쓰면_새_행을_만든다() throws {

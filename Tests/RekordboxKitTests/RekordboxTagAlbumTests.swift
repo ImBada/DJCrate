@@ -218,7 +218,7 @@ extension RekordboxTagWriterTests {
                 #expect(try fixture.rows("SELECT rb_data_status, rb_local_deleted FROM djmdAlbum WHERE ID = '41'").first
                     == ["rb_data_status": "258", "rb_local_deleted": "1"])
             } else {
-                #expect(report.tagWritten.isEmpty && report.backup == nil && report.tagBlocked.first?.reason?.contains("동기화 앨범") == true)
+                #expect(report.tagWritten.isEmpty && report.tagBlocked.first?.reason?.contains("동기화 앨범") == true)
             }
         }
     }

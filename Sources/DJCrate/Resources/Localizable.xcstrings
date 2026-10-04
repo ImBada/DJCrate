@@ -12495,6 +12495,22 @@
         }
       }
     },
+    "곡 행의 변경 번호를 다시 매기지 못했으니 rekordbox를 그대로 둔 채 문제를 알려 주세요 (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not renumber the track row. Leave rekordbox as it is and report the problem (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲の行の変更番号を付け直せませんでした。rekordboxはそのままにして問題を報告してください（%@）"
+          }
+        }
+      }
+    },
     "곡 행이 남아 있습니다" : {
       "localizations" : {
         "en" : {
@@ -15307,22 +15323,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "対象がUSBから消えました。USBを読み込み直してから編集してください"
-          }
-        }
-      }
-    },
-    "더 쓰지 않게 될 이름 행의 참조가 계산과 다르니 rekordbox를 그대로 둔 채 문제를 알려 주세요 (%@)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "References to name rows that this write releases differ from the plan. Leave rekordbox as it is and report the problem (%@)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "手放す名前の行の参照が計算と異なります。rekordboxはそのままにして問題を報告してください（%@）"
           }
         }
       }
