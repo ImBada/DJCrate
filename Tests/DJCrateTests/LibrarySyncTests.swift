@@ -266,4 +266,59 @@ struct LibrarySyncTests {
         #expect(store.tagDrafts[spec.uuid] == before && TagDraftStore.load(trackUUID: spec.uuid) == before)
     }
 
+    // MARK: - 라이브러리에 곡이 없는 초안은 충돌이 아니다(#197)
+
+    /// 라이브러리 곡이 아닌 곡 UUID(추가 목록 곡, 넣은 뒤 연결이 끊긴 초안)의 태그 초안. 디스크에 저장해 다시 읽기가 읽게 한다.
+    func writeOrphanTagDraft(_ uuid: String, comment: String) {
+        var draft = TagDraft(trackUUID: uuid, base: TagFields())
+        draft.fields.comment = comment
+        DraftWriter.save([draft])
+        DraftWriter.flush()
+    }
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 추가_목록_곡의_태그_초안은_동기화에서_충돌로_세지_않는다() async throws {
+        let fixture = try RekordboxFixture(), spec = TrackSpec()
+        try fixture.add(spec)
+        try fixture.execute("UPDATE djmdContent SET rb_data_status = 0 WHERE ID = ?", [.text(spec.id)])
+        let store = store(fixture), args = ["test", "--db", fixture.database.path]
+        await store.load(snapshot: fixture.database, arguments: args, environment: [:])
+        let staged = try JSONDecoder().decode(StagedTrack.self, from: Data("""
+            {"uuid":"\(UUID().uuidString)","path":"/tmp/djc-synthetic.mp3","title":"합성 추가 곡","comment":"","duration":2,"addedOn":"2026-10-01"}
+            """.utf8))
+        store.staged = [staged]
+        let unlinked = UUID().uuidString
+        writeOrphanTagDraft(staged.uuid, comment: "추가 곡 코멘트")
+        writeOrphanTagDraft(unlinked, comment: "연결이 끊긴 초안")
+        defer {
+            for uuid in [staged.uuid, unlinked] { try? TagDraftStore.remove(trackUUID: uuid, directory: TagDraftStore.directory) }
+        }
+        let stagedBefore = try #require(TagDraftStore.load(trackUUID: staged.uuid))
+        let unlinkedBefore = try #require(TagDraftStore.load(trackUUID: unlinked))
+        await store.load(snapshot: fixture.database, quiet: true, synchronizingDrafts: true, arguments: args, environment: [:])
+        DraftWriter.flush()
+        #expect(store.toast?.kind != .warning, "라이브러리에 없는 곡의 초안은 비교할 rekordbox 값이 없어 충돌이 아니다: \(String(describing: store.toast))")
+        // 초안은 그대로 보존한다(지우거나 기준을 바꾸지 않는다)
+        #expect(store.tagDrafts[staged.uuid] == stagedBefore && TagDraftStore.load(trackUUID: staged.uuid) == stagedBefore)
+        #expect(store.tagDrafts[unlinked] == unlinkedBefore && TagDraftStore.load(trackUUID: unlinked) == unlinkedBefore)
+    }
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 곡이_없는_초안이_있어도_라이브러리_곡의_실제_충돌은_센다() async throws {
+        let fixture = try RekordboxFixture(), spec = TrackSpec()
+        try fixture.add(spec)
+        try fixture.execute("UPDATE djmdContent SET rb_data_status = 0 WHERE ID = ?", [.text(spec.id)])
+        let store = store(fixture), args = ["test", "--db", fixture.database.path]
+        await store.load(snapshot: fixture.database, arguments: args, environment: [:])
+        store.setTag(.comment, "내 코멘트", rows: [try #require(store.rowsByUUID[spec.uuid])])
+        let orphans = [UUID().uuidString, UUID().uuidString]
+        for uuid in orphans { writeOrphanTagDraft(uuid, comment: "곡이 없는 초안") }
+        DraftWriter.flush()
+        defer {
+            for uuid in orphans + [spec.uuid] { try? TagDraftStore.remove(trackUUID: uuid, directory: TagDraftStore.directory) }
+        }
+        try fixture.execute("UPDATE djmdContent SET Commnt = '현재 코멘트' WHERE ID = ?", [.text(spec.id)])
+        await store.load(snapshot: fixture.database, quiet: true, synchronizingDrafts: true, arguments: args, environment: [:])
+        #expect(store.toast?.kind == .warning)
+        #expect(store.toast?.detail?.contains("1곡") == true, "충돌은 라이브러리 곡 1곡뿐이다: \(String(describing: store.toast?.detail))")
+        #expect(store.tagDrafts[spec.uuid]?.fields.comment == "내 코멘트")
+    }
 }

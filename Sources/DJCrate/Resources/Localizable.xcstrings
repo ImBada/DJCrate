@@ -9801,22 +9801,6 @@
         }
       }
     },
-    "rekordbox에서 곡 정보를 고친 적이 있는 분석 전 곡이라 분석을 붙이지 않습니다. rekordbox에서 트랙 분석을 하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This unanalyzed track's information has been edited in rekordbox, so no analysis will be added. Analyze the track in rekordbox"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxで情報を編集したことがある未解析の曲なので、解析を追加しません。rekordboxで楽曲を解析してください"
-          }
-        }
-      }
-    },
     "rekordbox에서 곡을 빼는 중…" : {
       "localizations" : {
         "en" : {
@@ -12635,6 +12619,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "曲の情報が長すぎてDevice Libraryに書き込めません。rekordboxでコメントなどの曲の情報を短くしてからもう一度試してください"
+          }
+        }
+      }
+    },
+    "곡 정보가 이미 저장된 분석 전 곡이라 분석을 붙이지 않습니다. rekordbox에서 트랙 분석을 하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This unanalyzed track already has its information saved, so no analysis will be added. Analyze the track in rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲情報がすでに保存されている未解析の曲なので、解析を追加しません。rekordboxで楽曲を解析してください"
           }
         }
       }
@@ -15539,6 +15539,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "追加した%lld曲はコレクションから外れ、DJCrateの追加リストに戻ります（解析・アートワークファイルも削除）。"
+          }
+        }
+      }
+    },
+    "넣은 곡에 남아 있던 태그 초안 %lld곡은 지우지 않고 연결되지 않은 초안으로 남겼습니다. 필요 없으면 ‘연결되지 않은 초안 보기…’에서 버리세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag drafts left on %lld added track(s) were kept as unlinked drafts instead of being deleted. Discard them in “Show Unlinked Drafts…” if you don't need them."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加した曲に残っていた%lld曲分のタグの下書きは、削除せず、リンクされていない下書きとして残しました。不要な場合は「リンクされていない下書きを表示…」で破棄してください。"
           }
         }
       }

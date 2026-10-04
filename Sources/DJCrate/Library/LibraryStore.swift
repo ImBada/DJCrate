@@ -822,8 +822,17 @@ final class LibraryStore {
         loadGeneration += 1
         let generation = loadGeneration
         let started = ContinuousClock.now
+        // 읽기와 한 번에 Music을 조회하는 경로(`refreshITunes`)도 `startITunesRefresh`처럼, 사이드바가 보이는 동안 캡처한 목록이 없다는 안내를
+        // 읽는 중 안내로 바꾼다(#197). 결과를 채택하면 그 결과로 바뀌고, 채택하지 못하고 끝났을 때(실패·취소·옛 읽기)만 되돌린다.
+        var markedITunesLoading = false
+        if refreshITunes, iTunesLibrary.status == .notCaptured {
+            iTunesLibrary.status = .loading
+            markedITunesLoading = true
+        }
         defer {
             if generation == loadGeneration, Task.isCancelled, isLoading { phase = rows.isEmpty ? .idle : .loaded }
+            // 따로 도는 Music 최신화가 있으면 그 쪽이 읽는 중 표시를 되돌린다.
+            if markedITunesLoading, iTunesLibrary.status == .loading, iTunesRefresh == nil { iTunesLibrary.status = .notCaptured }
         }
         if !quiet { phase = .loading(LoadedLibrary.Stage.database.message) }
         do {
@@ -879,7 +888,10 @@ final class LibraryStore {
             var rebased: [TagDraft] = []
             if synchronizingDrafts {
                 for (uuid, draft) in latestTags where !failedTags.contains(uuid) {
-                    guard let row = rowsByUUID[uuid], let updated = draft.rebased(onto: row.tagFields) else {
+                    // 라이브러리에 곡이 없는 초안(추가 목록 곡, 넣은 뒤 연결이 끊긴 초안)은 비교할 rekordbox 값이 없다.
+                    // 충돌로 세지 않고 그대로 둔다(연결 안 된 초안은 쓰기 대기 목록에서 따로 다룬다, #175).
+                    guard let row = rowsByUUID[uuid] else { continue }
+                    guard let updated = draft.rebased(onto: row.tagFields) else {
                         conflicts += 1
                         continue
                     }
