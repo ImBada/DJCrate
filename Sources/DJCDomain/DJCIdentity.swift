@@ -18,7 +18,7 @@ public enum DJCIdentity {
     }
 
     /// 초안·백업·캐시(파형·분석·음량)의 뿌리. `DJC_HOME`을 주면 그쪽(시험·자가 테스트가 사용자 폴더를 건드리지 않게, #195),
-    /// 없으면 `supportDirectory`. `DJC_HOME`을 읽는 곳은 여기 한 곳이다.
+    /// 없으면 `supportDirectory`. 이 뿌리를 정하는 곳은 여기 한 곳이다(곡 편집본 위치는 `DJCPaths.editOutput`이 따로 정한다).
     public static var dataDirectory: URL {
         dataDirectory(environment: ProcessInfo.processInfo.environment, support: supportDirectory)
     }
