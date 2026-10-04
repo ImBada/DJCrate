@@ -139,7 +139,7 @@ struct LibraryReadTests {
         #expect((data["gain"] as? [String: Any])?["linear"] as? Double == 0.5)
         #expect(Set(try #require(data["gain"] as? [String: Any]).keys) == ["linear", "decibels", "peak"])
         #expect((data["playlists"] as? [[String: Any]])?.map { $0["id"] as? String } == ["p1"])
-        #expect((data["drafts"] as? [String: Bool]) == ["cue": false, "grid": false, "gain": false, "tag": false])
+        #expect((data["drafts"] as? [String: Bool]) == ["cue": false, "grid": false, "gain": false, "tag": false, "artwork": false])
         let missing = try json("track", read.track(id: "102"))
         #expect(missing["gain"] == nil)
         #expect((missing["grid"] as? [String: Any])?["status"] as? String == "unavailable")

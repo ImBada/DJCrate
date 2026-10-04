@@ -54,6 +54,7 @@ extension LibraryStore {
             do {
                 try ArtworkDraftStore.remove(trackUUID: row.track.uuid, directory: artworkDirectory)
                 artworkDrafts[row.track.uuid] = nil
+                artworkChangeCount += 1
                 updateEdited(row.track.uuid)
             } catch { failed += 1 }
         }
@@ -66,6 +67,7 @@ extension LibraryStore {
             do {
                 try ArtworkDraftStore.save(edit, directory: artworkDirectory)
                 artworkDrafts[edit.trackUUID] = edit.draft
+                artworkChangeCount += 1
                 updateEdited(edit.trackUUID)
             } catch { failed += 1 }
         }
@@ -104,6 +106,7 @@ extension LibraryStore {
         for uuid in written {
             do { try ArtworkDraftStore.remove(trackUUID: uuid, directory: artworkDirectory) } catch { failed += 1 }
             artworkDrafts[uuid] = nil
+            artworkChangeCount += 1
             updateEdited(uuid)
         }
         ArtworkRevisions.bump(written.compactMap { rowsByUUID[$0]?.track.id })
@@ -119,6 +122,7 @@ extension LibraryStore {
         for edit in edits where !keeps(edit.trackUUID) {
             guard (try? ArtworkDraftStore.save(edit, directory: artworkDirectory)) != nil else { continue }
             artworkDrafts[edit.trackUUID] = edit.draft
+            artworkChangeCount += 1
             updateEdited(edit.trackUUID)
             restored.insert(edit.trackUUID)
         }

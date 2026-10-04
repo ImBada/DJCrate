@@ -274,6 +274,8 @@ final class LibraryStore {
     @ObservationIgnored var artworkFileRows: [String: [ArtworkFileRow]] = [:]
     /// 그림 초안 안내(읽지 못한 그림·쓸 수 없는 곡)
     var artworkMessage: AppMessage?
+    /// 그림 초안을 고친 횟수. 백그라운드 읽기 사이에 고쳤으면 읽은 초안 대신 디스크를 다시 읽는다.
+    @ObservationIgnored var artworkChangeCount = 0
     @ObservationIgnored var recoveryMemoryInput: ((String, DraftRecoveryKind) -> RecoveryDraft?)?
     @ObservationIgnored var onDraftRecovered: ((RecoveryDraft, TrackRow?, BeatGrid?) -> Void)?
     var isRecoveringDraft = false
@@ -828,7 +830,7 @@ final class LibraryStore {
             // 메인 액터에서 정한 요청 순서를 캡처가 끝날 때까지 유지한다.
             let refreshTicket = ITunesRefreshCoordinator.shared.begin(snapshot: snapshot, sourceDatabase: sourceDatabase)
             // 초안을 읽기 전에 손상된 파일을 옮겨 보관하고 알린다(빈 값으로 읽어 덮지 않게, #174).
-            let draftHome = draftHome, artworkDirectory = artworkDirectory
+            let draftHome = draftHome, artworkDirectory = artworkDirectory, artworkChanges = artworkChangeCount
             let moved = try await Self.runBlockingLibraryWork { draftHome.map { DraftWriter.preserveDamagedDrafts(home: $0) } ?? [] }
             guard generation == loadGeneration, !Task.isCancelled else { return }
             reportDamagedDrafts(moved)
@@ -892,7 +894,8 @@ final class LibraryStore {
             gridDraftUUIDs = loaded.gridDraftUUIDs
             gainDraftUUIDs = loaded.gainDraftUUIDs
             preserveUnsavedDraftIndicators()
-            artworkDrafts = loaded.artworkDrafts
+            // 읽는 동안 그림 초안을 고쳤으면(저장은 바로 끝난다) 읽은 값 대신 지금 디스크를 쓴다.
+            artworkDrafts = artworkChanges == artworkChangeCount ? loaded.artworkDrafts : ArtworkDraftStore.all(directory: artworkDirectory)
             artworkFileRows = loaded.artworkFiles
             editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys).union(artworkDrafts.keys)
             rekordboxPlaylists = loaded.playlists

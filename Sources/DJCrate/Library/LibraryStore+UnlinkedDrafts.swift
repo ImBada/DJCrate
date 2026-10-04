@@ -91,6 +91,7 @@ extension LibraryStore {
                 do {
                     try ArtworkDraftStore.remove(trackUUID: uuid, directory: home.appending(path: ArtworkDraftStore.folderName))
                     artworkDrafts[uuid] = nil
+                    artworkChangeCount += 1
                 } catch { failedArtwork.insert(uuid) }
             }
         }
