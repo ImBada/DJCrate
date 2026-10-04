@@ -57,6 +57,8 @@ public enum RekordboxCompatibility {
     static let requiredColumns: [String: Set<String>] = [
         "agentRegistry": ["registry_id", "int_1"],
         "djmdProperty": ["DBVersion"],
+        // 곡의 키: 고를 줄을 찾고(ScaleName, 삭제 표시) 읽는다. 이 표는 고치지 않는다(2026-10-04 키 쓰기).
+        "djmdKey": ["ID", "ScaleName", "rb_local_deleted"],
         // 곡 삭제 때 지우거나 번호를 당기는 표(곡 항목 djmdSongPlaylist는 위에서 칸 전체를 본다)
         "djmdSongHistory": ["ID", "HistoryID", "ContentID", "TrackNo", "rb_local_usn", "updated_at"],
     ]

@@ -9,9 +9,12 @@ import Foundation
 extension RekordboxWriter {
     /// rekordbox 실험으로 쓰기 규칙을 확인한 칸. 이 밖의 칸을 고친 초안은 곡째 막는다(docs/rekordbox-internals.md "태그 (곡 정보)").
     /// 공유 앨범 값 변경·동명 앨범 선택·미확인 상태는 `checkTags`에서 곡째 막는다.
-    public static let writableTagKeys: Set<TagFields.Key> = [.title, .artist, .album, .albumArtist, .genre, .composer, .year, .trackNumber, .comment]
+    public static let writableTagKeys: Set<TagFields.Key> = [.title, .artist, .album, .albumArtist, .genre, .composer, .year, .trackNumber, .comment, .musicalKey]
     /// 태그 쓰기를 확인한 곡·앨범 상태(#171·#173 2026-10-04). 0 그대로, 256 → 257, 257 그대로. 그 밖의 상태는 막는다.
     static let verifiedTagStates: Set<Int> = [0, 256, 257]
+    /// 쓰면 재생 목록 XML(`masterPlaylists6.xml`)의 Timestamp를 고치는 칸. 정보 패널 아홉 칸은 모두 고친다(#173).
+    /// 키는 S5 K1(2026-10-04) 결과 전까지 확인하지 않아 뺀다: 키만 고친 초안은 XML을 읽지도 고치지도 않는다.
+    static let playlistXMLTagKeys: Set<TagFields.Key> = Set(TagFields.Key.allCases).subtracting([.musicalKey])
 
     /// 쓴 뒤 곡이 가져야 할 태그
     struct TagExpectation {
@@ -29,6 +32,8 @@ extension RekordboxWriter {
         var deletedNames: [(table: String, id: String)] = []
         /// 아무 곡도 안 쓰게 되어 258로 표시한 동기화 이름·앨범 행(#173)
         var markedNames: [MarkedName] = []
+        /// 쓴 `KeyID`(키 칸을 고쳤을 때만). 지우면 '0'
+        var keyID: String?
 
         /// 버려진 앨범 행(지웠거나 258로 표시). 같은 반영의 앞 편집이 그 행에 건 기대값은 뒤 편집이 맡는다.
         var releasedAlbums: Set<String> {
@@ -81,6 +86,10 @@ extension RekordboxWriter {
         var old: TagOldNames
         /// 아티스트를 고치며 같은 이름의 새 앨범으로 옮기는지(`migratesToSameNameAlbum`)
         var migratesAlbum = false
+        /// 키 칸을 고칠 때 `KeyID`에 쓸 값: 고른 이름의 살아 있는 `djmdKey` 줄 ID, 지우면 '0'(`resolveKeyID`)
+        var keyID: String?
+        /// 쓰기 전 곡의 키 이름(`ScaleName`, 없으면 '')
+        var currentKey = ""
     }
 
     /// 백업에 둔 태그 초안(되돌리면 DJCrate에 다시 살린다)
@@ -95,13 +104,14 @@ extension RekordboxWriter {
     package static func currentTags(db: CipherDatabase, contentID: String) throws -> TagFields? {
         var fields: TagFields?
         try db.query("""
-            SELECT c.Title, a.Name, al.Name, aa.Name, g.Name, cp.Name, c.ReleaseYear, c.TrackNo, c.Commnt
+            SELECT c.Title, a.Name, al.Name, aa.Name, g.Name, cp.Name, c.ReleaseYear, c.TrackNo, c.Commnt, k.ScaleName
             FROM djmdContent c
             LEFT JOIN djmdArtist a ON a.ID = c.ArtistID
             LEFT JOIN djmdAlbum al ON al.ID = c.AlbumID
             LEFT JOIN djmdArtist aa ON aa.ID = al.AlbumArtistID
             LEFT JOIN djmdGenre g ON g.ID = c.GenreID
             LEFT JOIN djmdArtist cp ON cp.ID = c.ComposerID
+            LEFT JOIN djmdKey k ON k.ID = c.KeyID
             WHERE c.ID = ?
             """, [.text(contentID)]) { r in
             var f = TagFields()
@@ -114,6 +124,8 @@ extension RekordboxWriter {
             f.year = (r.int(6)).flatMap { $0 > 0 ? String($0) : nil } ?? ""
             f.trackNumber = (r.int(7)).flatMap { $0 > 0 ? String($0) : nil } ?? ""
             f.comment = r.string(8) ?? ""
+            // 라이브러리 읽기와 같다: 삭제 표시 줄이어도 가리키는 줄의 이름을 읽고, 줄이 없으면(KeyID '0'·NULL·옛 번호) 빈칸이다.
+            f.musicalKey = r.string(9) ?? ""
             fields = f
         }
         return fields
@@ -166,15 +178,21 @@ extension RekordboxWriter {
         }
         try checkTagState(draft, state: content.state, block: block)
         try checkTagAlbum(draft, contentID: content.id, db: db, block: block)
-        guard try currentTags(db: db, contentID: content.id) == draft.base else {
+        // 키는 이 초안이 고칠 때만 기준과 비교한다. 키 칸이 없던 때의 초안(기준 키가 빈칸)이 이미 키가 있는 곡에서, 또는 그 뒤 rekordbox에서
+        // 키만 바뀐 곡에서 다른 칸 편집까지 막히지 않게 한다(키는 쓰지 않으니 어긋나도 이 초안에는 상관없다).
+        let current = try currentTags(db: db, contentID: content.id)
+        var comparable = current
+        if !draft.changedKeys.contains(.musicalKey) { comparable?.musicalKey = draft.base.musicalKey }
+        guard comparable == draft.base else {
             throw block(String(ui: "초안을 만든 뒤 rekordbox에서 곡 정보가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요"))
         }
+        let keyID = draft.changedKeys.contains(.musicalKey) ? try resolveKeyID(draft.fields.musicalKey, db: db, block: block) : nil
         guard let old = try TagOldNames.read(db, contentID: content.id) else {
             throw block(String(ui: "곡 행을 다시 읽지 못했으니 rekordbox 컬렉션에서 곡을 확인한 뒤 DJCrate에서 다시 동기화하세요"))
         }
         let migrates = try migratesToSameNameAlbum(draft, old: old, db: db)
         return CheckedTag(id: content.id, title: content.title, trackInfoUpdated: content.trackInfoUpdated, state: content.state, old: old,
-                          migratesAlbum: migrates)
+                          migratesAlbum: migrates, keyID: keyID, currentKey: current?.musicalKey ?? "")
     }
 
     /// 아티스트를 저장(바꾸기·비우기)할 때 곡의 앨범 이름을 살아 있는 앨범 둘 이상이 쓰면, rekordbox는 옛 앨범을 저장하지 않고 같은 이름의
@@ -192,10 +210,16 @@ extension RekordboxWriter {
     /// 이 초안을 쓰면 고칠 재생 목록 XML이 있는지: 그 곡이 든 살아 있는 목록이 있을 때만(백업 전 확인). 정보 패널 아홉 칸 모두
     /// Timestamp를 고친다(#173 S1 X1 아티스트, S2 U11·U12 제목, S3 V07 장르, S4 A1~A6·B2 앨범·앨범 아티스트·작곡가·연도·트랙 번호·코멘트).
     static func tagTouchesPlaylistXML(_ draft: TagDraft, db: CipherDatabase) throws -> Bool {
+        guard touchesPlaylistXML(draft) else { return false }
         var id: String?
         try db.query("SELECT ID FROM djmdContent WHERE UUID = ? AND rb_local_deleted = 0", [.text(draft.trackUUID)]) { id = $0.string(0) }
         guard let id else { return false }
         return try !tagPlaylists(db, contentID: id).isEmpty
+    }
+
+    /// 이 초안이 고치는 칸 가운데 재생 목록 XML을 고치는 칸이 있는지(`playlistXMLTagKeys`). XML 규칙은 이 집합 한 곳에서만 정한다.
+    static func touchesPlaylistXML(_ draft: TagDraft) -> Bool {
+        !Set(draft.changedKeys).isDisjoint(with: playlistXMLTagKeys)
     }
 
     /// 곡이 든 살아 있는 재생 목록(곡 정보를 쓰면 XML Timestamp를 고친다, #173). 지운 목록·지운 곡 항목은 뺀다.
@@ -386,6 +410,8 @@ extension RekordboxWriter {
         let old = content.old
         // 쓴 뒤 읽힐 값(숫자 칸은 읽기 규칙대로 다듬는다. 앨범을 비우면 앨범 아티스트도 빈칸)
         var expected = draft.base
+        // 키를 안 고친 초안은 쓴 뒤에도 곡의 지금 키 그대로여야 한다(옛 초안의 기준 키는 비어 있을 수 있다)
+        if !keys.contains(.musicalKey) { expected.musicalKey = content.currentKey }
         for key in keys { expected[key] = fields[key] }
         for key in [TagFields.Key.year, .trackNumber] where keys.contains(key) {
             let number = Int(fields[key]) ?? 0
@@ -463,6 +489,8 @@ extension RekordboxWriter {
         if keys.contains(.year) { columns.append(("ReleaseYear", .int(Int(fields.year) ?? 0))) }
         if keys.contains(.trackNumber) { columns.append(("TrackNo", .int(Int(fields.trackNumber) ?? 0))) }
         if keys.contains(.comment) { columns.append(("Commnt", .text(fields.comment))) }
+        // 키: 고른 줄의 ID(글자), 지우면 '0'(글자). `djmdKey`는 고치지 않는다(2026-10-04 묶음 2 S1·S3·S4, #173 T13·U10)
+        if keys.contains(.musicalKey) { columns.append(("KeyID", .text(content.keyID ?? "0"))) }
 
         // 곡 행: 바뀐 칸 + TrackInfoUpdated(글자) 칸마다 +1 + 동기화 상태 256 → 257 + 변경 번호(마지막).
         // 앨범을 비우며 앨범 아티스트도 비우면 rekordbox에서는 한 번 저장이다.
@@ -485,6 +513,7 @@ extension RekordboxWriter {
         var expectation = TagExpectation(contentID: content.id, fields: expected, trackInfoUpdated: trackInfoUpdated, contentUSN: usn,
                                          dataStatus: savedState(content.state), touchedAlbums: touchedAlbums, deletedNames: deleted)
         expectation.markedNames = marked
+        if keys.contains(.musicalKey) { expectation.keyID = content.keyID ?? "0" }
         // 버린 앨범(지움·258)은 저장한 앨범 기대값에서 뺀다
         for id in expectation.releasedAlbums { expectation.touchedAlbums.removeValue(forKey: id) }
         if case let .text(album)? = columns.last(where: { $0.0 == "AlbumID" })?.1 { expectation.albumID = album }
@@ -504,6 +533,12 @@ extension RekordboxWriter {
         guard stored?.info == expected.trackInfoUpdated, stored?.type == "text" else { throw fail(String(ui: "곡 정보 변경 횟수(TrackInfoUpdated)가 다릅니다")) }
         guard stored?.usn == expected.contentUSN else { throw fail(String(ui: "곡의 변경 번호가 다릅니다")) }
         guard let stored, stored.status == expected.dataStatus else { throw fail(String(ui: "곡의 동기화 상태(rb_data_status)가 다릅니다")) }
+        if let keyID = expected.keyID {
+            // ScaleName 조인으로는 '0'·''·NULL이 모두 키 없음이라 칸 자체를 본다(지우기는 '0' 글자)
+            var raw: (value: String?, type: String?)?
+            try db.query("SELECT KeyID, typeof(KeyID) FROM djmdContent WHERE ID = ?", [.text(expected.contentID)]) { raw = ($0.string(0), $0.string(1)) }
+            guard raw?.value == keyID, raw?.type == "text" else { throw fail(String(ui: "곡의 키(KeyID)가 쓴 것과 다릅니다")) }
+        }
         if let album = expected.albumID {
             var stored: String?
             try db.query("SELECT AlbumID FROM djmdContent WHERE ID = ?", [.text(expected.contentID)]) { stored = $0.string(0) }

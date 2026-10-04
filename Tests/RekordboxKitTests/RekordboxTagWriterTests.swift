@@ -15,6 +15,8 @@ struct RekordboxTagWriterTests {
     let now = Date(timeIntervalSince1970: 1_790_337_600)
     let stamp = "2026-09-25 12:00:00.000 +00:00"
     static let allKeys = Set(TagFields.Key.allCases)
+    /// 정보 패널의 아홉 칸(키는 `RekordboxTagKeyTests`에서 따로 본다: 값을 ''로 두면 바뀐 칸이 없어 쓰지 않는다)
+    static let infoPanelKeys = TagFields.Key.allCases.filter { $0 != .musicalKey }
 
     func write(_ fixture: RekordboxFixture, tags: [TagDraft], drafts: [CueDraft] = [], keys: Set<TagFields.Key> = allKeys,
                dryRun: Bool = false) throws -> RekordboxWriter.Report {

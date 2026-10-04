@@ -35,7 +35,7 @@ extension RekordboxTagWriterTests {
         .genre: "DJC 173 장르", .composer: "DJC 173 작곡가", .year: "2020", .trackNumber: "99", .comment: "DJC 173 코멘트",
     ]
     /// 아홉 칸 × 곡 상태(0·256·257을 돌려 가며)
-    static let xmlCases: [(Int, TagFields.Key)] = TagFields.Key.allCases.enumerated().map { ([0, 256, 257][$0.offset % 3], $0.element) }
+    static let xmlCases: [(Int, TagFields.Key)] = infoPanelKeys.enumerated().map { ([0, 256, 257][$0.offset % 3], $0.element) }
 
     @Test(arguments: xmlCases)
     func 곡_정보를_쓰면_곡이_든_재생_목록의_Timestamp만_쓴_시각으로_고친다(state: Int, key: TagFields.Key) throws {
@@ -81,7 +81,7 @@ extension RekordboxTagWriterTests {
         let (fixture, track) = try library(shared: false)
         let url = try withPlaylists(fixture, [PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["500"])])
         let before = try Data(contentsOf: url)
-        for key in TagFields.Key.allCases {
+        for key in Self.infoPanelKeys {
             try before.write(to: url)
             #expect(try write(fixture, tags: [try draft(fixture, track) { $0[key] = Self.xmlValues[key] ?? "" }]).tagWritten.count == 1, "\(key)")
             #expect(try timestamps(url)[MasterPlaylistsXML.hex("201") ?? ""] == nowMS, "\(key)")
