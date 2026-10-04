@@ -20,6 +20,11 @@ struct DeckView: View {
             waveformHeight + 8 + WaveformMetrics(scale: textScale).overviewHeight
                 + TextScale.length(28, scale: textScale))
     }
+    /// 조작부의 최소 높이에서 남는 자리를 확대 파형이 채워 빈 띠를 남기지 않는다.
+    private var zoomWaveformHeight: Double {
+        waveGroupHeight - 8 - WaveformMetrics(scale: textScale).overviewHeight
+            - TextScale.length(28, scale: textScale)
+    }
     /// 글자 배율의 절반만큼 넓힌다(큐 이름이 보이게 하되 파형 자리를 너무 빼앗지 않게).
     private var cueListWidth: CGFloat { TextScale.length(widthClass.cueListWidth, scale: 1 + (textScale - 1) / 2) }
     private var leftRailWidth: CGFloat { TextScale.length(66, scale: textScale) }
@@ -52,14 +57,15 @@ struct DeckView: View {
                                 } else {
                                     ZoomWaveformView(deck: deck)
                                         .overlay(alignment: .leading) {
-                                            ZoomControl(deck: deck, availableHeight: waveformHeight).padding(.leading, 8)
+                                            ZoomControl(deck: deck, availableHeight: zoomWaveformHeight).padding(.leading, 8)
                                         }
                                         .overlay(alignment: .trailing) {
                                             TrackEditButton(deck: deck).padding(.trailing, 8)
                                         }
                                 }
                             }
-                            .frame(height: waveformHeight)
+                            .frame(height: zoomWaveformHeight)
+                            .selfTestFrame("deck.zoom.\(ObjectIdentifier(deck))")
                             .overlay(alignment: .center) { loadingOverlay }
                             .overlay(alignment: .top) {
                                 if let toast = deck.toast {
@@ -105,6 +111,7 @@ struct DeckView: View {
                             .environment(\.colorScheme, .dark)
                         }
                     }
+                    .selfTestFrame("deck.waveGroup.\(ObjectIdentifier(deck))")
                     VStack(alignment: .leading, spacing: 12) {
                         TransportBar(deck: deck)
                         AudioBar(deck: deck)
