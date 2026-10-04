@@ -148,7 +148,7 @@ extension RekordboxTagWriterTests {
         #expect(report.backup == nil)
     }
 
-    // MARK: 동명 앨범(#173 S2 U13·S3 V02, 2026-10-04)
+    // MARK: 동명 앨범(#173 S2 U13·S3 V02·S4 C·D·F, 2026-10-04)
 
     /// 곡 500의 앨범을 같은 이름 앨범 둘 중 하나로 둔다. `mine`이 곡 500의 앨범, `other`는 곡 502가 쓰는 같은 이름 앨범.
     /// 앨범 아티스트(16 "DJC 173 AA 가", 17 "DJC 173 AA 나")와 바꿀 아티스트(15 "DJC 173 기존")도 넣는다.
@@ -220,35 +220,92 @@ extension RekordboxTagWriterTests {
         #expect(after["rb_data_status"] == "258" && after["rb_local_deleted"] == "1" && after["usn"] == "40")
     }
 
-    @Test(arguments: ["''", "'16'"]) func 동명_앨범_중_먼저_만든_앨범에_앨범_아티스트가_있으면_막는다(artist: String) throws {
-        // 두 가설(동명이면 늘 새 앨범 / 먼저 만든 같은 이름 행을 골라 앨범 아티스트를 비교)이 다른 결과를 내는 곡. 확인 전에는 막는다.
-        // 만든 시각이 같으면 먼저 만든 행으로 본다.
+    @Test(arguments: ["''", "'16'"]) func 동명_앨범_중_먼저_만든_행의_곡도_새_앨범으로_옮긴다(artist: String) throws {
+        // #173 S4 C(2026-10-04): 곡의 앨범이 같은 이름 앨범 중 rowid·만든 시각·ID 어느 순서로도 첫 행이고 앨범 아티스트도 있었는데(동기화, 다른 곡도
+        // 씀) 같은 이름의 새 앨범(앨범 아티스트 이어받음, 상태 0)으로 옮겼다. 옛 앨범은 저장하지 않아 그대로다. "먼저 만든 같은 이름 행의 앨범
+        // 아티스트를 비교해 같으면 다시 쓴다"는 가설은 C·D·S3 V02로 버렸다. 만든 시각이 같아도 같다.
         for created in ["2025-01-01 00:00:00.000 +00:00", "2026-02-01 00:00:00.000 +00:00"] {
-            let (fixture, track) = try library()
+            let (fixture, track) = try syncedLibrary()
             try sameNameAlbums(fixture, mine: (.null, "2025-01-01 00:00:00.000 +00:00"), other: (.text("17"), created))
             try fixture.execute("UPDATE djmdAlbum SET AlbumArtistID = \(artist) WHERE ID = '41'")
-            let before = try content(fixture)
-            for edit in [{ (f: inout TagFields) in f.artist = "DJC 173 기존" }, { (f: inout TagFields) in f.artist = "" }] {
-                let report = try write(fixture, tags: [try draft(fixture, track, edit)])
-                #expect(report.tagWritten.isEmpty && report.backup == nil)
-                #expect(report.tagBlocked.first?.reason?.contains("같은 이름 앨범이 여럿") == true)
-            }
-            #expect(try content(fixture) == before && fixture.localUpdateCount() == 2000)
+            try sync(fixture, "djmdAlbum", "41")
+            try fixture.execute("UPDATE djmdContent SET AlbumID = '41' WHERE ID = '501'")
+            let old = try fixture.rows("SELECT * FROM djmdAlbum WHERE ID IN ('41', '42') ORDER BY ID")
+            let report = try write(fixture, tags: [try draft(fixture, track) { $0.artist = "DJC 173 기존" }])
+            #expect(report.tagWritten.count == 1 && report.tagBlocked.isEmpty)
+            let row = try content(fixture)
+            let fresh = try #require(fixture.rows("SELECT * FROM djmdAlbum WHERE ID = ?", [.text(row["AlbumID"] ?? "")]).first)
+            #expect(!["41", "42"].contains(fresh["ID"]) && fresh["Name"] == "DJC 173 중복 앨범")
+            #expect(fresh["AlbumArtistID"] == (artist == "''" ? "" : "16") && fresh["rb_data_status"] == "0" && fresh["usn"] == "NULL")
+            #expect(try fixture.rows("SELECT * FROM djmdAlbum WHERE ID IN ('41', '42') ORDER BY ID") == old, "옛 앨범·다른 같은 이름 앨범 그대로")
+            #expect(row["ArtistID"] == "15" && row["TrackInfoUpdated"] == "3" && row["rb_data_status"] == "257")
+            // 번호: 새 앨범 → 곡 행(마지막)
+            let numbers = [fresh["rb_local_usn"], row["rb_local_usn"]].map { Int($0 ?? "") ?? 0 }
+            #expect(try numbers == numbers.sorted() && numbers.last == fixture.localUpdateCount())
         }
     }
 
-    @Test func 동명_앨범인_곡의_아티스트를_비우면_막는다() throws {
-        // 아티스트 비우기는 rekordbox 실험으로 보지 못했다(바꾸기만 S3 V02·S2 U13). 같은 규칙일 것으로 보이지만[추정] 확인 전에는 막는다.
-        let (fixture, track) = try library()
-        try sameNameAlbums(fixture, mine: (.text("16"), "2026-02-01 00:00:00.000 +00:00"), other: (.text("17"), "2025-01-01 00:00:00.000 +00:00"))
-        let before = try content(fixture)
+    @Test func 동명_앨범인_곡의_아티스트를_비우면_앨범_아티스트_빈_글자인_새_앨범으로_옮긴다() throws {
+        // #173 S4 D(2026-10-04): 같은 이름 앨범 둘 중 곡의 앨범(앨범 아티스트 NULL, 동기화, 다른 곡도 씀)인 곡의 아티스트를 비우자, 바꾸기와 같은
+        // 규칙으로 새 앨범(앨범 아티스트 '', 상태 0)으로 옮겼다. 곡의 `ArtistID`는 ''(글자)다. 옛 앨범과 다른 곡도 쓰는 옛 아티스트는 그대로다.
+        let (fixture, track) = try syncedLibrary()
+        try sameNameAlbums(fixture, mine: (.null, "2025-01-01 00:00:00.000 +00:00"), other: (.text("17"), "2026-02-01 00:00:00.000 +00:00"))
+        try sync(fixture, "djmdAlbum", "41")
+        try sync(fixture, "djmdArtist", "11")
+        try fixture.execute("UPDATE djmdContent SET AlbumID = '41' WHERE ID = '501'")
+        let old = try fixture.rows("SELECT * FROM djmdAlbum WHERE ID IN ('41', '42') ORDER BY ID"), artist = try row(fixture, "djmdArtist", "11")
         let report = try write(fixture, tags: [try draft(fixture, track) { $0.artist = "" }])
-        #expect(report.tagWritten.isEmpty && report.backup == nil)
-        #expect(report.tagBlocked.first?.reason?.contains("같은 이름 앨범이 여럿") == true)
-        #expect(try content(fixture) == before && fixture.localUpdateCount() == 2000)
-        // 이름이 유일한 앨범의 곡은 그대로 비운다
+        #expect(report.tagWritten.count == 1 && report.tagBlocked.isEmpty)
+        let song = try content(fixture)
+        #expect(try fixture.rows("SELECT quote(ArtistID) AS a FROM djmdContent WHERE ID = '500'").first?["a"] == "''")
+        let fresh = try #require(fixture.rows("SELECT *, quote(AlbumArtistID) AS aa FROM djmdAlbum WHERE ID = ?", [.text(song["AlbumID"] ?? "")]).first)
+        #expect(!["41", "42"].contains(fresh["ID"]) && fresh["Name"] == "DJC 173 중복 앨범" && fresh["aa"] == "''" && fresh["rb_data_status"] == "0")
+        #expect(try fixture.rows("SELECT * FROM djmdAlbum WHERE ID IN ('41', '42') ORDER BY ID") == old, "옛 앨범 그대로")
+        #expect(try row(fixture, "djmdArtist", "11") == artist, "다른 곡도 쓰는 옛 아티스트 그대로")
+        #expect(song["TrackInfoUpdated"] == "3" && song["rb_data_status"] == "257")
+        // 이름이 유일한 앨범의 곡은 그대로 비우고 앨범을 제자리에서 저장한다
         let (unique, other) = try library()
         #expect(try write(unique, tags: [try draft(unique, other) { $0.artist = "" }]).tagWritten.count == 1)
+        #expect(try content(unique)["AlbumID"] == "31")
+    }
+
+    /// 곡 500·502와 이름·앨범 행을 ID·UUID·번호 값·시각 없이(외래 키는 이름으로) 비교할 모양
+    func sameNameState(_ fixture: RekordboxFixture) throws -> [String] {
+        func lines(_ sql: String) throws -> [String] {
+            try fixture.rows(sql).map { $0.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " ") }.sorted()
+        }
+        return try lines("""
+            SELECT c.ID, a.Name AS artist, al.Name AS album, aa.Name AS albumArtist, quote(al.AlbumArtistID) AS aaID, al.rb_data_status AS albumState,
+                c.TrackInfoUpdated, c.rb_data_status FROM djmdContent c LEFT JOIN djmdArtist a ON a.ID = c.ArtistID
+            LEFT JOIN djmdAlbum al ON al.ID = c.AlbumID LEFT JOIN djmdArtist aa ON aa.ID = al.AlbumArtistID WHERE c.ID IN ('500', '502')
+            """) + lines("""
+            SELECT al.Name, aa.Name AS albumArtist, quote(al.AlbumArtistID) AS aaID, al.rb_data_status, al.rb_local_deleted, quote(al.usn) AS usn
+            FROM djmdAlbum al LEFT JOIN djmdArtist aa ON aa.ID = al.AlbumArtistID
+            """) + lines("SELECT Name, rb_data_status, rb_local_deleted FROM djmdArtist")
+    }
+
+    @Test(arguments: [0, 256]) func 앞_초안이_같은_이름_앨범을_하나로_줄이면_뒤_초안은_새_앨범으로_옮기지_않는다(state: Int) throws {
+        // 새 앨범으로 옮길지는 초안마다 트랜잭션 안에서 앞 초안을 쓴 DB로 정한다(백업 전 확인은 시작 DB로 본다). 첫 초안이 곡 500을 다른 앨범으로
+        // 옮겨 같은 이름 앨범 41이 버려지면 이름이 하나뿐이 되어, 둘째 초안(곡 502의 아티스트)은 rekordbox에서 차례로 저장한 것처럼 앨범 42를 제자리에서
+        // 저장한다(S3 V01: 이름이 유일하면 갈라지지 않는다). 한 번에 쓴 결과와 하나씩 쓴 결과가 같다.
+        func prepared() throws -> (RekordboxFixture, [TagDraft]) {
+            let (fixture, track) = try library()
+            try sameNameAlbums(fixture, mine: (.text("16"), "2026-02-01 00:00:00.000 +00:00"), other: (.text("17"), "2025-01-01 00:00:00.000 +00:00"))
+            try fixture.execute("UPDATE djmdContent SET rb_data_status = ? WHERE ID IN ('500', '502')", [.int(state)])
+            for id in ["41", "42"] { try sync(fixture, "djmdAlbum", id, state: state) }
+            let neighbor = TrackSpec(id: "502", uuid: "track-uuid-502")
+            return (fixture, [try draft(fixture, track) { $0.album = "DJC 173 다른 앨범" }, try draft(fixture, neighbor) { $0.artist = "DJC 173 기존" }])
+        }
+        let (together, drafts) = try prepared()
+        let report = try write(together, tags: drafts)
+        #expect(report.tagWritten.count == 2 && report.tagBlocked.isEmpty)
+        #expect(try content(together, "502")["AlbumID"] == "42", "옮기지 않는다")
+        let saved = try #require(try row(together, "djmdAlbum", "42"))
+        #expect(saved["AlbumArtistID"] == "17" && saved["rb_data_status"] == String(state == 256 ? 257 : 0) && saved["rb_local_usn"] != "9")
+        #expect(try together.rows("SELECT ID FROM djmdAlbum WHERE Name = 'DJC 173 중복 앨범' AND rb_local_deleted = 0").map { $0["ID"] } == ["42"])
+        let (oneByOne, steps) = try prepared()
+        for step in steps { #expect(try write(oneByOne, tags: [step]).tagWritten.count == 1) }
+        #expect(try sameNameState(together) == sameNameState(oneByOne))
     }
 
     @Test func 앨범_상태가_NULL이어도_검증된_상태로_보지_않는다() throws {

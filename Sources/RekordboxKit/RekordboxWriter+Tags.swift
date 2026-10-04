@@ -79,7 +79,7 @@ extension RekordboxWriter {
         var trackInfoUpdated: String?
         var state: Int?
         var old: TagOldNames
-        /// 아티스트를 고치며 같은 이름의 새 앨범으로 옮기는지(`checkSameNameAlbum`)
+        /// 아티스트를 고치며 같은 이름의 새 앨범으로 옮기는지(`migratesToSameNameAlbum`)
         var migratesAlbum = false
     }
 
@@ -138,8 +138,9 @@ extension RekordboxWriter {
         return (passed, blocked, touchesXML)
     }
 
-    /// 쓰기 전에 막을 조건: 곡 없음·지운 곡·닫힌 칸·잘못된 값·곡·앨범 상태·앨범 조건·base 불일치·동명 앨범. 막히면 `Blocked`, 통과하면 곡 행 정보.
+    /// 쓰기 전에 막을 조건: 곡 없음·지운 곡·닫힌 칸·잘못된 값·곡·앨범 상태·앨범 조건·base 불일치. 막히면 `Blocked`, 통과하면 곡 행 정보.
     /// 백업을 뜨기 전(읽기 연결, 시작 DB)과 트랜잭션 안(앞 초안을 쓴 DB)에서 같은 함수로 두 번 본다. 버려질 옛 행은 여기서 보지 않는다.
+    /// 동명 앨범으로 옮길지(`migratesAlbum`)는 트랜잭션 안에서 부른 결과만 쓴다(백업 전 결과는 버린다).
     static func checkTags(_ draft: TagDraft, db: CipherDatabase, writable: Set<TagFields.Key>) throws -> CheckedTag {
         var contents: [(id: String, title: String, deleted: Bool, trackInfoUpdated: String?, state: Int?)] = []
         try db.query("SELECT ID, Title, rb_local_deleted, TrackInfoUpdated, rb_data_status FROM djmdContent WHERE UUID = ?",
@@ -171,31 +172,21 @@ extension RekordboxWriter {
         guard let old = try TagOldNames.read(db, contentID: content.id) else {
             throw block(String(ui: "곡 행을 다시 읽지 못했으니 rekordbox 컬렉션에서 곡을 확인한 뒤 DJCrate에서 다시 동기화하세요"))
         }
-        let migrates = try checkSameNameAlbum(draft, old: old, db: db, block: block)
+        let migrates = try migratesToSameNameAlbum(draft, old: old, db: db)
         return CheckedTag(id: content.id, title: content.title, trackInfoUpdated: content.trackInfoUpdated, state: content.state, old: old,
                           migratesAlbum: migrates)
     }
 
-    /// 아티스트를 바꿀 때 곡의 앨범 이름을 살아 있는 앨범 둘 이상이 쓰면, rekordbox는 같은 이름의 새 앨범을 만들어 곡을 옮긴다
-    /// (#173 S3 V02: 상태 0·앨범 아티스트 있음·이 곡만 씀·나중에 만든 행, S2 U13: 동기화·앨범 아티스트 NULL·공유·가장 먼저 만든 행. 곡 상태와
-    /// 무관하다). 앨범·앨범 아티스트 칸도 고치면 그 칸을 먼저 쓰므로 옮기지 않는다. 아티스트 비우기는 확인하지 않아 막는다.
-    /// 곡의 앨범이 같은 이름 앨범 중 가장 먼저 만든 행이면서 앨범 아티스트가 NULL이 아니면(값이나 '') "먼저 만든 같은 이름 행을 골라 앨범
-    /// 아티스트를 비교한다"는 다른 가설과 결과가 갈려 막는다(만든 시각이 같으면 먼저 만든 행으로 본다).
+    /// 아티스트를 저장(바꾸기·비우기)할 때 곡의 앨범 이름을 살아 있는 앨범 둘 이상이 쓰면, rekordbox는 옛 앨범을 저장하지 않고 같은 이름의
+    /// 새 앨범을 만들어 곡을 옮긴다. 곡·앨범 상태, 앨범 아티스트 유무, 다른 곡이 쓰는지, 같은 이름 행 중 몇째로 만든 행인지와 무관하다(#173 S3 V02,
+    /// S2 U13, S4 C·D·F 2026-10-04: C는 곡의 앨범이 어느 순서로도 첫 행이고 앨범 아티스트가 있었는데도 새 앨범, D는 비우기). 지운 같은 이름
+    /// 행은 세지 않는다(S1 T05). 앨범·앨범 아티스트 칸도 고치면 그 칸을 먼저 쓰므로 옮기지 않는다. 트랜잭션 안에서는 앞 초안을 쓴 DB로 센다.
     /// - Returns: 새 앨범으로 옮기는지
-    private static func checkSameNameAlbum(_ draft: TagDraft, old: TagOldNames, db: CipherDatabase, block: (String) -> Blocked) throws -> Bool {
+    private static func migratesToSameNameAlbum(_ draft: TagDraft, old: TagOldNames, db: CipherDatabase) throws -> Bool {
         let keys = draft.changedKeys
         guard keys.contains(.artist), !keys.contains(.album), !keys.contains(.albumArtist), old.albumLive,
               let album = old.album, !album.isEmpty, let name = old.albumName else { return false }
-        guard try scalar(db, "SELECT count(*) FROM djmdAlbum WHERE Name = ? AND rb_local_deleted = 0", [.text(name)]) ?? 0 >= 2 else { return false }
-        let earlier = try scalar(db, """
-            SELECT count(*) FROM djmdAlbum o WHERE o.Name = ?1 AND o.rb_local_deleted = 0 AND o.ID != ?2
-                AND o.created_at < (SELECT created_at FROM djmdAlbum WHERE ID = ?2)
-            """, [.text(name), .text(album)]) ?? 0
-        // 아티스트 비우기는 보지 못했다(V02·U13은 바꾸기). 같은 규칙으로 보이지만[추정] 확인 전에는 막는다.
-        if draft.fields.artist.isEmpty || (earlier == 0 && old.albumArtist != nil) {
-            throw block(String(ui: "같은 이름 앨범이 여럿인 곡이라 rekordbox 저장 규칙을 아직 확인하지 못했으므로 rekordbox에서 직접 고치세요"))
-        }
-        return true
+        return try scalar(db, "SELECT count(*) FROM djmdAlbum WHERE Name = ? AND rb_local_deleted = 0", [.text(name)]) ?? 0 >= 2
     }
 
     /// 이 초안을 쓰면 고칠 재생 목록 XML이 있는지: 그 곡이 든 살아 있는 목록이 있을 때만(백업 전 확인). 정보 패널 아홉 칸 모두
@@ -457,8 +448,8 @@ extension RekordboxWriter {
             // 아티스트를 고치면 곡의 앨범 행도 저장된다: NULL 앨범 아티스트는 '', 변경 번호·시각(2026-09-27 실험곡 5, 묶음 2),
             // 동기화 앨범은 256 → 257·257 그대로(#173 S1 T02·T05·X1, S2 U07, S3 V01·V03·V05)
             if content.migratesAlbum, let name = old.albumName {
-                // 같은 이름 앨범이 여럿이면 옛 앨범은 저장하지 않고 같은 이름의 새 앨범으로 옮긴다(#173 S3 V02·S2 U13). (이름, 앨범 아티스트)
-                // 짝이 같은 행이 있어도 늘 새로 만든다(`findOrCreateAlbum`을 쓰지 않는다). 앨범 아티스트는 이어받고 NULL이면 ''.
+                // 같은 이름 앨범이 여럿이면 옛 앨범은 저장하지 않고 같은 이름의 새 앨범으로 옮긴다(#173 S3 V02·S2 U13·S4 C·D·F). (이름, 앨범
+                // 아티스트) 짝이 같은 행이 있어도 늘 새로 만든다(`findOrCreateAlbum`을 쓰지 않는다). 앨범 아티스트는 이어받고 NULL이면 ''(S4 D).
                 let id = try RekordboxTrackWriter.insertAlbum(db, name: name, albumArtistID: old.albumArtist ?? "", usn: &usn, stamp: stamp)
                 columns.append(("AlbumID", .text(id)))
                 touchedAlbums[id] = (usn, 0)
