@@ -77,7 +77,8 @@ extension ReflectionCoordinator {
         switch (review.original, review.current) {
         case let (.tags(d), .tags(c)):
             let recovery = TagDraftRecovery(draft: d, current: c.base)
-            return TagFields.Key.allCases.filter { d.base[$0] != c.base[$0] || d.base[$0] != d.fields[$0] }.flatMap { key in
+            // 키는 고친 초안만 비교에 올린다(키 칸이 없던 옛 초안의 빈 기준이 현재 키와 달라 보이는 것은 차이가 아니다)
+            return TagFields.Key.allCases.filter { ($0 != .musicalKey && d.base[$0] != c.base[$0]) || d.base[$0] != d.fields[$0] }.flatMap { key in
                 [key.label + (recovery.conflictingKeys.contains(key) ? " ⚠︎" : ""),
                  String(ui: "기준: \(d.base[key])"), String(ui: "현재: \(c.base[key])"), String(ui: "내 편집: \(d.fields[key])")]
             }

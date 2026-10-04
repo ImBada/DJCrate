@@ -77,6 +77,8 @@ struct SheetColumn {
         SheetColumn(id: "composer", title: String(ui: "작곡가"), width: 110, key: .composer),
         SheetColumn(id: "year", title: String(ui: "연도"), width: 52, key: .year),
         SheetColumn(id: "trackNumber", title: String(ui: "트랙"), width: 44, key: .trackNumber),
+        // 키는 글자를 쓰지 않고 목록(Camelot 이름·없음)에서 고른다. 열 이름이 목록의 키 칸과 같아 머리글 정렬도 같다.
+        SheetColumn(id: "key", title: String(ui: "키"), width: 52, key: .musicalKey),
         SheetColumn(id: "comment", title: String(ui: "코멘트"), width: 300, key: .comment),
         SheetColumn(id: "file", title: String(ui: "파일"), width: 220, key: nil),
     ]
@@ -194,7 +196,10 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
     /// 편집 가능한 칸인가. 스트리밍 곡은 파일 태그가 없어 편집하지 않는다.
     func editableKey(row: Int, column: Int) -> TagFields.Key? {
         guard rows.indices.contains(row), !rows[row].track.isStreaming else { return nil }
-        return SheetColumn.all[column].key
+        let key = SheetColumn.all[column].key
+        // 추가한 곡의 키는 곡을 rekordbox에 넣은 뒤에 고른다(`KeyPicker.unavailableReason`)
+        if key == .musicalKey, KeyPicker.unavailableReason(rows[row]) != nil { return nil }
+        return key
     }
 
     func text(row: Int, column: Int) -> String {
@@ -305,6 +310,12 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
     // MARK: - 편집
 
     func beginEditing(initialText: String? = nil) {
+        // 키 칸은 글자를 쓰지 않고 목록에서 고른다(더블클릭·Return·타이핑 모두)
+        if editing == nil, rows.indices.contains(cursor.row), editableKey(row: cursor.row, column: cursor.column) == .musicalKey {
+            anchor = cursor
+            presentKeyMenu(row: cursor.row, column: cursor.column)
+            return
+        }
         guard editing == nil, let table, rows.indices.contains(cursor.row),
               editableKey(row: cursor.row, column: cursor.column) != nil,
               let cell = table.view(atColumn: cursor.column, row: cursor.row, makeIfNecessary: true) as? SheetCell
@@ -387,8 +398,13 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
     }
 
     func paste() {
+        paste(string: NSPasteboard.general.string(forType: .string))
+    }
+
+    /// 붙여넣을 글자를 직접 받는다(시험이 사용자 클립보드를 건드리지 않게)
+    func paste(string: String?) {
         defer { table?.updateFillDownCommand() }
-        guard let string = NSPasteboard.general.string(forType: .string), !rows.isEmpty else { return }
+        guard let string, !rows.isEmpty else { return }
         let block = TSV.parse(string)
         guard !block.isEmpty else { return }
         let rect = selectionRect
@@ -428,13 +444,63 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
         applyChanges(changes)
     }
 
-    private func applyChanges(_ changes: [(row: TrackRow, key: TagFields.Key, value: String)]) {
+    private func applyChanges(_ requested: [(row: TrackRow, key: TagFields.Key, value: String)]) {
+        // 키 칸은 붙여넣기·채우기가 Camelot 이름(1A~12B)이나 빈칸만 받는다. 지금 값과 같은 칸은 건드리지 않으니 세지 않는다.
+        var skipped = 0
+        let changes: [(row: TrackRow, key: TagFields.Key, value: String)] = requested.compactMap { change in
+            guard change.key == .musicalKey, store.tagCell(change.row, change.key) != change.value else { return change }
+            guard let value = KeyPicker.accepted(change.value) else { skipped += 1; return nil }
+            return (change.row, change.key, value)
+        }
         let before = changes.map { store.tagCell($0.row, $0.key) }
         store.applyTagEdits(changes)
         let changed = zip(changes, before).filter { store.tagCell($0.0.row, $0.0.key) != $0.1 }.count
         reloadVisible()
         syncAccessibilitySelection(announceFocus: false)
-        if changed > 0 { announce(String(ui: "\(changed)칸 바뀜")) }
+        if changed > 0 || skipped > 0 {
+            let message = changed > 0 ? String(ui: "\(changed)칸 바뀜") : ""
+            let skippedMessage = skipped > 0 ? String(ui: "키 칸 \(skipped)칸은 1A~12B가 아니어서 건너뜀") : ""
+            announce([message, skippedMessage].filter { !$0.isEmpty }.joined(separator: ", "))
+        }
+    }
+
+    // MARK: - 키 고르기
+
+    /// 고른 키 이름을 칸이 가리키던 곡에 적는다. 메뉴가 열려 있는 동안 줄이 바뀌어도 엉뚱한 곡에 들어가지 않게 곡 ID로 찾는다.
+    final class KeyChoice: NSObject {
+        let rowID: TrackRow.ID
+        let value: String
+        init(rowID: TrackRow.ID, value: String) { self.rowID = rowID; self.value = value }
+    }
+
+    /// 키 칸의 고르기 메뉴: 없음, Camelot 24개. 지금 값에 체크하고, 옛 표기이면 맨 앞에 고를 수 없는 항목으로 보인다.
+    func keyMenu(row: Int) -> NSMenu? {
+        guard rows.indices.contains(row), let column = SheetColumn.all.firstIndex(where: { $0.key == .musicalKey }),
+              editableKey(row: row, column: column) == .musicalKey else { return nil }
+        let current = store.tagCell(rows[row], .musicalKey)
+        let menu = NSMenu(title: String(ui: "키"))
+        func add(_ title: String, value: String, enabled: Bool = true) {
+            let item = NSMenuItem(title: title, action: enabled ? #selector(pickKey(_:)) : nil, keyEquivalent: "")
+            item.target = self
+            item.representedObject = KeyChoice(rowID: rows[row].id, value: value)
+            item.state = value == current ? .on : .off
+            menu.addItem(item)
+        }
+        if !current.isEmpty, !KeyNotation.camelotNames.contains(current) { add(current, value: current, enabled: false) }
+        add(String(ui: "없음"), value: "")
+        for name in KeyNotation.camelotNames { add(name, value: name) }
+        return menu
+    }
+
+    private func presentKeyMenu(row: Int, column: Int) {
+        guard let table, let menu = keyMenu(row: row) else { return }
+        let rect = table.frameOfCell(atColumn: column, row: row)
+        menu.popUp(positioning: menu.items.first { $0.state == .on }, at: NSPoint(x: rect.minX, y: rect.maxY), in: table)
+    }
+
+    @objc func pickKey(_ sender: NSMenuItem) {
+        guard let choice = sender.representedObject as? KeyChoice, let row = rows.first(where: { $0.id == choice.rowID }) else { return }
+        applyChanges([(row: row, key: .musicalKey, value: choice.value)])
     }
 }
 

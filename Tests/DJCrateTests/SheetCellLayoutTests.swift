@@ -146,10 +146,11 @@ struct SheetCellLayoutTests {
             #expect(h.table.view(h.table, stringForToolTip: 0, point: point, userData: nil) == "합성 곡 \(row + 1)")
         }
         // 다른 열은 그 열의 글자
-        let file = h.table.frameOfCell(atColumn: 10, row: 0)
+        let fileColumn = try #require(SheetColumn.all.firstIndex { $0.id == "file" })
+        let file = h.table.frameOfCell(atColumn: fileColumn, row: 0)
         let fileReason = try #require(TrackListTagEditing.unavailableReason(h.coordinator.rows[0], key: nil))
         #expect(h.table.view(h.table, stringForToolTip: 0, point: NSPoint(x: file.midX, y: file.midY), userData: nil)
-                == h.coordinator.text(row: 0, column: 10) + "\n" + fileReason)
+                == h.coordinator.text(row: 0, column: fileColumn) + "\n" + fileReason)
         // 줄 밖(빈 곳)은 툴팁 없음
         #expect(h.table.view(h.table, stringForToolTip: 0, point: NSPoint(x: 5, y: h.table.bounds.maxY + 200), userData: nil).isEmpty)
         // 보이는 칸 어디에도 칸별 툴팁이 없다

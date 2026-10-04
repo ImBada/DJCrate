@@ -30,7 +30,9 @@ struct TrackListTagEditTests {
     /// 앨범 아티스트·작곡가·연도·트랙 번호 칸은 처음엔 숨기고, 머리글 메뉴로 보이면 편집·정렬한다.
     @Test func 모든_태그_칸이_목록에_있고_새_칸은_처음에_숨긴다() throws {
         let ids = TrackColumn.all.map(\.id)
-        for key in TagFields.Key.allCases { #expect(ids.contains(key.rawValue)) }
+        // 키(musicalKey)는 목록에 같은 이름의 편집 칸이 없다: 목록의 키 칸("key")은 보기 전용이다(고르기는 태그 인스펙터·시트)
+        for key in TagFields.Key.allCases where key != .musicalKey { #expect(ids.contains(key.rawValue)) }
+        #expect(ids.contains("key") && !ids.contains(TagFields.Key.musicalKey.rawValue))
         #expect(TrackColumn.hiddenByDefault == ["preview", "albumArtist", "composer", "year", "trackNumber"])
         for id in ["albumArtist", "composer", "year", "trackNumber"] {
             let spec = try #require(TrackColumn.all.first { $0.id == id })

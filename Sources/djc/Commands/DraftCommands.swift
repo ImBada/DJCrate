@@ -82,10 +82,13 @@ enum DraftCommands {
                 result.cue = draft; result.hasChanges = draft.hasChanges
                 if !options.dryRun { try CueDraftStore.save(draft, directory: directory) }
             } else {
-                var draft: TagDraft = try existing(file) ?? TagDraft(track: track)
+                // 키를 안 고친 옛 초안(키 칸이 없던 때의 것)은 키 기준을 지금 값으로 맞춘다: 그 위에 키를 고쳐도 기준이 어긋나 막히지 않게
+                var draft: TagDraft = (try existing(file) ?? TagDraft(track: track)).adoptingMusicalKey(of: TagFields(track: track))
                 guard draft.trackUUID == uuid else { throw corrupt() }
                 for key in TagFields.Key.allCases {
-                    if let value = options.values[Options.flag(key)] { draft.fields[key] = value }
+                    guard let value = options.values[Options.flag(key)] else { continue }
+                    // 키는 "8a"도 받아 정확한 Camelot 이름으로 다듬는다. 다른 표기는 그대로 두어 초안 검사가 거절한다.
+                    draft.fields[key] = key == .musicalKey ? KeyNotation.normalizedCamelotName(value) ?? value : value
                 }
                 guard draft.issues.isEmpty else { throw invalid(draft.issues.joined(separator: "; ")) }
                 result.tag = draft; result.hasChanges = draft.hasChanges
@@ -142,6 +145,7 @@ enum DraftCommands {
             switch key {
             case .albumArtist: "--album-artist"
             case .trackNumber: "--track-number"
+            case .musicalKey: "--musical-key"
             default: "--" + key.rawValue
             }
         }
