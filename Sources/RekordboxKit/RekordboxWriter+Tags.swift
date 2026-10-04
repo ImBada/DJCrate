@@ -125,17 +125,20 @@ extension RekordboxWriter {
     /// 백업 전 확인: DB를 바꾸지 않고 분명히 알 수 있는 막힘만 거른다(읽기 연결만 쓴다, 초안마다 시작 DB로). 버려질 옛 행을 어떻게 정리할지와
     /// 그 상태(257 등)로 막을지는 트랜잭션 안에서 실제로 쓴 뒤 센 참조로 정한다(`releaseNames`). 시험 실행(미리 보기)도 트랜잭션을 돌리므로
     /// 사용자에게 보이는 결과는 같다.
-    static func checkTagDrafts(_ tags: [TagDraft], db: CipherDatabase, writable: Set<TagFields.Key>) throws -> (passed: [TagDraft], blocked: [Outcome]) {
-        var passed: [TagDraft] = [], blocked: [Outcome] = []
+    /// - Returns: 통과한 초안, 막힌 결과, 통과한 초안 중 재생 목록 XML을 고쳐야 하는 곡(UUID, `tagTouchesPlaylistXML`)
+    static func checkTagDrafts(_ tags: [TagDraft], db: CipherDatabase, writable: Set<TagFields.Key>)
+        throws -> (passed: [TagDraft], blocked: [Outcome], touchesXML: Set<String>) {
+        var passed: [TagDraft] = [], blocked: [Outcome] = [], touchesXML: Set<String> = []
         for draft in tags {
             do {
                 _ = try checkTags(draft, db: db, writable: writable)
                 passed.append(draft)
+                if try tagTouchesPlaylistXML(draft, db: db) { touchesXML.insert(draft.trackUUID) }
             } catch let error as Blocked {
                 blocked.append(Outcome(trackUUID: draft.trackUUID, title: error.title, status: .blocked, reason: error.reason, removed: 0, added: 0))
             }
         }
-        return (passed, blocked)
+        return (passed, blocked, touchesXML)
     }
 
     /// 쓰기 전에 막을 조건: 곡 없음·지운 곡·닫힌 칸·잘못된 값·곡·앨범 상태·앨범 조건·base 불일치·동명 앨범. 막히면 `Blocked`, 통과하면 곡 행 정보.

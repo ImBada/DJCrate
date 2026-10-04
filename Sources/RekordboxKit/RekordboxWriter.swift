@@ -148,24 +148,20 @@ public enum RekordboxWriter {
         }
         // 태그: 막힐 초안(닫힌 칸·잘못된 값·곡 없음·base 불일치)은 백업 전에 거른다. 트랜잭션 안에서 한 번 더 본다.
         var tagOutcomes: [Outcome] = []
+        var xmlTags: Set<String> = []
         if !tags.isEmpty {
             let reader = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
             defer { reader.close() }
             let checked = try checkTagDrafts(tags, db: reader, writable: tagKeys)
             tags = checked.passed
             tagOutcomes = checked.blocked
+            xmlTags = checked.touchesXML
         }
         // 재생 목록 편집과 곡 정보 쓰기는 DB 옆 masterPlaylists6.xml도 고친다(곡 정보는 확인한 칸을 쓴 곡이 든 목록의 Timestamp, #173).
         // 쓰는 DB 옆 파일만 대상이고 없으면 DB만 쓴다. 사본 옆 파일이 라이브 XML의 링크면 백업 전에 막는다. 곡 정보는 그 곡이 든 살아 있는
         // 목록이 있을 때만 읽고, 읽지 못하면 그 곡정보 초안만 막는다. 재생 목록·합치기는 읽지 못하면 예전처럼 쓰기째 막는다.
         let playlistXMLURL = playlistXMLURL(for: database)
         var playlistXML: MasterPlaylistsXML?
-        var xmlTags: Set<String> = []
-        if !tags.isEmpty {
-            let reader = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
-            defer { reader.close() }
-            xmlTags = Set(try tags.filter { try tagTouchesPlaylistXML($0, db: reader) }.map(\.trackUUID))
-        }
         if !playlistSteps.isEmpty || !merges.isEmpty || !xmlTags.isEmpty {
             try writeGuard.checkAdjacentFile(playlistXMLURL, database: database)
             if FileManager.default.fileExists(atPath: playlistXMLURL.path) {
@@ -522,7 +518,8 @@ public enum RekordboxWriter {
             }
         }
         // masterPlaylists6.xml: DB를 확인한 뒤 적는다. 적지 못하면 DB·XML 모두 쓰기 전으로(백업에 둔 XML을 `restoreFiles`가 함께 살린다).
-        if let backup, let updatedXML, playlistXML != nil {
+        // 고칠 줄이 없으면(곡이 든 목록의 NODE가 없음 등) 같은 내용을 다시 쓰지 않는다.
+        if let backup, let updatedXML, let original = playlistXML, updatedXML != original {
             do {
                 try updatedXML.data.write(to: playlistXMLURL, options: .atomic)
                 guard try MasterPlaylistsXML(contentsOf: playlistXMLURL) == updatedXML else {

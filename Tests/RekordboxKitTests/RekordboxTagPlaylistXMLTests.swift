@@ -93,6 +93,18 @@ extension RekordboxTagWriterTests {
         #expect(try Data(contentsOf: url) == Data("망가짐".utf8))
     }
 
+    @Test func 고칠_XML이_원본과_같으면_쓰지_않는다() throws {
+        // 곡이 든 목록의 NODE가 XML에 없으면 고칠 줄이 없다. 같은 내용을 다시 쓰지 않는다(파일을 바꿔 넣지 않아 inode가 그대로).
+        let (fixture, track) = try library()
+        try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["500"]))
+        let url = fixture.root.appending(path: "masterPlaylists6.xml")
+        try MasterPlaylistsXMLTests.empty.write(to: url, atomically: true, encoding: .utf8)
+        let inode = { (try FileManager.default.attributesOfItem(atPath: url.path))[.systemFileNumber] as? UInt64 }
+        let before = try inode()
+        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.title = "DJC 173 제목" }]).tagWritten.count == 1)
+        #expect(try inode() == before)
+    }
+
     @Test func 목록에_없는_곡의_장르_쓰기는_XML이_깨져_있어도_쓴다() throws {
         // 제목·아티스트·장르를 써도 그 곡이 든 살아 있는 목록이 없으면 고칠 XML이 없어 읽지 않는다.
         let (fixture, track) = try library()
