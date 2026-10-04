@@ -289,4 +289,25 @@ struct RekordboxTrackAddKeyTests {
         let id = try #require(report.added.first?.contentID)
         #expect(try content(fixture, id)["KeyID"] == "'\(RekordboxTagWriterTests.keyID("8A"))'")
     }
+
+    /// #197: 분석 없이 키와 함께 넣은 곡은 `TrackInfoUpdated`가 '1'이 된다(만든 것은 DJCrate). 이후 분석 붙이기가 막힐 때 이유 문구가
+    /// "rekordbox에서 곡 정보를 고친 적이 있는…"이면 사실과 다르다. 카운터를 누가 만들었는지는 DB로 알 수 없어 중립으로 적고 할 일(rekordbox 분석)을 남긴다.
+    @Test func 키와_함께_분석_없이_넣은_곡의_분석_붙이기_막힘_이유는_사실과_맞다() async throws {
+        let fixture = try library()
+        let p = try await plan(in: fixture)
+        let report = try addWithKey(fixture, p, key: "8A")
+        let outcome = try #require(report.added.first)
+        let id = try #require(outcome.contentID), uuid = try #require(outcome.uuid)
+        #expect(outcome.keyWritten == "8A" && outcome.written)
+        #expect(try content(fixture, id)["TrackInfoUpdated"] == "'1'", "키를 쓰면 곡 정보 카운터가 생긴다")
+        let before = try fixture.rows("SELECT * FROM djmdContent ORDER BY ID")
+        let attached = try RekordboxWriter.write(drafts: [], grids: [GridDraft(trackUUID: uuid, base: [], segments: [GridSegment(start: 0.5, bpm: 120, firstBeatNumber: 1)])],
+                                                 gains: [:], analysisInputs: [uuid: .init(duration: p.duration, loudness: nil, peak: 1)], to: fixture.database,
+                                                 dryRun: false, now: now, backups: fixture.backups, shareRoot: fixture.shareRoot, attachesAnalysis: true)
+        #expect(attached.analysisWritten.isEmpty, "막힌 조건은 그대로 막는다")
+        let reason = try #require(attached.analysisBlocked.first?.reason)
+        #expect(!reason.contains("고친 적"), "DJCrate가 만든 카운터를 rekordbox에서 고친 것처럼 적지 않는다: \(reason)")
+        #expect(reason.contains("rekordbox에서 트랙 분석을 하세요"), "\(reason)")
+        #expect(try fixture.rows("SELECT * FROM djmdContent ORDER BY ID") == before)
+    }
 }
