@@ -1,4 +1,5 @@
 @testable import DJCrate
+import DJCDomain
 import DJCStorage
 import DJCTestSupport
 import Foundation
@@ -49,6 +50,8 @@ struct ITunesMissingCacheReloadTests {
                                                 return ITunesLibrarySnapshot()
                                             })
         #expect(loaded.iTunesSnapshot.status == .notCaptured)
+        #expect(loaded.iTunesLibrary.status.message == String(ui: "이 사본에는 캡처한 iTunes 목록이 없습니다"),
+                "읽기가 끝난 명시적 사본을 스냅샷 생성 중으로 표시하지 않는다")
     }
 
     @Test func 이전도_미캡처인_완료된_재로드는_진행중으로_표시하지_않는다() throws {

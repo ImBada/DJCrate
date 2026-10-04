@@ -27111,6 +27111,22 @@
         }
       }
     },
+    "이 사본에는 캡처한 iTunes 목록이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This copy has no captured iTunes playlists."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このコピーには取得済みのiTunesプレイリストがありません。"
+          }
+        }
+      }
+    },
     "이 샘플레이트의 ffmpeg VBR MP3는 분석 규칙이 확인되지 않았으니 rekordbox에서 먼저 분석하세요" : {
       "localizations" : {
         "en" : {
