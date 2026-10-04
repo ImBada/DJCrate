@@ -16,14 +16,12 @@ struct DeckView: View {
     var widthClass: DeckWidthClass
 
     private var waveGroupHeight: Double {
-        max(TextScale.length(190, scale: textScale),
-            waveformHeight + 8 + WaveformMetrics(scale: textScale).overviewHeight
-                + TextScale.length(28, scale: textScale))
+        zoomWaveformHeight + 8 + WaveformMetrics(scale: textScale).overviewHeight
+            + TextScale.length(28, scale: textScale)
     }
     /// 조작부의 최소 높이에서 남는 자리를 확대 파형이 채워 빈 띠를 남기지 않는다.
     private var zoomWaveformHeight: Double {
-        waveGroupHeight - 8 - WaveformMetrics(scale: textScale).overviewHeight
-            - TextScale.length(28, scale: textScale)
+        max(waveformHeight, DeckLayout.minimumZoomWaveformHeight(scale: textScale))
     }
     /// 글자 배율의 절반만큼 넓힌다(큐 이름이 보이게 하되 파형 자리를 너무 빼앗지 않게).
     private var cueListWidth: CGFloat { TextScale.length(widthClass.cueListWidth, scale: 1 + (textScale - 1) / 2) }
