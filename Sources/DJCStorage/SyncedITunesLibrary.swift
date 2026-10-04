@@ -16,7 +16,8 @@ public struct SyncedITunesLibrary: Sendable {
 
     public var tree: [Node] = []
     public var index: [String: Node] = [:]
-    public var status: ITunesLibrarySnapshot.Status = .notCaptured
+    /// 읽기 전 처음 상태는 `.loading`. 읽기가 끝난 뒤의 `.notCaptured`와 구분한다.
+    public var status: ITunesLibrarySnapshot.Status = .loading
     public var unavailablePlaylistCount = 0
     public var playlistCount: Int { index.values.filter { !$0.isFolder }.count }
     public init() {}

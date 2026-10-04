@@ -500,12 +500,22 @@ struct ReflectionCoordinator {
         preview.report.added.filter { !$0.written }.map { "• \($0.title): \($0.reason ?? "")" } + preview.unreadable.map { "• \($0)" }
     }
 
+    /// 분석 없이 넣으며 키도 쓰는 곡의 안내
+    static var bareKeyNote: String {
+        String(ui: "분석 없이 넣으며 키를 함께 쓴 곡은 DJCrate가 나중에 분석을 붙이지 않으니 rekordbox에서 분석하세요.")
+    }
+
+    /// 키를 함께 넣는 곡의 안내: 음원 파일의 키 태그는 그대로다(#5 결정).
+    static var keyAudioNote: String {
+        String(ui: "키는 rekordbox 라이브러리에만 씁니다. 음원 파일의 키 태그는 그대로입니다.")
+    }
+
     /// 아트워크 쓰기가 닫혀 있을 때(`RekordboxTrackWriter.writesArtwork`) 음원에 아트워크가 든 곡을 넣으면 보이는 안내
     static var artworkClosedNote: String {
         String(ui: "음원의 아트워크는 아직 넣지 않으니, 필요하면 rekordbox 곡 정보 창에서 이미지를 끌어다 붙이세요.")
     }
 
-    /// 넣기 전 확인 창: 곡마다 분석까지 붙는지(아트워크도 넣는지), 넣지 않는 곡과 이유.
+    /// 넣기 전 확인 창: 곡마다 분석까지 붙는지(아트워크도 넣는지), 함께 쓰는 큐·키, 넣지 않는 곡과 이유.
     /// 아트워크는 분석까지 붙이는 곡에만 넣는다(rekordbox도 분석할 때 뽑는다, 2026-09-26 실험).
     static func addConfirmation(_ preview: LibraryStore.TrackAddPreview,
                                 writesArtwork: Bool = RekordboxTrackWriter.writesArtwork) -> ReflectionPrompt {
@@ -519,6 +529,8 @@ struct ReflectionCoordinator {
             if writesArtwork, analysedArtwork.contains(outcome) { parts.append(String(ui: "아트워크")) }
             if let count = outcome.cuesWritten, count > 0 { parts.append(String(ui: "큐 \(count)개")) }
             if let reason = outcome.cueReason { parts.append(String(ui: "⚠︎ 큐는 안 들어감(\(reason))")) }
+            if let key = outcome.keyWritten { parts.append(String(ui: "키 \(key)")) }
+            if let reason = outcome.keyReason { parts.append(String(ui: "⚠︎ 키는 안 들어감(\(reason))")) }
             return "• \(outcome.title) — " + parts.joined(separator: " · ")
         }
         let reasons = addReasons(preview)
@@ -530,6 +542,13 @@ struct ReflectionCoordinator {
         }
         if !writesArtwork, !analysedArtwork.isEmpty {
             body += ["", Self.artworkClosedNote]
+        }
+        // 키를 쓰면 곡 정보 변경 횟수가 생겨, 분석 없이 넣은 곡에는 DJCrate가 나중에 분석을 붙이지 않는다(카운터 있는 분석 전 곡은 미확인).
+        if bare.contains(where: { $0.keyWritten != nil }) {
+            body += ["", Self.bareKeyNote]
+        }
+        if written.contains(where: { $0.keyWritten != nil }) {
+            body += ["", Self.keyAudioNote]
         }
         return ReflectionPrompt(title: String(ui: "\(written.count)곡을 rekordbox에 넣을까요?"),
                                 text: backupThenWriteText,

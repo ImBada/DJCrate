@@ -216,7 +216,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
     /// 편집 가능한 칸인가. 스트리밍 곡은 파일 태그가 없어 편집하지 않는다.
     func editableKey(row: Int, column: Int) -> TagFields.Key? {
         guard rows.indices.contains(row), !rows[row].track.isStreaming, let key = spec(atColumn: column)?.key else { return nil }
-        // 추가한 곡의 키는 곡을 rekordbox에 넣은 뒤에 고른다(`KeyPicker.unavailableReason`)
+        // 키를 고칠 수 없는 곡(`KeyPicker.unavailableReason`)은 고르기 메뉴도 열지 않는다
         if key == .musicalKey, KeyPicker.unavailableReason(rows[row]) != nil { return nil }
         return key
     }

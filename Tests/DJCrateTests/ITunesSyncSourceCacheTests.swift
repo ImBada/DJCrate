@@ -327,7 +327,7 @@ struct ITunesSyncSourceCacheTests {
         #expect(!model.isLoading)
         #expect(model.database == nil)
         #expect(model.error != nil)
-        #expect(model.source.status == .notCaptured)
+        #expect(model.source.status == .loading)
     }
 
     @Test func 닫은_선택창의_늦은_캡처는_새_선택창을_바꾸지_않는다() async throws {
@@ -358,8 +358,8 @@ struct ITunesSyncSourceCacheTests {
         let reopened = store.iTunesSync
         resume.signal()
         await loading.value
-        #expect(old.source.status == .notCaptured)
-        #expect(reopened.source.status == .notCaptured)
+        #expect(old.source.status == .loading)
+        #expect(reopened.source.status == .loading)
         #expect(reopened.selection.selectedIDs.isEmpty)
     }
 }

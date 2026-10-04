@@ -5,7 +5,8 @@ import Observation
 
 @MainActor @Observable
 final class ITunesSyncModel {
-    var source = ITunesLibrarySnapshot(status: .notCaptured)
+    /// 목록을 읽기 전에는 미캡처가 아니라 읽는 중이다.
+    var source = ITunesLibrarySnapshot(status: .loading)
     var selection = ITunesSyncSelection()
     var database: URL?
     var isLoading = true
