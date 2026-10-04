@@ -45,17 +45,17 @@ public enum TrackArtwork {
     public static func unsupportedReason(_ image: Data) -> String? {
         let bytes = [UInt8](image.prefix(8))
         let isJPEG = bytes.starts(with: [0xFF, 0xD8, 0xFF]), isPNG = bytes.starts(with: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
-        guard isJPEG || isPNG else { return String(ui: "JPEG·PNG가 아닌 그림은 rekordbox에서 확인하지 않았으니 JPEG나 PNG 그림을 고르세요") }
+        guard isJPEG || isPNG else { return String(ui: "JPEG·PNG가 아닌 앨범아트는 rekordbox에서 확인하지 않았으니 JPEG나 PNG 앨범아트를 고르세요") }
         guard let source = CGImageSourceCreateWithData(image as CFData, nil),
               let decoded = CGImageSourceCreateImageAtIndex(source, 0, nil), decoded.width > 0, decoded.height > 0 else {
-            return String(ui: "그림을 읽지 못했으니 다른 JPEG·PNG 그림을 고르세요")
+            return String(ui: "앨범아트를 읽지 못했으니 다른 JPEG·PNG 앨범아트를 고르세요")
         }
         let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
         if let orientation = properties?[kCGImagePropertyOrientation] as? Int, orientation != 1 {
-            return String(ui: "회전 정보가 있는 그림은 rekordbox 규칙을 확인하지 않았으니 회전을 적용해 저장한 그림을 고르세요")
+            return String(ui: "회전 정보가 있는 앨범아트는 rekordbox 규칙을 확인하지 않았으니 회전을 적용해 저장한 앨범아트를 고르세요")
         }
         if hasTransparency(decoded) {
-            return String(ui: "투명한 부분이 있는 그림은 rekordbox 규칙을 확인하지 않았으니 투명한 곳이 없는 그림을 고르세요")
+            return String(ui: "투명한 부분이 있는 앨범아트는 rekordbox 규칙을 확인하지 않았으니 투명한 곳이 없는 앨범아트를 고르세요")
         }
         return nil
     }

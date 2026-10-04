@@ -76,6 +76,10 @@ enum KeyPicker {
         return .fileTag
     }
 
+    static func suggestionLabel(_ key: String, source: SuggestionSource) -> String {
+        source == .fileTag ? String(ui: "DJCrate 제안: 음원 태그 키 \(key)") : String(ui: "DJCrate 제안: 추정 키 \(key)")
+    }
+
     // MARK: 시트·붙여넣기 입력
 
     /// 시트 붙여넣기·채우기에서 키 칸이 받는 값. 비웠으면 "", Camelot 이름이면 정확한 이름, 아니면 nil(건너뛴다).

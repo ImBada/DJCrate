@@ -204,6 +204,134 @@ struct MusicalKeyEditingTests {
         #expect(KeyPicker.estimate(of: loader, for: [estimated, tagged]) == nil)
     }
 
+    @Test(arguments: ["library", "estimate", "fileTag"])
+    func 키_제안은_적용할_때만_초안을_만든다(source: String) throws {
+        let suite = "djc.test.key-suggestion.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = LibraryStore(settings: SettingsStore(defaults: defaults), saveTagDrafts: { _ in })
+        var row = Self.row("suggestion", key: source == "library" ? nil : "8B", staged: source != "library")
+        row.keyEstimated = source == "estimate"
+        let estimate = source == "library" ? "8B" : row.track.key
+        #expect(store.keySuggestion(estimate: estimate, rows: [row]) == "8B")
+        #expect(store.tagDrafts.isEmpty && store.tagCell(row, .musicalKey).isEmpty)
+        #expect(KeyPicker.suggestionLabel("8B", source: KeyPicker.suggestionSource([row]))
+                == (source == "fileTag" ? "DJCrate 제안: 음원 태그 키 8B" : "DJCrate 제안: 추정 키 8B"))
+        store.applyKeySuggestion(estimate: estimate, rows: [row])
+        let draft = try #require(store.tagDrafts[row.track.uuid])
+        #expect(draft.changedKeys == [.musicalKey] && draft.fields.musicalKey == "8B")
+        #expect(store.keySuggestion(estimate: estimate, rows: [row]) == nil)
+    }
+
+    @Test(arguments: [false, true])
+    func 키_제안_무시는_곡별로_영속화하고_그리드_제안과_초안을_건드리지_않는다(staged: Bool) {
+        let suite = "djc.test.key-ignore.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(defaults: defaults)
+        let store = LibraryStore(settings: settings, saveTagDrafts: { _ in })
+        let row = Self.row("ignored", key: staged ? "8B" : nil, staged: staged), other = Self.row("other")
+        settings.setStrings(SettingKeys.dismissedGridSuggestions, [other.track.uuid])
+        store.dismissKeySuggestion(rows: [row])
+        #expect(store.keySuggestion(estimate: "8B", rows: [row]) == nil)
+        #expect(store.keySuggestion(estimate: "8B", rows: [other]) == "8B")
+        #expect(store.tagDrafts.isEmpty)
+        store.applyKeySuggestion(estimate: "8B", rows: [row])
+        #expect(store.tagDrafts.isEmpty, "무시한 제안은 늦게 온 적용에서도 초안을 만들지 않는다")
+        let reopened = LibraryStore(settings: SettingsStore(defaults: UserDefaults(suiteName: suite)!), saveTagDrafts: { _ in })
+        #expect(reopened.keySuggestion(estimate: "8B", rows: [row]) == nil)
+        #expect(settings.strings(SettingKeys.dismissedGridSuggestions) == [other.track.uuid])
+        // 무시는 제안만 숨긴다. 직접 키를 고르는 길은 그대로다.
+        reopened.setTag(.musicalKey, "5A", rows: [row])
+        #expect(reopened.tagDrafts[row.track.uuid]?.fields.musicalKey == "5A")
+    }
+
+    @Test func 무시한_키_제안은_다시_보기로_되살리고_그리드_무시는_건드리지_않는다() {
+        let suite = "djc.test.key-restore.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(defaults: defaults)
+        let store = LibraryStore(settings: settings, saveTagDrafts: { _ in })
+        let row = Self.row("restore"), other = Self.row("other")
+        settings.setStrings(SettingKeys.dismissedGridSuggestions, [row.track.uuid])
+        #expect(store.dismissedKeySuggestion(estimate: "8B", rows: [row]) == nil, "무시하기 전에는 되살릴 것이 없다")
+        store.restoreKeySuggestion(rows: [row])
+        #expect(settings.strings(SettingKeys.dismissedKeySuggestions).isEmpty)
+        store.dismissKeySuggestion(rows: [row])
+        store.dismissKeySuggestion(rows: [other])
+        #expect(store.keySuggestion(estimate: "8B", rows: [row]) == nil)
+        #expect(store.dismissedKeySuggestion(estimate: "8B", rows: [row]) == "8B")
+        store.restoreKeySuggestion(rows: [row])
+        #expect(store.keySuggestion(estimate: "8B", rows: [row]) == "8B")
+        #expect(store.dismissedKeySuggestion(estimate: "8B", rows: [row]) == nil)
+        #expect(store.dismissedKeySuggestion(estimate: "8B", rows: [other]) == "8B", "다른 곡의 무시는 그대로")
+        #expect(settings.strings(SettingKeys.dismissedKeySuggestions) == [other.track.uuid])
+        #expect(settings.strings(SettingKeys.dismissedGridSuggestions) == [row.track.uuid], "그리드 제안의 무시는 건드리지 않는다")
+        let reopened = LibraryStore(settings: SettingsStore(defaults: UserDefaults(suiteName: suite)!), saveTagDrafts: { _ in })
+        #expect(reopened.keySuggestion(estimate: "8B", rows: [row]) == "8B" && reopened.keySuggestion(estimate: "8B", rows: [other]) == nil)
+    }
+
+    @Test func 다시_보기는_보일_제안이_남은_한_곡에만_있다() throws {
+        let suite = "djc.test.key-restore-scope.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = LibraryStore(settings: SettingsStore(defaults: defaults), saveTagDrafts: { _ in })
+        let row = Self.row("scope"), second = Self.row("scope2"), streaming = Self.row("scope3", streaming: true)
+        store.dismissKeySuggestion(rows: [row])
+        store.dismissKeySuggestion(rows: [row, second])
+        store.dismissKeySuggestion(rows: [streaming])
+        #expect(store.dismissedKeySuggestion(estimate: "8B", rows: [row, second]) == nil, "여러 곡을 고르면 제안도 되살릴 것도 없다")
+        #expect(store.dismissedKeySuggestion(estimate: "8B", rows: [streaming]) == nil, "키를 못 고치는 곡은 제안이 없다")
+        #expect(store.dismissedKeySuggestion(estimate: nil, rows: [row]) == nil, "추정이 없으면 되살릴 것이 없다")
+        #expect(store.dismissedKeySuggestion(estimate: "Am", rows: [row]) == nil, "Camelot 이름이 아닌 추정은 제안이 아니다")
+        // 무시한 뒤 사용자가 키를 직접 골랐으면 되살릴 제안이 없다(죽은 다시 보기 단추를 보이지 않는다).
+        store.setTag(.musicalKey, "5A", rows: [row])
+        #expect(store.dismissedKeySuggestion(estimate: "8B", rows: [row]) == nil)
+        store.setTag(.musicalKey, "", rows: [row])
+        #expect(store.dismissedKeySuggestion(estimate: "8B", rows: [row]) == "8B", "키를 도로 비우면 무시한 제안을 다시 되살릴 수 있다")
+    }
+
+    @Test func 재분석은_그_곡의_키_제안_무시만_푼다() {
+        let suite = "djc.test.key-reanalyze.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(defaults: defaults)
+        let store = LibraryStore(settings: settings, saveTagDrafts: { _ in })
+        let row = Self.row("reanalyze"), other = Self.row("other-reanalyze")
+        settings.setStrings(SettingKeys.dismissedGridSuggestions, [row.track.uuid])
+        store.dismissKeySuggestion(rows: [row])
+        store.dismissKeySuggestion(rows: [other])
+        store.restoreKeySuggestion(uuid: row.track.uuid)
+        #expect(store.keySuggestion(estimate: "8B", rows: [row]) == "8B", "메모리 사본도 같이 풀려야 화면이 바로 바뀐다")
+        #expect(store.keySuggestion(estimate: "8B", rows: [other]) == nil)
+        #expect(settings.strings(SettingKeys.dismissedKeySuggestions) == [other.track.uuid])
+        #expect(settings.strings(SettingKeys.dismissedGridSuggestions) == [row.track.uuid])
+        store.restoreKeySuggestion(uuid: "없는 곡")
+        #expect(settings.strings(SettingKeys.dismissedKeySuggestions) == [other.track.uuid])
+    }
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated))
+    func 덱_재분석은_곡_UUID로_알려_키_제안_무시를_풀게_한다() {
+        let deck = DeckModel(audio: FakeDeckAudio(), storage: .memory(MemoryDrafts()), runsAnalysis: false)
+        var notified: [String] = []
+        deck.onReanalyze = { notified.append($0) }
+        deck.reanalyze()
+        #expect(notified.isEmpty, "곡이 없으면 알릴 것이 없다")
+        let row = Self.row("deck-reanalyze-\(UUID().uuidString)")
+        deck.row = row
+        deck.reanalyze()
+        #expect(notified == [row.track.uuid])
+    }
+
+    @Test func 키_제안_적용은_여러_곡과_편집_불가_곡과_잘못된_키를_받지_않는다() {
+        let store = store()
+        let row = Self.row("1"), other = Self.row("2"), streaming = Self.row("3", streaming: true)
+        store.applyKeySuggestion(estimate: "8B", rows: [row, other])
+        store.applyKeySuggestion(estimate: "8B", rows: [streaming])
+        store.applyKeySuggestion(estimate: "Am", rows: [row])
+        #expect(store.tagDrafts.isEmpty)
+    }
+
     @Test func 키를_고른_추가한_곡은_넣기_미리_보기에_키를_담는다() async throws {
         // 곡을 넣을 때 고른 키도 같은 쓰기에서 쓴다(#5). 미리 보기(사본 시험 실행)가 키까지 보여 주고, 키 줄이 없으면 키만 막힌 것을 미리 알린다.
         let fixture = try RekordboxFixture()

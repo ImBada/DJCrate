@@ -220,6 +220,8 @@ final class DeckModel {
     var onStagedGridChange: ((String, Double?) -> Void)?
     /// 큐 초안이 바뀔 때(목록의 핫큐·메모리 숫자용)
     var onCueDraftChange: ((CueDraft) -> Void)?
+    /// 재분석이 이 곡의 분석 캐시를 지울 때(곡 UUID). 캐시에서 읽는 키 추정의 "무시"도 풀어야 하는 목록 쪽이 받는다.
+    var onReanalyze: ((String) -> Void)?
     var tapBPM: Double?
     var taps: [Double] = []
     var gridDragBase: GridDraft?

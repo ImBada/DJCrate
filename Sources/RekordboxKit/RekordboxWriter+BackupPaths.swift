@@ -26,7 +26,7 @@ extension RekordboxWriter {
         if path.hasPrefix("/") {
             let spelled = URL.comparablePath(path)
             guard let prefix = [root, resolvedRoot].map({ $0.comparablePath + "/" }).first(where: spelled.hasPrefix) else {
-                throw invalidBackup(String(ui: "허용된 분석·아트워크 경로가 아님"))
+                throw invalidBackup(String(ui: "허용된 분석·앨범아트 경로가 아님"))
             }
             relative = String(spelled.dropFirst(prefix.count))
         } else { relative = path }
@@ -36,22 +36,22 @@ extension RekordboxWriter {
             names = ["ANLZ0000.DAT", "ANLZ0000.EXT", "ANLZ0000.2EX", "ANLZ0000.3EX"]
         } else if components.count >= 3, components[0] == "PIONEER", components[1] == "Artwork" {
             names = ["artwork.jpg", "artwork_m.jpg", "artwork_s.jpg"]
-        } else { throw invalidBackup(String(ui: "허용된 분석·아트워크 경로가 아님")) }
+        } else { throw invalidBackup(String(ui: "허용된 분석·앨범아트 경로가 아님")) }
         guard names.contains(String(components.last!)) else {
-            throw invalidBackup(String(ui: "허용된 분석·아트워크 경로가 아님"))
+            throw invalidBackup(String(ui: "허용된 분석·앨범아트 경로가 아님"))
         }
         let file = root.appending(path: relative)
         try validateBackupFile(file, under: root, required: false)
         let resolved = file.resolvingSymlinksInPath().standardizedFileURL
         guard resolved.comparablePath.hasPrefix(resolvedRoot.appending(path: "PIONEER/\(components[1])").comparablePath + "/") else {
-            throw invalidBackup(String(ui: "허용된 분석·아트워크 경로가 아님"))
+            throw invalidBackup(String(ui: "허용된 분석·앨범아트 경로가 아님"))
         }
         return (resolved, relative)
     }
 
     static func backupRelativePaths(_ paths: [String], shareRoot: URL?) throws -> [String] {
         guard !paths.isEmpty else { return [] }
-        guard let shareRoot else { throw invalidBackup(String(ui: "허용된 분석·아트워크 경로가 아님")) }
+        guard let shareRoot else { throw invalidBackup(String(ui: "허용된 분석·앨범아트 경로가 아님")) }
         return try paths.map { try backupTarget($0, shareRoot: shareRoot).relative }
     }
 
@@ -59,7 +59,7 @@ extension RekordboxWriter {
     static func validateBackupFile(_ file: URL, under root: URL, required: Bool) throws {
         let filePath = file.comparablePath, rootPath = root.comparablePath
         guard filePath.hasPrefix(rootPath + "/") else {
-            throw invalidBackup(String(ui: "허용된 분석·아트워크 경로가 아님"))
+            throw invalidBackup(String(ui: "허용된 분석·앨범아트 경로가 아님"))
         }
         let parts = filePath.dropFirst(rootPath.count + 1).split(separator: "/")
         var current = root

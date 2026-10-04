@@ -21,7 +21,7 @@ extension LibraryStore {
         do {
             setArtwork(try Data(contentsOf: url), name: url.lastPathComponent, rows: rows)
         } catch {
-            artworkMessage = AppMessage(kind: .warning, text: String(ui: "그림 파일을 읽지 못했으니 파일 위치와 접근 권한을 확인한 뒤 다시 고르세요"))
+            artworkMessage = AppMessage(kind: .warning, text: String(ui: "앨범아트 파일을 읽지 못했으니 파일 위치와 접근 권한을 확인한 뒤 다시 고르세요"))
         }
     }
 
@@ -87,7 +87,7 @@ extension LibraryStore {
     /// 한 동작을 마친 뒤 한 번만 부른다. 실패가 있으면 안내를 남기고, 모두 되면 지난 안내를 지운다.
     private func finishArtworkChange(failed: Int) {
         artworkMessage = failed == 0 ? nil
-            : AppMessage(kind: .warning, text: String(ui: "\(failed)곡의 그림 초안을 저장하지 못했으니 DJCrate 데이터 폴더의 쓰기 권한을 확인한 뒤 다시 하세요"))
+            : AppMessage(kind: .warning, text: String(ui: "\(failed)곡의 앨범아트 초안을 저장하지 못했으니 DJCrate 데이터 폴더의 쓰기 권한을 확인한 뒤 다시 하세요"))
         if let draftHome { applyMovedDrafts(DamagedDrafts.take(home: draftHome)) }
         if case .pending = sidebar { refreshBase() }
     }
@@ -104,7 +104,7 @@ extension LibraryStore {
             guard artworkDrafts[row.track.uuid] != nil else { return nil }
             do { return try ArtworkDraftStore.load(trackUUID: row.track.uuid, directory: artworkDirectory) }
             catch {
-                throw DJCError.writeRefused(String(ui: "그림 초안을 읽지 못했으니 그 곡의 그림을 다시 고른 뒤 쓰기를 다시 시도하세요."))
+                throw DJCError.writeRefused(String(ui: "앨범아트 초안을 읽지 못했으니 그 곡의 앨범아트를 다시 고른 뒤 쓰기를 다시 시도하세요."))
             }
         }
     }
@@ -122,13 +122,13 @@ extension LibraryStore {
         }
         ArtworkRevisions.bump(written.compactMap { rowsByUUID[$0]?.track.id })
         if failed > 0 {
-            writeFollowUp.append(String(ui: "rekordbox에는 썼지만 그림 초안 \(failed)곡을 정리하지 못했으니 쓰기 대기 목록에서 그림 초안 버리기로 버리세요."))
+            writeFollowUp.append(String(ui: "rekordbox에는 썼지만 앨범아트 초안 \(failed)곡을 정리하지 못했으니 쓰기 대기 목록에서 앨범아트 초안 버리기로 버리세요."))
         }
     }
 
     /// 복원 뒤: 백업의 그림 초안을 되살린다(쓴 뒤 같은 곡에 새로 만든 초안은 `keeps`면 남긴다). 그 곡의 그림을 새로 읽게 한다.
     static func artworkRestoreFailureText(_ count: Int) -> String {
-        String(ui: "rekordbox는 복원했지만 그림 초안 \(count)곡을 되살리지 못했으니 DJCrate 데이터 폴더의 쓰기 권한을 확인한 뒤 그 곡의 그림을 다시 고르세요.")
+        String(ui: "rekordbox는 복원했지만 앨범아트 초안 \(count)곡을 되살리지 못했으니 DJCrate 데이터 폴더의 쓰기 권한을 확인한 뒤 그 곡의 앨범아트를 다시 고르세요.")
     }
 
     /// 복원 뒤: 백업의 그림 초안을 되살린다(쓴 뒤 같은 곡에 새로 만든 초안은 `keeps`면 남긴다). 그 곡의 그림을 새로 읽게 한다.

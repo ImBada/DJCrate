@@ -38,8 +38,6 @@ struct TransportBar: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            Text(.ui("덱 단축키를 쓰려면 글자 입력을 끝내고 시트·확인 창을 닫은 뒤 이 창의 파형이나 곡 목록을 누르세요"))
-                .font(.scaled(.caption2, textScale)).foregroundStyle(.secondary)
         }
         .controlSize(ControlSize.small.scaled(textScale))
     }

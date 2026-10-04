@@ -227,7 +227,7 @@ extension UsbEditPlanner {
             for case let (format, path?) in existing where formats.contains(format) {
                 guard Self.isArtworkFile(Self.relative(path)), Self.isArtworkFile(Self.relative(Self.mediumArtworkPath(path))) else {
                     throw UsbEditBlocked(block: UsbBlock(code: "artworkPathRefused", scope: .track("usb:\(track.id)"),
-                                                         message: String(ui: "USB에 적힌 그림 경로가 아트워크 폴더 모양이 아니라 그림을 고치지 않았습니다. rekordbox에서 USB를 다시 내보내세요")))
+                                                         message: String(ui: "USB에 적힌 앨범아트 경로가 앨범아트 폴더 모양이 아니라 앨범아트를 고치지 않았습니다. rekordbox에서 USB를 다시 내보내세요")))
                 }
             }
             for (format, path) in existing {

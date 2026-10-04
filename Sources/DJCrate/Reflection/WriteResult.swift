@@ -40,7 +40,7 @@ struct WriteResult: Codable, Equatable {
             case .analysis: String(ui: "분석 \(count)곡")
             case .gain: String(ui: "게인 \(count)곡")
             case .tag: String(ui: "태그 \(count)곡")
-            case .artwork: String(ui: "그림 \(count)곡")
+            case .artwork: String(ui: "앨범아트 \(count)곡")
             case .merge: String(ui: "합치기 \(count)묶음")
             }
         }
@@ -52,7 +52,7 @@ struct WriteResult: Codable, Equatable {
             case .analysis: String(ui: "분석 쓰기 완료")
             case .gain: String(ui: "게인 쓰기 완료")
             case .tag: String(ui: "태그 쓰기 완료")
-            case .artwork: String(ui: "그림 쓰기 완료")
+            case .artwork: String(ui: "앨범아트 쓰기 완료")
             case .merge: String(ui: "합치기 쓰기 완료")
             }
         }
@@ -64,7 +64,7 @@ struct WriteResult: Codable, Equatable {
             case .analysis: String(ui: "분석 쓰지 않음: \(reason)")
             case .gain: String(ui: "게인 쓰지 않음: \(reason)")
             case .tag: String(ui: "태그 쓰지 않음: \(reason)")
-            case .artwork: String(ui: "그림 쓰지 않음: \(reason)")
+            case .artwork: String(ui: "앨범아트 쓰지 않음: \(reason)")
             case .merge: String(ui: "합치지 않음: \(reason)")
             }
         }
@@ -76,7 +76,7 @@ struct WriteResult: Codable, Equatable {
             case .analysis: String(ui: "분석 변경 없음")
             case .gain: String(ui: "게인 변경 없음")
             case .tag: String(ui: "태그 변경 없음")
-            case .artwork: String(ui: "그림 변경 없음")
+            case .artwork: String(ui: "앨범아트 변경 없음")
             case .merge: String(ui: "합치기 변경 없음")
             }
         }

@@ -167,7 +167,7 @@ struct TrackColumn {
 
     static let all: [TrackColumn] = [
         TrackColumn(id: "index", title: "#", width: 48, minWidth: 48, help: String(ui: "지금 목록에서 몇 번째 곡인지")),
-        TrackColumn(id: "thumb", title: String(ui: "앨범 아트"), width: 26, minWidth: 26, help: String(ui: "앨범 아트")),
+        TrackColumn(id: "thumb", title: String(ui: "앨범아트"), width: 26, minWidth: 26, help: String(ui: "앨범아트")),
         TrackColumn(id: "edited", title: String(ui: "초안"), width: 18, minWidth: 18, help: String(ui: "DJCrate 초안이 있는 곡 (rekordbox·파일에 쓰기 전)")),
         TrackColumn(id: "title", title: String(ui: "제목"), width: 220, minWidth: 140, flexible: true, sortKey: "title"),
         TrackColumn(id: "preview", title: String(ui: "미리 보기"), width: 160, minWidth: 80,
@@ -218,7 +218,7 @@ struct TrackColumn {
 
     // NSTableHeaderCell은 image를 직접 그리지 않아 초안 머리글처럼 글자 안에 심볼을 넣는다.
     @MainActor static var artworkHeader: NSAttributedString {
-        symbolHeader("photo", label: String(ui: "앨범 아트"))
+        symbolHeader("photo", label: String(ui: "앨범아트"))
     }
 
     @MainActor private static func symbolHeader(_ symbol: String, label: String) -> NSAttributedString {
@@ -678,7 +678,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             // 갱신 상태 칸은 USB 목록이 정한다
             if spec.id == TrackColumn.usbSyncID { continue }
             guard let column = table.tableColumns.first(where: { $0.identifier.rawValue == spec.id }) else { continue }
-            let title = spec.title.isEmpty ? String(ui: "앨범 아트") : spec.id == "edited" ? String(ui: "초안 표시") : spec.title == "#" ? String(ui: "# 번호") : spec.title
+            let title = spec.title.isEmpty ? String(ui: "앨범아트") : spec.id == "edited" ? String(ui: "초안 표시") : spec.title == "#" ? String(ui: "# 번호") : spec.title
             // USB 목록의 칸은 정해져 있다(상태만 보이고 바꾸지 않는다)
             let item = NSMenuItem(title: title, action: usbMode == true ? nil : #selector(toggleColumn(_:)), keyEquivalent: "")
             item.target = self
@@ -1364,7 +1364,7 @@ private final class ThumbnailCell: NSTableCellView {
     private var key: String?
     private var task: Task<Void, Never>?
     private static let placeholder: NSImage? = {
-        let image = NSImage(systemSymbolName: "music.note", accessibilityDescription: String(ui: "앨범 커버 없음"))
+        let image = NSImage(systemSymbolName: "music.note", accessibilityDescription: String(ui: "앨범아트 없음"))
         return image?.withSymbolConfiguration(.init(pointSize: 8, weight: .regular))
     }()
 
@@ -1376,7 +1376,7 @@ private final class ThumbnailCell: NSTableCellView {
         thumb.layer?.cornerRadius = 3
         thumb.layer?.masksToBounds = true
         thumb.contentTintColor = .tertiaryLabelColor
-        thumb.setAccessibilityLabel(String(ui: "앨범 커버"))
+        thumb.setAccessibilityLabel(String(ui: "앨범아트"))
         addSubview(thumb)
         NSLayoutConstraint.activate([
             thumb.widthAnchor.constraint(equalToConstant: 22),

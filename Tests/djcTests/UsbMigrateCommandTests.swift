@@ -49,7 +49,7 @@ struct UsbMigrateCommandTests {
                                         copies: usb.home.appending(path: "usb-snapshots"))
         let (result, report) = try session.write(options: UsbWriteOptions(), progress: { _ in }, isCancelled: { false })
         let lines = UsbCommands.migrateLines(result: result, report: report)
-        #expect(lines.contains("옮길 것: 곡 3 · 재생 목록 1 · OneLibrary 아트워크 6"))
+        #expect(lines.contains("옮길 것: 곡 3 · 재생 목록 1 · OneLibrary 앨범아트 6"))
         #expect(lines.contains { $0.hasPrefix("확인 안 된 규칙: ") && $0.contains("deviceLibraryMigration") })
         #expect(lines.contains("결과: 썼습니다"))
         #expect(!lines.joined().contains("Contents/") && !lines.joined().contains("시험 목록"))
