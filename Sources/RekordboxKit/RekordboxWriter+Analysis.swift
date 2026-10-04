@@ -98,7 +98,10 @@ extension RekordboxWriter {
         var plan = AttachPlan(trackUUID: draft.trackUUID, contentID: content.id, title: content.title, ready: ready)
         if writesArtwork, let image = input.artwork, try hasNoArtwork(content.id, uuid: draft.trackUUID, share: share, reader: reader),
            let files = TrackArtwork.make(image) {
-            plan.artwork = RekordboxTrackWriter.PreparedArtwork(uuid: draft.trackUUID, files: files, share: share)
+            let artwork = RekordboxTrackWriter.PreparedArtwork(uuid: draft.trackUUID, files: files, share: share)
+            // 그림 폴더 위가 링크면 share 밖에 쓰게 된다(#66 리뷰). 쓰지 않는 쪽으로 막는다.
+            guard !artwork.files.contains(where: { hasSymlinkComponent($0.0, under: share) }) else { throw block(artworkLinkReason) }
+            plan.artwork = artwork
         }
         return plan
     }
@@ -176,6 +179,9 @@ extension RekordboxWriter {
     /// 커밋 뒤 분석 파일(과 아트워크 파일 셋)을 만든다(없던 파일만). 만든 파일은 `created`에 더한다(실패하면 되돌릴 때 지운다).
     static func writeAnalysisFiles(_ plan: AttachPlan, created: inout [URL]) throws {
         let fm = FileManager.default
+        if let artwork = plan.artwork, artwork.files.contains(where: { hasSymlinkComponent($0.0, under: artwork.share) }) {
+            throw DJCError.writeVerificationFailed("\(artworkLinkReason) (\(plan.title))")
+        }
         for (url, data) in plan.ready.files + (plan.artwork?.files ?? []) {
             guard !fm.fileExists(atPath: url.path) else { throw DJCError.writeVerificationFailed(String(ui: "파일이 이미 있습니다: \(url.lastPathComponent)")) }
             try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)

@@ -167,7 +167,7 @@ extension LibraryStore {
             .union(merges.filter { merged.contains($0.id) }.flatMap { $0.members.map(\.trackUUID) }))
         let reloaded = await reloadAfterWrite()
         lastWriteBackup = report.backup.map { URL(filePath: $0) }
-        finishWriteFollowUp([saveWarning, playlistWarning], reloaded: reloaded, restoring: false)
+        finishWriteFollowUp([saveWarning, playlistWarning] + (report.warnings ?? []), reloaded: reloaded, restoring: false)
         return report
     }
 

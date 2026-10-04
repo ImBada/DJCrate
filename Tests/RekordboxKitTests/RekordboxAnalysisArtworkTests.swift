@@ -235,3 +235,20 @@ struct RekordboxAnalysisArtworkTests {
         #expect((try FileManager.default.contentsOfDirectory(atPath: artwork.path)).isEmpty)
     }
 }
+
+/// share 밖 쓰기 막기(#66 코드 리뷰, 2026-10-04): 그림 폴더 위가 링크면 아직 없는 곡 UUID 폴더를 통해 share 밖에 쓰게 된다.
+extension RekordboxAnalysisArtworkTests {
+    @Test func 그림_폴더가_링크면_분석을_붙이지_않고_share_밖에_쓰지_않는다() async throws {
+        let fixture = try RekordboxFixture(localUpdateCount: 5000)
+        try fixture.add(TrackSpec())
+        let p = try await plan(fixture)
+        let (_, uuid) = try addBare(fixture, p)
+        let outside = fixture.root.appending(path: "outside")
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: fixture.shareRoot.appending(path: "PIONEER"), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: fixture.shareRoot.appending(path: "PIONEER/Artwork"), withDestinationURL: outside)
+        let report = try attach(fixture, uuid: uuid, input(p))
+        #expect(report.analysisWritten.isEmpty && report.analysisBlocked.first?.reason?.contains("링크") == true)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: outside.path).isEmpty)
+    }
+}

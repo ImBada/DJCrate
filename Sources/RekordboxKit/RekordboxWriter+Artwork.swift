@@ -42,6 +42,8 @@ extension RekordboxWriter {
         var files: [(URL, Data)] = []
         /// 지금 있는 그림 셋(바꾸기·지우기)과 그 바이트. 백업한 뒤 덮거나 지우고, 실패하면 이 바이트로 되돌린다.
         var existing: [(URL, Data)] = []
+        /// 그림을 쓰는 share 뿌리(쓰기 직전 링크를 다시 본다)
+        var share: URL
 
         var uuid: String { edit.trackUUID }
         var kind: ArtworkWriteKind {
@@ -128,7 +130,13 @@ extension RekordboxWriter {
         let rows = try artworkRows(db, contentID: content.id)
         let live = rows.filter { !$0.deleted }, dead = rows.filter(\.deleted)
         let current = content.imagePath ?? ""
-        var plan = ArtworkPlan(edit: edit, contentID: content.id, title: content.title, action: .insert, imagePath: imagePath, fileID: fileID)
+        var plan = ArtworkPlan(edit: edit, contentID: content.id, title: content.title, action: .insert, imagePath: imagePath, fileID: fileID,
+                               share: share)
+        // 그림 폴더 위가 링크면 아직 없는 곡 UUID 폴더를 통해 share 밖에 쓰게 된다(#66 리뷰).
+        let folderURL = share.appending(path: String(TrackArtwork.folder(uuid: draft.trackUUID).dropFirst()))
+        guard !TrackArtwork.fileNames.contains(where: { hasSymlinkComponent(folderURL.appending(path: $0), under: share) }) else {
+            throw block(artworkLinkReason)
+        }
 
         // 곡 UUID 폴더의 세 파일만 다룬다(곡 빼기와 같은 경계: 심볼릭 링크·음원 경로·다른 곡과 같은 폴더는 건드리지 않는다).
         let owned = OwnedTrackFiles(uuid: draft.trackUUID, analysis: nil, image: imagePath, audio: content.audio)
@@ -327,6 +335,10 @@ extension RekordboxWriter {
         let fm = FileManager.default
         let plan = expected.plan
         func fail(_ reason: String) -> DJCError { .writeVerificationFailed("\(reason) (\(plan.title))") }
+        // 확인한 뒤 링크가 생겼어도 share 밖에 쓰거나 지우지 않는다.
+        guard !(plan.files.map(\.0) + plan.existing.map(\.0)).contains(where: { hasSymlinkComponent($0, under: plan.share) }) else {
+            throw fail(artworkLinkReason)
+        }
         switch plan.kind {
         case .add, .replace:
             for (url, data) in plan.files {
@@ -377,3 +389,4 @@ extension RekordboxWriter {
 
     static func md5(_ data: Data) -> String { Insecure.MD5.hash(data: data).map { String(format: "%02x", $0) }.joined() }
 }
+

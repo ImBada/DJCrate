@@ -62,6 +62,8 @@ public enum RekordboxWriter {
         public var mergeOutcomes: [Outcome]?
         /// 곡 정보 그림 쓰기 결과(`Outcome.artwork` = 넣기·바꾸기·지우기). 옛 보고서에는 없다.
         public var artworkOutcomes: [Outcome]?
+        /// 쓰기는 끝났지만 알릴 것(보고서를 백업에 저장하지 못함 등). 옛 보고서에는 없다.
+        public var warnings: [String]?
         public var iTunesSyncWritten: Bool?
         public var mergeWritten: [Outcome] { (mergeOutcomes ?? []).filter { $0.status == .written } }
         public var mergeBlocked: [Outcome] { (mergeOutcomes ?? []).filter { $0.status == .blocked } }
@@ -633,7 +635,7 @@ public enum RekordboxWriter {
         report.mergeOutcomes = mergeOutcomes.isEmpty ? nil : mergeOutcomes
         report.artworkOutcomes = artworkOutcomes.isEmpty ? nil : artworkOutcomes
         if let backup {
-            try? save(report, in: backup, shareRoot: gridRoot)
+            if let warning = saveReport(report, in: backup, shareRoot: gridRoot) { report.warnings = [warning] }
             // 되돌리면 DJCrate 초안도 살릴 수 있게 쓴 초안을 백업 옆에 둔다.
             let written = Set(report.written.map(\.trackUUID))
             let folder = backup.appending(path: "cue-drafts")

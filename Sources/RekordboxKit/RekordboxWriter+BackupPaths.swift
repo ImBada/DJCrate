@@ -101,15 +101,53 @@ extension RekordboxWriter {
         return files
     }
 
+    /// 그 쓰기가 새로 만든 파일(복원 때 지운다). 이미 없는 파일은 건너뛴다(그 뒤 그림을 지웠거나 rekordbox에서 지움, 소유권 실패가 아니다).
+    /// 남은 파일은 지금 DB의 곡 경로로 소유권을 본다. 그림 파일은 그 뒤 `ImagePath`가 비었을 수 있어, 보고서가 그림을 쓴 곡 UUID의
+    /// 폴더(`PIONEER/Artwork/<앞 3자>/<나머지>/artwork{,_m,_s}.jpg`)이고 그 곡이 DB에 있으면 받는다(#66 리뷰). 그 밖은 계속 막는다.
     static func createdRestoreFiles(from backup: URL, database: URL, shareRoot: URL) throws -> [URL] {
-        struct Files: Decodable { var createdFiles: [String]? }
-        var files: [URL] = []
+        struct Files: Decodable {
+            struct Outcome: Decodable { var trackUUID: String?; var status: String?; var uuid: String?; var written: Bool? }
+            var createdFiles: [String]?
+            /// report.json: 곡 정보 그림 결과·분석 붙이기로 그림을 넣은 곡
+            var artworkOutcomes: [Outcome]?
+            var artworkAdded: [String]?
+            /// track-report.json: 넣은 곡
+            var added: [Outcome]?
+        }
+        var files: [(url: URL, relative: String)] = []
+        var owners = Set<String>()
         for name in ["report.json", "track-report.json"] {
             let report = try backupMetadata(Files.self, at: backup.appending(path: name), in: backup)
-            files += try (report?.createdFiles ?? []).map { try backupTarget($0, shareRoot: shareRoot).url }
+            files += try (report?.createdFiles ?? []).map { try backupTarget($0, shareRoot: shareRoot) }
+            owners.formUnion((report?.artworkOutcomes ?? []).filter { $0.status == "written" }.compactMap(\.trackUUID))
+            owners.formUnion(report?.artworkAdded ?? [])
+            owners.formUnion((report?.added ?? []).filter { $0.written == true }.compactMap(\.uuid))
         }
-        try validateRestoreTargets(files, database: database, shareRoot: shareRoot)
-        return files
+        let existing = files.filter { FileManager.default.fileExists(atPath: $0.url.path) }
+        guard !existing.isEmpty else { return [] }
+        try rejectDuplicateTargets(existing.map(\.url))
+        let allowed = try restorableFiles(existing.map(\.url.path), database: database, shareRoot: shareRoot)
+        for file in existing where !allowed.contains(file.url.path) {
+            guard try createdArtworkOwned(file.url, relative: file.relative, owners: owners, database: database, shareRoot: shareRoot) else {
+                throw invalidBackup(String(ui: "파일이 백업의 곡 소유권과 맞지 않음"))
+            }
+        }
+        return existing.map(\.url)
+    }
+
+    /// 보고서가 그림을 쓴 곡의 UUID 폴더 그림 파일인지(그 곡이 DB에 있고, 링크·음원 경로가 아니다)
+    static func createdArtworkOwned(_ file: URL, relative: String, owners: Set<String>, database: URL, shareRoot: URL) throws -> Bool {
+        let parts = relative.split(separator: "/").map(String.init)
+        guard parts.count == 5, parts[0] == "PIONEER", parts[1] == "Artwork", TrackArtwork.fileNames.contains(parts[4]), parts[2].count == 3 else {
+            return false
+        }
+        let uuid = parts[2] + parts[3]
+        guard owners.contains(uuid), uuid.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }),
+              !hasSymlinkComponent(file, under: shareRoot.resolvingSymlinksInPath()) else { return false }
+        let db = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
+        defer { db.close() }
+        return try scalar(db, "SELECT count(*) FROM djmdContent WHERE UUID = ?", [.text(uuid)]) ?? 0 > 0
+            && scalar(db, "SELECT count(*) FROM djmdContent WHERE FolderPath = ?", [.text(file.path)]) == 0
     }
 
     static func validateRestoreTargets(_ files: [URL], database: URL, shareRoot: URL) throws {
