@@ -148,17 +148,33 @@ public enum RekordboxWriter {
         }
         // 태그: 막힐 초안(닫힌 칸·잘못된 값·곡 없음·base 불일치)은 백업 전에 거른다. 트랜잭션 안에서 한 번 더 본다.
         var tagOutcomes: [Outcome] = []
+        var xmlTags: Set<String> = []
         if !tags.isEmpty {
             let reader = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
             defer { reader.close() }
-            tags = try tags.filter { draft in
-                do {
-                    _ = try checkTags(draft, db: reader, writable: tagKeys)
-                    return true
-                } catch let blocked as Blocked {
-                    tagOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: blocked.title, status: .blocked, reason: blocked.reason,
-                                               removed: 0, added: 0))
-                    return false
+            let checked = try checkTagDrafts(tags, db: reader, writable: tagKeys)
+            tags = checked.passed
+            tagOutcomes = checked.blocked
+            xmlTags = checked.touchesXML
+        }
+        // 재생 목록 편집과 곡 정보 쓰기는 DB 옆 masterPlaylists6.xml도 고친다(곡 정보는 그 곡이 든 목록의 Timestamp, #173).
+        // 쓰는 DB 옆 파일만 대상이고 없으면 DB만 쓴다. 사본 옆 파일이 라이브 XML의 링크면 백업 전에 막는다. 곡 정보는 그 곡이 든 살아 있는
+        // 목록이 있을 때만 읽고, 읽지 못하면 그 곡정보 초안만 막는다. 재생 목록·합치기는 읽지 못하면 예전처럼 쓰기째 막는다.
+        let playlistXMLURL = playlistXMLURL(for: database)
+        var playlistXML: MasterPlaylistsXML?
+        if !playlistSteps.isEmpty || !merges.isEmpty || !xmlTags.isEmpty {
+            try writeGuard.checkAdjacentFile(playlistXMLURL, database: database)
+            if FileManager.default.fileExists(atPath: playlistXMLURL.path) {
+                if let xml = try? MasterPlaylistsXML(contentsOf: playlistXMLURL), xml.text.contains("</PLAYLISTS>") {
+                    playlistXML = xml
+                } else if !playlistSteps.isEmpty || !merges.isEmpty {
+                    throw DJCError.writeRefused(String(ui: "masterPlaylists6.xml을 읽지 못했습니다. rekordbox를 한 번 켰다가 종료한 뒤 다시 시도하세요"))
+                } else {
+                    for draft in tags where xmlTags.contains(draft.trackUUID) {
+                        tagOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: draft.base.title, status: .blocked, reason: String(ui: "masterPlaylists6.xml을 읽지 못해 재생 목록 시각을 고칠 수 없으니 rekordbox를 한 번 켰다가 종료한 뒤 다시 쓰세요"),
+                                                   removed: 0, added: 0))
+                    }
+                    tags.removeAll { xmlTags.contains($0.trackUUID) }
                 }
             }
         }
@@ -253,17 +269,6 @@ public enum RekordboxWriter {
             }
         }
 
-        // 재생 목록 편집은 DB 옆 masterPlaylists6.xml도 고친다. 읽지 못하는 모양이면 백업 전에 막는다.
-        let playlistXMLURL = playlistXMLURL(for: database)
-        var playlistXML: MasterPlaylistsXML?
-        if (!playlistSteps.isEmpty || !merges.isEmpty), FileManager.default.fileExists(atPath: playlistXMLURL.path) {
-            let xml = try? MasterPlaylistsXML(contentsOf: playlistXMLURL)
-            guard let xml, xml.text.contains("</PLAYLISTS>") else {
-                throw DJCError.writeRefused(String(ui: "masterPlaylists6.xml을 읽지 못했습니다. rekordbox를 한 번 켰다가 종료한 뒤 다시 시도하세요"))
-            }
-            playlistXML = xml
-        }
-
         let backup = dryRun ? nil : try makeBackup(of: database, in: backups, now: now, label: "write")
         // 분석 파일도 원본을 백업에 둔다(되돌리기용).
         if let backup, let gridRoot, !gridPlans.isEmpty { try backupAnalysis(gridPlans, in: backup, shareRoot: gridRoot) }
@@ -278,6 +283,10 @@ public enum RekordboxWriter {
         var playlistOutcomes: [PlaylistOutcome] = []
         var playlistWork: PlaylistWork?
         var updatedXML: MasterPlaylistsXML?
+        /// XML에 할 일(재생 목록 → 합치기 → 곡 정보 순). 트랜잭션 끝에서 한 번에 계산하고 커밋 뒤에 적는다.
+        var xmlChanges: [PlaylistXMLChange] = []
+        /// 곡 정보로 Timestamp를 고칠 목록(한 번씩)
+        var touchedPlaylists: Set<String> = []
         var merged: [MergeExpectation] = []
         var mergeFiles: [URL] = []
         var finalUpdateCount: Int?
@@ -375,8 +384,7 @@ public enum RekordboxWriter {
                 }
                 if playlistOutcomes.contains(where: { $0.status == .written }) {
                     try verifyPlaylists(work, db: db)
-                    // XML은 커밋 뒤에 적지만, 적을 수 있는지는 커밋 전에 본다.
-                    updatedXML = try playlistXML.map { try applyPlaylistXML(work.xml, to: $0, now: now) }
+                    xmlChanges += work.xml
                     playlistWork = work
                 }
             }
@@ -413,7 +421,7 @@ public enum RekordboxWriter {
                 }
                 if !merged.isEmpty {
                     playlistWork = work
-                    updatedXML = try playlistXML.map { try applyPlaylistXML(work.xml, to: $0, now: now) }
+                    xmlChanges += work.xml
                 }
             }
 
@@ -428,12 +436,12 @@ public enum RekordboxWriter {
             // 태그는 마지막: 곡 행을 한 번 더 고쳐 가장 큰 변경 번호를 받는다(큐·그리드·분석을 쓴 곡이면 그 뒤 편집처럼).
             for draft in tags {
                 try db.execute("SAVEPOINT djc_tags")
+                let savedUSN = usn
                 do {
                     let result = try applyTags(draft, db: db, usn: &usn, stamp: stamp, writable: tagKeys)
                     tagOutcomes.append(result.outcome)
-                    // 여러 곡이 같은 앨범을 저장하거나 마지막 참조를 놓으면 뒤 편집이 그 행 검증을 맡는다.
-                    let replacedAlbums = Set(result.expectation.touchedAlbums.keys)
-                        .union(result.expectation.deletedNames.filter { $0.table == "djmdAlbum" }.map(\.id))
+                    // 여러 곡이 같은 앨범을 저장하거나 마지막 참조를 놓으면(지움·258) 뒤 편집이 그 행 검증을 맡는다.
+                    let replacedAlbums = Set(result.expectation.touchedAlbums.keys).union(result.expectation.releasedAlbums)
                     for i in tagged.indices {
                         for id in replacedAlbums { tagged[i].touchedAlbums.removeValue(forKey: id) }
                     }
@@ -447,13 +455,23 @@ public enum RekordboxWriter {
                         regridded[i].content["rb_local_usn"] = .int(usn)
                     }
                     try db.execute("RELEASE djc_tags")
+                    // 곡 정보를 썼으면 그 곡이 든 살아 있는 목록마다 XML Timestamp를 쓴 시각으로. 아홉 칸 모두 같다
+                    // (부모 폴더는 그대로, #173 S1 X1·S2 U11·U12·S3 V07·S4 A1~A6·B2)
+                    if playlistXML != nil {
+                        for id in try tagPlaylists(db, contentID: result.expectation.contentID) where touchedPlaylists.insert(id).inserted {
+                            xmlChanges.append(.touch(id))
+                        }
+                    }
                 } catch let blocked as Blocked {
                     try db.execute("ROLLBACK TO djc_tags")
                     try db.execute("RELEASE djc_tags")
+                    usn = savedUSN
                     tagOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: blocked.title, status: .blocked, reason: blocked.reason,
                                                removed: 0, added: 0))
                 }
             }
+            // XML은 커밋 뒤에 적지만, 적을 수 있는지는 커밋 전에 본다.
+            if !xmlChanges.isEmpty { updatedXML = try playlistXML.map { try applyPlaylistXML(xmlChanges, to: $0, now: now) } }
             if let backup, !merged.isEmpty {
                 try JSONEncoder().encode(merged.map(\.draft)).write(to: backup.appending(path: "merge-drafts.json"), options: .atomic)
             }
@@ -499,18 +517,9 @@ public enum RekordboxWriter {
                 throw recover(from: error, database: database, backup: backup, live: live)
             }
         }
-        // masterPlaylists6.xml: DB를 확인한 뒤 적는다. 적지 못하면 DB·XML 모두 쓰기 전으로.
-        if let backup, let updatedXML, let original = playlistXML {
-            do {
-                try updatedXML.data.write(to: playlistXMLURL, options: .atomic)
-                guard try MasterPlaylistsXML(contentsOf: playlistXMLURL) == updatedXML else {
-                    throw DJCError.writeVerificationFailed(String(ui: "masterPlaylists6.xml을 다시 읽으니 적은 것과 다릅니다"))
-                }
-            } catch {
-                throw recover(from: error, database: database, backup: backup, live: live) {
-                    try original.data.write(to: playlistXMLURL, options: .atomic)
-                }
-            }
+        // masterPlaylists6.xml: DB를 확인한 뒤 적는다. 고칠 줄이 없으면(곡이 든 목록의 NODE가 없음 등) 같은 내용을 다시 쓰지 않는다.
+        if let backup, let updatedXML, let original = playlistXML, updatedXML != original {
+            try writePlaylistXML(updatedXML, original: original, to: playlistXMLURL, database: database, backup: backup, live: live)
         }
 
         // 분석 파일(붙이기는 새로 만들고, 그리드는 고친다): DB가 끝난 뒤 쓴다. 하나라도 검증에 실패하면 DB·파일 모두 쓰기 전으로
@@ -594,22 +603,42 @@ public enum RekordboxWriter {
 
     // MARK: - 커밋 뒤 실패
 
+    /// masterPlaylists6.xml을 적고 다시 읽어 확인한다(DB를 커밋하고 확인한 뒤). 적거나 다시 읽다 실패하면 DB를 되돌리기 전에 원본 XML부터
+    /// 다시 쓰고(재생 목록 쓰기 #38과 같은 순서라 DB 복원이 실패해도 XML은 원본) DB를 백업으로 되돌린다.
+    /// - Parameter read: 다시 읽기(시험만 바꾼다)
+    static func writePlaylistXML(_ updated: MasterPlaylistsXML, original: MasterPlaylistsXML, to url: URL, database: URL, backup: URL, live: Bool,
+                                 read: (URL) throws -> MasterPlaylistsXML = { try MasterPlaylistsXML(contentsOf: $0) }) throws {
+        do {
+            try updated.data.write(to: url, options: .atomic)
+            guard try read(url) == updated else {
+                throw DJCError.writeVerificationFailed(String(ui: "masterPlaylists6.xml을 다시 읽으니 적은 것과 다릅니다"))
+            }
+        } catch {
+            throw recover(from: error, database: database, backup: backup, live: live, filesLabel: "masterPlaylists6.xml") {
+                // 원자적 쓰기가 실패했으면 원본 그대로다. 같은 내용을 다시 쓰다 같은 이유로 실패해 복원 실패로 알리지 않는다.
+                guard (try? Data(contentsOf: url)) != original.data else { return }
+                try original.data.write(to: url, options: .atomic)
+            }
+        }
+    }
+
     /// 커밋 뒤 확인·분석 파일 쓰기가 실패했을 때 쓰기 전으로 되돌리고 던질 오류를 고른다.
     /// 모두 되돌렸으면 `writeRolledBack`, 하나라도 못 했거나 되돌린 DB가 무결성 검사를 통과하지 못하면 `restoreFailed`.
     /// - Parameters:
     ///   - restoreDatabase: DB를 커밋했으면 true(백업의 master.db로 바꾼다)
     ///   - files: 분석 파일 되돌리기(바꾼 파일은 원본으로, 만든 파일은 지우기)
     static func recover(from failure: any Error, database: URL, backup: URL, live: Bool, restoreDatabase: Bool = true,
-                        files: () throws -> Void = {}) -> DJCError {
+                        filesLabel: String? = nil, files: () throws -> Void = {}) -> DJCError {
         var problems: [String] = []
-        do { try files() } catch { problems.append(String(ui: "분석 파일: \(DJCError.reason(of: error))")) }
+        // files는 분석 파일·아트워크(그리드·분석 붙이기·합치기)나 원본 XML(filesLabel)을 되돌린다. DB와 XML은 restoreFiles가 백업에서 살린다.
+        do { try files() } catch {
+            let reason = DJCError.reason(of: error)
+            problems.append(filesLabel.map { "\($0): \(reason)" } ?? String(ui: "분석·아트워크 파일: \(reason)"))
+        }
         if restoreDatabase {
-            do {
-                try restoreFiles(from: backup, to: database)
-                try checkIntegrity(of: database)
-            } catch {
-                problems.append("master.db: \(DJCError.reason(of: error))")
-            }
+            // restoreFiles는 DB를 되살린 뒤에만 XML을 되살리고, 실패에 꼬리표("master.db:"·"masterPlaylists6.xml:")를 붙여 던진다.
+            do { try restoreFiles(from: backup, to: database) } catch { problems.append(DJCError.reason(of: error)) }
+            do { try checkIntegrity(of: database) } catch { problems.append("master.db: \(DJCError.reason(of: error))") }
         }
         let reason = DJCError.reason(of: failure)
         guard problems.isEmpty else {

@@ -311,6 +311,96 @@ struct RekordboxRestoreFailureTests {
         #expect(try state(fixture) == before)
     }
 
+    /// 곡 정보를 쓰면 그 곡이 든 목록의 masterPlaylists6.xml도 고친다(#173). XML을 적지 못하면 커밋한 곡 정보도 백업으로 되돌린다.
+    /// XML 파일에만 "지우기 거부" ACL을 걸어 원자적 쓰기(바꿔 넣기)만 실패하게 한다(DB 복원과 백업 권한은 그대로 된다).
+    @Test func XML을_적지_못하면_곡_정보_쓰기도_되돌린다() throws {
+        let fixture = try RekordboxFixture(localUpdateCount: 900)
+        let track = try fixture.add(TrackSpec())
+        try fixture.execute("UPDATE djmdContent SET Commnt = '' WHERE ID = ?", [.text(track.id)])
+        let playlist = try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: [track.id]))
+        var parsed = MasterPlaylistsXML(text: MasterPlaylistsXMLTests.empty)
+        try parsed.append(id: playlist.id, parentID: playlist.parentID, isFolder: false, timestamp: 1_000)
+        let xml = fixture.root.appending(path: "masterPlaylists6.xml")
+        try parsed.text.write(to: xml, atomically: true, encoding: .utf8)
+        // XML Timestamp를 고치는 칸(제목)
+        var tags = try syncedCommentDraft(fixture, track)
+        tags.fields.comment = tags.base.comment
+        tags.fields.title = "새 제목"
+        let before = try state(fixture), xmlBefore = try Data(contentsOf: xml)
+        try acl(["+a", "everyone deny delete", xml.path])
+        defer { try? acl(["-R", "-N", fixture.root.path]) }
+        let error = try #require(throws: DJCError.self) {
+            try RekordboxWriter.write(drafts: [], tags: [tags], to: fixture.database, dryRun: false, now: now,
+                                      backups: fixture.backups, shareRoot: fixture.shareRoot)
+        }
+        guard case .writeRolledBack = error else { Issue.record("되돌림 오류가 아님: \(error)"); return }
+        #expect(try state(fixture) == before)
+        #expect(try Data(contentsOf: xml) == xmlBefore)
+    }
+
+    /// 되돌릴 때 masterPlaylists6.xml은 DB를 되살린 뒤에만 되살린다(#173 3차 리뷰). XML은 원자적으로 써서 반쯤 쓰인 상태가 없으므로,
+    /// DB 복원이 실패하면 XML도 지금 상태로 두어 재생 목록 구조가 DB와 어긋나지 않게 한다. 쓰기 실패 뒤 되돌리기와 "쓰기 전으로 복원…"이 같다.
+    @Test func DB_복원이_실패하면_XML은_건드리지_않아_DB와_같은_상태로_남는다() throws {
+        let fixture = try RekordboxFixture(localUpdateCount: 900)
+        let track = try fixture.add(TrackSpec())
+        let playlist = try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: [track.id]))
+        var parsed = MasterPlaylistsXML(text: MasterPlaylistsXMLTests.empty)
+        try parsed.append(id: playlist.id, parentID: playlist.parentID, isFolder: false, timestamp: 1_000)
+        let xml = fixture.root.appending(path: "masterPlaylists6.xml")
+        try parsed.text.write(to: xml, atomically: true, encoding: .utf8)
+        let original = try Data(contentsOf: xml)
+        var tags = try syncedCommentDraft(fixture, track)
+        tags.fields.comment = tags.base.comment
+        tags.fields.title = "새 제목"
+        let report = try RekordboxWriter.write(drafts: [], tags: [tags], to: fixture.database, dryRun: false, now: now,
+                                               backups: fixture.backups, shareRoot: fixture.shareRoot)
+        let backup = URL(filePath: try #require(report.backup))
+        let written = try Data(contentsOf: xml)
+        #expect(written != original, "곡 정보 쓰기가 XML Timestamp를 고쳤다")
+        try blockRestore(fixture)
+        defer { unlock(fixture) }
+        #expect(throws: (any Error).self) { try RekordboxWriter.restore(backup, to: fixture.database, backups: fixture.backups) }
+        #expect(try Data(contentsOf: xml) == written, "DB를 되살리지 못했으면 XML도 쓴 뒤 그대로(DB와 같은 때)")
+        // 쓰기 실패 뒤 되돌리기 경로(restoreFiles 직접)도 같다
+        #expect(throws: (any Error).self) { try RekordboxWriter.restoreFiles(from: backup, to: fixture.database) }
+        #expect(try Data(contentsOf: xml) == written)
+    }
+
+    /// XML을 적은 뒤 다시 읽은 것이 적은 것과 어긋나면, DB를 되돌리기 전에 원본 XML부터 다시 쓴다(dev 재생 목록 쓰기 #38과 같은 순서).
+    /// 그래서 DB 복원이 실패해도 XML은 원본으로 돌아온다. 다시 읽기만 시험에서 바꿔 어긋남을 만든다.
+    @Test(arguments: [false, true]) func 다시_읽기가_적은_것과_어긋나면_XML은_원본으로_돌아온다(blocksDatabase: Bool) throws {
+        let fixture = try RekordboxFixture(localUpdateCount: 900)
+        _ = try fixture.add(TrackSpec())
+        let url = fixture.root.appending(path: "masterPlaylists6.xml")
+        var original = MasterPlaylistsXML(text: MasterPlaylistsXMLTests.empty)
+        try original.append(id: "201", parentID: "root", isFolder: false, timestamp: 1_000)
+        try original.text.write(to: url, atomically: true, encoding: .utf8)
+        let backup = try RekordboxWriter.makeBackup(of: fixture.database, in: fixture.backups, now: now, label: "write")
+        var updated = original
+        updated.touch(ids: ["201"], timestamp: 2_000)
+        if blocksDatabase { try blockRestore(fixture) }
+        defer { unlock(fixture) }
+        let error = try #require(throws: DJCError.self) {
+            try RekordboxWriter.writePlaylistXML(updated, original: original, to: url, database: fixture.database, backup: backup, live: false,
+                                                 read: { _ in original })
+        }
+        #expect(try MasterPlaylistsXML(contentsOf: url) == original, "원본 XML로")
+        switch error {
+        case .writeRolledBack: #expect(!blocksDatabase)
+        case let .restoreFailed(_, restoreError, _, _): #expect(blocksDatabase && restoreError.contains("master.db"))
+        default: Issue.record("되돌림 오류가 아님: \(error)")
+        }
+    }
+
+    func acl(_ arguments: [String]) throws {
+        let process = Process()
+        process.executableURL = URL(filePath: "/bin/chmod")
+        process.arguments = arguments
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { throw FixtureError("chmod \(arguments.joined(separator: " ")) 실패") }
+    }
+
     /// 픽스처 곡(상태 256)의 코멘트만 고친 초안
     func syncedCommentDraft(_ fixture: RekordboxFixture, _ track: TrackSpec) throws -> TagDraft {
         let db = try fixture.open()

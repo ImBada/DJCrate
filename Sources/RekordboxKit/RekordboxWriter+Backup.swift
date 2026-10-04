@@ -210,24 +210,41 @@ extension RekordboxWriter {
         }
     }
 
+    /// DB·XML 되돌리기에서 실패한 것(꼬리표를 붙여)
+    struct RestoreFilesError: Error, CustomStringConvertible {
+        var problems: [String]
+        var description: String { problems.joined(separator: " / ") }
+    }
+
+    /// 백업의 master.db(-wal·-shm)를 되살리고, 그게 끝난 뒤에만 masterPlaylists6.xml을 되살린다(쓰기 실패 뒤 되돌리기와 "쓰기 전으로 복원…"이
+    /// 같이 쓴다). XML은 원자적으로 써서 반쯤 쓰인 상태가 없으므로, DB 복원이 실패하면 XML도 지금 상태로 두어 재생 목록 구조가 DB와 어긋나지 않게 한다.
     static func restoreFiles(from backup: URL, to database: URL) throws {
         let fm = FileManager.default
-        for suffix in ["", "-wal", "-shm"] {
-            let target = URL(filePath: database.path + suffix)
-            let source = backup.appending(path: "master.db" + suffix)
-            if fm.fileExists(atPath: source.path) {
-                let partial = URL(filePath: database.path + suffix + ".djc-restore")
-                try? fm.removeItem(at: partial)
-                try fm.copyItem(at: source, to: partial)
-                _ = try fm.replaceItemAt(target, withItemAt: partial)
-            } else if fm.fileExists(atPath: target.path) {
-                try fm.removeItem(at: target)
+        do {
+            for suffix in ["", "-wal", "-shm"] {
+                let target = URL(filePath: database.path + suffix)
+                let source = backup.appending(path: "master.db" + suffix)
+                if fm.fileExists(atPath: source.path) {
+                    let partial = URL(filePath: database.path + suffix + ".djc-restore")
+                    try? fm.removeItem(at: partial)
+                    try fm.copyItem(at: source, to: partial)
+                    _ = try fm.replaceItemAt(target, withItemAt: partial)
+                } else if fm.fileExists(atPath: target.path) {
+                    try fm.removeItem(at: target)
+                }
             }
+        } catch {
+            throw RestoreFilesError(problems: ["master.db: \(DJCError.reason(of: error))"])
         }
         // 옛 백업에는 없다(그때는 XML을 고치지 않았다).
         let xml = backup.appending(path: "masterPlaylists6.xml")
-        if fm.fileExists(atPath: xml.path) {
-            try Data(contentsOf: xml).write(to: playlistXMLURL(for: database), options: .atomic)
+        guard fm.fileExists(atPath: xml.path) else { return }
+        do {
+            // 이미 같은 내용이면(쓰기가 원자적으로 실패해 원본 그대로) 다시 쓰지 않는다.
+            let data = try Data(contentsOf: xml), target = playlistXMLURL(for: database)
+            if (try? Data(contentsOf: target)) != data { try data.write(to: target, options: .atomic) }
+        } catch {
+            throw RestoreFilesError(problems: ["masterPlaylists6.xml: \(DJCError.reason(of: error))"])
         }
     }
 
