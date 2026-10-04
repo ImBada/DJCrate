@@ -263,10 +263,21 @@ extension LibraryStore {
 
     // MARK: - 되돌린 뒤
 
-    /// 곡 추가를 되돌렸으면 그 곡들을 추가 목록에 다시 넣고, 새 곡으로 옮겼던 초안을 지운다. 되살린 곡 수.
-    func restoreStaged(from backup: RekordboxWriter.Backup) -> Int {
+    struct RestoredStaged {
+        /// 추가 목록에 다시 넣은 곡 수
+        var restaged = 0
+        /// 되돌린 새 곡에 넣은 뒤 만든 태그 초안 가운데 지우지 않고 연결 안 된 초안으로 남긴 곡 수
+        var keptTagDrafts = 0
+    }
+
+    /// 곡 추가를 되돌렸으면 그 곡들을 추가 목록에 다시 넣고, 새 곡으로 옮겼던 초안을 지운다.
+    /// 새 곡에 사용자가 넣은 뒤 만든 태그 초안은 지우지 않고 연결 안 된 초안으로 남긴다(쓰기 대기 목록에서 버릴 수 있다, #197).
+    /// 키가 막혀 새 곡으로 옮겨 둔 키만 있는 초안은 지운다(추가 목록 곡에 돌아온 키 초안이 같은 값을 들고 있어 다시 넣으면 함께 쓴다).
+    @discardableResult
+    func restoreStaged(from backup: RekordboxWriter.Backup) -> RestoredStaged {
         resetPlaylistImports(contentIDs: Set(backup.trackReport?.added.filter(\.written).compactMap(\.contentID) ?? []))
-        let added = Set(backup.trackReport?.added.compactMap(\.uuid) ?? [])
+        let outcomes = backup.trackReport?.added.filter { $0.written && $0.uuid != nil } ?? []
+        let added = Set(outcomes.compactMap(\.uuid))
         for uuid in added {
             // 저장 실패로 DraftWriter에 남은 기록까지 같이 비우려고 파일을 직접 지우지 않는다(#172).
             DraftWriter.removeCue(trackUUID: uuid)
@@ -274,17 +285,27 @@ extension LibraryStore {
             draftChanged(trackUUID: uuid, kind: .cue, exists: false)
             draftChanged(trackUUID: uuid, kind: .grid, exists: false)
         }
-        // 키가 막혀 새 곡으로 옮긴 키 초안도 지운다(추가 목록 곡의 키 초안은 그대로라 다시 넣으면 함께 쓴다).
-        replaceTagDrafts(added.filter { tagDrafts[$0] != nil }.sorted().map { TagDraft(trackUUID: $0, base: TagFields()) })
-        if !added.isEmpty, let warning = draftSaveWarning(for: added, restoring: true) { reportLibraryError(warning) }
-        guard let data = try? Data(contentsOf: backup.url.appending(path: Self.stagedBackupName)),
-              let tracks = try? JSONDecoder().decode([StagedTrack].self, from: data) else {
-            refreshUnlinkedDrafts()
-            return 0
+        let data = try? Data(contentsOf: backup.url.appending(path: Self.stagedBackupName))
+        let tracks = data.flatMap { try? JSONDecoder().decode([StagedTrack].self, from: $0) }
+        var result = RestoredStaged()
+        var cleared: [TagDraft] = []
+        for outcome in outcomes {
+            guard let uuid = outcome.uuid, let draft = tagDrafts[uuid] else { continue }
+            let stagedUUID = tracks?.first { URL(filePath: $0.path).path.precomposedStringWithCanonicalMapping == outcome.path }?.uuid
+            // 옮겨 둔 키 그대로인지: 키 막힘 기록이 있고, 키만 고친 초안이며, 그 키가 추가 목록 곡의 고른 키와 같다. 모르면 사용자 초안으로 본다.
+            let isMovedKey = outcome.keyReason != nil && draft.changedKeys == [.musicalKey]
+                && stagedUUID.flatMap { confirmedStagedKey(uuid: $0) } == draft.fields.musicalKey
+            if isMovedKey { cleared.append(TagDraft(trackUUID: uuid, base: TagFields())) } else { result.keptTagDrafts += 1 }
         }
-        let restaged = restage(tracks)
-        // 읽은 뒤 되돌린 곡을 추가 목록에 다시 넣었으니, 그 곡의 초안은 더는 연결 안 된 초안이 아니다.
+        replaceTagDrafts(cleared)
+        if !added.isEmpty, let warning = draftSaveWarning(for: added, restoring: true) { reportLibraryError(warning) }
+        if let tracks { result.restaged = restage(tracks) }
+        // 되돌린 곡을 추가 목록에 다시 넣었으니 그 곡의 초안은 더는 연결 안 된 초안이 아니고, 남긴 새 곡 초안은 연결 안 된 초안이다.
         refreshUnlinkedDrafts()
-        return restaged
+        return result
+    }
+
+    static func keptNewTrackDraftsText(_ count: Int) -> String? {
+        count == 0 ? nil : String(ui: "넣은 뒤 새 곡에 만든 태그 초안 \(count)곡은 지우지 않고 연결되지 않은 초안으로 남겼습니다. 필요 없으면 ‘연결되지 않은 초안 보기…’에서 버리세요.")
     }
 }

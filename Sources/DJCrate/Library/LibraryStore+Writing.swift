@@ -219,9 +219,10 @@ extension LibraryStore {
         // 재생 목록 편집은 되돌린 rekordbox 상태에 다시 쌓는다. 다시 읽지 못하면 옛 목록 상태에 쌓지 않고 다음 읽기 뒤에 쌓는다.
         playlistEditsAwaitingReload += RekordboxWriter.playlistEdits(in: backup.url)
         let reloaded = await reloadAfterWrite()
-        _ = restoreStaged(from: backup)
+        let restoredStaged = restoreStaged(from: backup)
         lastWriteBackup = nil
-        finishWriteFollowUp([saveWarning, artworkWarning, keptWarning], reloaded: reloaded, restoring: true)
+        finishWriteFollowUp([saveWarning, artworkWarning, keptWarning, Self.keptNewTrackDraftsText(restoredStaged.keptTagDrafts)],
+                            reloaded: reloaded, restoring: true)
         return saved
     }
 

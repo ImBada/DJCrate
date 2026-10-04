@@ -256,6 +256,48 @@ struct TrackWritePathTests {
         #expect(!store.unlinkedDraftUUIDs.contains(staged.uuid), "되돌린 곡이 추가 목록에 있어 이어진 초안이다")
     }
 
+    @Test(.enabled(if: LiveDraftHome.isIsolated), arguments: ["12B", "8A"])
+    func 곡_넣기를_되돌려도_넣은_뒤_새_곡에_만든_태그_초안은_지우지_않고_알린다(key: String) async throws {
+        // #197: 되돌리면 새 곡이 사라지지만, 넣은 뒤 사용자가 그 곡에 만든 태그 초안(막힌 키를 옮긴 초안에 더한 것 포함)을 알림 없이 지우지 않는다.
+        // 연결 안 된 초안으로 남기고(쓰기 대기 목록에서 버릴 수 있다) 복원 결과가 알린다. 옮겨 둔 키만 있는 초안은 지운다(추가 목록 곡에 돌아온 키 초안과 같다).
+        let fixture = try RekordboxFixture()
+        let (store, staged, row) = try await keyedStaged(fixture, key: key)
+        defer { clearTagDrafts(store) }
+        let preview = try await store.previewTrackAdd(rows: [row])
+        let report = try await store.addTracksToRekordbox(preview, to: fixture.database, shareRoot: fixture.shareRoot)
+        let uuid = try #require(report.added.first?.uuid)
+        let backup = try #require(RekordboxWriter.backups(in: fixture.backups).first)
+        let added = try #require(store.rowsByUUID[uuid])
+        store.setTag(.comment, "넣은 뒤 고친 코멘트", rows: [added])
+        DraftWriter.flush()
+        #expect(store.tagDrafts[uuid]?.fields.comment == "넣은 뒤 고친 코멘트")
+
+        try await store.restoreRekordbox(backup, keepingCurrentDrafts: true)
+        DraftWriter.flush()
+        #expect(store.staged.map(\.uuid) == [staged.uuid] && store.confirmedStagedKey(uuid: staged.uuid) == key)
+        let kept = try #require(store.tagDrafts[uuid], "사용자가 만든 초안은 지우지 않는다")
+        #expect(kept.fields.comment == "넣은 뒤 고친 코멘트")
+        #expect(TagDraftStore.load(trackUUID: uuid)?.fields.comment == "넣은 뒤 고친 코멘트", "디스크에도 남아 있다")
+        #expect(store.unlinkedDraftUUIDs.contains(uuid), "연결 안 된 초안으로 남아 쓰기 대기 목록에서 버릴 수 있다")
+        #expect(store.writeFollowUp.contains { $0.contains("연결되지 않은 초안") }, "\(store.writeFollowUp)")
+    }
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 곡_넣기를_되돌릴_때_옮겨_둔_키만_있는_초안은_지우고_알리지_않는다() async throws {
+        let fixture = try RekordboxFixture()
+        let (store, staged, row) = try await keyedStaged(fixture, key: "12B")
+        defer { clearTagDrafts(store) }
+        let preview = try await store.previewTrackAdd(rows: [row])
+        let report = try await store.addTracksToRekordbox(preview, to: fixture.database, shareRoot: fixture.shareRoot)
+        let uuid = try #require(report.added.first?.uuid)
+        #expect(store.tagDrafts[uuid]?.changedKeys == [.musicalKey])
+        let backup = try #require(RekordboxWriter.backups(in: fixture.backups).first)
+        try await store.restoreRekordbox(backup, keepingCurrentDrafts: true)
+        DraftWriter.flush()
+        #expect(store.tagDrafts[uuid] == nil && TagDraftStore.load(trackUUID: uuid) == nil)
+        #expect(store.confirmedStagedKey(uuid: staged.uuid) == "12B")
+        #expect(!store.unlinkedDraftUUIDs.contains(uuid) && !store.writeFollowUp.contains { $0.contains("연결되지 않은 초안") })
+    }
+
     // MARK: - 반영 확인
 
     @Test(.enabled(if: LiveDraftHome.isIsolated)) func 반영_확인은_저장_실패_기록이_남은_곡의_대기_초안도_정리한다() async throws {
