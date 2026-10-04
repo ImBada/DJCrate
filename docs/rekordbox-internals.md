@@ -311,7 +311,7 @@ rekordbox 7.2.18이 하는 것 [확인]:
 - 묶음 2 S1·S2·S3: 그림 곡의 곡 행·파일 행 차이 0, XML 같음. 남은 차이는 같은 세션의 별점·색·키 곡 셋(#65·#5, 이 재현에서 쓰지 않음)뿐이다.
 - #173 S1(X2·X3 포함 14번)·S3(V04 포함 7번): 차이 0, 번호 받은 행 순서 같음, XML NODE 집합 같음.
 - #173 S2(U03 그림 → U03 아티스트, U08·U09 포함 14번): 남은 차이는 이전에 적은 예외(U13 `TrackInfoUpdated`, 작곡가 258 번호 자리, X4의 목록 XML)와 쓰지 않은 U10·X4뿐이다.
-- #173 S5(W1·W2a·W2b·W3a·W3b 다섯 번): 차이는 W2b의 258 행 Hash·Size뿐이다. 바꾼 그림(W2a)의 값이 남는 칸이라 각자 자기 인코더 값이고, DJCrate 값은 W2b 백업에 둔 W2a `artwork.jpg`의 MD5와 같다. XML은 K1(키, #5) 말고 바뀐 NODE가 없다.
+- #173 S5(K1 키 → W1·W2a·W2b·W3a·W3b, 여섯 번): 차이는 W2b의 258 행 Hash·Size뿐이다. 바꾼 그림(W2a)의 값이 남는 칸이라 각자 자기 인코더 값이고, DJCrate 값은 W2b 백업에 둔 W2a `artwork.jpg`의 MD5와 같다. 번호 받은 행 7개 순서 같음, XML에서 바뀐 NODE는 K1의 목록 하나로 rekordbox와 같다(그림 저장은 목록에 든 곡이어도 바꾸지 않았다).
 - 그림 파일: 크기는 모두 같고, 화소 차이(RGB 평균, 최대)는 JPEG `artwork.jpg` 0.07(13)·`_m` 2.28(50)·`_s` 4.69(60), PNG 0.06(8)·0.65(54)·2.19(64)다. `_m`·`_s`는 축소 필터 차이다(#4의 `artwork-check`와 같은 정도). `ArtworkExperimentRepro`(`DJC_ARTWORK_EXPERIMENT=<원본·rekordbox 결과 폴더>`)가 크기·JPEG 머리·화소 차이 상한(0.15·3·6)을 본다.
 - 골든 테스트: `RekordboxArtworkWriterTests`(위 표의 모든 줄, U03형 같은 곡의 그림 + 태그 = 하나씩 쓴 결과, 큐·BPM과 함께, 미리 보기, 복원, 백업 초안, XML 그대로, 막힘, 커밋 뒤 실패와 되돌리기).
 
