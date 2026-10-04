@@ -10,7 +10,7 @@ extension RekordboxWriter {
         defer { db.close() }
         let target = try mergeMember(keeping, db: db)
         let sources = try removing.sorted().map { try mergeMember($0, db: db) }
-        for source in sources { try checkMergeReferences(source.contentID, db: db) }
+        try checkMergeReferences(sources, db: db)
         _ = try DuplicateMerge.cues(keeping: target, removing: sources)
         _ = try DuplicateMerge.playlists(keeping: keeping, removing: Set(removing), in: PlaylistTree.read(db).layout)
         return DuplicateMergeDraft(keeping: target, removing: sources, base: try mergeFingerprint([keeping] + removing, db: db))
@@ -46,12 +46,29 @@ extension RekordboxWriter {
                      offset: RekordboxTimeline.predictedOffset(url: URL(filePath: row.path)), cues: cues)
     }
 
-    static func checkMergeReferences(_ id: String, db: CipherDatabase) throws {
-        for table in RekordboxTrackWriter.unverifiedReferenceTables {
-            if try scalar(db, "SELECT count(*) FROM \(table) WHERE ContentID = ?", [.text(id)]) ?? 0 > 0 {
-                throw DuplicateMerge.Blocked(String(ui: "\(table)에도 들어 있는 곡이라 아직 지우지 않습니다(rekordbox에서 지우세요)"))
+    /// 지울 원본을 막을 조건. 합치기가 지울 곡 행·딸린 행(재생 목록 항목 포함)·함께 지울 앨범·아티스트 행 중 동기화 상태(≠ 0)인 것이 있으면
+    /// 빼는 규칙을 확인하지 않아 막는다(#196). 원본의 재생 목록 항목은 목록 편집(`removeTracks`)이 `deleteRow`보다 먼저 지우므로 쓰기 전에
+    /// 여기서 봐야 한다. 이력은 지운 뒤 뒤 순번을 당길 자리에 지운 표시 행이 있는지도 본다(재생 목록은 목록 편집이 살아 있는 행만 다시 매긴다).
+    /// 확인하지 않은 표(추천 좋아요 포함)에 걸린 원본도 막는다. 남는 곡은 큐·재생 목록 편집이라 동기화 상태를 256 → 257로 올리는 검증된
+    /// 쓰기 경로를 쓰므로 막지 않는다. 이유에는 지울 원본의 이름을 적는다(보고 제목은 남길 곡이다).
+    static func checkMergeReferences(_ sources: [DuplicateMergeDraft.Member], db: CipherDatabase) throws {
+        let all = Set(sources.map(\.contentID))
+        for source in sources {
+            let orphans = try RekordboxTrackWriter.orphanedRows(db, contentID: source.contentID, gone: all)
+            if let reason = try RekordboxTrackWriter.removalBlock(of: source.contentID, orphans: orphans,
+                                                                  renumbering: [RekordboxTrackWriter.historyTable], db: db) {
+                throw DuplicateMerge.Blocked(mergeSourceReason(reason, source: source))
             }
         }
+    }
+
+    /// 합치기가 막힌 이유 앞에 지울 원본의 이름을 붙인다. 보고의 제목은 남길 곡이라 이름이 없으면 남길 곡을 빼야 하는 것처럼 읽힌다.
+    public static func mergeSourceReason(_ reason: String, title: String) -> String {
+        String(ui: "뺄 곡 ‘\(title)’: \(reason)")
+    }
+
+    static func mergeSourceReason(_ reason: String, source: DuplicateMergeDraft.Member) -> String {
+        mergeSourceReason(reason, title: source.title.isEmpty ? source.contentID : source.title)
     }
 
     /// 삭제로 잃을 정보·목록 전체·음원 내용까지 비교한다. 인증 표는 읽지 않는다.
@@ -82,7 +99,7 @@ extension RekordboxWriter {
     }
 
     static func checkMerge(_ draft: DuplicateMergeDraft, db: CipherDatabase) throws -> CueDraft {
-        for source in draft.removing { try checkMergeReferences(source.contentID, db: db) }
+        try checkMergeReferences(draft.removing, db: db)
         guard !draft.removing.isEmpty, try mergeFingerprint(draft.members.map(\.contentID), db: db) == draft.base else {
             throw DuplicateMerge.Blocked(String(ui: "합치기 초안 뒤 곡·큐·재생 목록·음원이 바뀌었습니다. 초안을 버리고 다시 만드세요"))
         }
@@ -100,8 +117,11 @@ extension RekordboxWriter {
         var fileWarning: String?
     }
 
+    /// - Parameter renumbered: 원본을 빼며 뒤 순번을 당긴 행의 기대 값. 한 번에 쓰는 묶음들이 같은 이력을 차례로 당기므로 묶음마다 따로 두지 않고
+    ///   이어 간다(`RekordboxTrackWriter.Renumbered`). 막혀 되돌리는 묶음의 몫은 부른 쪽이 SAVEPOINT와 함께 되돌린다.
     static func applyMerge(_ draft: DuplicateMergeDraft, cue: CueDraft, work: inout PlaylistWork,
-                           db: CipherDatabase, usn: inout Int, stamp: (db: String, json: String), share: URL?) throws
+                           db: CipherDatabase, usn: inout Int, stamp: (db: String, json: String), share: URL?,
+                           renumbered: inout RekordboxTrackWriter.Renumbered) throws
         -> (expectation: MergeExpectation, files: [URL]) {
         var expectation = MergeExpectation(draft: draft)
         if cue.hasChanges { expectation.cue = try apply(cue, db: db, usn: &usn, stamp: stamp).expectation }
@@ -111,11 +131,17 @@ extension RekordboxWriter {
         var files: [URL] = []
         for source in draft.removing {
             let plan = try deletionFiles(source.contentID, db: db, share: share)
-            _ = try RekordboxTrackWriter.deleteRow(source.contentID, db: db, usn: &usn, stamp: stamp)
+            do {
+                _ = try RekordboxTrackWriter.deleteRow(source.contentID, db: db, usn: &usn, stamp: stamp, renumbered: &renumbered)
+            } catch let blocked as RekordboxTrackWriter.Blocked {
+                // 사전 검사가 먼저 보지만, 여기서 막혀도 어느 원본인지 알린다
+                throw DuplicateMerge.Blocked(mergeSourceReason(blocked.reason, source: source))
+            }
             files += plan.files
             if let warning = plan.warning { expectation.fileWarning = warning }
         }
         try verifyMerge(expectation, db: db)
+        try RekordboxTrackWriter.verifyRenumbered(renumbered, db: db)
         return (expectation, files)
     }
 

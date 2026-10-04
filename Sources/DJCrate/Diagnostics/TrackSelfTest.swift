@@ -9,7 +9,7 @@ import RekordboxKit
 private struct AgreeingPrompter: ReflectionPrompter {
     var log: (String) -> Void
     func show(_ prompt: ReflectionPrompt) -> Bool {
-        log("창: \(prompt.title)\n" + prompt.text.components(separatedBy: "\n").map { "    \($0)" }.joined(separator: "\n"))
+        log("창: \(prompt.title)\n" + (prompt.text.components(separatedBy: "\n") + prompt.details).map { "    \($0)" }.joined(separator: "\n"))
         return prompt.confirm != nil
     }
 }
@@ -96,6 +96,15 @@ extension DevSelfTests {
                 RekordboxShare.artworkURL(row.track.imagePath, size: .full).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
             }.count
             log("빼기 되돌리기: 되살아난 곡 \(revived.count) · 분석 파일 있는 곡 \(revivedFiles) · 아트워크 있는 곡 \(revivedArtwork) · 알림 \(toast())")
+
+            // 4b. 동기화 상태 곡은 빼지 않고 이유를 알린다(#196). 합성 사본의 기존 곡은 동기화를 마친 상태(256)다.
+            if let synced = store.rows.first(where: { !$0.isStaged && !$0.track.isStreaming && !paths.contains($0.track.folderPath) }) {
+                let count = store.rows.count
+                await coordinator.deleteTracks(rows: [synced])
+                log("동기화 곡 빼기: 컬렉션 \(store.rows.count)곡(처음 \(count)) · 그 곡 남음 \(store.rows.contains { $0.id == synced.id }) · 알림 \(toast())")
+            } else {
+                log("동기화 곡 빼기: 시험할 기존 곡이 없습니다")
+            }
 
             // 5. rekordbox가 바깥에서 곡을 지운 것처럼 하고 창으로 돌아온다: 새로 읽어 목록·선택·덱에서 빠지고 다시 추가할 수 있어야 한다
             store.selection = Set(revived.prefix(1).map(\.id))

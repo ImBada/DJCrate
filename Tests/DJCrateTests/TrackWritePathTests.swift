@@ -107,7 +107,8 @@ struct TrackWritePathTests {
 
     @Test(.enabled(if: LiveDraftHome.isIsolated)) func 곡_빼기의_백업은_저장소에_준_폴더에_남는다() async throws {
         let fixture = try RekordboxFixture()
-        let spec = TrackSpec()
+        var spec = TrackSpec()
+        spec.dataStatus = 0  // 곡 빼기 규칙은 동기화하지 않은 곡으로만 확인했다(#196)
         try fixture.add(spec)
         let store = await loadedStore(fixture)
         let row = try #require(store.rowsByUUID[spec.uuid])
@@ -120,6 +121,40 @@ struct TrackWritePathTests {
         #expect(backups.count == 1 && backups.first?.isWrite == true)
         #expect(backups.first?.trackReport?.deleted.compactMap(\.contentID) == [spec.id])
         #expect(!defaultBackups { $0.deleted.contains { $0.contentID == spec.id } })
+    }
+
+    /// 앱의 빼기 미리 보기도 동기화 상태 곡을 이유와 함께 막고 라이브러리를 그대로 둔다(#196).
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 곡_빼기_미리_보기는_동기화_곡을_이유와_함께_막는다() async throws {
+        let fixture = try RekordboxFixture()
+        let spec = TrackSpec()
+        try fixture.add(spec)
+        let store = await loadedStore(fixture)
+        let row = try #require(store.rowsByUUID[spec.uuid])
+        let preview = try await store.previewTrackDelete(rows: [row])
+        let outcome = try #require(preview.report.deleted.first)
+        #expect(outcome.written == false && outcome.reason == RekordboxTrackWriter.syncedTrackReason)
+        #expect(preview.report.deleted.filter(\.written).isEmpty)
+        #expect(try fixture.rows("SELECT ID FROM djmdContent").map { $0["ID"] } == [spec.id])
+        #expect(RekordboxWriter.backups(in: fixture.backups).isEmpty)
+    }
+
+    /// 합치기 초안을 만들지 못한 알림은 남길 곡이 아니라 지울 원본의 이름으로 이유를 알린다(#196 리뷰: 남길 곡을 빼야 하는 것처럼 읽혔다).
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 합치기_초안_알림은_지울_원본의_이름으로_막은_이유를_알린다() async throws {
+        let fixture = try RekordboxFixture()
+        for (id, title, status) in [("100", "남길 곡", 0), ("200", "뺄 곡", 256)] {
+            var spec = TrackSpec(id: id, uuid: "u" + id)
+            spec.title = title; spec.dataStatus = status; spec.fileType = 11; spec.length = 30
+            spec.folderPath = try AudioFixture.wav(seconds: 30, in: fixture.audio, name: id + ".wav").path
+            try fixture.add(spec)
+        }
+        let store = await loadedStore(fixture)
+        let prompter = ScriptedPrompter()
+        await store.prepareMerge(keeping: "100", removing: ["200"], prompter: prompter)
+        let prompt = try #require(prompter.shown.first)
+        #expect(prompt.title == "합치기 초안을 만들지 않았습니다" && prompt.confirm == nil)
+        #expect(prompt.text == RekordboxWriter.mergeSourceReason(RekordboxTrackWriter.syncedTrackReason, title: "뺄 곡"))
+        #expect(prompt.text.contains("‘뺄 곡’") && !prompt.text.contains("남길 곡"))
+        #expect(store.mergeDrafts.isEmpty)
     }
 
     // MARK: - 곡 넣기 + 키 (#5)

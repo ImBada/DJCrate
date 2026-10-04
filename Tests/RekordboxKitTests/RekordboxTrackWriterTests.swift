@@ -218,6 +218,7 @@ struct RekordboxTrackWriterTests {
     // MARK: 삭제
 
     /// A(지울 곡)·B가 재생 목록·이력에 A, B 순으로 있다. A만 쓰는 아티스트·앨범, 둘이 같이 쓰는 아티스트.
+    /// A는 동기화 상태 0(곡 빼기 규칙은 상태 0 곡으로만 확인했다, #196). B는 동기화를 마친 곡(256)이라 빼지 않는 곡이다.
     func deleteFixture() throws -> (RekordboxFixture, TrackSpec, TrackSpec) {
         let fixture = try RekordboxFixture(localUpdateCount: 2000)
         for (id, name) in [("1", "A만"), ("2", "같이"), ("3", "앨범 아티스트")] {
@@ -225,6 +226,7 @@ struct RekordboxTrackWriterTests {
         }
         try fixture.insert("djmdAlbum", ["ID": .text("10"), "Name": .text("A 앨범"), "AlbumArtistID": .text("3"), "UUID": .text("ua"), "rb_local_deleted": .int(0)])
         var a = TrackSpec(id: "100", uuid: "aaa00000-0000-4000-8000-000000000001")
+        a.dataStatus = 0
         a.artistID = "1"; a.composerID = "2"; a.albumID = "10"
         a.analysisDataPath = "/PIONEER/USBANLZ/aaa/00000-0000-4000-8000-000000000001/ANLZ0000.DAT"
         a.imagePath = "/PIONEER/Artwork/aaa/00000-0000-4000-8000-000000000001/artwork.jpg"

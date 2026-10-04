@@ -509,6 +509,33 @@ struct ReflectionCoordinatorTests {
         #expect(host.deleted == ["id-a"])
     }
 
+    /// 동기화 상태 곡은 쓰기 쪽이 곡마다 막고 이유를 돌려준다(#196). 확인 창은 빼지 않는 곡과 그 이유를 보여 주고, 뺄 곡만 뺀다.
+    @Test func 빼기_확인_창은_동기화_곡을_이유와_함께_빼지_않는_곡으로_보여_준다() async {
+        var report = RekordboxTrackWriter.Report(dryRun: true)
+        report.deleted = [Self.track("a"), Self.track("b", written: false, reason: RekordboxTrackWriter.syncedTrackReason),
+                          Self.track("c", written: false, reason: RekordboxTrackWriter.syncedOrphanReason)]
+        host.deletePreview = .success(.init(report: report, contentIDs: ["id-a", "id-b", "id-c"]))
+        await coordinator().deleteTracks(rows: ["a", "b", "c"].map(Self.row))
+        let prompt: ReflectionPrompt? = prompter.shown.first
+        #expect(prompt?.title == "1곡을 rekordbox에서 뺄까요?")
+        let lines = prompt?.details ?? []
+        #expect(lines.contains("빼지 않는 곡 2:"))
+        #expect(lines.contains("• 곡 b: rekordbox 클라우드와 동기화된 곡이라 빼는 규칙을 아직 확인하지 못했으니 rekordbox에서 직접 빼세요"))
+        #expect(lines.contains { $0.hasPrefix("• 곡 c: 이 곡만 쓰던 앨범·아티스트 행이 클라우드와 동기화된 행") })
+        #expect(host.deleted == ["id-a"])
+    }
+
+    @Test func 빼기는_모두_동기화_곡이라_막히면_이유를_알리고_쓰지_않는다() async {
+        var report = RekordboxTrackWriter.Report(dryRun: true)
+        report.deleted = [Self.track("a", written: false, reason: RekordboxTrackWriter.syncedTrackReason)]
+        host.deletePreview = .success(.init(report: report, contentIDs: ["id-a"]))
+        await coordinator().deleteTracks(rows: [Self.row("a")])
+        let prompt: ReflectionPrompt? = prompter.shown.first
+        #expect(prompt?.title == "rekordbox에서 뺄 수 있는 곡이 없습니다" && prompt?.confirm == nil)
+        #expect(prompt?.details == ["• 곡 a: " + RekordboxTrackWriter.syncedTrackReason])
+        #expect(host.deleted == nil && host.locks == [true, false])
+    }
+
     @Test func 곡_넣기를_되돌리는_창은_추가_목록으로_돌아온다고_알린다() {
         var tracks = RekordboxTrackWriter.Report(dryRun: false)
         tracks.added = [Self.track("a")]

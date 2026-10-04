@@ -321,6 +321,7 @@ public enum RekordboxWriter {
         /// 곡 정보로 Timestamp를 고칠 목록(한 번씩)
         var touchedPlaylists: Set<String> = []
         var merged: [MergeExpectation] = []
+        var mergeRenumbered = RekordboxTrackWriter.Renumbered()
         var mergeFiles: [URL] = []
         var finalUpdateCount: Int?
         var committed = false
@@ -426,10 +427,11 @@ public enum RekordboxWriter {
                 var work = PlaylistWork(tree: try PlaylistTree.read(db), xmlIDs: Set(playlistXML?.nodes.map(\.id) ?? []))
                 for plan in checkedMerges {
                     try db.execute("SAVEPOINT djc_merge")
-                    let saved = (work, usn)
+                    let saved = (work, usn, mergeRenumbered)
                     do {
                         let cues = plan.cues
-                        let result = try applyMerge(plan.draft, cue: cues, work: &work, db: db, usn: &usn, stamp: stamp, share: gridRoot)
+                        let result = try applyMerge(plan.draft, cue: cues, work: &work, db: db, usn: &usn, stamp: stamp, share: gridRoot,
+                                                    renumbered: &mergeRenumbered)
                         try backupDeletionFiles(result.files, in: backup, shareRoot: gridRoot)
                         try verifyPlaylists(work, db: db)
                         try db.execute("RELEASE djc_merge")
@@ -447,7 +449,7 @@ public enum RekordboxWriter {
                         }
                         try db.execute("ROLLBACK TO djc_merge")
                         try db.execute("RELEASE djc_merge")
-                        (work, usn) = saved
+                        (work, usn, mergeRenumbered) = saved
                         mergeOutcomes.append(Outcome(trackUUID: plan.draft.id, title: plan.draft.keeping.title, status: .blocked,
                                                       reason: reason, removed: 0, added: 0))
                     }
@@ -580,6 +582,7 @@ public enum RekordboxWriter {
                 for expectation in gained { try verifyGain(db: db, expectation) }
                 if let playlistWork { try verifyPlaylists(playlistWork, db: db) }
                 for expectation in merged { try verifyMerge(expectation, db: db) }
+                try RekordboxTrackWriter.verifyRenumbered(mergeRenumbered, db: db)
             } catch {
                 throw recover(from: error, database: database, backup: backup, live: live)
             }
