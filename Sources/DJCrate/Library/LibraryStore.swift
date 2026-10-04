@@ -875,7 +875,7 @@ final class LibraryStore {
             var rebased: [TagDraft] = []
             if synchronizingDrafts {
                 for (uuid, draft) in latestTags where !failedTags.contains(uuid) {
-                    guard let row = rowsByUUID[uuid], let updated = draft.rebased(onto: TagFields(track: row.track)) else {
+                    guard let row = rowsByUUID[uuid], let updated = draft.rebased(onto: row.tagFields) else {
                         conflicts += 1
                         continue
                     }

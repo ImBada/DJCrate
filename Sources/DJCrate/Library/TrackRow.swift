@@ -62,6 +62,13 @@ struct TrackRow: Identifiable, Hashable, Sendable {
     var keyName: String { track.key ?? "" }
     /// 추가한 곡의 키를 DJCrate가 추정했는지(목록에 추정으로 표시한다, #124)
     var keyEstimated = false
+    /// 태그 편집의 기준(지금 rekordbox 값). 추가한 곡의 키는 아직 rekordbox에 없으니(넣을 때 `KeyID` '0') 빈칸이다: 목록에 보이는 키
+    /// (음원 태그·DJCrate 추정)는 제안일 뿐이고, 사용자가 고른 키만 곡을 넣을 때 함께 쓴다(#5).
+    var tagFields: TagFields {
+        var fields = TagFields(track: track)
+        if isStaged { fields.musicalKey = "" }
+        return fields
+    }
     /// 음원 파일을 찾지 못한 로컬 곡(#126). 라이브러리를 읽은 뒤 뒤에서 확인해 채운다(`LibraryStore.checkMissingFiles`).
     var fileMissing = false
     /// rekordbox 그리드의 변속 흐름(BPM 순서, 변속 없으면 빈 배열)
