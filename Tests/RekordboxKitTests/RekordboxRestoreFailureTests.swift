@@ -338,6 +338,34 @@ struct RekordboxRestoreFailureTests {
         #expect(try Data(contentsOf: xml) == xmlBefore)
     }
 
+    /// DB와 masterPlaylists6.xml은 따로 되돌린다: master.db 복사가 실패해도 XML은 쓰기 전으로 돌려 둔다(#173 리뷰).
+    /// 쓰기 실패 뒤 되돌리기와 사용자의 "쓰기 전으로 복원…"(`restore`)이 같은 `restoreFiles`를 쓴다.
+    @Test func DB를_되돌리지_못해도_XML은_쓰기_전으로_돌린다() throws {
+        let fixture = try RekordboxFixture(localUpdateCount: 900)
+        let track = try fixture.add(TrackSpec())
+        let playlist = try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: [track.id]))
+        var parsed = MasterPlaylistsXML(text: MasterPlaylistsXMLTests.empty)
+        try parsed.append(id: playlist.id, parentID: playlist.parentID, isFolder: false, timestamp: 1_000)
+        let xml = fixture.root.appending(path: "masterPlaylists6.xml")
+        try parsed.text.write(to: xml, atomically: true, encoding: .utf8)
+        let original = try Data(contentsOf: xml)
+        var tags = try syncedCommentDraft(fixture, track)
+        tags.fields.comment = tags.base.comment
+        tags.fields.title = "새 제목"
+        let report = try RekordboxWriter.write(drafts: [], tags: [tags], to: fixture.database, dryRun: false, now: now,
+                                               backups: fixture.backups, shareRoot: fixture.shareRoot)
+        let backup = URL(filePath: try #require(report.backup))
+        #expect(try Data(contentsOf: xml) != original, "곡 정보 쓰기가 XML Timestamp를 고쳤다")
+        try blockRestore(fixture)
+        defer { unlock(fixture) }
+        #expect(throws: (any Error).self) { try RekordboxWriter.restore(backup, to: fixture.database, backups: fixture.backups) }
+        #expect(try Data(contentsOf: xml) == original, "DB 복원이 막혀도 XML은 백업으로")
+        // 쓰기 실패 뒤 되돌리기 경로(restoreFiles 직접)도 같다
+        try Data("바뀜".utf8).write(to: xml)
+        #expect(throws: (any Error).self) { try RekordboxWriter.restoreFiles(from: backup, to: fixture.database) }
+        #expect(try Data(contentsOf: xml) == original)
+    }
+
     func acl(_ arguments: [String]) throws {
         let process = Process()
         process.executableURL = URL(filePath: "/bin/chmod")
