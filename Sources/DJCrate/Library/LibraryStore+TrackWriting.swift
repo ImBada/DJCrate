@@ -163,6 +163,8 @@ extension LibraryStore {
                 DraftWriter.save(grid)
             }
         }
+        // 키가 막힌 곡의 키도 같은 자리에서(다시 읽기 전에) 새 곡의 초안으로 옮긴다: 읽기가 실패해도 결과 창이 알린 "쓰기 대기"가 사실이 되게.
+        moveBlockedKeys(report, keys: keys)
         DraftWriter.flush()
         // 덱에 올린 추가한 곡을 넣었으면 새로 읽을 때 새 rekordbox 곡으로 바꿔 올린다(덱을 비우지 않게).
         if let deckUUID = deckTrackID.flatMap({ rowsByID[$0] }).flatMap({ $0.isStaged ? $0.track.uuid : nil }),
@@ -175,7 +177,6 @@ extension LibraryStore {
         }
         writeStage = WriteStage(String(ui: "넣은 곡을 읽는 중…"))
         await takeSnapshot(quiet: true, refreshITunes: false)
-        moveBlockedKeys(report, keys: keys)
         if let first = report.added.first(where: \.written), let id = first.contentID {
             sidebar = .filter(.all)
             search = ""
@@ -186,12 +187,13 @@ extension LibraryStore {
     }
 
     /// 키가 막혀 키 없이 넣은 곡은 고른 키를 새 곡의 키 초안으로 남긴다(막힌 큐를 옮기는 것과 같다: 고른 키가 조용히 사라지지 않게).
-    /// 기준은 다시 읽은 새 곡의 지금 값이다. 새 곡을 읽지 못했으면 옮기지 않는다(추가 목록 쪽 초안은 백업처럼 그대로 남는다).
+    /// 기준은 쓰기 결과(`keyBase`, 넣은 곡의 태그 값)에서 만들어 다시 읽기보다 먼저 저장한다. 읽기가 실패해 새 곡 행이 아직 없어도 초안이 남고,
+    /// 나중에 읽으면 곡 행의 값과 같아 기준 어긋남으로 막히지 않는다(#197).
     private func moveBlockedKeys(_ report: RekordboxTrackWriter.Report, keys: [String: String]) {
         var moved: [TagDraft] = []
         for outcome in report.added where outcome.written && outcome.keyReason != nil {
-            guard let uuid = outcome.uuid, let row = rowsByUUID[uuid], let key = keys[outcome.path] else { continue }
-            var draft = tagDraft(for: row)
+            guard let uuid = outcome.uuid, let key = keys[outcome.path], let base = outcome.keyBase else { continue }
+            var draft = TagDraft(trackUUID: uuid, base: base)
             draft.fields.musicalKey = key
             moved.append(draft)
         }

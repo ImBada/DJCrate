@@ -41,8 +41,8 @@ struct RekordboxTrackAddKeyTests {
     }
 
     /// 태그가 없는 WAV(이름 행이 생기지 않는다). 두 라이브러리가 같은 음원을 넣도록 한 곳에 만든다.
-    func plan(in fixture: RekordboxFixture) async throws -> TrackAddPlan {
-        let wav = try AudioFixture.wav(seconds: 20, in: fixture.audio, name: "key on add.wav")
+    func plan(in fixture: RekordboxFixture, name: String = "key on add.wav") async throws -> TrackAddPlan {
+        let wav = try AudioFixture.wav(seconds: 20, in: fixture.audio, name: name)
         return try TrackAddPlan.make(url: wav, tags: try await AudioTags.read(url: wav), now: now)
     }
 
@@ -309,5 +309,33 @@ struct RekordboxTrackAddKeyTests {
         #expect(!reason.contains("고친 적"), "DJCrate가 만든 카운터를 rekordbox에서 고친 것처럼 적지 않는다: \(reason)")
         #expect(reason.contains("rekordbox에서 트랙 분석을 하세요"), "\(reason)")
         #expect(try fixture.rows("SELECT * FROM djmdContent ORDER BY ID") == before)
+    }
+
+    /// #197: 키가 막히면 곡은 키 없이 들어가고, 앱은 고른 키를 새 곡의 키 초안으로 남긴다. 그 초안의 기준(base)은 쓰기 결과에서 와야 한다:
+    /// 쓰기 직후 다시 읽기가 실패해도(rekordbox를 켬 등) 초안이 만들어져야 하고, 기준은 곡 행에서 읽은 값과 같아야 쓸 때 기준 어긋남으로 막히지 않는다.
+    @Test func 막힌_키의_보고에는_곡을_넣은_뒤_읽은_기준_태그가_담긴다() async throws {
+        let fixture = try library()
+        let p = try await plan(in: fixture)
+        let blocked = try #require(try addWithKey(fixture, p, key: "12B").added.first)
+        #expect(blocked.written && blocked.keyWritten == nil && blocked.keyReason != nil)
+        let id = try #require(blocked.contentID)
+        let db = try CipherDatabase(path: fixture.database.path, key: RekordboxKey.derive())
+        defer { db.close() }
+        let stored = try #require(try RekordboxWriter.currentTags(db: db, contentID: id))
+        #expect(blocked.keyBase == stored && stored.musicalKey == "", "쓰기 결과의 기준이 곡 행에서 읽은 값과 같다")
+
+        // 키를 쓴 곡·키를 주지 않은 곡에는 기준이 없다(할 일이 없다)
+        let second = try await plan(in: fixture, name: "key base second.wav")
+        let written = try #require(try addWithKey(fixture, second, key: "8A").added.first)
+        #expect(written.keyWritten == "8A" && written.keyBase == nil)
+        let third = try await plan(in: fixture, name: "key base third.wav")
+        let plain = try #require(try RekordboxTrackWriter.add([third], to: fixture.database, shareRoot: fixture.shareRoot, dryRun: false,
+                                                              now: now, backups: fixture.backups).added.first)
+        #expect(plain.written && plain.keyBase == nil)
+    }
+
+    @Test func 기준_태그가_없는_옛_보고서도_읽는다() throws {
+        let old = try JSONDecoder().decode(RekordboxTrackWriter.Outcome.self, from: Data(#"{"path":"p","title":"t","written":true,"keyReason":"이유"}"#.utf8))
+        #expect(old.keyReason == "이유" && old.keyBase == nil)
     }
 }

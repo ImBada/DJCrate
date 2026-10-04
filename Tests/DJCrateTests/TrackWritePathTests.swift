@@ -189,6 +189,40 @@ struct TrackWritePathTests {
         #expect(store.tagDrafts[uuid] == nil)
     }
 
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 키가_막힌_채_넣은_직후_다시_읽기가_실패해도_새_곡의_키_초안을_남긴다() async throws {
+        // #197: 결과 창은 "키는 쓰기 대기"라고 알린다. 다시 읽기(그 사이 rekordbox를 켬 등)가 실패해 새 곡 행이 없어도
+        // 초안은 만들어져야 하고(기준은 쓰기 결과에서 온다), 다음에 읽어 새 곡이 보이면 그 행의 값과 맞아 쓸 수 있어야 한다.
+        let fixture = try RekordboxFixture()
+        let (store, _, row) = try await keyedStaged(fixture, key: "12B")
+        defer { clearTagDrafts(store) }
+        let preview = try await store.previewTrackAdd(rows: [row])
+        let database = fixture.database
+        store.takeLiveSnapshot = { _ in throw CocoaError(.fileReadNoPermission) }
+        let report = try await store.addTracksToRekordbox(preview, to: database, shareRoot: fixture.shareRoot)
+        let outcome = try #require(report.added.first)
+        #expect(outcome.written && outcome.keyWritten == nil && outcome.keyReason != nil)
+        let uuid = try #require(outcome.uuid)
+        #expect(store.rowsByUUID[uuid] == nil && store.lastError != nil, "다시 읽기가 실패해 새 곡 행이 아직 없다")
+        let moved = try #require(store.tagDrafts[uuid], "결과 창이 알린 대로 키 초안이 있어야 한다")
+        #expect(moved.changedKeys == [.musicalKey] && moved.fields.musicalKey == "12B")
+        #expect(TagDraftStore.load(trackUUID: uuid)?.fields.musicalKey == "12B", "디스크에도 저장했다")
+        let result = WriteResult.tracks(report, preview: preview.report, adding: true, withoutAnalysis: preview.withoutAnalysis)
+        #expect(result.text.contains("키는 쓰기 대기"), "\(result.text)")
+
+        // 나중에 읽으면 새 곡이 보이고, 초안의 기준은 그 곡의 값이라 쓰기에서 기준 어긋남으로 막히지 않는다
+        store.takeLiveSnapshot = { _ in database }
+        await store.takeSnapshot(quiet: true, refreshITunes: false)
+        let reloaded = try #require(store.rowsByUUID[uuid])
+        let draft = try #require(store.tagDrafts[uuid])
+        #expect(draft.fields.musicalKey == "12B" && draft.base == reloaded.tagFields)
+        // 이제 키 줄이 생겼다고 하고(막힌 이유 해소) 쓰기 시험: 기준이 어긋나 있으면 여기서 막힌다
+        try fixture.insert("djmdKey", ["ID": .text("1486464043"), "ScaleName": .text("12B"), "Seq": .int(2), "UUID": .text("k-12b"),
+                                       "rb_data_status": .int(256), "rb_local_deleted": .int(0), "rb_local_usn": .int(1)])
+        let dry = try RekordboxWriter.write(drafts: [], tags: [draft], to: database, dryRun: true, backups: fixture.backups,
+                                            shareRoot: fixture.shareRoot)
+        #expect(dry.tagWritten.count == 1 && dry.tagBlocked.isEmpty, "\(dry.tagBlocked)")
+    }
+
     // MARK: - 반영 확인
 
     @Test(.enabled(if: LiveDraftHome.isIsolated)) func 반영_확인은_저장_실패_기록이_남은_곡의_대기_초안도_정리한다() async throws {
