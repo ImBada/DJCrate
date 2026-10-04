@@ -1,6 +1,7 @@
 // 앱 문구 카탈로그(Sources/DJCrate/Resources/*.xcstrings)를 코드와 맞추고 번역이 빠지지 않았는지 본다.
-// 사용: swift scripts/i18n.swift sync    코드에서 뽑은 문구로 Localizable.xcstrings를 고친다(새 문구 더하기, 안 쓰는 문구 빼기)
-//       swift scripts/i18n.swift check   카탈로그가 코드와 같고 en·ja 번역·자리표시자가 모두 맞는지(check.sh가 부른다)
+// 사용: swift scripts/i18n.swift sync    코드에서 뽑은 문구로 Localizable.xcstrings를 고친다(새 문구 더하기, 안 쓰는 문구 빼기). 고정 서식으로 저장한다
+//       swift scripts/i18n.swift check   카탈로그가 코드와 같고 en·ja 번역·자리표시자가 모두 맞고 고정 서식인지(check.sh가 부른다)
+//       swift scripts/i18n.swift format  빌드 없이 카탈로그를 고정 서식으로만 다시 쓴다(손으로 고친 뒤)
 // 문구는 디버그 빌드가 뽑은 .stringsdata(컴파일러가 타입을 보고 뽑음)에서 읽는다. 규칙은 docs/i18n.md.
 import Foundation
 
@@ -129,6 +130,52 @@ func synced(stringsdata: [URL]) -> URL {
     return copy
 }
 
+/// 카탈로그를 저장소에 올리는 고정 서식으로 쓴다. `xcstringstool`·`JSONSerialization`이 쓰는 모양(`\/` 이스케이프, 바뀌는 키 순서)이
+/// 아니라, 올려 둔 카탈로그와 같은 바이트다: 들여쓰기 2칸, 쌍점 앞뒤 빈칸, 모든 객체의 키를 UTF-8 바이트 순서로, 글자는 `"`·`\`·제어 문자만
+/// 이스케이프(`/`와 한글은 그대로), 빈 객체는 `{`·빈 줄·`}`, 끝 줄바꿈 하나. 그대로 두면 sync 때마다 카탈로그 전체가 diff에 잡힌다.
+func canonicalJSON(_ value: Any, depth: Int = 0) -> String {
+    let pad = String(repeating: "  ", count: depth)
+    let inner = String(repeating: "  ", count: depth + 1)
+    switch value {
+    case let dictionary as [String: Any]:
+        guard !dictionary.isEmpty else { return "{\n\n\(pad)}" }
+        let items = dictionary.map { (key: $0.key, bytes: Array($0.key.utf8), value: $0.value) }
+            .sorted { $0.bytes.lexicographicallyPrecedes($1.bytes) }
+            .map { "\(inner)\(quoted($0.key)) : \(canonicalJSON($0.value, depth: depth + 1))" }
+        return "{\n" + items.joined(separator: ",\n") + "\n\(pad)}"
+    case let array as [Any]:
+        guard !array.isEmpty else { return "[]" }
+        return "[\n" + array.map { "\(inner)\(canonicalJSON($0, depth: depth + 1))" }.joined(separator: ",\n") + "\n\(pad)]"
+    case let number as NSNumber:
+        return CFGetTypeID(number) == CFBooleanGetTypeID() ? (number.boolValue ? "true" : "false") : "\(number)"
+    case let string as String:
+        return quoted(string)
+    default:
+        return "null"
+    }
+}
+
+func quoted(_ text: String) -> String {
+    var result = "\""
+    for scalar in text.unicodeScalars {
+        switch scalar {
+        case "\"": result += "\\\""
+        case "\\": result += "\\\\"
+        case "\n": result += "\\n"
+        case "\r": result += "\\r"
+        case "\t": result += "\\t"
+        case "\u{08}": result += "\\b"
+        case "\u{0C}": result += "\\f"
+        default:
+            if scalar.value < 0x20 { result += String(format: "\\u%04x", scalar.value) } else { result.unicodeScalars.append(scalar) }
+        }
+    }
+    return result + "\""
+}
+
+/// 파일 내용 그대로의 카탈로그 글자(고정 서식과 비교할 때 쓴다)
+func canonicalCatalogText(_ catalog: [String: Any]) -> String { canonicalJSON(catalog) + "\n" }
+
 func strings(_ catalog: [String: Any]) -> [String: [String: Any]] {
     catalog["strings"] as? [String: [String: Any]] ?? [:]
 }
@@ -206,7 +253,7 @@ func translationProblems(_ catalog: [String: Any], name: String, languages: [Str
 // 전체 검사와 같은 계측 설정을 써서 번역 확인 때문에 디버그 빌드를 다시 하지 않는다.
 let buildArguments = Array(CommandLine.arguments.dropFirst(2))
 guard buildArguments.isEmpty || buildArguments == ["--enable-code-coverage"] else {
-    fail("사용: swift scripts/i18n.swift sync|check [--enable-code-coverage]")
+    fail("사용: swift scripts/i18n.swift sync|check [--enable-code-coverage] | format")
 }
 
 func buildDebug() {
@@ -237,8 +284,8 @@ case "sync":
     let data = try! JSONSerialization.data(withJSONObject: after, options: [.prettyPrinted, .sortedKeys])
     try! data.write(to: copy)
     guard run(["xcrun", "xcstringstool", "sync", copy.path] + files.flatMap { ["--stringsdata", $0.path] }) == 0 else { fail("xcstringstool sync가 실패했습니다") }
-    try! FileManager.default.removeItem(at: catalogURL)
-    try! FileManager.default.copyItem(at: copy, to: catalogURL)
+    // 고정 서식으로 저장한다(바뀐 문구가 없으면 파일이 바이트까지 그대로여야 한다).
+    try! Data(canonicalCatalogText(loadCatalog(copy)).utf8).write(to: catalogURL, options: .atomic)
     let added = Set(entries.keys).subtracting(before.keys).sorted()
     print("카탈로그: 문구 \(entries.count)개, 새 문구 \(added.count)개, 뺀 문구 \(removed.count)개")
     for key in added { print("  + \(key)") }
@@ -261,6 +308,9 @@ case "check":
     problems += added.map { "카탈로그에 없는 문구(swift scripts/i18n.swift sync): \($0)" }
     problems += stale.map { "코드에서 안 쓰는 문구(swift scripts/i18n.swift sync): \($0)" }
     problems += translationProblems(committed, name: "Localizable")
+    if (try? String(contentsOf: catalogURL, encoding: .utf8)) != canonicalCatalogText(committed) {
+        problems.append("카탈로그가 고정 서식이 아닙니다(swift scripts/i18n.swift format): Localizable.xcstrings")
+    }
     let infoPlist = loadCatalog(infoPlistCatalogURL)
     // Info.plist 문구는 원문도 카탈로그 값으로 쓴다(없으면 한국어 화면에 키 이름이 나온다).
     problems += translationProblems(infoPlist, name: "InfoPlist", languages: ["ko"] + languages)
@@ -273,6 +323,12 @@ case "check":
         exit(1)
     }
 
+case "format":
+    let text = canonicalCatalogText(loadCatalog(catalogURL))
+    guard (try? String(contentsOf: catalogURL, encoding: .utf8)) != text else { print("서식 그대로: Localizable.xcstrings"); break }
+    try! Data(text.utf8).write(to: catalogURL, options: .atomic)
+    print("고침: Localizable.xcstrings")
+
 default:
-    fail("사용: swift scripts/i18n.swift sync|check")
+    fail("사용: swift scripts/i18n.swift sync|check|format")
 }

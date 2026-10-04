@@ -175,33 +175,54 @@ public final class RekordboxFixture {
 
     /// 아무 표에나 행 하나(created_at·updated_at은 자동). 아티스트·재생 목록·재생 이력 등.
     public func insert(_ table: String, _ values: [String: CipherDatabase.Value]) throws {
-        var values = values
-        values["created_at"] = values["created_at"] ?? .text(Self.stamp)
-        values["updated_at"] = values["updated_at"] ?? .text(Self.stamp)
-        let keys = values.keys.sorted()
-        let db = try open()
-        defer { db.close() }
-        try db.run("INSERT INTO \(table) (\(keys.joined(separator: ", "))) VALUES (\(keys.map { _ in "?" }.joined(separator: ", ")))",
-                   keys.map { values[$0]! })
+        try session { try $0.insert(table, values) }
     }
 
     public func execute(_ sql: String, _ values: [CipherDatabase.Value] = []) throws {
-        let db = try open()
-        defer { db.close() }
-        try db.run(sql, values)
+        try session { try $0.execute(sql, values) }
     }
 
     /// 질의 결과를 칸 이름 → 글자로(NULL은 "NULL").
     public func rows(_ sql: String, _ values: [CipherDatabase.Value] = []) throws -> [[String: String]] {
         let db = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
         defer { db.close() }
-        var out: [[String: String]] = []
-        try db.query(sql, values) { r in
-            var row: [String: String] = [:]
-            for i in 0..<r.count { row[r.name(Int32(i))] = r.string(Int32(i)) ?? "NULL" }
-            out.append(row)
+        return try Session(db: db).rows(sql, values)
+    }
+
+    /// 연결 하나로 문장 여럿을 실행한다. 연결을 열 때마다 SQLCipher 키 유도가 들어, 문장마다 `insert`·`execute`·`rows`를 부르면 행을 많이
+    /// 준비하는 시험이 느려진다.
+    public func session<T>(_ body: (Session) throws -> T) throws -> T {
+        let db = try open()
+        defer { db.close() }
+        return try body(Session(db: db))
+    }
+
+    /// `session`이 연 연결에서 실행하는 문장들(쓰기 연결이라 읽기도 된다)
+    public struct Session {
+        let db: CipherDatabase
+
+        public func insert(_ table: String, _ values: [String: CipherDatabase.Value]) throws {
+            var values = values
+            values["created_at"] = values["created_at"] ?? .text(RekordboxFixture.stamp)
+            values["updated_at"] = values["updated_at"] ?? .text(RekordboxFixture.stamp)
+            let keys = values.keys.sorted()
+            try db.run("INSERT INTO \(table) (\(keys.joined(separator: ", "))) VALUES (\(keys.map { _ in "?" }.joined(separator: ", ")))",
+                       keys.map { values[$0]! })
         }
-        return out
+
+        public func execute(_ sql: String, _ values: [CipherDatabase.Value] = []) throws {
+            try db.run(sql, values)
+        }
+
+        public func rows(_ sql: String, _ values: [CipherDatabase.Value] = []) throws -> [[String: String]] {
+            var out: [[String: String]] = []
+            try db.query(sql, values) { r in
+                var row: [String: String] = [:]
+                for i in 0..<r.count { row[r.name(Int32(i))] = r.string(Int32(i)) ?? "NULL" }
+                out.append(row)
+            }
+            return out
+        }
     }
 
     public func localUpdateCount() throws -> Int {

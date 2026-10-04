@@ -160,11 +160,11 @@ public enum RekordboxWriter {
         }
         // 태그: 막힐 초안(닫힌 칸·잘못된 값·곡 없음·base 불일치)은 백업 전에 거른다. 트랜잭션 안에서 한 번 더 본다.
         var tagOutcomes: [Outcome] = []
-        var xmlTags: Set<String> = []
+        var xmlTags: [String: String] = [:]
         if !tags.isEmpty {
             let reader = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
             defer { reader.close() }
-            let checked = try checkTagDrafts(tags, db: reader, writable: tagKeys)
+            let checked = try checkTagDrafts(tags, db: reader, writable: tagKeys, mergesPending: !merges.isEmpty)
             tags = checked.passed
             tagOutcomes = checked.blocked
             xmlTags = checked.touchesXML
@@ -178,23 +178,30 @@ public enum RekordboxWriter {
             (artworkPlans, artworkOutcomes) = try checkArtworkDrafts(artworks, db: reader, share: gridRoot)
         }
         // 재생 목록 편집과 곡 정보 쓰기는 DB 옆 masterPlaylists6.xml도 고친다(곡 정보는 그 곡이 든 목록의 Timestamp, #173).
-        // 쓰는 DB 옆 파일만 대상이고 없으면 DB만 쓴다. 사본 옆 파일이 라이브 XML의 링크면 백업 전에 막는다. 곡 정보는 그 곡이 든 살아 있는
-        // 목록이 있을 때만 읽고, 읽지 못하면 그 곡정보 초안만 막는다. 재생 목록·합치기는 읽지 못하면 예전처럼 쓰기째 막는다.
+        // 쓰는 DB 옆 파일만 대상이고 없으면 DB만 쓴다. 곡 정보는 그 곡이 든 살아 있는 목록이 있을 때만 읽는다. 사본 옆 파일이 라이브 XML의
+        // 링크이거나 읽지 못하면 그 곡정보 초안만 막는다(큐·그리드 등은 쓴다). 재생 목록·합치기는 예전처럼 쓰기째 막는다.
         let playlistXMLURL = playlistXMLURL(for: database)
         var playlistXML: MasterPlaylistsXML?
-        if !playlistSteps.isEmpty || !merges.isEmpty || !xmlTags.isEmpty {
-            try writeGuard.checkAdjacentFile(playlistXMLURL, database: database)
-            if FileManager.default.fileExists(atPath: playlistXMLURL.path) {
+        let editsPlaylists = !playlistSteps.isEmpty || !merges.isEmpty
+        if editsPlaylists || !xmlTags.isEmpty {
+            if editsPlaylists { try writeGuard.checkAdjacentFile(playlistXMLURL, database: database) }
+            // XML을 고칠 곡정보 초안만 이유와 함께 막는다(곡 이름은 다른 막힘처럼 DB `Title`).
+            func blockXMLTags(_ reason: String) {
+                for draft in tags {
+                    guard let title = xmlTags[draft.trackUUID] else { continue }
+                    tagOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: title, status: .blocked, reason: reason, removed: 0, added: 0))
+                }
+                tags.removeAll { xmlTags[$0.trackUUID] != nil }
+            }
+            if !editsPlaylists, writeGuard.adjacentFileIsLive(playlistXMLURL, database: database) {
+                blockXMLTags(String(ui: "사본 폴더의 masterPlaylists6.xml이 라이브 동기화 파일에 이어져 있어 재생 목록 시각을 고칠 수 없으니 그 파일을 실제 사본으로 복사한 뒤 다시 쓰세요"))
+            } else if FileManager.default.fileExists(atPath: playlistXMLURL.path) {
                 if let xml = try? MasterPlaylistsXML(contentsOf: playlistXMLURL), xml.text.contains("</PLAYLISTS>") {
                     playlistXML = xml
-                } else if !playlistSteps.isEmpty || !merges.isEmpty {
+                } else if editsPlaylists {
                     throw DJCError.writeRefused(String(ui: "masterPlaylists6.xml을 읽지 못했습니다. rekordbox를 한 번 켰다가 종료한 뒤 다시 시도하세요"))
                 } else {
-                    for draft in tags where xmlTags.contains(draft.trackUUID) {
-                        tagOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: draft.base.title, status: .blocked, reason: String(ui: "masterPlaylists6.xml을 읽지 못해 재생 목록 시각을 고칠 수 없으니 rekordbox를 한 번 켰다가 종료한 뒤 다시 쓰세요"),
-                                                   removed: 0, added: 0))
-                    }
-                    tags.removeAll { xmlTags.contains($0.trackUUID) }
+                    blockXMLTags(String(ui: "masterPlaylists6.xml을 읽지 못해 재생 목록 시각을 고칠 수 없으니 rekordbox를 한 번 켰다가 종료한 뒤 다시 쓰세요"))
                 }
             }
         }

@@ -293,7 +293,7 @@ extension RekordboxWriter {
         if let record = cueRecords.first {
             try db.run("""
                 UPDATE contentCue SET Cues = ?, rb_cue_count = ?,
-                    rb_data_status = CASE rb_data_status WHEN 256 THEN 257 ELSE rb_data_status END,
+                    \(savedStatus),
                     rb_local_usn = ?, updated_at = ? WHERE ID = ?
                 """, [.text(json), .int(count), .int(cueUSN), .text(stamp.db), .text(record.id)])
         } else {
@@ -307,7 +307,7 @@ extension RekordboxWriter {
         let cueUpdated = (Int(content.cueUpdated ?? "") ?? 0) + removals.count + inserts.count
         try db.run("""
             UPDATE djmdContent SET CueUpdated = ?,
-                rb_data_status = CASE rb_data_status WHEN 256 THEN 257 ELSE rb_data_status END,
+                \(savedStatus),
                 rb_local_usn = ?, updated_at = ? WHERE ID = ?
             """, [.text(String(cueUpdated)), .int(contentUSN), .text(stamp.db), .text(content.id)])
 

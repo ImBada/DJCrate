@@ -140,7 +140,12 @@ extension RekordboxTagWriterTests {
 extension RekordboxTagWriterTests {
     /// 이름·앨범 행을 클라우드에서 받은 모양으로(상태·`usn`·`rb_local_synced` 1)
     func sync(_ fixture: RekordboxFixture, _ table: String, _ id: String, state: Int = 256) throws {
-        try fixture.execute("UPDATE \(table) SET rb_data_status = ?, usn = 40, rb_local_synced = 1 WHERE ID = ?", [.int(state), .text(id)])
+        try fixture.session { try sync($0, table, id, state: state) }
+    }
+
+    /// 한 연결(`RekordboxFixture.session`)에서 여러 행을 동기화 모양으로 만들 때
+    func sync(_ session: RekordboxFixture.Session, _ table: String, _ id: String, state: Int = 256) throws {
+        try session.execute("UPDATE \(table) SET rb_data_status = ?, usn = 40, rb_local_synced = 1 WHERE ID = ?", [.int(state), .text(id)])
     }
 
     func row(_ fixture: RekordboxFixture, _ table: String, _ id: String) throws -> [String: String]? {

@@ -21669,6 +21669,22 @@
         }
       }
     },
+    "사본 폴더의 masterPlaylists6.xml이 라이브 동기화 파일에 이어져 있어 재생 목록 시각을 고칠 수 없으니 그 파일을 실제 사본으로 복사한 뒤 다시 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The masterPlaylists6.xml in the copy folder is linked to the live sync file, so playlist timestamps can't be updated. Copy that file as a real copy and write again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コピーフォルダーのmasterPlaylists6.xmlが使用中の同期ファイルにつながっているため、プレイリストの時刻を更新できません。そのファイルを実体のあるコピーにしてから、もう一度書き込んでください"
+          }
+        }
+      }
+    },
     "사용법:\n" : {
       "localizations" : {
         "en" : {
@@ -27199,6 +27215,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このテンポ変更点を削除"
+          }
+        }
+      }
+    },
+    "이 사본에는 캡처한 iTunes 목록이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This copy has no captured iTunes playlists."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このコピーには取得済みのiTunesプレイリストがありません。"
           }
         }
       }
