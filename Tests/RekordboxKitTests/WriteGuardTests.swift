@@ -70,10 +70,12 @@ struct WriteGuardTests {
         #expect(refusal { _ = try write(fixture, track, guard: .system) }?.contains("djmdSongHistory.TrackNo") == true)
     }
 
-    /// 곡 빼기·합치기(#196)가 이력 행의 상태를 고치고 지운 표시를 읽으며, 추천 좋아요가 어느 곡을 가리키는지 읽는다. 칸이 없으면 쓰는 도중 SQL이 실패하므로
-    /// 백업을 뜨기 전에 막는다. 인덱스가 걸린 칸이라 이름을 바꿔 없앤다(`DROP COLUMN`은 인덱스 칸을 못 없앤다).
+    /// 곡 빼기·합치기(#196)가 이력 행의 상태를 고치고 지운 표시를 읽으며, 추천 좋아요가 어느 곡을 가리키는지 읽는다. 확인 안 된 표 9개도 곡 ID(`ContentID`)를
+    /// 읽는다(#203). 칸이 없으면 쓰는 도중 SQL이 실패하므로 백업을 뜨기 전에 막는다. 인덱스가 걸린 칸이라 이름을 바꿔 없앤다(`DROP COLUMN`은 인덱스 칸을 못 없앤다).
+    /// 확인 안 된 표는 `unverifiedReferenceTables`에서 가져와, 표가 늘면 `requiredColumns`도 더하게 한다.
     @Test(arguments: [("djmdSongHistory", "rb_data_status"), ("djmdSongHistory", "rb_local_deleted"),
-                      ("djmdRecommendLike", "ContentID1"), ("djmdRecommendLike", "ContentID2")])
+                      ("djmdRecommendLike", "ContentID1"), ("djmdRecommendLike", "ContentID2")]
+          + RekordboxTrackWriter.unverifiedReferenceTables.map { ($0, "ContentID") })
     func 곡_빼기가_읽고_고치는_칸이_없어지면_백업_전에_막는다(_ column: (table: String, name: String)) throws {
         #expect(RekordboxCompatibility.requiredColumns[column.table]?.contains(column.name) == true)
         let (fixture, a, _) = try RekordboxTrackWriterTests().deleteFixture()
