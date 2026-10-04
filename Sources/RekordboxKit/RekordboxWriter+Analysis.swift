@@ -77,10 +77,11 @@ extension RekordboxWriter {
         guard try scalar(reader, "SELECT count(*) FROM contentFile WHERE ContentID = ? AND Path LIKE '/PIONEER/USBANLZ/%'", [.text(content.id)]) == 0 else {
             throw block(String(ui: "분석 파일 기록이 이미 있는 곡이라 분석을 붙이지 않습니다. rekordbox에서 트랙 분석을 하세요"))
         }
-        // 카운터가 NULL인 곡만 확인했다(곡 정보를 고친 곡은 TrackInfoUpdated가 있다)
+        // 카운터가 NULL인 곡만 확인했다(곡 정보를 저장한 곡은 TrackInfoUpdated가 있다). 그 카운터는 rekordbox에서 곡 정보를 고쳤을 때뿐 아니라
+        // DJCrate가 곡을 키와 함께 넣을 때도 생긴다(#5). DB로는 누가 만들었는지 알 수 없어 이유는 누구 탓도 하지 않는다(#197).
         guard try scalar(reader, "SELECT count(*) FROM djmdContent WHERE ID = ? AND AnalysisUpdated IS NULL AND TrackInfoUpdated IS NULL",
                          [.text(content.id)]) == 1 else {
-            throw block(String(ui: "rekordbox에서 곡 정보를 고친 적이 있는 분석 전 곡이라 분석을 붙이지 않습니다. rekordbox에서 트랙 분석을 하세요"))
+            throw block(String(ui: "곡 정보가 이미 저장된 분석 전 곡이라 분석을 붙이지 않습니다. rekordbox에서 트랙 분석을 하세요"))
         }
         let folder = share.appending(path: String(RekordboxTrackWriter.analysisFolder(uuid: draft.trackUUID).dropFirst()))
         guard ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).isEmpty else {

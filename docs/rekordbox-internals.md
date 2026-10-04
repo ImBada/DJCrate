@@ -451,7 +451,7 @@ rekordbox 7.2.18이 하는 것 [확인]:
 
 **막는 것**:
 - 반쪽 분석 곡(.DAT만): "rekordbox에서 트랙 분석을 다시 한 뒤 쓰세요". rekordbox가 다시 분석하면(ヴァンパイア) 곡 행은 BPM·`AnalysisUpdated`+1·`TrackInfoUpdated`+1·변경 번호만 바뀌고(`ContentLink`는 그대로), `.DAT`를 새로 써서 그 파일 행 해시·크기를 고치고, `.3EX` 해시를 고치고, `.2EX`·`.EXT` 파일 행을 넣는다(곡 행 → .3EX → .2EX → .DAT → .EXT). 오토게인 행은 그대로였다. 이 경로는 아직 쓰지 않는다.
-- 카운터(`AnalysisUpdated`·`TrackInfoUpdated`)가 이미 있는 분석 전 곡(rekordbox에서 곡 정보를 고친 곡): 분석하면 얼마나 느는지 확인하지 않았다.
+- 카운터(`AnalysisUpdated`·`TrackInfoUpdated`)가 이미 있는 분석 전 곡(곡 정보가 이미 저장된 곡. rekordbox에서 곡 정보를 고쳤을 때뿐 아니라 DJCrate가 곡을 키와 함께 넣을 때도 `TrackInfoUpdated`가 생기고, DB만으로는 누가 만들었는지 알 수 없다): 분석하면 얼마나 느는지 확인하지 않았다. 막는 이유도 누구 탓으로 적지 않는다.
 - 오토게인 행·USBANLZ 파일 기록·분석 폴더 파일이 이미 있는 곡, 음원 파일이 없는 곡, 음원 길이를 재지 못한 곡, base가 있는 초안(초안을 만든 뒤 rekordbox 쪽이 바뀜), 곡 넣기에서 막는 형식(ALAC·LAME이 아닌 VBR MP3·프레임이 끊긴 MP3·FLAC).
 
 `RekordboxWriter.attachesAnalysis`로 경로 전체를 닫을 수 있다(규칙이 어긋나는 것이 드러나면 닫는다).
