@@ -4318,7 +4318,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choose a JPEG or PNG album art to make an album art draft"
+            "value" : "Choose a JPEG or PNG image to make an album art draft"
           }
         },
         "ja" : {
@@ -4334,7 +4334,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Album art other than JPEG or PNG are not verified with rekordbox. Choose a JPEG or PNG album art."
+            "value" : "Album art in formats other than JPEG or PNG is not verified with rekordbox. Choose a JPEG or PNG image."
           }
         },
         "ja" : {
@@ -9737,13 +9737,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Written to rekordbox, but the album art draft for %lld track could not be cleared. Remove it with Discard Album art Draft in the pending writes list."
+                  "value" : "Written to rekordbox, but the album art draft for %lld track could not be cleared. Remove it with Discard Album Art Draft in the pending writes list."
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Written to rekordbox, but the album art drafts for %lld tracks could not be cleared. Remove them with Discard Album art Draft in the pending writes list."
+                  "value" : "Written to rekordbox, but the album art drafts for %lld tracks could not be cleared. Remove them with Discard Album Art Draft in the pending writes list."
                 }
               }
             }
@@ -24212,7 +24212,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Album art"
+            "value" : "Album Art"
           }
         },
         "ja" : {
@@ -24231,13 +24231,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Album art for %lld track"
+                  "value" : "album art for %lld track"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Album art for %lld tracks"
+                  "value" : "album art for %lld tracks"
                 }
               }
             }
@@ -24288,7 +24288,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choose Album art…"
+            "value" : "Choose Album Art…"
           }
         },
         "ja" : {
@@ -24384,7 +24384,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Add Album art"
+            "value" : "Add Album Art"
           }
         },
         "ja" : {
@@ -24400,7 +24400,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Replace Album art"
+            "value" : "Replace Album Art"
           }
         },
         "ja" : {
@@ -24416,7 +24416,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Album art unchanged"
+            "value" : "album art unchanged"
           }
         },
         "ja" : {
@@ -24480,7 +24480,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Album art not written: %@"
+            "value" : "album art not written: %@"
           }
         },
         "ja" : {
@@ -24512,7 +24512,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Remove Album art"
+            "value" : "Remove Album Art"
           }
         },
         "ja" : {
@@ -24556,7 +24556,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Discard Album art Draft"
+            "value" : "Discard Album Art Draft"
           }
         },
         "ja" : {
@@ -24684,7 +24684,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "There is a link under the album art folder (share/PIONEER/Album art), so files could be written outside share. Replace the link with a real folder, then write again."
+            "value" : "There is a link under the album art folder (share/PIONEER/Artwork), so files could be written outside share. Replace the link with a real folder, then write again."
           }
         },
         "ja" : {
@@ -24780,7 +24780,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Could not read the album art. Choose a different JPEG or PNG album art."
+            "value" : "Could not read the album art. Choose a different JPEG or PNG image."
           }
         },
         "ja" : {
@@ -33812,7 +33812,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Album art with transparent areas are not verified with rekordbox. Choose an album art without transparency."
+            "value" : "Album art with transparent areas is not verified with rekordbox. Choose an image without transparency."
           }
         },
         "ja" : {
@@ -36348,7 +36348,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Album art with rotation metadata are not verified with rekordbox. Choose an album art saved with the rotation applied."
+            "value" : "Album art with rotation metadata is not verified with rekordbox. Choose an image saved with the rotation applied."
           }
         },
         "ja" : {
