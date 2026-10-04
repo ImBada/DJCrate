@@ -879,7 +879,10 @@ final class LibraryStore {
             var rebased: [TagDraft] = []
             if synchronizingDrafts {
                 for (uuid, draft) in latestTags where !failedTags.contains(uuid) {
-                    guard let row = rowsByUUID[uuid], let updated = draft.rebased(onto: row.tagFields) else {
+                    // 라이브러리에 곡이 없는 초안(추가 목록 곡, 넣은 뒤 연결이 끊긴 초안)은 비교할 rekordbox 값이 없다.
+                    // 충돌로 세지 않고 그대로 둔다(연결 안 된 초안은 쓰기 대기 목록에서 따로 다룬다, #175).
+                    guard let row = rowsByUUID[uuid] else { continue }
+                    guard let updated = draft.rebased(onto: row.tagFields) else {
                         conflicts += 1
                         continue
                     }
