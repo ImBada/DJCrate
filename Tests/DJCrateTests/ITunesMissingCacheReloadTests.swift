@@ -4,6 +4,7 @@ import DJCStorage
 import DJCTestSupport
 import Foundation
 import RekordboxKit
+import Synchronization
 import Testing
 
 @MainActor
@@ -105,5 +106,55 @@ struct ITunesMissingCacheReloadTests {
             #expect(loaded.iTunesSnapshot.status == status)
             #expect(loaded.iTunesSnapshot.playlists == current.playlists)
         }
+    }
+
+    // MARK: - 읽기와 한 번에 하는 캡처의 읽는 중 표시(#197)
+
+    func quietStore(_ fixture: RekordboxFixture) -> LibraryStore {
+        LibraryStore(settings: SettingsStore(defaults: UserDefaults(suiteName: "djc.test.itunes-loading.\(UUID())")!, persist: false),
+                     resultHistory: WriteResultHistory(url: nil), saveTagDrafts: { _ in },
+                     backupDirectory: fixture.backups, playlistDraftSaver: { _ in },
+                     mergeDraftSaver: { _ in }, playlistImportURL: nil, stagingSaver: { _ in })
+    }
+
+    @Test func 조용히_읽으며_Music을_함께_조회하는_동안_사이드바는_읽는_중으로_보인다() async throws {
+        // `refreshIfRekordboxChanged`처럼 `load(quiet: true, refreshITunes: true)`가 캡처를 한 번에 하는 경로: 사이드바가 보이는 채로
+        // 캡처한 목록이 없다는 안내를 읽는 중 안내로 바꾸고, 결과를 채택하면 그 결과로 바뀐다.
+        let fixture = try RekordboxFixture()
+        try fixture.add(TrackSpec(id: "1"))
+        let store = quietStore(fixture), args = ["test", "--db", fixture.database.path]
+        await store.load(snapshot: fixture.database, arguments: args, environment: [:])
+        #expect(store.iTunesLibrary.status == .notCaptured)
+        let resume = DispatchSemaphore(value: 0), started = Mutex(false)
+        let loading = Task {
+            await store.load(snapshot: fixture.database, quiet: true, refreshITunes: true, arguments: args, environment: [:],
+                             captureITunes: {
+                                 started.withLock { $0 = true }
+                                 resume.wait()
+                                 return ITunesLibrarySnapshot(status: .unavailable)
+                             })
+        }
+        while !started.withLock({ $0 }) { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(store.iTunesLibrary.status == .loading)
+        #expect(store.iTunesLibrary.status.message == ITunesLibrarySnapshot.Status.loading.message)
+        resume.signal()
+        await loading.value
+        #expect(store.iTunesLibrary.status == .unavailable, "채택한 결과(조회 실패)로 바뀐다")
+    }
+
+    @Test func 읽기가_결과를_채택하지_못하고_끝나면_읽는_중을_되돌린다() async throws {
+        let fixture = try RekordboxFixture()
+        try fixture.add(TrackSpec(id: "1"))
+        let store = quietStore(fixture), args = ["test", "--db", fixture.database.path]
+        await store.load(snapshot: fixture.database, arguments: args, environment: [:])
+        #expect(store.iTunesLibrary.status == .notCaptured)
+        // 읽지 못한 사본: 캡처에 이르지 못해도 읽는 중이 남지 않는다
+        await store.load(snapshot: fixture.root.appending(path: "없는.db"), quiet: true, refreshITunes: true, arguments: args, environment: [:],
+                         captureITunes: {
+                             Issue.record("읽지 못한 사본에서 Music을 조회했습니다")
+                             return ITunesLibrarySnapshot()
+                         })
+        #expect(store.lastError != nil)
+        #expect(store.iTunesLibrary.status == .notCaptured)
     }
 }
