@@ -542,11 +542,11 @@ public enum RekordboxTrackWriter {
     }
 
     /// 이름·앨범 행을 가리키는 곡 행 칸(곡 빼기와 태그 쓰기가 같이 쓴다). 아티스트는 여기에 앨범의 `albumArtistColumn`도 더한다.
-    static func contentReferenceColumns(table: String) -> [String] {
+    static func contentReferenceColumns(table: NameTable) -> [String] {
         switch table {
-        case "djmdArtist": ["ArtistID", "ComposerID", "OrgArtistID", "RemixerID"]
-        case "djmdAlbum": ["AlbumID"]
-        default: ["GenreID"]
+        case .artist: ["ArtistID", "ComposerID", "OrgArtistID", "RemixerID"]
+        case .album: ["AlbumID"]
+        case .genre: ["GenreID"]
         }
     }
     /// 아티스트를 가리키는 앨범 칸
@@ -554,14 +554,14 @@ public enum RekordboxTrackWriter {
 
     /// 곡 빼기에서 아무 곡도 안 쓰게 됐는지 보는 참조 수(지운 곡·앨범도 센다, 묶음 1·2 규칙). 칸 목록은 태그 쓰기와 같다.
     static func referenceCount(_ db: CipherDatabase, artist: String) throws -> Int {
-        let columns = contentReferenceColumns(table: "djmdArtist").map { "\($0) = ?1" }.joined(separator: " OR ")
+        let columns = contentReferenceColumns(table: .artist).map { "\($0) = ?1" }.joined(separator: " OR ")
         let content = try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdContent WHERE \(columns)", [.text(artist)]) ?? 1
         let albums = try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdAlbum WHERE \(albumArtistColumn) = ?", [.text(artist)]) ?? 1
         return content + albums
     }
 
     static func referenceCount(_ db: CipherDatabase, album: String) throws -> Int {
-        let column = contentReferenceColumns(table: "djmdAlbum")[0]
+        let column = contentReferenceColumns(table: .album)[0]
         return try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdContent WHERE \(column) = ?", [.text(album)]) ?? 1
     }
 
@@ -668,4 +668,11 @@ public enum RekordboxTrackWriter {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(report).write(to: backup.appending(path: "track-report.json"), options: .atomic)
     }
+}
+
+/// 곡 행이 이름으로 가리키는 이름·앨범 표. 표 이름 글자 대신 쓴다(모르는 표가 조용히 다른 표의 칸으로 읽히지 않게, 칸 목록에 기본값이 없다).
+enum NameTable: String {
+    case artist = "djmdArtist"
+    case album = "djmdAlbum"
+    case genre = "djmdGenre"
 }

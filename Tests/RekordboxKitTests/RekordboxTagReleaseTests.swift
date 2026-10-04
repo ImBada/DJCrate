@@ -41,6 +41,29 @@ extension RekordboxTagWriterTests {
         #expect(try fixture.rows("SELECT count(*) AS n FROM djmdCue WHERE ContentID = '600'").first?["n"] == "2")
     }
 
+    // MARK: 이름 행 상태·참조 칸
+
+    @Test func 이름_행_상태는_없음·지움·상태_없음·값을_구분한다() throws {
+        let (fixture, _) = try library()
+        let db = try fixture.open()
+        defer { db.close() }
+        #expect(try RekordboxWriter.liveNameState(db, table: .album, id: "31") == .live(status: 0))
+        #expect(try RekordboxWriter.liveNameState(db, table: .artist, id: "11") == .live(status: 0))
+        #expect(try RekordboxWriter.liveNameState(db, table: .genre, id: "없는 ID") == .missing)
+        try fixture.execute("UPDATE djmdAlbum SET rb_data_status = 256 WHERE ID = '31'")
+        try fixture.execute("UPDATE djmdArtist SET rb_data_status = NULL WHERE ID = '11'")
+        try fixture.execute("UPDATE djmdGenre SET rb_local_deleted = 1 WHERE ID = '21'")
+        #expect(try RekordboxWriter.liveNameState(db, table: .album, id: "31") == .live(status: 256))
+        #expect(try RekordboxWriter.liveNameState(db, table: .artist, id: "11") == .live(status: nil))
+        #expect(try RekordboxWriter.liveNameState(db, table: .genre, id: "21") == .missing, "이미 지운 행은 없는 것과 같다")
+    }
+
+    @Test func 곡_행이_이름을_가리키는_칸은_표마다_정해져_있다() {
+        #expect(RekordboxTrackWriter.contentReferenceColumns(table: .artist) == ["ArtistID", "ComposerID", "OrgArtistID", "RemixerID"])
+        #expect(RekordboxTrackWriter.contentReferenceColumns(table: .album) == ["AlbumID"])
+        #expect(RekordboxTrackWriter.contentReferenceColumns(table: .genre) == ["GenreID"])
+    }
+
     // MARK: 여러 칸을 한 번에 쓴 결과 = 하나씩 저장한 결과
 
     /// 칸 조합 하나: 바꿀 칸(둘 이상), 값 종류(새 이름·있는 이름·비우기), 곡·이름·앨범 행 상태(0·256)

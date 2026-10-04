@@ -308,6 +308,98 @@ extension RekordboxTagWriterTests {
         #expect(try sameNameState(together) == sameNameState(oneByOne))
     }
 
+    // MARK: 앨범 조건은 앞 초안을 쓴 DB로 정한다(한 번에 쓴 결과 = 하나씩 쓴 결과)
+
+    /// 곡들과 앨범·아티스트 행을 ID·UUID·번호 값·시각 없이(외래 키는 이름으로) 비교할 모양
+    func albumBatchState(_ fixture: RekordboxFixture, tracks: [String]) throws -> [String] {
+        func lines(_ sql: String) throws -> [String] {
+            try fixture.rows(sql).map { $0.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " ") }.sorted()
+        }
+        let ids = tracks.map { "'\($0)'" }.joined(separator: ", ")
+        return try lines("""
+            SELECT c.ID, al.Name AS album, aa.Name AS albumArtist, al.rb_data_status AS albumState, c.TrackInfoUpdated, c.rb_data_status
+            FROM djmdContent c LEFT JOIN djmdAlbum al ON al.ID = c.AlbumID LEFT JOIN djmdArtist aa ON aa.ID = al.AlbumArtistID
+            WHERE c.ID IN (\(ids))
+            """) + lines("""
+            SELECT al.Name, aa.Name AS albumArtist, al.rb_data_status, al.rb_local_deleted, quote(al.usn) AS usn
+            FROM djmdAlbum al LEFT JOIN djmdArtist aa ON aa.ID = al.AlbumArtistID
+            """) + lines("SELECT Name, rb_data_status, rb_local_deleted FROM djmdArtist")
+    }
+
+    @Test(arguments: [0, 256]) func 앞_초안이_같은_이름_앨범을_하나로_줄이면_뒤_초안은_그_앨범에_붙일_수_있다(state: Int) throws {
+        // 같은 이름 앨범이 둘(41·42)이라 시작 DB로는 "같은 이름의 앨범이 여럿"이지만, 첫 초안이 곡 500을 다른 앨범으로 옮겨 41이 버려지면 이름이
+        // 하나뿐이다. 하나씩 쓰면 둘째 초안(곡 503의 앨범)이 앨범 42에 붙으므로 한 번에 써도 같다(백업 전 확인이 시작 DB로 둘째를 막지 않는다).
+        func prepared() throws -> (RekordboxFixture, [TagDraft]) {
+            let (fixture, track) = try library()
+            try sameNameAlbums(fixture, mine: (.text("16"), "2026-02-01 00:00:00.000 +00:00"), other: (.null, "2025-01-01 00:00:00.000 +00:00"))
+            let third = TrackSpec(id: "503", uuid: "track-uuid-503")
+            try fixture.add(third)
+            try fixture.execute("UPDATE djmdContent SET rb_data_status = ? WHERE ID IN ('500', '502', '503')", [.int(state)])
+            for id in ["41", "42"] { try sync(fixture, "djmdAlbum", id, state: state) }
+            return (fixture, [try draft(fixture, track) { $0.album = "DJC 173 다른 앨범" }, try draft(fixture, third) { $0.album = "DJC 173 중복 앨범" }])
+        }
+        let (together, drafts) = try prepared()
+        let report = try write(together, tags: drafts)
+        #expect(report.tagWritten.count == 2 && report.tagBlocked.isEmpty)
+        #expect(try content(together, "503")["AlbumID"] == "42")
+        let (oneByOne, steps) = try prepared()
+        for step in steps { #expect(try write(oneByOne, tags: [step]).tagWritten.count == 1) }
+        #expect(try albumBatchState(together, tracks: ["500", "502", "503"]) == albumBatchState(oneByOne, tracks: ["500", "502", "503"]))
+    }
+
+    /// 앨범 31을 곡 500·501이 함께 쓴다. 첫 초안은 곡 501의 `first`(아티스트면 앨범을 저장하고, 앨범이면 옮긴다), 둘째는 곡 500의 앨범 아티스트.
+    func sharedAlbumLibrary(state: Int, first: TagFields.Key) throws -> (RekordboxFixture, [TagDraft]) {
+        let (fixture, track) = try library()
+        try fixture.execute("UPDATE djmdContent SET rb_data_status = ? WHERE ID IN ('500', '501')", [.int(state)])
+        try sync(fixture, "djmdAlbum", "31", state: state)
+        let neighbor = TrackSpec(id: "501", uuid: "track-uuid-501")
+        return (fixture, [try draft(fixture, neighbor) { $0[first] = first == .album ? "DJC 173 새 앨범" : "DJC 173 새 아티스트" },
+                          try draft(fixture, track) { $0.albumArtist = "DJC 173 앨범 아티스트" }])
+    }
+
+    @Test(arguments: [0, 256]) func 앞_초안이_앨범을_쓰는_곡을_줄이면_뒤_초안은_그_앨범의_앨범_아티스트를_바꿀_수_있다(state: Int) throws {
+        // 앨범 31을 곡 500·501이 함께 써서 시작 DB로는 "여러 곡이 쓰는 앨범"이지만, 첫 초안이 곡 501을 다른 앨범으로 옮기면 500 하나뿐이다.
+        // 하나씩 쓰면 둘째 초안이 앨범 31의 앨범 아티스트를 제자리에서 바꾸므로 한 번에 써도 같다.
+        let (together, drafts) = try sharedAlbumLibrary(state: state, first: .album)
+        let report = try write(together, tags: drafts)
+        #expect(report.tagWritten.count == 2 && report.tagBlocked.isEmpty)
+        let (oneByOne, steps) = try sharedAlbumLibrary(state: state, first: .album)
+        for step in steps { #expect(try write(oneByOne, tags: [step]).tagWritten.count == 1) }
+        #expect(try albumBatchState(together, tracks: ["500", "501"]) == albumBatchState(oneByOne, tracks: ["500", "501"]))
+    }
+
+    @Test(arguments: [0, 256]) func 앞_초안이_앨범을_쓰는_곡을_그대로_두면_뒤_초안은_트랜잭션에서_막히고_앞_초안은_쓴다(state: Int) throws {
+        // 앞 초안(곡 501의 아티스트)은 앨범 31을 저장할 뿐 쓰는 곡을 줄이지 않는다. 둘째의 앨범 아티스트는 하나씩 써도 막히므로(여러 곡이 쓰는
+        // 앨범) 한 번에 쓸 때도 같은 이유로 막히고 첫째는 쓴다. 결정이 트랜잭션으로 옮겨 갔을 뿐 막힘이 풀리지는 않는다.
+        let (together, drafts) = try sharedAlbumLibrary(state: state, first: .artist)
+        let report = try write(together, tags: drafts)
+        #expect(report.tagWritten.map(\.trackUUID) == ["track-uuid-501"] && report.tagBlocked.map(\.trackUUID) == ["track-uuid-500"])
+        #expect(report.tagBlocked.first?.reason?.contains("여러 곡") == true && report.backup != nil)
+        let (oneByOne, steps) = try sharedAlbumLibrary(state: state, first: .artist)
+        #expect(try write(oneByOne, tags: [steps[0]]).tagWritten.count == 1)
+        #expect(try write(oneByOne, tags: [steps[1]]).tagBlocked.first?.reason?.contains("여러 곡") == true)
+        #expect(try albumBatchState(together, tracks: ["500", "501"]) == albumBatchState(oneByOne, tracks: ["500", "501"]))
+    }
+
+    @Test func 백업_전_확인은_첫_앨범_초안만_시작_DB로_앨범_조건을_보고_합치기가_있으면_모두_트랜잭션에_맡긴다() throws {
+        let (fixture, drafts) = try sharedAlbumLibrary(state: 0, first: .artist)
+        func check(_ tags: [TagDraft], mergesPending: Bool = false) throws -> (passed: Int, blocked: Int) {
+            let db = try fixture.open()
+            defer { db.close() }
+            let checked = try RekordboxWriter.checkTagDrafts(tags, db: db, writable: Self.allKeys, mergesPending: mergesPending)
+            return (checked.passed.count, checked.blocked.count)
+        }
+        // 첫 앨범 초안은 시작 DB로 다 본다(하나뿐인 초안이 백업 없이 막히는 것은 그대로)
+        #expect(try check([drafts[1]]) == (0, 1))
+        // 앞 초안(곡 501의 아티스트)이 앨범을 바꿀 수 있으면 뒤 초안의 앨범 조건은 트랜잭션에서 정한다
+        #expect(try check(drafts) == (2, 0))
+        // 제목만 고치는 앞 초안은 앨범을 바꾸지 않으므로 뒤 초안은 그대로 막는다
+        let titleOnly = try draft(fixture, TrackSpec(id: "501", uuid: "track-uuid-501")) { $0.title = "DJC 173 제목" }
+        #expect(try check([titleOnly, drafts[1]]) == (1, 1))
+        // 합치기가 있으면 곡·앨범 행이 먼저 바뀌므로 첫 초안도 트랜잭션에 맡긴다
+        #expect(try check([drafts[1]], mergesPending: true) == (1, 0))
+    }
+
     @Test func 앨범_상태가_NULL이어도_검증된_상태로_보지_않는다() throws {
         let (fixture, track) = try library()
         try fixture.execute("UPDATE djmdAlbum SET rb_data_status = NULL WHERE ID = '31'")
