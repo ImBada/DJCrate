@@ -33,7 +33,7 @@ struct DuplicateTracksView: View {
                         VStack(spacing: 0) {
                             HStack(spacing: Self.artworkSpacing) {
                                 Image(systemName: "photo").frame(width: Self.artworkSide)
-                                    .accessibilityLabel(Text(.ui("앨범 아트")))
+                                    .accessibilityLabel(Text(.ui("앨범아트")))
                                 columns(title: String(ui: "곡 · 파일 경로"), length: String(ui: "길이"), cues: String(ui: "큐"), playlists: String(ui: "재생 목록"),
                                         plays: String(ui: "재생 횟수"), format: String(ui: "형식"), bitrate: String(ui: "비트레이트"))
                             }
@@ -148,7 +148,7 @@ private struct ArtworkThumbnail: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 3))
         .accessibilityElement()
-        .accessibilityLabel(artwork == nil ? Text(.ui("앨범 커버 없음")) : Text(.ui("앨범 커버")))
+        .accessibilityLabel(artwork == nil ? Text(.ui("앨범아트 없음")) : Text(.ui("앨범아트")))
         // 스크롤로 지나친 줄은 작업이 취소되어 디코딩하지 않는다(`Thumbnails`).
         .task(id: ArtworkRevisions.key(id)) {
             let box = await Thumbnails.shared.image(imagePath: imagePath, key: ArtworkRevisions.key(id))

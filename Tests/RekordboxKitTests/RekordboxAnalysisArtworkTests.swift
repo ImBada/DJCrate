@@ -78,7 +78,7 @@ struct RekordboxAnalysisArtworkTests {
 
         let report = try attach(fixture, uuid: uuid, input(p))
         #expect(report.analysisWritten.map(\.trackUUID) == [uuid] && report.analysisBlocked.isEmpty)
-        #expect(report.artworkAdded == [uuid], "확인 창에 아트워크도 넣는다고 알린다")
+        #expect(report.artworkAdded == [uuid], "확인 창에 앨범아트도 넣는다고 알린다")
 
         // 곡 행: ImagePath(곡 UUID 폴더의 artwork.jpg)와 #6 분석 칸
         let r = try content(fixture, id)

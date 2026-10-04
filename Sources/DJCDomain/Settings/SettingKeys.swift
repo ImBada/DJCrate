@@ -67,9 +67,10 @@ public enum SettingKeys {
 
     public static let commentClassColumnHidden = SettingKey("library.commentClassColumnHidden", false)
 
-    /// 곡 UUID 모음: 무시한 게인·그리드 제안
+    /// 곡 UUID 모음: 무시한 게인·그리드·키 제안
     public static let dismissedGainSuggestions = "deck.dismissedGainSuggestions"
     public static let dismissedGridSuggestions = "deck.dismissedGridSuggestions"
+    public static let dismissedKeySuggestions = "library.dismissedKeySuggestions"
     /// 덱 단축키 중 바꾼 동작만(`DeckShortcuts.overrides`)
     public static let deckShortcuts = "shortcuts.deck"
 
@@ -80,6 +81,6 @@ public enum SettingKeys {
             + [quantize, playQuantize, carryCues, showSuggestions, keyLock, autoGain, peakProtection, useRekordboxGain,
                sheetMode, showTagEditor, sidebarPlaylistsExpanded, sidebarSummaryExpanded, sidebarHistoriesExpanded, sidebarShowsStatus,
                sidebarVisible, commentClassColumnHidden].map(\.name)
-            + [dismissedGainSuggestions, dismissedGridSuggestions, deckShortcuts, waveformColorMode.name, commentPreset.name, cueListFilter.name]
+            + [dismissedGainSuggestions, dismissedGridSuggestions, dismissedKeySuggestions, deckShortcuts, waveformColorMode.name, commentPreset.name, cueListFilter.name]
     }
 }

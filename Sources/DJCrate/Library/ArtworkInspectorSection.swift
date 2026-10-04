@@ -16,7 +16,7 @@ struct ArtworkInspectorSection: View {
     private var drafts: [ArtworkDraft] { editable.compactMap { store.artworkDrafts[$0.track.uuid] } }
 
     var body: some View {
-        Section(.ui("그림")) {
+        Section(.ui("앨범아트")) {
             HStack(alignment: .top, spacing: 12) {
                 ArtworkWell(store: store, row: rows.count == 1 ? rows.first : nil, targeted: targeted)
                     .dropDestination(for: URL.self) { urls, _ in
@@ -26,12 +26,12 @@ struct ArtworkInspectorSection: View {
                     } isTargeted: { targeted = $0 }
                 VStack(alignment: .leading, spacing: 6) {
                     status
-                    Button(.ui("그림 고르기…")) { choose() }
-                        .help(String(ui: "JPEG·PNG 그림 파일을 골라 그림 초안을 만듭니다"))
-                    Button(.ui("그림 지우기")) { store.deleteArtwork(rows: editable) }
+                    Button(.ui("앨범아트 고르기…")) { choose() }
+                        .help(String(ui: "JPEG·PNG 앨범아트 파일을 골라 앨범아트 초안을 만듭니다"))
+                    Button(.ui("앨범아트 지우기")) { store.deleteArtwork(rows: editable) }
                         .disabled(!editable.contains { store.artworkBase(for: $0).hasArtwork })
-                        .help(String(ui: "rekordbox의 그림을 지우는 초안을 만듭니다"))
-                    Button(.ui("그림 초안 버리기")) { store.discardArtworkDrafts(rows: editable) }
+                        .help(String(ui: "rekordbox의 앨범아트를 지우는 초안을 만듭니다"))
+                    Button(.ui("앨범아트 초안 버리기")) { store.discardArtworkDrafts(rows: editable) }
                         .disabled(drafts.isEmpty)
                 }
                 .disabled(editable.isEmpty || store.isWritingRekordbox)
@@ -41,7 +41,7 @@ struct ArtworkInspectorSection: View {
                     .font(.scaled(.caption, textScale)).foregroundStyle(UIColors.warning.color)
             }
             // 결정(#66): rekordbox는 음원의 그림도 바꾸지만 DJCrate는 음원을 읽기만 한다.
-            Text(.ui("그림은 rekordbox 라이브러리에만 씁니다. 음원 파일에 든 그림은 바뀌지 않습니다."))
+            Text(.ui("앨범아트는 rekordbox 라이브러리에만 씁니다. 음원 파일에 든 앨범아트는 바뀌지 않습니다."))
                 .font(.scaled(.caption, textScale)).foregroundStyle(.secondary)
         }
     }
@@ -54,11 +54,11 @@ struct ArtworkInspectorSection: View {
                     .help(DraftMark.help)
                     .accessibilityLabel(Text(verbatim: "\(draft.kind.label), \(DraftMark.spoken)"))
             } else {
-                Text(store.artworkBase(for: row).hasArtwork ? String(ui: "rekordbox 그림") : String(ui: "그림 없음"))
+                Text(store.artworkBase(for: row).hasArtwork ? String(ui: "rekordbox 앨범아트") : String(ui: "앨범아트 없음"))
                     .foregroundStyle(.secondary)
             }
         } else if !drafts.isEmpty {
-            Label(String(ui: "그림 초안 \(drafts.count)곡"), systemImage: DraftMark.symbol).foregroundStyle(UIColors.draft.color)
+            Label(String(ui: "앨범아트 초안 \(drafts.count)곡"), systemImage: DraftMark.symbol).foregroundStyle(UIColors.draft.color)
         }
     }
 
@@ -67,7 +67,7 @@ struct ArtworkInspectorSection: View {
         panel.allowedContentTypes = [.jpeg, .png]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        panel.message = String(ui: "넣을 그림(JPEG·PNG)을 고르세요")
+        panel.message = String(ui: "넣을 앨범아트(JPEG·PNG)를 고르세요")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         store.setArtwork(fileAt: url, rows: editable)
     }
@@ -100,9 +100,9 @@ private struct ArtworkWell: View {
         .frame(width: 96, height: 96)
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(targeted ? Color.accentColor : (draft != nil ? UIColors.draft.color : .clear), lineWidth: 2))
-        .help(String(ui: "그림 파일(JPEG·PNG)을 끌어다 놓으면 그림 초안을 만듭니다"))
+        .help(String(ui: "앨범아트 파일(JPEG·PNG)을 끌어다 놓으면 앨범아트 초안을 만듭니다"))
         .accessibilityElement()
-        .accessibilityLabel(image == nil ? Text(.ui("그림 없음")) : Text(.ui("그림")))
+        .accessibilityLabel(image == nil ? Text(.ui("앨범아트 없음")) : Text(.ui("앨범아트")))
         .task(id: key) { await load() }
     }
 

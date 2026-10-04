@@ -126,7 +126,7 @@ enum MainCommands {
         let report = try RekordboxTrackWriter.add(plans, analyses: analyses, to: database, shareRoot: value(after: "--share", in: args).map { URL(filePath: $0) },
                                                   dryRun: args.contains("--dry-run"), backups: backups)
         for o in report.added { print("\(o.written ? "✓" : "✗") \(o.title.prefix(40))\(o.contentID.map { " · ID \($0)" } ?? "")\(o.reason.map { " · \($0)" } ?? "")") }
-        print(String(ui: "\(report.dryRun ? String(ui: "미리 보기(되돌림)") : String(ui: "넣음")) · \(report.added.filter(\.written).count)곡 · 만든 파일(분석·아트워크) \(report.createdFiles.count)개 · 백업 \(report.backup ?? String(ui: "없음"))"))
+        print(String(ui: "\(report.dryRun ? String(ui: "미리 보기(되돌림)") : String(ui: "넣음")) · \(report.added.filter(\.written).count)곡 · 만든 파일(분석·앨범아트) \(report.createdFiles.count)개 · 백업 \(report.backup ?? String(ui: "없음"))"))
     }
 
     /// 곡을 컬렉션에서 뺀다. 분석 파일은 백업으로 옮긴다. 기본은 --db 사본(분석 파일은 --share를 줄 때만), 라이브는 --live.
@@ -140,7 +140,7 @@ enum MainCommands {
         let report = try RekordboxTrackWriter.delete(contentIDs: ids, from: database, shareRoot: value(after: "--share", in: args).map { URL(filePath: $0) },
                                                      dryRun: args.contains("--dry-run"), backups: backups)
         for o in report.deleted { print("\(o.written ? "✓" : "✗") \(o.title.prefix(40)) · ID \(o.contentID ?? "")\(o.reason.map { " · \($0)" } ?? "")") }
-        print(String(ui: "\(report.dryRun ? String(ui: "미리 보기(되돌림)") : String(ui: "뺌")) · \(report.deleted.filter(\.written).count)곡 · 지운 파일(분석·아트워크) \(report.removedFiles.count)개 · 백업 \(report.backup ?? String(ui: "없음"))"))
+        print(String(ui: "\(report.dryRun ? String(ui: "미리 보기(되돌림)") : String(ui: "뺌")) · \(report.deleted.filter(\.written).count)곡 · 지운 파일(분석·앨범아트) \(report.removedFiles.count)개 · 백업 \(report.backup ?? String(ui: "없음"))"))
     }
 
     /// 재생 목록 편집을 사본에 쓴다. 편집 JSON 예: `[{"create":{"key":"f","name":"새 폴더","isFolder":true,"parent":"root"}},

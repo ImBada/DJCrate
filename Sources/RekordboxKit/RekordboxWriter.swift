@@ -474,7 +474,7 @@ public enum RekordboxWriter {
                 let savedUSN = usn
                 do {
                     guard !attached.contains(where: { $0.trackUUID == plan.uuid }) else {
-                        throw Blocked(title: plan.title, reason: String(ui: "같은 곡에 분석 붙이기와 그림 쓰기를 함께 하지 않으니 그리드를 먼저 쓴 뒤 그림을 쓰세요"))
+                        throw Blocked(title: plan.title, reason: String(ui: "같은 곡에 분석 붙이기와 앨범아트 쓰기를 함께 하지 않으니 그리드를 먼저 쓴 뒤 앨범아트를 쓰세요"))
                     }
                     let expectation = try applyArtwork(plan, db: db, share: gridRoot, usn: &usn, stamp: stamp)
                     artworkOutcomes.append(Outcome(trackUUID: plan.uuid, title: expectation.plan.title, status: .written, reason: nil,
@@ -727,7 +727,7 @@ public enum RekordboxWriter {
         // files는 분석 파일·아트워크(그리드·분석 붙이기·합치기)나 원본 XML(filesLabel)을 되돌린다. DB와 XML은 restoreFiles가 백업에서 살린다.
         do { try files() } catch {
             let reason = DJCError.reason(of: error)
-            problems.append(filesLabel.map { "\($0): \(reason)" } ?? String(ui: "분석·아트워크 파일: \(reason)"))
+            problems.append(filesLabel.map { "\($0): \(reason)" } ?? String(ui: "분석·앨범아트 파일: \(reason)"))
         }
         if restoreDatabase {
             // restoreFiles는 DB를 되살린 뒤에만 XML을 되살리고, 실패에 꼬리표("master.db:"·"masterPlaylists6.xml:")를 붙여 던진다.

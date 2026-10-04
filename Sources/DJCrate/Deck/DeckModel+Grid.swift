@@ -193,13 +193,14 @@ extension DeckModel {
         }
     }
 
-    /// 재분석: 이 곡의 섹션·그리드 추정·조성 캐시와 제안 무시 표시를 지우고 다시 불러온다.
+    /// 재분석: 이 곡의 섹션·그리드 추정·조성 캐시와 제안 무시 표시(그리드·키)를 지우고 다시 불러온다.
     func reanalyze() {
         guard let uuid = row?.track.uuid else { return }
         AnalysisCache.removeAll(key: uuid)
         var dismissed = storage.settings.strings(SettingKeys.dismissedGridSuggestions)
         dismissed.remove(uuid)
         storage.settings.setStrings(SettingKeys.dismissedGridSuggestions, dismissed)
+        onReanalyze?(uuid)
         reload()
         showToast(String(ui: "다시 분석합니다"), kind: .success)
     }

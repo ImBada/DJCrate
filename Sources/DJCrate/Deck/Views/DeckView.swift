@@ -426,7 +426,7 @@ struct CoverView: View {
         }
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: size > 60 ? 8 : 3))
-        .accessibilityLabel(.ui("앨범 커버"))
+        .accessibilityLabel(.ui("앨범아트"))
     }
 }
 

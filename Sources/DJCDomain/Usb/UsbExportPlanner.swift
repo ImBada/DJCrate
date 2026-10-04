@@ -385,7 +385,7 @@ private struct PlanState {
         } else {
             rules.insert(.artworkMissing)
             if candidate.artworkPathSetButMissing {
-                warnings.append(trackBlock("artworkMissingFile", candidate, String(ui: "아트워크 파일이 없어 그림 없이 내보냅니다")))
+                warnings.append(trackBlock("artworkMissingFile", candidate, String(ui: "앨범아트 파일이 없어 앨범아트 없이 내보냅니다")))
             }
         }
         if candidate.cues.contains(where: { $0.kind == 4 }) {

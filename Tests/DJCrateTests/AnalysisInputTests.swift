@@ -30,7 +30,7 @@ struct AnalysisInputTests {
         let grids = ["art", "plain", "done"].map { GridDraft(trackUUID: $0, base: [], segments: [GridSegment(start: 0.5, bpm: 120, firstBeatNumber: 1)]) }
         let inputs = try await store.analysisInputs(for: grids, measuringLoudness: false)
         #expect(Set(inputs.keys) == ["art", "plain"], "분석 파일이 있는 곡은 붙이지 않는다")
-        #expect(inputs["art"]?.artwork == image, "음원 내장 그림으로 아트워크를 넣는다")
+        #expect(inputs["art"]?.artwork == image, "음원 내장 앨범아트로 앨범아트를 넣는다")
         #expect((inputs["art"]?.duration ?? 0) > 0 && inputs["plain"]?.artwork == nil)
     }
 }
