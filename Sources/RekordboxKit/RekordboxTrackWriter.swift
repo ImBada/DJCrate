@@ -34,6 +34,9 @@ public enum RekordboxTrackWriter {
         public var keyWritten: String?
         /// 키를 쓰지 못한 이유(곡은 키 없이 넣었다). 옛 보고서에는 없다.
         public var keyReason: String?
+        /// 키가 막혔을 때 넣은 곡의 태그 값(키는 빈칸). 앱이 고른 키를 새 곡의 키 초안으로 남길 때 기준(base)으로 쓴다: 쓰기 직후 다시 읽기가
+        /// 실패해도 초안을 만들 수 있고, 곡 행에서 읽은 값이라 쓸 때 기준 어긋남으로 막히지 않는다(#197). 옛 보고서에는 없다.
+        public var keyBase: TagFields?
     }
 
     public struct Report: Codable, Sendable {
@@ -203,10 +206,12 @@ public enum RekordboxTrackWriter {
                     if let name = keys[plan.path], !name.isEmpty {
                         try db.execute("SAVEPOINT djc_add_key")
                         let savedUSN = usn
+                        var currentBase: TagFields?
                         do {
                             guard let base = try RekordboxWriter.currentTags(db: db, contentID: id) else {
                                 throw DJCError.writeVerificationFailed(String(ui: "넣은 곡의 정보를 다시 읽지 못했습니다 (\(plan.title))"))
                             }
+                            currentBase = base
                             var draft = TagDraft(trackUUID: uuid, base: base)
                             draft.fields.musicalKey = name
                             let result = try RekordboxWriter.applyTags(draft, db: db, usn: &usn, stamp: stamp,
@@ -227,6 +232,7 @@ public enum RekordboxTrackWriter {
                             try db.execute("RELEASE djc_add_key")
                             usn = savedUSN
                             outcome.keyReason = blocked.reason
+                            outcome.keyBase = currentBase
                         }
                     }
                     try db.execute("RELEASE djc_add")

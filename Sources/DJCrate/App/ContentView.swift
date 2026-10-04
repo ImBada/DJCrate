@@ -322,6 +322,7 @@ struct SplitHandle: View {
     @Binding var height: Double
     var displayedHeight: Double
     var maximumHeight: Double
+    var minimumHeight = DeckLayout.minimumWaveformHeight
     @State private var start: Double?
 
     var body: some View {
@@ -337,7 +338,7 @@ struct SplitHandle: View {
             .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
                 .onChanged { value in
                     if start == nil { start = displayedHeight }
-                    height = clamped((start ?? displayedHeight) + value.translation.height)
+                    height = draggedHeight(from: start ?? displayedHeight, translation: value.translation.height)
                 }
                 .onEnded { _ in start = nil })
             .onTapGesture(count: 2) { height = DeckLayout.defaultWaveformHeight }
@@ -347,15 +348,16 @@ struct SplitHandle: View {
             .accessibilityAdjustableAction { direction in
                 // 메뉴 '파형 크게·작게'와 같은 한 칸
                 switch direction {
-                case .increment: height = DeckLayout.steppedWaveformHeight(displayed: displayedHeight, direction: 1, maximum: maximumHeight)
-                case .decrement: height = DeckLayout.steppedWaveformHeight(displayed: displayedHeight, direction: -1, maximum: maximumHeight)
+                case .increment: height = DeckLayout.steppedWaveformHeight(displayed: displayedHeight, direction: 1, maximum: maximumHeight, minimum: minimumHeight)
+                case .decrement: height = DeckLayout.steppedWaveformHeight(displayed: displayedHeight, direction: -1, maximum: maximumHeight, minimum: minimumHeight)
                 @unknown default: break
                 }
             }
     }
 
-    private func clamped(_ value: Double) -> Double {
-        min(max(value, DeckLayout.minimumWaveformHeight), maximumHeight)
+    func draggedHeight(from start: Double, translation: Double) -> Double {
+        let value = start + translation
+        return min(max(value, minimumHeight), max(maximumHeight, minimumHeight))
     }
 }
 

@@ -5,6 +5,7 @@ import SwiftUI
 /// 덱과 목록이 잰 원시 크기는 `LibraryLayoutMetrics`가 들고, 실제 적용 높이는 작은 뷰만 읽는다.
 /// 창 크기 변화가 곡 목록·툴바·사이드바 본문까지 전파되지 않게 한다(#138, #180).
 struct LibraryDetail: View {
+    @Environment(\.textScale) private var textScale
     @Bindable var store: LibraryStore
     @Bindable var deck: DeckModel
     /// 저장된 창 프레임을 적용했는지. 그 전의 기본 크기 폭으로는 사이드바를 접지 않는다(#119).
@@ -115,6 +116,7 @@ struct LibraryDetail: View {
         // 새 스냅샷을 읽고 다시 그릴 때도 첫 측정은 임시 폭이다.
         .onDisappear { sidebarAutoCollapse.reset() }
         .onChange(of: waveformHeight, initial: true) { layout.request(waveformHeight) }
+        .onChange(of: textScale, initial: true) { layout.setTextScale(textScale) }
         .modifier(LibraryWaveformHeightContext(layout: layout, height: $waveformHeight))
     }
 }
@@ -165,7 +167,8 @@ private struct LibrarySplitHandle: View {
     @Binding var height: Double
 
     var body: some View {
-        SplitHandle(height: $height, displayedHeight: layout.waveformHeight, maximumHeight: layout.maximumWaveformHeight)
+        SplitHandle(height: $height, displayedHeight: layout.waveformHeight, maximumHeight: layout.maximumWaveformHeight,
+                    minimumHeight: layout.minimumWaveformHeight)
     }
 }
 
@@ -175,6 +178,7 @@ private struct LibraryWaveformHeightContext: ViewModifier {
 
     func body(content: Content) -> some View {
         content.focusedSceneValue(\.waveformHeight,
-            WaveformHeightControl(displayed: layout.waveformHeight, maximum: layout.maximumWaveformHeight) { height = $0 })
+            WaveformHeightControl(displayed: layout.waveformHeight, maximum: layout.maximumWaveformHeight,
+                                  minimum: layout.minimumWaveformHeight) { height = $0 })
     }
 }
