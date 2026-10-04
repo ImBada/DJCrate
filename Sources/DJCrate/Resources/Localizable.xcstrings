@@ -7153,6 +7153,22 @@
         }
       }
     },
+    "masterPlaylists6.xml을 읽지 못해 재생 목록 시각을 고칠 수 없으니 rekordbox를 한 번 켰다가 종료한 뒤 다시 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read masterPlaylists6.xml, so playlist timestamps can't be updated. Open rekordbox once, quit it, and write again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "masterPlaylists6.xmlを読み込めないためプレイリストの時刻を更新できません。rekordboxを一度起動してから終了し、もう一度書き込んでください"
+          }
+        }
+      }
+    },
     "masterPlaylists6.xml을 읽지 못했습니다. rekordbox를 한 번 켰다가 종료한 뒤 다시 시도하세요" : {
       "localizations" : {
         "en" : {

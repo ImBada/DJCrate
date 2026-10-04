@@ -200,6 +200,15 @@ extension RekordboxWriter {
         return true
     }
 
+    /// 이 초안을 쓰면 고칠 재생 목록 XML이 있는지: 확인한 칸(제목·아티스트·장르)을 쓰고 그 곡이 든 살아 있는 목록이 있을 때만(백업 전 확인)
+    static func tagTouchesPlaylistXML(_ draft: TagDraft, db: CipherDatabase) throws -> Bool {
+        guard !Set(draft.changedKeys).isDisjoint(with: playlistTimestampTagKeys) else { return false }
+        var id: String?
+        try db.query("SELECT ID FROM djmdContent WHERE UUID = ? AND rb_local_deleted = 0", [.text(draft.trackUUID)]) { id = $0.string(0) }
+        guard let id else { return false }
+        return try !tagPlaylists(db, contentID: id).isEmpty
+    }
+
     /// 곡이 든 살아 있는 재생 목록(곡 정보를 쓰면 XML Timestamp를 고친다, #173). 지운 목록·지운 곡 항목은 뺀다.
     static func tagPlaylists(_ db: CipherDatabase, contentID: String) throws -> [String] {
         var ids: [String] = []

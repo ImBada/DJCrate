@@ -155,6 +155,33 @@ public enum RekordboxWriter {
             tags = checked.passed
             tagOutcomes = checked.blocked
         }
+        // 재생 목록 편집과 곡 정보 쓰기는 DB 옆 masterPlaylists6.xml도 고친다(곡 정보는 확인한 칸을 쓴 곡이 든 목록의 Timestamp, #173).
+        // 쓰는 DB 옆 파일만 대상이고 없으면 DB만 쓴다. 사본 옆 파일이 라이브 XML의 링크면 백업 전에 막는다. 곡 정보는 그 곡이 든 살아 있는
+        // 목록이 있을 때만 읽고, 읽지 못하면 그 곡정보 초안만 막는다. 재생 목록·합치기는 읽지 못하면 예전처럼 쓰기째 막는다.
+        let playlistXMLURL = playlistXMLURL(for: database)
+        var playlistXML: MasterPlaylistsXML?
+        var xmlTags: Set<String> = []
+        if !tags.isEmpty {
+            let reader = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
+            defer { reader.close() }
+            xmlTags = Set(try tags.filter { try tagTouchesPlaylistXML($0, db: reader) }.map(\.trackUUID))
+        }
+        if !playlistSteps.isEmpty || !merges.isEmpty || !xmlTags.isEmpty {
+            try writeGuard.checkAdjacentFile(playlistXMLURL, database: database)
+            if FileManager.default.fileExists(atPath: playlistXMLURL.path) {
+                if let xml = try? MasterPlaylistsXML(contentsOf: playlistXMLURL), xml.text.contains("</PLAYLISTS>") {
+                    playlistXML = xml
+                } else if !playlistSteps.isEmpty || !merges.isEmpty {
+                    throw DJCError.writeRefused(String(ui: "masterPlaylists6.xml을 읽지 못했습니다. rekordbox를 한 번 켰다가 종료한 뒤 다시 시도하세요"))
+                } else {
+                    for draft in tags where xmlTags.contains(draft.trackUUID) {
+                        tagOutcomes.append(Outcome(trackUUID: draft.trackUUID, title: draft.base.title, status: .blocked, reason: String(ui: "masterPlaylists6.xml을 읽지 못해 재생 목록 시각을 고칠 수 없으니 rekordbox를 한 번 켰다가 종료한 뒤 다시 쓰세요"),
+                                                   removed: 0, added: 0))
+                    }
+                    tags.removeAll { xmlTags.contains($0.trackUUID) }
+                }
+            }
+        }
         if tags.isEmpty, !tagOutcomes.isEmpty, !drafts.contains(where: \.hasChanges), grids.isEmpty, gains.isEmpty,
            playlistSteps.isEmpty, merges.isEmpty {
             let unchanged = drafts.map { Outcome(trackUUID: $0.trackUUID, title: $0.trackUUID, status: .unchanged,
@@ -244,21 +271,6 @@ public enum RekordboxWriter {
                                                 reason: blocked.reason, removed: 0, added: 0))
                 }
             }
-        }
-
-        // 재생 목록 편집과 곡 정보 쓰기는 DB 옆 masterPlaylists6.xml도 고친다(곡 정보는 확인한 칸을 쓴 곡이 든 목록의 Timestamp, #173).
-        // 쓰는 DB 옆 파일만 대상이고 없으면 DB만 쓴다. 사본 옆 파일이 라이브 XML의 링크면, 읽지 못하는 모양이면 백업 전에 막는다.
-        let playlistXMLURL = playlistXMLURL(for: database)
-        var playlistXML: MasterPlaylistsXML?
-        let tagsTouchXML = tags.contains { !Set($0.changedKeys).isDisjoint(with: playlistTimestampTagKeys) }
-        let readsXML = !playlistSteps.isEmpty || !merges.isEmpty || tagsTouchXML
-        if readsXML { try writeGuard.checkAdjacentFile(playlistXMLURL, database: database) }
-        if readsXML, FileManager.default.fileExists(atPath: playlistXMLURL.path) {
-            let xml = try? MasterPlaylistsXML(contentsOf: playlistXMLURL)
-            guard let xml, xml.text.contains("</PLAYLISTS>") else {
-                throw DJCError.writeRefused(String(ui: "masterPlaylists6.xml을 읽지 못했습니다. rekordbox를 한 번 켰다가 종료한 뒤 다시 시도하세요"))
-            }
-            playlistXML = xml
         }
 
         let backup = dryRun ? nil : try makeBackup(of: database, in: backups, now: now, label: "write")
@@ -449,7 +461,7 @@ public enum RekordboxWriter {
                     try db.execute("RELEASE djc_tags")
                     // 확인한 칸(제목·아티스트·장르)을 썼으면 그 곡이 든 살아 있는 목록마다 XML Timestamp를 쓴 시각으로
                     // (부모 폴더는 그대로, #173 S1 X1·S2 U11·U12·S3 V07)
-                    if !Set(draft.changedKeys).isDisjoint(with: playlistTimestampTagKeys) {
+                    if playlistXML != nil, !Set(draft.changedKeys).isDisjoint(with: playlistTimestampTagKeys) {
                         for id in try tagPlaylists(db, contentID: result.expectation.contentID) where touchedPlaylists.insert(id).inserted {
                             xmlChanges.append(.touch(id))
                         }

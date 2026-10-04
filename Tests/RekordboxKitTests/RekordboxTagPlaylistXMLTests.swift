@@ -86,11 +86,46 @@ extension RekordboxTagWriterTests {
     @Test func 확인하지_않은_칸만_쓰면_XML을_읽지_않는다() throws {
         // XML을 고치지 않는 쓰기는 예전처럼 XML이 망가져 있어도 막지 않는다.
         let (fixture, track) = try library()
+        try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["500"]))
         let url = fixture.root.appending(path: "masterPlaylists6.xml")
         try Data("망가짐".utf8).write(to: url)
         #expect(try write(fixture, tags: [try draft(fixture, track) { $0.comment = "DJC 173 코멘트" }]).tagWritten.count == 1)
-        #expect(throws: DJCError.self) { try write(fixture, tags: [try draft(fixture, track) { $0.title = "DJC 173 제목" }]) }
         #expect(try Data(contentsOf: url) == Data("망가짐".utf8))
+    }
+
+    @Test func 목록에_없는_곡의_장르_쓰기는_XML이_깨져_있어도_쓴다() throws {
+        // 제목·아티스트·장르를 써도 그 곡이 든 살아 있는 목록이 없으면 고칠 XML이 없어 읽지 않는다.
+        let (fixture, track) = try library()
+        let url = fixture.root.appending(path: "masterPlaylists6.xml")
+        try Data("망가짐".utf8).write(to: url)
+        let report = try write(fixture, tags: [try draft(fixture, track) { $0.genre = "DJC 173 장르" }])
+        #expect(report.tagWritten.count == 1 && report.tagBlocked.isEmpty)
+        #expect(try Data(contentsOf: url) == Data("망가짐".utf8))
+    }
+
+    @Test func XML이_깨져_있으면_목록에_든_곡의_곡정보_초안만_막고_큐는_쓴다() throws {
+        // XML을 고쳐야 하는 곡정보 초안만 할 일과 함께 막고, 같은 쓰기의 큐·목록에 없는 곡의 곡정보는 그대로 쓴다(재생 목록 쓰기는 예전처럼 쓰기째 막는다).
+        let (fixture, track) = try library()
+        try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["500"]))
+        var cued = TrackSpec(id: "600", uuid: "track-uuid-600")
+        cued.cues = [.autoCue(at: 1024)]
+        try fixture.add(cued)
+        let url = fixture.root.appending(path: "masterPlaylists6.xml")
+        try Data("망가짐".utf8).write(to: url)
+        var cues = CueDraft(trackUUID: cued.uuid, rekordboxCues: cued.rekordboxCues)
+        cues.place(EditableCue(kind: .memory, time: 20.123))
+        let neighbor = TrackSpec(id: "501", uuid: "track-uuid-501")
+        let tags = [try draft(fixture, track) { $0.title = "DJC 173 제목" }, try draft(fixture, neighbor) { $0.title = "DJC 173 이웃" }]
+        let report = try write(fixture, tags: tags, drafts: [cues])
+        #expect(report.written.count == 1)
+        #expect(report.tagWritten.map(\.trackUUID) == [neighbor.uuid] && report.tagBlocked.map(\.trackUUID) == [track.uuid])
+        let reason = try #require(report.tagBlocked.first?.reason)
+        #expect(reason.contains("masterPlaylists6.xml") && reason.contains("다시"))
+        #expect(try content(fixture)["Title"] == "옛 제목" && content(fixture, "501")["Title"] == "DJC 173 이웃")
+        #expect(try Data(contentsOf: url) == Data("망가짐".utf8))
+        // 막힌 곡정보만 있으면 백업도 만들지 않는다
+        let alone = try write(fixture, tags: [try draft(fixture, track) { $0.title = "DJC 173 제목" }])
+        #expect(alone.tagBlocked.count == 1 && alone.backup == nil)
     }
 
     @Test func 곡_정보의_XML은_쓰는_DB_옆_파일만_고치고_없으면_DB만_쓴다() throws {
