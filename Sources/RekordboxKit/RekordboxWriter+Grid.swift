@@ -81,7 +81,7 @@ extension RekordboxWriter {
     /// `rb_data_status`를 rekordbox처럼 256 → 257로 올린 값(그 밖은 그대로)
     static func raisedStatus(_ status: Int?) -> CipherDatabase.Value {
         guard let status else { return .null }
-        return .int(status == 256 ? 257 : status)
+        return .int(savedState(status))
     }
 
     /// DB 사본의 rekordbox 변경 카운터(읽기 전용).

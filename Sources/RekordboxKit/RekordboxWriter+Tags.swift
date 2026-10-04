@@ -13,10 +13,8 @@ extension RekordboxWriter {
     /// 쓰면 그 곡이 든 재생 목록의 `masterPlaylists6.xml` Timestamp를 고치는 칸. rekordbox 실험으로 확인한 칸만이다
     /// (#173 S1 X1 아티스트, S2 U11·U12 제목, S3 V07 장르). 그 밖의 칸은 [미확인]이라 그 칸만 쓴 초안은 XML을 건드리지 않는다.
     static let playlistTimestampTagKeys: Set<TagFields.Key> = [.title, .artist, .genre]
-    /// 고친 행의 쓴 뒤 동기화 상태: 256 → 257, 0·257은 그대로(SQL은 `savedStatus`)
-    static func savedState(_ state: Int?) -> Int? { state == 256 ? 257 : state }
-    /// 저장하는 앨범 행의 상태로 확인한 것(#173 2026-10-04). 0 그대로, 256 → 257, 257 그대로.
-    static let verifiedAlbumStates: Set<Int> = [0, 256, 257]
+    /// 태그 쓰기를 확인한 곡·앨범 상태(#171·#173 2026-10-04). 0 그대로, 256 → 257, 257 그대로. 그 밖의 상태는 막는다.
+    static let verifiedTagStates: Set<Int> = [0, 256, 257]
 
     /// 쓴 뒤 곡이 가져야 할 태그
     struct TagExpectation {
@@ -464,7 +462,7 @@ extension RekordboxWriter {
     /// 곡 상태 0·256·257만 쓴다. 동기화(256·257) 곡도 상태 0과 같은 칸을 쓰고 곡 행만 256 → 257로 올린다
     /// (#171 2026-10-01 코멘트, #173 2026-10-04 S1·S2: 아홉 칸 모두·코멘트 비우기). 그 밖의 상태는 확인하지 않아 막는다.
     private static func checkTagState(_ draft: TagDraft, state: Int?, block: (String) -> Blocked) throws {
-        guard let state, [0, 256, 257].contains(state) else {
+        guard let state, verifiedTagStates.contains(state) else {
             throw block(String(ui: "이 곡의 동기화 상태에서는 태그 쓰기를 확인하지 못했으므로 rekordbox에서 직접 고치세요"))
         }
     }
@@ -479,7 +477,7 @@ extension RekordboxWriter {
         try db.query("SELECT a.rb_data_status, a.AlbumArtistID FROM djmdAlbum a JOIN djmdContent c ON c.AlbumID = a.ID WHERE c.ID = ?",
                      [.text(contentID)]) { oldState = $0.int(0) ?? -1; oldAlbumArtist = $0.string(1) ?? "" }
         // 앨범 행은 자기 상태로 저장된다: 0 그대로, 256 → 257, 257 그대로(#173 S1 T02·T03·T05·X1, S2 U01·U02·U07·U14, S3 V01·V03·V05).
-        guard Self.verifiedAlbumStates.contains(oldState) else {
+        guard Self.verifiedTagStates.contains(oldState) else {
             throw block(String(ui: "이 앨범의 동기화 상태에서는 태그 쓰기를 확인하지 못했으므로 rekordbox에서 직접 고치세요"))
         }
         guard keys.contains(.album) || keys.contains(.albumArtist), !draft.fields.album.isEmpty else { return }
@@ -495,7 +493,7 @@ extension RekordboxWriter {
             throw block(String(ui: "같은 이름의 앨범이 여럿이라 선택 규칙을 확인하지 못했으므로 rekordbox에서 직접 고치세요"))
         }
         guard let album = albums.first else { return }
-        guard let state = album.state, Self.verifiedAlbumStates.contains(state) else {
+        guard let state = album.state, Self.verifiedTagStates.contains(state) else {
             throw block(String(ui: "이 앨범의 동기화 상태에서는 태그 쓰기를 확인하지 못했으므로 rekordbox에서 직접 고치세요"))
         }
         if keys.contains(.albumArtist) {
@@ -532,14 +530,14 @@ extension RekordboxWriter {
         }
         /// 기존 앨범 행 저장: 앨범 아티스트(nil이면 NULL만 ''로) + 상태 256 → 257 + 변경 번호·시각
         func saveAlbum(_ album: String, albumArtist: String?) throws {
-            guard let state = try liveNameState(db, table: "djmdAlbum", id: album), let state, verifiedAlbumStates.contains(state) else {
+            guard let state = try liveNameState(db, table: "djmdAlbum", id: album), let state, verifiedTagStates.contains(state) else {
                 throw Blocked(title: content.title, reason: String(ui: "이 앨범의 동기화 상태에서는 태그 쓰기를 확인하지 못했으므로 rekordbox에서 직접 고치세요"))
             }
             usn += 1
             let artist = albumArtist == nil ? "ifnull(AlbumArtistID, '')" : "?"
             try db.run("UPDATE djmdAlbum SET AlbumArtistID = \(artist), \(savedStatus), rb_local_usn = ?, updated_at = ? WHERE ID = ?",
                        (albumArtist.map { [CipherDatabase.Value.text($0)] } ?? []) + [.int(usn), .text(stamp.db), .text(album)])
-            touchedAlbums[album] = (usn, state == 256 ? 257 : state)
+            touchedAlbums[album] = (usn, savedState(state))
         }
         // 정보 패널 칸 순서대로(제목 → 앨범 → 아티스트 → 장르 → 작곡가 → …). 새 이름 행과 앨범 행이 곡 행보다 먼저 번호를 받는다.
         // 앨범을 아티스트보다 먼저 쓴다(#173 명세 4.2-7): rekordbox에서 앨범 → 아티스트 순으로 저장한 결과와 같게, 아티스트가 저장하는
@@ -619,13 +617,11 @@ extension RekordboxWriter {
         // 네 칸만 바꾼다(#173 S1 T02·T04·T05, S2 U02~U05·U14, S3 V03). 지운 앨범의 앨범 아티스트 행은 rekordbox도 남겼다(앨범 칸을 고칠 때는
         // 앨범 아티스트를 놓는 것으로 보지 않는다). 무엇을 버릴지는 확인 때 정했고(`planReleases`), 여기서는 그대로 하고 다시 센다.
         let (deleted, marked) = try applyReleases(content, keys: Set(keys), db: db, usn: &usn, stamp: stamp)
-        for name in deleted where name.table == "djmdAlbum" { touchedAlbums.removeValue(forKey: name.id) }
-        for name in marked where name.table == "djmdAlbum" { touchedAlbums.removeValue(forKey: name.id) }
-
         var expectation = TagExpectation(contentID: content.id, fields: expected, trackInfoUpdated: trackInfoUpdated, contentUSN: usn,
-                                         dataStatus: content.state == 256 ? 257 : content.state,
-                                         touchedAlbums: touchedAlbums, deletedNames: deleted)
+                                         dataStatus: savedState(content.state), touchedAlbums: touchedAlbums, deletedNames: deleted)
         expectation.markedNames = marked
+        // 버린 앨범(지움·258)은 저장한 앨범 기대값에서 뺀다
+        for id in expectation.releasedAlbums { expectation.touchedAlbums.removeValue(forKey: id) }
         if case let .text(album)? = columns.last(where: { $0.0 == "AlbumID" })?.1 { expectation.albumID = album }
         try verifyTags(db: db, expectation)
         let outcome = Outcome(trackUUID: draft.trackUUID, title: content.title, status: .written, reason: nil, removed: 0, added: keys.count,

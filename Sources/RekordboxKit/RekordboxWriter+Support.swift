@@ -21,6 +21,9 @@ extension RekordboxWriter {
 
     /// 고친 행의 동기화 상태 칸: 256 → 257, 0·257은 그대로(docs/rekordbox-internals.md "공통: 변경 번호")
     static let savedStatus = "rb_data_status = CASE rb_data_status WHEN 256 THEN 257 ELSE rb_data_status END"
+    /// `savedStatus`의 Swift 쪽(쓴 뒤 기대하는 상태)
+    static func savedState(_ state: Int) -> Int { state == 256 ? 257 : state }
+    static func savedState(_ state: Int?) -> Int? { state.map(savedState) }
 
     static func scalar(_ db: CipherDatabase, _ sql: String, _ values: [CipherDatabase.Value]) throws -> Int? {
         var result: Int?
