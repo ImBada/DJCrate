@@ -374,12 +374,26 @@ extension LibraryStore {
 
     // MARK: - rekordbox XML
 
+    /// 키 초안이 있는 추가한 곡을 곡 넣기·XML 내보내기에서 뺄 때 알리는 이유. 두 길 모두 키를 쓰지 않는다(곡 넣기는 `KeyID` '0', XML은 키 초안을 담지 않는다).
+    /// 고른 키가 조용히 사라지지 않게 그 곡만 빼고 이유를 알린다. 키는 곡을 rekordbox에 넣은 뒤 태그에서 고른다.
+    static func stagedKeyDraftBlock(title: String) -> String {
+        String(ui: "\(title): 곡을 넣거나 XML로 내보낼 때는 키를 쓰지 않으니 태그 초안(키)을 버린 뒤 진행하세요. 키는 곡을 넣은 뒤에 태그에서 고를 수 있습니다")
+    }
+
     /// 추가한 곡을 rekordbox XML로 쓴다. 태그 초안(시트·인스펙터에서 고친 값)과 그리드·큐 초안을 넣는다.
-    /// 반환: 내보낸 곡 수와 그리드가 없는 곡 수.
-    func exportStaged(to url: URL, only ids: Set<TrackRow.ID>? = nil) throws -> (count: Int, withoutGrid: Int) {
-        let tracks = staged.filter { ids?.contains($0.id) ?? true }
+    /// 키 초안이 있는 곡은 XML에 담지 않고 이유(`skipped`)를 돌려준다. 담을 곡이 하나도 없고 뺀 곡이 있으면 파일을 쓰지 않는다.
+    /// 반환: 내보낸 곡 수, 그리드가 없는 곡 수, 뺀 곡의 이유.
+    func exportStaged(to url: URL, only ids: Set<TrackRow.ID>? = nil) throws -> (count: Int, withoutGrid: Int, skipped: [String]) {
+        let candidates = staged.filter { ids?.contains($0.id) ?? true }
         // 저장에 실패한 큐·그리드 초안이 있으면 디스크의 옛 초안을 XML로 내보내지 않는다(#170).
-        try requireDraftSaves(for: Set(tracks.map(\.uuid)))
+        try requireDraftSaves(for: Set(candidates.map(\.uuid)))
+        var skipped: [String] = []
+        let tracks = candidates.filter { track in
+            guard tagDrafts[track.uuid]?.changedKeys.contains(.musicalKey) == true else { return true }
+            skipped.append(Self.stagedKeyDraftBlock(title: track.title))
+            return false
+        }
+        if tracks.isEmpty, !skipped.isEmpty { return (0, 0, skipped) }
         var withoutGrid = 0
         let entries = tracks.map { original -> RekordboxXML.Entry in
             var track = original
@@ -402,6 +416,6 @@ extension LibraryStore {
         _ = today
         let xml = RekordboxXML.document(entries: entries, playlistName: "DJCrate 추가")
         try xml.write(to: url, atomically: true, encoding: .utf8)
-        return (entries.count, withoutGrid)
+        return (entries.count, withoutGrid, skipped)
     }
 }

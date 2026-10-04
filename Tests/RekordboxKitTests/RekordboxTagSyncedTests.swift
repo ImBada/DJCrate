@@ -29,7 +29,7 @@ extension RekordboxTagWriterTests {
 
     // MARK: 골든(#173 2026-10-04 S1·S2)
 
-    @Test(arguments: TagFields.Key.allCases)
+    @Test(arguments: infoPanelKeys)
     func 동기화된_곡의_칸마다_rekordbox_7이_저장한_모양으로_쓴다(key: TagFields.Key) throws {
         // #173 S1 T01 제목, T02 아티스트 새 이름, T04 앨범 새 이름, T06 장르 새 이름, T08 작곡가 넣기, T09 연도, T10 트랙 번호,
         // T16 코멘트, S2 U01 앨범 아티스트: 곡 행은 그 칸·`TrackInfoUpdated`(+1, 글자)·256 → 257·번호·시각만 바뀐다.

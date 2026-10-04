@@ -64,10 +64,11 @@ struct LibraryTablePolishTests {
         coordinator.table = table
         table.delegate = coordinator
         table.dataSource = coordinator
-        for key in TagFields.Key.allCases {
-            table.sortDescriptors = [NSSortDescriptor(key: key.rawValue, ascending: false)]
+        // 열 이름(id)으로 정렬한다. 키 열은 목록의 키 칸과 같은 이름("key")이다.
+        for column in SheetColumn.all where column.key != nil {
+            table.sortDescriptors = [NSSortDescriptor(key: column.id, ascending: false)]
             let sort = try #require(store.sortOrder.first)
-            #expect(TrackColumn.sortKey(of: sort.keyPath) == key.rawValue)
+            #expect(TrackColumn.sortKey(of: sort.keyPath) == column.id)
             #expect(sort.order == .reverse)
         }
     }

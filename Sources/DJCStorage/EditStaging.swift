@@ -23,7 +23,11 @@ public enum EditStaging {
         var cueDraft = CueDraft(trackUUID: staged.uuid, rekordboxCues: [])
         for cue in cues { cueDraft.place(cue) }
         var tags = TagDraft(track: staged.track)
-        if let source { tags.fields = TagFields(track: source) }
+        if let source {
+            tags.fields = TagFields(track: source)
+            // 키는 곡을 rekordbox에 넣을 때 쓰지 않는다(KeyID '0', 키 쓰기는 넣은 뒤 태그 편집으로). 원곡 키를 초안에 담으면 쓰이지 않는 고친 칸이 된다.
+            tags.fields.musicalKey = tags.base.musicalKey
+        }
         tags.fields.title = title ?? source.map { "\($0.title) (Edit)" } ?? staged.title
 
         // 중간에 실패하면 이 작업이 만든 초안만 되돌린다(전에 있던 파일은 그 내용으로 되살린다, #174).

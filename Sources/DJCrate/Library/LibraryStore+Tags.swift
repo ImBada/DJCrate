@@ -9,8 +9,11 @@ import Observation
 extension LibraryStore {
     // MARK: - 태그 편집 (초안만 바뀐다)
 
+    /// 곡의 태그 초안(없으면 지금 rekordbox 값에서 새로). 키를 안 고친 초안의 키 칸은 지금 값으로 맞춘다: 키 칸이 없던 옛 초안이나 그 뒤
+    /// rekordbox에서 키가 바뀐 초안이 키를 고친 것처럼 보이거나 쓰기 때 기준이 어긋나지 않게 한다(`TagDraft.adoptingMusicalKey`).
     func tagDraft(for row: TrackRow) -> TagDraft {
-        tagDrafts[row.track.uuid] ?? TagDraft(track: row.track)
+        guard let draft = tagDrafts[row.track.uuid] else { return TagDraft(track: row.track) }
+        return draft.adoptingMusicalKey(of: TagFields(track: row.track))
     }
 
     /// 선택한 곡들의 값. 모두 같으면 그 값, 다르면 `mixed`.
@@ -55,7 +58,9 @@ extension LibraryStore {
     // MARK: - 태그 시트(엑셀식) 일괄 편집 + 되돌리기
 
     func tagCell(_ row: TrackRow, _ key: TagFields.Key) -> String {
-        if let draft = tagDrafts[row.track.uuid] { return draft.fields[key] }
+        if let draft = tagDrafts[row.track.uuid] {
+            return key == .musicalKey ? tagDraft(for: row).fields[key] : draft.fields[key]
+        }
         return TagFields(track: row.track)[key]
     }
 
@@ -73,9 +78,16 @@ extension LibraryStore {
         for change in changes where !change.row.track.isStreaming && !change.row.isUsb {
             let uuid = change.row.track.uuid
             let original = tagDraft(for: change.row)
-            before[uuid] = original
+            var value = change.value
+            // 키는 고르기에서만 고친다. 붙여넣기·채우기·표 편집이 Camelot 이름이 아닌 값이나 추가한 곡의 키를 초안에 넣지 못하게 여기서도 거른다
+            // (초안의 기준 값으로 되돌리는 것은 그대로 받는다: 기준이 옛 표기여도 되돌릴 수 있어야 한다).
+            if change.key == .musicalKey, value != original.base.musicalKey {
+                guard KeyPicker.unavailableReason(change.row) == nil, let accepted = KeyPicker.accepted(value) else { continue }
+                value = accepted
+            }
+            before[uuid] = before[uuid] ?? original
             var edited = after[uuid] ?? original
-            edited.fields[change.key] = change.value
+            edited.fields[change.key] = value
             after[uuid] = edited
         }
         guard let change = DraftChange(before: before, after: after) else { return }

@@ -26,10 +26,16 @@ enum StagingPanels {
         do {
             let url = try RekordboxLink.prepare()
             let result = try store.exportStaged(to: url, only: selected.isEmpty ? nil : selected)
+            // 키 초안이 있어 뺀 곡만 있으면 아무것도 쓰지 않았다: 이유를 알리고 연동 안내는 띄우지 않는다.
+            guard result.count > 0 || result.skipped.isEmpty else {
+                store.stagingMessage = AppMessage(kind: .failure, text: result.skipped.joined(separator: "\n"))
+                return
+            }
             // 재생 목록 이름 "DJCrate 추가"는 XML에 쓰는 이름 그대로다(번역하지 않음).
             var text = String(ui: "\(result.count)곡을 연동 XML에 썼습니다 · rekordbox: rekordbox xml 새로고침 › \"DJCrate 추가\" › Import To Collection")
             if result.withoutGrid > 0 { text += " · " + String(ui: "\(result.withoutGrid)곡은 그리드 없이(rekordbox가 분석)") }
-            store.stagingMessage = AppMessage(kind: result.withoutGrid > 0 ? .warning : .success, text: text)
+            if !result.skipped.isEmpty { text += "\n" + result.skipped.joined(separator: "\n") }
+            store.stagingMessage = AppMessage(kind: result.withoutGrid > 0 || !result.skipped.isEmpty ? .warning : .success, text: text)
             RekordboxLink.showSetupIfNeeded()
         } catch {
             store.stagingMessage = AppMessage(kind: .failure, text: String(ui: "내보내지 못했습니다. 저장 위치와 권한을 확인하세요: \(error.localizedDescription)"))

@@ -52,6 +52,12 @@ extension LibraryStore {
             try Task.checkCancellation()
             writeStage = WriteStage(String(ui: "넣을 곡을 확인하는 중…"), completed: index, total: tracks.count, cancellable: true)
             let url = URL(filePath: track.path)
+            // 곡을 넣을 때는 키를 쓰지 않는다(KeyID '0'). 고른 키가 조용히 사라지지 않게 그 곡은 넣지 않고 이유를 알린다(고르기는 추가한 곡에서 막혀 있어
+            // 직접 고친 초안 파일이나 옛 초안만 해당한다). 키는 곡을 넣은 뒤 태그 편집으로 쓴다. XML 내보내기도 같은 방식이다(`exportStaged`).
+            if tagDrafts[track.uuid]?.changedKeys.contains(.musicalKey) == true {
+                unreadable.append(Self.stagedKeyDraftBlock(title: track.title))
+                continue
+            }
             do {
                 var tags = try await AudioTags.read(url: url)
                 if let fields = tagDrafts[track.uuid]?.fields { Self.apply(fields, to: &tags) }

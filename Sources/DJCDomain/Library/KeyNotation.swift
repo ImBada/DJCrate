@@ -2,6 +2,23 @@ import Foundation
 
 /// 조성 글자를 목록 표기(Camelot, "8A")로 맞춘다. 목록의 키 칸은 rekordbox 키를 Camelot으로 보여 준다.
 public enum KeyNotation {
+    /// rekordbox에 쓸 수 있는 키 이름: Camelot 스물네 개(1A, 1B, 2A … 12B). 이 라이브러리의 `djmdKey`에 살아 있는 줄로 있는 이름이다(#5).
+    public static let camelotNames: [String] = (1...12).flatMap { ["\($0)A", "\($0)B"] }
+
+    /// 입력("8a"·" 08B ")을 정확한 Camelot 이름으로 다듬는다. 다른 표기("Am"·Open Key)는 바꾸지 않고 nil이다:
+    /// 어느 줄에 이을지 짐작하지 않는다.
+    public static func normalizedCamelotName(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces).uppercased()
+        guard let letter = trimmed.last, letter == "A" || letter == "B", let number = Int(trimmed.dropLast()),
+              (1...12).contains(number), trimmed.dropLast().allSatisfy(\.isASCII), !trimmed.dropLast().hasPrefix("+") else { return nil }
+        return "\(number)\(letter)"
+    }
+
+    /// 키 고르기에 보일 이름. 현재 값이 Camelot이 아니면(옛 표기 줄·삭제 표시 줄의 이름) 맨 앞에 그대로 보여 주되 쓰는 값은 아니다.
+    public static func pickerChoices(current: String) -> [String] {
+        current.isEmpty || camelotNames.contains(current) ? camelotNames : [current] + camelotNames
+    }
+
     /// 조표(장조 으뜸음 음이름, 0 = C … 11 = B)와 장·단 → Camelot. C장조·A단조 = 8.
     public static func camelot(signature: Int, minor: Bool) -> String {
         let tonic = (signature % 12 + 12) % 12

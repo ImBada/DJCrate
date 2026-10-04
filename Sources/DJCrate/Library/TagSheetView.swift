@@ -42,7 +42,7 @@ struct TagSheetView: NSViewRepresentable {
             }
             table.addTableColumn(tableColumn)
         }
-        table.autosaveName = "djc.tagSheet.v1"
+        table.autosaveName = SheetColumn.autosaveName
         table.autosaveTableColumns = true
         let scroll = NSScrollView()
         scroll.documentView = table
@@ -67,6 +67,12 @@ struct SheetColumn {
     /// nil이면 읽기 전용(복사만 된다).
     let key: TagFields.Key?
 
+    /// 표가 열 배치를 저장하는 이름. 키 열을 더하기 전("v1")에 저장한 배치는 열 순서가 달라 새 열이 맨 끝으로 밀리므로 이름을 올려 새로 시작한다.
+    static let autosaveName = "djc.tagSheet.v2"
+
+    /// 열 이름(identifier)으로 열 정의를 찾는다. 화면 위치로 찾지 않는다: 저장된 배치를 되살리거나 사용자가 열을 옮기면 위치가 `all` 순서와 다르다.
+    static func spec(id: String) -> SheetColumn? { all.first { $0.id == id } }
+
     static let all: [SheetColumn] = [
         SheetColumn(id: "index", title: "#", width: 44, key: nil),
         SheetColumn(id: "title", title: String(ui: "제목"), width: 220, key: .title),
@@ -77,6 +83,8 @@ struct SheetColumn {
         SheetColumn(id: "composer", title: String(ui: "작곡가"), width: 110, key: .composer),
         SheetColumn(id: "year", title: String(ui: "연도"), width: 52, key: .year),
         SheetColumn(id: "trackNumber", title: String(ui: "트랙"), width: 44, key: .trackNumber),
+        // 키는 글자를 쓰지 않고 목록(Camelot 이름·없음)에서 고른다. 열 이름이 목록의 키 칸과 같아 머리글 정렬도 같다.
+        SheetColumn(id: "key", title: String(ui: "키"), width: 52, key: .musicalKey),
         SheetColumn(id: "comment", title: String(ui: "코멘트"), width: 300, key: .comment),
         SheetColumn(id: "file", title: String(ui: "파일"), width: 220, key: nil),
     ]
@@ -150,6 +158,20 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
 
     func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
 
+    /// 화면 열(표의 열 순서) 수. 표가 열을 만들기 전(시험)에는 열 정의 수다.
+    var columnCount: Int {
+        let count = table?.tableColumns.count ?? 0
+        return count > 0 ? count : SheetColumn.all.count
+    }
+
+    /// 화면 열 하나가 가리키는 열 정의. 열은 이름(identifier)으로 찾는다: 표가 열 배치를 저장해 되살리고 사용자가 열을 옮길 수 있어
+    /// 화면 위치는 `SheetColumn.all` 순서와 다를 수 있다. 표가 열을 하나도 만들기 전(시험)에만 순서를 쓴다.
+    func spec(atColumn column: Int) -> SheetColumn? {
+        guard let table, !table.tableColumns.isEmpty else { return SheetColumn.all.indices.contains(column) ? SheetColumn.all[column] : nil }
+        guard table.tableColumns.indices.contains(column) else { return nil }
+        return SheetColumn.spec(id: table.tableColumns[column].identifier.rawValue)
+    }
+
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
         guard !syncingSort, let descriptor = tableView.sortDescriptors.first,
               let key = descriptor.key, SheetColumn.all.contains(where: { $0.id == key && $0.key != nil }),
@@ -172,14 +194,14 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        guard let tableColumn, let column = tableView.tableColumns.firstIndex(of: tableColumn) else { return nil }
+        guard let tableColumn, let column = tableView.tableColumns.firstIndex(of: tableColumn),
+              let spec = SheetColumn.spec(id: tableColumn.identifier.rawValue) else { return nil }
         let identifier = NSUserInterfaceItemIdentifier("cell")
         let cell = (tableView.makeView(withIdentifier: identifier, owner: nil) as? SheetCell) ?? {
             let cell = SheetCell()
             cell.identifier = identifier
             return cell
         }()
-        let spec = SheetColumn.all[column]
         let position = CellPosition(row: row, column: column)
         cell.font = font
         cell.configure(text: text(row: row, column: column),
@@ -193,13 +215,14 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
 
     /// 편집 가능한 칸인가. 스트리밍 곡은 파일 태그가 없어 편집하지 않는다.
     func editableKey(row: Int, column: Int) -> TagFields.Key? {
-        guard rows.indices.contains(row), !rows[row].track.isStreaming else { return nil }
-        return SheetColumn.all[column].key
+        guard rows.indices.contains(row), !rows[row].track.isStreaming, let key = spec(atColumn: column)?.key else { return nil }
+        // 추가한 곡의 키는 곡을 rekordbox에 넣은 뒤에 고른다(`KeyPicker.unavailableReason`)
+        if key == .musicalKey, KeyPicker.unavailableReason(rows[row]) != nil { return nil }
+        return key
     }
 
     func text(row: Int, column: Int) -> String {
-        guard rows.indices.contains(row) else { return "" }
-        let spec = SheetColumn.all[column]
+        guard rows.indices.contains(row), let spec = spec(atColumn: column) else { return "" }
         if spec.key == .title, rows[row].isEncrypted { return rows[row].title }
         if let key = spec.key { return store.tagCell(rows[row], key) }
         switch spec.id {
@@ -225,7 +248,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
         defer { table?.updateFillDownCommand() }
         guard !rows.isEmpty else { return }
         let clamped = CellPosition(row: min(max(position.row, 0), rows.count - 1),
-                                   column: min(max(position.column, 0), SheetColumn.all.count - 1))
+                                   column: min(max(position.column, 0), columnCount - 1))
         cursor = clamped
         if !extend { anchor = clamped }
         table?.scrollRowToVisible(clamped.row)
@@ -272,7 +295,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
         defer { table?.updateFillDownCommand() }
         guard !rows.isEmpty else { return }
         anchor = CellPosition(row: 0, column: 0)
-        cursor = CellPosition(row: rows.count - 1, column: SheetColumn.all.count - 1)
+        cursor = CellPosition(row: rows.count - 1, column: columnCount - 1)
         reloadVisible()
         syncAccessibilitySelection()
     }
@@ -299,12 +322,18 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
         let visible = table.rows(in: table.visibleRect)
         guard visible.length > 0 else { return }
         table.reloadData(forRowIndexes: IndexSet(integersIn: visible.location..<(visible.location + visible.length)),
-                         columnIndexes: IndexSet(integersIn: 0..<SheetColumn.all.count))
+                         columnIndexes: IndexSet(integersIn: 0..<columnCount))
     }
 
     // MARK: - 편집
 
     func beginEditing(initialText: String? = nil) {
+        // 키 칸은 글자를 쓰지 않고 목록에서 고른다(더블클릭·Return·타이핑 모두)
+        if editing == nil, rows.indices.contains(cursor.row), editableKey(row: cursor.row, column: cursor.column) == .musicalKey {
+            anchor = cursor
+            presentKeyMenu(row: cursor.row, column: cursor.column)
+            return
+        }
         guard editing == nil, let table, rows.indices.contains(cursor.row),
               editableKey(row: cursor.row, column: cursor.column) != nil,
               let cell = table.view(atColumn: cursor.column, row: cursor.row, makeIfNecessary: true) as? SheetCell
@@ -387,8 +416,13 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
     }
 
     func paste() {
+        paste(string: NSPasteboard.general.string(forType: .string))
+    }
+
+    /// 붙여넣을 글자를 직접 받는다(시험이 사용자 클립보드를 건드리지 않게)
+    func paste(string: String?) {
         defer { table?.updateFillDownCommand() }
-        guard let string = NSPasteboard.general.string(forType: .string), !rows.isEmpty else { return }
+        guard let string, !rows.isEmpty else { return }
         let block = TSV.parse(string)
         guard !block.isEmpty else { return }
         let rect = selectionRect
@@ -402,12 +436,12 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
                 guard rows.indices.contains(r) else { break }
                 for (j, value) in line.enumerated() {
                     let c = rect.columns.lowerBound + j
-                    guard SheetColumn.all.indices.contains(c), let key = editableKey(row: r, column: c) else { continue }
+                    guard c < columnCount, let key = editableKey(row: r, column: c) else { continue }
                     changes.append((rows[r], key, value))
                 }
             }
             cursor = CellPosition(row: min(rect.rows.lowerBound + block.count - 1, rows.count - 1),
-                                  column: min(rect.columns.lowerBound + (block.map(\.count).max() ?? 1) - 1, SheetColumn.all.count - 1))
+                                  column: min(rect.columns.lowerBound + (block.map(\.count).max() ?? 1) - 1, columnCount - 1))
             anchor = CellPosition(row: rect.rows.lowerBound, column: rect.columns.lowerBound)
         }
         applyChanges(changes)
@@ -419,7 +453,7 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
         guard rect.rows.count > 1, rows.indices.contains(rect.rows.lowerBound) else { return }
         var changes: [(row: TrackRow, key: TagFields.Key, value: String)] = []
         for c in rect.columns {
-            guard let key = SheetColumn.all[c].key else { continue }
+            guard let key = spec(atColumn: c)?.key else { continue }
             let value = store.tagCell(rows[rect.rows.lowerBound], key)
             for r in rect.rows.dropFirst() where editableKey(row: r, column: c) != nil {
                 changes.append((rows[r], key, value))
@@ -428,13 +462,63 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
         applyChanges(changes)
     }
 
-    private func applyChanges(_ changes: [(row: TrackRow, key: TagFields.Key, value: String)]) {
+    private func applyChanges(_ requested: [(row: TrackRow, key: TagFields.Key, value: String)]) {
+        // 키 칸은 붙여넣기·채우기가 Camelot 이름(1A~12B)이나 빈칸만 받는다. 지금 값과 같은 칸은 건드리지 않으니 세지 않는다.
+        var skipped = 0
+        let changes: [(row: TrackRow, key: TagFields.Key, value: String)] = requested.compactMap { change in
+            guard change.key == .musicalKey, store.tagCell(change.row, change.key) != change.value else { return change }
+            guard let value = KeyPicker.accepted(change.value) else { skipped += 1; return nil }
+            return (change.row, change.key, value)
+        }
         let before = changes.map { store.tagCell($0.row, $0.key) }
         store.applyTagEdits(changes)
         let changed = zip(changes, before).filter { store.tagCell($0.0.row, $0.0.key) != $0.1 }.count
         reloadVisible()
         syncAccessibilitySelection(announceFocus: false)
-        if changed > 0 { announce(String(ui: "\(changed)칸 바뀜")) }
+        if changed > 0 || skipped > 0 {
+            let message = changed > 0 ? String(ui: "\(changed)칸 바뀜") : ""
+            let skippedMessage = skipped > 0 ? String(ui: "키 칸 \(skipped)칸은 1A~12B가 아니어서 건너뜀") : ""
+            announce([message, skippedMessage].filter { !$0.isEmpty }.joined(separator: ", "))
+        }
+    }
+
+    // MARK: - 키 고르기
+
+    /// 고른 키 이름을 칸이 가리키던 곡에 적는다. 메뉴가 열려 있는 동안 줄이 바뀌어도 엉뚱한 곡에 들어가지 않게 곡 ID로 찾는다.
+    final class KeyChoice: NSObject {
+        let rowID: TrackRow.ID
+        let value: String
+        init(rowID: TrackRow.ID, value: String) { self.rowID = rowID; self.value = value }
+    }
+
+    /// 키 칸의 고르기 메뉴: 없음, Camelot 24개. 지금 값에 체크하고, 옛 표기이면 맨 앞에 고를 수 없는 항목으로 보인다.
+    func keyMenu(row: Int) -> NSMenu? {
+        // 키 열이 어디에 놓였든 같은 곡의 키를 고칠 수 있는지만 본다(열 위치는 상관없다)
+        guard rows.indices.contains(row), KeyPicker.unavailableReason(rows[row]) == nil else { return nil }
+        let current = store.tagCell(rows[row], .musicalKey)
+        let menu = NSMenu(title: String(ui: "키"))
+        func add(_ title: String, value: String, enabled: Bool = true) {
+            let item = NSMenuItem(title: title, action: enabled ? #selector(pickKey(_:)) : nil, keyEquivalent: "")
+            item.target = self
+            item.representedObject = KeyChoice(rowID: rows[row].id, value: value)
+            item.state = value == current ? .on : .off
+            menu.addItem(item)
+        }
+        if !current.isEmpty, !KeyNotation.camelotNames.contains(current) { add(current, value: current, enabled: false) }
+        add(String(ui: "없음"), value: "")
+        for name in KeyNotation.camelotNames { add(name, value: name) }
+        return menu
+    }
+
+    private func presentKeyMenu(row: Int, column: Int) {
+        guard let table, let menu = keyMenu(row: row) else { return }
+        let rect = table.frameOfCell(atColumn: column, row: row)
+        menu.popUp(positioning: menu.items.first { $0.state == .on }, at: NSPoint(x: rect.minX, y: rect.maxY), in: table)
+    }
+
+    @objc func pickKey(_ sender: NSMenuItem) {
+        guard let choice = sender.representedObject as? KeyChoice, let row = rows.first(where: { $0.id == choice.rowID }) else { return }
+        applyChanges([(row: row, key: .musicalKey, value: choice.value)])
     }
 }
 
@@ -459,9 +543,9 @@ final class SheetTableView: NSTableView, NSViewToolTipOwner {
 
     func view(_ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint, userData data: UnsafeMutableRawPointer?) -> String {
         let hitRow = row(at: point), hitColumn = column(at: point)
-        guard let coordinator, coordinator.rows.indices.contains(hitRow), SheetColumn.all.indices.contains(hitColumn) else { return "" }
+        guard let coordinator, coordinator.rows.indices.contains(hitRow), let spec = coordinator.spec(atColumn: hitColumn) else { return "" }
         let text = coordinator.text(row: hitRow, column: hitColumn)
-        guard let reason = TrackListTagEditing.unavailableReason(coordinator.rows[hitRow], key: SheetColumn.all[hitColumn].key) else { return text }
+        guard let reason = TrackListTagEditing.unavailableReason(coordinator.rows[hitRow], key: spec.key) else { return text }
         return text.isEmpty ? reason : text + "\n" + reason
     }
 

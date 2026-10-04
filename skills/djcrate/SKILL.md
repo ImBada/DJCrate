@@ -76,7 +76,7 @@ description: DJCrate의 명령줄 도구 djc로 rekordbox 라이브러리(스냅
 | `djc draft cue <ContentID> --time <초> [--name 이름] [--dry-run] --json` | 큐 초안에 메모리 큐를 더한다 |
 | `djc draft cue <ContentID> --slot <A~H> --time <초> [--name 이름] [--dry-run] --json` | 그 핫큐를 놓는다. 이미 있으면 **교체**한다 |
 | 위 두 명령 + `--loop-end <초> [--beats <박>] [--active]` | 루프로 만든다. `--beats`는 양의 정수 또는 `0.5`·`0.25` 같은 1/n, `--active`는 활성 루프(곡에 하나만 남음) |
-| `djc draft tag <ContentID> [--title …] [--artist …] [--album …] [--album-artist …] [--genre …] [--composer …] [--year …] [--track-number …] [--comment …] [--dry-run] --json` | 태그 초안의 칸을 바꾼다. 하나 이상 준다. `''`는 값을 비운다(제목은 못 비움, 연도·트랙 번호는 숫자만) |
+| `djc draft tag <ContentID> [--title …] [--artist …] [--album …] [--album-artist …] [--genre …] [--composer …] [--year …] [--track-number …] [--comment …] [--musical-key …] [--dry-run] --json` | 태그 초안의 칸을 바꾼다. 하나 이상 준다. `''`는 값을 비운다(제목은 못 비움, 연도·트랙 번호는 숫자만, 키는 `1A`~`12B`만이고 `''`는 키 지우기) |
 | `djc draft rm cue\|tag <ContentID> [--dry-run] --json` | 그 종류의 초안 전체를 버린다(rekordbox 원본·그리드·게인 초안은 그대로). 없는 초안을 지워도 성공 |
 
 - 시각은 **rekordbox 시간축의 초**이고 자동 퀀타이즈하지 않는다. 박에 맞추려면 `djc track <ID> --json`의 `grid.segments[0]`에서 계산한다: 첫 박 `start`, n박 뒤 `start + n × 60 / bpm`(한 마디 = 4박, `bpm`은 박 간격으로 구한 값이라 끝자리가 붙으니 반올림하지 않는다). 마디 첫 박은 `firstBeatNumber`가 1이 아니면 `(5 − firstBeatNumber) mod 4`박 뒤다. `grid.status`가 `unavailable`이거나 `tempoChanges`가 있으면 시각을 계산하지 말고 앱에서 찍으라고 제안만 한다.
@@ -97,7 +97,7 @@ JSON 약속(자세한 칸은 저장소의 `docs/cli.md`):
 - `draft`의 `data`: `{kind: "cue"|"tag", action: "save"|"remove", contentID, trackUUID, dryRun, hasChanges, cue?, tag?}`.
   - `hasChanges`: 명령 뒤 남을 초안이 rekordbox 값과 다른지. `false`면 원본과 같아 초안이 저장되지 않는다(삭제는 늘 `false`).
   - `cue`: `{trackUUID, base, cues}`. `cues[]`는 `{id, kind, time, name, loop?}`, `kind`는 `{"memory":{}}` 또는 `{"hot":{"_0":슬롯}}`(0=A … 7=H), `loop`는 `{end, beats?, active}`, 시각은 초.
-  - `tag`: `{trackUUID, base, fields}`. 둘 다 `title`·`artist`·`album`·`albumArtist`·`genre`·`composer`·`year`·`trackNumber`·`comment` → 문자열. `base`가 rekordbox 값, `fields`가 초안 값이다.
+  - `tag`: `{trackUUID, base, fields}`. 둘 다 `title`·`artist`·`album`·`albumArtist`·`genre`·`composer`·`year`·`trackNumber`·`comment`·`musicalKey`(rekordbox 키 이름, 예 `8A`, 없으면 빈 문자열) → 문자열. `base`가 rekordbox 값, `fields`가 초안 값이다(키 칸이 없는 옛 초안 파일은 빈 문자열로 읽는다).
 
 ## 예시 흐름
 
@@ -152,7 +152,7 @@ djc parse "TVA 시험 OP 1" --json | jq -r '.data.classification'   # 제안한 
 
 - 코멘트 규칙은 이 라이브러리 주인의 규칙이다. 사람이 원할 때만 규칙에 맞추는 제안을 하고, 제안값은 `djc parse`로 `convention`이 나오는지 확인한 뒤 보여 준다.
 - 태그는 `search` 결과에서 같은 아티스트·장르의 표기 흔들림(대소문자·띄어쓰기·전각), 빈 장르·앨범을 찾는다. 곡 하나의 전체 태그는 `djc track <ID> --json`.
-- 제안 표: `ContentID | 제목 | 칸 | 지금 값 → 제안 값 | 이유`. 칸 이름은 앱과 같게(제목·아티스트·앨범·앨범 아티스트·장르·작곡가·연도·트랙 번호·코멘트).
+- 제안 표: `ContentID | 제목 | 칸 | 지금 값 → 제안 값 | 이유`. 칸 이름은 앱과 같게(제목·아티스트·앨범·앨범 아티스트·장르·작곡가·연도·트랙 번호·코멘트·키). 키는 사용자가 확인한 값만 제안하고 DJCrate·에이전트의 추정을 그대로 넣지 않는다.
 - 사용자가 고른 줄만 곡마다 태그 초안으로 만든다:
 
 ```sh
