@@ -16407,22 +16407,6 @@
         }
       }
     },
-    "덱 단축키를 쓰려면 글자 입력을 끝내고 시트·확인 창을 닫은 뒤 이 창의 파형이나 곡 목록을 누르세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "To use deck shortcuts, finish text entry, close sheets and dialogs, then click this window’s waveform or track list"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "デッキのショートカットを使うには、文字入力を終えてシート・確認ダイアログを閉じ、このウインドウの波形か曲リストをクリックしてください"
-          }
-        }
-      }
-    },
     "덱 알림 닫기" : {
       "localizations" : {
         "en" : {
