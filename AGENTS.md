@@ -65,7 +65,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 
 - USB 쓰기 시험은 `usb-image`로 만든 디스크 이미지에만 한다. rekordbox가 켜져 있으면 이미지 명령(만들기·붙이기·채우기·쓰기 시험)은 거부된다. 이미지·마운트 지점은 임시 폴더 아래만, `DJC_HOME=<임시 폴더>`를 함께 준다.
 - 앱 개발용 실행 인자: `--db <스냅샷>`(그 사본을 연다), `--select <ContentID>`(곡을 골라 둔다).
-- 환경 변수: `DJC_HOME`(초안·백업 폴더를 바꿈), `DJC_REKORDBOX_DIR`(rekordbox 폴더 사본), `DJC_DB`(열 스냅샷), `DJC_IDLE_SECONDS`(재생 멈춘 뒤 엔진 끄기까지, 설정 › 일반보다 먼저).
+- 환경 변수: `DJC_HOME`(초안·백업·캐시(`waveforms/`·`analysis/`·`loudness.json`) 폴더를 바꿈. 스냅샷은 옮기지 않는다), `DJC_REKORDBOX_DIR`(rekordbox 폴더 사본), `DJC_DB`(열 스냅샷), `DJC_IDLE_SECONDS`(재생 멈춘 뒤 엔진 끄기까지, 설정 › 일반보다 먼저).
 
 ## 검증 (작업이 끝났다고 말하기 전에)
 

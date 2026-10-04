@@ -6,9 +6,8 @@ import MusicUnderstanding
 
 /// Music Understanding(macOS 27+)으로 곡 하나를 분석한다.
 public enum PartAnalyzer {
-    public static var cacheDirectory: URL {
-        DJCIdentity.supportDirectory.appending(path: "analysis")
-    }
+    /// `DJC_HOME`을 주면 그 아래(#195). 없으면 사용자 폴더의 `analysis`
+    public static var cacheDirectory: URL { DJCCachePaths.current.analysis }
 
     /// 분석 결과는 트랙 UUID 단위로 캐시한다. 파일이 바뀌면(크기·수정 시각) 다시 분석한다.
     public static func analyze(fileAt url: URL, cacheKey: String? = nil) async throws -> PartAnalysis {
