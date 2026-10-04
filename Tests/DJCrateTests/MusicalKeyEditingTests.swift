@@ -198,6 +198,23 @@ struct MusicalKeyEditingTests {
         #expect(ready.plans.count == 1 && ready.unreadable.isEmpty)
     }
 
+    // MARK: 확인 창
+
+    @Test func 확인_창은_키를_고친_곡의_칸_이름을_키로_알린다() throws {
+        // Report는 안쪽 init이 없어 보고서 JSON으로 만든다(옛 보고서를 읽는 것과 같은 길)
+        let json = """
+            {"outcomes":[],"dryRun":true,"createdAt":"x","tagOutcomes":[
+            {"trackUUID":"k","title":"곡 k","status":"written","removed":0,"added":1,"fields":["musicalKey"]},
+            {"trackUUID":"m","title":"곡 m","status":"written","removed":0,"added":2,"fields":["title","musicalKey"]},
+            {"trackUUID":"x","title":"곡 x","status":"blocked","reason":"rekordbox 키 목록에 '12B' 줄이 없습니다. rekordbox에서 이 곡의 키를 직접 고르세요","removed":0,"added":0}]}
+            """
+        let report = try JSONDecoder().decode(RekordboxWriter.Report.self, from: Data(json.utf8))
+        let prompt = ReflectionCoordinator.confirmation(report)
+        #expect(prompt.details.contains("• 곡 k — 태그(키)") && prompt.details.contains("• 곡 m — 태그(제목·키)"))
+        #expect(prompt.details.contains { $0.contains("곡 x") && $0.contains("rekordbox에서 이 곡의 키를 직접 고르세요") })
+        #expect(prompt.details.contains { $0.contains("음원 파일의 태그는 그대로") })
+    }
+
     // MARK: 태그 시트
 
     @Test func 시트의_키_열은_보기_열과_같은_이름으로_정렬하고_태그_칸에_이어진다() throws {
