@@ -267,8 +267,8 @@ enum DevSelfTests {
     }
 
     /// 곡 넣기 + 키(#5): 라이브러리 곡의 음원 사본(`DJC_HOME` 아래)을 추가 목록에 넣고 키 8A를 골라 미리 보기 → 넣기 → 다시 읽은 곡의 키를 보고,
-    /// 그 넣기를 쓰기 전으로 복원해 곡이 빠지고 추가 목록·키 초안이 돌아오는지 본다. 그리드 추정·음량 측정은 분석 캐시(사용자 폴더)를 쓰므로
-    /// 추가 목록에 바로 넣어(분석 없이 넣기) 피한다. 통과하면 "넣기+키 시험 통과" 줄을 남긴다.
+    /// 그 넣기를 쓰기 전으로 복원해 곡이 빠지고 추가 목록·키 초안이 돌아오는지 본다. 뒤에서 도는 그리드·키 추정을 기다리지 않고 결과가 늘 같게
+    /// 추가 목록에 바로 넣는다(분석 없이 넣기, 분석까지 넣는 경우는 `RekordboxTrackAddKeyTests`). 통과하면 "넣기+키 시험 통과" 줄을 남긴다.
     static func addKeySelfTest(store: LibraryStore, log: (String) -> Void) async throws -> Bool {
         let key = "8A"
         guard let source = store.rows.first(where: { !$0.isStaged && !$0.track.isStreaming && FileManager.default.fileExists(atPath: $0.track.folderPath) }) else {
