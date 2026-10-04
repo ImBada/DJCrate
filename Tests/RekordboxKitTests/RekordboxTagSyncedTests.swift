@@ -358,9 +358,10 @@ extension RekordboxTagWriterTests {
 
     // MARK: 여러 초안을 한 번에
 
-    @Test func 두_초안이_같은_257_앨범을_떠나면_백업_전_확인과_쓰기가_같은_곡을_막는다() throws {
+    @Test func 두_초안이_같은_257_앨범을_떠나면_둘째는_트랜잭션에서_막히고_첫째는_쓴다() throws {
         // 곡 500·501이 함께 쓰는 257 앨범을 둘 다 떠나면, 첫 초안 뒤에도 앨범은 501이 쓰고 둘째 초안에서 버려져 막힌다.
-        // 백업 전 확인도 초안 순서대로 앞 초안이 옮긴 참조를 쌓아 같은 곡을 막아야 한다(트랜잭션 안의 결과와 같게).
+        // 백업 전 확인은 초안마다 시작 DB로 따로 보아 둘 다 통과하고, 트랜잭션 안의 확인(앞 초안을 쓴 DB)이 기준이다. 둘째는 막힘으로
+        // 보고하고 첫째는 쓴다. 미리 보기(시험 실행)와 실제 쓰기의 결과가 같다.
         let (fixture, track) = try library()
         try sync(fixture, "djmdAlbum", "31", state: 257)
         let neighbor = TrackSpec(id: "501", uuid: "track-uuid-501")
@@ -368,7 +369,7 @@ extension RekordboxTagWriterTests {
         let db = try fixture.open()
         let checked = try RekordboxWriter.checkTagDrafts(drafts, db: db, writable: Self.allKeys)
         db.close()
-        #expect(checked.passed.map(\.trackUUID) == [track.uuid] && checked.blocked.map(\.trackUUID) == [neighbor.uuid])
+        #expect(checked.passed.count == 2 && checked.blocked.isEmpty)
         let preview = try write(fixture, tags: drafts, dryRun: true)
         #expect(preview.tagWritten.map(\.trackUUID) == [track.uuid] && preview.tagBlocked.map(\.trackUUID) == [neighbor.uuid])
         let report = try write(fixture, tags: drafts)

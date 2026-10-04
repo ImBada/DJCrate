@@ -15295,6 +15295,22 @@
         }
       }
     },
+    "더 쓰지 않게 될 이름 행의 참조가 계산과 다르니 rekordbox를 그대로 둔 채 문제를 알려 주세요 (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "References to name rows that this write releases differ from the plan. Leave rekordbox as it is and report the problem (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手放す名前の行の参照が計算と異なります。rekordboxはそのままにして問題を報告してください（%@）"
+          }
+        }
+      }
+    },
     "더 쓰지 않는 동기화 이름 행의 표시가 다릅니다" : {
       "localizations" : {
         "en" : {
@@ -15311,18 +15327,18 @@
         }
       }
     },
-    "더 쓰지 않는 이름 행을 표시하지 못했습니다 (%@)" : {
+    "더 쓰지 않는 이름 행을 표시하지 못했으니 rekordbox를 그대로 둔 채 문제를 알려 주세요 (%@)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Could not mark a released name row (%@)"
+            "value" : "Could not mark a released name row. Leave rekordbox as it is and report the problem (%@)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使われなくなった名前の行を表示できませんでした（%@）"
+            "value" : "使われなくなった名前の行を表示できませんでした。rekordboxはそのままにして問題を報告してください（%@）"
           }
         }
       }
@@ -19075,22 +19091,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "バックアップしてから書き込み、もう一度確認します。終わるまでrekordboxを起動しないでください。"
-          }
-        }
-      }
-    },
-    "버리거나 남길 이름 행의 참조가 계산과 다릅니다 (%@)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "References to name rows to release or keep differ from the plan (%@)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "手放す・残す名前の行の参照が計算と異なります（%@）"
           }
         }
       }
