@@ -34,7 +34,7 @@ extension RekordboxWriter {
         usn += 1
         try db.run("""
             UPDATE djmdMixerParam SET GainHigh = ?, GainLow = ?,
-                rb_data_status = CASE rb_data_status WHEN 256 THEN 257 ELSE rb_data_status END,
+                \(savedStatus),
                 rb_local_usn = ?, updated_at = ? WHERE ID = ?
             """, [.int(high), .int(low), .int(usn), .text(stamp.db), .text(row.id)])
         let expectation = GainExpectation(title: content.title, rowID: row.id, columns: [

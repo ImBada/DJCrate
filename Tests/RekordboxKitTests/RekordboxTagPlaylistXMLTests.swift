@@ -98,6 +98,7 @@ extension RekordboxTagWriterTests {
         let report = try write(fixture, tags: [try draft(fixture, track) { $0.comment = "DJC 173 코멘트" }])
         #expect(report.tagWritten.isEmpty && report.backup == nil)
         #expect(report.tagBlocked.first?.reason?.contains("masterPlaylists6.xml") == true)
+        #expect(report.tagBlocked.first?.title == "옛 제목", "다른 막힘처럼 DB의 곡 제목")
         #expect(try content(fixture) == before && fixture.localUpdateCount() == 2000)
         #expect(try Data(contentsOf: url) == Data("망가짐".utf8))
     }
@@ -173,28 +174,71 @@ extension RekordboxTagWriterTests {
         #expect((try? Data(contentsOf: rekordboxXML)) == rekordboxBefore)
     }
 
-    @Test(arguments: [false, true]) func 사본_옆_XML이_라이브_XML에_이어져_있으면_백업_전에_막는다(hardLink: Bool) throws {
-        // 사본 DB 옆 XML이 라이브 폴더 XML의 링크면 쓰지 않는다(라이브는 합성 폴더로 주입한다).
-        let (fixture, track) = try library()
+    /// 사본 DB 옆 XML을 라이브(합성 폴더)의 XML에 이어 둔다(링크는 심볼릭·하드). 라이브 폴더를 가리키는 관문과 라이브 XML 원문을 돌려준다.
+    func linkedPlaylistXML(_ fixture: RekordboxFixture, hardLink: Bool, contentIDs: [String] = ["500"])
+        throws -> (guardian: RekordboxWriteGuard, liveXML: URL, original: Data) {
         let live = fixture.root.appending(path: "live")
         try FileManager.default.createDirectory(at: live, withIntermediateDirectories: true)
         try FileManager.default.copyItem(at: fixture.database, to: live.appending(path: "master.db"))
-        let liveXML = try withPlaylists(fixture, [PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["500"])])
-        try FileManager.default.moveItem(at: liveXML, to: live.appending(path: "masterPlaylists6.xml"))
+        let url = try withPlaylists(fixture, [PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: contentIDs)])
+        let liveXML = live.appending(path: "masterPlaylists6.xml")
+        try FileManager.default.moveItem(at: url, to: liveXML)
         if hardLink {
-            try FileManager.default.linkItem(at: live.appending(path: "masterPlaylists6.xml"), to: liveXML)
+            try FileManager.default.linkItem(at: liveXML, to: url)
         } else {
-            try FileManager.default.createSymbolicLink(at: liveXML, withDestinationURL: live.appending(path: "masterPlaylists6.xml"))
+            try FileManager.default.createSymbolicLink(at: url, withDestinationURL: liveXML)
         }
-        let liveBefore = try Data(contentsOf: live.appending(path: "masterPlaylists6.xml"))
-        let before = try content(fixture)
         let guardian = RekordboxWriteGuard(isRekordboxRunning: { false }, appVersion: { nil }, liveDirectories: [live])
+        return (guardian, liveXML, try Data(contentsOf: liveXML))
+    }
+
+    func writeGuarded(_ fixture: RekordboxFixture, _ guardian: RekordboxWriteGuard, tags: [TagDraft], drafts: [CueDraft] = [],
+                      playlists: [PlaylistEdit] = []) throws -> RekordboxWriter.Report {
+        try RekordboxWriter.write(drafts: drafts, grids: [], gains: [:], tags: tags, analysisInputs: [:], playlists: playlists, to: fixture.database,
+                                  dryRun: false, now: now, backups: fixture.backups, shareRoot: fixture.shareRoot, guard: guardian,
+                                  attachesAnalysis: false)
+    }
+
+    @Test(arguments: [false, true]) func 사본_옆_XML이_라이브_XML에_이어져_있으면_그_곡정보_초안만_막고_백업도_만들지_않는다(hardLink: Bool) throws {
+        // 사본 DB 옆 XML이 라이브 폴더 XML의 링크면 그 XML을 고칠 곡정보 초안만 막는다(XML을 읽지 못할 때와 같다). 라이브 XML은 그대로다.
+        let (fixture, track) = try library()
+        let (guardian, liveXML, liveBefore) = try linkedPlaylistXML(fixture, hardLink: hardLink)
+        let before = try content(fixture)
+        let report = try writeGuarded(fixture, guardian, tags: [try draft(fixture, track) { $0.title = "DJC 173 제목" }])
+        #expect(report.tagWritten.isEmpty && report.backup == nil)
+        let blocked = try #require(report.tagBlocked.first)
+        #expect(blocked.title == "옛 제목", "다른 막힘처럼 DB의 곡 제목")
+        #expect(blocked.reason?.contains("masterPlaylists6.xml") == true && blocked.reason?.contains("라이브") == true)
+        #expect(try Data(contentsOf: liveXML) == liveBefore)
+        #expect(try content(fixture) == before && RekordboxWriter.backups(in: fixture.backups).isEmpty)
+    }
+
+    @Test(arguments: [false, true]) func 사본_옆_XML이_이어져_있어도_같은_쓰기의_큐와_목록에_없는_곡의_곡정보는_쓴다(hardLink: Bool) throws {
+        let (fixture, track) = try library()
+        var cued = TrackSpec(id: "600", uuid: "track-uuid-600")
+        cued.cues = [.autoCue(at: 1024)]
+        try fixture.add(cued)
+        let (guardian, liveXML, liveBefore) = try linkedPlaylistXML(fixture, hardLink: hardLink)
+        var cues = CueDraft(trackUUID: cued.uuid, rekordboxCues: cued.rekordboxCues)
+        cues.place(EditableCue(kind: .memory, time: 20.123))
+        let neighbor = TrackSpec(id: "501", uuid: "track-uuid-501")
+        let tags = [try draft(fixture, track) { $0.title = "DJC 173 제목" }, try draft(fixture, neighbor) { $0.title = "DJC 173 이웃" }]
+        let report = try writeGuarded(fixture, guardian, tags: tags, drafts: [cues])
+        #expect(report.written.count == 1 && report.backup != nil)
+        #expect(report.tagWritten.map(\.trackUUID) == [neighbor.uuid] && report.tagBlocked.map(\.trackUUID) == [track.uuid])
+        #expect(try content(fixture)["Title"] == "옛 제목" && content(fixture, "501")["Title"] == "DJC 173 이웃")
+        #expect(try Data(contentsOf: liveXML) == liveBefore, "이어진 라이브 XML은 쓰지 않는다")
+    }
+
+    @Test(arguments: [false, true]) func 사본_옆_XML이_이어져_있으면_재생_목록_편집은_쓰기째_백업_전에_막는다(hardLink: Bool) throws {
+        let (fixture, track) = try library()
+        let (guardian, liveXML, liveBefore) = try linkedPlaylistXML(fixture, hardLink: hardLink)
+        let before = try content(fixture)
         #expect(throws: DJCError.self) {
-            try RekordboxWriter.write(drafts: [], grids: [], gains: [:], tags: [try draft(fixture, track) { $0.title = "DJC 173 제목" }],
-                                      analysisInputs: [:], to: fixture.database, dryRun: false, now: now, backups: fixture.backups,
-                                      shareRoot: fixture.shareRoot, guard: guardian, attachesAnalysis: false)
+            try writeGuarded(fixture, guardian, tags: [try draft(fixture, track) { $0.title = "DJC 173 제목" }],
+                             playlists: [.create(key: "n", name: "새 목록", isFolder: false, parent: .root)])
         }
-        #expect(try Data(contentsOf: live.appending(path: "masterPlaylists6.xml")) == liveBefore)
+        #expect(try Data(contentsOf: liveXML) == liveBefore)
         #expect(try content(fixture) == before && RekordboxWriter.backups(in: fixture.backups).isEmpty)
     }
 }

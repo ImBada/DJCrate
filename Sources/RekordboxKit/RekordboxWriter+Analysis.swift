@@ -145,7 +145,7 @@ extension RekordboxWriter {
         try insert(RekordboxTrackWriter.mixerRow(plan.ready, contentID: plan.contentID, usn: usn, stamp: stamp))
         usn += 1
         var columns = attachedColumns(plan)
-        columns["rb_data_status"] = .int(status == 256 ? 257 : status)
+        columns["rb_data_status"] = .int(savedState(status))
         columns["rb_local_usn"] = .int(usn)
         columns["updated_at"] = .text(stamp.db)
         let keys = columns.keys.sorted()
