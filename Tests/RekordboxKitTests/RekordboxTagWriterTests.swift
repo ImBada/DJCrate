@@ -29,12 +29,14 @@ struct RekordboxTagWriterTests {
     /// `shared`면 같은 이름을 쓰는 다른 곡(501)도 둔다(옛 이름 행이 버려지지 않게, 두 실험처럼).
     func library(shared: Bool = true) throws -> (RekordboxFixture, TrackSpec) {
         let fixture = try RekordboxFixture(localUpdateCount: 2000)
-        try fixture.insert("djmdArtist", ["ID": .text("11"), "Name": .text("옛 아티스트"), "UUID": .text("a-11"), "rb_local_deleted": .int(0),
-                                          "rb_local_usn": .int(5)])
-        try fixture.insert("djmdGenre", ["ID": .text("21"), "Name": .text("옛 장르"), "UUID": .text("g-21"), "rb_local_deleted": .int(0),
-                                         "rb_local_usn": .int(6)])
-        try fixture.insert("djmdAlbum", ["ID": .text("31"), "Name": .text("옛 앨범"), "UUID": .text("al-31"), "rb_local_deleted": .int(0),
-                                         "rb_local_usn": .int(7)])
+        try fixture.session { db in
+            try db.insert("djmdArtist", ["ID": .text("11"), "Name": .text("옛 아티스트"), "UUID": .text("a-11"), "rb_local_deleted": .int(0),
+                                         "rb_local_usn": .int(5)])
+            try db.insert("djmdGenre", ["ID": .text("21"), "Name": .text("옛 장르"), "UUID": .text("g-21"), "rb_local_deleted": .int(0),
+                                        "rb_local_usn": .int(6)])
+            try db.insert("djmdAlbum", ["ID": .text("31"), "Name": .text("옛 앨범"), "UUID": .text("al-31"), "rb_local_deleted": .int(0),
+                                        "rb_local_usn": .int(7)])
+        }
         var track = TrackSpec(id: "500", uuid: "track-uuid-500")
         track.title = "옛 제목"
         track.artistID = "11"
