@@ -322,15 +322,19 @@ public enum RekordboxTrackWriter {
                         stamp: (db: String, json: String)) -> InsertedRow {
         let share = root?.path ?? ""
         let path = "/" + file.url.path.dropFirst(share.count).drop(while: { $0 == "/" })
-        let encoded = path.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? path
         let row: [String: CipherDatabase.Value] = [
-            "ID": .text("\(uuid)_\(encoded)"), "ContentID": .text(contentID), "Path": .text(path),
+            "ID": .text(fileRowID(uuid: uuid, path: path)), "ContentID": .text(contentID), "Path": .text(path),
             "Hash": .text(Insecure.MD5.hash(data: file.data).map { String(format: "%02x", $0) }.joined()), "Size": .int(file.data.count),
             "rb_local_path": .text(file.url.path), "rb_insync_hash": .null, "rb_insync_local_usn": .null, "rb_file_hash_dirty": .int(0),
             "rb_local_file_status": .int(0), "rb_in_progress": .int(0), "rb_process_type": .int(0), "rb_temp_path": .null,
             "rb_priority": .int(50), "rb_file_size_dirty": .int(0), "UUID": .text(UUID().uuidString.lowercased()),
         ]
         return InsertedRow(table: "contentFile", values: row.merging(syncColumns(usn: usn, stamp: stamp)) { a, _ in a })
+    }
+
+    /// 파일 행 ID: `<곡 UUID>_<share 기준 경로, /는 %2F>`(라이브러리 조사 2026-09-26)
+    static func fileRowID(uuid: String, path: String) -> String {
+        "\(uuid)_\(path.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? path)"
     }
 
     /// 오토게인 `djmdMixerParam` 행

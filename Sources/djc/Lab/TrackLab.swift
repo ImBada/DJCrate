@@ -1,4 +1,5 @@
 import CoreGraphics
+import CryptoKit
 import DJCAnalysis
 import DJCDomain
 import Foundation
@@ -20,6 +21,9 @@ enum TrackLab {
         Command("tag-write-test", "--db <사본.db> [--dry-run] <ContentID>:<칸>=<값>…",
                 "곡 정보(태그)를 사본에 써 본다(사본만, 확인하지 않은 칸도 열어서). 칸: title·artist·album·albumArtist·genre·composer·year·trackNumber·comment. 한 번 실행 = rekordbox에서 한 번 저장",
                 TrackLab.tagWriteTest),
+        Command("artwork-write-test", "--db <사본.db> [--share <사본 share>] [--dry-run] <ContentID> (--image <그림 파일> | --delete)",
+                "곡 정보 그림을 사본에 넣기·바꾸기·지우기(사본만, share는 기본 DB 옆 share). 한 번 실행 = rekordbox에서 한 번 저장",
+                TrackLab.artworkWriteTest),
         Command("artwork-check", "[--db 스냅샷] [--limit N] [<ContentID…>]",
                 "음원 내장 아트워크로 아트워크 파일 셋을 만들어 rekordbox 파일과 크기·JPEG 머리·화소 차이를 비교(ID가 없으면 아트워크 있는 곡을 무작위로)",
                 TrackLab.artworkCheck),
@@ -312,6 +316,38 @@ enum TrackLab {
             print("\(o.status == .written ? "✓" : "✗") \(o.title.prefix(40)) · \((o.fields ?? []).joined(separator: ","))\(o.reason.map { " · \($0)" } ?? "")")
         }
         print("\(report.dryRun ? "미리 보기(되돌림)" : "씀") · 변경 카운터 \(report.finalUpdateCount.map(String.init) ?? "-") · 백업 \(report.backup ?? "없음")")
+    }
+
+    /// rekordbox 곡 정보 그림 편집 실험을 사본에 재현한다(#66). 실험 전 사본에 같은 편집을 쓰고 rekordbox 결과와 칸마다 비교한다.
+    static func artworkWriteTest(_ args: [String]) async throws {
+        guard let dbPath = value(after: "--db", in: args) else { throw UsageError() }
+        let database = URL(filePath: dbPath)
+        guard database.resolvingSymlinksInPath().standardizedFileURL.path
+                != RekordboxWriter.liveDatabase.resolvingSymlinksInPath().standardizedFileURL.path else {
+            print("라이브 rekordbox DB에는 쓰지 않습니다. 사본을 주세요"); return
+        }
+        let share = value(after: "--share", in: args).map { URL(filePath: $0) } ?? database.deletingLastPathComponent().appending(path: "share")
+        let imagePath = value(after: "--image", in: args)
+        let operands = MainCommands.operands(args.filter { $0 != "--dry-run" && $0 != "--delete" }, valued: ["--db", "--share", "--image"])
+        guard operands.count == 1, let contentID = operands.first, (imagePath == nil) == args.contains("--delete") else { throw UsageError() }
+        let image = try imagePath.map { try Data(contentsOf: URL(filePath: $0)) }
+        let db = try CipherDatabase.diagnostic(path: database.path, key: RekordboxKey.derive())
+        var uuid: String?
+        try db.query("SELECT UUID FROM djmdContent WHERE ID = ?", [.text(contentID)]) { uuid = $0.string(0) }
+        let base = try RekordboxWriter.artworkBase(db: db, contentID: contentID)
+        db.close()
+        guard let uuid, let base else { print("✗ \(contentID): 곡이 없습니다"); return }
+        let sha = image.map { SHA256.hash(data: $0).map { String(format: "%02x", $0) }.joined() }
+        let draft = ArtworkDraft(trackUUID: uuid, change: image == nil ? .delete : .set, base: base,
+                                 imageName: imagePath.map { URL(filePath: $0).lastPathComponent }, imageSHA256: sha)
+        let report = try RekordboxWriter.write(drafts: [], grids: [], gains: [:], artworks: [ArtworkEdit(draft: draft, image: image)],
+                                               analysisInputs: [:], to: database, dryRun: args.contains("--dry-run"), now: .now,
+                                               backups: database.deletingLastPathComponent().appending(path: "backups"), shareRoot: share,
+                                               attachesAnalysis: false)
+        for o in report.artworkOutcomes ?? [] {
+            print("\(o.status == .written ? "✓" : "✗") \(o.title.prefix(40)) · \(o.artwork?.rawValue ?? "-")\(o.reason.map { " · \($0)" } ?? "")")
+        }
+        print("\(report.dryRun ? "미리 보기(되돌림)" : "씀") · 만든 파일 \(report.createdFiles?.count ?? 0)개 · 변경 카운터 \(report.finalUpdateCount.map(String.init) ?? "-") · 백업 \(report.backup ?? "없음")")
     }
 
     static func trackAddRepro(_ args: [String]) async throws {

@@ -32,6 +32,8 @@ public enum RekordboxWriter {
         public var added: Int
         /// 태그 쓰기에서 바꾼 칸(`TagFields.Key` 이름). 다른 쓰기와 옛 보고서에는 없다.
         public var fields: [String]? = nil
+        /// 그림 쓰기에서 한 일(넣기·바꾸기·지우기). 다른 쓰기와 옛 보고서에는 없다.
+        public var artwork: ArtworkWriteKind? = nil
     }
 
     public struct Report: Codable, Sendable {
@@ -58,6 +60,8 @@ public enum RekordboxWriter {
         public var tagOutcomes: [Outcome]?
         /// 중복 묶음 합치기 결과(removed = 컬렉션에서 뺀 곡 수).
         public var mergeOutcomes: [Outcome]?
+        /// 곡 정보 그림 쓰기 결과(`Outcome.artwork` = 넣기·바꾸기·지우기). 옛 보고서에는 없다.
+        public var artworkOutcomes: [Outcome]?
         public var iTunesSyncWritten: Bool?
         public var mergeWritten: [Outcome] { (mergeOutcomes ?? []).filter { $0.status == .written } }
         public var mergeBlocked: [Outcome] { (mergeOutcomes ?? []).filter { $0.status == .blocked } }
@@ -72,6 +76,8 @@ public enum RekordboxWriter {
         public var analysisBlocked: [Outcome] { (analysisOutcomes ?? []).filter { $0.status == .blocked } }
         public var tagWritten: [Outcome] { (tagOutcomes ?? []).filter { $0.status == .written } }
         public var tagBlocked: [Outcome] { (tagOutcomes ?? []).filter { $0.status == .blocked } }
+        public var artworkWritten: [Outcome] { (artworkOutcomes ?? []).filter { $0.status == .written } }
+        public var artworkBlocked: [Outcome] { (artworkOutcomes ?? []).filter { $0.status == .blocked } }
         public var playlistWritten: [PlaylistOutcome] { (playlistOutcomes ?? []).filter { $0.status == .written } }
         public var playlistBlocked: [PlaylistOutcome] { (playlistOutcomes ?? []).filter { $0.status == .blocked } }
     }
@@ -98,18 +104,20 @@ public enum RekordboxWriter {
     ///     그림이 있으면 아트워크도 넣는다(`RekordboxTrackWriter.writesArtwork`).
     ///   - playlists: 재생 목록 편집(적힌 순서대로). DB 옆 `masterPlaylists6.xml`도 rekordbox처럼 고친다.
     ///   - playlistDraft: 앱의 재생 목록 초안. `playlists` 대신 준다. 초안을 만든 뒤 rekordbox에서 바뀐 목록(base와 다름)의 편집은 쓰지 않는다.
+    ///   - artworks: 곡 정보 그림 초안(넣기·바꾸기·지우기, #66). 그림 파일 셋은 `shareRoot` 아래에 쓴다. 음원 파일의 그림은 그대로 둔다.
     public static func write(drafts: [CueDraft], grids: [GridDraft] = [], gains: [String: Double] = [:], tags: [TagDraft] = [],
+                             artworks: [ArtworkEdit] = [],
                              analysisInputs: [String: AnalysisInput] = [:], playlists: [PlaylistEdit] = [],
                              playlistDraft: PlaylistDraft? = nil, merges: [DuplicateMergeDraft] = [], iTunesSync: RekordboxITunesSyncChange? = nil,
                              to database: URL, dryRun: Bool,
                              now: Date = .now, backups: URL, shareRoot: URL? = nil,
                              guard writeGuard: RekordboxWriteGuard = .system) throws -> Report {
         if let iTunesSync {
-            guard drafts.isEmpty, grids.isEmpty, gains.isEmpty, tags.isEmpty, analysisInputs.isEmpty,
+            guard drafts.isEmpty, grids.isEmpty, gains.isEmpty, tags.isEmpty, artworks.isEmpty, analysisInputs.isEmpty,
                   playlists.isEmpty, playlistDraft == nil, merges.isEmpty else { throw RekordboxITunesSyncChange.invalidSource }
             return try writeITunesSync(iTunesSync, to: database, dryRun: dryRun, now: now, backups: backups, guard: writeGuard)
         }
-        return try write(drafts: drafts, grids: grids, gains: gains, tags: tags, analysisInputs: analysisInputs, playlists: playlists,
+        return try write(drafts: drafts, grids: grids, gains: gains, tags: tags, artworks: artworks, analysisInputs: analysisInputs, playlists: playlists,
                   playlistDraft: playlistDraft, merges: merges, to: database,
                   dryRun: dryRun, now: now, backups: backups, shareRoot: shareRoot, guard: writeGuard, attachesAnalysis: attachesAnalysis,
                   writesArtwork: RekordboxTrackWriter.writesArtwork)
@@ -120,6 +128,7 @@ public enum RekordboxWriter {
     ///   - writesArtwork: 분석을 붙이는 곡에 아트워크도 넣는지. 앱은 `RekordboxTrackWriter.writesArtwork`를 따르고, 시험만 바꾼다.
     ///   - tagKeys: 태그 쓰기를 연 칸. 앱은 `writableTagKeys`를 따르고, 시험과 사본 실험(`djc lab tag-write-test`)만 바꾼다.
     package static func write(drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], tags: [TagDraft] = [],
+                              artworks: [ArtworkEdit] = [],
                               analysisInputs: [String: AnalysisInput],
                               playlists: [PlaylistEdit] = [], playlistDraft: PlaylistDraft? = nil, merges: [DuplicateMergeDraft] = [], to database: URL, dryRun: Bool, now: Date,
                               backups: URL, shareRoot: URL?,
@@ -130,7 +139,8 @@ public enum RekordboxWriter {
         let grids = grids.filter(\.hasChanges)
         var tags = tags.filter(\.hasChanges)
         let playlistSteps = playlistDraft?.steps ?? playlists.map { PlaylistDraft.Step(edit: $0) }
-        guard drafts.contains(where: \.hasChanges) || !grids.isEmpty || !gains.isEmpty || !tags.isEmpty || !playlistSteps.isEmpty || !merges.isEmpty else {
+        guard drafts.contains(where: \.hasChanges) || !grids.isEmpty || !gains.isEmpty || !tags.isEmpty || !artworks.isEmpty || !playlistSteps.isEmpty
+                || !merges.isEmpty else {
             // 쓸 것이 없으면 DB를 열지도, 백업을 만들지도 않는다.
             return Report(outcomes: drafts.map { Outcome(trackUUID: $0.trackUUID, title: $0.trackUUID, status: .unchanged,
                                                           reason: nil, removed: 0, added: 0) },
@@ -157,6 +167,14 @@ public enum RekordboxWriter {
             tagOutcomes = checked.blocked
             xmlTags = checked.touchesXML
         }
+        // 그림: 막힐 초안(곡·상태·경로·파일 행·base·그림)은 백업 전에 거르고 새 그림 셋을 만든다. 트랜잭션 안에서 한 번 더 본다.
+        var artworkPlans: [ArtworkPlan] = []
+        var artworkOutcomes: [Outcome] = []
+        if !artworks.isEmpty {
+            let reader = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
+            defer { reader.close() }
+            (artworkPlans, artworkOutcomes) = try checkArtworkDrafts(artworks, db: reader, share: gridRoot)
+        }
         // 재생 목록 편집과 곡 정보 쓰기는 DB 옆 masterPlaylists6.xml도 고친다(곡 정보는 그 곡이 든 목록의 Timestamp, #173).
         // 쓰는 DB 옆 파일만 대상이고 없으면 DB만 쓴다. 사본 옆 파일이 라이브 XML의 링크면 백업 전에 막는다. 곡 정보는 그 곡이 든 살아 있는
         // 목록이 있을 때만 읽고, 읽지 못하면 그 곡정보 초안만 막는다. 재생 목록·합치기는 읽지 못하면 예전처럼 쓰기째 막는다.
@@ -178,12 +196,14 @@ public enum RekordboxWriter {
                 }
             }
         }
-        if tags.isEmpty, !tagOutcomes.isEmpty, !drafts.contains(where: \.hasChanges), grids.isEmpty, gains.isEmpty,
-           playlistSteps.isEmpty, merges.isEmpty {
+        // 태그·그림 초안이 모두 막혔고 다른 쓸 것도 없으면 백업을 뜨지 않는다.
+        if tags.isEmpty, artworkPlans.isEmpty, !tagOutcomes.isEmpty || !artworkOutcomes.isEmpty, !drafts.contains(where: \.hasChanges), grids.isEmpty,
+           gains.isEmpty, playlistSteps.isEmpty, merges.isEmpty {
             let unchanged = drafts.map { Outcome(trackUUID: $0.trackUUID, title: $0.trackUUID, status: .unchanged,
                                                    reason: nil, removed: 0, added: 0) }
             var report = Report(outcomes: unchanged, backup: nil, dryRun: dryRun, createdAt: stamp.json, finalUpdateCount: nil)
-            report.tagOutcomes = tagOutcomes
+            report.tagOutcomes = tagOutcomes.isEmpty ? nil : tagOutcomes
+            report.artworkOutcomes = artworkOutcomes.isEmpty ? nil : artworkOutcomes
             return report
         }
         var mergeOutcomes: [Outcome] = []
@@ -192,7 +212,7 @@ public enum RekordboxWriter {
             let reader = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
             defer { reader.close() }
             let edited = Set(drafts.filter(\.hasChanges).map(\.trackUUID) + grids.map(\.trackUUID)
-                + Array(gains.keys) + tags.map(\.trackUUID))
+                + Array(gains.keys) + tags.map(\.trackUUID) + artworkPlans.map(\.uuid))
             var reserved = Set<String>()
             for draft in merges {
                 do {
@@ -209,10 +229,11 @@ public enum RekordboxWriter {
             }
         }
         if !merges.isEmpty, mergePlans.isEmpty, !drafts.contains(where: \.hasChanges), grids.isEmpty, gains.isEmpty,
-           tags.isEmpty, playlistSteps.isEmpty {
+           tags.isEmpty, artworkPlans.isEmpty, playlistSteps.isEmpty {
             var report = Report(outcomes: [], backup: nil, dryRun: dryRun, createdAt: stamp.json, finalUpdateCount: nil)
             report.mergeOutcomes = mergeOutcomes
             report.tagOutcomes = tagOutcomes.isEmpty ? nil : tagOutcomes
+            report.artworkOutcomes = artworkOutcomes.isEmpty ? nil : artworkOutcomes
             return report
         }
         // 그리드 계획(파일을 읽기만 한다)
@@ -272,6 +293,8 @@ public enum RekordboxWriter {
         let backup = dryRun ? nil : try makeBackup(of: database, in: backups, now: now, label: "write")
         // 분석 파일도 원본을 백업에 둔다(되돌리기용).
         if let backup, let gridRoot, !gridPlans.isEmpty { try backupAnalysis(gridPlans, in: backup, shareRoot: gridRoot) }
+        // 바꾸거나 지울 그림 파일도 둔다(그리드 백업이 manifest를 새로 쓰므로 그 뒤에 더한다).
+        if let backup, let gridRoot, !artworkPlans.isEmpty { try backupArtworkFiles(artworkPlans, in: backup, shareRoot: gridRoot) }
 
         var outcomes: [Outcome] = []
         var gainOutcomes: [Outcome] = []
@@ -279,6 +302,7 @@ public enum RekordboxWriter {
         var gained: [GainExpectation] = []
         var regridded: [GridExpectation] = []
         var tagged: [TagExpectation] = []
+        var drawn: [ArtworkExpectation] = []
         var attached: [AttachPlan] = []
         var playlistOutcomes: [PlaylistOutcome] = []
         var playlistWork: PlaylistWork?
@@ -433,7 +457,36 @@ public enum RekordboxWriter {
                     written[i].expectation.contentUSN = usn
                 }
             }
-            // 태그는 마지막: 곡 행을 한 번 더 고쳐 가장 큰 변경 번호를 받는다(큐·그리드·분석을 쓴 곡이면 그 뒤 편집처럼).
+            // 그림: 태그 앞에 쓴다(같은 곡의 태그가 곡 행에 마지막 번호를 준다, #173 S2 U03은 그림 저장 → 아티스트 저장 순서였다).
+            for plan in artworkPlans {
+                try db.execute("SAVEPOINT djc_artwork")
+                let savedUSN = usn
+                do {
+                    guard !attached.contains(where: { $0.trackUUID == plan.uuid }) else {
+                        throw Blocked(title: plan.title, reason: String(ui: "같은 곡에 분석 붙이기와 그림 쓰기를 함께 하지 않으니 그리드를 먼저 쓴 뒤 그림을 쓰세요"))
+                    }
+                    let expectation = try applyArtwork(plan, db: db, share: gridRoot, usn: &usn, stamp: stamp)
+                    artworkOutcomes.append(Outcome(trackUUID: plan.uuid, title: expectation.plan.title, status: .written, reason: nil,
+                                                   removed: 0, added: 0, artwork: expectation.plan.kind))
+                    // 넣기·지우기는 곡 행 번호를 바꾼다. 같은 곡의 큐·BPM 검증은 그 번호를 본다.
+                    if case let .int(trackUSN)? = expectation.track["rb_local_usn"] {
+                        for i in written.indices where written[i].contentID == expectation.plan.contentID { written[i].expectation.contentUSN = trackUSN }
+                        for i in regridded.indices where regridded[i].contentID == expectation.plan.contentID {
+                            regridded[i].content["rb_local_usn"] = .int(trackUSN)
+                        }
+                    }
+                    drawn.append(expectation)
+                    try db.execute("RELEASE djc_artwork")
+                    // 그림 저장은 재생 목록 XML을 고치지 않는다(#173 S1 X2·S3 V04·S5 W1·W2b·W3a).
+                } catch let blocked as Blocked {
+                    try db.execute("ROLLBACK TO djc_artwork")
+                    try db.execute("RELEASE djc_artwork")
+                    usn = savedUSN
+                    artworkOutcomes.append(Outcome(trackUUID: plan.uuid, title: blocked.title, status: .blocked, reason: blocked.reason,
+                                                   removed: 0, added: 0, artwork: plan.kind))
+                }
+            }
+            // 태그는 마지막: 곡 행을 한 번 더 고쳐 가장 큰 변경 번호를 받는다(큐·그리드·분석·그림을 쓴 곡이면 그 뒤 편집처럼).
             for draft in tags {
                 try db.execute("SAVEPOINT djc_tags")
                 let savedUSN = usn
@@ -448,6 +501,10 @@ public enum RekordboxWriter {
                     tagged.append(result.expectation)
                     for i in written.indices where written[i].contentID == result.expectation.contentID {
                         written[i].expectation.contentUSN = usn
+                    }
+                    // 그림을 넣거나 지운 곡도 곡 행 번호의 마지막 값은 태그 쪽이다.
+                    for i in drawn.indices where drawn[i].plan.contentID == result.expectation.contentID && drawn[i].track["rb_local_usn"] != nil {
+                        drawn[i].track["rb_local_usn"] = .int(usn)
                     }
                     // BPM을 고친 곡이면 곡 정보 변경 횟수·변경 번호의 마지막 값은 태그 쪽이다.
                     for i in regridded.indices where regridded[i].contentID == result.expectation.contentID {
@@ -483,7 +540,7 @@ public enum RekordboxWriter {
             finalUpdateCount = usn
 
             let databaseChanged = !written.isEmpty || !regridded.isEmpty || !gained.isEmpty || !attached.isEmpty || !tagged.isEmpty
-                || playlistWork != nil || !merged.isEmpty
+                || !drawn.isEmpty || playlistWork != nil || !merged.isEmpty
             if dryRun || !databaseChanged {
                 try db.execute("ROLLBACK")
             } else {
@@ -509,6 +566,7 @@ public enum RekordboxWriter {
                 let taggedIDs = Set(tagged.map(\.contentID))
                 for plan in attached { try verifyAttach(plan, db: db, skipsTrackInfo: taggedIDs.contains(plan.contentID)) }
                 for expectation in tagged { try verifyTags(db: db, expectation) }
+                for expectation in drawn { try verifyArtwork(db: db, expectation) }
                 for expectation in regridded { try verifyGrid(db: db, expectation) }
                 for expectation in gained { try verifyGain(db: db, expectation) }
                 if let playlistWork { try verifyPlaylists(playlistWork, db: db) }
@@ -537,6 +595,19 @@ public enum RekordboxWriter {
             }
         }
 
+        // 그림 파일: 분석 파일 다음에 쓴다. 실패하면 만든 파일을 지우고 바꾸거나 지운 옛 그림을 백업에서 되살린 뒤 DB를 되돌린다.
+        if let backup, !drawn.isEmpty {
+            do {
+                for expectation in drawn { try writeArtworkFiles(expectation, created: &created) }
+            } catch {
+                throw recover(from: error, database: database, backup: backup, live: live) {
+                    try removeAnalysisFiles(created)
+                    try restoreGridFiles(gridPlans)
+                    try restoreArtworkFiles(drawn)
+                }
+            }
+        }
+
         if let backup, !mergeFiles.isEmpty {
             do {
                 try removeOwnedFiles(mergeFiles)
@@ -560,6 +631,7 @@ public enum RekordboxWriter {
         report.artworkAdded = artworkAdded.isEmpty ? nil : artworkAdded
         report.tagOutcomes = tagOutcomes.isEmpty ? nil : tagOutcomes
         report.mergeOutcomes = mergeOutcomes.isEmpty ? nil : mergeOutcomes
+        report.artworkOutcomes = artworkOutcomes.isEmpty ? nil : artworkOutcomes
         if let backup {
             try? save(report, in: backup, shareRoot: gridRoot)
             // 되돌리면 DJCrate 초안도 살릴 수 있게 쓴 초안을 백업 옆에 둔다.
@@ -590,6 +662,16 @@ public enum RekordboxWriter {
                 try? FileManager.default.createDirectory(at: tagFolder, withIntermediateDirectories: true)
                 for draft in tags where tagWritten.contains(draft.trackUUID) {
                     try? JSONEncoder().encode(draft).write(to: tagFolder.appending(path: "\(draft.trackUUID).json"), options: .atomic)
+                }
+            }
+            // 그림 초안과 그림 사본도 둔다(되돌리면 DJCrate에 다시 살린다).
+            let artworkWritten = Set(report.artworkWritten.map(\.trackUUID))
+            if !artworkWritten.isEmpty {
+                let artworkFolder = backup.appending(path: "artwork-drafts")
+                try? FileManager.default.createDirectory(at: artworkFolder, withIntermediateDirectories: true)
+                for edit in artworks where artworkWritten.contains(edit.trackUUID) {
+                    try? JSONEncoder().encode(edit.draft).write(to: artworkFolder.appending(path: "\(edit.trackUUID).json"), options: .atomic)
+                    if let image = edit.image { try? image.write(to: artworkFolder.appending(path: "\(edit.trackUUID).image"), options: .atomic) }
                 }
             }
             let playlistWritten = report.playlistWritten.map(\.edit)
