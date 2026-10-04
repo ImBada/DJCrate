@@ -13,8 +13,6 @@ enum TrackListTagEditing {
     static func unavailableReason(_ row: TrackRow, key: TagFields.Key?) -> String? {
         if row.isUsb { return String(ui: "USB 곡은 읽기 전용이니 로컬 라이브러리에서 태그를 편집하세요") }
         if row.track.isStreaming { return String(ui: "스트리밍 곡의 태그는 편집할 수 없으니 로컬 음원 파일이 있는 곡을 고르세요") }
-        // 추가한 곡을 rekordbox에 넣을 때는 키를 쓰지 않는다(KeyID '0'). 고른 키가 조용히 사라지지 않게 곡을 넣은 뒤에 고르게 한다.
-        if key == .musicalKey, row.isStaged { return String(ui: "추가한 곡의 키는 rekordbox에 넣은 뒤에 고를 수 있으니 먼저 곡을 넣으세요") }
         return key == nil ? String(ui: "이 칸은 읽기 전용이니 제목·아티스트·코멘트 같은 태그 칸을 고르세요") : nil
     }
     /// 칸 하나를 고치는 동안 들고 있는 값. 대상 곡과 시작 값은 편집을 시작할 때 정한다.
@@ -87,7 +85,7 @@ enum TrackListTagEditing {
             default: break
             }
         }
-        return (TagFields(track: row.track)[key], false)
+        return (row.tagFields[key], false)
     }
 
     /// 분류 칸: 코멘트 초안이 있으면 초안 코멘트로 다시 가른다(인스펙터 미리 보기와 같다). 필터·정렬은 rekordbox 값 그대로다.

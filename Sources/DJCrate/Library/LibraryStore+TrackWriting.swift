@@ -5,7 +5,7 @@ import Foundation
 import RekordboxKit
 
 /// rekordbox 컬렉션에 곡을 바로 넣고 뺀다(rekordbox를 켜지 않고). 흐름은 `ReflectionCoordinator`.
-/// 넣기: 추가한 곡의 태그 초안·그리드 초안·음량으로 곡 행과 분석 파일(파형·그리드·오토게인)을 만들고, 큐 초안도 같은 트랜잭션에서 쓴다.
+/// 넣기: 추가한 곡의 태그 초안·그리드 초안·음량으로 곡 행과 분석 파일(파형·그리드·오토게인)을 만들고, 큐 초안과 고른 키(#5)도 같은 트랜잭션에서 쓴다.
 /// 분석까지 붙이는 곡은 음원의 아트워크로 아트워크 파일도 만든다(rekordbox가 분석할 때 뽑는 것처럼, `RekordboxTrackWriter.writesArtwork`).
 /// 빼기: 곡 행과 딸린 큐·재생 목록 항목·재생 기록·분석 파일·아트워크 파일을 지운다(음원 파일은 그대로).
 /// 둘 다 쓰기 직전 백업을 떠서 "되돌리기"로 무를 수 있다.
@@ -20,6 +20,8 @@ extension LibraryStore {
         var withoutAnalysis: [String: String]
         /// 경로 → 함께 넣을 큐(추가한 곡의 큐 초안)
         var cues: [String: [EditableCue]] = [:]
+        /// 경로 → 함께 쓸 키(사용자가 고른 Camelot 이름, #5)
+        var keys: [String: String] = [:]
         /// 계획을 만들지 못한 곡(이름: 이유)
         var unreadable: [String]
     }
@@ -47,17 +49,11 @@ extension LibraryStore {
         }
         let tracks = trackAddTargets(rows).compactMap { row in staged.first { $0.id == row.id } }
         var plans: [TrackAddPlan] = [], uuids: [String: String] = [:], without: [String: String] = [:], unreadable: [String] = []
-        var cues: [String: [EditableCue]] = [:]
+        var cues: [String: [EditableCue]] = [:], keys: [String: String] = [:]
         for (index, track) in tracks.enumerated() {
             try Task.checkCancellation()
             writeStage = WriteStage(String(ui: "넣을 곡을 확인하는 중…"), completed: index, total: tracks.count, cancellable: true)
             let url = URL(filePath: track.path)
-            // 곡을 넣을 때는 키를 쓰지 않는다(KeyID '0'). 고른 키가 조용히 사라지지 않게 그 곡은 넣지 않고 이유를 알린다(고르기는 추가한 곡에서 막혀 있어
-            // 직접 고친 초안 파일이나 옛 초안만 해당한다). 키는 곡을 넣은 뒤 태그 편집으로 쓴다. XML 내보내기도 같은 방식이다(`exportStaged`).
-            if tagDrafts[track.uuid]?.changedKeys.contains(.musicalKey) == true {
-                unreadable.append(Self.stagedKeyDraftBlock(title: track.title))
-                continue
-            }
             do {
                 var tags = try await AudioTags.read(url: url)
                 if let fields = tagDrafts[track.uuid]?.fields { Self.apply(fields, to: &tags) }
@@ -65,6 +61,8 @@ extension LibraryStore {
                 plans.append(plan)
                 uuids[plan.path] = track.uuid
                 if let draft = CueDraftStore.load(trackUUID: track.uuid), !draft.cues.isEmpty { cues[plan.path] = draft.cues }
+                // 고른 키는 곡을 넣은 뒤 같은 쓰기에서 쓴다(넣을 때 `KeyID` '0' → 키 저장). 음원 파일의 키 태그는 그대로다.
+                if let key = confirmedStagedKey(uuid: track.uuid) { keys[plan.path] = key }
                 if GridDraftStore.load(trackUUID: track.uuid)?.segments.first.map({ $0.bpm > 0 }) != true {
                     without[plan.path] = gridJob != nil ? String(ui: "그리드를 아직 추정하는 중") : String(ui: "그리드가 없음")
                 } else if let reason = AudioFacts.read(url: url).unsupported {
@@ -82,12 +80,13 @@ extension LibraryStore {
         let take = takeLiveSnapshot
         // 백업은 이 저장소의 백업 폴더에 둔다(시험 쓰기가 사용자 백업을 밀어내지 않게).
         let backups = backupDirectory
-        let report = try await Task.detached(priority: .userInitiated) { [plans, cues] in
+        let report = try await Task.detached(priority: .userInitiated) { [plans, cues, keys] in
             let snapshot = try take(false)
             await MainActor.run { self.writeStage = WriteStage(String(ui: "미리 보기 2/2단계 · 바꿀 내용을 검사하는 중…"), completed: 1, total: 2, cancellable: true) }
-            return try RekordboxTrackWriter.add(plans, cues: cues, to: snapshot, dryRun: true, backups: backups)
+            return try RekordboxTrackWriter.add(plans, cues: cues, keys: keys, to: snapshot, dryRun: true, backups: backups)
         }.value
-        return TrackAddPreview(report: report, plans: plans, stagedUUIDs: uuids, withoutAnalysis: without, cues: cues, unreadable: unreadable)
+        return TrackAddPreview(report: report, plans: plans, stagedUUIDs: uuids, withoutAnalysis: without, cues: cues, keys: keys,
+                               unreadable: unreadable)
     }
 
     /// 태그 초안(시트·인스펙터에서 고친 값)을 파일 태그 위에 얹는다. 빈 칸은 태그 없음.
@@ -104,8 +103,8 @@ extension LibraryStore {
         tags.comment = text(fields.comment)
     }
 
-    /// rekordbox 라이브러리에 넣는다(큐 초안도 함께). 넣은 곡은 추가 목록에서 빼고(백업에 남긴다),
-    /// 큐가 막힌 곡의 큐 초안과 분석을 못 붙인 곡의 그리드 초안은 새 곡으로 옮긴다.
+    /// rekordbox 라이브러리에 넣는다(큐 초안·고른 키도 함께). 넣은 곡은 추가 목록에서 빼고(백업에 남긴다),
+    /// 큐가 막힌 곡의 큐 초안, 분석을 못 붙인 곡의 그리드 초안, 키가 막힌 곡의 키는 새 곡의 초안으로 옮긴다.
     func addTracksToRekordbox(_ preview: TrackAddPreview) async throws -> RekordboxTrackWriter.Report {
         try await addTracksToRekordbox(preview, to: rekordboxDatabase, shareRoot: rekordboxShareRoot)
     }
@@ -139,9 +138,10 @@ extension LibraryStore {
         try Task.checkCancellation()
         writeStage = WriteStage(String(ui: "rekordbox에 곡과 분석 파일을 넣는 중…"))
         let cues = preview.cues.filter { accepted.contains($0.key) }
+        let keys = preview.keys.filter { accepted.contains($0.key) }
         let backups = backupDirectory
-        let report = try await Task.detached(priority: .userInitiated) { [plans, analyses, cues] in
-            try RekordboxTrackWriter.add(plans, analyses: analyses, cues: cues, to: database, shareRoot: shareRoot,
+        let report = try await Task.detached(priority: .userInitiated) { [plans, analyses, cues, keys] in
+            try RekordboxTrackWriter.add(plans, analyses: analyses, cues: cues, keys: keys, to: database, shareRoot: shareRoot,
                                          dryRun: false, backups: backups)
         }.value
         // 초안 옮기기: 큐가 막힌 곡은 새 곡의 반영 대기로, 그리드는 분석 파일에 들어갔으면 끝(못 붙였으면 새 곡 초안으로).
@@ -175,6 +175,7 @@ extension LibraryStore {
         }
         writeStage = WriteStage(String(ui: "넣은 곡을 읽는 중…"))
         await takeSnapshot(quiet: true, refreshITunes: false)
+        moveBlockedKeys(report, keys: keys)
         if let first = report.added.first(where: \.written), let id = first.contentID {
             sidebar = .filter(.all)
             search = ""
@@ -182,6 +183,19 @@ extension LibraryStore {
         }
         lastWriteBackup = report.backup.map { URL(filePath: $0) }
         return report
+    }
+
+    /// 키가 막혀 키 없이 넣은 곡은 고른 키를 새 곡의 키 초안으로 남긴다(막힌 큐를 옮기는 것과 같다: 고른 키가 조용히 사라지지 않게).
+    /// 기준은 다시 읽은 새 곡의 지금 값이다. 새 곡을 읽지 못했으면 옮기지 않는다(추가 목록 쪽 초안은 백업처럼 그대로 남는다).
+    private func moveBlockedKeys(_ report: RekordboxTrackWriter.Report, keys: [String: String]) {
+        var moved: [TagDraft] = []
+        for outcome in report.added where outcome.written && outcome.keyReason != nil {
+            guard let uuid = outcome.uuid, let row = rowsByUUID[uuid], let key = keys[outcome.path] else { continue }
+            var draft = tagDraft(for: row)
+            draft.fields.musicalKey = key
+            moved.append(draft)
+        }
+        replaceTagDrafts(moved)
     }
 
     // MARK: - 빼기
@@ -241,6 +255,8 @@ extension LibraryStore {
             draftChanged(trackUUID: uuid, kind: .cue, exists: false)
             draftChanged(trackUUID: uuid, kind: .grid, exists: false)
         }
+        // 키가 막혀 새 곡으로 옮긴 키 초안도 지운다(추가 목록 곡의 키 초안은 그대로라 다시 넣으면 함께 쓴다).
+        replaceTagDrafts(added.filter { tagDrafts[$0] != nil }.sorted().map { TagDraft(trackUUID: $0, base: TagFields()) })
         if !added.isEmpty, let warning = draftSaveWarning(for: added, restoring: true) { reportLibraryError(warning) }
         guard let data = try? Data(contentsOf: backup.url.appending(path: Self.stagedBackupName)),
               let tracks = try? JSONDecoder().decode([StagedTrack].self, from: data) else { return 0 }

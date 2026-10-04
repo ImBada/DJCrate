@@ -3,6 +3,7 @@ import SwiftUI
 
 /// 태그 인스펙터의 키 고르기(#5): rekordbox 키 목록의 Camelot 이름(1A~12B)과 "없음"에서 고른다. 글자를 쓰지 않는다.
 /// DJCrate가 추정한 키가 있으면 "추정 키" 제안으로만 보이고, 사용자가 눌러야 초안에 들어간다(자동으로 채우지 않는다).
+/// 추가한 곡은 추가 목록의 키(음원 태그, 없으면 DJCrate 추정)를 같은 방식으로 제안하고, 고른 키는 곡을 넣을 때 함께 쓴다.
 /// 값은 고르는 순간에만 초안에 넣는다(보이는 값이 바뀔 때마다 쓰지 않는다: 읽은 키가 옛 표기여도 건드리지 않는다).
 struct MusicalKeyField: View {
     @Environment(\.textScale) private var textScale
@@ -40,12 +41,15 @@ struct MusicalKeyField: View {
                 Label(reason, systemImage: "lock").font(.scaled(.caption, textScale)).foregroundStyle(UIColors.warning.color)
             }
             if let suggestion {
+                let fromTag = KeyPicker.suggestionSource(rows) == .fileTag
                 Button { choose(suggestion) } label: {
-                    Label(String(ui: "추정 키 \(suggestion) 고르기"), systemImage: "lightbulb")
+                    Label(fromTag ? String(ui: "음원 태그 키 \(suggestion) 고르기") : String(ui: "추정 키 \(suggestion) 고르기"), systemImage: "lightbulb")
                         .font(.scaled(.caption, textScale)).foregroundStyle(UIColors.suggestion.color)
                 }
                 .buttonStyle(.link)
-                .help(String(ui: "DJCrate가 곡을 분석해 추정한 키입니다. 누르면 이 키로 초안을 만들고, rekordbox에는 쓰기 전까지 들어가지 않습니다."))
+                .help(fromTag
+                    ? String(ui: "음원 파일 태그에 적힌 키입니다. 누르면 이 키로 초안을 만들고, 곡을 rekordbox에 넣을 때 함께 씁니다. 음원 파일은 바꾸지 않습니다.")
+                    : String(ui: "DJCrate가 곡을 분석해 추정한 키입니다. 누르면 이 키로 초안을 만들고, rekordbox에는 쓰기 전까지 들어가지 않습니다."))
             }
             TagConflictView(store: store, rows: rows, key: key)
         }
@@ -71,8 +75,8 @@ struct TagConflictView: View {
 
     var body: some View {
         if rows.count == 1, let row = rows.first, let draft = store.tagDrafts[row.track.uuid],
-           draft.conflictingKeys(with: TagFields(track: row.track)).contains(key) {
-            Text(String(ui: "현재 rekordbox: \(TagFields(track: row.track)[key])"))
+           draft.conflictingKeys(with: row.tagFields).contains(key) {
+            Text(String(ui: "현재 rekordbox: \(row.tagFields[key])"))
                 .textSelection(.enabled)
             Text(String(ui: "내 초안: \(draft.fields[key])")).textSelection(.enabled)
             HStack {

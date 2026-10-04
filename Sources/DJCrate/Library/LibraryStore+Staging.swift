@@ -374,10 +374,10 @@ extension LibraryStore {
 
     // MARK: - rekordbox XML
 
-    /// 키 초안이 있는 추가한 곡을 곡 넣기·XML 내보내기에서 뺄 때 알리는 이유. 두 길 모두 키를 쓰지 않는다(곡 넣기는 `KeyID` '0', XML은 키 초안을 담지 않는다).
-    /// 고른 키가 조용히 사라지지 않게 그 곡만 빼고 이유를 알린다. 키는 곡을 rekordbox에 넣은 뒤 태그에서 고른다.
+    /// 키 초안이 있는 추가한 곡을 XML 내보내기에서 뺄 때 알리는 이유. rekordbox XML의 키(`Tonality`)를 가져오는 규칙은 확인하지 않아 키 초안을
+    /// 담지 않는다. 고른 키가 조용히 사라지지 않게 그 곡만 빼고 이유를 알린다. ‘rekordbox에 넣기…’는 키를 함께 쓴다(#5).
     static func stagedKeyDraftBlock(title: String) -> String {
-        String(ui: "\(title): 곡을 넣거나 XML로 내보낼 때는 키를 쓰지 않으니 태그 초안(키)을 버린 뒤 진행하세요. 키는 곡을 넣은 뒤에 태그에서 고를 수 있습니다")
+        String(ui: "\(title): XML로 키를 넘기는 방법은 확인하지 않았으니 ‘rekordbox에 넣기…’로 키까지 넣거나 태그 초안(키)을 버린 뒤 내보내세요")
     }
 
     /// 추가한 곡을 rekordbox XML로 쓴다. 태그 초안(시트·인스펙터에서 고친 값)과 그리드·큐 초안을 넣는다.
@@ -389,7 +389,7 @@ extension LibraryStore {
         try requireDraftSaves(for: Set(candidates.map(\.uuid)))
         var skipped: [String] = []
         let tracks = candidates.filter { track in
-            guard tagDrafts[track.uuid]?.changedKeys.contains(.musicalKey) == true else { return true }
+            guard confirmedStagedKey(uuid: track.uuid) != nil else { return true }
             skipped.append(Self.stagedKeyDraftBlock(title: track.title))
             return false
         }
