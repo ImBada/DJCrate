@@ -169,7 +169,9 @@ extension RekordboxWriter {
         guard try currentTags(db: db, contentID: content.id) == draft.base else {
             throw block(String(ui: "초안을 만든 뒤 rekordbox에서 곡 정보가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요"))
         }
-        guard let old = try TagOldNames.read(db, contentID: content.id) else { throw block(String(ui: "곡 행을 다시 읽지 못했습니다 (\(content.title))")) }
+        guard let old = try TagOldNames.read(db, contentID: content.id) else {
+            throw block(String(ui: "곡 행을 다시 읽지 못했으니 rekordbox 컬렉션에서 곡을 확인한 뒤 DJCrate에서 다시 동기화하세요"))
+        }
         let migrates = try checkSameNameAlbum(draft, old: old, db: db, block: block)
         let releases = try planReleases(draft, contentID: content.id, old: old, migratesAlbum: migrates, db: db, block: block)
         return CheckedTag(id: content.id, title: content.title, trackInfoUpdated: content.trackInfoUpdated, state: content.state, old: old,
@@ -637,14 +639,14 @@ extension RekordboxWriter {
         if let album = expected.albumID {
             var stored: String?
             try db.query("SELECT AlbumID FROM djmdContent WHERE ID = ?", [.text(expected.contentID)]) { stored = $0.string(0) }
-            guard stored == album else { throw fail(String(ui: "곡의 앨범 행이 다릅니다")) }
+            guard stored == album else { throw fail(String(ui: "곡의 앨범 행이 쓴 것과 다르니 rekordbox를 그대로 둔 채 문제를 알려 주세요")) }
         }
         for (id, album) in expected.touchedAlbums {
             guard try scalar(db, "SELECT rb_local_usn FROM djmdAlbum WHERE ID = ? AND AlbumArtistID IS NOT NULL", [.text(id)]) == album.usn else {
                 throw fail(String(ui: "앨범 행의 변경 번호가 다릅니다"))
             }
             guard try scalar(db, "SELECT rb_data_status FROM djmdAlbum WHERE ID = ? AND rb_local_deleted = 0", [.text(id)]) == album.status else {
-                throw fail(String(ui: "앨범 행의 동기화 상태(rb_data_status)가 다릅니다"))
+                throw fail(String(ui: "앨범 행의 동기화 상태(rb_data_status)가 쓴 것과 다르니 rekordbox를 그대로 둔 채 문제를 알려 주세요"))
             }
         }
         for (table, id) in expected.deletedNames {
@@ -656,7 +658,7 @@ extension RekordboxWriter {
                          [.text(name.id)]) { rows.append(($0.int(0), $0.int(1), $0.int(2), $0.string(3), $0.int(4))) }
             guard rows.count == 1, let row = rows.first, row.status == 258, row.deleted == 1, row.usn == name.usn,
                   row.cloud == name.cloudUSN, row.synced == name.synced else {
-                throw fail(String(ui: "더 쓰지 않는 동기화 이름 행의 표시가 다릅니다"))
+                throw fail(String(ui: "더 쓰지 않는 동기화 이름 행의 표시가 쓴 것과 다르니 rekordbox를 그대로 둔 채 문제를 알려 주세요"))
             }
         }
     }

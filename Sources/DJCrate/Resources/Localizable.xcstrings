@@ -12463,18 +12463,18 @@
         }
       }
     },
-    "곡 행을 다시 읽지 못했습니다 (%@)" : {
+    "곡 행을 다시 읽지 못했으니 rekordbox 컬렉션에서 곡을 확인한 뒤 DJCrate에서 다시 동기화하세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Could not reread the track row (%@)"
+            "value" : "Could not reread the track row. Check the track in the rekordbox collection, then sync again in DJCrate"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "曲の行を再読み込みできませんでした（%@）"
+            "value" : "曲の行を再読み込みできませんでした。rekordboxのコレクションで曲を確認してから、DJCrateで再同期してください"
           }
         }
       }
@@ -12735,18 +12735,18 @@
         }
       }
     },
-    "곡의 앨범 행이 다릅니다" : {
+    "곡의 앨범 행이 쓴 것과 다르니 rekordbox를 그대로 둔 채 문제를 알려 주세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The track’s album row differs"
+            "value" : "The track’s album row differs from what was written. Leave rekordbox as it is and report the problem"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "曲のアルバム行が異なります"
+            "value" : "曲のアルバム行が書き込んだ内容と異なります。rekordboxはそのままにして問題を報告してください"
           }
         }
       }
@@ -15327,18 +15327,18 @@
         }
       }
     },
-    "더 쓰지 않는 동기화 이름 행의 표시가 다릅니다" : {
+    "더 쓰지 않는 동기화 이름 행의 표시가 쓴 것과 다르니 rekordbox를 그대로 둔 채 문제를 알려 주세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The marking of a released synced name row differs"
+            "value" : "The marking of a released synced name row differs from what was written. Leave rekordbox as it is and report the problem"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使われなくなった同期済みの名前の行の表示が異なります"
+            "value" : "使われなくなった同期済みの名前の行の表示が書き込んだ内容と異なります。rekordboxはそのままにして問題を報告してください"
           }
         }
       }
@@ -23711,18 +23711,18 @@
         }
       }
     },
-    "앨범 행의 동기화 상태(rb_data_status)가 다릅니다" : {
+    "앨범 행의 동기화 상태(rb_data_status)가 쓴 것과 다르니 rekordbox를 그대로 둔 채 문제를 알려 주세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The album row sync state (rb_data_status) differs"
+            "value" : "The album row sync state (rb_data_status) differs from what was written. Leave rekordbox as it is and report the problem"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "アルバム行の同期状態（rb_data_status）が異なります"
+            "value" : "アルバム行の同期状態（rb_data_status）が書き込んだ内容と異なります。rekordboxはそのままにして問題を報告してください"
           }
         }
       }
