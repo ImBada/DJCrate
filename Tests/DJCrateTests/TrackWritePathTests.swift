@@ -223,6 +223,39 @@ struct TrackWritePathTests {
         #expect(dry.tagWritten.count == 1 && dry.tagBlocked.isEmpty, "\(dry.tagBlocked)")
     }
 
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 넣기_백업에_추가한_곡의_초안이_담겨_연결_안_된_초안을_버린_뒤에도_복원이_되살린다() async throws {
+        // #197: 넣은 뒤 추가 목록 곡 UUID의 초안은 어느 곡에도 이어지지 않아(연결 안 된 초안) 쓰기 대기 목록에서 버릴 수 있다.
+        // 넣기 백업이 그 초안(태그·큐)을 담고 있으면 "쓰기 전으로 복원…"이 버린 뒤에도 곡과 함께 되살린다.
+        let fixture = try RekordboxFixture()
+        let (store, staged, row) = try await keyedStaged(fixture, key: "8A")
+        let original = cue(staged.uuid, time: 1)
+        DraftWriter.save(original)
+        DraftWriter.flush()
+        defer {
+            clearTagDrafts(store)
+            clearDrafts(staged.uuid)
+        }
+        let preview = try await store.previewTrackAdd(rows: [row])
+        let report = try await store.addTracksToRekordbox(preview, to: fixture.database, shareRoot: fixture.shareRoot)
+        #expect(report.added.first?.keyWritten == "8A" && report.added.first?.cuesWritten == 1)
+        let backup = try #require(RekordboxWriter.backups(in: fixture.backups).first)
+        #expect(RekordboxWriter.tagDrafts(in: backup.url).map(\.trackUUID) == [staged.uuid], "백업에 추가한 곡의 태그 초안")
+        #expect(RekordboxWriter.contents(of: backup.url).drafts.map(\.trackUUID) == [staged.uuid], "백업에 추가한 곡의 큐 초안")
+
+        // 넣은 뒤 연결 안 된 초안이 된 것을 사용자가 버린다
+        #expect(store.unlinkedDraftUUIDs.contains(staged.uuid))
+        #expect(store.discardUnlinkedDrafts([staged.uuid]) == nil)
+        DraftWriter.flush()
+        #expect(store.tagDrafts[staged.uuid] == nil && CueDraftStore.load(trackUUID: staged.uuid) == nil)
+
+        try await store.restoreRekordbox(backup, keepingCurrentDrafts: true)
+        DraftWriter.flush()
+        #expect(store.staged.map(\.uuid) == [staged.uuid])
+        #expect(store.confirmedStagedKey(uuid: staged.uuid) == "8A", "고른 키가 다시 넣을 수 있게 돌아온다")
+        #expect(CueDraftStore.load(trackUUID: staged.uuid) == original, "큐 초안도 돌아온다")
+        #expect(!store.unlinkedDraftUUIDs.contains(staged.uuid), "되돌린 곡이 추가 목록에 있어 이어진 초안이다")
+    }
+
     // MARK: - 반영 확인
 
     @Test(.enabled(if: LiveDraftHome.isIsolated)) func 반영_확인은_저장_실패_기록이_남은_곡의_대기_초안도_정리한다() async throws {

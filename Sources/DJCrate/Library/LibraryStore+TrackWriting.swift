@@ -175,6 +175,7 @@ extension LibraryStore {
         if let backup = report.backup, !removed.isEmpty, let data = try? JSONEncoder().encode(removed) {
             try? data.write(to: URL(filePath: backup).appending(path: Self.stagedBackupName))
         }
+        if let backup = report.backup { saveStagedDrafts(uuids: unstaged, in: URL(filePath: backup)) }
         writeStage = WriteStage(String(ui: "넣은 곡을 읽는 중…"))
         await takeSnapshot(quiet: true, refreshITunes: false)
         if let first = report.added.first(where: \.written), let id = first.contentID {
@@ -184,6 +185,22 @@ extension LibraryStore {
         }
         lastWriteBackup = report.backup.map { URL(filePath: $0) }
         return report
+    }
+
+    /// 넣은 추가 목록 곡의 태그·큐·그리드 초안을 백업에 둔다. 넣은 뒤 그 곡 UUID의 초안은 어느 곡에도 이어지지 않아(연결 안 된 초안, #175)
+    /// 쓰기 대기 목록에서 버릴 수 있다. 백업에 있으면 "쓰기 전으로 복원…"이 곡을 추가 목록으로 되돌리며 이 초안도 되살린다(#197).
+    /// 백업 폴더의 초안 모양은 큐·그리드·태그 쓰기와 같아 복원 흐름(`restoreRekordbox`)이 그대로 읽는다.
+    private func saveStagedDrafts(uuids: Set<String>, in backup: URL) {
+        func put<T: Encodable>(_ draft: T, folder: String, uuid: String) {
+            let directory = backup.appending(path: folder)
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try? JSONEncoder().encode(draft).write(to: directory.appending(path: "\(uuid).json"), options: .atomic)
+        }
+        for uuid in uuids.sorted() {
+            if let draft = CueDraftStore.load(trackUUID: uuid), draft.hasChanges { put(draft, folder: "cue-drafts", uuid: uuid) }
+            if let grid = GridDraftStore.load(trackUUID: uuid), !grid.segments.isEmpty { put(grid, folder: "grid-drafts", uuid: uuid) }
+            if let tag = tagDrafts[uuid], tag.hasChanges { put(tag, folder: "tag-drafts", uuid: uuid) }
+        }
     }
 
     /// 키가 막혀 키 없이 넣은 곡은 고른 키를 새 곡의 키 초안으로 남긴다(막힌 큐를 옮기는 것과 같다: 고른 키가 조용히 사라지지 않게).
@@ -261,7 +278,13 @@ extension LibraryStore {
         replaceTagDrafts(added.filter { tagDrafts[$0] != nil }.sorted().map { TagDraft(trackUUID: $0, base: TagFields()) })
         if !added.isEmpty, let warning = draftSaveWarning(for: added, restoring: true) { reportLibraryError(warning) }
         guard let data = try? Data(contentsOf: backup.url.appending(path: Self.stagedBackupName)),
-              let tracks = try? JSONDecoder().decode([StagedTrack].self, from: data) else { return 0 }
-        return restage(tracks)
+              let tracks = try? JSONDecoder().decode([StagedTrack].self, from: data) else {
+            refreshUnlinkedDrafts()
+            return 0
+        }
+        let restaged = restage(tracks)
+        // 읽은 뒤 되돌린 곡을 추가 목록에 다시 넣었으니, 그 곡의 초안은 더는 연결 안 된 초안이 아니다.
+        refreshUnlinkedDrafts()
+        return restaged
     }
 }
