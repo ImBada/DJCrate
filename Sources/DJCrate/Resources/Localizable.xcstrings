@@ -21705,22 +21705,6 @@
         }
       }
     },
-    "새 스냅샷을 뜨고 있습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Taking a new snapshot…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新しいスナップショットを作成しています。"
-          }
-        }
-      }
-    },
     "새 재생 목록" : {
       "localizations" : {
         "en" : {
@@ -27091,6 +27075,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このテンポ変更点を削除"
+          }
+        }
+      }
+    },
+    "이 사본에는 캡처한 iTunes 목록이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This copy has no captured iTunes playlists."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このコピーには取得済みのiTunesプレイリストがありません。"
           }
         }
       }

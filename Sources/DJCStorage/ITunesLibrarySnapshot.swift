@@ -23,7 +23,7 @@ public struct ITunesLibrarySnapshot: Codable, Equatable, Sendable {
             switch self {
             case .ready: nil
             case .stale: String(ui: "iTunes 목록 갱신에 실패해 이전 사본을 표시합니다. Music 접근 권한과 rekordbox의 iTunes 읽기 설정을 확인한 뒤 새로고침하세요.")
-            case .notCaptured: String(ui: "새 스냅샷을 뜨고 있습니다")
+            case .notCaptured: String(ui: "이 사본에는 캡처한 iTunes 목록이 없습니다")
             case .unavailable: String(ui: "iTunes 목록을 읽지 못했으니 Music 접근 권한과 rekordbox의 iTunes 읽기 설정을 확인한 뒤 새로고침하세요.")
             }
         }
