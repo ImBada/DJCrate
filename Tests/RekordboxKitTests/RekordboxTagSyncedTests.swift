@@ -341,33 +341,41 @@ extension RekordboxTagWriterTests {
         #expect(try content(fixture)["TrackInfoUpdated"] == "5" && content(fixture)["AlbumID"] == "31")
     }
 
-    @Test func 버려질_앨범이_257이면_막는다() throws {
-        // 257 앨범을 저장하는 것은 확인했지만(S3 V03) 257 앨범이 버려질 때는 보지 못했다.
-        let (fixture, track) = try library(shared: false)
-        try sync(fixture, "djmdAlbum", "31", state: 257)
-        for edit in [{ (f: inout TagFields) in f.album = "DJC 173 앨범" }, { (f: inout TagFields) in f.album = "" }] {
-            let report = try write(fixture, tags: [try draft(fixture, track, edit)])
-            #expect(report.tagWritten.isEmpty)
-            #expect(report.tagBlocked.first?.reason?.contains("동기화 앨범") == true)
-        }
-        #expect(try fixture.localUpdateCount() == 2000)
-        // 다른 곡도 쓰면 버려지지 않으므로 쓴다
-        let (shared, other) = try library()
-        try sync(shared, "djmdAlbum", "31", state: 257)
-        #expect(try write(shared, tags: [try draft(shared, other) { $0.album = "DJC 173 앨범" }]).tagWritten.count == 1)
-        #expect(try row(shared, "djmdAlbum", "31")?["rb_data_status"] == "257")
+    @Test func 버려질_257_앨범도_258로_표시하고_4칸만_바꾼다() throws {
+        // #173 S4 B1·B2(2026-10-04): 이 곡만 쓰는 256 앨범(앨범 아티스트 있음)의 곡에서 아티스트를 저장해 앨범이 257이 된 뒤(B1), 앨범 새 이름을
+        // 저장하자(B2) 257 옛 앨범이 258·`rb_local_deleted` 1이 됐다. 전(256) → 후(258) 차이는 256 → 258과 같은 네 칸이고 `usn`은 그대로다.
+        // `TrackInfoUpdated`는 저장 두 번이라 +2.
+        let (fixture, track) = try syncedLibrary(shared: false)
+        try fixture.insert("djmdArtist", ["ID": .text("13"), "Name": .text("DJC 173 앨범 아티스트"), "UUID": .text("a-13")])
+        try fixture.execute("UPDATE djmdAlbum SET AlbumArtistID = '13' WHERE ID = '31'")
+        try sync(fixture, "djmdAlbum", "31")
+        let before = try #require(try row(fixture, "djmdAlbum", "31"))
+        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.artist = "DJC 173 아티스트" }]).tagWritten.count == 1)
+        #expect(try row(fixture, "djmdAlbum", "31")?["rb_data_status"] == "257", "B1: 저장된 앨범")
+        let report = try write(fixture, tags: [try draft(fixture, track) { $0.album = "DJC 173 앨범 2" }])
+        #expect(report.tagWritten.count == 1 && report.tagBlocked.isEmpty)
+        let after = try #require(try row(fixture, "djmdAlbum", "31"))
+        #expect(Set(after.keys.filter { after[$0] != before[$0] }) == ["rb_data_status", "rb_local_deleted", "rb_local_usn", "updated_at"])
+        #expect(after["rb_data_status"] == "258" && after["rb_local_deleted"] == "1" && after["usn"] == "40" && after["rb_local_synced"] == "1")
+        let fresh = try #require(fixture.rows("SELECT * FROM djmdAlbum WHERE Name = 'DJC 173 앨범 2'").first)
+        #expect(fresh["AlbumArtistID"] == "13" && fresh["rb_data_status"] == "0")
+        let row = try content(fixture)
+        #expect(row["AlbumID"] == fresh["ID"] && row["TrackInfoUpdated"] == "4" && row["rb_data_status"] == "257")
+        // 번호: 새 앨범 → 옛 앨범(258) → 곡(마지막)
+        let numbers = [fresh["rb_local_usn"], after["rb_local_usn"], row["rb_local_usn"]].map { Int($0 ?? "") ?? 0 }
+        #expect(try numbers == numbers.sorted() && numbers.last == fixture.localUpdateCount())
     }
 
     // MARK: 여러 초안을 한 번에
 
-    @Test func 두_초안이_같은_257_앨범을_떠나면_둘째는_트랜잭션에서_막히고_첫째는_쓴다() throws {
-        // 곡 500·501이 함께 쓰는 257 앨범을 둘 다 떠나면, 첫 초안 뒤에도 앨범은 501이 쓰고 둘째 초안에서 버려져 막힌다.
-        // 백업 전 확인은 초안마다 시작 DB로 따로 보아 둘 다 통과하고, 트랜잭션 안의 확인(앞 초안을 쓴 DB)이 기준이다. 둘째는 막힘으로
-        // 보고하고 첫째는 쓴다. 미리 보기(시험 실행)와 실제 쓰기의 결과가 같다.
+    @Test func 두_초안이_같은_257_아티스트를_떠나면_둘째는_트랜잭션에서_막히고_첫째는_쓴다() throws {
+        // 곡 500·501이 함께 쓰는 257 아티스트를 둘 다 떠나면, 첫 초안 뒤에도 아티스트는 501이 쓰고 둘째 초안에서 버려져 막힌다(257 아티스트·장르
+        // 버리기는 확인하지 못했다). 백업 전 확인은 초안마다 시작 DB로 따로 보아 둘 다 통과하고, 트랜잭션 안의 확인(앞 초안을 쓴 DB)이 기준이다.
+        // 둘째는 막힘으로 보고하고 첫째는 쓴다. 미리 보기(시험 실행)와 실제 쓰기의 결과가 같다.
         let (fixture, track) = try library()
-        try sync(fixture, "djmdAlbum", "31", state: 257)
+        try sync(fixture, "djmdArtist", "11", state: 257)
         let neighbor = TrackSpec(id: "501", uuid: "track-uuid-501")
-        let drafts = [try draft(fixture, track) { $0.album = "DJC 173 앨범 가" }, try draft(fixture, neighbor) { $0.album = "DJC 173 앨범 나" }]
+        let drafts = [try draft(fixture, track) { $0.artist = "DJC 173 아티스트 가" }, try draft(fixture, neighbor) { $0.artist = "DJC 173 아티스트 나" }]
         let db = try fixture.open()
         let checked = try RekordboxWriter.checkTagDrafts(drafts, db: db, writable: Self.allKeys)
         db.close()
@@ -376,8 +384,8 @@ extension RekordboxTagWriterTests {
         #expect(preview.tagWritten.map(\.trackUUID) == [track.uuid] && preview.tagBlocked.map(\.trackUUID) == [neighbor.uuid])
         let report = try write(fixture, tags: drafts)
         #expect(report.tagWritten.map(\.trackUUID) == [track.uuid] && report.tagBlocked.map(\.trackUUID) == [neighbor.uuid])
-        #expect(report.tagBlocked.first?.reason?.contains("동기화 앨범") == true)
-        #expect(try row(fixture, "djmdAlbum", "31")?["rb_data_status"] == "257" && content(fixture, "501")["AlbumID"] == "31")
+        #expect(report.tagBlocked.first?.reason?.contains("동기화 아티스트·장르") == true)
+        #expect(try row(fixture, "djmdArtist", "11")?["rb_data_status"] == "257" && content(fixture, "501")["ArtistID"] == "11")
     }
 
     @Test func 앞_초안이_버린_이름을_뒤_초안이_다시_쓰면_새_행을_만든다() throws {

@@ -206,21 +206,18 @@ extension RekordboxTagWriterTests {
         #expect(row["TrackInfoUpdated"] == "3" && row["rb_data_status"] == "257")
     }
 
-    @Test func 동명_앨범의_옛_앨범이_동기화_앨범이면_258이고_257이면_막는다() throws {
-        // 옛 앨범 버리기는 상태대로(256 → 258). 257이 버려지는 규칙은 확인하지 못했다.
-        for state in [256, 257] {
-            let (fixture, track) = try library()
-            try sameNameAlbums(fixture, mine: (.text("16"), "2026-02-01 00:00:00.000 +00:00"), other: (.text("17"), "2025-01-01 00:00:00.000 +00:00"))
-            try sync(fixture, "djmdAlbum", "41", state: state)
-            let report = try write(fixture, tags: [try draft(fixture, track) { $0.artist = "DJC 173 기존" }])
-            if state == 256 {
-                #expect(report.tagWritten.count == 1)
-                #expect(try fixture.rows("SELECT rb_data_status, rb_local_deleted FROM djmdAlbum WHERE ID = '41'").first
-                    == ["rb_data_status": "258", "rb_local_deleted": "1"])
-            } else {
-                #expect(report.tagWritten.isEmpty && report.tagBlocked.first?.reason?.contains("동기화 앨범") == true)
-            }
-        }
+    @Test(arguments: [256, 257]) func 동명_앨범의_옛_앨범이_동기화_앨범이면_256·257_모두_258이다(state: Int) throws {
+        // 옛 앨범 버리기는 상태대로: 256(#173 S4 F, 2026-10-04: 이 곡만 쓰던 옛 앨범 → 258)과 257(S4 B2: 257 앨범이 버려지면 256과 같은
+        // 네 칸) 모두 258·삭제 표시다.
+        let (fixture, track) = try library()
+        try sameNameAlbums(fixture, mine: (.text("16"), "2026-02-01 00:00:00.000 +00:00"), other: (.text("17"), "2025-01-01 00:00:00.000 +00:00"))
+        try sync(fixture, "djmdAlbum", "41", state: state)
+        let before = try #require(try row(fixture, "djmdAlbum", "41"))
+        let report = try write(fixture, tags: [try draft(fixture, track) { $0.artist = "DJC 173 기존" }])
+        #expect(report.tagWritten.count == 1 && report.tagBlocked.isEmpty)
+        let after = try #require(try row(fixture, "djmdAlbum", "41"))
+        #expect(Set(after.keys.filter { after[$0] != before[$0] }) == ["rb_data_status", "rb_local_deleted", "rb_local_usn", "updated_at"])
+        #expect(after["rb_data_status"] == "258" && after["rb_local_deleted"] == "1" && after["usn"] == "40")
     }
 
     @Test(arguments: ["''", "'16'"]) func 동명_앨범_중_먼저_만든_앨범에_앨범_아티스트가_있으면_막는다(artist: String) throws {

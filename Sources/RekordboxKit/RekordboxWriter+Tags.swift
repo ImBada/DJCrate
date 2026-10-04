@@ -271,16 +271,17 @@ extension RekordboxWriter {
         return result
     }
 
-    /// 버려질 행을 정리할 수 없는 상태면 막을 이유. 0(지움)·256(258 표시)만 확인했다.
+    /// 버려질 행을 정리할 수 없는 상태면 막을 이유. 0(지움)·256(258 표시)·257 앨범(258 표시)만 확인했다.
     static func releaseProblem(table: String, state: Int?) -> String? {
         switch state {
         case 0, 256:
             return nil
+        case 257 where table == "djmdAlbum":
+            // #173 S4 B2(2026-10-04): 257 앨범이 버려지면 256과 같은 네 칸으로 258·삭제 표시다.
+            return nil
         case 257:
-            // #173 S1~S3에서 버려진 옛 행은 모두 256이었다.
-            return table == "djmdAlbum"
-                ? String(ui: "rekordbox에서 이미 고친 동기화 앨범이라 비우는 규칙을 확인하지 못했으므로 rekordbox에서 직접 고치세요")
-                : String(ui: "rekordbox에서 이미 고친 동기화 아티스트·장르라 비우는 규칙을 확인하지 못했으므로 rekordbox에서 직접 고치세요")
+            // 257 아티스트·장르가 버려질 때는 보지 못했다(라이브러리에도 그런 행이 없었다).
+            return String(ui: "rekordbox에서 이미 고친 동기화 아티스트·장르라 비우는 규칙을 확인하지 못했으므로 rekordbox에서 직접 고치세요")
         default:
             return String(ui: "이 곡이 더 쓰지 않게 될 앨범·이름의 동기화 상태에서는 정리 규칙을 확인하지 못했으므로 rekordbox에서 직접 고치세요")
         }
@@ -294,8 +295,9 @@ extension RekordboxWriter {
     }
 
     /// 아무도 안 쓰게 된 옛 행을 정리한다. 트랜잭션 안에서 곡 행·앨범 행·새 이름 행을 실제로 쓴 뒤 부르고, 후보마다 실제 참조 수를 센다
-    /// (미리 계산하지 않는다, #173 3차 리뷰): 참조가 남으면 그대로, 상태 0이면 지우고, 256이면 258로 표시한다. 257·그 밖의 상태가 버려지면
-    /// `Blocked`를 던져 부른 쪽이 그 초안만 SAVEPOINT로 되돌린다(번호도). 258을 쓰면 rekordbox처럼 곡 행이 마지막 번호를 다시 받는다(옛 행 → 곡 행).
+    /// (미리 계산하지 않는다, #173 3차 리뷰): 참조가 남으면 그대로, 상태 0이면 지우고, 256·257 앨범이면 258로 표시한다. 257 아티스트·장르나
+    /// 그 밖의 상태가 버려지면 `Blocked`를 던져 부른 쪽이 그 초안만 SAVEPOINT로 되돌린다(번호도). 258을 쓰면 rekordbox처럼 곡 행이 마지막 번호를
+    /// 다시 받는다(옛 행 → 곡 행).
     static func releaseNames(_ content: CheckedTag, keys: Set<TagFields.Key>, db: CipherDatabase, usn: inout Int, stamp: (db: String, json: String))
         throws -> (deleted: [(table: String, id: String)], marked: [MarkedName]) {
         var deleted: [(table: String, id: String)] = []
@@ -477,8 +479,8 @@ extension RekordboxWriter {
                                  columns.map(\.1) + [.text(trackInfoUpdated), .int(usn), .text(stamp.db), .text(content.id)])
         guard changed == 1 else { throw DJCError.writeVerificationFailed(String(ui: "곡 정보를 고치지 못했습니다 (\(content.title))")) }
 
-        // 아무 곡·앨범도 안 쓰게 된 옛 행: 상태 0은 실제로 지우고(2026-09-27: 아티스트 A·작곡가·장르·앨범), 동기화(256)는 258·삭제 표시로
-        // 네 칸만 바꾼다(#173 S1 T02·T04·T05, S2 U02~U05·U14, S3 V03). 지운 앨범의 앨범 아티스트 행은 rekordbox도 남겼다(앨범 칸을 고칠 때는
+        // 아무 곡·앨범도 안 쓰게 된 옛 행: 상태 0은 실제로 지우고(2026-09-27: 아티스트 A·작곡가·장르·앨범), 동기화(256, 257 앨범)는 258·삭제
+        // 표시로 네 칸만 바꾼다(#173 S1 T02·T04·T05, S2 U02~U05·U14, S3 V03, S4 B2·F). 지운 앨범의 앨범 아티스트 행은 rekordbox도 남겼다(앨범 칸을 고칠 때는
         // 앨범 아티스트를 놓는 것으로 보지 않는다). 쓴 뒤의 실제 참조 수로 정한다.
         let (deleted, marked) = try releaseNames(content, keys: Set(keys), db: db, usn: &usn, stamp: stamp)
         var expectation = TagExpectation(contentID: content.id, fields: expected, trackInfoUpdated: trackInfoUpdated, contentUSN: usn,

@@ -9657,22 +9657,6 @@
         }
       }
     },
-    "rekordbox에서 이미 고친 동기화 앨범이라 비우는 규칙을 확인하지 못했으므로 rekordbox에서 직접 고치세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This synced album was already edited in rekordbox, and the rule for releasing it is not verified. Edit this in rekordbox."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxで既に変更された同期済みのアルバムを手放す規則は未確認です。rekordboxで直接変更してください。"
-          }
-        }
-      }
-    },
     "rekordbox에서 재생 목록을 찾지 못했습니다" : {
       "localizations" : {
         "en" : {
