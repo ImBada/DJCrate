@@ -338,9 +338,9 @@ struct RekordboxRestoreFailureTests {
         #expect(try Data(contentsOf: xml) == xmlBefore)
     }
 
-    /// DB와 masterPlaylists6.xml은 따로 되돌린다: master.db 복사가 실패해도 XML은 쓰기 전으로 돌려 둔다(#173 리뷰).
-    /// 쓰기 실패 뒤 되돌리기와 사용자의 "쓰기 전으로 복원…"(`restore`)이 같은 `restoreFiles`를 쓴다.
-    @Test func DB를_되돌리지_못해도_XML은_쓰기_전으로_돌린다() throws {
+    /// 되돌릴 때 masterPlaylists6.xml은 DB를 되살린 뒤에만 되살린다(#173 3차 리뷰). XML은 원자적으로 써서 반쯤 쓰인 상태가 없으므로,
+    /// DB 복원이 실패하면 XML도 지금 상태로 두어 재생 목록 구조가 DB와 어긋나지 않게 한다. 쓰기 실패 뒤 되돌리기와 "쓰기 전으로 복원…"이 같다.
+    @Test func DB_복원이_실패하면_XML은_건드리지_않아_DB와_같은_상태로_남는다() throws {
         let fixture = try RekordboxFixture(localUpdateCount: 900)
         let track = try fixture.add(TrackSpec())
         let playlist = try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: [track.id]))
@@ -355,15 +355,15 @@ struct RekordboxRestoreFailureTests {
         let report = try RekordboxWriter.write(drafts: [], tags: [tags], to: fixture.database, dryRun: false, now: now,
                                                backups: fixture.backups, shareRoot: fixture.shareRoot)
         let backup = URL(filePath: try #require(report.backup))
-        #expect(try Data(contentsOf: xml) != original, "곡 정보 쓰기가 XML Timestamp를 고쳤다")
+        let written = try Data(contentsOf: xml)
+        #expect(written != original, "곡 정보 쓰기가 XML Timestamp를 고쳤다")
         try blockRestore(fixture)
         defer { unlock(fixture) }
         #expect(throws: (any Error).self) { try RekordboxWriter.restore(backup, to: fixture.database, backups: fixture.backups) }
-        #expect(try Data(contentsOf: xml) == original, "DB 복원이 막혀도 XML은 백업으로")
+        #expect(try Data(contentsOf: xml) == written, "DB를 되살리지 못했으면 XML도 쓴 뒤 그대로(DB와 같은 때)")
         // 쓰기 실패 뒤 되돌리기 경로(restoreFiles 직접)도 같다
-        try Data("바뀜".utf8).write(to: xml)
         #expect(throws: (any Error).self) { try RekordboxWriter.restoreFiles(from: backup, to: fixture.database) }
-        #expect(try Data(contentsOf: xml) == original)
+        #expect(try Data(contentsOf: xml) == written)
     }
 
     func acl(_ arguments: [String]) throws {

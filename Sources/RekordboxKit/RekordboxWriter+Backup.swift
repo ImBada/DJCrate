@@ -210,17 +210,16 @@ extension RekordboxWriter {
         }
     }
 
-    /// DB·XML 되돌리기에서 실패한 것(둘 다 해 본 뒤 모아서, 꼬리표를 붙여)
+    /// DB·XML 되돌리기에서 실패한 것(꼬리표를 붙여)
     struct RestoreFilesError: Error, CustomStringConvertible {
         var problems: [String]
         var description: String { problems.joined(separator: " / ") }
     }
 
-    /// 백업의 master.db(-wal·-shm)와 masterPlaylists6.xml을 되살린다. 둘은 따로 해서 DB 복사가 실패해도 XML은 쓰기 전으로 돌려 두고,
-    /// 실패는 모아서 던진다(쓰기 실패 뒤 되돌리기와 "쓰기 전으로 복원…"이 같이 쓴다).
+    /// 백업의 master.db(-wal·-shm)를 되살리고, 그게 끝난 뒤에만 masterPlaylists6.xml을 되살린다(쓰기 실패 뒤 되돌리기와 "쓰기 전으로 복원…"이
+    /// 같이 쓴다). XML은 원자적으로 써서 반쯤 쓰인 상태가 없으므로, DB 복원이 실패하면 XML도 지금 상태로 두어 재생 목록 구조가 DB와 어긋나지 않게 한다.
     static func restoreFiles(from backup: URL, to database: URL) throws {
         let fm = FileManager.default
-        var problems: [String] = []
         do {
             for suffix in ["", "-wal", "-shm"] {
                 let target = URL(filePath: database.path + suffix)
@@ -235,20 +234,18 @@ extension RekordboxWriter {
                 }
             }
         } catch {
-            problems.append("master.db: \(DJCError.reason(of: error))")
+            throw RestoreFilesError(problems: ["master.db: \(DJCError.reason(of: error))"])
         }
         // 옛 백업에는 없다(그때는 XML을 고치지 않았다).
         let xml = backup.appending(path: "masterPlaylists6.xml")
-        if fm.fileExists(atPath: xml.path) {
-            do {
-                // 이미 같은 내용이면(쓰기가 원자적으로 실패해 원본 그대로) 다시 쓰지 않는다.
-                let data = try Data(contentsOf: xml), target = playlistXMLURL(for: database)
-                if (try? Data(contentsOf: target)) != data { try data.write(to: target, options: .atomic) }
-            } catch {
-                problems.append("masterPlaylists6.xml: \(DJCError.reason(of: error))")
-            }
+        guard fm.fileExists(atPath: xml.path) else { return }
+        do {
+            // 이미 같은 내용이면(쓰기가 원자적으로 실패해 원본 그대로) 다시 쓰지 않는다.
+            let data = try Data(contentsOf: xml), target = playlistXMLURL(for: database)
+            if (try? Data(contentsOf: target)) != data { try data.write(to: target, options: .atomic) }
+        } catch {
+            throw RestoreFilesError(problems: ["masterPlaylists6.xml: \(DJCError.reason(of: error))"])
         }
-        if !problems.isEmpty { throw RestoreFilesError(problems: problems) }
     }
 
 

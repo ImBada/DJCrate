@@ -625,7 +625,7 @@ public enum RekordboxWriter {
         // files는 분석 파일·아트워크를 되돌린다(그리드·분석 붙이기·합치기). DB와 masterPlaylists6.xml은 restoreFiles가 백업에서 살린다.
         do { try files() } catch { problems.append(String(ui: "분석·아트워크 파일: \(DJCError.reason(of: error))")) }
         if restoreDatabase {
-            // restoreFiles는 DB·XML을 따로 해 보고 꼬리표("master.db:"·"masterPlaylists6.xml:")를 붙인 실패를 모아 던진다.
+            // restoreFiles는 DB를 되살린 뒤에만 XML을 되살리고, 실패에 꼬리표("master.db:"·"masterPlaylists6.xml:")를 붙여 던진다.
             do { try restoreFiles(from: backup, to: database) } catch { problems.append(DJCError.reason(of: error)) }
             do { try checkIntegrity(of: database) } catch { problems.append("master.db: \(DJCError.reason(of: error))") }
         }
