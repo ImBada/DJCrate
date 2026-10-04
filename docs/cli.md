@@ -126,7 +126,7 @@ djc draft rm tag 101 --db /tmp/djc-fixture/master.db
 - `draft cue <ContentID> --time <초>`: 기본은 메모리 큐다. `--slot A`~`H`를 주면 해당 핫큐를 놓거나 교체한다. `--name`은 이름이다. 시각은 **rekordbox 시간축의 초**이며 자동 퀀타이즈하지 않는다.
 - `--loop-end <초>`는 시작보다 뒤인 루프 끝이다. 선택 `--beats <박 수>`는 양의 정수 또는 1/n, `--active`는 활성 루프 지정이다. 두 옵션은 `--loop-end`와 함께 쓴다. 활성 루프는 곡에 하나만 남는다.
 - 메모리 큐는 rekordbox 자동 큐(`CUE(Auto)`·`1.1Bars`)를 포함해 10개까지다. 자동 큐도 앱 덱처럼 초안에 메모리 큐로 들어가며, 자동 큐 없이 만든 옛 초안을 이어 고치면 곡의 자동 큐를 `base`·`cues`에 채워 저장한다(#145). 같은 자리 ±30ms의 기존 메모리 큐는 앱처럼 그대로 사용한다(루프 추가 시에는 기존 루프만 해당). 새 이름이나 루프 길이로 그 큐를 덮어쓰지는 않는다.
-- `draft tag <ContentID>`: `--title`, `--artist`, `--album`, `--album-artist`, `--genre`, `--composer`, `--year`, `--track-number`, `--comment` 중 하나 이상을 준다. 빈 문자열은 해당 값을 비우며, 빈 제목·숫자가 아닌 연도/트랙 번호는 거절한다.
+- `draft tag <ContentID>`: `--title`, `--artist`, `--album`, `--album-artist`, `--genre`, `--composer`, `--year`, `--track-number`, `--comment`, `--musical-key` 중 하나 이상을 준다. 빈 문자열은 해당 값을 비우며, 빈 제목·숫자가 아닌 연도/트랙 번호는 거절한다. `--musical-key`는 rekordbox 키 목록의 Camelot 이름(`1A`~`12B`)만 받고(`8a`·` 08B `는 `8A`·`8B`로 다듬는다) `''`는 키를 지운다. `Am` 같은 다른 표기는 `invalid_arguments`로 거절한다. 초안을 쓰는 rekordbox에 그 이름의 살아 있는 키 줄이 하나가 아니면 미리 보기·쓰기가 그 곡만 막고 이유를 알린다. 추가한 곡의 키는 곡을 넣은 뒤에 고른다.
 - `draft rm cue|tag <ContentID>`는 해당 종류의 **초안 전체**를 버린다. 개별 큐나 rekordbox 원본을 지우지 않는다. 이미 없는 초안을 지우는 것은 성공이다. 그리드·게인 초안은 그대로 둔다.
 - `--dry-run`은 같은 검증을 거쳐 결과를 보여 주고 폴더·파일을 만들거나 지우지 않는다. 기존 초안이 손상되었으면 덮어쓰지 않고 오류를 낸다.
 
