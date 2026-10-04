@@ -249,6 +249,42 @@ struct MusicalKeyEditingTests {
         #expect(prompt.details.contains { $0.contains("음원 파일의 태그는 그대로") })
     }
 
+    @Test func XML로_내보낼_때도_키_초안이_있는_추가한_곡은_빼고_이유를_알린다() throws {
+        // XML(Import To Collection)에는 키 초안을 담지 않는다. 조용히 버리지 않고 그 곡을 빼고 이유를 알린다(곡 넣기와 같은 방식).
+        let store = store()
+        func staged(_ title: String) throws -> StagedTrack {
+            try JSONDecoder().decode(StagedTrack.self, from: Data("""
+                {"uuid":"\(UUID().uuidString)","path":"/fixtures/\(title).mp3","title":"\(title)","comment":"","duration":2,"addedOn":"2026-10-04"}
+                """.utf8))
+        }
+        let keyed = try staged("키 초안 곡"), plain = try staged("키 초안 없는 곡")
+        store.staged = [keyed, plain]
+        var draft = TagDraft(track: keyed.track)
+        draft.fields.musicalKey = "8A"
+        store.tagDrafts[keyed.uuid] = draft
+        let folder = FileManager.default.temporaryDirectory.appending(path: "djc-export-key-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let url = folder.appending(path: "staged.xml")
+        let result = try store.exportStaged(to: url)
+        #expect(result.count == 1 && result.skipped.count == 1)
+        #expect(result.skipped.first?.contains("키 초안 곡") == true && result.skipped.first?.contains("키") == true)
+        let xml = try String(contentsOf: url, encoding: .utf8)
+        #expect(xml.contains("키 초안 없는 곡") && !xml.contains("키 초안 곡"))
+
+        // 키 초안이 있는 곡만 고르면 파일을 쓰지 않는다
+        let alone = folder.appending(path: "alone.xml")
+        let none = try store.exportStaged(to: alone, only: [keyed.id])
+        #expect(none.count == 0 && none.skipped.count == 1)
+        #expect(!FileManager.default.fileExists(atPath: alone.path))
+
+        // 키 초안을 버리면 담긴다
+        store.tagDrafts[keyed.uuid] = nil
+        let all = try store.exportStaged(to: folder.appending(path: "all.xml"))
+        #expect(all.count == 2 && all.skipped.isEmpty)
+    }
+
     // MARK: 태그 시트
 
     @Test func 시트의_키_열은_보기_열과_같은_이름으로_정렬하고_태그_칸에_이어진다() throws {
