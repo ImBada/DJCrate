@@ -39,7 +39,7 @@ struct UsbMigrateTests {
         let prompt = try #require(prompter.shown.last)
         #expect(prompt.title == "OneLibrary를 더할까요?")
         #expect(prompt.confirm == "OneLibrary 더하기")
-        #expect(prompt.details.contains("곡 3개 · 재생 목록 1개 · 새 아트워크 파일 6개"))
+        #expect(prompt.details.contains("곡 3개 · 재생 목록 1개 · 새 앨범아트 파일 6개"))
         #expect(prompt.details.contains("시험 볼륨(디스크 이미지)입니다"))
         #expect(prompt.details.contains { $0.contains(UsbProvisionalRule.deviceLibraryMigration.summary) })
         #expect(prompt.text.contains("Mac에 백업") && prompt.text.contains("다시 읽어 확인"))

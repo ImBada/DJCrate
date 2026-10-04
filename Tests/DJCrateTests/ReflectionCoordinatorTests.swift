@@ -432,10 +432,10 @@ struct ReflectionCoordinatorTests {
                                               Self.outcome("p", .written, added: 64)])
         preview.report.artworkAdded = ["a", "n"]
         let lines = ReflectionCoordinator.confirmation(preview.report).details
-        #expect(lines.contains("• 곡 a — 큐 +1 · 분석 파일 붙이기 · 아트워크"))
-        #expect(lines.contains("• 곡 n — 분석 파일 붙이기(파형·그리드 박 96개·오토게인·아트워크)"))
+        #expect(lines.contains("• 곡 a — 큐 +1 · 분석 파일 붙이기 · 앨범아트"))
+        #expect(lines.contains("• 곡 n — 분석 파일 붙이기(파형·그리드 박 96개·오토게인·앨범아트)"))
         #expect(lines.contains("• 곡 p — 분석 파일 붙이기(파형·그리드 박 64개·오토게인)"), "그림이 없는 곡")
-        #expect(lines.contains("파형·그리드·오토게인과 음원의 아트워크를 붙입니다. 키·프레이즈·보컬 분석은 없습니다."))
+        #expect(lines.contains("파형·그리드·오토게인과 음원의 앨범아트를 붙입니다. 키·프레이즈·보컬 분석은 없습니다."))
     }
 
     @Test func 실패와_경고_토스트는_시간이_지나도_닫히지_않는다() {
@@ -569,19 +569,19 @@ struct ReflectionCoordinatorTests {
         var preview = Self.addPreview([Self.track(withArt.path), Self.track(bare.path), Self.track(later.path)], without: [later.path: "그리드 없음"])
         preview.plans = [withArt, bare, later]
         let open = ReflectionCoordinator.addConfirmation(preview, writesArtwork: true).details
-        #expect(open.contains("• 곡 \(withArt.path) — 그리드·파형·오토게인까지 · 아트워크"))
+        #expect(open.contains("• 곡 \(withArt.path) — 그리드·파형·오토게인까지 · 앨범아트"))
         #expect(open.contains("• 곡 \(bare.path) — 그리드·파형·오토게인까지"))
         // 분석 없이 넣는 곡은 rekordbox처럼 아트워크를 넣지 않는다. rekordbox가 분석할 때 뽑는다(2026-09-26 실험).
         #expect(open.contains("• 곡 \(later.path) — 분석 없이(그리드 없음)"))
-        #expect(open.last == "분석 없이 넣는 곡은 rekordbox에서 분석해야 파형·그리드·아트워크가 생깁니다.")
+        #expect(open.last == "분석 없이 넣는 곡은 rekordbox에서 분석해야 파형·그리드·앨범아트가 생깁니다.")
         #expect(!open.contains(ReflectionCoordinator.artworkClosedNote))
         // 닫혀 있으면 곡 줄에는 붙이지 않고, 분석까지 붙이는 곡에 아트워크가 있을 때만 무엇을 하면 되는지 한 번 알린다
         let closed = ReflectionCoordinator.addConfirmation(preview, writesArtwork: false).details
-        #expect(!closed.contains { $0.hasSuffix("· 아트워크") } && closed.last == ReflectionCoordinator.artworkClosedNote)
+        #expect(!closed.contains { $0.hasSuffix("· 앨범아트") } && closed.last == ReflectionCoordinator.artworkClosedNote)
         preview.plans = [bare, later]
         let bareOnly = ReflectionCoordinator.addConfirmation(preview, writesArtwork: false).details
         #expect(!bareOnly.contains(ReflectionCoordinator.artworkClosedNote))
-        #expect(bareOnly.last == "분석 없이 넣는 곡은 rekordbox에서 분석해야 파형·그리드·아트워크가 생깁니다.")
+        #expect(bareOnly.last == "분석 없이 넣는 곡은 rekordbox에서 분석해야 파형·그리드·앨범아트가 생깁니다.")
         preview.plans = [bare]
         #expect(ReflectionCoordinator.addConfirmation(preview, writesArtwork: true).details.last
                 == "분석 없이 넣는 곡은 rekordbox에서 분석해야 파형·그리드가 생깁니다.")

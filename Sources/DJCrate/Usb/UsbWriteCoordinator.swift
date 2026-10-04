@@ -419,7 +419,7 @@ struct UsbWriteCoordinator {
     }
 
     static func migrationConfirmation(_ summary: UsbMigrationSummary, volume: UsbVolumeInfo) -> ReflectionPrompt {
-        var details = [String(ui: "곡 \(summary.trackCount)개 · 재생 목록 \(summary.playlistCount)개 · 새 아트워크 파일 \(summary.artworkFiles)개")]
+        var details = [String(ui: "곡 \(summary.trackCount)개 · 재생 목록 \(summary.playlistCount)개 · 새 앨범아트 파일 \(summary.artworkFiles)개")]
         if summary.isTestVolume { details.append(String(ui: "시험 볼륨(디스크 이미지)입니다")) }
         details += summary.notes
         if !summary.rules.isEmpty {
@@ -912,7 +912,7 @@ extension UsbProgress.Phase {
     var displayName: String {
         switch self {
         case .planning: String(ui: "계획")
-        case .staging: String(ui: "준비(분석 파일·아트워크·DB)")
+        case .staging: String(ui: "준비(분석 파일·앨범아트·DB)")
         case .backup: String(ui: "백업")
         case .files: String(ui: "파일 쓰기")
         case .commit: String(ui: "DB 교체")

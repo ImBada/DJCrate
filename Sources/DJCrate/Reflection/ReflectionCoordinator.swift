@@ -442,7 +442,7 @@ struct ReflectionCoordinator {
             if gridWritten.contains(outcome.trackUUID) { parts.append(String(ui: "그리드")) }
             if analysisWritten.contains(outcome.trackUUID) {
                 parts.append(String(ui: "분석 파일 붙이기"))
-                if artwork.contains(outcome.trackUUID) { parts.append(String(ui: "아트워크")) }
+                if artwork.contains(outcome.trackUUID) { parts.append(String(ui: "앨범아트")) }
             }
             if gridBlocked.contains(outcome.trackUUID) { parts.append(String(ui: "⚠︎ 그리드는 안 들어감")) }
             if let fields = tagFields[outcome.trackUUID] { parts.append(String(ui: "태그(\(fields))")) }
@@ -453,7 +453,7 @@ struct ReflectionCoordinator {
         for grid in grids where !cueUUIDs.contains(grid.trackUUID) { body.append("• \(grid.title) — " + String(ui: "그리드(박 \(grid.added)개)")) }
         for analysis in analyses where !cueUUIDs.contains(analysis.trackUUID) {
             let made = artwork.contains(analysis.trackUUID)
-                ? String(ui: "분석 파일 붙이기(파형·그리드 박 \(analysis.added)개·오토게인·아트워크)")
+                ? String(ui: "분석 파일 붙이기(파형·그리드 박 \(analysis.added)개·오토게인·앨범아트)")
                 : String(ui: "분석 파일 붙이기(파형·그리드 박 \(analysis.added)개·오토게인)")
             body.append("• \(analysis.title) — " + made)
         }
@@ -475,7 +475,7 @@ struct ReflectionCoordinator {
         if !reasons.isEmpty { body += ["", String(ui: "쓰지 않는 것 \(reasons.count):")] + reasons }
         if !analyses.isEmpty {
             body += ["", analyses.contains { artwork.contains($0.trackUUID) }
-                ? String(ui: "파형·그리드·오토게인과 음원의 아트워크를 붙입니다. 키·프레이즈·보컬 분석은 없습니다.")
+                ? String(ui: "파형·그리드·오토게인과 음원의 앨범아트를 붙입니다. 키·프레이즈·보컬 분석은 없습니다.")
                 : String(ui: "파형·그리드·오토게인만 붙입니다. 키·프레이즈·보컬 분석은 없습니다.")]
         }
         if !tags.isEmpty {
@@ -512,7 +512,7 @@ struct ReflectionCoordinator {
 
     /// 아트워크 쓰기가 닫혀 있을 때(`RekordboxTrackWriter.writesArtwork`) 음원에 아트워크가 든 곡을 넣으면 보이는 안내
     static var artworkClosedNote: String {
-        String(ui: "음원의 아트워크는 아직 넣지 않으니, 필요하면 rekordbox 곡 정보 창에서 이미지를 끌어다 붙이세요.")
+        String(ui: "음원의 앨범아트는 아직 넣지 않으니, 필요하면 rekordbox 곡 정보 창에서 이미지를 끌어다 붙이세요.")
     }
 
     /// 넣기 전 확인 창: 곡마다 분석까지 붙는지(아트워크도 넣는지), 함께 쓰는 큐·키, 넣지 않는 곡과 이유.
@@ -526,7 +526,7 @@ struct ReflectionCoordinator {
         var body = written.map { outcome -> String in
             var parts = [preview.withoutAnalysis[outcome.path].map { String(ui: "분석 없이(\($0))") }
                 ?? String(ui: "그리드·파형·오토게인까지")]
-            if writesArtwork, analysedArtwork.contains(outcome) { parts.append(String(ui: "아트워크")) }
+            if writesArtwork, analysedArtwork.contains(outcome) { parts.append(String(ui: "앨범아트")) }
             if let count = outcome.cuesWritten, count > 0 { parts.append(String(ui: "큐 \(count)개")) }
             if let reason = outcome.cueReason { parts.append(String(ui: "⚠︎ 큐는 안 들어감(\(reason))")) }
             if let key = outcome.keyWritten { parts.append(String(ui: "키 \(key)")) }
@@ -537,7 +537,7 @@ struct ReflectionCoordinator {
         if !reasons.isEmpty { body += ["", String(ui: "넣지 않는 곡 \(reasons.count):")] + reasons }
         if !bare.isEmpty {
             body += ["", bare.contains { artwork.contains($0.path) }
-                ? String(ui: "분석 없이 넣는 곡은 rekordbox에서 분석해야 파형·그리드·아트워크가 생깁니다.")
+                ? String(ui: "분석 없이 넣는 곡은 rekordbox에서 분석해야 파형·그리드·앨범아트가 생깁니다.")
                 : String(ui: "분석 없이 넣는 곡은 rekordbox에서 분석해야 파형·그리드가 생깁니다.")]
         }
         if !writesArtwork, !analysedArtwork.isEmpty {
@@ -561,7 +561,7 @@ struct ReflectionCoordinator {
         var body = written.map { "• \($0.title)" }
         if !blocked.isEmpty { body += ["", String(ui: "빼지 않는 곡 \(blocked.count):")] + blocked.map { "• \($0.title): \($0.reason ?? "")" } }
         return ReflectionPrompt(title: String(ui: "\(written.count)곡을 rekordbox에서 뺄까요?"),
-                                text: String(ui: "음원 파일은 지우지 않습니다. rekordbox의 큐·재생 목록 항목·재생 기록·분석 파일·아트워크가 함께 사라집니다.")
+                                text: String(ui: "음원 파일은 지우지 않습니다. rekordbox의 큐·재생 목록 항목·재생 기록·분석 파일·앨범아트가 함께 사라집니다.")
                                     + "\n" + backupThenWriteText,
                                 confirm: String(ui: "rekordbox에서 빼기"), critical: true, details: body)
     }
@@ -576,8 +576,8 @@ struct ReflectionCoordinator {
             let added = tracks.added.filter(\.written).count, deleted = tracks.deleted.filter(\.written).count
             // 문장마다 번역하고, 문장 뒤 빈칸은 원래 모양 그대로 둔다.
             var sentences = [String(ui: "라이브러리 전체를 이 백업으로 복원합니다.")]
-            if added > 0 { sentences.append(String(ui: "넣었던 \(added)곡은 컬렉션에서 빠지고 DJCrate 추가 목록으로 돌아옵니다(분석·아트워크 파일도 삭제).")) }
-            if deleted > 0 { sentences.append(String(ui: "뺐던 \(deleted)곡은 큐·재생 목록·분석 파일·아트워크와 함께 복원됩니다.")) }
+            if added > 0 { sentences.append(String(ui: "넣었던 \(added)곡은 컬렉션에서 빠지고 DJCrate 추가 목록으로 돌아옵니다(분석·앨범아트 파일도 삭제).")) }
+            if deleted > 0 { sentences.append(String(ui: "뺐던 \(deleted)곡은 큐·재생 목록·분석 파일·앨범아트와 함께 복원됩니다.")) }
             lines.append(sentences.map { $0 + " " }.joined())
         } else {
             lines.append(String(ui: "라이브러리 전체를 이 백업으로 복원합니다. 그때 쓴 초안(큐·그리드·게인·태그·앨범아트)도 DJCrate에 복원됩니다."))

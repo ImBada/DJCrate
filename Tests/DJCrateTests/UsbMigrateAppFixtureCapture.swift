@@ -18,6 +18,6 @@ struct UsbMigrateAppFixtureCapture {
         usb.myTagLinks = []
         let tree = UsbTreeFixture(base: root.appending(path: "seed"))
         try usb.write(to: tree)
-        print("USB 옮기기 캡처 합성 재료: Device Library · 곡 3 · 재생 목록 1 · 아트워크 6")
+        print("USB 옮기기 캡처 합성 재료: Device Library · 곡 3 · 재생 목록 1 · 앨범아트 6")
     }
 }

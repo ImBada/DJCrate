@@ -296,12 +296,12 @@ public enum UsbMigration {
 
         static var artworkMissing: UsbBlock {
             UsbBlock(code: "artworkMissingOnUsb", scope: .volume,
-                     message: String(ui: "USB의 아트워크 파일이 없거나 경로 모양이 달라 옮기지 않았습니다. rekordbox에서 USB를 다시 내보내세요"))
+                     message: String(ui: "USB의 앨범아트 파일이 없거나 경로 모양이 달라 옮기지 않았습니다. rekordbox에서 USB를 다시 내보내세요"))
         }
 
         static var artworkExists: UsbBlock {
             UsbBlock(code: "artworkExists", scope: .volume,
-                     message: String(ui: "OneLibrary 아트워크 자리에 다른 파일이 있어 옮기지 않았습니다. rekordbox에서 USB를 다시 내보내세요"))
+                     message: String(ui: "OneLibrary 앨범아트 자리에 다른 파일이 있어 옮기지 않았습니다. rekordbox에서 USB를 다시 내보내세요"))
         }
 
         static func filesMismatch(detail: String) -> UsbBlock {

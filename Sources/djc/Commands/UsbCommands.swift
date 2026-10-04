@@ -218,7 +218,7 @@ enum UsbCommands {
     static func phaseName(_ phase: UsbProgress.Phase) -> String {
         switch phase {
         case .planning: String(ui: "계획")
-        case .staging: String(ui: "준비(분석 파일·아트워크·DB)")
+        case .staging: String(ui: "준비(분석 파일·앨범아트·DB)")
         case .backup: String(ui: "백업")
         case .files: String(ui: "파일 쓰기")
         case .commit: String(ui: "DB 교체")
@@ -470,7 +470,7 @@ enum UsbCommands {
     static func migrateLines(result: UsbMigrationResult, report: UsbWriteReport?) -> [String] {
         var lines = result.blocks.map { String(ui: "막힘 \($0.code): \($0.message)") }
         guard let changes = result.changes else { return lines }
-        lines.append(String(ui: "옮길 것: 곡 \(result.trackCount) · 재생 목록 \(result.playlistCount) · OneLibrary 아트워크 \(result.artworkFiles)"))
+        lines.append(String(ui: "옮길 것: 곡 \(result.trackCount) · 재생 목록 \(result.playlistCount) · OneLibrary 앨범아트 \(result.artworkFiles)"))
         lines += groupedNotes(result.notes)
         let rules = changes.requiredRules.map(\.rawValue).sorted()
         lines.append(rules.isEmpty ? String(ui: "확인 안 된 규칙: 없음") : String(ui: "확인 안 된 규칙: \(rules.joined(separator: ", "))"))

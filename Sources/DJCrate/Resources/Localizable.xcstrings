@@ -592,34 +592,34 @@
         }
       }
     },
-    "%@ · %lld곡 · 만든 파일(분석·아트워크) %lld개 · 백업 %@" : {
+    "%@ · %lld곡 · 만든 파일(분석·앨범아트) %lld개 · 백업 %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ · Tracks: %2$lld · Files created (analysis/artwork): %3$lld · Backup: %4$@"
+            "value" : "%1$@ · Tracks: %2$lld · Files created (analysis/album art): %3$lld · Backup: %4$@"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ · %2$lld曲 · 作成したファイル（解析・アートワーク）%3$lld個 · バックアップ%4$@"
+            "value" : "%1$@ · %2$lld曲 · 作成したファイル（解析・アルバムアート）%3$lld個 · バックアップ%4$@"
           }
         }
       }
     },
-    "%@ · %lld곡 · 지운 파일(분석·아트워크) %lld개 · 백업 %@" : {
+    "%@ · %lld곡 · 지운 파일(분석·앨범아트) %lld개 · 백업 %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ · Tracks: %2$lld · Files deleted (analysis/artwork): %3$lld · Backup: %4$@"
+            "value" : "%1$@ · Tracks: %2$lld · Files deleted (analysis/album art): %3$lld · Backup: %4$@"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ · %2$lld曲 · 削除したファイル（解析・アートワーク）%3$lld個 · バックアップ%4$@"
+            "value" : "%1$@ · %2$lld曲 · 削除したファイル（解析・アルバムアート）%3$lld個 · バックアップ%4$@"
           }
         }
       }
@@ -4553,18 +4553,18 @@
         }
       }
     },
-    "OneLibrary 아트워크 자리에 다른 파일이 있어 옮기지 않았습니다. rekordbox에서 USB를 다시 내보내세요" : {
+    "OneLibrary 앨범아트 자리에 다른 파일이 있어 옮기지 않았습니다. rekordbox에서 USB를 다시 내보내세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Not converted because a different file is already where the OneLibrary artwork goes. Export the USB again from rekordbox"
+            "value" : "Not converted because a different file is already where the OneLibrary album art goes. Export the USB again from rekordbox"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "OneLibraryのアートワークの場所に別のファイルがあるため移行しませんでした。rekordboxからUSBをもう一度エクスポートしてください"
+            "value" : "OneLibraryのアルバムアートの場所に別のファイルがあるため移行しませんでした。rekordboxからUSBをもう一度エクスポートしてください"
           }
         }
       }
@@ -6699,18 +6699,18 @@
         }
       }
     },
-    "USB의 아트워크 파일이 없거나 경로 모양이 달라 옮기지 않았습니다. rekordbox에서 USB를 다시 내보내세요" : {
+    "USB의 앨범아트 파일이 없거나 경로 모양이 달라 옮기지 않았습니다. rekordbox에서 USB를 다시 내보내세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Not converted because an artwork file on the USB is missing or its path has an unexpected form. Export the USB again from rekordbox"
+            "value" : "Not converted because an album art file on the USB is missing or its path has an unexpected form. Export the USB again from rekordbox"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "USBのアートワークファイルがないかパスの形が異なるため移行しませんでした。rekordboxからUSBをもう一度エクスポートしてください"
+            "value" : "USBのアルバムアートファイルがないかパスの形が異なるため移行しませんでした。rekordboxからUSBをもう一度エクスポートしてください"
           }
         }
       }
@@ -12083,18 +12083,18 @@
         }
       }
     },
-    "곡 %lld개 · 재생 목록 %lld개 · 새 아트워크 파일 %lld개" : {
+    "곡 %lld개 · 재생 목록 %lld개 · 새 앨범아트 파일 %lld개" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld tracks · %lld playlists · %lld new artwork files"
+            "value" : "%lld tracks · %lld playlists · %lld new album art files"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld曲・プレイリスト%lld件・新しいアートワークファイル%lld個"
+            "value" : "%lld曲・プレイリスト%lld件・新しいアルバムアートファイル%lld個"
           }
         }
       }
@@ -14931,7 +14931,7 @@
         }
       }
     },
-    "넣었던 %lld곡은 컬렉션에서 빠지고 DJCrate 추가 목록으로 돌아옵니다(분석·아트워크 파일도 삭제)." : {
+    "넣었던 %lld곡은 컬렉션에서 빠지고 DJCrate 추가 목록으로 돌아옵니다(분석·앨범아트 파일도 삭제)." : {
       "localizations" : {
         "en" : {
           "variations" : {
@@ -14939,13 +14939,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "The %lld added track leaves the collection and returns to DJCrate's added list (its analysis and artwork files are deleted too)."
+                  "value" : "The %lld added track leaves the collection and returns to DJCrate's added list (its analysis and album art files are deleted too)."
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "The %lld added tracks leave the collection and return to DJCrate's added list (their analysis and artwork files are deleted too)."
+                  "value" : "The %lld added tracks leave the collection and return to DJCrate's added list (their analysis and album art files are deleted too)."
                 }
               }
             }
@@ -14954,7 +14954,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "追加した%lld曲はコレクションから外れ、DJCrateの追加リストに戻ります（解析・アートワークファイルも削除）。"
+            "value" : "追加した%lld曲はコレクションから外れ、DJCrateの追加リストに戻ります（解析・アルバムアートファイルも削除）。"
           }
         }
       }
@@ -20099,18 +20099,18 @@
         }
       }
     },
-    "분석 없이 넣는 곡은 rekordbox에서 분석해야 파형·그리드·아트워크가 생깁니다." : {
+    "분석 없이 넣는 곡은 rekordbox에서 분석해야 파형·그리드·앨범아트가 생깁니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tracks added without analysis get a waveform, grid, and artwork only after you analyze them in rekordbox."
+            "value" : "Tracks added without analysis get a waveform, grid, and album art only after you analyze them in rekordbox."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "解析なしで追加した曲は、rekordboxで解析すると波形・グリッド・アートワークができます。"
+            "value" : "解析なしで追加した曲は、rekordboxで解析すると波形・グリッド・アルバムアートができます。"
           }
         }
       }
@@ -20303,7 +20303,7 @@
         }
       }
     },
-    "분석 파일 붙이기(파형·그리드 박 %lld개·오토게인·아트워크)" : {
+    "분석 파일 붙이기(파형·그리드 박 %lld개·오토게인·앨범아트)" : {
       "localizations" : {
         "en" : {
           "variations" : {
@@ -20311,13 +20311,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "attach analysis files (waveform, grid with %lld beat, Auto Gain, artwork)"
+                  "value" : "attach analysis files (waveform, grid with %lld beat, Auto Gain, album art)"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "attach analysis files (waveform, grid with %lld beats, Auto Gain, artwork)"
+                  "value" : "attach analysis files (waveform, grid with %lld beats, Auto Gain, album art)"
                 }
               }
             }
@@ -20326,7 +20326,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "解析ファイルを追加（波形・グリッド%lld拍・オートゲイン・アートワーク）"
+            "value" : "解析ファイルを追加（波形・グリッド%lld拍・オートゲイン・アルバムアート）"
           }
         }
       }
@@ -20571,18 +20571,18 @@
         }
       }
     },
-    "분석·아트워크 파일: %@" : {
+    "분석·앨범아트 파일: %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Analysis and artwork files: %@"
+            "value" : "Analysis and album art files: %@"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "解析・アートワークファイル: %@"
+            "value" : "解析・アルバムアートファイル: %@"
           }
         }
       }
@@ -20961,7 +20961,7 @@
         }
       }
     },
-    "뺐던 %lld곡은 큐·재생 목록·분석 파일·아트워크와 함께 복원됩니다." : {
+    "뺐던 %lld곡은 큐·재생 목록·분석 파일·앨범아트와 함께 복원됩니다." : {
       "localizations" : {
         "en" : {
           "variations" : {
@@ -20969,13 +20969,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "The %lld removed track is restored along with its cues, playlist entries, analysis files, and artwork."
+                  "value" : "The %lld removed track is restored along with its cues, playlist entries, analysis files, and album art."
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "The %lld removed tracks are restored along with their cues, playlist entries, analysis files, and artwork."
+                  "value" : "The %lld removed tracks are restored along with their cues, playlist entries, analysis files, and album art."
                 }
               }
             }
@@ -20984,7 +20984,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "削除した%lld曲は、キュー・プレイリスト・解析ファイル・アートワークとともに復元されます。"
+            "value" : "削除した%lld曲は、キュー・プレイリスト・解析ファイル・アルバムアートとともに復元されます。"
           }
         }
       }
@@ -23711,54 +23711,6 @@
         }
       }
     },
-    "아트워크" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Artwork"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アートワーク"
-          }
-        }
-      }
-    },
-    "아트워크 파일을 폴더로 나누는 규칙" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rule for splitting artwork files into folders"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アートワークファイルをフォルダに分ける規則"
-          }
-        }
-      }
-    },
-    "아트워크가 없는 곡의 처리" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Handling tracks without artwork"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アートワークがない曲の扱い"
-          }
-        }
-      }
-    },
     "아티스트" : {
       "localizations" : {
         "en" : {
@@ -24079,22 +24031,6 @@
         }
       }
     },
-    "앨범 아트" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Artwork"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アートワーク"
-          }
-        }
-      }
-    },
     "앨범 아티스트" : {
       "localizations" : {
         "en" : {
@@ -24107,38 +24043,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アルバムアーティスト"
-          }
-        }
-      }
-    },
-    "앨범 커버" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Artwork"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アートワーク"
-          }
-        }
-      }
-    },
-    "앨범 커버 없음" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No artwork"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アートワークなし"
           }
         }
       }
@@ -24663,6 +24567,22 @@
         }
       }
     },
+    "앨범아트 파일을 폴더로 나누는 규칙" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rule for splitting album art files into folders"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アルバムアートファイルをフォルダに分ける規則"
+          }
+        }
+      }
+    },
     "앨범아트 파일이 없어 앨범아트 없이 내보냅니다" : {
       "localizations" : {
         "en" : {
@@ -24723,6 +24643,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アルバムアートのフォルダに既にファイルがあるため書き込みません。rekordboxでアルバムアートを確認してください"
+          }
+        }
+      }
+    },
+    "앨범아트가 없는 곡의 처리" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Handling tracks without album art"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アルバムアートがない曲の扱い"
           }
         }
       }
@@ -25389,24 +25325,24 @@
         }
       }
     },
-    "옮길 것: 곡 %lld · 재생 목록 %lld · OneLibrary 아트워크 %lld" : {
+    "옮길 것: 곡 %lld · 재생 목록 %lld · OneLibrary 앨범아트 %lld" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "To convert: %1$lld tracks · %2$lld playlists · %3$lld OneLibrary artwork files"
+            "value" : "To convert: %1$lld tracks · %2$lld playlists · %3$lld OneLibrary album art files"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "移行するもの: 曲 %1$lld · プレイリスト %2$lld · OneLibraryアートワーク %3$lld"
+            "value" : "移行するもの: 曲 %1$lld · プレイリスト %2$lld · OneLibraryアルバムアート %3$lld"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "옮길 것: 곡 %1$lld · 재생 목록 %2$lld · OneLibrary 아트워크 %3$lld"
+            "value" : "옮길 것: 곡 %1$lld · 재생 목록 %2$lld · OneLibrary 앨범아트 %3$lld"
           }
         }
       }
@@ -26005,18 +25941,18 @@
         }
       }
     },
-    "음원 파일은 지우지 않습니다. rekordbox의 큐·재생 목록 항목·재생 기록·분석 파일·아트워크가 함께 사라집니다." : {
+    "음원 파일은 지우지 않습니다. rekordbox의 큐·재생 목록 항목·재생 기록·분석 파일·앨범아트가 함께 사라집니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Audio files aren't deleted. The tracks' cues, playlist entries, history, analysis files, and artwork in rekordbox are removed with them."
+            "value" : "Audio files aren't deleted. The tracks' cues, playlist entries, history, analysis files, and album art in rekordbox are removed with them."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "音源ファイルは削除しません。rekordboxのキュー・プレイリストの項目・演奏履歴・解析ファイル・アートワークも一緒に削除されます。"
+            "value" : "音源ファイルは削除しません。rekordboxのキュー・プレイリストの項目・演奏履歴・解析ファイル・アルバムアートも一緒に削除されます。"
           }
         }
       }
@@ -26277,18 +26213,18 @@
         }
       }
     },
-    "음원의 아트워크는 아직 넣지 않으니, 필요하면 rekordbox 곡 정보 창에서 이미지를 끌어다 붙이세요." : {
+    "음원의 앨범아트는 아직 넣지 않으니, 필요하면 rekordbox 곡 정보 창에서 이미지를 끌어다 붙이세요." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Artwork from audio files isn't added yet. If you need it, drag the image into the track information window in rekordbox."
+            "value" : "Album art from audio files isn't added yet. If you need it, drag the image into the track information window in rekordbox."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "音源のアートワークはまだ追加しません。必要な場合は、rekordboxのトラック情報画面に画像をドラッグしてください。"
+            "value" : "音源のアルバムアートはまだ追加しません。必要な場合は、rekordboxのトラック情報画面に画像をドラッグしてください。"
           }
         }
       }
@@ -30035,18 +29971,18 @@
         }
       }
     },
-    "준비(분석 파일·아트워크·DB)" : {
+    "준비(분석 파일·앨범아트·DB)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Preparing (analysis files, artwork, databases)"
+            "value" : "Preparing (analysis files, album art, databases)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "準備（解析ファイル・アートワーク・DB）"
+            "value" : "準備（解析ファイル・アルバムアート・DB）"
           }
         }
       }
@@ -34373,18 +34309,18 @@
         }
       }
     },
-    "파형·그리드·오토게인과 음원의 아트워크를 붙입니다. 키·프레이즈·보컬 분석은 없습니다." : {
+    "파형·그리드·오토게인과 음원의 앨범아트를 붙입니다. 키·프레이즈·보컬 분석은 없습니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Attaches the waveform, grid, Auto Gain, and the audio file's artwork. No key, phrase, or vocal analysis is included."
+            "value" : "Attaches the waveform, grid, Auto Gain, and the audio file's album art. No key, phrase, or vocal analysis is included."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "波形・グリッド・オートゲインと音源のアートワークを追加します。キー・フレーズ・ボーカルの解析はありません。"
+            "value" : "波形・グリッド・オートゲインと音源のアルバムアートを追加します。キー・フレーズ・ボーカルの解析はありません。"
           }
         }
       }
@@ -35521,18 +35457,18 @@
         }
       }
     },
-    "허용된 분석·아트워크 경로가 아님" : {
+    "허용된 분석·앨범아트 경로가 아님" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "the path is not an allowed analysis or artwork path"
+            "value" : "the path is not an allowed analysis or album art path"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "許可された解析・アートワークのパスではありません"
+            "value" : "許可された解析・アルバムアートのパスではありません"
           }
         }
       }
