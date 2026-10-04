@@ -124,7 +124,7 @@ public final class RekordboxFixture {
             .deletingPathExtension().appendingPathExtension(ext)
     }
 
-    /// 재생 목록·폴더 하나(djmdPlaylist + 클라우드 거울 행 + 곡 항목). 동기화를 마친 행처럼 상태 256·usn을 채운다.
+    /// 재생 목록·폴더 하나(djmdPlaylist + 클라우드 거울 행 + 곡 항목). 동기화를 마친 행처럼 상태 256·usn을 채운다(곡 항목은 그 곡 행의 상태를 따른다).
     @discardableResult
     public func add(_ playlist: PlaylistSpec) throws -> PlaylistSpec {
         try add(playlists: [playlist])
@@ -153,12 +153,16 @@ public final class RekordboxFixture {
             VALUES (?, ?, 0, NULL, ?, 256, 0, 0, 0, 21, 21, ?, ?)
             """, [.text("cf-\(playlist.id)"), .text(playlist.uuid), .text(UUID().uuidString.lowercased()), .text(Self.stamp), .text(Self.stamp)])
         for (index, contentID) in playlist.contentIDs.enumerated() {
+            // 곡 항목의 상태는 그 곡 행을 따른다: 동기화를 마친 곡(256)의 항목은 256, 상태 0 곡의 항목은 0(곡 빼기·합치기 규칙을 확인한 모양, #196).
+            // 곡 행이 아직 없으면 256.
+            var status = 256
+            try db.query("SELECT rb_data_status FROM djmdContent WHERE ID = ?", [.text(contentID)]) { status = $0.int(0) ?? 256 }
             try db.run("""
                 INSERT INTO djmdSongPlaylist (ID, PlaylistID, ContentID, TrackNo, UUID, rb_data_status, rb_local_data_status, rb_local_deleted,
                     rb_local_synced, usn, rb_local_usn, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, 256, 0, 0, 0, 22, 22, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 22, 22, ?, ?)
                 """, [.text(UUID().uuidString.lowercased()), .text(playlist.id), .text(contentID), .int(index + 1),
-                      .text(UUID().uuidString.lowercased()), .text(Self.stamp), .text(Self.stamp)])
+                      .text(UUID().uuidString.lowercased()), .int(status), .text(Self.stamp), .text(Self.stamp)])
         }
     }
 

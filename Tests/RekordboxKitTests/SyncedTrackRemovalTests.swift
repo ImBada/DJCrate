@@ -7,6 +7,7 @@ import Testing
 /// 동기화 상태 곡 빼기·합치기 막기(#196).
 /// rekordbox 7.2.18은 동기화한 곡을 지울 때 행을 지우지 않고 삭제 표시(`rb_local_deleted` 1, 상태 258 → 클라우드 처리 뒤 262)로 남긴다.
 /// 곡 빼기·합치기 규칙은 상태 0 시험 곡으로만 실험했으므로, 상태가 0이 아닌 곡·행이 걸리면 묶음 3 실험(세션 D3)으로 규칙을 확인하기 전까지 막는다.
+/// 뒤 순번을 당기는 행(`syncedRenumberReason`)과 확인하지 않은 `djmdRecommendLike`도 같은 이유로 막는다.
 @Suite("동기화 상태 곡 빼기·합치기 막기")
 struct SyncedTrackRemovalTests {
     let writer = RekordboxTrackWriterTests()
@@ -112,27 +113,154 @@ struct SyncedTrackRemovalTests {
         #expect(try fixture.rows("SELECT ID, rb_data_status FROM djmdAlbum") == [["ID": "10", "rb_data_status": "256"]])
     }
 
+    // MARK: 뒤 순번 당기기
+
+    /// 곡을 빼면 같은 목록·이력의 뒤 항목 순번을 당긴다. 동기화 항목(256)을 고치면 플레이리스트 편집(`touchEntry`)처럼 257로 올린다.
+    /// 0·257은 그대로다(사용자 정책: 동기화 데이터를 DJCrate가 고친 행은 257).
+    @Test(arguments: ["djmdSongPlaylist", "djmdSongHistory"], [(before: 0, after: 0), (before: 256, after: 257), (before: 257, after: 257)])
+    func 순번을_당기는_뒤_항목은_256만_257로_올린다(_ table: String, _ status: (before: Int, after: Int)) throws {
+        let (fixture, a, b) = try writer.deleteFixture()
+        try setStatus(fixture, table, "ContentID", b.id, status.before)
+        let report = try writer.delete(fixture, [a.id])
+        #expect(report.deleted.first?.written == true)
+        let entry = try #require(try fixture.rows("SELECT TrackNo, rb_data_status, rb_local_usn FROM \(table) WHERE ContentID = ?", [.text(b.id)]).first)
+        #expect(entry == ["TrackNo": "1", "rb_data_status": "\(status.after)", "rb_local_usn": "2001"], "\(table)")
+    }
+
+    func insertDeletedMarked(_ fixture: RekordboxFixture, table: String, list: String, trackNo: Int) throws {
+        let column = table == "djmdSongPlaylist" ? "PlaylistID" : "HistoryID"
+        try fixture.insert(table, ["ID": .text("gone-\(list)-\(trackNo)"), column: .text(list), "ContentID": .text("999"), "TrackNo": .int(trackNo),
+                                   "UUID": .text("ug-\(list)-\(trackNo)"), "rb_local_deleted": .int(1), "rb_data_status": .int(262), "rb_local_usn": .int(5)])
+    }
+
+    /// 지운 표시(`rb_local_deleted` 1)가 남은 행을 순번 당기기가 건드리면 어떻게 되는지 모른다. 그 곡을 막는다.
+    @Test(arguments: ["djmdSongPlaylist", "djmdSongHistory"])
+    func 뒤_순번에_지운_표시된_행이_있으면_막고_아무것도_바꾸지_않는다(_ table: String) throws {
+        let (fixture, a, _) = try writer.deleteFixture()
+        try insertDeletedMarked(fixture, table: table, list: "L", trackNo: 3)
+        let before = try snapshot(fixture)
+        let report = try writer.delete(fixture, [a.id])
+        #expect(report.deleted.first?.written == false && report.deleted.first?.reason == RekordboxTrackWriter.syncedRenumberReason)
+        #expect(try snapshot(fixture) == before)
+        #expect(try fixture.localUpdateCount() == 2000)
+    }
+
+    /// 순번을 당기지 않는 자리(같은 번호 이하, 다른 목록)의 지운 표시 행은 상관없다.
+    @Test(arguments: ["djmdSongPlaylist", "djmdSongHistory"])
+    func 앞_순번이나_다른_목록의_지운_표시된_행은_막지_않고_그대로_둔다(_ table: String) throws {
+        let (fixture, a, _) = try writer.deleteFixture()
+        try insertDeletedMarked(fixture, table: table, list: "L", trackNo: 1)
+        try insertDeletedMarked(fixture, table: table, list: "M", trackNo: 5)
+        let marked = try fixture.rows("SELECT * FROM \(table) WHERE rb_local_deleted = 1 ORDER BY ID")
+        let report = try writer.delete(fixture, [a.id])
+        #expect(report.deleted.first?.written == true)
+        #expect(try fixture.rows("SELECT * FROM \(table) WHERE rb_local_deleted = 1 ORDER BY ID") == marked)
+    }
+
+    /// 막힌 곡은 변경 번호를 가져가지 않는다: 같은 요청의 다른 곡은 단독 삭제와 같은 번호를 받는다.
+    @Test func 순번_때문에_막힌_곡이_먼저여도_다른_곡의_변경_번호는_밀리지_않는다() throws {
+        let (fixture, a, _) = try writer.deleteFixture()
+        var c = TrackSpec(id: "300")
+        c.dataStatus = 0
+        try fixture.add(c)
+        try fixture.insert("djmdSongPlaylist", ["ID": .text("c-entry"), "PlaylistID": .text("M"), "ContentID": .text(c.id), "TrackNo": .int(1),
+                                                "UUID": .text("uc"), "rb_local_deleted": .int(0), "rb_local_usn": .int(5)])
+        try insertDeletedMarked(fixture, table: "djmdSongPlaylist", list: "M", trackNo: 2)
+        let report = try writer.delete(fixture, [c.id, a.id])
+        #expect(report.deleted.map(\.written) == [false, true])
+        #expect(report.deleted.first?.reason == RekordboxTrackWriter.syncedRenumberReason)
+        #expect(try fixture.rows("SELECT ID FROM djmdContent ORDER BY ID").map { $0["ID"] }.contains(c.id))
+        #expect(try fixture.localUpdateCount() == 2001)
+        #expect(report.finalUpdateCount == 2001)
+    }
+
+    // MARK: djmdRecommendLike
+
+    func insertRecommendLike(_ fixture: RekordboxFixture, _ id: String, _ first: String, _ second: String) throws {
+        try fixture.insert("djmdRecommendLike", ["ID": .text(id), "ContentID1": .text(first), "ContentID2": .text(second), "LikeRate": .int(1),
+                                                 "UUID": .text("u-\(id)"), "rb_local_deleted": .int(0)])
+    }
+
+    /// 확인하지 않은 표라 `ContentID1`·`ContentID2` 어느 쪽에 걸려도 곡을 지우지 않는다(안 막으면 지운 곡을 가리키는 행이 남는다).
+    @Test(arguments: [(first: "100", second: "999"), (first: "999", second: "100")])
+    func 추천_좋아요_표가_가리키는_곡은_지우지_않는다(_ pair: (first: String, second: String)) throws {
+        let (fixture, a, _) = try writer.deleteFixture()
+        try insertRecommendLike(fixture, "r1", pair.first, pair.second)
+        let before = try snapshot(fixture) + [fixture.rows("SELECT * FROM djmdRecommendLike")]
+        let report = try writer.delete(fixture, [a.id])
+        #expect(report.deleted.first?.written == false && report.deleted.first?.reason?.contains("djmdRecommendLike") == true)
+        #expect(try snapshot(fixture) + [fixture.rows("SELECT * FROM djmdRecommendLike")] == before)
+        #expect(try fixture.localUpdateCount() == 2000)
+    }
+
+    @Test func 다른_곡만_가리키는_추천_좋아요_행은_막지_않는다() throws {
+        let (fixture, a, b) = try writer.deleteFixture()
+        try insertRecommendLike(fixture, "r1", b.id, "999")
+        let report = try writer.delete(fixture, [a.id])
+        #expect(report.deleted.first?.written == true)
+        #expect(try fixture.rows("SELECT ID FROM djmdRecommendLike").count == 1)
+    }
+
     // MARK: 합치기
 
-    @Test func 동기화_상태_원본이_있으면_합치기_초안을_만들지_않는다() throws {
-        let fixture = try merge.fixture(statuses: ["200": 256])
+    /// 남길 곡과 뺄 곡 이름이 달라야 막은 이유가 뺄 곡을 가리키는지 알 수 있다.
+    func namedFixture(statuses: [String: Int] = [:]) throws -> RekordboxFixture {
+        let fixture = try merge.fixture(statuses: statuses)
+        try fixture.execute("UPDATE djmdContent SET Title = '남길 곡' WHERE ID = '100'")
+        try fixture.execute("UPDATE djmdContent SET Title = '뺄 곡' WHERE ID = '200'")
+        return fixture
+    }
+
+    /// 합치기가 막힌 이유: 지울 원본의 이름을 앞에 적는다.
+    func sourceReason(_ reason: String, title: String = "뺄 곡") -> String {
+        RekordboxWriter.mergeSourceReason(reason, title: title)
+    }
+
+    func insertHistory(_ fixture: RekordboxFixture, id: String, contentID: String, trackNo: Int, status: Int = 0, deleted: Int = 0) throws {
+        try fixture.insert("djmdSongHistory", ["ID": .text(id), "HistoryID": .text("H"), "ContentID": .text(contentID), "TrackNo": .int(trackNo),
+                                               "UUID": .text("u-\(id)"), "rb_data_status": .int(status), "rb_local_deleted": .int(deleted),
+                                               "rb_local_usn": .int(5)])
+    }
+
+    func expectBlockedDraft(_ fixture: RekordboxFixture, reason expected: String) {
         do {
             _ = try merge.draft(fixture)
             Issue.record("막혀야 합니다")
         } catch let blocked as DuplicateMerge.Blocked {
-            #expect(blocked.reason == RekordboxTrackWriter.syncedTrackReason)
+            #expect(blocked.reason == expected)
+        } catch {
+            Issue.record("다른 오류: \(error)")
         }
+    }
+
+    @Test func 동기화_상태_원본이_있으면_합치기_초안을_만들지_않는다() throws {
+        let fixture = try namedFixture(statuses: ["200": 256])
+        expectBlockedDraft(fixture, reason: sourceReason(RekordboxTrackWriter.syncedTrackReason))
+    }
+
+    /// 이유는 남길 곡이 아니라 지울 원본을 가리켜야 한다(남길 곡을 빼야 하는 것처럼 읽히지 않게). 쓰기 보고의 제목은 남길 곡이다.
+    @Test func 막은_이유는_뺄_원본의_이름을_적는다() throws {
+        let fixture = try namedFixture()
+        let draft = try merge.draft(fixture)
+        try setStatus(fixture, "djmdContent", "ID", "200", 256)
+        let report = try merge.write(fixture, draft)
+        let blocked = try #require(report.mergeBlocked.first)
+        #expect(blocked.title == "남길 곡")
+        let reason = try #require(blocked.reason)
+        #expect(reason == sourceReason(RekordboxTrackWriter.syncedTrackReason))
+        #expect(reason.contains("‘뺄 곡’") && !reason.contains("남길 곡"))
     }
 
     @Test(arguments: [256, 257])
     func 초안을_만든_뒤_원본이_동기화되면_쓰기에서_막고_아무것도_바꾸지_않는다(_ status: Int) throws {
-        let fixture = try merge.fixture()
+        let fixture = try namedFixture()
         let draft = try merge.draft(fixture)
         try setStatus(fixture, "djmdContent", "ID", "200", status)
         let before = try snapshot(fixture)
         let report = try merge.write(fixture, draft)
         #expect(report.mergeWritten.isEmpty && report.mergeBlocked.count == 1)
-        #expect(report.mergeBlocked[0].reason == RekordboxTrackWriter.syncedTrackReason)
+        let blocked = try #require(report.mergeBlocked.first)
+        #expect(blocked.reason == sourceReason(RekordboxTrackWriter.syncedTrackReason))
         #expect(report.backup == nil)
         #expect(try snapshot(fixture) == before)
         #expect(try fixture.localUpdateCount() == 1000)
@@ -149,15 +277,10 @@ struct SyncedTrackRemovalTests {
     }
 
     @Test func 원본만_쓰던_동기화_아티스트가_있으면_합치기_초안을_만들지_않는다() throws {
-        let fixture = try merge.fixture()
+        let fixture = try namedFixture()
         try fixture.insert("djmdArtist", ["ID": .text("1"), "Name": .text("동기화"), "UUID": .text("a1"), "rb_local_deleted": .int(0), "rb_data_status": .int(256)])
         try fixture.execute("UPDATE djmdContent SET ArtistID = '1' WHERE ID = '200'")
-        do {
-            _ = try merge.draft(fixture)
-            Issue.record("막혀야 합니다")
-        } catch let blocked as DuplicateMerge.Blocked {
-            #expect(blocked.reason == RekordboxTrackWriter.syncedOrphanReason)
-        }
+        expectBlockedDraft(fixture, reason: sourceReason(RekordboxTrackWriter.syncedOrphanReason))
         // 남는 곡도 그 아티스트를 쓰면 아티스트 행은 지우지 않으니 막지 않는다
         try fixture.execute("UPDATE djmdContent SET ArtistID = '1' WHERE ID = '100'")
         _ = try merge.draft(fixture)
@@ -173,19 +296,127 @@ struct SyncedTrackRemovalTests {
         }
     }
 
-    /// 원본 목록 항목은 검증된 목록 경로로 먼저 빠지므로 합치기는 목록 항목 상태로 막지 않는다. 그 밖의 딸린 행(여기서는 파일 행)이
-    /// 동기화 상태이면 지우는 자리에서 막고, 앞서 쓴 큐·목록 편집과 변경 번호까지 되돌린다.
-    @Test func 원본의_다른_딸린_행이_동기화_상태이면_쓰기_중에_막고_모두_되돌린다() throws {
-        let fixture = try merge.fixture()
-        var source = TrackSpec(id: "200")
-        source.dataStatus = 256
-        try fixture.addContentFile(for: source, hash: "h", size: 1)
+    /// 원본의 재생 목록 항목도 합치기가 지운다(목록 편집이 먼저 빼지만 동기화 항목을 빼는 규칙은 확인하지 못했다). 다른 딸린 행과 같이 사전 검사가 본다.
+    @Test(arguments: ["djmdSongPlaylist", "djmdSongHistory"])
+    func 원본의_재생_목록_이력_항목이_동기화_상태이면_합치기_초안을_만들지_않는다(_ table: String) throws {
+        let fixture = try namedFixture()
+        if table == "djmdSongHistory" { try insertHistory(fixture, id: "h1", contentID: "200", trackNo: 1) }
+        try setStatus(fixture, table, "ContentID", "200", 256)
+        expectBlockedDraft(fixture, reason: sourceReason(RekordboxTrackWriter.syncedRowsReason))
+    }
+
+    @Test(arguments: ["djmdSongPlaylist", "djmdSongHistory"], [256, 257])
+    func 초안을_만든_뒤_원본의_항목이_동기화되면_쓰기_전에_막고_아무것도_바꾸지_않는다(_ table: String, _ status: Int) throws {
+        let fixture = try namedFixture()
+        if table == "djmdSongHistory" { try insertHistory(fixture, id: "h1", contentID: "200", trackNo: 1) }
         let draft = try merge.draft(fixture)
+        try setStatus(fixture, table, "ContentID", "200", status)
         let before = try snapshot(fixture)
         let report = try merge.write(fixture, draft)
         #expect(report.mergeWritten.isEmpty && report.mergeBlocked.count == 1)
-        #expect(report.mergeBlocked[0].reason == RekordboxTrackWriter.syncedRowsReason)
+        let blocked = try #require(report.mergeBlocked.first)
+        #expect(blocked.reason == sourceReason(RekordboxTrackWriter.syncedRowsReason))
+        #expect(report.backup == nil)
         #expect(try snapshot(fixture) == before)
         #expect(try fixture.localUpdateCount() == 1000)
+    }
+
+    /// 다른 딸린 행(여기서는 파일 행)이 동기화 상태이면 원본 목록 항목과 마찬가지로 쓰기 전에 막는다.
+    @Test func 원본의_다른_딸린_행이_동기화_상태이면_쓰기_전에_막고_아무것도_바꾸지_않는다() throws {
+        let fixture = try namedFixture()
+        let draft = try merge.draft(fixture)
+        var source = TrackSpec(id: "200")
+        source.dataStatus = 256
+        try fixture.addContentFile(for: source, hash: "h", size: 1)
+        let before = try snapshot(fixture)
+        let report = try merge.write(fixture, draft)
+        #expect(report.mergeWritten.isEmpty && report.mergeBlocked.count == 1)
+        let blocked = try #require(report.mergeBlocked.first)
+        #expect(blocked.reason == sourceReason(RekordboxTrackWriter.syncedRowsReason))
+        #expect(report.backup == nil)
+        #expect(try snapshot(fixture) == before)
+        #expect(try fixture.localUpdateCount() == 1000)
+    }
+
+    /// 묶음마다 따로 본다: 막힌 묶음만 빠지고 나머지는 그대로 쓴다.
+    @Test func 두_묶음_중_원본의_목록_항목이_동기화된_묶음만_막고_나머지는_쓴다() throws {
+        let fixture = try namedFixture()
+        for id in ["400", "500"] {
+            var track = TrackSpec(id: id, uuid: "u" + id)
+            track.dataStatus = 0; track.fileType = 11; track.length = 30
+            track.folderPath = try AudioFixture.wav(seconds: 30, in: fixture.audio, name: id + ".wav").path
+            try fixture.add(track)
+        }
+        try fixture.add(PlaylistSpec(id: "600", name: "다른 목록", seq: 2, contentIDs: ["500"]))
+        let first = try merge.draft(fixture)
+        let second = try RekordboxWriter.prepareMerge(keeping: "400", removing: ["500"], snapshot: fixture.database)
+        try setStatus(fixture, "djmdSongPlaylist", "ContentID", "200", 256)
+        let report = try RekordboxWriter.write(drafts: [], merges: [first, second], to: fixture.database, dryRun: false,
+                                               backups: fixture.backups, shareRoot: fixture.shareRoot)
+        #expect(report.mergeWritten.count == 1 && report.mergeBlocked.count == 1)
+        let blocked = try #require(report.mergeBlocked.first)
+        #expect(blocked.reason == sourceReason(RekordboxTrackWriter.syncedRowsReason))
+        #expect(try fixture.rows("SELECT ID FROM djmdContent ORDER BY ID").map { $0["ID"] } == ["100", "200", "300", "400"])
+        #expect(try fixture.rows("SELECT ContentID FROM djmdSongPlaylist WHERE PlaylistID = '600'").map { $0["ContentID"] } == ["400"])
+        #expect(try fixture.rows("SELECT ContentID FROM djmdSongPlaylist WHERE PlaylistID = '500' ORDER BY TrackNo").map { $0["ContentID"] } == ["300", "200", "300"])
+    }
+
+    // MARK: 합치기: 뒤 순번 당기기
+
+    /// 합치기도 원본의 이력 항목을 지우며 같은 이력의 뒤 순번을 당긴다(재생 목록은 목록 편집이 살아 있는 행만 다시 매긴다).
+    @Test func 원본의_이력_뒤에_지운_표시된_행이_있으면_합치기_초안을_만들지_않는다() throws {
+        let fixture = try namedFixture()
+        try insertHistory(fixture, id: "h1", contentID: "200", trackNo: 1)
+        try insertHistory(fixture, id: "h2", contentID: "999", trackNo: 2, status: 262, deleted: 1)
+        expectBlockedDraft(fixture, reason: sourceReason(RekordboxTrackWriter.syncedRenumberReason))
+    }
+
+    @Test(arguments: [(before: 0, after: 0), (before: 256, after: 257), (before: 257, after: 257)])
+    func 합치면_원본_이력_뒤_항목의_순번을_당기고_256만_257로_올린다(_ status: (before: Int, after: Int)) throws {
+        let fixture = try merge.fixture()
+        try insertHistory(fixture, id: "h1", contentID: "200", trackNo: 1)
+        try insertHistory(fixture, id: "h2", contentID: "300", trackNo: 2, status: status.before)
+        let report = try merge.write(fixture, try merge.draft(fixture))
+        #expect(report.mergeWritten.count == 1)
+        #expect(try fixture.rows("SELECT TrackNo, rb_data_status FROM djmdSongHistory WHERE ContentID = '300'")
+                == [["TrackNo": "1", "rb_data_status": "\(status.after)"]])
+        #expect(try fixture.rows("SELECT ID FROM djmdSongHistory WHERE ContentID = '200'").isEmpty)
+    }
+
+    // MARK: 합치기: djmdRecommendLike
+
+    @Test(arguments: [(first: "200", second: "999"), (first: "999", second: "200")])
+    func 추천_좋아요_표가_가리키는_원본은_합치기_초안을_만들지_않는다(_ pair: (first: String, second: String)) throws {
+        let fixture = try namedFixture()
+        try insertRecommendLike(fixture, "r1", pair.first, pair.second)
+        do {
+            _ = try merge.draft(fixture)
+            Issue.record("막혀야 합니다")
+        } catch let blocked as DuplicateMerge.Blocked {
+            #expect(blocked.reason.contains("djmdRecommendLike") && blocked.reason.contains("‘뺄 곡’"))
+        }
+    }
+
+    @Test(arguments: [(first: "200", second: "999"), (first: "999", second: "200")])
+    func 초안을_만든_뒤_추천_좋아요_행이_원본을_가리키면_쓰기_전에_막는다(_ pair: (first: String, second: String)) throws {
+        let fixture = try namedFixture()
+        let draft = try merge.draft(fixture)
+        try insertRecommendLike(fixture, "r1", pair.first, pair.second)
+        let before = try snapshot(fixture)
+        let report = try merge.write(fixture, draft)
+        #expect(report.mergeWritten.isEmpty && report.mergeBlocked.count == 1)
+        let blocked = try #require(report.mergeBlocked.first)
+        #expect(blocked.reason?.contains("djmdRecommendLike") == true)
+        #expect(report.backup == nil)
+        #expect(try snapshot(fixture) == before)
+        #expect(try fixture.localUpdateCount() == 1000)
+    }
+
+    @Test func 남는_곡이나_다른_곡만_가리키는_추천_좋아요_행은_합치기를_막지_않는다() throws {
+        let fixture = try merge.fixture()
+        try insertRecommendLike(fixture, "r1", "100", "300")
+        let report = try merge.write(fixture, try merge.draft(fixture))
+        #expect(report.mergeWritten.count == 1)
+        #expect(try fixture.rows("SELECT ID FROM djmdRecommendLike").count == 1)
     }
 }

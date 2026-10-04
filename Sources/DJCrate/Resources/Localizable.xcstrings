@@ -11007,6 +11007,22 @@
         }
       }
     },
+    "같은 재생 목록이나 재생 이력에서 이 곡 뒤에 rekordbox가 지운 표시를 남긴 항목이 있어 순번을 당기는 규칙을 아직 확인하지 못했으니 rekordbox에서 직접 빼세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A later entry in the same playlist or play history is marked as deleted by rekordbox, and the rule for shifting the track numbers hasn't been verified yet, so remove this track in rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じプレイリストまたは再生履歴で、この曲の後ろにrekordboxが削除済みとして残した項目があり、順番を詰めるルールをまだ確認できていないため、rekordboxで直接削除してください"
+          }
+        }
+      }
+    },
     "같은 칸이 바뀐 %lld곡의 초안을 보존했습니다. 곡 정보에서 현재 값과 초안을 확인하세요." : {
       "localizations" : {
         "en" : {
@@ -21481,6 +21497,22 @@
         }
       }
     },
+    "뺄 곡 ‘%@’: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Track to remove ‘%@’: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除する曲「%@」：%@"
+          }
+        }
+      }
+    },
     "뺄 곡을 확인하는 중…" : {
       "localizations" : {
         "en" : {
@@ -27095,18 +27127,18 @@
         }
       }
     },
-    "이 곡의 큐·파일·재생 목록 항목 중 클라우드와 동기화된 행이 있어 빼는 규칙을 아직 확인하지 못했으니 rekordbox에서 직접 빼세요" : {
+    "이 곡의 큐·파일·오토게인·재생 목록 항목·재생 이력 중 클라우드와 동기화된 행이 있어 빼는 규칙을 아직 확인하지 못했으니 rekordbox에서 직접 빼세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Some of this track's cue, file, or playlist entry rows are synced with the cloud and the removal rule hasn't been verified yet, so remove it in rekordbox"
+            "value" : "Some of this track's cue, file, auto-gain, playlist entry, or play history rows are synced with the cloud and the removal rule hasn't been verified yet, so remove it in rekordbox"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この曲のキュー・ファイル・プレイリスト項目にクラウドと同期している行があり、削除ルールをまだ確認できていないため、rekordboxで直接削除してください"
+            "value" : "この曲のキュー・ファイル・オートゲイン・プレイリスト項目・再生履歴にクラウドと同期している行があり、削除ルールをまだ確認できていないため、rekordboxで直接削除してください"
           }
         }
       }

@@ -12,11 +12,13 @@ import Foundation
 ///   rekordbox는 자동 분석을 끄고 넣을 때는 만들지 않고 곡을 분석할 때 뽑는다(2026-09-26 실험 "DJC 실험 아트").
 /// - 삭제: 행을 실제로 지운다(삭제 표시가 아님). 곡 행·큐(`djmdCue`·`contentCue`)·파일 행·오토게인 행·재생 목록·재생 이력 항목.
 ///   같은 목록·이력의 뒤 순번은 하나씩 당기고(한 번호로 몰아서), 그 곡만 쓰던 아티스트·앨범 행도 지운다. 분석 폴더·아트워크 파일도 지운다.
-///   재생 목록 순번 당기기는 재생 이력에서 본 것을 따른 추정이다.
+///   재생 목록 순번 당기기는 재생 이력에서 본 것을 따른 추정이다. 당기는 살아 있는 행이 동기화 상태 256이면 재생 목록 편집(`touchEntry`)처럼
+///   257로 올린다(0·257은 그대로, 사용자 정책: 동기화 데이터를 DJCrate가 고친 행은 257). 당길 자리에 지운 표시가 남은 행이 있으면
+///   그 곡을 막는다(미확인).
 /// - 동기화 상태 곡은 빼지 않는다(#196): rekordbox는 동기화한 곡을 지울 때 행을 지우지 않고 삭제 표시(`rb_local_deleted` 1, 상태 258 →
 ///   클라우드 처리 뒤 262)로 남기는데, 삭제 규칙은 상태 0 시험 곡으로만 확인했다. 곡 행·딸린 행·함께 지울 앨범·아티스트 행 중 상태가
 ///   0이 아닌 것이 있으면 그 곡만 막고 "rekordbox에서 직접 빼세요"로 알린다. 묶음 3 실험(세션 D3)으로 규칙을 확인하면 연다.
-/// - 확인하지 않은 표(MyTag·핫큐 뱅크·샘플러·관련 곡·신청곡·검열 구간·클라우드 내보내기)에 걸린 곡은 지우지 않는다.
+/// - 확인하지 않은 표(MyTag·핫큐 뱅크·샘플러·관련 곡·신청곡·검열 구간·클라우드 내보내기·추천 좋아요)에 걸린 곡은 지우지 않는다.
 ///
 /// 안전장치는 큐 쓰기(`RekordboxWriter`)와 같다: 사전 확인 → 전체 백업 → 한 트랜잭션 → 다시 읽어 검증 → 무결성 검사 → 실패 시 복원.
 /// 커밋 뒤 실패는 복원했으면 `writeRolledBack`, 복원도 못 했으면 `restoreFailed`로 알린다.
@@ -82,14 +84,23 @@ public enum RekordboxTrackWriter {
     /// 지울 곡을 막는 표(아직 rekordbox 실험으로 확인하지 않음)
     static let unverifiedReferenceTables = ["contentActiveCensor", "djmdActiveCensor", "djmdCloudExportSongPlaylist", "djmdSongHotCueBanklist",
                                             "djmdSongMyTag", "djmdSongRelatedTracks", "djmdSongRequestList", "djmdSongSampler", "djmdSongTagList"]
+    /// 곡을 가리키는 칸이 둘(`ContentID1`·`ContentID2`)이라 위 표들처럼 `ContentID`로 찾을 수 없는 미확인 표
+    static let recommendLikeTable = "djmdRecommendLike"
+    /// 곡을 빼면 뒤 순번을 당기는 표(표 이름, 목록 ID 칸)
+    static let historyTable = (table: "djmdSongHistory", list: "HistoryID")
+    static let renumberedTables = [(table: "djmdSongPlaylist", list: "PlaylistID"), historyTable]
 
     /// 동기화 상태 곡 빼기·합치기를 막는 이유(#196). 곡 행이 상태 0이 아닌 곡.
     public static var syncedTrackReason: String {
         String(ui: "rekordbox 클라우드와 동기화된 곡이라 빼는 규칙을 아직 확인하지 못했으니 rekordbox에서 직접 빼세요")
     }
-    /// 곡 행은 상태 0인데 그 곡의 큐·파일·오토게인·재생 목록 항목·재생 이력 행 중 동기화 상태가 있는 것이 있다.
+    /// 곡 행은 상태 0인데 그 곡을 빼며 지울 딸린 행(큐·파일·오토게인·재생 목록 항목·재생 이력) 중 동기화 상태인 것이 있다.
     public static var syncedRowsReason: String {
-        String(ui: "이 곡의 큐·파일·재생 목록 항목 중 클라우드와 동기화된 행이 있어 빼는 규칙을 아직 확인하지 못했으니 rekordbox에서 직접 빼세요")
+        String(ui: "이 곡의 큐·파일·오토게인·재생 목록 항목·재생 이력 중 클라우드와 동기화된 행이 있어 빼는 규칙을 아직 확인하지 못했으니 rekordbox에서 직접 빼세요")
+    }
+    /// 곡을 빼면 같은 재생 목록·재생 이력의 뒤 항목 순번을 당기는데, 그 자리에 rekordbox가 지운 표시를 남긴 항목이 있다.
+    public static var syncedRenumberReason: String {
+        String(ui: "같은 재생 목록이나 재생 이력에서 이 곡 뒤에 rekordbox가 지운 표시를 남긴 항목이 있어 순번을 당기는 규칙을 아직 확인하지 못했으니 rekordbox에서 직접 빼세요")
     }
     /// 곡을 빼면 아무도 안 쓰게 되는 앨범·아티스트 행이 동기화 상태라 그 행을 지우는 규칙을 모른다.
     public static var syncedOrphanReason: String {
@@ -562,21 +573,20 @@ public enum RekordboxTrackWriter {
         }
         guard let track = found else { throw Blocked(String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했습니다")) }
         // 막는 검사는 모두 변경 번호(usn)를 쓰기 전에 한다: 막힌 곡이 번호를 가져가면 같은 요청의 다른 곡 번호가 밀린다.
-        if let reason = try syncedTrackBlock(of: id, checksRows: true, db: db) { throw Blocked(reason) }
-        for table in unverifiedReferenceTables where try RekordboxWriter.scalar(db, "SELECT count(*) FROM \(table) WHERE ContentID = ?", [.text(id)]) ?? 0 > 0 {
-            throw Blocked(String(ui: "\(table)에도 들어 있는 곡이라 아직 지우지 않습니다(rekordbox에서 지우세요)"))
-        }
         let orphans = try orphanedRows(db, contentID: id, gone: [id])
-        if let reason = try syncedOrphanBlock(orphans, db: db) { throw Blocked(reason) }
+        if let reason = try removalBlock(of: id, orphans: orphans, renumbering: renumberedTables, db: db) { throw Blocked(reason) }
         usn += 1
-        for (table, list) in [("djmdSongPlaylist", "PlaylistID"), ("djmdSongHistory", "HistoryID")] {
+        for (table, list) in renumberedTables {
             var entries: [(list: String, trackNo: Int)] = []
             try db.query("SELECT \(list), TrackNo FROM \(table) WHERE ContentID = ?", [.text(id)]) { entries.append(($0.string(0) ?? "", $0.int(1) ?? 0)) }
             _ = try db.run("DELETE FROM \(table) WHERE ContentID = ?", [.text(id)])
-            // 같은 목록의 뒤 순번을 하나씩 당긴다(한 번호로 몰아서). 뒤에서부터 지운 순번만큼.
+            // 같은 목록의 뒤 순번을 하나씩 당긴다(한 번호로 몰아서). 뒤에서부터 지운 순번만큼. 당기는 살아 있는 행(지운 표시가 남은 행이
+            // 있으면 위에서 막았다)이 256이면 재생 목록 편집처럼 257로 올린다.
             for entry in entries.sorted(by: { $0.trackNo > $1.trackNo }) {
-                _ = try db.run("UPDATE \(table) SET TrackNo = TrackNo - 1, rb_local_usn = ?, updated_at = ? WHERE \(list) = ? AND TrackNo > ?",
-                   [.int(usn), .text(stamp.db), .text(entry.list), .int(entry.trackNo)])
+                _ = try db.run("""
+                    UPDATE \(table) SET TrackNo = TrackNo - 1, rb_local_usn = ?, updated_at = ?, \(RekordboxWriter.savedStatus)
+                    WHERE \(list) = ? AND TrackNo > ?
+                    """, [.int(usn), .text(stamp.db), .text(entry.list), .int(entry.trackNo)])
             }
         }
         for table in ["djmdCue", "contentCue", "contentFile", "djmdMixerParam"] {
@@ -660,14 +670,12 @@ public enum RekordboxTrackWriter {
         (try RekordboxWriter.scalar(db, "SELECT count(*) FROM \(table) WHERE \(column) = ? AND ifnull(rb_data_status, 1) != 0", [.text(id)]) ?? 1) > 0
     }
 
-    /// 곡 행(과 `checksRows`면 지울 딸린 행)이 동기화 상태라 막는 이유(#196). 막을 게 없거나 컬렉션에 없는 곡이면 nil(없는 곡은 부른 쪽이 처리).
+    /// 곡 행과 지울 딸린 행이 동기화 상태라 막는 이유(#196). 막을 게 없거나 컬렉션에 없는 곡이면 nil(없는 곡은 부른 쪽이 처리).
     /// rekordbox는 동기화 곡을 지울 때 행을 지우지 않고 삭제 표시로 남긴다. 규칙은 상태 0 시험 곡으로만 확인했다.
-    static func syncedTrackBlock(of id: String, checksRows: Bool, db: CipherDatabase) throws -> String? {
+    static func syncedTrackBlock(of id: String, db: CipherDatabase) throws -> String? {
         guard try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdContent WHERE ID = ? AND rb_local_deleted = 0", [.text(id)]) == 1 else { return nil }
         if try isSynced(db, table: "djmdContent", column: "ID", id: id) { return syncedTrackReason }
-        if checksRows {
-            for table in ownRowTables where try isSynced(db, table: table, column: "ContentID", id: id) { return syncedRowsReason }
-        }
+        for table in ownRowTables where try isSynced(db, table: table, column: "ContentID", id: id) { return syncedRowsReason }
         return nil
     }
 
@@ -677,14 +685,43 @@ public enum RekordboxTrackWriter {
         return nil
     }
 
-    /// 합치기 사전 검사용: 지울 원본 하나의 곡 행과 함께 지울 앨범·아티스트 행을 본다.
+    /// 아직 규칙을 확인하지 않은 표(`unverifiedReferenceTables`, 추천 좋아요)에 걸린 곡이라 막는 이유
+    static func unverifiedReferenceBlock(of id: String, db: CipherDatabase) throws -> String? {
+        for table in unverifiedReferenceTables where try RekordboxWriter.scalar(db, "SELECT count(*) FROM \(table) WHERE ContentID = ?", [.text(id)]) ?? 0 > 0 {
+            return String(ui: "\(table)에도 들어 있는 곡이라 아직 지우지 않습니다(rekordbox에서 지우세요)")
+        }
+        // 추천 좋아요는 곡을 가리키는 칸이 둘이라 따로 센다(안 막으면 지운 곡을 가리키는 행이 남는다)
+        if try RekordboxWriter.scalar(db, "SELECT count(*) FROM \(recommendLikeTable) WHERE ContentID1 = ?1 OR ContentID2 = ?1", [.text(id)]) ?? 0 > 0 {
+            return String(ui: "\(recommendLikeTable)에도 들어 있는 곡이라 아직 지우지 않습니다(rekordbox에서 지우세요)")
+        }
+        return nil
+    }
+
+    /// 곡을 빼며 뒤 순번을 당길 자리에 지운 표시가 남은 행(`rb_local_deleted` ≠ 0, NULL 포함)이 있어 막는 이유.
+    /// 지운 표시 행의 순번을 어떻게 다뤄야 하는지 확인하지 못했다(곡의 자기 행은 먼저 지우므로 세지 않는다).
+    static func syncedRenumberBlock(of id: String, tables: [(table: String, list: String)], db: CipherDatabase) throws -> String? {
+        for (table, list) in tables {
+            var entries: [(list: String, trackNo: Int)] = []
+            try db.query("SELECT \(list), TrackNo FROM \(table) WHERE ContentID = ?", [.text(id)]) { entries.append(($0.string(0) ?? "", $0.int(1) ?? 0)) }
+            for entry in entries where try RekordboxWriter.scalar(db, """
+                SELECT count(*) FROM \(table) WHERE \(list) = ? AND TrackNo > ? AND ContentID IS NOT ? AND ifnull(rb_local_deleted, 1) != 0
+                """, [.text(entry.list), .int(entry.trackNo), .text(id)]) ?? 0 > 0 {
+                return syncedRenumberReason
+            }
+        }
+        return nil
+    }
+
+    /// 곡 하나를 뺄 때 쓰기 전에 보는 막힘 전부(변경 번호를 쓰기 전에). 곡 빼기(`deleteRow`)와 합치기 사전 검사가 같이 쓴다.
     /// - Parameters:
-    ///   - others: 같은 합치기에서 함께 빠지는 다른 원본(앨범·아티스트가 아무도 안 쓰게 되는지 셀 때 빠진 것으로 본다)
-    ///   - checksRows: 곡의 딸린 행 상태도 볼지. 합치기 사전 검사는 원본의 재생 목록 항목이 검증된 목록 경로로 먼저 빠지므로 끈다.
-    static func syncedRemovalBlock(of id: String, alsoRemoving others: Set<String> = [], checksRows: Bool = true,
-                                   db: CipherDatabase) throws -> String? {
-        if let reason = try syncedTrackBlock(of: id, checksRows: checksRows, db: db) { return reason }
-        return try syncedOrphanBlock(try orphanedRows(db, contentID: id, gone: others.union([id])), db: db)
+    ///   - orphans: 이 곡을 빼면 함께 지울 앨범·아티스트 행(`orphanedRows`)
+    ///   - renumbering: 뒤 순번을 당기는 표. 합치기는 원본의 재생 목록 항목을 검증된 목록 편집이 먼저 빼고 살아 있는 행만 다시 매기므로 이력만 본다.
+    static func removalBlock(of id: String, orphans: OrphanedRows, renumbering: [(table: String, list: String)],
+                             db: CipherDatabase) throws -> String? {
+        if let reason = try syncedTrackBlock(of: id, db: db) { return reason }
+        if let reason = try unverifiedReferenceBlock(of: id, db: db) { return reason }
+        if let reason = try syncedOrphanBlock(orphans, db: db) { return reason }
+        return try syncedRenumberBlock(of: id, tables: renumbering, db: db)
     }
 
     // MARK: - 공통
