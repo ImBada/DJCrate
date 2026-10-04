@@ -12,9 +12,10 @@ extension RekordboxWriter {
     public static let writableTagKeys: Set<TagFields.Key> = [.title, .artist, .album, .albumArtist, .genre, .composer, .year, .trackNumber, .comment, .musicalKey]
     /// 태그 쓰기를 확인한 곡·앨범 상태(#171·#173 2026-10-04). 0 그대로, 256 → 257, 257 그대로. 그 밖의 상태는 막는다.
     static let verifiedTagStates: Set<Int> = [0, 256, 257]
-    /// 쓰면 재생 목록 XML(`masterPlaylists6.xml`)의 Timestamp를 고치는 칸. 정보 패널 아홉 칸은 모두 고친다(#173).
-    /// 키는 S5 K1(2026-10-04) 결과 전까지 확인하지 않아 뺀다: 키만 고친 초안은 XML을 읽지도 고치지도 않는다.
-    static let playlistXMLTagKeys: Set<TagFields.Key> = Set(TagFields.Key.allCases).subtracting([.musicalKey])
+    /// 쓰면 재생 목록 XML(`masterPlaylists6.xml`)의 Timestamp를 고치는 칸. 정보 패널 아홉 칸(#173)과 키(S5 K1, 2026-10-04 rekordbox 7.2.18:
+    /// 동기화 곡의 키 3B → 5A 저장이 그 곡이 든 목록의 Timestamp를 곡 행 `updated_at` 약 15ms 뒤 시각으로 고쳤다)가 모두 고친다[확인].
+    /// XML 규칙은 이 집합과 `touchesPlaylistXML` 한 곳에서만 정한다.
+    static let playlistXMLTagKeys: Set<TagFields.Key> = Set(TagFields.Key.allCases)
 
     /// 쓴 뒤 곡이 가져야 할 태그
     struct TagExpectation {
@@ -207,8 +208,8 @@ extension RekordboxWriter {
         return try scalar(db, "SELECT count(*) FROM djmdAlbum WHERE Name = ? AND rb_local_deleted = 0", [.text(name)]) ?? 0 >= 2
     }
 
-    /// 이 초안을 쓰면 고칠 재생 목록 XML이 있는지: 그 곡이 든 살아 있는 목록이 있을 때만(백업 전 확인). 정보 패널 아홉 칸 모두
-    /// Timestamp를 고친다(#173 S1 X1 아티스트, S2 U11·U12 제목, S3 V07 장르, S4 A1~A6·B2 앨범·앨범 아티스트·작곡가·연도·트랙 번호·코멘트).
+    /// 이 초안을 쓰면 고칠 재생 목록 XML이 있는지: 그 곡이 든 살아 있는 목록이 있을 때만(백업 전 확인). 정보 패널 아홉 칸과 키가 모두
+    /// Timestamp를 고친다(#173 S1 X1 아티스트, S2 U11·U12 제목, S3 V07 장르, S4 A1~A6·B2 앨범·앨범 아티스트·작곡가·연도·트랙 번호·코멘트, S5 K1 키).
     static func tagTouchesPlaylistXML(_ draft: TagDraft, db: CipherDatabase) throws -> Bool {
         guard touchesPlaylistXML(draft) else { return false }
         var id: String?
@@ -217,7 +218,7 @@ extension RekordboxWriter {
         return try !tagPlaylists(db, contentID: id).isEmpty
     }
 
-    /// 이 초안이 고치는 칸 가운데 재생 목록 XML을 고치는 칸이 있는지(`playlistXMLTagKeys`). XML 규칙은 이 집합 한 곳에서만 정한다.
+    /// 이 초안이 고치는 칸 가운데 재생 목록 XML을 고치는 칸이 있는지(`playlistXMLTagKeys`)
     static func touchesPlaylistXML(_ draft: TagDraft) -> Bool {
         !Set(draft.changedKeys).isDisjoint(with: playlistXMLTagKeys)
     }

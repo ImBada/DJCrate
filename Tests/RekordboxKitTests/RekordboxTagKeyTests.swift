@@ -362,21 +362,36 @@ extension RekordboxTagWriterTests {
 }
 
 /// 키 저장과 재생 목록 XML(`masterPlaylists6.xml` Timestamp).
-/// 정보 패널 아홉 칸은 모두 그 곡이 든 목록의 Timestamp를 고친다(#173). 키 저장은 S5 K1(2026-10-04) 결과 전까지 확인하지 않았다.
-/// 그래서 키만 고친 초안은 XML을 읽지도 고치지도 않는 것을 기본으로 둔다(`RekordboxWriter.playlistXMLTagKeys`, S5 결과 뒤 뒤집는다).
+/// S5 K1(2026-10-04, rekordbox 7.2.18): 동기화 곡의 키 3B → 5A 저장이 `KeyID`·`TrackInfoUpdated` '6' → '7'·256 → 257을 고치고, 그 곡이 든
+/// 목록의 Timestamp도 곡 행 `updated_at` 약 15ms 뒤 시각으로 고쳤다[확인]. 정보 패널 아홉 칸(#173)과 같은 규칙이다.
+/// 어느 칸이 XML을 고치는지는 `RekordboxWriter.playlistXMLTagKeys` 한 곳이다.
 extension RekordboxTagWriterTests {
-    @Test func 키만_고친_초안은_곡이_든_목록의_XML을_고치지_않는다() throws {
+    @Test func 키만_고친_초안도_곡이_든_목록의_Timestamp를_쓴_시각으로_고친다() throws {
+        // S5 K1: 곡 하나, 살아 있는 목록 하나. 다른 목록·부모 폴더는 그대로.
         let (fixture, track) = try keyLibrary(state: 256, key: "2B")
-        let url = try withPlaylists(fixture, [PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["500"])])
+        let url = try withPlaylists(fixture, [
+            PlaylistSpec(id: "100", name: "폴더", seq: 1, isFolder: true),
+            PlaylistSpec(id: "201", name: "곡이 든 목록", parentID: "100", seq: 1, contentIDs: ["500"]),
+            PlaylistSpec(id: "202", name: "다른 곡 목록", seq: 2, contentIDs: ["501"]),
+        ])
         let before = try Data(contentsOf: url)
-        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.musicalKey = "5A" }]).tagWritten.count == 1)
+        let tags = try draft(fixture, track) { $0.musicalKey = "5A" }
+        // 미리 보기는 XML을 건드리지 않는다
+        #expect(try write(fixture, tags: [tags], dryRun: true).tagWritten.count == 1)
         #expect(try Data(contentsOf: url) == before)
+        #expect(try write(fixture, tags: [tags]).tagWritten.count == 1)
+        let after = try timestamps(url)
+        #expect(after[MasterPlaylistsXML.hex("201") ?? ""] == nowMS)
+        for id in ["100", "202"] { #expect(after[MasterPlaylistsXML.hex(id) ?? ""] == 1_000, "\(id)") }
         #expect(try content(fixture)["KeyID"] == Self.keyID("5A"))
+        // 지우기도 같다
+        try before.write(to: url)
+        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.musicalKey = "" }]).tagWritten.count == 1)
+        #expect(try timestamps(url)[MasterPlaylistsXML.hex("201") ?? ""] == nowMS)
     }
 
-    @Test func 키만_고친_초안은_XML이_깨져_있어도_막지_않고_XML도_그대로다() throws {
+    @Test func 키만_고친_곡이_어느_목록에도_없으면_XML을_읽지도_고치지도_않는다() throws {
         let (fixture, track) = try keyLibrary(state: 256, key: "2B")
-        try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["500"]))
         let url = fixture.root.appending(path: "masterPlaylists6.xml")
         try Data("망가짐".utf8).write(to: url)
         let report = try write(fixture, tags: [try draft(fixture, track) { $0.musicalKey = "5A" }])
@@ -384,31 +399,44 @@ extension RekordboxTagWriterTests {
         #expect(try Data(contentsOf: url) == Data("망가짐".utf8))
     }
 
-    @Test func 키와_다른_칸을_함께_고친_초안은_XML을_고친다() throws {
+    @Test func 목록에_든_곡의_키_초안은_XML이_깨져_있으면_다른_칸처럼_막는다() throws {
+        let (fixture, track) = try keyLibrary(state: 256, key: "2B")
+        try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["500"]))
+        let url = fixture.root.appending(path: "masterPlaylists6.xml")
+        try Data("망가짐".utf8).write(to: url)
+        let before = try content(fixture)
+        let report = try write(fixture, tags: [try draft(fixture, track) { $0.musicalKey = "5A" }])
+        #expect(report.tagWritten.isEmpty && report.backup == nil)
+        #expect(report.tagBlocked.first?.reason?.contains("masterPlaylists6.xml") == true)
+        #expect(try content(fixture) == before && fixture.localUpdateCount() == 2000)
+        #expect(try Data(contentsOf: url) == Data("망가짐".utf8))
+    }
+
+    @Test func 키와_다른_칸을_함께_고친_초안도_XML을_고친다() throws {
         let (fixture, track) = try keyLibrary(state: 256, key: "2B")
         let url = try withPlaylists(fixture, [PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["500"])])
         #expect(try write(fixture, tags: [try draft(fixture, track) { $0.comment = "새 코멘트"; $0.musicalKey = "5A" }]).tagWritten.count == 1)
         #expect(try timestamps(url)[MasterPlaylistsXML.hex("201") ?? ""] == nowMS)
     }
 
-    @Test func 한_쓰기에서_키만_고친_곡의_목록은_그대로고_다른_칸을_고친_곡의_목록만_고친다() throws {
-        // 곡 500(키만, 목록 201) + 곡 501(제목, 목록 202): 안 바뀐 목록은 Timestamp 그대로
+    @Test func 한_쓰기에서_키를_고친_곡과_다른_칸을_고친_곡의_목록이_모두_고쳐진다() throws {
+        // 곡 500(키, 목록 201) + 곡 501(제목, 목록 202): 두 목록 모두 고치고, 곡이 안 든 목록 203은 그대로다
         let (fixture, track) = try keyLibrary(state: 256, key: "2B")
         let neighbor = TrackSpec(id: "501", uuid: "track-uuid-501")
         let url = try withPlaylists(fixture, [
-            PlaylistSpec(id: "201", name: "키만", seq: 1, contentIDs: ["500"]),
+            PlaylistSpec(id: "201", name: "키", seq: 1, contentIDs: ["500"]),
             PlaylistSpec(id: "202", name: "제목", seq: 2, contentIDs: ["501"]),
+            PlaylistSpec(id: "203", name: "아무도 안 고침", seq: 3, contentIDs: []),
         ])
         let tags = [try draft(fixture, track) { $0.musicalKey = "5A" }, try draft(fixture, neighbor) { $0.title = "이웃 새 제목" }]
-        let report = try write(fixture, tags: tags)
-        #expect(report.tagWritten.count == 2)
+        #expect(try write(fixture, tags: tags).tagWritten.count == 2)
         let after = try timestamps(url)
-        #expect(after[MasterPlaylistsXML.hex("201") ?? ""] == 1_000)
-        #expect(after[MasterPlaylistsXML.hex("202") ?? ""] == nowMS)
+        #expect(after[MasterPlaylistsXML.hex("201") ?? ""] == nowMS && after[MasterPlaylistsXML.hex("202") ?? ""] == nowMS)
+        #expect(after[MasterPlaylistsXML.hex("203") ?? ""] == 1_000)
     }
 
-    @Test func XML을_고치는_칸의_집합은_한_곳에_있다() {
-        // S5 K1 결과 뒤 키를 더하면 이 시험과 위 시험의 기대값을 함께 바꾼다
-        #expect(RekordboxWriter.playlistXMLTagKeys == Set(TagFields.Key.allCases).subtracting([.musicalKey]))
+    @Test func XML을_고치는_칸의_집합은_한_곳에_있고_키도_든다() {
+        #expect(RekordboxWriter.playlistXMLTagKeys == Set(TagFields.Key.allCases))
+        #expect(RekordboxWriter.playlistXMLTagKeys.contains(.musicalKey))
     }
 }

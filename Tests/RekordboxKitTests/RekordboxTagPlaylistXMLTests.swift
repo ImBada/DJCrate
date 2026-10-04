@@ -6,7 +6,7 @@ import Testing
 
 /// 곡 정보를 쓰면 그 곡이 든 재생 목록의 `masterPlaylists6.xml` Timestamp도 고친다(#173, 2026-10-04 rekordbox 7.2.18).
 /// S1 X1(아티스트)·S2 U11(제목, 256)·U12(제목, 상태 0)·X4(같은 값 저장)·S3 V07(장르)·S4 A1~A6(앨범·앨범 아티스트·작곡가·연도·트랙 번호·
-/// 코멘트)·B2(앨범): 그 저장에서 곡이 든 살아 있는 목록마다 Timestamp를 저장 시각(UTC epoch ms)으로 바꿨다. 정보 패널 아홉 칸 모두다.
+/// 코멘트)·B2(앨범): 그 저장에서 곡이 든 살아 있는 목록마다 Timestamp를 저장 시각(UTC epoch ms)으로 바꿨다. 정보 패널 아홉 칸 모두다. 키도 같다(S5 K1, `RekordboxTagKeyTests`).
 /// 부모 폴더·다른 목록·DB 재생 목록 표는 그대로였다. 그림 저장은 바꾸지 않는다(#66 범위). 그 곡이 든 살아 있는 목록이 없는 초안은 XML을
 /// 읽지도 고치지도 않는다. XML은 쓰는 DB 옆 파일만 고친다(사본이면 사본 옆, 없으면 DB만).
 extension RekordboxTagWriterTests {

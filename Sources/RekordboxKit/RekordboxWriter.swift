@@ -455,9 +455,8 @@ public enum RekordboxWriter {
                         regridded[i].content["rb_local_usn"] = .int(usn)
                     }
                     try db.execute("RELEASE djc_tags")
-                    // 곡 정보를 썼으면 그 곡이 든 살아 있는 목록마다 XML Timestamp를 쓴 시각으로. 정보 패널 아홉 칸 모두 같다
-                    // (부모 폴더는 그대로, #173 S1 X1·S2 U11·U12·S3 V07·S4 A1~A6·B2)
-                    // 키만 고친 초안은 건드리지 않는다(`playlistXMLTagKeys`)
+                    // 곡 정보를 썼으면 그 곡이 든 살아 있는 목록마다 XML Timestamp를 쓴 시각으로. 정보 패널 아홉 칸과 키가 모두 같다
+                    // (부모 폴더는 그대로, #173 S1 X1·S2 U11·U12·S3 V07·S4 A1~A6·B2, S5 K1). 어느 칸이 고치는지는 `playlistXMLTagKeys` 한 곳이다.
                     if playlistXML != nil, touchesPlaylistXML(draft) {
                         for id in try tagPlaylists(db, contentID: result.expectation.contentID) where touchedPlaylists.insert(id).inserted {
                             xmlChanges.append(.touch(id))
