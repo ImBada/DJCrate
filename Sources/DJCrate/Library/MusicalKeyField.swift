@@ -8,7 +8,7 @@ struct MusicalKeyField: View {
     @Environment(\.textScale) private var textScale
     @Bindable var store: LibraryStore
     let rows: [TrackRow]
-    @State private var estimate: String?
+    @State private var loader = KeyEstimateLoader()
 
     private var key: TagFields.Key { .musicalKey }
 
@@ -16,7 +16,7 @@ struct MusicalKeyField: View {
         let current = store.tagValue(key, rows: rows)
         let edited = rows.contains { store.isTagEdited($0, key) }
         let editable = KeyPicker.isEditable(rows)
-        let suggestion = KeyPicker.suggestion(estimate: estimate, rows: rows, current: current)
+        let suggestion = KeyPicker.suggestion(estimate: KeyPicker.estimate(of: loader, for: rows), rows: rows, current: current)
         VStack(alignment: .leading, spacing: 4) {
             Picker(selection: Binding(get: { current.mixed ? KeyPicker.mixedTag : current.value }, set: { choose($0) })) {
                 if current.mixed { Text(String(ui: "(여러 값)")).tag(KeyPicker.mixedTag) }
@@ -50,12 +50,9 @@ struct MusicalKeyField: View {
             TagConflictView(store: store, rows: rows, key: key)
         }
         // 곡이 바뀌면 추정을 다시 구한다. 크로마 캐시를 읽을 뿐 곡을 분석하지 않는다(화면 그리기에서 돌리지 않는다).
-        .task(id: KeyPicker.suggestionTarget(rows: rows)?.uuid) {
-            estimate = nil
-            guard let target = KeyPicker.suggestionTarget(rows: rows) else { return }
-            estimate = await Task.detached(priority: .utility) {
-                KeyPicker.cachedEstimate(uuid: target.uuid, file: URL(filePath: target.path), duration: target.duration)
-            }.value
+        // 앞 곡의 늦은 결과가 뒤 곡을 덮지 않게 불러오기가 곡을 맞춰 본다(`KeyEstimateLoader`).
+        .task(id: KeyPicker.suggestionTarget(rows: rows)) {
+            await loader.load(KeyPicker.suggestionTarget(rows: rows))
         }
     }
 

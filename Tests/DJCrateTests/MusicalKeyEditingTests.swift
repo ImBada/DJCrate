@@ -198,6 +198,40 @@ struct MusicalKeyEditingTests {
         #expect(ready.plans.count == 1 && ready.unreadable.isEmpty)
     }
 
+    // MARK: 추정 불러오기 경합
+
+    /// 곡을 옮길 때 늦게 끝난 앞 곡의 추정이 뒤 곡 것을 덮지 않는다(인스펙터의 `.task(id:)`가 앞 작업을 취소해도 백그라운드 계산은 끝까지 돈다).
+    @Test(arguments: [true, false]) func 앞_곡의_늦은_추정이_뒤_곡의_추정을_덮지_않는다(cancelled: Bool) async throws {
+        let loader = KeyEstimateLoader()
+        let a = KeyPicker.Target(uuid: "A", path: "/x/a.mp3", duration: 30), b = KeyPicker.Target(uuid: "B", path: "/x/b.mp3", duration: 30)
+        let gate = DispatchSemaphore(value: 0)
+        // A: 캐시가 있어 계산이 느리다(문이 열릴 때까지). B: 캐시가 없어 바로 nil.
+        let first = Task { await loader.load(a) { _ in gate.wait(); return "8A" } }
+        while loader.uuid != "A" { await Task.yield() }
+        if cancelled { first.cancel() }
+        await loader.load(b) { _ in nil }
+        #expect(loader.uuid == "B" && loader.estimate == nil)
+        gate.signal()
+        await first.value
+        #expect(loader.estimate == nil && loader.uuid == "B", "늦게 끝난 A의 8A가 B에 보이면 안 된다")
+        // 정상 흐름: 같은 곡의 결과는 들어온다
+        await loader.load(a) { _ in "6A" }
+        #expect(loader.estimate == "6A" && loader.uuid == "A")
+        // 곡이 없으면(고른 곡이 없거나 못 고치는 곡) 비운다
+        await loader.load(nil) { _ in "8A" }
+        #expect(loader.estimate == nil && loader.uuid == nil)
+    }
+
+    @Test func 제안은_불러온_추정이_지금_곡의_것일_때만_쓴다() async {
+        let loader = KeyEstimateLoader()
+        let row = Self.row("1"), other = Self.row("2")
+        #expect(KeyPicker.estimate(of: loader, for: [row]) == nil)
+        await loader.load(KeyPicker.suggestionTarget(rows: [row])) { _ in "8A" }
+        #expect(KeyPicker.estimate(of: loader, for: [row]) == "8A")
+        #expect(KeyPicker.estimate(of: loader, for: [other]) == nil, "다른 곡을 고른 첫 화면에 앞 곡의 추정이 비치지 않는다")
+        #expect(KeyPicker.estimate(of: loader, for: [row, other]) == nil)
+    }
+
     // MARK: 확인 창
 
     @Test func 확인_창은_키를_고친_곡의_칸_이름을_키로_알린다() throws {

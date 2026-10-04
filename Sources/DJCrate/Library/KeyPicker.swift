@@ -1,6 +1,7 @@
 import DJCAnalysis
 import DJCDomain
 import Foundation
+import Observation
 
 /// 키 고르기(태그 인스펙터·태그 시트)의 규칙: 고를 수 있는 이름, 곡 묶음의 지금 값, 고칠 수 있는 곡, DJCrate 추정 제안(#5).
 /// 키는 글자를 직접 쓰지 않고 rekordbox 키 목록의 Camelot 이름(1A~12B)과 "없음"에서만 고른다. 목록의 키 칸은 보기만 한다.
@@ -39,10 +40,24 @@ enum KeyPicker {
         return estimate
     }
 
-    /// 추정을 구할 곡(캐시를 읽을 곡): 고를 수 있는 곡 하나이고 rekordbox 키가 비어 있을 때
-    static func suggestionTarget(rows: [TrackRow]) -> (uuid: String, path: String, duration: Double)? {
+    /// 추정을 구할 곡(캐시를 읽을 곡)
+    struct Target: Sendable, Equatable {
+        var uuid: String
+        var path: String
+        var duration: Double
+    }
+
+    /// 추정을 구할 곡: 고를 수 있는 곡 하나이고 rekordbox 키가 비어 있을 때
+    static func suggestionTarget(rows: [TrackRow]) -> Target? {
         guard rows.count == 1, let row = rows.first, unavailableReason(row) == nil, (row.track.key ?? "").isEmpty else { return nil }
-        return (row.track.uuid, row.track.folderPath, Double(row.track.lengthSeconds))
+        return Target(uuid: row.track.uuid, path: row.track.folderPath, duration: Double(row.track.lengthSeconds))
+    }
+
+    /// 불러온 추정 가운데 지금 고른 곡의 것만. 곡을 옮긴 뒤 첫 화면에 앞 곡의 추정이 비치지 않게 곡을 맞춰 본다.
+    @MainActor
+    static func estimate(of loader: KeyEstimateLoader, for rows: [TrackRow]) -> String? {
+        guard let target = suggestionTarget(rows: rows), loader.uuid == target.uuid else { return nil }
+        return loader.estimate
     }
 
     // MARK: 시트·붙여넣기 입력
@@ -51,5 +66,34 @@ enum KeyPicker {
     static func accepted(_ text: String) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "" : KeyNotation.normalizedCamelotName(trimmed)
+    }
+}
+
+/// 인스펙터가 곡을 옮길 때마다 DJCrate 추정을 백그라운드에서 구해 들고 있다. 앞 곡의 계산이 늦게 끝나도 뒤 곡 것을 덮지 않는다:
+/// SwiftUI `.task(id:)`가 앞 작업을 취소해도 `Task.detached`로 돌린 계산은 끝까지 돌기 때문에, 돌아온 뒤 취소됐거나 곡이 바뀌었으면 버린다.
+@MainActor
+@Observable
+final class KeyEstimateLoader {
+    /// 지금 추정을 구하는(구한) 곡. 이 곡의 결과만 `estimate`에 들어온다.
+    private(set) var uuid: String?
+    private(set) var estimate: String?
+
+    /// - Parameter compute: 백그라운드에서 추정을 구한다(기본은 분석 캐시를 읽는다. 시험이 바꾼다)
+    func load(_ target: KeyPicker.Target?,
+              compute: @escaping @Sendable (KeyPicker.Target) -> String? = {
+                  KeyPicker.cachedEstimate(uuid: $0.uuid, file: URL(filePath: $0.path), duration: $0.duration)
+              }) async {
+        uuid = target?.uuid
+        estimate = nil
+        guard let target else { return }
+        let result = await Task.detached(priority: .utility) { compute(target) }.value
+        guard !Task.isCancelled else { return }
+        adopt(result, for: target)
+    }
+
+    /// 결과를 받아들인다. 그 사이 곡이 바뀌었으면(`uuid`가 다르면) 버린다.
+    func adopt(_ result: String?, for target: KeyPicker.Target) {
+        guard uuid == target.uuid else { return }
+        estimate = result
     }
 }
