@@ -20,9 +20,26 @@ extension LibraryStore {
         setTag(.musicalKey, suggestion, rows: KeyPicker.targets(rows))
     }
 
+    /// 무시해서 가린 제안. "제안 다시 보기"를 보일지 가른다: 무시한 곡이어도 보일 제안이 더는 없으면(키를 골랐거나 추정이 없으면) nil이다.
+    func dismissedKeySuggestion(estimate: String?, rows: [TrackRow]) -> String? {
+        guard let row = rows.first, dismissedKeySuggestions.contains(row.track.uuid) else { return nil }
+        return KeyPicker.suggestion(estimate: estimate, rows: rows, current: tagValue(.musicalKey, rows: rows))
+    }
+
     func dismissKeySuggestion(rows: [TrackRow]) {
         guard rows.count == 1, let row = rows.first, KeyPicker.isEditable(rows) else { return }
         dismissedKeySuggestions.insert(row.track.uuid)
+        settings.setStrings(SettingKeys.dismissedKeySuggestions, dismissedKeySuggestions)
+    }
+
+    func restoreKeySuggestion(rows: [TrackRow]) {
+        guard rows.count == 1, let row = rows.first else { return }
+        restoreKeySuggestion(uuid: row.track.uuid)
+    }
+
+    /// 무시를 푼다. 인스펙터가 바로 바뀌도록 메모리 사본을 함께 고친다(재분석은 덱이 이 길로 알린다).
+    func restoreKeySuggestion(uuid: String) {
+        guard dismissedKeySuggestions.remove(uuid) != nil else { return }
         settings.setStrings(SettingKeys.dismissedKeySuggestions, dismissedKeySuggestions)
     }
 
