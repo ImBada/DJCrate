@@ -35,6 +35,12 @@ extension LibraryStore {
     /// 백업 폴더에 남겨 두는 추가 목록(되돌리면 추가 목록으로 돌아온다)
     nonisolated static let stagedBackupName = "djc-staged.json"
 
+    /// 백업 폴더에 남긴 추가 목록. 옛 백업이거나 저장에 실패했거나 읽지 못하면 nil이다.
+    nonisolated static func stagedTracks(in backup: URL) -> [StagedTrack]? {
+        guard let data = try? Data(contentsOf: backup.appending(path: stagedBackupName)) else { return nil }
+        return try? JSONDecoder().decode([StagedTrack].self, from: data)
+    }
+
     // MARK: - 넣기
 
     func trackAddTargets(_ rows: [TrackRow]) -> [TrackRow] { rows.filter(\.isStaged) }
@@ -285,8 +291,7 @@ extension LibraryStore {
             draftChanged(trackUUID: uuid, kind: .cue, exists: false)
             draftChanged(trackUUID: uuid, kind: .grid, exists: false)
         }
-        let data = try? Data(contentsOf: backup.url.appending(path: Self.stagedBackupName))
-        let tracks = data.flatMap { try? JSONDecoder().decode([StagedTrack].self, from: $0) }
+        let tracks = Self.stagedTracks(in: backup.url)
         var result = RestoredStaged()
         var cleared: [TagDraft] = []
         for outcome in outcomes {

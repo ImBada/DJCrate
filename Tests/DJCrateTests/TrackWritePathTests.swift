@@ -298,6 +298,33 @@ struct TrackWritePathTests {
         #expect(!store.unlinkedDraftUUIDs.contains(uuid) && !store.writeFollowUp.contains { $0.contains("연결되지 않은 초안") })
     }
 
+    // MARK: - 복원 확인 창의 곡 이름
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 복원_확인_창은_넣기_백업의_충돌을_넣은_곡의_제목으로_보인다() async throws {
+        // #197: 넣기 백업에는 쓰기 보고서가 없고, 넣은 추가 목록 곡은 더는 목록의 곡 행이 아니다. 제목을 못 찾으면 UUID가 보였다.
+        // 넣은 뒤 그 곡의 연결 안 된 큐 초안을 새로 편집한 채 그 백업으로 되돌리려는 경우다(넣기 → 되돌리기 → 큐 고침 → 다시 넣기 → 첫 백업으로 되돌리기와 같다).
+        let fixture = try RekordboxFixture()
+        let (store, staged, row) = try await keyedStaged(fixture, key: "8A")
+        DraftWriter.save(cue(staged.uuid, time: 1))
+        DraftWriter.flush()
+        defer {
+            clearTagDrafts(store)
+            clearDrafts(staged.uuid)
+        }
+        let preview = try await store.previewTrackAdd(rows: [row])
+        _ = try await store.addTracksToRekordbox(preview, to: fixture.database, shareRoot: fixture.shareRoot)
+        let backup = try #require(RekordboxWriter.backups(in: fixture.backups).first)
+        #expect(backup.report == nil && backup.trackReport != nil && store.rowsByUUID[staged.uuid] == nil)
+        #expect(store.restoreDraftConflictDetails(backup).isEmpty)
+
+        DraftWriter.save(cue(staged.uuid, time: 9))
+        DraftWriter.flush()
+        let line = try #require(store.restoreDraftConflictDetails(backup).first)
+        #expect(store.restoreDraftConflictDetails(backup).count == 1)
+        #expect(line == "• \(staged.title) — 큐", "\(line)")
+        #expect(!line.contains(staged.uuid))
+    }
+
     // MARK: - 반영 확인
 
     @Test(.enabled(if: LiveDraftHome.isIsolated)) func 반영_확인은_저장_실패_기록이_남은_곡의_대기_초안도_정리한다() async throws {
