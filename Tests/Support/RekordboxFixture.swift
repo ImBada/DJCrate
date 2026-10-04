@@ -70,13 +70,13 @@ public final class RekordboxFixture {
             INSERT INTO djmdContent (ID, UUID, Title, FileType, BitRate, Analysed, Length, BPM, FolderPath, CueUpdated, AnalysisDataPath,
                 AnalysisUpdated, TrackInfoUpdated, MasterDBID, DeviceID, ArtistID, AlbumID, ComposerID, ImagePath,
                 rb_data_status, rb_local_deleted, rb_local_usn, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 256, 0, 10, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 10, ?, ?)
             """, [.text(track.id), .text(track.uuid), .text(track.title), .int(track.fileType), .int(track.bitRate), .int(track.analysed),
                   .int(track.length), .int(track.bpm100), .text(track.folderPath),
                   track.cueUpdated.map { .text($0) } ?? .null, track.analysisDataPath.map { .text($0) } ?? .null,
                   .text(track.analysisUpdated), .text(track.trackInfoUpdated), .text(Self.masterDBID), .text(Self.deviceID),
                   track.artistID.map { .text($0) } ?? .null, track.albumID.map { .text($0) } ?? .null,
-                  track.composerID.map { .text($0) } ?? .null, track.imagePath.map { .text($0) } ?? .null,
+                  track.composerID.map { .text($0) } ?? .null, track.imagePath.map { .text($0) } ?? .null, .int(track.dataStatus),
                   .text(Self.stamp), .text(Self.stamp)])
         for cue in track.cues {
             try db.run("""
@@ -96,17 +96,17 @@ public final class RekordboxFixture {
             let objects = track.cues.map { track.jsonObject(for: $0) }
             try db.run("""
                 INSERT INTO contentCue (ID, ContentID, Cues, rb_cue_count, UUID, rb_data_status, rb_local_deleted, rb_local_usn, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, 256, 0, 11, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, 0, 11, ?, ?)
                 """, [.text(track.uuid), .text(track.id), .text(CueJSON.serialize(objects)), .int(objects.count),
-                      .text(UUID().uuidString.lowercased()), .text(Self.stamp), .text(Self.stamp)])
+                      .text(UUID().uuidString.lowercased()), .int(track.dataStatus), .text(Self.stamp), .text(Self.stamp)])
         }
         if let gain = track.gain {
             try db.run("""
                 INSERT INTO djmdMixerParam (ID, ContentID, GainHigh, GainLow, PeakHigh, PeakLow, UUID, rb_data_status, rb_local_deleted,
                     rb_local_usn, created_at, updated_at)
-                VALUES (?, ?, ?, ?, 16256, 0, ?, 256, 0, 12, ?, ?)
+                VALUES (?, ?, ?, ?, 16256, 0, ?, ?, 0, 12, ?, ?)
                 """, [.text("mp-\(track.id)"), .text(track.id), .int(gain.high), .int(gain.low),
-                      .text(UUID().uuidString.lowercased()), .text(Self.stamp), .text(Self.stamp)])
+                      .text(UUID().uuidString.lowercased()), .int(track.dataStatus), .text(Self.stamp), .text(Self.stamp)])
         }
     }
 
@@ -168,9 +168,9 @@ public final class RekordboxFixture {
         defer { db.close() }
         try db.run("""
             INSERT INTO contentFile (ID, ContentID, Path, Hash, Size, UUID, rb_data_status, rb_local_deleted, rb_local_usn, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, 256, 0, 13, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 13, ?, ?)
             """, [.text("cf-\(track.id)"), .text(track.id), .text(track.analysisDataPath ?? ""), .text(hash), .int(size),
-                  .text(UUID().uuidString.lowercased()), .text(Self.stamp), .text(Self.stamp)])
+                  .text(UUID().uuidString.lowercased()), .int(track.dataStatus), .text(Self.stamp), .text(Self.stamp)])
     }
 
     /// 아무 표에나 행 하나(created_at·updated_at은 자동). 아티스트·재생 목록·재생 이력 등.
@@ -251,6 +251,9 @@ public struct TrackSpec: Sendable {
     public var albumID: String?
     public var composerID: String?
     public var imagePath: String?
+    /// 곡 행과 딸린 행(contentCue·오토게인·파일 행)의 `rb_data_status`. 기본 256 = 클라우드와 동기화를 마친 곡(대부분의 라이브러리),
+    /// 0 = 아직 동기화하지 않은 곡(rekordbox 실험 곡·DJCrate가 막 넣은 곡). 곡 빼기·합치기 규칙은 0인 곡으로만 확인했다(#196).
+    public var dataStatus = 256
 
     public init(id: String = String(Int.random(in: 100_000...999_999)), uuid: String = UUID().uuidString.lowercased()) {
         self.id = id

@@ -145,6 +145,7 @@ struct RekordboxTempCopyPathTests {
         let deletion = RekordboxDeletionFilesTests()
         let fixture = try RekordboxFixture(parent: URL(filePath: parent))
         var track = TrackSpec(id: "100", uuid: deletion.uuid)
+        track.dataStatus = 0
         track.analysisDataPath = deletion.relative
         try fixture.add(track)
         let dat = try #require(RekordboxShare.analysisURL(deletion.relative, root: fixture.shareRoot))

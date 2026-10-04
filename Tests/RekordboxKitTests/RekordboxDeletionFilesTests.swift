@@ -12,6 +12,7 @@ struct RekordboxDeletionFilesTests {
     func setup(path: String? = nil) throws -> (RekordboxFixture, URL) {
         let fixture = try RekordboxFixture()
         var track = TrackSpec(id: "100", uuid: uuid)
+        track.dataStatus = 0
         let audio = try AudioFixture.wav(seconds: 1, in: fixture.audio)
         track.folderPath = audio.path
         track.analysisDataPath = path ?? relative

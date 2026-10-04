@@ -10,7 +10,7 @@ extension RekordboxWriter {
         defer { db.close() }
         let target = try mergeMember(keeping, db: db)
         let sources = try removing.sorted().map { try mergeMember($0, db: db) }
-        for source in sources { try checkMergeReferences(source.contentID, db: db) }
+        try checkMergeReferences(sources.map(\.contentID), db: db)
         _ = try DuplicateMerge.cues(keeping: target, removing: sources)
         _ = try DuplicateMerge.playlists(keeping: keeping, removing: Set(removing), in: PlaylistTree.read(db).layout)
         return DuplicateMergeDraft(keeping: target, removing: sources, base: try mergeFingerprint([keeping] + removing, db: db))
@@ -46,10 +46,18 @@ extension RekordboxWriter {
                      offset: RekordboxTimeline.predictedOffset(url: URL(filePath: row.path)), cues: cues)
     }
 
-    static func checkMergeReferences(_ id: String, db: CipherDatabase) throws {
-        for table in RekordboxTrackWriter.unverifiedReferenceTables {
-            if try scalar(db, "SELECT count(*) FROM \(table) WHERE ContentID = ?", [.text(id)]) ?? 0 > 0 {
-                throw DuplicateMerge.Blocked(String(ui: "\(table)에도 들어 있는 곡이라 아직 지우지 않습니다(rekordbox에서 지우세요)"))
+    /// 지울 원본을 막을 조건. 동기화 상태 곡·행은 빼는 규칙을 확인하지 않아 막는다(#196). 남는 곡은 큐·재생 목록 편집이라
+    /// 동기화 상태를 256 → 257로 올리는 검증된 쓰기 경로를 쓰므로 막지 않는다. 원본의 재생 목록 항목은 목록 편집이 먼저 빼므로
+    /// 여기서는 보지 않고, 나머지 딸린 행은 지우는 자리(`deleteRow`)에서 본다.
+    static func checkMergeReferences(_ ids: [String], db: CipherDatabase) throws {
+        for id in ids {
+            if let reason = try RekordboxTrackWriter.syncedRemovalBlock(of: id, alsoRemoving: Set(ids).subtracting([id]), checksRows: false, db: db) {
+                throw DuplicateMerge.Blocked(reason)
+            }
+            for table in RekordboxTrackWriter.unverifiedReferenceTables {
+                if try scalar(db, "SELECT count(*) FROM \(table) WHERE ContentID = ?", [.text(id)]) ?? 0 > 0 {
+                    throw DuplicateMerge.Blocked(String(ui: "\(table)에도 들어 있는 곡이라 아직 지우지 않습니다(rekordbox에서 지우세요)"))
+                }
             }
         }
     }
@@ -82,7 +90,7 @@ extension RekordboxWriter {
     }
 
     static func checkMerge(_ draft: DuplicateMergeDraft, db: CipherDatabase) throws -> CueDraft {
-        for source in draft.removing { try checkMergeReferences(source.contentID, db: db) }
+        try checkMergeReferences(draft.removing.map(\.contentID), db: db)
         guard !draft.removing.isEmpty, try mergeFingerprint(draft.members.map(\.contentID), db: db) == draft.base else {
             throw DuplicateMerge.Blocked(String(ui: "합치기 초안 뒤 곡·큐·재생 목록·음원이 바뀌었습니다. 초안을 버리고 다시 만드세요"))
         }

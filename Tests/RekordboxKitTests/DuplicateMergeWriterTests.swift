@@ -23,10 +23,12 @@ struct DuplicateMergeWriterTests {
         try FileManager.default.copyItem(at: fixture.root, to: root)
     }
 
-    func fixture() throws -> RekordboxFixture {
+    /// 곡 셋은 모두 동기화 상태 0이다(곡 빼기·합치기 규칙은 상태 0 곡으로만 확인했다, #196). `statuses`로 곡마다 바꾼다.
+    func fixture(statuses: [String: Int] = [:]) throws -> RekordboxFixture {
         let fixture = try RekordboxFixture()
         for id in ["100", "200", "300"] {
             var track = TrackSpec(id: id, uuid: "u" + id)
+            track.dataStatus = statuses[id] ?? 0
             track.fileType = 11; track.length = 30
             track.folderPath = try AudioFixture.wav(seconds: 30, in: fixture.audio, name: id + ".wav").path
             if id == "200" { track.cues = [CueSpec(kind: 0, inMsec: 1250), CueSpec(kind: 1, inMsec: 5000)] }
@@ -182,6 +184,7 @@ struct DuplicateMergeWriterTests {
     @Test func 같은_목록의_서로다른_중복묶음을_한번에_합친다() throws {
         let fixture = try fixture()
         var track = TrackSpec(id: "400", uuid: "u400")
+        track.dataStatus = 0
         track.fileType = 11; track.length = 30
         track.folderPath = try AudioFixture.wav(seconds: 30, in: fixture.audio, name: "400.wav").path
         try fixture.add(track)

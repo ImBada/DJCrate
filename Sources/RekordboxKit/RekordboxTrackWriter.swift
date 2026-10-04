@@ -13,6 +13,9 @@ import Foundation
 /// - 삭제: 행을 실제로 지운다(삭제 표시가 아님). 곡 행·큐(`djmdCue`·`contentCue`)·파일 행·오토게인 행·재생 목록·재생 이력 항목.
 ///   같은 목록·이력의 뒤 순번은 하나씩 당기고(한 번호로 몰아서), 그 곡만 쓰던 아티스트·앨범 행도 지운다. 분석 폴더·아트워크 파일도 지운다.
 ///   재생 목록 순번 당기기는 재생 이력에서 본 것을 따른 추정이다.
+/// - 동기화 상태 곡은 빼지 않는다(#196): rekordbox는 동기화한 곡을 지울 때 행을 지우지 않고 삭제 표시(`rb_local_deleted` 1, 상태 258 →
+///   클라우드 처리 뒤 262)로 남기는데, 삭제 규칙은 상태 0 시험 곡으로만 확인했다. 곡 행·딸린 행·함께 지울 앨범·아티스트 행 중 상태가
+///   0이 아닌 것이 있으면 그 곡만 막고 "rekordbox에서 직접 빼세요"로 알린다. 묶음 3 실험(세션 D3)으로 규칙을 확인하면 연다.
 /// - 확인하지 않은 표(MyTag·핫큐 뱅크·샘플러·관련 곡·신청곡·검열 구간·클라우드 내보내기)에 걸린 곡은 지우지 않는다.
 ///
 /// 안전장치는 큐 쓰기(`RekordboxWriter`)와 같다: 사전 확인 → 전체 백업 → 한 트랜잭션 → 다시 읽어 검증 → 무결성 검사 → 실패 시 복원.
@@ -75,6 +78,19 @@ public enum RekordboxTrackWriter {
     /// 지울 곡을 막는 표(아직 rekordbox 실험으로 확인하지 않음)
     static let unverifiedReferenceTables = ["contentActiveCensor", "djmdActiveCensor", "djmdCloudExportSongPlaylist", "djmdSongHotCueBanklist",
                                             "djmdSongMyTag", "djmdSongRelatedTracks", "djmdSongRequestList", "djmdSongSampler", "djmdSongTagList"]
+
+    /// 동기화 상태 곡 빼기·합치기를 막는 이유(#196). 곡 행이 상태 0이 아닌 곡.
+    public static var syncedTrackReason: String {
+        String(ui: "rekordbox 클라우드와 동기화된 곡이라 빼는 규칙을 아직 확인하지 못했으니 rekordbox에서 직접 빼세요")
+    }
+    /// 곡 행은 상태 0인데 그 곡의 큐·파일·오토게인·재생 목록 항목·재생 이력 행 중 동기화 상태가 있는 것이 있다.
+    public static var syncedRowsReason: String {
+        String(ui: "이 곡의 큐·파일·재생 목록 항목 중 클라우드와 동기화된 행이 있어 빼는 규칙을 아직 확인하지 못했으니 rekordbox에서 직접 빼세요")
+    }
+    /// 곡을 빼면 아무도 안 쓰게 되는 앨범·아티스트 행이 동기화 상태라 그 행을 지우는 규칙을 모른다.
+    public static var syncedOrphanReason: String {
+        String(ui: "이 곡만 쓰던 앨범·아티스트 행이 클라우드와 동기화된 행이라 지우는 규칙을 아직 확인하지 못했으니 rekordbox에서 직접 빼세요")
+    }
 
     // MARK: - 추가
 
@@ -499,17 +515,18 @@ public enum RekordboxTrackWriter {
 
     /// 이미 열린 쓰기 트랜잭션에서 곡 하나를 뺀다. 합치기도 같은 삭제 규칙을 쓴다.
     static func deleteRow(_ id: String, db: CipherDatabase, usn: inout Int, stamp: (db: String, json: String)) throws -> Outcome {
-        var found: (title: String, path: String, artists: [String], album: String?)?
-        try db.query("""
-            SELECT Title, FolderPath, ArtistID, ComposerID, OrgArtistID, RemixerID, AlbumID
-            FROM djmdContent WHERE ID = ? AND rb_local_deleted = 0
-            """, [.text(id)]) { r in
-            found = (r.string(0) ?? "", r.string(1) ?? "", [2, 3, 4, 5].compactMap { r.string(Int32($0)) }, r.string(6))
+        var found: (title: String, path: String)?
+        try db.query("SELECT Title, FolderPath FROM djmdContent WHERE ID = ? AND rb_local_deleted = 0", [.text(id)]) { r in
+            found = (r.string(0) ?? "", r.string(1) ?? "")
         }
         guard let track = found else { throw Blocked(String(ui: "rekordbox 컬렉션에서 곡을 찾지 못했습니다")) }
+        // 막는 검사는 모두 변경 번호(usn)를 쓰기 전에 한다: 막힌 곡이 번호를 가져가면 같은 요청의 다른 곡 번호가 밀린다.
+        if let reason = try syncedTrackBlock(of: id, checksRows: true, db: db) { throw Blocked(reason) }
         for table in unverifiedReferenceTables where try RekordboxWriter.scalar(db, "SELECT count(*) FROM \(table) WHERE ContentID = ?", [.text(id)]) ?? 0 > 0 {
             throw Blocked(String(ui: "\(table)에도 들어 있는 곡이라 아직 지우지 않습니다(rekordbox에서 지우세요)"))
         }
+        let orphans = try orphanedRows(db, contentID: id, gone: [id])
+        if let reason = try syncedOrphanBlock(orphans, db: db) { throw Blocked(reason) }
         usn += 1
         for (table, list) in [("djmdSongPlaylist", "PlaylistID"), ("djmdSongHistory", "HistoryID")] {
             var entries: [(list: String, trackNo: Int)] = []
@@ -525,16 +542,8 @@ public enum RekordboxTrackWriter {
             _ = try db.run("DELETE FROM \(table) WHERE ContentID = ?", [.text(id)])
         }
         guard try db.run("DELETE FROM djmdContent WHERE ID = ?", [.text(id)]) == 1 else { throw Blocked(String(ui: "곡 행을 지우지 못했습니다")) }
-        // 그 곡만 쓰던 앨범·아티스트
-        if let album = track.album, try referenceCount(db, album: album) == 0 {
-            var albumArtist: String?
-            try db.query("SELECT AlbumArtistID FROM djmdAlbum WHERE ID = ?", [.text(album)]) { albumArtist = $0.string(0) }
-            _ = try db.run("DELETE FROM djmdAlbum WHERE ID = ?", [.text(album)])
-            if let albumArtist, try referenceCount(db, artist: albumArtist) == 0 { _ = try db.run("DELETE FROM djmdArtist WHERE ID = ?", [.text(albumArtist)]) }
-        }
-        for artist in Set(track.artists) where try referenceCount(db, artist: artist) == 0 {
-            _ = try db.run("DELETE FROM djmdArtist WHERE ID = ?", [.text(artist)])
-        }
+        // 그 곡만 쓰던 앨범·아티스트(곡 행을 지우기 전에 센 목록, 상태 0임을 확인했다)
+        for (table, rowID) in orphans.rows { _ = try db.run("DELETE FROM \(table) WHERE ID = ?", [.text(rowID)]) }
         guard try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdContent WHERE ID = ?", [.text(id)]) == 0 else {
             throw DJCError.writeVerificationFailed(String(ui: "곡 행이 남아 있습니다"))
         }
@@ -553,16 +562,88 @@ public enum RekordboxTrackWriter {
     static let albumArtistColumn = "AlbumArtistID"
 
     /// 곡 빼기에서 아무 곡도 안 쓰게 됐는지 보는 참조 수(지운 곡·앨범도 센다, 묶음 1·2 규칙). 칸 목록은 태그 쓰기와 같다.
-    static func referenceCount(_ db: CipherDatabase, artist: String) throws -> Int {
+    /// - Parameters:
+    ///   - gone: 이 곡들은 이미 빠진 것으로 센다(지우는 곡, 합치기면 함께 빠지는 곡까지)
+    ///   - droppedAlbum: 이 앨범은 이미 지운 것으로 센다
+    static func referenceCount(_ db: CipherDatabase, artist: String, gone: Set<String> = [], droppedAlbum: String? = nil) throws -> Int {
         let columns = contentReferenceColumns(table: "djmdArtist").map { "\($0) = ?1" }.joined(separator: " OR ")
-        let content = try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdContent WHERE \(columns)", [.text(artist)]) ?? 1
-        let albums = try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdAlbum WHERE \(albumArtistColumn) = ?", [.text(artist)]) ?? 1
-        return content + albums
+        var count = 0
+        try db.query("SELECT ID FROM djmdContent WHERE \(columns)", [.text(artist)]) { if !gone.contains($0.string(0) ?? "") { count += 1 } }
+        try db.query("SELECT ID FROM djmdAlbum WHERE \(albumArtistColumn) = ?", [.text(artist)]) { if $0.string(0) != droppedAlbum { count += 1 } }
+        return count
     }
 
-    static func referenceCount(_ db: CipherDatabase, album: String) throws -> Int {
+    static func referenceCount(_ db: CipherDatabase, album: String, gone: Set<String> = []) throws -> Int {
         let column = contentReferenceColumns(table: "djmdAlbum")[0]
-        return try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdContent WHERE \(column) = ?", [.text(album)]) ?? 1
+        var count = 0
+        try db.query("SELECT ID FROM djmdContent WHERE \(column) = ?", [.text(album)]) { if !gone.contains($0.string(0) ?? "") { count += 1 } }
+        return count
+    }
+
+    /// 곡을 빼면 아무도 안 쓰게 되어 함께 지우는 앨범·아티스트 행(앨범 → 그 앨범 아티스트 → 곡의 아티스트 순).
+    struct OrphanedRows {
+        var album: String?
+        var artists: [String] = []
+        var rows: [(table: String, id: String)] {
+            (album.map { [("djmdAlbum", $0)] } ?? []) + artists.map { ("djmdArtist", $0) }
+        }
+    }
+
+    /// `contentID` 곡을 빼면 지우게 되는 앨범·아티스트 행. 지우기 전에 센다(곡 행이 아직 있어도 `gone`은 빠진 것으로 본다).
+    /// `gone`: 이 곡과 같은 합치기에서 함께 빠지는 곡들.
+    static func orphanedRows(_ db: CipherDatabase, contentID: String, gone: Set<String>) throws -> OrphanedRows {
+        var albumID: String?
+        var artistIDs: [String] = []
+        try db.query("SELECT AlbumID, ArtistID, ComposerID, OrgArtistID, RemixerID FROM djmdContent WHERE ID = ?", [.text(contentID)]) { r in
+            albumID = r.string(0)
+            artistIDs = [1, 2, 3, 4].compactMap { r.string(Int32($0)) }
+        }
+        var orphans = OrphanedRows()
+        if let albumID, try referenceCount(db, album: albumID, gone: gone) == 0 {
+            orphans.album = albumID
+            var albumArtist: String?
+            try db.query("SELECT AlbumArtistID FROM djmdAlbum WHERE ID = ?", [.text(albumID)]) { albumArtist = $0.string(0) }
+            if let albumArtist, try referenceCount(db, artist: albumArtist, gone: gone, droppedAlbum: albumID) == 0 { orphans.artists.append(albumArtist) }
+        }
+        for artist in Set(artistIDs).sorted() where !orphans.artists.contains(artist) {
+            if try referenceCount(db, artist: artist, gone: gone, droppedAlbum: orphans.album) == 0 { orphans.artists.append(artist) }
+        }
+        return orphans
+    }
+
+    /// 곡 행에 딸려 지우는 행이 있는 표(곡 ID 칸은 모두 `ContentID`)
+    static let ownRowTables = ["djmdCue", "contentCue", "contentFile", "djmdMixerParam", "djmdSongPlaylist", "djmdSongHistory"]
+
+    /// 동기화 상태(`rb_data_status` ≠ 0, NULL 포함)인 행이 있는지
+    static func isSynced(_ db: CipherDatabase, table: String, column: String, id: String) throws -> Bool {
+        (try RekordboxWriter.scalar(db, "SELECT count(*) FROM \(table) WHERE \(column) = ? AND ifnull(rb_data_status, 1) != 0", [.text(id)]) ?? 1) > 0
+    }
+
+    /// 곡 행(과 `checksRows`면 지울 딸린 행)이 동기화 상태라 막는 이유(#196). 막을 게 없거나 컬렉션에 없는 곡이면 nil(없는 곡은 부른 쪽이 처리).
+    /// rekordbox는 동기화 곡을 지울 때 행을 지우지 않고 삭제 표시로 남긴다. 규칙은 상태 0 시험 곡으로만 확인했다.
+    static func syncedTrackBlock(of id: String, checksRows: Bool, db: CipherDatabase) throws -> String? {
+        guard try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdContent WHERE ID = ? AND rb_local_deleted = 0", [.text(id)]) == 1 else { return nil }
+        if try isSynced(db, table: "djmdContent", column: "ID", id: id) { return syncedTrackReason }
+        if checksRows {
+            for table in ownRowTables where try isSynced(db, table: table, column: "ContentID", id: id) { return syncedRowsReason }
+        }
+        return nil
+    }
+
+    /// 함께 지울 앨범·아티스트 행이 동기화 상태라 막는 이유
+    static func syncedOrphanBlock(_ orphans: OrphanedRows, db: CipherDatabase) throws -> String? {
+        for (table, rowID) in orphans.rows where try isSynced(db, table: table, column: "ID", id: rowID) { return syncedOrphanReason }
+        return nil
+    }
+
+    /// 합치기 사전 검사용: 지울 원본 하나의 곡 행과 함께 지울 앨범·아티스트 행을 본다.
+    /// - Parameters:
+    ///   - others: 같은 합치기에서 함께 빠지는 다른 원본(앨범·아티스트가 아무도 안 쓰게 되는지 셀 때 빠진 것으로 본다)
+    ///   - checksRows: 곡의 딸린 행 상태도 볼지. 합치기 사전 검사는 원본의 재생 목록 항목이 검증된 목록 경로로 먼저 빠지므로 끈다.
+    static func syncedRemovalBlock(of id: String, alsoRemoving others: Set<String> = [], checksRows: Bool = true,
+                                   db: CipherDatabase) throws -> String? {
+        if let reason = try syncedTrackBlock(of: id, checksRows: checksRows, db: db) { return reason }
+        return try syncedOrphanBlock(try orphanedRows(db, contentID: id, gone: others.union([id])), db: db)
     }
 
     // MARK: - 공통
