@@ -221,38 +221,46 @@ extension RekordboxWriter {
 
     /// 참조를 세는 곡·앨범 행
     enum ReferenceRows {
-        case live, all
+        /// 살아 있는 곡 + 모든 앨범(지운 앨범의 앨범 아티스트 칸도)
+        case liveSongs
+        /// 지운 곡·앨범까지 모두
+        case all
 
-        /// 버려졌는지 볼 때의 범위. 동기화(256·257) **앨범**만 살아 있는 곡을 센다(#173 S2 U04, 2026-10-04: 지운 곡 여럿이 가리키는
-        /// 동기화 앨범도 비우자 258이 됐다. U01·U14도 동기화 앨범). 동기화 아티스트·장르는 지운 곡·258 앨범의 참조가 있을 때를 보지 못해[미확인]
-        /// 지운 곡·앨범까지 센다(그런 참조가 남으면 건드리지 않는다). 상태 0 행도 예전처럼 지운 것까지 센다(지워도 외래 키가 끊기지 않게).
-        static func scope(table: String, state: Int?) -> ReferenceRows {
-            table == "djmdAlbum" && (state == 256 || state == 257) ? .live : .all
+        /// 버려졌는지 볼 때의 범위. 동기화(256·257) 행은 표와 상관없이 곡 참조를 살아 있는 것만 센다(#173 S2 U04 앨범, S4 E1 아티스트·E2 장르,
+        /// 2026-10-04: 지운 곡이 가리키던 동기화 행도 258이 됐다). 아티스트를 가리키는 앨범의 앨범 아티스트 칸은 지운(258·262) 앨범까지 센다:
+        /// 지운 앨범만 남은 동기화 아티스트는 보지 못해[미확인] 쓰지 않는 쪽으로 남긴다. 상태 0 행은 예전처럼 지운 것까지 센다(지워도 외래 키가
+        /// 끊기지 않게).
+        static func scope(state: Int?) -> ReferenceRows {
+            state == 256 || state == 257 ? .liveSongs : .all
         }
     }
 
-    /// 행 하나를 가리키는 곡·앨범 수(살아 있음·지움별). 칸마다 인덱스가 있어 칸별 질의를 UNION ALL로 잇고 개수만 센다(OR는 표 전체를 훑는다).
+    /// 행 하나를 가리키는 곡(살아 있음·지움별)과 앨범 수. 칸마다 인덱스가 있어 칸별 질의를 UNION ALL로 잇고 개수만 센다(OR는 표 전체를 훑는다).
     struct ReferenceCount {
-        var live = 0
-        var deleted = 0
+        var liveSongs = 0
+        var deletedSongs = 0
+        /// 앨범 아티스트 칸으로 가리키는 앨범(아티스트 행만, 지운 앨범 포함)
+        var albums = 0
 
         init(_ db: CipherDatabase, table: String, id: String) throws {
             // 칸 목록은 곡 빼기와 같다(RekordboxTrackWriter.contentReferenceColumns)
             var parts = RekordboxTrackWriter.contentReferenceColumns(table: table).map {
-                "SELECT rb_local_deleted != 0 AS gone FROM djmdContent WHERE \($0) = ?1"
+                "SELECT rb_local_deleted != 0 AS gone, 0 AS album FROM djmdContent WHERE \($0) = ?1"
             }
             if table == "djmdArtist" {
-                parts.append("SELECT rb_local_deleted != 0 AS gone FROM djmdAlbum WHERE \(RekordboxTrackWriter.albumArtistColumn) = ?1")
+                parts.append("SELECT rb_local_deleted != 0 AS gone, 1 AS album FROM djmdAlbum WHERE \(RekordboxTrackWriter.albumArtistColumn) = ?1")
             }
-            var live = 0, deleted = 0
-            try db.query("SELECT gone, count(*) FROM (\(parts.joined(separator: " UNION ALL "))) GROUP BY gone", [.text(id)]) {
-                if $0.int(0) == 1 { deleted += $0.int(1) ?? 0 } else { live += $0.int(1) ?? 0 }
+            var liveSongs = 0, deletedSongs = 0, albums = 0
+            try db.query("SELECT gone, album, count(*) FROM (\(parts.joined(separator: " UNION ALL "))) GROUP BY gone, album", [.text(id)]) {
+                let count = $0.int(2) ?? 0
+                if $0.int(1) == 1 { albums += count } else if $0.int(0) == 1 { deletedSongs += count } else { liveSongs += count }
             }
-            self.live = live
-            self.deleted = deleted
+            self.liveSongs = liveSongs
+            self.deletedSongs = deletedSongs
+            self.albums = albums
         }
 
-        func count(_ rows: ReferenceRows) -> Int { rows == .all ? live + deleted : live }
+        func count(_ rows: ReferenceRows) -> Int { rows == .all ? liveSongs + deletedSongs + albums : liveSongs + albums }
     }
 
     /// 이 초안을 쓰면 놓는 옛 이름·앨범 행(앨범 먼저: 버려진 앨범의 앨범 아티스트 참조가 먼저 빠진다).
@@ -304,7 +312,7 @@ extension RekordboxWriter {
         var marked: [MarkedName] = []
         for (table, id) in releasedNames(keys, old: content.old, migratesAlbum: content.migratesAlbum) {
             guard let state = try liveNameState(db, table: table, id: id),
-                  try ReferenceCount(db, table: table, id: id).count(ReferenceRows.scope(table: table, state: state)) == 0 else { continue }
+                  try ReferenceCount(db, table: table, id: id).count(ReferenceRows.scope(state: state)) == 0 else { continue }
             if let problem = releaseProblem(table: table, state: state) { throw Blocked(title: content.title, reason: problem) }
             if state == 0 {
                 _ = try db.run("DELETE FROM \(table) WHERE ID = ?", [.text(id)])
@@ -370,7 +378,7 @@ extension RekordboxWriter {
         if keys.contains(.albumArtist) {
             // 동기화 앨범은 지운 곡을 세지 않는다(#173 S2 U01·U14: 지운 곡도 쓰던 동기화 앨범의 앨범 아티스트를 제자리에서 넣고 비웠다).
             // 상태 0 앨범은 예전처럼 지운 곡까지 센다.
-            guard try ReferenceCount(db, table: "djmdAlbum", id: album.id).count(ReferenceRows.scope(table: "djmdAlbum", state: state)) == 1 else {
+            guard try ReferenceCount(db, table: "djmdAlbum", id: album.id).count(ReferenceRows.scope(state: state)) == 1 else {
                 throw block(String(ui: "여러 곡이 쓰는 앨범이라 앨범 아티스트는 rekordbox에서 직접 고치세요"))
             }
         } else if album.artist != oldAlbumArtist {
