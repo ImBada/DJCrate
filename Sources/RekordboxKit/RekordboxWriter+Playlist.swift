@@ -375,13 +375,16 @@ extension RekordboxWriter {
     static func applyPlaylistXML(_ changes: [PlaylistXMLChange], to xml: MasterPlaylistsXML, now: Date) throws -> MasterPlaylistsXML {
         var xml = xml
         let timestamp = Int64((now.timeIntervalSince1970 * 1000).rounded(.down))
+        // Timestamp는 모두 같은 값이라 모아서 마지막에 한 번 훑는다(만들기는 이미 그 시각, 옮기기는 Timestamp를 건드리지 않는다).
+        var touched: Set<String> = []
         for change in changes {
             switch change {
             case let .append(id, parentID, isFolder): try xml.append(id: id, parentID: parentID, isFolder: isFolder, timestamp: timestamp)
-            case let .touch(id): try xml.update(id: id, timestamp: timestamp)
+            case let .touch(id): touched.insert(id)
             case let .parent(id, parentID): try xml.update(id: id, parentID: parentID)
             }
         }
+        xml.touch(ids: touched, timestamp: timestamp)
         // 만들고 옮긴 NODE의 마지막 부모가 DB와 같은지
         var parents: [String: String] = [:]
         for change in changes {

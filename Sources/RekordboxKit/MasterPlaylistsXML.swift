@@ -64,6 +64,24 @@ public struct MasterPlaylistsXML: Sendable, Equatable {
         return true
     }
 
+    /// 여러 NODE의 Timestamp를 한 값으로 고친다(줄을 한 번만 훑는다). 없는 NODE는 건너뛴다.
+    /// - Parameter ids: DB 목록 ID
+    /// - Returns: 고친 NODE 수
+    @discardableResult
+    public mutating func touch(ids: Set<String>, timestamp: Int64) -> Int {
+        let hexes = Set(ids.compactMap(Self.hex))
+        guard !hexes.isEmpty else { return 0 }
+        var lines = self.lines
+        var touched = 0
+        for index in lines.indices {
+            guard let node = lines[index].node, hexes.contains(node.id) else { continue }
+            lines[index].text = Self.replacing("Timestamp", with: String(timestamp), in: lines[index].text)
+            touched += 1
+        }
+        if touched > 0 { text = lines.map(\.text).joined() }
+        return touched
+    }
+
     // MARK: - 줄
 
     private struct Line {

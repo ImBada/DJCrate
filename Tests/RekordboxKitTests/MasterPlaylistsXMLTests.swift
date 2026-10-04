@@ -51,4 +51,13 @@ struct MasterPlaylistsXMLTests {
         #expect(try xml.update(id: "1", timestamp: 5) == false)
         #expect(xml.text == expected)
     }
+
+    @Test func 여러_목록의_Timestamp를_한_번에_고친다() {
+        // 곡 정보 쓰기(#173)는 목록 여러 개의 Timestamp를 같은 시각으로 고친다. 줄을 한 번만 훑고, 없는 목록은 건너뛴다.
+        var xml = MasterPlaylistsXML(text: Self.sample)
+        #expect(xml.touch(ids: ["34075091", "441902857", "999"], timestamp: 1_790_500_000_000) == 2)
+        let expected = Self.sample.replacingOccurrences(of: "Timestamp=\"1790400600945\"", with: "Timestamp=\"1790500000000\"")
+            .replacingOccurrences(of: "Timestamp=\"1790400858818\"", with: "Timestamp=\"1790500000000\"")
+        #expect(xml.text == expected)
+    }
 }

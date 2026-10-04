@@ -413,6 +413,29 @@ struct RekordboxPlaylistWriterTests {
         #expect(try fixture.localUpdateCount() == 1000)
     }
 
+    @Test func 곡_정보_시각과_목록_편집이_섞여도_XML은_하나씩_고친_것과_같다() throws {
+        // 곡 정보 쓰기(#173)의 Timestamp는 모아서 한 번에 고친다. 만들기·옮기기와 섞이고 같은 목록이 여러 번·없는 목록이 있어도
+        // 변경을 하나씩 적은 결과와 같아야 한다.
+        var base = MasterPlaylistsXML(text: MasterPlaylistsXMLTests.empty)
+        try base.append(id: "1", parentID: "root", isFolder: true, timestamp: 1_000)
+        try base.append(id: "2", parentID: "root", isFolder: false, timestamp: 1_000)
+        try base.append(id: "3", parentID: "root", isFolder: false, timestamp: 1_000)
+        let changes: [RekordboxWriter.PlaylistXMLChange] = [
+            .touch("2"), .append(id: "4", parentID: "1", isFolder: false), .parent(id: "3", to: "1"), .touch("1"), .touch("4"), .touch("2"), .touch("5"),
+        ]
+        let batched = try RekordboxWriter.applyPlaylistXML(changes, to: base, now: now)
+        var sequential = base
+        for change in changes {
+            switch change {
+            case let .append(id, parentID, isFolder): try sequential.append(id: id, parentID: parentID, isFolder: isFolder, timestamp: nowMS)
+            case let .touch(id): try sequential.update(id: id, timestamp: nowMS)
+            case let .parent(id, parentID): try sequential.update(id: id, parentID: parentID)
+            }
+        }
+        #expect(batched == sequential)
+        #expect(batched.node(id: "3")?.timestamp == 1_000 && batched.node(id: "2")?.timestamp == nowMS)
+    }
+
     @Test func 읽지_못하는_masterPlaylists6_xml이면_백업_전에_막는다() throws {
         let fixture = try library()
         try "망가짐".write(to: xmlURL(fixture), atomically: true, encoding: .utf8)
