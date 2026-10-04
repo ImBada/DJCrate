@@ -103,7 +103,7 @@ djc compat --db /tmp/djc-fixture/master.db --json
 - `History`: `id`, `name`, `trackCount`; 선택 문자열 `dateCreated`. `histories`는 날짜순이며 `trackCount`는 반복 재생을 포함한 조회 가능한 항목 수다.
 - `HistoryEntry`: `id`, 정수 `trackNumber`, `track`(Track). 같은 곡을 여러 번 재생한 항목은 그대로 남긴다.
 - `DraftState`: `cue`, `grid`, `gain`, `tag` 불리언 네 개다.
-- `Draft`: `trackUUID`, `kinds`(`cue`, `grid`, `gain`, `tag` 순서), 선택 `contentID`, `title`. 컬렉션에 없으면 마지막 두 필드를 생략한다. 큐·그리드·태그는 읽을 수 있고 실제 변경이 있는 초안만, 게인은 저장된 값이 있는 초안만 센다. 손상된 초안의 진단·반영 가능 여부 판정은 하지 않는다.
+- `Draft`: `trackUUID`, `kinds`(`cue`, `grid`, `gain`, `tag`, `artwork` 순서), 선택 `contentID`, `title`. 컬렉션에 없으면 마지막 두 필드를 생략한다. 큐·그리드·태그는 읽을 수 있고 실제 변경이 있는 초안만, 게인은 저장된 값이 있는 초안만, 그림은 초안과 그림 사본을 읽을 수 있는 초안만 센다(그림 초안은 앱에서만 만든다). 손상된 초안의 진단·반영 가능 여부 판정은 하지 않는다.
 - `report`: 정수 `totalRows`, `deletedRows`, `liveTracks`, `streamingTracks`, `tracksWithCues`, `tracksWithManualCues`, `tracksWithOnlyAutoCues`, `tracksWithoutCues`, `playedTracks`, `emptyCommentPlayed`; 문자열→정수 사전 `extensions`, `emptyByImportYear`, `hotCueSlots`; `--comment-preset anisong`일 때만 `commentClasses`, `prefixes`, `usages`. `--files`를 주면 정수 `missingFiles`를 더한다.
 - `ParsedComment`: `prefix`, `workRef`, `workName`, `abbreviations`, `usages`(`{kind, numbers}` 배열), `episodes`, `isCharacterSong`, `isTVSize`, `variants`, `isFormerAffiliation`, `boomboxVolumes`; 선택 `season`, `seasonStyle`(`parenthesized`, `plain`, `season`), `airingYear`, `airingQuarter`, `movieYear`. `classification`은 `convention`, `legacy`, `residue`, `credit`, `empty`, `other` 중 하나다.
 
