@@ -409,6 +409,13 @@ public enum RekordboxTrackWriter {
         try db.query("SELECT ID FROM djmdAlbum WHERE Name = ? AND AlbumArtistID IS ? AND rb_local_deleted = 0 ORDER BY created_at LIMIT 1",
                      [.text(name), albumArtistID.map { .text($0) } ?? .null]) { existing = $0.string(0) }
         if let existing { return existing }
+        return try insertAlbum(db, name: name, albumArtistID: albumArtistID, usn: &usn, stamp: stamp)
+    }
+
+    /// 새 앨범 행 하나(rekordbox가 만드는 모양: `ImagePath`·`SearchStr` NULL, `Compilation` 0, 상태 칸 0). 곡 넣기와 태그 쓰기(새 앨범·
+    /// 동명 앨범 옮기기)가 같은 모양을 쓴다.
+    static func insertAlbum(_ db: CipherDatabase, name: String, albumArtistID: String?, usn: inout Int,
+                            stamp: (db: String, json: String)) throws -> String {
         let id = try newID(db, table: "djmdAlbum", range: 1..<(1 << 32))
         usn += 1
         let row: [String: CipherDatabase.Value] = ["ID": .text(id), "Name": .text(name), "AlbumArtistID": albumArtistID.map { .text($0) } ?? .null,

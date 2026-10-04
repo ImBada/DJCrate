@@ -580,12 +580,7 @@ extension RekordboxWriter {
             if content.migratesAlbum, let name = old.albumName {
                 // 같은 이름 앨범이 여럿이면 옛 앨범은 저장하지 않고 같은 이름의 새 앨범으로 옮긴다(#173 S3 V02·S2 U13). (이름, 앨범 아티스트)
                 // 짝이 같은 행이 있어도 늘 새로 만든다(`findOrCreateAlbum`을 쓰지 않는다). 앨범 아티스트는 이어받고 NULL이면 ''.
-                let id = try RekordboxTrackWriter.newID(db, table: "djmdAlbum", range: 1..<(1 << 32))
-                usn += 1
-                try RekordboxTrackWriter.insert(db, table: "djmdAlbum", [
-                    "ID": .text(id), "Name": .text(name), "AlbumArtistID": .text(old.albumArtist ?? ""), "ImagePath": .null, "Compilation": .int(0),
-                    "SearchStr": .null, "UUID": .text(UUID().uuidString.lowercased()),
-                ].merging(RekordboxTrackWriter.syncColumns(usn: usn, stamp: stamp)) { a, _ in a })
+                let id = try RekordboxTrackWriter.insertAlbum(db, name: name, albumArtistID: old.albumArtist ?? "", usn: &usn, stamp: stamp)
                 columns.append(("AlbumID", .text(id)))
                 touchedAlbums[id] = (usn, 0)
             } else if let album = currentAlbum {
