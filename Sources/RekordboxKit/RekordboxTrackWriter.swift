@@ -33,6 +33,10 @@ public enum RekordboxTrackWriter {
         public var cuesWritten: Int?
         /// 큐를 넣지 못한 이유(곡은 넣었다)
         public var cueReason: String?
+        /// 곡과 함께 쓴 키 이름(Camelot, 키를 주지 않았거나 막혔으면 nil, #5). 옛 보고서에는 없다.
+        public var keyWritten: String?
+        /// 키를 쓰지 못한 이유(곡은 키 없이 넣었다). 옛 보고서에는 없다.
+        public var keyReason: String?
     }
 
     public struct Report: Codable, Sendable {
@@ -99,9 +103,12 @@ public enum RekordboxTrackWriter {
     ///   - shareRoot: 분석 파일 뿌리. 라이브 DB면 rekordbox share 폴더, 사본이면 명시해야 분석을 붙인다.
     ///   - cues: 경로마다 함께 넣을 큐. 곡을 넣은 같은 트랜잭션에서 큐 쓰기(`RekordboxWriter`)와 같은 규칙으로 쓴다.
     ///     큐가 막히면 곡만 넣고 이유를 `cueReason`에 남긴다.
+    ///   - keys: 경로마다 함께 쓸 키(사용자가 고른 Camelot 이름, #5). 곡을 넣고(분석·큐까지) 같은 트랜잭션에서 그 곡에 키만 고친 태그
+    ///     쓰기(`RekordboxWriter.applyTags`)를 한다. rekordbox에서 곡을 넣은 뒤 정보 패널에서 키를 저장한 것과 같다. 빈 이름은 할 일이 없다
+    ///     (넣는 곡의 키는 '0'). 키가 막히면(키 줄이 없거나 둘 이상 등) 곡만 넣고 이유를 `keyReason`에 남긴다.
     ///   - writesArtwork: 분석까지 붙이는 곡에 음원 내장 아트워크로 아트워크 파일 셋·`ImagePath`·파일 행을 넣는지. 앱은 `writesArtwork`를 따른다.
     public static func add(_ plans: [TrackAddPlan], analyses: [String: Analysis] = [:], cues: [String: [EditableCue]] = [:],
-                           to database: URL,
+                           keys: [String: String] = [:], to database: URL,
                            shareRoot: URL? = nil, dryRun: Bool, now: Date = .now, backups: URL,
                            guard writeGuard: RekordboxWriteGuard = .system,
                            writesArtwork: Bool = RekordboxTrackWriter.writesArtwork) throws -> Report {
@@ -135,6 +142,8 @@ public enum RekordboxTrackWriter {
         /// 곡과 함께 넣은 파일 행·오토게인 행(커밋 뒤 다시 읽어 비교)
         var extraRows: [InsertedRow] = []
         var cueChecks: [(contentID: String, expectation: RekordboxWriter.Expectation)] = []
+        /// 곡과 함께 쓴 키(커밋 뒤 태그 쓰기와 같은 검증으로 다시 읽는다)
+        var keyChecks: [RekordboxWriter.TagExpectation] = []
         report.finalUpdateCount = try transaction(database, dryRun: dryRun) { db, usn in
             let library = try libraryIdentity(db)
             for plan in plans {
@@ -205,6 +214,37 @@ public enum RekordboxTrackWriter {
                             outcome.cueReason = blocked.reason
                         }
                     }
+                    // 키(#5): 곡 넣기(분석·큐까지)를 마친 뒤 키만 고친 태그 초안을 태그 쓰기로 쓴다. 태그는 마지막이라 곡 행이 마지막 번호를 받고,
+                    // 분석을 넣은 곡은 첫 BPM/Grid '1' 뒤에 +1이 된다. 넣는 곡은 아직 어느 재생 목록에도 없어 XML Timestamp는 고칠 것이 없다.
+                    if let name = keys[plan.path], !name.isEmpty {
+                        try db.execute("SAVEPOINT djc_add_key")
+                        let savedUSN = usn
+                        do {
+                            guard let base = try RekordboxWriter.currentTags(db: db, contentID: id) else {
+                                throw DJCError.writeVerificationFailed(String(ui: "넣은 곡의 정보를 다시 읽지 못했습니다 (\(plan.title))"))
+                            }
+                            var draft = TagDraft(trackUUID: uuid, base: base)
+                            draft.fields.musicalKey = name
+                            let result = try RekordboxWriter.applyTags(draft, db: db, usn: &usn, stamp: stamp,
+                                                                       writable: RekordboxWriter.writableTagKeys)
+                            // 곡 행 기대값을 키를 쓴 뒤 모양으로(커밋 뒤 곡 행 전체를 다시 비교한다). 같은 곡의 큐 검증도 마지막 번호를 본다.
+                            row["KeyID"] = .text(result.expectation.keyID ?? "0")
+                            row["TrackInfoUpdated"] = .text(result.expectation.trackInfoUpdated)
+                            row["rb_local_usn"] = .int(result.expectation.contentUSN)
+                            for i in cueChecks.indices where cueChecks[i].contentID == id {
+                                cueChecks[i].expectation.contentUSN = result.expectation.contentUSN
+                            }
+                            keyChecks.append(result.expectation)
+                            outcome.keyWritten = name
+                            try db.execute("RELEASE djc_add_key")
+                        } catch let blocked as RekordboxWriter.Blocked {
+                            // 따로 쓸 때처럼 키만 막는다(번호도 되돌린다). 곡은 키 없이('0') 넣는다.
+                            try db.execute("ROLLBACK TO djc_add_key")
+                            try db.execute("RELEASE djc_add_key")
+                            usn = savedUSN
+                            outcome.keyReason = blocked.reason
+                        }
+                    }
                     try db.execute("RELEASE djc_add")
                     inserted.append((id, row))
                     extraRows += planRows
@@ -222,6 +262,7 @@ public enum RekordboxTrackWriter {
                 for item in inserted { try verify(db, table: "djmdContent", id: item.id, item.expected) }
                 for row in extraRows { try verify(db, table: row.table, id: row.id, row.values) }
                 for check in cueChecks { try RekordboxWriter.verify(db: db, contentID: check.contentID, check.expectation) }
+                for expectation in keyChecks { try RekordboxWriter.verifyTags(db: db, expectation) }
             }
             // 분석·아트워크 파일: DB가 끝난 뒤 쓴다. 실패하면 쓴 파일과 만든 빈 폴더를 지우고 DB를 되돌린다.
             let written = report.added.filter(\.written).map(\.path)
@@ -551,11 +592,11 @@ public enum RekordboxTrackWriter {
     }
 
     /// 이름·앨범 행을 가리키는 곡 행 칸(곡 빼기와 태그 쓰기가 같이 쓴다). 아티스트는 여기에 앨범의 `albumArtistColumn`도 더한다.
-    static func contentReferenceColumns(table: String) -> [String] {
+    static func contentReferenceColumns(table: NameTable) -> [String] {
         switch table {
-        case "djmdArtist": ["ArtistID", "ComposerID", "OrgArtistID", "RemixerID"]
-        case "djmdAlbum": ["AlbumID"]
-        default: ["GenreID"]
+        case .artist: ["ArtistID", "ComposerID", "OrgArtistID", "RemixerID"]
+        case .album: ["AlbumID"]
+        case .genre: ["GenreID"]
         }
     }
     /// 아티스트를 가리키는 앨범 칸
@@ -566,7 +607,7 @@ public enum RekordboxTrackWriter {
     ///   - gone: 이 곡들은 이미 빠진 것으로 센다(지우는 곡, 합치기면 함께 빠지는 곡까지)
     ///   - droppedAlbum: 이 앨범은 이미 지운 것으로 센다
     static func referenceCount(_ db: CipherDatabase, artist: String, gone: Set<String> = [], droppedAlbum: String? = nil) throws -> Int {
-        let columns = contentReferenceColumns(table: "djmdArtist").map { "\($0) = ?1" }.joined(separator: " OR ")
+        let columns = contentReferenceColumns(table: .artist).map { "\($0) = ?1" }.joined(separator: " OR ")
         var count = 0
         try db.query("SELECT ID FROM djmdContent WHERE \(columns)", [.text(artist)]) { if !gone.contains($0.string(0) ?? "") { count += 1 } }
         try db.query("SELECT ID FROM djmdAlbum WHERE \(albumArtistColumn) = ?", [.text(artist)]) { if $0.string(0) != droppedAlbum { count += 1 } }
@@ -574,7 +615,7 @@ public enum RekordboxTrackWriter {
     }
 
     static func referenceCount(_ db: CipherDatabase, album: String, gone: Set<String> = []) throws -> Int {
-        let column = contentReferenceColumns(table: "djmdAlbum")[0]
+        let column = contentReferenceColumns(table: .album)[0]
         var count = 0
         try db.query("SELECT ID FROM djmdContent WHERE \(column) = ?", [.text(album)]) { if !gone.contains($0.string(0) ?? "") { count += 1 } }
         return count
@@ -749,4 +790,11 @@ public enum RekordboxTrackWriter {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(report).write(to: backup.appending(path: "track-report.json"), options: .atomic)
     }
+}
+
+/// 곡 행이 이름으로 가리키는 이름·앨범 표. 표 이름 글자 대신 쓴다(모르는 표가 조용히 다른 표의 칸으로 읽히지 않게, 칸 목록에 기본값이 없다).
+enum NameTable: String {
+    case artist = "djmdArtist"
+    case album = "djmdAlbum"
+    case genre = "djmdGenre"
 }

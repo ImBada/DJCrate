@@ -41,6 +41,29 @@ extension RekordboxTagWriterTests {
         #expect(try fixture.rows("SELECT count(*) AS n FROM djmdCue WHERE ContentID = '600'").first?["n"] == "2")
     }
 
+    // MARK: 이름 행 상태·참조 칸
+
+    @Test func 이름_행_상태는_없음·지움·상태_없음·값을_구분한다() throws {
+        let (fixture, _) = try library()
+        let db = try fixture.open()
+        defer { db.close() }
+        #expect(try RekordboxWriter.liveNameState(db, table: .album, id: "31") == .live(status: 0))
+        #expect(try RekordboxWriter.liveNameState(db, table: .artist, id: "11") == .live(status: 0))
+        #expect(try RekordboxWriter.liveNameState(db, table: .genre, id: "없는 ID") == .missing)
+        try fixture.execute("UPDATE djmdAlbum SET rb_data_status = 256 WHERE ID = '31'")
+        try fixture.execute("UPDATE djmdArtist SET rb_data_status = NULL WHERE ID = '11'")
+        try fixture.execute("UPDATE djmdGenre SET rb_local_deleted = 1 WHERE ID = '21'")
+        #expect(try RekordboxWriter.liveNameState(db, table: .album, id: "31") == .live(status: 256))
+        #expect(try RekordboxWriter.liveNameState(db, table: .artist, id: "11") == .live(status: nil))
+        #expect(try RekordboxWriter.liveNameState(db, table: .genre, id: "21") == .missing, "이미 지운 행은 없는 것과 같다")
+    }
+
+    @Test func 곡_행이_이름을_가리키는_칸은_표마다_정해져_있다() {
+        #expect(RekordboxTrackWriter.contentReferenceColumns(table: .artist) == ["ArtistID", "ComposerID", "OrgArtistID", "RemixerID"])
+        #expect(RekordboxTrackWriter.contentReferenceColumns(table: .album) == ["AlbumID"])
+        #expect(RekordboxTrackWriter.contentReferenceColumns(table: .genre) == ["GenreID"])
+    }
+
     // MARK: 여러 칸을 한 번에 쓴 결과 = 하나씩 저장한 결과
 
     /// 칸 조합 하나: 바꿀 칸(둘 이상), 값 종류(새 이름·있는 이름·비우기), 곡·이름·앨범 행 상태(0·256)
@@ -51,12 +74,20 @@ extension RekordboxTagWriterTests {
         var testDescription: String { "\(keys.map(\.rawValue).joined(separator: "+")) \(kind) \(state)" }
     }
 
-    /// 아티스트·앨범 아티스트·앨범·작곡가·장르 중 둘 이상 × 새 이름·있는 이름·비우기 × 상태 0·256
+    /// 아티스트·앨범 아티스트·앨범·작곡가는 아티스트 표와 앨범 표의 같은 행을 나눠 쓰고 서로 버리는 순서에 얽히므로(앨범 아티스트와 아티스트를 같은
+    /// 새 이름으로, 앨범을 옮기며 앨범 아티스트 놓기 …) 둘 이상의 모든 조합을 본다. 장르는 자기 표만 쓰는 칸이라 얽히지 않는다: 앨범 행·아티스트 행
+    /// 옆에서 변경 번호 순서가 어긋나지 않는지 앨범·아티스트와의 짝과 다섯 칸 모두만 본다. 칸마다 새 이름·있는 이름·비우기 × 상태 0·256.
+    /// 열 칸 전체 조합(156가지)은 `DJC_FULL_RELEASE_COMBINATIONS=1`로 돌린다(RekordboxKitTests가 약 80초 늘어 평소에는 줄여 둔다, #194).
+    /// 키·코멘트 비우기와의 조합은 `RekordboxTagKeyTests`의 키 짝과 `RekordboxTagSyncedTests`(코멘트 비우기)가 따로 본다.
     static let releaseCombinations: [ReleaseCombination] = {
         let fields: [TagFields.Key] = [.album, .albumArtist, .artist, .genre, .composer]
+        let full = ProcessInfo.processInfo.environment["DJC_FULL_RELEASE_COMBINATIONS"] == "1"
         var subsets: [[TagFields.Key]] = []
         for mask in 1..<(1 << fields.count) where mask.nonzeroBitCount >= 2 {
-            subsets.append(fields.indices.filter { mask & (1 << $0) != 0 }.map { fields[$0] })
+            let keys = fields.indices.filter { mask & (1 << $0) != 0 }.map { fields[$0] }
+            let related = keys.filter { $0 != .genre }
+            let genrePair = keys.contains(.genre) && (keys.count == fields.count || (keys.count == 2 && (related == [.album] || related == [.artist])))
+            if full || (related.count >= 2 && !keys.contains(.genre)) || genrePair { subsets.append(keys) }
         }
         return subsets.flatMap { keys in ["new", "existing", "clear"].flatMap { kind in [0, 256].map { ReleaseCombination(keys: keys, kind: kind, state: $0) } } }
     }()
@@ -66,18 +97,21 @@ extension RekordboxTagWriterTests {
     /// 두지 않아 11이 버려지는 경우도 본다). 곡·이름·앨범 행은 모두 `state`.
     func releaseLibrary(state: Int, kind: String) throws -> (RekordboxFixture, TrackSpec) {
         let (fixture, track) = try library(shared: false)
-        try fixture.insert("djmdArtist", ["ID": .text("12"), "Name": .text("있는 아티스트"), "UUID": .text("a-12")])
-        try fixture.insert("djmdArtist", ["ID": .text("14"), "Name": .text("옛 작곡가"), "UUID": .text("a-14")])
-        try fixture.insert("djmdGenre", ["ID": .text("22"), "Name": .text("있는 장르"), "UUID": .text("g-22")])
-        if kind == "existing" {
-            try fixture.insert("djmdAlbum", ["ID": .text("32"), "Name": .text("있는 앨범"), "AlbumArtistID": .text("11"), "UUID": .text("al-32")])
-            try sync(fixture, "djmdAlbum", "32", state: state)
-        }
-        try fixture.execute("UPDATE djmdAlbum SET AlbumArtistID = '11' WHERE ID = '31'")
-        try fixture.execute("UPDATE djmdContent SET ComposerID = '14', rb_data_status = ? WHERE ID = '500'", [.int(state)])
-        for (table, id) in [("djmdArtist", "11"), ("djmdArtist", "12"), ("djmdArtist", "14"), ("djmdGenre", "21"), ("djmdGenre", "22"),
-                            ("djmdAlbum", "31")] {
-            try sync(fixture, table, id, state: state)
+        // 조합마다 두 번 준비하므로 연결 하나로 쓴다(연결을 열 때마다 SQLCipher 키 유도가 든다)
+        try fixture.session { db in
+            try db.insert("djmdArtist", ["ID": .text("12"), "Name": .text("있는 아티스트"), "UUID": .text("a-12")])
+            try db.insert("djmdArtist", ["ID": .text("14"), "Name": .text("옛 작곡가"), "UUID": .text("a-14")])
+            try db.insert("djmdGenre", ["ID": .text("22"), "Name": .text("있는 장르"), "UUID": .text("g-22")])
+            if kind == "existing" {
+                try db.insert("djmdAlbum", ["ID": .text("32"), "Name": .text("있는 앨범"), "AlbumArtistID": .text("11"), "UUID": .text("al-32")])
+                try sync(db, "djmdAlbum", "32", state: state)
+            }
+            try db.execute("UPDATE djmdAlbum SET AlbumArtistID = '11' WHERE ID = '31'")
+            try db.execute("UPDATE djmdContent SET ComposerID = '14', rb_data_status = ? WHERE ID = '500'", [.int(state)])
+            for (table, id) in [("djmdArtist", "11"), ("djmdArtist", "12"), ("djmdArtist", "14"), ("djmdGenre", "21"), ("djmdGenre", "22"),
+                                ("djmdAlbum", "31")] {
+                try sync(db, table, id, state: state)
+            }
         }
         return (fixture, track)
     }
@@ -92,12 +126,16 @@ extension RekordboxTagWriterTests {
 
     /// 번호 값·시각·ID·UUID 없이 비교할 모양(곡 행, 살아 있거나 258인 이름·앨범 행). 외래 키는 가리키는 이름으로.
     func releaseState(_ fixture: RekordboxFixture) throws -> [String] {
+        try fixture.session { try releaseState($0) }
+    }
+
+    func releaseState(_ session: RekordboxFixture.Session) throws -> [String] {
         /// 외래 키 칸을 NULL·빈 글자·'0'·가리키는 이름으로
         func named(_ column: String, _ name: String) -> String {
             "CASE WHEN \(column) IS NULL THEN '(NULL)' WHEN \(column) = '' THEN '(빈)' WHEN \(column) = '0' THEN '(0)' ELSE ifnull(\(name), '(없음)') END"
         }
         func lines(_ sql: String, _ prefix: String) throws -> [String] {
-            try fixture.rows(sql).map { row in prefix + " " + row.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " ") }.sorted()
+            try session.rows(sql).map { row in prefix + " " + row.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " ") }.sorted()
         }
         let track = try lines("""
             SELECT c.Title, c.TrackInfoUpdated, c.rb_data_status, \(named("c.ArtistID", "a.Name")) AS artist, \(named("c.ComposerID", "cp.Name")) AS composer,

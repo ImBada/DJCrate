@@ -25,7 +25,8 @@ public enum EditStaging {
         var tags = TagDraft(track: staged.track)
         if let source {
             tags.fields = TagFields(track: source)
-            // 키는 곡을 rekordbox에 넣을 때 쓰지 않는다(KeyID '0', 키 쓰기는 넣은 뒤 태그 편집으로). 원곡 키를 초안에 담으면 쓰이지 않는 고친 칸이 된다.
+            // 원곡 키는 이 편집본에서 사용자가 확인한 키가 아니니 고친 칸으로 담지 않는다(#5: 사용자가 고른 키만 쓴다, 담으면 곡을 넣을 때 쓰인다).
+            // 추가한 곡에서 키를 고르면 넣을 때 함께 쓴다.
             tags.fields.musicalKey = tags.base.musicalKey
         }
         tags.fields.title = title ?? source.map { "\($0.title) (Edit)" } ?? staged.title

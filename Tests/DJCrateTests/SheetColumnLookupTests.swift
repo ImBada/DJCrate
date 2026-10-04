@@ -77,9 +77,10 @@ struct SheetColumnLookupTests {
                 #expect(cell.label.stringValue == expected && cell.label.accessibilityLabel() == spec.title, "\(spec.id) 줄 \(row)")
             }
         }
-        // 추가한 곡의 키 칸은 옮긴 자리에서도 편집 불가이고, 같은 줄의 다른 칸은 그대로 편집 가능하다
-        #expect(h.coordinator.editableKey(row: 2, column: h.column("key")) == nil)
+        // 추가한 곡도 옮긴 자리의 키 칸·코멘트 칸을 고친다(키는 넣을 때 함께 쓴다, #5). 읽기 전용 파일 칸은 옮겨도 편집 불가다.
+        #expect(h.coordinator.editableKey(row: 2, column: h.column("key")) == .musicalKey)
         #expect(h.coordinator.editableKey(row: 2, column: h.column("comment")) == .comment)
+        #expect(h.coordinator.editableKey(row: 2, column: h.column("file")) == nil)
     }
 
     @Test func 옮긴_열에_붙여넣으면_그_열의_칸에만_초안이_생긴다() throws {
@@ -138,16 +139,16 @@ struct SheetColumnLookupTests {
             let rect = h.table.frameOfCell(atColumn: h.column(id), row: row)
             return h.table.view(h.table, stringForToolTip: 0, point: NSPoint(x: rect.midX, y: rect.midY), userData: nil)
         }
-        // 추가한 곡(줄 2)의 키 칸만 이유가 붙는다. 같은 줄의 코멘트 칸에는 키 이유가 없다.
-        #expect(tip(row: 2, id: "key").contains("rekordbox에 넣은 뒤"))
-        #expect(!tip(row: 2, id: "comment").contains("rekordbox에 넣은 뒤"))
+        // 옮긴 파일 열(읽기 전용)에만 이유가 붙고, 같은 줄의 옮긴 코멘트 칸에는 없다. 추가한 곡(줄 2)의 키 칸도 이제 고를 수 있어 이유가 없다(#5).
+        #expect(tip(row: 0, id: "file").contains("읽기 전용"))
         #expect(tip(row: 0, id: "comment") == "코멘트 하나")
+        #expect(!tip(row: 2, id: "key").contains("읽기 전용") && !tip(row: 2, id: "key").contains("rekordbox에 넣은 뒤"))
     }
 
     @Test func 키_고르기_메뉴는_옮긴_키_열에서도_열린다() throws {
         let h = Harness(rows: Self.rows())
         defer { h.window.close() }
-        #expect(h.coordinator.keyMenu(row: 0) != nil && h.coordinator.keyMenu(row: 2) == nil)
+        #expect(h.coordinator.keyMenu(row: 0) != nil && h.coordinator.keyMenu(row: 2) != nil, "추가한 곡도 키를 고른다(넣을 때 함께 쓴다)")
         // 편집 시작: 옮긴 키 열은 메뉴, 옮긴 코멘트 열은 글자 편집기
         h.coordinator.select(.init(row: 0, column: h.column("comment")), extend: false)
         h.coordinator.beginEditing()

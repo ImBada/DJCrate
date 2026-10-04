@@ -9,7 +9,7 @@ import RekordboxKit
 import Testing
 
 /// 태그의 키 고르기(#5): 인스펙터·시트가 Camelot 이름(1A~12B)과 "없음"에서만 고르고, DJCrate 추정은 제안으로만 보이며,
-/// 목록의 키 칸은 보기 전용이고, 추가한 곡은 키를 고를 수 없다.
+/// 목록의 키 칸은 보기 전용이다. 추가한 곡의 키 기준은 빈칸(넣을 때 `KeyID` '0')이고, 고른 키는 곡을 넣을 때 함께 쓴다.
 @Suite("태그 키 고르기", .serialized)
 @MainActor
 struct MusicalKeyEditingTests {
@@ -39,14 +39,13 @@ struct MusicalKeyEditingTests {
         #expect(KeyPicker.choices(current: "Em").first == "Em" && KeyPicker.choices(current: "Em").count == 25)
     }
 
-    @Test func 추가한_곡_스트리밍_곡은_키를_고를_수_없고_이유를_알린다() throws {
+    @Test func 스트리밍_곡은_키를_고를_수_없고_추가한_곡은_고를_수_있다() throws {
+        // 추가한 곡의 키는 곡을 rekordbox에 넣을 때 함께 쓴다(#5). 스트리밍 곡은 여전히 막는다.
         let staged = Self.row("1", staged: true), library = Self.row("2"), streaming = Self.row("3", streaming: true)
-        #expect(KeyPicker.unavailableReason(library) == nil)
-        let reason = try #require(KeyPicker.unavailableReason(staged))
-        #expect(reason.contains("rekordbox에 넣은 뒤") && TrackListTagEditing.unavailableReason(staged, key: .title) == nil)
+        #expect(KeyPicker.unavailableReason(library) == nil && KeyPicker.unavailableReason(staged) == nil)
         #expect(KeyPicker.unavailableReason(streaming) != nil)
-        #expect(KeyPicker.targets([staged, library, streaming]).map(\.track.id) == ["2"])
-        #expect(KeyPicker.isEditable([staged, library]) && !KeyPicker.isEditable([staged, streaming]))
+        #expect(KeyPicker.targets([staged, library, streaming]).map(\.track.id) == ["djc-1", "2"])
+        #expect(KeyPicker.isEditable([staged, streaming]) && !KeyPicker.isEditable([streaming]))
     }
 
     // MARK: 초안에 넣기
@@ -80,14 +79,34 @@ struct MusicalKeyEditingTests {
         #expect(store.tagDrafts.isEmpty)
     }
 
-    @Test func 추가한_곡의_키는_초안에_넣지_않는다() {
+    @Test func 추가한_곡의_키_기준은_빈칸이라_목록의_키를_골라도_초안이_된다() throws {
+        // 목록의 키(음원 태그·DJCrate 추정 "8A")는 rekordbox 값이 아니다: 곡을 넣으면 `KeyID` '0'이다. 그 키를 고르면 고친 칸이어야
+        // 넣을 때 쓰인다(기준이 "8A"이면 같은 값이라 초안이 생기지 않아 키가 조용히 빠진다).
         let store = store()
         let staged = Self.row("1", key: "8A", staged: true)
-        store.setTag(.musicalKey, "6A", rows: [staged])
+        #expect(staged.tagFields.musicalKey == "" && store.tagCell(staged, .musicalKey) == "")
+        store.setTag(.musicalKey, "8A", rows: [staged])
+        let draft = try #require(store.tagDrafts[staged.track.uuid])
+        #expect(draft.changedKeys == [.musicalKey] && draft.base.musicalKey == "" && draft.fields.musicalKey == "8A")
+        // 없음으로 되돌리면 할 일이 없다(넣는 곡은 처음부터 키가 없다)
+        store.setTag(.musicalKey, "", rows: [staged])
         #expect(store.tagDrafts.isEmpty)
-        // 다른 칸은 그대로 고칠 수 있다
+        // 다른 칸만 고친 초안의 키 기준도 빈칸이다
         store.setTag(.title, "새 제목", rows: [staged])
-        #expect(store.tagDrafts[staged.track.uuid]?.changedKeys == [.title])
+        #expect(store.tagDrafts[staged.track.uuid]?.changedKeys == [.title] && store.tagDrafts[staged.track.uuid]?.base.musicalKey == "")
+    }
+
+    @Test func 추가한_곡의_옛_초안은_목록의_키를_기준으로_들고_있어도_키를_고친_것이_아니다() throws {
+        // 키를 고를 수 없던 때의 초안은 기준·내용 키가 목록의 키("8A")다. 지금 기준(빈칸)으로 맞춰 키를 고친 것으로 보지 않는다.
+        let store = store()
+        let staged = Self.row("1", key: "8A", staged: true)
+        var legacy = TagDraft(trackUUID: staged.track.uuid, base: TagFields(track: staged.track))
+        legacy.fields.title = "옛 제목"
+        store.tagDrafts[staged.track.uuid] = legacy
+        #expect(!store.isTagEdited(staged, .musicalKey) && store.tagCell(staged, .musicalKey) == "")
+        #expect(store.confirmedStagedKey(uuid: staged.track.uuid) == nil)
+        store.setTag(.musicalKey, "8A", rows: [staged])
+        #expect(store.confirmedStagedKey(uuid: staged.track.uuid) == "8A")
     }
 
     @Test func 옛_표기_키를_가진_곡의_초안을_버리면_옛_표기_기준으로_돌아간다() throws {
@@ -102,10 +121,10 @@ struct MusicalKeyEditingTests {
 
     @Test func 여러_곡을_고르면_고칠_수_있는_곡만_고친다() throws {
         let store = store()
-        let a = Self.row("1", key: "5A"), b = Self.row("2", key: "6A"), staged = Self.row("3", staged: true)
+        let a = Self.row("1", key: "5A"), b = Self.row("2", key: "6A"), streaming = Self.row("3", streaming: true)
         let value = store.tagValue(.musicalKey, rows: [a, b])
         #expect(value.mixed)
-        store.setTag(.musicalKey, "8A", rows: KeyPicker.targets([a, b, staged]))
+        store.setTag(.musicalKey, "8A", rows: KeyPicker.targets([a, b, streaming]))
         #expect(store.tagDrafts.keys.sorted() == ["uuid-1", "uuid-2"])
         #expect(store.tagValue(.musicalKey, rows: [a, b]) == (value: "8A", mixed: false))
     }
@@ -154,7 +173,8 @@ struct MusicalKeyEditingTests {
         #expect(suggestion([empty]) == "8A")
         #expect(store.tagDrafts.isEmpty, "제안을 구하고 보여도 초안은 없다: 사용자가 눌러야 들어간다")
         #expect(store.tagCell(empty, .musicalKey) == "")
-        #expect(suggestion([keyed]) == nil && suggestion([staged]) == nil && suggestion([empty, other]) == nil)
+        #expect(suggestion([keyed]) == nil && suggestion([empty, other]) == nil)
+        #expect(suggestion([staged]) == "8A", "추가한 곡도 키가 비었으면(넣을 때 '0') 제안한다")
         #expect(suggestion([empty], estimate: nil) == nil && suggestion([empty], estimate: "Am") == nil)
         #expect(KeyPicker.suggestionTarget(rows: [empty])?.uuid == "uuid-1")
         #expect(KeyPicker.suggestionTarget(rows: [keyed]) == nil && KeyPicker.suggestionTarget(rows: [staged]) == nil)
@@ -163,11 +183,33 @@ struct MusicalKeyEditingTests {
         #expect(store.tagDrafts[empty.track.uuid]?.changedKeys == [.musicalKey])
     }
 
-    @Test func 키를_고친_초안이_있는_추가한_곡은_넣지_않고_이유를_알린다() async throws {
-        // 곡을 rekordbox에 넣을 때는 키를 쓰지 않는다(KeyID '0'). 고르기는 추가한 곡에서 막혀 있어 직접 고친 초안 파일만 이 길로 온다.
-        // 조용히 버리지 않고 그 곡을 빼고 이유를 알린다. 다른 칸만 고친 곡은 그대로 넣을 수 있다.
+    @Test func 추가한_곡은_목록의_키를_제안으로만_보인다() async {
+        // 추가한 곡의 제안은 staged.json의 키(음원 태그 또는 DJCrate 추정)다. 크로마를 다시 읽지 않고, 눌러야 초안이 생긴다.
+        let store = store()
+        let loader = KeyEstimateLoader()
+        var estimated = Self.row("1", key: "8A", staged: true)
+        estimated.keyEstimated = true
+        let tagged = Self.row("2", key: "5A", staged: true), unknown = Self.row("3", staged: true)
+        #expect(KeyPicker.suggestionTarget(rows: [estimated]) == nil, "분석 캐시를 읽지 않는다")
+        #expect(KeyPicker.estimate(of: loader, for: [estimated]) == "8A" && KeyPicker.estimate(of: loader, for: [unknown]) == nil)
+        func suggestion(_ row: TrackRow) -> String? {
+            KeyPicker.suggestion(estimate: KeyPicker.estimate(of: loader, for: [row]), rows: [row], current: store.tagValue(.musicalKey, rows: [row]))
+        }
+        #expect(suggestion(estimated) == "8A" && suggestion(tagged) == "5A" && suggestion(unknown) == nil)
+        #expect(KeyPicker.suggestionSource([estimated]) == .estimate && KeyPicker.suggestionSource([tagged]) == .fileTag)
+        #expect(store.tagDrafts.isEmpty, "제안을 보여도 초안은 없다")
+        store.setTag(.musicalKey, "8A", rows: [estimated])
+        #expect(suggestion(estimated) == nil, "고른 뒤에는 제안이 사라진다")
+        // 여러 곡이면 제안하지 않는다
+        #expect(KeyPicker.estimate(of: loader, for: [estimated, tagged]) == nil)
+    }
+
+    @Test func 키를_고른_추가한_곡은_넣기_미리_보기에_키를_담는다() async throws {
+        // 곡을 넣을 때 고른 키도 같은 쓰기에서 쓴다(#5). 미리 보기(사본 시험 실행)가 키까지 보여 주고, 키 줄이 없으면 키만 막힌 것을 미리 알린다.
         let fixture = try RekordboxFixture()
         try fixture.add(TrackSpec())   // 라이브러리 공통값
+        try fixture.insert("djmdKey", ["ID": .text("1486464042"), "ScaleName": .text("8A"), "Seq": .int(1), "UUID": .text("k-8a"),
+                                       "rb_data_status": .int(256), "rb_local_deleted": .int(0), "rb_local_usn": .int(1)])
         let store = LibraryStore(settings: SettingsStore(defaults: UserDefaults(suiteName: "djc.test.musicalkey.\(UUID())")!, persist: false),
                                  resultHistory: WriteResultHistory(url: nil), feedback: AppFeedback(announce: { _ in }),
                                  saveTagDrafts: { _ in }, backupDirectory: fixture.backups,
@@ -184,18 +226,23 @@ struct MusicalKeyEditingTests {
             """.utf8))
         store.staged = [staged]
         let row = TrackRow(track: staged.track, cues: [], playCount: 0)
-        var draft = TagDraft(track: staged.track)
-        draft.fields.musicalKey = "8A"
-        store.tagDrafts[staged.uuid] = draft
+        store.setTag(.musicalKey, "8A", rows: [row])
+        let preview = try await store.previewTrackAdd(rows: [row])
+        #expect(preview.plans.count == 1 && preview.unreadable.isEmpty)
+        #expect(preview.keys == [path: "8A"] && preview.report.added.first?.keyWritten == "8A")
+        let prompt = ReflectionCoordinator.addConfirmation(preview)
+        #expect(prompt.details.contains { $0.contains("합성 추가 곡") && $0.contains("키 8A") }, "\(prompt.details)")
+        // 분석 없이 넣는 곡에 키를 쓰면 DJCrate가 나중에 분석을 붙이지 못한다고 알린다
+        #expect(prompt.details.contains { $0.contains("키를 함께 쓴") && $0.contains("rekordbox에서 분석") }, "\(prompt.details)")
+        // 키 줄이 없는 키: 곡은 넣고 키만 막힌다고 미리 알린다
+        store.setTag(.musicalKey, "12B", rows: [row])
         let blocked = try await store.previewTrackAdd(rows: [row])
-        #expect(blocked.plans.isEmpty && blocked.unreadable.count == 1)
-        #expect(blocked.unreadable.first?.contains("합성 추가 곡") == true && blocked.unreadable.first?.contains("키") == true)
-        // 키 초안을 버리면(다른 칸만 고치면) 넣을 수 있다
-        draft.fields.musicalKey = draft.base.musicalKey
-        draft.fields.title = "새 제목"
-        store.tagDrafts[staged.uuid] = draft
-        let ready = try await store.previewTrackAdd(rows: [row])
-        #expect(ready.plans.count == 1 && ready.unreadable.isEmpty)
+        #expect(blocked.plans.count == 1 && blocked.keys == [path: "12B"])
+        #expect(blocked.report.added.first?.written == true && blocked.report.added.first?.keyReason?.contains("12B") == true)
+        #expect(ReflectionCoordinator.addConfirmation(blocked).details.contains { $0.contains("키는 안 들어감") })
+        // 키를 고르지 않은 곡은 키를 넘기지 않는다
+        store.setTag(.musicalKey, "", rows: [row])
+        #expect(try await store.previewTrackAdd(rows: [row]).keys.isEmpty)
     }
 
     // MARK: 추정 불러오기 경합
@@ -249,8 +296,9 @@ struct MusicalKeyEditingTests {
         #expect(prompt.details.contains { $0.contains("음원 파일의 태그는 그대로") })
     }
 
-    @Test func XML로_내보낼_때도_키_초안이_있는_추가한_곡은_빼고_이유를_알린다() throws {
-        // XML(Import To Collection)에는 키 초안을 담지 않는다. 조용히 버리지 않고 그 곡을 빼고 이유를 알린다(곡 넣기와 같은 방식).
+    @Test func XML로_내보낼_때는_키_초안이_있는_추가한_곡을_빼고_이유를_알린다() throws {
+        // XML(Import To Collection)의 키(Tonality) 가져오기는 확인하지 않아 키 초안을 담지 않는다. 조용히 버리지 않고 그 곡을 빼고
+        // 이유를 알린다(곡 넣기는 키를 함께 쓴다).
         let store = store()
         func staged(_ title: String) throws -> StagedTrack {
             try JSONDecoder().decode(StagedTrack.self, from: Data("""
@@ -269,7 +317,8 @@ struct MusicalKeyEditingTests {
         let url = folder.appending(path: "staged.xml")
         let result = try store.exportStaged(to: url)
         #expect(result.count == 1 && result.skipped.count == 1)
-        #expect(result.skipped.first?.contains("키 초안 곡") == true && result.skipped.first?.contains("키") == true)
+        #expect(result.skipped.first?.contains("키 초안 곡") == true && result.skipped.first?.contains("XML") == true)
+        #expect(result.skipped.first?.contains("rekordbox에 넣기") == true, "키까지 넣는 길을 알린다")
         let xml = try String(contentsOf: url, encoding: .utf8)
         #expect(xml.contains("키 초안 없는 곡") && !xml.contains("키 초안 곡"))
 
@@ -305,10 +354,12 @@ struct MusicalKeyEditingTests {
         #expect(keyed.items.first { $0.state == .on }?.title == "5A")
         let legacy = try #require(h.coordinator.keyMenu(row: 2))
         #expect(legacy.items.first?.title == "Em" && legacy.items.first?.action == nil && legacy.items.first?.state == .on, "옛 표기는 고를 수 없는 현재 값")
-        #expect(h.coordinator.keyMenu(row: 3) == nil, "추가한 곡은 메뉴가 없다")
-        #expect(h.coordinator.editableKey(row: 3, column: column) == nil && h.coordinator.editableKey(row: 0, column: column) == .musicalKey)
-        // 더블클릭·Return·타이핑이 시작하는 편집은 키 칸에서 글자 입력이 아니다
-        h.coordinator.select(.init(row: 3, column: column), extend: false)
+        let staged = try #require(h.coordinator.keyMenu(row: 3), "추가한 곡도 메뉴로 고른다(넣을 때 함께 쓴다)")
+        #expect(staged.items.first?.title == "없음" && staged.items.first?.state == .on)
+        #expect(h.coordinator.editableKey(row: 3, column: column) == .musicalKey && h.coordinator.editableKey(row: 0, column: column) == .musicalKey)
+        // 더블클릭·Return·타이핑이 시작하는 편집은 키 칸에서 글자 입력이 아니다(고를 수 없는 스트리밍 곡: 메뉴도 열리지 않는다)
+        #expect(h.coordinator.keyMenu(row: 5) == nil && h.coordinator.editableKey(row: 5, column: column) == nil)
+        h.coordinator.select(.init(row: 5, column: column), extend: false)
         h.coordinator.beginEditing()
         #expect(!h.coordinator.isEditing)
     }
@@ -340,7 +391,7 @@ struct MusicalKeyEditingTests {
         h.coordinator.paste(string: "Am")
         #expect(h.store.tagCell(h.coordinator.rows[1], .musicalKey) == "5A")
         #expect(announced.last?.contains("1A~12B") == true)
-        // 채우기: 옛 표기(Em) 값을 아래 칸으로 채우려 해도 건너뛴다(가운데 줄은 추가한 곡이라 어차피 못 고친다)
+        // 채우기: 옛 표기(Em) 값을 아래 칸으로 채우려 해도 건너뛴다(가운데 줄은 추가한 곡이다)
         h.coordinator.select(.init(row: 2, column: column), extend: false)
         h.coordinator.select(.init(row: 4, column: column), extend: true)
         h.coordinator.fillDown()
@@ -370,7 +421,7 @@ struct MusicalKeyEditingTests {
     }
 }
 
-/// 키 있는 곡·없는 곡·옛 표기 곡·추가한 곡이 든 시트
+/// 키 있는 곡·없는 곡·옛 표기 곡·추가한 곡·스트리밍 곡이 든 시트
 @MainActor
 private final class SheetKeyHarness {
     let store = LibraryStore(saveTagDrafts: { _ in })
@@ -402,7 +453,7 @@ private final class SheetKeyHarness {
         window.contentView = scroll
         coordinator.update(rows: [MusicalKeyEditingTests.row("1"), MusicalKeyEditingTests.row("2", key: "5A"),
                                   MusicalKeyEditingTests.row("3", key: "Em"), MusicalKeyEditingTests.row("4", staged: true),
-                                  MusicalKeyEditingTests.row("5")], revision: 0)
+                                  MusicalKeyEditingTests.row("5"), MusicalKeyEditingTests.row("6", streaming: true)], revision: 0)
         window.contentView?.layoutSubtreeIfNeeded()
     }
 }

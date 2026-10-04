@@ -149,8 +149,8 @@ struct WriteResult: Codable, Equatable {
         let predicted = adding ? preview.added : preview.deleted
         let seen = Set(actual.map(\.path))
         let outcomes = actual + predicted.filter { !$0.written && !seen.contains($0.path) }
-        // 할 일이 남은 것만 경고다: 넣지(빼지) 않은 곡, 분석 없이 넣은 곡, 쓰지 않은 큐
-        var notDone = unreadable, unanalyzed = 0, cueReasons: [String] = []
+        // 할 일이 남은 것만 경고다: 넣지(빼지) 않은 곡, 분석 없이 넣은 곡, 쓰지 않은 큐·키
+        var notDone = unreadable, unanalyzed = 0, cueReasons: [String] = [], keyReasons: [String] = []
         var lines = outcomes.map { outcome in
             var parts: [String] = []
             if outcome.written {
@@ -166,6 +166,11 @@ struct WriteResult: Codable, Equatable {
                     cueReasons.append(reason)
                     parts.append(String(ui: "큐는 쓰기 대기: \(reason)"))
                 }
+                if let key = outcome.keyWritten { parts.append(String(ui: "키 \(key)")) }
+                if let reason = outcome.keyReason {
+                    keyReasons.append(reason)
+                    parts.append(String(ui: "키는 쓰기 대기: \(reason)"))
+                }
             } else {
                 let reason = outcome.reason ?? String(ui: "이유 없음")
                 notDone.append(reason)
@@ -174,7 +179,7 @@ struct WriteResult: Codable, Equatable {
             return "• \(outcome.title) — " + parts.joined(separator: " · ")
         }
         lines += unreadable.map { "• " + String(ui: "넣지 않음: \($0)") }
-        var what: [String] = [], reasons = notDone + cueReasons
+        var what: [String] = [], reasons = notDone + cueReasons + keyReasons
         if !notDone.isEmpty {
             what.append(adding ? String(ui: "\(notDone.count)곡은 넣지 않았습니다") : String(ui: "\(notDone.count)곡은 빼지 않았습니다"))
         }
@@ -183,6 +188,7 @@ struct WriteResult: Codable, Equatable {
             reasons.append(String(ui: "rekordbox에서 분석하세요"))
         }
         if !cueReasons.isEmpty { what.append(String(ui: "\(cueReasons.count)곡의 큐는 쓰지 않았습니다")) }
+        if !keyReasons.isEmpty { what.append(String(ui: "\(keyReasons.count)곡의 키는 쓰지 않았습니다")) }
         let count = actual.filter(\.written).count
         return Self(kind: !what.isEmpty || count == 0 ? .warning : .success,
                     title: adding ? String(ui: "rekordbox에 \(count)곡을 넣었습니다") : String(ui: "rekordbox에서 \(count)곡을 뺐습니다"),

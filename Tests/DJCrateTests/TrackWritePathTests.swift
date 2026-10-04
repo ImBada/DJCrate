@@ -13,10 +13,11 @@ import Testing
 @MainActor
 @Suite("곡 넣기·빼기와 초안 정리 경로", .serialized)
 struct TrackWritePathTests {
-    func makeStore(_ fixture: RekordboxFixture) -> LibraryStore {
+    /// - Parameter saveTagDrafts: 태그 초안 저장(기본은 메모리만). 다시 읽기가 디스크의 태그 초안을 읽으므로 앱처럼 저장해야 하는 시험만 바꾼다.
+    func makeStore(_ fixture: RekordboxFixture, saveTagDrafts: @escaping ([TagDraft]) -> Void = { _ in }) -> LibraryStore {
         let store = LibraryStore(settings: SettingsStore(defaults: UserDefaults(suiteName: "djc.test.trackwrite.\(UUID())")!, persist: false),
                                  resultHistory: WriteResultHistory(url: nil), feedback: AppFeedback(announce: { _ in }),
-                                 saveTagDrafts: { _ in }, backupDirectory: fixture.backups,
+                                 saveTagDrafts: saveTagDrafts, backupDirectory: fixture.backups,
                                  playlistDraftSaver: { _ in }, mergeDraftSaver: { _ in }, playlistImportURL: nil, stagingSaver: { _ in })
         // 미리 보기·쓰고 난 뒤 다시 읽기가 사용자 라이브러리가 아니라 합성 사본을 보게 한다.
         let database = fixture.database
@@ -28,8 +29,8 @@ struct TrackWritePathTests {
         return store
     }
 
-    func loadedStore(_ fixture: RekordboxFixture) async -> LibraryStore {
-        let store = makeStore(fixture)
+    func loadedStore(_ fixture: RekordboxFixture, saveTagDrafts: @escaping ([TagDraft]) -> Void = { _ in }) async -> LibraryStore {
+        let store = makeStore(fixture, saveTagDrafts: saveTagDrafts)
         await store.load(snapshot: fixture.database, arguments: ["test", "--db", fixture.database.path], environment: [:])
         return store
     }
@@ -135,6 +136,73 @@ struct TrackWritePathTests {
         #expect(preview.report.deleted.filter(\.written).isEmpty)
         #expect(try fixture.rows("SELECT ID FROM djmdContent").map { $0["ID"] } == [spec.id])
         #expect(RekordboxWriter.backups(in: fixture.backups).isEmpty)
+    }
+
+    // MARK: - 곡 넣기 + 키 (#5)
+
+    /// 이 시험이 `DJC_HOME`에 남긴 태그 초안을 지운다(변경 없는 초안을 저장하면 파일을 지운다). 다른 시험의 초안은 건드리지 않는다.
+    func clearTagDrafts(_ store: LibraryStore) {
+        DraftWriter.save(store.tagDrafts.keys.map { TagDraft(trackUUID: $0, base: TagFields()) })
+        DraftWriter.flush()
+    }
+
+    /// 합성 라이브러리(공통값 곡 하나 + 8A 키 줄)와 키를 고른 추가한 곡. 태그 초안은 앱처럼 `DJC_HOME` 아래에 저장한다(다시 읽기가 디스크를 읽는다).
+    func keyedStaged(_ fixture: RekordboxFixture, key: String) async throws -> (store: LibraryStore, staged: StagedTrack, row: TrackRow) {
+        try fixture.add(TrackSpec())
+        try fixture.insert("djmdKey", ["ID": .text("1486464042"), "ScaleName": .text("8A"), "Seq": .int(1), "UUID": .text("k-8a"),
+                                       "rb_data_status": .int(256), "rb_local_deleted": .int(0), "rb_local_usn": .int(1)])
+        let store = await loadedStore(fixture, saveTagDrafts: { DraftWriter.save($0) })
+        let staged = try stagedTrack(path: try TestResources.url("mp3-notag-cbr.mp3").path)
+        store.staged = [staged]
+        let row = TrackRow(track: staged.track, cues: [], playCount: 0)
+        store.setTag(.musicalKey, key, rows: [row])
+        return (store, staged, row)
+    }
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 키를_고른_추가한_곡은_넣을_때_키도_쓰고_되돌리면_추가_목록과_키_초안이_돌아온다() async throws {
+        let fixture = try RekordboxFixture()
+        let (store, staged, row) = try await keyedStaged(fixture, key: "8A")
+        defer { clearTagDrafts(store) }
+        let preview = try await store.previewTrackAdd(rows: [row])
+        let report = try await store.addTracksToRekordbox(preview, to: fixture.database, shareRoot: fixture.shareRoot)
+        let outcome = try #require(report.added.first)
+        #expect(outcome.written && outcome.keyWritten == "8A" && outcome.keyReason == nil)
+        let id = try #require(outcome.contentID), uuid = try #require(outcome.uuid)
+        let stored = try #require(try fixture.rows("SELECT KeyID, TrackInfoUpdated FROM djmdContent WHERE ID = ?", [.text(id)]).first)
+        #expect(stored == ["KeyID": "1486464042", "TrackInfoUpdated": "1"])
+        // 다시 읽은 목록: 넣은 곡의 키가 8A이고, 새 곡에는 키 초안이 없다(이미 썼다)
+        #expect(store.rowsByUUID[uuid]?.track.key == "8A" && store.tagDrafts[uuid] == nil)
+        #expect(store.staged.isEmpty)
+        let lines = WriteResult.tracks(report, preview: preview.report, adding: true, withoutAnalysis: preview.withoutAnalysis).text
+        #expect(lines.contains("키 8A"), "\(lines)")
+
+        // 쓰기 전으로 복원: 곡이 빠지고 추가 목록에 돌아오며, 키를 고른 초안도 그대로 남아 다시 넣을 수 있다
+        let backup = try #require(RekordboxWriter.backups(in: fixture.backups).first)
+        try await store.restoreRekordbox(backup, keepingCurrentDrafts: true)
+        #expect(try fixture.rows("SELECT ID FROM djmdContent WHERE ID = ?", [.text(id)]).isEmpty)
+        #expect(store.staged.map(\.uuid) == [staged.uuid] && store.confirmedStagedKey(uuid: staged.uuid) == "8A")
+        #expect(store.tagDrafts[uuid] == nil)
+    }
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 키가_막히면_곡만_넣고_고른_키는_새_곡의_쓰기_대기로_옮긴다() async throws {
+        // 따로 쓸 때처럼 키만 막힌다(키 줄 없음). 사용자가 고른 키가 조용히 사라지지 않게 새 곡의 키 초안으로 남긴다(막힌 큐를 옮기는 것과 같다).
+        let fixture = try RekordboxFixture()
+        let (store, _, row) = try await keyedStaged(fixture, key: "12B")
+        defer { clearTagDrafts(store) }
+        let preview = try await store.previewTrackAdd(rows: [row])
+        let report = try await store.addTracksToRekordbox(preview, to: fixture.database, shareRoot: fixture.shareRoot)
+        let outcome = try #require(report.added.first)
+        #expect(outcome.written && outcome.keyWritten == nil && outcome.keyReason?.contains("12B") == true)
+        let uuid = try #require(outcome.uuid)
+        let moved = try #require(store.tagDrafts[uuid])
+        #expect(moved.changedKeys == [.musicalKey] && moved.fields.musicalKey == "12B" && moved.base.musicalKey == "")
+        #expect(moved.base == store.rowsByUUID[uuid]?.tagFields, "새 곡의 지금 값이 기준이라 쓰기에서 기준 어긋남으로 막히지 않는다")
+        let result = WriteResult.tracks(report, preview: preview.report, adding: true, withoutAnalysis: preview.withoutAnalysis)
+        #expect(result.kind == .warning && result.text.contains("키는 쓰기 대기"), "\(result.text)")
+        // 되돌리면 새 곡으로 옮긴 키 초안도 지운다(곡이 사라진다)
+        let backup = try #require(RekordboxWriter.backups(in: fixture.backups).first)
+        try await store.restoreRekordbox(backup, keepingCurrentDrafts: true)
+        #expect(store.tagDrafts[uuid] == nil)
     }
 
     // MARK: - 반영 확인

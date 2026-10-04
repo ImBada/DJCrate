@@ -747,6 +747,8 @@ final class LibraryStore {
         let generation = loadGeneration
         let refreshTicket = ITunesRefreshCoordinator.shared.begin(snapshot: snapshot, sourceDatabase: sourceDatabase)
         if !quiet { phase = .loading(LoadedLibrary.Stage.music.message) }
+        // 조용히 읽는 동안에도 사이드바가 보이므로, 캡처한 목록이 없다는 안내를 읽는 중 안내로 바꾼다.
+        if iTunesLibrary.status == .notCaptured { iTunesLibrary.status = .loading }
         let capture = capture ?? Task {
             (try? await Self.runBlockingLibraryWork {
                 LoadedLibrary.Stage.music.measure(progress: { _ in }, captureITunes)
@@ -757,6 +759,8 @@ final class LibraryStore {
             defer {
                 if iTunesRefresh?.id == id {
                     iTunesRefresh = nil
+                    // 결과를 채택하지 못하고 끝났을 때만(취소·옛 요청) 되돌린다. 채택한 결과는 건드리지 않는다.
+                    if iTunesLibrary.status == .loading { iTunesLibrary.status = .notCaptured }
                     if Task.isCancelled, generation == loadGeneration, !quiet, isLoading { phase = .loaded }
                 }
             }
@@ -875,7 +879,7 @@ final class LibraryStore {
             var rebased: [TagDraft] = []
             if synchronizingDrafts {
                 for (uuid, draft) in latestTags where !failedTags.contains(uuid) {
-                    guard let row = rowsByUUID[uuid], let updated = draft.rebased(onto: TagFields(track: row.track)) else {
+                    guard let row = rowsByUUID[uuid], let updated = draft.rebased(onto: row.tagFields) else {
                         conflicts += 1
                         continue
                     }

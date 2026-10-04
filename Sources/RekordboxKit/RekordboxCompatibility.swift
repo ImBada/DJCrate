@@ -163,10 +163,17 @@ public struct RekordboxWriteGuard: Sendable {
 
     /// 사본 옆 파일이 라이브 동기화 파일의 링크여도 원본 경계로 판단한다.
     func checkAdjacentFile(_ file: URL, database: URL) throws {
-        for directory in liveDirectories where Self.sameFile(file, directory.appending(path: file.lastPathComponent)) {
-            guard Self.sameFile(database, directory.appending(path: "master.db")) else {
-                throw DJCError.writeRefused(String(ui: "사본 DB에 라이브 동기화 파일을 사용할 수 없습니다. 동기화 파일도 실제 사본으로 복사하세요."))
-            }
+        guard !adjacentFileIsLive(file, database: database) else {
+            throw DJCError.writeRefused(String(ui: "사본 DB에 라이브 동기화 파일을 사용할 수 없습니다. 동기화 파일도 실제 사본으로 복사하세요."))
+        }
+    }
+
+    /// 라이브가 아닌 DB(사본) 옆 파일이 라이브 폴더의 같은 이름 파일과 같은 파일인지(링크). 그 파일을 고치면 라이브가 바뀐다.
+    /// 던지지 않아, 그 파일을 고칠 곡 정보 초안만 막고 나머지는 쓰려는 쪽이 쓴다.
+    func adjacentFileIsLive(_ file: URL, database: URL) -> Bool {
+        liveDirectories.contains { directory in
+            Self.sameFile(file, directory.appending(path: file.lastPathComponent))
+                && !Self.sameFile(database, directory.appending(path: "master.db"))
         }
     }
 

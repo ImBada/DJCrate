@@ -211,7 +211,7 @@ enum DevSelfTests {
                 var tagSame = 0
                 for draft in tags {
                     guard let row = store.rowsByUUID[draft.trackUUID] else { continue }
-                    let now = TagFields(track: row.track)
+                    let now = row.tagFields
                     if draft.changedKeys.allSatisfy({ now[$0] == draft.fields[$0] }) { tagSame += 1 } else { log("  태그 다름: \(row.title)") }
                 }
                 log("태그 쓰기: \(report.tagWritten.count)곡 · 다시 읽은 곡 정보가 초안과 같음 \(tagSame)/\(tags.count) · 남은 태그 초안 \(tags.filter { store.tagDrafts[$0.trackUUID] != nil }.count)")
@@ -244,7 +244,7 @@ enum DevSelfTests {
                 }
                 log("되돌림 뒤 게인 초안: \(GainDraftStore.all().count)개")
                 let tagRestored = tags.filter { store.tagDrafts[$0.trackUUID] == $0 && TagDraftStore.load(trackUUID: $0.trackUUID) == $0 }.count
-                let tagBase = tags.filter { draft in store.rowsByUUID[draft.trackUUID].map { TagFields(track: $0.track) == draft.base } ?? false }.count
+                let tagBase = tags.filter { draft in store.rowsByUUID[draft.trackUUID].map { $0.tagFields == draft.base } ?? false }.count
                 log("되돌림: 태그 초안 복구 \(tagRestored)/\(tags.count) · rekordbox 곡 정보가 쓰기 전과 같음 \(tagBase)/\(tags.count)")
                 let rolledBack = !store.rekordboxPlaylists.outline.contains { $0.name == "DJC 시험 폴더" }
                 let extendedBack = extended.map { store.rekordboxPlaylists.item($0.id)?.trackIDs == $0.before }
@@ -256,6 +256,7 @@ enum DevSelfTests {
                 log("그림 되돌림: 초안 복구 \(artworkRedrafted)/\(report.artworkWritten.count) · 넣은 그림 파일 남음 \(addedLeft)/\(artworkAdds * 3) · 지운 그림 파일 원래대로 \(deletedBack)/\(deletedOriginals.count)")
                 let createdLeft = createdFiles.filter { FileManager.default.fileExists(atPath: $0.path) }.count
                 log("되돌림: 큐 초안 복구 \(restored)/\(expected.count) · 그리드 초안 복구 \(gridRestored)/\(grids.count + attachGrids.count) · 분석 파일 원본과 같음 \(filesRestored)/\(originals.count) · 붙인 분석 파일 남음 \(createdLeft)/\(createdFiles.count) · 반영 대기 \(store.pendingLibraryCount)곡")
+                guard try await addKeySelfTest(store: store, log: log) else { exit(1) }
                 log("끝")
                 exit(0)
             } catch {
@@ -263,6 +264,48 @@ enum DevSelfTests {
                 exit(1)
             }
         }
+    }
+
+    /// 곡 넣기 + 키(#5): 라이브러리 곡의 음원 사본(`DJC_HOME` 아래)을 추가 목록에 넣고 키 8A를 골라 미리 보기 → 넣기 → 다시 읽은 곡의 키를 보고,
+    /// 그 넣기를 쓰기 전으로 복원해 곡이 빠지고 추가 목록·키 초안이 돌아오는지 본다. 뒤에서 도는 그리드·키 추정을 기다리지 않고 결과가 늘 같게
+    /// 추가 목록에 바로 넣는다(분석 없이 넣기, 분석까지 넣는 경우는 `RekordboxTrackAddKeyTests`). 통과하면 "넣기+키 시험 통과" 줄을 남긴다.
+    static func addKeySelfTest(store: LibraryStore, log: (String) -> Void) async throws -> Bool {
+        let key = "8A"
+        guard let source = store.rows.first(where: { !$0.isStaged && !$0.track.isStreaming && FileManager.default.fileExists(atPath: $0.track.folderPath) }) else {
+            log("넣기+키: 음원이 있는 라이브러리 곡이 없습니다"); return false
+        }
+        let folder = DJCPaths.userData.appending(path: "selftest-audio")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appending(path: "DJC 키 시험.\(URL(filePath: source.track.folderPath).pathExtension)")
+        try? FileManager.default.removeItem(at: url)
+        try FileManager.default.copyItem(at: URL(filePath: source.track.folderPath), to: url)
+        let staged = try await StagedTrack.make(fileAt: url, addedOn: String(ISO8601DateFormatter().string(from: .now).prefix(10)))
+        _ = store.restage([staged])
+        guard let row = store.rowsByID[staged.id] else { log("넣기+키: 추가한 곡을 목록에서 찾지 못했습니다"); return false }
+        store.setTag(.musicalKey, key, rows: [row])
+        let picked = store.confirmedStagedKey(uuid: staged.uuid)
+        store.setWriteLock(true)
+        let preview = try await store.previewTrackAdd(rows: [row])
+        let previewKey = preview.report.added.first?.keyWritten
+        let report = try await store.addTracksToRekordbox(preview)
+        store.setWriteLock(false)
+        guard let outcome = report.added.first, outcome.written, let uuid = outcome.uuid else {
+            log("넣기+키: 넣지 못했습니다 \(report.added.first?.reason ?? preview.unreadable.joined(separator: " / "))"); return false
+        }
+        let reread = store.rowsByUUID[uuid]?.track.key
+        log("넣기+키: 고른 키 \(picked ?? "-") · 미리 보기 키 \(previewKey ?? "-") · 넣음 \(report.added.filter(\.written).count)곡(\(preview.withoutAnalysis.isEmpty ? "분석 포함" : "분석 없이")) · 쓴 키 \(outcome.keyWritten ?? "-")\(outcome.keyReason.map { " 막힘 \($0)" } ?? "") · 다시 읽은 키 \(reread ?? "-") · 남은 추가 곡 \(store.staged.count)")
+        guard let backup = RekordboxWriter.backups(in: DJCPaths.rekordboxBackups).first(where: { $0.trackReport?.added.contains { $0.uuid == uuid } == true }) else {
+            log("넣기+키: 넣기 백업이 없습니다"); return false
+        }
+        _ = try await store.restoreRekordbox(backup)
+        let gone = store.rowsByUUID[uuid] == nil
+        let restaged = store.staged.contains { $0.uuid == staged.uuid }
+        let kept = store.confirmedStagedKey(uuid: staged.uuid)
+        log("넣기+키 되돌림: 넣은 곡 빠짐 \(gone) · 추가 목록에 돌아옴 \(restaged) · 키 초안 \(kept ?? "없음") · 새 곡 키 초안 남음 \(store.tagDrafts[uuid] != nil)")
+        let passed = picked == key && previewKey == key && outcome.keyWritten == key && reread == key && gone && restaged && kept == key
+            && store.tagDrafts[uuid] == nil
+        log(passed ? "넣기+키 시험 통과" : "넣기+키 시험 실패")
+        return passed
     }
 
     /// 쓰기 시험이 넣을 합성 그림(600×600 그러데이션 JPEG)

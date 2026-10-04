@@ -328,7 +328,7 @@ extension RekordboxWriter {
                               stamp: (db: String, json: String)) throws {
         let keys = values.keys.sorted()
         let sql = "UPDATE djmdPlaylist SET " + keys.map { "\"\($0)\" = ?" }.joined(separator: ", ")
-            + ", rb_local_usn = ?, updated_at = ?, rb_data_status = CASE rb_data_status WHEN 256 THEN 257 ELSE rb_data_status END WHERE ID = ?"
+            + ", rb_local_usn = ?, updated_at = ?, \(savedStatus) WHERE ID = ?"
         guard try db.run(sql, keys.map { values[$0]! } + [.int(usn), .text(stamp.db), .text(id)]) == 1 else {
             throw DJCError.writeVerificationFailed(String(ui: "재생 목록 행을 고치지 못했습니다"))
         }
@@ -337,7 +337,7 @@ extension RekordboxWriter {
     static func touchEntry(_ db: CipherDatabase, _ entry: PlaylistTree.Entry, usn: Int, stamp: (db: String, json: String)) throws {
         guard try db.run("""
             UPDATE djmdSongPlaylist SET TrackNo = ?, rb_local_usn = ?, updated_at = ?,
-                rb_data_status = CASE rb_data_status WHEN 256 THEN 257 ELSE rb_data_status END WHERE ID = ?
+                \(savedStatus) WHERE ID = ?
             """, [.int(entry.trackNo), .int(usn), .text(stamp.db), .text(entry.id)]) == 1 else {
             throw DJCError.writeVerificationFailed(String(ui: "재생 목록 곡 항목을 고치지 못했습니다"))
         }

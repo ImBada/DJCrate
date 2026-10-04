@@ -11,9 +11,20 @@ extension LibraryStore {
 
     /// 곡의 태그 초안(없으면 지금 rekordbox 값에서 새로). 키를 안 고친 초안의 키 칸은 지금 값으로 맞춘다: 키 칸이 없던 옛 초안이나 그 뒤
     /// rekordbox에서 키가 바뀐 초안이 키를 고친 것처럼 보이거나 쓰기 때 기준이 어긋나지 않게 한다(`TagDraft.adoptingMusicalKey`).
+    /// 추가한 곡의 기준 키는 빈칸이다(`TrackRow.tagFields`): 키를 고를 수 없던 때 목록의 키를 기준으로 든 옛 초안도 여기서 맞춘다.
     func tagDraft(for row: TrackRow) -> TagDraft {
-        guard let draft = tagDrafts[row.track.uuid] else { return TagDraft(track: row.track) }
-        return draft.adoptingMusicalKey(of: TagFields(track: row.track))
+        guard let draft = tagDrafts[row.track.uuid] else { return TagDraft(trackUUID: row.track.uuid, base: row.tagFields) }
+        return draft.adoptingMusicalKey(of: row.tagFields)
+    }
+
+    /// 추가한 곡을 넣을 때 함께 쓸 키(사용자가 고른 Camelot 이름, #5). 키를 고치지 않았거나 비웠으면(넣는 곡은 처음부터 키가 없다) nil.
+    func confirmedStagedKey(uuid: String) -> String? {
+        guard let draft = tagDrafts[uuid] else { return nil }
+        var base = draft.base
+        base.musicalKey = ""
+        let adopted = draft.adoptingMusicalKey(of: base)
+        guard adopted.changedKeys.contains(.musicalKey), !adopted.fields.musicalKey.isEmpty else { return nil }
+        return adopted.fields.musicalKey
     }
 
     /// 선택한 곡들의 값. 모두 같으면 그 값, 다르면 `mixed`.
@@ -42,7 +53,7 @@ extension LibraryStore {
         for row in rows where !row.track.isStreaming && !row.isUsb {
             let uuid = row.track.uuid
             guard let original = tagDrafts[uuid] else { continue }
-            let current = TagFields(track: (rowsByUUID[uuid] ?? row).track)
+            let current = (rowsByUUID[uuid] ?? row).tagFields
             guard original.conflictingKeys(with: current).contains(key) else { continue }
             before[uuid] = original
             var resolved = original
@@ -61,7 +72,7 @@ extension LibraryStore {
         if let draft = tagDrafts[row.track.uuid] {
             return key == .musicalKey ? tagDraft(for: row).fields[key] : draft.fields[key]
         }
-        return TagFields(track: row.track)[key]
+        return row.tagFields[key]
     }
 
     func isTagEdited(_ row: TrackRow, _ key: TagFields.Key) -> Bool {
@@ -79,7 +90,7 @@ extension LibraryStore {
             let uuid = change.row.track.uuid
             let original = tagDraft(for: change.row)
             var value = change.value
-            // 키는 고르기에서만 고친다. 붙여넣기·채우기·표 편집이 Camelot 이름이 아닌 값이나 추가한 곡의 키를 초안에 넣지 못하게 여기서도 거른다
+            // 키는 고르기에서만 고친다. 붙여넣기·채우기·표 편집이 Camelot 이름이 아닌 값이나 고칠 수 없는 곡의 키를 초안에 넣지 못하게 여기서도 거른다
             // (초안의 기준 값으로 되돌리는 것은 그대로 받는다: 기준이 옛 표기여도 되돌릴 수 있어야 한다).
             if change.key == .musicalKey, value != original.base.musicalKey {
                 guard KeyPicker.unavailableReason(change.row) == nil, let accepted = KeyPicker.accepted(value) else { continue }
