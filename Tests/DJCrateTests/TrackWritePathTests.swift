@@ -106,7 +106,8 @@ struct TrackWritePathTests {
 
     @Test(.enabled(if: LiveDraftHome.isIsolated)) func 곡_빼기의_백업은_저장소에_준_폴더에_남는다() async throws {
         let fixture = try RekordboxFixture()
-        let spec = TrackSpec()
+        var spec = TrackSpec()
+        spec.dataStatus = 0  // 곡 빼기 규칙은 동기화하지 않은 곡으로만 확인했다(#196)
         try fixture.add(spec)
         let store = await loadedStore(fixture)
         let row = try #require(store.rowsByUUID[spec.uuid])
@@ -119,6 +120,21 @@ struct TrackWritePathTests {
         #expect(backups.count == 1 && backups.first?.isWrite == true)
         #expect(backups.first?.trackReport?.deleted.compactMap(\.contentID) == [spec.id])
         #expect(!defaultBackups { $0.deleted.contains { $0.contentID == spec.id } })
+    }
+
+    /// 앱의 빼기 미리 보기도 동기화 상태 곡을 이유와 함께 막고 라이브러리를 그대로 둔다(#196).
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 곡_빼기_미리_보기는_동기화_곡을_이유와_함께_막는다() async throws {
+        let fixture = try RekordboxFixture()
+        let spec = TrackSpec()
+        try fixture.add(spec)
+        let store = await loadedStore(fixture)
+        let row = try #require(store.rowsByUUID[spec.uuid])
+        let preview = try await store.previewTrackDelete(rows: [row])
+        let outcome = try #require(preview.report.deleted.first)
+        #expect(outcome.written == false && outcome.reason == RekordboxTrackWriter.syncedTrackReason)
+        #expect(preview.report.deleted.filter(\.written).isEmpty)
+        #expect(try fixture.rows("SELECT ID FROM djmdContent").map { $0["ID"] } == [spec.id])
+        #expect(RekordboxWriter.backups(in: fixture.backups).isEmpty)
     }
 
     // MARK: - 반영 확인
