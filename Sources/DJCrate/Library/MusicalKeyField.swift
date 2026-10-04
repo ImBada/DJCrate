@@ -17,7 +17,7 @@ struct MusicalKeyField: View {
         let current = store.tagValue(key, rows: rows)
         let edited = rows.contains { store.isTagEdited($0, key) }
         let editable = KeyPicker.isEditable(rows)
-        let suggestion = KeyPicker.suggestion(estimate: KeyPicker.estimate(of: loader, for: rows), rows: rows, current: current)
+        let suggestion = store.keySuggestion(estimate: KeyPicker.estimate(of: loader, for: rows), rows: rows)
         VStack(alignment: .leading, spacing: 4) {
             Picker(selection: Binding(get: { current.mixed ? KeyPicker.mixedTag : current.value }, set: { choose($0) })) {
                 if current.mixed { Text(String(ui: "(여러 값)")).tag(KeyPicker.mixedTag) }
@@ -42,14 +42,21 @@ struct MusicalKeyField: View {
             }
             if let suggestion {
                 let fromTag = KeyPicker.suggestionSource(rows) == .fileTag
-                Button { choose(suggestion) } label: {
-                    Label(fromTag ? String(ui: "음원 태그 키 \(suggestion) 고르기") : String(ui: "추정 키 \(suggestion) 고르기"), systemImage: "lightbulb")
-                        .font(.scaled(.caption, textScale)).foregroundStyle(UIColors.suggestion.color)
+                // 그리드 제안의 심볼·간격·작은 버튼을 쓰고, 좁은 인스펙터에서는 줄을 나눈다.
+                FlowLayout(spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "wand.and.stars").foregroundStyle(UIColors.suggestion.color)
+                        Text(KeyPicker.suggestionLabel(suggestion, source: KeyPicker.suggestionSource(rows)))
+                    }
+                    Button(.ui("제안 키 적용")) { store.applyKeySuggestion(estimate: suggestion, rows: rows) }
+                        .help(fromTag
+                            ? String(ui: "음원 파일 태그에 적힌 키입니다. 누르면 이 키로 초안을 만들고, 곡을 rekordbox에 넣을 때 함께 씁니다. 음원 파일은 바꾸지 않습니다.")
+                            : String(ui: "DJCrate가 곡을 분석해 추정한 키입니다. 누르면 이 키로 초안을 만들고, rekordbox에는 쓰기 전까지 들어가지 않습니다."))
+                    Button(.ui("무시")) { store.dismissKeySuggestion(rows: rows) }
+                        .help(.ui("이 곡에서는 제안을 더 보이지 않습니다"))
                 }
-                .buttonStyle(.link)
-                .help(fromTag
-                    ? String(ui: "음원 파일 태그에 적힌 키입니다. 누르면 이 키로 초안을 만들고, 곡을 rekordbox에 넣을 때 함께 씁니다. 음원 파일은 바꾸지 않습니다.")
-                    : String(ui: "DJCrate가 곡을 분석해 추정한 키입니다. 누르면 이 키로 초안을 만들고, rekordbox에는 쓰기 전까지 들어가지 않습니다."))
+                .font(.scaled(.caption, textScale))
+                .controlSize(ControlSize.small.scaled(textScale))
             }
             TagConflictView(store: store, rows: rows, key: key)
         }

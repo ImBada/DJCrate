@@ -102,6 +102,7 @@ final class LibraryStore {
          stagingSaver: @escaping ([StagedTrack]) throws -> Void = { try StagingStore.save($0) },
          draftHome: URL? = nil) {
         self.settings = settings
+        self.dismissedKeySuggestions = settings.strings(SettingKeys.dismissedKeySuggestions)
         self.commentPreset = settings.commentPreset
         self.saveTagDrafts = saveTagDrafts
         self.playlistDraftSaver = playlistDraftSaver
@@ -268,6 +269,8 @@ final class LibraryStore {
 
     /// 초안 상태(메모리). 표의 ✎ 표시는 디스크를 다시 읽지 않고 이것으로 계산한다.
     var tagDrafts: [String: TagDraft] = [:]
+    /// 그리드 제안처럼 곡마다 무시를 기억하고, 화면에도 바로 반영한다.
+    var dismissedKeySuggestions: Set<String> = []
     /// 그림 초안(곡 UUID별, 그림 바이트 없이). 그림 사본은 `ArtworkDraftStore`에 있다(#66).
     var artworkDrafts: [String: ArtworkDraft] = [:]
     /// 곡의 살아 있는 그림 파일 행(ContentID별). 그림 초안의 base로 쓴다(스냅샷에서 읽음).

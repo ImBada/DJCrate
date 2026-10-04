@@ -3753,6 +3753,38 @@
         }
       }
     },
+    "DJCrate 제안: 음원 태그 키 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate suggests: audio tag key %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateの候補：音源タグのキー %@"
+          }
+        }
+      }
+    },
+    "DJCrate 제안: 추정 키 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate suggests: estimated key %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateの候補：推定キー %@"
+          }
+        }
+      }
+    },
     "DJCrate 초안이 있는 곡 (rekordbox·파일에 쓰기 전)" : {
       "localizations" : {
         "en" : {
@@ -25941,22 +25973,6 @@
         }
       }
     },
-    "음원 태그 키 %@ 고르기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use file tag key %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "音源タグのキー %@ を選ぶ"
-          }
-        }
-      }
-    },
     "음원 파일 태그에 적힌 키입니다. 누르면 이 키로 초안을 만들고, 곡을 rekordbox에 넣을 때 함께 씁니다. 음원 파일은 바꾸지 않습니다." : {
       "localizations" : {
         "en" : {
@@ -29889,6 +29905,22 @@
         }
       }
     },
+    "제안 키 적용" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply Suggested Key"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補キーを適用"
+          }
+        }
+      }
+    },
     "제안을 받아 %@에 메모리 큐를 찍었습니다" : {
       "localizations" : {
         "en" : {
@@ -31563,22 +31595,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "推定グリッドに変更します。信頼度が低いため音で確認してください（取り消し可能）。"
-          }
-        }
-      }
-    },
-    "추정 키 %@ 고르기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use estimated key %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "推定キー %@ を選ぶ"
           }
         }
       }
