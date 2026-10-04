@@ -37,6 +37,7 @@ struct TagInspector: View {
                         if key == .musicalKey { MusicalKeyField(store: store, rows: rows) } else { field(key, rows: rows) }
                     }
                 }
+                ArtworkInspectorSection(store: store, rows: rows)
                 Section(.ui("코멘트")) {
                     field(.comment, rows: rows, axis: .vertical)
                     let comment = store.tagValue(.comment, rows: rows)

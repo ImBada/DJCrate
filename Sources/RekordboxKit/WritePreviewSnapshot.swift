@@ -6,6 +6,7 @@ public enum WritePreviewSnapshot {
     public static func withCopy<T>(from source: URL = RekordboxWriter.liveDatabase,
                                     shareRoot: URL = RekordboxShare.directory,
                                     grids: [GridDraft] = [], merges: [DuplicateMergeDraft] = [],
+                                    artworks: [String] = [],
                                     directory: URL = FileManager.default.temporaryDirectory,
                                     body: (URL, URL) async throws -> T) async throws -> T {
         let fm = FileManager.default
@@ -53,6 +54,13 @@ public enum WritePreviewSnapshot {
                 let relative = String(file.path.dropFirst(shareRoot.path.count + 1))
                 try copyFile(file, to: share.appending(path: relative), within: shareRoot)
             }
+        }
+        // 그림 초안(#66): 쓰기 전 확인이 곡 UUID 그림 폴더의 파일 유무·링크를 보므로 그 폴더를 그대로 복사한다(없으면 없는 채로,
+        // 분석 전 곡의 그리드 초안으로 이미 복사했으면 그대로).
+        for uuid in artworks {
+            let relative = String(TrackArtwork.folder(uuid: uuid).drop(while: { $0 == "/" }))
+            guard !fm.fileExists(atPath: share.appending(path: relative).path) else { continue }
+            try copyDirectory(shareRoot.appending(path: relative), to: share.appending(path: relative), within: shareRoot)
         }
         try Task.checkCancellation()
         let result = try await body(database, share)

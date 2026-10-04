@@ -6,13 +6,14 @@ import Foundation
 /// 쓰기 대기 목록에서 보여 주고 사용자가 고른 것만 버린다.
 struct UnlinkedDraft: Identifiable, Hashable, Sendable {
     enum Kind: CaseIterable, Hashable, Sendable {
-        case cue, grid, gain, tag
+        case cue, grid, gain, tag, artwork
         var label: String {
             switch self {
             case .cue: String(ui: "큐")
             case .grid: String(ui: "그리드")
             case .gain: String(ui: "게인")
             case .tag: String(ui: "태그")
+            case .artwork: String(ui: "그림")
             }
         }
     }
@@ -32,6 +33,7 @@ extension LibraryStore {
             (.grid, GridDraftStore.uuids(directory: home.appending(path: "grid-drafts"))),
             (.gain, GainDraftStore.uuids(url: home.appending(path: "gain-drafts.json"))),
             (.tag, TagDraftStore.uuids(directory: home.appending(path: "tag-drafts"))),
+            (.artwork, ArtworkDraftStore.uuids(directory: home.appending(path: ArtworkDraftStore.folderName))),
         ]
         var kinds: [String: [UnlinkedDraft.Kind]] = [:]
         for (kind, uuids) in sources { for uuid in uuids { kinds[uuid, default: []].append(kind) } }
@@ -53,7 +55,7 @@ extension LibraryStore {
     func unlinkedDrafts() -> [UnlinkedDraft] {
         let home = draftHome ?? DJCPaths.userData
         let kinds = draftUUIDs(home: home)
-        let folders = ["cue-drafts", "grid-drafts", "tag-drafts"].map { home.appending(path: $0) }
+        let folders = ["cue-drafts", "grid-drafts", "tag-drafts", ArtworkDraftStore.folderName].map { home.appending(path: $0) }
         return unlinkedDraftUUIDs.map { uuid in
             let dates = folders.compactMap { folder in
                 (try? folder.appending(path: "\(uuid).json").resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
@@ -65,7 +67,7 @@ extension LibraryStore {
         .sorted { ($0.modified ?? .distantPast, $1.uuid) > ($1.modified ?? .distantPast, $0.uuid) }
     }
 
-    /// 고른 곡의 초안(큐·그리드·게인·태그)을 버린다. 버리지 못한 곡이 있으면 이유와 할 일을 돌려준다.
+    /// 고른 곡의 초안(큐·그리드·게인·태그·그림)을 버린다. 버리지 못한 곡이 있으면 이유와 할 일을 돌려준다.
     func discardUnlinkedDrafts(_ uuids: Set<String>) -> String? {
         let home = draftHome ?? DJCPaths.userData
         let targets = uuids.intersection(unlinkedDraftUUIDs)
@@ -74,6 +76,7 @@ extension LibraryStore {
         let gain = home.appending(path: "gain-drafts.json"), tags = home.appending(path: "tag-drafts")
         let kinds = draftUUIDs(home: home)
         var clearedTags: [TagDraft] = []
+        var failedArtwork: Set<String> = []
         for uuid in targets.sorted() {
             let present = kinds[uuid] ?? []
             // 저장 실패 기록까지 함께 비우려고 DraftWriter로 지운다(손상된 파일은 지우지 않고 옮겨 둔다).
@@ -84,6 +87,12 @@ extension LibraryStore {
                 tagDrafts[uuid] = nil
                 clearedTags.append(TagDraft(trackUUID: uuid, base: TagFields()))
             }
+            if present.contains(.artwork) {
+                do {
+                    try ArtworkDraftStore.remove(trackUUID: uuid, directory: home.appending(path: ArtworkDraftStore.folderName))
+                    artworkDrafts[uuid] = nil
+                } catch { failedArtwork.insert(uuid) }
+            }
         }
         if !clearedTags.isEmpty {
             persistTagDrafts(clearedTags)
@@ -92,7 +101,7 @@ extension LibraryStore {
         DraftWriter.flush()
         applyMovedDrafts(DamagedDrafts.take(home: home))
         let failed = Set(DraftWriter.failures(cueDirectory: cues, gridDirectory: grids, gainURL: gain).map(\.trackUUID))
-            .union(failedTagSaves(in: tags)).intersection(targets)
+            .union(failedTagSaves(in: tags)).union(failedArtwork).intersection(targets)
         refreshUnlinkedDrafts()
         guard !failed.isEmpty else { return nil }
         return String(ui: "\(failed.count)곡의 초안을 버리지 못했으니 초안 폴더의 접근 권한을 확인한 뒤 다시 버리세요.")

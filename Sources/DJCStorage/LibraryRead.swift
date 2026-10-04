@@ -148,6 +148,7 @@ public struct LibraryRead {
         let uuids = CueDraftStore.uuids(directory: home.appending(path: "cue-drafts"))
             .union(GridDraftStore.uuids(directory: home.appending(path: "grid-drafts")))
             .union(TagDraftStore.uuids(directory: home.appending(path: "tag-drafts"))).union(gains.keys)
+            .union(ArtworkDraftStore.uuids(directory: home.appending(path: ArtworkDraftStore.folderName)))
         let byUUID = Dictionary(tracks.map { ($0.uuid, $0) }, uniquingKeysWith: { first, _ in first })
         return DraftList(drafts: uuids.sorted().compactMap { uuid in
             let state = draftState(uuid: uuid)
@@ -215,10 +216,12 @@ public struct LibraryRead {
         guard !uuid.isEmpty, !uuid.contains("/"), uuid != ".", uuid != ".." else {
             return DraftState(cue: false, grid: false, gain: gains[uuid] != nil, tag: false)
         }
-        return DraftState(cue: CueDraftStore.load(trackUUID: uuid, directory: home.appending(path: "cue-drafts"))?.hasChanges == true,
-                          grid: GridDraftStore.load(trackUUID: uuid, directory: home.appending(path: "grid-drafts"))?.hasChanges == true,
-                          gain: gains[uuid] != nil,
-                          tag: TagDraftStore.load(trackUUID: uuid, directory: home.appending(path: "tag-drafts"))?.hasChanges == true)
+        var state = DraftState(cue: CueDraftStore.load(trackUUID: uuid, directory: home.appending(path: "cue-drafts"))?.hasChanges == true,
+                               grid: GridDraftStore.load(trackUUID: uuid, directory: home.appending(path: "grid-drafts"))?.hasChanges == true,
+                               gain: gains[uuid] != nil,
+                               tag: TagDraftStore.load(trackUUID: uuid, directory: home.appending(path: "tag-drafts"))?.hasChanges == true)
+        state.artwork = (try? ArtworkDraftStore.load(trackUUID: uuid, directory: home.appending(path: ArtworkDraftStore.folderName))) != nil
+        return state
     }
 
     private var sortedPlaylists: [RekordboxPlaylist] {

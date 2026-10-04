@@ -117,7 +117,7 @@ protocol ReflectionHost: AnyObject {
     /// 재생 목록 초안이 있는지(곡을 고르지 않아도 반영할 것이 있다)
     var hasPlaylistDrafts: Bool { get }
     func previewWrite(rows: [TrackRow], playlists: Bool) async throws -> LibraryStore.WritePreview
-    func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], tags: [TagDraft],
+    func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], tags: [TagDraft], artworks: [ArtworkEdit],
                           playlists: PlaylistDraft?, merges: [DuplicateMergeDraft]) async throws -> RekordboxWriter.Report
     func libraryChangedSince(_ backup: RekordboxWriter.Backup) async -> Bool?
     func restoreRekordbox(_ backup: RekordboxWriter.Backup) async throws -> URL
@@ -177,7 +177,8 @@ struct ReflectionCoordinator {
             host.writeStage = nil
             let report = preview.report
             guard !report.written.isEmpty || !report.gridWritten.isEmpty || !report.analysisWritten.isEmpty || !report.gainWritten.isEmpty
-                    || !report.tagWritten.isEmpty || !report.playlistWritten.isEmpty || !report.mergeWritten.isEmpty else {
+                    || !report.tagWritten.isEmpty || !report.artworkWritten.isEmpty || !report.playlistWritten.isEmpty
+                    || !report.mergeWritten.isEmpty else {
                 publish(.written(report, preview: report))
                 if let store = host as? LibraryStore,
                    targets.contains(where: { !store.recoveryKinds(for: $0).isEmpty }) || !report.playlistBlocked.isEmpty {
@@ -203,11 +204,13 @@ struct ReflectionCoordinator {
             // 분석을 붙이는 곡도 그리드 초안으로 쓴다.
             let cues = Set(report.written.map(\.trackUUID)), grids = Set((report.gridWritten + report.analysisWritten).map(\.trackUUID))
             let gains = Set(report.gainWritten.map(\.trackUUID)), tags = Set(report.tagWritten.map(\.trackUUID))
+            let artworks = Set(report.artworkWritten.map(\.trackUUID))
             try Task.checkCancellation()
             let written = try await host.writeToRekordbox(preview.drafts.filter { cues.contains($0.trackUUID) },
                                                 grids: preview.grids.filter { grids.contains($0.trackUUID) },
                                                 gains: preview.gains.filter { gains.contains($0.key) },
                                                 tags: preview.tags.filter { tags.contains($0.trackUUID) },
+                                                artworks: preview.artworks.filter { artworks.contains($0.trackUUID) },
                                                 playlists: report.playlistWritten.isEmpty ? nil : preview.playlists,
                                                 merges: preview.merges.filter { draft in report.mergeWritten.contains { $0.trackUUID == draft.id } })
             // 쓰기 결과와 뒤따른 일(초안 정리·다시 읽기)의 경고를 나눠 알린다(#175).
@@ -400,20 +403,25 @@ struct ReflectionCoordinator {
     }
 
     static func reasons(_ report: RekordboxWriter.Report) -> [String] {
-        (report.blocked + report.gridBlocked + report.analysisBlocked + report.gainBlocked + report.tagBlocked + report.mergeBlocked).map { "• \($0.title): \($0.reason ?? "")" }
+        (report.blocked + report.gridBlocked + report.analysisBlocked + report.gainBlocked + report.tagBlocked + report.artworkBlocked
+            + report.mergeBlocked).map { "• \($0.title): \($0.reason ?? "")" }
             + report.playlistBlocked.map(PlaylistWriteText.reason)
     }
 
     /// 쓰기 전 확인 창: 종류별 곡 수, 곡마다 바뀌는 것, 쓰지 않는 것과 이유
     static func confirmation(_ report: RekordboxWriter.Report, exclusions: [String] = []) -> ReflectionPrompt {
         let cues = report.written, grids = report.gridWritten, analyses = report.analysisWritten, gains = report.gainWritten
-        let tags = report.tagWritten
+        let tags = report.tagWritten, artworks = report.artworkWritten
         var kinds: [String] = []
         if !cues.isEmpty { kinds.append(WriteResult.Part.cue.summary(cues.count)) }
         if !grids.isEmpty { kinds.append(WriteResult.Part.grid.summary(grids.count)) }
         if !analyses.isEmpty { kinds.append(WriteResult.Part.analysis.summary(analyses.count)) }
         if !gains.isEmpty { kinds.append(WriteResult.Part.gain.summary(gains.count)) }
         if !tags.isEmpty { kinds.append(WriteResult.Part.tag.summary(tags.count)) }
+        if !artworks.isEmpty { kinds.append(WriteResult.Part.artwork.summary(artworks.count)) }
+        // 그림은 무엇을 하는지(넣기·바꾸기·지우기)
+        let artworkKinds = Dictionary(artworks.compactMap { outcome in outcome.artwork.map { (outcome.trackUUID, $0.label) } },
+                                      uniquingKeysWith: { a, _ in a })
         // 태그는 바꾼 칸 이름으로(제목·아티스트…)
         let tagFields = Dictionary(tags.map { tag in
             (tag.trackUUID, (tag.fields ?? []).compactMap { TagFields.Key(rawValue: $0)?.label }.joined(separator: "·"))
@@ -438,6 +446,7 @@ struct ReflectionCoordinator {
             }
             if gridBlocked.contains(outcome.trackUUID) { parts.append(String(ui: "⚠︎ 그리드는 안 들어감")) }
             if let fields = tagFields[outcome.trackUUID] { parts.append(String(ui: "태그(\(fields))")) }
+            if let artwork = artworkKinds[outcome.trackUUID] { parts.append(artwork) }
             return "• \(outcome.title) — " + parts.joined(separator: " · ")
         }
         let cueUUIDs = Set(cues.map(\.trackUUID))
@@ -450,7 +459,13 @@ struct ReflectionCoordinator {
         }
         for gain in gains { body.append("• \(gain.title) — " + String(ui: "오토게인 \(Double(gain.added) / 100, specifier: "%+.1f") dB")) }
         for tag in tags where !cueUUIDs.contains(tag.trackUUID) {
-            body.append("• \(tag.title) — " + String(ui: "태그(\(tagFields[tag.trackUUID] ?? ""))"))
+            var parts = [String(ui: "태그(\(tagFields[tag.trackUUID] ?? ""))")]
+            if let artwork = artworkKinds[tag.trackUUID] { parts.append(artwork) }
+            body.append("• \(tag.title) — " + parts.joined(separator: " · "))
+        }
+        let tagUUIDs = Set(tags.map(\.trackUUID))
+        for artwork in artworks where !cueUUIDs.contains(artwork.trackUUID) && !tagUUIDs.contains(artwork.trackUUID) {
+            body.append("• \(artwork.title) — " + (artworkKinds[artwork.trackUUID] ?? WriteResult.Part.artwork.summary(1)))
         }
         body += playlists.map(PlaylistWriteText.line)
         body += report.mergeWritten.map { String(ui: "• \($0.title) 유지 · 중복 \($0.removed)곡을 컬렉션에서 뺍니다") }
@@ -467,9 +482,18 @@ struct ReflectionCoordinator {
             // 결정(#1, 2026-09-26): rekordbox 라이브러리만 쓰고 음원은 읽기만 한다.
             body += ["", String(ui: "태그는 rekordbox 라이브러리에만 씁니다. 음원 파일의 태그는 그대로라 다른 앱이나 rekordbox '태그 다시 읽기'에서는 예전 값이 보일 수 있습니다.")]
         }
+        if !artworks.isEmpty {
+            // 결정(#66, 2026-10-04): rekordbox는 음원의 그림도 바꾸지만 DJCrate는 음원을 쓰지 않는다.
+            body += ["", Self.artworkAudioNote]
+        }
         return ReflectionPrompt(title: String(ui: "\(kinds.joined(separator: " · "))을 rekordbox에 쓸까요?"),
                                 text: backupThenWriteText,
                                 confirm: String(ui: "rekordbox에 쓰기"), destructive: !report.mergeWritten.isEmpty, details: body)
+    }
+
+    /// 그림 쓰기 확인 창의 안내: 음원 파일에 든 그림은 그대로다.
+    static var artworkAudioNote: String {
+        String(ui: "그림은 rekordbox 라이브러리에만 씁니다. 음원 파일에 든 그림은 그대로라 다른 앱이나 rekordbox '태그 다시 읽기'에서는 예전 그림이 보일 수 있습니다.")
     }
 
     static func addReasons(_ preview: LibraryStore.TrackAddPreview) -> [String] {

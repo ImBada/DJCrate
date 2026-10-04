@@ -268,6 +268,12 @@ final class LibraryStore {
 
     /// 초안 상태(메모리). 표의 ✎ 표시는 디스크를 다시 읽지 않고 이것으로 계산한다.
     var tagDrafts: [String: TagDraft] = [:]
+    /// 그림 초안(곡 UUID별, 그림 바이트 없이). 그림 사본은 `ArtworkDraftStore`에 있다(#66).
+    var artworkDrafts: [String: ArtworkDraft] = [:]
+    /// 곡의 살아 있는 그림 파일 행(ContentID별). 그림 초안의 base로 쓴다(스냅샷에서 읽음).
+    @ObservationIgnored var artworkFileRows: [String: [ArtworkFileRow]] = [:]
+    /// 그림 초안 안내(읽지 못한 그림·쓸 수 없는 곡)
+    var artworkMessage: AppMessage?
     @ObservationIgnored var recoveryMemoryInput: ((String, DraftRecoveryKind) -> RecoveryDraft?)?
     @ObservationIgnored var onDraftRecovered: ((RecoveryDraft, TrackRow?, BeatGrid?) -> Void)?
     var isRecoveringDraft = false
@@ -338,7 +344,7 @@ final class LibraryStore {
     /// 큐·그리드·게인·태그 초안이 있는 곡(태그도 반영하면 rekordbox 곡 정보에 쓴다).
     /// 부를 때마다 합집합을 새로 만든다. 곡마다 거를 때는 한 번 받아 두고 쓴다(#129: 초안 600곡이면 곡을 고를 때마다 수백 ms였다).
     var pendingUUIDs: Set<String> { cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys)
-        .union(mergeDrafts.flatMap { $0.members.map(\.trackUUID) }) }
+        .union(artworkDrafts.keys).union(mergeDrafts.flatMap { $0.members.map(\.trackUUID) }) }
     /// 반영 대기 중인 rekordbox 곡 수(추가한 곡 제외)
     var pendingLibraryCount: Int { pendingUUIDs.filter { rowsByUUID[$0].map { !$0.isStaged } ?? false }.count }
     /// 백그라운드 추정이 초안을 저장했을 때(덱이 같은 곡을 보고 있으면 다시 읽게)
@@ -822,14 +828,14 @@ final class LibraryStore {
             // 메인 액터에서 정한 요청 순서를 캡처가 끝날 때까지 유지한다.
             let refreshTicket = ITunesRefreshCoordinator.shared.begin(snapshot: snapshot, sourceDatabase: sourceDatabase)
             // 초안을 읽기 전에 손상된 파일을 옮겨 보관하고 알린다(빈 값으로 읽어 덮지 않게, #174).
-            let draftHome = draftHome
+            let draftHome = draftHome, artworkDirectory = artworkDirectory
             let moved = try await Self.runBlockingLibraryWork { draftHome.map { DraftWriter.preserveDamagedDrafts(home: $0) } ?? [] }
             guard generation == loadGeneration, !Task.isCancelled else { return }
             reportDamagedDrafts(moved)
             let loaded = try await Self.runBlockingLibraryWork {
                 try LoadedLibrary.load(snapshot: snapshot, commentPreset: preset, refreshITunes: refreshITunes,
                                        previousITunesSnapshot: previousITunesSnapshot, refreshTicket: refreshTicket,
-                                       sourceDatabase: sourceDatabase, progress: { stage in
+                                       sourceDatabase: sourceDatabase, artworkDirectory: artworkDirectory, progress: { stage in
                                            Task { @MainActor in
                                                // 늦게 도착한 진행 표시가 끝난 읽기나 새 요청을 덮지 않는다.
                                                guard generation == self.loadGeneration, self.isLoading else { return }
@@ -886,7 +892,9 @@ final class LibraryStore {
             gridDraftUUIDs = loaded.gridDraftUUIDs
             gainDraftUUIDs = loaded.gainDraftUUIDs
             preserveUnsavedDraftIndicators()
-            editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys)
+            artworkDrafts = loaded.artworkDrafts
+            artworkFileRows = loaded.artworkFiles
+            editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys).union(artworkDrafts.keys)
             rekordboxPlaylists = loaded.playlists
             // 저장하지 못한 재생 목록 초안은 디스크의 옛 초안으로 덮지 않는다(#174).
             if !playlistDraftUnsaved { playlistDraft = loaded.playlistDraft }
@@ -1045,12 +1053,13 @@ final class LibraryStore {
         let cueDirectory = home.appending(path: "cue-drafts")
         let tagDirectory = home.appending(path: "tag-drafts")
         let gridDirectory = home.appending(path: "grid-drafts")
+        let artworkDirectory = home.appending(path: ArtworkDraftStore.folderName)
         let unsaved = DraftWriter.unsavedUUIDs(cueDirectory: cueDirectory, gridDirectory: gridDirectory)
         let failedTags = failedTagSaves(in: tagDirectory)
         if !failedTags.isEmpty { lastError = DraftWriter.tagSaveFailureMessage }
         else if lastError == DraftWriter.tagSaveFailureMessage { lastError = nil }
         var stamps: [String: Date] = [:]
-        for directory in [cueDirectory, tagDirectory, gridDirectory] {
+        for directory in [cueDirectory, tagDirectory, gridDirectory, artworkDirectory] {
             let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
             for file in files where file.pathExtension == "json" {
                 stamps[file.path] = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
@@ -1083,8 +1092,9 @@ final class LibraryStore {
         draftCueCounts = cues.mapValues(CueCounts.init)
         draftPreviewCues = cues.mapValues { $0.cues.map(PreviewCueMark.init) }
         gridDraftUUIDs = GridDraftStore.uuids(directory: gridDirectory)
+        artworkDrafts = ArtworkDraftStore.all(directory: artworkDirectory)
         preserveUnsavedDraftIndicators(home: home)
-        editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys)
+        editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys).union(artworkDrafts.keys)
         if case .pending = sidebar { refreshBase() }
         applyMovedDrafts(moved, previousTags: previousTags)
         refreshUnlinkedDrafts()
@@ -1167,6 +1177,7 @@ final class LibraryStore {
 
     func updateEdited(_ uuid: String) {
         let edited = cueDraftUUIDs.contains(uuid) || gridDraftUUIDs.contains(uuid) || gainDraftUUIDs.contains(uuid) || tagDrafts[uuid] != nil
+            || artworkDrafts[uuid] != nil
         // 바뀔 때만 건드려서 표의 ✎ 칸이 불필요하게 다시 그려지지 않게 한다.
         if edited, !editedUUIDs.contains(uuid) { editedUUIDs.insert(uuid) }
         if !edited, editedUUIDs.contains(uuid) { editedUUIDs.remove(uuid) }

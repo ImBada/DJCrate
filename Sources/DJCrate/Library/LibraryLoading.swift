@@ -53,12 +53,16 @@ struct LoadedLibrary: Sendable {
     var duplicateGroups: [LibraryRead.DuplicateGroup] = []
     var iTunesLibrary = SyncedITunesLibrary()
     var iTunesSnapshot = ITunesLibrarySnapshot(status: .notCaptured)
+    /// 그림 초안(그림 바이트 없이)과 곡의 살아 있는 그림 파일 행(ContentID별, 초안 base)
+    var artworkDrafts: [String: ArtworkDraft] = [:]
+    var artworkFiles: [String: [ArtworkFileRow]] = [:]
 
     static func load(snapshot: URL, commentPreset: CommentPreset = .none, refreshITunes: Bool = false,
                      previousITunesSnapshot: ITunesFallback? = nil,
                      fallbackDirectory: URL = LibrarySnapshot.defaultDirectory,
                      refreshTicket: ITunesRefreshCoordinator.Ticket? = nil,
                      sourceDatabase: URL? = nil,
+                     artworkDirectory: URL = ArtworkDraftStore.directory,
                      progress: @Sendable (Stage) -> Void = { _ in },
                      captureITunes: () -> ITunesLibrarySnapshot = { RekordboxITunesReader.capture() }) throws -> LoadedLibrary {
         let refreshTicket = refreshTicket ?? ITunesRefreshCoordinator.shared.begin(snapshot: snapshot, sourceDatabase: sourceDatabase)
@@ -98,7 +102,7 @@ struct LoadedLibrary: Sendable {
                 if draft.hasChanges { draftPreviewCues[uuid] = draft.cues.map(PreviewCueMark.init) }
             }
         }
-        return LoadedLibrary(rows: rows, report: LibraryReport(library: library, commentRule: commentPreset.rule), filterCounts: counts,
+        var loaded = LoadedLibrary(rows: rows, report: LibraryReport(library: library, commentRule: commentPreset.rule), filterCounts: counts,
                              tagDrafts: tagDrafts, cueDraftUUIDs: cueUUIDs,
                              gridDraftUUIDs: GridDraftStore.uuids(), gainDraftUUIDs: GainDraftStore.uuids(),
                              playlists: PlaylistLayout(rekordbox: library.playlists),
@@ -107,6 +111,9 @@ struct LoadedLibrary: Sendable {
                              draftCueCounts: draftCueCounts, draftPreviewCues: draftPreviewCues,
                              duplicateGroups: LibraryRead.duplicates(in: library).groups,
                              iTunesLibrary: SyncedITunesLibrary(snapshot: iTunes, tracks: tracks), iTunesSnapshot: iTunes)
+        loaded.artworkDrafts = ArtworkDraftStore.all(directory: artworkDirectory)
+        loaded.artworkFiles = library.artworkFiles
+        return loaded
     }
 
     /// DB를 다시 읽지 않고 Music 결과만 채택한다. 캡처 전 발급한 요청 순서로 늦은 결과를 거른다.

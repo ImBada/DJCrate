@@ -5,7 +5,7 @@ import RekordboxKit
 
 /// 복원이 되살릴 백업 초안과 지금 초안이 다른 곳(#175). 지금 초안은 쓴 뒤 새로 만든 편집이다.
 struct RestoreDraftConflict: Hashable, Sendable {
-    enum Kind: Hashable, Sendable { case cue, grid, gain, tag, merge }
+    enum Kind: Hashable, Sendable { case cue, grid, gain, tag, artwork, merge }
     var kind: Kind
     /// 곡 UUID(합치기는 합치기 초안 ID)
     var uuid: String
@@ -16,6 +16,7 @@ struct RestoreDraftConflict: Hashable, Sendable {
         case .grid: String(ui: "그리드")
         case .gain: String(ui: "게인")
         case .tag: String(ui: "태그")
+        case .artwork: String(ui: "그림")
         case .merge: String(ui: "합치기")
         }
     }
@@ -88,6 +89,9 @@ extension LibraryStore {
         for tag in RekordboxWriter.tagDrafts(in: backup.url) {
             if let current = tagDrafts[tag.trackUUID], current.hasChanges, current != tag { conflicts.append(.init(kind: .tag, uuid: tag.trackUUID)) }
         }
+        for edit in RekordboxWriter.artworkDrafts(in: backup.url) {
+            if let current = artworkDrafts[edit.trackUUID], current != edit.draft { conflicts.append(.init(kind: .artwork, uuid: edit.trackUUID)) }
+        }
         let restored = RekordboxWriter.mergeDrafts(in: backup.url)
         let restoredIDs = Set(restored.flatMap { $0.members.map(\.trackUUID) })
         for current in mergeDrafts where !restored.contains(current)
@@ -110,8 +114,12 @@ extension LibraryStore {
 
     /// 복원 확인 창에 보일 충돌 목록("• 곡 — 큐·태그")
     func restoreDraftConflictDetails(_ backup: RekordboxWriter.Backup) -> [String] {
-        let titles = Dictionary((backup.report.map { $0.outcomes + ($0.gridOutcomes ?? []) + ($0.gainOutcomes ?? []) + ($0.tagOutcomes ?? []) } ?? [])
-            .map { ($0.trackUUID, $0.title) }, uniquingKeysWith: { first, _ in first })
+        var outcomes: [RekordboxWriter.Outcome] = []
+        if let report = backup.report {
+            outcomes = report.outcomes + (report.gridOutcomes ?? []) + (report.gainOutcomes ?? [])
+            outcomes += (report.tagOutcomes ?? []) + (report.artworkOutcomes ?? [])
+        }
+        let titles = Dictionary(outcomes.map { ($0.trackUUID, $0.title) }, uniquingKeysWith: { first, _ in first })
         return conflictTrackUUIDs(restoreDraftConflicts(backup))
             .map { uuid, conflicts in (rowsByUUID[uuid]?.title ?? titles[uuid] ?? uuid, conflicts) }
             .sorted { $0.0.localizedStandardCompare($1.0) == .orderedAscending }

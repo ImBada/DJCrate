@@ -12,6 +12,8 @@ public struct RekordboxLibrary: Sendable {
     public let histories: [RekordboxHistory]
     /// ContentID → rekordbox 오토게인(djmdMixerParam)
     public var autoGains: [String: RekordboxAutoGain] = [:]
+    /// ContentID → 살아 있는 그림 파일 행(`contentFile`의 `/PIONEER/Artwork/…`). 그림 초안의 base로 쓴다(#66).
+    public var artworkFiles: [String: [ArtworkFileRow]] = [:]
 
     /// 실제 컬렉션. 제안·커버리지·백로그 집계는 이것만 대상으로 한다.
     public var tracks: [Track] { allTracks.filter { !$0.isDeleted } }
@@ -110,6 +112,16 @@ public struct RekordboxLibrary: Sendable {
             if gain > 0, gain.isFinite { gains[id] = RekordboxAutoGain(gain: Double(gain), peak: Double(peak)) }
         }
         library.autoGains = gains
+        // 그림 초안의 base: rekordbox의 그림 바꾸기는 곡 행을 건드리지 않아 파일 행의 해시·크기·상태로 알아챈다(#66).
+        var artworkFiles: [String: [ArtworkFileRow]] = [:]
+        try? db.query("""
+            SELECT ContentID, Path, Hash, Size, rb_data_status FROM contentFile
+            WHERE substr(Path, 1, 17) = '/PIONEER/Artwork/' AND rb_local_deleted = 0
+            """) { r in
+            guard let id = r.string(0) else { return }
+            artworkFiles[id, default: []].append(ArtworkFileRow(path: r.string(1) ?? "", hash: r.string(2), size: r.int(3), status: r.int(4)))
+        }
+        library.artworkFiles = artworkFiles
         return library
     }
 }

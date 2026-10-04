@@ -376,6 +376,14 @@ final class DeckModel {
             }
             self.selectedCueID = match(selected)
             if self.engagedLoopID != nil { self.engagedLoopID = match(engaged) }
+            // rekordbox 그림을 넣거나 바꾸거나 지웠을 수 있다(#66). 그림이 없어지면 처음 불러올 때처럼 음원 내장 그림을 보인다.
+            if let image = payload.artwork?.image {
+                self.artwork = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
+            } else if !track.isStreaming {
+                let embedded = await ArtworkCache.embeddedArtwork(url: URL(filePath: track.folderPath))
+                guard !Task.isCancelled, self.row?.id == id else { return }
+                self.artwork = embedded
+            }
         }
     }
 
