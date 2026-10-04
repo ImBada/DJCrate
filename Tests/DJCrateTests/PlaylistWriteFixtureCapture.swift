@@ -2,7 +2,7 @@ import DJCTestSupport
 import Foundation
 import Testing
 
-/// 재생 목록 반영 자가 테스트(`--write-selftest`)·화면 확인용 합성 라이브러리: 합성 곡 다섯(테스트 음원),
+/// 재생 목록 반영 자가 테스트(`--write-selftest`)·화면 확인용 합성 라이브러리: 합성 곡 다섯(테스트 음원, 곡 102만 키 8A·`djmdKey`에 8A·6A·5A),
 /// 폴더 "합성 폴더" 안 목록 "합성 목록"(곡 둘), 맨 위 목록 "맨 위 목록"(곡 하나), `masterPlaylists6.xml`. 실데이터는 쓰지 않는다.
 /// `DJC_PLAYLIST_FIXTURE=<폴더> swift test --filter PlaylistWriteFixtureCapture` → `DJC_REKORDBOX_DIR=<폴더>`로 앱을 띄운다.
 struct PlaylistWriteFixtureCapture {
@@ -16,6 +16,12 @@ struct PlaylistWriteFixtureCapture {
             track.title = title
             try fixture.add(track)
         }
+        // 키 고르기·쓰기 시험용 키 줄(Camelot, 살아 있음)과 곡 102의 키(8A). 나머지 곡은 키가 없다(`KeyID` NULL).
+        for (id, name) in [("1486464042", "8A"), ("3730904205", "6A"), ("1010000005", "5A")] {
+            try fixture.insert("djmdKey", ["ID": .text(id), "ScaleName": .text(name), "Seq": .int(1), "UUID": .text("k-\(id)"),
+                                           "rb_data_status": .int(256), "rb_local_deleted": .int(0), "rb_local_usn": .int(157_637)])
+        }
+        try fixture.execute("UPDATE djmdContent SET KeyID = '1486464042' WHERE ID = '102'")
         try fixture.add(PlaylistSpec(id: "1001", name: "합성 폴더", seq: 1, isFolder: true))
         try fixture.add(PlaylistSpec(id: "1002", name: "합성 목록", parentID: "1001", seq: 1, contentIDs: ["101", "102"]))
         try fixture.add(PlaylistSpec(id: "1003", name: "맨 위 목록", seq: 2, contentIDs: ["103"]))
