@@ -284,6 +284,12 @@ struct EmptyLibraryOverlay: View {
             } actions: {
                 Button(.ui("곡 추가…")) { StagingPanels.chooseFiles(store: store) }
             }
+        } else if store.streamingHiddenInView > 0 {
+            ContentUnavailableView {
+                Label(.ui("스트리밍 곡을 숨기고 있습니다"), systemImage: "eye.slash")
+            } description: {
+                Text(.ui("이 목록의 곡은 모두 스트리밍 곡입니다. 설정 › 일반에서 ‘스트리밍 곡 숨기기’를 끄면 보입니다."))
+            }
         } else {
             ContentUnavailableView {
                 Label(.ui("표시할 곡이 없습니다"), systemImage: "music.note.list")

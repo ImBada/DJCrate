@@ -28,8 +28,10 @@ extension LibraryStore {
     }
 
     /// 끌어서 순서를 바꿀 수 있는지: 목록 순서(# 순)로 보고, 검색으로 거르지 않을 때
+    /// '스트리밍 곡 숨기기'로 줄을 뺀 목록도 막는다: 숨은 줄이 끼어 있으면 놓을 자리가 모호해(검색으로 거른 목록과 같다) 숨기기를 끄고 옮긴다.
     var canReorderDisplayedTracks: Bool {
         editablePlaylistID != nil && sortOrder.isEmpty && search.trimmingCharacters(in: .whitespaces).isEmpty
+            && streamingHiddenInView == 0
     }
 
     /// 표의 초안 칸: 곡 초안이 있는 곡 + 보고 있는 목록에 초안으로 넣은 곡
@@ -69,8 +71,7 @@ extension LibraryStore {
         func walk(_ nodes: [PlaylistOutlineNode]) { for node in nodes { index[node.id] = node; walk(node.children ?? []) } }
         walk(playlistTree)
         playlistIndex = index
-        let known = rowsByID
-        playlistCounts = index.mapValues { node in node.trackIDs.lazy.filter { known[$0] != nil }.count }
+        recountPlaylists()
         // 초안으로 넣은 곡: 얹은 모양에 rekordbox보다 많이 든 곡
         var added: [String: Set<String>] = [:]
         for id in projection.changed {
@@ -88,6 +89,14 @@ extension LibraryStore {
             sidebar = .filter(.all)
         } else if refreshList, case .playlist = sidebar {
             refreshBase()
+        }
+    }
+
+    /// 사이드바 재생 목록 곡 수. 컬렉션에 없는 곡과 숨기는 스트리밍 곡은 세지 않는다.
+    func recountPlaylists() {
+        let known = rowsByID, hiding = hideStreaming
+        playlistCounts = playlistIndex.mapValues { node in
+            StreamingVisibility.visibleCount(of: node.trackIDs, hidingStreaming: hiding) { known[$0]?.track }
         }
     }
 

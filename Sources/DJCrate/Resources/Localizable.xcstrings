@@ -12371,6 +12371,22 @@
         }
       }
     },
+    "곡 목록" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Track List"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲リスト"
+          }
+        }
+      }
+    },
     "곡 목록: 고른 곡의 태그 칸 고치기 (고른 줄의 칸을 한 번 더 눌러도 됨)" : {
       "localizations" : {
         "en" : {
@@ -12415,6 +12431,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "曲リスト・タグシート・デッキ・通知の文字を大きくします。表示 › 文字を大きく・文字を小さく（⌘+・⌘−）でも変更できます。"
+          }
+        }
+      }
+    },
+    "곡 목록과 곡 수에서 스트리밍 곡을 뺍니다. rekordbox 라이브러리는 바뀌지 않습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removes streaming tracks from the track list and track counts. Your rekordbox library is not changed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲リストと曲数からストリーミングの曲を除きます。rekordboxライブラリは変更されません。"
           }
         }
       }
@@ -22477,6 +22509,34 @@
         }
       }
     },
+    "스트리밍 %lld곡을 숨기는 중 · 순서를 바꾸려면 설정에서 숨기기를 끄세요" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld streaming track hidden · To reorder, turn off hiding in Settings"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld streaming tracks hidden · To reorder, turn off hiding in Settings"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ストリーミングの曲%lld曲を非表示中 · 順序を変えるには設定で非表示をオフにしてください"
+          }
+        }
+      }
+    },
     "스트리밍 곡" : {
       "localizations" : {
         "en" : {
@@ -22489,6 +22549,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ストリーミング曲"
+          }
+        }
+      }
+    },
+    "스트리밍 곡 숨기기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Streaming Tracks"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ストリーミングの曲を非表示"
           }
         }
       }
@@ -22601,6 +22677,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ストリーミングの曲は編集できません。ファイルの曲を選んでください。"
+          }
+        }
+      }
+    },
+    "스트리밍 곡을 숨기고 있습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Streaming Tracks Are Hidden"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ストリーミングの曲を非表示にしています"
           }
         }
       }
@@ -27199,6 +27291,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このプレイリストから外す"
+          }
+        }
+      }
+    },
+    "이 목록의 곡은 모두 스트리밍 곡입니다. 설정 › 일반에서 ‘스트리밍 곡 숨기기’를 끄면 보입니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every track in this list is a streaming track. Turn off “Hide Streaming Tracks” in Settings › General to see them."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このリストの曲はすべてストリーミングの曲です。設定 › 一般で「ストリーミングの曲を非表示」をオフにすると表示されます。"
           }
         }
       }

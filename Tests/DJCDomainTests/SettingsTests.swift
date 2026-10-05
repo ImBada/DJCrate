@@ -59,6 +59,16 @@ struct SettingsTests {
         #expect(SettingKeys.all.contains(SettingKeys.sidebarVisible.name))
     }
 
+    /// 곡 목록에서 스트리밍 곡을 빼는 설정은 기본으로 꺼져 있어(지금처럼 보인다) 설정을 안 건드리면 아무것도 안 바뀐다.
+    @Test func 스트리밍_곡_숨기기는_기본으로_꺼져_있다() {
+        #expect(SettingKeys.hideStreaming.name == "library.hideStreaming")
+        #expect(SettingKeys.hideStreaming.defaultValue == false)
+        #expect(SettingKeys.hideStreaming.value(from: nil) == false)
+        #expect(SettingKeys.hideStreaming.value(from: "true") == false)
+        #expect(SettingKeys.hideStreaming.value(from: true) == true)
+        #expect(SettingKeys.all.contains(SettingKeys.hideStreaming.name))
+    }
+
     @Test func 설정_이름은_겹치지_않는다() {
         let names = SettingKeys.all
         #expect(Set(names).count == names.count)
