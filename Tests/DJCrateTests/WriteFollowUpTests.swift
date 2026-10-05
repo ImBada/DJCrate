@@ -103,6 +103,21 @@ struct WriteFollowUpTests {
         #expect(host.resultHistory.latest?.text.hasSuffix("• \(note)") == true)
     }
 
+    @Test func 곡_넣기_뒤따른_경고도_넣기_결과와_나눠_알린다() async {
+        // #202: 넣기는 끝났지만 백업에 추가 목록을 남기지 못한 경고가 결과에 안 보였다(쓰기·복원 결과만 뒤따른 경고를 나눠 알렸다).
+        let host = FakeReflectionHost(), prompter = ScriptedPrompter()
+        host.addPreview = .success(ReflectionCoordinatorTests.addPreview([ReflectionCoordinatorTests.track("a")]))
+        let note = LibraryStore.stagedBackupFailureText
+        host.followUp = [note]
+        await ReflectionCoordinator(host: host, prompter: prompter, isRekordboxRunning: { false })
+            .addTracks(rows: [ReflectionCoordinatorTests.row("djc-a")])
+        #expect(host.added == ["a"])
+        #expect(host.toast?.kind == .warning)
+        #expect(host.toast?.title.hasPrefix("rekordbox에 1곡을 넣었습니다") == true)
+        #expect(host.resultHistory.latest?.text.hasSuffix("• \(note)") == true)
+        #expect(host.resultHistory.latest?.kind == .warning)
+    }
+
     @Test func 뒤따른_경고가_있으면_성공_결과도_경고로_바꾸고_줄을_더한다() {
         let result = WriteResult(kind: .success, title: "rekordbox에 썼습니다 · 큐 1곡", text: "• 곡 — 큐 쓰기 완료")
         #expect(result.followedUp([]) == result)

@@ -270,6 +270,8 @@ final class LibraryStore {
     @ObservationIgnored var launchEnvironment = ProcessInfo.processInfo.environment
     /// rekordbox 폴더의 master.db에서 기본 스냅샷 폴더로 사본을 뜬다(`force`). 시험은 라이브를 건드리지 않게 바꿔 넣는다
     @ObservationIgnored var takeLiveSnapshot: @Sendable (Bool) throws -> URL = { try LibrarySnapshot.take(force: $0) }
+    /// 곡 넣기 백업 폴더에 남기는 파일(추가 목록·추가한 곡의 초안)을 쓴다. 시험은 저장 실패를 만들려고 바꿔 넣는다
+    @ObservationIgnored var backupFileWriter: (Data, URL) throws -> Void = { try $0.write(to: $1, options: .atomic) }
     /// 추가한 곡·초안 없는 곡의 그리드 추정(파일, 캐시 키). 시험은 가짜로 바꿔 넣는다
     @ObservationIgnored var gridEstimator: @Sendable (URL, String) async throws -> GridEstimator.Estimate? = {
         try await GridSuggestion.estimate(fileAt: $0, cacheKey: $1)
