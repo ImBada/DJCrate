@@ -145,6 +145,10 @@ enum ResizePerfSelfTest {
               let window = NSApp.windows.first(where: { findTable($0.contentView) != nil }),
               let content = window.contentView,
               let row = store.displayRows.first else { log("메인 창·합성 라이브러리를 찾지 못함"); return false }
+        // 비활성 창에도 스크롤이 들어올 수 있어 준비·측정 동안 사용자 입력을 받지 않는다.
+        let ignoredMouseEvents = window.ignoresMouseEvents
+        window.ignoresMouseEvents = true
+        defer { window.ignoresMouseEvents = ignoredMouseEvents }
         let original = window.frame
         defer { window.setFrame(original, display: false) }
         window.setContentSize(NSSize(width: 1500, height: 900))
@@ -167,6 +171,7 @@ enum ResizePerfSelfTest {
         await wait(1)
         if let delay = option("delay").flatMap(Double.init) { await wait(delay) }
         guard !NSApp.isActive, !window.isKeyWindow else { log("포커스를 가져와 측정을 중단함"); return false }
+        let playhead = deck.playhead
         guard capture(window) else { return false }
         let base = window.frame
         let recorder = UIPerfRecorder()
@@ -225,9 +230,11 @@ enum ResizePerfSelfTest {
                     "frame_gap_ms": pair(gaps), "elapsed_ms": (end - start) * 1000,
                     "bodies": PerfProbe.bodySnapshot(), "load_average": load,
                     "interval_ms": intervals.mapValues(pair), "hidden": PerfProbe.hidden.sorted(),
-                    "active": NSApp.isActive, "key_window": window.isKeyWindow])
-                guard !gaps.isEmpty, !NSApp.isActive, !window.isKeyWindow else {
-                    log("프레임을 재지 못했거나 포커스가 바뀌어 실패함"); return false
+                    "active": NSApp.isActive, "key_window": window.isKeyWindow,
+                    "ignores_mouse_events": window.ignoresMouseEvents, "playhead": deck.playhead])
+                guard !gaps.isEmpty, !NSApp.isActive, !window.isKeyWindow,
+                      window.ignoresMouseEvents, deck.playhead == playhead else {
+                    log("프레임을 재지 못했거나 입력 격리·재생 위치·포커스가 바뀌어 실패함"); return false
                 }
                 await wait(0.3)
             }
