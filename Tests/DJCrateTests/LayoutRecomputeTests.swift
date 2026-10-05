@@ -21,7 +21,7 @@ import Testing
                 || ProcessInfo.processInfo.environment["DJC_LAYOUT_BENCHMARK_DB"] != nil))
 struct LayoutRecomputeTests {
     /// 합성 곡 하나를 덱에 올린 주 창(사이드바 열림)
-    private func mainWindow(width: Double = 1440) async throws -> (window: NSWindow, deck: DeckModel, close: () -> Void) {
+    private func mainWindow(width: Double = 1440, waveformHeight: Double = 150) async throws -> (window: NSWindow, deck: DeckModel, close: () -> Void) {
         _ = NSApplication.shared
         let settingNames = [SettingKeys.sidebarVisible.name, SettingKeys.showTagEditor.name, SettingKeys.sheetMode.name, SettingKeys.waveformHeight.name, SettingKeys.cueListFilter.name]
         let savedSettings = settingNames.map { UserDefaults.standard.object(forKey: $0) }
@@ -34,7 +34,7 @@ struct LayoutRecomputeTests {
         UserDefaults.standard.set(true, forKey: SettingKeys.sidebarVisible.name)
         UserDefaults.standard.set(false, forKey: SettingKeys.showTagEditor.name)
         UserDefaults.standard.set(false, forKey: SettingKeys.sheetMode.name)
-        UserDefaults.standard.set(150.0, forKey: SettingKeys.waveformHeight.name)
+        UserDefaults.standard.set(waveformHeight, forKey: SettingKeys.waveformHeight.name)
         UserDefaults.standard.set(CueListFilter.all.rawValue, forKey: SettingKeys.cueListFilter.name)
         let fixture = try historyFixture()
         let snapshot = ProcessInfo.processInfo.environment["DJC_LAYOUT_BENCHMARK_DB"].map { URL(filePath: $0) } ?? fixture.database
@@ -108,6 +108,38 @@ struct LayoutRecomputeTests {
         #expect(PerfProbe.bodyCount("ContentView") <= 2)
         #expect(PerfProbe.bodyCount("LibraryDetail") <= 2)
         #expect(PerfProbe.bodyCount("DeckView") <= 5)
+        #expect(PerfProbe.bodyCount("TrackListView.update") <= 2)
+    }
+
+    @Test func 창_높이에_맞춰_파형을_줄여도_덱_전체_본문은_다시_계산하지_않는다() async throws {
+        PerfProbe.countsBodies = true
+        defer { PerfProbe.countsBodies = false }
+        let (window, _, close) = try await mainWindow(waveformHeight: 480)
+        defer { close() }
+        // 곡을 올릴 때 보존한 요청 높이를 첫 창 크기 변경으로 맞춘 뒤 왕복을 비교한다.
+        window.setContentSize(NSSize(width: 1440, height: 892))
+        try await settle(window)
+        window.setContentSize(NSSize(width: 1440, height: 900))
+        try await settle(window)
+        let originalHeight = try #require(PerfProbe.lastWaveformHeight)
+        var heights: [Double] = []
+        PerfProbe.resetBodyCounts()
+        for step in 0..<40 {
+            let offset = Double(step < 20 ? step : 39 - step) * 8
+            window.setContentSize(NSSize(width: 1440, height: 900 - offset))
+            window.contentView?.layoutSubtreeIfNeeded()
+            try await Task.sleep(for: .milliseconds(16))
+            heights.append(try #require(PerfProbe.lastWaveformHeight))
+        }
+        try await settle(window)
+        print("TRACE 파형이 줄어드는 창 높이 40단계:", PerfProbe.bodySummary() ?? "-")
+        // 높이 적용·복원은 계속 일어나되, 헤더·큐 목록·나머지 조작부까지 다시 만들지 않는다.
+        #expect(originalHeight - (heights.min() ?? originalHeight) > 100)
+        #expect(PerfProbe.lastWaveformHeight == originalHeight)
+        #expect(UserDefaults.standard.double(forKey: SettingKeys.waveformHeight.name) == 480)
+        #expect(PerfProbe.bodyCount("ContentView") <= 2)
+        #expect(PerfProbe.bodyCount("LibraryDetail") <= 2)
+        #expect(PerfProbe.bodyCount("DeckView") == 0)
         #expect(PerfProbe.bodyCount("TrackListView.update") <= 2)
     }
 
