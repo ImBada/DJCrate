@@ -38,11 +38,16 @@ extension DeckModel {
     /// 지금 이 곡에 쓰는 오토게인 값(초안 > rekordbox)
     var trackGainDB: Double? { gainDraft ?? rekordboxGainDB }
 
-    /// 제안할 게인(dB): rekordbox 오토게인이 DJCrate 측정과 1.5dB 넘게 다를 때 DJCrate 계산값
-    var gainSuggestion: Double? {
-        guard autoGain, useRekordboxGain, isGainSuspicious, gainDraft == nil, let uuid = row?.track.uuid,
-              !dismissedGainSuggestions.contains(uuid) else { return nil }
+    /// 제안할 게인(dB): rekordbox 오토게인이 DJCrate 측정과 1.5dB 넘게 다를 때 DJCrate 계산값.
+    /// 무시 여부와 관계없다(무시한 곡은 덱 제안 줄이 "무시한 제안 다시 보기"로 남긴다).
+    var gainSuggestionCandidate: Double? {
+        guard autoGain, useRekordboxGain, isGainSuspicious, gainDraft == nil, row != nil else { return nil }
         return measuredGainDB
+    }
+
+    var isGainSuggestionDismissed: Bool {
+        guard let uuid = row?.track.uuid else { return false }
+        return dismissedGainSuggestions.contains(uuid)
     }
 
     func acceptGainSuggestion() {
@@ -53,6 +58,11 @@ extension DeckModel {
     func dismissGainSuggestion() {
         guard let uuid = row?.track.uuid else { return }
         dismissedGainSuggestions.insert(uuid)
+    }
+
+    func restoreGainSuggestion() {
+        guard let uuid = row?.track.uuid, dismissedGainSuggestions.contains(uuid) else { return }
+        dismissedGainSuggestions.remove(uuid)
     }
 
     /// 곡 오토게인을 정한다(초안). rekordbox 값과 같으면 초안을 지운다.

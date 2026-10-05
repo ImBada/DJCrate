@@ -150,20 +150,6 @@ struct MusicalKeyEditingTests {
 
     // MARK: DJCrate 추정은 제안이다
 
-    @Test func 분석_캐시의_크로마로_키를_추정하고_캐시가_없으면_계산하지_않는다() throws {
-        let directory = FileManager.default.temporaryDirectory.appending(path: "djc-key-suggest-\(UUID())")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let wav = try ChordFixture.wav(ChordFixture.aMinor, seconds: 30, in: directory, name: "a-minor.wav")
-        let uuid = "suggest-\(UUID())"
-        // 캐시가 없으면 곡을 분석하지 않고 nil이다(인스펙터에서 곡 전체를 읽지 않는다)
-        #expect(KeyPicker.cachedEstimate(uuid: uuid, file: wav, duration: 30) == nil)
-        #expect(AnalysisCache.chroma(key: uuid, file: wav) == nil, "묻기만 해서는 캐시가 생기지 않는다")
-        AnalysisCache.store(try KeyAnalyzer.chroma(fileAt: wav), key: uuid, file: wav)
-        defer { AnalysisCache.removeAll(key: uuid) }
-        #expect(KeyPicker.cachedEstimate(uuid: uuid, file: wav, duration: 30) == "8A")
-    }
-
     @Test func 제안은_키가_빈_곡_하나에만_보이고_자동으로_초안을_만들지_않는다() throws {
         let store = store()
         let empty = Self.row("1"), keyed = Self.row("2", key: "5A"), staged = Self.row("3", staged: true), other = Self.row("4")
@@ -176,32 +162,27 @@ struct MusicalKeyEditingTests {
         #expect(suggestion([keyed]) == nil && suggestion([empty, other]) == nil)
         #expect(suggestion([staged]) == "8A", "추가한 곡도 키가 비었으면(넣을 때 '0') 제안한다")
         #expect(suggestion([empty], estimate: nil) == nil && suggestion([empty], estimate: "Am") == nil)
-        #expect(KeyPicker.suggestionTarget(rows: [empty])?.uuid == "uuid-1")
-        #expect(KeyPicker.suggestionTarget(rows: [keyed]) == nil && KeyPicker.suggestionTarget(rows: [staged]) == nil)
         // 사용자가 누르면(고르면) 그때 초안이 생긴다
         store.setTag(.musicalKey, "8A", rows: KeyPicker.targets([empty]))
         #expect(store.tagDrafts[empty.track.uuid]?.changedKeys == [.musicalKey])
     }
 
-    @Test func 추가한_곡은_목록의_키를_제안으로만_보인다() async {
-        // 추가한 곡의 제안은 staged.json의 키(음원 태그 또는 DJCrate 추정)다. 크로마를 다시 읽지 않고, 눌러야 초안이 생긴다.
+    @Test func 추가한_곡은_목록의_키를_제안으로만_보인다() {
+        // 추가한 곡의 제안은 staged.json의 키(음원 태그 또는 DJCrate 추정)다. 덱 제안 줄이 그 키를 추정으로 넘기고, 눌러야 초안이 생긴다.
         let store = store()
-        let loader = KeyEstimateLoader()
         var estimated = Self.row("1", key: "8A", staged: true)
         estimated.keyEstimated = true
         let tagged = Self.row("2", key: "5A", staged: true), unknown = Self.row("3", staged: true)
-        #expect(KeyPicker.suggestionTarget(rows: [estimated]) == nil, "분석 캐시를 읽지 않는다")
-        #expect(KeyPicker.estimate(of: loader, for: [estimated]) == "8A" && KeyPicker.estimate(of: loader, for: [unknown]) == nil)
-        func suggestion(_ row: TrackRow) -> String? {
-            KeyPicker.suggestion(estimate: KeyPicker.estimate(of: loader, for: [row]), rows: [row], current: store.tagValue(.musicalKey, rows: [row]))
+        func suggestion(_ rows: [TrackRow]) -> String? {
+            KeyPicker.suggestion(estimate: rows.first?.track.key, rows: rows, current: store.tagValue(.musicalKey, rows: rows))
         }
-        #expect(suggestion(estimated) == "8A" && suggestion(tagged) == "5A" && suggestion(unknown) == nil)
+        #expect(suggestion([estimated]) == "8A" && suggestion([tagged]) == "5A" && suggestion([unknown]) == nil)
         #expect(KeyPicker.suggestionSource([estimated]) == .estimate && KeyPicker.suggestionSource([tagged]) == .fileTag)
         #expect(store.tagDrafts.isEmpty, "제안을 보여도 초안은 없다")
         store.setTag(.musicalKey, "8A", rows: [estimated])
-        #expect(suggestion(estimated) == nil, "고른 뒤에는 제안이 사라진다")
+        #expect(suggestion([estimated]) == nil, "고른 뒤에는 제안이 사라진다")
         // 여러 곡이면 제안하지 않는다
-        #expect(KeyPicker.estimate(of: loader, for: [estimated, tagged]) == nil)
+        #expect(suggestion([tagged, unknown]) == nil)
     }
 
     @Test(arguments: ["library", "estimate", "fileTag"])
@@ -215,8 +196,8 @@ struct MusicalKeyEditingTests {
         let estimate = source == "library" ? "8B" : row.track.key
         #expect(store.keySuggestion(estimate: estimate, rows: [row]) == "8B")
         #expect(store.tagDrafts.isEmpty && store.tagCell(row, .musicalKey).isEmpty)
-        #expect(KeyPicker.suggestionLabel("8B", source: KeyPicker.suggestionSource([row]))
-                == (source == "fileTag" ? "DJCrate 제안: 음원 태그 키 8B" : "DJCrate 제안: 추정 키 8B"))
+        #expect(DeckSuggestion.key("8B", fromFileTag: KeyPicker.suggestionSource([row]) == .fileTag).value
+                == (source == "fileTag" ? "8B (음원 태그)" : "8B"))
         store.applyKeySuggestion(estimate: estimate, rows: [row])
         let draft = try #require(store.tagDrafts[row.track.uuid])
         #expect(draft.changedKeys == [.musicalKey] && draft.fields.musicalKey == "8B")
@@ -255,13 +236,13 @@ struct MusicalKeyEditingTests {
         let row = Self.row("restore"), other = Self.row("other")
         settings.setStrings(SettingKeys.dismissedGridSuggestions, [row.track.uuid])
         #expect(store.dismissedKeySuggestion(estimate: "8B", rows: [row]) == nil, "무시하기 전에는 되살릴 것이 없다")
-        store.restoreKeySuggestion(rows: [row])
+        store.restoreKeySuggestion(uuid: row.track.uuid)
         #expect(settings.strings(SettingKeys.dismissedKeySuggestions).isEmpty)
         store.dismissKeySuggestion(rows: [row])
         store.dismissKeySuggestion(rows: [other])
         #expect(store.keySuggestion(estimate: "8B", rows: [row]) == nil)
         #expect(store.dismissedKeySuggestion(estimate: "8B", rows: [row]) == "8B")
-        store.restoreKeySuggestion(rows: [row])
+        store.restoreKeySuggestion(uuid: row.track.uuid)
         #expect(store.keySuggestion(estimate: "8B", rows: [row]) == "8B")
         #expect(store.dismissedKeySuggestion(estimate: "8B", rows: [row]) == nil)
         #expect(store.dismissedKeySuggestion(estimate: "8B", rows: [other]) == "8B", "다른 곡의 무시는 그대로")
@@ -371,40 +352,6 @@ struct MusicalKeyEditingTests {
         // 키를 고르지 않은 곡은 키를 넘기지 않는다
         store.setTag(.musicalKey, "", rows: [row])
         #expect(try await store.previewTrackAdd(rows: [row]).keys.isEmpty)
-    }
-
-    // MARK: 추정 불러오기 경합
-
-    /// 곡을 옮길 때 늦게 끝난 앞 곡의 추정이 뒤 곡 것을 덮지 않는다(인스펙터의 `.task(id:)`가 앞 작업을 취소해도 백그라운드 계산은 끝까지 돈다).
-    @Test(arguments: [true, false]) func 앞_곡의_늦은_추정이_뒤_곡의_추정을_덮지_않는다(cancelled: Bool) async throws {
-        let loader = KeyEstimateLoader()
-        let a = KeyPicker.Target(uuid: "A", path: "/x/a.mp3", duration: 30), b = KeyPicker.Target(uuid: "B", path: "/x/b.mp3", duration: 30)
-        let gate = DispatchSemaphore(value: 0)
-        // A: 캐시가 있어 계산이 느리다(문이 열릴 때까지). B: 캐시가 없어 바로 nil.
-        let first = Task { await loader.load(a) { _ in gate.wait(); return "8A" } }
-        while loader.uuid != "A" { await Task.yield() }
-        if cancelled { first.cancel() }
-        await loader.load(b) { _ in nil }
-        #expect(loader.uuid == "B" && loader.estimate == nil)
-        gate.signal()
-        await first.value
-        #expect(loader.estimate == nil && loader.uuid == "B", "늦게 끝난 A의 8A가 B에 보이면 안 된다")
-        // 정상 흐름: 같은 곡의 결과는 들어온다
-        await loader.load(a) { _ in "6A" }
-        #expect(loader.estimate == "6A" && loader.uuid == "A")
-        // 곡이 없으면(고른 곡이 없거나 못 고치는 곡) 비운다
-        await loader.load(nil) { _ in "8A" }
-        #expect(loader.estimate == nil && loader.uuid == nil)
-    }
-
-    @Test func 제안은_불러온_추정이_지금_곡의_것일_때만_쓴다() async {
-        let loader = KeyEstimateLoader()
-        let row = Self.row("1"), other = Self.row("2")
-        #expect(KeyPicker.estimate(of: loader, for: [row]) == nil)
-        await loader.load(KeyPicker.suggestionTarget(rows: [row])) { _ in "8A" }
-        #expect(KeyPicker.estimate(of: loader, for: [row]) == "8A")
-        #expect(KeyPicker.estimate(of: loader, for: [other]) == nil, "다른 곡을 고른 첫 화면에 앞 곡의 추정이 비치지 않는다")
-        #expect(KeyPicker.estimate(of: loader, for: [row, other]) == nil)
     }
 
     // MARK: 확인 창

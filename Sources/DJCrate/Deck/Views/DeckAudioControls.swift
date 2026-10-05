@@ -4,7 +4,7 @@ import DJCDomain
 import DJCStorage
 import SwiftUI
 
-/// 템포(변속) · 키 고정 · 큐 제안
+/// 템포(변속) · 키 고정 · 큐 제안 표시 · 게인 초안 버리기
 struct AudioBar: View {
     @Environment(\.textScale) private var textScale
     @Bindable var deck: DeckModel
@@ -41,22 +41,9 @@ struct AudioBar: View {
                 .frame(maxWidth: .infinity)
                 ShortcutsButton()
             }
-            // 제안 문구가 길어져도 템포 묶음을 밀어내지 않는다.
-            if let suggestion = deck.gainSuggestion {
-                HStack(spacing: 4) {
-                    Image(systemName: "wand.and.stars").foregroundStyle(UIColors.suggestion.color)
-                    Text(.ui("게인 제안 \(suggestion, specifier: "%+.1f") dB (rekordbox \(deck.rekordboxGainDB ?? 0, specifier: "%+.1f"))"))
-                        .font(.scaled(.caption, textScale)).foregroundStyle(.secondary).lineLimit(1)
-                        .help(.ui("rekordbox 오토게인이 이 파일의 실제 음량과 \(abs(deck.gainMismatchDB ?? 0), specifier: "%.1f")dB 다릅니다"))
-                    Button(.ui("제안 받기")) { deck.acceptGainSuggestion() }
-                        .fixedSize()
-                        .help(.ui("이 곡은 DJCrate가 잰 음량으로 계산한 게인(−10 LUFS 기준)을 씁니다"))
-                    Button(.ui("무시")) { deck.dismissGainSuggestion() }
-                        .fixedSize()
-                        .help(.ui("이 곡에서는 rekordbox 값을 그대로 쓰고 제안을 더 보이지 않습니다"))
-                }
-            } else if deck.hasGainOverride {
-                Button(.ui("게인 초안 취소")) { deck.clearGainDraft() }
+            // 게인 제안은 덱 제안 줄에 있다. 초안을 만든 뒤에는 여기서 바로 버릴 수 있다.
+            if deck.hasGainOverride {
+                Button(.ui("게인 초안 버리기")) { deck.clearGainDraft() }
                     .font(.scaled(.caption, textScale))
                     .help(.ui("이 곡의 게인 초안을 지우고 rekordbox 오토게인으로 돌아갑니다"))
             }

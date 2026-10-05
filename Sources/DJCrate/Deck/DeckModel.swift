@@ -158,6 +158,9 @@ final class DeckModel {
 
     @ObservationIgnored var keyChroma: KeyAnalyzer.Chroma?
 
+    /// 키가 빈 rekordbox 곡에서 덱이 구한 주 조성. 덱 제안 줄의 키 제안이 곡 UUID로 맞춰 본 뒤 쓴다.
+    var keyEstimate: KeyEstimate?
+
     /// 레벨 미터 다시 그리기 신호(재생 틱에 맞춰 초당 30번). 미터가 따로 타이머를 돌리면 창 갱신이 그만큼 더 생긴다.
     var meterFrame = 0
 
@@ -210,9 +213,10 @@ final class DeckModel {
     /// rekordbox 시간축 − 음원(AVFoundation) 시간축(초). 덱은 rekordbox 시간축을 쓰고,
     /// 음원 재생·파형·MU 분석만 이만큼 밀어 맞춘다(압축 음원의 인코더 지연을 rekordbox처럼 남긴다).
     var timelineOffset: Double = 0
-    /// DJCrate가 추정한 그리드(DJCrate 시간축)와 현재 그리드와의 차이 설명
+    /// DJCrate가 추정한 그리드(DJCrate 시간축)
     var gridSuggestion: GridEstimator.Estimate?
-    var gridSuggestionNote: String?
+    /// 덱 제안 줄의 그리드 제안(현재 그리드와 사실상 같으면 nil)
+    var gridSuggestionItem: DeckSuggestion?
     /// 그리드가 없는 곡에서 파형 위에 미리 보여 줄 추정 박(적용 전)
     var suggestedGrid: BeatGrid?
     var suggestionTask: Task<Void, Never>?
@@ -354,6 +358,8 @@ final class DeckModel {
         row = newRow
         gainDraft = storage.loadGain(newRow.track.uuid)
         applyGain()
+        // rekordbox 키가 바뀌었을 수 있다(장·단 기준과 키 제안을 새 값으로 맞춘다).
+        refreshKeySegments()
         let selected = cue(selectedCueID), engaged = cue(engagedLoopID)
         let track = newRow.track, cues = newRow.cues, id = newRow.id, length = duration, storage = storage
         softReloadTask?.cancel()
@@ -410,10 +416,10 @@ final class DeckModel {
         self.row = row
         waveform = nil; waveformError = nil; analysis = nil; analysisError = nil; artwork = nil
         isAnalyzingSections = row.map { !$0.track.isStreaming } ?? false
-        suggestions = []; sectionEnergies = []; draft = nil; loudness = nil; keySegments = []; keyChroma = nil; gainDraft = nil
+        suggestions = []; sectionEnergies = []; draft = nil; loudness = nil; keySegments = []; keyChroma = nil; keyEstimate = nil; gainDraft = nil
         engagedLoopID = nil; instantLoop = nil
         originalGrid = nil; gridDraft = nil; grid = nil; gridBPM = nil; gridEditBlockedReason = nil; gridSourceNotice = nil
-        hasRekordboxGrid = false; timelineOffset = 0; gridSuggestion = nil; gridSuggestionNote = nil; suggestedGrid = nil
+        hasRekordboxGrid = false; timelineOffset = 0; gridSuggestion = nil; gridSuggestionItem = nil; suggestedGrid = nil
         suggestionTask?.cancel()
         gridDragBase = nil; tapBPM = nil; taps = []; resumeAfterScrub = false; scrubAnchor = nil; isCuePreviewing = false
         if !sameTrack { selectedCueID = nil; playhead = 0; cuePoint = 0; placeAtFirstMemoryCue = true }
