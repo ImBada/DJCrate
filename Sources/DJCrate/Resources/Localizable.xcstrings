@@ -12367,18 +12367,18 @@
         }
       }
     },
-    "곡 목록: 고른 곡의 태그 칸 고치기 (고른 줄의 칸을 한 번 더 눌러도 됨)" : {
+    "곡 목록: 고른 곡의 태그 칸 고치기 (고른 줄의 칸을 한 번 더 눌러도 됨, 키 칸은 누른 뒤 Return·더블클릭으로 메뉴)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Track list: edit the selected track's tag field (or click a field in the selected row once more)"
+            "value" : "Track list: edit the selected track's tag field (or click a field in the selected row once more; for the Key field, click it and press Return, or double-click it, to open the menu)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "曲リスト：選んだ曲のタグ欄を編集（選んだ行の欄をもう一度クリックしても可）"
+            "value" : "曲リスト：選んだ曲のタグ欄を編集（選んだ行の欄をもう一度クリックしても可。キー欄はクリックしてReturn、またはダブルクリックでメニュー）"
           }
         }
       }

@@ -21,7 +21,8 @@ struct TrackListTagEditTests {
 
     @Test func 태그_칸만_편집한다() {
         for key in TagFields.Key.allCases { #expect(TrackListTagEditing.key(forColumn: key.rawValue) == key) }
-        for id in ["index", "thumb", "edited", "preview", "class", "bpm", "key", "length", "format", "tempo",
+        #expect(TrackListTagEditing.key(forColumn: "key") == .musicalKey)
+        for id in ["index", "thumb", "edited", "preview", "class", "bpm", "length", "format", "tempo",
                    "imported", "plays", "hotCues", "memoryCues"] {
             #expect(TrackListTagEditing.key(forColumn: id) == nil)
         }
@@ -30,7 +31,7 @@ struct TrackListTagEditTests {
     /// 앨범 아티스트·작곡가·연도·트랙 번호 칸은 처음엔 숨기고, 머리글 메뉴로 보이면 편집·정렬한다.
     @Test func 모든_태그_칸이_목록에_있고_새_칸은_처음에_숨긴다() throws {
         let ids = TrackColumn.all.map(\.id)
-        // 키(musicalKey)는 목록에 같은 이름의 편집 칸이 없다: 목록의 키 칸("key")은 보기 전용이다(고르기는 태그 인스펙터·시트)
+        // 키 태그(musicalKey)는 기존 목록 칸 이름("key")으로 편집한다.
         for key in TagFields.Key.allCases where key != .musicalKey { #expect(ids.contains(key.rawValue)) }
         #expect(ids.contains("key") && !ids.contains(TagFields.Key.musicalKey.rawValue))
         #expect(TrackColumn.hiddenByDefault == ["preview", "albumArtist", "composer", "year", "trackNumber"])
@@ -303,7 +304,7 @@ final class ListHarness {
     let table = TrackListTableView()
     let window: NSWindow
 
-    init(rows: [TrackRow], selection: Set<TrackRow.ID>, hidden: Set<String> = [], store: LibraryStore? = nil) {
+    init(rows: [TrackRow], selection: Set<TrackRow.ID>, hidden: Set<String> = [], store: LibraryStore? = nil, showKey: Bool = false) {
         _ = NSApplication.shared
         self.store = store ?? LibraryStore(saveTagDrafts: { _ in })
         undo.groupsByEvent = false
@@ -315,10 +316,10 @@ final class ListHarness {
         table.coordinator = coordinator
         table.dataSource = coordinator
         table.delegate = coordinator
-        for id in ["index", "title", "album", "artist", "bpm", "comment", "class"] {
+        for id in ["index", "title", "album", "artist", "bpm", "key", "comment", "class"] {
             let column = NSTableColumn(identifier: .init(id))
             column.width = 110
-            column.isHidden = hidden.contains(id)
+            column.isHidden = hidden.contains(id) || (id == "key" && !showKey)
             table.addTableColumn(column)
         }
         let scroll = NSScrollView(frame: .init(x: 0, y: 0, width: 900, height: 300))
