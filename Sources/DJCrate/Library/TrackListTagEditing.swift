@@ -5,6 +5,8 @@ import DJCDomain
 ///
 /// - 시작: 이미 혼자 고른 줄의 태그 칸을 다시 한 번 누르고 잠깐 기다리기(Finder 이름 바꾸기처럼),
 ///   또는 곡을 고른 채 Return으로 보이는 첫 태그 칸. 더블클릭은 덱에 불러오기다(#93).
+/// - 키 칸은 글자를 쓰지 않고 메뉴(없음·1A~12B)로 고른다(#204): 키 칸 더블클릭, 또는 키 칸을 누른 그 줄에서 Return.
+///   글자 칸 흐름(다시 눌러 고치기·Return의 첫 칸·Tab)에는 끼지 않는다.
 /// - Tab·⇧Tab: 확정하고 보이는 옆 태그 칸으로(끝이면 편집을 마친다) / Return: 확정 / Esc: 취소
 /// - 고른 곡 안에서 고치면 고른 곡 모두에 적용한다(인스펙터 여러 곡 편집과 같다).
 ///   값이 서로 다르면 빈 칸으로 시작하고, 비운 채 나오면 그대로 둔다.
@@ -35,10 +37,16 @@ enum TrackListTagEditing {
         }
     }
 
-    /// 목록 칸 이름은 태그 키 이름과 같다. 태그가 아닌 칸(BPM·키·분류 등)은 nil.
+    /// 메뉴로 고르는 키 칸. 저장된 칸 배치·정렬 이름("key")을 그대로 두고 키 태그(musicalKey)에 잇는다.
+    static let keyColumn = "key"
+
+    /// 목록 칸의 태그. 태그가 아닌 칸(BPM·분류 등)은 nil.
     static func key(forColumn id: String) -> TagFields.Key? {
-        TagFields.Key(rawValue: id)
+        id == keyColumn ? .musicalKey : TagFields.Key(rawValue: id)
     }
+
+    /// 칸 자리에 입력 칸을 띄워 고치는 태그 칸(키 칸은 메뉴라 빠진다)
+    static func isTextColumn(_ id: String) -> Bool { id != keyColumn && key(forColumn: id) != nil }
 
     /// 이 클릭 뒤 잠깐 기다려 칸을 고칠지: 이미 혼자 고른 줄을 조합 키 없이 한 번 눌렀을 때만.
     /// 여러 곡을 고른 채 누르면 그 곡 하나만 고르는 클릭이라 고치지 않는다(Finder와 같다).
@@ -47,14 +55,17 @@ enum TrackListTagEditing {
             && modifiers.intersection([.shift, .command, .control, .option]).isEmpty
     }
 
-    /// Return으로 편집을 시작할 칸: 보이는 칸 순서에서 첫 태그 칸.
-    static func firstColumn(in visibleColumns: [String]) -> String? {
-        visibleColumns.first { key(forColumn: $0) != nil }
+    /// Return으로 편집을 시작할 칸: 방금 누른 칸이 (보이는) 키 칸이면 키 메뉴, 아니면 보이는 첫 글자 칸.
+    /// 글자 칸이 하나도 보이지 않아도 키 칸을 누르지 않았으면 nil이다(키 메뉴는 누른 칸에서만 연다).
+    /// `clicked`는 Return 대상 줄에서 누른 칸이어야 한다(다른 줄에서 누른 칸은 넘기지 않는다).
+    static func firstColumn(in visibleColumns: [String], clicked: String? = nil) -> String? {
+        if clicked == keyColumn, visibleColumns.contains(keyColumn) { return keyColumn }
+        return visibleColumns.first(where: isTextColumn)
     }
 
-    /// Tab(앞)·⇧Tab(뒤)으로 옮겨 갈 보이는 옆 태그 칸. 끝이면 nil(편집을 마친다).
+    /// Tab(앞)·⇧Tab(뒤)으로 옮겨 갈 보이는 옆 글자 칸. 끝이면 nil(편집을 마친다). 키 칸은 건너뛴다(메뉴가 Tab 흐름을 끊는다).
     static func column(after id: String, forward: Bool, in visibleColumns: [String]) -> String? {
-        let editable = visibleColumns.filter { key(forColumn: $0) != nil }
+        let editable = visibleColumns.filter(isTextColumn)
         guard let index = editable.firstIndex(of: id) else { return nil }
         let next = index + (forward ? 1 : -1)
         return editable.indices.contains(next) ? editable[next] : nil

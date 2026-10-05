@@ -334,9 +334,33 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     /// 덱에 올린 곡(ContentID)과 재생 중인지. # 칸에 스피커로 보인다.
     private var deckTrackID: String?
     private var deckPlaying = false
-    var isEditing: Bool { inlineEdit != nil }
+    /// 열려 있는 키 고르기 메뉴(#204). 메뉴 추적은 동기식이라 여는 동안만 있다.
+    private var activeKeyMenu: NSMenu?
+    var isEditing: Bool { inlineEdit != nil || activeKeyMenu != nil }
     /// 고치는 중인 칸 이름(시험용)
     var editingColumn: String? { inlineEdit?.column }
+    /// 마지막으로 누른 칸(줄 ID와 칸 이름). 키 칸을 누른 뒤의 Return은 그 줄에서 키 메뉴를 연다(표에는 칸 커서가 없다).
+    struct ClickedCell: Equatable {
+        let rowID: TrackRow.ID
+        let column: String
+    }
+    private(set) var clickedCell: ClickedCell?
+
+    /// 누른 줄이 선택에서 빠졌으면(키보드로 옮김·검색에서 돌아옴·스토어가 다른 줄을 고름) 기억을 버린다.
+    /// 클릭은 누른 줄을 고르므로 클릭 자체의 선택 알림에는 지워지지 않는다(알림 시점에 기대지 않는다).
+    private func forgetClickedCell(unlessSelected ids: Set<TrackRow.ID>) {
+        if let clicked = clickedCell, !ids.contains(clicked.rowID) { clickedCell = nil }
+    }
+
+    /// 누른 자리를 기억한다. 줄이나 칸 밖이면 잊는다.
+    func noteClick(row: Int, column: String?) {
+        clickedCell = rows.indices.contains(row) ? column.map { ClickedCell(rowID: rows[row].id, column: $0) } : nil
+    }
+
+    /// 메뉴 추적은 동기식이라 시험은 이것을 바꿔 끼워 표시만 보고 고르기는 따로 보낸다.
+    var presentKeyMenu: (NSMenu, NSPoint, NSView) -> Void = { menu, point, view in
+        menu.popUp(positioning: menu.items.first { $0.state == .on }, at: point, in: view)
+    }
 
     init(store: LibraryStore) {
         self.store = store
@@ -399,6 +423,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             // 줄이 바뀌면(필터·검색·정렬·새 스냅샷) 고치던 칸을 먼저 닫는다. 편집 위치가 줄 번호라 그대로 두면 다른 곡에 남는다.
             cancelPendingEdit()
             cancelEditing()
+            clickedCell = nil
             let ids = rows.map(\.id)
             let reordered = ids != rowIDs
             self.rows = rows
@@ -422,6 +447,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         }
         if !syncing, selection != selectedIDs(table) {
             applySelection(selection, table: table, scroll: true)
+            forgetClickedCell(unlessSelected: selection)
         }
         updateIndexWidth(table)
     }
@@ -513,6 +539,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     func tableViewSelectionDidChange(_ notification: Notification) {
         guard !syncing, let table else { return }
         let ids = selectedIDs(table)
+        forgetClickedCell(unlessSelected: ids)
         if ids != store.selection {
             syncing = true
             store.selection = ids
@@ -524,6 +551,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         guard !syncing else { return }
         // 머리글을 눌러 정렬을 바꾸면 줄이 바뀌기 전에 고치던 칸을 확정한다.
         finishEditing(commit: true, restoreFocus: true)
+        clickedCell = nil
         guard let first = tableView.sortDescriptors.first, let key = first.key else {
             store.sortOrder = []
             return
@@ -793,10 +821,6 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             cell.set(evaluation?.displayName ?? "", color: evaluation?.tone.nsTint ?? .secondaryLabelColor,
                      draft: draft.map { $0.base.comment != $0.fields.comment } ?? false)
         case "bpm": cell.set(row.bpmValue > 0 ? String(format: "%.0f", row.bpmValue) : "", color: .secondaryLabelColor, digits: true)
-        case "key":
-            // 추가한 곡의 추정 키는 제안 색·기울임으로 구분하고, 툴팁·VoiceOver로 "추정"을 알린다(#124).
-            cell.set(row.keyName, color: row.keyEstimated ? UIColors.suggestion.nsColor : .secondaryLabelColor,
-                     estimated: row.keyEstimated)
         case "length": cell.set(row.lengthText, color: .secondaryLabelColor, digits: true)
         case "format": cell.set(row.formatName, color: .secondaryLabelColor)
         case TrackColumn.usbSyncID:
@@ -821,6 +845,16 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
 
     /// 태그 칸: 초안 값이면 초안 색·모서리 표식·VoiceOver "초안"으로 보인다(태그 시트와 같다, #34).
     private func configureTag(_ cell: TrackTextCell, key: TagFields.Key, row: TrackRow) {
+        if key == .musicalKey {
+            let edited = store.isTagEdited(row, key)
+            // 키를 고치지 않은 추가 곡은 다른 태그 초안이 있어도 음원 태그·추정 제안을 그대로 보인다(#5).
+            let estimated = !edited && row.keyEstimated
+            cell.set(edited ? store.tagCell(row, key) : row.keyName,
+                     color: edited ? UIColors.draft.nsColor : estimated ? UIColors.suggestion.nsColor : .secondaryLabelColor,
+                     draft: edited, estimated: estimated)
+            if let reason = KeyPicker.unavailableReason(row) { cell.toolTip = reason }
+            return
+        }
         let (text, edited) = TrackListTagEditing.text(row, key, draft: store.tagDrafts[row.track.uuid])
         // 스트리밍 곡은 제목 앞 아이콘과 흐린 글자로 로컬 곡과 구분한다(사이드바 '스트리밍'과 같은 아이콘, #121).
         // 파일이 없는 곡도 흐린 글자에 경고 아이콘을 붙인다(#126).
@@ -865,6 +899,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         usbMode = usb
         cancelPendingEdit()
         cancelEditing()
+        clickedCell = nil
         guard let table else { return }
         if usb {
             // USB 목록의 칸 배치가 사용자 칸 배치로 저장되지 않게 자동 저장을 멈춘 뒤 바꾼다(켠 채 앱을 끝내도 로컬 배치가 남게)
@@ -909,10 +944,22 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
 
     // MARK: - 덱에 불러오기(#93)
 
-    /// 더블클릭: 누른 줄의 곡을 덱에 올린다(rekordbox와 같다). 한 번 클릭은 고르기만 한다.
+    /// 더블클릭: 누른 곡을 덱에 올린다(rekordbox와 같다). 키 칸은 키 고르기 메뉴를 연다(#204). 한 번 클릭은 고르기만 한다.
     @objc func doubleClicked(_ sender: Any?) {
         guard let table else { return }
-        loadRow(at: table.clickedRow)
+        let column = table.tableColumns.indices.contains(table.clickedColumn)
+            ? table.tableColumns[table.clickedColumn].identifier.rawValue : nil
+        doubleClicked(row: table.clickedRow, column: column)
+    }
+
+    /// 키를 고칠 수 없는 곡(USB·스트리밍)이나 쓰는 중이면 키 칸도 다른 칸처럼 덱에 올린다(경고로 막지 않는다).
+    func doubleClicked(row index: Int, column: String?) {
+        cancelPendingEdit()
+        if column == TrackListTagEditing.keyColumn, canPickKey(row: index) {
+            beginEditing(row: index, column: TrackListTagEditing.keyColumn)
+        } else {
+            loadRow(at: index)
+        }
     }
 
     /// 이 줄의 곡을 덱에 올린다. 다시 누른 칸을 고치려고 기다리던 것은 취소한다(더블클릭의 첫 클릭이었다).
@@ -947,7 +994,8 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     /// 이미 고른 줄의 태그 칸을 다시 누르면, 더블클릭이 아닌 것을 확인한 뒤(더블클릭 간격) 그 칸을 고친다(Finder 이름 바꾸기처럼).
     func scheduleEdit(row index: Int, column: String, after delay: Duration = .seconds(NSEvent.doubleClickInterval)) {
         cancelPendingEdit()
-        guard TrackListTagEditing.key(forColumn: column) != nil, rows.indices.contains(index), !rows[index].isUsb else { return }
+        // 키 칸은 메뉴라 클릭 한 번에 저절로 열지 않는다(더블클릭·Return으로 연다)
+        guard TrackListTagEditing.isTextColumn(column), rows.indices.contains(index), !rows[index].isUsb else { return }
         let id = rows[index].id
         pendingEdit = Task { [weak self] in
             try? await Task.sleep(for: delay)
@@ -971,11 +1019,14 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     }
 
     /// Return·Enter: 고른 줄 중 표에서 첫 곡(스트리밍 제외)의 보이는 첫 태그 칸부터 고친다(Finder 이름 바꾸기처럼).
+    /// 방금 키 칸을 누른 그 줄에서만 키 고르기 메뉴를 연다(#204). 다른 줄로 옮겼으면 보이는 첫 글자 칸이다.
     @discardableResult
     func beginEditingSelection() -> Bool {
-        guard let table, let column = TrackListTagEditing.firstColumn(in: visibleColumnIDs(table)),
+        guard let table,
               let row = table.selectedRowIndexes.first(where: { rows.indices.contains($0) && !rows[$0].track.isStreaming && !rows[$0].isUsb })
         else { return false }
+        let clicked = clickedCell.flatMap { $0.rowID == rows[row].id ? $0.column : nil }
+        guard let column = TrackListTagEditing.firstColumn(in: visibleColumnIDs(table), clicked: clicked) else { return false }
         return beginEditing(row: row, column: column)
     }
 
@@ -986,10 +1037,21 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             store.stagingMessage = AppMessage(kind: .warning, text: reason)
             return false
         }
-        guard inlineEdit == nil, store.writeLockPolicy.allowsLibraryInteraction, let table, rows.indices.contains(index), !rows[index].isUsb,
+        guard !isEditing, store.writeLockPolicy.allowsLibraryInteraction, let table, rows.indices.contains(index), !rows[index].isUsb,
               let key = TrackListTagEditing.key(forColumn: column),
               let columnIndex = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == column && !$0.isHidden })
         else { return false }
+        if key == .musicalKey {
+            // 키는 글자 대신 메뉴로 고른다. 메뉴는 고를 때까지 돌아오지 않는다.
+            guard let menu = keyMenu(row: index) else { return false }
+            table.scrollRowToVisible(index)
+            table.scrollColumnToVisible(columnIndex)
+            let rect = table.frameOfCell(atColumn: columnIndex, row: index)
+            activeKeyMenu = menu
+            defer { activeKeyMenu = nil }
+            presentKeyMenu(menu, NSPoint(x: rect.minX, y: rect.maxY), table)
+            return true
+        }
         let selected = table.selectedRowIndexes.compactMap { rows.indices.contains($0) ? rows[$0] : nil }
         let targets = TrackListTagEditing.targets(anchor: rows[index], selection: selected)
         guard let session = TrackListTagEditing.Session(key: key, targets: targets, value: { store.tagCell($0, key) }) else { return false }
@@ -1011,6 +1073,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     }
 
     func cancelEditing() {
+        activeKeyMenu?.cancelTracking()
         finishEditing(commit: false, restoreFocus: true)
     }
 
@@ -1049,9 +1112,65 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         guard let field = notification.object as? NSTextField, inlineEdit?.field === field else { return }
         finishEditing(commit: true, restoreFocus: false)
     }
+
+    // MARK: - 키 고르기(#204)
+
+    /// 이 줄의 키 고르기 메뉴를 열 수 있는지: 쓰는 중이 아니고 키를 고칠 수 있는 곡(USB·스트리밍 제외)
+    private func canPickKey(row index: Int) -> Bool {
+        store.writeLockPolicy.allowsLibraryInteraction && rows.indices.contains(index) && KeyPicker.unavailableReason(rows[index]) == nil
+    }
+
+    private struct KeyChoice {
+        let targets: [TrackRow]
+        let value: String
+    }
+
+    /// 키 칸의 고르기 메뉴: 없음, Camelot 24개(태그 시트와 같다). 지금 값에 체크하고, 옛 표기이면 맨 앞에 고를 수 없는 항목으로 보인다.
+    /// 누른 줄이 고른 줄 안이면 고른 곡 모두(고칠 수 없는 곡은 빼고)가 대상이다. 값이 서로 다르면 아무 항목에도 체크하지 않는다.
+    func keyMenu(row index: Int) -> NSMenu? {
+        guard canPickKey(row: index), let table else { return nil }
+        let selected = table.selectedRowIndexes.compactMap { rows.indices.contains($0) ? rows[$0] : nil }
+        let targets = KeyPicker.targets(TrackListTagEditing.targets(anchor: rows[index], selection: selected))
+        guard !targets.isEmpty else { return nil }
+        let current = store.tagValue(.musicalKey, rows: targets)
+        let menu = NSMenu(title: String(ui: "키"))
+        menu.autoenablesItems = false
+        func add(_ title: String, value: String, enabled: Bool = true) {
+            let item = NSMenuItem(title: title, action: enabled ? #selector(pickKey(_:)) : nil, keyEquivalent: "")
+            item.target = self
+            item.isEnabled = enabled
+            if targets.count > 1 { item.toolTip = String(ui: "고른 \(targets.count)곡에 모두 적용합니다") }
+            item.representedObject = KeyChoice(targets: targets, value: value)
+            item.state = !current.mixed && current.value == value ? .on : .off
+            menu.addItem(item)
+        }
+        if !current.mixed, !current.value.isEmpty, !KeyNotation.camelotNames.contains(current.value) {
+            add(current.value, value: current.value, enabled: false)
+        }
+        add(String(ui: "없음"), value: "")
+        for name in KeyNotation.camelotNames { add(name, value: name) }
+        return menu
+    }
+
+    @objc private func pickKey(_ sender: NSMenuItem) {
+        guard store.writeLockPolicy.allowsLibraryInteraction, let choice = sender.representedObject as? KeyChoice,
+              choice.value.isEmpty || KeyNotation.camelotNames.contains(choice.value) else { return }
+        // 초안은 고를 때만 만든다(열기·취소는 그대로, #5). 여러 값에서 "없음"을 고르면 모두 비운다.
+        // 메뉴를 연 사이 목록이 바뀌어도 엉뚱한 곡에 들어가지 않게 줄 ID로 다시 찾는다.
+        // 줄 ID는 계산 값이라 대상마다 줄 전체를 훑지 않고, 캐시한 ID(rowIDs)를 한 번만 훑는다(같은 ID가 겹치면 앞 줄).
+        let wanted = Set(choice.targets.map(\.id))
+        var firstIndex: [TrackRow.ID: Int] = [:]
+        for (index, id) in rowIDs.enumerated() where wanted.contains(id) && firstIndex[id] == nil {
+            firstIndex[id] = index
+            if firstIndex.count == wanted.count { break }
+        }
+        let targets = choice.targets.compactMap { target in firstIndex[target.id].map { rows[$0] } }
+        store.setTag(.musicalKey, choice.value, rows: KeyPicker.targets(targets))
+        if let table { refreshTagCells(table) }
+    }
 }
 
-/// 곡 목록 표. 한 번 클릭은 고르기만 하고, 더블클릭·⌘→로 덱에 올린다(#93).
+/// 곡 목록 표. 한 번 클릭은 고르기만 하고, 키 칸 더블클릭은 메뉴, 나머지 더블클릭·⌘→는 덱에 올린다(#93·#204).
 /// 곡을 고른 채 Return·Enter를 누르거나 이미 고른 줄의 태그 칸을 다시 누르면 그 칸을 바로 고친다(#88). 나머지 키는 표가 처리한다.
 final class TrackListTableView: NSTableView {
     override func resize(withOldSuperviewSize oldSize: NSSize) {
@@ -1075,7 +1194,7 @@ final class TrackListTableView: NSTableView {
 
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        let row = row(at: point), column = column(at: point)
+        let (row, column) = noteClick(at: point)
         let slowEdit = TrackListTagEditing.startsSlowEdit(clickCount: event.clickCount, row: row, selected: selectedRowIndexes,
                                                           modifiers: event.modifierFlags)
         coordinator?.cancelPendingEdit()
@@ -1085,6 +1204,15 @@ final class TrackListTableView: NSTableView {
         if slowEdit, coordinator?.dragGeneration == drags, tableColumns.indices.contains(column) {
             coordinator?.scheduleEdit(row: row, column: tableColumns[column].identifier.rawValue)
         }
+    }
+
+    /// 누른 자리를 조정자에 기억시키고 (줄 번호, 칸 번호)를 돌려준다. 숨긴 칸·옮긴 칸이 있어도 칸 번호가 아니라 이름으로 잇는다.
+    /// mouseDown이 쓰는 길이라, 시험은 mouseDown(mouseUp까지 기다리는 추적 루프) 대신 이것을 부른다.
+    @discardableResult
+    func noteClick(at point: NSPoint) -> (row: Int, column: Int) {
+        let row = row(at: point), column = column(at: point)
+        coordinator?.noteClick(row: row, column: tableColumns.indices.contains(column) ? tableColumns[column].identifier.rawValue : nil)
+        return (row, column)
     }
 
     override func keyDown(with event: NSEvent) {

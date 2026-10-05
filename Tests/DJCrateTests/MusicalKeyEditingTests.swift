@@ -9,7 +9,7 @@ import RekordboxKit
 import Testing
 
 /// 태그의 키 고르기(#5): 인스펙터·시트가 Camelot 이름(1A~12B)과 "없음"에서만 고르고, DJCrate 추정은 제안으로만 보이며,
-/// 목록의 키 칸은 보기 전용이다. 추가한 곡의 키 기준은 빈칸(넣을 때 `KeyID` '0')이고, 고른 키는 곡을 넣을 때 함께 쓴다.
+/// 목록에서도 같은 메뉴로 고른다. 추가한 곡의 키 기준은 빈칸(넣을 때 `KeyID` '0')이고, 고른 키는 곡을 넣을 때 함께 쓴다.
 @Suite("태그 키 고르기", .serialized)
 @MainActor
 struct MusicalKeyEditingTests {
@@ -23,12 +23,12 @@ struct MusicalKeyEditingTests {
 
     func store() -> LibraryStore { LibraryStore(saveTagDrafts: { _ in }) }
 
-    // MARK: 목록 칸은 보기 전용
+    // MARK: 목록 칸 이름
 
-    @Test func 목록의_키_칸은_보기_전용이고_키_칸_이름은_태그_칸과_겹치지_않는다() {
-        #expect(TrackListTagEditing.key(forColumn: "key") == nil)
+    @Test func 목록의_키_칸은_기존_이름으로_키_태그를_고친다() {
+        #expect(TrackListTagEditing.key(forColumn: "key") == .musicalKey)
         #expect(!TrackColumn.all.contains { $0.id == TagFields.Key.musicalKey.rawValue })
-        // 곡 목록에서 키를 고치는 길이 없다(행 편집은 태그 칸 이름으로만 시작한다)
+        // 저장된 열 배치·정렬 이름은 그대로 둔다.
         #expect(TrackColumn.all.first { $0.id == "key" } != nil)
     }
 

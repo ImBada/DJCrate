@@ -4,7 +4,7 @@ import Foundation
 public struct TagFields: Codable, Hashable, Sendable {
     public enum Key: String, CaseIterable, Codable, Sendable, Identifiable {
         case title, artist, album, albumArtist, genre, composer, year, trackNumber, comment
-        /// 곡의 키(rekordbox `ScaleName`, 예 "8A"). 이름을 `key`로 하지 않은 것은 목록의 키 칸(`"key"`)을 보기 전용으로 두려는 것이다.
+        /// 곡의 키(rekordbox `ScaleName`, 예 "8A"). 초안 저장 이름은 musicalKey, 목록의 기존 칸 이름은 "key"로 유지한다.
         /// 옛 칸 순서를 지키려고 맨 뒤에 둔다.
         case musicalKey
 
