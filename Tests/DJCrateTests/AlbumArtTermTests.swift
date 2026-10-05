@@ -75,7 +75,7 @@ struct AlbumArtTermTests {
     }
 
     @Test(arguments: [
-        ("앨범아트 고르기…", "Choose Album Art…"),
+        ("앨범아트 고르기", "Choose Album Art"),
         ("앨범아트 넣기", "Add Album Art"),
         ("앨범아트 바꾸기", "Replace Album Art"),
         ("앨범아트 지우기", "Remove Album Art"),

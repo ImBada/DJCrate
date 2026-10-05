@@ -16,13 +16,16 @@ struct TagInspector: View {
                 Text(.ui("목록에서 곡을 선택하세요. 여러 곡을 고르면 한꺼번에 편집합니다."))
                     .foregroundStyle(.secondary)
             } else {
-                Section {
-                    HStack {
-                        Text(rows.count == 1 ? rows[0].title : String(ui: "\(rows.count)곡 선택")).font(.scaled(.headline, textScale)).lineLimit(1)
-                        Spacer()
-                        let changed = rows.filter { store.tagDrafts[$0.track.uuid] != nil }.count
-                        if changed > 0 {
-                            Text(.ui("초안 \(changed)곡")).font(.scaled(.caption, textScale).bold()).foregroundStyle(UIColors.draft.color)
+                // 한 곡이면 제목이 아래 '제목' 칸에 있으므로 머리를 두지 않는다. 여러 곡이면 몇 곡을 고쳤는지만 알린다.
+                if rows.count > 1 {
+                    Section {
+                        HStack {
+                            Text(.ui("\(rows.count)곡 선택")).font(.scaled(.headline, textScale)).lineLimit(1)
+                            Spacer()
+                            let changed = rows.filter { store.tagDrafts[$0.track.uuid] != nil }.count
+                            if changed > 0 {
+                                Text(.ui("초안 \(changed)곡")).font(.scaled(.caption, textScale).bold()).foregroundStyle(UIColors.draft.color)
+                            }
                         }
                     }
                 }
