@@ -200,6 +200,7 @@ extension DeckModel {
         var dismissed = storage.settings.strings(SettingKeys.dismissedGridSuggestions)
         dismissed.remove(uuid)
         storage.settings.setStrings(SettingKeys.dismissedGridSuggestions, dismissed)
+        dismissedRevision += 1
         onReanalyze?(uuid)
         reload()
         showToast(String(ui: "다시 분석합니다"), kind: .success)
@@ -209,9 +210,9 @@ extension DeckModel {
     func restoreGridSuggestion() {
         guard let uuid = row?.track.uuid else { return }
         var dismissed = storage.settings.strings(SettingKeys.dismissedGridSuggestions)
-        dismissed.remove(uuid)
+        guard dismissed.remove(uuid) != nil else { return }
         storage.settings.setStrings(SettingKeys.dismissedGridSuggestions, dismissed)
-        refreshSuggestionNote()
+        dismissedRevision += 1
     }
 
     /// 이 곡의 그리드 제안을 더는 보이지 않게 한다(곡마다 기억).
@@ -223,8 +224,9 @@ extension DeckModel {
         dismissedRevision += 1
     }
 
-
+    /// 무시 표시는 설정에만 있어 관찰되지 않는다. 바뀔 때 올리는 `dismissedRevision`을 함께 읽어 화면이 따라 바뀌게 한다.
     var isGridSuggestionDismissed: Bool {
+        _ = dismissedRevision
         guard let uuid = row?.track.uuid else { return false }
         return storage.settings.strings(SettingKeys.dismissedGridSuggestions).contains(uuid)
     }
@@ -303,13 +305,13 @@ extension DeckModel {
         refreshSuggestionNote()
     }
 
-    /// 추정과 현재 그리드의 차이를 한 줄로(없거나 작으면 nil).
+    /// 덱 제안 줄의 그리드 제안: 추정과 현재 그리드의 차이(없거나 작으면 nil). 그리드가 없는 곡은 추정 BPM만 보인다.
     func refreshSuggestionNote() {
-        guard let suggestion = gridSuggestion else { gridSuggestionNote = nil; return }
-        // 신뢰도가 낮을 때만 덧붙인다.
-        let confidence = suggestion.isConfident ? "" : " · " + String(ui: "확인 필요")
+        guard let suggestion = gridSuggestion else { gridSuggestionItem = nil; return }
+        let tempos = suggestion.segments.map(\.bpm)
         guard let grid, !grid.beats.isEmpty else {
-            gridSuggestionNote = String(ui: "추정 \(suggestion.bpm, specifier: "%.2f") BPM") + confidence
+            gridSuggestionItem = .grid(bpm: suggestion.bpm, phaseMilliseconds: nil, tempos: tempos, hasRekordboxGrid: !needsGrid,
+                                       isConfident: suggestion.isConfident)
             return
         }
         let suggested = GridDraft(trackUUID: "", base: [], segments: suggestion.segments).grid(duration: duration)
@@ -328,14 +330,10 @@ extension DeckModel {
         deltas.sort()
         let phase = deltas.isEmpty ? 0 : deltas[deltas.count / 2]
         if abs(bpmDelta) < 0.05, abs(phase) < 0.010 {
-            gridSuggestionNote = nil  // 사실상 같다
+            gridSuggestionItem = nil  // 사실상 같다
         } else {
-            gridSuggestionNote = String(ui: "추정 \(suggestion.bpm, specifier: "%.2f") BPM(\(bpmDelta, specifier: "%+.2f")) · 위상 \(phase * 1000, specifier: "%+.0f")ms")
-                + confidence
-        }
-        if suggestion.segments.count > 1, let note = gridSuggestionNote {
-            let flow = suggestion.segments.map { String(format: "%.0f", $0.bpm) }.joined(separator: "→")
-            gridSuggestionNote = note + " · " + String(ui: "변속 추정 \(flow)")
+            gridSuggestionItem = .grid(bpm: suggestion.bpm, phaseMilliseconds: phase * 1000, tempos: tempos,
+                                       isConfident: suggestion.isConfident)
         }
     }
 }

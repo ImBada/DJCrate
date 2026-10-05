@@ -71,6 +71,7 @@ rekordbox는 압축 음원 앞의 인코더 지연을 잘라 내지 않는다. �
 
 - 결과는 `analysis/`에 캐시한다(파일이 바뀌면 다시 계산).
 - 오토게인은 rekordbox 값(약 −10 LUFS 기준)을 기본으로 쓰고, DJCrate가 잰 음량과 1.5dB 넘게 다르면 제안한다.
+- 게인·그리드·키 제안은 덱 제안 줄(`DeckSuggestionBar`) 한 곳에 모은다. 문구는 `DeckSuggestion`(이름 · 값 · [적용] [무시]) 한 규칙이고, 게인·그리드는 덱 초안, 키는 태그 초안(`LibraryStore`)이 된다. 무시 표시는 종류마다 따로 저장하지만(`SettingKeys` 하단) 되살리기는 "무시한 제안 다시 보기" 하나다.
 
 ## 덱 오디오 (`DeckAudio`)
 

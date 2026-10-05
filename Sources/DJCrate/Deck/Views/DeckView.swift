@@ -119,8 +119,9 @@ struct DeckView: View {
                     GridEditorBar(deck: deck)
                         .padding(.leading, leftRailWidth + 8)
                         .padding(.trailing, PerfProbe.hidden.contains("meter") ? 0 : rightRailWidth + 8)
-                    GridSuggestionRow(deck: deck)
-                        .frame(height: TextScale.length(28, scale: textScale))
+                    // 게인·그리드·키 제안을 한 줄에 모은다. 좁으면 줄이 늘어나고, 한 줄일 때 높이는 예전 그리드 제안 줄과 같다.
+                    DeckSuggestionBar(store: store, deck: deck)
+                        .frame(maxWidth: .infinity, minHeight: TextScale.length(28, scale: textScale), alignment: .leading)
                         .padding(.leading, leftRailWidth + 8)
                         .padding(.trailing, PerfProbe.hidden.contains("meter") ? 0 : rightRailWidth + 8)
             }

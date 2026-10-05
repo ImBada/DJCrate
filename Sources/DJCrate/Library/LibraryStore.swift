@@ -282,7 +282,7 @@ final class LibraryStore {
 
     /// 초안 상태(메모리). 표의 ✎ 표시는 디스크를 다시 읽지 않고 이것으로 계산한다.
     var tagDrafts: [String: TagDraft] = [:]
-    /// 그리드 제안처럼 곡마다 무시를 기억하고, 화면에도 바로 반영한다.
+    /// 무시한 키 제안(곡 UUID). 게인·그리드 제안처럼 곡마다 기억하고, 덱 제안 줄에 바로 반영한다.
     var dismissedKeySuggestions: Set<String> = []
     /// 그림 초안(곡 UUID별, 그림 바이트 없이). 그림 사본은 `ArtworkDraftStore`에 있다(#66).
     var artworkDrafts: [String: ArtworkDraft] = [:]

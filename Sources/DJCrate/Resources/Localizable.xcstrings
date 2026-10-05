@@ -321,6 +321,28 @@
         }
       }
     },
+    "%+.1f dB (rekordbox %+.1f)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$+.1f dB (rekordbox %2$+.1f)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$+.1f dB（rekordbox %2$+.1f）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$+.1f dB (rekordbox %2$+.1f)"
+          }
+        }
+      }
+    },
     "%.0f점" : {
       "localizations" : {
         "en" : {
@@ -480,6 +502,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@（未接続）"
+          }
+        }
+      }
+    },
+    "%@ (음원 태그)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (audio tag)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@（音源タグ）"
           }
         }
       }
@@ -948,6 +986,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@全体を表示"
+          }
+        }
+      }
+    },
+    "%@ 제안 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ suggestion %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@の候補 %2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ 제안 %2$@"
+          }
+        }
+      }
+    },
+    "%@ 제안 %@, 확인 필요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ suggestion %2$@, check needed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@の候補 %2$@、要確認"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ 제안 %2$@, 확인 필요"
           }
         }
       }
@@ -3737,54 +3819,6 @@
         }
       }
     },
-    "DJCrate 제안: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DJCrate suggests: %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DJCrateの候補：%@"
-          }
-        }
-      }
-    },
-    "DJCrate 제안: 음원 태그 키 %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DJCrate suggests: audio tag key %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DJCrateの候補：音源タグのキー %@"
-          }
-        }
-      }
-    },
-    "DJCrate 제안: 추정 키 %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DJCrate suggests: estimated key %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DJCrateの候補：推定キー %@"
-          }
-        }
-      }
-    },
     "DJCrate 초안이 있는 곡 (rekordbox·파일에 쓰기 전)" : {
       "localizations" : {
         "en" : {
@@ -3893,6 +3927,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "DJCrateが音から推定したキーです。rekordboxの解析結果と異なる場合があります"
+          }
+        }
+      }
+    },
+    "DJCrate가 잰 음량으로 계산한 게인을 이 곡의 게인 초안으로 넣습니다. rekordbox에는 쓰기 전까지 들어가지 않습니다(실행 취소 가능)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puts the gain calculated from DJCrate’s loudness measurement into this track’s gain draft. It is not written to rekordbox until you write (can be undone)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateが測った音量から計算したゲインを、この曲のゲインの下書きに入れます。rekordboxには書き込むまで入りません（取り消し可能）。"
           }
         }
       }
@@ -7553,6 +7603,22 @@
         }
       }
     },
+    "rekordbox 그리드 없음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "no rekordbox grid"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxのグリッドなし"
+          }
+        }
+      }
+    },
     "rekordbox 그리드가 복잡한 곡은 템포 구간이 하나인 추정 그리드로만 바꿀 수 있습니다" : {
       "localizations" : {
         "en" : {
@@ -7597,22 +7663,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxのグリッドがありません · BPM・拍位置を推定中…"
-          }
-        }
-      }
-    },
-    "rekordbox 그리드가 없습니다 · 추정 %.2f BPM" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No rekordbox grid · Estimated %.2f BPM"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxのグリッドがありません · 推定 %.2f BPM"
           }
         }
       }
@@ -11307,28 +11357,6 @@
         }
       }
     },
-    "게인 제안 %+.1f dB (rekordbox %+.1f)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Suggested gain %+.1f dB (rekordbox %+.1f)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ゲインの候補 %+.1f dB（rekordbox %+.1f）"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "게인 제안 %1$+.1f dB (rekordbox %2$+.1f)"
-          }
-        }
-      }
-    },
     "게인 초안 버리기" : {
       "localizations" : {
         "en" : {
@@ -11341,22 +11369,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ゲインの下書きを破棄"
-          }
-        }
-      }
-    },
-    "게인 초안 취소" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Discard Gain Draft"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ゲインの下書きを取り消す"
           }
         }
       }
@@ -18903,34 +18915,18 @@
         }
       }
     },
-    "무시했던 제안을 그리드 편집 밖에서도 다시 보이게 합니다" : {
+    "무시한 제안 다시 보기" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Shows the dismissed suggestion again outside grid editing"
+            "value" : "Show Ignored Suggestions"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無視した候補をグリッド編集以外でも再び表示します"
-          }
-        }
-      }
-    },
-    "무시했던 키 제안을 다시 보이게 합니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shows the dismissed key suggestion again"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無視した候補キーを再び表示します"
+            "value" : "無視した候補を再表示"
           }
         }
       }
@@ -19671,6 +19667,22 @@
         }
       }
     },
+    "변속 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tempo changes %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テンポ変化 %@"
+          }
+        }
+      }
+    },
     "변속 곡" : {
       "localizations" : {
         "en" : {
@@ -19683,22 +19695,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "テンポが変わる曲"
-          }
-        }
-      }
-    },
-    "변속 추정 %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "estimated tempo changes %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "テンポ変化の推定 %@"
           }
         }
       }
@@ -25931,6 +25927,22 @@
         }
       }
     },
+    "위상 %+.0fms" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "phase %+.0f ms"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位相 %+.0fms"
+          }
+        }
+      }
+    },
     "위아래로 조절하거나 두 번 클릭하면 기본 높이로 돌아갑니다" : {
       "localizations" : {
         "en" : {
@@ -26951,6 +26963,22 @@
         }
       }
     },
+    "이 곡에서 무시한 제안을 다시 보이게 합니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows the suggestions you ignored for this track again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この曲で無視した候補を再び表示します"
+          }
+        }
+      }
+    },
     "이 곡에서는 rekordbox 값을 그대로 쓰고 제안을 더 보이지 않습니다" : {
       "localizations" : {
         "en" : {
@@ -26979,22 +27007,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "この曲では候補を表示しなくなります"
-          }
-        }
-      }
-    },
-    "이 곡은 DJCrate가 잰 음량으로 계산한 게인(−10 LUFS 기준)을 씁니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uses the gain calculated from DJCrate's loudness measurement for this track (−10 LUFS reference)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この曲にDJCrateが測った音量から計算したゲイン（−10 LUFS基準）を使います"
           }
         }
       }
@@ -30013,70 +30025,6 @@
         }
       }
     },
-    "제안 그리드 적용" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apply Suggested Grid"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "候補のグリッドを適用"
-          }
-        }
-      }
-    },
-    "제안 다시 보기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show Suggestion Again"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "候補を再表示"
-          }
-        }
-      }
-    },
-    "제안 받기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Accept"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "受け入れる"
-          }
-        }
-      }
-    },
-    "제안 키 적용" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apply Suggested Key"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "候補キーを適用"
-          }
-        }
-      }
-    },
     "제안을 받아 %@에 메모리 큐를 찍었습니다" : {
       "localizations" : {
         "en" : {
@@ -31665,44 +31613,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "推定"
-          }
-        }
-      }
-    },
-    "추정 %.2f BPM" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "estimated %.2f BPM"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "推定 %.2f BPM"
-          }
-        }
-      }
-    },
-    "추정 %.2f BPM(%+.2f) · 위상 %+.0fms" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "estimated %.2f BPM (%+.2f) · phase %+.0f ms"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "推定 %.2f BPM（%+.2f） · 位相 %+.0fms"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "추정 %1$.2f BPM(%2$+.2f) · 위상 %3$+.0fms"
           }
         }
       }
