@@ -72,7 +72,7 @@ struct TrackListKeyEditTests {
         h.pressReturn()
         #expect(opened == nil && h.coordinator.editingColumn == "title")
         h.command(#selector(NSResponder.cancelOperation(_:)))
-        h.coordinator.clickedColumnID = "key"
+        h.click(row: 0, column: "key")
         h.pressReturn()
         let menu = try #require(opened)
         #expect(h.editor == nil && !h.coordinator.isEditing)
@@ -86,10 +86,129 @@ struct TrackListKeyEditTests {
         #expect(h.store.tagCell(row, .musicalKey) == "8A")
         // 다른 칸을 누르면 Return은 다시 제목부터다
         opened = nil
-        h.coordinator.clickedColumnID = "artist"
+        h.click(row: 0, column: "artist")
         h.pressReturn()
         #expect(opened == nil && h.coordinator.editingColumn == "title")
         h.command(#selector(NSResponder.cancelOperation(_:)))
+    }
+
+    /// 키 칸을 누른 기억은 그 줄에서만 쓴다. ↓로 다른 줄에 간 Return은 #88대로 제목을 고친다.
+    @Test func 키_칸을_누른_뒤_다른_줄로_옮기면_Return은_제목을_고친다() throws {
+        let rows = (1...3).map { MusicalKeyEditingTests.row("\($0)", key: "5A") }
+        let h = ListHarness(rows: rows, selection: [rows[0].id], showKey: true)
+        defer { h.close() }
+        var opened: NSMenu?
+        h.coordinator.presentKeyMenu = { menu, _, _ in opened = menu }
+        h.click(row: 0, column: "key")
+        #expect(h.coordinator.clickedCell == .init(rowID: rows[0].id, column: "key"))
+        h.pressDown()
+        #expect(h.table.selectedRowIndexes == IndexSet(integer: 1))
+        h.pressReturn()
+        #expect(opened == nil && h.coordinator.editingColumn == "title")
+        h.command(#selector(NSResponder.cancelOperation(_:)))
+        // 눌렀던 줄로 되돌아와도 키보드로 옮긴 뒤라 기억은 지워졌다
+        h.pressUp()
+        #expect(h.table.selectedRowIndexes == IndexSet(integer: 0) && h.coordinator.clickedCell == nil)
+        h.pressReturn()
+        #expect(opened == nil && h.coordinator.editingColumn == "title")
+        h.command(#selector(NSResponder.cancelOperation(_:)))
+    }
+
+    @Test func 같은_줄을_다시_누르면_키_메뉴를_열고_글자_칸을_누르면_다시_제목부터다() throws {
+        let rows = (1...2).map { MusicalKeyEditingTests.row("\($0)", key: "5A") }
+        let h = ListHarness(rows: rows, selection: [rows[1].id], showKey: true)
+        defer { h.close() }
+        var opened = 0
+        h.coordinator.presentKeyMenu = { _, _, _ in opened += 1 }
+        h.click(row: 1, column: "key")
+        h.pressReturn()
+        #expect(opened == 1 && !h.coordinator.isEditing)
+        // 다른 줄의 키 칸을 누르면 기억도 그 줄로 옮겨 간다
+        h.click(row: 0, column: "key")
+        h.pressReturn()
+        #expect(opened == 2)
+        h.click(row: 0, column: "artist")
+        h.pressReturn()
+        #expect(opened == 2 && h.coordinator.editingColumn == "title")
+        h.command(#selector(NSResponder.cancelOperation(_:)))
+    }
+
+    @Test func 같은_줄로_다시_그려도_기억은_남고_줄이_바뀌면_지워진다() throws {
+        let rows = (1...2).map { MusicalKeyEditingTests.row("\($0)", key: "5A") }
+        let h = ListHarness(rows: rows, selection: [rows[0].id], showKey: true)
+        defer { h.close() }
+        var opened = 0
+        h.coordinator.presentKeyMenu = { _, _, _ in opened += 1 }
+        h.click(row: 0, column: "key")
+        // 클릭이 바꾼 선택으로 SwiftUI가 다시 그려도(같은 줄·같은 선택) 기억은 그대로다
+        h.coordinator.update(rows: rows, edited: [], selection: [rows[0].id], sortOrder: [], snapshotURL: nil, previewRevision: 0)
+        #expect(h.coordinator.clickedCell == .init(rowID: rows[0].id, column: "key"))
+        h.pressReturn()
+        #expect(opened == 1)
+        // 줄이 바뀌면(필터·검색·정렬·소스 전환·새 스냅샷) 같은 줄이 남아 있어도 지운다
+        h.coordinator.update(rows: rows.reversed(), edited: [], selection: [rows[0].id], sortOrder: [], snapshotURL: nil, previewRevision: 0)
+        #expect(h.coordinator.clickedCell == nil)
+        h.pressReturn()
+        #expect(opened == 1 && h.coordinator.editingColumn == "title")
+        h.command(#selector(NSResponder.cancelOperation(_:)))
+    }
+
+    @Test func 스토어가_선택을_옮기거나_USB_목록을_오가면_기억을_지운다() throws {
+        let rows = (1...2).map { MusicalKeyEditingTests.row("\($0)", key: "5A") }
+        let h = ListHarness(rows: rows, selection: [rows[0].id], showKey: true)
+        defer { h.close() }
+        h.click(row: 0, column: "key")
+        // 검색 창에서 돌아오듯 스토어가 다른 줄을 고르게 하면 지운다
+        h.coordinator.update(rows: rows, edited: [], selection: [rows[1].id], sortOrder: [], snapshotURL: nil, previewRevision: 0)
+        #expect(h.table.selectedRowIndexes == IndexSet(integer: 1) && h.coordinator.clickedCell == nil)
+        h.click(row: 1, column: "key")
+        h.coordinator.updateUsbMode(true)
+        #expect(h.coordinator.clickedCell == nil)
+        h.coordinator.updateUsbMode(false)
+        h.click(row: 1, column: "key")
+        #expect(h.coordinator.clickedCell != nil)
+        h.coordinator.tableView(h.table, sortDescriptorsDidChange: [])
+        #expect(h.coordinator.clickedCell == nil)
+    }
+
+    /// 글자 칸이 하나도 보이지 않아도 키 칸을 누르지 않았으면 Return은 키 메뉴를 열지 않는다.
+    @Test func 글자_칸이_모두_숨겨져도_키_칸을_누르기_전에는_Return이_메뉴를_열지_않는다() throws {
+        let row = MusicalKeyEditingTests.row("1", key: "5A")
+        let h = ListHarness(rows: [row], selection: [row.id], hidden: ["title", "album", "artist", "comment"], showKey: true)
+        defer { h.close() }
+        var opened = 0
+        h.coordinator.presentKeyMenu = { _, _, _ in opened += 1 }
+        #expect(!h.coordinator.beginEditingSelection())
+        h.pressReturn()
+        #expect(opened == 0 && !h.coordinator.isEditing)
+        h.click(row: 0, column: "key")
+        h.pressReturn()
+        #expect(opened == 1)
+    }
+
+    /// mouseDown이 쓰는 점 → 칸 이름 변환: 숨긴 칸과 옮긴 칸이 있어도 칸 번호가 아니라 이름으로 잇는다.
+    /// (진짜 mouseDown은 mouseUp까지 기다리는 추적 루프라 부르지 않는다. 이벤트 좌표 변환·추적 루프는 이 시험 밖이다.)
+    @Test func 누른_점은_숨긴_칸과_옮긴_칸이_있어도_칸_이름으로_기억한다() throws {
+        let rows = (1...2).map { MusicalKeyEditingTests.row("\($0)", key: "5A") }
+        let h = ListHarness(rows: rows, selection: [], hidden: ["album"], showKey: true)
+        defer { h.close() }
+        let ids = h.table.tableColumns.map(\.identifier.rawValue)
+        h.table.moveColumn(try #require(ids.firstIndex(of: "key")), toColumn: try #require(ids.firstIndex(of: "title")))
+        func center(row: Int, column: String) throws -> NSPoint {
+            let index = try #require(h.table.tableColumns.firstIndex { $0.identifier.rawValue == column })
+            let rect = h.table.frameOfCell(atColumn: index, row: row)
+            return NSPoint(x: rect.midX, y: rect.midY)
+        }
+        for column in ["key", "title", "artist", "comment"] {
+            h.table.noteClick(at: try center(row: 1, column: column))
+            #expect(h.coordinator.clickedCell == .init(rowID: rows[1].id, column: column), "\(column)")
+        }
+        // 칸이나 줄 밖을 누르면 잊는다
+        h.table.noteClick(at: NSPoint(x: -5, y: 10))
+        #expect(h.coordinator.clickedCell == nil)
+        h.table.noteClick(at: try center(row: 1, column: "key"))
+        h.table.noteClick(at: NSPoint(x: 10, y: 5000))
+        #expect(h.coordinator.clickedCell == nil)
     }
 
     @Test func Return과_Tab의_글자_칸_흐름은_키_칸을_건너뛴다() {
@@ -98,8 +217,10 @@ struct TrackListKeyEditTests {
         #expect(TrackListTagEditing.firstColumn(in: order, clicked: "key") == "key")
         #expect(TrackListTagEditing.firstColumn(in: order, clicked: "artist") == "title")
         #expect(TrackListTagEditing.firstColumn(in: ["title"], clicked: "key") == "title")
-        // 글자 칸이 하나도 보이지 않으면 키 칸이라도 고친다
-        #expect(TrackListTagEditing.firstColumn(in: ["index", "bpm", "key"]) == "key")
+        // 글자 칸이 하나도 보이지 않으면 키 칸을 누르기 전에는 고칠 칸이 없다(Return이 키 메뉴를 열지 않는다)
+        #expect(TrackListTagEditing.firstColumn(in: ["index", "bpm", "key"]) == nil)
+        #expect(TrackListTagEditing.firstColumn(in: ["index", "bpm", "key"], clicked: "key") == "key")
+        #expect(TrackListTagEditing.firstColumn(in: ["index", "bpm"], clicked: "key") == nil)
         #expect(TrackListTagEditing.column(after: "artist", forward: true, in: order) == "comment")
         #expect(TrackListTagEditing.column(after: "comment", forward: false, in: order) == "artist")
         #expect(TrackListTagEditing.column(after: "key", forward: true, in: order) == nil)
@@ -179,6 +300,20 @@ struct TrackListKeyEditTests {
         let outside = try #require(h.coordinator.keyMenu(row: 1))
         try choose("3A", menu: outside)
         #expect(h.store.tagCell(a, .musicalKey) == "12B" && h.store.tagCell(b, .musicalKey) == "3A")
+    }
+
+    /// 메뉴를 연 사이 줄이 바뀌어도(빠짐·순서 바뀜) 줄 ID로 다시 찾아 지금 있는 대상에만 넣는다.
+    @Test func 메뉴를_연_사이_줄이_바뀌어도_줄_ID로_다시_찾아_있는_곡에만_넣는다() throws {
+        let rows = (1...4).map { MusicalKeyEditingTests.row("\($0)", key: "5A") }
+        let h = ListHarness(rows: rows, selection: [rows[0].id, rows[1].id, rows[3].id], showKey: true)
+        defer { h.close() }
+        let menu = try #require(h.coordinator.keyMenu(row: 0))
+        // 1번 줄이 빠지고 순서가 뒤집힌 새 목록
+        h.coordinator.update(rows: [rows[3], rows[2], rows[1]], edited: [], selection: [], sortOrder: [], snapshotURL: nil, previewRevision: 0)
+        try choose("9B", menu: menu)
+        #expect(h.store.tagDrafts.keys.sorted() == [rows[1].track.uuid, rows[3].track.uuid].sorted())
+        #expect(h.store.tagCell(rows[1], .musicalKey) == "9B" && h.store.tagCell(rows[3], .musicalKey) == "9B")
+        #expect(h.store.tagCell(rows[0], .musicalKey) == "5A" && h.store.tagCell(rows[2], .musicalKey) == "5A")
     }
 
     @Test func 읽기_전용_곡과_쓰기_중에는_메뉴와_선택을_막는다() throws {

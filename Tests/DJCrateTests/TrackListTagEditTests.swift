@@ -341,6 +341,18 @@ final class ListHarness {
         press(keyCode: 36, characters: "\r")
     }
 
+    /// 칸을 누른 것처럼: mouseDown과 같은 길(`noteClick(at:)`)로 누른 자리를 기억한 뒤 그 줄을 고른다(super.mouseDown의 순서).
+    /// 진짜 마우스 이벤트는 추적 루프에 들어가 mouseUp을 기다리므로 쓰지 않는다.
+    func click(row: Int, column: String) {
+        guard let index = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == column }) else { return }
+        let rect = table.frameOfCell(atColumn: index, row: row)
+        table.noteClick(at: NSPoint(x: rect.midX, y: rect.midY))
+        table.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+    }
+
+    func pressDown() { press(keyCode: 125, characters: String(UnicodeScalar(NSDownArrowFunctionKey)!)) }
+    func pressUp() { press(keyCode: 126, characters: String(UnicodeScalar(NSUpArrowFunctionKey)!)) }
+
     func press(keyCode: UInt16, characters: String, modifiers: NSEvent.ModifierFlags = []) {
         let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
                                      windowNumber: window.windowNumber, context: nil, characters: characters,

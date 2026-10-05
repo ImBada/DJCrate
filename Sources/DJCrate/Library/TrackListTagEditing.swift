@@ -5,7 +5,7 @@ import DJCDomain
 ///
 /// - 시작: 이미 혼자 고른 줄의 태그 칸을 다시 한 번 누르고 잠깐 기다리기(Finder 이름 바꾸기처럼),
 ///   또는 곡을 고른 채 Return으로 보이는 첫 태그 칸. 더블클릭은 덱에 불러오기다(#93).
-/// - 키 칸은 글자를 쓰지 않고 메뉴(없음·1A~12B)로 고른다(#204): 키 칸 더블클릭, 또는 키 칸을 누른 뒤 Return.
+/// - 키 칸은 글자를 쓰지 않고 메뉴(없음·1A~12B)로 고른다(#204): 키 칸 더블클릭, 또는 키 칸을 누른 그 줄에서 Return.
 ///   글자 칸 흐름(다시 눌러 고치기·Return의 첫 칸·Tab)에는 끼지 않는다.
 /// - Tab·⇧Tab: 확정하고 보이는 옆 태그 칸으로(끝이면 편집을 마친다) / Return: 확정 / Esc: 취소
 /// - 고른 곡 안에서 고치면 고른 곡 모두에 적용한다(인스펙터 여러 곡 편집과 같다).
@@ -55,11 +55,12 @@ enum TrackListTagEditing {
             && modifiers.intersection([.shift, .command, .control, .option]).isEmpty
     }
 
-    /// Return으로 편집을 시작할 칸: 마지막으로 누른 칸이 키 칸이면 키 메뉴, 아니면 보이는 첫 글자 칸.
-    /// 글자 칸이 하나도 보이지 않으면 키 칸이라도 연다.
+    /// Return으로 편집을 시작할 칸: 방금 누른 칸이 (보이는) 키 칸이면 키 메뉴, 아니면 보이는 첫 글자 칸.
+    /// 글자 칸이 하나도 보이지 않아도 키 칸을 누르지 않았으면 nil이다(키 메뉴는 누른 칸에서만 연다).
+    /// `clicked`는 Return 대상 줄에서 누른 칸이어야 한다(다른 줄에서 누른 칸은 넘기지 않는다).
     static func firstColumn(in visibleColumns: [String], clicked: String? = nil) -> String? {
         if clicked == keyColumn, visibleColumns.contains(keyColumn) { return keyColumn }
-        return visibleColumns.first(where: isTextColumn) ?? visibleColumns.first { $0 == keyColumn }
+        return visibleColumns.first(where: isTextColumn)
     }
 
     /// Tab(앞)·⇧Tab(뒤)으로 옮겨 갈 보이는 옆 글자 칸. 끝이면 nil(편집을 마친다). 키 칸은 건너뛴다(메뉴가 Tab 흐름을 끊는다).
