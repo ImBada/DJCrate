@@ -254,7 +254,9 @@ struct ReflectionCoordinator {
             guard prompter.show(Self.addConfirmation(preview)) else { return }
             try Task.checkCancellation()
             let written = try await host.addTracksToRekordbox(preview)
-            publish(.tracks(written, preview: preview.report, adding: true, withoutAnalysis: preview.withoutAnalysis, unreadable: preview.unreadable), undo: written.backup)
+            // 넣기는 끝났지만 백업에 추가 목록·초안을 남기지 못했다는 경고는 결과와 나눠 덧붙인다(#202).
+            publish(.tracks(written, preview: preview.report, adding: true, withoutAnalysis: preview.withoutAnalysis, unreadable: preview.unreadable)
+                .followedUp(host.writeFollowUp), undo: written.backup)
         } catch is CancellationError {
             host.writeStage = nil
             publishCancelled()

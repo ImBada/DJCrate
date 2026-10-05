@@ -221,7 +221,7 @@ extension LibraryStore {
         let reloaded = await reloadAfterWrite()
         let restoredStaged = restoreStaged(from: backup)
         lastWriteBackup = nil
-        finishWriteFollowUp([saveWarning, artworkWarning, keptWarning, Self.keptNewTrackDraftsText(restoredStaged.keptTagDrafts)],
+        finishWriteFollowUp([saveWarning, artworkWarning, keptWarning, Self.keptNewTrackDraftsText(restoredStaged.keptDrafts, kinds: restoredStaged.keptKinds)],
                             reloaded: reloaded, restoring: true)
         return saved
     }
