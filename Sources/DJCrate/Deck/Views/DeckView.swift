@@ -12,17 +12,8 @@ struct DeckView: View {
     @Environment(\.textScale) private var textScale
     let store: LibraryStore
     @Bindable var deck: DeckModel
-    var waveformHeight: Double
     var widthClass: DeckWidthClass
 
-    private var waveGroupHeight: Double {
-        zoomWaveformHeight + 8 + WaveformMetrics(scale: textScale).overviewHeight
-            + TextScale.length(28, scale: textScale)
-    }
-    /// 조작부의 최소 높이에서 남는 자리를 확대 파형이 채워 빈 띠를 남기지 않는다.
-    private var zoomWaveformHeight: Double {
-        max(waveformHeight, DeckLayout.minimumZoomWaveformHeight(scale: textScale))
-    }
     /// 글자 배율의 절반만큼 넓힌다(큐 이름이 보이게 하되 파형 자리를 너무 빼앗지 않게).
     private var cueListWidth: CGFloat { TextScale.length(widthClass.cueListWidth, scale: 1 + (textScale - 1) / 2) }
     private var leftRailWidth: CGFloat { TextScale.length(66, scale: textScale) }
@@ -30,7 +21,6 @@ struct DeckView: View {
 
     var body: some View {
         let _ = PerfProbe.body(Self.self)
-        let _ = PerfProbe.recordWaveformHeight(waveformHeight)
         if let row = deck.row {
             VStack(alignment: .leading, spacing: 8) {
                     DeckInfoHeader(deck: deck, row: row, coverSize: TextScale.length(66, scale: textScale))
@@ -45,71 +35,7 @@ struct DeckView: View {
                         }
                         .font(.scaled(.caption, textScale))
                     }
-                    HStack(alignment: .top, spacing: 8) {
-                        DeckSideControls(store: store, deck: deck, availableHeight: waveGroupHeight)
-                            .frame(width: leftRailWidth, height: waveGroupHeight)
-                        VStack(alignment: .leading, spacing: 8) {
-                            Group {
-                                if PerfProbe.hidden.contains("zoom") {
-                                    EmptyView()
-                                } else {
-                                    ZoomWaveformView(deck: deck)
-                                        .overlay(alignment: .leading) {
-                                            ZoomControl(deck: deck, availableHeight: zoomWaveformHeight).padding(.leading, 8)
-                                        }
-                                        .overlay(alignment: .trailing) {
-                                            TrackEditButton(deck: deck).padding(.trailing, 8)
-                                        }
-                                }
-                            }
-                            .frame(height: zoomWaveformHeight)
-                            .selfTestFrame("deck.zoom.\(ObjectIdentifier(deck))")
-                            .overlay(alignment: .center) { loadingOverlay }
-                            .overlay(alignment: .top) {
-                                if let toast = deck.toast {
-                                    HStack {
-                                        Label(toast.text, systemImage: toast.kind.icon)
-                                            .foregroundStyle(toast.kind.tint)
-                                            .textSelection(.enabled)
-                                        Button { deck.toastTask?.cancel(); deck.toast = nil } label: {
-                                            Image(systemName: "xmark")
-                                        }
-                                        .buttonStyle(.plain)
-                                        .accessibilityLabel(.ui("덱 알림 닫기"))
-                                    }
-                                    .font(.scaled(.callout, textScale).weight(.semibold))
-                                    .padding(.horizontal, 12).padding(.vertical, 7)
-                                    .background(.regularMaterial, in: Capsule())
-                                    .padding(.top, 22)
-                                    .transition(.opacity)
-                                }
-                            }
-                            .animation(.easeOut(duration: 0.15), value: deck.toast)
-                            .environment(\.colorScheme, .dark)
-                            VStack(spacing: 0) {
-                                Group { if PerfProbe.hidden.contains("overview") { EmptyView() } else { OverviewWaveformView(deck: deck) } }
-                                    .frame(height: WaveformMetrics(scale: textScale).overviewHeight)
-                                GridTempoSegments(deck: deck)
-                            }
-                            .background(Palette.well)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                        }
-                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                        if !PerfProbe.hidden.contains("meter") {
-                            let gainHeight = TextScale.length(60, scale: textScale)
-                            let meterHeight = min(TextScale.length(170, scale: textScale),
-                                                  max(TextScale.length(100, scale: textScale), waveGroupHeight - TextScale.length(90, scale: textScale)))
-                            VStack(spacing: 6) {
-                                LevelMeterView(deck: deck, meterHeight: meterHeight)
-                                GainControl(deck: deck)
-                                    .frame(height: gainHeight)
-                            }
-                            .frame(width: rightRailWidth, height: waveGroupHeight)
-                            .background(Palette.controlRail, in: RoundedRectangle(cornerRadius: 6))
-                            .environment(\.colorScheme, .dark)
-                        }
-                    }
-                    .selfTestFrame("deck.waveGroup.\(ObjectIdentifier(deck))")
+                    DeckWaveformGroup(store: store, deck: deck, leftRailWidth: leftRailWidth, rightRailWidth: rightRailWidth)
                     VStack(alignment: .leading, spacing: 12) {
                         TransportBar(deck: deck)
                         AudioBar(deck: deck)
@@ -140,6 +66,100 @@ struct DeckView: View {
                                    description: Text(.ui("아래 목록에서 곡을 더블클릭하거나 여기로 끌어다 놓으면(⌘→도 됩니다) 파형과 큐가 여기 뜹니다.")))
                 .frame(height: 220)
         }
+    }
+
+}
+
+extension EnvironmentValues {
+    /// 창에 맞춘 높이는 파형·레일만 읽어 덱 전체의 본문 갱신을 피한다(#155).
+    @Entry var deckWaveformHeight: Double = DeckLayout.defaultWaveformHeight
+}
+
+private struct DeckWaveformGroup: View {
+    @Environment(\.textScale) private var textScale
+    @Environment(\.deckWaveformHeight) private var waveformHeight
+    let store: LibraryStore
+    let deck: DeckModel
+    let leftRailWidth: CGFloat
+    let rightRailWidth: CGFloat
+
+    private var waveGroupHeight: Double {
+        zoomWaveformHeight + 8 + WaveformMetrics(scale: textScale).overviewHeight
+            + TextScale.length(28, scale: textScale)
+    }
+    /// 조작부의 최소 높이에서 남는 자리를 확대 파형이 채워 빈 띠를 남기지 않는다.
+    private var zoomWaveformHeight: Double {
+        max(waveformHeight, DeckLayout.minimumZoomWaveformHeight(scale: textScale))
+    }
+
+    var body: some View {
+        let _ = PerfProbe.body(Self.self)
+        let _ = PerfProbe.recordWaveformHeight(waveformHeight)
+        HStack(alignment: .top, spacing: 8) {
+            DeckSideControls(store: store, deck: deck, availableHeight: waveGroupHeight)
+                .frame(width: leftRailWidth, height: waveGroupHeight)
+            VStack(alignment: .leading, spacing: 8) {
+                Group {
+                    if PerfProbe.hidden.contains("zoom") {
+                        EmptyView()
+                    } else {
+                        ZoomWaveformView(deck: deck)
+                            .overlay(alignment: .leading) {
+                                ZoomControl(deck: deck, availableHeight: zoomWaveformHeight).padding(.leading, 8)
+                            }
+                            .overlay(alignment: .trailing) {
+                                TrackEditButton(deck: deck).padding(.trailing, 8)
+                            }
+                    }
+                }
+                .frame(height: zoomWaveformHeight)
+                .selfTestFrame("deck.zoom.\(ObjectIdentifier(deck))")
+                .overlay(alignment: .center) { loadingOverlay }
+                .overlay(alignment: .top) {
+                    if let toast = deck.toast {
+                        HStack {
+                            Label(toast.text, systemImage: toast.kind.icon)
+                                .foregroundStyle(toast.kind.tint)
+                                .textSelection(.enabled)
+                            Button { deck.toastTask?.cancel(); deck.toast = nil } label: {
+                                Image(systemName: "xmark")
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(.ui("덱 알림 닫기"))
+                        }
+                        .font(.scaled(.callout, textScale).weight(.semibold))
+                        .padding(.horizontal, 12).padding(.vertical, 7)
+                        .background(.regularMaterial, in: Capsule())
+                        .padding(.top, 22)
+                        .transition(.opacity)
+                    }
+                }
+                .animation(.easeOut(duration: 0.15), value: deck.toast)
+                .environment(\.colorScheme, .dark)
+                VStack(spacing: 0) {
+                    Group { if PerfProbe.hidden.contains("overview") { EmptyView() } else { OverviewWaveformView(deck: deck) } }
+                        .frame(height: WaveformMetrics(scale: textScale).overviewHeight)
+                    GridTempoSegments(deck: deck)
+                }
+                .background(Palette.well)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+            if !PerfProbe.hidden.contains("meter") {
+                let gainHeight = TextScale.length(60, scale: textScale)
+                let meterHeight = min(TextScale.length(170, scale: textScale),
+                                      max(TextScale.length(100, scale: textScale), waveGroupHeight - TextScale.length(90, scale: textScale)))
+                VStack(spacing: 6) {
+                    LevelMeterView(deck: deck, meterHeight: meterHeight)
+                    GainControl(deck: deck)
+                        .frame(height: gainHeight)
+                }
+                .frame(width: rightRailWidth, height: waveGroupHeight)
+                .background(Palette.controlRail, in: RoundedRectangle(cornerRadius: 6))
+                .environment(\.colorScheme, .dark)
+            }
+        }
+        .selfTestFrame("deck.waveGroup.\(ObjectIdentifier(deck))")
     }
 
     @ViewBuilder private var loadingOverlay: some View {

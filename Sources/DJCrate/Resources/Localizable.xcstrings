@@ -9763,6 +9763,22 @@
         }
       }
     },
+    "rekordbox에는 넣었지만 추가 목록을 백업에 저장하지 못해 ‘쓰기 전으로 복원…’으로 되돌려도 곡이 추가 목록으로 돌아오지 않으니, 되돌렸다면 음원을 다시 추가하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The tracks were added to rekordbox, but the added-tracks list could not be saved to the backup, so undoing with “Restore Before Write…” will not return them to the added list; add the audio files again if you undid it."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxには追加しましたが、追加リストをバックアップに保存できなかったため、「書き込み前に復元…」で元に戻しても曲は追加リストに戻りません。戻した場合は音源をもう一度追加してください。"
+          }
+        }
+      }
+    },
     "rekordbox에는 썼지만 라이브러리를 다시 읽지 못했으니 ‘rekordbox와 동기화’(⌘R)로 다시 읽은 뒤 편집을 이어 가세요." : {
       "localizations" : {
         "en" : {
@@ -15019,18 +15035,18 @@
         }
       }
     },
-    "넣은 곡에 남아 있던 태그 초안 %lld곡은 지우지 않고 연결되지 않은 초안으로 남겼습니다. 필요 없으면 ‘연결되지 않은 초안 보기…’에서 버리세요." : {
+    "넣은 곡에 남아 있던 %@ 초안 %lld곡은 지우지 않고 연결되지 않은 초안으로 남겼습니다. 필요 없으면 ‘연결되지 않은 초안 보기…’에서 버리세요." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tag drafts left on %lld added track(s) were kept as unlinked drafts instead of being deleted. Discard them in “Show Unlinked Drafts…” if you don't need them."
+            "value" : "%1$@ drafts left on %2$lld added track(s) were kept as unlinked drafts instead of being deleted. Discard them in “Show Unlinked Drafts…” if you don't need them."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "追加した曲に残っていた%lld曲分のタグの下書きは、削除せず、リンクされていない下書きとして残しました。不要な場合は「リンクされていない下書きを表示…」で破棄してください。"
+            "value" : "追加した曲に残っていた%2$lld曲分の%1$@の下書きは、削除せず、リンクされていない下書きとして残しました。不要な場合は「リンクされていない下書きを表示…」で破棄してください。"
           }
         }
       }
@@ -31485,6 +31501,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "追加した曲%lld曲は、rekordboxのコレクションに入れてからプレイリストに追加できます。"
+          }
+        }
+      }
+    },
+    "추가한 곡 %lld곡의 초안을 백업에 저장하지 못해 연결되지 않은 초안으로 남겼으니, 되돌려 곡이 추가 목록으로 돌아올 때 이어지도록 ‘연결되지 않은 초안 보기…’에서 버리지 마세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drafts for %lld added track(s) could not be saved to the backup and were kept as unlinked drafts, so don't discard them in “Show Unlinked Drafts…” if you want them to reconnect when an undo returns the tracks to the added list."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加した%lld曲分の下書きをバックアップに保存できず、リンクされていない下書きとして残しました。元に戻して曲が追加リストに戻ったときに再びつながるよう、「リンクされていない下書きを表示…」で破棄しないでください。"
           }
         }
       }

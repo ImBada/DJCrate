@@ -77,6 +77,41 @@ struct TrackWritePathTests {
         return (preview, report)
     }
 
+    /// 메모리 큐 11개: 메모리 큐 한도(10)에 걸려 곡은 들어가도 큐는 막힌다(막힌 큐는 새 곡의 큐 초안으로 옮겨진다).
+    func manyCues(_ uuid: String) -> CueDraft {
+        var draft = CueDraft(trackUUID: uuid, rekordboxCues: [])
+        for index in 0..<11 { draft.place(EditableCue(kind: .memory, time: Double(index) + 0.5)) }
+        return draft
+    }
+
+    struct Added {
+        var staged: StagedTrack
+        /// 넣은 새 곡 UUID
+        var uuid: String
+        var backup: RekordboxWriter.Backup
+        var preview: LibraryStore.TrackAddPreview
+        var report: RekordboxTrackWriter.Report
+        /// 넣기 전 추가한 곡에 만들어 둔 큐·그리드 초안(옛 UUID)
+        var cueDraft: CueDraft?
+        var gridDraft: GridDraft?
+    }
+
+    /// 추가한 곡에 큐·그리드 초안을 만들어 둔 채 미리 보고 합성 사본에 넣는다(`path`를 주지 않으면 합성 MP3).
+    func addWithDrafts(_ store: LibraryStore, _ fixture: RekordboxFixture, path: String? = nil, cue makeCue: ((String) -> CueDraft)? = nil,
+                       grid makeGrid: ((String) -> GridDraft)? = nil) async throws -> Added {
+        let staged = try stagedTrack(path: try path ?? TestResources.url("mp3-notag-cbr.mp3").path)
+        store.staged = [staged]
+        let cueDraft = makeCue?(staged.uuid), gridDraft = makeGrid?(staged.uuid)
+        if let cueDraft { DraftWriter.save(cueDraft) }
+        if let gridDraft { DraftWriter.save(gridDraft) }
+        DraftWriter.flush()
+        let preview = try await store.previewTrackAdd(rows: [TrackRow(track: staged.track, cues: [], playCount: 0)])
+        let report = try await store.addTracksToRekordbox(preview, to: fixture.database, shareRoot: fixture.shareRoot)
+        let uuid = try #require(report.added.first?.uuid)
+        let backup = try #require(RekordboxWriter.backups(in: fixture.backups).first)
+        return Added(staged: staged, uuid: uuid, backup: backup, preview: preview, report: report, cueDraft: cueDraft, gridDraft: gridDraft)
+    }
+
     /// 사용자 백업 폴더(앱 기본 폴더)에 이 곡 넣기·빼기의 백업이 생겼는지
     func defaultBackups(containing matches: (RekordboxTrackWriter.Report) -> Bool) -> Bool {
         RekordboxWriter.backups(in: DJCPaths.rekordboxBackups).contains { $0.trackReport.map(matches) == true }
@@ -258,9 +293,9 @@ struct TrackWritePathTests {
         #expect(dry.tagWritten.count == 1 && dry.tagBlocked.isEmpty, "\(dry.tagBlocked)")
     }
 
-    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 넣기_백업에_추가한_곡의_초안이_담겨_연결_안_된_초안을_버린_뒤에도_복원이_되살린다() async throws {
-        // #197: 넣은 뒤 추가 목록 곡 UUID의 초안은 어느 곡에도 이어지지 않아(연결 안 된 초안) 쓰기 대기 목록에서 버릴 수 있다.
-        // 넣기 백업이 그 초안(태그·큐)을 담고 있으면 "쓰기 전으로 복원…"이 버린 뒤에도 곡과 함께 되살린다.
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 넣기_백업에_추가한_곡의_초안이_담기고_넣은_뒤_옛_UUID의_초안은_정리돼_복원이_되살린다() async throws {
+        // #197: 넣기 백업이 추가한 곡의 초안(태그·큐)을 담고 있어 "쓰기 전으로 복원…"이 곡과 함께 되살린다.
+        // #202: 그 초안은 넣기에 쓰였고 백업이 가졌으니, 넣은 뒤 연결 안 된 초안으로 남기지 않고 정리한다(사용자가 버리지 않아도 된다).
         let fixture = try RekordboxFixture()
         let (store, staged, row) = try await keyedStaged(fixture, key: "8A")
         let original = cue(staged.uuid, time: 1)
@@ -277,11 +312,11 @@ struct TrackWritePathTests {
         #expect(RekordboxWriter.tagDrafts(in: backup.url).map(\.trackUUID) == [staged.uuid], "백업에 추가한 곡의 태그 초안")
         #expect(RekordboxWriter.contents(of: backup.url).drafts.map(\.trackUUID) == [staged.uuid], "백업에 추가한 곡의 큐 초안")
 
-        // 넣은 뒤 연결 안 된 초안이 된 것을 사용자가 버린다
-        #expect(store.unlinkedDraftUUIDs.contains(staged.uuid))
-        #expect(store.discardUnlinkedDrafts([staged.uuid]) == nil)
+        // 넣은 뒤: 옛 UUID의 초안은 이미 정리돼 연결 안 된 초안으로 보이지 않고, 알릴 경고도 없다
         DraftWriter.flush()
-        #expect(store.tagDrafts[staged.uuid] == nil && CueDraftStore.load(trackUUID: staged.uuid) == nil)
+        #expect(CueDraftStore.load(trackUUID: staged.uuid) == nil && TagDraftStore.load(trackUUID: staged.uuid) == nil)
+        #expect(store.tagDrafts[staged.uuid] == nil)
+        #expect(!store.unlinkedDraftUUIDs.contains(staged.uuid) && store.writeFollowUp.isEmpty, "\(store.writeFollowUp)")
 
         try await store.restoreRekordbox(backup, keepingCurrentDrafts: true)
         DraftWriter.flush()
@@ -366,7 +401,7 @@ struct TrackWritePathTests {
         let kept = try #require(store.tagDrafts[uuid], "누가 만들었는지 모르면 지우지 않는다")
         #expect(kept.changedKeys == [.musicalKey] && kept.fields.musicalKey == "12B")
         #expect(store.unlinkedDraftUUIDs.contains(uuid), "연결 안 된 초안으로 남아 쓰기 대기 목록에서 버릴 수 있다")
-        #expect(store.writeFollowUp == [LibraryStore.keptNewTrackDraftsText(1)].compactMap { $0 }, "\(store.writeFollowUp)")
+        #expect(store.writeFollowUp == [LibraryStore.keptNewTrackDraftsText(1, kinds: [.tag])].compactMap { $0 }, "\(store.writeFollowUp)")
         let notice = try #require(store.writeFollowUp.first)
         #expect(notice.contains("연결되지 않은 초안") && !notice.contains("새 곡에 만든"), "\(notice)")
     }
@@ -487,42 +522,212 @@ struct TrackWritePathTests {
 
     // MARK: - 추가 곡 복원
 
-    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 곡_넣기를_되돌리면_새_곡의_저장_실패_기록도_정리한다() async throws {
+    /// 넣을 때 큐가 막혀 새 곡으로 옮긴 큐 초안과 같은 모양(넣은 쪽·되돌리는 쪽이 같은 규칙으로 만든다).
+    func movedCue(_ added: Added) throws -> CueDraft { LibraryStore.movedCueDraft(from: try #require(added.cueDraft), to: added.uuid) }
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 곡_넣기를_되돌려도_넣은_뒤_새_곡에_만든_큐_그리드_초안은_지우지_않고_알린다() async throws {
+        // #202: 되돌리면 새 곡이 사라지지만, 넣은 뒤 사용자가 그 곡에 만든 큐·그리드 초안을 알림 없이 지우지 않는다(태그 초안과 같다, #197).
         let fixture = try RekordboxFixture()
         try fixture.add(TrackSpec())
         let store = await loadedStore(fixture)
-        let (_, report) = try await addStagedTrack(to: store, fixture)
-        let newUUID = try #require(report.added.first?.uuid)
-        let backup = try #require(RekordboxWriter.backups(in: fixture.backups).first)
-        leaveFailedSaves(for: newUUID)
-        defer { clearDrafts(newUUID) }
-        #expect(DraftWriter.pendingCue(trackUUID: newUUID) != nil && DraftWriter.pendingGrid(trackUUID: newUUID) != nil)
-        _ = store.restoreStaged(from: backup)
+        let added = try await addWithDrafts(store, fixture)
+        defer {
+            clearDrafts(added.uuid)
+            clearDrafts(added.staged.uuid)
+        }
+        let editedCue = cue(added.uuid, time: 3), editedGrid = grid(added.uuid, bpm: 125)
+        DraftWriter.save(editedCue)
+        DraftWriter.save(editedGrid)
         DraftWriter.flush()
-        #expect(CueDraftStore.load(trackUUID: newUUID) == nil && GridDraftStore.load(trackUUID: newUUID) == nil)
-        #expect(DraftWriter.pendingCue(trackUUID: newUUID) == nil && DraftWriter.pendingGrid(trackUUID: newUUID) == nil)
-        #expect(!DraftWriter.failures().contains { $0.trackUUID == newUUID })
+
+        try await store.restoreRekordbox(added.backup, keepingCurrentDrafts: true)
+        DraftWriter.flush()
+        #expect(store.staged.map(\.uuid) == [added.staged.uuid])
+        #expect(CueDraftStore.load(trackUUID: added.uuid) == editedCue, "큐 초안을 지우지 않는다")
+        #expect(GridDraftStore.load(trackUUID: added.uuid) == editedGrid, "그리드 초안을 지우지 않는다")
+        #expect(store.unlinkedDraftUUIDs.contains(added.uuid), "연결 안 된 초안으로 남아 쓰기 대기 목록에서 버릴 수 있다")
+        let notice = try #require(store.writeFollowUp.first { $0.contains("연결되지 않은 초안") })
+        #expect(notice == LibraryStore.keptNewTrackDraftsText(1, kinds: [.cue, .grid]), "\(notice)")
+        #expect(notice.contains("큐·그리드") && !notice.contains("새 곡에 만든"), "\(notice)")
+    }
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 넣을_때_큐가_막혀_새_곡으로_옮긴_큐_초안은_되돌릴_때_지우고_추가한_곡의_초안이_돌아온다() async throws {
+        // 옮긴 사본은 되돌릴 때 백업에서 되살아나는 추가한 곡의 초안과 같으니 남겨 두면 중복이다. 알리지도 않는다.
+        let fixture = try RekordboxFixture()
+        try fixture.add(TrackSpec())
+        let store = await loadedStore(fixture)
+        let added = try await addWithDrafts(store, fixture, cue: manyCues)
+        defer {
+            clearDrafts(added.uuid)
+            clearDrafts(added.staged.uuid)
+        }
+        let outcome = try #require(added.report.added.first)
+        #expect(outcome.written && outcome.cuesWritten == nil && outcome.cueReason != nil)
+        #expect(CueDraftStore.load(trackUUID: added.uuid) == (try movedCue(added)), "막힌 큐가 새 곡의 큐 초안으로 옮겨졌다")
+
+        try await store.restoreRekordbox(added.backup, keepingCurrentDrafts: true)
+        DraftWriter.flush()
+        #expect(CueDraftStore.load(trackUUID: added.uuid) == nil && DraftWriter.pendingCue(trackUUID: added.uuid) == nil)
+        #expect(CueDraftStore.load(trackUUID: added.staged.uuid) == added.cueDraft, "추가한 곡의 큐는 돌아온다")
+        #expect(store.staged.map(\.uuid) == [added.staged.uuid])
+        #expect(!store.unlinkedDraftUUIDs.contains(added.uuid) && store.writeFollowUp.isEmpty, "\(store.writeFollowUp)")
+    }
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 옮긴_큐_초안에_넣은_뒤_고친_큐가_있으면_지우지_않고_알린다() async throws {
+        let fixture = try RekordboxFixture()
+        try fixture.add(TrackSpec())
+        let store = await loadedStore(fixture)
+        let added = try await addWithDrafts(store, fixture, cue: manyCues)
+        defer {
+            clearDrafts(added.uuid)
+            clearDrafts(added.staged.uuid)
+        }
+        var edited = try movedCue(added)
+        edited.place(EditableCue(kind: .hot(0), time: 1.25))
+        DraftWriter.save(edited)
+        DraftWriter.flush()
+
+        try await store.restoreRekordbox(added.backup, keepingCurrentDrafts: true)
+        DraftWriter.flush()
+        #expect(CueDraftStore.load(trackUUID: added.uuid) == edited)
+        #expect(store.unlinkedDraftUUIDs.contains(added.uuid))
+        #expect(store.writeFollowUp.contains { $0 == LibraryStore.keptNewTrackDraftsText(1, kinds: [.cue]) }, "\(store.writeFollowUp)")
+    }
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 분석을_못_붙여_새_곡으로_옮긴_그리드_초안은_되돌릴_때_지우고_알리지_않는다() async throws {
+        // 96kHz ALAC은 분석 붙이기 규칙을 확인하지 못해 곡만 넣고 그리드 초안을 새 곡의 초안으로 옮긴다.
+        let fixture = try RekordboxFixture()
+        try fixture.add(TrackSpec())
+        let store = await loadedStore(fixture)
+        let alac = try AudioFixture.alac(seconds: 2, sampleRate: 96_000, in: fixture.audio, name: "alac96.m4a")
+        let added = try await addWithDrafts(store, fixture, path: alac.path, grid: { grid($0) })
+        defer {
+            clearDrafts(added.uuid)
+            clearDrafts(added.staged.uuid)
+        }
+        let outcome = try #require(added.report.added.first)
+        #expect(outcome.written && added.preview.withoutAnalysis[outcome.path] != nil, "분석 없이 넣었다")
+        let moved = LibraryStore.movedGridDraft(from: try #require(added.gridDraft), to: added.uuid)
+        #expect(GridDraftStore.load(trackUUID: added.uuid) == moved, "그리드 초안이 새 곡의 초안으로 옮겨졌다")
+
+        try await store.restoreRekordbox(added.backup, keepingCurrentDrafts: true)
+        DraftWriter.flush()
+        #expect(GridDraftStore.load(trackUUID: added.uuid) == nil && DraftWriter.pendingGrid(trackUUID: added.uuid) == nil)
+        #expect(GridDraftStore.load(trackUUID: added.staged.uuid) == added.gridDraft, "추가한 곡의 그리드는 돌아온다")
+        #expect(!store.unlinkedDraftUUIDs.contains(added.uuid) && store.writeFollowUp.isEmpty, "\(store.writeFollowUp)")
+    }
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 곡_넣기를_되돌릴_때_옮긴_사본이_아닌_저장_못_한_새_입력은_지우지_않고_알린다() async throws {
+        // 옮긴 사본은 디스크에 있지만, 저장에 실패해 DraftWriter에만 남은 새 입력은 사용자 작업이다(비교는 저장 못 한 입력을 먼저 본다).
+        let fixture = try RekordboxFixture()
+        try fixture.add(TrackSpec())
+        let store = await loadedStore(fixture)
+        let added = try await addWithDrafts(store, fixture, cue: manyCues)
+        defer { clearDrafts(added.uuid); clearDrafts(added.staged.uuid) }
+        var edited = try movedCue(added)
+        edited.place(EditableCue(kind: .hot(1), time: 2.5))
+        DraftWriter.save(edited, write: { _, _ in throw CocoaError(.fileWriteNoPermission) })
+        DraftWriter.flush()
+        #expect(CueDraftStore.load(trackUUID: added.uuid) == (try movedCue(added)) && DraftWriter.pendingCue(trackUUID: added.uuid) == edited)
+
+        let result = store.restoreStaged(from: added.backup)
+        DraftWriter.flush()
+        #expect(result.keptDrafts == 1 && result.keptKinds == [.cue])
+        #expect(DraftWriter.pendingCue(trackUUID: added.uuid) == edited, "저장 못 한 새 입력을 지우지 않는다")
+        #expect(DraftWriter.failures().contains { $0.trackUUID == added.uuid && $0.kind == .cue })
+        #expect(store.lastError?.contains("초안을 저장하지 못했습니다") == true, "\(store.lastError ?? "")")
+    }
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 곡_넣기를_되돌리면_옮긴_큐_초안의_저장_실패_기록도_정리한다() async throws {
+        // #172: 초안 파일을 직접 지우지 않고 DraftWriter로 지워, 저장 실패로 남은 기록(같은 내용)까지 함께 비운다.
+        let fixture = try RekordboxFixture()
+        try fixture.add(TrackSpec())
+        let store = await loadedStore(fixture)
+        let added = try await addWithDrafts(store, fixture, cue: manyCues)
+        defer { clearDrafts(added.uuid); clearDrafts(added.staged.uuid) }
+        DraftWriter.save(try movedCue(added), write: { _, _ in throw CocoaError(.fileWriteNoPermission) })
+        DraftWriter.flush()
+        #expect(DraftWriter.pendingCue(trackUUID: added.uuid) != nil && DraftWriter.failures().contains { $0.trackUUID == added.uuid })
+
+        let result = store.restoreStaged(from: added.backup)
+        DraftWriter.flush()
+        #expect(result.keptDrafts == 0)
+        #expect(CueDraftStore.load(trackUUID: added.uuid) == nil && DraftWriter.pendingCue(trackUUID: added.uuid) == nil)
+        #expect(!DraftWriter.failures().contains { $0.trackUUID == added.uuid })
         #expect(store.lastError == nil)
     }
 
-    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 곡_넣기를_되돌릴_때_초안을_정리하지_못하면_알린다() async throws {
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 곡_넣기를_되돌릴_때_옮긴_큐_초안을_정리하지_못하면_알린다() async throws {
         let fixture = try RekordboxFixture()
         try fixture.add(TrackSpec())
         let store = await loadedStore(fixture)
-        let (_, report) = try await addStagedTrack(to: store, fixture)
-        let newUUID = try #require(report.added.first?.uuid)
-        let backup = try #require(RekordboxWriter.backups(in: fixture.backups).first)
-        DraftWriter.save(cue(newUUID, time: 3))
-        DraftWriter.flush()
-        let file = CueDraftStore.directory.appending(path: "\(newUUID).json")
+        let added = try await addWithDrafts(store, fixture, cue: manyCues)
+        // 이 곡의 파일만 잠가 정리(삭제) 실패를 만든다(다른 시험의 초안과 섞이지 않게).
+        let file = CueDraftStore.directory.appending(path: "\(added.uuid).json")
         try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: file.path)
         defer {
             try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: file.path)
-            clearDrafts(newUUID)
+            clearDrafts(added.uuid)
+            clearDrafts(added.staged.uuid)
         }
-        _ = store.restoreStaged(from: backup)
+        _ = store.restoreStaged(from: added.backup)
         #expect(store.lastError?.contains("초안을 저장하지 못했습니다") == true)
-        #expect(DraftWriter.failures().contains { $0.trackUUID == newUUID && $0.kind == .cue })
+        #expect(DraftWriter.failures().contains { $0.trackUUID == added.uuid && $0.kind == .cue })
+    }
+
+    // MARK: - 넣기 백업과 옛 UUID 초안 (#202)
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 넣기_백업에_추가_목록을_저장하지_못하면_결과에_경고로_알린다() async throws {
+        // 넣기는 이미 끝났으니 실패로 바꾸지 않는다. 다만 이 백업으로 되돌려도 곡이 추가 목록으로 돌아오지 못하니 알린다.
+        let fixture = try RekordboxFixture()
+        try fixture.add(TrackSpec())
+        let store = await loadedStore(fixture)
+        store.backupFileWriter = { data, url in
+            if url.lastPathComponent == LibraryStore.stagedBackupName { throw CocoaError(.fileWriteNoPermission) }
+            try data.write(to: url, options: .atomic)
+        }
+        store.writeFollowUp = ["지난 결과의 경고"]
+        let added = try await addWithDrafts(store, fixture)
+        let outcome = try #require(added.report.added.first)
+        #expect(outcome.written && store.staged.isEmpty, "넣기는 그대로 끝난다")
+        #expect(LibraryStore.stagedTracks(in: added.backup.url) == nil)
+        #expect(store.writeFollowUp == [LibraryStore.stagedBackupFailureText], "\(store.writeFollowUp)")
+        let result = WriteResult.tracks(added.report, preview: added.preview.report, adding: true,
+                                        withoutAnalysis: added.preview.withoutAnalysis).followedUp(store.writeFollowUp)
+        #expect(result.kind == .warning && result.text.hasSuffix("• \(LibraryStore.stagedBackupFailureText)"), "\(result.text)")
+
+        // 경고가 알린 대로 곡은 추가 목록으로 돌아오지 못한다
+        try await store.restoreRekordbox(added.backup, keepingCurrentDrafts: true)
+        #expect(store.staged.isEmpty)
+    }
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 백업에_초안_사본을_못_남기면_그_초안은_지우지_않고_연결_안_된_초안으로_알린다() async throws {
+        // 백업이 가진 초안만 정리한다. 사본을 못 남긴 큐 초안은 되돌릴 때 이어질 유일한 사본이라 그대로 두고, 그렇다고 알린다.
+        let fixture = try RekordboxFixture()
+        try fixture.add(TrackSpec())
+        let store = await loadedStore(fixture)
+        store.backupFileWriter = { data, url in
+            if url.deletingLastPathComponent().lastPathComponent == "cue-drafts" { throw CocoaError(.fileWriteNoPermission) }
+            try data.write(to: url, options: .atomic)
+        }
+        let added = try await addWithDrafts(store, fixture, cue: { cue($0, time: 1) }, grid: { grid($0) })
+        defer { clearDrafts(added.uuid); clearDrafts(added.staged.uuid) }
+        let original = try #require(added.cueDraft)
+        DraftWriter.flush()
+        #expect(RekordboxWriter.contents(of: added.backup.url).drafts.isEmpty, "큐 사본은 백업에 없다")
+        #expect(RekordboxWriter.gridDrafts(in: added.backup.url).map(\.trackUUID) == [added.staged.uuid], "그리드 사본은 백업에 있다")
+        #expect(CueDraftStore.load(trackUUID: added.staged.uuid)?.cues == original.cues, "백업에 없는 큐 초안은 지우지 않는다")
+        #expect(GridDraftStore.load(trackUUID: added.staged.uuid) == nil, "백업에 있는 그리드 초안은 정리한다")
+        #expect(store.unlinkedDraftUUIDs.contains(added.staged.uuid))
+        #expect(store.writeFollowUp == [LibraryStore.stagedDraftsBackupFailureText(1)], "\(store.writeFollowUp)")
+
+        // 되돌리면 곡이 추가 목록에 돌아오고 남겨 둔 큐 초안이 다시 이어진다
+        try await store.restoreRekordbox(added.backup, keepingCurrentDrafts: true)
+        DraftWriter.flush()
+        #expect(store.staged.map(\.uuid) == [added.staged.uuid])
+        #expect(CueDraftStore.load(trackUUID: added.staged.uuid)?.cues == original.cues)
+        #expect(GridDraftStore.load(trackUUID: added.staged.uuid) == added.gridDraft)
+        #expect(!store.unlinkedDraftUUIDs.contains(added.staged.uuid))
     }
 
     // MARK: - 추가 곡 그리드 추정

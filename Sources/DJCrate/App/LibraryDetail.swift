@@ -150,7 +150,8 @@ private struct LibraryDeckViewport: View {
         let _ = PerfProbe.body(Self.self)
         let height = layout.waveformHeight
         ScrollView(.vertical) {
-            DeckView(store: store, deck: deck, waveformHeight: height, widthClass: widthClass)
+            DeckView(store: store, deck: deck, widthClass: widthClass)
+                .environment(\.deckWaveformHeight, height)
                 .frame(maxWidth: .infinity, alignment: .top)
                 .fixedSize(horizontal: false, vertical: true)
                 .perfMeasuredLayout("swiftui.deck")
