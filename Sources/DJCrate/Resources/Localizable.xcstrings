@@ -8259,22 +8259,6 @@
         }
       }
     },
-    "rekordbox 앨범아트" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordbox album art"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxのアルバムアート"
-          }
-        }
-      }
-    },
     "rekordbox 앱: %@ · 확인한 버전 %@" : {
       "localizations" : {
         "en" : {
@@ -10133,22 +10117,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxの変更がまだ保存されていません"
-          }
-        }
-      }
-    },
-    "rekordbox의 앨범아트를 지우는 초안을 만듭니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Make a draft that removes the rekordbox album art"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxのアルバムアートを削除する下書きを作ります"
           }
         }
       }
@@ -24283,18 +24251,18 @@
         }
       }
     },
-    "앨범아트 고르기…" : {
+    "앨범아트 고르기" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choose Album Art…"
+            "value" : "Choose Album Art"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "アルバムアートを選ぶ…"
+            "value" : "アルバムアートを選ぶ"
           }
         }
       }
@@ -24819,6 +24787,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アルバムアートを読み込めませんでした。別のJPEG・PNGアルバムアートを選んでください"
+          }
+        }
+      }
+    },
+    "앨범아트를 지우는 초안을 만듭니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Make a draft that removes the album art"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アルバムアートを削除する下書きを作ります"
           }
         }
       }

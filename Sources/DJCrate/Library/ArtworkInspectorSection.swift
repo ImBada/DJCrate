@@ -26,11 +26,11 @@ struct ArtworkInspectorSection: View {
                     } isTargeted: { targeted = $0 }
                 VStack(alignment: .leading, spacing: 6) {
                     status
-                    Button(.ui("앨범아트 고르기…")) { choose() }
+                    Button(.ui("앨범아트 고르기")) { choose() }
                         .help(String(ui: "JPEG·PNG 앨범아트 파일을 골라 앨범아트 초안을 만듭니다"))
                     Button(.ui("앨범아트 지우기")) { store.deleteArtwork(rows: editable) }
                         .disabled(!editable.contains { store.artworkBase(for: $0).hasArtwork })
-                        .help(String(ui: "rekordbox의 앨범아트를 지우는 초안을 만듭니다"))
+                        .help(String(ui: "앨범아트를 지우는 초안을 만듭니다"))
                     Button(.ui("앨범아트 초안 버리기")) { store.discardArtworkDrafts(rows: editable) }
                         .disabled(drafts.isEmpty)
                 }
@@ -53,9 +53,9 @@ struct ArtworkInspectorSection: View {
                     .foregroundStyle(UIColors.draft.color)
                     .help(DraftMark.help)
                     .accessibilityLabel(Text(verbatim: "\(draft.kind.label), \(DraftMark.spoken)"))
-            } else {
-                Text(store.artworkBase(for: row).hasArtwork ? String(ui: "rekordbox 앨범아트") : String(ui: "앨범아트 없음"))
-                    .foregroundStyle(.secondary)
+            } else if !store.artworkBase(for: row).hasArtwork {
+                // 앨범아트가 있으면 그림이 보이므로 이름을 되풀이하지 않는다("rekordbox 앨범아트"는 아래 안내가 말한다).
+                Text(.ui("앨범아트 없음")).foregroundStyle(.secondary)
             }
         } else if !drafts.isEmpty {
             Label(String(ui: "앨범아트 초안 \(drafts.count)곡"), systemImage: DraftMark.symbol).foregroundStyle(UIColors.draft.color)
