@@ -21,7 +21,8 @@ import Testing
                 || ProcessInfo.processInfo.environment["DJC_LAYOUT_BENCHMARK_DB"] != nil))
 struct LayoutRecomputeTests {
     /// 합성 곡 하나를 덱에 올린 주 창(사이드바 열림)
-    private func mainWindow(width: Double = 1440, waveformHeight: Double = 150) async throws -> (window: NSWindow, deck: DeckModel, close: () -> Void) {
+    private func mainWindow(width: Double = 1440, waveformHeight: Double = 150,
+                            prepareStore: (LibraryStore) -> Void = { _ in }) async throws -> (window: NSWindow, deck: DeckModel, close: () -> Void) {
         _ = NSApplication.shared
         let settingNames = [SettingKeys.sidebarVisible.name, SettingKeys.showTagEditor.name, SettingKeys.sheetMode.name, SettingKeys.waveformHeight.name, SettingKeys.cueListFilter.name]
         let savedSettings = settingNames.map { UserDefaults.standard.object(forKey: $0) }
@@ -42,6 +43,7 @@ struct LayoutRecomputeTests {
         store.rekordboxDatabase = fixture.database
         store.rekordboxShareRoot = fixture.shareRoot
         await store.load(snapshot: snapshot)
+        prepareStore(store)
         let deck = DeckModel(audio: FakeDeckAudio(), storage: .memory(MemoryDrafts()), runsAnalysis: false)
         let controller = NSHostingController(rootView: ContentView(store: store, deck: deck, windowFrameRestored: false))
         let window = MemoryCueLimitCapture.UnconstrainedWindow(contentViewController: controller)
@@ -65,6 +67,30 @@ struct LayoutRecomputeTests {
     private func settle(_ window: NSWindow) async throws {
         try await Task.sleep(for: .milliseconds(300))
         window.contentView?.layoutSubtreeIfNeeded()
+    }
+
+    @Test func 초안_있는_곡과_없는_곡을_골라도_목록_첫_줄_위치가_같다() async throws {
+        var captured: LibraryStore?
+        let (window, _, close) = try await mainWindow { captured = $0 }
+        defer { close() }
+        let store = try #require(captured)
+        let draftRow = try #require(store.rows.dropFirst().first)
+        let cleanRow = try #require(store.rows.first)
+        var draft = TagDraft(track: draftRow.track); draft.fields.comment = "내 편집"
+        store.tagDrafts[draftRow.track.uuid] = draft
+        func table(in view: NSView) -> NSTableView? {
+            if let table = view as? NSTableView, table.identifier == KeyRouter.trackListID { return table }
+            return view.subviews.lazy.compactMap { table(in: $0) }.first
+        }
+        let list = try #require(window.contentView.flatMap { table(in: $0) })
+        var positions: [Double] = []
+        for row in [cleanRow, draftRow, cleanRow, draftRow] {
+            store.selection = [row.id]
+            try await settle(window)
+            positions.append(list.convert(list.rect(ofRow: 0), to: nil).minY)
+        }
+        print("TRACE 선택별 목록 첫 줄:", positions)
+        #expect(positions.allSatisfy { abs($0 - positions[0]) < 0.5 })
     }
 
     @Test func 창_폭을_조금씩_바꿔도_주_창_본문은_거의_다시_계산되지_않는다() async throws {
