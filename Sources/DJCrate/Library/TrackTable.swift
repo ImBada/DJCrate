@@ -1018,15 +1018,20 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         pendingEdit = nil
     }
 
-    /// Return·Enter: 고른 줄 중 표에서 첫 곡(스트리밍 제외)의 보이는 첫 태그 칸부터 고친다(Finder 이름 바꾸기처럼).
-    /// 방금 키 칸을 누른 그 줄에서만 키 고르기 메뉴를 연다(#204). 다른 줄로 옮겼으면 보이는 첫 글자 칸이다.
+    /// Return·Enter: 방금 누른 줄이 고른 줄 안에 있고 고칠 수 있으면(스트리밍·USB 제외) 그 줄에서, 아니면 고른 줄 중 표에서 첫 곡에서
+    /// 보이는 첫 태그 칸부터 고친다(Finder 이름 바꾸기처럼). 방금 키 칸을 눌렀으면 그 줄에서 키 고르기 메뉴를 연다(#204).
+    /// 누른 줄이 선택에서 빠졌거나 기억이 지워졌으면 보이는 첫 글자 칸이다. 어느 줄에서 시작하든 고칠 곡은 고른 곡 모두다.
     @discardableResult
     func beginEditingSelection() -> Bool {
-        guard let table,
-              let row = table.selectedRowIndexes.first(where: { rows.indices.contains($0) && !rows[$0].track.isStreaming && !rows[$0].isUsb })
+        guard let table else { return false }
+        let selected = table.selectedRowIndexes
+        let isEditable = { (index: Int) in self.rows.indices.contains(index) && !self.rows[index].track.isStreaming && !self.rows[index].isUsb }
+        let clicked = clickedCell.flatMap { cell in
+            selected.first { isEditable($0) && rows[$0].id == cell.rowID }.map { (row: $0, column: cell.column) }
+        }
+        guard let row = clicked?.row ?? selected.first(where: isEditable),
+              let column = TrackListTagEditing.firstColumn(in: visibleColumnIDs(table), clicked: clicked?.column)
         else { return false }
-        let clicked = clickedCell.flatMap { $0.rowID == rows[row].id ? $0.column : nil }
-        guard let column = TrackListTagEditing.firstColumn(in: visibleColumnIDs(table), clicked: clicked) else { return false }
         return beginEditing(row: row, column: column)
     }
 

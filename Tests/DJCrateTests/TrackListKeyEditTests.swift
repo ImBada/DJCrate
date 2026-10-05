@@ -114,6 +114,91 @@ struct TrackListKeyEditTests {
         h.command(#selector(NSResponder.cancelOperation(_:)))
     }
 
+    // MARK: - 고른 줄 안에서 누른 줄이 Return 대상이다
+
+    /// 여러 줄을 고른 채 아래쪽 줄의 키 칸을 ⌘-클릭하면(그 줄이 선택에 더해진다) Return은 첫 줄이 아니라 그 줄에서 키 메뉴를 연다.
+    @Test func 여러_줄을_고른_채_아래쪽_줄의_키_칸을_누르면_Return이_그_줄에서_키_메뉴를_열고_고른_곡_모두에_넣는다() throws {
+        let rows = (1...4).map { MusicalKeyEditingTests.row("\($0)", key: "5A") }
+        let h = ListHarness(rows: rows, selection: [rows[0].id, rows[1].id], showKey: true)
+        defer { h.close() }
+        var opened: (menu: NSMenu, point: NSPoint)?
+        h.coordinator.presentKeyMenu = { menu, point, _ in opened = (menu, point) }
+        commandClick(h, row: 3, column: "key")
+        #expect(h.table.selectedRowIndexes == IndexSet([0, 1, 3]))
+        h.pressReturn()
+        let shown = try #require(opened)
+        let keyColumn = try #require(h.table.tableColumns.firstIndex { $0.identifier.rawValue == "key" })
+        let rect = h.table.frameOfCell(atColumn: keyColumn, row: 3)
+        #expect(shown.point == NSPoint(x: rect.minX, y: rect.maxY))
+        #expect(h.coordinator.editingColumn == nil && h.editor == nil)
+        try choose("8A", menu: shown.menu)
+        #expect([0, 1, 3].allSatisfy { h.store.tagCell(rows[$0], .musicalKey) == "8A" })
+        #expect(h.store.tagCell(rows[2], .musicalKey) == "5A")
+    }
+
+    /// 누른 줄이 선택에서 빠지면 기억도 지워져 Return은 고른 줄 중 첫 곡의 보이는 첫 글자 칸이다.
+    @Test func 누른_줄을_선택에서_빼면_Return은_첫_줄의_첫_글자_칸을_고친다() throws {
+        let rows = (1...4).map { MusicalKeyEditingTests.row("\($0)", key: "5A") }
+        let h = ListHarness(rows: rows, selection: [rows[0].id, rows[1].id], showKey: true)
+        defer { h.close() }
+        var opened = 0
+        h.coordinator.presentKeyMenu = { _, _, _ in opened += 1 }
+        commandClick(h, row: 3, column: "key")
+        h.table.deselectRow(3)
+        #expect(h.table.selectedRowIndexes == IndexSet([0, 1]) && h.coordinator.clickedCell == nil)
+        h.pressReturn()
+        #expect(opened == 0 && h.coordinator.editingColumn == "title")
+        #expect(h.field?.isDescendant(of: try #require(h.cell(row: 0, column: "title"))) == true)
+        h.command(#selector(NSResponder.cancelOperation(_:)))
+    }
+
+    /// 아래쪽 줄의 글자 칸을 누르고 Return하면 키 메뉴가 아니라 그 줄의 보이는 첫 글자 칸이다(칸 규칙은 `firstColumn`).
+    @Test func 여러_줄을_고른_채_아래쪽_줄의_글자_칸을_누르면_Return이_그_줄의_첫_글자_칸을_고친다() throws {
+        let rows = (1...4).map { MusicalKeyEditingTests.row("\($0)", key: "5A") }
+        let h = ListHarness(rows: rows, selection: [rows[0].id, rows[1].id], showKey: true)
+        defer { h.close() }
+        var opened = 0
+        h.coordinator.presentKeyMenu = { _, _, _ in opened += 1 }
+        commandClick(h, row: 3, column: "artist")
+        h.pressReturn()
+        #expect(opened == 0 && h.coordinator.editingColumn == "title")
+        #expect(h.field?.isDescendant(of: try #require(h.cell(row: 3, column: "title"))) == true)
+        // 고른 곡 모두가 대상이다(인스펙터 여러 곡 편집과 같다)
+        h.type("새 제목")
+        h.command(#selector(NSResponder.insertNewline(_:)))
+        #expect([0, 1, 3].allSatisfy { h.store.tagCell(rows[$0], .title) == "새 제목" })
+        #expect(h.store.tagCell(rows[2], .title) == rows[2].track.title)
+    }
+
+    /// 누른 줄이 스트리밍·USB 곡이면 고칠 수 없으니 지금처럼 고른 줄 중 첫 곡의 보이는 첫 글자 칸이다.
+    @Test func 누른_줄이_스트리밍이나_USB_곡이면_Return은_고칠_수_있는_첫_줄의_글자_칸을_고친다() throws {
+        let a = MusicalKeyEditingTests.row("1", key: "5A")
+        let streaming = MusicalKeyEditingTests.row("s", streaming: true)
+        let usb = MusicalKeyEditingTests.row(UsbLibraryRows.idPrefix + "u", key: "6A")
+        let rows = [a, streaming, usb]
+        let h = ListHarness(rows: rows, selection: [a.id], showKey: true)
+        defer { h.close() }
+        var opened = 0
+        h.coordinator.presentKeyMenu = { _, _, _ in opened += 1 }
+        for index in [1, 2] {
+            commandClick(h, row: index, column: "key")
+            #expect(h.coordinator.clickedCell == .init(rowID: rows[index].id, column: "key"), "\(index)")
+            h.pressReturn()
+            #expect(opened == 0 && h.coordinator.editingColumn == "title", "\(index)")
+            #expect(h.field?.isDescendant(of: try #require(h.cell(row: 0, column: "title"))) == true, "\(index)")
+            h.command(#selector(NSResponder.cancelOperation(_:)))
+            h.table.deselectRow(index)
+        }
+    }
+
+    /// ⌘-클릭처럼 누른 줄을 기존 선택에 더한다(`ListHarness.click`은 그 줄 하나만 고른다).
+    private func commandClick(_ h: ListHarness, row: Int, column: String) {
+        guard let index = h.table.tableColumns.firstIndex(where: { $0.identifier.rawValue == column }) else { return }
+        let rect = h.table.frameOfCell(atColumn: index, row: row)
+        h.table.noteClick(at: NSPoint(x: rect.midX, y: rect.midY))
+        h.table.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: true)
+    }
+
     @Test func 같은_줄을_다시_누르면_키_메뉴를_열고_글자_칸을_누르면_다시_제목부터다() throws {
         let rows = (1...2).map { MusicalKeyEditingTests.row("\($0)", key: "5A") }
         let h = ListHarness(rows: rows, selection: [rows[1].id], showKey: true)
