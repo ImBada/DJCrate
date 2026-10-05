@@ -291,6 +291,7 @@ struct TrackColumn {
 @MainActor
 final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate, NSTextFieldDelegate {
     let store: LibraryStore
+    private lazy var recoveryMenu = DraftRecoveryMenu(store: store)
     weak var table: NSTableView?
     private var rows: [TrackRow] = []
     private var largestRowIndex = 0
@@ -593,6 +594,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         load.keyEquivalentModifierMask = .command
         load.target = self
         menu.addItem(load)
+        recoveryMenu.append(to: menu, rows: targets)
         let pending = targets.filter { !$0.isStaged && store.pendingUUIDs.contains($0.track.uuid) }
         if !pending.isEmpty {
             menu.addItem(.separator())

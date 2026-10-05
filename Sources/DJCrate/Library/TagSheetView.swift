@@ -98,6 +98,7 @@ struct CellPosition: Equatable {
 @MainActor
 final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate {
     let store: LibraryStore
+    private lazy var recoveryMenu = DraftRecoveryMenu(store: store)
     weak var table: SheetTableView?
     private(set) var rows: [TrackRow] = []
     private var rowIDs: [TrackRow.ID] = []
@@ -275,6 +276,10 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
         load.target = self
         load.tag = row
         menu.addItem(load)
+        if rows.indices.contains(row) {
+            let targets = selectionRect.rows.contains(row) ? selectionRect.rows.map { rows[$0] } : [rows[row]]
+            recoveryMenu.append(to: menu, rows: targets)
+        }
         return menu
     }
 

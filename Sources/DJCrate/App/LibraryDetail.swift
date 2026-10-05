@@ -55,7 +55,6 @@ struct LibraryDetail: View {
             LibraryDeckViewport(store: store, deck: deck, layout: layout, widthClass: widthClass)
             LibrarySplitHandle(layout: layout, height: $waveformHeight)
             VStack(spacing: 0) {
-                DraftRecoveryBar(store: store, deck: deck)
                 ListActionBar(store: store)
                 if showsSheet { SheetHeader() }
             }
