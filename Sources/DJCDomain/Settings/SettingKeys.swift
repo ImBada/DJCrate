@@ -66,6 +66,8 @@ public enum SettingKeys {
     // MARK: 목록·표
 
     public static let commentClassColumnHidden = SettingKey("library.commentClassColumnHidden", false)
+    /// 곡 목록·곡 수에서 스트리밍 곡을 뺀다. 보이는 것만 바꾸고 라이브러리·초안·rekordbox에 쓰는 내용은 그대로다(`StreamingVisibility`).
+    public static let hideStreaming = SettingKey("library.hideStreaming", false)
 
     /// 곡 UUID 모음: 무시한 게인·그리드·키 제안
     public static let dismissedGainSuggestions = "deck.dismissedGainSuggestions"
@@ -80,7 +82,7 @@ public enum SettingKeys {
          waveformHeight.name, textScale.name, playQuantizeBeats.name]
             + [quantize, playQuantize, carryCues, showSuggestions, keyLock, autoGain, peakProtection, useRekordboxGain,
                sheetMode, showTagEditor, sidebarPlaylistsExpanded, sidebarSummaryExpanded, sidebarHistoriesExpanded, sidebarShowsStatus,
-               sidebarVisible, commentClassColumnHidden].map(\.name)
+               sidebarVisible, commentClassColumnHidden, hideStreaming].map(\.name)
             + [dismissedGainSuggestions, dismissedGridSuggestions, dismissedKeySuggestions, deckShortcuts, waveformColorMode.name, commentPreset.name, cueListFilter.name]
     }
 }

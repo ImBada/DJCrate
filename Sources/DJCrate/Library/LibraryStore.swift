@@ -92,6 +92,18 @@ final class LibraryStore {
         }
     }
     var commentRuleEnabled: Bool { commentPreset.rule != nil }
+    /// 설정 '스트리밍 곡 숨기기'. 곡 목록·곡 수에 보이는 것만 바꾼다. 라이브러리에서 읽은 곡(`rows`)·초안·재생 목록 편집·쓰기 내용은 그대로다.
+    var hideStreaming: Bool {
+        didSet {
+            guard hideStreaming != oldValue else { return }
+            settings.set(SettingKeys.hideStreaming, hideStreaming)
+            applyStreamingVisibility()
+        }
+    }
+    /// 지금 보는 목록에서 '스트리밍 곡 숨기기' 때문에 뺀 줄 수. 0이 아니면 보이는 줄 번호가 목록 순서와 다르니 끌어 옮기지 않는다.
+    private(set) var streamingHiddenInView = 0
+    /// 지금 보는 목록에서 숨긴 줄의 ID(재생 기록의 반복 행처럼 곡 ID와 다른 줄 ID도 선택에서 뺀다)
+    @ObservationIgnored private var hiddenStreamingRowIDs: Set<TrackRow.ID> = []
 
     init(settings: SettingsStore = SettingsStore(), resultHistory: WriteResultHistory = WriteResultHistory(url: DJCPaths.userData.appending(path: "last-write-result.json")),
          feedback: AppFeedback = AppFeedback(), saveTagDrafts: @escaping ([TagDraft]) -> Void = { DraftWriter.save($0) },
@@ -104,6 +116,7 @@ final class LibraryStore {
         self.settings = settings
         self.dismissedKeySuggestions = settings.strings(SettingKeys.dismissedKeySuggestions)
         self.commentPreset = settings.commentPreset
+        self.hideStreaming = settings.value(SettingKeys.hideStreaming)
         self.saveTagDrafts = saveTagDrafts
         self.playlistDraftSaver = playlistDraftSaver
         self.mergeDraftSaver = mergeDraftSaver
@@ -409,7 +422,7 @@ final class LibraryStore {
     }
 
     func count(history: RekordboxHistory) -> Int {
-        history.entries.lazy.filter { self.rowsByID[$0.contentID] != nil }.count
+        StreamingVisibility.visibleCount(of: history.entries.map(\.contentID), hidingStreaming: hideStreaming) { rowsByID[$0]?.track }
     }
 
     func count(_ filter: LibraryFilter) -> Int { filterCounts[filter] ?? 0 }
@@ -460,8 +473,17 @@ final class LibraryStore {
         deckTrackID = id
     }
 
+    /// '스트리밍 곡 숨기기'를 적용하는 보기. 쓰기 대기 목록은 보이는 것이 곧 쓸 곡이라 거르지 않는다.
+    /// 추가한 곡·USB 곡·중복 후보·iTunes 목록은 스트리밍 곡이 들지 않는다.
+    private static func hidesStreaming(in sidebar: SidebarItem) -> Bool {
+        switch sidebar {
+        case .filter, .playlist, .history: true
+        case .itunesPlaylist, .duplicates, .staged, .pending, .usb: false
+        }
+    }
+
     func refreshBase() {
-        let base: [TrackRow]
+        var base: [TrackRow]
         switch sidebar {
         case let .filter(filter): base = rows.filter(filter.includes)
         case let .playlist(id): base = (playlistIndex[id]?.trackIDs ?? []).compactMap { rowsByID[$0] }
@@ -492,8 +514,42 @@ final class LibraryStore {
                 seen.insert(member.id).inserted ? rowsByID[member.id] : nil
             }
         }
+        var hiddenRows: [TrackRow] = []
+        if hideStreaming, Self.hidesStreaming(in: sidebar) {
+            hiddenRows = base.filter { $0.track.isStreaming }
+            if !hiddenRows.isEmpty { base = StreamingVisibility.visible(base, hidingStreaming: true) { $0.track } }
+        }
+        if streamingHiddenInView != hiddenRows.count { streamingHiddenInView = hiddenRows.count }
+        hiddenStreamingRowIDs = Set(hiddenRows.map(\.id))
         sortedBase = sortOrder.isEmpty ? base : base.sorted(using: sortOrder)
         refreshFiltered()
+        pruneHiddenSelection()
+    }
+
+    /// 숨긴 스트리밍 곡은 선택에서도 뺀다(숨은 곡에 쓰기·덱 동작이 가지 않게). 검색으로 가려진 곡의 선택은 건드리지 않는다.
+    private func pruneHiddenSelection() {
+        guard hideStreaming, Self.hidesStreaming(in: sidebar), !selection.isEmpty else { return }
+        let kept = selection.filter { !hiddenStreamingRowIDs.contains($0) && rowsByID[$0]?.track.isStreaming != true }
+        if kept != selection { selection = kept }
+    }
+
+    /// 설정을 바꾼 즉시: 필터·재생 목록 곡 수와 목록을 다시 만든다(다시 읽지 않는다).
+    private func applyStreamingVisibility() {
+        recountFilters()
+        recountPlaylists()
+        if hideStreaming, sidebar == .filter(.streaming) {
+            // 사이드바에서 사라지는 필터에 남지 않는다(목록은 sidebar 변경이 다시 만든다)
+            sidebar = .filter(.all)
+        } else {
+            refreshBase()
+        }
+    }
+
+    /// 필터별 곡 수. 숨기는 곡은 세지 않는다.
+    private func recountFilters() {
+        let filters = LibraryFilter.visible(commentPreset: commentPreset, hidingStreaming: hideStreaming)
+        filterCounts = StreamingVisibility.filterCounts(rows, filters: filters, hidingStreaming: hideStreaming,
+                                                        track: { $0.track }, includes: { $0.includes($1) })
     }
 
     /// 프리셋 전환은 초안·선택·스냅샷을 보존하고 코멘트 캐시만 갱신한다.
@@ -503,9 +559,7 @@ final class LibraryStore {
         for index in stagedRows.indices { stagedRows[index].applyCommentRule(rule) }
         for row in rows + stagedRows { rowsByID[row.id] = row; rowsByUUID[row.track.uuid] = row }
         report?.applyCommentRule(rule, comments: rows.map(\.comment))
-        filterCounts = Dictionary(uniqueKeysWithValues: LibraryFilter.visible(commentPreset: commentPreset).map {
-            ($0, rows.lazy.filter($0.includes).count)
-        })
+        recountFilters()
         suppressRefresh = true
         if !commentRuleEnabled {
             sortOrder.removeAll { $0.keyPath == \TrackRow.commentClassName }
@@ -880,6 +934,8 @@ final class LibraryStore {
             report = loaded.report
             filterCounts = loaded.filterCounts
             filterCounts[.missingFile] = rows.lazy.filter(LibraryFilter.missingFile.includes).count
+            // 읽는 동안(백그라운드) 숨기기 설정을 알 수 없었으니, 숨기는 중이면 곡 수를 다시 센다.
+            if hideStreaming { recountFilters() }
             duplicateGroups = loaded.duplicateGroups
             draftFileStamps = nil
             let previousTags = tagDrafts, previousPlaylist = playlistDraft

@@ -44,8 +44,9 @@ public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable {
 
     public var requiresCommentRule: Bool { self == .emptyComment || self == .offConvention }
 
-    public static func visible(commentPreset: CommentPreset) -> [LibraryFilter] {
-        allCases.filter { !$0.requiresCommentRule || commentPreset.rule != nil }
+    /// 사이드바에 보이는 필터. 스트리밍 곡을 숨기는 동안은 '스트리밍' 필터도 보이지 않는다.
+    public static func visible(commentPreset: CommentPreset, hidingStreaming: Bool = false) -> [LibraryFilter] {
+        allCases.filter { (!$0.requiresCommentRule || commentPreset.rule != nil) && !(hidingStreaming && $0 == .streaming) }
     }
 
     /// - Parameter fileMissing: 음원 파일을 찾지 못한 곡인지(`MissingFiles`). 스트리밍 곡은 세지 않는다.

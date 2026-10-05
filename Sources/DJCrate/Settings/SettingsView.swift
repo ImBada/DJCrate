@@ -88,6 +88,14 @@ struct GeneralSettingsView: View {
                 Text(.ui("실제 컬렉션·삭제 행·수동 큐 곡 수와 지금 연 스냅샷 파일 이름을 사이드바 맨 아래에 보여 줍니다."))
                     .foregroundStyle(.secondary)
             }
+            Section {
+                Toggle(.ui("스트리밍 곡 숨기기"), isOn: $store.hideStreaming)
+            } header: {
+                Text(.ui("곡 목록"))
+            } footer: {
+                Text(.ui("곡 목록과 곡 수에서 스트리밍 곡을 뺍니다. rekordbox 라이브러리는 바뀌지 않습니다."))
+                    .foregroundStyle(.secondary)
+            }
             Section(.ui("코멘트")) {
                 Picker(.ui("코멘트 프리셋"), selection: $store.commentPreset) {
                     ForEach(CommentPreset.allCases, id: \.self) { Text($0.title).tag($0) }
@@ -110,7 +118,7 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         // 묶음 폼은 스크롤 뷰라 내용 높이를 스스로 알리지 않는다. 설정 창 높이를 탭마다 정한다.
-        .frame(width: 520, height: 500)
+        .frame(width: 520, height: 640)
     }
 
     static func durationText(_ seconds: Double) -> String {

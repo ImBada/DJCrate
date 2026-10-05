@@ -16,7 +16,7 @@ struct Sidebar: View {
         let _ = PerfProbe.body(Self.self)
         List(selection: $store.sidebar) {
             Section {
-                ForEach(LibraryFilter.visible(commentPreset: store.commentPreset)) { filter in
+                ForEach(LibraryFilter.visible(commentPreset: store.commentPreset, hidingStreaming: store.hideStreaming)) { filter in
                     SidebarFilterRow(store: store, filter: filter)
                         .tag(SidebarItem.filter(filter))
                 }
@@ -269,6 +269,9 @@ struct ListActionBar: View {
                 }
             }
         case let .playlist(id):
+            // 숨긴 스트리밍 곡 때문에 끌어 옮길 수 없는 목록은 이유를 알린다(`canReorderDisplayedTracks`).
+            // 줄이 하나도 안 남았으면 목록 가운데 안내(`EmptyLibraryOverlay`)가 같은 말을 한다.
+            let hiddenNote = store.streamingHiddenInView > 0 && store.editablePlaylistID == id && !store.displayRows.isEmpty
             if let node = store.playlistIndex[id], node.isDraft || node.blockedReason != nil {
                 bar {
                     if let reason = node.blockedReason {
@@ -287,7 +290,10 @@ struct ListActionBar: View {
                         Button(.ui("이 목록의 초안 버리기")) { store.discardPlaylistDraft(id) }
                             .disabled(store.isWritingRekordbox)
                     }
+                    if hiddenNote { hiddenStreamingNote }
                 }
+            } else if hiddenNote {
+                bar { hiddenStreamingNote }
             } else {
                 EmptyView()
             }
@@ -352,6 +358,12 @@ struct ListActionBar: View {
         default:
             EmptyView()
         }
+    }
+
+    private var hiddenStreamingNote: some View {
+        Label(.ui("스트리밍 \(store.streamingHiddenInView)곡을 숨기는 중 · 순서를 바꾸려면 설정에서 숨기기를 끄세요"), systemImage: "eye.slash")
+            .font(.caption).foregroundStyle(.secondary)
+            .lineLimit(1)
     }
 
     private func bar<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
