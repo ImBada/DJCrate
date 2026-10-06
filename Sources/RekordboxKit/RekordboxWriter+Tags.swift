@@ -152,13 +152,19 @@ extension RekordboxWriter {
     /// - Returns: 통과한 초안, 막힌 결과, 통과한 초안 중 재생 목록 XML을 고쳐야 하는 곡(UUID → DB `Title`, `tagTouchesPlaylistXML`)
     /// - Parameter scopes: 칸별로 좁게 확인한 범위(앱은 `TagWriteScope.byKey`, 사본 실험만 비운다)
     static func checkTagDrafts(_ tags: [TagDraft], db: CipherDatabase, writable: Set<TagFields.Key>, mergesPending: Bool = false,
+                               playlistSteps: [PlaylistDraft.Step] = [],
                                scopes: [TagFields.Key: TagWriteScope] = TagWriteScope.byKey)
         throws -> (passed: [TagDraft], blocked: [Outcome], touchesXML: [String: String]) {
         var passed: [TagDraft] = [], blocked: [Outcome] = [], touchesXML: [String: String] = [:]
         var albumsMayChange = mergesPending
+        // 트랜잭션은 재생 목록 편집을 태그보다 먼저 쓴다. 같은 쓰기에서 목록에 들어갈 곡도 백업 전에 목록에 든 곡으로 본다.
+        let added = Set(playlistSteps.flatMap { step -> [String] in
+            if case let .addTracks(_, contentIDs) = step.edit { contentIDs } else { [] }
+        })
         for draft in tags {
             do {
-                let checked = try checkTags(draft, db: db, writable: writable, albumChecks: albumsMayChange ? .startOnly : .all, scopes: scopes)
+                let checked = try checkTags(draft, db: db, writable: writable, albumChecks: albumsMayChange ? .startOnly : .all,
+                                            addedToPlaylists: added, scopes: scopes)
                 passed.append(draft)
                 if !Set(draft.changedKeys).isDisjoint(with: [.artist, .album, .albumArtist]) { albumsMayChange = true }
                 if try tagTouchesPlaylistXML(draft, contentID: checked.id, db: db) { touchesXML[draft.trackUUID] = checked.title }
@@ -181,7 +187,9 @@ extension RekordboxWriter {
     /// 쓰기 전에 막을 조건: 곡 없음·지운 곡·닫힌 칸·잘못된 값·곡·앨범 상태·앨범 조건·base 불일치. 막히면 `Blocked`, 통과하면 곡 행 정보.
     /// 백업을 뜨기 전(읽기 연결, 시작 DB)과 트랜잭션 안(앞 초안을 쓴 DB)에서 같은 함수로 두 번 본다. 버려질 옛 행은 여기서 보지 않는다.
     /// 동명 앨범으로 옮길지(`migratesAlbum`)는 트랜잭션 안에서 부른 결과만 쓴다(백업 전 결과는 버린다).
+    /// - Parameter addedToPlaylists: 같은 쓰기의 재생 목록 초안이 목록에 넣을 곡(ContentID). 백업 전 확인만 준다(트랜잭션 안에서는 이미 들어가 있다).
     static func checkTags(_ draft: TagDraft, db: CipherDatabase, writable: Set<TagFields.Key>, albumChecks: AlbumChecks = .all,
+                          addedToPlaylists: Set<String> = [],
                           scopes: [TagFields.Key: TagWriteScope] = TagWriteScope.byKey) throws -> CheckedTag {
         var contents: [(id: String, title: String, deleted: Bool, trackInfoUpdated: String?, state: Int?)] = []
         try db.query("SELECT ID, Title, rb_local_deleted, TrackInfoUpdated, rb_data_status FROM djmdContent WHERE UUID = ?",
@@ -206,14 +214,18 @@ extension RekordboxWriter {
             throw block(String(ui: "앨범이 없는 곡에는 앨범 아티스트를 쓸 수 없습니다"))
         }
         try checkTagState(draft, state: content.state, block: block)
-        // 칸별로 좁게 확인한 범위(평점·곡 색: 상태 0, 재생 목록에 없는 곡, #65). 판단은 `TagWriteScope` 한 곳이다.
+        // 칸별로 좁게 확인한 범위(평점·곡 색: 상태 0, 재생 목록에 없는 곡, 걸리는 인텔리전트 목록 없음, #65). 판단은 `TagWriteScope` 한 곳이다.
         let narrowed = draft.changedKeys.filter { scopes[$0] != nil }
         if !narrowed.isEmpty {
             var listed = false
             if narrowed.contains(where: { !TagWriteScope.scope(for: $0, in: scopes).playlistXML }) {
-                listed = try !tagPlaylists(db, contentID: content.id).isEmpty
+                listed = try addedToPlaylists.contains(content.id) || !tagPlaylists(db, contentID: content.id).isEmpty
             }
             if let reason = TagWriteScope.blockReason(keys: narrowed, state: content.state, inPlaylist: listed, scopes: scopes) { throw block(reason) }
+            if narrowed.contains(where: { !TagWriteScope.scope(for: $0, in: scopes).smartPlaylists }),
+               let reason = TagWriteScope.smartPlaylistBlockReason(keys: narrowed, smartPlaylists: try smartPlaylists(db), scopes: scopes) {
+                throw block(reason)
+            }
         }
         try checkTagAlbum(draft, contentID: content.id, db: db, checks: albumChecks, block: block)
         // 독립 칸(키·평점·곡 색)은 이 초안이 고칠 때만 기준과 비교한다. 그 칸이 없던 때의 초안(기준이 빈칸)이 이미 값이 있는 곡에서, 또는 그 뒤
@@ -269,6 +281,18 @@ extension RekordboxWriter {
     }
 
     /// 곡이 든 살아 있는 재생 목록(곡 정보를 쓰면 XML Timestamp를 고친다, #173). 지운 목록·지운 곡 항목은 뺀다.
+    /// 살아 있는 인텔리전트 재생 목록의 이름과 조건(라이브러리 읽기 `RekordboxPlaylist.smartSource`와 같은 판단, #68)
+    static func smartPlaylists(_ db: CipherDatabase) throws -> [(name: String, source: SmartPlaylistSource)] {
+        var lists: [(name: String, source: SmartPlaylistSource)] = []
+        try db.query("""
+            SELECT Name, Attribute, SmartList FROM djmdPlaylist
+            WHERE rb_local_deleted = 0 AND (Attribute > 1 OR ifnull(SmartList, '') <> '') ORDER BY Seq, ID
+            """) { r in
+            lists.append((r.string(0) ?? "", SmartPlaylistSource.reading(attribute: r.int(1) ?? 0, smartList: r.string(2))))
+        }
+        return lists
+    }
+
     static func tagPlaylists(_ db: CipherDatabase, contentID: String) throws -> [String] {
         var ids: [String] = []
         try db.query("""

@@ -41,4 +41,25 @@ struct EditStagingTests {
         }
         #expect(StagingStore.load(url: home.appending(path: "staged.json")).count == 1)
     }
+
+    @Test func 원곡의_키·평점·곡_색은_편집본의_고친_칸으로_담지_않는다() async throws {
+        // 원곡 값은 편집본에서 사용자가 고른 값이 아니다. 고친 칸이면 곡을 넣을 때 쓰이고, 평점·곡 색은 확인한 범위(#65) 밖이면 막혀
+        // 다른 칸까지 못 쓴다. 추가한 곡에서 고르면 넣을 때 함께 쓴다.
+        let home = FileManager.default.temporaryDirectory.appending(path: "djc-edit-stage-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let output = try AudioFixture.wav(seconds: 132, in: home, name: "원곡 (Edit).wav")
+        let edit = try TrackEdit(grid: grid, sourceDuration: 100.5, bars: BarRange.list("1-16,1-16,17-50"))
+        let plain = source()
+        let rated = Track(id: plain.id, uuid: plain.uuid, title: plain.title, artist: plain.artist, album: plain.album, albumArtist: nil,
+                          genre: plain.genre, composer: nil, releaseYear: plain.releaseYear, trackNumber: plain.trackNumber, key: "8A", bpm: 120,
+                          lengthSeconds: 100, folderPath: plain.folderPath, comment: plain.comment, importedOn: nil, analysisDataPath: nil,
+                          imagePath: nil, isDeleted: false, rating: 4, colorID: "2")
+
+        let staged = try await EditStaging.stage(fileAt: output, edit: edit, cues: [], source: rated, home: home)
+        let tags = try #require(TagDraftStore.load(trackUUID: staged.uuid, directory: home.appending(path: "tag-drafts")))
+        #expect(tags.fields.musicalKey == tags.base.musicalKey && tags.fields.rating == tags.base.rating && tags.fields.color == tags.base.color)
+        #expect(Set(tags.changedKeys).isDisjoint(with: TagFields.Key.independent), "\(tags.changedKeys)")
+        #expect(tags.fields.artist == "아티스트" && tags.fields.title == "원곡 (Edit)", "다른 칸은 원곡에서 가져온다")
+    }
 }

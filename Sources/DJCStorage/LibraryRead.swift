@@ -72,7 +72,6 @@ public struct LibraryRead {
         return TrackList(tracks: result.map(TrackRecord.init))
     }
 
-    /// 초안을 시작할 때 쓰는 원본. 이미 열린 스냅샷에서만 읽는다.
     /// rekordbox 곡 색 목록(읽지 못했으면 rekordbox 기본 여덟 색)
     public var colors: [TrackColor] { library.colors.isEmpty ? TrackColor.rekordboxDefaults : library.colors }
 
@@ -81,6 +80,7 @@ public struct LibraryRead {
         library.playlists.contains { !$0.isFolder && $0.trackIDs.contains(id) }
     }
 
+    /// 초안을 시작할 때 쓰는 원본. 이미 열린 스냅샷에서만 읽는다.
     public func draftSource(id: String) throws -> (track: Track, cues: [Cue]) {
         guard let track = byID[id] else { throw ReadFailure("not_found", String(ui: "곡을 찾지 못했습니다. search로 ContentID를 확인하세요")) }
         return (track, library.cues(for: track))

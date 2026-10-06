@@ -25,9 +25,9 @@ public enum EditStaging {
         var tags = TagDraft(track: staged.track)
         if let source {
             tags.fields = TagFields(track: source)
-            // 원곡 키는 이 편집본에서 사용자가 확인한 키가 아니니 고친 칸으로 담지 않는다(#5: 사용자가 고른 키만 쓴다, 담으면 곡을 넣을 때 쓰인다).
-            // 추가한 곡에서 키를 고르면 넣을 때 함께 쓴다.
-            tags.fields.musicalKey = tags.base.musicalKey
+            // 원곡의 키·평점·곡 색은 이 편집본에서 사용자가 고른 값이 아니니 고친 칸으로 담지 않는다(#5: 사용자가 고른 키만 쓴다, 담으면 곡을 넣을 때
+            // 쓰인다. 평점·곡 색은 #65). 추가한 곡에서 고르면 넣을 때 함께 쓴다.
+            for key in TagFields.Key.independent { tags.fields[key] = tags.base[key] }
         }
         tags.fields.title = title ?? source.map { "\($0.title) (Edit)" } ?? staged.title
 

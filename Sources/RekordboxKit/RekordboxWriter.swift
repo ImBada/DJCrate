@@ -166,7 +166,8 @@ public enum RekordboxWriter {
         if !tags.isEmpty {
             let reader = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
             defer { reader.close() }
-            let checked = try checkTagDrafts(tags, db: reader, writable: tagKeys, mergesPending: !merges.isEmpty, scopes: tagScopes)
+            let checked = try checkTagDrafts(tags, db: reader, writable: tagKeys, mergesPending: !merges.isEmpty,
+                                             playlistSteps: playlistSteps, scopes: tagScopes)
             tags = checked.passed
             tagOutcomes = checked.blocked
             xmlTags = checked.touchesXML

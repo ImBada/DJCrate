@@ -151,6 +151,90 @@ extension RekordboxTagWriterTests {
         #expect(try Data(contentsOf: url) == xml, "평점·색은 XML을 고치는 칸이 아니다")
     }
 
+    @Test func 같은_쓰기의_재생_목록_초안이_곡을_목록에_넣으면_백업_전_확인에서_막는다() throws {
+        // 트랜잭션은 재생 목록 편집을 태그보다 먼저 쓰므로 거기서도 막히지만, 미리 보기·백업 전 확인이 같은 판단을 해야 한다
+        let (fixture, track) = try ratingLibrary()
+        _ = try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["501"]))
+        let rating = try draft(fixture, track) { $0.rating = "3" }, title = try draft(fixture, track) { $0.title = "새 제목" }
+        let steps = [PlaylistDraft.Step(edit: .addTracks(playlist: .id("201"), contentIDs: ["500"]))]
+        let db = try fixture.open()
+        defer { db.close() }
+        let checked = try RekordboxWriter.checkTagDrafts([rating], db: db, writable: Self.allKeys, playlistSteps: steps)
+        #expect(checked.passed.isEmpty && checked.blocked.first?.reason?.contains("재생 목록") == true)
+        // 새로 만드는 목록에 넣어도 같다. 다른 곡을 넣거나 빼기만 하면, 또는 다른 칸만 고치면 막지 않는다
+        let created = [PlaylistDraft.Step(edit: .create(key: "n", name: "새 목록", isFolder: false, parent: .root)),
+                       PlaylistDraft.Step(edit: .addTracks(playlist: .new("n"), contentIDs: ["501", "500"]))]
+        #expect(try RekordboxWriter.checkTagDrafts([rating], db: db, writable: Self.allKeys, playlistSteps: created).passed.isEmpty)
+        let others = [PlaylistDraft.Step(edit: .addTracks(playlist: .id("201"), contentIDs: ["501"])),
+                      PlaylistDraft.Step(edit: .removeTracks(playlist: .id("201"), entries: [PlaylistEntry(trackNo: 1, contentID: "501")]))]
+        #expect(try RekordboxWriter.checkTagDrafts([rating], db: db, writable: Self.allKeys, playlistSteps: others).passed == [rating])
+        #expect(try RekordboxWriter.checkTagDrafts([title], db: db, writable: Self.allKeys, playlistSteps: steps).passed == [title])
+        db.close()
+
+        // 쓰기 전체: 목록 편집은 쓰고 평점 초안만 막는다
+        let report = try RekordboxWriter.write(drafts: [], grids: [], gains: [:], tags: [rating], analysisInputs: [:],
+                                               playlists: steps.map(\.edit), to: fixture.database, dryRun: false, now: now,
+                                               backups: fixture.backups, shareRoot: fixture.shareRoot, attachesAnalysis: false, tagKeys: Self.allKeys)
+        #expect(report.tagWritten.isEmpty && report.tagBlocked.first?.reason?.contains("재생 목록") == true)
+        #expect(report.playlistOutcomes?.map(\.status) == [.written])
+        #expect(try raw(fixture, "Rating").value == "0")
+    }
+
+    // MARK: 막기 — 인텔리전트 재생 목록(묶음 2에서 보지 못함)
+
+    func smartList(_ fixture: RekordboxFixture, id: String = "301", _ smartList: String?) throws {
+        _ = try fixture.add(PlaylistSpec(id: id, name: "스마트 \(id)", seq: 9))
+        try fixture.execute("UPDATE djmdPlaylist SET Attribute = 4, SmartList = ? WHERE ID = ?", [smartList.map { .text($0) } ?? .null, .text(id)])
+    }
+
+    static func condition(_ property: String, _ op: Int = 1, left: String = "3") -> String {
+        "<NODE Id=\"-1\" LogicalOperator=\"1\" AutomaticUpdate=\"0\">"
+            + "<CONDITION PropertyName=\"\(property)\" Operator=\"\(op)\" ValueUnit=\"\" ValueLeft=\"\(left)\" ValueRight=\"\"/></NODE>"
+    }
+
+    @Test(arguments: [condition("rating", 3), condition("color"), condition("colour"), "<NODE/>", "", nil])
+    func 평점이나_곡_색_조건을_쓰거나_조건을_못_읽는_인텔리전트_목록이_있으면_백업_전에_막는다(smart: String?) throws {
+        // rekordbox가 그 목록의 Timestamp·곡 항목을 고치는지 확인하지 않았다[미확인]. 모르는 항목 이름은 곡 색일 수 있어 막는다.
+        let (fixture, track) = try ratingLibrary()
+        try smartList(fixture, smart)
+        let before = try content(fixture)
+        // 평점 조건은 평점에만 걸린다. 모르는 항목·못 읽은 조건은 둘 다 막는다
+        let ratingOnly = smart == Self.condition("rating", 3)
+        var edits: [(inout TagFields) -> Void] = [{ $0.rating = "3" }]
+        if !ratingOnly { edits.append { $0.color = "2" } }
+        for edit in edits {
+            let report = try write(fixture, tags: [try draft(fixture, track, edit)])
+            #expect(report.tagWritten.isEmpty && report.backup == nil)
+            let reason = try #require(report.tagBlocked.first?.reason)
+            #expect(reason.contains("인텔리전트 재생 목록") && reason.contains("스마트 301") && reason.contains("rekordbox에서"), "\(reason)")
+        }
+        #expect(try content(fixture) == before)
+        if ratingOnly { #expect(try write(fixture, tags: [try draft(fixture, track) { $0.color = "2" }]).tagWritten.count == 1) }
+        // 다른 칸은 예전처럼 쓴다
+        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.title = "새 제목" }]).tagWritten.count == 1)
+    }
+
+    @Test func 평점·곡_색과_상관없는_조건의_인텔리전트_목록과_지운_목록은_막지_않는다() throws {
+        let (fixture, track) = try ratingLibrary()
+        try smartList(fixture, Self.condition("name", 8, left: "가"))
+        try smartList(fixture, id: "302", Self.condition("year", 3, left: "2000"))
+        try smartList(fixture, id: "303", Self.condition("rating"))
+        try fixture.execute("UPDATE djmdPlaylist SET rb_local_deleted = 1 WHERE ID = '303'")
+        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.rating = "3"; $0.color = "2" }]).tagWritten.count == 1)
+        #expect(try raw(fixture, "Rating").value == "3" && raw(fixture, "ColorID").value == "'2'")
+    }
+
+    @Test func 인텔리전트_목록_조건은_트랜잭션_안에서도_본다() throws {
+        let (fixture, track) = try ratingLibrary()
+        let tags = try draft(fixture, track) { $0.rating = "3" }
+        try smartList(fixture, Self.condition("rating"))
+        let db = try fixture.open()
+        defer { db.close() }
+        #expect(throws: RekordboxWriter.Blocked.self) { _ = try RekordboxWriter.checkTags(tags, db: db, writable: Self.allKeys) }
+        // 사본 실험(범위 표를 비움)은 막지 않는다
+        #expect(throws: Never.self) { _ = try RekordboxWriter.checkTags(tags, db: db, writable: Self.allKeys, scopes: [:]) }
+    }
+
     @Test func 막힌_평점_초안은_같은_쓰기의_다른_곡을_막지_않는다() throws {
         let (fixture, track) = try ratingLibrary()
         let neighbor = TrackSpec(id: "501", uuid: "track-uuid-501")
