@@ -27,17 +27,28 @@ public struct Track: Sendable, Identifiable, Hashable {
     public let imagePath: String?
     /// 컬렉션에서 삭제됐지만 행이 남아 있는 tombstone.
     public let isDeleted: Bool
+    /// 평점(`Rating`, 별 수 0~5). 0이면 없음.
+    public let rating: Int
+    /// 곡 색(`ColorID` = `djmdColor.ID`). 없으면('0'·''·NULL) nil.
+    public let colorID: String?
+    /// 곡 행의 클라우드 동기화 상태(`rb_data_status`, 0·256·257 …). 추가한 곡(아직 rekordbox에 없음)은 nil.
+    public let dataStatus: Int?
 
     public init(id: String, uuid: String, title: String, artist: String?, album: String?, albumArtist: String?,
                 genre: String?, composer: String?, releaseYear: Int?, trackNumber: Int?, key: String?, bpm: Double?,
                 lengthSeconds: Int, folderPath: String, comment: String, importedOn: String?,
-                analysisDataPath: String?, imagePath: String?, isDeleted: Bool, bitrateKbps: Int? = nil) {
+                analysisDataPath: String?, imagePath: String?, isDeleted: Bool, bitrateKbps: Int? = nil,
+                rating: Int = 0, colorID: String? = nil, dataStatus: Int? = nil) {
         self.id = id; self.uuid = uuid; self.title = title; self.artist = artist; self.album = album
         self.albumArtist = albumArtist; self.genre = genre; self.composer = composer; self.releaseYear = releaseYear
         self.trackNumber = trackNumber; self.key = key; self.bpm = bpm; self.lengthSeconds = lengthSeconds
         self.folderPath = folderPath; self.comment = comment; self.importedOn = importedOn
         self.analysisDataPath = analysisDataPath; self.imagePath = imagePath; self.isDeleted = isDeleted
         self.bitrateKbps = bitrateKbps.flatMap { $0 > 0 ? $0 : nil }
+        self.rating = rating
+        // rekordbox는 색을 지우면 '0'을 쓴다(2026-10-04 묶음 2 S3). ''·NULL도 없음으로 읽는다.
+        self.colorID = colorID.flatMap { $0.isEmpty || $0 == "0" ? nil : $0 }
+        self.dataStatus = dataStatus
     }
 
     /// 스트리밍 트랙(`apple-music:…`, `spotify:…` 등)은 로컬 파일 경로가 없다.

@@ -14,6 +14,8 @@ public struct RekordboxLibrary: Sendable {
     public var autoGains: [String: RekordboxAutoGain] = [:]
     /// ContentID → 살아 있는 그림 파일 행(`contentFile`의 `/PIONEER/Artwork/…`). 그림 초안의 base로 쓴다(#66).
     public var artworkFiles: [String: [ArtworkFileRow]] = [:]
+    /// rekordbox 곡 색 목록(`djmdColor`의 살아 있는 줄, `SortKey` 순서, #65). 읽지 못했으면 비어 있다(앱은 rekordbox 기본 여덟 색을 쓴다).
+    public var colors: [TrackColor] = []
 
     /// 실제 컬렉션. 제안·커버리지·백로그 집계는 이것만 대상으로 한다.
     public var tracks: [Track] { allTracks.filter { !$0.isDeleted } }
@@ -40,7 +42,8 @@ public struct RekordboxLibrary: Sendable {
             SELECT c.ID, c.UUID, c.Title, a.Name, al.Name, g.Name, k.ScaleName,
                    c.BPM, c.Length, c.FolderPath, c.Commnt, c.created_at,
                    c.AnalysisDataPath, c.rb_local_deleted, c.ImagePath,
-                   cp.Name, aa.Name, c.ReleaseYear, c.TrackNo, c.BitRate
+                   cp.Name, aa.Name, c.ReleaseYear, c.TrackNo, c.BitRate,
+                   c.Rating, c.ColorID, c.rb_data_status
             FROM djmdContent c
             LEFT JOIN djmdArtist a ON a.ID = c.ArtistID
             LEFT JOIN djmdAlbum al ON al.ID = c.AlbumID
@@ -70,7 +73,10 @@ public struct RekordboxLibrary: Sendable {
                 analysisDataPath: row.string(12),
                 imagePath: row.string(14),
                 isDeleted: (row.int(13) ?? 0) != 0,
-                bitrateKbps: row.int(19)
+                bitrateKbps: row.int(19),
+                rating: row.int(20) ?? 0,
+                colorID: row.string(21),
+                dataStatus: row.int(22)
             ))
         }
 
@@ -122,6 +128,13 @@ public struct RekordboxLibrary: Sendable {
             artworkFiles[id, default: []].append(ArtworkFileRow(path: r.string(1) ?? "", hash: r.string(2), size: r.int(3), status: r.int(4)))
         }
         library.artworkFiles = artworkFiles
+        // 곡 색 이름: 사용자가 rekordbox에서 바꿀 수 있어 라이브러리 값을 그대로 보인다(목록·고르기 순서는 SortKey)
+        var colors: [TrackColor] = []
+        try? db.query("SELECT ID, Commnt FROM djmdColor WHERE rb_local_deleted = 0 ORDER BY SortKey, ID") { r in
+            guard let id = r.string(0), !id.isEmpty else { return }
+            colors.append(TrackColor(id: id, name: r.string(1) ?? id))
+        }
+        library.colors = colors
         return library
     }
 }

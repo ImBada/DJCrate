@@ -21,7 +21,7 @@ struct MusicalKeyTagTests {
         #expect(TagFields.Key.musicalKey.label == "키")
         // 옛 칸 순서는 그대로 두고 맨 뒤에 붙인다(순서에 기대는 출력·시험이 바뀌지 않게)
         #expect(Array(TagFields.Key.allCases.prefix(9)) == [.title, .artist, .album, .albumArtist, .genre, .composer, .year, .trackNumber, .comment])
-        #expect(TagFields.Key.allCases.last == .musicalKey)
+        #expect(TagFields.Key.allCases[9] == .musicalKey, "평점·곡 색(#65)은 그 뒤에 붙는다")
     }
 
     @Test func 곡의_rekordbox_키가_기준값이다() {
