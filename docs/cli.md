@@ -172,6 +172,16 @@ djc xml-export --db /tmp/djc-fixture/master.db --out /tmp/djc-fixture/library.xm
 
 앱에서는 파일 메뉴의 "라이브러리 XML 내보내기…"가 같은 일을 한다.
 
+### rekordbox가 직접 내보낸 XML과 견주기
+
+칸 이름과 값의 출처는 rekordbox가 공개한 XML 형식 문서와 기존 XML 경로로 정했고, rekordbox가 만든 XML과의 칸 비교는 아직 하지 않았다(사용자 실험 몫). 비교하려면:
+
+1. rekordbox 7.2.x에서 파일 › 라이브러리 › **Export Collection in xml format**으로 XML을 rekordbox 폴더 밖에 저장한다.
+2. rekordbox를 완전히 종료한 뒤 `djc snapshot`으로 사본을 뜨고 같은 시점의 XML을 만든다: `djc xml-export --db <그 사본.db> --out <파일.xml>`.
+3. `python3 -I scripts/xml-compare.py <rekordbox가 만든.xml> <djc가 만든.xml>`. 곡은 `Location`으로 짝짓고, 칸마다 같음·다름·한쪽에만 있음의 개수, TEMPO·POSITION_MARK의 곡 단위 일치, 재생 목록 트리의 경로·곡 순서를 센다. 값은 찍지 않는다(`--examples N`은 이 Mac에서만 볼 값 예를 찍는다).
+
+rekordbox가 만든 XML에는 곡 정보가 들어 있으니 저장소·이슈에 올리지 않는다. 결과에서 먼저 볼 가정: `TrackID` = `ContentID`, `DateAdded` = `StockDate`, `PlayCount` = `DJPlayCount`, `Tonality` = 키 이름(rekordbox의 키 표시 설정과 같은지), `Kind`·`Location` 퍼센트 인코딩(`&`·`#`·괄호 등), 값이 0일 때 칸을 빼는 `BitRate`·`SampleRate`·`Size`·`AverageBpm`, TEMPO의 BPM 반올림·변속 곡 구간 수, 자동 큐 포함 여부, 루프·핫큐 루프의 `Type`·`End`·`Num`, rekordbox만 가진 `POSITION_MARK` 칸(색), 인텔리전트·My Tag 노드의 모양.
+
 ## USB 내보내기(`usb-export`)
 
 ```sh
