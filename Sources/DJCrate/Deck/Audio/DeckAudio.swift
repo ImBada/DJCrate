@@ -74,6 +74,13 @@ final class DeckAudio {
     /// 걸어 둘 루프(곡 위치, rekordbox 시간축)
     private(set) var loopRange: ClosedRange<Double>?
 
+    // MARK: Flip 기록
+
+    /// 재생 한 번이 끝날 때(멈춤·다른 자리에서 다시 재생) 그동안 들린 구간을 알린다(덱의 Flip 기록).
+    var onPlayedRun: ((PlayedRun) -> Void)?
+    /// 이번 재생에서 이 노드 샘플 앞은 이미 알렸다(`takePlayedRun`)
+    private var playedFromNode = -Double.infinity
+
     /// 메모리에 풀어 둔 곡이 있어 루프를 샘플 단위로 이어 붙일 수 있는지(없으면 화면 틱이 되돌린다)
     var canLoopSampleAccurately: Bool { decoded != nil }
     /// 지금 예약된 재생에 루프가 들어 있어 오디오가 알아서 되풀이하는지
@@ -274,9 +281,10 @@ final class DeckAudio {
         let wasPlaying = isPlaying
         let position = self.position
         AudioEvents.record("출력 구성 변경 · 재생 중=\(wasPlaying) · 엔진 동작=\(isEngineRunning) · \(String(format: "%.2f", position))초 · 장치 \(outputDeviceName())")
+        // 엔진이 이미 멈췄고 이어 재생이 실패할 수도 있다. Flip 기록에는 이어진 재생(점프)으로 남기지 않는다.
+        stopTrack(endingRun: false)
         jumpNode = nil
         hasPendingJump = false
-        trackNode?.stop()
         clickNode?.stop()
         isPlaying = false
         pausedPosition = position
@@ -320,9 +328,9 @@ final class DeckAudio {
         lastRecovery = now
         let position = self.position
         AudioEvents.record("엔진이 멈춰 있음(재생 중) · \(String(format: "%.2f", position))초에서 복구 · 장치 \(outputDeviceName())")
+        stopTrack(endingRun: false)
         jumpNode = nil
         hasPendingJump = false
-        trackNode?.stop()
         clickNode?.stop()
         isPlaying = false
         reconnectOutput()
@@ -436,11 +444,43 @@ final class DeckAudio {
     /// 지금 들리는 곡 위치. 출력·변환 지연만큼 빼서 화면이 소리와 맞게 한다.
     var position: Double {
         guard isPlaying else { return pausedPosition }
-        let elapsed = max(0, Self.now() - anchorHost - latency)
-        let linear = anchorPosition + elapsed * rate
-        let node = node(ofLinear: linear)
+        let node = audibleNode
         hasPendingJump = jumpNode.map { node < Double($0) } ?? false
         return min(duration, songPosition(atNode: node))
+    }
+
+    /// 지금 들리는 재생 노드 샘플(출력·변환 지연을 뺀다)
+    private var audibleNode: Double {
+        node(ofLinear: anchorPosition + max(0, Self.now() - anchorHost - latency) * rate)
+    }
+
+    /// 재생 노드를 멈춘다. Flip 기록 중이면 이번 재생을 끝내며 아직 알리지 않은 들린 구간을 알린다.
+    ///
+    /// 끝은 멈추기 직전 재생 노드가 그려 낸 샘플(`renderedNode`)이다. 노드를 멈춰도 그린 만큼은 출력 지연 뒤에 마저 들리므로,
+    /// 지금 들리는 자리(`audibleNode`)에서 끊으면 다시 재생하는 점프마다 출력 지연(약 13~17ms)만큼 빠졌다
+    /// (2026-10-07 `--flip-selftest`: 들리는 자리는 595~752샘플 일찍, 그린 샘플은 0샘플 차이).
+    /// - Parameter continuing: 멈추지 않고 곧바로 다른 자리에서 다시 재생한다(다음 재생 시작이 점프 착지다).
+    ///   출력 장치 변경·멈춤 복구는 false: 이어 재생이 실패하면 멈춘 채 남고, 성공해도 같은 자리라 점프가 아니다.
+    private func stopTrack(endingRun continuing: Bool) {
+        guard let trackNode else { return }
+        guard isPlaying, let onPlayedRun else {
+            trackNode.stop()
+            return
+        }
+        // 읽은 뒤 곧바로 멈춘다(사이에 렌더 덩어리가 하나 더 지나가면 그만큼 덜 잡힌다).
+        let end = renderedNode
+        trackNode.stop()
+        let spans = schedule.playedSpans(from: playedFromNode, to: end)
+        playedFromNode = -.infinity
+        onPlayedRun(PlayedRun(spans: spans, continuing: continuing))
+    }
+
+    /// Flip 기록: 지금 재생에서 아직 알리지 않은 들린 구간(재생 중이 아니면 nil). 다음에 알릴 구간은 지금부터다.
+    func takePlayedRun() -> PlayedRun? {
+        guard isPlaying else { return nil }
+        let now = audibleNode
+        defer { playedFromNode = now }
+        return PlayedRun(spans: schedule.playedSpans(from: playedFromNode, to: now), continuing: true)
     }
 
     private var fileDuration: Double = 0
@@ -462,10 +502,11 @@ final class DeckAudio {
             return false
         }
         let engine = graph.engine, trackNode = graph.trackNode, clickNode = graph.clickNode
+        // 재생 중에 다시 부르면(핫큐·탐색 이동·루프를 이어 붙이지 못함) 지금 재생은 여기서 끝나고 새 자리로 넘어간다.
+        stopTrack(endingRun: true)
         idleTask?.cancel()
         jumpNode = nil
         hasPendingJump = false
-        trackNode.stop()
         clickNode.stop()
         let sampleRate = file.processingFormat.sampleRate
         // rekordbox 위치 → 음원 위치. 앞의 지연 구간(음원 위치 < 0)에서 시작하면 그만큼 늦게 소리를 낸다.
@@ -522,6 +563,7 @@ final class DeckAudio {
         anchorHost = AVAudioTime.seconds(forHostTime: startHost)
         clickEpochPosition = position
         clickScheduledUntil = position - 0.001
+        playedFromNode = -.infinity
         isPlaying = true
         AudioEvents.record("재생 \(String(format: "%.2f", position))초 · \(decoded == nil ? "파일" : "메모리") · 지연 \(String(format: "%.3f", latency)) · 음량 \(String(format: "%.2f", volume)) · 장치 \(outputDeviceName())")
         installDebugTap()
@@ -531,9 +573,9 @@ final class DeckAudio {
     func pause() {
         guard isPlaying else { return }
         pausedPosition = position
+        stopTrack(endingRun: false)
         jumpNode = nil
         hasPendingJump = false
-        trackNode?.stop()
         clickNode?.stop()
         isPlaying = false
         scheduleIdlePause()
@@ -542,9 +584,9 @@ final class DeckAudio {
     /// 곡을 바꾸거나 끝났을 때. 엔진도 바로 쉰다.
     func stop() {
         idleTask?.cancel()
+        stopTrack(endingRun: false)
         jumpNode = nil
         hasPendingJump = false
-        trackNode?.stop()
         clickNode?.stop()
         isPlaying = false
         // pause()가 아니라 stop(): pause 뒤 다시 켜면 재생 노드가 시작 시각(호스트 시각)을 쉬기 전 기준으로

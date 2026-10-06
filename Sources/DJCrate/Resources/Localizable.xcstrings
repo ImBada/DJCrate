@@ -4481,6 +4481,268 @@
         }
       }
     },
+    "Flip — %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip — %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip — %@"
+          }
+        }
+      }
+    },
+    "Flip 결과" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip result"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flipの結果"
+          }
+        }
+      }
+    },
+    "Flip 결과를 버릴까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard the Flip result?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flipの結果を破棄しますか？"
+          }
+        }
+      }
+    },
+    "Flip 결과를 재생·일시정지합니다(스페이스바)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plays or pauses the Flip result (Space bar)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flipの結果を再生・一時停止します（スペースキー）"
+          }
+        }
+      }
+    },
+    "Flip 기록" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip recording"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip記録"
+          }
+        }
+      }
+    },
+    "Flip 기록 마치기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish Flip Recording…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip記録を終了…"
+          }
+        }
+      }
+    },
+    "Flip 기록 시작" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start Flip Recording"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip記録を開始"
+          }
+        }
+      }
+    },
+    "Flip 기록 중: 재생하며 핫큐·루프를 쓴 뒤 Flip을 다시 누르면 편집본으로 만듭니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording Flip: use hot cues and loops while playing, then press Flip again to create an edited version"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip記録中：再生しながらホットキュー・ループを使い、もう一度Flipを押すと編集版を作ります"
+          }
+        }
+      }
+    },
+    "Flip 기록 중입니다. 다시 누르면 기록을 마치고 결과 창을 엽니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording Flip. Press again to finish recording and open the result window."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flipを記録中です。もう一度押すと記録を終了し、結果ウインドウを開きます。"
+          }
+        }
+      }
+    },
+    "Flip 기록을 버릴까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard the Flip recording?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip記録を破棄しますか？"
+          }
+        }
+      }
+    },
+    "Flip 기록을 시작합니다. 재생하며 쓴 핫큐 점프·루프만 모아 같은 소리로 재생되는 편집본을 만듭니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starts Flip recording. Collects only the hot cue jumps and loops you use while playing and creates an edited version that plays back the same way."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip記録を開始します。再生中に使ったホットキューのジャンプ・ループだけを集め、同じように再生される編集版を作ります。"
+          }
+        }
+      }
+    },
+    "Flip 다시 기록…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record Flip Again…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flipを記録し直す…"
+          }
+        }
+      }
+    },
+    "Flip 렌더가 끝나거나 취소한 뒤 다시 기록하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wait for the Flip render to finish or cancel it before recording again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flipのレンダリングが終わるか、キャンセルしてから記録し直してください"
+          }
+        }
+      }
+    },
+    "Flip 버리기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard Flip"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flipを破棄"
+          }
+        }
+      }
+    },
+    "Flip 버리기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard Flip…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flipを破棄…"
+          }
+        }
+      }
+    },
+    "Flip 편집본을 추가한 곡에 넣었습니다: %@ · %@ · 큐 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added the Flip edit to Added Tracks: %1$@ · %2$@ · cues: %3$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip編集版を「追加した曲」に入れました：%1$@ · %2$@ · キュー%3$lld個"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Flip 편집본을 추가한 곡에 넣었습니다: %1$@ · %2$@ · 큐 %3$lld개"
+          }
+        }
+      }
+    },
     "ISRC에 전각·한글처럼 ASCII가 아닌 글자가 있어 Device Library에 쓸 수 없습니다. rekordbox에서 ISRC를 반각 영문·숫자로 고친 뒤 다시 시도하세요" : {
       "localizations" : {
         "en" : {
@@ -6979,6 +7241,22 @@
         }
       }
     },
+    "WAV로 렌더해 ‘추가한 곡’에 넣습니다(그리드·큐는 결과 위치로 옮긴 값, 곡 정보는 원곡). 원곡과 rekordbox는 그대로입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renders a WAV file and puts it in ‘Added Tracks’ (the grid and cues move to their positions in the result, and track information comes from the original). The original track and rekordbox stay unchanged."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WAVにレンダリングして「追加した曲」に入れます（グリッド・キューは結果の位置に移した値、曲の情報は原曲のまま）。原曲とrekordboxはそのままです。"
+          }
+        }
+      }
+    },
     "WAV로 렌더해 ‘추가한 곡’에 넣습니다(그리드는 편집으로 옮긴 값, 큐는 옮긴 위치, 곡 정보는 원곡). 원곡과 rekordbox는 그대로이고, rekordbox로는 추가한 곡에서 넘깁니다" : {
       "localizations" : {
         "en" : {
@@ -7238,6 +7516,29 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "편집"
+          }
+        }
+      }
+    },
+    "deck.flipButton" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flip"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Flip"
           }
         }
       }
@@ -8423,6 +8724,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordbox書き込み待ちを表示"
+          }
+        }
+      }
+    },
+    "rekordbox 쓰기가 끝난 뒤 Flip을 기록하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wait for writing to rekordbox to finish before recording a Flip"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxへの書き込みが終わってからFlipを記録してください"
           }
         }
       }
@@ -12059,6 +12376,34 @@
         }
       }
     },
+    "결과에 쓴 구간 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld section used in the result"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld sections used in the result"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "結果に使った区間%lld個"
+          }
+        }
+      }
+    },
     "겹치는 키가 있습니다. 목록 위쪽 동작만 받습니다." : {
       "localizations" : {
         "en" : {
@@ -12855,6 +13200,22 @@
         }
       }
     },
+    "곡 길이를 알 수 없어 Flip을 만들지 못했습니다. 곡을 다시 불러온 뒤 기록하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t create the Flip because the track length is unknown. Reload the track, then record again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲の長さが分からないため、Flipを作れませんでした。曲を読み込み直してから記録してください。"
+          }
+        }
+      }
+    },
     "곡 머리(0마디)" : {
       "localizations" : {
         "en" : {
@@ -13583,6 +13944,22 @@
         }
       }
     },
+    "곡을 덱에 불러오고 초안 읽기가 끝난 뒤 Flip을 기록하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Load a track into the deck and wait for its drafts to load before recording a Flip"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲をデッキに読み込み、下書きの読み込みが終わってからFlipを記録してください"
+          }
+        }
+      }
+    },
     "곡을 덱에 불러오고 초안 읽기가 끝난 뒤 곡 편집 창을 여세요" : {
       "localizations" : {
         "en" : {
@@ -13611,6 +13988,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "曲をデッキに読み込み、下書きの読み込みが終わってから編集してください"
+          }
+        }
+      }
+    },
+    "곡을 바꾸면 지금까지 기록한 점프·루프 %lld개를 버립니다. 버린 기록은 다시 만들 수 없으니, 남기려면 취소하고 Flip을 눌러 기록을 마치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changing the track discards the %lld jumps and loops recorded so far. A discarded recording can't be made again; to keep it, cancel and press Flip to finish recording."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲を変えると、これまでに記録したジャンプ・ループ%lld個を破棄します。破棄した記録は作り直せません。残すには、キャンセルしてFlipを押し記録を終了してください。"
+          }
+        }
+      }
+    },
+    "곡을 바꿔 Flip 기록을 버렸습니다. 새 곡에서 Flip을 다시 누르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discarded the Flip recording because the track changed. Press Flip again on the new track."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲が変わったため、Flipの記録を破棄しました。新しい曲でもう一度Flipを押してください。"
           }
         }
       }
@@ -14183,6 +14592,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "グリッド%lld曲"
+          }
+        }
+      }
+    },
+    "그리드 구간 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld grid section"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld grid sections"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グリッド区間%lld個"
           }
         }
       }
@@ -14841,6 +15278,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "機器で変更"
+          }
+        }
+      }
+    },
+    "기록 버리기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard Recording"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記録を破棄"
+          }
+        }
+      }
+    },
+    "기록 중" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記録中"
+          }
+        }
+      }
+    },
+    "기록에 점프·루프가 없어 Flip을 만들지 않았습니다. Flip을 누르고 재생하며 핫큐·루프를 쓴 뒤 다시 누르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Didn’t create a Flip because the recording has no jumps or loops. Press Flip, use hot cues and loops while playing, then press it again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記録にジャンプ・ループがないため、Flipを作りませんでした。Flipを押して再生しながらホットキュー・ループを使い、もう一度押してください。"
+          }
+        }
+      }
+    },
+    "기록에 점프·루프가 없어 원곡과 같습니다. Flip 기록 중에 재생하며 핫큐·루프를 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The recording has no jumps or loops, so it’s the same as the original. Use hot cues and loops while playing during Flip recording."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記録にジャンプ・ループがないため、原曲と同じです。Flip記録中に再生しながらホットキュー・ループを使ってください。"
           }
         }
       }
@@ -15919,6 +16420,22 @@
         }
       }
     },
+    "누르거나 끌어서 재생선을 옮깁니다. 스페이스바로 재생합니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click or drag to move the playhead. Press Space to play."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリックまたはドラッグで再生ヘッドを移動します。スペースキーで再生します。"
+          }
+        }
+      }
+    },
     "누르고 새 키를 누르면 바꿉니다(오른쪽 클릭: 빼기)" : {
       "localizations" : {
         "en" : {
@@ -16139,6 +16656,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "別のフォルダで探す…"
+          }
+        }
+      }
+    },
+    "다시 기록…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record Again…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記録し直す…"
           }
         }
       }
@@ -16731,6 +17264,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "デッキに曲を読み込んでください"
+          }
+        }
+      }
+    },
+    "덱에 곡이 없습니다. 곡을 불러온 뒤 Flip을 기록하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There’s no track in the deck. Load a track, then record a Flip."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デッキに曲がありません。曲を読み込んでからFlipを記録してください。"
           }
         }
       }
@@ -25023,6 +25572,22 @@
         }
       }
     },
+    "아직 추가한 곡에 넣지 않은 Flip(점프·루프 %lld개)을 버립니다. 버린 기록은 다시 만들 수 없으니, 남기려면 취소하고 렌더해서 넣으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discards the Flip (%lld jumps and loops) that hasn't been added to Added Tracks yet. A discarded recording can't be made again; to keep it, cancel and render it into Added Tracks."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだ追加した曲に入れていないFlip（ジャンプ・ループ%lld個）を破棄します。破棄した記録は作り直せません。残すには、キャンセルしてレンダリングして入れてください。"
+          }
+        }
+      }
+    },
     "아티스트" : {
       "localizations" : {
         "en" : {
@@ -27075,6 +27640,22 @@
         }
       }
     },
+    "원곡 그리드를 정확히 옮길 수 없어(다이내믹 그리드 등) 그리드 없이 넣습니다. 추가한 곡에서 그리드를 추정하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The original grid can’t be carried over exactly (for example, a dynamic grid), so the track is added without a grid. Estimate the grid in Added Tracks."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原曲のグリッドを正確に移せないため（ダイナミックグリッドなど）、グリッドなしで入れます。「追加した曲」でグリッドを推定してください。"
+          }
+        }
+      }
+    },
     "원곡 재생" : {
       "localizations" : {
         "en" : {
@@ -27119,6 +27700,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "原曲の波形をドラッグして区間を選び、「結果に追加」を押すかここへドラッグするとつながります。"
+          }
+        }
+      }
+    },
+    "원곡에 그리드가 없어 그리드 없이 넣습니다. 추가한 곡에서 그리드를 추정하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The original has no grid, so the track is added without a grid. Estimate the grid in Added Tracks."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原曲にグリッドがないため、グリッドなしで入れます。「追加した曲」でグリッドを推定してください。"
+          }
+        }
+      }
+    },
+    "원곡에서 쓴 구간" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sections used from the original"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原曲で使った区間"
           }
         }
       }
@@ -28595,6 +29208,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "この曲が手放すアルバム・名前の同期状態での整理の規則は未確認です。rekordboxで直接変更してください。"
+          }
+        }
+      }
+    },
+    "이 기록을 버리고 덱에서 Flip 기록을 다시 시작합니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discards this recording and starts Flip recording again on the deck"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この記録を破棄し、デッキでFlip記録をやり直します"
+          }
+        }
+      }
+    },
+    "이 기록을 버리고 창을 닫습니다. 원곡과 rekordbox는 그대로입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discards this recording and closes the window. The original track and rekordbox stay unchanged."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この記録を破棄してウインドウを閉じます。原曲とrekordboxはそのままです。"
           }
         }
       }
@@ -31121,6 +31766,22 @@
         }
       }
     },
+    "재생하며 쓴 핫큐 점프·루프만 모아 같은 소리로 재생되는 편집본을 만듭니다. 마치면 결과 창을 엽니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collects only the hot cue jumps and loops you use while playing and creates an edited version that plays back the same way. Finishing opens the result window."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再生中に使ったホットキューのジャンプ・ループだけを集め、同じように再生される編集版を作ります。終了すると結果ウインドウを開きます。"
+          }
+        }
+      }
+    },
     "재생하지 못했습니다. 소리 출력 장치를 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -31373,6 +32034,28 @@
         }
       }
     },
+    "점프 %lld번 · 결과 %@ (원곡 %@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jumps: %1$lld · result %2$@ (original %3$@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ジャンプ%1$lld回 · 結果 %2$@（原曲 %3$@）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "점프 %1$lld번 · 결과 %2$@ (원곡 %3$@)"
+          }
+        }
+      }
+    },
     "접근 불가 파일: %lld (스트리밍 %lld 제외)" : {
       "localizations" : {
         "en" : {
@@ -31621,6 +32304,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "除外された曲 %lld曲"
+          }
+        }
+      }
+    },
+    "조각 %lld/%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clip %1$lld/%2$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップ %1$lld/%2$lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "조각 %1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "조각 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld clip"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld clips"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップ%lld個"
+          }
+        }
+      }
+    },
+    "조각 %lld개, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clips: %1$lld, %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップ%1$lld個、%2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "조각 %1$lld개, %2$@"
           }
         }
       }

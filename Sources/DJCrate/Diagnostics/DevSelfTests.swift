@@ -36,6 +36,7 @@ enum DevSelfTests {
         runPausedHotCueSelfTestIfRequested(store: store, deck: deck)
         runScrubHotCueSelfTestIfRequested(store: store, deck: deck)
         runJumpAudioSelfTestIfRequested()
+        runFlipSelfTestIfRequested()
         runMetronomeSelfTestIfRequested()
         UsbSelfTest.runIfRequested(store: store)
         guard ProcessInfo.processInfo.arguments.contains("--switch-selftest") else { return }

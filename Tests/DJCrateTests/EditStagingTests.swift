@@ -62,4 +62,37 @@ struct EditStagingTests {
         #expect(Set(tags.changedKeys).isDisjoint(with: TagFields.Key.independent), "\(tags.changedKeys)")
         #expect(tags.fields.artist == "아티스트" && tags.fields.title == "원곡 (Edit)", "다른 칸은 원곡에서 가져온다")
     }
+
+    @Test func 그리드_없이_넣으면_그리드_초안을_두지_않는다() async throws {
+        // 원곡에 그리드가 없던 Flip: 추가한 곡에서 그리드를 추정하도록 그리드 초안·BPM을 비운다.
+        let home = FileManager.default.temporaryDirectory.appending(path: "djc-edit-stage-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let output = try AudioFixture.wav(seconds: 3, in: home, name: "원곡 (Flip).wav")
+        let staged = try await EditStaging.stage(fileAt: output, grid: [], cues: [EditableCue(kind: .memory, time: 1)], source: source(),
+                                                 title: "원곡 (Flip)", home: home)
+        #expect(staged.gridConfident != true)
+        #expect(GridDraftStore.load(trackUUID: staged.uuid, directory: home.appending(path: "grid-drafts")) == nil)
+        #expect(!FileManager.default.fileExists(atPath: home.appending(path: "grid-drafts/\(staged.uuid).json").path))
+        let cues = try #require(CueDraftStore.load(trackUUID: staged.uuid, directory: home.appending(path: "cue-drafts")))
+        #expect(cues.cues.map(\.time) == [1])
+        let tags = try #require(TagDraftStore.load(trackUUID: staged.uuid, directory: home.appending(path: "tag-drafts")))
+        #expect(tags.fields.title == "원곡 (Flip)")
+    }
+
+    @Test func 여러_템포_구간을_그대로_그리드_초안으로_둔다() async throws {
+        let home = FileManager.default.temporaryDirectory.appending(path: "djc-edit-stage-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let output = try AudioFixture.wav(seconds: 3, in: home, name: "원곡 (Flip).wav")
+        let segments = [GridSegment(start: 0.5, bpm: 120, firstBeatNumber: 1), GridSegment(start: 1.7, bpm: 120, firstBeatNumber: 3),
+                        GridSegment(start: 2.4, bpm: 128, firstBeatNumber: 1)]
+        let staged = try await EditStaging.stage(fileAt: output, grid: segments, cues: [], source: source(), title: nil, home: home)
+        // BPM은 첫 구간, 제목을 주지 않으면 렌더한 파일 이름
+        #expect(staged.bpm == 120 && staged.gridConfident == true)
+        let draft = try #require(GridDraftStore.load(trackUUID: staged.uuid, directory: home.appending(path: "grid-drafts")))
+        #expect(draft.base.isEmpty && draft.segments == segments)
+        let tags = try #require(TagDraftStore.load(trackUUID: staged.uuid, directory: home.appending(path: "tag-drafts")))
+        #expect(tags.fields.title == staged.title)
+    }
 }

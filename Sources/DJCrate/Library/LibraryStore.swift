@@ -277,6 +277,8 @@ final class LibraryStore {
     var selection: Set<TrackRow.ID> = []
     /// 덱에 곡을 올리거나(nil이면 내리기) 새로 읽은 값으로 맞춘다. 덱과 잇는 곳은 여기 하나다.
     var onLoadToDeck: ((TrackRow?) -> Void)?
+    /// 덱의 곡을 다른 곡으로 바꿔도 되는지(Flip 기록을 버리기 전에 묻는다). false면 올리지 않는다.
+    @ObservationIgnored var confirmDeckReplacement: ((TrackRow) -> Bool)?
     /// 스냅샷을 새로 읽었을 때(USB 갱신 상태의 로컬 짝짓기 키를 다시 읽는다)
     @ObservationIgnored var onSnapshotLoaded: ((URL) -> Void)?
     /// 띄운 인자·환경. 스냅샷을 새로 떠도 되는지(`snapshotTakeAllowed`) 정한다. 시험은 바꿔 넣는다
@@ -464,7 +466,10 @@ final class LibraryStore {
     func loadToDeck(_ row: TrackRow?) {
         // USB 곡은 아직 덱에 올리지 않는다(덱이 로컬 분석 파일·초안을 기준으로 읽는다)
         guard writeLockPolicy.allowsLibraryInteraction, let row, !row.isUsb else { return }
-        setDeckTrack(rowsByID[row.track.id] ?? row)
+        let target = rowsByID[row.track.id] ?? row
+        // 다른 곡으로 바꾸기 전에 덱이 버릴 것(Flip 기록)을 묻는다. 취소하면 덱도 덱 곡 ID도 그대로다.
+        if target.track.id != deckTrackID, confirmDeckReplacement?(target) == false { return }
+        setDeckTrack(target)
     }
 
     var canLoadSelectionToDeck: Bool { writeLockPolicy.allowsLibraryInteraction && primaryRow.map { !$0.isUsb } == true }

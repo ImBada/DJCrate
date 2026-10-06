@@ -56,6 +56,7 @@ extension DeckModel {
             isPlaying = false
             ticker.stop()
             playhead = min(time, duration)
+            flipRecording?.breakLink()
             if audio.isPreparingOutput { showToast(AudioSourceState.preparing.unavailableReason ?? Self.audioUnavailableMessage) }
             else if audio.isOutputUnavailable { showToast(Self.audioUnavailableMessage) }
         }
@@ -240,6 +241,8 @@ extension DeckModel {
         scrubAnchor = nil
         guard resumeAfterScrub else { return }
         resumeAfterScrub = false
+        // 재생 중에 끌어 옮겼으면 Flip 기록에는 끈 자리로 넘어간 점프다.
+        flipRecording?.linkNextRun()
         startPlayback(from: playhead)
     }
 
