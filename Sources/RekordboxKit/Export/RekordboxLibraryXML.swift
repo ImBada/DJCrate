@@ -70,6 +70,8 @@ public enum RekordboxLibraryXML {
         public var unknownCues = 0
         /// 컬렉션에 넣지 않은 곡(삭제·스트리밍)을 가리키던 재생 목록 항목 수
         public var playlistEntries = 0
+        /// 없는 폴더를 가리켜 ROOT에서 닿지 않는 재생 목록·폴더 수(rekordbox 트리에 없으므로 지어 붙이지 않는다)
+        public var orphanedPlaylists = 0
         public init() {}
     }
 
@@ -126,8 +128,8 @@ public enum RekordboxLibraryXML {
 
     /// 스냅샷과 분석 파일을 읽어 내보낼 컬렉션을 만든다(쓰지 않는다). 무거운 일이라 메인 스레드 밖에서 부르고,
     /// 부르는 작업을 취소하면 `CancellationError`로 멈춘다.
-    /// - Parameter shareRoot: 분석 파일 뿌리(`…/share`). 분석 파일이 없는 곡은 TEMPO 없이 내보낸다.
-    public static func load(snapshot: URL, shareRoot: URL, productVersion: String = "0.1",
+    /// - Parameter shareRoot: 분석 파일 뿌리(`…/share`). 분석 파일이 없는 곡은 TEMPO 없이 내보낸다. nil이면 모든 곡을 TEMPO 없이.
+    public static func load(snapshot: URL, shareRoot: URL?, productVersion: String = "0.1",
                             progress: (@Sendable (Progress) -> Void)? = nil) throws -> Collection {
         progress?(Progress(phase: .readingLibrary, done: 0, total: 0))
         let library = try RekordboxLibrary.load(snapshot: snapshot)
@@ -159,7 +161,7 @@ public enum RekordboxLibraryXML {
             let rawCues = library.cues(for: track)
             let marks = Reflection.marks(from: rawCues)
             omitted.unknownCues += rawCues.count - marks.count
-            let tempos = RekordboxShare.analysisURL(track.analysisDataPath, root: shareRoot)
+            let tempos = shareRoot.flatMap { RekordboxShare.analysisURL(track.analysisDataPath, root: $0) }
                 .flatMap { try? BeatGrid.load(anlz: $0) }
                 .map(tempoSegments(from:)) ?? []
             // #65: 별점·곡 색(Rating·Colour)은 곡 행에 칸이 생기면 여기서 `extraAttributes`로 연결한다.
@@ -225,10 +227,13 @@ public enum RekordboxLibraryXML {
     }
 
     /// 재생 목록·폴더 트리. 인텔리전트 목록은 넣지 않고, 컬렉션에 없는 곡 항목은 뺀다.
+    /// ROOT에서 닿지 않는 목록(없는 폴더를 가리키거나 서로를 가리키는 폴더)은 rekordbox 트리에 없으므로 빼고 `orphanedPlaylists`에 센다.
     static func listTree(_ playlists: [RekordboxPlaylist], keys: [String: Int], omitted: inout Omitted) -> [ListNode] {
         let byParent = Dictionary(grouping: playlists, by: \.parentID)
+        var reached = Set<String>()
         func build(_ parent: String) -> [ListNode] {
             (byParent[parent] ?? []).sorted { ($0.seq, $0.id) < ($1.seq, $1.id) }.compactMap { playlist in
+                guard reached.insert(playlist.id).inserted else { return nil }
                 if playlist.isSmart { omitted.intelligentPlaylists += 1; return nil }
                 if playlist.isFolder { return ListNode(name: playlist.name, children: build(playlist.id)) }
                 let present = playlist.trackIDs.compactMap { keys[$0] }
@@ -236,6 +241,8 @@ public enum RekordboxLibraryXML {
                 return ListNode(name: playlist.name, keys: present)
             }
         }
-        return build("root")
+        let tree = build("root")
+        omitted.orphanedPlaylists += Set(playlists.map(\.id)).subtracting(reached).count
+        return tree
     }
 }

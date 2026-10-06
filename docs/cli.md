@@ -141,7 +141,10 @@ djc draft rm tag 101 --db /tmp/djc-fixture/master.db
 ## 라이브러리 XML 내보내기(`xml-export`)
 
 ```sh
-djc xml-export --db <스냅샷 사본.db> --out <파일.xml> [--share <분석 파일 폴더>] [--overwrite] [--dry-run]
+djc xml-export --db <스냅샷 사본.db> --out <파일.xml> [--share <분석 파일 폴더> | --no-analysis] [--overwrite] [--dry-run]
+
+# djc snapshot 사본 옆에는 share가 없으니 rekordbox 폴더의 share를 준다(읽기만).
+djc xml-export --db <스냅샷 사본.db> --out ~/Desktop/library.xml --share ~/Library/Pioneer/rekordbox/share
 
 # 시험할 때는 합성 사본과 임시 폴더만 쓴다.
 export DJC_HOME=$(mktemp -d)
@@ -150,8 +153,9 @@ djc xml-export --db /tmp/djc-fixture/master.db --out /tmp/djc-fixture/library.xm
 
 라이브러리 전체(곡·큐·그리드·재생 목록 트리)를 rekordbox XML(`DJ_PLAYLISTS`) 한 파일로 내보낸다. 다른 DJ 소프트웨어·도구로 옮기거나 백업 사본으로 둘 때 쓴다. 기존 "XML 만들기"(rekordbox로 되가져오는 연동 파일)와는 별개이고 그쪽 출력은 바뀌지 않는다.
 
-- **읽기만 한다.** 사본 DB와 분석 파일(`--share`, 기본은 사본 DB 옆 `share`, 라이브 분석 파일로 대신하지 않는다)은 고치지 않고 `--out` 파일 하나에만 쓴다. 같은 폴더의 임시 파일에 다 쓴 뒤 바꿔 끼우므로 도중에 실패해도 있던 파일은 그대로다. 라이브 `master.db`는 입력으로도 거부한다.
-- 출력은 `.xml` 파일만 받는다(실수로 `master.db`를 덮지 않게). rekordbox 폴더(`~/Library/Pioneer`, 개발 때의 `DJC_REKORDBOX_DIR`) 안, 그곳을 가리키는 링크, DJCrate 연동 XML 자리(`~/Documents/DJCrate/djcrate-rekordbox.xml`)는 DB를 열기 전에 거부한다. 이미 있는 파일은 `--overwrite`를 줘야 바꾼다. `--dry-run`은 읽고 개수만 알린다.
+- **분석 파일 폴더가 있어야 한다.** `--share`를 빼면 사본 DB 옆 `share`를 쓰는데, `djc snapshot` 사본 옆에는 그 폴더가 없다. 그대로 두면 모든 곡의 TEMPO가 조용히 빠지므로, 폴더가 없으면(빼거나 준 `--share`가 없는 폴더) 오류로 멈춘다: `--share <rekordbox 폴더>/share`를 준다. 그리드 없이 내보내려면 `--no-analysis`를 명시한다(`--share`와 함께 줄 수 없다).
+- **읽기만 한다.** 사본 DB와 분석 파일(라이브 분석 파일로 대신하지 않는다)은 고치지 않고 `--out` 파일 하나에만 쓴다. 같은 폴더의 임시 파일에 다 쓴 뒤 바꿔 끼우므로 도중에 실패해도 있던 파일은 그대로다. 라이브 `master.db`는 입력으로도 거부한다.
+- 출력은 `.xml` 파일만 받는다(실수로 `master.db`를 덮지 않게). rekordbox 폴더(`~/Library/Pioneer`, 개발 때의 `DJC_REKORDBOX_DIR`) 안, USB의 `PIONEER/` 아래(`/Volumes/<볼륨>/PIONEER/…`, 대소문자 무시), DJCrate 데이터 폴더(`~/Library/Application Support/DJCrate`·`DJC_HOME`, 특히 `rekordbox-backups`·`usb-backups` — 백업의 `masterPlaylists6.xml`을 덮으면 "쓰기 전으로 복원"이 그것을 라이브로 옮긴다), 그곳들을 가리키는 링크, DJCrate 연동 XML 자리(`~/Documents/DJCrate/djcrate-rekordbox.xml`)는 DB를 열기 전에 거부한다. 이미 있는 파일은 `--overwrite`를 줘야 바꾼다. `--dry-run`은 읽고 개수만 알린다.
 - **쓰지 않은 초안은 넣지 않는다.** 큐·그리드·태그·게인·앨범아트·재생 목록 초안은 무시하고 rekordbox 사본에 있는 그대로 내보낸다.
 - 시각은 rekordbox 시간축(초)이다. DB의 큐(ms)와 분석 파일의 박(ms)이 이미 그 시간축이라 인코더 지연을 더하거나 빼지 않는다(기존 XML 경로와 같은 규칙).
 
@@ -168,7 +172,7 @@ djc xml-export --db /tmp/djc-fixture/master.db --out /tmp/djc-fixture/library.xm
 | `POSITION_MARK` | 메모리 큐(`Num` -1)·핫큐 A~H(`Num` 0~7)·루프(`Type` 4, `End`). 자동 큐도 그대로 |
 | `PLAYLISTS` `NODE` | 폴더(`Type` 0, `Count`)·재생 목록(`Type` 1, `KeyType` 0, `Entries`), Seq 순서, 같은 곡 중복·곡 순서 그대로 |
 
-넣지 않는 것(요약의 "뺀 것"에 센다): 인텔리전트 재생 목록, My Tag, 핫큐 색(`Red`·`Green`·`Blue`, rekordbox 색 번호와 XML 색의 대응을 확인하기 전), 알 수 없는 큐 종류(Kind 4), 앨범 아티스트·Grouping·Mix·DateModified·LastPlayed(XML에 칸이 없거나 값의 출처를 확인하지 못함), 스트리밍 곡(파일 경로가 없다), 삭제한 곡, 그리고 그 곡들을 가리키던 재생 목록 항목. `Rating`·`Colour`는 곡 행에 칸이 생기면(#65) 같은 모양으로 더한다.
+넣지 않는 것(요약의 "뺀 것"에 센다): 인텔리전트 재생 목록, 없는 폴더를 가리켜 ROOT에서 닿지 않는 재생 목록·폴더(rekordbox 트리에 없으므로 루트에 지어 붙이지 않는다, "상위 폴더가 없는 목록"), My Tag, 핫큐 색(`Red`·`Green`·`Blue`, rekordbox 색 번호와 XML 색의 대응을 확인하기 전), 알 수 없는 큐 종류(Kind 4), 앨범 아티스트·Grouping·Mix·DateModified·LastPlayed(XML에 칸이 없거나 값의 출처를 확인하지 못함), 스트리밍 곡(파일 경로가 없다), 삭제한 곡, 그리고 그 곡들을 가리키던 재생 목록 항목. `Rating`·`Colour`는 곡 행에 칸이 생기면(#65) 같은 모양으로 더한다.
 
 앱에서는 파일 메뉴의 "라이브러리 XML 내보내기…"가 같은 일을 한다.
 
@@ -177,7 +181,7 @@ djc xml-export --db /tmp/djc-fixture/master.db --out /tmp/djc-fixture/library.xm
 칸 이름과 값의 출처는 rekordbox가 공개한 XML 형식 문서와 기존 XML 경로로 정했고, rekordbox가 만든 XML과의 칸 비교는 아직 하지 않았다(사용자 실험 몫). 비교하려면:
 
 1. rekordbox 7.2.x에서 파일 › 라이브러리 › **Export Collection in xml format**으로 XML을 rekordbox 폴더 밖에 저장한다.
-2. rekordbox를 완전히 종료한 뒤 `djc snapshot`으로 사본을 뜨고 같은 시점의 XML을 만든다: `djc xml-export --db <그 사본.db> --out <파일.xml>`.
+2. rekordbox를 완전히 종료한 뒤 `djc snapshot`으로 사본을 뜨고 같은 시점의 XML을 만든다: `djc xml-export --db <그 사본.db> --out <파일.xml> --share ~/Library/Pioneer/rekordbox/share`(rekordbox 폴더의 분석 파일을 읽기만 한다. `--share`를 빼면 사본 옆에 `share`가 없어 오류로 멈춘다).
 3. `python3 -I scripts/xml-compare.py <rekordbox가 만든.xml> <djc가 만든.xml>`. 곡은 `Location`으로 짝짓고, 칸마다 같음·다름·한쪽에만 있음의 개수, TEMPO·POSITION_MARK의 곡 단위 일치, 재생 목록 트리의 경로·곡 순서를 센다. 값은 찍지 않는다(`--examples N`은 이 Mac에서만 볼 값 예를 찍는다).
 
 rekordbox가 만든 XML에는 곡 정보가 들어 있으니 저장소·이슈에 올리지 않는다. 결과에서 먼저 볼 가정: `TrackID` = `ContentID`, `DateAdded` = `StockDate`, `PlayCount` = `DJPlayCount`, `Tonality` = 키 이름(rekordbox의 키 표시 설정과 같은지), `Kind`·`Location` 퍼센트 인코딩(`&`·`#`·괄호 등), 값이 0일 때 칸을 빼는 `BitRate`·`SampleRate`·`Size`·`AverageBpm`, TEMPO의 BPM 반올림·변속 곡 구간 수, 자동 큐 포함 여부, 루프·핫큐 루프의 `Type`·`End`·`Num`, rekordbox만 가진 `POSITION_MARK` 칸(색), 인텔리전트·My Tag 노드의 모양.

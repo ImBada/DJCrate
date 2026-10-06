@@ -52,7 +52,7 @@ struct XMLExportCommandTests {
         let text = lines.joined(separator: "\n")
         #expect(text.contains(out.path))
         #expect(text.contains("곡 1") && text.contains("큐·루프 1") && text.contains("그리드 있는 곡 1") && text.contains("스트리밍 곡 1"))
-        #expect(text.contains("쓰지 않은 초안은 넣지 않았습니다"))
+        #expect(text.contains("쓰지 않은 초안은 넣지 않았습니다") && text.contains("상위 폴더가 없는 목록 0"))
     }
 
     @Test func share를_안_주면_사본_DB_옆_share에서_분석_파일을_읽는다() throws {
@@ -62,6 +62,37 @@ struct XMLExportCommandTests {
         let out = fixture.root.appending(path: "no-grid.xml")
         _ = try XMLExportCommand.execute(.init(database: fixture.database, out: out, share: other, overwrite: false, dryRun: false))
         #expect(try !String(contentsOf: out, encoding: .utf8).contains("<TEMPO "), "--share로 바꾼 뿌리에는 분석 파일이 없다")
+    }
+
+    @Test func no_analysis는_share와_함께_줄_수_없다() throws {
+        let request = try XMLExportCommand.request(["xml-export", "--db", "/tmp/a.db", "--out", "/tmp/o.xml", "--no-analysis"])
+        #expect(request.noAnalysis && request.share == nil)
+        for bad in [["xml-export", "--db", "/tmp/a.db", "--out", "/tmp/o.xml", "--no-analysis", "--share", "/tmp/s"],
+                    ["xml-export", "--db", "/tmp/a.db", "--out", "/tmp/o.xml", "--no-analysis", "--no-analysis"]] {
+            #expect(throws: UsageError.self) { _ = try XMLExportCommand.request(bad) }
+        }
+    }
+
+    /// `djc snapshot` 사본 옆에는 `share`가 없다. 그대로 두면 모든 곡의 TEMPO가 조용히 빠지므로 막는다.
+    @Test func 사본_옆에_share가_없으면_share나_no_analysis를_줘야_한다() throws {
+        let fixture = try library()
+        try FileManager.default.removeItem(at: fixture.shareRoot)
+        let out = fixture.root.appending(path: "out.xml")
+        let error = try #require(throws: ReadFailure.self) {
+            _ = try XMLExportCommand.execute(.init(database: fixture.database, out: out, share: nil, overwrite: false, dryRun: false))
+        }
+        #expect(error.code == "missing_share" && error.message.contains("--share") && error.message.contains("--no-analysis"))
+        #expect(!FileManager.default.fileExists(atPath: out.path))
+        // 없는 --share도 같다
+        #expect(throws: ReadFailure.self) {
+            _ = try XMLExportCommand.execute(.init(database: fixture.database, out: out, share: fixture.root.appending(path: "없음"),
+                                                   overwrite: false, dryRun: false))
+        }
+        // --no-analysis를 주면 TEMPO 없이 내보내고 요약에 드러난다
+        let lines = try XMLExportCommand.execute(.init(database: fixture.database, out: out, share: nil, overwrite: false, dryRun: false,
+                                                       noAnalysis: true))
+        #expect(try !String(contentsOf: out, encoding: .utf8).contains("<TEMPO "))
+        #expect(lines.joined(separator: "\n").contains("분석 파일이 없거나 읽지 못한 곡 1"))
     }
 
     @Test func 이미_있는_파일은_덮어쓰기를_줘야_바꾼다() throws {

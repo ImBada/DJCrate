@@ -12,14 +12,25 @@ extension RekordboxLibraryXML {
         public var description: String { reason }
     }
 
+    /// 보호된 자리를 거부할 때의 이유
+    public static var protectedOutputReason: String {
+        String(ui: "rekordbox 폴더, USB의 PIONEER 폴더, DJCrate 데이터 폴더, 연동 XML 파일 자리에는 내보낼 수 없습니다. 다른 폴더를 고르세요")
+    }
+
     /// 출력 파일을 써도 되는 자리인지 본다(아무것도 쓰지 않는다). 다음은 거부한다.
     /// - `.xml`이 아닌 파일(실수로 `master.db` 같은 파일을 덮지 않게)과 폴더
     /// - 상위 폴더가 없는 경로
     /// - rekordbox 폴더(`~/Library/Pioneer`, 시험·개발 때의 `DJC_REKORDBOX_DIR`) 안. 링크를 따라간 실제 경로와 대소문자만 다른 표기도 같다.
+    /// - USB의 `PIONEER/` 아래(`/Volumes/<볼륨>/PIONEER/…`, 대소문자 무시)
+    /// - DJCrate 데이터 폴더(`DJC_HOME`·지원 폴더) 안. 백업의 masterPlaylists6.xml을 덮으면 "쓰기 전으로 복원"이 그것을 라이브로 옮긴다.
     /// - rekordbox가 연동 파일로 읽는 DJCrate의 연동 XML 자리(`DJCIdentity.linkedXMLFile`)
     public static func checkOutput(_ url: URL, environment: [String: String] = ProcessInfo.processInfo.environment) throws {
         guard url.isFileURL, url.pathExtension.lowercased() == "xml" else {
             throw OutputError(reason: String(ui: "내보낼 파일 이름은 .xml로 끝나야 합니다. 저장 위치와 이름을 다시 고르세요"))
+        }
+        // 적힌 경로로 먼저 본다(아직 없는 USB·백업 폴더도 이유를 바르게 알린다). 아래에서 링크를 따라간 실제 경로로 다시 본다.
+        guard !isProtected(url.standardizedFileURL.path, environment: environment) else {
+            throw OutputError(reason: protectedOutputReason)
         }
         let parent = url.deletingLastPathComponent()
         var isDirectory: ObjCBool = false
@@ -33,20 +44,31 @@ extension RekordboxLibraryXML {
         // 이미 있는 파일이 링크면 그 실제 자리를 본다.
         let target = UsbScratchRoots.realPath(url.path) ?? parentReal + "/" + url.lastPathComponent
         guard !isProtected(target, environment: environment) else {
-            throw OutputError(reason: String(ui: "rekordbox 폴더나 연동 XML 파일 자리에는 내보낼 수 없습니다. 다른 폴더를 고르세요"))
+            throw OutputError(reason: protectedOutputReason)
         }
+    }
+
+    /// `/Volumes/<볼륨>/PIONEER/` 아래인지(대소문자 무시). rekordbox·기기가 읽는 USB 라이브러리 자리다.
+    static func isUsbPioneerPath(_ path: String) -> Bool {
+        let parts = path.precomposedStringWithCanonicalMapping.lowercased().split(separator: "/", omittingEmptySubsequences: true)
+        return parts.count >= 4 && parts[0] == "volumes" && parts[2] == "pioneer"
     }
 
     private static func isProtected(_ realPath: String, environment: [String: String]) -> Bool {
         func key(_ path: String) -> String { path.precomposedStringWithCanonicalMapping.lowercased() }
         let path = key(realPath)
+        if isUsbPioneerPath(realPath) { return true }
         func inside(_ candidate: String?) -> Bool {
             guard let candidate else { return false }
             let root = key(candidate)
             return path == root || path.hasPrefix(root + "/")
         }
         let pioneer = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Pioneer").path
-        let roots = [pioneer, LibrarySnapshot.realRekordboxDirectory.path, LibrarySnapshot.rekordboxDirectory(in: environment).path]
+        // DJCrate 데이터 폴더: 이 프로세스의 뿌리(`DJC_HOME` 포함)와 설치한 앱의 실제 사용자 폴더, 옛 이름 폴더
+        let data = [DJCIdentity.dataDirectory(environment: environment, support: DJCIdentity.supportDirectory).path,
+                    DJCIdentity.supportDirectory.path, DJCIdentity.userSupportDirectory.path,
+                    URL.applicationSupportDirectory.appending(path: DJCIdentity.legacyName).path]
+        let roots = [pioneer, LibrarySnapshot.realRekordboxDirectory.path, LibrarySnapshot.rekordboxDirectory(in: environment).path] + data
         if roots.contains(where: { inside($0) || inside(UsbScratchRoots.realPath($0)) }) { return true }
         let linked = DJCIdentity.linkedXMLFile
         let linkedReal = UsbScratchRoots.realPath(linked.deletingLastPathComponent().path).map { $0 + "/" + linked.lastPathComponent }

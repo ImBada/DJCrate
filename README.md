@@ -96,9 +96,9 @@ swift build -c release --product djc  # 명령줄 도구: .build/release/djc
 
 파일 메뉴의 **라이브러리 XML 내보내기…**(CLI는 `djc xml-export`)는 지금 보이는 라이브러리 전체(곡 정보·큐·루프·그리드·재생 목록 폴더 트리)를 rekordbox XML 한 파일로 저장한다. 다른 DJ 소프트웨어·도구로 옮기거나 사본으로 둘 때 쓴다. 위의 "XML 만들기"와 달리 저장 위치를 고르고, rekordbox로 되가져오는 연동 파일이 아니다.
 
-- 읽기만 한다. 스냅샷과 분석 파일은 고치지 않고 고른 파일 하나에만 쓴다. rekordbox 폴더와 연동 XML 파일 자리에는 저장하지 않는다.
+- 읽기만 한다. 스냅샷과 분석 파일은 고치지 않고 고른 파일 하나에만 쓴다. rekordbox 폴더·USB의 PIONEER 폴더·DJCrate 데이터 폴더(백업 포함)·연동 XML 파일 자리에는 저장하지 않는다. CLI는 분석 파일 폴더(`--share <rekordbox 폴더>/share`)를 주거나 그리드 없이 내보낸다고(`--no-analysis`) 명시해야 한다.
 - 아직 쓰지 않은 초안은 넣지 않는다(rekordbox에 있는 그대로).
-- 인텔리전트 재생 목록·My Tag·핫큐 색·스트리밍 곡은 넣지 않고, 끝나면 뺀 개수를 알린다. 자세한 칸 목록은 [docs/cli.md](docs/cli.md#라이브러리-xml-내보내기xml-export).
+- 인텔리전트 재생 목록·My Tag·핫큐 색·스트리밍 곡·상위 폴더가 없는 재생 목록은 넣지 않고, 끝나면 뺀 개수를 알린다. 자세한 칸 목록은 [docs/cli.md](docs/cli.md#라이브러리-xml-내보내기xml-export).
 
 ## 단축키
 

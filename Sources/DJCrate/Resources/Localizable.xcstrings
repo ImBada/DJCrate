@@ -8657,18 +8657,18 @@
         }
       }
     },
-    "rekordbox 폴더나 연동 XML 파일 자리에는 내보낼 수 없습니다. 다른 폴더를 고르세요" : {
+    "rekordbox 폴더, USB의 PIONEER 폴더, DJCrate 데이터 폴더, 연동 XML 파일 자리에는 내보낼 수 없습니다. 다른 폴더를 고르세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Can't export into the rekordbox folder or the linked XML file location. Choose another folder."
+            "value" : "Can't export into the rekordbox folder, a USB PIONEER folder, the DJCrate data folder, or the linked XML file location. Choose another folder."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxフォルダや連携XMLファイルの場所には書き出せません。別のフォルダを選んでください。"
+            "value" : "rekordboxフォルダ、USBのPIONEERフォルダ、DJCrateのデータフォルダ、連携XMLファイルの場所には書き出せません。別のフォルダを選んでください。"
           }
         }
       }
@@ -20755,6 +20755,22 @@
         }
       }
     },
+    "분석 파일 폴더가 없습니다: %@. --share <rekordbox 폴더>/share를 주거나, 그리드 없이 내보내려면 --no-analysis를 주세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The analysis file folder doesn't exist: %@. Pass --share <rekordbox folder>/share, or pass --no-analysis to export without grids."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解析ファイルのフォルダがありません: %@。--share <rekordboxフォルダ>/shareを指定するか、グリッドなしで書き出すには--no-analysisを指定してください。"
+          }
+        }
+      }
+    },
     "분석 파일(.%@)을 만들지 못했습니다 (%@)" : {
       "localizations" : {
         "en" : {
@@ -21289,24 +21305,24 @@
         }
       }
     },
-    "뺀 것: 스트리밍 곡 %lld · 인텔리전트 목록 %lld · XML로 옮길 수 없는 큐 %lld · 뺀 곡을 가리킨 목록 항목 %lld" : {
+    "뺀 것: 스트리밍 곡 %lld · 인텔리전트 목록 %lld · XML로 옮길 수 없는 큐 %lld · 뺀 곡을 가리킨 목록 항목 %lld · 상위 폴더가 없는 목록 %lld" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Left out: streaming tracks %1$lld · Intelligent Playlists %2$lld · cues XML can't carry %3$lld · playlist entries pointing to left-out tracks %4$lld"
+            "value" : "Left out: streaming tracks %1$lld · Intelligent Playlists %2$lld · cues XML can't carry %3$lld · playlist entries pointing to left-out tracks %4$lld · playlists whose parent folder is missing %5$lld"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "除外: ストリーミング曲%1$lld · インテリジェントプレイリスト%2$lld · XMLで表せないキュー%3$lld · 除外した曲を指すプレイリスト項目%4$lld"
+            "value" : "除外: ストリーミング曲%1$lld · インテリジェントプレイリスト%2$lld · XMLで表せないキュー%3$lld · 除外した曲を指すプレイリスト項目%4$lld · 親フォルダがないプレイリスト%5$lld"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "뺀 것: 스트리밍 곡 %1$lld · 인텔리전트 목록 %2$lld · XML로 옮길 수 없는 큐 %3$lld · 뺀 곡을 가리킨 목록 항목 %4$lld"
+            "value" : "뺀 것: 스트리밍 곡 %1$lld · 인텔리전트 목록 %2$lld · XML로 옮길 수 없는 큐 %3$lld · 뺀 곡을 가리킨 목록 항목 %4$lld · 상위 폴더가 없는 목록 %5$lld"
           }
         }
       }

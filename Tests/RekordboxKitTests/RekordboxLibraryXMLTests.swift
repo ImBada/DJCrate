@@ -258,6 +258,32 @@ struct RekordboxLibraryXMLTests {
         #expect(Set(keys(top)).isSubset(of: known))
     }
 
+    /// 상위 폴더가 없는 목록은 rekordbox 트리(ROOT에서 닿는 곳)에 없으므로 루트에 지어 붙이지 않고, 조용히 사라지지 않게 센다.
+    @Test func 없는_폴더를_가리키는_재생_목록은_빼고_센다() throws {
+        let fixture = try makeLibrary()
+        for (id, name, parent, attribute) in [("o1", "고아 목록", "없는폴더", 0), ("o2", "고아 폴더", "없는폴더", 1), ("o3", "고아 폴더 속 목록", "o2", 0)] {
+            try fixture.insert("djmdPlaylist", ["ID": .text(id), "Name": .text(name), "ParentID": .text(parent),
+                                                "Attribute": .int(attribute), "Seq": .int(1)])
+        }
+        try fixture.insert("djmdSongPlaylist", ["ID": .text("s9"), "PlaylistID": .text("o1"), "ContentID": .text("101"), "TrackNo": .int(1)])
+        let source = try collection(fixture)
+        let summary = source.summary
+        #expect(summary.folders == 2 && summary.playlists == 2 && summary.playlistEntries == 5, "닿는 트리만 센다")
+        #expect(summary.omitted.orphanedPlaylists == 3, "고아 목록·고아 폴더·그 안의 목록")
+        let xml = RekordboxLibraryXML.document(source)
+        #expect(!xml.contains("고아"))
+    }
+
+    @Test func 서로를_가리키는_폴더도_빼고_센다() {
+        func list(_ id: String, parent: String, folder: Bool = false) -> RekordboxPlaylist {
+            RekordboxPlaylist(id: id, name: id, parentID: parent, seq: 1, isFolder: folder, trackIDs: [])
+        }
+        var omitted = RekordboxLibraryXML.Omitted()
+        let tree = RekordboxLibraryXML.listTree([list("a", parent: "b", folder: true), list("b", parent: "a", folder: true),
+                                                 list("c", parent: "root")], keys: [:], omitted: &omitted)
+        #expect(tree.map(\.name) == ["c"] && omitted.orphanedPlaylists == 2)
+    }
+
     @Test func 재생_목록이_없으면_빈_ROOT를_쓴다() throws {
         let fixture = try RekordboxFixture()
         try fixture.add(TrackSpec(id: "1"))
@@ -396,6 +422,26 @@ struct RekordboxLibraryXMLTests {
         #expect(root.first("COLLECTION")?.all("TRACK").count == 1500)
     }
 
+    // MARK: Location 인코딩
+
+    /// `#`·`%`는 퍼센트 인코딩하고, NFD 한글은 정규화하지 않고 그 바이트 그대로 인코딩한다(되읽으면 원래 경로).
+    @Test func Location은_샵_퍼센트_NFD_한글을_인코딩하고_되읽으면_원래_경로다() throws {
+        let nfd = "한글".decomposedStringWithCanonicalMapping
+        #expect(nfd.unicodeScalars.count == 6)
+        let path = "/Music/50% #1 \(nfd).mp3"
+        let location = RekordboxXML.location(forPath: path)
+        #expect(location == "file://localhost/Music/50%25%20%231%20%E1%84%92%E1%85%A1%E1%86%AB%E1%84%80%E1%85%B3%E1%86%AF.mp3")
+        let back = try #require(String(location.dropFirst("file://localhost".count)).removingPercentEncoding)
+        #expect(Array(back.unicodeScalars) == Array(path.unicodeScalars), "NFD를 NFC로 바꾸지 않는다")
+
+        let fixture = try RekordboxFixture()
+        var spec = TrackSpec(id: "1")
+        spec.folderPath = path
+        try fixture.add(spec)
+        let root = try parse(RekordboxLibraryXML.document(try collection(fixture)))
+        #expect(try tracks(root)["1"]?.attributes["Location"] == location)
+    }
+
     // MARK: 출력 경로
 
     @Test func 출력_경로는_xml_파일만_받고_rekordbox_폴더와_연동_파일은_거부한다() throws {
@@ -431,6 +477,54 @@ struct RekordboxLibraryXMLTests {
         // 대소문자만 다른 표기도 같은 폴더로 본다
         let shouting = URL(filePath: fixture.root.path.uppercased()).appending(path: "library.xml")
         #expect(throws: RekordboxLibraryXML.OutputError.self) { try RekordboxLibraryXML.checkOutput(shouting, environment: environment) }
+    }
+
+    /// DJCrate 데이터 폴더(`DJC_HOME`·지원 폴더) 안은 거부한다. 백업의 masterPlaylists6.xml을 덮으면 "쓰기 전으로 복원"이 그것을 라이브로 옮긴다.
+    @Test func DJCrate_데이터_폴더_안은_거부한다() throws {
+        let home = try RekordboxFixture()
+        let environment = ["DJC_HOME": home.root.path]
+        let backup = home.root.appending(path: "rekordbox-backups/2026-10-01")
+        let usb = home.root.appending(path: "usb-backups/x/PIONEER")
+        for folder in [backup, usb] { try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true) }
+        for out in [home.root.appending(path: "library.xml"), backup.appending(path: "masterPlaylists6.xml"), usb.appending(path: "a.xml")] {
+            #expect(throws: RekordboxLibraryXML.OutputError(reason: RekordboxLibraryXML.protectedOutputReason)) {
+                try RekordboxLibraryXML.checkOutput(out, environment: environment)
+            }
+        }
+        // 그곳을 가리키는 링크, 대소문자만 다른 표기
+        let other = try RekordboxFixture()
+        let link = other.root.appending(path: "link")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: backup)
+        #expect(throws: RekordboxLibraryXML.OutputError.self) { try RekordboxLibraryXML.checkOutput(link.appending(path: "m.xml"), environment: environment) }
+        let shouting = URL(filePath: backup.path.uppercased()).appending(path: "m.xml")
+        #expect(throws: RekordboxLibraryXML.OutputError.self) { try RekordboxLibraryXML.checkOutput(shouting, environment: environment) }
+        // DJC_HOME을 주지 않아도 앱의 지원 폴더(시험 프로세스에서는 임시 폴더)와 실제 사용자 폴더는 막는다
+        let support = DJCIdentity.supportDirectory.appending(path: "rekordbox-backups")
+        try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+        #expect(throws: RekordboxLibraryXML.OutputError(reason: RekordboxLibraryXML.protectedOutputReason)) {
+            try RekordboxLibraryXML.checkOutput(support.appending(path: "m.xml"), environment: [:])
+        }
+        #expect(throws: RekordboxLibraryXML.OutputError(reason: RekordboxLibraryXML.protectedOutputReason)) {
+            try RekordboxLibraryXML.checkOutput(DJCIdentity.userSupportDirectory.appending(path: "rekordbox-backups/x/m.xml"), environment: [:])
+        }
+        // 이웃 폴더는 받는다
+        #expect(throws: Never.self) { try RekordboxLibraryXML.checkOutput(other.root.appending(path: "library.xml"), environment: environment) }
+    }
+
+    /// USB의 PIONEER 폴더 아래(rekordbox·CDJ가 읽는 자리)는 대소문자와 상관없이 거부한다.
+    @Test func USB의_PIONEER_폴더_아래는_거부한다() throws {
+        for path in ["/Volumes/DJCTEST/PIONEER/rekordbox.xml", "/Volumes/DJCTEST/PIONEER/rekordbox/a.xml",
+                     "/volumes/djctest/pioneer/a.xml", "/Volumes/USB 이름/Pioneer/a.xml"] {
+            #expect(throws: RekordboxLibraryXML.OutputError(reason: RekordboxLibraryXML.protectedOutputReason), "\(path)") {
+                try RekordboxLibraryXML.checkOutput(URL(filePath: path), environment: [:])
+            }
+        }
+        // USB 루트·다른 폴더는 이 이유로 막지 않는다(여기서는 없는 폴더라 다른 이유로 막힌다)
+        for path in ["/Volumes/DJCTEST/library.xml", "/Volumes/DJCTEST/PIONEERS/a.xml", "/Volumes/DJCTEST/backup/PIONEER/a.xml"] {
+            #expect(throws: RekordboxLibraryXML.OutputError.self) { try RekordboxLibraryXML.checkOutput(URL(filePath: path), environment: [:]) }
+            #expect(!RekordboxLibraryXML.isUsbPioneerPath(path), "\(path)")
+        }
+        #expect(RekordboxLibraryXML.isUsbPioneerPath("/Volumes/X/PIONEER/a.xml") && RekordboxLibraryXML.isUsbPioneerPath("/VOLUMES/x/pioneer/a/b.xml"))
     }
 
     @Test func 거부된_출력은_아무것도_쓰지_않는다() throws {
