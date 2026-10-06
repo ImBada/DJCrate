@@ -10,9 +10,7 @@ import SwiftUI
 /// 이후에는 rekordbox에서 트리 새로고침 → 재생 목록 → Import To Collection만 하면 된다.
 @MainActor
 enum RekordboxLink {
-    static var url: URL {
-        URL.documentsDirectory.appending(path: "DJCrate/djcrate-rekordbox.xml")
-    }
+    static var url: URL { DJCIdentity.linkedXMLFile }
 
     static func prepare() throws -> URL {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
