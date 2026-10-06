@@ -14975,6 +14975,22 @@
         }
       }
     },
+    "내보내기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エクスポート"
+          }
+        }
+      }
+    },
     "내보내지 못했습니다. 저장 위치와 권한을 확인하세요: %@" : {
       "localizations" : {
         "en" : {
@@ -16647,6 +16663,108 @@
         }
       }
     },
+    "라이브러리 XML 내보내기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Library XML"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリXMLをエクスポート"
+          }
+        }
+      }
+    },
+    "라이브러리 XML 내보내기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Library XML…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリXMLをエクスポート…"
+          }
+        }
+      }
+    },
+    "라이브러리 XML 내보내기가 끝난 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try again after the library XML export finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリXMLのエクスポートが終わってから、もう一度お試しください。"
+          }
+        }
+      }
+    },
+    "라이브러리 XML 내보내는 중" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporting library XML"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリXMLをエクスポート中"
+          }
+        }
+      }
+    },
+    "라이브러리 XML을 내보내지 못했습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't export the library XML: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリXMLをエクスポートできませんでした: %@"
+          }
+        }
+      }
+    },
+    "라이브러리 XML을 내보냈습니다: %@ · 곡 %lld · 큐·루프 %lld · 재생 목록 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exported library XML: %1$@ · Tracks %2$lld · Cues & loops %3$lld · Playlists %4$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリXMLをエクスポートしました: %1$@ · 曲%2$lld · キュー・ループ%3$lld · プレイリスト%4$lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "라이브러리 XML을 내보냈습니다: %1$@ · 곡 %2$lld · 큐·루프 %3$lld · 재생 목록 %4$lld"
+          }
+        }
+      }
+    },
     "라이브러리 XML을 썼습니다: %@" : {
       "localizations" : {
         "en" : {
@@ -16787,6 +16905,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ライブラリの読み込みが終わってから再同期してください"
+          }
+        }
+      }
+    },
+    "라이브러리 전체(곡·큐·그리드·재생 목록)를 rekordbox XML 파일로 내보냅니다. rekordbox 라이브러리는 바뀌지 않으며, 쓰지 않은 초안은 넣지 않습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exports the whole library (tracks, cues, grids, and playlists) to a rekordbox XML file. The rekordbox library isn't changed, and drafts you haven't written are not included."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリ全体（曲・キュー・グリッド・プレイリスト）をrekordbox XMLファイルにエクスポートします。rekordboxのライブラリは変更されず、未書き込みの下書きは含まれません。"
           }
         }
       }
@@ -16963,6 +17097,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ライブラリを読み込んでから曲を追加してください"
+          }
+        }
+      }
+    },
+    "라이브러리를 먼저 불러온 뒤 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Load the library first, then export."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先にライブラリを読み込んでから、エクスポートしてください。"
           }
         }
       }

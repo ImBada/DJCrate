@@ -316,6 +316,12 @@ final class LibraryStore {
     private(set) var hasGridJob = false
     var gridQueue: [GridJobItem] = []
     var gridTask: Task<Void, Never>?
+    /// 라이브러리 XML 내보내기 진행(끝나면 nil, `LibraryStore+XMLExport.swift`). 그리드 추정처럼 줄은 시작·끝에만 넣고 뺀다.
+    var xmlExportJob: LibraryXMLExportJob? {
+        didSet { if (oldValue == nil) != (xmlExportJob == nil) { hasXMLExportJob = xmlExportJob != nil } }
+    }
+    private(set) var hasXMLExportJob = false
+    @ObservationIgnored var xmlExportTask: Task<Void, Never>?
     /// 곡 추가·내보내기 결과 안내
     var stagingMessage: AppMessage? {
         didSet { if let stagingMessage { feedback.announce(stagingMessage) } }

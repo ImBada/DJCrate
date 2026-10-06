@@ -33,6 +33,7 @@ struct Sidebar: View {
                 SidebarLastWriteResultRow(store: store)
                 // 진행 줄은 넣고 빼야 해서 본문이 시작·끝만 읽고, 진행(done/total)은 줄이 읽는다.
                 if store.hasGridJob { SidebarGridJobRow(store: store) }
+                if store.hasXMLExportJob { SidebarXMLExportRow(store: store) }
             } header: {
                 Text(verbatim: "DJCrate").sidebarSectionHeader()
             }
@@ -113,6 +114,23 @@ struct SidebarGridJobRow: View {
                 ProgressView(value: Double(job.done), total: Double(max(job.total, 1))).controlSize(.small)
                 Text(.ui("그리드 추정 \(job.done)/\(job.total)")).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
+        }
+    }
+}
+
+/// 라이브러리 XML 내보내기 진행 줄. 진행이 오를 때마다 이 뷰만 다시 계산된다.
+struct SidebarXMLExportRow: View {
+    let store: LibraryStore
+
+    var body: some View {
+        if let job = store.xmlExportJob {
+            // 사이드바 폭에서 문구가 잘리지 않게 막대를 문구 아래에 둔다.
+            VStack(alignment: .leading, spacing: 3) {
+                Text(.ui("라이브러리 XML 내보내는 중")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                if job.isPreparing { ProgressView().progressViewStyle(.linear).controlSize(.small) }
+                else { ProgressView(value: job.fraction).controlSize(.small) }
+            }
+            .accessibilityElement(children: .combine)
         }
     }
 }
