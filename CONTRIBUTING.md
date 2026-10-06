@@ -16,6 +16,8 @@ rekordbox 쓰기 시험은 사본으로만 한다. `DJC_REKORDBOX_DIR=<사본 �
 
 rekordbox 규칙 확인 방법, 외부 코드·문서와 제3자 고지, 내보내는 파일의 칸 단위 작성은 [AGENTS.md의 개발 규칙](AGENTS.md#가장-중요한-규칙-rekordbox-라이브러리를-절대-깨뜨리지-않는다)을 따른다.
 
+앱 아이콘은 Xcode 27의 `actool`로 `Assets/AppIcon.icon`을 컴파일한다. 전경 SVG를 바꿀 때는 `swift scripts/make-icon.swift`로 다시 만들고, Icon Composer에서 배경·레이어 순서와 기본·다크·모노 외관을 확인한다. 모서리·반사 효과는 시스템이 입히므로 원본에 그리지 않는다.
+
 ## 데이터 폴더와 환경 변수
 
 DJCrate 데이터는 `~/Library/Application Support/DJCrate/`에 있다.
