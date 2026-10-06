@@ -21,7 +21,7 @@ rekordbox 7용 DJ 라이브러리 관리 macOS 앱 DJCrate(약칭 DJC, CLI `djc`
 - 내보내는 파일(USB 등)은 칸 단위로 만든다. rekordbox가 만든 파일의 페이지·표 바이트를 통째로 넣지 않는다.
 - USB 쓰기는 `UsbWriter.write` 한 곳으로만 한다. rekordbox·rekordboxAgent가 켜져 있으면 USB에도 쓰지 않는다.
 - USB의 DB(`exportLibrary.db`·`export.pdb`·`exportExt.pdb`)는 Mac 사본에서만 연다. USB 위에서 SQLite를 열지 않는다.
-- 실물 USB 쓰기는 코드에서 닫혀 있다(`UsbPhysicalWriteGate.buildEnabled`). 시험 쓰기는 `djc lab usb-image`로 만든 디스크 이미지에만 한다. 이미지·lab 출력은 임시 폴더 아래만(`UsbScratchPath`).
+- 실물 USB 쓰기는 기본으로 꺼져 있다. 코드 관문(`UsbPhysicalWriteGate.buildEnabled`)과 실행 중 스위치(설정 › 실험실 "실물 USB 쓰기"·CLI `--allow-physical`)가 둘 다 열리고, 쓰기 금지 목록이 등록돼 있고, 사용자가 그 USB에 쓰기를 허용했고(`djc usb-allow`·사이드바), 볼륨 이름을 확인한 FAT32·MBR USB 메모리에만 쓴다(`docs/usb-internals.md` §12). 시험·에이전트는 이 Mac에 꽂힌 실제 볼륨에 쓰지 않는다(나열·읽기 전용 확인만). 시험 쓰기는 `djc lab usb-image`로 만든 디스크 이미지나 임시 폴더 루트에 주입한 가짜 볼륨에만 한다(시험 프로세스는 관문이 열려도 임시 폴더 밖에 쓰지 않는다). 이미지·lab 출력은 임시 폴더 아래만(`UsbScratchPath`).
 - `PIONEER/extracted`·`PIONEER/CDP`·`djprofile.nxs`는 열거·읽기·복사하지 않는다.
 
 ## 명령
@@ -46,12 +46,14 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 .build/debug/djc xml-export --db <사본.db> --out <파일.xml> (--share <rekordbox 폴더>/share | --no-analysis) [--overwrite] [--dry-run]   # 라이브러리 전체를 rekordbox XML 한 파일로(읽기만, 지정한 파일만 씀, rekordbox 폴더·USB PIONEER·DJCrate 데이터 폴더·연동 XML 자리는 거부)
 .build/debug/djc lab                                   # 실험 명령 목록(sql·loop-repro·seekinfo-check …)
 .build/debug/djc lab sql <사본.db> "SELECT …"           # 사본에 읽기 전용 질의
-.build/debug/djc usb-export --volume <마운트> --db <사본.db> (--playlist <ID>… | --tracks <ID,…>) [--dry-run] [--snapshot-time <ISO 8601>]   # 빈 USB에 두 형식으로 내보내기(지금은 디스크 이미지만, 예: --volume $DJC_HOME/mnt)
-.build/debug/djc usb-edit --volume <마운트> (<편집.json> | --draft) --db <사본.db> [--dry-run] [--snapshot-time <ISO 8601>]   # 라이브러리가 있는 USB에 곡 더하기·빼기·갱신·재생 목록 편집(지금은 디스크 이미지만, JSON 모양은 docs/cli.md)
-.build/debug/djc usb-migrate --volume <마운트> [--dry-run]       # Device Library만 있는 USB에 OneLibrary 더하기(원래 파일 그대로, 지금은 디스크 이미지만)
+.build/debug/djc usb-export --volume <마운트> --db <사본.db> (--playlist <ID>… | --tracks <ID,…>) [--dry-run] [--snapshot-time <ISO 8601>] [--allow-physical --confirm <볼륨 이름>]   # 빈 USB에 두 형식으로 내보내기(시험은 디스크 이미지만, 예: --volume $DJC_HOME/mnt)
+.build/debug/djc usb-edit --volume <마운트> (<편집.json> | --draft) --db <사본.db> [--dry-run] [--snapshot-time <ISO 8601>] [--allow-physical --confirm <볼륨 이름>]   # 라이브러리가 있는 USB에 곡 더하기·빼기·갱신·재생 목록 편집(시험은 디스크 이미지만, JSON 모양은 docs/cli.md)
+.build/debug/djc usb-migrate --volume <마운트> [--dry-run] [--allow-physical --confirm <볼륨 이름>]       # Device Library만 있는 USB에 OneLibrary 더하기(원래 파일 그대로, 시험은 디스크 이미지만)
 .build/debug/djc usb-restore --volume <마운트> [--backup <폴더>] [--discard-device-changes]   # USB 쓰기를 그 전 백업으로 되돌리기
 .build/debug/djc usb-recover --volume <마운트> [--discard-temp]                             # 끝나지 않은 USB 쓰기를 마저 쓰거나 되돌리기
 .build/debug/djc usb-info <볼륨|폴더> [--json]                                             # USB 읽기만: 형식·곡 수·두 형식 일치·분석 파일·경고(실물은 쓰기 금지 목록 등록 뒤에만)
+.build/debug/djc usb-deny --volume <마운트>                                                # 쓰면 안 되는 USB를 쓰기 금지 목록에(목록 파일만, 사용자가 직접)
+.build/debug/djc usb-allow --volume <마운트> [--remove]                                    # 이 실물 USB에 쓰기 허용·거두기(목록 파일만, 허용은 사용자가 터미널에서 볼륨 이름을 입력)
 .build/debug/djc lab usb-image create|attach|detach|info <이미지>   # 임시 폴더 아래 FAT32 디스크 이미지(attach는 --mount <폴더>)
 .build/debug/djc lab usb-image seed --image <이미지> --from <폴더>   # 붙인 이미지에 폴더 내용을 데이터만 복사
 .build/debug/djc lab usb-tree <루트>                                 # USB 트리(NFC 경로·크기·SHA-256, 마지막 줄 ._ 수)

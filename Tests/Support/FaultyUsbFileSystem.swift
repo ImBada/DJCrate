@@ -54,6 +54,7 @@ public final class FaultyUsbFileSystem: UsbFileSystem, @unchecked Sendable {
     private var counts: [String: Int] = [:]
     private var crashed = false
     private var unmounted = false
+    private var swapped = false
 
     public init(root: URL) {
         self.root = root
@@ -66,6 +67,11 @@ public final class FaultyUsbFileSystem: UsbFileSystem, @unchecked Sendable {
     public var calls: [String] { lock.withLock { recorded } }
     public var isCrashed: Bool { lock.withLock { crashed } }
     public var isUnmounted: Bool { lock.withLock { unmounted } }
+
+    /// 같은 마운트 지점에 다른 볼륨이 붙은 것처럼: 마운트 지점·파일 연산은 그대로 되고, 붙잡아 둔 볼륨(`holdVolume`)만 다르다고 답한다
+    public func swapVolume() {
+        lock.withLock { swapped = true }
+    }
 
     /// 다른 곳(가드·검증 흉내)에서 일어난 일을 같은 기록에 남긴다
     public func record(_ note: String) {
@@ -242,6 +248,23 @@ public final class FaultyUsbFileSystem: UsbFileSystem, @unchecked Sendable {
     public func read(_ url: URL, maxBytes: Int) throws -> Data {
         if try begin(.read, url) == .crash { throw InjectedFault(op: .read, path: label(url)) }
         return try inner.read(url, maxBytes: maxBytes)
+    }
+
+    public func holdVolume(_ root: URL) throws -> any UsbVolumeHold {
+        Hold(inner: try inner.holdVolume(root), isSwapped: { [self] in lock.withLock { swapped } })
+    }
+
+    final class Hold: UsbVolumeHold, @unchecked Sendable {
+        let inner: any UsbVolumeHold
+        let isSwapped: @Sendable () -> Bool
+
+        init(inner: any UsbVolumeHold, isSwapped: @escaping @Sendable () -> Bool) {
+            self.inner = inner
+            self.isSwapped = isSwapped
+        }
+
+        func isSameVolume() -> Bool { !isSwapped() && inner.isSameVolume() }
+        func release() { inner.release() }
     }
 
     public func mountedOn(_ url: URL) throws -> String? {

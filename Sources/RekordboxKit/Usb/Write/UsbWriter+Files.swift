@@ -39,15 +39,31 @@ extension UsbWriteRun {
         return changes.copies.map(FileItem.copy) + writes.map(FileItem.write)
     }
 
+    /// D 단계의 파일 묶음: 0 음원, 1 분석 파일, 2 아트워크, 3 그 밖
+    static func batch(of item: FileItem) -> Int {
+        switch item {
+        case .copy: 0
+        case let .write(write): UsbPath.isAnalysis(write.destination) ? 1 : UsbPath.isArtwork(write.destination) ? 2 : 3
+        }
+    }
+
     func writeFiles(_ changes: UsbChangeSet, isCancelled: @Sendable () -> Bool) throws {
         try checkRekordbox()
         let items = Self.orderedItems(changes)
         let totalBytes = items.filter { $0.disposition != .reuse }.reduce(Int64(0)) { $0 + $1.size }
         var doneBytes: Int64 = 0
         emit(.files, total: items.count, totalBytes: totalBytes, cancellable: true)
+        var batch: Int?
         for (index, item) in items.enumerated() {
             if isCancelled() { throw UsbWriteFailure.cancelled }
-            try ensureMounted()
+            // 묶음(음원 → 분석 → 아트워크 → 그 밖)마다 볼륨 정체를 다시 읽고, 파일마다는 붙잡은 루트로 본다
+            let kind = Self.batch(of: item)
+            if kind != batch {
+                try ensureSameVolume()
+                batch = kind
+            } else {
+                try ensureMounted()
+            }
             try place(item, target: changes.target) { bytes in
                 self.emit(.files, done: index, total: items.count, bytes: doneBytes + bytes, totalBytes: totalBytes, cancellable: true)
             }

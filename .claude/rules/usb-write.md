@@ -15,7 +15,7 @@ paths:
 
 - 먼저 `docs/usb-internals.md`를 읽는다.
 - 이 파일은 USB 쓰기에 적용한다. `Sources/RekordboxKit/**`에는 `rekordbox-write.md`도 함께 걸린다. 로컬 rekordbox 라이브러리 쓰기는 `RekordboxWriter.write` 한 곳, USB 쓰기는 `UsbWriter.write` 한 곳이다. 둘을 섞지 않는다(USB 코드는 로컬 DB에 쓰지 않는다).
-- 실물 USB에 쓰지 않는다. 디스크 이미지 도구는 **장치 번호를 우리가 방금 붙인 attach 결과에서만** 받고, 파티션·포맷 직전에 `hdiutil info`의 image-path가 그 이미지인지 다시 확인한다. BusProtocol "Disk Image"는 보조 조건일 뿐이다.
+- 실물 USB 쓰기는 `UsbPhysicalWriteGate`(코드 관문 + 실험실 스위치·`--allow-physical` + 쓰기 금지 목록 + USB 메모리 + 허용 목록 + 이름 확인, `docs/usb-internals.md` §12)를 모두 지날 때만 한다. 시험·에이전트는 이 Mac에 꽂힌 실제 볼륨(`/Volumes/*`)에 쓰지 않는다(나열·읽기 전용 확인만). 실물 경로 시험은 가짜 볼륨 정보를 임시 폴더 루트에 주입하거나 `lab usb-image` 이미지로 한다. 디스크 이미지 도구는 **장치 번호를 우리가 방금 붙인 attach 결과에서만** 받고, 파티션·포맷 직전에 `hdiutil info`의 image-path가 그 이미지인지 다시 확인한다. BusProtocol "Disk Image"는 보조 조건일 뿐이다.
 - 디스크 이미지 판정은 DiskArbitration `DADeviceModel == "Disk Image"` + `hdiutil info`에 그 장치의 이미지가 있음 + 그 image-path가 일반 파일, 셋 다일 때만 참이다(`DADeviceProtocol`은 "Virtual Interface"라 판정에 쓰지 않는다). 모르면 실물로 본다.
 - 경로 비교는 `realpath(3)` 결과끼리만 한다(`UsbScratchRoots.realPath`). Foundation 경로 정규화(`resolvingSymlinksInPath`·`standardizedFileURL`)는 `/private`를 떼어 어긋나므로 쓰지 않는다.
 - lab 명령이 받는 이미지·마운트 지점·USB 폴더·출력 폴더는 `UsbScratchPath.check`를 거친다(임시 폴더 아래만).

@@ -19,7 +19,7 @@ public enum UsbWriter {
                              progress: @escaping @Sendable (UsbProgress) -> Void = { _ in },
                              isCancelled: @escaping @Sendable () -> Bool = { false }) throws -> UsbWriteReport {
         let run = try UsbWriteRun.open(root: root, paths: paths, guard: writeGuard, fileSystem: fileSystem, ppthReader: ppthReader,
-                                       now: now, progress: progress)
+                                       now: now, progress: progress, expectedVolumeUUID: options.expectedVolumeUUID)
         defer { run.close() }
         return try run.write(changes, verifiers: verifiers, inspectors: inspectors, options: options, isCancelled: isCancelled)
     }
@@ -28,9 +28,10 @@ public enum UsbWriter {
     /// 보고서의 session이 빈 문자열이면 회복할 저널이 없었다(임시 파일만 알리거나 `discardTemp`로 지웠다)
     public static func recover(root: UsbRoot, paths: UsbWritePaths, guard writeGuard: UsbWriteGuard,
                                fileSystem: any UsbFileSystem = PosixUsbFileSystem(), ppthReader: (@Sendable (Data) -> String?)? = nil,
-                               discardTemp: Bool = false, confirmName: String? = nil) throws -> UsbWriteReport {
+                               discardTemp: Bool = false, confirmName: String? = nil,
+                               expectedVolumeUUID: String? = nil) throws -> UsbWriteReport {
         let run = try UsbWriteRun.open(root: root, paths: paths, guard: writeGuard, fileSystem: fileSystem, ppthReader: ppthReader,
-                                       now: .now, progress: { _ in })
+                                       now: .now, progress: { _ in }, expectedVolumeUUID: expectedVolumeUUID)
         defer { run.close() }
         return try run.recover(discardTemp: discardTemp, confirmName: confirmName)
     }
@@ -38,9 +39,10 @@ public enum UsbWriter {
     /// 끝난 쓰기를 그 쓰기의 백업으로 되돌린다(`usb-restore`). backup이 nil이면 이 볼륨의 가장 최근 백업
     public static func restore(root: UsbRoot, paths: UsbWritePaths, backup: URL?, guard writeGuard: UsbWriteGuard,
                                fileSystem: any UsbFileSystem = PosixUsbFileSystem(), discardDeviceChanges: Bool = false,
-                               confirmName: String? = nil, dryRun: Bool = false) throws -> UsbWriteReport {
+                               confirmName: String? = nil, dryRun: Bool = false,
+                               expectedVolumeUUID: String? = nil) throws -> UsbWriteReport {
         let run = try UsbWriteRun.open(root: root, paths: paths, guard: writeGuard, fileSystem: fileSystem, ppthReader: nil,
-                                       now: .now, progress: { _ in })
+                                       now: .now, progress: { _ in }, expectedVolumeUUID: expectedVolumeUUID)
         defer { run.close() }
         return try run.restore(backup: backup, discardDeviceChanges: discardDeviceChanges, confirmName: confirmName, dryRun: dryRun)
     }
@@ -169,6 +171,10 @@ final class UsbWriteRun {
     let volume: UsbVolumeInfo
     let volumeKey: String
     private let lock: UsbVolumeLock
+    /// 열 때 붙잡은 루트(같은 마운트 지점에 다른 볼륨이 붙었는지 본다)
+    private let hold: any UsbVolumeHold
+    /// 한 번이라도 정체가 어긋나면 참으로 남는다(그 뒤 모든 확인이 실패한다)
+    private(set) var identityLost = false
 
     var journal: UsbJournal!
     var manifest: UsbManifest?
@@ -178,7 +184,7 @@ final class UsbWriteRun {
 
     private init(root: UsbRoot, paths: UsbWritePaths, writeGuard: UsbWriteGuard, fs: any UsbFileSystem,
                  ppthReader: (@Sendable (Data) -> String?)?, now: Date, progress: @escaping @Sendable (UsbProgress) -> Void,
-                 mountPoint: String, volume: UsbVolumeInfo, volumeKey: String, lock: UsbVolumeLock) {
+                 mountPoint: String, volume: UsbVolumeInfo, volumeKey: String, lock: UsbVolumeLock, hold: any UsbVolumeHold) {
         self.root = root
         self.paths = paths
         self.writeGuard = writeGuard
@@ -190,33 +196,56 @@ final class UsbWriteRun {
         self.volume = volume
         self.volumeKey = volumeKey
         self.lock = lock
+        self.hold = hold
     }
 
-    /// usb-internals 7.2의 1 가드와 무관한 확인 → 2 볼륨 정보 → 3 잠금. 여기서 막히면 잠금 파일도 만들지 않는다
+    /// usb-internals 7.2의 1 가드와 무관한 확인 → 루트 붙잡기 → 2 볼륨 정보(+ 사용자가 확인한 볼륨인지) → 3 잠금. 여기서 막히면 잠금 파일도 만들지 않는다
     static func open(root: UsbRoot, paths: UsbWritePaths, guard writeGuard: UsbWriteGuard, fileSystem: any UsbFileSystem,
                      ppthReader: (@Sendable (Data) -> String?)?, now: Date,
-                     progress: @escaping @Sendable (UsbProgress) -> Void) throws -> UsbWriteRun {
-        let mountPoint = try scratchAndMountCheck(root, fileSystem)
-        let volume = try writeGuard.volume(root.url)
+                     progress: @escaping @Sendable (UsbProgress) -> Void, expectedVolumeUUID: String? = nil) throws -> UsbWriteRun {
+        let mountPoint = try scratchAndMountCheck(root, fileSystem, gate: writeGuard.gate)
+        // 볼륨 정보를 읽기 전에 루트를 붙잡는다: 읽은 정보가 붙잡은 볼륨의 것인지 아래에서 다시 본다
+        let hold = try fileSystem.holdVolume(root.url)
+        var keep = false
+        defer { if !keep { hold.release() } }
+        // 임시 폴더 밖이면 가드가 디스크 이미지라고 해도 실물로 판정한다(실물 관문·확인 안 된 규칙을 건너뛰지 않게)
+        let volume = try writeGuard.volume(root.url).judgedForWrite(underScratch: UsbScratchRoots.isUnderAllowedRoot(mountPoint))
         guard let uuid = volume.volumeUUID?.uppercased(), !uuid.isEmpty,
               uuid.allSatisfy({ $0.isHexDigit || $0 == "-" }) else {
             throw UsbError.writeRefused([UsbBlock(code: "noVolumeUUID", scope: .volume,
                                                   message: String(ui: "이 USB의 볼륨 번호를 읽지 못했습니다. 다시 연결한 뒤 시도하세요"))])
         }
+        if let expectedVolumeUUID, expectedVolumeUUID.uppercased() != uuid {
+            throw UsbError.writeRefused([volumeChangedBlock])
+        }
+        guard hold.isSameVolume() else { throw UsbError.writeRefused([volumeChangedBlock]) }
         let lock = try UsbVolumeLock.acquire(directory: paths.sessions, key: uuid)
+        keep = true
         return UsbWriteRun(root: root, paths: paths, writeGuard: writeGuard, fs: fileSystem, ppthReader: ppthReader, now: now,
-                           progress: progress, mountPoint: mountPoint, volume: volume, volumeKey: uuid, lock: lock)
+                           progress: progress, mountPoint: mountPoint, volume: volume, volumeKey: uuid, lock: lock, hold: hold)
     }
 
-    func close() { lock.release() }
+    /// 사용자가 확인한 볼륨이 지금 그 자리에 없을 때(쓰기 전이라 USB는 그대로)
+    static var volumeChangedBlock: UsbBlock {
+        UsbBlock(code: "volumeChanged", scope: .volume,
+                 message: String(ui: "확인한 USB가 아닌 다른 볼륨이 그 자리에 있습니다. USB 목록을 다시 읽고 고른 USB를 확인한 뒤 다시 시도하세요"))
+    }
 
-    /// 실물 쓰기가 닫혀 있는 동안 루트 경로 자체가 임시 폴더 아래여야 한다(주입한 가드 값을 쓰지 않는다).
+    func close() {
+        hold.release()
+        lock.release()
+    }
+
+    /// 실물 쓰기가 닫혀 있는 동안(코드 관문·실행 중 스위치 중 하나라도 꺼짐) 루트 경로 자체가 임시 폴더 아래여야 한다(가드의 볼륨 정보를 쓰지 않는다).
     /// 디스크 이미지는 lab 도구·자가 테스트가 늘 임시 폴더 아래에 붙이고, 실물은 /Volumes 아래에 붙는다.
+    /// 시험 프로세스는 관문이 열려 있어도 임시 폴더 밖에 쓰지 않는다(시험이 이 Mac에 꽂힌 USB에 닿지 않게).
     /// 그리고 루트가 정말 마운트 지점이어야 한다. 이 값을 기준으로 단계마다 다시 본다.
-    static func scratchAndMountCheck(_ root: UsbRoot, _ fileSystem: any UsbFileSystem) throws -> String {
+    static func scratchAndMountCheck(_ root: UsbRoot, _ fileSystem: any UsbFileSystem, gate: UsbPhysicalWriteGate,
+                                     isTestProcess: Bool = TestProcess.isRunning) throws -> String {
         let real = UsbScratchRoots.realPath(root.url.path)
-        if !UsbPhysicalWriteGate.buildEnabled, !(real.map(UsbScratchRoots.isUnderAllowedRoot) ?? false) {
-            throw UsbError.writeRefused([physicalDisabledBlock])
+        if !(real.map(UsbScratchRoots.isUnderAllowedRoot) ?? false) {
+            if let closed = gate.closedBlock { throw UsbError.writeRefused([closed]) }
+            if isTestProcess { throw UsbError.writeRefused([testProcessBlock]) }
         }
         guard let real, try fileSystem.mountedOn(root.url) == real else {
             throw UsbError.writeRefused([UsbBlock(code: "notMountPoint", scope: .volume, message: String(ui: "USB 볼륨의 맨 위 폴더를 고르세요"))])
@@ -224,9 +253,10 @@ final class UsbWriteRun {
         return real
     }
 
-    static var physicalDisabledBlock: UsbBlock {
+    /// 시험 프로세스가 임시 폴더 밖 루트에 쓰려 할 때(관문이 열려 있어도)
+    static var testProcessBlock: UsbBlock {
         UsbBlock(code: "physicalDisabled", scope: .volume,
-                 message: String(ui: "실물 USB 쓰기는 아직 열리지 않았습니다. 디스크 이미지로만 시험할 수 있습니다"), rule: .physicalVolume)
+                 message: String(ui: "시험 실행은 임시 폴더 아래 디스크 이미지에만 씁니다"), rule: .physicalVolume)
     }
 
     // MARK: - 경로·저널
@@ -252,8 +282,10 @@ final class UsbWriteRun {
         return UsbLayout.tempName(session: journal.session, sequence: journal.nextSequence)
     }
 
-    /// 볼륨이 아직 기준 마운트 지점에 붙어 있는지. 아니면 `volumeLost`(되돌리지 않고 멈춘다)
+    /// 볼륨이 아직 기준 마운트 지점에 붙어 있고, 열 때 붙잡은 그 볼륨인지(같은 이름의 다른 USB가 같은 자리에 붙으면 마운트 지점만으로는 모른다).
+    /// 아니면 `volumeLost`(되돌리지 않고 멈춘다). 정체가 어긋났으면 `identityLost`를 세워 밖으로 `volumeChanged`를 낸다
     func ensureMounted() throws {
+        if identityLost { throw UsbWriteFailure.volumeLost }
         let mounted: Bool
         do {
             mounted = try fs.mountedOn(root.url) == mountPoint && fs.stat(root.url)?.kind == .directory
@@ -261,6 +293,28 @@ final class UsbWriteRun {
             mounted = false
         }
         if !mounted { throw UsbWriteFailure.volumeLost }
+        if !hold.isSameVolume() {
+            identityLost = true
+            throw UsbWriteFailure.volumeLost
+        }
+    }
+
+    /// 단계·파일 묶음의 시작, 되돌리기·회복·복원의 시작: `ensureMounted`에 더해 볼륨 정보(DiskArbitration UUID·용량)를 다시 읽어
+    /// 처음 것과 같은지 본다. 읽지 못해도 다른 볼륨으로 본다(그 볼륨에 쓰지 않는다)
+    func ensureSameVolume() throws {
+        try ensureMounted()
+        let current = try? writeGuard.volume(root.url)
+        let sameUUID = current?.volumeUUID?.uppercased() == volumeKey
+        let sameCapacity = (current?.capacity ?? 0) <= 0 || volume.capacity <= 0 || current?.capacity == volume.capacity
+        if !(sameUUID && sameCapacity) {
+            identityLost = true
+            throw UsbWriteFailure.volumeLost
+        }
+    }
+
+    /// 볼륨이 사라졌거나 바뀌어 멈출 때 밖으로 내는 오류
+    var volumeGone: UsbError {
+        identityLost ? .volumeChanged(volumeName: volume.name) : .volumeLost(volumeName: volume.name)
     }
 
     func checkRekordbox() throws {
@@ -281,8 +335,9 @@ final class UsbWriteRun {
         }
         blocks += UsbRuleCheck.blocks(required: required, volume: volume, allowProvisional: allowProvisional, gate: writeGuard.gate,
                                       confirmName: confirmName)
-        if !volume.isDiskImage, !UsbPhysicalWriteGate.buildEnabled, !blocks.contains(where: { $0.code == "physicalDisabled" }) {
-            blocks.append(Self.physicalDisabledBlock)
+        // 관문이 거부 목록 등 다른 막힘을 먼저 냈어도, 닫힌 관문은 실물에 늘 함께 알린다
+        if !volume.isDiskImage, let closed = writeGuard.gate.closedBlock, !blocks.contains(where: { $0.code == "physicalDisabled" }) {
+            blocks.append(closed)
         }
         return blocks
     }
@@ -435,7 +490,7 @@ extension UsbWriteRun {
         do {
             errors = try rollback(mode: .write)
         } catch UsbWriteFailure.volumeLost {
-            throw UsbError.volumeLost(volumeName: volume.name)
+            throw volumeGone
         }
         let reason = String(describing: cause)
         if errors.isEmpty {

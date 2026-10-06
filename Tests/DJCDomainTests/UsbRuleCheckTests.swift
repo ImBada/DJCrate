@@ -45,6 +45,40 @@ struct UsbRuleCheckTests {
         #expect(both.map(\.rule) == [.physicalVolume, .pathCollision, .cueVariant])
     }
 
+    @Test("실물 쓰기를 연 볼륨은 디스크 이미지에서 확인한 흐름의 규칙만 풀린다")
+    func openGateUnlocksOnlyImageVerifiedFlows() {
+        let gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID], physicalEnabled: true)
+        let flows = UsbProvisionalRule.openOnPhysical
+        #expect(UsbRuleCheck.blocks(required: flows, volume: physical, allowProvisional: [], gate: gate, confirmName: physical.name).isEmpty)
+        // 곡 내용에 따라 붙는 규칙은 그대로 막는다(CLI --allow-provisional로만 푼다)
+        let blocks = UsbRuleCheck.blocks(required: flows.union([.cueVariant, .settingFiles]), volume: physical, allowProvisional: [],
+                                         gate: gate, confirmName: physical.name)
+        #expect(blocks.map(\.rule) == [.cueVariant, .settingFiles])
+        #expect(UsbRuleCheck.blocks(required: [.cueVariant], volume: physical, allowProvisional: [.cueVariant], gate: gate,
+                                    confirmName: physical.name).isEmpty)
+        // 기기 기록 행 옮기기는 허용해도 막는다
+        #expect(UsbRuleCheck.blocks(required: [.carriedDeviceRows], volume: physical, allowProvisional: [.carriedDeviceRows], gate: gate,
+                                    confirmName: physical.name).map(\.rule) == [.carriedDeviceRows])
+    }
+
+    @Test("실물 쓰기가 꺼져 있으면 흐름 규칙도 풀리지 않는다")
+    func closedGateKeepsFlowRulesBlocked() {
+        let gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID])
+        let blocks = UsbRuleCheck.blocks(required: [.analysisFolderNaming], volume: physical, allowProvisional: [], gate: gate,
+                                         confirmName: physical.name)
+        #expect(blocks.map(\.code) == ["physicalDisabled", "provisional"])
+    }
+
+    @Test("실물에서 풀리는 흐름 규칙: 내보내기·수정·옮기기의 바탕 규칙만, 곡 내용 규칙·관문 규칙은 없음")
+    func openOnPhysicalMembers() {
+        #expect(UsbProvisionalRule.openOnPhysical == [.analysisFolderNaming, .playlistSiblingBase, .playlistFolderRow,
+                                                      .editAddTracks, .editRemoveTracks, .editPlaylists, .trackRemovalFiles,
+                                                      .pdbRegeneratedEdit, .deviceLibraryMigration])
+        #expect(!UsbProvisionalRule.openOnPhysical.contains(.physicalVolume))
+        #expect(!UsbProvisionalRule.openOnPhysical.contains(.carriedDeviceRows))
+        #expect(UsbProvisionalRule.openOnPhysical.isDisjoint(with: UsbProvisionalRule.confirmed))
+    }
+
     @Test("허용 목록으로 실물 볼륨 규칙은 풀리지 않는다")
     func allowProvisionalCannotUnlockPhysicalVolume() {
         let gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID])

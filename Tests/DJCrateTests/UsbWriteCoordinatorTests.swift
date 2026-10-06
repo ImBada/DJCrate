@@ -222,7 +222,7 @@ extension UsbTestData {
 
     static var physicalBlock: UsbBlock {
         UsbBlock(code: "physicalDisabled", scope: .volume,
-                 message: "실물 USB 쓰기는 아직 열리지 않았습니다. 디스크 이미지로만 시험할 수 있습니다", rule: .physicalVolume)
+                 message: "실물 USB 쓰기가 꺼져 있습니다. 앱은 설정 › 실험실에서 켜고, djc는 --allow-physical을 준 뒤 다시 시도하세요", rule: .physicalVolume)
     }
 }
 
@@ -362,7 +362,7 @@ struct UsbWriteCoordinatorTests {
         let shown = prompter.shown.last
         #expect(shown?.confirm == nil)
         #expect(shown?.title == "USB에 쓸 수 없습니다")
-        #expect(shown?.text.contains("실물 USB 쓰기는 아직 열리지 않았습니다") == true)
+        #expect(shown?.text.contains("실물 USB 쓰기가 꺼져 있습니다") == true)
         let summary = service.current.summary
         #expect(summary.isPhysicalDisabled)
         #expect(!summary.canWrite)
@@ -510,7 +510,7 @@ struct UsbWriteCoordinatorTests {
         #expect(service.current.fileOperations == 0)
         let shown = prompter.shown.last
         #expect(shown?.title == "USB를 회복하지 않았습니다")
-        #expect(shown?.text.contains("실물 USB 쓰기는 아직 열리지 않았습니다") == true)
+        #expect(shown?.text.contains("실물 USB 쓰기가 꺼져 있습니다") == true)
         // 되돌리기도 같은 막힘에서 멈춘다(되돌리기까지 가지 않는다)
         prompter.choices = [.alternate]
         await coordinator(usb).offerRecovery(physical)

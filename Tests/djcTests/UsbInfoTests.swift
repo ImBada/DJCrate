@@ -13,8 +13,8 @@ struct UsbInfoTests {
 
     static func lists(_ fixed: UsbDenyListStatus.State = .missing, entries: Int = 0, userData: UsbDenyListStatus.State = .missing,
                       deny: Set<String> = []) -> UsbPhysicalLists.Loaded {
-        UsbPhysicalLists.Loaded(allow: [], deny: deny,
-                                denyStatus: UsbDenyListStatus(fixedLocation: fixed, fixedEntryCount: entries, userData: userData),
+        UsbPhysicalLists.Loaded(allow: [:], deny: deny,
+                                denyStatus: UsbDenyListStatus(fixedLocation: fixed, fixedPhysicalCount: entries, userData: userData),
                                 allowState: .missing)
     }
 
@@ -299,8 +299,8 @@ struct UsbInfoTests {
                 let lists = Self.lists(.ok, entries: 1, deny: [try #require(volume.volumeUUID)])
                 #expect(refusal(tree, volume: volume, lists: lists) == "denylisted")
                 // 목록을 손으로 만든 값이어도 UUID 대소문자와 무관하게 막는다
-                let lower = UsbPhysicalLists.Loaded(allow: [], deny: [try #require(volume.volumeUUID).lowercased()],
-                                                    denyStatus: UsbDenyListStatus(fixedLocation: .ok, fixedEntryCount: 1, userData: .missing),
+                let lower = UsbPhysicalLists.Loaded(allow: [:], deny: [try #require(volume.volumeUUID).lowercased()],
+                                                    denyStatus: UsbDenyListStatus(fixedLocation: .ok, fixedPhysicalCount: 1, userData: .missing),
                                                     allowState: .missing)
                 #expect(refusal(tree, volume: volume, lists: lower) == "denylisted")
             }
@@ -332,7 +332,7 @@ struct UsbInfoTests {
                 #expect(UsbRead.readRefusal(volume: FakeUsbVolume.diskImageFAT32(), lists: lists) == nil)
                 #expect(refusal(tree, volume: FakeUsbVolume.diskImageFAT32(), lists: lists) == nil)
             }
-            #expect(UsbRead.refusalMessage("denyListNotRegistered") == "쓰기 금지 목록(증거용 USB)을 먼저 등록해야 실물 USB를 읽습니다")
+            #expect(UsbRead.refusalMessage("denyListNotRegistered") == "쓰기 금지 목록이 비어 있어 실물 USB를 읽지 않습니다. 쓰면 안 되는 USB를 사이드바의 ‘쓰기 금지 목록에 넣기…’나 djc usb-deny로 먼저 등록하세요")
             let read = try info(tree, volume: FakeUsbVolume.physicalFAT32(), lists: Self.lists(.ok, entries: 1, deny: [Self.otherUUID]))
             #expect(read.volume?.isDiskImage == false && read.oneLibrary?.tracks == 3)
             #expect(read.volume?.writableForExport == true && read.volume?.writableForEdit == true)

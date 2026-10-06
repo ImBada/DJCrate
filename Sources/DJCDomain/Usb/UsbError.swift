@@ -21,6 +21,9 @@ public enum UsbError: Error, LocalizedError, CustomStringConvertible, Sendable {
     case pathRefused(path: String, reason: String)
     /// 쓰는 도중 볼륨이 사라짐(뽑힘·강제 분리). 복원하지 않고 멈춘다 — 저널은 회복용으로 남긴다
     case volumeLost(volumeName: String)
+    /// 쓰는 도중 같은 자리(마운트 지점)의 볼륨이 처음 USB가 아니게 됨(빠지고 다른 USB가 붙음) 또는 정체를 확인하지 못함.
+    /// 그 볼륨에는 아무것도 쓰지 않고(되돌리기도 하지 않고) 멈춘다 — 저널은 처음 USB의 회복용으로 남긴다
+    case volumeChanged(volumeName: String)
     case cancelled
 
     public var errorDescription: String? {
@@ -46,6 +49,8 @@ public enum UsbError: Error, LocalizedError, CustomStringConvertible, Sendable {
             String(ui: "임시 폴더 아래의 경로만 쓸 수 있습니다(\(reason))")
         case .volumeLost:
             String(ui: "USB 연결이 끊겼습니다. 다시 연결한 뒤 `djc usb-recover`로 회복하세요")
+        case .volumeChanged:
+            String(ui: "쓰는 도중 USB가 바뀌어(또는 확인하지 못해) 멈췄습니다. 지금 USB에는 쓰지 않았습니다. 처음 USB를 다시 꽂고 `djc usb-recover`로 회복하세요")
         case .cancelled:
             String(ui: "USB 작업을 취소했습니다")
         }
@@ -80,6 +85,8 @@ public enum UsbError: Error, LocalizedError, CustomStringConvertible, Sendable {
             String(ui: "임시 폴더 아래의 경로만 쓸 수 있습니다(\(reason)): \(path)")
         case let .volumeLost(volumeName):
             String(ui: "쓰는 도중 USB(\(volumeName)) 연결이 끊겼습니다. 다시 연결한 뒤 `djc usb-recover`를 실행하세요")
+        case let .volumeChanged(volumeName):
+            String(ui: "쓰는 도중 그 자리의 USB가 처음 USB(\(volumeName))가 아니게 되어(또는 확인하지 못해) 멈췄습니다. 지금 붙은 USB에는 쓰지 않았습니다. 처음 USB를 다시 꽂고 `djc usb-recover`를 실행하세요")
         case .cancelled:
             String(ui: "USB 작업을 취소했습니다")
         }

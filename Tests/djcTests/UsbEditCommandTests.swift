@@ -102,7 +102,7 @@ struct UsbEditCommandTests {
             Issue.record("막히지 않음")
         } catch let UsbError.writeRefused(blocks) {
             let block = try #require(blocks.first { $0.code == "physicalDisabled" })
-            #expect(block.message.contains("디스크 이미지로만"))
+            #expect(block.message.contains("--allow-physical"))
             let lines = UsbCommands.editLines(result: try #require(session.lastResult), report: nil)
             #expect(lines.contains { $0.hasPrefix("막힘 physicalDisabled:") })
         }

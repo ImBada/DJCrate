@@ -22,6 +22,16 @@ public enum UsbProvisionalRule: String, CaseIterable, Codable, Sendable, Hashabl
 
     public var isConfirmed: Bool { Self.confirmed.contains(self) }
 
+    /// 실물 쓰기를 연 볼륨(`UsbPhysicalWriteGate.isOpen`)에서 풀리는 규칙: 내보내기·수정·옮기기 흐름 자체의 바탕 규칙이다.
+    /// 이 흐름은 디스크 이미지에서 전 과정(쓰기 → 다시 읽기 검증 → `usb-rebuild`·`usb-diff --ignore-ids` 차이 0 → 되돌리기)을 확인했다(#41·#46).
+    /// rekordbox 실험으로 확인한 것(`confirmed`)은 아니다 — 실기기 확인은 사용자가 실험실 스위치를 켜고 한다.
+    /// 곡 내용에 따라 붙는 규칙(큐 모양·이름 글자·앨범아트 등)은 여기 넣지 않는다(실물에서는 CLI `--allow-provisional`로만 푼다)
+    public static let openOnPhysical: Set<UsbProvisionalRule> = [
+        .analysisFolderNaming, .playlistSiblingBase, .playlistFolderRow,
+        .editAddTracks, .editRemoveTracks, .editPlaylists, .trackRemovalFiles, .pdbRegeneratedEdit,
+        .deviceLibraryMigration,
+    ]
+
     /// 디스크 이미지에서도 막는 규칙. 기기가 남긴 기록을 옮기는 방법을 정하기 전까지는 이미지에도 쓰지 않는다.
     public var blocksEvenOnDiskImage: Bool { self == .carriedDeviceRows }
 

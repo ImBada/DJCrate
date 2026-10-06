@@ -1,5 +1,6 @@
 import DJCDomain
 import DJCStorage
+import DJCTestSupport
 import Foundation
 import Testing
 
@@ -17,10 +18,17 @@ struct UsbPhysicalListsTests {
         try body(support, user)
     }
 
-    func put(_ folder: URL, _ name: String, _ volumes: [String]) throws {
-        let json = try JSONSerialization.data(withJSONObject: ["version": 1, "volumes": volumes])
-        try json.write(to: folder.appending(path: name))
+    /// 목록 파일을 직접 만든다. kind는 금지 목록 항목의 종류(nil이면 옛 모양: 적지 않음),
+    /// fingerprint는 허용 목록 항목의 지문(가짜 실물 USB 용량, nil이면 옛 모양: 적지 않음)
+    func put(_ folder: URL, _ name: String, _ volumes: [String], kind: String? = "physical",
+             fingerprint: Int64? = FakeUsbVolume.physicalCapacity) throws {
+        var object: [String: Any] = ["version": 1, "volumes": volumes]
+        if let kind { object["kinds"] = Dictionary(uniqueKeysWithValues: volumes.map { ($0, kind) }) }
+        if let fingerprint { object["fingerprints"] = Dictionary(uniqueKeysWithValues: volumes.map { ($0, ["capacity": fingerprint]) }) }
+        try JSONSerialization.data(withJSONObject: object).write(to: folder.appending(path: name))
     }
+
+    static let stickPrint = UsbAllowFingerprint(capacity: FakeUsbVolume.physicalCapacity, serial: nil)
 
     @Test("허용 목록은 고정 위치만 읽는다(DJC_HOME 쪽은 무시)")
     func allowIgnoresUserData() throws {
@@ -29,8 +37,38 @@ struct UsbPhysicalListsTests {
             #expect(UsbPhysicalLists.load(supportDirectory: support, userData: user).allow.isEmpty)
             try put(support, "usb-physical-allow.json", [Self.a.lowercased()])
             let loaded = UsbPhysicalLists.load(supportDirectory: support, userData: user)
-            #expect(loaded.allow == [Self.a])
+            #expect(loaded.allow == [Self.a: Self.stickPrint])
             #expect(loaded.allowState == .ok)
+        }
+    }
+
+    @Test("지문(용량·일련번호)이 없는 허용 항목(옛 모양)은 허용으로 보지 않는다")
+    func allowWithoutFingerprintIgnored() throws {
+        try withFolders { support, user in
+            try put(support, "usb-physical-allow.json", [Self.a], fingerprint: nil)
+            let loaded = UsbPhysicalLists.load(supportDirectory: support, userData: user)
+            #expect(loaded.allow.isEmpty)
+            #expect(loaded.allowState == .ok)
+        }
+    }
+
+    @Test("금지 목록 등록은 실물 USB 항목만 센다(디스크 이미지·종류를 적지 않은 옛 항목은 세지 않는다)")
+    func denyCountsPhysicalOnly() throws {
+        try withFolders { support, user in
+            try put(support, "usb-physical-deny.json", [Self.a], kind: "diskImage")
+            var loaded = UsbPhysicalLists.load(supportDirectory: support, userData: user)
+            #expect(loaded.deny == [Self.a])
+            #expect(loaded.denyStatus == UsbDenyListStatus(fixedLocation: .ok, fixedPhysicalCount: 0, userData: .missing))
+            // 디스크 이미지만 넣은 목록으로는 실물 쓰기·읽기를 열지 않는다
+            let stick = FakeUsbVolume.physicalFAT32(uuid: Self.b, name: "OTHER")
+            #expect(loaded.gate(physicalEnabled: true).blocks(stick, confirmName: "OTHER").map(\.code) == ["denyListMissing"])
+            #expect(UsbRead.readRefusal(volume: stick, lists: loaded) == "denyListNotRegistered")
+            try put(support, "usb-physical-deny.json", [Self.a], kind: nil)
+            loaded = UsbPhysicalLists.load(supportDirectory: support, userData: user)
+            #expect(loaded.denyStatus.fixedPhysicalCount == 0)
+            // 금지 자체는 종류와 무관하게 UUID로 막는다
+            #expect(loaded.gate(physicalEnabled: true).blocks(FakeUsbVolume.physicalFAT32(uuid: Self.a), confirmName: "DJCPHYS").map(\.code)
+                == ["denied"])
         }
     }
 
@@ -52,7 +90,7 @@ struct UsbPhysicalListsTests {
             try put(user, "usb-physical-deny.json", [Self.b])
             let loaded = UsbPhysicalLists.load(supportDirectory: support, userData: user)
             #expect(loaded.deny == [Self.a, Self.b])
-            #expect(loaded.denyStatus == UsbDenyListStatus(fixedLocation: .ok, fixedEntryCount: 1, userData: .ok))
+            #expect(loaded.denyStatus == UsbDenyListStatus(fixedLocation: .ok, fixedPhysicalCount: 1, userData: .ok))
             let gate = UsbPhysicalLists.gate(supportDirectory: support, userData: user)
             #expect(gate.denylist == [Self.a, Self.b])
         }
@@ -91,7 +129,7 @@ struct UsbPhysicalListsTests {
         try withFolders { support, user in
             try put(support, "usb-physical-deny.json", [Self.a])
             try put(user, "usb-physical-deny.json", [Self.b, "00000000-0000-0000-0000-00000000CCC3"])
-            #expect(UsbPhysicalLists.load(supportDirectory: support, userData: user).denyStatus.fixedEntryCount == 1)
+            #expect(UsbPhysicalLists.load(supportDirectory: support, userData: user).denyStatus.fixedPhysicalCount == 1)
         }
     }
 
@@ -101,7 +139,7 @@ struct UsbPhysicalListsTests {
             try put(support, "usb-physical-deny.json", [Self.a])
             let loaded = UsbPhysicalLists.load(supportDirectory: support, userData: support)
             #expect(loaded.deny == [Self.a])
-            #expect(loaded.denyStatus.fixedEntryCount == 1)
+            #expect(loaded.denyStatus.fixedPhysicalCount == 1)
             #expect(loaded.denyStatus.fixedLocation == .ok)
         }
     }
@@ -125,6 +163,104 @@ struct UsbPhysicalListsTests {
             _ = UsbPhysicalLists.load(supportDirectory: support, userData: user)
             _ = UsbPhysicalLists.gate(supportDirectory: support, userData: user)
             #expect(try snapshot() == before)
+        }
+    }
+
+    // MARK: - 고치기(허용·거두기·금지)
+
+    @Test("쓰기 허용: FAT32·MBR USB 메모리만 고정 위치 허용 목록에 더한다(이름 포함, 두 번 더해도 하나)")
+    func allowAddsVolume() throws {
+        try withFolders { support, user in
+            let stick = FakeUsbVolume.physicalFAT32()
+            try UsbPhysicalLists.allow(stick, supportDirectory: support, userData: user)
+            try UsbPhysicalLists.allow(stick, supportDirectory: support, userData: user)
+            let loaded = UsbPhysicalLists.load(supportDirectory: support, userData: user)
+            #expect(loaded.allow == [FakeUsbVolume.physicalUUID: Self.stickPrint])
+            #expect(loaded.names[FakeUsbVolume.physicalUUID] == "DJCPHYS")
+            #expect(loaded.allowState == .ok)
+            // DJC_HOME 쪽에는 쓰지 않는다
+            #expect(!FileManager.default.fileExists(atPath: user.appending(path: "usb-physical-allow.json").path))
+            try UsbPhysicalLists.revoke(uuid: FakeUsbVolume.physicalUUID.lowercased(), supportDirectory: support)
+            #expect(UsbPhysicalLists.load(supportDirectory: support, userData: user).allow.isEmpty)
+        }
+    }
+
+    @Test("쓰기 허용을 받지 않는 볼륨은 목록 파일을 만들지 않는다", arguments: ["exfat", "gpt", "ssd", "image", "denied", "internal"])
+    func allowRefuses(kind: String) throws {
+        try withFolders { support, user in
+            var volume = FakeUsbVolume.physicalFAT32()
+            switch kind {
+            case "exfat": volume = FakeUsbVolume.exfat()
+            case "gpt": volume = FakeUsbVolume.gpt()
+            case "ssd": volume = FakeUsbVolume.externalSSD()
+            case "image": volume = FakeUsbVolume.diskImageFAT32()
+            case "internal": volume = FakeUsbVolume.internal()
+            default: try put(support, "usb-physical-deny.json", [FakeUsbVolume.physicalUUID])
+            }
+            #expect(throws: UsbError.self) { try UsbPhysicalLists.allow(volume, supportDirectory: support, userData: user) }
+            #expect(!FileManager.default.fileExists(atPath: support.appending(path: "usb-physical-allow.json").path))
+        }
+    }
+
+    @Test("쓰기 허용은 그 USB의 용량·일련번호를 함께 적고, 다시 허용하면 지문을 새로 적는다")
+    func allowRecordsFingerprint() throws {
+        try withFolders { support, user in
+            try put(support, "usb-physical-deny.json", [Self.b])
+            var stick = FakeUsbVolume.physicalFAT32()
+            stick.deviceSerial = "SN-A"
+            try UsbPhysicalLists.allow(stick, supportDirectory: support, userData: user)
+            var loaded = UsbPhysicalLists.load(supportDirectory: support, userData: user)
+            #expect(loaded.allow[FakeUsbVolume.physicalUUID] == UsbAllowFingerprint(capacity: FakeUsbVolume.physicalCapacity, serial: "SN-A"))
+            // 같은 UUID의 다른 USB(일련번호가 다름)는 관문에서 막힌다
+            var other = stick
+            other.deviceSerial = "SN-B"
+            #expect(loaded.gate(physicalEnabled: true).blocks(other, confirmName: "DJCPHYS").map(\.code) == ["allowMismatch"])
+            try UsbPhysicalLists.allow(other, supportDirectory: support, userData: user)
+            loaded = UsbPhysicalLists.load(supportDirectory: support, userData: user)
+            #expect(loaded.allow[FakeUsbVolume.physicalUUID]?.serial == "SN-B")
+            let text = try String(contentsOf: support.appending(path: "usb-physical-allow.json"), encoding: .utf8)
+            #expect(text.contains("\"fingerprints\""))
+        }
+    }
+
+    @Test("목록 파일이 깨졌으면 고치지 않는다(빈 목록으로 덮지 않는다)")
+    func corruptListNotOverwritten() throws {
+        try withFolders { support, user in
+            let corrupt = Data("{".utf8)
+            try corrupt.write(to: support.appending(path: "usb-physical-allow.json"))
+            #expect(throws: UsbError.self) { try UsbPhysicalLists.allow(FakeUsbVolume.physicalFAT32(), supportDirectory: support, userData: user) }
+            #expect(try Data(contentsOf: support.appending(path: "usb-physical-allow.json")) == corrupt)
+            try corrupt.write(to: support.appending(path: "usb-physical-deny.json"))
+            #expect(throws: UsbError.self) { try UsbPhysicalLists.deny(FakeUsbVolume.physicalFAT32(), supportDirectory: support) }
+            #expect(try Data(contentsOf: support.appending(path: "usb-physical-deny.json")) == corrupt)
+            // 거부 목록이 깨졌으면 허용도 하지 않는다
+            try FileManager.default.removeItem(at: support.appending(path: "usb-physical-allow.json"))
+            #expect(throws: UsbError.self) { try UsbPhysicalLists.allow(FakeUsbVolume.physicalFAT32(), supportDirectory: support, userData: user) }
+        }
+    }
+
+    @Test("쓰기 금지: 고정 위치 목록에 넣고 허용 목록에서 뺀다. 디스크 이미지도 받는다. 넣으면 실물 읽기·쓰기 목록이 등록된 것으로 본다")
+    func denyAddsAndRevokes() throws {
+        try withFolders { support, user in
+            try UsbPhysicalLists.allow(FakeUsbVolume.physicalFAT32(), supportDirectory: support, userData: user)
+            try UsbPhysicalLists.deny(FakeUsbVolume.physicalFAT32(), supportDirectory: support)
+            try UsbPhysicalLists.deny(FakeUsbVolume.diskImageFAT32(), supportDirectory: support)
+            let loaded = UsbPhysicalLists.load(supportDirectory: support, userData: user)
+            #expect(loaded.deny == [FakeUsbVolume.physicalUUID, FakeUsbVolume.diskImageFAT32().volumeUUID!])
+            #expect(loaded.allow.isEmpty)
+            // 디스크 이미지 항목은 등록으로 세지 않는다
+            #expect(loaded.denyStatus.fixedPhysicalCount == 1)
+            var noUUID = FakeUsbVolume.physicalFAT32()
+            noUUID.volumeUUID = nil
+            #expect(throws: UsbError.self) { try UsbPhysicalLists.deny(noUUID, supportDirectory: support) }
+            // 실행 중 스위치를 켠 관문: 거부 목록 USB는 막고 다른 USB는 허용 목록이 필요하다
+            let gate = loaded.gate(physicalEnabled: true)
+            #expect(gate.blocks(FakeUsbVolume.physicalFAT32(), confirmName: "DJCPHYS").map(\.code) == ["denied"])
+            let other = FakeUsbVolume.physicalFAT32(uuid: Self.b, name: "OTHER")
+            #expect(gate.blocks(other, confirmName: "OTHER").map(\.code) == ["notAllowlisted"])
+            try UsbPhysicalLists.allow(other, supportDirectory: support, userData: user)
+            let opened = UsbPhysicalLists.gate(supportDirectory: support, userData: user, physicalEnabled: true)
+            #expect(opened.blocks(other, confirmName: "OTHER").isEmpty == UsbPhysicalWriteGate.buildEnabled)
         }
     }
 }

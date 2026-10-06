@@ -7,7 +7,7 @@ rekordbox 7이 USB에 내보내는 라이브러리(OneLibrary·Device Library)�
 - 경로는 USB 루트 기준 상대 경로(`UsbLayout`, NFC)다. 칸 이름은 두 형식을 합친 모델(`UsbLibrary`)의 이름이고, 파일 안 이름이 다르면 함께 적는다.
 - **근거**: 규칙은 rekordbox 화면에서 만든 결과 파일을 칸 단위로 읽어 알아낸다. rekordbox 실행 파일은 분석하지 않는다. "근거: rekordbox 7.2.18 골든(2026-09-26 내보내기) 관찰"은 rekordbox 7.2.18이 빈 USB에 내보낸 결과를 읽어 본 것이다. 코드는 골든 바이트(쪽·표·파일 덩어리)를 넣지 않고, 칸 하나의 관찰값만 근거 주석을 단 이름 붙은 상수로 둔다. 외부 자료는 `THIRD_PARTY_NOTICES.md`에 적은 것만 쓴다.
 - **[추정]**: 관찰에서 추정했고 rekordbox 실험으로 아직 가르지 못한 것이다.
-- **확인 안 된 규칙**(`UsbProvisionalRule`, §9): 이름이 붙은 동작은 디스크 이미지에는 쓰고 실물 USB에는 막는다. 실험으로 확인한 뒤에만 푼다(§11).
+- **확인 안 된 규칙**(`UsbProvisionalRule`, §9): 이름이 붙은 동작은 디스크 이미지에는 쓰고 실물 USB에는 막는다. 실험으로 확인한 뒤에만 푼다(§11). 실물 쓰기를 연 USB(§12)에서는 내보내기·수정·옮기기 흐름의 규칙(`openOnPhysical`)만 풀린다.
 - 시험 재료는 모두 합성이다(곡 제목·경로·ID는 지어낸 값). 골든·로컬 라이브러리의 수치는 문서·시험에 적지 않는다.
 
 ## 1. USB 파일 목록
@@ -660,10 +660,10 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 
 ### 7.2 A 막힘 확인 순서
 
-1. **가드와 무관한 확인이 맨 처음이다.** 실물 쓰기가 닫혀 있는 동안(`UsbPhysicalWriteGate.buildEnabled == false`) 루트의 realpath(3)가 임시 폴더 뿌리 아래가 아니면 `physicalDisabled`로 끝낸다. 잠금 파일도 만들지 않고 USB 파일 연산도 하지 않는다. 주입한 가드가 "디스크 이미지"라고 해도 같다: 가드 값 하나가 거짓이면 관문과 가드 값 확인이 함께 뚫리기 때문이다. 디스크 이미지는 lab 도구·앱 자가 테스트가 늘 임시 폴더 아래에 붙이고, 실물은 `/Volumes` 아래에 붙는다. 이어서 루트가 정말 마운트 지점인지(statfs `f_mntonname` = realpath) 본다. 아니면 `notMountPoint`. 이 값을 기준 마운트 지점으로 기억한다(7.5).
+1. **가드의 볼륨 정보와 무관한 확인이 맨 처음이다.** 실물 쓰기가 닫혀 있는 동안(코드 관문 `UsbPhysicalWriteGate.buildEnabled`와 실행 중 스위치 중 하나라도 꺼짐, §12) 루트의 realpath(3)가 임시 폴더 뿌리 아래가 아니면 `physicalDisabled`로 끝낸다. 잠금 파일도 만들지 않고 USB 파일 연산도 하지 않는다. 주입한 가드가 "디스크 이미지"라고 해도 같다: 가드 값 하나가 거짓이면 관문과 가드 값 확인이 함께 뚫리기 때문이다. 디스크 이미지는 lab 도구·앱 자가 테스트가 늘 임시 폴더 아래에 붙이고, 실물은 `/Volumes` 아래에 붙는다. 시험 프로세스는 관문이 열려 있어도 임시 폴더 밖 루트를 같은 자리에서 거부한다("시험 실행은 임시 폴더 아래 디스크 이미지에만 씁니다"). 관문이 열린 실행에서 루트가 임시 폴더 밖이면, 가드가 디스크 이미지라고 해도 실물로 판정해(`judgedForWrite`) 4의 실물 관문을 모두 거친다. 이어서 루트가 정말 마운트 지점인지(statfs `f_mntonname` = realpath) 본다. 아니면 `notMountPoint`. 이 값을 기준 마운트 지점으로 기억한다(7.5).
 2. 가드로 볼륨 정보를 읽는다(읽기만). 볼륨 UUID가 없으면 `noVolumeUUID`(잠금 전이라 잠금 파일이 생기지 않는다).
 3. 잠금: `usb-sessions/<볼륨 UUID>.lock`에 `flock(LOCK_EX | LOCK_NB)`. 못 잡으면 `volumeBusy`. 쓰기·되돌리기·회복이 끝날 때까지 쥔다.
-4. rekordbox 실행(`rekordboxRunning`), 볼륨 정책(`UsbVolumePolicy`)과 보호 경로(`protectedPath`), 실물 관문(`UsbRuleCheck`)과 가드 값이 실물이면 `physicalDisabled`.
+4. rekordbox 실행(`rekordboxRunning`), 볼륨 정책(`UsbVolumePolicy`)과 보호 경로(`protectedPath`), 실물 관문(`UsbRuleCheck`, §12)과 실물인데 관문이 닫혀 있으면 `physicalDisabled`.
 5. 닫히지 않은 저널이 있으면 `recoveryNeeded`. 닫힌 상태는 `UsbJournal.closedStates` = verified·rolledBack·restored·recovered·dryRun·needsReplan 한 곳에 둔다. 드라이 런은 USB에 아무것도 쓰지 않으므로, needsReplan은 회복이 우리 임시 파일을 이미 지웠으므로 다음 쓰기를 막지 않는다. 저널 파일을 읽지 못하면 쓰기·되돌리기·회복 모두 `journalUnreadable`로 막는다(회복도 거부하므로 회복하라고 안내하지 않는다). 앱은 `UsbWriter.journalStatus`로 없음·열림·닫힘·깨짐을 가른다.
 6. 우리 폴더(`PIONEER/rekordbox`, `PIONEER/USBANLZ`, `PIONEER/Artwork`, `Contents`)에 `.djc-part-*`가 있으면 `tempFilesPresent`(다른 Mac·다른 `DJC_HOME`의 쓰기 흔적). 이름만 본다.
 7. 수정: 지금 DB 지문(크기·SHA-256, 사이드카 포함 — mtime은 FAT 2초 단위·복원 때 바뀌어 비교하지 않는다)이 계획 때 base와 같아야 한다. 아니면 `usbChanged`. 내보내기: `PIONEER/` 바로 아래에 `.`으로 시작하지 않는 이름이 없어야 한다(`notEmpty`). 개수는 바로 아래 이름만 세고 열지 않는 경로로 내려가지 않는다.
@@ -691,6 +691,12 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 - C 시작, D의 파일마다 쓰기 전과 rename 직전, E의 DB마다, F·G 전, H 시작과 H의 파일마다, 회복·되돌리기의 파일 연산 전에 루트가 아직 기준 마운트 지점에 붙어 있는지 본다.
 - 실물은 뽑히면 마운트 폴더가 사라지지만, 디스크 이미지를 강제로 떼면 임시 폴더의 마운트 지점은 빈 폴더로 남는다. 확인 없이 이어 가면 USB가 아니라 Mac 폴더에 쓴다.
 - 사라졌으면 그 자리에서 멈추고 되돌리지 않는다(`volumeLost`). 저널은 마지막 내구 상태 그대로 두고, 같은 볼륨이 다시 붙으면 회복이 이어 판정한다.
+- **같은 자리에 다른 볼륨이 붙을 때**: 쓰는 도중 USB A가 빠지고 같은 이름의 USB B가 같은 `/Volumes/<이름>`에 붙으면 마운트 지점 문자열은 그대로라 위 확인을 지난다. 그대로 이어 가면 B에 쓰고, 실패 뒤 H가 A의 백업으로 B를 덮고 A가 만든 경로를 B에서 지운다. 그래서 정체도 본다.
+  - 열 때(7.2의 1 뒤, 볼륨 정보를 읽기 전) 루트 폴더 fd를 열어 쥔다(`UsbFileSystem.holdVolume`). 마운트 확인마다 그 fd의 `fstatfs`와 경로의 `statfs`가 같은 파일 시스템(fsid·장치·마운트 지점·형식)인지 본다. 빠진 볼륨의 fd는 죽은 vnode가 되어 어긋나고, B가 같은 `/dev/diskN`을 받아도 fd 쪽이 죽어 있어 어긋난다. fd를 쥐고 있는 동안은 보통 꺼내기도 실패한다.
+  - C 시작, D의 파일 묶음(음원 → 분석 → 아트워크 → 그 밖)마다, E의 DB마다, F·G 전, H 시작, 회복·되돌리기(`usb-restore`는 저널을 열기 전) 시작에는 가드로 볼륨 정보를 다시 읽어 UUID·용량이 처음과 같은지도 본다. 읽지 못해도 다른 볼륨으로 본다.
+  - 어긋나면 그 볼륨에는 아무것도 쓰지 않고(H도 하지 않고) 멈춘다(`volumeChanged`, "처음 USB를 다시 꽂고 회복하세요"). 한 번 어긋나면 그 실행의 모든 확인이 실패한다. 저널은 처음 USB의 볼륨 키에 그대로 남아 A가 다시 붙으면 회복이 이어 판정하고, B에서는 저널이 없어 회복이 할 것이 없다.
+  - 앱은 사용자가 확인 창에서 본 볼륨의 UUID를 쓰기·회복·되돌리기에 넘긴다(`UsbWriteOptions.expectedVolumeUUID`, `recover`·`restore`의 같은 인자). 열 때 지금 볼륨과 다르면 잠금도 잡지 않고 `volumeChanged` 막힘으로 끝낸다.
+  - 한계: 확인과 다음 파일 연산 사이(경로로 연다)의 짧은 틈은 남는다. 그 틈에 바뀌면 다음 확인에서 멈춘다.
 
 ### 7.6 H 되돌리기
 
@@ -739,7 +745,7 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 로컬 스냅샷 사본의 곡·재생 목록을 빈 FAT32·MBR USB에 두 형식으로 내보낸다. 흐름은 후보 → 계획 → 빌더 → 준비 → 쓰기 → 검증이고, 세션(`UsbExportSession`, DJCStorage)이 순서대로 부른다. 미리 보기(`preview`)와 드라이 런은 준비까지 같고 USB에 쓰지 않는다.
 
 1. **원본**: 받은 사본이 라이브 master.db(`~/Library/Pioneer/rekordbox/master.db`·rekordbox 폴더의 master.db, 실경로·같은 inode)면 열지 않고 `liveDatabase`. 스냅샷 시각을 이때 원본에서 푼다(`UsbSnapshotTime`: `--snapshot-time` → 사본 이름 → 수정 시각). 세션이 다시 뜨는 사본은 이름·시각이 달라지기 때문이다.
-2. **볼륨 단위 막힘**(여기서 막히면 로컬 사본도 뜨지 않는다): 이 Mac의 rekordbox가 확인한 버전이 아님(`localVersionUnverified`), 볼륨 정책(`UsbVolumePolicy`, 내보내기), 보호 폴더(`protectedPath`), 실물 관문(`UsbRuleCheck`, 실물이거나 루트가 임시 폴더 밖이면 `physicalDisabled`, 쓰기 금지 목록이면 `denied`). 정책·보호 폴더·관문에 막힌 볼륨은 이름도 열거하지 않고 여기서 멈춘다(쓰기 절차 A 단계·읽기 관문과 같은 순서). 그 다음에야 USB를 본다: `PIONEER/rekordbox/`에 DB 이름이 있음(`libraryExists` — USB 수정으로 안내), DB는 없지만 `PIONEER/` 바로 아래에 `.`으로 시작하지 않는 이름이 있음(`leftoverPioneer`, 이름만 세고 열지 않는 경로로 내려가지 않는다). rekordbox 실행은 쓰기 절차가 본다(켜진 채 미리 보기는 된다).
+2. **볼륨 단위 막힘**(여기서 막히면 로컬 사본도 뜨지 않는다): 이 Mac의 rekordbox가 확인한 버전이 아님(`localVersionUnverified`), 볼륨 정책(`UsbVolumePolicy`, 내보내기), 보호 폴더(`protectedPath`), 실물 관문(`UsbRuleCheck`, 실물이거나 루트가 임시 폴더 밖이면 §12의 조건 — 닫혀 있으면 `physicalDisabled`, 쓰기 금지 목록이면 `denied`). 정책·보호 폴더·관문에 막힌 볼륨은 이름도 열거하지 않고 여기서 멈춘다(쓰기 절차 A 단계·읽기 관문과 같은 순서). 그 다음에야 USB를 본다: `PIONEER/rekordbox/`에 DB 이름이 있음(`libraryExists` — USB 수정으로 안내), DB는 없지만 `PIONEER/` 바로 아래에 `.`으로 시작하지 않는 이름이 있음(`leftoverPioneer`, 이름만 세고 열지 않는 경로로 내려가지 않는다). rekordbox 실행은 쓰기 절차가 본다(켜진 채 미리 보기는 된다).
 3. **세션 사본**: 받은 사본을 `usb-snapshots/local-<세션>/`에 한 번 더 뜬다(원본 = 받은 사본, `force: true` — 우리 사본이라 실행 중 확인·WAL 거부 없이 곁의 `-wal`을 사본 안에서 합친다. 원본과 그 `-wal`은 읽기만). 사용자 스냅샷 폴더는 목적지·원본으로 쓰지 않고 읽지도 않는다. 세션이 끝나면(성공·실패·취소) 이 폴더를 지운다(클라우드 토큰이 든 DB 사본을 남기지 않게).
 4. **계획**: 이미 `Contents/`가 있으면 그 아래 이름·철자를 모아(`UsbTree.walk`, 파일은 열지 않음) `UsbExistingState.contentsOnly`로 넘긴다. 같은 충돌 키의 파일이 같은 내용(크기·SHA-256)이면 그 파일을 가리키고(쓰지 않음), 다르면 ` (2)`처럼 번호를 붙이며 폴더는 USB 철자를 쓴다(§5). 클러스터 크기는 볼륨 값.
 5. **빌더와 곡 막힘**: `UsbLibraryBuilder.build`(myTagMasterDBID는 난수, createdDate는 오늘). Device Library를 쓰면 작성기가 거부할 곡을 먼저 본다(작성기가 곡 하나 때문에 내보내기 전체를 멈추지 않게): 트랙 행이 빈 쪽에도 안 들어가면 그 곡(`trackRowTooLarge`, `PdbRowSize`), 파일 확장자가 file_type과 다르면(`fileTypeMismatchForDeviceLibrary`), ISRC가 ASCII가 아니면(`isrcNotASCIIForDeviceLibrary`), 디스크 번호·연도 같은 칸 값이 칸 크기를 넘으면(`valueOutOfRangeForDeviceLibrary`, 문구에 칸 이름) 그 곡, 아티스트·앨범 행이 가까운 모양(255바이트)에 안 들어가면 그 이름을 쓰는 곡(`nameTooLongForDeviceLibrary`, `pdbFarOffsetRows`), My Tag 행이면 볼륨(`myTagNameTooLongForDeviceLibrary` — My Tag 정의는 곡과 무관하게 모두 들어가므로 곡을 빼서 풀 수 없다). 막힌 곡을 빼고 다시 계획해 ID가 빈틈없게 한다.
@@ -886,7 +892,7 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 
 | 규칙 | 지금 값 | 표시 조건 |
 |---|---|---|
-| `physicalVolume` | 확인 안 됨(관문으로만 풂) | 대상이 디스크 이미지가 아닌 실물 USB |
+| `physicalVolume` | 확인 안 됨(관문으로만 풂, §12) | 대상이 디스크 이미지가 아닌 실물 USB |
 | `analysisFolderNaming` | 확인 안 됨 | 분석 파일을 USB에 새로 쓸 때 |
 | `analysisSlotCollision` | 확인 안 됨 | 새 분석 파일 폴더 이름이 이미 있는 폴더와 겹칠 때 |
 | `playlistSiblingBase` | 확인 안 됨 | 재생 목록을 쓸 때(같은 폴더 안 순서 번호) |
@@ -917,13 +923,15 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 | `editPlaylists` | 확인 안 됨 | 이미 내보낸 USB의 재생 목록을 고칠 때 |
 | `deviceLibraryMigration` | 확인 안 됨 | Device Library만 있는 USB에 OneLibrary를 더할 때(§8.4) |
 
+실물 쓰기를 연 USB(§12)에서 따로 풀지 않아도 되는 규칙(`UsbProvisionalRule.openOnPhysical`): `analysisFolderNaming`·`playlistSiblingBase`·`playlistFolderRow`·`editAddTracks`·`editRemoveTracks`·`editPlaylists`·`trackRemovalFiles`·`pdbRegeneratedEdit`·`deviceLibraryMigration`. 내보내기·수정·옮기기 흐름 자체의 바탕 규칙이고, 이 흐름은 디스크 이미지에서 전 과정(쓰기 → 다시 읽기 검증 → `usb-rebuild`·`usb-diff --ignore-ids` 차이 0 → 되돌리기)을 확인했다(#41·#46). rekordbox 실험으로 확인한 것은 아니라 `confirmed`에는 넣지 않는다. 나머지 규칙(곡 내용에 따라 붙는 규칙, `editRefreshTracks`, `settingFiles` 등)은 실물에서 계속 막고 CLI `--allow-provisional`로만 하나씩 푼다(앱에는 푸는 길이 없다). `carriedDeviceRows`는 늘 막는다.
+
 ## 10. 막아 둔 것
 
 첫 판에서 코드가 막는 것과 쓰지 않는 것이다. 막힘은 이유와 할 일을 한 문장으로 알린다.
 
 | 무엇 | 지금 | 규칙·code |
 |---|---|---|
-| 실물 USB에 쓰기 | 코드 상수로 닫힘. 디스크 이미지(임시 폴더 아래)에만 쓴다. `--confirm`·`--allow-provisional`로도 풀리지 않는다 | `physicalVolume`, `physicalDisabled` |
+| 실물 USB에 쓰기 | 기본 꺼짐. 실험실 스위치(`--allow-physical`)·쓰기 금지 목록 등록·이 USB 쓰기 허용·볼륨 이름 확인을 모두 지난 FAT32·MBR USB 메모리에만 쓴다(§12). 흐름 밖의 확인 안 된 규칙은 실물에서 계속 막는다 | `physicalVolume`, `physicalDisabled`, `notAllowlisted`, `allowMismatch`, `notUsbDevice` |
 | 분석 파일 폴더 이름 | rekordbox 규칙을 따르지 않고 DJCrate 고유 이름(content ID)으로 짓는다 | `analysisFolderNaming` |
 | Device Library 먼 오프셋 행 | 쓰지 않는다. 아티스트·앨범 행이 가까운 모양에 안 들어가면 그 곡을, My Tag 행이면 내보내기 전체를 막는다. 트랙 행이 빈 쪽에도 안 들어가면 그 곡을 막는다 | `pdbFarOffsetRows`, `nameTooLongForDeviceLibrary`, `myTagNameTooLongForDeviceLibrary`, `trackRowTooLarge` |
 | 긴 ASCII(127자 이상 순수 ASCII) | rekordbox의 0x40 모양 대신 UTF-16으로 쓴다 | `pdbLongAscii` |
@@ -945,4 +953,34 @@ rekordbox 실험 → 사본 재현 → 칸 단위 일치 → 골든 테스트 �
 3. **칸 단위 일치**: `djc lab usb-diff <rekordbox 결과> <재현> --files --anlz [--mtime]`로 표·칸·태그·파일 단위 차이가 0이거나, 남은 차이마다 이유(쓴 시각·난수 ID 등)를 설명할 수 있어야 한다. 쪽 바이트는 `djc lab pdb-verify`, 분석 파일은 `djc lab usb-anlz-check`로 본다.
 4. **골든 테스트**: 합성 재료로 그 규칙을 고정하는 시험을 남긴다. 근거 주석은 `// rekordbox 7.2.18 골든 관찰(<날짜> 내보내기)` 한 줄이고, 골든 바이트를 통째로 넣지 않는다.
 5. **확인 목록**: `UsbProvisionalRule.confirmed`에 더하고 §9 표를 고친다. 한 번에 한 규칙씩 연다.
-6. rekordbox가 업데이트되면 `djc compat`·`djc usb-info`로 먼저 보고, 실험으로 다시 확인하기 전에는 확인한 버전·규칙 목록을 넓히지 않는다. 실물 쓰기 관문(`buildEnabled`)을 여는 것은 따로 정한다.
+6. rekordbox가 업데이트되면 `djc compat`·`djc usb-info`로 먼저 보고, 실험으로 다시 확인하기 전에는 확인한 버전·규칙 목록을 넓히지 않는다. `openOnPhysical`(§9)을 넓히는 것도 같다(디스크 이미지 전 과정 확인 뒤에만).
+
+## 12. 실물 USB 쓰기
+
+사용자 결정(#41, 2026-10)으로 실물 USB 쓰기를 실험 기능으로 열었다. 쓰는 절차는 디스크 이미지와 같은 `UsbWriter.write` 하나다(§7: 백업 → 저널 → 파일 → DB 교체 → 다시 읽기 검증 → 실패하면 되돌리기. 볼륨 잠금과 단계마다 마운트 확인, 용량 확인, `._*` 0개 확인도 같다). 다른 것은 쓰기 전에 지나야 하는 관문뿐이다.
+
+**관문(`UsbPhysicalWriteGate`, 순수, 처음 걸린 막힘 하나만)** — 실물이거나 루트가 임시 폴더 밖이면 본다:
+
+1. 볼륨 UUID가 쓰기 금지 목록에 있음 → `denied`(디스크 이미지여도)
+2. 디스크 이미지면 통과(아래는 실물만)
+3. 쓰기 금지 목록 파일이 깨짐 → `denyListUnreadable`
+4. 코드 관문(`buildEnabled`, 지금 `true`)과 실행 중 스위치(앱 설정 › 실험실 "실물 USB 쓰기"·CLI `--allow-physical`, 기본 끔)가 둘 다 열려 있지 않음 → `physicalDisabled`. 둘 다 통과해야 쓰는 까닭: 스위치는 사용자 동의이고, 코드 관문은 실기기에서 문제가 나오면 한 줄로 모든 실물 쓰기를 닫는 비상 스위치다. 디스크 이미지만 읽는 실행(자가 테스트·`DJC_HOME` 시험 실행, `UsbReadPolicy.diskImagesOnly`)과 설정을 읽지 않는 자가 테스트는 스위치가 늘 꺼져 있다.
+5. 고정 위치 쓰기 금지 목록이 없거나 실물 USB 항목이 없음 → `denyListMissing`(쓰면 안 되는 USB를 가려낼 수단이 이 목록뿐이라 fail-closed). 디스크 이미지 항목과 종류를 적지 않은 항목은 세지 않는다(실물 읽기의 `denyListNotRegistered`도 같다)
+6. 볼륨 UUID 없음 → `noVolumeUUID`
+7. USB 메모리가 아님 → `notUsbDevice`: DiskArbitration `DADeviceProtocol == "USB"`이고 `DAMediaRemovable == true`일 때만 받는다. USB로 붙어도 고정 디스크로 보이는 외장 SSD, Thunderbolt·PCIe 디스크, 값을 모르는 볼륨은 막는다. 내장 SD 슬롯은 내장이라 볼륨 정책이 먼저 막는다.
+8. 쓰기 허용 목록에 없음 → `notAllowlisted`. 있어도 허용할 때의 지문(용량·USB 일련번호)이 지금과 다름 → `allowMismatch`
+9. 볼륨 이름 확인이 다름 → `confirmMismatch`(CLI `--confirm`, 앱은 볼륨 이름을 보이는 쓰기 확인 창이 대신한다)
+
+볼륨 모양은 디스크 이미지와 같은 정책(`UsbVolumePolicy`)을 먼저 본다: FAT32(0x0B·0x0C)·MBR 첫 파티션·512바이트 섹터, 내장·네트워크·읽기 전용·시동 디스크가 아님. APFS·HFS+·exFAT·NTFS·GPT(Time Machine 디스크 포함)는 막는다. 관문을 지나도 흐름 밖의 확인 안 된 규칙은 막는다(§9 끝).
+
+**목록 파일**(`UsbPhysicalLists`, `~/Library/Application Support/DJCrate/`, `DJC_HOME`과 무관, 시험 프로세스는 임시 폴더): `usb-physical-allow.json`(쓰기 허용)·`usb-physical-deny.json`(쓰기 금지, `DJC_HOME` 쪽 같은 이름 파일과 합친다). 모양은 `{"version":1,"volumes":["<UUID>",…],"names":{"<UUID>":"<볼륨 이름>"},"fingerprints":{"<UUID>":{"capacity":<바이트>,"serial":"<USB 일련번호>"}},"kinds":{"<UUID>":"physical"|"diskImage"}}`이고 이름은 화면용이다. `fingerprints`는 허용 목록, `kinds`는 금지 목록에 적는다.
+
+**허용 지문**(`UsbAllowFingerprint`): FAT32 볼륨 UUID는 포맷 때 정한 32비트 볼륨 일련번호에서 나와 다른 USB와 겹칠 수 있다. 그래서 허용은 UUID에 더해 용량(바이트)과 USB 장치 일련번호(IOKit `USB Serial Number`, 매체에서 부모 쪽으로 찾음)를 함께 적고, 쓸 때 셋이 모두 같아야 한다. 허용할 때 일련번호를 못 읽었으면 UUID+용량만 보고, 적었는데 지금 못 읽으면 다른 USB로 본다. 지문이 없는 허용 항목(옛 모양)은 허용으로 보지 않는다. 금지는 UUID만으로 막는다(더 넓게). 한계: 일련번호가 없는(또는 모든 개체가 같은 일련번호를 내는) USB를 같은 용량·같은 UUID로 포맷하면 가려내지 못한다. 일련번호는 화면·로그에 내지 않는다. 고치기는 볼륨 하나씩만 한다: 허용(`allow` — 금지 목록·볼륨 정책·USB 메모리 조건을 지난 볼륨만), 허용 거두기(`revoke`), 금지(`deny` — 허용 목록에서도 뺀다, 디스크 이미지도 받는다). 파일이 깨졌으면 덮지 않고 막는다. 금지 목록에서 빼는 기능은 두지 않는다. USB를 다시 포맷하면 UUID가 바뀌어 허용이 풀린다.
+
+**앱**: 설정 › 실험실 "실물 USB 쓰기"(`SettingKeys.labPhysicalUsbWrite`, 기본 끔). 사이드바 USB의 볼륨 메뉴(쓰기와 같은 판정으로 실물인 볼륨만 — 임시 폴더 밖에 붙인 디스크 이미지도 실물로 보고 "USB 메모리가 아님"을 알린다, 오른쪽 클릭)에 "이 USB에 쓰기 허용…"(확인 창, 모양이 맞지 않으면 이유만)·"쓰기 허용 거두기"·"쓰기 금지 목록에 넣기…"(확인 창). 고치기 직전에 그 자리의 볼륨을 다시 본다(`UsbRead.currentVolume`). 쓰기 창구(`SystemUsbWriteService`)는 부를 때마다 설정을 다시 읽고, 쓰기·회복·되돌리기에 볼륨 이름 확인과 확인 창에 보인 볼륨의 UUID를 넘긴다(그 사이 같은 자리에 다른 USB가 붙었으면 `volumeChanged`, 7.5). 실물 쓰기 확인 창에는 "실물 USB입니다(실험 기능)" 줄이 붙는다. 편집 메뉴·옮기기 메뉴의 막힘 미리 판정도 같은 관문을 쓴다(`UsbStore.physicalGate`).
+
+**CLI**: `djc usb-deny`·`djc usb-allow [--remove]`(목록만 고친다), 쓰기 명령(`usb-export`·`usb-edit`·`usb-migrate`·`usb-restore`·`usb-recover`)에 `--allow-physical --confirm <볼륨 이름>`. `docs/cli.md`. 허용(`usb-allow`)은 사람의 동의라 표준 입력·출력이 터미널일 때만 받고(`notInteractive`, 앱에서 허용하라고 안내) 볼륨 이름을 직접 다시 입력해야 한다. 인자만으로 허용과 쓰기를 한 번에 끝내지 못하게 하려는 것이다. `--allow-physical`은 허용 목록에 이미 있는 USB에만 쓴다. 거두기(`--remove`)는 대화 없이 받는다.
+
+**시험**: 실물 경로는 가짜 볼륨 정보(`FakeUsbVolume.physicalFAT32`·`externalSSD`·`thunderboltDisk`)를 임시 폴더 루트에 주입해 시험한다(관문을 연 쓰기·되돌리기·세션 내보내기·수정). 이 Mac에 꽂힌 실제 볼륨에는 어떤 시험도 쓰지 않는다 — 시험 프로세스는 관문이 열려도 임시 폴더 밖 루트를 쓰기 절차 첫 확인에서 거부한다.
+
+**실기기 확인 절차**(사용자): rekordbox·rekordboxAgent 종료 → 쓰면 안 되는 USB 하나를 꽂고 "쓰기 금지 목록에 넣기…" → 설정 › 실험실 "실물 USB 쓰기" 켜기 → 시험용 USB(FAT32·MBR로 포맷한 USB 메모리)를 꽂고 "이 USB에 쓰기 허용…" → 빈 USB면 "USB로 내보내기…", 쓰던 USB면 쓰기 대기 → 확인 창에서 "실물 USB입니다" 줄과 백업을 확인하고 쓰기 → 토스트의 꺼내기 → 기기에서 곡·목록·큐·파형·앨범아트 확인. 문제가 있으면 기기에 다시 꽂기 전에 되돌린다(`djc usb-restore --volume <마운트> --allow-physical --confirm <이름>`).

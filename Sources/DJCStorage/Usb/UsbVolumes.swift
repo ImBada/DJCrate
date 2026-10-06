@@ -2,6 +2,7 @@ import DJCDomain
 import Darwin
 import DiskArbitration
 import Foundation
+import IOKit
 import RekordboxKit
 
 /// statfs(2) 결과 중 쓰는 칸(순수 판정 함수의 입력)
@@ -42,9 +43,11 @@ public enum UsbVolumes {
         let bsd = facts.mountedFrom.hasPrefix("/dev/") ? String(facts.mountedFrom.dropFirst(5)) : facts.mountedFrom
         var description: [String: Any] = [:]
         var whole: [String: Any]?
+        var serial: String?
         if let session = DASessionCreate(kCFAllocatorDefault), let disk = DADiskCreateFromBSDName(kCFAllocatorDefault, session, bsd) {
             description = DADiskCopyDescription(disk) as? [String: Any] ?? [:]
             if let wholeDisk = DADiskCopyWholeDisk(disk) { whole = DADiskCopyDescription(wholeDisk) as? [String: Any] }
+            serial = usbSerial(disk)
         }
         var hdiutil: Data?
         if description[kDADiskDescriptionDeviceModelKey as String] as? String == diskImageModel,
@@ -56,7 +59,24 @@ public enum UsbVolumes {
         let values = try? URL(filePath: rootReal).resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityKey])
         volume.capacity = Int64(values?.volumeTotalCapacity ?? 0)
         volume.available = Int64(values?.volumeAvailableCapacity ?? 0)
+        volume.deviceSerial = serial
         return volume
+    }
+
+    /// USB 장치 일련번호(IOKit "USB Serial Number", 매체에서 부모 쪽으로 찾는다). 쓰기 허용 지문에 쓴다. 없으면 nil
+    static func usbSerial(_ disk: DADisk) -> String? {
+        let media = DADiskCopyIOMedia(disk)
+        guard media != IO_OBJECT_NULL else { return nil }
+        defer { IOObjectRelease(media) }
+        let options = IOOptionBits(kIORegistryIterateRecursively | kIORegistryIterateParents)
+        let value = IORegistryEntrySearchCFProperty(media, kIOServicePlane, "USB Serial Number" as CFString, kCFAllocatorDefault, options)
+        return serialText(value)
+    }
+
+    /// 일련번호 값 다듬기(순수): 문자열만, 앞뒤 공백을 떼고 비면 nil
+    static func serialText(_ value: Any?) -> String? {
+        guard let text = (value as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
+        return text
     }
 
     /// 마운트된 볼륨 전부(시동 볼륨 빼고). 읽지 못한 볼륨은 뺀다
@@ -115,7 +135,10 @@ public enum UsbVolumes {
             isInternal: (description["DADeviceInternal"] as? Bool) ?? !isDiskImage,
             isNetwork: (description["DAVolumeNetwork"] as? Bool) ?? !statfs.isLocal,
             isReadOnly: statfs.isReadOnly, isRootVolume: statfs.mountedOn == "/" || statfs.isRootFileSystem,
-            isDiskImage: isDiskImage, diskImagePath: imagePath, capacity: 0, available: 0)
+            isDiskImage: isDiskImage, diskImagePath: imagePath, capacity: 0, available: 0,
+            // 실물 관문이 USB 메모리만 받는다(USB로 붙은 외장 SSD는 고정 디스크로 나온다). 모르면 nil → 막는다
+            deviceProtocol: description["DADeviceProtocol"] as? String,
+            isRemovable: (description["DAMediaRemovable"] as? Bool) ?? (wholeDescription?["DAMediaRemovable"] as? Bool))
     }
 
     /// FAT32는 셋(DAVolumeKind msdos, DAVolumeType "MS-DOS (FAT32)", 파티션 형식 FAT32)이 모두 맞을 때만. 모르는 msdos는 막는다

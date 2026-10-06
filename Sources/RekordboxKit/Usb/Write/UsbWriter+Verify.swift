@@ -4,7 +4,7 @@ import Foundation
 /// G 검증: 검증기를 차례로 부른다. 건너뛴 지우기는 목표에서 뺀다(남긴 것이 맞다).
 extension UsbWriteRun {
     func verify(_ changes: UsbChangeSet, verifiers: [any UsbWriteVerifier]) throws {
-        try ensureMounted()
+        try ensureSameVolume()
         emit(.verify, total: verifiers.count, cancellable: false)
         var effective = changes
         let skipped = Set(journal.removals.filter { $0.state == .skipped }.map(\.path))

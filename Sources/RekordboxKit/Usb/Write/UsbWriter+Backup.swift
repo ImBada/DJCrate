@@ -8,10 +8,10 @@ extension UsbWriteRun {
 
     func backup(_ changes: UsbChangeSet) throws {
         do {
-            try ensureMounted()
+            try ensureSameVolume()
         } catch {
             // 아직 USB에 쓴 것이 없다. 저널은 staged 그대로 두고 회복이 닫는다
-            throw UsbError.volumeLost(volumeName: volume.name)
+            throw volumeGone
         }
         emit(.backup, cancellable: true)
         var folder: URL?
@@ -25,7 +25,7 @@ extension UsbWriteRun {
             try journal.move(to: .backedUp)
             try saveJournal()
         } catch UsbWriteFailure.volumeLost {
-            throw UsbError.volumeLost(volumeName: volume.name)
+            throw volumeGone
         } catch {
             // USB에 쓴 것이 없으니 백업 폴더를 지우고 저널을 닫는다
             if let folder { try? FileManager.default.removeItem(at: folder) }

@@ -213,12 +213,13 @@ struct UsbEditActionsTests {
             UsbEditActions.blockReason(edit, volume: volume, library: library, info: nil, isScratchMount: { _ in scratch })
         }
         let add = UsbLibraryEdit.addTracks(localContentIDs: ["11"], playlist: nil)
-        #expect(reason(add, physical) == "USB 폴더 이름 규칙이 확인되지 않아 실물 USB에는 곡을 더할 수 없습니다")
+        // 실험실 스위치가 꺼져 있으면 실물은 관문 문구로 막힌다
+        #expect(reason(add, physical) == "실물 USB 쓰기가 꺼져 있습니다. 앱은 설정 › 실험실에서 켜고, djc는 --allow-physical을 준 뒤 다시 시도하세요")
         #expect(reason(add, image) == nil)
-        #expect(reason(.removeTracks(usbContentIDs: [1]), physical) == "확인하지 않은 규칙(USB에서 곡 빼기)이 필요해 이 USB에 쓸 수 없습니다")
+        #expect(reason(.removeTracks(usbContentIDs: [1]), physical) == "실물 USB 쓰기가 꺼져 있습니다. 앱은 설정 › 실험실에서 켜고, djc는 --allow-physical을 준 뒤 다시 시도하세요")
         #expect(reason(.removeTracks(usbContentIDs: [1]), image) == nil)
         // 임시 폴더 밖에 붙인 디스크 이미지는 실물처럼 막힌다(쓰기 때 세션 판정과 같다)
-        let gate = "실물 USB 쓰기는 아직 열리지 않았습니다. 디스크 이미지로만 시험할 수 있습니다"
+        let gate = "실물 USB 쓰기가 꺼져 있습니다. 앱은 설정 › 실험실에서 켜고, djc는 --allow-physical을 준 뒤 다시 시도하세요"
         #expect(reason(add, image, scratch: false) == gate)
         #expect(reason(.playlist(edit: .rename(playlist: .id("4"), name: "새 이름")), image, scratch: false) == gate)
         let differ = "이 재생 목록은 두 형식의 곡 목록이 달라 곡을 고칠 수 없습니다. 이름·위치만 바꿀 수 있습니다"
@@ -269,12 +270,12 @@ struct UsbEditActionsTests {
         #expect(imageMenu.items.first { $0.title == "폴더" }?.submenu?.items.first { $0.title == "폴더 안" }?.action != nil)
         let physicalCollection = try #require(physicalMenu.items.first { $0.title == "컬렉션" })
         #expect(physicalCollection.action == nil)
-        #expect(physicalCollection.toolTip == "USB 폴더 이름 규칙이 확인되지 않아 실물 USB에는 곡을 더할 수 없습니다")
+        #expect(physicalCollection.toolTip == "실물 USB 쓰기가 꺼져 있습니다. 앱은 설정 › 실험실에서 켜고, djc는 --allow-physical을 준 뒤 다시 시도하세요")
 
         // 순서 바꾸기·로컬 변경 반영도 같은 판정: 실물 볼륨이면 이유를 달고 누를 수 없다
         let physicalKey = physical.usbKey
-        let playlistRule = "확인하지 않은 규칙(USB 재생 목록 고치기)이 필요해 이 USB에 쓸 수 없습니다"
-        let refreshRule = "확인하지 않은 규칙(USB 안 곡 정보 갱신)이 필요해 이 USB에 쓸 수 없습니다"
+        let playlistRule = "실물 USB 쓰기가 꺼져 있습니다. 앱은 설정 › 실험실에서 켜고, djc는 --allow-physical을 준 뒤 다시 시도하세요"
+        let refreshRule = "실물 USB 쓰기가 꺼져 있습니다. 앱은 설정 › 실험실에서 켜고, djc는 --allow-physical을 준 뒤 다시 시도하세요"
         #expect(actions.moveBlockReason(4, by: -1, volumeKey: physicalKey) == playlistRule)
         #expect(actions.moveBlockReason(4, by: -1, volumeKey: key) == nil)
         #expect(actions.updatableTracks(volumeKey: physicalKey) == [1])

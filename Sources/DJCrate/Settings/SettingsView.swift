@@ -150,9 +150,17 @@ struct LabSettingsView: View {
                 Text(.ui("인텔리전트 재생 목록의 조건을 DJCrate가 계산해 읽기 전용으로 보입니다. rekordbox 화면과 곡이 다를 수 있고, 계산하지 못하는 조건이 있으면 곡을 보이지 않습니다."))
                     .foregroundStyle(.secondary)
             }
+            Section {
+                Toggle(.ui("실물 USB 쓰기"), isOn: $store.physicalUsbWrite)
+            } header: {
+                Text(verbatim: "USB")
+            } footer: {
+                Text(.ui("켜면 사이드바에서 ‘이 USB에 쓰기 허용…’을 고른 FAT32·MBR USB 메모리에만 씁니다. 먼저 쓰면 안 되는 USB 하나를 ‘쓰기 금지 목록에 넣기…’로 등록해야 합니다. 쓰기마다 바꿀 파일을 Mac에 백업하고 쓴 뒤 다시 읽어 확인합니다. 끄면 디스크 이미지에만 씁니다."))
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 250)
+        .frame(width: 520, height: 400)
     }
 }
 

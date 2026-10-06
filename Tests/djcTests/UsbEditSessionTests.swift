@@ -269,6 +269,30 @@ struct UsbEditSessionTests {
         #expect(env.usb.tree() == before)
     }
 
+    @Test("실물 쓰기를 열고 허용한 USB(가짜 볼륨, 임시 폴더)는 곡 더하기·빼기·목록 편집을 쓰고, 되돌리면 쓰기 전과 같다")
+    func physicalOpenGateEdits() throws {
+        let env = try Env()
+        try env.fixture.addLocal(["104"])
+        env.usb.volume = FakeUsbVolume.physicalFAT32()
+        let gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID], physicalEnabled: true)
+        let edits = Self.edits + [.addTracks(localContentIDs: ["104"], playlist: .id("1"))]
+        let before = env.usb.tree()
+        let preview = try env.session(gate: gate).preview(edits, options: UsbWriteOptions(confirmName: "DJCPHYS"), snapshotTime: Self.time)
+        // 흐름 규칙은 풀리고, 남은 막힘은 곡 내용 규칙뿐이다
+        #expect(preview.blocks.allSatisfy { $0.code == "provisional" })
+        let extra = Set(preview.blocks.compactMap(\.rule))
+        #expect(extra.isDisjoint(with: UsbProvisionalRule.openOnPhysical))
+        let options = UsbWriteOptions(confirmName: "DJCPHYS", allowProvisional: extra)
+        let (_, report) = try env.session(gate: gate).write(edits, options: options, snapshotTime: Self.time, progress: { _ in },
+                                                           isCancelled: { false })
+        #expect(report?.outcome == .written)
+        #expect(env.usb.journal()?.state == .verified)
+        let restored = try UsbWriter.restore(root: env.usb.root, paths: env.usb.paths, backup: nil, guard: env.usb.writeGuard(gate: gate),
+                                             fileSystem: env.usb.fileSystem(), confirmName: "DJCPHYS")
+        #expect(restored.outcome == .restored)
+        #expect(env.usb.tree() == before)
+    }
+
     @Test("회복이 needsReplan으로 닫은 볼륨의 초안은 지금 USB 상태로 다시 계획해 쓰고 기기가 바꾼 행을 남긴다")
     func needsReplanThenDraftReplans() throws {
         let env = try Env()

@@ -11,6 +11,8 @@ public enum FakeUsbVolume {
         var volume = base(name: name, uuid: uuid, content: "Windows_FAT_32")
         volume.isDiskImage = true
         volume.diskImagePath = "/private/tmp/djc-fixture/\(name).img"
+        volume.deviceProtocol = "Virtual Interface"
+        volume.isRemovable = false
         return volume
     }
 
@@ -96,6 +98,20 @@ public enum FakeUsbVolume {
         return volume
     }
 
+    /// USB로 붙었지만 고정 디스크로 보이는 외장 SSD(FAT32·MBR로 포맷해도 막는다)
+    public static func externalSSD() -> UsbVolumeInfo {
+        var volume = physicalFAT32()
+        volume.isRemovable = false
+        return volume
+    }
+
+    /// USB가 아닌 연결(Thunderbolt 등)의 FAT32 디스크
+    public static func thunderboltDisk() -> UsbVolumeInfo {
+        var volume = physicalFAT32()
+        volume.deviceProtocol = "PCI-Express"
+        return volume
+    }
+
     /// 볼륨 안의 하위 폴더를 대상으로 고른 경우
     public static func notMountPoint() -> UsbVolumeInfo {
         var volume = physicalFAT32()
@@ -103,10 +119,20 @@ public enum FakeUsbVolume {
         return volume
     }
 
-    /// 공개 init만 쓰는 관문. 실물 쓰기 여부는 코드 상수(`buildEnabled`) 그대로다.
+    /// 가짜 실물 USB의 용량(`physicalFAT32`)
+    public static let physicalCapacity: Int64 = 16_000_000_000
+
+    /// 허용 목록 항목: 가짜 실물 USB의 지문(용량, 일련번호 없음)으로 허용한 UUID들
+    public static func allowEntries(_ uuids: Set<String>, serial: String? = nil) -> [String: UsbAllowFingerprint] {
+        Dictionary(uniqueKeysWithValues: uuids.map { ($0, UsbAllowFingerprint(capacity: physicalCapacity, serial: serial)) })
+    }
+
+    /// 공개 init만 쓰는 관문. 코드 관문(`buildEnabled`)은 상수 그대로, 실행 중 스위치(설정 › 실험실·`--allow-physical`)는 기본 끔이다.
+    /// allow는 가짜 실물 USB 지문으로 허용한 UUID들
     public static func gate(allow: Set<String> = [], deny: Set<String> = [],
-                            denyStatus: UsbDenyListStatus = .init(fixedLocation: .ok, fixedEntryCount: 1, userData: .missing)) -> UsbPhysicalWriteGate {
-        UsbPhysicalWriteGate(allowlist: allow, denylist: deny, denyStatus: denyStatus)
+                            denyStatus: UsbDenyListStatus = .init(fixedLocation: .ok, fixedPhysicalCount: 1, userData: .missing),
+                            physicalEnabled: Bool = false) -> UsbPhysicalWriteGate {
+        UsbPhysicalWriteGate(allowlist: allowEntries(allow), denylist: deny, denyStatus: denyStatus, physicalEnabled: physicalEnabled)
     }
 
     private static func base(name: String, uuid: String, content: String) -> UsbVolumeInfo {
@@ -114,6 +140,6 @@ public enum FakeUsbVolume {
                       fileSystem: .fat32, partitionContent: content, partitionScheme: .mbr, partitionIndex: 1,
                       sectorSize: 512, clusterSize: 32_768, isInternal: false, isNetwork: false, isReadOnly: false,
                       isRootVolume: false, isDiskImage: false, diskImagePath: nil,
-                      capacity: 16_000_000_000, available: 8_000_000_000)
+                      capacity: physicalCapacity, available: 8_000_000_000, deviceProtocol: "USB", isRemovable: true)
     }
 }

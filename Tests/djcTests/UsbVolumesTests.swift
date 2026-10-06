@@ -70,6 +70,26 @@ struct UsbVolumesTests {
         }
     }
 
+    @Test("연결 방식·이동식 매체 여부를 읽는다(외장 SSD는 고정 디스크, 모르면 nil)")
+    func readsProtocolAndRemovable() {
+        let stick = make(FakeDiskArbitration.physicalUsbPartition(), whole: FakeDiskArbitration.physicalUsbWhole())
+        #expect(stick.deviceProtocol == "USB")
+        #expect(stick.isRemovable == true)
+        var ssd = FakeDiskArbitration.physicalUsbPartition()
+        ssd["DAMediaRemovable"] = false
+        #expect(make(ssd, whole: FakeDiskArbitration.physicalUsbWhole()).isRemovable == false)
+        var unknown = FakeDiskArbitration.physicalUsbPartition()
+        unknown["DAMediaRemovable"] = nil
+        unknown["DADeviceProtocol"] = nil
+        let volume = make(unknown, whole: FakeDiskArbitration.physicalUsbWhole())
+        #expect(volume.isRemovable == nil)
+        #expect(volume.deviceProtocol == nil)
+        // 파티션에 값이 없으면 전체 디스크 값을 본다
+        var whole = FakeDiskArbitration.physicalUsbWhole()
+        whole["DAMediaRemovable"] = true
+        #expect(make(unknown, whole: whole).isRemovable == true)
+    }
+
     @Test("hdiutil 출력이 깨졌으면 실물")
     func hdiutilFailureIsPhysical() {
         #expect(!make(FakeDiskArbitration.diskImagePartition(), hdiutil: Data("not a plist".utf8)).isDiskImage)
@@ -194,5 +214,13 @@ struct UsbVolumesTests {
         var description = FakeDiskArbitration.physicalUsbPartition()
         description["DAVolumeUUID"] = CFUUIDCreateFromString(nil, "0000abcd-0000-0000-0000-000000000001" as CFString)
         #expect(make(description).volumeUUID == "0000ABCD-0000-0000-0000-000000000001")
+    }
+
+    @Test("USB 일련번호는 문자열만, 앞뒤 공백을 떼고 비면 없음")
+    func serialText() {
+        #expect(UsbVolumes.serialText(" 4C530001 ") == "4C530001")
+        #expect(UsbVolumes.serialText("  ") == nil)
+        #expect(UsbVolumes.serialText(nil) == nil)
+        #expect(UsbVolumes.serialText(42) == nil)
     }
 }
