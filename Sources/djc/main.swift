@@ -87,10 +87,10 @@ enum CLI {
     }
 }
 
-// 새 읽기 명령과 JSON 조회는 옛 데이터 폴더를 옮기지도 않는다.
+// 새 읽기 명령(JSON 조회·XML 내보내기)은 옛 데이터 폴더를 옮기지도 않는다.
 let arguments = Array(CommandLine.arguments.dropFirst())
 if arguments.first != "lab" { CLILocalization.configure() }
-if arguments.first != "draft", arguments.first != "usb-info", !ReadCommands.names.contains(arguments.first ?? ""),
+if arguments.first != "draft", arguments.first != "usb-info", arguments.first != "xml-export", !ReadCommands.names.contains(arguments.first ?? ""),
    !ReadCommands.handlesJSON(arguments) {
     LegacyMigration.run()
 }
