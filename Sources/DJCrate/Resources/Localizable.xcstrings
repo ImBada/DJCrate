@@ -26931,6 +26931,38 @@
         }
       }
     },
+    "외장 디스크 연결 안 됨: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "External drive not connected: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外部ディスク未接続：%@"
+          }
+        }
+      }
+    },
+    "외장 디스크가 연결되지 않아 없는 곡이 %lld곡 있습니다. 디스크를 연결하면 옛 위치 그대로 찾을 수 있는지 먼저 확인하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld track(s) are missing because their external drive isn't connected. Connect the drive first to check whether they're still at their old location."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外部ディスクが接続されていないため見つからない曲が%lld曲あります。まずディスクを接続して、元の場所のまま見つかるか確認してください。"
+          }
+        }
+      }
+    },
     "왼쪽 위 모서리 삼각형이 붙은 칸은 초안(파일·rekordbox에 쓰기 전)" : {
       "localizations" : {
         "en" : {
@@ -28483,6 +28515,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "この曲のセクション・グリッド推定・キー解析のキャッシュを消して再解析します（波形と下書きはそのまま）"
+          }
+        }
+      }
+    },
+    "이 곡의 외장 디스크가 지금 연결돼 있지 않습니다. 디스크를 연결하면 옛 위치 그대로 찾을 수도 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This track's external drive isn't connected. Connecting it may find the track at its old location."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この曲の外部ディスクは接続されていません。ディスクを接続すると元の場所のまま見つかる場合があります。"
           }
         }
       }

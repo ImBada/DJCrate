@@ -35,7 +35,8 @@ struct RelocateModelTests {
         func dependencies(output: @escaping @Sendable (URL) -> RelocateScanner.Output = { _ in RelocateModelTests.output() },
                           loadError: (any Error)? = nil,
                           delay: Duration = .zero,
-                          progress: [RelocateScanner.Progress] = []) -> RelocateModel.Dependencies {
+                          progress: [RelocateScanner.Progress] = [],
+                          mounted: [String] = ["/", "/Volumes/Old"]) -> RelocateModel.Dependencies {
             RelocateModel.Dependencies(
                 loadTargets: { tracks, _ in
                     if let loadError { throw loadError }
@@ -47,7 +48,8 @@ struct RelocateModelTests {
                     if delay != .zero { try await Task.sleep(for: delay) }
                     try Task.checkCancellation()
                     return output(folder)
-                })
+                },
+                mountedVolumes: { mounted })
         }
     }
 
@@ -95,6 +97,49 @@ struct RelocateModelTests {
         // 후보가 아닌 파일은 고를 수 없다
         model.choose("/elsewhere/Pair.mp3", for: "2")
         #expect(model.selection.chosen(for: "2")?.file.path == "\(Self.folder.path)/B/Pair.mp3")
+    }
+
+    @Test func 연결되지_않은_외장_디스크의_곡은_빼지_않고_디스크_이름을_붙인다() async throws {
+        let model = model(Fake().dependencies(mounted: ["/", "/Volumes/Other"]))
+        model.start()
+        #expect(await waitUntil { !model.isScanning })
+        // 대상에서 빼지 않는다: 세 곡 모두 그대로 맞춘다
+        #expect(model.report.results.map(\.id) == ["1", "2", "3"])
+        #expect(model.absence(for: "1") == .volumeNotMounted(name: "Old"))
+        #expect(model.unmountedVolumeCount == 3)
+        #expect(RelocateText.absence(.volumeNotMounted(name: "Old")) == "외장 디스크 연결 안 됨: Old")
+    }
+
+    @Test func 디스크가_연결돼_있는데_파일이_없는_곡에는_디스크_표시를_붙이지_않는다() async throws {
+        let model = model(Fake().dependencies(mounted: ["/", "/Volumes/Old/"]))
+        model.start()
+        #expect(await waitUntil { !model.isScanning })
+        #expect(model.absence(for: "1") == .fileMissing)
+        #expect(model.unmountedVolumeCount == 0)
+        #expect(RelocateText.absence(.fileMissing) == nil)
+    }
+
+    @Test func 다시_찾을_때_연결된_디스크를_다시_읽는다() async throws {
+        let mounted = Mounted(["/"])
+        let base = Fake().dependencies()
+        let model = model(RelocateModel.Dependencies(loadTargets: base.loadTargets, scan: base.scan, mountedVolumes: { mounted.value }))
+        model.start()
+        #expect(await waitUntil { !model.isScanning })
+        #expect(model.absence(for: "1") == .volumeNotMounted(name: "Old"))
+        mounted.value = ["/", "/Volumes/Old"]
+        model.rescan(in: Self.folder)
+        #expect(await waitUntil { !model.isScanning })
+        #expect(model.absence(for: "1") == .fileMissing)
+    }
+
+    final class Mounted: @unchecked Sendable {
+        private let lock = NSLock()
+        private var volumes: [String]
+        init(_ volumes: [String]) { self.volumes = volumes }
+        var value: [String] {
+            get { lock.withLock { volumes } }
+            set { lock.withLock { volumes = newValue } }
+        }
     }
 
     @Test func 진행_알림을_화면_상태에_반영한다() async throws {
