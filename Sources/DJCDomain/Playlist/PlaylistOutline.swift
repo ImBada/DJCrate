@@ -38,6 +38,15 @@ public struct PlaylistOutlineNode: Hashable, Sendable, Identifiable {
         return build(PlaylistLayout.root)
     }
 
+    /// 인텔리전트 목록(`isSmart`)에 계산한 곡을 채운 트리(목록 ID → 곡 ID). 폴더가 모은 곡(`trackIDs`)은 그대로 둔다:
+    /// 인텔리전트 목록의 곡을 폴더 곡 모음에 넣는 규칙은 rekordbox와 맞춰 보지 않았다(#68).
+    public func fillingSmartTracks(_ tracks: [String: [String]]) -> PlaylistOutlineNode {
+        var node = self
+        if isSmart, let ids = tracks[id] { node.trackIDs = ids }
+        node.children = children?.map { $0.fillingSmartTracks(tracks) }
+        return node
+    }
+
     public func find(_ id: String) -> PlaylistOutlineNode? {
         if self.id == id { return self }
         for child in children ?? [] {
