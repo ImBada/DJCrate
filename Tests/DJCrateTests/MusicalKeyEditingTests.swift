@@ -17,7 +17,8 @@ struct MusicalKeyEditingTests {
         TrackRow(track: Track(id: staged ? "djc-\(id)" : id, uuid: "uuid-\(id)", title: "곡 \(id)", artist: "가수", album: nil, albumArtist: nil,
                               genre: nil, composer: nil, releaseYear: nil, trackNumber: nil, key: key, bpm: 120, lengthSeconds: 30,
                               folderPath: streaming ? "spotify:track:\(id)" : "/x/\(id).mp3", comment: "",
-                              importedOn: nil, analysisDataPath: nil, imagePath: nil, isDeleted: false),
+                              importedOn: nil, analysisDataPath: nil, imagePath: nil, isDeleted: false,
+                              dataStatus: staged || streaming ? nil : 0),
                  cues: [], playCount: 0)
     }
 

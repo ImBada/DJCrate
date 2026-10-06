@@ -56,6 +56,8 @@ struct LoadedLibrary: Sendable {
     /// 그림 초안(그림 바이트 없이)과 곡의 살아 있는 그림 파일 행(ContentID별, 초안 base)
     var artworkDrafts: [String: ArtworkDraft] = [:]
     var artworkFiles: [String: [ArtworkFileRow]] = [:]
+    /// rekordbox 곡 색 목록(`djmdColor`, 비었으면 화면은 rekordbox 기본 여덟 색)
+    var colors: [TrackColor] = []
 
     static func load(snapshot: URL, commentPreset: CommentPreset = .none, refreshITunes: Bool = false,
                      previousITunesSnapshot: ITunesFallback? = nil,
@@ -83,9 +85,12 @@ struct LoadedLibrary: Sendable {
                   let grid = try? BeatGrid.load(anlz: url) else { return }
             tempo.set(i, grid.tempoChanges)
         }
+        let listed = Set(library.playlists.filter { !$0.isFolder }.flatMap(\.trackIDs))
         let rows = tracks.enumerated().map { i, track in
-            TrackRow(track: track, cues: library.cues(for: track), playCount: library.playCounts[track.id, default: 0],
-                     tempoChanges: tempo.values[i], autoGain: library.autoGains[track.id], commentRule: commentPreset.rule)
+            var row = TrackRow(track: track, cues: library.cues(for: track), playCount: library.playCounts[track.id, default: 0],
+                               tempoChanges: tempo.values[i], autoGain: library.autoGains[track.id], commentRule: commentPreset.rule)
+            row.inPlaylist = listed.contains(track.id)
+            return row
         }
         var counts: [LibraryFilter: Int] = [:]
         for filter in LibraryFilter.visible(commentPreset: commentPreset) { counts[filter] = rows.lazy.filter(filter.includes).count }
@@ -113,6 +118,7 @@ struct LoadedLibrary: Sendable {
                              iTunesLibrary: SyncedITunesLibrary(snapshot: iTunes, tracks: tracks), iTunesSnapshot: iTunes)
         loaded.artworkDrafts = ArtworkDraftStore.all(directory: artworkDirectory)
         loaded.artworkFiles = library.artworkFiles
+        loaded.colors = library.colors
         return loaded
     }
 

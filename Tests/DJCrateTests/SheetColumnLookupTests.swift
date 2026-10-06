@@ -169,7 +169,8 @@ struct SheetColumnLookupTests {
             (view as? SheetTableView) ?? view.subviews.lazy.compactMap { find($0) }.first
         }
         let table = try #require(find(controller.view))
-        #expect(table.autosaveName == "djc.tagSheet.v2")
+        // 평점·곡 색 열(#65)을 더하며 "v3"로 올렸다
+        #expect(table.autosaveName == "djc.tagSheet.v3")
         #expect(table.tableColumns.map(\.identifier.rawValue) == SheetColumn.all.map(\.id))
     }
 }

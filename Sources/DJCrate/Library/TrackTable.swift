@@ -122,6 +122,19 @@ private struct TrackListView: NSViewRepresentable {
             }
             UserDefaults.standard.set(true, forKey: tagKey)
         }
+        // 평점·곡 색 칸(#65)도 저장된 배치에는 없어 끝으로 밀린다. 한 번만 키 칸 뒤로 옮긴다.
+        let ratingKey = "djc.trackList.ratingColorColumnsPlaced"
+        if !UserDefaults.standard.bool(forKey: ratingKey) {
+            var anchor = "key"
+            for id in ["rating", "color"] {
+                if let from = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == id }),
+                   let to = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == anchor }) {
+                    table.moveColumn(from, toColumn: from > to ? to + 1 : to)
+                }
+                anchor = id
+            }
+            if !PerfProbe.enabled { UserDefaults.standard.set(true, forKey: ratingKey) }
+        }
         if let show = PerfProbe.previewColumnVisible {
             table.tableColumns.first(where: { $0.identifier.rawValue == "preview" })?.isHidden = !show
         }
@@ -183,6 +196,10 @@ struct TrackColumn {
         TrackColumn(id: "class", title: String(ui: "분류"), width: 52, minWidth: 40, sortKey: "class", help: String(ui: "코멘트 분류: 규칙·구형·잔재·크레딧·빈 값·기타")),
         TrackColumn(id: "bpm", title: "BPM", width: 44, minWidth: 34, sortKey: "bpm", ascendingFirst: false),
         TrackColumn(id: "key", title: String(ui: "키"), width: 36, minWidth: 30, sortKey: "key"),
+        TrackColumn(id: "rating", title: String(ui: "평점"), width: 66, minWidth: 40, sortKey: "rating", ascendingFirst: false,
+                    help: String(ui: "rekordbox 평점(별 1~5개). 더블클릭하면 고른다")),
+        TrackColumn(id: "color", title: String(ui: "곡 색"), width: 70, minWidth: 30, sortKey: "color",
+                    help: String(ui: "rekordbox 곡 색. 더블클릭하면 고른다")),
         TrackColumn(id: "length", title: String(ui: "길이"), width: 46, minWidth: 38, sortKey: "length", ascendingFirst: false, help: String(ui: "곡 전체 재생 시간")),
         TrackColumn(id: "format", title: String(ui: "형식"), width: 44, minWidth: 36, sortKey: "format", help: String(ui: "파일 확장자(MP3·M4A·FLAC·WAV 등)")),
         TrackColumn(id: "tempo", title: String(ui: "변속"), width: 90, minWidth: 44, sortKey: "tempo", ascendingFirst: false,
@@ -248,6 +265,8 @@ struct TrackColumn {
         case "class": return KeyPathComparator(\TrackRow.commentClassName, order: order)
         case "bpm": return KeyPathComparator(\TrackRow.bpmValue, order: order)
         case "key": return KeyPathComparator(\TrackRow.keyName, order: order)
+        case "rating": return KeyPathComparator(\TrackRow.ratingValue, order: order)
+        case "color": return KeyPathComparator(\TrackRow.colorSortKey, order: order)
         case "length": return KeyPathComparator(\TrackRow.lengthSeconds, order: order)
         case "format": return KeyPathComparator(\TrackRow.formatName, order: order)
         case "tempo": return KeyPathComparator(\TrackRow.tempoChangeCount, order: order)
@@ -275,6 +294,8 @@ struct TrackColumn {
         case \TrackRow.commentClassName: "class"
         case \TrackRow.bpmValue: "bpm"
         case \TrackRow.keyName: "key"
+        case \TrackRow.ratingValue: "rating"
+        case \TrackRow.colorSortKey: "color"
         case \TrackRow.lengthSeconds: "length"
         case \TrackRow.formatName: "format"
         case \TrackRow.tempoChangeCount: "tempo"
@@ -335,7 +356,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     /// 덱에 올린 곡(ContentID)과 재생 중인지. # 칸에 스피커로 보인다.
     private var deckTrackID: String?
     private var deckPlaying = false
-    /// 열려 있는 키 고르기 메뉴(#204). 메뉴 추적은 동기식이라 여는 동안만 있다.
+    /// 열려 있는 고르기 메뉴(키 #204, 평점·곡 색 #65). 메뉴 추적은 동기식이라 여는 동안만 있다.
     private var activeKeyMenu: NSMenu?
     var isEditing: Bool { inlineEdit != nil || activeKeyMenu != nil }
     /// 고치는 중인 칸 이름(시험용)
@@ -847,6 +868,16 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
 
     /// 태그 칸: 초안 값이면 초안 색·모서리 표식·VoiceOver "초안"으로 보인다(태그 시트와 같다, #34).
     private func configureTag(_ cell: TrackTextCell, key: TagFields.Key, row: TrackRow) {
+        if key == .rating || key == .color {
+            // 평점은 별, 곡 색은 색 점과 rekordbox 이름. 초안이면 초안 색·표식·VoiceOver "초안"(다른 태그 칸과 같다)
+            let (value, edited) = TrackListTagEditing.text(row, key, draft: store.tagDrafts[row.track.uuid])
+            let colors = store.trackColors
+            let text = TagChoice.display(key, value, colors: colors)
+            cell.set(text, color: edited ? UIColors.draft.nsColor : .secondaryLabelColor, draft: edited,
+                     swatch: key == .color ? TagChoice.swatchImage(value) : nil, spoken: TagChoice.spoken(key, value, colors: colors))
+            if let reason = TrackListTagEditing.unavailableReason(row, key: key) { cell.toolTip = reason }
+            return
+        }
         if key == .musicalKey {
             let edited = store.isTagEdited(row, key)
             // 키를 고치지 않은 추가 곡은 다른 태그 초안이 있어도 음원 태그·추정 제안을 그대로 보인다(#5).
@@ -954,11 +985,11 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         doubleClicked(row: table.clickedRow, column: column)
     }
 
-    /// 키를 고칠 수 없는 곡(USB·스트리밍)이나 쓰는 중이면 키 칸도 다른 칸처럼 덱에 올린다(경고로 막지 않는다).
+    /// 그 칸을 고칠 수 없는 곡(USB·스트리밍, 평점·곡 색은 추가한 곡·확인 밖 곡)이나 쓰는 중이면 메뉴 칸도 다른 칸처럼 덱에 올린다(경고로 막지 않는다).
     func doubleClicked(row index: Int, column: String?) {
         cancelPendingEdit()
-        if column == TrackListTagEditing.keyColumn, canPickKey(row: index) {
-            beginEditing(row: index, column: TrackListTagEditing.keyColumn)
+        if let column, TrackListTagEditing.isMenuColumn(column), let key = TrackListTagEditing.key(forColumn: column), canPick(key, row: index) {
+            beginEditing(row: index, column: column)
         } else {
             loadRow(at: index)
         }
@@ -1048,9 +1079,9 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
               let key = TrackListTagEditing.key(forColumn: column),
               let columnIndex = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == column && !$0.isHidden })
         else { return false }
-        if key == .musicalKey {
-            // 키는 글자 대신 메뉴로 고른다. 메뉴는 고를 때까지 돌아오지 않는다.
-            guard let menu = keyMenu(row: index) else { return false }
+        if TagChoice.keys.contains(key) {
+            // 키·평점·곡 색은 글자 대신 메뉴로 고른다. 메뉴는 고를 때까지 돌아오지 않는다.
+            guard let menu = choiceMenu(key, row: index) else { return false }
             table.scrollRowToVisible(index)
             table.scrollColumnToVisible(columnIndex)
             let rect = table.frameOfCell(atColumn: columnIndex, row: index)
@@ -1120,48 +1151,38 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         finishEditing(commit: true, restoreFocus: false)
     }
 
-    // MARK: - 키 고르기(#204)
+    // MARK: - 키·평점·곡 색 고르기(#204·#65)
 
-    /// 이 줄의 키 고르기 메뉴를 열 수 있는지: 쓰는 중이 아니고 키를 고칠 수 있는 곡(USB·스트리밍 제외)
-    private func canPickKey(row index: Int) -> Bool {
-        store.writeLockPolicy.allowsLibraryInteraction && rows.indices.contains(index) && KeyPicker.unavailableReason(rows[index]) == nil
+    /// 이 줄의 고르기 메뉴를 열 수 있는지: 쓰는 중이 아니고 그 칸을 고칠 수 있는 곡(USB·스트리밍, 평점·곡 색은 추가한 곡·확인 밖 곡 제외)
+    private func canPick(_ key: TagFields.Key, row index: Int) -> Bool {
+        store.writeLockPolicy.allowsLibraryInteraction && rows.indices.contains(index)
+            && TrackListTagEditing.unavailableReason(rows[index], key: key) == nil
     }
 
-    private struct KeyChoice {
+    private struct Choice {
+        let key: TagFields.Key
         let targets: [TrackRow]
         let value: String
     }
 
-    /// 키 칸의 고르기 메뉴: 없음, Camelot 24개(태그 시트와 같다). 지금 값에 체크하고, 옛 표기이면 맨 앞에 고를 수 없는 항목으로 보인다.
-    /// 누른 줄이 고른 줄 안이면 고른 곡 모두(고칠 수 없는 곡은 빼고)가 대상이다. 값이 서로 다르면 아무 항목에도 체크하지 않는다.
-    func keyMenu(row index: Int) -> NSMenu? {
-        guard canPickKey(row: index), let table else { return nil }
+    /// 키 칸의 고르기 메뉴(`choiceMenu(.musicalKey, row:)`)
+    func keyMenu(row index: Int) -> NSMenu? { choiceMenu(.musicalKey, row: index) }
+
+    /// 고르기 메뉴: 키는 없음·Camelot 24개, 평점은 없음·별 1~5개, 곡 색은 없음·rekordbox 색(태그 시트와 같다). 지금 값에 체크하고, 고를 수 없는
+    /// 현재 값(옛 표기 키·모르는 색 번호)은 맨 앞에 흐리게 보인다. 누른 줄이 고른 줄 안이면 고른 곡 모두(고칠 수 없는 곡은 빼고)가 대상이다.
+    /// 값이 서로 다르면 아무 항목에도 체크하지 않는다.
+    func choiceMenu(_ key: TagFields.Key, row index: Int) -> NSMenu? {
+        guard canPick(key, row: index), let table else { return nil }
         let selected = table.selectedRowIndexes.compactMap { rows.indices.contains($0) ? rows[$0] : nil }
-        let targets = KeyPicker.targets(TrackListTagEditing.targets(anchor: rows[index], selection: selected))
+        let targets = TagChoice.targets(key, TrackListTagEditing.targets(anchor: rows[index], selection: selected))
         guard !targets.isEmpty else { return nil }
-        let current = store.tagValue(.musicalKey, rows: targets)
-        let menu = NSMenu(title: String(ui: "키"))
-        menu.autoenablesItems = false
-        func add(_ title: String, value: String, enabled: Bool = true) {
-            let item = NSMenuItem(title: title, action: enabled ? #selector(pickKey(_:)) : nil, keyEquivalent: "")
-            item.target = self
-            item.isEnabled = enabled
-            if targets.count > 1 { item.toolTip = String(ui: "고른 \(targets.count)곡에 모두 적용합니다") }
-            item.representedObject = KeyChoice(targets: targets, value: value)
-            item.state = !current.mixed && current.value == value ? .on : .off
-            menu.addItem(item)
-        }
-        if !current.mixed, !current.value.isEmpty, !KeyNotation.camelotNames.contains(current.value) {
-            add(current.value, value: current.value, enabled: false)
-        }
-        add(String(ui: "없음"), value: "")
-        for name in KeyNotation.camelotNames { add(name, value: name) }
-        return menu
+        return TagChoice.menu(key, current: store.tagValue(key, rows: targets), colors: store.trackColors, targetCount: targets.count,
+                              action: #selector(pickKey(_:)), target: self) { Choice(key: key, targets: targets, value: $0) }
     }
 
     @objc private func pickKey(_ sender: NSMenuItem) {
-        guard store.writeLockPolicy.allowsLibraryInteraction, let choice = sender.representedObject as? KeyChoice,
-              choice.value.isEmpty || KeyNotation.camelotNames.contains(choice.value) else { return }
+        guard store.writeLockPolicy.allowsLibraryInteraction, let choice = sender.representedObject as? Choice,
+              TagChoice.accepted(choice.key, choice.value, colors: store.trackColors) == choice.value else { return }
         // 초안은 고를 때만 만든다(열기·취소는 그대로, #5). 여러 값에서 "없음"을 고르면 모두 비운다.
         // 메뉴를 연 사이 목록이 바뀌어도 엉뚱한 곡에 들어가지 않게 줄 ID로 다시 찾는다.
         // 줄 ID는 계산 값이라 대상마다 줄 전체를 훑지 않고, 캐시한 ID(rowIDs)를 한 번만 훑는다(같은 ID가 겹치면 앞 줄).
@@ -1172,7 +1193,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             if firstIndex.count == wanted.count { break }
         }
         let targets = choice.targets.compactMap { target in firstIndex[target.id].map { rows[$0] } }
-        store.setTag(.musicalKey, choice.value, rows: KeyPicker.targets(targets))
+        store.setTag(choice.key, choice.value, rows: TagChoice.targets(choice.key, targets))
         if let table { refreshTagCells(table) }
     }
 }
@@ -1266,7 +1287,8 @@ final class TrackTextCell: NSTableCellView {
     private func updateColor() {
         let emphasized = backgroundStyle == .emphasized
         label.textColor = emphasized ? .alternateSelectedControlTextColor : normalColor
-        icon?.contentTintColor = emphasized ? label.textColor : symbolColor ?? label.textColor
+        // 곡 색 점은 템플릿이 아니라 칠하지 않는다(고른 줄에서도 색이 보이게)
+        icon?.contentTintColor = swatchShown ? nil : emphasized ? label.textColor : symbolColor ?? label.textColor
         draftMark.color = emphasized ? .alternateSelectedControlTextColor : UIColors.draft.nsColor
     }
 
@@ -1342,8 +1364,10 @@ final class TrackTextCell: NSTableCellView {
     /// - Parameter draft: 반영 전 초안 값. 색과 함께 모서리 표식·VoiceOver "초안"으로도 알린다.
     /// - Parameter estimated: DJCrate 추정값. 색과 함께 기울임·툴팁·VoiceOver "추정"으로도 알린다.
     /// - Parameter symbol: 글자 앞 SF 심볼. 칸을 다시 쓸 때마다 부르므로 nil이면 지운다.
+    /// - Parameter swatch: 글자 앞 색 점(곡 색, 템플릿이 아닌 그림이라 고른 줄에서도 색이 그대로다). `symbol`보다 먼저 쓴다.
+    /// - Parameter spoken: VoiceOver가 읽을 글자(평점 별 대신 "별 3개"). nil이면 보이는 글자.
     func set(_ text: String, color: NSColor, digits: Bool = false, draft: Bool = false, estimated: Bool = false,
-             symbol: String? = nil, symbolLabel: String? = nil, symbolColor: NSColor? = nil) {
+             symbol: String? = nil, symbolLabel: String? = nil, symbolColor: NSColor? = nil, swatch: NSImage? = nil, spoken: String? = nil) {
         if label.stringValue != text {
             label.stringValue = text
             needsLayout = true
@@ -1353,7 +1377,9 @@ final class TrackTextCell: NSTableCellView {
             label.font = font
             needsLayout = true
         }
-        if symbol != leadingSymbol || (symbol != nil && iconPointSize != font.pointSize) {
+        if let swatch {
+            showSwatch(swatch, label: text)
+        } else if symbol != leadingSymbol || (symbol != nil && iconPointSize != font.pointSize) || swatchShown {
             showSymbol(symbol, label: symbolLabel, pointSize: font.pointSize)
         }
         normalColor = color
@@ -1362,15 +1388,36 @@ final class TrackTextCell: NSTableCellView {
         if draftMark.isHidden == draft { draftMark.isHidden = !draft }
         let tip = estimated ? String(ui: "DJCrate가 소리로 추정한 키입니다. rekordbox 분석과 다를 수 있습니다") : nil
         if toolTip != tip { toolTip = tip }
-        if draft || estimated || speaksCustomValue {
-            let spoken = draft ? "\(text), \(DraftMark.spoken)" : estimated ? "\(text), \(String(ui: "추정"))" : text
-            label.cell?.setAccessibilityValue(spoken)
+        if draft || estimated || speaksCustomValue || spoken != nil {
+            let words = spoken ?? text
+            let value = draft ? "\(words), \(DraftMark.spoken)" : estimated ? "\(words), \(String(ui: "추정"))" : words
+            label.cell?.setAccessibilityValue(value)
             speaksCustomValue = true
         }
     }
 
+    /// 지금 글자 앞에 색 점을 보이는지(시험용)
+    private(set) var swatchShown = false
+
+    private func showSwatch(_ image: NSImage, label text: String) {
+        leadingSymbol = nil
+        swatchShown = true
+        if icon == nil {
+            let view = NSImageView()
+            addSubview(view)
+            icon = view
+        }
+        if icon?.image !== image { icon?.image = image }
+        icon?.contentTintColor = nil
+        icon?.toolTip = text
+        icon?.isHidden = false
+        labelLeading = 2 + ceil(image.size.width) + 4
+        needsLayout = true
+    }
+
     private func showSymbol(_ name: String?, label text: String?, pointSize: CGFloat) {
         leadingSymbol = name
+        swatchShown = false
         iconPointSize = pointSize
         if name != nil, icon == nil {
             let view = NSImageView()

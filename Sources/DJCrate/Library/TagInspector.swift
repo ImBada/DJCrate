@@ -36,8 +36,12 @@ struct TagInspector: View {
                             .font(.scaled(.caption, textScale)).foregroundStyle(UIColors.warning.color)
                     }
                     ForEach(TagFields.Key.allCases.filter { $0 != .comment }) { key in
-                        // 키는 글자를 쓰지 않고 rekordbox 키 목록에서 고른다
-                        if key == .musicalKey { MusicalKeyField(store: store, rows: rows) } else { field(key, rows: rows) }
+                        // 키·평점·곡 색은 글자를 쓰지 않고 목록(rekordbox 키, 별 1~5개, rekordbox 색)에서 고른다
+                        switch key {
+                        case .musicalKey: MusicalKeyField(store: store, rows: rows)
+                        case .rating, .color: TagChoiceField(store: store, rows: rows, key: key)
+                        default: field(key, rows: rows)
+                        }
                     }
                 }
                 ArtworkInspectorSection(store: store, rows: rows)
