@@ -29,7 +29,7 @@ djc parse 'TVA 시험 OP 1' --json
 djc compat --db /tmp/djc-fixture/master.db --json
 ```
 
-`--json`을 빼면 사람이 읽는 출력이다. 기존 `report`, `path`, `parse`, `compat`의 일반 출력은 유지한다. 분석·파일 생성·실험·쓰기 명령(`analyze`, `snapshot`, `schema-dump`, `lab`, `reflection-dry-run`, `cue-write`, `track-add`, `track-delete`, `playlist-write`, `rekordbox-restore`)은 이 JSON 계약에 포함하지 않는다.
+`--json`을 빼면 사람이 읽는 출력이다. 기존 `report`, `path`, `parse`, `compat`의 일반 출력은 유지한다. 분석·파일 생성·실험·쓰기 명령(`analyze`, `snapshot`, `schema-dump`, `lab`, `reflection-dry-run`, `cue-write`, `track-add`, `track-delete`, `playlist-write`, `rekordbox-restore`, `xml-export`)은 이 JSON 계약에 포함하지 않는다.
 
 검색은 제목·아티스트·코멘트·장르에 대한 대소문자 무시 부분 검색이다. 빈 검색어 `''`는 전체이며 삭제된 곡은 항상 제외한다. BPM은 양 끝을 포함하는 양수 범위, 키는 대소문자를 무시한 정확한 일치이고 조건은 모두 함께 적용한다. 암호화된 Spotify 제목·아티스트는 검색 대상에서 제외한다. `path`는 기존과 같이 제목의 대소문자를 구분하고 로컬 곡만 찾는다.
 
@@ -137,6 +137,40 @@ djc draft rm tag 101 --db /tmp/djc-fixture/master.db
 추가 오류 코드는 `invalid_draft`(기존 초안 손상·큐 한도), `draft_io_failed`(초안 저장·삭제 실패)다. 기존 `invalid_arguments`, `not_found`, `live_database`, `read_failed`도 사용한다. 실패 시 종료 코드 1이며 JSON은 stderr에만 나온다.
 
 앱은 재생 목록 초안을 지원하지만 `djc draft`의 대상은 큐·태그뿐이다. `playlist-write`는 JSON 편집을 DB에 쓰는 명령이며 DJCrate 재생 목록 초안 생성 명령이 아니다. 에이전트 스킬에서는 실행하지 않고 사람이 앱에서 재생 목록 초안을 만들도록 안내한다.
+
+## 라이브러리 XML 내보내기(`xml-export`)
+
+```sh
+djc xml-export --db <스냅샷 사본.db> --out <파일.xml> [--share <분석 파일 폴더>] [--overwrite] [--dry-run]
+
+# 시험할 때는 합성 사본과 임시 폴더만 쓴다.
+export DJC_HOME=$(mktemp -d)
+djc xml-export --db /tmp/djc-fixture/master.db --out /tmp/djc-fixture/library.xml
+```
+
+라이브러리 전체(곡·큐·그리드·재생 목록 트리)를 rekordbox XML(`DJ_PLAYLISTS`) 한 파일로 내보낸다. 다른 DJ 소프트웨어·도구로 옮기거나 백업 사본으로 둘 때 쓴다. 기존 "XML 만들기"(rekordbox로 되가져오는 연동 파일)와는 별개이고 그쪽 출력은 바뀌지 않는다.
+
+- **읽기만 한다.** 사본 DB와 분석 파일(`--share`, 기본은 사본 DB 옆 `share`, 라이브 분석 파일로 대신하지 않는다)은 고치지 않고 `--out` 파일 하나에만 쓴다. 같은 폴더의 임시 파일에 다 쓴 뒤 바꿔 끼우므로 도중에 실패해도 있던 파일은 그대로다. 라이브 `master.db`는 입력으로도 거부한다.
+- 출력은 `.xml` 파일만 받는다(실수로 `master.db`를 덮지 않게). rekordbox 폴더(`~/Library/Pioneer`, 개발 때의 `DJC_REKORDBOX_DIR`) 안, 그곳을 가리키는 링크, DJCrate 연동 XML 자리(`~/Documents/DJCrate/djcrate-rekordbox.xml`)는 DB를 열기 전에 거부한다. 이미 있는 파일은 `--overwrite`를 줘야 바꾼다. `--dry-run`은 읽고 개수만 알린다.
+- **쓰지 않은 초안은 넣지 않는다.** 큐·그리드·태그·게인·앨범아트·재생 목록 초안은 무시하고 rekordbox 사본에 있는 그대로 내보낸다.
+- 시각은 rekordbox 시간축(초)이다. DB의 큐(ms)와 분석 파일의 박(ms)이 이미 그 시간축이라 인코더 지연을 더하거나 빼지 않는다(기존 XML 경로와 같은 규칙).
+
+내보내는 칸:
+
+| XML | 출처 |
+|---|---|
+| `TRACK` `TrackID` | `ContentID`(정수 표기가 아니면 겹치지 않는 번호) |
+| `Name`·`Artist`·`Composer`·`Album`·`Genre`·`Comments`·`Tonality`(키 이름)·`Remixer`·`Label` | 곡 행과 연결 표 |
+| `Kind`·`Location` | 파일 확장자·`FolderPath`(`file://localhost` + 퍼센트 인코딩) |
+| `Size`·`TotalTime`·`DiscNumber`·`TrackNumber`·`Year`·`AverageBpm`·`BitRate`·`SampleRate`·`PlayCount` | `FileSize`·`Length`·`DiscNo`·`TrackNo`·`ReleaseYear`·`BPM`·`BitRate`·`SampleRate`·`DJPlayCount`(없으면 0, `Size`·`AverageBpm`·`BitRate`·`SampleRate`는 값이 없으면 칸을 뺀다) |
+| `DateAdded` | `StockDate`(없으면 곡 행을 만든 날) |
+| `TEMPO` | 분석 파일의 박 격자(`PQTZ`). 구간마다 첫 박 시각·rekordbox가 적은 BPM·박 번호. 분석 파일이 없으면 뺀다 |
+| `POSITION_MARK` | 메모리 큐(`Num` -1)·핫큐 A~H(`Num` 0~7)·루프(`Type` 4, `End`). 자동 큐도 그대로 |
+| `PLAYLISTS` `NODE` | 폴더(`Type` 0, `Count`)·재생 목록(`Type` 1, `KeyType` 0, `Entries`), Seq 순서, 같은 곡 중복·곡 순서 그대로 |
+
+넣지 않는 것(요약의 "뺀 것"에 센다): 인텔리전트 재생 목록, My Tag, 핫큐 색(`Red`·`Green`·`Blue`, rekordbox 색 번호와 XML 색의 대응을 확인하기 전), 알 수 없는 큐 종류(Kind 4), 앨범 아티스트·Grouping·Mix·DateModified·LastPlayed(XML에 칸이 없거나 값의 출처를 확인하지 못함), 스트리밍 곡(파일 경로가 없다), 삭제한 곡, 그리고 그 곡들을 가리키던 재생 목록 항목. `Rating`·`Colour`는 곡 행에 칸이 생기면(#65) 같은 모양으로 더한다.
+
+앱에서는 파일 메뉴의 "라이브러리 XML 내보내기…"가 같은 일을 한다.
 
 ## USB 내보내기(`usb-export`)
 
