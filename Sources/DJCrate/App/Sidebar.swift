@@ -269,6 +269,8 @@ struct ListActionBar: View {
                 }
             }
         case let .playlist(id):
+            // 실험실에서 보는 인텔리전트 목록: 읽기 전용이고 곡은 DJCrate가 조건으로 계산한 것(#68)
+            if let result = store.selectedSmartPlaylistResult { smartPlaylistNote(result) }
             // 숨긴 스트리밍 곡 때문에 끌어 옮길 수 없는 목록은 이유를 알린다(`canReorderDisplayedTracks`).
             // 줄이 하나도 안 남았으면 목록 가운데 안내(`EmptyLibraryOverlay`)가 같은 말을 한다.
             let hiddenNote = store.streamingHiddenInView > 0 && store.editablePlaylistID == id && !store.displayRows.isEmpty
@@ -357,6 +359,21 @@ struct ListActionBar: View {
             }
         default:
             EmptyView()
+        }
+    }
+
+    private func smartPlaylistNote(_ result: SmartPlaylistResult) -> some View {
+        bar {
+            if let summary = result.unsupportedSummary {
+                Label(.ui("DJCrate가 이 목록의 조건을 계산하지 못해 곡을 보이지 않습니다 · rekordbox에서 확인하세요"), systemImage: WarningMark.symbol)
+                    .foregroundStyle(UIColors.warning.color)
+                    .lineLimit(1)
+                Text(verbatim: summary).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            } else {
+                Label(.ui("DJCrate가 조건으로 계산한 읽기 전용 목록입니다 · rekordbox 화면과 곡이 다를 수 있습니다"), systemImage: "lock")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
     }
 

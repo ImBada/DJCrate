@@ -7,7 +7,7 @@ public struct RekordboxPlaylist: Sendable, Hashable, Identifiable {
     public let name: String
     public let parentID: String
     public let seq: Int
-    /// Attribute 1 = 폴더, 0 = 플레이리스트 (스마트 플레이리스트 4는 현재 라이브러리에 없음)
+    /// Attribute 1 = 폴더, 0 = 플레이리스트, 4 = 인텔리전트 재생 목록(`isSmart`, 조건은 `smartSource`)
     public let isFolder: Bool
     /// TrackNo 순서의 ContentID
     public let trackIDs: [String]
@@ -15,6 +15,8 @@ public struct RekordboxPlaylist: Sendable, Hashable, Identifiable {
     public var trackNumbers: [Int] = []
     /// 인텔리전트 재생 목록(Attribute 4 또는 SmartList 규칙이 있음). 편집하지 않는다.
     public var isSmart = false
+    /// 인텔리전트 목록의 조건 칸을 읽은 결과(`isSmart`일 때만). 읽기 전용이고 곡 항목(`trackIDs`)·편집 가능 여부에는 영향이 없다(#68).
+    public var smartSource: SmartPlaylistSource?
 }
 
 public extension PlaylistLayout {
@@ -89,6 +91,8 @@ extension RekordboxLibrary {
             SELECT ID, Seq, Name, Attribute, ParentID, SmartList FROM djmdPlaylist WHERE rb_local_deleted = 0
             """) { row in
             let id = row.string(0) ?? ""
+            let attribute = row.int(3) ?? 0, smartList = row.string(5)
+            let isSmart = attribute > 1 || !(smartList ?? "").isEmpty
             playlists.append(RekordboxPlaylist(
                 id: id,
                 name: row.string(2) ?? "",
@@ -97,7 +101,8 @@ extension RekordboxLibrary {
                 isFolder: row.int(3) == 1,
                 trackIDs: tracks[id] ?? [],
                 trackNumbers: numbers[id] ?? [],
-                isSmart: (row.int(3) ?? 0) > 1 || !(row.string(5) ?? "").isEmpty
+                isSmart: isSmart,
+                smartSource: isSmart ? SmartPlaylistSource.reading(attribute: attribute, smartList: smartList) : nil
             ))
         }
         return playlists

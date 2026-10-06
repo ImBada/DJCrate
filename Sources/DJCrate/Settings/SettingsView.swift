@@ -31,13 +31,16 @@ struct SettingsView: View {
                 .formStyle(.grouped)
                 .frame(width: 520, height: 180)
             }
+            Tab(.ui("실험실"), systemImage: "testtube.2", value: SettingsTab.lab) {
+                LabSettingsView(store: store)
+            }
         }
         .background(SettingsWindow.Tracker())
     }
 }
 
 enum SettingsTab: Hashable {
-    case general, deck, shortcuts, waveform
+    case general, deck, shortcuts, waveform, lab
 }
 
 /// 지금 열린 설정 창. 설정 창도 주 창이 될 수 있어서, KeyRouter가 이 창의 키(단축키 기록 등)를 덱으로 보내지 않게 한다.
@@ -123,6 +126,33 @@ struct GeneralSettingsView: View {
 
     static func durationText(_ seconds: Double) -> String {
         seconds < 60 ? String(ui: "\(Int(seconds))초") : String(ui: "\(Int(seconds / 60))분")
+    }
+}
+
+// MARK: - 실험실
+
+/// 아직 rekordbox와 결과를 견주지 않은 실험 기능을 켜고 끄는 곳. 모두 기본으로 꺼 두고, 끄면 그 기능이 없던 때와 똑같이 보인다.
+/// 새 실험 기능은 `SettingKeys`에 `lab.` 이름으로 더하고 아래에 구역을 하나 더한다.
+struct LabSettingsView: View {
+    @Bindable var store: LibraryStore
+
+    var body: some View {
+        Form {
+            Section {
+                Text(.ui("여기 기능은 아직 rekordbox와 결과를 견주지 않았습니다. 기본은 꺼져 있습니다."))
+                    .foregroundStyle(.secondary)
+            }
+            Section {
+                Toggle(.ui("인텔리전트 재생 목록 보기"), isOn: $store.showSmartPlaylists)
+            } header: {
+                Text(.ui("재생 목록"))
+            } footer: {
+                Text(.ui("인텔리전트 재생 목록의 조건을 DJCrate가 계산해 읽기 전용으로 보입니다. rekordbox 화면과 곡이 다를 수 있고, 계산하지 못하는 조건이 있으면 곡을 보이지 않습니다."))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .frame(width: 520, height: 250)
     }
 }
 

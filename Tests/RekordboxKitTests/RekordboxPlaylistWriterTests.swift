@@ -413,6 +413,41 @@ struct RekordboxPlaylistWriterTests {
         #expect(try fixture.localUpdateCount() == 1000)
     }
 
+    /// 인텔리전트 목록 읽기(#68)를 더해도 쓰기 경로가 인텔리전트 목록을 거르는 방식은 그대로다: 어떤 편집이든 가리키면 막고 DB를 건드리지 않는다.
+    @Test func 인텔리전트_목록을_가리키는_편집은_모두_막고_행과_XML을_건드리지_않는다() throws {
+        let fixture = try library([PlaylistSpec(id: "20", name: "폴더", seq: 1, isFolder: true),
+                                   PlaylistSpec(id: "70", name: "목록", seq: 2, contentIDs: ["101"]),
+                                   PlaylistSpec(id: "80", name: "스마트", seq: 3)])
+        let condition = "<NODE Id=\"-1\" LogicalOperator=\"1\" AutomaticUpdate=\"0\">"
+            + "<CONDITION PropertyName=\"name\" Operator=\"8\" ValueUnit=\"\" ValueLeft=\"가\" ValueRight=\"\"/></NODE>"
+        try fixture.execute("UPDATE djmdPlaylist SET Attribute = 4, SmartList = ? WHERE ID = '80'", [.text(condition)])
+        let before = try row(fixture, "80"), xmlBefore = try xml(fixture).node(id: "80")
+        let counter = try fixture.localUpdateCount()
+
+        let entry = PlaylistEntry(trackNo: 1, contentID: "101")
+        let report = try write(fixture, [
+            .rename(playlist: .id("80"), name: "바꿈"), .move(playlist: .id("80"), into: .id("20")), .reorder(playlist: .id("80"), index: 0),
+            .delete(playlist: .id("80")), .addTracks(playlist: .id("80"), contentIDs: ["101"]),
+            .removeTracks(playlist: .id("80"), entries: [entry]), .moveTracks(playlist: .id("80"), entries: [entry], to: 1),
+            .create(key: "n", name: "안에", isFolder: false, parent: .id("80")),
+        ])
+        #expect(report.playlistOutcomes?.map(\.status) == Array(repeating: .blocked, count: 8))
+        #expect(try fixture.localUpdateCount() == counter)
+        #expect(try row(fixture, "80") == before)
+        #expect(try xml(fixture).node(id: "80") == xmlBefore)
+        #expect(try entries(fixture, "80").isEmpty)
+    }
+
+    @Test func 일반_목록을_고쳐도_인텔리전트_목록의_행과_XML_NODE는_그대로다() throws {
+        let fixture = try library([PlaylistSpec(id: "70", name: "목록", seq: 1, contentIDs: ["101"]), PlaylistSpec(id: "80", name: "스마트", seq: 2)])
+        try fixture.execute("UPDATE djmdPlaylist SET Attribute = 4, SmartList = '<NODE/>' WHERE ID = '80'")
+        let before = try row(fixture, "80"), xmlBefore = try xml(fixture).node(id: "80")
+        let report = try write(fixture, [.rename(playlist: .id("70"), name: "새 이름"), .addTracks(playlist: .id("70"), contentIDs: ["102"])])
+        #expect(report.playlistOutcomes?.map(\.status) == [.written, .written])
+        #expect(try row(fixture, "80") == before)
+        #expect(try xml(fixture).node(id: "80") == xmlBefore)
+    }
+
     @Test func 곡_정보_시각과_목록_편집이_섞여도_XML은_하나씩_고친_것과_같다() throws {
         // 곡 정보 쓰기(#173)의 Timestamp는 모아서 한 번에 고친다. 만들기·옮기기와 섞이고 같은 목록이 여러 번·없는 목록이 있어도
         // 변경을 하나씩 적은 결과와 같아야 한다.

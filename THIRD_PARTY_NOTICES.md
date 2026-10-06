@@ -482,6 +482,7 @@ can send private email to the lead developer at drh at sqlite dot org.
 - 원문: [LICENSE](https://github.com/dylanljones/pyrekordbox/blob/f695541827cc488af267d6ca8a8e0052598d85a0/LICENSE)
 - DJCrate에서 쓰는 곳: `Sources/RekordboxKit/RekordboxKey.swift`의 키 복원 절차와 OneLibrary(`exportLibrary.db`) 키 복원(`devicelib_plus/database.py`의 상수), `AnlzPreviewWaveform.swift`의 PWV4 채널·밝기 해석.
 - 외부 파서 대조(`scripts/usb-parser-compare.py`, #189)는 임시 폴더에 받은 pyrekordbox(커밋 `5feacbce470621711785b6cb8f21420ca14a135d`)를 실행할 때 불러 OneLibrary를 읽는다. 코드는 옮기지 않고 배포하지 않는다.
+- 인텔리전트 재생 목록(#68): `Sources/DJCDomain/Playlist/SmartPlaylist.swift`가 조건 칸(`djmdPlaylist.SmartList`)의 형식(커밋 `5feacbce470621711785b6cb8f21420ca14a135d`의 `pyrekordbox/masterdb/smartlist.py`와 `docs/source/formats/db6.md`)을 참고한다: NODE·CONDITION 칸 이름, 항목 이름(`PropertyName`) 목록, 연산자 번호 1~11, 결합 방식 번호 1·2. 파이썬 코드(SQLAlchemy 계산 포함)는 옮기지 않고 같은 형식을 Swift로 새로 썼다. 계산 의미는 이 자료를 따르지 않고 DJCrate가 정한다(`SmartPlaylistEvaluator`).
 
 ````text
 MIT License

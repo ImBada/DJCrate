@@ -46,6 +46,8 @@ struct LoadedLibrary: Sendable {
     var gridDraftUUIDs: Set<String>
     var gainDraftUUIDs: Set<String> = []
     var playlists: PlaylistLayout
+    /// 인텔리전트 재생 목록 ID → 읽은 조건 칸(#68). 보이는 것은 실험실 설정이 켜 있을 때뿐이다.
+    var smartPlaylists: [String: SmartPlaylistSource] = [:]
     var playlistDraft: PlaylistDraft
     var histories: [RekordboxHistory]
     var draftCueCounts: [String: CueCounts] = [:]
@@ -113,6 +115,8 @@ struct LoadedLibrary: Sendable {
                              iTunesLibrary: SyncedITunesLibrary(snapshot: iTunes, tracks: tracks), iTunesSnapshot: iTunes)
         loaded.artworkDrafts = ArtworkDraftStore.all(directory: artworkDirectory)
         loaded.artworkFiles = library.artworkFiles
+        loaded.smartPlaylists = Dictionary(library.playlists.compactMap { playlist in playlist.smartSource.map { (playlist.id, $0) } },
+                                           uniquingKeysWith: { first, _ in first })
         return loaded
     }
 

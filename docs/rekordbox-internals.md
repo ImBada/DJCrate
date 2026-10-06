@@ -509,6 +509,16 @@ rekordbox 7.2.18이 하는 것 [확인]:
 
 **확인하지 않은 것**(규칙을 넓혀 둔 곳): 여러 곡을 한꺼번에 끌어 순서 바꾸기(한 곡만 봤다. 자리가 바뀐 곡만 하나를 같이), Seq에 빈칸이 있는 폴더 안 순서 바꾸기(1부터 다시 매긴다), 뒤 형제가 없는 목록 지우기(비움 하나만), 인텔리전트 목록.
 
+### 인텔리전트 재생 목록 읽기 (#68, 읽기만 · rekordbox 실험 전)
+
+rekordbox 7.2.18에서 직접 만든 인텔리전트 목록으로 확인한 것이 **아직 없다**. 2026-10-06에 본 최신 스냅샷 사본에는 `Attribute` 4 행도 `SmartList` 값도 없어 실제 행으로 형식을 확인하지 못했다. 아래 형식은 pyrekordbox(MIT)의 `masterdb/smartlist.py`와 `db6.md`를 근거로 한 [제3자] 자료이며(`THIRD_PARTY_NOTICES.md`), 쓰기 규칙이 아니다.
+
+- 형식: `SmartList`는 XML 글자. `<NODE Id LogicalOperator AutomaticUpdate>` 아래 `<CONDITION PropertyName Operator ValueUnit ValueLeft ValueRight/>`가 줄지어 든다. `LogicalOperator` 1 = 모두, 2 = 하나라도. `Operator` 1~11 = 같음·같지 않음·큼·작음·범위·최근 N·최근 N 아님·포함·포함하지 않음·시작·끝. `PropertyName`은 `artist`·`album`·`albumArtist`·`originalArtist`·`bpm`·`grouping`·`comments`·`producer`·`stockDate`·`dateCreated`·`counter`·`fileName`·`genre`·`key`·`label`·`mixName`·`myTag`·`rating`·`dateReleased`·`remixedBy`·`duration`·`name`·`year`.
+- 읽기: `RekordboxLibrary`가 `Attribute` 4 행의 `SmartList`를 `SmartPlaylistSource`로 읽는다(`RekordboxPlaylist.smartSource`). 알려진 모양과 조금이라도 다르면(모르는 칸·중첩 NODE·남은 글자·결합 방식·자동 갱신 값) 읽지 않고 이유만 남긴다. `isSmart`·곡 항목·편집 막힘은 읽기를 더하기 전과 같다.
+- 계산(`SmartPlaylistEvaluator`, 순수 규칙): 지금은 글자 항목 `name`·`artist`·`album`·`albumArtist`·`comments`(같음·같지 않음·포함·포함하지 않음·시작·끝)와 숫자 항목 `year`(같음·같지 않음·큼·작음·범위)만 계산한다. 값 단위는 빈 글자만 받는다. 그 밖의 항목·연산자·단위·값 모양은 "지원하지 않는 조건"이고, 그런 조건이 하나라도 든 목록은 곡을 보이지 않는다. `bpm`·`duration`은 값이 DB 정수인지 화면 값인지, `genre`·`key`·`myTag`·`grouping`은 값이 이름인지 번호인지, 날짜·최근 N일은 기준을 모르고, `rating`·곡 색·My Tag는 읽기가 #65·#67에서 들어온다.
+- 확인 전 해석(`SmartPlaylistSemantics.provisional`, 묶음 3 M1에서 rekordbox 곡 수와 견줘 정한다): 글자 대소문자 무시, 큼·작음은 경계 제외, 범위는 양끝 포함, 같지 않음·포함하지 않음은 빈 값 포함. 글자는 NFC로 맞춰 비교하고 전각·반각은 맞추지 않는다. `AutomaticUpdate`의 뜻은 모르고 계산에 쓰지 않는다. 삭제된 곡은 빼고 스트리밍 곡은 포함한다. 결과 순서는 컬렉션 순서다.
+- 앱: 설정 › 실험실 › 인텔리전트 재생 목록 보기(`SettingKeys.labSmartPlaylists` = `lab.smartPlaylists`, 기본 끔)를 켰을 때만 계산해 사이드바에 읽기 전용으로 보인다. 끄면 이 기능이 없던 때와 같다(목록은 곡 없이 보임). 쓰기·USB 내보내기·XML 경로는 설정과 상관없이 인텔리전트 목록을 그대로 거른다.
+
 ## ALAC 분석 파일 조사 (#8, 2026-09-26)
 
 **결론: ALAC 기준 표본을 확인하지 못해 규칙을 확정하지 못했다. 분석 붙이기 차단을 유지한다.** 아래는 기존 스냅샷을 읽은 결과이며, rekordbox에서 새로 분석한 전후 비교가 아니다.
