@@ -312,7 +312,8 @@ struct GridTempoSegments: View {
                     .foregroundStyle(UIColors.draft.color)
                     .disabled(!deck.canEditGrid)
                     .accessibilityLabel(.ui("여기서 BPM 변경"))
-                    .help(.ui("변속곡: 가장 가까운 박부터 새 템포 구간을 시작합니다"))
+                    .help(deck.quantize ? String(ui: "변속곡: 가장 가까운 박부터 새 템포 구간을 시작합니다(Q를 끄면 재생 위치 그대로)")
+                                          : String(ui: "변속곡: 재생 위치에서 새 템포 구간을 시작합니다(Q를 켜면 가장 가까운 박)"))
                     .position(x: min(max(cursorX, height / 2), max(height / 2, geometry.size.width - height / 2)),
                               y: height / 2)
                 }

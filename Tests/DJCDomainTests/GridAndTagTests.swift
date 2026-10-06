@@ -77,6 +77,38 @@ struct GridDraftTests {
         #expect(draft.segments.count == 1)
     }
 
+    /// #207: Q를 끄면 변속 지점은 박 사이 위치 그대로 들어간다.
+    @Test func 변속_지점을_박_사이_위치_그대로_넣는다() {
+        var draft = GridDraft(trackUUID: "t", base: [], segments: [.init(start: 0.5, bpm: 120, firstBeatNumber: 1)])
+        let added = draft.addTempoChange(at: 10.625, duration: 20)
+        #expect(added)
+        #expect(draft.segments.count == 2)
+        #expect(draft.segments[1].start == 10.625 && draft.segments[1].bpm == 120)
+        // 경계에서 반 박 안쪽의 이전 박(10.5초, 1박)은 새 구간 첫 박이 대신한다.
+        #expect(draft.segments[1].firstBeatNumber == 1)
+        let beats = draft.grid(duration: 20).beats
+        #expect(beats.filter { $0.time > 9.9 && $0.time < 11.2 }.map(\.time) == [10.0, 10.625, 11.125])
+        #expect(beats.first { $0.time == 10.625 }?.number == 1)
+        // 반 박보다 뒤면 이전 박(15.625초)은 남고 다음 박(16.125초, 4박)을 대신한다.
+        let addedLater = draft.addTempoChange(at: 15.95, duration: 20)
+        #expect(addedLater)
+        #expect(draft.segments[2].firstBeatNumber == 4)
+        #expect(draft.grid(duration: 20).beats.filter { $0.time > 15.5 && $0.time < 16.5 }.map(\.time) == [15.625, 15.95, 16.45])
+    }
+
+    /// 앞 구간의 박이 모두 사라지거나 새 구간에 박이 하나도 없는 자리는 넣지 않는다(쓰기 단계에서 막히는 모양).
+    @Test(arguments: [10.7, 10.625, 10.4, 10.38, 0.3, 0.5, -1, 20, 25])
+    func 이웃_변속_지점과_반_박_안쪽이나_곡_밖이면_넣지_않는다(time: Double) {
+        var draft = GridDraft(trackUUID: "t", base: [], segments: [
+            .init(start: 0.5, bpm: 120, firstBeatNumber: 1),
+            .init(start: 10.625, bpm: 120, firstBeatNumber: 1),
+        ])
+        let original = draft
+        let added = draft.addTempoChange(at: time, duration: 20)
+        #expect(!added)
+        #expect(draft == original)
+    }
+
     @Test func 변속_경계에_가까운_이전_박은_새_구간의_첫_박으로_대체한다() {
         // 2026-09-28 rekordbox 7.2.18, DJC 다구간 BPM 실험 B 중간 구간.
         // 151 BPM으로 늘인 29.209초 박은 29.305초 경계 박과 중복해서 만들지 않는다.

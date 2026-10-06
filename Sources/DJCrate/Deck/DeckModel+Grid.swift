@@ -42,7 +42,18 @@ extension DeckModel {
 
     func setGridAnchorAtPlayhead() { mutateGrid { $0.setAnchor(at: playhead) } }
 
-    func addTempoChangeAtPlayhead() { mutateGrid { $0.addTempoChange(nearest: playhead, duration: duration) } }
+    /// 변속 지점도 큐·루프처럼 Q를 따른다: 켜면 가장 가까운 박, 끄면 재생 위치 그대로(#207).
+    func addTempoChangeAtPlayhead() {
+        if quantize {
+            mutateGrid { $0.addTempoChange(nearest: playhead, duration: duration) }
+            return
+        }
+        var rejected = false
+        mutateGrid { rejected = !$0.addTempoChange(at: playhead, duration: duration) }
+        if rejected {
+            showToast(String(ui: "변속 지점은 첫 구간 시작 뒤, 이웃 변속 지점과 반 박 넘게 떨어진 자리에 두세요"), kind: .warning)
+        }
+    }
 
     func removeTempoChange(at index: Int) { mutateGrid { $0.removeTempoChange(at: index) } }
 

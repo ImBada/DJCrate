@@ -47,6 +47,22 @@ struct MultiTempoGridWriterTests {
         #expect(try fixture.localUpdateCount() == 700)
     }
 
+    /// #207: 박 사이에 넣은 변속 지점은 새 쓰기 규칙 없이 위 경계 대체 규칙(실험 B)으로 박이 된다.
+    @Test func 박_사이에_넣은_변속_지점은_경계_대체_규칙으로_쓴다() throws {
+        let (fixture, track, original) = try fixture()
+        var draft = original
+        let added = draft.addTempoChange(at: 8.6, duration: 49)   // 120 BPM 8.494초 박에서 0.106초 뒤
+        try #require(added)
+        let beats = RekordboxGridWriter.beats(segments: draft.segments, duration: 49)
+        #expect(beats.filter { $0.wholeMs >= 7900 && $0.wholeMs <= 9200 }.map(\.wholeMs) == [7994, 8600, 9100])
+        let report = try RekordboxWriter.write(drafts: [], grids: [draft], to: fixture.database, dryRun: false,
+                                               backups: fixture.backups, shareRoot: fixture.shareRoot)
+        try #require(report.gridWritten.count == 1)
+        let written = try BeatGrid.load(anlz: fixture.analysisURL(for: track))
+        #expect(written.beats.contains { abs($0.time - 8.6) < 0.001 && $0.number == 1 })
+        #expect(!written.beats.contains { abs($0.time - 8.494) < 0.001 })
+    }
+
     @Test func 다구간_박_생성은_rekordbox의_경계_대체와_일치한다() {
         let beats = RekordboxGridWriter.beats(segments: [
             .init(start: 0.4945, bpm: 120, firstBeatNumber: 1),
