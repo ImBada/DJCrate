@@ -482,6 +482,7 @@ final class UsbAppleDoubleRecorder: UsbFileSystem, @unchecked Sendable {
     func sha256(_ url: URL, uncached: Bool) throws -> String { try base.sha256(url, uncached: uncached) }
     func read(_ url: URL, maxBytes: Int) throws -> Data { try base.read(url, maxBytes: maxBytes) }
     func mountedOn(_ url: URL) throws -> String? { try base.mountedOn(url) }
+    func holdVolume(_ root: URL) throws -> any UsbVolumeHold { try base.holdVolume(root) }
 }
 
 /// 편집 단계의 이름 창: 정해 둔 이름을 차례로 넣는다

@@ -215,4 +215,12 @@ struct UsbVolumesTests {
         description["DAVolumeUUID"] = CFUUIDCreateFromString(nil, "0000abcd-0000-0000-0000-000000000001" as CFString)
         #expect(make(description).volumeUUID == "0000ABCD-0000-0000-0000-000000000001")
     }
+
+    @Test("USB 일련번호는 문자열만, 앞뒤 공백을 떼고 비면 없음")
+    func serialText() {
+        #expect(UsbVolumes.serialText(" 4C530001 ") == "4C530001")
+        #expect(UsbVolumes.serialText("  ") == nil)
+        #expect(UsbVolumes.serialText(nil) == nil)
+        #expect(UsbVolumes.serialText(42) == nil)
+    }
 }

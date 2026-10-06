@@ -30,7 +30,7 @@ public enum UsbRead {
         if let uuid, lists.deny.contains(where: { $0.uppercased() == uuid }) { return "denylisted" }
         if volume.isDiskImage { return nil }
         if lists.denyStatus.fixedLocation == .corrupt || lists.denyStatus.userData == .corrupt { return "denyListUnreadable" }
-        if lists.denyStatus.fixedLocation == .missing || lists.denyStatus.fixedEntryCount < 1 { return "denyListNotRegistered" }
+        if lists.denyStatus.fixedLocation == .missing || lists.denyStatus.fixedPhysicalCount < 1 { return "denyListNotRegistered" }
         guard let uuid, !uuid.isEmpty else { return "noVolumeUUID" }
         return nil
     }

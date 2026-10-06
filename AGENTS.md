@@ -53,7 +53,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 .build/debug/djc usb-recover --volume <마운트> [--discard-temp]                             # 끝나지 않은 USB 쓰기를 마저 쓰거나 되돌리기
 .build/debug/djc usb-info <볼륨|폴더> [--json]                                             # USB 읽기만: 형식·곡 수·두 형식 일치·분석 파일·경고(실물은 쓰기 금지 목록 등록 뒤에만)
 .build/debug/djc usb-deny --volume <마운트>                                                # 쓰면 안 되는 USB를 쓰기 금지 목록에(목록 파일만, 사용자가 직접)
-.build/debug/djc usb-allow --volume <마운트> [--remove]                                    # 이 실물 USB에 쓰기 허용·거두기(목록 파일만, 사용자가 직접)
+.build/debug/djc usb-allow --volume <마운트> [--remove]                                    # 이 실물 USB에 쓰기 허용·거두기(목록 파일만, 허용은 사용자가 터미널에서 볼륨 이름을 입력)
 .build/debug/djc lab usb-image create|attach|detach|info <이미지>   # 임시 폴더 아래 FAT32 디스크 이미지(attach는 --mount <폴더>)
 .build/debug/djc lab usb-image seed --image <이미지> --from <폴더>   # 붙인 이미지에 폴더 내용을 데이터만 복사
 .build/debug/djc lab usb-tree <루트>                                 # USB 트리(NFC 경로·크기·SHA-256, 마지막 줄 ._ 수)

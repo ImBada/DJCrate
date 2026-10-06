@@ -287,7 +287,7 @@ struct UsbEditActions {
     /// - physicalGate: 실물 쓰기 관문(목록·실험실 스위치). 기본은 닫힌 관문(스위치 끔)
     static func blockReason(_ edit: UsbLibraryEdit, volume: UsbVolumeInfo?, library: UsbLibrary?, info: UsbInfo?,
                             isScratchMount: (String) -> Bool = UsbEditActions.isScratchMount,
-                            physicalGate: UsbPhysicalWriteGate = .init(allowlist: [], denylist: [], denyStatus: .missing)) -> String? {
+                            physicalGate: UsbPhysicalWriteGate = .init(allowlist: [:], denylist: [], denyStatus: .missing)) -> String? {
         if let volume {
             if let problem = UsbVolumePolicy.problems(volume, purpose: .edit).first { return problem.message }
             // 임시 폴더 뿌리 밖에 붙인 디스크 이미지도 실물로 판정한다(세션의 실물 관문과 같다)

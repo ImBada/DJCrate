@@ -160,11 +160,15 @@ public struct UsbWriteOptions: Sendable {
     /// lab 전용: 이 단계를 마친 뒤 `pauseHandler`를 부른다
     public var pauseAfter: UsbWriteStage? = nil
     public var pauseHandler: (@Sendable (UsbWriteStage) -> Void)? = nil
+    /// 사용자가 확인한 볼륨의 UUID(앱은 확인 창에 보인 볼륨). 주면 쓰기를 열 때 지금 그 자리의 볼륨과 비교해 다르면 막는다
+    public var expectedVolumeUUID: String? = nil
 
     public init(dryRun: Bool = false, confirmName: String? = nil, allowProvisional: Set<UsbProvisionalRule> = [], verifyAudio: Bool = false,
-                pauseAfter: UsbWriteStage? = nil, pauseHandler: (@Sendable (UsbWriteStage) -> Void)? = nil) {
+                pauseAfter: UsbWriteStage? = nil, pauseHandler: (@Sendable (UsbWriteStage) -> Void)? = nil,
+                expectedVolumeUUID: String? = nil) {
         self.dryRun = dryRun
         self.confirmName = confirmName
+        self.expectedVolumeUUID = expectedVolumeUUID
         self.allowProvisional = allowProvisional
         self.verifyAudio = verifyAudio
         self.pauseAfter = pauseAfter

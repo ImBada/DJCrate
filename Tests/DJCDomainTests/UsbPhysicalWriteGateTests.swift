@@ -6,18 +6,18 @@ import Testing
 @Suite("실물 USB 쓰기 관문")
 struct UsbPhysicalWriteGateTests {
     let uuid = FakeUsbVolume.physicalUUID
-    let okDeny = UsbDenyListStatus(fixedLocation: .ok, fixedEntryCount: 1, userData: .missing)
+    let okDeny = UsbDenyListStatus(fixedLocation: .ok, fixedPhysicalCount: 1, userData: .missing)
 
     /// 코드 관문과 실행 중 스위치를 모두 연 관문(시험 전용 init)
     func openGate(allow: Set<String>? = nil, deny: Set<String> = [], status: UsbDenyListStatus? = nil) -> UsbPhysicalWriteGate {
-        UsbPhysicalWriteGate(allowlist: allow ?? [uuid], denylist: deny, denyStatus: status ?? okDeny, buildEnabled: true, physicalEnabled: true)
+        UsbPhysicalWriteGate(allowlist: FakeUsbVolume.allowEntries(allow ?? [uuid]), denylist: deny, denyStatus: status ?? okDeny, buildEnabled: true, physicalEnabled: true)
     }
 
     func codes(_ blocks: [UsbBlock]) -> [String] { blocks.map(\.code) }
 
     @Test("실행 중 스위치(설정 › 실험실·--allow-physical)가 꺼져 있으면 허용 목록에 있어도 막는다")
     func runtimeSwitchOffBlocksPhysicalEvenIfAllowlisted() {
-        let gate = UsbPhysicalWriteGate(allowlist: [uuid], denylist: [], denyStatus: okDeny)
+        let gate = UsbPhysicalWriteGate(allowlist: FakeUsbVolume.allowEntries([uuid]), denylist: [], denyStatus: okDeny)
         #expect(gate.physicalEnabled == false)
         #expect(gate.isOpen == false)
         let blocks = gate.blocks(FakeUsbVolume.physicalFAT32(), confirmName: "DJCPHYS")
@@ -29,7 +29,7 @@ struct UsbPhysicalWriteGateTests {
 
     @Test("코드 관문이 닫혀 있으면 스위치를 켜도 막는다(둘 다 열려야 쓴다)")
     func buildDisabledBlocksEvenIfSwitchOn() {
-        let gate = UsbPhysicalWriteGate(allowlist: [uuid], denylist: [], denyStatus: okDeny, buildEnabled: false, physicalEnabled: true)
+        let gate = UsbPhysicalWriteGate(allowlist: FakeUsbVolume.allowEntries([uuid]), denylist: [], denyStatus: okDeny, buildEnabled: false, physicalEnabled: true)
         #expect(gate.isOpen == false)
         let blocks = gate.blocks(FakeUsbVolume.physicalFAT32(), confirmName: "DJCPHYS")
         #expect(codes(blocks) == ["physicalDisabled"])
@@ -63,8 +63,8 @@ struct UsbPhysicalWriteGateTests {
 
     @Test("디스크 이미지는 거부 목록 파일 상태와 무관하게 통과")
     func diskImagePasses() {
-        for status in [UsbDenyListStatus.missing, .init(fixedLocation: .corrupt, fixedEntryCount: 0, userData: .corrupt)] {
-            let gate = UsbPhysicalWriteGate(allowlist: [], denylist: [], denyStatus: status)
+        for status in [UsbDenyListStatus.missing, .init(fixedLocation: .corrupt, fixedPhysicalCount: 0, userData: .corrupt)] {
+            let gate = UsbPhysicalWriteGate(allowlist: [:], denylist: [], denyStatus: status)
             #expect(gate.blocks(FakeUsbVolume.diskImageFAT32(), confirmName: nil).isEmpty)
         }
     }
@@ -81,8 +81,8 @@ struct UsbPhysicalWriteGateTests {
 
     @Test("고정 위치 거부 목록이 깨졌으면 막는다")
     func corruptDenyBlocksPhysical() {
-        let status = UsbDenyListStatus(fixedLocation: .corrupt, fixedEntryCount: 0, userData: .missing)
-        let closed = UsbPhysicalWriteGate(allowlist: [uuid], denylist: [], denyStatus: status)
+        let status = UsbDenyListStatus(fixedLocation: .corrupt, fixedPhysicalCount: 0, userData: .missing)
+        let closed = UsbPhysicalWriteGate(allowlist: FakeUsbVolume.allowEntries([uuid]), denylist: [], denyStatus: status)
         let blocks = closed.blocks(FakeUsbVolume.physicalFAT32(), confirmName: "DJCPHYS")
         #expect(codes(blocks) == ["denyListUnreadable"])
         #expect(blocks[0].rule == .physicalVolume)
@@ -91,8 +91,8 @@ struct UsbPhysicalWriteGateTests {
 
     @Test("사용자 데이터 쪽 거부 목록이 깨져도 막는다")
     func corruptUserDataDenyBlocksPhysical() {
-        let status = UsbDenyListStatus(fixedLocation: .ok, fixedEntryCount: 3, userData: .corrupt)
-        let closed = UsbPhysicalWriteGate(allowlist: [uuid], denylist: [], denyStatus: status)
+        let status = UsbDenyListStatus(fixedLocation: .ok, fixedPhysicalCount: 3, userData: .corrupt)
+        let closed = UsbPhysicalWriteGate(allowlist: FakeUsbVolume.allowEntries([uuid]), denylist: [], denyStatus: status)
         #expect(codes(closed.blocks(FakeUsbVolume.physicalFAT32(), confirmName: "DJCPHYS")) == ["denyListUnreadable"])
     }
 
@@ -105,13 +105,13 @@ struct UsbPhysicalWriteGateTests {
 
     @Test("고정 위치 거부 목록이 비었으면 막는다")
     func emptyFixedDenyBlocksPhysical() {
-        let status = UsbDenyListStatus(fixedLocation: .ok, fixedEntryCount: 0, userData: .missing)
+        let status = UsbDenyListStatus(fixedLocation: .ok, fixedPhysicalCount: 0, userData: .missing)
         #expect(codes(openGate(status: status).blocks(FakeUsbVolume.physicalFAT32(), confirmName: "DJCPHYS")) == ["denyListMissing"])
     }
 
     @Test("사용자 데이터 쪽 거부 목록만으로는 모자란다")
     func userDataOnlyDenyDoesNotCount() {
-        let status = UsbDenyListStatus(fixedLocation: .missing, fixedEntryCount: 0, userData: .ok)
+        let status = UsbDenyListStatus(fixedLocation: .missing, fixedPhysicalCount: 0, userData: .ok)
         #expect(codes(openGate(status: status).blocks(FakeUsbVolume.physicalFAT32(), confirmName: "DJCPHYS")) == ["denyListMissing"])
     }
 
@@ -136,6 +136,57 @@ struct UsbPhysicalWriteGateTests {
 
     @Test func allowlistedAndConfirmedPasses() {
         #expect(openGate().blocks(FakeUsbVolume.physicalFAT32(), confirmName: "DJCPHYS").isEmpty)
+    }
+
+    // MARK: - 허용 지문(UUID + 용량 + USB 일련번호)
+
+    @Test("허용할 때와 용량이 다르면 같은 UUID여도 막는다(FAT32 UUID는 32비트 일련번호에서 나와 겹칠 수 있다)")
+    func capacityMismatchBlocks() {
+        var bigger = FakeUsbVolume.physicalFAT32()
+        bigger.capacity = 32_000_000_000
+        let blocks = openGate().blocks(bigger, confirmName: "DJCPHYS")
+        #expect(codes(blocks) == ["allowMismatch"])
+        #expect(blocks[0].message == "이 USB는 쓰기를 허용할 때와 용량·일련번호가 다릅니다. 같은 USB가 맞으면 ‘이 USB에 쓰기 허용…’이나 djc usb-allow로 다시 허용하세요")
+    }
+
+    @Test("허용할 때 USB 일련번호를 적었으면 같은 일련번호여야 한다(못 읽으면 막는다)")
+    func serialMustMatchWhenRecorded() {
+        let gate = UsbPhysicalWriteGate(allowlist: FakeUsbVolume.allowEntries([uuid], serial: "SN-A"), denylist: [], denyStatus: okDeny,
+                                        buildEnabled: true, physicalEnabled: true)
+        var volume = FakeUsbVolume.physicalFAT32()
+        #expect(codes(gate.blocks(volume, confirmName: "DJCPHYS")) == ["allowMismatch"])
+        volume.deviceSerial = "SN-B"
+        #expect(codes(gate.blocks(volume, confirmName: "DJCPHYS")) == ["allowMismatch"])
+        volume.deviceSerial = "SN-A"
+        #expect(gate.blocks(volume, confirmName: "DJCPHYS").isEmpty)
+    }
+
+    @Test("일련번호를 못 읽었던 허용은 UUID와 용량으로 본다")
+    func serialUnknownAtAllowUsesUUIDAndCapacity() {
+        var volume = FakeUsbVolume.physicalFAT32()
+        volume.deviceSerial = "SN-LATER"
+        #expect(openGate().blocks(volume, confirmName: "DJCPHYS").isEmpty)
+    }
+
+    @Test("허용 지문은 볼륨에서 UUID 밖의 값(용량·일련번호)을 적는다")
+    func fingerprintFromVolume() {
+        var volume = FakeUsbVolume.physicalFAT32()
+        volume.deviceSerial = "SN-A"
+        let fingerprint = UsbAllowFingerprint(volume)
+        #expect(fingerprint == UsbAllowFingerprint(capacity: FakeUsbVolume.physicalCapacity, serial: "SN-A"))
+        #expect(fingerprint.matches(volume))
+        // 용량을 모르면(0) 맞는다고 보지 않는다
+        volume.capacity = 0
+        #expect(!UsbAllowFingerprint(volume).matches(volume))
+    }
+
+    @Test("쓰기 금지는 UUID만으로 막는다(용량·일련번호가 달라도)")
+    func denyByUUIDOnly() {
+        var other = FakeUsbVolume.physicalFAT32()
+        other.capacity = 1_000_000
+        other.deviceSerial = "SN-OTHER"
+        #expect(codes(openGate(deny: [uuid]).blocks(other, confirmName: "DJCPHYS")) == ["denied"])
+        #expect(codes(openGate(deny: [uuid]).consentBlocks(other)) == ["denied"])
     }
 
     @Test("UUID는 대소문자를 가리지 않는다")
@@ -183,6 +234,11 @@ struct UsbPhysicalWriteGateTests {
         for (volume, code) in cases {
             #expect(codes(openGate(allow: []).consentBlocks(volume)).first == code, "\(code)")
         }
+        // 디스크 이미지는 허용 목록과 무관하다: 임시 폴더 아래면 시험 쓰기, 밖이면 실물로 보고 USB 메모리가 아니라 막힌다
+        #expect(openGate(allow: []).consentBlocks(FakeUsbVolume.diskImageFAT32()).first?.message
+            == "디스크 이미지는 쓰기 허용 대상이 아닙니다. 디스크 이미지 시험 쓰기는 임시 폴더 아래에 붙인 이미지에만 합니다")
+        let outside = FakeUsbVolume.diskImageFAT32().judgedForWrite(underScratch: false)
+        #expect(codes(openGate(allow: []).consentBlocks(outside)) == ["notUsbDevice"])
         let denied = openGate(allow: [], deny: [uuid]).consentBlocks(FakeUsbVolume.physicalFAT32())
         #expect(codes(denied) == ["denied"])
         #expect(denied.allSatisfy { !$0.message.isEmpty })

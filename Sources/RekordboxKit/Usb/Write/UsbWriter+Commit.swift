@@ -36,7 +36,7 @@ extension UsbWriteRun {
         let parent = UsbPath.parent(destination), name = UsbPath.name(destination)
         // DB 폴더를 만드는 것(내보내기)도 USB 쓰기다: 그 전에 rekordbox·마운트를 본다
         try checkRekordbox()
-        try ensureMounted()
+        try ensureSameVolume()
         try ensureParents(destination)
         guard let planned = journal.plannedDatabases.first(where: { $0.destination == destination }) else {
             throw UsbWriteFailure.failed("unplanned database: \(destination)")

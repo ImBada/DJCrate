@@ -11,6 +11,8 @@ public struct UsbExportOptions: Sendable {
     public var settingsFolder: URL? = nil
     public var verifyAudio = false
     public var confirmName: String? = nil
+    /// 사용자가 확인한 볼륨의 UUID(앱). 쓰기 절차가 열 때 지금 볼륨과 비교한다
+    public var expectedVolumeUUID: String? = nil
     public var allowProvisional: Set<UsbProvisionalRule> = []
     public var dryRun = false
     /// `--snapshot-time`(ISO 8601). nil이면 사본 이름 → mtime(`UsbSnapshotTime`)
@@ -161,7 +163,7 @@ public final class UsbExportSession {
             throw UsbError.writeRefused(stopping.isEmpty ? prepared.preview.blocks : stopping)
         }
         let writeOptions = UsbWriteOptions(dryRun: options.dryRun, confirmName: options.confirmName, allowProvisional: options.allowProvisional,
-                                           verifyAudio: options.verifyAudio)
+                                           verifyAudio: options.verifyAudio, expectedVolumeUUID: options.expectedVolumeUUID)
         // 쓰기 직전 USB의 `._*`(루트 `._.Trashes`, 사용자 음원 옆 등): 쓰기 전 확인이 막지 않는 것이라 검증이 이 쓰기가 남긴 것으로 세지 않게
         let preexisting = try UsbInvariantVerifier.appleDoubles(on: UsbRoot(root))
         do {
@@ -174,7 +176,7 @@ public final class UsbExportSession {
             return report
         } catch let error as UsbError {
             switch error {
-            case .volumeLost, .restoreFailed, .restorePending: keepStaging = true
+            case .volumeLost, .volumeChanged, .restoreFailed, .restorePending: keepStaging = true
             default: break
             }
             throw error

@@ -10,7 +10,8 @@ extension UsbWriteRun {
 
     /// 되돌리기. 실패한 연산을 모아 돌려준다(빈 배열 = 되돌림). 볼륨이 사라지면 `UsbWriteFailure.volumeLost`
     func rollback(mode: RollbackMode) throws -> [String] {
-        try ensureMounted()
+        // 처음 USB의 백업으로 덮으므로, 그 자리의 볼륨이 처음 USB인지 다시 읽어 본다
+        try ensureSameVolume()
         if writeGuard.isRekordboxRunning() {
             if journal.state != .restorePending { try journal.move(to: .restorePending) }
             try saveJournal()
@@ -330,6 +331,12 @@ extension UsbWriteRun {
             report.resultDatabases = current
             return report
         }
+        // 저널을 열기 전에 그 자리의 볼륨이 이 백업의 USB인지 다시 본다
+        do {
+            try ensureSameVolume()
+        } catch UsbWriteFailure.volumeLost {
+            throw volumeGone
+        }
         // 되돌리기도 USB 쓰기다: 끊기면 회복이 이어서 되돌리도록 저널을 restorePending으로 연다
         journal = saved
         journal.state = .restorePending
@@ -340,7 +347,7 @@ extension UsbWriteRun {
         do {
             return try finishRestore(errors: rollback(mode: .restore), folder: folder, reason: String(ui: "되돌리기"))
         } catch UsbWriteFailure.volumeLost {
-            throw UsbError.volumeLost(volumeName: volume.name)
+            throw volumeGone
         }
     }
 

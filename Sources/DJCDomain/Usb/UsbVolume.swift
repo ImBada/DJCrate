@@ -59,12 +59,14 @@ public struct UsbVolumeInfo: Codable, Hashable, Sendable {
     public var deviceProtocol: String?
     /// DiskArbitration DAMediaRemovable. USB 메모리는 참, USB로 붙은 외장 SSD는 거짓(고정 디스크)으로 나온다. 모르면 nil
     public var isRemovable: Bool?
+    /// IOKit "USB Serial Number"(USB 장치 일련번호). 쓰기 허용 지문에 쓴다. 없거나 못 읽으면 nil(화면·로그에 내지 않는다)
+    public var deviceSerial: String?
 
     public init(mountPoint: String, rootIsMountPoint: Bool, volumeUUID: String?, name: String, fileSystem: UsbFileSystemKind,
                 partitionContent: String?, partitionScheme: UsbPartitionScheme, partitionIndex: Int?, sectorSize: Int?,
                 clusterSize: Int?, isInternal: Bool, isNetwork: Bool, isReadOnly: Bool, isRootVolume: Bool,
                 isDiskImage: Bool, diskImagePath: String?, capacity: Int64, available: Int64,
-                deviceProtocol: String? = nil, isRemovable: Bool? = nil) {
+                deviceProtocol: String? = nil, isRemovable: Bool? = nil, deviceSerial: String? = nil) {
         self.mountPoint = mountPoint
         self.rootIsMountPoint = rootIsMountPoint
         self.volumeUUID = volumeUUID
@@ -85,6 +87,7 @@ public struct UsbVolumeInfo: Codable, Hashable, Sendable {
         self.available = available
         self.deviceProtocol = deviceProtocol
         self.isRemovable = isRemovable
+        self.deviceSerial = deviceSerial
     }
 
     /// 쓰기 판정에 쓸 볼륨: 마운트 지점(realpath)이 임시 폴더 뿌리 밖이면 디스크 이미지라고 나와도 실물로 본다.

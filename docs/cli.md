@@ -298,20 +298,20 @@ djc usb-restore --volume <마운트> [--backup <폴더>] [--discard-device-chang
 
 ```sh
 djc usb-deny  --volume <마운트>             # 쓰면 안 되는 USB를 쓰기 금지 목록에 넣기(먼저 하나 이상)
-djc usb-allow --volume <마운트> [--remove]  # 이 USB에 쓰기 허용(또는 거두기)
+djc usb-allow --volume <마운트> [--remove]  # 이 USB에 쓰기 허용(터미널에서 볼륨 이름을 다시 입력) 또는 거두기
 djc usb-export --volume /Volumes/<이름> --db <스냅샷 사본.db> --playlist <ID> --allow-physical --confirm <이름> --dry-run
 ```
 
 실물 USB 쓰기는 기본으로 꺼져 있다. 쓰려면 아래가 모두 맞아야 한다(하나라도 아니면 그 이유와 할 일을 한 문장으로 알리고 USB 파일을 건드리지 않는다). 앱은 설정 › 실험실 "실물 USB 쓰기"와 사이드바 USB 메뉴("이 USB에 쓰기 허용…"·"쓰기 금지 목록에 넣기…")로 같은 일을 한다.
 
 - 코드 관문(`UsbPhysicalWriteGate.buildEnabled`)과 실행 중 스위치(`--allow-physical`, 앱은 실험실 스위치)가 둘 다 열림. 아니면 `physicalDisabled`.
-- 쓰기 금지 목록(`~/Library/Application Support/DJCrate/usb-physical-deny.json`, `DJC_HOME`과 무관)이 온전하고 하나 이상 등록됨(`denyListUnreadable`·`denyListMissing`). 목록에 든 USB는 디스크 이미지여도 막는다(`denied`).
+- 쓰기 금지 목록(`~/Library/Application Support/DJCrate/usb-physical-deny.json`, `DJC_HOME`과 무관)이 온전하고 실물 USB가 하나 이상 등록됨(`denyListUnreadable`·`denyListMissing`). 디스크 이미지 항목은 등록으로 세지 않는다. 목록에 든 USB는 UUID만 같아도, 디스크 이미지여도 막는다(`denied`).
 - 볼륨 UUID가 있고(`noVolumeUUID`), USB로 연결된 이동식 매체(USB 메모리)임(`notUsbDevice` — USB로 붙어도 고정 디스크로 보이는 외장 SSD, Thunderbolt 디스크는 막는다).
-- 쓰기 허용 목록(`usb-physical-allow.json`, 같은 폴더)에 있음(`notAllowlisted`). USB를 다시 포맷하면 UUID가 바뀌어 다시 허용해야 한다.
+- 쓰기 허용 목록(`usb-physical-allow.json`, 같은 폴더)에 있음(`notAllowlisted`). 허용은 UUID에 더해 허용할 때의 용량과 USB 일련번호(읽을 수 있을 때)가 같아야 한다(`allowMismatch` — 같은 USB면 다시 허용한다). USB를 다시 포맷하면 UUID가 바뀌어 다시 허용해야 한다.
 - `--confirm`이 볼륨 이름과 정확히 같음(`confirmMismatch`). 앱은 쓰기 확인 창이 대신한다.
 - 볼륨 모양은 디스크 이미지와 같다: FAT32·MBR 첫 파티션·512바이트 섹터, 내장·네트워크·읽기 전용·시동 디스크 아님(`UsbVolumePolicy`). APFS·HFS+·exFAT·GPT(Time Machine 디스크 포함)는 막는다.
 
-`usb-allow`는 위 모양 조건(쓰기 금지 목록·FAT32·MBR·USB 메모리)을 지난 볼륨만 받는다. `usb-deny`는 디스크 이미지도 받는다. 둘 다 볼륨의 맨 위 폴더만 받고(`notMountPoint`), 목록 파일만 고치며 USB에는 쓰지 않는다. 목록 파일이 깨졌으면 덮지 않고 막는다. 쓰기 금지 목록에서 빼는 명령은 없다(파일을 직접 고친다). 시험 프로세스는 이 관문이 열려도 임시 폴더 밖 볼륨에 쓰지 않는다.
+`usb-allow`는 위 모양 조건(쓰기 금지 목록·FAT32·MBR·USB 메모리)을 지난 볼륨만 받는다. 허용은 사람의 동의라 표준 입력·출력이 터미널일 때만 받고(아니면 `notInteractive` — 앱 사이드바에서 허용한다), 볼륨 이름을 그대로 다시 입력해야 한다(`confirmMismatch`). `--remove`(거두기)는 대화 없이 받는다. 쓰기 명령의 `--allow-physical`은 허용 목록에 이미 있는 USB에만 쓴다(인자로 허용을 대신하지 않는다). `usb-deny`는 디스크 이미지도 받는다. 둘 다 볼륨의 맨 위 폴더만 받고(`notMountPoint`), 목록 파일만 고치며 USB에는 쓰지 않는다. 목록 파일이 깨졌으면 덮지 않고 막는다. 쓰기 금지 목록에서 빼는 명령은 없다(파일을 직접 고친다). 시험 프로세스는 이 관문이 열려도 임시 폴더 밖 볼륨에 쓰지 않는다.
 
 ## USB 읽기(`usb-info`)
 

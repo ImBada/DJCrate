@@ -338,14 +338,17 @@ public final class UsbChangeSetFixture: @unchecked Sendable {
                             isCancelled: isCancelled)
     }
 
-    public func recover(fileSystem: FaultyUsbFileSystem? = nil, discardTemp: Bool = false, confirmName: String? = nil) throws -> UsbWriteReport {
+    public func recover(fileSystem: FaultyUsbFileSystem? = nil, discardTemp: Bool = false, confirmName: String? = nil,
+                        expectedVolumeUUID: String? = nil) throws -> UsbWriteReport {
         try UsbWriter.recover(root: root, paths: paths, guard: writeGuard(), fileSystem: fileSystem ?? self.fileSystem(),
-                              ppthReader: Self.ppthReader, discardTemp: discardTemp, confirmName: confirmName)
+                              ppthReader: Self.ppthReader, discardTemp: discardTemp, confirmName: confirmName,
+                              expectedVolumeUUID: expectedVolumeUUID)
     }
 
     public func restore(backup: URL? = nil, fileSystem: FaultyUsbFileSystem? = nil, discardDeviceChanges: Bool = false,
-                        dryRun: Bool = false, confirmName: String? = nil) throws -> UsbWriteReport {
+                        dryRun: Bool = false, confirmName: String? = nil, expectedVolumeUUID: String? = nil) throws -> UsbWriteReport {
         try UsbWriter.restore(root: root, paths: paths, backup: backup, guard: writeGuard(), fileSystem: fileSystem ?? self.fileSystem(),
-                              discardDeviceChanges: discardDeviceChanges, confirmName: confirmName, dryRun: dryRun)
+                              discardDeviceChanges: discardDeviceChanges, confirmName: confirmName, dryRun: dryRun,
+                              expectedVolumeUUID: expectedVolumeUUID)
     }
 }

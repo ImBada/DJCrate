@@ -7,7 +7,7 @@ extension UsbWriteRun {
     func cleanup(_ changes: UsbChangeSet) throws {
         if journal.state == .cleaned { return }
         try checkRekordbox()
-        try ensureMounted()
+        try ensureSameVolume()
         emit(.cleanup, total: changes.removals.count, cancellable: false)
         for group in Self.removalGroups(changes.removals) {
             let pending = group.filter { removal in journal.removals.first { $0.path == removal.path }?.state == .pending }

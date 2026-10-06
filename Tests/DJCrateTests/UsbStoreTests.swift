@@ -65,8 +65,8 @@ enum UsbTestData {
 
     static func lists(_ fixed: UsbDenyListStatus.State = .ok, entries: Int = 1, userData: UsbDenyListStatus.State = .missing,
                       deny: Set<String> = [otherUUID]) -> UsbPhysicalLists.Loaded {
-        UsbPhysicalLists.Loaded(allow: [], deny: deny,
-                                denyStatus: UsbDenyListStatus(fixedLocation: fixed, fixedEntryCount: entries, userData: userData),
+        UsbPhysicalLists.Loaded(allow: [:], deny: deny,
+                                denyStatus: UsbDenyListStatus(fixedLocation: fixed, fixedPhysicalCount: entries, userData: userData),
                                 allowState: .missing)
     }
 

@@ -23,8 +23,9 @@ struct UsbExportJob: Sendable, Equatable {
         var options = UsbExportOptions()
         options.formats = formats
         options.snapshotTime = snapshotTime
-        // 앱은 쓰기 확인 창(볼륨 이름을 보인다)이 CLI의 --confirm을 대신한다
+        // 앱은 쓰기 확인 창(볼륨 이름을 보인다)이 CLI의 --confirm을 대신하고, 확인한 볼륨의 UUID를 넘긴다
         options.confirmName = volume.name
+        options.expectedVolumeUUID = SystemUsbWriteService.confirmedUUID(volume)
         return options
     }
 }
@@ -124,7 +125,7 @@ struct SystemUsbWriteService: UsbWriteService {
     func writeMigration(_ volume: UsbVolumeInfo, progress: @escaping @Sendable (UsbProgress) -> Void,
                         isCancelled: @escaping @Sendable () -> Bool) throws -> UsbMigrationWritten {
         try makeFolders()
-        let (result, report) = try migrationSession(volume).write(options: UsbWriteOptions(confirmName: volume.name), progress: progress,
+        let (result, report) = try migrationSession(volume).write(options: Self.writeOptions(volume), progress: progress,
                                                                   isCancelled: isCancelled)
         return UsbMigrationWritten(summary: UsbMigrationSummary(result: result, volume: volume), report: report)
     }
@@ -136,13 +137,23 @@ struct SystemUsbWriteService: UsbWriteService {
     func recover(_ volume: UsbVolumeInfo) throws -> UsbWriteReport {
         try makeFolders()
         return try UsbWriter.recover(root: UsbRoot(URL(filePath: volume.mountPoint)), paths: paths, guard: writeGuard(), fileSystem: fileSystem,
-                                     confirmName: volume.name)
+                                     confirmName: volume.name, expectedVolumeUUID: Self.confirmedUUID(volume))
     }
 
     func restore(_ volume: UsbVolumeInfo, backup: URL?, discardDeviceChanges: Bool) throws -> UsbWriteReport {
         try makeFolders()
         return try UsbWriter.restore(root: UsbRoot(URL(filePath: volume.mountPoint)), paths: paths, backup: backup, guard: writeGuard(),
-                                     fileSystem: fileSystem, discardDeviceChanges: discardDeviceChanges, confirmName: volume.name)
+                                     fileSystem: fileSystem, discardDeviceChanges: discardDeviceChanges, confirmName: volume.name,
+                                     expectedVolumeUUID: Self.confirmedUUID(volume))
+    }
+
+    /// 사용자가 확인한 볼륨의 UUID. 쓰기 절차가 열 때 지금 그 자리의 볼륨과 비교한다(그 사이 다른 USB가 붙었으면 막는다).
+    /// 볼륨 UUID가 없는 볼륨은 쓰기 절차가 `noVolumeUUID`로 막으므로 비교할 것이 없다
+    static func confirmedUUID(_ volume: UsbVolumeInfo) -> String? { volume.volumeUUID }
+
+    /// 앱의 쓰기 선택: 쓰기 확인 창(볼륨 이름을 보인다)이 CLI의 --confirm을 대신하고, 확인한 볼륨의 UUID를 넘긴다
+    static func writeOptions(_ volume: UsbVolumeInfo) -> UsbWriteOptions {
+        UsbWriteOptions(confirmName: volume.name, expectedVolumeUUID: confirmedUUID(volume))
     }
 
     func latestBackup(volumeKey: String) -> URL? {
@@ -176,7 +187,7 @@ struct SystemUsbWriteService: UsbWriteService {
         try makeFolders()
         let key = try UsbEditSession.volumeKey(job.volume)
         let edits = try UsbDraftStore(directory: drafts).load(volumeKey: key)?.edits ?? []
-        let (result, report) = try editSession(job).writeDraft(options: UsbWriteOptions(confirmName: job.volume.name), snapshotTime: job.snapshotTime,
+        let (result, report) = try editSession(job).writeDraft(options: Self.writeOptions(job.volume), snapshotTime: job.snapshotTime,
                                                                progress: progress, isCancelled: isCancelled)
         return UsbEditWritten(summary: UsbEditSummary(result: result, edits: edits, volume: job.volume), report: report)
     }
@@ -793,6 +804,11 @@ struct UsbWriteCoordinator {
             backup = nil
             prompt = ReflectionPrompt(title: String(ui: "USB 연결이 끊겼습니다"),
                                       text: String(ui: "USB를 기기에 꽂지 말고 다시 연결하세요. 다시 연결하면 나오는 알림에서 회복할 수 있습니다."),
+                                      critical: true)
+        case .volumeChanged?:
+            backup = nil
+            prompt = ReflectionPrompt(title: String(ui: "쓰는 도중 USB가 바뀌어 멈췄습니다"),
+                                      text: String(ui: "지금 붙은 USB에는 쓰지 않았습니다. 처음 USB를 기기에 꽂지 말고 다시 연결하세요. 다시 연결하면 나오는 알림에서 회복할 수 있습니다."),
                                       critical: true)
         default:
             fail(title, error)

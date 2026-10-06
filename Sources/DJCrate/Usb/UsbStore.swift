@@ -395,7 +395,7 @@ import RekordboxKit
 
     /// 지금 목록·스위치로 만든 실물 쓰기 관문(목록을 아직 읽지 않았으면 빈 목록 — 실물은 막힌다)
     var physicalGate: UsbPhysicalWriteGate {
-        (physicalLists ?? UsbPhysicalLists.Loaded(allow: [], deny: [], denyStatus: .missing, allowState: .missing))
+        (physicalLists ?? UsbPhysicalLists.Loaded.empty)
             .gate(physicalEnabled: physicalWriteEnabled && readPolicy == .all)
     }
 
@@ -406,12 +406,15 @@ import RekordboxKit
         return physicalGate.blocks(judged, confirmName: volume.name).first?.message
     }
 
-    /// 사이드바 메뉴: 이 볼륨에 무엇을 할 수 있는지(실물만 — 디스크 이미지는 허용 없이 쓴다)
+    /// 사이드바 메뉴: 이 볼륨에 무엇을 할 수 있는지. 쓰기와 같은 판정으로 실물인 볼륨만 — 임시 폴더 아래 디스크 이미지는 허용 없이 쓰고,
+    /// 임시 폴더 밖에 붙인 디스크 이미지는 실물로 보아 메뉴를 보이고 막히는 까닭(USB 메모리가 아님)을 알린다
     func physicalMenu(_ key: String) -> UsbPhysicalMenu? {
-        guard let volume = volume(key), !volume.isDiskImage, let uuid = volume.volumeUUID?.uppercased() else { return nil }
+        guard let found = volume(key) else { return nil }
+        let volume = found.judgedForWrite(underScratch: isScratchMount(found.mountPoint))
+        guard !volume.isDiskImage, let uuid = volume.volumeUUID?.uppercased() else { return nil }
         let lists = physicalLists
         let denied = lists?.deny.contains(uuid) ?? false
-        let allowed = lists?.allow.contains(uuid) ?? false
+        let allowed = lists?.isAllowed(volume) ?? false
         return UsbPhysicalMenu(isDenied: denied, isAllowed: allowed && !denied,
                                consentBlock: physicalGate.consentBlocks(volume).first?.message,
                                switchOn: physicalWriteEnabled && readPolicy == .all)

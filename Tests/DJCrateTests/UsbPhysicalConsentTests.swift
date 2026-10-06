@@ -21,18 +21,18 @@ final class FakePhysicalLists: @unchecked Sendable {
         UsbPhysicalListIO(allow: { [self] volume in
             lock.withLock {
                 log.append("allow \(volume.name)")
-                loaded.allow.insert(volume.volumeUUID!.uppercased())
+                loaded.allow[volume.volumeUUID!.uppercased()] = UsbAllowFingerprint(volume)
             }
         }, revoke: { [self] uuid in
             lock.withLock {
                 log.append("revoke")
-                loaded.allow.remove(uuid.uppercased())
+                loaded.allow[uuid.uppercased()] = nil
             }
         }, deny: { [self] volume in
             lock.withLock {
                 log.append("deny \(volume.name)")
                 loaded.deny.insert(volume.volumeUUID!.uppercased())
-                loaded.allow.remove(volume.volumeUUID!.uppercased())
+                loaded.allow[volume.volumeUUID!.uppercased()] = nil
             }
         })
     }
@@ -135,7 +135,30 @@ struct UsbPhysicalConsentTests {
         #expect(host.toast == nil)
     }
 
-    @Test("디스크 이미지에는 허용·금지 메뉴가 없다(허용 없이 시험 쓰기를 한다)")
+    @Test("임시 폴더 밖에 붙인 디스크 이미지는 실물로 보고(쓰기와 같은 판정) 메뉴에 USB 메모리가 아니라고 알린다")
+    func outsideScratchImageJudgedPhysical() async {
+        let (usb, _) = await setUp([image], lists: FakePhysicalLists())
+        usb.isScratchMount = { _ in false }
+        let menu = usb.physicalMenu(image.usbKey)
+        #expect(menu?.consentBlock == "USB 메모리가 아닌 디스크(외장 SSD 등)에는 쓰지 않습니다. rekordbox용 USB 메모리를 연결하세요")
+        #expect(menu?.isAllowed == false)
+        #expect(usb.physicalWriteBlock(image) != nil)
+    }
+
+    @Test("허용한 UUID라도 용량이 다른 USB는 허용으로 보이지 않는다")
+    func allowedNeedsFingerprint() async {
+        var other = physical
+        other.capacity = 64_000_000_000
+        let lists = FakePhysicalLists(UsbPhysicalLists.Loaded(allow: FakeUsbVolume.allowEntries([FakeUsbVolume.physicalUUID]),
+                                                              deny: [UsbTestData.otherUUID],
+                                                              denyStatus: .init(fixedLocation: .ok, fixedPhysicalCount: 1, userData: .missing),
+                                                              allowState: .ok))
+        let (usb, _) = await setUp([other], lists: lists)
+        #expect(usb.physicalMenu(other.usbKey)?.isAllowed == false)
+        #expect(usb.physicalWriteBlock(other)?.contains("용량·일련번호") == true)
+    }
+
+    @Test("임시 폴더 아래 디스크 이미지에는 허용·금지 메뉴가 없다(허용 없이 시험 쓰기를 한다)")
     func diskImageHasNoMenu() async {
         let (usb, _) = await setUp([image], lists: FakePhysicalLists())
         #expect(usb.physicalMenu(image.usbKey) == nil)
@@ -144,8 +167,8 @@ struct UsbPhysicalConsentTests {
 
     @Test("디스크 이미지만 읽는 실행(시험)은 스위치를 켜도 실물 쓰기를 열지 않는다")
     func diskImagesOnlyKeepsSwitchOff() async {
-        let lists = FakePhysicalLists(UsbPhysicalLists.Loaded(allow: [FakeUsbVolume.physicalUUID], deny: [UsbTestData.otherUUID],
-                                                              denyStatus: .init(fixedLocation: .ok, fixedEntryCount: 1, userData: .missing),
+        let lists = FakePhysicalLists(UsbPhysicalLists.Loaded(allow: FakeUsbVolume.allowEntries([FakeUsbVolume.physicalUUID]), deny: [UsbTestData.otherUUID],
+                                                              denyStatus: .init(fixedLocation: .ok, fixedPhysicalCount: 1, userData: .missing),
                                                               allowState: .ok))
         let (usb, _) = await setUp([image], lists: lists, policy: .diskImagesOnly)
         #expect(!usb.physicalGate.isOpen)

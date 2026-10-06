@@ -691,6 +691,12 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 - C 시작, D의 파일마다 쓰기 전과 rename 직전, E의 DB마다, F·G 전, H 시작과 H의 파일마다, 회복·되돌리기의 파일 연산 전에 루트가 아직 기준 마운트 지점에 붙어 있는지 본다.
 - 실물은 뽑히면 마운트 폴더가 사라지지만, 디스크 이미지를 강제로 떼면 임시 폴더의 마운트 지점은 빈 폴더로 남는다. 확인 없이 이어 가면 USB가 아니라 Mac 폴더에 쓴다.
 - 사라졌으면 그 자리에서 멈추고 되돌리지 않는다(`volumeLost`). 저널은 마지막 내구 상태 그대로 두고, 같은 볼륨이 다시 붙으면 회복이 이어 판정한다.
+- **같은 자리에 다른 볼륨이 붙을 때**: 쓰는 도중 USB A가 빠지고 같은 이름의 USB B가 같은 `/Volumes/<이름>`에 붙으면 마운트 지점 문자열은 그대로라 위 확인을 지난다. 그대로 이어 가면 B에 쓰고, 실패 뒤 H가 A의 백업으로 B를 덮고 A가 만든 경로를 B에서 지운다. 그래서 정체도 본다.
+  - 열 때(7.2의 1 뒤, 볼륨 정보를 읽기 전) 루트 폴더 fd를 열어 쥔다(`UsbFileSystem.holdVolume`). 마운트 확인마다 그 fd의 `fstatfs`와 경로의 `statfs`가 같은 파일 시스템(fsid·장치·마운트 지점·형식)인지 본다. 빠진 볼륨의 fd는 죽은 vnode가 되어 어긋나고, B가 같은 `/dev/diskN`을 받아도 fd 쪽이 죽어 있어 어긋난다. fd를 쥐고 있는 동안은 보통 꺼내기도 실패한다.
+  - C 시작, D의 파일 묶음(음원 → 분석 → 아트워크 → 그 밖)마다, E의 DB마다, F·G 전, H 시작, 회복·되돌리기(`usb-restore`는 저널을 열기 전) 시작에는 가드로 볼륨 정보를 다시 읽어 UUID·용량이 처음과 같은지도 본다. 읽지 못해도 다른 볼륨으로 본다.
+  - 어긋나면 그 볼륨에는 아무것도 쓰지 않고(H도 하지 않고) 멈춘다(`volumeChanged`, "처음 USB를 다시 꽂고 회복하세요"). 한 번 어긋나면 그 실행의 모든 확인이 실패한다. 저널은 처음 USB의 볼륨 키에 그대로 남아 A가 다시 붙으면 회복이 이어 판정하고, B에서는 저널이 없어 회복이 할 것이 없다.
+  - 앱은 사용자가 확인 창에서 본 볼륨의 UUID를 쓰기·회복·되돌리기에 넘긴다(`UsbWriteOptions.expectedVolumeUUID`, `recover`·`restore`의 같은 인자). 열 때 지금 볼륨과 다르면 잠금도 잡지 않고 `volumeChanged` 막힘으로 끝낸다.
+  - 한계: 확인과 다음 파일 연산 사이(경로로 연다)의 짧은 틈은 남는다. 그 틈에 바뀌면 다음 확인에서 멈춘다.
 
 ### 7.6 H 되돌리기
 
@@ -925,7 +931,7 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 
 | 무엇 | 지금 | 규칙·code |
 |---|---|---|
-| 실물 USB에 쓰기 | 기본 꺼짐. 실험실 스위치(`--allow-physical`)·쓰기 금지 목록 등록·이 USB 쓰기 허용·볼륨 이름 확인을 모두 지난 FAT32·MBR USB 메모리에만 쓴다(§12). 흐름 밖의 확인 안 된 규칙은 실물에서 계속 막는다 | `physicalVolume`, `physicalDisabled`, `notAllowlisted`, `notUsbDevice` |
+| 실물 USB에 쓰기 | 기본 꺼짐. 실험실 스위치(`--allow-physical`)·쓰기 금지 목록 등록·이 USB 쓰기 허용·볼륨 이름 확인을 모두 지난 FAT32·MBR USB 메모리에만 쓴다(§12). 흐름 밖의 확인 안 된 규칙은 실물에서 계속 막는다 | `physicalVolume`, `physicalDisabled`, `notAllowlisted`, `allowMismatch`, `notUsbDevice` |
 | 분석 파일 폴더 이름 | rekordbox 규칙을 따르지 않고 DJCrate 고유 이름(content ID)으로 짓는다 | `analysisFolderNaming` |
 | Device Library 먼 오프셋 행 | 쓰지 않는다. 아티스트·앨범 행이 가까운 모양에 안 들어가면 그 곡을, My Tag 행이면 내보내기 전체를 막는다. 트랙 행이 빈 쪽에도 안 들어가면 그 곡을 막는다 | `pdbFarOffsetRows`, `nameTooLongForDeviceLibrary`, `myTagNameTooLongForDeviceLibrary`, `trackRowTooLarge` |
 | 긴 ASCII(127자 이상 순수 ASCII) | rekordbox의 0x40 모양 대신 UTF-16으로 쓴다 | `pdbLongAscii` |
@@ -959,19 +965,21 @@ rekordbox 실험 → 사본 재현 → 칸 단위 일치 → 골든 테스트 �
 2. 디스크 이미지면 통과(아래는 실물만)
 3. 쓰기 금지 목록 파일이 깨짐 → `denyListUnreadable`
 4. 코드 관문(`buildEnabled`, 지금 `true`)과 실행 중 스위치(앱 설정 › 실험실 "실물 USB 쓰기"·CLI `--allow-physical`, 기본 끔)가 둘 다 열려 있지 않음 → `physicalDisabled`. 둘 다 통과해야 쓰는 까닭: 스위치는 사용자 동의이고, 코드 관문은 실기기에서 문제가 나오면 한 줄로 모든 실물 쓰기를 닫는 비상 스위치다. 디스크 이미지만 읽는 실행(자가 테스트·`DJC_HOME` 시험 실행, `UsbReadPolicy.diskImagesOnly`)과 설정을 읽지 않는 자가 테스트는 스위치가 늘 꺼져 있다.
-5. 고정 위치 쓰기 금지 목록이 없거나 비었음 → `denyListMissing`(쓰면 안 되는 USB를 가려낼 수단이 이 목록뿐이라 fail-closed)
+5. 고정 위치 쓰기 금지 목록이 없거나 실물 USB 항목이 없음 → `denyListMissing`(쓰면 안 되는 USB를 가려낼 수단이 이 목록뿐이라 fail-closed). 디스크 이미지 항목과 종류를 적지 않은 항목은 세지 않는다(실물 읽기의 `denyListNotRegistered`도 같다)
 6. 볼륨 UUID 없음 → `noVolumeUUID`
 7. USB 메모리가 아님 → `notUsbDevice`: DiskArbitration `DADeviceProtocol == "USB"`이고 `DAMediaRemovable == true`일 때만 받는다. USB로 붙어도 고정 디스크로 보이는 외장 SSD, Thunderbolt·PCIe 디스크, 값을 모르는 볼륨은 막는다. 내장 SD 슬롯은 내장이라 볼륨 정책이 먼저 막는다.
-8. 쓰기 허용 목록에 없음 → `notAllowlisted`
+8. 쓰기 허용 목록에 없음 → `notAllowlisted`. 있어도 허용할 때의 지문(용량·USB 일련번호)이 지금과 다름 → `allowMismatch`
 9. 볼륨 이름 확인이 다름 → `confirmMismatch`(CLI `--confirm`, 앱은 볼륨 이름을 보이는 쓰기 확인 창이 대신한다)
 
 볼륨 모양은 디스크 이미지와 같은 정책(`UsbVolumePolicy`)을 먼저 본다: FAT32(0x0B·0x0C)·MBR 첫 파티션·512바이트 섹터, 내장·네트워크·읽기 전용·시동 디스크가 아님. APFS·HFS+·exFAT·NTFS·GPT(Time Machine 디스크 포함)는 막는다. 관문을 지나도 흐름 밖의 확인 안 된 규칙은 막는다(§9 끝).
 
-**목록 파일**(`UsbPhysicalLists`, `~/Library/Application Support/DJCrate/`, `DJC_HOME`과 무관, 시험 프로세스는 임시 폴더): `usb-physical-allow.json`(쓰기 허용)·`usb-physical-deny.json`(쓰기 금지, `DJC_HOME` 쪽 같은 이름 파일과 합친다). 모양은 `{"version":1,"volumes":["<UUID>",…],"names":{"<UUID>":"<볼륨 이름>"}}`이고 이름은 화면용이다. 고치기는 볼륨 하나씩만 한다: 허용(`allow` — 금지 목록·볼륨 정책·USB 메모리 조건을 지난 볼륨만), 허용 거두기(`revoke`), 금지(`deny` — 허용 목록에서도 뺀다, 디스크 이미지도 받는다). 파일이 깨졌으면 덮지 않고 막는다. 금지 목록에서 빼는 기능은 두지 않는다. USB를 다시 포맷하면 UUID가 바뀌어 허용이 풀린다.
+**목록 파일**(`UsbPhysicalLists`, `~/Library/Application Support/DJCrate/`, `DJC_HOME`과 무관, 시험 프로세스는 임시 폴더): `usb-physical-allow.json`(쓰기 허용)·`usb-physical-deny.json`(쓰기 금지, `DJC_HOME` 쪽 같은 이름 파일과 합친다). 모양은 `{"version":1,"volumes":["<UUID>",…],"names":{"<UUID>":"<볼륨 이름>"},"fingerprints":{"<UUID>":{"capacity":<바이트>,"serial":"<USB 일련번호>"}},"kinds":{"<UUID>":"physical"|"diskImage"}}`이고 이름은 화면용이다. `fingerprints`는 허용 목록, `kinds`는 금지 목록에 적는다.
 
-**앱**: 설정 › 실험실 "실물 USB 쓰기"(`SettingKeys.labPhysicalUsbWrite`, 기본 끔). 사이드바 USB의 볼륨 메뉴(실물만, 오른쪽 클릭)에 "이 USB에 쓰기 허용…"(확인 창, 모양이 맞지 않으면 이유만)·"쓰기 허용 거두기"·"쓰기 금지 목록에 넣기…"(확인 창). 고치기 직전에 그 자리의 볼륨을 다시 본다(`UsbRead.currentVolume`). 쓰기 창구(`SystemUsbWriteService`)는 부를 때마다 설정을 다시 읽고, 쓰기·회복·되돌리기에 볼륨 이름 확인을 넘긴다. 실물 쓰기 확인 창에는 "실물 USB입니다(실험 기능)" 줄이 붙는다. 편집 메뉴·옮기기 메뉴의 막힘 미리 판정도 같은 관문을 쓴다(`UsbStore.physicalGate`).
+**허용 지문**(`UsbAllowFingerprint`): FAT32 볼륨 UUID는 포맷 때 정한 32비트 볼륨 일련번호에서 나와 다른 USB와 겹칠 수 있다. 그래서 허용은 UUID에 더해 용량(바이트)과 USB 장치 일련번호(IOKit `USB Serial Number`, 매체에서 부모 쪽으로 찾음)를 함께 적고, 쓸 때 셋이 모두 같아야 한다. 허용할 때 일련번호를 못 읽었으면 UUID+용량만 보고, 적었는데 지금 못 읽으면 다른 USB로 본다. 지문이 없는 허용 항목(옛 모양)은 허용으로 보지 않는다. 금지는 UUID만으로 막는다(더 넓게). 한계: 일련번호가 없는(또는 모든 개체가 같은 일련번호를 내는) USB를 같은 용량·같은 UUID로 포맷하면 가려내지 못한다. 일련번호는 화면·로그에 내지 않는다. 고치기는 볼륨 하나씩만 한다: 허용(`allow` — 금지 목록·볼륨 정책·USB 메모리 조건을 지난 볼륨만), 허용 거두기(`revoke`), 금지(`deny` — 허용 목록에서도 뺀다, 디스크 이미지도 받는다). 파일이 깨졌으면 덮지 않고 막는다. 금지 목록에서 빼는 기능은 두지 않는다. USB를 다시 포맷하면 UUID가 바뀌어 허용이 풀린다.
 
-**CLI**: `djc usb-deny`·`djc usb-allow [--remove]`(목록만 고친다), 쓰기 명령(`usb-export`·`usb-edit`·`usb-migrate`·`usb-restore`·`usb-recover`)에 `--allow-physical --confirm <볼륨 이름>`. `docs/cli.md`.
+**앱**: 설정 › 실험실 "실물 USB 쓰기"(`SettingKeys.labPhysicalUsbWrite`, 기본 끔). 사이드바 USB의 볼륨 메뉴(쓰기와 같은 판정으로 실물인 볼륨만 — 임시 폴더 밖에 붙인 디스크 이미지도 실물로 보고 "USB 메모리가 아님"을 알린다, 오른쪽 클릭)에 "이 USB에 쓰기 허용…"(확인 창, 모양이 맞지 않으면 이유만)·"쓰기 허용 거두기"·"쓰기 금지 목록에 넣기…"(확인 창). 고치기 직전에 그 자리의 볼륨을 다시 본다(`UsbRead.currentVolume`). 쓰기 창구(`SystemUsbWriteService`)는 부를 때마다 설정을 다시 읽고, 쓰기·회복·되돌리기에 볼륨 이름 확인과 확인 창에 보인 볼륨의 UUID를 넘긴다(그 사이 같은 자리에 다른 USB가 붙었으면 `volumeChanged`, 7.5). 실물 쓰기 확인 창에는 "실물 USB입니다(실험 기능)" 줄이 붙는다. 편집 메뉴·옮기기 메뉴의 막힘 미리 판정도 같은 관문을 쓴다(`UsbStore.physicalGate`).
+
+**CLI**: `djc usb-deny`·`djc usb-allow [--remove]`(목록만 고친다), 쓰기 명령(`usb-export`·`usb-edit`·`usb-migrate`·`usb-restore`·`usb-recover`)에 `--allow-physical --confirm <볼륨 이름>`. `docs/cli.md`. 허용(`usb-allow`)은 사람의 동의라 표준 입력·출력이 터미널일 때만 받고(`notInteractive`, 앱에서 허용하라고 안내) 볼륨 이름을 직접 다시 입력해야 한다. 인자만으로 허용과 쓰기를 한 번에 끝내지 못하게 하려는 것이다. `--allow-physical`은 허용 목록에 이미 있는 USB에만 쓴다. 거두기(`--remove`)는 대화 없이 받는다.
 
 **시험**: 실물 경로는 가짜 볼륨 정보(`FakeUsbVolume.physicalFAT32`·`externalSSD`·`thunderboltDisk`)를 임시 폴더 루트에 주입해 시험한다(관문을 연 쓰기·되돌리기·세션 내보내기·수정). 이 Mac에 꽂힌 실제 볼륨에는 어떤 시험도 쓰지 않는다 — 시험 프로세스는 관문이 열려도 임시 폴더 밖 루트를 쓰기 절차 첫 확인에서 거부한다.
 

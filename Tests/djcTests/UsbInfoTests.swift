@@ -13,8 +13,8 @@ struct UsbInfoTests {
 
     static func lists(_ fixed: UsbDenyListStatus.State = .missing, entries: Int = 0, userData: UsbDenyListStatus.State = .missing,
                       deny: Set<String> = []) -> UsbPhysicalLists.Loaded {
-        UsbPhysicalLists.Loaded(allow: [], deny: deny,
-                                denyStatus: UsbDenyListStatus(fixedLocation: fixed, fixedEntryCount: entries, userData: userData),
+        UsbPhysicalLists.Loaded(allow: [:], deny: deny,
+                                denyStatus: UsbDenyListStatus(fixedLocation: fixed, fixedPhysicalCount: entries, userData: userData),
                                 allowState: .missing)
     }
 
@@ -299,8 +299,8 @@ struct UsbInfoTests {
                 let lists = Self.lists(.ok, entries: 1, deny: [try #require(volume.volumeUUID)])
                 #expect(refusal(tree, volume: volume, lists: lists) == "denylisted")
                 // 목록을 손으로 만든 값이어도 UUID 대소문자와 무관하게 막는다
-                let lower = UsbPhysicalLists.Loaded(allow: [], deny: [try #require(volume.volumeUUID).lowercased()],
-                                                    denyStatus: UsbDenyListStatus(fixedLocation: .ok, fixedEntryCount: 1, userData: .missing),
+                let lower = UsbPhysicalLists.Loaded(allow: [:], deny: [try #require(volume.volumeUUID).lowercased()],
+                                                    denyStatus: UsbDenyListStatus(fixedLocation: .ok, fixedPhysicalCount: 1, userData: .missing),
                                                     allowState: .missing)
                 #expect(refusal(tree, volume: volume, lists: lower) == "denylisted")
             }

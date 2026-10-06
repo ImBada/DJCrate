@@ -37,12 +37,12 @@ extension UsbWriteRun {
         do {
             return try recoverOpenJournal()
         } catch UsbWriteFailure.volumeLost {
-            throw UsbError.volumeLost(volumeName: volume.name)
+            throw volumeGone
         }
     }
 
     private func recoverOpenJournal() throws -> UsbWriteReport {
-        try ensureMounted()
+        try ensureSameVolume()
         if journal.restoringBackup {
             // 끊긴 되돌리기: 기기 변경 여부는 되돌리기를 시작할 때 이미 판정했다. 같은 방식으로 마저 되돌린다
             guard let backupFolder else { throw UsbError.writeRefused([UsbWriter.journalUnreadableBlock]) }
@@ -216,7 +216,7 @@ extension UsbWriteRun {
     func recoverWithoutJournal(discardTemp: Bool) throws -> UsbWriteReport {
         var report = UsbWriteReport(outcome: .recovered, session: "")
         do {
-            try ensureMounted()
+            try ensureSameVolume()
             let temps = try UsbWriter.tempFiles(root: root, fileSystem: fs)
             if temps.isEmpty {
                 report.notes.append(String(ui: "끝나지 않은 쓰기가 없습니다"))
@@ -230,7 +230,7 @@ extension UsbWriteRun {
                 report.notes.append(String(ui: "쓰기 기록은 없고 임시 파일 \(temps.count)개가 있습니다. 지우려면 --discard-temp를 주세요"))
             }
         } catch UsbWriteFailure.volumeLost {
-            throw UsbError.volumeLost(volumeName: volume.name)
+            throw volumeGone
         }
         return report
     }

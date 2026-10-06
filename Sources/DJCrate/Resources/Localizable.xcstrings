@@ -10862,6 +10862,22 @@
         }
       }
     },
+    "usb-allow는 터미널에서 사람이 직접 실행할 때만 허용합니다. 앱 사이드바에서 이 USB의 ‘이 USB에 쓰기 허용…’을 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "usb-allow only grants permission when a person runs it directly in a terminal. Use “Allow Writing to This USB…” for this USB in the app sidebar"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "usb-allowは人がターミナルで直接実行したときだけ許可します。アプリのサイドバーでこのUSBの「このUSBへの書き込みを許可…」を使ってください"
+          }
+        }
+      }
+    },
     "~%.3f 루프" : {
       "localizations" : {
         "en" : {
@@ -17994,18 +18010,18 @@
         }
       }
     },
-    "디스크 이미지는 허용 없이 시험 쓰기를 합니다. 실물 USB를 고르세요" : {
+    "디스크 이미지는 쓰기 허용 대상이 아닙니다. 디스크 이미지 시험 쓰기는 임시 폴더 아래에 붙인 이미지에만 합니다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Disk images are written for testing without permission. Choose a physical USB"
+            "value" : "Disk images cannot be allowed for writing. Test writes go only to disk images attached under a temporary folder"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ディスクイメージは許可なしでテスト書き込みします。実物のUSBを選んでください"
+            "value" : "ディスクイメージは書き込み許可の対象ではありません。ディスクイメージへのテスト書き込みは一時フォルダの下に接続したイメージにだけ行います"
           }
         }
       }
@@ -25506,6 +25522,54 @@
         }
       }
     },
+    "쓰는 도중 USB가 바뀌어 멈췄습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stopped because the USB changed while writing"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込み中にUSBが変わったため停止しました"
+          }
+        }
+      }
+    },
+    "쓰는 도중 USB가 바뀌어(또는 확인하지 못해) 멈췄습니다. 지금 USB에는 쓰지 않았습니다. 처음 USB를 다시 꽂고 `djc usb-recover`로 회복하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stopped because the USB changed (or could not be verified) while writing. Nothing was written to the current USB. Plug the original USB back in and recover with `djc usb-recover`"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込み中にUSBが変わった（または確認できなかった）ため停止しました。今のUSBには書き込んでいません。元のUSBを挿し直してから`djc usb-recover`で回復してください"
+          }
+        }
+      }
+    },
+    "쓰는 도중 그 자리의 USB가 처음 USB(%@)가 아니게 되어(또는 확인하지 못해) 멈췄습니다. 지금 붙은 USB에는 쓰지 않았습니다. 처음 USB를 다시 꽂고 `djc usb-recover`를 실행하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stopped because the USB at that location is no longer the original USB (%@) (or could not be verified) while writing. Nothing was written to the USB attached now. Plug the original USB back in and run `djc usb-recover`"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込み中にその場所のUSBが元のUSB（%@）ではなくなった（または確認できなかった）ため停止しました。今接続されているUSBには書き込んでいません。元のUSBを挿し直してから`djc usb-recover`を実行してください"
+          }
+        }
+      }
+    },
     "쓰려면 설정 › 실험실의 ‘실물 USB 쓰기’도 켜야 합니다" : {
       "localizations" : {
         "en" : {
@@ -29008,6 +29072,22 @@
         }
       }
     },
+    "이 USB(%@)에 DJCrate 쓰기를 허용하려면 볼륨 이름을 그대로 입력하세요: " : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To allow DJCrate to write to this USB (%@), type the volume name exactly: "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSB（%@）へのDJCrateの書き込みを許可するには、ボリューム名をそのまま入力してください: "
+          }
+        }
+      }
+    },
     "이 USB는 쓰기 금지 목록에 있습니다" : {
       "localizations" : {
         "en" : {
@@ -29020,6 +29100,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このUSBは書き込み禁止リストに入っています"
+          }
+        }
+      }
+    },
+    "이 USB는 쓰기를 허용할 때와 용량·일련번호가 다릅니다. 같은 USB가 맞으면 ‘이 USB에 쓰기 허용…’이나 djc usb-allow로 다시 허용하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This USB’s capacity or serial number differs from when writing was allowed. If it is the same USB, allow it again with “Allow Writing to This USB…” or djc usb-allow"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSBは書き込みを許可したときと容量・シリアル番号が異なります。同じUSBであれば「このUSBへの書き込みを許可…」かdjc usb-allowでもう一度許可してください"
           }
         }
       }
@@ -29992,18 +30088,18 @@
         }
       }
     },
-    "이 실물 USB에 쓰기를 허용한다(FAT32·MBR USB 메모리만). --remove는 허용을 거둔다. USB에는 쓰지 않는다" : {
+    "이 실물 USB에 쓰기를 허용한다(FAT32·MBR USB 메모리만, 터미널에서 볼륨 이름을 다시 입력). --remove는 허용을 거둔다. USB에는 쓰지 않는다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Allow writing to this physical USB (FAT32, MBR USB flash drives only). --remove removes the permission. Nothing is written to the USB"
+            "value" : "Allows writing to this physical USB (FAT32/MBR USB flash drives only; retype the volume name in a terminal). --remove revokes the permission. Does not write to the USB"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この実物のUSBへの書き込みを許可する（FAT32・MBRのUSBメモリのみ）。--removeで許可を取り消す。USBには書き込まない"
+            "value" : "この実物のUSBへの書き込みを許可する（FAT32・MBRのUSBメモリのみ、ターミナルでボリューム名を入力し直す）。--removeで許可を取り消す。USBには書き込まない"
           }
         }
       }
@@ -31098,6 +31194,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "追加日"
+          }
+        }
+      }
+    },
+    "입력한 이름이 볼륨 이름과 달라 허용하지 않았습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The name you typed does not match the volume name, so writing was not allowed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力した名前がボリューム名と異なるため許可しませんでした"
           }
         }
       }
@@ -33348,6 +33460,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "現在のリストでの順番"
+          }
+        }
+      }
+    },
+    "지금 붙은 USB에는 쓰지 않았습니다. 처음 USB를 기기에 꽂지 말고 다시 연결하세요. 다시 연결하면 나오는 알림에서 회복할 수 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing was written to the USB attached now. Do not plug the original USB into a device; reconnect it to this Mac. You can recover from the notice that appears when it reconnects."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今接続されているUSBには書き込んでいません。元のUSBを機器に挿さず、このMacに接続し直してください。接続し直すと表示される通知から回復できます。"
           }
         }
       }
@@ -39646,6 +39774,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未確認の音声形式"
+          }
+        }
+      }
+    },
+    "확인한 USB가 아닌 다른 볼륨이 그 자리에 있습니다. USB 목록을 다시 읽고 고른 USB를 확인한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A different volume from the USB you confirmed is at that location. Reload the USB list, check the USB you chose, and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認したUSBとは別のボリュームがその場所にあります。USB一覧を読み直し、選んだUSBを確認してからもう一度試してください"
           }
         }
       }

@@ -1,12 +1,17 @@
 import DJCDomain
 import Foundation
+import RekordboxKit
 
 /// 실물 USB 쓰기 허용·거부 목록. 읽기는 관문·읽기 판정이, 고치기는 사용자가 고른 볼륨 하나씩(`allow`·`revoke`·`deny`)만 한다.
-/// 파일 모양: `{"version": 1, "volumes": ["<볼륨 UUID>", …], "names": {"<UUID>": "<볼륨 이름>"}}`. UUID는 대문자로 맞춘다.
-/// `names`는 화면에 보일 이름일 뿐이고 판정에 쓰지 않는다.
+/// 파일 모양: `{"version": 1, "volumes": ["<볼륨 UUID>", …], "names": {"<UUID>": "<볼륨 이름>"},
+/// "fingerprints": {"<UUID>": {"capacity": <바이트>, "serial": "<USB 일련번호>"}}, "kinds": {"<UUID>": "physical"|"diskImage"}}`.
+/// UUID는 대문자로 맞춘다. `names`는 화면에 보일 이름일 뿐이고 판정에 쓰지 않는다.
+/// 허용 목록은 `fingerprints`가 있는 항목만 허용으로 본다(UUID만 겹치는 다른 USB를 막는다). 금지 목록은 UUID만으로 막고,
+/// 등록 여부(`fixedPhysicalCount`)는 `kinds`가 physical인 항목만 센다(디스크 이미지만 넣어서는 실물 USB를 가려낼 수 없다).
 public enum UsbPhysicalLists {
     public struct Loaded: Sendable {
-        public var allow: Set<String>
+        /// UUID → 허용할 때의 지문
+        public var allow: [String: UsbAllowFingerprint]
         public var deny: Set<String>
         public var denyStatus: UsbDenyListStatus
         public var allowState: UsbDenyListStatus.State
@@ -14,9 +19,9 @@ public enum UsbPhysicalLists {
         public var names: [String: String]
 
         /// UUID는 대문자로 맞춘다(읽기·쓰기 판정이 대문자 UUID로 찾는다)
-        public init(allow: Set<String>, deny: Set<String>, denyStatus: UsbDenyListStatus, allowState: UsbDenyListStatus.State,
-                    names: [String: String] = [:]) {
-            self.allow = Set(allow.map { $0.uppercased() })
+        public init(allow: [String: UsbAllowFingerprint], deny: Set<String>, denyStatus: UsbDenyListStatus,
+                    allowState: UsbDenyListStatus.State, names: [String: String] = [:]) {
+            self.allow = Dictionary(allow.map { ($0.key.uppercased(), $0.value) }) { first, _ in first }
             self.deny = Set(deny.map { $0.uppercased() })
             self.denyStatus = denyStatus
             self.allowState = allowState
@@ -27,6 +32,15 @@ public enum UsbPhysicalLists {
         public func gate(physicalEnabled: Bool) -> UsbPhysicalWriteGate {
             UsbPhysicalWriteGate(allowlist: allow, denylist: deny, denyStatus: denyStatus, physicalEnabled: physicalEnabled)
         }
+
+        /// 이 볼륨에 쓰기를 허용했는지(UUID와 지문이 모두 맞을 때만)
+        public func isAllowed(_ volume: UsbVolumeInfo) -> Bool {
+            guard let uuid = volume.volumeUUID?.uppercased(), let fingerprint = allow[uuid] else { return false }
+            return fingerprint.matches(volume)
+        }
+
+        /// 아무것도 읽지 않은 빈 목록(실물은 막힌다)
+        public static let empty = Loaded(allow: [:], deny: [], denyStatus: .missing, allowState: .missing)
     }
 
     static let allowName = "usb-physical-allow.json"
@@ -40,8 +54,8 @@ public enum UsbPhysicalLists {
         let same = UsbScratchRootsPath.same(supportDirectory, userData)
         let user = same ? fixed : read(userData.appending(path: denyName))
         let names = user.names.merging(fixed.names) { _, new in new }.merging(allow.names) { _, new in new }
-        return Loaded(allow: allow.volumes, deny: fixed.volumes.union(user.volumes),
-                      denyStatus: UsbDenyListStatus(fixedLocation: fixed.state, fixedEntryCount: fixed.volumes.count,
+        return Loaded(allow: allow.fingerprints, deny: fixed.volumes.union(user.volumes),
+                      denyStatus: UsbDenyListStatus(fixedLocation: fixed.state, fixedPhysicalCount: fixed.physicalCount,
                                                     userData: user.state),
                       allowState: allow.state, names: names)
     }
@@ -62,12 +76,18 @@ public enum UsbPhysicalLists {
         if loaded.denyStatus.fixedLocation == .corrupt || loaded.denyStatus.userData == .corrupt {
             throw UsbError.writeRefused([unreadable(String(ui: "쓰기 금지 목록 파일을 읽을 수 없어 허용하지 않았습니다. 목록 파일을 고친 뒤 다시 시도하세요"))])
         }
-        let blocks = loaded.gate(physicalEnabled: false).consentBlocks(volume)
+        // 쓰기와 같은 판정: 임시 폴더 밖에 붙인 디스크 이미지는 실물로 본다(USB 메모리가 아니라 막힌다)
+        let judged = volume.judgedForWrite(underScratch: UsbScratchRoots.isUnderAllowedRoot(volume.mountPoint))
+        let blocks = loaded.gate(physicalEnabled: false).consentBlocks(judged)
         if !blocks.isEmpty { throw UsbError.writeRefused(blocks) }
         let url = supportDirectory.appending(path: allowName)
         var file = try editable(url)
         let uuid = volume.volumeUUID!.uppercased()
         file.insert(uuid, name: volume.name)
+        // 허용은 이 USB의 지문(용량·일련번호)까지 적는다. 다시 허용하면 새로 적는다
+        var fingerprints = file.fingerprints ?? [:]
+        fingerprints[uuid] = UsbAllowFingerprint(volume)
+        file.fingerprints = fingerprints
         try save(file, to: url)
     }
 
@@ -89,6 +109,10 @@ public enum UsbPhysicalLists {
         let url = supportDirectory.appending(path: denyName)
         var file = try editable(url)
         file.insert(uuid, name: volume.name)
+        // 등록 여부는 실물 항목만 센다(디스크 이미지만으로는 쓰면 안 되는 실물 USB를 가려낼 수 없다)
+        var kinds = file.kinds ?? [:]
+        kinds[uuid] = volume.isDiskImage ? Kind.diskImage : Kind.physical
+        file.kinds = kinds
         try save(file, to: url)
         // 거부 목록이 늘 이기지만, 허용 목록에 남겨 두면 화면이 헷갈린다. 허용 목록이 깨졌으면 그대로 둔다(거부가 이미 막는다)
         try? revoke(uuid: uuid, supportDirectory: supportDirectory)
@@ -96,10 +120,16 @@ public enum UsbPhysicalLists {
 
     // MARK: - 파일
 
+    enum Kind: String, Codable { case physical, diskImage }
+
     private struct ListFile: Codable {
         var version: Int?
         var volumes: [String]
         var names: [String: String]?
+        /// 허용 목록: UUID → 허용할 때의 지문
+        var fingerprints: [String: UsbAllowFingerprint]?
+        /// 금지 목록: UUID → 실물·디스크 이미지
+        var kinds: [String: Kind]?
 
         mutating func insert(_ uuid: String, name: String) {
             if !volumes.contains(uuid) { volumes.append(uuid) }
@@ -112,16 +142,33 @@ public enum UsbPhysicalLists {
             guard volumes.contains(uuid) else { return false }
             volumes.removeAll { $0 == uuid }
             names?[uuid] = nil
+            fingerprints?[uuid] = nil
+            kinds?[uuid] = nil
             return true
         }
     }
 
-    private static func read(_ url: URL) -> (state: UsbDenyListStatus.State, volumes: Set<String>, names: [String: String]) {
-        guard FileManager.default.fileExists(atPath: url.path) else { return (.missing, [], [:]) }
-        guard let file = decode(url) else { return (.corrupt, [], [:]) }
+    private struct Read {
+        var state: UsbDenyListStatus.State
+        var volumes: Set<String> = []
         var names: [String: String] = [:]
-        for (key, value) in file.names ?? [:] { names[key.uppercased()] = value }
-        return (.ok, Set(file.volumes.map { $0.uppercased() }), names)
+        /// 목록에 있고 지문이 적힌 항목만
+        var fingerprints: [String: UsbAllowFingerprint] = [:]
+        /// 목록에 있고 종류가 physical인 항목 수
+        var physicalCount = 0
+    }
+
+    private static func read(_ url: URL) -> Read {
+        guard FileManager.default.fileExists(atPath: url.path) else { return Read(state: .missing) }
+        guard let file = decode(url) else { return Read(state: .corrupt) }
+        func upper<Value>(_ values: [String: Value]?) -> [String: Value] {
+            Dictionary((values ?? [:]).map { ($0.key.uppercased(), $0.value) }) { first, _ in first }
+        }
+        let volumes = Set(file.volumes.map { $0.uppercased() })
+        let kinds = upper(file.kinds)
+        return Read(state: .ok, volumes: volumes, names: upper(file.names),
+                    fingerprints: upper(file.fingerprints).filter { volumes.contains($0.key) },
+                    physicalCount: volumes.filter { kinds[$0] == .physical }.count)
     }
 
     /// 한 항목이라도 UUID 모양이 아니면 목록 전체를 믿지 않는다
@@ -138,6 +185,9 @@ public enum UsbPhysicalLists {
             throw UsbError.writeRefused([unreadable(String(ui: "\(url.lastPathComponent)을 읽을 수 없어 고치지 않았습니다. 파일을 고치거나 지운 뒤 다시 시도하세요"))])
         }
         file.volumes = file.volumes.map { $0.uppercased() }
+        file.names = file.names.map { names in Dictionary(names.map { ($0.key.uppercased(), $0.value) }) { first, _ in first } }
+        file.fingerprints = file.fingerprints.map { prints in Dictionary(prints.map { ($0.key.uppercased(), $0.value) }) { first, _ in first } }
+        file.kinds = file.kinds.map { kinds in Dictionary(kinds.map { ($0.key.uppercased(), $0.value) }) { first, _ in first } }
         return file
     }
 

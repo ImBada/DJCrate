@@ -22,7 +22,7 @@ enum UsbCommands {
         Command("usb-recover", String(ui: "--volume <마운트> [--discard-temp] [--allow-physical --confirm <볼륨 이름>]"),
                 String(ui: "끝나지 않은 USB 쓰기를 마저 쓰거나 되돌린다"), { try await recover($0) }),
         Command("usb-allow", String(ui: "--volume <마운트> [--remove]"),
-                String(ui: "이 실물 USB에 쓰기를 허용한다(FAT32·MBR USB 메모리만). --remove는 허용을 거둔다. USB에는 쓰지 않는다"),
+                String(ui: "이 실물 USB에 쓰기를 허용한다(FAT32·MBR USB 메모리만, 터미널에서 볼륨 이름을 다시 입력). --remove는 허용을 거둔다. USB에는 쓰지 않는다"),
                 { try await allow($0) }),
         Command("usb-deny", String(ui: "--volume <마운트>"),
                 String(ui: "이 USB를 쓰기 금지 목록에 넣는다(다시는 쓰지 않는다). 빼려면 목록 파일을 직접 고친다. USB에는 쓰지 않는다"),
@@ -533,10 +533,35 @@ enum UsbCommands {
         return volume
     }
 
-    /// 이 실물 USB에 쓰기를 허용한다(또는 `--remove`로 거둔다). 목록 파일만 고치고 USB에는 쓰지 않는다
+    /// 쓰기 허용에 쓰는 터미널. 허용은 사람의 동의라, 대화 없는 실행(에이전트·스크립트)은 받지 않고 볼륨 이름을 직접 다시 입력하게 한다
+    struct ConsentTerminal: Sendable {
+        /// 표준 입력·출력이 모두 터미널인지
+        var isInteractive: @Sendable () -> Bool
+        /// 물음을 찍고 한 줄을 읽는다(끝이면 nil)
+        var ask: @Sendable (String) -> String?
+
+        static let system = ConsentTerminal(isInteractive: { isatty(STDIN_FILENO) == 1 && isatty(STDOUT_FILENO) == 1 }, ask: { question in
+            print(question, terminator: "")
+            fflush(stdout)
+            return readLine(strippingNewline: true)
+        })
+
+        /// 시험: 터미널이고 정해 둔 답을 입력한다
+        static func scripted(_ answer: String?) -> ConsentTerminal {
+            ConsentTerminal(isInteractive: { true }, ask: { _ in answer })
+        }
+    }
+
+    /// 이 실물 USB에 쓰기를 허용한다(또는 `--remove`로 거둔다). 목록 파일만 고치고 USB에는 쓰지 않는다.
+    /// 허용은 터미널에서만, 볼륨 이름을 다시 입력해야 한다(인자만으로 허용·쓰기를 혼자 끝내지 못하게). 거두기는 대화 없이 받는다
     static func allow(_ args: [String], supportDirectory: URL = DJCIdentity.supportDirectory, userData: URL = DJCPaths.userData,
-                      volumeInfo: (URL) throws -> UsbVolumeInfo = { try UsbVolumes.info(root: $0) }) async throws {
+                      volumeInfo: (URL) throws -> UsbVolumeInfo = { try UsbVolumes.info(root: $0) },
+                      terminal: ConsentTerminal = .system) async throws {
         let request = try listRequest(args, allowsRemove: true)
+        if !request.remove, !terminal.isInteractive() {
+            throw UsbError.writeRefused([UsbBlock(code: "notInteractive", scope: .volume,
+                                                  message: String(ui: "usb-allow는 터미널에서 사람이 직접 실행할 때만 허용합니다. 앱 사이드바에서 이 USB의 ‘이 USB에 쓰기 허용…’을 쓰세요"))])
+        }
         let volume = try listVolume(request.volume, volumeInfo: volumeInfo)
         if request.remove {
             guard let uuid = volume.volumeUUID else {
@@ -546,6 +571,15 @@ enum UsbCommands {
             try UsbPhysicalLists.revoke(uuid: uuid, supportDirectory: supportDirectory)
             print(String(ui: "결과: 쓰기 허용을 거뒀습니다(볼륨 UUID \(uuid.uppercased()))"))
             return
+        }
+        // 허용할 수 없는 볼륨이면 묻기 전에 이유를 알린다
+        let blocks = UsbPhysicalLists.load(supportDirectory: supportDirectory, userData: userData).gate(physicalEnabled: false)
+            .consentBlocks(volume.judgedForWrite(underScratch: UsbScratchRoots.isUnderAllowedRoot(volume.mountPoint)))
+        if !blocks.isEmpty { throw UsbError.writeRefused(blocks) }
+        let typed = terminal.ask(String(ui: "이 USB(\(volume.name))에 DJCrate 쓰기를 허용하려면 볼륨 이름을 그대로 입력하세요: "))
+        guard typed == volume.name else {
+            throw UsbError.writeRefused([UsbBlock(code: "confirmMismatch", scope: .volume,
+                                                  message: String(ui: "입력한 이름이 볼륨 이름과 달라 허용하지 않았습니다"))])
         }
         try UsbPhysicalLists.allow(volume, supportDirectory: supportDirectory, userData: userData)
         print(String(ui: "결과: 쓰기를 허용했습니다(볼륨 UUID \(volume.volumeUUID?.uppercased() ?? "")). 쓸 때는 --allow-physical --confirm <볼륨 이름>을 주세요"))
@@ -582,7 +616,7 @@ enum UsbCommands {
             }
             let volume = try UsbRead.volume(for: root)
             // 폴더 대상은 목록을 보지 않는다(읽을 까닭이 없다)
-            let lists = volume == nil ? UsbPhysicalLists.Loaded(allow: [], deny: [], denyStatus: .missing, allowState: .missing)
+            let lists = volume == nil ? UsbPhysicalLists.Loaded.empty
                 : UsbPhysicalLists.load()
             let scratch = DJCPaths.usbSnapshots.appending(path: "info-\(UUID().uuidString)")
             result = try UsbRead.info(root: root, scratch: scratch, volume: volume, lists: lists)

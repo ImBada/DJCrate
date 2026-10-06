@@ -118,7 +118,7 @@ public final class UsbEditSession {
             return (result, report)
         } catch let error as UsbError {
             switch error {
-            case .volumeLost, .restoreFailed, .restorePending: keepStaging = true
+            case .volumeLost, .volumeChanged, .restoreFailed, .restorePending: keepStaging = true
             default: break
             }
             throw error

@@ -113,7 +113,7 @@ enum UsbImageLab {
             report = try UsbWriter.write(changes, root: root, paths: paths, guard: .system, fileSystem: fileSystem, options: options)
         } catch {
             switch error {
-            case UsbError.volumeLost, UsbError.restorePending, UsbError.restoreFailed: keepStaging = true
+            case UsbError.volumeLost, UsbError.volumeChanged, UsbError.restorePending, UsbError.restoreFailed: keepStaging = true
             default: break
             }
             // usb-commit-crash가 자식의 끝 상태를 언어와 무관하게 읽는 줄
@@ -380,6 +380,7 @@ struct SlowUsbFileSystem: UsbFileSystem {
     func sha256(_ url: URL, uncached: Bool) throws -> String { try inner.sha256(url, uncached: uncached) }
     func read(_ url: URL, maxBytes: Int) throws -> Data { try inner.read(url, maxBytes: maxBytes) }
     func mountedOn(_ url: URL) throws -> String? { try inner.mountedOn(url) }
+    func holdVolume(_ root: URL) throws -> any UsbVolumeHold { try inner.holdVolume(root) }
 }
 
 /// lab 쓰기 시험의 합성 변경 묶음(빈 USB에 내보내기 모양). 내용은 무작위 바이트, 이름은 지어낸 것.

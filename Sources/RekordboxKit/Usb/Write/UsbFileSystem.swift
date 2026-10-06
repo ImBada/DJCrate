@@ -62,6 +62,67 @@ public protocol UsbFileSystem: Sendable {
     func read(_ url: URL, maxBytes: Int) throws -> Data
     /// statfs(2) f_mntonname(realpath 모양)
     func mountedOn(_ url: URL) throws -> String?
+    /// 루트 폴더를 열어 붙잡는다(쓰기·되돌리기·회복이 끝날 때까지). 그 사이 같은 마운트 지점에 다른 볼륨이 붙으면
+    /// `isSameVolume`이 거짓이 된다(마운트 지점 이름만으로는 가려낼 수 없다)
+    func holdVolume(_ root: URL) throws -> any UsbVolumeHold
+}
+
+/// 붙잡아 둔 볼륨. 쓰는 동안 파일 연산마다 아직 그 볼륨인지 본다
+public protocol UsbVolumeHold: AnyObject, Sendable {
+    /// 붙잡은 볼륨이 아직 그 경로에 붙어 있는지. 모르면 거짓
+    func isSameVolume() -> Bool
+    func release()
+}
+
+/// 열어 둔 루트 fd의 fstatfs와 경로의 statfs가 같은 파일 시스템(fsid·장치·마운트 지점)인지 본다.
+/// 뽑힌 볼륨의 fd는 죽은 vnode가 되어 fstatfs가 실패하거나 다른 값을 내고, 새로 붙은 볼륨은 경로 쪽에만 보인다.
+/// 같은 /dev/diskN을 다시 받아도 fd 쪽이 죽어 있어 어긋난다. fd를 쥐고 있는 동안은 보통 꺼내기도 실패한다(쓰는 중 꺼내기 방지)
+final class PosixVolumeHold: UsbVolumeHold, @unchecked Sendable {
+    private let path: String
+    private let lock = NSLock()
+    private var descriptor: Int32
+
+    init(_ root: URL) throws {
+        path = root.path
+        descriptor = open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw UsbIOError("open", root.path) }
+    }
+
+    deinit { release() }
+
+    struct Identity: Equatable {
+        var fsid: [Int32]
+        var from: String
+        var on: String
+        var type: String
+
+        init(_ info: Darwin.statfs) {
+            var info = info
+            func text<T>(_ value: inout T) -> String {
+                withUnsafeBytes(of: &value) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+            }
+            fsid = [info.f_fsid.val.0, info.f_fsid.val.1]
+            from = text(&info.f_mntfromname)
+            on = text(&info.f_mntonname)
+            type = text(&info.f_fstypename)
+        }
+    }
+
+    func isSameVolume() -> Bool {
+        lock.withLock {
+            guard descriptor >= 0 else { return false }
+            var held = Darwin.statfs(), current = Darwin.statfs()
+            guard fstatfs(descriptor, &held) == 0, statfs(path, &current) == 0 else { return false }
+            return Identity(held) == Identity(current)
+        }
+    }
+
+    func release() {
+        lock.withLock {
+            if descriptor >= 0 { close(descriptor) }
+            descriptor = -1
+        }
+    }
 }
 
 /// POSIX 시스템 호출로 하는 구현. 경로는 받은 그대로 쓴다(Foundation 경로 정규화를 거치지 않는다).
@@ -233,6 +294,10 @@ public struct PosixUsbFileSystem: UsbFileSystem {
 
     public func mountedOn(_ url: URL) throws -> String? {
         UsbScratchRoots.mountedOn(url.path)
+    }
+
+    public func holdVolume(_ root: URL) throws -> any UsbVolumeHold {
+        try PosixVolumeHold(root)
     }
 
     // MARK: -

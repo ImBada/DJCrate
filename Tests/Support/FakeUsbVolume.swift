@@ -119,11 +119,20 @@ public enum FakeUsbVolume {
         return volume
     }
 
+    /// 가짜 실물 USB의 용량(`physicalFAT32`)
+    public static let physicalCapacity: Int64 = 16_000_000_000
+
+    /// 허용 목록 항목: 가짜 실물 USB의 지문(용량, 일련번호 없음)으로 허용한 UUID들
+    public static func allowEntries(_ uuids: Set<String>, serial: String? = nil) -> [String: UsbAllowFingerprint] {
+        Dictionary(uniqueKeysWithValues: uuids.map { ($0, UsbAllowFingerprint(capacity: physicalCapacity, serial: serial)) })
+    }
+
     /// 공개 init만 쓰는 관문. 코드 관문(`buildEnabled`)은 상수 그대로, 실행 중 스위치(설정 › 실험실·`--allow-physical`)는 기본 끔이다.
+    /// allow는 가짜 실물 USB 지문으로 허용한 UUID들
     public static func gate(allow: Set<String> = [], deny: Set<String> = [],
-                            denyStatus: UsbDenyListStatus = .init(fixedLocation: .ok, fixedEntryCount: 1, userData: .missing),
+                            denyStatus: UsbDenyListStatus = .init(fixedLocation: .ok, fixedPhysicalCount: 1, userData: .missing),
                             physicalEnabled: Bool = false) -> UsbPhysicalWriteGate {
-        UsbPhysicalWriteGate(allowlist: allow, denylist: deny, denyStatus: denyStatus, physicalEnabled: physicalEnabled)
+        UsbPhysicalWriteGate(allowlist: allowEntries(allow), denylist: deny, denyStatus: denyStatus, physicalEnabled: physicalEnabled)
     }
 
     private static func base(name: String, uuid: String, content: String) -> UsbVolumeInfo {
@@ -131,6 +140,6 @@ public enum FakeUsbVolume {
                       fileSystem: .fat32, partitionContent: content, partitionScheme: .mbr, partitionIndex: 1,
                       sectorSize: 512, clusterSize: 32_768, isInternal: false, isNetwork: false, isReadOnly: false,
                       isRootVolume: false, isDiskImage: false, diskImagePath: nil,
-                      capacity: 16_000_000_000, available: 8_000_000_000, deviceProtocol: "USB", isRemovable: true)
+                      capacity: physicalCapacity, available: 8_000_000_000, deviceProtocol: "USB", isRemovable: true)
     }
 }
