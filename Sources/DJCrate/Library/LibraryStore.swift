@@ -306,6 +306,12 @@ final class LibraryStore {
     @ObservationIgnored var artworkFileRows: [String: [ArtworkFileRow]] = [:]
     /// 그림 초안 안내(읽지 못한 그림·쓸 수 없는 곡)
     var artworkMessage: AppMessage?
+    /// rekordbox 곡 색 목록(이름·순서, #65). 라이브러리에서 읽지 못하면 rekordbox 기본 여덟 색이다.
+    var trackColors: [TrackColor] = TrackColor.rekordboxDefaults
+    /// 목록 거르기: 평점 이 별 수 이상(0이면 끔)과 곡 색(nil이면 끔). rekordbox 값(초안 전)으로 거른다(정렬과 같다).
+    var minimumRating = 0 { didSet { if minimumRating != oldValue { refreshFiltered() } } }
+    var colorFilter: String? { didSet { if colorFilter != oldValue { refreshFiltered() } } }
+    var isAttributeFiltered: Bool { minimumRating > 0 || colorFilter != nil }
     /// 그림 초안을 고친 횟수. 백그라운드 읽기 사이에 고쳤으면 읽은 초안 대신 디스크를 다시 읽는다.
     @ObservationIgnored var artworkChangeCount = 0
     @ObservationIgnored var recoveryMemoryInput: ((String, DraftRecoveryKind) -> RecoveryDraft?)?
@@ -606,7 +612,17 @@ final class LibraryStore {
             return
         }
         displayDuplicateGroups = []
-        displayRows = needle.isEmpty ? sortedBase : sortedBase.filter { $0.searchKey.contains(needle) }
+        let minimumRating = minimumRating, colorFilter = colorFilter
+        let attributes = minimumRating > 0 || colorFilter != nil
+        displayRows = needle.isEmpty && !attributes ? sortedBase : sortedBase.filter { row in
+            (needle.isEmpty || row.searchKey.contains(needle))
+                && (!attributes || Self.matchesAttributes(row, minimumRating: minimumRating, color: colorFilter))
+        }
+    }
+
+    /// 평점·곡 색 거르기(#65). USB 곡도 같은 칸(평점·색)으로 거른다.
+    nonisolated static func matchesAttributes(_ row: TrackRow, minimumRating: Int, color: String?) -> Bool {
+        row.track.rating >= minimumRating && (color.map { row.track.colorID == $0 } ?? true)
     }
 
     // MARK: - 로드
@@ -994,6 +1010,7 @@ final class LibraryStore {
             // 읽는 동안 그림 초안을 고쳤으면(저장은 바로 끝난다) 읽은 값 대신 지금 디스크를 쓴다.
             artworkDrafts = artworkChanges == artworkChangeCount ? loaded.artworkDrafts : ArtworkDraftStore.all(directory: artworkDirectory)
             artworkFileRows = loaded.artworkFiles
+            trackColors = loaded.colors.isEmpty ? TrackColor.rekordboxDefaults : loaded.colors
             editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys).union(artworkDrafts.keys)
             rekordboxPlaylists = loaded.playlists
             smartPlaylistSources = loaded.smartPlaylists
@@ -1270,6 +1287,7 @@ final class LibraryStore {
                            autoGain: previous?.autoGain ?? current.autoGain, commentRule: commentPreset.rule)
         row.fileMissing = previous?.fileMissing ?? current.fileMissing
         row.keyEstimated = previous?.keyEstimated ?? current.keyEstimated
+        row.inPlaylist = previous?.inPlaylist ?? current.inPlaylist
         rows = rows.map { $0.track.uuid == row.track.uuid ? row : $0 }
         rowsByUUID[row.track.uuid] = row
         rowsByID[row.track.id] = row

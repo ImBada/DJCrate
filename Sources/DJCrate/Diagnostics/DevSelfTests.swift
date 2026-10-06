@@ -114,6 +114,16 @@ enum DevSelfTests {
             if let row = artworkAdd { store.setArtwork(Self.selfTestArtwork(), name: "DJC 시험 그림.jpg", rows: [row]) }
             if let row = artworkDelete { store.deleteArtwork(rows: [row]) }
             log("그림 초안: 넣기 \(artworkAdd.map { _ in "1곡" } ?? "없음") · 지우기 \(artworkDelete.map { _ in "1곡" } ?? "없음") · 초안 \(store.artworkDrafts.count)곡")
+            // 평점·곡 색 초안(#65): 쓰기를 확인한 곡(상태 0, 재생 목록에 없음) 하나에 별 4개·두 번째 색(rekordbox Red)
+            let rated = store.rows.first { !$0.isStaged && !$0.track.isStreaming && TrackListTagEditing.unavailableReason($0, key: .rating) == nil }
+            let ratedBefore = rated.map { ($0.track.rating, $0.track.colorID) }
+            // 지금 값과 다른 값을 고른다(같으면 초안이 생기지 않는다)
+            let ratingValue = rated?.track.rating == 4 ? "5" : "4", colorValue = rated?.track.colorID == "2" ? "7" : "2"
+            if let rated {
+                store.setTag(.rating, ratingValue, rows: [rated])
+                store.setTag(.color, colorValue, rows: [rated])
+            }
+            log("평점·곡 색 초안: \(rated.map { _ in "1곡(별 \(ratingValue)개·색 \(colorValue))" } ?? "쓸 수 있는 곡 없음")")
             let targets = store.writeTargets(store.rows)
             log("반영 대기 \(store.pendingLibraryCount)곡 · 대상 \(targets.count)곡")
             // 재생 목록 초안: 새 폴더 안에 새 목록(곡 셋), 있던 목록 하나에 곡 하나
@@ -216,6 +226,11 @@ enum DevSelfTests {
                     if draft.changedKeys.allSatisfy({ now[$0] == draft.fields[$0] }) { tagSame += 1 } else { log("  태그 다름: \(row.title)") }
                 }
                 log("태그 쓰기: \(report.tagWritten.count)곡 · 다시 읽은 곡 정보가 초안과 같음 \(tagSame)/\(tags.count) · 남은 태그 초안 \(tags.filter { store.tagDrafts[$0.trackUUID] != nil }.count)")
+                // 평점·곡 색: 다시 읽은 곡 행의 평점·색이 초안 값이고, 쓴 칸 이름이 보고에 있는지
+                let ratedRow = rated.flatMap { store.rowsByUUID[$0.track.uuid] }
+                let ratedFields = rated.flatMap { row in report.tagWritten.first { $0.trackUUID == row.track.uuid }?.fields } ?? []
+                let ratedWritten = ratedRow.map { String($0.track.rating) == ratingValue && $0.track.colorID == colorValue } ?? false
+                log("평점·곡 색 쓰기: 쓴 칸 \(ratedFields.joined(separator: ",")) · 다시 읽은 평점 \(ratedRow.map { "\($0.track.rating)" } ?? "-") · 색 \(ratedRow?.track.colorID ?? "-")")
                 // 그림: 다시 읽은 곡의 그림 기록(해시·크기)이 넣은 파일과 같은지, 지운 곡은 세 파일이 없고 폴더는 남았는지
                 var artworkMatched = 0, artworkAdds = 0
                 if let added = artworkAdd.flatMap({ store.rowsByUUID[$0.track.uuid] }), artworkUUIDs.contains(added.track.uuid) {
@@ -247,6 +262,14 @@ enum DevSelfTests {
                 let tagRestored = tags.filter { store.tagDrafts[$0.trackUUID] == $0 && TagDraftStore.load(trackUUID: $0.trackUUID) == $0 }.count
                 let tagBase = tags.filter { draft in store.rowsByUUID[draft.trackUUID].map { $0.tagFields == draft.base } ?? false }.count
                 log("되돌림: 태그 초안 복구 \(tagRestored)/\(tags.count) · rekordbox 곡 정보가 쓰기 전과 같음 \(tagBase)/\(tags.count)")
+                if let rated {
+                    let back = store.rowsByUUID[rated.track.uuid].map { ($0.track.rating, $0.track.colorID) }
+                    let redrafted = store.tagDrafts[rated.track.uuid].map { $0.fields.rating == ratingValue && $0.fields.color == colorValue } ?? false
+                    let restored = back.map { $0 == ratedBefore! } ?? false
+                    log("평점·곡 색 되돌림: rekordbox 값이 쓰기 전과 같음 \(restored) · 초안 복구 \(redrafted)")
+                    guard ratedWritten, ratedFields == ["rating", "color"], restored, redrafted else { log("평점·곡 색 시험 실패"); exit(1) }
+                    log("평점·곡 색 시험 통과")
+                }
                 let rolledBack = !store.rekordboxPlaylists.outline.contains { $0.name == "DJC 시험 폴더" }
                 let extendedBack = extended.map { store.rekordboxPlaylists.item($0.id)?.trackIDs == $0.before }
                 let redrafted = store.playlistProjection.layout.outline.contains { $0.name == "DJC 시험 목록" && $0.isNew }

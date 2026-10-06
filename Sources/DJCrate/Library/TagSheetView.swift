@@ -67,8 +67,9 @@ struct SheetColumn {
     /// nil이면 읽기 전용(복사만 된다).
     let key: TagFields.Key?
 
-    /// 표가 열 배치를 저장하는 이름. 키 열을 더하기 전("v1")에 저장한 배치는 열 순서가 달라 새 열이 맨 끝으로 밀리므로 이름을 올려 새로 시작한다.
-    static let autosaveName = "djc.tagSheet.v2"
+    /// 표가 열 배치를 저장하는 이름. 열을 더하기 전에 저장한 배치는 열 순서가 달라 새 열이 맨 끝으로 밀리므로 이름을 올려 새로 시작한다
+    /// (키 열 "v2", 평점·곡 색 열 "v3").
+    static let autosaveName = "djc.tagSheet.v3"
 
     /// 열 이름(identifier)으로 열 정의를 찾는다. 화면 위치로 찾지 않는다: 저장된 배치를 되살리거나 사용자가 열을 옮기면 위치가 `all` 순서와 다르다.
     static func spec(id: String) -> SheetColumn? { all.first { $0.id == id } }
@@ -85,6 +86,9 @@ struct SheetColumn {
         SheetColumn(id: "trackNumber", title: String(ui: "트랙"), width: 44, key: .trackNumber),
         // 키는 글자를 쓰지 않고 목록(Camelot 이름·없음)에서 고른다. 열 이름이 목록의 키 칸과 같아 머리글 정렬도 같다.
         SheetColumn(id: "key", title: String(ui: "키"), width: 52, key: .musicalKey),
+        // 평점(별)·곡 색(rekordbox 이름)도 목록에서 고른다(#65). 붙여넣기는 "3"·"★★★", 색 번호·이름을 받는다.
+        SheetColumn(id: "rating", title: String(ui: "평점"), width: 70, key: .rating),
+        SheetColumn(id: "color", title: String(ui: "곡 색"), width: 76, key: .color),
         SheetColumn(id: "comment", title: String(ui: "코멘트"), width: 300, key: .comment),
         SheetColumn(id: "file", title: String(ui: "파일"), width: 220, key: nil),
     ]
@@ -217,15 +221,16 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
     /// 편집 가능한 칸인가. 스트리밍 곡은 파일 태그가 없어 편집하지 않는다.
     func editableKey(row: Int, column: Int) -> TagFields.Key? {
         guard rows.indices.contains(row), !rows[row].track.isStreaming, let key = spec(atColumn: column)?.key else { return nil }
-        // 키를 고칠 수 없는 곡(`KeyPicker.unavailableReason`)은 고르기 메뉴도 열지 않는다
-        if key == .musicalKey, KeyPicker.unavailableReason(rows[row]) != nil { return nil }
+        // 그 칸을 고칠 수 없는 곡(키: USB·스트리밍, 평점·곡 색: 추가한 곡·확인 밖 곡, `TrackListTagEditing.unavailableReason`)은
+        // 고르기 메뉴도 열지 않고 붙여넣기·채우기도 건너뛴다
+        if TrackListTagEditing.unavailableReason(rows[row], key: key) != nil { return nil }
         return key
     }
 
     func text(row: Int, column: Int) -> String {
         guard rows.indices.contains(row), let spec = spec(atColumn: column) else { return "" }
         if spec.key == .title, rows[row].isEncrypted { return rows[row].title }
-        if let key = spec.key { return store.tagCell(rows[row], key) }
+        if let key = spec.key { return TagChoice.display(key, store.tagCell(rows[row], key), colors: store.trackColors) }
         switch spec.id {
         case "index": return "\(row + 1)"
         case "file": return (rows[row].track.folderPath as NSString).lastPathComponent
@@ -333,8 +338,8 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
     // MARK: - 편집
 
     func beginEditing(initialText: String? = nil) {
-        // 키 칸은 글자를 쓰지 않고 목록에서 고른다(더블클릭·Return·타이핑 모두)
-        if editing == nil, rows.indices.contains(cursor.row), editableKey(row: cursor.row, column: cursor.column) == .musicalKey {
+        // 키·평점·곡 색 칸은 글자를 쓰지 않고 목록에서 고른다(더블클릭·Return·타이핑 모두)
+        if editing == nil, rows.indices.contains(cursor.row), let key = editableKey(row: cursor.row, column: cursor.column), TagChoice.keys.contains(key) {
             anchor = cursor
             presentKeyMenu(row: cursor.row, column: cursor.column)
             return
@@ -468,11 +473,15 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
     }
 
     private func applyChanges(_ requested: [(row: TrackRow, key: TagFields.Key, value: String)]) {
-        // 키 칸은 붙여넣기·채우기가 Camelot 이름(1A~12B)이나 빈칸만 받는다. 지금 값과 같은 칸은 건드리지 않으니 세지 않는다.
-        var skipped = 0
+        // 키·평점·곡 색 칸은 붙여넣기·채우기가 고를 수 있는 값(1A~12B, 별 1~5개, rekordbox 색)이나 빈칸만 받는다(보이는 별·색 이름도 받는다).
+        // 지금 값과 같은 칸은 건드리지 않으니 세지 않는다.
+        var skipped: [TagFields.Key: Int] = [:]
         let changes: [(row: TrackRow, key: TagFields.Key, value: String)] = requested.compactMap { change in
-            guard change.key == .musicalKey, store.tagCell(change.row, change.key) != change.value else { return change }
-            guard let value = KeyPicker.accepted(change.value) else { skipped += 1; return nil }
+            guard TagChoice.keys.contains(change.key), store.tagCell(change.row, change.key) != change.value else { return change }
+            guard let value = TagChoice.accepted(change.key, change.value, colors: store.trackColors) else {
+                skipped[change.key, default: 0] += 1
+                return nil
+            }
             return (change.row, change.key, value)
         }
         let before = changes.map { store.tagCell($0.row, $0.key) }
@@ -480,50 +489,45 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
         let changed = zip(changes, before).filter { store.tagCell($0.0.row, $0.0.key) != $0.1 }.count
         reloadVisible()
         syncAccessibilitySelection(announceFocus: false)
-        if changed > 0 || skipped > 0 {
+        if changed > 0 || !skipped.isEmpty {
             let message = changed > 0 ? String(ui: "\(changed)칸 바뀜") : ""
-            let skippedMessage = skipped > 0 ? String(ui: "키 칸 \(skipped)칸은 1A~12B가 아니어서 건너뜀") : ""
-            announce([message, skippedMessage].filter { !$0.isEmpty }.joined(separator: ", "))
+            let skippedMessages = TagFields.Key.allCases.compactMap { key in skipped[key].map { TagChoice.skippedMessage(key, count: $0) } }
+            announce(([message] + skippedMessages).filter { !$0.isEmpty }.joined(separator: ", "))
         }
     }
 
-    // MARK: - 키 고르기
+    // MARK: - 키·평점·곡 색 고르기
 
-    /// 고른 키 이름을 칸이 가리키던 곡에 적는다. 메뉴가 열려 있는 동안 줄이 바뀌어도 엉뚱한 곡에 들어가지 않게 곡 ID로 찾는다.
+    /// 고른 값을 칸이 가리키던 곡에 적는다. 메뉴가 열려 있는 동안 줄이 바뀌어도 엉뚱한 곡에 들어가지 않게 곡 ID로 찾는다.
     final class KeyChoice: NSObject {
+        let key: TagFields.Key
         let rowID: TrackRow.ID
         let value: String
-        init(rowID: TrackRow.ID, value: String) { self.rowID = rowID; self.value = value }
+        init(key: TagFields.Key = .musicalKey, rowID: TrackRow.ID, value: String) { self.key = key; self.rowID = rowID; self.value = value }
     }
 
-    /// 키 칸의 고르기 메뉴: 없음, Camelot 24개. 지금 값에 체크하고, 옛 표기이면 맨 앞에 고를 수 없는 항목으로 보인다.
-    func keyMenu(row: Int) -> NSMenu? {
-        // 키 열이 어디에 놓였든 같은 곡의 키를 고칠 수 있는지만 본다(열 위치는 상관없다)
-        guard rows.indices.contains(row), KeyPicker.unavailableReason(rows[row]) == nil else { return nil }
-        let current = store.tagCell(rows[row], .musicalKey)
-        let menu = NSMenu(title: String(ui: "키"))
-        func add(_ title: String, value: String, enabled: Bool = true) {
-            let item = NSMenuItem(title: title, action: enabled ? #selector(pickKey(_:)) : nil, keyEquivalent: "")
-            item.target = self
-            item.representedObject = KeyChoice(rowID: rows[row].id, value: value)
-            item.state = value == current ? .on : .off
-            menu.addItem(item)
-        }
-        if !current.isEmpty, !KeyNotation.camelotNames.contains(current) { add(current, value: current, enabled: false) }
-        add(String(ui: "없음"), value: "")
-        for name in KeyNotation.camelotNames { add(name, value: name) }
-        return menu
+    /// 키 칸의 고르기 메뉴(`choiceMenu(.musicalKey, row:)`)
+    func keyMenu(row: Int) -> NSMenu? { choiceMenu(.musicalKey, row: row) }
+
+    /// 고르기 메뉴: 키는 없음·Camelot 24개, 평점은 없음·별 1~5개, 곡 색은 없음·rekordbox 색(곡 목록과 같다). 지금 값에 체크하고,
+    /// 고를 수 없는 현재 값(옛 표기 키·모르는 색 번호)은 맨 앞에 고를 수 없는 항목으로 보인다.
+    func choiceMenu(_ key: TagFields.Key, row: Int) -> NSMenu? {
+        // 열이 어디에 놓였든 같은 곡의 그 칸을 고칠 수 있는지만 본다(열 위치는 상관없다)
+        guard rows.indices.contains(row), TrackListTagEditing.unavailableReason(rows[row], key: key) == nil else { return nil }
+        let id = rows[row].id
+        return TagChoice.menu(key, current: (store.tagCell(rows[row], key), false), colors: store.trackColors, targetCount: 1,
+                              action: #selector(pickKey(_:)), target: self) { KeyChoice(key: key, rowID: id, value: $0) }
     }
 
     private func presentKeyMenu(row: Int, column: Int) {
-        guard let table, let menu = keyMenu(row: row) else { return }
+        guard let table, let key = spec(atColumn: column)?.key, let menu = choiceMenu(key, row: row) else { return }
         let rect = table.frameOfCell(atColumn: column, row: row)
         menu.popUp(positioning: menu.items.first { $0.state == .on }, at: NSPoint(x: rect.minX, y: rect.maxY), in: table)
     }
 
     @objc func pickKey(_ sender: NSMenuItem) {
         guard let choice = sender.representedObject as? KeyChoice, let row = rows.first(where: { $0.id == choice.rowID }) else { return }
-        applyChanges([(row: row, key: .musicalKey, value: choice.value)])
+        applyChanges([(row: row, key: choice.key, value: choice.value)])
     }
 }
 

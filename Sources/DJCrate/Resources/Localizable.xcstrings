@@ -996,6 +996,22 @@
         }
       }
     },
+    "%@ 이상" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ or Higher"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@以上"
+          }
+        }
+      }
+    },
     "%@ 전체 보기" : {
       "localizations" : {
         "en" : {
@@ -7737,6 +7753,22 @@
         }
       }
     },
+    "rekordbox 곡 색. 더블클릭하면 고른다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox track color. Double-click to choose"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxのカラー。ダブルクリックで選択"
+          }
+        }
+      }
+    },
     "rekordbox 그리드 없음" : {
       "localizations" : {
         "en" : {
@@ -8347,6 +8379,22 @@
         }
       }
     },
+    "rekordbox 색 목록에 이 곡 색(%@)이 없으니 rekordbox에서 이 곡의 색을 직접 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This track color (%@) is not in the rekordbox color list, so choose the track's color in rekordbox directly."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このカラー（%@）はrekordboxのカラー一覧にないため、rekordboxでこの曲のカラーを直接選んでください。"
+          }
+        }
+      }
+    },
     "rekordbox 쓰기 대기" : {
       "localizations" : {
         "en" : {
@@ -8787,6 +8835,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxのキー一覧にある「%@」の行はすべて削除済みのため使えません。rekordboxでこの曲のキーを直接選んでください。"
+          }
+        }
+      }
+    },
+    "rekordbox 평점(별 1~5개). 더블클릭하면 고른다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox rating (1–5 stars). Double-click to choose"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxの評価（星1～5個）。ダブルクリックで選択"
           }
         }
       }
@@ -11555,6 +11619,38 @@
         }
       }
     },
+    "거르기는 rekordbox 값(초안 전)으로 합니다. 조건을 바꾸거나 거르기를 끄세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filtering uses rekordbox values (before drafts). Change the condition or turn off the filter."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "絞り込みはrekordboxの値（下書き前）で行います。条件を変えるか、絞り込みをオフにしてください。"
+          }
+        }
+      }
+    },
+    "거르는 중: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filtering: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "絞り込み中：%@"
+          }
+        }
+      }
+    },
     "건드리지 않은 큐 기록이 바뀌었습니다" : {
       "localizations" : {
         "en" : {
@@ -12947,6 +13043,82 @@
         }
       }
     },
+    "곡 색" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カラー"
+          }
+        }
+      }
+    },
+    "곡 색 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カラー %@"
+          }
+        }
+      }
+    },
+    "곡 색 칸 %lld칸은 rekordbox 색이 아니어서 건너뜀" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld color cell skipped (not a rekordbox color)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld color cells skipped (not a rekordbox color)"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxのカラーではないため、カラーの%lldセルをスキップ"
+          }
+        }
+      }
+    },
+    "곡 색은 rekordbox의 여덟 색 중에서 고르거나 비운 뒤 rekordbox에 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose one of rekordbox's eight colors or clear the track color before writing to rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カラーはrekordboxの8色から選ぶか、空にしてからrekordboxに書き込んでください。"
+          }
+        }
+      }
+    },
     "곡 순서 바꾸기" : {
       "localizations" : {
         "en" : {
@@ -13539,6 +13711,22 @@
         }
       }
     },
+    "곡의 곡 색(ColorID)이 쓴 것과 다릅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The track color (ColorID) differs from what was written"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲のカラー（ColorID）が書き込んだ内容と異なります"
+          }
+        }
+      }
+    },
     "곡의 동기화 상태(rb_data_status)가 다릅니다" : {
       "localizations" : {
         "en" : {
@@ -13647,6 +13835,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "曲のキー(KeyID)が書き込んだ内容と異なります"
+          }
+        }
+      }
+    },
+    "곡의 평점(Rating)이 쓴 것과 다릅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The track rating (Rating) differs from what was written"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲の評価（Rating）が書き込んだ内容と異なります"
           }
         }
       }
@@ -16675,6 +16879,22 @@
         }
       }
     },
+    "동기화된 곡의 %@은 rekordbox에 쓰는 규칙을 아직 확인하지 않았으니 rekordbox에서 직접 고치거나 이 칸 초안을 버리세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing %@ for synced tracks to rekordbox has not been verified yet, so edit it in rekordbox directly or discard this field's draft."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期済みの曲の%@をrekordboxに書き込むルールはまだ確認していないため、rekordboxで直接修正するか、この項目の下書きを破棄してください。"
+          }
+        }
+      }
+    },
     "동기화한 iTunes 목록이 없습니다" : {
       "localizations" : {
         "en" : {
@@ -19349,6 +19569,22 @@
         }
       }
     },
+    "모든 곡 색" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Colors"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてのカラー"
+          }
+        }
+      }
+    },
     "모든 칸 보이기" : {
       "localizations" : {
         "en" : {
@@ -19361,6 +19597,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "すべての列を表示"
+          }
+        }
+      }
+    },
+    "모든 평점" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Ratings"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべての評価"
           }
         }
       }
@@ -20445,6 +20697,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "テンポが変わる曲向け：最も近い拍から新しいテンポ区間を始めます"
+          }
+        }
+      }
+    },
+    "별 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld star"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld stars"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "星%lld個"
+          }
+        }
+      }
+    },
+    "별 %lld개 이상" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Star or Higher"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Stars or Higher"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "星%lld個以上"
+          }
+        }
+      }
+    },
+    "별 5개" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 Stars"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "星5個"
           }
         }
       }
@@ -29183,6 +29507,28 @@
         }
       }
     },
+    "인텔리전트 재생 목록 ‘%@’의 조건이 %@에 걸릴 수 있어 아직 쓰지 않으니 rekordbox에서 직접 고치거나 이 칸 초안을 버리세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The conditions of the intelligent playlist ‘%1$@’ may depend on %2$@, so it isn't written yet. Edit it in rekordbox directly or discard this field's draft."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インテリジェントプレイリスト「%1$@」の条件が%2$@に関わる可能性があるため、まだ書き込みません。rekordboxで直接修正するか、この項目の下書きを破棄してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "인텔리전트 재생 목록 ‘%1$@’의 조건이 %2$@에 걸릴 수 있어 아직 쓰지 않으니 rekordbox에서 직접 고치거나 이 칸 초안을 버리세요"
+          }
+        }
+      }
+    },
     "인텔리전트 재생 목록 보기" : {
       "localizations" : {
         "en" : {
@@ -30409,6 +30755,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレイリストに追加…"
+          }
+        }
+      }
+    },
+    "재생 목록에 든 곡의 %@은 rekordbox에 쓰는 규칙을 아직 확인하지 않았으니 rekordbox에서 직접 고치거나 이 칸 초안을 버리세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing %@ for tracks in playlists to rekordbox has not been verified yet, so edit it in rekordbox directly or discard this field's draft."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストに入っている曲の%@をrekordboxに書き込むルールはまだ確認していないため、rekordboxで直接修正するか、この項目の下書きを破棄してください。"
           }
         }
       }
@@ -32845,6 +33207,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "追加した曲をrekordboxにインポートするXMLを作成します。"
+          }
+        }
+      }
+    },
+    "추가한 곡의 %@은 rekordbox에 넣은 뒤 고치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit %@ of added tracks after adding them to rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加した曲の%@は、rekordboxに追加してから修正してください。"
           }
         }
       }
@@ -36105,6 +36483,130 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "編集するキューがなくなったため、現在の曲でキューを選び直してください"
+          }
+        }
+      }
+    },
+    "평점" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rating"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "評価"
+          }
+        }
+      }
+    },
+    "평점 칸 %lld칸은 별 1~5개가 아니어서 건너뜀" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld rating cell skipped (not 1–5 stars)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld rating cells skipped (not 1–5 stars)"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "星1～5個ではないため、評価の%lldセルをスキップ"
+          }
+        }
+      }
+    },
+    "평점·곡 색 거르기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter by Rating and Color"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "評価・カラーで絞り込む"
+          }
+        }
+      }
+    },
+    "평점·곡 색 거르기 끄기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn Off Rating and Color Filter"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "評価・カラーの絞り込みをオフ"
+          }
+        }
+      }
+    },
+    "평점·곡 색 조건에 맞는 곡이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No tracks match the rating and color conditions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "評価・カラーの条件に合う曲がありません"
+          }
+        }
+      }
+    },
+    "평점·곡 색으로 목록을 거릅니다(초안 전 rekordbox 값)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter the list by rating and color (rekordbox values before drafts)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "評価・カラーで一覧を絞り込みます（下書き前のrekordboxの値）"
+          }
+        }
+      }
+    },
+    "평점은 별 1~5개 중에서 고르거나 비운 뒤 rekordbox에 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a rating of 1–5 stars or clear it before writing to rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "評価は星1～5個から選ぶか、空にしてからrekordboxに書き込んでください。"
           }
         }
       }

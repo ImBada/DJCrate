@@ -436,7 +436,8 @@ extension RekordboxTagWriterTests {
     }
 
     @Test func XML을_고치는_칸의_집합은_한_곳에_있고_키도_든다() {
-        #expect(RekordboxWriter.playlistXMLTagKeys == Set(TagFields.Key.allCases))
+        // 평점·곡 색(#65)은 XML 규칙을 확인하지 못해 빠지고 재생 목록에 든 곡이면 막는다(`TagWriteScope`)
+        #expect(RekordboxWriter.playlistXMLTagKeys == Set(TagFields.Key.allCases).subtracting([.rating, .color]))
         #expect(RekordboxWriter.playlistXMLTagKeys.contains(.musicalKey))
     }
 }

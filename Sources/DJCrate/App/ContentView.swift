@@ -160,6 +160,9 @@ struct ContentView: View {
                       : store.sidebar == .duplicates ? String(ui: "중복 후보에서는 태그 시트를 열 수 없으니 전체 목록에서 곡을 고르세요")
                       : String(ui: "태그 시트에서 태그 칸을 고르고 입력하세요"))
             }
+            ToolbarItem(id: "attributeFilter") {
+                AttributeFilterMenu(store: store)
+            }
             ToolbarItem(id: "addFiles") {
                 Button {
                     StagingPanels.chooseFiles(store: store)
@@ -269,6 +272,14 @@ struct EmptyLibraryOverlay: View {
                 Label(.ui("조건을 계산하지 못했습니다"), systemImage: WarningMark.symbol)
             } description: {
                 Text(.ui("\(summary). rekordbox에서 이 목록을 확인하세요."))
+            }
+        } else if store.isAttributeFiltered {
+            ContentUnavailableView {
+                Label(.ui("평점·곡 색 조건에 맞는 곡이 없습니다"), systemImage: "line.3.horizontal.decrease.circle")
+            } description: {
+                Text(.ui("거르기는 rekordbox 값(초안 전)으로 합니다. 조건을 바꾸거나 거르기를 끄세요."))
+            } actions: {
+                Button(.ui("평점·곡 색 거르기 끄기")) { store.minimumRating = 0; store.colorFilter = nil }
             }
         } else if store.selectedSmartPlaylistResult != nil, store.streamingHiddenInView == 0 {
             ContentUnavailableView {

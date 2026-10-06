@@ -60,6 +60,12 @@ struct TrackRow: Identifiable, Hashable, Sendable {
     var releaseYear: Int { track.releaseYear ?? 0 }
     var trackNumber: Int { track.trackNumber ?? 0 }
     var keyName: String { track.key ?? "" }
+    /// 정렬용: 평점 별 수(없으면 0)
+    var ratingValue: Int { track.rating }
+    /// 정렬용: 곡 색 번호(rekordbox 색 순서와 같다, 없으면 0)
+    var colorSortKey: Int { track.colorID.flatMap { Int($0) } ?? 0 }
+    /// 살아 있는 rekordbox 재생 목록(폴더 제외)에 들었는지. 평점·곡 색 쓰기를 확인한 범위를 가른다(`TagWriteScope`, #65).
+    var inPlaylist = false
     /// 추가한 곡의 키를 DJCrate가 추정했는지(목록에 추정으로 표시한다, #124)
     var keyEstimated = false
     /// 태그 편집의 기준(지금 rekordbox 값). 추가한 곡의 키는 아직 rekordbox에 없으니(넣을 때 `KeyID` '0') 빈칸이다: 목록에 보이는 키

@@ -13,7 +13,7 @@ struct TrackListTagEditTests {
         TrackRow(track: Track(id: id, uuid: "uuid-\(id)", title: title ?? "곡 \(id)", artist: artist, album: nil, albumArtist: nil,
                               genre: nil, composer: nil, releaseYear: year, trackNumber: trackNumber, key: nil, bpm: 120,
                               lengthSeconds: 180, folderPath: streaming ? "spotify:track:\(id)" : "/x/\(id).mp3", comment: comment,
-                              importedOn: nil, analysisDataPath: nil, imagePath: nil, isDeleted: false),
+                              importedOn: nil, analysisDataPath: nil, imagePath: nil, isDeleted: false, dataStatus: streaming ? nil : 0),
                  cues: [], playCount: 0, commentRule: rule)
     }
 
@@ -304,7 +304,9 @@ final class ListHarness {
     let table = TrackListTableView()
     let window: NSWindow
 
-    init(rows: [TrackRow], selection: Set<TrackRow.ID>, hidden: Set<String> = [], store: LibraryStore? = nil, showKey: Bool = false) {
+    /// - Parameter extra: 기본 칸 뒤에 더할 칸(평점·곡 색 칸 시험, #65)
+    init(rows: [TrackRow], selection: Set<TrackRow.ID>, hidden: Set<String> = [], store: LibraryStore? = nil, showKey: Bool = false,
+         extra: [String] = []) {
         _ = NSApplication.shared
         self.store = store ?? LibraryStore(saveTagDrafts: { _ in })
         undo.groupsByEvent = false
@@ -316,7 +318,7 @@ final class ListHarness {
         table.coordinator = coordinator
         table.dataSource = coordinator
         table.delegate = coordinator
-        for id in ["index", "title", "album", "artist", "bpm", "key", "comment", "class"] {
+        for id in ["index", "title", "album", "artist", "bpm", "key", "comment", "class"] + extra {
             let column = NSTableColumn(identifier: .init(id))
             column.width = 110
             column.isHidden = hidden.contains(id) || (id == "key" && !showKey)

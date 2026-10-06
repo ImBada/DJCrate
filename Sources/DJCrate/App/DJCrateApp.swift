@@ -56,9 +56,10 @@ struct DJCrateApp: App {
                 .task {
                     appDelegate.store = store
                     #if DEBUG
+                    // 쓰기 시험(`--write-selftest`)도 키 입력 없이 스토어로만 돌아 사용 중인 앱의 포커스를 가져오지 않는다
                     if !ResizePerfSelfTest.isRequested,
                        !ProcessInfo.processInfo.arguments.contains("--playlist-recovery-selftest"),
-                       !ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("--blocked-reasons-capture=") || $0.hasPrefix("--async-guidance-capture=") || $0.hasPrefix("--usb-migrate-capture=") || $0 == "--key-routing-selftest" }) {
+                       !ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("--blocked-reasons-capture=") || $0.hasPrefix("--async-guidance-capture=") || $0.hasPrefix("--usb-migrate-capture=") || $0 == "--key-routing-selftest" || $0 == "--write-selftest" }) {
                         NSApplication.shared.activate()
                     }
                     #else

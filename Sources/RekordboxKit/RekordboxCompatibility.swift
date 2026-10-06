@@ -59,6 +59,9 @@ public enum RekordboxCompatibility {
         "djmdProperty": ["DBVersion"],
         // 곡의 키: 고를 줄을 찾고(ScaleName, 삭제 표시) 읽는다. 이 표는 고치지 않는다(2026-10-04 키 쓰기).
         "djmdKey": ["ID", "ScaleName", "rb_local_deleted"],
+        // 곡 색: 곡 행 `ColorID`가 가리킬 줄이 살아 있는지 보고(ID, 삭제 표시) 색 이름(Commnt)을 읽는다. 이 표는 고치지 않는다(#65, 2026-10-04 묶음 2).
+        // 곡 행의 `Rating`·`ColorID`는 `djmdContent` 칸 전체(위)에 들어 있다.
+        "djmdColor": ["ID", "Commnt", "rb_local_deleted"],
         // 곡 삭제 때 지우거나 번호를 당기는 표(곡 항목 djmdSongPlaylist는 위에서 칸 전체를 본다). 당기는 행의 상태(rb_data_status)를 고치고
         // 순번 자리의 지운 표시(rb_local_deleted)와 동기화 상태를 읽는다(#196).
         "djmdSongHistory": ["ID", "HistoryID", "ContentID", "TrackNo", "rb_data_status", "rb_local_deleted", "rb_local_usn", "updated_at"],

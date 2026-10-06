@@ -38,12 +38,12 @@ extension LibraryStore {
         settings.setStrings(SettingKeys.dismissedKeySuggestions, dismissedKeySuggestions)
     }
 
-    /// 곡의 태그 초안(없으면 지금 rekordbox 값에서 새로). 키를 안 고친 초안의 키 칸은 지금 값으로 맞춘다: 키 칸이 없던 옛 초안이나 그 뒤
-    /// rekordbox에서 키가 바뀐 초안이 키를 고친 것처럼 보이거나 쓰기 때 기준이 어긋나지 않게 한다(`TagDraft.adoptingMusicalKey`).
+    /// 곡의 태그 초안(없으면 지금 rekordbox 값에서 새로). 안 고친 독립 칸(키·평점·곡 색)은 지금 값으로 맞춘다: 그 칸이 없던 옛 초안이나 그 뒤
+    /// rekordbox에서 그 칸만 바뀐 초안이 그 칸을 고친 것처럼 보이거나 쓰기 때 기준이 어긋나지 않게 한다(`TagDraft.adoptingIndependentKeys`).
     /// 추가한 곡의 기준 키는 빈칸이다(`TrackRow.tagFields`): 키를 고를 수 없던 때 목록의 키를 기준으로 든 옛 초안도 여기서 맞춘다.
     func tagDraft(for row: TrackRow) -> TagDraft {
         guard let draft = tagDrafts[row.track.uuid] else { return TagDraft(trackUUID: row.track.uuid, base: row.tagFields) }
-        return draft.adoptingMusicalKey(of: row.tagFields)
+        return draft.adoptingIndependentKeys(of: row.tagFields)
     }
 
     /// 추가한 곡을 넣을 때 함께 쓸 키(사용자가 고른 Camelot 이름, #5). 키를 고치지 않았거나 비웠으면(넣는 곡은 처음부터 키가 없다) nil.
@@ -99,7 +99,7 @@ extension LibraryStore {
 
     func tagCell(_ row: TrackRow, _ key: TagFields.Key) -> String {
         if let draft = tagDrafts[row.track.uuid] {
-            return key == .musicalKey ? tagDraft(for: row).fields[key] : draft.fields[key]
+            return TagFields.Key.independent.contains(key) ? tagDraft(for: row).fields[key] : draft.fields[key]
         }
         return row.tagFields[key]
     }
@@ -123,6 +123,12 @@ extension LibraryStore {
             // (초안의 기준 값으로 되돌리는 것은 그대로 받는다: 기준이 옛 표기여도 되돌릴 수 있어야 한다).
             if change.key == .musicalKey, value != original.base.musicalKey {
                 guard KeyPicker.unavailableReason(change.row) == nil, let accepted = KeyPicker.accepted(value) else { continue }
+                value = accepted
+            }
+            // 평점·곡 색도 고르기 값(별 1~5개·rekordbox 색)만 받고, 고칠 수 없는 곡(추가한 곡·동기화 곡·재생 목록에 든 곡, #65)에는 초안을 만들지 않는다
+            if change.key == .rating || change.key == .color, value != original.base[change.key] {
+                guard TrackListTagEditing.unavailableReason(change.row, key: change.key) == nil,
+                      let accepted = TagChoice.accepted(change.key, value, colors: trackColors) else { continue }
                 value = accepted
             }
             before[uuid] = before[uuid] ?? original

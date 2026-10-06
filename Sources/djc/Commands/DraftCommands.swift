@@ -82,15 +82,26 @@ enum DraftCommands {
                 result.cue = draft; result.hasChanges = draft.hasChanges
                 if !options.dryRun { try CueDraftStore.save(draft, directory: directory) }
             } else {
-                // 키를 안 고친 옛 초안(키 칸이 없던 때의 것)은 키 기준을 지금 값으로 맞춘다: 그 위에 키를 고쳐도 기준이 어긋나 막히지 않게
-                var draft: TagDraft = (try existing(file) ?? TagDraft(track: track)).adoptingMusicalKey(of: TagFields(track: track))
+                // 안 고친 독립 칸(키·평점·곡 색)은 옛 초안(그 칸이 없던 때의 것)이라도 기준을 지금 값으로 맞춘다: 그 위에 고쳐도 기준이 어긋나 막히지 않게
+                var draft: TagDraft = (try existing(file) ?? TagDraft(track: track)).adoptingIndependentKeys(of: TagFields(track: track))
                 guard draft.trackUUID == uuid else { throw corrupt() }
                 for key in TagFields.Key.allCases {
                     guard let value = options.values[Options.flag(key)] else { continue }
-                    // 키는 "8a"도 받아 정확한 Camelot 이름으로 다듬는다. 다른 표기는 그대로 두어 초안 검사가 거절한다.
-                    draft.fields[key] = key == .musicalKey ? KeyNotation.normalizedCamelotName(value) ?? value : value
+                    // 키는 "8a"를, 평점은 "★★★"·"0"을, 곡 색은 rekordbox 색 이름("Blue")도 받아 초안 값으로 다듬는다.
+                    // 다른 표기는 그대로 두어 초안 검사가 거절한다.
+                    draft.fields[key] = switch key {
+                    case .musicalKey: KeyNotation.normalizedCamelotName(value) ?? value
+                    case .rating: TrackRating.accepted(value) ?? value
+                    case .color: TrackColor.accepted(value, in: read.colors) ?? value
+                    default: value
+                    }
                 }
                 guard draft.issues.isEmpty else { throw invalid(draft.issues.joined(separator: "; ")) }
+                // 이번에 고친 칸 가운데 쓰기를 확인하지 않은 곡의 칸(평점·곡 색: 동기화 곡·재생 목록에 든 곡)은 초안을 만들지 않는다(앱과 같은 판단)
+                let touched = draft.changedKeys.filter { options.values[Options.flag($0)] != nil }
+                if let reason = TagWriteScope.blockReason(keys: touched, state: track.dataStatus, inPlaylist: read.isInPlaylist(id: track.id)) {
+                    throw ReadFailure("unverified_field", reason)
+                }
                 result.tag = draft; result.hasChanges = draft.hasChanges
                 if !options.dryRun { try TagDraftStore.save(draft, directory: directory) }
             }

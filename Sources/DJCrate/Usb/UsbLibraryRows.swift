@@ -62,7 +62,9 @@ enum UsbLibraryRows {
             trackNumber: track.trackNo > 0 ? track.trackNo : nil, key: track.keyID.flatMap { names.keys[$0] },
             bpm: track.bpmx100 > 0 ? Double(track.bpmx100) / 100 : nil, lengthSeconds: track.lengthSeconds,
             folderPath: mountPoint + track.path, comment: track.comment, importedOn: track.dateAdded.isEmpty ? nil : track.dateAdded,
-            analysisDataPath: nil, imagePath: nil, isDeleted: false, bitrateKbps: track.bitrate)
+            analysisDataPath: nil, imagePath: nil, isDeleted: false, bitrateKbps: track.bitrate,
+            // 거르기(평점·곡 색)도 로컬 곡과 같게 한다. USB 색 번호 1~8은 rekordbox 색과 같은 순서다(읽기 전용)
+            rating: track.rating, colorID: track.colorID > 0 ? String(track.colorID) : nil)
         var row = TrackRow(track: model, cues: [], playCount: track.djPlayCount)
         row.usbSync = badge
         return row

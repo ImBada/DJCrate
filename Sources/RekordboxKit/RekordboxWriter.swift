@@ -129,6 +129,7 @@ public enum RekordboxWriter {
     ///   - attachesAnalysis: 분석 붙이기를 여는지. 앱은 `attachesAnalysis`를 따르고, 시험과 사본 실험(`djc lab analysis-attach-test`)만 바꾼다.
     ///   - writesArtwork: 분석을 붙이는 곡에 아트워크도 넣는지. 앱은 `RekordboxTrackWriter.writesArtwork`를 따르고, 시험만 바꾼다.
     ///   - tagKeys: 태그 쓰기를 연 칸. 앱은 `writableTagKeys`를 따르고, 시험과 사본 실험(`djc lab tag-write-test`)만 바꾼다.
+    ///   - tagScopes: 칸별로 좁게 확인한 범위(평점·곡 색의 곡 상태·재생 목록). 앱은 `TagWriteScope.byKey`, 사본 실험만 비운다.
     package static func write(drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], tags: [TagDraft] = [],
                               artworks: [ArtworkEdit] = [],
                               analysisInputs: [String: AnalysisInput],
@@ -136,7 +137,8 @@ public enum RekordboxWriter {
                               backups: URL, shareRoot: URL?,
                               guard writeGuard: RekordboxWriteGuard = .system, attachesAnalysis: Bool,
                               writesArtwork: Bool = RekordboxTrackWriter.writesArtwork,
-                              tagKeys: Set<TagFields.Key> = writableTagKeys) throws -> Report {
+                              tagKeys: Set<TagFields.Key> = writableTagKeys,
+                              tagScopes: [TagFields.Key: TagWriteScope] = TagWriteScope.byKey) throws -> Report {
         let stamp = CueJSON.timestamps(now)
         let grids = grids.filter(\.hasChanges)
         var tags = tags.filter(\.hasChanges)
@@ -164,7 +166,8 @@ public enum RekordboxWriter {
         if !tags.isEmpty {
             let reader = try CipherDatabase(path: database.path, key: RekordboxKey.derive())
             defer { reader.close() }
-            let checked = try checkTagDrafts(tags, db: reader, writable: tagKeys, mergesPending: !merges.isEmpty)
+            let checked = try checkTagDrafts(tags, db: reader, writable: tagKeys, mergesPending: !merges.isEmpty,
+                                             playlistSteps: playlistSteps, scopes: tagScopes)
             tags = checked.passed
             tagOutcomes = checked.blocked
             xmlTags = checked.touchesXML
@@ -502,7 +505,7 @@ public enum RekordboxWriter {
                 try db.execute("SAVEPOINT djc_tags")
                 let savedUSN = usn
                 do {
-                    let result = try applyTags(draft, db: db, usn: &usn, stamp: stamp, writable: tagKeys)
+                    let result = try applyTags(draft, db: db, usn: &usn, stamp: stamp, writable: tagKeys, scopes: tagScopes)
                     tagOutcomes.append(result.outcome)
                     // 여러 곡이 같은 앨범을 저장하거나 마지막 참조를 놓으면(지움·258) 뒤 편집이 그 행 검증을 맡는다.
                     let replacedAlbums = Set(result.expectation.touchedAlbums.keys).union(result.expectation.releasedAlbums)

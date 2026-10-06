@@ -19,7 +19,7 @@ enum TrackLab {
         Command("analysis-attach-test", "--db <사본.db> --share <사본 share> [--grid-from <.DAT>] <ContentID…>",
                 "분석 전 곡에 분석 파일(음원 그림이 있으면 아트워크도)을 붙여 본다(사본만, 막아 둔 쓰기 경로를 열어서). 그리드는 .DAT에서 읽거나 추정", TrackLab.analysisAttachTest),
         Command("tag-write-test", "--db <사본.db> [--dry-run] <ContentID>:<칸>=<값>…",
-                "곡 정보(태그)를 사본에 써 본다(사본만, 확인하지 않은 칸도 열어서). 칸: title·artist·album·albumArtist·genre·composer·year·trackNumber·comment. 한 번 실행 = rekordbox에서 한 번 저장",
+                "곡 정보(태그)를 사본에 써 본다(사본만, 확인하지 않은 칸·곡 상태도 열어서). 칸: title·artist·album·albumArtist·genre·composer·year·trackNumber·comment·musicalKey·rating·color. 한 번 실행 = rekordbox에서 한 번 저장",
                 TrackLab.tagWriteTest),
         Command("artwork-write-test", "--db <사본.db> [--share <사본 share>] [--dry-run] <ContentID> (--image <그림 파일> | --delete)",
                 "곡 정보 그림을 사본에 넣기·바꾸기·지우기(사본만, share는 기본 DB 옆 share). 한 번 실행 = rekordbox에서 한 번 저장",
@@ -311,7 +311,7 @@ enum TrackLab {
         let report = try RekordboxWriter.write(drafts: [], grids: [], gains: [:], tags: drafts, analysisInputs: [:], to: database,
                                                dryRun: args.contains("--dry-run"), now: .now,
                                                backups: database.deletingLastPathComponent().appending(path: "backups"), shareRoot: nil,
-                                               attachesAnalysis: false, tagKeys: Set(TagFields.Key.allCases))
+                                               attachesAnalysis: false, tagKeys: Set(TagFields.Key.allCases), tagScopes: [:])
         for o in report.tagOutcomes ?? [] {
             print("\(o.status == .written ? "✓" : "✗") \(o.title.prefix(40)) · \((o.fields ?? []).joined(separator: ","))\(o.reason.map { " · \($0)" } ?? "")")
         }
