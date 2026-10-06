@@ -341,6 +341,7 @@ struct ListActionBar: View {
                 Button { store.checkMissingFiles() } label: { Label(.ui("다시 확인"), systemImage: "arrow.clockwise") }
                     .disabled(store.isCheckingFiles)
                     .help(.ui("음원 파일이 있는지 다시 확인합니다. rekordbox에는 쓰지 않습니다."))
+                RelocateEntryButton(store: store)
                 if store.isCheckingFiles {
                     ProgressView().controlSize(.small)
                     Text(.ui("파일을 확인하는 중…")).font(.caption).foregroundStyle(.secondary)

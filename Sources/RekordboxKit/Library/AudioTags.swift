@@ -45,7 +45,8 @@ public struct AudioTags: Sendable, Equatable {
         "lyricist": ["id3/TEXT", "vorb/LYRICIST"],
     ]
 
-    public static func read(url: URL) async throws -> AudioTags {
+    /// - Parameter includeArtwork: false면 내장 그림 바이트를 읽지 않는다(폴더를 훑으며 제목·길이만 볼 때).
+    public static func read(url: URL, includeArtwork: Bool = true) async throws -> AudioTags {
         let asset = AVURLAsset(url: url)
         let duration = try await asset.load(.duration).seconds
         let items = (try? await asset.load(.metadata)) ?? []
@@ -91,7 +92,7 @@ public struct AudioTags: Sendable, Equatable {
             if let i = parts.firstIndex(where: { $0.lowercased() == "isrc" }), i + 1 < parts.count { tags.isrc = parts[i + 1] }
         }
         tags.lyricist = await string("lyricist")
-        for item in AVMetadataItem.metadataItems(from: items, filteredByIdentifier: .commonIdentifierArtwork) {
+        for item in AVMetadataItem.metadataItems(from: items, filteredByIdentifier: .commonIdentifierArtwork) where includeArtwork {
             if let data = try? await item.load(.dataValue), !data.isEmpty { tags.artwork = data; break }
         }
         return tags
