@@ -86,8 +86,13 @@ struct RelocateView: View {
             .labelsHidden()
             .accessibilityIdentifier("relocate-filter")
             let rows = model.visibleResults
+            // 고른 후보·겹침은 목록 전체에서 한 번만 구해 행에 넘긴다(행마다 보고서를 다시 훑지 않게).
+            let chosen = model.selection.chosenCandidates
+            let conflictPaths = Set(model.selection.conflicts.keys)
             List(rows) { result in
-                RelocateRowView(result: result, model: model)
+                let pick = chosen[result.id]
+                RelocateRowView(result: result, chosen: pick, conflicted: pick.map { conflictPaths.contains($0.file.path) } ?? false,
+                                model: model)
             }
             .overlay {
                 if rows.isEmpty { Text(.ui("이 분류에 해당하는 곡이 없습니다")).foregroundStyle(.secondary) }
@@ -125,6 +130,9 @@ struct RelocateView: View {
 /// 곡 하나와 그 후보: 확실이면 확인 체크, 애매하면 후보 고르기, 없음이면 안내.
 private struct RelocateRowView: View {
     let result: RelocateResult
+    /// 이 곡에 고른 후보와, 그 파일을 다른 곡에도 골랐는지(목록에서 한 번에 구해 넘긴다)
+    let chosen: RelocateCandidate?
+    let conflicted: Bool
     let model: RelocateModel
 
     var body: some View {
@@ -159,7 +167,7 @@ private struct RelocateRowView: View {
         switch result.outcome {
         case let .confident(candidate):
             Toggle(isOn: Binding(
-                get: { model.selection.chosen(for: result.id) != nil },
+                get: { chosen != nil },
                 set: { model.choose($0 ? candidate.file.path : nil, for: result.id) }
             )) {
                 candidateText(candidate)
@@ -171,7 +179,7 @@ private struct RelocateRowView: View {
                 Text(verbatim: RelocateText.reason(reason)).font(.caption).foregroundStyle(UIColors.warning.color)
                     .fixedSize(horizontal: false, vertical: true)
                 Picker(selection: Binding<String?>(
-                    get: { model.selection.chosen(for: result.id)?.file.path },
+                    get: { chosen?.file.path },
                     set: { model.choose($0, for: result.id) }
                 )) {
                     Text(.ui("고르지 않음")).tag(String?.none)
@@ -185,14 +193,14 @@ private struct RelocateRowView: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
                 .accessibilityIdentifier("relocate-picker-\(result.id)")
-                if let chosen = model.selection.chosen(for: result.id) {
+                if let chosen {
                     Text(verbatim: RelocateText.evidence(chosen.evidence)).font(.caption).foregroundStyle(.secondary)
                 }
             }
         case .none:
             Text(.ui("후보 없음")).foregroundStyle(.secondary)
         }
-        if let chosen = model.selection.chosen(for: result.id), model.selection.conflicts[chosen.file.path] != nil {
+        if conflicted {
             Label(.ui("다른 곡에도 같은 파일을 골랐습니다"), systemImage: WarningMark.symbol)
                 .font(.caption).foregroundStyle(UIColors.warning.color)
         }

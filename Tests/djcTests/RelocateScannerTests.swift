@@ -155,6 +155,51 @@ struct RelocateScannerTests {
         }
     }
 
+    @Test func 고른_폴더가_PIONEER이거나_그_안이면_열지_않고_거부한다() async throws {
+        let tree = try Tree()
+        defer { tree.remove() }
+        let fm = FileManager.default
+        // USB 루트의 PIONEER 아래 extracted·CDP는 열거하지 않는 규칙이다(UsbLayout.neverRead)
+        let usb = tree.root.appending(path: "USB")
+        for dir in ["PIONEER/extracted", "PIONEER/CDP", "Pioneer-lower/Pioneer/rekordbox"] {
+            try fm.createDirectory(at: usb.appending(path: dir), withIntermediateDirectories: true)
+        }
+        _ = try AudioFixture.wav(seconds: 1, in: usb.appending(path: "PIONEER/extracted"), name: "Extracted.wav")
+        let target = Self.target("1", name: "Extracted.wav", length: 1, size: nil)
+        for folder in [usb.appending(path: "PIONEER"), usb.appending(path: "PIONEER/extracted"), usb.appending(path: "PIONEER/CDP"),
+                       usb.appending(path: "Pioneer-lower/Pioneer"), usb.appending(path: "Pioneer-lower/Pioneer/rekordbox")] {
+            let read = TagLog()
+            await #expect(throws: RelocateScanner.ScanError.usbLibraryFolder, "\(folder.lastPathComponent)") {
+                _ = try await RelocateScanner.scan(targets: [target], folder: folder, protectedRoots: tree.protectedRoots,
+                                                   readTags: { url in read.record(url); return RelocateScanner.Tags() })
+            }
+            #expect(read.read.isEmpty)
+        }
+        // 링크로 PIONEER 안을 가리켜도 거부한다
+        let link = tree.root.appending(path: "ToExtracted")
+        try fm.createSymbolicLink(at: link, withDestinationURL: usb.appending(path: "PIONEER/extracted"))
+        await #expect(throws: RelocateScanner.ScanError.usbLibraryFolder) {
+            _ = try await RelocateScanner.scan(targets: [target], folder: link, protectedRoots: tree.protectedRoots)
+        }
+        // 이름에 Pioneer가 들어가기만 한 폴더는 고를 수 있다
+        let output = try await RelocateScanner.scan(targets: [target], folder: usb.appending(path: "Pioneer-lower"),
+                                                    protectedRoots: tree.protectedRoots)
+        #expect(output.summary.audioFiles == 0)
+        // 사용자에게 보이는 이유는 무엇을 하면 되는지까지 적는다
+        #expect(RelocateScanner.ScanError.usbLibraryFolder.errorDescription?.isEmpty == false)
+    }
+
+    @Test func 하위의_소문자_Pioneer_폴더도_건너뛴다() throws {
+        let tree = try Tree()
+        defer { tree.remove() }
+        let lower = tree.music.appending(path: "B/Pioneer/Contents")
+        try FileManager.default.createDirectory(at: lower, withIntermediateDirectories: true)
+        _ = try AudioFixture.wav(seconds: 1, in: lower, name: "Lower.wav")
+        let listed = try RelocateScanner.listAudioFiles(in: tree.music.resolvingSymlinksInPath(), protectedRoots: tree.protectedRoots) { _ in }
+        #expect(!listed.map(\.url.lastPathComponent).contains("Lower.wav"))
+        #expect(listed.count == 3)
+    }
+
     @Test func 링크로_보호_폴더를_가리켜도_고를_수_없다() async throws {
         let tree = try Tree()
         defer { tree.remove() }

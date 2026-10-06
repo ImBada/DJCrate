@@ -383,6 +383,16 @@ struct RelocateSelectionTests {
         selection.choose("/New/Music/Song.mp3", for: "2")
         #expect(selection.conflicts == ["/New/Music/Song.mp3": ["1", "2"]])
     }
+
+    @Test func 고른_후보를_한_번에_구한_것은_곡마다_구한_것과_같다() {
+        var selection = RelocateSelection(report: Self.report())
+        selection.choose("/New/A/Pair.mp3", for: "2")
+        let all = selection.chosenCandidates
+        #expect(all.keys.sorted() == ["1", "2"])
+        for id in ["1", "2", "3"] {
+            #expect(all[id] == selection.chosen(for: id), "\(id)")
+        }
+    }
 }
 
 /// 폴더 훑기가 건너뛸 것: 숨은 파일·`._*`·rekordbox/DJCrate 데이터 폴더·USB의 PIONEER 폴더.
@@ -402,6 +412,24 @@ struct RelocateScanPolicyTests {
         #expect(!RelocateScanPolicy.skipsDirectory(named: "Contents"))
         #expect(RelocateScanPolicy.skipsFile(named: "djprofile.nxs"))
         #expect(!RelocateScanPolicy.skipsFile(named: "Song.mp3"))
+    }
+
+    @Test func PIONEER와_djprofile은_대소문자를_가리지_않는다() {
+        // FAT USB에서는 `Pioneer`처럼 보일 수 있다
+        for name in ["Pioneer", "pioneer", "PIONEER"] {
+            #expect(RelocateScanPolicy.skipsDirectory(named: name), "\(name)")
+        }
+        #expect(RelocateScanPolicy.skipsFile(named: "DJPROFILE.NXS"))
+    }
+
+    @Test func 경로의_어느_구성_요소든_PIONEER면_USB_라이브러리_폴더다() {
+        #expect(RelocateScanPolicy.isInsideUsbLibraryFolder("/Volumes/USB/PIONEER"))
+        #expect(RelocateScanPolicy.isInsideUsbLibraryFolder("/Volumes/USB/PIONEER/extracted"))
+        #expect(RelocateScanPolicy.isInsideUsbLibraryFolder("/Volumes/USB/Pioneer/CDP/"))
+        #expect(RelocateScanPolicy.isInsideUsbLibraryFolder("/Volumes/USB/pioneer/rekordbox/share".decomposedStringWithCanonicalMapping))
+        #expect(!RelocateScanPolicy.isInsideUsbLibraryFolder("/Volumes/USB"))
+        #expect(!RelocateScanPolicy.isInsideUsbLibraryFolder("/Volumes/USB/Pioneer DJ 곡"))
+        #expect(!RelocateScanPolicy.isInsideUsbLibraryFolder("/Volumes/PIONEERS/Music"))
     }
 
     @Test func 후보로_읽는_확장자는_rekordbox가_읽는_형식이다() {

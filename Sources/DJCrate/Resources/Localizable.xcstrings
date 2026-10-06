@@ -6717,6 +6717,22 @@
         }
       }
     },
+    "USB의 PIONEER 폴더와 그 안은 후보 폴더로 쓸 수 없습니다. PIONEER 바깥의 음악 폴더를 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The PIONEER folder on a USB drive and anything inside it can't be used as the search folder. Choose a music folder outside PIONEER."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBのPIONEERフォルダとその中は検索フォルダに使えません。PIONEERの外にある音楽フォルダを選んでください。"
+          }
+        }
+      }
+    },
     "USB의 곡·재생 목록은 읽기만 합니다" : {
       "localizations" : {
         "en" : {

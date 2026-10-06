@@ -4,7 +4,8 @@ import RekordboxKit
 
 /// 사용자가 고른 폴더를 훑어 파일 없는 곡의 새 위치 후보를 맞춘다(#62). 폴더·음원·라이브러리는 읽기만 한다.
 ///
-/// - 심볼릭 링크는 따라가지 않는다(파일도 폴더도 건너뜀). 숨은 파일·`._*`·USB의 `PIONEER` 폴더·rekordbox/DJCrate 데이터 폴더도 건너뛴다.
+/// - 심볼릭 링크는 따라가지 않는다(파일도 폴더도 건너뜀). 숨은 파일·`._*`·USB의 `PIONEER` 폴더(대소문자 무시)·`djprofile.nxs`·rekordbox/DJCrate 데이터 폴더도 건너뛰고,
+///   고른 폴더 자신이 `PIONEER`이거나 그 안이면 거부한다.
 /// - 훑는 일은 호출한 쪽 액터(메인 스레드 등) 밖에서 하고, 폴더·파일마다 취소를 본다.
 /// - 태그·길이는 이름이나 크기가 어느 곡과 맞는 파일만 읽는다(`RelocateTargetIndex`).
 public enum RelocateScanner {
@@ -58,11 +59,13 @@ public enum RelocateScanner {
     public enum ScanError: Error, LocalizedError, Equatable {
         case notAFolder
         case protectedFolder
+        case usbLibraryFolder
 
         public var errorDescription: String? {
             switch self {
             case .notAFolder: String(ui: "폴더를 열지 못했습니다. 다른 폴더를 고르세요")
             case .protectedFolder: String(ui: "rekordbox·DJCrate의 데이터 폴더는 후보 폴더로 쓸 수 없습니다. 음악이 있는 폴더를 고르세요")
+            case .usbLibraryFolder: String(ui: "USB의 PIONEER 폴더와 그 안은 후보 폴더로 쓸 수 없습니다. PIONEER 바깥의 음악 폴더를 고르세요")
             }
         }
     }
@@ -96,6 +99,9 @@ public enum RelocateScanner {
         // 링크는 풀어서 본다(보호 폴더를 가리키는 링크로 보호를 피하지 못하게). 보호 폴더인지를 먼저 보고 폴더가 맞는지 본다.
         let root = folder.resolvingSymlinksInPath().standardizedFileURL
         guard !RelocateScanPolicy.isProtected(root.path, protectedRoots: protectedRoots) else { throw ScanError.protectedFolder }
+        // USB의 PIONEER 안(`extracted`·`CDP` 포함)은 열거하지 않는다: 하위 이름 검사는 고른 폴더 자신에 걸리지 않으므로 경로 전체로 본다.
+        guard !RelocateScanPolicy.isInsideUsbLibraryFolder(root.path),
+              !RelocateScanPolicy.isInsideUsbLibraryFolder(folder.standardizedFileURL.path) else { throw ScanError.usbLibraryFolder }
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDirectory), isDirectory.boolValue else {
             throw ScanError.notAFolder
@@ -157,14 +163,15 @@ public enum RelocateScanner {
             else { continue }
             for entry in entries {
                 let name = entry.lastPathComponent
-                guard !RelocateScanPolicy.skipsName(name), let values = try? entry.resourceValues(forKeys: keySet) else { continue }
+                // `djprofile.nxs` 같은 열지 않는 파일은 속성도 읽지 않는다.
+                guard !RelocateScanPolicy.skipsFile(named: name), let values = try? entry.resourceValues(forKeys: keySet) else { continue }
                 // 링크는 파일이든 폴더든 따라가지 않는다(보호 폴더나 다른 디스크로 새는 길을 막는다).
                 if values.isSymbolicLink == true { continue }
                 if values.isDirectory == true {
                     guard values.isPackage != true, !RelocateScanPolicy.skipsDirectory(named: name),
                           !RelocateScanPolicy.isProtected(entry.path, protectedRoots: protectedRoots) else { continue }
                     pending.append(entry)
-                } else if values.isRegularFile == true, !RelocateScanPolicy.skipsFile(named: name), RelocateScanPolicy.isAudio(fileName: name) {
+                } else if values.isRegularFile == true, RelocateScanPolicy.isAudio(fileName: name) {
                     found.append((entry, Int64(values.fileSize ?? 0)))
                     if found.count % 200 == 0 { onCount(found.count) }
                 }

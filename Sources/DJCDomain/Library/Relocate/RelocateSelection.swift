@@ -30,6 +30,17 @@ public struct RelocateSelection: Sendable, Equatable {
         return result.candidates.first { $0.file.path == path }
     }
 
+    /// 곡 ID → 고른 후보. 목록 전체를 그릴 때 곡마다 `chosen(for:)`로 보고서를 다시 훑지 않게 한 번에 구한다.
+    public var chosenCandidates: [String: RelocateCandidate] {
+        var chosen: [String: RelocateCandidate] = [:]
+        for result in report.results {
+            if let path = picks[result.id], let candidate = result.candidates.first(where: { $0.file.path == path }) {
+                chosen[result.id] = candidate
+            }
+        }
+        return chosen
+    }
+
     public var chosenCount: Int { picks.count }
 
     /// 같은 파일을 둘 이상의 곡에 고른 경우: 파일 경로 → 곡 ID(보고서 순서). 한 파일은 한 곡에만 연결할 수 있다.
