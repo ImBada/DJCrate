@@ -23,6 +23,8 @@ final class RelocateModel: Identifiable {
     struct Dependencies: Sendable {
         var loadTargets: @Sendable ([Track], URL?) async throws -> [RelocateTarget]
         var scan: @Sendable ([RelocateTarget], URL, @escaping @Sendable (RelocateScanner.Progress) -> Void) async throws -> RelocateScanner.Output
+        /// 지금 연결된 볼륨 경로("/", "/Volumes/X" …). 훑을 때마다 다시 읽는다(창을 연 뒤 디스크를 꽂을 수 있다).
+        var mountedVolumes: @Sendable () -> [String] = { RelocateModel.liveMountedVolumes() }
 
         static let live = Dependencies(
             loadTargets: { tracks, snapshot in
@@ -49,6 +51,8 @@ final class RelocateModel: Identifiable {
     private(set) var phase: Phase = .scanning(RelocateScanner.Progress(phase: .listing, audioFiles: 0, filesToRead: 0, filesRead: 0))
     private(set) var selection = RelocateSelection(report: RelocateReport(results: []))
     private(set) var summary: RelocateScanner.Summary?
+    /// 곡마다 왜 없는지(외장 디스크가 연결되지 않았는지). 대상에서 빼지 않고 표시만 한다.
+    private(set) var absences: [String: RelocateAbsence] = [:]
     var filter: Filter = .all
 
     @ObservationIgnored private var task: Task<Void, Never>?
@@ -77,6 +81,7 @@ final class RelocateModel: Identifiable {
         phase = .scanning(RelocateScanner.Progress(phase: .listing, audioFiles: 0, filesToRead: 0, filesRead: 0))
         selection = RelocateSelection(report: RelocateReport(results: []))
         summary = nil
+        absences = [:]
         // 훑는 동안만 모델을 붙들고(끝나면 놓인다), 창을 닫으면 `cancel()`이 멈춘다.
         task = Task {
             do {
@@ -84,7 +89,10 @@ final class RelocateModel: Identifiable {
                 let output = try await dependencies.scan(targets, folder) { progress in
                     Task { @MainActor [weak self] in self?.apply(progress: progress, generation: generation) }
                 }
+                // 볼륨 목록은 멈춘 네트워크 디스크에서 오래 걸릴 수 있어 메인 스레드 밖에서 읽는다.
+                let mounted = await Task.detached(priority: .userInitiated) { dependencies.mountedVolumes() }.value
                 guard generation == self.generation, !Task.isCancelled else { return }
+                self.absences = RelocateAbsence.classify(targets, mountedVolumes: mounted)
                 self.selection = RelocateSelection(report: output.report)
                 self.summary = output.summary
                 self.phase = .reviewing
@@ -131,6 +139,23 @@ final class RelocateModel: Identifiable {
         case .ambiguous: report.ambiguousCount
         case .noCandidate: report.noneCount
         }
+    }
+
+    func absence(for trackID: String) -> RelocateAbsence? { absences[trackID] }
+
+    /// 외장 디스크가 연결되지 않아 없는 곡 수
+    var unmountedVolumeCount: Int { absences.values.lazy.filter { $0.unmountedVolumeName != nil }.count }
+
+    /// 연결된 볼륨 경로. 시동 디스크는 `/Volumes` 아래에 "/"로 가는 링크로도 있어, 연결된 볼륨으로 가는 링크도 더한다.
+    nonisolated static func liveMountedVolumes() -> [String] {
+        let files = FileManager.default
+        var paths = Set((files.mountedVolumeURLs(includingResourceValuesForKeys: nil, options: []) ?? []).map(\.standardizedFileURL.path))
+        for name in (try? files.contentsOfDirectory(atPath: "/Volumes")) ?? [] {
+            let link = "/Volumes/" + name
+            guard (try? files.destinationOfSymbolicLink(atPath: link)) != nil else { continue }
+            if paths.contains(URL(filePath: link).resolvingSymlinksInPath().path) { paths.insert(link) }
+        }
+        return paths.sorted()
     }
 
     /// 화면에 보일 후보 경로: 훑은 폴더 기준 상대 경로(폴더 밖이면 그대로). 링크를 푼 폴더 경로로 훑었을 수도 있어 둘 다 본다.

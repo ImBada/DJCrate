@@ -34,6 +34,12 @@ enum RelocateText {
         }
     }
 
+    /// 외장 디스크가 연결되지 않아 없는 곡에 붙이는 표시. 디스크가 연결돼 있는데 없는 곡은 nil(표시 없음).
+    static func absence(_ absence: RelocateAbsence) -> String? {
+        guard let name = absence.unmountedVolumeName else { return nil }
+        return String(ui: "외장 디스크 연결 안 됨: \(name)")
+    }
+
     static func filterTitle(_ filter: RelocateModel.Filter) -> String {
         switch filter {
         case .all: String(ui: "전체")

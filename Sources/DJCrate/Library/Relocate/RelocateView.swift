@@ -75,6 +75,13 @@ struct RelocateView: View {
                 Text(.ui("폴더의 음원 파일 \(summary.audioFiles)개 중 이름이나 크기가 맞는 \(summary.comparedFiles)개의 길이와 태그를 읽어 맞췄습니다."))
                     .font(.callout).foregroundStyle(.secondary)
             }
+            let offline = model.unmountedVolumeCount
+            if offline > 0 {
+                Label(.ui("외장 디스크가 연결되지 않아 없는 곡이 \(offline)곡 있습니다. 디스크를 연결하면 옛 위치 그대로 찾을 수 있는지 먼저 확인하세요."),
+                      systemImage: "externaldrive.badge.xmark")
+                    .font(.callout).foregroundStyle(UIColors.warning.color)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Picker(selection: Bindable(model).filter) {
                 ForEach(RelocateModel.Filter.allCases, id: \.self) { filter in
                     Text(verbatim: "\(RelocateText.filterTitle(filter)) \(model.count(filter))").tag(filter)
@@ -92,7 +99,7 @@ struct RelocateView: View {
             List(rows) { result in
                 let pick = chosen[result.id]
                 RelocateRowView(result: result, chosen: pick, conflicted: pick.map { conflictPaths.contains($0.file.path) } ?? false,
-                                model: model)
+                                absence: model.absence(for: result.id), model: model)
             }
             .overlay {
                 if rows.isEmpty { Text(.ui("이 분류에 해당하는 곡이 없습니다")).foregroundStyle(.secondary) }
@@ -133,6 +140,8 @@ private struct RelocateRowView: View {
     /// 이 곡에 고른 후보와, 그 파일을 다른 곡에도 골랐는지(목록에서 한 번에 구해 넘긴다)
     let chosen: RelocateCandidate?
     let conflicted: Bool
+    /// 외장 디스크가 연결되지 않아 없는 곡이면 디스크 이름을 붙인다(대상에서 빼지 않는다).
+    let absence: RelocateAbsence?
     let model: RelocateModel
 
     var body: some View {
@@ -146,6 +155,12 @@ private struct RelocateRowView: View {
                 Text(.ui("옛 파일: \(result.target.fileName)"))
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     .help(result.target.oldPath)
+                if let absence, let text = RelocateText.absence(absence) {
+                    Label { Text(verbatim: text) } icon: { Image(systemName: "externaldrive.badge.xmark") }
+                        .font(.caption).foregroundStyle(UIColors.warning.color).lineLimit(1).truncationMode(.middle)
+                        .help(.ui("이 곡의 외장 디스크가 지금 연결돼 있지 않습니다. 디스크를 연결하면 옛 위치 그대로 찾을 수도 있습니다."))
+                        .accessibilityIdentifier("relocate-offline-\(result.id)")
+                }
             }
             .frame(width: 260, alignment: .leading)
             candidates.frame(maxWidth: .infinity, alignment: .leading)
