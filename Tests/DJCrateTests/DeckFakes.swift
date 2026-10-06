@@ -50,6 +50,16 @@ final class FakeDeckAudio: DeckAudioEngine {
         return PlayedRun(spans: [PlayedSpan(start: start, end: position)], continuing: true)
     }
 
+    /// 출력 장치가 빠져 이어 재생을 세 번 모두 실패했다: 재생 노드가 멈추고 덱에 알린다.
+    /// - Parameter continuing: 그 재생을 이어진 재생으로 알렸는지(실제 엔진은 false. 덱이 그와 상관없이 잇지 않는지 본다)
+    func simulateOutputLost(continuing: Bool) {
+        endRun(continuing: continuing)
+        isPlaying = false
+        hasPendingJump = false
+        log.append("output lost")
+        onInterrupted?(position)
+    }
+
     func load(url: URL, timelineOffset: Double) throws {
         if let loadError { throw loadError }
         isLoaded = true; duration = trackLength; log.append("load")

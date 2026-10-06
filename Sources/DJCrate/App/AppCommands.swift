@@ -116,7 +116,8 @@ struct AppCommands: Commands {
             Button(.ui("곡 편집…")) { TrackEditWindow.shared.open() }
                 .disabled(context.map { !TrackEditModel.canOpen($0.deck) } ?? true)
                 .help(context.flatMap { TrackEditModel.openingUnavailableReason($0.deck) } ?? String(ui: "덱에 올린 곡으로 편집 창을 엽니다"))
-            Button(context?.deck.isFlipRecording == true ? String(ui: "Flip 기록 마치기…") : String(ui: "Flip 기록 시작")) {
+            Button(context?.deck.isFlipRecording == true ? String(ui: "Flip 기록 마치기…")
+                   : context?.deck.hasPendingFlipResult == true ? String(ui: "Flip 다시 기록…") : String(ui: "Flip 기록 시작")) {
                 FlipWindow.shared.toggleRecording()
             }
             .disabled(context.map { $0.deck.flipUnavailableReason != nil } ?? true)

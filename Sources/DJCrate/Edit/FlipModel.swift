@@ -230,6 +230,16 @@ final class FlipModel {
         }
     }
 
+    /// 결과를 버리기 전에(창 닫기·다시 기록) 묻는다. 기록은 다시 만들 수 없다. 이미 추가한 곡에 넣었으면 묻지 않는다.
+    /// - Returns: 버려도 되면 true
+    func confirmDiscard(_ prompter: any ReflectionPrompter) -> Bool {
+        guard staged == nil else { return true }
+        return prompter.show(ReflectionPrompt(
+            title: String(ui: "Flip 결과를 버릴까요?"),
+            text: String(ui: "아직 추가한 곡에 넣지 않은 Flip(점프·루프 \(jumpCount)개)을 버립니다. 버린 기록은 다시 만들 수 없으니, 남기려면 취소하고 렌더해서 넣으세요"),
+            confirm: String(ui: "Flip 버리기"), destructive: true))
+    }
+
     func cancelRender() {
         renderTask?.cancel()
     }

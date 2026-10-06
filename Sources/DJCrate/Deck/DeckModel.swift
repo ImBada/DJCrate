@@ -182,7 +182,11 @@ final class DeckModel {
 
     /// Flip 기록 중(덱의 Flip 버튼 불빛). 기록 내용은 재생이 끝날 때마다 바뀌어 관찰하지 않는다(`flipRecording`).
     var isFlipRecording = false
+    /// 넣지 않은 Flip 결과 창이 열려 있다(새로 기록하면 그 결과를 버린다: 메뉴·단추가 확인 창을 연다).
+    var hasPendingFlipResult = false
     @ObservationIgnored var flipRecording: FlipRecording?
+    /// 되돌릴 수 없는 일(Flip 기록 버리기) 전에 묻는 창. 시험은 정해 둔 답을 준다.
+    @ObservationIgnored var prompter: any ReflectionPrompter = AlertPrompter()
 
     @ObservationIgnored var toastTask: Task<Void, Never>?
 
@@ -318,7 +322,6 @@ final class DeckModel {
             self.loudness = measured
             self.applyGain()
         }
-        audio.onPlayedRun = { [weak self] run in self?.flipRecording?.record(run) }
         audio.onRecovered = { [weak self] in
             guard let self else { return }
             self.isPlaying = true
@@ -329,6 +332,8 @@ final class DeckModel {
             self.ticker.stop()
             self.isPlaying = false
             self.playhead = position
+            // 이어 재생하지 못하고 멈췄다. 다음 재생은 새로 시작한 재생이다(Flip 기록에 점프로 남지 않는다).
+            self.flipRecording?.breakLink()
         }
     }
 

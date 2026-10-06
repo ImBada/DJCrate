@@ -212,4 +212,65 @@ struct FlipEditTests {
         #expect(near(output[1].start, 16.7) && output[1].firstBeatNumber == 1)
         #expect(flip.outputGrid([]).isEmpty)
     }
+
+    // MARK: - 짧은 루프의 출력 그리드(GridDraft로 박을 만들어 본다)
+
+    /// 출력 그리드를 rekordbox에 쓸 박으로 만든다(추가한 곡의 그리드 초안과 같은 길).
+    func outputBeats(_ flip: FlipEdit) -> (segments: [GridSegment], beats: [BeatGrid.Beat]) {
+        let segments = flip.outputGrid(grid)
+        return (segments, GridDraft(trackUUID: "flip", base: [], segments: segments).grid(duration: flip.duration).beats)
+    }
+
+    /// `length`초 루프(10.5초 = 1박에서 시작)를 8바퀴 돌고 이어서 14초까지 재생한 기록
+    func loopRecording(length: Double) -> FlipRecording {
+        var recording = FlipRecording()
+        let end = 10.5 + length
+        let turns = Array(repeating: span(10.5, end), count: 6)
+        recording.record(PlayedRun(spans: [span(8, end)] + turns + [span(10.5, 14)], continuing: false))
+        return recording
+    }
+
+    /// 모든 구간에 박이 하나 이상 남고, 박이 반 박보다 가깝게 붙거나 같은 번호가 이어지지 않는다.
+    func expectReadableGrid(_ result: (segments: [GridSegment], beats: [BeatGrid.Beat]), _ comment: Comment) {
+        for segment in result.segments {
+            #expect(result.beats.contains { abs($0.time - segment.start) < 0.0015 }, "박이 없는 구간 \(segment.start)초: \(comment)")
+        }
+        for (a, b) in zip(result.beats, result.beats.dropFirst()) {
+            #expect(b.time - a.time >= 0.25 - 0.0015, "박이 붙음 \(a.time)→\(b.time)초: \(comment)")
+            #expect(b.time - a.time <= 0.75 + 0.0015, "박이 빠짐 \(a.time)→\(b.time)초: \(comment)")
+            #expect(a.number != b.number, "같은 번호가 이어짐 \(a.time)→\(b.time)초(\(a.number)): \(comment)")
+        }
+    }
+
+    @Test func 반_박_루프도_박이_사라지지_않는다() throws {
+        // ½박(0.25초) 루프 8바퀴: 바퀴마다 새 구간을 열면 GridDraft가 구간마다 "다음 시작 − 반 박"에서 잘라 박이 0개였다.
+        let flip = try FlipEdit(loopRecording(length: 0.25), sourceDuration: 60)
+        let result = outputBeats(flip)
+        // 루프가 나온 출력 10.5~12.25초(첫 바퀴는 첫 조각 안)에 박이 남는다
+        #expect(result.beats.filter { $0.time >= 10.5 - 0.001 && $0.time < 12.25 }.count >= 3)
+        expectReadableGrid(result, "½박 루프")
+    }
+
+    @Test func 한_박_루프는_박_번호를_이어_센다() throws {
+        // 1박 루프 8바퀴: 바퀴마다 원곡 번호(1)로 새 구간을 열면 모든 박이 1이었다. 한 마디보다 짧은 조각은 번호를 이어 센다.
+        let flip = try FlipEdit(loopRecording(length: 0.5), sourceDuration: 60)
+        let result = outputBeats(flip)
+        expectReadableGrid(result, "1박 루프")
+        // 첫 바퀴는 첫 조각 안(출력 10.5초), 이어지는 여섯 바퀴는 출력 11~14초
+        let loopBeats = result.beats.filter { $0.time >= 10.5 - 0.001 && $0.time < 14 - 0.001 }
+        #expect(loopBeats.map(\.number) == [1, 2, 3, 4, 1, 2, 3])
+        // 루프 뒤 곡이 이어지는 조각(한 마디 넘게 김)은 원곡 번호로: 마지막 바퀴의 출력 14초가 원곡 10.5초(1박)
+        #expect(result.beats.first { abs($0.time - 14) < 0.001 }?.number == 1)
+        // 박 간격은 끝까지 0.5초
+        for (a, b) in zip(result.beats, result.beats.dropFirst()) { #expect(near(b.time - a.time, 0.5, 0.0015)) }
+    }
+
+    @Test func 박_줄을_벗어난_짧은_루프도_박이_남는다() throws {
+        // 박 사이(10.6초)에서 시작한 0.2초 루프 8바퀴: 바퀴마다 박 줄이 어긋나도 박 없는 구간·붙은 박이 생기지 않는다.
+        var recording = FlipRecording()
+        recording.record(PlayedRun(spans: [span(8, 10.8)] + Array(repeating: span(10.6, 10.8), count: 6) + [span(10.6, 14)],
+                                   continuing: false))
+        let flip = try FlipEdit(recording, sourceDuration: 60)
+        expectReadableGrid(outputBeats(flip), "박 사이 0.2초 루프")
+    }
 }

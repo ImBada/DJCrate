@@ -73,11 +73,17 @@ public struct FlipEdit: Sendable, Equatable {
 
     /// 출력 그리드: 조각마다 원본 템포 구간의 첫 박을 옮기고, 앞 구간의 박 줄(같은 BPM·박 번호)에 그대로 놓이면 새 구간을 열지 않는다.
     /// 원본 첫 구간은 곡 시작 쪽으로, 마지막 구간은 곡 끝까지 늘려 본다(`GridDraft.grid`와 같다). 원본 그리드가 없으면 빈 배열.
+    ///
+    /// 짧은 루프·스터터에서 박이 사라지거나 모두 같은 번호가 되지 않게 두 규칙을 더한다(`GridDraft.grid`는 구간마다 "다음 시작 − 반 박"에서 자른다).
+    /// - 박 줄은 이어지고 번호만 다른 이음새에서, 뒤 조각이 한 마디보다 짧으면 번호를 이어 센다(1박 루프 8바퀴 = 1·2·3·4·1·…).
+    ///   한 마디 이상 이어지는 조각(핫큐로 넘어간 뒤 곡이 흐르는 곳)은 원곡 번호로 새 구간을 연다.
+    /// - 새 구간이 앞 구간 시작에서 반 박 안에 열리면 앞 구간에는 박이 하나도 남지 않으니 앞 구간을 뺀다(½박 루프는 그 앞 박 줄이 이어진다).
     public func outputGrid(_ source: [GridSegment]) -> [GridSegment] {
         let segments = source.filter { $0.bpm > 0 }.sorted { $0.start < $1.start }
         guard !segments.isEmpty else { return [] }
         var result: [GridSegment] = []
         for piece in pieces {
+            var seam = true
             for (index, segment) in segments.enumerated() {
                 let from = index == 0 ? -Double.infinity : segment.start
                 let to = index + 1 < segments.count ? segments[index + 1].start : Double.infinity
@@ -89,19 +95,29 @@ public struct FlipEdit: Sendable, Equatable {
                 guard beat < hi else { continue }
                 let number = ((segment.firstBeatNumber - 1 + Int(k)) % 4 + 4) % 4 + 1
                 let candidate = GridSegment(start: piece.outputStart + beat - piece.sourceStart, bpm: segment.bpm, firstBeatNumber: number)
-                if let last = result.last, Self.continues(last, with: candidate) { continue }
+                // 이음새 뒤 첫 박만 번호를 이어 셀 수 있다(조각 안에서 원곡 그리드가 번호를 바꾼 것은 그대로 둔다).
+                let short = seam && piece.sourceEnd - piece.sourceStart < 4 * interval - FlipRecording.tolerance
+                seam = false
+                while let last = result.last, candidate.start - last.start <= 30 / last.bpm + Self.gridTolerance {
+                    result.removeLast()
+                }
+                if let last = result.last, Self.continues(last, with: candidate, countingOn: short) { continue }
                 result.append(candidate)
             }
         }
         return result
     }
 
-    /// `next`의 첫 박이 `segment`의 박 줄 위(같은 BPM, 1ms 안, 박 번호도 이어짐)에 있는지
-    static func continues(_ segment: GridSegment, with next: GridSegment) -> Bool {
+    /// `GridDraft.grid`가 박을 자를 때 보는 여유(0.5ms)와 같다
+    static let gridTolerance = 0.0005
+
+    /// `next`의 첫 박이 `segment`의 박 줄 위(같은 BPM, 1ms 안)에 있고 박 번호도 이어지는지.
+    /// `countingOn`이면 번호는 보지 않는다(그 박을 앞 박 줄의 다음 번호로 센다).
+    static func continues(_ segment: GridSegment, with next: GridSegment, countingOn: Bool = false) -> Bool {
         guard abs(segment.bpm - next.bpm) < 0.0005 else { return false }
         let interval = 60 / segment.bpm
         let beats = ((next.start - segment.start) / interval).rounded()
         guard abs(next.start - (segment.start + beats * interval)) <= FlipRecording.tolerance else { return false }
-        return ((segment.firstBeatNumber - 1 + Int(beats)) % 4 + 4) % 4 + 1 == next.firstBeatNumber
+        return countingOn || ((segment.firstBeatNumber - 1 + Int(beats)) % 4 + 4) % 4 + 1 == next.firstBeatNumber
     }
 }

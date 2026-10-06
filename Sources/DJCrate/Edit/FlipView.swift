@@ -306,9 +306,9 @@ private struct FlipFooter: View {
                     .accessibilityLabel(.ui("렌더 진행"))
                 Button(.ui("취소")) { model.cancelRender() }
             } else {
-                Button(.ui("Flip 버리기"), role: .destructive) { onDiscard() }
+                Button(.ui("Flip 버리기…"), role: .destructive) { onDiscard() }
                     .help(.ui("이 기록을 버리고 창을 닫습니다. 원곡과 rekordbox는 그대로입니다"))
-                Button(.ui("다시 기록")) { onRerecord() }
+                Button(.ui("다시 기록…")) { onRerecord() }
                     .help(.ui("이 기록을 버리고 덱에서 Flip 기록을 다시 시작합니다"))
                 Button {
                     model.render()

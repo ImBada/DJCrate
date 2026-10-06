@@ -43,6 +43,25 @@ struct DeckLoadTests {
         #expect(store.deckTrackID == nil)
     }
 
+    @Test func 덱이_곡을_바꾸지_말라고_하면_올리지_않는다() async throws {
+        // Flip 기록 중 곡을 바꾸기 전에 묻고, 취소하면 덱도 덱 곡 ID도 그대로다.
+        let fixture = try historyFixture()
+        let (store, log) = await loadedStore(fixture)
+        var asked: [String] = []
+        var allow = true
+        store.confirmDeckReplacement = { row in asked.append(row.id); return allow }
+        store.loadToDeck(store.rowsByID["101"])
+        #expect(log.ids == ["101"] && asked == ["101"])
+        allow = false
+        store.loadToDeck(store.rowsByID["102"])
+        #expect(log.ids == ["101"])
+        #expect(store.deckTrackID == "101")
+        // 같은 곡을 다시 올리는 것은 묻지 않는다(곡이 바뀌지 않는다)
+        store.loadToDeck(store.rowsByID["101"])
+        #expect(asked == ["101", "102"])
+        #expect(log.ids == ["101", "101"])
+    }
+
     @Test func 불러오기_명령은_고른_곡_중_표_순서로_첫_곡을_올린다() async throws {
         let fixture = try historyFixture()
         let (store, log) = await loadedStore(fixture)

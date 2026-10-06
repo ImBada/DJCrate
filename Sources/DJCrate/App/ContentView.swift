@@ -202,6 +202,7 @@ struct ContentView: View {
             }
             // 목록 선택은 덱을 바꾸지 않는다. 더블클릭·⌘→·오른쪽 클릭·끌어다 놓기로만 덱에 올린다(#93).
             store.onLoadToDeck = { [weak deck] row in deck?.load(row) }
+            store.confirmDeckReplacement = { [weak deck] _ in deck?.confirmDiscardingFlip() ?? true }
             store.allowsLibrarySync = { [weak deck] in
                 guard let deck else { return true }
                 return !deck.hasUncommittedCueEdits && deck.cueDragBase == nil && deck.gridDragBase == nil

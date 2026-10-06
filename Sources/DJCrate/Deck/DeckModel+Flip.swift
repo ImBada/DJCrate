@@ -22,6 +22,8 @@ extension DeckModel {
             return
         }
         flipRecording = FlipRecording()
+        // 기록하는 동안만 들린 구간을 받는다(기록하지 않을 때 멈춤·점프마다 구간을 계산하지 않게).
+        audio.onPlayedRun = { [weak self] run in self?.flipRecording?.record(run) }
         _ = audio.takePlayedRun()
         isFlipRecording = true
         showToast(String(ui: "Flip 기록 중: 재생하며 핫큐·루프를 쓴 뒤 Flip을 다시 누르면 편집본으로 만듭니다"), kind: .success)
@@ -31,6 +33,7 @@ extension DeckModel {
     func finishFlipRecording() -> FlipRecording? {
         guard isFlipRecording, var recording = flipRecording else { return nil }
         if let run = audio.takePlayedRun() { recording.record(run) }
+        audio.onPlayedRun = nil
         flipRecording = nil
         isFlipRecording = false
         return recording
@@ -38,7 +41,21 @@ extension DeckModel {
 
     /// 기록을 버린다(곡을 바꿀 때).
     func cancelFlipRecording() {
+        audio.onPlayedRun = nil
         flipRecording = nil
         isFlipRecording = false
+    }
+
+    /// 곡을 바꿔 기록을 버리기 전에 묻는다. 기록 중이 아니거나 점프·루프가 아직 없으면 묻지 않는다.
+    /// - Returns: 버려도 되면 true(기록은 곡을 바꿀 때 `load`가 지운다). 취소하면 false이고 기록은 이어 간다.
+    func confirmDiscardingFlip() -> Bool {
+        guard isFlipRecording else { return true }
+        // 지금 재생 안에서 아직 알리지 않은 점프도 센다.
+        if let run = audio.takePlayedRun() { flipRecording?.record(run) }
+        guard let recording = flipRecording, !recording.isEmpty else { return true }
+        return prompter.show(ReflectionPrompt(
+            title: String(ui: "Flip 기록을 버릴까요?"),
+            text: String(ui: "곡을 바꾸면 지금까지 기록한 점프·루프 \(recording.jumpCount)개를 버립니다. 버린 기록은 다시 만들 수 없으니, 남기려면 취소하고 Flip을 눌러 기록을 마치세요"),
+            confirm: String(ui: "기록 버리기"), destructive: true))
     }
 }

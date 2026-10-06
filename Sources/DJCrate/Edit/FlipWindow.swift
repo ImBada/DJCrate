@@ -6,6 +6,7 @@ import SwiftUI
 /// Flip: 덱의 Flip 단추로 기록을 시작·마치고, 마치면 결과 창 하나를 띄운다. 창 안에 자체 재생기가 있어 덱과 따로 듣는다.
 ///
 /// 렌더해 넣으면 창을 닫고 추가한 곡에서 그 곡을 고른다(곡 편집 창과 같다). 창을 닫으면 그 기록은 버린다.
+/// 기록은 다시 만들 수 없어 넣기 전에 버리는 일(창 닫기·⌘W·버리기·다시 기록·새 기록)은 먼저 묻는다(`FlipModel.confirmDiscard`).
 /// 단축키(스페이스바 재생, Home·End)는 이 창이 앞에 있을 때만 받는다. 덱 단축키는 `KeyRouter`가 이 창을 빼고 받는다.
 @MainActor
 final class FlipWindow: NSObject, NSWindowDelegate {
@@ -17,6 +18,8 @@ final class FlipWindow: NSObject, NSWindowDelegate {
     private var host: NSHostingController<FlipView>?
     private(set) var model: FlipModel?
     private var monitors: [Any] = []
+    /// 결과를 버리기 전에 묻는 창
+    var prompter: any ReflectionPrompter = AlertPrompter()
 
     func attach(deck: DeckModel, store: LibraryStore) {
         self.deck = deck
@@ -38,8 +41,8 @@ final class FlipWindow: NSObject, NSWindowDelegate {
                 deck.showToast(String(ui: "Flip 렌더가 끝나거나 취소한 뒤 다시 기록하세요"))
                 return
             }
-            // 지난 결과 창은 새 기록과 섞이지 않게 닫는다(그 결과는 버린다).
-            window?.close()
+            // 지난 결과 창은 새 기록과 섞이지 않게 닫는다(넣지 않은 결과면 버려도 되는지 묻는다).
+            guard discardResult() else { return }
             deck.startFlipRecording()
         }
     }
@@ -63,9 +66,10 @@ final class FlipWindow: NSObject, NSWindowDelegate {
         }
         model.onStaged = { [weak self] staged in self?.finish(staged) }
         self.model = model
+        deck.hasPendingFlipResult = true
         let root = FlipView(model: model, deck: deck,
                             onRerecord: { [weak self] in self?.rerecord() },
-                            onDiscard: { [weak self] in self?.window?.close() })
+                            onDiscard: { [weak self] in self?.window?.performClose(nil) })
         if let host {
             host.rootView = root
         } else {
@@ -90,8 +94,16 @@ final class FlipWindow: NSObject, NSWindowDelegate {
 
     /// 이 결과를 버리고 덱에서 다시 기록한다.
     private func rerecord() {
-        window?.close()
+        guard discardResult() else { return }
         deck?.startFlipRecording()
+    }
+
+    /// 열린 결과 창을 닫는다. 넣지 않은 결과면 먼저 묻고, 취소하면 false(창은 그대로).
+    private func discardResult() -> Bool {
+        guard let window, window.isVisible, let model else { return true }
+        guard model.confirmDiscard(prompter) else { return false }
+        window.close()
+        return true
     }
 
     private func installMonitors() {
@@ -121,10 +133,17 @@ final class FlipWindow: NSObject, NSWindowDelegate {
         store?.showStagedEdit(staged, hasGrid: hasGrid)
         window?.close()
         model = nil
+        deck?.hasPendingFlipResult = false
+    }
+
+    /// 닫기 단추·⌘W·버리기: 넣지 않은 결과면 버려도 되는지 묻는다.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        model?.confirmDiscard(prompter) ?? true
     }
 
     func windowWillClose(_ notification: Notification) {
         model?.close()
         model = nil
+        deck?.hasPendingFlipResult = false
     }
 }
