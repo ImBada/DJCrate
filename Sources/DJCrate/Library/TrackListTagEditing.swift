@@ -16,7 +16,7 @@ enum TrackListTagEditing {
         if row.isUsb { return String(ui: "USB 곡은 읽기 전용이니 로컬 라이브러리에서 태그를 편집하세요") }
         if row.track.isStreaming { return String(ui: "스트리밍 곡의 태그는 편집할 수 없으니 로컬 음원 파일이 있는 곡을 고르세요") }
         guard let key else { return String(ui: "이 칸은 읽기 전용이니 제목·아티스트·코멘트 같은 태그 칸을 고르세요") }
-        // 쓰기를 좁게 확인한 칸(평점·곡 색, #65): 추가한 곡은 넣은 뒤, 동기화 곡·재생 목록에 든 곡은 쓰기와 같은 판단(`TagWriteScope`)으로 막는다
+        // 쓰기를 좁게 확인한 칸(평점·곡 색, #65): 추가한 곡은 넣은 뒤, 재생 목록에 든 곡(과 상태 0·256·257 밖의 곡)은 쓰기와 같은 판단(`TagWriteScope`)으로 막는다
         guard TagWriteScope.byKey[key] != nil else { return nil }
         if row.isStaged { return String(ui: "추가한 곡의 \(key.label)은 rekordbox에 넣은 뒤 고치세요") }
         return TagWriteScope.blockReason(keys: [key], state: row.track.dataStatus, inPlaylist: row.inPlaylist)

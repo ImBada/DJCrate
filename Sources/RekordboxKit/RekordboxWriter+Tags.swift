@@ -214,7 +214,7 @@ extension RekordboxWriter {
             throw block(String(ui: "앨범이 없는 곡에는 앨범 아티스트를 쓸 수 없습니다"))
         }
         try checkTagState(draft, state: content.state, block: block)
-        // 칸별로 좁게 확인한 범위(평점·곡 색: 상태 0, 재생 목록에 없는 곡, 걸리는 인텔리전트 목록 없음, #65). 판단은 `TagWriteScope` 한 곳이다.
+        // 칸별로 좁게 확인한 범위(평점·곡 색: 재생 목록에 없는 곡, #65). 판단은 `TagWriteScope` 한 곳이다.
         let narrowed = draft.changedKeys.filter { scopes[$0] != nil }
         if !narrowed.isEmpty {
             var listed = false
@@ -222,10 +222,6 @@ extension RekordboxWriter {
                 listed = try addedToPlaylists.contains(content.id) || !tagPlaylists(db, contentID: content.id).isEmpty
             }
             if let reason = TagWriteScope.blockReason(keys: narrowed, state: content.state, inPlaylist: listed, scopes: scopes) { throw block(reason) }
-            if narrowed.contains(where: { !TagWriteScope.scope(for: $0, in: scopes).smartPlaylists }),
-               let reason = TagWriteScope.smartPlaylistBlockReason(keys: narrowed, smartPlaylists: try smartPlaylists(db), scopes: scopes) {
-                throw block(reason)
-            }
         }
         try checkTagAlbum(draft, contentID: content.id, db: db, checks: albumChecks, block: block)
         // 독립 칸(키·평점·곡 색)은 이 초안이 고칠 때만 기준과 비교한다. 그 칸이 없던 때의 초안(기준이 빈칸)이 이미 값이 있는 곡에서, 또는 그 뒤
@@ -281,18 +277,6 @@ extension RekordboxWriter {
     }
 
     /// 곡이 든 살아 있는 재생 목록(곡 정보를 쓰면 XML Timestamp를 고친다, #173). 지운 목록·지운 곡 항목은 뺀다.
-    /// 살아 있는 인텔리전트 재생 목록의 이름과 조건(라이브러리 읽기 `RekordboxPlaylist.smartSource`와 같은 판단, #68)
-    static func smartPlaylists(_ db: CipherDatabase) throws -> [(name: String, source: SmartPlaylistSource)] {
-        var lists: [(name: String, source: SmartPlaylistSource)] = []
-        try db.query("""
-            SELECT Name, Attribute, SmartList FROM djmdPlaylist
-            WHERE rb_local_deleted = 0 AND (Attribute > 1 OR ifnull(SmartList, '') <> '') ORDER BY Seq, ID
-            """) { r in
-            lists.append((r.string(0) ?? "", SmartPlaylistSource.reading(attribute: r.int(1) ?? 0, smartList: r.string(2))))
-        }
-        return lists
-    }
-
     static func tagPlaylists(_ db: CipherDatabase, contentID: String) throws -> [String] {
         var ids: [String] = []
         try db.query("""

@@ -6,7 +6,7 @@ import RekordboxKit
 import Testing
 
 /// `djc draft tag --rating`·`--color`(#65): 평점은 별 수(1~5, 0·빈칸은 지우기), 곡 색은 번호('1'~'8')나 rekordbox 색 이름.
-/// 쓰기를 확인한 범위 밖의 곡(동기화 곡, 재생 목록에 든 곡)은 초안을 만들지 않고 이유를 알린다(`TagWriteScope`).
+/// 쓰기를 확인한 범위 밖의 곡(재생 목록에 든 곡, 곡 상태 0·256·257 밖)은 초안을 만들지 않고 이유를 알린다(`TagWriteScope`).
 extension DraftCommandTests {
     /// 곡 101: 상태 0, 평점 2, 색 Red('2'), 색 줄 여덟
     func ratedFixture(state: Int = 0) throws -> RekordboxFixture {
@@ -47,18 +47,12 @@ extension DraftCommandTests {
         #expect(TagDraftStore.load(trackUUID: "track-101", directory: directory(fixture, "tag")) == nil)
     }
 
-    @Test(arguments: [256, 257]) func 동기화된_곡의_평점과_색은_초안을_만들지_않고_이유를_알린다(state: Int) throws {
+    @Test(arguments: [256, 257]) func 동기화된_곡의_평점과_색도_초안을_만든다(state: Int) throws {
+        // #173 S1 T11·T12(2026-10-04) 사본 재현(2026-10-07)으로 동기화 곡도 열었다
         let fixture = try ratedFixture(state: state)
-        for args in [["--rating", "4"], ["--color", "7"]] {
-            let output = try run(["tag", "101"] + args, fixture: fixture)
-            #expect(output.status != 0)
-            let error = try #require(output.document(error: true)["error"] as? [String: Any])
-            #expect(error["code"] as? String == "unverified_field")
-            #expect((error["message"] as? String)?.contains("동기화") == true)
-        }
-        #expect(TagDraftStore.load(trackUUID: "track-101", directory: directory(fixture, "tag")) == nil)
-        // 다른 칸은 예전처럼 초안을 만든다
-        #expect(try run(["tag", "101", "--title", "새 제목"], fixture: fixture).status == 0)
+        #expect(try run(["tag", "101", "--rating", "4", "--color", "7"], fixture: fixture).status == 0)
+        let draft = try #require(TagDraftStore.load(trackUUID: "track-101", directory: directory(fixture, "tag")))
+        #expect(draft.fields.rating == "4" && draft.fields.color == "7" && draft.changedKeys == [.rating, .color])
     }
 
     @Test func 재생_목록에_든_곡의_평점은_초안을_만들지_않는다() throws {

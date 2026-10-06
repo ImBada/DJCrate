@@ -151,20 +151,27 @@ struct RatingColorTagTests {
 
     // MARK: 확인한 범위 (곡 상태·재생 목록)
 
-    @Test func 평점과_곡_색은_상태_0이고_재생_목록에_없는_곡만_확인했다() {
-        #expect(TagWriteScope.scope(for: .rating) == TagWriteScope(states: [0], playlistXML: false, smartPlaylists: false))
-        #expect(TagWriteScope.scope(for: .color) == TagWriteScope(states: [0], playlistXML: false, smartPlaylists: false))
+    @Test func 평점과_곡_색은_상태_0·256·257이고_재생_목록에_없는_곡을_확인했다() {
+        // 상태 0: 2026-10-04 묶음 2 S1~S3. 동기화 256 → 257: #173 S1 T11·T12(2026-10-04), 사본 재현 2026-10-07
+        #expect(TagWriteScope.scope(for: .rating) == TagWriteScope(states: [0, 256, 257], playlistXML: false))
+        #expect(TagWriteScope.scope(for: .color) == TagWriteScope(states: [0, 256, 257], playlistXML: false))
         for key in TagFields.Key.allCases where key != .rating && key != .color {
             #expect(TagWriteScope.scope(for: key) == .common, "\(key)")
         }
         #expect(TagWriteScope.blockReason(keys: [.rating, .title], state: 0, inPlaylist: false) == nil)
         #expect(TagWriteScope.blockReason(keys: [.title, .musicalKey], state: 256, inPlaylist: true) == nil)
+        for state in [256, 257] {
+            #expect(TagWriteScope.blockReason(keys: [.rating, .color], state: state, inPlaylist: false) == nil, "\(state)")
+        }
     }
 
-    @Test(arguments: [256, 257]) func 동기화된_곡의_평점과_곡_색은_할_일과_함께_막는다(state: Int) throws {
-        let reason = try #require(TagWriteScope.blockReason(keys: [.title, .rating, .color], state: state, inPlaylist: false))
+    @Test func 범위_밖의_곡_상태는_칸_이름과_할_일을_함께_알린다() throws {
+        // 범위 표가 곡 상태를 좁히면(지금은 평점·곡 색도 공통과 같은 0·256·257) 동기화 곡을 그 칸만 막는다
+        let narrow = TagWriteScope(states: [0], playlistXML: false)
+        let reason = try #require(TagWriteScope.blockReason(keys: [.title, .rating, .color], state: 256, inPlaylist: false,
+                                                            scopes: [.rating: narrow, .color: narrow]))
         #expect(reason.contains("동기화") && reason.contains("평점·곡 색") && reason.contains("rekordbox에서"))
-        let colorOnly = try #require(TagWriteScope.blockReason(keys: [.color], state: state, inPlaylist: false))
+        let colorOnly = try #require(TagWriteScope.blockReason(keys: [.color], state: 257, inPlaylist: false, scopes: [.color: narrow]))
         #expect(colorOnly.contains("곡 색") && !colorOnly.contains("평점"))
     }
 
@@ -183,28 +190,5 @@ struct RatingColorTagTests {
         #expect(TagWriteScope.blockReason(keys: [.rating], state: 256, inPlaylist: true, scopes: [:]) == nil)
         #expect(TagWriteScope.blockReason(keys: [.rating], state: 256, inPlaylist: true,
                                           scopes: [.rating: TagWriteScope(states: [0, 256, 257], playlistXML: false)])?.contains("재생 목록") == true)
-    }
-
-    // MARK: 인텔리전트 재생 목록(묶음 2에 없어 미확인)
-
-    static func smart(_ property: String) -> SmartPlaylistSource {
-        SmartPlaylistSource(xml: "<NODE Id=\"-1\" LogicalOperator=\"1\" AutomaticUpdate=\"0\">"
-            + "<CONDITION PropertyName=\"\(property)\" Operator=\"1\" ValueUnit=\"\" ValueLeft=\"3\" ValueRight=\"\"/></NODE>")
-    }
-
-    @Test func 인텔리전트_목록_조건이_걸리는_칸은_평점과_모르는_항목·못_읽은_목록이다() {
-        #expect(TagWriteScope.smartPlaylistKeys(Self.smart("rating")) == [.rating])
-        #expect(TagWriteScope.smartPlaylistKeys(Self.smart("name")).isEmpty && TagWriteScope.smartPlaylistKeys(Self.smart("year")).isEmpty)
-        #expect(TagWriteScope.smartPlaylistKeys(Self.smart("color")) == Set(TagFields.Key.allCases), "모르는 항목은 곡 색일 수 있다")
-        #expect(TagWriteScope.smartPlaylistKeys(.unreadable("x")) == Set(TagFields.Key.allCases))
-
-        let lists = [(name: "제목 조건", source: Self.smart("name")), (name: "별 셋", source: Self.smart("rating"))]
-        let reason = try? #require(TagWriteScope.smartPlaylistBlockReason(keys: [.title, .rating, .color], smartPlaylists: lists))
-        #expect(reason?.contains("‘별 셋’") == true && reason?.contains("평점") == true && reason?.contains("곡 색") == false)
-        #expect(reason?.contains("rekordbox에서") == true)
-        #expect(TagWriteScope.smartPlaylistBlockReason(keys: [.color], smartPlaylists: lists) == nil, "평점 조건은 곡 색에 걸리지 않는다")
-        #expect(TagWriteScope.smartPlaylistBlockReason(keys: [.title, .comment], smartPlaylists: [(name: "?", source: .unreadable("x"))]) == nil,
-                "공통 칸은 예전처럼 보지 않는다")
-        #expect(TagWriteScope.smartPlaylistBlockReason(keys: [.rating], smartPlaylists: lists, scopes: [:]) == nil)
     }
 }
