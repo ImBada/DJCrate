@@ -203,6 +203,24 @@ public struct GridDraft: Codable, Equatable, Sendable {
         segments.sort { $0.start < $1.start }
     }
 
+    /// `time` 그대로 새 템포 구간을 시작한다(Q를 끈 변속 지점, #207). 박 번호는 경계가 대신하는 가장 가까운 박을 잇는다.
+    /// 쓰기는 앞 구간에서 경계의 반 박 안쪽 박을 새 구간 첫 박으로 대체하므로(rekordbox 7.2.18 #11 실험),
+    /// 앞 구간이나 새 구간의 박이 모두 사라지는 자리(이웃 변속 지점과 반 박 안쪽)와 첫 구간 시작 앞은 받지 않는다.
+    @discardableResult
+    public mutating func addTempoChange(at time: Double, duration: Double) -> Bool {
+        guard time.isFinite, time >= 0, time < duration, let first = segments.first, time > first.start + 0.0005 else { return false }
+        let index = segmentIndex(at: time)
+        let previous = segments[index]
+        guard previous.bpm > 0 else { return false }
+        let interval = 60 / previous.bpm
+        // grid(duration:)가 경계 앞 반 박(+0.5ms 오차)까지를 앞 구간으로 둔다. 1ms 여유를 둔다.
+        guard time - previous.start > interval / 2 + 0.001 else { return false }
+        if index + 1 < segments.count, segments[index + 1].start - time <= interval / 2 + 0.001 { return false }
+        guard let beat = grid(duration: duration).beats.min(by: { abs($0.time - time) < abs($1.time - time) }) else { return false }
+        segments.insert(GridSegment(start: time, bpm: previous.bpm, firstBeatNumber: beat.number), at: index + 1)
+        return true
+    }
+
     public mutating func removeTempoChange(at index: Int) {
         guard index > 0, segments.indices.contains(index) else { return }
         segments.remove(at: index)

@@ -20685,18 +20685,50 @@
         }
       }
     },
-    "변속곡: 가장 가까운 박부터 새 템포 구간을 시작합니다" : {
+    "변속 지점은 첫 구간 시작 뒤, 이웃 변속 지점과 반 박 넘게 떨어진 자리에 두세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "For tracks with tempo changes: starts a new tempo section at the nearest beat"
+            "value" : "Place a tempo change after the first section starts and more than half a beat from other tempo changes"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "テンポが変わる曲向け：最も近い拍から新しいテンポ区間を始めます"
+            "value" : "テンポ変更点は最初の区間の開始より後、ほかのテンポ変更点から半拍より離れた位置に置いてください"
+          }
+        }
+      }
+    },
+    "변속곡: 가장 가까운 박부터 새 템포 구간을 시작합니다(Q를 끄면 재생 위치 그대로)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For tracks with tempo changes: starts a new tempo section at the nearest beat (turn off Q to use the exact playhead position)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テンポが変わる曲向け：最も近い拍から新しいテンポ区間を始めます（Qをオフにすると再生位置そのまま）"
+          }
+        }
+      }
+    },
+    "변속곡: 재생 위치에서 새 템포 구간을 시작합니다(Q를 켜면 가장 가까운 박)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For tracks with tempo changes: starts a new tempo section at the playhead (turn on Q to snap to the nearest beat)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テンポが変わる曲向け：再生位置から新しいテンポ区間を始めます（Qをオンにすると最も近い拍）"
           }
         }
       }

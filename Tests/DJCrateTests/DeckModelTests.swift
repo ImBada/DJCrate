@@ -308,6 +308,41 @@ struct DeckGridGainTests {
         #expect((h.deck.hotCue(slot: 0)?.time ?? 99) < 60.5, "BPM이 빨라지면 뒤쪽 박은 앞으로 온다")
     }
 
+    /// #207: 변속 지점도 큐·루프처럼 Q를 따른다.
+    @Test func Q를_끄면_변속_지점을_재생_위치_그대로_넣는다() async throws {
+        let h = try DeckHarness()
+        try await h.loaded()
+        h.deck.quantize = false
+        h.deck.seek(10.625)
+        h.deck.addTempoChangeAtPlayhead()
+        let segments = try #require(h.deck.gridDraft?.segments)
+        #expect(segments.count == 2)
+        #expect(abs(segments[1].start - 10.625) < 1e-9)
+    }
+
+    @Test func Q를_켜면_변속_지점을_가장_가까운_박에_넣는다() async throws {
+        let h = try DeckHarness()
+        try await h.loaded()
+        h.deck.quantize = true
+        h.deck.seek(10.625)
+        h.deck.addTempoChangeAtPlayhead()
+        let segments = try #require(h.deck.gridDraft?.segments)
+        #expect(segments.count == 2)
+        #expect(abs(segments[1].start - 10.5) < 1e-9)
+    }
+
+    @Test func 이웃_변속_지점과_반_박_안쪽이면_넣지_않고_알린다() async throws {
+        let h = try DeckHarness()
+        try await h.loaded()
+        h.deck.quantize = false
+        h.deck.seek(10.625)
+        h.deck.addTempoChangeAtPlayhead()
+        h.deck.seek(10.7)
+        h.deck.addTempoChangeAtPlayhead()
+        #expect(h.deck.gridDraft?.segments.count == 2)
+        #expect(h.deck.toast?.text == "변속 지점은 첫 구간 시작 뒤, 이웃 변속 지점과 반 박 넘게 떨어진 자리에 두세요")
+    }
+
     @Test func 그리드를_되돌리면_큐도_제자리로() async throws {
         let original = [GridSegment(start: 0.5, bpm: 120, firstBeatNumber: 1)]
         let h = try DeckHarness(grid: original, gridBase: original)
