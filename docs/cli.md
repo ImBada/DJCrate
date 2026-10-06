@@ -126,7 +126,7 @@ djc draft rm tag 101 --db /tmp/djc-fixture/master.db
 - `draft cue <ContentID> --time <초>`: 기본은 메모리 큐다. `--slot A`~`H`를 주면 해당 핫큐를 놓거나 교체한다. `--name`은 이름이다. 시각은 **rekordbox 시간축의 초**이며 자동 퀀타이즈하지 않는다.
 - `--loop-end <초>`는 시작보다 뒤인 루프 끝이다. 선택 `--beats <박 수>`는 양의 정수 또는 1/n, `--active`는 활성 루프 지정이다. 두 옵션은 `--loop-end`와 함께 쓴다. 활성 루프는 곡에 하나만 남는다.
 - 메모리 큐는 rekordbox 자동 큐(`CUE(Auto)`·`1.1Bars`)를 포함해 10개까지다. 자동 큐도 앱 덱처럼 초안에 메모리 큐로 들어가며, 자동 큐 없이 만든 옛 초안을 이어 고치면 곡의 자동 큐를 `base`·`cues`에 채워 저장한다(#145). 같은 자리 ±30ms의 기존 메모리 큐는 앱처럼 그대로 사용한다(루프 추가 시에는 기존 루프만 해당). 새 이름이나 루프 길이로 그 큐를 덮어쓰지는 않는다.
-- `draft tag <ContentID>`: `--title`, `--artist`, `--album`, `--album-artist`, `--genre`, `--composer`, `--year`, `--track-number`, `--comment`, `--musical-key` 중 하나 이상을 준다. 빈 문자열은 해당 값을 비우며, 빈 제목·숫자가 아닌 연도/트랙 번호는 거절한다. `--musical-key`는 rekordbox 키 목록의 Camelot 이름(`1A`~`12B`)만 받고(`8a`·` 08B `는 `8A`·`8B`로 다듬는다) `''`는 키를 지운다. `Am` 같은 다른 표기는 `invalid_arguments`로 거절한다. 초안을 쓰는 rekordbox에 그 이름의 살아 있는 키 줄이 하나가 아니면 미리 보기·쓰기가 그 곡만 막고 이유를 알린다. 추가한 곡(ContentID 없음)의 키는 앱에서 고르면 곡을 넣을 때 함께 쓴다. `djc track-add`에는 키 옵션이 없다(넣은 뒤 `draft tag`로 고친다).
+- `draft tag <ContentID>`: `--title`, `--artist`, `--album`, `--album-artist`, `--genre`, `--composer`, `--year`, `--track-number`, `--comment`, `--musical-key`, `--rating`, `--color` 중 하나 이상을 준다. 빈 문자열은 해당 값을 비우며, 빈 제목·숫자가 아닌 연도/트랙 번호는 거절한다. `--musical-key`는 rekordbox 키 목록의 Camelot 이름(`1A`~`12B`)만 받고(`8a`·` 08B `는 `8A`·`8B`로 다듬는다) `''`는 키를 지운다. `Am` 같은 다른 표기는 `invalid_arguments`로 거절한다. 초안을 쓰는 rekordbox에 그 이름의 살아 있는 키 줄이 하나가 아니면 미리 보기·쓰기가 그 곡만 막고 이유를 알린다. 추가한 곡(ContentID 없음)의 키는 앱에서 고르면 곡을 넣을 때 함께 쓴다. `djc track-add`에는 키 옵션이 없다(넣은 뒤 `draft tag`로 고친다). `--rating`은 평점 별 수 `1`~`5`(`★★★`도 받는다)이고 `0`·`''`는 평점을 지운다. `--color`는 곡 색 번호 `1`~`8`이나 rekordbox 색 이름(`Red`·`blue`, 대소문자 무시)이고 `0`·`''`는 색을 지운다. 그 밖의 값은 `invalid_arguments`다. 평점·곡 색은 쓰기를 확인한 곡(동기화 상태 0이고 살아 있는 재생 목록에 없는 곡, #65)에서만 초안을 만들고, 그 밖의 곡은 `unverified_field`로 거절한다(다른 칸은 그대로 초안을 만든다).
 - `draft rm cue|tag <ContentID>`는 해당 종류의 **초안 전체**를 버린다. 개별 큐나 rekordbox 원본을 지우지 않는다. 이미 없는 초안을 지우는 것은 성공이다. 그리드·게인 초안은 그대로 둔다.
 - `--dry-run`은 같은 검증을 거쳐 결과를 보여 주고 폴더·파일을 만들거나 지우지 않는다. 기존 초안이 손상되었으면 덮어쓰지 않고 오류를 낸다.
 
@@ -134,7 +134,7 @@ djc draft rm tag 101 --db /tmp/djc-fixture/master.db
 
 `--json`은 위 JSON v1 성공/오류 출력 규칙을 따른다. `command`는 `draft`, `data`는 `{kind: "cue"|"tag", action: "save"|"remove", contentID, trackUUID, dryRun, hasChanges, cue?, tag?}`다. 저장·미리보기의 `cue` 또는 `tag`에는 앱 파일과 같은 초안 전체(`base` 포함)가 담긴다. `hasChanges`는 명령 적용 후 남을 초안의 변경 여부이며 삭제는 `false`다. 원본으로 되돌아간 초안은 저장소에서 제거된다.
 
-추가 오류 코드는 `invalid_draft`(기존 초안 손상·큐 한도), `draft_io_failed`(초안 저장·삭제 실패)다. 기존 `invalid_arguments`, `not_found`, `live_database`, `read_failed`도 사용한다. 실패 시 종료 코드 1이며 JSON은 stderr에만 나온다.
+추가 오류 코드는 `invalid_draft`(기존 초안 손상·큐 한도), `draft_io_failed`(초안 저장·삭제 실패), `unverified_field`(쓰기를 확인하지 않은 곡의 평점·곡 색)다. 기존 `invalid_arguments`, `not_found`, `live_database`, `read_failed`도 사용한다. 실패 시 종료 코드 1이며 JSON은 stderr에만 나온다.
 
 앱은 재생 목록 초안을 지원하지만 `djc draft`의 대상은 큐·태그뿐이다. `playlist-write`는 JSON 편집을 DB에 쓰는 명령이며 DJCrate 재생 목록 초안 생성 명령이 아니다. 에이전트 스킬에서는 실행하지 않고 사람이 앱에서 재생 목록 초안을 만들도록 안내한다.
 
