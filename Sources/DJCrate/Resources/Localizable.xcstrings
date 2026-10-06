@@ -974,6 +974,28 @@
         }
       }
     },
+    "%@ 외 %lld건" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ (+%2$lld more)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ほか%2$lld件"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ 외 %2$lld건"
+          }
+        }
+      }
+    },
     "%@ 전체 보기" : {
       "localizations" : {
         "en" : {
@@ -1183,6 +1205,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@。docs/cli.mdでdraftの使い方を確認してください"
+          }
+        }
+      }
+    },
+    "%@. rekordbox에서 이 목록을 확인하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. Check this playlist in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@。rekordboxでこのプレイリストを確認してください。"
           }
         }
       }
@@ -3899,6 +3937,22 @@
         }
       }
     },
+    "DJCrate가 계산한 결과입니다. rekordbox 화면과 다를 수 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This is DJCrate's calculation. It may differ from what rekordbox shows."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateが計算した結果です。rekordboxの画面と異なる場合があります。"
+          }
+        }
+      }
+    },
     "DJCrate가 곡을 분석해 추정한 키입니다. 누르면 이 키로 초안을 만들고, rekordbox에는 쓰기 전까지 들어가지 않습니다." : {
       "localizations" : {
         "en" : {
@@ -3931,6 +3985,38 @@
         }
       }
     },
+    "DJCrate가 이 목록의 조건을 계산하지 못해 곡을 보이지 않습니다 · rekordbox에서 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate couldn't calculate this playlist's conditions, so no tracks are shown · Check it in rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このプレイリストの条件をDJCrateで計算できないため、曲を表示しません · rekordboxで確認してください"
+          }
+        }
+      }
+    },
+    "DJCrate가 이 목록의 조건을 계산하지 못했습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate couldn't calculate this playlist's conditions: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateはこのプレイリストの条件を計算できませんでした：%@"
+          }
+        }
+      }
+    },
     "DJCrate가 잰 음량으로 계산한 게인을 이 곡의 게인 초안으로 넣습니다. rekordbox에는 쓰기 전까지 들어가지 않습니다(실행 취소 가능)." : {
       "localizations" : {
         "en" : {
@@ -3943,6 +4029,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "DJCrateが測った音量から計算したゲインを、この曲のゲインの下書きに入れます。rekordboxには書き込むまで入りません（取り消し可能）。"
+          }
+        }
+      }
+    },
+    "DJCrate가 조건으로 계산한 읽기 전용 목록입니다 · rekordbox 화면과 곡이 다를 수 있습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read-only playlist calculated by DJCrate from its conditions · Tracks may differ from what rekordbox shows"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateが条件から計算した読み取り専用のプレイリストです · rekordboxの画面と曲が異なる場合があります"
           }
         }
       }
@@ -10331,6 +10433,114 @@
         }
       }
     },
+    "‘%@’ 조건에서 이 연산자는 계산하지 않습니다(%lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This operator isn't calculated for the ‘%1$@’ condition (%2$lld)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」条件ではこの演算子を計算しません（%2$lld）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "‘%1$@’ 조건에서 이 연산자는 계산하지 않습니다(%2$lld)"
+          }
+        }
+      }
+    },
+    "‘%@’ 조건은 아직 계산하지 않습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The ‘%@’ condition isn't calculated yet"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」条件はまだ計算していません"
+          }
+        }
+      }
+    },
+    "‘%@’ 조건의 값 단위를 알 수 없습니다(%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The value unit of the ‘%1$@’ condition is unknown (%2$@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」条件の値の単位が不明です（%2$@）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "‘%1$@’ 조건의 값 단위를 알 수 없습니다(%2$@)"
+          }
+        }
+      }
+    },
+    "‘%@’ 조건의 값을 숫자로 읽지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The value of the ‘%@’ condition couldn't be read as a number"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」条件の値を数値として読み取れませんでした"
+          }
+        }
+      }
+    },
+    "‘%@’ 조건의 값이 비어 있습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The value of the ‘%@’ condition is empty"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」条件の値が空です"
+          }
+        }
+      }
+    },
+    "‘%@’ 조건의 범위가 올바르지 않습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The range of the ‘%@’ condition is invalid"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」条件の範囲が正しくありません"
+          }
+        }
+      }
+    },
     "‘%@’ 키는 %@에도 지정돼 있습니다. 목록 위쪽 동작이 받으니 한쪽을 바꾸세요." : {
       "localizations" : {
         "en" : {
@@ -11717,6 +11927,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "パスに親フォルダーへの移動または空の名前があります"
+          }
+        }
+      }
+    },
+    "계산하지 못한 조건" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Condition not calculated"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "計算できなかった条件"
           }
         }
       }
@@ -22965,6 +23191,22 @@
         }
       }
     },
+    "실험실" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Labs"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ラボ"
+          }
+        }
+      }
+    },
     "심볼릭 링크 또는 일반 파일이 아닌 항목이 있음" : {
       "localizations" : {
         "en" : {
@@ -23991,6 +24233,22 @@
         }
       }
     },
+    "알 수 없는 연산자입니다(%lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown operator (%lld)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不明な演算子です（%lld）"
+          }
+        }
+      }
+    },
     "알 수 없는 옵션입니다" : {
       "localizations" : {
         "en" : {
@@ -24019,6 +24277,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不明な音源形式のため、エクスポートできません"
+          }
+        }
+      }
+    },
+    "알 수 없는 자동 갱신 값입니다(AutomaticUpdate %@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown automatic update value (AutomaticUpdate %@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不明な自動更新の値です（AutomaticUpdate %@）"
+          }
+        }
+      }
+    },
+    "알 수 없는 재생 목록 종류입니다(Attribute %lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown playlist type (Attribute %lld)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不明なプレイリストの種類です（Attribute %lld）"
+          }
+        }
+      }
+    },
+    "알 수 없는 조건 결합 방식입니다(LogicalOperator %@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown way of combining conditions (LogicalOperator %@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不明な条件の結合方法です（LogicalOperator %@）"
+          }
+        }
+      }
+    },
+    "알 수 없는 조건 항목입니다(%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown condition item (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不明な条件項目です（%@）"
           }
         }
       }
@@ -25035,6 +25357,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "エネルギー弱め"
+          }
+        }
+      }
+    },
+    "여기 기능은 아직 rekordbox와 결과를 견주지 않았습니다. 기본은 꺼져 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These features haven't been compared with rekordbox yet. They are off by default."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ここにある機能は、まだrekordboxの結果と照らし合わせていません。初期設定ではオフです。"
           }
         }
       }
@@ -28149,6 +28487,22 @@
         }
       }
     },
+    "인텔리전트 재생 목록 보기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Intelligent Playlists"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インテリジェントプレイリストを表示"
+          }
+        }
+      }
+    },
     "인텔리전트 재생 목록은 내보내지 않습니다" : {
       "localizations" : {
         "en" : {
@@ -28193,6 +28547,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "インテリジェントプレイリストはまだ書き込みません（rekordboxで編集してください）"
+          }
+        }
+      }
+    },
+    "인텔리전트 재생 목록의 조건을 DJCrate가 계산해 읽기 전용으로 보입니다. rekordbox 화면과 곡이 다를 수 있고, 계산하지 못하는 조건이 있으면 곡을 보이지 않습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate calculates each Intelligent Playlist's conditions and shows the result read-only. The tracks may differ from rekordbox, and a playlist with a condition DJCrate can't calculate shows no tracks."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インテリジェントプレイリストの条件をDJCrateが計算し、読み取り専用で表示します。rekordboxの画面と曲が異なる場合があり、計算できない条件があるプレイリストでは曲を表示しません。"
           }
         }
       }
@@ -30081,6 +30451,102 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "除外された曲 %lld曲"
+          }
+        }
+      }
+    },
+    "조건 칸의 모양이 알려진 형식과 다릅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The condition data doesn't match a known format"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "条件データの形式が既知の形式と異なります"
+          }
+        }
+      }
+    },
+    "조건 칸이 비어 있습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The condition data is empty"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "条件データが空です"
+          }
+        }
+      }
+    },
+    "조건 칸이 올바른 XML이 아닙니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The condition data isn't valid XML"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "条件データが正しいXMLではありません"
+          }
+        }
+      }
+    },
+    "조건에 맞는 곡이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Matching Tracks"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "条件に一致する曲がありません"
+          }
+        }
+      }
+    },
+    "조건을 계산하지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Calculate Conditions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "条件を計算できませんでした"
+          }
+        }
+      }
+    },
+    "조건이 하나도 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no conditions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "条件が1つもありません"
           }
         }
       }

@@ -67,6 +67,7 @@ extension LibraryStore {
         let projection = playlistDraft.project(onto: rekordboxPlaylists, contentIDs: Set(rowsByID.keys))
         playlistProjection = projection
         playlistTree = PlaylistOutlineNode.tree(projection)
+        fillSmartPlaylists()
         var index: [String: PlaylistOutlineNode] = [:]
         func walk(_ nodes: [PlaylistOutlineNode]) { for node in nodes { index[node.id] = node; walk(node.children ?? []) } }
         walk(playlistTree)

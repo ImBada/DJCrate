@@ -69,6 +69,16 @@ struct SettingsTests {
         #expect(SettingKeys.all.contains(SettingKeys.hideStreaming.name))
     }
 
+    /// 실험실 기능은 rekordbox와 결과를 견주기 전이라 기본으로 꺼 둔다(#68). 끄면 지금 dev와 같게 보인다.
+    @Test func 실험실의_인텔리전트_재생_목록_보기는_기본으로_꺼져_있다() {
+        #expect(SettingKeys.labSmartPlaylists.name == "lab.smartPlaylists")
+        #expect(SettingKeys.labSmartPlaylists.defaultValue == false)
+        #expect(SettingKeys.labSmartPlaylists.value(from: nil) == false)
+        #expect(SettingKeys.labSmartPlaylists.value(from: "true") == false)
+        #expect(SettingKeys.labSmartPlaylists.value(from: true) == true)
+        #expect(SettingKeys.all.contains(SettingKeys.labSmartPlaylists.name))
+    }
+
     @Test func 설정_이름은_겹치지_않는다() {
         let names = SettingKeys.all
         #expect(Set(names).count == names.count)
