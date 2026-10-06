@@ -97,7 +97,7 @@ enum DraftCommands {
                     }
                 }
                 guard draft.issues.isEmpty else { throw invalid(draft.issues.joined(separator: "; ")) }
-                // 이번에 고친 칸 가운데 쓰기를 확인하지 않은 곡의 칸(평점·곡 색: 동기화 곡·재생 목록에 든 곡)은 초안을 만들지 않는다(앱과 같은 판단)
+                // 이번에 고친 칸 가운데 쓰기를 확인하지 않은 곡의 칸(평점·곡 색: 재생 목록에 든 곡, 상태 0·256·257 밖의 곡)은 초안을 만들지 않는다(앱과 같은 판단)
                 let touched = draft.changedKeys.filter { options.values[Options.flag($0)] != nil }
                 if let reason = TagWriteScope.blockReason(keys: touched, state: track.dataStatus, inPlaylist: read.isInPlaylist(id: track.id)) {
                     throw ReadFailure("unverified_field", reason)

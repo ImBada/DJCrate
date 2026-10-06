@@ -10,7 +10,11 @@ import Testing
 ///   평점 "DJC 시험 02" S1 0 → 3(`TrackInfoUpdated` '1' → '2'), S2 3 → 5('2' → '3'), S3 5 → 0(NULL 아님, 저장 한 번이면 +1).
 ///   곡 색 "DJC 시험 04" S1 '0' → '2'(Red, '1' → '2'), S2 '2' → '7'(Blue, '2' → '3'), S3 '7' → '0'(글자, ''·NULL 아님, '3' → '4').
 ///   함께 바뀐 칸은 `TrackInfoUpdated`(+1, 글자)·`rb_local_usn`·`updated_at`뿐이고 `djmdColor`·다른 표·음원은 그대로였다.
-/// - 실험 곡은 살아 있는 재생 목록에 없었다(XML Timestamp 미확인). 동기화 곡(256·257)은 사본 재현 전이라 막는다(`TagWriteScope.byKey`).
+/// - 2026-10-04 #173 S1(rekordbox 7.2.18, 자동 분석 끔, 실제 동기화 곡, 역할 이름만): T11 평점 0 → 3(`TrackInfoUpdated` '4' → '5'),
+///   T12 곡 색 '0' → '2'(Red, '6' → '7'). 상태 0과 같은 칸 + `rb_data_status` 256 → 257, 클라우드 `usn`·`rb_local_synced`는 그대로.
+///   2026-10-07 사본 재현(S1 기준점 클론에 `djc lab tag-write-test`, 곡 행 78칸 `quote()`)에서 rekordbox 결과와 차이 0.
+/// - 실험 곡은 살아 있는 재생 목록에 없었다(XML Timestamp 미확인)라 재생 목록에 든 곡은 막는다(`TagWriteScope.byKey`).
+/// - 인텔리전트 목록의 Timestamp·결과는 [미확인]이지만 사용자 결정(2026-10-07)으로 막지 않는다(rekordbox에서 목록을 다시 정렬하면 된다).
 extension RekordboxTagWriterTests {
     /// 묶음 2 사본의 `djmdColor` 여덟 줄(`ID` 글자, `SortKey`, `Commnt`, `ColorCode` NULL)
     static let colorRows = TrackColor.rekordboxDefaults
@@ -120,19 +124,46 @@ extension RekordboxTagWriterTests {
 
     // MARK: 막기 — 확인한 범위 밖
 
-    @Test(arguments: [256, 257]) func 동기화된_곡의_평점과_곡_색은_할_일과_함께_막는다(state: Int) throws {
-        // #173 S1 T11·T12(동기화 256 곡의 평점·색)는 사본 재현 전이라 쓰지 않는다
+    // MARK: 골든 — 동기화 곡 (#173 S1 T11·T12)
+
+    @Test(arguments: [256, 257]) func 동기화된_곡의_평점과_곡_색은_rekordbox_7이_저장한_모양과_같다(state: Int) throws {
+        // #173 S1 T11(평점 0 → 3, '4' → '5')·T12(곡 색 '0' → '2' Red, '6' → '7'), 2026-10-04 rekordbox 7.2.18: 256 → 257(257은 그대로)
         let (fixture, track) = try ratingLibrary(state: state)
+        let others = try otherTables(fixture)
+        let stateColumn: Set<String> = state == 256 ? ["rb_data_status"] : []
+        try fixture.execute("UPDATE djmdContent SET TrackInfoUpdated = '4' WHERE ID = '500'")
+
+        // T11
+        var before = try content(fixture)
+        var report = try write(fixture, tags: [try draft(fixture, track) { $0.rating = "3" }])
+        #expect(report.tagWritten.first?.fields == ["rating"] && report.tagBlocked.isEmpty, "\(report.tagBlocked.map(\.reason))")
+        var after = try content(fixture)
+        #expect(changedColumns(before, after) == Set(["Rating", "TrackInfoUpdated", "rb_local_usn", "updated_at"]).union(stateColumn))
+        #expect(try raw(fixture, "Rating") == ("3", "integer") && after["TrackInfoUpdated"] == "5" && after["rb_data_status"] == "257")
+        #expect(after["usn"] == before["usn"] && after["rb_local_synced"] == before["rb_local_synced"], "클라우드 칸은 그대로")
+        #expect(try Int(after["rb_local_usn"] ?? "") == fixture.localUpdateCount())
+
+        // T12(같은 모양을 한 곡에서 이어서)
+        try fixture.execute("UPDATE djmdContent SET TrackInfoUpdated = '6', rb_data_status = ? WHERE ID = '500'", [.int(state)])
+        before = try content(fixture)
+        report = try write(fixture, tags: [try draft(fixture, track) { $0.color = "2" }])
+        #expect(report.tagWritten.first?.fields == ["color"] && report.tagBlocked.isEmpty)
+        after = try content(fixture)
+        #expect(changedColumns(before, after) == Set(["ColorID", "TrackInfoUpdated", "rb_local_usn"]).union(stateColumn), "같은 시각이라 updated_at은 같은 값")
+        #expect(try raw(fixture, "ColorID") == ("'2'", "text") && after["TrackInfoUpdated"] == "7" && after["rb_data_status"] == "257")
+        #expect(after["usn"] == before["usn"] && after["rb_local_synced"] == before["rb_local_synced"])
+        #expect(try otherTables(fixture) == others, "djmdColor·다른 표는 그대로")
+    }
+
+    @Test func 상태가_0·256·257이_아닌_곡의_평점과_곡_색은_막는다() throws {
+        let (fixture, track) = try ratingLibrary(state: 256)
+        try fixture.execute("UPDATE djmdContent SET rb_data_status = 258 WHERE ID = '500'")
         let before = try content(fixture)
-        for edit: (inout TagFields) -> Void in [{ $0.rating = "3" }, { $0.color = "2" }, { $0.title = "새 제목"; $0.rating = "3" }] {
+        for edit: (inout TagFields) -> Void in [{ $0.rating = "3" }, { $0.color = "2" }] {
             let report = try write(fixture, tags: [try draft(fixture, track, edit)])
-            #expect(report.tagWritten.isEmpty && report.backup == nil)
-            let reason = try #require(report.tagBlocked.first?.reason)
-            #expect(reason.contains("동기화") && reason.contains("rekordbox에서"))
+            #expect(report.tagWritten.isEmpty && report.backup == nil && report.tagBlocked.count == 1)
         }
-        #expect(try content(fixture) == before && fixture.localUpdateCount() == 2000)
-        // 다른 칸만 고친 초안은 예전처럼 쓴다
-        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.title = "새 제목" }]).tagWritten.count == 1)
+        #expect(try content(fixture) == before)
     }
 
     @Test func 재생_목록에_든_곡의_평점과_곡_색은_막고_XML을_건드리지_않는다() throws {
@@ -180,7 +211,7 @@ extension RekordboxTagWriterTests {
         #expect(try raw(fixture, "Rating").value == "0")
     }
 
-    // MARK: 막기 — 인텔리전트 재생 목록(묶음 2에서 보지 못함)
+    // MARK: 인텔리전트 재생 목록(Timestamp·결과 [미확인], 사용자 결정 2026-10-07로 막지 않음)
 
     func smartList(_ fixture: RekordboxFixture, id: String = "301", _ smartList: String?) throws {
         _ = try fixture.add(PlaylistSpec(id: id, name: "스마트 \(id)", seq: 9))
@@ -192,53 +223,25 @@ extension RekordboxTagWriterTests {
             + "<CONDITION PropertyName=\"\(property)\" Operator=\"\(op)\" ValueUnit=\"\" ValueLeft=\"\(left)\" ValueRight=\"\"/></NODE>"
     }
 
-    @Test(arguments: [condition("rating", 3), condition("color"), condition("colour"), "<NODE/>", "", nil])
-    func 평점이나_곡_색_조건을_쓰거나_조건을_못_읽는_인텔리전트_목록이_있으면_백업_전에_막는다(smart: String?) throws {
-        // rekordbox가 그 목록의 Timestamp·곡 항목을 고치는지 확인하지 않았다[미확인]. 모르는 항목 이름은 곡 색일 수 있어 막는다.
+    @Test(arguments: [condition("rating", 3), condition("color"), "<NODE/>", "", nil])
+    func 평점이나_곡_색_조건의_인텔리전트_목록이_있어도_평점과_곡_색을_쓴다(smart: String?) throws {
+        // rekordbox가 그 목록의 Timestamp·결과를 고치는지는 보지 못했지만 막지 않는다(사용자가 rekordbox에서 목록을 다시 정렬한다)
         let (fixture, track) = try ratingLibrary()
         try smartList(fixture, smart)
-        let before = try content(fixture)
-        // 평점 조건은 평점에만 걸린다. 모르는 항목·못 읽은 조건은 둘 다 막는다
-        let ratingOnly = smart == Self.condition("rating", 3)
-        var edits: [(inout TagFields) -> Void] = [{ $0.rating = "3" }]
-        if !ratingOnly { edits.append { $0.color = "2" } }
-        for edit in edits {
-            let report = try write(fixture, tags: [try draft(fixture, track, edit)])
-            #expect(report.tagWritten.isEmpty && report.backup == nil)
-            let reason = try #require(report.tagBlocked.first?.reason)
-            #expect(reason.contains("인텔리전트 재생 목록") && reason.contains("스마트 301") && reason.contains("rekordbox에서"), "\(reason)")
-        }
-        #expect(try content(fixture) == before)
-        if ratingOnly { #expect(try write(fixture, tags: [try draft(fixture, track) { $0.color = "2" }]).tagWritten.count == 1) }
-        // 다른 칸은 예전처럼 쓴다
-        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.title = "새 제목" }]).tagWritten.count == 1)
-    }
-
-    @Test func 평점·곡_색과_상관없는_조건의_인텔리전트_목록과_지운_목록은_막지_않는다() throws {
-        let (fixture, track) = try ratingLibrary()
-        try smartList(fixture, Self.condition("name", 8, left: "가"))
-        try smartList(fixture, id: "302", Self.condition("year", 3, left: "2000"))
-        try smartList(fixture, id: "303", Self.condition("rating"))
-        try fixture.execute("UPDATE djmdPlaylist SET rb_local_deleted = 1 WHERE ID = '303'")
-        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.rating = "3"; $0.color = "2" }]).tagWritten.count == 1)
+        let playlists = try fixture.rows("SELECT * FROM djmdPlaylist ORDER BY ID")
+        let report = try write(fixture, tags: [try draft(fixture, track) { $0.rating = "3"; $0.color = "2" }])
+        #expect(report.tagWritten.count == 1 && report.tagBlocked.isEmpty, "\(report.tagBlocked.map(\.reason))")
         #expect(try raw(fixture, "Rating").value == "3" && raw(fixture, "ColorID").value == "'2'")
-    }
-
-    @Test func 인텔리전트_목록_조건은_트랜잭션_안에서도_본다() throws {
-        let (fixture, track) = try ratingLibrary()
-        let tags = try draft(fixture, track) { $0.rating = "3" }
-        try smartList(fixture, Self.condition("rating"))
+        #expect(try fixture.rows("SELECT * FROM djmdPlaylist ORDER BY ID") == playlists, "인텔리전트 목록 행은 고치지 않는다")
         let db = try fixture.open()
         defer { db.close() }
-        #expect(throws: RekordboxWriter.Blocked.self) { _ = try RekordboxWriter.checkTags(tags, db: db, writable: Self.allKeys) }
-        // 사본 실험(범위 표를 비움)은 막지 않는다
-        #expect(throws: Never.self) { _ = try RekordboxWriter.checkTags(tags, db: db, writable: Self.allKeys, scopes: [:]) }
+        #expect(throws: Never.self) { _ = try RekordboxWriter.checkTags(try draft(fixture, track) { $0.rating = "5" }, db: db, writable: Self.allKeys) }
     }
 
     @Test func 막힌_평점_초안은_같은_쓰기의_다른_곡을_막지_않는다() throws {
         let (fixture, track) = try ratingLibrary()
         let neighbor = TrackSpec(id: "501", uuid: "track-uuid-501")
-        try fixture.execute("UPDATE djmdContent SET rb_data_status = 256 WHERE ID = '501'")
+        _ = try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["501"]))
         let tags = [try draft(fixture, track) { $0.rating = "2" }, try draft(fixture, neighbor) { $0.rating = "4" }]
         let report = try write(fixture, tags: tags)
         #expect(report.tagWritten.map(\.trackUUID) == [track.uuid] && report.tagBlocked.map(\.trackUUID) == [neighbor.uuid])
@@ -246,19 +249,21 @@ extension RekordboxTagWriterTests {
     }
 
     @Test func 트랜잭션_안에서도_범위를_다시_본다() throws {
-        // 백업 전 확인 뒤에 곡이 동기화 상태가 되어도(같은 초안 묶음 안의 앞 편집 등) 트랜잭션의 확인이 막는다
+        // 백업 전 확인 뒤에 곡이 재생 목록에 들어가도(같은 쓰기의 재생 목록 편집 등) 트랜잭션의 확인이 막는다
         let (fixture, track) = try ratingLibrary()
         let tags = try draft(fixture, track) { $0.color = "2" }
         let db = try fixture.open()
         defer { db.close() }
         #expect(throws: Never.self) { _ = try RekordboxWriter.checkTags(tags, db: db, writable: Self.allKeys) }
-        try db.execute("UPDATE djmdContent SET rb_data_status = 257 WHERE ID = '500'")
+        _ = try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["500"]))
         #expect(throws: RekordboxWriter.Blocked.self) { _ = try RekordboxWriter.checkTags(tags, db: db, writable: Self.allKeys) }
     }
 
     @Test func 넓힌_범위는_한_곳에서_받는다() throws {
-        // 사본 실험(`djc lab tag-write-test`)은 범위 표를 비워(공통 범위) 동기화 곡에도 쓴다(#173 T11·T12 재현용)
+        // 사본 실험(`djc lab tag-write-test`)은 범위 표를 비워(공통 범위) 재생 목록에 든 곡에도 쓴다(실험 재현용)
         let (fixture, track) = try ratingLibrary(state: 256)
+        _ = try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["500"]))
+        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.rating = "3" }]).tagWritten.isEmpty, "앱 범위는 막는다")
         let report = try RekordboxWriter.write(drafts: [], grids: [], gains: [:], tags: [try draft(fixture, track) { $0.rating = "3" }],
                                                analysisInputs: [:], to: fixture.database, dryRun: false, now: now, backups: fixture.backups,
                                                shareRoot: fixture.shareRoot, attachesAnalysis: false, tagKeys: Self.allKeys, tagScopes: [:])
