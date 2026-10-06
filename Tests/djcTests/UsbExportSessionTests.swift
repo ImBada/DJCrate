@@ -290,6 +290,42 @@ struct UsbExportSessionTests {
         #expect(!FileManager.default.fileExists(atPath: changes.stagingDirectory))
     }
 
+    @Test("실물 쓰기를 열고 허용한 USB(가짜 볼륨, 임시 폴더)에는 디스크 이미지와 같은 세션으로 내보낸다")
+    func physicalOpenGateExports() throws {
+        let env = try Env(tracks: 2)
+        env.usb.volume = FakeUsbVolume.physicalFAT32()
+        let gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID], physicalEnabled: true)
+        let options = Self.options { $0.confirmName = "DJCPHYS" }
+        let preview = try env.session(gate: gate).preview(selection: .tracks(["101", "102"]), options: options)
+        #expect(!preview.blocks.contains { $0.code == "physicalDisabled" })
+        // 흐름 규칙은 풀리고, 남은 막힘은 곡 내용 규칙뿐이다
+        let extra = preview.requiredRules.subtracting(UsbProvisionalRule.openOnPhysical)
+        #expect(Set(preview.blocks.compactMap(\.rule)) == extra)
+        #expect(preview.blocks.allSatisfy { $0.code == "provisional" })
+        // 남은 규칙을 CLI처럼 하나씩 풀면 쓴다
+        let written = Self.options {
+            $0.confirmName = "DJCPHYS"
+            $0.allowProvisional = extra
+        }
+        let report = try env.session(gate: gate).write(selection: .tracks(["101", "102"]), options: written, progress: { _ in },
+                                                       isCancelled: { false })
+        #expect(report.outcome == .written)
+        #expect(env.usb.journal()?.state == .verified)
+        #expect(try UsbTree.fingerprint(env.usb.root).appleDoubleCount == 0)
+        #expect(!env.usb.backupFolders().isEmpty)
+    }
+
+    @Test("실물 쓰기를 열어도 이름 확인이 없으면 쓰지 않는다")
+    func physicalOpenGateNeedsConfirm() throws {
+        let env = try Env(tracks: 1)
+        env.usb.volume = FakeUsbVolume.physicalFAT32()
+        let gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID], physicalEnabled: true)
+        let preview = try env.session(gate: gate).preview(selection: .tracks(["101"]), options: Self.options())
+        #expect(preview.blocks.map(\.code).contains("confirmMismatch"))
+        #expect(preview.changes == nil)
+        #expect(env.usb.tree().isEmpty)
+    }
+
     @Test("DB를 바꾸기 전에 취소하면 USB는 그대로")
     func cancelBeforeCommitLeavesUsbUnchanged() throws {
         let env = try Env(tracks: 3)

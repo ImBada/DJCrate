@@ -4,12 +4,14 @@ import Foundation
 public enum UsbRuleCheck {
     /// required에 대해 막힘을 낸다. 실물이면 physicalVolume을 자동으로 더해 관문 결과를 합친다.
     /// 관문은 디스크 이미지에도 묻는다(거부 목록의 USB는 이미지여도 막는다. 그 밖에는 이미지를 통과시킨다).
+    /// 실물 쓰기가 열려 있으면 흐름 규칙(`UsbProvisionalRule.openOnPhysical`)은 풀고, 그 밖의 규칙은 규칙마다 허용해야 한다.
     public static func blocks(required: Set<UsbProvisionalRule>, volume: UsbVolumeInfo,
                               allowProvisional: Set<UsbProvisionalRule>, gate: UsbPhysicalWriteGate,
                               confirmName: String?) -> [UsbBlock] {
         var result = gate.blocks(volume, confirmName: confirmName)
         for rule in UsbProvisionalRule.allCases where required.contains(rule) && !rule.isGateOnly {
             if rule.isConfirmed { continue }
+            if !volume.isDiskImage, gate.isOpen, UsbProvisionalRule.openOnPhysical.contains(rule) { continue }
             if !rule.blocksEvenOnDiskImage {
                 if volume.isDiskImage || allowProvisional.contains(rule) { continue }
             }

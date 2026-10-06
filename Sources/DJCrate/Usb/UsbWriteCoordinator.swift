@@ -23,6 +23,8 @@ struct UsbExportJob: Sendable, Equatable {
         var options = UsbExportOptions()
         options.formats = formats
         options.snapshotTime = snapshotTime
+        // 앱은 쓰기 확인 창(볼륨 이름을 보인다)이 CLI의 --confirm을 대신한다
+        options.confirmName = volume.name
         return options
     }
 }
@@ -70,8 +72,8 @@ struct SystemUsbWriteService: UsbWriteService {
     var paths: UsbWritePaths
     /// 세션 로컬 사본(`local-<세션>/`)을 둘 곳
     var localCopies: URL
-    /// 부를 때마다 새로 만든다(앱이 켜진 동안 쓰기 금지·허용 목록이 바뀔 수 있다)
-    var writeGuard: @Sendable () -> UsbWriteGuard = { .system }
+    /// 부를 때마다 새로 만든다(앱이 켜진 동안 쓰기 금지·허용 목록과 실험실 스위치가 바뀔 수 있다)
+    var writeGuard: @Sendable () -> UsbWriteGuard = { .system(physicalWrite: SystemUsbWriteService.physicalWriteSwitch()) }
     /// USB 파일 연산(자가 테스트는 지운 `._`를 적는 것을 넘긴다)
     var fileSystem: any UsbFileSystem = PosixUsbFileSystem()
     /// USB 초안 폴더(`usb-drafts/<볼륨키>.json`)
@@ -80,6 +82,12 @@ struct SystemUsbWriteService: UsbWriteService {
     var recheck: @Sendable (UsbVolumeInfo) throws -> UsbVolumeInfo = { try UsbRead.currentVolume(matching: $0) }
     /// 쓰기 금지 목록 상태(부를 때마다 목록 파일을 다시 읽는다)
     var lists: @Sendable () -> UsbPhysicalLists.Loaded = { UsbPhysicalLists.load() }
+
+    /// 설정 › 실험실 "실물 USB 쓰기". 디스크 이미지만 읽는 실행(자가 테스트·DJC_HOME 시험 실행)은 늘 끔이고,
+    /// 자가 테스트는 설정을 읽지 않는다(`SettingsStore.persist`)
+    static func physicalWriteSwitch(policy: UsbReadPolicy = .current(), settings: SettingsStore = SettingsStore()) -> Bool {
+        policy == .all && settings.value(SettingKeys.labPhysicalUsbWrite)
+    }
 
     /// 앱이 쓰는 창구. 폴더는 USB에 쓸 때 만든다(저널을 보기만 할 때는 만들지 않는다)
     static func app() -> SystemUsbWriteService {
@@ -109,14 +117,15 @@ struct SystemUsbWriteService: UsbWriteService {
 
     func previewMigration(_ volume: UsbVolumeInfo) throws -> UsbMigrationSummary {
         try makeFolders()
-        let result = try migrationSession(volume).preview(options: UsbWriteOptions())
+        let result = try migrationSession(volume).preview(options: UsbWriteOptions(confirmName: volume.name))
         return UsbMigrationSummary(result: result, volume: volume)
     }
 
     func writeMigration(_ volume: UsbVolumeInfo, progress: @escaping @Sendable (UsbProgress) -> Void,
                         isCancelled: @escaping @Sendable () -> Bool) throws -> UsbMigrationWritten {
         try makeFolders()
-        let (result, report) = try migrationSession(volume).write(options: UsbWriteOptions(), progress: progress, isCancelled: isCancelled)
+        let (result, report) = try migrationSession(volume).write(options: UsbWriteOptions(confirmName: volume.name), progress: progress,
+                                                                  isCancelled: isCancelled)
         return UsbMigrationWritten(summary: UsbMigrationSummary(result: result, volume: volume), report: report)
     }
 
@@ -126,13 +135,14 @@ struct SystemUsbWriteService: UsbWriteService {
 
     func recover(_ volume: UsbVolumeInfo) throws -> UsbWriteReport {
         try makeFolders()
-        return try UsbWriter.recover(root: UsbRoot(URL(filePath: volume.mountPoint)), paths: paths, guard: writeGuard(), fileSystem: fileSystem)
+        return try UsbWriter.recover(root: UsbRoot(URL(filePath: volume.mountPoint)), paths: paths, guard: writeGuard(), fileSystem: fileSystem,
+                                     confirmName: volume.name)
     }
 
     func restore(_ volume: UsbVolumeInfo, backup: URL?, discardDeviceChanges: Bool) throws -> UsbWriteReport {
         try makeFolders()
         return try UsbWriter.restore(root: UsbRoot(URL(filePath: volume.mountPoint)), paths: paths, backup: backup, guard: writeGuard(),
-                                     fileSystem: fileSystem, discardDeviceChanges: discardDeviceChanges)
+                                     fileSystem: fileSystem, discardDeviceChanges: discardDeviceChanges, confirmName: volume.name)
     }
 
     func latestBackup(volumeKey: String) -> URL? {
@@ -153,7 +163,7 @@ struct SystemUsbWriteService: UsbWriteService {
         guard let draft = try UsbDraftStore(directory: drafts).load(volumeKey: key), !draft.edits.isEmpty else {
             return .noDraft(isTestVolume: job.volume.isDiskImage)
         }
-        var result = try editSession(job).preview(draft.edits, options: UsbWriteOptions(), snapshotTime: job.snapshotTime)
+        var result = try editSession(job).preview(draft.edits, options: UsbWriteOptions(confirmName: job.volume.name), snapshotTime: job.snapshotTime)
         // 초안을 만든 뒤 USB가 바뀌었으면 쓸 때도 지금 상태로 다시 계획한다(막힌 볼륨은 USB를 더 읽지 않는다)
         if result.blocks.isEmpty, let now = try? draftBase(job.volume), !now.sameContent(as: draft.base) {
             result.notes.insert(String(ui: "USB가 그 사이 바뀌어 다시 계획했습니다"), at: 0)
@@ -166,8 +176,8 @@ struct SystemUsbWriteService: UsbWriteService {
         try makeFolders()
         let key = try UsbEditSession.volumeKey(job.volume)
         let edits = try UsbDraftStore(directory: drafts).load(volumeKey: key)?.edits ?? []
-        let (result, report) = try editSession(job).writeDraft(options: UsbWriteOptions(), snapshotTime: job.snapshotTime, progress: progress,
-                                                               isCancelled: isCancelled)
+        let (result, report) = try editSession(job).writeDraft(options: UsbWriteOptions(confirmName: job.volume.name), snapshotTime: job.snapshotTime,
+                                                               progress: progress, isCancelled: isCancelled)
         return UsbEditWritten(summary: UsbEditSummary(result: result, edits: edits, volume: job.volume), report: report)
     }
 
@@ -420,12 +430,13 @@ struct UsbWriteCoordinator {
 
     static func migrationConfirmation(_ summary: UsbMigrationSummary, volume: UsbVolumeInfo) -> ReflectionPrompt {
         var details = [String(ui: "곡 \(summary.trackCount)개 · 재생 목록 \(summary.playlistCount)개 · 새 앨범아트 파일 \(summary.artworkFiles)개")]
-        if summary.isTestVolume { details.append(String(ui: "시험 볼륨(디스크 이미지)입니다")) }
+        details.append(summary.isTestVolume ? String(ui: "시험 볼륨(디스크 이미지)입니다") : physicalVolumeNote)
         details += summary.notes
         if !summary.rules.isEmpty {
             details.append(String(ui: "확인 안 된 규칙 \(summary.rules.count)개:"))
             details += summary.rules.map { "• \($0.summary)" }
-            details.append(String(ui: "확인 안 된 규칙은 디스크 이미지에서만 시험하세요"))
+            details.append(summary.isTestVolume ? String(ui: "확인 안 된 규칙은 디스크 이미지에서만 시험하세요")
+                : String(ui: "확인 안 된 규칙은 rekordbox로 확인하지 않은 동작입니다. 쓴 뒤 기기에서 확인하세요"))
         }
         return ReflectionPrompt(title: String(ui: "OneLibrary를 더할까요?"),
                                 text: String(ui: "\(volume.name)의 Device Library를 읽어 OneLibrary를 더합니다. 쓰기 전에 Mac에 백업하고 쓴 뒤 USB에서 다시 읽어 확인합니다. 끝날 때까지 USB를 뽑지 마세요."),
@@ -798,6 +809,11 @@ struct UsbWriteCoordinator {
 
     // MARK: - 창 문구
 
+    /// 실물 USB에 쓰기 전 확인 창의 한 줄(실험 기능임을 알린다)
+    static var physicalVolumeNote: String {
+        String(ui: "실물 USB입니다(실험 기능). 쓰기 전 바꿀 파일을 Mac에 백업하고, 기기에 꽂기 전에 결과를 확인하세요")
+    }
+
     static var journalUnreadableText: String {
         String(ui: "회복 기록 파일을 읽지 못했습니다. DJCrate 데이터 폴더의 usb-sessions를 확인하세요")
     }
@@ -806,7 +822,7 @@ struct UsbWriteCoordinator {
     static func confirmation(_ summary: UsbExportSummary, job: UsbExportJob) -> ReflectionPrompt {
         let formats = UsbFormat.allCases.filter(job.formats.contains).map(\.displayName).joined(separator: " · ")
         var details: [String] = []
-        if summary.isTestVolume { details.append(String(ui: "시험 볼륨(디스크 이미지)입니다")) }
+        details.append(summary.isTestVolume ? String(ui: "시험 볼륨(디스크 이미지)입니다") : physicalVolumeNote)
         details.append(summary.spaceText)
         details += blockLines(summary)
         return ReflectionPrompt(title: String(ui: "곡 \(summary.trackCount)개·재생 목록 \(summary.playlistCount)개를 USB에 쓸까요?"),
@@ -845,7 +861,7 @@ struct UsbWriteCoordinator {
     /// draftChanged면 확인하는 동안 초안이 바뀌어 다시 묻는다는 것을 맨 앞에 알린다
     static func editConfirmation(_ summary: UsbEditSummary, volume: UsbVolumeInfo, draftChanged: Bool = false) -> ReflectionPrompt {
         var details: [String] = []
-        if summary.isTestVolume { details.append(String(ui: "시험 볼륨(디스크 이미지)입니다")) }
+        details.append(summary.isTestVolume ? String(ui: "시험 볼륨(디스크 이미지)입니다") : physicalVolumeNote)
         details += editLines(summary)
         let text = String(ui: "\(volume.name)의 rekordbox 라이브러리를 고칩니다. 쓰기 전에 Mac에 백업하고 쓴 뒤 USB에서 다시 읽어 확인합니다. 끝날 때까지 USB를 뽑지 마세요.")
         return ReflectionPrompt(title: String(ui: "USB에 편집 \(summary.writtenCount)건을 쓸까요?"),

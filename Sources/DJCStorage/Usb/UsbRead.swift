@@ -40,7 +40,7 @@ public enum UsbRead {
         switch code {
         case "denylisted": String(ui: "쓰기 금지 목록의 USB라 읽지 않습니다")
         case "denyListUnreadable": String(ui: "쓰기 금지 목록 파일을 읽을 수 없어 실물 USB를 읽지 않습니다. 목록 파일을 고친 뒤 다시 시도하세요")
-        case "denyListNotRegistered": String(ui: "쓰기 금지 목록(증거용 USB)을 먼저 등록해야 실물 USB를 읽습니다")
+        case "denyListNotRegistered": String(ui: "쓰기 금지 목록이 비어 있어 실물 USB를 읽지 않습니다. 쓰면 안 되는 USB를 사이드바의 ‘쓰기 금지 목록에 넣기…’나 djc usb-deny로 먼저 등록하세요")
         case "noVolumeUUID": String(ui: "USB의 볼륨 UUID를 읽지 못해 실물 USB를 읽지 않습니다. USB를 다시 연결한 뒤 시도하세요")
         default: UsbError.readFailed(detail: code).errorDescription ?? code
         }

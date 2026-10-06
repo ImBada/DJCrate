@@ -115,7 +115,10 @@ public enum UsbVolumes {
             isInternal: (description["DADeviceInternal"] as? Bool) ?? !isDiskImage,
             isNetwork: (description["DAVolumeNetwork"] as? Bool) ?? !statfs.isLocal,
             isReadOnly: statfs.isReadOnly, isRootVolume: statfs.mountedOn == "/" || statfs.isRootFileSystem,
-            isDiskImage: isDiskImage, diskImagePath: imagePath, capacity: 0, available: 0)
+            isDiskImage: isDiskImage, diskImagePath: imagePath, capacity: 0, available: 0,
+            // 실물 관문이 USB 메모리만 받는다(USB로 붙은 외장 SSD는 고정 디스크로 나온다). 모르면 nil → 막는다
+            deviceProtocol: description["DADeviceProtocol"] as? String,
+            isRemovable: (description["DAMediaRemovable"] as? Bool) ?? (wholeDescription?["DAMediaRemovable"] as? Bool))
     }
 
     /// FAT32는 셋(DAVolumeKind msdos, DAVolumeType "MS-DOS (FAT32)", 파티션 형식 FAT32)이 모두 맞을 때만. 모르는 msdos는 막는다

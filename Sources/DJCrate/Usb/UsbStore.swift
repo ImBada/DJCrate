@@ -54,6 +54,10 @@ import RekordboxKit
     @ObservationIgnored var draftDirectory: URL?
     /// 볼륨키 → 초안 편집(파일에서 읽은 그대로). 순서 옮기기처럼 초안 위에서 판정하는 메뉴가 읽는다
     private(set) var draftEdits: [String: [UsbLibraryEdit]] = [:]
+    /// 설정 › 실험실 "실물 USB 쓰기"(앱이 켜고 끈다). 디스크 이미지만 읽는 실행(시험)에서는 늘 끔이다
+    var physicalWriteEnabled = false
+    /// 마지막으로 읽은 쓰기 허용·금지 목록(볼륨을 훑을 때마다 다시 읽는다). 아직 읽지 않았으면 nil
+    private(set) var physicalLists: UsbPhysicalLists.Loaded?
     /// 마운트 지점이 임시 폴더 뿌리 아래인지(realpath). 실물 쓰기가 닫힌 동안 그 밖의 디스크 이미지는 쓰기 때 막힌다(편집 막힘 미리 판정).
     /// 시험은 지어낸 마운트 지점을 넘긴다
     @ObservationIgnored var isScratchMount: (String) -> Bool = UsbEditActions.isScratchMount
@@ -76,7 +80,7 @@ import RekordboxKit
     @ObservationIgnored var onPendingJournal: ((UsbVolumeInfo) -> Void)?
     @ObservationIgnored private let host: any UsbHost
     @ObservationIgnored private let localLibrary: @Sendable () -> LocalLibraryKeys?
-    @ObservationIgnored private let physicalLists: @Sendable () -> UsbPhysicalLists.Loaded
+    @ObservationIgnored private let loadPhysicalLists: @Sendable () -> UsbPhysicalLists.Loaded
     @ObservationIgnored private let journal: @Sendable (String) -> UsbJournalInfo
     @ObservationIgnored private var cancelFlag: UsbCancelFlag?
     /// 이번에 붙어 있는 동안 저널을 본 볼륨(떨어지면 지운다: 다시 나타나면 또 본다)
@@ -97,7 +101,7 @@ import RekordboxKit
         self.host = host
         self.readPolicy = readPolicy
         self.localLibrary = localLibrary
-        self.physicalLists = physicalLists
+        self.loadPhysicalLists = physicalLists
         self.journal = journal
     }
 
@@ -149,7 +153,8 @@ import RekordboxKit
         if let sheet = exportSheet, !keys.contains(sheet.volumeKey) { exportSheet = nil }
         defer { onChange?() }
         guard !visible.isEmpty else { return }
-        let lists = await Task.detached(priority: .userInitiated) { [physicalLists] in physicalLists() }.value
+        let lists = await Task.detached(priority: .userInitiated) { [loadPhysicalLists] in loadPhysicalLists() }.value
+        physicalLists = lists
         for volume in visible {
             let key = volume.usbKey
             guard !busyVolumes.contains(key) else { continue }
@@ -385,6 +390,32 @@ import RekordboxKit
     // MARK: - 목록 줄
 
     func volume(_ key: String) -> UsbVolumeInfo? { volumes.first { $0.usbKey == key } }
+
+    // MARK: - 실물 쓰기
+
+    /// 지금 목록·스위치로 만든 실물 쓰기 관문(목록을 아직 읽지 않았으면 빈 목록 — 실물은 막힌다)
+    var physicalGate: UsbPhysicalWriteGate {
+        (physicalLists ?? UsbPhysicalLists.Loaded(allow: [], deny: [], denyStatus: .missing, allowState: .missing))
+            .gate(physicalEnabled: physicalWriteEnabled && readPolicy == .all)
+    }
+
+    /// 이 볼륨에 쓰기가 막히는 까닭(실물 관문만, 쓰기 세션과 같은 판정·문구). 쓸 수 있으면 nil.
+    /// 앱은 쓰기 확인 창이 볼륨 이름 확인을 대신한다
+    func physicalWriteBlock(_ volume: UsbVolumeInfo) -> String? {
+        let judged = volume.judgedForWrite(underScratch: isScratchMount(volume.mountPoint))
+        return physicalGate.blocks(judged, confirmName: volume.name).first?.message
+    }
+
+    /// 사이드바 메뉴: 이 볼륨에 무엇을 할 수 있는지(실물만 — 디스크 이미지는 허용 없이 쓴다)
+    func physicalMenu(_ key: String) -> UsbPhysicalMenu? {
+        guard let volume = volume(key), !volume.isDiskImage, let uuid = volume.volumeUUID?.uppercased() else { return nil }
+        let lists = physicalLists
+        let denied = lists?.deny.contains(uuid) ?? false
+        let allowed = lists?.allow.contains(uuid) ?? false
+        return UsbPhysicalMenu(isDenied: denied, isAllowed: allowed && !denied,
+                               consentBlock: physicalGate.consentBlocks(volume).first?.message,
+                               switchOn: physicalWriteEnabled && readPolicy == .all)
+    }
 
     /// 사이드바 대상의 곡 줄(읽기 전용)
     func rows(for target: UsbSidebarTarget) -> [TrackRow] {

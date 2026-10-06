@@ -55,11 +55,16 @@ public struct UsbVolumeInfo: Codable, Hashable, Sendable {
     public var diskImagePath: String?
     public var capacity: Int64
     public var available: Int64
+    /// DiskArbitration DADeviceProtocol("USB", "Secure Digital", "PCI-Express", 디스크 이미지는 "Virtual Interface"). 모르면 nil
+    public var deviceProtocol: String?
+    /// DiskArbitration DAMediaRemovable. USB 메모리는 참, USB로 붙은 외장 SSD는 거짓(고정 디스크)으로 나온다. 모르면 nil
+    public var isRemovable: Bool?
 
     public init(mountPoint: String, rootIsMountPoint: Bool, volumeUUID: String?, name: String, fileSystem: UsbFileSystemKind,
                 partitionContent: String?, partitionScheme: UsbPartitionScheme, partitionIndex: Int?, sectorSize: Int?,
                 clusterSize: Int?, isInternal: Bool, isNetwork: Bool, isReadOnly: Bool, isRootVolume: Bool,
-                isDiskImage: Bool, diskImagePath: String?, capacity: Int64, available: Int64) {
+                isDiskImage: Bool, diskImagePath: String?, capacity: Int64, available: Int64,
+                deviceProtocol: String? = nil, isRemovable: Bool? = nil) {
         self.mountPoint = mountPoint
         self.rootIsMountPoint = rootIsMountPoint
         self.volumeUUID = volumeUUID
@@ -78,6 +83,17 @@ public struct UsbVolumeInfo: Codable, Hashable, Sendable {
         self.diskImagePath = diskImagePath
         self.capacity = capacity
         self.available = available
+        self.deviceProtocol = deviceProtocol
+        self.isRemovable = isRemovable
+    }
+
+    /// 쓰기 판정에 쓸 볼륨: 마운트 지점(realpath)이 임시 폴더 뿌리 밖이면 디스크 이미지라고 나와도 실물로 본다.
+    /// 디스크 이미지는 lab 도구·자가 테스트가 늘 임시 폴더 아래에 붙인다. 볼륨 정보 하나가 틀려도 실물 관문을 건너뛰지 않게 한다
+    public func judgedForWrite(underScratch: Bool) -> UsbVolumeInfo {
+        guard isDiskImage, !underScratch else { return self }
+        var judged = self
+        judged.isDiskImage = false
+        return judged
     }
 }
 

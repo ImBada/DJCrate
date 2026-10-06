@@ -126,8 +126,8 @@ struct UsbWriteGuardTests {
                                             fileSystem: fixture.fileSystem()) } == ["protectedPath"])
     }
 
-    @Test("실물은 허용 목록에 있어도 코드 상수로 막힌다")
-    func physicalBlockedByBuildConstant() {
+    @Test("실물은 허용 목록에 있어도 실험실 스위치가 꺼져 있으면 막힌다")
+    func physicalBlockedBySwitchOff() {
         let fixture = UsbChangeSetFixture()
         defer { fixture.remove() }
         fixture.volume = FakeUsbVolume.physicalFAT32()
@@ -139,6 +139,108 @@ struct UsbWriteGuardTests {
         }
         #expect(found.contains("physicalDisabled"))
         #expect(fs.calls == ["mountedOn ."])
+    }
+
+    // MARK: - 실물 쓰기를 연 관문
+
+    /// 실물 쓰기 스위치를 켜고 이 USB를 허용한 관문
+    static var openGate: UsbPhysicalWriteGate { FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID], physicalEnabled: true) }
+
+    @Test("실물 쓰기를 열고 허용한 USB는 디스크 이미지와 같은 절차로 쓴다(백업·저널·검증), 되돌리면 쓰기 전과 같다")
+    func openGateWritesPhysicalLikeDiskImage() throws {
+        let fixture = UsbChangeSetFixture()
+        defer { fixture.remove() }
+        fixture.volume = FakeUsbVolume.physicalFAT32()
+        fixture.gate = Self.openGate
+        let before = fixture.tree()
+        let report = try fixture.write(fixture.exportChanges(), options: UsbWriteOptions(confirmName: "DJCPHYS"))
+        #expect(report.outcome == .written)
+        #expect(fixture.journal()?.state == .verified)
+        #expect(fixture.backupFolders().count == 1)
+        #expect(fixture.tree() != before)
+        // 되돌리기도 같은 관문(이름 확인 포함)을 지난다
+        #expect(codes { _ = try fixture.restore() } == ["confirmMismatch"])
+        let restored = try fixture.restore(confirmName: "DJCPHYS")
+        #expect(restored.outcome == .restored)
+        #expect(fixture.tree() == before)
+    }
+
+    @Test("실물 쓰기를 열어도 허용하지 않은 USB·이름 확인이 틀린 쓰기·USB 메모리가 아닌 디스크는 USB 파일 연산 없이 막는다",
+          arguments: ["notAllowlisted", "confirmMismatch", "notUsbDevice", "denyListMissing"])
+    func openGateStillRefuses(code: String) {
+        let fixture = UsbChangeSetFixture()
+        defer { fixture.remove() }
+        fixture.volume = FakeUsbVolume.physicalFAT32()
+        var confirm: String? = "DJCPHYS"
+        switch code {
+        case "notAllowlisted": fixture.gate = FakeUsbVolume.gate(physicalEnabled: true)
+        case "confirmMismatch": fixture.gate = Self.openGate; confirm = "djcphys"
+        case "notUsbDevice": fixture.gate = Self.openGate; fixture.volume = FakeUsbVolume.externalSSD()
+        default:
+            fixture.gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID], denyStatus: .missing, physicalEnabled: true)
+        }
+        let fs = fixture.fileSystem()
+        #expect(codes { _ = try fixture.write(fixture.exportChanges(), fileSystem: fs, options: UsbWriteOptions(confirmName: confirm)) } == [code])
+        #expect(fs.calls == ["mountedOn ."])
+        expectUntouched(fixture, before: [:])
+    }
+
+    @Test("실물 쓰기를 열어도 흐름 밖의 확인 안 된 규칙은 막고, 흐름 규칙은 푼다")
+    func openGateKeepsContentRulesBlocked() throws {
+        let fixture = UsbChangeSetFixture()
+        defer { fixture.remove() }
+        fixture.volume = FakeUsbVolume.physicalFAT32()
+        fixture.gate = Self.openGate
+        var changes = fixture.exportChanges()
+        changes.requiredRules = [.analysisFolderNaming, .playlistSiblingBase, .cueVariant]
+        let found = blocks { _ = try fixture.write(changes, options: UsbWriteOptions(confirmName: "DJCPHYS")) }
+        #expect(found.map(\.code) == ["provisional"])
+        #expect(found.map(\.rule) == [.cueVariant])
+        expectUntouched(fixture, before: [:])
+        changes.requiredRules = [.analysisFolderNaming, .playlistSiblingBase]
+        #expect(try fixture.write(changes, options: UsbWriteOptions(confirmName: "DJCPHYS")).outcome == .written)
+    }
+
+    @Test("임시 폴더 밖에 붙은 디스크 이미지는 관문이 열려도 실물로 판정한다(허용 목록이 필요)")
+    func outsideScratchImageJudgedPhysical() throws {
+        let fixture = UsbChangeSetFixture()
+        defer { fixture.remove() }
+        let home = try #require(UsbScratchRoots.realPath(NSHomeDirectory()))
+        let fs = FaultyUsbFileSystem(root: URL(filePath: home))
+        fs.simulatedMountPoint = home
+        // 시험 프로세스가 아닌 실행에서는 경로 확인을 지나고(쓰기 없음, statfs 흉내만), 볼륨 판정은 실물이 된다
+        #expect(try UsbWriteRun.scratchAndMountCheck(UsbRoot(URL(filePath: home)), fs, gate: Self.openGate, isTestProcess: false) == home)
+        #expect(FakeUsbVolume.diskImageFAT32().judgedForWrite(underScratch: UsbScratchRoots.isUnderAllowedRoot(home)).isDiskImage == false)
+    }
+
+    @Test("시험 프로세스는 관문이 열려 있어도 임시 폴더 밖 루트를 가드를 부르기 전에 거부한다", arguments: ["/Volumes/DJCNOTEXIST", NSHomeDirectory()])
+    func testProcessNeverWritesOutsideScratch(rootPath: String) {
+        let fixture = UsbChangeSetFixture()
+        defer { fixture.remove() }
+        let root = UsbRoot(URL(filePath: rootPath))
+        let fs = FaultyUsbFileSystem(root: root.url)
+        fs.simulatedMountPoint = rootPath
+        var physical = FakeUsbVolume.physicalFAT32()
+        physical.mountPoint = rootPath
+        let volume = physical
+        let guard_ = UsbWriteGuard(volume: { _ in
+            fs.record("guard.volume")
+            return volume
+        }, isRekordboxRunning: { false }, protectedRoots: [], gate: Self.openGate)
+        let changes = fixture.exportChanges()
+        let actions: [() throws -> Void] = [
+            { _ = try UsbWriter.write(changes, root: root, paths: fixture.paths, guard: guard_, fileSystem: fs,
+                                      options: UsbWriteOptions(confirmName: "DJCPHYS")) },
+            { _ = try UsbWriter.restore(root: root, paths: fixture.paths, backup: nil, guard: guard_, fileSystem: fs, confirmName: "DJCPHYS") },
+            { _ = try UsbWriter.recover(root: root, paths: fixture.paths, guard: guard_, fileSystem: fs, discardTemp: true, confirmName: "DJCPHYS") },
+        ]
+        for action in actions {
+            let found = blocks(action)
+            #expect(found.map(\.code) == ["physicalDisabled"])
+            #expect(found.first?.message == "시험 실행은 임시 폴더 아래 디스크 이미지에만 씁니다")
+        }
+        #expect(fs.calls.isEmpty)
+        #expect(lockFiles(fixture).isEmpty)
     }
 
     @Test("거부 목록의 USB는 디스크 이미지여도 막는다")

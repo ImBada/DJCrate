@@ -339,13 +339,14 @@ public final class UsbExportSession {
             blocks.append(UsbBlock(code: "protectedPath", scope: .volume,
                                    message: String(ui: "rekordbox 라이브러리나 DJCrate 데이터 폴더에는 USB처럼 쓸 수 없습니다. USB 볼륨을 고르세요")))
         }
-        blocks += UsbRuleCheck.blocks(required: required, volume: volume, allowProvisional: allowProvisional, gate: writeGuard.gate,
+        // 임시 폴더 밖이면 디스크 이미지라고 나와도 실물로 판정한다(쓰기 절차와 같다)
+        let judged = volume.judgedForWrite(underScratch: real.map(UsbScratchRoots.isUnderAllowedRoot) ?? false)
+        blocks += UsbRuleCheck.blocks(required: required, volume: judged, allowProvisional: allowProvisional, gate: writeGuard.gate,
                                       confirmName: confirmName)
-        let outsideScratch = !(real.map(UsbScratchRoots.isUnderAllowedRoot) ?? false)
-        if !UsbPhysicalWriteGate.buildEnabled, (!volume.isDiskImage || outsideScratch), !blocks.contains(where: { $0.code == "physicalDisabled" }) {
-            blocks.append(UsbBlock(code: "physicalDisabled", scope: .volume,
-                                   message: String(ui: "실물 USB 쓰기는 아직 열리지 않았습니다. 디스크 이미지로만 시험할 수 있습니다"),
-                                   rule: .physicalVolume))
+        // 관문이 거부 목록 등 다른 막힘을 먼저 냈어도, 닫힌 관문은 실물에 늘 함께 알린다.
+        // 시험 프로세스가 임시 폴더 밖에 쓰지 않는 것은 쓰기 절차의 첫 확인(경로)이 지킨다
+        if !judged.isDiskImage, let closed = writeGuard.gate.closedBlock, !blocks.contains(where: { $0.code == "physicalDisabled" }) {
+            blocks.append(closed)
         }
         return blocks
     }

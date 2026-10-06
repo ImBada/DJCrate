@@ -238,7 +238,7 @@ struct UsbStoreTests {
     func physicalReadRequiresDenyList() async {
         let image = FakeUsbVolume.diskImageFAT32()
         let physical = FakeUsbVolume.physicalFAT32()
-        let notRegistered = "쓰기 금지 목록(증거용 USB)을 먼저 등록해야 실물 USB를 읽습니다"
+        let notRegistered = "쓰기 금지 목록이 비어 있어 실물 USB를 읽지 않습니다. 쓰면 안 되는 USB를 사이드바의 ‘쓰기 금지 목록에 넣기…’나 djc usb-deny로 먼저 등록하세요"
         let cases: [(UsbPhysicalLists.Loaded, readsPhysical: Bool, reason: String?)] = [
             (UsbTestData.lists(.missing, entries: 0, deny: []), false, notRegistered),
             (UsbTestData.lists(.ok, entries: 0, deny: []), false, notRegistered),

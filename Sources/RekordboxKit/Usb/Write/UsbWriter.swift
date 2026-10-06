@@ -196,8 +196,9 @@ final class UsbWriteRun {
     static func open(root: UsbRoot, paths: UsbWritePaths, guard writeGuard: UsbWriteGuard, fileSystem: any UsbFileSystem,
                      ppthReader: (@Sendable (Data) -> String?)?, now: Date,
                      progress: @escaping @Sendable (UsbProgress) -> Void) throws -> UsbWriteRun {
-        let mountPoint = try scratchAndMountCheck(root, fileSystem)
-        let volume = try writeGuard.volume(root.url)
+        let mountPoint = try scratchAndMountCheck(root, fileSystem, gate: writeGuard.gate)
+        // 임시 폴더 밖이면 가드가 디스크 이미지라고 해도 실물로 판정한다(실물 관문·확인 안 된 규칙을 건너뛰지 않게)
+        let volume = try writeGuard.volume(root.url).judgedForWrite(underScratch: UsbScratchRoots.isUnderAllowedRoot(mountPoint))
         guard let uuid = volume.volumeUUID?.uppercased(), !uuid.isEmpty,
               uuid.allSatisfy({ $0.isHexDigit || $0 == "-" }) else {
             throw UsbError.writeRefused([UsbBlock(code: "noVolumeUUID", scope: .volume,
@@ -210,13 +211,16 @@ final class UsbWriteRun {
 
     func close() { lock.release() }
 
-    /// 실물 쓰기가 닫혀 있는 동안 루트 경로 자체가 임시 폴더 아래여야 한다(주입한 가드 값을 쓰지 않는다).
+    /// 실물 쓰기가 닫혀 있는 동안(코드 관문·실행 중 스위치 중 하나라도 꺼짐) 루트 경로 자체가 임시 폴더 아래여야 한다(가드의 볼륨 정보를 쓰지 않는다).
     /// 디스크 이미지는 lab 도구·자가 테스트가 늘 임시 폴더 아래에 붙이고, 실물은 /Volumes 아래에 붙는다.
+    /// 시험 프로세스는 관문이 열려 있어도 임시 폴더 밖에 쓰지 않는다(시험이 이 Mac에 꽂힌 USB에 닿지 않게).
     /// 그리고 루트가 정말 마운트 지점이어야 한다. 이 값을 기준으로 단계마다 다시 본다.
-    static func scratchAndMountCheck(_ root: UsbRoot, _ fileSystem: any UsbFileSystem) throws -> String {
+    static func scratchAndMountCheck(_ root: UsbRoot, _ fileSystem: any UsbFileSystem, gate: UsbPhysicalWriteGate,
+                                     isTestProcess: Bool = TestProcess.isRunning) throws -> String {
         let real = UsbScratchRoots.realPath(root.url.path)
-        if !UsbPhysicalWriteGate.buildEnabled, !(real.map(UsbScratchRoots.isUnderAllowedRoot) ?? false) {
-            throw UsbError.writeRefused([physicalDisabledBlock])
+        if !(real.map(UsbScratchRoots.isUnderAllowedRoot) ?? false) {
+            if let closed = gate.closedBlock { throw UsbError.writeRefused([closed]) }
+            if isTestProcess { throw UsbError.writeRefused([testProcessBlock]) }
         }
         guard let real, try fileSystem.mountedOn(root.url) == real else {
             throw UsbError.writeRefused([UsbBlock(code: "notMountPoint", scope: .volume, message: String(ui: "USB 볼륨의 맨 위 폴더를 고르세요"))])
@@ -224,9 +228,10 @@ final class UsbWriteRun {
         return real
     }
 
-    static var physicalDisabledBlock: UsbBlock {
+    /// 시험 프로세스가 임시 폴더 밖 루트에 쓰려 할 때(관문이 열려 있어도)
+    static var testProcessBlock: UsbBlock {
         UsbBlock(code: "physicalDisabled", scope: .volume,
-                 message: String(ui: "실물 USB 쓰기는 아직 열리지 않았습니다. 디스크 이미지로만 시험할 수 있습니다"), rule: .physicalVolume)
+                 message: String(ui: "시험 실행은 임시 폴더 아래 디스크 이미지에만 씁니다"), rule: .physicalVolume)
     }
 
     // MARK: - 경로·저널
@@ -281,8 +286,9 @@ final class UsbWriteRun {
         }
         blocks += UsbRuleCheck.blocks(required: required, volume: volume, allowProvisional: allowProvisional, gate: writeGuard.gate,
                                       confirmName: confirmName)
-        if !volume.isDiskImage, !UsbPhysicalWriteGate.buildEnabled, !blocks.contains(where: { $0.code == "physicalDisabled" }) {
-            blocks.append(Self.physicalDisabledBlock)
+        // 관문이 거부 목록 등 다른 막힘을 먼저 냈어도, 닫힌 관문은 실물에 늘 함께 알린다
+        if !volume.isDiskImage, let closed = writeGuard.gate.closedBlock, !blocks.contains(where: { $0.code == "physicalDisabled" }) {
+            blocks.append(closed)
         }
         return blocks
     }

@@ -273,7 +273,7 @@ struct UsbEditActions {
     /// 이 편집이 막힐 까닭(모르면 nil). 메뉴 옆 도움말과 대기 목록에 쓴다
     func blockReason(_ edit: UsbLibraryEdit, volumeKey: String) -> String? {
         Self.blockReason(edit, volume: usb.volume(volumeKey), library: usb.editLibrary(volumeKey), info: usb.infos[volumeKey],
-                         isScratchMount: usb.isScratchMount)
+                         isScratchMount: usb.isScratchMount, physicalGate: usb.physicalGate)
     }
 
     /// 마운트 지점(realpath)이 임시 폴더 뿌리 아래인지. 쓰기 세션의 실물 관문과 같은 판정이다
@@ -284,22 +284,22 @@ struct UsbEditActions {
     /// 편집을 초안에 더하기 전의 가벼운 막힘 판정: 사본으로 읽은 라이브러리와 볼륨만 본다(USB·로컬 사본을 열지 않는다).
     /// 쓰기 때의 계획(`UsbEditSession`)과 같은 문구를 쓴다. 볼륨이 빠져 있으면 볼륨 판정은 쓸 때 한다.
     /// 메뉴가 목록마다 부르므로 곡 번호 집합은 곡을 가리키는 편집에서만 만든다
+    /// - physicalGate: 실물 쓰기 관문(목록·실험실 스위치). 기본은 닫힌 관문(스위치 끔)
     static func blockReason(_ edit: UsbLibraryEdit, volume: UsbVolumeInfo?, library: UsbLibrary?, info: UsbInfo?,
-                            isScratchMount: (String) -> Bool = UsbEditActions.isScratchMount) -> String? {
+                            isScratchMount: (String) -> Bool = UsbEditActions.isScratchMount,
+                            physicalGate: UsbPhysicalWriteGate = .init(allowlist: [], denylist: [], denyStatus: .missing)) -> String? {
         if let volume {
             if let problem = UsbVolumePolicy.problems(volume, purpose: .edit).first { return problem.message }
-            if !volume.isDiskImage {
-                // 실물 USB는 확인 안 된 규칙을 풀 수 없다(디스크 이미지 시험만)
-                if case .addTracks = edit, !UsbProvisionalRule.analysisFolderNaming.isConfirmed {
-                    return String(ui: "USB 폴더 이름 규칙이 확인되지 않아 실물 USB에는 곡을 더할 수 없습니다")
-                }
-                if let rule = edit.requiredRules.sorted(by: { $0.rawValue < $1.rawValue }).first(where: { !$0.isConfirmed }) {
+            // 임시 폴더 뿌리 밖에 붙인 디스크 이미지도 실물로 판정한다(세션의 실물 관문과 같다)
+            let judged = volume.judgedForWrite(underScratch: isScratchMount(volume.mountPoint))
+            if !judged.isDiskImage {
+                // 앱은 쓰기 확인 창이 볼륨 이름 확인을 대신한다
+                if let block = physicalGate.blocks(judged, confirmName: volume.name).first { return block.message }
+                // 실물 쓰기가 열려도 흐름 밖의 확인 안 된 규칙(곡 정보 갱신 등)은 막는다
+                if let rule = edit.requiredRules.sorted(by: { $0.rawValue < $1.rawValue })
+                    .first(where: { !$0.isConfirmed && !UsbProvisionalRule.openOnPhysical.contains($0) }) {
                     return String(ui: "확인하지 않은 규칙(\(rule.summary))이 필요해 이 USB에 쓸 수 없습니다")
                 }
-            }
-            // 실물 쓰기가 닫힌 동안은 임시 폴더 뿌리 밖에 붙인 디스크 이미지도 쓸 때 막힌다(세션의 실물 관문과 같다)
-            if !UsbPhysicalWriteGate.buildEnabled, !volume.isDiskImage || !isScratchMount(volume.mountPoint) {
-                return String(ui: "실물 USB 쓰기는 아직 열리지 않았습니다. 디스크 이미지로만 시험할 수 있습니다")
             }
         }
         if let consistency = info?.consistency, consistency.editBlocked {

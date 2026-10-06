@@ -39,6 +39,7 @@ public enum FakeDiskArbitration {
             "DADeviceProtocol": "USB",
             "DADeviceModel": "Imaginary Flash 3000",
             "DADeviceInternal": false,
+            "DAMediaRemovable": true,
             "DAVolumeKind": "msdos",
             "DAMediaContent": content,
             "DAMediaBSDName": bsd,

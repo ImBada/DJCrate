@@ -8,19 +8,25 @@ enum UsbCommands {
     static let all: [Command] = [
         Command("usb-info", String(ui: "<볼륨|폴더> [--json]"),
                 String(ui: "USB를 읽기만 해서 형식·곡 수·경고를 보여 준다(실물 USB는 쓰기 금지 목록을 등록한 뒤에만)"), { try await info($0) }),
-        Command("usb-export", String(ui: "--volume <마운트> [--db <스냅샷 사본.db>] [--share <폴더>] [--playlist <ID>]… [--tracks <ContentID>,…] [--formats onelibrary,device] [--naming identifier] [--dry-run] [--confirm <볼륨 이름>] [--allow-provisional <규칙,…>] [--verify-audio] [--settings <로컬 설정 폴더>] [--snapshot-time <ISO 8601>]"),
-                String(ui: "스냅샷 사본의 곡·재생 목록을 빈 USB(FAT32·MBR)에 OneLibrary·Device Library로 내보낸다(실물 USB는 아직 막힘, 디스크 이미지만)"),
+        Command("usb-export", String(ui: "--volume <마운트> [--db <스냅샷 사본.db>] [--share <폴더>] [--playlist <ID>]… [--tracks <ContentID>,…] [--formats onelibrary,device] [--naming identifier] [--dry-run] [--allow-physical --confirm <볼륨 이름>] [--allow-provisional <규칙,…>] [--verify-audio] [--settings <로컬 설정 폴더>] [--snapshot-time <ISO 8601>]"),
+                String(ui: "스냅샷 사본의 곡·재생 목록을 빈 USB(FAT32·MBR)에 OneLibrary·Device Library로 내보낸다(실물 USB는 --allow-physical·쓰기 허용·--confirm이 모두 있어야 씀)"),
                 { try await export($0) }),
-        Command("usb-edit", String(ui: "--volume <마운트> (<편집.json> | --draft) [--db <스냅샷 사본.db>] [--share <폴더>] [--dry-run] [--confirm <볼륨 이름>] [--allow-provisional <규칙,…>] [--snapshot-time <ISO 8601>]"),
-                String(ui: "이미 라이브러리가 있는 USB에 곡 더하기·빼기·갱신과 재생 목록 편집을 한 번에 쓴다(실물 USB는 아직 막힘, 디스크 이미지만)"),
+        Command("usb-edit", String(ui: "--volume <마운트> (<편집.json> | --draft) [--db <스냅샷 사본.db>] [--share <폴더>] [--dry-run] [--allow-physical --confirm <볼륨 이름>] [--allow-provisional <규칙,…>] [--snapshot-time <ISO 8601>]"),
+                String(ui: "이미 라이브러리가 있는 USB에 곡 더하기·빼기·갱신과 재생 목록 편집을 한 번에 쓴다(실물 USB는 --allow-physical·쓰기 허용·--confirm이 모두 있어야 씀)"),
                 { try await edit($0) }),
-        Command("usb-migrate", String(ui: "--volume <마운트> [--dry-run] [--confirm <볼륨 이름>] [--allow-provisional <규칙,…>]"),
-                String(ui: "Device Library(export.pdb)만 있는 USB에 OneLibrary(exportLibrary.db)를 더한다. 원래 파일은 그대로 둔다(실물 USB는 아직 막힘, 디스크 이미지만)"),
+        Command("usb-migrate", String(ui: "--volume <마운트> [--dry-run] [--allow-physical --confirm <볼륨 이름>] [--allow-provisional <규칙,…>]"),
+                String(ui: "Device Library(export.pdb)만 있는 USB에 OneLibrary(exportLibrary.db)를 더한다. 원래 파일은 그대로 둔다(실물 USB는 --allow-physical·쓰기 허용·--confirm이 모두 있어야 씀)"),
                 { try await migrate($0) }),
-        Command("usb-restore", String(ui: "--volume <마운트> [--backup <폴더>] [--discard-device-changes] [--confirm <볼륨 이름>] [--dry-run]"),
+        Command("usb-restore", String(ui: "--volume <마운트> [--backup <폴더>] [--discard-device-changes] [--allow-physical --confirm <볼륨 이름>] [--dry-run]"),
                 String(ui: "USB에 쓴 것을 그 쓰기 전 백업으로 되돌린다(그 뒤 기기가 바꾼 것이 있으면 막는다)"), { try await restore($0) }),
-        Command("usb-recover", String(ui: "--volume <마운트> [--discard-temp] [--confirm <볼륨 이름>]"),
+        Command("usb-recover", String(ui: "--volume <마운트> [--discard-temp] [--allow-physical --confirm <볼륨 이름>]"),
                 String(ui: "끝나지 않은 USB 쓰기를 마저 쓰거나 되돌린다"), { try await recover($0) }),
+        Command("usb-allow", String(ui: "--volume <마운트> [--remove]"),
+                String(ui: "이 실물 USB에 쓰기를 허용한다(FAT32·MBR USB 메모리만). --remove는 허용을 거둔다. USB에는 쓰지 않는다"),
+                { try await allow($0) }),
+        Command("usb-deny", String(ui: "--volume <마운트>"),
+                String(ui: "이 USB를 쓰기 금지 목록에 넣는다(다시는 쓰지 않는다). 빼려면 목록 파일을 직접 고친다. USB에는 쓰지 않는다"),
+                { try await deny($0) }),
     ]
 
     /// `usb-restore` 인자
@@ -30,6 +36,8 @@ enum UsbCommands {
         var discardDeviceChanges: Bool
         var confirmName: String?
         var dryRun: Bool
+        /// 실물 쓰기 스위치(`--allow-physical`)
+        var allowPhysical = false
     }
 
     /// `usb-recover` 인자
@@ -37,6 +45,7 @@ enum UsbCommands {
         var volume: String
         var discardTemp: Bool
         var confirmName: String?
+        var allowPhysical = false
     }
 
     static func restoreRequest(_ args: [String]) throws -> RestoreRequest {
@@ -44,19 +53,21 @@ enum UsbCommands {
         try rejectPhysicalAllowance(args)
         return RestoreRequest(volume: volume, backup: try optionalValue("--backup", in: args),
                               discardDeviceChanges: args.contains("--discard-device-changes"),
-                              confirmName: try optionalValue("--confirm", in: args), dryRun: args.contains("--dry-run"))
+                              confirmName: try optionalValue("--confirm", in: args), dryRun: args.contains("--dry-run"),
+                              allowPhysical: args.contains("--allow-physical"))
     }
 
     static func recoverRequest(_ args: [String]) throws -> RecoverRequest {
         let volume = try volumeArgument(args)
         try rejectPhysicalAllowance(args)
-        return RecoverRequest(volume: volume, discardTemp: args.contains("--discard-temp"), confirmName: try optionalValue("--confirm", in: args))
+        return RecoverRequest(volume: volume, discardTemp: args.contains("--discard-temp"), confirmName: try optionalValue("--confirm", in: args),
+                              allowPhysical: args.contains("--allow-physical"))
     }
 
     static func restore(_ args: [String], paths: @autoclosure () -> UsbWritePaths = .default) async throws {
         let request = try restoreRequest(args)
         let report = try UsbWriter.restore(root: UsbRoot(URL(filePath: request.volume)), paths: paths(),
-                                           backup: request.backup.map { URL(filePath: $0) }, guard: .system,
+                                           backup: request.backup.map { URL(filePath: $0) }, guard: .system(physicalWrite: request.allowPhysical),
                                            discardDeviceChanges: request.discardDeviceChanges, confirmName: request.confirmName,
                                            dryRun: request.dryRun)
         printReport(report)
@@ -64,7 +75,7 @@ enum UsbCommands {
 
     static func recover(_ args: [String], paths: @autoclosure () -> UsbWritePaths = .default) async throws {
         let request = try recoverRequest(args)
-        let report = try UsbWriter.recover(root: UsbRoot(URL(filePath: request.volume)), paths: paths(), guard: .system,
+        let report = try UsbWriter.recover(root: UsbRoot(URL(filePath: request.volume)), paths: paths(), guard: .system(physicalWrite: request.allowPhysical),
                                            discardTemp: request.discardTemp, confirmName: request.confirmName)
         printReport(report)
     }
@@ -117,6 +128,7 @@ enum UsbCommands {
         /// 기기 설정 파일을 옮길 로컬 rekordbox 설정 폴더(주지 않으면 옮기지 않는다)
         var settingsFolder: String?
         var snapshotTime: String?
+        var allowPhysical = false
     }
 
     /// 모르는 인자·값 없는 인자는 사용법. 목록도 곡도 없으면 사용법. `--allow-provisional physicalVolume`은 이유와 함께 거부
@@ -124,7 +136,7 @@ enum UsbCommands {
         var volume: String?, database: String?, share: String?, confirm: String?, settings: String?, snapshotTime: String?
         var playlists: [String] = [], tracks: [String] = []
         var formats = UsbFormat.defaultSet, allow: Set<UsbProvisionalRule> = []
-        var dryRun = false, verifyAudio = false
+        var dryRun = false, verifyAudio = false, allowPhysical = false
         var index = 1
         func next() throws -> String {
             guard index + 1 < args.count, !args[index + 1].hasPrefix("--"), !args[index + 1].isEmpty else { throw UsageError() }
@@ -157,6 +169,7 @@ enum UsbCommands {
             case "--confirm": confirm = try next()
             case "--allow-provisional": allow = try UsbRuleCheck.parseAllowList(try next())
             case "--verify-audio": verifyAudio = true
+            case "--allow-physical": allowPhysical = true
             case "--settings": settings = try next()
             case "--snapshot-time": snapshotTime = try next()
             default: throw UsageError()
@@ -167,7 +180,7 @@ enum UsbCommands {
         try rejectLiveLibrary(volume)
         return ExportRequest(volume: volume, database: database, share: share, playlists: playlists, tracks: tracks, formats: formats,
                              dryRun: dryRun, confirmName: confirm, allowProvisional: allow, verifyAudio: verifyAudio,
-                             settingsFolder: settings, snapshotTime: snapshotTime)
+                             settingsFolder: settings, snapshotTime: snapshotTime, allowPhysical: allowPhysical)
     }
 
     /// 빈 USB에 내보낸다. 진행은 표준 오류로, 요약은 표준 출력으로(첫 줄은 스냅샷 시각). 곡 제목·경로는 찍지 않는다
@@ -186,7 +199,8 @@ enum UsbCommands {
         options.snapshotTime = request.snapshotTime
         let selection: UsbSelection = request.playlists.isEmpty ? .tracks(request.tracks)
             : (request.tracks.isEmpty ? .playlists(request.playlists) : .both(playlists: request.playlists, tracks: request.tracks))
-        let session = UsbExportSession(database: database, share: share, root: URL(filePath: request.volume), paths: paths())
+        let session = UsbExportSession(database: database, share: share, root: URL(filePath: request.volume),
+                                       guard: .system(physicalWrite: request.allowPhysical), paths: paths())
         let printer = ProgressPrinter()
         let report: UsbWriteReport
         do {
@@ -282,12 +296,13 @@ enum UsbCommands {
         var confirmName: String?
         var allowProvisional: Set<UsbProvisionalRule> = []
         var snapshotTime: String?
+        var allowPhysical = false
     }
 
     /// 편집 파일과 `--draft` 중 하나만. 모르는 인자·값 없는 인자는 사용법. `--allow-provisional physicalVolume`은 이유와 함께 거부
     static func editRequest(_ args: [String]) throws -> EditRequest {
         var volume: String?, file: String?, database: String?, share: String?, confirm: String?, snapshotTime: String?
-        var draft = false, dryRun = false, allow: Set<UsbProvisionalRule> = []
+        var draft = false, dryRun = false, allowPhysical = false, allow: Set<UsbProvisionalRule> = []
         var index = 1
         func next() throws -> String {
             guard index + 1 < args.count, !args[index + 1].hasPrefix("--"), !args[index + 1].isEmpty else { throw UsageError() }
@@ -302,6 +317,7 @@ enum UsbCommands {
             case "--share": share = try next()
             case "--draft": draft = true
             case "--dry-run": dryRun = true
+            case "--allow-physical": allowPhysical = true
             case "--confirm": confirm = try next()
             case "--allow-provisional": allow = try UsbRuleCheck.parseAllowList(try next())
             case "--snapshot-time": snapshotTime = try next()
@@ -314,7 +330,7 @@ enum UsbCommands {
         guard let volume, (file == nil) == draft else { throw UsageError() }
         try rejectLiveLibrary(volume)
         return EditRequest(volume: volume, editsFile: file, draft: draft, database: database, share: share, dryRun: dryRun,
-                           confirmName: confirm, allowProvisional: allow, snapshotTime: snapshotTime)
+                           confirmName: confirm, allowProvisional: allow, snapshotTime: snapshotTime, allowPhysical: allowPhysical)
     }
 
     /// 편집 파일: `UsbLibraryEdit` 배열(합성 Codable JSON 그대로)
@@ -353,7 +369,8 @@ enum UsbCommands {
         let database = try request.database.map { URL(filePath: $0) } ?? (local ? LibrarySnapshot.latest() : nil)
         let share = request.share.map { URL(filePath: $0) } ?? (local ? LibrarySnapshot.rekordboxDirectory.appending(path: "share") : nil)
         let options = UsbWriteOptions(dryRun: request.dryRun, confirmName: request.confirmName, allowProvisional: request.allowProvisional)
-        let session = UsbEditSession(root: root, database: database, share: share, paths: paths())
+        let session = UsbEditSession(root: root, database: database, share: share, guard: .system(physicalWrite: request.allowPhysical),
+                                     paths: paths())
         let printer = ProgressPrinter()
         let written: (UsbEditResult, UsbWriteReport?)
         do {
@@ -423,11 +440,12 @@ enum UsbCommands {
         var dryRun = false
         var confirmName: String?
         var allowProvisional: Set<UsbProvisionalRule> = []
+        var allowPhysical = false
     }
 
     /// 모르는 인자·값 없는 인자는 사용법. `--allow-provisional physicalVolume`은 이유와 함께 거부
     static func migrateRequest(_ args: [String]) throws -> MigrateRequest {
-        var volume: String?, confirm: String?, dryRun = false, allow: Set<UsbProvisionalRule> = []
+        var volume: String?, confirm: String?, dryRun = false, allowPhysical = false, allow: Set<UsbProvisionalRule> = []
         var index = 1
         func next() throws -> String {
             guard index + 1 < args.count, !args[index + 1].hasPrefix("--"), !args[index + 1].isEmpty else { throw UsageError() }
@@ -438,6 +456,7 @@ enum UsbCommands {
             switch args[index] {
             case "--volume": volume = try next()
             case "--dry-run": dryRun = true
+            case "--allow-physical": allowPhysical = true
             case "--confirm": confirm = try next()
             case "--allow-provisional": allow = try UsbRuleCheck.parseAllowList(try next())
             default: throw UsageError()
@@ -446,14 +465,14 @@ enum UsbCommands {
         }
         guard let volume else { throw UsageError() }
         try rejectLiveLibrary(volume)
-        return MigrateRequest(volume: volume, dryRun: dryRun, confirmName: confirm, allowProvisional: allow)
+        return MigrateRequest(volume: volume, dryRun: dryRun, confirmName: confirm, allowProvisional: allow, allowPhysical: allowPhysical)
     }
 
     /// Device Library만 있는 USB에 OneLibrary를 더한다. 요약은 표준 출력, 진행은 표준 오류. 곡 제목·경로는 찍지 않는다
     static func migrate(_ args: [String], paths: @autoclosure () -> UsbWritePaths = .default) async throws {
         let request = try migrateRequest(args)
         let options = UsbWriteOptions(dryRun: request.dryRun, confirmName: request.confirmName, allowProvisional: request.allowProvisional)
-        let session = UsbMigrateSession(root: URL(filePath: request.volume), paths: paths())
+        let session = UsbMigrateSession(root: URL(filePath: request.volume), guard: .system(physicalWrite: request.allowPhysical), paths: paths())
         let printer = ProgressPrinter()
         do {
             let (result, report) = try session.write(options: options, progress: { printer.show($0) }, isCancelled: { false })
@@ -476,6 +495,69 @@ enum UsbCommands {
         lines.append(rules.isEmpty ? String(ui: "확인 안 된 규칙: 없음") : String(ui: "확인 안 된 규칙: \(rules.joined(separator: ", "))"))
         if let report { lines += reportLines(report) }
         return lines
+    }
+
+    // MARK: - usb-allow·usb-deny
+
+    /// `usb-allow`·`usb-deny` 인자: `--volume <마운트>`와 (allow만) `--remove`
+    struct ListRequest: Equatable {
+        var volume: String
+        var remove = false
+    }
+
+    static func listRequest(_ args: [String], allowsRemove: Bool) throws -> ListRequest {
+        var volume: String?, remove = false
+        var index = 1
+        while index < args.count {
+            switch args[index] {
+            case "--volume":
+                guard index + 1 < args.count, !args[index + 1].hasPrefix("--"), !args[index + 1].isEmpty else { throw UsageError() }
+                index += 1
+                volume = args[index]
+            case "--remove" where allowsRemove: remove = true
+            default: throw UsageError()
+            }
+            index += 1
+        }
+        guard let volume else { throw UsageError() }
+        try rejectLiveLibrary(volume)
+        return ListRequest(volume: volume, remove: remove)
+    }
+
+    /// 목록에 넣을 볼륨: 볼륨의 맨 위 폴더여야 한다(하위 폴더로 다른 볼륨을 고르지 않게)
+    static func listVolume(_ path: String, volumeInfo: (URL) throws -> UsbVolumeInfo) throws -> UsbVolumeInfo {
+        let volume = try volumeInfo(URL(filePath: path))
+        guard volume.rootIsMountPoint else {
+            throw UsbError.writeRefused([UsbBlock(code: "notMountPoint", scope: .volume, message: String(ui: "USB 볼륨의 맨 위 폴더를 고르세요"))])
+        }
+        return volume
+    }
+
+    /// 이 실물 USB에 쓰기를 허용한다(또는 `--remove`로 거둔다). 목록 파일만 고치고 USB에는 쓰지 않는다
+    static func allow(_ args: [String], supportDirectory: URL = DJCIdentity.supportDirectory, userData: URL = DJCPaths.userData,
+                      volumeInfo: (URL) throws -> UsbVolumeInfo = { try UsbVolumes.info(root: $0) }) async throws {
+        let request = try listRequest(args, allowsRemove: true)
+        let volume = try listVolume(request.volume, volumeInfo: volumeInfo)
+        if request.remove {
+            guard let uuid = volume.volumeUUID else {
+                throw UsbError.writeRefused([UsbBlock(code: "noVolumeUUID", scope: .volume,
+                                                      message: String(ui: "USB의 볼륨 UUID를 읽지 못해 목록을 고치지 않았습니다. USB를 다시 연결한 뒤 시도하세요"))])
+            }
+            try UsbPhysicalLists.revoke(uuid: uuid, supportDirectory: supportDirectory)
+            print(String(ui: "결과: 쓰기 허용을 거뒀습니다(볼륨 UUID \(uuid.uppercased()))"))
+            return
+        }
+        try UsbPhysicalLists.allow(volume, supportDirectory: supportDirectory, userData: userData)
+        print(String(ui: "결과: 쓰기를 허용했습니다(볼륨 UUID \(volume.volumeUUID?.uppercased() ?? "")). 쓸 때는 --allow-physical --confirm <볼륨 이름>을 주세요"))
+    }
+
+    /// 이 USB를 쓰기 금지 목록에 넣는다. 목록 파일만 고치고 USB에는 쓰지 않는다
+    static func deny(_ args: [String], supportDirectory: URL = DJCIdentity.supportDirectory,
+                     volumeInfo: (URL) throws -> UsbVolumeInfo = { try UsbVolumes.info(root: $0) }) async throws {
+        let request = try listRequest(args, allowsRemove: false)
+        let volume = try listVolume(request.volume, volumeInfo: volumeInfo)
+        try UsbPhysicalLists.deny(volume, supportDirectory: supportDirectory)
+        print(String(ui: "결과: 쓰기 금지 목록에 넣었습니다(볼륨 UUID \(volume.volumeUUID?.uppercased() ?? ""))"))
     }
 
     // MARK: - usb-info

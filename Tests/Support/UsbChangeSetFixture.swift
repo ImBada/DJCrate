@@ -15,6 +15,8 @@ public final class UsbChangeSetFixture: @unchecked Sendable {
     public let home: URL
     public let paths: UsbWritePaths
     public var volume: UsbVolumeInfo = FakeUsbVolume.diskImageFAT32()
+    /// 가드의 실물 관문(기본: 실물 쓰기 스위치 끔)
+    public var gate: UsbPhysicalWriteGate = FakeUsbVolume.gate()
     /// 가드가 돌려줄 rekordbox 실행 여부
     public var rekordboxRunning = false
     /// 가드 호출을 이 파일 시스템 기록에 함께 남긴다
@@ -52,8 +54,9 @@ public final class UsbChangeSetFixture: @unchecked Sendable {
     }
 
     /// 디스크 이미지 FAT32로 보이는 가드. 볼륨·rekordbox 확인은 `recorder`가 있으면 거기에 적는다
-    public func writeGuard(gate: UsbPhysicalWriteGate = FakeUsbVolume.gate(), protectedRoots: [URL] = []) -> UsbWriteGuard {
-        UsbWriteGuard(volume: { [self] _ in
+    public func writeGuard(gate: UsbPhysicalWriteGate? = nil, protectedRoots: [URL] = []) -> UsbWriteGuard {
+        let gate = gate ?? self.gate
+        return UsbWriteGuard(volume: { [self] _ in
             recorder?.record("guard.volume")
             return volume
         }, isRekordboxRunning: { [self] in
@@ -335,14 +338,14 @@ public final class UsbChangeSetFixture: @unchecked Sendable {
                             isCancelled: isCancelled)
     }
 
-    public func recover(fileSystem: FaultyUsbFileSystem? = nil, discardTemp: Bool = false) throws -> UsbWriteReport {
+    public func recover(fileSystem: FaultyUsbFileSystem? = nil, discardTemp: Bool = false, confirmName: String? = nil) throws -> UsbWriteReport {
         try UsbWriter.recover(root: root, paths: paths, guard: writeGuard(), fileSystem: fileSystem ?? self.fileSystem(),
-                              ppthReader: Self.ppthReader, discardTemp: discardTemp)
+                              ppthReader: Self.ppthReader, discardTemp: discardTemp, confirmName: confirmName)
     }
 
     public func restore(backup: URL? = nil, fileSystem: FaultyUsbFileSystem? = nil, discardDeviceChanges: Bool = false,
-                        dryRun: Bool = false) throws -> UsbWriteReport {
+                        dryRun: Bool = false, confirmName: String? = nil) throws -> UsbWriteReport {
         try UsbWriter.restore(root: root, paths: paths, backup: backup, guard: writeGuard(), fileSystem: fileSystem ?? self.fileSystem(),
-                              discardDeviceChanges: discardDeviceChanges, dryRun: dryRun)
+                              discardDeviceChanges: discardDeviceChanges, confirmName: confirmName, dryRun: dryRun)
     }
 }
