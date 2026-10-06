@@ -8,6 +8,11 @@ public enum DJCIdentity {
     public static let legacyName = "anicue"
     public static let legacyBundleID = "com.fotone.anicue"
 
+    /// rekordbox 환경설정에 한 번 지정하는 연동 XML 파일("XML 만들기"가 늘 덮어쓴다). 다른 XML 내보내기가 이 자리를 쓰지 않게 비교할 때도 쓴다.
+    public static var linkedXMLFile: URL {
+        URL.documentsDirectory.appending(path: "\(name)/djcrate-rekordbox.xml")
+    }
+
     /// 설치한 앱이 쓰는 실제 사용자 폴더(`~/Library/Application Support/DJCrate`). 환경·시험 여부와 상관없이 늘 이 경로다.
     public static var userSupportDirectory: URL { URL.applicationSupportDirectory.appending(path: name) }
 
