@@ -48,6 +48,11 @@ protocol DeckAudioEngine: AnyObject {
     /// 샘플 단위로 예약했으면 그 점프, 못 하면 nil(부른 쪽이 화면 틱으로 넘긴다).
     func scheduleJump(to cue: Double, loop: ClosedRange<Double>?, quantize: PlayQuantize) -> PlayQuantize.Jump?
 
+    /// Flip 기록: 재생 한 번이 끝날 때(멈춤·다른 자리에서 다시 재생) 그동안 들린 구간(루프는 바퀴마다)을 알린다.
+    var onPlayedRun: ((PlayedRun) -> Void)? { get set }
+    /// Flip 기록: 지금 재생에서 아직 알리지 않은 들린 구간(재생 중이 아니면 nil). 다음에 알릴 구간은 지금부터다.
+    func takePlayedRun() -> PlayedRun?
+
     // 진단(자가 테스트)
     func debugStopEngine()
     func debugConfigurationChange()

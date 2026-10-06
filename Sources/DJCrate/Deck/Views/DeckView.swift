@@ -108,7 +108,7 @@ private struct DeckWaveformGroup: View {
                                 ZoomControl(deck: deck, availableHeight: zoomWaveformHeight).padding(.leading, 8)
                             }
                             .overlay(alignment: .trailing) {
-                                TrackEditButton(deck: deck).padding(.trailing, 8)
+                                TrackEditButton(deck: deck, availableHeight: zoomWaveformHeight).padding(.trailing, 8)
                             }
                     }
                 }

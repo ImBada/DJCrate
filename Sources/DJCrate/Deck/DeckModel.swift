@@ -180,6 +180,10 @@ final class DeckModel {
     var toast: AppMessage?
     @ObservationIgnored var feedback = AppFeedback()
 
+    /// Flip 기록 중(덱의 Flip 버튼 불빛). 기록 내용은 재생이 끝날 때마다 바뀌어 관찰하지 않는다(`flipRecording`).
+    var isFlipRecording = false
+    @ObservationIgnored var flipRecording: FlipRecording?
+
     @ObservationIgnored var toastTask: Task<Void, Never>?
 
     // 그리드
@@ -314,6 +318,7 @@ final class DeckModel {
             self.loudness = measured
             self.applyGain()
         }
+        audio.onPlayedRun = { [weak self] run in self?.flipRecording?.record(run) }
         audio.onRecovered = { [weak self] in
             guard let self else { return }
             self.isPlaying = true
@@ -408,6 +413,11 @@ final class DeckModel {
             return
         }
         stopPlayback()
+        // 기록은 이 곡의 시각이라 다른 곡(다른 파일)으로 이어 가지 않는다.
+        if isFlipRecording {
+            cancelFlipRecording()
+            if row != nil { showToast(String(ui: "곡을 바꿔 Flip 기록을 버렸습니다. 새 곡에서 Flip을 다시 누르세요")) }
+        }
         loadTask?.cancel()
         softReloadTask?.cancel()
         waveformTask?.cancel()

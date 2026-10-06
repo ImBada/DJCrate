@@ -222,6 +222,7 @@ struct ContentView: View {
             }
             keys.install(deck: deck, store: store)
             TrackEditWindow.shared.attach(deck: deck, store: store)
+            FlipWindow.shared.attach(deck: deck, store: store)
             #if DEBUG
             DevSelfTests.runIfRequested(store: store, deck: deck)
             DevSelfTests.runBlockedReasonsCaptureIfRequested(store: store, deck: deck)

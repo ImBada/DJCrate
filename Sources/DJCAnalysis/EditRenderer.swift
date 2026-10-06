@@ -30,6 +30,14 @@ public enum EditRenderer {
                           progress: progress)
     }
 
+    /// Flip 결과(`FlipEdit`)를 렌더한다. 마디 편집과 같은 프레임 규칙이다.
+    public static func render(_ flip: FlipEdit, source: URL, sourceOffset: Double, to output: URL, bitDepth: Int = 16,
+                              progress: Progress? = nil) throws -> Result {
+        let rate = try AVAudioFile(forReading: source).processingFormat.sampleRate
+        return try render(flip.frames(sampleRate: rate, sourceOffset: sourceOffset), source: source, to: output, bitDepth: bitDepth,
+                          progress: progress)
+    }
+
     public static func render(_ spans: [EditFrameSpan], source: URL, to output: URL, bitDepth: Int = 16,
                               progress: Progress? = nil) throws -> Result {
         let ext = output.pathExtension.lowercased()

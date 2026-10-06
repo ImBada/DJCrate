@@ -1,13 +1,20 @@
 import DJCDomain
 import Foundation
 
-/// 곡 편집 결과(렌더한 파일)를 곡 넣기 흐름에 잇는다.
+/// 곡 편집·Flip 결과(렌더한 파일)를 곡 넣기 흐름에 잇는다.
 ///
 /// "추가한 곡"에 넣고, 그리드는 추정하지 않고 편집으로 변환한 그리드를, 큐는 출력 위치로 옮긴 큐를 초안으로 둔다.
 /// 곡 정보는 원곡 값을 태그 초안으로 둔다(렌더한 WAV에는 태그가 없다). 이후 rekordbox에 넣기·XML 내보내기는 기존 흐름 그대로다.
 /// 출력은 PCM이라 인코더 지연이 없어 초안의 rekordbox 시간축 = 출력 파일 시간축이다.
 public enum EditStaging {
     public static func stage(fileAt url: URL, edit: TrackEdit, cues: [EditableCue], source: Track?, title: String? = nil,
+                             home: URL = DJCPaths.userData, now: Date = .now) async throws -> StagedTrack {
+        try await stage(fileAt: url, grid: [edit.outputGrid], cues: cues, source: source,
+                        title: title ?? source.map { "\($0.title) (Edit)" }, home: home, now: now)
+    }
+
+    /// - Parameter grid: 출력 그리드(템포 구간). 비어 있으면 그리드 초안을 두지 않는다(원곡에 그리드가 없던 Flip, 추가한 곡에서 추정한다).
+    public static func stage(fileAt url: URL, grid: [GridSegment], cues: [EditableCue], source: Track?, title: String?,
                              home: URL = DJCPaths.userData, now: Date = .now) async throws -> StagedTrack {
         let list = home.appending(path: StagingStore.fileName)
         var tracks = StagingStore.load(url: list)
@@ -17,8 +24,10 @@ public enum EditStaging {
         }
         var staged = try await StagedTrack.make(fileAt: url, addedOn: String(ISO8601DateFormatter().string(from: now).prefix(10)))
         staged.path = path
-        staged.bpm = edit.outputGrid.bpm
-        staged.gridConfident = true
+        if let first = grid.first {
+            staged.bpm = first.bpm
+            staged.gridConfident = true
+        }
 
         var cueDraft = CueDraft(trackUUID: staged.uuid, rekordboxCues: [])
         for cue in cues { cueDraft.place(cue) }
@@ -29,15 +38,17 @@ public enum EditStaging {
             // 추가한 곡에서 키를 고르면 넣을 때 함께 쓴다.
             tags.fields.musicalKey = tags.base.musicalKey
         }
-        tags.fields.title = title ?? source.map { "\($0.title) (Edit)" } ?? staged.title
+        tags.fields.title = title ?? staged.title
 
         // 중간에 실패하면 이 작업이 만든 초안만 되돌린다(전에 있던 파일은 그 내용으로 되살린다, #174).
         var touched = Touched()
         do {
             let grids = home.appending(path: "grid-drafts"), cueDirectory = home.appending(path: "cue-drafts")
             let tagDirectory = home.appending(path: "tag-drafts")
-            try touched.remember(grids.appending(path: "\(staged.uuid).json"))
-            try GridDraftStore.save(GridDraft(trackUUID: staged.uuid, base: [], segments: [edit.outputGrid]), directory: grids)
+            if !grid.isEmpty {
+                try touched.remember(grids.appending(path: "\(staged.uuid).json"))
+                try GridDraftStore.save(GridDraft(trackUUID: staged.uuid, base: [], segments: grid), directory: grids)
+            }
             try touched.remember(cueDirectory.appending(path: "\(staged.uuid).json"))
             try CueDraftStore.save(cueDraft, directory: cueDirectory)
             try touched.remember(tagDirectory.appending(path: "\(staged.uuid).json"))

@@ -34,13 +34,30 @@ final class FakeDeckAudio: DeckAudioEngine {
     var loop: ClosedRange<Double>?
     var log: [String] = []
     var loadError: (any Error)?
+    var onPlayedRun: ((PlayedRun) -> Void)?
+    /// 지금 재생에서 아직 알리지 않은 구간의 시작(재생 중이 아니면 nil). 시험이 옮긴 `position`까지를 한 구간으로 알린다.
+    private var runStart: Double?
+
+    private func endRun(continuing: Bool) {
+        guard isPlaying, let start = runStart else { return }
+        runStart = nil
+        onPlayedRun?(PlayedRun(spans: [PlayedSpan(start: start, end: position)], continuing: continuing))
+    }
+
+    func takePlayedRun() -> PlayedRun? {
+        guard isPlaying, let start = runStart else { return nil }
+        runStart = position
+        return PlayedRun(spans: [PlayedSpan(start: start, end: position)], continuing: true)
+    }
 
     func load(url: URL, timelineOffset: Double) throws {
         if let loadError { throw loadError }
         isLoaded = true; duration = trackLength; log.append("load")
     }
-    func unload() { isLoaded = false; isPlaying = false }
+    func unload() { endRun(continuing: false); isLoaded = false; isPlaying = false }
     func play(from position: Double) -> Bool {
+        endRun(continuing: true)
+        runStart = position
         self.position = position
         hasPendingJump = false
         isPlaying = true
@@ -48,8 +65,8 @@ final class FakeDeckAudio: DeckAudioEngine {
         log.append(String(format: "play %.3f", position))
         return true
     }
-    func pause() { isPlaying = false; hasPendingJump = false; log.append("pause") }
-    func stop() { isPlaying = false; hasPendingJump = false; log.append("stop") }
+    func pause() { endRun(continuing: false); isPlaying = false; hasPendingJump = false; log.append("pause") }
+    func stop() { endRun(continuing: false); isPlaying = false; hasPendingJump = false; log.append("stop") }
     func seekWhilePaused(_ position: Double) { self.position = position }
     func recoverIfStalled() {}
     func scheduleClicks(_ grid: BeatGrid?) {}
