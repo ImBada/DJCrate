@@ -100,6 +100,19 @@ final class LibraryStore {
             applyStreamingVisibility()
         }
     }
+    /// 실험실 '인텔리전트 재생 목록 보기'(#68). 켜면 인텔리전트 목록의 조건을 계산해 읽기 전용으로 보인다. 끄면(기본) 계산하지 않고,
+    /// 사이드바·곡 목록·편집은 이 기능이 없던 때와 같다. 켜고 끄면 다시 읽지 않고 사이드바를 바로 바꾼다(`LibraryStore+SmartPlaylists`).
+    var showSmartPlaylists: Bool {
+        didSet {
+            guard showSmartPlaylists != oldValue else { return }
+            settings.set(SettingKeys.labSmartPlaylists, showSmartPlaylists)
+            refreshPlaylists()
+        }
+    }
+    /// 목록 ID → 읽은 조건 칸(스냅샷을 읽을 때 채운다)
+    var smartPlaylistSources: [String: SmartPlaylistSource] = [:]
+    /// 켜 있을 때 목록 ID → 계산 결과(계산하지 못한 조건이 있으면 곡 없이 이유만)
+    var smartPlaylistResults: [String: SmartPlaylistResult] = [:]
     /// 지금 보는 목록에서 '스트리밍 곡 숨기기' 때문에 뺀 줄 수. 0이 아니면 보이는 줄 번호가 목록 순서와 다르니 끌어 옮기지 않는다.
     private(set) var streamingHiddenInView = 0
     /// 지금 보는 목록에서 숨긴 줄의 ID(재생 기록의 반복 행처럼 곡 ID와 다른 줄 ID도 선택에서 뺀다)
@@ -117,6 +130,7 @@ final class LibraryStore {
         self.dismissedKeySuggestions = settings.strings(SettingKeys.dismissedKeySuggestions)
         self.commentPreset = settings.commentPreset
         self.hideStreaming = settings.value(SettingKeys.hideStreaming)
+        self.showSmartPlaylists = settings.value(SettingKeys.labSmartPlaylists)
         self.saveTagDrafts = saveTagDrafts
         self.playlistDraftSaver = playlistDraftSaver
         self.mergeDraftSaver = mergeDraftSaver
@@ -322,6 +336,12 @@ final class LibraryStore {
     private(set) var hasGridJob = false
     var gridQueue: [GridJobItem] = []
     var gridTask: Task<Void, Never>?
+    /// 라이브러리 XML 내보내기 진행(끝나면 nil, `LibraryStore+XMLExport.swift`). 그리드 추정처럼 줄은 시작·끝에만 넣고 뺀다.
+    var xmlExportJob: LibraryXMLExportJob? {
+        didSet { if (oldValue == nil) != (xmlExportJob == nil) { hasXMLExportJob = xmlExportJob != nil } }
+    }
+    private(set) var hasXMLExportJob = false
+    @ObservationIgnored var xmlExportTask: Task<Void, Never>?
     /// 곡 추가·내보내기 결과 안내
     var stagingMessage: AppMessage? {
         didSet { if let stagingMessage { feedback.announce(stagingMessage) } }
@@ -993,6 +1013,7 @@ final class LibraryStore {
             trackColors = loaded.colors.isEmpty ? TrackColor.rekordboxDefaults : loaded.colors
             editedUUIDs = cueDraftUUIDs.union(gridDraftUUIDs).union(gainDraftUUIDs).union(tagDrafts.keys).union(artworkDrafts.keys)
             rekordboxPlaylists = loaded.playlists
+            smartPlaylistSources = loaded.smartPlaylists
             // 저장하지 못한 재생 목록 초안은 디스크의 옛 초안으로 덮지 않는다(#174).
             if !playlistDraftUnsaved { playlistDraft = loaded.playlistDraft }
             iTunesLibrary = loaded.iTunesLibrary

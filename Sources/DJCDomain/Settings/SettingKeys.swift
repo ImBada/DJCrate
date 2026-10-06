@@ -69,6 +69,12 @@ public enum SettingKeys {
     /// 곡 목록·곡 수에서 스트리밍 곡을 뺀다. 보이는 것만 바꾸고 라이브러리·초안·rekordbox에 쓰는 내용은 그대로다(`StreamingVisibility`).
     public static let hideStreaming = SettingKey("library.hideStreaming", false)
 
+    // MARK: 실험실
+
+    /// 실험실: 사이드바에서 인텔리전트 재생 목록의 조건을 DJCrate가 계산해 읽기 전용으로 보인다(#68). rekordbox가 보여 주는 곡과 아직 견주지 않아
+    /// 기본은 끔이고, 끄면 설정이 없던 때와 똑같이 보인다. 앞으로 다른 실험 기능도 `lab.` 이름으로 이 구역에 둔다.
+    public static let labSmartPlaylists = SettingKey("lab.smartPlaylists", false)
+
     /// 곡 UUID 모음: 무시한 게인·그리드·키 제안
     public static let dismissedGainSuggestions = "deck.dismissedGainSuggestions"
     public static let dismissedGridSuggestions = "deck.dismissedGridSuggestions"
@@ -82,7 +88,7 @@ public enum SettingKeys {
          waveformHeight.name, textScale.name, playQuantizeBeats.name]
             + [quantize, playQuantize, carryCues, showSuggestions, keyLock, autoGain, peakProtection, useRekordboxGain,
                sheetMode, showTagEditor, sidebarPlaylistsExpanded, sidebarSummaryExpanded, sidebarHistoriesExpanded, sidebarShowsStatus,
-               sidebarVisible, commentClassColumnHidden, hideStreaming].map(\.name)
+               sidebarVisible, commentClassColumnHidden, hideStreaming, labSmartPlaylists].map(\.name)
             + [dismissedGainSuggestions, dismissedGridSuggestions, dismissedKeySuggestions, deckShortcuts, waveformColorMode.name, commentPreset.name, cueListFilter.name]
     }
 }

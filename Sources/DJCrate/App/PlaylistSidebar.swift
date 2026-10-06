@@ -118,12 +118,20 @@ struct PlaylistRow: View {
 
     private var title: String { node.name.isEmpty ? String(ui: "(이름 없음)") : node.name }
     private var icon: String { node.isSmart ? "gearshape" : node.isFolder ? "folder" : "music.note.list" }
+    /// 실험실 '인텔리전트 재생 목록 보기'를 켰을 때 이 목록의 계산 결과(아니면 nil)
+    private var smartResult: SmartPlaylistResult? { node.isSmart && store.showSmartPlaylists ? store.smartPlaylistResults[node.id] : nil }
+    /// 계산하지 못한 인텔리전트 목록의 이유 한 줄
+    private var smartUnsupported: String? { smartResult?.unsupportedSummary }
+    private var smartHelp: String? {
+        guard node.isSmart, store.showSmartPlaylists else { return nil }
+        return smartUnsupported.map { String(ui: "DJCrate가 이 목록의 조건을 계산하지 못했습니다: \($0)") } ?? SmartPlaylistSource.readOnlyReason
+    }
 
     var body: some View {
         content
             .badge(store.count(playlist: node))
             .lineLimit(1)
-            .help(node.blockedReason.map { String(ui: "이 목록의 초안 일부를 쓸 수 없습니다: \($0)") } ?? title)
+            .help(node.blockedReason.map { String(ui: "이 목록의 초안 일부를 쓸 수 없습니다: \($0)") } ?? smartHelp ?? title)
             .onDrag { PlaylistDragType.provider(for: node) }
             .onDrop(of: [PlaylistDragType.tracks, PlaylistDragType.playlist, .fileURL], isTargeted: $isTargeted) { providers in
                 PlaylistDrop.perform(providers, on: node, store: store)
@@ -160,6 +168,11 @@ struct PlaylistRow: View {
                             .foregroundStyle(UIColors.warning.color)
                             .accessibilityLabel(.ui("쓸 수 없는 초안"))
                     }
+                    if smartUnsupported != nil {
+                        Image(systemName: WarningMark.symbol)
+                            .foregroundStyle(UIColors.warning.color)
+                            .accessibilityLabel(.ui("계산하지 못한 조건"))
+                    }
                 }
             } icon: {
                 Image(systemName: icon)
@@ -186,13 +199,20 @@ struct PlaylistSidebarMenu: ViewModifier {
                 UsbSidebarMenu(store: store, actions: actions, target: target)
             }
         } primaryAction: { items in
-            guard items.count == 1, case let .playlist(id)? = items.first, let node = store.playlistIndex[id], !node.isSmart,
-                  store.writeLockPolicy.allowsLibraryInteraction else { return }
+            guard items.count == 1, case let .playlist(id)? = items.first, let node = store.playlistIndex[id] else { return }
+            // 실험실에서 인텔리전트 목록을 보는 중이면 이름을 바꿀 수 없는 이유를 알린다(끄면 지금처럼 조용히 넘어간다).
+            if node.isSmart {
+                store.blockSmartPlaylistEdit(id)
+                return
+            }
+            guard store.writeLockPolicy.allowsLibraryInteraction else { return }
             store.renamingPlaylistID = id
         }
         // ⌫: 고른 목록·폴더를 지운다(확인 창)
         .onDeleteCommand {
-            guard case let .playlist(id) = store.sidebar, store.playlistIndex[id]?.isSmart == false,
+            guard case let .playlist(id) = store.sidebar else { return }
+            if store.blockSmartPlaylistEdit(id) { return }
+            guard store.playlistIndex[id]?.isSmart == false,
                   store.renamingPlaylistID == nil, store.writeLockPolicy.allowsLibraryInteraction else { return }
             PlaylistPanels.delete(store: store, id: id)
         }
@@ -221,6 +241,11 @@ struct PlaylistContextMenu: View {
             Button(node.isFolder ? LocalizedStringResource.ui("폴더 지우기…") : .ui("재생 목록 지우기…"), role: .destructive) {
                 PlaylistPanels.delete(store: store, id: node.id)
             }
+        }
+        if node.isSmart, store.showSmartPlaylists {
+            // 실험실에서 보는 인텔리전트 목록은 읽기 전용이다. 이름·옮기기·지우기 대신 이유를 보인다.
+            Button(SmartPlaylistSource.readOnlyReason) {}
+                .disabled(true)
         }
         if node.isDraft || node.blockedReason != nil {
             Divider()
@@ -278,7 +303,10 @@ enum PlaylistDrop {
         guard store.writeLockPolicy.allowsLibraryInteraction else { return false }
         let tracks = providers.filter { $0.hasItemConformingToTypeIdentifier(PlaylistDragType.tracks.identifier) }
         if !tracks.isEmpty {
-            guard store.canEditTracks(of: node.id) else { return false }
+            guard store.canEditTracks(of: node.id) else {
+                store.blockSmartPlaylistEdit(node.id)
+                return false
+            }
             loadStrings(tracks, type: PlaylistDragType.tracks) { ids in
                 store.addTracks(ids.compactMap { store.rowsByID[$0] }, toPlaylist: node.id)
             }
@@ -286,14 +314,20 @@ enum PlaylistDrop {
         }
         let files = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
         if !files.isEmpty {
-            guard store.canEditTracks(of: node.id) else { return false }
+            guard store.canEditTracks(of: node.id) else {
+                store.blockSmartPlaylistEdit(node.id)
+                return false
+            }
             loadStrings(files, type: .fileURL) { strings in
                 let urls = strings.compactMap(URL.init(string:)).filter(\.isFileURL)
                 Task { await store.addFiles(urls, toPlaylist: node.id) }
             }
             return true
         }
-        guard !node.isSmart else { return false }
+        guard !node.isSmart else {
+            store.blockSmartPlaylistEdit(node.id)
+            return false
+        }
         return movePlaylist(providers) { id in
             if node.isFolder {
                 store.movePlaylist(id, into: node.id)

@@ -267,6 +267,12 @@ struct EmptyLibraryOverlay: View {
     @ViewBuilder private var message: some View {
         if !store.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             ContentUnavailableView.search(text: store.search)
+        } else if let summary = store.selectedSmartPlaylistResult?.unsupportedSummary {
+            ContentUnavailableView {
+                Label(.ui("조건을 계산하지 못했습니다"), systemImage: WarningMark.symbol)
+            } description: {
+                Text(.ui("\(summary). rekordbox에서 이 목록을 확인하세요."))
+            }
         } else if store.isAttributeFiltered {
             ContentUnavailableView {
                 Label(.ui("평점·곡 색 조건에 맞는 곡이 없습니다"), systemImage: "line.3.horizontal.decrease.circle")
@@ -274,6 +280,12 @@ struct EmptyLibraryOverlay: View {
                 Text(.ui("거르기는 rekordbox 값(초안 전)으로 합니다. 조건을 바꾸거나 거르기를 끄세요."))
             } actions: {
                 Button(.ui("평점·곡 색 거르기 끄기")) { store.minimumRating = 0; store.colorFilter = nil }
+            }
+        } else if store.selectedSmartPlaylistResult != nil, store.streamingHiddenInView == 0 {
+            ContentUnavailableView {
+                Label(.ui("조건에 맞는 곡이 없습니다"), systemImage: "music.note.list")
+            } description: {
+                Text(.ui("DJCrate가 계산한 결과입니다. rekordbox 화면과 다를 수 있습니다."))
             }
         } else if store.sidebar == .pending {
             ContentUnavailableView {
