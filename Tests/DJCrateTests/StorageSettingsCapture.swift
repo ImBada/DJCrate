@@ -36,6 +36,9 @@ struct StorageSettingsCapture {
         for name in ["20260101-000000-write", "20260102-000000-write"] {
             try file(paths.root.appending(path: "rekordbox-backups/\(name)/master.db"), 150_000_000)
         }
+        for name in ["2026-01-01T000000Z-manual", "2026-01-02T000000Z-auto"] {
+            try file(paths.root.appending(path: "point-snapshots/\(name)/master.db"), 150_000_000)
+        }
         try file(paths.root.appending(path: "usb-backups/00000000-0000-0000-0000-000000000001/20260101-000000-edit/export.pdb"), 2_000_000)
         try file(paths.root.appending(path: "cue-drafts/synthetic.json"), 400)
     }

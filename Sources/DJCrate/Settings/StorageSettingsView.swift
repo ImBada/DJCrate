@@ -18,6 +18,11 @@ final class StorageSettingsModel {
     private(set) var message: String?
 
     let paths: DJCCachePaths
+    /// 자동 시점 스냅샷 보관 일수(#223 결정, 설정에서 일수만). 시험은 설정 없이 기본값만 본다
+    var autoSnapshotDays: Int {
+        didSet { settings?.set(SettingKeys.pointSnapshotAutoDays, Double(autoSnapshotDays)) }
+    }
+    @ObservationIgnored private let settings: SettingsStore?
     @ObservationIgnored private let openSnapshot: () -> URL?
     @ObservationIgnored private let busy: () -> String?
     /// 파일을 지우기 전에 앱 메모리의 캐시를 비운다(메모리의 옛 값을 다시 저장하지 않게). 시험은 비워 둔다
@@ -25,10 +30,12 @@ final class StorageSettingsModel {
     /// 지운 뒤 화면에 보이는 캐시를 다시 채운다(목록 미리 보기 파형)
     @ObservationIgnored private let rebuild: ([DJCCacheKind]) -> Void
 
-    init(paths: DJCCachePaths = .current, openSnapshot: @escaping () -> URL? = { nil },
+    init(paths: DJCCachePaths = .current, settings: SettingsStore? = nil, openSnapshot: @escaping () -> URL? = { nil },
          busyReason: @escaping () -> String? = { nil },
          clearMemory: @escaping ([DJCCacheKind]) async -> Void = { _ in }, rebuild: @escaping ([DJCCacheKind]) -> Void = { _ in }) {
         self.paths = paths
+        self.settings = settings
+        autoSnapshotDays = Int(settings?.value(SettingKeys.pointSnapshotAutoDays) ?? SettingKeys.pointSnapshotAutoDays.defaultValue)
         self.openSnapshot = openSnapshot
         self.busy = busyReason
         self.clearMemory = clearMemory
@@ -37,7 +44,7 @@ final class StorageSettingsModel {
 
     /// 앱 화면이 쓰는 모델: 앱이 연 스냅샷은 남기고, rekordbox·USB 쓰기 중에는 막는다
     convenience init(store: LibraryStore) {
-        self.init(openSnapshot: { [weak store] in store?.snapshotURL },
+        self.init(settings: store.settings, openSnapshot: { [weak store] in store?.snapshotURL },
                   busyReason: { [weak store] in
                       guard let store else { return nil }
                       return Self.busyReason(writingRekordbox: store.isWritingRekordbox,
@@ -153,10 +160,17 @@ struct StorageSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                Stepper(value: $model.autoSnapshotDays, in: 1...90) {
+                    LabeledContent(.ui("자동 시점 스냅샷 보관")) {
+                        Text(.ui("\(model.autoSnapshotDays)일"))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                }
             } header: {
                 Text(.ui("백업(읽기만)"))
             } footer: {
-                Text(.ui("같은 디스크의 복사본은 공간을 나눠 써서 실제로 차지하는 공간은 더 작을 수 있습니다. 백업은 오래된 것부터 저절로 정리됩니다."))
+                Text(.ui("같은 디스크의 복사본은 공간을 나눠 써서 실제로 차지하는 공간은 더 작을 수 있습니다. 백업과 자동 시점 스냅샷은 오래된 것부터 저절로 정리되고, 수동·고정 시점 스냅샷은 지우지 않습니다."))
                     .foregroundStyle(.secondary)
             }
             Section {
@@ -188,6 +202,7 @@ struct StorageSettingsView: View {
     private func title(of kind: DJCCache.BackupUsage.Kind) -> String {
         switch kind {
         case .rekordboxBackups: String(ui: "rekordbox 쓰기 전 백업")
+        case .pointSnapshots: String(ui: "rekordbox 시점 스냅샷")
         case .usbBackups: String(ui: "USB 쓰기 전 백업")
         }
     }

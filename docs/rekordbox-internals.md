@@ -670,6 +670,16 @@ rekordbox 7.2.18에서 직접 만든 인텔리전트 목록으로 확인한 것�
 
 회귀 시험(`RekordboxDeletionFilesTests`): 음원 폴더를 가리키는 분석 경로, 다른 UUID 폴더, 폴더·파일 심볼릭 링크, 다른 파일이 섞인 폴더, 옛 백업의 잘못된 복원·삭제 경로. 임시 폴더 사본의 네 표기(`RekordboxTempCopyPathTests`)도 같은 규칙으로 통과·거부하는지 본다. 모두 합성 파일과 DB 사본으로 확인하며 음원은 보존한다.
 
+## 시점 스냅샷 (`RekordboxPointSnapshot`, #220·#223·#224)
+
+쓰기 전 백업은 DB 전체와 그 쓰기가 바꾸는 파일만 담아 옛 백업은 연쇄로 되돌려야 한다(위 "연쇄 복원"). 시점 스냅샷은 DJCrate가 쓰는 파일 전체를 한 시점으로 담아 다른 스냅샷 없이 혼자 그 시점으로 되돌린다(#223 결정, 2026-10-07).
+
+- 담는 것: `master.db`, `masterPlaylists6.xml`, `playlists3.sync`, `share/PIONEER/USBANLZ/`, `share/PIONEER/Artwork/`. rekordbox 폴더의 그 밖 파일(`*.edb`, `networkAnalyze6.db`, `master.backup*.db` 등)과 음원은 담지 않는다.
+- 저장: DJCrate 데이터 폴더 `point-snapshots/<UTC 시각>Z-<종류>/`(사본 DB면 그 옆 `point-snapshots/`). `FileManager.copyItem`이라 같은 APFS 볼륨이면 클론이다(처음엔 공간을 거의 쓰지 않고 바뀐 만큼만 는다). 다른 볼륨이면 전체 복사가 되고 창·CLI가 알린다. 폴더 0700·파일 0600(클라우드 토큰이 든 DB), 내용은 출력·로그하지 않는다.
+- 뜨기: rekordbox·rekordboxAgent가 꺼져 있고 WAL이 비었을 때만. `.partial-<UUID>`에 다 뜬 뒤 이름을 붙인다. 뜨는 동안 `master.db` 크기·수정 시각이 바뀌거나 rekordbox가 켜지면 버린다. 분석·앨범아트 폴더 안의 심볼릭 링크는 거부한다(복원이 폴더 밖을 가리키는 링크를 되살리지 않게). 뜬 DB는 `quick_check`·`cipher_integrity_check`를 거치고, `snapshot.json`에 이름·종류(수동·자동·복원 직전)·UTC 시각·고정 여부·`djmdProperty.DBID`·변경 카운터 두 개(`agentRegistry` 정수 칸만)·곡 수·담은 항목·클론 여부를 적는다. 대상 DB·share는 부르는 쪽이 적고(라이브 기본 인자 없음) `resolveShareRoot`를 지나 시험 프로세스의 실제 라이브러리를 거부한다(#182).
+- 보존: 수동·고정은 지우지 않는다(사용자가 지울 때만, 고정은 푼 뒤). 자동(#228)은 최근 N일(설정 › 저장 공간, 기본 7일), 복원 직전은 고정하지 않은 최근 3개. 스냅샷마다 전체를 담아 서로 기대지 않으므로 어느 것을 지워도 남은 스냅샷의 복원은 끊기지 않는다(#221의 연쇄 문제가 생기지 않는다). 쓰기 전 백업과는 따로 정리하고, 창(rekordbox › 시점 스냅샷…)·`djc snapshot-point list`에서 목록만 함께 보인다.
+- 시험: `RekordboxPointSnapshotTests`(합성 사본으로 범위·권한·클론 독립·rekordbox 켜짐·WAL·링크·실제 라이브러리 거부·보존 정리).
+
 ## 새 쓰기 경로를 여는 방법
 
 1. 사용자에게 rekordbox에서 그 편집을 직접 해 달라고 한다(곡 이름 받기, 끝나면 rekordbox 종료).

@@ -3,10 +3,10 @@ import RekordboxKit
 import SwiftUI
 
 enum LibraryMenuAction: CaseIterable {
-    case addFiles, importAppleMusic, snapshot, exportXML, exportLibraryXML, reflect, pending, writeResult, restore, removeTracks
+    case addFiles, importAppleMusic, snapshot, exportXML, exportLibraryXML, reflect, pending, writeResult, restore, pointSnapshots, removeTracks
 
     static let fileActions: [Self] = [.addFiles, .importAppleMusic, .snapshot, .exportXML, .exportLibraryXML]
-    static let rekordboxActions: [Self] = [.reflect, .pending, .writeResult, .restore, .removeTracks]
+    static let rekordboxActions: [Self] = [.reflect, .pending, .writeResult, .restore, .pointSnapshots, .removeTracks]
 
     var title: String {
         switch self {
@@ -20,6 +20,8 @@ enum LibraryMenuAction: CaseIterable {
         case .pending: String(ui: "쓰기 대기 목록 보기")
         case .writeResult: String(ui: "마지막 쓰기 결과…")
         case .restore: String(ui: "쓰기 전으로 복원…")
+        // 라이브러리 읽기 사본(스냅샷)과 달리 DB·분석 파일·앨범아트를 한 시점으로 남기고 되돌린다(#224).
+        case .pointSnapshots: String(ui: "시점 스냅샷…")
         case .removeTracks: String(ui: "rekordbox에서 빼기…")
         }
     }
@@ -50,6 +52,7 @@ enum LibraryMenuAction: CaseIterable {
         case .reflect: return store.pendingLibraryCount > 0 || store.hasPlaylistDrafts
         case .pending, .writeResult: return true
         case .restore: return store.hasWriteBackup
+        case .pointSnapshots: return true
         case .removeTracks: return !store.isITunesSelection && store.selectedRows.contains { !$0.isStaged && !$0.track.isStreaming }
         }
     }
@@ -71,6 +74,7 @@ enum LibraryMenuAction: CaseIterable {
         case .pending: store.sidebar = .pending
         case .writeResult: store.showingWriteResult = true
         case .restore: DirectWritePanels.restoreLatest(store: store)
+        case .pointSnapshots: PointSnapshotWindow.shared.open(store: store)
         case .removeTracks:
             DirectWritePanels.deleteTracks(store: store, rows: store.selectedRows.filter { !$0.isStaged && !$0.track.isStreaming })
         }
@@ -92,7 +96,7 @@ enum LibraryMenuAction: CaseIterable {
             return store.hasXMLExportJob ? String(ui: "라이브러리 XML 내보내기가 끝난 뒤 다시 시도하세요") : String(ui: "라이브러리를 먼저 불러온 뒤 내보내세요")
         case .restore: return String(ui: "쓰기 전 백업이 없으니 마지막 쓰기 결과를 확인하세요")
         case .addFiles, .importAppleMusic: return String(ui: "라이브러리를 먼저 불러온 뒤 곡을 추가하세요")
-        case .pending, .writeResult: return nil
+        case .pending, .writeResult, .pointSnapshots: return nil
         }
     }
 }

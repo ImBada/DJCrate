@@ -69,6 +69,11 @@ public enum SettingKeys {
     /// 곡 목록·곡 수에서 스트리밍 곡을 뺀다. 보이는 것만 바꾸고 라이브러리·초안·rekordbox에 쓰는 내용은 그대로다(`StreamingVisibility`).
     public static let hideStreaming = SettingKey("library.hideStreaming", false)
 
+    // MARK: 저장 공간
+
+    /// 자동 시점 스냅샷(#228)을 남겨 둘 일수(#223 결정: 기본 7일, 설정에서 일수만). 수동·고정·복원 직전 스냅샷은 이 값과 상관없다.
+    public static let pointSnapshotAutoDays = SettingKey<Double>("storage.pointSnapshotAutoDays", 7, in: 1...90)
+
     // MARK: 실험실
 
     /// 실험실: 사이드바에서 인텔리전트 재생 목록의 조건을 DJCrate가 계산해 읽기 전용으로 보인다(#68). rekordbox가 보여 주는 곡과 아직 견주지 않아
@@ -85,7 +90,7 @@ public enum SettingKeys {
     /// 모든 이름(겹치지 않는지 확인용)
     public static var all: [String] {
         [zoomSeconds.name, volume.name, metronomeVolume.name, idleSeconds.name, gainTarget.name, gainTrim.name,
-         waveformHeight.name, textScale.name, playQuantizeBeats.name]
+         waveformHeight.name, textScale.name, playQuantizeBeats.name, pointSnapshotAutoDays.name]
             + [quantize, playQuantize, carryCues, showSuggestions, keyLock, autoGain, peakProtection, useRekordboxGain,
                sheetMode, showTagEditor, sidebarPlaylistsExpanded, sidebarSummaryExpanded, sidebarHistoriesExpanded, sidebarShowsStatus,
                sidebarVisible, commentClassColumnHidden, hideStreaming, labSmartPlaylists].map(\.name)
