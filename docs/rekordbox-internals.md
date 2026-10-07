@@ -683,11 +683,11 @@ rekordbox 7.2.18에서 직접 만든 인텔리전트 목록으로 확인한 것�
 ### 자동 시점 스냅샷 (`RekordboxPointSnapshot.takeAutoIfDue`, #228)
 
 - 앱이 켜져 있는 동안 뒤에서 본다(`AutoPointSnapshotRunner`: 켠 뒤 90초, 그 뒤 10분마다, 메인 액터 밖·낮은 우선순위). 보는 일은 스냅샷 폴더 목록과 `master.db` 파일 정보뿐이고 라이브 DB를 열지 않는다.
-- 뜨는 조건(모두 맞아야): 설정 › 저장 공간 "하루 한 번 자동 시점 스냅샷"이 켜져 있음(기본 켬) → DJCrate가 rekordbox에 쓰는 중이 아님 → rekordbox·rekordboxAgent 꺼짐(사본이어도 자동은 켜져 있으면 뜨지 않는다) → WAL이 빔 → 그날(사용자 달력) 자동 스냅샷이 없음 → 마지막 스냅샷(종류 상관없이)의 원본 도장(`snapshot.json`의 `source`: 뜰 때 `master.db` 크기·수정 시각)과 지금 `master.db`가 다름(도장 없는 옛 스냅샷 뒤에는 바뀐 것으로 본다) → 클론이 됨(같은 볼륨, 아니면 큰 복사를 몰래 하지 않게 뜨지 않고 설정에 이유를 보인다).
+- 뜨는 조건(모두 맞아야): 설정 › 저장 공간 "하루 한 번 자동 시점 스냅샷"이 켜져 있음(기본 켬) → DJCrate가 rekordbox에 쓰는 중이 아님 → rekordbox·rekordboxAgent 꺼짐(사본이어도 자동은 켜져 있으면 뜨지 않는다) → WAL이 빔 → 그날(사용자 달력) 자동 스냅샷이 없음 → 마지막 스냅샷(종류 상관없이)의 원본 도장(`snapshot.json`의 `source`: 뜰 때 `master.db` 크기·수정 시각)과 지금 `master.db`가 다름(도장 없는 옛 스냅샷은 그 안의 `master.db` 크기·수정 시각으로 견준다. 복사·클론은 수정 시각을 그대로 두므로 바뀌지 않았으면 같다. 견줄 수 없으면 바뀐 것으로 보고 뜬다) → 클론이 됨(같은 볼륨, 아니면 큰 복사를 몰래 하지 않게 뜨지 않고 설정에 이유를 보인다).
 - 뜨기는 수동과 같은 `take`(대상 확인·rekordbox 꺼짐·WAL·링크 거부·뜨는 동안 바뀌면 버림)를 지난다. 뜨든 건너뛰든 보존 정리를 한다(자동만 일수로, 수동·고정·복원 직전은 대상 아님). 뜨는 동안 DJCrate가 rekordbox에 쓰기 시작했으면(`LibraryStore.rekordboxWriteCount`) DB와 분석 파일이 다른 시점일 수 있어 그 스냅샷을 버리고 다음에 다시 뜬다.
-- 조용히 한다: 확인 창·성공 알림 없음. 실패는 표준 오류에 남기고, 뜨는 도중 rekordbox가 켜지거나 DJCrate 쓰기가 끼어든 것이 아닌 실패만 앱을 켠 동안 한 번 작은 토스트로 알린다. 자가 테스트(설정을 쓰지 않는 실행)와 사본 rekordbox 폴더 없이 `--db`로 연 창은 뜨지 않는다.
+- 조용히 한다: 확인 창·성공 알림 없음. 실패는 표준 오류에 남기고, 뜨는 도중 rekordbox가 켜지거나 DJCrate 쓰기가 끼어든 것이 아닌 실패만 앱을 켠 동안 한 번 작은 토스트로 알린다. 명시한 사본(`--db`·`DJC_DB`)으로 연 창과 자가 테스트·측정·캡처 실행(`DiagnosticRun`: `--…-selftest`·`--…-perf…`·`--…-capture(s)=`·`--autoplay`·`--reflection-layout=`)은 사본 rekordbox 폴더(`DJC_REKORDBOX_DIR`)가 있어도 뜨지 않는다(측정·확인 중에 90초 뒤 디스크 일이 끼지 않게, 새 개발용 인자는 이 이름 규칙을 따른다).
 - 보관 일수는 앱 UserDefaults에 있어 CLI가 읽지 못하므로, 앱이 DJCrate 데이터 폴더의 `shared-settings.json`(`SharedSettingsFile`)에도 적는다(설정을 바꿀 때와 앱을 켤 때). `djc snapshot-point`는 그 값을 따른다.
-- 시험: `RekordboxAutoPointSnapshotTests`(하루 한 번·바뀐 것 없음·수동 뒤·옛 스냅샷·rekordbox 켜짐·뜨는 동안 켜짐·클론 안 됨·WAL·보존·실제 라이브러리 거부), `AutoPointSnapshotRunnerTests`(끔·쓰는 중·실패 알림 한 번), `StorageSettingsTests`·`PointSnapshotCommandTests`(공유 설정 파일).
+- 시험: `RekordboxAutoPointSnapshotTests`(하루 한 번·바뀐 것 없음·수동 뒤·옛 스냅샷(안의 DB로 견줌)·rekordbox 켜짐·뜨는 동안 켜짐·클론 안 됨·WAL·보존·실제 라이브러리 거부), `AutoPointSnapshotRunnerTests`(끔·쓰는 중·실패 알림 한 번·실행 인자별 거름), `StorageSettingsTests`·`PointSnapshotCommandTests`(공유 설정 파일).
 
 ### 시점 스냅샷으로 복원 (`RekordboxWriter.restore(pointSnapshot:)`, #225)
 

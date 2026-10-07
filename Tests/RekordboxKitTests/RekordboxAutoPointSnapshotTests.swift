@@ -70,14 +70,48 @@ struct RekordboxAutoPointSnapshotTests {
         #expect(RekordboxPointSnapshot.list(in: folder(fixture)).map(\.metadata.kind) == [.manual])
     }
 
-    @Test func 원본_도장이_없는_옛_스냅샷_뒤에는_바뀐_것으로_보고_뜬다() throws {
-        let fixture = try RekordboxFixture()
-        let old = try RekordboxPointSnapshot.take(name: "", kind: .manual, database: fixture.database, shareRoot: nil, in: folder(fixture),
-                                                  now: now.addingTimeInterval(-day), guard: Self.copyGuard)
-        var metadata = old.metadata
+    /// 원본 도장이 없는 옛 스냅샷(#224 때 만든 것)으로 만든다: 지금 코드로 뜬 스냅샷에서 도장만 지운다
+    func oldSnapshot(_ fixture: RekordboxFixture, at time: Date) throws -> RekordboxPointSnapshot.Entry {
+        let entry = try RekordboxPointSnapshot.take(name: "", kind: .manual, database: fixture.database, shareRoot: nil, in: folder(fixture),
+                                                    now: time, guard: Self.copyGuard)
+        var metadata = entry.metadata
         metadata.source = nil
-        try RekordboxPointSnapshot.save(metadata, in: old.url)
-        guard case .took = try auto(fixture, at: now) else { Issue.record("옛 스냅샷 뒤에 뜨지 않았다"); return }
+        try RekordboxPointSnapshot.save(metadata, in: entry.url)
+        #expect(RekordboxPointSnapshot.list(in: folder(fixture)).first?.metadata.source == nil)
+        return entry
+    }
+
+    @Test func 원본_도장이_없는_옛_스냅샷_뒤에도_바뀌지_않았으면_스냅샷_안의_DB로_견주어_뜨지_않는다() throws {
+        let fixture = try RekordboxFixture()
+        _ = try oldSnapshot(fixture, at: now.addingTimeInterval(-day))
+        #expect(try auto(fixture, at: now) == .skipped(.unchanged))
+        #expect(RekordboxPointSnapshot.list(in: folder(fixture)).map(\.metadata.kind) == [.manual])
+    }
+
+    @Test func 원본_도장이_없는_옛_스냅샷_뒤_라이브러리가_바뀌었으면_뜬다() throws {
+        let fixture = try RekordboxFixture()
+        _ = try oldSnapshot(fixture, at: now.addingTimeInterval(-day))
+        try change(fixture, at: now.addingTimeInterval(-60))
+        guard case .took = try auto(fixture, at: now) else { Issue.record("바뀐 뒤에도 뜨지 않았다"); return }
+    }
+
+    @Test func 원본_도장이_없고_스냅샷_안의_DB도_원본과_견줄_수_없으면_안전한_쪽으로_뜬다() throws {
+        let fixture = try RekordboxFixture()
+        // 스냅샷 안의 master.db 수정 시각이 달라져 원본과 같다고 볼 수 없다
+        let old = try oldSnapshot(fixture, at: now.addingTimeInterval(-day))
+        try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(-3 * day)],
+                                              ofItemAtPath: old.url.appending(path: "master.db").path)
+        guard case .took = try auto(fixture, at: now) else { Issue.record("견줄 수 없는데 뜨지 않았다"); return }
+    }
+
+    @Test func 도장이_있는_스냅샷은_안의_DB가_아니라_도장으로_견준다() throws {
+        let fixture = try RekordboxFixture()
+        let entry = try auto(fixture, at: now.addingTimeInterval(-day))
+        guard case let .took(taken) = entry else { Issue.record("\(entry)"); return }
+        // 스냅샷 안의 DB를 만져도 원본 도장이 그대로면 원본이 바뀌지 않은 것이다
+        try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(-3 * day)],
+                                              ofItemAtPath: taken.url.appending(path: "master.db").path)
+        #expect(try auto(fixture, at: now) == .skipped(.unchanged))
     }
 
     @Test func rekordbox가_켜져_있으면_건너뛰고_아무것도_남기지_않는다() throws {
