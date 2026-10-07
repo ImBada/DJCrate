@@ -39,7 +39,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 .build/debug/djc                  # CLI 명령 목록
 .build/debug/djc compat           # rekordbox 버전·DB 구조·카운터가 쓰기를 확인한 모양인지(읽기 전용)
 .build/debug/djc snapshot [--force]                    # 라이브 DB 읽기용 사본 뜨기
-.build/debug/djc snapshot-point create|list|pin|unpin|delete (--db <사본.db> | --live)   # 시점 스냅샷(DB·분석 파일·앨범아트를 한 시점으로), 읽기 사본 snapshot과 다름
+.build/debug/djc snapshot-point create|list|diff|restore|pin|unpin|delete (--db <사본.db> | --live)   # 시점 스냅샷(DB·분석 파일·앨범아트를 한 시점으로) 만들기·비교·복원, 읽기 사본 snapshot과 다름
 .build/debug/djc cache [--clear <종류…|all>] [--dry-run]  # 캐시 종류별 용량 보기·비우기(확인 없이, 초안·백업·USB 저널·준비 폴더는 지우지 않음, docs/cli.md)
 .build/debug/djc cue-write --db <사본.db> [--dry-run]   # 초안을 사본에 써 보기
 .build/debug/djc track-add --db <사본.db> --share <폴더> --analyze <음원…>   # 곡 넣기(분석까지), 사본에만

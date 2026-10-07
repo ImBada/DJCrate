@@ -59,4 +59,11 @@ public enum TrackRating {
         let filled = min(count, 5)
         return String(repeating: "★", count: filled) + String(repeating: "☆", count: 5 - filled)
     }
+
+    /// 칸이 좁아 `stars`가 안 들어갈 때 대신 보일 짧은 표기("3★"). 없음은 빈칸.
+    /// 별을 줄여 자르면("★★★…") 3·4·5가 같아 보이므로, 별 수를 숫자로 먼저 적는다.
+    public static func compact(_ value: String) -> String {
+        guard let count = Int(value), count > 0 else { return "" }
+        return "\(min(count, 5))★"
+    }
 }

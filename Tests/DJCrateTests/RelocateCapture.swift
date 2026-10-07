@@ -10,7 +10,7 @@ import Testing
 /// '폴더에서 찾기…' 화면 확인용(#62). 파일이 없는 곡이 든 합성 사본과 합성 새 폴더(시험이 만든 WAV)로 실제 훑기를 돌려 PNG로 남긴다.
 /// 오디오 장치·화면 기록 권한 없이 찍는다. 사용자 라이브러리·음원 폴더는 열지 않는다.
 /// `DJC_RELOCATE_CAPTURE=<폴더> DJC_RELOCATE_CAPTURE_STAGE=<before|after> swift test --filter RelocateCapture`
-/// → before: `<폴더>/<light|dark>-filter.png`(작업 줄만), after: 거기에 더해 `-review-all`·`-review-ambiguous`·`-scanning`·`-failed`.
+/// → before: `<폴더>/<light|dark>-filter.png`(작업 줄만), after: 거기에 더해 `-review-all`·`-review-ambiguous`·`-review-none`·`-scanning`·`-failed`.
 @MainActor
 struct RelocateCapture {
     /// 합성 곡 구성. 파일 없는 곡 9곡을 확실 3·애매 4·없음 2로 나누고, 파일이 있는 곡 1곡과 스트리밍 곡 1곡을 섞는다.
@@ -39,7 +39,8 @@ struct RelocateCapture {
             return Int64(try fm.attributesOfItem(atPath: url.path)[.size] as? Int ?? 0)
         }
 
-        let disk = "/Volumes/DJC 합성 이전 디스크/Music"
+        // 연결되지 않은 외장 디스크(합성 이름, 이 경로의 볼륨은 만들지 않는다). 3·5·7·8번 곡이 이 디스크에 있었다.
+        let disk = "/Volumes/DJ-SSD/Music"
         // 확실: 이름·크기·길이가 같은 파일이 새 폴더에 하나뿐(03은 디스크에 NFD 이름으로 있다)
         for (number, seconds, dir) in [(1, 2.0, albumA), (2, 2.5, albumA), (3, 3.0, albumB)] {
             let size = try wav(String(format: "합성 곡 %02d.wav", number).decomposedStringWithCanonicalMapping, in: dir, seconds: seconds)
@@ -51,12 +52,12 @@ struct RelocateCapture {
         try add(4, size: size4, seconds: 3.5)
         // 애매 2: 곡 행에 길이·크기가 없다(이름만 맞는다)
         _ = try wav("합성 곡 05.wav", in: albumB, seconds: 4.0)
-        try add(5, size: nil, length: 0, seconds: 4.0)
+        try add(5, pathRoot: disk, size: nil, length: 0, seconds: 4.0)
         // 애매 3: 파일 이름이 바뀌었다(크기·길이만 맞는다)
         let size6 = try wav("합성 곡 06 (최종).wav", in: albumB, seconds: 4.5)
         try add(6, size: size6, seconds: 4.5)
         // 없음: 어디에도 파일이 없다
-        try add(7, size: 1_234_567, seconds: 5.0)
+        try add(7, pathRoot: disk, size: 1_234_567, seconds: 5.0)
         try add(8, pathRoot: disk, size: 2_345_678, seconds: 5.5)
         // 애매 4: 확장자만 다르다(곡 행은 FLAC, 새 폴더에는 같은 이름의 WAV)
         let size9 = try wav("합성 곡 09.wav", in: albumA, seconds: 6.0)
@@ -136,6 +137,9 @@ struct RelocateCapture {
         model.filter = .ambiguous
         try await Task.sleep(for: .milliseconds(500))
         try save(hostWindow, to: folder.appending(path: "\(appearance)-review-ambiguous.png"))
+        model.filter = .noCandidate
+        try await Task.sleep(for: .milliseconds(500))
+        try save(hostWindow, to: folder.appending(path: "\(appearance)-review-none.png"))
 
         // 훑는 중 화면과 실패 화면: 가짜 입출력으로 상태만 세운다
         let slow = RelocateModel(tracks: missing, snapshot: nil, folder: newFolder, dependencies: RelocateModel.Dependencies(

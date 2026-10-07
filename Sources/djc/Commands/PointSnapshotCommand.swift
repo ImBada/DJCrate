@@ -7,8 +7,8 @@ import RekordboxKit
 /// 대상은 `--db <사본.db>`(그 옆 `point-snapshots/`에 둔다) 또는 `--live`(rekordbox 라이브러리, DJCrate 데이터 폴더의 `point-snapshots/`).
 enum PointSnapshotCommand {
     static let command = Command("snapshot-point",
-                                 String(ui: "create [--name 이름] | list | pin|unpin|delete <ID> — (--db <사본.db> [--share <폴더>] | --live)"),
-                                 String(ui: "시점 스냅샷(DB·분석 파일·앨범아트를 한 시점으로) 만들기·목록·고정")) { args in
+                                 String(ui: "create [--name 이름] | list | diff|restore|pin|unpin|delete <ID> — (--db <사본.db> [--share <폴더>] | --live)"),
+                                 String(ui: "시점 스냅샷(DB·분석 파일·앨범아트를 한 시점으로) 만들기·목록·비교·복원·고정")) { args in
         print(try run(args))
     }
 
@@ -37,10 +37,12 @@ enum PointSnapshotCommand {
         }
     }
 
+    /// 자동 스냅샷 보관 일수는 앱 설정(설정 › 저장 공간)을 따른다. 앱이 데이터 폴더의 공유 파일에 적어 둔 값을 읽는다.
     static func run(_ args: [String], now: Date = .now, guard writeGuard: RekordboxWriteGuard = .system,
-                    autoDays: Int = Int(SettingKeys.pointSnapshotAutoDays.defaultValue)) throws -> String {
+                    sharedSettings: URL = SharedSettingsFile.file) throws -> String {
         guard args.count > 1 else { throw UsageError() }
         let target = try Target(args)
+        let autoDays = Int(SharedSettingsFile.value(SettingKeys.pointSnapshotAutoDays, in: sharedSettings))
         switch args[1] {
         case "create":
             let entry = try RekordboxPointSnapshot.create(name: value(after: "--name", in: args) ?? "", database: target.database,
@@ -53,6 +55,19 @@ enum PointSnapshotCommand {
             return lines.joined(separator: "\n")
         case "list":
             return listText(target)
+        case "diff":
+            let entry = try entry(args, in: target)
+            let diff = try RekordboxPointSnapshotDiff.compare(entry, database: target.database, shareRoot: target.share, guard: writeGuard)
+            return diffText(diff, entry: entry)
+        case "restore":
+            // 플래그가 곧 동의다(CLI는 묻지 않는다). 복원 직전 상태는 시점 스냅샷으로 남는다.
+            let entry = try entry(args, in: target)
+            let report = try RekordboxWriter.restore(pointSnapshot: entry.url, to: target.database, shareRoot: target.share,
+                                                     snapshots: target.snapshots, backups: target.backups, autoDays: autoDays, now: now,
+                                                     guard: writeGuard)
+            return [String(ui: "‘\(entry.displayName)’ 시점으로 복원했습니다."),
+                    String(ui: "복원 전으로 돌리려면: \(DJCError.pointRestoreCommand(snapshot: report.beforeRestore.id, database: target.live ? nil : target.database.path))")]
+                .joined(separator: "\n")
         case "pin", "unpin":
             let entry = try entry(args, in: target)
             try RekordboxPointSnapshot.setPinned(args[1] == "pin", entry.url, in: target.snapshots)
@@ -73,6 +88,18 @@ enum PointSnapshotCommand {
             throw DJCError.writeRefused(String(ui: "시점 스냅샷 ‘\(args[2])’을 찾지 못했습니다. djc snapshot-point list로 ID를 확인하세요"))
         }
         return entry
+    }
+
+    /// 복원하면 바뀌는 것(요약과 이름). 내용 값·경로는 찍지 않는다.
+    static func diffText(_ diff: RekordboxPointSnapshotDiff, entry: RekordboxPointSnapshot.Entry) -> String {
+        guard !diff.isEmpty else { return String(ui: "‘\(entry.displayName)’과 지금 라이브러리가 같습니다.") }
+        var lines = [String(ui: "‘\(entry.displayName)’ 시점으로 복원하면:")] + diff.summary.map { "  " + $0 }
+        for group in diff.details() {
+            lines.append(group.title + ":")
+            lines += group.items.map { "  • " + $0 }
+        }
+        if diff.cloudSyncedSince(entry) { lines.append(RekordboxPointSnapshotDiff.cloudSyncNote) }
+        return lines.joined(separator: "\n")
     }
 
     /// 시점 스냅샷과 쓰기 전 백업을 함께(따로 정리되며, 쓰기 전 백업은 `djc rekordbox-restore`로 되돌린다)

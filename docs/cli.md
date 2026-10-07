@@ -183,13 +183,17 @@ djc snapshot-point create --name "큰 정리 전" --live   # rekordbox를 끈 �
 djc snapshot-point list --live                       # 시점 스냅샷과 쓰기 전 백업을 함께(최근 것부터)
 djc snapshot-point pin 2026-10-07T120000Z-manual --live   # 고정(자동 정리에서 뺀다). unpin으로 푼다
 djc snapshot-point delete "큰 정리 전" --live         # 고정하지 않은 것만. ID 대신 겹치지 않는 이름도 받는다
+djc snapshot-point diff "큰 정리 전" --live           # 그 시점으로 복원하면 바뀌는 것(곡·큐·그리드·곡 정보·재생 목록·파일 수, 읽기만)
+djc snapshot-point restore "큰 정리 전" --live        # 그 시점으로 복원(rekordbox를 끈 뒤). 복원 직전 상태는 '복원 직전' 스냅샷으로 남는다
 # 시험할 때는 합성 사본만: 스냅샷은 사본 옆 point-snapshots/에 둔다.
 djc snapshot-point create --db <사본 폴더>/master.db [--share <사본 폴더>/share]
 ```
 
 - rekordbox·rekordboxAgent가 켜져 있거나 WAL이 남아 있으면 뜨지 않는다. 뜨는 동안 라이브러리가 바뀌면 버린다.
 - 같은 APFS 볼륨이면 클론이라 처음엔 공간을 거의 쓰지 않는다. 다른 디스크면 전체 복사했다고 알린다.
-- 자동 정리: 수동·고정은 지우지 않고, 자동은 최근 7일(앱 설정 › 저장 공간에서 바꾼다, CLI는 기본값), 복원 직전은 최근 3개만 남긴다.
+- `restore`는 묻지 않는다(플래그가 곧 동의). 다른 라이브러리·망가진 스냅샷은 거부하고, 끝나면 복원 전으로 돌리는 명령(`restore <복원 직전 ID>`)을 알린다. 시점 복원 뒤에는 그보다 옛 쓰기 전 백업을 `rekordbox-restore`로 되돌리지 않는다.
+- 자동 정리: 수동·고정은 지우지 않고, 자동은 최근 7일(앱 설정 › 저장 공간에서 바꾼다), 복원 직전은 최근 3개만 남긴다. CLI는 앱이 DJCrate 데이터 폴더의 `shared-settings.json`에 적어 둔 일수를 따르고, 파일이 없으면 기본값을 쓴다.
+- 하루 한 번 자동 스냅샷(#228)은 앱이 남긴다. CLI에는 자동으로 뜨는 명령이 없다.
 
 ## 라이브러리 XML 내보내기(`xml-export`)
 

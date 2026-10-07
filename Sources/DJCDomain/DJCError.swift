@@ -18,6 +18,9 @@ public enum DJCError: Error, LocalizedError, CustomStringConvertible {
     /// 커밋 뒤 확인·분석 파일 쓰기가 실패했고 백업으로 되돌리지도 못했다. master.db·분석 파일 상태를 알 수 없다.
     /// `database`는 사본 DB 경로, 라이브 DB면 nil(되돌리는 명령이 다르다).
     case restoreFailed(reason: String, restoreError: String, backup: String, database: String?)
+    /// 시점 스냅샷 복원(#225) 도중 실패했고 복원 전으로 돌리지도 못했다. `snapshot`은 복원 직전 시점 스냅샷 ID,
+    /// `database`는 사본 DB 경로(라이브면 nil).
+    case pointRestoreFailed(reason: String, restoreError: String, snapshot: String, database: String?)
     /// 곡 편집(마디 구간 잇기)을 만들지 않았다. 원본 음원·rekordbox는 건드리지 않았다.
     case editRefused(String)
 
@@ -36,7 +39,7 @@ public enum DJCError: Error, LocalizedError, CustomStringConvertible {
         case let .writeRefused(reason): reason
         case .writeVerificationFailed: String(ui: "쓰기 결과가 예상과 달라 변경을 취소했습니다")
         case .writeRolledBack: String(ui: "쓰기 결과를 확인하지 못해 쓰기 전 백업으로 복원했습니다")
-        case .restoreFailed: String(ui: "라이브러리와 분석 파일의 상태를 확인하지 못했습니다")
+        case .restoreFailed, .pointRestoreFailed: String(ui: "라이브러리와 분석 파일의 상태를 확인하지 못했습니다")
         case let .editRefused(reason): reason
         }
     }
@@ -63,6 +66,8 @@ public enum DJCError: Error, LocalizedError, CustomStringConvertible {
             String(ui: "라이브러리를 다시 불러오고 초안을 확인한 뒤 다시 시도하세요.")
         case .restoreFailed:
             String(ui: "rekordbox를 켜지 말고 ‘rekordbox 쓰기 대기’의 ‘쓰기 전으로 복원…’으로 백업을 복원하세요.")
+        case .pointRestoreFailed:
+            String(ui: "rekordbox를 켜지 말고 rekordbox › 시점 스냅샷…에서 ‘복원 직전’ 스냅샷으로 복원하세요.")
         case .editRefused:
             String(ui: "안내된 마디 구간과 곡을 확인한 뒤 다시 시도하세요.")
         }
@@ -101,6 +106,13 @@ public enum DJCError: Error, LocalizedError, CustomStringConvertible {
             확인 실패: \(reason)
             복원 실패: \(restoreError)
             """)
+        case let .pointRestoreFailed(reason, restoreError, snapshot, database):
+            String(ui: """
+            시점 스냅샷 복원을 마치지 못했고 복원 전으로 자동으로 돌리지도 못했습니다. rekordbox 라이브러리(master.db)와 분석 파일이 어떤 상태인지 알 수 없습니다.
+            rekordbox를 켜지 말고 먼저 복원 직전 시점 스냅샷으로 되돌리세요: \(Self.pointRestoreCommand(snapshot: snapshot, database: database))
+            실패: \(reason)
+            되돌리기 실패: \(restoreError)
+            """)
         case let .editRefused(reason):
             String(ui: "편집하지 않았습니다: \(reason)")
         }
@@ -113,6 +125,12 @@ public enum DJCError: Error, LocalizedError, CustomStringConvertible {
         case let .writeVerificationFailed(reason)?, let .writeRolledBack(reason)?: reason
         default: (error as? CocoaError)?.localizedDescription ?? String(describing: error)
         }
+    }
+
+    /// 시점 스냅샷으로 되돌리는 djc 명령
+    public static func pointRestoreCommand(snapshot: String, database: String?) -> String {
+        func quoted(_ path: String) -> String { "'" + path.replacingOccurrences(of: "'", with: #"'\''"#) + "'" }
+        return "djc snapshot-point restore \(quoted(snapshot)) " + (database.map { "--db \(quoted($0))" } ?? "--live")
     }
 
     /// 백업으로 되돌리는 djc 명령. 경로에 빈칸이 있어도 그대로 붙여 쓸 수 있게 작은따옴표로 감싼다.
