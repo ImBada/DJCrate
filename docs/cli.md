@@ -31,6 +31,8 @@ djc compat --db /tmp/djc-fixture/master.db --json
 
 `--json`을 빼면 사람이 읽는 출력이다. 기존 `report`, `path`, `parse`, `compat`의 일반 출력은 유지한다. 분석·파일 생성·실험·쓰기 명령(`analyze`, `snapshot`, `schema-dump`, `lab`, `reflection-dry-run`, `cue-write`, `track-add`, `track-delete`, `playlist-write`, `rekordbox-restore`, `xml-export`)은 이 JSON 계약에 포함하지 않는다.
 
+**CLI 동의 규칙**: `djc`에는 대화형 질문이 없다. 플래그가 곧 동의다(`--live`, `--allow-physical --confirm <볼륨 이름>`, `--discard-device-changes`, `--overwrite`). 파일을 만드는 명령(`xml-export`, `reflection-dry-run --out`, `schema-dump`)은 출력 파일이 이미 있으면 `--overwrite` 없이는 거부한다. lab 쓰기 실험(`gain-write-test`, `tag-write-test`, `artwork-write-test`, `analysis-attach-test`, `cue-write-selftest`)은 라이브 DB·실제 분석 폴더를 거부하고, 거부하면 오류 메시지와 함께 종료 코드 1로 끝난다.
+
 검색은 제목·아티스트·코멘트·장르에 대한 대소문자 무시 부분 검색이다. 빈 검색어 `''`는 전체이며 삭제된 곡은 항상 제외한다. BPM은 양 끝을 포함하는 양수 범위, 키는 대소문자를 무시한 정확한 일치이고 조건은 모두 함께 적용한다. 암호화된 Spotify 제목·아티스트는 검색 대상에서 제외한다. `path`는 기존과 같이 제목의 대소문자를 구분하고 로컬 곡만 찾는다.
 
 `search`·`report`는 `--comment-preset none|anisong`을 받으며 기본값은 `none`이다. `off-convention`은 `--comment-preset anisong`이 있어야 하고, 없으면 `invalid_arguments`로 거절한다. `report`의 `commentClasses`·`prefixes`·`usages`는 이 프리셋을 지정할 때만 나온다. `parse`는 프리셋 옵션 없이 애니송 코멘트 규칙을 검사한다.

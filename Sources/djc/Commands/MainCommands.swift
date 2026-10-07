@@ -11,7 +11,7 @@ enum MainCommands {
         Command("snapshot", "[--force]", String(ui: "rekordbox master.db 스냅샷을 뜬다"), snapshot),
         Command("report", "[--db PATH] [--files] [--comment-preset none|anisong] [--json]", String(ui: "라이브러리 현황(기본: 최신 스냅샷)"), report),
         Command("analyze", String(ui: "<파일|ContentID> [--db PATH]"), String(ui: "곡 파트 분석(ContentID면 기존 큐와 비교)"), analyze),
-        Command("reflection-dry-run", nil, String(ui: "초안으로 반영 계획을 만들어 XML을 지정한 곳에만 쓴다(rekordbox는 그대로)"), reflectionDryRun),
+        Command("reflection-dry-run", "[--out <파일.xml>] [--overwrite]", String(ui: "초안으로 반영 계획을 만들어 XML을 지정한 곳에만 쓴다(rekordbox는 그대로)"), reflectionDryRun),
         Command("cue-write", String(ui: "--db <사본.db> [--dry-run] [--uuid U] | --live"), String(ui: "큐 초안을 rekordbox DB에 직접 쓴다"), cueWrite),
         Command("track-add", String(ui: "--db <사본.db> [--share <분석 뿌리>] [--analyze] [--dry-run] <음원…> | --live …"),
                 String(ui: "음원을 rekordbox 컬렉션에 넣는다(--analyze면 그리드·파형·오토게인까지, 기본은 사본)"), trackAdd),
@@ -20,7 +20,7 @@ enum MainCommands {
                 String(ui: "재생 목록 편집(JSON 배열)을 사본 DB와 그 옆 masterPlaylists6.xml에 쓴다(라이브 라이브러리는 거부)"), playlistWrite),
         Command("rekordbox-restore", String(ui: "[--backup <폴더> (--db <사본> | --live) [--share <폴더>]]"), String(ui: "백업으로 되돌린다"), rekordboxRestore),
         XMLExportCommand.command,
-        Command("schema-dump", String(ui: "<사본.db> <출력.sql>"), String(ui: "사본 DB의 구조(CREATE 문)만 뽑는다"), schemaDump),
+        Command("schema-dump", String(ui: "<사본.db> <출력.sql> [--overwrite]"), String(ui: "사본 DB의 구조(CREATE 문)만 뽑는다"), schemaDump),
         Command("path", String(ui: "<제목> [--db PATH] [--json]"), String(ui: "제목으로 파일 경로 찾기"), path),
         Command("parse", String(ui: "\"<코멘트>\" [--json]"), String(ui: "애니송 프리셋으로 코멘트 파싱"), parse),
     ] + ReadCommands.all + UsbCommands.all
@@ -51,6 +51,10 @@ enum MainCommands {
 
     /// 실제 초안으로 반영 계획을 만들어 보고 XML을 지정한 곳에만 쓴다(rekordbox는 건드리지 않는다).
     static func reflectionDryRun(_ args: [String]) async throws {
+        // 출력 자리는 계획을 만들기 전에 확인한다(있으면 --overwrite 없이는 거부)
+        if let out = value(after: "--out", in: args) {
+            try CLIGuards.refuseExistingOutput(URL(filePath: out), overwrite: args.contains("--overwrite"))
+        }
         let library = try RekordboxLibrary.load(snapshot: LibrarySnapshot.latest())
         let uuids = CueDraftStore.uuids().union(GridDraftStore.uuids())
         var plans: [Reflection.Plan] = []
@@ -181,7 +185,10 @@ enum MainCommands {
 
     /// 사본 DB의 구조(CREATE 문)만 뽑는다. 데이터는 한 줄도 담지 않는다(테스트 픽스처용).
     static func schemaDump(_ args: [String]) async throws {
+        let overwrite = args.contains("--overwrite")
+        let args = args.filter { $0 != "--overwrite" }
         guard args.count > 2 else { throw UsageError() }
+        try CLIGuards.refuseExistingOutput(URL(filePath: args[2]), overwrite: overwrite)
         let db = try CipherDatabase(path: args[1], key: RekordboxKey.derive())
         var statements: [String] = []
         try db.query("""

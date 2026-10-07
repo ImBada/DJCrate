@@ -225,12 +225,8 @@ enum TrackLab {
     static func analysisAttachTest(_ args: [String]) async throws {
         guard let dbPath = value(after: "--db", in: args), let sharePath = value(after: "--share", in: args) else { throw UsageError() }
         let database = URL(filePath: dbPath), share = URL(filePath: sharePath)
-        func same(_ a: URL, _ b: URL) -> Bool { a.resolvingSymlinksInPath().standardizedFileURL.path == b.resolvingSymlinksInPath().standardizedFileURL.path }
-        guard !same(database, RekordboxWriter.liveDatabase), !same(share, LibrarySnapshot.rekordboxDirectory.appending(path: "share")),
-              !share.appending(path: "PIONEER/USBANLZ").resolvingSymlinksInPath().path.hasPrefix(
-                  FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Pioneer").resolvingSymlinksInPath().path) else {
-            print("라이브 rekordbox DB·분석 폴더에는 쓰지 않습니다. 사본을 주세요"); return
-        }
+        try CLIGuards.refuseLiveDatabase(database)
+        try CLIGuards.refuseLiveShare(share)
         let ids = MainCommands.operands(args, valued: ["--db", "--share", "--grid-from"])
         guard !ids.isEmpty else { throw UsageError() }
         let db = try CipherDatabase.diagnostic(path: database.path, key: RekordboxKey.derive())
@@ -282,10 +278,7 @@ enum TrackLab {
     static func tagWriteTest(_ args: [String]) async throws {
         guard let dbPath = value(after: "--db", in: args) else { throw UsageError() }
         let database = URL(filePath: dbPath)
-        guard database.resolvingSymlinksInPath().standardizedFileURL.path
-                != RekordboxWriter.liveDatabase.resolvingSymlinksInPath().standardizedFileURL.path else {
-            print("라이브 rekordbox DB에는 쓰지 않습니다. 사본을 주세요"); return
-        }
+        try CLIGuards.refuseLiveDatabase(database)
         // "<ContentID>:<칸>=<값>"을 곡마다 모은다(같은 곡은 한 초안으로).
         var edits: [(id: String, changes: [(TagFields.Key, String)])] = []
         for operand in MainCommands.operands(args.filter { $0 != "--dry-run" }, valued: ["--db"]) {
@@ -322,10 +315,7 @@ enum TrackLab {
     static func artworkWriteTest(_ args: [String]) async throws {
         guard let dbPath = value(after: "--db", in: args) else { throw UsageError() }
         let database = URL(filePath: dbPath)
-        guard database.resolvingSymlinksInPath().standardizedFileURL.path
-                != RekordboxWriter.liveDatabase.resolvingSymlinksInPath().standardizedFileURL.path else {
-            print("라이브 rekordbox DB에는 쓰지 않습니다. 사본을 주세요"); return
-        }
+        try CLIGuards.refuseLiveDatabase(database)
         let share = value(after: "--share", in: args).map { URL(filePath: $0) } ?? database.deletingLastPathComponent().appending(path: "share")
         let imagePath = value(after: "--image", in: args)
         let operands = MainCommands.operands(args.filter { $0 != "--dry-run" && $0 != "--delete" }, valued: ["--db", "--share", "--image"])
