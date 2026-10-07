@@ -59,6 +59,10 @@ final class FakeReflectionHost: ReflectionHost {
     var conflicts: [String] = []
     var keptCurrentDrafts: Bool?
     var writeFollowUp: [String] { followUp }
+    var canBackUpBeforeWrite = true
+    /// 이 백업 뒤에 뜬 백업 수(#222)
+    var laterBackups = 0
+    func laterBackupCount(_ backup: RekordboxWriter.Backup) -> Int { laterBackups }
     func restoreDraftConflictDetails(_ backup: RekordboxWriter.Backup) -> [String] { conflicts }
     func restoreRekordbox(_ backup: RekordboxWriter.Backup, keepingCurrentDrafts: Bool) async throws -> URL {
         keptCurrentDrafts = keepingCurrentDrafts
@@ -171,7 +175,7 @@ struct ReflectionCoordinatorTests {
     }
 
     @Test func 취소하면_쓰지_않고_잠금을_푼다() async {
-        host.preview = .success(Self.preview(cues: [Self.outcome("a", .written)]))
+        host.preview = .success(Self.preview(cues: [Self.outcome("a", .written), Self.outcome("b", .blocked, reason: "바뀜")]))
         prompter.answer = false
         await coordinator().write(rows: [Self.row("a")])
         #expect(prompter.shown.first?.confirm == "rekordbox에 쓰기")
@@ -216,7 +220,7 @@ struct ReflectionCoordinatorTests {
         #expect(host.previewedPlaylists == true)
         let prompt = try #require(prompter.shown.first)
         #expect(prompt.title == "재생 목록 1건을 rekordbox에 쓸까요?")
-        #expect(prompt.details.contains("• 세트 — 새 재생 목록 만들기"))
+        #expect(!prompt.details.contains("• 세트 — 새 재생 목록 만들기"))
         #expect(prompt.details.contains { $0.hasPrefix("• 옛 목록: 2곡 넣기 — 초안을 만든 뒤 rekordbox에서") })
         // 쓰기에는 초안 전체를 넘긴다(결과가 편집 순서와 같아야 쓴 편집만 뺄 수 있다)
         #expect(host.wrotePlaylists == .some(preview.playlists))
@@ -224,8 +228,8 @@ struct ReflectionCoordinatorTests {
         #expect(host.toast?.title == "rekordbox에 썼습니다 · 재생 목록 1건")
     }
 
-    /// 툴바로 곡 초안과 재생 목록 초안을 함께 쓰면 재생 목록은 한 줄로 알린다(#211). 막힌 편집은 이유와 함께 남긴다.
-    @Test func 곡과_함께_쓰는_재생_목록_초안은_한_줄로_알린다() throws {
+    /// 툴바로 곡 초안과 재생 목록 초안을 함께 써도 확인 창에는 막힌 편집만 이유와 함께 보인다(#211·#210).
+    @Test func 곡과_함께_쓰는_재생_목록_초안은_막힌_편집만_보인다() throws {
         var preview = Self.playlistPreview([
             Self.playlistOutcome(.create(key: "k", name: "세트", isFolder: false, parent: .root), "세트", .written),
             Self.playlistOutcome(.rename(playlist: .id("8"), name: "새 이름"), "옛 이름", .written),
@@ -234,9 +238,7 @@ struct ReflectionCoordinatorTests {
         preview.report.outcomes = [Self.outcome("a", .written)]
         let prompt = ReflectionCoordinator.confirmation(preview.report)
         #expect(prompt.title == "큐 1곡 · 재생 목록 2건을 rekordbox에 쓸까요?")
-        #expect(prompt.details.contains("• 재생 목록 초안 2건도 함께 씁니다"))
-        #expect(!prompt.details.contains("• 세트 — 새 재생 목록 만들기"))
-        #expect(prompt.details.contains("• 스마트: 지우기 — rekordbox에서 고치세요"))
+        #expect(prompt.details == ["쓰지 않는 것 1:", "• 스마트: 지우기 — rekordbox에서 고치세요"])
     }
 
     @Test func 곡을_골라_쓸_때는_재생_목록_초안을_넣지_않는다() async {
@@ -287,20 +289,13 @@ struct ReflectionCoordinatorTests {
         #expect(host.wrote?.tags == ["t"] && host.wrote?.drafts == [] && host.wrote?.grids == [] && host.wrote?.gains == [])
     }
 
-    @Test func 확인_창은_바뀌는_태그_칸과_음원_파일은_그대로라는_것을_알린다() {
+    @Test func 확인_창은_태그가_막힌_곡만_보인다() {
         let preview = Self.preview(cues: [Self.outcome("a", .written, added: 1)],
                                    tags: [Self.tagOutcome("a", .written, fields: ["comment"]), Self.tagOutcome("t", .written),
                                           Self.tagOutcome("x", .blocked, reason: "규칙을 확인하지 않은 칸")])
         let prompt = ReflectionCoordinator.confirmation(preview.report)
         #expect(prompt.title == "큐 1곡 · 태그 2곡을 rekordbox에 쓸까요?")
-        let lines = prompt.details
-        #expect(lines.contains("• 곡 a — 큐 +1 · 태그(코멘트)"))
-        #expect(lines.contains("• 곡 t — 태그(제목·아티스트)"))
-        #expect(lines.contains("• 곡 x: 규칙을 확인하지 않은 칸"))
-        #expect(lines.contains { $0.contains("음원 파일의 태그는 그대로") })
-        // 태그를 쓰지 않으면 안내도 없다
-        let cuesOnly = ReflectionCoordinator.confirmation(Self.preview(cues: [Self.outcome("a", .written)]).report)
-        #expect(!cuesOnly.details.contains { $0.contains("음원 파일의 태그") })
+        #expect(prompt.details == ["쓰지 않는 것 1:", "• 곡 x: 규칙을 확인하지 않은 칸"])
     }
 
     @Test func 분석_전_곡은_그리드_초안으로_분석을_붙여_쓴다() async {
@@ -388,21 +383,7 @@ struct ReflectionCoordinatorTests {
                                    gains: [Self.outcome("d", .written, added: -250)])
         let prompt = ReflectionCoordinator.confirmation(preview.report)
         #expect(prompt.title == "큐 1곡 · 그리드 1곡 · 게인 1곡을 rekordbox에 쓸까요?")
-        let lines = prompt.details
-        #expect(lines.contains("• 곡 a — 큐 +2 · ⚠︎ 그리드는 안 들어감"))
-        #expect(lines.contains("• 곡 g — 그리드(박 64개)"))
-        #expect(lines.contains("• 곡 d — 오토게인 -2.5 dB"))
-        #expect(lines.contains("쓰지 않는 것 1:") && lines.contains("• 곡 a: 분석 전"))
-    }
-
-    @Test(arguments: [(1, 0, "큐 +1"), (0, 2, "큐 −2"), (1, 1, "큐 +1 · −1")])
-    func 큐_변경_줄에는_0을_빼고_바뀐_수만_쓴다(_ added: Int, _ removed: Int, _ expected: String) {
-        var outcome = Self.outcome("a", .written, added: added)
-        outcome.removed = removed
-        let prompt = ReflectionCoordinator.confirmation(Self.preview(cues: [outcome]).report)
-        #expect(prompt.title == "큐 1곡을 rekordbox에 쓸까요?")
-        #expect(prompt.details.first == "• 곡 a — " + expected)
-        #expect(prompt.text.hasSuffix("백업한 뒤 쓰고 다시 확인합니다. 끝날 때까지 rekordbox를 켜지 마세요."))
+        #expect(prompt.details == ["쓰지 않는 것 1:", "• 곡 a: 분석 전"])
     }
 
     @Test func 넣기와_빼기와_되돌리기도_짧게_묻고_백업을_안내한다() {
@@ -427,30 +408,13 @@ struct ReflectionCoordinatorTests {
         #expect(restore.critical && restore.destructive)
     }
 
-    @Test func 확인_창은_분석을_붙이는_곡과_막힌_이유를_보여_준다() {
+    @Test func 확인_창은_분석을_붙이지_못하는_곡만_보인다() {
         let preview = Self.preview(cues: [Self.outcome("a", .written, added: 1), Self.outcome("b", .written, added: 3)],
                                    analyses: [Self.outcome("a", .written, added: 128), Self.outcome("n", .written, added: 96),
                                               Self.outcome("b", .blocked, reason: "ALAC")])
         let prompt = ReflectionCoordinator.confirmation(preview.report)
         #expect(prompt.title == "큐 2곡 · 분석 2곡을 rekordbox에 쓸까요?")
-        let lines = prompt.details
-        #expect(lines.contains("• 곡 a — 큐 +1 · 분석 파일 붙이기"))
-        #expect(lines.contains("• 곡 b — 큐 +3 · ⚠︎ 그리드는 안 들어감"))
-        #expect(lines.contains("• 곡 n — 분석 파일 붙이기(파형·그리드 박 96개·오토게인)"))
-        #expect(lines.contains("• 곡 b: ALAC") && lines.contains { $0.contains("키·프레이즈·보컬 분석은 없습니다") })
-    }
-
-    @Test func 확인_창은_분석과_함께_아트워크도_넣는_곡을_알린다() {
-        // rekordbox는 분석 전 곡을 분석할 때 음원 그림으로 아트워크를 만든다(#87, 2026-09-26 실험)
-        var preview = Self.preview(cues: [Self.outcome("a", .written, added: 1)],
-                                   analyses: [Self.outcome("a", .written, added: 128), Self.outcome("n", .written, added: 96),
-                                              Self.outcome("p", .written, added: 64)])
-        preview.report.artworkAdded = ["a", "n"]
-        let lines = ReflectionCoordinator.confirmation(preview.report).details
-        #expect(lines.contains("• 곡 a — 큐 +1 · 분석 파일 붙이기 · 앨범아트"))
-        #expect(lines.contains("• 곡 n — 분석 파일 붙이기(파형·그리드 박 96개·오토게인·앨범아트)"))
-        #expect(lines.contains("• 곡 p — 분석 파일 붙이기(파형·그리드 박 64개·오토게인)"), "그림이 없는 곡")
-        #expect(lines.contains("파형·그리드·오토게인과 음원의 앨범아트를 붙입니다. 키·프레이즈·보컬 분석은 없습니다."))
+        #expect(prompt.details == ["쓰지 않는 것 1:", "• 곡 b: ALAC"])
     }
 
     @Test func 실패와_경고_토스트는_시간이_지나도_닫히지_않는다() {
@@ -503,7 +467,8 @@ struct ReflectionCoordinatorTests {
         #expect(prompt != nil)
         #expect(prompt?.title == "2곡을 rekordbox에 넣을까요?" && prompt?.confirm == "rekordbox에 넣기" && prompt?.critical == false)
         let lines = prompt?.details ?? []
-        #expect(lines.contains("• 곡 a — 그리드·파형·오토게인까지 · 큐 2개") && lines.contains("• 곡 b — 분석 없이(ALAC) · ⚠︎ 큐는 안 들어감(메모리 큐가 11개가 됩니다)"))
+        // 다 들어가는 곡 a는 줄을 넣지 않는다(#210)
+        #expect(!lines.contains { $0.hasPrefix("• 곡 a") } && lines.contains("• 곡 b — 분석 없이(ALAC) · ⚠︎ 큐는 안 들어감(메모리 큐가 11개가 됩니다)"))
         #expect(lines.contains("넣지 않는 곡 1:") && lines.contains("• 곡 c: 이미 rekordbox 컬렉션에 있는 파일입니다"))
         #expect(host.added == ["a", "b"] && host.locks == [true, false])
     }
@@ -618,8 +583,8 @@ struct ReflectionCoordinatorTests {
         var preview = Self.addPreview([Self.track(withArt.path), Self.track(bare.path), Self.track(later.path)], without: [later.path: "그리드 없음"])
         preview.plans = [withArt, bare, later]
         let open = ReflectionCoordinator.addConfirmation(preview, writesArtwork: true).details
-        #expect(open.contains("• 곡 \(withArt.path) — 그리드·파형·오토게인까지 · 앨범아트"))
-        #expect(open.contains("• 곡 \(bare.path) — 그리드·파형·오토게인까지"))
+        // 다 들어가는 곡(분석·앨범아트까지)은 줄을 넣지 않는다(#210)
+        #expect(!open.contains { $0.contains(withArt.path) || $0.contains(bare.path) })
         // 분석 없이 넣는 곡은 rekordbox처럼 아트워크를 넣지 않는다. rekordbox가 분석할 때 뽑는다(2026-09-26 실험).
         #expect(open.contains("• 곡 \(later.path) — 분석 없이(그리드 없음)"))
         #expect(open.last == "분석 없이 넣는 곡은 rekordbox에서 분석해야 파형·그리드·앨범아트가 생깁니다.")
@@ -627,6 +592,11 @@ struct ReflectionCoordinatorTests {
         // 닫혀 있으면 곡 줄에는 붙이지 않고, 분석까지 붙이는 곡에 아트워크가 있을 때만 무엇을 하면 되는지 한 번 알린다
         let closed = ReflectionCoordinator.addConfirmation(preview, writesArtwork: false).details
         #expect(!closed.contains { $0.hasSuffix("· 앨범아트") } && closed.last == ReflectionCoordinator.artworkClosedNote)
+        // 앨범아트가 빠지는 곡이 있으면 넣기 전에 묻는다
+        preview.withoutAnalysis = [:]
+        #expect(WriteConfirmPolicy.addReasons(preview, writesArtwork: false, canBackUp: true) == [.excluded])
+        #expect(WriteConfirmPolicy.addReasons(preview, writesArtwork: true, canBackUp: true).isEmpty)
+        preview.withoutAnalysis = [later.path: "그리드 없음"]
         preview.plans = [bare, later]
         let bareOnly = ReflectionCoordinator.addConfirmation(preview, writesArtwork: false).details
         #expect(!bareOnly.contains(ReflectionCoordinator.artworkClosedNote))

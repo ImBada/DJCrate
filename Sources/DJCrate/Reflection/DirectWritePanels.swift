@@ -49,6 +49,7 @@ enum DirectWritePanels {
         }
     }
 
+    /// 쓰기 결과 토스트의 복원 단추. 누른 것이 확인이라 그 뒤 변경·초안 충돌이 없으면 묻지 않는다(#210).
     static func restore(store: LibraryStore, backupURL: URL) {
         guard let backup = backup(matching: backupURL, in: RekordboxWriter.backups(in: DJCPaths.rekordboxBackups)) else {
             _ = AlertPrompter().show(ReflectionPrompt(title: String(ui: "백업을 찾지 못했습니다"), text: backupURL.path))
@@ -57,7 +58,7 @@ enum DirectWritePanels {
         guard !store.isWritingRekordbox, store.writeTask == nil else { return }
         store.writeTask = Task {
             defer { store.writeTask = nil }
-            await ReflectionCoordinator(host: store).restore(backup)
+            await ReflectionCoordinator(host: store).restore(backup, confirmed: true)
         }
     }
 

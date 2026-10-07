@@ -9,6 +9,21 @@ import Testing
 struct RekordboxBackupTests {
     let now = Date(timeIntervalSince1970: 1_790_337_600)
 
+    /// 확인 없이 바로 쓰므로(#210) 되돌릴 수 있는 쓰기 전 백업을 최근 20개까지 남긴다(사용자 결정 2026-10-07, #209).
+    @Test func 쓰기_전_백업은_최근_20개를_남긴다() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "djc-prune-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        for index in 1...22 {
+            let backup = folder.appending(path: String(format: "2026-10-07T00-00-%02d-write", index))
+            try FileManager.default.createDirectory(at: backup, withIntermediateDirectories: true)
+            try Data().write(to: backup.appending(path: "master.db"))
+        }
+        RekordboxWriter.prune(folder)
+        let left = try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted()
+        #expect(left.count == 20)
+        #expect(left.first == "2026-10-07T00-00-03-write" && left.last == "2026-10-07T00-00-22-write")
+    }
+
     /// 큐·그리드·게인을 한 번에 쓴다
     func writeAll(_ fixture: RekordboxFixture) throws -> (report: RekordboxWriter.Report, cue: CueDraft, grid: GridDraft, gain: String) {
         let (gridTrack, _) = try RekordboxGridWriterTests().makeTrack(fixture)

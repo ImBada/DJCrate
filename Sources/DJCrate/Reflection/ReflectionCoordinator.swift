@@ -123,6 +123,8 @@ protocol ReflectionHost: AnyObject {
     func restoreRekordbox(_ backup: RekordboxWriter.Backup) async throws -> URL
     /// 쓰기·복원은 끝났지만 뒤따른 일(초안 정리·다시 읽기·복원 충돌)에 남은 경고(#175)
     var writeFollowUp: [String] { get }
+    /// 쓰기 전 백업을 만들 수 있는지(백업 폴더에 쓸 수 있는지)
+    var canBackUpBeforeWrite: Bool { get }
     /// 복원이 되살릴 백업 초안과 다른, 쓴 뒤 새로 만든 초안(확인 창에 보일 줄)
     func restoreDraftConflictDetails(_ backup: RekordboxWriter.Backup) -> [String]
     /// 이 백업 뒤에 뜬 백업 수(복원하면 그 쓰기·복원도 함께 되돌린다, #222)
@@ -140,6 +142,7 @@ protocol ReflectionHost: AnyObject {
 
 extension ReflectionHost {
     var writeFollowUp: [String] { [] }
+    var canBackUpBeforeWrite: Bool { true }
     func restoreDraftConflictDetails(_ backup: RekordboxWriter.Backup) -> [String] { [] }
     func laterBackupCount(_ backup: RekordboxWriter.Backup) -> Int { 0 }
     func restoreRekordbox(_ backup: RekordboxWriter.Backup, keepingCurrentDrafts: Bool) async throws -> URL {
@@ -147,8 +150,8 @@ extension ReflectionHost {
     }
 }
 
-/// rekordbox에 바로 쓰기: rekordbox 꺼짐 확인 → 사본으로 미리 보기 → 확인 창 → 쓸 수 있는 것만 쓰기 → 토스트.
-/// 되돌리기도 같은 순서(꺼짐 확인 → 그 뒤 바뀐 것 확인 → 확인 창 → 복원).
+/// rekordbox에 바로 쓰기: rekordbox 꺼짐 확인 → 사본으로 미리 보기 → (막힘·제외·손실이 있을 때만) 확인 창 → 쓸 수 있는 것만 쓰기 → 토스트.
+/// 되돌리기도 같은 순서(꺼짐 확인 → 그 뒤 바뀐 것 확인 → 확인 창 → 복원). 토스트에서 누른 복원은 그 뒤 변경·초안 충돌이 없으면 묻지 않는다.
 /// 쓰는 동안은 잠가서(`setWriteLock`) 덱이 재생을 멈추고 조작을 막는다.
 @MainActor
 struct ReflectionCoordinator {
@@ -203,7 +206,11 @@ struct ReflectionCoordinator {
                 }
                 return
             }
-            guard prompter.show(Self.confirmation(report, exclusions: preview.exclusions)) else { return }
+            // 막힘·제외·손실이 없으면 묻지 않고 쓴다. 결과 토스트와 메뉴의 "쓰기 전으로 복원…"으로 되돌린다(#210).
+            let canBackUp = host.canBackUpBeforeWrite
+            if !WriteConfirmPolicy.reasons(report, exclusions: preview.exclusions, canBackUp: canBackUp).isEmpty {
+                guard prompter.show(Self.confirmation(report, exclusions: preview.exclusions, canBackUp: canBackUp)) else { return }
+            }
             // 분석을 붙이는 곡도 그리드 초안으로 쓴다.
             let cues = Set(report.written.map(\.trackUUID)), grids = Set((report.gridWritten + report.analysisWritten).map(\.trackUUID))
             let gains = Set(report.gainWritten.map(\.trackUUID)), tags = Set(report.tagWritten.map(\.trackUUID))
@@ -254,7 +261,10 @@ struct ReflectionCoordinator {
                 inform(String(ui: "rekordbox에 넣을 수 있는 곡이 없습니다"), "", details: Self.addReasons(preview))
                 return
             }
-            guard prompter.show(Self.addConfirmation(preview)) else { return }
+            let canBackUp = host.canBackUpBeforeWrite, writesArtwork = RekordboxTrackWriter.writesArtwork
+            if !WriteConfirmPolicy.addReasons(preview, writesArtwork: writesArtwork, canBackUp: canBackUp).isEmpty {
+                guard prompter.show(Self.addConfirmation(preview, writesArtwork: writesArtwork, canBackUp: canBackUp)) else { return }
+            }
             try Task.checkCancellation()
             let written = try await host.addTracksToRekordbox(preview)
             // 넣기는 끝났지만 백업에 추가 목록·초안을 남기지 못했다는 경고는 결과와 나눠 덧붙인다(#202).
@@ -308,7 +318,8 @@ struct ReflectionCoordinator {
         }
     }
 
-    func restore(_ backup: RekordboxWriter.Backup) async {
+    /// - Parameter confirmed: 쓰기 결과 토스트의 복원 단추로 불렀는지(그 백업을 보고 누른 것이라 확인으로 본다)
+    func restore(_ backup: RekordboxWriter.Backup, confirmed: Bool = false) async {
         guard !host.isWritingRekordbox else { return }
         guard !isRekordboxRunning() else {
             inform(String(ui: "rekordbox가 켜져 있어 복원하지 않았습니다"), String(ui: "rekordbox를 완전히 종료한 뒤 다시 누르세요."))
@@ -324,7 +335,10 @@ struct ReflectionCoordinator {
         host.writeStage = nil
         let keepingCurrentDrafts: Bool
         if conflicts.isEmpty {
-            guard prompter.show(Self.restoreConfirmation(backup, changedSince: changed, later: later)) else { return }
+            // 토스트의 복원 단추를 누른 것이 곧 확인이다. 그 뒤 rekordbox 변경·뒤 쓰기를 잃을 수 있으면 다시 묻는다(#210).
+            if !(confirmed && changed == false && later == 0) {
+                guard prompter.show(Self.restoreConfirmation(backup, changedSince: changed, later: later)) else { return }
+            }
             keepingCurrentDrafts = true
         } else {
             switch prompter.choose(Self.restoreConfirmation(backup, changedSince: changed, conflicts: conflicts, later: later)) {
@@ -414,127 +428,49 @@ struct ReflectionCoordinator {
             + report.playlistBlocked.map(PlaylistWriteText.reason)
     }
 
-    /// 쓰기 전 확인 창: 종류별 곡 수, 곡마다 바뀌는 것, 쓰지 않는 것과 이유
-    static func confirmation(_ report: RekordboxWriter.Report, exclusions: [String] = []) -> ReflectionPrompt {
-        let cues = report.written, grids = report.gridWritten, analyses = report.analysisWritten, gains = report.gainWritten
-        let tags = report.tagWritten, artworks = report.artworkWritten
+    /// 쓰기 전 확인 창(#210): 막힘·제외·손실이 있거나 백업을 만들 수 없을 때만 뜬다(`WriteConfirmPolicy`).
+    /// 제목에 종류별 곡 수를 두고, 목록에는 묻는 이유가 되는 항목(합치기·쓰지 않는 것·백업)만 보인다. 곡마다의 결과는 쓰기 결과 창에 남는다.
+    static func confirmation(_ report: RekordboxWriter.Report, exclusions: [String] = [], canBackUp: Bool = true) -> ReflectionPrompt {
         var kinds: [String] = []
-        if !cues.isEmpty { kinds.append(WriteResult.Part.cue.summary(cues.count)) }
-        if !grids.isEmpty { kinds.append(WriteResult.Part.grid.summary(grids.count)) }
-        if !analyses.isEmpty { kinds.append(WriteResult.Part.analysis.summary(analyses.count)) }
-        if !gains.isEmpty { kinds.append(WriteResult.Part.gain.summary(gains.count)) }
-        if !tags.isEmpty { kinds.append(WriteResult.Part.tag.summary(tags.count)) }
-        if !artworks.isEmpty { kinds.append(WriteResult.Part.artwork.summary(artworks.count)) }
-        // 그림은 무엇을 하는지(넣기·바꾸기·지우기)
-        let artworkKinds = Dictionary(artworks.compactMap { outcome in outcome.artwork.map { (outcome.trackUUID, $0.label) } },
-                                      uniquingKeysWith: { a, _ in a })
-        // 태그는 바꾼 칸 이름으로(제목·아티스트…)
-        let tagFields = Dictionary(tags.map { tag in
-            (tag.trackUUID, (tag.fields ?? []).compactMap { TagFields.Key(rawValue: $0)?.label }.joined(separator: "·"))
-        }, uniquingKeysWith: { a, _ in a })
+        if !report.written.isEmpty { kinds.append(WriteResult.Part.cue.summary(report.written.count)) }
+        if !report.gridWritten.isEmpty { kinds.append(WriteResult.Part.grid.summary(report.gridWritten.count)) }
+        if !report.analysisWritten.isEmpty { kinds.append(WriteResult.Part.analysis.summary(report.analysisWritten.count)) }
+        if !report.gainWritten.isEmpty { kinds.append(WriteResult.Part.gain.summary(report.gainWritten.count)) }
+        if !report.tagWritten.isEmpty { kinds.append(WriteResult.Part.tag.summary(report.tagWritten.count)) }
+        if !report.artworkWritten.isEmpty { kinds.append(WriteResult.Part.artwork.summary(report.artworkWritten.count)) }
         if !report.mergeWritten.isEmpty { kinds.append(String(ui: "합치기 \(report.mergeWritten.count)묶음")) }
-        let playlists = report.playlistWritten
-        if !playlists.isEmpty { kinds.append(PlaylistWriteText.summary(playlists.count)) }
-        let gridBlocked = Set((report.gridBlocked + report.analysisBlocked).map(\.trackUUID)), gridWritten = Set(grids.map(\.trackUUID))
-        let analysisWritten = Set(analyses.map(\.trackUUID))
-        // 분석을 붙이며 음원 그림으로 아트워크도 넣는 곡(rekordbox도 분석할 때 뽑는다, #87)
-        let artwork = Set(report.artworkAdded ?? [])
-        var body = cues.map { outcome -> String in
-            var changes: [String] = []
-            if outcome.added > 0 { changes.append("+\(outcome.added)") }
-            if outcome.removed > 0 { changes.append("−\(outcome.removed)") }
-            // 줄 모양 "• 곡 — 내용 · 내용"은 언어와 관계없고, 내용만 번역한다.
-            var parts = [changes.isEmpty ? String(ui: "큐 변경") : String(ui: "큐 \(changes.joined(separator: " · "))")]
-            if gridWritten.contains(outcome.trackUUID) { parts.append(String(ui: "그리드")) }
-            if analysisWritten.contains(outcome.trackUUID) {
-                parts.append(String(ui: "분석 파일 붙이기"))
-                if artwork.contains(outcome.trackUUID) { parts.append(String(ui: "앨범아트")) }
-            }
-            if gridBlocked.contains(outcome.trackUUID) { parts.append(String(ui: "⚠︎ 그리드는 안 들어감")) }
-            if let fields = tagFields[outcome.trackUUID] { parts.append(String(ui: "태그(\(fields))")) }
-            if let artwork = artworkKinds[outcome.trackUUID] { parts.append(artwork) }
-            return "• \(outcome.title) — " + parts.joined(separator: " · ")
+        if !report.playlistWritten.isEmpty { kinds.append(PlaylistWriteText.summary(report.playlistWritten.count)) }
+        var sections: [[String]] = []
+        if !report.mergeWritten.isEmpty {
+            sections.append(report.mergeWritten.map { String(ui: "• \($0.title) 유지 · 중복 \($0.removed)곡을 컬렉션에서 뺍니다") }
+                + report.mergeWritten.compactMap(\.reason) + ["", DuplicateMerge.lossNotice])
         }
-        let cueUUIDs = Set(cues.map(\.trackUUID))
-        for grid in grids where !cueUUIDs.contains(grid.trackUUID) { body.append("• \(grid.title) — " + String(ui: "그리드(박 \(grid.added)개)")) }
-        for analysis in analyses where !cueUUIDs.contains(analysis.trackUUID) {
-            let made = artwork.contains(analysis.trackUUID)
-                ? String(ui: "분석 파일 붙이기(파형·그리드 박 \(analysis.added)개·오토게인·앨범아트)")
-                : String(ui: "분석 파일 붙이기(파형·그리드 박 \(analysis.added)개·오토게인)")
-            body.append("• \(analysis.title) — " + made)
-        }
-        for gain in gains { body.append("• \(gain.title) — " + String(ui: "오토게인 \(Double(gain.added) / 100, specifier: "%+.1f") dB")) }
-        for tag in tags where !cueUUIDs.contains(tag.trackUUID) {
-            var parts = [String(ui: "태그(\(tagFields[tag.trackUUID] ?? ""))")]
-            if let artwork = artworkKinds[tag.trackUUID] { parts.append(artwork) }
-            body.append("• \(tag.title) — " + parts.joined(separator: " · "))
-        }
-        let tagUUIDs = Set(tags.map(\.trackUUID))
-        for artwork in artworks where !cueUUIDs.contains(artwork.trackUUID) && !tagUUIDs.contains(artwork.trackUUID) {
-            body.append("• \(artwork.title) — " + (artworkKinds[artwork.trackUUID] ?? WriteResult.Part.artwork.summary(1)))
-        }
-        // 곡 초안과 함께 쓰면(툴바) 재생 목록은 한 줄로만 알린다. 편집마다의 결과는 쓰기 결과에 남는다(#211).
-        if kinds.count > 1, !playlists.isEmpty {
-            body.append(PlaylistWriteText.alongside(playlists.count))
-        } else {
-            body += playlists.map(PlaylistWriteText.line)
-        }
-        body += report.mergeWritten.map { String(ui: "• \($0.title) 유지 · 중복 \($0.removed)곡을 컬렉션에서 뺍니다") }
-        body += report.mergeWritten.compactMap(\.reason)
-        if !report.mergeWritten.isEmpty { body += ["", DuplicateMerge.lossNotice] }
         let reasons = reasons(report) + exclusions
-        if !reasons.isEmpty { body += ["", String(ui: "쓰지 않는 것 \(reasons.count):")] + reasons }
-        if !analyses.isEmpty {
-            body += ["", analyses.contains { artwork.contains($0.trackUUID) }
-                ? String(ui: "파형·그리드·오토게인과 음원의 앨범아트를 붙입니다. 키·프레이즈·보컬 분석은 없습니다.")
-                : String(ui: "파형·그리드·오토게인만 붙입니다. 키·프레이즈·보컬 분석은 없습니다.")]
-        }
-        if !tags.isEmpty {
-            // 결정(#1, 2026-09-26): rekordbox 라이브러리만 쓰고 음원은 읽기만 한다.
-            body += ["", String(ui: "태그는 rekordbox 라이브러리에만 씁니다. 음원 파일의 태그는 그대로라 다른 앱이나 rekordbox '태그 다시 읽기'에서는 예전 값이 보일 수 있습니다.")]
-        }
-        if !artworks.isEmpty {
-            // 결정(#66, 2026-10-04): rekordbox는 음원의 그림도 바꾸지만 DJCrate는 음원을 쓰지 않는다.
-            body += ["", Self.artworkAudioNote]
-        }
+        if !reasons.isEmpty { sections.append([String(ui: "쓰지 않는 것 \(reasons.count):")] + reasons) }
+        if !canBackUp { sections.append([noBackupText]) }
         return ReflectionPrompt(title: String(ui: "\(kinds.joined(separator: " · "))을 rekordbox에 쓸까요?"),
                                 text: backupThenWriteText,
-                                confirm: String(ui: "rekordbox에 쓰기"), destructive: !report.mergeWritten.isEmpty, details: body)
+                                confirm: String(ui: "rekordbox에 쓰기"), destructive: !report.mergeWritten.isEmpty,
+                                details: Array(sections.joined(separator: [""])))
     }
 
-    /// 그림 쓰기 확인 창의 안내: 음원 파일에 든 그림은 그대로다.
-    static var artworkAudioNote: String {
-        String(ui: "앨범아트는 rekordbox 라이브러리에만 씁니다. 음원 파일에 든 앨범아트는 그대로라 다른 앱이나 rekordbox '태그 다시 읽기'에서는 예전 앨범아트가 보일 수 있습니다.")
+    /// 쓰기 전 백업 폴더에 쓸 수 없을 때의 줄
+    static var noBackupText: String {
+        String(ui: "쓰기 전 백업을 만들 폴더에 쓸 수 없어 쓰기가 막힐 수 있으니 DJCrate 데이터 폴더의 쓰기 권한을 확인하세요.")
     }
 
     static func addReasons(_ preview: LibraryStore.TrackAddPreview) -> [String] {
         preview.report.added.filter { !$0.written }.map { "• \($0.title): \($0.reason ?? "")" } + preview.unreadable.map { "• \($0)" }
     }
 
-    /// 분석 없이 넣으며 키도 쓰는 곡의 안내
-    static var bareKeyNote: String {
-        String(ui: "분석 없이 넣으며 키를 함께 쓴 곡은 DJCrate가 나중에 분석을 붙이지 않으니 rekordbox에서 분석하세요.")
-    }
-
-    /// 키를 함께 넣는 곡의 안내: 음원 파일의 키 태그는 그대로다(#5 결정).
-    static var keyAudioNote: String {
-        String(ui: "키는 rekordbox 라이브러리에만 씁니다. 음원 파일의 키 태그는 그대로입니다.")
-    }
-
-    /// 아트워크 쓰기가 닫혀 있을 때(`RekordboxTrackWriter.writesArtwork`) 음원에 아트워크가 든 곡을 넣으면 보이는 안내
-    static var artworkClosedNote: String {
-        String(ui: "음원의 앨범아트는 아직 넣지 않으니, 필요하면 rekordbox 곡 정보 창에서 이미지를 끌어다 붙이세요.")
-    }
-
-    /// 넣기 전 확인 창: 곡마다 분석까지 붙는지(아트워크도 넣는지), 함께 쓰는 큐·키, 넣지 않는 곡과 이유.
-    /// 아트워크는 분석까지 붙이는 곡에만 넣는다(rekordbox도 분석할 때 뽑는다, 2026-09-26 실험).
-    static func addConfirmation(_ preview: LibraryStore.TrackAddPreview,
-                                writesArtwork: Bool = RekordboxTrackWriter.writesArtwork) -> ReflectionPrompt {
+    /// 넣는 곡 가운데 빠지는 것이 있는 곡의 줄(분석 없이 넣음, 큐·키가 안 들어감)과 그 안내(#210).
+    /// 비어 있으면 넣기는 묻지 않는다. 아트워크는 분석까지 붙이는 곡에만 넣는다(rekordbox도 분석할 때 뽑는다, 2026-09-26 실험).
+    static func addShortfalls(_ preview: LibraryStore.TrackAddPreview, writesArtwork: Bool) -> [String] {
         let written = preview.report.added.filter(\.written)
         let artwork = Set(preview.plans.filter { $0.artwork != nil }.map(\.path))
         let bare = written.filter { preview.withoutAnalysis[$0.path] != nil }
         let analysedArtwork = written.filter { preview.withoutAnalysis[$0.path] == nil && artwork.contains($0.path) }
-        var body = written.map { outcome -> String in
+        var body = written.filter { preview.withoutAnalysis[$0.path] != nil || $0.cueReason != nil || $0.keyReason != nil }.map { outcome -> String in
             var parts = [preview.withoutAnalysis[outcome.path].map { String(ui: "분석 없이(\($0))") }
                 ?? String(ui: "그리드·파형·오토게인까지")]
             if writesArtwork, analysedArtwork.contains(outcome) { parts.append(String(ui: "앨범아트")) }
@@ -544,8 +480,6 @@ struct ReflectionCoordinator {
             if let reason = outcome.keyReason { parts.append(String(ui: "⚠︎ 키는 안 들어감(\(reason))")) }
             return "• \(outcome.title) — " + parts.joined(separator: " · ")
         }
-        let reasons = addReasons(preview)
-        if !reasons.isEmpty { body += ["", String(ui: "넣지 않는 곡 \(reasons.count):")] + reasons }
         if !bare.isEmpty {
             body += ["", bare.contains { artwork.contains($0.path) }
                 ? String(ui: "분석 없이 넣는 곡은 rekordbox에서 분석해야 파형·그리드·앨범아트가 생깁니다.")
@@ -558,12 +492,32 @@ struct ReflectionCoordinator {
         if bare.contains(where: { $0.keyWritten != nil }) {
             body += ["", Self.bareKeyNote]
         }
-        if written.contains(where: { $0.keyWritten != nil }) {
-            body += ["", Self.keyAudioNote]
-        }
+        return body.first == "" ? Array(body.dropFirst()) : body
+    }
+
+    /// 분석 없이 넣으며 키도 쓰는 곡의 안내
+    static var bareKeyNote: String {
+        String(ui: "분석 없이 넣으며 키를 함께 쓴 곡은 DJCrate가 나중에 분석을 붙이지 않으니 rekordbox에서 분석하세요.")
+    }
+
+    /// 아트워크 쓰기가 닫혀 있을 때(`RekordboxTrackWriter.writesArtwork`) 음원에 아트워크가 든 곡을 넣으면 보이는 안내
+    static var artworkClosedNote: String {
+        String(ui: "음원의 앨범아트는 아직 넣지 않으니, 필요하면 rekordbox 곡 정보 창에서 이미지를 끌어다 붙이세요.")
+    }
+
+    /// 넣기 전 확인 창(#210): 빠지는 것(`addShortfalls`)·넣지 않는 곡이 있거나 백업을 만들 수 없을 때만 뜨고, 그 줄만 보인다.
+    static func addConfirmation(_ preview: LibraryStore.TrackAddPreview,
+                                writesArtwork: Bool = RekordboxTrackWriter.writesArtwork, canBackUp: Bool = true) -> ReflectionPrompt {
+        let written = preview.report.added.filter(\.written)
+        var sections: [[String]] = []
+        let shortfalls = addShortfalls(preview, writesArtwork: writesArtwork)
+        if !shortfalls.isEmpty { sections.append(shortfalls) }
+        let reasons = addReasons(preview)
+        if !reasons.isEmpty { sections.append([String(ui: "넣지 않는 곡 \(reasons.count):")] + reasons) }
+        if !canBackUp { sections.append([noBackupText]) }
         return ReflectionPrompt(title: String(ui: "\(written.count)곡을 rekordbox에 넣을까요?"),
                                 text: backupThenWriteText,
-                                confirm: String(ui: "rekordbox에 넣기"), details: body)
+                                confirm: String(ui: "rekordbox에 넣기"), details: Array(sections.joined(separator: [""])))
     }
 
     /// 빼기 전 확인 창(경고): 뺄 곡, 빼지 않는 곡과 이유, 함께 사라지는 것
@@ -616,6 +570,14 @@ struct ReflectionCoordinator {
 }
 
 extension LibraryStore: ReflectionHost {
+    /// 백업 폴더(없으면 가장 가까운 있는 상위 폴더)에 쓸 수 있는지
+    var canBackUpBeforeWrite: Bool {
+        let fm = FileManager.default
+        var folder = backupDirectory
+        while !fm.fileExists(atPath: folder.path), folder.pathComponents.count > 1 { folder = folder.deletingLastPathComponent() }
+        return fm.isWritableFile(atPath: folder.path)
+    }
+
     func setWriteLock(_ locked: Bool) {
         isWritingRekordbox = locked
         onWriteLock?(locked)

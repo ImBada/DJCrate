@@ -11472,22 +11472,6 @@
         }
       }
     },
-    "⚠︎ 그리드는 안 들어감" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⚠︎ grid not included"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "⚠︎ グリッドは書き込まれません"
-          }
-        }
-      }
-    },
     "⚠︎ 이 백업 뒤에 rekordbox에서도 라이브러리가 바뀌었습니다(큐·재생 목록·곡 추가 등). 복원하면 그 변경도 함께 사라집니다." : {
       "localizations" : {
         "en" : {
@@ -15106,34 +15090,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "現在のグリッドを取得…"
-          }
-        }
-      }
-    },
-    "그리드(박 %lld개)" : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "grid (%lld beat)"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "grid (%lld beats)"
-                }
-              }
-            }
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "グリッド（%lld拍）"
           }
         }
       }
@@ -22310,78 +22266,6 @@
         }
       }
     },
-    "분석 파일 붙이기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "attach analysis files"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解析ファイルを追加"
-          }
-        }
-      }
-    },
-    "분석 파일 붙이기(파형·그리드 박 %lld개·오토게인)" : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "attach analysis files (waveform, grid with %lld beat, Auto Gain)"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "attach analysis files (waveform, grid with %lld beats, Auto Gain)"
-                }
-              }
-            }
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解析ファイルを追加（波形・グリッド%lld拍・オートゲイン）"
-          }
-        }
-      }
-    },
-    "분석 파일 붙이기(파형·그리드 박 %lld개·오토게인·앨범아트)" : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "attach analysis files (waveform, grid with %lld beat, Auto Gain, album art)"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "attach analysis files (waveform, grid with %lld beats, Auto Gain, album art)"
-                }
-              }
-            }
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解析ファイルを追加（波形・グリッド%lld拍・オートゲイン・アルバムアート）"
-          }
-        }
-      }
-    },
     "분석 파일 없음 또는 읽기 실패" : {
       "localizations" : {
         "en" : {
@@ -25218,6 +25102,22 @@
         }
       }
     },
+    "쓰기 전 백업을 만들 폴더에 쓸 수 없어 쓰기가 막힐 수 있으니 DJCrate 데이터 폴더의 쓰기 권한을 확인하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate can't write to the folder for the pre-write backup, so the write may be refused. Check write permission for the DJCrate data folder."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込み前のバックアップを作るフォルダに書き込めないため、書き込みが止まることがあります。DJCrateのデータフォルダの書き込み権限を確認してください。"
+          }
+        }
+      }
+    },
     "쓰기 전 백업이 없으니 마지막 쓰기 결과를 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -27036,22 +26936,6 @@
         }
       }
     },
-    "앨범아트는 rekordbox 라이브러리에만 씁니다. 음원 파일에 든 앨범아트는 그대로라 다른 앱이나 rekordbox '태그 다시 읽기'에서는 예전 앨범아트가 보일 수 있습니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Album art is written only to the rekordbox library. The album art embedded in your audio files stays the same, so other apps or rekordbox's Reload Tag may show the old album art."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アルバムアートはrekordboxのライブラリにだけ書き込みます。音源ファイルに埋め込まれたアルバムアートはそのままなので、他のアプリやrekordboxの「タグの再読み込み」では以前のアルバムアートが表示されることがあります。"
-          }
-        }
-      }
-    },
     "앨범아트는 rekordbox 라이브러리에만 씁니다. 음원 파일에 든 앨범아트는 바뀌지 않습니다." : {
       "localizations" : {
         "en" : {
@@ -27592,22 +27476,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "オートゲイン"
-          }
-        }
-      }
-    },
-    "오토게인 %+.1f dB" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Auto Gain %+.1f dB"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "オートゲイン %+.1f dB"
           }
         }
       }
@@ -31474,34 +31342,6 @@
         }
       }
     },
-    "재생 목록 초안 %lld건도 함께 씁니다" : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Also writes %lld playlist draft edit"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Also writes %lld playlist draft edits"
-                }
-              }
-            }
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "プレイリストの下書き%lld件も一緒に書き込みます"
-          }
-        }
-      }
-    },
     "재생 목록 초안 %lld건을 버릴까요?" : {
       "localizations" : {
         "en" : {
@@ -34996,22 +34836,6 @@
         }
       }
     },
-    "큐 %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "cues %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "キュー %@"
-          }
-        }
-      }
-    },
     "큐 %@ · %lldms · %@" : {
       "localizations" : {
         "en" : {
@@ -35300,22 +35124,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キュー一覧の表示"
-          }
-        }
-      }
-    },
-    "큐 변경" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "cues changed"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "キュー変更"
           }
         }
       }
@@ -36344,22 +36152,6 @@
         }
       }
     },
-    "키는 rekordbox 라이브러리에만 씁니다. 음원 파일의 키 태그는 그대로입니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The key is written only to the rekordbox library. The key tag in the audio file is left as is."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "キーはrekordboxライブラリにだけ書き込みます。音源ファイルのキータグはそのままです。"
-          }
-        }
-      }
-    },
     "키는 쓰기 대기: %@" : {
       "localizations" : {
         "en" : {
@@ -36624,38 +36416,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "現在のタグを取得…"
-          }
-        }
-      }
-    },
-    "태그(%@)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "tags (%@)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "タグ（%@）"
-          }
-        }
-      }
-    },
-    "태그는 rekordbox 라이브러리에만 씁니다. 음원 파일의 태그는 그대로라 다른 앱이나 rekordbox '태그 다시 읽기'에서는 예전 값이 보일 수 있습니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tags are written only to the rekordbox library. The tags in your audio files stay the same, so other apps or rekordbox's Reload Tag may show the old values."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "タグはrekordboxのライブラリにだけ書き込みます。音源ファイルのタグはそのままなので、他のアプリやrekordboxの「タグの再読み込み」では以前の値が表示されることがあります。"
           }
         }
       }
@@ -37446,38 +37206,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "波形の拡大・縮小（横スクロール：移動）"
-          }
-        }
-      }
-    },
-    "파형·그리드·오토게인과 음원의 앨범아트를 붙입니다. 키·프레이즈·보컬 분석은 없습니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Attaches the waveform, grid, Auto Gain, and the audio file's album art. No key, phrase, or vocal analysis is included."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "波形・グリッド・オートゲインと音源のアルバムアートを追加します。キー・フレーズ・ボーカルの解析はありません。"
-          }
-        }
-      }
-    },
-    "파형·그리드·오토게인만 붙입니다. 키·프레이즈·보컬 분석은 없습니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Attaches only the waveform, grid, and Auto Gain. No key, phrase, or vocal analysis is included."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "波形・グリッド・オートゲインだけを追加します。キー・フレーズ・ボーカルの解析はありません。"
           }
         }
       }
