@@ -1079,6 +1079,12 @@ final class LibraryStore {
             checkMissingFiles()
             applyLaunchSelection()
             runLaunchStagingTest()
+            // 라이브러리에 없는 곡의 음량 항목도 정리한다(#217). 추가한 곡의 경로는 남긴다.
+            let libraryPaths = Set((rows + stagedRows).filter { !$0.track.isStreaming }.map(\.track.folderPath) + staged.map(\.path))
+            Task(priority: .background) {
+                let removed = await LoudnessCache.shared.prune(keeping: libraryPaths)
+                if removed > 0 { FileHandle.standardError.write(Data("음량 캐시 정리 \(removed)개\n".utf8)) }
+            }
             // 캐시 용량 상한(최근 사용 순)은 뒤에서 조용히 정리한다.
             Task.detached(priority: .background) {
                 CacheMaintenance.prune()
