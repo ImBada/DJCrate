@@ -3467,18 +3467,18 @@
         }
       }
     },
-    "<사본.db> <출력.sql>" : {
+    "<사본.db> <출력.sql> [--overwrite]" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "<copy.db> <output.sql>"
+            "value" : "<copy.db> <output.sql> [--overwrite]"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "<コピー.db> <出力.sql>"
+            "value" : "<コピー.db> <出力.sql> [--overwrite]"
           }
         }
       }
@@ -17830,6 +17830,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用中のmaster.dbは開けません。djc snapshotでコピーを作成してから読み込んでください"
+          }
+        }
+      }
+    },
+    "라이브 rekordbox DB에는 쓰지 않습니다. djc snapshot으로 만든 사본을 주세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Does not write to the live rekordbox DB. Pass a copy made with djc snapshot"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブの rekordbox DB には書き込みません。djc snapshot で作ったコピーを指定してください"
+          }
+        }
+      }
+    },
+    "라이브 rekordbox 분석 폴더에는 쓰지 않습니다. 사본 share를 주세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Does not write to the live rekordbox analysis folder. Pass a copy of share"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブの rekordbox 分析フォルダには書き込みません。share のコピーを指定してください"
           }
         }
       }

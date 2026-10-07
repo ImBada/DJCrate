@@ -374,8 +374,9 @@ enum CueLab {
 
     /// 사본 DB에서 기존 큐 지우기·옮기기·핫큐 추가·막힘 조건을 시험한다(개발용, 사본만).
     static func cueWriteSelftest(_ args: [String]) async throws {
-        guard let path = value(after: "--db", in: args), !RekordboxWriter.liveDatabase.path.hasSuffix(path) else { print("--db <사본>"); return }
+        guard let path = value(after: "--db", in: args) else { throw UsageError() }
         let database = URL(filePath: path)
+        try CLIGuards.refuseLiveDatabase(database)
         let library = try RekordboxLibrary.load(snapshot: database)
         let meta = try CipherDatabase.diagnostic(path: path, key: RekordboxKey.derive())
         var formats: [String: (Int, Int)] = [:]
@@ -466,8 +467,9 @@ enum CueLab {
 
     /// 사본 DB에 오토게인을 써 본다. DJCrate gain-write-test <사본.db> <UUID> <선형 게인>
     static func gainWriteTest(_ args: [String]) async throws {
-        guard args.count > 3, let linear = Double(args[3]) else { return }
+        guard args.count > 3, let linear = Double(args[3]) else { throw UsageError() }
         let db = URL(filePath: args[1])
+        try CLIGuards.refuseLiveDatabase(db)
         let report = try RekordboxWriter.write(drafts: [], gains: [args[2]: 20 * log10(Double(Float(linear)))], to: db, dryRun: false,
                                                backups: db.deletingLastPathComponent().appending(path: "backups"))
         for o in report.gainOutcomes ?? [] { print(o.status.rawValue, o.title, o.reason ?? "", o.added) }
