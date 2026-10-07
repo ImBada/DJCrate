@@ -60,6 +60,9 @@ final class FakeReflectionHost: ReflectionHost {
     var keptCurrentDrafts: Bool?
     var writeFollowUp: [String] { followUp }
     var canBackUpBeforeWrite = true
+    /// 이 백업 뒤에 뜬 백업 수(#222)
+    var laterBackups = 0
+    func laterBackupCount(_ backup: RekordboxWriter.Backup) -> Int { laterBackups }
     func restoreDraftConflictDetails(_ backup: RekordboxWriter.Backup) -> [String] { conflicts }
     func restoreRekordbox(_ backup: RekordboxWriter.Backup, keepingCurrentDrafts: Bool) async throws -> URL {
         keptCurrentDrafts = keepingCurrentDrafts
@@ -520,6 +523,13 @@ struct ReflectionCoordinatorTests {
         let prompt = ReflectionCoordinator.restoreConfirmation(backup, changedSince: false)
         #expect(prompt.text.contains("넣었던 1곡은 컬렉션에서 빠지고") && prompt.text.contains("추가 목록으로 돌아옵니다"))
         #expect(backup.titles == ["곡 a"])
+    }
+
+    @Test func 뒤에_뜬_백업이_있으면_함께_되돌린다고_알린다() {
+        let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b"), createdAt: .now, isWrite: true, report: nil)
+        #expect(!ReflectionCoordinator.restoreConfirmation(backup, changedSince: false).text.contains("함께 되돌립니다"))
+        let prompt = ReflectionCoordinator.restoreConfirmation(backup, changedSince: false, later: 2)
+        #expect(prompt.text.contains("쓰거나 복원한 2번도 분석 파일까지 함께 되돌립니다"))
     }
 
     @Test func 자동_복원이_실패한_백업도_되돌리기로_복원한다() async {

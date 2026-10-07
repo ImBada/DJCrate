@@ -29,7 +29,7 @@ djc parse 'TVA 시험 OP 1' --json
 djc compat --db /tmp/djc-fixture/master.db --json
 ```
 
-`--json`을 빼면 사람이 읽는 출력이다. 기존 `report`, `path`, `parse`, `compat`의 일반 출력은 유지한다. 분석·파일 생성·실험·쓰기 명령(`analyze`, `snapshot`, `schema-dump`, `lab`, `reflection-dry-run`, `cue-write`, `track-add`, `track-delete`, `playlist-write`, `rekordbox-restore`, `xml-export`)은 이 JSON 계약에 포함하지 않는다.
+`--json`을 빼면 사람이 읽는 출력이다. 기존 `report`, `path`, `parse`, `compat`의 일반 출력은 유지한다. 분석·파일 생성·실험·쓰기 명령(`analyze`, `snapshot`, `cache`, `schema-dump`, `lab`, `reflection-dry-run`, `cue-write`, `track-add`, `track-delete`, `playlist-write`, `rekordbox-restore`, `xml-export`)은 이 JSON 계약에 포함하지 않는다.
 
 **CLI 동의 규칙**: `djc`에는 대화형 질문이 없다. 플래그가 곧 동의다(`--live`, `--allow-physical --confirm <볼륨 이름>`, `--discard-device-changes`, `--overwrite`). 파일을 만드는 명령(`xml-export`, `reflection-dry-run --out`, `schema-dump`)은 출력 파일이 이미 있으면 `--overwrite` 없이는 거부한다. lab 쓰기 실험(`gain-write-test`, `tag-write-test`, `artwork-write-test`, `analysis-attach-test`, `cue-write-selftest`)은 라이브 DB·실제 분석 폴더를 거부하고, 거부하면 오류 메시지와 함께 종료 코드 1로 끝난다.
 
@@ -148,6 +148,31 @@ djc draft rm tag 101 --db /tmp/djc-fixture/master.db
 추가 오류 코드는 `invalid_draft`(기존 초안 손상·큐 한도), `draft_io_failed`(초안 저장·삭제 실패), `unverified_field`(쓰기를 확인하지 않은 곡의 평점·곡 색)다. 기존 `invalid_arguments`, `not_found`, `live_database`, `read_failed`도 사용한다. 실패 시 종료 코드 1이며 JSON은 stderr에만 나온다.
 
 앱은 재생 목록 초안을 지원하지만 `djc draft`의 대상은 큐·태그뿐이다. `playlist-write`는 JSON 편집을 DB에 쓰는 명령이며 DJCrate 재생 목록 초안 생성 명령이 아니다. 에이전트 스킬에서는 실행하지 않고 사람이 앱에서 재생 목록 초안을 만들도록 안내한다.
+
+## 캐시 보기·비우기(`cache`)
+
+```sh
+djc cache                                   # 종류별 용량(논리 크기 합)
+djc cache --clear waveforms analysis --dry-run   # 지울 양만 보기
+djc cache --clear all                       # 모든 종류 비우기
+```
+
+캐시는 다시 만들어지므로 따로 묻지 않고 비운다(플래그가 곧 동의). 종류는 허용 목록 하나(`DJCCacheKind`)이고 지우는 규칙은 `DJCCache` 한 곳이다.
+
+| 종류 | 자리 | 비우는 것 | 다시 만들어지는 때 |
+|---|---|---|---|
+| `waveforms` | `waveforms/` | 하위 파일(폴더는 남김) | 곡을 덱에 불러올 때 |
+| `analysis` | `analysis/`(`grid-estimates/`·`chroma/` 포함) | 하위 파일(폴더는 남김) | 곡을 덱에 불러오거나 분석할 때 |
+| `loudness` | `loudness.json` | 파일 | 곡을 덱에 불러올 때 |
+| `preview-waveforms` | `preview-waveforms.plist` | 파일 | 곡 목록을 그릴 때 |
+| `usb-snapshots` | `usb-snapshots/<볼륨키>/<시각>/` | 볼륨마다 가장 새 사본을 뺀 나머지 | USB를 열 때 |
+| `snapshots` | 스냅샷 폴더(`DJC_REKORDBOX_DIR`이 있으면 그 안 `djc-snapshots/`) | 가장 새 사본을 뺀 나머지(곁 `-wal`·`-shm`·`.itunes.json` 포함) | rekordbox와 동기화할 때 |
+
+- 초안(`*-drafts/`·`*-drafts.json`)·`staged.json`·`playlist-imports.json`·`damaged-drafts/`·`usb-drafts/`·`usb-sessions/`·`usb-staging/`·`usb-physical-{allow,deny}.json`·`rekordbox-backups/`·`usb-backups/`·편집본 음원·연동 XML은 어떤 종류에도 없어 지우지 않는다.
+- `usb-snapshots`는 USB 쓰기·회복·되돌리기가 볼륨 잠금을 잡고 있거나 닫히지 않은 저널(`usb-sessions/<볼륨키>.json`)이 있으면 통째로 건너뛰고 이유를 적는다. 쓰기 세션 사본(`local-`·`usb-`·`info-`)은 건드리지 않는다.
+- `snapshots`는 뜨는 중인 `.part`를 건드리지 않는다. 앱 화면(설정 › 저장 공간)에서 비우면 앱이 연 사본도 남긴다. CLI는 앱이 연 사본을 모르므로 앱을 `--db`로 옛 사본에 연 채 비우지 않는다.
+- 크기는 논리 크기 합이다. 같은 APFS 볼륨의 복사는 클론이라 실제로 비는 양은 더 작을 수 있다.
+- 앱이 켜져 있으면 앱이 기억한 음량·목록 미리 보기 파형을 나중에 다시 저장할 수 있다. 앱에서는 설정 › 저장 공간에서 비운다.
 
 ## 라이브러리 XML 내보내기(`xml-export`)
 

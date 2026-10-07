@@ -127,6 +127,8 @@ protocol ReflectionHost: AnyObject {
     var canBackUpBeforeWrite: Bool { get }
     /// 복원이 되살릴 백업 초안과 다른, 쓴 뒤 새로 만든 초안(확인 창에 보일 줄)
     func restoreDraftConflictDetails(_ backup: RekordboxWriter.Backup) -> [String]
+    /// 이 백업 뒤에 뜬 백업 수(복원하면 그 쓰기·복원도 함께 되돌린다, #222)
+    func laterBackupCount(_ backup: RekordboxWriter.Backup) -> Int
     /// - Parameter keepingCurrentDrafts: 쓴 뒤 새로 만든 초안을 남기고 그 곡의 백업 초안은 되살리지 않는다
     func restoreRekordbox(_ backup: RekordboxWriter.Backup, keepingCurrentDrafts: Bool) async throws -> URL
     // 곡 넣기·빼기
@@ -142,6 +144,7 @@ extension ReflectionHost {
     var writeFollowUp: [String] { [] }
     var canBackUpBeforeWrite: Bool { true }
     func restoreDraftConflictDetails(_ backup: RekordboxWriter.Backup) -> [String] { [] }
+    func laterBackupCount(_ backup: RekordboxWriter.Backup) -> Int { 0 }
     func restoreRekordbox(_ backup: RekordboxWriter.Backup, keepingCurrentDrafts: Bool) async throws -> URL {
         try await restoreRekordbox(backup)
     }
@@ -328,16 +331,17 @@ struct ReflectionCoordinator {
         let changed = await host.libraryChangedSince(backup)
         // 쓴 뒤 같은 곡에 새로 만든 초안은 말없이 덮지 않고 고르게 한다(#175).
         let conflicts = host.restoreDraftConflictDetails(backup)
+        let later = host.laterBackupCount(backup)
         host.writeStage = nil
         let keepingCurrentDrafts: Bool
         if conflicts.isEmpty {
-            // 토스트의 복원 단추를 누른 것이 곧 확인이다. 그 뒤 rekordbox 변경을 잃을 수 있으면 다시 묻는다(#210).
-            if !(confirmed && changed == false) {
-                guard prompter.show(Self.restoreConfirmation(backup, changedSince: changed)) else { return }
+            // 토스트의 복원 단추를 누른 것이 곧 확인이다. 그 뒤 rekordbox 변경·뒤 쓰기를 잃을 수 있으면 다시 묻는다(#210).
+            if !(confirmed && changed == false && later == 0) {
+                guard prompter.show(Self.restoreConfirmation(backup, changedSince: changed, later: later)) else { return }
             }
             keepingCurrentDrafts = true
         } else {
-            switch prompter.choose(Self.restoreConfirmation(backup, changedSince: changed, conflicts: conflicts)) {
+            switch prompter.choose(Self.restoreConfirmation(backup, changedSince: changed, conflicts: conflicts, later: later)) {
             case .confirm: keepingCurrentDrafts = true
             case .alternate: keepingCurrentDrafts = false
             case .cancel: return
@@ -529,7 +533,9 @@ struct ReflectionCoordinator {
 
     /// 되돌리기 확인 창. 백업 뒤 변경이 있거나 확인하지 못했으면 파괴적 경고로 띄운다.
     /// - Parameter conflicts: 쓴 뒤 새로 만든 초안이 있는 곡. 있으면 지금 초안을 남길지(확인), 백업 초안으로 바꿀지(둘째 단추) 고른다.
-    static func restoreConfirmation(_ backup: RekordboxWriter.Backup, changedSince changed: Bool?, conflicts: [String] = []) -> ReflectionPrompt {
+    /// - Parameter later: 이 백업 뒤에 뜬 백업 수. 그 쓰기·복원이 바꾼 분석 파일도 함께 되돌리므로 알린다(#222).
+    static func restoreConfirmation(_ backup: RekordboxWriter.Backup, changedSince changed: Bool?, conflicts: [String] = [],
+                                    later: Int = 0) -> ReflectionPrompt {
         var lines = [String(ui: "백업: \(backup.createdAt.formatted(date: .abbreviated, time: .shortened))")]
         var details = backup.titles.isEmpty ? [] : [String(ui: "그때 쓴 곡:")] + backup.titles.map { "• \($0)" }
         if !conflicts.isEmpty { details += [String(ui: "쓴 뒤 새로 만든 초안:")] + conflicts }
@@ -542,6 +548,9 @@ struct ReflectionCoordinator {
             lines.append(sentences.map { $0 + " " }.joined())
         } else {
             lines.append(String(ui: "라이브러리 전체를 이 백업으로 복원합니다. 그때 쓴 초안(큐·그리드·게인·태그·앨범아트)도 DJCrate에 복원됩니다."))
+        }
+        if later > 0 {
+            lines.append(String(ui: "이 백업 뒤에 DJCrate가 쓰거나 복원한 \(later)번도 분석 파일까지 함께 되돌립니다. 그 쓰기의 초안은 되살리지 않습니다."))
         }
         switch changed {
         case true?: lines.append(String(ui: "⚠︎ 이 백업 뒤에 rekordbox에서도 라이브러리가 바뀌었습니다(큐·재생 목록·곡 추가 등). 복원하면 그 변경도 함께 사라집니다."))

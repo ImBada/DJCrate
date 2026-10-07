@@ -126,6 +126,15 @@ struct WriteConfirmPolicyTests {
         #expect(prompter.shown.first?.critical == true && host.restored.isEmpty)
     }
 
+    @Test func 토스트에서_누른_복원도_뒤_백업이_있으면_묻는다() async {
+        let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b"), createdAt: .now, isWrite: true, report: nil)
+        host.changedSinceBackup = false
+        host.laterBackups = 1
+        prompter.answer = false
+        await coordinator().restore(backup, confirmed: true)
+        #expect(prompter.shown.count == 1 && host.restored.isEmpty)
+    }
+
     @Test func 토스트에서_누른_복원도_초안_충돌이_있으면_고르게_한다() async {
         let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b"), createdAt: .now, isWrite: true, report: nil)
         host.changedSinceBackup = false

@@ -566,7 +566,7 @@ public enum RekordboxTrackWriter {
             try RekordboxWriter.removeOwnedFiles(files)
         } catch {
             throw RekordboxWriter.recover(from: error, database: database, backup: backup, live: live) {
-                try RekordboxWriter.restoreAnalysis(from: backup, saveCurrentTo: nil,
+                try RekordboxWriter.restoreAnalysis(from: backup,
                                                      shareRoot: share ?? database.deletingLastPathComponent().appending(path: "share"))
             }
         }

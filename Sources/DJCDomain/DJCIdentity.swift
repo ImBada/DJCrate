@@ -28,6 +28,36 @@ public enum DJCIdentity {
         dataDirectory(environment: ProcessInfo.processInfo.environment, support: supportDirectory)
     }
 
+    /// 설치한 앱의 로그 폴더(`~/Library/Logs/DJCrate`). 환경·시험 여부와 상관없이 늘 이 경로다.
+    public static var userLogsDirectory: URL { URL.libraryDirectory.appending(path: "Logs/\(name)") }
+
+    /// 오디오 사건 기록 같은 로그의 폴더. `DJC_HOME`을 주면 그 아래 `logs/`, 시험 프로세스는 임시 폴더,
+    /// 아니면 `userLogsDirectory`(#218: 시험·자가 테스트가 실제 로그에 썼다).
+    public static var logsDirectory: URL {
+        logsDirectory(environment: ProcessInfo.processInfo.environment,
+                      fallback: TestProcess.isRunning ? TestProcess.sandbox.appending(path: "logs") : userLogsDirectory)
+    }
+
+    public static func logsDirectory(environment: [String: String], fallback: URL) -> URL {
+        if let override = environment["DJC_HOME"], !override.isEmpty {
+            return URL(filePath: override).appending(path: "logs")
+        }
+        return fallback
+    }
+
+    /// 라이브 DB 읽기 스냅샷 폴더. `DJC_REKORDBOX_DIR`(사본 rekordbox 폴더)을 주면 그 안 `djc-snapshots`(사용자 스냅샷과 섞이지 않게),
+    /// 아니면 `supportDirectory/snapshots`. `DJC_HOME`은 따르지 않는다.
+    public static var snapshotsDirectory: URL {
+        snapshotsDirectory(environment: ProcessInfo.processInfo.environment, support: supportDirectory)
+    }
+
+    public static func snapshotsDirectory(environment: [String: String], support: URL) -> URL {
+        if let override = environment["DJC_REKORDBOX_DIR"], !override.isEmpty {
+            return URL(filePath: override).appending(path: "djc-snapshots")
+        }
+        return support.appending(path: "snapshots")
+    }
+
     public static func dataDirectory(environment: [String: String], support: URL) -> URL {
         if let override = environment["DJC_HOME"], !override.isEmpty {
             return URL(filePath: override)

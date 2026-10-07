@@ -37,11 +37,8 @@ public enum LibrarySnapshot {
     }
 
     public static func defaultDirectory(in environment: [String: String]) -> URL {
-        // 사본 rekordbox 폴더로 시험할 때는 스냅샷도 그 안에 둔다(사용자 스냅샷과 섞이지 않게).
-        if hasRekordboxDirectoryOverride(in: environment), let override = environment["DJC_REKORDBOX_DIR"] {
-            return URL(filePath: override).appending(path: "djc-snapshots")
-        }
-        return DJCIdentity.supportDirectory.appending(path: "snapshots")
+        // 사본 rekordbox 폴더로 시험할 때는 스냅샷도 그 안에 둔다(사용자 스냅샷과 섞이지 않게). 캐시 비우기와 같은 규칙을 쓴다.
+        DJCIdentity.snapshotsDirectory(environment: environment, support: DJCIdentity.supportDirectory)
     }
 
     /// rekordbox가 실행 중인지 프로세스 이름으로 확인한다.

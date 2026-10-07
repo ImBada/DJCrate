@@ -39,6 +39,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 .build/debug/djc                  # CLI 명령 목록
 .build/debug/djc compat           # rekordbox 버전·DB 구조·카운터가 쓰기를 확인한 모양인지(읽기 전용)
 .build/debug/djc snapshot [--force]                    # 라이브 DB 읽기용 사본 뜨기
+.build/debug/djc cache [--clear <종류…|all>] [--dry-run]  # 캐시 종류별 용량 보기·비우기(확인 없이, 초안·백업·USB 저널·준비 폴더는 지우지 않음, docs/cli.md)
 .build/debug/djc cue-write --db <사본.db> [--dry-run]   # 초안을 사본에 써 보기
 .build/debug/djc track-add --db <사본.db> --share <폴더> --analyze <음원…>   # 곡 넣기(분석까지), 사본에만
 .build/debug/djc track-delete --db <사본.db> --share <폴더> <ContentID…>      # 곡 빼기, 사본에만
@@ -66,12 +67,12 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 
 - USB 쓰기 시험은 `usb-image`로 만든 디스크 이미지에만 한다. rekordbox가 켜져 있으면 이미지 명령(만들기·붙이기·채우기·쓰기 시험)은 거부된다. 이미지·마운트 지점은 임시 폴더 아래만, `DJC_HOME=<임시 폴더>`를 함께 준다.
 - 앱 개발용 실행 인자: `--db <스냅샷>`(그 사본을 연다), `--select <ContentID>`(곡을 골라 둔다).
-- 환경 변수: `DJC_HOME`(초안·백업·캐시(`waveforms/`·`analysis/`·`loudness.json`) 폴더를 바꿈. 스냅샷은 옮기지 않는다), `DJC_REKORDBOX_DIR`(rekordbox 폴더 사본), `DJC_DB`(열 스냅샷), `DJC_IDLE_SECONDS`(재생 멈춘 뒤 엔진 끄기까지, 설정 › 일반보다 먼저).
+- 환경 변수: `DJC_HOME`(초안·백업·캐시(`waveforms/`·`analysis/`·`loudness.json`)·오디오 기록(`logs/audio.log`) 폴더를 바꿈. 스냅샷은 옮기지 않는다), `DJC_REKORDBOX_DIR`(rekordbox 폴더 사본), `DJC_DB`(열 스냅샷), `DJC_IDLE_SECONDS`(재생 멈춘 뒤 엔진 끄기까지, 설정 › 일반보다 먼저).
 
 ## 검증 (작업이 끝났다고 말하기 전에)
 
 - 기본 검증과 최종 검증은 변경 영향에 관련된 시험만 골라 진행한다. 관련 시험으로 TDD와 회귀 확인을 마치고 리뷰한다. 전체 검사는 영향이 저장소 전반에 걸치거나 사용자가 명시적으로 요청한 경우에만 실행한다. `scripts/check.sh` full의 디버그·릴리스 앱 빌드, 번역, 전체 안전·쓰기 시험, 커버리지 목표(쓰기 80%, 코어 60%)는 유지한다.
-- `scripts/check.sh`는 따로 주지 않으면 임시 `DJC_REKORDBOX_DIR`·`DJC_HOME`을 쓰고, 검사 전후 실제 rekordbox 라이브러리 파일(`master.db`·`masterPlaylists6.xml`·분석 파일)이 바뀌면 종료 코드 3으로 실패한다. `swift test`를 직접 돌릴 때도 두 변수를 임시 폴더로 준다.
+- `scripts/check.sh`는 따로 주지 않으면 임시 `DJC_REKORDBOX_DIR`·`DJC_HOME`을 쓰고, 검사 전후 실제 rekordbox 라이브러리 파일(`master.db`·`masterPlaylists6.xml`·분석 파일)이 바뀌면 종료 코드 3으로 실패한다. DJCrate 사용자 폴더(`~/Library/Application Support/DJCrate`)·로그 폴더(`~/Library/Logs/DJCrate`)의 파일 목록·크기·수정 시각이 바뀌면 종료 코드 4로 실패한다(설치한 DJCrate 앱이 켜져 있었으면 알리기만 한다). `swift test`를 직접 돌릴 때도 두 변수를 임시 폴더로 준다.
 - `--quick --filter <정규식>`은 관련 시험만 실행하며 릴리스·번역·커버리지 보고를 생략한다. 빈 필터·선택된 시험 0개·모든 시험 건너뜀·잘못된 인자는 실패해야 한다. 변경 영향에 충분한 시험 범위를 선택해 통과 결과로 작업 완료를 확인하고, 실제 명령·필터·검증 범위를 보고한다.
 - 통과 결과는 같은 검증 대상 코드·툴체인·빌드 설정·시험 환경일 때만 재사용한다. 코드·의존성·설정·환경이 바뀌면 그 영향에 관련된 시험만 다시 검증하고, 영향 없는 시험은 반복하지 않는다. 단순 병합으로 커밋만 바뀌고 검증한 코드와 조건이 같으면 검사를 중복 실행하지 않는다. 원래 로그와 실제 종료 코드로 재사용 근거를 남긴다.
 - SQLCipher 초기화(`CipherDatabase`), `CipherLab`, cold-open 경쟁에 관련된 변경은 `scripts/check.sh --stress`도 반드시 통과해야 하며, 별도 수동 CI에서도 실행한다. stress 필터는 cold-open 경쟁 시험 1개와 같은 파일의 설정 계약 시험 3개를 함께 실행한다. 일반 회귀는 새 프로세스 4개, stress는 100개이며 각각 32스레드·동시 프로세스 4개 상한을 유지한다. `DJC_CIPHER_STRESS`는 미설정·`0`이면 일반, `1`이면 stress이고 그 밖의 값은 실패한다.
