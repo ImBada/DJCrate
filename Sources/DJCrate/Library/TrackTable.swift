@@ -135,6 +135,7 @@ private struct TrackListView: NSViewRepresentable {
             }
             if !PerfProbe.enabled { UserDefaults.standard.set(true, forKey: ratingKey) }
         }
+        TrackColumn.migrateRatingWidth(in: table, remember: !PerfProbe.enabled)
         if let show = PerfProbe.previewColumnVisible {
             table.tableColumns.first(where: { $0.identifier.rawValue == "preview" })?.isHidden = !show
         }
@@ -196,7 +197,7 @@ struct TrackColumn {
         TrackColumn(id: "class", title: String(ui: "분류"), width: 52, minWidth: 40, sortKey: "class", help: String(ui: "코멘트 분류: 규칙·구형·잔재·크레딧·빈 값·기타")),
         TrackColumn(id: "bpm", title: "BPM", width: 44, minWidth: 34, sortKey: "bpm", ascendingFirst: false),
         TrackColumn(id: "key", title: String(ui: "키"), width: 36, minWidth: 30, sortKey: "key"),
-        TrackColumn(id: "rating", title: String(ui: "평점"), width: 66, minWidth: 40, sortKey: "rating", ascendingFirst: false,
+        TrackColumn(id: "rating", title: String(ui: "평점"), width: ratingWidth, minWidth: ratingMinWidth, sortKey: "rating", ascendingFirst: false,
                     help: String(ui: "rekordbox 평점(별 1~5개). 더블클릭하면 고른다")),
         TrackColumn(id: "color", title: String(ui: "곡 색"), width: 70, minWidth: 30, sortKey: "color",
                     help: String(ui: "rekordbox 곡 색. 더블클릭하면 고른다")),
@@ -213,6 +214,35 @@ struct TrackColumn {
         TrackColumn(id: usbSyncID, title: String(ui: "갱신 상태"), width: 96, minWidth: 60, sortKey: usbSyncID,
                     help: String(ui: "로컬 rekordbox 곡과 견준 USB 곡의 상태(USB 목록에서만 보인다)")),
     ]
+
+    /// 평점 칸 기본 폭: 별 다섯 칸(`TrackRating.stars`, 13pt에서 65.6pt)과 글자 자리 여백 4pt가 들어가고 조금 남는다.
+    /// 좁은 폭·큰 글자 배율에서는 칸이 알아서 "5★"로 줄여 보인다(`TrackTextCell.set(compact:)`).
+    static let ratingWidth: CGFloat = 76
+
+    /// 평점 칸 최소 폭: 가장 큰 글자 배율(1.5배, 19.5pt)에서도 숫자 표기("5★", 31pt)와 글자 자리 여백 4pt가 들어간다.
+    static let ratingMinWidth: CGFloat = 40
+
+    /// 평점 칸의 옛 기본 폭. 별 다섯 칸이 안 들어가 "★★★…"로 잘려 3·4·5가 같아 보였고(#65), 이 폭으로 저장된 배치가 남아 있다.
+    static let legacyRatingWidth: CGFloat = 66
+
+    /// 저장된 평점 칸 폭이 옛 기본 폭 그대로면 새 기본 폭. 사용자가 끌어 바꾼 폭은 건드리지 않는다(nil).
+    static func migratedRatingWidth(saved: CGFloat) -> CGFloat? {
+        saved == legacyRatingWidth ? ratingWidth : nil
+    }
+
+    static let ratingWidthMigratedKey = "djc.trackList.ratingWidthMigrated"
+
+    /// 저장된 배치를 읽은 직후 한 번만: 옛 기본 폭(66) 그대로인 평점 칸을 새 기본 폭으로 넓힌다(#65).
+    /// 한 번 했다는 표시를 남기므로 그 뒤 사용자가 일부러 66으로 줄여도 덮어쓰지 않는다(좁아도 칸이 숫자로 줄여 보여 읽힌다).
+    /// - Parameter remember: 했다는 표시를 남길지(성능 측정 때는 칸 배치를 저장하지 않으므로 남기지 않는다)
+    @MainActor static func migrateRatingWidth(in table: NSTableView, defaults: UserDefaults = .standard, remember: Bool = true) {
+        guard !defaults.bool(forKey: ratingWidthMigratedKey) else { return }
+        if let column = table.tableColumns.first(where: { $0.identifier.rawValue == "rating" }),
+           let width = migratedRatingWidth(saved: column.width) {
+            column.width = width
+        }
+        if remember { defaults.set(true, forKey: ratingWidthMigratedKey) }
+    }
 
     /// USB 갱신 상태 칸. USB 목록을 볼 때만 보이고 다른 목록에서는 숨긴다
     static let usbSyncID = "usbSync"
@@ -873,8 +903,10 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             let (value, edited) = TrackListTagEditing.text(row, key, draft: store.tagDrafts[row.track.uuid])
             let colors = store.trackColors
             let text = TagChoice.display(key, value, colors: colors)
+            // 별 다섯 칸이 안 들어가는 폭에서는 "5★"로 줄인다(잘린 "★★★…"은 3·4·5가 같아 보인다, #65)
             cell.set(text, color: edited ? UIColors.draft.nsColor : .secondaryLabelColor, draft: edited,
-                     swatch: key == .color ? TagChoice.swatchImage(value) : nil, spoken: TagChoice.spoken(key, value, colors: colors))
+                     swatch: key == .color ? TagChoice.swatchImage(value) : nil, spoken: TagChoice.spoken(key, value, colors: colors),
+                     compact: key == .rating ? TrackRating.compact(value) : nil)
             if let reason = TrackListTagEditing.unavailableReason(row, key: key) { cell.toolTip = reason }
             return
         }
@@ -1279,6 +1311,9 @@ final class TrackTextCell: NSTableCellView {
     private var speaksCustomValue = false
     private var field: NSTextField?
     private var textHeight = TrackTextHeight()
+    /// 칸에 넣은 글자 전체와, 그것이 칸 자리에 안 들어갈 때 대신 보일 짧은 글자(평점 "5★", #65). 보이는 글자는 `label.stringValue`다.
+    private var fullText = ""
+    private var compactText: String?
 
     override var backgroundStyle: NSView.BackgroundStyle {
         didSet { updateColor() }
@@ -1340,8 +1375,24 @@ final class TrackTextCell: NSTableCellView {
         needsLayout = true
     }
 
+    /// 칸 자리에 `fullText`가 들어가면 그대로, 모자라면 `compactText`를 보인다(짧은 글자가 없으면 끝을 줄이는 기본 동작).
+    /// 잘린 글자("★★★…")가 다른 값처럼 읽히지 않게, 줄이지 않고 숫자로 바꾼다.
+    /// 글자 자리 = 칸 폭 − 글자 앞(`labelLeading`) − 뒤 2pt. 칸 폭을 모르는 동안(배치 전)은 전체 글자다.
+    @discardableResult
+    private func showFittingText() -> Bool {
+        var shown = fullText
+        if let compactText, bounds.width > 0, let font = label.font {
+            let slot = bounds.width - labelLeading - 2
+            if ceil((fullText as NSString).size(withAttributes: [.font: font]).width) > slot { shown = compactText }
+        }
+        guard label.stringValue != shown else { return false }
+        label.stringValue = shown
+        return true
+    }
+
     override func layout() {
         super.layout()
+        showFittingText()
         let height = bounds.height
         if let icon, !icon.isHidden, let size = icon.image?.size {
             icon.frame = backingAlignedRect(NSRect(x: 2, y: (height - size.height) / 2, width: size.width, height: size.height),
@@ -1366,10 +1417,13 @@ final class TrackTextCell: NSTableCellView {
     /// - Parameter symbol: 글자 앞 SF 심볼. 칸을 다시 쓸 때마다 부르므로 nil이면 지운다.
     /// - Parameter swatch: 글자 앞 색 점(곡 색, 템플릿이 아닌 그림이라 고른 줄에서도 색이 그대로다). `symbol`보다 먼저 쓴다.
     /// - Parameter spoken: VoiceOver가 읽을 글자(평점 별 대신 "별 3개"). nil이면 보이는 글자.
+    /// - Parameter compact: `text`가 칸 자리에 안 들어갈 때 대신 보일 짧은 글자(평점 "3★"). nil이면 안 들어가도 `text`를 그대로 두고 끝을 줄인다.
     func set(_ text: String, color: NSColor, digits: Bool = false, draft: Bool = false, estimated: Bool = false,
-             symbol: String? = nil, symbolLabel: String? = nil, symbolColor: NSColor? = nil, swatch: NSImage? = nil, spoken: String? = nil) {
-        if label.stringValue != text {
-            label.stringValue = text
+             symbol: String? = nil, symbolLabel: String? = nil, symbolColor: NSColor? = nil, swatch: NSImage? = nil, spoken: String? = nil,
+             compact: String? = nil) {
+        if fullText != text || compactText != compact {
+            fullText = text
+            compactText = compact
             needsLayout = true
         }
         let font = estimated ? fonts.estimated : digits ? fonts.digits : fonts.text
@@ -1382,6 +1436,8 @@ final class TrackTextCell: NSTableCellView {
         } else if symbol != leadingSymbol || (symbol != nil && iconPointSize != font.pointSize) || swatchShown {
             showSymbol(symbol, label: symbolLabel, pointSize: font.pointSize)
         }
+        // 글자 앞 심볼·색 점(`labelLeading`)이 정해진 뒤에 자리를 잰다
+        if showFittingText() { needsLayout = true }
         normalColor = color
         self.symbolColor = symbolColor
         updateColor()

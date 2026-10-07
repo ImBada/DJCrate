@@ -12,7 +12,7 @@ import Testing
 /// (변경 전 코드로 찍을 때는 그 표지 사이를 지운 사본을 쓴다). 오디오 장치·화면 기록 권한 없이 화면 밖 창을 비트맵으로 떠서 찍고,
 /// 사용자 라이브러리·음원·초안은 열지 않는다(`DJC_HOME`·`DJC_REKORDBOX_DIR`은 임시 폴더).
 /// `DJC_HOME=$(mktemp -d) DJC_REKORDBOX_DIR=$(mktemp -d) DJC_RATING_COLOR_CAPTURE=<폴더> swift test --filter RatingColorCapture`
-/// → `<폴더>/<light|dark>-<list|filter|inspector|sheet>.png`(변경 전에는 filter·list-default-width 없음)
+/// → `<폴더>/<light|dark>-<list|list-default-width|list-legacy-width|filter|inspector|sheet>.png`(변경 전에는 filter·list-default-width·list-legacy-width 없음)
 @MainActor
 struct RatingColorCapture {
     nonisolated static let environment = ProcessInfo.processInfo.environment
@@ -129,10 +129,14 @@ struct RatingColorCapture {
 
         // 1) 곡 목록
         // after-only begin
-        // 평점 칸 기본 폭(66)에서는 별이 "★★★…"로 잘린다. 그 모습도 남기고, 사용자가 칸을 넓힌 모습으로 이어 찍는다.
+        // 평점 칸 기본 폭(변경 전 66)에서는 별이 "★★★…"로 잘려 3·4·5가 같아 보였다. 기본 폭, 옛 폭(66)으로 저장된 배치,
+        // 사용자가 칸을 넓힌 모습을 차례로 찍는다. 변경 뒤에는 기본 폭에서 별 다섯 칸이 보이고 66에서는 "5★"로 읽힌다.
         let ratingColumn = try #require(list.tableColumns.first { $0.identifier.rawValue == "rating" })
-        try #require(ratingColumn.width == 66)
+        try #require(ratingColumn.width == TrackColumn.ratingWidth)
         try save(window, to: folder.appending(path: "\(appearance)-list-default-width.png"))
+        ratingColumn.width = TrackColumn.legacyRatingWidth
+        try await Task.sleep(for: .milliseconds(500))
+        try save(window, to: folder.appending(path: "\(appearance)-list-legacy-width.png"))
         ratingColumn.width = 84
         try await Task.sleep(for: .milliseconds(500))
         // after-only end

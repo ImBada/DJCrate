@@ -65,6 +65,15 @@ struct RatingColorTagTests {
         #expect(TrackRating.choices == ["1", "2", "3", "4", "5"])
     }
 
+    /// 칸이 좁아 별 다섯 칸이 안 들어갈 때 쓰는 짧은 표기. 잘린 별("★★★…")은 3·4·5를 가릴 수 없어, 숫자를 앞에 둔다.
+    @Test func 평점은_좁은_칸용_숫자_표기가_있다() {
+        #expect(TrackRating.choices.map(TrackRating.compact) == ["1★", "2★", "3★", "4★", "5★"])
+        #expect(TrackRating.compact("") == "" && TrackRating.compact("0") == "" && TrackRating.compact("x") == "")
+        #expect(TrackRating.compact("9") == "5★", "별은 다섯을 넘지 않는다(stars와 같다)")
+        // 다섯 값이 서로 다르게 읽혀야 한다
+        #expect(Set(TrackRating.choices.map(TrackRating.compact)).count == 5)
+    }
+
     // MARK: 곡 색 값
 
     @Test func rekordbox_기본_여덟_색은_번호와_이름이_정해져_있다() {
