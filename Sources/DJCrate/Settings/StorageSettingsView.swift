@@ -2,6 +2,7 @@ import AppKit
 import DJCDomain
 import DJCStorage
 import Observation
+import RekordboxKit
 import SwiftUI
 
 /// 설정 › 저장 공간(#227): 캐시 종류별 용량·비우기와 백업 용량(읽기만).
@@ -22,7 +23,14 @@ final class StorageSettingsModel {
     var autoSnapshotDays: Int {
         didSet { settings?.set(SettingKeys.pointSnapshotAutoDays, Double(autoSnapshotDays)) }
     }
+    /// 하루 한 번 자동 시점 스냅샷(#228)
+    var autoSnapshotEnabled: Bool {
+        didSet { settings?.set(SettingKeys.pointSnapshotAuto, autoSnapshotEnabled) }
+    }
+    /// 클론이 안 돼(다른 디스크) 자동 스냅샷을 뜨지 않을 때의 안내
+    private(set) var autoSnapshotNote: String?
     @ObservationIgnored private let settings: SettingsStore?
+    @ObservationIgnored private let canClone: @Sendable () -> Bool
     @ObservationIgnored private let openSnapshot: () -> URL?
     @ObservationIgnored private let busy: () -> String?
     /// 파일을 지우기 전에 앱 메모리의 캐시를 비운다(메모리의 옛 값을 다시 저장하지 않게). 시험은 비워 둔다
@@ -31,11 +39,13 @@ final class StorageSettingsModel {
     @ObservationIgnored private let rebuild: ([DJCCacheKind]) -> Void
 
     init(paths: DJCCachePaths = .current, settings: SettingsStore? = nil, openSnapshot: @escaping () -> URL? = { nil },
-         busyReason: @escaping () -> String? = { nil },
+         busyReason: @escaping () -> String? = { nil }, canClone: @escaping @Sendable () -> Bool = { true },
          clearMemory: @escaping ([DJCCacheKind]) async -> Void = { _ in }, rebuild: @escaping ([DJCCacheKind]) -> Void = { _ in }) {
         self.paths = paths
         self.settings = settings
         autoSnapshotDays = Int(settings?.value(SettingKeys.pointSnapshotAutoDays) ?? SettingKeys.pointSnapshotAutoDays.defaultValue)
+        autoSnapshotEnabled = settings?.value(SettingKeys.pointSnapshotAuto) ?? SettingKeys.pointSnapshotAuto.defaultValue
+        self.canClone = canClone
         self.openSnapshot = openSnapshot
         self.busy = busyReason
         self.clearMemory = clearMemory
@@ -44,12 +54,14 @@ final class StorageSettingsModel {
 
     /// 앱 화면이 쓰는 모델: 앱이 연 스냅샷은 남기고, rekordbox·USB 쓰기 중에는 막는다
     convenience init(store: LibraryStore) {
+        let rekordbox = store.rekordboxDatabase.deletingLastPathComponent(), snapshots = DJCPaths.pointSnapshots
         self.init(settings: store.settings, openSnapshot: { [weak store] in store?.snapshotURL },
                   busyReason: { [weak store] in
                       guard let store else { return nil }
                       return Self.busyReason(writingRekordbox: store.isWritingRekordbox,
                                              writingUsb: store.usb.map { $0.activeWrite != nil || !$0.busyVolumes.isEmpty } ?? false)
                   },
+                  canClone: { RekordboxPointSnapshot.canClone(from: rekordbox, to: snapshots) },
                   clearMemory: { [weak store] kinds in
                       if kinds.contains(.loudness) { LoudnessCache.shared.clear() }
                       if kinds.contains(.previewWaveforms) {
@@ -72,14 +84,16 @@ final class StorageSettingsModel {
     }
 
     func refresh() async {
-        let paths = paths, keep = [openSnapshot()].compactMap { $0 }
+        let paths = paths, keep = [openSnapshot()].compactMap { $0 }, canClone = canClone
         let result = await Task.detached(priority: .userInitiated) {
             (DJCCache.usage(paths: paths), DJCCache.backupUsage(root: paths.root),
-             DJCCache.clear(DJCCacheKind.allCases, paths: paths, keepingSnapshots: keep, dryRun: true))
+             DJCCache.clear(DJCCacheKind.allCases, paths: paths, keepingSnapshots: keep, dryRun: true), canClone())
         }.value
         usage = result.0
         backups = result.1
         clearable = Dictionary(uniqueKeysWithValues: result.2.map { ($0.kind, $0.freedBytes) })
+        autoSnapshotNote = result.3 ? nil
+            : String(ui: "DJCrate 데이터 폴더가 rekordbox와 다른 디스크라 자동 시점 스냅샷을 남기지 않습니다(라이브러리 전체를 매일 복사하지 않게).")
     }
 
     func clear(_ kinds: [DJCCacheKind]) async {
@@ -159,6 +173,10 @@ struct StorageSettingsView: View {
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
+                }
+                Toggle(isOn: $model.autoSnapshotEnabled) {
+                    Text(.ui("하루 한 번 자동 시점 스냅샷"))
+                    Text(model.autoSnapshotNote ?? String(ui: "rekordbox가 꺼져 있고 라이브러리가 바뀌었을 때 뒤에서 조용히 남깁니다."))
                 }
                 Stepper(value: $model.autoSnapshotDays, in: 1...90) {
                     LabeledContent(.ui("자동 시점 스냅샷 보관")) {

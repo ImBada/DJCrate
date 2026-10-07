@@ -106,6 +106,8 @@ struct ContentView: View {
                 do { try await Task.sleep(for: .seconds(1)) } catch { break }
             }
         }
+        // 하루 한 번 자동 시점 스냅샷(#228): rekordbox가 꺼져 있고 라이브러리가 바뀌었으면 뒤에서 조용히 남긴다
+        .task { await AutoPointSnapshotRunner(store: store).loop() }
         // rekordbox에서 곡을 지우거나 고치고 돌아오면 새로 읽는다(옛 목록에 지워진 곡이 남지 않게)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             Task { await store.refreshIfRekordboxChanged() }

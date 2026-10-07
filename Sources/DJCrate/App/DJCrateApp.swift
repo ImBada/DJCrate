@@ -66,6 +66,8 @@ struct DJCrateApp: App {
                     NSApplication.shared.activate()
                     #endif
                     UsbAppSetup.attach(to: store)
+                    // CLI가 앱의 시점 스냅샷 보관 일수를 따르게 공유 파일에 맞춘다
+                    store.settings.syncShared()
                     await store.loadInitial()
                 }
         }
