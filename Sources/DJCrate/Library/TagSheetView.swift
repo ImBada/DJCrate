@@ -36,7 +36,7 @@ struct TagSheetView: NSViewRepresentable {
             let tableColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(column.id))
             tableColumn.title = column.title
             tableColumn.width = column.width
-            tableColumn.minWidth = 30
+            tableColumn.minWidth = column.minWidth
             if column.key != nil {
                 tableColumn.sortDescriptorPrototype = NSSortDescriptor(key: column.id, ascending: true)
             }
@@ -66,6 +66,8 @@ struct SheetColumn {
     let width: CGFloat
     /// nil이면 읽기 전용(복사만 된다).
     let key: TagFields.Key?
+    /// 끌어서 줄일 수 있는 가장 좁은 폭
+    var minWidth: CGFloat = 30
 
     /// 표가 열 배치를 저장하는 이름. 열을 더하기 전에 저장한 배치는 열 순서가 달라 새 열이 맨 끝으로 밀리므로 이름을 올려 새로 시작한다
     /// (키 열 "v2", 평점·곡 색 열 "v3").
@@ -87,8 +89,11 @@ struct SheetColumn {
         // 키는 글자를 쓰지 않고 목록(Camelot 이름·없음)에서 고른다. 열 이름이 목록의 키 칸과 같아 머리글 정렬도 같다.
         SheetColumn(id: "key", title: String(ui: "키"), width: 52, key: .musicalKey),
         // 평점(별)·곡 색(rekordbox 이름)도 목록에서 고른다(#65). 붙여넣기는 "3"·"★★★", 색 번호·이름을 받는다.
-        SheetColumn(id: "rating", title: String(ui: "평점"), width: 70, key: .rating),
-        SheetColumn(id: "color", title: String(ui: "곡 색"), width: 76, key: .color),
+        // 평점은 별 다섯 칸(12pt에서 61pt)이 글자 배율 1.0에서 여유 있게 들어가는 폭이고, 큰 배율·좁은 폭에서는 칸이 "5★"로 줄여 보인다.
+        // 최소 폭은 가장 큰 배율(1.5배, 18pt)에서 숫자 표기("5★", 29pt)가 들어가는 폭이다.
+        // 곡 색은 색 점 없이 이름만 보이므로, 이름이 잘려도 같은 글자가 되지 않게 최소 폭을 둔다(1.5배에서 "Pi…"·"Pu…"가 갈린다).
+        SheetColumn(id: "rating", title: String(ui: "평점"), width: 76, key: .rating, minWidth: 40),
+        SheetColumn(id: "color", title: String(ui: "곡 색"), width: 76, key: .color, minWidth: 48),
         SheetColumn(id: "comment", title: String(ui: "코멘트"), width: 300, key: .comment),
         SheetColumn(id: "file", title: String(ui: "파일"), width: 220, key: nil),
     ]
@@ -209,11 +214,15 @@ final class SheetCoordinator: NSObject, NSTableViewDataSource, NSTableViewDelega
         }()
         let position = CellPosition(row: row, column: column)
         cell.font = font
+        // 평점은 별 다섯 칸이 칸 자리에 안 들어가면 "5★"로 줄여 보인다(잘린 "★★★…"은 3·4·5가 같아 보인다, #65). VoiceOver는 늘 "별 N개".
+        let rating = spec.key == .rating ? store.tagCell(rows[row], .rating) : nil
         cell.configure(text: text(row: row, column: column),
                        edited: spec.key.map { store.isTagEdited(rows[row], $0) } ?? false,
                        readOnly: editableKey(row: row, column: column) == nil,
                        selected: isSelected(position),
-                       active: position == cursor)
+                       active: position == cursor,
+                       compact: rating.map(TrackRating.compact),
+                       spoken: rating.map { TagChoice.spoken(.rating, $0, colors: store.trackColors) })
         cell.label.setAccessibilityLabel(spec.title)
         return cell
     }
@@ -768,6 +777,11 @@ final class SheetCell: NSTableCellView {
     private var active = false
     /// 마지막으로 칠한 색 상태. 같으면 그리기 직전 갱신에서 레이어·글자색을 다시 쓰지 않는다.
     private var paintedState: PaintState?
+    /// 칸에 넣은 글자 전체와, 그것이 칸 자리에 안 들어갈 때 대신 보일 짧은 글자(평점 "5★", #65), VoiceOver가 읽을 글자(평점 "별 5개").
+    /// 보이는 글자는 `label.stringValue`다.
+    private var fullText = ""
+    private var compactText: String?
+    private var spokenText: String?
 
     private struct PaintState: Equatable {
         var tone: SheetCellAppearance.Tone
@@ -816,8 +830,21 @@ final class SheetCell: NSTableCellView {
         if resized { needsLayout = true }
     }
 
+    /// 칸 자리에 `fullText`가 들어가면 그대로, 모자라면 `compactText`를 보인다(짧은 글자가 없으면 끝을 줄이는 기본 동작).
+    /// 잘린 별("★★★…")이 다른 평점처럼 읽히지 않게, 줄이지 않고 숫자로 바꾼다(곡 목록 평점 칸과 같은 규칙, `FittingText`).
+    /// 글자 자리 = 칸 폭 − 양옆 4pt. 칸 폭을 모르는 동안(배치 전)은 전체 글자다.
+    @discardableResult
+    private func showFittingText() -> Bool {
+        let shown = FittingText.choose(full: fullText, compact: compactText, font: label.font,
+                                       slot: bounds.width > 0 ? max(0, bounds.width - 8) : nil)
+        guard label.stringValue != shown else { return false }
+        label.stringValue = shown
+        return true
+    }
+
     override func layout() {
         super.layout()
+        showFittingText()
         let height = bounds.height
         // 글자 자리(정렬 사각형)는 양옆 4pt 안쪽에서 세로 가운데다. 글자 칸 프레임은 정렬 여백만큼 더 넓다.
         let width = max(0, bounds.width - 8)
@@ -849,8 +876,13 @@ final class SheetCell: NSTableCellView {
         return field.alignmentRect(forFrame: NSRect(x: 0, y: 0, width: 100, height: frameHeight)).height
     }
 
-    func configure(text: String, edited: Bool, readOnly: Bool, selected: Bool, active: Bool) {
-        if label.stringValue != text { label.stringValue = text }
+    /// - Parameter compact: `text`가 칸 자리에 안 들어갈 때 대신 보일 짧은 글자(평점 "3★"). nil이면 안 들어가도 `text`를 그대로 두고 끝을 줄인다.
+    /// - Parameter spoken: VoiceOver가 읽을 글자(평점 별 대신 "별 3개"). nil이면 `text`.
+    func configure(text: String, edited: Bool, readOnly: Bool, selected: Bool, active: Bool, compact: String? = nil, spoken: String? = nil) {
+        fullText = text
+        compactText = compact
+        spokenText = spoken
+        if showFittingText() { needsLayout = true }
         self.edited = edited
         self.readOnly = readOnly
         self.selected = selected
@@ -876,7 +908,9 @@ final class SheetCell: NSTableCellView {
     /// 글자 칸의 접근성 요소는 셀(NSTextFieldCell)이라 값도 셀에 둔다. 셀에 nil을 넣으면 기본값으로 돌아가지 않고
     /// 값이 비므로(재사용한 칸을 VoiceOver가 못 읽는다) 초안이 아니어도 글자를 그대로 넣는다.
     private func updateAccessibilityValue() {
-        label.cell?.setAccessibilityValue(appearanceState.accessibilityValue(for: label.stringValue) ?? label.stringValue)
+        // 칸이 숫자로 줄어도("5★") 읽는 값은 같다
+        let words = spokenText ?? fullText
+        label.cell?.setAccessibilityValue(appearanceState.accessibilityValue(for: words) ?? words)
     }
 
     private func showDraftMark(_ visible: Bool) {
