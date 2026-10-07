@@ -42,6 +42,14 @@ final class LoudnessCache {
         }
     }
 
+    /// 캐시 비우기(설정 › 저장 공간): 기다리던 저장을 거두고 메모리와 파일을 함께 비운다(나중에 옛 값을 다시 쓰지 않게)
+    func clear() {
+        saveTask?.cancel()
+        saveTask = nil
+        values = [:]
+        try? FileManager.default.removeItem(at: url)
+    }
+
     /// 경로 + 크기 + 수정 시각(파일을 바꾸면 다시 잰다)
     private func key(_ file: URL) -> String? {
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: file.path),
