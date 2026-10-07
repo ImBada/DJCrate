@@ -68,6 +68,15 @@ final class LibraryStore {
     @ObservationIgnored var rekordboxShareRoot: URL?
     private(set) var hasWriteBackup = false
 
+    /// 목록 미리 보기 파형을 뒤에서 채운다(라이브러리를 읽은 뒤, 설정 › 저장 공간에서 비운 뒤).
+    func warmPreviewWaveforms(_ rows: [TrackRow]? = nil) {
+        let previewSources = (rows ?? self.rows).filter { !$0.track.isStreaming }.map {
+            PreviewWaveformStore.Source(uuid: $0.track.uuid, url: RekordboxShare.analysisURL($0.track.analysisDataPath))
+        }
+        previewWarmTask?.cancel()
+        previewWarmTask = Task.detached(priority: .background) { await PreviewWaveformStore.shared.warm(previewSources) }
+    }
+
     func refreshWriteBackups() {
         hasWriteBackup = RekordboxWriter.backups(in: backupDirectory).contains(where: \.isWrite)
     }
@@ -1047,10 +1056,7 @@ final class LibraryStore {
             lastReadFailure = nil
             completedLoadCount += 1
             refreshUnlinkedDrafts()
-            let previewSources = loaded.rows.filter { !$0.track.isStreaming }.map {
-                PreviewWaveformStore.Source(uuid: $0.track.uuid, url: RekordboxShare.analysisURL($0.track.analysisDataPath))
-            }
-            previewWarmTask = Task.detached(priority: .background) { await PreviewWaveformStore.shared.warm(previewSources) }
+            warmPreviewWaveforms(loaded.rows)
             lastError = failedTagSaves().isEmpty ? nil : DraftWriter.tagSaveFailureMessage
             if synchronizingDrafts {
                 toast = conflicts == 0

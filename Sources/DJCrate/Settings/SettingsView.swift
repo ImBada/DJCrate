@@ -7,7 +7,13 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var store: LibraryStore
     @Bindable var deck: DeckModel
-    @State private var tab = SettingsTab.general
+    @State private var tab: SettingsTab
+
+    init(store: LibraryStore, deck: DeckModel, tab: SettingsTab = .general) {
+        self.store = store
+        self.deck = deck
+        _tab = State(initialValue: tab)
+    }
 
     var body: some View {
         TabView(selection: $tab) {
@@ -31,6 +37,9 @@ struct SettingsView: View {
                 .formStyle(.grouped)
                 .frame(width: 520, height: 180)
             }
+            Tab(.ui("저장 공간"), systemImage: "internaldrive", value: SettingsTab.storage) {
+                StorageSettingsView(model: StorageSettingsModel(store: store))
+            }
             Tab(.ui("실험실"), systemImage: "testtube.2", value: SettingsTab.lab) {
                 LabSettingsView(store: store)
             }
@@ -40,7 +49,7 @@ struct SettingsView: View {
 }
 
 enum SettingsTab: Hashable {
-    case general, deck, shortcuts, waveform, lab
+    case general, deck, shortcuts, waveform, storage, lab
 }
 
 /// 지금 열린 설정 창. 설정 창도 주 창이 될 수 있어서, KeyRouter가 이 창의 키(단축키 기록 등)를 덱으로 보내지 않게 한다.
