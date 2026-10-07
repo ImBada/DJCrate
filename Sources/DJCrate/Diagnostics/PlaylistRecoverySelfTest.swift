@@ -36,8 +36,15 @@ extension DevSelfTests {
                 let before = args.contains("--playlist-recovery-stage=before")
                 try capturePlaylistWindow(window, at: directory.appending(path: before ? "before.jpg" : "after-blocked.jpg"))
                 if before { exit(0) }
+                // 복구 시트(#232)의 한 줄을 화면 없이 읽고 고르고 저장한다.
+                let sheet = RecoverySheetModel(store: store, requests: [.playlist("179")])
+                await sheet.load()
+                guard let line = sheet.lines.first, line.phase == .ready, line.canKeep else {
+                    throw DJCError.writeRefused("합성 목록을 비교하지 못했습니다")
+                }
+                sheet.choose(.keep, for: line)
+                guard await sheet.save() else { throw DJCError.writeRefused("비교 뒤 초안을 저장하지 못했습니다") }
                 let prompter = PlaylistCapturePrompter(directory: directory)
-                await ReflectionCoordinator(host: store, prompter: prompter).recoverPlaylistDraft(store: store, playlist: "179")
                 guard store.blockedPlaylistEditCount == 0, store.playlistItem("179")?.name == "합성 내 목록",
                       store.playlistItem("179")?.trackIDs == ["1", "2", "3"] else {
                     throw DJCError.writeRefused("비교 뒤 초안을 다시 적용하지 못했습니다")
@@ -52,7 +59,6 @@ extension DevSelfTests {
                 guard preview.report.playlistWritten.count == 2, preview.report.playlistBlocked.isEmpty else {
                     throw DJCError.writeRefused("다시 적용한 편집의 쓰기 미리 보기가 막혔습니다")
                 }
-                prompter.filename = "after-preview.jpg"
                 _ = prompter.show(ReflectionCoordinator.confirmation(preview.report))
                 guard prompter.captureSucceeded, !NSApp.isActive else { throw DJCError.writeRefused("비교·미리 보기 창을 캡처하지 못했습니다") }
                 FileHandle.standardError.write(Data("재생 목록 복구 시험 통과: 막힘 2 → 다시 적용 2 → 미리 보기 2, 실제 쓰기 0\n".utf8))
@@ -74,9 +80,9 @@ extension DevSelfTests {
 }
 
 @MainActor
-private final class PlaylistCapturePrompter: ReflectionPrompter {
+private final class PlaylistCapturePrompter: HeadlessReflectionPrompter {
     let directory: URL
-    var filename = "after-comparison.jpg"
+    var filename = "after-preview.jpg"
     var captureSucceeded = true
     init(directory: URL) { self.directory = directory }
 
@@ -89,7 +95,7 @@ private final class PlaylistCapturePrompter: ReflectionPrompter {
         do { try DevSelfTests.capturePlaylistWindow(alert.window, at: directory.appending(path: filename)) }
         catch { captureSucceeded = false }
         alert.window.orderOut(nil)
-        return filename == "after-comparison.jpg" ? .confirm : .cancel
+        return .cancel
     }
     func show(_ prompt: ReflectionPrompt) -> Bool { choose(prompt) == .confirm }
 }

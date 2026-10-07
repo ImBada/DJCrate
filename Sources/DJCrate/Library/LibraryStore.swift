@@ -331,6 +331,10 @@ final class LibraryStore {
     @ObservationIgnored var recoveryMemoryInput: ((String, DraftRecoveryKind) -> RecoveryDraft?)?
     @ObservationIgnored var onDraftRecovered: ((RecoveryDraft, TrackRow?, BeatGrid?) -> Void)?
     var isRecoveringDraft = false
+    /// 열려 있는 막힌 초안 복구 시트(#232). 메인 창(`ContentView`)과 곡 편집 창이 `anchor`에 맞는 쪽에서 띄운다.
+    var recoverySheet: RecoverySheetModel?
+    /// 복구가 rekordbox 사본을 읽은 횟수(시험이 시트 하나가 줄마다 사본을 뜨지 않는지 센다)
+    @ObservationIgnored var recoverySnapshotReads = 0
     private var cueDraftUUIDs: Set<String> = []
     private var gridDraftUUIDs: Set<String> = []
     private(set) var gainDraftUUIDs: Set<String> = []

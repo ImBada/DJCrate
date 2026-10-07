@@ -1,6 +1,6 @@
 import AppKit
 
-/// 선택으로 목록을 움직이지 않고, 곡·종류를 명시해 기존 비교 화면을 연다.
+/// 선택으로 목록을 움직이지 않고, 곡·종류를 명시해 그 줄만 든 복구 시트를 연다(#232).
 @MainActor
 final class DraftRecoveryMenu: NSObject, NSMenuItemValidation {
     struct Target {

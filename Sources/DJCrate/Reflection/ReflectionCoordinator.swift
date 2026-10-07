@@ -29,6 +29,17 @@ protocol ReflectionPrompter {
     func show(_ prompt: ReflectionPrompt) -> Bool
     /// 확인·둘째 동작·취소 중 무엇을 눌렀는지(둘째 동작이 없는 창은 `show`와 같다)
     func choose(_ prompt: ReflectionPrompt) -> ReflectionChoice
+    /// 막힌 초안 복구 시트(#232)를 띄우고 닫힐 때까지 기다린다. 시험에서는 시트 대신 정해 둔 줄 선택을 넣는다.
+    /// 기본 구현이 없다: 시트를 띄우지 않는 프롬프터는 `HeadlessReflectionPrompter`를 따라 기다리지 않고 닫는다.
+    func review(_ model: RecoverySheetModel) async
+}
+
+/// 복구 시트를 띄우지 않는 프롬프터(자가 테스트·캡처). 시트가 열려야 하는 흐름에 닿으면 기다리지 않고 닫는다.
+@MainActor
+protocol HeadlessReflectionPrompter: ReflectionPrompter {}
+
+extension HeadlessReflectionPrompter {
+    func review(_ model: RecoverySheetModel) async { model.cancel() }
 }
 
 extension ReflectionPrompter {
@@ -38,6 +49,12 @@ extension ReflectionPrompter {
 struct AlertPrompter: ReflectionPrompter {
     func show(_ prompt: ReflectionPrompt) -> Bool {
         choose(prompt) == .confirm
+    }
+
+    /// 시트는 창을 모달로 막지 않고 `ContentView`(또는 곡 편집 창)가 `LibraryStore.recoverySheet`를 보고 띄운다.
+    func review(_ model: RecoverySheetModel) async {
+        model.store.recoverySheet = model
+        await model.waitUntilClosed()
     }
 
     func choose(_ prompt: ReflectionPrompt) -> ReflectionChoice {
@@ -198,20 +215,12 @@ struct ReflectionCoordinator {
                     result.shortfall = result.shortfall ?? Self.summaryLine(preview.exclusions, prefix: String(ui: "쓰지 않는 것"))
                 }
                 publish(result)
-                if let store = host as? LibraryStore,
-                   targets.contains(where: { !store.recoveryKinds(for: $0).isEmpty }) || !report.playlistBlocked.isEmpty {
-                    let tracks = targets.contains { !store.recoveryKinds(for: $0).isEmpty }
-                    let playlists = !report.playlistBlocked.isEmpty
-                    let prompt = ReflectionPrompt(title: String(ui: "rekordbox에 쓸 수 있는 초안이 없습니다"),
-                                                  text: String(ui: "쓸 수 없는 곡이나 재생 목록의 현재값을 비교해 초안을 다시 적용하거나 버리세요."),
-                                                  confirm: tracks ? String(ui: "현재값 비교…") : String(ui: "재생 목록 현재값 가져오기…"),
-                                                  details: Self.reasons(report) + preview.exclusions,
-                                                  alternate: tracks && playlists ? String(ui: "재생 목록 현재값 가져오기…") : nil)
-                    let choice = prompter.choose(prompt)
-                    if choice != .cancel {
+                // 쓸 수 없게 된 곡·재생 목록의 초안은 창을 줄줄이 띄우지 않고 한 시트에서 줄마다 고친다(#232).
+                if let store = host as? LibraryStore {
+                    let requests = Self.recoveryRequests(store: store, targets: targets, blocked: BlockedDrafts(report: report))
+                    if !requests.isEmpty {
                         host.setWriteLock(false)
-                        if tracks && choice == .confirm { await chooseRecoveryTarget(store: store, rows: targets) }
-                        else { await recoverPlaylistDraft(store: store) }
+                        await recover(store: store, requests: requests, staleOnly: true)
                     }
                 }
                 // 고를 것이 없으면 창을 띄우지 않는다. 막힌 이유는 위 결과 토스트와 결과 보기에 있다(#230).

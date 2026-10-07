@@ -499,7 +499,7 @@ final class UsbSelfTestNamePrompter: UsbNamePrompter {
 
 /// 쓰기 확인 창만 자동으로 확인한다. 그 밖의 창(실패·백업 폴더 열기·끝나지 않은 쓰기)은 적어 두고 누르지 않는다
 @MainActor
-final class UsbSelfTestPrompter: ReflectionPrompter {
+final class UsbSelfTestPrompter: HeadlessReflectionPrompter {
     let log: (String) -> Void
     private(set) var titles: [String] = []
     private(set) var lastText = ""

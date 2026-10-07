@@ -6,7 +6,7 @@ import RekordboxKit
 #if DEBUG
 /// 확인 창에 늘 "예"라고 답하고 내용은 로그로 남긴다(개발용 자가 시험).
 @MainActor
-private struct AgreeingPrompter: ReflectionPrompter {
+private struct AgreeingPrompter: HeadlessReflectionPrompter {
     var log: (String) -> Void
     func show(_ prompt: ReflectionPrompt) -> Bool {
         log("창: \(prompt.title)\n" + (prompt.text.components(separatedBy: "\n") + prompt.details).map { "    \($0)" }.joined(separator: "\n"))

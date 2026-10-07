@@ -576,22 +576,6 @@
         }
       }
     },
-    "%@ · %.3f초 · %@ %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ · %.3f s · %@ %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ · %.3f秒 · %@ %@"
-          }
-        }
-      }
-    },
     "%@ · %@ · %@ · %lld곡" : {
       "localizations" : {
         "en" : {
@@ -1843,38 +1827,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@をrekordboxに書き込みますか？"
-          }
-        }
-      }
-    },
-    "%@의 %@ 현재값을 가져올까요?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Get the current %2$@ for %1$@?"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@の現在の%2$@を取得しますか？"
-          }
-        }
-      }
-    },
-    "%@의 %@ 현재값을 비교하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Compare the current %2$@ for %1$@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@の現在の%2$@を比較してください"
           }
         }
       }
@@ -8128,6 +8080,29 @@
         }
       }
     },
+    "recovery.kind.playlist" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlist"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "재생 목록"
+          }
+        }
+      }
+    },
     "rekordbox %@는 DJCrate가 쓰기를 확인하지 않은 버전입니다(확인: %@)" : {
       "localizations" : {
         "en" : {
@@ -10668,22 +10643,6 @@
         }
       }
     },
-    "rekordbox에 쓸 수 있는 초안이 없습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No drafts can be written to rekordbox"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxに書き込める下書きがありません"
-          }
-        }
-      }
-    },
     "rekordbox에 아무것도 쓰지 않았습니다." : {
       "localizations" : {
         "en" : {
@@ -10908,6 +10867,108 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxから曲を削除中…"
+          }
+        }
+      }
+    },
+    "rekordbox에서 바뀐 것: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changed in rekordbox: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxでの変更：%@"
+          }
+        }
+      }
+    },
+    "rekordbox에서 바뀐 그리드: %@ → %@ BPM" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grid changed in rekordbox: %1$@ → %2$@ BPM"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxで変更されたグリッド：%1$@ → %2$@ BPM"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "rekordbox에서 바뀐 그리드: %1$@ → %2$@ BPM"
+          }
+        }
+      }
+    },
+    "rekordbox에서 바뀐 그리드: 대체 승인한 원본의 박" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grid changed in rekordbox: beats of the approved source"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxで変更されたグリッド：承認した原本の拍"
+          }
+        }
+      }
+    },
+    "rekordbox에서 바뀐 그리드: 첫 박·구간 위치" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grid changed in rekordbox: first beat and segment positions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxで変更されたグリッド：最初の拍と区間の位置"
+          }
+        }
+      }
+    },
+    "rekordbox에서 바뀐 칸: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fields changed in rekordbox: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxで変更された項目：%@"
+          }
+        }
+      }
+    },
+    "rekordbox에서 바뀐 큐: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cues changed in rekordbox: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxで変更されたキュー：%@"
           }
         }
       }
@@ -11216,6 +11277,22 @@
         }
       }
     },
+    "rekordbox의 현재 값이 초안의 기준과 같아 바뀐 것이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current values in rekordbox match the draft’s base, so nothing has changed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxの現在値が下書きの基準と同じなので、変更はありません"
+          }
+        }
+      }
+    },
     "rekordbox의 현재 그리드는 템포 구간으로 정확히 재현되지 않아 내 그리드 편집을 다시 적용할 수 없으니 현재값을 사용하세요." : {
       "localizations" : {
         "en" : {
@@ -11228,6 +11305,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxの現在のグリッドはテンポ区間で正確に再現できないため、自分のグリッド編集を再適用できません。現在値を使用してください。"
+          }
+        }
+      }
+    },
+    "rekordbox의 현재값을 읽는 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading current values from rekordbox…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxの現在値を読み込み中…"
           }
         }
       }
@@ -11772,22 +11865,6 @@
         }
       }
     },
-    "‘%@’의 현재 목록을 비교하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Compare the current playlist “%@”"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「%@」の現在のプレイリストを比較してください"
-          }
-        }
-      }
-    },
     "‘스냅샷 뜨기’를 눌러 라이브러리를 불러오세요." : {
       "localizations" : {
         "en" : {
@@ -11800,6 +11877,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "「スナップショットを作成」をクリックしてライブラリを読み込んでください。"
+          }
+        }
+      }
+    },
+    "‘현재값 사용’·‘초안 버리기’로 고른 줄은 내 편집을 버립니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rows set to “Use Current Values” or “Discard Draft” will discard your edits."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「現在値を使用」または「下書きを破棄」を選んだ行は、自分の編集を破棄します。"
           }
         }
       }
@@ -12324,6 +12417,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同じ程度に一致する候補が複数あります。適切なファイルを選んでください。"
+          }
+        }
+      }
+    },
+    "같은 칸을 둘 다 바꿈: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changed on both sides: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "両方で変更された項目：%@"
           }
         }
       }
@@ -14144,6 +14253,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "曲一覧を準備中…"
+          }
+        }
+      }
+    },
+    "곡 목록이 바뀜" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Track list changed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲リストが変更されました"
           }
         }
       }
@@ -16286,22 +16411,6 @@
         }
       }
     },
-    "기준 큐:" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Base cue:"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "基準のキュー："
-          }
-        }
-      }
-    },
     "기준:" : {
       "localizations" : {
         "en" : {
@@ -16330,6 +16439,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "基準：%@"
+          }
+        }
+      }
+    },
+    "기준·현재·내 편집을 보여 줍니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows the base, current, and my edits"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "基準・現在・自分の編集を表示します"
           }
         }
       }
@@ -16814,18 +16939,34 @@
         }
       }
     },
-    "내 큐 편집을 이 현재 큐에 연결할까요?" : {
+    "내 큐" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Apply my cue edits to this current cue?"
+            "value" : "My cue"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "キューの編集をこの現在のキューに適用しますか？"
+            "value" : "自分のキュー"
+          }
+        }
+      }
+    },
+    "내 큐가 rekordbox에서 다시 만들어졌으니 아래에서 이어 줄 현재 큐를 모두 고르면 내 편집을 유지할 수 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My cues were recreated in rekordbox, so choose the matching current cue for each one below to keep my edits."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自分のキューがrekordboxで作り直されたので、下で対応する現在のキューをすべて選ぶと自分の編集を維持できます。"
           }
         }
       }
@@ -16846,7 +16987,7 @@
         }
       }
     },
-    "내 편집 유지·재적용" : {
+    "내 편집 유지·다시 적용" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -16862,7 +17003,39 @@
         }
       }
     },
-    "내 편집 유지를 선택하면 표시한 현재 원본의 전체 박을 기준으로 단일 템포 대체 그리드를 새로 승인합니다." : {
+    "내 편집 유지를 고르면 rekordbox의 현재 큐 일부가 없어집니다. 자세히 보기에서 확인하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keeping my edits removes some of the current cues in rekordbox. Check Show Details."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自分の編集を維持すると、rekordboxの現在のキューの一部がなくなります。「詳細を表示」で確認してください。"
+          }
+        }
+      }
+    },
+    "내 편집 유지를 고르면 같은 칸의 현재값을 내 값으로 덮습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keeping my edits overwrites the current value of the same field with mine: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自分の編集を維持すると、同じ項目の現在値を自分の値で上書きします：%@"
+          }
+        }
+      }
+    },
+    "내 편집 유지를 고르면 표시한 현재 원본의 전체 박을 기준으로 단일 템포 대체 그리드를 새로 승인합니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -16906,6 +17079,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自分の編集：%@"
+          }
+        }
+      }
+    },
+    "내 편집을 현재값 위에 다시 쌓습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stacks my edits on top of the current values again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自分の編集を現在値の上にもう一度重ねます。"
           }
         }
       }
@@ -17488,6 +17677,22 @@
         }
       }
     },
+    "다른 폴더로 옮겨짐" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moved to another folder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別のフォルダに移動されました"
+          }
+        }
+      }
+    },
     "다른 폴더로 옮기기" : {
       "localizations" : {
         "en" : {
@@ -17632,34 +17837,34 @@
         }
       }
     },
-    "다시 적용할 수 있는 %lld건은 현재 목록에 초안으로 쌓고 나머지는 그대로 남기니, 비교한 뒤 다시 적용하거나 이 목록의 막힌 초안을 버리세요." : {
+    "다시 적용할 수 있는 편집을 현재 목록 위에 초안으로 쌓습니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The %lld edits that can be reapplied will become drafts on the current playlist and the rest will remain, so compare them and reapply or discard this playlist’s blocked drafts."
+            "value" : "Stacks the edits that can be reapplied on the current playlist as a draft."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "再適用できる%lld件は現在のプレイリストに下書きとして重ね、残りはそのまま残すため、比較して再適用するか、このプレイリストのブロックされた下書きを破棄してください。"
+            "value" : "再適用できる編集を、現在のプレイリストの上に下書きとして重ねます。"
           }
         }
       }
     },
-    "다시 적용할 수 있는 편집이 없으니 초안을 버리거나 취소하고 목록을 다시 편집하세요." : {
+    "다시 적용할 수 있는 편집이 없으니 초안을 버리거나 ‘나중에’로 두고 목록을 다시 편집하세요." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No edits can be reapplied, so discard the draft or cancel and edit the playlist again."
+            "value" : "No edits can be reapplied, so discard the draft or choose “Later” and edit the playlist again."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "再適用できる編集がないため、下書きを破棄するか、キャンセルしてプレイリストを編集し直してください。"
+            "value" : "再適用できる編集がないので、下書きを破棄するか「後で」にして、プレイリストを編集し直してください。"
           }
         }
       }
@@ -17740,22 +17945,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "次の候補へ（Shift：前の候補へ）"
-          }
-        }
-      }
-    },
-    "다음 초안" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Next Draft"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "次の下書き"
           }
         }
       }
@@ -20508,6 +20697,86 @@
         }
       }
     },
+    "막힌 초안 비교 창에서 저장하거나 취소한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save or cancel in the blocked draft comparison window, then try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブロックされた下書きの比較ウインドウで保存またはキャンセルしてから、もう一度お試しください"
+          }
+        }
+      }
+    },
+    "막힌 초안 비교가 열려 있어 쓰지 않았습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing was written because the blocked draft comparison is open"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブロックされた下書きの比較が開いているため書き込みませんでした"
+          }
+        }
+      }
+    },
+    "막힌 초안 비교가 이미 열려 있습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The blocked draft comparison is already open"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブロックされた下書きの比較はすでに開いています"
+          }
+        }
+      }
+    },
+    "막힌 초안을 rekordbox의 현재값과 비교하는 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comparing blocked drafts with the current values in rekordbox…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブロックされた下書きをrekordboxの現在値と比較中…"
+          }
+        }
+      }
+    },
+    "막힌 초안의 현재값 비교" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compare Current Values of Blocked Drafts"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブロックされた下書きの現在値を比較"
+          }
+        }
+      }
+    },
     "막힌 편집 %lld건(초안에 남깁니다):" : {
       "localizations" : {
         "en" : {
@@ -20686,6 +20955,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最上位"
+          }
+        }
+      }
+    },
+    "맨 위 항목 순서가 바뀜" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top-level order changed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最上位の項目の順序が変更されました"
           }
         }
       }
@@ -21402,6 +21687,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレイリストは最上位に作成します。同名には「 (2)」「 (3)」を付け、同じ読み込み元は既存の関連付けを使います。下書きは「rekordboxに書き込む」で保存します。"
+          }
+        }
+      }
+    },
+    "목록이 사라짐" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlist removed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストがなくなりました"
           }
         }
       }
@@ -22270,6 +22571,22 @@
         }
       }
     },
+    "변경 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changed %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更 %lld"
+          }
+        }
+      }
+    },
     "변경 없음" : {
       "localizations" : {
         "en" : {
@@ -22594,6 +22911,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保護された曲は取り込めません。DRMのないローカル音源を用意してください。"
+          }
+        }
+      }
+    },
+    "복구 방법" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recovery Action"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復旧方法"
           }
         }
       }
@@ -23640,6 +23973,38 @@
         }
       }
     },
+    "비교 창에서 저장하거나 취소한 뒤 다시 시도하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save or cancel in the comparison window, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "比較ウインドウで保存またはキャンセルしてから、もう一度お試しください。"
+          }
+        }
+      }
+    },
+    "비교를 마치지 못했으니 이 창을 닫고 다시 여세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not finish comparing, so close this window and open it again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "比較を完了できなかったので、このウインドウを閉じてもう一度開いてください。"
+          }
+        }
+      }
+    },
     "비우기" : {
       "localizations" : {
         "en" : {
@@ -24234,6 +24599,22 @@
         }
       }
     },
+    "삭제 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removed %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除 %lld"
+          }
+        }
+      }
+    },
     "삭제 표시된 큐 행이 있는 구조는 지원하지 않으니 rekordbox에서 큐를 확인하고 직접 편집하세요" : {
       "localizations" : {
         "en" : {
@@ -24694,6 +25075,22 @@
         }
       }
     },
+    "선택 안 함" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "None"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択しない"
+          }
+        }
+      }
+    },
     "선택 해제" : {
       "localizations" : {
         "en" : {
@@ -24706,22 +25103,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "すべての選択を解除"
-          }
-        }
-      }
-    },
-    "선택하지 않고 남기기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Leave Unchanged"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選ばずに残す"
           }
         }
       }
@@ -24906,22 +25287,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選択したプレイリストをrekordboxとDJCrateに同じように反映します。先にrekordboxを終了してください。"
-          }
-        }
-      }
-    },
-    "선택한 종류의 초안을 저장했습니다. 쓰기 미리 보기에서 지원 제한과 최신 상태를 다시 확인하세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Saved the selected draft type. Check support limits and the latest state again in the write preview."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選択した種類の下書きを保存しました。書き込みのプレビューで対応範囲と最新の状態を再確認してください。"
           }
         }
       }
@@ -25734,18 +26099,18 @@
         }
       }
     },
-    "시각이나 이름으로 자동 대응하지 않습니다. 아래 두 큐가 같은 대상인지 확인하고 직접 선택하세요." : {
+    "시각이나 이름으로 자동 대응하지 않으니 같은 대상인 현재 큐를 직접 고르세요." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Time and name are not matched automatically. Check whether these two cues are the same target and choose explicitly."
+            "value" : "Cues are not matched automatically by time or name, so choose the current cue that is the same target."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "時刻や名前では自動対応しません。下の二つのキューが同じ対象か確認して、直接選んでください。"
+            "value" : "時刻や名前では自動対応しないので、同じ対象の現在のキューを直接選んでください。"
           }
         }
       }
@@ -26382,18 +26747,18 @@
         }
       }
     },
-    "쓰기 미리 보기에서 최신 목록과 쓸 수 없는 편집을 다시 확인하세요." : {
+    "쓰기 미리 보기에서 지원 제한과 최신 상태를 다시 확인하세요." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Review the latest playlist and blocked edits again in the write preview."
+            "value" : "Check support limits and the latest state again in the write preview."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "書き込みプレビューで最新のプレイリストと書き込めない編集を再確認してください。"
+            "value" : "書き込みのプレビューで対応範囲と最新の状態を再確認してください。"
           }
         }
       }
@@ -26984,22 +27349,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "書き込むUSBの編集はありません"
-          }
-        }
-      }
-    },
-    "쓸 수 없는 곡이나 재생 목록의 현재값을 비교해 초안을 다시 적용하거나 버리세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Compare the current values of blocked tracks or playlists, then reapply or discard their drafts."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込めない曲やプレイリストの現在値を比較し、下書きを再適用するか破棄してください。"
           }
         }
       }
@@ -27598,6 +27947,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "前の編集で作成できなかったプレイリストです"
+          }
+        }
+      }
+    },
+    "앞에서 저장하면서 이 목록의 비교 내용이 바뀌어 초안을 그대로 남겼으니 다시 열어 확인하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saving earlier changed what this playlist is compared with, so its draft was left as is; reopen this window to check."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先に保存したためこのプレイリストの比較内容が変わり、下書きはそのまま残したので、もう一度開いて確認してください。"
+          }
+        }
+      }
+    },
+    "앞에서 저장하면서 이미 해결됐습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Already resolved by saving earlier."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先に保存したため、すでに解決しました。"
           }
         }
       }
@@ -28790,6 +29171,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "年を数字に直してからrekordboxに書き込んでください"
+          }
+        }
+      }
+    },
+    "열려 있는 비교 창에서 저장하거나 취소한 뒤 다시 여세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save or cancel in the comparison window that is open, then open it again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開いている比較ウインドウで保存またはキャンセルしてから、もう一度開いてください。"
           }
         }
       }
@@ -30670,6 +31067,22 @@
         }
       }
     },
+    "이 곡의 %@ 편집을 버리고 현재값을 씁니다. 다른 곡과 다른 종류의 초안은 그대로입니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discards this track’s %@ edits and uses the current values. Drafts for other tracks and types stay as they are."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この曲の%@の編集を破棄して現在値を使います。他の曲と種類の下書きはそのままです。"
+          }
+        }
+      }
+    },
     "이 곡의 rekordbox 오토게인을 고칩니다(초안)" : {
       "localizations" : {
         "en" : {
@@ -30794,22 +31207,6 @@
         }
       }
     },
-    "이 곡의 선택한 종류만 비교합니다. 가져오기 자체는 초안을 바꾸지 않습니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Only the selected draft type for this track is compared. Getting current values preserves your draft."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この曲の選択した種類だけを比較します。現在値を取得しても下書きは変わりません。"
-          }
-        }
-      }
-    },
     "이 곡의 섹션·그리드 추정·조성 분석 캐시를 지우고 다시 분석합니다(파형·초안은 그대로)" : {
       "localizations" : {
         "en" : {
@@ -30906,6 +31303,22 @@
         }
       }
     },
+    "이 대응으로는 내 편집을 다시 적용할 수 없으니 다른 큐를 고르거나 현재값을 사용하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My edits cannot be reapplied with this link, so choose another cue or use the current values."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この対応では自分の編集を再適用できないので、別のキューを選ぶか現在値を使ってください。"
+          }
+        }
+      }
+    },
     "이 동작만 기본 키로" : {
       "localizations" : {
         "en" : {
@@ -30978,6 +31391,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このリストの曲はすべてストリーミングの曲です。設定 › 一般で「ストリーミングの曲を非表示」をオフにすると表示されます。"
+          }
+        }
+      }
+    },
+    "이 목록의 막힌 편집을 되돌릴 수 없게 버립니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discards this playlist’s blocked edits, and this cannot be undone."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このプレイリストのブロックされた編集を、元に戻せない形で破棄します。"
           }
         }
       }
@@ -31318,6 +31747,22 @@
         }
       }
     },
+    "이 초안은 rekordbox가 바뀌어서 막힌 것이 아니니 ‘마지막 쓰기 결과…’에서 쓰지 못한 이유를 확인하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This draft is not blocked because rekordbox changed, so check the reason in “Last Write Result…”."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この下書きはrekordboxが変更されたためにブロックされたのではないので、「最後の書き込み結果…」で理由を確認してください。"
+          }
+        }
+      }
+    },
     "이 칸은 읽기 전용이니 제목·아티스트·코멘트 같은 태그 칸을 고르세요" : {
       "localizations" : {
         "en" : {
@@ -31458,22 +31903,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このフォルダで探す"
-          }
-        }
-      }
-    },
-    "이 현재 큐에 연결" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apply to This Current Cue"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この現在のキューに適用"
           }
         }
       }
@@ -31624,6 +32053,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "名前（任意）"
+          }
+        }
+      }
+    },
+    "이름: ‘%@’ → ‘%@’" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name: “%1$@” → “%2$@”"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前：「%1$@」→「%2$@」"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "이름: ‘%1$@’ → ‘%2$@’"
           }
         }
       }
@@ -31846,6 +32297,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今回OneLibraryを追加する前に作ったバックアップからUSBを復元します。"
+          }
+        }
+      }
+    },
+    "이어 줄 현재 큐" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current cue to link"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "対応づける現在のキュー"
           }
         }
       }
@@ -32392,6 +32859,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "詳細"
+          }
+        }
+      }
+    },
+    "자세히 보기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Details"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詳細を表示"
           }
         }
       }
@@ -32944,22 +33427,6 @@
         }
       }
     },
-    "재생 목록 초안을 복구하지 못했습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Could not recover playlist drafts"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "プレイリストの下書きを復旧できませんでした"
-          }
-        }
-      }
-    },
     "재생 목록 초안을 저장하지 못했습니다. DJCrate 데이터 폴더의 쓰기 권한을 확인하세요: %@" : {
       "localizations" : {
         "en" : {
@@ -32988,22 +33455,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレイリストの下書きを保存できませんでした。DJCrateのデータフォルダの書き込み権限を確認してから、書き込みを再試行してください。"
-          }
-        }
-      }
-    },
-    "재생 목록 초안을 저장했습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Playlist drafts saved"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "プレイリストの下書きを保存しました"
           }
         }
       }
@@ -33656,6 +34107,22 @@
         }
       }
     },
+    "저장하지 못한 줄은 비교 창에서 이유를 확인하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check the reason in the comparison window for rows that were not saved."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存できなかった行は、比較ウインドウで理由を確認してください。"
+          }
+        }
+      }
+    },
     "저장할 폴더가 없습니다. 있는 폴더를 고르세요" : {
       "localizations" : {
         "en" : {
@@ -33668,6 +34135,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存先のフォルダがありません。既存のフォルダを選んでください。"
+          }
+        }
+      }
+    },
+    "저장했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存しました"
           }
         }
       }
@@ -33866,6 +34349,22 @@
         }
       }
     },
+    "접기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Details"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詳細を隠す"
+          }
+        }
+      }
+    },
     "접두어: " : {
       "localizations" : {
         "en" : {
@@ -33878,6 +34377,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "接頭辞: "
+          }
+        }
+      }
+    },
+    "접힘" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapsed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "折りたたみ済み"
           }
         }
       }
@@ -35270,6 +35785,22 @@
         }
       }
     },
+    "초안 일부만 저장했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some drafts saved"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部の下書きだけ保存しました"
+          }
+        }
+      }
+    },
     "초안 있음" : {
       "localizations" : {
         "en" : {
@@ -35490,6 +36021,22 @@
         }
       }
     },
+    "초안을 그대로 둡니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leaves the draft as is."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きはそのままにします。"
+          }
+        }
+      }
+    },
     "초안을 만든 뒤 rekordbox에서 곡 정보가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -35554,6 +36101,22 @@
         }
       }
     },
+    "초안을 만든 뒤 rekordbox에서 바뀌어 쓸 수 없는 항목입니다. 줄마다 고른 뒤 [저장]을 누르면 한 번에 반영하고, ‘나중에’로 둔 줄은 초안을 그대로 둡니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These items changed in rekordbox after the draft was made, so they cannot be written. Choose an action for each row, then click Save to apply them all at once. Rows set to “Later” keep their drafts as they are."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きを作った後にrekordboxで変更されたため、書き込めない項目です。行ごとに選んで［保存］を押すとまとめて反映され、「後で」にした行の下書きはそのまま残ります。"
+          }
+        }
+      }
+    },
     "초안을 만든 뒤 rekordbox에서 앨범아트가 바뀌었습니다. DJCrate에서 다시 불러와 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -35602,6 +36165,22 @@
         }
       }
     },
+    "초안을 만든 뒤 rekordbox의 이 목록이 바뀌었습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This playlist changed in rekordbox after the draft was made"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きを作った後にrekordboxでこのプレイリストが変更されました"
+          }
+        }
+      }
+    },
     "초안을 미리 본 뒤 USB에 씁니다. 쓰기 전에 Mac에 백업합니다." : {
       "localizations" : {
         "en" : {
@@ -35614,38 +36193,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下書きをプレビューしてからUSBに書き込みます。書き込む前にMacにバックアップします。"
-          }
-        }
-      }
-    },
-    "초안을 복구하지 못했습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Could Not Recover Draft"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "下書きを復旧できませんでした"
-          }
-        }
-      }
-    },
-    "초안을 복구했습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Draft Recovered"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "下書きを復旧しました"
           }
         }
       }
@@ -35678,6 +36225,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下書きを読み込みまたは保存できませんでした。DJC_HOMEの下書きファイルとアクセス権限を確認してください"
+          }
+        }
+      }
+    },
+    "초안을 저장했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drafts saved"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きを保存しました"
           }
         }
       }
@@ -35770,6 +36333,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "追加"
+          }
+        }
+      }
+    },
+    "추가 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加 %lld"
           }
         }
       }
@@ -36718,34 +37297,34 @@
         }
       }
     },
-    "큐 ID나 그리드 구간의 대응이 모호하므로 내 편집을 그대로 남겼습니다. 현재값을 사용하거나 편집 대상을 다시 지정하세요." : {
+    "큐 ID나 그리드 구간의 대응이 모호해 내 편집을 그대로 남겼으니 현재값을 사용하거나 편집 대상을 다시 지정하세요." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cue IDs or grid segments could not be matched unambiguously. Your edits were preserved; use current values or choose the editing target again."
+            "value" : "Cue IDs or grid segments could not be matched unambiguously, so your edits were left as is; use the current values or choose the edit target again."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "キューIDまたはグリッド区間の対応が不明なため編集を保持しました。現在値を使うか編集対象を指定し直してください。"
+            "value" : "キューIDまたはグリッド区間の対応が不明なため編集をそのまま残したので、現在値を使うか編集対象を指定し直してください。"
           }
         }
       }
     },
-    "큐 ID나 그리드 구간의 대응이 모호해 자동으로 재적용할 수 없습니다. 내 편집을 남기려면 취소하고 대상을 다시 지정하세요." : {
+    "큐 ID나 그리드 구간의 대응이 모호해 자동으로 다시 적용할 수 없으니 현재값을 사용하거나 ‘나중에’로 두고 편집 대상을 다시 지정하세요." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cue IDs or grid segments cannot be matched unambiguously for automatic reapplication. Cancel and choose the target again to preserve your edits."
+            "value" : "Cue IDs or grid segments cannot be matched unambiguously for automatic reapplication, so use the current values or choose “Later” and choose the edit target again."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "キューIDまたはグリッド区間の対応が不明なため自動で再適用できません。編集を保持するにはキャンセルして対象を指定し直してください。"
+            "value" : "キューIDまたはグリッド区間の対応が不明なため自動で再適用できないので、現在値を使うか「後で」にして、編集対象を指定し直してください。"
           }
         }
       }
@@ -36862,18 +37441,18 @@
         }
       }
     },
-    "큐 대상 다시 지정…" : {
+    "큐 대상 다시 지정" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Choose Cue Target Again…"
+            "value" : "Choose Cue Target Again"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "キューの対象を指定し直す…"
+            "value" : "キューの対象を指定し直す"
           }
         }
       }
@@ -39318,6 +39897,22 @@
         }
       }
     },
+    "펼침" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expanded"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開済み"
+          }
+        }
+      }
+    },
     "평점" : {
       "localizations" : {
         "en" : {
@@ -39486,6 +40081,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "フォルダ内の%lld番目に移動"
+          }
+        }
+      }
+    },
+    "폴더 안 항목이 바뀜" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folder contents changed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダ内の項目が変更されました"
           }
         }
       }
@@ -40456,22 +41067,6 @@
         }
       }
     },
-    "현재 큐:" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Current cue:"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "現在のキュー："
-          }
-        }
-      }
-    },
     "현재 템포 구간의 BPM (엔터를 누르거나 칸을 벗어나면 적용)" : {
       "localizations" : {
         "en" : {
@@ -40552,38 +41147,6 @@
         }
       }
     },
-    "현재값 가져오기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Get Current Values"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "現在値を取得"
-          }
-        }
-      }
-    },
-    "현재값 비교…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Compare Current Values…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "現在値を比較…"
-          }
-        }
-      }
-    },
     "현재값 사용" : {
       "localizations" : {
         "en" : {
@@ -40596,22 +41159,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "現在値を使用"
-          }
-        }
-      }
-    },
-    "현재값 사용을 선택하면 이 곡의 %@ 편집을 버립니다. 다른 곡과 다른 종류의 초안은 그대로 남깁니다. 저장 뒤 쓰기 미리 보기에서 재검사하며 지원 제한은 유지됩니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Using current values discards this track’s %@ edits. Drafts for other tracks and types are preserved. The write preview checks again after saving, and support limits remain in effect."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "現在値を使うと、この曲の%@の編集を破棄します。他の曲と種類の下書きは保持します。保存後に書き込みのプレビューで再確認し、対応範囲の制限は引き続き適用されます。"
           }
         }
       }

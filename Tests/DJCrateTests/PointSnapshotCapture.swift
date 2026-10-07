@@ -120,7 +120,7 @@ struct PointSnapshotCapture {
 
 /// 확인 창을 그림으로 남기고 확인을 누른다(합성 사본에만 복원한다)
 @MainActor
-final class PointRestoreCapturePrompter: ReflectionPrompter {
+final class PointRestoreCapturePrompter: NoRecoverySheetPrompter {
     let file: URL
     private(set) var count = 0
     init(file: URL) { self.file = file }

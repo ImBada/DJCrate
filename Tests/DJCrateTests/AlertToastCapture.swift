@@ -71,7 +71,7 @@ struct AlertToastCapture {
 
 /// 뜬 창을 그려 남기고 닫는다(모달로 띄우지 않는다).
 @MainActor
-final class SceneCapturingPrompter: ReflectionPrompter {
+final class SceneCapturingPrompter: NoRecoverySheetPrompter {
     let url: URL
     var count = 0
     init(url: URL) { self.url = url }

@@ -30,12 +30,14 @@ extension LibraryStore {
         }
     }
 
-    func preparePlaylistRecovery(playlist id: String) async throws -> PlaylistRecoveryReview {
+    /// - Parameter prefetched: 복구 시트가 재생 목록 줄 여럿을 위해 한 번 읽어 둔 현재 라이브러리(`readPlaylistRecoveryPrefetch`)
+    func preparePlaylistRecovery(playlist id: String, prefetched: PlaylistRecoveryCurrent? = nil) async throws -> PlaylistRecoveryReview {
         guard playlistRecoveryAllowed, !isRecoveringDraft else { throw playlistRecoveryChanged() }
         let original = playlistDraft
         isRecoveringDraft = true
         defer { isRecoveringDraft = false }
-        let current = try await readPlaylistRecoveryCurrent()
+        let current: PlaylistRecoveryCurrent
+        if let prefetched { current = prefetched } else { current = try await readPlaylistRecoveryCurrent() }
         try Task.checkCancellation()
         guard playlistRecoveryAllowed, playlistDraft == original else { throw playlistRecoveryChanged() }
         let review = PlaylistRecoveryReview(original: original, current: current, playlistID: id,
@@ -44,11 +46,13 @@ extension LibraryStore {
         return review
     }
 
-    func applyPlaylistRecovery(_ review: PlaylistRecoveryReview, reapply: Bool) async throws {
+    /// - Parameter latest: 복구 시트가 저장하기 전에 한 번 다시 읽은 현재 라이브러리
+    func applyPlaylistRecovery(_ review: PlaylistRecoveryReview, reapply: Bool, latest prefetched: PlaylistRecoveryCurrent? = nil) async throws {
         guard playlistRecoveryAllowed, !isRecoveringDraft, playlistDraft == review.original else { throw playlistRecoveryChanged() }
         isRecoveringDraft = true
         defer { isRecoveringDraft = false }
-        let current = try await readPlaylistRecoveryCurrent()
+        let current: PlaylistRecoveryCurrent
+        if let prefetched { current = prefetched } else { current = try await readPlaylistRecoveryCurrent() }
         try Task.checkCancellation()
         guard playlistRecoveryAllowed, playlistDraft == review.original, current == review.current else { throw playlistRecoveryChanged() }
         var resolved = review.original
@@ -78,7 +82,18 @@ extension LibraryStore {
         .writeRefused(String(ui: "비교 중 입력이나 현재값이 바뀌어 초안을 그대로 남겼으니 현재값을 다시 가져오세요."))
     }
 
+    /// 복구 시트가 재생 목록 줄 전체를 위해 현재 라이브러리를 한 번 읽는다(줄마다 사본을 뜨지 않게, #232).
+    func readPlaylistRecoveryPrefetch() async throws -> PlaylistRecoveryCurrent {
+        guard playlistRecoveryAllowed, !isRecoveringDraft else { throw playlistRecoveryChanged() }
+        isRecoveringDraft = true
+        defer { isRecoveringDraft = false }
+        let current = try await readPlaylistRecoveryCurrent()
+        try Task.checkCancellation()
+        return current
+    }
+
     private func readPlaylistRecoveryCurrent() async throws -> PlaylistRecoveryCurrent {
+        recoverySnapshotReads += 1
         let source: URL
         if Self.explicitDatabaseRequested(arguments: launchArguments, environment: launchEnvironment), let snapshotURL {
             source = snapshotURL

@@ -113,6 +113,15 @@ final class ScriptedPrompter: ReflectionPrompter {
         if !choices.isEmpty { return choices.removeFirst() }
         return answer ? .confirm : .cancel
     }
+    /// 막힌 초안 복구 시트(#232): 창을 띄우지 않고 줄을 읽은 뒤 시험이 정한 동작(`onReview`, 없으면 취소)을 한다.
+    var reviewed: [RecoverySheetModel] = []
+    var onReview: ((RecoverySheetModel) async -> Void)?
+    func review(_ model: RecoverySheetModel) async {
+        reviewed.append(model)
+        await model.load()
+        if let onReview { await onReview(model) } else { model.cancel() }
+        model.cancel()
+    }
 }
 
 @MainActor

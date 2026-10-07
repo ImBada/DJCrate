@@ -37,8 +37,12 @@ enum LibraryMenuAction: CaseIterable {
 
     @MainActor func menuTitle(in store: LibraryStore) -> String { title }
 
+    /// rekordbox 라이브러리에 쓰는 동작(막힌 초안 비교 창이 열려 있는 동안은 막는다, #232)
+    private var writesLibrary: Bool { self == .reflect || self == .restore || self == .removeTracks }
+
     @MainActor func isEnabled(in store: LibraryStore) -> Bool {
         guard store.writeLockPolicy.allowsLibraryInteraction else { return false }
+        if writesLibrary, store.writesBlockedBySheet { return false }
         switch self {
         case .addFiles: return !store.rows.isEmpty
         case .importAppleMusic: return !store.isLoading
@@ -56,6 +60,7 @@ enum LibraryMenuAction: CaseIterable {
     }
 
     @MainActor func perform(in store: LibraryStore) {
+        if writesLibrary, store.writesBlockedBySheet { store.announceWritesBlockedBySheet(); return }
         guard isEnabled(in: store) else {
             if let reason = disabledReason(in: store) { store.stagingMessage = AppMessage(kind: .warning, text: reason) }
             return
@@ -81,6 +86,7 @@ enum LibraryMenuAction: CaseIterable {
     @MainActor func disabledReason(in store: LibraryStore) -> String? {
         guard !isEnabled(in: store) else { return nil }
         if !store.writeLockPolicy.allowsLibraryInteraction { return String(ui: "rekordbox 쓰기가 끝난 뒤 다시 시도하세요") }
+        if writesLibrary, store.writesBlockedBySheet { return LibraryStore.writesBlockedBySheetReason }
         switch self {
         case .snapshot:
             if store.isLoading || store.isSynchronizingLibrary { return String(ui: "라이브러리 읽기가 끝난 뒤 다시 동기화하세요") }

@@ -26,7 +26,7 @@ struct TrackEditView: View {
                     .background(UIColors.subtleFill, in: RoundedRectangle(cornerRadius: 8))
                 if let store, store.recoveryKinds(for: model.row).contains(.grid) {
                     Button(.ui("그리드 현재값 가져오기…")) {
-                        DraftRecoveryPanels.recover(store: store, row: model.row, kind: .grid)
+                        DraftRecoveryPanels.recover(store: store, row: model.row, kind: .grid, anchor: .editWindow)
                     }
                 }
                 Spacer(minLength: 0)
@@ -58,6 +58,8 @@ struct TrackEditView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         // 덱을 다시 재생하면 창의 재생은 멈춘다(두 소리가 겹치지 않게).
         .onChange(of: deck.isPlaying) { _, playing in if playing { model.pause() } }
+        // 이 창에서 연 막힌 초안 복구 시트는 이 창에 붙인다(#232).
+        .modifier(RecoverySheetHost(store: store, anchor: .editWindow))
     }
 }
 
