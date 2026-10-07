@@ -28,6 +28,23 @@ public enum DJCIdentity {
         dataDirectory(environment: ProcessInfo.processInfo.environment, support: supportDirectory)
     }
 
+    /// 설치한 앱의 로그 폴더(`~/Library/Logs/DJCrate`). 환경·시험 여부와 상관없이 늘 이 경로다.
+    public static var userLogsDirectory: URL { URL.libraryDirectory.appending(path: "Logs/\(name)") }
+
+    /// 오디오 사건 기록 같은 로그의 폴더. `DJC_HOME`을 주면 그 아래 `logs/`, 시험 프로세스는 임시 폴더,
+    /// 아니면 `userLogsDirectory`(#218: 시험·자가 테스트가 실제 로그에 썼다).
+    public static var logsDirectory: URL {
+        logsDirectory(environment: ProcessInfo.processInfo.environment,
+                      fallback: TestProcess.isRunning ? TestProcess.sandbox.appending(path: "logs") : userLogsDirectory)
+    }
+
+    public static func logsDirectory(environment: [String: String], fallback: URL) -> URL {
+        if let override = environment["DJC_HOME"], !override.isEmpty {
+            return URL(filePath: override).appending(path: "logs")
+        }
+        return fallback
+    }
+
     public static func dataDirectory(environment: [String: String], support: URL) -> URL {
         if let override = environment["DJC_HOME"], !override.isEmpty {
             return URL(filePath: override)

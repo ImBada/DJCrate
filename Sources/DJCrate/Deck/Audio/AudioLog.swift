@@ -1,4 +1,5 @@
 import AVFoundation
+import DJCDomain
 import Foundation
 
 /// `DJC_AUDIO_DEBUG=1`이면 재생 경로를 표준 오류에 기록한다.
@@ -11,11 +12,12 @@ enum AudioDebug {
     }
 }
 
-/// 상시 오디오 사건 기록(`~/Library/Logs/DJCrate/audio.log`). 재생·정지·구성 변경·복구만 짧게 남긴다.
+/// 상시 오디오 사건 기록(`~/Library/Logs/DJCrate/audio.log`, `DJC_HOME`이 있으면 `$DJC_HOME/logs/audio.log`). 재생·정지·구성 변경·복구만 짧게 남긴다.
 /// "소리가 안 나온다"가 다시 생기면 이 파일로 무슨 일이 있었는지 본다. 1MB를 넘으면 새로 시작한다.
 enum AudioEvents {
     private static let queue = DispatchQueue(label: "djc.audio-events", qos: .utility)
-    private static let url = URL.libraryDirectory.appending(path: "Logs/DJCrate/audio.log")
+    /// `DJC_HOME`이 있으면 그 아래 `logs/`, 시험 프로세스는 임시 폴더(#218: 시험이 실제 로그에 썼다)
+    static let url = DJCIdentity.logsDirectory.appending(path: "audio.log")
     static func record(_ message: String) {
         AudioDebug.log(message)
         let line = "\(Date.now.formatted(.iso8601)) \(message)\n"
@@ -34,4 +36,7 @@ enum AudioEvents {
             }
         }
     }
+
+    /// 지금까지 맡긴 기록을 다 쓸 때까지 기다린다(시험용).
+    static func flush() { queue.sync {} }
 }
