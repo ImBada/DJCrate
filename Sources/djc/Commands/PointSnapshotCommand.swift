@@ -37,10 +37,12 @@ enum PointSnapshotCommand {
         }
     }
 
+    /// 자동 스냅샷 보관 일수는 앱 설정(설정 › 저장 공간)을 따른다. 앱이 데이터 폴더의 공유 파일에 적어 둔 값을 읽는다.
     static func run(_ args: [String], now: Date = .now, guard writeGuard: RekordboxWriteGuard = .system,
-                    autoDays: Int = Int(SettingKeys.pointSnapshotAutoDays.defaultValue)) throws -> String {
+                    sharedSettings: URL = SharedSettingsFile.file) throws -> String {
         guard args.count > 1 else { throw UsageError() }
         let target = try Target(args)
+        let autoDays = Int(SharedSettingsFile.value(SettingKeys.pointSnapshotAutoDays, in: sharedSettings))
         switch args[1] {
         case "create":
             let entry = try RekordboxPointSnapshot.create(name: value(after: "--name", in: args) ?? "", database: target.database,

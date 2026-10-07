@@ -377,8 +377,11 @@ final class LibraryStore {
     /// rekordbox 쓰기 단계 안내(있으면 창 전체를 덮어 조작을 막는다. 확인 창이 떠 있는 동안은 nil)
     var writeStage: WriteStage?
     /// rekordbox에 쓰는 중(미리 보기 포함)
+    /// rekordbox 쓰기를 시작한 횟수(자동 시점 스냅샷이 뜨는 동안 쓰기가 끼어들었는지 본다, #228)
+    @ObservationIgnored private(set) var rekordboxWriteCount = 0
     var isWritingRekordbox = false {
         didSet {
+            if isWritingRekordbox, !oldValue { rekordboxWriteCount += 1 }
             if isWritingRekordbox { undoManager?.removeAllActions(withTarget: self) }
             // 쓰기·되돌리기 실패 때도 백업이 남거나 정리될 수 있다.
             if oldValue && !isWritingRekordbox { refreshWriteBackups() }

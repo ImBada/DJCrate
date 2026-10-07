@@ -55,13 +55,50 @@ struct StorageSettingsTests {
         try scene.write("point-snapshots/2026-01-01T000000Z-manual/master.db", bytes: 4_000)
         try scene.write("point-snapshots/.partial-x/master.db", bytes: 100)
         let defaults = try #require(UserDefaults(suiteName: "djc.test.storage.points.\(UUID())"))
-        let model = StorageSettingsModel(paths: scene.paths, settings: SettingsStore(defaults: defaults, persist: true))
+        let shared = scene.root.appending(path: "shared-settings.json")
+        let model = StorageSettingsModel(paths: scene.paths, settings: SettingsStore(defaults: defaults, persist: true, sharedFile: shared))
         await model.refresh()
         #expect(model.backups.first { $0.kind == .pointSnapshots } == .init(kind: .pointSnapshots, count: 1, bytes: 4_000), "뜨는 중인 폴더는 세지 않는다")
         #expect(model.autoSnapshotDays == 7)
         model.autoSnapshotDays = 14
         #expect(defaults.double(forKey: SettingKeys.pointSnapshotAutoDays.name) == 14)
         #expect(StorageSettingsModel(paths: scene.paths, settings: SettingsStore(defaults: defaults, persist: true)).autoSnapshotDays == 14)
+        // CLI(다른 프로세스)도 같은 값을 읽게 데이터 폴더의 공유 파일에도 적는다
+        #expect(SharedSettingsFile.value(SettingKeys.pointSnapshotAutoDays, in: shared) == 14)
+    }
+
+    @Test func 자동_시점_스냅샷은_기본으로_켜고_끄면_저장한다() throws {
+        let defaults = try #require(UserDefaults(suiteName: "djc.test.storage.auto.\(UUID())"))
+        let settings = SettingsStore(defaults: defaults, persist: true, sharedFile: nil)
+        let model = StorageSettingsModel(settings: settings)
+        #expect(model.autoSnapshotEnabled)
+        model.autoSnapshotEnabled = false
+        #expect(!settings.value(SettingKeys.pointSnapshotAuto))
+    }
+
+    @Test func 다른_디스크라_클론이_안_되면_자동_스냅샷을_뜨지_않는다고_알린다() async throws {
+        let scene = try scene()
+        defer { try? FileManager.default.removeItem(at: scene.root) }
+        let cloning = StorageSettingsModel(paths: scene.paths, canClone: { true })
+        await cloning.refresh()
+        #expect(cloning.autoSnapshotNote == nil)
+        let other = StorageSettingsModel(paths: scene.paths, canClone: { false })
+        await other.refresh()
+        #expect(other.autoSnapshotNote?.contains("다른 디스크") == true, "\(other.autoSnapshotNote ?? "")")
+    }
+
+    @Test func 앱을_켜면_지금_설정을_공유_파일에_맞춘다() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: "djc-shared-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let defaults = try #require(UserDefaults(suiteName: "djc.test.storage.sync.\(UUID())"))
+        defaults.set(21.0, forKey: SettingKeys.pointSnapshotAutoDays.name)
+        let shared = root.appending(path: "shared-settings.json")
+        SettingsStore(defaults: defaults, persist: true, sharedFile: shared).syncShared()
+        #expect(SharedSettingsFile.value(SettingKeys.pointSnapshotAutoDays, in: shared) == 21)
+        // 자가 테스트(설정을 쓰지 않는 실행)는 파일을 만들지 않는다
+        let other = root.appending(path: "other.json")
+        SettingsStore(defaults: defaults, persist: false, sharedFile: other).syncShared()
+        #expect(!FileManager.default.fileExists(atPath: other.path))
     }
 
     @Test func 종류를_비우면_확인_없이_지우고_한_줄로_알리고_용량을_다시_읽는다() async throws {
