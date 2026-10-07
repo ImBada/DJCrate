@@ -7707,18 +7707,18 @@
         }
       }
     },
-    "create [--name 이름] | list | pin|unpin|delete <ID> — (--db <사본.db> [--share <폴더>] | --live)" : {
+    "create [--name 이름] | list | diff|restore|pin|unpin|delete <ID> — (--db <사본.db> [--share <폴더>] | --live)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "create [--name NAME] | list | pin|unpin|delete <ID> — (--db <copy.db> [--share <folder>] | --live)"
+            "value" : "create [--name NAME] | list | diff|restore|pin|unpin|delete <ID> — (--db <copy.db> [--share <folder>] | --live)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "create [--name 名前] | list | pin|unpin|delete <ID> — (--db <コピー.db> [--share <フォルダ>] | --live)"
+            "value" : "create [--name 名前] | list | diff|restore|pin|unpin|delete <ID> — (--db <コピー.db> [--share <フォルダ>] | --live)"
           }
         }
       }
@@ -8488,6 +8488,22 @@
         }
       }
     },
+    "rekordbox 라이브러리 전체(DB·재생 목록·분석 파일·앨범아트)를 %@ 시점으로 되돌립니다. 그 뒤 rekordbox와 DJCrate에서 바꾼 것은 사라집니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The whole rekordbox library (database, playlists, analysis files, album art) goes back to %@. Changes made in rekordbox and DJCrate after that are lost."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxライブラリ全体（DB・プレイリスト・解析ファイル・アルバムアート）を%@の時点に戻します。その後rekordboxとDJCrateで変更した内容は失われます。"
+          }
+        }
+      }
+    },
     "rekordbox 라이브러리 전체를 선택한 백업의 쓰기 전 상태로 복원했습니다." : {
       "localizations" : {
         "en" : {
@@ -8628,6 +8644,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxライブラリやDJCrateのデータフォルダにはUSBとして書き込めません。USBボリュームを選んでください"
+          }
+        }
+      }
+    },
+    "rekordbox 라이브러리를 고른 시점으로 되돌립니다(rekordbox를 끈 뒤)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restores the rekordbox library to the selected point (with rekordbox closed)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxライブラリを選んだ時点に戻します（rekordboxを終了してから）"
           }
         }
       }
@@ -9830,6 +9862,22 @@
         }
       }
     },
+    "rekordbox가 켜져 있어 복원하지 않았습니다. rekordbox를 완전히 종료한 뒤 다시 누르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox is running, so nothing was restored. Quit rekordbox completely and try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxが起動しているため復元しませんでした。rekordboxを完全に終了してからもう一度押してください"
+          }
+        }
+      }
+    },
     "rekordbox가 켜져 있어 빼지 않았습니다" : {
       "localizations" : {
         "en" : {
@@ -9934,6 +9982,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxは復元しましたが、下書きを保存できませんでした。"
+          }
+        }
+      }
+    },
+    "rekordbox를 ‘%@’ 시점으로 복원할까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore rekordbox to “%@”?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxを「%@」の時点に復元しますか？"
           }
         }
       }
@@ -10078,6 +10142,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxを終了してから、スナップショットを取り直してください。"
+          }
+        }
+      }
+    },
+    "rekordbox를 켜지 말고 rekordbox › 시점 스냅샷…에서 ‘복원 직전’ 스냅샷으로 복원하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do not open rekordbox. Restore the “Before Restore” point from rekordbox › Restore Points…."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxを起動せず、rekordbox › 復元ポイント…で「復元直前」のポイントに復元してください。"
           }
         }
       }
@@ -11200,6 +11280,22 @@
         }
       }
     },
+    "‘%@’ 복원 전" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Before restoring “%@”"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」の復元前"
+          }
+        }
+      }
+    },
     "‘%@’ 빼기" : {
       "localizations" : {
         "en" : {
@@ -11212,6 +11308,60 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "「%@」を外す"
+          }
+        }
+      }
+    },
+    "‘%@’ 시점으로 복원하면:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restoring to “%@” will:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」の時点に復元すると:"
+          }
+        }
+      }
+    },
+    "‘%@’ 시점으로 복원했습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restored to “%@”."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」の時点に復元しました。"
+          }
+        }
+      }
+    },
+    "‘%@’ 시점으로 복원했습니다. 복원 전 상태는 ‘복원 직전’ 스냅샷(%@)으로 남겼습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restored to “%1$@”. The previous state was saved as a “Before Restore” point (%2$@)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」の時点に復元しました。復元前の状態は「復元直前」のポイント（%2$@）に残しました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "‘%1$@’ 시점으로 복원했습니다. 복원 전 상태는 ‘복원 직전’ 스냅샷(%2$@)으로 남겼습니다."
           }
         }
       }
@@ -11412,6 +11562,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "‘%1$@’: %2$@"
+          }
+        }
+      }
+    },
+    "‘%@’과 지금 라이브러리가 같습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” matches the current library."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」と現在のライブラリは同じです。"
           }
         }
       }
@@ -14202,6 +14368,38 @@
         }
       }
     },
+    "곡 정보가 바뀌는 곡" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks whose information changes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲情報が変わる曲"
+          }
+        }
+      }
+    },
+    "곡 정보가 바뀌는 곡 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Track information changes: %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲情報が変わる曲 %lld"
+          }
+        }
+      }
+    },
     "곡 정보가 이미 저장된 분석 전 곡이라 분석을 붙이지 않습니다. rekordbox에서 트랙 분석을 하세요" : {
       "localizations" : {
         "en" : {
@@ -15528,6 +15726,38 @@
         }
       }
     },
+    "그리드·분석이 바뀌는 곡" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks whose grid or analysis changes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グリッド・解析が変わる曲"
+          }
+        }
+      }
+    },
+    "그리드·분석이 바뀌는 곡 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grid or analysis changes: %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グリッド・解析が変わる曲 %lld"
+          }
+        }
+      }
+    },
     "그리드·파형·오토게인까지" : {
       "localizations" : {
         "en" : {
@@ -16388,6 +16618,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "終わるまでrekordboxを起動しないでください"
+          }
+        }
+      }
+    },
+    "끝날 때까지 rekordbox를 켜지 마세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do not open rekordbox until it finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終わるまでrekordboxを起動しないでください。"
           }
         }
       }
@@ -17594,6 +17840,22 @@
         }
       }
     },
+    "담았다고 적힌 %@ 폴더가 없거나 링크임" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the %@ folder listed in it is missing or a link"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記録された%@フォルダがないか、リンクです"
+          }
+        }
+      }
+    },
     "대상 곡이 rekordbox 컬렉션에서 사라졌으니 이 편집을 버리고 곡을 다시 선택하세요." : {
       "localizations" : {
         "en" : {
@@ -18022,6 +18284,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "デッキの拡大波形・全体波形と曲リストのプレビューに適用します。"
+          }
+        }
+      }
+    },
+    "돌아오는 재생 목록" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists that come back"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "戻るプレイリスト"
           }
         }
       }
@@ -21416,6 +21694,70 @@
         }
       }
     },
+    "바뀌는 분석 파일 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analysis files changed: %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変わる解析ファイル %lld"
+          }
+        }
+      }
+    },
+    "바뀌는 앨범아트 파일 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album art files changed: %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変わるアルバムアートファイル %lld"
+          }
+        }
+      }
+    },
+    "바뀌는 재생 목록" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists that change"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変わるプレイリスト"
+          }
+        }
+      }
+    },
+    "바뀌는 재생 목록 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists changed: %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変わるプレイリスト %lld"
+          }
+        }
+      }
+    },
     "박 어긋남 %lld" : {
       "localizations" : {
         "en" : {
@@ -22256,6 +22598,22 @@
         }
       }
     },
+    "복원 전으로 돌리려면: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To undo the restore: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元前に戻すには: %@"
+          }
+        }
+      }
+    },
     "복원 직전" : {
       "localizations" : {
         "en" : {
@@ -22320,6 +22678,22 @@
         }
       }
     },
+    "복원하면 바뀌는 것" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What Restoring Changes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元で変わる内容"
+          }
+        }
+      }
+    },
     "복원하지 못했습니다" : {
       "localizations" : {
         "en" : {
@@ -22332,6 +22706,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "復元できませんでした"
+          }
+        }
+      }
+    },
+    "복원하지 않았습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Restored"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元しませんでした"
+          }
+        }
+      }
+    },
+    "복원한 %@ 폴더의 파일이 스냅샷과 다릅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The files in the restored %@ folder differ from the restore point"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元した%@フォルダのファイルが復元ポイントと異なります"
+          }
+        }
+      }
+    },
+    "복원한 라이브러리 ID가 스냅샷과 다릅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The restored library ID differs from the restore point"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元したライブラリIDが復元ポイントと異なります"
           }
         }
       }
@@ -23536,6 +23958,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "削除した%lld曲は、キュー・プレイリスト・解析ファイル・アルバムアートとともに復元されます。"
+          }
+        }
+      }
+    },
+    "사라지는 재생 목록" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists that disappear"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "なくなるプレイリスト"
           }
         }
       }
@@ -24820,6 +25258,22 @@
         }
       }
     },
+    "스냅샷 정보(snapshot.json)가 없거나 손상됨" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the restore point information (snapshot.json) is missing or damaged"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイントの情報（snapshot.json）がないか破損しています"
+          }
+        }
+      }
+    },
     "스냅샷 폴더: %@" : {
       "localizations" : {
         "en" : {
@@ -25346,6 +25800,28 @@
         }
       }
     },
+    "시점 스냅샷 복원을 마치지 못했고 복원 전으로 자동으로 돌리지도 못했습니다. rekordbox 라이브러리(master.db)와 분석 파일이 어떤 상태인지 알 수 없습니다.\nrekordbox를 켜지 말고 먼저 복원 직전 시점 스냅샷으로 되돌리세요: %@\n실패: %@\n되돌리기 실패: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The restore did not finish and could not be undone automatically. The state of the rekordbox library (master.db) and analysis files is unknown.\nDo not open rekordbox; first restore the “Before Restore” point: %1$@\nFailure: %2$@\nUndo failure: %3$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元を完了できず、復元前に自動で戻すこともできませんでした。rekordboxライブラリ（master.db）と解析ファイルの状態が分かりません。\nrekordboxを起動せず、まず復元直前の復元ポイントに戻してください: %1$@\n失敗: %2$@\n戻す処理の失敗: %3$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "시점 스냅샷 복원을 마치지 못했고 복원 전으로 자동으로 돌리지도 못했습니다. rekordbox 라이브러리(master.db)와 분석 파일이 어떤 상태인지 알 수 없습니다.\nrekordbox를 켜지 말고 먼저 복원 직전 시점 스냅샷으로 되돌리세요: %1$@\n실패: %2$@\n되돌리기 실패: %3$@"
+          }
+        }
+      }
+    },
     "시점 스냅샷 정보(snapshot.json)를 읽지 못했습니다. 스냅샷 목록을 새로 고친 뒤 다시 고르세요" : {
       "localizations" : {
         "en" : {
@@ -25378,18 +25854,18 @@
         }
       }
     },
-    "시점 스냅샷(DB·분석 파일·앨범아트를 한 시점으로) 만들기·목록·고정" : {
+    "시점 스냅샷(DB·분석 파일·앨범아트를 한 시점으로) 만들기·목록·비교·복원·고정" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Create, list, and pin restore points (database, analysis files, and album art at one point in time)"
+            "value" : "Create, list, compare, restore, and pin restore points (database, analysis files, and album art at one point in time)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "復元ポイント（DB・解析ファイル・アルバムアートをひとつの時点で）の作成・一覧・ピン留め"
+            "value" : "復元ポイント（DB・解析ファイル・アルバムアートをひとつの時点で）の作成・一覧・比較・復元・ピン留め"
           }
         }
       }
@@ -25406,6 +25882,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "復元ポイント…"
+          }
+        }
+      }
+    },
+    "시점 스냅샷으로 복원하는 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restoring to the restore point…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイントに復元中…"
           }
         }
       }
@@ -25438,6 +25930,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "復元ポイントを作成しました: %@"
+          }
+        }
+      }
+    },
+    "시점 스냅샷을 복원할 수 없습니다: %@. 목록에서 다른 스냅샷을 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This restore point cannot be restored: %@. Choose another restore point from the list."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この復元ポイントは復元できません: %@。一覧から別の復元ポイントを選んでください"
           }
         }
       }
@@ -28586,6 +29094,22 @@
         }
       }
     },
+    "외 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "and %lld more"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ほか%lld個"
+          }
+        }
+      }
+    },
     "외장 디스크 연결 안 됨: %@" : {
       "localizations" : {
         "en" : {
@@ -30394,6 +30918,22 @@
         }
       }
     },
+    "이 백업 뒤에 시점 스냅샷으로 복원해서 쓰기 전 백업으로는 분석 파일까지 맞출 수 없습니다. rekordbox › 시점 스냅샷…에서 ‘복원 직전’ 스냅샷이나 그 전 시점을 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The library was restored to a restore point after this backup, so this pre-write backup cannot bring the analysis files back in step. Choose the “Before Restore” point or an earlier one in rekordbox › Restore Points…."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このバックアップの後に復元ポイントへ復元したため、書き込み前のバックアップでは解析ファイルまで合わせられません。rekordbox › 復元ポイント…で「復元直前」のポイントかそれ以前の時点を選んでください"
+          }
+        }
+      }
+    },
     "이 변속 지점 삭제" : {
       "localizations" : {
         "en" : {
@@ -30454,6 +30994,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このサンプルレートのffmpeg VBR MP3は解析規則が未確認のため、先にrekordboxで解析してください。"
+          }
+        }
+      }
+    },
+    "이 스냅샷 뒤에 클라우드 동기화가 있었습니다. rekordbox를 켜면 동기화가 복원한 내용 일부를 다시 바꿀 수 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud sync ran after this restore point. When rekordbox opens, sync may change some of the restored content again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この復元ポイントの後にクラウド同期がありました。rekordboxを起動すると、同期が復元した内容の一部を再び変更する場合があります。"
+          }
+        }
+      }
+    },
+    "이 시점으로 복원" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore to This Point"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この時点に復元"
+          }
+        }
+      }
+    },
+    "이 시점으로 복원…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore to This Point…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この時点に復元…"
+          }
+        }
+      }
+    },
+    "이 시점으로 복원하면 무엇이 바뀌는지 봅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows what restoring to this point would change"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この時点に復元すると何が変わるかを表示します"
           }
         }
       }
@@ -31644,6 +32248,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分割する結果がないため、原曲の区間を先に結果へ追加してください"
+          }
+        }
+      }
+    },
+    "자세히" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詳細"
           }
         }
       }
@@ -33166,6 +33786,22 @@
         }
       }
     },
+    "정보에 없는 %@ 폴더가 있음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "it contains a %@ folder not listed in its information"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "情報にない%@フォルダがあります"
+          }
+        }
+      }
+    },
     "제목" : {
       "localizations" : {
         "en" : {
@@ -33774,6 +34410,22 @@
         }
       }
     },
+    "지금 라이브러리와 다른 곳이 없습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No differences from the current library."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のライブラリとの違いはありません。"
+          }
+        }
+      }
+    },
     "지금 목록에서 몇 번째 곡인지" : {
       "localizations" : {
         "en" : {
@@ -33802,6 +34454,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今接続されているUSBには書き込んでいません。元のUSBを機器に挿さず、このMacに接続し直してください。接続し直すと表示される通知から回復できます。"
+          }
+        }
+      }
+    },
+    "지금 상태는 ‘복원 직전’ 스냅샷으로 남겨 다시 되돌릴 수 있습니다. DJCrate 초안은 그대로 둡니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current state is saved as a “Before Restore” point so you can go back. DJCrate drafts are kept."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在の状態は「復元直前」のポイントとして残すので、また戻せます。DJCrateの下書きはそのままです。"
           }
         }
       }
@@ -35486,6 +36154,38 @@
         }
       }
     },
+    "컬렉션에 돌아오는 곡" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks that return to the collection"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コレクションに戻る曲"
+          }
+        }
+      }
+    },
+    "컬렉션에 돌아오는 곡 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks returning to the collection: %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コレクションに戻る曲 %lld"
+          }
+        }
+      }
+    },
     "컬렉션에 들어간 곡은 재생 목록 초안에 연결합니다. 목록은 ‘rekordbox에 쓰기’로 만듭니다." : {
       "localizations" : {
         "en" : {
@@ -35514,6 +36214,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "コレクションにありません"
+          }
+        }
+      }
+    },
+    "컬렉션에서 빠지는 곡" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks removed from the collection"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コレクションから外れる曲"
+          }
+        }
+      }
+    },
+    "컬렉션에서 빠지는 곡 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks removed from the collection: %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コレクションから外れる曲 %lld"
           }
         }
       }
@@ -36558,6 +37290,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キュー・タグの下書きを作成・削除（docs/cli.md）"
+          }
+        }
+      }
+    },
+    "큐가 바뀌는 곡" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks whose cues change"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キューが変わる曲"
+          }
+        }
+      }
+    },
+    "큐가 바뀌는 곡 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cue changes: %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キューが変わる曲 %lld"
           }
         }
       }
@@ -39704,6 +40468,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "現在値を使うと、この曲の%@の編集を破棄します。他の曲と種類の下書きは保持します。保存後に書き込みのプレビューで再確認し、対応範囲の制限は引き続き適用されます。"
+          }
+        }
+      }
+    },
+    "현재와 비교" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compare with Current"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在と比較"
           }
         }
       }

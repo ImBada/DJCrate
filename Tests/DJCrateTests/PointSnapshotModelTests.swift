@@ -99,4 +99,65 @@ struct PointSnapshotModelTests {
         await model.create()
         #expect(model.isError && model.rows.isEmpty)
     }
+
+    // MARK: - 비교·복원(#225)
+
+    func title(_ fixture: RekordboxFixture, _ id: String) throws -> String? {
+        try fixture.rows("SELECT Title FROM djmdContent WHERE ID = ?", [.text(id)]).first?["Title"]
+    }
+
+    @Test func 복원은_비교한_뒤_한_번만_묻고_취소하면_그대로_두고_확인하면_되돌린다() async throws {
+        let fixture = try RekordboxFixture()
+        var track = TrackSpec(id: "501")
+        track.title = "원래 제목"
+        try fixture.add(track)
+        let prompter = ScriptedPrompter()
+        let model = model(fixture, prompter: prompter, clock: Date())
+        model.newName = "정리 전"
+        await model.create()
+        try fixture.execute("UPDATE djmdContent SET Title = '바꾼 제목' WHERE ID = '501'")
+        let row = try #require(model.rows.first { $0.entry != nil })
+
+        prompter.answer = false
+        await model.restore(row)
+        #expect(prompter.shown.count == 1)
+        #expect(try title(fixture, "501") == "바꾼 제목")
+        let prompt = try #require(prompter.shown.first)
+        #expect(prompt.title.contains("정리 전") && prompt.destructive && prompt.confirm == "이 시점으로 복원")
+        #expect(prompt.details.contains { $0.contains("곡 정보가 바뀌는 곡 1") })
+        #expect(prompt.text.contains("초안은 그대로"))
+        #expect(model.comparison?.tagsChanged == ["바꾼 제목"], "비교 결과도 창에 남는다")
+
+        prompter.answer = true
+        await model.restore(row)
+        #expect(prompter.shown.count == 2)
+        #expect(try title(fixture, "501") == "원래 제목")
+        #expect(model.isError == false, "\(model.message ?? "")")
+        #expect(model.rows.contains { $0.entry?.metadata.kind == .beforeRestore && $0.name == "‘정리 전’ 복원 전" })
+    }
+
+    @Test func rekordbox가_켜져_있으면_묻지_않고_이유를_알린다() async throws {
+        let fixture = try RekordboxFixture()
+        let prompter = ScriptedPrompter()
+        _ = try RekordboxPointSnapshot.create(name: "전", database: fixture.database, shareRoot: nil, in: fixture.root.appending(path: "point-snapshots"),
+                                             autoDays: 7, now: now, guard: Self.copyGuard)
+        let running = RekordboxWriteGuard(isLive: { _ in true }, isRekordboxRunning: { true }, appVersion: { "7.2.18" })
+        let model = model(fixture, prompter: prompter, guard: running)
+        await model.refresh()
+        await model.restore(try #require(model.rows.first))
+        #expect(prompter.shown.isEmpty && model.isError)
+        #expect(model.message?.contains("rekordbox를 완전히 종료") == true)
+    }
+
+    @Test func 스냅샷_뒤_클라우드_동기화가_있었으면_확인_창에_한_줄_알린다() throws {
+        let entry = RekordboxPointSnapshot.Entry(url: URL(filePath: "/tmp/x"),
+                                                 metadata: .init(name: "전", kind: .manual, createdAt: now, cloudUpdateCount: 100))
+        var diff = RekordboxPointSnapshotDiff()
+        diff.currentCloudUpdateCount = 100
+        #expect(!PointSnapshotModel.restoreConfirmation(entry, diff: diff).text.contains("클라우드"))
+        diff.currentCloudUpdateCount = 120
+        let prompt = PointSnapshotModel.restoreConfirmation(entry, diff: diff)
+        #expect(prompt.text.contains("클라우드 동기화"))
+        #expect(prompt.text.contains("다른 곳이 없습니다"))
+    }
 }
