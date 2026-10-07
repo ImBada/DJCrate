@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """합성 명령만으로 검사 스크립트의 실패·파이프·취소·로그 보존을 확인한다."""
+import json
 import os
 from pathlib import Path
 import shutil
@@ -15,6 +16,13 @@ CASES = {
     "test-fail": 26, "coverage-fail": 27, "pipe-fail": 28,
     "low-coverage": 1, "empty-coverage": 1, "ok": 0, "split-output": 0, "empty-output": 0, "partial-output": 0,
     "term": 143, "int": 130, "int-group": 130,
+    "user-folder-write": 4, "log-folder-write": 4, "app-running-write": 0,
+}
+# 시험이 DJCrate 사용자 폴더·로그 폴더에 쓰는 경우(#218). 합성 HOME 아래만 쓴다.
+LEAKS = {
+    "user-folder-write": "Library/Application Support/DJCrate/waveforms/leak.json",
+    "log-folder-write": "Library/Logs/DJCrate/audio.log",
+    "app-running-write": "Library/Application Support/DJCrate/loudness.json",
 }
 CANCELLATIONS = {"term", "int", "int-group"}
 DEBUG = "build --build-tests --enable-code-coverage"
@@ -73,8 +81,8 @@ def prepare(root):
     (root / "bin").mkdir()
     (root / ".build/out/Products/Debug/FakeTests.xctest/Contents/MacOS").mkdir(parents=True)
     shutil.copy(SOURCE, root / "scripts/check.sh")
-    (root / "bin/swift").write_text(f"#!{sys.executable}\n" + r'''
-import os, pathlib, subprocess, sys, time
+    (root / "bin/swift").write_text(f"#!{sys.executable}\n" + (r'''
+import json, os, pathlib, subprocess, sys, time
 args = sys.argv[1:]
 mode = os.environ["CASE"]
 root = pathlib.Path.cwd()
@@ -110,6 +118,12 @@ if mode in ("term", "int", "int-group") and args[0] == "build":
     print("취소 전 출력", flush=True)
     child.wait()
 if args[0] == "test":
+    leaks = json.loads(os.environ["LEAKS"])
+    if mode in leaks:
+        leak = pathlib.Path(os.environ["HOME"]) / leaks[mode]
+        leak.parent.mkdir(parents=True, exist_ok=True)
+        with open(leak, "a") as file:
+            file.write("시험이 쓴 줄\n")
     if mode == "test-fail":
         print("error: 합성 테스트 실패", flush=True)
         sys.exit(26)
@@ -124,7 +138,7 @@ if args[0] == "test":
         sys.exit(0)
     print("✔ Test synthetic() passed after 0.1 seconds.")
     print("✔ Test run with 1 test passed after 0.1 seconds.")
-''')
+'''))
     (root / "bin/git").write_text('''#!/bin/sh
 if [ "$1" = rev-parse ]; then
     echo synthetic-head
@@ -149,6 +163,17 @@ if [ "$CASE" = split-output ] && [ "$1" = 30 ]; then
 fi
 exec /bin/sleep "$@"
 ''')
+    (root / "bin/pgrep").write_text('''#!/bin/sh
+if [ "$1" = -f ]; then
+    [ "$CASE" = app-running-write ] && echo 4242 && exit 0
+    exit 1
+fi
+exec /usr/bin/pgrep "$@"
+''')
+    # 합성 HOME: 실제 사용자 폴더를 보지도 쓰지도 않고, 이미 있는 사용자 파일은 그대로 두는 경우를 함께 본다.
+    existing = root / "home/Library/Application Support/DJCrate/cue-drafts/existing.json"
+    existing.parent.mkdir(parents=True)
+    existing.write_text("{}")
     for executable in (root / "bin").iterdir():
         executable.chmod(0o755)
 
@@ -157,7 +182,8 @@ def check_case(case, expected):
     with tempfile.TemporaryDirectory(prefix="djc-check-contract-") as directory:
         root = Path(directory)
         prepare(root)
-        env = dict(os.environ, PATH=str(root / "bin") + ":" + os.environ["PATH"], CASE=case)
+        env = dict(os.environ, PATH=str(root / "bin") + ":" + os.environ["PATH"], CASE=case, HOME=str(root / "home"),
+                   LEAKS=json.dumps(LEAKS))
         env.pop("DJC_CHECK_LOG_ROOT", None)
         env.pop("DJC_CIPHER_STRESS", None)
         with (root / "output.log").open("w") as output:
@@ -213,6 +239,15 @@ def check_case(case, expected):
                 original = "stdout\nstderr\n개행 없는 마지막"
                 if (run / "debug-build.log").read_text() != original or original not in content:
                     errors.append("stdout/stderr 순서나 개행 없는 마지막 출력 유실")
+        if case in LEAKS:
+            changed = (runs[0] / "user-folders.diff").read_text() if len(runs) == 1 else ""
+            if Path(LEAKS[case]).name not in changed:
+                errors.append("바뀐 사용자 파일 목록 누락")
+            marker = "⚠" if case == "app-running-write" else "✘ 검사 중 DJCrate 사용자 폴더"
+            if marker not in content:
+                errors.append("사용자 폴더 변경 알림 누락")
+        elif "사용자 폴더·로그 폴더가 바뀌었습니다" in content:
+            errors.append("바뀌지 않은 사용자 폴더를 바뀌었다고 알림")
         if case == "split-output" and ("☃" not in content or "▸ 진행:" not in content):
             errors.append("나뉜 UTF-8 출력이나 진행 알림 유실")
         calls = (root / "calls.txt").read_text().splitlines()
@@ -230,7 +265,8 @@ def check_partition(arguments, case, expected, expected_calls):
     with tempfile.TemporaryDirectory(prefix="djc-check-partition-") as directory:
         root = Path(directory)
         prepare(root)
-        env = dict(os.environ, PATH=str(root / "bin") + ":" + os.environ["PATH"], CASE=case)
+        env = dict(os.environ, PATH=str(root / "bin") + ":" + os.environ["PATH"], CASE=case, HOME=str(root / "home"),
+                   LEAKS=json.dumps(LEAKS))
         env.pop("DJC_CHECK_LOG_ROOT", None)
         env.pop("DJC_CIPHER_STRESS", None)
         if case.startswith("stress-env-"):

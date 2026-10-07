@@ -116,7 +116,7 @@ quick과 stress는 `swift build --build-tests --enable-code-coverage`의 같은 
 
 ## 워크플로 검사
 
-워크플로를 수정한 뒤 저장소 루트에서 `actionlint`로 검사한다. `python3 scripts/test-check.py`는 합성 명령만으로 빌드·번역·테스트·커버리지·파이프 실패, 빈/미달 커버리지, INT·TERM 취소와 로그 보존을 검사하며 CI에서도 실행한다. 분할 모드·quick·stress의 검사 범위와 실패 전파, 커버리지 목표 유지와 잘못된 인자의 거부도 확인한다. 실제 Swift 빌드나 라이브러리 접근은 하지 않는다. `.github/actionlint.yaml`은 actionlint 1.7.12가 아직 인식하지 못하는 공개 미리보기 `xcode-27` 라벨만 허용하며, self-hosted 러너를 사용하는 설정은 아니다.
+워크플로를 수정한 뒤 저장소 루트에서 `actionlint`로 검사한다. `python3 scripts/test-check.py`는 합성 명령만으로 빌드·번역·테스트·커버리지·파이프 실패, 빈/미달 커버리지, INT·TERM 취소와 로그 보존을 검사하며 CI에서도 실행한다. 분할 모드·quick·stress의 검사 범위와 실패 전파, 커버리지 목표 유지와 잘못된 인자의 거부도 확인한다. 합성 `HOME` 아래에서 시험이 DJCrate 사용자 폴더·로그 폴더에 쓰면 종료 코드 4로 실패하는지(설치 앱이 켜져 있으면 알림만)도 본다. 실제 Swift 빌드나 라이브러리 접근은 하지 않는다. `.github/actionlint.yaml`은 actionlint 1.7.12가 아직 인식하지 못하는 공개 미리보기 `xcode-27` 라벨만 허용하며, self-hosted 러너를 사용하는 설정은 아니다.
 
 ## 푸시 뒤 관리자 확인
 

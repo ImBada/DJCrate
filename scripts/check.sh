@@ -43,10 +43,27 @@ fi
 live_library="$HOME/Library/Pioneer/rekordbox"
 touch "$log_dir/live-reference"
 live_fingerprint() {
-    /usr/bin/stat -f '%N %z %m %i' "$live_library"/master.db*(N) "$live_library"/masterPlaylists6.xml(N) 2>/dev/null || true
+    local live_files=("$live_library"/master.db*(N) "$live_library"/masterPlaylists6.xml(N))
+    # 파일이 없을 때 인자 없는 stat은 표준 입력을 읽어 실행마다 값이 달라진다.
+    if (( ${#live_files} )); then /usr/bin/stat -f '%N %z %m %i' "${live_files[@]}" 2>/dev/null || true; fi
     find "$live_library/share/PIONEER/USBANLZ" -newer "$log_dir/live-reference" 2>/dev/null | head -5 || true
 }
 live_before=$(live_fingerprint)
+# DJCrate 사용자 폴더·로그 폴더도 전후 파일 목록·크기·수정 시각을 비교한다(#218: 시험이 사용자 캐시·로그에 썼다).
+# 시험·자가 테스트는 DJC_HOME(없으면 시험 임시 폴더) 밖에 쓰지 않아야 한다.
+user_folders=("$HOME/Library/Application Support/DJCrate" "$HOME/Library/Logs/DJCrate")
+user_fingerprint() {
+    local folder
+    for folder in "${user_folders[@]}"; do
+        if [[ ! -e "$folder" ]]; then print -r -- "없음 $folder"; continue; fi
+        find "$folder" -print0 2>/dev/null | xargs -0 /usr/bin/stat -f '%N %z %m' 2>/dev/null || true
+    done | LC_ALL=C sort
+}
+# 설치한 앱(DJCrate.app)이 켜져 있으면 앱이 쓴 것과 시험이 쓴 것을 가를 수 없어, 바뀐 것을 알리기만 한다.
+installed_app_running() { pgrep -f 'DJCrate\.app/Contents/MacOS/DJCrate' >/dev/null 2>&1; }
+user_before=$(user_fingerprint)
+app_seen=0
+if installed_app_running; then app_seen=1; fi
 integer check_started=$SECONDS stage_started=0
 stage_name=""
 stage_pid=""
@@ -77,6 +94,19 @@ finish() {
     if [[ "$(live_fingerprint)" != "$live_before" ]]; then
         echo "✘ 검사 중 실제 rekordbox 라이브러리 파일이 바뀌었습니다. rekordbox를 쓰지 않았다면 시험이 실제 라이브러리를 건드린 것이니 바로 멈추고 알리세요" >&2
         (( code == 0 )) && code=3
+    fi
+    local user_after
+    user_after=$(user_fingerprint)
+    if [[ "$user_after" != "$user_before" ]]; then
+        diff <(print -r -- "$user_before") <(print -r -- "$user_after") > "$log_dir/user-folders.diff" || true
+        if installed_app_running; then app_seen=1; fi
+        if (( app_seen )); then
+            echo "⚠ 검사 중 DJCrate 사용자 폴더·로그 폴더가 바뀌었습니다. 설치한 DJCrate 앱이 켜져 있어 앱이 쓴 것일 수 있습니다(바뀐 목록: $log_dir/user-folders.diff)" >&2
+        else
+            echo "✘ 검사 중 DJCrate 사용자 폴더·로그 폴더가 바뀌었습니다. 시험이 DJC_HOME 밖에 쓴 것이니 바로 멈추고 알리세요(바뀐 목록: $log_dir/user-folders.diff)" >&2
+            grep '^[<>]' "$log_dir/user-folders.diff" | head -5 >&2 || true
+            (( code == 0 )) && code=4
+        fi
     fi
     echo "▸ 전체 종료: $((SECONDS - check_started))초, 종료코드 $code (로그: $log_dir)"
     print -r -- "$code" > "$log_dir/exit-code.txt"
