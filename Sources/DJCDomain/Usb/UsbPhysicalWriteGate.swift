@@ -3,13 +3,13 @@ import Foundation
 /// 실물 USB(디스크 이미지가 아닌 것)에 쓸 수 있는지 정하는 관문. 한 번에 처음 걸린 막힘 하나만 낸다.
 ///
 /// 볼륨 모양(FAT32·exFAT, MBR·GPT, 내장·시동·읽기 전용이 아님)은 `UsbVolumePolicy`가 본다. 이 관문은
-/// 코드 관문(`buildEnabled`) → 사용자 동의(앱은 볼륨 이름·용량을 보인 쓰기 확인 창의 확인 버튼, CLI는 `--allow-physical`) →
+/// 코드 관문(`buildEnabled`) → 사용자 동의(앱은 볼륨 이름·용량을 보인 내보내기 시트·쓰기 확인 창의 쓰기 버튼, CLI는 `--allow-physical`) →
 /// 볼륨 UUID가 있음 → 볼륨 이름 확인(앱은 확인 창에 보인 이름, CLI는 `--confirm`)만 본다. 볼륨을 미리 등록하지 않는다.
 public struct UsbPhysicalWriteGate: Sendable {
     /// 코드 관문. 실기기에서 문제가 나오면 이 값 하나로 모든 실물 쓰기를 닫는다(동의·인자와 무관).
     public static let buildEnabled = true
 
-    /// 사용자가 이 실물 USB 쓰기에 동의했는지: 앱은 쓰기 확인 창을 거친 쓰기, CLI는 `--allow-physical`. 기본 없음
+    /// 사용자가 이 실물 USB 쓰기에 동의했는지: 앱은 볼륨 줄을 보인 내보내기 시트·쓰기 확인 창을 거친 쓰기, CLI는 `--allow-physical`. 기본 없음
     public let consented: Bool
     /// 시험 전용
     let buildEnabledOverride: Bool
@@ -36,7 +36,7 @@ public struct UsbPhysicalWriteGate: Sendable {
         }
         if !consented {
             return UsbBlock(code: "physicalDisabled", scope: .volume,
-                            message: String(ui: "실물 USB에 쓰려면 앱은 쓰기 확인 창에서 확인을 누르고, djc는 --allow-physical --confirm <볼륨 이름>을 주세요"),
+                            message: String(ui: "실물 USB에 쓰려면 앱은 볼륨 이름을 확인하고 ‘USB에 쓰기’를 누르고, djc는 --allow-physical --confirm <볼륨 이름>을 주세요"),
                             rule: .physicalVolume)
         }
         return nil

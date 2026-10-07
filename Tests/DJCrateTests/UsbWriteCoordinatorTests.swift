@@ -223,7 +223,7 @@ extension UsbTestData {
 
     static var physicalBlock: UsbBlock {
         UsbBlock(code: "physicalDisabled", scope: .volume,
-                 message: "실물 USB에 쓰려면 앱은 쓰기 확인 창에서 확인을 누르고, djc는 --allow-physical --confirm <볼륨 이름>을 주세요",
+                 message: "실물 USB에 쓰려면 앱은 볼륨 이름을 확인하고 ‘USB에 쓰기’를 누르고, djc는 --allow-physical --confirm <볼륨 이름>을 주세요",
                  rule: .physicalVolume)
     }
 }
@@ -457,6 +457,21 @@ struct UsbWriteCoordinatorTests {
         #expect(service.current.calls.isEmpty)
         #expect(host.toast == nil)
         #expect(usb.busyVolumes.isEmpty)
+    }
+
+    @Test("내보내기 시트에서 미리 본 뒤 누른 USB에 쓰기가 동의라 확인 창을 다시 띄우지 않는다(#212)")
+    func sheetConsentSkipsSecondConfirmation() async throws {
+        let (usb, _) = store()
+        let summary = try #require(await coordinator(usb).preview(job()))
+        service.update { $0.calls = [] }
+        await coordinator(usb).export(job(), reusing: summary, consented: true)
+        #expect(prompter.shown.isEmpty)
+        #expect(service.current.calls == ["write"])
+        #expect(host.toast?.title == "곡 3개를 USB에 썼습니다")
+        // 시트를 거치지 않은 쓰기(미리 본 결과 없음)는 지금처럼 확인 창으로 묻는다
+        prompter.answer = false
+        await coordinator(usb).export(job(), consented: true)
+        #expect(prompter.shown.first?.confirm == "USB에 쓰기")
     }
 
     @Test("미리 보기가 드라이 런 저널을 남겨도 쓰기로 가고, 끝나지 않은 쓰기로 알리지 않는다")

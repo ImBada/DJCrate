@@ -186,7 +186,7 @@ struct UsbExportSheetModel: Equatable {
 }
 
 /// "USB로 내보내기…" 시트: 대상 볼륨 · 형식 · 원본(목록 트리·고른 곡) · 미리 보기(곡·목록 수, 공간, 막힘 이유별 수).
-/// 쓰기는 시트를 닫은 뒤 코디네이터가 확인 창부터 이어 한다
+/// 시트에 볼륨 줄(실물이면 "실물 USB입니다")과 미리 보기를 보이고, [USB에 쓰기]를 쓰기 동의로 본다. 시트를 닫은 뒤 코디네이터가 확인 창 없이 쓴다(#212)
 struct UsbExportSheet: View {
     let store: LibraryStore
     let usb: UsbStore
@@ -226,7 +226,7 @@ struct UsbExportSheet: View {
                 Button(.ui("취소")) { dismiss() }.keyboardShortcut(.cancelAction)
                 Button(.ui("미리 보기")) { Task { await preview() } }
                     .disabled(isPreviewing || !model.canPreview(layout: layout))
-                Button(.ui("USB에 쓰기…")) { write() }
+                Button(.ui("USB에 쓰기")) { write() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(isPreviewing || !model.canWrite)
             }
@@ -253,6 +253,12 @@ struct UsbExportSheet: View {
                 }
             }
             .foregroundStyle(.secondary)
+            // 쓰기 확인 창 대신 여기서 어느 볼륨에 쓰는지 보인다(실물 USB 쓰기 동의, #212)
+            if !model.isTestVolume {
+                ForEach(UsbWriteCoordinator.volumeLines(model.volume, isTestVolume: false), id: \.self) { line in
+                    Text(verbatim: line).font(.callout)
+                }
+            }
         }
     }
 
@@ -341,7 +347,7 @@ struct UsbExportSheet: View {
     private func write() {
         guard let job = job(), let summary = model.summary, let coordinator = store.usbCoordinator else { return }
         dismiss()
-        Task { await coordinator.export(job, reusing: summary) }
+        Task { await coordinator.export(job, reusing: summary, consented: true) }
     }
 }
 

@@ -250,16 +250,16 @@ struct ListActionBar: View {
                           systemImage: "square.and.arrow.up.on.square")
                 }
                 .disabled((targets.isEmpty && playlistEdits == 0) || store.isWritingRekordbox)
-                .help(.ui("고른 곡(없으면 목록 전체)과 재생 목록 초안을 확인한 뒤 rekordbox에 씁니다."))
+                .help(.ui("고른 곡(없으면 목록 전체)과 재생 목록 초안을 rekordbox에 씁니다."))
                 if playlistEdits > 0 {
                     Button { PlaylistPanels.discardAll(store: store) } label: {
-                        Label(.ui("재생 목록 초안 버리기…"), systemImage: "trash")
+                        Label(.ui("재생 목록 초안 버리기"), systemImage: "trash")
                     }
                     .disabled(store.isWritingRekordbox)
-                    .help(.ui("rekordbox에 아직 쓰지 않은 재생 목록 편집을 모두 버립니다."))
+                    .help(.ui("rekordbox에 아직 쓰지 않은 재생 목록 편집을 모두 버립니다(⌘Z로 되돌림)."))
                 }
                 Button { ReflectionPanels.export(store: store, rows: targets) } label: {
-                    Label(.ui("XML 만들기…"), systemImage: "doc.text")
+                    Label(.ui("XML 만들기"), systemImage: "doc.text")
                 }
                 .disabled(targets.isEmpty)
                 .help(.ui("큐·그리드 초안을 rekordbox에서 가져올 XML로 만듭니다."))

@@ -5,7 +5,7 @@ import DJCStorage
 import AppKit
 import SwiftUI
 
-/// 기존 곡의 XML 미리 보기 → 연동 파일에 쓰기.
+/// 기존 곡의 큐·그리드 초안을 연동 XML 파일에 쓴다. 연동 파일만 바꾸므로 묻지 않고, 넣지 않은 것은 결과 줄에 알린다(#212).
 @MainActor
 enum ReflectionPanels {
     static func export(store: LibraryStore, rows: [TrackRow]) {
@@ -15,12 +15,9 @@ enum ReflectionPanels {
             _ = AlertPrompter().show(blockedPrompt(blocked))
             return
         }
-        let exclusions = store.draftExclusionReasons(for: rows, xml: true)
-        guard AlertPrompter().show(previewPrompt(plans, exclusions: exclusions)) else { return }
-        guard store.reflectionPlans(for: rows) == plans else {
-            store.reflectionMessage = AppMessage(kind: .warning, text: String(ui: "미리 보기 뒤 초안이 바뀌었으니 XML 미리 보기를 다시 확인하세요"))
-            return
-        }
+        // 결과 줄에는 초안이 있는 곡의 막힘만 남긴다(고르기만 한 곡은 알리지 않는다, #211).
+        let exclusions = store.draftExclusionReasons(for: rows, xml: true, blockedOnly: true)
+        let pending = store.pendingUUIDs
         do {
             let url = try RekordboxLink.prepare()
             _ = try store.exportReflection(rows: rows, to: url)
@@ -28,34 +25,31 @@ enum ReflectionPanels {
             store.reflectionMessage = AppMessage(kind: .failure, text: String(ui: "XML을 만들지 못했습니다. 저장 위치와 권한을 확인하세요: \(error.localizedDescription)"))
             return
         }
+        store.reflectionMessage = resultMessage(written: eligible.count, blocked: blocked.filter { pending.contains($0.uuid) }, exclusions: exclusions)
+        RekordboxLink.showSetupIfNeeded()
+    }
+
+    /// XML을 만든 뒤의 목록 위 알림: 쓴 곡 수와 가져오는 순서, 막혀서 뺀 곡·XML에 넣지 않은 초안(앞 둘과 수)
+    static func resultMessage(written: Int, blocked: [Reflection.Plan], exclusions: [String]) -> AppMessage {
         // 재생 목록 이름 "DJCrate 반영"은 XML에 쓰는 이름 그대로다(번역하지 않음).
-        var text = String(ui: "\(eligible.count)곡을 연동 XML에 썼습니다 · rekordbox: rekordbox xml 새로고침 › \"DJCrate 반영\" › 곡 모두 선택 › Import To Collection → DJCrate rekordbox와 동기화(⟳)")
+        var text = String(ui: "\(written)곡을 연동 XML에 썼습니다 · rekordbox: rekordbox xml 새로고침 › \"DJCrate 반영\" › 곡 모두 선택 › Import To Collection → DJCrate rekordbox와 동기화(⟳)")
         if !blocked.isEmpty {
             let names = blocked.prefix(2).map { "\($0.title)(\($0.blockers.first ?? ""))" }.joined(separator: ", ")
             text += " · " + String(ui: "막혀서 뺀 곡 \(blocked.count): \(names)")
         }
-        store.reflectionMessage = AppMessage(kind: blocked.isEmpty && exclusions.isEmpty ? .success : .warning, text: text)
-        RekordboxLink.showSetupIfNeeded()
+        // 막힌 곡의 이유와 겹치는 줄은 한 번만 센다.
+        let blockedLines = Set(blocked.flatMap { plan in plan.blockers.map { "• \(plan.title): \($0)" } })
+        let omitted = exclusions.filter { !blockedLines.contains($0) }
+        if !omitted.isEmpty {
+            let lines = omitted.prefix(2).map { $0.hasPrefix("• ") ? String($0.dropFirst(2)) : $0 }.joined(separator: ", ")
+            text += " · " + String(ui: "XML에 넣지 않은 초안 \(omitted.count): \(lines)")
+        }
+        return AppMessage(kind: blocked.isEmpty && omitted.isEmpty ? .success : .warning, text: text)
     }
 
     static func blockedPrompt(_ blocked: [Reflection.Plan]) -> ReflectionPrompt {
         ReflectionPrompt(title: String(ui: "XML로 만들 곡이 없습니다"),
                          text: blocked.isEmpty ? String(ui: "고른 곡에 rekordbox와 다른 큐·그리드 초안이 없습니다.") : "",
                          details: blocked.map { "• \($0.title): \($0.blockers.joined(separator: " / "))" })
-    }
-
-    static func previewPrompt(_ plans: [Reflection.Plan], exclusions: [String]) -> ReflectionPrompt {
-        let eligible = plans.filter(\.isEligible)
-        var details = eligible.map { plan in
-            "• \(plan.title) — " + [plan.cueChanged ? String(ui: "큐") : nil, plan.gridChanged ? String(ui: "그리드") : nil].compactMap { $0 }.joined(separator: " · ")
-        }
-        var seen = Set<String>()
-        let omitted = (plans.filter { !$0.isEligible }.flatMap { plan in
-            plan.blockers.map { "• \(plan.title): \($0)" }
-        } + exclusions).filter { seen.insert($0).inserted }
-        if !omitted.isEmpty { details += ["", String(ui: "XML에 넣지 않는 것:")] + omitted }
-        return ReflectionPrompt(title: String(ui: "XML 미리 보기"),
-                                text: String(ui: "기존 곡 \(eligible.count)개의 큐·그리드 초안을 XML로 만드니 대상과 제외 이유를 확인하세요"),
-                                confirm: String(ui: "XML 만들기"), details: details)
     }
 }

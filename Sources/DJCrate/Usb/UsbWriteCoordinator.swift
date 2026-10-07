@@ -251,14 +251,16 @@ struct UsbWriteCoordinator {
         }
     }
 
-    /// 미리 보기 → 확인 창 → 쓰기 → 토스트. `reusing`이 있으면(시트에서 방금 본 미리 보기) 다시 미리 보지 않는다
-    func export(_ job: UsbExportJob, reusing reused: UsbExportSummary? = nil) async {
+    /// 미리 보기 → 확인 창 → 쓰기 → 토스트. `reusing`이 있으면(시트에서 방금 본 미리 보기) 다시 미리 보지 않는다.
+    /// `consented`면 시트가 볼륨 줄(이름·용량·형식·"실물 USB입니다")과 미리 보기를 보인 뒤 누른 [USB에 쓰기]가 쓰기 동의라
+    /// 확인 창을 다시 띄우지 않는다(#212). 미리 본 결과가 없으면 지금처럼 확인 창으로 묻는다
+    func export(_ job: UsbExportJob, reusing reused: UsbExportSummary? = nil, consented: Bool = false) async {
         guard await ready(job.volume) else { return }
         let key = job.volumeKey
         guard let flag = begin(job.volume, title: String(ui: "USB에 쓸 내용을 확인하는 중…")) else { return }
         usb.lastExports[key] = job
         usb.lastMigrations.remove(key)
-        let outcome = await run(job, reused: reused, flag: flag)
+        let outcome = await run(job, reused: reused, consented: consented && reused != nil, flag: flag)
         usb.endWrite(key)
         switch outcome {
         case .stopped:
@@ -287,7 +289,7 @@ struct UsbWriteCoordinator {
     }
 
     /// 잠근 채로 미리 보기·확인·쓰기. 잠금은 부르는 쪽이 푼다
-    private func run(_ job: UsbExportJob, reused: UsbExportSummary?, flag: UsbCancelFlag) async -> Outcome<UsbExportSummary> {
+    private func run(_ job: UsbExportJob, reused: UsbExportSummary?, consented: Bool, flag: UsbCancelFlag) async -> Outcome<UsbExportSummary> {
         let service = service, key = job.volumeKey
         let summary: UsbExportSummary
         if let reused {
@@ -303,7 +305,7 @@ struct UsbWriteCoordinator {
             inform(String(ui: "USB에 쓸 수 없습니다"), Self.stoppingText(summary), details: Self.blockLines(summary))
             return .stopped
         }
-        guard prompter.show(Self.confirmation(summary, job: job)) else { return .stopped }
+        guard consented || prompter.show(Self.confirmation(summary, job: job)) else { return .stopped }
         // 미리 보기가 남긴 저널(드라이 런)은 닫힌 상태라 막지 않는다. 그 사이 끝나지 않은 쓰기가 생겼으면 회복부터
         if let stop: Outcome<UsbExportSummary> = await journalStop(key) { return stop }
         let result = await perform(key) { progress in try service.write(job, progress: progress, isCancelled: { flag.isSet }) }
@@ -814,7 +816,7 @@ struct UsbWriteCoordinator {
 
     // MARK: - 창 문구
 
-    /// 쓰기 전 확인 창의 볼륨 줄. 실물이면 이름·용량·형식과 "실물 USB입니다"를 보이고(이 창의 확인 버튼이 쓰기 동의다),
+    /// 쓰기 전 확인 창·내보내기 시트의 볼륨 줄. 실물이면 이름·용량·형식과 "실물 USB입니다"를 보이고(이 줄을 보인 창·시트의 쓰기 버튼이 쓰기 동의다),
     /// 기기가 읽지 못할 수 있는 형식(exFAT·GPT)은 한 줄씩 알린다
     static func volumeLines(_ volume: UsbVolumeInfo, isTestVolume: Bool) -> [String] {
         if isTestVolume { return [String(ui: "시험 볼륨(디스크 이미지)입니다")] }

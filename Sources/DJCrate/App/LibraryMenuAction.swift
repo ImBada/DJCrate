@@ -33,9 +33,7 @@ enum LibraryMenuAction: CaseIterable {
         }
     }
 
-    @MainActor func menuTitle(in store: LibraryStore) -> String {
-        self == .exportXML && store.sidebar != .staged ? String(ui: "XML 만들기…") : title
-    }
+    @MainActor func menuTitle(in store: LibraryStore) -> String { title }
 
     @MainActor func isEnabled(in store: LibraryStore) -> Bool {
         guard store.writeLockPolicy.allowsLibraryInteraction else { return false }

@@ -173,6 +173,26 @@ struct TrackWritePathTests {
         #expect(RekordboxWriter.backups(in: fixture.backups).isEmpty)
     }
 
+    /// 합치기 초안 단계는 같은 음원인지 비교만 보인다. 잃는 것은 쓸 때 한 번만 경고로 묻는다(#212).
+    @Test(.enabled(if: LiveDraftHome.isIsolated)) func 합치기_초안_창은_비교만_보이고_손실_경고는_쓸_때_한다() async throws {
+        let fixture = try RekordboxFixture()
+        for (id, title) in [("100", "남길 곡"), ("200", "뺄 곡")] {
+            var spec = TrackSpec(id: id, uuid: "u" + id)
+            spec.title = title; spec.dataStatus = 0; spec.fileType = 11; spec.length = 30
+            spec.folderPath = try AudioFixture.wav(seconds: 30, in: fixture.audio, name: id + ".wav").path
+            try fixture.add(spec)
+        }
+        let store = await loadedStore(fixture)
+        let prompter = ScriptedPrompter()
+        prompter.answer = false
+        await store.prepareMerge(keeping: "100", removing: ["200"], prompter: prompter)
+        let prompt = try #require(prompter.shown.first)
+        #expect(prompt.confirm != nil && !prompt.destructive && !prompt.critical)
+        #expect(!(prompt.text + prompt.details.joined()).contains(DuplicateMerge.lossNotice))
+        #expect(prompt.details.contains { $0.contains("남길 곡") } && prompt.details.contains { $0.contains("뺄 곡") })
+        #expect(store.mergeDrafts.isEmpty)
+    }
+
     /// 합치기 초안을 만들지 못한 알림은 남길 곡이 아니라 지울 원본의 이름으로 이유를 알린다(#196 리뷰: 남길 곡을 빼야 하는 것처럼 읽혔다).
     @Test(.enabled(if: LiveDraftHome.isIsolated)) func 합치기_초안_알림은_지울_원본의_이름으로_막은_이유를_알린다() async throws {
         let fixture = try RekordboxFixture()

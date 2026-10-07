@@ -47,10 +47,10 @@ extension LibraryStore {
             guard !isWritingRekordbox else { return }
             let details = [String(ui: "남길 곡: \(draft.keeping.title)") + "\n" + (rowsByID[id]?.track.folderPath ?? "")]
                 + draft.removing.map { String(ui: "컬렉션에서 뺄 곡: \($0.title)") + "\n" + (rowsByID[$0.contentID]?.track.folderPath ?? "") }
+            // 초안 단계는 같은 음원인지 비교만 한다. 잃는 정보는 rekordbox에 쓸 때 한 번 경고로 묻는다(#212).
             let prompt = ReflectionPrompt(title: String(ui: "같은 음원인지 확인하고 합치기 초안을 만들까요?"),
-                                          text: String(ui: "직접 미리 들어 같은 음원인지 확인하세요. 인코더 지연만 보정하며, 곡 앞뒤의 편집 차이는 보정하지 않습니다. 초안은 ⇧⌘E로 씁니다.")
-                                            + "\n\n" + DuplicateMerge.lossNotice,
-                                          confirm: String(ui: "같은 음원 확인 · 초안 만들기"), destructive: true, details: details)
+                                          text: String(ui: "직접 미리 들어 같은 음원인지 확인하세요. 인코더 지연만 보정하며, 곡 앞뒤의 편집 차이는 보정하지 않습니다. 초안은 ⇧⌘E로 쓰고, 쓸 때 옮기지 않는 정보를 알립니다."),
+                                          confirm: String(ui: "같은 음원 확인 · 초안 만들기"), details: details)
             if prompter.show(prompt) { try stageMerge(draft) }
         } catch {
             _ = prompter.show(ReflectionPrompt(title: String(ui: "합치기 초안을 만들지 않았습니다"),

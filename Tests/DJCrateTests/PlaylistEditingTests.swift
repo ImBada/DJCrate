@@ -99,14 +99,28 @@ struct PlaylistEditingTests {
         #expect(store.newPlaylistParent == PlaylistLayout.root)
     }
 
-    @Test func 지우면_보던_목록에서_나오고_폴더는_안의_수를_묻는다() throws {
-        let prompt = try #require(store.deleteConfirmation(for: "F"))
-        #expect(prompt.title == "‘폴더’을 지울까요?" && prompt.destructive)
-        #expect(prompt.text.hasPrefix("폴더 안의 재생 목록 1개와 폴더 0개도 함께 지웁니다."))
+    @Test func 지우면_보던_목록에서_나오고_폴더는_안까지_지운다() throws {
         store.sidebar = .playlist("A")
         store.deletePlaylist("F")
         #expect(store.sidebar == .filter(.all) && store.playlistIndex["A"] == nil)
         #expect(store.playlistTree.map(\.id) == ["B"])
+    }
+
+    /// 재생 목록 지우기·초안 모두 버리기는 초안 편집이라 묻지 않고, ⌘Z로 되돌린다(#212). 쓸 때 한 번만 확인한다.
+    @Test func 지우기와_초안_모두_버리기는_묻지_않고_실행_취소로_되돌린다() {
+        // 메뉴 동작 하나가 실행 취소 하나가 되게 묶는다(시험에는 이벤트 루프가 없다)
+        undo.groupsByEvent = false
+        func step(_ body: () -> Void) { undo.beginUndoGrouping(); body(); undo.endUndoGrouping() }
+        step { PlaylistPanels.delete(store: store, id: "F") }
+        #expect(store.playlistIndex["F"] == nil && store.playlistDraft.edits.count == 1)
+        #expect(undo.undoMenuItemTitle.contains("재생 목록 지우기"))
+        undo.undo()
+        #expect(store.playlistIndex["F"] != nil && store.playlistDraft.edits.isEmpty)
+        step { store.deletePlaylist("B") }
+        step { PlaylistPanels.discardAll(store: store) }
+        #expect(store.playlistDraft.edits.isEmpty && store.playlistIndex["B"] != nil)
+        undo.undo()
+        #expect(store.playlistIndex["B"] == nil && store.playlistDraft.edits.count == 1)
     }
 
     @Test func 접힌_폴더에_만들면_조상만_펼치고_다른_펼침과_선택은_유지한다() throws {
