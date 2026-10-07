@@ -40,12 +40,19 @@ final class AutoPointSnapshotRunner {
         self.onFailure = onFailure
     }
 
-    /// 앱이 쓰는 것: 대상은 쓰기·복원과 같은 `LibraryStore.rekordboxDatabase`(#182). 자가 테스트(설정을 쓰지 않는 실행)와
-    /// 사본 rekordbox 폴더 없이 명시한 사본(`--db`)으로 연 창은 뜨지 않는다(그때 대상은 실제 라이브러리라서).
+    /// 이 실행에서 자동 스냅샷을 볼지. 명시한 사본(`--db`·`DJC_DB`)으로 연 창은 사용자의 라이브러리를 고른 실행이 아니라서
+    /// 사본 rekordbox 폴더(`DJC_REKORDBOX_DIR`)가 있어도 보지 않고, 자가 테스트·측정·캡처 실행(`DiagnosticRun`)은
+    /// 90초 뒤 디스크 일이 끼지 않게 보지 않는다.
+    static func isAllowed(arguments: [String], environment: [String: String]) -> Bool {
+        !LibraryStore.explicitDatabaseRequested(arguments: arguments, environment: environment) && !DiagnosticRun.isActive(arguments: arguments)
+    }
+
+    /// 앱이 쓰는 것: 대상은 쓰기·복원과 같은 `LibraryStore.rekordboxDatabase`(#182). 볼지는 `isAllowed`가 가르고,
+    /// 설정을 저장하지 않는 저장소(`settings.persist` 꺼짐)는 사용자가 끈 설정을 지킬 수 없어 뜨지 않는다.
     convenience init(store: LibraryStore, arguments: [String] = ProcessInfo.processInfo.arguments,
                      environment: [String: String] = ProcessInfo.processInfo.environment) {
         let settings = store.settings
-        let allowed = LibraryStore.snapshotTakeAllowed(arguments: arguments, environment: environment)
+        let allowed = Self.isAllowed(arguments: arguments, environment: environment)
         self.init(environment: Environment(
             database: { [weak store] in store?.rekordboxDatabase ?? RekordboxWriter.liveDatabase },
             shareRoot: { [weak store] in store?.rekordboxShareRoot },
