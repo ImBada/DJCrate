@@ -91,7 +91,7 @@ extension LibraryStore {
         }
         try Task.checkCancellation()
         return WritePreview(report: report, drafts: drafts, grids: grids, gains: gains, tags: tags, artworks: artworks, playlists: playlistDraft,
-                            merges: merges, exclusions: draftExclusionReasons(for: rows))
+                            merges: merges, exclusions: draftExclusionReasons(for: rows, blockedOnly: true))
     }
 
     /// rekordbox master.db에 쓴다. 쓴 곡의 초안과 쓴 재생 목록 편집은 지우고(백업 폴더에 남는다) 새 스냅샷을 읽는다. 태그는 반영한 값이 새 base가 된다.

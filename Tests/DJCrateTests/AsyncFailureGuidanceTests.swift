@@ -282,6 +282,25 @@ struct AsyncFailureGuidanceTests {
         #expect(store.draftExclusionReasons(for: [row]).isEmpty)
     }
 
+    /// 쓰기 확인 목록에는 막힌 초안만 남긴다. 고르기만 한 곡·추가한 곡·바꿀 것 없는 초안은 줄로 넣지 않는다(#211).
+    @Test(.enabled(if: LiveDraftHome.isIsolated))
+    func 쓰기_미리_보기의_제외_줄은_막힌_초안만_남긴다() throws {
+        let fixture = try RekordboxFixture(), store = store(fixture)
+        let row = ReflectionCoordinatorTests.row("blocked-only-\(UUID())")
+        let staged = replacing(row, id: "djc-synthetic")
+        #expect(store.draftExclusionReasons(for: [staged, row], blockedOnly: true).isEmpty)
+        // 초안 파일을 읽지 못한 곡은 막힌 이유로 남긴다
+        store.draftChanged(trackUUID: row.track.uuid, kind: .cue, exists: true)
+        let missing = store.draftExclusionReasons(for: [row], blockedOnly: true)
+        #expect(missing.count == 1 && missing.first?.contains("큐 쓰지") == true)
+        // 읽을 수 있는 초안이면 줄이 없다
+        var cue = CueDraft(trackUUID: row.track.uuid, rekordboxCues: [])
+        cue.cues.append(EditableCue(kind: .memory, time: 1))
+        try CueDraftStore.save(cue)
+        defer { try? CueDraftStore.remove(trackUUID: row.track.uuid, directory: CueDraftStore.directory) }
+        #expect(store.draftExclusionReasons(for: [row], blockedOnly: true).isEmpty)
+    }
+
     @Test func 사라진_선택으로_실행한_현재_불러오기_명령만_다시_선택을_안내한다() throws {
         let fixture = try RekordboxFixture(), store = store(fixture)
         let row = ReflectionCoordinatorTests.row("selected")

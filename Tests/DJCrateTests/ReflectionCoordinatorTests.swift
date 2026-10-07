@@ -224,6 +224,21 @@ struct ReflectionCoordinatorTests {
         #expect(host.toast?.title == "rekordbox에 썼습니다 · 재생 목록 1건")
     }
 
+    /// 툴바로 곡 초안과 재생 목록 초안을 함께 쓰면 재생 목록은 한 줄로 알린다(#211). 막힌 편집은 이유와 함께 남긴다.
+    @Test func 곡과_함께_쓰는_재생_목록_초안은_한_줄로_알린다() throws {
+        var preview = Self.playlistPreview([
+            Self.playlistOutcome(.create(key: "k", name: "세트", isFolder: false, parent: .root), "세트", .written),
+            Self.playlistOutcome(.rename(playlist: .id("8"), name: "새 이름"), "옛 이름", .written),
+            Self.playlistOutcome(.delete(playlist: .id("9")), "스마트", .blocked, reason: "rekordbox에서 고치세요"),
+        ])
+        preview.report.outcomes = [Self.outcome("a", .written)]
+        let prompt = ReflectionCoordinator.confirmation(preview.report)
+        #expect(prompt.title == "큐 1곡 · 재생 목록 2건을 rekordbox에 쓸까요?")
+        #expect(prompt.details.contains("• 재생 목록 초안 2건도 함께 씁니다"))
+        #expect(!prompt.details.contains("• 세트 — 새 재생 목록 만들기"))
+        #expect(prompt.details.contains("• 스마트: 지우기 — rekordbox에서 고치세요"))
+    }
+
     @Test func 곡을_골라_쓸_때는_재생_목록_초안을_넣지_않는다() async {
         host.targets = []
         host.hasPlaylistDrafts = true

@@ -221,7 +221,7 @@ struct ReflectionCoordinator {
         } catch {
             host.writeStage = nil
             fail(String(ui: "rekordbox에 쓰지 않았습니다"), error)
-            let exclusions = (host as? LibraryStore)?.draftExclusionReasons(for: rows) ?? []
+            let exclusions = (host as? LibraryStore)?.draftExclusionReasons(for: rows, blockedOnly: true) ?? []
             if !exclusions.isEmpty { inform(String(ui: "미리 보기에서 제외한 초안"), "", details: exclusions) }
         }
     }
@@ -469,7 +469,12 @@ struct ReflectionCoordinator {
         for artwork in artworks where !cueUUIDs.contains(artwork.trackUUID) && !tagUUIDs.contains(artwork.trackUUID) {
             body.append("• \(artwork.title) — " + (artworkKinds[artwork.trackUUID] ?? WriteResult.Part.artwork.summary(1)))
         }
-        body += playlists.map(PlaylistWriteText.line)
+        // 곡 초안과 함께 쓰면(툴바) 재생 목록은 한 줄로만 알린다. 편집마다의 결과는 쓰기 결과에 남는다(#211).
+        if kinds.count > 1, !playlists.isEmpty {
+            body.append(PlaylistWriteText.alongside(playlists.count))
+        } else {
+            body += playlists.map(PlaylistWriteText.line)
+        }
         body += report.mergeWritten.map { String(ui: "• \($0.title) 유지 · 중복 \($0.removed)곡을 컬렉션에서 뺍니다") }
         body += report.mergeWritten.compactMap(\.reason)
         if !report.mergeWritten.isEmpty { body += ["", DuplicateMerge.lossNotice] }
