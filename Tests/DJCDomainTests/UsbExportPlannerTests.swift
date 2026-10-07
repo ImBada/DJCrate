@@ -20,10 +20,9 @@ struct UsbExportPlannerTests {
 
     func request(_ candidates: [UsbExportCandidate], playlists: [UsbPlaylistInput] = [], existing: UsbExistingState? = nil,
                  naming: any UsbAnalysisNaming = IdentifierAnalysisNaming(), cluster: Int = 4_096,
-                 fileSystem: UsbFileSystemKind = .fat32,
                  sameContent: @escaping @Sendable (String, String) -> Bool = { _, _ in false }) -> UsbExportRequest {
         UsbExportRequest(candidates: candidates, playlists: playlists, existing: existing, formats: UsbFormat.defaultSet, naming: naming,
-                         snapshotTakenAt: snapshot, clusterSize: cluster, fileSystem: fileSystem, sameContent: sameContent)
+                         snapshotTakenAt: snapshot, clusterSize: cluster, sameContent: sameContent)
     }
 
     func plan(_ candidates: [UsbExportCandidate], playlists: [UsbPlaylistInput] = [], existing: UsbExistingState? = nil,
@@ -89,17 +88,6 @@ struct UsbExportPlannerTests {
     @Test("4GB 이상 파일은 fileTooLarge")
     func blockFileTooLarge() {
         #expect(codes(plan([candidate("1", size: 4_294_967_296)]), track: "1") == ["fileTooLarge"])
-    }
-
-    @Test("exFAT는 4GB 넘는 파일도 막지 않고, 그 밖의 형식은 막는다")
-    func largeFileByFileSystem() {
-        let big = candidate("1", size: 5_000_000_000)
-        #expect(codes(UsbExportPlanner.plan(request([big], fileSystem: .exfat)), track: "1").isEmpty)
-        for fs: UsbFileSystemKind in [.fat32, .fat16, .other("x")] {
-            #expect(codes(UsbExportPlanner.plan(request([big], fileSystem: fs)), track: "1") == ["fileTooLarge"])
-        }
-        #expect(UsbFileSystemKind.exfat.allowsFilesOver4GiB)
-        #expect(!UsbFileSystemKind.fat32.allowsFilesOver4GiB)
         #expect(codes(plan([candidate("1", size: 4_294_967_295)]), track: "1").isEmpty)
     }
 

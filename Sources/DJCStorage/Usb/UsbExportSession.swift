@@ -226,7 +226,7 @@ public final class UsbExportSession {
         let rootURL = root
         let request = UsbExportRequest(
             candidates: candidates, playlists: tree, existing: existing, formats: options.formats, naming: options.naming,
-            snapshotTakenAt: snapshot.date, clusterSize: volume.clusterSize ?? 32_768, fileSystem: volume.fileSystem,
+            snapshotTakenAt: snapshot.date, clusterSize: volume.clusterSize ?? 32_768,
             sameContent: { id, relative in
                 // 이름이 겹칠 때만 USB 쪽 파일을 읽어 해시한다
                 UsbExportCandidates.sameContent(sourcePath: sources[id] ?? "", usbFile: rootURL.appending(path: relative))
