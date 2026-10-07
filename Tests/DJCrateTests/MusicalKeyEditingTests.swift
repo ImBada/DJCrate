@@ -357,7 +357,7 @@ struct MusicalKeyEditingTests {
 
     // MARK: 확인 창
 
-    @Test func 확인_창은_키를_고친_곡의_칸_이름을_키로_알린다() throws {
+    @Test func 확인_창은_키가_막힌_곡만_이유와_함께_보인다() throws {
         // Report는 안쪽 init이 없어 보고서 JSON으로 만든다(옛 보고서를 읽는 것과 같은 길)
         let json = """
             {"outcomes":[],"dryRun":true,"createdAt":"x","tagOutcomes":[
@@ -366,10 +366,10 @@ struct MusicalKeyEditingTests {
             {"trackUUID":"x","title":"곡 x","status":"blocked","reason":"rekordbox 키 목록에 '12B' 줄이 없습니다. rekordbox에서 이 곡의 키를 직접 고르세요","removed":0,"added":0}]}
             """
         let report = try JSONDecoder().decode(RekordboxWriter.Report.self, from: Data(json.utf8))
+        // 쓰는 곡의 줄은 쓰기 결과에 남기고, 확인 창에는 막힌 곡과 이유만 보인다(#210)
         let prompt = ReflectionCoordinator.confirmation(report)
-        #expect(prompt.details.contains("• 곡 k — 태그(키)") && prompt.details.contains("• 곡 m — 태그(제목·키)"))
-        #expect(prompt.details.contains { $0.contains("곡 x") && $0.contains("rekordbox에서 이 곡의 키를 직접 고르세요") })
-        #expect(prompt.details.contains { $0.contains("음원 파일의 태그는 그대로") })
+        #expect(prompt.title == "태그 2곡을 rekordbox에 쓸까요?")
+        #expect(prompt.details == ["쓰지 않는 것 1:", "• 곡 x: rekordbox 키 목록에 '12B' 줄이 없습니다. rekordbox에서 이 곡의 키를 직접 고르세요"])
     }
 
     @Test func XML로_내보낼_때는_키_초안이_있는_추가한_곡을_빼고_이유를_알린다() throws {

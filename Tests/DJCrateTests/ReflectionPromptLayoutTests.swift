@@ -58,25 +58,21 @@ struct ReflectionPromptLayoutTests {
         #expect(empty.details.isEmpty)
     }
 
-    @Test func 그리드와_게인_각_100곡은_짧은_본문과_전체_목록으로_확인한다() async throws {
+    /// 막힘이 없으면 곡이 많아도 묻지 않고 모두 쓴다(#210). 곡마다의 결과는 쓰기 결과에 남는다.
+    @Test func 그리드와_게인_각_100곡은_막힘이_없으면_묻지_않고_모두_쓴다() async throws {
         let host = FakeReflectionHost(), prompter = ScriptedPrompter()
         host.preview = .success(Fixture.preview(cues: [],
             grids: (1...100).map { Fixture.outcome("grid-\($0)", .written, added: 64) },
             gains: (1...100).map { Fixture.outcome("gain-\($0)", .written, added: -250) }))
-        prompter.answer = false
         await ReflectionCoordinator(host: host, prompter: prompter, isRekordboxRunning: { false })
             .write(rows: [Fixture.row("grid-1")])
-        let prompt = try #require(prompter.shown.first)
-        #expect(prompt.text.count < 180)
-        #expect(prompt.text.components(separatedBy: "\n").count <= 2)
-        #expect(!prompt.text.contains("곡 grid-") && !prompt.text.contains("곡 gain-"))
-        let lines = try detailText(prompt).components(separatedBy: "\n")
-        #expect(lines == (1...100).map { "• 곡 grid-\($0) — 그리드(박 64개)" }
-            + (1...100).map { "• 곡 gain-\($0) — 오토게인 -2.5 dB" })
-        #expect(host.wrote == nil && host.locks == [true, false])
+        #expect(prompter.shown.isEmpty)
+        #expect(host.wrote?.grids.count == 100 && host.wrote?.gains.count == 100 && host.locks == [true, false])
+        let lines = try #require(host.resultHistory.latest).text.components(separatedBy: "\n")
+        #expect(lines.contains("• 곡 grid-100 — 그리드 쓰기 완료") && lines.contains("• 곡 gain-100 — 게인 쓰기 완료"))
     }
 
-    @Test func 큐와_분석과_쓰지_않는_이유를_끝까지_보여_준다() throws {
+    @Test func 쓰지_않는_이유는_끝까지_보이고_쓰는_곡_줄은_넣지_않는다() throws {
         let preview = Fixture.preview(
             cues: (1...100).map { Fixture.outcome("cue-\($0)", .written) }
                 + (1...100).map { Fixture.outcome("blocked-\($0)", .blocked, reason: "분석 전") },
@@ -84,11 +80,7 @@ struct ReflectionPromptLayoutTests {
         let prompt = ReflectionCoordinator.confirmation(preview.report)
         #expect(prompt.text.count < 180)
         let lines = try detailText(prompt).components(separatedBy: "\n")
-        for index in 1...100 {
-            #expect(lines.contains("• 곡 cue-\(index) — 큐 +1"))
-            #expect(lines.contains("• 곡 analysis-\(index) — 분석 파일 붙이기(파형·그리드 박 96개·오토게인)"))
-            #expect(lines.contains("• 곡 blocked-\(index): 분석 전"))
-        }
+        #expect(lines == ["쓰지 않는 것 100:"] + (1...100).map { "• 곡 blocked-\($0): 분석 전" })
         #expect(!lines.contains { $0.hasPrefix("… 외") })
     }
 
@@ -105,7 +97,8 @@ struct ReflectionPromptLayoutTests {
             #expect(prompt.text.count < 180)
             let lines = try detailText(prompt).components(separatedBy: "\n")
             for index in 1...100 {
-                #expect(lines.contains { $0 == "• 곡 track-\(index)" || $0 == "• 곡 track-\(index) — 그리드·파형·오토게인까지" })
+                // 넣기는 빠지는 것이 없는 곡의 줄을 넣지 않는다(#210). 빼기는 뺄 곡을 모두 보인다.
+                #expect(lines.contains("• 곡 track-\(index)") == (prompt.confirm == "rekordbox에서 빼기"))
                 #expect(lines.contains("• 곡 blocked-\(index): 막힌 이유"))
             }
             #expect(!lines.contains { $0.hasPrefix("… 외") })
@@ -150,8 +143,8 @@ struct ReflectionPromptLayoutTests {
     @Test(arguments: [NSAppearance.Name.aqua, .darkAqua])
     func 긴_제목_100곡도_창과_버튼이_화면_안에_있다(appearance: NSAppearance.Name) throws {
         _ = NSApplication.shared
-        let preview = Fixture.preview(cues: [], grids: (1...100).map {
-            Fixture.outcome("\($0) " + String(repeating: "긴 제목 ", count: 30), .written)
+        let preview = Fixture.preview(cues: [], grids: [Fixture.outcome("쓰는 곡", .written)] + (1...100).map {
+            Fixture.outcome("\($0) " + String(repeating: "긴 제목 ", count: 30), .blocked, reason: "막힌 이유")
         })
         let alert = AlertPrompter().makeAlert(ReflectionCoordinator.confirmation(preview.report))
         alert.window.appearance = NSAppearance(named: appearance)

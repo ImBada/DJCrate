@@ -120,7 +120,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 - `Sources/DJCrate/` — SwiftUI+AppKit 앱
   - `Deck/`: `DeckModel`(+Transport·Loops·Cues·Grid·Gain·Key), `Audio/`(`DeckAudio`, `DeckAudioEngine` 프로토콜), `Views/`, `Waveform/`
   - `Library/`: `LibraryStore`(+Writing·Staging·Tags), `TrackTable`(NSTableView), 태그 편집
-  - `Reflection/`: `ReflectionCoordinator`(미리 보기 → 확인 → 쓰기 → 토스트), 토스트, XML 연동
+  - `Reflection/`: `ReflectionCoordinator`(미리 보기 → 막힘·제외·손실이 있을 때만 확인 → 쓰기 → 토스트), 토스트, XML 연동
   - `App/`: 창·사이드바·`KeyRouter`(단축키). `Settings/`: 설정 창(⌘,)·설정 저장소(`SettingsStore`, 이름·기본값은 `DJCDomain/Settings`). `Diagnostics/`: 자가 테스트·성능 기록(디버그 전용)
 - USB 라이브러리(`.claude/rules/usb-write.md`, `docs/usb-internals.md`)
   - `Sources/DJCDomain/Usb/`: 형식·확인 안 된 규칙(`UsbProvisionalRule`)·볼륨 정책·실물 쓰기 관문·막힘·오류·USB 경로 규칙(`UsbLayout`)

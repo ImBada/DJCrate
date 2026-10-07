@@ -18,8 +18,6 @@ struct ArtworkReflectionTests {
         #expect(ArtworkWriteKind.delete.label == "앨범아트 지우기")
         #expect(WriteResult.Part.artwork.summary(2) == "앨범아트 2곡")
         #expect(WriteResult.Part.artwork.written == "앨범아트 쓰기 완료")
-        #expect(ReflectionCoordinator.artworkAudioNote.contains("앨범아트"))
-        #expect(!ReflectionCoordinator.artworkAudioNote.contains("그림"))
         #expect(LibraryStore.artworkRestoreFailureText(2).contains("앨범아트 초안 2곡"))
     }
 
@@ -87,12 +85,11 @@ struct ArtworkReflectionTests {
         var row = try #require(store.rowsByUUID[spec.uuid])
         store.setArtwork(image, name: "표지.jpg", rows: [row])
 
-        // 미리 보기·확인 창: 넣기 줄과 음원 그림 안내
+        // 미리 보기: 넣기만 있고 막힘이 없으니 묻지 않고 쓴다(#210)
         let preview = try await store.previewWrite(rows: [row], playlists: false)
         #expect(preview.report.artworkWritten.map(\.artwork) == [.add] && preview.artworks.map(\.trackUUID) == [spec.uuid])
-        let prompt = ReflectionCoordinator.confirmation(preview.report)
-        #expect(prompt.title.contains(WriteResult.Part.artwork.summary(1)))
-        #expect(prompt.details.contains { $0.contains(ArtworkWriteKind.add.label) } && prompt.details.contains(ReflectionCoordinator.artworkAudioNote))
+        #expect(WriteConfirmPolicy.reasons(preview.report, exclusions: preview.exclusions, canBackUp: store.canBackUpBeforeWrite).isEmpty)
+        #expect(ReflectionCoordinator.confirmation(preview.report).title.contains(WriteResult.Part.artwork.summary(1)))
         #expect(!FileManager.default.fileExists(atPath: folder(fixture, spec).path), "미리 보기는 사본에만")
 
         let before = ArtworkRevisions.key(spec.id)

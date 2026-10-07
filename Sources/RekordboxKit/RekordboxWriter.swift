@@ -88,7 +88,8 @@ public enum RekordboxWriter {
 
 
     /// 백업은 한 개에 150MB 안팎이다. 최근 이만큼만 남긴다.
-    static let backupsToKeep = 5
+    /// 확인 창 없이 바로 쓰게 하면서(#210) 되돌릴 수 있는 쓰기 수를 5에서 20으로 늘렸다(사용자 결정 2026-10-07, #209).
+    static let backupsToKeep = 20
 
     static func isLive(_ database: URL, liveDatabase: URL = liveDatabase) -> Bool {
         RekordboxWriteGuard.sameFile(database, liveDatabase)

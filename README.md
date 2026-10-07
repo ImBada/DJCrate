@@ -25,7 +25,7 @@ swift build -c release --product djc  # .build/release/djc
 
 1. 툴바 ⟳로 라이브러리 사본(스냅샷)을 뜬다. rekordbox가 켜져 있어도 된다. 사본·초안·백업은 `~/Library/Application Support/DJCrate/`에 있고, 클라우드 토큰이 들어 있으니 공유하지 않는다.
 2. 덱·목록에서 고친다. 고친 곡은 쓰기 대기로 표시된다.
-3. rekordbox를 완전히 끄고 "rekordbox에 쓰기…"(⇧⌘E) → 미리 보기 확인 → 쓰기.
+3. rekordbox를 완전히 끄고 "rekordbox에 쓰기…"(⇧⌘E). 사본에 미리 써 보고 막힌 것이 없으면 묻지 않고 바로 쓴다. 결과 알림의 "쓰기 전으로 복원…"으로 되돌린다.
 
 ## 기능
 

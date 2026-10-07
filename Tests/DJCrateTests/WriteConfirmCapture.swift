@@ -47,6 +47,11 @@ struct WriteConfirmCapture {
                                  playlistImportURL: nil, stagingSaver: { _ in }, draftHome: fixture.root.appending(path: "drafts"))
         store.rekordboxDatabase = fixture.database
         store.rekordboxShareRoot = fixture.shareRoot
+        // 쓴 뒤 다시 읽기도 합성 사본에서 한다
+        let database = fixture.database
+        store.takeLiveSnapshot = { _ in database }
+        store.launchArguments = ["test"]
+        store.launchEnvironment = [:]
         await store.load(snapshot: fixture.database, arguments: ["test", "--db", fixture.database.path], environment: [:])
         let rows = store.rows.sorted { $0.track.id < $1.track.id }
         try #require(rows.count == 3)
