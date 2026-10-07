@@ -92,4 +92,52 @@ struct AutoPointSnapshotRunnerTests {
         #expect(SettingKeys.pointSnapshotAuto.defaultValue)
         #expect(SettingKeys.all.contains(SettingKeys.pointSnapshotAuto.name))
     }
+
+    // MARK: 어떤 실행에서 보는가(측정·자가 테스트·캡처 실행에는 디스크 일을 끼우지 않는다)
+
+    /// 앱에 있는 개발용 실행 인자(자가 테스트·측정·화면 캡처). 90초 뒤 디스크 일이 끼면 안 되는 실행들이다.
+    nonisolated static let diagnosticArguments = [
+        "--resize-perf=all", "--resize-perf=width,height", "--ui-perf=all", "--ui-perf=sidebar,sort", "--ui-perf-capture=/tmp/x", "--scroll-perf",
+        "--write-selftest", "--flip-selftest", "--usb-selftest", "--edit-selftest", "--itunes-selftest", "--loop-selftest",
+        "--metronome-jump-selftest", "--key-routing-selftest", "--playlist-recovery-selftest", "--hotcue-click-selftest",
+        "--xml-export-capture=/tmp/x", "--usb-migrate-capture=/tmp/x", "--blocked-reasons-capture=/tmp/x", "--async-guidance-capture=/tmp/x",
+        "--search-layout-captures=/tmp/x", "--paused-hotcue-captures=/tmp/x", "--perf-capture=/tmp/x", "--autoplay", "--reflection-layout=/tmp/x",
+    ]
+
+    @Test(arguments: diagnosticArguments)
+    func 자가_테스트·측정·캡처_실행은_자동_스냅샷을_보지_않는다(argument: String) {
+        #expect(!AutoPointSnapshotRunner.isAllowed(arguments: ["DJCrate", argument], environment: [:]))
+        // 사본 rekordbox 폴더를 줘도, 다른 인자와 함께 줘도 같다
+        #expect(!AutoPointSnapshotRunner.isAllowed(arguments: ["DJCrate", "--select", "32395449", argument],
+                                                   environment: ["DJC_REKORDBOX_DIR": "/tmp/copy"]))
+    }
+
+    @Test func 평범한_실행과_곡을_고른_실행은_본다() {
+        #expect(AutoPointSnapshotRunner.isAllowed(arguments: ["DJCrate"], environment: [:]))
+        #expect(AutoPointSnapshotRunner.isAllowed(arguments: ["DJCrate", "--select", "32395449"], environment: ["DJC_HOME": "/tmp/home"]))
+        // 첫 인자는 실행 파일 경로라 이름에 시험 같은 말이 있어도 상관없다
+        #expect(AutoPointSnapshotRunner.isAllowed(arguments: ["/tmp/--write-selftest/DJCrate"], environment: [:]))
+    }
+
+    @Test func 명시한_사본은_사본_rekordbox_폴더가_있어도_보지_않는다() {
+        let copy = ["DJC_REKORDBOX_DIR": "/tmp/copy"]
+        #expect(!AutoPointSnapshotRunner.isAllowed(arguments: ["DJCrate", "--db", "/tmp/copy/master.db"], environment: copy))
+        #expect(!AutoPointSnapshotRunner.isAllowed(arguments: ["DJCrate"], environment: copy.merging(["DJC_DB": "/tmp/copy/master.db"]) { $1 }))
+        #expect(!AutoPointSnapshotRunner.isAllowed(arguments: ["DJCrate", "--db", "/tmp/copy/master.db"], environment: [:]))
+        // 사본 폴더만 줬다고 명시한 사본이 되지는 않는다
+        #expect(AutoPointSnapshotRunner.isAllowed(arguments: ["DJCrate"], environment: copy))
+    }
+
+    @Test func 앱이_쓰는_생성자도_그_판단을_따른다() {
+        func enabled(_ arguments: [String], environment: [String: String] = [:]) -> Bool {
+            // 설정 저장소는 저장하는 쪽이라 실행 인자 판단만 가른다
+            let settings = SettingsStore(defaults: UserDefaults(suiteName: "djc.test.autosnap.\(UUID())")!, persist: true, sharedFile: nil)
+            let store = LibraryStore(settings: settings, resultHistory: WriteResultHistory(url: nil), saveTagDrafts: { _ in })
+            return AutoPointSnapshotRunner(store: store, arguments: arguments, environment: environment).environment.enabled()
+        }
+        #expect(enabled(["DJCrate"]))
+        #expect(!enabled(["DJCrate", "--resize-perf=all"]))
+        #expect(!enabled(["DJCrate", "--xml-export-capture=/tmp/x"]))
+        #expect(!enabled(["DJCrate", "--db", "/tmp/copy/master.db"], environment: ["DJC_REKORDBOX_DIR": "/tmp/copy"]))
+    }
 }
