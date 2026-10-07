@@ -44,6 +44,22 @@ struct AsyncFailureGuidanceTests {
         #expect(store.lastError?.contains("새로 뜨지") == false)
     }
 
+    /// 목록 위 오류 줄은 닫을 수 있다(#230). 닫아도 오류 상태(`lastError`)는 남아 그 상태를 보는 흐름은 그대로이고, 새 오류가 오면 다시 보인다.
+    @Test func 목록_위_오류_줄을_닫아도_상태는_남고_새_오류는_다시_보인다() throws {
+        let fixture = try RekordboxFixture()
+        let store = store(fixture)
+        #expect(store.visibleLastError == nil)
+        store.reportLibraryError("라이브러리를 열지 못했습니다")
+        #expect(store.visibleLastError == "라이브러리를 열지 못했습니다")
+        store.dismissLastError()
+        #expect(store.visibleLastError == nil && store.lastError == "라이브러리를 열지 못했습니다")
+        store.reportLibraryError("라이브러리를 열지 못했습니다")
+        #expect(store.visibleLastError == "라이브러리를 열지 못했습니다")
+        store.dismissLastError()
+        store.reportLibraryError("다른 오류")
+        #expect(store.visibleLastError == "다른 오류")
+    }
+
     @Test func 삭제된_큐의_현재_명령은_다시_선택을_안내한다() async throws {
         let h = try DeckHarness()
         try await h.loaded()

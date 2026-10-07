@@ -44,6 +44,16 @@ struct AppToast: Identifiable, Equatable {
     var action: Action?
     /// USB 쓰기 알림(rekordbox 쓰기 결과 보기를 붙이지 않는다)
     var isUsb = false
+    /// 아무것도 쓰지 않은 안내(지금은 못 함·할 것 없음). 쓰기 결과가 아니라 결과 보기를 붙이지 않는다(#230)
+    var isNotice = false
+
+    /// 결과 보기 단추를 붙일지(rekordbox 쓰기 결과일 때만)
+    var showsResult: Bool { !isUsb && !isNotice }
+
+    /// 창 대신 띄우는 안내. 경고는 닫을 때까지 남는다.
+    static func notice(_ title: String, _ detail: String?, kind: Kind = .warning, isUsb: Bool = false) -> Self {
+        Self(kind: kind, title: title, detail: detail?.isEmpty == true ? nil : detail, isUsb: isUsb, isNotice: true)
+    }
 
     /// 실패·경고는 사용자가 닫을 때까지 남긴다.
     var duration: Double {

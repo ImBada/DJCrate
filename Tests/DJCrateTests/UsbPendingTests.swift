@@ -118,6 +118,12 @@ struct UsbPendingTests {
         let empty = UsbPendingModel(volumeName: "B13T", isConnected: true, edits: [], library: library, summary: nil, busy: false,
                                     blockReason: blockReason)
         #expect(!empty.canWrite && empty.writeHelp == "쓸 편집이 없습니다. 곡 목록·사이드바에서 USB 편집을 더하세요")
+        // 미리 본 결과 쓸 것이 없으면 누르기 전에 막고 이유를 도움말로 보인다(#230)
+        let unchanged = UsbPendingModel(volumeName: "B13T", isConnected: true, edits: edits, library: library,
+                                        summary: UsbTestData.editSummary(editCount: 9, outcomes: [1: .unchanged], hasChanges: false),
+                                        busy: false, blockReason: blockReason)
+        #expect(!unchanged.canWrite && unchanged.canPreview)
+        #expect(unchanged.writeHelp == "바꿀 것이 없거나 모든 편집이 막혔습니다. 목록의 막힌 이유를 확인하세요")
     }
 
     @Test("USB에 쓰기…는 코디네이터 흐름(미리 보기 → 확인 → 쓰기 → 토스트)을 타고, 쓴 뒤 초안 수를 다시 읽는다")
@@ -202,7 +208,8 @@ struct UsbPendingTests {
         service.update { $0.editSummary = UsbTestData.editSummary(editCount: 1, outcomes: [1: .unchanged], hasChanges: false) }
         await coordinator.writeDraft(volumeKey: key, database: database, share: share)
         #expect(!service.current.calls.suffix(1).contains("writeEdit"))
-        #expect(prompter.shown.last?.title == "USB에 쓸 것이 없습니다")
+        #expect(host.toast?.title == "USB에 쓸 것이 없습니다" && host.toast?.kind == .warning)
+        #expect(prompter.shown.last?.title == "USB에 쓸 수 없습니다")
 
         // rekordbox가 켜져 있으면 미리 보기도 하지 않는다
         let calls = service.current.calls.count

@@ -338,7 +338,7 @@ struct UsbEditActionsTests {
         await coordinator.writeDraft(volumeKey: key, database: nil, share: nil)
         #expect(await coordinator.previewDraft(volumeKey: key, database: nil, share: nil) == nil)
         #expect(service.current.calls == ["draftBase"])
-        #expect(prompter.shown.last?.text == "USB를 연결한 뒤 쓰세요")
+        #expect(prompter.shown.isEmpty && host.toast?.title == "USB에 쓰지 않았습니다" && host.toast?.detail == "USB를 연결한 뒤 쓰세요")
         let model = UsbPendingModel(volumeName: "B13T", isConnected: false, edits: try #require(try draft()).edits,
                                     library: usb.editLibrary(key), summary: nil, busy: false, blockReason: { _ in nil })
         #expect(!model.canWrite)

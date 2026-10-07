@@ -450,7 +450,7 @@ struct UsbWriteCoordinator {
     /// 쓸 볼륨. 빠져 있으면 초안은 그대로 두고 연결하라고 알린다
     private func editJob(_ volumeKey: String, database: URL?, share: URL?, snapshotTime: String?) -> UsbEditJob? {
         guard let volume = usb.volume(volumeKey) else {
-            inform(String(ui: "USB에 쓰지 않았습니다"), String(ui: "USB를 연결한 뒤 쓰세요"))
+            notify(String(ui: "USB에 쓰지 않았습니다"), String(ui: "USB를 연결한 뒤 쓰세요"))
             return nil
         }
         return UsbEditJob(database: database, share: share, volume: volume, snapshotTime: snapshotTime)
@@ -523,8 +523,7 @@ struct UsbWriteCoordinator {
                 return .stopped
             }
             guard summary.hasChanges else {
-                inform(String(ui: "USB에 쓸 것이 없습니다"), String(ui: "바꿀 것이 없거나 모든 편집이 막혔습니다. 쓰기 대기 목록에서 이유를 확인하세요"),
-                       details: Self.editLines(summary))
+                notify(String(ui: "USB에 쓸 것이 없습니다"), String(ui: "바꿀 것이 없거나 모든 편집이 막혔습니다. 쓰기 대기 목록에서 이유를 확인하세요"))
                 return .stopped
             }
             guard prompter.show(Self.editConfirmation(summary, volume: job.volume, draftChanged: draftChanged)) else { return .stopped }
@@ -548,8 +547,7 @@ struct UsbWriteCoordinator {
             case let .success(written):
                 guard written.report != nil else {
                     // 확인 뒤 USB가 바뀌어 다시 계획하니 쓸 것이 없었다
-                    inform(String(ui: "USB에 쓸 것이 없습니다"), String(ui: "바꿀 것이 없거나 모든 편집이 막혔습니다. 쓰기 대기 목록에서 이유를 확인하세요"),
-                           details: Self.editLines(written.summary))
+                    notify(String(ui: "USB에 쓸 것이 없습니다"), String(ui: "바꿀 것이 없거나 모든 편집이 막혔습니다. 쓰기 대기 목록에서 이유를 확인하세요"))
                     return .stopped
                 }
                 return .written(written.summary)
@@ -577,7 +575,7 @@ struct UsbWriteCoordinator {
     private func ready(_ volume: UsbVolumeInfo) async -> Bool {
         let running = isRekordboxRunning
         if await Task.detached(priority: .userInitiated, operation: { running() }).value {
-            inform(String(ui: "rekordbox가 켜져 있어 USB에 쓰지 않았습니다"), String(ui: "rekordbox와 rekordboxAgent를 완전히 종료한 뒤 다시 누르세요."))
+            notify(String(ui: "rekordbox가 켜져 있어 USB에 쓰지 않았습니다"), String(ui: "rekordbox와 rekordboxAgent를 완전히 종료한 뒤 다시 누르세요."))
             return false
         }
         guard !isBusy(volume) else { return false }
@@ -594,14 +592,14 @@ struct UsbWriteCoordinator {
         return true
     }
 
-    /// 잠겨 있으면 알리고 true
+    /// 잠겨 있으면 알리고 true. 쓰기 단추는 쓰는 동안 막혀 있어, 그 사이 다른 입구로 누른 것만 토스트로 알린다(#230)
     private func isBusy(_ volume: UsbVolumeInfo) -> Bool {
         if usb.busyVolumes.contains(volume.usbKey) {
-            inform(String(ui: "이 USB에 쓰는 중입니다"), String(ui: "쓰기가 끝난 뒤 다시 시도하세요."))
+            notify(String(ui: "이 USB에 쓰는 중입니다"), String(ui: "쓰기가 끝난 뒤 다시 시도하세요."))
             return true
         }
         if usb.activeWrite != nil {
-            inform(String(ui: "다른 USB에 쓰는 중입니다"), String(ui: "쓰기가 끝난 뒤 다시 시도하세요."))
+            notify(String(ui: "다른 USB에 쓰는 중입니다"), String(ui: "쓰기가 끝난 뒤 다시 시도하세요."))
             return true
         }
         return false
@@ -744,7 +742,7 @@ struct UsbWriteCoordinator {
         switch action {
         case let .ejectUsb(volumeKey):
             if host.toast?.action == action { host.toast = nil }
-            if let message = await usb.eject(volumeKey) { inform(String(ui: "USB를 꺼내지 못했습니다"), message) }
+            if let message = await usb.eject(volumeKey) { notify(String(ui: "USB를 꺼내지 못했습니다"), message) }
         }
     }
 
@@ -752,6 +750,11 @@ struct UsbWriteCoordinator {
 
     private func inform(_ title: String, _ text: String, details: [String] = []) {
         _ = prompter.show(ReflectionPrompt(title: title, text: text, details: details))
+    }
+
+    /// USB에 손대지 않은 안내(지금은 못 함·할 것 없음): 창 대신 닫을 때까지 남는 경고 토스트(#230)
+    private func notify(_ title: String, _ text: String) {
+        host.toast = .notice(title, text, isUsb: true)
     }
 
     /// 막힘·오류 알림. 막힘(`writeRefused`)은 그 문구(이유와 할 일)를 그대로, 그 밖의 USB 오류는 그 설명을 보인다
