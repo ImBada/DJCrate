@@ -129,6 +129,8 @@ protocol ReflectionHost: AnyObject {
     func restoreDraftConflictDetails(_ backup: RekordboxWriter.Backup) -> [String]
     /// 이 백업 뒤에 뜬 백업 수(복원하면 그 쓰기·복원도 함께 되돌린다, #222)
     func laterBackupCount(_ backup: RekordboxWriter.Backup) -> Int
+    /// 이 백업 뒤에 시점 스냅샷으로 복원해 이 백업으로는 되돌릴 수 없으면 그 이유(#225)
+    func pointRestoreRefusal(_ backup: RekordboxWriter.Backup) -> String?
     /// - Parameter keepingCurrentDrafts: 쓴 뒤 새로 만든 초안을 남기고 그 곡의 백업 초안은 되살리지 않는다
     func restoreRekordbox(_ backup: RekordboxWriter.Backup, keepingCurrentDrafts: Bool) async throws -> URL
     // 곡 넣기·빼기
@@ -148,6 +150,7 @@ extension ReflectionHost {
     func draftExclusions(for rows: [TrackRow], blockedOnly: Bool) -> [String] { [] }
     func restoreDraftConflictDetails(_ backup: RekordboxWriter.Backup) -> [String] { [] }
     func laterBackupCount(_ backup: RekordboxWriter.Backup) -> Int { 0 }
+    func pointRestoreRefusal(_ backup: RekordboxWriter.Backup) -> String? { nil }
     func restoreRekordbox(_ backup: RekordboxWriter.Backup, keepingCurrentDrafts: Bool) async throws -> URL {
         try await restoreRekordbox(backup)
     }
@@ -329,6 +332,11 @@ struct ReflectionCoordinator {
         guard !host.isWritingRekordbox else { return }
         guard !isRekordboxRunning() else {
             notify(String(ui: "rekordbox가 켜져 있어 복원하지 않았습니다"), String(ui: "rekordbox를 완전히 종료한 뒤 다시 누르세요."))
+            return
+        }
+        // 시점 복원 뒤의 옛 백업은 복원 직전 백업도 만들지 않고 이유와 할 일만 알린다(#225).
+        if let reason = host.pointRestoreRefusal(backup) {
+            notify(String(ui: "복원하지 않았습니다"), reason)
             return
         }
         host.setWriteLock(true)

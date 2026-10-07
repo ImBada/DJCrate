@@ -34,6 +34,21 @@ struct PointSnapshotCommandTests {
         #expect(RekordboxPointSnapshot.list(in: folder).isEmpty)
     }
 
+    @Test func 비교하고_복원하면_복원_전으로_돌리는_명령을_알린다() throws {
+        let fixture = try RekordboxFixture()
+        var track = TrackSpec(id: "601")
+        track.title = "원래 제목"
+        try fixture.add(track)
+        _ = try run(fixture, "create", "--name", "전")
+        #expect(try run(fixture, "diff", "전").contains("같습니다"))
+        try fixture.execute("UPDATE djmdContent SET Title = '바꾼 제목' WHERE ID = '601'")
+        let diff = try run(fixture, "diff", "전")
+        #expect(diff.contains("곡 정보가 바뀌는 곡 1") && diff.contains("• 바꾼 제목"), "\(diff)")
+        let restored = try run(fixture, "restore", "전")
+        #expect(restored.contains("djc snapshot-point restore") && restored.contains("--db"), "\(restored)")
+        #expect(try fixture.rows("SELECT Title FROM djmdContent WHERE ID = '601'").first?["Title"] == "원래 제목")
+    }
+
     @Test func 대상이나_ID가_없으면_사용법이나_이유를_알린다() throws {
         let fixture = try RekordboxFixture()
         #expect(throws: UsageError.self) { try PointSnapshotCommand.run(["snapshot-point", "create"], guard: Self.copyGuard) }

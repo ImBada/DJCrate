@@ -11,6 +11,7 @@ import Testing
 /// 시점 스냅샷 창(#224·#225) 화면 확인용(합성 라이브러리만, 평소에는 건너뛴다).
 /// `DJC_HOME=$(mktemp -d) DJC_REKORDBOX_DIR=$(mktemp -d) DJC_POINT_SNAPSHOT_CAPTURE=<폴더> swift test --filter PointSnapshotCapture`
 /// → `<폴더>/point-snapshots-list.png`(시점 스냅샷·쓰기 전 백업 목록, 고정 하나), `point-snapshots-created.png`(이름 붙여 남긴 직후).
+/// `DJC_POINT_RESTORE_CAPTURE=<폴더>`(#225) → `restore-compare.png`(비교 펼침), `restore-confirm.png`(확인 창), `restore-done.png`(복원 뒤 목록).
 /// 합성 사본(`RekordboxFixture`)에 그리드를 한 번 써서 쓰기 전 백업을 만든다. 창은 화면 밖에서 그린다.
 @MainActor
 struct PointSnapshotCapture {
@@ -81,5 +82,55 @@ struct PointSnapshotCapture {
         #expect(model.isError == false, "\(model.message ?? "")")
         try await Task.sleep(for: .milliseconds(800))
         try StorageSettingsCapture.save(window, to: out.appending(path: "point-snapshots-created.png"))
+    }
+
+    @Test(.enabled(if: environment["DJC_POINT_RESTORE_CAPTURE"] != nil && LiveDraftHome.isIsolated))
+    func 시점_스냅샷_비교와_복원() async throws {
+        guard let path = Self.environment["DJC_POINT_RESTORE_CAPTURE"] else { return }
+        let out = URL(filePath: path)
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        _ = NSApplication.shared
+        let fixture = try Self.scene()
+        // '큰 정리 전' 뒤에 rekordbox에서 한 것 같은 변경(합성): 제목 바꾸기, 곡 넣기, 재생 목록 만들기
+        try fixture.execute("UPDATE djmdContent SET Title = 'Test Pattern 120 (Edit)' WHERE Title = 'Test Pattern 120'")
+        var added = TrackSpec()
+        added.title = "Late Addition"
+        try fixture.add(added)
+        try fixture.add(PlaylistSpec(id: "2001", name: "Friday Set", seq: 1, contentIDs: [added.id]))
+        let prompter = PointRestoreCapturePrompter(file: out.appending(path: "restore-confirm.png"))
+        let model = PointSnapshotModel(database: fixture.database, shareRoot: fixture.shareRoot,
+                                       snapshots: fixture.root.appending(path: "point-snapshots"), backups: fixture.backups,
+                                       guard: RekordboxWriteGuard(isLive: { _ in false }, isRekordboxRunning: { false }, appVersion: { "7.2.18" }),
+                                       prompter: prompter)
+        let window = StorageSettingsCapture.window(PointSnapshotView(model: model), title: String(ui: "시점 스냅샷"))
+        window.setContentSize(NSSize(width: 760, height: 560))
+        defer { window.close() }
+        await model.refresh()
+        let row = try #require(model.rows.first { $0.name == "큰 정리 전" })
+        model.selection = row.id
+        await model.compare(row)
+        try await Task.sleep(for: .milliseconds(800))
+        try StorageSettingsCapture.save(window, to: out.appending(path: "restore-compare.png"))
+        await model.restore(row)
+        #expect(prompter.count == 1 && model.isError == false, "\(model.message ?? "")")
+        try await Task.sleep(for: .milliseconds(800))
+        try StorageSettingsCapture.save(window, to: out.appending(path: "restore-done.png"))
+    }
+}
+
+/// 확인 창을 그림으로 남기고 확인을 누른다(합성 사본에만 복원한다)
+@MainActor
+final class PointRestoreCapturePrompter: ReflectionPrompter {
+    let file: URL
+    private(set) var count = 0
+    init(file: URL) { self.file = file }
+
+    func show(_ prompt: ReflectionPrompt) -> Bool {
+        count += 1
+        let alert = AlertPrompter().makeAlert(prompt)
+        alert.window.appearance = NSAppearance(named: .aqua)
+        alert.layout()
+        try? WriteConfirmCapture.save(alert.window.contentView?.superview ?? alert.window.contentView, to: file)
+        return true
     }
 }

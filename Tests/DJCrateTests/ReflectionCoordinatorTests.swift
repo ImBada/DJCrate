@@ -66,6 +66,8 @@ final class FakeReflectionHost: ReflectionHost {
     /// 이 백업 뒤에 뜬 백업 수(#222)
     var laterBackups = 0
     func laterBackupCount(_ backup: RekordboxWriter.Backup) -> Int { laterBackups }
+    var pointRestoreReason: String?
+    func pointRestoreRefusal(_ backup: RekordboxWriter.Backup) -> String? { pointRestoreReason }
     func restoreDraftConflictDetails(_ backup: RekordboxWriter.Backup) -> [String] { conflicts }
     func restoreRekordbox(_ backup: RekordboxWriter.Backup, keepingCurrentDrafts: Bool) async throws -> URL {
         keptCurrentDrafts = keepingCurrentDrafts
@@ -609,6 +611,15 @@ struct ReflectionCoordinatorTests {
         await coordinator().restore(backup)
         #expect(prompter.shown.map(\.confirm) == ["쓰기 전으로 복원"] && prompter.shown.first?.text.contains("확인하지 못했습니다") == true)
         #expect(host.restored == [backup.url])
+    }
+
+    @Test func 시점_복원_뒤의_옛_백업은_묻지_않고_이유만_알린다() async {
+        let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b"), createdAt: .now, isWrite: true, report: nil)
+        host.pointRestoreReason = "시점 스냅샷으로 복원해서"
+        await coordinator().restore(backup, confirmed: true)
+        #expect(host.restored.isEmpty && host.locks.isEmpty)
+        #expect(prompter.shown.isEmpty, "창 대신 토스트로 알린다(#230)")
+        #expect(host.toast?.title == "복원하지 않았습니다" && host.toast?.detail == "시점 스냅샷으로 복원해서")
     }
 
     @Test func 되돌리기는_그_뒤_rekordbox가_바뀌었으면_경고한다() async {
