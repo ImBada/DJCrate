@@ -80,7 +80,7 @@ extension DevSelfTests {
 }
 
 @MainActor
-private final class PlaylistCapturePrompter: ReflectionPrompter {
+private final class PlaylistCapturePrompter: HeadlessReflectionPrompter {
     let directory: URL
     var filename = "after-preview.jpg"
     var captureSucceeded = true

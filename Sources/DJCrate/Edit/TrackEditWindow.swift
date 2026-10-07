@@ -109,6 +109,8 @@ final class TrackEditWindow: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        // 이 창에 붙은 막힌 초안 비교 시트는 창이 닫히면(렌더 완료로 코드가 닫는 경우도) 함께 닫는다. 남기면 쓰기 입구가 계속 막힌다(#232).
+        if let sheet = store?.recoverySheet, sheet.anchor == .editWindow { sheet.close() }
         model?.close()
     }
 }

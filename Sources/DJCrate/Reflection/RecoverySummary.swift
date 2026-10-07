@@ -7,19 +7,31 @@ import RekordboxKit
 enum RecoverySummary {
     // MARK: - 곡 초안
 
-    /// 무엇이 rekordbox에서 바뀌었는지(곡·종류 하나) 한 줄
+    /// 초안의 기준이 지금 rekordbox와 달라졌는지. 같으면 rekordbox가 바뀌어서가 아니라 다른 이유(반쪽 분석 등)로 쓰지 못하는 초안이다.
+    static func isStale(_ review: DraftRecoveryReview) -> Bool { !changeClauses(review).isEmpty }
+
+    /// 무엇이 rekordbox에서 바뀌었는지(곡·종류 하나) 한 줄. 바뀐 것이 없으면 그렇게 알린다.
     static func summary(_ review: DraftRecoveryReview) -> String {
-        let clauses: [String]
-        switch (review.original, review.current) {
-        case let (.tags(draft), .tags(current)):
-            clauses = tagClauses(draft: draft, current: current)
-        case let (.cues(draft), .cues(current)):
-            clauses = cueClauses(draft: draft, current: current)
-        case let (.grid(draft), .grid(current)):
-            clauses = gridClauses(draft: draft, current: current)
-        default: clauses = []
+        let changes = changeClauses(review)
+        guard !changes.isEmpty else { return String(ui: "rekordbox의 현재 값이 초안의 기준과 같아 바뀐 것이 없습니다") }
+        var clauses = changes
+        if case let (.tags(draft), .tags(current)) = (review.original, review.current) {
+            // 태그는 내가 고친 칸과 같은 칸을 둘 다 바꾼 칸도 함께 보인다.
+            let conflicts = TagDraftRecovery(draft: draft, current: current.base).conflictingKeys
+            if !draft.changedKeys.isEmpty { clauses.append(String(ui: "내 편집: \(labels(draft.changedKeys))")) }
+            if !conflicts.isEmpty { clauses.append(String(ui: "같은 칸을 둘 다 바꿈: \(labels(conflicts))")) }
         }
-        return clauses.isEmpty ? String(ui: "초안을 만든 뒤 rekordbox의 \(review.original.kind.label)가 바뀌었습니다") : clauses.joined(separator: " · ")
+        return clauses.joined(separator: " · ")
+    }
+
+    /// rekordbox에서 바뀐 것의 요약 조각. 비어 있으면 바뀐 것이 없다.
+    private static func changeClauses(_ review: DraftRecoveryReview) -> [String] {
+        switch (review.original, review.current) {
+        case let (.tags(draft), .tags(current)): tagClauses(draft: draft, current: current)
+        case let (.cues(draft), .cues(current)): cueClauses(draft: draft, current: current)
+        case let (.grid(draft), .grid(current)): gridClauses(draft: draft, current: current)
+        default: []
+        }
     }
 
     private static func tagClauses(draft: TagDraft, current: TagDraft) -> [String] {
@@ -27,12 +39,7 @@ enum RecoverySummary {
         let external = TagFields.Key.allCases.filter {
             draft.base[$0] != current.base[$0] && (!TagFields.Key.independent.contains($0) || draft.base[$0] != draft.fields[$0])
         }
-        let conflicts = TagDraftRecovery(draft: draft, current: current.base).conflictingKeys
-        var clauses: [String] = []
-        if !external.isEmpty { clauses.append(String(ui: "rekordbox에서 바뀐 칸: \(labels(external))")) }
-        if !draft.changedKeys.isEmpty { clauses.append(String(ui: "내 편집: \(labels(draft.changedKeys))")) }
-        if !conflicts.isEmpty { clauses.append(String(ui: "같은 칸을 둘 다 바꿈: \(labels(conflicts))")) }
-        return clauses
+        return external.isEmpty ? [] : [String(ui: "rekordbox에서 바뀐 칸: \(labels(external))")]
     }
 
     private static func labels(_ keys: [TagFields.Key]) -> String { keys.map(\.label).joined(separator: "·") }
@@ -63,7 +70,9 @@ enum RecoverySummary {
         if draft.base.map(\.bpm) != current.base.map(\.bpm) {
             return [String(ui: "rekordbox에서 바뀐 그리드: \(bpms(draft.base)) → \(bpms(current.base)) BPM")]
         }
-        return draft.base == current.base ? [] : [String(ui: "rekordbox에서 바뀐 그리드: 첫 박·구간 위치")]
+        if draft.base != current.base { return [String(ui: "rekordbox에서 바뀐 그리드: 첫 박·구간 위치")] }
+        // 대체 그리드는 구간으로 줄이기 전의 모든 박이 승인한 원본과 같아야 하므로 구간이 같아도 다시 확인한다.
+        return draft.replacementSource == nil ? [] : [String(ui: "rekordbox에서 바뀐 그리드: 대체 승인한 원본의 박")]
     }
 
     /// 고르기 전에 알아 둘 것: 내 편집을 유지하면 달라지는 점

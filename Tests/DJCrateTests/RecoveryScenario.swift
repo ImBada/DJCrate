@@ -26,15 +26,19 @@ struct RecoveryScenario {
     let fixture: RekordboxFixture
     let store: LibraryStore
     private(set) var rows: [String: TrackRow] = [:]
+    /// 곡 D의 그리드 초안(`withHalfAnalysedTrack`일 때). 기준은 지금 rekordbox와 같고 다른 이유로 쓰지 못한다.
+    private(set) var halfAnalysedGrid: GridDraft?
     var home: URL { fixture.root }
 
     static func uuid(_ name: String) -> String { "recovery-\(name.lowercased())" }
 
     /// 곡 A·B·C와 목록 P1·P2의 초안 일곱 줄(A 태그·큐, B 태그·그리드, C 큐(대상 다시 지정 필요), 목록 둘)
-    static func make(name: String = "복구 시나리오") async throws -> RecoveryScenario {
+    /// - Parameter withHalfAnalysedTrack: 분석 파일이 `.DAT`뿐인 곡 D를 더하고 기준이 지금과 같은 그리드 초안을 둔다.
+    ///   rekordbox가 바뀌어서가 아니라 반쪽 분석이라 막히는 초안이다(`allTargets`에는 넣지 않는다).
+    static func make(withHalfAnalysedTrack: Bool = false) async throws -> RecoveryScenario {
         let fixture = try RekordboxFixture()
         func spec(_ track: String, cues: [CueSpec] = []) -> TrackSpec {
-            var spec = TrackSpec(id: "9\(track == "A" ? 1 : track == "B" ? 2 : 3)", uuid: uuid(track))
+            var spec = TrackSpec(id: "9\(["A": 1, "B": 2, "C": 3, "D": 4][track] ?? 0)", uuid: uuid(track))
             spec.title = "합성 곡 \(track)"
             spec.cues = cues
             return spec
@@ -51,6 +55,19 @@ struct RecoveryScenario {
         try fixture.execute("UPDATE djmdContent SET rb_data_status = 0 WHERE ID = ?", [.text(b.id)])
         let beats = AnlzBuilder.beats(bpm: 160, first: 200, count: 160)
         try fixture.putAnalysis(for: b, dat: AnlzBuilder.dat(beats: beats), ext: AnlzBuilder.ext(beats: beats))
+        var halfGrid: GridDraft?
+        if withHalfAnalysedTrack {
+            var d = spec("D")
+            d.fileType = 11; d.length = 60
+            d.folderPath = try AudioFixture.wav(seconds: 60, in: fixture.audio, name: "half.wav").path
+            d.analysisDataPath = "/PIONEER/USBANLZ/recovery-d/ANLZ0000.DAT"
+            try fixture.add(d)
+            try fixture.execute("UPDATE djmdContent SET rb_data_status = 0 WHERE ID = ?", [.text(d.id)])
+            try fixture.putAnalysis(for: d, dat: AnlzBuilder.dat(beats: beats), ext: nil)
+            var draft = GridDraft(trackUUID: d.uuid, grid: try BeatGrid.load(anlz: fixture.analysisURL(for: d)))
+            draft.shift(by: 0.01)
+            halfGrid = draft
+        }
         try fixture.add(playlists: [PlaylistSpec(id: "P1", name: "합성 목록 하나", seq: 1, contentIDs: [a.id, b.id]),
                                     PlaylistSpec(id: "P2", name: "합성 목록 둘", seq: 2, contentIDs: [c.id])])
         // 초안은 옛 rekordbox 상태를 기준으로 만들어 뒀고, 그 뒤 rekordbox에서 바뀐 것처럼 합성 사본이 다르다.
@@ -65,7 +82,8 @@ struct RecoveryScenario {
         store.launchEnvironment = ["DJC_REKORDBOX_DIR": fixture.root.path]
         await store.load(snapshot: fixture.database, arguments: store.launchArguments, environment: store.launchEnvironment)
         var scenario = RecoveryScenario(fixture: fixture, store: store)
-        for track in ["A", "B", "C"] {
+        scenario.halfAnalysedGrid = halfGrid
+        for track in withHalfAnalysedTrack ? ["A", "B", "C", "D"] : ["A", "B", "C"] {
             let row: TrackRow = try #require(store.rowsByUUID[uuid(track)])
             scenario.rows[track] = row
         }
@@ -86,7 +104,8 @@ struct RecoveryScenario {
 
     /// 초안을 메모리에 올린다(메인 창을 띄우면 창이 덱의 초안으로 바꿔 두므로, 그 뒤에 다시 올릴 수 있다).
     func installDrafts() {
-        let memory = Self.memoryDrafts()
+        var memory = Self.memoryDrafts()
+        if let halfAnalysedGrid { memory[Self.uuid("D") + "/grid"] = .grid(halfAnalysedGrid) }
         store.recoveryMemoryInput = { uuid, kind in memory[uuid + "/" + String(describing: kind)] }
         for (track, draft) in Self.tagDrafts(rows: rows) { store.tagDrafts[Self.uuid(track)] = draft }
     }
@@ -121,6 +140,33 @@ struct RecoveryScenario {
     nonisolated static let allTargets: [Target] = [.draft("A", .tags), .draft("A", .cues), .draft("B", .tags), .draft("B", .grid),
                                        .draft("C", .cues), .playlist("P1"), .playlist("P2")]
 
+    /// 쓰기 미리 보기가 읽는 초안 파일을 DJC_HOME(시험은 임시 폴더)에 남기고 쓰기 대기로 알린다. 끝나면 `removeDraftFiles()`로 지운다.
+    func saveDraftFiles() throws {
+        for (uuid, draft) in store.tagDrafts where draft.hasChanges { try TagDraftStore.save(draft) }
+        for track in ["A", "B", "C", "D"] {
+            let uuid = Self.uuid(track)
+            if case let .cues(draft)? = store.recoveryMemoryInput?(uuid, .cues) {
+                try CueDraftStore.save(draft)
+                store.draftChanged(trackUUID: uuid, kind: .cue, exists: true)
+            }
+            if case let .grid(draft)? = store.recoveryMemoryInput?(uuid, .grid) {
+                try GridDraftStore.save(draft)
+                store.draftChanged(trackUUID: uuid, kind: .grid, exists: true)
+            }
+        }
+        DraftWriter.flush()
+    }
+
+    func removeDraftFiles() {
+        for track in ["A", "B", "C", "D"] {
+            let uuid = Self.uuid(track)
+            try? TagDraftStore.remove(trackUUID: uuid, directory: TagDraftStore.directory)
+            CueDraftStore.remove(trackUUID: uuid)
+            GridDraftStore.remove(trackUUID: uuid)
+        }
+        DraftWriter.flush()
+    }
+
     /// 큐 하나의 모양(`id`는 곡마다 새로 만들어져 견주지 않는다)
     struct CueShape: Equatable {
         struct Item: Equatable {
@@ -145,6 +191,16 @@ struct RecoveryScenario {
     }
 
     /// 초안이 있는 곡만 담는다(없으면 키가 없다).
+    /// 견줄 때 어느 부분이 다른지(시험 실패 메시지용)
+    func differences(_ a: Outcome, _ b: Outcome) -> [String] {
+        var result: [String] = []
+        if a.tags != b.tags { result.append("태그 초안: \(a.tags.keys.sorted()) ↔ \(b.tags.keys.sorted())") }
+        if a.cues != b.cues { result.append("큐 초안: \(a.cues.keys.sorted()) ↔ \(b.cues.keys.sorted())") }
+        if a.grids != b.grids { result.append("그리드 초안: \(a.grids.keys.sorted()) ↔ \(b.grids.keys.sorted())") }
+        if a.playlists != b.playlists { result.append("재생 목록 초안: \(a.playlists.steps.count) ↔ \(b.playlists.steps.count)") }
+        return result
+    }
+
     func outcome() -> Outcome {
         DraftWriter.flush()
         var cues: [String: CueShape] = [:], grids: [String: GridDraft] = [:]
@@ -152,7 +208,9 @@ struct RecoveryScenario {
             if let draft = CueDraftStore.load(trackUUID: Self.uuid(track), directory: home.appending(path: "cue-drafts")) { cues[track] = CueShape(draft) }
             if let draft = GridDraftStore.load(trackUUID: Self.uuid(track), directory: home.appending(path: "grid-drafts")) { grids[track] = draft }
         }
-        let tags = Dictionary(uniqueKeysWithValues: store.tagDrafts.map { ($0.key, $0.value) })
+        // 같은 프로세스의 다른 시험이 시험 폴더에 남긴 태그 초안이 라이브러리를 읽을 때 섞일 수 있어, 이 시나리오의 곡만 견준다.
+        let ours = Set(["A", "B", "C", "D"].map(Self.uuid))
+        let tags = Dictionary(uniqueKeysWithValues: store.tagDrafts.filter { ours.contains($0.key) }.map { ($0.key, $0.value) })
         return Outcome(tags: tags, cues: cues, grids: grids, playlists: store.playlistDraft)
     }
 }

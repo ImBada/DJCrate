@@ -62,6 +62,8 @@ final class RecoveryLine: Identifiable {
     /// 접어 둔 자세히 보기(기준·현재·내 편집)
     var details: [String] = []
     var canKeep = false
+    /// 초안의 기준이 지금 rekordbox와 달라졌는지. 같으면 rekordbox가 바뀌어서가 아니라 다른 이유로 쓰지 못하는 초안이다(#232 리뷰).
+    var isStale = true
     /// 내 편집 유지를 고를 수 없는 이유
     var keepBlockedReason: String?
     var cueMapping: RecoveryCueMapping?
@@ -109,7 +111,7 @@ final class RecoveryLine: Identifiable {
         case (.keep, false): return String(ui: "내 편집을 현재값 위에 다시 쌓습니다.")
         case (.keep, true): return String(ui: "다시 적용할 수 있는 편집을 현재 목록 위에 초안으로 쌓습니다.")
         case (.useCurrent, false): return String(ui: "이 곡의 \(kindLabel) 편집을 버리고 현재값을 씁니다. 다른 곡과 다른 종류의 초안은 그대로입니다.")
-        case (.useCurrent, true): return String(ui: "이 목록의 막힌 편집을 버립니다. 되돌릴 수 없습니다.")
+        case (.useCurrent, true): return String(ui: "이 목록의 막힌 편집을 되돌릴 수 없게 버립니다.")
         case (.later, _): return String(ui: "초안을 그대로 둡니다.")
         }
     }
@@ -146,7 +148,9 @@ final class RecoverySheetModel: Identifiable {
         self.store = store
         self.anchor = anchor
         self.dependencies = dependencies
-        lines = requests.map(RecoveryLine.init)
+        // 같은 곡·종류가 두 번 들어와도 줄은 하나다(저장이 같은 초안을 두 번 적용하지 않게).
+        var seen = Set<String>()
+        lines = requests.filter { seen.insert($0.id).inserted }.map(RecoveryLine.init)
         // 비교를 마치기 전에도 재생 목록 줄에 이름이 보이게(비교 뒤에는 rekordbox의 현재 이름으로 바뀐다)
         for line in lines { if case let .playlist(id) = line.request { line.title = store.playlistItem(id)?.name ?? "" } }
     }
@@ -160,35 +164,67 @@ final class RecoverySheetModel: Identifiable {
 
     // MARK: - 읽기
 
-    /// 줄마다 지금 rekordbox와 비교한다. 비교는 한 줄씩 차례로 한다(읽는 사본이 같은 `isRecoveringDraft` 안에서 겹치지 않게).
+    /// 줄마다 지금 rekordbox와 비교한다. 곡 줄 전체의 현재값은 사본 하나로, 재생 목록 줄 전체의 현재값은 사본 하나로 읽고 줄끼리 나눠 쓴다
+    /// (줄마다 사본을 뜨고 라이브러리 전체를 읽으면 줄이 늘수록 느려진다). 비교는 한 줄씩 차례로 한다.
     func load() async {
         guard !loadStarted else { return }
         loadStarted = true
         isLoading = true
         defer { isLoading = false }
+        let prefetches = await prefetchDrafts()
+        let playlistCurrent = await prefetchPlaylists()
         for line in lines {
             if isClosed || Task.isCancelled { return }
             switch line.request {
-            case let .draft(row, kind): await loadDraft(line, row: row, kind: kind)
-            case let .playlist(id): await loadPlaylist(line, id: id)
+            case let .draft(row, kind): await loadDraft(line, row: row, kind: kind, prefetch: prefetches[line.id])
+            case .playlist(let id): await loadPlaylist(line, id: id, current: playlistCurrent)
             }
         }
     }
 
-    private func loadDraft(_ line: RecoveryLine, row: TrackRow, kind: DraftRecoveryKind) async {
+    /// 곡 줄의 현재값을 사본 하나로 읽는다. 읽지 못한 줄은 그 이유를 결과로 든다.
+    private func prefetchDrafts() async -> [String: Result<LibraryStore.RecoveryPrefetch, any Error>] {
+        let inputs: [(id: String, original: RecoveryDraft)] = lines.compactMap { line in
+            guard case let .draft(row, kind) = line.request,
+                  let original = store.recoveryInput(uuid: row.track.uuid, kind: kind, home: dependencies.home) else { return nil }
+            return (line.id, original)
+        }
+        guard !inputs.isEmpty else { return [:] }
         do {
-            let review = try await store.prepareDraftRecovery(row: row, kind: kind, home: dependencies.home, readCurrent: dependencies.readCurrent)
+            let results = try await store.readRecoveryPrefetches(inputs.map(\.original), readCurrent: dependencies.readCurrent)
+            return Dictionary(uniqueKeysWithValues: zip(inputs.map(\.id), results))
+        } catch {
+            return Dictionary(uniqueKeysWithValues: inputs.map { ($0.id, Result<LibraryStore.RecoveryPrefetch, any Error>.failure(error)) })
+        }
+    }
+
+    private func prefetchPlaylists() async -> Result<PlaylistRecoveryCurrent, any Error>? {
+        guard lines.contains(where: \.isPlaylist) else { return nil }
+        do { return .success(try await store.readPlaylistRecoveryPrefetch()) } catch { return .failure(error) }
+    }
+
+    private func loadDraft(_ line: RecoveryLine, row: TrackRow, kind: DraftRecoveryKind,
+                           prefetch: Result<LibraryStore.RecoveryPrefetch, any Error>?) async {
+        do {
+            let prefetched = try prefetch?.get()
+            let review = try await store.prepareDraftRecovery(row: row, kind: kind, home: dependencies.home, readCurrent: dependencies.readCurrent,
+                                                              prefetched: prefetched)
             line.title = review.title
             line.draftReview = review
+            line.isStale = RecoverySummary.isStale(review)
             let missing = RecoverySummary.missingCueMappings(review)
-            let keepable = review.keepRefusal == nil && (try? review.original.resolved(onto: review.current, choice: .keepEditing)) != nil
+            let keepable = line.isStale && review.keepRefusal == nil
+                && (try? review.original.resolved(onto: review.current, choice: .keepEditing)) != nil
             line.canKeep = keepable
-            if !keepable {
+            if !line.isStale {
+                // rekordbox가 바뀐 것이 아니면 다시 적용할 것이 없다. 쓰지 못한 이유는 쓰기 결과에 있다.
+                line.keepBlockedReason = String(ui: "이 초안은 rekordbox가 바뀌어서 막힌 것이 아니니 ‘마지막 쓰기 결과…’에서 쓰지 못한 이유를 확인하세요.")
+            } else if !keepable {
                 if missing.isEmpty {
                     line.keepBlockedReason = review.keepRefusal
-                        ?? String(ui: "큐 ID나 그리드 구간의 대응이 모호해 자동으로 다시 적용할 수 없습니다. 현재값을 사용하거나 ‘나중에’로 두고 편집 대상을 다시 지정하세요.")
+                        ?? String(ui: "큐 ID나 그리드 구간의 대응이 모호해 자동으로 다시 적용할 수 없으니 현재값을 사용하거나 ‘나중에’로 두고 편집 대상을 다시 지정하세요.")
                 } else {
-                    line.keepBlockedReason = String(ui: "내 큐가 rekordbox에서 다시 만들어졌습니다. 아래에서 이어 줄 현재 큐를 모두 고르면 내 편집을 유지할 수 있습니다.")
+                    line.keepBlockedReason = String(ui: "내 큐가 rekordbox에서 다시 만들어졌으니 아래에서 이어 줄 현재 큐를 모두 고르면 내 편집을 유지할 수 있습니다.")
                     line.cueMapping = RecoveryCueMapping(missing: missing, candidates: RecoverySummary.cueMappingCandidates(review))
                 }
             }
@@ -200,14 +236,14 @@ final class RecoverySheetModel: Identifiable {
         }
     }
 
-    private func loadPlaylist(_ line: RecoveryLine, id: String) async {
+    private func loadPlaylist(_ line: RecoveryLine, id: String, current: Result<PlaylistRecoveryCurrent, any Error>?) async {
         do {
-            let review = try await store.preparePlaylistRecovery(playlist: id)
+            let review = try await store.preparePlaylistRecovery(playlist: id, prefetched: try current?.get())
             line.title = RecoverySummary.playlistTitle(review)
             line.playlistReview = review
             line.canKeep = !review.recovery.reapplied.isEmpty
             if !line.canKeep {
-                line.keepBlockedReason = String(ui: "다시 적용할 수 있는 편집이 없습니다. 초안을 버리거나 ‘나중에’로 두고 목록을 다시 편집하세요.")
+                line.keepBlockedReason = String(ui: "다시 적용할 수 있는 편집이 없으니 초안을 버리거나 ‘나중에’로 두고 목록을 다시 편집하세요.")
             }
             line.summary = RecoverySummary.playlistSummary(review)
             line.notes = RecoverySummary.playlistNotes(review)
@@ -217,6 +253,11 @@ final class RecoverySheetModel: Identifiable {
         } catch {
             line.phase = .failed(Self.message(for: error))
         }
+    }
+
+    /// 쓰기 결과에서 열 때: rekordbox가 바뀌어 막힌 줄만 남긴다. 다른 이유로 막힌 곡의 이유는 쓰기 결과(토스트·결과 보기)에 있다.
+    func keepOnlyStale() {
+        lines.removeAll { $0.phase == .ready && !$0.isPlaylist && !$0.isStale }
     }
 
     /// 비교 내용(요약·경고·자세히 보기)을 지금 검토 상태(이어 준 큐 대응 포함)로 다시 만든다.
@@ -254,7 +295,7 @@ final class RecoverySheetModel: Identifiable {
                                                               lengthSeconds: review.currentRow?.track.lengthSeconds) == nil
                 if !keepable { line.mappingFailure = review.keepRefusal }
             } catch {
-                line.mappingFailure = String(ui: "이 대응으로는 내 편집을 다시 적용할 수 없습니다. 다른 큐를 고르거나 현재값을 사용하세요.")
+                line.mappingFailure = String(ui: "이 대응으로는 내 편집을 다시 적용할 수 없으니 다른 큐를 고르거나 현재값을 사용하세요.")
             }
         }
         line.cueMapping = mapping
@@ -262,26 +303,29 @@ final class RecoverySheetModel: Identifiable {
         let couldKeep = line.canKeep
         line.canKeep = keepable
         refreshText(line)
-        if keepable, !couldKeep { line.choice = .keep } else if !keepable, line.choice == .keep { line.choice = .later }
+        // 아직 고르지 않은(나중에) 줄만 내 편집 유지로 바꾼다. 사람이 고른 현재값 사용은 그대로 둔다.
+        if keepable, !couldKeep, line.choice == .later { line.choice = .keep } else if !keepable, line.choice == .keep { line.choice = .later }
     }
 
     // MARK: - 저장
 
     /// 고른 줄을 차례로 저장한다. 줄마다 기존 규칙이 지금 상태를 다시 확인하므로, 실패한 줄은 초안을 그대로 두고 이유를 줄에 남기며
-    /// 다른 줄은 그대로 저장한다. 모두 저장했으면 시트를 닫는다.
+    /// 다른 줄은 그대로 저장한다. 실패한 줄이 남지 않았으면 시트를 닫는다. 저장 직전의 현재값은 곡 줄 전체에 사본 하나, 재생 목록 줄 전체에 사본 하나로 읽는다.
     /// - Returns: 고른 줄이 모두 저장됐는지(저장할 줄이 없으면 false)
     @discardableResult
     func save() async -> Bool {
         guard canSave else { return false }
         isSaving = true
         defer { isSaving = false }
-        var saved = 0, failed = 0, playlistApplied = false
-        for line in lines where line.phase == .ready && line.choice != .later {
+        let chosen = lines.filter { $0.phase == .ready && $0.choice != .later }
+        let latest = await prefetchLatest(chosen)
+        var saved = 0, failed = 0
+        for line in chosen {
             line.resultNote = nil
             do {
                 switch line.request {
-                case .draft: try await saveDraft(line)
-                case .playlist(let id): playlistApplied = try await savePlaylist(line, id: id, afterPlaylist: playlistApplied) || playlistApplied
+                case .draft: try await saveDraft(line, latest: latest.drafts[line.id])
+                case .playlist(let id): try await savePlaylist(line, id: id, current: latest.playlists)
                 }
                 line.phase = .saved
                 saved += 1
@@ -299,33 +343,57 @@ final class RecoverySheetModel: Identifiable {
                 : AppToast(kind: .warning, title: String(ui: "초안 일부만 저장했습니다"),
                            detail: String(ui: "저장하지 못한 줄은 비교 창에서 이유를 확인하세요."))
         }
-        if failed == 0 { close() }
+        // 앞서 저장에 실패한 줄이 남아 있으면 이유를 볼 수 있게 시트를 열어 둔다.
+        if !lines.contains(where: { if case .failed = $0.phase { true } else { false } }) { close() }
         return failed == 0
     }
 
-    private func saveDraft(_ line: RecoveryLine) async throws {
-        guard let review = line.draftReview else { throw DJCError.writeRefused(String(ui: "복구할 초안을 확인하지 못했으니 편집을 저장하고 곡을 다시 선택하세요.")) }
-        try await store.applyDraftRecovery(review, choice: line.choice == .keep ? .keepEditing : .useCurrent, home: dependencies.home,
-                                           readCurrent: dependencies.readCurrent, save: dependencies.save)
+    /// 저장 직전의 현재값(곡 줄 전체 사본 하나, 재생 목록 줄 전체 사본 하나). 읽지 못하면 그 이유가 줄마다의 저장 실패가 된다.
+    private func prefetchLatest(_ chosen: [RecoveryLine])
+        async -> (drafts: [String: Result<LibraryStore.RecoveryPrefetch, any Error>], playlists: Result<PlaylistRecoveryCurrent, any Error>?) {
+        let inputs: [(id: String, original: RecoveryDraft)] = chosen.compactMap { line in
+            line.draftReview.map { (line.id, $0.original) }
+        }
+        var drafts: [String: Result<LibraryStore.RecoveryPrefetch, any Error>] = [:]
+        if !inputs.isEmpty {
+            do {
+                let results = try await store.readRecoveryPrefetches(inputs.map(\.original), readCurrent: dependencies.readCurrent)
+                drafts = Dictionary(uniqueKeysWithValues: zip(inputs.map(\.id), results))
+            } catch {
+                drafts = Dictionary(uniqueKeysWithValues: inputs.map { ($0.id, Result<LibraryStore.RecoveryPrefetch, any Error>.failure(error)) })
+            }
+        }
+        var playlists: Result<PlaylistRecoveryCurrent, any Error>?
+        if chosen.contains(where: \.isPlaylist) {
+            do { playlists = .success(try await store.readPlaylistRecoveryPrefetch()) } catch { playlists = .failure(error) }
+        }
+        return (drafts, playlists)
     }
 
-    /// 재생 목록은 앞 목록을 저장하면 초안 전체가 바뀌므로, 그 뒤 줄은 같은 기준으로 다시 비교해 고를 때 본 것과 같을 때만 적용한다.
-    /// - Returns: 재생 목록 초안을 바꿨는지
-    private func savePlaylist(_ line: RecoveryLine, id: String, afterPlaylist: Bool) async throws -> Bool {
+    private func saveDraft(_ line: RecoveryLine, latest: Result<LibraryStore.RecoveryPrefetch, any Error>?) async throws {
+        guard let review = line.draftReview else { throw DJCError.writeRefused(String(ui: "복구할 초안을 확인하지 못했으니 편집을 저장하고 곡을 다시 선택하세요.")) }
+        try await store.applyDraftRecovery(review, choice: line.choice == .keep ? .keepEditing : .useCurrent, home: dependencies.home,
+                                           readCurrent: dependencies.readCurrent, save: dependencies.save, latest: try latest?.get())
+    }
+
+    /// 재생 목록은 앞 목록을 저장하면 초안 전체가 바뀌므로, 비교한 뒤 초안이 바뀌었으면(같은 저장의 앞 줄이든 이전 저장이든) 같은 기준으로
+    /// 다시 비교해 고를 때 본 것과 같을 때만 적용한다.
+    private func savePlaylist(_ line: RecoveryLine, id: String, current: Result<PlaylistRecoveryCurrent, any Error>?) async throws {
         guard var review = line.playlistReview else { throw DJCError.writeRefused(String(ui: "복구할 초안을 확인하지 못했으니 편집을 저장하고 곡을 다시 선택하세요.")) }
-        if afterPlaylist {
+        let latest = try current?.get()
+        if store.playlistDraft != review.original {
             guard store.blockedPlaylistRecoveryIDs.contains(id) else {
-                line.resultNote = String(ui: "앞 줄을 저장하면서 이미 해결됐습니다.")
-                return false
+                // 이미 해결됐으니 줄은 저장한 것으로 보고 안내만 남긴다.
+                line.resultNote = String(ui: "앞에서 저장하면서 이미 해결됐습니다.")
+                return
             }
-            let fresh = try await store.preparePlaylistRecovery(playlist: id)
+            let fresh = try await store.preparePlaylistRecovery(playlist: id, prefetched: latest)
             guard Self.sameComparison(fresh, review, shownDetails: line.details) else {
-                throw DJCError.writeRefused(String(ui: "앞 줄을 저장하면서 이 목록의 비교 내용이 바뀌어 초안을 그대로 남겼으니 다시 열어 확인하세요."))
+                throw DJCError.writeRefused(String(ui: "앞에서 저장하면서 이 목록의 비교 내용이 바뀌어 초안을 그대로 남겼으니 다시 열어 확인하세요."))
             }
             review = fresh
         }
-        try await store.applyPlaylistRecovery(review, reapply: line.choice == .keep && line.canKeep)
-        return true
+        try await store.applyPlaylistRecovery(review, reapply: line.choice == .keep && line.canKeep, latest: latest)
     }
 
     /// 고를 때 본 비교와 같은지. 편집 번호는 앞 목록을 버리면 당겨지므로 번호가 아니라 편집 내용으로 견준다.
@@ -335,11 +403,13 @@ final class RecoverySheetModel: Identifiable {
             && fresh.recovery.refused.values.sorted() == shown.recovery.refused.values.sorted()
     }
 
-    private static func message(for error: any Error) -> String {
-        if error is CancellationError { return String(ui: "비교를 마치지 못했습니다. 이 창을 닫고 다시 여세요.") }
+    /// 줄에 남기는 이유는 무엇을 하면 되는지까지 한 문장이다. 쓰기 거절은 이미 그렇게 쓴 문장이라 뒤에 일반 안내를 덧붙이지 않는다.
+    static func message(for error: any Error) -> String {
+        if error is CancellationError { return String(ui: "비교를 마치지 못했으니 이 창을 닫고 다시 여세요.") }
         if error is DraftRecoveryError {
-            return String(ui: "큐 ID나 그리드 구간의 대응이 모호하므로 내 편집을 그대로 남겼습니다. 현재값을 사용하거나 편집 대상을 다시 지정하세요.")
+            return String(ui: "큐 ID나 그리드 구간의 대응이 모호해 내 편집을 그대로 남겼으니 현재값을 사용하거나 편집 대상을 다시 지정하세요.")
         }
+        if case let DJCError.writeRefused(reason) = error { return reason }
         return AppErrorMessage.message(for: error)
     }
 

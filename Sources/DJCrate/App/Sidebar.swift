@@ -226,8 +226,9 @@ struct ListActionBar: View {
                           systemImage: "tray.and.arrow.down")
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(addTargets.isEmpty || store.isWritingRekordbox)
-                .help(.ui("고른 곡(없으면 추가 목록 전체)을 확인한 뒤 rekordbox 컬렉션에 넣습니다."))
+                .disabled(addTargets.isEmpty || store.isWritingRekordbox || store.writesBlockedBySheet)
+                .help(store.writesBlockedBySheet ? LibraryStore.writesBlockedBySheetReason
+                      : String(ui: "고른 곡(없으면 추가 목록 전체)을 확인한 뒤 rekordbox 컬렉션에 넣습니다."))
                 Button { StagingPanels.chooseFiles(store: store) } label: { Label(.ui("곡 추가…"), systemImage: "plus") }
                 Button { store.removeStaged(store.selection) } label: { Label(.ui("추가 목록에서 제거"), systemImage: "minus") }
                     .disabled(!store.selection.contains { $0.hasPrefix("djc-") })
@@ -249,8 +250,9 @@ struct ListActionBar: View {
                             : .ui("rekordbox에 쓰기 (\(targets.count)곡)…"),
                           systemImage: "square.and.arrow.up.on.square")
                 }
-                .disabled((targets.isEmpty && playlistEdits == 0) || store.isWritingRekordbox)
-                .help(.ui("고른 곡(없으면 목록 전체)과 재생 목록 초안을 rekordbox에 씁니다."))
+                .disabled((targets.isEmpty && playlistEdits == 0) || store.isWritingRekordbox || store.writesBlockedBySheet)
+                .help(store.writesBlockedBySheet ? LibraryStore.writesBlockedBySheetReason
+                      : String(ui: "고른 곡(없으면 목록 전체)과 재생 목록 초안을 rekordbox에 씁니다."))
                 if playlistEdits > 0 {
                     Button { PlaylistPanels.discardAll(store: store) } label: {
                         Label(.ui("재생 목록 초안 버리기"), systemImage: "trash")
@@ -266,8 +268,9 @@ struct ListActionBar: View {
                 Button { DirectWritePanels.restoreLatest(store: store) } label: {
                     Label(.ui("쓰기 전으로 복원…"), systemImage: "arrow.uturn.backward")
                 }
-                .disabled(store.isWritingRekordbox || !store.hasWriteBackup)
-                .help(store.hasWriteBackup
+                .disabled(store.isWritingRekordbox || !store.hasWriteBackup || store.writesBlockedBySheet)
+                .help(store.writesBlockedBySheet ? LibraryStore.writesBlockedBySheetReason
+                      : store.hasWriteBackup
                       ? String(ui: "라이브러리 전체를 마지막 쓰기 전 백업으로 복원합니다.")
                       : String(ui: "복원할 백업이 없습니다. rekordbox에 쓰면 쓰기 전 백업이 생깁니다."))
                 if store.isWritingRekordbox {

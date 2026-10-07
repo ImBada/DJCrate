@@ -81,6 +81,7 @@ struct RedactingPrompter: ReflectionPrompter {
     let from: String, to: String
     func show(_ prompt: ReflectionPrompt) -> Bool { inner.show(redacted(prompt)) }
     func choose(_ prompt: ReflectionPrompt) -> ReflectionChoice { inner.choose(redacted(prompt)) }
+    func review(_ model: RecoverySheetModel) async { await inner.review(model) }
     private func redacted(_ prompt: ReflectionPrompt) -> ReflectionPrompt {
         var prompt = prompt
         prompt.details = prompt.details.map { $0.replacingOccurrences(of: from, with: to) }

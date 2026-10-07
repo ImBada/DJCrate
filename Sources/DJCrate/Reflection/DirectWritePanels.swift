@@ -8,9 +8,15 @@ import SwiftUI
 /// rekordbox에 바로 쓰기·되돌리기 버튼의 입구. 흐름은 `ReflectionCoordinator`.
 @MainActor
 enum DirectWritePanels {
+    /// 쓰기 입구가 시작할 수 있는지. 막힌 초안 비교 창이 열려 있으면 알리고 시작하지 않는다(#232).
+    private static func canStart(_ store: LibraryStore, blocked: Bool = false) -> Bool {
+        if store.writesBlockedBySheet { store.announceWritesBlockedBySheet(); return false }
+        return !blocked && !store.isWritingRekordbox && store.writeTask == nil
+    }
+
     /// - Parameter playlists: 재생 목록 초안도 함께 쓸지(곡을 골라 쓰는 오른쪽 클릭 메뉴는 false)
     static func write(store: LibraryStore, rows: [TrackRow], playlists: Bool = true) {
-        guard !store.isWritingRekordbox, store.writeTask == nil else { return }
+        guard canStart(store) else { return }
         store.writeTask = Task {
             defer { store.writeTask = nil }
             await ReflectionCoordinator(host: store).write(rows: rows, playlists: playlists)
@@ -19,7 +25,7 @@ enum DirectWritePanels {
 
     /// 추가한 곡을 rekordbox 컬렉션에 바로 넣는다.
     static func addTracks(store: LibraryStore, rows: [TrackRow]) {
-        guard !store.isWritingRekordbox, store.writeTask == nil else { return }
+        guard canStart(store) else { return }
         store.writeTask = Task {
             defer { store.writeTask = nil }
             await ReflectionCoordinator(host: store).addTracks(rows: rows)
@@ -28,7 +34,7 @@ enum DirectWritePanels {
 
     /// rekordbox 컬렉션에서 곡을 뺀다(음원 파일은 그대로).
     static func deleteTracks(store: LibraryStore, rows: [TrackRow]) {
-        guard !store.isITunesSelection, !store.isWritingRekordbox, store.writeTask == nil else { return }
+        guard canStart(store, blocked: store.isITunesSelection) else { return }
         store.writeTask = Task {
             defer { store.writeTask = nil }
             await ReflectionCoordinator(host: store).deleteTracks(rows: rows)
@@ -42,7 +48,7 @@ enum DirectWritePanels {
             store.toast = .notice(String(ui: "복원할 쓰기 기록이 없습니다"), String(ui: "DJCrate가 rekordbox에 쓴 적이 없거나 백업이 정리됐습니다."))
             return
         }
-        guard !store.isWritingRekordbox, store.writeTask == nil else { return }
+        guard canStart(store) else { return }
         store.writeTask = Task {
             defer { store.writeTask = nil }
             await ReflectionCoordinator(host: store).restore(backup)
@@ -55,7 +61,7 @@ enum DirectWritePanels {
             store.toast = .notice(String(ui: "백업을 찾지 못했습니다"), backupURL.path)
             return
         }
-        guard !store.isWritingRekordbox, store.writeTask == nil else { return }
+        guard canStart(store) else { return }
         store.writeTask = Task {
             defer { store.writeTask = nil }
             await ReflectionCoordinator(host: store).restore(backup, confirmed: true)

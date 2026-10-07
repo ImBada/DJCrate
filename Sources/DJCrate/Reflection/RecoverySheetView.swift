@@ -24,7 +24,7 @@ struct RecoverySheetView: View {
         .padding(20)
         .frame(width: 720)
         .task { await model.load() }
-        // 시트가 어떻게 내려가든(창 닫기 포함) 쓰기 흐름이 기다리지 않게 한다.
+        // 시트가 내려가면 쓰기 흐름이 더 기다리지 않게 한다. 시트가 붙은 창이 코드로 닫히는 경우는 그 창이 시트를 닫는다(곡 편집 창은 `windowWillClose`).
         .onDisappear { model.close() }
         .interactiveDismissDisabled(model.isSaving)
         .accessibilityElement(children: .contain)
@@ -169,7 +169,7 @@ private struct RecoveryLineView: View {
             .accessibilityValue(Text(line.mappingExpanded ? .ui("펼침") : .ui("접힘")))
             if line.mappingExpanded {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(.ui("시각이나 이름으로 자동 대응하지 않습니다. 같은 대상인 현재 큐를 직접 고르세요."))
+                    Text(.ui("시각이나 이름으로 자동 대응하지 않으니 같은 대상인 현재 큐를 직접 고르세요."))
                         .font(.callout).foregroundStyle(.secondary)
                     ForEach(mapping.missing) { old in
                         if let source = old.sourceID { mappingRow(old, source: source, mapping: mapping) }

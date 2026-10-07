@@ -30,22 +30,31 @@ protocol ReflectionPrompter {
     /// 확인·둘째 동작·취소 중 무엇을 눌렀는지(둘째 동작이 없는 창은 `show`와 같다)
     func choose(_ prompt: ReflectionPrompt) -> ReflectionChoice
     /// 막힌 초안 복구 시트(#232)를 띄우고 닫힐 때까지 기다린다. 시험에서는 시트 대신 정해 둔 줄 선택을 넣는다.
+    /// 기본 구현이 없다: 시트를 띄우지 않는 프롬프터는 `HeadlessReflectionPrompter`를 따라 기다리지 않고 닫는다.
     func review(_ model: RecoverySheetModel) async
+}
+
+/// 복구 시트를 띄우지 않는 프롬프터(자가 테스트·캡처). 시트가 열려야 하는 흐름에 닿으면 기다리지 않고 닫는다.
+@MainActor
+protocol HeadlessReflectionPrompter: ReflectionPrompter {}
+
+extension HeadlessReflectionPrompter {
+    func review(_ model: RecoverySheetModel) async { model.cancel() }
 }
 
 extension ReflectionPrompter {
     func choose(_ prompt: ReflectionPrompt) -> ReflectionChoice { show(prompt) ? .confirm : .cancel }
-
-    /// 시트는 창을 모달로 막지 않고 `ContentView`(또는 곡 편집 창)가 `LibraryStore.recoverySheet`를 보고 띄운다.
-    func review(_ model: RecoverySheetModel) async {
-        model.store.recoverySheet = model
-        await model.waitUntilClosed()
-    }
 }
 
 struct AlertPrompter: ReflectionPrompter {
     func show(_ prompt: ReflectionPrompt) -> Bool {
         choose(prompt) == .confirm
+    }
+
+    /// 시트는 창을 모달로 막지 않고 `ContentView`(또는 곡 편집 창)가 `LibraryStore.recoverySheet`를 보고 띄운다.
+    func review(_ model: RecoverySheetModel) async {
+        model.store.recoverySheet = model
+        await model.waitUntilClosed()
     }
 
     func choose(_ prompt: ReflectionPrompt) -> ReflectionChoice {
@@ -208,10 +217,10 @@ struct ReflectionCoordinator {
                 publish(result)
                 // 쓸 수 없게 된 곡·재생 목록의 초안은 창을 줄줄이 띄우지 않고 한 시트에서 줄마다 고친다(#232).
                 if let store = host as? LibraryStore {
-                    let requests = Self.recoveryRequests(store: store, targets: targets, playlistsBlocked: !report.playlistBlocked.isEmpty)
+                    let requests = Self.recoveryRequests(store: store, targets: targets, blocked: BlockedDrafts(report: report))
                     if !requests.isEmpty {
                         host.setWriteLock(false)
-                        await recover(store: store, requests: requests)
+                        await recover(store: store, requests: requests, staleOnly: true)
                     }
                 }
                 // 고를 것이 없으면 창을 띄우지 않는다. 막힌 이유는 위 결과 토스트와 결과 보기에 있다(#230).

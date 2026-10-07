@@ -1,18 +1,49 @@
 import DJCDomain
 import Foundation
+import RekordboxKit
 
 extension ReflectionCoordinator {
     /// 쓸 수 없게 된 초안을 한 시트에서 고친다(#232). 곡·종류마다, 재생 목록마다 한 줄이고, 줄마다 고른 것을 한 번에 저장한다.
     /// 모든 진입(인스펙터·목록 오른쪽 클릭·곡 편집 창·쓰기 결과의 막힌 초안)이 이 흐름 하나를 쓰며, 시트가 닫힐 때까지 기다린다.
-    func recover(store: LibraryStore, requests: [RecoveryRequest], anchor: RecoverySheetAnchor = .library) async {
+    /// - Parameter staleOnly: 쓰기 결과에서 열 때. 현재값과 비교해 rekordbox가 바뀌어 막힌 곡·종류만 줄로 남기고, 줄이 없으면 시트를 열지 않는다.
+    ///   다른 이유로 막힌 초안의 이유는 쓰기 결과(토스트·결과 보기)에 이미 있다.
+    func recover(store: LibraryStore, requests: [RecoveryRequest], anchor: RecoverySheetAnchor = .library, staleOnly: Bool = false) async {
         guard !requests.isEmpty, store.recoverySheet == nil else { return }
-        await prompter.review(RecoverySheetModel(store: store, requests: requests, anchor: anchor))
+        let model = RecoverySheetModel(store: store, requests: requests, anchor: anchor)
+        if staleOnly {
+            host.writeStage = WriteStage(String(ui: "막힌 초안을 rekordbox의 현재값과 비교하는 중…"))
+            await model.load()
+            host.writeStage = nil
+            model.keepOnlyStale()
+            guard !model.lines.isEmpty else { return }
+        }
+        await prompter.review(model)
     }
 
-    /// 쓰기 결과에서 막힌 초안의 줄들: 쓰려던 곡마다 복구할 수 있는 종류, 그다음 막힌 재생 목록(미리 보기에서 막힌 것이 있을 때만)
-    static func recoveryRequests(store: LibraryStore, targets: [TrackRow], playlistsBlocked: Bool) -> [RecoveryRequest] {
-        targets.flatMap { row in store.recoveryKinds(for: row).map { RecoveryRequest.draft(row, $0) } }
-            + (playlistsBlocked ? store.blockedPlaylistRecoveryIDs.map(RecoveryRequest.playlist) : [])
+    /// 미리 보기에서 막힌 초안: 곡마다 막힌 종류, 막힌 재생 목록이 있는지
+    struct BlockedDrafts {
+        var kinds: [String: Set<DraftRecoveryKind>]
+        var playlists: Bool
+
+        init(kinds: [String: Set<DraftRecoveryKind>], playlists: Bool) {
+            self.kinds = kinds
+            self.playlists = playlists
+        }
+
+        init(report: RekordboxWriter.Report) {
+            var kinds: [String: Set<DraftRecoveryKind>] = [:]
+            for outcome in report.tagBlocked { kinds[outcome.trackUUID, default: []].insert(.tags) }
+            for outcome in report.blocked { kinds[outcome.trackUUID, default: []].insert(.cues) }
+            for outcome in report.gridBlocked + report.analysisBlocked { kinds[outcome.trackUUID, default: []].insert(.grid) }
+            self.init(kinds: kinds, playlists: !report.playlistBlocked.isEmpty)
+        }
+    }
+
+    /// 쓰기 결과에서 막힌 초안의 줄들: 쓰려던 곡(같은 곡은 한 번)마다 미리 보기에서 막힌 종류, 그다음 막힌 재생 목록
+    static func recoveryRequests(store: LibraryStore, targets: [TrackRow], blocked: BlockedDrafts) -> [RecoveryRequest] {
+        store.uniqueTracks(targets).flatMap { row in
+            store.recoveryKinds(for: row).filter { blocked.kinds[row.track.uuid]?.contains($0) == true }.map { RecoveryRequest.draft(row, $0) }
+        } + (blocked.playlists ? store.blockedPlaylistRecoveryIDs.map(RecoveryRequest.playlist) : [])
     }
 }
 
@@ -31,7 +62,11 @@ enum DraftRecoveryPanels {
 
     /// 시트가 열려 있는 동안은 쓰기 등 다른 쓰기 입구도 막는다(`writeTask`가 시트가 닫힐 때까지 남는다).
     private static func present(store: LibraryStore, requests: [RecoveryRequest], anchor: RecoverySheetAnchor) {
-        guard !requests.isEmpty, !store.isRecoveringDraft, !store.isWritingRekordbox, store.writeTask == nil, store.recoverySheet == nil else { return }
+        if store.recoverySheet != nil {
+            store.toast = .notice(String(ui: "막힌 초안 비교가 이미 열려 있습니다"), String(ui: "열려 있는 비교 창에서 저장하거나 취소한 뒤 다시 여세요."))
+            return
+        }
+        guard !requests.isEmpty, !store.isRecoveringDraft, !store.isWritingRekordbox, store.writeTask == nil else { return }
         store.writeTask = Task {
             defer { store.writeTask = nil }
             await ReflectionCoordinator(host: store).recover(store: store, requests: requests, anchor: anchor)

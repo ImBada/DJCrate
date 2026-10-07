@@ -71,7 +71,7 @@ struct RecoverySheetTests {
     func 줄마다_다르게_고른_결과가_연속_창_흐름과_같다(plan: Plan) async throws {
         let legacy = try await RecoveryScenario.make(), sheet = try await RecoveryScenario.make()
         let initial = sheet.outcome()
-        #expect(legacy.outcome() == initial)
+        #expect(legacy.outcome() == initial, "시작 상태가 다름: \(legacy.differences(legacy.outcome(), initial))")
 
         for target in RecoveryScenario.allTargets {
             guard case let .draft(name, kind) = target else { continue }
@@ -91,7 +91,7 @@ struct RecoverySheetTests {
         #expect(failures.isEmpty, "저장하지 못한 줄: \(failures)")
         #expect(saved || plan.name == "모두 나중에")
 
-        #expect(sheet.outcome() == legacy.outcome())
+        #expect(sheet.outcome() == legacy.outcome(), "결과가 다름: \(sheet.differences(sheet.outcome(), legacy.outcome()))")
         if plan.name == "모두 나중에" {
             #expect(sheet.outcome() == initial, "나중에만 고르면 초안이 그대로여야 한다")
         } else {
@@ -190,7 +190,8 @@ struct RecoverySheetTests {
         guard case let .failed(reason) = try line(model, scenario, targets[0]).phase else {
             Issue.record("실패한 줄이 실패로 보이지 않음"); return
         }
-        #expect(reason.contains("현재값을 다시 가져오세요"))
+        // 저장 실패 이유는 무엇을 하면 되는지까지 한 문장이고, 일반 안내가 겹쳐 붙지 않는다.
+        #expect(reason == "비교 중 입력이나 현재값이 바뀌어 초안을 그대로 남겼으니 현재값을 다시 가져오세요.")
         #expect(scenario.store.tagDrafts[RecoveryScenario.uuid("A")] == before)
         #expect(try line(model, scenario, targets[1]).phase == .saved)
         #expect(scenario.outcome().grids["B"] != nil, "다른 줄은 저장했다")
@@ -223,48 +224,230 @@ struct RecoverySheetTests {
         #expect(scenario.store.recoverySheet == nil)
     }
 
-    @Test func 쓰기_결과의_줄은_곡마다_복구할_종류와_막힌_재생_목록이다() async throws {
+    @Test func 쓰기_결과의_줄은_막힌_곡의_복구할_종류와_막힌_재생_목록이다() async throws {
         let scenario = try await RecoveryScenario.make()
         let targets = ["A", "B", "C"].compactMap { scenario.rows[$0] }
-        let ids = ReflectionCoordinator.recoveryRequests(store: scenario.store, targets: targets, playlistsBlocked: true).map(\.id)
+        let all = Dictionary(uniqueKeysWithValues: targets.map { ($0.track.uuid, Set(DraftRecoveryKind.allCases)) })
+        let ids = ReflectionCoordinator.recoveryRequests(store: scenario.store, targets: targets, blocked: .init(kinds: all, playlists: true)).map(\.id)
         #expect(ids == RecoveryScenario.allTargets.map { Self.request(scenario, $0).id })
-        let tracksOnly = ReflectionCoordinator.recoveryRequests(store: scenario.store, targets: targets, playlistsBlocked: false)
+        let tracksOnly = ReflectionCoordinator.recoveryRequests(store: scenario.store, targets: targets, blocked: .init(kinds: all, playlists: false))
         #expect(tracksOnly.count == 5)
-        #expect(ReflectionCoordinator.recoveryRequests(store: scenario.store, targets: [], playlistsBlocked: false).isEmpty)
+        // 미리 보기에서 막히지 않은 종류와 곡은 줄이 되지 않는다.
+        let a = try #require(scenario.rows["A"])
+        let onlyCues = ReflectionCoordinator.recoveryRequests(store: scenario.store, targets: targets, blocked: .init(kinds: [a.track.uuid: [.cues]], playlists: false))
+        #expect(onlyCues.map(\.id) == [Self.request(scenario, .draft("A", .cues)).id])
+        #expect(ReflectionCoordinator.recoveryRequests(store: scenario.store, targets: [], blocked: .init(kinds: all, playlists: false)).isEmpty)
     }
 
-    @Test func 시트_호스트는_자기_창용_시트만_시트로_띄우고_닫으면_내린다() async throws {
+    // MARK: - 쓰기에서 열리는 시트(#232 리뷰)
+
+    /// 쓰기 미리 보기가 읽는 초안은 파일이라, 시험 폴더(DJC_HOME)에 남겼다가 지운다.
+    @Test(.enabled(if: LiveDraftHome.isIsolated))
+    func 쓰기에서_시트는_rekordbox가_바뀌어_막힌_줄만_연다() async throws {
+        let scenario = try await RecoveryScenario.make(withHalfAnalysedTrack: true)
+        try scenario.saveDraftFiles()
+        defer { scenario.removeDraftFiles() }
+        let rows = ["A", "B", "C", "D"].compactMap { scenario.rows[$0] }
+        let prompter = ScriptedPrompter()
+        await ReflectionCoordinator(host: scenario.store, prompter: prompter, isRekordboxRunning: { false }).write(rows: rows, playlists: false)
+        #expect(prompter.shown.isEmpty, "연속 창이 뜨면 안 된다")
+        // D의 그리드는 기준이 지금과 같고 반쪽 분석이라 막힌 것이다. 시트에는 rekordbox가 바뀌어 막힌 줄만 든다.
+        let expected: [Target] = [.draft("A", .tags), .draft("A", .cues), .draft("B", .tags), .draft("B", .grid), .draft("C", .cues)]
+        #expect(prompter.reviewed.first?.lines.map(\.id) == expected.map { Self.request(scenario, $0).id })
+        // 다른 이유로 막힌 곡의 이유는 결과(토스트·결과 보기)에 남는다.
+        let result = try #require(scenario.store.resultHistory.latest)
+        #expect(result.text.contains("합성 곡 D"), "막힌 이유가 결과에 없음: \(result.text)")
+    }
+
+    @Test(.enabled(if: LiveDraftHome.isIsolated))
+    func 쓰기에서_다른_이유로만_막혔으면_시트를_열지_않고_이유를_결과에_남긴다() async throws {
+        let scenario = try await RecoveryScenario.make(withHalfAnalysedTrack: true)
+        try scenario.saveDraftFiles()
+        defer { scenario.removeDraftFiles() }
+        let prompter = ScriptedPrompter()
+        await ReflectionCoordinator(host: scenario.store, prompter: prompter, isRekordboxRunning: { false })
+            .write(rows: [try #require(scenario.rows["D"])], playlists: false)
+        #expect(prompter.reviewed.isEmpty && prompter.shown.isEmpty && scenario.store.recoverySheet == nil)
+        let result = try #require(scenario.store.resultHistory.latest)
+        #expect(result.text.contains("합성 곡 D") && scenario.store.toast != nil)
+    }
+
+    @Test func 기준이_지금과_같은_줄은_바뀌었다고_알리지_않고_나중에가_처음_골라져_있다() async throws {
+        let scenario = try await RecoveryScenario.make(withHalfAnalysedTrack: true)
+        let target = Target.draft("D", .grid)
+        let model = RecoverySheetModel(store: scenario.store, requests: [Self.request(scenario, target)], dependencies: .init(home: scenario.home))
+        await model.load()
+        let line = try #require(model.lines.first)
+        #expect(line.phase == .ready && !line.isStale)
+        #expect(!line.summary.contains("바뀌"), "바뀌지 않았는데 바뀌었다고 알림: \(line.summary)")
+        #expect(line.choice == .later && line.options == [.useCurrent, .later] && line.keepBlockedReason != nil)
+        // 바뀐 줄은 그대로 바뀐 줄이다.
+        let stale = RecoverySheetModel(store: scenario.store, requests: [Self.request(scenario, .draft("B", .grid))], dependencies: .init(home: scenario.home))
+        await stale.load()
+        #expect(stale.lines.first?.isStale == true)
+    }
+
+    // MARK: - 줄·저장 경계(#232 리뷰)
+
+    @Test func 같은_곡이_대상에_두_번_있어도_줄은_하나다() async throws {
         let scenario = try await RecoveryScenario.make()
-        let window = NSWindow(contentRect: NSRect(x: -20_000, y: -20_000, width: 800, height: 600), styleMask: [.titled], backing: .buffered, defer: false)
-        window.contentViewController = NSHostingController(rootView: Color.clear.modifier(RecoverySheetHost(store: scenario.store, anchor: .library)))
-        window.isReleasedWhenClosed = false
-        window.orderFront(nil)
-        defer { window.close() }
-        func waitUntil(_ condition: () -> Bool) async -> Bool {
-            let deadline = ContinuousClock.now + .seconds(10)
-            while ContinuousClock.now < deadline {
-                if condition() { return true }
-                try? await Task.sleep(for: .milliseconds(50))
-            }
-            return condition()
+        let a = try #require(scenario.rows["A"])
+        let ids = ReflectionCoordinator.recoveryRequests(store: scenario.store, targets: [a, a], blocked: .init(kinds: [a.track.uuid: [.tags, .cues]], playlists: false)).map(\.id)
+        #expect(ids == [Self.request(scenario, .draft("A", .tags)).id, Self.request(scenario, .draft("A", .cues)).id])
+        let model = RecoverySheetModel(store: scenario.store, requests: [.draft(a, .tags), .draft(a, .tags)], dependencies: .init(home: scenario.home))
+        #expect(model.lines.count == 1)
+    }
+
+    @Test func 둘째_저장에서도_재생_목록_줄은_앞_줄이_바꾼_초안을_다시_비교해_적용한다() async throws {
+        let scenario = try await RecoveryScenario.make()
+        let tags = Target.draft("A", .tags), first = Target.playlist("P1"), second = Target.playlist("P2")
+        // A 태그는 저장에 실패하고(저장 폴더 권한), P1만 저장한다(P2는 나중에). 합성 사본의 곡 정보는 그대로 둔다(재생 목록 비교가 곡 정보를 읽는다).
+        let model = RecoverySheetModel(store: scenario.store, requests: [tags, first, second].map { Self.request(scenario, $0) },
+                                       dependencies: .init(home: scenario.home, save: { draft in
+                                           if case .tags = draft { throw CocoaError(.fileWriteNoPermission) }
+                                       }))
+        await model.load()
+        model.choose(.later, for: try line(model, scenario, second))
+        let firstSave = await model.save()
+        let p1 = try line(model, scenario, first), p2 = try line(model, scenario, second)
+        #expect(!firstSave && !model.isClosed && p1.phase == .saved && p2.phase == .ready)
+        // 이어서 P2도 저장한다: P1을 저장하며 초안이 바뀌었어도 다시 비교해 적용한다.
+        model.choose(.keep, for: p2)
+        let saved = await model.save()
+        #expect(p2.phase == .saved, "둘째 저장에서 P2: \(p2.phase)")
+        #expect(saved && !model.isClosed, "고른 줄은 모두 저장했고, 앞서 실패한 A 태그가 남아 시트는 열려 있다")
+        #expect(scenario.store.blockedPlaylistEditCount == 0)
+    }
+
+    @Test func 고르는_사이_비교_내용이_바뀐_재생_목록_줄은_적용하지_않고_초안을_남긴다() async throws {
+        let scenario = try await RecoveryScenario.make()
+        let first = Target.playlist("P1"), second = Target.playlist("P2")
+        let model = model(scenario, [first, second])
+        await model.load()
+        // 고르는 사이 P2의 편집이 하나 늘었다. P1은 그대로라 다시 비교해 적용하고, P2는 본 것과 다르니 적용하지 않는다.
+        var changed = scenario.store.playlistDraft
+        try changed.append(.addTracks(playlist: .id("P2"), contentIDs: ["91"]), rekordbox: scenario.store.rekordboxPlaylists)
+        scenario.store.playlistDraft = changed
+        let saved = await model.save()
+        let p1 = try line(model, scenario, first), p2 = try line(model, scenario, second)
+        #expect(!saved && !model.isClosed)
+        #expect(p1.phase == .saved)
+        guard case let .failed(reason) = p2.phase else {
+            Issue.record("본 것과 달라진 줄이 적용됨"); return
         }
+        #expect(reason.contains("다시 열어 확인하세요"))
+        let kept = scenario.store.playlistDraft.steps.filter { $0.edit.playlist.layoutID == "P2" }
+        #expect(kept.count == 2, "P2의 막힌 편집이 초안에 그대로 남아야 한다")
+    }
+
+    @Test func 현재값_사용을_고른_줄은_큐_대상을_이어도_선택이_바뀌지_않는다() async throws {
+        let scenario = try await RecoveryScenario.make()
+        let target = Target.draft("C", .cues)
+        let model = model(scenario, [target])
+        await model.load()
+        let line = try line(model, scenario, target)
+        let old = try #require(line.cueMapping?.missing.first?.sourceID)
+        model.choose(.useCurrent, for: line)
+        model.mapCue(old, to: "cue-c-new", in: line)
+        #expect(line.options.contains(.keep) && line.choice == .useCurrent, "이어 주기가 고른 것을 바꿈: \(line.choice)")
+        // 나중에였을 때만 내 편집 유지로 바뀐다.
+        model.choose(.later, for: line)
+        model.mapCue(old, to: nil, in: line)
+        model.mapCue(old, to: "cue-c-new", in: line)
+        #expect(line.choice == .keep)
+    }
+
+    // MARK: - 사본 읽기·입구·문구(#232 리뷰)
+
+    @Test func 시트_하나는_줄이_여럿이어도_사본을_곡_줄과_재생_목록_줄에_한_번씩만_읽는다() async throws {
+        let scenario = try await RecoveryScenario.make()
+        let model = model(scenario)
+        await model.load()
+        #expect(scenario.store.recoverySnapshotReads == 2, "불러올 때 사본 읽기: \(scenario.store.recoverySnapshotReads)")
+        try apply(.mixed, to: model, scenario)
+        #expect(await model.save())
+        // 저장 직전에 다시 읽는 것도 곡 줄 전체와 재생 목록 줄 전체에 한 번씩이다(재생 목록 줄을 다시 비교해도 더 읽지 않는다).
+        #expect(scenario.store.recoverySnapshotReads == 4, "저장까지 사본 읽기: \(scenario.store.recoverySnapshotReads)")
+    }
+
+    @Test func 시트가_열려_있으면_쓰기_입구는_시작하지_않고_안내하고_메뉴는_막힌다() async throws {
+        let scenario = try await RecoveryScenario.make()
+        let store = scenario.store, a = try #require(scenario.rows["A"])
+        store.selection = [a.id]
+        let reflect = LibraryMenuAction.reflect, remove = LibraryMenuAction.removeTracks
+        #expect(reflect.isEnabled(in: store) && remove.isEnabled(in: store), "시트가 없으면 열려 있어야 한다")
+        let sheet = RecoverySheetModel(store: store, requests: [Self.request(scenario, .draft("A", .tags))], anchor: .editWindow,
+                                       dependencies: .init(home: scenario.home))
+        store.recoverySheet = sheet
+        #expect(!reflect.isEnabled(in: store) && !remove.isEnabled(in: store) && !LibraryMenuAction.restore.isEnabled(in: store))
+        #expect(reflect.disabledReason(in: store) == LibraryStore.writesBlockedBySheetReason)
+        for entry in [{ DirectWritePanels.write(store: store, rows: [a]) }, { DirectWritePanels.addTracks(store: store, rows: [a]) },
+                      { DirectWritePanels.deleteTracks(store: store, rows: [a]) }, { reflect.perform(in: store) }] {
+            store.toast = nil
+            entry()
+            #expect(store.toast?.isNotice == true && store.toast?.title == "막힌 초안 비교가 열려 있어 쓰지 않았습니다")
+            #expect(store.writeTask == nil && !store.isWritingRekordbox)
+        }
+        // 비교 창을 또 열려 해도 안내한다.
+        store.toast = nil
+        DraftRecoveryPanels.recover(store: store, row: a, kind: .tags)
+        #expect(store.toast?.title == "막힌 초안 비교가 이미 열려 있습니다" && store.writeTask == nil)
+        sheet.cancel()
+        #expect(reflect.isEnabled(in: store) && reflect.disabledReason(in: store) == nil)
+    }
+
+    @Test func 곡_편집_창이_닫히면_그_창에_붙은_시트만_닫는다() async throws {
+        let scenario = try await RecoveryScenario.make()
+        let store = scenario.store
+        let window = TrackEditWindow()
+        window.attach(deck: DeckModel(audio: FakeDeckAudio(), storage: .memory(MemoryDrafts()), runsAnalysis: false), store: store)
         func sheet(_ anchor: RecoverySheetAnchor) -> RecoverySheetModel {
-            RecoverySheetModel(store: scenario.store, requests: [Self.request(scenario, .draft("A", .tags))], anchor: anchor,
-                               dependencies: .init(home: scenario.home))
+            RecoverySheetModel(store: store, requests: [Self.request(scenario, .draft("A", .tags))], anchor: anchor, dependencies: .init(home: scenario.home))
         }
-        // 곡 편집 창용 시트는 메인 창에 뜨지 않는다.
-        let edit = sheet(.editWindow)
-        scenario.store.recoverySheet = edit
-        try await Task.sleep(for: .milliseconds(400))
-        #expect(window.attachedSheet == nil)
-        edit.cancel()
-        // 메인 창용 시트는 뜨고, 닫으면(취소·창 닫기 어느 쪽이든) 내려간다.
+        let closing = Notification(name: NSWindow.willCloseNotification)
         let main = sheet(.library)
-        scenario.store.recoverySheet = main
-        #expect(await waitUntil { window.attachedSheet != nil })
+        store.recoverySheet = main
+        window.windowWillClose(closing)
+        #expect(!main.isClosed && store.recoverySheet === main, "메인 창의 시트는 편집 창이 닫혀도 그대로다")
         main.cancel()
-        #expect(await waitUntil { window.attachedSheet == nil })
-        #expect(scenario.store.recoverySheet == nil && main.isClosed)
+        let edit = sheet(.editWindow)
+        store.recoverySheet = edit
+        window.windowWillClose(closing)
+        #expect(edit.isClosed && store.recoverySheet == nil && !store.writesBlockedBySheet)
+        await edit.waitUntilClosed()
+    }
+
+    @Test func 줄에_남기는_이유는_한_문장이고_저장_실패에_일반_안내가_겹치지_않는다() async throws {
+        func oneSentence(_ text: String?) -> Bool {
+            guard let text else { return false }
+            let body = text.trimmingCharacters(in: .whitespaces).dropLast()
+            return !body.contains(". ") && !body.contains("。") && !text.contains("안내된 조건")
+        }
+        let scenario = try await RecoveryScenario.make(withHalfAnalysedTrack: true)
+        let model = model(scenario, [.draft("C", .cues), .playlist("P1")])
+        await model.load()
+        #expect(oneSentence(try line(model, scenario, .draft("C", .cues)).keepBlockedReason))
+        let d = RecoverySheetModel(store: scenario.store, requests: [Self.request(scenario, .draft("D", .grid))], dependencies: .init(home: scenario.home))
+        await d.load()
+        #expect(oneSentence(d.lines.first?.keepBlockedReason))
+        #expect(oneSentence(RecoverySheetModel.message(for: CancellationError())))
+        #expect(oneSentence(RecoverySheetModel.message(for: DraftRecoveryError.ambiguousIdentity)))
+        #expect(RecoverySheetModel.message(for: DJCError.writeRefused("저장 폴더 권한을 확인하세요.")) == "저장 폴더 권한을 확인하세요.")
+    }
+
+    @Test func 시트를_띄우지_않는_프롬프터는_시트를_기다리지_않고_닫는다() async throws {
+        struct Headless: HeadlessReflectionPrompter {
+            func show(_ prompt: ReflectionPrompt) -> Bool { false }
+        }
+        let scenario = try await RecoveryScenario.make()
+        let headless = RecoverySheetModel(store: scenario.store, requests: [Self.request(scenario, .draft("A", .tags))], dependencies: .init(home: scenario.home))
+        await Headless().review(headless)
+        #expect(headless.isClosed)
+        // 시트가 열리면 안 되는 시험용 프롬프터는 끝없이 기다리지 않고 시험을 실패시킨다.
+        let url = FileManager.default.temporaryDirectory.appending(path: "djc-no-sheet-\(UUID()).png")
+        let model = RecoverySheetModel(store: scenario.store, requests: [Self.request(scenario, .draft("A", .tags))], dependencies: .init(home: scenario.home))
+        await withKnownIssue { await SceneCapturingPrompter(url: url).review(model) }
+        #expect(model.isClosed)
     }
 
     @Test func 기본_시트는_스토어에_올리고_닫으면_내린다() async throws {

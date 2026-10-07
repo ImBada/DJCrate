@@ -94,7 +94,7 @@ struct WriteConfirmCapture {
 
 /// 뜬 창을 그려 남기고 취소한다(모달로 띄우지 않는다).
 @MainActor
-final class CapturingPrompter: ReflectionPrompter {
+final class CapturingPrompter: NoRecoverySheetPrompter {
     let folder: URL, appearance: String
     var count = 0
     init(folder: URL, appearance: String) { self.folder = folder; self.appearance = appearance }

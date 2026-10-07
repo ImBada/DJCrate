@@ -76,7 +76,7 @@ enum UsbMigrateCapture {
     }
 
     /// 확인 창을 실제 NSAlert로 그려 기록하고 합성 디스크 이미지에만 자동 확인한다. 모달·키 창·물리 입력은 쓰지 않는다.
-    private final class CapturePrompter: ReflectionPrompter {
+    private final class CapturePrompter: HeadlessReflectionPrompter {
         let directory: String
         var failure: (any Error)?
 
