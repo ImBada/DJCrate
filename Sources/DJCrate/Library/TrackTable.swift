@@ -1380,11 +1380,8 @@ final class TrackTextCell: NSTableCellView {
     /// 글자 자리 = 칸 폭 − 글자 앞(`labelLeading`) − 뒤 2pt. 칸 폭을 모르는 동안(배치 전)은 전체 글자다.
     @discardableResult
     private func showFittingText() -> Bool {
-        var shown = fullText
-        if let compactText, bounds.width > 0, let font = label.font {
-            let slot = bounds.width - labelLeading - 2
-            if ceil((fullText as NSString).size(withAttributes: [.font: font]).width) > slot { shown = compactText }
-        }
+        let shown = FittingText.choose(full: fullText, compact: compactText, font: label.font,
+                                       slot: bounds.width > 0 ? bounds.width - labelLeading - 2 : nil)
         guard label.stringValue != shown else { return false }
         label.stringValue = shown
         return true

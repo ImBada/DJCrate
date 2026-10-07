@@ -12,7 +12,7 @@ import Testing
 /// (변경 전 코드로 찍을 때는 그 표지 사이를 지운 사본을 쓴다). 오디오 장치·화면 기록 권한 없이 화면 밖 창을 비트맵으로 떠서 찍고,
 /// 사용자 라이브러리·음원·초안은 열지 않는다(`DJC_HOME`·`DJC_REKORDBOX_DIR`은 임시 폴더).
 /// `DJC_HOME=$(mktemp -d) DJC_REKORDBOX_DIR=$(mktemp -d) DJC_RATING_COLOR_CAPTURE=<폴더> swift test --filter RatingColorCapture`
-/// → `<폴더>/<light|dark>-<list|list-default-width|list-legacy-width|filter|inspector|sheet>.png`(변경 전에는 filter·list-default-width·list-legacy-width 없음)
+/// → `<폴더>/<light|dark>-<list|list-default-width|list-legacy-width|filter|inspector|sheet|sheet-large-text>.png`(변경 전에는 filter·list-default-width·list-legacy-width 없음)
 @MainActor
 struct RatingColorCapture {
     nonisolated static let environment = ProcessInfo.processInfo.environment
@@ -56,7 +56,7 @@ struct RatingColorCapture {
 
         // 이 시험 프로세스의 설정 영역만 쓴다. 칸 배치·보기 설정은 깨끗이 시작하고 끝나면 있던 값으로 되돌린다.
         let defaults = UserDefaults.standard
-        let settingNames = [SettingKeys.sidebarVisible.name, SettingKeys.showTagEditor.name, SettingKeys.sheetMode.name]
+        let settingNames = [SettingKeys.sidebarVisible.name, SettingKeys.showTagEditor.name, SettingKeys.sheetMode.name, SettingKeys.textScale.name]
         func layoutKeys() -> [String] {
             defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix("djc.trackList.") || ($0.hasPrefix("NSTableView") && $0.contains("djc.")) }
         }
@@ -98,7 +98,8 @@ struct RatingColorCapture {
         // after-only end
 
         let deck = DeckModel(audio: FakeDeckAudio(), storage: .memory(MemoryDrafts()), runsAnalysis: false)
-        let controller = NSHostingController(rootView: ContentView(store: store, deck: deck))
+        // 앱 창처럼 저장된 글자 배율(보기 › 글자 크게)을 환경에 넣는다: 시트 캡처에서 배율을 바꾼다.
+        let controller = NSHostingController(rootView: ContentView(store: store, deck: deck).modifier(AppTextScale()))
         // 화면 폭에 맞춰 줄이지 않는 창(캡처는 화면이 아니라 뷰를 그린다)
         let window = MemoryCueLimitCapture.UnconstrainedWindow(contentViewController: controller)
         window.isReleasedWhenClosed = false
@@ -170,6 +171,12 @@ struct RatingColorCapture {
         defaults.set(true, forKey: SettingKeys.sheetMode.name)
         try await settle(window)
         try save(window, to: folder.appending(path: "\(appearance)-sheet.png"))
+
+        // 5) 태그 시트를 글자 배율 1.5로(보기 › 글자 크게): 평점 열이 별 다섯 칸을 담지 못하는 크기. 시트의 평점 열이 잘리는지 본다(#65).
+        // 이 확인은 변경 전·후 코드에서 같은 모양으로 찍는다.
+        defaults.set(1.5, forKey: SettingKeys.textScale.name)
+        try await settle(window)
+        try save(window, to: folder.appending(path: "\(appearance)-sheet-large-text.png"))
     }
 
     /// 화면 밖 창은 설정이 바뀌어도 배치가 늦게 돌아 인스펙터·시트가 한 박자 늦게 나타난다: 창 크기를 1점 흔들어 다시 배치시키고 기다린다.
