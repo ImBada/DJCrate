@@ -12808,6 +12808,22 @@
         }
       }
     },
+    "고른 백업 뒤에 뜬 백업(%@)까지 차례로 되돌려야 분석 파일이 DB와 맞는데 그 백업을 되돌릴 수 없어 복원하지 않았습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Did not restore because the analysis files only match the database after also undoing every later backup in order, and a later backup (%@) cannot be undone: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースと解析ファイルを一致させるには後のバックアップ（%@）まで順に戻す必要がありますが、そのバックアップを戻せないため復元しませんでした：%@"
+          }
+        }
+      }
+    },
     "고른 클립 바로 뒤에 같은 구간을 하나 더 둡니다(⌘D). 인트로를 늘일 때 씁니다" : {
       "localizations" : {
         "en" : {
@@ -20942,6 +20958,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "バックアップファイルがないか、通常のファイルではありません"
+          }
+        }
+      }
+    },
+    "백업 폴더 밖에 있고 이름에 뜬 시각이 없어 그 뒤 쓰기를 알 수 없음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the backup is outside the backup folder and its name has no timestamp, so later writes cannot be determined"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バックアップフォルダーの外にあり名前に作成時刻がないため、その後の書き込みを特定できません"
           }
         }
       }
@@ -29300,6 +29332,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このプレイリストの下書きの一部を書き込めません：%@"
+          }
+        }
+      }
+    },
+    "이 백업 뒤에 DJCrate가 쓰거나 복원한 %lld번도 분석 파일까지 함께 되돌립니다. 그 쓰기의 초안은 되살리지 않습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The %lld later writes or restores by DJCrate after this backup are also undone, including analysis files. Drafts from those writes are not restored."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このバックアップの後にDJCrateが行った%lld回の書き込み・復元も解析ファイルまで一緒に戻します。それらの書き込みの下書きは復元しません。"
           }
         }
       }

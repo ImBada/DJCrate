@@ -104,7 +104,9 @@ extension RekordboxWriter {
     /// 그 쓰기가 새로 만든 파일(복원 때 지운다). 이미 없는 파일은 건너뛴다(그 뒤 그림을 지웠거나 rekordbox에서 지움, 소유권 실패가 아니다).
     /// 남은 파일은 지금 DB의 곡 경로로 소유권을 본다. 그림 파일은 그 뒤 `ImagePath`가 비었을 수 있어, 보고서가 그림을 쓴 곡 UUID의
     /// 폴더(`PIONEER/Artwork/<앞 3자>/<나머지>/artwork{,_m,_s}.jpg`)이고 그 곡이 DB에 있으면 받는다(#66 리뷰). 그 밖은 계속 막는다.
-    static func createdRestoreFiles(from backup: URL, database: URL, shareRoot: URL) throws -> [URL] {
+    /// `exists`: 연쇄 복원(#222)은 앞 단계를 되돌린 뒤 파일이 있을지를 셈해 넘긴다.
+    static func createdRestoreFiles(from backup: URL, database: URL, shareRoot: URL,
+                                    exists: (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) }) throws -> [URL] {
         struct Files: Decodable {
             struct Outcome: Decodable { var trackUUID: String?; var status: String?; var uuid: String?; var written: Bool? }
             var createdFiles: [String]?
@@ -123,7 +125,7 @@ extension RekordboxWriter {
             owners.formUnion(report?.artworkAdded ?? [])
             owners.formUnion((report?.added ?? []).filter { $0.written == true }.compactMap(\.uuid))
         }
-        let existing = files.filter { FileManager.default.fileExists(atPath: $0.url.path) }
+        let existing = files.filter { exists($0.url) }
         guard !existing.isEmpty else { return [] }
         try rejectDuplicateTargets(existing.map(\.url))
         let allowed = try restorableFiles(existing.map(\.url.path), database: database, shareRoot: shareRoot)
