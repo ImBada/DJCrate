@@ -140,7 +140,7 @@ public enum UsbVolumePolicy {
         return problems
     }
 
-    /// 막지 않고 쓰기 확인 창에 한 줄로 알리는 것. 근거: 제조사 사양(CDJ-3000은 exFAT을 읽고 CDJ-2000NXS2는 읽지 않음),
+    /// 막지 않고 쓰기 확인 창·내보내기 시트에 한 줄로 알리는 것. 근거: 제조사 사양(CDJ-3000은 exFAT을 읽고 CDJ-2000NXS2는 읽지 않음),
     /// GPT USB를 기기가 읽지 못했다는 사용자 보고(`docs/usb-internals.md` §12)
     public static func warnings(_ volume: UsbVolumeInfo) -> [UsbVolumeProblem] {
         var warnings: [UsbVolumeProblem] = []

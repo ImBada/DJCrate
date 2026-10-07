@@ -19,7 +19,7 @@ struct UsbPhysicalWriteGateTests {
         #expect(codes(blocks) == ["physicalDisabled"])
         #expect(blocks[0].rule == .physicalVolume)
         #expect(blocks[0].scope == .volume)
-        #expect(blocks[0].message == "실물 USB에 쓰려면 앱은 쓰기 확인 창에서 확인을 누르고, djc는 --allow-physical --confirm <볼륨 이름>을 주세요")
+        #expect(blocks[0].message == "실물 USB에 쓰려면 앱은 볼륨 이름을 확인하고 ‘USB에 쓰기’를 누르고, djc는 --allow-physical --confirm <볼륨 이름>을 주세요")
     }
 
     @Test("코드 관문이 닫혀 있으면 동의해도 막는다")

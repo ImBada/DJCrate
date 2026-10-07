@@ -208,7 +208,7 @@ struct PlaylistSidebarMenu: ViewModifier {
             guard store.writeLockPolicy.allowsLibraryInteraction else { return }
             store.renamingPlaylistID = id
         }
-        // ⌫: 고른 목록·폴더를 지운다(확인 창)
+        // ⌫: 고른 목록·폴더를 지운다(초안, ⌘Z로 되돌림)
         .onDeleteCommand {
             guard case let .playlist(id) = store.sidebar else { return }
             if store.blockSmartPlaylistEdit(id) { return }
@@ -238,7 +238,7 @@ struct PlaylistContextMenu: View {
             Button(.ui("위로 옮기기")) { move(by: -1) }.disabled(!canMove(by: -1))
             Button(.ui("아래로 옮기기")) { move(by: 1) }.disabled(!canMove(by: 1))
             Divider()
-            Button(node.isFolder ? LocalizedStringResource.ui("폴더 지우기…") : .ui("재생 목록 지우기…"), role: .destructive) {
+            Button(node.isFolder ? LocalizedStringResource.ui("폴더 지우기") : .ui("재생 목록 지우기"), role: .destructive) {
                 PlaylistPanels.delete(store: store, id: node.id)
             }
         }
@@ -371,22 +371,15 @@ private final class StringBox: @unchecked Sendable {
     var values: [String?] { lock.lock(); defer { lock.unlock() }; return storage }
 }
 
-/// 재생 목록 창·확인
+/// 재생 목록 지우기·초안 버리기. 초안 편집이라 묻지 않고 ⌘Z로 되돌린다(#212). rekordbox에는 쓸 때 한 번 확인한다.
 @MainActor
 enum PlaylistPanels {
-    /// 지우기 확인(폴더면 안의 목록 수)
-    static func delete(store: LibraryStore, id: String, prompter: any ReflectionPrompter = AlertPrompter()) {
-        guard let prompt = store.deleteConfirmation(for: id), prompter.show(prompt) else { return }
+    static func delete(store: LibraryStore, id: String) {
         store.deletePlaylist(id)
     }
 
-    /// 재생 목록 초안 모두 버리기(확인)
-    static func discardAll(store: LibraryStore, prompter: any ReflectionPrompter = AlertPrompter()) {
-        let count = store.playlistDraft.steps.count
-        guard count > 0, prompter.show(ReflectionPrompt(
-            title: String(ui: "재생 목록 초안 \(count)건을 버릴까요?"),
-            text: String(ui: "rekordbox에 아직 쓰지 않은 재생 목록 편집(만들기·이름·옮기기·지우기·곡 넣기·빼기)을 모두 버립니다. ⌘Z로 실행 취소할 수 있습니다."),
-            confirm: String(ui: "버리기"), destructive: true)) else { return }
+    static func discardAll(store: LibraryStore) {
+        guard !store.playlistDraft.steps.isEmpty else { return }
         store.discardPlaylistDraft()
     }
 }

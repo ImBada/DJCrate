@@ -368,7 +368,7 @@ import RekordboxKit
 
     // MARK: - 실물 쓰기
 
-    /// 미리 판정용 실물 쓰기 관문. 앱은 쓰기 확인 창이 동의를 받으므로 동의한 관문으로 본다.
+    /// 미리 판정용 실물 쓰기 관문. 앱은 내보내기 시트·쓰기 확인 창이 동의를 받으므로 동의한 관문으로 본다.
     /// 디스크 이미지만 읽는 실행(시험)은 동의 없음(실물은 막힘)
     var physicalGate: UsbPhysicalWriteGate {
         UsbPhysicalWriteGate(consented: readPolicy == .all)
