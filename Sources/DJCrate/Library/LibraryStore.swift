@@ -109,15 +109,6 @@ final class LibraryStore {
             refreshPlaylists()
         }
     }
-    /// 실험실 '실물 USB 쓰기'(#41). 켜도 사이드바에서 쓰기를 허용한 USB 메모리에만 쓴다. 쓰기 창구는 부를 때마다 설정을 다시 읽고,
-    /// 사이드바의 막힘 판정·메뉴는 USB 절(`UsbStore.physicalWriteEnabled`)이 이 값을 받아 쓴다
-    var physicalUsbWrite: Bool {
-        didSet {
-            guard physicalUsbWrite != oldValue else { return }
-            settings.set(SettingKeys.labPhysicalUsbWrite, physicalUsbWrite)
-            usb?.physicalWriteEnabled = physicalUsbWrite
-        }
-    }
     /// 목록 ID → 읽은 조건 칸(스냅샷을 읽을 때 채운다)
     var smartPlaylistSources: [String: SmartPlaylistSource] = [:]
     /// 켜 있을 때 목록 ID → 계산 결과(계산하지 못한 조건이 있으면 곡 없이 이유만)
@@ -140,7 +131,6 @@ final class LibraryStore {
         self.commentPreset = settings.commentPreset
         self.hideStreaming = settings.value(SettingKeys.hideStreaming)
         self.showSmartPlaylists = settings.value(SettingKeys.labSmartPlaylists)
-        self.physicalUsbWrite = settings.value(SettingKeys.labPhysicalUsbWrite)
         self.saveTagDrafts = saveTagDrafts
         self.playlistDraftSaver = playlistDraftSaver
         self.mergeDraftSaver = mergeDraftSaver

@@ -63,13 +63,6 @@ enum UsbTestData {
     static let otherUUID = "00000000-0000-0000-0000-00000000BEEF"
     static let localDBID: Int64 = 424_242
 
-    static func lists(_ fixed: UsbDenyListStatus.State = .ok, entries: Int = 1, userData: UsbDenyListStatus.State = .missing,
-                      deny: Set<String> = [otherUUID]) -> UsbPhysicalLists.Loaded {
-        UsbPhysicalLists.Loaded(allow: [:], deny: deny,
-                                denyStatus: UsbDenyListStatus(fixedLocation: fixed, fixedPhysicalCount: entries, userData: userData),
-                                allowState: .missing)
-    }
-
     static func track(_ id: Int, formats: Set<UsbFormat> = UsbFormat.defaultSet, info: String = "3", analysis: String = "2",
                       cue: String = "1", hasModified: Int = 0, masterContentId: Int64? = nil) -> UsbTrack {
         UsbTrack(id: id, presentIn: formats, title: "시험 곡 \(id)", bpmx100: 12_800, lengthSeconds: 200, artistID: 1, keyID: 1,
@@ -91,9 +84,8 @@ enum UsbTestData {
     }
 
     @MainActor
-    static func store(_ host: FakeUsbHost, policy: UsbReadPolicy = .all, lists: UsbPhysicalLists.Loaded = UsbTestData.lists(),
-                      local: LocalLibraryKeys? = nil) -> UsbStore {
-        let store = UsbStore(host: host, readPolicy: policy, localLibrary: { local }, physicalLists: { lists })
+    static func store(_ host: FakeUsbHost, policy: UsbReadPolicy = .all, local: LocalLibraryKeys? = nil) -> UsbStore {
+        let store = UsbStore(host: host, readPolicy: policy, localLibrary: { local })
         // 지어낸 디스크 이미지의 마운트 지점(/Volumes/…)은 없는 경로라, 편집 막힘 판정에서는 임시 폴더 아래 이미지로 본다
         store.isScratchMount = { _ in true }
         return store
@@ -199,64 +191,32 @@ struct UsbStoreTests {
         #expect(store.shapes[image.usbKey] == .rekordbox(formats: UsbFormat.defaultSet))
     }
 
-    // MARK: - 쓰기 금지 목록
+    // MARK: - 실물 USB
 
-    @Test("쓰기 금지 목록의 볼륨은 사본을 뜨지 않고 쓰기 금지 볼륨으로만 보인다")
-    func deniedVolumeNotRead() async {
+    @Test("실물 볼륨은 등록 없이 읽는다(exFAT·GPT 포함), rekordbox USB가 아닌 형식은 이유만 보인다")
+    func physicalReadWithoutRegistration() async {
         let image = FakeUsbVolume.diskImageFAT32()
-        let host = FakeUsbHost([image])
-        host.serve(image, library: UsbTestData.library())
-        let store = UsbTestData.store(host, lists: UsbTestData.lists(deny: [image.volumeUUID!.lowercased()]))
+        let physical = FakeUsbVolume.physicalFAT32()
+        var exfat = FakeUsbVolume.exfat()
+        exfat.volumeUUID = "00000000-0000-0000-0000-0000000000B1"
+        exfat.mountPoint = "/Volumes/DJCEXFAT"
+        var apfs = FakeUsbVolume.apfs()
+        apfs.volumeUUID = "00000000-0000-0000-0000-0000000000B2"
+        apfs.mountPoint = "/Volumes/DJCAPFS"
+        let host = FakeUsbHost([physical, image, exfat, apfs])
+        for volume in [image, physical, exfat] { host.serve(volume, library: UsbTestData.library()) }
+        let store = UsbTestData.store(host)
         await store.refresh()
-        #expect(host.infoCalls.isEmpty && host.libraryCalls.isEmpty)
-        #expect(store.refusals[image.usbKey] == "denylisted")
-        #expect(store.shapes[image.usbKey] == .unsupported(reason: "쓰기 금지 목록의 USB라 읽지 않습니다"))
-        #expect(store.libraries[image.usbKey] == nil)
-    }
-
-    @Test("쓰기 금지 목록 파일이 깨지면 실물은 하나도 읽지 않고 디스크 이미지만 읽는다")
-    func corruptDenyListReadsNoPhysical() async {
-        let image = FakeUsbVolume.diskImageFAT32()
-        let physical = FakeUsbVolume.physicalFAT32()
-        let host = FakeUsbHost([physical, image])
-        host.serve(image, library: UsbTestData.library())
-        host.serve(physical, library: UsbTestData.library())
-        for lists in [UsbTestData.lists(.corrupt, entries: 0), UsbTestData.lists(.ok, entries: 1, userData: .corrupt)] {
-            let store = UsbTestData.store(host, lists: lists)
-            await store.refresh()
-            #expect(!host.infoCalls.contains(physical.usbKey) && !host.libraryCalls.contains(physical.usbKey))
-            guard case let .unsupported(reason)? = store.shapes[physical.usbKey] else {
-                Issue.record("실물 볼륨이 막히지 않았다")
-                continue
-            }
-            #expect(reason.hasPrefix("쓰기 금지 목록 파일을 읽을 수 없어"))
-            #expect(store.shapes[image.usbKey] == .rekordbox(formats: UsbFormat.defaultSet))
+        for volume in [image, physical, exfat] {
+            #expect(host.infoCalls.contains(volume.usbKey) && host.libraryCalls.contains(volume.usbKey))
+            #expect(store.shapes[volume.usbKey] == .rekordbox(formats: UsbFormat.defaultSet))
         }
-    }
-
-    @Test("실물 볼륨은 쓰기 금지 목록이 등록돼 있을 때만 읽는다")
-    func physicalReadRequiresDenyList() async {
-        let image = FakeUsbVolume.diskImageFAT32()
-        let physical = FakeUsbVolume.physicalFAT32()
-        let notRegistered = "쓰기 금지 목록이 비어 있어 실물 USB를 읽지 않습니다. 쓰면 안 되는 USB를 사이드바의 ‘쓰기 금지 목록에 넣기…’나 djc usb-deny로 먼저 등록하세요"
-        let cases: [(UsbPhysicalLists.Loaded, readsPhysical: Bool, reason: String?)] = [
-            (UsbTestData.lists(.missing, entries: 0, deny: []), false, notRegistered),
-            (UsbTestData.lists(.ok, entries: 0, deny: []), false, notRegistered),
-            (UsbTestData.lists(.ok, entries: 1), true, nil),
-            (UsbTestData.lists(.corrupt, entries: 0, deny: []), false, nil),
-        ]
-        for (lists, readsPhysical, reason) in cases {
-            let host = FakeUsbHost([physical, image])
-            host.serve(image, library: UsbTestData.library())
-            host.serve(physical, library: UsbTestData.library())
-            let store = UsbTestData.store(host, lists: lists)
-            await store.refresh()
-            #expect(host.infoCalls.contains(physical.usbKey) == readsPhysical)
-            #expect(host.libraryCalls.contains(physical.usbKey) == readsPhysical)
-            #expect(host.infoCalls.contains(image.usbKey) && host.libraryCalls.contains(image.usbKey))
-            if let reason { #expect(store.shapes[physical.usbKey] == .unsupported(reason: reason)) }
-            if readsPhysical { #expect(store.shapes[physical.usbKey] == .rekordbox(formats: UsbFormat.defaultSet)) }
+        #expect(!host.infoCalls.contains(apfs.usbKey))
+        guard case let .unsupported(reason)? = store.shapes[apfs.usbKey] else {
+            Issue.record("APFS 볼륨이 막히지 않았다")
+            return
         }
+        #expect(reason.contains("APFS"))
     }
 
     // MARK: - 갱신 상태
@@ -365,40 +325,39 @@ struct UsbStoreTests {
             eject: { _ in })
         let (events, continuation) = AsyncStream.makeStream(of: [UsbVolumeInfo].self)
         let host = SystemUsbHost(io: io, events: events, current: { [image] })
-        let store = UsbStore(host: host, readPolicy: .all, localLibrary: { nil }, physicalLists: { UsbTestData.lists() })
+        let store = UsbStore(host: host, readPolicy: .all, localLibrary: { nil })
         await store.refresh()
         continuation.finish()
         #expect(store.shapes[image.usbKey] == .rekordbox(formats: [.oneLibrary]))
         #expect(recorder.calls == [ThreadRecorder.Call(name: "info", main: false), ThreadRecorder.Call(name: "library", main: false)])
     }
 
-    @Test("읽기 직전에 그 자리의 볼륨을 다시 보고, 새 정보로 쓰기 금지 목록을 판정한다")
+    @Test("읽기 직전에 그 자리의 볼륨을 다시 보고, 새 정보로 읽는다")
     func systemReadRechecksVolume() throws {
         let tree = UsbTreeFixture()
         defer { tree.remove() }
         try UsbLibraryFixture().write(to: tree)
         let snapshots = FileManager.default.temporaryDirectory.appending(path: "djc-usbrecheck-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: snapshots) }
-        // 목록을 훑을 때는 디스크 이미지였는데 읽기 직전 같은 자리에는 실물 볼륨이 붙어 있다(쓰기 금지 목록 미등록)
+        // 목록을 훑을 때는 디스크 이미지였는데 읽기 직전 같은 자리에는 실물 볼륨이 붙어 있다
         var listed = FakeUsbVolume.diskImageFAT32()
         listed.mountPoint = tree.base.path
         var swapped = FakeUsbVolume.physicalFAT32()
         swapped.mountPoint = tree.base.path
-        let unregistered = UsbTestData.lists(.missing, entries: 0)
         func refusal(_ body: () throws -> Void) -> String? {
             do { try body() } catch let UsbError.readFailed(detail) { return detail } catch { return "\(error)" }
             return nil
         }
-        let stale = SystemUsbHost.IO.reading(snapshots: snapshots, lists: { unregistered }, recheck: { [swapped] _ in swapped })
-        #expect(refusal { _ = try stale.info(listed) } == "denyListNotRegistered")
-        #expect(refusal { _ = try stale.library(listed) } == "denyListNotRegistered")
         // 다시 보기가 볼륨이 바뀌었다고 하면 읽지 않는다
-        let changed = SystemUsbHost.IO.reading(snapshots: snapshots, lists: { unregistered },
-                                               recheck: { _ in throw UsbError.readFailed(detail: "volumeChanged") })
+        let changed = SystemUsbHost.IO.reading(snapshots: snapshots, recheck: { _ in throw UsbError.readFailed(detail: "volumeChanged") })
         #expect(refusal { _ = try changed.library(listed) } == "volumeChanged")
+        #expect(refusal { _ = try changed.info(listed) } == "volumeChanged")
         #expect(!FileManager.default.fileExists(atPath: snapshots.path))
+        // 다시 본 새 정보(실물)로 읽는다
+        let stale = SystemUsbHost.IO.reading(snapshots: snapshots, recheck: { [swapped] _ in swapped })
+        #expect(try stale.info(listed).volume?.isDiskImage == false)
         // 같은 볼륨이면 그대로 사본을 떠서 읽는다
-        let same = SystemUsbHost.IO.reading(snapshots: snapshots, lists: { unregistered }, recheck: { $0 })
+        let same = SystemUsbHost.IO.reading(snapshots: snapshots, recheck: { $0 })
         #expect(try same.library(listed).tracks.count == 3)
     }
 }

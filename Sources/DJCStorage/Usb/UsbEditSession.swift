@@ -274,8 +274,7 @@ public final class UsbEditSession {
 
     /// 볼륨 정책(수정)·보호 경로·실물 관문·확인 안 된 규칙(쓰기 절차의 A 단계와 같은 판정)
     func environmentBlocks(_ volume: UsbVolumeInfo, required: Set<UsbProvisionalRule>, options: UsbWriteOptions) -> [UsbBlock] {
-        UsbExportSession.environmentBlocks(volume, root: root, required: required, allowProvisional: options.allowProvisional,
-                                           confirmName: options.confirmName, purpose: .edit, guard: writeGuard)
+        UsbExportSession.environmentBlocks(volume, root: root, required: required, confirmName: options.confirmName, purpose: .edit, guard: writeGuard)
     }
 
     /// 볼륨 UUID(대문자) — 저널·초안 파일 이름. 읽지 못하면 막는다

@@ -200,7 +200,7 @@ rekordbox가 만든 XML에는 곡 정보가 들어 있으니 저장소·이슈�
 ```sh
 djc usb-export --volume <마운트> [--db <스냅샷 사본.db>] [--share <폴더>] [--playlist <ID>]… [--tracks <ContentID>,…]
                [--formats onelibrary,device] [--naming identifier] [--dry-run] [--allow-physical --confirm <볼륨 이름>]
-               [--allow-provisional <규칙,…>] [--verify-audio] [--settings <로컬 설정 폴더>] [--snapshot-time <ISO 8601>]
+               [--verify-audio] [--settings <로컬 설정 폴더>] [--snapshot-time <ISO 8601>]
 
 # 디스크 이미지에 시험(임시 폴더 아래만, rekordbox는 꺼 둔다)
 export DJC_HOME=$(mktemp -d)
@@ -212,18 +212,18 @@ djc usb-info $DJC_HOME/mnt
 djc lab usb-image detach $DJC_HOME/e.img
 ```
 
-로컬 스냅샷 사본의 곡·재생 목록을 **빈 FAT32·MBR USB**에 OneLibrary(`exportLibrary.db`)와 Device Library(`export.pdb`·`exportExt.pdb`)로 내보낸다. 음원·분석 파일·앨범아트를 함께 쓰고, 쓰기는 `UsbWriter.write` 한 곳으로 한다(백업 → 파일 → DB 교체 → 검증, 실패하면 쓰기 전으로 되돌림). 흐름과 규칙은 `docs/usb-internals.md` §7.12.
+로컬 스냅샷 사본의 곡·재생 목록을 **빈 USB(FAT32·exFAT, MBR·GPT)**에 OneLibrary(`exportLibrary.db`)와 Device Library(`export.pdb`·`exportExt.pdb`)로 내보낸다. 음원·분석 파일·앨범아트를 함께 쓰고, 쓰기는 `UsbWriter.write` 한 곳으로 한다(백업 → 파일 → DB 교체 → 검증, 실패하면 쓰기 전으로 되돌림). 흐름과 규칙은 `docs/usb-internals.md` §7.12.
 
-- **실물 USB는 세 가지가 모두 있어야 쓴다**: `--allow-physical`(실험실 스위치), 이 USB에 쓰기 허용(`djc usb-allow` 또는 앱 사이드바), `--confirm <볼륨 이름>`. 쓰기 금지 목록이 등록돼 있어야 하고(`djc usb-deny`), FAT32·MBR USB 메모리만 받는다(외장 SSD 등은 `notUsbDevice`). 조건과 절차는 [아래](#실물-usb에-쓰기usb-allowusb-deny--allow-physical)와 `docs/usb-internals.md` §12. 이 중 하나라도 없으면 `physicalDisabled`·`notAllowlisted`·`confirmMismatch` 등으로 막는다.
+- **실물 USB는 `--allow-physical --confirm <볼륨 이름>`이 있어야 쓴다**(등록·대화형 확인 없음). 조건은 [아래](#실물-usb에-쓰기--allow-physical)와 `docs/usb-internals.md` §12. 없으면 `physicalDisabled`, 이름이 다르면 `confirmMismatch`로 막는다.
 - `--db`를 빼면 가장 최근 스냅샷(읽기만 한다. 새로 뜨거나 정리하지 않는다). 라이브 master.db는 열지 않고 거부한다(`liveDatabase`). 명령은 받은 사본을 세션 전용 폴더(`usb-snapshots/local-<세션>/`)에 한 번 더 떠서 읽고 끝나면 지운다. `--share`를 빼면 rekordbox 폴더의 `share`(읽기만).
 - `--playlist`는 여러 번 줄 수 있고 폴더면 그 안까지 간다. `--tracks`는 ContentID를 쉼표로. 둘 다 주면 목록 곡 다음에 곡을 더한다.
 - `--snapshot-time`: 사본을 뜬 시각(시간대를 넣은 ISO 8601). 빼면 사본 이름(`master-YYYY-MM-DDTHHMMSS.db`, UTC) → 파일 수정 시각 순으로 푼다. 이 시각 뒤에 로컬 분석 파일이 바뀐 곡은 `analysisNewerThanSnapshot`으로 막는다. 요약 첫 줄에 어디서 풀었는지(`explicit`·`fileName`·`modificationDate`)를 적는다.
 - `--formats`: 기본 둘 다. `onelibrary`·`device` 중 하나만 줄 수 있다. `--naming`은 지금 `identifier`(DJCrate 고유 이름)만 있다.
 - `--dry-run`: 계획·준비·쓰기 전 확인까지 하고 USB에 쓰지 않는다(저널을 `dryRun`으로 닫는다). 같은 명령을 `--dry-run` 없이 다시 부르면 막히지 않고 쓴다. 명령은 늘 지금 USB를 다시 읽어 새로 계획한다.
-- `--allow-provisional <규칙,…>`: 확인 안 된 규칙(요약의 "확인 안 된 규칙" 이름)을 실물에서 풀 때 쓴다. 실물 쓰기를 열면 내보내기·수정·옮기기 흐름의 규칙(`UsbProvisionalRule.openOnPhysical`, §9)은 따로 풀지 않아도 되고, 곡 내용에 따라 붙는 규칙(`cueVariant`·`artworkMissing` 등)만 이 인자로 하나씩 푼다. `physicalVolume`은 받지 않는다(`gateOnlyRule`). 디스크 이미지는 확인 안 된 규칙으로 막지 않는다.
+- 확인 안 된 규칙(요약의 "확인 안 된 규칙" 줄)은 쓰기를 막지 않는다(디스크 이미지·실물 모두, `carriedDeviceRows`만 늘 막는다, `docs/usb-internals.md` §9). 옛 `--allow-provisional`은 없어졌다(주면 사용법 오류).
 - `--settings <로컬 설정 폴더>`: 로컬 rekordbox 설정 폴더의 `MYSETTING.DAT`·`MYSETTING2.DAT`·`DJMMYSETTING.DAT`를 내보내기 모양으로 `PIONEER/`에 옮긴다(확인 안 된 규칙 `settingFiles`). 빼면 설정 파일을 만들지 않는다. `DEVSETTING.DAT`·`djprofile.nxs`는 만들지 않는다.
 - `--verify-audio`: 음원도 쓴 뒤 USB에서 다시 읽어 해시를 본다.
-- 막힘: 곡 단위 막힘(`audioSizeMismatch`·`analysisNewerThanSnapshot`·`trackRowTooLarge`·`nameTooLongForDeviceLibrary`·`fileTypeMismatchForDeviceLibrary`·`isrcNotASCIIForDeviceLibrary`·`valueOutOfRangeForDeviceLibrary` 등)은 그 곡만 빼고 쓴다. 볼륨 단위 막힘이 하나라도 있으면 쓰지 않는다: `localVersionUnverified`(이 Mac의 rekordbox가 확인한 버전이 아님), `libraryExists`(이미 rekordbox 라이브러리가 있는 USB — USB 수정으로), `leftoverPioneer`(`PIONEER/` 바로 아래에 다른 것이 남음), `myTagNameTooLongForDeviceLibrary`, `noTracks`, 볼륨 정책(FAT32·MBR 등), 보호 폴더(`protectedPath`), 실물 관문(`physicalDisabled`·`denied`), `insufficientSpace`, 쓰기 절차의 막힘(`rekordboxRunning`·`recoveryNeeded`·`destinationExists` 등). 볼륨 정책·보호 폴더·실물 관문에 막힌 볼륨은 이름도 열거하지 않는다.
+- 막힘: 곡 단위 막힘(`audioSizeMismatch`·`analysisNewerThanSnapshot`·`trackRowTooLarge`·`nameTooLongForDeviceLibrary`·`fileTypeMismatchForDeviceLibrary`·`isrcNotASCIIForDeviceLibrary`·`valueOutOfRangeForDeviceLibrary` 등)은 그 곡만 빼고 쓴다. 볼륨 단위 막힘이 하나라도 있으면 쓰지 않는다: `localVersionUnverified`(이 Mac의 rekordbox가 확인한 버전이 아님), `libraryExists`(이미 rekordbox 라이브러리가 있는 USB — USB 수정으로), `leftoverPioneer`(`PIONEER/` 바로 아래에 다른 것이 남음), `myTagNameTooLongForDeviceLibrary`, `noTracks`, 볼륨 정책(`unsupportedFileSystem`·`partitionScheme` 등), 보호 폴더(`protectedPath`), 실물 관문(`physicalDisabled`·`confirmMismatch`), `insufficientSpace`, 쓰기 절차의 막힘(`rekordboxRunning`·`recoveryNeeded`·`destinationExists` 등). 볼륨 정책·보호 폴더·실물 관문에 막힌 볼륨은 이름도 열거하지 않는다.
 - `Contents/`에 사용자가 넣어 둔 음원이 있으면 덮어쓰지 않는다: 같은 이름·같은 내용이면 그 파일을 가리키고(쓰지 않음), 내용이 다르면 ` (2)`처럼 번호를 붙인다.
 - 출력: 진행은 표준 오류에 단계마다 한 줄, 요약은 표준 출력(스냅샷 시각 → 곡·재생 목록·막힌 곡 수 → 막힘 code별 수와 ContentID → 확인 안 된 규칙별 곡 수 → 경고 code별 수 → 필요 공간 → 결과·백업 폴더·파일 수). 곡 제목·USB 경로는 찍지 않는다. 쓴 뒤에는 "USB를 꺼낸 뒤 뽑으세요(Finder 또는 `diskutil eject`)"로 끝난다.
 - 종료 코드는 성공 0, 막힘·실패 1이다. JSON 계약에는 포함하지 않는다.
@@ -232,17 +232,17 @@ djc lab usb-image detach $DJC_HOME/e.img
 
 ```sh
 djc usb-edit --volume <마운트> (<편집.json> | --draft) [--db <스냅샷 사본.db>] [--share <폴더>] [--dry-run]
-             [--allow-physical --confirm <볼륨 이름>] [--allow-provisional <규칙,…>] [--snapshot-time <ISO 8601>]
+             [--allow-physical --confirm <볼륨 이름>] [--snapshot-time <ISO 8601>]
 ```
 
 이미 라이브러리가 있는 USB(DJCrate가 만든 것·rekordbox가 만든 것)에 곡 더하기·빼기·갱신과 재생 목록 편집을 한 번에 쓴다. OneLibrary는 USB DB 사본에 편집마다 SQL로 고치고, Device Library는 고친 모델에서 새로 만든다. 쓰기는 `UsbWriter.write` 한 곳이다(백업 → 파일 → DB 교체 → 지우기 → 검증, 실패하면 쓰기 전으로 되돌림). 규칙은 `docs/usb-internals.md` §8.3.
 
-- **실물 USB는 `--allow-physical`·쓰기 허용·`--confirm <볼륨 이름>`이 모두 있어야 쓴다**(`usb-export`와 같다). 곡 정보 갱신(`refreshTracks`, `editRefreshTracks`)은 실물에서 `--allow-provisional`로만 푼다. `--allow-provisional physicalVolume`은 받지 않는다(`gateOnlyRule`).
+- **실물 USB는 `--allow-physical --confirm <볼륨 이름>`이 있어야 쓴다**(`usb-export`와 같다). 곡 정보 갱신(`refreshTracks`, `editRefreshTracks`)도 실물에서 막지 않는다.
 - `<편집.json>`: 편집 배열. 적힌 순서대로 앞 편집을 적용한 결과 위에 다음 편집을 계획한다. `--draft`는 이 볼륨에 쌓인 초안(`usb-drafts/<볼륨 UUID>.json`)을 쓴다. 초안을 만든 뒤 USB가 바뀌었으면 지금 USB 상태로 다시 계획한다("USB가 그 사이 바뀌어 다시 계획했습니다"). 쓴 뒤(또는 쓸 것이 없을 때) 초안에는 막힌 편집만 남기고(새 base는 그때 USB DB 지문 — 새 스냅샷 등으로 풀리면 다시 `--draft`로 쓴다), 막힌 편집이 없으면 초안을 지운다. `--dry-run`은 초안을 건드리지 않는다.
 - `--db`: 로컬 스냅샷 사본. 곡 더하기·갱신(로컬을 읽는 편집)에 필요하다. 받은 사본은 곡 더하기·갱신이 있을 때만 세션 전용 폴더(`usb-snapshots/local-<세션>/`)에 한 번 더 떠서 읽고 끝나면 지운다. 곡 빼기에서 음원을 지워도 되는지(로컬 원본과 같은지)는 곡 더하기·갱신과 함께 쓰는 묶음에서만 본다 — 곡 빼기·목록 편집만 있으면 `--db`를 주어도 로컬 사본을 뜨지 않아 음원은 USB에 남기고 알린다(분석 파일·앨범아트는 지운다). `--db`를 빼면 곡 더하기·갱신이 있을 때만 가장 최근 스냅샷을 읽기만 한다(곡 빼기·목록 편집만 있으면 스냅샷 폴더를 보지 않는다). 라이브 master.db는 거부한다.
 - `--snapshot-time`: 사본을 뜬 시각(`usb-export`와 같다). 곡 더하기·갱신에서 이 시각 뒤에 분석 파일이 바뀐 곡은 막는다.
 - `--dry-run`: 계획·준비·쓰기 전 확인까지만 하고 USB에 쓰지 않는다. 같은 명령을 `--dry-run` 없이 다시 부르면 막히지 않고 쓴다.
-- 편집 하나가 막히면 그 편집만 빼고 나머지를 쓴다. 여러 곡 갱신(`refreshTracks`)은 곡 더하기처럼 막힌 곡만 빼고 쓰고(요약의 "빼고 쓴 곡"), 요청한 곡이 모두 막혔을 때만 그 편집을 막는다. USB 전체를 막는 것: 두 형식의 곡 번호·경로가 다름(`formatTrackMismatch`), 같은 번호 재생 목록이 형식마다 다름(`formatPlaylistConflict`), 라이브러리 손상(`libraryCorrupt`), 새 rekordbox의 OneLibrary(`oneLibraryUnsupported`), 볼륨 모양(exFAT·GPT 등), 실물 관문, 끝나지 않은 쓰기(`recoveryNeeded`). Device Library만 막는 것(OneLibrary는 쓴다): 머리 0x10이 5가 아님(`pdbNotClosed`), 기기가 쓴 기록·모르는 표 행(`carriedDeviceRows`), 다시 쓸 수 없는 모양(`pdbRoundTripFailed`). 한 형식이 막히면 파일 지우기를 미루고(`deferred`), 두 형식에 함께 있는 재생 목록의 이름·폴더 바꾸기는 막는다(`playlistInBlockedFormat` — 한 형식만 바꾸면 두 형식 목록이 어긋나 다음부터 USB 전체가 막힌다).
+- 편집 하나가 막히면 그 편집만 빼고 나머지를 쓴다. 여러 곡 갱신(`refreshTracks`)은 곡 더하기처럼 막힌 곡만 빼고 쓰고(요약의 "빼고 쓴 곡"), 요청한 곡이 모두 막혔을 때만 그 편집을 막는다. USB 전체를 막는 것: 두 형식의 곡 번호·경로가 다름(`formatTrackMismatch`), 같은 번호 재생 목록이 형식마다 다름(`formatPlaylistConflict`), 라이브러리 손상(`libraryCorrupt`), 새 rekordbox의 OneLibrary(`oneLibraryUnsupported`), 볼륨 모양(APFS·HFS+ 등), 실물 관문, 끝나지 않은 쓰기(`recoveryNeeded`). Device Library만 막는 것(OneLibrary는 쓴다): 머리 0x10이 5가 아님(`pdbNotClosed`), 기기가 쓴 기록·모르는 표 행(`carriedDeviceRows`), 다시 쓸 수 없는 모양(`pdbRoundTripFailed`). 한 형식이 막히면 파일 지우기를 미루고(`deferred`), 두 형식에 함께 있는 재생 목록의 이름·폴더 바꾸기는 막는다(`playlistInBlockedFormat` — 한 형식만 바꾸면 두 형식 목록이 어긋나 다음부터 USB 전체가 막힌다).
 - 출력: 진행은 표준 오류, 요약은 표준 출력(스냅샷 시각 → 편집 번호별 결과 `written`·`unchanged`·`blocked <code>`·`deferred` → 쓴 형식·막힌 형식 → 빼고 쓴 곡 code별 수 → 알림(경로가 붙은 알림은 이유별 수) → 확인 안 된 규칙 → 결과·백업 폴더·파일 수). 곡 제목·USB 경로는 찍지 않는다. 종료 코드는 성공 0, 막힘·실패 1(편집 일부만 막히고 나머지를 썼으면 0).
 
 편집 파일 모양(`UsbLibraryEdit` 배열). 곡은 USB `content_id`(수), 로컬 곡은 로컬 ContentID(글자), 재생 목록은 USB `playlist_id`(글자) 또는 같은 파일에서 만든 목록 `new:<key>`, 맨 위는 `root`다.
@@ -268,20 +268,20 @@ djc usb-edit --volume <마운트> (<편집.json> | --draft) [--db <스냅샷 사
 ## Device Library만 있는 USB를 OneLibrary로 옮기기(`usb-migrate`)
 
 ```sh
-djc usb-migrate --volume <마운트> [--dry-run] [--allow-physical --confirm <볼륨 이름>] [--allow-provisional <규칙,…>]
+djc usb-migrate --volume <마운트> [--dry-run] [--allow-physical --confirm <볼륨 이름>]
 ```
 
 옛 Device Library(`export.pdb`·`exportExt.pdb`)만 있는 USB를 읽어 같은 USB에 OneLibrary(`exportLibrary.db`)를 더한다. 로컬 라이브러리는 읽지 않는다. 원래 파일(pdb 둘·분석 파일·음원·`a` 앨범아트)은 바꾸지 않고, 새 `exportLibrary.db`와 OneLibrary가 가리키는 `b` 앨범아트(같은 폴더 `a` 앨범아트의 바이트 사본)만 만든다. 쓰기는 `UsbWriter.write` 한 곳이다(백업 → 파일 → DB 만들기 → 검증, 실패하면 쓰기 전으로 되돌림). 되돌리기는 `usb-restore`. 규칙은 `docs/usb-internals.md` §8.4.
 
-- **실물 USB는 `--allow-physical`·쓰기 허용·`--confirm <볼륨 이름>`이 모두 있어야 쓴다**(`usb-export`와 같다). `--allow-provisional physicalVolume`은 받지 않는다(`gateOnlyRule`).
+- **실물 USB는 `--allow-physical --confirm <볼륨 이름>`이 있어야 쓴다**(`usb-export`와 같다).
 - 막힘(쓰지 않는다): OneLibrary가 이미 있음 — 사이드카만 남아도(`oneLibraryExists`, USB 수정을 쓴다), `export.pdb`가 없음(`noDeviceLibrary`), 곡이 없음(`noTracks`), 머리 0x10이 5가 아님(`pdbNotClosed`), 읽지 못한 행·먼 모양 행(`pdbUnreadableRows`), 기기가 쓴 기록·모르는 표 행(`carriedDeviceRows`), 표 19 버전이 "1000"이 아님(`pdbVersionUnsupported`), `a` 앨범아트가 없거나 경로 모양이 다름(`artworkMissingOnUsb`), `b` 자리에 다른 파일(`artworkExists`), OneLibrary를 더하면 USB 파일과 새로 어긋나는 곳(`libraryFilesMismatch` — 음원 크기·PPTH·파일 이름), 끝나지 않은 쓰기(`recoveryNeeded`), 볼륨 모양·실물 관문.
-- 확인 안 된 규칙: 늘 `deviceLibraryMigration`(rekordbox "Convert from Device Library" 결과와 아직 견주지 않음). 재생 목록이 있으면 `playlistSiblingBase`(폴더면 `playlistFolderRow`), My Tag 연결 `myTagLinks`, 앨범아트 없는 곡 `artworkMissing`, 빈 값으로만 본 곡 정보 칸 `metadataSeenEmptyOnly`, `exportExt.pdb`가 없으면 `myTagMasterDBID`.
+- 확인 안 된 규칙(막지 않고 요약에 적는다): 늘 `deviceLibraryMigration`(rekordbox "Convert from Device Library" 결과와 아직 견주지 않음). 재생 목록이 있으면 `playlistSiblingBase`(폴더면 `playlistFolderRow`), My Tag 연결 `myTagLinks`, 앨범아트 없는 곡 `artworkMissing`, 빈 값으로만 본 곡 정보 칸 `metadataSeenEmptyOnly`, `exportExt.pdb`가 없으면 `myTagMasterDBID`.
 - `--dry-run`: 계획·준비·쓰기 전 확인까지만 하고 USB에 쓰지 않는다.
 - 출력: 진행은 표준 오류, 요약은 표준 출력(막힘 → `옮길 것: 곡 N · 재생 목록 N · OneLibrary 앨범아트 N` → 확인 안 된 규칙 → 결과·백업 폴더·파일 수). 곡 제목·USB 경로는 찍지 않는다. 종료 코드는 성공 0, 막힘·실패 1.
 
 ## USB 쓰기 되돌리기·회복
 
-USB 쓰기는 앱(또는 USB 내보내기·수정 명령)이 `UsbWriter.write` 한 곳으로 한다. 아래 두 명령은 그 쓰기를 되돌리거나 끊긴 쓰기를 마무리한다. 둘 다 쓰기와 같은 확인을 먼저 거친다: rekordbox·rekordboxAgent가 켜져 있으면 막고, 실물 USB는 `--allow-physical`·쓰기 허용·`--confirm <볼륨 이름>`이 모두 있어야 받는다(없으면 임시 폴더 아래에 붙인 디스크 이미지만). `--volume`에 rekordbox 라이브러리나 DJCrate 데이터 폴더를 주면 거부한다. 백업·저널은 `DJC_HOME`(또는 기본 DJCrate 데이터 폴더)의 `usb-backups/`·`usb-sessions/`에 있다. JSON 계약에는 포함하지 않는다.
+USB 쓰기는 앱(또는 USB 내보내기·수정 명령)이 `UsbWriter.write` 한 곳으로 한다. 아래 두 명령은 그 쓰기를 되돌리거나 끊긴 쓰기를 마무리한다. 둘 다 쓰기와 같은 확인을 먼저 거친다: rekordbox·rekordboxAgent가 켜져 있으면 막고, 실물 USB는 `--allow-physical --confirm <볼륨 이름>`이 있어야 받는다(없으면 임시 폴더 아래에 붙인 디스크 이미지만). `--volume`에 rekordbox 라이브러리나 DJCrate 데이터 폴더를 주면 거부한다. 백업·저널은 `DJC_HOME`(또는 기본 DJCrate 데이터 폴더)의 `usb-backups/`·`usb-sessions/`에 있다. JSON 계약에는 포함하지 않는다.
 
 ```sh
 djc usb-recover --volume <마운트> [--discard-temp] [--allow-physical --confirm <볼륨 이름>]
@@ -294,24 +294,20 @@ djc usb-restore --volume <마운트> [--backup <폴더>] [--discard-device-chang
 - 출력은 결과·백업 폴더·파일 수다. USB 경로가 붙은 알림(건너뛴 분석 파일 등)은 이유별 개수만 찍는다.
 - 종료 코드는 성공 0, 막힘·실패 1이다. 막힘 이유는 무엇을 하면 되는지까지 한 문장으로 나온다.
 
-## 실물 USB에 쓰기(`usb-allow`·`usb-deny`·`--allow-physical`)
+## 실물 USB에 쓰기(`--allow-physical`)
 
 ```sh
-djc usb-deny  --volume <마운트>             # 쓰면 안 되는 USB를 쓰기 금지 목록에 넣기(먼저 하나 이상)
-djc usb-allow --volume <마운트> [--remove]  # 이 USB에 쓰기 허용(터미널에서 볼륨 이름을 다시 입력) 또는 거두기
 djc usb-export --volume /Volumes/<이름> --db <스냅샷 사본.db> --playlist <ID> --allow-physical --confirm <이름> --dry-run
 ```
 
-실물 USB 쓰기는 기본으로 꺼져 있다. 쓰려면 아래가 모두 맞아야 한다(하나라도 아니면 그 이유와 할 일을 한 문장으로 알리고 USB 파일을 건드리지 않는다). 앱은 설정 › 실험실 "실물 USB 쓰기"와 사이드바 USB 메뉴("이 USB에 쓰기 허용…"·"쓰기 금지 목록에 넣기…")로 같은 일을 한다.
+실물 USB는 등록 없이 읽고, 쓰기는 `--allow-physical --confirm <볼륨 이름>`을 준 명령만 한다(대화형 확인 없음). 앱은 볼륨 이름·용량과 "실물 USB입니다"를 보인 쓰기 확인 창의 확인 버튼이 같은 동의다. 아래가 하나라도 아니면 그 이유와 할 일을 한 문장으로 알리고 USB 파일을 건드리지 않는다.
 
-- 코드 관문(`UsbPhysicalWriteGate.buildEnabled`)과 실행 중 스위치(`--allow-physical`, 앱은 실험실 스위치)가 둘 다 열림. 아니면 `physicalDisabled`.
-- 쓰기 금지 목록(`~/Library/Application Support/DJCrate/usb-physical-deny.json`, `DJC_HOME`과 무관)이 온전하고 실물 USB가 하나 이상 등록됨(`denyListUnreadable`·`denyListMissing`). 디스크 이미지 항목은 등록으로 세지 않는다. 목록에 든 USB는 UUID만 같아도, 디스크 이미지여도 막는다(`denied`).
-- 볼륨 UUID가 있고(`noVolumeUUID`), USB로 연결된 이동식 매체(USB 메모리)임(`notUsbDevice` — USB로 붙어도 고정 디스크로 보이는 외장 SSD, Thunderbolt 디스크는 막는다).
-- 쓰기 허용 목록(`usb-physical-allow.json`, 같은 폴더)에 있음(`notAllowlisted`). 허용은 UUID에 더해 허용할 때의 용량과 USB 일련번호(읽을 수 있을 때)가 같아야 한다(`allowMismatch` — 같은 USB면 다시 허용한다). USB를 다시 포맷하면 UUID가 바뀌어 다시 허용해야 한다.
-- `--confirm`이 볼륨 이름과 정확히 같음(`confirmMismatch`). 앱은 쓰기 확인 창이 대신한다.
-- 볼륨 모양은 디스크 이미지와 같다: FAT32·MBR 첫 파티션·512바이트 섹터, 내장·네트워크·읽기 전용·시동 디스크 아님(`UsbVolumePolicy`). APFS·HFS+·exFAT·GPT(Time Machine 디스크 포함)는 막는다.
+- 코드 관문(`UsbPhysicalWriteGate.buildEnabled`, 비상 스위치)과 `--allow-physical`이 둘 다 열림. 아니면 `physicalDisabled`.
+- 볼륨 UUID가 있음(`noVolumeUUID`), `--confirm`이 볼륨 이름과 정확히 같음(`confirmMismatch`).
+- 볼륨 모양은 디스크 이미지와 같다(`UsbVolumePolicy`): 바깥 저장장치(USB 메모리·외장 SSD·SD 카드 리더 등)의 FAT32·exFAT, MBR·GPT 볼륨. 시동·내장·네트워크·읽기 전용 볼륨, APFS·HFS+(Time Machine 디스크 포함)·FAT16(`unsupportedFileSystem`), APM·파티션 표 없음(`partitionScheme`)은 막는다. exFAT(이전 CDJ가 읽지 못할 수 있음)·GPT(일부 기기가 읽지 못할 수 있음)는 막지 않고 앱 확인 창에 한 줄로 알린다.
+- rekordbox·rekordboxAgent가 꺼져 있음(`rekordboxRunning`).
 
-`usb-allow`는 위 모양 조건(쓰기 금지 목록·FAT32·MBR·USB 메모리)을 지난 볼륨만 받는다. 허용은 사람의 동의라 표준 입력·출력이 터미널일 때만 받고(아니면 `notInteractive` — 앱 사이드바에서 허용한다), 볼륨 이름을 그대로 다시 입력해야 한다(`confirmMismatch`). `--remove`(거두기)는 대화 없이 받는다. 쓰기 명령의 `--allow-physical`은 허용 목록에 이미 있는 USB에만 쓴다(인자로 허용을 대신하지 않는다). `usb-deny`는 디스크 이미지도 받는다. 둘 다 볼륨의 맨 위 폴더만 받고(`notMountPoint`), 목록 파일만 고치며 USB에는 쓰지 않는다. 목록 파일이 깨졌으면 덮지 않고 막는다. 쓰기 금지 목록에서 빼는 명령은 없다(파일을 직접 고친다). 시험 프로세스는 이 관문이 열려도 임시 폴더 밖 볼륨에 쓰지 않는다.
+옛 판의 `usb-allow`·`usb-deny`와 목록 파일(`usb-physical-allow.json`·`usb-physical-deny.json`)은 없어졌다. 남은 파일은 읽지 않고 지우지도 않는다. 시험 프로세스는 이 관문이 열려도 임시 폴더 밖 볼륨에 쓰지 않는다.
 
 ## USB 읽기(`usb-info`)
 
@@ -321,9 +317,9 @@ djc usb-info <볼륨|폴더> [--json]
 
 USB(마운트된 볼륨이나 그 안 폴더, 또는 USB 모양 폴더)를 **읽기만** 해서 형식·곡 수·두 형식이 맞는지·음원 누락·분석 파일·설정 파일 상태·경고를 보여 준다. 앱 사이드바도 같은 판정(`UsbRead`)을 쓴다. USB에는 아무것도 쓰지 않는다. DB는 `DJC_HOME`(또는 기본 DJCrate 데이터 폴더)의 `usb-snapshots/` 아래에 사본으로 떠서 읽고 끝나면 지운다. `PIONEER/extracted`·`PIONEER/CDP`·`djprofile.nxs`는 열지도 "있음"을 알리지도 않는다. 사람용 출력에는 곡 제목·경로·볼륨 이름을 찍지 않는다.
 
-- **실물 USB는 쓰기 금지 목록을 하나 이상 등록한 뒤에만 읽는다(`djc usb-deny`, 앱 사이드바 "쓰기 금지 목록에 넣기…"). 디스크 이미지·폴더는 늘 읽는다.** 대상 경로의 마운트 지점이 Mac 시동 볼륨이 아니면(볼륨 안 하위 폴더여도) 그 볼륨으로 보고 먼저 판정한다: 볼륨 UUID가 쓰기 금지 목록에 있으면 `denylisted`(디스크 이미지여도), 디스크 이미지면 읽음, 목록 파일이 깨졌으면 `denyListUnreadable`, 고정 위치 목록이 없거나 비었으면 `denyListNotRegistered`, 실물인데 볼륨 UUID를 읽지 못했으면 `noVolumeUUID`(목록과 맞춰 볼 수 없으므로). 막히면 사본도 뜨지 않는다.
+- **실물 USB도 등록 없이 읽는다.** 대상 경로의 마운트 지점이 Mac 시동 볼륨이 아니면(볼륨 안 하위 폴더여도) 그 볼륨으로 보고 볼륨 정책 문제를 함께 적는다(`volume.problems`).
 - rekordbox 라이브러리나 DJCrate 데이터 폴더를 주면 거부한다(`liveLibrary`). 없는 경로는 `not_found`.
-- JSON은 위 v1 규칙을 따르되, **`usb-info`는 키를 생략하지 않는다**: 값이 없으면 `null`이다(뒤 판이 값을 채워도 모양이 그대로이게). 오류 코드는 위의 것과 `denylisted`, `denyListUnreadable`, `denyListNotRegistered`, `noVolumeUUID`, `liveLibrary`다.
+- JSON은 위 v1 규칙을 따르되, **`usb-info`는 키를 생략하지 않는다**: 값이 없으면 `null`이다(뒤 판이 값을 채워도 모양이 그대로이게). 오류 코드는 위의 것과 `liveLibrary`다.
 - **개인 식별값은 내지 않는다**: masterDbId·myTagMasterDBID·볼륨 UUID는 값 대신 "같은지"만 적는다. 볼륨 이름은 `root`(받은 경로)에만 나올 수 있고 다른 키에는 없다.
 
 `data`(`UsbInfo`, `schemaVersion` 1):

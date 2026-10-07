@@ -66,12 +66,14 @@ struct UsbEditEngineTests {
         #expect(result.changes == nil)
     }
 
-    @Test("exFAT 볼륨은 형식 이름과 할 일을 적어 막는다")
-    func exfatEditMessage() throws {
+    @Test("APFS 볼륨은 형식 이름과 할 일을 적어 막는다(exFAT은 고친다)")
+    func apfsEditMessage() throws {
         let env = try Self.exported(["101"], playlist: false)
-        let result = try env.plan([.removeTracks(usbContentIDs: [1])], withLocal: false, volume: FakeUsbVolume.exfat())
-        let block = try #require(result.blocks.first { $0.code == "notFAT32" })
-        #expect(block.message.contains("exFAT") && block.message.contains("고칠 수 없습니다"))
+        let result = try env.plan([.removeTracks(usbContentIDs: [1])], withLocal: false, volume: FakeUsbVolume.apfs())
+        let block = try #require(result.blocks.first { $0.code == "unsupportedFileSystem" })
+        #expect(block.message.contains("APFS") && block.message.contains("FAT32나 exFAT로 포맷"))
+        let exfat = try env.plan([.removeTracks(usbContentIDs: [1])], withLocal: false, volume: FakeUsbVolume.exfat())
+        #expect(!exfat.blocks.contains { $0.code == "unsupportedFileSystem" })
         #expect(result.changes == nil)
     }
 

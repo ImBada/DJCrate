@@ -7,6 +7,7 @@ struct UsbMigrationSummary: Equatable, Sendable {
     var playlistCount: Int
     var artworkFiles: Int
     var blocks: [UsbBlock]
+    /// CDJ에서 확인하지 않은 항목(이름 순). 쓰기를 막지 않고 알리기만 한다
     var rules: [UsbProvisionalRule]
     var notes: [String]
     var hasChanges: Bool
@@ -22,7 +23,7 @@ struct UsbMigrationSummary: Equatable, Sendable {
 extension UsbMigrationSummary {
     init(result: UsbMigrationResult, volume: UsbVolumeInfo) {
         self.init(trackCount: result.trackCount, playlistCount: result.playlistCount, artworkFiles: result.artworkFiles,
-                  blocks: result.blocks, rules: (result.changes?.requiredRules ?? []).sorted { $0.rawValue < $1.rawValue },
+                  blocks: result.blocks, rules: UsbProvisionalRule.deviceCheckRules(result.changes?.requiredRules ?? []),
                   notes: result.notes, hasChanges: result.changes != nil, isTestVolume: volume.isDiskImage)
     }
 }

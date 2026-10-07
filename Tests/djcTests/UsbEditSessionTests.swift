@@ -244,15 +244,15 @@ struct UsbEditSessionTests {
         #expect(env.usb.tree() == before)
     }
 
-    @Test("실물 볼륨은 관문이 막고 USB를 열거하지도 사본을 뜨지도 않는다")
+    @Test("동의 없는 실물 볼륨은 관문이 막고 USB를 열거하지도 사본을 뜨지도 않는다")
     func physicalBlocked() throws {
         let env = try Env()
         env.usb.volume = FakeUsbVolume.physicalFAT32()
         let before = env.usb.tree()
         let fileSystem = env.usb.fileSystem()
         let log = CopyLog()
-        let gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID])
-        let options = UsbWriteOptions(confirmName: "DJCPHYS", allowProvisional: Set(UsbProvisionalRule.allCases.filter { !$0.isGateOnly }))
+        let gate = FakeUsbVolume.gate()
+        let options = UsbWriteOptions(confirmName: "DJCPHYS")
         let session = env.session(fileSystem: fileSystem, localCopy: { try log.record($0, $1) }, gate: gate)
         let edits: [UsbLibraryEdit] = [.refreshTracks(usbContentIDs: [1], parts: [.info])]
         let preview = try session.preview(edits, options: options, snapshotTime: Self.time)
@@ -269,20 +269,18 @@ struct UsbEditSessionTests {
         #expect(env.usb.tree() == before)
     }
 
-    @Test("실물 쓰기를 열고 허용한 USB(가짜 볼륨, 임시 폴더)는 곡 더하기·빼기·목록 편집을 쓰고, 되돌리면 쓰기 전과 같다")
+    @Test("동의한 실물 USB(가짜 볼륨, 임시 폴더)는 등록 없이 곡 더하기·빼기·목록 편집을 쓰고, 되돌리면 쓰기 전과 같다")
     func physicalOpenGateEdits() throws {
         let env = try Env()
         try env.fixture.addLocal(["104"])
         env.usb.volume = FakeUsbVolume.physicalFAT32()
-        let gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID], physicalEnabled: true)
+        let gate = FakeUsbVolume.gate(consented: true)
         let edits = Self.edits + [.addTracks(localContentIDs: ["104"], playlist: .id("1"))]
         let before = env.usb.tree()
         let preview = try env.session(gate: gate).preview(edits, options: UsbWriteOptions(confirmName: "DJCPHYS"), snapshotTime: Self.time)
-        // 흐름 규칙은 풀리고, 남은 막힘은 곡 내용 규칙뿐이다
-        #expect(preview.blocks.allSatisfy { $0.code == "provisional" })
-        let extra = Set(preview.blocks.compactMap(\.rule))
-        #expect(extra.isDisjoint(with: UsbProvisionalRule.openOnPhysical))
-        let options = UsbWriteOptions(confirmName: "DJCPHYS", allowProvisional: extra)
+        // 확인 안 된 규칙은 막지 않는다(곡 내용 규칙은 확인 창이 알린다)
+        #expect(preview.blocks.isEmpty)
+        let options = UsbWriteOptions(confirmName: "DJCPHYS")
         let (_, report) = try env.session(gate: gate).write(edits, options: options, snapshotTime: Self.time, progress: { _ in },
                                                            isCancelled: { false })
         #expect(report?.outcome == .written)

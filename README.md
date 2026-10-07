@@ -35,7 +35,7 @@ swift build -c release --product djc  # .build/release/djc
 - **곡 편집·Flip(시험)**: 마디 단위로 잘라 붙인 편집본, 핫큐 점프·루프 연주를 옮긴 편집본을 WAV로 만들어 넣는다
 - **재생 목록**: 만들기·이름 바꾸기·옮기기·곡 넣고 빼기·순서 바꾸기
 - **XML**: rekordbox로 가져오는 연동 XML, 라이브러리 전체 XML 내보내기(읽기만)
-- **USB(시험)**: OneLibrary·Device Library 읽기·내보내기·편집. 쓰기는 디스크 이미지에만, 실물 USB 쓰기는 닫혀 있다
+- **USB(시험)**: OneLibrary·Device Library 읽기·내보내기·편집. 실물 USB는 쓰기 확인 창에서 확인할 때만 쓴다(쓰기 전 백업·쓴 뒤 검증)
 - **실험실**: 인텔리전트 재생 목록 보기(읽기만) 등, 설정 › 실험실에서 켠다
 - **CLI·에이전트**: `djc`로 라이브러리를 찾아보고 큐·태그 초안을 만든다. Claude Code·Codex용 [스킬](skills/djcrate/SKILL.md)
 
@@ -52,7 +52,7 @@ swift build -c release --product djc  # .build/release/djc
 
 ## English
 
-DJCrate is a macOS app for editing a rekordbox 7 library (cues, beat grids, Auto Gain, tags, playlists, adding and removing tracks) without launching rekordbox. Every edit stays a draft until you choose Write to rekordbox (⇧⌘E). It never writes while rekordbox or rekordboxAgent is running, only writes to rekordbox 7.2.x with a verified database layout, backs up the whole library first and verifies the result. USB support is experimental and limited to disk images. Requires macOS 27+, Swift 6.2+ (Xcode); install with `scripts/build-app.sh --install`. The app UI is available in English, Japanese and Korean (others fall back to English); docs, the `djc` CLI and issues are in Korean.
+DJCrate is a macOS app for editing a rekordbox 7 library (cues, beat grids, Auto Gain, tags, playlists, adding and removing tracks) without launching rekordbox. Every edit stays a draft until you choose Write to rekordbox (⇧⌘E). It never writes while rekordbox or rekordboxAgent is running, only writes to rekordbox 7.2.x with a verified database layout, backs up the whole library first and verifies the result. USB support is experimental; physical USBs are written only after you confirm the write dialog. Requires macOS 27+, Swift 6.2+ (Xcode); install with `scripts/build-app.sh --install`. The app UI is available in English, Japanese and Korean (others fall back to English); docs, the `djc` CLI and issues are in Korean.
 
 ## 라이선스
 

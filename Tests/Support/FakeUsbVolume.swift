@@ -98,7 +98,7 @@ public enum FakeUsbVolume {
         return volume
     }
 
-    /// USB로 붙었지만 고정 디스크로 보이는 외장 SSD(FAT32·MBR로 포맷해도 막는다)
+    /// USB로 붙었지만 고정 디스크로 보이는 외장 SSD
     public static func externalSSD() -> UsbVolumeInfo {
         var volume = physicalFAT32()
         volume.isRemovable = false
@@ -112,6 +112,14 @@ public enum FakeUsbVolume {
         return volume
     }
 
+    /// USB SD 카드 리더에 꽂은 SD 카드
+    public static func sdCardReader() -> UsbVolumeInfo {
+        var volume = physicalFAT32(name: "DJCSD")
+        volume.deviceProtocol = "USB"
+        volume.isRemovable = true
+        return volume
+    }
+
     /// 볼륨 안의 하위 폴더를 대상으로 고른 경우
     public static func notMountPoint() -> UsbVolumeInfo {
         var volume = physicalFAT32()
@@ -122,17 +130,9 @@ public enum FakeUsbVolume {
     /// 가짜 실물 USB의 용량(`physicalFAT32`)
     public static let physicalCapacity: Int64 = 16_000_000_000
 
-    /// 허용 목록 항목: 가짜 실물 USB의 지문(용량, 일련번호 없음)으로 허용한 UUID들
-    public static func allowEntries(_ uuids: Set<String>, serial: String? = nil) -> [String: UsbAllowFingerprint] {
-        Dictionary(uniqueKeysWithValues: uuids.map { ($0, UsbAllowFingerprint(capacity: physicalCapacity, serial: serial)) })
-    }
-
-    /// 공개 init만 쓰는 관문. 코드 관문(`buildEnabled`)은 상수 그대로, 실행 중 스위치(설정 › 실험실·`--allow-physical`)는 기본 끔이다.
-    /// allow는 가짜 실물 USB 지문으로 허용한 UUID들
-    public static func gate(allow: Set<String> = [], deny: Set<String> = [],
-                            denyStatus: UsbDenyListStatus = .init(fixedLocation: .ok, fixedPhysicalCount: 1, userData: .missing),
-                            physicalEnabled: Bool = false) -> UsbPhysicalWriteGate {
-        UsbPhysicalWriteGate(allowlist: allowEntries(allow), denylist: deny, denyStatus: denyStatus, physicalEnabled: physicalEnabled)
+    /// 공개 init만 쓰는 관문. 코드 관문(`buildEnabled`)은 상수 그대로, 사용자 동의(앱 쓰기 확인 창·`--allow-physical`)는 기본 없음
+    public static func gate(consented: Bool = false) -> UsbPhysicalWriteGate {
+        UsbPhysicalWriteGate(consented: consented)
     }
 
     private static func base(name: String, uuid: String, content: String) -> UsbVolumeInfo {

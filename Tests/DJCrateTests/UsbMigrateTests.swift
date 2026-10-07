@@ -26,7 +26,7 @@ struct UsbMigrateTests {
         UsbWriteCoordinator(usb: usb, host: host, service: service, prompter: prompter, isRekordboxRunning: { running })
     }
 
-    @Test("미리 보기·확인에는 곡·목록·새 아트워크·확인 안 된 규칙이 있고 취소하면 쓰지 않는다")
+    @Test("미리 보기·확인에는 곡·목록·새 아트워크·CDJ에서 확인하지 않은 항목이 있고 취소하면 쓰지 않는다")
     func previewAndCancel() async throws {
         let (usb, _) = await store()
         let c = coordinator(usb)

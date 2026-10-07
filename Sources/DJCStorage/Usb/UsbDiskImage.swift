@@ -27,13 +27,12 @@ public enum UsbDiskImage {
         var now: @Sendable () -> Date
         var statfs: @Sendable (String) -> StatfsFacts?
         var volumeInfo: @Sendable (URL) throws -> UsbVolumeInfo
-        var gate: @Sendable () -> UsbPhysicalWriteGate
 
         static var system: Environment {
             let runner = SystemToolRunner()
             return Environment(runner: runner, isRekordboxRunning: { LibrarySnapshot.isRekordboxRunning() },
                                sleep: { Thread.sleep(forTimeInterval: $0) }, now: { Date() }, statfs: { StatfsFacts.read($0) },
-                               volumeInfo: { try UsbVolumes.info(root: $0, runner: runner) }, gate: { UsbPhysicalLists.gate() })
+                               volumeInfo: { try UsbVolumes.info(root: $0, runner: runner) })
         }
     }
 
@@ -405,7 +404,7 @@ public enum UsbDiskImage {
 
     // MARK: - 채우기
 
-    /// 골든 사본 등(임시 폴더 아래)을 붙어 있는 이미지에 데이터만 복사한다. 관문 셋(디스크 이미지, 그 이미지 경로, 실물 관문)을 지나야 쓴다
+    /// 골든 사본 등(임시 폴더 아래)을 붙어 있는 이미지에 데이터만 복사한다. 관문 둘(디스크 이미지, 그 이미지 경로)을 지나야 쓴다
     static func seed(image: String, from: String, environment env: Environment) throws -> Seeded {
         let real = try UsbScratchPath.check(image, as: .existingFile)
         let source = try UsbScratchPath.check(from, as: .existingDirectory)
@@ -415,8 +414,7 @@ public enum UsbDiskImage {
         }
         let volume = try env.volumeInfo(URL(filePath: mount))
         guard volume.isDiskImage, let imagePath = volume.diskImagePath, UsbScratchRoots.realPath(imagePath) == real,
-              (try? UsbScratchPath.check(imagePath, as: .existingFile)) != nil,
-              env.gate().blocks(volume, confirmName: nil).isEmpty else {
+              (try? UsbScratchPath.check(imagePath, as: .existingFile)) != nil else {
             throw UsbError.writeRefused([UsbBlock(code: "seedRefused", scope: .volume,
                                                   message: String(ui: "디스크 이미지로 확인되지 않은 볼륨에는 쓰지 않습니다. usb-image attach로 붙인 이미지를 주세요"))])
         }

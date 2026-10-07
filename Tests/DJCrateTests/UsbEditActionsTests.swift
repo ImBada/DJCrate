@@ -124,11 +124,11 @@ struct UsbEditActionsTests {
 
     var key: String { image.usbKey }
 
-    func setUp(_ library: UsbLibrary = UsbTestData.library(), volumes: [UsbVolumeInfo]? = nil, local: LocalLibraryKeys? = nil,
-               lists: UsbPhysicalLists.Loaded = UsbTestData.lists()) async -> (UsbStore, FakeUsbHost, UsbEditActions) {
+    func setUp(_ library: UsbLibrary = UsbTestData.library(), volumes: [UsbVolumeInfo]? = nil,
+               local: LocalLibraryKeys? = nil) async -> (UsbStore, FakeUsbHost, UsbEditActions) {
         let usbHost = FakeUsbHost(volumes ?? [image])
         for volume in volumes ?? [image] { usbHost.serve(volume, library: library) }
-        let usb = UsbTestData.store(usbHost, lists: lists, local: local)
+        let usb = UsbTestData.store(usbHost, local: local)
         usb.writeService = service
         usb.draftDirectory = drafts
         service.update {
@@ -204,22 +204,29 @@ struct UsbEditActionsTests {
 
     // MARK: - 막힘 미리 판정
 
-    @Test("막힐 편집은 메뉴 옆에 이유를 보인다: 실물 USB 곡 더하기, 두 형식 항목이 다른 목록, 폴더, 곡이 다 빠짐")
+    @Test("막힐 편집은 메뉴 옆에 이유를 보인다: 동의 없는 실물 USB, 두 형식 항목이 다른 목록, 폴더, 곡이 다 빠짐. 앱의 실물 USB는 막지 않는다")
     func blockedEditHelpText() async throws {
         defer { cleanUp() }
         let physical = FakeUsbVolume.physicalFAT32()
         let library = UsbEditTestData.mixedLibrary()
-        func reason(_ edit: UsbLibraryEdit, _ volume: UsbVolumeInfo, scratch: Bool = true) -> String? {
-            UsbEditActions.blockReason(edit, volume: volume, library: library, info: nil, isScratchMount: { _ in scratch })
+        func reason(_ edit: UsbLibraryEdit, _ volume: UsbVolumeInfo, scratch: Bool = true,
+                    gate: UsbPhysicalWriteGate = .init()) -> String? {
+            UsbEditActions.blockReason(edit, volume: volume, library: library, info: nil, isScratchMount: { _ in scratch }, physicalGate: gate)
         }
         let add = UsbLibraryEdit.addTracks(localContentIDs: ["11"], playlist: nil)
-        // 실험실 스위치가 꺼져 있으면 실물은 관문 문구로 막힌다
-        #expect(reason(add, physical) == "실물 USB 쓰기가 꺼져 있습니다. 앱은 설정 › 실험실에서 켜고, djc는 --allow-physical을 준 뒤 다시 시도하세요")
+        // 동의 없는 관문(시험 실행)이면 실물은 관문 문구로 막힌다
+        let gate = "실물 USB에 쓰려면 앱은 쓰기 확인 창에서 확인을 누르고, djc는 --allow-physical --confirm <볼륨 이름>을 주세요"
+        #expect(reason(add, physical) == gate)
         #expect(reason(add, image) == nil)
-        #expect(reason(.removeTracks(usbContentIDs: [1]), physical) == "실물 USB 쓰기가 꺼져 있습니다. 앱은 설정 › 실험실에서 켜고, djc는 --allow-physical을 준 뒤 다시 시도하세요")
+        #expect(reason(.removeTracks(usbContentIDs: [1]), physical) == gate)
         #expect(reason(.removeTracks(usbContentIDs: [1]), image) == nil)
-        // 임시 폴더 밖에 붙인 디스크 이미지는 실물처럼 막힌다(쓰기 때 세션 판정과 같다)
-        let gate = "실물 USB 쓰기가 꺼져 있습니다. 앱은 설정 › 실험실에서 켜고, djc는 --allow-physical을 준 뒤 다시 시도하세요"
+        // 앱(확인 창이 동의)은 실물에도 곡 정보 갱신까지 막지 않는다(확인 안 된 규칙은 확인 창이 알린다)
+        let consented = UsbPhysicalWriteGate(consented: true)
+        #expect(reason(add, physical, gate: consented) == nil)
+        #expect(reason(.refreshTracks(usbContentIDs: [1], parts: [.info]), physical, gate: consented) == nil)
+        #expect(reason(add, FakeUsbVolume.exfat(), gate: consented) == nil)
+        #expect(reason(add, FakeUsbVolume.apfs(), gate: consented)?.contains("APFS") == true)
+        // 임시 폴더 밖에 붙인 디스크 이미지는 실물처럼 판정한다(쓰기 때 세션 판정과 같다)
         #expect(reason(add, image, scratch: false) == gate)
         #expect(reason(.playlist(edit: .rename(playlist: .id("4"), name: "새 이름")), image, scratch: false) == gate)
         let differ = "이 재생 목록은 두 형식의 곡 목록이 달라 곡을 고칠 수 없습니다. 이름·위치만 바꿀 수 있습니다"
@@ -238,7 +245,7 @@ struct UsbEditActionsTests {
         #expect(UsbEditActions.blockReason(add, volume: image, library: library, info: info, isScratchMount: { _ in true })
             == "두 형식의 곡 번호가 달라 고칠 수 없습니다. rekordbox에서 다시 내보내세요")
 
-        // 곡 목록 메뉴 'USB에 넣기 ▸': 실물 볼륨의 항목은 이유를 달고 누를 수 없다
+        // 곡 목록 메뉴 'USB에 넣기 ▸': 앱에서는 실물 볼륨의 항목도 누를 수 있다(쓰기 확인 창이 동의를 받는다)
         let fixture = try historyFixture()
         let store = LibraryStore(settings: SettingsStore(defaults: UserDefaults(suiteName: "djc.test.usbedit.\(UUID())")!, persist: false),
                                  resultHistory: WriteResultHistory(url: nil), saveTagDrafts: { _ in }, playlistDraftSaver: { _ in },
@@ -269,21 +276,15 @@ struct UsbEditActionsTests {
         // 폴더는 하위 메뉴로, 그 안의 목록은 누를 수 있다
         #expect(imageMenu.items.first { $0.title == "폴더" }?.submenu?.items.first { $0.title == "폴더 안" }?.action != nil)
         let physicalCollection = try #require(physicalMenu.items.first { $0.title == "컬렉션" })
-        #expect(physicalCollection.action == nil)
-        #expect(physicalCollection.toolTip == "실물 USB 쓰기가 꺼져 있습니다. 앱은 설정 › 실험실에서 켜고, djc는 --allow-physical을 준 뒤 다시 시도하세요")
+        #expect(physicalCollection.action != nil && physicalCollection.toolTip == nil)
 
-        // 순서 바꾸기·로컬 변경 반영도 같은 판정: 실물 볼륨이면 이유를 달고 누를 수 없다
+        // 순서 바꾸기·로컬 변경 반영도 같은 판정: 앱에서는 실물 볼륨도 막지 않는다
         let physicalKey = physical.usbKey
-        let playlistRule = "실물 USB 쓰기가 꺼져 있습니다. 앱은 설정 › 실험실에서 켜고, djc는 --allow-physical을 준 뒤 다시 시도하세요"
-        let refreshRule = "실물 USB 쓰기가 꺼져 있습니다. 앱은 설정 › 실험실에서 켜고, djc는 --allow-physical을 준 뒤 다시 시도하세요"
-        #expect(actions.moveBlockReason(4, by: -1, volumeKey: physicalKey) == playlistRule)
+        #expect(actions.moveBlockReason(4, by: -1, volumeKey: physicalKey) == nil)
         #expect(actions.moveBlockReason(4, by: -1, volumeKey: key) == nil)
         #expect(actions.updatableTracks(volumeKey: physicalKey) == [1])
-        #expect(actions.refreshBlockReason(volumeKey: physicalKey) == refreshRule)
+        #expect(actions.refreshBlockReason(volumeKey: physicalKey) == nil)
         #expect(actions.refreshBlockReason(volumeKey: key) == nil)
-        await actions.refreshLocalChanges(volumeKey: physicalKey)
-        #expect(host.toast?.kind == .warning && host.toast?.detail == refreshRule)
-        #expect(try UsbDraftStore(directory: drafts).load(volumeKey: physicalKey) == nil)
         // 곡 목록의 USB 곡 메뉴(실물 볼륨 컬렉션)
         store.sidebar = .usb(.collection(volumeKey: physicalKey))
         coordinator.update(rows: store.displayRows, edited: [], selection: [], sortOrder: [], snapshotURL: store.snapshotURL, previewRevision: 0)
@@ -291,7 +292,7 @@ struct UsbEditActionsTests {
         let usbTrackMenu = coordinator.makeMenu()
         coordinator.menuNeedsUpdate(usbTrackMenu)
         let refreshItem = try #require(usbTrackMenu.items.first { $0.title == "로컬 변경을 USB에 반영 (1곡)" })
-        #expect(refreshItem.action == nil && refreshItem.toolTip == refreshRule)
+        #expect(refreshItem.action != nil && refreshItem.toolTip == nil)
         store.sidebar = .usb(.collection(volumeKey: key))
         coordinator.update(rows: store.displayRows, edited: [], selection: [], sortOrder: [], snapshotURL: store.snapshotURL, previewRevision: 0)
         table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
@@ -301,16 +302,6 @@ struct UsbEditActionsTests {
         #expect(imageRefresh.action != nil && imageRefresh.toolTip == nil)
         store.sidebar = .filter(.all)
         withExtendedLifetime(table) {}
-
-        // 쓰기 금지 목록 볼륨은 초안 메뉴 자체를 보이지 않는다
-        let denied = UsbTestData.lists(deny: [image.volumeUUID!.lowercased()])
-        let (deniedUsb, _, deniedActions) = await setUp(library, lists: denied)
-        #expect(deniedActions.targets.isEmpty)
-        #expect(UsbSidebarModel.volumes(deniedUsb).first { $0.id == key }?.pending == nil)
-        store.usb = deniedUsb
-        let deniedMenu = coordinator.makeMenu()
-        coordinator.menuNeedsUpdate(deniedMenu)
-        #expect(!deniedMenu.items.contains { $0.title == "USB에 넣기" })
     }
 
     // MARK: - 볼륨이 빠져도 초안
@@ -637,7 +628,7 @@ struct UsbEditActionsTests {
 
     // MARK: - 초안 base
 
-    @Test("초안 base는 그 자리의 볼륨을 다시 본 뒤에만 뜬다: 다른 볼륨·쓰기 금지 목록이면 USB 파일을 읽지 않고, 초안은 빈 base로 쌓인다")
+    @Test("초안 base는 그 자리의 볼륨을 다시 본 뒤에만 뜬다: 다른 볼륨이면 USB 파일을 읽지 않고, 초안은 빈 base로 쌓인다")
     func draftBaseRechecksVolume() async throws {
         let root = FileManager.default.temporaryDirectory.appending(path: "djc-usbbase-\(UUID().uuidString)")
         defer {
@@ -649,12 +640,11 @@ struct UsbEditActionsTests {
         var volume = image
         volume.mountPoint = root.appending(path: "usb").path
         let fileSystem = FaultyUsbFileSystem(root: root.appending(path: "usb"))
-        func service(deny: Set<String> = [], recheck: @escaping @Sendable (UsbVolumeInfo) throws -> UsbVolumeInfo) -> SystemUsbWriteService {
+        func service(recheck: @escaping @Sendable (UsbVolumeInfo) throws -> UsbVolumeInfo) -> SystemUsbWriteService {
             var service = SystemUsbWriteService(paths: UsbWritePaths(backups: root.appending(path: "b"), sessions: root.appending(path: "s"),
                                                                      staging: root.appending(path: "t")),
                                                 localCopies: root.appending(path: "c"), fileSystem: fileSystem, drafts: root.appending(path: "d"))
             service.recheck = recheck
-            service.lists = { UsbTestData.lists(deny: deny) }
             return service
         }
         // 같은 자리에 다른 볼륨이 붙었다
@@ -662,11 +652,6 @@ struct UsbEditActionsTests {
             try service { _ in throw UsbError.readFailed(detail: "volumeChanged") }.draftBase(volume)
         }
         #expect(changed.map { if case .readFailed("volumeChanged") = $0 { true } else { false } } == true)
-        // 그 자리의 볼륨이 쓰기 금지 목록에 있다
-        let denied = #expect(throws: UsbError.self) {
-            try service(deny: [try #require(volume.volumeUUID)]) { $0 }.draftBase(volume)
-        }
-        #expect(denied.map { if case .readFailed("denylisted") = $0 { true } else { false } } == true)
         #expect(fileSystem.calls.isEmpty)
         // 같은 볼륨이면 DB 파일 지문을 뜬다
         let base = try service { $0 }.draftBase(volume)

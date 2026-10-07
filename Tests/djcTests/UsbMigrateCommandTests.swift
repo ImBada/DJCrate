@@ -9,16 +9,14 @@ import Testing
 /// `djc usb-migrate` 인자·요약 줄
 @Suite("USB OneLibrary로 옮기기 명령")
 struct UsbMigrateCommandTests {
-    @Test("인자: 볼륨·드라이 런·확인·규칙")
+    @Test("인자: 볼륨·드라이 런·확인")
     func parsesArguments() throws {
-        let request = try UsbCommands.migrateRequest(["usb-migrate", "--volume", "/tmp/v", "--dry-run", "--confirm", "DJCTEST",
-                                                      "--allow-provisional", "deviceLibraryMigration,myTagLinks"])
-        #expect(request == UsbCommands.MigrateRequest(volume: "/tmp/v", dryRun: true, confirmName: "DJCTEST",
-                                                      allowProvisional: [.deviceLibraryMigration, .myTagLinks]))
+        let request = try UsbCommands.migrateRequest(["usb-migrate", "--volume", "/tmp/v", "--dry-run", "--confirm", "DJCTEST"])
+        #expect(request == UsbCommands.MigrateRequest(volume: "/tmp/v", dryRun: true, confirmName: "DJCTEST"))
         #expect(try UsbCommands.migrateRequest(["usb-migrate", "--volume", "/tmp/v"]) == UsbCommands.MigrateRequest(volume: "/tmp/v"))
     }
 
-    @Test("잘못된 인자는 사용법, 실물 볼륨 규칙·라이브 라이브러리는 거부")
+    @Test("잘못된 인자(--allow-provisional 포함)는 사용법, 라이브 라이브러리는 거부")
     func rejectsBadArguments() {
         for args in [
             ["usb-migrate"],
@@ -26,11 +24,9 @@ struct UsbMigrateCommandTests {
             ["usb-migrate", "--volume", "/v", "--confirm"],
             ["usb-migrate", "--volume", "/v", "--unknown"],
             ["usb-migrate", "--volume", "/v", "/tmp/a.json"],
+            ["usb-migrate", "--volume", "/v", "--allow-provisional", "cueVariant"],
         ] {
             #expect(throws: UsageError.self) { try UsbCommands.migrateRequest(args) }
-        }
-        #expect(throws: UsbError.self) {
-            try UsbCommands.migrateRequest(["usb-migrate", "--volume", "/v", "--allow-provisional", "physicalVolume"])
         }
         #expect(throws: UsbError.self) {
             try UsbCommands.migrateRequest(["usb-migrate", "--volume", NSHomeDirectory() + "/Library/Pioneer/rekordbox"])

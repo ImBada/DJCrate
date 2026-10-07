@@ -14,7 +14,7 @@ struct UsbExportCommandTests {
         let request = try UsbCommands.exportRequest([
             "usb-export", "--volume", "/tmp/v", "--db", "/tmp/m.db", "--share", "/tmp/share", "--playlist", "11", "--playlist", "12",
             "--tracks", "101, 102", "--formats", "onelibrary", "--naming", "identifier", "--dry-run", "--confirm", "DJCTEST",
-            "--allow-provisional", "pdbLongAscii,cueVariant", "--verify-audio", "--settings", "/tmp/settings",
+            "--verify-audio", "--settings", "/tmp/settings",
             "--snapshot-time", "2026-09-27T11:41:08Z",
         ])
         #expect(request.volume == "/tmp/v" && request.database == "/tmp/m.db" && request.share == "/tmp/share")
@@ -22,7 +22,6 @@ struct UsbExportCommandTests {
         #expect(request.formats == [.oneLibrary])
         #expect(request.dryRun && request.verifyAudio)
         #expect(request.confirmName == "DJCTEST")
-        #expect(request.allowProvisional == [.pdbLongAscii, .cueVariant])
         #expect(request.settingsFolder == "/tmp/settings")
         #expect(request.snapshotTime == "2026-09-27T11:41:08Z")
 
@@ -45,20 +44,9 @@ struct UsbExportCommandTests {
             ["usb-export", "--volume", "/v", "--tracks", "1", "--unknown"],
             ["usb-export", "--volume", "/v", "--playlist"],
             ["usb-export", "--volume", "/v", "--tracks", "1", "--snapshot-time"],
+            ["usb-export", "--volume", "/v", "--tracks", "1", "--allow-provisional", "cueVariant"],
         ] {
             #expect(throws: UsageError.self) { try UsbCommands.exportRequest(args) }
-        }
-    }
-
-    @Test("--allow-provisional physicalVolume은 이유와 함께 거부한다")
-    func rejectsPhysicalAllowance() {
-        do {
-            _ = try UsbCommands.exportRequest(["usb-export", "--volume", "/v", "--tracks", "1", "--allow-provisional", "physicalVolume"])
-            Issue.record("거부하지 않음")
-        } catch let UsbError.writeRefused(blocks) {
-            #expect(blocks.map(\.code) == ["gateOnlyRule"])
-        } catch {
-            Issue.record("다른 오류: \(error)")
         }
     }
 

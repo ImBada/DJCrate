@@ -272,7 +272,7 @@ extension UsbWriteRun {
         if writeGuard.isRekordboxRunning() {
             throw UsbError.restorePending(reason: String(ui: "rekordbox가 켜져 있습니다"))
         }
-        let blocks = environmentBlocks(purpose: .edit, required: [], allowProvisional: [], confirmName: confirmName, checkRekordbox: false)
+        let blocks = environmentBlocks(purpose: .edit, required: [], confirmName: confirmName, checkRekordbox: false)
         if !blocks.isEmpty { throw UsbError.writeRefused(blocks) }
         switch UsbWriter.journalStatus(paths: paths, volumeKey: volumeKey) {
         case .open:

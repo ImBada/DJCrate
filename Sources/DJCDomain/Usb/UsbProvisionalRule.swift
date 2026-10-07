@@ -1,8 +1,8 @@
 import Foundation
 
 /// rekordbox 실험으로 아직 확인하지 않은 USB 쓰기 규칙.
-/// 계획이 이 규칙을 필요로 하면 실물 USB에는 쓰지 않는다(디스크 이미지 시험은 된다).
-/// rawValue는 계획·초안에 저장되고 CLI `--allow-provisional`로 받으므로 바꾸지 않는다.
+/// 늘 막는 규칙(`alwaysBlocks`) 말고는 쓰기를 막지 않고, 곡 내용 규칙은 미리 보기·확인 창에 알린다(`needsDeviceCheck`).
+/// rawValue는 계획·초안에 저장되므로 바꾸지 않는다.
 public enum UsbProvisionalRule: String, CaseIterable, Codable, Sendable, Hashable {
     case physicalVolume
     case analysisFolderNaming, analysisSlotCollision
@@ -22,21 +22,28 @@ public enum UsbProvisionalRule: String, CaseIterable, Codable, Sendable, Hashabl
 
     public var isConfirmed: Bool { Self.confirmed.contains(self) }
 
-    /// 실물 쓰기를 연 볼륨(`UsbPhysicalWriteGate.isOpen`)에서 풀리는 규칙: 내보내기·수정·옮기기 흐름 자체의 바탕 규칙이다.
-    /// 이 흐름은 디스크 이미지에서 전 과정(쓰기 → 다시 읽기 검증 → `usb-rebuild`·`usb-diff --ignore-ids` 차이 0 → 되돌리기)을 확인했다(#41·#46).
-    /// rekordbox 실험으로 확인한 것(`confirmed`)은 아니다 — 실기기 확인은 사용자가 실험실 스위치를 켜고 한다.
-    /// 곡 내용에 따라 붙는 규칙(큐 모양·이름 글자·앨범아트 등)은 여기 넣지 않는다(실물에서는 CLI `--allow-provisional`로만 푼다)
-    public static let openOnPhysical: Set<UsbProvisionalRule> = [
+    /// 내보내기·수정·옮기기 흐름 자체의 바탕 규칙. 이 흐름은 디스크 이미지에서 전 과정(쓰기 → 다시 읽기 검증 →
+    /// `usb-rebuild`·`usb-diff --ignore-ids` 차이 0 → 되돌리기)을 확인했다(#41·#46). rekordbox 실험으로 확인한 것(`confirmed`)은 아니지만
+    /// 모든 쓰기에 붙으므로 "CDJ에서 확인하지 않은 항목"으로 알리지 않는다
+    public static let flowRules: Set<UsbProvisionalRule> = [
         .analysisFolderNaming, .playlistSiblingBase, .playlistFolderRow,
         .editAddTracks, .editRemoveTracks, .editPlaylists, .trackRemovalFiles, .pdbRegeneratedEdit,
         .deviceLibraryMigration,
     ]
 
-    /// 디스크 이미지에서도 막는 규칙. 기기가 남긴 기록을 옮기는 방법을 정하기 전까지는 이미지에도 쓰지 않는다.
-    public var blocksEvenOnDiskImage: Bool { self == .carriedDeviceRows }
+    /// 디스크 이미지·실물 모두 막는 규칙. 기기가 남긴 기록을 옮기는 방법을 정하기 전까지는 쓰지 않는다.
+    public var alwaysBlocks: Bool { self == .carriedDeviceRows }
 
-    /// `--allow-provisional`로 풀 수 없는 규칙(실물 쓰기 관문으로만 푼다)
+    /// 실물 볼륨 규칙(실물 쓰기 관문으로만 본다)
     public var isGateOnly: Bool { self == .physicalVolume }
+
+    /// 막지 않고 미리 보기·확인 창에 "CDJ에서 확인하지 않은 항목"으로 알리는 규칙(곡 내용에 따라 붙는 규칙 등)
+    public var needsDeviceCheck: Bool { !isConfirmed && !isGateOnly && !alwaysBlocks && !Self.flowRules.contains(self) }
+
+    /// 알릴 규칙만 이름 순으로
+    public static func deviceCheckRules(_ rules: Set<UsbProvisionalRule>) -> [UsbProvisionalRule] {
+        rules.filter(\.needsDeviceCheck).sorted { $0.rawValue < $1.rawValue }
+    }
 
     /// 한 줄 설명: 무엇이 확인되지 않았는지
     public var summary: String {

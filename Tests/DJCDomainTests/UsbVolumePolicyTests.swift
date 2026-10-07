@@ -9,46 +9,74 @@ struct UsbVolumePolicyTests {
         UsbVolumePolicy.problems(volume, purpose: purpose).map(\.code)
     }
 
-    @Test("디스크 이미지 FAT32·MBR은 내보낼 수 있다")
-    func diskImageFAT32MBRPassesExport() {
+    func warnings(_ volume: UsbVolumeInfo) -> [String] {
+        UsbVolumePolicy.warnings(volume).map(\.code)
+    }
+
+    @Test("디스크 이미지 FAT32·MBR은 내보내고 고칠 수 있다")
+    func diskImageFAT32MBRPasses() {
         #expect(codes(FakeUsbVolume.diskImageFAT32()).isEmpty)
         #expect(codes(FakeUsbVolume.diskImageFAT32(), .edit).isEmpty)
+        #expect(warnings(FakeUsbVolume.diskImageFAT32()).isEmpty)
     }
 
-    @Test("실물 FAT32(파티션 형식 0x0B)는 통과")
-    func physicalFAT32_0x0B_DOS_FAT_32Passes() {
+    @Test("FAT32는 파티션 형식(0x0B·0x0C·GPT 기본 데이터)과 무관하게 통과")
+    func fat32Passes() {
         #expect(codes(FakeUsbVolume.physicalFAT32(content: "DOS_FAT_32")).isEmpty)
-    }
-
-    @Test("FAT32(파티션 형식 0x0C)도 통과")
-    func windowsFAT32_0x0CPasses() {
         #expect(codes(FakeUsbVolume.windowsFAT32()).isEmpty)
-    }
-
-    @Test func fat16Blocked() {
-        #expect(codes(FakeUsbVolume.fat16()) == ["notFAT32"])
-        // 파일 시스템이 FAT32여도 파티션 형식이 FAT16이면 막는다.
-        #expect(codes(FakeUsbVolume.physicalFAT32(content: "DOS_FAT_16")) == ["notFAT32"])
-        // 파티션 형식을 모르면 막는다.
         var unknown = FakeUsbVolume.physicalFAT32()
         unknown.partitionContent = nil
-        #expect(codes(unknown) == ["notFAT32"])
+        #expect(codes(unknown).isEmpty)
     }
 
-    @Test func exfatBlocked() {
-        #expect(codes(FakeUsbVolume.exfat()) == ["notFAT32"])
+    @Test("exFAT은 쓰되 이전 기기가 읽지 못할 수 있다고 알린다")
+    func exfatPassesWithWarning() {
+        #expect(codes(FakeUsbVolume.exfat()).isEmpty)
+        #expect(codes(FakeUsbVolume.exfat(), .edit).isEmpty)
+        #expect(warnings(FakeUsbVolume.exfat()) == ["exfat"])
+        #expect(UsbVolumePolicy.warnings(FakeUsbVolume.exfat())[0].message
+            == "exFAT USB는 CDJ-2000NXS2 등 이전 기기가 읽지 못할 수 있습니다")
     }
 
-    @Test func hfsPlusBlocked() {
-        #expect(codes(FakeUsbVolume.hfsPlus()).contains("notFAT32"))
+    @Test("GPT는 쓰되 일부 기기가 읽지 못할 수 있다고 알린다(두 번째 파티션이어도)")
+    func gptPassesWithWarning() {
+        #expect(codes(FakeUsbVolume.gpt()).isEmpty)
+        #expect(codes(FakeUsbVolume.gpt(), .edit).isEmpty)
+        #expect(warnings(FakeUsbVolume.gpt()) == ["gpt"])
+        #expect(UsbVolumePolicy.warnings(FakeUsbVolume.gpt())[0].message
+            == "GPT로 포맷한 USB는 일부 기기가 읽지 못할 수 있습니다. 기기에서 읽히지 않으면 MBR로 포맷하세요")
+        var both = FakeUsbVolume.gpt()
+        both.fileSystem = .exfat
+        #expect(warnings(both) == ["exfat", "gpt"])
     }
 
-    @Test func apfsBlocked() {
-        #expect(codes(FakeUsbVolume.apfs()).contains("notFAT32"))
+    @Test("외장 SSD·SD 카드 리더·Thunderbolt 디스크·두 번째 파티션·4096바이트 섹터도 통과")
+    func widerDevicesPass() {
+        for volume in [FakeUsbVolume.externalSSD(), FakeUsbVolume.sdCardReader(), FakeUsbVolume.thunderboltDisk(),
+                       FakeUsbVolume.secondPartition(), FakeUsbVolume.sector4096()] {
+            #expect(codes(volume).isEmpty)
+        }
     }
 
-    @Test func gptBlocked() {
-        #expect(codes(FakeUsbVolume.gpt()).contains("notMBR"))
+    @Test("rekordbox USB가 아닌 파일 시스템(FAT16·HFS+·APFS·NTFS 등)은 막는다")
+    func otherFileSystemsBlocked() {
+        for volume in [FakeUsbVolume.fat16(), FakeUsbVolume.hfsPlus(), FakeUsbVolume.apfs()] {
+            #expect(codes(volume) == ["unsupportedFileSystem"])
+        }
+        var ntfs = FakeUsbVolume.physicalFAT32()
+        ntfs.fileSystem = .other("ntfs")
+        #expect(codes(ntfs) == ["unsupportedFileSystem"])
+        let message = UsbVolumePolicy.problems(FakeUsbVolume.apfs(), purpose: .export)[0].message
+        #expect(message == "이 USB 형식(APFS)에는 rekordbox 라이브러리를 쓸 수 없습니다. FAT32나 exFAT로 포맷한 뒤 다시 시도하세요")
+    }
+
+    @Test("MBR·GPT가 아닌 파티션(APM·파티션 표 없음·모름)은 막는다")
+    func otherPartitionSchemesBlocked() {
+        for scheme in [UsbPartitionScheme.apm, .none, .unknown] {
+            var volume = FakeUsbVolume.physicalFAT32()
+            volume.partitionScheme = scheme
+            #expect(codes(volume) == ["partitionScheme"])
+        }
     }
 
     @Test func internalBlocked() {
@@ -73,56 +101,19 @@ struct UsbVolumePolicyTests {
         #expect(problem.message == "USB 볼륨의 맨 위 폴더를 고르세요")
     }
 
-    @Test func secondPartitionBlocked() {
-        #expect(codes(FakeUsbVolume.secondPartition()) == ["notFirstPartition"])
-    }
-
-    @Test func sector4096Blocked() {
-        #expect(codes(FakeUsbVolume.sector4096()) == ["sectorSize"])
+    @Test("Time Machine 디스크(APFS·GPT)는 파일 시스템으로 막힌다")
+    func timeMachineBlocked() {
+        var volume = FakeUsbVolume.apfs()
+        volume.name = "Time Machine"
+        #expect(codes(volume) == ["unsupportedFileSystem"])
     }
 
     @Test("판정 순서대로 모두 낸다")
     func problemsFollowOrder() {
-        var volume = FakeUsbVolume.gpt()
+        var volume = FakeUsbVolume.apfs()
         volume.isReadOnly = true
-        volume.fileSystem = .exfat
-        volume.sectorSize = 4096
-        #expect(codes(volume) == ["readOnly", "notMBR", "notFAT32", "notFirstPartition", "sectorSize"])
-    }
-
-    @Test("고칠 때는 다른 USB에 새로 내보내라고 안내한다")
-    func editPurposeUsesReformatElsewhereMessage() {
-        let edit = UsbVolumePolicy.problems(FakeUsbVolume.exfat(), purpose: .edit)
-        #expect(edit.map(\.code) == ["notFAT32"])
-        #expect(edit[0].message.contains("다른 USB에 새로 내보내세요"))
-        #expect(edit[0].message.contains("exFAT"))
-        #expect(!edit[0].message.contains("포맷한 뒤 다시 시도"))
-        let export = UsbVolumePolicy.problems(FakeUsbVolume.exfat(), purpose: .export)
-        #expect(export[0].message == "USB를 MBR·MS-DOS(FAT32)로 포맷한 뒤 다시 시도하세요")
-        let gpt = UsbVolumePolicy.problems(FakeUsbVolume.gpt(), purpose: .edit)
-        #expect(gpt.first { $0.code == "notMBR" }?.message.contains("다른 USB에 새로 내보내세요") == true)
-    }
-
-    @Test("고칠 때 문구는 파티션 형식을 읽을 수 있는 이름으로 적는다")
-    func editPurposeNamesPartitionFormat() {
-        func editMessage(_ volume: UsbVolumeInfo) -> String? {
-            UsbVolumePolicy.problems(volume, purpose: .edit).first { $0.code == "notFAT32" }?.message
-        }
-        // 파일 시스템은 FAT32인데 파티션 형식을 모르면 "FAT32"라고 적지 않는다(스스로 어긋나는 문구).
-        var unknown = FakeUsbVolume.physicalFAT32()
-        unknown.partitionContent = nil
-        let unknownMessage = editMessage(unknown)
-        #expect(unknownMessage?.contains("알 수 없는 파티션 형식") == true)
-        #expect(unknownMessage?.contains("(FAT32)") == false)
-        // DiskArbitration 식별자 대신 형식 이름을 적는다.
-        let fat16Message = editMessage(FakeUsbVolume.physicalFAT32(content: "DOS_FAT_16"))
-        #expect(fat16Message?.contains("(FAT16)") == true)
-        #expect(fat16Message?.contains("DOS_FAT_16") == false)
-        #expect(editMessage(FakeUsbVolume.physicalFAT32(content: "Windows_FAT_16"))?.contains("(FAT16)") == true)
-        #expect(editMessage(FakeUsbVolume.physicalFAT32(content: "DOS_FAT_12"))?.contains("(FAT12)") == true)
-        #expect(editMessage(FakeUsbVolume.physicalFAT32(content: "Windows_NTFS"))?.contains("(exFAT/NTFS)") == true)
-        // 파일 시스템이 FAT32가 아니면 파일 시스템 이름을 적는다.
-        #expect(editMessage(FakeUsbVolume.fat16())?.contains("(FAT16)") == true)
+        volume.partitionScheme = .apm
+        #expect(codes(volume) == ["readOnly", "unsupportedFileSystem", "partitionScheme"])
     }
 
     @Test("읽기는 모든 모양을 허용한다")

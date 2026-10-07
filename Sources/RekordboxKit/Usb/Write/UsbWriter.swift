@@ -236,7 +236,7 @@ final class UsbWriteRun {
         lock.release()
     }
 
-    /// 실물 쓰기가 닫혀 있는 동안(코드 관문·실행 중 스위치 중 하나라도 꺼짐) 루트 경로 자체가 임시 폴더 아래여야 한다(가드의 볼륨 정보를 쓰지 않는다).
+    /// 실물 쓰기가 닫혀 있는 동안(코드 관문이 닫혔거나 사용자 동의가 없음) 루트 경로 자체가 임시 폴더 아래여야 한다(가드의 볼륨 정보를 쓰지 않는다).
     /// 디스크 이미지는 lab 도구·자가 테스트가 늘 임시 폴더 아래에 붙이고, 실물은 /Volumes 아래에 붙는다.
     /// 시험 프로세스는 관문이 열려 있어도 임시 폴더 밖에 쓰지 않는다(시험이 이 Mac에 꽂힌 USB에 닿지 않게).
     /// 그리고 루트가 정말 마운트 지점이어야 한다. 이 값을 기준으로 단계마다 다시 본다.
@@ -321,9 +321,9 @@ final class UsbWriteRun {
         if writeGuard.isRekordboxRunning() { throw UsbWriteFailure.rekordboxRunning }
     }
 
-    /// 7.2의 4: rekordbox, 볼륨 정책·보호 경로, 실물 관문(+ 가드 값으로 실물이면 막음)
-    func environmentBlocks(purpose: UsbVolumePurpose, required: Set<UsbProvisionalRule>, allowProvisional: Set<UsbProvisionalRule>,
-                           confirmName: String?, checkRekordbox: Bool = true) -> [UsbBlock] {
+    /// 7.2의 4: rekordbox, 볼륨 정책·보호 경로, 실물 관문(닫혀 있으면 실물은 `physicalDisabled`)
+    func environmentBlocks(purpose: UsbVolumePurpose, required: Set<UsbProvisionalRule>, confirmName: String?,
+                           checkRekordbox: Bool = true) -> [UsbBlock] {
         var blocks: [UsbBlock] = []
         if checkRekordbox, writeGuard.isRekordboxRunning() {
             blocks.append(UsbBlock(code: "rekordboxRunning", scope: .volume, message: String(ui: "rekordbox를 완전히 종료한 뒤 다시 시도하세요")))
@@ -333,12 +333,7 @@ final class UsbWriteRun {
             blocks.append(UsbBlock(code: "protectedPath", scope: .volume,
                                    message: String(ui: "rekordbox 라이브러리나 DJCrate 데이터 폴더에는 USB처럼 쓸 수 없습니다. USB 볼륨을 고르세요")))
         }
-        blocks += UsbRuleCheck.blocks(required: required, volume: volume, allowProvisional: allowProvisional, gate: writeGuard.gate,
-                                      confirmName: confirmName)
-        // 관문이 거부 목록 등 다른 막힘을 먼저 냈어도, 닫힌 관문은 실물에 늘 함께 알린다
-        if !volume.isDiskImage, let closed = writeGuard.gate.closedBlock, !blocks.contains(where: { $0.code == "physicalDisabled" }) {
-            blocks.append(closed)
-        }
+        blocks += UsbRuleCheck.blocks(required: required, volume: volume, gate: writeGuard.gate, confirmName: confirmName)
         return blocks
     }
 
@@ -434,8 +429,7 @@ extension UsbWriteRun {
         self.options = options
         report = UsbWriteReport(outcome: .written, session: changes.session)
         // 7.2의 4: 여기서 막히면 USB 파일을 열지 않는다
-        let environment = environmentBlocks(purpose: changes.purpose, required: changes.requiredRules,
-                                            allowProvisional: options.allowProvisional, confirmName: options.confirmName)
+        let environment = environmentBlocks(purpose: changes.purpose, required: changes.requiredRules, confirmName: options.confirmName)
         if !environment.isEmpty { throw UsbError.writeRefused(environment) }
         // 7.2의 5–11
         let plan = try precheck(changes, inspectors: inspectors)

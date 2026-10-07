@@ -96,16 +96,17 @@ struct UsbWriteGuardTests {
         expectUntouched(fixture, before: before)
     }
 
-    @Test("볼륨 모양 막힘", arguments: ["notMountPoint", "gpt", "exfat", "fat16", "internal", "network", "readOnly"])
+    @Test("볼륨 모양 막힘", arguments: ["notMountPoint", "apfs", "hfsPlus", "fat16", "apm", "internal", "network", "readOnly"])
     func volumeShapeBlocks(shape: String) {
         let fixture = UsbChangeSetFixture()
         defer { fixture.remove() }
         let code: String
         switch shape {
         case "notMountPoint": fixture.volume.rootIsMountPoint = false; code = "notMountPoint"
-        case "gpt": fixture.volume.partitionScheme = .gpt; code = "notMBR"
-        case "exfat": fixture.volume.fileSystem = .exfat; fixture.volume.partitionContent = "Windows_NTFS"; code = "notFAT32"
-        case "fat16": fixture.volume.fileSystem = .fat16; fixture.volume.partitionContent = "DOS_FAT_16"; code = "notFAT32"
+        case "apfs": fixture.volume.fileSystem = .apfs; code = "unsupportedFileSystem"
+        case "hfsPlus": fixture.volume.fileSystem = .hfsPlus; code = "unsupportedFileSystem"
+        case "fat16": fixture.volume.fileSystem = .fat16; fixture.volume.partitionContent = "DOS_FAT_16"; code = "unsupportedFileSystem"
+        case "apm": fixture.volume.partitionScheme = .apm; code = "partitionScheme"
         case "internal": fixture.volume.isInternal = true; code = "internal"
         case "network": fixture.volume.isNetwork = true; code = "network"
         default: fixture.volume.isReadOnly = true; code = "readOnly"
@@ -117,6 +118,19 @@ struct UsbWriteGuardTests {
         expectUntouched(fixture, before: [:])
     }
 
+    @Test("exFAT·GPT·두 번째 파티션·4096바이트 섹터 볼륨에도 쓴다", arguments: ["exfat", "gpt", "secondPartition", "sector4096"])
+    func widerVolumeShapesWrite(shape: String) throws {
+        let fixture = UsbChangeSetFixture()
+        defer { fixture.remove() }
+        switch shape {
+        case "exfat": fixture.volume.fileSystem = .exfat; fixture.volume.partitionContent = "Windows_NTFS"
+        case "gpt": fixture.volume.partitionScheme = .gpt; fixture.volume.partitionIndex = 2
+        case "secondPartition": fixture.volume.partitionIndex = 2
+        default: fixture.volume.sectorSize = 4096
+        }
+        #expect(try fixture.write(fixture.exportChanges()).outcome == .written)
+    }
+
     @Test("보호 경로 안이면 막는다")
     func protectedRoot() {
         let fixture = UsbChangeSetFixture()
@@ -126,12 +140,12 @@ struct UsbWriteGuardTests {
                                             fileSystem: fixture.fileSystem()) } == ["protectedPath"])
     }
 
-    @Test("실물은 허용 목록에 있어도 실험실 스위치가 꺼져 있으면 막힌다")
-    func physicalBlockedBySwitchOff() {
+    @Test("실물은 동의(앱 확인 창·--allow-physical) 없이는 막힌다")
+    func physicalBlockedWithoutConsent() {
         let fixture = UsbChangeSetFixture()
         defer { fixture.remove() }
         fixture.volume = FakeUsbVolume.physicalFAT32()
-        let gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID])
+        let gate = FakeUsbVolume.gate()
         let fs = fixture.fileSystem()
         let found = codes {
             _ = try UsbWriter.write(fixture.exportChanges(), root: fixture.root, paths: fixture.paths, guard: fixture.writeGuard(gate: gate),
@@ -143,14 +157,20 @@ struct UsbWriteGuardTests {
 
     // MARK: - 실물 쓰기를 연 관문
 
-    /// 실물 쓰기 스위치를 켜고 이 USB를 허용한 관문
-    static var openGate: UsbPhysicalWriteGate { FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID], physicalEnabled: true) }
+    /// 실물 쓰기에 동의한 관문
+    static var openGate: UsbPhysicalWriteGate { FakeUsbVolume.gate(consented: true) }
 
-    @Test("실물 쓰기를 열고 허용한 USB는 디스크 이미지와 같은 절차로 쓴다(백업·저널·검증), 되돌리면 쓰기 전과 같다")
-    func openGateWritesPhysicalLikeDiskImage() throws {
+    @Test("동의한 실물 USB는 등록 없이 디스크 이미지와 같은 절차로 쓴다(백업·저널·검증), 되돌리면 쓰기 전과 같다",
+          arguments: ["stick", "externalSSD", "sdCardReader"])
+    func openGateWritesPhysicalLikeDiskImage(device: String) throws {
         let fixture = UsbChangeSetFixture()
         defer { fixture.remove() }
-        fixture.volume = FakeUsbVolume.physicalFAT32()
+        fixture.volume = switch device {
+        case "externalSSD": FakeUsbVolume.externalSSD()
+        case "sdCardReader": FakeUsbVolume.physicalFAT32(name: "DJCPHYS")
+        default: FakeUsbVolume.physicalFAT32()
+        }
+        if device == "sdCardReader" { fixture.volume.deviceProtocol = "Secure Digital" }
         fixture.gate = Self.openGate
         let before = fixture.tree()
         let report = try fixture.write(fixture.exportChanges(), options: UsbWriteOptions(confirmName: "DJCPHYS"))
@@ -165,19 +185,18 @@ struct UsbWriteGuardTests {
         #expect(fixture.tree() == before)
     }
 
-    @Test("실물 쓰기를 열어도 허용하지 않은 USB·이름 확인이 틀린 쓰기·USB 메모리가 아닌 디스크는 USB 파일 연산 없이 막는다",
-          arguments: ["notAllowlisted", "confirmMismatch", "notUsbDevice", "denyListMissing"])
+    @Test("동의해도 이름 확인이 틀린 쓰기·시동 디스크·Time Machine(APFS)은 USB 파일 연산 없이 막는다",
+          arguments: ["confirmMismatch", "rootVolume", "unsupportedFileSystem"])
     func openGateStillRefuses(code: String) {
         let fixture = UsbChangeSetFixture()
         defer { fixture.remove() }
         fixture.volume = FakeUsbVolume.physicalFAT32()
+        fixture.gate = Self.openGate
         var confirm: String? = "DJCPHYS"
         switch code {
-        case "notAllowlisted": fixture.gate = FakeUsbVolume.gate(physicalEnabled: true)
-        case "confirmMismatch": fixture.gate = Self.openGate; confirm = "djcphys"
-        case "notUsbDevice": fixture.gate = Self.openGate; fixture.volume = FakeUsbVolume.externalSSD()
-        default:
-            fixture.gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID], denyStatus: .missing, physicalEnabled: true)
+        case "confirmMismatch": confirm = "djcphys"
+        case "rootVolume": fixture.volume.isRootVolume = true
+        default: fixture.volume.fileSystem = .apfs; fixture.volume.name = "Time Machine"; confirm = "Time Machine"
         }
         let fs = fixture.fileSystem()
         #expect(codes { _ = try fixture.write(fixture.exportChanges(), fileSystem: fs, options: UsbWriteOptions(confirmName: confirm)) } == [code])
@@ -185,23 +204,22 @@ struct UsbWriteGuardTests {
         expectUntouched(fixture, before: [:])
     }
 
-    @Test("실물 쓰기를 열어도 흐름 밖의 확인 안 된 규칙은 막고, 흐름 규칙은 푼다")
-    func openGateKeepsContentRulesBlocked() throws {
+    @Test("동의한 실물에는 곡 내용 규칙(색 핫큐 등)이 있어도 쓰고, 기기 기록 행 옮기기만 막는다")
+    func openGateWritesContentRules() throws {
         let fixture = UsbChangeSetFixture()
         defer { fixture.remove() }
         fixture.volume = FakeUsbVolume.physicalFAT32()
         fixture.gate = Self.openGate
         var changes = fixture.exportChanges()
-        changes.requiredRules = [.analysisFolderNaming, .playlistSiblingBase, .cueVariant]
+        changes.requiredRules = [.analysisFolderNaming, .cueVariant, .carriedDeviceRows]
         let found = blocks { _ = try fixture.write(changes, options: UsbWriteOptions(confirmName: "DJCPHYS")) }
-        #expect(found.map(\.code) == ["provisional"])
-        #expect(found.map(\.rule) == [.cueVariant])
+        #expect(found.map(\.rule) == [.carriedDeviceRows])
         expectUntouched(fixture, before: [:])
-        changes.requiredRules = [.analysisFolderNaming, .playlistSiblingBase]
+        changes.requiredRules = [.analysisFolderNaming, .cueVariant, .artworkMissing, .editRefreshTracks]
         #expect(try fixture.write(changes, options: UsbWriteOptions(confirmName: "DJCPHYS")).outcome == .written)
     }
 
-    @Test("임시 폴더 밖에 붙은 디스크 이미지는 관문이 열려도 실물로 판정한다(허용 목록이 필요)")
+    @Test("임시 폴더 밖에 붙은 디스크 이미지는 관문이 열려도 실물로 판정한다(동의·이름 확인이 필요)")
     func outsideScratchImageJudgedPhysical() throws {
         let fixture = UsbChangeSetFixture()
         defer { fixture.remove() }
@@ -241,15 +259,6 @@ struct UsbWriteGuardTests {
         }
         #expect(fs.calls.isEmpty)
         #expect(lockFiles(fixture).isEmpty)
-    }
-
-    @Test("거부 목록의 USB는 디스크 이미지여도 막는다")
-    func denied() {
-        let fixture = UsbChangeSetFixture()
-        defer { fixture.remove() }
-        let gate = FakeUsbVolume.gate(deny: [fixture.volumeKey])
-        #expect(codes { _ = try UsbWriter.write(fixture.exportChanges(), root: fixture.root, paths: fixture.paths,
-                                            guard: fixture.writeGuard(gate: gate), fileSystem: fixture.fileSystem()) } == ["denied"])
     }
 
     @Test("닫히지 않은 저널이 있으면 회복부터")

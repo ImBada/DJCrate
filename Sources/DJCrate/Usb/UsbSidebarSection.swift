@@ -76,8 +76,6 @@ struct UsbSidebarVolume: Identifiable, Equatable {
     var canMigrate = false
     var migrationHelp: String?
     var showsMigrationRestore = false
-    /// 실물 USB 쓰기 허용·금지 메뉴(실물 볼륨만)
-    var physical: UsbPhysicalMenu? = nil
 }
 
 @MainActor
@@ -90,7 +88,6 @@ enum UsbSidebarModel {
                                        showsExport: false, canExport: false, collection: nil, collectionCount: 0, playlists: [], mismatchHelp: nil,
                                        canEject: !store.busyVolumes.contains(key) && !store.ejecting.contains(key))
             row.showsMigrationRestore = store.migrationBackups[key] != nil
-            row.physical = store.physicalMenu(key)
             if store.acceptsEdits(key) {
                 row.pending = .pending(volumeKey: key)
                 row.pendingCount = store.draftCounts[key] ?? 0
@@ -99,7 +96,7 @@ enum UsbSidebarModel {
             case .emptyExportable:
                 row.showsExport = true
                 row.canExport = idle
-                row.help = String(ui: "rekordbox 라이브러리가 없는 FAT32 USB입니다")
+                row.help = String(ui: "rekordbox 라이브러리가 없는 USB입니다")
             case let .rekordbox(formats):
                 row.symbol = "externaldrive.fill"
                 row.help = UsbFormat.allCases.filter(formats.contains).map(\.displayName).joined(separator: " · ")
@@ -108,7 +105,7 @@ enum UsbSidebarModel {
                     row.help = String(ui: "Device Library만 있습니다. OneLibrary를 더하려면 ‘OneLibrary 더하기…’를 누르세요")
                     let reason = store.migrationBlockReasons[key] ?? store.physicalWriteBlock(volume)
                     row.canMigrate = idle && reason == nil
-                    row.migrationHelp = reason ?? String(ui: "Device Library를 읽어 OneLibrary를 더합니다. 미리 보기에서 확인 안 된 규칙을 확인하세요")
+                    row.migrationHelp = reason ?? String(ui: "Device Library를 읽어 OneLibrary를 더합니다. 확인 창에서 CDJ에서 확인하지 않은 항목을 확인하세요")
                 }
                 if let library = store.libraries[key] {
                     row.collection = .collection(volumeKey: key)
@@ -120,7 +117,7 @@ enum UsbSidebarModel {
                 row.isWarning = true
                 row.symbol = "exclamationmark.triangle"
                 row.help = reason
-                row.status = store.refusals[key] == "denylisted" ? String(ui: "쓰기 금지 볼륨") : reason
+                row.status = reason
             case let .failed(message):
                 row.isWarning = true
                 row.symbol = "exclamationmark.triangle"
@@ -239,26 +236,6 @@ struct UsbSidebarSection: View {
         .help(volume.help)
         .contextMenu {
             migrationButtons(volume)
-            physicalButtons(volume)
-        }
-    }
-
-    /// 실물 USB: 쓰기 허용(동의)·허용 거두기·쓰기 금지 목록에 넣기. 목록만 고치고 USB에는 쓰지 않는다
-    @ViewBuilder private func physicalButtons(_ volume: UsbSidebarVolume) -> some View {
-        if let menu = volume.physical, !menu.isDenied {
-            let idle = usb.activeWrite == nil
-            if menu.isAllowed {
-                Button(.ui("쓰기 허용 거두기")) { Task { await store.usbConsent?.revoke(volume.id) } }
-                    .disabled(!idle)
-                    .help(.ui("이 USB에 다시 쓰지 않게 합니다"))
-            } else {
-                Button(.ui("이 USB에 쓰기 허용…")) { Task { await store.usbConsent?.allow(volume.id) } }
-                    .disabled(!idle)
-                    .help(menu.consentBlock ?? String(ui: "이 USB에 DJCrate가 rekordbox 라이브러리를 쓰도록 허용합니다"))
-            }
-            Button(.ui("쓰기 금지 목록에 넣기…")) { Task { await store.usbConsent?.deny(volume.id) } }
-                .disabled(!idle)
-                .help(.ui("이 USB에 다시는 쓰지 않고 읽지도 않습니다"))
         }
     }
 

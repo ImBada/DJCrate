@@ -28,7 +28,7 @@ struct UsbDiskImageTests {
     }
 
     func environment(_ runner: FakeToolRunner, rekordbox: Bool = false, clock: Clock = Clock(),
-                     volume: UsbVolumeInfo? = nil, gate: UsbPhysicalWriteGate = FakeUsbVolume.gate()) -> UsbDiskImage.Environment {
+                     volume: UsbVolumeInfo? = nil) -> UsbDiskImage.Environment {
         UsbDiskImage.Environment(
             runner: runner, isRekordboxRunning: { rekordbox }, sleep: { clock.sleep($0) }, now: { clock.now },
             statfs: { path in
@@ -41,8 +41,7 @@ struct UsbDiskImageTests {
                 info.mountPoint = url.path
                 info.diskImagePath = runner.attachedImage.flatMap { UsbScratchRoots.realPath($0) }
                 return info
-            },
-            gate: { gate })
+            })
     }
 
     /// newfs가 부르면 이미지에 실제와 같은 모양의 BPB를 쓴다
@@ -439,21 +438,6 @@ struct UsbDiskImageTests {
                 _ = try UsbDiskImage.seed(image: image, from: folder + "/from", environment: environment(runner, volume: FakeUsbVolume.physicalFAT32()))
             }
             #expect(try FileManager.default.contentsOfDirectory(atPath: folder + "/mnt").isEmpty)
-        }
-    }
-
-    @Test("채우기: 거부 목록의 볼륨이면 실패")
-    func seedRefusesWhenGateBlocks() throws {
-        try withFolder { folder in
-            let image = folder + "/t.img"
-            FileManager.default.createFile(atPath: image, contents: Data())
-            try FileManager.default.createDirectory(atPath: folder + "/from", withIntermediateDirectories: false)
-            try FileManager.default.createDirectory(atPath: folder + "/mnt", withIntermediateDirectories: false)
-            let runner = FakeToolRunner()
-            runner.attach(image: image)
-            _ = try runner.run("/usr/sbin/diskutil", ["mount", "-mountOptions", "nobrowse", "-mountPoint", folder + "/mnt", runner.partition])
-            let gate = FakeUsbVolume.gate(deny: [FakeUsbVolume.diskImageFAT32().volumeUUID!])
-            #expect(throws: UsbError.self) { _ = try UsbDiskImage.seed(image: image, from: folder + "/from", environment: environment(runner, gate: gate)) }
         }
     }
 

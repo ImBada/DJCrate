@@ -32,22 +32,22 @@ extension UsbVolumeInfo {
         var library: @Sendable (UsbVolumeInfo) throws -> UsbLibrary
         var eject: @Sendable (UsbVolumeInfo) async throws -> Void
 
-        /// 사본은 DJC_HOME 아래 `usb-snapshots/<볼륨키>/`에 뜬다. 목록 판정은 부를 때마다 목록 파일을 다시 읽는다
+        /// 사본은 DJC_HOME 아래 `usb-snapshots/<볼륨키>/`에 뜬다
         static let system = IO.reading(snapshots: DJCPaths.usbSnapshots)
 
-        /// 읽기 직전에 그 자리의 볼륨을 다시 보고(`recheck`, 기본 `UsbRead.currentVolume`) 그 새 정보로 쓰기 금지 목록 판정과
-        /// 사본 뜨기를 한다. 사이드바가 들고 있던 정보는 앞선 훑기 때 것이라, 그 사이 같은 자리에 다른 볼륨이 붙었을 수 있다.
-        static func reading(snapshots: URL, lists: @escaping @Sendable () -> UsbPhysicalLists.Loaded = { UsbPhysicalLists.load() },
+        /// 읽기 직전에 그 자리의 볼륨을 다시 보고(`recheck`, 기본 `UsbRead.currentVolume`) 그 새 정보로 사본을 뜬다.
+        /// 사이드바가 들고 있던 정보는 앞선 훑기 때 것이라, 그 사이 같은 자리에 다른 볼륨이 붙었을 수 있다.
+        static func reading(snapshots: URL,
                             recheck: @escaping @Sendable (UsbVolumeInfo) throws -> UsbVolumeInfo = { try UsbRead.currentVolume(matching: $0) }) -> IO {
             IO(info: { listed in
                    let volume = try recheck(listed)
                    let scratch = snapshots.appending(path: volume.usbKey).appending(path: "info-\(UUID().uuidString)")
-                   return try UsbRead.info(root: URL(filePath: volume.mountPoint), scratch: scratch, volume: volume, lists: lists())
+                   return try UsbRead.info(root: URL(filePath: volume.mountPoint), scratch: scratch, volume: volume)
                },
                library: { listed in
                    let volume = try recheck(listed)
                    return try UsbRead.library(root: URL(filePath: volume.mountPoint), snapshots: snapshots, volumeKey: volume.usbKey,
-                                              volume: volume, lists: lists()).library
+                                              volume: volume).library
                },
                eject: { volume in try await UsbVolumeMonitor.eject(mountPoint: volume.mountPoint) })
         }
@@ -103,7 +103,6 @@ enum UsbAppSetup {
         let usb = UsbStore(host: SystemUsbHost.system(policy: policy), readPolicy: policy, localLibrary: { keys.current },
                            journal: { service.journal(volumeKey: $0) })
         usb.writeService = service
-        usb.physicalWriteEnabled = store.physicalUsbWrite
         // 초안은 DJC_HOME 아래(시험 실행이 사용자 초안을 건드리지 않게)
         usb.draftDirectory = DJCPaths.usbDrafts
         usb.onPendingJournal = { [weak store] volume in

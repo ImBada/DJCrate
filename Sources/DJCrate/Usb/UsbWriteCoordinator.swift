@@ -73,7 +73,7 @@ struct SystemUsbWriteService: UsbWriteService {
     var paths: UsbWritePaths
     /// 세션 로컬 사본(`local-<세션>/`)을 둘 곳
     var localCopies: URL
-    /// 부를 때마다 새로 만든다(앱이 켜진 동안 쓰기 금지·허용 목록과 실험실 스위치가 바뀔 수 있다)
+    /// 부를 때마다 새로 만든다. 앱의 쓰기는 모두 쓰기 확인 창을 거친 뒤에 부르므로 그 확인을 실물 쓰기 동의로 본다
     var writeGuard: @Sendable () -> UsbWriteGuard = { .system(physicalWrite: SystemUsbWriteService.physicalWriteSwitch()) }
     /// USB 파일 연산(자가 테스트는 지운 `._`를 적는 것을 넘긴다)
     var fileSystem: any UsbFileSystem = PosixUsbFileSystem()
@@ -81,13 +81,9 @@ struct SystemUsbWriteService: UsbWriteService {
     var drafts: URL = DJCPaths.usbDrafts
     /// USB를 읽기 직전에 그 자리의 볼륨을 다시 본다(사이드바 읽기 `SystemUsbHost.IO.reading`과 같다)
     var recheck: @Sendable (UsbVolumeInfo) throws -> UsbVolumeInfo = { try UsbRead.currentVolume(matching: $0) }
-    /// 쓰기 금지 목록 상태(부를 때마다 목록 파일을 다시 읽는다)
-    var lists: @Sendable () -> UsbPhysicalLists.Loaded = { UsbPhysicalLists.load() }
-
-    /// 설정 › 실험실 "실물 USB 쓰기". 디스크 이미지만 읽는 실행(자가 테스트·DJC_HOME 시험 실행)은 늘 끔이고,
-    /// 자가 테스트는 설정을 읽지 않는다(`SettingsStore.persist`)
-    static func physicalWriteSwitch(policy: UsbReadPolicy = .current(), settings: SettingsStore = SettingsStore()) -> Bool {
-        policy == .all && settings.value(SettingKeys.labPhysicalUsbWrite)
+    /// 실물 쓰기 동의: 앱의 쓰기 확인 창. 디스크 이미지만 읽는 실행(자가 테스트·DJC_HOME 시험 실행)은 실물에 쓰지 않는다
+    static func physicalWriteSwitch(policy: UsbReadPolicy = .current()) -> Bool {
+        policy == .all
     }
 
     /// 앱이 쓰는 창구. 폴더는 USB에 쓸 때 만든다(저널을 보기만 할 때는 만들지 않는다)
@@ -160,11 +156,9 @@ struct SystemUsbWriteService: UsbWriteService {
         UsbWriter.backups(paths: paths, volumeKey: volumeKey).first
     }
 
-    /// 사이드바가 들고 있던 볼륨 정보는 앞선 훑기 때 것이라, 같은 자리에 다른 볼륨(쓰기 금지 목록 USB·디스크 이미지만 읽는 실행의
-    /// 실물 볼륨 등)이 붙었으면 읽지 않는다. 사이드바 읽기와 같은 판정(다시 보기 → 쓰기 금지 목록)을 지난 뒤에만 DB 파일을 읽는다
+    /// 사이드바가 들고 있던 볼륨 정보는 앞선 훑기 때 것이라, 같은 자리에 다른 볼륨이 붙었으면 읽지 않는다(사이드바 읽기와 같은 다시 보기)
     func draftBase(_ volume: UsbVolumeInfo) throws -> UsbFingerprint {
         let current = try recheck(volume)
-        if let code = UsbRead.readRefusal(volume: current, lists: lists()) { throw UsbError.readFailed(detail: code) }
         return try UsbWriter.databaseFingerprint(root: UsbRoot(URL(filePath: current.mountPoint)), fileSystem: fileSystem)
     }
 
@@ -441,14 +435,9 @@ struct UsbWriteCoordinator {
 
     static func migrationConfirmation(_ summary: UsbMigrationSummary, volume: UsbVolumeInfo) -> ReflectionPrompt {
         var details = [String(ui: "곡 \(summary.trackCount)개 · 재생 목록 \(summary.playlistCount)개 · 새 앨범아트 파일 \(summary.artworkFiles)개")]
-        details.append(summary.isTestVolume ? String(ui: "시험 볼륨(디스크 이미지)입니다") : physicalVolumeNote)
+        details += volumeLines(volume, isTestVolume: summary.isTestVolume)
         details += summary.notes
-        if !summary.rules.isEmpty {
-            details.append(String(ui: "확인 안 된 규칙 \(summary.rules.count)개:"))
-            details += summary.rules.map { "• \($0.summary)" }
-            details.append(summary.isTestVolume ? String(ui: "확인 안 된 규칙은 디스크 이미지에서만 시험하세요")
-                : String(ui: "확인 안 된 규칙은 rekordbox로 확인하지 않은 동작입니다. 쓴 뒤 기기에서 확인하세요"))
-        }
+        details += deviceCheckLines(summary.rules.map { ($0, 0) }, trackCount: 0)
         return ReflectionPrompt(title: String(ui: "OneLibrary를 더할까요?"),
                                 text: String(ui: "\(volume.name)의 Device Library를 읽어 OneLibrary를 더합니다. 쓰기 전에 Mac에 백업하고 쓴 뒤 USB에서 다시 읽어 확인합니다. 끝날 때까지 USB를 뽑지 마세요."),
                                 confirm: String(ui: "OneLibrary 더하기"), details: details)
@@ -825,20 +814,37 @@ struct UsbWriteCoordinator {
 
     // MARK: - 창 문구
 
-    /// 실물 USB에 쓰기 전 확인 창의 한 줄(실험 기능임을 알린다)
-    static var physicalVolumeNote: String {
-        String(ui: "실물 USB입니다(실험 기능). 쓰기 전 바꿀 파일을 Mac에 백업하고, 기기에 꽂기 전에 결과를 확인하세요")
+    /// 쓰기 전 확인 창의 볼륨 줄. 실물이면 이름·용량·형식과 "실물 USB입니다"를 보이고(이 창의 확인 버튼이 쓰기 동의다),
+    /// 기기가 읽지 못할 수 있는 형식(exFAT·GPT)은 한 줄씩 알린다
+    static func volumeLines(_ volume: UsbVolumeInfo, isTestVolume: Bool) -> [String] {
+        if isTestVolume { return [String(ui: "시험 볼륨(디스크 이미지)입니다")] }
+        let capacity = volume.capacity.formatted(ByteCountFormatStyle(style: .file))
+        let scheme = volume.partitionScheme == .gpt ? "GPT" : "MBR"
+        var lines = [String(ui: "실물 USB입니다: \(volume.name) · \(capacity) · \(volume.fileSystem.displayName) · \(scheme)"),
+                     String(ui: "쓰기 전 바꿀 파일을 Mac에 백업합니다. 기기에 꽂기 전에 결과를 확인하세요")]
+        lines += UsbVolumePolicy.warnings(volume).map(\.message)
+        return lines
+    }
+
+    /// CDJ에서 확인하지 않은 항목 줄(막지 않고 알리기만 한다). trackCount가 0보다 크면 곡 수로 적는다
+    nonisolated static func deviceCheckLines(_ rules: [(rule: UsbProvisionalRule, count: Int)], trackCount: Int) -> [String] {
+        guard !rules.isEmpty else { return [] }
+        var lines = [trackCount > 0 ? String(ui: "CDJ에서 확인하지 않은 항목이 있는 곡 \(trackCount)개:")
+            : String(ui: "CDJ에서 확인하지 않은 항목 \(rules.count)개:")]
+        lines += rules.map { $0.count > 0 ? "• \($0.rule.summary) (\($0.count))" : "• \($0.rule.summary)" }
+        lines.append(String(ui: "쓰기는 막지 않습니다. 쓴 뒤 기기에서 확인하세요"))
+        return lines
     }
 
     static var journalUnreadableText: String {
         String(ui: "회복 기록 파일을 읽지 못했습니다. DJCrate 데이터 폴더의 usb-sessions를 확인하세요")
     }
 
-    /// 쓰기 전 확인 창: 곡·목록 수, 대상·형식, 시험 볼륨, 공간, 빼고 쓰는 곡(이유별 수), 확인 안 된 규칙
+    /// 쓰기 전 확인 창: 곡·목록 수, 대상·형식, 시험 볼륨, 공간, 빼고 쓰는 곡(이유별 수), CDJ에서 확인하지 않은 항목
     static func confirmation(_ summary: UsbExportSummary, job: UsbExportJob) -> ReflectionPrompt {
         let formats = UsbFormat.allCases.filter(job.formats.contains).map(\.displayName).joined(separator: " · ")
         var details: [String] = []
-        details.append(summary.isTestVolume ? String(ui: "시험 볼륨(디스크 이미지)입니다") : physicalVolumeNote)
+        details += volumeLines(job.volume, isTestVolume: summary.isTestVolume)
         details.append(summary.spaceText)
         details += blockLines(summary)
         return ReflectionPrompt(title: String(ui: "곡 \(summary.trackCount)개·재생 목록 \(summary.playlistCount)개를 USB에 쓸까요?"),
@@ -846,7 +852,7 @@ struct UsbWriteCoordinator {
                                 confirm: String(ui: "USB에 쓰기"), details: details)
     }
 
-    /// 빼고 쓰는 곡·재생 목록(이유별 수)과 확인 안 된 규칙 줄. 쓰기를 멈추는 막힘(볼륨·형식·파일)은 `stopping`으로만 보인다
+    /// 빼고 쓰는 곡·재생 목록(이유별 수)과 CDJ에서 확인하지 않은 항목 줄. 쓰기를 멈추는 막힘(볼륨·형식·파일)은 `stopping`으로만 보인다
     static func blockLines(_ summary: UsbExportSummary) -> [String] {
         var lines: [String] = []
         let tracks = summary.blockCounts.filter { $0.kind == .track }
@@ -859,10 +865,7 @@ struct UsbWriteCoordinator {
             lines.append(String(ui: "빼고 쓰는 재생 목록 \(summary.blockedPlaylistCount)개:"))
             lines += playlists.map { "• \($0.message) (\($0.count))" }
         }
-        if !summary.rules.isEmpty {
-            lines.append(String(ui: "확인 안 된 규칙 \(summary.rules.count)개:"))
-            lines += summary.rules.map { $0.count > 0 ? "• \($0.rule.summary) (\($0.count))" : "• \($0.rule.summary)" }
-        }
+        lines += deviceCheckLines(summary.rules.map { ($0.rule, $0.count) }, trackCount: summary.unverifiedTrackCount)
         return lines
     }
 
@@ -873,11 +876,11 @@ struct UsbWriteCoordinator {
         return String(ui: "내보낼 곡이 없습니다. 막힌 곡의 이유를 확인한 뒤 다시 시도하세요")
     }
 
-    /// 수정 쓰기 전 확인 창: 쓸 편집 수, 막힌 편집, 빼고 쓰는 곡, 형식별 결과, 지울 파일·미룸, 확인 안 된 규칙.
+    /// 수정 쓰기 전 확인 창: 쓸 편집 수, 막힌 편집, 빼고 쓰는 곡, 형식별 결과, 지울 파일·미룸, CDJ에서 확인하지 않은 항목.
     /// draftChanged면 확인하는 동안 초안이 바뀌어 다시 묻는다는 것을 맨 앞에 알린다
     static func editConfirmation(_ summary: UsbEditSummary, volume: UsbVolumeInfo, draftChanged: Bool = false) -> ReflectionPrompt {
         var details: [String] = []
-        details.append(summary.isTestVolume ? String(ui: "시험 볼륨(디스크 이미지)입니다") : physicalVolumeNote)
+        details += volumeLines(volume, isTestVolume: summary.isTestVolume)
         details += editLines(summary)
         let text = String(ui: "\(volume.name)의 rekordbox 라이브러리를 고칩니다. 쓰기 전에 Mac에 백업하고 쓴 뒤 USB에서 다시 읽어 확인합니다. 끝날 때까지 USB를 뽑지 마세요.")
         return ReflectionPrompt(title: String(ui: "USB에 편집 \(summary.writtenCount)건을 쓸까요?"),
@@ -919,10 +922,7 @@ struct UsbWriteCoordinator {
         }
         lines += summary.notes.filter { !summary.deferred.contains($0) }
         lines += summary.warnings
-        if !summary.rules.isEmpty {
-            lines.append(String(ui: "확인 안 된 규칙 \(summary.rules.count)개:"))
-            lines += summary.rules.map { "• \($0.summary)" }
-        }
+        lines += deviceCheckLines(summary.rules.map { ($0, 0) }, trackCount: 0)
         return lines
     }
 
