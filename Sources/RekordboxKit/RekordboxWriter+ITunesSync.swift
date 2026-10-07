@@ -83,6 +83,7 @@ extension RekordboxWriter {
             throw recoverITunesSync(from: error, original: written, target: target, database: database,
                                      backup: saved, guard: writeGuard)
         }
+        prune(backups)
         return saved
     }
 

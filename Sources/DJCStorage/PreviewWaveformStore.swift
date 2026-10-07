@@ -121,6 +121,15 @@ public actor PreviewWaveformStore {
         save()
     }
 
+    /// 캐시 비우기(설정 › 저장 공간): 메모리와 파일을 함께 비운다. 저장과 같은 액터라 옛 내용을 다시 쓰지 않는다.
+    /// 다음 `waveform(for:)`·`warm`이 분석 파일에서 다시 읽어 파일을 새로 만든다.
+    public func clear() {
+        cache = Cache()
+        loaded = true
+        dirty = false
+        if let file { try? FileManager.default.removeItem(at: file) }
+    }
+
     private func loadIfNeeded() {
         guard !loaded else { return }
         loaded = true

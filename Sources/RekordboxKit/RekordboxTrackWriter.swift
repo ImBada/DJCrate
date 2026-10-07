@@ -305,7 +305,10 @@ public enum RekordboxTrackWriter {
             }
             report.createdFiles = created.map(\.path)
         }
-        if let backup { try? save(report, in: backup, shareRoot: share) }
+        if let backup {
+            try? save(report, in: backup, shareRoot: share)
+            RekordboxWriter.prune(backups)
+        }
         return report
     }
 
@@ -555,7 +558,11 @@ public enum RekordboxTrackWriter {
             return !gone.isEmpty
         }
         // 백업은 시험 실행이 아닐 때만 있다
-        guard let backup, !gone.isEmpty else { return report }
+        guard let backup else { return report }
+        guard !gone.isEmpty else {
+            RekordboxWriter.prune(backups)
+            return report
+        }
         try afterCommit(database, backup: backup, live: live) { db in
             for id in gone where try RekordboxWriter.scalar(db, "SELECT count(*) FROM djmdContent WHERE ID = ?", [.text(id)]) != 0 {
                 throw DJCError.writeVerificationFailed(String(ui: "지운 곡이 다시 읽혔습니다"))
@@ -572,6 +579,7 @@ public enum RekordboxTrackWriter {
         }
         report.removedFiles = files.map(\.path).sorted()
         try? save(report, in: backup, shareRoot: share)
+        RekordboxWriter.prune(backups)
         return report
     }
 

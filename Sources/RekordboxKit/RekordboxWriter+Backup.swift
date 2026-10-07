@@ -28,6 +28,12 @@ extension RekordboxWriter {
 
         /// 쓰기 직전 백업의 이름 끝(`makeBackup`의 label)
         static let writeLabels = ["-write", "-add", "-delete"]
+
+        /// 쓰기 직전 백업 이름인지. 같은 초에 뜬 백업은 끝에 `-2`·`-3`…이 붙는다.
+        static func isWriteName(_ name: String) -> Bool {
+            let base = name.replacingOccurrences(of: #"-\d+$"#, with: "", options: .regularExpression)
+            return writeLabels.contains { base.hasSuffix($0) }
+        }
     }
 
     /// DB 파일(+WAL·SHM)을 통째로 복사한다. 복사하는 동안 원본이 바뀌면 실패한다.
@@ -94,12 +100,17 @@ extension RekordboxWriter {
         try encoder.encode(report).write(to: backup.appending(path: "report.json"), options: .atomic)
     }
 
+    /// 백업을 만든 모든 경로(쓰기·곡 넣기·빼기·iTunes 동기화·복원)가 끝에 부른다(#221).
+    /// 쓰기 백업만 세어 `backupsToKeep`개를 넘으면, 남길 가장 옛 쓰기 백업보다 옛 백업(복원 직전 포함)을 지운다.
+    /// 복원 직전 백업은 세지 않되 사이의 것을 지우지 않는다: 옛 백업으로 되돌릴 때 그 뒤 백업을 모두 거쳐야 한다(#222 연쇄 복원).
     static func prune(_ directory: URL) {
         let fm = FileManager.default
-        let folders = ((try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [])
+        let folders = ((try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.creationDateKey])) ?? [])
             .filter { fm.fileExists(atPath: $0.appending(path: "master.db").path) }
-            .sorted { $0.lastPathComponent > $1.lastPathComponent }
-        for old in folders.dropFirst(backupsToKeep) { try? fm.removeItem(at: old) }
+            .sorted { isNewer($0, than: $1) }
+        let writes = folders.indices.filter { Backup.isWriteName(folders[$0].lastPathComponent) }
+        guard writes.count > backupsToKeep else { return }
+        for old in folders.dropFirst(writes[backupsToKeep - 1] + 1) { try? fm.removeItem(at: old) }
     }
 
     /// 백업 목록(최근 것부터)
@@ -110,7 +121,7 @@ extension RekordboxWriter {
             .map { folder in
                 let created = (try? folder.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
                 let name = folder.lastPathComponent
-                return Backup(url: folder, createdAt: created, isWrite: Backup.writeLabels.contains { name.hasSuffix($0) },
+                return Backup(url: folder, createdAt: created, isWrite: Backup.isWriteName(name),
                               report: contents(of: folder).report, trackReport: RekordboxTrackWriter.report(in: folder))
             }
             // 같은 초에 뜬 백업도 뜬 순서대로(이름 끝은 순서와 상관없다, `isNewer`)
@@ -157,6 +168,7 @@ extension RekordboxWriter {
         } catch {
             throw rollbackRestore(error, saved: saved, database: database, touched: touched, live: writeGuard.isLive(database))
         }
+        prune(backups)
         return saved
     }
 

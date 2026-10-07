@@ -484,6 +484,22 @@
         }
       }
     },
+    "%@ %@를 비웠습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleared %2$@ of %1$@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@を%2$@削除しました。"
+          }
+        }
+      }
+    },
     "%@ (%lld개)" : {
       "localizations" : {
         "en" : {
@@ -1116,6 +1132,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@のフィールドサイズまたは長さが正しくありません"
+          }
+        }
+      }
+    },
+    "%@ 캐시를 비웁니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clears the %@ cache"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@のキャッシュを削除します"
           }
         }
       }
@@ -1865,6 +1897,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@이 바뀌었습니다(%2$@ → %3$@)"
+          }
+        }
+      }
+    },
+    "%lld개 · 최대 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld · up to %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld個 · 最大%@"
           }
         }
       }
@@ -3435,6 +3483,22 @@
         }
       }
     },
+    "4GB 이상 음원은 USB에 넣을 수 없습니다. 음원을 줄이거나 내보낼 곡에서 빼세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks of 4 GB or more can't go on a USB. Shrink the file or remove the track from the export"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4GB以上の音源はUSBに入れられません。音源を小さくするか、書き出す曲から外してください"
+          }
+        }
+      }
+    },
     ": %@ · 파일 %lld개" : {
       "localizations" : {
         "en" : {
@@ -4413,22 +4477,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Device Libraryの長いASCII文字列"
-          }
-        }
-      }
-    },
-    "FAT32는 4GB 넘는 파일을 담을 수 없습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "FAT32 can't hold files larger than 4 GB"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "FAT32には4GBを超えるファイルを保存できません"
           }
         }
       }
@@ -5757,6 +5805,22 @@
         }
       }
     },
+    "USB 쓰기 전 백업" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB pre-write backups"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB書き込み前のバックアップ"
+          }
+        }
+      }
+    },
     "USB 쓰기를 마저 끝냈습니다" : {
       "localizations" : {
         "en" : {
@@ -6715,6 +6779,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBに書き込んでいます…"
+          }
+        }
+      }
+    },
+    "USB에 쓰는 중에는 비울 수 없습니다. 쓰기가 끝난 뒤 비우세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't clear while writing to a USB. Clear after the write finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに書き込み中は削除できません。書き込みが終わってから削除してください"
           }
         }
       }
@@ -8798,6 +8878,22 @@
         }
       }
     },
+    "rekordbox 쓰기 전 백업" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox pre-write backups"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox書き込み前のバックアップ"
+          }
+        }
+      }
+    },
     "rekordbox 쓰기가 끝난 뒤 Flip을 기록하세요" : {
       "localizations" : {
         "en" : {
@@ -10124,6 +10220,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxに書き込み中…"
+          }
+        }
+      }
+    },
+    "rekordbox에 쓰는 중에는 비울 수 없습니다. 쓰기가 끝난 뒤 비우세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't clear while writing to rekordbox. Clear after the write finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxに書き込み中は削除できません。書き込みが終わってから削除してください"
           }
         }
       }
@@ -11638,6 +11750,22 @@
         }
       }
     },
+    "같은 디스크의 복사본은 공간을 나눠 써서 실제로 차지하는 공간은 더 작을 수 있습니다. 백업은 오래된 것부터 저절로 정리됩니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copies on the same disk share space, so the actual space used may be smaller. Older backups are removed automatically."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じディスク上のコピーは領域を共有するため、実際に使う容量はより小さいことがあります。バックアップは古いものから自動的に整理されます。"
+          }
+        }
+      }
+    },
     "같은 묶음에 같은 key(%@)로 만든 목록이 있습니다" : {
       "localizations" : {
         "en" : {
@@ -12550,6 +12678,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "パスに親フォルダーへの移動または空の名前があります"
+          }
+        }
+      }
+    },
+    "계산 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calculating…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "計算中…"
           }
         }
       }
@@ -17262,6 +17406,22 @@
         }
       }
     },
+    "데이터 폴더" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data Folder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データフォルダ"
+          }
+        }
+      }
+    },
     "데이터 폴더: %@" : {
       "localizations" : {
         "en" : {
@@ -20256,6 +20416,22 @@
         }
       }
     },
+    "모두 비우기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear All"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべて削除"
+          }
+        }
+      }
+    },
     "모든 곡 색" : {
       "localizations" : {
         "en" : {
@@ -20284,6 +20460,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "すべての列を表示"
+          }
+        }
+      }
+    },
+    "모든 캐시를 비웁니다. 초안·백업은 그대로 둡니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clears all caches. Drafts and backups are kept."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてのキャッシュを削除します。下書き・バックアップはそのまま残します"
           }
         }
       }
@@ -21144,6 +21336,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "バックアップフォルダを読み込めませんでした。別のバックアップフォルダを--backupで指定してください"
+          }
+        }
+      }
+    },
+    "백업(읽기만)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backups (read-only)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バックアップ（表示のみ）"
           }
         }
       }
@@ -22530,6 +22738,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "比較中に入力または現在値が変わったため下書きを保持しました。現在値をもう一度取得してください。"
+          }
+        }
+      }
+    },
+    "비우기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除"
           }
         }
       }
@@ -31916,6 +32140,22 @@
         }
       }
     },
+    "저장 공간" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Storage"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ストレージ"
+          }
+        }
+      }
+    },
     "저장 장치의 빈 공간을 확보한 뒤 다시 저장하세요." : {
       "localizations" : {
         "en" : {
@@ -34350,6 +34590,38 @@
         }
       }
     },
+    "캐시" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cache"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キャッシュ"
+          }
+        }
+      }
+    },
+    "캐시 %@를 비웠습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleared %@ of cache."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キャッシュを%@削除しました。"
+          }
+        }
+      }
+    },
     "캐시 종류별 용량 보기·비우기(초안·백업은 지우지 않음)" : {
       "localizations" : {
         "en" : {
@@ -34362,6 +34634,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キャッシュの種類別の容量を表示・削除（下書き・バックアップは削除しない）"
+          }
+        }
+      }
+    },
+    "캐시는 다시 만들어지므로 확인 없이 비웁니다. 초안·추가 목록·백업은 지우지 않습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caches are rebuilt automatically, so they are cleared without asking. Drafts, Added Tracks, and backups are never deleted."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キャッシュは作り直されるため、確認なしで削除します。下書き・追加した曲・バックアップは削除しません。"
           }
         }
       }
