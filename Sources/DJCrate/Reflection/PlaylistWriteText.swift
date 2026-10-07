@@ -21,6 +21,9 @@ enum PlaylistWriteText {
     /// "재생 목록 3건" — 확인 창 제목과 결과 제목
     static func summary(_ count: Int) -> String { String(ui: "재생 목록 \(count)건") }
 
+    /// 곡 초안과 함께 쓸 때의 한 줄
+    static func alongside(_ count: Int) -> String { "• " + String(ui: "재생 목록 초안 \(count)건도 함께 씁니다") }
+
     /// 확인 창 한 줄: "• 목록 — 3곡 넣기"
     static func line(_ outcome: PlaylistOutcome) -> String { "• \(outcome.name) — " + change(outcome.edit) }
 

@@ -31074,6 +31074,34 @@
         }
       }
     },
+    "재생 목록 초안 %lld건도 함께 씁니다" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Also writes %lld playlist draft edit"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Also writes %lld playlist draft edits"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストの下書き%lld件も一緒に書き込みます"
+          }
+        }
+      }
+    },
     "재생 목록 초안 %lld건을 버릴까요?" : {
       "localizations" : {
         "en" : {
