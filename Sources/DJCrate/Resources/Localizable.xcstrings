@@ -3483,6 +3483,22 @@
         }
       }
     },
+    "4GB 이상 음원은 USB에 넣을 수 없습니다. 음원을 줄이거나 내보낼 곡에서 빼세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks of 4 GB or more can't go on a USB. Shrink the file or remove the track from the export"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4GB以上の音源はUSBに入れられません。音源を小さくするか、書き出す曲から外してください"
+          }
+        }
+      }
+    },
     ": %@ · 파일 %lld개" : {
       "localizations" : {
         "en" : {
@@ -4461,22 +4477,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Device Libraryの長いASCII文字列"
-          }
-        }
-      }
-    },
-    "FAT32는 4GB 넘는 파일을 담을 수 없습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "FAT32 can't hold files larger than 4 GB"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "FAT32には4GBを超えるファイルを保存できません"
           }
         }
       }

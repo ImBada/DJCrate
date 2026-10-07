@@ -291,7 +291,7 @@ public struct UsbExportPlan: Sendable {
 
 /// 로컬 곡·목록을 USB 어디에·어떤 ID로·어떤 이름으로 둘지, 무엇을 막을지 정한다(입출력 없음).
 public enum UsbExportPlanner {
-    /// FAT32가 담을 수 있는 파일 크기 한계
+    /// 음원 크기 한계(FAT32 한계이나 exFAT에서도 같게 막음: 사용자 결정)
     static let fat32FileLimit: Int64 = 4_294_967_296
 
     public static func plan(_ request: UsbExportRequest) -> UsbExportPlan {
@@ -424,7 +424,7 @@ private struct PlanState {
         }
         if let actual = candidate.actualFileSize {
             if actual >= UsbExportPlanner.fat32FileLimit {
-                result.append(trackBlock("fileTooLarge", candidate, String(ui: "FAT32는 4GB 넘는 파일을 담을 수 없습니다")))
+                result.append(trackBlock("fileTooLarge", candidate, String(ui: "4GB 이상 음원은 USB에 넣을 수 없습니다. 음원을 줄이거나 내보낼 곡에서 빼세요")))
             }
             if actual != candidate.fileSize {
                 let message = String(ui: "음원 파일이 rekordbox 분석 뒤 바뀌었습니다. rekordbox에서 트랙 정보를 다시 읽고 분석한 뒤 내보내세요")

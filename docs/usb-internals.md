@@ -590,7 +590,7 @@ FAT는 대소문자와 NFC·NFD를 가리지 않으므로 이름은 `UsbLayout.c
 | `streaming` | 스트리밍 곡(`FolderPath`가 `/`로 시작하지 않음) |
 | `audioMissing` | 음원 경로가 없거나 파일이 없음 |
 | `fileTypeUnknown` | 음원 형식 번호를 모름 |
-| `fileTooLarge` | 음원이 4 GiB 이상(FAT32 한계) |
+| `fileTooLarge` | 음원이 4 GiB 이상. FAT32 한계지만 exFAT에서도 똑같이 막는다(사용자 결정 2026-10-07, 어디서나 4GB 제한) |
 | `audioSizeMismatch` | 음원 크기가 rekordbox가 적은 `FileSize`와 다름(분석 뒤 파일이 바뀜) |
 | `analysisIncomplete` | 로컬 분석 파일 셋(`.DAT`·`.EXT`·`.2EX`)이 다 없음 |
 | `analysisNewerThanSnapshot` | 로컬 분석 파일이 스냅샷 사본을 뜬 뒤에 바뀜 |

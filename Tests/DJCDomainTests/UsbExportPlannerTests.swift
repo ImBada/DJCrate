@@ -85,7 +85,7 @@ struct UsbExportPlannerTests {
         }
     }
 
-    @Test("4GB 이상 파일은 fileTooLarge")
+    @Test("4GB 이상 파일은 형식과 무관하게 fileTooLarge")
     func blockFileTooLarge() {
         #expect(codes(plan([candidate("1", size: 4_294_967_296)]), track: "1") == ["fileTooLarge"])
         #expect(codes(plan([candidate("1", size: 4_294_967_295)]), track: "1").isEmpty)
