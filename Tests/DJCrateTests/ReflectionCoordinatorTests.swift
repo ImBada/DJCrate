@@ -31,6 +31,9 @@ final class FakeReflectionHost: ReflectionHost {
     var beforePreview: (() async -> Void)?
     /// 쓰기·넣기·빼기가 던질 오류(확인 창 뒤 실제 쓰기 단계)
     var writeError: Error?
+    /// 미리 보기에서 제외한 초안 줄(`draftExclusions`)
+    var exclusions: [String] = []
+    func draftExclusions(for rows: [TrackRow], blockedOnly: Bool) -> [String] { exclusions }
 
     func setWriteLock(_ locked: Bool) { isWritingRekordbox = locked; locks.append(locked) }
     func writeTargets(_ rows: [TrackRow]) -> [TrackRow] { targets ?? rows }
@@ -156,23 +159,53 @@ struct ReflectionCoordinatorTests {
         return outcome
     }
 
+    /// 창을 띄우지 않고 닫을 때까지 남는 경고 안내 토스트로 알렸는지(#230). 안내는 쓰기 결과가 아니라 결과 보기를 달지 않는다.
+    func expectNotice(_ title: String, detail: String? = nil, sourceLocation: SourceLocation = #_sourceLocation) {
+        #expect(prompter.shown.isEmpty, sourceLocation: sourceLocation)
+        #expect(host.toast?.title == title && host.toast?.kind == .warning, sourceLocation: sourceLocation)
+        #expect(host.toast?.isNotice == true && host.toast?.showsResult == false && host.toast?.duration == .infinity,
+                sourceLocation: sourceLocation)
+        if let detail { #expect(host.toast?.detail?.contains(detail) == true, sourceLocation: sourceLocation) }
+    }
+
     @Test func rekordbox가_켜져_있으면_미리_보지도_않는다() async {
         await coordinator(running: true).write(rows: [Self.row("a")])
-        #expect(prompter.shown.map(\.title) == ["rekordbox가 켜져 있어 쓰지 않았습니다"])
-        #expect(host.locks.isEmpty && host.wrote == nil)
+        expectNotice("rekordbox가 켜져 있어 쓰지 않았습니다", detail: "rekordbox를 완전히 종료한 뒤 다시 누르세요")
+        #expect(host.locks.isEmpty && host.wrote == nil && host.resultHistory.latest == nil)
     }
 
-    @Test func 쓸_초안이_없으면_알린다() async {
+    @Test func 쓸_초안이_없으면_창_없이_알린다() async {
         host.targets = []
         await coordinator().write(rows: [Self.row("a")])
-        #expect(prompter.shown.first?.title == "쓸 초안이 없습니다" && host.locks.isEmpty)
+        expectNotice("쓸 초안이 없습니다", detail: "rekordbox와 다른 큐·그리드·게인·태그 초안이 없습니다")
+        #expect(host.locks.isEmpty)
     }
 
-    @Test func 모두_막히면_이유를_보여_주고_쓰지_않는다() async {
+    @Test func 쓸_초안이_없을_때_제외한_이유를_토스트에_적는다() async {
+        host.targets = []
+        host.exclusions = ["• 곡 a: 초안을 만든 뒤 rekordbox에서 바뀌었습니다", "• 곡 b: 바꿀 것 없음", "• 곡 c: 바꿀 것 없음"]
+        await coordinator().write(rows: [Self.row("a")])
+        expectNotice("쓸 초안이 없습니다", detail: "곡 a: 초안을 만든 뒤 rekordbox에서 바뀌었습니다")
+        #expect(host.toast?.detail?.contains("외 1건") == true && host.toast?.detail?.contains("곡 c") == false)
+    }
+
+    @Test func 쓸_것이_제외뿐이면_제외한_이유를_결과_토스트에_남긴다() async {
+        var preview = Self.preview(cues: [])
+        preview.exclusions = ["• 곡 a: 태그 쓰지 않음: 바꿀 것 없음"]
+        host.preview = .success(preview)
+        await coordinator().write(rows: [Self.row("a")])
+        #expect(prompter.shown.isEmpty && host.toast?.title == "rekordbox에 쓴 것이 없습니다")
+        #expect(host.toast?.detail == "쓰지 않는 것 1: 곡 a: 태그 쓰지 않음: 바꿀 것 없음")
+        #expect(host.resultHistory.latest?.text == "쓰지 않는 것:\n• 곡 a: 태그 쓰지 않음: 바꿀 것 없음")
+    }
+
+    @Test func 모두_막히면_창_없이_결과_토스트로_이유를_남기고_쓰지_않는다() async {
         host.preview = .success(Self.preview(cues: [Self.outcome("a", .blocked, reason: "VBR MP3")]))
         await coordinator().write(rows: [Self.row("a")])
-        #expect(prompter.shown.first?.title == "rekordbox에 쓸 수 있는 초안이 없습니다")
-        #expect(prompter.shown.first?.details.contains("• 곡 a: VBR MP3") == true)
+        #expect(prompter.shown.isEmpty)
+        #expect(host.toast?.title == "rekordbox에 쓴 것이 없습니다" && host.toast?.kind == .warning && host.toast?.showsResult == true)
+        #expect(host.toast?.detail?.contains("VBR MP3") == true)
+        #expect(host.resultHistory.latest?.text.contains("곡 a") == true)
         #expect(host.wrote == nil && host.locks == [true, false] && host.writeStage == nil)
     }
 
@@ -247,7 +280,8 @@ struct ReflectionCoordinatorTests {
         host.targets = []
         host.hasPlaylistDrafts = true
         await coordinator().write(rows: [Self.row("a")], playlists: false)
-        #expect(prompter.shown.first?.title == "쓸 초안이 없습니다" && host.previewedPlaylists == nil)
+        expectNotice("쓸 초안이 없습니다")
+        #expect(host.previewedPlaylists == nil)
         // 곡 초안이 있으면 곡만 미리 본다
         host.targets = nil
         host.preview = .success(Self.preview(cues: [Self.outcome("a", .written)]))
@@ -262,8 +296,8 @@ struct ReflectionCoordinatorTests {
             Self.playlistOutcome(.rename(playlist: .id("9"), name: "x"), "스마트", .blocked, reason: "인텔리전트 재생 목록은 아직 쓰지 않습니다(rekordbox에서 고치세요)"),
         ]))
         await coordinator().write(rows: [])
-        #expect(prompter.shown.first?.title == "rekordbox에 쓸 수 있는 초안이 없습니다")
-        #expect(prompter.shown.first?.details == ["• 스마트: 이름 바꾸기 — 인텔리전트 재생 목록은 아직 쓰지 않습니다(rekordbox에서 고치세요)"])
+        #expect(prompter.shown.isEmpty && host.toast?.title == "rekordbox에 쓴 것이 없습니다")
+        #expect(host.resultHistory.latest?.text == "• 스마트 — 재생 목록 쓰지 않음(이름 바꾸기): 인텔리전트 재생 목록은 아직 쓰지 않습니다(rekordbox에서 고치세요)")
         #expect(host.wrote == nil)
     }
 
@@ -324,6 +358,16 @@ struct ReflectionCoordinatorTests {
         #expect(detail.contains("확인"))
         #expect(!detail.contains("rekordbox에 쓰지 않았습니다"))
         #expect(host.resultHistory.latest?.text == detail)
+    }
+
+    @Test func 쓰기_오류와_제외한_초안을_한_실패_토스트로_알린다() async {
+        host.preview = .failure(FixtureFailure())
+        host.exclusions = ["• 곡 b: 초안을 만든 뒤 rekordbox에서 바뀌었습니다"]
+        await coordinator().write(rows: [Self.row("a"), Self.row("b")])
+        #expect(prompter.shown.isEmpty)
+        #expect(host.toast?.kind == .failure && host.toast?.title == "rekordbox에 쓰지 않았습니다")
+        #expect(host.toast?.detail?.contains("미리 보기에서 제외한 초안 1: 곡 b: 초안을 만든 뒤 rekordbox에서 바뀌었습니다") == true)
+        #expect(host.resultHistory.latest?.text.contains("• 곡 b: 초안을 만든 뒤 rekordbox에서 바뀌었습니다") == true)
     }
 
     @Test func 파일_오류_토스트는_NSError_원문을_숨긴다() async {
@@ -452,10 +496,19 @@ struct ReflectionCoordinatorTests {
 
     @Test func 추가한_곡만_넣고_rekordbox가_켜져_있으면_묻지도_않는다() async {
         await coordinator(running: true).addTracks(rows: [Self.row("djc-a")])
-        #expect(prompter.shown.map(\.title) == ["rekordbox가 켜져 있어 넣지 않았습니다"] && host.added == nil)
-        prompter.shown = []
+        expectNotice("rekordbox가 켜져 있어 넣지 않았습니다")
+        #expect(host.added == nil)
         await coordinator().addTracks(rows: [Self.row("a")])
-        #expect(prompter.shown.first?.title == "rekordbox에 넣을 곡이 없습니다" && host.locks.isEmpty)
+        expectNotice("rekordbox에 넣을 곡이 없습니다", detail: "DJCrate에 추가한 곡만")
+        #expect(host.locks.isEmpty)
+    }
+
+    @Test func 넣을_수_있는_곡이_없으면_창_없이_결과_토스트로_알린다() async {
+        host.addPreview = .success(Self.addPreview([Self.track("a", written: false, reason: "이미 rekordbox 컬렉션에 있는 파일입니다")]))
+        await coordinator().addTracks(rows: [Self.row("djc-a")])
+        #expect(prompter.shown.isEmpty && host.added == nil)
+        #expect(host.toast?.title == "rekordbox에 넣은 곡이 없습니다" && host.toast?.kind == .warning)
+        #expect(host.toast?.detail?.contains("이미 rekordbox 컬렉션에 있는 파일입니다") == true)
     }
 
     @Test func 넣기_확인_창은_분석_여부와_넣지_않는_곡을_보여_주고_확인하면_넣는다() async {
@@ -512,10 +565,26 @@ struct ReflectionCoordinatorTests {
         report.deleted = [Self.track("a", written: false, reason: RekordboxTrackWriter.syncedTrackReason)]
         host.deletePreview = .success(.init(report: report, contentIDs: ["id-a"]))
         await coordinator().deleteTracks(rows: [Self.row("a")])
-        let prompt: ReflectionPrompt? = prompter.shown.first
-        #expect(prompt?.title == "rekordbox에서 뺄 수 있는 곡이 없습니다" && prompt?.confirm == nil)
-        #expect(prompt?.details == ["• 곡 a: " + RekordboxTrackWriter.syncedTrackReason])
+        #expect(prompter.shown.isEmpty)
+        #expect(host.toast?.title == "rekordbox에서 뺀 곡이 없습니다" && host.toast?.kind == .warning)
+        #expect(host.toast?.detail?.contains(RekordboxTrackWriter.syncedTrackReason) == true)
+        #expect(host.resultHistory.latest?.text.contains("• 곡 a — 빼지 않음: " + RekordboxTrackWriter.syncedTrackReason) == true)
         #expect(host.deleted == nil && host.locks == [true, false])
+    }
+
+    @Test func 빼기와_복원도_rekordbox가_켜져_있으면_창_없이_알린다() async {
+        await coordinator(running: true).deleteTracks(rows: [Self.row("a")])
+        expectNotice("rekordbox가 켜져 있어 빼지 않았습니다")
+        let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b"), createdAt: .now, isWrite: true, report: nil)
+        await coordinator(running: true).restore(backup)
+        expectNotice("rekordbox가 켜져 있어 복원하지 않았습니다", detail: "rekordbox를 완전히 종료한 뒤 다시 누르세요")
+        #expect(host.restored.isEmpty && host.locks.isEmpty)
+    }
+
+    @Test func 뺄_곡이_없으면_창_없이_알린다() async {
+        await coordinator().deleteTracks(rows: [Self.row("djc-a")])
+        expectNotice("rekordbox에서 뺄 곡이 없습니다", detail: "로컬 곡만")
+        #expect(host.locks.isEmpty)
     }
 
     @Test func 곡_넣기를_되돌리는_창은_추가_목록으로_돌아온다고_알린다() {
@@ -549,8 +618,8 @@ struct ReflectionCoordinatorTests {
         host.pointRestoreReason = "시점 스냅샷으로 복원해서"
         await coordinator().restore(backup, confirmed: true)
         #expect(host.restored.isEmpty && host.locks.isEmpty)
-        #expect(prompter.shown.count == 1 && prompter.shown.first?.confirm == nil)
-        #expect(prompter.shown.first?.text == "시점 스냅샷으로 복원해서")
+        #expect(prompter.shown.isEmpty, "창 대신 토스트로 알린다(#230)")
+        #expect(host.toast?.title == "복원하지 않았습니다" && host.toast?.detail == "시점 스냅샷으로 복원해서")
     }
 
     @Test func 되돌리기는_그_뒤_rekordbox가_바뀌었으면_경고한다() async {

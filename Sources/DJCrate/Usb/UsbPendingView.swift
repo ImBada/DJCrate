@@ -78,7 +78,9 @@ struct UsbPendingModel: Equatable {
         }
         let stopping = summary?.stopping ?? []
         canPreview = isConnected && !edits.isEmpty && !busy
-        canWrite = canPreview && stopping.isEmpty
+        // 미리 본 결과 쓸 것이 없으면 누른 뒤 알리지 않고 단추를 막는다(#230)
+        let nothingToWrite = summary.map { $0.stopping.isEmpty && !$0.hasChanges } ?? false
+        canWrite = canPreview && stopping.isEmpty && !nothingToWrite
         writeHelp = if !isConnected {
             String(ui: "USB를 연결한 뒤 쓰세요")
         } else if busy {
@@ -87,6 +89,8 @@ struct UsbPendingModel: Equatable {
             String(ui: "쓸 편집이 없습니다. 곡 목록·사이드바에서 USB 편집을 더하세요")
         } else if !stopping.isEmpty {
             stopping.joined(separator: "\n")
+        } else if nothingToWrite {
+            String(ui: "바꿀 것이 없거나 모든 편집이 막혔습니다. 목록의 막힌 이유를 확인하세요")
         } else {
             String(ui: "초안을 미리 본 뒤 USB에 씁니다. 쓰기 전에 Mac에 백업합니다.")
         }

@@ -40,11 +40,9 @@ extension DevSelfTests {
                 await store.load(snapshot: snapshot.deletingLastPathComponent().appending(path: "missing.db"), quiet: true)
             }
             await capture(window, "snapshot-open")
-            let alert = AlertPrompter().makeAlert(ReflectionPanels.blockedPrompt(store.reflectionPlans(for: [valid])))
-            alert.layout()
-            alert.window.orderBack(nil)
-            await capture(alert.window, "xml-exclusion")
-            alert.window.orderOut(nil)
+            // XML로 만들 곡이 없으면 창 대신 목록 위 결과 줄로 알린다(#230)
+            store.reflectionMessage = ReflectionPanels.blockedMessage(store.reflectionPlans(for: [valid]).filter { !$0.blockers.isEmpty })
+            await capture(window, "xml-exclusion")
             FileHandle.standardError.write(Data("[비동기 안내 화면] \(failures == 0 ? "통과" : "실패") · 캡처 4개 · 실패 \(failures)건 · 앱 비활성\n".utf8))
             exit(failures == 0 ? 0 : 1)
         }

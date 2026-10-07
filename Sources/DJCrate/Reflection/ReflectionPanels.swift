@@ -12,7 +12,8 @@ enum ReflectionPanels {
         let plans = store.reflectionPlans(for: rows)
         let eligible = plans.filter(\.isEligible), blocked = plans.filter { !$0.blockers.isEmpty }
         guard !eligible.isEmpty else {
-            _ = AlertPrompter().show(blockedPrompt(blocked))
+            // 연동 파일을 쓰지 않았다. 창 대신 XML 결과 줄 자리에 남긴다(#230).
+            store.reflectionMessage = blockedMessage(blocked)
             return
         }
         // 결과 줄에는 초안이 있는 곡의 막힘만 남긴다(고르기만 한 곡은 알리지 않는다, #211).
@@ -47,9 +48,10 @@ enum ReflectionPanels {
         return AppMessage(kind: blocked.isEmpty && omitted.isEmpty ? .success : .warning, text: text)
     }
 
-    static func blockedPrompt(_ blocked: [Reflection.Plan]) -> ReflectionPrompt {
-        ReflectionPrompt(title: String(ui: "XML로 만들 곡이 없습니다"),
-                         text: blocked.isEmpty ? String(ui: "고른 곡에 rekordbox와 다른 큐·그리드 초안이 없습니다.") : "",
-                         details: blocked.map { "• \($0.title): \($0.blockers.joined(separator: " / "))" })
+    /// XML로 만들 곡이 없을 때의 목록 위 알림: 막힌 곡은 결과 줄처럼 앞 둘과 수
+    static func blockedMessage(_ blocked: [Reflection.Plan]) -> AppMessage {
+        let reason = blocked.isEmpty ? String(ui: "고른 곡에 rekordbox와 다른 큐·그리드 초안이 없습니다.")
+            : String(ui: "막혀서 뺀 곡 \(blocked.count): \(blocked.prefix(2).map { "\($0.title)(\($0.blockers.first ?? ""))" }.joined(separator: ", "))")
+        return AppMessage(kind: .warning, text: String(ui: "XML로 만들 곡이 없습니다") + " · " + reason)
     }
 }
