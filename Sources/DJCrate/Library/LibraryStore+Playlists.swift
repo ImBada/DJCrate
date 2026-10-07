@@ -257,22 +257,6 @@ extension LibraryStore {
         applyPlaylistEdits([.rename(playlist: PlaylistRef(id), name: name)], actionName: String(ui: "재생 목록 이름 바꾸기"))
     }
 
-    /// 지우기 전 확인 문구. 폴더면 안의 목록 수를 알린다.
-    func deleteConfirmation(for id: String) -> ReflectionPrompt? {
-        guard let item = playlistItem(id) else { return nil }
-        let layout = playlistProjection.layout
-        let inside = layout.subtree(of: id).dropFirst().compactMap { layout.item($0) }
-        let text: String
-        if item.isFolder {
-            let lists = inside.filter { !$0.isFolder }.count, folders = inside.filter(\.isFolder).count
-            text = String(ui: "폴더 안의 재생 목록 \(lists)개와 폴더 \(folders)개도 함께 지웁니다. 곡은 컬렉션에 그대로 남습니다. ‘rekordbox에 쓰기’(⇧⌘E)로 저장합니다.")
-        } else {
-            text = String(ui: "곡은 컬렉션에 그대로 남습니다. ‘rekordbox에 쓰기’(⇧⌘E)로 저장합니다.")
-        }
-        return ReflectionPrompt(title: String(ui: "‘\(item.name)’을 지울까요?"), text: text, confirm: String(ui: "지우기"),
-                                destructive: true)
-    }
-
     func deletePlaylist(_ id: String) {
         guard playlistItem(id) != nil else { return }
         applyPlaylistEdits([.delete(playlist: PlaylistRef(id))], actionName: String(ui: "재생 목록 지우기"))

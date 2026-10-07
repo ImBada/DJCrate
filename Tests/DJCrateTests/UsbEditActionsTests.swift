@@ -215,7 +215,7 @@ struct UsbEditActionsTests {
         }
         let add = UsbLibraryEdit.addTracks(localContentIDs: ["11"], playlist: nil)
         // 동의 없는 관문(시험 실행)이면 실물은 관문 문구로 막힌다
-        let gate = "실물 USB에 쓰려면 앱은 쓰기 확인 창에서 확인을 누르고, djc는 --allow-physical --confirm <볼륨 이름>을 주세요"
+        let gate = "실물 USB에 쓰려면 앱은 볼륨 이름을 확인하고 ‘USB에 쓰기’를 누르고, djc는 --allow-physical --confirm <볼륨 이름>을 주세요"
         #expect(reason(add, physical) == gate)
         #expect(reason(add, image) == nil)
         #expect(reason(.removeTracks(usbContentIDs: [1]), physical) == gate)

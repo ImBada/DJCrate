@@ -344,7 +344,7 @@ djc usb-restore --volume <마운트> [--backup <폴더>] [--discard-device-chang
 djc usb-export --volume /Volumes/<이름> --db <스냅샷 사본.db> --playlist <ID> --allow-physical --confirm <이름> --dry-run
 ```
 
-실물 USB는 등록 없이 읽고, 쓰기는 `--allow-physical --confirm <볼륨 이름>`을 준 명령만 한다(대화형 확인 없음). 앱은 볼륨 이름·용량과 "실물 USB입니다"를 보인 쓰기 확인 창의 확인 버튼이 같은 동의다. 아래가 하나라도 아니면 그 이유와 할 일을 한 문장으로 알리고 USB 파일을 건드리지 않는다.
+실물 USB는 등록 없이 읽고, 쓰기는 `--allow-physical --confirm <볼륨 이름>`을 준 명령만 한다(대화형 확인 없음). 앱은 볼륨 이름·용량과 "실물 USB입니다"를 보인 쓰기 확인 창(내보내기는 내보내기 시트)의 쓰기 버튼이 같은 동의다. 아래가 하나라도 아니면 그 이유와 할 일을 한 문장으로 알리고 USB 파일을 건드리지 않는다.
 
 - 코드 관문(`UsbPhysicalWriteGate.buildEnabled`, 비상 스위치)과 `--allow-physical`이 둘 다 열림. 아니면 `physicalDisabled`.
 - 볼륨 UUID가 있음(`noVolumeUUID`), `--confirm`이 볼륨 이름과 정확히 같음(`confirmMismatch`).

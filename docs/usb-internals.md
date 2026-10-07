@@ -925,7 +925,7 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 
 | 무엇 | 지금 | 규칙·code |
 |---|---|---|
-| 실물 USB에 쓰기 | 사용자가 동의한 쓰기에만(앱 쓰기 확인 창, CLI `--allow-physical --confirm <볼륨 이름>`, §12) | `physicalVolume`, `physicalDisabled`, `confirmMismatch`, `noVolumeUUID` |
+| 실물 USB에 쓰기 | 사용자가 동의한 쓰기에만(앱 내보내기 시트·쓰기 확인 창, CLI `--allow-physical --confirm <볼륨 이름>`, §12) | `physicalVolume`, `physicalDisabled`, `confirmMismatch`, `noVolumeUUID` |
 | 분석 파일 폴더 이름 | rekordbox 규칙을 따르지 않고 DJCrate 고유 이름(content ID)으로 짓는다 | `analysisFolderNaming` |
 | Device Library 먼 오프셋 행 | 쓰지 않는다. 아티스트·앨범 행이 가까운 모양에 안 들어가면 그 곡을, My Tag 행이면 내보내기 전체를 막는다. 트랙 행이 빈 쪽에도 안 들어가면 그 곡을 막는다 | `pdbFarOffsetRows`, `nameTooLongForDeviceLibrary`, `myTagNameTooLongForDeviceLibrary`, `trackRowTooLarge` |
 | 긴 ASCII(127자 이상 순수 ASCII) | rekordbox의 0x40 모양 대신 UTF-16으로 쓴다 | `pdbLongAscii` |
@@ -961,13 +961,13 @@ rekordbox 실험 → 사본 재현 → 칸 단위 일치 → 골든 테스트 �
 
 **관문(`UsbPhysicalWriteGate`, 순수, 처음 걸린 막힘 하나만)** — 실물이거나 루트가 임시 폴더 밖이면 본다. 디스크 이미지는 통과한다.
 
-1. 코드 관문(`buildEnabled`, 지금 `true`)과 사용자 동의가 둘 다 열려 있지 않음 → `physicalDisabled`. 동의는 앱에서는 쓰기 확인 창의 확인 버튼(앱의 쓰기 창구는 확인 창을 거친 뒤에만 부르므로 동의한 관문으로 만든다), CLI에서는 `--allow-physical`이다. 코드 관문은 실기기에서 문제가 나오면 한 줄로 모든 실물 쓰기를 닫는 비상 스위치다. 디스크 이미지만 읽는 실행(자가 테스트·`DJC_HOME` 시험 실행, `UsbReadPolicy.diskImagesOnly`)은 동의가 늘 없다.
+1. 코드 관문(`buildEnabled`, 지금 `true`)과 사용자 동의가 둘 다 열려 있지 않음 → `physicalDisabled`. 동의는 앱에서는 볼륨 줄을 보인 내보내기 시트·쓰기 확인 창의 쓰기 버튼(앱의 쓰기 창구는 그 버튼을 거친 뒤에만 부르므로 동의한 관문으로 만든다), CLI에서는 `--allow-physical`이다. 코드 관문은 실기기에서 문제가 나오면 한 줄로 모든 실물 쓰기를 닫는 비상 스위치다. 디스크 이미지만 읽는 실행(자가 테스트·`DJC_HOME` 시험 실행, `UsbReadPolicy.diskImagesOnly`)은 동의가 늘 없다.
 2. 볼륨 UUID 없음 → `noVolumeUUID`(잠금·저널·백업을 볼륨별로 둔다)
 3. 볼륨 이름 확인이 다름 → `confirmMismatch`(CLI `--confirm`, 앱은 확인 창에 보인 볼륨 이름)
 
 옛 판의 목록 파일(`~/Library/Application Support/DJCrate/usb-physical-allow.json`·`usb-physical-deny.json`)은 읽지 않고 지우지도 않는다.
 
-**앱**: 사이드바는 꽂힌 USB를 등록 없이 읽어 보인다. 쓰기 확인 창(내보내기·수정·옮기기)의 첫 줄이 "실물 USB입니다: <이름> · <용량> · <파일 시스템> · <MBR|GPT>"이고, 이어 "쓰기 전 바꿀 파일을 Mac에 백업합니다. 기기에 꽂기 전에 결과를 확인하세요", 기기 호환 경고, CDJ에서 확인하지 않은 항목(§9)을 보인다. 확인 버튼이 곧 동의다. 쓰기·회복·되돌리기에는 확인 창에 보인 볼륨 이름과 UUID를 넘긴다(그 사이 같은 자리에 다른 USB가 붙었으면 `volumeChanged`, §7.5). 편집 메뉴·옮기기 메뉴의 막힘 미리 판정도 같은 관문을 쓴다(`UsbStore.physicalGate`).
+**앱**: 사이드바는 꽂힌 USB를 등록 없이 읽어 보인다. 쓰기 확인 창(수정·옮기기)과 내보내기 시트의 볼륨 줄이 "실물 USB입니다: <이름> · <용량> · <파일 시스템> · <MBR|GPT>"이고, 이어 "쓰기 전 바꿀 파일을 Mac에 백업합니다. 기기에 꽂기 전에 결과를 확인하세요", 기기 호환 경고를 보인다. CDJ에서 확인하지 않은 항목(§9)은 확인 창과 시트의 미리 보기에 보인다. 확인 창의 확인 버튼, 내보내기는 시트에서 미리 본 뒤 누른 [USB에 쓰기]가 곧 동의다(확인 창을 두 번 띄우지 않는다, #212). 쓰기·회복·되돌리기에는 그 볼륨 이름과 UUID를 넘긴다(그 사이 같은 자리에 다른 USB가 붙었으면 `volumeChanged`, §7.5). 편집 메뉴·옮기기 메뉴의 막힘 미리 판정도 같은 관문을 쓴다(`UsbStore.physicalGate`).
 
 **CLI**: 쓰기 명령(`usb-export`·`usb-edit`·`usb-migrate`·`usb-restore`·`usb-recover`)에 `--allow-physical --confirm <볼륨 이름>`. 대화형 확인은 없다. `docs/cli.md`.
 

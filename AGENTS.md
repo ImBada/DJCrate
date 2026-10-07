@@ -21,7 +21,7 @@ rekordbox 7용 DJ 라이브러리 관리 macOS 앱 DJCrate(약칭 DJC, CLI `djc`
 - 내보내는 파일(USB 등)은 칸 단위로 만든다. rekordbox가 만든 파일의 페이지·표 바이트를 통째로 넣지 않는다.
 - USB 쓰기는 `UsbWriter.write` 한 곳으로만 한다. rekordbox·rekordboxAgent가 켜져 있으면 USB에도 쓰지 않는다.
 - USB의 DB(`exportLibrary.db`·`export.pdb`·`exportExt.pdb`)는 Mac 사본에서만 연다. USB 위에서 SQLite를 열지 않는다.
-- 실물 USB는 등록 없이 읽고, 쓰기는 사용자가 동의한 쓰기에만 한다: 앱은 볼륨 이름·용량과 "실물 USB입니다"를 보인 쓰기 확인 창의 확인 버튼, CLI는 `--allow-physical --confirm <볼륨 이름>`. 코드 관문(`UsbPhysicalWriteGate.buildEnabled`)은 비상 스위치다. 바깥 저장장치(USB 메모리·외장 SSD·SD 카드)의 FAT32·exFAT, MBR·GPT 볼륨만 받고 시동·내장·네트워크·읽기 전용·APFS·HFS+(Time Machine 포함) 볼륨과 rekordbox 실행 중에는 쓰지 않는다(`docs/usb-internals.md` §12). 시험·에이전트는 이 Mac에 꽂힌 실제 볼륨에 쓰지 않는다(나열·읽기 전용 확인만). 시험 쓰기는 `djc lab usb-image`로 만든 디스크 이미지나 임시 폴더 루트에 주입한 가짜 볼륨에만 한다(시험 프로세스는 관문이 열려도 임시 폴더 밖에 쓰지 않는다). 이미지·lab 출력은 임시 폴더 아래만(`UsbScratchPath`).
+- 실물 USB는 등록 없이 읽고, 쓰기는 사용자가 동의한 쓰기에만 한다: 앱은 볼륨 이름·용량과 "실물 USB입니다"를 보인 쓰기 확인 창(내보내기는 내보내기 시트)의 쓰기 버튼, CLI는 `--allow-physical --confirm <볼륨 이름>`. 코드 관문(`UsbPhysicalWriteGate.buildEnabled`)은 비상 스위치다. 바깥 저장장치(USB 메모리·외장 SSD·SD 카드)의 FAT32·exFAT, MBR·GPT 볼륨만 받고 시동·내장·네트워크·읽기 전용·APFS·HFS+(Time Machine 포함) 볼륨과 rekordbox 실행 중에는 쓰지 않는다(`docs/usb-internals.md` §12). 시험·에이전트는 이 Mac에 꽂힌 실제 볼륨에 쓰지 않는다(나열·읽기 전용 확인만). 시험 쓰기는 `djc lab usb-image`로 만든 디스크 이미지나 임시 폴더 루트에 주입한 가짜 볼륨에만 한다(시험 프로세스는 관문이 열려도 임시 폴더 밖에 쓰지 않는다). 이미지·lab 출력은 임시 폴더 아래만(`UsbScratchPath`).
 - `PIONEER/extracted`·`PIONEER/CDP`·`djprofile.nxs`는 열거·읽기·복사하지 않는다.
 
 ## 명령

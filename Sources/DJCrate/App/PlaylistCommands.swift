@@ -38,7 +38,7 @@ struct PlaylistCommands: View {
         Button(.ui("이 목록에서 빼기")) { store?.removeSelectedFromPlaylist() }
             .disabled(!enabled || store?.editablePlaylistID == nil || tracks.isEmpty)
         Divider()
-        Button(.ui("재생 목록 초안 버리기…")) { if let store { PlaylistPanels.discardAll(store: store) } }
+        Button(.ui("재생 목록 초안 버리기")) { if let store { PlaylistPanels.discardAll(store: store) } }
             .disabled(!enabled || store?.hasPlaylistDrafts != true)
         if let store, store.blockedPlaylistEditCount > 0 {
             Button(.ui("재생 목록 현재값 가져오기…")) { DraftRecoveryPanels.recoverPlaylists(store: store) }
