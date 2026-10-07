@@ -28,11 +28,16 @@ struct LibraryDetail: View {
         // 다시 잡다가 예외로 죽는다. SwiftUI만으로 나누고, 덱 높이는 핸들로 조절한다.
         VStack(spacing: 0) {
             VStack(spacing: 0) {
-                if let error = store.lastError {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .font(.callout).foregroundStyle(UIColors.warning.color)
-                        .padding(.horizontal, Spacing.edge).padding(.vertical, 6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                if let error = store.visibleLastError {
+                    HStack(alignment: .top) {
+                        Label(error, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(UIColors.warning.color)
+                            .textSelection(.enabled)
+                        Spacer()
+                        Button(.ui("닫기")) { store.dismissLastError() }.controlSize(.small)
+                    }
+                    .font(.callout)
+                    .padding(.horizontal, Spacing.edge).padding(.vertical, 6)
                 }
                 if let message = store.draftFileMessage {
                     AppMessageView(message: message, onClose: { store.draftFileMessage = nil })

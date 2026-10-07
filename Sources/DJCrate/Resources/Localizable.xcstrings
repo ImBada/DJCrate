@@ -10002,6 +10002,22 @@
         }
       }
     },
+    "rekordbox에 넣은 곡이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No tracks were added to rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxに追加した曲はありません"
+          }
+        }
+      }
+    },
     "rekordbox에 넣을 곡이 없습니다" : {
       "localizations" : {
         "en" : {
@@ -10014,22 +10030,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxに追加する曲がありません"
-          }
-        }
-      }
-    },
-    "rekordbox에 넣을 수 있는 곡이 없습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No tracks can be added to rekordbox"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxに追加できる曲がありません"
           }
         }
       }
@@ -10676,6 +10676,22 @@
         }
       }
     },
+    "rekordbox에서 뺀 곡이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No tracks were removed from rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxから削除した曲はありません"
+          }
+        }
+      }
+    },
     "rekordbox에서 뺄 곡이 없습니다" : {
       "localizations" : {
         "en" : {
@@ -10688,22 +10704,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxから削除する曲がありません"
-          }
-        }
-      }
-    },
-    "rekordbox에서 뺄 수 있는 곡이 없습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No tracks can be removed from rekordbox"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxから削除できる曲がありません"
           }
         }
       }
@@ -20972,6 +20972,22 @@
         }
       }
     },
+    "미리 보기에서 제외한 초안:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drafts excluded from the preview:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレビューから除外した下書き："
+          }
+        }
+      }
+    },
     "미지정" : {
       "localizations" : {
         "en" : {
@@ -21000,6 +21016,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "変更なし"
+          }
+        }
+      }
+    },
+    "바꿀 것이 없거나 모든 편집이 막혔습니다. 목록의 막힌 이유를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no changes, or all edits are blocked. Check the reasons in the list"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更がないか、すべての編集がブロックされました。リストで理由を確認してください"
           }
         }
       }
@@ -23868,18 +23900,18 @@
         }
       }
     },
-    "선택한 곡 XML 만들기 (%lld곡)…" : {
+    "선택한 곡 XML 만들기 (%lld곡)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Create XML for Selected Tracks (%lld tracks)…"
+            "value" : "Create XML for Selected Tracks (%lld tracks)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選択した曲のXMLを作成（%lld曲）…"
+            "value" : "選択した曲のXMLを作成（%lld曲）"
           }
         }
       }
@@ -25476,6 +25508,22 @@
         }
       }
     },
+    "쓰지 않는 것" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not written"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込まないもの"
+          }
+        }
+      }
+    },
     "쓰지 않는 것 %lld:" : {
       "localizations" : {
         "en" : {
@@ -25488,6 +25536,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "書き込まないもの %lld："
+          }
+        }
+      }
+    },
+    "쓰지 않는 것:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not written:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込まないもの："
           }
         }
       }
@@ -27878,6 +27942,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完了"
+          }
+        }
+      }
+    },
+    "외 %lld건" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "and %lld more"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ほか%lld件"
           }
         }
       }

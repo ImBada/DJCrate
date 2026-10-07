@@ -191,7 +191,8 @@ struct WriteResult: Codable, Equatable {
         if !keyReasons.isEmpty { what.append(String(ui: "\(keyReasons.count)곡의 키는 쓰지 않았습니다")) }
         let count = actual.filter(\.written).count
         return Self(kind: !what.isEmpty || count == 0 ? .warning : .success,
-                    title: adding ? String(ui: "rekordbox에 \(count)곡을 넣었습니다") : String(ui: "rekordbox에서 \(count)곡을 뺐습니다"),
+                    title: count == 0 ? (adding ? String(ui: "rekordbox에 넣은 곡이 없습니다") : String(ui: "rekordbox에서 뺀 곡이 없습니다"))
+                        : adding ? String(ui: "rekordbox에 \(count)곡을 넣었습니다") : String(ui: "rekordbox에서 \(count)곡을 뺐습니다"),
                     text: lines.joined(separator: "\n"), shortfall: shortfallLine(what, reasons: reasons),
                     backups: report.backup.map { [URL(filePath: $0)] } ?? [])
     }

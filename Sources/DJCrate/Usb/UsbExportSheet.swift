@@ -221,6 +221,11 @@ struct UsbExportSheet: View {
             formatsSection
             sourceSection
             previewSection
+            // 미리 보기를 막은 안내(rekordbox 켜짐·쓰는 중)는 창 대신 토스트로 알린다. 토스트는 시트 뒤에 가리므로 여기에도 보인다(#230)
+            if let toast = store.toast, toast.isNotice, toast.isUsb {
+                AppMessageView(message: AppMessage(kind: toast.kind, text: [toast.title, toast.detail].compactMap { $0 }.joined(separator: " — ")),
+                               onClose: { store.toast = nil })
+            }
             HStack {
                 Spacer()
                 Button(.ui("취소")) { dismiss() }.keyboardShortcut(.cancelAction)

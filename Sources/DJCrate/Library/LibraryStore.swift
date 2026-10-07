@@ -434,7 +434,14 @@ final class LibraryStore {
               let iTunesRefresh, iTunesRefresh.generation == loadGeneration else { return nil }
         return iTunesRefresh.task
     }
-    private(set) var lastError: String?
+    private(set) var lastError: String? {
+        didSet { lastErrorDismissed = false }
+    }
+    /// 목록 위 오류 줄을 닫았는지. 오류 상태(`lastError`)는 그대로 두고 줄만 숨긴다(#230). 새로 알리면 다시 보인다.
+    private var lastErrorDismissed = false
+    /// 목록 위에 보일 오류 줄
+    var visibleLastError: String? { lastErrorDismissed ? nil : lastError }
+    func dismissLastError() { lastErrorDismissed = true }
     private(set) var lastReadFailure: LibraryReadFailure?
     var unreadableDraftKinds: [String: Set<WriteResult.Part>] = [:]
     func reportLibraryError(_ message: String) { lastError = message }
