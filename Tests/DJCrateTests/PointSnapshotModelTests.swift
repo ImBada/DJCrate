@@ -35,8 +35,8 @@ struct PointSnapshotModelTests {
         let fixture = try RekordboxFixture()
         try makeBackup(fixture, "2026-09-01T000000-write")
         try makeBackup(fixture, "2026-09-02T000000-before-restore")
-        // 백업 목록의 시각은 폴더를 만든 때라 스냅샷도 지금 시각으로 뜬다
-        let model = model(fixture, clock: Date())
+        // 백업 목록의 시각은 폴더를 만든 때라 스냅샷은 그 뒤 시각으로 뜬다(소수 초는 ms까지만 적는다)
+        let model = model(fixture, clock: Date().addingTimeInterval(1))
         await model.create()
         await model.refresh()
         #expect(model.rows.map(\.kind) == ["수동", "복원 직전 백업", "쓰기 전 백업"], "\(model.rows.map { ($0.kind, $0.date.timeIntervalSince1970) })")
