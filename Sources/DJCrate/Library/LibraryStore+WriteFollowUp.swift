@@ -115,6 +115,10 @@ extension LibraryStore {
     /// 복원 확인 창에 보일 충돌 목록("• 곡 — 큐·태그").
     /// 제목은 지금 목록의 곡 → 쓰기 보고서 → 백업에 남긴 추가 목록 순으로 찾는다. 곡 넣기 백업에는 쓰기 보고서가 없고 넣은 추가 목록 곡은
     /// 더는 목록의 곡이 아니라서, 마지막 것이 없으면 UUID가 그대로 보인다(#197).
+    func laterBackupCount(_ backup: RekordboxWriter.Backup) -> Int {
+        (try? RekordboxWriter.laterBackups(than: backup.url, in: backupDirectory))?.count ?? 0
+    }
+
     func restoreDraftConflictDetails(_ backup: RekordboxWriter.Backup) -> [String] {
         var outcomes: [RekordboxWriter.Outcome] = []
         if let report = backup.report {

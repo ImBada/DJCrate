@@ -545,6 +545,13 @@ struct ReflectionCoordinatorTests {
         #expect(backup.titles == ["곡 a"])
     }
 
+    @Test func 뒤에_뜬_백업이_있으면_함께_되돌린다고_알린다() {
+        let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b"), createdAt: .now, isWrite: true, report: nil)
+        #expect(!ReflectionCoordinator.restoreConfirmation(backup, changedSince: false).text.contains("함께 되돌립니다"))
+        let prompt = ReflectionCoordinator.restoreConfirmation(backup, changedSince: false, later: 2)
+        #expect(prompt.text.contains("쓰거나 복원한 2번도 분석 파일까지 함께 되돌립니다"))
+    }
+
     @Test func 자동_복원이_실패한_백업도_되돌리기로_복원한다() async {
         // 복원 실패로 끝난 쓰기는 보고서를 남기지 않는다 → 그 뒤 바뀌었는지 모름(nil). 막지 않고 묻고 되돌린다.
         let backup = RekordboxWriter.Backup(url: URL(filePath: "/tmp/b-write"), createdAt: .now, isWrite: true, report: nil)

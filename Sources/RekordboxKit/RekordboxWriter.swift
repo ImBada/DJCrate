@@ -628,7 +628,7 @@ public enum RekordboxWriter {
                 try removeOwnedFiles(mergeFiles)
             } catch {
                 throw recover(from: error, database: database, backup: backup, live: live) {
-                    try restoreAnalysis(from: backup, saveCurrentTo: nil,
+                    try restoreAnalysis(from: backup,
                                         shareRoot: gridRoot ?? database.deletingLastPathComponent().appending(path: "share"))
                     try removeAnalysisFiles(created)
                 }
