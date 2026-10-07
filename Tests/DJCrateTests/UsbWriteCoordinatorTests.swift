@@ -215,14 +215,16 @@ extension UsbTestData {
     /// 미리 보기 요약(곡 3·목록 1, 막힘 없음)
     static func summary(tracks: Int = 3, playlists: Int = 1, blocks: [UsbBlock] = [], rules: [UsbProvisionalRule: Int] = [:],
                         required: Int64 = 2 << 20, available: Int64 = 100 << 20, hasChanges: Bool = true,
-                        testVolume: Bool = true) -> UsbExportSummary {
+                        testVolume: Bool = true, unverifiedTracks: Int = 0) -> UsbExportSummary {
         UsbExportSummary(trackCount: tracks, playlistCount: playlists, blocks: blocks, ruleCounts: rules, requiredRules: Set(rules.keys),
-                         requiredBytes: required, availableBytes: available, hasChanges: hasChanges, isTestVolume: testVolume)
+                         requiredBytes: required, availableBytes: available, hasChanges: hasChanges, isTestVolume: testVolume,
+                         unverifiedTrackCount: unverifiedTracks)
     }
 
     static var physicalBlock: UsbBlock {
         UsbBlock(code: "physicalDisabled", scope: .volume,
-                 message: "실물 USB 쓰기가 꺼져 있습니다. 앱은 설정 › 실험실에서 켜고, djc는 --allow-physical을 준 뒤 다시 시도하세요", rule: .physicalVolume)
+                 message: "실물 USB에 쓰려면 앱은 쓰기 확인 창에서 확인을 누르고, djc는 --allow-physical --confirm <볼륨 이름>을 주세요",
+                 rule: .physicalVolume)
     }
 }
 
@@ -238,8 +240,7 @@ struct UsbWriteCoordinatorTests {
         -> (UsbStore, FakeUsbHost) {
         let usbHost = FakeUsbHost(volumes ?? [image])
         for volume in volumes ?? [image] { usbHost.serveEmpty(volume) }
-        let usb = UsbStore(host: usbHost, readPolicy: .all, localLibrary: { nil }, physicalLists: { UsbTestData.lists() },
-                           journal: journal)
+        let usb = UsbStore(host: usbHost, readPolicy: .all, localLibrary: { nil }, journal: journal)
         return (usb, usbHost)
     }
 
@@ -255,12 +256,14 @@ struct UsbWriteCoordinatorTests {
 
     // MARK: - 확인·취소·실패 문구
 
-    @Test("확인 창은 곡·목록 수·공간·막힘·확인 안 된 규칙을 보이고, 취소하면 쓰지 않는다. 실패는 되돌린 결과를 알린다")
+    @Test("확인 창은 곡·목록 수·공간·막힘·CDJ에서 확인하지 않은 항목을 보이고, 취소하면 쓰지 않는다. 실패는 되돌린 결과를 알린다")
     func confirmCancelFailRestoreMessages() async {
         let (usb, _) = store()
         let blocks = [UsbBlock(code: "audioSizeMismatch", scope: .track("7"), message: "rekordbox에서 다시 분석한 뒤 내보내세요"),
                       UsbBlock(code: "audioSizeMismatch", scope: .track("8"), message: "rekordbox에서 다시 분석한 뒤 내보내세요")]
-        service.update { $0.summary = UsbTestData.summary(blocks: blocks, rules: [.analysisFolderNaming: 3]) }
+        service.update {
+            $0.summary = UsbTestData.summary(blocks: blocks, rules: [.analysisFolderNaming: 3, .cueVariant: 2], unverifiedTracks: 2)
+        }
         prompter.answer = false
         await coordinator(usb).export(job())
 
@@ -272,8 +275,11 @@ struct UsbWriteCoordinatorTests {
         #expect(confirm?.details.contains("필요 공간 2MB · 여유 100MB") == true)
         #expect(confirm?.details.contains("빼고 쓰는 곡 2개:") == true)
         #expect(confirm?.details.contains("• rekordbox에서 다시 분석한 뒤 내보내세요 (2)") == true)
-        #expect(confirm?.details.contains("확인 안 된 규칙 1개:") == true)
-        #expect(confirm?.details.contains("• \(UsbProvisionalRule.analysisFolderNaming.summary) (3)") == true)
+        // 흐름 규칙(분석 파일 폴더 이름)은 알리지 않고, 곡 내용 규칙만 곡 수와 함께 알린다
+        #expect(confirm?.details.contains("CDJ에서 확인하지 않은 항목이 있는 곡 2개:") == true)
+        #expect(confirm?.details.contains("• \(UsbProvisionalRule.cueVariant.summary) (2)") == true)
+        #expect(confirm?.details.contains("• \(UsbProvisionalRule.analysisFolderNaming.summary) (3)") == false)
+        #expect(confirm?.details.contains("쓰기는 막지 않습니다. 쓴 뒤 기기에서 확인하세요") == true)
         #expect(service.current.calls == ["preview"])
         #expect(host.toast == nil)
         #expect(usb.busyVolumes.isEmpty)
@@ -362,10 +368,35 @@ struct UsbWriteCoordinatorTests {
         let shown = prompter.shown.last
         #expect(shown?.confirm == nil)
         #expect(shown?.title == "USB에 쓸 수 없습니다")
-        #expect(shown?.text.contains("실물 USB 쓰기가 꺼져 있습니다") == true)
+        #expect(shown?.text.contains("실물 USB에 쓰려면") == true)
         let summary = service.current.summary
         #expect(summary.isPhysicalDisabled)
         #expect(!summary.canWrite)
+    }
+
+    @Test("실물 USB 확인 창은 볼륨 이름·용량·형식과 '실물 USB입니다'를 보이고, exFAT·GPT는 한 줄로 알린다. 확인이 곧 쓰기 동의다")
+    func physicalConfirmationShowsVolume() async {
+        var physical = FakeUsbVolume.exfat()
+        physical.partitionScheme = .gpt
+        let (usb, _) = store([physical])
+        service.update { $0.summary = UsbTestData.summary(testVolume: false) }
+        prompter.answer = false
+        await coordinator(usb).export(job(physical))
+        let details = prompter.shown.last?.details ?? []
+        let capacity = physical.capacity.formatted(ByteCountFormatStyle(style: .file))
+        #expect(details.first == "실물 USB입니다: DJCPHYS · \(capacity) · exFAT · GPT")
+        #expect(details.contains("exFAT USB는 CDJ-2000NXS2 등 이전 기기가 읽지 못할 수 있습니다"))
+        #expect(details.contains("GPT로 포맷한 USB는 일부 기기가 읽지 못할 수 있습니다. 기기에서 읽히지 않으면 MBR로 포맷하세요"))
+        #expect(!details.contains("시험 볼륨(디스크 이미지)입니다"))
+        #expect(service.current.calls == ["preview"])
+        let fat32 = UsbWriteCoordinator.volumeLines(FakeUsbVolume.physicalFAT32(), isTestVolume: false)
+        #expect(fat32.count == 2 && fat32[0].hasSuffix("FAT32 · MBR"))
+    }
+
+    @Test("앱의 쓰기 창구는 확인 창을 거친 쓰기라 실물 동의로 보고, 시험 실행(디스크 이미지만)은 동의하지 않는다")
+    func appServiceConsent() {
+        #expect(SystemUsbWriteService.physicalWriteSwitch(policy: .all))
+        #expect(!SystemUsbWriteService.physicalWriteSwitch(policy: .diskImagesOnly))
     }
 
     @Test("rekordbox가 켜져 있으면 미리 보기도 하지 않는다")
@@ -510,7 +541,7 @@ struct UsbWriteCoordinatorTests {
         #expect(service.current.fileOperations == 0)
         let shown = prompter.shown.last
         #expect(shown?.title == "USB를 회복하지 않았습니다")
-        #expect(shown?.text.contains("실물 USB 쓰기가 꺼져 있습니다") == true)
+        #expect(shown?.text.contains("실물 USB에 쓰려면") == true)
         // 되돌리기도 같은 막힘에서 멈춘다(되돌리기까지 가지 않는다)
         prompter.choices = [.alternate]
         await coordinator(usb).offerRecovery(physical)

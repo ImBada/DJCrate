@@ -55,7 +55,7 @@ struct UsbEditSummary: Equatable, Sendable {
     var deferred: [String]
     var notes: [String]
     var warnings: [String]
-    /// 확인 안 된 규칙(이름 순)
+    /// CDJ에서 확인하지 않은 항목(`UsbProvisionalRule.needsDeviceCheck`, 이름 순). 쓰기를 막지 않고 알리기만 한다
     var rules: [UsbProvisionalRule]
     /// 준비한 변경 묶음이 있는지
     var hasChanges: Bool
@@ -121,7 +121,7 @@ struct UsbEditSummary: Equatable, Sendable {
                   },
                   removals: result.changes?.removals.count ?? 0, deferred: deferred, notes: Self.grouped(result.notes),
                   warnings: Self.unique(result.warnings.map(\.message)),
-                  rules: (result.changes?.requiredRules ?? []).sorted { $0.rawValue < $1.rawValue }, hasChanges: result.changes != nil,
+                  rules: UsbProvisionalRule.deviceCheckRules(result.changes?.requiredRules ?? []), hasChanges: result.changes != nil,
                   isTestVolume: volume.isDiskImage, formatDrift: !result.formatsBlocked.isEmpty && tracksChanged, edits: edits)
     }
 
@@ -255,7 +255,7 @@ struct UsbEditActions {
 
     // MARK: - 대상
 
-    /// 편집을 더할 수 있는 볼륨: 읽은 rekordbox USB(쓰기 금지 목록 제외), 이번 실행에서 읽은 뒤 빠진 초안 볼륨
+    /// 편집을 더할 수 있는 볼륨: 읽은 rekordbox USB, 이번 실행에서 읽은 뒤 빠진 초안 볼륨
     var targets: [UsbEditTarget] {
         let connected = usb.volumes.compactMap { volume -> UsbEditTarget? in
             let key = volume.usbKey
@@ -284,23 +284,16 @@ struct UsbEditActions {
     /// 편집을 초안에 더하기 전의 가벼운 막힘 판정: 사본으로 읽은 라이브러리와 볼륨만 본다(USB·로컬 사본을 열지 않는다).
     /// 쓰기 때의 계획(`UsbEditSession`)과 같은 문구를 쓴다. 볼륨이 빠져 있으면 볼륨 판정은 쓸 때 한다.
     /// 메뉴가 목록마다 부르므로 곡 번호 집합은 곡을 가리키는 편집에서만 만든다
-    /// - physicalGate: 실물 쓰기 관문(목록·실험실 스위치). 기본은 닫힌 관문(스위치 끔)
+    /// - physicalGate: 실물 쓰기 관문. 기본은 동의 없는 관문(실물은 막힘). 확인 안 된 규칙은 막지 않는다(확인 창이 알린다)
     static func blockReason(_ edit: UsbLibraryEdit, volume: UsbVolumeInfo?, library: UsbLibrary?, info: UsbInfo?,
                             isScratchMount: (String) -> Bool = UsbEditActions.isScratchMount,
-                            physicalGate: UsbPhysicalWriteGate = .init(allowlist: [:], denylist: [], denyStatus: .missing)) -> String? {
+                            physicalGate: UsbPhysicalWriteGate = .init()) -> String? {
         if let volume {
             if let problem = UsbVolumePolicy.problems(volume, purpose: .edit).first { return problem.message }
             // 임시 폴더 뿌리 밖에 붙인 디스크 이미지도 실물로 판정한다(세션의 실물 관문과 같다)
             let judged = volume.judgedForWrite(underScratch: isScratchMount(volume.mountPoint))
-            if !judged.isDiskImage {
-                // 앱은 쓰기 확인 창이 볼륨 이름 확인을 대신한다
-                if let block = physicalGate.blocks(judged, confirmName: volume.name).first { return block.message }
-                // 실물 쓰기가 열려도 흐름 밖의 확인 안 된 규칙(곡 정보 갱신 등)은 막는다
-                if let rule = edit.requiredRules.sorted(by: { $0.rawValue < $1.rawValue })
-                    .first(where: { !$0.isConfirmed && !UsbProvisionalRule.openOnPhysical.contains($0) }) {
-                    return String(ui: "확인하지 않은 규칙(\(rule.summary))이 필요해 이 USB에 쓸 수 없습니다")
-                }
-            }
+            // 앱은 쓰기 확인 창이 볼륨 이름 확인을 대신한다
+            if let block = physicalGate.blocks(judged, confirmName: volume.name).first { return block.message }
         }
         if let consistency = info?.consistency, consistency.editBlocked {
             return !consistency.trackIDsMatch || !consistency.pathsMatch

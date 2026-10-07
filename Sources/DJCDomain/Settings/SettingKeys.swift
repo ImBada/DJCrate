@@ -74,9 +74,6 @@ public enum SettingKeys {
     /// 실험실: 사이드바에서 인텔리전트 재생 목록의 조건을 DJCrate가 계산해 읽기 전용으로 보인다(#68). rekordbox가 보여 주는 곡과 아직 견주지 않아
     /// 기본은 끔이고, 끄면 설정이 없던 때와 똑같이 보인다. 앞으로 다른 실험 기능도 `lab.` 이름으로 이 구역에 둔다.
     public static let labSmartPlaylists = SettingKey("lab.smartPlaylists", false)
-    /// 실험실: 실물 USB 쓰기(#41). 켜도 사용자가 사이드바에서 쓰기를 허용한 FAT32·MBR USB 메모리에만 쓴다(`UsbPhysicalWriteGate`).
-    /// 기본은 끔이고, 끄면 디스크 이미지에만 쓴다
-    public static let labPhysicalUsbWrite = SettingKey("lab.physicalUsbWrite", false)
 
     /// 곡 UUID 모음: 무시한 게인·그리드·키 제안
     public static let dismissedGainSuggestions = "deck.dismissedGainSuggestions"
@@ -91,7 +88,7 @@ public enum SettingKeys {
          waveformHeight.name, textScale.name, playQuantizeBeats.name]
             + [quantize, playQuantize, carryCues, showSuggestions, keyLock, autoGain, peakProtection, useRekordboxGain,
                sheetMode, showTagEditor, sidebarPlaylistsExpanded, sidebarSummaryExpanded, sidebarHistoriesExpanded, sidebarShowsStatus,
-               sidebarVisible, commentClassColumnHidden, hideStreaming, labSmartPlaylists, labPhysicalUsbWrite].map(\.name)
+               sidebarVisible, commentClassColumnHidden, hideStreaming, labSmartPlaylists].map(\.name)
             + [dismissedGainSuggestions, dismissedGridSuggestions, dismissedKeySuggestions, deckShortcuts, waveformColorMode.name, commentPreset.name, cueListFilter.name]
     }
 }

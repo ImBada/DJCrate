@@ -189,19 +189,16 @@ struct UsbExportSessionTests {
         #expect(env.usb.tree() == before)
     }
 
-    /// 관문이 막지 않았다면 모두 풀렸을 선택(허용 목록·볼륨 이름·관문 밖 규칙 전부)
+    /// 관문이 막지 않았다면 쓸 선택(볼륨 이름 확인)
     static func physicalOptions() -> UsbExportOptions {
-        options {
-            $0.confirmName = "DJCPHYS"
-            $0.allowProvisional = Set(UsbProvisionalRule.allCases.filter { !$0.isGateOnly })
-        }
+        options { $0.confirmName = "DJCPHYS" }
     }
 
-    @Test("실물 볼륨은 허용 목록·--confirm·규칙 허용을 모두 줘도 관문이 막는다")
+    @Test("실물 볼륨은 --confirm을 줘도 동의(--allow-physical) 없이는 관문이 막는다")
     func physicalBlocked() throws {
         let env = try Env()
         env.usb.volume = FakeUsbVolume.physicalFAT32()
-        let gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID])
+        let gate = FakeUsbVolume.gate()
         let preview = try env.session(gate: gate).preview(selection: .tracks(["101"]), options: Self.physicalOptions())
         #expect(preview.blocks.contains { $0.code == "physicalDisabled" })
         #expect(preview.changes == nil)
@@ -218,13 +215,13 @@ struct UsbExportSessionTests {
 
     /// 관문·보호 경로에 막히는 볼륨
     enum RefusedVolume: String, CaseIterable, Sendable {
-        /// 실물, 쓰기 금지 목록의 디스크 이미지, 보호 폴더, 가드는 디스크 이미지라 하지만 임시 폴더 밖인 루트
-        case physical, deniedDiskImage, protectedRoot, outsideScratchRoot
+        /// 동의 없는 실물, APFS 볼륨, 보호 폴더, 가드는 디스크 이미지라 하지만 임시 폴더 밖인 루트
+        case physical, apfs, protectedRoot, outsideScratchRoot
 
         var code: String {
             switch self {
             case .physical, .outsideScratchRoot: "physicalDisabled"
-            case .deniedDiskImage: "denied"
+            case .apfs: "unsupportedFileSystem"
             case .protectedRoot: "protectedPath"
             }
         }
@@ -237,12 +234,12 @@ struct UsbExportSessionTests {
         env.usb.write("PIONEER/Artwork/00001/a1.jpg", Data([1, 2, 3]))
         env.usb.write("Contents/합성/x.mp3", Data([4, 5, 6]))
         let before = env.usb.tree()
-        var gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID])
+        let gate = FakeUsbVolume.gate()
         var protectedRoots: [URL] = []
         var root: URL?
         switch refused {
         case .physical: env.usb.volume = FakeUsbVolume.physicalFAT32()
-        case .deniedDiskImage: gate = FakeUsbVolume.gate(deny: [try #require(env.usb.volume.volumeUUID)])
+        case .apfs: env.usb.volume.fileSystem = .apfs
         case .protectedRoot: protectedRoots = [env.usb.usbURL]
         // 없는 경로라 열거할 것도 없지만, 막히지 않으면 stat·list 기록이 남는다
         case .outsideScratchRoot: root = URL(filePath: "/djc-not-scratch-\(UUID().uuidString)")
@@ -290,24 +287,21 @@ struct UsbExportSessionTests {
         #expect(!FileManager.default.fileExists(atPath: changes.stagingDirectory))
     }
 
-    @Test("실물 쓰기를 열고 허용한 USB(가짜 볼륨, 임시 폴더)에는 디스크 이미지와 같은 세션으로 내보낸다")
-    func physicalOpenGateExports() throws {
+    @Test("동의한 실물 USB(가짜 볼륨, 임시 폴더)에는 등록 없이 디스크 이미지와 같은 세션으로 내보낸다(확인 안 된 규칙은 막지 않음)",
+          arguments: ["fat32", "exfat", "gpt"])
+    func physicalOpenGateExports(shape: String) throws {
         let env = try Env(tracks: 2)
-        env.usb.volume = FakeUsbVolume.physicalFAT32()
-        let gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID], physicalEnabled: true)
+        env.usb.volume = switch shape {
+        case "exfat": FakeUsbVolume.exfat()
+        case "gpt": FakeUsbVolume.gpt()
+        default: FakeUsbVolume.physicalFAT32()
+        }
+        let gate = FakeUsbVolume.gate(consented: true)
         let options = Self.options { $0.confirmName = "DJCPHYS" }
         let preview = try env.session(gate: gate).preview(selection: .tracks(["101", "102"]), options: options)
-        #expect(!preview.blocks.contains { $0.code == "physicalDisabled" })
-        // 흐름 규칙은 풀리고, 남은 막힘은 곡 내용 규칙뿐이다
-        let extra = preview.requiredRules.subtracting(UsbProvisionalRule.openOnPhysical)
-        #expect(Set(preview.blocks.compactMap(\.rule)) == extra)
-        #expect(preview.blocks.allSatisfy { $0.code == "provisional" })
-        // 남은 규칙을 CLI처럼 하나씩 풀면 쓴다
-        let written = Self.options {
-            $0.confirmName = "DJCPHYS"
-            $0.allowProvisional = extra
-        }
-        let report = try env.session(gate: gate).write(selection: .tracks(["101", "102"]), options: written, progress: { _ in },
+        #expect(preview.blocks.isEmpty)
+        #expect(!UsbProvisionalRule.deviceCheckRules(preview.requiredRules).isEmpty)
+        let report = try env.session(gate: gate).write(selection: .tracks(["101", "102"]), options: options, progress: { _ in },
                                                        isCancelled: { false })
         #expect(report.outcome == .written)
         #expect(env.usb.journal()?.state == .verified)
@@ -315,11 +309,11 @@ struct UsbExportSessionTests {
         #expect(!env.usb.backupFolders().isEmpty)
     }
 
-    @Test("실물 쓰기를 열어도 이름 확인이 없으면 쓰지 않는다")
+    @Test("동의해도 이름 확인이 없으면 쓰지 않는다")
     func physicalOpenGateNeedsConfirm() throws {
         let env = try Env(tracks: 1)
         env.usb.volume = FakeUsbVolume.physicalFAT32()
-        let gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID], physicalEnabled: true)
+        let gate = FakeUsbVolume.gate(consented: true)
         let preview = try env.session(gate: gate).preview(selection: .tracks(["101"]), options: Self.options())
         #expect(preview.blocks.map(\.code).contains("confirmMismatch"))
         #expect(preview.changes == nil)

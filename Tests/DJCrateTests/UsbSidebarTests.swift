@@ -23,8 +23,7 @@ struct UsbSidebarTests {
         try UsbLibraryFixture().write(to: tree)
         let snapshots = FileManager.default.temporaryDirectory.appending(path: "djc-usbsidebar-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: snapshots) }
-        return try UsbRead.library(root: tree.base, snapshots: snapshots, volumeKey: "FIXTURE", volume: nil,
-                                   lists: UsbTestData.lists()).library
+        return try UsbRead.library(root: tree.base, snapshots: snapshots, volumeKey: "FIXTURE", volume: nil).library
     }
 
     private func physical(_ volume: UsbVolumeInfo, uuid: String) -> UsbVolumeInfo {
@@ -59,30 +58,36 @@ struct UsbSidebarTests {
         store.endWrite(image.usbKey)
     }
 
-    @Test("실물 Device Library에는 더하기를 보여도 쓰기는 닫고 도움말로 안내한다")
-    func physicalMigrationDisabled() async throws {
+    @Test("실물 Device Library에도 등록 없이 더하기를 연다(시험 실행처럼 동의가 없으면 닫고 이유를 보인다)")
+    func physicalMigration() async throws {
         let volume = FakeUsbVolume.physicalFAT32()
         let host = FakeUsbHost([volume])
         host.serve(volume, library: UsbTestData.library(formats: [.deviceLibrary]))
         let store = UsbTestData.store(host)
         await store.refresh()
         let row = try #require(UsbSidebarModel.volumes(store).first)
-        #expect(row.showsMigration && !row.canMigrate)
-        #expect(row.migrationHelp == UsbTestData.physicalBlock.message)
+        #expect(row.showsMigration && row.canMigrate)
+        #expect(row.migrationHelp == "Device Library를 읽어 OneLibrary를 더합니다. 확인 창에서 CDJ에서 확인하지 않은 항목을 확인하세요")
+        #expect(store.physicalWriteBlock(volume) == nil)
+        #expect(UsbStore(host: host, readPolicy: .diskImagesOnly, localLibrary: { nil }).physicalWriteBlock(volume)
+            == UsbTestData.physicalBlock.message)
     }
 
-    @Test("빈 FAT32는 내보내기, rekordbox USB는 컬렉션·목록, 쓸 수 없는 모양은 경고와 이유")
+    @Test("빈 USB(FAT32·exFAT·GPT)는 내보내기, rekordbox USB는 컬렉션·목록, 쓸 수 없는 모양은 경고와 이유")
     func sidebarShapes() async throws {
         let empty = FakeUsbVolume.diskImageFAT32(name: "DJCEMPTY", uuid: "00000000-0000-0000-0000-000000000011")
         let rekordbox = FakeUsbVolume.diskImageFAT32(name: "DJCTEST", uuid: "00000000-0000-0000-0000-000000000012")
-        let unsupported = [
+        let wider = [
             physical(FakeUsbVolume.gpt(), uuid: "00000000-0000-0000-0000-0000000000A2"),
             physical(FakeUsbVolume.exfat(), uuid: "00000000-0000-0000-0000-0000000000A3"),
+        ]
+        let unsupported = [
             physical(FakeUsbVolume.apfs(), uuid: "00000000-0000-0000-0000-0000000000A4"),
             physical(FakeUsbVolume.fat16(), uuid: "00000000-0000-0000-0000-0000000000A5"),
         ]
-        let host = FakeUsbHost([empty, rekordbox] + unsupported)
+        let host = FakeUsbHost([empty, rekordbox] + wider + unsupported)
         host.serveEmpty(empty)
+        for volume in wider { host.serveEmpty(volume) }
         host.serve(rekordbox, library: try fixtureLibrary())
         let store = UsbTestData.store(host)
         await store.refresh()
@@ -104,18 +109,18 @@ struct UsbSidebarTests {
         #expect(rekordboxRow.playlists.first?.count == 2)
         #expect(!rekordboxRow.showsExport && !rekordboxRow.isWarning)
 
-        let reformat = "USB를 MBR·MS-DOS(FAT32)로 포맷한 뒤 다시 시도하세요"
+        for volume in wider {
+            let row = try #require(rows[volume.usbKey])
+            #expect(row.showsExport && row.canExport && !row.isWarning)
+            #expect(row.help == "rekordbox 라이브러리가 없는 USB입니다")
+        }
         for volume in unsupported {
             let row = try #require(rows[volume.usbKey])
+            let reformat = "이 USB 형식(\(volume.fileSystem.displayName))에는 rekordbox 라이브러리를 쓸 수 없습니다. FAT32나 exFAT로 포맷한 뒤 다시 시도하세요"
             #expect(row.isWarning && row.help == reformat && row.symbol == "exclamationmark.triangle")
             #expect(!row.showsExport && row.collection == nil && row.playlists.isEmpty)
             #expect(!host.infoCalls.contains(volume.usbKey) && !host.libraryCalls.contains(volume.usbKey))
         }
-        // 쓰기 금지 목록 볼륨은 이름과 '쓰기 금지 볼륨'만
-        let denied = UsbTestData.store(host, lists: UsbTestData.lists(deny: [empty.volumeUUID!]))
-        await denied.refresh()
-        let deniedRow = try #require(UsbSidebarModel.volumes(denied).first { $0.id == empty.usbKey })
-        #expect(deniedRow.status == "쓰기 금지 볼륨" && deniedRow.isWarning && !deniedRow.showsExport)
     }
 
     @Test("USB 목록은 읽기 전용: 쓰기·편집·끌기·재생 목록 메뉴가 없다")

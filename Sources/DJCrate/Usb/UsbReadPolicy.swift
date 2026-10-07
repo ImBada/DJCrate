@@ -2,7 +2,7 @@ import Foundation
 
 /// 어떤 볼륨을 읽을지(사본 뜨기 포함). 쓰기와 무관하게 읽기에도 건다.
 enum UsbReadPolicy: Equatable, Sendable {
-    /// 배포 빌드: 쓰기 금지 목록에 없는 모든 USB(실물은 목록이 등록돼 있을 때만)
+    /// 배포 빌드: 연결된 모든 USB(실물도 등록 없이)
     case all
     /// 자가 테스트·시험 실행: 디스크 이미지 볼륨만. 그 밖의 볼륨은 사이드바에 이름도 보이지 않는다
     case diskImagesOnly

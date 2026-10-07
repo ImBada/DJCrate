@@ -46,12 +46,11 @@ struct UsbEditCommandTests {
     func parsesArguments() throws {
         let request = try UsbCommands.editRequest([
             "usb-edit", "--volume", "/tmp/v", "/tmp/edits.json", "--db", "/tmp/m.db", "--share", "/tmp/share", "--dry-run",
-            "--confirm", "DJCTEST", "--allow-provisional", "editPlaylists,pdbLongAscii", "--snapshot-time", "2026-09-27T21:22:03Z",
+            "--confirm", "DJCTEST", "--snapshot-time", "2026-09-27T21:22:03Z",
         ])
         #expect(request.volume == "/tmp/v" && request.editsFile == "/tmp/edits.json" && !request.draft)
         #expect(request.database == "/tmp/m.db" && request.share == "/tmp/share")
         #expect(request.dryRun && request.confirmName == "DJCTEST")
-        #expect(request.allowProvisional == [.editPlaylists, .pdbLongAscii])
         #expect(request.snapshotTime == "2026-09-27T21:22:03Z")
         let draft = try UsbCommands.editRequest(["usb-edit", "--draft", "--volume", "/tmp/v"])
         #expect(draft.draft && draft.editsFile == nil && draft.database == nil && draft.snapshotTime == nil)
@@ -67,22 +66,14 @@ struct UsbEditCommandTests {
             ["usb-edit", "--volume", "/v", "/tmp/a.json", "--unknown"],
             ["usb-edit", "--volume", "/v", "/tmp/a.json", "--snapshot-time"],
             ["usb-edit", "--volume", "/v", "/tmp/a.json", "--db"],
+            ["usb-edit", "--volume", "/v", "/tmp/a.json", "--allow-provisional", "cueVariant"],
         ] {
             #expect(throws: UsageError.self) { try UsbCommands.editRequest(args) }
         }
     }
 
-    @Test("실물 볼륨 규칙은 --allow-provisional로 풀 수 없고, 라이브 라이브러리는 USB로 받지 않는다")
-    func rejectsPhysicalAllowanceAndLiveLibrary() {
-        do {
-            _ = try UsbCommands.editRequest(["usb-edit", "--volume", "/v", "/tmp/a.json", "--allow-provisional", "physicalVolume"])
-            Issue.record("거부하지 않음")
-        } catch let UsbError.writeRefused(blocks) {
-            #expect(blocks.map(\.code) == ["gateOnlyRule"])
-            #expect(blocks.first?.message.contains("physicalVolume") == true)
-        } catch {
-            Issue.record("다른 오류: \(error)")
-        }
+    @Test("라이브 라이브러리는 USB로 받지 않는다")
+    func rejectsLiveLibrary() {
         #expect(throws: UsbError.self) {
             try UsbCommands.editRequest(["usb-edit", "--volume", NSHomeDirectory() + "/Library/Pioneer/rekordbox", "/tmp/a.json"])
         }

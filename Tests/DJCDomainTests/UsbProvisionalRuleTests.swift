@@ -10,9 +10,23 @@ struct UsbProvisionalRuleTests {
         #expect(UsbProvisionalRule.allCases.allSatisfy { !$0.isConfirmed })
     }
 
-    @Test("디스크 이미지에서도 막는 규칙은 기기 기록 행 옮기기 하나뿐")
-    func onlyCarriedDeviceRowsBlocksOnDiskImage() {
-        #expect(UsbProvisionalRule.allCases.filter(\.blocksEvenOnDiskImage) == [.carriedDeviceRows])
+    @Test("늘 막는 규칙은 기기 기록 행 옮기기 하나뿐")
+    func onlyCarriedDeviceRowsAlwaysBlocks() {
+        #expect(UsbProvisionalRule.allCases.filter(\.alwaysBlocks) == [.carriedDeviceRows])
+    }
+
+    @Test("CDJ에서 확인하지 않은 항목으로 알리는 규칙: 흐름 규칙·관문 규칙·늘 막는 규칙을 뺀 곡 내용 규칙")
+    func deviceCheckRules() {
+        #expect(UsbProvisionalRule.flowRules == [.analysisFolderNaming, .playlistSiblingBase, .playlistFolderRow,
+                                                 .editAddTracks, .editRemoveTracks, .editPlaylists, .trackRemovalFiles,
+                                                 .pdbRegeneratedEdit, .deviceLibraryMigration])
+        #expect(UsbProvisionalRule.cueVariant.needsDeviceCheck)
+        #expect(UsbProvisionalRule.artworkMissing.needsDeviceCheck)
+        #expect(!UsbProvisionalRule.analysisFolderNaming.needsDeviceCheck)
+        #expect(!UsbProvisionalRule.physicalVolume.needsDeviceCheck)
+        #expect(!UsbProvisionalRule.carriedDeviceRows.needsDeviceCheck)
+        #expect(UsbProvisionalRule.deviceCheckRules([.cueVariant, .analysisFolderNaming, .artworkMissing, .physicalVolume])
+            == [.artworkMissing, .cueVariant])
     }
 
     @Test("관문으로만 푸는 규칙은 실물 볼륨 하나뿐")

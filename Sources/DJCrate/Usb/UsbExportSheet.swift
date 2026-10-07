@@ -33,8 +33,10 @@ struct UsbExportSummary: Equatable, Sendable {
     /// 쓰기를 멈추는 막힘(볼륨·형식·파일 단위)의 문구
     var stopping: [String]
     var stoppingCodes: [String]
-    /// 확인 안 된 규칙(이름 순)
+    /// CDJ에서 확인하지 않은 항목(`UsbProvisionalRule.needsDeviceCheck`, 이름 순). 쓰기를 막지 않고 알리기만 한다
     var rules: [RuleCount]
+    /// 그 항목이 하나라도 걸린 곡 수(같은 곡은 한 번)
+    var unverifiedTrackCount: Int
     var requiredBytes: Int64
     var availableBytes: Int64
     /// 준비한 변경 묶음이 있는지(막는 것이 없을 때만 있다)
@@ -43,7 +45,7 @@ struct UsbExportSummary: Equatable, Sendable {
     var isTestVolume: Bool
 
     init(trackCount: Int, playlistCount: Int, blocks: [UsbBlock], ruleCounts: [UsbProvisionalRule: Int], requiredRules: Set<UsbProvisionalRule>,
-         requiredBytes: Int64, availableBytes: Int64, hasChanges: Bool, isTestVolume: Bool) {
+         requiredBytes: Int64, availableBytes: Int64, hasChanges: Bool, isTestVolume: Bool, unverifiedTrackCount: Int = 0) {
         self.trackCount = trackCount
         self.playlistCount = playlistCount
         var order: [String] = [], targets: [String: Set<UsbBlock.Scope>] = [:], messages: [String: String] = [:]
@@ -76,7 +78,8 @@ struct UsbExportSummary: Equatable, Sendable {
         blockedPlaylistCount = playlists.count
         self.stopping = stopping
         stoppingCodes = codes
-        rules = requiredRules.sorted { $0.rawValue < $1.rawValue }.map { RuleCount(rule: $0, count: ruleCounts[$0] ?? 0) }
+        rules = UsbProvisionalRule.deviceCheckRules(requiredRules).map { RuleCount(rule: $0, count: ruleCounts[$0] ?? 0) }
+        self.unverifiedTrackCount = unverifiedTrackCount
         self.requiredBytes = requiredBytes
         self.availableBytes = availableBytes
         self.hasChanges = hasChanges
@@ -86,7 +89,8 @@ struct UsbExportSummary: Equatable, Sendable {
     init(preview: UsbExportPreview, volume: UsbVolumeInfo) {
         self.init(trackCount: preview.plan.tracks.count, playlistCount: preview.plan.playlists.count, blocks: preview.blocks,
                   ruleCounts: preview.ruleCounts, requiredRules: preview.requiredRules, requiredBytes: preview.requiredBytes,
-                  availableBytes: preview.availableBytes, hasChanges: preview.changes != nil, isTestVolume: volume.isDiskImage)
+                  availableBytes: preview.availableBytes, hasChanges: preview.changes != nil, isTestVolume: volume.isDiskImage,
+                  unverifiedTrackCount: preview.plan.tracks.filter { $0.rules.contains(where: \.needsDeviceCheck) }.count)
     }
 
     var isShortOfSpace: Bool { stoppingCodes.contains("insufficientSpace") || requiredBytes > availableBytes }

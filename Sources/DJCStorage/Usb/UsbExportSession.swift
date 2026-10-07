@@ -13,7 +13,6 @@ public struct UsbExportOptions: Sendable {
     public var confirmName: String? = nil
     /// 사용자가 확인한 볼륨의 UUID(앱). 쓰기 절차가 열 때 지금 볼륨과 비교한다
     public var expectedVolumeUUID: String? = nil
-    public var allowProvisional: Set<UsbProvisionalRule> = []
     public var dryRun = false
     /// `--snapshot-time`(ISO 8601). nil이면 사본 이름 → mtime(`UsbSnapshotTime`)
     public var snapshotTime: String? = nil
@@ -162,7 +161,7 @@ public final class UsbExportSession {
         guard stopping.isEmpty, let changes = prepared.preview.changes, let assembled = prepared.assembled else {
             throw UsbError.writeRefused(stopping.isEmpty ? prepared.preview.blocks : stopping)
         }
-        let writeOptions = UsbWriteOptions(dryRun: options.dryRun, confirmName: options.confirmName, allowProvisional: options.allowProvisional,
+        let writeOptions = UsbWriteOptions(dryRun: options.dryRun, confirmName: options.confirmName,
                                            verifyAudio: options.verifyAudio, expectedVolumeUUID: options.expectedVolumeUUID)
         // 쓰기 직전 USB의 `._*`(루트 `._.Trashes`, 사용자 음원 옆 등): 쓰기 전 확인이 막지 않는 것이라 검증이 이 쓰기가 남긴 것으로 세지 않게
         let preexisting = try UsbInvariantVerifier.appleDoubles(on: UsbRoot(root))
@@ -312,7 +311,7 @@ public final class UsbExportSession {
         }
         let environment = Self.environmentBlocks(volume, root: root, required: [], options: options, guard: writeGuard)
         blocks += environment
-        // 관문·정책·보호 경로에 막힌 볼륨(실물·쓰기 금지 목록 등)은 이름도 열거하지 않는다(쓰기 절차 A 단계·읽기 관문과 같은 순서)
+        // 관문·정책·보호 경로에 막힌 볼륨(동의 없는 실물 등)은 이름도 열거하지 않는다(쓰기 절차 A 단계와 같은 순서)
         guard environment.isEmpty else { return blocks }
         if try hasLibrary(usb) {
             blocks.append(UsbBlock(code: "libraryExists", scope: .volume,
@@ -327,14 +326,12 @@ public final class UsbExportSession {
     /// 실물 쓰기가 닫혀 있는 동안은 가드 값과 무관하게 임시 폴더 아래 루트만 받는다(쓰기 절차와 같다)
     static func environmentBlocks(_ volume: UsbVolumeInfo, root: URL, required: Set<UsbProvisionalRule>, options: UsbExportOptions,
                                   guard writeGuard: UsbWriteGuard) -> [UsbBlock] {
-        environmentBlocks(volume, root: root, required: required, allowProvisional: options.allowProvisional, confirmName: options.confirmName,
-                          purpose: .export, guard: writeGuard)
+        environmentBlocks(volume, root: root, required: required, confirmName: options.confirmName, purpose: .export, guard: writeGuard)
     }
 
     /// 내보내기·수정 공통(볼륨 정책 목적만 다르다)
-    static func environmentBlocks(_ volume: UsbVolumeInfo, root: URL, required: Set<UsbProvisionalRule>,
-                                  allowProvisional: Set<UsbProvisionalRule>, confirmName: String?, purpose: UsbVolumePurpose,
-                                  guard writeGuard: UsbWriteGuard) -> [UsbBlock] {
+    static func environmentBlocks(_ volume: UsbVolumeInfo, root: URL, required: Set<UsbProvisionalRule>, confirmName: String?,
+                                  purpose: UsbVolumePurpose, guard writeGuard: UsbWriteGuard) -> [UsbBlock] {
         var blocks = UsbVolumePolicy.blocks(volume, purpose: purpose)
         let real = UsbScratchRoots.realPath(root.path)
         if isProtected(real ?? root.path, protectedRoots: writeGuard.protectedRoots) {
@@ -343,13 +340,8 @@ public final class UsbExportSession {
         }
         // 임시 폴더 밖이면 디스크 이미지라고 나와도 실물로 판정한다(쓰기 절차와 같다)
         let judged = volume.judgedForWrite(underScratch: real.map(UsbScratchRoots.isUnderAllowedRoot) ?? false)
-        blocks += UsbRuleCheck.blocks(required: required, volume: judged, allowProvisional: allowProvisional, gate: writeGuard.gate,
-                                      confirmName: confirmName)
-        // 관문이 거부 목록 등 다른 막힘을 먼저 냈어도, 닫힌 관문은 실물에 늘 함께 알린다.
         // 시험 프로세스가 임시 폴더 밖에 쓰지 않는 것은 쓰기 절차의 첫 확인(경로)이 지킨다
-        if !judged.isDiskImage, let closed = writeGuard.gate.closedBlock, !blocks.contains(where: { $0.code == "physicalDisabled" }) {
-            blocks.append(closed)
-        }
+        blocks += UsbRuleCheck.blocks(required: required, volume: judged, gate: writeGuard.gate, confirmName: confirmName)
         return blocks
     }
 

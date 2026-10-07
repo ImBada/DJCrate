@@ -27,8 +27,7 @@ struct UsbReadLibraryTests {
     func readsBothFormats() throws {
         try withUsb { tree, snapshots in
             let before = tree.tree()
-            let (library, mismatches) = try UsbRead.library(root: tree.base, snapshots: snapshots, volumeKey: "K1", volume: nil,
-                                                            lists: UsbInfoTests.lists())
+            let (library, mismatches) = try UsbRead.library(root: tree.base, snapshots: snapshots, volumeKey: "K1", volume: nil)
             #expect(library.formats == UsbFormat.defaultSet)
             #expect(library.tracks.map(\.id) == [1, 2, 3])
             #expect(library.playlists.map(\.name) == ["시험 목록"])
@@ -38,8 +37,7 @@ struct UsbReadLibraryTests {
         }
         for formats: Set<UsbFormat> in [[.oneLibrary], [.deviceLibrary]] {
             try withUsb({ $0.formats = formats }) { tree, snapshots in
-                let library = try UsbRead.library(root: tree.base, snapshots: snapshots, volumeKey: "K1", volume: nil,
-                                                  lists: UsbInfoTests.lists()).library
+                let library = try UsbRead.library(root: tree.base, snapshots: snapshots, volumeKey: "K1", volume: nil).library
                 #expect(library.formats == formats)
                 #expect(library.tracks.count == 3)
             }
@@ -51,11 +49,11 @@ struct UsbReadLibraryTests {
         try withUsb { tree, snapshots in
             let start = Date(timeIntervalSince1970: 1_800_000_000)
             for index in 0..<4 {
-                _ = try UsbRead.library(root: tree.base, snapshots: snapshots, volumeKey: "K2", volume: nil, lists: UsbInfoTests.lists(),
+                _ = try UsbRead.library(root: tree.base, snapshots: snapshots, volumeKey: "K2", volume: nil,
                                         now: start.addingTimeInterval(Double(index)), keep: 2)
             }
             // 같은 시각에 다시 읽어도 새 폴더를 쓴다
-            _ = try UsbRead.library(root: tree.base, snapshots: snapshots, volumeKey: "K2", volume: nil, lists: UsbInfoTests.lists(),
+            _ = try UsbRead.library(root: tree.base, snapshots: snapshots, volumeKey: "K2", volume: nil,
                                     now: start.addingTimeInterval(3), keep: 2)
             let kept = folders(snapshots, "K2")
             #expect(kept.count == 2)
@@ -63,20 +61,18 @@ struct UsbReadLibraryTests {
         }
     }
 
-    @Test("막힌 볼륨·잘못된 볼륨키는 사본 폴더를 만들지 않는다")
+    @Test("잘못된 볼륨키는 사본 폴더를 만들지 않고, 실물 USB는 등록 없이 읽는다")
     func refusalCreatesNothing() throws {
         try withUsb { tree, snapshots in
-            let physical = FakeUsbVolume.physicalFAT32()
-            #expect(throws: UsbError.self) {
-                _ = try UsbRead.library(root: tree.base, snapshots: snapshots, volumeKey: "K3", volume: physical,
-                                        lists: UsbInfoTests.lists())
-            }
             for key in ["", "..", "a/b"] {
                 #expect(throws: UsbError.self) {
-                    _ = try UsbRead.library(root: tree.base, snapshots: snapshots, volumeKey: key, volume: nil, lists: UsbInfoTests.lists())
+                    _ = try UsbRead.library(root: tree.base, snapshots: snapshots, volumeKey: key, volume: nil)
                 }
             }
             #expect(!FileManager.default.fileExists(atPath: snapshots.path))
+            let physical = FakeUsbVolume.physicalFAT32()
+            let library = try UsbRead.library(root: tree.base, snapshots: snapshots, volumeKey: "K3", volume: physical).library
+            #expect(library.tracks.count == 3)
         }
         // 라이브러리가 없는 USB는 읽을 것이 없다
         let empty = UsbTreeFixture()
@@ -85,7 +81,7 @@ struct UsbReadLibraryTests {
         let snapshots = FileManager.default.temporaryDirectory.appending(path: "djc-usblibrary-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: snapshots) }
         #expect(throws: UsbError.self) {
-            _ = try UsbRead.library(root: empty.base, snapshots: snapshots, volumeKey: "K4", volume: nil, lists: UsbInfoTests.lists())
+            _ = try UsbRead.library(root: empty.base, snapshots: snapshots, volumeKey: "K4", volume: nil)
         }
         #expect(folders(snapshots, "K4").isEmpty)
     }

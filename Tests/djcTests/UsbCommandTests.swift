@@ -92,71 +92,17 @@ struct UsbCommandTests {
         #expect(try UsbCommands.migrateRequest(["usb-migrate", "--volume", "/private/tmp/m", "--allow-physical"]).allowPhysical)
     }
 
-    @Test("usb-allow·usb-deny: 목록 파일만 고친다(임시 폴더), 마운트 지점이 아니거나 모양이 맞지 않으면 거부")
-    func allowAndDenyCommands() async throws {
-        let base = FileManager.default.temporaryDirectory.appending(path: "djc-usbcmd-lists-\(UUID().uuidString)")
-        let support = base.appending(path: "support"), user = base.appending(path: "user")
-        defer { try? FileManager.default.removeItem(at: base) }
-        let stick = FakeUsbVolume.physicalFAT32()
-        let typed = UsbCommands.ConsentTerminal.scripted("DJCPHYS")
-        try await UsbCommands.allow(["usb-allow", "--volume", "/private/tmp/m"], supportDirectory: support, userData: user,
-                                    volumeInfo: { _ in stick }, terminal: typed)
-        #expect(UsbPhysicalLists.load(supportDirectory: support, userData: user).allow.keys.sorted() == [FakeUsbVolume.physicalUUID])
-        try await UsbCommands.allow(["usb-allow", "--volume", "/private/tmp/m", "--remove"], supportDirectory: support, userData: user,
-                                    volumeInfo: { _ in stick })
-        #expect(UsbPhysicalLists.load(supportDirectory: support, userData: user).allow.isEmpty)
-        #expect(await refusedCodes {
-            try await UsbCommands.allow(["usb-allow", "--volume", "/private/tmp/m"], supportDirectory: support, userData: user,
-                                        volumeInfo: { _ in FakeUsbVolume.exfat() }, terminal: typed)
-        } == ["notFAT32"])
-        #expect(await refusedCodes {
-            try await UsbCommands.allow(["usb-allow", "--volume", "/private/tmp/m"], supportDirectory: support, userData: user,
-                                        volumeInfo: { _ in FakeUsbVolume.notMountPoint() }, terminal: typed)
-        } == ["notMountPoint"])
-        try await UsbCommands.deny(["usb-deny", "--volume", "/private/tmp/m"], supportDirectory: support, volumeInfo: { _ in stick })
-        #expect(UsbPhysicalLists.load(supportDirectory: support, userData: user).deny == [FakeUsbVolume.physicalUUID])
-        // usb-deny는 --remove를 받지 않는다(빼려면 파일을 직접 고친다)
-        await #expect(throws: UsageError.self) {
-            try await UsbCommands.deny(["usb-deny", "--volume", "/private/tmp/m", "--remove"], supportDirectory: support, volumeInfo: { _ in stick })
+    @Test("쓰기 허용·금지 목록 명령과 --allow-provisional은 없다(실물은 --allow-physical --confirm만)")
+    func noListCommandsOrProvisionalFlag() {
+        let names = UsbCommands.all.map(\.name)
+        #expect(!names.contains("usb-allow"))
+        #expect(!names.contains("usb-deny"))
+        #expect(throws: UsageError.self) {
+            _ = try UsbCommands.exportRequest(["usb-export", "--volume", "/private/tmp/m", "--tracks", "1", "--allow-provisional", "cueVariant"])
         }
-        await #expect(throws: UsageError.self) {
-            try await UsbCommands.allow(["usb-allow"], supportDirectory: support, userData: user, volumeInfo: { _ in stick })
+        #expect(throws: UsageError.self) {
+            _ = try UsbCommands.migrateRequest(["usb-migrate", "--volume", "/private/tmp/m", "--allow-provisional", "cueVariant"])
         }
-        // 금지 목록 USB는 허용하지 않는다
-        #expect(await refusedCodes {
-            try await UsbCommands.allow(["usb-allow", "--volume", "/private/tmp/m"], supportDirectory: support, userData: user,
-                                        volumeInfo: { _ in stick }, terminal: typed)
-        } == ["denied"])
-    }
-
-    @Test("usb-allow는 터미널에서 사람이 볼륨 이름을 다시 입력할 때만 허용한다(대화 없는 실행·이름이 틀리면 목록을 만들지 않는다)")
-    func allowNeedsInteractiveNameEntry() async throws {
-        let base = FileManager.default.temporaryDirectory.appending(path: "djc-usbcmd-tty-\(UUID().uuidString)")
-        let support = base.appending(path: "support"), user = base.appending(path: "user")
-        defer { try? FileManager.default.removeItem(at: base) }
-        let stick = FakeUsbVolume.physicalFAT32()
-        let allowFile = support.appending(path: "usb-physical-allow.json").path
-        var refused: [UsbBlock] = []
-        do {
-            try await UsbCommands.allow(["usb-allow", "--volume", "/private/tmp/m"], supportDirectory: support, userData: user,
-                                        volumeInfo: { _ in stick }, terminal: .init(isInteractive: { false }, ask: { _ in "DJCPHYS" }))
-        } catch let UsbError.writeRefused(blocks) { refused = blocks }
-        #expect(refused.map(\.code) == ["notInteractive"])
-        #expect(refused.first?.message == "usb-allow는 터미널에서 사람이 직접 실행할 때만 허용합니다. 앱 사이드바에서 이 USB의 ‘이 USB에 쓰기 허용…’을 쓰세요")
-        #expect(!FileManager.default.fileExists(atPath: allowFile))
-        for answer in ["djcphys", "", nil] as [String?] {
-            #expect(await refusedCodes {
-                try await UsbCommands.allow(["usb-allow", "--volume", "/private/tmp/m"], supportDirectory: support, userData: user,
-                                            volumeInfo: { _ in stick }, terminal: .scripted(answer))
-            } == ["confirmMismatch"])
-        }
-        #expect(!FileManager.default.fileExists(atPath: allowFile))
-        // 허용 거두기는 쓰지 않게 되는 쪽이라 대화 없이 받는다
-        try await UsbCommands.allow(["usb-allow", "--volume", "/private/tmp/m"], supportDirectory: support, userData: user,
-                                    volumeInfo: { _ in stick }, terminal: .scripted("DJCPHYS"))
-        try await UsbCommands.allow(["usb-allow", "--volume", "/private/tmp/m", "--remove"], supportDirectory: support, userData: user,
-                                    volumeInfo: { _ in stick }, terminal: .init(isInteractive: { false }, ask: { _ in nil }))
-        #expect(UsbPhysicalLists.load(supportDirectory: support, userData: user).allow.isEmpty)
     }
 
     @Test("라이브 라이브러리 거부 문구는 무엇을 줘야 하는지까지")
@@ -244,19 +190,6 @@ struct UsbCommandTests {
             _ = try UsbImageLab.crashRun(index: 3, template: template, djc: "/nonexistent/djc", paths: paths, detachAfter: nil)
         }
         #expect(FileManager.default.contents(atPath: clone) == leftover)
-    }
-
-    @Test("--allow-provisional physicalVolume은 받지 않는다")
-    func allowProvisionalPhysicalRefused() async {
-        let (paths, base) = paths()
-        defer { try? FileManager.default.removeItem(at: base) }
-        let volume = "/private/tmp"
-        for run in [{ try await UsbCommands.recover(["usb-recover", "--volume", volume, "--allow-provisional", "physicalVolume"], paths: paths) },
-                    { try await UsbCommands.restore(["usb-restore", "--volume", volume, "--allow-provisional", "physicalVolume"], paths: paths) },
-                    { try await UsbImageLab.writeCheck(["usb-write-check", "--volume", volume, "--allow-provisional", "physicalVolume"]) }] {
-            #expect(await refusedCodes(run) == ["gateOnlyRule"])
-        }
-        #expect(!FileManager.default.fileExists(atPath: base.path))
     }
 
     @Test("usb-image seed는 마운트 지점을 위치 인자로 받지 않는다(--image·--from만)")

@@ -82,7 +82,6 @@ enum UsbImageLab {
     static func writeCheck(_ args: [String]) async throws {
         guard let volumeArgument = value(after: "--volume", in: args) else { throw UsageError() }
         let volume = try UsbScratchPath.check(volumeArgument, as: .existingDirectory)
-        let allow = try UsbRuleCheck.parseAllowList(value(after: "--allow-provisional", in: args) ?? "")
         let slow = try value(after: "--slow", in: args).map { text -> Int in
             guard let milliseconds = Int(text), milliseconds >= 0 else { throw UsageError() }
             return milliseconds
@@ -104,7 +103,7 @@ enum UsbImageLab {
         let changes = try UsbSyntheticChanges.make(session: session, staging: staging)
         let root = UsbRoot(URL(filePath: volume))
         let fileSystem: any UsbFileSystem = slow > 0 ? SlowUsbFileSystem(inner: PosixUsbFileSystem(), delayMilliseconds: slow) : PosixUsbFileSystem()
-        let options = UsbWriteOptions(allowProvisional: allow, pauseAfter: pauseAfter, pauseHandler: { stage in
+        let options = UsbWriteOptions(pauseAfter: pauseAfter, pauseHandler: { stage in
             print("멈춤: \(stage.rawValue) 뒤. Enter를 누르면 이어 쓴다")
             _ = readLine()
         })

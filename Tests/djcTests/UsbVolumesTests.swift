@@ -147,8 +147,8 @@ struct UsbVolumesTests {
         #expect(volume.fileSystem == .fat16)
         #expect(volume.partitionContent == "DOS_FAT_32")
         let export = UsbVolumePolicy.problems(volume, purpose: .export)
-        #expect(export.contains { $0.code == "notFAT32" && $0.message == "USB를 MBR·MS-DOS(FAT32)로 포맷한 뒤 다시 시도하세요" })
-        #expect(UsbVolumePolicy.problems(volume, purpose: .edit).contains { $0.code == "notFAT32" && $0.message.hasPrefix("이 USB 형식(FAT16)은") })
+        #expect(export.contains { $0.code == "unsupportedFileSystem" && $0.message.hasPrefix("이 USB 형식(FAT16)에는") })
+        #expect(UsbVolumePolicy.problems(volume, purpose: .edit).contains { $0.code == "unsupportedFileSystem" })
         // 이 볼륨으로 쓰기: 가드와 무관한 마운트 확인 말고는 파일 연산 없이 막힌다
         let fixture = UsbChangeSetFixture()
         defer { fixture.remove() }
@@ -159,7 +159,7 @@ struct UsbVolumesTests {
             try fixture.write(fixture.exportChanges(), fileSystem: fs)
             Issue.record("막히지 않았다")
         } catch let UsbError.writeRefused(blocks) {
-            #expect(blocks.map(\.code).contains("notFAT32"))
+            #expect(blocks.map(\.code).contains("unsupportedFileSystem"))
         }
         #expect(fs.calls == ["mountedOn ."])
         // DAVolumeType이 없으면 모르는 msdos(fail-closed)
@@ -167,7 +167,7 @@ struct UsbVolumesTests {
         unknown["DAVolumeType"] = nil
         let other = make(unknown, whole: FakeDiskArbitration.physicalUsbWhole())
         #expect(other.fileSystem == .other("msdos"))
-        #expect(UsbVolumePolicy.problems(other, purpose: .export).contains { $0.code == "notFAT32" })
+        #expect(UsbVolumePolicy.problems(other, purpose: .export).contains { $0.code == "unsupportedFileSystem" })
     }
 
     @Test("모양 조합", arguments: [
@@ -187,16 +187,19 @@ struct UsbVolumesTests {
         default: .hfsPlus
         }
         #expect(volume.fileSystem == expected)
-        #expect(UsbVolumePolicy.problems(volume, purpose: .export).contains { $0.code == "notFAT32" } == (expected != .fat32))
+        #expect(UsbVolumePolicy.problems(volume, purpose: .export).contains { $0.code == "unsupportedFileSystem" }
+            == (expected != .fat32 && expected != .exfat))
     }
 
-    @Test("GPT·네트워크·읽기 전용·두 번째 파티션·4096 섹터")
+    @Test("GPT FAT32(두 번째 파티션)는 FAT32로 보고 쓴다. 네트워크·읽기 전용·4096 섹터")
     func otherShapes() {
         let gpt = make(FakeDiskArbitration.physicalUsbPartition(bsd: "disk9s2", content: "Microsoft Basic Data"),
                        whole: FakeDiskArbitration.physicalUsbWhole(content: "GUID_partition_scheme"))
         #expect(gpt.partitionScheme == .gpt)
         #expect(gpt.partitionIndex == 2)
-        #expect(gpt.fileSystem == .other("msdos"))
+        #expect(gpt.fileSystem == .fat32)
+        #expect(UsbVolumePolicy.problems(gpt, purpose: .export).isEmpty)
+        #expect(UsbVolumePolicy.warnings(gpt).map(\.code) == ["gpt"])
         var network = FakeDiskArbitration.physicalUsbPartition()
         network["DAVolumeNetwork"] = true
         #expect(make(network).isNetwork)
@@ -204,7 +207,7 @@ struct UsbVolumesTests {
         #expect(make(FakeDiskArbitration.physicalUsbPartition(), statfs: facts(mountedOn: "/")).isRootVolume)
         var big = FakeDiskArbitration.physicalUsbPartition()
         big["DAMediaBlockSize"] = 4096
-        #expect(UsbVolumePolicy.problems(make(big, whole: FakeDiskArbitration.physicalUsbWhole()), purpose: .export).contains { $0.code == "sectorSize" })
+        #expect(UsbVolumePolicy.problems(make(big, whole: FakeDiskArbitration.physicalUsbWhole()), purpose: .export).isEmpty)
         // 파티션 표가 없는 USB(전체 디스크가 곧 볼륨)
         #expect(make(FakeDiskArbitration.physicalUsbPartition(bsd: "disk9"), whole: nil).partitionScheme == .none)
     }
@@ -214,13 +217,5 @@ struct UsbVolumesTests {
         var description = FakeDiskArbitration.physicalUsbPartition()
         description["DAVolumeUUID"] = CFUUIDCreateFromString(nil, "0000abcd-0000-0000-0000-000000000001" as CFString)
         #expect(make(description).volumeUUID == "0000ABCD-0000-0000-0000-000000000001")
-    }
-
-    @Test("USB 일련번호는 문자열만, 앞뒤 공백을 떼고 비면 없음")
-    func serialText() {
-        #expect(UsbVolumes.serialText(" 4C530001 ") == "4C530001")
-        #expect(UsbVolumes.serialText("  ") == nil)
-        #expect(UsbVolumes.serialText(nil) == nil)
-        #expect(UsbVolumes.serialText(42) == nil)
     }
 }

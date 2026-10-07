@@ -118,13 +118,13 @@ struct UsbMigrateSessionTests {
         #expect(env.usb.tree() == before && env.leftovers.isEmpty)
     }
 
-    @Test("실물 볼륨은 관문이 막고 USB를 열거하지도 사본을 뜨지도 않는다")
+    @Test("동의 없는 실물 볼륨은 관문이 막고 USB를 열거하지도 사본을 뜨지도 않는다")
     func physicalBlocked() throws {
         let env = try Env()
         env.usb.volume = FakeUsbVolume.physicalFAT32()
         let fileSystem = env.usb.fileSystem()
-        let gate = FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID])
-        let options = UsbWriteOptions(confirmName: "DJCPHYS", allowProvisional: Set(UsbProvisionalRule.allCases.filter { !$0.isGateOnly }))
+        let gate = FakeUsbVolume.gate()
+        let options = UsbWriteOptions(confirmName: "DJCPHYS")
         let preview = try env.session(fileSystem: fileSystem, gate: gate).preview(options: options)
         #expect(preview.blocks.contains { $0.code == "physicalDisabled" } && preview.changes == nil)
         #expect(!fileSystem.calls.contains { $0.hasPrefix("list ") || $0.hasPrefix("stat ") })

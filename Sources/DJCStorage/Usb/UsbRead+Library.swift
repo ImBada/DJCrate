@@ -4,18 +4,16 @@ import RekordboxKit
 
 extension UsbRead {
     /// 앱 사이드바: 사본을 떠서(`UsbSnapshot`) 두 형식을 읽고 합친다. USB에는 아무것도 쓰지 않는다.
-    /// 막힘(쓰기 금지 목록·목록 미등록·볼륨 확인 안 됨)은 `info`와 같고, 막히면 사본 폴더도 만들지 않는다.
+    /// 볼륨 정보 없이 Mac 밖 볼륨을 넘기면 `info`처럼 읽지 않고, 그때는 사본 폴더도 만들지 않는다.
     /// 사본은 `snapshots/<볼륨키>/<시각>/`에 새로 떠서 남기고, 그 볼륨의 사본 폴더는 최근 `keep`개만 둔다.
     public static func library(root: URL, snapshots: URL, volumeKey: String, volume: UsbVolumeInfo?,
-                               lists: UsbPhysicalLists.Loaded = UsbPhysicalLists.load(), now: Date = Date(), keep: Int = 5,
+                               now: Date = Date(), keep: Int = 5,
                                mountedOn: (String) -> String? = UsbScratchRoots.mountedOn) throws -> (library: UsbLibrary, mismatches: [UsbFormatMismatch]) {
         // 볼륨키는 사본 폴더 이름 한 성분이다
         guard !volumeKey.isEmpty, volumeKey != ".", volumeKey != "..", !volumeKey.contains("/") else {
             throw UsbError.readFailed(detail: "bad volume key")
         }
-        if let volume {
-            if let code = readRefusal(volume: volume, lists: lists) { throw UsbError.readFailed(detail: code) }
-        } else {
+        if volume == nil {
             guard let real = UsbScratchRoots.realPath(root.path), let mount = mountedOn(real), startupMounts.contains(mount) else {
                 throw UsbError.readFailed(detail: "volumeNotChecked")
             }
@@ -54,7 +52,7 @@ extension UsbRead {
 
     /// 읽기 직전에 목록의 볼륨 자리(`mountPoint`)를 다시 보고 지금 그 자리의 볼륨 정보를 돌려준다.
     /// 목록을 훑은 뒤 볼륨이 빠지고 다른 볼륨이 같은 자리에 붙었으면(UUID·디스크 이미지 여부·이미지 파일·자리가 다름)
-    /// `volumeChanged`를 던진다 — 옛 정보(디스크 이미지·다른 UUID)로 쓰기 금지 목록 판정을 지나가지 않게.
+    /// `volumeChanged`를 던진다 — 옛 정보(디스크 이미지·다른 UUID)로 판정을 지나가지 않게.
     public static func currentVolume(matching volume: UsbVolumeInfo, mountedOn: (String) -> String? = UsbScratchRoots.mountedOn,
                                      volumeInfo: (URL) throws -> UsbVolumeInfo = { try UsbVolumes.info(root: $0) }) throws -> UsbVolumeInfo {
         guard let now = try self.volume(for: URL(filePath: volume.mountPoint), mountedOn: mountedOn, volumeInfo: volumeInfo),

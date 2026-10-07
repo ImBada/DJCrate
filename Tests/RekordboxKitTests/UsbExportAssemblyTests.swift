@@ -214,17 +214,18 @@ struct UsbExportAssemblyTests {
         #expect(!longStaged.changes.requiredRules.contains(.settingFiles))
     }
 
-    @Test("실물 관문: 긴 ASCII 경로가 든 묶음은 physicalDisabled와 함께 provisional(pdbLongAscii)로 막힌다")
+    @Test("실물 관문: 긴 ASCII 경로가 든 묶음은 동의 전에만 막히고, 긴 ASCII는 CDJ 확인 항목으로만 알린다")
     func physicalGateSeesLongAscii() throws {
         let fixture = try UsbExportFixture()
         try fixture.addTrack(id: "101", artist: ("1", Self.ascii(40, "b")), album: ("30", Self.ascii(40, "c")), fileName: Self.ascii(31, "d") + ".mp3")
         let staged = try Self.stage(fixture, ids: ["101"])
         defer { try? FileManager.default.removeItem(at: staged.staging) }
         let volume = FakeUsbVolume.physicalFAT32()
-        let blocks = UsbRuleCheck.blocks(required: staged.changes.requiredRules, volume: volume, allowProvisional: [],
-                                         gate: FakeUsbVolume.gate(allow: [FakeUsbVolume.physicalUUID]), confirmName: nil)
-        #expect(blocks.contains { $0.code == "physicalDisabled" })
-        #expect(blocks.contains { $0.code == "provisional" && $0.rule == .pdbLongAscii })
+        let blocks = UsbRuleCheck.blocks(required: staged.changes.requiredRules, volume: volume, gate: FakeUsbVolume.gate(), confirmName: nil)
+        #expect(blocks.map(\.code) == ["physicalDisabled"])
+        #expect(UsbRuleCheck.blocks(required: staged.changes.requiredRules, volume: volume, gate: FakeUsbVolume.gate(consented: true),
+                                    confirmName: volume.name).isEmpty)
+        #expect(UsbProvisionalRule.deviceCheckRules(staged.changes.requiredRules).contains(.pdbLongAscii))
     }
 
     // MARK: - 이미 Contents/가 있는 USB

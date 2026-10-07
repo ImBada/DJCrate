@@ -170,7 +170,7 @@ struct UsbSelfTestScenario {
         guard let first = await coordinator.preview(job), let second = await coordinator.preview(job) else {
             throw Failure("미리 보기를 하지 못했습니다(\(prompter.lastText))")
         }
-        log("USB 시험 미리 보기: 곡 \(first.trackCount) · 재생 목록 \(first.playlistCount) · 막힘 \(first.blockCounts.count) · 확인 안 된 규칙 \(first.rules.count) · 두 번째 같음 \(first == second)")
+        log("USB 시험 미리 보기: 곡 \(first.trackCount) · 재생 목록 \(first.playlistCount) · 막힘 \(first.blockCounts.count) · CDJ 확인 항목 \(first.rules.count) · 두 번째 같음 \(first == second)")
         guard first.canWrite, first == second else { throw Failure("미리 보기로 쓸 수 없습니다(\(UsbWriteCoordinator.stoppingText(first)))") }
         let journal = await detached { service.journal(volumeKey: job.volumeKey) }
         log("USB 시험 미리 보기 뒤 저널: \(Self.journalText(journal)) · 끝나지 않은 쓰기 \(journal.isPending)")
@@ -203,7 +203,7 @@ struct UsbSelfTestScenario {
         let reattached = volume
         let scratch = base.appending(path: "info-\(UUID().uuidString)")
         let info = try await detached {
-            try UsbRead.info(root: URL(filePath: reattached.mountPoint), scratch: scratch, volume: reattached, lists: UsbPhysicalLists.load())
+            try UsbRead.info(root: URL(filePath: reattached.mountPoint), scratch: scratch, volume: reattached)
         }
         let formats = Set(info.formats)
         let oneLibrary = info.oneLibrary, deviceLibrary = info.deviceLibrary
@@ -248,10 +248,10 @@ struct UsbSelfTestScenario {
         guard let exported = service.lastWrite, exported.outcome == .written else { throw Failure("Device Library만 내보내지 못했습니다") }
         let before = try await detached { try UsbTree.fingerprint(root).files }
         guard let first = await coordinator.previewMigration(volume), let second = await coordinator.previewMigration(volume),
-              first.canWrite, first == second, first.rules.contains(.deviceLibraryMigration) else { throw Failure("옮기기 미리 보기 실패") }
+              first.canWrite, first == second, first.rules.allSatisfy(\.needsDeviceCheck) else { throw Failure("옮기기 미리 보기 실패") }
         let previewTree = try await detached { try UsbTree.fingerprint(root).files }
         guard before == previewTree else { throw Failure("옮기기 미리 보기가 USB를 바꿈") }
-        log("USB 시험 옮기기 미리 보기: 곡 \(first.trackCount) · 목록 \(first.playlistCount) · 아트워크 \(first.artworkFiles) · 확인 안 된 규칙 \(first.rules.count) · 트리 그대로")
+        log("USB 시험 옮기기 미리 보기: 곡 \(first.trackCount) · 목록 \(first.playlistCount) · 아트워크 \(first.artworkFiles) · CDJ 확인 항목 \(first.rules.count) · 트리 그대로")
         await coordinator.migrate(volume)
         guard service.lastMigration?.outcome == .written, usb.migrationBackups[volume.usbKey] != nil,
               host.toast?.action == .ejectUsb(volumeKey: volume.usbKey) else { throw Failure("옮기기 쓰기 실패(\(prompter.lastText))") }
@@ -325,7 +325,7 @@ struct UsbSelfTestScenario {
         // 다시 읽기: 두 형식 곡 2 · 목록 2, 새 이름
         let scratch = base.appending(path: "info-\(UUID().uuidString)")
         let info = try await detached {
-            try UsbRead.info(root: URL(filePath: volume.mountPoint), scratch: scratch, volume: volume, lists: UsbPhysicalLists.load())
+            try UsbRead.info(root: URL(filePath: volume.mountPoint), scratch: scratch, volume: volume)
         }
         let oneLibrary = info.oneLibrary, deviceLibrary = info.deviceLibrary
         let playlistNames = Set(usb.libraries[key]?.playlists.map(\.name) ?? [])

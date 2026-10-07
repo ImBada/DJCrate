@@ -1687,22 +1687,6 @@
         }
       }
     },
-    "%@은 --allow-provisional로 풀 수 없습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ cannot be unlocked with --allow-provisional"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@は--allow-provisionalで解除できません"
-          }
-        }
-      }
-    },
     "%@은 DJCrate가 쓴 뒤 기기에서 바뀌었습니다. 되돌리면 기기가 그 뒤에 쓴 내용을 잃습니다(재생 기록 등)." : {
       "localizations" : {
         "en" : {
@@ -1779,22 +1763,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@をrekordboxに書き込みますか？"
-          }
-        }
-      }
-    },
-    "%@을 읽을 수 없어 고치지 않았습니다. 파일을 고치거나 지운 뒤 다시 시도하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ cannot be read, so it was not changed. Fix or delete the file and try again"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@を読み込めないため変更しませんでした。ファイルを修正するか削除してから、もう一度お試しください"
           }
         }
       }
@@ -3023,34 +2991,18 @@
         }
       }
     },
-    "--volume <마운트>" : {
+    "--volume <마운트> (<편집.json> | --draft) [--db <스냅샷 사본.db>] [--share <폴더>] [--dry-run] [--allow-physical --confirm <볼륨 이름>] [--snapshot-time <ISO 8601>]" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "--volume <mount point>"
+            "value" : "--volume <mount point> (<edits.json> | --draft) [--db <snapshot copy.db>] [--share <folder>] [--dry-run] [--allow-physical --confirm <volume name>] [--snapshot-time <ISO 8601>]"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "--volume <マウントポイント>"
-          }
-        }
-      }
-    },
-    "--volume <마운트> (<편집.json> | --draft) [--db <스냅샷 사본.db>] [--share <폴더>] [--dry-run] [--allow-physical --confirm <볼륨 이름>] [--allow-provisional <규칙,…>] [--snapshot-time <ISO 8601>]" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "--volume <mount point> (<edits.json> | --draft) [--db <snapshot copy.db>] [--share <folder>] [--dry-run] [--allow-physical --confirm <volume name>] [--allow-provisional <rule,…>] [--snapshot-time <ISO 8601>]"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "--volume <マウントポイント> (<編集.json> | --draft) [--db <スナップショットのコピー.db>] [--share <フォルダ>] [--dry-run] [--allow-physical --confirm <ボリューム名>] [--allow-provisional <ルール,…>] [--snapshot-time <ISO 8601>]"
+            "value" : "--volume <マウントポイント> (<編集.json> | --draft) [--db <スナップショットのコピー.db>] [--share <フォルダ>] [--dry-run] [--allow-physical --confirm <ボリューム名>] [--snapshot-time <ISO 8601>]"
           }
         }
       }
@@ -3071,18 +3023,18 @@
         }
       }
     },
-    "--volume <마운트> [--db <스냅샷 사본.db>] [--share <폴더>] [--playlist <ID>]… [--tracks <ContentID>,…] [--formats onelibrary,device] [--naming identifier] [--dry-run] [--allow-physical --confirm <볼륨 이름>] [--allow-provisional <규칙,…>] [--verify-audio] [--settings <로컬 설정 폴더>] [--snapshot-time <ISO 8601>]" : {
+    "--volume <마운트> [--db <스냅샷 사본.db>] [--share <폴더>] [--playlist <ID>]… [--tracks <ContentID>,…] [--formats onelibrary,device] [--naming identifier] [--dry-run] [--allow-physical --confirm <볼륨 이름>] [--verify-audio] [--settings <로컬 설정 폴더>] [--snapshot-time <ISO 8601>]" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "--volume <mount point> [--db <snapshot copy.db>] [--share <folder>] [--playlist <ID>]… [--tracks <ContentID>,…] [--formats onelibrary,device] [--naming identifier] [--dry-run] [--allow-physical --confirm <volume name>] [--allow-provisional <rule,…>] [--verify-audio] [--settings <local settings folder>] [--snapshot-time <ISO 8601>]"
+            "value" : "--volume <mount point> [--db <snapshot copy.db>] [--share <folder>] [--playlist <ID>]… [--tracks <ContentID>,…] [--formats onelibrary,device] [--naming identifier] [--dry-run] [--allow-physical --confirm <volume name>] [--verify-audio] [--settings <local settings folder>] [--snapshot-time <ISO 8601>]"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "--volume <マウントポイント> [--db <スナップショットのコピー.db>] [--share <フォルダ>] [--playlist <ID>]… [--tracks <ContentID>,…] [--formats onelibrary,device] [--naming identifier] [--dry-run] [--allow-physical --confirm <ボリューム名>] [--allow-provisional <ルール,…>] [--verify-audio] [--settings <ローカル設定フォルダ>] [--snapshot-time <ISO 8601>]"
+            "value" : "--volume <マウントポイント> [--db <スナップショットのコピー.db>] [--share <フォルダ>] [--playlist <ID>]… [--tracks <ContentID>,…] [--formats onelibrary,device] [--naming identifier] [--dry-run] [--allow-physical --confirm <ボリューム名>] [--verify-audio] [--settings <ローカル設定フォルダ>] [--snapshot-time <ISO 8601>]"
           }
         }
       }
@@ -3103,34 +3055,18 @@
         }
       }
     },
-    "--volume <마운트> [--dry-run] [--allow-physical --confirm <볼륨 이름>] [--allow-provisional <규칙,…>]" : {
+    "--volume <마운트> [--dry-run] [--allow-physical --confirm <볼륨 이름>]" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "--volume <mount point> [--dry-run] [--allow-physical --confirm <volume name>] [--allow-provisional <rule,…>]"
+            "value" : "--volume <mount point> [--dry-run] [--allow-physical --confirm <volume name>]"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "--volume <マウントポイント> [--dry-run] [--allow-physical --confirm <ボリューム名>] [--allow-provisional <ルール,…>]"
-          }
-        }
-      }
-    },
-    "--volume <마운트> [--remove]" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "--volume <mount point> [--remove]"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "--volume <マウントポイント> [--remove]"
+            "value" : "--volume <マウントポイント> [--dry-run] [--allow-physical --confirm <ボリューム名>]"
           }
         }
       }
@@ -3787,6 +3723,38 @@
         }
       }
     },
+    "CDJ에서 확인하지 않은 항목 %lld개:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Items not yet checked on CDJs (%lld):"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CDJで確認していない項目 %lld件:"
+          }
+        }
+      }
+    },
+    "CDJ에서 확인하지 않은 항목이 있는 곡 %lld개:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks with items not yet checked on CDJs (%lld):"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CDJで確認していない項目がある曲 %lld曲:"
+          }
+        }
+      }
+    },
     "CUE — 재생 중: 큐로 돌아가 정지 · 멈춤: 큐 지점 설정 · 누르고 있기: 미리 듣기" : {
       "localizations" : {
         "en" : {
@@ -4065,38 +4033,6 @@
         }
       }
     },
-    "DJCrate가 이 USB에 다시는 쓰지 않고 읽지도 않습니다. 목록에서 빼려면 DJCrate 데이터 폴더의 usb-physical-deny.json을 직접 고쳐야 합니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DJCrate will never write to or read this USB again. To remove it from the list, edit usb-physical-deny.json in the DJCrate data folder yourself."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DJCrateはこのUSBに今後書き込まず、読み込みもしません。リストから外すには、DJCrateのデータフォルダにあるusb-physical-deny.jsonを直接編集してください。"
-          }
-        }
-      }
-    },
-    "DJCrate가 이 USB의 rekordbox 라이브러리를 만들고 고칠 수 있게 됩니다. 쓰기마다 바꿀 파일을 Mac에 백업하고, 쓴 뒤 USB에서 다시 읽어 확인합니다. 실물 USB 쓰기는 아직 실험 기능입니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DJCrate will be able to create and change the rekordbox library on this USB. Each write backs up the files it changes to this Mac and reads the USB again afterward to verify. Writing to physical USBs is still an experimental feature."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DJCrateがこのUSBのrekordboxライブラリを作成・変更できるようになります。書き込みのたびに変更するファイルをMacにバックアップし、書き込み後にUSBを読み直して確認します。実物のUSBへの書き込みはまだ実験的な機能です。"
-          }
-        }
-      }
-    },
     "DJCrate가 이 목록의 조건을 계산하지 못해 곡을 보이지 않습니다 · rekordbox에서 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -4257,18 +4193,18 @@
         }
       }
     },
-    "Device Library(export.pdb)만 있는 USB에 OneLibrary(exportLibrary.db)를 더한다. 원래 파일은 그대로 둔다(실물 USB는 --allow-physical·쓰기 허용·--confirm이 모두 있어야 씀)" : {
+    "Device Library(export.pdb)만 있는 USB에 OneLibrary(exportLibrary.db)를 더한다. 원래 파일은 그대로 둔다(실물 USB는 --allow-physical --confirm <볼륨 이름>이 있어야 씀)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Add OneLibrary (exportLibrary.db) to a USB that has only Device Library (export.pdb). Original files are left as they are (physical USBs need --allow-physical, write permission, and --confirm)"
+            "value" : "Add OneLibrary (exportLibrary.db) to a USB that has only Device Library (export.pdb). Original files are left as they are (physical USBs need --allow-physical --confirm <volume name>)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Device Library（export.pdb）だけのUSBにOneLibrary（exportLibrary.db）を追加する。元のファイルはそのまま残す（実物のUSBには--allow-physical・書き込み許可・--confirmがすべて必要）"
+            "value" : "Device Library（export.pdb）だけのUSBにOneLibrary（exportLibrary.db）を追加する。元のファイルはそのまま残す（実物のUSBには--allow-physical --confirm <ボリューム名>が必要）"
           }
         }
       }
@@ -4321,18 +4257,18 @@
         }
       }
     },
-    "Device Library를 읽어 OneLibrary를 더합니다. 미리 보기에서 확인 안 된 규칙을 확인하세요" : {
+    "Device Library를 읽어 OneLibrary를 더합니다. 확인 창에서 CDJ에서 확인하지 않은 항목을 확인하세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Read Device Library and add OneLibrary. Review the unverified rules in the preview."
+            "value" : "Read Device Library and add OneLibrary. Review the items not yet checked on CDJs in the confirmation dialog."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Device Libraryを読み、OneLibraryを追加します。プレビューで未確認の規則を確認してください。"
+            "value" : "Device Libraryを読み、OneLibraryを追加します。確認ダイアログでCDJで確認していない項目を確認してください。"
           }
         }
       }
@@ -4823,6 +4759,22 @@
         }
       }
     },
+    "GPT로 포맷한 USB는 일부 기기가 읽지 못할 수 있습니다. 기기에서 읽히지 않으면 MBR로 포맷하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some devices may not read a USB formatted with GPT. If a device can't read it, format it as MBR"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GPTでフォーマットしたUSBは一部の機器で読めないことがあります。機器で読めない場合はMBRでフォーマットしてください"
+          }
+        }
+      }
+    },
     "ISRC에 전각·한글처럼 ASCII가 아닌 글자가 있어 Device Library에 쓸 수 없습니다. rekordbox에서 ISRC를 반각 영문·숫자로 고친 뒤 다시 시도하세요" : {
       "localizations" : {
         "en" : {
@@ -4867,6 +4819,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "JPEG・PNG以外のアルバムアートはrekordboxで未確認です。JPEGかPNGのアルバムアートを選んでください"
+          }
+        }
+      }
+    },
+    "MBR이나 GPT 파티션이 아닌 USB에는 쓸 수 없습니다. 디스크 유틸리티에서 MBR로 포맷한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't write to a USB without an MBR or GPT partition. Format it as MBR in Disk Utility and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MBRまたはGPTのパーティションではないUSBには書き込めません。ディスクユーティリティでMBRでフォーマットしてから、もう一度お試しください"
           }
         }
       }
@@ -5549,22 +5517,6 @@
         }
       }
     },
-    "USB 메모리가 아닌 디스크(외장 SSD 등)에는 쓰지 않습니다. rekordbox용 USB 메모리를 연결하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nothing is written to disks that are not USB flash drives (such as external SSDs). Connect a USB flash drive for rekordbox"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "USBメモリではないディスク（外付けSSDなど）には書き込みません。rekordbox用のUSBメモリを接続してください"
-          }
-        }
-      }
-    },
     "USB 미리 보기를 하지 못했습니다" : {
       "localizations" : {
         "en" : {
@@ -6207,22 +6159,6 @@
         }
       }
     },
-    "USB를 MBR·MS-DOS(FAT32)로 포맷한 뒤 다시 시도하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Format the USB as MBR with MS-DOS (FAT32) and try again"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "USBをMBR・MS-DOS（FAT32）でフォーマットしてから、もう一度お試しください"
-          }
-        }
-      }
-    },
     "USB를 고칠 때 Device Library를 다시 만드는 방법" : {
       "localizations" : {
         "en" : {
@@ -6367,22 +6303,6 @@
         }
       }
     },
-    "USB를 다시 포맷하면 다시 허용해야 합니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "If you reformat the USB, you need to allow it again"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "USBをフォーマットし直した場合は、もう一度許可する必要があります"
-          }
-        }
-      }
-    },
     "USB를 되돌리는 중…" : {
       "localizations" : {
         "en" : {
@@ -6511,18 +6431,18 @@
         }
       }
     },
-    "USB를 읽기만 해서 형식·곡 수·경고를 보여 준다(실물 USB는 쓰기 금지 목록을 등록한 뒤에만)" : {
+    "USB를 읽기만 해서 형식·곡 수·경고를 보여 준다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Read a USB without changing it and show its formats, track counts, and warnings (physical USBs only after registering the write-deny list)"
+            "value" : "Read a USB without changing it and show its formats, track counts, and warnings"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "USBを読み込むだけで形式・曲数・警告を表示する（実物のUSBは書き込み禁止リストを登録した後のみ）"
+            "value" : "USBを読み込むだけで形式・曲数・警告を表示する"
           }
         }
       }
@@ -7225,54 +7145,6 @@
         }
       }
     },
-    "USB의 볼륨 UUID를 읽지 못해 목록에 넣지 않았습니다. USB를 다시 연결한 뒤 시도하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The USB's volume UUID could not be read, so it was not added to the list. Reconnect the USB and try again"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "USBのボリュームUUIDを読み込めなかったため、リストに追加しませんでした。USBを接続し直してからお試しください"
-          }
-        }
-      }
-    },
-    "USB의 볼륨 UUID를 읽지 못해 목록을 고치지 않았습니다. USB를 다시 연결한 뒤 시도하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The USB's volume UUID could not be read, so the list was not changed. Reconnect the USB and try again"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "USBのボリュームUUIDを読み込めなかったため、リストを変更しませんでした。USBを接続し直してからお試しください"
-          }
-        }
-      }
-    },
-    "USB의 볼륨 UUID를 읽지 못해 실물 USB를 읽지 않습니다. USB를 다시 연결한 뒤 시도하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Could not read the USB's volume UUID, so the physical USB will not be read. Reconnect the USB and try again"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "USBのボリュームUUIDを読み込めないため、実物のUSBは読み込みません。USBを接続し直してからお試しください"
-          }
-        }
-      }
-    },
     "USB의 볼륨 UUID를 읽지 못해 쓰지 않습니다. USB를 다시 연결한 뒤 시도하세요" : {
       "localizations" : {
         "en" : {
@@ -7317,22 +7189,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBの音源ファイルは上書きしません。もう一度プレビューしてから書き込んでください"
-          }
-        }
-      }
-    },
-    "USB의 첫 번째 파티션만 쓸 수 있습니다. 파티션 하나로 포맷하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Only the first partition of a USB can be used. Format it with a single partition"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "USBの最初のパーティションにのみ書き込めます。パーティション1つでフォーマットしてください"
           }
         }
       }
@@ -7651,6 +7507,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Flip"
+          }
+        }
+      }
+    },
+    "exFAT USB는 CDJ-2000NXS2 등 이전 기기가 읽지 못할 수 있습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Older devices such as the CDJ-2000NXS2 may not read an exFAT USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "exFATのUSBはCDJ-2000NXS2など以前の機器で読めないことがあります"
           }
         }
       }
@@ -8422,18 +8294,18 @@
         }
       }
     },
-    "rekordbox 라이브러리가 없는 FAT32 USB입니다" : {
+    "rekordbox 라이브러리가 없는 USB입니다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FAT32 USB with no rekordbox library"
+            "value" : "USB with no rekordbox library"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxライブラリがないFAT32のUSBです"
+            "value" : "rekordboxライブラリがないUSBです"
           }
         }
       }
@@ -10862,22 +10734,6 @@
         }
       }
     },
-    "usb-allow는 터미널에서 사람이 직접 실행할 때만 허용합니다. 앱 사이드바에서 이 USB의 ‘이 USB에 쓰기 허용…’을 쓰세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "usb-allow only grants permission when a person runs it directly in a terminal. Use “Allow Writing to This USB…” for this USB in the app sidebar"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "usb-allowは人がターミナルで直接実行したときだけ許可します。アプリのサイドバーでこのUSBの「このUSBへの書き込みを許可…」を使ってください"
-          }
-        }
-      }
-    },
     "~%.3f 루프" : {
       "localizations" : {
         "en" : {
@@ -11234,22 +11090,6 @@
         }
       }
     },
-    "‘%@’에 쓰기를 허용할까요?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Allow writing to “%@”?"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「%@」への書き込みを許可しますか？"
-          }
-        }
-      }
-    },
     "‘%@’에 쓸 키를 누르세요(Esc: 취소)." : {
       "localizations" : {
         "en" : {
@@ -11344,22 +11184,6 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "‘%1$@’에서 빼기 (%2$lld곡)"
-          }
-        }
-      }
-    },
-    "‘%@’을 쓰기 금지 목록에 넣을까요?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add “%@” to the write-deny list?"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「%@」を書き込み禁止リストに追加しますか？"
           }
         }
       }
@@ -12484,54 +12308,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "結果: %@"
-          }
-        }
-      }
-    },
-    "결과: 쓰기 금지 목록에 넣었습니다(볼륨 UUID %@)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Result: added to the write-deny list (volume UUID %@)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "結果: 書き込み禁止リストに追加しました（ボリュームUUID %@）"
-          }
-        }
-      }
-    },
-    "결과: 쓰기 허용을 거뒀습니다(볼륨 UUID %@)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Result: write permission removed (volume UUID %@)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "結果: 書き込み許可を取り消しました（ボリュームUUID %@）"
-          }
-        }
-      }
-    },
-    "결과: 쓰기를 허용했습니다(볼륨 UUID %@). 쓸 때는 --allow-physical --confirm <볼륨 이름>을 주세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Result: writing allowed (volume UUID %@). When writing, pass --allow-physical --confirm <volume name>"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "結果: 書き込みを許可しました（ボリュームUUID %@）。書き込むときは--allow-physical --confirm <ボリューム名>を指定してください"
           }
         }
       }
@@ -14676,22 +14452,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "形式の調査に使う実験コマンド（一覧: djc lab）"
-          }
-        }
-      }
-    },
-    "그 사이 다른 USB가 연결됐습니다. USB를 다시 읽은 뒤 고르세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A different USB was connected in the meantime. Reload the USB, then choose it again"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "その間に別のUSBが接続されました。USBを読み直してから選んでください"
           }
         }
       }
@@ -18010,22 +17770,6 @@
         }
       }
     },
-    "디스크 이미지는 쓰기 허용 대상이 아닙니다. 디스크 이미지 시험 쓰기는 임시 폴더 아래에 붙인 이미지에만 합니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Disk images cannot be allowed for writing. Test writes go only to disk images attached under a temporary folder"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ディスクイメージは書き込み許可の対象ではありません。ディスクイメージへのテスト書き込みは一時フォルダの下に接続したイメージにだけ行います"
-          }
-        }
-      }
-    },
     "디스크 이미지로 확인되지 않은 볼륨에는 쓰지 않습니다. usb-image attach로 붙인 이미지를 주세요" : {
       "localizations" : {
         "en" : {
@@ -20402,22 +20146,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "すべての評価"
-          }
-        }
-      }
-    },
-    "모르는 규칙 이름입니다(%@). 계획에 나온 규칙 이름을 쓰세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unknown rule name (%@). Use a rule name shown in the plan"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不明なルール名です（%@）。計画に表示されたルール名を使ってください"
           }
         }
       }
@@ -24064,22 +23792,6 @@
         }
       }
     },
-    "섹터 크기가 512바이트가 아닌 USB는 아직 쓸 수 없습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "USBs with a sector size other than 512 bytes cannot be written yet"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "セクタサイズが512バイトではないUSBにはまだ書き込めません"
-          }
-        }
-      }
-    },
     "소리 없음" : {
       "localizations" : {
         "en" : {
@@ -24246,18 +23958,18 @@
         }
       }
     },
-    "스냅샷 사본의 곡·재생 목록을 빈 USB(FAT32·MBR)에 OneLibrary·Device Library로 내보낸다(실물 USB는 --allow-physical·쓰기 허용·--confirm이 모두 있어야 씀)" : {
+    "스냅샷 사본의 곡·재생 목록을 빈 USB(FAT32·exFAT)에 OneLibrary·Device Library로 내보낸다(실물 USB는 --allow-physical --confirm <볼륨 이름>이 있어야 씀)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Export tracks and playlists from a snapshot copy to an empty USB (FAT32, MBR) as OneLibrary and Device Library (physical USBs need --allow-physical, write permission, and --confirm)"
+            "value" : "Export tracks and playlists from a snapshot copy to an empty USB (FAT32, exFAT) as OneLibrary and Device Library (physical USBs need --allow-physical --confirm <volume name>)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "スナップショットのコピーの曲・プレイリストを空のUSB（FAT32・MBR）にOneLibrary・Device Libraryとして書き出す（実物のUSBには--allow-physical・書き込み許可・--confirmがすべて必要）"
+            "value" : "スナップショットのコピーの曲・プレイリストを空のUSB（FAT32・exFAT）にOneLibrary・Device Libraryとして書き出す（実物のUSBには--allow-physical --confirm <ボリューム名>が必要）"
           }
         }
       }
@@ -24770,50 +24482,34 @@
         }
       }
     },
-    "실물 USB 쓰기" : {
+    "실물 USB에 쓰려면 앱은 쓰기 확인 창에서 확인을 누르고, djc는 --allow-physical --confirm <볼륨 이름>을 주세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Write to Physical USBs"
+            "value" : "To write to a physical USB, confirm in the write dialog in the app, or pass --allow-physical --confirm <volume name> to djc"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "実物のUSBへの書き込み"
+            "value" : "実物のUSBに書き込むには、アプリでは書き込み確認ダイアログで確定し、djcでは--allow-physical --confirm <ボリューム名>を指定してください"
           }
         }
       }
     },
-    "실물 USB 쓰기가 꺼져 있습니다. 앱은 설정 › 실험실에서 켜고, djc는 --allow-physical을 준 뒤 다시 시도하세요" : {
+    "실물 USB입니다: %@ · %@ · %@ · %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Writing to physical USBs is turned off. Turn it on in Settings › Labs in the app, or pass --allow-physical to djc, then try again"
+            "value" : "This is a physical USB: %1$@ · %2$@ · %3$@ · %4$@"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "実物のUSBへの書き込みはオフです。アプリでは設定 › ラボでオンにし、djcでは--allow-physicalを指定してから、もう一度お試しください"
-          }
-        }
-      }
-    },
-    "실물 USB입니다(실험 기능). 쓰기 전 바꿀 파일을 Mac에 백업하고, 기기에 꽂기 전에 결과를 확인하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This is a physical USB (experimental feature). Files to be changed are backed up to this Mac before writing; check the result before plugging it into a device"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "実物のUSBです（実験的な機能）。書き込む前に変更するファイルをMacにバックアップします。機器に差し込む前に結果を確認してください"
+            "value" : "実物のUSBです: %1$@ · %2$@ · %3$@ · %4$@"
           }
         }
       }
@@ -25010,182 +24706,6 @@
         }
       }
     },
-    "쓰기 금지 목록 파일을 읽을 수 없어 실물 USB를 읽지 않습니다. 목록 파일을 고친 뒤 다시 시도하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The write-deny list file cannot be read, so physical USBs will not be read. Fix the list file and try again"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込み禁止リストのファイルを読み込めないため、実物のUSBは読み込みません。リストファイルを修正してから、もう一度お試しください"
-          }
-        }
-      }
-    },
-    "쓰기 금지 목록 파일을 읽을 수 없어 실물 USB에 쓰지 않습니다. 목록 파일을 고친 뒤 다시 시도하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The write-deny list file cannot be read, so nothing will be written to a physical USB. Fix the list file and try again"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込み禁止リストのファイルを読み込めないため、実物のUSBには書き込みません。リストファイルを修正してから、もう一度お試しください"
-          }
-        }
-      }
-    },
-    "쓰기 금지 목록 파일을 읽을 수 없어 허용하지 않았습니다. 목록 파일을 고친 뒤 다시 시도하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The write-deny list file cannot be read, so writing was not allowed. Fix the list file and try again"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込み禁止リストのファイルを読み込めないため、許可しませんでした。リストファイルを修正してから、もう一度お試しください"
-          }
-        }
-      }
-    },
-    "쓰기 금지 목록에 넣기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add to Write-Deny List"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込み禁止リストに追加"
-          }
-        }
-      }
-    },
-    "쓰기 금지 목록에 넣기…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add to Write-Deny List…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込み禁止リストに追加…"
-          }
-        }
-      }
-    },
-    "쓰기 금지 목록에 넣었습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Added to the write-deny list"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込み禁止リストに追加しました"
-          }
-        }
-      }
-    },
-    "쓰기 금지 목록에 넣지 못했습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Could not add to the write-deny list"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込み禁止リストに追加できませんでした"
-          }
-        }
-      }
-    },
-    "쓰기 금지 목록의 USB라 읽지 않습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This USB is on the write-deny list, so it will not be read"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込み禁止リストに入っているUSBのため読み込みません"
-          }
-        }
-      }
-    },
-    "쓰기 금지 목록이 비어 있어 실물 USB를 읽지 않습니다. 쓰면 안 되는 USB를 사이드바의 ‘쓰기 금지 목록에 넣기…’나 djc usb-deny로 먼저 등록하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The write-deny list is empty, so physical USBs will not be read. First register a USB that must never be written with “Add to Write-Deny List…” in the sidebar or djc usb-deny"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込み禁止リストが空のため、実物のUSBは読み込みません。書き込んではいけないUSBを、サイドバーの「書き込み禁止リストに追加…」またはdjc usb-denyで先に登録してください"
-          }
-        }
-      }
-    },
-    "쓰기 금지 목록이 비어 있어 실물 USB에 쓰지 않습니다. 쓰면 안 되는 USB를 사이드바의 ‘쓰기 금지 목록에 넣기…’나 djc usb-deny로 먼저 등록하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The write-deny list is empty, so nothing will be written to a physical USB. First register a USB that must never be written with “Add to Write-Deny List…” in the sidebar or djc usb-deny"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込み禁止リストが空のため、実物のUSBには書き込みません。書き込んではいけないUSBを、サイドバーの「書き込み禁止リストに追加…」またはdjc usb-denyで先に登録してください"
-          }
-        }
-      }
-    },
-    "쓰기 금지 볼륨" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Write-Denied Volume"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込み禁止ボリューム"
-          }
-        }
-      }
-    },
     "쓰기 기록은 없고 임시 파일 %lld개가 있습니다. 지우려면 --discard-temp를 주세요" : {
       "localizations" : {
         "en" : {
@@ -25262,6 +24782,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "書き込みレポート（report.json）をバックアップに保存しきれなかったため、「書き込み前に復元…」で今回作ったファイルを削除できないことがあります。バックアップフォルダを確認してください：%@"
+          }
+        }
+      }
+    },
+    "쓰기 전 바꿀 파일을 Mac에 백업합니다. 기기에 꽂기 전에 결과를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files to be changed are backed up to this Mac before writing. Check the result before plugging it into a device"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込む前に変更するファイルをMacにバックアップします。機器に差し込む前に結果を確認してください"
           }
         }
       }
@@ -25410,54 +24946,6 @@
         }
       }
     },
-    "쓰기 허용" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Allow Writing"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込みを許可"
-          }
-        }
-      }
-    },
-    "쓰기 허용 거두기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Remove Write Permission"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込み許可を取り消す"
-          }
-        }
-      }
-    },
-    "쓰기 허용을 거두지 못했습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Could not remove write permission"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込み許可を取り消せませんでした"
-          }
-        }
-      }
-    },
     "쓰기 확인에 실패했고 자동 복원도 하지 못했습니다" : {
       "localizations" : {
         "en" : {
@@ -25490,18 +24978,18 @@
         }
       }
     },
-    "쓰기를 허용하지 않았습니다" : {
+    "쓰기는 막지 않습니다. 쓴 뒤 기기에서 확인하세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Writing was not allowed"
+            "value" : "These don't block writing. Check them on a device after writing"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "書き込みを許可しませんでした"
+            "value" : "書き込みは止めません。書き込み後に機器で確認してください"
           }
         }
       }
@@ -25566,22 +25054,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "書き込み中にその場所のUSBが元のUSB（%@）ではなくなった（または確認できなかった）ため停止しました。今接続されているUSBには書き込んでいません。元のUSBを挿し直してから`djc usb-recover`を実行してください"
-          }
-        }
-      }
-    },
-    "쓰려면 설정 › 실험실의 ‘실물 USB 쓰기’도 켜야 합니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "To write, also turn on “Write to Physical USBs” in Settings › Labs"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "書き込むには、設定 › ラボの「実物のUSBへの書き込み」もオンにする必要があります"
           }
         }
       }
@@ -26336,22 +25808,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不明な条件項目です（%@）"
-          }
-        }
-      }
-    },
-    "알 수 없는 파티션 형식" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "unknown partition type"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不明なパーティション形式"
           }
         }
       }
@@ -29040,114 +28496,18 @@
         }
       }
     },
-    "이 USB 형식(%@)은 아직 고칠 수 없습니다. FAT32로 포맷한 다른 USB에 새로 내보내세요" : {
+    "이 USB 형식(%@)에는 rekordbox 라이브러리를 쓸 수 없습니다. FAT32나 exFAT로 포맷한 뒤 다시 시도하세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "USBs in this format (%@) cannot be edited yet. Export anew to another USB formatted as FAT32"
+            "value" : "Can't write a rekordbox library to a USB in this format (%@). Format it as FAT32 or exFAT and try again"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この形式（%@）のUSBはまだ編集できません。FAT32でフォーマットした別のUSBに新しくエクスポートしてください"
-          }
-        }
-      }
-    },
-    "이 USB 형식(GPT 등)은 아직 고칠 수 없습니다. FAT32·MBR로 포맷한 다른 USB에 새로 내보내세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "USBs in this format (GPT, etc.) cannot be edited yet. Export anew to another USB formatted as FAT32 with MBR"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この形式（GPTなど）のUSBはまだ編集できません。FAT32・MBRでフォーマットした別のUSBに新しくエクスポートしてください"
-          }
-        }
-      }
-    },
-    "이 USB(%@)에 DJCrate 쓰기를 허용하려면 볼륨 이름을 그대로 입력하세요: " : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "To allow DJCrate to write to this USB (%@), type the volume name exactly: "
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このUSB（%@）へのDJCrateの書き込みを許可するには、ボリューム名をそのまま入力してください: "
-          }
-        }
-      }
-    },
-    "이 USB는 쓰기 금지 목록에 있습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This USB is on the write-deny list"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このUSBは書き込み禁止リストに入っています"
-          }
-        }
-      }
-    },
-    "이 USB는 쓰기를 허용할 때와 용량·일련번호가 다릅니다. 같은 USB가 맞으면 ‘이 USB에 쓰기 허용…’이나 djc usb-allow로 다시 허용하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This USB’s capacity or serial number differs from when writing was allowed. If it is the same USB, allow it again with “Allow Writing to This USB…” or djc usb-allow"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このUSBは書き込みを許可したときと容量・シリアル番号が異なります。同じUSBであれば「このUSBへの書き込みを許可…」かdjc usb-allowでもう一度許可してください"
-          }
-        }
-      }
-    },
-    "이 USB를 쓰기 금지 목록에 넣는다(다시는 쓰지 않는다). 빼려면 목록 파일을 직접 고친다. USB에는 쓰지 않는다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add this USB to the write-deny list (it will never be written again). To remove it, edit the list file yourself. Nothing is written to the USB"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このUSBを書き込み禁止リストに追加する（今後書き込まない）。外すにはリストファイルを直接編集する。USBには書き込まない"
-          }
-        }
-      }
-    },
-    "이 USB에 DJCrate가 rekordbox 라이브러리를 쓰도록 허용합니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Allow DJCrate to write a rekordbox library to this USB"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DJCrateがこのUSBにrekordboxライブラリを書き込むことを許可します"
+            "value" : "この形式（%@）のUSBにはrekordboxライブラリを書き込めません。FAT32またはexFATでフォーマットしてから、もう一度お試しください"
           }
         }
       }
@@ -29168,38 +28528,6 @@
         }
       }
     },
-    "이 USB에 다시 쓰지 않게 합니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stop writing to this USB"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このUSBに書き込まないようにします"
-          }
-        }
-      }
-    },
-    "이 USB에 다시는 쓰지 않고 읽지도 않습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Never write to or read this USB again"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このUSBに今後書き込まず、読み込みもしません"
-          }
-        }
-      }
-    },
     "이 USB에 쌓인 초안이 없습니다. 편집을 먼저 더하세요" : {
       "localizations" : {
         "en" : {
@@ -29212,38 +28540,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このUSBの下書きがありません。先に編集を追加してください"
-          }
-        }
-      }
-    },
-    "이 USB에 쓰기 허용…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Allow Writing to This USB…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このUSBへの書き込みを許可…"
-          }
-        }
-      }
-    },
-    "이 USB에 쓰기를 허용했습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Writing to this USB is allowed"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このUSBへの書き込みを許可しました"
           }
         }
       }
@@ -29324,38 +28620,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このUSBにはrekordboxのライブラリがありません。空のUSBならUSBへのエクスポートを使ってください"
-          }
-        }
-      }
-    },
-    "이 USB에는 쓰기를 허용하지 않았습니다. 사이드바에서 이 USB의 ‘이 USB에 쓰기 허용…’을 누르거나 djc usb-allow로 등록하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Writing to this USB is not allowed. Choose “Allow Writing to This USB…” for it in the sidebar, or register it with djc usb-allow"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このUSBへの書き込みは許可されていません。サイドバーでこのUSBの「このUSBへの書き込みを許可…」を選ぶか、djc usb-allowで登録してください"
-          }
-        }
-      }
-    },
-    "이 USB에는 쓰기를 허용할 수 없습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Writing cannot be allowed for this USB"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このUSBには書き込みを許可できません"
           }
         }
       }
@@ -29516,22 +28780,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このUSBのボリューム番号を読み込めませんでした。接続し直してからお試しください"
-          }
-        }
-      }
-    },
-    "이 USB의 쓰기 허용을 거뒀습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Write permission for this USB was removed"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このUSBの書き込み許可を取り消しました"
           }
         }
       }
@@ -30084,22 +29332,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このサンプルレートのffmpeg VBR MP3は解析規則が未確認のため、先にrekordboxで解析してください。"
-          }
-        }
-      }
-    },
-    "이 실물 USB에 쓰기를 허용한다(FAT32·MBR USB 메모리만, 터미널에서 볼륨 이름을 다시 입력). --remove는 허용을 거둔다. USB에는 쓰지 않는다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Allows writing to this physical USB (FAT32/MBR USB flash drives only; retype the volume name in a terminal). --remove revokes the permission. Does not write to the USB"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この実物のUSBへの書き込みを許可する（FAT32・MBRのUSBメモリのみ、ターミナルでボリューム名を入力し直す）。--removeで許可を取り消す。USBには書き込まない"
           }
         }
       }
@@ -30688,18 +29920,18 @@
         }
       }
     },
-    "이미 라이브러리가 있는 USB에 곡 더하기·빼기·갱신과 재생 목록 편집을 한 번에 쓴다(실물 USB는 --allow-physical·쓰기 허용·--confirm이 모두 있어야 씀)" : {
+    "이미 라이브러리가 있는 USB에 곡 더하기·빼기·갱신과 재생 목록 편집을 한 번에 쓴다(실물 USB는 --allow-physical --confirm <볼륨 이름>이 있어야 씀)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Write track additions, removals, and updates and playlist edits to a USB that already has a library, all at once (physical USBs need --allow-physical, write permission, and --confirm)"
+            "value" : "Write track additions, removals, and updates and playlist edits to a USB that already has a library, all at once (physical USBs need --allow-physical --confirm <volume name>)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "既にライブラリがあるUSBに、曲の追加・削除・更新とプレイリストの編集をまとめて書き込む（実物のUSBには--allow-physical・書き込み許可・--confirmがすべて必要）"
+            "value" : "既にライブラリがあるUSBに、曲の追加・削除・更新とプレイリストの編集をまとめて書き込む（実物のUSBには--allow-physical --confirm <ボリューム名>が必要）"
           }
         }
       }
@@ -31194,22 +30426,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "追加日"
-          }
-        }
-      }
-    },
-    "입력한 이름이 볼륨 이름과 달라 허용하지 않았습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The name you typed does not match the volume name, so writing was not allowed"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "入力した名前がボリューム名と異なるため許可しませんでした"
           }
         }
       }
@@ -35092,22 +34308,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "オンにすると、グリッドを移動したりBPMを変えたりしたときに、ホットキュー・メモリーキュー（ループを含む）が同じ拍に合わせて動きます"
-          }
-        }
-      }
-    },
-    "켜면 사이드바에서 ‘이 USB에 쓰기 허용…’을 고른 FAT32·MBR USB 메모리에만 씁니다. 먼저 쓰면 안 되는 USB 하나를 ‘쓰기 금지 목록에 넣기…’로 등록해야 합니다. 쓰기마다 바꿀 파일을 Mac에 백업하고 쓴 뒤 다시 읽어 확인합니다. 끄면 디스크 이미지에만 씁니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "When on, DJCrate writes only to FAT32, MBR USB flash drives you chose with “Allow Writing to This USB…” in the sidebar. First register one USB that must never be written with “Add to Write-Deny List…”. Each write backs up the files it changes to this Mac and reads the USB again afterward to verify. When off, it writes only to disk images."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "オンにすると、サイドバーで「このUSBへの書き込みを許可…」を選んだFAT32・MBRのUSBメモリにのみ書き込みます。先に、書き込んではいけないUSBを1つ「書き込み禁止リストに追加…」で登録する必要があります。書き込みのたびに変更するファイルをMacにバックアップし、書き込み後に読み直して確認します。オフにするとディスクイメージにのみ書き込みます。"
           }
         }
       }
@@ -39628,22 +38828,6 @@
         }
       }
     },
-    "확인 안 된 규칙 %lld개:" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unverified rules (%lld):"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未確認のルール %lld件:"
-          }
-        }
-      }
-    },
     "확인 안 된 규칙: %@" : {
       "localizations" : {
         "en" : {
@@ -39672,38 +38856,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未確認のルール: なし"
-          }
-        }
-      }
-    },
-    "확인 안 된 규칙은 rekordbox로 확인하지 않은 동작입니다. 쓴 뒤 기기에서 확인하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unverified rules are behaviors not yet confirmed with rekordbox. Check the result on a device after writing"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未確認のルールはrekordboxで確認していない動作です。書き込み後に機器で確認してください"
-          }
-        }
-      }
-    },
-    "확인 안 된 규칙은 디스크 이미지에서만 시험하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Test unverified rules on disk images only."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未確認の規則はディスクイメージでのみ試してください。"
           }
         }
       }

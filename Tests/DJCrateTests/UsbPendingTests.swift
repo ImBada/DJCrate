@@ -166,7 +166,7 @@ struct UsbPendingTests {
         #expect(confirm.details.contains("막힌 편집 1건(초안에 남깁니다):"))
         #expect(confirm.details.contains("• 편집 3: 대상이 USB에서 사라졌습니다. USB를 다시 읽은 뒤 고치세요"))
         #expect(confirm.details.contains("USB에서 지울 파일 3개"))
-        #expect(confirm.details.contains("확인 안 된 규칙 1개:"))
+        #expect(confirm.details.contains("CDJ에서 확인하지 않은 항목 1개:"))
         #expect(service.current.editJobs.last?.database == database)
         #expect(service.current.editJobs.last?.share == share)
         #expect(service.current.editJobs.last?.snapshotTime == "2026-01-01T00:00:00Z")

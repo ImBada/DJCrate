@@ -236,7 +236,7 @@ struct UsbRestoreTests {
         try fixture.write(fixture.editChanges())
         let after = fixture.tree()
         fixture.volume = FakeUsbVolume.physicalFAT32(uuid: fixture.volumeKey)
-        let gate = FakeUsbVolume.gate(allow: [fixture.volumeKey])
+        let gate = FakeUsbVolume.gate()
         let codes = refusal {
             _ = try UsbWriter.restore(root: fixture.root, paths: fixture.paths, backup: nil, guard: fixture.writeGuard(gate: gate),
                                       fileSystem: fixture.fileSystem(), confirmName: "DJCPHYS")

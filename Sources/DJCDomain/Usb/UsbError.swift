@@ -59,7 +59,7 @@ public enum UsbError: Error, LocalizedError, CustomStringConvertible, Sendable {
     public var description: String {
         switch self {
         case let .writeRefused(blocks):
-            // 확인 안 된 규칙은 `--allow-provisional`에 줄 이름(rawValue)을 code 옆에 적는다. 문구에는 번역된 설명만 있다.
+            // 확인 안 된 규칙은 이름(rawValue)을 code 옆에 적는다. 문구에는 번역된 설명만 있다.
             String(ui: "USB에 쓰지 않았습니다:")
                 + blocks.map { "\n- [\($0.code)\($0.rule.map { ":" + $0.rawValue } ?? "")] \($0.message)" }.joined()
         case let .writeRolledBack(reason):

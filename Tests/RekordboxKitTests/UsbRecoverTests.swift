@@ -397,7 +397,7 @@ struct UsbRecoverTests {
         let journal = fixture.journal()
         fixture.volume = FakeUsbVolume.physicalFAT32(uuid: fixture.volumeKey)
         let fs = fixture.fileSystem()
-        let gate = FakeUsbVolume.gate(allow: [fixture.volumeKey])
+        let gate = FakeUsbVolume.gate()
         do {
             _ = try UsbWriter.recover(root: fixture.root, paths: fixture.paths, guard: fixture.writeGuard(gate: gate), fileSystem: fs,
                                       confirmName: "DJCPHYS")

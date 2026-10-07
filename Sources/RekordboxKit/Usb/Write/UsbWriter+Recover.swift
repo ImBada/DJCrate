@@ -11,7 +11,7 @@ extension UsbWriteRun {
     enum DatabaseState: Equatable { case absent, old, new, other }
 
     func recover(discardTemp: Bool, confirmName: String?) throws -> UsbWriteReport {
-        let blocks = environmentBlocks(purpose: .edit, required: [], allowProvisional: [], confirmName: confirmName)
+        let blocks = environmentBlocks(purpose: .edit, required: [], confirmName: confirmName)
         if !blocks.isEmpty { throw UsbError.writeRefused(blocks) }
         switch UsbWriter.journalStatus(paths: paths, volumeKey: volumeKey) {
         case .missing, .closed:
