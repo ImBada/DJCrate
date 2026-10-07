@@ -193,6 +193,22 @@
         }
       }
     },
+    " · 사본 %lld개 남김" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · Kept %lld snapshots"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · スナップショット%lld個を残しました"
+          }
+        }
+      }
+    },
     " · 큐 %lld(수동 %lld) · 재생 목록 %lld · 재생 %lld" : {
       "localizations" : {
         "en" : {
@@ -3419,6 +3435,38 @@
         }
       }
     },
+    ": %@ · 파일 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ": %1$@ · %2$lld files"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ": %1$@ · ファイル%2$lld個"
+          }
+        }
+      }
+    },
+    ": 비우지 않음 — %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ": Not cleared — %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ": 削除していません — %@"
+          }
+        }
+      }
+    },
     "<검색어> [--bpm 최소-최대] [--key 키] [--playlist ID] [--filter 필터] [--comment-preset none|anisong] [--db PATH] [--json]" : {
       "localizations" : {
         "en" : {
@@ -5859,6 +5907,22 @@
         }
       }
     },
+    "USB 읽기 사본" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB read snapshots"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB読み取りスナップショット"
+          }
+        }
+      }
+    },
     "USB 작업을 취소했습니다" : {
       "localizations" : {
         "en" : {
@@ -6431,6 +6495,22 @@
         }
       }
     },
+    "USB를 열 때 다시 뜹니다. 볼륨마다 가장 새 사본은 남깁니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied again when a USB is opened. The newest snapshot of each volume is kept."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを開くときに再びコピーします。ボリュームごとに最新のスナップショットは残します"
+          }
+        }
+      }
+    },
     "USB를 읽기만 해서 형식·곡 수·경고를 보여 준다" : {
       "localizations" : {
         "en" : {
@@ -6635,6 +6715,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBに書き込んでいます…"
+          }
+        }
+      }
+    },
+    "USB에 쓰는 중이라 USB 읽기 사본은 비우지 않았습니다. 쓰기가 끝난 뒤 다시 비우세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB read snapshots were not cleared because a USB write is in progress. Clear them again after the write finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに書き込み中のため、USB読み取りスナップショットは削除していません。書き込みが終わってから再度削除してください"
           }
         }
       }
@@ -7445,6 +7541,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "[--backup <フォルダー> (--db <コピー> | --live) [--share <フォルダー>]]"
+          }
+        }
+      }
+    },
+    "[--clear <종류…|all>] [--dry-run]" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "[--clear <kind…|all>] [--dry-run]"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "[--clear <種類…|all>] [--dry-run]"
           }
         }
       }
@@ -10686,6 +10798,22 @@
         }
       }
     },
+    "rekordbox와 동기화할 때 다시 뜹니다. 가장 새 사본과 지금 연 사본은 남깁니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied again when syncing with rekordbox. The newest snapshot and the one currently open are kept."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxと同期するときに再びコピーします。最新のスナップショットと今開いているものは残します"
+          }
+        }
+      }
+    },
     "rekordbox의 iTunes 동기화 선택이 바뀌었습니다. 새로고침한 뒤 다시 선택하세요." : {
       "localizations" : {
         "en" : {
@@ -13340,6 +13468,22 @@
         }
       }
     },
+    "곡 목록을 그릴 때 다시 만듭니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rebuilt when the track list is drawn."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲リストを表示するときに作り直します"
+          }
+        }
+      }
+    },
     "곡 목록을 봅니다(⌘1)." : {
       "localizations" : {
         "en" : {
@@ -13912,6 +14056,22 @@
         }
       }
     },
+    "곡을 덱에 불러오거나 분석할 때 다시 만듭니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rebuilt when a track is loaded into the deck or analyzed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲をデッキに読み込むか解析するときに作り直します"
+          }
+        }
+      }
+    },
     "곡을 덱에 불러오고 그리드 읽기가 끝난 뒤 편집하세요" : {
       "localizations" : {
         "en" : {
@@ -13972,6 +14132,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "曲をデッキに読み込み、下書きの読み込みが終わってから編集してください"
+          }
+        }
+      }
+    },
+    "곡을 덱에 불러올 때 다시 만듭니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rebuilt when a track is loaded into the deck."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲をデッキに読み込むときに作り直します"
+          }
+        }
+      }
+    },
+    "곡을 덱에 불러올 때 다시 잽니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Measured again when a track is loaded into the deck."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲をデッキに読み込むときに測り直します"
           }
         }
       }
@@ -15730,6 +15922,22 @@
         }
       }
     },
+    "끝나지 않은 USB 쓰기가 있어 USB 읽기 사본은 비우지 않았습니다. USB를 연결해 회복한 뒤 다시 비우세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB read snapshots were not cleared because a USB write is unfinished. Connect the USB, recover it, then clear again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終わっていないUSB書き込みがあるため、USB読み取りスナップショットは削除していません。USBを接続して回復してから再度削除してください"
+          }
+        }
+      }
+    },
     "끝나지 않은 USB 쓰기를 마저 쓰거나 되돌린다" : {
       "localizations" : {
         "en" : {
@@ -17172,6 +17380,22 @@
         }
       }
     },
+    "데이터 폴더: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data folder: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データフォルダ: %@"
+          }
+        }
+      }
+    },
     "덱" : {
       "localizations" : {
         "en" : {
@@ -18108,6 +18332,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ライブラリのコピーがありません"
+          }
+        }
+      }
+    },
+    "라이브러리 읽기 사본" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Library snapshots"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリのスナップショット"
           }
         }
       }
@@ -20182,6 +20422,22 @@
         }
       }
     },
+    "모르는 캐시 종류입니다: %@. %@, all 중에서 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown cache kind: %1$@. Choose from %2$@, all."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不明なキャッシュの種類です: %1$@。%2$@, all から選んでください"
+          }
+        }
+      }
+    },
     "모르는 큐 기록이 있습니다" : {
       "localizations" : {
         "en" : {
@@ -20270,6 +20526,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレイリストの内容と曲順はMusicで変更します · キューとタグはここで編集できます"
+          }
+        }
+      }
+    },
+    "목록 미리 보기 파형" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "List preview waveforms"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リストのプレビュー波形"
           }
         }
       }
@@ -20558,6 +20830,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレビュー（ロールバック済み）"
+          }
+        }
+      }
+    },
+    "미리 보기(지우지 않음):" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview (nothing deleted):"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレビュー（削除しません）:"
           }
         }
       }
@@ -22318,6 +22606,22 @@
         }
       }
     },
+    "분석(섹션·그리드 추정·키)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analysis (sections, grid estimates, key)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解析（セクション・グリッド推定・キー）"
+          }
+        }
+      }
+    },
     "분석·앨범아트 파일: %@" : {
       "localizations" : {
         "en" : {
@@ -22416,6 +22720,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "比較中に入力または現在値が変わったため下書きを保持しました。現在値をもう一度取得してください。"
+          }
+        }
+      }
+    },
+    "비웠습니다:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleared:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除しました:"
           }
         }
       }
@@ -24034,6 +24354,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "スナップショットの時刻: %@"
+          }
+        }
+      }
+    },
+    "스냅샷 폴더: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snapshot folder: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スナップショットフォルダ: %@"
           }
         }
       }
@@ -27958,6 +28294,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "音量 —（無音）· ピーク %.1f dBFS"
+          }
+        }
+      }
+    },
+    "음량(오토게인)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loudness (Auto Gain)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音量（オートゲイン）"
           }
         }
       }
@@ -34276,6 +34628,22 @@
         }
       }
     },
+    "캐시 종류별 용량 보기·비우기(초안·백업은 지우지 않음)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show and clear cache size by kind (drafts and backups are never deleted)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キャッシュの種類別の容量を表示・削除（下書き・バックアップは削除しない）"
+          }
+        }
+      }
+    },
     "컬렉션" : {
       "localizations" : {
         "en" : {
@@ -35502,6 +35870,22 @@
         }
       }
     },
+    "크기는 파일 크기의 합이라 실제 디스크 사용보다 클 수 있습니다. 비우려면 djc cache --clear <종류…|all>" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sizes are sums of file sizes and may exceed actual disk usage. To clear: djc cache --clear <kind…|all>"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サイズはファイルサイズの合計のため、実際のディスク使用量より大きいことがあります。削除するには djc cache --clear <種類…|all>"
+          }
+        }
+      }
+    },
     "크레딧" : {
       "localizations" : {
         "en" : {
@@ -36528,6 +36912,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ファイル"
+          }
+        }
+      }
+    },
+    "파일 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld files"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイル%lld個"
           }
         }
       }
@@ -37952,6 +38352,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "あわせて確認するプレイリスト：%@"
+          }
+        }
+      }
+    },
+    "합계 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合計 %@"
           }
         }
       }
