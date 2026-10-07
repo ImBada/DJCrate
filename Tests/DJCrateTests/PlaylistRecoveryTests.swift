@@ -43,10 +43,11 @@ struct PlaylistRecoveryTests {
         let original = try prepare(fixture, store: store)
         let review = try await store.preparePlaylistRecovery(playlist: "A")
         #expect(store.playlistDraft == original && saved == nil)
-        let prompt = ReflectionCoordinator.playlistRecoveryConfirmation(review)
-        #expect(prompt.confirm == "다시 적용" && prompt.alternate == "초안 버리기")
-        #expect(prompt.details.contains { $0.contains("외부 이름") })
-        #expect(prompt.details.contains { $0.contains("내 이름") })
+        let details = RecoverySummary.playlistDetails(review)
+        let line = RecoveryLine(request: .playlist("A"))
+        #expect(line.label(for: .keep) == "다시 적용" && line.label(for: .useCurrent) == "초안 버리기")
+        #expect(details.contains { $0.contains("외부 이름") })
+        #expect(details.contains { $0.contains("내 이름") })
         try await store.applyPlaylistRecovery(review, reapply: true)
         #expect(saved == store.playlistDraft && store.blockedPlaylistEditCount == 1)
         #expect(store.playlistDraft.steps[1] == original.steps[1])
@@ -110,7 +111,11 @@ struct PlaylistRecoveryTests {
         #expect(store.blockedPlaylistRecoveryIDs == ["A"])
         let review = try await store.preparePlaylistRecovery(playlist: "A")
         #expect(review.recovery.reapplied.isEmpty && review.recovery.refused.count == 1)
-        #expect(ReflectionCoordinator.playlistRecoveryConfirmation(review).confirm == "초안 버리기")
+        // 다시 적용할 편집이 없으면 시트 줄은 내 편집 유지를 고를 수 없고 초안 버리기만 고른다.
+        let sheet = RecoverySheetModel(store: store, requests: [.playlist("A")])
+        await sheet.load()
+        let line = try #require(sheet.lines.first)
+        #expect(line.options == [.useCurrent, .later] && line.choice == .later && !line.canKeep)
         try await store.applyPlaylistRecovery(review, reapply: false)
         #expect(store.playlistDraft.isEmpty)
     }
@@ -138,16 +143,17 @@ struct PlaylistRecoveryTests {
         store.rekordboxPlaylists = PlaylistLayout(rekordbox: try RekordboxLibrary.load(snapshot: fixture.database).playlists)
         store.refreshPlaylists()
         let review = try await store.preparePlaylistRecovery(playlist: "A")
-        let prompt = ReflectionCoordinator.playlistRecoveryConfirmation(review)
-        #expect(prompt.details.contains("함께 확인할 목록: 맨 위"))
-        #expect(!prompt.details.contains("폴더: 사라진 목록"))
+        let details = RecoverySummary.playlistDetails(review)
+        #expect(details.contains("함께 확인할 목록: 맨 위"))
+        #expect(!details.contains("폴더: 사라진 목록"))
     }
 
     @Test func 비교화면에서_취소하면_쓰기와_저장이_없다() async throws {
         let fixture = try RekordboxFixture(), store = makeStore(fixture, save: { _ in Issue.record("취소 뒤 저장") })
         let original = try prepare(fixture, store: store)
-        let prompter = ScriptedPrompter(); prompter.choices = [.cancel]
-        await ReflectionCoordinator(host: store, prompter: prompter).recoverPlaylistDraft(store: store, playlist: "A")
-        #expect(store.playlistDraft == original && prompter.shown.count == 1)
+        // 시트를 열고 아무것도 고르지 않은 채 취소한다.
+        let prompter = ScriptedPrompter()
+        await ReflectionCoordinator(host: store, prompter: prompter).recover(store: store, requests: [.playlist("A")])
+        #expect(store.playlistDraft == original && prompter.reviewed.count == 1 && prompter.shown.isEmpty)
     }
 }

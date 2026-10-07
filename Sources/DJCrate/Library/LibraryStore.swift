@@ -331,6 +331,8 @@ final class LibraryStore {
     @ObservationIgnored var recoveryMemoryInput: ((String, DraftRecoveryKind) -> RecoveryDraft?)?
     @ObservationIgnored var onDraftRecovered: ((RecoveryDraft, TrackRow?, BeatGrid?) -> Void)?
     var isRecoveringDraft = false
+    /// 열려 있는 막힌 초안 복구 시트(#232). 메인 창(`ContentView`)과 곡 편집 창이 `anchor`에 맞는 쪽에서 띄운다.
+    var recoverySheet: RecoverySheetModel?
     private var cueDraftUUIDs: Set<String> = []
     private var gridDraftUUIDs: Set<String> = []
     private(set) var gainDraftUUIDs: Set<String> = []

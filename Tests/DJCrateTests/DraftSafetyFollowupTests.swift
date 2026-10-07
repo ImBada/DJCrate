@@ -55,9 +55,12 @@ struct DraftSafetyFollowupTests {
         await store.load(snapshot: fixture.database, arguments: store.launchArguments, environment: store.launchEnvironment)
         let row = try #require(store.rowsByUUID[spec.uuid])
         let review = try await store.prepareDraftRecovery(row: row, kind: .grid, home: fixture.root)
-        // 비교 창은 미리 "내 편집 유지"를 빼고 이유를 보인다.
+        // 복구 시트의 줄은 미리 "내 편집 유지"를 빼고 이유를 보인다.
         let refusal = try #require(review.keepRefusal)
-        #expect(ReflectionCoordinator.recoveryConfirmation(review, canKeep: false, keepRefusal: refusal).details.contains(refusal))
+        let sheet = RecoverySheetModel(store: store, requests: [.draft(row, .grid)], dependencies: .init(home: fixture.root))
+        await sheet.load()
+        let line = try #require(sheet.lines.first)
+        #expect(line.keepBlockedReason == refusal && line.options == [.useCurrent, .later] && line.choice == .later)
         await #expect(throws: DJCError.self) { try await store.applyDraftRecovery(review, choice: .keepEditing, home: fixture.root) }
         #expect(GridDraftStore.load(trackUUID: spec.uuid, directory: directory) == draft)
         // 현재값 사용은 그대로 된다(초안을 정리한다).

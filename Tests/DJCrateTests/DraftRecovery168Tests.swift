@@ -298,10 +298,12 @@ struct DraftRecovery168Tests {
         let occupying = EditableCue(sourceID: "new", kind: .hot(0), time: 4, name: "외부 슬롯 큐")
         var c = CueDraft(trackUUID: "synthetic", rekordboxCues: []); c.base = [old, occupying]; c.cues = c.base
         let review = DraftRecoveryReview(original: .cues(d), current: .cues(c), title: "합성 곡", currentRow: nil, currentGrid: nil)
-        let prompt = ReflectionCoordinator.recoveryConfirmation(review, canKeep: true)
-        #expect(prompt.details.contains(String(ui: "내 편집 유지 때 없어질 현재 큐:")))
-        #expect(prompt.details.contains { $0.contains("외부 슬롯 큐") })
-        #expect(prompt.text.contains(DraftRecoveryKind.cues.label) && prompt.alternate == String(ui: "현재값 사용"))
+        let details = RecoverySummary.details(review)
+        #expect(details.contains(String(ui: "내 편집 유지 때 없어질 현재 큐:")))
+        #expect(details.contains { $0.contains("외부 슬롯 큐") })
+        // 줄에는 어떤 종류의 차이인지와 내 편집을 유지하면 현재 큐가 없어진다는 경고가 보인다.
+        #expect(RecoverySummary.summary(review).contains(DraftRecoveryKind.cues.label))
+        #expect(RecoverySummary.notes(review) == [String(ui: "내 편집 유지를 고르면 rekordbox의 현재 큐 일부가 없어집니다. 자세히 보기에서 확인하세요.")])
         #expect(d.base == [old] && d.cues.count == 1)
     }
 
