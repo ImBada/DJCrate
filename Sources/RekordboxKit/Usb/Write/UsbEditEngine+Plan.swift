@@ -34,7 +34,7 @@ extension UsbEditEngine {
         // 1. 편집마다 계획(앞 편집을 적용한 모델 위에서)
         var planner = UsbEditPlanner(source: source, root: root, fileSystem: fileSystem, staging: staging, localDatabase: localDatabase,
                                      share: share, snapshotTakenAt: snapshotTakenAt, localAppVersion: localAppVersion,
-                                     clusterSize: volume.clusterSize ?? 32_768, highWater: highWater)
+                                     clusterSize: volume.clusterSize ?? 32_768, volumeFileSystem: volume.fileSystem, highWater: highWater)
         var planned: [UsbPlannedEdit] = []
         for (offset, edit) in edits.enumerated() {
             if isCancelled() { throw UsbError.cancelled }

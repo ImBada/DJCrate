@@ -31,6 +31,8 @@ struct UsbEditPlanner {
     let snapshotTakenAt: Date?
     let localAppVersion: String?
     let clusterSize: Int
+    /// 볼륨 형식(4GB 넘는 음원을 받을지)
+    let volumeFileSystem: UsbFileSystemKind
     var working: UsbLibrary
     var ids: UsbIDAllocator
     /// 이번 묶음에서 만든 목록(만들 때 준 key → id)
@@ -44,7 +46,7 @@ struct UsbEditPlanner {
     var deviceCueRows: [Int: Int]?
 
     init(source: UsbEditSource, root: UsbRoot, fileSystem: any UsbFileSystem, staging: URL, localDatabase: CipherDatabase?, share: URL?,
-         snapshotTakenAt: Date?, localAppVersion: String?, clusterSize: Int, highWater: [String: Int]) {
+         snapshotTakenAt: Date?, localAppVersion: String?, clusterSize: Int, volumeFileSystem: UsbFileSystemKind = .fat32, highWater: [String: Int]) {
         self.source = source
         writable = source.writable
         self.root = root
@@ -55,6 +57,7 @@ struct UsbEditPlanner {
         self.snapshotTakenAt = snapshotTakenAt
         self.localAppVersion = localAppVersion
         self.clusterSize = clusterSize
+        self.volumeFileSystem = volumeFileSystem
         working = source.current
         ids = Self.allocator(source.current, highWater: highWater)
     }
