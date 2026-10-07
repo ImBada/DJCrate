@@ -38,8 +38,8 @@ enum DirectWritePanels {
     static func restoreLatest(store: LibraryStore) {
         store.refreshWriteBackups()
         guard let backup = RekordboxWriter.backups(in: store.backupDirectory).first(where: \.isWrite) else {
-            _ = AlertPrompter().show(ReflectionPrompt(title: String(ui: "복원할 쓰기 기록이 없습니다"),
-                                                      text: String(ui: "DJCrate가 rekordbox에 쓴 적이 없거나 백업이 정리됐습니다.")))
+            // 메뉴는 백업이 있을 때만 열린다. 그 사이 백업이 정리됐으면 창 대신 토스트로 알린다(#230).
+            store.toast = .notice(String(ui: "복원할 쓰기 기록이 없습니다"), String(ui: "DJCrate가 rekordbox에 쓴 적이 없거나 백업이 정리됐습니다."))
             return
         }
         guard !store.isWritingRekordbox, store.writeTask == nil else { return }
@@ -52,7 +52,7 @@ enum DirectWritePanels {
     /// 쓰기 결과 토스트의 복원 단추. 누른 것이 확인이라 그 뒤 변경·초안 충돌이 없으면 묻지 않는다(#210).
     static func restore(store: LibraryStore, backupURL: URL) {
         guard let backup = backup(matching: backupURL, in: RekordboxWriter.backups(in: DJCPaths.rekordboxBackups)) else {
-            _ = AlertPrompter().show(ReflectionPrompt(title: String(ui: "백업을 찾지 못했습니다"), text: backupURL.path))
+            store.toast = .notice(String(ui: "백업을 찾지 못했습니다"), backupURL.path)
             return
         }
         guard !store.isWritingRekordbox, store.writeTask == nil else { return }

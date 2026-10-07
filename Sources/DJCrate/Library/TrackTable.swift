@@ -623,7 +623,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
                                      action: #selector(reflectSelected), keyEquivalent: "")
             reflect.target = self
             menu.addItem(reflect)
-            let xml = NSMenuItem(title: String(ui: "선택한 곡 XML 만들기 (\(pending.count)곡)…"), action: #selector(exportReflectionXML), keyEquivalent: "")
+            let xml = NSMenuItem(title: String(ui: "선택한 곡 XML 만들기 (\(pending.count)곡)"), action: #selector(exportReflectionXML), keyEquivalent: "")
             xml.target = self
             menu.addItem(xml)
         }

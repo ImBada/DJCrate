@@ -405,7 +405,11 @@ struct UsbWriteCoordinatorTests {
         await coordinator(usb, running: true).export(job())
         #expect(await coordinator(usb, running: true).preview(job()) == nil)
         #expect(service.current.calls.isEmpty)
-        #expect(prompter.shown.first?.title == "rekordbox가 켜져 있어 USB에 쓰지 않았습니다")
+        // 창을 띄우지 않고 닫을 때까지 남는 경고 토스트로 알린다(#230)
+        #expect(prompter.shown.isEmpty)
+        #expect(host.toast?.title == "rekordbox가 켜져 있어 USB에 쓰지 않았습니다" && host.toast?.kind == .warning)
+        #expect(host.toast?.detail == "rekordbox와 rekordboxAgent를 완전히 종료한 뒤 다시 누르세요.")
+        #expect(host.toast?.isUsb == true && host.toast?.showsResult == false && host.toast?.duration == .infinity)
         #expect(usb.busyVolumes.isEmpty)
     }
 
@@ -418,8 +422,12 @@ struct UsbWriteCoordinatorTests {
         #expect(usb.beginWrite(image, title: "두 번째") == nil)
         await coordinator(usb).export(job())
         #expect(service.current.calls.isEmpty)
-        #expect(prompter.shown.last?.title == "이 USB에 쓰는 중입니다")
+        #expect(prompter.shown.isEmpty && host.toast?.title == "이 USB에 쓰는 중입니다" && host.toast?.kind == .warning)
         #expect(await usb.eject(image.usbKey) == "USB에 쓰는 중입니다. 쓰기가 끝난 뒤 꺼내세요")
+        // 토스트의 꺼내기가 실패해도 창 대신 토스트로 알린다
+        await coordinator(usb).perform(.ejectUsb(volumeKey: image.usbKey))
+        #expect(prompter.shown.isEmpty && host.toast?.title == "USB를 꺼내지 못했습니다")
+        #expect(host.toast?.detail == "USB에 쓰는 중입니다. 쓰기가 끝난 뒤 꺼내세요" && host.toast?.kind == .warning)
         usb.endWrite(image.usbKey)
         #expect(usb.busyVolumes.isEmpty)
     }

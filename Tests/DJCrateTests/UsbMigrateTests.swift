@@ -91,11 +91,11 @@ struct UsbMigrateTests {
         let (usb, _) = await store()
         await coordinator(usb, running: true).migrate(image)
         #expect(service.current.calls.isEmpty)
-        #expect(prompter.shown.last?.title == "rekordbox가 켜져 있어 USB에 쓰지 않았습니다")
+        #expect(prompter.shown.isEmpty && host.toast?.title == "rekordbox가 켜져 있어 USB에 쓰지 않았습니다")
         _ = usb.beginWrite(image, title: "시험")
         await coordinator(usb).migrate(image)
         #expect(service.current.calls.isEmpty)
-        #expect(prompter.shown.last?.title == "이 USB에 쓰는 중입니다")
+        #expect(prompter.shown.isEmpty && host.toast?.title == "이 USB에 쓰는 중입니다")
         usb.endWrite(image.usbKey)
         service.update { $0.journal = .state(.filesWritten) }
         prompter.choices = [.cancel]

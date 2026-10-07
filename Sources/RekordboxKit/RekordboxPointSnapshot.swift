@@ -45,6 +45,8 @@ public enum RekordboxPointSnapshot {
         public var items: [String]
         /// 같은 볼륨이라 클론으로 떴는지
         public var cloned: Bool?
+        /// 복원 직전 스냅샷이면 되돌린 스냅샷의 이름(없으면 ID, #225)
+        public var restoredFrom: String?
 
         public init(name: String, kind: Kind, createdAt: Date, pinned: Bool = false, libraryID: String? = nil,
                     localUpdateCount: Int? = nil, cloudUpdateCount: Int? = nil, trackCount: Int? = nil, items: [String] = [], cloned: Bool? = nil) {
@@ -66,6 +68,13 @@ public enum RekordboxPointSnapshot {
         public var metadata: Metadata
         /// 폴더 이름(CLI가 고를 때 쓰는 ID)
         public var id: String { url.lastPathComponent }
+        /// 이름이 있으면 이름, 없으면 ID
+        public var displayName: String { metadata.name.isEmpty ? id : metadata.name }
+
+        public init(url: URL, metadata: Metadata) {
+            self.url = url
+            self.metadata = metadata
+        }
 
         public static func == (lhs: Entry, rhs: Entry) -> Bool { lhs.url == rhs.url && lhs.metadata == rhs.metadata }
         public func hash(into hasher: inout Hasher) { hasher.combine(url) }
@@ -98,7 +107,7 @@ public enum RekordboxPointSnapshot {
 
     /// 정리 없이 뜬다(복원 직전 스냅샷은 복원이 끝난 뒤 정리한다).
     static func take(name: String, kind: Kind, database: URL, shareRoot: URL?, in directory: URL, now: Date,
-                     guard writeGuard: RekordboxWriteGuard) throws -> Entry {
+                     guard writeGuard: RekordboxWriteGuard, restoredFrom: String? = nil) throws -> Entry {
         let fm = FileManager.default
         let live = writeGuard.isLive(database)
         let share = try resolvedShare(database, shareRoot: shareRoot, guard: writeGuard)
@@ -144,6 +153,7 @@ public enum RekordboxPointSnapshot {
             let copy = partial.appending(path: "master.db")
             var metadata = Metadata(name: trimmed, kind: kind, createdAt: now, items: items,
                                     cloned: canClone(from: database.deletingLastPathComponent(), to: directory))
+            metadata.restoredFrom = restoredFrom
             try describe(copy, into: &metadata)
             try save(metadata, in: partial)
             let folder = uniqueFolder(in: directory, now: now, kind: kind)
@@ -337,6 +347,27 @@ public enum RekordboxPointSnapshot {
             if now.timeIntervalSince(created) > 600 { try? fm.removeItem(at: stale) }
         }
         return removed
+    }
+
+    /// 파일 하나의 크기·수정 시각(클론·복사는 수정 시각을 그대로 둔다)
+    public struct FileStamp: Sendable, Equatable {
+        public var size: Int64
+        public var modified: Date?
+    }
+
+    /// 폴더 아래 일반 파일(상대 경로 → 크기·수정 시각). 없는 폴더는 빈 목록. 복원 검증과 차이 요약이 쓴다.
+    public static func fileStamps(_ folder: URL) -> [String: FileStamp] {
+        let root = folder.standardizedFileURL.resolvingSymlinksInPath()
+        var stamps: [String: FileStamp] = [:]
+        let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
+        let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: keys)
+        while let url = enumerator?.nextObject() as? URL {
+            guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true else { continue }
+            let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+            guard path.hasPrefix(root.path + "/") else { continue }
+            stamps[String(path.dropFirst(root.path.count + 1))] = FileStamp(size: Int64(values.fileSize ?? 0), modified: values.contentModificationDate)
+        }
+        return stamps
     }
 
     /// 담은 파일의 논리 크기 합(클론이면 실제 디스크 사용은 더 작다)

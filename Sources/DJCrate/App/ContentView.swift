@@ -63,7 +63,7 @@ struct ContentView: View {
                     if let toast = store.toast {
                         AppToastView(toast: toast,
                                      onUndo: toast.undoBackup.map { url in { store.toast = nil; DirectWritePanels.restore(store: store, backupURL: url) } },
-                                     onDetails: toast.isUsb ? nil : { store.showingWriteResult = true },
+                                     onDetails: toast.showsResult ? { store.showingWriteResult = true } : nil,
                                      onAction: toast.action.map { action in { Task { await store.usbCoordinator?.perform(action) } } },
                                      onClose: { if store.toast?.id == toast.id { store.toast = nil } })
                             .padding(.bottom, 16)

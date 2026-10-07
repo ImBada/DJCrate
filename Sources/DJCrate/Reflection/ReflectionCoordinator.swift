@@ -129,6 +129,8 @@ protocol ReflectionHost: AnyObject {
     func restoreDraftConflictDetails(_ backup: RekordboxWriter.Backup) -> [String]
     /// 이 백업 뒤에 뜬 백업 수(복원하면 그 쓰기·복원도 함께 되돌린다, #222)
     func laterBackupCount(_ backup: RekordboxWriter.Backup) -> Int
+    /// 이 백업 뒤에 시점 스냅샷으로 복원해 이 백업으로는 되돌릴 수 없으면 그 이유(#225)
+    func pointRestoreRefusal(_ backup: RekordboxWriter.Backup) -> String?
     /// - Parameter keepingCurrentDrafts: 쓴 뒤 새로 만든 초안을 남기고 그 곡의 백업 초안은 되살리지 않는다
     func restoreRekordbox(_ backup: RekordboxWriter.Backup, keepingCurrentDrafts: Bool) async throws -> URL
     // 곡 넣기·빼기
@@ -138,13 +140,17 @@ protocol ReflectionHost: AnyObject {
     func trackDeleteTargets(_ rows: [TrackRow]) -> [TrackRow]
     func previewTrackDelete(rows: [TrackRow]) async throws -> LibraryStore.TrackDeletePreview
     func deleteTracksFromRekordbox(_ preview: LibraryStore.TrackDeletePreview) async throws -> RekordboxTrackWriter.Report
+    /// 고른 곡 가운데 쓰기에서 빠지는 초안의 줄(`blockedOnly`면 막힌 것만)
+    func draftExclusions(for rows: [TrackRow], blockedOnly: Bool) -> [String]
 }
 
 extension ReflectionHost {
     var writeFollowUp: [String] { [] }
     var canBackUpBeforeWrite: Bool { true }
+    func draftExclusions(for rows: [TrackRow], blockedOnly: Bool) -> [String] { [] }
     func restoreDraftConflictDetails(_ backup: RekordboxWriter.Backup) -> [String] { [] }
     func laterBackupCount(_ backup: RekordboxWriter.Backup) -> Int { 0 }
+    func pointRestoreRefusal(_ backup: RekordboxWriter.Backup) -> String? { nil }
     func restoreRekordbox(_ backup: RekordboxWriter.Backup, keepingCurrentDrafts: Bool) async throws -> URL {
         try await restoreRekordbox(backup)
     }
@@ -163,14 +169,14 @@ struct ReflectionCoordinator {
     func write(rows: [TrackRow], playlists: Bool = true) async {
         guard !host.isWritingRekordbox else { return }
         guard !isRekordboxRunning() else {
-            inform(String(ui: "rekordbox가 켜져 있어 쓰지 않았습니다"), Self.quitRekordboxText)
+            notify(String(ui: "rekordbox가 켜져 있어 쓰지 않았습니다"), Self.quitRekordboxText)
             return
         }
         let targets = host.writeTargets(rows)
         let withPlaylists = playlists && host.hasPlaylistDrafts
         guard !targets.isEmpty || withPlaylists else {
-            inform(String(ui: "쓸 초안이 없습니다"), String(ui: "고른 곡에 rekordbox와 다른 큐·그리드·게인·태그 초안이 없습니다."),
-                   details: (host as? LibraryStore)?.draftExclusionReasons(for: rows) ?? [])
+            notify(String(ui: "쓸 초안이 없습니다"), String(ui: "고른 곡에 rekordbox와 다른 큐·그리드·게인·태그 초안이 없습니다."),
+                   lines: host.draftExclusions(for: rows, blockedOnly: false))
             return
         }
         host.setWriteLock(true)
@@ -185,7 +191,13 @@ struct ReflectionCoordinator {
             guard !report.written.isEmpty || !report.gridWritten.isEmpty || !report.analysisWritten.isEmpty || !report.gainWritten.isEmpty
                     || !report.tagWritten.isEmpty || !report.artworkWritten.isEmpty || !report.playlistWritten.isEmpty
                     || !report.mergeWritten.isEmpty else {
-                publish(.written(report, preview: report))
+                // 창 대신 결과에 제외한 초안까지 남긴다(#230).
+                var result = WriteResult.written(report, preview: report)
+                if !preview.exclusions.isEmpty {
+                    result.text = ([result.text, String(ui: "쓰지 않는 것:")].filter { !$0.isEmpty } + preview.exclusions).joined(separator: "\n")
+                    result.shortfall = result.shortfall ?? Self.summaryLine(preview.exclusions, prefix: String(ui: "쓰지 않는 것"))
+                }
+                publish(result)
                 if let store = host as? LibraryStore,
                    targets.contains(where: { !store.recoveryKinds(for: $0).isEmpty }) || !report.playlistBlocked.isEmpty {
                     let tracks = targets.contains { !store.recoveryKinds(for: $0).isEmpty }
@@ -201,9 +213,8 @@ struct ReflectionCoordinator {
                         if tracks && choice == .confirm { await chooseRecoveryTarget(store: store, rows: targets) }
                         else { await recoverPlaylistDraft(store: store) }
                     }
-                } else {
-                    inform(String(ui: "rekordbox에 쓸 수 있는 초안이 없습니다"), "", details: Self.reasons(report) + preview.exclusions)
                 }
+                // 고를 것이 없으면 창을 띄우지 않는다. 막힌 이유는 위 결과 토스트와 결과 보기에 있다(#230).
                 return
             }
             // 막힘·제외·손실이 없으면 묻지 않고 쓴다. 결과 토스트와 메뉴의 "쓰기 전으로 복원…"으로 되돌린다(#210).
@@ -230,9 +241,8 @@ struct ReflectionCoordinator {
             publishCancelled()
         } catch {
             host.writeStage = nil
-            fail(String(ui: "rekordbox에 쓰지 않았습니다"), error)
-            let exclusions = (host as? LibraryStore)?.draftExclusionReasons(for: rows, blockedOnly: true) ?? []
-            if !exclusions.isEmpty { inform(String(ui: "미리 보기에서 제외한 초안"), "", details: exclusions) }
+            // 미리 보기에서 제외한 초안은 따로 창을 띄우지 않고 실패 알림에 합친다(#230).
+            fail(String(ui: "rekordbox에 쓰지 않았습니다"), error, exclusions: host.draftExclusions(for: rows, blockedOnly: true))
         }
     }
 
@@ -240,12 +250,12 @@ struct ReflectionCoordinator {
     func addTracks(rows: [TrackRow]) async {
         guard !host.isWritingRekordbox else { return }
         guard !isRekordboxRunning() else {
-            inform(String(ui: "rekordbox가 켜져 있어 넣지 않았습니다"), Self.quitRekordboxText)
+            notify(String(ui: "rekordbox가 켜져 있어 넣지 않았습니다"), Self.quitRekordboxText)
             return
         }
         let targets = host.trackAddTargets(rows)
         guard !targets.isEmpty else {
-            inform(String(ui: "rekordbox에 넣을 곡이 없습니다"), String(ui: "DJCrate에 추가한 곡만 rekordbox에 넣을 수 있습니다."))
+            notify(String(ui: "rekordbox에 넣을 곡이 없습니다"), String(ui: "DJCrate에 추가한 곡만 rekordbox에 넣을 수 있습니다."))
             return
         }
         host.setWriteLock(true)
@@ -257,8 +267,8 @@ struct ReflectionCoordinator {
             try Task.checkCancellation()
             host.writeStage = nil
             guard preview.report.added.contains(where: \.written) else {
+                // 넣지 않은 이유는 결과 토스트와 결과 보기에 있다(#230).
                 publish(.tracks(preview.report, preview: preview.report, adding: true, withoutAnalysis: preview.withoutAnalysis, unreadable: preview.unreadable))
-                inform(String(ui: "rekordbox에 넣을 수 있는 곡이 없습니다"), "", details: Self.addReasons(preview))
                 return
             }
             let canBackUp = host.canBackUpBeforeWrite, writesArtwork = RekordboxTrackWriter.writesArtwork
@@ -283,12 +293,12 @@ struct ReflectionCoordinator {
     func deleteTracks(rows: [TrackRow]) async {
         guard !host.isWritingRekordbox else { return }
         guard !isRekordboxRunning() else {
-            inform(String(ui: "rekordbox가 켜져 있어 빼지 않았습니다"), Self.quitRekordboxText)
+            notify(String(ui: "rekordbox가 켜져 있어 빼지 않았습니다"), Self.quitRekordboxText)
             return
         }
         let targets = host.trackDeleteTargets(rows)
         guard !targets.isEmpty else {
-            inform(String(ui: "rekordbox에서 뺄 곡이 없습니다"), String(ui: "rekordbox 컬렉션의 로컬 곡만 뺄 수 있습니다(스트리밍·추가한 곡 제외)."))
+            notify(String(ui: "rekordbox에서 뺄 곡이 없습니다"), String(ui: "rekordbox 컬렉션의 로컬 곡만 뺄 수 있습니다(스트리밍·추가한 곡 제외)."))
             return
         }
         host.setWriteLock(true)
@@ -300,9 +310,8 @@ struct ReflectionCoordinator {
             try Task.checkCancellation()
             host.writeStage = nil
             guard preview.report.deleted.contains(where: \.written) else {
+                // 빼지 않은 이유는 결과 토스트와 결과 보기에 있다(#230).
                 publish(.tracks(preview.report, preview: preview.report, adding: false))
-                inform(String(ui: "rekordbox에서 뺄 수 있는 곡이 없습니다"), "",
-                       details: preview.report.deleted.map { "• \($0.title): \($0.reason ?? "")" })
                 return
             }
             guard prompter.show(Self.deleteConfirmation(preview)) else { return }
@@ -322,7 +331,12 @@ struct ReflectionCoordinator {
     func restore(_ backup: RekordboxWriter.Backup, confirmed: Bool = false) async {
         guard !host.isWritingRekordbox else { return }
         guard !isRekordboxRunning() else {
-            inform(String(ui: "rekordbox가 켜져 있어 복원하지 않았습니다"), String(ui: "rekordbox를 완전히 종료한 뒤 다시 누르세요."))
+            notify(String(ui: "rekordbox가 켜져 있어 복원하지 않았습니다"), String(ui: "rekordbox를 완전히 종료한 뒤 다시 누르세요."))
+            return
+        }
+        // 시점 복원 뒤의 옛 백업은 복원 직전 백업도 만들지 않고 이유와 할 일만 알린다(#225).
+        if let reason = host.pointRestoreRefusal(backup) {
+            notify(String(ui: "복원하지 않았습니다"), reason)
             return
         }
         host.setWriteLock(true)
@@ -379,21 +393,37 @@ struct ReflectionCoordinator {
         host.toast = toast
     }
 
-    private func inform(_ title: String, _ text: String, details: [String] = []) {
-        _ = prompter.show(ReflectionPrompt(title: title, text: text, details: details))
+    /// 아무것도 쓰지 않은 안내(지금은 못 함·할 것 없음): 창을 띄우지 않고 닫을 때까지 남는 경고 토스트로 알린다(#230).
+    /// 쓰기 결과가 아니라 결과 기록에 남기지 않고, 이유 줄은 앞 둘과 남은 수만 보인다.
+    private func notify(_ title: String, _ text: String, lines: [String] = []) {
+        host.toast = .notice(title, ([text] + [Self.summaryLine(lines)].compactMap { $0 }).joined(separator: "\n"))
+    }
+
+    /// 이유 줄 목록을 토스트 한 줄로: 앞 둘과 "외 N건"
+    static func summaryLine(_ lines: [String], prefix: String? = nil, limit: Int = 2) -> String? {
+        guard !lines.isEmpty else { return nil }
+        var text = lines.prefix(limit).map { $0.hasPrefix("• ") ? String($0.dropFirst(2)) : $0 }.joined(separator: ", ")
+        if lines.count > limit { text += " " + String(ui: "외 \(lines.count - limit)건") }
+        return prefix.map { "\($0) \(lines.count): \(text)" } ?? text
     }
 
     /// 쓰기 실패 알림. 자동 복원까지 실패했으면 사라지는 토스트가 아니라 닫아야 하는 경고 창으로 알린다.
-    private func fail(_ title: String, _ error: any Error) {
-        if let alert = Self.restoreFailureAlert(error) {
+    /// - Parameter exclusions: 미리 보기에서 제외한 초안. 따로 창을 띄우지 않고 이 알림과 결과 기록에 합친다(#230).
+    private func fail(_ title: String, _ error: any Error, exclusions: [String] = []) {
+        let excluded = Self.summaryLine(exclusions, prefix: String(ui: "미리 보기에서 제외한 초안"))
+        let excludedText = exclusions.isEmpty ? [] : [String(ui: "미리 보기에서 제외한 초안:")] + exclusions
+        if var alert = Self.restoreFailureAlert(error) {
             host.toast = nil
             let backups: [URL]
             if case let DJCError.restoreFailed(_, _, backup, _) = error { backups = [URL(filePath: backup)] } else { backups = [] }
-            host.resultHistory.record(WriteResult(kind: .failure, title: alert.title, text: alert.text, backups: backups))
+            host.resultHistory.record(WriteResult(kind: .failure, title: alert.title,
+                                                  text: ([alert.text] + excludedText).joined(separator: "\n"), backups: backups))
+            alert.details = excludedText
             _ = prompter.show(alert)
         } else {
             let message = AppErrorMessage.message(for: error)
-            publish(WriteResult(kind: .failure, title: title, text: message), detail: message)
+            publish(WriteResult(kind: .failure, title: title, text: ([message] + excludedText).joined(separator: "\n")),
+                    detail: [message, excluded].compactMap { $0 }.joined(separator: "\n"))
         }
     }
 
@@ -576,6 +606,10 @@ extension LibraryStore: ReflectionHost {
         var folder = backupDirectory
         while !fm.fileExists(atPath: folder.path), folder.pathComponents.count > 1 { folder = folder.deletingLastPathComponent() }
         return fm.isWritableFile(atPath: folder.path)
+    }
+
+    func draftExclusions(for rows: [TrackRow], blockedOnly: Bool) -> [String] {
+        draftExclusionReasons(for: rows, blockedOnly: blockedOnly)
     }
 
     func setWriteLock(_ locked: Bool) {

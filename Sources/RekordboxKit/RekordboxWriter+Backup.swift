@@ -103,10 +103,11 @@ extension RekordboxWriter {
     /// 백업을 만든 모든 경로(쓰기·곡 넣기·빼기·iTunes 동기화·복원)가 끝에 부른다(#221).
     /// 쓰기 백업만 세어 `backupsToKeep`개를 넘으면, 남길 가장 옛 쓰기 백업보다 옛 백업(복원 직전 포함)을 지운다.
     /// 복원 직전 백업은 세지 않되 사이의 것을 지우지 않는다: 옛 백업으로 되돌릴 때 그 뒤 백업을 모두 거쳐야 한다(#222 연쇄 복원).
+    /// 시점 복원 표시(#225)도 같은 순서로 세어 그보다 옛 쓰기 백업이 정리될 때 함께 지운다.
     static func prune(_ directory: URL) {
         let fm = FileManager.default
         let folders = ((try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.creationDateKey])) ?? [])
-            .filter { fm.fileExists(atPath: $0.appending(path: "master.db").path) }
+            .filter { fm.fileExists(atPath: $0.appending(path: "master.db").path) || isPointRestoreMarker($0) }
             .sorted { isNewer($0, than: $1) }
         let writes = folders.indices.filter { Backup.isWriteName(folders[$0].lastPathComponent) }
         guard writes.count > backupsToKeep else { return }
@@ -144,6 +145,8 @@ extension RekordboxWriter {
             }
         }
         try checkSameLibrary(backup: backup.appending(path: "master.db"), target: database)
+        // 이 백업 뒤에 시점 스냅샷으로 복원했으면 사슬로 분석 파일을 맞출 수 없다(#225).
+        if let reason = pointRestoreRefusal(after: backup, in: backups) { throw DJCError.writeRefused(reason) }
         if let saved = try restoreITunesSync(backup, to: database, now: now, backups: backups, guard: writeGuard) { return saved }
         // 백업이 멀쩡한지 먼저 본다.
         for name in ["master.db", "master.db-wal", "master.db-shm", "masterPlaylists6.xml"] {

@@ -56,19 +56,18 @@ struct ReflectionPromptLayoutTests {
         #expect(warned.text.contains("XML에 넣지 않은 초안 1: 곡 t: 태그 쓰지 않음"))
     }
 
-    @Test func XML_반영이_막힌_곡은_이유를_생략하지_않는다() throws {
+    /// XML로 만들 곡이 없으면 창을 띄우지 않고 XML 결과 줄 자리에 남긴다(#230). 막힌 곡은 결과 줄처럼 앞 둘과 수를 적는다.
+    @Test func XML로_만들_곡이_없으면_창_대신_결과_줄로_알린다() {
         let plans = (1...100).map { index in
             var plan = Reflection.plan(track: Fixture.row("xml-\(index)").track, rawCues: [], cueDraft: nil, gridDraft: nil)
             plan.blockers = ["막힌 이유"]
             return plan
         }
-        let prompt = ReflectionPanels.blockedPrompt(plans)
-        #expect(prompt.text.count < 180)
-        #expect(try detailText(prompt).components(separatedBy: "\n")
-            == (1...100).map { "• 곡 xml-\($0): 막힌 이유" })
-        let empty = ReflectionPanels.blockedPrompt([])
-        #expect(empty.text == "고른 곡에 rekordbox와 다른 큐·그리드 초안이 없습니다.")
-        #expect(empty.details.isEmpty)
+        let message = ReflectionPanels.blockedMessage(plans)
+        #expect(message.kind == .warning)
+        #expect(message.text == "XML로 만들 곡이 없습니다 · 막혀서 뺀 곡 100: 곡 xml-1(막힌 이유), 곡 xml-2(막힌 이유)")
+        let empty = ReflectionPanels.blockedMessage([])
+        #expect(empty.kind == .warning && empty.text == "XML로 만들 곡이 없습니다 · 고른 곡에 rekordbox와 다른 큐·그리드 초안이 없습니다.")
     }
 
     /// 막힘이 없으면 곡이 많아도 묻지 않고 모두 쓴다(#210). 곡마다의 결과는 쓰기 결과에 남는다.
@@ -129,7 +128,8 @@ struct ReflectionPromptLayoutTests {
         for index in 1...100 { #expect(lines.contains("• 곡 restore-\(index)")) }
     }
 
-    @Test func 모두_막힌_경우도_전체_이유를_스크롤로_확인한다() async throws {
+    /// 모두 막히면 창을 띄우지 않고(#230) 결과 기록(결과 보기)에 100곡의 이유를 모두 남긴다.
+    @Test func 모두_막힌_경우도_전체_이유를_결과_보기에_남긴다() async throws {
         let host = FakeReflectionHost(), prompter = ScriptedPrompter()
         host.preview = .success(Fixture.preview(cues: (1...100).map {
             Fixture.outcome("blocked-\($0)", .blocked, reason: "막힌 이유")
@@ -141,15 +141,15 @@ struct ReflectionPromptLayoutTests {
         host.deletePreview = .success(.init(report: deleted, contentIDs: []))
         let coordinator = ReflectionCoordinator(host: host, prompter: prompter, isRekordboxRunning: { false })
         await coordinator.write(rows: [Fixture.row("blocked-1")])
+        var lines = host.resultHistory.latest?.text.components(separatedBy: "\n") ?? []
+        #expect(lines == (1...100).map { "• 곡 blocked-\($0) — 큐 쓰지 않음: 막힌 이유" })
         await coordinator.addTracks(rows: [Fixture.row("djc-blocked-1")])
+        lines = host.resultHistory.latest?.text.components(separatedBy: "\n") ?? []
+        #expect(lines == (1...100).map { "• 곡 blocked-\($0) — 넣지 않음: 막힌 이유" })
         await coordinator.deleteTracks(rows: [Fixture.row("blocked-1")])
-        #expect(prompter.shown.count == 3)
-        for prompt in prompter.shown {
-            #expect(prompt.text.count < 180 && prompt.confirm == nil)
-            #expect(try detailText(prompt).components(separatedBy: "\n")
-                == (1...100).map { "• 곡 blocked-\($0): 막힌 이유" })
-        }
-        #expect(host.resultHistory.latest?.text.contains("곡 blocked-100") == true)
+        lines = host.resultHistory.latest?.text.components(separatedBy: "\n") ?? []
+        #expect(lines == (1...100).map { "• 곡 blocked-\($0) — 빼지 않음: 막힌 이유" })
+        #expect(prompter.shown.isEmpty && host.toast?.kind == .warning)
         #expect(host.wrote == nil && host.added == nil && host.deleted == nil)
     }
 
