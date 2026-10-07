@@ -16,6 +16,9 @@ public enum UsbFileSystemKind: Codable, Hashable, Sendable {
         case let .other(name): name
         }
     }
+
+    /// 4 GiB 이상 파일을 담을 수 있는지. FAT 계열 한계(파일 크기 32비트)라 exFAT만 참이고, 모르는 형식은 막는 쪽으로 본다
+    public var allowsFilesOver4GiB: Bool { self == .exfat }
 }
 
 public enum UsbPartitionScheme: String, Codable, Sendable {

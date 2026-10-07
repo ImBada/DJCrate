@@ -346,7 +346,7 @@ extension UsbEditPlanner {
         let sources = Dictionary(candidates.map { ($0.localContentID, $0.sourcePath ?? "") }) { first, _ in first }
         var request = UsbExportRequest(
             candidates: candidates, playlists: [], existing: existing, formats: writable, naming: IdentifierAnalysisNaming(),
-            snapshotTakenAt: snapshot, clusterSize: clusterSize,
+            snapshotTakenAt: snapshot, clusterSize: clusterSize, fileSystem: volumeFileSystem,
             sameContent: { id, relative in UsbExportCandidates.sameContent(sourcePath: sources[id] ?? "", usbFile: rootURL.appending(path: relative)) })
         var base = working
         base.formats = writable
