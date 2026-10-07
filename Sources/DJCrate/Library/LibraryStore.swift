@@ -20,6 +20,9 @@ enum SidebarItem: Hashable, Sendable {
     case usb(UsbSidebarTarget)
 }
 
+/// 처음 읽을 때만 임시 파일 청소를 돈다(전역 지연 초기화라 한 번만 실행된다)
+private let tempCleanupOnce: Void = DJCTempCleanup.runAndLog()
+
 @MainActor
 @Observable
 final class LibraryStore {
@@ -1077,7 +1080,11 @@ final class LibraryStore {
             applyLaunchSelection()
             runLaunchStagingTest()
             // 캐시 용량 상한(최근 사용 순)은 뒤에서 조용히 정리한다.
-            Task.detached(priority: .background) { CacheMaintenance.prune() }
+            Task.detached(priority: .background) {
+                CacheMaintenance.prune()
+                // 비정상 종료 뒤 남은 임시 파일·폴더(#219)는 프로세스당 한 번만 치운다.
+                _ = tempCleanupOnce
+            }
         } catch {
             guard generation == loadGeneration else { return }
             guard !Task.isCancelled, !(error is CancellationError) else {
