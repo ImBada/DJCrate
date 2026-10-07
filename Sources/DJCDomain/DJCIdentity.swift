@@ -45,6 +45,19 @@ public enum DJCIdentity {
         return fallback
     }
 
+    /// 라이브 DB 읽기 스냅샷 폴더. `DJC_REKORDBOX_DIR`(사본 rekordbox 폴더)을 주면 그 안 `djc-snapshots`(사용자 스냅샷과 섞이지 않게),
+    /// 아니면 `supportDirectory/snapshots`. `DJC_HOME`은 따르지 않는다.
+    public static var snapshotsDirectory: URL {
+        snapshotsDirectory(environment: ProcessInfo.processInfo.environment, support: supportDirectory)
+    }
+
+    public static func snapshotsDirectory(environment: [String: String], support: URL) -> URL {
+        if let override = environment["DJC_REKORDBOX_DIR"], !override.isEmpty {
+            return URL(filePath: override).appending(path: "djc-snapshots")
+        }
+        return support.appending(path: "snapshots")
+    }
+
     public static func dataDirectory(environment: [String: String], support: URL) -> URL {
         if let override = environment["DJC_HOME"], !override.isEmpty {
             return URL(filePath: override)
