@@ -73,6 +73,8 @@ public enum SettingKeys {
 
     /// 자동 시점 스냅샷(#228)을 남겨 둘 일수(#223 결정: 기본 7일, 설정에서 일수만). 수동·고정·복원 직전 스냅샷은 이 값과 상관없다.
     public static let pointSnapshotAutoDays = SettingKey<Double>("storage.pointSnapshotAutoDays", 7, in: 1...90)
+    /// rekordbox가 꺼져 있고 라이브러리가 바뀌었으면 하루 한 번 자동 시점 스냅샷을 남긴다(#228). 기본은 켬
+    public static let pointSnapshotAuto = SettingKey("storage.pointSnapshotAuto", true)
 
     // MARK: 실험실
 
@@ -93,7 +95,7 @@ public enum SettingKeys {
          waveformHeight.name, textScale.name, playQuantizeBeats.name, pointSnapshotAutoDays.name]
             + [quantize, playQuantize, carryCues, showSuggestions, keyLock, autoGain, peakProtection, useRekordboxGain,
                sheetMode, showTagEditor, sidebarPlaylistsExpanded, sidebarSummaryExpanded, sidebarHistoriesExpanded, sidebarShowsStatus,
-               sidebarVisible, commentClassColumnHidden, hideStreaming, labSmartPlaylists].map(\.name)
+               sidebarVisible, commentClassColumnHidden, hideStreaming, labSmartPlaylists, pointSnapshotAuto].map(\.name)
             + [dismissedGainSuggestions, dismissedGridSuggestions, dismissedKeySuggestions, deckShortcuts, waveformColorMode.name, commentPreset.name, cueListFilter.name]
     }
 }

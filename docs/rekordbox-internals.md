@@ -680,6 +680,15 @@ rekordbox 7.2.18에서 직접 만든 인텔리전트 목록으로 확인한 것�
 - 보존: 수동·고정은 지우지 않는다(사용자가 지울 때만, 고정은 푼 뒤). 자동(#228)은 최근 N일(설정 › 저장 공간, 기본 7일), 복원 직전은 고정하지 않은 최근 3개. 스냅샷마다 전체를 담아 서로 기대지 않으므로 어느 것을 지워도 남은 스냅샷의 복원은 끊기지 않는다(#221의 연쇄 문제가 생기지 않는다). 쓰기 전 백업과는 따로 정리하고, 창(rekordbox › 시점 스냅샷…)·`djc snapshot-point list`에서 목록만 함께 보인다.
 - 시험: `RekordboxPointSnapshotTests`(합성 사본으로 범위·권한·클론 독립·rekordbox 켜짐·WAL·링크·실제 라이브러리 거부·보존 정리).
 
+### 자동 시점 스냅샷 (`RekordboxPointSnapshot.takeAutoIfDue`, #228)
+
+- 앱이 켜져 있는 동안 뒤에서 본다(`AutoPointSnapshotRunner`: 켠 뒤 90초, 그 뒤 10분마다, 메인 액터 밖·낮은 우선순위). 보는 일은 스냅샷 폴더 목록과 `master.db` 파일 정보뿐이고 라이브 DB를 열지 않는다.
+- 뜨는 조건(모두 맞아야): 설정 › 저장 공간 "하루 한 번 자동 시점 스냅샷"이 켜져 있음(기본 켬) → DJCrate가 rekordbox에 쓰는 중이 아님 → rekordbox·rekordboxAgent 꺼짐(사본이어도 자동은 켜져 있으면 뜨지 않는다) → WAL이 빔 → 그날(사용자 달력) 자동 스냅샷이 없음 → 마지막 스냅샷(종류 상관없이)의 원본 도장(`snapshot.json`의 `source`: 뜰 때 `master.db` 크기·수정 시각)과 지금 `master.db`가 다름(도장 없는 옛 스냅샷 뒤에는 바뀐 것으로 본다) → 클론이 됨(같은 볼륨, 아니면 큰 복사를 몰래 하지 않게 뜨지 않고 설정에 이유를 보인다).
+- 뜨기는 수동과 같은 `take`(대상 확인·rekordbox 꺼짐·WAL·링크 거부·뜨는 동안 바뀌면 버림)를 지난다. 뜨든 건너뛰든 보존 정리를 한다(자동만 일수로, 수동·고정·복원 직전은 대상 아님). 뜨는 동안 DJCrate가 rekordbox에 쓰기 시작했으면(`LibraryStore.rekordboxWriteCount`) DB와 분석 파일이 다른 시점일 수 있어 그 스냅샷을 버리고 다음에 다시 뜬다.
+- 조용히 한다: 확인 창·성공 알림 없음. 실패는 표준 오류에 남기고, 뜨는 도중 rekordbox가 켜지거나 DJCrate 쓰기가 끼어든 것이 아닌 실패만 앱을 켠 동안 한 번 작은 토스트로 알린다. 자가 테스트(설정을 쓰지 않는 실행)와 사본 rekordbox 폴더 없이 `--db`로 연 창은 뜨지 않는다.
+- 보관 일수는 앱 UserDefaults에 있어 CLI가 읽지 못하므로, 앱이 DJCrate 데이터 폴더의 `shared-settings.json`(`SharedSettingsFile`)에도 적는다(설정을 바꿀 때와 앱을 켤 때). `djc snapshot-point`는 그 값을 따른다.
+- 시험: `RekordboxAutoPointSnapshotTests`(하루 한 번·바뀐 것 없음·수동 뒤·옛 스냅샷·rekordbox 켜짐·뜨는 동안 켜짐·클론 안 됨·WAL·보존·실제 라이브러리 거부), `AutoPointSnapshotRunnerTests`(끔·쓰는 중·실패 알림 한 번), `StorageSettingsTests`·`PointSnapshotCommandTests`(공유 설정 파일).
+
 ### 시점 스냅샷으로 복원 (`RekordboxWriter.restore(pointSnapshot:)`, #225)
 
 - 순서: 대상 확인(`resolveShareRoot`, 시험 프로세스의 실제 라이브러리 거부) → rekordbox·Agent 꺼짐 → 스냅샷 확인(`snapshot.json`, `master.db`·담았다고 적힌 항목이 일반 파일·폴더인지, 링크 없음) → 같은 라이브러리(`djmdProperty.DBID`) → 스냅샷 DB 무결성 → 사본 옆 파일이 라이브 파일의 링크가 아닌지 → **복원 직전 시점 스냅샷**(실패하면 아무것도 바꾸지 않는다) → 쓰기 전 백업 폴더에 복원 표시 → 분석·앨범아트 폴더를 대상 옆에 클론으로 준비(`.djc-restore-…`) → `master.db`(곁 `-wal`·`-shm`은 지운다)·`masterPlaylists6.xml`·`playlists3.sync` 바꾸기 → 지금 폴더를 옆(`.djc-old-…`)으로 옮기고 준비한 폴더를 그 이름으로 → 다시 읽어 검증(무결성·라이브러리 ID·두 폴더의 파일 목록·크기·수정 시각이 스냅샷과 같음) → 옮겨 둔 폴더 지우기·정리.

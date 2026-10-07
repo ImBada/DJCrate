@@ -10,6 +10,7 @@ import Foundation
 /// - 저장: `FileManager.copyItem`(같은 APFS 볼륨이면 클론이라 처음에는 공간을 거의 쓰지 않는다). 폴더 0700·파일 0600
 /// - rekordbox·rekordboxAgent가 꺼져 있고 WAL이 비었을 때만 뜬다. 뜨는 동안 DB가 바뀌거나 rekordbox가 켜지면 버린다
 /// - 보존: 수동·고정은 지우지 않는다. 자동은 최근 `autoDays`일, 복원 직전은 최근 3개(고정 제외)
+/// - 자동(하루 한 번, #228)은 `RekordboxPointSnapshot+Auto`
 public enum RekordboxPointSnapshot {
     public enum Kind: String, Codable, Sendable, CaseIterable {
         /// 사용자가 이름을 붙여 남긴 것
@@ -47,6 +48,8 @@ public enum RekordboxPointSnapshot {
         public var cloned: Bool?
         /// 복원 직전 스냅샷이면 되돌린 스냅샷의 이름(없으면 ID, #225)
         public var restoredFrom: String?
+        /// 뜬 원본 `master.db`의 크기·수정 시각. 자동 스냅샷(#228)이 그 뒤 라이브러리가 바뀌었는지 볼 때 쓴다(옛 스냅샷에는 없다)
+        public var source: SourceStamp?
 
         public init(name: String, kind: Kind, createdAt: Date, pinned: Bool = false, libraryID: String? = nil,
                     localUpdateCount: Int? = nil, cloudUpdateCount: Int? = nil, trackCount: Int? = nil, items: [String] = [], cloned: Bool? = nil) {
@@ -154,6 +157,9 @@ public enum RekordboxPointSnapshot {
             var metadata = Metadata(name: trimmed, kind: kind, createdAt: now, items: items,
                                     cloned: canClone(from: database.deletingLastPathComponent(), to: directory))
             metadata.restoredFrom = restoredFrom
+            metadata.source = (before[.size] as? Int).flatMap { size in
+                (before[.modificationDate] as? Date).map { SourceStamp(size: Int64(size), modified: $0.timeIntervalSince1970) }
+            }
             try describe(copy, into: &metadata)
             try save(metadata, in: partial)
             let folder = uniqueFolder(in: directory, now: now, kind: kind)

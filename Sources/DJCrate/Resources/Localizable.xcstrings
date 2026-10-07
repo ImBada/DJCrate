@@ -4077,6 +4077,22 @@
         }
       }
     },
+    "DJCrate 데이터 폴더가 rekordbox와 다른 디스크라 자동 시점 스냅샷을 남기지 않습니다(라이브러리 전체를 매일 복사하지 않게)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The DJCrate data folder is on a different disk from rekordbox, so automatic restore points are off (to avoid copying the whole library every day)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateのデータフォルダがrekordboxと別のディスクにあるため、自動復元ポイントは作成しません(毎日ライブラリ全体をコピーしないため)。"
+          }
+        }
+      }
+    },
     "DJCrate 데이터 폴더의 usb-drafts를 확인한 뒤 다시 시도하세요" : {
       "localizations" : {
         "en" : {
@@ -9554,6 +9570,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxとDJCrateのデータフォルダは検索フォルダに使えません。音楽があるフォルダを選んでください。"
+          }
+        }
+      }
+    },
+    "rekordbox가 꺼져 있고 라이브러리가 바뀌었을 때 뒤에서 조용히 남깁니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved quietly in the background when rekordbox is closed and the library has changed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxが終了していてライブラリが変わったときに、バックグラウンドで静かに作成します。"
           }
         }
       }
@@ -32300,6 +32332,22 @@
         }
       }
     },
+    "자동 시점 스냅샷을 남기지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t save an automatic restore point"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動復元ポイントを作成できませんでした"
+          }
+        }
+      }
+    },
     "자르기" : {
       "localizations" : {
         "en" : {
@@ -39808,6 +39856,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィルターは%@のいずれかを指定してください"
+          }
+        }
+      }
+    },
+    "하루 한 번 자동 시점 스냅샷" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic Daily Restore Point"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1日1回の自動復元ポイント"
           }
         }
       }
