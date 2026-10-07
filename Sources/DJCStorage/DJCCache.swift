@@ -29,24 +29,26 @@ public enum DJCCache {
 
     /// 비우기 대상이 아닌 백업(용량만 보인다). 개수는 백업 폴더 수다(#227)
     public struct BackupUsage: Sendable, Equatable {
-        public enum Kind: Sendable, Equatable { case rekordboxBackups, usbBackups }
+        public enum Kind: Sendable, Equatable { case rekordboxBackups, pointSnapshots, usbBackups }
         public var kind: Kind
         public var count: Int
         public var bytes: Int64
         public init(kind: Kind, count: Int, bytes: Int64) { self.kind = kind; self.count = count; self.bytes = bytes }
     }
 
-    /// 쓰기 전 백업(`rekordbox-backups/<시각>-<이름>/`)·USB 백업(`usb-backups/<볼륨키>/<시각>-<이름>/`). 읽기만 한다.
+    /// 쓰기 전 백업(`rekordbox-backups/<시각>-<이름>/`)·시점 스냅샷(`point-snapshots/<시각>-<종류>/`, #224)·USB 백업
+    /// (`usb-backups/<볼륨키>/<시각>-<이름>/`). 읽기만 한다. 뜨는 중인 시점 스냅샷(`.partial-…`)은 세지 않는다.
     public static func backupUsage(root: URL) -> [BackupUsage] {
         func folders(_ url: URL) -> [URL] {
             ((try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [.isDirectoryKey])) ?? [])
-                .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
+                .filter { !$0.lastPathComponent.hasPrefix(".") && (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
         }
         func usage(_ kind: BackupUsage.Kind, _ backups: [URL]) -> BackupUsage {
             BackupUsage(kind: kind, count: backups.count,
                         bytes: backups.reduce(0) { $0 + regularFiles(under: $1).reduce(0) { $0 + $1.size } })
         }
         return [usage(.rekordboxBackups, folders(root.appending(path: "rekordbox-backups"))),
+                usage(.pointSnapshots, folders(root.appending(path: "point-snapshots"))),
                 usage(.usbBackups, folders(root.appending(path: "usb-backups")).flatMap(folders))]
     }
 

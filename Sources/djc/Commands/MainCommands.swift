@@ -9,6 +9,7 @@ import Foundation
 enum MainCommands {
     static let all: [Command] = [
         Command("snapshot", "[--force]", String(ui: "rekordbox master.db 스냅샷을 뜬다"), snapshot),
+        PointSnapshotCommand.command,
         CacheCommand.command,
         Command("report", "[--db PATH] [--files] [--comment-preset none|anisong] [--json]", String(ui: "라이브러리 현황(기본: 최신 스냅샷)"), report),
         Command("analyze", String(ui: "<파일|ContentID> [--db PATH]"), String(ui: "곡 파트 분석(ContentID면 기존 큐와 비교)"), analyze),

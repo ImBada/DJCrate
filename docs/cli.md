@@ -29,7 +29,7 @@ djc parse 'TVA 시험 OP 1' --json
 djc compat --db /tmp/djc-fixture/master.db --json
 ```
 
-`--json`을 빼면 사람이 읽는 출력이다. 기존 `report`, `path`, `parse`, `compat`의 일반 출력은 유지한다. 분석·파일 생성·실험·쓰기 명령(`analyze`, `snapshot`, `cache`, `schema-dump`, `lab`, `reflection-dry-run`, `cue-write`, `track-add`, `track-delete`, `playlist-write`, `rekordbox-restore`, `xml-export`)은 이 JSON 계약에 포함하지 않는다.
+`--json`을 빼면 사람이 읽는 출력이다. 기존 `report`, `path`, `parse`, `compat`의 일반 출력은 유지한다. 분석·파일 생성·실험·쓰기 명령(`analyze`, `snapshot`, `cache`, `schema-dump`, `lab`, `reflection-dry-run`, `cue-write`, `track-add`, `track-delete`, `playlist-write`, `rekordbox-restore`, `snapshot-point`, `xml-export`)은 이 JSON 계약에 포함하지 않는다.
 
 **CLI 동의 규칙**: `djc`에는 대화형 질문이 없다. 플래그가 곧 동의다(`--live`, `--allow-physical --confirm <볼륨 이름>`, `--discard-device-changes`, `--overwrite`). 파일을 만드는 명령(`xml-export`, `reflection-dry-run --out`, `schema-dump`)은 출력 파일이 이미 있으면 `--overwrite` 없이는 거부한다. lab 쓰기 실험(`gain-write-test`, `tag-write-test`, `artwork-write-test`, `analysis-attach-test`, `cue-write-selftest`)은 라이브 DB·실제 분석 폴더를 거부하고, 거부하면 오류 메시지와 함께 종료 코드 1로 끝난다.
 
@@ -168,11 +168,28 @@ djc cache --clear all                       # 모든 종류 비우기
 | `usb-snapshots` | `usb-snapshots/<볼륨키>/<시각>/` | 볼륨마다 가장 새 사본을 뺀 나머지 | USB를 열 때 |
 | `snapshots` | 스냅샷 폴더(`DJC_REKORDBOX_DIR`이 있으면 그 안 `djc-snapshots/`) | 가장 새 사본을 뺀 나머지(곁 `-wal`·`-shm`·`.itunes.json` 포함) | rekordbox와 동기화할 때 |
 
-- 초안(`*-drafts/`·`*-drafts.json`)·`staged.json`·`playlist-imports.json`·`damaged-drafts/`·`usb-drafts/`·`usb-sessions/`·`usb-staging/`·`usb-physical-{allow,deny}.json`·`rekordbox-backups/`·`usb-backups/`·편집본 음원·연동 XML은 어떤 종류에도 없어 지우지 않는다.
+- 초안(`*-drafts/`·`*-drafts.json`)·`staged.json`·`playlist-imports.json`·`damaged-drafts/`·`usb-drafts/`·`usb-sessions/`·`usb-staging/`·`usb-physical-{allow,deny}.json`·`rekordbox-backups/`·`point-snapshots/`·`usb-backups/`·편집본 음원·연동 XML은 어떤 종류에도 없어 지우지 않는다.
 - `usb-snapshots`는 USB 쓰기·회복·되돌리기가 볼륨 잠금을 잡고 있거나 닫히지 않은 저널(`usb-sessions/<볼륨키>.json`)이 있으면 통째로 건너뛰고 이유를 적는다. 쓰기 세션 사본(`local-`·`usb-`·`info-`)은 건드리지 않는다.
 - `snapshots`는 뜨는 중인 `.part`를 건드리지 않는다. 앱 화면(설정 › 저장 공간)에서 비우면 앱이 연 사본도 남긴다. CLI는 앱이 연 사본을 모르므로 앱을 `--db`로 옛 사본에 연 채 비우지 않는다.
 - 크기는 논리 크기 합이다. 같은 APFS 볼륨의 복사는 클론이라 실제로 비는 양은 더 작을 수 있다.
 - 앱이 켜져 있으면 앱이 기억한 음량·목록 미리 보기 파형을 나중에 다시 저장할 수 있다. 앱에서는 설정 › 저장 공간에서 비운다.
+
+## 시점 스냅샷(`snapshot-point`)
+
+라이브러리 읽기 사본을 뜨는 `djc snapshot`과 다르다. rekordbox 라이브러리에서 DJCrate가 쓰는 파일(`master.db`·`masterPlaylists6.xml`·`playlists3.sync`·분석 파일·앨범아트 폴더)을 한 시점으로 남긴다([규칙](rekordbox-internals.md#시점-스냅샷-rekordboxpointsnapshot-220223224)).
+
+```sh
+djc snapshot-point create --name "큰 정리 전" --live   # rekordbox를 끈 뒤. DJCrate 데이터 폴더의 point-snapshots/에
+djc snapshot-point list --live                       # 시점 스냅샷과 쓰기 전 백업을 함께(최근 것부터)
+djc snapshot-point pin 2026-10-07T120000Z-manual --live   # 고정(자동 정리에서 뺀다). unpin으로 푼다
+djc snapshot-point delete "큰 정리 전" --live         # 고정하지 않은 것만. ID 대신 겹치지 않는 이름도 받는다
+# 시험할 때는 합성 사본만: 스냅샷은 사본 옆 point-snapshots/에 둔다.
+djc snapshot-point create --db <사본 폴더>/master.db [--share <사본 폴더>/share]
+```
+
+- rekordbox·rekordboxAgent가 켜져 있거나 WAL이 남아 있으면 뜨지 않는다. 뜨는 동안 라이브러리가 바뀌면 버린다.
+- 같은 APFS 볼륨이면 클론이라 처음엔 공간을 거의 쓰지 않는다. 다른 디스크면 전체 복사했다고 알린다.
+- 자동 정리: 수동·고정은 지우지 않고, 자동은 최근 7일(앱 설정 › 저장 공간에서 바꾼다, CLI는 기본값), 복원 직전은 최근 3개만 남긴다.
 
 ## 라이브러리 XML 내보내기(`xml-export`)
 

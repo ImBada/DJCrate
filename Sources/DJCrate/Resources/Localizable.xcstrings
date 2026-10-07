@@ -1152,6 +1152,22 @@
         }
       }
     },
+    "%@ 폴더가 심볼릭 링크이거나 폴더가 아니라 스냅샷을 남기지 않았습니다. rekordbox 폴더를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The %@ folder is a symbolic link or not a folder, so no restore point was created. Check the rekordbox folder."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@フォルダがシンボリックリンクかフォルダではないため、復元ポイントを作成しませんでした。rekordboxフォルダを確認してください"
+          }
+        }
+      }
+    },
     "%@ 행을 넣지 못했습니다" : {
       "localizations" : {
         "en" : {
@@ -1409,6 +1425,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@：ファイル情報を読み込めませんでした"
+          }
+        }
+      }
+    },
+    "%@가 일반 파일이 아니라 스냅샷에 담지 않았습니다. rekordbox 폴더를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is not a regular file, so no restore point was created. Check the rekordbox folder."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@が通常のファイルではないため、復元ポイントを作成しませんでした。rekordboxフォルダを確認してください"
           }
         }
       }
@@ -2811,6 +2843,34 @@
         }
       }
     },
+    "%lld일" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld day"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld days"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld日"
+          }
+        }
+      }
+    },
     "%lld점" : {
       "localizations" : {
         "en" : {
@@ -3997,6 +4057,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "DJCrateのキーボードショートカット"
+          }
+        }
+      }
+    },
+    "DJCrate 데이터 폴더가 rekordbox와 다른 디스크라 스냅샷마다 라이브러리 전체를 복사합니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The DJCrate data folder is on a different disk from rekordbox, so each restore point copies the whole library."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateのデータフォルダがrekordboxと別のディスクにあるため、復元ポイントごとにライブラリ全体をコピーします。"
           }
         }
       }
@@ -7631,6 +7707,22 @@
         }
       }
     },
+    "create [--name 이름] | list | pin|unpin|delete <ID> — (--db <사본.db> [--share <폴더>] | --live)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "create [--name NAME] | list | pin|unpin|delete <ID> — (--db <copy.db> [--share <folder>] | --live)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "create [--name 名前] | list | pin|unpin|delete <ID> — (--db <コピー.db> [--share <フォルダ>] | --live)"
+          }
+        }
+      }
+    },
     "deck.editButton" : {
       "extractionState" : "extracted_with_value",
       "localizations" : {
@@ -8444,6 +8536,38 @@
         }
       }
     },
+    "rekordbox 라이브러리(DB·분석 파일·앨범아트)를 지금 시점으로 남깁니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saves the rekordbox library (database, analysis files, album art) as it is now"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxライブラリ（DB・解析ファイル・アルバムアート）を今の時点で残します"
+          }
+        }
+      }
+    },
+    "rekordbox 라이브러리(master.db)를 찾지 못했습니다. rekordbox 폴더를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The rekordbox library (master.db) was not found. Check the rekordbox folder."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxライブラリ（master.db）が見つかりませんでした。rekordboxフォルダを確認してください"
+          }
+        }
+      }
+    },
     "rekordbox 라이브러리(master.db)와 분석 파일이 어떤 상태인지 알 수 없습니다. rekordbox를 켜지 말고, 사이드바에서 'rekordbox 쓰기 대기'를 고른 뒤 목록 위 '쓰기 전으로 복원…'으로 백업을 복원하세요." : {
       "localizations" : {
         "en" : {
@@ -8842,6 +8966,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このカラー（%@）はrekordboxのカラー一覧にないため、rekordboxでこの曲のカラーを直接選んでください。"
+          }
+        }
+      }
+    },
+    "rekordbox 시점 스냅샷" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox restore points"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxの復元ポイント"
           }
         }
       }
@@ -9386,6 +9526,22 @@
         }
       }
     },
+    "rekordbox가 꺼져 있을 때만 남깁니다. 수동·고정 스냅샷은 지우지 않고, 쓰기 전 백업은 따로 정리됩니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore points are created only while rekordbox is closed. Manual and pinned ones are never removed automatically; pre-write backups are cleaned up separately."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイントはrekordboxが終了しているときだけ作成します。手動・ピン留めしたものは自動では削除せず、書き込み前のバックアップは別に整理されます。"
+          }
+        }
+      }
+    },
     "rekordbox가 꺼져 있을 때만 씁니다 · 쓰기 전에 전체 백업" : {
       "localizations" : {
         "en" : {
@@ -9686,6 +9842,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxが起動しているため削除しませんでした"
+          }
+        }
+      }
+    },
+    "rekordbox가 켜져 있어 시점 스냅샷을 남기지 않았습니다. rekordbox를 완전히 종료한 뒤 다시 누르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox is running, so no restore point was created. Quit rekordbox completely and try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxが起動しているため、復元ポイントを作成しませんでした。rekordboxを完全に終了してからもう一度押してください"
           }
         }
       }
@@ -10268,6 +10440,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxに書き込み中です。終わってから終了してください"
+          }
+        }
+      }
+    },
+    "rekordbox에 쓰는 중입니다. 쓰기가 끝난 뒤 다시 누르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing to rekordbox. Try again after the write finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxに書き込み中です。書き込みが終わってからもう一度押してください"
           }
         }
       }
@@ -11750,18 +11938,18 @@
         }
       }
     },
-    "같은 디스크의 복사본은 공간을 나눠 써서 실제로 차지하는 공간은 더 작을 수 있습니다. 백업은 오래된 것부터 저절로 정리됩니다." : {
+    "같은 디스크의 복사본은 공간을 나눠 써서 실제로 차지하는 공간은 더 작을 수 있습니다. 백업과 자동 시점 스냅샷은 오래된 것부터 저절로 정리되고, 수동·고정 시점 스냅샷은 지우지 않습니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Copies on the same disk share space, so the actual space used may be smaller. Older backups are removed automatically."
+            "value" : "Copies on the same disk share space, so they may actually use less. Backups and automatic restore points are cleaned up oldest first; manual and pinned restore points are never removed."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "同じディスク上のコピーは領域を共有するため、実際に使う容量はより小さいことがあります。バックアップは古いものから自動的に整理されます。"
+            "value" : "同じディスク上のコピーは領域を共有するため、実際の使用量はより小さい場合があります。バックアップと自動復元ポイントは古いものから自動で整理され、手動・ピン留めした復元ポイントは削除しません。"
           }
         }
       }
@@ -13022,6 +13210,22 @@
         }
       }
     },
+    "고른 시점 스냅샷을 지웁니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deletes the selected restore point"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選んだ復元ポイントを削除します"
+          }
+        }
+      }
+    },
     "고른 클립 바로 뒤에 같은 구간을 하나 더 둡니다(⌘D). 인트로를 늘일 때 씁니다" : {
       "localizations" : {
         "en" : {
@@ -13066,6 +13270,150 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選んだフォルダから、ファイルが見つからない曲の新しい場所の候補を探してプレビューします。rekordboxには書き込みません。"
+          }
+        }
+      }
+    },
+    "고정" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pin"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピン留め"
+          }
+        }
+      }
+    },
+    "고정 풀기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unpin"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピン留めを解除"
+          }
+        }
+      }
+    },
+    "고정을 푼 뒤 지우세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unpin it before deleting"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピン留めを解除してから削除してください"
+          }
+        }
+      }
+    },
+    "고정을 풀었습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unpinned."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピン留めを解除しました。"
+          }
+        }
+      }
+    },
+    "고정을 풀었습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unpinned: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピン留めを解除しました: %@"
+          }
+        }
+      }
+    },
+    "고정하면 자동 정리에서 지우지 않습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinned restore points are never removed automatically"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピン留めすると自動整理で削除しません"
+          }
+        }
+      }
+    },
+    "고정한 시점 스냅샷은 지우지 않습니다. 고정을 푼 뒤 지우세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinned restore points are not deleted. Unpin it before deleting."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピン留めした復元ポイントは削除しません。ピン留めを解除してから削除してください"
+          }
+        }
+      }
+    },
+    "고정했습니다. 자동 정리에서 지우지 않습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinned. It will not be removed automatically."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピン留めしました。自動整理では削除しません。"
+          }
+        }
+      }
+    },
+    "고정했습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinned: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピン留めしました: %@"
           }
         }
       }
@@ -16826,6 +17174,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "別の基準曲を選ぶか、BPM・キー・ジャンル・#タグを確認してください。"
+          }
+        }
+      }
+    },
+    "다른 디스크라 클론이 아니라 전체 복사했습니다(공간을 그만큼 씁니다)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It is on a different disk, so the library was fully copied instead of cloned (using that much space)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別のディスクのため、クローンではなく全体をコピーしました（その分の容量を使います）。"
           }
         }
       }
@@ -21892,6 +22256,38 @@
         }
       }
     },
+    "복원 직전" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Before Restore"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元直前"
+          }
+        }
+      }
+    },
+    "복원 직전 백업" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pre-Restore Backup"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元直前のバックアップ"
+          }
+        }
+      }
+    },
     "복원하고 백업 초안으로 바꾸기" : {
       "localizations" : {
         "en" : {
@@ -22652,6 +23048,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解析・アルバムアートファイル: %@"
+          }
+        }
+      }
+    },
+    "분석·앨범아트 폴더에 심볼릭 링크(%@)가 있어 스냅샷을 남기지 않았습니다. 링크를 정리한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The analysis or album art folder contains a symbolic link (%@), so no restore point was created. Remove the link and try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解析・アルバムアートフォルダにシンボリックリンク（%@）があるため、復元ポイントを作成しませんでした。リンクを整理してからもう一度お試しください"
           }
         }
       }
@@ -24194,6 +24606,22 @@
         }
       }
     },
+    "수동" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manual"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手動"
+          }
+        }
+      }
+    },
     "수동 큐 %lld · 자동 큐 %lld" : {
       "localizations" : {
         "en" : {
@@ -24436,6 +24864,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "スナップショットにこの楽曲が見つかりませんでした。スナップショットを取り直してから、もう一度エクスポートしてください"
+          }
+        }
+      }
+    },
+    "스냅샷을 뜨는 동안 rekordbox 라이브러리가 바뀌어 그 스냅샷은 버렸습니다. rekordbox를 종료한 채로 다시 누르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The rekordbox library changed while the restore point was being created, so it was discarded. Keep rekordbox closed and try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイントの作成中にrekordboxライブラリが変わったため、破棄しました。rekordboxを終了したままもう一度押してください"
           }
         }
       }
@@ -24756,6 +25200,22 @@
         }
       }
     },
+    "시각" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日時"
+          }
+        }
+      }
+    },
     "시각이나 이름으로 자동 대응하지 않습니다. 아래 두 큐가 같은 대상인지 확인하고 직접 선택하세요." : {
       "localizations" : {
         "en" : {
@@ -24800,6 +25260,200 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開始小節"
+          }
+        }
+      }
+    },
+    "시점 스냅샷" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore Points"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイント"
+          }
+        }
+      }
+    },
+    "시점 스냅샷 %lld개 (%@)" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld restore point (%2$@)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld restore points (%2$@)"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイント%1$lld個（%2$@）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "시점 스냅샷 %1$lld개 (%2$@)"
+          }
+        }
+      }
+    },
+    "시점 스냅샷 ‘%@’을 지울까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete the restore point “%@”?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイント「%@」を削除しますか？"
+          }
+        }
+      }
+    },
+    "시점 스냅샷 ‘%@’을 찾지 못했습니다. djc snapshot-point list로 ID를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore point “%@” was not found. Check the ID with djc snapshot-point list."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイント「%@」が見つかりませんでした。djc snapshot-point listでIDを確認してください"
+          }
+        }
+      }
+    },
+    "시점 스냅샷 정보(snapshot.json)를 읽지 못했습니다. 스냅샷 목록을 새로 고친 뒤 다시 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read the restore point information (snapshot.json). Refresh the list and choose again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイントの情報（snapshot.json）を読めませんでした。一覧を更新してから選び直してください"
+          }
+        }
+      }
+    },
+    "시점 스냅샷 폴더 밖의 항목은 고치지 않습니다. 목록에서 스냅샷을 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Items outside the restore point folder are not changed. Choose a restore point from the list."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイントフォルダ外の項目は変更しません。一覧から復元ポイントを選んでください"
+          }
+        }
+      }
+    },
+    "시점 스냅샷(DB·분석 파일·앨범아트를 한 시점으로) 만들기·목록·고정" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create, list, and pin restore points (database, analysis files, and album art at one point in time)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイント（DB・解析ファイル・アルバムアートをひとつの時点で）の作成・一覧・ピン留め"
+          }
+        }
+      }
+    },
+    "시점 스냅샷…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore Points…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイント…"
+          }
+        }
+      }
+    },
+    "시점 스냅샷을 남겼습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore point created."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイントを作成しました。"
+          }
+        }
+      }
+    },
+    "시점 스냅샷을 남겼습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore point created: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイントを作成しました: %@"
+          }
+        }
+      }
+    },
+    "시점 스냅샷을 지웠습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore point deleted."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイントを削除しました。"
           }
         }
       }
@@ -25200,6 +25854,56 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "書き込む前に変更するファイルをMacにバックアップします。機器に差し込む前に結果を確認してください"
+          }
+        }
+      }
+    },
+    "쓰기 전 백업" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pre-Write Backup"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込み前のバックアップ"
+          }
+        }
+      }
+    },
+    "쓰기 전 백업 %lld개 (%@)" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld pre-write backup (%2$@)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$lld pre-write backups (%2$@)"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込み前のバックアップ%1$lld個（%2$@）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "쓰기 전 백업 %1$lld개 (%2$@)"
           }
         }
       }
@@ -30192,6 +30896,22 @@
         }
       }
     },
+    "이름(선택)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name (optional)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前（任意）"
+          }
+        }
+      }
+    },
     "이름을 ‘%@’으로 바꾸기" : {
       "localizations" : {
         "en" : {
@@ -30876,6 +31596,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アクティブループ（ActiveLoop）の印が付いたキューがあります。XMLではこの印を移せません"
+          }
+        }
+      }
+    },
+    "자동 시점 스냅샷 보관" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Automatic Restore Points"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動復元ポイントの保管"
           }
         }
       }
@@ -33070,6 +33806,22 @@
         }
       }
     },
+    "지금 스냅샷 남기기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create Restore Point"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイントを作成"
+          }
+        }
+      }
+    },
     "지금 조성(Camelot)" : {
       "localizations" : {
         "en" : {
@@ -33198,6 +33950,22 @@
         }
       }
     },
+    "지우기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除…"
+          }
+        }
+      }
+    },
     "지운 곡의 참조가 남아 있습니다" : {
       "localizations" : {
         "en" : {
@@ -33226,6 +33994,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "削除した曲が再び読み込まれました"
+          }
+        }
+      }
+    },
+    "지운 스냅샷은 되살릴 수 없습니다. rekordbox 라이브러리는 그대로입니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A deleted restore point cannot be recovered. The rekordbox library is not changed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除した復元ポイントは元に戻せません。rekordboxライブラリはそのままです。"
           }
         }
       }
@@ -33386,6 +34170,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "対応していない形式です。MP3・M4A・WAV・AIFF・FLACなどの音源を用意してください。"
+          }
+        }
+      }
+    },
+    "지웠습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deleted: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除しました: %@"
           }
         }
       }
@@ -35812,6 +36612,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "큐로 돌아가 정지합니다(%1$@). 정지 중: 큐 설정·누르고 미리 듣기. 큐 %2$@"
+          }
+        }
+      }
+    },
+    "크기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Size"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サイズ"
           }
         }
       }

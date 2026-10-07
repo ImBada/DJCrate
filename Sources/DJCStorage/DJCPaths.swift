@@ -10,6 +10,9 @@ public enum DJCPaths {
     /// DJCrate가 rekordbox에 쓰기 직전에 뜬 백업
     public static var rekordboxBackups: URL { userData.appending(path: "rekordbox-backups") }
 
+    /// 시점 스냅샷(#224): rekordbox 라이브러리에서 DJCrate가 쓰는 파일 전체를 한 시점으로 남긴 것. 쓰기 전 백업과 따로 둔다(#223)
+    public static var pointSnapshots: URL { userData.appending(path: "point-snapshots") }
+
     public static var previewWaveforms: URL { userData.appending(path: "preview-waveforms.plist") }
 
     /// 곡 편집 창이 렌더한 편집본. rekordbox 컬렉션이 이 경로를 가리키게 되므로 숨은 데이터 폴더가 아니라 음악 폴더에 둔다.

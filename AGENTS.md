@@ -39,6 +39,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 .build/debug/djc                  # CLI 명령 목록
 .build/debug/djc compat           # rekordbox 버전·DB 구조·카운터가 쓰기를 확인한 모양인지(읽기 전용)
 .build/debug/djc snapshot [--force]                    # 라이브 DB 읽기용 사본 뜨기
+.build/debug/djc snapshot-point create|list|pin|unpin|delete (--db <사본.db> | --live)   # 시점 스냅샷(DB·분석 파일·앨범아트를 한 시점으로), 읽기 사본 snapshot과 다름
 .build/debug/djc cache [--clear <종류…|all>] [--dry-run]  # 캐시 종류별 용량 보기·비우기(확인 없이, 초안·백업·USB 저널·준비 폴더는 지우지 않음, docs/cli.md)
 .build/debug/djc cue-write --db <사본.db> [--dry-run]   # 초안을 사본에 써 보기
 .build/debug/djc track-add --db <사본.db> --share <폴더> --analyze <음원…>   # 곡 넣기(분석까지), 사본에만
@@ -133,7 +134,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 - 사용자 데이터: `~/Library/Application Support/DJCrate/`
   - 초안: `cue-drafts/`, `grid-drafts/`, `gain-drafts.json`, `tag-drafts/`, `artwork-drafts/`(앨범아트 초안과 고른 앨범아트 사본), `playlist-drafts.json`(재생 목록 편집, 순서대로)
   - `damaged-drafts/`: 읽지 못한 초안 파일(합치기 초안 `merge-drafts.json`·추가 목록 `staged.json` 포함)을 지우거나 빈 값으로 덮지 않고 옮겨 둔 곳(앱이 읽기·저장할 때 옮기고 목록 위에 알린다)
-  - 그 밖: `staged.json`, `snapshots/`, `rekordbox-backups/`, 캐시(`analysis/`, `waveforms/`, `loudness.json`)
+  - 그 밖: `staged.json`, `snapshots/`, `rekordbox-backups/`, `point-snapshots/`(시점 스냅샷, #224), 캐시(`analysis/`, `waveforms/`, `loudness.json`)
   - USB: `usb-backups/`, `usb-snapshots/`(USB DB의 Mac 사본), `usb-drafts/`, `usb-sessions/`(저널·잠금), `usb-staging/`
 
 ## 핵심 설계 결정 (코드만 봐서는 모르는 것)

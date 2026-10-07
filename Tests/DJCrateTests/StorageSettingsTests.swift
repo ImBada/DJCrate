@@ -49,6 +49,21 @@ struct StorageSettingsTests {
         #expect(model.backups.first { $0.kind == .usbBackups } == .init(kind: .usbBackups, count: 1, bytes: 700))
     }
 
+    @Test func 시점_스냅샷도_용량을_보이고_자동_보관_일수를_설정에_저장한다() async throws {
+        let scene = try scene()
+        defer { try? FileManager.default.removeItem(at: scene.root) }
+        try scene.write("point-snapshots/2026-01-01T000000Z-manual/master.db", bytes: 4_000)
+        try scene.write("point-snapshots/.partial-x/master.db", bytes: 100)
+        let defaults = try #require(UserDefaults(suiteName: "djc.test.storage.points.\(UUID())"))
+        let model = StorageSettingsModel(paths: scene.paths, settings: SettingsStore(defaults: defaults, persist: true))
+        await model.refresh()
+        #expect(model.backups.first { $0.kind == .pointSnapshots } == .init(kind: .pointSnapshots, count: 1, bytes: 4_000), "뜨는 중인 폴더는 세지 않는다")
+        #expect(model.autoSnapshotDays == 7)
+        model.autoSnapshotDays = 14
+        #expect(defaults.double(forKey: SettingKeys.pointSnapshotAutoDays.name) == 14)
+        #expect(StorageSettingsModel(paths: scene.paths, settings: SettingsStore(defaults: defaults, persist: true)).autoSnapshotDays == 14)
+    }
+
     @Test func 종류를_비우면_확인_없이_지우고_한_줄로_알리고_용량을_다시_읽는다() async throws {
         let scene = try scene()
         defer { try? FileManager.default.removeItem(at: scene.root) }

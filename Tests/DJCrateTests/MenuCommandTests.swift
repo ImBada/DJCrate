@@ -154,7 +154,7 @@ struct MenuCommandTests {
 
     @Test func 앱_명령은_파일과_rekordbox_메뉴로_나뉜다() {
         #expect(LibraryMenuAction.fileActions == [.addFiles, .importAppleMusic, .snapshot, .exportXML, .exportLibraryXML])
-        #expect(LibraryMenuAction.rekordboxActions == [.reflect, .pending, .writeResult, .restore, .removeTracks])
+        #expect(LibraryMenuAction.rekordboxActions == [.reflect, .pending, .writeResult, .restore, .pointSnapshots, .removeTracks])
         #expect(LibraryMenuAction.fileActions + LibraryMenuAction.rekordboxActions == LibraryMenuAction.allCases)
     }
 
@@ -164,6 +164,7 @@ struct MenuCommandTests {
         #expect(LibraryMenuAction.exportXML.title == "XML 만들기")
         #expect(LibraryMenuAction.exportLibraryXML.title == "라이브러리 XML 내보내기…", "저장 위치를 고르므로 …, 연동 파일을 만드는 XML 만들기와 이름이 겹치지 않는다")
         #expect(LibraryMenuAction.pending.title == "쓰기 대기 목록 보기")
+        #expect(LibraryMenuAction.pointSnapshots.title == "시점 스냅샷…", "창을 여므로 …, 라이브러리 읽기 사본(스냅샷)과 구별한다")
     }
 
     @Test func 앱_명령의_조합_단축키는_서로_겹치지_않는다() {
@@ -183,6 +184,7 @@ struct MenuCommandTests {
         #expect(!LibraryMenuAction.removeTracks.isEnabled(in: store))
         #expect(!LibraryMenuAction.exportXML.isEnabled(in: store))
         #expect(!LibraryMenuAction.exportLibraryXML.isEnabled(in: store))
+        #expect(LibraryMenuAction.pointSnapshots.isEnabled(in: store), "라이브러리를 읽기 전에도 스냅샷 목록은 본다")
         store.phase = .loading("시험")
         #expect(!LibraryMenuAction.snapshot.isEnabled(in: store))
         store.phase = .loaded
