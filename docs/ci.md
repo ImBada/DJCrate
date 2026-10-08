@@ -60,7 +60,7 @@ quick과 stress는 `swift build --build-tests --enable-code-coverage`의 같은 
 
 ## 테스트 준비 비용
 
-창 크기 변경의 본문 재계산 회귀는 `DJC_LAYOUT_RECOMPUTE_TESTS=1 scripts/check.sh --quick --filter 'LayoutRecomputeTests|LibraryLayoutMetricsTests|DeckLayoutTests|ResizePerfTests'`로 단독 실행한다. 덱·파형이 들어맞는 세로 40단계에서 `LibraryDetail`은 2회 이하, `DeckView`는 5회 이하를 유지하며, 낮은 창·내용 변경·수동 파형 높이 복원도 검사한다. 시험 창은 `orderBack`으로 열어 활성화하거나 실제 입력을 보내지 않는다.
+창 크기 변경의 본문 재계산 회귀는 `DJC_LAYOUT_RECOMPUTE_TESTS=1 scripts/check.sh --quick --filter 'LayoutRecomputeTests|LibraryLayoutMetricsTests|DeckLayoutTests|ResizePerfTests'`로 단독 실행한다. 덱·파형이 들어맞는 세로 40단계에서 `LibraryDetail`은 2회 이하, `DeckView`는 5회 이하, 파형 높이 메뉴 문맥(`LibraryWaveformHeightContext`)은 2회 이하를 유지하며, 낮은 창·내용 변경·수동 파형 높이 복원도 검사한다. 시험 창은 `orderBack`으로 열어 활성화하거나 실제 입력을 보내지 않는다.
 
 시간 회귀를 비교할 때는 같은 합성 `UIPerfFixtureCapture` 사본과 디버그 계측 빌드에 `--resize-perf=all --resize-perf-repeats=3 --perf-preview=off --text-scale=1`을 준다. `DJC_DB`·`DJC_REKORDBOX_DIR`·임시 `DJC_HOME`과 `/tmp/djc-heavy.lock`을 사용한다. 전→후→후→전 순서로 실행하고 첫 왕복을 제외한 `RESIZE_SUMMARY`의 단계 중앙값/최댓값·프레임 간격·CPU·본문 횟수와 1·5·15분 load average를 함께 비교한다. `RESIZE_STEP`은 단계별 원본이며, 크기 요청 자체에서도 배치가 일어날 수 있으므로 `layout_flush_ms`만 전체 레이아웃 비용으로 해석하지 않는다. `display_flush_ms`는 표시 처리 호출 비용, `zoom_draw_ms`는 확대 파형 Canvas 실행 비용이다. 디스플레이 링크 콜백 간격은 실제 화면 표시 FPS나 물리 입력 지연이 아니다.
 

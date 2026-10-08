@@ -13,7 +13,7 @@ private struct AppCommandContextKey: FocusedValueKey {
 
 /// 파형 높이 메뉴. 본문(`LibraryDetail`)이 잰 크기에서 나오므로 `AppCommandContext`와 따로 싣는다(주 창이 그 값을 읽지 않게, #138).
 private struct WaveformHeightKey: FocusedValueKey {
-    typealias Value = WaveformHeightControl
+    typealias Value = WaveformHeightMenu
 }
 
 extension FocusedValues {
@@ -22,7 +22,7 @@ extension FocusedValues {
         set { self[AppCommandContextKey.self] = newValue }
     }
 
-    var waveformHeight: WaveformHeightControl? {
+    var waveformHeight: WaveformHeightMenu? {
         get { self[WaveformHeightKey.self] }
         set { self[WaveformHeightKey.self] = newValue }
     }

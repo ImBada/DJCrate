@@ -194,35 +194,11 @@ private struct DeckSideControls: View {
             + 4 + 12 + 2 // 고정 간격·바깥쪽 여백과 레이아웃 반올림 여유
     }
 
-    private func load(_ row: TrackRow?) {
-        guard let row else { return }
-        store.selection = [row.id]
-        store.loadToDeck(row)
-    }
-
     var body: some View {
-        let (previous, next) = DeckTrackNavigation.adjacentRows(in: store.displayRows, currentUUID: deck.row?.track.uuid)
         let compact = availableHeight < roomyControlsHeight
         VStack(spacing: 0) {
-            HStack(spacing: 4) {
-                Button { load(previous) } label: {
-                    Image(systemName: "backward.end.fill")
-                        .frame(width: TextScale.length(24, scale: textScale), height: TextScale.length(24, scale: textScale))
-                        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
-                }
-                    .disabled(previous == nil || !store.writeLockPolicy.allowsLibraryInteraction)
-                    .help(.ui("이전 곡"))
-                    .accessibilityLabel(.ui("이전 곡"))
-                Button { load(next) } label: {
-                    Image(systemName: "forward.end.fill")
-                        .frame(width: TextScale.length(24, scale: textScale), height: TextScale.length(24, scale: textScale))
-                        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
-                }
-                    .disabled(next == nil || !store.writeLockPolicy.allowsLibraryInteraction)
-                    .help(.ui("다음 곡"))
-                    .accessibilityLabel(.ui("다음 곡"))
-            }
-            .padding(.bottom, TextScale.length(compact ? 10 : 20, scale: textScale))
+            DeckTrackStepButtons(store: store, deck: deck)
+                .padding(.bottom, TextScale.length(compact ? 10 : 20, scale: textScale))
             HStack(spacing: 4) {
                 Button { deck.beatJump(beats: -beatStep) } label: {
                     Image(systemName: "chevron.left")
@@ -271,6 +247,43 @@ private struct DeckSideControls: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .background(Palette.controlRail, in: RoundedRectangle(cornerRadius: 6))
         .environment(\.colorScheme, .dark)
+    }
+}
+
+/// 현재 목록의 이전·다음 곡. 이웃을 찾을 때마다 표시 목록을 훑으므로 파형 높이를 받는 조작부와 떼어,
+/// 목록·덱 곡이 바뀔 때만 다시 찾는다(창 높이를 바꾸는 단계마다 찾지 않게, #155).
+private struct DeckTrackStepButtons: View {
+    @Environment(\.textScale) private var textScale
+    let store: LibraryStore
+    let deck: DeckModel
+
+    private func load(_ row: TrackRow?) {
+        guard let row else { return }
+        store.selection = [row.id]
+        store.loadToDeck(row)
+    }
+
+    var body: some View {
+        let _ = PerfProbe.count("DeckTrackNavigation.adjacentRows")
+        let (previous, next) = DeckTrackNavigation.adjacentRows(in: store.displayRows, currentUUID: deck.row?.track.uuid)
+        HStack(spacing: 4) {
+            Button { load(previous) } label: {
+                Image(systemName: "backward.end.fill")
+                    .frame(width: TextScale.length(24, scale: textScale), height: TextScale.length(24, scale: textScale))
+                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+            }
+                .disabled(previous == nil || !store.writeLockPolicy.allowsLibraryInteraction)
+                .help(.ui("이전 곡"))
+                .accessibilityLabel(.ui("이전 곡"))
+            Button { load(next) } label: {
+                Image(systemName: "forward.end.fill")
+                    .frame(width: TextScale.length(24, scale: textScale), height: TextScale.length(24, scale: textScale))
+                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+            }
+                .disabled(next == nil || !store.writeLockPolicy.allowsLibraryInteraction)
+                .help(.ui("다음 곡"))
+                .accessibilityLabel(.ui("다음 곡"))
+        }
     }
 }
 

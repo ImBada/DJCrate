@@ -135,6 +135,9 @@ struct LayoutRecomputeTests {
         #expect(PerfProbe.bodyCount("LibraryDetail") <= 2)
         #expect(PerfProbe.bodyCount("DeckView") <= 5)
         #expect(PerfProbe.bodyCount("TrackListView.update") <= 2)
+        // 파형 높이 상한은 단계마다 바뀌어도 메뉴('파형 크게·작게') 문맥은 다시 싣지 않는다. 실으면 창이 앞에 있을 때
+        // 메뉴 막대 전체(`AppCommands`)를 단계마다 다시 만든다(최신 dev 재현: 40단계에 41번).
+        #expect(PerfProbe.bodyCount("LibraryWaveformHeightContext") <= 2)
     }
 
     @Test func 창_높이에_맞춰_파형을_줄여도_덱_전체_본문은_다시_계산하지_않는다() async throws {
@@ -167,6 +170,37 @@ struct LayoutRecomputeTests {
         #expect(PerfProbe.bodyCount("LibraryDetail") <= 2)
         #expect(PerfProbe.bodyCount("DeckView") == 0)
         #expect(PerfProbe.bodyCount("TrackListView.update") <= 2)
+    }
+
+    @Test func 창_높이에_맞춰_파형을_줄여도_이전_다음_곡은_다시_찾지_않는다() async throws {
+        PerfProbe.countsBodies = true
+        defer { PerfProbe.countsBodies = false }
+        var captured: LibraryStore?
+        let (window, deck, close) = try await mainWindow(waveformHeight: 480) { captured = $0 }
+        defer { close() }
+        let store = try #require(captured)
+        window.setContentSize(NSSize(width: 1440, height: 892))
+        try await settle(window)
+        window.setContentSize(NSSize(width: 1440, height: 900))
+        try await settle(window)
+        PerfProbe.resetBodyCounts()
+        for step in 0..<40 {
+            let offset = Double(step < 20 ? step : 39 - step) * 8
+            window.setContentSize(NSSize(width: 1440, height: 900 - offset))
+            window.contentView?.layoutSubtreeIfNeeded()
+            try await Task.sleep(for: .milliseconds(16))
+        }
+        try await settle(window)
+        print("TRACE 파형이 줄어드는 창 높이 40단계(이전·다음 곡):", PerfProbe.bodySummary() ?? "-")
+        // 파형 칸은 높이에 맞춰 다시 계산되지만, 목록·덱 곡이 그대로라 이전·다음 곡은 다시 찾지 않는다.
+        // 찾을 때마다 표시 목록을 훑는다(덱 곡이 목록에 없으면 끝까지, 최신 dev 재현: 40단계에 38번).
+        #expect(PerfProbe.bodyCount("DeckWaveformGroup") > 20)
+        #expect(PerfProbe.bodyCount("DeckTrackNavigation.adjacentRows") == 0)
+        // 덱 곡이 바뀌면 다시 찾는다. 불러오기를 마저 기다려 다음 시험의 본문 횟수에 섞이지 않게 한다.
+        deck.load(try #require(store.rows.dropFirst().first))
+        await deck.loadTask?.value
+        try await settle(window)
+        #expect(PerfProbe.bodyCount("DeckTrackNavigation.adjacentRows") >= 1)
     }
 
     private func splitController(_ view: NSView?) -> NSSplitViewController? {
