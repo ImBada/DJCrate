@@ -61,7 +61,7 @@ public enum PdbPageCheck {
         public var number: Int
         public var table: String
         /// "deadRows"(지운 행이 있는 데이터 쪽), "inPlaceShape"(0x20·0x22가 그 표의 쓰기 모양과 다른 데이터 쪽)
-        /// 또는 "indexEntries"(지운 쪽 목록이 있는 인덱스 쪽)
+        /// "indexEntries"(지운 쪽 목록이 있는 인덱스 쪽) 또는 "nfcStrings"(작성기가 NFC로 바꿔 쓰는 문자열이 든 데이터 쪽, #233)
         public var reason: String
 
         public init(number: Int, table: String, reason: String) {
@@ -139,6 +139,11 @@ public enum PdbPageCheck {
                 compared.append(Page(number: number, category: .data, table: table, firstDifference: -1, rebuildFailure: .rowUnreadable))
                 continue
             }
+            // 작성기는 사람이 읽는 문자열을 NFC로 쓴다(#233). 원본 철자가 NFC가 아닌 행이 든 쪽은 rekordbox와 일부러 달라 비교하지 않는다
+            if rows.contains(where: { $0.rules.contains(.pdbStringNFC) }) {
+                excluded.append(Excluded(number: number, table: table, reason: "nfcStrings"))
+                continue
+            }
             // 다시 만든 행이 원본보다 크면 한 쪽에 들어가지 않을 수 있다. 쪽은 만들지 않고 행마다 크기만 남긴다
             guard PdbLayout.fitsOnePage(rows) else {
                 compared.append(Page(number: number, category: .data, table: table, firstDifference: -1, rows: rowDifferences(page, rows),
@@ -182,9 +187,12 @@ public enum PdbPageCheck {
         case .export:
             switch PdbTableType(rawValue: type) {
             case .tracks: return try PdbRowEncoder.track(PdbRows.track(&reader).0).row
-            case .genres, .labels, .artwork:
+            case .genres, .labels:
                 let (id, name) = try PdbRows.idName(&reader)
                 return try PdbRowEncoder.idName(id: id, name: name)
+            case .artwork:
+                let (id, path) = try PdbRows.idName(&reader)
+                return try PdbRowEncoder.artwork(id: id, path: path)
             case .artists: return try PdbRowEncoder.artist(PdbRows.artist(&reader))
             case .albums: return try PdbRowEncoder.album(PdbRows.album(&reader))
             case .keys: return try PdbRowEncoder.key(PdbRows.key(&reader))

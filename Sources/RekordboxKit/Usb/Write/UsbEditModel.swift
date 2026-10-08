@@ -122,6 +122,14 @@ enum UsbEditModel {
         }
     }
 
+    /// 같은 번호의 목록 이름이 철자(유니코드 스칼라)만 달라졌는지. 모델 비교(Swift 문자열 ==)는 NFC·NFD를 같다고 본다(#233)
+    static func playlistNamesRespelled(_ before: UsbLibrary, _ after: UsbLibrary) -> Bool {
+        let names = Dictionary(before.playlists.map { ($0.id, $0.name) }) { first, _ in first }
+        return after.playlists.contains { playlist in
+            names[playlist.id].map { !UsbNameSpelling.sameScalars($0, playlist.name) } ?? false
+        }
+    }
+
     static func apply(_ change: UsbEntriesChange, to model: inout UsbLibrary) throws {
         guard let at = model.playlists.firstIndex(where: { $0.id == change.playlistID }) else {
             throw UsbEditConflict(description: "playlist \(change.playlistID) missing")

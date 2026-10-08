@@ -79,7 +79,9 @@ extension UsbEditEngine {
                     throw UsbError.planCheckFailed(detail: "onelibrary " + reason)
                 }
                 (applied, skipped) = (applyResult.applied, applyResult.skipped)
-                oneLibraryChanged = applied.projected(to: .oneLibrary) != source.current.projected(to: .oneLibrary)
+                let before = source.current.projected(to: .oneLibrary), after = applied.projected(to: .oneLibrary)
+                // 철자(NFC·NFD)만 바꾼 목록 이름도 바뀐 것이다(Swift 문자열 ==는 같다고 본다, #233)
+                oneLibraryChanged = after != before || UsbEditModel.playlistNamesRespelled(before, after)
                 if oneLibraryChanged {
                     try context.database(.oneLibrary, UsbLayout.oneLibrary, data: Data(contentsOf: url))
                 } else {
@@ -115,9 +117,10 @@ extension UsbEditEngine {
             result.trackBlocks += selection.draft.skippedTracks.filter(\.isSkippableInSync)
         }
 
-        // 4. Device Library: 적용 결과 모델에서 새로 만든다(두 형식이 같은 편집 집합을 갖게)
+        // 4. Device Library: 적용 결과 모델에서 새로 만든다(두 형식이 같은 편집 집합을 갖게).
+        // USB의 pdb에 NFC가 아닌 이름·제목이 있으면 모델이 같아도 다시 만들어 NFC로 고친다(#233, 쓰는 편집이 있을 때만 USB에 간다)
         if writable.contains(.deviceLibrary), let report = source.pdbReport,
-           applied.projected(to: .deviceLibrary) != source.current.projected(to: .deviceLibrary) {
+           applied.projected(to: .deviceLibrary) != source.current.projected(to: .deviceLibrary) || source.deviceLibraryNeedsNFC {
             let pdb = try PdbWriter.files(applied, mode: .edit(previousExportSequence: report.exportHeader.sequence,
                                                                previousExtSequence: report.extHeader?.sequence ?? 0))
             let problems = try PdbRoundTrip.check(export: pdb.export, exportExt: pdb.exportExt)

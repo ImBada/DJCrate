@@ -194,7 +194,10 @@ struct UsbEditPlanner {
             if formats.contains(.deviceLibrary) { planned.rules.formUnion(UsbTrackRules.pdbStringRules([name])) }
         case let .rename(ref, name):
             let playlist = try target(ref)
-            guard playlist.name != name else { return }
+            // 철자(NFC·NFD)만 다른 이름도 OneLibrary에는 바꿔 쓴다. Device Library는 늘 NFC로 쓰므로 그것만으로는 바꾸지 않는다(#233)
+            guard UsbNameSpelling.playlistNeedsRename(from: playlist.name, to: name, formats: playlist.presentIn.intersection(writable)) else {
+                return
+            }
             try requireWritableEverywhere(playlist, ref: ref)
             if playlist.presentIn.contains(.deviceLibrary) { planned.rules.formUnion(UsbTrackRules.pdbStringRules([name])) }
             planned.op = .playlist(.rename(id: playlist.id, name: name))

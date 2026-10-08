@@ -95,6 +95,34 @@ struct UsbSyncPlanTests {
         #expect(plan.unlinkedPlaylistCount == 2 && plan.deletedPlaylists.isEmpty)
     }
 
+    /// #233: Swift 문자열 ==는 NFC·NFD를 같다고 본다. 이은 USB 목록의 이름이 철자만 다르면 OneLibrary에 있는 목록은 바꾸고,
+    /// Device Library에만 있는 목록은 작성기가 늘 NFC로 쓰므로 바꾸지 않는다(동기화마다 바뀐 것으로 보이지 않게)
+    @Test("이은 목록 이름이 NFC·NFD만 달라도 OneLibrary 목록은 이름을 바꾸고 Device Library만의 목록은 그대로 둔다")
+    func spellingOnlyNameDifference() throws {
+        let nfc = "한글 목록".precomposedStringWithCanonicalMapping, nfd = "한글 목록".decomposedStringWithCanonicalMapping
+        let source = layout([item("local-list", nfc)])
+        let bindings = ["local-list": UsbSyncPlaylistBinding(usbID: 11, path: [nfc], isFolder: false)]
+        let both = library([playlist(11, nfd)])
+        let plan = try UsbSyncPlan.build(source: source, selection: ITunesSyncSelection(selectedIDs: ["local-list"]),
+                                         library: both, matches: [:], badges: [:], bindings: bindings, linkedPlaylistIDs: ["local-list": 11])
+        #expect(plan.edits == [.playlist(edit: .rename(playlist: .id("11"), name: nfc))])
+        if case let .playlist(edit: .rename(_, name))? = plan.edits.first {
+            #expect(name.unicodeScalars.elementsEqual(nfc.unicodeScalars))
+        }
+        // 철자까지 같으면 바꾸지 않는다
+        let same = try UsbSyncPlan.build(source: layout([item("local-list", nfd)]), selection: ITunesSyncSelection(selectedIDs: ["local-list"]),
+                                         library: both, matches: [:], badges: [:], bindings: bindings, linkedPlaylistIDs: ["local-list": 11])
+        #expect(same.edits.isEmpty)
+        // Device Library에만 있는 목록(USB 이름은 NFC로 읽힌다)은 로컬이 NFD여도 바꾸지 않는다
+        var deviceOnly = library([playlist(11, nfc)])
+        deviceOnly.formats = [.deviceLibrary]
+        deviceOnly.playlists[0].presentIn = [.deviceLibrary]
+        let device = try UsbSyncPlan.build(source: layout([item("local-list", nfd)]), selection: ITunesSyncSelection(selectedIDs: ["local-list"]),
+                                           library: deviceOnly, matches: [:], badges: [:], bindings: bindings,
+                                           linkedPlaylistIDs: ["local-list": 11])
+        #expect(device.edits.isEmpty)
+    }
+
     /// 2026-10-08 실험 G3: 체크한 폴더 F를 F2로 바꾸고 SYNC하면 rekordbox는 두 형식에 새 F2와 새 하위 목록(새 Dev_ID)을 만들고,
     /// 옛 F와 그 안의 목록은 지우지도 옮기지도 않고 연결 없이(회색) 남겼다. 선택 파일에는 새 Dev_ID만 적혔다.
     @Test("이름을 바꾼 폴더는 하위 목록까지 새로 만들고 옛 폴더와 그 안의 목록은 연결 없이 남긴다")

@@ -134,6 +134,15 @@ extension PdbStringEncoder {
         }
     }
 
+    /// 사람이 읽는 문자열 칸(이름·제목 등, `PdbRowEncoder` 칸 표 참고). NFC로 바꿔 `encoded`로 만들고,
+    /// 철자가 바뀌었으면 `pdbStringNFC`를 붙인다(`UsbNameSpelling.deviceLibraryText`, #233). 파일 경로 칸에는 쓰지 않는다
+    public static func encodedText(_ value: String, longASCIIObserved: Bool = false) -> Encoded {
+        let text = UsbNameSpelling.deviceLibraryText(value)
+        var result = encoded(text, longASCIIObserved: longASCIIObserved)
+        if !UsbNameSpelling.sameScalars(text, value) { result.rules.insert(.pdbStringNFC) }
+        return result
+    }
+
     /// 트랙 문자열 0(ISRC). 값이 있으면 특수형, 없으면 짧은 ASCII `03`.
     /// ASCII가 아닌 ISRC는 특수형에 담을 수 없어 UTF-16LE로 돌려준다(작성기가 그 곡을 막는다).
     public static func encodedISRC(_ value: String) -> Encoded {
@@ -142,8 +151,10 @@ extension PdbStringEncoder {
         return Encoded(bytes: encodeISRC(value), kind: .isrc)
     }
 
-    /// columns 이름: U+FFFA + 이름 + U+FFFB를 늘 UTF-16LE로
+    /// columns 이름: U+FFFA + 이름 + U+FFFB를 늘 UTF-16LE로. 이름은 다른 사람이 읽는 문자열처럼 NFC로 쓴다
     public static func encodedMenuName(_ name: String) -> Encoded {
-        Encoded(bytes: encodeUTF16("\u{FFFA}\(name)\u{FFFB}"), kind: .utf16LE)
+        let text = UsbNameSpelling.deviceLibraryText(name)
+        return Encoded(bytes: encodeUTF16("\u{FFFA}\(text)\u{FFFB}"), kind: .utf16LE,
+                       rules: UsbNameSpelling.sameScalars(text, name) ? [] : [.pdbStringNFC])
     }
 }
