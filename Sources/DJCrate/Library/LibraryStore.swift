@@ -423,6 +423,23 @@ final class LibraryStore {
     private var sortedBase: [TrackRow] = []
     private var suppressRefresh = false
     private var loadGeneration = 0
+    /// 결과 채택 전에도 조용한 다시 읽기 시작을 native USB 작업에서 구분한다.
+    var snapshotReadEpoch: Int { loadGeneration }
+    @ObservationIgnored private var usbSnapshotProvenance: UsbSyncSnapshotProvenance?
+    @ObservationIgnored private var usbSnapshotEpoch: Int?
+    /// 읽은 목록과 같은 DB를 확인한 때만 작업 전용 사본을 만들 수 있다.
+    var snapshotForUsbSync: UsbSyncSnapshotProvenance? {
+        usbSnapshotEpoch == loadGeneration ? usbSnapshotProvenance : nil
+    }
+
+    func leaseUsbSyncSnapshot(directory: URL = UsbSyncSnapshotLease.defaultDirectory) async -> UsbSyncSnapshotLease? {
+        let epoch = snapshotReadEpoch
+        guard let provenance = snapshotForUsbSync, snapshotURL == provenance.sourceURL else { return nil }
+        let lease = try? await Self.runBlockingLibraryWork { try UsbSyncSnapshotLease.capture(provenance, directory: directory) }
+        guard !Task.isCancelled, snapshotReadEpoch == epoch, snapshotURL == provenance.sourceURL,
+              snapshotForUsbSync == provenance else { return nil }
+        return lease
+    }
     /// 선택 저장은 사본 복사의 폐기 사유가 아니므로 새 읽기 요청만 따로 추적한다.
     private var readRequestGeneration = 0
     func invalidatePendingLoads() { loadGeneration += 1 }
@@ -973,8 +990,10 @@ final class LibraryStore {
             let moved = try await Self.runBlockingLibraryWork { draftHome.map { DraftWriter.preserveDamagedDrafts(home: $0) } ?? [] }
             guard generation == loadGeneration, !Task.isCancelled else { return }
             reportDamagedDrafts(moved)
-            let loaded = try await Self.runBlockingLibraryWork {
-                try LoadedLibrary.load(snapshot: snapshot, commentPreset: preset, refreshITunes: refreshITunes,
+            let (loaded, usbSnapshot) = try await Self.runBlockingLibraryWork {
+                // 파일 교체가 목록 읽기와 겹치면 일반 화면은 유지하되 native 작업의 출처는 채택하지 않는다.
+                let before = try? UsbSyncSnapshotProvenance.capture(snapshot)
+                let loaded = try LoadedLibrary.load(snapshot: snapshot, commentPreset: preset, refreshITunes: refreshITunes,
                                        previousITunesSnapshot: previousITunesSnapshot, refreshTicket: refreshTicket,
                                        sourceDatabase: sourceDatabase, artworkDirectory: artworkDirectory, progress: { stage in
                                            Task { @MainActor in
@@ -983,6 +1002,8 @@ final class LibraryStore {
                                                self.phase = .loading(stage.message)
                                            }
                                        }, captureITunes: captureITunes)
+                let after = try? UsbSyncSnapshotProvenance.capture(snapshot)
+                return (loaded, before == after ? before : nil)
             }
             // 더 나중에 시작한 로드가 있으면 이 결과는 버린다.
             guard generation == loadGeneration, !Task.isCancelled else { return }
@@ -1057,6 +1078,8 @@ final class LibraryStore {
             histories = loaded.histories
             historyIndex = Dictionary(uniqueKeysWithValues: histories.map { ($0.id, $0) })
             snapshotURL = snapshot
+            usbSnapshotProvenance = usbSnapshot
+            usbSnapshotEpoch = generation
             onSnapshotLoaded?(snapshot)
             previewRevision += 1
             loadStaged()

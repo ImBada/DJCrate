@@ -151,7 +151,11 @@ public enum UsbExportAssembly {
     /// - progress: (끝낸 곡, 곡 수). isCancelled가 참이면 `UsbError.cancelled`
     public static func assembled(model: UsbExportModel, plan: UsbExportPlan, localDatabase: CipherDatabase, share: URL, staging: URL,
                                  formats: Set<UsbFormat>, session: String, settingsFolder: URL? = nil,
+                                 syncSelection: UsbSyncSelectionDraft? = nil,
                                  progress: (Int, Int) -> Void = { _, _ in }, isCancelled: () -> Bool = { false }) throws -> UsbExportAssembled {
+        if let syncSelection, let block = UsbSyncSelectionStage.gateBlock(baseFiles: syncSelection.baseFiles, formats: formats) {
+            throw UsbError.writeRefused([block])
+        }
         guard !formats.isEmpty, !model.library.tracks.isEmpty else {
             throw UsbError.writeRefused([UsbBlock(code: "noTracks", scope: .volume,
                                                   message: String(ui: "내보낼 곡이 없습니다. 막힌 곡의 이유를 확인한 뒤 다시 시도하세요"))])
@@ -206,10 +210,22 @@ public enum UsbExportAssembly {
         }
         let highWater = ["content": plan.tracks.map(\.contentID).max() ?? 0, "image": plan.tracks.compactMap(\.imageID).max() ?? 0,
                          "playlist": plan.playlists.map(\.playlistID).max() ?? 0].filter { $0.value > 0 }
+        var syncVerification: UsbSyncSelectionVerification?
+        if let syncSelection {
+            guard let contract = UsbSyncXMLWriteContract.production,
+                  try UsbLocalSource(database: localDatabase).localDBID() == syncSelection.localDBID,
+                  syncSelection.baseFiles.isEmpty, plan.blocked.isEmpty else {
+                throw UsbError.writeRefused([UsbSyncSelectionStage.incompleteBlock])
+            }
+            let ids = Dictionary(plan.playlists.map { ($0.localID, $0.playlistID) }, uniquingKeysWith: { first, _ in first })
+            syncVerification = try UsbSyncSelectionStage.stage(syncSelection, formats: formats, model: model.library, createdIDs: [:],
+                                                              allocatedIDs: ids, root: nil, fileSystem: PosixUsbFileSystem(),
+                                                              into: &context, contract: contract)
+        }
         let changes = UsbChangeSet(session: session, label: "export", purpose: .export, formats: formats, requiredRules: requiredRules,
                                    databases: context.databases, copies: context.copies, writes: context.writes, removals: [], base: nil,
                                    target: UsbTargetFingerprint(mustExist: context.target, mustNotExist: []),
-                                   stagingDirectory: staging.path, idHighWater: highWater)
+                                   stagingDirectory: staging.path, idHighWater: highWater, syncSelection: syncVerification)
         return UsbExportAssembled(changes: changes, warnings: unique(warnings), library: model.library, pdbWritten: pdbWritten,
                                   ruleCounts: ruleCounts)
     }

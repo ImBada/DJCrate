@@ -378,6 +378,9 @@ struct SlowUsbFileSystem: UsbFileSystem {
     func removeDirectoryIfEmpty(_ url: URL) throws -> Bool { try inner.removeDirectoryIfEmpty(url) }
     func sha256(_ url: URL, uncached: Bool) throws -> String { try inner.sha256(url, uncached: uncached) }
     func read(_ url: URL, maxBytes: Int) throws -> Data { try inner.read(url, maxBytes: maxBytes) }
+    func readFile(root: UsbRoot, relativePath: String, maxBytes: Int) throws -> UsbFileRead? {
+        try inner.readFile(root: root, relativePath: relativePath, maxBytes: maxBytes)
+    }
     func mountedOn(_ url: URL) throws -> String? { try inner.mountedOn(url) }
     func holdVolume(_ root: URL) throws -> any UsbVolumeHold { try inner.holdVolume(root) }
 }

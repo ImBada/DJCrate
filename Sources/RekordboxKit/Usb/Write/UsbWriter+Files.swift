@@ -35,7 +35,8 @@ extension UsbWriteRun {
         func rank(_ write: UsbFileWrite) -> Int {
             UsbPath.isAnalysis(write.destination) ? 0 : UsbPath.isArtwork(write.destination) ? 1 : 2
         }
-        let writes = changes.writes.enumerated().sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }.map(\.element)
+        let writes = changes.writes.enumerated().filter { $0.element.afterDatabases != true }
+            .sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }.map(\.element)
         return changes.copies.map(FileItem.copy) + writes.map(FileItem.write)
     }
 
@@ -72,6 +73,22 @@ extension UsbWriteRun {
         }
         try journal.move(to: .filesWritten)
         try saveJournal()
+    }
+
+    /// DB가 완성된 뒤 선택 파일을 확정한다. 같은 파일 저널·백업을 써서 중간 실패는 묶음 전체가 되돌아간다.
+    func writeSelectionFiles(_ changes: UsbChangeSet) throws {
+        let files = changes.writes.filter { $0.afterDatabases == true }
+        guard !files.isEmpty else { return }
+        try checkRekordbox()
+        try ensureSameVolume()
+        for (index, write) in files.enumerated() {
+            try checkRekordbox()
+            try ensureSameVolume()
+            try requireUnchangedNativeFiles()
+            emit(.commit, done: index, total: files.count, cancellable: false)
+            try place(.write(write), target: changes.target) { _ in }
+        }
+        emit(.commit, done: files.count, total: files.count, cancellable: false)
     }
 
     /// 없는 폴더를 위에서부터 한 단계씩 만든다. 저널에 먼저 적고 만든 뒤 부모의 정확한 `._<폴더>`를 지운다
@@ -114,6 +131,7 @@ extension UsbWriteRun {
                                      oldSHA256: oldSHA256, newSHA256: newSHA256, size: item.size,
                                      appleDoublePreexisted: appleDouble, state: .pending))
         let entry = journal.entries.count - 1
+        journal.entries[entry].writePhase = .preparing
         try saveJournal()
 
         try ensureMounted()
@@ -133,18 +151,36 @@ extension UsbWriteRun {
             if let date = write.modificationDate { try fs.setModificationDate(tempURL, date) }
             try fs.fullSync(tempURL)
             progress(write.size)
-            if write.disposition == .overwrite { try checkOverwriteTarget(write) }
         }
-        if item.disposition == .create {
-            try ensureMounted()
-            try recheckCollision(destination, temp: temp)
+        func checkTarget() throws {
+            do {
+                try requireUnchangedNativeFiles()
+                if case let .write(write) = item, write.disposition == .overwrite { try checkOverwriteTarget(write) }
+                if item.disposition == .create { try recheckCollision(destination, temp: temp) }
+            } catch {
+                journal.entries[entry].writePhase = .externalChanged
+                journal.externalChangesDetected = true
+                try saveJournal()
+                throw error
+            }
         }
         try ensureMounted()
+        try checkTarget()
+        // temp를 완성한 것과 rename에 진입한 것은 별개다. 발견한 충돌은 이 의도로 바꿔 적지 않는다.
+        journal.entries[entry].writePhase = .renamePending
+        try saveJournal()
+        try checkTarget()
+        try ensureMounted()
+        // 최종 검사까지 끝난 호출 진입 의도를 따로 내린다. 검사 중 중단을 FAT rename으로 보지 않는다.
+        journal.entries[entry].writePhase = .renameEntered
+        try saveJournal()
+        try checkTarget()
         try fs.rename(tempURL, to: usb(destination))
         try removeExactAppleDouble(parent: parent, name: name)
         try removeExactAppleDouble(parent: parent, name: temp)
         try fs.syncDirectory(usb(parent))
         journal.entries[entry].state = .done
+        journal.entries[entry].writePhase = .done
         try saveJournal()
         if item.disposition == .overwrite { report.filesOverwritten += 1 } else { report.filesCreated += 1 }
     }
@@ -177,8 +213,9 @@ extension UsbWriteRun {
 
     /// 덮어쓸 대상이 계획 때 그 파일인지(해시), 분석 파일이면 같은 곡 것인지(PPTH)
     func checkOverwriteTarget(_ write: UsbFileWrite) throws {
-        let url = usb(write.destination)
-        guard try fs.sha256(url, uncached: false) == write.expectedExistingSHA256 else {
+        let url = try root.url(for: write.destination)
+        guard let info = try fs.stat(url), info.kind == .file,
+              try fs.sha256(url, uncached: true) == write.expectedExistingSHA256 else {
             throw UsbWriteFailure.failed("overwrite target changed: \(write.destination)")
         }
         if UsbPath.isAnalysis(write.destination), let expected = write.expectedExistingPPTH, let ppthReader {

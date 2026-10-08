@@ -3,7 +3,7 @@ import Foundation
 import RekordboxKit
 
 /// 이미 라이브러리가 있는 USB 수정. 편집(`UsbLibraryEdit`)을 계획하고 한 번에 쓴다.
-/// 순서: 원본 확인 → 볼륨(정책·보호 경로·관문, 막히면 USB를 열거하지 않는다) → 저널 → USB DB 사본 → (곡 더하기·갱신이면) 세션 전용 로컬 사본
+/// 순서: 원본 확인 → 볼륨(정책·보호 경로·관문, 막히면 USB를 열거하지 않는다) → 저널 → USB DB 사본 → (곡 더하기·갱신·동기화면) 세션 전용 로컬 사본
 /// → 계획(`UsbEditEngine`) → 확인 안 된 규칙 → `UsbWriter.write`. 사본·준비 폴더는 세션이 끝나면 지운다.
 public final class UsbEditSession {
     let root: URL
@@ -24,7 +24,7 @@ public final class UsbEditSession {
     /// 마지막 계획(막혀 던졌을 때도 CLI·앱이 요약을 읽는다)
     public private(set) var lastResult: UsbEditResult?
 
-    /// - database: 로컬 스냅샷 사본(곡 더하기·갱신·음원 지우기 확인에 쓴다. 라이브 master.db는 거부)
+    /// - database: 로컬 스냅샷 사본(곡 더하기·갱신·목록 동기화·음원 지우기 확인에 쓴다. 라이브 master.db는 거부)
     /// - share: 로컬 rekordbox share(읽기만)
     /// - fileSystem: 시험은 마운트를 흉내 내는 파일 시스템을 넘긴다
     /// - localCopy: 세션 사본 뜨기. 원본은 넘겨받은 사본이라 실행 중 확인·WAL 거부 없이 곁의 WAL을 사본 안에서 합친다(원본은 읽기만).
@@ -169,10 +169,10 @@ public final class UsbEditSession {
         case .missing: break
         }
 
-        // 5. 스냅샷 시각은 세션 사본을 뜨기 전에 원본에서 푼다(곡 더하기·갱신이 쓰고, 요약 첫 줄에 출처를 적는다)
+        // 5. 스냅샷 시각은 세션 사본을 뜨기 전에 원본에서 푼다(곡 더하기·갱신·동기화가 쓰고, 요약 첫 줄에 출처를 적는다)
         let needsLocal = list.contains {
             switch $0 {
-            case .addTracks, .refreshTracks: true
+            case .addTracks, .refreshTracks, .syncPlaylist, .syncSelection: true
             case .removeTracks, .playlist: false
             }
         }
@@ -185,7 +185,7 @@ public final class UsbEditSession {
         defer { try? FileManager.default.removeItem(at: usbCopy) }
         let source = try UsbEditEngine.load(root: UsbRoot(root), into: usbCopy)
 
-        // 7. 세션 전용 로컬 사본(곡 더하기·갱신이 있을 때만). 끝나면(성공·실패·취소) 지운다
+        // 7. 세션 전용 로컬 사본(곡 더하기·갱신·동기화가 있을 때만). 끝나면(성공·실패·취소) 지운다
         let copyFolder = localCopies.appending(path: "local-\(session)")
         defer { try? FileManager.default.removeItem(at: copyFolder) }
         var localDatabase: CipherDatabase?
@@ -254,6 +254,13 @@ public final class UsbEditSession {
         switch edit {
         case let .addTracks(localContentIDs, playlist):
             return .addTracks(localContentIDs: localContentIDs, playlist: playlist.map(ref))
+        case let .syncPlaylist(playlist, localContentIDs):
+            return .syncPlaylist(playlist: ref(playlist), localContentIDs: localContentIDs)
+        case let .syncSelection(draft):
+            let resolved = UsbSyncSelectionDraft(localDBID: draft.localDBID, sourceNodes: draft.sourceNodes, selection: draft.selection,
+                                                 enabled: draft.enabled, playlistRefs: draft.playlistRefs.mapValues(ref), baseFiles: draft.baseFiles,
+                                                 enabledOnly: draft.enabledOnly)
+            return .syncSelection(draft: resolved)
         case .removeTracks, .refreshTracks: return edit
         case let .playlist(edit):
             let resolved: PlaylistEdit

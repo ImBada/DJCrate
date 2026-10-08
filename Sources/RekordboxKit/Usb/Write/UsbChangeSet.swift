@@ -31,7 +31,7 @@ public struct UsbFileCopy: Codable, Hashable, Sendable {
     }
 }
 
-/// 분석 파일·아트워크·설정: 준비 폴더 파일 → USB
+/// 분석 파일·아트워크·설정·동기화 선택: 준비 폴더 파일 → USB
 public struct UsbFileWrite: Codable, Hashable, Sendable {
     public var staged: String
     public var destination: String
@@ -43,9 +43,11 @@ public struct UsbFileWrite: Codable, Hashable, Sendable {
     public var expectedExistingPPTH: String?
     /// 덮어쓰기 대상의 계획 때 해시
     public var expectedExistingSHA256: String?
+    /// 동기화 선택 파일은 DB 교체를 마친 뒤에만 확정한다. 옛 저널은 nil(기존 파일 단계)이다.
+    public var afterDatabases: Bool?
 
     public init(staged: String, destination: String, sha256: String, size: Int64, modificationDate: Date?, disposition: UsbDisposition,
-                expectedExistingPPTH: String? = nil, expectedExistingSHA256: String? = nil) {
+                expectedExistingPPTH: String? = nil, expectedExistingSHA256: String? = nil, afterDatabases: Bool? = nil) {
         self.staged = staged
         self.destination = destination
         self.sha256 = sha256
@@ -54,6 +56,7 @@ public struct UsbFileWrite: Codable, Hashable, Sendable {
         self.disposition = disposition
         self.expectedExistingPPTH = expectedExistingPPTH
         self.expectedExistingSHA256 = expectedExistingSHA256
+        self.afterDatabases = afterDatabases
     }
 }
 
@@ -126,10 +129,13 @@ public struct UsbChangeSet: Codable, Sendable, Equatable {
     public var target: UsbTargetFingerprint
     public var stagingDirectory: String
     public var idHighWater: [String: Int]
+    /// 선택·원본 ID·Dev_ID 검증 기대값. nil인 기존 묶음은 동기화 파일을 건드리지 않는다.
+    public var syncSelection: UsbSyncSelectionVerification?
 
     public init(session: String, label: String, purpose: UsbVolumePurpose, formats: Set<UsbFormat>, requiredRules: Set<UsbProvisionalRule>,
                 databases: [UsbDatabaseReplacement], copies: [UsbFileCopy], writes: [UsbFileWrite], removals: [UsbFileRemoval],
-                base: UsbFingerprint?, target: UsbTargetFingerprint, stagingDirectory: String, idHighWater: [String: Int]) {
+                base: UsbFingerprint?, target: UsbTargetFingerprint, stagingDirectory: String, idHighWater: [String: Int],
+                syncSelection: UsbSyncSelectionVerification? = nil) {
         self.session = session
         self.label = label
         self.purpose = purpose
@@ -143,6 +149,7 @@ public struct UsbChangeSet: Codable, Sendable, Equatable {
         self.target = target
         self.stagingDirectory = stagingDirectory
         self.idHighWater = idHighWater
+        self.syncSelection = syncSelection
     }
 }
 

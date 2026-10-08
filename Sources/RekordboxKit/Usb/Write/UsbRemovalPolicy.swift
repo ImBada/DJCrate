@@ -5,7 +5,7 @@ import Foundation
 /// 비교는 대소문자·NFC/NFD를 가리지 않는다(FAT가 같은 이름으로 본다).
 public enum UsbRemovalPolicy {
     /// 경로 모양만 본다: `Contents/…`, 분석 파일(`PIONEER/USBANLZ/Pxxx/xxxxxxxx/ANLZxxxx.DAT|EXT|2EX`),
-    /// 아트워크(`PIONEER/Artwork/nnnnn/[ab]n(_m).jpg`)와 그 짝 `._<이름>`
+    /// 아트워크(`PIONEER/Artwork/nnnnn/[ab]n(_m).jpg`), 동기화 선택 두 파일과 그 짝 `._<이름>`
     public static func allows(_ path: String) -> Bool {
         if path.isEmpty || path.hasPrefix("/") || UsbLayout.isNeverRead(path) { return false }
         let components = path.split(separator: "/", omittingEmptySubsequences: false).map { UsbLayout.collisionKey(String($0)) }
@@ -15,6 +15,8 @@ public enum UsbRemovalPolicy {
         guard first == "pioneer", components.count >= 2 else { return false }
         let leaf = stripAppleDouble(components.last!)
         switch components[1] {
+        case "rekordbox":
+            return components.count == 3 && ["playlists3.sync", "playlists3plus.sync"].contains(leaf)
         case "usbanlz":
             guard components.count == 5 else { return false }
             let folder = components[2], track = components[3]

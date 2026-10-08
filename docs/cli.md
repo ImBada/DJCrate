@@ -287,7 +287,7 @@ djc usb-edit --volume <마운트> (<편집.json> | --draft) [--db <스냅샷 사
 
 - **실물 USB는 `--allow-physical --confirm <볼륨 이름>`이 있어야 쓴다**(`usb-export`와 같다). 곡 정보 갱신(`refreshTracks`, `editRefreshTracks`)도 실물에서 막지 않는다.
 - `<편집.json>`: 편집 배열. 적힌 순서대로 앞 편집을 적용한 결과 위에 다음 편집을 계획한다. `--draft`는 이 볼륨에 쌓인 초안(`usb-drafts/<볼륨 UUID>.json`)을 쓴다. 초안을 만든 뒤 USB가 바뀌었으면 지금 USB 상태로 다시 계획한다("USB가 그 사이 바뀌어 다시 계획했습니다"). 쓴 뒤(또는 쓸 것이 없을 때) 초안에는 막힌 편집만 남기고(새 base는 그때 USB DB 지문 — 새 스냅샷 등으로 풀리면 다시 `--draft`로 쓴다), 막힌 편집이 없으면 초안을 지운다. `--dry-run`은 초안을 건드리지 않는다.
-- `--db`: 로컬 스냅샷 사본. 곡 더하기·갱신(로컬을 읽는 편집)에 필요하다. 받은 사본은 곡 더하기·갱신이 있을 때만 세션 전용 폴더(`usb-snapshots/local-<세션>/`)에 한 번 더 떠서 읽고 끝나면 지운다. 곡 빼기에서 음원을 지워도 되는지(로컬 원본과 같은지)는 곡 더하기·갱신과 함께 쓰는 묶음에서만 본다 — 곡 빼기·목록 편집만 있으면 `--db`를 주어도 로컬 사본을 뜨지 않아 음원은 USB에 남기고 알린다(분석 파일·앨범아트는 지운다). `--db`를 빼면 곡 더하기·갱신이 있을 때만 가장 최근 스냅샷을 읽기만 한다(곡 빼기·목록 편집만 있으면 스냅샷 폴더를 보지 않는다). 라이브 master.db는 거부한다.
+- `--db`: 로컬 스냅샷 사본. 곡 더하기·갱신·목록 동기화(로컬을 읽는 편집)에 필요하다. 받은 사본은 곡 더하기·갱신·목록 동기화가 있을 때만 세션 전용 폴더(`usb-snapshots/local-<세션>/`)에 한 번 더 떠서 읽고 끝나면 지운다. 곡 빼기에서 음원을 지워도 되는지(로컬 원본과 같은지)는 곡 더하기·갱신·목록 동기화와 함께 쓰는 묶음에서만 본다 — 곡 빼기·일반 목록 편집만 있으면 `--db`를 주어도 로컬 사본을 뜨지 않아 음원은 USB에 남기고 알린다(분석 파일·앨범아트는 지운다). `--db`를 빼면 곡 더하기·갱신·목록 동기화가 있을 때만 가장 최근 스냅샷을 읽기만 한다(곡 빼기·일반 목록 편집만 있으면 스냅샷 폴더를 보지 않는다). 라이브 master.db는 거부한다.
 - `--snapshot-time`: 사본을 뜬 시각(`usb-export`와 같다). 곡 더하기·갱신에서 이 시각 뒤에 분석 파일이 바뀐 곡은 막는다.
 - `--dry-run`: 계획·준비·쓰기 전 확인까지만 하고 USB에 쓰지 않는다. 같은 명령을 `--dry-run` 없이 다시 부르면 막히지 않고 쓴다.
 - 편집 하나가 막히면 그 편집만 빼고 나머지를 쓴다. 여러 곡 갱신(`refreshTracks`)은 곡 더하기처럼 막힌 곡만 빼고 쓰고(요약의 "빼고 쓴 곡"), 요청한 곡이 모두 막혔을 때만 그 편집을 막는다. USB 전체를 막는 것: 두 형식의 곡 번호·경로가 다름(`formatTrackMismatch`), 같은 번호 재생 목록이 형식마다 다름(`formatPlaylistConflict`), 라이브러리 손상(`libraryCorrupt`), 새 rekordbox의 OneLibrary(`oneLibraryUnsupported`), 볼륨 모양(APFS·HFS+ 등), 실물 관문, 끝나지 않은 쓰기(`recoveryNeeded`). Device Library만 막는 것(OneLibrary는 쓴다): 머리 0x10이 5가 아님(`pdbNotClosed`), 기기가 쓴 기록·모르는 표 행(`carriedDeviceRows`), 다시 쓸 수 없는 모양(`pdbRoundTripFailed`). 한 형식이 막히면 파일 지우기를 미루고(`deferred`), 두 형식에 함께 있는 재생 목록의 이름·폴더 바꾸기는 막는다(`playlistInBlockedFormat` — 한 형식만 바꾸면 두 형식 목록이 어긋나 다음부터 USB 전체가 막힌다).
@@ -311,6 +311,8 @@ djc usb-edit --volume <마운트> (<편집.json> | --draft) [--db <스냅샷 사
 
 - `refreshTracks.parts`: `info`(곡 정보), `cues`(큐), `grid`(박자 그리드·분석 파일), `artwork`(앨범아트). 로컬 곡은 이 곡을 내보낸 라이브러리의 같은 곡(DB ID·곡 ID, USB 경로 끝 성분 = 파일 이름 그대로이거나 내보내기 이름 규칙·번호를 붙인 이름)으로 찾는다. 로컬과 같은 곡은 `unchanged`, 기기에서 고친 곡(hasModified·기기 큐 행)은 건너뛰고 알린다. 음원이 바뀐 곡은 막는다(음원은 다시 쓰지 않는다).
 - `addTracks.playlist`: 주면 더한 곡을 그 목록 끝에 넣는다. 이미 USB에 있는 곡(`alreadyOnUsb`)과 내보내기에서 막히는 곡은 빼고 더한다.
+- `syncPlaylist`: `{"syncPlaylist":{"playlist":"new:p2","localContentIDs":["123456","123456","789012"]}}`처럼 로컬 곡 ID로 USB 목록의 전체 항목을 맞춘다. 같은 묶음에서 앞서 더한 곡도 여러 목록에서 가리킬 수 있고 순서·중복을 보존한다. `--db`가 필요하며 로컬 사본은 세션 전용 폴더에 다시 뜬다. 짝이 없거나 여러 개면 목록 편집 전체를 막아 기존 항목을 보존한다. 빈 배열은 목록을 비운다. USB 음원 삭제는 포함하지 않는다.
+- `syncSelection`: 앱이 동기화 선택·원본 노드·최종 목록 참조·두 sync 원문을 담아 마지막 편집으로 더한다. 선택 파일도 DB와 같은 쓰기 묶음으로 갱신하고, 선택만 바뀐 요청이나 켜짐만 바꾸는 요청(`enabledOnly`)도 쓸 수 있다. 원본 노드에는 `masterPlaylists6.xml`의 `timestamp`를 싣는다. rekordbox가 만든 선택 파일이 있는 USB만 고쳐 쓴다(새 파일 만들기는 막음, [규칙](usb-internals.md#83-수정usbeditsession-usbeditengine-djc-usb-edit)). `djc lab usb-sync-diff <전 폴더> <후 폴더>`는 임시 폴더의 전후 선택 파일을 값 없이 칸·노드·순서로 비교한다.
 - 재생 목록 항목 편집(`addTracks`·`removeTracks`·`moveTracks`)은 두 형식의 곡 목록이 같은 목록만 한다(다르면 `playlistEntriesDiffer` — 이름·위치만 바꿀 수 있다). `entries`의 `trackNo`는 1부터의 자리, `contentID`는 그 자리에 있어야 할 USB 곡이다. 지금 그 자리의 곡과 다르면 막는다(`entryMismatch`).
 
 ## Device Library만 있는 USB를 OneLibrary로 옮기기(`usb-migrate`)

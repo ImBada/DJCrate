@@ -11,8 +11,16 @@ import Testing
 /// 코디네이터가 메인 액터 밖에서 부르므로 모든 상태는 잠금 안에서만 바꾼다.
 final class FakeUsbWriteService: UsbWriteService, @unchecked Sendable {
     struct State {
+        /// 이벤트·사이드바 채택과 독립적인 실제 마운트 입력. 없으면 native 확인은 거부한다.
+        var liveVolumeReader: (@Sendable (UsbVolumeInfo) throws -> UsbVolumeInfo)?
+        var liveSyncFilesReader: (@Sendable (UsbVolumeInfo, Set<UsbFormat>) throws -> [UsbFormat: Data])?
         var journal: UsbJournalInfo = .none
+        var journalCalls = 0
+        var onJournal: (@Sendable (Int) -> Void)?
+        var exportDatabases: [URL] = []
+        var onWriteJob: (@Sendable (UsbExportJob) -> Void)?
         var summary = UsbTestData.summary()
+        var onPreview: (@Sendable () -> Void)?
         var migrationSummary = UsbMigrationSummary(trackCount: 3, playlistCount: 1, artworkFiles: 6, blocks: [],
                                                    rules: [.deviceLibraryMigration], notes: [], hasChanges: true, isTestVolume: true)
         var migrationPreviewError: UsbError?
@@ -69,24 +77,47 @@ final class FakeUsbWriteService: UsbWriteService, @unchecked Sendable {
     func update(_ body: (inout State) -> Void) { lock.withLock { body(&state) } }
     var current: State { lock.withLock { state } }
 
-    func journal(volumeKey: String) -> UsbJournalInfo { lock.withLock { state.journal } }
+    func currentVolume(_ volume: UsbVolumeInfo) throws -> UsbVolumeInfo {
+        guard let reader = lock.withLock({ state.liveVolumeReader }) else { throw UsbError.cancelled }
+        return try reader(volume)
+    }
+
+    func syncSelectionBaseFiles(_ volume: UsbVolumeInfo, formats: Set<UsbFormat>) throws -> [UsbFormat: Data] {
+        guard let reader = lock.withLock({ state.liveSyncFilesReader }) else { throw UsbError.cancelled }
+        return try reader(volume, formats)
+    }
+
+    func journal(volumeKey: String) -> UsbJournalInfo {
+        let (count, hook) = lock.withLock {
+            state.journalCalls += 1
+            return (state.journalCalls, state.onJournal)
+        }
+        hook?(count)
+        return lock.withLock { state.journal }
+    }
 
     func preview(_ job: UsbExportJob) throws -> UsbExportSummary {
-        lock.withLock {
+        let hook = lock.withLock { () -> (@Sendable () -> Void)? in
             state.calls.append("preview")
+            state.exportDatabases.append(job.database)
             if let next = state.journalAfterPreview { state.journal = next }
-            return state.summary
+            return state.onPreview
         }
+        hook?()
+        return lock.withLock { state.summary }
     }
 
     func write(_ job: UsbExportJob, progress: @escaping @Sendable (UsbProgress) -> Void,
                isCancelled: @escaping @Sendable () -> Bool) throws -> UsbWriteReport {
         let (steps, hook) = lock.withLock { () -> ([UsbProgress], (@Sendable () -> Void)?) in
             state.calls.append("write")
+            state.exportDatabases.append(job.database)
             return (state.writeProgress, state.onWrite)
         }
         for step in steps { progress(step) }
         hook?()
+        let jobHook = lock.withLock { state.onWriteJob }
+        jobHook?(job)
         if isCancelled() { throw UsbError.cancelled }
         return try lock.withLock {
             if let next = state.journalAfterWrite { state.journal = next }
@@ -654,8 +685,8 @@ struct UsbWriteCoordinatorTests {
         }
         prompter.choices = [.alternate]
         await coordinator(usb).offerRecovery(image)
-        #expect(prompter.shown.last?.title == "rekordbox가 켜져 있어 USB 복원을 미뤘습니다")
-        #expect(prompter.shown.last?.text.contains("기기에 꽂지 마세요") == true)
+        #expect(prompter.shown.last?.title == "USB 복원을 미뤘습니다")
+        #expect(prompter.shown.last?.text.contains("기기에 꽂지 말고") == true)
         service.update { $0.restoreResult = .failure(.volumeLost(volumeName: "B12T")) }
         prompter.choices = [.alternate]
         await coordinator(usb).offerRecovery(image)

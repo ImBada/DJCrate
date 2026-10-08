@@ -60,11 +60,20 @@ public protocol UsbFileSystem: Sendable {
     /// uncached: F_NOCACHE(캐시가 아니라 매체에서 다시 읽는다)
     func sha256(_ url: URL, uncached: Bool) throws -> String
     func read(_ url: URL, maxBytes: Int) throws -> Data
+    /// 루트 fd와 각 상대 경로 성분을 O_NOFOLLOW로 열고, 실제 일반 파일 fd만 읽는다. nil = 없음.
+    /// URL 기반 read로 대체하면 부모 링크 경쟁을 다시 열게 되므로 구현하지 않은 파일 시스템은 거부한다.
+    func readFile(root: UsbRoot, relativePath: String, maxBytes: Int) throws -> UsbFileRead?
     /// statfs(2) f_mntonname(realpath 모양)
     func mountedOn(_ url: URL) throws -> String?
     /// 루트 폴더를 열어 붙잡는다(쓰기·되돌리기·회복이 끝날 때까지). 그 사이 같은 마운트 지점에 다른 볼륨이 붙으면
     /// `isSameVolume`이 거짓이 된다(마운트 지점 이름만으로는 가려낼 수 없다)
     func holdVolume(_ root: URL) throws -> any UsbVolumeHold
+}
+
+public extension UsbFileSystem {
+    func readFile(root: UsbRoot, relativePath: String, maxBytes: Int) throws -> UsbFileRead? {
+        throw UsbSyncSelectionFile.ParseError.unsafePath
+    }
 }
 
 /// 붙잡아 둔 볼륨. 쓰는 동안 파일 연산마다 아직 그 볼륨인지 본다
@@ -290,6 +299,10 @@ public struct PosixUsbFileSystem: UsbFileSystem {
             data.append(contentsOf: buffer[0..<count])
         }
         return data
+    }
+
+    public func readFile(root: UsbRoot, relativePath: String, maxBytes: Int) throws -> UsbFileRead? {
+        try UsbAnchoredFileReader.read(root: root, relativePath: relativePath, maxBytes: maxBytes)
     }
 
     public func mountedOn(_ url: URL) throws -> String? {

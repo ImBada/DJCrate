@@ -18,6 +18,7 @@ rekordbox 7이 USB에 내보내는 라이브러리(OneLibrary·Device Library)�
 |---|---|---|
 | `PIONEER/rekordbox/exportLibrary.db` | OneLibrary(§2) | 만든다·고친다 |
 | `PIONEER/rekordbox/export.pdb`·`exportExt.pdb` | Device Library(§3) | 만든다·고친다 |
+| `PIONEER/rekordbox/playlists3.sync`·`playlists3Plus.sync` | 장치별 동기화 선택 XML | 읽기·고쳐 쓰기(#233, 2026-10-08 실험으로 확인한 칸 규칙). 새 파일 만들기는 막음 |
 | `PIONEER/USBANLZ/P???/????????/ANLZ000N.DAT`·`.EXT`·`.2EX` | 곡마다 분석 파일 셋(§4) | 만든다. 폴더 이름은 §5 "분석 파일(ANLZ) 자리" |
 | `PIONEER/Artwork/%05d/a{id}.jpg`·`a{id}_m.jpg`·`b{id}.jpg`·`b{id}_m.jpg` | 아트워크(a는 Device Library, b는 OneLibrary) | 만든다(§5) |
 | `Contents/…` | 음원 | 복사한다(§5) |
@@ -683,6 +684,7 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 ### 7.4 Mac 쪽 내구 쓰기와 저널
 
 - 저널·manifest·보고서는 같은 폴더 임시 파일 → write → `F_FULLFSYNC` → rename → 폴더 fsync로 쓴다(`UsbDurableFile`).
+- C 백업은 모든 쓰기에서 완성한 manifest를 전체 계획·저널의 필수 범위와 대조한 뒤에만 `backedUp`으로 확정한다. 준비 뒤 백업 전에 DB나 덮어쓸 파일이 바뀌어 기준이 어긋나면 D·E의 USB 연산에 들어가지 않는다. 일반 편집도 알려진 DB·사이드카의 `base` 누락을 원래 부재로 비교해, 새 WAL 등을 백업 기준으로 흡수하지 않는다. `base`가 없는 새 내보내기도 생성할 DB와 OneLibrary 사이드카의 부재를 C의 시작·manifest 대조·확정 직전에 검사한다. `base`가 관찰하지 않는 `.bak`는 기존 별도 처리대로 보존한다.
 - 저널(`usb-sessions/<볼륨 UUID>.json`)은 파일·DB 항목(created·reused·overwritten, pending·done), 만든 폴더, 지운 사이드카, 지우기 상태(removed·skipped와 이유), 백업 폴더를 담는다. 상태 값은 `committing`·`committed` 하나씩이고, 형식별 진행은 DB 항목에서 읽는다(`committedFormats`·`committingFormat`).
 - 저널 파일은 볼륨마다 하나라 새 세션(드라이 런 포함)이 닫힌 옛 저널을 덮는다. 그래서 되돌리기와 백업 정리는 백업 폴더의 `journal.json`·`report.json`을 읽는다.
 
@@ -704,6 +706,9 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 - DB는 저널의 DB 항목대로 한다. 쓰기 전에 없던 DB(내보내기)는 그 DB·`-wal`·`-shm`·`-journal`과 정확한 이름의 `._`만 지운다. 덮어쓴 DB(수정)는 USB 사이드카를 지우고 백업의 DB·사이드카·원래 있던 `._<DB>`를 되살린다.
 - 지운 파일은 백업에서 되살린다. 지운 음원은 로컬 원본의 SHA-1이 같을 때만 다시 복사하고, 원본이 없거나 바뀌었으면 알림만 남기고 지문 비교에서 뺀다(되돌릴 수 없는 것을 실패로 세면 회복이 끝나지 않는다). 쓰기 전에 이미 없던 파일은 되살릴 것이 없다.
 - 만든 폴더는 거꾸로 비었으면 지운다. 우리 경로 지문이 쓰기 전과 같으면 `rolledBack`, 아니면 `restoreFailed`.
+- 복원도 임시 파일 준비·rename/delete 진입·완료를 저널에 기록한다. 재개 전에는 완료한 XML·DB·사이드카도 현재 해시·부재·링크를 다시 확인한다. 승인 뒤 바뀐 대상이나 외부 삭제와 구분할 수 없는 중단은 `restorePending`과 재승인 필요 기록으로 남기고, 복원 temp를 보존한다. 옛 저널의 temp는 같은 세션에서 유일하고 백업 해시·크기와 일치할 때만 새 의도로 이어받는다.
+- 완료 전 의도도 처음 기록한 기대 해시·링크 신원과 단계별 허용 결과로 재개한다. 저장된 폐기 승인이 그 뒤의 외부 변경까지 허용하지는 않는다. 기준을 다시 채택하는 것은 같은 백업을 명시적으로 재승인한 복원뿐이다.
+- 폐기 승인 저널을 저장하기 전에 아직 의도가 없는 뒤쪽 대상까지 전체 기준을 고정한다. DB·사이드카·XML·삭제 파일·다시 복사할 음원·백업의 AppleDouble도 포함한다. 전체 기준이 없는 옛 승인 저널은 기존 의도와 temp를 보존하되, 미기록 대상의 현재 상태를 새 승인으로 간주하지 않고 재승인을 요구한다.
 
 ### 7.7 회복(`djc usb-recover`) — 대상 먼저
 
@@ -712,13 +717,15 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 - `usb-restore`가 연 저널(끊긴 되돌리기)은 되돌리기로 마저 하고 `restored`로 닫는다. 그 쓰기의 백업 기록은 바꾸지 않는다.
 - DB마다 옛 해시·새 해시·없음·그 밖으로 나눈다. "그 밖"(기기가 바꿈)이 하나라도 있으면 저널에 적힌 우리 임시 파일만 지우고 `needsReplan`으로 닫는다. 다음 쓰기는 지금 USB를 다시 읽어 만든 새 계획이어야 한다(옛 계획은 `usbChanged`로 막힌다).
 - 대상이 없고 임시 파일이 새 해시와 같으면 rename을 마친다(만들기는 충돌 재확인 뒤). 모든 DB가 새것이면 F·G를 다시 해 `recovered`. 일부만 바뀌었으면 준비 폴더가 온전하고 남은 DB가 옛것일 때 마저 쓰고, 아니면 H로 `rolledBack`.
+- `.syncSelection` 묶음은 일부만 이어 쓰지 않고 DB와 두 선택 파일을 전체 복원한다. 외부 변경·삭제·모호한 rename 중단은 `restorePending`으로 멈추며 반복 회복에서도 승인 대기를 유지한다. 같은 쓰기의 백업으로 `--discard-device-changes`를 명시한 복원이 승인 경로다. native DB·선택 파일이 쓰기 전 기준과 다르면 성공으로 닫지 않는다.
 - 저널에 적힌 임시 파일은 판정이 끝난 뒤 지운다. 저널이 없으면 USB의 `.djc-part-*`를 보고만 하고 `--discard-temp`일 때만 지운다.
 - 닫을 때 그 쓰기의 백업 폴더에 `journal.json`·`report.json`(회복 뒤 지금 DB 해시)을 남긴다. 끊긴 쓰기도 백업 정리와 되돌리기가 알아보게 하려는 것이다. 백업 전에 끊겼으면(USB에 쓴 것 없음) 알림만 남긴다.
 
 ### 7.8 되돌리기(`djc usb-restore`)
 
 - 같은 확인을 먼저 거친다. 무엇을 되돌릴지는 그 백업 폴더의 `journal.json`에서 읽는다. 백업 폴더는 realpath가 이 볼륨의 `usb-backups/<볼륨>/` 바로 아래여야 하고(`backupOutside`), `journal.json`·`manifest.json`의 경로가 7.2-10의 모양 규칙을 어기면 파일 연산 없이 `backupUnreadable`로 막는다.
-- 되돌리기를 마치면 백업 폴더에 `restored.json`을 남긴다. 같은 백업으로 다시 되돌리면 "이미 되돌렸습니다"로 끝낸다(그 뒤 USB를 바꾼 것은 기기가 아니라 이 되돌리기다). `--backup`을 빼도 가장 최근 백업을 고르므로 두 번 돌려 더 옛 쓰기까지 되돌리지는 않는다.
+- manifest는 원래 변경 묶음·파일/DB·삭제·복원 의도의 필수 백업 범위와 대조한다. 필요한 기록·파일이 빠졌거나 해시가 다르면 USB 연산 전에 거부한다. 새 저널은 manifest 해시도 기록하며, 이 optional 값이 없는 옛 저널에도 범위 검사는 적용한다.
+- 되돌리기를 마치면 백업 폴더에 `restored.json`을 남긴다. 정상적으로 닫힌 세션의 같은 백업으로 다시 되돌리면 "이미 되돌렸습니다"로 끝낸다(그 뒤 USB를 바꾼 것은 기기가 아니라 이 되돌리기다). 표지 저장 뒤 저널 닫기 전에 중단된 열린 세션은 완료 항목 검사와 명시적 재승인 경로를 먼저 거친다. `--backup`을 빼도 가장 최근 백업을 고르므로 두 번 돌려 더 옛 쓰기까지 되돌리지는 않는다.
 - 지금 DB 해시가 `report.json`의 결과 해시와 같고 USB에 `-wal`·`-journal`이 없을 때만 진행한다. 아니면(기기가 쓴 기록 등) 막고, `--discard-device-changes`를 줘야 기기 변경을 버리고 되돌린다. 회복이 needsReplan으로 닫은 쓰기는 해시가 같아도 이 인자를 요구한다.
 - 만든 파일·폴더·DB는 지우고, 덮어쓴 것은 백업에서 되살리고, 재사용한 것은 그대로 둔다. 지웠던 음원은 로컬 원본의 SHA-1이 manifest와 같을 때만 다시 복사한다. 그래서 내보내기 직후 되돌리면 빈 USB로 돌아간다.
 
@@ -821,7 +828,7 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 
 이미 라이브러리가 있는 USB에 곡 더하기·빼기·갱신과 재생 목록 편집 8종을 쓴다. 편집은 초안(`usb-drafts/<볼륨 UUID>.json`, 만든 때의 USB DB 지문 `base`)으로 쌓거나 편집 파일로 주고, 반영 때 한 번에 쓴다. 명령과 편집 JSON 모양은 `docs/cli.md`의 "USB 수정".
 
-**순서**(세션): 원본(라이브 master.db 거부) → 볼륨(수정 목적의 볼륨 정책·보호 폴더·실물 관문 — 막히면 USB를 열거하지 않는다) → 저널(닫히지 않은 쓰기는 `recoveryNeeded`, 닫힌 저널의 ID highWater를 이어 받는다) → USB DB 사본(`UsbSnapshot`, 남은 `-wal`·hot `-journal`은 사본에서 합친다) → 읽기·합치기 → (곡 더하기·갱신이 있으면) 세션 전용 로컬 사본(`usb-snapshots/local-<세션>/`, 받은 사본에서 `force`로, 끝나면 지운다) → 계획·준비(`UsbEditEngine.plan`) → 확인 안 된 규칙 → `UsbWriter.write`(검사기 `UsbEditInspector`, 검증기 목표 지문·쓴 형식의 모델·불변식). 초안의 base가 지금과 다르거나 회복이 `needsReplan`으로 닫은 볼륨이면 지금 USB 상태로 계획하고 "USB가 그 사이 바뀌어 다시 계획했습니다"를 알린다(옛 계획을 그대로 쓰는 길은 없다).
+**순서**(세션): 원본(라이브 master.db 거부) → 볼륨(수정 목적의 볼륨 정책·보호 폴더·실물 관문 — 막히면 USB를 열거하지 않는다) → 저널(닫히지 않은 쓰기는 `recoveryNeeded`, 닫힌 저널의 ID highWater를 이어 받는다) → USB DB 사본(`UsbSnapshot`, 남은 `-wal`·hot `-journal`은 사본에서 합친다) → 읽기·합치기 → (곡 더하기·갱신·목록 동기화가 있으면) 세션 전용 로컬 사본(`usb-snapshots/local-<세션>/`, 받은 사본에서 `force`로, 끝나면 지운다) → 계획·준비(`UsbEditEngine.plan`) → 확인 안 된 규칙 → `UsbWriter.write`(검사기 `UsbEditInspector`, 검증기 목표 지문·쓴 형식의 모델·불변식). 초안의 base가 지금과 다르거나 회복이 `needsReplan`으로 닫은 볼륨이면 지금 USB 상태로 계획하고 "USB가 그 사이 바뀌어 다시 계획했습니다"를 알린다(옛 계획을 그대로 쓰는 길은 없다).
 
 **USB 전체 막힘**(모든 편집을 막는다): 곡이 한 형식에만 있거나 같은 id가 다른 파일(`formatTrackMismatch`), 같은 id 재생 목록의 이름·부모·종류가 형식마다 다름(`formatPlaylistConflict` — 합친 모델에 OneLibrary 목록만 남아 고쳐 쓰면 Device Library 목록을 잃는다), 사본 무결성·암호 검사 실패·pdb를 읽지 못함(`libraryCorrupt`), OneLibrary 호환 검사 실패(`oneLibraryUnsupported`), 볼륨 정책(APFS·HFS+ 등은 "이 USB 형식(…)에는 rekordbox 라이브러리를 쓸 수 없습니다"). 고칠 수 있는 형식이 하나도 없으면(예: Device Library만 있는데 막힘) 그 형식 막힘으로 멈춘다.
 
@@ -849,11 +856,29 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 
 **쓰기**: OneLibrary는 준비 폴더의 USB DB 사본에 편집마다 한 단계(`OneLibraryWriter.apply`, SAVEPOINT — SQL이 실패한 편집은 그 단계만 되돌리고 `applyFailed`로 막는다). 단계는 계획 때 id까지 정한 편집을 받은 모델에 다시 적용하므로, 앞 편집이 건너뛰어져 전제(대상·행)가 없으면 그 편집도 건너뛴다. Device Library는 **적용 결과 모델**(`r.applied`)에서 새로 만든다(`PdbWriter.files(.edit(옛 머리 순번))` → `PdbRoundTrip.check` → 다시 읽은 모델 = 작성기 모델(`PdbFiles.written`)). 그래서 두 형식에는 같은 편집 집합만 들어간다. 모델이 바뀌지 않은 형식은 다시 쓰지 않는다. 변경 묶음: `purpose .edit`, `base` = 사본 지문, 확인 안 된 규칙 = 연산 규칙 ∪ 곡 규칙 ∪ 분석 파일 규칙 ∪ 작성기 규칙 ∪ `pdbRegeneratedEdit`(pdb를 쓰면) ∪ `trackRemovalFiles`(지울 파일이 있으면), ID highWater. `UsbEditInspector`는 A 단계에서 한 번 더 본다: 수정은 있던 DB만 바꾸고(`editCreatesDatabase`), pdb를 바꾸면 두 pdb 머리 0x10 = 5. 검증(G): 목표 지문(쓴 파일은 있고 지운 파일은 없음 — `mustNotExist`, 쓰기가 건너뛴 지우기는 뺀다), 쓴 형식의 모델, 불변식 1–7. 불변식 검사는 편집이 건드리지 않은 곡까지 USB 전체를 보므로 계획 때 USB에 이미 있던 문제(`preexistingProblems` — 번호가 엉킨 분석 파일·없는 음원 등, 곡·그림 id와 형식으로 적은 글)는 빼고 이번 쓰기가 새로 만든 문제만 센다.
 
-**파일 지우기**: 지울 파일 = 편집 전 참조 − 편집 뒤 참조. 참조는 두 형식 합집합(막혀서 안 고친 형식의 참조도 넣는다)이고 음원 경로, 분석 파일 `.DAT`와 형제 `.EXT`·`.2EX`, 아트워크 그림과 `_m`이다. 한 형식이 막혀 있으면 모두 미룬다. 같은 음원을 다른 곡이 가리키면 지우지 않는다. 계획에 USB 실파일의 크기·SHA-256을 적고(사본이 아니라 USB 파일을 읽는다), 분석 파일은 셋의 PPTH가 그 곡일 때만(아니면 셋 모두 남기고 "분석 파일이 다른 곡 것이라 지우지 않았습니다"), 음원은 로컬 원본의 크기·SHA-1이 같을 때만(되돌릴 때 원본에서 다시 복사한다, 아니면 남기고 알린다) 넣는다. 로컬 사본은 곡 더하기·갱신이 있을 때만 뜨므로, 곡 빼기·목록 편집만 있는 묶음은 `--db`를 주어도 음원을 USB에 남기고 알린다. 그림은 아트워크 파일 모양일 때만 지운다. 허용 목록(`UsbRemovalPolicy`) 밖·기기 파일(다른 곡 PPTH의 분석 파일, `USBMNG.DAT`·`RBFLTR.DAT`·`log/`·`export.pdb.bak`)·모르는 파일은 지우지 않는다. 쓰기 절차의 F 단계가 같은 조건을 다시 본다(§7).
+**파일 지우기**: 지울 파일 = 편집 전 참조 − 편집 뒤 참조. 참조는 두 형식 합집합(막혀서 안 고친 형식의 참조도 넣는다)이고 음원 경로, 분석 파일 `.DAT`와 형제 `.EXT`·`.2EX`, 아트워크 그림과 `_m`이다. 한 형식이 막혀 있으면 모두 미룬다. 같은 음원을 다른 곡이 가리키면 지우지 않는다. 계획에 USB 실파일의 크기·SHA-256을 적고(사본이 아니라 USB 파일을 읽는다), 분석 파일은 셋의 PPTH가 그 곡일 때만(아니면 셋 모두 남기고 "분석 파일이 다른 곡 것이라 지우지 않았습니다"), 음원은 로컬 원본의 크기·SHA-1이 같을 때만(되돌릴 때 원본에서 다시 복사한다, 아니면 남기고 알린다) 넣는다. 로컬 사본은 곡 더하기·갱신·목록 동기화가 있을 때만 뜨므로, 곡 빼기·일반 목록 편집만 있는 묶음은 `--db`를 주어도 음원을 USB에 남기고 알린다. 그림은 아트워크 파일 모양일 때만 지운다. 허용 목록(`UsbRemovalPolicy`) 밖·기기 파일(다른 곡 PPTH의 분석 파일, `USBMNG.DAT`·`RBFLTR.DAT`·`log/`·`export.pdb.bak`)·모르는 파일은 지우지 않는다. 쓰기 절차의 F 단계가 같은 조건을 다시 본다(§7).
 
 **표별 출처**: 보존(USB 값 그대로) — 메뉴·카테고리·정렬·색, My Tag 정의, property의 createdDate·myTagMasterDBID·deviceName·backGroundColorType, pdb 표 19 날짜, 기기 행(기록·큐·추천·핫큐 뱅크), 곡의 기기 칸(평점·재생 수·hasModified). 한 형식에만 있는 칸은 지우지 않는다: 합친 모델이 pdb 전용 칸(작사가 글자, 카테고리 InfoOrder·Disable, 정렬 Disable, 표 19 날짜, 트랙 행 관찰값)을 pdb 값으로 들고 있고 편집은 그 값을 그대로 넘긴다(편집한 곡의 `info` 갱신만 로컬 값으로). 표 19의 두 번째 문자열은 작성기가 늘 비워 쓰므로, 값이 있는 USB는 왕복 검사가 Device Library를 막는다(`pdbRoundTripFailed` — 보존하지 않는다). OneLibrary 전용 칸(titleForSearch·artist·album nameForSearch·album·playlist image_id 등)은 고치지 않는 칸이라 USB 값 그대로다. 갱신: 곡 수 칸(property.numberOfContents, 표 19).
 
 **불변식 8**(형식마다): 편집 결과 USB를 읽은 모델 = 편집 뒤 모델을 새로 내보낸 모델. 예외는 ID, 보존한 행·표, pdb 순번, 기존 곡 파일 경로. `djc lab usb-rebuild` + `djc lab usb-diff --ignore-ids`로 본다(차이 0). 시험: `UsbEditInvariantTests`.
+
+앱의 **USB 동기화**는 위 편집 경로를 재사용한다. `UsbSyncPlan`이 선택한 로컬 트리의 폴더·목록 생성, 이은 목록끼리의 순서 맞추기, 없는 곡 더하기, 로컬 변경 갱신을 초안으로 만든다. rekordbox처럼 선택에서 뺀 USB 목록은 지우지 않고(연결만 끊긴다), 이름·위치가 바뀐 원본은 새 USB 목록을 만들고 옛 목록은 그대로 둔다(아래 #233). 동기화 뒤 어느 USB 목록에도 없는 곡은 확인 창을 거쳐 `removeTracks`로 뺀다(재생 기록에 있는 곡은 넣지 않는다). `syncPlaylist`는 로컬 ID를 기존 USB 짝 또는 앞선 곡 더하기의 USB 번호로 풀어 기존 `UsbEntriesChange`로 항목 전체를 맞춘다. 순서·중복을 보존하며 짝이 없거나 모호하면 목록 전체를 막는다. 새로운 DB·분석 파일 형식을 만들지 않으며 규칙은 `editPlaylists`이고 확인 목록을 넓히지 않는다. 이 편집도 세션 전용 로컬 사본이 필요하다.
+
+**큐·그리드·평점 가져오기**는 쓰기와 별개다. USB DB는 `UsbSnapshot` Mac 사본으로 읽고 ANLZ는 `UsbRoot`로 경로·PPTH·읽기 중 변경을 확인한다. `.EXT`의 PCO2를 먼저 읽고 `.DAT`·`.EXT`의 PCOB와 대조한다. 큐 색·활성 루프·확장 정보 없는 루프·OneLibrary의 미해석 기기 큐 행은 큐를 건너뛰고 알린다. 그리드·평점은 독립 처리하며 더 새로운 로컬 카운터, 기존 초안, 형식 간 충돌과 초안 표현 손실을 확인한다. 로컬 초안만 저장하고 로컬 rekordbox DB·USB에는 쓰지 않는다.
+
+**장치별 선택 XML(#233):** 로컬 iTunes 선택 파일인 `SYNC_ITUNES_PLAYLIST`와 다르다. 칸 규칙은 2026-10-08 rekordbox 7.2.x 실험으로 확인했다. 방법: rekordbox 동기화 관리자에서 선택을 바꿔 SYNC(새 폴더·목록 체크, 하나만 해제, 원본 이름 바꾸기, 전부 해제, "장치와 플레이리스트 동기화" 끄고 닫기, 끈 채 다시 열기)한 뒤 단계마다 USB의 두 선택 파일·DB와 로컬 `master.db`·`masterPlaylists6.xml` 사본을 떠서 칸 단위로 비교했다(값은 적지 않는다). 모든 단계의 실제 파일을 아래 규칙으로 다시 만들어 바이트까지 같음을 사본으로 확인했다(`UsbSyncSelectionXML.render`).
+
+- **모양**: rekordbox는 매번 파일 전체를 같은 모양으로 다시 쓴다. `<?xml version="1.0" encoding="UTF-8"?>`, 빈 줄, `<Sync DBID AutomaticSync AllPlaylists IncludeCue ForcedSync Timestamp>`(이 칸 순서), 2칸 `<Playlists>`, 4칸 `<NODE Id ParentId Attribute Lib_Type Dev_ID Timestamp CheckType/>`, `  </Playlists>`, `</Sync>`. 줄 끝은 모두 CRLF(마지막 줄 포함), BOM 없음. 그래서 원문을 고쳐 쓰지 않고 칸 규칙대로 새로 만들며, 이 모양 밖의 원문(모르는 칸·요소·주석, 줄 끝 차이)은 고쳐 쓰지 않고 막는다(`contractMismatch`).
+- **루트**: `DBID` = 로컬 `djmdProperty.DBID`를 부호 있는 32비트 10진수로 적은 값(음수일 수 있다, 읽을 때는 32비트 비트 모양으로 견준다). `AutomaticSync` = "장치와 플레이리스트 동기화" 체크. `AllPlaylists`·`IncludeCue`·`ForcedSync`·`Timestamp`(본 값은 늘 0)는 SYNC로 바뀌지 않아 원문 값을 그대로 둔다.
+- **행**: 체크한 목록(`CheckType` 1)과 부분 체크 폴더(2)만 적는다. 해제한 목록은 행이 빠진다. 라이브러리마다 뿌리 행(`Id`=0, `ParentId`=0, `Attribute`=1, `Dev_ID`=0, `Timestamp`=0, `CheckType` 1/2)이 있고, 그 라이브러리에 체크한 것이 없으면 뿌리 행도 빠진다(모두 해제하면 실험 전 바이트로 돌아갔다). rekordbox(`Lib_Type` 0) 덩어리가 iTunes(1)보다 앞이고, 덩어리 안은 트리 전위 순회(형제는 rekordbox 순서)다. `masterPlaylists6.xml`의 줄 순서가 아니다. 폴더를 체크하면 하위 목록도 모두 `CheckType` 1로 적힌다.
+- **원본 칸**: `Id`·`ParentId`·`Attribute`·`Lib_Type`·`Timestamp`는 로컬 `masterPlaylists6.xml`의 같은 NODE 값 그대로다(`Id`는 16진수 대문자 = rekordbox 목록은 `djmdPlaylist.ID`, iTunes 목록은 그 목록 ID. iTunes NODE의 `Timestamp`는 master에서도 0). 원본 이름을 바꾸면 그 NODE의 `Timestamp`가 바뀐 master 값으로 바뀐다. 앱은 rekordbox 폴더의 `masterPlaylists6.xml`을 읽기만 해서 원본마다 `Timestamp`를 싣고(`UsbSyncSourceNode.timestamp`), 같은 `Id`·`ParentId`·`Attribute`의 NODE가 없는 목록을 체크해 쓰면 막는다("rekordbox를 한 번 켰다가 종료…").
+- **`Dev_ID`**: 그 형식 DB의 USB 재생 목록 ID(10진수). 두 파일은 형식별이다(`playlists3.sync` = Device Library, `playlists3Plus.sync` = OneLibrary). 형식의 목록 ID가 다르면 두 파일도 다르다(이름 바꾸기 단계에서 두 형식의 새 목록 번호가 달랐다). 그 밖에는 두 파일이 바이트까지 같았다. 읽을 때 형식마다 그 형식 DB에 있는 번호인지 보고, 두 형식이 같은 번호일 때만 한 USB 목록에 잇는다.
+- **동작**: 변경 없는 SYNC와 rekordbox 시작 때 자동 동기화는 선택 파일을 바꾸지 않는다. 해제한 목록의 USB 재생 목록은 지우지 않는다(장치 트리에 회색으로 남는다). 원본 이름을 바꾸면 rekordbox는 새 USB 목록(새 `Dev_ID`)을 만들고 옛 목록은 회색으로 남긴다. 자동 동기화가 켜져 있으면 중간 이름도 목록으로 생겼다. "장치와 플레이리스트 동기화"를 끄고 닫기만 해도 두 파일의 `AutomaticSync`만 0으로 쓴다(다른 칸·행 그대로). 꺼져 있으면 rekordbox→장치 SYNC 버튼이 비활성이다. 장치 동기화가 켜져 있고 어느 목록에도 없는 USB 곡이 있으면 "플레이리스트에 더 이상 존재하지 않는 트랙은 삭제될 것입니다."(OK/취소)를 묻는다.
+- **확인하지 않은 것**: 새 파일 만들기(루트 칸의 처음 값), 체크한 원본을 지울 때, 원본 위치 옮기기(이름 바꾸기와 같다고 보고 새 목록을 만든다), 이름을 바꾼 자리에 같은 이름의 연결 안 된 USB 목록이 이미 있을 때(DJCrate는 그 목록에 잇는다), 모든 하위를 하나씩 체크한 폴더·라이브러리의 `CheckType`(DJCrate는 폴더 자체를 고르지 않았으면 2로 쓴다). 새 파일은 `UsbSyncSelectionStage.gateBlock`이 막는다(rekordbox에서 한 번 동기화한 USB만 고쳐 쓴다).
+
+`.syncSelection` 초안은 선택 당시 두 XML 원문을 보관해 오래된 선택을 덮지 않는다. 적용된 DB 모델에서 형식마다 최종 USB 번호를 찾아(`UsbSyncSelectionStage.resolve`) XML을 만들고, 같은 쓰기 묶음에서 DB 뒤에 확정한다. 켜짐만 바꾸는 초안(`enabledOnly`)은 목록을 건드리지 않고 두 파일의 `AutomaticSync`만 바꾼다. 원문 경합·형식 막힘·불완전한 선택 목록은 전체 쓰기를 막는다. 사전 확인과 쓰기 뒤 검증은 같은 입력으로 만든 바이트와 준비 파일·USB 파일이 바이트까지 같은지 보고, 실제 목록 참조는 Mac DB 사본으로 다시 확인한다. 끊긴 native 동기화는 DB와 두 파일을 전체 복원하고, 외부 변경·삭제는 `restorePending`으로 멈춘다. `UsbSyncXMLWriteContract.production`은 확인한 규칙(`confirmed`)이며 nil로 바꾸면 선택 파일 쓰기 전체를 백업 전에 막는 비상 스위치다.
+
+전후 사본 대조는 `djc lab usb-sync-diff <전 폴더> <후 폴더>`로 한다. 폴더는 임시 폴더 아래의 sync 사본 또는 USB 폴더 사본이며, 바뀐 속성 이름·노드 추가/제거·순서만 출력하고 원본 ID·DBID·시각 값을 출력하지 않는다. 새 rekordbox 버전에서 규칙을 다시 확인할 때도 이 도구로 단계별 전후를 대조한다.
 
 ### 8.4 Device Library만 있는 USB를 OneLibrary로 옮기기(`UsbMigration`, `UsbMigrateSession`, `djc usb-migrate`)
 

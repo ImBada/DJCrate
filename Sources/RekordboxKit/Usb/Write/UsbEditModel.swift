@@ -127,8 +127,11 @@ enum UsbEditModel {
         for (format, before) in change.before where (model.playlists[at].entries[format] ?? []) != before {
             throw UsbEditConflict(description: "playlist \(change.playlistID) entries changed")
         }
-        let tracks = Set(model.tracks.map(\.id))
         for (format, after) in change.after {
+            guard model.playlists[at].presentIn.contains(format) else {
+                throw UsbEditConflict(description: "playlist \(change.playlistID) format \(format.rawValue) missing")
+            }
+            let tracks = Set(model.tracks.filter { $0.presentIn.contains(format) }.map(\.id))
             if let missing = after.first(where: { !tracks.contains($0) }) {
                 throw UsbEditConflict(description: "playlist \(change.playlistID) entry \(missing) missing")
             }

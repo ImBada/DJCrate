@@ -16,6 +16,7 @@ extension UsbWriteRun {
         for verifier in verifiers {
             problems += try verifier.verify(root: root, changes: effective, fileSystem: fs, scratch: scratch)
         }
+        problems += try UsbSyncSelectionVerifier().verify(root: root, changes: effective, fileSystem: fs, scratch: scratch)
         if options.verifyAudio {
             let audio = Set(changes.copies.filter { $0.disposition == .create }.map(\.destination))
             for entry in journal.entries where audio.contains(entry.destination) && entry.state == .done {

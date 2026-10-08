@@ -82,6 +82,11 @@ struct ContentView: View {
                 UsbWritingOverlay(model: UsbWriteProgressModel(write), onCancel: { store.usb?.cancelWrite() }).transition(.opacity)
             }
         }
+        .sheet(item: Binding(get: { store.usb?.syncSheet }, set: { store.usb?.syncSheet = $0 })) { request in
+            if let usb = store.usb {
+                UsbSyncView(store: store, usb: usb, request: request)
+            }
+        }
         .sheet(item: Binding(get: { store.usb?.exportSheet }, set: { store.usb?.exportSheet = $0 })) { request in
             if let usb = store.usb {
                 UsbExportSheet(store: store, usb: usb, request: request)

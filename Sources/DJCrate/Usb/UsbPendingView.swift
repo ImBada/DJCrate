@@ -97,6 +97,23 @@ struct UsbPendingModel: Equatable {
     }
 }
 
+/// 화면과 합성 시험이 같은 pending 진입점을 쓴다. 원본 사본 소유권은 화면이 아닌 UsbStore에 있다.
+@MainActor
+struct UsbPendingWorkflow {
+    let coordinator: UsbWriteCoordinator
+    let volumeKey: String
+    let database: URL?
+    let share: URL?
+
+    func preview() async -> UsbEditSummary? {
+        await coordinator.previewDraft(volumeKey: volumeKey, database: database, share: share)
+    }
+    @discardableResult
+    func write(reusing summary: UsbEditSummary?) async -> Bool {
+        await coordinator.writeDraft(volumeKey: volumeKey, database: database, share: share, reusing: summary)
+    }
+}
+
 /// 사이드바 "USB 쓰기 대기": 이 볼륨의 초안 편집 목록 · 미리 보기 · USB에 쓰기… · 편집 빼기 · 초안 버리기…
 /// 볼륨이 빠져 있어도 초안은 보이고 고칠 수 있다(쓰기만 막힌다)
 struct UsbPendingView: View {
@@ -210,13 +227,17 @@ struct UsbPendingView: View {
         isPreviewing = true
         defer { isPreviewing = false }
         let revision = usb.draftRevisions[volumeKey]
-        let result = await coordinator.previewDraft(volumeKey: volumeKey, database: store.snapshotURL, share: RekordboxShare.directory)
+        let pending = UsbPendingWorkflow(coordinator: coordinator, volumeKey: volumeKey, database: store.snapshotURL,
+                                         share: usb.syncDraftSources[volumeKey]?.job.share ?? RekordboxShare.directory)
+        let result = await pending.preview()
         // 기다리는 동안 초안이 바뀌었으면 버린다
         if usb.draftRevisions[volumeKey] == revision { summary = result }
     }
 
     private func write() async {
         guard let coordinator = store.usbCoordinator else { return }
-        await coordinator.writeDraft(volumeKey: volumeKey, database: store.snapshotURL, share: RekordboxShare.directory, reusing: summary)
+        let pending = UsbPendingWorkflow(coordinator: coordinator, volumeKey: volumeKey, database: store.snapshotURL,
+                                         share: usb.syncDraftSources[volumeKey]?.job.share ?? RekordboxShare.directory)
+        await pending.write(reusing: summary)
     }
 }

@@ -250,6 +250,12 @@ public final class FaultyUsbFileSystem: UsbFileSystem, @unchecked Sendable {
         return try inner.read(url, maxBytes: maxBytes)
     }
 
+    public func readFile(root: UsbRoot, relativePath: String, maxBytes: Int) throws -> UsbFileRead? {
+        let url = root.url.appending(path: relativePath)
+        if try begin(.read, url) == .crash { throw InjectedFault(op: .read, path: label(url)) }
+        return try inner.readFile(root: root, relativePath: relativePath, maxBytes: maxBytes)
+    }
+
     public func holdVolume(_ root: URL) throws -> any UsbVolumeHold {
         Hold(inner: try inner.holdVolume(root), isSwapped: { [self] in lock.withLock { swapped } })
     }

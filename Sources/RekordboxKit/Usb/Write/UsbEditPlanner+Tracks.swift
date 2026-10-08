@@ -5,9 +5,18 @@ import Foundation
 extension UsbEditPlanner {
     /// 로컬 사본·share·스냅샷 시각과 로컬 rekordbox 버전(확인한 버전만)
     func requireLocal() throws -> (database: CipherDatabase, share: URL, snapshot: Date) {
-        guard let localDatabase, let share, let snapshotTakenAt else {
+        guard let share, let snapshotTakenAt else {
             throw UsbEditBlocked(block: UsbBlock(code: "localLibraryMissing", scope: .volume,
                                                  message: String(ui: "로컬 라이브러리 사본이 없어 곡을 더하거나 갱신할 수 없습니다. --db로 스냅샷 사본을 주세요")))
+        }
+        return (try requireLocalDatabase(), share, snapshotTakenAt)
+    }
+
+    /// 목록 동기화는 곡의 식별 키만 읽으므로 share·분석 파일을 필요로 하지 않는다
+    func requireLocalDatabase() throws -> CipherDatabase {
+        guard let localDatabase else {
+            throw UsbEditBlocked(block: UsbBlock(code: "localLibraryMissing", scope: .volume,
+                                                 message: String(ui: "로컬 라이브러리 사본이 없어 USB 편집을 계획하지 못했습니다. --db로 스냅샷 사본을 주세요")))
         }
         guard let version = localAppVersion, (try? RekordboxCompatibility.checkApp(version: version)) != nil else {
             let shown = localAppVersion ?? String(ui: "찾지 못함")
@@ -15,7 +24,7 @@ extension UsbEditPlanner {
                                                  message: String(ui: "로컬 rekordbox 버전(\(shown))은 USB 갱신을 확인하지 않았습니다")))
         }
         try UsbExportCandidates.refuseLive(localDatabase, liveDatabase: UsbExportCandidates.liveDatabase)
-        return (localDatabase, share, snapshotTakenAt)
+        return localDatabase
     }
 
     /// USB 곡의 로컬 짝(이 곡을 내보낸 라이브러리 DB ID·곡 ID·파일 이름이 같은 곡 하나). 없거나 둘 이상이면 nil
@@ -328,13 +337,14 @@ extension UsbEditPlanner {
             planned.trackBlocks.append(UsbBlock(code: "localTrackMissing", scope: .track(id),
                                                 message: String(ui: "스냅샷에서 이 곡을 찾지 못했습니다. 새 스냅샷을 뜬 뒤 다시 내보내세요")))
         }
-        // 이미 USB에 있는 곡은 다시 넣지 않는다(같은 음원·분석 파일을 두 곡이 가리키게 된다)
+        // 파일 이름 정제·번호 꼬리도 같은 짝으로 본다(동기화마다 곡이 중복해 늘지 않게)
+        let pairs = try localPairs(for: wanted, database: database)
         candidates.removeAll { candidate in
-            let onUsb = working.tracks.contains {
-                $0.masterContentId == UsbLibraryBuilder.sqliteInteger(candidate.masterSongID)
-                    && $0.masterDbId == UsbLibraryBuilder.sqliteInteger(candidate.masterDBID)
-                    && UsbLayout.nfc($0.fileName) == UsbLayout.nfc(candidate.fileNameL)
+            if pairs.ambiguous.contains(candidate.localContentID) {
+                planned.trackBlocks.append(Self.syncPairingBlock(candidate.localContentID, ambiguous: true))
+                return true
             }
+            let onUsb = !(pairs.matches[candidate.localContentID] ?? []).isEmpty
             if onUsb {
                 planned.trackBlocks.append(UsbBlock(code: "alreadyOnUsb", scope: .track(candidate.localContentID),
                                                     message: String(ui: "이미 USB에 있는 곡입니다. 곡 정보를 바꾸려면 갱신을 쓰세요")))
@@ -397,6 +407,7 @@ extension UsbEditPlanner {
             upsert.entries = change(playlist.id, formats: formats, before: entries, after: entries + added)
         }
         planned.op = .upsert(upsert)
+        planned.addedLocalTracks = Dictionary(uniqueKeysWithValues: plan.tracks.map { ($0.localContentID, $0.contentID) })
         planned.rules = plan.requiredRules.union(staged.rules).union([.editAddTracks])
         planned.warnings += plan.warnings + staged.warnings
         record(plan, candidates: candidates)

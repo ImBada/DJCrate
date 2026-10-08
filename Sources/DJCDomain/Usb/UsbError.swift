@@ -8,7 +8,7 @@ public enum UsbError: Error, LocalizedError, CustomStringConvertible, Sendable {
     /// 쓰기 뒤 실패, 백업으로 되돌림
     case writeRolledBack(reason: String)
     case restoreFailed(reason: String, restoreError: String, backup: String)
-    /// rekordbox가 켜져 있어 복원을 미룸
+    /// 복원을 미룸(rekordbox가 켜져 있음, 복원 대상이 그 사이 바뀜 등. reason이 이유)
     case restorePending(reason: String)
     /// 끝나지 않은 쓰기가 있음
     case recoveryNeeded(volumeName: String)
@@ -35,8 +35,8 @@ public enum UsbError: Error, LocalizedError, CustomStringConvertible, Sendable {
             String(ui: "USB에 쓴 결과를 확인하지 못해 쓰기 전 상태로 되돌렸습니다. USB를 다시 읽은 뒤 다시 시도하세요")
         case .restoreFailed:
             String(ui: "USB를 쓰기 전 상태로 되돌리지 못했습니다. 기기에 꽂기 전에 `djc usb-recover`로 회복하세요")
-        case .restorePending:
-            String(ui: "rekordbox가 켜져 있어 USB 복원을 미뤘습니다. rekordbox를 종료한 뒤 `djc usb-recover`로 회복하세요")
+        case let .restorePending(reason):
+            String(ui: "USB 복원을 미뤘습니다(\(reason)). 이유를 푼 뒤 `djc usb-recover`로 회복하세요")
         case .recoveryNeeded:
             String(ui: "이 USB에 끝나지 않은 쓰기가 있습니다. 먼저 `djc usb-recover`로 회복하세요")
         case .readFailed:
@@ -72,7 +72,7 @@ public enum UsbError: Error, LocalizedError, CustomStringConvertible, Sendable {
             복원 실패: \(restoreError)
             """)
         case let .restorePending(reason):
-            String(ui: "rekordbox가 켜져 있어 USB 복원을 미뤘습니다. rekordbox를 종료한 뒤 `djc usb-recover`를 실행하세요: \(reason)")
+            String(ui: "USB 복원을 미뤘습니다. 이유를 푼 뒤 `djc usb-recover`를 실행하세요: \(reason)")
         case let .recoveryNeeded(volumeName):
             String(ui: "USB(\(volumeName))에 끝나지 않은 쓰기가 있습니다. 먼저 `djc usb-recover`를 실행하세요")
         case let .readFailed(detail):

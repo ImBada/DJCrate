@@ -15,6 +15,23 @@ struct UsbWriteServiceIdentityTests {
                               writeGuard: { fixture.writeGuard() }, fileSystem: fs, drafts: fixture.home.appending(path: "usb-drafts"))
     }
 
+    @Test("native 사전 확인은 기존 recheck의 현재 정보를 반환하고 쓰기 폴더를 만들지 않는다")
+    func nativePreflightUsesRecheckWithoutCreatingFolders() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: "djc-readonly-preflight-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        var listed = FakeUsbVolume.diskImageFAT32(name: "합성 preflight USB")
+        listed.mountPoint = root.appending(path: "fake-mount").path
+        var changed = listed
+        changed.volumeUUID = UsbTestData.otherUUID
+        let actual = changed
+        let service = SystemUsbWriteService(paths: .init(backups: root.appending(path: "backups"), sessions: root.appending(path: "sessions"),
+                                                         staging: root.appending(path: "staging")),
+                                             localCopies: root.appending(path: "copies"), drafts: root.appending(path: "drafts"),
+                                             recheck: { _ in actual })
+        #expect(try service.currentVolume(listed) == actual)
+        #expect(!FileManager.default.fileExists(atPath: root.path))
+    }
+
     /// 확인 창에 보인 볼륨: 같은 자리(마운트 지점)·같은 이름, UUID만 다르다
     func confirmed(_ fixture: UsbChangeSetFixture) -> UsbVolumeInfo {
         var volume = fixture.volume

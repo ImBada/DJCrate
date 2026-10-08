@@ -76,6 +76,8 @@ struct UsbSidebarVolume: Identifiable, Equatable {
     var canMigrate = false
     var migrationHelp: String?
     var showsMigrationRestore = false
+    var showsSync = false
+    var canSync = false
 }
 
 @MainActor
@@ -94,10 +96,14 @@ enum UsbSidebarModel {
             }
             switch store.shapes[key] {
             case .emptyExportable:
+                row.showsSync = true
+                row.canSync = idle && !store.ejecting.contains(key)
                 row.showsExport = true
                 row.canExport = idle
                 row.help = String(ui: "rekordbox 라이브러리가 없는 USB입니다")
             case let .rekordbox(formats):
+                row.showsSync = true
+                row.canSync = idle && !store.ejecting.contains(key)
                 row.symbol = "externaldrive.fill"
                 row.help = UsbFormat.allCases.filter(formats.contains).map(\.displayName).joined(separator: " · ")
                 if formats == [.deviceLibrary] {
@@ -221,6 +227,18 @@ struct UsbSidebarSection: View {
                 }
             }
             Spacer(minLength: 0)
+            if volume.showsSync {
+                Button {
+                    usb.presentSync(volume.id)
+                } label: {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                }
+                .buttonStyle(.borderless)
+                .disabled(!volume.canSync || store.isLoading || store.isWritingRekordbox || store.snapshotURL == nil)
+                .help(.ui("USB 동기화 설정…"))
+                .accessibilityLabel(.ui("\(volume.name) 동기화…"))
+                .accessibilityIdentifier("usb-sync-\(volume.id)")
+            }
             if usb.volume(volume.id) != nil {
                 Button {
                     Task { ejectMessage = await usb.eject(volume.id) }

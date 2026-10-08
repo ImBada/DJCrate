@@ -20,16 +20,15 @@ extension UsbWriteRun {
             throw UsbError.writeRefused([UsbWriter.journalUnreadableBlock])
         case let .open(found):
             // 깨졌거나 누가 고친 기록이 USB 루트 밖을 가리키면 파일 연산 전에 막는다
-            guard UsbWriter.unsafeEntries(in: found).isEmpty else { throw UsbError.writeRefused([UsbWriter.journalUnreadableBlock]) }
+            guard found.volumeUUID.uppercased() == volumeKey, UsbWriter.unsafeEntries(in: found).isEmpty else { throw UsbError.writeRefused([UsbWriter.journalUnreadableBlock]) }
             journal = found
         }
-        // 백업 폴더는 이 볼륨의 usb-backups 아래만. 없어진 폴더는 없는 것으로 본다(기록을 새로 만들지 않는다)
+        // 복원 재개는 폐기 승인 여부와 무관하게 온전한 백업을 먼저 요구한다.
         if let directory = journal.backupDirectory, FileManager.default.fileExists(atPath: directory) {
-            let folder = URL(filePath: directory)
-            guard isOurBackupFolder(folder) else { throw UsbError.writeRefused([UsbWriter.journalUnreadableBlock]) }
-            backupFolder = folder
-            manifest = try? UsbJournal.decoder().decode(UsbManifest.self, from: Data(contentsOf: folder.appending(path: "manifest.json")))
-            if let manifest, !UsbWriter.unsafeEntries(in: manifest).isEmpty { throw UsbError.writeRefused([UsbWriter.journalUnreadableBlock]) }
+            backupFolder = URL(filePath: directory)
+            try loadValidatedBackup()
+        } else if journal.restoringBackup || ![.planned, .staged].contains(journal.state) {
+            throw UsbError.writeRefused([UsbWriter.journalUnreadableBlock])
         }
         report = UsbWriteReport(outcome: .recovered, session: journal.session, backup: backupFolder?.path)
         report.filesCreated = journal.entries.filter { $0.disposition == .created && $0.state == .done }.count
@@ -57,13 +56,27 @@ extension UsbWriteRun {
             try closeJournal(.rolledBack, outcome: .rolledBack)
             return report
         }
-        if try classifyDatabases().values.contains(.other) {
+        if journal.changes.syncSelection != nil {
+            try requireUnchangedNativeFiles()
+            // 두 선택 파일과 DB를 끊긴 상태에서 따로 이어 쓰지 않는다. 기존 백업으로 전체를 돌린 뒤 다시 계획한다.
+            let errors = try rollback(mode: .recover)
+            if errors.isEmpty {
+                report.notes.append(String(ui: "동기화 선택을 쓰는 중 끊겨 USB를 쓰기 전으로 되돌렸습니다. 다시 동기화하세요"))
+                try closeJournal(.rolledBack, outcome: .rolledBack)
+                return report
+            }
+            try closeJournal(.restoreFailed, outcome: .restoreFailed)
+            throw UsbError.restoreFailed(reason: String(ui: "동기화 선택 회복"), restoreError: errors.joined(separator: "\n"),
+                                         backup: backupFolder?.path ?? "")
+        }
+        let rollbackOnly = [.restorePending, .restoreFailed].contains(journal.state) || journal.restorations != nil
+        try checkRestorationProgress()
+        if !rollbackOnly, try classifyDatabases().values.contains(.other) {
             try removeSessionTemps()
             report.notes.append(String(ui: "USB가 기기에서 바뀌어 이어 쓰지 않았습니다. 지금 USB 상태로 다시 미리 보기한 뒤 쓰세요"))
             try closeJournal(.needsReplan, outcome: .needsReplan)
             return report
         }
-        let rollbackOnly = [.restorePending, .restoreFailed].contains(journal.state)
         var mustRollBack = rollbackOnly
         if !rollbackOnly { mustRollBack = try !completeInterruptedRenames() }
         let states = try classifyDatabases()
@@ -100,12 +113,174 @@ extension UsbWriteRun {
                                      backup: backupFolder?.path ?? "")
     }
 
+    /// 옛 usb-restore의 FAT 중단은 원래 쓰기의 done 항목과 백업 내용인 temp로만 이어받는다.
+    /// 없는 optional 필드·own session·부모 경로·유일한 해시 일치를 모두 확인한 뒤 의도를 내린다.
+    func adoptLegacyRestoreTemps() throws {
+        guard journal.restoringBackup, journal.changes.syncSelection == nil,
+              journal.restorations == nil, journal.discardDeviceChanges == nil,
+              journal.restorationBaseline == nil,
+              journal.sidecarDeletions == nil, journal.externalChangesDetected == nil,
+              journal.restorationApprovalRequired == nil else { return }
+        struct Candidate {
+            var destination: String
+            var oldSHA256: String?
+        }
+        let candidates = journal.entries.filter { $0.disposition == .overwritten && $0.state == .done && $0.writePhase == nil }
+            .map { Candidate(destination: $0.destination, oldSHA256: $0.oldSHA256) }
+            + journal.databases.filter { $0.disposition == .overwritten && $0.state == .done && $0.writePhase == nil }
+                .map { Candidate(destination: $0.destination, oldSHA256: $0.oldSHA256) }
+        var adopted: [UsbJournal.FileMutation] = []
+        var nextSequence = journal.nextSequence
+        let forwardTemps = Set(journal.entries.compactMap(\.tempName) + journal.databases.map(\.tempName))
+        let prefix = UsbLayout.tempPrefix + journal.session + "-"
+        for candidate in candidates {
+            let path = candidate.destination
+            guard let stamp = manifest?.files[path], candidate.oldSHA256 == stamp.sha256 else {
+                throw UsbError.writeRefused([UsbWriter.journalUnreadableBlock])
+            }
+            // root.url는 끝 성분까지 링크를 거부한다. 읽을 수 없는 경로는 자동 이어받지 않는다.
+            guard let target = try? root.url(for: path) else { try restorationPending(path: path) }
+            guard try fs.stat(target) == nil else { continue }
+            let parent = UsbPath.parent(path)
+            guard let directory = try? root.url(for: parent), try fs.stat(directory)?.kind == .directory else { try restorationPending(path: path) }
+            let names = try fs.list(directory)
+            // 백업 내용인 자기 temp가 없거나 둘 이상이면 어느 연산의 근거인지 모른다.
+            let ownTemps = names.filter { $0.hasPrefix(prefix) && !forwardTemps.contains($0) && UsbWriter.isSafeTempName($0) }
+            let matching = try ownTemps.filter { try isComplete(UsbPath.join(parent, $0), sha256: stamp.sha256) }
+            guard matching.count == 1 else { try restorationPending(path: path) }
+            let temp = matching[0]
+            for name in names where name.hasPrefix(prefix) {
+                guard let sequence = Int(name.dropFirst(prefix.count)), sequence >= 0, sequence < Int(Int32.max) else {
+                    try restorationPending(path: path)
+                }
+                nextSequence = max(nextSequence, sequence + 1)
+            }
+            guard try fs.stat(usb(UsbPath.join(parent, temp)))?.size == stamp.size,
+                  !adopted.contains(where: { $0.tempName == temp && UsbPath.parent($0.destination) == parent }) else {
+                try restorationPending(path: path)
+            }
+            // 삭제됐던 끝 성분만 복원한다. 같은 충돌 키의 남의 파일에는 rename하지 않는다.
+            try requireRestorationCollisionFree(path, temp: temp)
+            adopted.append(.init(destination: path, operation: .replace, tempName: temp, backupSHA256: stamp.sha256,
+                                  expectedSHA256: nil, phase: .renamePending))
+        }
+        if !adopted.isEmpty {
+            journal.restorations = adopted
+            journal.nextSequence = nextSequence
+            try saveJournal()
+        }
+    }
+
+    /// DB를 교체하지 않는 선택 변경도 계획 base의 DB 셋·사이드카를 보호한다.
+    /// 복원 기록은 원래 쓰기 기록보다 먼저 판정하여 자기 rename·삭제 중단만 구분한다.
+    func nativeFileStates(completed: Bool = false) throws -> [String: DatabaseState] {
+        var states: [String: DatabaseState] = [:]
+        for path in UsbWriter.databaseFamily {
+            if !completed, let restoring = try restorationState(path) { states[path] = restoring; continue }
+            let old = journal.base?.files[path]?.sha256
+            if let database = journal.changes.databases.first(where: { $0.destination == path }) {
+                let entry = journal.databases.first { $0.destination == path }
+                let state = try classifyFile(path, old: old, new: database.sha256)
+                if completed { states[path] = state == .new ? .new : .other }
+                else if state == .absent {
+                    // 진입 기록 직후 중단과 FAT 중단은 같은 모양이다. 외부 삭제를 단정해 덮지 않는다.
+                    states[path] = .other
+                } else if state == .old, old == nil, entry?.state == .done, entry?.rollbackCompleted != true {
+                    states[path] = .other
+                } else { states[path] = state }
+            } else {
+                let deletion = journal.sidecarDeletions?.first { $0.destination == path }
+                let legacyDeleted = journal.sidecarDeletions == nil && journal.deletedSidecars.contains(path)
+                let deleted = deletion?.phase == .done || legacyDeleted
+                let expectAbsent = (completed && deleted) || deletion?.phase == .done
+                let state = try classifyFile(path, old: expectAbsent ? nil : old, new: nil)
+                if deletion?.phase == .externalChanged { states[path] = .other }
+                else {
+                    // 복원 완료 뒤에는 위 restorationState가 담당한다. 옛 삭제 기록을 계속 허용하지 않는다.
+                    states[path] = state == .absent ? (!completed && deleted ? .old : .other) : state
+                }
+            }
+        }
+        for write in journal.changes.writes where write.afterDatabases == true || UsbSyncSelectionStage.isSelectionPath(write.destination) {
+            let path = write.destination
+            if !completed, let restoring = try restorationState(path) { states[path] = restoring; continue }
+            let old = write.expectedExistingSHA256
+            let entry = journal.entries.first { $0.destination == path }
+            let state = try classifyFile(path, old: old, new: entry == nil ? nil : write.sha256)
+            if completed { states[path] = state == .new ? .new : .other }
+            else if state == .absent {
+                states[path] = .other
+            } else if state == .old, old == nil, entry?.state == .done, entry?.rollbackCompleted != true {
+                states[path] = .other
+            } else { states[path] = state }
+        }
+        return states
+    }
+
+    /// 복원 대상의 허용 상태는 해당 연산의 의도·temp·완료 기록으로만 정한다.
+    func restorationState(_ path: String) throws -> DatabaseState? {
+        guard let entry = journal.restorations?.first(where: { $0.destination == path }) else { return nil }
+        if entry.phase == .externalChanged { return .other }
+        if entry.phase == .done {
+            return try classifyFile(path, old: entry.backupSHA256, new: nil) == .old ? .old : .other
+        }
+        if let expectedLink = entry.expectedLink {
+            if try restorationLinkIdentity(path) == expectedLink { return .old }
+        } else if try classifyFile(path, old: entry.expectedSHA256, new: nil) == .old { return .old }
+        if entry.phase == .deleteEntered, try classifyFile(path, old: nil, new: nil) == .old { return .old }
+        if entry.phase == .renameEntered {
+            if try classifyFile(path, old: entry.backupSHA256, new: nil) == .old { return .old }
+        }
+        return .other
+    }
+
+    /// 옛것·새것과 다른 파일, 링크, 비어 버린 원래 경로를 구분한다. 부모 링크도 따라가지 않는다.
+    func classifyFile(_ path: String, old: String?, new: String?) throws -> DatabaseState {
+        var current = root.url
+        let components = path.split(separator: "/")
+        for (index, component) in components.enumerated() {
+            current = current.appending(path: String(component))
+            guard let info = try fs.stat(current) else { return old == nil ? .old : .absent }
+            if index < components.count - 1 {
+                guard info.kind == .directory else { return .other }
+            } else {
+                guard info.kind == .file else { return .other }
+                let sha = try fs.sha256(current, uncached: true)
+                if let new, sha == new { return .new }
+                if let old, sha == old { return .old }
+                return .other
+            }
+        }
+        return .other
+    }
+
+    /// 자동 rollback·회복은 같은 분류를 쓴다. 판정 뒤에도 파일을 바꾸기 직전에 다시 확인한다.
+    func requireUnchangedNativeFiles() throws {
+        guard journal.changes.syncSelection != nil else { return }
+        guard let manifest, manifest.session == journal.session, manifest.volumeUUID.uppercased() == volumeKey else {
+            throw UsbError.writeRefused([UsbWriter.journalUnreadableBlock])
+        }
+        if journal.externalChangesDetected == true { try nativeConflict() }
+        if try nativeFileStates().values.contains(.other) { try nativeConflict() }
+    }
+
+    func nativeConflict() throws -> Never {
+        journal.externalChangesDetected = true
+        journal.restorationApprovalRequired = true
+        if journal.state != .restorePending { try journal.move(to: .restorePending) }
+        try saveJournal()
+        throw UsbError.restorePending(reason: String(ui: "USB의 동기화 파일이나 DB가 그 사이 바뀌었습니다. 백업을 확인하고 기기 변경을 버리는 복원으로 되돌리세요"))
+    }
+
     /// DB 대상마다: 옛 해시(없던 DB는 없음이 옛것)·새 해시·없음(rename 도중)·그 밖(기기가 바꿈)
     func classifyDatabases() throws -> [String: DatabaseState] {
         var states: [String: DatabaseState] = [:]
         for database in journal.changes.databases {
             let planned = journal.plannedDatabases.first { $0.destination == database.destination }
-            let url = usb(database.destination)
+            guard let url = try? root.url(for: database.destination) else {
+                states[database.destination] = .other
+                continue
+            }
             guard let info = try fs.stat(url) else {
                 states[database.destination] = planned?.disposition == .created ? .old : .absent
                 continue
@@ -134,7 +309,9 @@ extension UsbWriteRun {
             let entry = journal.databases[index]
             let parent = UsbPath.parent(entry.destination)
             let temp = UsbPath.join(parent, entry.tempName)
-            guard try !exists(entry.destination) else { continue }
+            guard entry.writePhase == nil || entry.writePhase == .renameEntered, try !exists(entry.destination) else { continue }
+            // rename 진입 뒤 DB가 없으면 FAT 두 단계 rename과 외부 삭제를 구분할 수 없다. 그래도 USB에 DB가 없는 채로
+            // 승인을 기다리지 않고 준비한 새 DB(완전한 temp)로 마저 쓴다. 덮을 외부 내용은 없고 옛 DB는 백업에 있다.
             if try isComplete(temp, sha256: entry.newSHA256) {
                 if entry.disposition == .created, try collides(entry.destination, temp: entry.tempName) {
                     ok = false
@@ -142,8 +319,12 @@ extension UsbWriteRun {
                 }
                 try finishRename(temp: temp, destination: entry.destination)
                 journal.databases[index].state = .done
+                journal.databases[index].writePhase = .done
                 try saveJournal()
             } else if entry.disposition == .overwritten {
+                // 복원 연산을 시작하면 전체 회복의 방향도 rollback으로 고정한다.
+                ok = false
+                if journal.state != .restorePending { try journal.move(to: .restorePending); try saveJournal() }
                 try restoreFromBackup(entry.destination)
             }
         }
@@ -151,7 +332,8 @@ extension UsbWriteRun {
             let entry = journal.entries[index]
             guard let tempName = entry.tempName else { continue }
             let temp = UsbPath.join(UsbPath.parent(entry.destination), tempName)
-            guard try !exists(entry.destination) else { continue }
+            guard entry.writePhase == nil || entry.writePhase == .renameEntered, try !exists(entry.destination) else { continue }
+            if entry.disposition == .overwritten, entry.writePhase != nil { try restorationPending(path: entry.destination) }
             if let sha = entry.newSHA256, try isComplete(temp, sha256: sha) {
                 if entry.disposition == .created, try collides(entry.destination, temp: tempName) {
                     ok = false
@@ -159,8 +341,12 @@ extension UsbWriteRun {
                 }
                 try finishRename(temp: temp, destination: entry.destination)
                 journal.entries[index].state = .done
+                journal.entries[index].writePhase = .done
                 try saveJournal()
             } else if entry.disposition == .overwritten {
+                // 복원 연산을 시작하면 전체 회복의 방향도 rollback으로 고정한다.
+                ok = false
+                if journal.state != .restorePending { try journal.move(to: .restorePending); try saveJournal() }
                 try restoreFromBackup(entry.destination)
             }
         }
@@ -168,8 +354,8 @@ extension UsbWriteRun {
     }
 
     func isComplete(_ relative: String, sha256: String) throws -> Bool {
-        guard let info = try fs.stat(usb(relative)), info.kind == .file else { return false }
-        return try fs.sha256(usb(relative), uncached: true) == sha256
+        guard let url = try? root.url(for: relative), let info = try fs.stat(url), info.kind == .file else { return false }
+        return try fs.sha256(url, uncached: true) == sha256
     }
 
     func collides(_ destination: String, temp: String) throws -> Bool {

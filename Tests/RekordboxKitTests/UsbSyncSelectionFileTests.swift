@@ -1,0 +1,226 @@
+import DJCDomain
+import DJCTestSupport
+import Foundation
+@testable import RekordboxKit
+import Testing
+
+/// 합성 선택 파일(값은 모두 지어낸 것). 칸 모양은 2026-10-08 rekordbox 7.2.x 전후 실험에서 본 규칙을 따른다.
+struct UsbSyncSelectionFileTests {
+    /// 부호 없는 32비트로 읽힌 로컬 DBID. 선택 파일에는 같은 비트의 음수로 적힌다.
+    static let localDBID: Int64 = 4_000_000_000
+    static let fileDBID = "-294967296"
+
+    /// rekordbox가 쓰는 모양 그대로의 합성 파일
+    static func file(_ nodes: [String], dbid: String = fileDBID, automaticSync: String = "0") -> Data {
+        let lines = [#"<?xml version="1.0" encoding="UTF-8"?>"#, "",
+                     #"<Sync DBID="\#(dbid)" AutomaticSync="\#(automaticSync)" AllPlaylists="0" IncludeCue="1" ForcedSync="0" Timestamp="0">"#,
+                     "  <Playlists>"] + nodes.map { "    " + $0 } + ["  </Playlists>", "</Sync>"]
+        return Data((lines.joined(separator: "\r\n") + "\r\n").utf8)
+    }
+
+    static func node(_ id: String, parent: String = "0", folder: Bool = false, library: Int = 1, device: Int, timestamp: Int64 = 0,
+                     check: Int = 1) -> String {
+        #"<NODE Id="\#(id)" ParentId="\#(parent)" Attribute="\#(folder ? 1 : 0)" Lib_Type="\#(library)" Dev_ID="\#(device)" Timestamp="\#(timestamp)" CheckType="\#(check)"/>"#
+    }
+
+    static let xml = file([
+        node("0", folder: true, device: 0, check: 2),
+        node("F", folder: true, device: 1),
+        node("A", parent: "F", device: 2),
+    ])
+    static let source: [UsbSyncSourceNode] = [
+        .init(id: "itunes:F", parentID: nil, isFolder: true, timestamp: 0),
+        .init(id: "itunes:A", parentID: "itunes:F", isFolder: false, timestamp: 0),
+        .init(id: "itunes:B", parentID: "itunes:F", isFolder: false, timestamp: 0),
+        .init(id: "itunes:C", parentID: nil, isFolder: false, timestamp: 0),
+    ]
+    static let usbIDs: [UsbFormat: Set<Int>] = [.deviceLibrary: [1, 2], .oneLibrary: [1, 2]]
+
+    @Test func 명시한_폴더를_복원하며_새_하위_목록도_선택된다() throws {
+        let file = try UsbSyncSelectionFile.parse(Self.xml)
+        #expect(file.isCanonical)
+        let bundle = UsbSyncSelectionBundle(files: [.deviceLibrary: file])
+        let result = bundle.resolution(sourceNodes: Self.source, localDBID: Self.localDBID, usbPlaylistIDs: Self.usbIDs)
+        #expect(result.issues.isEmpty)
+        #expect(result.selection.selectedIDs == ["itunes:F", "itunes:A"])
+        #expect(result.selection.expandedIDs(in: Self.source.map(\.selectionNode)).contains("itunes:B"))
+        #expect(result.playlistIDs == ["itunes:F": 1, "itunes:A": 2])
+        #expect(result.enabled == false)
+        #expect(file.data == Self.xml)
+    }
+
+    @Test func 루트_DBID는_부호_있는_32비트로_읽고_로컬_DBID와_비트_모양으로_견준다() throws {
+        let bundle = UsbSyncSelectionBundle(files: [.deviceLibrary: try .parse(Self.xml)])
+        // 로컬 DBID가 음수로 읽혀도 같은 32비트면 같은 라이브러리다.
+        for local in [Self.localDBID, Int64(Int32(truncatingIfNeeded: Self.localDBID))] {
+            #expect(bundle.resolution(sourceNodes: Self.source, localDBID: local, usbPlaylistIDs: Self.usbIDs).issues.isEmpty)
+        }
+        for local: Int64 in [42, Self.localDBID + (1 << 32), -1] {
+            #expect(bundle.resolution(sourceNodes: Self.source, localDBID: local).issues == [.databaseMismatch])
+        }
+        #expect(UsbSyncSelectionXML.databaseID(Self.localDBID) == Self.fileDBID)
+        #expect(UsbSyncSelectionXML.databaseID(42) == "42")
+        #expect(UsbSyncSelectionXML.databaseID(Int64(UInt32.max) + 1) == nil)
+        // 16진수·32비트 밖·빈 부호는 rekordbox 표기가 아니다.
+        for dbid in ["2A", "2147483648", "-2147483649", "-", "+42", "0x10"] {
+            #expect(throws: UsbSyncSelectionFile.ParseError.invalidFile) {
+                try UsbSyncSelectionFile.parse(Self.file([Self.node("0", folder: true, device: 0)], dbid: dbid))
+            }
+        }
+        #expect(try UsbSyncSelectionFile.parse(Self.file([], dbid: "-2147483648")).rootAttributes["DBID"] == "-2147483648")
+    }
+
+    @Test func 원본별_전체_선택은_그룹_선택으로_보존된다() throws {
+        let text = String(decoding: Self.xml, as: UTF8.self).replacingOccurrences(of: "CheckType=\"2\"", with: "CheckType=\"1\"")
+        let result = UsbSyncSelectionBundle(files: [.deviceLibrary: try .parse(Data(text.utf8))])
+            .resolution(sourceNodes: Self.source, localDBID: Self.localDBID, usbPlaylistIDs: Self.usbIDs)
+        #expect(result.selection.selectedIDs.contains(UsbSyncSourceNode.iTunesSelectionID))
+    }
+
+    @Test func 두_형식의_선택이나_라이브러리가_다르면_합치지_않는다() throws {
+        let file = try UsbSyncSelectionFile.parse(Self.xml)
+        let different = try UsbSyncSelectionFile.parse(Data(String(decoding: Self.xml, as: UTF8.self)
+            .replacingOccurrences(of: "Dev_ID=\"1\" Timestamp=\"0\" CheckType=\"1\"", with: "Dev_ID=\"1\" Timestamp=\"0\" CheckType=\"2\"").utf8))
+        let bundle = UsbSyncSelectionBundle(files: [.deviceLibrary: file, .oneLibrary: different])
+        #expect(bundle.semanticFingerprint == nil)
+        #expect(bundle.resolution(sourceNodes: Self.source, localDBID: Self.localDBID).issues.contains(.formatConflict))
+        #expect(UsbSyncSelectionBundle(files: [.deviceLibrary: file])
+            .resolution(sourceNodes: Self.source, localDBID: 43).issues.contains(.databaseMismatch))
+    }
+
+    @Test func 형식마다_Dev_ID가_달라도_선택은_같고_번호는_형식별로_남는다() throws {
+        let deviceLibrary = try UsbSyncSelectionFile.parse(Self.xml)
+        let oneLibrary = try UsbSyncSelectionFile.parse(Data(String(decoding: Self.xml, as: UTF8.self)
+            .replacingOccurrences(of: "Dev_ID=\"2\"", with: "Dev_ID=\"3\"").utf8))
+        let bundle = UsbSyncSelectionBundle(files: [.deviceLibrary: deviceLibrary, .oneLibrary: oneLibrary])
+        #expect(bundle.semanticFingerprint != nil)
+        let result = bundle.resolution(sourceNodes: Self.source, localDBID: Self.localDBID,
+                                       usbPlaylistIDs: [.deviceLibrary: [1, 2], .oneLibrary: [1, 3]])
+        #expect(result.issues.isEmpty)
+        #expect(result.selection.selectedIDs == ["itunes:F", "itunes:A"])
+        #expect(result.formatPlaylistIDs[.deviceLibrary] == ["itunes:F": 1, "itunes:A": 2])
+        #expect(result.formatPlaylistIDs[.oneLibrary] == ["itunes:F": 1, "itunes:A": 3])
+        // 두 형식이 다른 목록을 가리키는 원본은 한 USB 목록에 잇지 않는다.
+        #expect(result.playlistIDs == ["itunes:F": 1])
+        // Dev_ID는 그 형식 DB의 번호와 견준다.
+        let wrong = bundle.resolution(sourceNodes: Self.source, localDBID: Self.localDBID,
+                                      usbPlaylistIDs: [.deviceLibrary: [1, 2], .oneLibrary: [1, 2]])
+        #expect(wrong.issues.contains(.deviceIDAmbiguous))
+    }
+
+    @Test func DTD_중복_순환_잘못된_숫자와_로컬_동기화_형식을_거부한다() {
+        let text = String(decoding: Self.xml, as: UTF8.self)
+        for candidate in [
+            "<!DOCTYPE Sync [<!ENTITY external SYSTEM 'file:///never-open'>]>" + text,
+            text.replacingOccurrences(of: "Id=\"A\"", with: "Id=\"F\""),
+            text.replacingOccurrences(of: "Id=\"F\" ParentId=\"0\"", with: "Id=\"F\" ParentId=\"F\""),
+            text.replacingOccurrences(of: "Dev_ID=\"2\" Timestamp=\"0\"", with: "Dev_ID=\"2\" Timestamp=\"-1\""),
+            text.replacingOccurrences(of: "Dev_ID=\"2\"", with: "Dev_ID=\"A\""),
+            "<SYNC_ITUNES_PLAYLIST Version='3.0.0'><PLAYLISTS/></SYNC_ITUNES_PLAYLIST>",
+        ] {
+            #expect(throws: (any Error).self) { try UsbSyncSelectionFile.parse(Data(candidate.utf8)) }
+        }
+    }
+
+    @Test func rekordbox_원본_Id는_16진수로_카탈로그와_맞춘다() throws {
+        // Id "11"은 16진수라 원본 17번이다. 10진수 11번 원본에 잇지 않는다.
+        let data = Self.file([
+            Self.node("0", folder: true, library: 0, device: 0, check: 2),
+            Self.node("11", folder: true, library: 0, device: 5, timestamp: 100, check: 2),
+            Self.node("12", parent: "11", library: 0, device: 6, timestamp: 100),
+        ])
+        let source: [UsbSyncSourceNode] = [
+            .init(id: "11", parentID: nil, isFolder: true), .init(id: "12", parentID: "11", isFolder: false),
+            .init(id: "17", parentID: nil, isFolder: true), .init(id: "18", parentID: "17", isFolder: false),
+        ]
+        let bundle = UsbSyncSelectionBundle(files: [.deviceLibrary: try .parse(data)])
+        let result = bundle.resolution(sourceNodes: source, localDBID: Self.localDBID, usbPlaylistIDs: [.deviceLibrary: [5, 6]])
+        #expect(result.issues.isEmpty)
+        #expect(result.selection.selectedIDs == ["18"])
+        #expect(result.playlistIDs == ["17": 5, "18": 6])
+        let missing = bundle.resolution(sourceNodes: Array(source.prefix(2)), localDBID: Self.localDBID)
+        #expect(missing.issues.contains(.sourceMissing) && missing.selection.selectedIDs.isEmpty && !missing.canWrite)
+    }
+
+    @Test func 허용한_두_파일만_읽고_부모나_파일_링크를_거부한다() throws {
+        let fixture = UsbTreeFixture()
+        let outside = UsbTreeFixture()
+        defer { fixture.remove(); outside.remove() }
+        fixture.write("PIONEER/rekordbox/playlists3.sync", String(decoding: Self.xml, as: UTF8.self))
+        fixture.write("PIONEER/rekordbox/playlists3Plus.sync", String(decoding: Self.xml, as: UTF8.self))
+        fixture.write("PIONEER/extracted/never-open", "unused")
+        let fs = FaultyUsbFileSystem(root: fixture.root.url)
+        let bundle = try UsbSyncSelectionBundle.read(root: fixture.root, formats: UsbFormat.defaultSet, fileSystem: fs)
+        #expect(bundle.files.count == 2)
+        #expect(fs.calls.allSatisfy { !$0.contains("extracted") && !$0.hasPrefix("list ") })
+        outside.write("selection.xml", String(decoding: Self.xml, as: UTF8.self))
+        let target = fixture.url("PIONEER/rekordbox/playlists3.sync")
+        try FileManager.default.removeItem(at: target)
+        fixture.symlink("PIONEER/rekordbox/playlists3.sync", to: outside.url("selection.xml").path)
+        #expect(throws: (any Error).self) { try UsbSyncSelectionBundle.read(root: fixture.root, formats: [.deviceLibrary]) }
+    }
+
+    @Test func 복사_중_선택이_바뀌면_원문을_반환하지_않는다() throws {
+        let fixture = UsbTreeFixture()
+        defer { fixture.remove() }
+        fixture.write("PIONEER/rekordbox/playlists3.sync", String(decoding: Self.xml, as: UTF8.self))
+        let fs = FaultyUsbFileSystem(root: fixture.root.url)
+        var reads = 0
+        fs.onOperation = { op, url in
+            if op == .read {
+                reads += 1
+                if reads == 2 { try? (Self.xml + Data("\n".utf8)).write(to: url) }
+            }
+        }
+        #expect(throws: (any Error).self) {
+            try UsbSyncSelectionBundle.read(root: fixture.root, formats: [.deviceLibrary], fileSystem: fs)
+        }
+    }
+
+    @Test func 파일이_없으면_아직_저장한_선택과_켜짐_상태가_없다() throws {
+        let fixture = UsbTreeFixture()
+        defer { fixture.remove() }
+        let bundle = try UsbSyncSelectionBundle.read(root: fixture.root, formats: UsbFormat.defaultSet)
+        let resolution = bundle.resolution(sourceNodes: Self.source, localDBID: Self.localDBID)
+        #expect(bundle.baseFiles.isEmpty && bundle.semanticFingerprint == nil)
+        #expect(resolution.enabled == nil && resolution.selection.selectedIDs.isEmpty && resolution.issues.isEmpty)
+    }
+
+    @Test func USB_번호가_그_형식에_없으면_체크는_보이고_쓰기는_막힌다() throws {
+        let text = String(decoding: Self.xml, as: UTF8.self).replacingOccurrences(of: "Dev_ID=\"2\"", with: "Dev_ID=\"10\"")
+        let bundle = UsbSyncSelectionBundle(files: [.deviceLibrary: try .parse(Data(text.utf8))])
+        let result = bundle.resolution(sourceNodes: Self.source, localDBID: Self.localDBID, usbPlaylistIDs: Self.usbIDs)
+        #expect(result.selection.selectedIDs == ["itunes:F", "itunes:A"])
+        #expect(result.issues.contains(.deviceIDAmbiguous) && !result.canWrite)
+        #expect(result.enabled == false)
+    }
+
+    @Test func 두_형식의_켜짐이_충돌하면_어느_값도_반환하지_않는다() throws {
+        let off = try UsbSyncSelectionFile.parse(Self.xml)
+        let on = try UsbSyncSelectionFile.parse(Self.file([
+            Self.node("0", folder: true, device: 0, check: 2), Self.node("F", folder: true, device: 1), Self.node("A", parent: "F", device: 2),
+        ], automaticSync: "1"))
+        let pairs: [[UsbFormat: UsbSyncSelectionFile]] = [
+            [.deviceLibrary: off, .oneLibrary: on], [.deviceLibrary: on, .oneLibrary: off],
+        ]
+        for files in pairs {
+            let result = UsbSyncSelectionBundle(files: files).resolution(sourceNodes: Self.source, localDBID: Self.localDBID)
+            #expect(result.issues.contains(.formatConflict) && result.enabled == nil)
+        }
+    }
+
+    @Test func 숫자_경계와_NODE_안의_주석은_강제_해제_없이_읽는다() throws {
+        for id in ["FFFFFFFFFFFFFFFF", "10000000000000"] {
+            let nodes = [Self.node("0", folder: true, library: 0, device: 0),
+                         #"<NODE Id="\#(id)" ParentId="0" Attribute="0" Lib_Type="0" Dev_ID="1" Timestamp="100" CheckType="1"><!--합성 메타--></NODE>"#]
+            let file = try UsbSyncSelectionFile.parse(Self.file(nodes))
+            #expect(file.nodes.last?.id == id)
+            // 주석이 든 원문은 rekordbox 모양이 아니라 고쳐 쓰지 않는다.
+            #expect(!file.isCanonical)
+        }
+        for id in ["10000000000000000", "１００", "G1"] {
+            let nodes = [Self.node("0", folder: true, library: 0, device: 0), Self.node(id, library: 0, device: 1, timestamp: 100)]
+            #expect(throws: UsbSyncSelectionFile.ParseError.invalidFile) { try UsbSyncSelectionFile.parse(Self.file(nodes)) }
+        }
+    }
+}

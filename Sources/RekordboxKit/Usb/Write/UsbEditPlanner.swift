@@ -12,6 +12,8 @@ struct UsbPlannedEdit {
     var warnings: [UsbBlock] = []
     var trackBlocks: [UsbBlock] = []
     var isRemoval = false
+    /// 적용이 성공한 뒤 다음 목록 동기화가 참조할 로컬 ID → 새 USB ID
+    var addedLocalTracks: [String: Int] = [:]
 }
 
 /// 편집 하나를 막는 이유(그 편집만 빼고 나머지를 쓴다)
@@ -37,6 +39,14 @@ struct UsbEditPlanner {
     var newPlaylists: [String: Int] = [:]
     /// 이번 묶음에서 이미 갱신한 곡
     var refreshed: Set<Int> = []
+    /// 같은 묶음에서 더한 곡은 내보내며 바뀐 파일 이름과 무관하게 정확한 번호로 연결한다
+    var addedLocalTracks: [String: Int] = [:]
+    /// 짝짓기는 삭제되지 않은 로컬 곡 전체를 보고, 같은 DB·곡 ID끼리 묶어 이름의 모호함도 확인한다
+    struct LocalIdentity: Hashable {
+        var database: Int64
+        var song: Int64
+    }
+    var localTrackKeys: [LocalIdentity: [UsbLocalTrackKey]]?
     /// 곡 더하기가 볼 USB 상태(처음 쓸 때 USB를 훑어 만든다)
     var existing: UsbExistingState?
     var artwork: UsbArtworkLayout?
@@ -92,6 +102,11 @@ struct UsbEditPlanner {
             case let .refreshTracks(usbContentIDs, parts): try planRefresh(usbContentIDs, parts: parts, into: &planned)
             case let .addTracks(localContentIDs, playlist):
                 try planAdd(localContentIDs, playlist: playlist, into: &planned, progress: progress, isCancelled: isCancelled)
+            case let .syncPlaylist(playlist, localContentIDs):
+                try planSyncPlaylist(playlist, localIDs: localContentIDs, into: &planned)
+            case .syncSelection:
+                // ID는 모든 목록 편집을 실제 적용한 뒤 정한다(계획 중에 미리 성공으로 기록하지 않는다).
+                break
             }
         } catch let blocked as UsbEditBlocked {
             planned.op = nil
@@ -108,6 +123,7 @@ struct UsbEditPlanner {
                 let next = try UsbEditModel.apply(op, to: working, writable: writable)
                 working = OneLibraryWriter.normalized(next, from: working)
                 Self.observe(working, into: &ids)
+                addedLocalTracks.merge(planned.addedLocalTracks) { _, new in new }
                 planned.outcome = .written
             } catch {
                 planned.op = nil

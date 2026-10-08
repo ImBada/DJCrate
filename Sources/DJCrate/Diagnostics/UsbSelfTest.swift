@@ -481,6 +481,9 @@ final class UsbAppleDoubleRecorder: UsbFileSystem, @unchecked Sendable {
     func removeDirectoryIfEmpty(_ url: URL) throws -> Bool { try base.removeDirectoryIfEmpty(url) }
     func sha256(_ url: URL, uncached: Bool) throws -> String { try base.sha256(url, uncached: uncached) }
     func read(_ url: URL, maxBytes: Int) throws -> Data { try base.read(url, maxBytes: maxBytes) }
+    func readFile(root: UsbRoot, relativePath: String, maxBytes: Int) throws -> UsbFileRead? {
+        try base.readFile(root: root, relativePath: relativePath, maxBytes: maxBytes)
+    }
     func mountedOn(_ url: URL) throws -> String? { try base.mountedOn(url) }
     func holdVolume(_ root: URL) throws -> any UsbVolumeHold { try base.holdVolume(root) }
 }

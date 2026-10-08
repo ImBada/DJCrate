@@ -88,7 +88,9 @@ extension UsbWriter {
     static func unsafeEntries(in journal: UsbJournal) -> [String] {
         var bad: [String] = []
         func path(_ value: String) { if !isSafeRelativePath(value) { bad.append(value) } }
-        func temp(_ value: String) { if !isSafeTempName(value) { bad.append(value) } }
+        func temp(_ value: String) {
+            if !isSafeTempName(value) || !value.hasPrefix(UsbLayout.tempPrefix + journal.session + "-") { bad.append(value) }
+        }
         func database(_ value: String) { if !databaseOrder.contains(value) { bad.append(value) } }
         func sidecar(_ value: String) { if !databaseFamily.contains(value) { bad.append(value) } }
         if !isSafeSession(journal.session) { bad.append(journal.session) }
@@ -105,11 +107,38 @@ extension UsbWriter {
         journal.createdDirs.forEach(path)
         journal.deletedSidecars.forEach(sidecar)
         journal.removals.forEach { path($0.path) }
+        var deletedPaths: Set<String> = []
+        for entry in journal.sidecarDeletions ?? [] {
+            sidecar(entry.destination)
+            if databaseOrder.contains(entry.destination) || !deletedPaths.insert(entry.destination).inserted
+                || entry.operation != .delete || entry.tempName != nil || entry.backupSHA256 != nil
+                || [.copying, .renamePending, .renameEntered].contains(entry.phase) { bad.append(entry.destination) }
+        }
+        var restoredPaths: Set<String> = []
+        for (destination, target) in journal.restorationBaseline ?? [:] {
+            path(destination)
+            if target.sha256?.isEmpty == true || (target.sha256 != nil && target.link != nil) { bad.append(destination) }
+        }
+        for entry in journal.restorations ?? [] {
+            path(entry.destination)
+            entry.tempName.map(temp)
+            if !restoredPaths.insert(entry.destination).inserted { bad.append(entry.destination) }
+            switch entry.operation {
+            case .replace:
+                if entry.tempName == nil || entry.backupSHA256 == nil || [.deletePending, .deleteEntered].contains(entry.phase) { bad.append(entry.destination) }
+            case .delete:
+                if entry.tempName != nil || entry.backupSHA256 != nil || [.copying, .renamePending, .renameEntered].contains(entry.phase) { bad.append(entry.destination) }
+            }
+        }
         let changes = journal.changes
         changes.databases.forEach { database($0.destination) }
         changes.copies.forEach { path($0.destination) }
-        changes.writes.forEach { path($0.destination) }
+        changes.writes.forEach {
+            path($0.destination)
+            if $0.afterDatabases == true, !UsbSyncSelectionStage.isSelectionPath($0.destination) { bad.append($0.destination) }
+        }
         changes.removals.forEach { path($0.path) }
+        changes.base?.files.keys.forEach(path)
         changes.target.mustExist.keys.forEach(path)
         changes.target.mustNotExist.forEach(path)
         return bad
@@ -165,6 +194,7 @@ extension UsbWriteRun {
         blocks += pathBlocks
         // 8. 형식별 막힘
         if pathBlocks.isEmpty {
+            blocks += try UsbSyncSelectionStage.precheckBlocks(changes, root: root, stagingRoot: UsbRoot(paths.staging), fileSystem: fs)
             for inspector in inspectors { blocks += try inspector.blocks(root: root, changes: changes) }
         }
         let refused = Set(pathBlocks.compactMap { block -> String? in if case let .file(path) = block.scope { path } else { nil } })
@@ -244,6 +274,9 @@ extension UsbWriteRun {
         for write in changes.writes {
             try check(write.destination, destination: true)
             duplicate(write.destination)
+            if write.afterDatabases == true, !UsbSyncSelectionStage.isSelectionPath(write.destination) {
+                refuse(write.destination)
+            }
             if write.disposition == .overwrite, write.expectedExistingSHA256 == nil {
                 blocks.append(UsbBlock(code: "missingExpectedHash", scope: .file(write.destination),
                                        message: String(ui: "덮어쓸 파일의 계획 때 상태를 모릅니다. USB를 다시 읽은 뒤 쓰세요")))

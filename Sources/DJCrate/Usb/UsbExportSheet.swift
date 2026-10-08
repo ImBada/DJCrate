@@ -123,9 +123,16 @@ struct UsbExportSheetModel: Equatable {
     /// 곡 목록에서 고른 로컬 곡(ContentID, 목록 순서)
     let selectedTrackIDs: [String]
     var includesSelectedTracks = false {
-        didSet { if includesSelectedTracks != oldValue { summary = nil } }
+        didSet {
+            if hasFixedSource { includesSelectedTracks = oldValue; return }
+            if includesSelectedTracks != oldValue { summary = nil }
+        }
     }
     var summary: UsbExportSummary?
+    private(set) var retryJob: UsbExportJob?
+
+    mutating func releaseRetrySnapshot() { retryJob = nil; summary = nil }
+    var hasFixedSource: Bool { retryJob?.syncSelection != nil }
 
     init(volume: UsbVolumeInfo, selectedTrackIDs: [String]) {
         self.volume = volume
@@ -144,6 +151,7 @@ struct UsbExportSheetModel: Equatable {
     }
 
     mutating func setPlaylist(_ id: String, selected: Bool) {
+        guard !hasFixedSource else { return }
         let changed = selected ? playlistIDs.insert(id).inserted : playlistIDs.remove(id) != nil
         if changed { summary = nil }
     }
@@ -157,6 +165,7 @@ struct UsbExportSheetModel: Equatable {
 
     /// 세션에 넘길 선택(트리 순서, 고른 폴더 안의 목록은 폴더가 품는다). 고른 것이 없으면 nil
     func selection(layout: PlaylistLayout) -> UsbSelection? {
+        if hasFixedSource { return retryJob?.selection }
         let playlists = layout.outline.map(\.id).filter { playlistIDs.contains($0) && !isCovered($0, layout: layout) }
         let tracks = includesSelectedTracks ? selectedTrackIDs : []
         switch (playlists.isEmpty, tracks.isEmpty) {
@@ -165,6 +174,34 @@ struct UsbExportSheetModel: Equatable {
         case (true, false): return .tracks(tracks)
         case (false, false): return .both(playlists: playlists, tracks: tracks)
         }
+    }
+
+    /// native 요청의 전체 원본은 부분 선택 트리만으로 복구할 수 없으므로 재시도 원본을 고정한다.
+    mutating func restore(_ job: UsbExportJob, summary: UsbExportSummary?, layout: PlaylistLayout) {
+        retryJob = nil
+        formats = job.formats.isEmpty ? UsbFormat.defaultSet : job.formats
+        playlistIDs = Set(job.selection.playlistIDs)
+        includesSelectedTracks = !job.selection.trackIDs.isEmpty && job.selection.trackIDs == selectedTrackIDs
+        var retry = job
+        retry.snapshotLease = job.snapshotLease ?? job.syncSourceContext?.snapshot?.lease
+        retryJob = retry
+        self.summary = selection(layout: layout) == job.selection && formats == job.formats ? summary : nil
+    }
+
+    /// 시트에서 세션으로 넘길 작업을 한 곳에서 만든다. 동기화 재시도는 원문·원본 사본도 유지한다.
+    func job(database: URL, share: URL, volume: UsbVolumeInfo, layout: PlaylistLayout,
+             syncSource: UsbSyncSource? = nil, catalogRevision: Int? = nil, readEpoch: Int = 0) -> UsbExportJob? {
+        if hasFixedSource, var retry = retryJob {
+            guard let context = retry.syncSourceContext,
+                  database == (context.snapshot?.provenance.sourceURL ?? retry.database),
+                  share == retry.share, volume.matchesSyncWriteVolume(retry.volume), syncSource == context.source,
+                  catalogRevision == context.catalogRevision, readEpoch == context.readEpoch else { return nil }
+            retry.formats = formats
+            return retry
+        }
+        guard let selection = selection(layout: layout) else { return nil }
+        return UsbExportJob(database: database, share: share, volume: volume, selection: selection,
+                            formats: formats, snapshotTime: retryJob?.snapshotTime, playlistLayout: retryJob?.playlistLayout)
     }
 
     func canPreview(layout: PlaylistLayout) -> Bool { selection(layout: layout) != nil }
@@ -193,27 +230,34 @@ struct UsbExportSheet: View {
     let request: UsbExportSheetRequest
     @State private var model: UsbExportSheetModel
     @State private var isPreviewing = false
+    @State private var opensSyncAfterDismissal = false
     @Environment(\.dismiss) private var dismiss
 
     init(store: LibraryStore, usb: UsbStore, request: UsbExportSheetRequest) {
         self.store = store
         self.usb = usb
         self.request = request
-        let tracks = store.selectedRows.filter { !$0.isStaged && !$0.track.isStreaming }.map(\.track.id)
+        let tracks = request.job.flatMap { $0.syncSelection == nil ? nil : $0.selection.trackIDs }
+            ?? store.selectedRows.filter { !$0.isStaged && !$0.track.isStreaming }.map(\.track.id)
         // 연 때의 볼륨으로 그린다(볼륨이 빠지면 UsbStore가 시트를 닫는다)
         var model = UsbExportSheetModel(volume: request.volume, selectedTrackIDs: tracks)
         // 다시 미리 보기면 그때 고른 것을 되살린다
         if let job = request.job {
-            for format in UsbFormat.allCases { model.setFormat(format, on: job.formats.contains(format)) }
-            for id in job.selection.playlistIDs { model.setPlaylist(id, selected: true) }
-            model.includesSelectedTracks = !job.selection.trackIDs.isEmpty && job.selection.trackIDs == tracks
-            // 그때와 같은 것을 고른 경우에만 그 미리 보기를 보인다(곡 선택이 바뀌었으면 다시 미리 본다)
-            if model.selection(layout: store.rekordboxPlaylists) == job.selection { model.summary = request.summary }
+            model.restore(job, summary: request.summary, layout: job.playlistLayout ?? store.rekordboxPlaylists)
         }
         _model = State(initialValue: model)
     }
 
-    private var layout: PlaylistLayout { store.rekordboxPlaylists }
+    private var layout: PlaylistLayout { request.job?.playlistLayout ?? store.rekordboxPlaylists }
+    private var sourceIsCurrent: Bool {
+        guard model.hasFixedSource, let retry = model.retryJob else { return true }
+        guard let context = retry.syncSourceContext else { return false }
+        return store.usbSyncSourceIsCurrent(context, database: retry.database, share: retry.share)
+            && usb.volume(request.volumeKey)?.matchesSyncWriteVolume(retry.volume) == true
+    }
+
+    var canPreview: Bool { !isPreviewing && sourceIsCurrent && model.canPreview(layout: layout) }
+    var canExport: Bool { !isPreviewing && sourceIsCurrent && model.canWrite }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -230,11 +274,19 @@ struct UsbExportSheet: View {
                 Spacer()
                 Button(.ui("취소")) { dismiss() }.keyboardShortcut(.cancelAction)
                 Button(.ui("미리 보기")) { Task { await preview() } }
-                    .disabled(isPreviewing || !model.canPreview(layout: layout))
+                    .disabled(!canPreview)
                 Button(.ui("USB에 쓰기")) { write() }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(isPreviewing || !model.canWrite)
+                    .disabled(!canExport)
             }
+        }
+        .onDisappear {
+            model.releaseRetrySnapshot()
+            if request.job?.syncSourceContext != nil {
+                usb.lastExports[request.volumeKey] = nil
+                if usb.exportSheet?.id == request.id { usb.exportSheet = nil }
+            }
+            if opensSyncAfterDismissal { usb.presentSync(request.volumeKey) }
         }
         .padding(20)
         .frame(width: 520)
@@ -284,6 +336,15 @@ struct UsbExportSheet: View {
     private var sourceSection: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(.ui("원본")).font(.headline)
+            if model.hasFixedSource {
+                Text(.ui("동기화 재시도의 원본 선택은 고정되어 있습니다. 선택을 바꾸거나 원본이 갱신되었으면 USB 동기화 창에서 다시 준비하세요"))
+                    .font(.caption).foregroundStyle(.secondary)
+                Button(.ui("USB 동기화…")) {
+                    opensSyncAfterDismissal = true
+                    dismiss()
+                }
+                .disabled(isPreviewing || usb.activeWrite != nil)
+            }
             List {
                 ForEach(UsbExportSheetModel.rows(layout)) { row in
                     let covered = model.isCovered(row.id, layout: layout)
@@ -296,7 +357,7 @@ struct UsbExportSheet: View {
                     }
                     .toggleStyle(.checkbox)
                     .padding(.leading, CGFloat(row.depth) * 16)
-                    .disabled(covered || row.isSmart)
+                    .disabled(model.hasFixedSource || covered || row.isSmart)
                     .help(row.isSmart ? String(ui: "인텔리전트 재생 목록은 내보내지 않습니다") : row.name)
                 }
             }
@@ -306,7 +367,7 @@ struct UsbExportSheet: View {
                 Text(.ui("곡 목록에서 고른 곡 \(model.selectedTrackIDs.count)개도 넣기"))
             }
             .toggleStyle(.checkbox)
-            .disabled(model.selectedTrackIDs.isEmpty)
+            .disabled(model.hasFixedSource || model.selectedTrackIDs.isEmpty)
         }
     }
 
@@ -334,10 +395,12 @@ struct UsbExportSheet: View {
     }
 
     private func job() -> UsbExportJob? {
-        guard let snapshot = store.snapshotURL, let selection = model.selection(layout: layout) else { return nil }
+        guard let snapshot = store.snapshotURL, sourceIsCurrent else { return nil }
         let volume = usb.volume(request.volumeKey) ?? model.volume
-        return UsbExportJob(database: snapshot, share: RekordboxShare.directory, volume: volume, selection: selection,
-                            formats: model.formats, snapshotTime: nil)
+        return model.job(database: snapshot, share: store.rekordboxShareRoot ?? RekordboxShare.directory,
+                         volume: volume, layout: layout,
+                         syncSource: UsbSyncSource.make(rekordbox: store.rekordboxPlaylists, iTunes: store.iTunesLibrary),
+                         catalogRevision: store.previewRevision, readEpoch: store.snapshotReadEpoch)
     }
 
     private func preview() async {

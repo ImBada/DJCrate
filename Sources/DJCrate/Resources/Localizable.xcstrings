@@ -942,6 +942,22 @@
         }
       }
     },
+    "%@ 동기화…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync %1$@…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@を同期…"
+          }
+        }
+      }
+    },
     "%@ 머리가 짧음" : {
       "localizations" : {
         "en" : {
@@ -1237,6 +1253,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@(%2$lld곡)"
+          }
+        }
+      }
+    },
+    "%@. USB를 기기에 꽂지 말고, 이유를 푼 뒤 USB를 다시 연결하면 나오는 알림에서 회복하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. Don’t plug the USB into a player. Resolve the issue, reconnect the USB, and recover it from the alert that appears."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@。USBを機器に挿さず、原因を解消してからUSBを接続し直し、表示される通知から回復してください。"
           }
         }
       }
@@ -4301,6 +4333,22 @@
         }
       }
     },
+    "Device Library 구조가 맞지 않으니 rekordbox에서 USB를 확인한 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Device Library structure does not match; check the USB in rekordbox, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device Libraryの構造が一致しないため、rekordboxでUSBを確認してから再度取り込んでください。"
+          }
+        }
+      }
+    },
     "Device Library 구조에 문제가 있습니다. rekordbox로 USB를 다시 내보내세요" : {
       "localizations" : {
         "en" : {
@@ -5155,6 +5203,22 @@
         }
       }
     },
+    "OneLibrary 기기 큐 행의 해석을 확인하지 못했으니 큐는 rekordbox에서 직접 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OneLibrary device cue rows cannot yet be interpreted reliably; import cues directly in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OneLibraryの機器キュー行の解釈を確認できていないため、キューはrekordboxで直接取り込んでください。"
+          }
+        }
+      }
+    },
     "OneLibrary 더하기" : {
       "localizations" : {
         "en" : {
@@ -5593,6 +5657,422 @@
         }
       }
     },
+    "USB 동기화" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB Sync"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期"
+          }
+        }
+      }
+    },
+    "USB 동기화 목록" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB Sync Playlists"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期プレイリスト"
+          }
+        }
+      }
+    },
+    "USB 동기화 목록 새로고침" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh USB Sync Playlists"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期プレイリストを更新"
+          }
+        }
+      }
+    },
+    "USB 동기화 목록의 최종 번호를 찾지 못했습니다. 쓰기 결과를 다시 읽은 뒤 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The final USB sync playlist ID could not be found. Read the write result again, then synchronize."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期プレイリストの最終番号が見つかりません。書き込み結果を読み直してから同期してください。"
+          }
+        }
+      }
+    },
+    "USB 동기화 선택 저장" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save USB Sync Selection"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期選択を保存"
+          }
+        }
+      }
+    },
+    "USB 동기화 선택 파일을 다시 읽지 못했습니다. USB를 새로고침한 뒤 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB sync selection file could not be read again. Refresh the USB device, then synchronize."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期選択ファイルを再度読み込めませんでした。USBを更新してから同期してください。"
+          }
+        }
+      }
+    },
+    "USB 동기화 선택 파일을 읽을 수 없습니다. rekordbox에서 다시 동기화한 뒤 USB를 읽으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB sync selection file could not be read. Synchronize again in rekordbox, then read the USB device."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期選択ファイルを読み込めません。rekordboxで再度同期してからUSBを読み込んでください。"
+          }
+        }
+      }
+    },
+    "USB 동기화 선택 파일이 일반 파일이 아닙니다. USB 파일을 확인한 뒤 다시 읽으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB sync selection file is not a regular file. Check the USB files, then read it again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期選択ファイルが通常のファイルではありません。USBのファイルを確認してから読み直してください。"
+          }
+        }
+      }
+    },
+    "USB 동기화 선택에 지원하지 않는 원본이 있습니다. rekordbox에서 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB sync selection contains an unsupported source. Synchronize it in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期選択に未対応の元データがあります。rekordboxで同期してください。"
+          }
+        }
+      }
+    },
+    "USB 동기화 선택을 다시 읽으니 쓴 내용과 다릅니다. USB를 다시 읽은 뒤 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB sync selection differs from the written content when read again. Read the USB device again, then synchronize."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期選択を読み直すと書き込んだ内容と異なります。USBを読み直してから同期してください。"
+          }
+        }
+      }
+    },
+    "USB 동기화 선택의 USB 목록 번호를 확인하지 못했습니다. rekordbox에서 다시 동기화한 뒤 읽으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB playlist ID in the sync selection could not be verified. Synchronize again in rekordbox, then read the USB device."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期選択のUSBプレイリスト番号を確認できませんでした。rekordboxで再度同期してから読み込んでください。"
+          }
+        }
+      }
+    },
+    "USB 동기화 선택의 원본 목록을 유일하게 찾지 못했습니다. 원본 목록을 읽은 뒤 다시 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The source playlist in the USB sync selection could not be matched uniquely. Reload the source playlists, then synchronize again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期選択の元のプレイリストを一意に特定できませんでした。元のプレイリストを読み込んでから再度同期してください。"
+          }
+        }
+      }
+    },
+    "USB 동기화 선택의 원본을 확인할 수 없습니다. 목록을 다시 읽은 뒤 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The source of the USB sync selection could not be verified. Reload the playlists, then synchronize."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期選択の元データを確認できません。プレイリストを読み直してから同期してください。"
+          }
+        }
+      }
+    },
+    "USB 동기화 선택의 폴더 구조가 원본과 다릅니다. rekordbox에서 다시 동기화한 뒤 읽으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The folder structure in the USB sync selection differs from the source. Synchronize again in rekordbox, then read the USB device."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期選択のフォルダー構成が元の構成と異なります。rekordboxで再度同期してから読み込んでください。"
+          }
+        }
+      }
+    },
+    "USB 동기화 선택이 다른 rekordbox 라이브러리에 연결되어 있습니다. 원래 라이브러리를 연 뒤 다시 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB sync selection belongs to another rekordbox library. Open the original library, then synchronize again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期選択は別のrekordboxライブラリに関連付けられています。元のライブラリを開いてから再度同期してください。"
+          }
+        }
+      }
+    },
+    "USB 동기화 선택이 다른 앱에서 바뀌었습니다. 새로고침해 바뀐 선택을 확인한 뒤 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another app changed the USB sync selection. Refresh and review the updated selection, then synchronize."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別のアプリでUSB同期選択が変更されました。更新して変更後の選択を確認してから同期してください。"
+          }
+        }
+      }
+    },
+    "USB 동기화 선택이나 로컬 라이브러리를 읽지 못했습니다. USB와 라이브러리를 새로고침한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB sync selection or local library could not be read. Refresh the USB device and library, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期選択またはローカルライブラリを読み込めませんでした。USBとライブラリを更新してから再試行してください。"
+          }
+        }
+      }
+    },
+    "USB 동기화 설정…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB Sync Settings…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期設定…"
+          }
+        }
+      }
+    },
+    "USB 동기화 설정을 읽지 못했습니다. 데이터 폴더의 usb-sync-selections 파일을 확인한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB sync settings could not be read. Check the usb-sync-selections files in the data folder, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期設定を読み込めませんでした。データフォルダのusb-sync-selectionsファイルを確認してから再試行してください。"
+          }
+        }
+      }
+    },
+    "USB 동기화 설정을 저장하지 못했습니다. 데이터 폴더의 usb-sync-selections 파일을 확인한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB sync settings could not be saved. Check the usb-sync-selections files in the data folder, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期設定を保存できませんでした。データフォルダのusb-sync-selectionsファイルを確認してから再試行してください。"
+          }
+        }
+      }
+    },
+    "USB 동기화 초안을 저장하지 못했습니다. 데이터 폴더를 확인한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB sync drafts could not be saved. Check the data folder, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期の下書きを保存できませんでした。データフォルダを確認してから再試行してください。"
+          }
+        }
+      }
+    },
+    "USB 동기화 켜짐 저장" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save USB Sync Setting"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期のオン/オフを保存"
+          }
+        }
+      }
+    },
+    "USB 동기화 파일이 확인한 형식과 다릅니다. rekordbox에서 다시 동기화한 뒤 읽으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB sync file differs from the verified format. Synchronize again in rekordbox, then read the USB device."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期ファイルが確認済みの形式と異なります。rekordboxで再度同期してから読み込んでください。"
+          }
+        }
+      }
+    },
+    "USB 동기화…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB Sync…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期…"
+          }
+        }
+      }
+    },
+    "USB 동기화를 준비하지 못했습니다. 목록을 새로고침한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB syncing could not be prepared. Refresh the playlists, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期を準備できませんでした。プレイリストを更新してから再試行してください。"
+          }
+        }
+      }
+    },
+    "USB 동기화의 켜짐 상태를 확인하지 못했습니다. rekordbox에서 다시 동기화한 뒤 읽으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB sync enabled state could not be verified. Synchronize again in rekordbox, then read the USB device."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期の有効状態を確認できませんでした。rekordboxで再度同期してから読み込んでください。"
+          }
+        }
+      }
+    },
     "USB 라이브러리 사본을 고친 뒤 확인하지 못했습니다. USB를 다시 읽은 뒤 다시 시도하세요" : {
       "localizations" : {
         "en" : {
@@ -5657,6 +6137,22 @@
         }
       }
     },
+    "USB 목록 표시" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB Playlist View"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBプレイリストの表示"
+          }
+        }
+      }
+    },
     "USB 미리 보기를 하지 못했습니다" : {
       "localizations" : {
         "en" : {
@@ -5669,6 +6165,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBのプレビューができませんでした"
+          }
+        }
+      }
+    },
+    "USB 복원 대상이 그 사이 바뀌었거나 중단 상태를 확정할 수 없습니다. 백업을 확인하고 기기 변경을 버리는 복원으로 다시 승인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB restore target changed, or the interrupted state cannot be determined. Check the backup, then approve restoring again with device changes discarded."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの復元対象が変更されたか、中断時の状態を確定できません。バックアップを確認し、デバイス側の変更を破棄する復元を再度承認してください。"
+          }
+        }
+      }
+    },
+    "USB 복원을 미뤘습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restoring the USB was postponed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの復元を延期しました"
+          }
+        }
+      }
+    },
+    "USB 복원을 미뤘습니다(%@). 이유를 푼 뒤 `djc usb-recover`로 회복하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restoring the USB was postponed (%@). Resolve the issue, then recover with `djc usb-recover`"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの復元を延期しました（%@）。原因を解消してから`djc usb-recover`で回復してください"
+          }
+        }
+      }
+    },
+    "USB 복원을 미뤘습니다. 이유를 푼 뒤 `djc usb-recover`를 실행하세요: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restoring the USB was postponed. Resolve the issue, then run `djc usb-recover`: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの復元を延期しました。原因を解消してから`djc usb-recover`を実行してください: %@"
           }
         }
       }
@@ -6015,6 +6575,22 @@
         }
       }
     },
+    "USB 음원 경로를 확인하지 못했으니 rekordbox에서 이 곡을 다시 내보내세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB audio path could not be confirmed; export this track again in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB音源のパスを確認できないため、rekordboxでこの曲を再度エクスポートしてください。"
+          }
+        }
+      }
+    },
     "USB 읽기 사본" : {
       "localizations" : {
         "en" : {
@@ -6047,6 +6623,22 @@
         }
       }
     },
+    "USB 작업이 진행 중이니 끝난 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A USB operation is in progress; wait until it finishes, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの操作が進行中のため、終了してから再度取り込んでください。"
+          }
+        }
+      }
+    },
     "USB 재생 목록 고치기" : {
       "localizations" : {
         "en" : {
@@ -6059,6 +6651,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBのプレイリストの編集"
+          }
+        }
+      }
+    },
+    "USB 재생 목록을 아직 읽지 못했습니다. 새로고침하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB playlists have not been read yet. Refresh to read them."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBのプレイリストをまだ読み込めていません。更新してください。"
+          }
+        }
+      }
+    },
+    "USB 재생 목록의 부모 관계가 맞지 않습니다. rekordbox에서 USB를 확인한 뒤 다시 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB playlist hierarchy is invalid. Check the USB in rekordbox, then sync again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBプレイリストの親子関係が正しくありません。rekordboxでUSBを確認してから再度同期してください。"
+          }
+        }
+      }
+    },
+    "USB 정보를 읽지 못했으니 기기 사용을 마치고 USB를 다시 연결한 뒤 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB information could not be read; finish using the device, reconnect the USB, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの情報を読み込めなかったため、機器の使用を終えてUSBを再接続してから取り込んでください。"
           }
         }
       }
@@ -6107,6 +6747,22 @@
         }
       }
     },
+    "USB 큐·그리드·평점 가져오기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import USB Cues, Beat Grids, and Ratings"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBのキュー、グリッド、評価を取り込む"
+          }
+        }
+      }
+    },
     "USB 파일이 Device Library와 맞지 않아 옮기지 않았습니다(%@). rekordbox에서 USB를 다시 내보내세요" : {
       "localizations" : {
         "en" : {
@@ -6151,6 +6807,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBの編集は下書きとしてためて、「USBに書き込む…」で反映します"
+          }
+        }
+      }
+    },
+    "USB 평점이 별 0~5개 범위를 벗어나니 rekordbox에서 확인한 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB rating is outside the range of 0–5 stars; check it in rekordbox, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの評価が星0～5個の範囲外のため、rekordboxで確認してから再度取り込んでください。"
           }
         }
       }
@@ -6247,6 +6919,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBが機器で変更されたため、書き込みを続けませんでした。今のUSBの状態でもう一度プレビューしてから書き込んでください"
+          }
+        }
+      }
+    },
+    "USB가 바뀌었습니다. USB를 다시 읽은 뒤 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB device has changed. Read it again, then synchronize."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBが変更されました。USBを読み直してから同期してください。"
           }
         }
       }
@@ -6363,22 +7051,6 @@
         }
       }
     },
-    "USB를 기기에 꽂지 마세요. rekordbox를 종료한 뒤 USB를 다시 연결하면 나오는 알림에서 회복하세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Don’t plug the USB into a player. Quit rekordbox, reconnect the USB, and recover it from the alert that appears."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "USBを機器に挿さないでください。rekordboxを終了してからUSBを接続し直し、表示される通知から回復してください。"
-          }
-        }
-      }
-    },
     "USB를 기기에 꽂지 말고 다시 연결하세요. 다시 연결하면 나오는 알림에서 회복할 수 있습니다." : {
       "localizations" : {
         "en" : {
@@ -6439,6 +7111,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBを取り出してから抜いてください（Finderまたは`diskutil eject`）"
+          }
+        }
+      }
+    },
+    "USB를 다시 연결한 뒤 동기화 창을 여세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconnect the USB, then open the sync window."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBを再接続してから同期ウィンドウを開いてください。"
           }
         }
       }
@@ -6791,6 +7479,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBに書き込む"
+          }
+        }
+      }
+    },
+    "USB에 쓰기 전에 변경 내용을 확인합니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review the changes before writing to the USB."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに書き込む前に変更内容を確認します。"
           }
         }
       }
@@ -7153,6 +7857,22 @@
         }
       }
     },
+    "USB에 재생 목록이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no playlists on this USB device."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSBにはプレイリストがありません。"
+          }
+        }
+      }
+    },
     "USB에 적힌 앨범아트 경로가 앨범아트 폴더 모양이 아니라 앨범아트를 고치지 않았습니다. rekordbox에서 USB를 다시 내보내세요" : {
       "localizations" : {
         "en" : {
@@ -7241,6 +7961,22 @@
         }
       }
     },
+    "USB에서 같은 이름의 폴더와 재생 목록을 구분할 수 없습니다. 이름을 다르게 바꾼 뒤 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A folder and playlist with the same name on the USB cannot be distinguished. Rename them to different names before syncing."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB上の同名のフォルダとプレイリストを区別できません。異なる名前に変更してから同期してください。"
+          }
+        }
+      }
+    },
     "USB에서 곡 빼기" : {
       "localizations" : {
         "en" : {
@@ -7301,6 +8037,22 @@
         }
       }
     },
+    "USB에서 선택했던 원본 목록을 찾지 못했습니다. iTunes와 rekordbox 목록을 다시 읽거나 rekordbox에서 USB 동기화 선택을 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A source playlist selected on the USB could not be found. Reload the iTunes and rekordbox playlists, or check the USB sync selection in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBで選択されていた元のプレイリストが見つかりません。iTunesとrekordboxのプレイリストを読み直すか、rekordboxでUSB同期選択を確認してください。"
+          }
+        }
+      }
+    },
     "USB에서 지울 파일 %lld개" : {
       "localizations" : {
         "en" : {
@@ -7313,6 +8065,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBから削除するファイル %lld個"
+          }
+        }
+      }
+    },
+    "USB와 동기화…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync with USB…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBと同期…"
           }
         }
       }
@@ -7349,6 +8117,22 @@
         }
       }
     },
+    "USB의 같은 폴더에 이름이 같은 재생 목록이 있습니다. 이름을 다르게 바꾼 뒤 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The same USB folder contains playlists with the same name. Rename them to different names before syncing."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの同じフォルダに同名のプレイリストがあります。異なる名前に変更してから同期してください。"
+          }
+        }
+      }
+    },
     "USB의 곡·재생 목록은 읽기만 합니다" : {
       "localizations" : {
         "en" : {
@@ -7361,6 +8145,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBの曲・プレイリストは読み込みのみです"
+          }
+        }
+      }
+    },
+    "USB의 동기화 선택이 그 사이 바뀌었습니다. USB를 다시 읽은 뒤 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB sync selection has changed. Read the USB device again, then synchronize."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB同期選択が変更されました。USBを読み直してから同期してください。"
+          }
+        }
+      }
+    },
+    "USB의 동기화 파일이나 DB가 그 사이 바뀌었습니다. 백업을 확인하고 기기 변경을 버리는 복원으로 되돌리세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB sync files or database have changed. Check the backup, then restore while discarding device changes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの同期ファイルまたはDBが変更されました。バックアップを確認し、機器での変更を破棄する復元で元に戻してください。"
+          }
+        }
+      }
+    },
+    "USB의 두 형식에 저장된 동기화 선택이 다릅니다. rekordbox에서 다시 동기화한 뒤 읽으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The two USB formats have different sync selections. Synchronize again in rekordbox, then read the USB device."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの2つの形式に保存された同期選択が異なります。rekordboxで再度同期してから読み込んでください。"
           }
         }
       }
@@ -7397,6 +8229,22 @@
         }
       }
     },
+    "USB의 어느 재생 목록에도 남지 않는 곡 %lld개를 USB에서 뺍니다. 음원 파일은 다른 곡이 쓰지 않을 때만 지웁니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld tracks that will no longer be in any USB playlist will be removed from the USB. Audio files are deleted only when no other track uses them."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBのどのプレイリストにも残らない%lld曲をUSBから削除します。音源ファイルは他の曲が使っていない場合にのみ削除します。"
+          }
+        }
+      }
+    },
     "USB의 음원 파일은 덮어쓰지 않습니다. 다시 미리 보기한 뒤 쓰세요" : {
       "localizations" : {
         "en" : {
@@ -7409,6 +8257,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBの音源ファイルは上書きしません。もう一度プレビューしてから書き込んでください"
+          }
+        }
+      }
+    },
+    "USB의 큐·그리드·평점은 로컬 초안으로 가져옵니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB cues, beat grids, and ratings are imported as local drafts."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBのキュー、グリッド、評価はローカルの下書きとして取り込みます。"
+          }
+        }
+      }
+    },
+    "USB의 큐·그리드·평점을 로컬 초안으로 가져옵니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import USB cues, beat grids, and ratings as local drafts"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBのキュー、グリッド、評価をローカルの下書きとして取り込みます"
+          }
+        }
+      }
+    },
+    "USB의 큐와 그리드 읽는 중" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading USB cues and beat grids"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBのキューとグリッドを読み込み中"
+          }
+        }
+      }
+    },
+    "USB의 한 형식에 동기화 선택 파일이 없습니다. rekordbox에서 두 형식을 다시 동기화한 뒤 읽으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One USB format has no sync selection file. Synchronize both formats again in rekordbox, then read the USB device."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの片方の形式に同期選択ファイルがありません。rekordboxで両方の形式を再度同期してから読み込んでください。"
           }
         }
       }
@@ -7945,6 +8857,22 @@
         }
       }
     },
+    "iTunes 목록에 연결되지 않은 곡이 있습니다. rekordbox 컬렉션의 곡과 음원 경로를 확인한 뒤 새로고침하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some tracks in this iTunes playlist are not linked. Check their audio paths against the rekordbox Collection, then refresh."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このiTunesプレイリストにはリンクされていない曲があります。rekordboxのコレクションの曲と音源のパスを確認してから更新してください。"
+          }
+        }
+      }
+    },
     "iTunes 목록을 읽지 못했으니 Music 접근 권한과 rekordbox의 iTunes 읽기 설정을 확인한 뒤 새로고침하세요." : {
       "localizations" : {
         "en" : {
@@ -8012,6 +8940,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "masterPlaylists6.xmlにプレイリストを書き込めませんでした"
+          }
+        }
+      }
+    },
+    "masterPlaylists6.xml에서 동기화할 목록을 찾지 못했습니다. rekordbox를 한 번 켰다가 종료하고 새 스냅샷을 읽은 뒤 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not find the playlists to sync in masterPlaylists6.xml. Open rekordbox once, quit it, load a new snapshot, and then sync."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期するプレイリストがmasterPlaylists6.xmlに見つかりません。rekordboxを一度起動してから終了し、新しいスナップショットを読み込んでから同期してください。"
           }
         }
       }
@@ -9757,54 +10701,6 @@
         }
       }
     },
-    "rekordbox가 켜져 있어 USB 복원을 미뤘습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordbox is running, so restoring the USB was postponed"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxが起動しているため、USBの復元を延期しました"
-          }
-        }
-      }
-    },
-    "rekordbox가 켜져 있어 USB 복원을 미뤘습니다. rekordbox를 종료한 뒤 `djc usb-recover`로 회복하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordbox is running, so restoring the USB was postponed. Quit rekordbox, then recover with `djc usb-recover`"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxが起動しているため、USBの復元を延期しました。rekordboxを終了してから`djc usb-recover`で回復してください"
-          }
-        }
-      }
-    },
-    "rekordbox가 켜져 있어 USB 복원을 미뤘습니다. rekordbox를 종료한 뒤 `djc usb-recover`를 실행하세요: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordbox is running, so restoring the USB was postponed. Quit rekordbox, then run `djc usb-recover`: %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxが起動しているため、USBの復元を延期しました。rekordboxを終了してから`djc usb-recover`を実行してください: %@"
-          }
-        }
-      }
-    },
     "rekordbox가 켜져 있어 USB에 쓰지 않았습니다" : {
       "localizations" : {
         "en" : {
@@ -9833,22 +10729,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxが起動しているため追加しませんでした"
-          }
-        }
-      }
-    },
-    "rekordbox가 켜져 있어 되돌리기를 미뤘습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordbox is running, so the restore was postponed"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxが起動しているため、復元を延期しました"
           }
         }
       }
@@ -11197,6 +12077,22 @@
         }
       }
     },
+    "rekordbox와 rekordboxAgent를 종료한 뒤 USB와 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit rekordbox and rekordboxAgent before syncing with the USB."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxとrekordboxAgentを終了してからUSBと同期してください。"
+          }
+        }
+      }
+    },
     "rekordbox와 다른 초안 변경이 없으니 변경할 곡과 초안을 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -11257,6 +12153,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxのiTunes同期選択が変更されています。更新してからプレイリストを選び直してください。"
+          }
+        }
+      }
+    },
+    "rekordbox의 동기화 선택 파일 갱신 규칙을 아직 확인하지 못했습니다. rekordbox에서 선택을 바꿔 동기화한 전후 파일을 확인한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The rekordbox sync selection file update rules have not been verified. Compare the files before and after changing the selection and synchronizing in rekordbox, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxの同期選択ファイルの更新規則をまだ確認できていません。rekordboxで選択を変更して同期した前後のファイルを確認してから再試行してください。"
           }
         }
       }
@@ -11401,6 +12313,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "「%@」の曲順を変更"
+          }
+        }
+      }
+    },
+    "‘%@’ 동기화 · 곡 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync ‘%1$@’ · Tracks: %2$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」を同期 · %2$lld曲"
           }
         }
       }
@@ -12245,6 +13173,22 @@
         }
       }
     },
+    "같은 로컬 곡의 USB 사본이 여러 개라 동기화할 수 없습니다. USB의 중복 곡을 정리한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Multiple USB copies match the same local track, so syncing cannot proceed. Remove duplicate tracks from the USB, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じローカルの曲に対応するUSBのコピーが複数あるため同期できません。USBの重複した曲を整理してから再試行してください。"
+          }
+        }
+      }
+    },
     "같은 묶음에 같은 key(%@)로 만든 목록이 있습니다" : {
       "localizations" : {
         "en" : {
@@ -12497,6 +13441,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同じフォルダ内のプレイリスト順序番号の開始値"
+          }
+        }
+      }
+    },
+    "같은 폴더에 이름이 같은 재생 목록이 있습니다. 이름을 다르게 바꾼 뒤 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The same folder contains playlists with the same name. Rename them to different names before syncing."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じフォルダに同名のプレイリストがあります。異なる名前に変更してから同期してください。"
           }
         }
       }
@@ -15813,6 +16773,22 @@
         }
       }
     },
+    "그리드 초안이 이미 있으니 먼저 반영하거나 버린 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A beat grid draft already exists; apply or discard it before importing again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グリッドの下書きがすでにあるため、反映または破棄してから再度取り込んでください。"
+          }
+        }
+      }
+    },
     "그리드 추정 %lld/%lld" : {
       "localizations" : {
         "en" : {
@@ -17149,6 +18125,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "내보낼 곡 %1$lld · 재생 목록 %2$lld · 막힌 곡 %3$lld"
+          }
+        }
+      }
+    },
+    "내보낼 곡이 로컬 스냅샷에 없습니다. 새 스냅샷을 뜬 뒤 다시 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A track to export is missing from the local snapshot. Take a new snapshot, then export again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エクスポートする曲がローカルスナップショットにありません。新しいスナップショットを作成してから再度エクスポートしてください。"
           }
         }
       }
@@ -18541,6 +19533,134 @@
         }
       }
     },
+    "동기화 선택 회복" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync Selection Recovery"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期選択の復旧"
+          }
+        }
+      }
+    },
+    "동기화 선택을 만든 로컬 라이브러리와 현재 사본이 다릅니다. 새 스냅샷을 읽고 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current copy differs from the local library used to create the sync selection. Read a new snapshot, then synchronize."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期選択を作成したローカルライブラリと現在のコピーが異なります。新しいスナップショットを読み込んでから同期してください。"
+          }
+        }
+      }
+    },
+    "동기화 선택을 쓰는 중 끊겨 USB를 쓰기 전으로 되돌렸습니다. 다시 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing the sync selection was interrupted and the USB device was restored to its previous state. Synchronize again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期選択の書き込みが中断されたため、USBを書き込み前の状態に戻しました。再度同期してください。"
+          }
+        }
+      }
+    },
+    "동기화 재시도의 원본 선택은 고정되어 있습니다. 선택을 바꾸거나 원본이 갱신되었으면 USB 동기화 창에서 다시 준비하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The source selection is fixed for this sync retry. If you change the selection or the source is updated, prepare it again in the USB sync window."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期の再試行では元データの選択が固定されています。選択を変更した場合や元データが更新された場合は、USB同期ウインドウで再度準備してください。"
+          }
+        }
+      }
+    },
+    "동기화 초안은 USB 쓰기 대기에 남았습니다. 쓰기 대기 목록에서 결과와 막힌 이유를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync drafts remain in Pending USB Changes. Check the results and blocking reasons there."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期の下書きはUSB書き込み待ちに残っています。書き込み待ちの一覧で結果とブロックされた理由を確認してください。"
+          }
+        }
+      }
+    },
+    "동기화 초안의 원본을 다시 준비해야 하므로 쓰기 대기 목록에서 초안을 버린 뒤 USB 동기화 창을 새로고침하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The sync draft's source needs to be prepared again. Discard the draft in Pending USB Changes, then refresh the USB sync window."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期の下書きの元データを再度準備する必要があります。USB書き込み待ちの一覧で下書きを破棄してから、USB同期ウインドウを更新してください。"
+          }
+        }
+      }
+    },
+    "동기화 켜짐 초안은 USB 쓰기 대기에 남았습니다. 쓰기 대기 목록에서 결과와 막힌 이유를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The sync setting draft remains in Pending USB Changes. Check the results and blocking reasons there."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期のオン/オフの下書きはUSB書き込み待ちに残っています。書き込み待ちの一覧で結果とブロックされた理由を確認してください。"
+          }
+        }
+      }
+    },
+    "동기화 후" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After Sync"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期後"
+          }
+        }
+      }
+    },
     "동기화된 곡의 %@은 rekordbox에 쓰는 규칙을 아직 확인하지 않았으니 rekordbox에서 직접 고치거나 이 칸 초안을 버리세요" : {
       "localizations" : {
         "en" : {
@@ -18553,6 +19673,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同期済みの曲の%@をrekordboxに書き込むルールはまだ確認していないため、rekordboxで直接修正するか、この項目の下書きを破棄してください。"
+          }
+        }
+      }
+    },
+    "동기화를 취소했습니다. USB는 그대로입니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync canceled. The USB is unchanged."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期をキャンセルしました。USBは変更されていません。"
           }
         }
       }
@@ -18589,6 +19725,38 @@
         }
       }
     },
+    "동기화할 곡이 USB에 없어 목록을 바꾸지 않았습니다. 곡 더하기가 막힌 이유를 푼 뒤 다시 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The playlist was kept because a track to sync is missing from the USB. Resolve the reason blocking track addition, then sync again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期する曲がUSBにないため、プレイリストを変更しませんでした。曲の追加がブロックされた理由を解消してから再度同期してください。"
+          }
+        }
+      }
+    },
+    "동기화할 곡이 로컬 스냅샷에 없어 목록을 바꾸지 않았습니다. 새 스냅샷을 뜬 뒤 다시 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The playlist was kept because a track to sync is missing from the local snapshot. Take a new snapshot, then sync again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期する曲がローカルスナップショットにないため、プレイリストを変更しませんでした。新しいスナップショットを作成してから再度同期してください。"
+          }
+        }
+      }
+    },
     "동기화할 목록을 선택하세요" : {
       "localizations" : {
         "en" : {
@@ -18601,6 +19769,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同期するプレイリストを選択してください"
+          }
+        }
+      }
+    },
+    "동기화할 목록이나 곡을 모두 쓸 수 없어 동기화 선택도 갱신하지 않았습니다. 막힌 항목의 이유를 해결한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The sync selection was not updated because some playlists or tracks could not be written. Resolve the blocked items, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期するプレイリストまたは曲をすべて書き込めないため、同期選択も更新しませんでした。ブロックされた項目の理由を解消してから再試行してください。"
           }
         }
       }
@@ -18633,6 +19817,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "復元"
+          }
+        }
+      }
+    },
+    "되돌리기를 미뤘습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The restore was postponed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元を延期しました"
           }
         }
       }
@@ -18681,6 +19881,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "復元完了 · 復元前の状態のバックアップ: %@"
+          }
+        }
+      }
+    },
+    "두 USB 형식의 곡 연결이 다르니 rekordbox에서 USB를 확인한 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Track mappings differ between the two USB formats; check the USB in rekordbox, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2つのUSB形式で曲の対応が異なるため、rekordboxでUSBを確認してから再度取り込んでください。"
+          }
+        }
+      }
+    },
+    "두 USB 형식의 분석 파일 정보가 다르니 rekordbox에서 확인한 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analysis file information differs between the two USB formats; check it in rekordbox, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2つのUSB形式で解析ファイルの情報が異なるため、rekordboxで確認してから再度取り込んでください。"
+          }
+        }
+      }
+    },
+    "두 USB 형식의 평점이나 정보 갱신 횟수가 다르니 rekordbox에서 확인한 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ratings or information update counts differ between the two USB formats; check them in rekordbox, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2つのUSB形式で評価または情報の更新回数が異なるため、rekordboxで確認してから再度取り込んでください。"
           }
         }
       }
@@ -19401,6 +20649,22 @@
         }
       }
     },
+    "라이브러리가 바뀌어 USB 동기화 켜짐을 저장하지 못했습니다. 새로고침한 뒤 다시 바꾸세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The library changed, so the USB sync setting was not saved. Refresh, then change it again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリが変わったため、USB同期のオン/オフを保存できませんでした。更新してからもう一度変更してください。"
+          }
+        }
+      }
+    },
     "라이브러리가 바뀌었거나 목록을 읽지 못했습니다. 동기화 창을 다시 여세요." : {
       "localizations" : {
         "en" : {
@@ -19413,6 +20677,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ライブラリが変更されたか、プレイリストを読み取れませんでした。同期ウインドウを開き直してください。"
+          }
+        }
+      }
+    },
+    "라이브러리가 바뀌었습니다. 동기화 목록을 새로고침한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The library changed. Refresh the sync playlists, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリが変わりました。同期するプレイリストを更新してから再試行してください。"
           }
         }
       }
@@ -19705,6 +20985,70 @@
         }
       }
     },
+    "로컬 곡 정보가 USB보다 최신이니 평점을 먼저 확인한 뒤 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local track information is newer than the USB information; check the rating before importing."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルの曲情報がUSBより新しいため、評価を確認してから取り込んでください。"
+          }
+        }
+      }
+    },
+    "로컬 곡과 짝이 하나로 맞지 않는 %lld곡은 가져오지 않았으니 원본 라이브러리를 확인하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks without a unique local match were skipped: %lld. Check the original library."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルの曲と一意に対応しない%lld曲は取り込まなかったため、元のライブラリを確認してください。"
+          }
+        }
+      }
+    },
+    "로컬 곡의 USB 짝을 하나로 정할 수 없어 목록을 바꾸지 않았습니다. 로컬과 USB의 중복 곡을 정리한 뒤 다시 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The playlist was kept because a local track does not have a unique USB match. Remove duplicate tracks from the local library and USB, then sync again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルの曲に対応するUSBの曲を一意に特定できないため、プレイリストを変更しませんでした。ローカルとUSBの重複した曲を整理してから再度同期してください。"
+          }
+        }
+      }
+    },
+    "로컬 그리드가 더 최신이거나 두 USB 형식의 갱신 횟수가 다르니 그리드를 확인한 뒤 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The local beat grid is newer or update counts differ between the two USB formats; check the beat grid before importing."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルのグリッドの方が新しいか、2つのUSB形式で更新回数が異なるため、グリッドを確認してから取り込んでください。"
+          }
+        }
+      }
+    },
     "로컬 라이브러리 사본을 뜬 시각을 알 수 없습니다. 스냅샷을 다시 뜨거나 --snapshot-time에 시각을 주세요" : {
       "localizations" : {
         "en" : {
@@ -19717,6 +21061,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ローカルライブラリのコピーを作成した時刻が分かりません。スナップショットを取り直すか、--snapshot-timeに時刻を指定してください"
+          }
+        }
+      }
+    },
+    "로컬 라이브러리 사본이 없어 USB 편집을 계획하지 못했습니다. --db로 스냅샷 사본을 주세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB changes could not be planned because the local library snapshot is missing. Provide a snapshot with --db."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルライブラリのスナップショットがないため、USB編集を計画できませんでした。--dbでスナップショットを指定してください。"
           }
         }
       }
@@ -19765,6 +21125,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ローカルライブラリにこの曲が見つかりませんでした。USBから削除して、もう一度追加してください"
+          }
+        }
+      }
+    },
+    "로컬 라이브러리와 USB를 다 읽고 편집을 마친 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish loading the local library and USB and complete any editing, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルライブラリとUSBの読み込みおよび編集を終えてから、再度取り込んでください。"
+          }
+        }
+      }
+    },
+    "로컬 라이브러리와 USB를 다시 읽은 뒤 동기화 창을 여세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reload the local library and USB, then open the sync window."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルライブラリとUSBを再度読み込んでから同期ウィンドウを開いてください。"
           }
         }
       }
@@ -19877,6 +21269,38 @@
         }
       }
     },
+    "로컬 분석 파일이 스냅샷 뒤에 바뀌었으니 새 스냅샷을 뜬 뒤 그리드를 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local analysis files changed after the snapshot; take a new snapshot, then import the beat grid."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルの解析ファイルがスナップショット作成後に変わったため、新しいスナップショットを作成してからグリッドを取り込んでください。"
+          }
+        }
+      }
+    },
+    "로컬 색 큐를 초안으로 보존할 수 없으니 rekordbox에서 직접 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local colored cues cannot be preserved in drafts; import them directly in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルの色付きキューは下書きとして保持できないため、rekordboxで直接取り込んでください。"
+          }
+        }
+      }
+    },
     "로컬 원본과 같은지 확인하지 못해 음원을 USB에 남겼습니다: %@" : {
       "localizations" : {
         "en" : {
@@ -19941,6 +21365,22 @@
         }
       }
     },
+    "로컬 큐가 더 최신이거나 두 USB 형식의 갱신 횟수가 다르니 큐를 확인한 뒤 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local cues are newer or update counts differ between the two USB formats; check the cues before importing."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルのキューの方が新しいか、2つのUSB形式で更新回数が異なるため、キューを確認してから取り込んでください。"
+          }
+        }
+      }
+    },
     "로컬 파일 위치가 없습니다. 음원을 내려받고 XML을 다시 내보내세요." : {
       "localizations" : {
         "en" : {
@@ -19953,6 +21393,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ローカルファイルの場所がありません。音源をダウンロードしてから、XMLを書き出し直してください。"
+          }
+        }
+      }
+    },
+    "로컬 파형 분석 파일이 없으니 rekordbox에서 곡을 분석한 뒤 그리드를 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The local waveform analysis file is missing; analyze the track in rekordbox, then import the beat grid."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルの波形解析ファイルがないため、rekordboxで曲を解析してからグリッドを取り込んでください。"
+          }
+        }
+      }
+    },
+    "로컬 활성 루프를 초안으로 보존할 수 없으니 rekordbox에서 직접 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local Active Loops cannot be preserved in drafts; import them directly in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルのアクティブループは下書きとして保持できないため、rekordboxで直接取り込んでください。"
           }
         }
       }
@@ -21963,6 +23435,22 @@
         }
       }
     },
+    "미반영 재생 목록은 내보낼 수 없습니다. rekordbox에 목록을 쓴 뒤 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This playlist has pending changes and cannot be exported. Write it to rekordbox, then export again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未反映のプレイリストはエクスポートできません。rekordboxにプレイリストを書き込んでからエクスポートしてください。"
+          }
+        }
+      }
+    },
     "미지정" : {
       "localizations" : {
         "en" : {
@@ -22139,6 +23627,22 @@
         }
       }
     },
+    "박 위치가 곡 길이를 벗어나니 rekordbox에서 그리드를 확인한 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beat positions extend beyond the track length; check the beat grid in rekordbox, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拍の位置が曲の長さを超えているため、rekordboxでグリッドを確認してから再度取り込んでください。"
+          }
+        }
+      }
+    },
     "박 이동량" : {
       "localizations" : {
         "en" : {
@@ -22151,6 +23655,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ビートジャンプ幅"
+          }
+        }
+      }
+    },
+    "박 태그를 읽지 못했으니 rekordbox에서 이 곡을 다시 내보내세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beat tags could not be read; export this track again in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拍タグを読み込めないため、rekordboxでこの曲を再度エクスポートしてください。"
+          }
+        }
+      }
+    },
+    "박 태그의 개수나 값이 서로 맞지 않으니 rekordbox에서 이 곡을 확인한 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beat tag counts or values do not match; check this track in rekordbox, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拍タグの数または値が一致しないため、rekordboxでこの曲を確認してから再度取り込んでください。"
           }
         }
       }
@@ -23551,6 +25087,22 @@
         }
       }
     },
+    "분석 파일 경로를 확인하지 못했으니 rekordbox에서 이 곡을 다시 내보내세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The analysis file path could not be confirmed; export this track again in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解析ファイルのパスを確認できないため、rekordboxでこの曲を再度エクスポートしてください。"
+          }
+        }
+      }
+    },
     "분석 파일 기록이 여럿입니다" : {
       "localizations" : {
         "en" : {
@@ -23727,6 +25279,22 @@
         }
       }
     },
+    "분석 파일을 열지 못했으니 USB를 다시 연결한 뒤 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The analysis file could not be opened; reconnect the USB, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解析ファイルを開けなかったため、USBを再接続してから取り込んでください。"
+          }
+        }
+      }
+    },
     "분석 파일을 읽지 못했습니다" : {
       "localizations" : {
         "en" : {
@@ -23791,6 +25359,22 @@
         }
       }
     },
+    "분석 파일이 다른 곡을 가리키니 rekordbox에서 이 곡을 다시 내보내세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The analysis file points to another track; export this track again in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解析ファイルが別の曲を参照しているため、rekordboxでこの曲を再度エクスポートしてください。"
+          }
+        }
+      }
+    },
     "분석 파일이 쓴 내용과 다릅니다(%@)" : {
       "localizations" : {
         "en" : {
@@ -23819,6 +25403,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解析ファイルがない曲があります。rekordboxでUSBにもう一度エクスポートしてください"
+          }
+        }
+      }
+    },
+    "분석 파일이 없으니 rekordbox에서 이 곡을 다시 내보내세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The analysis file is missing; export this track again in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解析ファイルがないため、rekordboxでこの曲を再度エクスポートしてください。"
+          }
+        }
+      }
+    },
+    "분석 파일이 일반 파일이 아니니 rekordbox에서 이 곡을 다시 내보내세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The analysis file is not a regular file; export this track again in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解析ファイルが通常のファイルではないため、rekordboxでこの曲を再度エクスポートしてください。"
           }
         }
       }
@@ -25011,6 +26627,22 @@
         }
       }
     },
+    "색 큐를 초안으로 보존할 수 없으니 rekordbox에서 직접 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Colored cues cannot be preserved in drafts; import them directly in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "色付きキューは下書きとして保持できないため、rekordboxで直接取り込んでください。"
+          }
+        }
+      }
+    },
     "색·루프 등 확인하지 않은 모양의 큐" : {
       "localizations" : {
         "en" : {
@@ -25131,6 +26763,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選択した%lld曲の下書きを破棄しますか？"
+          }
+        }
+      }
+    },
+    "선택한 iTunes 원본을 아직 읽지 못했습니다. iTunes 목록을 새로고침한 뒤 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The selected iTunes source has not been read yet. Refresh the iTunes playlists, then synchronize."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択したiTunesの元データをまだ読み込めていません。iTunesのプレイリストを更新してから同期してください。"
           }
         }
       }
@@ -25275,6 +26923,38 @@
         }
       }
     },
+    "선택한 목록에 내보낼 수 없는 곡이 있습니다. 스트리밍 곡이나 사라진 곡을 제외한 뒤 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected playlists contain tracks that cannot be exported. Exclude streaming or missing tracks, then sync again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択したプレイリストにエクスポートできない曲があります。ストリーミングの曲や見つからない曲を除外してから同期してください。"
+          }
+        }
+      }
+    },
+    "선택한 목록을 USB와 동기화합니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync the selected playlists with the USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択したプレイリストをUSBと同期します"
+          }
+        }
+      }
+    },
     "선택한 목록을 rekordbox와 DJCrate에 동일하게 반영합니다. 먼저 rekordbox를 종료하세요." : {
       "localizations" : {
         "en" : {
@@ -25287,6 +26967,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選択したプレイリストをrekordboxとDJCrateに同じように反映します。先にrekordboxを終了してください。"
+          }
+        }
+      }
+    },
+    "선택한 재생 목록을 찾지 못했습니다. 목록을 다시 읽은 뒤 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The selected playlist could not be found. Reload the playlists, then export again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択したプレイリストが見つかりません。プレイリストを読み直してからエクスポートしてください。"
           }
         }
       }
@@ -27177,6 +28873,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未書き込みの下書きは含めていません（rekordboxにある内容のまま）"
+          }
+        }
+      }
+    },
+    "쓴 USB 동기화 선택 파일을 읽지 못했습니다. USB를 새로고침해 결과를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The written USB sync selection file could not be read. Refresh the USB device to check the result."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込んだUSB同期選択ファイルを読み込めませんでした。USBを更新して結果を確認してください。"
           }
         }
       }
@@ -30683,6 +32395,38 @@
         }
       }
     },
+    "이 USB에 쓰기 대기 중인 초안이 있습니다. 쓰기 대기 목록에서 쓰거나 버린 뒤 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This USB has pending drafts. Write or discard them in Pending USB Changes before syncing."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSBには書き込み待ちの下書きがあります。USB書き込み待ちで書き込むか破棄してから同期してください。"
+          }
+        }
+      }
+    },
+    "이 USB에 쓰기 대기 중인 초안이 있어 동기화 켜짐을 저장하지 못했습니다. 쓰기 대기 목록에서 쓰거나 버린 뒤 다시 바꾸세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This USB has pending drafts, so the sync setting was not saved. Write or discard them in Pending USB Changes, then change it again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSBには書き込み待ちの下書きがあるため、同期のオン/オフを保存できませんでした。USB書き込み待ちで書き込むか破棄してから、もう一度変更してください。"
+          }
+        }
+      }
+    },
     "이 USB에 쓰는 중입니다" : {
       "localizations" : {
         "en" : {
@@ -30759,6 +32503,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このUSBにはrekordboxのライブラリがありません。空のUSBならUSBへのエクスポートを使ってください"
+          }
+        }
+      }
+    },
+    "이 USB에는 rekordbox의 동기화 선택 파일이 없습니다. rekordbox의 동기화 관리자에서 이 USB를 한 번 동기화한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This USB has no rekordbox sync selection file. Sync this USB once in rekordbox’s Sync Manager, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSBにはrekordboxの同期選択ファイルがありません。rekordboxのSync ManagerでこのUSBを一度同期してから再試行してください。"
           }
         }
       }
@@ -31271,6 +33031,22 @@
         }
       }
     },
+    "이 그리드의 박 위치나 박 번호를 초안으로 보존할 수 없으니 rekordbox에서 직접 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This beat grid's positions or beat numbers cannot be preserved in a draft; import it directly in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このグリッドの拍の位置や拍番号は下書きとして保持できないため、rekordboxで直接取り込んでください。"
+          }
+        }
+      }
+    },
     "이 기록을 버리고 덱에서 Flip 기록을 다시 시작합니다" : {
       "localizations" : {
         "en" : {
@@ -31331,6 +33107,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "この操作だけデフォルトのキーに戻す"
+          }
+        }
+      }
+    },
+    "이 루프의 박 수를 초안으로 보존할 수 없으니 rekordbox에서 직접 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This loop's beat count cannot be preserved in a draft; import it directly in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このループの拍数は下書きとして保持できないため、rekordboxで直接取り込んでください。"
           }
         }
       }
@@ -32617,6 +34409,86 @@
         }
       }
     },
+    "읽는 동안 USB 동기화 선택이 바뀌었습니다. 동기화가 끝난 뒤 다시 읽으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB sync selection changed while being read. Wait for synchronization to finish, then read it again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込み中にUSB同期選択が変更されました。同期が完了してから読み直してください。"
+          }
+        }
+      }
+    },
+    "읽는 동안 USB 라이브러리가 바뀌었으니 기기 사용을 마친 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB library changed while reading; finish using the device, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込み中にUSBライブラリが変わったため、機器の使用を終えてから再度取り込んでください。"
+          }
+        }
+      }
+    },
+    "읽는 동안 라이브러리나 편집 상태가 바뀌었으니 편집을 마친 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The library or editing state changed while reading; finish editing, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込み中にライブラリまたは編集状態が変わったため、編集を終えてから再度取り込んでください。"
+          }
+        }
+      }
+    },
+    "읽는 동안 로컬 분석 파일이 바뀌었으니 새 스냅샷을 뜬 뒤 그리드를 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local analysis files changed while reading; take a new snapshot, then import the beat grid."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込み中にローカルの解析ファイルが変わったため、新しいスナップショットを作成してからグリッドを取り込んでください。"
+          }
+        }
+      }
+    },
+    "읽는 동안 분석 파일이 바뀌었으니 기기 사용을 마친 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The analysis file changed while reading; finish using the device, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込み中に解析ファイルが変わったため、機器の使用を終えてから再度取り込んでください。"
+          }
+        }
+      }
+    },
     "읽는 중…" : {
       "localizations" : {
         "en" : {
@@ -32645,6 +34517,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "読み取れるiTunesプレイリストがありません"
+          }
+        }
+      }
+    },
+    "읽을 수 있는 rekordbox 목록이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No readable rekordbox playlists"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込めるrekordboxプレイリストがありません"
           }
         }
       }
@@ -32959,6 +34847,22 @@
         }
       }
     },
+    "장치와 플레이리스트 동기화" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync Playlists with Device"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "機器とプレイリストを同期"
+          }
+        }
+      }
+    },
     "재분석" : {
       "localizations" : {
         "en" : {
@@ -33213,6 +35117,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレイリストの曲項目を変更できませんでした"
+          }
+        }
+      }
+    },
+    "재생 목록 동기화" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync Playlists"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストを同期"
           }
         }
       }
@@ -33799,6 +35719,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレイリストの曲を順番に表示"
+          }
+        }
+      }
+    },
+    "재생 목록의 부모 관계나 ID가 맞지 않습니다. 목록을 다시 읽은 뒤 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The playlist hierarchy or IDs are invalid. Reload the playlists, then export again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストの親子関係またはIDが正しくありません。プレイリストを読み直してからエクスポートしてください。"
           }
         }
       }
@@ -36229,6 +38165,22 @@
         }
       }
     },
+    "초안을 저장하지 못했으니 DJCrate 데이터 폴더의 쓰기 권한을 확인한 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drafts could not be saved; check write permissions for the DJCrate data folder, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きを保存できなかったため、DJCrateデータフォルダの書き込み権限を確認してから再度取り込んでください。"
+          }
+        }
+      }
+    },
     "초안을 저장했습니다" : {
       "localizations" : {
         "en" : {
@@ -37297,6 +39249,22 @@
         }
       }
     },
+    "큐 %lld곡·그리드 %lld곡·평점 %lld곡을 초안으로 가져왔습니다. %lld곡은 건너뛰었습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imported track drafts — cues: %1$lld; beat grids: %2$lld; ratings: %3$lld. Skipped: %4$lld."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キューを%1$lld曲、グリッドを%2$lld曲、評価を%3$lld曲の下書きとして取り込みました。%4$lld曲をスキップしました。"
+          }
+        }
+      }
+    },
     "큐 ID나 그리드 구간의 대응이 모호해 내 편집을 그대로 남겼으니 현재값을 사용하거나 편집 대상을 다시 지정하세요." : {
       "localizations" : {
         "en" : {
@@ -37517,6 +39485,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キューを削除"
+          }
+        }
+      }
+    },
+    "큐 상태와 활성 루프를 확인하지 못했으니 rekordbox에서 직접 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cue status and Active Loops could not be confirmed; import them directly in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キューの状態とアクティブループを確認できないため、rekordboxで直接取り込んでください。"
           }
         }
       }
@@ -37809,6 +39793,54 @@
         }
       }
     },
+    "큐 초안이 이미 있으니 먼저 반영하거나 버린 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A cue draft already exists; apply or discard it before importing again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キューの下書きがすでにあるため、反映または破棄してから再度取り込んでください。"
+          }
+        }
+      }
+    },
+    "큐 태그를 읽지 못했으니 rekordbox에서 이 곡을 다시 내보내세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cue tags could not be read; export this track again in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キュータグを読み込めないため、rekordboxでこの曲を再度エクスポートしてください。"
+          }
+        }
+      }
+    },
+    "큐 태그의 개수나 위치가 서로 맞지 않으니 rekordbox에서 이 곡을 확인한 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cue tag counts or positions do not match; check this track in rekordbox, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キュータグの数または位置が一致しないため、rekordboxでこの曲を確認してから再度取り込んでください。"
+          }
+        }
+      }
+    },
     "큐 편집" : {
       "localizations" : {
         "en" : {
@@ -38029,6 +40061,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キューが変わる曲 %lld"
+          }
+        }
+      }
+    },
+    "큐나 그리드를 읽지 못했으니 rekordbox에서 이 곡을 확인한 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cues or the beat grid could not be read; check this track in rekordbox, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キューまたはグリッドを読み込めなかったため、rekordboxでこの曲を確認してから再度取り込んでください。"
+          }
+        }
+      }
+    },
+    "큐나 루프 위치가 곡 길이를 벗어나니 rekordbox에서 확인한 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cue or loop positions extend beyond the track length; check them in rekordbox, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キューまたはループの位置が曲の長さを超えているため、rekordboxで確認してから再度取り込んでください。"
           }
         }
       }
@@ -38777,6 +40841,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "タグの下書きを保存できませんでした。下書きフォルダのアクセス権を確認してから、同期または書き込みを再試行してください。"
+          }
+        }
+      }
+    },
+    "태그 초안이 이미 있으니 먼저 반영하거나 버린 뒤 다시 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A tag draft already exists; apply or discard it before importing again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タグの下書きがすでにあるため、反映または破棄してから再度取り込んでください。"
           }
         }
       }
@@ -40165,6 +42245,22 @@
         }
       }
     },
+    "폴더를 선택하면 하위 목록도 포함됩니다. 선택에서 뺀 USB 재생 목록은 지우지 않고 흐리게 남깁니다. 어느 목록에도 없는 곡은 확인한 뒤 USB에서 뺍니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selecting a folder includes its playlists. USB playlists you deselect are kept and shown dimmed. Tracks that are in no playlist are removed from the USB after you confirm."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダを選択すると配下のプレイリストも含まれます。選択を外したUSBプレイリストは削除せず淡色で残します。どのプレイリストにもない曲は確認後にUSBから削除します。"
+          }
+        }
+      }
+    },
     "폴더를 열지 못했습니다. 다른 폴더를 고르세요" : {
       "localizations" : {
         "en" : {
@@ -40347,6 +42443,22 @@
         }
       }
     },
+    "플레이리스트에 더 이상 존재하지 않는 트랙은 삭제될 것입니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks that no longer exist in any playlist will be deleted."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストに存在しなくなったトラックは削除されます。"
+          }
+        }
+      }
+    },
     "플레이헤드 위치에 박을 정확히 놓고 1박으로" : {
       "localizations" : {
         "en" : {
@@ -40515,6 +42627,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1回の操作で移動する拍数を選びます"
+          }
+        }
+      }
+    },
+    "한 번 더 닫으면 USB에 쓰지 않고 닫습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close again to close without writing to the USB."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "もう一度閉じると、USBに書き込まずに閉じます。"
           }
         }
       }
@@ -40967,6 +43095,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "許可された解析・アルバムアートのパスではありません"
+          }
+        }
+      }
+    },
+    "현재 USB" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のUSB"
           }
         }
       }
@@ -41581,6 +43725,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "拡張解析ファイル（.EXT）を読み込めませんでした"
+          }
+        }
+      }
+    },
+    "확장 큐 정보가 없어 로컬 루프 정보를 보존할 수 없으니 rekordbox에서 직접 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extended cue information is missing, so local loop information cannot be preserved; import it directly in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拡張キュー情報がなくローカルのループ情報を保持できないため、rekordboxで直接取り込んでください。"
+          }
+        }
+      }
+    },
+    "확장 큐 정보가 없어 루프의 박 수를 보존할 수 없으니 rekordbox에서 직접 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extended cue information is missing, so the loop's beat count cannot be preserved; import it directly in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拡張キュー情報がなくループの拍数を保持できないため、rekordboxで直接取り込んでください。"
           }
         }
       }

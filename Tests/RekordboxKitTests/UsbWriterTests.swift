@@ -361,7 +361,8 @@ struct UsbWriterTests {
         #expect(calls[(lost + 1)...].filter { !$0.contains("mac:") }.allSatisfy { $0.hasPrefix("mountedOn") || $0.hasPrefix("stat .") })
         let journal = try #require(fixture.journal())
         #expect(journal.state == stateAtFailure)
-        #expect(journal.state != .restorePending)
+        // 자동 되돌리기도 첫 USB 연산 전에 방향(restorePending)을 내린다. 다시 붙이면 회복이 일부 되돌린 DB를 앞으로 쓰지 않는다.
+        #expect(journal.state == .restorePending)
         #expect(!journal.isClosed)
     }
 
