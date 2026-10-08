@@ -5,7 +5,8 @@ import Foundation
 /// - 초안의 base는 지금 라이브러리 상태다(큐는 지금 큐, 그리드는 분석 파일의 박, 태그는 지금 곡 정보, 재생 목록은 지금 목록).
 /// - 기존 초안이 있는 곡·목록은 덮지 않고 이유와 함께 건너뛴다(`skipped`).
 /// - 초안이 담지 못하는 차이(곡 길이 밖 큐, 메모리 큐 10개 초과, 1A~12B가 아닌 키, 쓰기 규칙을 확인하지 않은 칸 등)는 빼고 손실로 센다(`losses`).
-/// - 같은 큐는 지금 행을 그대로 두어 XML에 없는 칸(활성 루프·박 루프 크기)을 잃지 않는다.
+/// - 같은 큐는 지금 행을 그대로 두고, 같은 핫큐 슬롯·같은 위치의 메모리 큐는 지금 행을 고쳐 XML에 없는 칸(핫큐 색·활성 루프·박 루프 크기)을 잃지 않는다.
+///   XML에 없는 rekordbox 자동 큐는 남긴다.
 public enum XMLImportDrafts {
     public enum Kind: String, CaseIterable, Codable, Sendable {
         case cue, grid, tag, playlist
@@ -85,6 +86,10 @@ public enum XMLImportDrafts {
         public var skipped: [Note] = []
         /// 초안이 담지 못해 뺀 차이
         public var losses: [Note] = []
+        /// 곡 UUID → 제목(저장할 때 건너뛴 초안을 곡 이름으로 알린다)
+        public var titles: [String: String] = [:]
+
+        public init() {}
 
         public var isEmpty: Bool { cueDrafts.isEmpty && gridDrafts.isEmpty && tagDrafts.isEmpty && playlistDraft == nil }
     }
@@ -110,6 +115,7 @@ public enum XMLImportDrafts {
                 }
                 continue
             }
+            plan.titles[source.track.uuid] = change.title
             for kind in wanted {
                 if source.existing.contains(kind) {
                     plan.skipped.append(Note(kind: kind, libraryKey: change.libraryKey, subject: change.title, reason: existingReason(kind)))
@@ -133,6 +139,17 @@ public enum XMLImportDrafts {
         return plan
     }
 
+    /// 미리 보기에서 처음 고를 곡: 차이가 있는 곡 모두. 단 빼기만 있는 큐는 고르지 않는다(큐를 내보내지 않은 도구의 XML일 수 있다).
+    public static func defaultChoice(_ diff: XMLLibraryDiff.Result) -> [Kind: Set<String>] {
+        [.cue: Set(diff.tracks.filter { $0.cues.map { !$0.isRemovalOnly } ?? false }.map(\.libraryKey)),
+         .grid: Set(diff.tracks.filter { $0.grid != nil }.map(\.libraryKey)),
+         .tag: Set(diff.tracks.filter { !$0.tags.isEmpty }.map(\.libraryKey))]
+    }
+
+    public static var smartListReason: String {
+        String(ui: "같은 자리에 인텔리전트 목록이 있어 건너뛰었습니다. rekordbox에서 목록 이름을 바꾼 뒤 다시 가져오세요")
+    }
+
     public static func existingReason(_ kind: Kind) -> String {
         switch kind {
         case .cue: String(ui: "이 곡에 큐 초안이 이미 있어 덮지 않았습니다. 그 초안을 쓰거나 버린 뒤 다시 가져오세요")
@@ -150,20 +167,37 @@ public enum XMLImportDrafts {
 
     static func cueDraft(_ change: XMLLibraryDiff.CueChange, source: TrackSource, loss: (String) -> Void) -> CueDraft? {
         var draft = CueDraft(trackUUID: source.track.uuid, rekordboxCues: source.cues)
-        var remaining = draft.base
-        var kept: [EditableCue] = [], added: [XMLLibrary.Mark] = []
-        for mark in change.xml {
-            if let index = remaining.firstIndex(where: { XMLLibraryDiff.sameMark(Self.mark(of: $0), mark) }) {
-                kept.append(remaining.remove(at: index))
-            } else {
-                added.append(mark)
-            }
-        }
+        let base = draft.base
+        let pairs = XMLLibraryDiff.pairCues(xml: change.xml, library: base.map(mark(of:)))
         let duration = Double(source.track.lengthSeconds)
-        var cues = kept
-        for mark in XMLLibraryDiff.sorted(added) {
-            if mark.start < 0 || mark.start > duration || (mark.end ?? 0) > duration {
-                loss(String(ui: "곡 길이를 벗어난 큐는 넣지 않았습니다"))
+        func outside(_ mark: XMLLibrary.Mark) -> Bool { mark.start < 0 || mark.start > duration || (mark.end ?? 0) > duration }
+        let outsideReason = String(ui: "곡 길이를 벗어난 큐는 넣지 않았습니다")
+        var cues = pairs.same.map { base[$0.library] } + pairs.keptAuto.map { base[$0] }
+        for (x, l) in pairs.modified {
+            let mark = change.xml[x]
+            var cue = base[l]
+            if outside(mark) {
+                loss(outsideReason)
+                cues.append(cue)
+                continue
+            }
+            // 지금 행을 고친다(sourceID·색·활성 루프 유지). 루프 길이가 바뀌면 박 루프 크기는 맞지 않으니 지운다.
+            let oldLength = cue.loop.map { $0.end - cue.time }
+            cue.time = mark.start
+            cue.name = mark.name
+            if let end = mark.end {
+                var loop = cue.loop ?? EditableCue.Loop(end: end)
+                loop.end = end
+                if let oldLength, abs((end - mark.start) - oldLength) >= XMLLibraryDiff.timeTolerance { loop.beats = nil }
+                cue.loop = loop
+            } else {
+                cue.loop = nil
+            }
+            cues.append(cue)
+        }
+        for mark in XMLLibraryDiff.sorted(pairs.added.map { change.xml[$0] }) {
+            if outside(mark) {
+                loss(outsideReason)
                 continue
             }
             switch mark.kind {
@@ -202,6 +236,11 @@ public enum XMLImportDrafts {
         } && zip(segments, segments.dropFirst()).allSatisfy { $0.start < $1.start }
         guard valid else {
             loss(String(ui: "XML 그리드의 BPM·박 번호·시작이 쓸 수 있는 범위를 벗어나 그리드 초안을 만들지 않았습니다"))
+            return nil
+        }
+        // 쓰기는 경계의 반 박 안쪽 박을 새 구간 첫 박으로 대체한다. 덱의 변속 지점 넣기(`addTempoChange(at:)`)와 같은 간격을 요구한다.
+        guard zip(segments, segments.dropFirst()).allSatisfy({ $1.start - $0.start > 60 / $0.bpm / 2 + 0.001 }) else {
+            loss(String(ui: "XML 그리드의 변속 지점이 앞 구간과 반 박 안쪽으로 붙어 있어 그리드 초안을 만들지 않았습니다. 덱에서 그리드를 직접 고치세요"))
             return nil
         }
         var draft = GridDraft(trackUUID: source.track.uuid, grid: grid)
@@ -287,8 +326,19 @@ public enum XMLImportDrafts {
                         note(String(ui: "비교하지 않은 곡(스트리밍·지운 곡)이 든 목록이라 바꾸지 않았습니다. rekordbox에서 직접 고치세요"))
                         continue
                     }
-                    if !item.entries.isEmpty { try trial.append(.removeTracks(playlist: .id(id), entries: item.entries), rekordbox: layout) }
-                    if !change.xmlEntries.isEmpty { try trial.append(.addTracks(playlist: .id(id), contentIDs: change.xmlEntries), rekordbox: layout) }
+                    // 통째로 바꾸면 맞추지 못한 XML 항목 자리의 라이브러리 곡이 알림 없이 빠질 수 있다.
+                    guard change.unmatchedEntries == 0 else {
+                        note(String(ui: "XML 목록의 곡 \(change.unmatchedEntries)개를 라이브러리에서 맞추지 못해 목록을 바꾸지 않았습니다. 그 곡을 라이브러리에 넣은 뒤 다시 가져오세요"))
+                        continue
+                    }
+                    if change.xmlEntries.starts(with: change.libraryEntries) {
+                        // 뒤에 곡만 더했으면 곡 넣기만 한다(다시 넣지 않아 기존 항목이 그대로다).
+                        let appended = Array(change.xmlEntries.dropFirst(change.libraryEntries.count))
+                        if !appended.isEmpty { try trial.append(.addTracks(playlist: .id(id), contentIDs: appended), rekordbox: layout) }
+                    } else {
+                        if !item.entries.isEmpty { try trial.append(.removeTracks(playlist: .id(id), entries: item.entries), rekordbox: layout) }
+                        if !change.xmlEntries.isEmpty { try trial.append(.addTracks(playlist: .id(id), contentIDs: change.xmlEntries), rekordbox: layout) }
+                    }
                 case .missing:
                     var projected = trial.project(onto: layout).layout
                     var parent = PlaylistLayout.root
@@ -310,7 +360,12 @@ public enum XMLImportDrafts {
                         note(String(ui: "이름이 같은 폴더가 여럿이거나 목록과 겹쳐 어느 폴더에 만들지 모릅니다. rekordbox에서 이름을 정리한 뒤 다시 가져오세요"))
                         continue
                     }
-                    if projected.children(of: parent).contains(where: { $0.name == name }) {
+                    let existing = projected.children(of: parent).filter { $0.name == name }
+                    if existing.contains(where: \.isSmart) {
+                        note(smartListReason)
+                        continue
+                    }
+                    if !existing.isEmpty {
                         plan.skipped.append(Note(kind: .playlist, libraryKey: nil, subject: subject,
                                                  reason: String(ui: "같은 이름의 목록이 재생 목록 초안에 이미 있어 덮지 않았습니다")))
                         continue
@@ -328,6 +383,9 @@ public enum XMLImportDrafts {
             }
             draft = trial
             edited += 1
+            if change.kind == .missing, change.unmatchedEntries > 0 {
+                note(String(ui: "XML 목록의 곡 \(change.unmatchedEntries)개는 라이브러리에서 맞추지 못해 넣지 않았습니다"))
+            }
         }
         plan.playlistLists = edited
         plan.playlistDraft = edited > 0 ? draft : nil

@@ -369,6 +369,11 @@ final class LibraryStore {
     var xmlImportResult: XMLImportDraftResult?
     var isMakingXMLImportDrafts = false
     @ObservationIgnored var xmlImportTask: Task<Void, Never>?
+    @ObservationIgnored var xmlImportDraftTask: Task<Void, Never>?
+    /// 덱에 올린 곡과 그 그리드 초안을 덱에서 바꿨는지(가져오기가 덱 곡의 그리드 초안을 덱에 넘길지 정한다)
+    @ObservationIgnored var deckGridDraftState: (() -> (uuid: String, hasChanges: Bool)?)?
+    /// 가져온 그리드 초안을 덱이 받아 저장한다. 받지 못하면(덱에서 고쳤거나 다른 곡) false.
+    @ObservationIgnored var adoptImportedGridDraft: ((GridDraft) -> Bool)?
     /// 곡 추가·내보내기 결과 안내
     var stagingMessage: AppMessage? {
         didSet { if let stagingMessage { feedback.announce(stagingMessage) } }

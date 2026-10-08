@@ -219,6 +219,11 @@ struct ContentView: View {
                 deck.reloadExternalCueDraft(drafts[uuid])
             }
             store.onGridDraftSaved = { [weak deck] uuid in deck?.gridDraftSavedExternally(uuid) }
+            store.deckGridDraftState = { [weak deck] in
+                guard let deck, let uuid = deck.row?.track.uuid else { return nil }
+                return (uuid, deck.gridDraft?.hasChanges == true || deck.gridDragBase != nil)
+            }
+            store.adoptImportedGridDraft = { [weak deck] draft in deck?.adoptImportedGridDraft(draft) ?? false }
             deck.onStagedGridChange = { [weak store] uuid, bpm in store?.stagedGridChanged(uuid: uuid, bpm: bpm) }
             deck.onCueDraftChange = { [weak store] draft in store?.cueDraftChanged(draft) }
             deck.onReanalyze = { [weak store] uuid in store?.restoreKeySuggestion(uuid: uuid) }

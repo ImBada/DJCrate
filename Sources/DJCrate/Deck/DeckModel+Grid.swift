@@ -316,6 +316,17 @@ extension DeckModel {
         refreshSuggestionNote()
     }
 
+    /// rekordbox XML 가져오기(#72)가 만든 이 곡의 그리드 초안을 받아 덱 저장 경로로 쓴다.
+    /// 덱 초안을 바꿨거나(끄는 중 포함) 다른 곡이면 받지 않는다(덱 편집을 덮지 않는다).
+    func adoptImportedGridDraft(_ draft: GridDraft) -> Bool {
+        guard !isWriteLocked, row?.track.uuid == draft.trackUUID, gridDragBase == nil, gridDraft?.hasChanges != true else { return false }
+        // 실행 취소 이력의 옛 그리드가 가져온 초안을 덮지 않게 비운다.
+        clearDraftUndo()
+        gridDraft = draft
+        saveGridEdit()
+        return true
+    }
+
     /// 덱 제안 줄의 그리드 제안: 추정과 현재 그리드의 차이(없거나 작으면 nil). 그리드가 없는 곡은 추정 BPM만 보인다.
     func refreshSuggestionNote() {
         guard let suggestion = gridSuggestion else { gridSuggestionItem = nil; return }

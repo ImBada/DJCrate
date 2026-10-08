@@ -55,7 +55,7 @@ struct XMLDiffCommandTests {
         let text = XMLDiffCommand.lines(report, limit: 50).joined(separator: "\n")
         #expect(text.contains("큐가 다른 곡 1 · 그리드가 다른 곡 0 · 태그가 다른 곡 1"))
         #expect(text.contains("없는 재생 목록 1 · 곡이 다른 재생 목록 0"))
-        #expect(text.contains("/Music/시험.mp3") && text.contains("큐 +1 −1") && text.contains("제목"))
+        #expect(text.contains("/Music/시험.mp3") && text.contains("큐 +0 ~1 −0") && text.contains("제목"))
         #expect(text.contains("새 셋"))
         // 목록을 줄이면 남은 수를 알린다
         let short = XMLDiffCommand.lines(report, limit: 0).joined(separator: "\n")
@@ -166,5 +166,22 @@ struct XMLDiffCommandTests {
         let lines = try XMLDiffCommand.makeDrafts(try XMLDiffCommand.report(request), request: request, home: home)
         #expect(lines.joined(separator: "\n").contains("초안을 만들었습니다: 큐 0 · 그리드 0 · 태그 1 · 재생 목록 0"))
         #expect(!FileManager.default.fileExists(atPath: home.appending(path: "cue-drafts").path))
+    }
+
+    @Test func DJCrate가_켜져_있으면_재생_목록_초안은_쓰지_않고_그리드는_경고한다() throws {
+        // 앱은 재생 목록 초안 파일을 다시 읽지 않아 다음 저장이 CLI가 쓴 것을 덮는다
+        let fixture = try library()
+        let url = try xml(fixture) {
+            $0.replacingOccurrences(of: #"Name="시험 곡""#, with: #"Name="새 제목""#)
+                .replacingOccurrences(of: #"<NODE Name="셋""#, with: #"<NODE Name="새 셋""#)
+        }
+        let home = fixture.root.appending(path: "home")
+        let request = XMLDiffCommand.Request(database: fixture.database, xml: url, share: nil, draft: true)
+        let lines = try XMLDiffCommand.makeDrafts(try XMLDiffCommand.report(request), request: request, home: home, appRunning: true)
+            .joined(separator: "\n")
+        #expect(lines.contains("초안을 만들었습니다: 큐 0 · 그리드 0 · 태그 1 · 재생 목록 0"))
+        #expect(lines.contains("DJCrate가 켜져 있어 재생 목록 초안은 만들지 않았습니다"))
+        #expect(lines.contains("덱에 올린 곡"))
+        #expect(!FileManager.default.fileExists(atPath: home.appending(path: "playlist-drafts.json").path))
     }
 }

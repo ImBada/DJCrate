@@ -154,8 +154,10 @@ public enum RekordboxXMLReader {
                 if let stars = RekordboxXMLReader.stars(fromRating: value) { tags[.rating] = stars } else { count(.invalidValue) }
             }
             if let colour = attributes["Colour"], !colour.isEmpty { count(.unverifiedColour) }
-            tracks.append(XMLLibrary.Track(key: key, path: path, tags: tags))
-            keys.insert(key)
+            let duration = attributes["TotalTime"].flatMap { Double($0.trimmingCharacters(in: .whitespaces)) }.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+            tracks.append(XMLLibrary.Track(key: key, path: path, tags: tags, duration: duration))
+            // 같은 TrackID는 맞추지 않는다(`XMLTrackMatching`). 목록 항목도 그 키로는 곡을 정할 수 없다.
+            if !keys.insert(key).inserted { count(.duplicateTrackID) }
             if !location.isEmpty, keyByLocation[location] == nil { keyByLocation[location] = key }
             dropTempos = false
         }
@@ -173,7 +175,15 @@ public enum RekordboxXMLReader {
                 dropTempos = true
                 return
             }
-            let beat = attributes["Battito"].flatMap { Int($0) }.flatMap { (1...4).contains($0) ? $0 : nil } ?? 1
+            var beat = 1
+            if let text = attributes["Battito"] {
+                guard let value = Int(text), (1...4).contains(value) else {
+                    count(.invalidValue)
+                    dropTempos = true
+                    return
+                }
+                beat = value
+            }
             tracks[tracks.count - 1].tempos.append(GridSegment(start: start, bpm: bpm, firstBeatNumber: beat))
         }
 
@@ -189,16 +199,19 @@ public enum RekordboxXMLReader {
             case 0...7: kind = .hot(num)
             default:
                 count(.hotCueOutOfRange)
+                tracks[tracks.count - 1].unreadableMarks += 1
                 return
             }
             guard let start = attributes["Start"].flatMap(Double.init), start.isFinite, start >= 0 else {
                 count(.invalidValue)
+                tracks[tracks.count - 1].unreadableMarks += 1
                 return
             }
             var end: Double?
             if type == 4 {
                 guard let value = attributes["End"].flatMap(Double.init), value.isFinite, value > start else {
                     count(.invalidValue)
+                    tracks[tracks.count - 1].unreadableMarks += 1
                     return
                 }
                 end = value
@@ -245,8 +258,11 @@ public enum RekordboxXMLReader {
 /// 내보낸 XML을 그대로 가져오면 차이가 없다.
 public enum RekordboxXMLImport {
     /// 스냅샷(읽기용 사본)과 분석 파일을 읽는다. `shareRoot`가 nil이면 그리드를 읽지 않고 비교하지도 않는다.
-    public static func library(snapshot: URL, shareRoot: URL?) throws -> XMLLibrary {
-        let collection = try RekordboxLibraryXML.load(snapshot: snapshot, shareRoot: shareRoot)
+    /// - Parameter xml: 주면 이 XML에 TEMPO가 있는 곡(경로가 맞을 수 있는 곡)의 분석 파일만 읽는다. 나머지 곡은 그리드를 비교하지 않으니 읽지 않는다.
+    public static func library(snapshot: URL, shareRoot: URL?, gridsFor xml: XMLLibrary? = nil) throws -> XMLLibrary {
+        // 대소문자만 다른 경로도 맞추므로(`XMLTrackMatching`) 접은 키로 고른다.
+        let wanted = xml.map { Set($0.tracks.filter { !$0.tempos.isEmpty }.compactMap(\.path).map { XMLTrackMatching.key($0).lowercased() }) }
+        let collection = try RekordboxLibraryXML.load(snapshot: snapshot, shareRoot: shareRoot, gridPaths: wanted)
         return library(from: collection, hasGrids: shareRoot != nil)
     }
 
@@ -261,7 +277,8 @@ public enum RekordboxXMLImport {
                 XMLLibrary.Mark(kind: mark.num < 0 ? .memory : .hot(mark.num), start: mark.start,
                                 end: mark.type == 4 ? mark.end : nil, name: mark.name)
             }
-            return XMLLibrary.Track(key: entry.track.id, path: entry.track.folderPath, tags: tags, marks: marks, tempos: entry.tempos)
+            return XMLLibrary.Track(key: entry.track.id, path: entry.track.folderPath, tags: tags, marks: marks, tempos: entry.tempos,
+                                    duration: entry.track.lengthSeconds > 0 ? Double(entry.track.lengthSeconds) : nil)
         }
         func node(_ list: RekordboxLibraryXML.ListNode) -> XMLLibrary.Node {
             if let children = list.children { return XMLLibrary.Node(name: list.name, id: list.id, children: children.map(node)) }

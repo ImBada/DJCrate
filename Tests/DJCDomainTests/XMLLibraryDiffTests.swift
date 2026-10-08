@@ -69,16 +69,51 @@ struct XMLLibraryDiffTests {
                                                   Mark(kind: .memory, start: 40, end: 44, name: "루프")])]
         let result = XMLLibraryDiff.compute(xml: Doc(tracks: moved), library: Doc(tracks: library))
         let cues = try! #require(result.tracks.first?.cues)
-        #expect(cues.added == [Mark(kind: .hot(0), start: 21, name: "A"), Mark(kind: .memory, start: 40, end: 44, name: "루프")])
-        #expect(cues.removed == [Mark(kind: .hot(0), start: 20, name: "A")])
+        // 같은 핫큐 슬롯은 옮긴 것으로 짝짓는다(빼고 더하지 않는다)
+        #expect(cues.added == [Mark(kind: .memory, start: 40, end: 44, name: "루프")])
+        #expect(cues.removed.isEmpty)
+        #expect(cues.modified == [.init(library: Mark(kind: .hot(0), start: 20, name: "A"), xml: Mark(kind: .hot(0), start: 21, name: "A"))])
         #expect(result.counts.cueTracks == 1)
         #expect(result.tracks.first?.libraryKey == "101" && result.tracks.first?.xmlKey == "1")
     }
 
-    @Test func 큐가_없는_XML_곡도_차이다() {
+    @Test func 큐가_없는_XML_곡은_큐를_비교하지_않는다() {
+        // POSITION_MARK가 하나도 없는 XML(큐를 내보내지 않는 도구)이 라이브러리 큐를 모두 지우게 하지 않는다
         let library = [track("101", "/a.mp3", marks: [Mark(kind: .hot(1), start: 5, name: "")])]
         let result = XMLLibraryDiff.compute(xml: Doc(tracks: [track("1", "/a.mp3")]), library: Doc(tracks: library))
-        #expect(result.tracks.first?.cues?.removed.count == 1)
+        #expect(result.tracks.isEmpty)
+        #expect(result.counts.xmlWithoutCues == 1 && result.counts.cueTracks == 0)
+    }
+
+    @Test func 읽지_못한_위치_표시가_있는_곡은_큐를_비교하지_않는다() {
+        let library = [track("101", "/a.mp3", marks: [Mark(kind: .hot(1), start: 5, name: ""), Mark(kind: .hot(2), start: 9, name: "")])]
+        var xml = track("1", "/a.mp3", marks: [Mark(kind: .hot(1), start: 5, name: "")])
+        xml.unreadableMarks = 1
+        let result = XMLLibraryDiff.compute(xml: Doc(tracks: [xml]), library: Doc(tracks: library))
+        #expect(result.tracks.isEmpty)
+        #expect(result.counts.xmlUnreadableCues == 1)
+    }
+
+    @Test func XML에_없는_rekordbox_자동_큐는_빼지_않는다() {
+        let library = [track("101", "/a.mp3", marks: [Mark(kind: .memory, start: 0.5, name: "CUE(Auto)"), Mark(kind: .hot(0), start: 5, name: "")])]
+        let same = XMLLibraryDiff.compute(xml: Doc(tracks: [track("1", "/a.mp3", marks: [Mark(kind: .hot(0), start: 5, name: "")])]),
+                                          library: Doc(tracks: library))
+        #expect(same.tracks.isEmpty)
+        let added = XMLLibraryDiff.compute(xml: Doc(tracks: [track("1", "/a.mp3", marks: [Mark(kind: .hot(0), start: 5, name: ""),
+                                                                                          Mark(kind: .hot(1), start: 9, name: "")])]),
+                                           library: Doc(tracks: library))
+        #expect(added.tracks.first?.cues?.removed == [])
+        #expect(added.tracks.first?.cues?.added.count == 1)
+    }
+
+    @Test func 빼기만_있는_곡은_기본_선택에서_뺀다() {
+        let library = [track("101", "/a.mp3", marks: [Mark(kind: .hot(0), start: 5, name: ""), Mark(kind: .hot(1), start: 9, name: "")]),
+                       track("102", "/b.mp3", marks: [Mark(kind: .hot(0), start: 5, name: "")])]
+        let xml = [track("1", "/a.mp3", marks: [Mark(kind: .hot(0), start: 5, name: "")]),
+                   track("2", "/b.mp3", marks: [Mark(kind: .hot(0), start: 6, name: "")])]
+        let result = XMLLibraryDiff.compute(xml: Doc(tracks: xml), library: Doc(tracks: library))
+        #expect(result.tracks.first { $0.libraryKey == "101" }?.cues?.isRemovalOnly == true)
+        #expect(XMLImportDrafts.defaultChoice(result)[.cue] == ["102"])
     }
 
     @Test func 루프_끝과_이름이_다르면_차이다() {
@@ -107,6 +142,19 @@ struct XMLLibraryDiffTests {
         #expect(XMLLibraryDiff.compute(xml: Doc(tracks: bpm), library: Doc(tracks: library)).tracks.first?.grid != nil)
         let beat = [track("1", "/a.mp3", tempos: [GridSegment(start: 0.025, bpm: 120, firstBeatNumber: 2)])]
         #expect(XMLLibraryDiff.compute(xml: Doc(tracks: beat), library: Doc(tracks: library)).tracks.first?.grid != nil)
+    }
+
+    @Test func 구간_나누는_방식만_다른_그리드는_같다() {
+        // 120BPM 한 구간과, 같은 박을 97번째 박(48.5초, 1박)에서 나눠 적은 두 구간은 박이 같다
+        var libraryTrack = track("101", "/a.mp3", tempos: [GridSegment(start: 0.5, bpm: 120, firstBeatNumber: 1)])
+        libraryTrack.duration = 120
+        let split = [track("1", "/a.mp3", tempos: [GridSegment(start: 0.5, bpm: 120, firstBeatNumber: 1),
+                                                   GridSegment(start: 48.5, bpm: 120, firstBeatNumber: 1)])]
+        #expect(XMLLibraryDiff.compute(xml: Doc(tracks: split), library: Doc(tracks: [libraryTrack])).tracks.isEmpty)
+        // 나눈 자리에서 박 번호가 어긋나면 차이다
+        let shifted = [track("1", "/a.mp3", tempos: [GridSegment(start: 0.5, bpm: 120, firstBeatNumber: 1),
+                                                     GridSegment(start: 48.5, bpm: 120, firstBeatNumber: 2)])]
+        #expect(XMLLibraryDiff.compute(xml: Doc(tracks: shifted), library: Doc(tracks: [libraryTrack])).tracks.first?.grid != nil)
     }
 
     @Test func XML에_그리드가_없으면_비교하지_않는다() {
@@ -141,6 +189,12 @@ struct XMLLibraryDiffTests {
         #expect(tags == [.init(key: .title, library: "제목", xml: "새 제목"), .init(key: .artist, library: "A", xml: "B"),
                          .init(key: .musicalKey, library: "8A", xml: "9A"), .init(key: .rating, library: "3", xml: "5")])
         #expect(result.counts.tagTracks == 1)
+    }
+
+    @Test func 태그_글자는_NFC로_비교한다() {
+        let library = [track("101", "/a.mp3", title: "Café 한글")]
+        let xml = [track("1", "/a.mp3", title: "Café 한글".decomposedStringWithCanonicalMapping)]
+        #expect(XMLLibraryDiff.compute(xml: Doc(tracks: xml), library: Doc(tracks: library)).tracks.isEmpty)
     }
 
     // MARK: 재생 목록
@@ -180,6 +234,24 @@ struct XMLLibraryDiffTests {
         let result = XMLLibraryDiff.compute(xml: xml, library: library)
         #expect(result.playlists.isEmpty)
         #expect(result.matching.ambiguous == 1)
+    }
+
+    @Test func 같은_TrackID가_둘이면_두_곡_모두_모호하고_그_키의_목록_항목도_못_맞춘다() {
+        // 둘째 곡이 첫째의 맞춤을 덮으면 a의 큐·제목이 b에 들어간다
+        let xml = Doc(tracks: [track("5", "/m/a.mp3", title: "A 제목", marks: [Mark(kind: .hot(0), start: 10, name: "")]),
+                               track("5", "/m/b.mp3", title: "B 제목", marks: [Mark(kind: .hot(0), start: 20, name: "")])],
+                      lists: [node("셋", ["5"])])
+        let library = Doc(tracks: [track("LA", "/m/a.mp3", title: "A 제목", marks: [Mark(kind: .hot(0), start: 10, name: "")]),
+                                   track("LB", "/m/b.mp3", title: "B 제목", marks: [Mark(kind: .hot(0), start: 20, name: "")])],
+                          lists: [node("셋", id: "p1", [])])
+        let result = XMLLibraryDiff.compute(xml: xml, library: library)
+        #expect(result.matches.matched.isEmpty)
+        #expect(result.matches.ambiguous == ["5"])
+        #expect(result.matching.ambiguous == 2)
+        #expect(result.tracks.isEmpty)
+        #expect(result.playlists.isEmpty, "못 맞춘 항목만 있는 목록은 라이브러리와 곡이 같다")
+        let missing = XMLLibraryDiff.compute(xml: xml, library: Doc(tracks: library.tracks))
+        #expect(missing.playlists.first?.unmatchedEntries == 1 && missing.playlists.first?.xmlEntries == [])
     }
 
     // MARK: 같은 문서

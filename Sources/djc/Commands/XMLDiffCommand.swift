@@ -16,7 +16,7 @@ enum XMLDiffCommand {
             for line in lines(report, limit: request.limit) { print(line) }
         }
         if request.draft {
-            for line in try makeDrafts(report, request: request, home: try draftHome()) { print(line) }
+            for line in try makeDrafts(report, request: request, home: try draftHome(), appRunning: isAppRunning()) { print(line) }
         }
     }
 
@@ -93,7 +93,7 @@ enum XMLDiffCommand {
         }
         let share = try XMLExportCommand.shareRoot(share: request.share, noAnalysis: request.noAnalysis, snapshot: snapshot)
         let xml = try RekordboxXMLReader.read(url: request.xml)
-        let library = try RekordboxXMLImport.library(snapshot: snapshot, shareRoot: share)
+        let library = try RekordboxXMLImport.library(snapshot: snapshot, shareRoot: share, gridsFor: xml)
         return Report(snapshot: snapshot, share: share, xml: xml, library: library, diff: XMLLibraryDiff.compute(xml: xml, library: library))
     }
 
@@ -108,6 +108,8 @@ enum XMLDiffCommand {
         ]
         if !report.library.hasGrids { lines.append(String(ui: "그리드는 비교하지 않았습니다(분석 파일을 읽지 않음)")) }
         if counts.xmlWithoutGrid > 0 { lines.append(String(ui: "XML에 그리드가 없어 비교하지 않은 곡 \(counts.xmlWithoutGrid)")) }
+        if counts.xmlWithoutCues > 0 { lines.append(String(ui: "XML에 큐가 없어 비교하지 않은 곡 \(counts.xmlWithoutCues)")) }
+        if counts.xmlUnreadableCues > 0 { lines.append(String(ui: "읽지 못한 큐가 있어 큐를 비교하지 않은 곡 \(counts.xmlUnreadableCues)")) }
         let skipped = report.xml.skipped.sorted { $0.key < $1.key }.map { "\($0.key.label) \($0.value)" }
         if !skipped.isEmpty { lines.append(String(ui: "읽지 않고 건너뛴 것: \(skipped.joined(separator: " · "))")) }
         if diff.isEmpty {
@@ -125,6 +127,9 @@ enum XMLDiffCommand {
             case .changed:
                 lines.append("• " + String(ui: "곡이 다른 재생 목록: \(path) (XML \(change.xmlEntries.count)곡 · 라이브러리 \(change.libraryEntries.count)곡)"))
             }
+            if change.unmatchedEntries > 0 {
+                lines.append("  " + String(ui: "라이브러리에서 맞추지 못한 곡 \(change.unmatchedEntries)"))
+            }
         }
         if diff.playlists.count > limit {
             lines.append(String(ui: "재생 목록 \(diff.playlists.count - limit)개는 줄였습니다. --limit으로 늘리거나 --json으로 모두 보세요"))
@@ -135,7 +140,7 @@ enum XMLDiffCommand {
     /// 곡 한 줄: 경로 — 제목: 큐 +더할 것 −뺄 것 · 그리드 · 태그 칸
     static func summary(_ track: XMLLibraryDiff.TrackDiff) -> String {
         var parts: [String] = []
-        if let cues = track.cues { parts.append(String(ui: "큐 +\(cues.added.count) −\(cues.removed.count)")) }
+        if let cues = track.cues { parts.append(String(ui: "큐 +\(cues.added.count) ~\(cues.modified.count) −\(cues.removed.count)")) }
         if track.grid != nil { parts.append(String(ui: "그리드")) }
         if !track.tags.isEmpty {
             parts.append(String(ui: "태그 \(track.tags.map(\.key.label).joined(separator: "·"))"))
@@ -157,18 +162,42 @@ enum XMLDiffCommand {
         return home
     }
 
+    /// DJCrate 앱이 켜져 있는지 프로세스 이름으로 본다(확인하지 못하면 켜진 것으로 본다: 재생 목록 초안을 덮지 않게).
+    static func isAppRunning() -> Bool {
+        let process = Process()
+        process.executableURL = URL(filePath: "/usr/bin/pgrep")
+        process.arguments = ["-x", DJCIdentity.name]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return true
+        }
+    }
+
     /// 차이를 초안으로 만들어 `home` 아래 초안 폴더에만 쓴다. 기존 초안은 덮지 않고, 초안이 담지 못한 차이는 손실로 알린다.
-    static func makeDrafts(_ report: Report, request: Request, home: URL) throws -> [String] {
+    /// - Parameter appRunning: DJCrate 앱이 켜져 있다. 앱은 재생 목록 초안 파일을 다시 읽지 않고 메모리 초안을 저장하므로
+    ///   재생 목록 초안은 만들지 않는다. 큐·태그·그리드 파일은 앱이 다시 읽지만 덱에 올린 곡의 그리드는 덱 편집이 덮을 수 있어 알린다.
+    static func makeDrafts(_ report: Report, request: Request, home: URL, appRunning: Bool = false) throws -> [String] {
         let folders = XMLImportDraftStore.Folders(home: home)
-        let selection = XMLImportDrafts.Selection(kinds: request.kinds)
+        var kinds = request.kinds
+        if appRunning { kinds.remove(.playlist) }
+        let selection = XMLImportDrafts.Selection(kinds: kinds)
         let playlistBase = PlaylistDraftStore.load(url: folders.playlists)
         let plan = try XMLImportDraftStore.plan(diff: report.diff, selection: selection, snapshot: report.snapshot,
                                                 shareRoot: report.share, folders: folders)
         let result = try XMLImportDraftStore.save(plan, folders: folders, playlistBase: playlistBase)
-        let raced = Set(result.raced.map(\.subject))
-        func saved(_ uuids: [String]) -> Int { uuids.filter { !raced.contains($0) }.count }
-        let lists = result.raced.contains { $0.kind == .playlist } ? 0 : plan.playlistLists
-        var lines = [String(ui: "초안을 만들었습니다: 큐 \(saved(plan.cueDrafts.map(\.trackUUID))) · 그리드 \(saved(plan.gridDrafts.map(\.trackUUID))) · 태그 \(saved(plan.tagDrafts.map(\.trackUUID))) · 재생 목록 \(lists)")]
+        let saved = result.saved
+        var lines = [String(ui: "초안을 만들었습니다: 큐 \(saved[.cue, default: 0]) · 그리드 \(saved[.grid, default: 0]) · 태그 \(saved[.tag, default: 0]) · 재생 목록 \(saved[.playlist, default: 0])")]
+        if appRunning, request.kinds.contains(.playlist), !report.diff.playlists.isEmpty {
+            lines.append(String(ui: "DJCrate가 켜져 있어 재생 목록 초안은 만들지 않았습니다(앱이 자기 초안으로 덮습니다). DJCrate를 끈 뒤 다시 실행하거나 앱의 rekordbox XML 가져오기를 쓰세요"))
+        }
+        if appRunning, request.kinds.contains(.grid) {
+            lines.append(String(ui: "DJCrate가 켜져 있습니다: 덱에 올린 곡의 그리드 초안은 덱 편집이 덮을 수 있으니 그 곡을 덱에 다시 불러오세요"))
+        }
         let skipped = plan.skipped + result.raced
         if !skipped.isEmpty { lines.append(String(ui: "기존 초안이 있어 건너뛴 것 \(skipped.count)")) }
         for note in skipped.prefix(request.limit) { lines.append("• \(note.kind.label) · \(note.subject): \(note.reason)") }
@@ -203,9 +232,15 @@ enum XMLDiffCommand {
         var xml: String
     }
 
+    struct JSONCueEdit: Encodable {
+        var library: JSONMark
+        var xml: JSONMark
+    }
+
     struct JSONCues: Encodable {
         var added: [JSONMark]
         var removed: [JSONMark]
+        var modified: [JSONCueEdit]
     }
 
     struct JSONTrack: Encodable {
@@ -255,7 +290,10 @@ enum XMLDiffCommand {
             skipped: Dictionary(uniqueKeysWithValues: report.xml.skipped.map { ($0.key.rawValue, $0.value) }),
             tracks: diff.tracks.map { track in
                 JSONTrack(xmlID: track.xmlKey, libraryID: track.libraryKey, path: track.path, title: track.title,
-                          cues: track.cues.map { JSONCues(added: $0.added.map(JSONMark.init), removed: $0.removed.map(JSONMark.init)) },
+                          cues: track.cues.map { cues in
+                              JSONCues(added: cues.added.map(JSONMark.init), removed: cues.removed.map(JSONMark.init),
+                                       modified: cues.modified.map { JSONCueEdit(library: JSONMark($0.library), xml: JSONMark($0.xml)) })
+                          },
                           grid: track.grid, tags: track.tags.map { JSONTag(key: $0.key.rawValue, library: $0.library, xml: $0.xml) })
             },
             unmatched: records(diff.matches.unmatched), ambiguous: records(diff.matches.ambiguous),

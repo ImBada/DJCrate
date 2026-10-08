@@ -133,7 +133,8 @@ public enum RekordboxLibraryXML {
     /// 스냅샷과 분석 파일을 읽어 내보낼 컬렉션을 만든다(쓰지 않는다). 무거운 일이라 메인 스레드 밖에서 부르고,
     /// 부르는 작업을 취소하면 `CancellationError`로 멈춘다.
     /// - Parameter shareRoot: 분석 파일 뿌리(`…/share`). 분석 파일이 없는 곡은 TEMPO 없이 내보낸다. nil이면 모든 곡을 TEMPO 없이.
-    public static func load(snapshot: URL, shareRoot: URL?, productVersion: String = "0.1",
+    /// - Parameter gridPaths: 주면 경로(NFC·소문자, `XMLTrackMatching.key`)가 이 안에 있는 곡만 분석 파일을 읽는다(가져오기 비교는 XML에 TEMPO가 있는 곡만 본다).
+    public static func load(snapshot: URL, shareRoot: URL?, productVersion: String = "0.1", gridPaths: Set<String>? = nil,
                             progress: (@Sendable (Progress) -> Void)? = nil) throws -> Collection {
         progress?(Progress(phase: .readingLibrary, done: 0, total: 0))
         let library = try RekordboxLibrary.load(snapshot: snapshot)
@@ -165,7 +166,7 @@ public enum RekordboxLibraryXML {
             let rawCues = library.cues(for: track)
             let marks = Reflection.marks(from: rawCues)
             omitted.unknownCues += rawCues.count - marks.count
-            let tempos = shareRoot.flatMap { RekordboxShare.analysisURL(track.analysisDataPath, root: $0) }
+            let tempos = shareRoot.flatMap { gridPaths.map { !$0.contains(XMLTrackMatching.key(track.folderPath).lowercased()) } == true ? nil : RekordboxShare.analysisURL(track.analysisDataPath, root: $0) }
                 .flatMap { try? BeatGrid.load(anlz: $0) }
                 .map(tempoSegments(from:)) ?? []
             // #65: 별점·곡 색(Rating·Colour)은 곡 행에 칸이 생기면 여기서 `extraAttributes`로 연결한다.

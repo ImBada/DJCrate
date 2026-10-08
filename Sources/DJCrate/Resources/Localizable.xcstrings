@@ -1457,6 +1457,28 @@
         }
       }
     },
+    "%@~%@ 루프" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@–%2$@ loop"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@〜%2$@ ループ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@~%2$@ 루프"
+          }
+        }
+      }
+    },
     "%@가 일반 파일이 아니라 스냅샷에 담지 않았습니다. rekordbox 폴더를 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -3544,7 +3566,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Grids not in 4/4"
+            "value" : "Beat grids not in 4/4"
           }
         },
         "ja" : {
@@ -3752,7 +3774,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hot cues outside A–H"
+            "value" : "Hot Cues outside A–H"
           }
         },
         "ja" : {
@@ -4347,6 +4369,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "DJCrateが条件から計算した読み取り専用のプレイリストです · rekordboxの画面と曲が異なる場合があります"
+          }
+        }
+      }
+    },
+    "DJCrate가 켜져 있습니다: 덱에 올린 곡의 그리드 초안은 덱 편집이 덮을 수 있으니 그 곡을 덱에 다시 불러오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate is running: deck edits can overwrite the grid draft of the track loaded on the deck, so load that track onto the deck again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateが起動中です：デッキに読み込んだ曲のグリッドの下書きはデッキでの編集で上書きされることがあるため、その曲をデッキに読み込み直してください"
+          }
+        }
+      }
+    },
+    "DJCrate가 켜져 있어 재생 목록 초안은 만들지 않았습니다(앱이 자기 초안으로 덮습니다). DJCrate를 끈 뒤 다시 실행하거나 앱의 rekordbox XML 가져오기를 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No playlist drafts were made because DJCrate is running (the app would overwrite them with its own drafts). Quit DJCrate and run this again, or use Import rekordbox XML in the app."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateが起動中のため、プレイリストの下書きは作りませんでした（アプリが自分の下書きで上書きします）。DJCrateを終了してから再実行するか、アプリの「rekordbox XMLを読み込む」を使ってください"
           }
         }
       }
@@ -5623,6 +5677,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "TAPをリセット"
+          }
+        }
+      }
+    },
+    "TrackID가 겹친 곡" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks with a duplicate TrackID"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TrackIDが重複した曲"
           }
         }
       }
@@ -7613,6 +7683,22 @@
         }
       }
     },
+    "XML 그리드의 변속 지점이 앞 구간과 반 박 안쪽으로 붙어 있어 그리드 초안을 만들지 않았습니다. 덱에서 그리드를 직접 고치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No grid draft: a tempo change in the XML grid is within half a beat of the previous section. Edit the beat grid in the deck."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XMLグリッドのテンポ変化点が前の区間と半拍以内に近いため、グリッドの下書きを作りませんでした。デッキでグリッドを直接直してください"
+          }
+        }
+      }
+    },
     "XML 만들기" : {
       "localizations" : {
         "en" : {
@@ -7625,6 +7711,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "XMLを作成"
+          }
+        }
+      }
+    },
+    "XML 목록의 곡 %lld개는 라이브러리에서 맞추지 못해 넣지 않았습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld tracks in the XML playlist weren't matched in the library, so they were not added."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XMLのリストの%lld曲はライブラリで一致しなかったため入れませんでした"
+          }
+        }
+      }
+    },
+    "XML 목록의 곡 %lld개를 라이브러리에서 맞추지 못해 목록을 바꾸지 않았습니다. 그 곡을 라이브러리에 넣은 뒤 다시 가져오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not changed: %lld tracks in the XML playlist weren't matched in the library. Add those tracks to the library, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XMLのリストの%lld曲がライブラリで一致しなかったため、リストを変更しませんでした。その曲をライブラリに入れてから再度読み込んでください"
           }
         }
       }
@@ -7759,6 +7877,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "XML에 넣지 않은 초안 %1$lld: %2$@"
+          }
+        }
+      }
+    },
+    "XML에 큐가 없어 비교하지 않은 곡 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks whose cues weren't compared because the XML has no cues: %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XMLにキューがないため比較しなかった曲%lld"
           }
         }
       }
@@ -12685,6 +12819,22 @@
         }
       }
     },
+    "같은 자리에 인텔리전트 목록이 있어 건너뛰었습니다. rekordbox에서 목록 이름을 바꾼 뒤 다시 가져오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skipped: an Intelligent Playlist is at the same place. Rename it in rekordbox, then import again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ場所にインテリジェントプレイリストがあるため飛ばしました。rekordboxでリスト名を変えてから再度読み込んでください"
+          }
+        }
+      }
+    },
     "같은 장르" : {
       "localizations" : {
         "en" : {
@@ -12818,7 +12968,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hot cue slot %@ had several cues, so only one was added."
+            "value" : "Hot Cue %@ had several cues, so only one was added."
           }
         },
         "ja" : {
@@ -15639,6 +15789,28 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "곡이 다른 목록 · XML %1$lld곡 · 라이브러리 %2$lld곡"
+          }
+        }
+      }
+    },
+    "곡이 다른 목록 · XML %lld곡 · 라이브러리 %lld곡 · 못 맞춘 곡 %lld(바꾸지 않음)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Different tracks · XML %1$lld · library %2$lld · unmatched %3$lld (not changed)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲が異なるリスト · XML %1$lld曲 · ライブラリ%2$lld曲 · 一致しない曲%3$lld（変更しない）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "곡이 다른 목록 · XML %1$lld곡 · 라이브러리 %2$lld곡 · 못 맞춘 곡 %3$lld(바꾸지 않음)"
           }
         }
       }
@@ -20067,6 +20239,22 @@
         }
       }
     },
+    "라이브러리에서 맞추지 못한 곡 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks not matched in the library: %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリで一致しなかった曲%lld"
+          }
+        }
+      }
+    },
     "라이브러리와 분석 파일의 상태를 확인하지 못했습니다" : {
       "localizations" : {
         "en" : {
@@ -21790,7 +21978,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tracks can have up to %lld memory cues, so the extra cues were not added."
+            "value" : "A track can have up to %lld Memory Cues, so the extra cues were not added."
           }
         },
         "ja" : {
@@ -24430,7 +24618,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Can't make a grid draft for a track without an analysis-file grid. Run Analyze Track in rekordbox first, then import again."
+            "value" : "Can't make a grid draft for a track without a beat grid in its analysis file. Run Analyze Track in rekordbox first, then import again."
           }
         },
         "ja" : {
@@ -29569,6 +29757,28 @@
         }
       }
     },
+    "없는 목록 · 곡 %lld · 못 맞춘 곡 %lld(넣지 않음)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missing playlist · %1$lld tracks · unmatched %2$lld (not added)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ないリスト · %1$lld曲 · 一致しない曲%2$lld（入れない）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "없는 목록 · 곡 %1$lld · 못 맞춘 곡 %2$lld(넣지 않음)"
+          }
+        }
+      }
+    },
     "없는 재생 목록 %lld · 곡이 다른 재생 목록 %lld · 이름이 겹쳐 비교하지 않은 목록 %lld" : {
       "localizations" : {
         "en" : {
@@ -31974,7 +32184,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No grid draft: this track's grid can't be handled as tempo sections. Edit the grid in the deck."
+            "value" : "No grid draft: this track's beat grid can't be handled as tempo sections. Edit the beat grid in the deck."
           }
         },
         "ja" : {
@@ -33643,6 +33853,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "読み込めない下書きファイルをdamaged-draftsに移しました。残りの下書きを確認してから、書き込みを再試行してください。"
+          }
+        }
+      }
+    },
+    "읽지 못한 큐가 있어 큐를 비교하지 않은 곡 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks whose cues weren't compared because some cues couldn't be read: %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込めないキューがあるためキューを比較しなかった曲%lld"
           }
         }
       }
@@ -38477,24 +38703,24 @@
         }
       }
     },
-    "큐 +%lld −%lld" : {
+    "큐 +%lld ~%lld −%lld" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cues +%1$lld −%2$lld"
+            "value" : "Cues +%1$lld ~%2$lld −%3$lld"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "キュー +%1$lld −%2$lld"
+            "value" : "キュー +%1$lld ~%2$lld −%3$lld"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "큐 +%1$lld −%2$lld"
+            "value" : "큐 +%1$lld ~%2$lld −%3$lld"
           }
         }
       }
@@ -39323,6 +39549,28 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "큐로 돌아가 정지합니다(%1$@). 정지 중: 큐 설정·누르고 미리 듣기. 큐 %2$@"
+          }
+        }
+      }
+    },
+    "큐를 비교하지 않은 곡: XML에 큐 없음 %lld · 읽지 못한 큐 있음 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks whose cues weren't compared: no cues in the XML %1$lld · unreadable cues %2$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キューを比較しなかった曲：XMLにキューなし%1$lld · 読み込めないキューあり%2$lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "큐를 비교하지 않은 곡: XML에 큐 없음 %1$lld · 읽지 못한 큐 있음 %2$lld"
           }
         }
       }

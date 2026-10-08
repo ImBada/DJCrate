@@ -163,4 +163,35 @@ struct ExternalDraftTests {
         #expect(store.pendingUUIDs.isEmpty && store.tagDrafts.isEmpty)
         #expect(h.deck.draft?.hasChanges == false && h.deck.playhead == 20)
     }
+
+    /// #72: rekordbox XML 가져오기가 만든 그리드 초안을 덱이 받는다. 덱 초안이 바뀌지 않았을 때만 받는다.
+    @Test func 바꾸지_않은_덱_그리드는_가져온_초안으로_바꾸고_이어_편집한다() async throws {
+        let base = [GridSegment(start: 0.5, bpm: 120, firstBeatNumber: 1)]
+        let h = try DeckHarness(grid: base, gridBase: base)
+        try await h.loaded()
+        #expect(h.deck.gridDraft?.hasChanges == false)
+        let imported = GridDraft(trackUUID: "track-1", base: base, segments: [GridSegment(start: 0.5, bpm: 125, firstBeatNumber: 1)])
+        #expect(h.deck.adoptImportedGridDraft(imported))
+        #expect(h.deck.gridDraft == imported)
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(h.drafts.grid("track-1") == imported, "덱이 자기 저장 경로로 저장한다")
+        // 이어지는 덱 편집은 가져온 초안 위에 쌓인다
+        h.deck.shiftGrid(ms: 10)
+        #expect(h.deck.gridDraft?.segments.first?.bpm == 125)
+        // 되돌리면 원래 rekordbox 그리드로 간다(가져온 초안이 덱 화면에 보였으므로)
+        h.deck.revertGrid()
+        #expect(h.deck.gridDraft?.segments == base)
+    }
+
+    @Test func 덱에서_고친_그리드는_가져온_초안으로_덮지_않는다() async throws {
+        let h = try DeckHarness()
+        try await h.loaded()
+        let before = h.deck.gridDraft
+        #expect(before?.hasChanges == true)
+        let imported = GridDraft(trackUUID: "track-1", base: [], segments: [GridSegment(start: 0.5, bpm: 125, firstBeatNumber: 1)])
+        #expect(!h.deck.adoptImportedGridDraft(imported))
+        #expect(h.deck.gridDraft == before)
+        let other = GridDraft(trackUUID: "다른 곡", base: [], segments: [GridSegment(start: 0.5, bpm: 125, firstBeatNumber: 1)])
+        #expect(!h.deck.adoptImportedGridDraft(other))
+    }
 }

@@ -39,8 +39,10 @@ public enum XMLImportDraftStore {
 
     public struct Result: Sendable, Equatable {
         public var plan: XMLImportDrafts.Plan
-        /// 계획을 세운 뒤 저장하기 전에 생긴 초안이 있어 건너뛴 것
+        /// 계획을 세운 뒤 저장하기 전에 생긴 초안이 있어 건너뛴 것(곡 이름으로)
         public var raced: [XMLImportDrafts.Note] = []
+        /// 종류별로 저장한 초안 수(재생 목록은 저장했으면 편집한 목록 수)
+        public var saved: [XMLImportDrafts.Kind: Int] = [:]
     }
 
     /// 사본·분석 파일·기존 초안을 읽어 계획을 세운다(쓰지 않는다).
@@ -78,15 +80,26 @@ public enum XMLImportDraftStore {
         var result = Result(plan: plan)
         func raced(_ kind: XMLImportDrafts.Kind, _ uuid: String) -> Bool {
             guard folders.hasDraft(kind, uuid: uuid) else { return false }
-            result.raced.append(XMLImportDrafts.Note(kind: kind, libraryKey: nil, subject: uuid, reason: XMLImportDrafts.existingReason(kind)))
+            result.raced.append(XMLImportDrafts.Note(kind: kind, libraryKey: nil, subject: plan.titles[uuid] ?? uuid,
+                                                     reason: XMLImportDrafts.existingReason(kind)))
             return true
         }
-        for draft in plan.cueDrafts where !raced(.cue, draft.trackUUID) { try CueDraftStore.save(draft, directory: folders.cues) }
-        for draft in plan.gridDrafts where !raced(.grid, draft.trackUUID) { try GridDraftStore.save(draft, directory: folders.grids) }
-        for draft in plan.tagDrafts where !raced(.tag, draft.trackUUID) { try TagDraftStore.save(draft, directory: folders.tags) }
+        for draft in plan.cueDrafts where !raced(.cue, draft.trackUUID) {
+            try CueDraftStore.save(draft, directory: folders.cues)
+            result.saved[.cue, default: 0] += 1
+        }
+        for draft in plan.gridDrafts where !raced(.grid, draft.trackUUID) {
+            try GridDraftStore.save(draft, directory: folders.grids)
+            result.saved[.grid, default: 0] += 1
+        }
+        for draft in plan.tagDrafts where !raced(.tag, draft.trackUUID) {
+            try TagDraftStore.save(draft, directory: folders.tags)
+            result.saved[.tag, default: 0] += 1
+        }
         if let draft = plan.playlistDraft {
             if PlaylistDraftStore.load(url: folders.playlists) == playlistBase {
                 try PlaylistDraftStore.save(draft, url: folders.playlists)
+                result.saved[.playlist] = plan.playlistLists
             } else {
                 result.raced.append(XMLImportDrafts.Note(kind: .playlist, libraryKey: nil, subject: "",
                                                          reason: XMLImportDrafts.existingReason(.playlist)))

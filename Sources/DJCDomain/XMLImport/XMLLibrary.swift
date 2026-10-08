@@ -25,9 +25,14 @@ public struct XMLLibrary: Sendable, Equatable {
         public var tags: [TagFields.Key: String]
         public var marks: [Mark]
         public var tempos: [GridSegment]
+        /// 곡 길이(초). XML은 `TotalTime`, 라이브러리는 곡 길이. 모르면 nil.
+        public var duration: Double?
+        /// 큐·루프 POSITION_MARK 중 읽지 못한 것(값이 깨졌거나 A~H 밖 핫큐). 있으면 그 곡의 큐는 비교하지 않는다.
+        public var unreadableMarks = 0
 
-        public init(key: String, path: String?, tags: [TagFields.Key: String] = [:], marks: [Mark] = [], tempos: [GridSegment] = []) {
-            self.key = key; self.path = path; self.tags = tags; self.marks = marks; self.tempos = tempos
+        public init(key: String, path: String?, tags: [TagFields.Key: String] = [:], marks: [Mark] = [], tempos: [GridSegment] = [],
+                    duration: Double? = nil) {
+            self.key = key; self.path = path; self.tags = tags; self.marks = marks; self.tempos = tempos; self.duration = duration
         }
 
         public var title: String { tags[.title] ?? "" }
@@ -73,6 +78,8 @@ public struct XMLLibrary: Sendable, Equatable {
         case unverifiedColour
         /// 재생 목록 항목이 컬렉션에 없는 곡을 가리킴
         case missingTrackReference
+        /// 앞 곡과 같은 `TrackID`(그 키의 곡은 모두 맞추지 않는다)
+        case duplicateTrackID
 
         public static func < (lhs: Skip, rhs: Skip) -> Bool {
             allCases.firstIndex(of: lhs)! < allCases.firstIndex(of: rhs)!
@@ -89,6 +96,7 @@ public struct XMLLibrary: Sendable, Equatable {
             case .unknownElement: String(ui: "모르는 요소")
             case .unverifiedColour: String(ui: "곡 색(확인 전이라 읽지 않음)")
             case .missingTrackReference: String(ui: "컬렉션에 없는 곡을 가리킨 목록 항목")
+            case .duplicateTrackID: String(ui: "TrackID가 겹친 곡")
             }
         }
     }
@@ -111,7 +119,7 @@ public enum XMLTrackMatching {
         public var matched: [String: String] = [:]
         /// 라이브러리에 없는 곡(파일이 아닌 위치 포함), XML 순서
         public var unmatched: [String] = []
-        /// 여러 라이브러리 곡에 맞거나 XML 안에서 같은 곡을 여러 번 적은 곡, XML 순서
+        /// 여러 라이브러리 곡에 맞거나 XML 안에서 같은 곡을 여러 번 적은 곡, TrackID가 겹친 곡(키는 한 번만), XML 순서
         public var ambiguous: [String] = []
     }
 
@@ -145,7 +153,11 @@ public enum XMLTrackMatching {
         }
         var result = Result()
         var tentative: [(xml: String, library: String)] = []
+        // 같은 TrackID가 여럿이면 목록 항목이 어느 곡을 가리키는지 모르고, 맞춤이 서로를 덮는다.
+        let keyCounts = Dictionary(xml.map { ($0.key, 1) }, uniquingKeysWith: +)
+        var duplicated: Set<String> = []
         for track in xml {
+            if keyCounts[track.key, default: 0] > 1 { duplicated.insert(track.key); continue }
             guard let path = track.path else { result.unmatched.append(track.key); continue }
             let nfc = key(path)
             let candidates = exact[nfc] ?? folded[nfc.lowercased()] ?? []
@@ -156,11 +168,12 @@ public enum XMLTrackMatching {
             }
         }
         let uses = Dictionary(grouping: tentative, by: \.library)
-        var ambiguous = Set(result.ambiguous)
+        var ambiguous = Set(result.ambiguous).union(duplicated)
         for pair in tentative {
             if uses[pair.library]?.count == 1 { result.matched[pair.xml] = pair.library } else { ambiguous.insert(pair.xml) }
         }
-        result.ambiguous = xml.map(\.key).filter { ambiguous.contains($0) }
+        var listed: Set<String> = []
+        result.ambiguous = xml.map(\.key).filter { ambiguous.contains($0) && listed.insert($0).inserted }
         return result
     }
 }

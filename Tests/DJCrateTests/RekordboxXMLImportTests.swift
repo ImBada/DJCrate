@@ -91,6 +91,71 @@ struct RekordboxXMLImportTests {
         #expect(store.tagDrafts[row.track.uuid]?.fields.comment == "편집 중")
     }
 
+    /// 첫 곡의 그리드 BPM만 바꾼 XML
+    func gridXML(_ fixture: RekordboxFixture) throws -> URL {
+        let collection = try RekordboxLibraryXML.load(snapshot: fixture.database, shareRoot: fixture.shareRoot)
+        let xml = RekordboxLibraryXML.document(collection).replacingOccurrences(of: #"Bpm="128.00""#, with: #"Bpm="130.00""#)
+        let url = fixture.root.appending(path: "grid.xml")
+        try Data(xml.utf8).write(to: url)
+        return url
+    }
+
+    @Test func 덱에_올린_곡의_그리드_초안은_덱이_받아_저장한다() async throws {
+        let fixture = try library()
+        let store = await loadedStore(fixture)
+        let home = fixture.root.appending(path: "home")
+        var adopted: GridDraft?
+        store.deckGridDraftState = { (uuid: "uuid-101", hasChanges: false) }
+        store.adoptImportedGridDraft = { adopted = $0; return true }
+        store.importRekordboxXML(from: try gridXML(fixture), shareRoot: fixture.shareRoot)
+        await store.xmlImportTask?.value
+        let preview = try #require(store.xmlImportPreview)
+        #expect(preview.diff.counts.gridTracks == 1)
+        let result = await store.makeXMLImportDrafts(preview, selection: XMLImportDrafts.Selection(kinds: [.grid]), home: home)
+        #expect(result.grids == 1)
+        #expect(adopted?.trackUUID == "uuid-101" && adopted?.segments.first?.bpm == 130)
+        // 덱이 자기 저장 경로로 쓴다(가져오기가 따로 쓰면 덱의 다음 편집이 그 파일을 덮는다)
+        #expect(!FileManager.default.fileExists(atPath: home.appending(path: "grid-drafts/uuid-101.json").path))
+    }
+
+    @Test func 덱에서_그리드를_고친_곡은_가져오기가_건너뛴다() async throws {
+        let fixture = try library()
+        let store = await loadedStore(fixture)
+        let home = fixture.root.appending(path: "home")
+        var adopted = false
+        store.deckGridDraftState = { (uuid: "uuid-101", hasChanges: true) }
+        store.adoptImportedGridDraft = { _ in adopted = true; return true }
+        store.importRekordboxXML(from: try gridXML(fixture), shareRoot: fixture.shareRoot)
+        await store.xmlImportTask?.value
+        let preview = try #require(store.xmlImportPreview)
+        let result = await store.makeXMLImportDrafts(preview, selection: XMLImportDrafts.Selection(kinds: [.grid]), home: home)
+        #expect(result.grids == 0 && !adopted)
+        #expect(result.skipped.map(\.kind) == [.grid] && result.skipped.first?.subject == "합성 곡 A")
+        #expect(!FileManager.default.fileExists(atPath: home.appending(path: "grid-drafts/uuid-101.json").path))
+    }
+
+    @Test func 저장_직전에_생긴_초안은_곡_이름으로_알린다() throws {
+        let home = FileManager.default.temporaryDirectory.appending(path: "xml-import-raced-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let folders = XMLImportDraftStore.Folders(home: home)
+        var plan = XMLImportDrafts.Plan()
+        plan.gridDrafts = [GridDraft(trackUUID: "uuid-9", base: [], segments: [GridSegment(start: 0.5, bpm: 120, firstBeatNumber: 1)])]
+        plan.titles = ["uuid-9": "곡 이름"]
+        try GridDraftStore.save(plan.gridDrafts[0], directory: folders.grids)
+        let result = try XMLImportDraftStore.save(plan, folders: folders, playlistBase: PlaylistDraft())
+        #expect(result.raced.map(\.subject) == ["곡 이름"] && result.saved[.grid, default: 0] == 0)
+    }
+
+    @Test func 가져오기를_취소하면_미리_보기를_열지_않는다() async throws {
+        let fixture = try library()
+        let store = await loadedStore(fixture)
+        store.importRekordboxXML(from: try changedXML(fixture), shareRoot: fixture.shareRoot)
+        store.cancelXMLImport()
+        await store.xmlImportTask?.value
+        #expect(store.xmlImportPreview == nil && !store.isReadingXMLImport)
+        #expect(store.stagingMessage == nil, "취소는 실패로 알리지 않는다")
+    }
+
     @Test func rekordbox_XML이_아니면_이유를_알리고_미리_보기를_열지_않는다() async throws {
         let fixture = try library()
         let store = await loadedStore(fixture)

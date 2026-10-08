@@ -80,6 +80,48 @@ struct RekordboxXMLReaderTests {
                                     .unknownNodeType: 1])
     }
 
+    @Test func 곡마다_읽지_못한_위치_표시와_곡_길이를_담는다() throws {
+        let library = try read(document(tracks: """
+            <TRACK TrackID="1" Name="a" TotalTime="215" Location="file://localhost/a.mp3">
+              <POSITION_MARK Name="" Type="1" Start="1.0" Num="-1"/>
+              <POSITION_MARK Name="" Type="0" Start="2.0" Num="9"/>
+              <POSITION_MARK Name="" Type="0" Start="x" Num="0"/>
+              <POSITION_MARK Name="" Type="0" Start="3.0" Num="1"/>
+            </TRACK>
+            <TRACK TrackID="2" Name="b" Location="file://localhost/b.mp3"/>
+            """))
+        // 큐·루프가 아닌 표시(Type 1)는 큐 비교에 들지 않으니 세지 않는다
+        #expect(library.tracks[0].unreadableMarks == 2 && library.tracks[0].duration == 215)
+        #expect(library.tracks[1].unreadableMarks == 0 && library.tracks[1].marks.isEmpty && library.tracks[1].duration == nil)
+    }
+
+    @Test func 범위_밖_박_번호는_읽지_못한_값이고_그_곡_그리드는_읽지_않는다() throws {
+        let library = try read(document(tracks: """
+            <TRACK TrackID="1" Name="a" Location="file://localhost/a.mp3">
+              <TEMPO Inizio="0.1" Bpm="120" Metro="4/4" Battito="7"/>
+            </TRACK>
+            """))
+        #expect(library.tracks[0].tempos.isEmpty)
+        #expect(library.skipped == [.invalidValue: 1])
+    }
+
+    @Test func 같은_TrackID가_둘이면_세고_두_곡_모두_모호하다() throws {
+        let library = try read(document(tracks: """
+            <TRACK TrackID="5" Name="a" Location="file://localhost/a.mp3"><POSITION_MARK Name="" Type="0" Start="10.0" Num="0"/></TRACK>
+            <TRACK TrackID="5" Name="b" Location="file://localhost/b.mp3"><POSITION_MARK Name="" Type="0" Start="20.0" Num="0"/></TRACK>
+            """, playlists: """
+            <NODE Type="0" Name="ROOT" Count="1">
+              <NODE Name="L" Type="1" KeyType="0" Entries="1"><TRACK Key="5"/></NODE>
+            </NODE>
+            """))
+        #expect(library.skipped == [.duplicateTrackID: 1])
+        let current = XMLLibrary(tracks: [.init(key: "LA", path: "/a.mp3", tags: [.title: "a"], marks: [.init(kind: .hot(0), start: 10, name: "")]),
+                                          .init(key: "LB", path: "/b.mp3", tags: [.title: "b"], marks: [.init(kind: .hot(0), start: 20, name: "")])])
+        let diff = XMLLibraryDiff.compute(xml: library, library: current)
+        #expect(diff.tracks.isEmpty && diff.matches.matched.isEmpty && diff.matching.ambiguous == 2)
+        #expect(diff.playlists.first?.unmatchedEntries == 1)
+    }
+
     @Test func 위치로_적은_목록_항목도_읽는다() throws {
         let library = try read(document(tracks: """
             <TRACK TrackID="1" Name="a" Location="file://localhost/Music/a%20b.mp3"/>
@@ -123,6 +165,21 @@ struct RekordboxXMLReaderTests {
         #expect(exported.skipped.isEmpty)
         // 라이브러리 쪽 목록에는 ID가 있다(초안을 만들 때 쓴다)
         #expect(library.lists.first?.id == "p3")
+    }
+
+    @Test func 분석_파일은_XML에_TEMPO가_있는_곡만_읽는다() throws {
+        let fixture = try RekordboxLibraryXMLTests().makeLibrary()
+        let collection = try RekordboxLibraryXML.load(snapshot: fixture.database, shareRoot: fixture.shareRoot)
+        let full = try read(RekordboxLibraryXML.document(collection))
+        let withGrid = Set(full.tracks.filter { !$0.tempos.isEmpty }.map(\.path))
+        #expect(!withGrid.isEmpty)
+        let stripped = try read(RekordboxLibraryXML.document(collection)
+            .replacingOccurrences(of: #"<TEMPO [^>]*/>"#, with: "", options: .regularExpression))
+        let none = try RekordboxXMLImport.library(snapshot: fixture.database, shareRoot: fixture.shareRoot, gridsFor: stripped)
+        #expect(none.tracks.allSatisfy { $0.tempos.isEmpty })
+        let some = try RekordboxXMLImport.library(snapshot: fixture.database, shareRoot: fixture.shareRoot, gridsFor: full)
+        #expect(Set(some.tracks.filter { !$0.tempos.isEmpty }.map(\.path)) == withGrid)
+        #expect(some.tracks.allSatisfy { $0.duration != nil })
     }
 
     @Test func 라이브러리를_읽어_고친_XML과_비교한다() throws {

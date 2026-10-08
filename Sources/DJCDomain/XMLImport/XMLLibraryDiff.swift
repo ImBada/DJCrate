@@ -3,9 +3,11 @@ import Foundation
 /// rekordbox XML과 지금 라이브러리의 차이(#72 가져오기). 읽기만 하고, 고른 차이를 초안으로 만드는 일은 부르는 쪽이 한다.
 ///
 /// - 곡은 파일 경로로 맞춘다(`XMLTrackMatching`). 못 맞춘 곡·여러 곡에 맞는 곡은 비교하지 않고 센다.
-/// - 큐: 종류·위치(1ms 미만은 같음)·루프 끝·이름이 모두 같은 큐끼리 짝짓고, 남은 것을 더할 것·뺄 것으로 낸다.
-/// - 그리드: XML에 TEMPO가 있을 때만. 첫 구간을 곡 시작 쪽 첫 박으로 당겨(같은 그리드를 다른 박부터 적어도 같게) 비교한다.
-/// - 태그: XML에 있는 칸만. 연도·트랙 번호 0은 빈칸, 키는 표기가 달라도 같은 키면 같다.
+/// - 큐: 종류·위치(1ms 미만은 같음)·루프 끝·이름이 모두 같은 큐끼리 짝짓고, 남은 것 중 같은 핫큐 슬롯·같은 위치의 메모리 큐는
+///   고친 것으로, 나머지를 더할 것·뺄 것으로 낸다. XML에 큐가 하나도 없거나 읽지 못한 큐가 있는 곡은 비교하지 않고 세며,
+///   XML에 없는 rekordbox 자동 큐는 뺄 것으로 치지 않는다.
+/// - 그리드: XML에 TEMPO가 있을 때만. 두 쪽 구간으로 박을 만들어 비교한다(같은 박을 구간을 달리 나눠 적어도 같다).
+/// - 태그: XML에 있는 칸만(NFC로 비교). 연도·트랙 번호 0은 빈칸, 키는 표기가 달라도 같은 키면 같다.
 /// - 재생 목록: 폴더 이름 경로로 맞춘다. 라이브러리에 없는 목록, 곡(맞춘 곡만)·순서가 다른 목록을 낸다.
 ///   라이브러리에만 있는 목록은 차이로 치지 않는다(가져오기는 지우지 않는다).
 public enum XMLLibraryDiff {
@@ -19,13 +21,26 @@ public enum XMLLibraryDiff {
         public init(key: TagFields.Key, library: String, xml: String) { self.key = key; self.library = library; self.xml = xml }
     }
 
+    /// 같은 핫큐 슬롯이나 같은 위치의 메모리 큐인데 위치·이름·루프 끝이 다른 큐
+    public struct CueEdit: Sendable, Equatable {
+        public var library: XMLLibrary.Mark
+        public var xml: XMLLibrary.Mark
+
+        public init(library: XMLLibrary.Mark, xml: XMLLibrary.Mark) { self.library = library; self.xml = xml }
+    }
+
     public struct CueChange: Sendable, Equatable {
         public var library: [XMLLibrary.Mark]
         public var xml: [XMLLibrary.Mark]
         /// XML에만 있는 큐
         public var added: [XMLLibrary.Mark]
-        /// 라이브러리에만 있는 큐
+        /// 라이브러리에만 있는 큐(자동 큐 제외)
         public var removed: [XMLLibrary.Mark]
+        /// 고친 큐
+        public var modified: [CueEdit] = []
+
+        /// 빼기만 있다(큐를 내보내지 않은 도구일 수 있어 기본으로 고르지 않는다)
+        public var isRemovalOnly: Bool { added.isEmpty && modified.isEmpty && !removed.isEmpty }
     }
 
     public struct GridChange: Sendable, Equatable, Codable {
@@ -86,6 +101,10 @@ public enum XMLLibraryDiff {
         public var libraryOnlyPlaylists = 0
         /// TEMPO가 없어 그리드를 비교하지 않은 XML 곡(맞춘 곡만)
         public var xmlWithoutGrid = 0
+        /// 큐·루프 POSITION_MARK가 없어 큐를 비교하지 않은 XML 곡(맞춘 곡만)
+        public var xmlWithoutCues = 0
+        /// 읽지 못한 큐(깨진 값·A~H 밖 핫큐)가 있어 큐를 비교하지 않은 XML 곡(맞춘 곡만)
+        public var xmlUnreadableCues = 0
     }
 
     public struct Result: Sendable, Equatable {
@@ -107,17 +126,26 @@ public enum XMLLibraryDiff {
         var result = Result()
         let matches = XMLTrackMatching.match(xml: xml.tracks, library: library.tracks)
         result.matches = matches
+        // TrackID가 겹친 곡은 키 하나에 여러 곡이라 곡 수로 센다
+        let ambiguous = Set(matches.ambiguous)
         result.matching = Matching(xmlTracks: xml.tracks.count, matched: matches.matched.count,
-                                   unmatched: matches.unmatched.count, ambiguous: matches.ambiguous.count)
+                                   unmatched: matches.unmatched.count, ambiguous: xml.tracks.filter { ambiguous.contains($0.key) }.count)
         let libraryTracks = Dictionary(library.tracks.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
 
         for track in xml.tracks {
             guard let libraryKey = matches.matched[track.key], let current = libraryTracks[libraryKey] else { continue }
-            let cues = cueChange(xml: track.marks, library: current.marks)
+            var cues: CueChange?
+            if track.unreadableMarks > 0 {
+                result.counts.xmlUnreadableCues += 1
+            } else if track.marks.isEmpty {
+                result.counts.xmlWithoutCues += 1
+            } else {
+                cues = cueChange(xml: track.marks, library: current.marks)
+            }
             var grid: GridChange?
             if track.tempos.isEmpty {
                 result.counts.xmlWithoutGrid += 1
-            } else if library.hasGrids, !sameGrid(track.tempos, current.tempos) {
+            } else if library.hasGrids, !sameGrid(track.tempos, current.tempos, duration: current.duration ?? track.duration) {
                 grid = GridChange(library: current.tempos, xml: track.tempos)
             }
             let tags = tagChanges(xml: track.tags, library: current.tags)
@@ -143,31 +171,97 @@ public enum XMLLibraryDiff {
         }
     }
 
-    static func cueChange(xml: [XMLLibrary.Mark], library: [XMLLibrary.Mark]) -> CueChange? {
-        var remaining = library
-        var added: [XMLLibrary.Mark] = []
-        for mark in xml {
-            if let index = remaining.firstIndex(where: { sameMark($0, mark) }) { remaining.remove(at: index) } else { added.append(mark) }
+    /// 큐 짝짓기(번호는 각 배열의 자리). 차이 계산과 초안 만들기가 같은 짝을 쓴다.
+    public struct CuePairs: Sendable {
+        /// 모든 칸이 같은 큐
+        public var same: [(xml: Int, library: Int)] = []
+        /// 같은 핫큐 슬롯, 같은 위치의 메모리 큐
+        public var modified: [(xml: Int, library: Int)] = []
+        public var added: [Int] = []
+        public var removed: [Int] = []
+        /// XML에 없지만 남길 rekordbox 자동 큐
+        public var keptAuto: [Int] = []
+    }
+
+    public static func pairCues(xml: [XMLLibrary.Mark], library: [XMLLibrary.Mark]) -> CuePairs {
+        var pairs = CuePairs()
+        var used = Set<Int>()
+        var rest: [Int] = []
+        for (x, mark) in xml.enumerated() {
+            if let l = library.indices.first(where: { !used.contains($0) && sameMark(library[$0], mark) }) {
+                used.insert(l)
+                pairs.same.append((x, l))
+            } else {
+                rest.append(x)
+            }
         }
-        guard !added.isEmpty || !remaining.isEmpty else { return nil }
-        return CueChange(library: sorted(library), xml: sorted(xml), added: sorted(added), removed: sorted(remaining))
+        for x in rest {
+            let mark = xml[x]
+            let l = library.indices.first { index in
+                guard !used.contains(index), library[index].kind == mark.kind else { return false }
+                // 핫큐는 슬롯이 정체성이고, 메모리 큐는 위치가 정체성이다.
+                return mark.kind != .memory || abs(library[index].start - mark.start) < timeTolerance
+            }
+            if let l {
+                used.insert(l)
+                pairs.modified.append((x, l))
+            } else {
+                pairs.added.append(x)
+            }
+        }
+        for l in library.indices where !used.contains(l) {
+            if Cue.autoNames.contains(library[l].name.trimmingCharacters(in: .whitespaces)) { pairs.keptAuto.append(l) } else { pairs.removed.append(l) }
+        }
+        return pairs
+    }
+
+    static func cueChange(xml: [XMLLibrary.Mark], library: [XMLLibrary.Mark]) -> CueChange? {
+        let pairs = pairCues(xml: xml, library: library)
+        guard !pairs.added.isEmpty || !pairs.removed.isEmpty || !pairs.modified.isEmpty else { return nil }
+        let modified = pairs.modified.map { CueEdit(library: library[$0.library], xml: xml[$0.xml]) }
+            .sorted { ($0.xml.start, order($0.xml.kind)) < ($1.xml.start, order($1.xml.kind)) }
+        return CueChange(library: sorted(library), xml: sorted(xml), added: sorted(pairs.added.map { xml[$0] }),
+                         removed: sorted(pairs.removed.map { library[$0] }), modified: modified)
+    }
+
+    static func order(_ kind: EditableCue.Kind) -> Int {
+        if case let .hot(slot) = kind { return slot } else { return -1 }
+    }
+
+    /// 미리 보기·CLI에 보일 큐 한 줄: 종류·슬롯·위치(루프는 끝까지)
+    public static func describe(_ mark: XMLLibrary.Mark) -> String {
+        func time(_ seconds: Double) -> String {
+            let minutes = Int(seconds / 60)
+            return String(format: "%d:%06.3f", minutes, seconds - Double(minutes) * 60)
+        }
+        let kind = mark.kind.slotLetter.map { String(ui: "핫큐 \($0)") } ?? String(ui: "메모리 큐")
+        let position = mark.end.map { String(ui: "\(time(mark.start))~\(time($0)) 루프") } ?? time(mark.start)
+        return mark.name.isEmpty ? "\(kind) \(position)" : "\(kind) \(position) “\(mark.name)”"
     }
 
     static func sorted(_ marks: [XMLLibrary.Mark]) -> [XMLLibrary.Mark] {
-        func order(_ kind: EditableCue.Kind) -> Int {
-            if case let .hot(slot) = kind { return slot } else { return -1 }
-        }
-        return marks.sorted { ($0.start, order($0.kind)) < ($1.start, order($1.kind)) }
+        marks.sorted { ($0.start, order($0.kind)) < ($1.start, order($1.kind)) }
     }
 
     // MARK: 그리드
 
-    static func sameGrid(_ a: [GridSegment], _ b: [GridSegment]) -> Bool {
+    /// 구간이 같으면 바로 같고, 다르면 두 쪽 구간으로 곡 길이까지 박을 만들어 시각(1ms 반올림 오차 포함)·박 번호를 비교한다.
+    /// 변속 곡을 구간을 달리 나눠 적은 도구가 있어 구간 목록만 비교하면 거짓 차이가 난다.
+    static func sameGrid(_ a: [GridSegment], _ b: [GridSegment], duration: Double? = nil) -> Bool {
         let x = GridSegment.rekordboxNormalized(a), y = GridSegment.rekordboxNormalized(b)
-        guard x.count == y.count else { return false }
-        return zip(x, y).allSatisfy { p, q in
+        if x.count == y.count, zip(x, y).allSatisfy({ p, q in
             abs(p.start - q.start) < timeTolerance && abs(p.bpm - q.bpm) < 0.005 && p.firstBeatNumber == q.firstBeatNumber
-        }
+        }) { return true }
+        guard !x.isEmpty, !y.isEmpty else { return false }
+        let end = duration ?? (max(x.last!.start, y.last!.start) + 60)
+        let p = beats(x, duration: end), q = beats(y, duration: end)
+        guard p.count == q.count, !p.isEmpty else { return false }
+        return zip(p, q).allSatisfy { abs($0.time - $1.time) < 0.0015 && $0.number == $1.number }
+    }
+
+    /// 구간 → 박. 원본 대응 없이 만들어(경계 앞 반 박까지 앞 구간) 두 쪽이 같은 규칙을 따른다.
+    static func beats(_ segments: [GridSegment], duration: Double) -> [BeatGrid.Beat] {
+        GridDraft(trackUUID: "", base: [], segments: segments).grid(duration: duration).beats
     }
 
     // MARK: 태그
@@ -183,7 +277,8 @@ public enum XMLLibraryDiff {
             let trimmed = value.trimmingCharacters(in: .whitespaces)
             return trimmed.isEmpty ? "" : KeyNotation.camelot(from: trimmed) ?? trimmed
         default:
-            return value
+            // 글자는 NFC로 맞춘다(macOS·다른 도구가 NFD로 적을 때가 있다)
+            return value.precomposedStringWithCanonicalMapping
         }
     }
 
