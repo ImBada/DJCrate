@@ -570,14 +570,32 @@ len_tag 56이고 0x0C부터 `00 00 00 00 01 00 00 02`, 나머지가 0인 `PQT2`�
 폴더 성분(아티스트·앨범)은 이 순서로 짓는다.
 
 1. NFC로 맞춘다. 비었거나 공백·점뿐이면 `UnknownArtist`·`UnknownAlbum`(`emptyArtistAlbum`).
-2. `" * / : < > ? \ |`와 제어 문자(U+0000–U+001F, U+007F)를 `_`로 바꾼다. `:`·`/`만 확인했고, 나머지가 있었으면 `forbiddenCharacters`.
+2. `" * / : < > ? \ | ~`와 제어 문자(U+0000–U+001F, U+007F)를 `_`로 바꾼다. `" * / : > ? ~`는 확인했고, 나머지(`< \ |`·제어 문자)가 있었으면 `forbiddenCharacters`.
 3. 끝이 `.`이면 마지막 `.` 하나를 `_`로 바꾼다.
 4. 앞 48 유니코드 스칼라로 자른다(서로게이트를 가르지 않는다). 자른 성분에 보충 평면 글자가 있으면 `supplementaryCharacters`.
 5. 끝의 공백과 `.`을 모두 지운다.
 6. 비면 Unknown 이름.
 7. 앞 공백은 그대로 두고 `leadingSpace`.
 
-파일 이름은 `FileNameL`(NFC)에 같은 금지 글자 규칙을 쓴다. 48 스칼라 이하면 그대로 두고(줄기 끝의 공백·점도 그대로), 넘으면 확장자(마지막 `.` 뒤)를 남기고 줄기만 잘라 48에 맞춘 뒤 줄기 끝의 공백·점을 지운다(`fileNameTruncation`, 빈 줄기는 `_`). OneLibrary와 Device Library의 파일 이름은 최종 경로의 끝 성분이다.
+파일 이름은 음원 경로(`FolderPath`)의 끝 성분(NFC, 경로가 없으면 `FileNameL`)에 같은 금지 글자 규칙을 쓴다. 48 스칼라 이하면 그대로 두고(줄기 끝의 공백·점도 그대로), 넘으면 확장자(마지막 `.` 뒤)를 남기고 줄기만 잘라 48에 맞춘 뒤 줄기 끝의 공백·점을 지운다(`fileNameTruncation`, 빈 줄기는 `_`). OneLibrary와 Device Library의 파일 이름은 최종 경로의 끝 성분이다.
+
+근거(글자 바꾸기·파일 이름 원본): rekordbox 7.2.x가 빈 USB에 내보낸 704곡(2026-10-08 빈 USB 실험, #233)의 USB 경로를 로컬 스냅샷 사본의 아티스트·앨범·파일 이름과 견주었다.
+
+| 바뀐 글자 | 폴더 성분(아티스트·앨범, 서로 다른 이름 수) | 파일 이름 |
+|---|---|---|
+| `:` → `_` | 26 | 없음(macOS 파일 이름에 올 수 없음) |
+| `/` → `_` | 27 | 없음 |
+| `~` → `_` | 6 | 1 |
+| `"` → `_` | 6 | 본 적 없음 |
+| `*` → `_` | 4 | 본 적 없음 |
+| `?` → `_` | 5 | 본 적 없음 |
+| `>` → `_` | 2 | 본 적 없음 |
+| 끝 `.` → `_` | 5 | 바꾸지 않음(48 이하면 그대로) |
+
+- 그대로 둔 글자: ASCII `! # & ' ( ) + , - . = @ [ ] _`와 비ASCII 문장 부호·기호·공백·서식 문자(유니코드 범주 Pd·Ps·Pe·Pf·Po·Sm·So·Zs·Cf), 가나·한자·라틴 확장 글자(한글은 이 골든에 없었다). 자르기(48 스칼라, 폴더 이름 48개·파일 이름 3개)·끝 공백·점 지우기·NFC도 위 순서 그대로 맞았다. `< \ |`·제어 문자·빈 아티스트·앨범은 이 골든에 없어 확인하지 못했다.
+- 파일 이름은 `FileNameL`이 실제 파일 이름과 다른 곡(파일 이름을 바꾼 뒤 남은 옛 값) 1개를 rekordbox가 실제 파일 이름(`FolderPath` 끝 성분)으로 내보냈다.
+- 같은 로컬 사본으로 계획(`djc lab onelib-export`)한 경로를 골든과 견주면 내보낸 508곡 중 505곡이 같고, 3곡은 아티스트 폴더의 대소문자만 다르다: rekordbox는 대소문자만 다른 아티스트 이름을 곡마다 제 철자로 적고(FAT에서는 한 폴더), DJCrate는 먼저 지은 철자로 맞춘다(`pathCollision`, 아래). 고치기 전 DJCrate 내보내기는 500곡이 같고 5곡이 `~`·파일 이름 원본 때문에 달랐다.
+- 2026-10-09 전 DJCrate는 `~`를 그대로 두고 `FileNameL`로 지었다. 그때 쓴 USB의 곡도 알아보도록 `UsbTrackMatch`는 옛 이름(`~` 그대로)·`FileNameL` 이름도 받는다.
 
 ### 같은 경로가 될 때
 
@@ -600,6 +618,7 @@ FAT는 대소문자와 NFC·NFD를 가리지 않으므로 이름은 `UsbLayout.c
 
 - 원본: 로컬 `ImagePath`(share 기준 `…/artwork.jpg`)와 같은 폴더의 `artwork_s.jpg`(작은 그림) → `a{id}.jpg`·`b{id}.jpg`, `artwork_m.jpg`(중간) → `a{id}_m.jpg`·`b{id}_m.jpg`. 바이트를 그대로 복사하고 `artwork.jpg`는 쓰지 않는다. Device Library는 `a`, OneLibrary는 `b` 경로를 가리킨다.
 - image ID는 그림 있는 곡마다 새로 준다(같은 그림도 합치지 않음). 그림 없는 곡은 `artworkMissing`, `ImagePath`는 있는데 그림 파일이 없으면 그림 없이 내보내며 경고(`artworkMissingFile`)를 낸다.
+- rekordbox는 `ImagePath`가 있으면 그림 파일이 없어도 image 행을 만든다: 2026-10-08 빈 USB 실험(#233)의 704곡 중 40곡은 로컬 아트워크 폴더가 비어 있었는데(`artwork.jpg`·`_s`·`_m` 모두 없음, 39곡은 음원에 내장 그림도 없음), rekordbox는 두 형식에 image 행(ID 701개, 1부터 빈틈없음)을 만들고 그 40곡의 `a`·`b`·`_m` 파일은 USB에 쓰지 않았다(가리키는 파일이 없는 행). 내장 그림을 꺼내 쓰지도 않았다. DJCrate는 가리키는 파일이 없는 행을 쓰지 않고(검증기 ④) 그 곡을 그림 없이 내보낸다. 그래서 같은 곡에서 DJCrate의 image ID는 rekordbox보다 작게 이어진다(실제 그림은 같다).
 - 폴더는 `PIONEER/Artwork/%05d/`(1부터). 폴더 안 합(a·b·a_m·b_m)이 1,000,000바이트를 넘게 되면 다음 폴더로 간다. 빈 폴더에는 크기와 상관없이 넣는다. [추정] 나누는 기준은 관찰에서 추정했다 — 두 폴더 이상 쓰면 `artworkFolderSplit`.
 
 ### ID
@@ -867,7 +886,7 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 **연산별**(편집 하나가 막히면 그 편집만 빼고 나머지를 쓴다. 대상이 없으면 `targetMissing`):
 
 - 곡 빼기(`editRemoveTracks`): 기기 재생 기록(OneLibrary `history_content`·pdb 표 12)이 가리키는 곡은 막는다(`historyReferenced`). 남는 곡이 0이 되는 형식이 있으면 막는다(`lastTrack`). 행은 content(두 형식)·모든 목록 항목(형식마다 그 목록의 항목에서, 1..N 다시)·My Tag 연결을 빼고, 새로 고아가 된 artist·album·genre·key·label·image 행을 치운다(색·메뉴·카테고리·정렬·My Tag 정의는 USB 값 그대로). 곡 수 칸을 고치고, 지운 id는 다시 쓰지 않는다(저널 highWater). OneLibrary 단계에서 기기 큐·추천 행이 그 곡을 가리키면 그 편집만 되돌린다.
-- 곡 갱신(`editRefreshTracks`, 부분 `info`·`cues`·`grid`·`artwork`): 곡마다 판정해 막힌 곡만 빼고(`trackBlocks`, 그 곡을 보며 준비한 파일·이름·번호도 되돌린다) 요청한 곡이 모두 막혔을 때만 편집을 막는다. 로컬 짝은 `UsbTrackMatch`: 이 곡을 내보낸 라이브러리의 DB ID(`masterDbId` = pdb 트랙 0x18)와 곡 ID(`masterContentId` = `MasterSongID`, pdb 트랙 0x14)가 같은 로컬 곡 중, USB 경로 끝 성분이 그 곡의 `FileNameL` 그대로이거나 내보내기 이름 규칙(§5 금지 글자·자르기)으로 지은 이름, 또는 거기에 번호(` (2)`…` (99)`)를 붙인 이름인 곡 하나(FAT처럼 대소문자·NFC/NFD 무시, 그대로 맞는 곡이 번호로 맞는 곡보다 앞선다). 아티스트·앨범 폴더 성분은 보지 않는다(로컬에서 이름을 바꾼 곡도 갱신할 수 있게). 짝이 없거나 둘 이상이면 막는다. `UsbSyncStatus`: 기기에서 고친 곡(OneLibrary hasModified = 1 또는 기기 큐 행)은 통째로 건너뛰고 알리고, 로컬과 같으면 `unchanged`. 로컬 음원의 크기·SHA-1이 USB 파일과 다르면 막는다(`audioChanged` — 음원은 다시 쓰지 않는다). 기존 곡의 음원·분석 파일 경로는 바꾸지 않는다(아티스트 이름이 바뀌어도).
+- 곡 갱신(`editRefreshTracks`, 부분 `info`·`cues`·`grid`·`artwork`): 곡마다 판정해 막힌 곡만 빼고(`trackBlocks`, 그 곡을 보며 준비한 파일·이름·번호도 되돌린다) 요청한 곡이 모두 막혔을 때만 편집을 막는다. 로컬 짝은 `UsbTrackMatch`: 이 곡을 내보낸 라이브러리의 DB ID(`masterDbId` = pdb 트랙 0x18)와 곡 ID(`masterContentId` = `MasterSongID`, pdb 트랙 0x14)가 같은 로컬 곡 중, USB 경로 끝 성분이 그 곡의 원본 이름(음원 경로 끝 성분·`FileNameL`) 그대로이거나 내보내기 이름 규칙(§5 금지 글자·자르기, 2026-10-09 전 규칙 포함)으로 지은 이름, 또는 거기에 번호(` (2)`…` (99)`)를 붙인 이름인 곡 하나(FAT처럼 대소문자·NFC/NFD 무시, 그대로 맞는 곡이 번호로 맞는 곡보다 앞선다). 아티스트·앨범 폴더 성분은 보지 않는다(로컬에서 이름을 바꾼 곡도 갱신할 수 있게). 짝이 없거나 둘 이상이면 막는다. `UsbSyncStatus`: 기기에서 고친 곡(OneLibrary hasModified = 1 또는 기기 큐 행)은 통째로 건너뛰고 알리고, 로컬과 같으면 `unchanged`. 로컬 음원의 크기·SHA-1이 USB 파일과 다르면 막는다(`audioChanged` — 음원은 다시 쓰지 않는다). 기존 곡의 음원·분석 파일 경로는 바꾸지 않는다(아티스트 이름이 바뀌어도).
   - `info`: 곡 정보 칸을 로컬 값으로(평점·재생 수·hasModified·기록은 USB 값). 이름이 바뀐 아티스트·앨범·장르·키·레이블은 USB에 NFC로 정확히 같은 이름 행이 있으면 그 행, 없으면 새 id, 고아가 된 옛 행은 치운다.
   - `cues`·`grid`: 로컬 분석 파일 + djmdCue를 §4처럼 바꿔 DB에 적힌 자리(폴더·번호 그대로)의 셋을 덮어쓴다. 덮어쓸 USB 파일의 PPTH가 그 곡 경로여야 한다(아니면 그 곡 분석 파일은 고치지 않고 알리고, 큐·그리드 갱신 횟수 칸도 USB 값 그대로 둔다 — DB만 최신이라고 적으면 다음 갱신이 고치지 않는다). 고쳤거나 이미 같으면 갱신 횟수 칸도 로컬 값. 스냅샷 시각 뒤에 로컬 분석 파일이 바뀐 곡은 막는다(`analysisNewerThanSnapshot`).
   - `artwork`: 로컬 그림이 바뀌었으면 같은 image id·폴더의 a·b·_m을 덮어쓴다(형식별로 a는 Device Library, b는 OneLibrary). 덮어쓸 자리는 USB DB에 적힌 경로라, 아트워크 파일 모양(`PIONEER/Artwork/nnnnn/[ab]n(_m).jpg`, `..`·`._` 없음)이 아니면 그 곡을 막는다(`artworkPathRefused`). 그림이 새로 생긴 곡이나 다른 곡과 함께 쓰던 그림은 새 image id를 마지막 아트워크 폴더에 이어 둔다.
@@ -966,7 +985,7 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 | `artworkFolderSplit` | 확인 안 됨 | 아트워크를 여러 폴더로 나눠야 할 때 |
 | `artworkMissing` | 확인 안 됨 | 아트워크가 없는 곡을 쓸 때 |
 | `fileNameTruncation` | 확인 안 됨 | 음원 파일 이름을 줄여야 할 때 |
-| `forbiddenCharacters` | 확인 안 됨 | 이름에 FAT에서 쓸 수 없는 글자가 있을 때 |
+| `forbiddenCharacters` | 확인 안 됨 | 이름에 rekordbox에서 보지 못한 금지 글자(`< \ |`·제어 문자)가 있을 때(`" * / : > ? ~`는 확인, §5) |
 | `pathCollision` | 확인 안 됨 | 두 곡이 USB에서 같은 경로(대소문자·NFC/NFD 무시)가 될 때 |
 | `emptyArtistAlbum` | 확인 안 됨 | 아티스트나 앨범이 빈 곡 |
 | `supplementaryCharacters` | 확인 안 됨 | 이름에 이모지 등 보충 평면 글자가 있을 때 |

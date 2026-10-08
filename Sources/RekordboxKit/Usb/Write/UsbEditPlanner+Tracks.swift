@@ -31,10 +31,11 @@ extension UsbEditPlanner {
     static func localMatch(_ track: UsbTrack, database: CipherDatabase) throws -> String? {
         var keys: [UsbLocalTrackKey] = []
         try database.query("""
-            SELECT ID, MasterSongID, FileNameL FROM djmdContent
+            SELECT ID, MasterSongID, FileNameL, FolderPath FROM djmdContent
             WHERE rb_local_deleted = 0 AND CAST(MasterSongID AS INTEGER) = ? AND CAST(MasterDBID AS INTEGER) = ?
             """, [.int(Int(track.masterContentId)), .int(Int(track.masterDbId))]) { row in
-            keys.append(UsbLocalTrackKey(contentID: row.string(0) ?? "", masterSongID: row.string(1) ?? "", fileNameL: row.string(2) ?? ""))
+            keys.append(UsbLocalTrackKey(contentID: row.string(0) ?? "", masterSongID: row.string(1) ?? "", fileNameL: row.string(2) ?? "",
+                                         folderPath: row.string(3)))
         }
         let key = UsbTrackKey(masterDbId: track.masterDbId, masterContentId: track.masterContentId, fileName: track.fileName)
         return UsbTrackMatch.match(key, localDBID: track.masterDbId, local: keys)

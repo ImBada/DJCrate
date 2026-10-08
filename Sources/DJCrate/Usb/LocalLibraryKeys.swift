@@ -13,7 +13,7 @@ struct LocalTrackCounters: Sendable, Hashable {
 struct LocalLibraryKeys: Sendable {
     /// djmdProperty.DBID
     var localDBID: Int64
-    /// ContentID·MasterSongID·FileNameL
+    /// ContentID·MasterSongID·FileNameL·FolderPath
     var tracks: [UsbLocalTrackKey]
     /// 로컬 ContentID → 갱신 횟수
     var counters: [String: LocalTrackCounters]
@@ -28,10 +28,11 @@ struct LocalLibraryKeys: Sendable {
         var tracks: [UsbLocalTrackKey] = []
         var counters: [String: LocalTrackCounters] = [:]
         try database.query("""
-            SELECT ID, MasterSongID, FileNameL, TrackInfoUpdated, AnalysisUpdated, CueUpdated FROM djmdContent WHERE rb_local_deleted = 0
+            SELECT ID, MasterSongID, FileNameL, TrackInfoUpdated, AnalysisUpdated, CueUpdated, FolderPath FROM djmdContent WHERE rb_local_deleted = 0
             """) { row in
             guard let id = row.string(0) else { return }
-            tracks.append(UsbLocalTrackKey(contentID: id, masterSongID: row.string(1) ?? "", fileNameL: row.string(2) ?? ""))
+            tracks.append(UsbLocalTrackKey(contentID: id, masterSongID: row.string(1) ?? "", fileNameL: row.string(2) ?? "",
+                                           folderPath: row.string(6)))
             counters[id] = LocalTrackCounters(information: row.string(3), analysis: row.string(4), cue: row.string(5))
         }
         return LocalLibraryKeys(localDBID: dbid, tracks: tracks, counters: counters)

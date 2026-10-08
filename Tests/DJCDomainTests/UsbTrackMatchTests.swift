@@ -82,4 +82,29 @@ struct UsbTrackMatchTests {
         #expect(UsbTrackMatch.match(UsbTrackKey(masterDbId: localDBID, masterContentId: 802, fileName: "c (2).mp3"), localDBID: localDBID,
                                     local: twins) == nil)
     }
+
+    @Test("2026-10-09 전 이름 규칙(~를 그대로 둠)으로 쓴 USB 파일도 짝이 된다")
+    func legacyTildeNamesMatch() {
+        // 지금 규칙
+        #expect(match("a_b_.mp3", local: "a~b?.mp3") == "31")
+        // 옛 규칙: ~는 그대로, ?만 바꿈
+        #expect(match("a~b_.mp3", local: "a~b?.mp3") == "31")
+        #expect(match("a~b_ (2).mp3", local: "a~b?.mp3") == "31")
+        #expect(match("a_b_ (2).mp3", local: "a~b?.mp3") == "31")
+        #expect(match("a~b~.mp3", local: "a~b~.mp3") == "31")
+        #expect(match("a_b_.mp3", local: "a~b~.mp3") == "31")
+    }
+
+    @Test("음원 경로의 끝 성분으로 지은 USB 파일 이름도, 옛 FileNameL 이름도 짝이 된다")
+    func folderPathNameMatches() {
+        let locals = [UsbLocalTrackKey(contentID: "61", masterSongID: "901", fileNameL: "old name.mp3", folderPath: "/Music/new~name.mp3")]
+        func match(_ name: String) -> String? {
+            UsbTrackMatch.match(UsbTrackKey(masterDbId: localDBID, masterContentId: 901, fileName: name), localDBID: localDBID, local: locals)
+        }
+        #expect(match("new_name.mp3") == "61")
+        #expect(match("new~name.mp3") == "61")
+        #expect(match("new_name (2).mp3") == "61")
+        #expect(match("old name.mp3") == "61")
+        #expect(match("other.mp3") == nil)
+    }
 }

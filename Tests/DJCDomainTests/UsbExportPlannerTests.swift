@@ -9,9 +9,11 @@ struct UsbExportPlannerTests {
 
     func candidate(_ id: String, artist: String? = "Artist", album: String? = "Album", file: String? = nil, size: Int64 = 1_000,
                    artwork: Bool = true, fileType: Int = 1) -> UsbExportCandidate {
+        // 음원 경로의 끝 성분 = FileNameL(실제 라이브러리처럼). USB 파일 이름은 경로 끝 성분으로 짓는다.
         UsbExportCandidate(
             localContentID: id, masterSongID: id, masterDBID: "424242", artistName: artist, albumName: album,
-            fileNameL: file ?? "track \(id).mp3", sourcePath: "/music/\(id).mp3", isStreaming: false, fileType: fileType,
+            fileNameL: file ?? "track \(id).mp3", sourcePath: "/music/\(id)/" + (file ?? "track \(id).mp3"), isStreaming: false,
+            fileType: fileType,
             fileSize: size, actualFileSize: size, analysis: .complete, analysisModifiedAt: snapshot.addingTimeInterval(-3_600),
             artwork: artwork ? UsbArtworkSource(smallPath: "/share/\(id)_s.jpg", mediumPath: "/share/\(id)_m.jpg", smallBytes: 3_000,
                                                 mediumBytes: 20_000) : nil,
@@ -183,6 +185,17 @@ struct UsbExportPlannerTests {
         #expect(plan([candidate("1")], existing: existing).blocked.isEmpty)
     }
 
+    /// rekordbox 7.2.x 빈 USB 내보내기 골든(2026-10-08): `~`는 폴더·파일 이름에서 `_`, 파일 이름은 음원 경로의 끝 성분
+    @Test("골든: 경로 성분의 ~는 _로, 파일 이름은 음원 경로의 끝 성분으로")
+    func goldenTildeAndAudioFileName() {
+        var track = candidate("1", artist: "DJ ~One~", album: "Best ~Of~", file: "old.mp3")
+        track.sourcePath = "/music/1/01 Song ~Mix~.mp3"
+        let result = plan([track])
+        #expect(result.tracks.first?.contentsPath == "/Contents/DJ _One_/Best _Of_/01 Song _Mix_.mp3")
+        #expect(result.tracks.first?.fileName == "01 Song _Mix_.mp3")
+        #expect(result.tracks.first?.rules.contains(.forbiddenCharacters) == false)
+    }
+
     // MARK: - ID·아트워크
 
     @Test("content ID는 후보 순서")
@@ -288,7 +301,7 @@ struct UsbExportPlannerTests {
         #expect(inPlan.tracks.map { $0.rules.contains(.pathCollision) } == [false, true])
         // 같은 음원 파일을 가리키는 두 곡은 한 파일을 함께 쓴다
         var twin = candidate("3", file: "y.mp3")
-        twin.sourcePath = "/music/1.mp3"
+        twin.sourcePath = "/music/1/y.mp3"
         let shared = plan([candidate("1", file: "y.mp3"), twin])
         #expect(shared.tracks.map(\.audioDisposition) == [.create, .reuse])
         #expect(shared.tracks.map(\.fileName) == ["y.mp3", "y.mp3"])

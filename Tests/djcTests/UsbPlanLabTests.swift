@@ -9,7 +9,7 @@ import Testing
 struct UsbPlanLabTests {
     func candidate(_ id: String, artist: String, album: String, file: String) -> UsbExportCandidate {
         UsbExportCandidate(localContentID: id, masterSongID: id, masterDBID: "424242", artistName: artist, albumName: album, fileNameL: file,
-                           sourcePath: "/music/\(id)", isStreaming: false, fileType: 1, fileSize: 10, actualFileSize: 10, analysis: .complete,
+                           sourcePath: "/music/\(id)/\(file)", isStreaming: false, fileType: 1, fileSize: 10, actualFileSize: 10, analysis: .complete,
                            analysisModifiedAt: nil,
                            artwork: UsbArtworkSource(smallPath: "/s", mediumPath: "/m", smallBytes: 100_000, mediumBytes: 150_000),
                            artworkPathSetButMissing: false, cues: [], metadata: UsbTrackMetadataFlags())

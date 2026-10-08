@@ -35,6 +35,7 @@ public struct UsbExportCandidate: Codable, Hashable, Sendable {
     /// 곡 아티스트(앨범 아티스트가 아님)
     public var artistName: String?
     public var albumName: String?
+    /// djmdContent.FileNameL. USB 파일 이름은 음원 경로의 끝 성분으로 짓고, 경로가 없을 때만 이 값을 쓴다(`UsbPathRules.audioFileName`)
     public var fileNameL: String
     /// 로컬 음원 절대 경로(없으면 nil)
     public var sourcePath: String?
@@ -453,7 +454,7 @@ private struct PlanState {
     func resolvePath(_ candidate: UsbExportCandidate) -> ResolvedPath? {
         let artist = UsbPathRules.folderComponent(candidate.artistName, unknown: "UnknownArtist")
         let album = UsbPathRules.folderComponent(candidate.albumName, unknown: "UnknownAlbum")
-        let file = UsbPathRules.fileName(candidate.fileNameL)
+        let file = UsbPathRules.fileName(UsbPathRules.audioFileName(sourcePath: candidate.sourcePath, fileNameL: candidate.fileNameL))
         var rules = artist.rules.union(album.rules).union(file.rules)
 
         var parentKey = "", parentSpelling = ""

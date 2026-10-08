@@ -13,13 +13,14 @@ extension UsbEditPlanner {
         if let localTrackKeys { return localTrackKeys }
         var keys: [LocalIdentity: [UsbLocalTrackKey]] = [:]
         try database.query("""
-            SELECT ID, MasterSongID, MasterDBID, FileNameL FROM djmdContent WHERE rb_local_deleted = 0
+            SELECT ID, MasterSongID, MasterDBID, FileNameL, FolderPath FROM djmdContent WHERE rb_local_deleted = 0
             """) { row in
             guard let id = row.string(0) else { return }
             let song = row.string(1) ?? "", db = row.string(2) ?? ""
             let identity = LocalIdentity(database: UsbLibraryBuilder.sqliteInteger(db) ?? 0,
                                          song: UsbLibraryBuilder.sqliteInteger(song) ?? 0)
-            keys[identity, default: []].append(UsbLocalTrackKey(contentID: id, masterSongID: song, fileNameL: row.string(3) ?? ""))
+            keys[identity, default: []].append(UsbLocalTrackKey(contentID: id, masterSongID: song, fileNameL: row.string(3) ?? "",
+                                                                     folderPath: row.string(4)))
         }
         localTrackKeys = keys
         return keys

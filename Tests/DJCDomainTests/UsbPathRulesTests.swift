@@ -27,9 +27,31 @@ struct UsbPathRulesTests {
         #expect(file.rules.isEmpty)
     }
 
-    @Test("나머지 금지 글자와 제어 문자는 _로 바꾸고 forbiddenCharacters")
+    /// rekordbox 7.2.x 빈 USB 내보내기 골든(2026-10-08, 704곡): 로컬 아티스트·앨범·파일 이름과 USB 경로 성분을 견주어
+    /// 폴더 성분에서 `" * / : > ? ~`, 파일 이름에서 `~`가 `_`로 바뀐 것을 봤다. 이름은 관찰한 모양을 본뜬 합성 값이다.
+    @Test("골든: rekordbox가 바꾸는 글자(\" * / : > ? ~)는 _로 바꾸고 규칙이 없다")
+    func goldenReplacedCharacters() {
+        for character in ["\"", "*", "/", ":", ">", "?", "~"] {
+            let named = folder("A\(character)B")
+            #expect(named.value == "A_B", "\(character)")
+            #expect(named.rules.isEmpty, "\(character)")
+            let file = UsbPathRules.fileName("A\(character)B.mp3")
+            #expect(file.value == "A_B.mp3", "\(character)")
+            #expect(file.rules.isEmpty, "\(character)")
+        }
+        // 앨범 "abcd ~efgh ijk lmnopq~" 모양: 앞뒤 물결표 둘 다
+        #expect(UsbPathRules.folderComponent("Some ~Thing Was Here~", unknown: "UnknownAlbum").value == "Some _Thing Was Here_")
+        // 파일 "01 abcd ~EFG~.mp3" 모양
+        #expect(UsbPathRules.fileName("01 Song Name ~Mix~.mp3").value == "01 Song Name _Mix_.mp3")
+        // 48 스칼라를 넘는 앨범: 바꾼 뒤 자른다("….~01ab cdef…" 모양)
+        let long = String(repeating: "a", count: 30) + ".~01ab " + String(repeating: "c", count: 20)
+        #expect(UsbPathRules.folderComponent(long, unknown: "UnknownAlbum").value
+            == String(repeating: "a", count: 30) + "._01ab " + String(repeating: "c", count: 11))
+    }
+
+    @Test("rekordbox에서 보지 못한 금지 글자와 제어 문자는 _로 바꾸고 forbiddenCharacters")
     func forbiddenOthersFlagged() {
-        for character in ["?", "*", "\"", "<", ">", "\\", "|", "\u{0001}", "\u{001F}", "\u{007F}"] {
+        for character in ["<", "\\", "|", "\u{0001}", "\u{001F}", "\u{007F}"] {
             let named = folder("A\(character)B")
             #expect(named.value == "A_B", "\(character.unicodeScalars.first!.value)")
             #expect(named.rules == [.forbiddenCharacters])
@@ -163,11 +185,22 @@ struct UsbPathRulesTests {
 
     @Test("Contents 경로는 성분 규칙을 모은다")
     func contentsPathJoinsComponents() {
-        let path = UsbPathRules.contentsPath(artist: "Artist", album: nil, fileName: "a?b.mp3")
+        let path = UsbPathRules.contentsPath(artist: "Artist", album: nil, fileName: "a|b.mp3")
         #expect(path.value == "/Contents/Artist/UnknownAlbum/a_b.mp3")
         #expect(path.rules == [.emptyArtistAlbum, .forbiddenCharacters])
         let plain = UsbPathRules.contentsPath(artist: "A", album: "B", fileName: "f.flac")
         #expect(plain.value == "/Contents/A/B/f.flac")
         #expect(plain.rules.isEmpty)
+    }
+
+    @Test("골든: USB 파일 이름은 음원 경로의 끝 성분으로 짓는다(FileNameL이 옛 값이어도)")
+    func audioFileNameFromFolderPath() {
+        // rekordbox 7.2.x 빈 USB 내보내기(2026-10-08): FileNameL이 실제 파일 이름과 다른 곡 1개를 실제 파일 이름으로 내보냈다
+        #expect(UsbPathRules.audioFileName(sourcePath: "/Music/곡、이름.mp3", fileNameL: "old name.mp3") == "곡、이름.mp3")
+        #expect(UsbPathRules.audioFileName(sourcePath: "/Music/a.mp3", fileNameL: "a.mp3") == "a.mp3")
+        // 경로가 없거나 로컬 경로가 아니면 FileNameL
+        #expect(UsbPathRules.audioFileName(sourcePath: nil, fileNameL: "a.mp3") == "a.mp3")
+        #expect(UsbPathRules.audioFileName(sourcePath: "stream:1", fileNameL: "a.mp3") == "a.mp3")
+        #expect(UsbPathRules.audioFileName(sourcePath: "/", fileNameL: "a.mp3") == "a.mp3")
     }
 }
