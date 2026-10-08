@@ -85,6 +85,12 @@ struct ContentView: View {
         .sheet(item: Binding(get: { store.usb?.syncSheet }, set: { store.usb?.syncSheet = $0 })) { request in
             if let usb = store.usb {
                 UsbSyncView(store: store, usb: usb, request: request)
+                    // 동기화 시트는 쓰는 동안에도 열려 있어 창의 쓰기 덮개를 가린다. 같은 덮개를 시트 위에 띄운다
+                    .overlay {
+                        if let write = usb.activeWrite {
+                            UsbWritingOverlay(model: UsbWriteProgressModel(write), onCancel: { usb.cancelWrite() }).transition(.opacity)
+                        }
+                    }
             }
         }
         .sheet(item: Binding(get: { store.usb?.exportSheet }, set: { store.usb?.exportSheet = $0 })) { request in
