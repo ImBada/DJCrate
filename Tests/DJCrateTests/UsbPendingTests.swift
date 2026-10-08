@@ -47,8 +47,8 @@ struct UsbPendingTests {
             .playlist(edit: .reorder(playlist: .id("10"), index: 1)),
             .playlist(edit: .delete(playlist: .id("5"))),
         ]
-        let blockReason: (UsbLibraryEdit) -> String? = {
-            UsbEditActions.blockReason($0, volume: image, library: library, info: nil, isScratchMount: { _ in true })
+        let blockReason: (UsbLibraryEdit, [UsbLibraryEdit]) -> String? = { edit, _ in
+            UsbEditActions.blockReason(edit, volume: image, library: library, info: nil, isScratchMount: { _ in true })
         }
         let waiting = UsbPendingModel(volumeName: "B13T", isConnected: true, edits: edits, library: library, summary: nil, busy: false,
                                       blockReason: blockReason)

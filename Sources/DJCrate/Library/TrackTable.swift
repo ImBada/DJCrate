@@ -66,7 +66,7 @@ private struct TrackListView: NSViewRepresentable {
         }
         table.menu = context.coordinator.makeMenu()
         // 앱 안에서는 재생 목록에 넣거나 순서를 바꾸고, 앱 밖에는 음원 파일을 복사한다.
-        table.registerForDraggedTypes([PlaylistDragType.pasteboardTracks])
+        table.registerForDraggedTypes([PlaylistDragType.pasteboardTracks, PlaylistDragType.pasteboardUsbTracks])
         table.setDraggingSourceOperationMask([.copy, .move], forLocal: true)
         table.setDraggingSourceOperationMask(.copy, forLocal: false)
         table.draggingDestinationFeedbackStyle = .gap
@@ -1252,18 +1252,36 @@ final class TrackListTableView: NSTableView {
         }
     }
 
+    #if DEBUG
+    /// 자가 시험(`UsbDragCapture`)이 창 서버 끌기 세션 대신 표가 만든 끌 항목을 받는다(사용자 커서를 쓰지 않게)
+    var dragSessionInterceptor: (([NSDraggingItem]) -> NSDraggingSession)?
+
+    override func beginDraggingSession(with items: [NSDraggingItem], event: NSEvent, source: any NSDraggingSource) -> NSDraggingSession {
+        if let intercept = dragSessionInterceptor { return intercept(items) }
+        return super.beginDraggingSession(with: items, event: event, source: source)
+    }
+    #endif
+
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         let (row, column) = noteClick(at: point)
         let slowEdit = TrackListTagEditing.startsSlowEdit(clickCount: event.clickCount, row: row, selected: selectedRowIndexes,
                                                           modifiers: event.modifierFlags)
         coordinator?.cancelPendingEdit()
+        prepareDragFeedback()
         let drags = coordinator?.dragGeneration
         super.mouseDown(with: event)
+        // 간격 표시로 숨긴 줄은 끌기가 끝날 때 돌아온다. 끌기가 시작되지 않았는데 남아 있으면 지금 보인다(#240)
+        if coordinator?.dragGeneration == drags, !hiddenRowIndexes.isEmpty { unhideRows(at: hiddenRowIndexes, withAnimation: []) }
         // 누른 채 끌어 놓았으면(끌기가 마우스를 놓기 전에 시작됨) 고치지 않는다.
         if slowEdit, coordinator?.dragGeneration == drags, tableColumns.indices.contains(column) {
             coordinator?.scheduleEdit(row: row, column: tableColumns[column].identifier.rawValue)
         }
+    }
+
+    /// 끌기를 시작하기 전에 강조 모양을 정한다(끌기를 시작하려 할 때 간격 표시가 끄는 줄을 숨기므로 그보다 먼저)
+    func prepareDragFeedback() {
+        if let style = coordinator?.dragFeedbackStyle, draggingDestinationFeedbackStyle != style { draggingDestinationFeedbackStyle = style }
     }
 
     /// 누른 자리를 조정자에 기억시키고 (줄 번호, 칸 번호)를 돌려준다. 숨긴 칸·옮긴 칸이 있어도 칸 번호가 아니라 이름으로 잇는다.
@@ -1922,8 +1940,12 @@ extension TrackListCoordinator {
     /// 곡을 끌면 ID를 싣는다: 덱 위에 놓아 불러오기(#93), 사이드바 목록에 놓아 넣기, 목록 안에서 순서 바꾸기.
     /// 추가한 곡은 아직 rekordbox에 없어 재생 목록용으로는 싣지 않는다(덱에는 올릴 수 있다).
     func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> (any NSPasteboardWriting)? {
-        // USB 곡은 덱·재생 목록·앱 밖 어디로도 끌지 않는다(읽기 전용)
-        guard rows.indices.contains(row), !isEditing, !rows[row].isUsb else { return nil }
+        guard rows.indices.contains(row), !isEditing else { return nil }
+        // USB 곡은 USB 곡 형식만 싣는다: 같은 USB의 목록에 넣기·목록 안 순서 바꾸기(초안). 덱·로컬 목록·앱 밖으로는 끌지 않는다(#240)
+        if rows[row].isUsb {
+            guard case let .usb(target) = store.sidebar, store.usb?.acceptsEdits(target.volumeKey) == true else { return nil }
+            return UsbTrackDrag(row: rows[row], target: target)?.pasteboardItem
+        }
         let item = NSPasteboardItem()
         item.setString(rows[row].track.id, forType: DeckDragType.pasteboard)
         if !rows[row].isStaged { item.setString(rows[row].track.id, forType: PlaylistDragType.pasteboardTracks) }
@@ -1942,28 +1964,60 @@ extension TrackListCoordinator {
                    forRowIndexes rowIndexes: IndexSet) {
         dragGeneration += 1
         cancelPendingEdit()
-        // 간격 표시는 끄는 동안 끄는 줄을 숨긴다. 숨긴 채 덱에 곡이 올라가 목록 높이가 바뀌면 표 높이가 틀어지므로(#143)
-        // 목록 안에 놓아 순서를 바꿀 수 있을 때만 쓴다.
-        tableView.draggingDestinationFeedbackStyle = store.canReorderDisplayedTracks ? .gap : .regular
+        // 사이드바 USB 줄이 같은 USB의 목록에서만 USB 곡을 받게 끄는 볼륨을 알린다
+        if case let .usb(target) = store.sidebar, rowIndexes.contains(where: { rows.indices.contains($0) && rows[$0].isUsb }) {
+            store.usbDragVolume = target.volumeKey
+        } else {
+            store.usbDragVolume = nil
+        }
+        tableView.draggingDestinationFeedbackStyle = dragFeedbackStyle
+    }
+
+    /// 끌기 강조 모양. 간격 표시는 끄는 동안 끄는 줄을 숨긴다. 숨긴 채 덱에 곡이 올라가 목록 높이가 바뀌면 표 높이가 틀어지고(#143),
+    /// 끌 항목이 없어 끌기가 시작되지 않으면 숨긴 줄이 돌아오지 않아 고른 줄이 사라졌다(#240). 목록 안에 놓아 순서를 바꿀 수 있을 때만 쓴다
+    var dragFeedbackStyle: NSTableView.DraggingDestinationFeedbackStyle {
+        store.canReorderDisplayedTracks || store.usbReorderPlaylist != nil ? .gap : .regular
     }
 
     /// 끄는 줄을 숨긴 채 목록 높이가 바뀌면 AppKit이 표 높이를 줄 끝보다 짧게 잡고, 끌기가 끝나 줄을 다시 보여도 다시 재지 않는다.
     /// 그러면 놓은 뒤 휠 스크롤이 짧은 높이에 막혔다(#143). 표는 이 대리자를 부른 뒤에 줄을 다시 보이므로 다음 차례에 잰다.
     func tableView(_ tableView: NSTableView, draggingSession session: NSDraggingSession, endedAt screenPoint: NSPoint,
                    operation: NSDragOperation) {
+        store.usbDragVolume = nil
         Task { @MainActor [weak tableView] in tableView?.tile() }
     }
 
-    /// 목록을 # 순서로 볼 때만 줄 사이에 놓아 순서를 바꾼다.
+    /// 목록을 # 순서로 볼 때만 줄 사이에 놓아 순서를 바꾼다(로컬 재생 목록, 초안을 받는 USB 목록).
     func tableView(_ tableView: NSTableView, validateDrop info: any NSDraggingInfo, proposedRow row: Int,
                    proposedDropOperation dropOperation: NSTableView.DropOperation) -> NSDragOperation {
-        guard (info.draggingSource as? NSTableView) === tableView, store.canReorderDisplayedTracks else { return [] }
+        guard (info.draggingSource as? NSTableView) === tableView else { return [] }
+        if store.usbReorderPlaylist != nil {
+            guard !usbEntries(info).isEmpty else { return [] }
+        } else {
+            guard store.canReorderDisplayedTracks else { return [] }
+        }
         if dropOperation == .on { tableView.setDropRow(row, dropOperation: .above) }
         return .move
     }
 
+    /// 지금 보는 USB 목록에서 끈 항목(자리·곡)
+    private func usbEntries(_ info: any NSDraggingInfo) -> [PlaylistEntry] {
+        guard let target = store.usbReorderPlaylist else { return [] }
+        return UsbTrackDrag.entries(UsbTrackDrag.read(info.draggingPasteboard.pasteboardItems ?? []), volumeKey: target.volumeKey, playlist: target.id)
+    }
+
     func tableView(_ tableView: NSTableView, acceptDrop info: any NSDraggingInfo, row: Int,
                    dropOperation: NSTableView.DropOperation) -> Bool {
+        if let target = store.usbReorderPlaylist {
+            guard (info.draggingSource as? NSTableView) === tableView, let actions = store.usbEdits else { return false }
+            let dragged = UsbTrackDrag.read(info.draggingPasteboard.pasteboardItems ?? [])
+            let moving = Set(UsbTrackDrag.entries(dragged, volumeKey: target.volumeKey, playlist: target.id).map(\.trackNo))
+            guard !moving.isEmpty else { return false }
+            // 놓은 자리 아래에서 옮기지 않는 첫 항목 앞으로(없으면 맨 끝). 줄 번호는 초안을 얹은 목록의 자리다
+            let before = rows[min(row, rows.count)...].lazy.compactMap(\.playlistTrackNumber).first { !moving.contains($0) }
+            Task { await actions.moveEntries(dragged, before: before, volumeKey: target.volumeKey, playlist: target.id) }
+            return true
+        }
         guard let id = store.editablePlaylistID, store.canReorderDisplayedTracks else { return false }
         let ids = (info.draggingPasteboard.pasteboardItems ?? []).compactMap { $0.string(forType: PlaylistDragType.pasteboardTracks) }
         guard !ids.isEmpty else { return false }
