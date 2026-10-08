@@ -277,15 +277,22 @@ struct UsbEditActions {
         return connected + absent
     }
 
-    /// 이 편집이 막힐 까닭(모르면 nil). 메뉴 옆 도움말과 대기 목록에 쓴다
+    /// 새로 더할 편집이 막힐 까닭(모르면 nil). 메뉴 옆 도움말과 더하기 전 판정에 쓴다.
+    /// 목록 항목 자리는 쓰기 전 초안을 얹은 차례로 본다(목록 줄과 같다, 계획도 초안을 차례로 적용한다)
     func blockReason(_ edit: UsbLibraryEdit, volumeKey: String) -> String? {
-        Self.blockReason(edit, volume: usb.volume(volumeKey), library: usb.editLibrary(volumeKey), info: usb.infos[volumeKey],
+        Self.blockReason(edit, volume: usb.volume(volumeKey), library: usb.projectedLibrary(volumeKey), info: usb.infos[volumeKey],
                          isScratchMount: usb.isScratchMount, physicalGate: usb.physicalGate)
+    }
+
+    /// 이미 초안에 있는 편집 하나가 막힐 까닭(쓰기 대기 목록): 그 앞 편집까지 얹은 목록으로 본다
+    func blockReason(_ edit: UsbLibraryEdit, volumeKey: String, after earlier: [UsbLibraryEdit]) -> String? {
+        Self.blockReason(edit, volume: usb.volume(volumeKey), library: usb.editLibrary(volumeKey).map { UsbDraftProjection.library($0, edits: earlier) },
+                         info: usb.infos[volumeKey], isScratchMount: usb.isScratchMount, physicalGate: usb.physicalGate)
     }
 
     /// 동기화 묶음은 앞선 폴더 이동을 반영한 트리에서 차례로 검사한다.
     func blockReason(_ edits: [UsbLibraryEdit], volumeKey: String) -> String? {
-        Self.blockReason(edits, volume: usb.volume(volumeKey), library: usb.editLibrary(volumeKey), info: usb.infos[volumeKey],
+        Self.blockReason(edits, volume: usb.volume(volumeKey), library: usb.projectedLibrary(volumeKey), info: usb.infos[volumeKey],
                          isScratchMount: usb.isScratchMount, physicalGate: usb.physicalGate)
     }
 
@@ -668,11 +675,131 @@ struct UsbEditActions {
         }
     }
 
-    /// 끌어다 놓은 곡 ID(로컬 ContentID) → 곡 더하기 초안
+    /// 끌어다 놓은 곡 ID(로컬 ContentID) → 곡 더하기 초안(편집 › 실행 취소로 뺀다)
     @discardableResult
     func drop(_ ids: [String], on target: UsbSidebarTarget, rows: [String: TrackRow]) async -> Bool {
-        guard acceptsDrop(on: target) else { return false }
-        return await addTracks(ids.compactMap { rows[$0] }, to: target)
+        guard acceptsDrop(on: target), let edit = Self.addTracksEdit(ids.compactMap { rows[$0] }, target: target) else { return false }
+        let name = if case .playlist = target { String(ui: "USB 재생 목록에 넣기") } else { String(ui: "USB 컬렉션에 더하기") }
+        return await appendUndoable([edit], to: target.volumeKey, detail: UsbEditText.describe(edit, library: usb.editLibrary(target.volumeKey)),
+                                    actionName: name)
+    }
+
+    // MARK: - USB 곡 끌어 놓기(#240)
+
+    /// USB 곡을 놓을 수 있는 곳: 같은 USB의 일반 재생 목록. 컬렉션에는 이미 있고, 다른 USB로 옮기는 길은 없다
+    func acceptsUsbDrop(from volumeKey: String?, on target: UsbSidebarTarget) -> Bool {
+        guard case let .playlist(key, _) = target, key == volumeKey else { return false }
+        return acceptsDrop(on: target)
+    }
+
+    /// 끈 USB 곡 → 목록에 넣을 곡(끈 차례, 같은 곡은 한 번)과 이미 든 곡 수. 로컬 재생 목록에 넣기처럼 이미 든 곡은 넣지 않는다
+    static func usbTracksToAdd(_ dragged: [UsbTrackDrag], current: [Int]) -> (ids: [Int], duplicates: Int) {
+        let present = Set(current)
+        var seen: Set<Int> = [], duplicates: Set<Int> = []
+        var ids: [Int] = []
+        for drag in dragged where seen.insert(drag.contentID).inserted {
+            if present.contains(drag.contentID) { duplicates.insert(drag.contentID) } else { ids.append(drag.contentID) }
+        }
+        return (ids, duplicates.count)
+    }
+
+    /// 끌어 놓은 USB 곡을 같은 USB의 재생 목록 끝에 넣는다(초안, 편집 › 실행 취소로 뺀다). 이미 든 곡은 초안을 얹은 항목으로 본다
+    @discardableResult
+    func dropUsbTracks(_ dragged: [UsbTrackDrag], on target: UsbSidebarTarget) async -> Bool {
+        guard case let .playlist(key, id) = target, dragged.allSatisfy({ $0.volumeKey == key }), acceptsUsbDrop(from: key, on: target),
+              let library = usb.projectedLibrary(key), let playlist = library.playlists.first(where: { $0.id == id }) else { return false }
+        let (ids, duplicates) = Self.usbTracksToAdd(dragged, current: UsbLibraryRows.entries(of: playlist))
+        guard !ids.isEmpty else {
+            if duplicates > 0 { warnNotAdded(String(ui: "이미 들어 있는 곡이라 넣지 않았습니다")) }
+            return false
+        }
+        let edit = UsbLibraryEdit.playlist(edit: .addTracks(playlist: .id(String(id)), contentIDs: ids.map(String.init)))
+        var detail = UsbEditText.describe(edit, library: library)
+        if duplicates > 0 { detail += " · " + String(ui: "이미 들어 있는 \(duplicates)곡은 넣지 않았습니다") }
+        return await appendUndoable([edit], to: key, detail: detail, actionName: String(ui: "USB 재생 목록에 넣기"))
+    }
+
+    /// 옮길 항목(자리·곡)과 놓은 자리 아래에서 옮기지 않는 첫 항목의 자리(없으면 맨 끝) → 순서 바꾸기 편집. 그대로면 nil.
+    /// `to`는 로컬 재생 목록과 같게 옮기는 곡을 뺀 목록 기준의 자리다
+    static func moveEntriesEdit(_ moving: [PlaylistEntry], before: Int?, entries: [Int], playlist: Int) -> UsbLibraryEdit? {
+        let positions = Set(moving.map(\.trackNo))
+        guard !moving.isEmpty, moving.allSatisfy({ entries.indices.contains($0.trackNo - 1) && String(entries[$0.trackNo - 1]) == $0.contentID })
+        else { return nil }
+        let remaining = Array(1...entries.count).filter { !positions.contains($0) }
+        let to = before.flatMap { remaining.firstIndex(of: $0) }.map { $0 + 1 } ?? remaining.count + 1
+        var order = remaining
+        order.insert(contentsOf: moving.map(\.trackNo).sorted(), at: to - 1)
+        guard order != Array(1...entries.count) else { return nil }
+        return .playlist(edit: .moveTracks(playlist: .id(String(playlist)), entries: moving.sorted { $0.trackNo < $1.trackNo }, to: to))
+    }
+
+    /// USB 목록 안에서 끌어 순서를 바꾼다(초안, 편집 › 실행 취소로 뺀다). 자리는 초안을 얹은 목록 기준이다
+    @discardableResult
+    func moveEntries(_ dragged: [UsbTrackDrag], before: Int?, volumeKey: String, playlist id: Int) async -> Bool {
+        guard usb.acceptsEdits(volumeKey), let library = usb.projectedLibrary(volumeKey),
+              let playlist = library.playlists.first(where: { $0.id == id }),
+              let edit = Self.moveEntriesEdit(UsbTrackDrag.entries(dragged, volumeKey: volumeKey, playlist: id), before: before,
+                                              entries: UsbLibraryRows.entries(of: playlist), playlist: id) else { return false }
+        return await appendUndoable([edit], to: volumeKey, detail: UsbEditText.describe(edit, library: library),
+                                    actionName: String(ui: "USB 곡 순서 바꾸기"))
+    }
+
+    /// 막힐 편집이 아니면 더하고, 편집 › 실행 취소로 그 편집을 빼게 한다(로컬 재생 목록 끌어 놓기와 같다)
+    private func appendUndoable(_ edits: [UsbLibraryEdit], to volumeKey: String, detail: String, actionName: String) async -> Bool {
+        guard await appendChecked(edits, to: volumeKey, detail: detail) else { return false }
+        registerUndoAppend(edits, volumeKey: volumeKey, detail: detail, actionName: actionName)
+        return true
+    }
+
+    /// 실행 취소 → 더한 편집 빼기. 반대 동작(실행 복귀 = 다시 더하기)은 실행 취소 안에서 바로 건다
+    private func registerUndoAppend(_ edits: [UsbLibraryEdit], volumeKey: String, detail: String, actionName: String) {
+        let actions = self
+        registerUndoStep(actionName) {
+            actions.registerRedoAppend(edits, volumeKey: volumeKey, detail: detail, actionName: actionName)
+            Task { @MainActor in await actions.removeAppended(edits, volumeKey: volumeKey) }
+        }
+    }
+
+    private func registerRedoAppend(_ edits: [UsbLibraryEdit], volumeKey: String, detail: String, actionName: String) {
+        let actions = self
+        registerUndoStep(actionName) {
+            actions.registerUndoAppend(edits, volumeKey: volumeKey, detail: detail, actionName: actionName)
+            Task { @MainActor in _ = await actions.appendChecked(edits, to: volumeKey, detail: detail) }
+        }
+    }
+
+    /// 초안을 고친 뒤(비동기) 거는 실행 취소도 한 단계가 되게 따로 묶는다(태그 편집과 같다). 그렇지 않으면 같은 실행 루프 차례에
+    /// 걸린 다른 편집과 한 단계로 합쳐진다. 실행 취소·복귀 안에서는 관리자가 묶는다
+    private func registerUndoStep(_ actionName: String, _ handler: @escaping @MainActor () -> Void) {
+        guard let undoManager else { return }
+        let grouping = !undoManager.isUndoing && !undoManager.isRedoing
+        let groupsByEvent = undoManager.groupsByEvent
+        if grouping {
+            undoManager.groupsByEvent = false
+            undoManager.beginUndoGrouping()
+        }
+        undoManager.registerUndo(withTarget: usb) { _ in handler() }
+        undoManager.setActionName(actionName)
+        if grouping {
+            undoManager.endUndoGrouping()
+            undoManager.groupsByEvent = groupsByEvent
+        }
+    }
+
+    /// 초안 끝의 그 편집을 뺀다. 그 뒤에 다른 편집이 쌓였으면 뒤 편집의 자리가 어긋나므로 빼지 않고 알린다
+    private func removeAppended(_ edits: [UsbLibraryEdit], volumeKey: String) async {
+        let result = await mutateDraft(volumeKey) { current in
+            current.count >= edits.count && Array(current.suffix(edits.count)) == edits ? Array(current.dropLast(edits.count)) : nil
+        }
+        switch result {
+        case .success(nil):
+            host.toast = AppToast(kind: .warning, title: String(ui: "실행 취소하지 않았습니다"),
+                                  detail: String(ui: "그 뒤에 USB 쓰기 대기가 바뀌었습니다. USB 쓰기 대기에서 편집을 빼세요"), isUsb: true)
+        case .success:
+            break
+        case let .failure(error):
+            draftFailed(error)
+        }
     }
 
     /// USB 곡 줄의 content_id(`usb:<볼륨키>:<id>`)
@@ -910,4 +1037,14 @@ extension LibraryStore {
 
     /// USB 목록에서 고른 줄(표 순서, 같은 곡이 목록에 여러 번 있으면 줄마다)
     var selectedUsbRows: [TrackRow] { displayRows.filter { $0.isUsb && selection.contains($0.id) } }
+
+    /// 끌어서 곡 순서를 바꿀 수 있는 USB 목록(#240): 로컬 목록처럼 # 순으로 보고 검색으로 거르지 않을 때, 초안을 받는 일반 목록이고
+    /// 초안을 얹은 항목을 정할 수 있을 때(쓰기 전에는 곡 번호를 모르는 로컬 곡 넣기 초안이 있으면 아니다)
+    var usbReorderPlaylist: (volumeKey: String, id: Int)? {
+        guard case let .usb(.playlist(key, id)) = sidebar, sortOrder.isEmpty, search.trimmingCharacters(in: .whitespaces).isEmpty,
+              let usb, let actions = usbEdits, actions.acceptsDrop(on: .playlist(volumeKey: key, id: id)),
+              let library = usb.editLibrary(key), let playlist = library.playlists.first(where: { $0.id == id }),
+              UsbDraftProjection.entries(of: playlist, library: library, edits: usb.draftEdits[key] ?? []) != nil else { return nil }
+        return (key, id)
+    }
 }
