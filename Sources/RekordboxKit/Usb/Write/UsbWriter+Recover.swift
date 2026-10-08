@@ -333,6 +333,10 @@ extension UsbWriteRun {
             guard let tempName = entry.tempName else { continue }
             let temp = UsbPath.join(UsbPath.parent(entry.destination), tempName)
             guard entry.writePhase == nil || entry.writePhase == .renameEntered, try !exists(entry.destination) else { continue }
+            // 덮어쓴 파일(분석 파일·그림·선택 파일 등)의 rename 진입 뒤 대상이 없으면 FAT 두 단계 rename이 끊긴 것인지 그 사이
+            // 밖에서 지운 것인지 구분할 수 없다. 완전한 temp가 있어도 마저 쓰지 않고 승인을 받는 복원(`restorePending`)으로 멈춘다.
+            // 추측해 쓰면 밖에서 한 변경을 덮거나 지운 파일을 되살린다. DB는 USB에 DB가 없는 채로 둘 수 없어 위에서 마저 쓴다.
+            // (writePhase가 없는 옛 저널은 rename 진입을 적지 않아 아래 temp 해시로만 판단한다)
             if entry.disposition == .overwritten, entry.writePhase != nil { try restorationPending(path: entry.destination) }
             if let sha = entry.newSHA256, try isComplete(temp, sha256: sha) {
                 if entry.disposition == .created, try collides(entry.destination, temp: tempName) {
