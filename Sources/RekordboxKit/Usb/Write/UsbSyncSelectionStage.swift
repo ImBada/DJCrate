@@ -64,6 +64,19 @@ public enum UsbSyncSelectionStage {
                  message: String(ui: "동기화할 목록이나 곡을 모두 쓸 수 없어 동기화 선택도 갱신하지 않았습니다. 막힌 항목의 이유를 해결한 뒤 다시 시도하세요"))
     }
 
+    /// rekordbox가 SYNC 없이 다시 쓴 선택 파일(끝에 뿌리 행이 덧붙음)에서 켜짐만 바꾸려 할 때
+    static var pendingRekordboxSyncBlock: UsbBlock {
+        UsbBlock(code: "syncSelectionPendingRekordboxSync", scope: .volume,
+                 message: String(ui: "rekordbox가 동기화 없이 고쳐 쓴 USB 동기화 선택이라 켜짐만 바꿀 수 없습니다. rekordbox에서 이 USB를 한 번 동기화한 뒤 다시 시도하세요"))
+    }
+
+    /// 쓰기 전에 초안만 보고 아는 막힘. 켜짐만 바꾸는 초안의 원문이 rekordbox가 SYNC 없이 다시 쓴 모양이면 막는다.
+    public static func draftBlock(_ draft: UsbSyncSelectionDraft) -> UsbBlock? {
+        guard draft.enabledOnly else { return nil }
+        let pending = draft.baseFiles.values.contains { (try? UsbSyncSelectionFile.parse($0))?.isCanonicalWithTrailingDuplicateRoots == true }
+        return pending ? pendingRekordboxSyncBlock : nil
+    }
+
     static var changedBlock: UsbBlock {
         UsbBlock(code: "syncSelectionChanged", scope: .volume,
                  message: String(ui: "USB의 동기화 선택이 그 사이 바뀌었습니다. USB를 다시 읽은 뒤 동기화하세요"))
@@ -81,7 +94,9 @@ public enum UsbSyncSelectionStage {
               Set(syncWrites.map(\.destination)) == Set(expected.formats.map(UsbSyncSelectionFile.relativePath(for:))),
               syncWrites.allSatisfy({ $0.afterDatabases == true && $0.disposition != .reuse }),
               !expected.formats.isEmpty else { return [incompleteBlock] }
-        if let block = gateBlock(baseFiles: expected.draft.baseFiles, formats: expected.formats) { return [block] }
+        if let block = gateBlock(baseFiles: expected.draft.baseFiles, formats: expected.formats) ?? draftBlock(expected.draft) {
+            return [block]
+        }
         if try !matchesBase(expected.draft, formats: expected.formats, root: root, fileSystem: fileSystem) { return [changedBlock] }
         for format in expected.formats {
             let path = UsbSyncSelectionFile.relativePath(for: format)
@@ -199,6 +214,8 @@ public enum UsbSyncSelectionStage {
                 try UsbSyncSelectionXML.verify(data: bytes, draft: resolvedDraft, format: format, playlistIDs: ids[format] ?? [:], contract: contract)
             } catch UsbSyncSelectionXML.RenderError.missingSourceNode {
                 throw UsbError.writeRefused([sourceNodeBlock])
+            } catch UsbSyncSelectionXML.RenderError.pendingRekordboxSync {
+                throw UsbError.writeRefused([pendingRekordboxSyncBlock])
             } catch {
                 throw UsbError.writeRefused([incompleteBlock])
             }

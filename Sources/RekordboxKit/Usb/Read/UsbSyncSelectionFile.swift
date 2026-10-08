@@ -66,7 +66,11 @@ public struct UsbSyncSelectionFile: Sendable, Equatable {
     public let data: Data
     public let rootAttributes: [String: String]
     public let playlistAttributes: [String: String]
+    /// 중복을 접은 행. 끝에 덧붙은 뿌리 행은 `trailingDuplicateRootNodes`에만 둔다.
     public let nodes: [Node]
+    /// rekordbox가 SYNC 없이 다시 쓰며 끝에 덧붙인 뿌리 행(같은 라이브러리의 첫 뿌리 행과 칸마다 같다). 선택에는 넣지 않는다.
+    let trailingDuplicateRootNodes: [Node]
+    public var trailingDuplicateRoots: Int { trailingDuplicateRootNodes.count }
 
     public static func relativePath(for format: UsbFormat) -> String {
         "PIONEER/rekordbox/" + (format == .deviceLibrary ? "playlists3.sync" : "playlists3Plus.sync")
@@ -81,7 +85,7 @@ public struct UsbSyncSelectionFile: Sendable, Equatable {
               let dbID = rootValues["DBID"], databaseID(dbID) != nil,
               let time = rootValues["Timestamp"], validTimestamp(time) else { throw ParseError.invalidFile }
         let playlists = root.elements(forName: "Playlists")[0]
-        var nodes: [Node] = [], byKey: [String: Node] = [:]
+        var parsed: [Node] = []
         for child in playlists.children ?? [] {
             if let element = child as? XMLElement {
                 guard element.name == "NODE", element.elements(forName: "NODE").isEmpty,
@@ -98,13 +102,26 @@ public struct UsbSyncSelectionFile: Sendable, Equatable {
                       ["0", "1", "2"].contains(values["CheckType"] ?? ""),
                       let device = values["Dev_ID"], decimal(device) != nil,
                       let timestamp = values["Timestamp"], validTimestamp(timestamp) else { throw ParseError.invalidFile }
-                let node = Node(attributes: values)
-                guard byKey[node.key] == nil, node.isFolder || node.checkType != 2 else { throw ParseError.invalidFile }
-                byKey[node.key] = node
-                nodes.append(node)
+                parsed.append(Node(attributes: values))
             } else if child.kind == .text, !(child.stringValue ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 throw ParseError.invalidFile
             }
+        }
+        // 2026-10-08 정상 USB 실험: rekordbox가 켜진 채 체크한 원본의 이름을 바꾸거나 옮기거나 지우면 SYNC 없이
+        // playlists3Plus.sync만 다시 쓰며, 마지막 덩어리의 뿌리 행을 `</Playlists>` 바로 앞에 한 번 더 붙였다
+        // (첫 뿌리 행과 바이트까지 같고, 빼면 앞 단계 파일과 같았다. 다음 SYNC는 이 행 없이 다시 쓴다).
+        // 끝에 붙은, 같은 라이브러리의 첫 뿌리 행과 칸마다 같은 뿌리 행만 접는다. 다른 중복은 그대로 거부한다.
+        var end = parsed.count
+        while end > 1, parsed[end - 1].isRoot,
+              let first = parsed[..<(end - 1)].first(where: { $0.key == parsed[end - 1].key }),
+              first.attributes == parsed[end - 1].attributes {
+            end -= 1
+        }
+        var nodes: [Node] = [], byKey: [String: Node] = [:]
+        for node in parsed[..<end] {
+            guard byKey[node.key] == nil, node.isFolder || node.checkType != 2 else { throw ParseError.invalidFile }
+            byKey[node.key] = node
+            nodes.append(node)
         }
         for node in nodes {
             if node.isRoot {
@@ -118,7 +135,8 @@ public struct UsbSyncSelectionFile: Sendable, Equatable {
                 }
             }
         }
-        return Self(data: data, rootAttributes: rootValues, playlistAttributes: try Self.attributes(of: playlists), nodes: nodes)
+        return Self(data: data, rootAttributes: rootValues, playlistAttributes: try Self.attributes(of: playlists), nodes: nodes,
+                    trailingDuplicateRootNodes: Array(parsed[end...]))
     }
 
     static func document(_ data: Data) throws -> XMLDocument {
@@ -174,6 +192,14 @@ public struct UsbSyncSelectionFile: Sendable, Equatable {
     public var isCanonical: Bool {
         guard playlistAttributes.isEmpty else { return false }
         return (try? UsbSyncSelectionXML.canonical(root: rootAttributes, nodes: nodes.map(\.attributes))) == data
+    }
+
+    /// rekordbox 모양에 끝 뿌리 행만 덧붙은 원문인지. 접은 행을 다시 붙인 모양이 원문 바이트와 같아야 한다.
+    /// 다음 SYNC처럼 덧붙은 행 없이 다시 쓸 수 있다(켜짐만 바꾸는 쓰기는 막는다, `UsbSyncSelectionXML.render`).
+    public var isCanonicalWithTrailingDuplicateRoots: Bool {
+        guard !trailingDuplicateRootNodes.isEmpty, playlistAttributes.isEmpty else { return false }
+        let all = (nodes + trailingDuplicateRootNodes).map(\.attributes)
+        return (try? UsbSyncSelectionXML.canonical(root: rootAttributes, nodes: all)) == data
     }
 
     var selectionState: [String] {

@@ -288,4 +288,57 @@ struct UsbSyncSelectionFileTests {
             #expect(throws: UsbSyncSelectionFile.ParseError.invalidFile) { try UsbSyncSelectionFile.parse(Self.file(nodes)) }
         }
     }
+
+    // MARK: - rekordbox가 SYNC 없이 다시 쓴 파일(2026-10-08 정상 USB 실험)
+
+    /// 두 라이브러리 덩어리가 있는 원문. rekordbox가 켜진 채 원본을 바꾸면 마지막 덩어리(iTunes)의 뿌리 행이 끝에 한 번 더 붙었다.
+    static let twoLibraries = [
+        node("0", folder: true, library: 0, device: 0, check: 2),
+        node("11", library: 0, device: 5, timestamp: 100),
+        node("0", folder: true, device: 0, check: 2),
+        node("F", folder: true, device: 1),
+        node("A", parent: "F", device: 2),
+    ]
+    static let twoLibrarySource: [UsbSyncSourceNode] = source + [.init(id: "17", parentID: nil, isFolder: false, timestamp: 100)]
+
+    @Test func 끝에_덧붙은_뿌리_행_하나는_접어_원래_선택과_같게_읽는다() throws {
+        let original = try UsbSyncSelectionFile.parse(Self.file(Self.twoLibraries))
+        let data = Self.file(Self.twoLibraries + [Self.twoLibraries[2]])
+        let rewritten = try UsbSyncSelectionFile.parse(data)
+        #expect(rewritten.trailingDuplicateRoots == 1 && original.trailingDuplicateRoots == 0)
+        #expect(rewritten.nodes == original.nodes && rewritten.data == data)
+        // 엄격한 모양 판정은 그대로 거짓이고, 덧붙은 행을 다시 붙인 모양만 원문과 같다.
+        #expect(!rewritten.isCanonical && rewritten.isCanonicalWithTrailingDuplicateRoots)
+        #expect(original.isCanonical && !original.isCanonicalWithTrailingDuplicateRoots)
+        // rekordbox는 OneLibrary 파일만 다시 쓴다. 두 형식의 선택은 같은 것으로 본다.
+        let bundle = UsbSyncSelectionBundle(files: [.deviceLibrary: original, .oneLibrary: rewritten])
+        #expect(bundle.semanticFingerprint != nil
+            && bundle.semanticFingerprint == UsbSyncSelectionBundle(files: [.deviceLibrary: original]).semanticFingerprint)
+        let ids: [UsbFormat: Set<Int>] = [.deviceLibrary: [1, 2, 5], .oneLibrary: [1, 2, 5]]
+        let result = bundle.resolution(sourceNodes: Self.twoLibrarySource, localDBID: Self.localDBID, usbPlaylistIDs: ids)
+        #expect(result.issues.isEmpty)
+        #expect(result.selection.selectedIDs == ["17", "itunes:F", "itunes:A"])
+        #expect(result.playlistIDs == ["17": 5, "itunes:F": 1, "itunes:A": 2])
+        // 끝 행 뒤에 주석이 있으면 읽기는 하지만 고쳐 쓸 모양은 아니다.
+        let commented = try UsbSyncSelectionFile.parse(Data(String(decoding: data, as: UTF8.self)
+            .replacingOccurrences(of: "  </Playlists>", with: "    <!--합성-->\r\n  </Playlists>").utf8))
+        #expect(commented.trailingDuplicateRoots == 1 && !commented.isCanonicalWithTrailingDuplicateRoots)
+    }
+
+    @Test func 값이_다른_뿌리_행_가운데의_중복_뿌리가_아닌_중복은_여전히_거부한다() {
+        let root = Self.twoLibraries[2]
+        for nodes in [
+            // 같은 키지만 칸 값이 다른 뿌리 행
+            Self.twoLibraries + [root.replacingOccurrences(of: "CheckType=\"2\"", with: "CheckType=\"1\"")],
+            Self.twoLibraries + [root.replacingOccurrences(of: "Timestamp=\"0\"", with: "Timestamp=\"1\"")],
+            // 같은 뿌리 행이지만 뒤에 다른 행이 있다
+            Self.twoLibraries + [root, Self.node("C", device: 3)],
+            Array(Self.twoLibraries.prefix(3)) + [root] + Self.twoLibraries.suffix(2),
+            // 뿌리가 아닌 행의 끝 중복
+            Self.twoLibraries + [Self.twoLibraries[4]],
+            Self.twoLibraries + [Self.twoLibraries[3]],
+        ] {
+            #expect(throws: UsbSyncSelectionFile.ParseError.invalidFile) { try UsbSyncSelectionFile.parse(Self.file(nodes)) }
+        }
+    }
 }

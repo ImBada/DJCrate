@@ -228,4 +228,39 @@ struct UsbSyncSelectionXMLTests {
                 == expected.replacingOccurrences(of: "AutomaticSync=\"1\"", with: "AutomaticSync=\"0\""))
         }
     }
+
+    // MARK: - rekordbox가 SYNC 없이 다시 쓴 원문(2026-10-08 정상 USB 실험)
+
+    /// `base` 끝에 마지막 덩어리의 뿌리 행이 한 번 더 붙은 원문
+    static let rewrittenBase = UsbSyncSelectionFileTests.file([
+        UsbSyncSelectionFileTests.node("0", folder: true, device: 0, check: 2),
+        UsbSyncSelectionFileTests.node("F", folder: true, device: 21),
+        UsbSyncSelectionFileTests.node("A", parent: "F", device: 22),
+        UsbSyncSelectionFileTests.node("B", parent: "F", device: 23),
+        UsbSyncSelectionFileTests.node("0", folder: true, device: 0, check: 2),
+    ])
+
+    @Test func 끝_뿌리_행이_덧붙은_원문도_다음_SYNC처럼_그_행_없이_새로_쓴다() throws {
+        let selection: Set<String> = ["101", "itunes:F", "itunes:C"]
+        let output = try render(draft(selection, base: Self.rewrittenBase))
+        #expect(output == (try render(draft(selection))))
+        #expect(try UsbSyncSelectionFile.parse(output).isCanonical)
+        try UsbSyncSelectionXML.verify(data: output, draft: draft(selection, base: Self.rewrittenBase), format: .deviceLibrary,
+                                       playlistIDs: ["b": 13, "ib": 23], contract: Self.contract)
+        // 선택을 그대로 두고 쓰면 덧붙은 행만 빠진 원문이 된다.
+        #expect(try render(draft(["itunes:F"], base: Self.rewrittenBase)) == (try render(draft(["itunes:F"]))))
+        #expect(UsbSyncSelectionStage.draftBlock(draft(selection, base: Self.rewrittenBase)) == nil)
+    }
+
+    @Test func 끝_뿌리_행이_덧붙은_원문에서_켜짐만_바꾸는_쓰기는_rekordbox_SYNC를_먼저_요구한다() throws {
+        for enabled in [true, false] {
+            let request = UsbSyncSelectionDraft.enabledOnly(localDBID: Self.localDBID, enabled: enabled,
+                                                            baseFiles: [.deviceLibrary: Self.base, .oneLibrary: Self.rewrittenBase])
+            #expect(throws: UsbSyncSelectionXML.RenderError.pendingRekordboxSync) { try render(request, format: .oneLibrary, ids: [:]) }
+            #expect(UsbSyncSelectionStage.draftBlock(request)?.code == "syncSelectionPendingRekordboxSync")
+            let canonical = UsbSyncSelectionDraft.enabledOnly(localDBID: Self.localDBID, enabled: enabled,
+                                                              baseFiles: [.deviceLibrary: Self.base, .oneLibrary: Self.base])
+            #expect(UsbSyncSelectionStage.draftBlock(canonical) == nil)
+        }
+    }
 }

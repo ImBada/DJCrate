@@ -343,7 +343,8 @@ struct UsbEditActions {
                             isScratchMount: (String) -> Bool = UsbEditActions.isScratchMount,
                             physicalGate: UsbPhysicalWriteGate = .init()) -> String? {
         if case let .syncSelection(draft) = edit,
-           let block = library.map({ UsbSyncSelectionStage.gateBlock(baseFiles: draft.baseFiles, formats: $0.formats) }) ?? UsbSyncSelectionStage.productionBlock {
+           let block = (library.map({ UsbSyncSelectionStage.gateBlock(baseFiles: draft.baseFiles, formats: $0.formats) }) ?? UsbSyncSelectionStage.productionBlock)
+               ?? UsbSyncSelectionStage.draftBlock(draft) {
             return block.message
         }
         if let volume {

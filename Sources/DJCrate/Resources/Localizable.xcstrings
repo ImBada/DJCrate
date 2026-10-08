@@ -10541,6 +10541,22 @@
         }
       }
     },
+    "rekordbox가 동기화 없이 고쳐 쓴 USB 동기화 선택이라 켜짐만 바꿀 수 없습니다. rekordbox에서 이 USB를 한 번 동기화한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox rewrote this USB’s sync selection without syncing, so the sync setting alone can’t be changed. Sync this USB once in rekordbox, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxが同期せずにこのUSBの同期選択を書き換えたため、同期のオン/オフだけを変更できません。rekordboxでこのUSBを一度同期してから再試行してください。"
+          }
+        }
+      }
+    },
     "rekordbox가 분석 때 넣은 메모리 큐입니다. 고치면 일반 큐가 됩니다" : {
       "localizations" : {
         "en" : {

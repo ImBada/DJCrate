@@ -19,7 +19,8 @@ extension UsbEditEngine {
             if case let .syncSelection(draft) = edit { (offset + 1, draft) } else { nil }
         }
         if let selection = selections.first {
-            if let block = UsbSyncSelectionStage.gateBlock(baseFiles: selection.draft.baseFiles, formats: source.formats) { whole.append(block) }
+            if let block = UsbSyncSelectionStage.gateBlock(baseFiles: selection.draft.baseFiles, formats: source.formats)
+                ?? UsbSyncSelectionStage.draftBlock(selection.draft) { whole.append(block) }
             if selections.count != 1 || !source.formatsBlocked.isEmpty { whole.append(UsbSyncSelectionStage.incompleteBlock) }
         }
         if whole.isEmpty, source.writable.isEmpty {

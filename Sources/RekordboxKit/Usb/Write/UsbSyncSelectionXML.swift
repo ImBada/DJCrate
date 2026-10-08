@@ -20,6 +20,8 @@ public struct UsbSyncXMLWriteContract: Codable, Hashable, Sendable {
 public enum UsbSyncSelectionXML {
     public enum RenderError: Error, LocalizedError, Equatable, Sendable {
         case invalidSource, missingPlaylist, missingSourceNode, contractMismatch, verificationFailed
+        /// 원문 끝에 rekordbox가 SYNC 없이 덧붙인 뿌리 행이 있는데 켜짐만 바꾸려 한다
+        case pendingRekordboxSync
         public var errorDescription: String? {
             switch self {
             case .invalidSource:
@@ -32,6 +34,8 @@ public enum UsbSyncSelectionXML {
                 String(ui: "USB 동기화 파일이 확인한 형식과 다릅니다. rekordbox에서 다시 동기화한 뒤 읽으세요")
             case .verificationFailed:
                 String(ui: "USB 동기화 선택을 다시 읽으니 쓴 내용과 다릅니다. USB를 다시 읽은 뒤 동기화하세요")
+            case .pendingRekordboxSync:
+                UsbSyncSelectionStage.pendingRekordboxSyncBlock.message
             }
         }
     }
@@ -85,8 +89,11 @@ public enum UsbSyncSelectionXML {
         var original: UsbSyncSelectionFile?
         if let base = draft.baseFiles[format] {
             let file = try UsbSyncSelectionFile.parse(base)
+            // 끝에 덧붙은 뿌리 행만 있는 원문(rekordbox가 SYNC 없이 다시 쓴 파일)은 다음 SYNC처럼 그 행 없이 새로 쓴다.
+            // 켜짐만 바꾸는 쓰기는 rekordbox처럼 다른 칸·NODE를 그대로 둘 수 없어 막는다.
+            if file.isCanonicalWithTrailingDuplicateRoots, draft.enabledOnly { throw RenderError.pendingRekordboxSync }
             // 모르는 칸·요소·주석이 있는 원문은 뜻을 추측하지 않는다.
-            guard file.isCanonical, file.rootAttributes["DBID"] == databaseID,
+            guard file.isCanonical || file.isCanonicalWithTrailingDuplicateRoots, file.rootAttributes["DBID"] == databaseID,
                   ["0", "1"].contains(file.rootAttributes["AutomaticSync"] ?? "") else { throw RenderError.contractMismatch }
             root = file.rootAttributes
             original = file
@@ -162,7 +169,8 @@ public enum UsbSyncSelectionXML {
         var nodes: [[String: String]] = []
         func append(_ source: UsbSyncSourceNode, library: Int) throws {
             let check = states[source.id, default: 0]
-            // 해제한 목록은 행이 빠진다. USB의 목록은 남는다(rekordbox와 같다).
+            // 해제한 목록은 행이 빠진다. 그 행이 가리키던 USB 목록은 두 형식이 맞는 USB면 rekordbox도 SYNC 때 지운다
+            // (2026-10-08 정상 USB 실험). 지우는 것은 동기화 계획(`UsbSyncPlan`)이 맡는다.
             guard check > 0 else { return }
             guard let timestamp = source.timestamp, timestamp >= 0 else { throw RenderError.missingSourceNode }
             guard let ref = draft.playlistRefs[source.id], ref != .root else { throw RenderError.missingPlaylist }

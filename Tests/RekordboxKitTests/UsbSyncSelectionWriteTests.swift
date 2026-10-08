@@ -217,6 +217,39 @@ struct UsbSyncSelectionWriteTests {
             }
         }
     }
+
+    // MARK: - rekordbox가 SYNC 없이 다시 쓴 OneLibrary 선택 파일(2026-10-08 정상 USB 실험)
+
+    @Test("끝 뿌리 행이 덧붙은 OneLibrary 원문도 고쳐 쓰고 검증하며, 되돌리면 원래 바이트로 돌아온다")
+    func rewrittenOneLibraryFileIsWrittenCanonicallyAndRestored() throws {
+        let env = try UsbEditEngineTests.exported()
+        let (fresh, dbid, usbID) = try newFileDraft(env)
+        // 두 파일은 같은 선택이고, rekordbox가 켜진 채 다시 쓴 OneLibrary 파일에만 뿌리 행이 하나 더 붙어 있다.
+        let rows = [UsbSyncSelectionFileTests.node("0", folder: true, library: 0, device: 0, check: 2),
+                    UsbSyncSelectionFileTests.node("384", library: 0, device: usbID, timestamp: 1_700_000_000_900)]
+        let deviceLibrary = UsbSyncSelectionFileTests.file(rows, dbid: dbid)
+        let oneLibrary = UsbSyncSelectionFileTests.file(rows + [rows[0]], dbid: dbid)
+        env.usb.write(UsbSyncSelectionFile.relativePath(for: .deviceLibrary), deviceLibrary)
+        env.usb.write(UsbSyncSelectionFile.relativePath(for: .oneLibrary), oneLibrary)
+        let baseFiles: [UsbFormat: Data] = [.deviceLibrary: deviceLibrary, .oneLibrary: oneLibrary]
+        let before = env.usb.tree(), backups = env.usb.backupFolders()
+
+        // 켜짐만 바꾸는 쓰기는 백업 전에 막는다.
+        let enabledOnly = try plan(env, [.syncSelection(draft: .enabledOnly(localDBID: fresh.localDBID, enabled: true, baseFiles: baseFiles))])
+        #expect(enabledOnly.blocks.map(\.code) == ["syncSelectionPendingRekordboxSync"])
+        #expect(enabledOnly.changes == nil && env.usb.tree() == before && env.usb.backupFolders() == backups)
+
+        // 선택 쓰기는 다음 SYNC처럼 덧붙은 행 없이 두 파일을 같은 모양으로 쓴다.
+        let planned = try plan(env, [.syncSelection(draft: fresh.with(baseFiles: baseFiles))])
+        #expect(planned.blocks.map(\.code) == [])
+        #expect(try env.write(planned).outcome == .written)
+        for format in UsbFormat.allCases {
+            #expect(env.usb.data(UsbSyncSelectionFile.relativePath(for: format)) == newFileBytes(dbid: dbid, usbID: usbID))
+        }
+        #expect(try env.usb.restore().outcome == .restored)
+        #expect(env.usb.tree() == before)
+        #expect(env.usb.data(UsbSyncSelectionFile.relativePath(for: .oneLibrary)) == oneLibrary)
+    }
 }
 
 private extension UsbSyncSelectionDraft {
