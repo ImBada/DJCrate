@@ -25,14 +25,16 @@ struct UsbSyncNativeSelectionTests {
         #expect(!choice.usesSavedPreferences)
     }
 
-    @Test("USB 원본 지문이 같으면 아직 쓰지 않은 앱 선택을 유지한다")
-    func unchangedNativeSelectionKeepsUnsavedAppSelection() {
+    /// 2026-10-08 실험 G2a·G5b: rekordbox는 동기화하지 않고 닫으면 체크 변경을 버리고, 꺼진 동안에는 체크를 바꿀 수 없다.
+    /// 그래서 앱이 저장한 옛 선택(꺼진 채 바꾼 체크 포함)을 다시 채택하지 않고 USB 선택 파일을 따른다.
+    @Test("USB 원본 지문이 같아도 선택과 켜짐은 USB 선택 파일을 따르고 저장한 연결만 이어 쓴다")
+    func unchangedNativeSelectionFollowsNativeFiles() {
         let choice = UsbSyncPreferenceChoice.resolve(preferences: preferences(fingerprint: "native-first"), localDBID: localDBID,
                                                      hasNativeFiles: true, fingerprint: "native-first",
                                                      nativeSelection: native, nativeEnabled: true,
                                                      fallbackSelection: ITunesSyncSelection())
-        #expect(choice.selection == app)
-        #expect(!choice.enabled)
+        #expect(choice.selection == native)
+        #expect(choice.enabled)
         #expect(choice.usesSavedPreferences)
     }
 
@@ -109,5 +111,33 @@ struct UsbSyncNativeSelectionTests {
         #expect(!Model.enabledChanged(hasNativeFiles: true, nativeEnabled: true, hasLibrary: true, syncPlaylists: true))
         // 두 파일의 켜짐이 달라 확인하지 못하면 쓰지 않는다.
         #expect(!Model.enabledChanged(hasNativeFiles: true, nativeEnabled: nil, hasLibrary: true, syncPlaylists: true))
+    }
+
+    @Test("닫을 때는 동기화가 켜진 채 체크를 바꿨거나 켰을 때만 지금 동기화할지 묻는다")
+    func closePromptConditions() {
+        typealias Model = UsbSyncModel
+        // G2a·G3: 체크를 바꾸고 닫으면 묻는다. G5c: 켜기만 하고 닫아도 묻는다. G5a: 끄고 닫으면 묻지 않는다.
+        #expect(Model.asksToSyncOnClose(syncPlaylists: true, canSync: true, selectionDiffers: true, enabledChanged: false))
+        #expect(Model.asksToSyncOnClose(syncPlaylists: true, canSync: true, selectionDiffers: false, enabledChanged: true))
+        #expect(!Model.asksToSyncOnClose(syncPlaylists: false, canSync: false, selectionDiffers: false, enabledChanged: true))
+        #expect(!Model.asksToSyncOnClose(syncPlaylists: true, canSync: true, selectionDiffers: false, enabledChanged: false))
+        // SYNC를 누를 수 없는 상태(선택 파일 문제 등)에서는 "예"가 쓸 수 없으니 묻지 않는다.
+        #expect(!Model.asksToSyncOnClose(syncPlaylists: true, canSync: false, selectionDiffers: true, enabledChanged: false))
+        #expect(Model.unsyncedClosePrompt.title == "변경 사항이 동기화되지 않았습니다.")
+        #expect(Model.unsyncedClosePrompt.text == "변경한 내용을 지금 바로 동기화합니까?")
+        #expect(Model.unsyncedClosePrompt.confirm == "예" && Model.unsyncedClosePrompt.cancel == "아니오")
+    }
+
+    @Test("선택 비교는 폴더 자체 체크와 하위를 모두 체크한 것을 구분한다")
+    func selectionDifferenceKeepsFolderCheckType() {
+        let nodes: [ITunesSyncSelection.Node] = [.init(id: "f", parentID: nil, isFolder: true),
+                                                 .init(id: "a", parentID: "f", isFolder: false),
+                                                 .init(id: "b", parentID: "f", isFolder: false)]
+        let folder = ITunesSyncSelection(selectedIDs: ["f"])
+        // G1: 하위를 하나씩 모두 체크한 폴더는 선택 파일에 CheckType 2(부분 체크)로 적혔다.
+        let children = ITunesSyncSelection(selectedIDs: ["a", "b"])
+        #expect(UsbSyncModel.selectionDiffers(folder, from: children, nodes: nodes))
+        #expect(!UsbSyncModel.selectionDiffers(folder, from: ITunesSyncSelection(selectedIDs: ["f", "a", "b"]), nodes: nodes))
+        #expect(UsbSyncModel.selectionDiffers(ITunesSyncSelection(selectedIDs: ["0"]), from: ITunesSyncSelection(selectedIDs: ["f"]), nodes: nodes))
     }
 }

@@ -3035,6 +3035,22 @@
         }
       }
     },
+    "- 큐 포인트와 루프 포인트\n- 핫 큐\n- 비트 그리드\n- 레이팅\n\nrekordbox의 곡이 더 최근에 바뀌었어도 USB 값으로 바꿉니다. USB 레이팅이 비어 있으면 로컬 레이팅을 그대로 두고, 색상과 코멘트는 아직 가져오지 않습니다. 초안이 이미 있는 곡은 건너뜁니다. 가져온 초안을 확인한 뒤 rekordbox에 쓰기…로 반영하세요.\n\n계속하시겠습니까?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "- Cue points and loop points\n- Hot cues\n- Beat grid\n- Rating\n\nUSB values replace local ones even if the track changed more recently in rekordbox. An empty USB rating keeps the local rating, and colors and comments are not imported yet. Tracks that already have drafts are skipped. Review the imported drafts, then apply them with Write to rekordbox….\n\nDo you want to continue?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "- キューポイントとループポイント\n- ホットキュー\n- ビートグリッド\n- レーティング\n\nrekordboxのトラックの方が新しく変更されていてもUSBの値に置き換えます。USBのレーティングが空ならローカルのレーティングはそのまま残し、カラーとコメントはまだ取り込みません。下書きがすでにあるトラックはスキップします。取り込んだ下書きを確認してから「rekordboxに書き込む…」で反映してください。\n\n続行しますか?"
+          }
+        }
+      }
+    },
     "--db <사본.db> [--dry-run] <편집.json>" : {
       "localizations" : {
         "en" : {
@@ -6747,18 +6763,18 @@
         }
       }
     },
-    "USB 큐·그리드·평점 가져오기" : {
+    "USB 큐·그리드·평점 가져오기…" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Import USB Cues, Beat Grids, and Ratings"
+            "value" : "Import USB Cues, Grids, and Ratings…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "USBのキュー、グリッド、評価を取り込む"
+            "value" : "USBのキュー・グリッド・評価を取り込む…"
           }
         }
       }
@@ -7841,6 +7857,22 @@
         }
       }
     },
+    "USB에 있는 모든 곡의 다음 정보로 로컬 곡 정보를 바꾸는 초안을 만듭니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create drafts that replace the following local track information with that of every track on the USB."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB上のすべてのトラックの次の情報でローカルのトラック情報を置き換える下書きを作成します。"
+          }
+        }
+      }
+    },
     "USB에 있던 기기 기록 행을 옮기는 방법" : {
       "localizations" : {
         "en" : {
@@ -8261,34 +8293,34 @@
         }
       }
     },
-    "USB의 큐·그리드·평점은 로컬 초안으로 가져옵니다." : {
+    "USB의 큐·그리드·평점으로 로컬 값을 바꾸는 초안을 만듭니다. 동기화가 꺼져 있어도 쓸 수 있습니다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "USB cues, beat grids, and ratings are imported as local drafts."
+            "value" : "Create drafts that replace local values with the USB cues, grids, and ratings. Works even when sync is off"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "USBのキュー、グリッド、評価はローカルの下書きとして取り込みます。"
+            "value" : "USBのキュー・グリッド・評価でローカルの値を置き換える下書きを作成します。同期がオフでも使えます"
           }
         }
       }
     },
-    "USB의 큐·그리드·평점을 로컬 초안으로 가져옵니다" : {
+    "USB의 큐·그리드·평점은 로컬이 더 새로워도 USB 값으로 바꾸는 초안으로 가져옵니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Import USB cues, beat grids, and ratings as local drafts"
+            "value" : "USB cues, grids, and ratings are imported as drafts that replace local values, even newer ones."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "USBのキュー、グリッド、評価をローカルの下書きとして取り込みます"
+            "value" : "USBのキュー・グリッド・評価は、ローカルの方が新しくてもUSBの値に置き換える下書きとして取り込みます。"
           }
         }
       }
@@ -13041,6 +13073,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最も近い候補を採用"
+          }
+        }
+      }
+    },
+    "가져오기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取り込む"
           }
         }
       }
@@ -19939,6 +19987,22 @@
         }
       }
     },
+    "두 USB 형식의 그리드 갱신 횟수가 다르니 rekordbox에서 USB를 확인한 뒤 그리드를 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grid update counts differ between the two USB formats; check the USB in rekordbox, then import the grid."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2つのUSB形式でグリッドの更新回数が異なるため、rekordboxでUSBを確認してからグリッドを取り込んでください。"
+          }
+        }
+      }
+    },
     "두 USB 형식의 분석 파일 정보가 다르니 rekordbox에서 확인한 뒤 다시 가져오세요." : {
       "localizations" : {
         "en" : {
@@ -19951,6 +20015,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "2つのUSB形式で解析ファイルの情報が異なるため、rekordboxで確認してから再度取り込んでください。"
+          }
+        }
+      }
+    },
+    "두 USB 형식의 큐 갱신 횟수가 다르니 rekordbox에서 USB를 확인한 뒤 큐를 가져오세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cue update counts differ between the two USB formats; check the USB in rekordbox, then import the cues."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2つのUSB形式でキューの更新回数が異なるため、rekordboxでUSBを確認してからキューを取り込んでください。"
           }
         }
       }
@@ -21023,22 +21103,6 @@
         }
       }
     },
-    "로컬 곡 정보가 USB보다 최신이니 평점을 먼저 확인한 뒤 가져오세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Local track information is newer than the USB information; check the rating before importing."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ローカルの曲情報がUSBより新しいため、評価を確認してから取り込んでください。"
-          }
-        }
-      }
-    },
     "로컬 곡과 짝이 하나로 맞지 않는 %lld곡은 가져오지 않았으니 원본 라이브러리를 확인하세요." : {
       "localizations" : {
         "en" : {
@@ -21067,22 +21131,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ローカルの曲に対応するUSBの曲を一意に特定できないため、プレイリストを変更しませんでした。ローカルとUSBの重複した曲を整理してから再度同期してください。"
-          }
-        }
-      }
-    },
-    "로컬 그리드가 더 최신이거나 두 USB 형식의 갱신 횟수가 다르니 그리드를 확인한 뒤 가져오세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The local beat grid is newer or update counts differ between the two USB formats; check the beat grid before importing."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ローカルのグリッドの方が新しいか、2つのUSB形式で更新回数が異なるため、グリッドを確認してから取り込んでください。"
           }
         }
       }
@@ -21399,22 +21447,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ローカルのプレイリストと曲をこのUSBにOneLibrary・Device Libraryでエクスポートします"
-          }
-        }
-      }
-    },
-    "로컬 큐가 더 최신이거나 두 USB 형식의 갱신 횟수가 다르니 큐를 확인한 뒤 가져오세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Local cues are newer or update counts differ between the two USB formats; check the cues before importing."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ローカルのキューの方が新しいか、2つのUSB形式で更新回数が異なるため、キューを確認してから取り込んでください。"
           }
         }
       }
@@ -24161,6 +24193,22 @@
         }
       }
     },
+    "변경 사항이 동기화되지 않았습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your changes have not been synced."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更内容が同期されていません。"
+          }
+        }
+      }
+    },
     "변경 없음" : {
       "localizations" : {
         "en" : {
@@ -24221,6 +24269,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "変更カウンターを増やせませんでした"
+          }
+        }
+      }
+    },
+    "변경한 내용을 지금 바로 동기화합니까?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do you want to sync your changes now?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更内容を今すぐ同期しますか?"
           }
         }
       }
@@ -29249,6 +29313,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "書き込み済み"
+          }
+        }
+      }
+    },
+    "아니오" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "いいえ"
           }
         }
       }
@@ -42315,18 +42395,18 @@
         }
       }
     },
-    "폴더를 선택하면 하위 목록도 포함됩니다. 선택에서 뺀 USB 재생 목록은 지우지 않고 흐리게 남깁니다. 어느 목록에도 없는 곡은 확인한 뒤 USB에서 뺍니다." : {
+    "폴더를 선택하면 하위 목록도 포함됩니다. 동기화가 꺼져 있으면 선택을 바꿀 수 없습니다. 선택에서 뺀 목록은 USB에서도 지우고, 동기화로 이은 적 없는 USB 목록은 흐리게 남깁니다. 어느 목록에도 없는 곡은 확인한 뒤 USB에서 뺍니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Selecting a folder includes its playlists. USB playlists you deselect are kept and shown dimmed. Tracks that are in no playlist are removed from the USB after you confirm."
+            "value" : "Selecting a folder includes its subfolders and playlists. The selection cannot be changed while sync is off. Playlists removed from the selection are also deleted from the USB, and USB playlists never linked by sync stay dimmed. Tracks left in no playlist are removed from the USB after confirmation."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "フォルダを選択すると配下のプレイリストも含まれます。選択を外したUSBプレイリストは削除せず淡色で残します。どのプレイリストにもない曲は確認後にUSBから削除します。"
+            "value" : "フォルダを選択するとその中のリストも含まれます。同期がオフの間は選択を変更できません。選択から外したリストはUSBからも削除し、同期でつないだことのないUSBのリストは薄く表示して残します。どのリストにもないトラックは確認のうえUSBから削除します。"
           }
         }
       }

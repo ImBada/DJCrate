@@ -35,6 +35,7 @@ struct UsbSyncPlaylistPlan: Sendable {
 
 /// 선택한 로컬 트리를 USB 편집으로 만든다. rekordbox처럼(2026-10-08 정상 USB 실험) 지난 선택 파일 행으로 이어졌던 USB 목록은
 /// 원본을 선택에서 빼거나 로컬에서 지우면 지우고, 이름을 바꾼 원본은 새 목록을 만들어 옛 목록을 연결 없이 남긴다.
+/// 이름을 바꾼 폴더는 하위 목록까지 새로 만들고 옛 폴더와 그 안의 목록을 남긴다(2026-10-08 실험 G3).
 struct UsbSyncPlan: Sendable {
     var edits: [UsbLibraryEdit]
     var layout: PlaylistLayout
@@ -154,11 +155,19 @@ struct UsbSyncPlan: Sendable {
         // 다른 원본에 이어진(지운 원본 포함) USB 목록은 이름이 같아도 이 원본에 잇지 않는다.
         let linked = Set(bindings.map { String($0.value.usbID) } + linkedPlaylistIDs.values.map(String.init)
             + removedPlaylistIDs.map(String.init))
+        /// 이름을 바꿔 새로 만드는 폴더 안의 원본이 옛 폴더 안의 이은 목록을 가리키는지. rekordbox는 이름을 바꾼 폴더 아래
+        /// 하위 목록도 새로 만들고(새 Dev_ID) 옛 폴더와 그 안의 목록을 연결 없이 남겼다(2026-10-08 실험 G3, 두 형식 모두).
+        func leavesRenamedFolder(_ item: PlaylistLayout.Item, old: PlaylistLayout.Item) -> Bool {
+            guard item.parentID != PlaylistLayout.root, case .new? = refs[item.parentID],
+                  let oldParent = linkedPlaylistIDs[item.parentID] ?? bindings[item.parentID]?.usbID else { return false }
+            return old.parentID == String(oldParent)
+        }
         for item in desired.outline {
             var match: PlaylistLayout.Item?
             let wanted = path(item, in: desired)
             if let bound = bindings[item.id], let old = working.item(String(bound.usbID)),
-               old.isFolder == bound.isFolder, !old.isSmart, UsbLayout.nfc(old.name) == UsbLayout.nfc(item.name) {
+               old.isFolder == bound.isFolder, !old.isSmart, UsbLayout.nfc(old.name) == UsbLayout.nfc(item.name),
+               !leavesRenamedFolder(item, old: old) {
                 // 이름이 같으면 위치가 바뀌어도 이은 목록을 새 자리로 옮긴다(항목 유지). rekordbox도 옮긴 원본은
                 // 새 자리에만 보이고 옛 자리에 남기지 않았다(2026-10-08 정상 USB 실험).
                 match = old

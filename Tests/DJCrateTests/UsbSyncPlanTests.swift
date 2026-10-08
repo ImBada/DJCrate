@@ -95,6 +95,51 @@ struct UsbSyncPlanTests {
         #expect(plan.unlinkedPlaylistCount == 2 && plan.deletedPlaylists.isEmpty)
     }
 
+    /// 2026-10-08 실험 G3: 체크한 폴더 F를 F2로 바꾸고 SYNC하면 rekordbox는 두 형식에 새 F2와 새 하위 목록(새 Dev_ID)을 만들고,
+    /// 옛 F와 그 안의 목록은 지우지도 옮기지도 않고 연결 없이(회색) 남겼다. 선택 파일에는 새 Dev_ID만 적혔다.
+    @Test("이름을 바꾼 폴더는 하위 목록까지 새로 만들고 옛 폴더와 그 안의 목록은 연결 없이 남긴다")
+    func renamedFolderCreatesNewChildrenAndKeepsOldFolder() throws {
+        let source = layout([item("f", "F2", folder: true),
+                             item("n", "N", parent: "f"),
+                             item("sub", "하위 폴더", parent: "f", folder: true),
+                             item("p1", "P1", parent: "sub", tracks: ["local-one"])])
+        let usb = library([playlist(10, "F", folder: true),
+                           playlist(11, "N", parent: 10),
+                           playlist(12, "하위 폴더", parent: 10, folder: true, order: 1),
+                           playlist(13, "P1", parent: 12, tracks: [1])], tracks: [1])
+        let linked = ["f": 10, "n": 11, "sub": 12, "p1": 13]
+        let bindings = linked.mapValues { UsbSyncPlaylistBinding(usbID: $0, path: [], isFolder: $0 == 10 || $0 == 12) }
+        var keys = ["k-f", "k-n", "k-sub", "k-p1"].makeIterator()
+        let plan = try UsbSyncPlan.build(source: source, selection: ITunesSyncSelection(selectedIDs: ["f"]),
+                                        library: usb, matches: [1: "local-one"], badges: [:], bindings: bindings,
+                                        linkedPlaylistIDs: linked, newKey: { keys.next()! })
+        #expect(plan.playlistRefs == ["f": .new("k-f"), "n": .new("k-n"), "sub": .new("k-sub"), "p1": .new("k-p1")])
+        #expect(plan.edits == [.playlist(edit: .create(key: "k-f", name: "F2", isFolder: true, parent: .root)),
+                               .playlist(edit: .create(key: "k-n", name: "N", isFolder: false, parent: .new("k-f"))),
+                               .playlist(edit: .create(key: "k-sub", name: "하위 폴더", isFolder: true, parent: .new("k-f"))),
+                               .playlist(edit: .create(key: "k-p1", name: "P1", isFolder: false, parent: .new("k-sub"))),
+                               .syncPlaylist(playlist: .new("k-p1"), localContentIDs: ["local-one"])])
+        // 옛 폴더와 하위 목록 넷이 그대로 남아 곡도 계속 가리키므로 뺄 곡이 없다.
+        #expect(plan.deletedPlaylists.isEmpty && plan.unlinkedPlaylistCount == 4 && plan.orphanTrackIDs.isEmpty)
+        var count = 0
+        let preview = try UsbSyncPlan.playlistPlan(desired: UsbSyncPlan.selectedLayout(source, selection: ITunesSyncSelection(selectedIDs: ["f"])),
+                                                   library: usb, bindings: bindings, linkedPlaylistIDs: linked,
+                                                   newKey: { count += 1; return "preview-\(count)" })
+        #expect(["10", "11", "12", "13"].allSatisfy { preview.marks[$0] == .unlinked })
+        #expect(preview.result.childIDs(of: "10") == ["11", "12"] && preview.result.childIDs(of: "12") == ["13"])
+    }
+
+    @Test("이름이 그대로인 폴더 안에서는 하위 목록을 새로 만들지 않는다")
+    func unchangedFolderKeepsChildren() throws {
+        let source = layout([item("f", "F", folder: true), item("n", "N", parent: "f")])
+        let usb = library([playlist(10, "F", folder: true), playlist(11, "N", parent: 10)])
+        let linked = ["f": 10, "n": 11]
+        let bindings = linked.mapValues { UsbSyncPlaylistBinding(usbID: $0, path: [], isFolder: $0 == 10) }
+        let plan = try UsbSyncPlan.build(source: source, selection: ITunesSyncSelection(selectedIDs: ["f"]),
+                                        library: usb, matches: [:], badges: [:], bindings: bindings, linkedPlaylistIDs: linked)
+        #expect(plan.edits.isEmpty && plan.playlistRefs == ["f": .id("10"), "n": .id("11")])
+    }
+
     @Test("이름과 위치가 그대로면 저장한 연결의 USB 목록을 쓴다")
     func unchangedPathKeepsLinkedPlaylist() throws {
         let source = layout([item("local-list", "현재 목록")])

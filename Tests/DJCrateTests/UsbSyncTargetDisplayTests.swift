@@ -65,4 +65,34 @@ struct UsbSyncTargetDisplayTests {
         let unread = UsbSyncModel(volumeKey: "synthetic")
         #expect(unread.targetEmptyMessage == "USB 재생 목록을 아직 읽지 못했습니다. 새로고침하세요")
     }
+
+    /// 2026-10-08 실험 G5b: rekordbox는 "장치와 플레이리스트 동기화"가 꺼진 동안 체크를 바꿀 수 없었다.
+    @Test("동기화가 꺼져 있으면 체크·전체 선택·선택 해제가 선택을 바꾸지 않는다")
+    func selectionIsLockedWhileSyncIsOff() {
+        let model = UsbSyncModel(volumeKey: "synthetic", library: library())
+        model.syncPlaylists = false
+        #expect(!model.canEditSelection)
+        model.selectAllRekordbox()
+        model.selectAllITunes()
+        model.toggle(UsbSyncSource.rekordboxSelectionID)
+        model.selectAll()
+        #expect(model.selection.selectedIDs.isEmpty)
+        model.syncPlaylists = true
+        model.selectAllRekordbox()
+        #expect(model.selection.selectedIDs.contains(UsbSyncSource.rekordboxSelectionID))
+        model.syncPlaylists = false
+        model.clearSelection()
+        model.clearRekordboxSelection()
+        #expect(model.selection.selectedIDs.contains(UsbSyncSource.rekordboxSelectionID))
+    }
+
+    @Test("동기화하지 않고 닫으면 바꾼 체크를 USB의 선택으로 되돌린다")
+    func closingWithoutSyncDiscardsChangedChecks() {
+        let model = UsbSyncModel(volumeKey: "synthetic", library: library())
+        model.selectAllRekordbox()
+        #expect(model.selectionDiffersFromUsb)
+        model.discardUnsyncedSelection()
+        #expect(model.selection == model.usbSelection && !model.selectionDiffersFromUsb)
+    }
 }
+

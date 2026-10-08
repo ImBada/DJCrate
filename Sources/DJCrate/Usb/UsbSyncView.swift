@@ -29,7 +29,7 @@ struct UsbSyncView: View {
             Toggle(.ui("장치와 플레이리스트 동기화"), isOn: Binding(get: { model.syncPlaylists }, set: { model.syncPlaylists = $0 }))
                 .disabled(controlsDisabled)
                 .accessibilityIdentifier("usb-sync-playlists")
-            Text(.ui("폴더를 선택하면 하위 목록도 포함됩니다. 선택에서 뺀 USB 재생 목록은 지우지 않고 흐리게 남깁니다. 어느 목록에도 없는 곡은 확인한 뒤 USB에서 뺍니다."))
+            Text(.ui("폴더를 선택하면 하위 목록도 포함됩니다. 동기화가 꺼져 있으면 선택을 바꿀 수 없습니다. 선택에서 뺀 목록은 USB에서도 지우고, 동기화로 이은 적 없는 USB 목록은 흐리게 남깁니다. 어느 목록에도 없는 곡은 확인한 뒤 USB에서 뺍니다."))
                 .foregroundStyle(.secondary)
             HStack(spacing: 16) {
                 PlaylistSyncPane(tree: model.iTunesTree, isLoading: model.isLoading,
@@ -46,7 +46,7 @@ struct UsbSyncView: View {
                         Button(.ui("선택 해제")) { model.clearITunesSelection() }
                     }
                 }
-                .disabled(controlsDisabled || !model.syncPlaylists)
+                .disabled(controlsDisabled || !model.canEditSelection)
                 PlaylistSyncPane(tree: model.rekordboxTree, isLoading: model.isLoading,
                                  emptyMessage: String(ui: "읽을 수 있는 rekordbox 목록이 없습니다"),
                                  selection: sourceSelection) {
@@ -61,7 +61,7 @@ struct UsbSyncView: View {
                         Button(.ui("선택 해제")) { model.clearRekordboxSelection() }
                     }
                 }
-                .disabled(controlsDisabled || !model.syncPlaylists)
+                .disabled(controlsDisabled || !model.canEditSelection)
                 transferButtons
                 PlaylistSyncPane(tree: model.targetTree, isLoading: model.isLoading,
                                  emptyMessage: model.targetEmptyMessage,
@@ -113,7 +113,7 @@ struct UsbSyncView: View {
                     .frame(maxHeight: 92)
             }
             HStack(alignment: .bottom) {
-                Text(.ui("USB의 큐·그리드·평점은 로컬 초안으로 가져옵니다."))
+                Text(.ui("USB의 큐·그리드·평점은 로컬이 더 새로워도 USB 값으로 바꾸는 초안으로 가져옵니다."))
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
@@ -191,8 +191,8 @@ struct UsbSyncView: View {
                 .frame(minWidth: 112)
             }
             .disabled(controlsDisabled || !model.canImport)
-            .help(.ui("USB의 큐·그리드·평점을 로컬 초안으로 가져옵니다"))
-            .accessibilityLabel(.ui("USB 큐·그리드·평점 가져오기"))
+            .help(.ui("USB의 큐·그리드·평점으로 로컬 값을 바꾸는 초안을 만듭니다. 동기화가 꺼져 있어도 쓸 수 있습니다"))
+            .accessibilityLabel(.ui("USB 큐·그리드·평점 가져오기…"))
             .accessibilityIdentifier("usb-sync-import-cue-grid")
             if isOperating {
                 ProgressView().controlSize(.small)

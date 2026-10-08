@@ -27,7 +27,12 @@ struct UsbSyncPreferenceChoice {
         let sameLibrary = preferences?.localDBID == localDBID
         let sameNative = fingerprint != nil && preferences?.nativeSelectionFingerprint == fingerprint
         if sameLibrary, let preferences, !hasNativeFiles || sameNative {
-            return Self(selection: preferences.selection, enabled: preferences.syncPlaylists, usesSavedPreferences: true)
+            // 동기화하지 않은 체크는 닫을 때 버리므로(rekordbox와 같다, 2026-10-08 실험 G2a) 선택 파일이 있으면 그 선택과
+            // 켜짐이 정본이다. 저장한 설정은 USB 목록 연결(bindings)을 잇는 데만 쓴다.
+            guard hasNativeFiles else {
+                return Self(selection: preferences.selection, enabled: preferences.syncPlaylists, usesSavedPreferences: true)
+            }
+            return Self(selection: nativeSelection, enabled: nativeEnabled ?? preferences.syncPlaylists, usesSavedPreferences: true)
         }
         if hasNativeFiles {
             return Self(selection: nativeSelection,
@@ -118,6 +123,8 @@ struct UsbSyncQueuedPlan: Sendable {
     private var masterNodes: [MasterPlaylistsXML.Node] = []
     /// 닫으며 쓰지 못한 뒤 다시 닫으면 그대로 닫는다(초안은 쓰기 대기에 남는다).
     private var closeDeclined = false
+    /// 지금 USB에 있는 선택(선택 파일, 없으면 창을 열 때의 선택). 닫을 때 이 선택과 다르면 동기화할지 묻는다.
+    private(set) var usbSelection = ITunesSyncSelection()
     private(set) var nativeSelectionIssues: [String] = []
     @ObservationIgnored private weak var usb: UsbStore?
     @ObservationIgnored private var saveChain: Task<Bool, Never>?
@@ -192,14 +199,19 @@ struct UsbSyncQueuedPlan: Sendable {
     }
     var canImport: Bool { !isLoading && !isSyncing && !isImporting && library != nil && database != nil && !matches.isEmpty }
 
-    func selectAll() { selection = ITunesSyncSelection(selectedIDs: ["0"]) }
-    func clearSelection() { selection = ITunesSyncSelection() }
-    func selectAllRekordbox() { selection.setSelected(true, id: UsbSyncSource.rekordboxSelectionID, in: nodes) }
-    func clearRekordboxSelection() { selection.setSelected(false, id: UsbSyncSource.rekordboxSelectionID, in: nodes) }
-    func selectAllITunes() { selection.setSelected(true, id: UsbSyncSource.iTunesSelectionID, in: nodes) }
-    func clearITunesSelection() { selection.setSelected(false, id: UsbSyncSource.iTunesSelectionID, in: nodes) }
-    func toggle(_ id: String) {
-        selection.setSelected(selection.state(of: id, in: nodes) != .on, id: id, in: nodes)
+    /// rekordbox는 "장치와 플레이리스트 동기화"가 꺼져 있으면 체크를 바꿀 수 없게 막았다(2026-10-08 실험 G5b).
+    var canEditSelection: Bool { syncPlaylists }
+
+    func selectAll() { guard canEditSelection else { return }; selection = ITunesSyncSelection(selectedIDs: ["0"]) }
+    func clearSelection() { guard canEditSelection else { return }; selection = ITunesSyncSelection() }
+    func selectAllRekordbox() { setSelected(true, id: UsbSyncSource.rekordboxSelectionID) }
+    func clearRekordboxSelection() { setSelected(false, id: UsbSyncSource.rekordboxSelectionID) }
+    func selectAllITunes() { setSelected(true, id: UsbSyncSource.iTunesSelectionID) }
+    func clearITunesSelection() { setSelected(false, id: UsbSyncSource.iTunesSelectionID) }
+    func toggle(_ id: String) { setSelected(selection.state(of: id, in: nodes) != .on, id: id) }
+    private func setSelected(_ selected: Bool, id: String) {
+        guard canEditSelection else { return }
+        selection.setSelected(selected, id: id, in: nodes)
     }
 
     func load(store: LibraryStore, usb: UsbStore) async {
@@ -235,6 +247,7 @@ struct UsbSyncQueuedPlan: Sendable {
         nativeEnabled = nil
         masterNodes = []
         closeDeclined = false
+        usbSelection = ITunesSyncSelection()
         // USB 내용은 로컬 목록과 설정을 읽기 전에도 보여 준다.
         self.library = usb.libraries[volumeKey]
         emptyVolume = usb.shapes[volumeKey] == .emptyExportable
@@ -324,6 +337,7 @@ struct UsbSyncQueuedPlan: Sendable {
                                                         fallbackSelection: library.map { UsbSyncPlan.initialSelection(source: source, library: $0) } ?? ITunesSyncSelection(),
                                                         currentEnabled: syncPlaylists)
             selection = choice.selection
+            usbSelection = choice.selection
             syncPlaylists = choice.enabled
             bindings = choice.usesSavedPreferences ? prefs?.bindings ?? [:] : [:]
             // 원본 ID를 USB 현재 폴더에 직접 잇는다. 이름 변경도 같은 목록으로 따라간다.
@@ -491,6 +505,7 @@ struct UsbSyncQueuedPlan: Sendable {
             }
             if let written = usb.libraries[volumeKey] {
                 bindings = UsbSyncPlan.bindings(source: source, target: selected, library: written)
+                usbSelection = selection
                 guard await adoptWrittenNativeFiles(usb: usb) else { return false }
                 _ = await savePreferences(usb: usb)
                 return true
@@ -586,6 +601,7 @@ struct UsbSyncQueuedPlan: Sendable {
         }
         queuedPlan = nil
         bindings = UsbSyncPlan.bindings(source: source, target: selected, library: written)
+        usbSelection = selection
         guard await adoptWrittenNativeFiles(usb: usb) else { return false }
         _ = await savePreferences(usb: usb)
         return true
@@ -617,10 +633,56 @@ struct UsbSyncQueuedPlan: Sendable {
         return nativeEnabled != nil && nativeEnabled != syncPlaylists
     }
 
-    /// rekordbox처럼 동기화 켜짐을 바꾸고 닫으면 두 선택 파일의 AutomaticSync만 쓴다(다른 칸·선택은 그대로).
-    /// 다른 USB 쓰기와 같은 미리 보기·확인 창을 거친다. 닫아도 되면 true.
+    /// USB의 선택과 다르게 체크했는지. 폴더 자체 체크와 하위를 모두 체크한 것은 선택 파일에서 다르다(폴더 행 1과 2).
+    var selectionDiffersFromUsb: Bool { Self.selectionDiffers(selection, from: usbSelection, nodes: nodes) }
+
+    nonisolated static func selectionDiffers(_ selection: ITunesSyncSelection, from usb: ITunesSyncSelection,
+                                             nodes: [ITunesSyncSelection.Node]) -> Bool {
+        selection.selectedIDs.contains("0") != usb.selectedIDs.contains("0")
+            || selection.expandedIDs(in: nodes) != usb.expandedIDs(in: nodes)
+    }
+
+    /// rekordbox는 동기화가 켜진 채 동기화하지 않은 변경(체크 변경, 켜기)이 있으면 닫을 때 지금 동기화할지 물었다
+    /// (2026-10-08 실험 G2a·G3·G5c). 끄고 닫을 때는 묻지 않았다(G5a). SYNC를 누를 수 없는 상태면 묻지 않는다.
+    nonisolated static func asksToSyncOnClose(syncPlaylists: Bool, canSync: Bool, selectionDiffers: Bool,
+                                              enabledChanged: Bool) -> Bool {
+        syncPlaylists && canSync && (selectionDiffers || enabledChanged)
+    }
+
+    /// rekordbox의 닫기 확인과 같은 문구(예/아니오)
+    nonisolated static var unsyncedClosePrompt: ReflectionPrompt {
+        ReflectionPrompt(title: String(ui: "변경 사항이 동기화되지 않았습니다."),
+                         text: String(ui: "변경한 내용을 지금 바로 동기화합니까?"),
+                         confirm: String(ui: "예"), cancel: String(ui: "아니오"))
+    }
+
+    /// 동기화하지 않고 닫을 때 바꾼 체크를 버린다. rekordbox도 "아니오"로 닫으면 체크 변경을 버렸다(2026-10-08 실험 G2a).
+    func discardUnsyncedSelection() {
+        guard selection != usbSelection else { return }
+        selection = usbSelection
+    }
+
+    /// rekordbox처럼 동기화가 켜진 채 바뀐 것이 있으면 지금 동기화할지 묻고, "예"면 SYNC와 같은 흐름으로 쓴다.
+    /// "아니오"나 꺼진 채 닫으면 바꾼 체크는 버리고, 동기화 켜짐을 바꿨으면 두 선택 파일의 AutomaticSync만 쓴다
+    /// (다른 칸·선택은 그대로, G5c에서 켜고 "아니오"로 닫아도 이 칸만 바뀌었다). 다른 USB 쓰기와 같은 미리 보기·확인 창을 거친다.
+    /// 닫아도 되면 true.
     func close(store: LibraryStore, usb: UsbStore) async -> Bool {
-        guard enabledChanged, !closeDeclined, !isLoading, !isSyncing, !isImporting else { return true }
+        guard !isLoading, !isSyncing, !isImporting else { return true }
+        if !closeDeclined, Self.asksToSyncOnClose(syncPlaylists: syncPlaylists, canSync: canSync,
+                                                  selectionDiffers: selectionDiffersFromUsb, enabledChanged: enabledChanged) {
+            let prompter = store.usbEdits?.prompter ?? AlertPrompter()
+            if prompter.show(Self.unsyncedClosePrompt) {
+                if await sync(store: store, usb: usb) { return true }
+                // 동기화하지 못했으면 이유를 보이고 창을 남긴다. 한 번 더 닫으면 묻지 않고 닫는다.
+                closeDeclined = true
+                let hint = String(ui: "한 번 더 닫으면 USB에 쓰지 않고 닫습니다.")
+                if let error { self.error = error + "\n" + hint } else { message = (message.map { $0 + "\n" } ?? "") + hint }
+                return false
+            }
+        }
+        discardUnsyncedSelection()
+        if localDBID != nil { _ = await savePreferences(usb: usb) }
+        guard enabledChanged, !closeDeclined else { return true }
         error = nil
         message = nil
         func decline(_ reason: String) -> Bool {
@@ -738,8 +800,18 @@ struct UsbSyncQueuedPlan: Sendable {
         }
     }
 
+    /// rekordbox의 "← CUE GRID INFO" 확인(2026-10-08 실험 G5b)을 DJCrate에 맞게 고친 문구. rekordbox는 바로 바꾸지만
+    /// DJCrate는 초안만 만들고, 색상·코멘트는 아직 가져오지 않는다.
+    nonisolated static var cueGridImportPrompt: ReflectionPrompt {
+        ReflectionPrompt(title: String(ui: "USB에 있는 모든 곡의 다음 정보로 로컬 곡 정보를 바꾸는 초안을 만듭니다."),
+                         text: String(ui: "- 큐 포인트와 루프 포인트\n- 핫 큐\n- 비트 그리드\n- 레이팅\n\nrekordbox의 곡이 더 최근에 바뀌었어도 USB 값으로 바꿉니다. USB 레이팅이 비어 있으면 로컬 레이팅을 그대로 두고, 색상과 코멘트는 아직 가져오지 않습니다. 초안이 이미 있는 곡은 건너뜁니다. 가져온 초안을 확인한 뒤 rekordbox에 쓰기…로 반영하세요.\n\n계속하시겠습니까?"),
+                         confirm: String(ui: "가져오기"))
+    }
+
     func importCueGrid(store: LibraryStore, usb: UsbStore) async {
         guard canImport, usb.activeWrite == nil, !store.isLoading, !store.isWritingRekordbox else { return }
+        let prompter = store.usbEdits?.prompter ?? AlertPrompter()
+        guard prompter.show(Self.cueGridImportPrompt) else { return }
         error = nil
         isImporting = true
         defer { isImporting = false }

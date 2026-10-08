@@ -28,11 +28,29 @@ enum UsbCueGridDraftImport {
         return fresh.filter { counts[$0.value] == 1 }
     }
 
-    static func localIsNewer(_ local: String?, than usb: String) -> Bool {
-        let local = local ?? ""
-        if local == usb { return false }
-        if let a = Int64(local), let b = Int64(usb) { return a > b }
-        return true
+    /// 가져오는 칸. rekordbox의 "← CUE GRID INFO"는 로컬이 더 새로워도 USB 값으로 바꿨다(2026-10-08 실험 G5b: 로컬에서
+    /// 더한 메모리 큐가 USB의 큐로 돌아갔다). 그래서 로컬 갱신 횟수는 보지 않고, 두 USB 형식이 서로 다를 때만 건너뛴다.
+    enum Part: Sendable { case cue, grid, rating }
+
+    static func formatConflictReason(_ part: Part, conflicts: Set<String>) -> String? {
+        switch part {
+        case .cue where conflicts.contains("cueUpdateCount"):
+            String(ui: "두 USB 형식의 큐 갱신 횟수가 다르니 rekordbox에서 USB를 확인한 뒤 큐를 가져오세요.")
+        case .grid where conflicts.contains("analysisDataUpdateCount"):
+            String(ui: "두 USB 형식의 그리드 갱신 횟수가 다르니 rekordbox에서 USB를 확인한 뒤 그리드를 가져오세요.")
+        case .rating where conflicts.contains("rating") || conflicts.contains("informationUpdateCount"):
+            String(ui: "두 USB 형식의 평점이나 정보 갱신 횟수가 다르니 rekordbox에서 확인한 뒤 다시 가져오세요.")
+        default: nil
+        }
+    }
+
+    /// USB 평점을 초안의 평점 칸 값으로. 0(빈 평점)은 가져오지 않는다(nil): rekordbox도 USB 평점이 0인 곡의
+    /// 로컬 평점을 지우지 않았다(2026-10-08 실험 G5b). 범위 밖이면 막는다.
+    static func importedRating(_ rating: Int) throws -> String? {
+        guard (0...5).contains(rating) else {
+            throw issue(String(ui: "USB 평점이 별 0~5개 범위를 벗어나니 rekordbox에서 확인한 뒤 다시 가져오세요."))
+        }
+        return rating > 0 ? String(rating) : nil
     }
 
     static func cueDraft(uuid: String, local: [Cue], imported: [EditableCue], legacy: Bool) throws -> CueDraft {
@@ -278,20 +296,19 @@ private struct UsbCueGridImportPlan: Sendable {
                 result.rows.append(item)
                 continue
             }
-            let counters = local.counters[id]
-            let infoConflict = conflicts.contains("rating") || conflicts.contains("informationUpdateCount")
-            if infoConflict {
-                item.reasons.append(String(ui: "두 USB 형식의 평점이나 정보 갱신 횟수가 다르니 rekordbox에서 확인한 뒤 다시 가져오세요."))
-            } else if UsbCueGridDraftImport.localIsNewer(counters?.information, than: track.informationUpdateCount) {
-                item.reasons.append(String(ui: "로컬 곡 정보가 USB보다 최신이니 평점을 먼저 확인한 뒤 가져오세요."))
-            } else if (0...5).contains(track.rating) {
-                var info = TagDraft(track: row.track)
-                info.fields.rating = track.rating > 0 ? String(track.rating) : ""
-                if info.hasChanges, let reason = TrackListTagEditing.unavailableReason(row, key: .rating) {
-                    item.reasons.append(reason)
-                } else { item.info = info }
+            let conflictSet = Set(conflicts)
+            if let reason = UsbCueGridDraftImport.formatConflictReason(.rating, conflicts: conflictSet) {
+                item.reasons.append(reason)
             } else {
-                item.reasons.append(String(ui: "USB 평점이 별 0~5개 범위를 벗어나니 rekordbox에서 확인한 뒤 다시 가져오세요."))
+                do {
+                    if let rating = try UsbCueGridDraftImport.importedRating(track.rating) {
+                        var info = TagDraft(track: row.track)
+                        info.fields.rating = rating
+                        if info.hasChanges, let reason = TrackListTagEditing.unavailableReason(row, key: .rating) {
+                            item.reasons.append(reason)
+                        } else { item.info = info }
+                    }
+                } catch { item.reasons.append(reason(error)) }
             }
             if conflicts.contains("analysisDataPath") || conflicts.contains("fileType") || conflicts.contains("fileSize") {
                 item.reasons.append(String(ui: "두 USB 형식의 분석 파일 정보가 다르니 rekordbox에서 확인한 뒤 다시 가져오세요."))
@@ -302,8 +319,8 @@ private struct UsbCueGridImportPlan: Sendable {
                 let source = try UsbCueGridReader.read(root: root, track: track)
                 if cueRows.contains(track.id) {
                     item.reasons.append(String(ui: "OneLibrary 기기 큐 행의 해석을 확인하지 못했으니 큐는 rekordbox에서 직접 가져오세요."))
-                } else if conflicts.contains("cueUpdateCount") || UsbCueGridDraftImport.localIsNewer(counters?.cue, than: track.cueUpdateCount) {
-                    item.reasons.append(String(ui: "로컬 큐가 더 최신이거나 두 USB 형식의 갱신 횟수가 다르니 큐를 확인한 뒤 가져오세요."))
+                } else if let reason = UsbCueGridDraftImport.formatConflictReason(.cue, conflicts: conflictSet) {
+                    item.reasons.append(reason)
                 } else if let cues = source.cues {
                     do {
                         let draft = try UsbCueGridDraftImport.cueDraft(uuid: row.track.uuid, local: row.cues, imported: cues, legacy: source.usesLegacyCues)
@@ -314,8 +331,8 @@ private struct UsbCueGridImportPlan: Sendable {
                         item.cues = draft
                     } catch { item.reasons.append(reason(error)) }
                 } else if let issue = source.cueIssue { item.reasons.append(issue) }
-                if conflicts.contains("analysisDataUpdateCount") || UsbCueGridDraftImport.localIsNewer(counters?.analysis, than: track.analysisDataUpdateCount) {
-                    item.reasons.append(String(ui: "로컬 그리드가 더 최신이거나 두 USB 형식의 갱신 횟수가 다르니 그리드를 확인한 뒤 가져오세요."))
+                if let reason = UsbCueGridDraftImport.formatConflictReason(.grid, conflicts: conflictSet) {
+                    item.reasons.append(reason)
                 } else if let grid = source.grid {
                     do {
                         guard let dat = RekordboxShare.analysisURL(row.track.analysisDataPath, root: share),

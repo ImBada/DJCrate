@@ -29,11 +29,31 @@ struct UsbCueGridImportTests {
         #expect(draft.cues.first?.name == "도입")
     }
 
-    @Test func 로컬_카운터가_앞서면_기기변경_배지가_있어도_가져오지_않는다() {
-        #expect(UsbCueGridDraftImport.localIsNewer("4", than: "3"))
-        #expect(!UsbCueGridDraftImport.localIsNewer("3", than: "4"))
-        #expect(!UsbCueGridDraftImport.localIsNewer(nil, than: ""))
-        #expect(UsbCueGridDraftImport.localIsNewer("?", than: "4"))
+    /// 2026-10-08 실험 G5b: 로컬에서 메모리 큐를 하나 더한(로컬이 더 새로운) 곡도 rekordbox의 ← CUE GRID INFO는
+    /// USB의 큐 둘로 되돌렸다. 로컬 갱신 횟수로 건너뛰지 않고 두 USB 형식이 다를 때만 건너뛴다.
+    @Test func 로컬이_더_새로워도_USB_큐로_바꾸는_초안을_만든다() throws {
+        let local = [Cue(id: "a", contentID: "1", kind: 0, inMsec: 1_000, name: "", colorTableIndex: nil),
+                     Cue(id: "b", contentID: "1", kind: 0, inMsec: 5_000, name: "", colorTableIndex: nil),
+                     Cue(id: "c", contentID: "1", kind: 0, inMsec: 9_000, name: "", colorTableIndex: nil)]
+        let draft = try UsbCueGridDraftImport.cueDraft(uuid: "uuid", local: local,
+                                                      imported: [.init(kind: .memory, time: 1), .init(kind: .memory, time: 5)],
+                                                      legacy: false)
+        #expect(draft.cues.count == 2 && draft.hasChanges)
+        #expect(draft.cues.map(\.sourceID) == ["a", "b"])
+        for part in [UsbCueGridDraftImport.Part.cue, .grid, .rating] {
+            #expect(UsbCueGridDraftImport.formatConflictReason(part, conflicts: []) == nil)
+        }
+        #expect(UsbCueGridDraftImport.formatConflictReason(.cue, conflicts: ["cueUpdateCount"]) != nil)
+        #expect(UsbCueGridDraftImport.formatConflictReason(.grid, conflicts: ["analysisDataUpdateCount"]) != nil)
+        #expect(UsbCueGridDraftImport.formatConflictReason(.rating, conflicts: ["informationUpdateCount"]) != nil)
+        #expect(UsbCueGridDraftImport.formatConflictReason(.grid, conflicts: ["cueUpdateCount"]) == nil)
+    }
+
+    /// 2026-10-08 실험 G5b: USB 평점이 0인 곡의 로컬 평점(3)은 가져온 뒤에도 그대로였다.
+    @Test func USB_평점이_비었으면_로컬_평점을_지우지_않는다() throws {
+        #expect(try UsbCueGridDraftImport.importedRating(0) == nil)
+        #expect(try UsbCueGridDraftImport.importedRating(3) == "3")
+        #expect(throws: UsbCueGridReader.ReadFailure.self) { try UsbCueGridDraftImport.importedRating(6) }
     }
 
     @Test func 일정_그리드는_로컬_기준으로_초안을_만든다() throws {
