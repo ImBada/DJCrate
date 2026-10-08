@@ -47,6 +47,8 @@ quick과 stress는 `swift build --build-tests --enable-code-coverage`의 같은 
 
 실행 전 `defaults export DJCrate <임시 plist>`로 설정을 보관하고, 종료 뒤 실행 전후 값이 다른 키만 원래 값으로 되돌린다. 자가 테스트는 태그 시트 모드를 바꾸고 AppKit은 창 크기를 자동 저장하므로 실패·종료 코드 2에서도 복원한다. 전체 UserDefaults 영역을 가져와 덮지 않는다. 화면 비교는 같은 합성 사본의 `--async-guidance-capture=<임시 폴더>`를 사용하며, 띄운 PID의 창 번호만 `screencapture -x -o -t jpg -l <창 번호>`로 기록한다. 두 인자 모두 디버그 전용이고 값을 받는 인자는 한 덩어리로 쓴다.
 
+메뉴가 보이는 화면(#237 전·후)은 `--issue237-capture=<임시 폴더> --issue237-usb-mount=<합성 디스크 이미지 마운트>`로 찍는다. `LayoutFixtureCapture` 합성 사본(`--db`·`DJC_REKORDBOX_DIR`)과 `UsbSelfTestLibrary`로 내보낸 `DJCDEMO` 이미지(`djc lab usb-image`·`usb-export`)만 읽고 USB 절은 그 볼륨 하나로 바꾼다. 창은 `screencapture -l <창 번호>`로 찍고, 메뉴는 앱 안에서 `NSMenu.popUpContextMenu`로 열어 두고 그 메뉴 창만 찍는다. 비활성 앱은 메뉴를 열지 못해 메뉴가 열려 있는 동안만 잠깐 활성화한다(창은 보고 있는 데스크톱으로 옮겨 다른 창 뒤에 둔다). 앱을 쓰는 중에는 돌리지 않는다.
+
 ## 진행 로그·실패 진단
 
 `scripts/check.sh`는 각 단계의 UTC 시작·종료 시각, 경과 초, 종료 코드를 출력한다. 명령 출력은 즉시 화면과 단계별 로그에 함께 쓰고, 출력이 없어도 30초마다 현재 단계와 경과 시간을 알린다. 디버그·테스트 컴파일, 릴리스 빌드, 번역, 전체 테스트 실행·프로파일 수집, 커버리지 보고·목표 검사를 구분한다. SwiftPM의 테스트 실행 명령에는 프로파일 병합·내보내기도 포함되므로 이 단계 전체를 순수 테스트 실행 시간으로 부르지 않는다.
