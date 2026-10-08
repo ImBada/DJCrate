@@ -44,24 +44,32 @@ public enum XMLImportDraftStore {
     }
 
     /// 사본·분석 파일·기존 초안을 읽어 계획을 세운다(쓰지 않는다).
-    /// - Parameter shareRoot: 분석 파일 뿌리. nil이면 그리드 초안을 만들지 않는다.
+    /// - Parameters:
+    ///   - shareRoot: 분석 파일 뿌리. nil이면 그리드 초안을 만들지 않는다.
+    ///   - playlistDraft: 기존 재생 목록 초안. nil이면 파일에서 읽는다(앱은 메모리 초안을 준다).
+    ///   - existing: 파일 말고도 이미 있는 것으로 볼 초안(곡 UUID, 앱의 저장 전 입력)
     public static func plan(diff: XMLLibraryDiff.Result, selection: XMLImportDrafts.Selection, snapshot: URL, shareRoot: URL?,
-                            folders: Folders) throws -> XMLImportDrafts.Plan {
+                            folders: Folders, playlistDraft: PlaylistDraft? = nil,
+                            existing extra: [XMLImportDrafts.Kind: Set<String>] = [:]) throws -> XMLImportDrafts.Plan {
         let library = try RekordboxLibrary.load(snapshot: snapshot)
-        let wanted = Set(diff.tracks.map(\.libraryKey)).filter { selection.trackKeys?.contains($0) ?? true }
+        let wanted = Set(diff.tracks.map(\.libraryKey)).filter { key in
+            XMLImportDrafts.Kind.allCases.contains { selection.includes($0, track: key) }
+        }
         let listed = Set(library.playlists.filter { !$0.isFolder }.flatMap(\.trackIDs))
         var sources: [String: XMLImportDrafts.TrackSource] = [:]
         for track in library.tracks where wanted.contains(track.id) {
             let grid = selection.kinds.contains(.grid)
                 ? shareRoot.flatMap { RekordboxShare.analysisURL(track.analysisDataPath, root: $0) }.flatMap { try? BeatGrid.load(anlz: $0) }
                 : nil
-            let existing = Set(XMLImportDrafts.Kind.allCases.filter { folders.hasDraft($0, uuid: track.uuid) })
+            let existing = Set(XMLImportDrafts.Kind.allCases.filter {
+                folders.hasDraft($0, uuid: track.uuid) || extra[$0]?.contains(track.uuid) == true
+            })
             sources[track.id] = XMLImportDrafts.TrackSource(track: track, cues: library.cues(for: track), grid: grid,
                                                             inPlaylist: listed.contains(track.id), existing: existing)
         }
         return XMLImportDrafts.plan(diff: diff, selection: selection, sources: sources,
                                     layout: PlaylistLayout(rekordbox: library.playlists),
-                                    playlistDraft: PlaylistDraftStore.load(url: folders.playlists))
+                                    playlistDraft: playlistDraft ?? PlaylistDraftStore.load(url: folders.playlists))
     }
 
     /// 계획의 초안을 저장한다. 계획을 세운 뒤 그 사이에 생긴 초안(곡별 파일, 바뀐 재생 목록 초안)은 덮지 않고 `raced`로 돌려준다.

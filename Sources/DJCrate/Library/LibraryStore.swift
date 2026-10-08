@@ -360,6 +360,15 @@ final class LibraryStore {
     }
     private(set) var hasXMLExportJob = false
     @ObservationIgnored var xmlExportTask: Task<Void, Never>?
+    /// rekordbox XML 가져오기(`LibraryStore+XMLImport.swift`): XML·라이브러리를 읽는 중인지와 차이 미리 보기 시트
+    var isReadingXMLImport = false
+    var xmlImportPreview: XMLImportPreview? {
+        didSet { if oldValue?.id != xmlImportPreview?.id { xmlImportResult = nil } }
+    }
+    /// 미리 보기에서 만든 초안 결과(시트가 결과 화면으로 바뀐다)
+    var xmlImportResult: XMLImportDraftResult?
+    var isMakingXMLImportDrafts = false
+    @ObservationIgnored var xmlImportTask: Task<Void, Never>?
     /// 곡 추가·내보내기 결과 안내
     var stagingMessage: AppMessage? {
         didSet { if let stagingMessage { feedback.announce(stagingMessage) } }

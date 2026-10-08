@@ -1333,6 +1333,28 @@
         }
       }
     },
+    "%@: %@ → %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$@ → %3$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@：%2$@ → %3$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$@ → %3$@"
+          }
+        }
+      }
+    },
     "%@: WAV·AIFF로만 렌더합니다. 확장자를 .wav나 .aiff로 주세요" : {
       "localizations" : {
         "en" : {
@@ -3737,6 +3759,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A〜H以外のホットキュー"
+          }
+        }
+      }
+    },
+    "BPM %@ → %@ · 구간 %lld → %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "BPM %1$@ → %2$@ · Sections %3$lld → %4$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "BPM %1$@ → %2$@ · 区間%3$lld → %4$lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "BPM %1$@ → %2$@ · 구간 %3$lld → %4$lld"
           }
         }
       }
@@ -8329,6 +8373,22 @@
         }
       }
     },
+    "rekordbox XML 가져오기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import rekordbox XML"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox XMLを読み込む"
+          }
+        }
+      }
+    },
     "rekordbox XML 가져오기 확인(%@ 묶음): 일치 %lld" : {
       "localizations" : {
         "en" : {
@@ -8347,6 +8407,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "rekordbox XML 가져오기 확인(%1$@ 묶음): 일치 %2$lld"
+          }
+        }
+      }
+    },
+    "rekordbox XML 가져오기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import rekordbox XML…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox XMLを読み込む…"
           }
         }
       }
@@ -8379,6 +8455,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordbox XMLとライブラリの違いを表示（読み込みのみ、--draftで選んだ違いを下書きに）"
+          }
+        }
+      }
+    },
+    "rekordbox XML을 가져오지 못했습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't import the rekordbox XML: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox XMLを読み込めませんでした：%@"
           }
         }
       }
@@ -13769,6 +13861,22 @@
         }
       }
     },
+    "고른 차이만 초안으로 만듭니다. rekordbox에는 쓰지 않으며, 이미 초안이 있는 곡·목록은 덮지 않습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only the chosen differences become drafts. Nothing is written to rekordbox, and existing drafts for a track or playlist are not overwritten."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選んだ違いだけを下書きにします。rekordboxには書き込まず、すでに下書きがある曲・リストは上書きしません。"
+          }
+        }
+      }
+    },
     "고른 클립 바로 뒤에 같은 구간을 하나 더 둡니다(⌘D). 인트로를 늘일 때 씁니다" : {
       "localizations" : {
         "en" : {
@@ -15513,6 +15621,28 @@
         }
       }
     },
+    "곡이 다른 목록 · XML %lld곡 · 라이브러리 %lld곡" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Different tracks · XML %1$lld · library %2$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲が異なるリスト · XML %1$lld曲 · ライブラリ%2$lld曲"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "곡이 다른 목록 · XML %1$lld곡 · 라이브러리 %2$lld곡"
+          }
+        }
+      }
+    },
     "곡이 다른 재생 목록: %@ (XML %lld곡 · 라이브러리 %lld곡)" : {
       "localizations" : {
         "en" : {
@@ -15835,6 +15965,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "グリッド"
+          }
+        }
+      }
+    },
+    "그리드 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grids %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グリッド%lld"
           }
         }
       }
@@ -16761,6 +16907,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "既存の下書きがあるため飛ばしたもの：%lld"
+          }
+        }
+      }
+    },
+    "기존 초안이 있어 건너뛴 것 %lld · 초안에 담지 못한 차이 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skipped (existing drafts) %1$lld · Differences the drafts couldn't hold %2$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "既存の下書きがあるため飛ばしたもの%1$lld · 下書きに入れられなかった違い%2$lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "기존 초안이 있어 건너뛴 것 %1$lld · 초안에 담지 못한 차이 %2$lld"
           }
         }
       }
@@ -17995,6 +18163,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "別の基準曲を選ぶか、BPM・キー・ジャンル・#タグを確認してください。"
+          }
+        }
+      }
+    },
+    "다른 도구나 rekordbox가 만든 rekordbox XML을 골라 지금 라이브러리와의 차이를 봅니다. 고른 차이만 초안으로 만들고 rekordbox에는 쓰지 않습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a rekordbox XML made by rekordbox or another tool to see how it differs from the current library. Only the differences you choose become drafts; nothing is written to rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxや他のツールで作ったrekordbox XMLを選び、今のライブラリとの違いを表示します。選んだ違いだけを下書きにし、rekordboxには書き込みません。"
           }
         }
       }
@@ -19803,6 +19987,22 @@
         }
       }
     },
+    "라이브러리를 먼저 불러온 뒤 가져오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Load the library first, then import."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先にライブラリを読み込んでから読み込んでください"
+          }
+        }
+      }
+    },
     "라이브러리를 먼저 불러온 뒤 곡을 추가하세요" : {
       "localizations" : {
         "en" : {
@@ -19831,6 +20031,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "先にライブラリを読み込んでから、エクスポートしてください。"
+          }
+        }
+      }
+    },
+    "라이브러리에 없음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not in library"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリにない"
           }
         }
       }
@@ -22141,6 +22357,22 @@
         }
       }
     },
+    "못 맞춘 곡 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unmatched %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一致しない曲%lld"
+          }
+        }
+      }
+    },
     "무결성 검사 실패: %@" : {
       "localizations" : {
         "en" : {
@@ -24061,6 +24293,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解析ファイルのフォルダがありません: %@。--share <rekordboxフォルダ>/shareを指定するか、グリッドなしで書き出すには--no-analysisを指定してください。"
+          }
+        }
+      }
+    },
+    "분석 파일 폴더를 찾지 못해 그리드는 비교하지 않았습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The analysis file folder wasn't found, so grids were not compared."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解析ファイルのフォルダが見つからないため、グリッドは比較しませんでした。"
           }
         }
       }
@@ -29305,6 +29553,22 @@
         }
       }
     },
+    "없는 목록 · 곡 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missing playlist · %lld tracks"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ないリスト · %lld曲"
+          }
+        }
+      }
+    },
     "없는 재생 목록 %lld · 곡이 다른 재생 목록 %lld · 이름이 겹쳐 비교하지 않은 목록 %lld" : {
       "localizations" : {
         "en" : {
@@ -29473,6 +29737,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ここからグリッドを開始"
+          }
+        }
+      }
+    },
+    "여러 곡에 맞음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Matches several tracks"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数の曲に一致"
           }
         }
       }
@@ -29681,6 +29961,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "年を数字に直してからrekordboxに書き込んでください"
+          }
+        }
+      }
+    },
+    "열기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開く"
           }
         }
       }
@@ -32337,6 +32633,22 @@
         }
       }
     },
+    "이 종류의 차이가 없습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No differences of this kind."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この種類の違いはありません。"
+          }
+        }
+      }
+    },
     "이 초안은 rekordbox가 바뀌어서 막힌 것이 아니니 ‘마지막 쓰기 결과…’에서 쓰지 못한 이유를 확인하세요." : {
       "localizations" : {
         "en" : {
@@ -32381,6 +32693,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このキューをループにするか、長さを変えます"
+          }
+        }
+      }
+    },
+    "이 탭 모두 고르기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select All in Tab"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このタブをすべて選択"
+          }
+        }
+      }
+    },
+    "이 탭 모두 빼기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deselect All in Tab"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このタブをすべて選択解除"
           }
         }
       }
@@ -33785,6 +34129,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレイリスト %@"
+          }
+        }
+      }
+    },
+    "재생 목록 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト%lld"
           }
         }
       }
@@ -35723,6 +36083,22 @@
         }
       }
     },
+    "지금 가져오는 XML이 끝난 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try again after the current XML import finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込み中のXMLが終わってから再度試してください"
+          }
+        }
+      }
+    },
     "지금 라이브러리와 다른 곳이 없습니다." : {
       "localizations" : {
         "en" : {
@@ -36251,6 +36627,22 @@
         }
       }
     },
+    "차이 종류" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Difference Type"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "違いの種類"
+          }
+        }
+      }
+    },
     "차이가 없습니다" : {
       "localizations" : {
         "en" : {
@@ -36707,6 +37099,22 @@
         }
       }
     },
+    "초안으로 만들기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Make Drafts"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きにする"
+          }
+        }
+      }
+    },
     "초안으로 반영 계획을 만들어 XML을 지정한 곳에만 쓴다(rekordbox는 그대로)" : {
       "localizations" : {
         "en" : {
@@ -36901,6 +37309,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "초안을 만들었습니다: 큐 %1$lld · 그리드 %2$lld · 태그 %3$lld · 재생 목록 %4$lld"
+          }
+        }
+      }
+    },
+    "초안을 만들지 못했습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't make drafts: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下書きを作れませんでした：%@"
           }
         }
       }
@@ -37949,6 +38373,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キュー%1$@ · %2$lldms · %3$@"
+          }
+        }
+      }
+    },
+    "큐 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cues %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キュー%lld"
           }
         }
       }
@@ -39457,6 +39897,22 @@
         }
       }
     },
+    "태그 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tags %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タグ%lld"
+          }
+        }
+      }
+    },
     "태그 %lld곡" : {
       "localizations" : {
         "en" : {
@@ -40303,6 +40759,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ファイルが想定した曲に属していません"
+          }
+        }
+      }
+    },
+    "파일이 아닌 위치" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not a file location"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイル以外の場所"
           }
         }
       }

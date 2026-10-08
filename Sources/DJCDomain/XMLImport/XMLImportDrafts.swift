@@ -27,9 +27,18 @@ public enum XMLImportDrafts {
         public var trackKeys: Set<String>?
         /// 고른 재생 목록(경로). nil이면 차이가 있는 모든 목록.
         public var playlistPaths: Set<[String]>?
+        /// 종류별로 고른 곡(라이브러리 키). 적힌 종류는 이 곡만, 적히지 않은 종류는 `trackKeys`를 따른다(미리 보기 탭마다 고르기).
+        public var tracksByKind: [Kind: Set<String>] = [:]
 
-        public init(kinds: Set<Kind> = Set(Kind.allCases), trackKeys: Set<String>? = nil, playlistPaths: Set<[String]>? = nil) {
-            self.kinds = kinds; self.trackKeys = trackKeys; self.playlistPaths = playlistPaths
+        public init(kinds: Set<Kind> = Set(Kind.allCases), trackKeys: Set<String>? = nil, playlistPaths: Set<[String]>? = nil,
+                    tracksByKind: [Kind: Set<String>] = [:]) {
+            self.kinds = kinds; self.trackKeys = trackKeys; self.playlistPaths = playlistPaths; self.tracksByKind = tracksByKind
+        }
+
+        public func includes(_ kind: Kind, track key: String) -> Bool {
+            guard kinds.contains(kind) else { return false }
+            if let chosen = tracksByKind[kind] { return chosen.contains(key) }
+            return trackKeys?.contains(key) ?? true
         }
 
         public static let all = Selection()
@@ -83,9 +92,9 @@ public enum XMLImportDrafts {
     public static func plan(diff: XMLLibraryDiff.Result, selection: Selection, sources: [String: TrackSource],
                             layout: PlaylistLayout, playlistDraft: PlaylistDraft) -> Plan {
         var plan = Plan()
-        for change in diff.tracks where selection.trackKeys?.contains(change.libraryKey) ?? true {
+        for change in diff.tracks {
             let wanted = Kind.allCases.filter { kind in
-                guard selection.kinds.contains(kind) else { return false }
+                guard selection.includes(kind, track: change.libraryKey) else { return false }
                 switch kind {
                 case .cue: return change.cues != nil
                 case .grid: return change.grid != nil

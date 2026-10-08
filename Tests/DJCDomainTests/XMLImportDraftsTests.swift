@@ -145,6 +145,10 @@ struct XMLImportDraftsTests {
         let none = XMLImportDrafts.plan(diff: diff(cues: change, tags: tags), selection: selection, sources: ["101": source(track())],
                                         layout: PlaylistLayout(), playlistDraft: PlaylistDraft())
         #expect(none.isEmpty)
+        // 종류별로 고른 곡: 태그 탭에서 모두 빼면 큐만 만든다
+        let perKind = XMLImportDrafts.plan(diff: diff(cues: change, tags: tags), selection: .init(tracksByKind: [.tag: []]),
+                                           sources: ["101": source(track())], layout: PlaylistLayout(), playlistDraft: PlaylistDraft())
+        #expect(perKind.cueDrafts.count == 1 && perKind.tagDrafts.isEmpty)
     }
 
     // MARK: 재생 목록
