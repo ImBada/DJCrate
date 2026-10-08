@@ -20635,6 +20635,22 @@
         }
       }
     },
+    "동기화된 곡의 %@은 rekordbox에 쓰는 규칙을 아직 확인하지 않았으니 rekordbox에서 직접 고치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing %@ for synced tracks to rekordbox has not been verified yet, so edit it in rekordbox directly."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期済みの曲の%@をrekordboxに書き込むルールはまだ確認していないため、rekordboxで直接修正してください。"
+          }
+        }
+      }
+    },
     "동기화를 취소했습니다. USB는 그대로입니다." : {
       "localizations" : {
         "en" : {
@@ -37197,6 +37213,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレイリストに入っている曲の%@をrekordboxに書き込むルールはまだ確認していないため、rekordboxで直接修正するか、この項目の下書きを破棄してください。"
+          }
+        }
+      }
+    },
+    "재생 목록에 든 곡의 %@은 rekordbox에 쓰는 규칙을 아직 확인하지 않았으니 rekordbox에서 직접 고치세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing %@ for tracks in playlists to rekordbox has not been verified yet, so edit it in rekordbox directly."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストに入っている曲の%@をrekordboxに書き込むルールはまだ確認していないため、rekordboxで直接修正してください。"
           }
         }
       }

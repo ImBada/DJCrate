@@ -160,17 +160,20 @@ struct RatingColorTagTests {
 
     // MARK: 확인한 범위 (곡 상태·재생 목록)
 
-    @Test func 평점과_곡_색은_상태_0·256·257이고_재생_목록에_없는_곡을_확인했다() {
-        // 상태 0: 2026-10-04 묶음 2 S1~S3. 동기화 256 → 257: #173 S1 T11·T12(2026-10-04), 사본 재현 2026-10-07
-        #expect(TagWriteScope.scope(for: .rating) == TagWriteScope(states: [0, 256, 257], playlistXML: false))
-        #expect(TagWriteScope.scope(for: .color) == TagWriteScope(states: [0, 256, 257], playlistXML: false))
+    @Test func 평점과_곡_색은_상태_0·256·257_곡을_재생_목록에_들어도_확인했다() {
+        // 상태 0: 2026-10-04 묶음 2 S1~S3. 동기화 256 → 257: #173 S1 T11·T12(2026-10-04), 사본 재현 2026-10-07.
+        // 재생 목록에 든 곡: R65(rekordbox 7.2.18, 2026-10-09) — 곡이 든 목록의 XML Timestamp만 바뀐다(정보 패널 칸과 같다)
+        #expect(TagWriteScope.scope(for: .rating) == TagWriteScope(states: [0, 256, 257], playlistXML: true))
+        #expect(TagWriteScope.scope(for: .color) == TagWriteScope(states: [0, 256, 257], playlistXML: true))
         for key in TagFields.Key.allCases where key != .rating && key != .color {
             #expect(TagWriteScope.scope(for: key) == .common, "\(key)")
         }
         #expect(TagWriteScope.blockReason(keys: [.rating, .title], state: 0, inPlaylist: false) == nil)
         #expect(TagWriteScope.blockReason(keys: [.title, .musicalKey], state: 256, inPlaylist: true) == nil)
-        for state in [256, 257] {
-            #expect(TagWriteScope.blockReason(keys: [.rating, .color], state: state, inPlaylist: false) == nil, "\(state)")
+        for state in [0, 256, 257] {
+            for listed in [false, true] {
+                #expect(TagWriteScope.blockReason(keys: [.rating, .color], state: state, inPlaylist: listed) == nil, "\(state) \(listed)")
+            }
         }
     }
 
@@ -184,13 +187,26 @@ struct RatingColorTagTests {
         #expect(colorOnly.contains("곡 색") && !colorOnly.contains("평점"))
     }
 
+    @Test func 초안이_있을_때만_그_칸_초안을_버리라고_한다() throws {
+        // 초안을 만들기 전(인스펙터·목록·djc draft·XML 가져오기)에는 버릴 초안이 없다. 쓰기 확인(초안이 있음)만 그 할 일을 붙인다.
+        let before = try #require(TagWriteScope.blockReason(keys: [.rating], state: 258, inPlaylist: false))
+        #expect(before.contains("rekordbox에서 직접 고치세요") && !before.contains("초안"))
+        let drafted = try #require(TagWriteScope.blockReason(keys: [.rating], state: 258, inPlaylist: false, hasDraft: true))
+        #expect(drafted.contains("rekordbox에서 직접 고치거나 이 칸 초안을 버리세요"))
+        let narrow = [TagFields.Key.color: TagWriteScope(states: [0, 256, 257], playlistXML: false)]
+        let listed = try #require(TagWriteScope.blockReason(keys: [.color], state: 0, inPlaylist: true, scopes: narrow))
+        #expect(listed.contains("재생 목록") && !listed.contains("초안"))
+        #expect(TagWriteScope.blockReason(keys: [.color], state: 0, inPlaylist: true, scopes: narrow, hasDraft: true)?.contains("초안을 버리세요") == true)
+    }
+
     @Test func 상태를_모르는_곡도_막는다() {
         #expect(TagWriteScope.blockReason(keys: [.rating], state: nil, inPlaylist: false) != nil)
         #expect(TagWriteScope.blockReason(keys: [.rating], state: 258, inPlaylist: false) != nil)
     }
 
-    @Test func 재생_목록에_든_곡의_평점과_곡_색은_막는다() throws {
-        let reason = try #require(TagWriteScope.blockReason(keys: [.rating], state: 0, inPlaylist: true))
+    @Test func 재생_목록_XML을_확인하지_않은_범위면_재생_목록에_든_곡을_막는다() throws {
+        let narrow = [TagFields.Key.rating: TagWriteScope(states: [0, 256, 257], playlistXML: false)]
+        let reason = try #require(TagWriteScope.blockReason(keys: [.rating], state: 0, inPlaylist: true, scopes: narrow))
         #expect(reason.contains("재생 목록") && reason.contains("평점") && reason.contains("rekordbox에서"))
     }
 

@@ -6,7 +6,7 @@ import RekordboxKit
 import Testing
 
 /// `djc draft tag --rating`·`--color`(#65): 평점은 별 수(1~5, 0·빈칸은 지우기), 곡 색은 번호('1'~'8')나 rekordbox 색 이름.
-/// 쓰기를 확인한 범위 밖의 곡(재생 목록에 든 곡, 곡 상태 0·256·257 밖)은 초안을 만들지 않고 이유를 알린다(`TagWriteScope`).
+/// 쓰기를 확인한 범위 밖의 곡(곡 상태 0·256·257 밖)은 초안을 만들지 않고 이유를 알린다(`TagWriteScope`). 재생 목록에 든 곡은 R65(2026-10-09)로 열었다.
 extension DraftCommandTests {
     /// 곡 101: 상태 0, 평점 2, 색 Red('2'), 색 줄 여덟
     func ratedFixture(state: Int = 0) throws -> RekordboxFixture {
@@ -55,13 +55,22 @@ extension DraftCommandTests {
         #expect(draft.fields.rating == "4" && draft.fields.color == "7" && draft.changedKeys == [.rating, .color])
     }
 
-    @Test func 재생_목록에_든_곡의_평점은_초안을_만들지_않는다() throws {
+    @Test func 재생_목록에_든_곡의_평점과_색도_초안을_만든다() throws {
+        // R65(2026-10-09): 재생 목록에 든 곡의 평점·곡 색 저장은 곡 행과 그 곡이 든 목록의 XML Timestamp만 고쳤다
         let fixture = try ratedFixture()
         try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["101"]))
+        #expect(try run(["tag", "101", "--rating", "4", "--color", "7"], fixture: fixture).status == 0)
+        let draft = try #require(TagDraftStore.load(trackUUID: "track-101", directory: directory(fixture, "tag")))
+        #expect(draft.changedKeys == [.rating, .color])
+    }
+
+    @Test func 쓰기를_확인하지_않은_상태의_곡은_평점_초안을_만들지_않는다() throws {
+        let fixture = try ratedFixture(state: 258)
         let output = try run(["tag", "101", "--rating", "4"], fixture: fixture)
         #expect(output.status != 0)
         let error = try #require(output.document(error: true)["error"] as? [String: Any])
-        #expect(error["code"] as? String == "unverified_field" && (error["message"] as? String)?.contains("재생 목록") == true)
+        let message = error["message"] as? String
+        #expect(error["code"] as? String == "unverified_field" && message?.contains("평점") == true && message?.contains("초안") == false)
     }
 
     @Test func 두_칸이_없던_옛_초안_위에_평점을_고쳐도_기준은_곡의_지금_값이다() throws {

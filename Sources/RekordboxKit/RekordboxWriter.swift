@@ -130,7 +130,7 @@ public enum RekordboxWriter {
     ///   - attachesAnalysis: 분석 붙이기를 여는지. 앱은 `attachesAnalysis`를 따르고, 시험과 사본 실험(`djc lab analysis-attach-test`)만 바꾼다.
     ///   - writesArtwork: 분석을 붙이는 곡에 아트워크도 넣는지. 앱은 `RekordboxTrackWriter.writesArtwork`를 따르고, 시험만 바꾼다.
     ///   - tagKeys: 태그 쓰기를 연 칸. 앱은 `writableTagKeys`를 따르고, 시험과 사본 실험(`djc lab tag-write-test`)만 바꾼다.
-    ///   - tagScopes: 칸별로 좁게 확인한 범위(평점·곡 색의 곡 상태·재생 목록). 앱은 `TagWriteScope.byKey`, 사본 실험만 비운다.
+    ///   - tagScopes: 칸별로 확인한 범위(평점·곡 색의 곡 상태·재생 목록). 앱은 `TagWriteScope.byKey`, 사본 실험만 비운다.
     package static func write(drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], tags: [TagDraft] = [],
                               artworks: [ArtworkEdit] = [],
                               analysisInputs: [String: AnalysisInput],

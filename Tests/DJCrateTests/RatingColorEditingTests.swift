@@ -7,7 +7,8 @@ import Foundation
 import Testing
 
 /// 평점·곡 색 편집(#65): 곡 목록 칸(초안 표시·메뉴로 고르기), 태그 시트, 쓰기를 확인한 곡에만 초안 만들기, 목록 거르기.
-/// 쓰기 규칙은 rekordbox 7.2.18 실험(2026-10-04 묶음 2·#173 S1 T11·T12)에서 상태 0·256·257이고 재생 목록에 없는 곡만 확인했다(`TagWriteScope`).
+/// 쓰기 규칙은 rekordbox 7.2.18 실험(2026-10-04 묶음 2·#173 S1 T11·T12)에서 상태 0·256·257 곡을, R65(2026-10-09)에서 재생 목록에 든 곡을
+/// 확인했다(`TagWriteScope`). 그 밖의 상태(258 등)는 막는다.
 @Suite("평점·곡 색 편집")
 @MainActor
 struct RatingColorEditingTests {
@@ -27,17 +28,21 @@ struct RatingColorEditingTests {
 
     // MARK: 고칠 수 있는 곡
 
-    @Test func 상태_0·256·257이고_재생_목록에_없는_곡만_평점과_곡_색을_고친다() {
-        for row in [Self.row("1"), Self.row("2", state: 256), Self.row("3", state: 257)] {
+    @Test func 상태_0·256·257_곡은_재생_목록에_들어도_평점과_곡_색을_고친다() {
+        // R65(2026-10-09): 재생 목록에 든 곡도 연다
+        for row in [Self.row("1"), Self.row("2", state: 256), Self.row("3", state: 257), Self.row("7", inPlaylist: true),
+                    Self.row("8", state: 256, inPlaylist: true)] {
             #expect(TrackListTagEditing.unavailableReason(row, key: .rating) == nil, "\(row.track.id)")
             #expect(TrackListTagEditing.unavailableReason(row, key: .color) == nil, "\(row.track.id)")
         }
-        for (row, words) in [(Self.row("4", inPlaylist: true), "재생 목록"), (Self.row("5", staged: true), "넣은 뒤"),
+        for (row, words) in [(Self.row("4", state: 258, inPlaylist: true), "rekordbox에서 직접 고치세요"), (Self.row("5", staged: true), "넣은 뒤"),
                              (Self.row("6", streaming: true), "스트리밍")] {
             for key in [TagFields.Key.rating, .color] {
                 let reason = TrackListTagEditing.unavailableReason(row, key: key)
                 #expect(reason?.contains(words) == true, "\(row.track.id) \(key)")
             }
+            // 아직 초안이 없는 칸에서 "초안을 버리세요"라고 하지 않는다
+            #expect(TrackListTagEditing.unavailableReason(row, key: .rating)?.contains("초안") != true)
             // 다른 태그 칸은 예전과 같다(스트리밍만 막는다)
             #expect((TrackListTagEditing.unavailableReason(row, key: .title) == nil) == !row.track.isStreaming)
         }
@@ -46,10 +51,12 @@ struct RatingColorEditingTests {
     @Test func 고칠_수_없는_곡이나_고를_수_없는_값은_초안을_만들지_않는다() {
         let store = store()
         let ok = Self.row("1"), synced = Self.row("2", state: 256), listed = Self.row("3", inPlaylist: true), staged = Self.row("4", staged: true)
-        store.setTag(.rating, "4", rows: [ok, synced, listed, staged])
-        #expect(store.tagDrafts.keys.sorted() == [ok.track.uuid, synced.track.uuid])
-        #expect(store.tagCell(ok, .rating) == "4" && store.tagCell(synced, .rating) == "4" && store.tagCell(listed, .rating) == "")
-        store.revertTags(rows: [synced])
+        let unverified = Self.row("5", state: 258)
+        store.setTag(.rating, "4", rows: [ok, synced, listed, staged, unverified])
+        #expect(store.tagDrafts.keys.sorted() == [ok.track.uuid, synced.track.uuid, listed.track.uuid])
+        #expect(store.tagCell(ok, .rating) == "4" && store.tagCell(synced, .rating) == "4" && store.tagCell(listed, .rating) == "4")
+        #expect(store.tagCell(unverified, .rating) == "")
+        store.revertTags(rows: [synced, listed])
         // 시트 붙여넣기의 별·색 이름도 다듬어 받는다. 고를 수 없는 값은 건너뛴다.
         store.applyTagEdits([(row: ok, key: .rating, value: "★★"), (row: ok, key: .color, value: "blue")])
         #expect(store.tagCell(ok, .rating) == "2" && store.tagCell(ok, .color) == "7")
@@ -93,7 +100,7 @@ struct RatingColorEditingTests {
     }
 
     @Test func 평점과_곡_색_칸은_메뉴로_고르고_고른_곡_모두에_넣는다() throws {
-        let rows = [Self.row("1", rating: 3), Self.row("2", rating: 1, state: 257), Self.row("3", inPlaylist: true)]
+        let rows = [Self.row("1", rating: 3), Self.row("2", rating: 1, state: 257), Self.row("3", state: 258)]
         let h = ListHarness(rows: rows, selection: Set(rows.map(\.id)), extra: ["rating", "color"])
         defer { h.close() }
         let menu = try #require(h.coordinator.choiceMenu(.rating, row: 0))
@@ -101,7 +108,7 @@ struct RatingColorEditingTests {
         #expect(menu.items.allSatisfy { $0.state == .off }, "값이 서로 다르면 체크하지 않는다")
         try choose("★★★★☆", menu: menu)
         #expect(h.store.tagCell(rows[0], .rating) == "4" && h.store.tagCell(rows[1], .rating) == "4")
-        #expect(h.store.tagDrafts[rows[2].track.uuid] == nil, "재생 목록에 든 곡은 빼고 쓴다")
+        #expect(h.store.tagDrafts[rows[2].track.uuid] == nil, "쓰기를 확인하지 않은 상태(258)의 곡은 빼고 쓴다")
         let colors = try #require(h.coordinator.choiceMenu(.color, row: 1))
         #expect(colors.items.map(\.title) == ["없음"] + TrackColor.rekordboxDefaults.map(\.name))
         #expect(colors.items.dropFirst().allSatisfy { $0.image != nil })
@@ -131,7 +138,7 @@ struct RatingColorEditingTests {
     }
 
     @Test func 고칠_수_없는_곡의_평점_칸_더블클릭은_덱에_올린다() {
-        let row = Self.row("1", inPlaylist: true)
+        let row = Self.row("1", state: 258)
         let h = ListHarness(rows: [row], selection: [row.id], extra: ["rating"])
         defer { h.close() }
         var loaded: [String?] = []
@@ -158,7 +165,7 @@ struct RatingColorEditingTests {
     // MARK: 태그 시트
 
     @Test func 시트는_평점을_별로_곡_색을_이름으로_보이고_붙여넣기는_다듬어_받는다() throws {
-        let rows = [Self.row("1", rating: 3, color: "2"), Self.row("2", state: 256), Self.row("3", inPlaylist: true)]
+        let rows = [Self.row("1", rating: 3, color: "2"), Self.row("2", state: 256, inPlaylist: true), Self.row("3", state: 258)]
         let h = SheetColumnLookupTests.Harness(rows: rows, moved: false)
         defer { h.window.close() }
         let rating = h.column("rating"), color = h.column("color")
@@ -166,7 +173,7 @@ struct RatingColorEditingTests {
         #expect(h.coordinator.editableKey(row: 0, column: rating) == .rating && h.coordinator.editableKey(row: 2, column: rating) == nil)
         var messages: [String] = []
         h.coordinator.announce = { messages.append($0) }
-        // 한 값을 고른 칸 전체에: 재생 목록에 든 곡(줄 3)은 건너뛴다
+        // 한 값을 고른 칸 전체에: 재생 목록에 든 곡(줄 2)은 넣고, 쓰기를 확인하지 않은 상태의 곡(줄 3)은 건너뛴다
         h.coordinator.select(CellPosition(row: 0, column: rating), extend: false)
         h.coordinator.select(CellPosition(row: 2, column: color), extend: true)
         h.coordinator.paste(string: "★★★★★")
@@ -223,10 +230,23 @@ struct RatingColorEditingTests {
         store.setTag(.rating, "1", rows: [first])
         #expect(store.tagCell(first, .rating) == "1")
         #expect(Set(store.displayRows.map(\.track.id)) == ["101", "102", "103"])
-        // 재생 목록에 든 곡은 평점·곡 색 초안을 만들지 않는다
+        // 재생 목록에 든 곡도 평점·곡 색 초안을 만든다(R65, 2026-10-09)
         let listed = try #require(store.rowsByID["102"])
         store.setTag(.rating, "1", rows: [listed])
-        #expect(store.tagDrafts[listed.track.uuid] == nil && store.tagDrafts.count == 1)
+        store.setTag(.color, "", rows: [listed])
+        #expect(store.tagDrafts[listed.track.uuid]?.changedKeys == [.rating, .color] && store.tagDrafts.count == 2)
+    }
+
+    @Test func 인스펙터는_재생_목록에_든_곡의_평점과_곡_색을_막지_않는다() {
+        // 인스펙터 고르기(`TagChoiceField`)와 키 고르기가 쓰는 판단: 재생 목록에 든 곡도 고를 수 있고 이유를 보이지 않는다(R65)
+        let listed = Self.row("1", inPlaylist: true), synced = Self.row("2", state: 257, inPlaylist: true), unverified = Self.row("3", state: 258)
+        for key in [TagFields.Key.rating, .color] {
+            #expect(TagChoice.targets(key, [listed, synced, unverified]).map(\.track.id) == ["1", "2"], "\(key)")
+            #expect([listed, synced].compactMap { TrackListTagEditing.unavailableReason($0, key: key) }.isEmpty)
+        }
+        let store = store()
+        store.setTag(.rating, "5", rows: TagChoice.targets(.rating, [listed]))
+        #expect(store.tagCell(listed, .rating) == "5" && store.isTagEdited(listed, .rating))
     }
 
     private func choose(_ title: String, menu: NSMenu) throws {

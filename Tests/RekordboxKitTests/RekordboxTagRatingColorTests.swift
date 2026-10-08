@@ -13,7 +13,8 @@ import Testing
 /// - 2026-10-04 #173 S1(rekordbox 7.2.18, 자동 분석 끔, 실제 동기화 곡, 역할 이름만): T11 평점 0 → 3(`TrackInfoUpdated` '4' → '5'),
 ///   T12 곡 색 '0' → '2'(Red, '6' → '7'). 상태 0과 같은 칸 + `rb_data_status` 256 → 257, 클라우드 `usn`·`rb_local_synced`는 그대로.
 ///   2026-10-07 사본 재현(S1 기준점 클론에 `djc lab tag-write-test`, 곡 행 78칸 `quote()`)에서 rekordbox 결과와 차이 0.
-/// - 실험 곡은 살아 있는 재생 목록에 없었다(XML Timestamp 미확인)라 재생 목록에 든 곡은 막는다(`TagWriteScope.byKey`).
+/// - 재생 목록에 든 곡은 R65(2026-10-09)에서 확인해 연다: 곡 행은 위와 같고 그 곡이 든 목록 NODE의 Timestamp만 바뀐다
+///   (`RekordboxTagRatingColorPlaylistTests`). 범위를 좁히는 장치(`TagWriteScope.byKey`)는 아래 시험이 좁힌 범위를 넘겨 확인한다.
 /// - 인텔리전트 목록의 Timestamp·결과는 [미확인]이지만 사용자 결정(2026-10-07)으로 막지 않는다(rekordbox에서 목록을 다시 정렬하면 된다).
 extension RekordboxTagWriterTests {
     /// 묶음 2 사본의 `djmdColor` 여덟 줄(`ID` 글자, `SortKey`, `Commnt`, `ColorCode` NULL)
@@ -166,46 +167,37 @@ extension RekordboxTagWriterTests {
         #expect(try content(fixture) == before)
     }
 
-    @Test func 재생_목록에_든_곡의_평점과_곡_색은_막고_XML을_건드리지_않는다() throws {
-        let (fixture, track) = try ratingLibrary()
-        let url = try withPlaylists(fixture, [PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["500"])])
-        let xml = try Data(contentsOf: url), before = try content(fixture)
-        for edit: (inout TagFields) -> Void in [{ $0.rating = "3" }, { $0.color = "2" }] {
-            let report = try write(fixture, tags: [try draft(fixture, track, edit)])
-            #expect(report.tagWritten.isEmpty && report.backup == nil)
-            #expect(report.tagBlocked.first?.reason?.contains("재생 목록") == true)
-        }
-        #expect(try content(fixture) == before && Data(contentsOf: url) == xml)
-        // 지운 목록·지운 항목은 세지 않는다
-        try fixture.execute("UPDATE djmdSongPlaylist SET rb_local_deleted = 1 WHERE PlaylistID = '201'")
-        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.rating = "3" }]).tagWritten.count == 1)
-        #expect(try Data(contentsOf: url) == xml, "평점·색은 XML을 고치는 칸이 아니다")
-    }
+    /// 재생 목록 XML을 확인하지 않은 범위(R65 전의 평점·곡 색). 좁히는 장치를 시험할 때만 넘긴다.
+    static let unverifiedPlaylist: [TagFields.Key: TagWriteScope] = [.rating: TagWriteScope(states: [0, 256, 257], playlistXML: false),
+                                                                     .color: TagWriteScope(states: [0, 256, 257], playlistXML: false)]
 
-    @Test func 같은_쓰기의_재생_목록_초안이_곡을_목록에_넣으면_백업_전_확인에서_막는다() throws {
+    @Test func 좁힌_범위에서는_같은_쓰기의_재생_목록_초안이_곡을_목록에_넣으면_백업_전_확인에서_막는다() throws {
         // 트랜잭션은 재생 목록 편집을 태그보다 먼저 쓰므로 거기서도 막히지만, 미리 보기·백업 전 확인이 같은 판단을 해야 한다
+        let scopes = Self.unverifiedPlaylist
         let (fixture, track) = try ratingLibrary()
         _ = try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["501"]))
         let rating = try draft(fixture, track) { $0.rating = "3" }, title = try draft(fixture, track) { $0.title = "새 제목" }
         let steps = [PlaylistDraft.Step(edit: .addTracks(playlist: .id("201"), contentIDs: ["500"]))]
         let db = try fixture.open()
         defer { db.close() }
-        let checked = try RekordboxWriter.checkTagDrafts([rating], db: db, writable: Self.allKeys, playlistSteps: steps)
+        #expect(try RekordboxWriter.checkTagDrafts([rating], db: db, writable: Self.allKeys, playlistSteps: steps).passed == [rating], "앱 범위(R65)는 쓴다")
+        let checked = try RekordboxWriter.checkTagDrafts([rating], db: db, writable: Self.allKeys, playlistSteps: steps, scopes: scopes)
         #expect(checked.passed.isEmpty && checked.blocked.first?.reason?.contains("재생 목록") == true)
         // 새로 만드는 목록에 넣어도 같다. 다른 곡을 넣거나 빼기만 하면, 또는 다른 칸만 고치면 막지 않는다
         let created = [PlaylistDraft.Step(edit: .create(key: "n", name: "새 목록", isFolder: false, parent: .root)),
                        PlaylistDraft.Step(edit: .addTracks(playlist: .new("n"), contentIDs: ["501", "500"]))]
-        #expect(try RekordboxWriter.checkTagDrafts([rating], db: db, writable: Self.allKeys, playlistSteps: created).passed.isEmpty)
+        #expect(try RekordboxWriter.checkTagDrafts([rating], db: db, writable: Self.allKeys, playlistSteps: created, scopes: scopes).passed.isEmpty)
         let others = [PlaylistDraft.Step(edit: .addTracks(playlist: .id("201"), contentIDs: ["501"])),
                       PlaylistDraft.Step(edit: .removeTracks(playlist: .id("201"), entries: [PlaylistEntry(trackNo: 1, contentID: "501")]))]
-        #expect(try RekordboxWriter.checkTagDrafts([rating], db: db, writable: Self.allKeys, playlistSteps: others).passed == [rating])
-        #expect(try RekordboxWriter.checkTagDrafts([title], db: db, writable: Self.allKeys, playlistSteps: steps).passed == [title])
+        #expect(try RekordboxWriter.checkTagDrafts([rating], db: db, writable: Self.allKeys, playlistSteps: others, scopes: scopes).passed == [rating])
+        #expect(try RekordboxWriter.checkTagDrafts([title], db: db, writable: Self.allKeys, playlistSteps: steps, scopes: scopes).passed == [title])
         db.close()
 
         // 쓰기 전체: 목록 편집은 쓰고 평점 초안만 막는다
         let report = try RekordboxWriter.write(drafts: [], grids: [], gains: [:], tags: [rating], analysisInputs: [:],
                                                playlists: steps.map(\.edit), to: fixture.database, dryRun: false, now: now,
-                                               backups: fixture.backups, shareRoot: fixture.shareRoot, attachesAnalysis: false, tagKeys: Self.allKeys)
+                                               backups: fixture.backups, shareRoot: fixture.shareRoot, attachesAnalysis: false, tagKeys: Self.allKeys,
+                                               tagScopes: scopes)
         #expect(report.tagWritten.isEmpty && report.tagBlocked.first?.reason?.contains("재생 목록") == true)
         #expect(report.playlistOutcomes?.map(\.status) == [.written])
         #expect(try raw(fixture, "Rating").value == "0")
@@ -241,7 +233,7 @@ extension RekordboxTagWriterTests {
     @Test func 막힌_평점_초안은_같은_쓰기의_다른_곡을_막지_않는다() throws {
         let (fixture, track) = try ratingLibrary()
         let neighbor = TrackSpec(id: "501", uuid: "track-uuid-501")
-        _ = try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["501"]))
+        try fixture.execute("UPDATE djmdContent SET rb_data_status = 258 WHERE ID = '501'")
         let tags = [try draft(fixture, track) { $0.rating = "2" }, try draft(fixture, neighbor) { $0.rating = "4" }]
         let report = try write(fixture, tags: tags)
         #expect(report.tagWritten.map(\.trackUUID) == [track.uuid] && report.tagBlocked.map(\.trackUUID) == [neighbor.uuid])
@@ -249,21 +241,27 @@ extension RekordboxTagWriterTests {
     }
 
     @Test func 트랜잭션_안에서도_범위를_다시_본다() throws {
-        // 백업 전 확인 뒤에 곡이 재생 목록에 들어가도(같은 쓰기의 재생 목록 편집 등) 트랜잭션의 확인이 막는다
+        // 좁힌 범위에서 백업 전 확인 뒤에 곡이 재생 목록에 들어가도(같은 쓰기의 재생 목록 편집 등) 트랜잭션의 확인이 막는다
         let (fixture, track) = try ratingLibrary()
         let tags = try draft(fixture, track) { $0.color = "2" }
         let db = try fixture.open()
         defer { db.close() }
-        #expect(throws: Never.self) { _ = try RekordboxWriter.checkTags(tags, db: db, writable: Self.allKeys) }
+        let scopes = Self.unverifiedPlaylist
+        #expect(throws: Never.self) { _ = try RekordboxWriter.checkTags(tags, db: db, writable: Self.allKeys, scopes: scopes) }
         _ = try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["500"]))
-        #expect(throws: RekordboxWriter.Blocked.self) { _ = try RekordboxWriter.checkTags(tags, db: db, writable: Self.allKeys) }
+        #expect(throws: RekordboxWriter.Blocked.self) { _ = try RekordboxWriter.checkTags(tags, db: db, writable: Self.allKeys, scopes: scopes) }
+        #expect(throws: Never.self) { _ = try RekordboxWriter.checkTags(tags, db: db, writable: Self.allKeys) }
     }
 
     @Test func 넓힌_범위는_한_곳에서_받는다() throws {
-        // 사본 실험(`djc lab tag-write-test`)은 범위 표를 비워(공통 범위) 재생 목록에 든 곡에도 쓴다(실험 재현용)
+        // 사본 실험(`djc lab tag-write-test`)은 범위 표를 비워(공통 범위) 좁힌 범위 밖의 곡에도 쓴다(실험 재현용)
         let (fixture, track) = try ratingLibrary(state: 256)
         _ = try fixture.add(PlaylistSpec(id: "201", name: "목록", seq: 1, contentIDs: ["500"]))
-        #expect(try write(fixture, tags: [try draft(fixture, track) { $0.rating = "3" }]).tagWritten.isEmpty, "앱 범위는 막는다")
+        let narrowed = try RekordboxWriter.write(drafts: [], grids: [], gains: [:], tags: [try draft(fixture, track) { $0.rating = "3" }],
+                                                 analysisInputs: [:], to: fixture.database, dryRun: false, now: now, backups: fixture.backups,
+                                                 shareRoot: fixture.shareRoot, attachesAnalysis: false, tagKeys: Self.allKeys,
+                                                 tagScopes: Self.unverifiedPlaylist)
+        #expect(narrowed.tagWritten.isEmpty, "좁힌 범위는 막는다")
         let report = try RekordboxWriter.write(drafts: [], grids: [], gains: [:], tags: [try draft(fixture, track) { $0.rating = "3" }],
                                                analysisInputs: [:], to: fixture.database, dryRun: false, now: now, backups: fixture.backups,
                                                shareRoot: fixture.shareRoot, attachesAnalysis: false, tagKeys: Self.allKeys, tagScopes: [:])
@@ -414,8 +412,9 @@ extension RekordboxTagWriterTests {
         #expect(try content(fixture) == before)
     }
 
-    @Test func 앱은_평점과_곡_색_칸을_열고_XML을_고치는_칸에서는_뺀다() {
+    @Test func 앱은_평점과_곡_색_칸을_열고_XML을_고치는_칸에도_넣는다() {
+        // R65(2026-10-09): 재생 목록에 든 곡의 평점·곡 색 저장도 그 곡이 든 목록의 Timestamp를 고쳤다
         #expect(RekordboxWriter.writableTagKeys.isSuperset(of: [.rating, .color]))
-        #expect(!RekordboxWriter.playlistXMLTagKeys.contains(.rating) && !RekordboxWriter.playlistXMLTagKeys.contains(.color))
+        #expect(RekordboxWriter.playlistXMLTagKeys.isSuperset(of: [.rating, .color]))
     }
 }
