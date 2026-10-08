@@ -114,7 +114,7 @@ struct UsbPendingWorkflow {
     }
 }
 
-/// 사이드바 "USB 쓰기 대기": 이 볼륨의 초안 편집 목록 · 미리 보기 · USB에 쓰기… · 편집 빼기 · 초안 버리기…
+/// 사이드바 "USB 쓰기 대기": 이 볼륨의 초안 편집 목록 · 미리 보기 · USB에 쓰기… · 편집 빼기 · 초안 버리기
 /// 볼륨이 빠져 있어도 초안은 보이고 고칠 수 있다(쓰기만 막힌다)
 struct UsbPendingView: View {
     let store: LibraryStore
@@ -211,11 +211,11 @@ struct UsbPendingView: View {
             Button(.ui("USB에 쓰기…")) { Task { await write() } }
                 .disabled(!model.canWrite || isPreviewing)
                 .help(model.writeHelp)
-            Button(.ui("초안 버리기…"), role: .destructive) {
+            Button(.ui("초안 버리기"), role: .destructive) {
                 Task { await actions?.discardDraft(volumeKey: volumeKey) }
             }
             .disabled(model.rows.isEmpty || usb.busyVolumes.contains(volumeKey))
-            .help(.ui("이 USB에 아직 쓰지 않은 편집을 모두 버립니다. USB는 바뀌지 않습니다."))
+            .help(.ui("이 USB에 아직 쓰지 않은 편집을 모두 버립니다. 편집 › 실행 취소(⌘Z)로 되살립니다."))
         }
         .controlSize(.small)
         .padding(.horizontal, Spacing.edge)

@@ -375,9 +375,9 @@ extension LibraryStore {
     // MARK: - rekordbox XML
 
     /// 키 초안이 있는 추가한 곡을 XML 내보내기에서 뺄 때 알리는 이유. rekordbox XML의 키(`Tonality`)를 가져오는 규칙은 확인하지 않아 키 초안을
-    /// 담지 않는다. 고른 키가 조용히 사라지지 않게 그 곡만 빼고 이유를 알린다. ‘rekordbox에 넣기…’는 키를 함께 쓴다(#5).
+    /// 담지 않는다. 고른 키가 조용히 사라지지 않게 그 곡만 빼고 이유를 알린다. ‘rekordbox에 넣기’는 키를 함께 쓴다(#5).
     static func stagedKeyDraftBlock(title: String) -> String {
-        String(ui: "\(title): XML로 키를 넘기는 방법은 확인하지 않았으니 ‘rekordbox에 넣기…’로 키까지 넣거나 태그 초안(키)을 버린 뒤 내보내세요")
+        String(ui: "\(title): XML로 키를 넘기는 방법은 확인하지 않았으니 ‘rekordbox에 넣기’로 키까지 넣거나 태그 초안(키)을 버린 뒤 내보내세요")
     }
 
     /// 추가한 곡을 rekordbox XML로 쓴다. 태그 초안(시트·인스펙터에서 고친 값)과 그리드·큐 초안을 넣는다.

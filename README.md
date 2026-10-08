@@ -8,7 +8,7 @@ rekordbox 7 라이브러리를 rekordbox를 켜지 않고 고치는 macOS 앱. �
 
 ## 안전 원칙
 
-- 편집은 모두 초안으로 쌓이고, "rekordbox에 쓰기…"(⇧⌘E)를 누를 때만 rekordbox에 쓴다.
+- 편집은 모두 초안으로 쌓이고, "rekordbox에 쓰기"(⇧⌘E)를 누를 때만 rekordbox에 쓴다.
 - rekordbox·rekordboxAgent가 켜져 있거나, 확인한 버전(7.2.x)·DB 구조가 아니면 쓰지 않는다.
 - 쓰기 전에 라이브러리 전체를 백업하고, 한 트랜잭션으로 쓴 뒤 다시 읽어 검증한다. "쓰기 전으로 복원…"으로 되돌린다.
 - rekordbox에서 직접 편집한 결과와 칸 단위로 같은지 확인한 쓰기만 한다. 나머지는 이유를 보여 주고 막는다.
@@ -25,7 +25,7 @@ swift build -c release --product djc  # .build/release/djc
 
 1. 툴바 ⟳로 라이브러리 사본(스냅샷)을 뜬다. rekordbox가 켜져 있어도 된다. 사본·초안·백업은 `~/Library/Application Support/DJCrate/`에 있고, 클라우드 토큰이 들어 있으니 공유하지 않는다.
 2. 덱·목록에서 고친다. 고친 곡은 쓰기 대기로 표시된다.
-3. rekordbox를 완전히 끄고 "rekordbox에 쓰기…"(⇧⌘E). 사본에 미리 써 보고 막힌 것이 없으면 묻지 않고 바로 쓴다. 결과 알림의 "쓰기 전으로 복원…"으로 되돌린다.
+3. rekordbox를 완전히 끄고 "rekordbox에 쓰기"(⇧⌘E). 사본에 미리 써 보고 막힌 것이 없으면 묻지 않고 바로 쓴다. 결과 알림의 "쓰기 전으로 복원"으로 되돌린다.
 
 ## 기능
 

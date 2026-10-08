@@ -18,7 +18,7 @@ enum LibraryMenuAction: CaseIterable {
         case .exportLibraryXML: String(ui: "라이브러리 XML 내보내기…")
         // 다른 도구가 만든 rekordbox XML과의 차이를 보고 고른 것만 초안으로 만든다(#72, 열기 창을 여므로 …).
         case .importRekordboxXML: String(ui: "rekordbox XML 가져오기…")
-        case .reflect: String(ui: "rekordbox에 쓰기…")
+        case .reflect: String(ui: "rekordbox에 쓰기")
         case .pending: String(ui: "쓰기 대기 목록 보기")
         case .writeResult: String(ui: "마지막 쓰기 결과…")
         case .restore: String(ui: "쓰기 전으로 복원…")

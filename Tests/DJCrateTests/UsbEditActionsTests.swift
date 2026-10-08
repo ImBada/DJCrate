@@ -189,17 +189,52 @@ struct UsbEditActionsTests {
         #expect(try draft()?.edits.last == .playlist(edit: .create(key: "k1", name: "새 목록", isFolder: false, parent: .root)))
         #expect(usb.draftCounts[key] == 2)
 
-        // 초안 버리기는 확인을 받는다
+        // 초안 버리기는 묻지 않고 바로 버린다(실행 취소로 되살린다)
         prompter.answer = false
+        let shown = prompter.shown.count
         await actions.discardDraft(volumeKey: key)
-        #expect(try draft() != nil)
-        #expect(prompter.shown.last?.title == "USB 초안 2건을 버릴까요?")
-        #expect(prompter.shown.last?.confirm == "버리기")
-        #expect(prompter.shown.last?.destructive == true)
-        prompter.answer = true
-        await actions.discardDraft(volumeKey: key)
+        #expect(prompter.shown.count == shown)
         #expect(try draft() == nil)
         #expect((usb.draftCounts[key] ?? 0) == 0)
+    }
+
+    @Test("USB 초안 버리기는 편집 › 실행 취소로 되살리고(처음 base 그대로, 그 뒤 더한 편집은 뒤에), 실행 복귀로 다시 버린다")
+    func discardDraftUndo() async throws {
+        defer { cleanUp() }
+        let (usb, _, base) = await setUp()
+        let undo = UndoManager()
+        undo.groupsByEvent = false
+        var actions = base
+        actions.undoManager = undo
+        await actions.addTracks([UsbEditTestData.localRow("11")], to: .collection(volumeKey: key))
+        await actions.removeTracks([UsbLibraryRows.collection(library: try #require(usb.libraries[key]), volumeKey: key,
+                                                              mountPoint: image.mountPoint, badges: [:])[1]], volumeKey: key)
+        let before = try #require(try draft())
+        #expect(before.edits.count == 2)
+
+        undo.beginUndoGrouping()
+        await actions.discardDraft(volumeKey: key)
+        undo.endUndoGrouping()
+        #expect(try draft() == nil)
+        #expect(undo.canUndo)
+        #expect(undo.undoActionName == "USB 초안 버리기")
+
+        // 버린 뒤 더한 편집은 되살린 편집 뒤에 남는다
+        service.update { $0.base = UsbFingerprint(files: [:]) }
+        await actions.addTracks([UsbEditTestData.localRow("12")], to: .collection(volumeKey: key))
+        undo.undo()
+        #expect(await waitUntil { usb.draftCounts[key] == 3 })
+        let restored = try #require(try draft())
+        #expect(restored.edits == before.edits + [.addTracks(localContentIDs: ["12"], playlist: nil)])
+        #expect(restored.base == before.base)
+        #expect(restored.createdAt == before.createdAt)
+        #expect(prompter.shown.isEmpty)
+
+        #expect(undo.canRedo)
+        undo.redo()
+        #expect(await waitUntil { (usb.draftCounts[key] ?? 0) == 0 })
+        #expect(try draft() == nil)
+        #expect(undo.canUndo)
     }
 
     // MARK: - 막힘 미리 판정

@@ -159,7 +159,7 @@ struct MenuCommandTests {
     }
 
     @Test func 쓰기와_복원은_확인을_예고하고_XML은_바로_만든다() {
-        #expect(LibraryMenuAction.reflect.title == "rekordbox에 쓰기…")
+        #expect(LibraryMenuAction.reflect.title == "rekordbox에 쓰기")
         #expect(LibraryMenuAction.restore.title == "쓰기 전으로 복원…")
         #expect(LibraryMenuAction.exportXML.title == "XML 만들기")
         #expect(LibraryMenuAction.exportLibraryXML.title == "라이브러리 XML 내보내기…", "저장 위치를 고르므로 …, 연동 파일을 만드는 XML 만들기와 이름이 겹치지 않는다")

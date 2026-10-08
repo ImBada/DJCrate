@@ -1403,18 +1403,18 @@
         }
       }
     },
-    "%@: XML로 키를 넘기는 방법은 확인하지 않았으니 ‘rekordbox에 넣기…’로 키까지 넣거나 태그 초안(키)을 버린 뒤 내보내세요" : {
+    "%@: XML로 키를 넘기는 방법은 확인하지 않았으니 ‘rekordbox에 넣기’로 키까지 넣거나 태그 초안(키)을 버린 뒤 내보내세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@: Passing the key through XML has not been verified, so use “Add to rekordbox…” to add the track with its key, or discard the tag draft (key) before exporting"
+            "value" : "%@: Passing the key through XML has not been verified, so use “Add to rekordbox” to add the track with its key, or discard the tag draft (key) before exporting"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@: XMLでキーを渡す方法は確認していないため、「rekordboxに追加…」でキーごと追加するか、タグの下書き（キー）を破棄してから書き出してください"
+            "value" : "%@: XMLでキーを渡す方法は確認していないため、「rekordboxに追加」でキーごと追加するか、タグの下書き（キー）を破棄してから書き出してください"
           }
         }
       }
@@ -1743,22 +1743,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@への書き込みが途中で止まった記録があります。回復するとUSBを確認し、書き込みを最後まで行うか書き込み前の状態に戻します。復元はその書き込みの前のバックアップに戻します。機器に挿す前に行ってください。"
-          }
-        }
-      }
-    },
-    "%@에 아직 쓰지 않은 편집(곡 더하기·빼기·갱신, 재생 목록 편집)을 모두 버립니다. USB는 바뀌지 않습니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Discards all edits not yet written to %@ (adding, removing and updating tracks, playlist edits). The USB is not changed."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@にまだ書き込んでいない編集（曲の追加・削除・更新、プレイリストの編集）をすべて破棄します。USBは変更されません。"
           }
         }
       }
@@ -3101,18 +3085,18 @@
         }
       }
     },
-    "- 큐 포인트와 루프 포인트\n- 핫 큐\n- 비트 그리드\n\nrekordbox의 곡이 더 최근에 바뀌었어도 USB 값으로 바꿉니다. 레이팅·색상·코멘트는 rekordbox처럼 가져오지 않습니다. 초안이 이미 있는 곡은 건너뜁니다. 가져온 초안을 확인한 뒤 rekordbox에 쓰기…로 반영하세요.\n\n계속하시겠습니까?" : {
+    "- 큐 포인트와 루프 포인트\n- 핫 큐\n- 비트 그리드\n\nrekordbox의 곡이 더 최근에 바뀌었어도 USB 값으로 바꿉니다. 레이팅·색상·코멘트는 rekordbox처럼 가져오지 않습니다. 초안이 이미 있는 곡은 건너뜁니다. 가져온 초안을 확인한 뒤 rekordbox에 쓰기로 반영하세요.\n\n계속하시겠습니까?" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "- Cue points and loop points\n- Hot cues\n- Beat grid\n\nUSB values replace local ones even if the track changed more recently in rekordbox. As in rekordbox, ratings, colors, and comments are not imported. Tracks that already have drafts are skipped. Review the imported drafts, then apply them with Write to rekordbox….\n\nDo you want to continue?"
+            "value" : "- Cue points and loop points\n- Hot cues\n- Beat grid\n\nUSB values replace local ones even if the track changed more recently in rekordbox. As in rekordbox, ratings, colors, and comments are not imported. Tracks that already have drafts are skipped. Review the imported drafts, then apply them with Write to rekordbox.\n\nDo you want to continue?"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "- キューポイントとループポイント\n- ホットキュー\n- ビートグリッド\n\nrekordboxのトラックの方が新しく変更されていてもUSBの値に置き換えます。rekordboxと同じく、レーティング・カラー・コメントは取り込みません。下書きがすでにあるトラックはスキップします。取り込んだ下書きを確認してから「rekordboxに書き込む…」で反映してください。\n\n続行しますか?"
+            "value" : "- キューポイントとループポイント\n- ホットキュー\n- ビートグリッド\n\nrekordboxのトラックの方が新しく変更されていてもUSBの値に置き換えます。rekordboxと同じく、レーティング・カラー・コメントは取り込みません。下書きがすでにあるトラックはスキップします。取り込んだ下書きを確認してから「rekordboxに書き込む」で反映してください。\n\n続行しますか?"
           }
         }
       }
@@ -6919,30 +6903,18 @@
         }
       }
     },
-    "USB 초안 %lld건을 버릴까요?" : {
+    "USB 초안 버리기" : {
       "localizations" : {
         "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Discard %lld USB draft edit?"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Discard %lld USB draft edits?"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard USB Draft"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "USBの下書き%lld件を破棄しますか？"
+            "value" : "USB下書きを破棄"
           }
         }
       }
@@ -11863,7 +11835,7 @@
         }
       }
     },
-    "rekordbox에 바로 넣기 (%lld곡)…" : {
+    "rekordbox에 바로 넣기 (%lld곡)" : {
       "localizations" : {
         "en" : {
           "variations" : {
@@ -11871,13 +11843,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Add to rekordbox Directly (%lld Track)…"
+                  "value" : "Add to rekordbox Directly (%lld Track)"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Add to rekordbox Directly (%lld Tracks)…"
+                  "value" : "Add to rekordbox Directly (%lld Tracks)"
                 }
               }
             }
@@ -11886,7 +11858,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxに直接追加（%lld曲）…"
+            "value" : "rekordboxに直接追加（%lld曲）"
           }
         }
       }
@@ -11923,29 +11895,29 @@
         }
       }
     },
-    "rekordbox에 쓰기 (%lld곡 · 재생 목록 %lld건)…" : {
+    "rekordbox에 쓰기 (%lld곡 · 재생 목록 %lld건)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Write to rekordbox (Tracks: %1$lld · Playlist Edits: %2$lld)…"
+            "value" : "Write to rekordbox (Tracks: %1$lld · Playlist Edits: %2$lld)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxに書き込む（%1$lld曲・プレイリスト%2$lld件）…"
+            "value" : "rekordboxに書き込む（%1$lld曲・プレイリスト%2$lld件）"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "rekordbox에 쓰기 (%1$lld곡 · 재생 목록 %2$lld건)…"
+            "value" : "rekordbox에 쓰기 (%1$lld곡 · 재생 목록 %2$lld건)"
           }
         }
       }
     },
-    "rekordbox에 쓰기 (%lld곡)…" : {
+    "rekordbox에 쓰기 (%lld곡)" : {
       "localizations" : {
         "en" : {
           "variations" : {
@@ -11953,13 +11925,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Write to rekordbox (%lld Track)…"
+                  "value" : "Write to rekordbox (%lld Track)"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Write to rekordbox (%lld Tracks)…"
+                  "value" : "Write to rekordbox (%lld Tracks)"
                 }
               }
             }
@@ -11968,7 +11940,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "rekordboxに書き込む（%lld曲）…"
+            "value" : "rekordboxに書き込む（%lld曲）"
           }
         }
       }
@@ -18271,18 +18243,18 @@
         }
       }
     },
-    "기존 곡의 XML은 큐·그리드만 지원하니 이 종류의 초안은 ‘rekordbox에 쓰기…’를 사용하세요" : {
+    "기존 곡의 XML은 큐·그리드만 지원하니 이 종류의 초안은 ‘rekordbox에 쓰기’를 사용하세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "XML for existing tracks supports only cues and grids, so use “Write to rekordbox…” for this kind of draft"
+            "value" : "XML for existing tracks supports only cues and grids, so use “Write to rekordbox” for this kind of draft"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "既存の曲のXMLはキュー・グリッドのみ対応しているため、この種類の下書きは「rekordboxに書き込む…」を使用してください"
+            "value" : "既存の曲のXMLはキュー・グリッドのみ対応しているため、この種類の下書きは「rekordboxに書き込む」を使用してください"
           }
         }
       }
@@ -25163,22 +25135,6 @@
         }
       }
     },
-    "버리기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Discard"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "破棄"
-          }
-        }
-      }
-    },
     "버퍼" : {
       "localizations" : {
         "en" : {
@@ -28059,18 +28015,18 @@
         }
       }
     },
-    "선택한 곡 rekordbox에 쓰기 (%lld곡)…" : {
+    "선택한 곡 rekordbox에 쓰기 (%lld곡)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Write Selected Tracks to rekordbox (Tracks: %lld)…"
+            "value" : "Write Selected Tracks to rekordbox (Tracks: %lld)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選択した曲をrekordboxに書き込む（%lld曲）…"
+            "value" : "選択した曲をrekordboxに書き込む（%lld曲）"
           }
         }
       }
@@ -33837,18 +33793,18 @@
         }
       }
     },
-    "이 USB에 아직 쓰지 않은 편집을 모두 버립니다. USB는 바뀌지 않습니다." : {
+    "이 USB에 아직 쓰지 않은 편집을 모두 버립니다. 편집 › 실행 취소(⌘Z)로 되살립니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Discards all edits not yet written to this USB. The USB is not changed."
+            "value" : "Discards all edits not yet written to this USB. Restore them with Edit › Undo (⌘Z)."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このUSBにまだ書き込んでいない編集をすべて破棄します。USBは変更されません。"
+            "value" : "このUSBにまだ書き込んでいない編集をすべて破棄します。編集 › 取り消す（⌘Z）で元に戻せます。"
           }
         }
       }
@@ -39371,22 +39327,6 @@
         }
       }
     },
-    "초안 버리기…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Discard Draft…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "下書きを破棄…"
-          }
-        }
-      }
-    },
     "초안 일부만 저장했습니다" : {
       "localizations" : {
         "en" : {
@@ -40181,18 +40121,18 @@
         }
       }
     },
-    "추가한 곡은 기존 곡의 초안 쓰기에서 제외하니 ‘rekordbox에 넣기…’ 또는 추가 목록의 XML 만들기를 사용하세요" : {
+    "추가한 곡은 기존 곡의 초안 쓰기에서 제외하니 ‘rekordbox에 넣기’ 또는 추가 목록의 XML 만들기를 사용하세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Added tracks are excluded from draft writes for existing tracks, so use “Add to rekordbox…” or create XML from Added Tracks"
+            "value" : "Added tracks are excluded from draft writes for existing tracks, so use “Add to rekordbox” or create XML from Added Tracks"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "追加した曲は既存の曲の下書きの書き込みから除外するため、「rekordboxに追加…」または追加した曲のXML作成を使用してください"
+            "value" : "追加した曲は既存の曲の下書きの書き込みから除外するため、「rekordboxに追加」または追加した曲のXML作成を使用してください"
           }
         }
       }
