@@ -79,7 +79,8 @@ public struct PdbVerifier: UsbWriteVerifier {
         if header.flag10 != closedFlag { problems.append("flag10 \(name) \(header.flag10)") }
         if header.sequence <= report.maxPageSequence { problems.append("sequence \(name) \(header.sequence) <= \(report.maxPageSequence)") }
         if !report.issues.isEmpty { problems.append("structure \(name) \(report.issues.count)") }
-        let far = report.farShapeRows.values.reduce(0, +)
+        // 작성기는 아티스트·앨범만 먼 모양으로 쓴다(My Tag 먼 모양은 쓰지 않는다)
+        let far = report.farShapeRows.filter { !PdbRowSize.farShapeTables.contains($0.key) }.values.reduce(0, +)
         if far > 0 { problems.append("far_shape_rows \(name) \(far)") }
         let pages = data.count / PdbPage.size
         for table in report.tables {

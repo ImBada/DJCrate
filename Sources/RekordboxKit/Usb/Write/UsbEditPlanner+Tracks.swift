@@ -294,26 +294,20 @@ extension UsbEditPlanner {
         if let refusal = UsbExportAssembly.trackRowRefusal(track) {
             throw UsbEditBlocked(block: UsbBlock(code: refusal.code, scope: scope, message: refusal.message))
         }
-        if newRows.artists.contains(where: { PdbRowSize.artist(name: $0.name) > PdbRowSize.nearShapeLimit })
-            || newRows.albums.contains(where: { PdbRowSize.album(name: $0.name) > PdbRowSize.nearShapeLimit }) {
+        // 긴 이름은 먼 모양으로 쓴다. 빈 쪽에도 안 들어가는 행만 막는다
+        if newRows.artists.contains(where: { !PdbRowSize.fitsEmptyPage(rowSize: PdbRowSize.artist(name: $0.name)) })
+            || newRows.albums.contains(where: { !PdbRowSize.fitsEmptyPage(rowSize: PdbRowSize.album(name: $0.name)) }) {
             throw UsbEditBlocked(block: UsbBlock(code: "nameTooLongForDeviceLibrary", scope: scope,
-                                                 message: String(ui: "아티스트·앨범 이름이 너무 길어 아직 내보낼 수 없습니다. rekordbox에서 이름을 줄인 뒤 다시 시도하세요"),
-                                                 rule: .pdbFarOffsetRows))
+                                                 message: String(ui: "아티스트·앨범 이름이 너무 길어 아직 내보낼 수 없습니다. rekordbox에서 이름을 줄인 뒤 다시 시도하세요")))
         }
     }
 
-    /// pdb에 문자열로 들어가는 곡 칸과 곡이 가리키는 이름(긴 ASCII 판정용). 출력·로그에 쓰지 않는다
+    /// 곡이 가리키는 이름 중 긴 ASCII를 rekordbox에서 본 적 없는 칸(장르·키·레이블, 긴 ASCII 판정용). 출력·로그에 쓰지 않는다.
+    /// 트랙 행 문자열·아티스트·앨범 이름의 긴 ASCII는 rekordbox 7.2.x 경계 실험(2026-10-08)으로 확인해 세지 않는다
     static func pdbStrings(_ track: UsbTrack, in model: UsbLibrary,
                            extra: (artists: [UsbNamedRow], albums: [UsbAlbum], genres: [UsbNamedRow], keys: [UsbNamedRow], labels: [UsbNamedRow]))
         -> [String] {
-        let artists = model.artists + extra.artists, albums = model.albums + extra.albums
-        var strings = [track.title, track.subtitle, track.comment, track.isrc, track.releaseDate, track.dateCreated, track.dateAdded,
-                       track.lyricist, track.path, track.fileName, track.analysisDataPath, track.cueUpdateCount, track.analysisDataUpdateCount,
-                       track.informationUpdateCount]
-        for id in [track.artistID, track.remixerID, track.originalArtistID, track.composerID].compactMap({ $0 }) {
-            strings += artists.filter { $0.id == id }.map(\.name)
-        }
-        if let album = track.albumID { strings += albums.filter { $0.id == album }.map(\.name) }
+        var strings: [String] = []
         for (id, table) in [(track.genreID, model.genres + extra.genres), (track.keyID, model.keys + extra.keys),
                             (track.labelID, model.labels + extra.labels)] {
             if let id { strings += table.filter { $0.id == id }.map(\.name) }

@@ -45,15 +45,16 @@ public enum UsbTrackRules {
     /// rekordbox 7.2.18 골든 관찰(2026-09-26 내보내기)
     static let verifiedFileTypes: Set<Int> = [1, 4, 5]
 
-    public static func rules(fileType: Int, metadata: UsbTrackMetadataFlags, pdbStrings: [String]) -> Set<UsbProvisionalRule> {
-        var rules = pdbStringRules(pdbStrings)
+    public static func rules(fileType: Int, metadata: UsbTrackMetadataFlags) -> Set<UsbProvisionalRule> {
+        var rules: Set<UsbProvisionalRule> = []
         if !verifiedFileTypes.contains(fileType) { rules.insert(.fileTypeUnverified) }
         if metadata.hasAny { rules.insert(.metadataSeenEmptyOnly) }
         return rules
     }
 
     /// pdb에 문자열로 들어가는 값 중 순수 ASCII이고 127자 이상인 것이 있으면 [.pdbLongAscii].
-    /// 곡 문자열·경로·파일 이름·아티스트·앨범 이름·재생 목록 이름 모두 이 함수로 판정한다.
+    /// 긴 ASCII(0x40)는 rekordbox 7.2.x 경계 실험(2026-10-08)에서 트랙 행 문자열·아티스트·앨범 이름으로만 봤다.
+    /// 그 밖의 칸(재생 목록·장르·키·레이블 이름)만 이 함수로 판정한다.
     public static func pdbStringRules(_ strings: [String]) -> Set<UsbProvisionalRule> {
         let long = strings.contains { text in
             text.unicodeScalars.count >= longAsciiThreshold && text.unicodeScalars.allSatisfy { $0.value < 0x80 }

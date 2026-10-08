@@ -131,7 +131,6 @@ public enum UsbExportCandidates {
             isStreaming: isStreaming, fileType: row.int(7) ?? 0, fileSize: Int64(row.int(8) ?? 0), actualFileSize: audio?.size,
             analysis: analysis.state, analysisModifiedAt: analysis.modified, artwork: artwork.source,
             artworkPathSetButMissing: artwork.missing, cues: [], metadata: metadata,
-            pdbStrings: (11...17).compactMap { row.string(Int32($0)) }.filter { !$0.isEmpty },
             analysisFileBytes: analysis.sizes.isEmpty ? nil : analysis.sizes)
     }
 

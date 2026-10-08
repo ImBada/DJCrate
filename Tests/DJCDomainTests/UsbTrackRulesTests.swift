@@ -23,10 +23,10 @@ struct UsbTrackRulesTests {
 
     @Test("MP3·M4A·FLAC 밖의 음원 형식은 fileTypeUnverified")
     func fileTypeUnverified() {
-        #expect(UsbTrackRules.rules(fileType: 11, metadata: none, pdbStrings: []) == [.fileTypeUnverified])
-        #expect(UsbTrackRules.rules(fileType: 12, metadata: none, pdbStrings: []) == [.fileTypeUnverified])
+        #expect(UsbTrackRules.rules(fileType: 11, metadata: none) == [.fileTypeUnverified])
+        #expect(UsbTrackRules.rules(fileType: 12, metadata: none) == [.fileTypeUnverified])
         for fileType in [1, 4, 5] {
-            #expect(UsbTrackRules.rules(fileType: fileType, metadata: none, pdbStrings: []).isEmpty)
+            #expect(UsbTrackRules.rules(fileType: fileType, metadata: none).isEmpty)
         }
     }
 
@@ -41,17 +41,16 @@ struct UsbTrackRulesTests {
             var flags = UsbTrackMetadataFlags()
             set(&flags)
             #expect(flags.hasAny)
-            #expect(UsbTrackRules.rules(fileType: 1, metadata: flags, pdbStrings: []) == [.metadataSeenEmptyOnly])
+            #expect(UsbTrackRules.rules(fileType: 1, metadata: flags) == [.metadataSeenEmptyOnly])
         }
         #expect(!none.hasAny)
     }
 
-    @Test("곡·목록 문자열 판정은 한 함수")
-    func pdbStringRulesSharedFunction() {
-        let long = String(repeating: "a", count: 127)
-        #expect(UsbTrackRules.pdbStringRules([long]) == [.pdbLongAscii])
-        #expect(UsbTrackRules.rules(fileType: 1, metadata: none, pdbStrings: [long]) == UsbTrackRules.pdbStringRules([long]))
-        #expect(UsbTrackRules.rules(fileType: 11, metadata: none, pdbStrings: [long]) == [.fileTypeUnverified, .pdbLongAscii])
+    @Test("곡 규칙에는 긴 ASCII를 싣지 않는다(곡 문자열·경로·아티스트·앨범의 긴 ASCII는 확인한 모양)")
+    func trackRulesHaveNoLongAscii() {
+        // rekordbox 7.2.x 경계 실험(2026-10-08): 곡 행 경로·아티스트·앨범 이름의 127자 이상 ASCII는 긴 ASCII(0x40)
+        #expect(UsbTrackRules.rules(fileType: 1, metadata: none).isEmpty)
+        #expect(UsbTrackRules.rules(fileType: 11, metadata: none) == [.fileTypeUnverified])
     }
 
     @Test("음원 형식 번호 → 확장자(모르면 nil)")

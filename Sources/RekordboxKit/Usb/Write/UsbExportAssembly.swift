@@ -73,7 +73,7 @@ public enum UsbExportAssembly {
     /// - 트랙 행이 빈 쪽에도 안 들어가면 그 곡
     /// - 파일 확장자가 file_type과 다르면 그 곡
     /// - ISRC가 ASCII가 아니거나 칸 크기를 넘는 값(디스크 번호·연도 등)이 있으면 그 곡
-    /// - 아티스트·앨범 행이 가까운 모양(할당 255바이트)에 안 들어가면 그 이름을 쓰는 곡(`pdbFarOffsetRows`)
+    /// - 아티스트·앨범 행이 빈 쪽에도 안 들어가면 그 이름을 쓰는 곡(긴 이름은 먼 모양으로 쓴다)
     /// - My Tag 행이 안 들어가면 볼륨(My Tag 정의는 곡과 무관하게 모두 들어간다)
     public static func rowSizeBlocks(model: UsbExportModel, plan: UsbExportPlan, formats: Set<UsbFormat>) -> [UsbBlock] {
         guard formats.contains(.deviceLibrary) else { return [] }
@@ -86,8 +86,8 @@ public enum UsbExportAssembly {
             guard blocked.insert(track.id).inserted else { return }
             blocks.append(UsbBlock(code: code, scope: .track(localIDs[track.id] ?? "usb:\(track.id)"), message: message, rule: rule))
         }
-        let longArtists = Set(library.artists.filter { PdbRowSize.artist(name: $0.name) > PdbRowSize.nearShapeLimit }.map(\.id))
-        let longAlbums = Set(library.albums.filter { PdbRowSize.album(name: $0.name) > PdbRowSize.nearShapeLimit }.map(\.id))
+        let longArtists = Set(library.artists.filter { !PdbRowSize.fitsEmptyPage(rowSize: PdbRowSize.artist(name: $0.name)) }.map(\.id))
+        let longAlbums = Set(library.albums.filter { !PdbRowSize.fitsEmptyPage(rowSize: PdbRowSize.album(name: $0.name)) }.map(\.id))
         let albumArtists = Dictionary(library.albums.map { ($0.id, $0.artistID) }) { first, _ in first }
         for track in library.tracks {
             if !PdbRowSize.fitsEmptyPage(rowSize: PdbRowSize.track(track, library: library)) {
@@ -107,8 +107,7 @@ public enum UsbExportAssembly {
                 .compactMap { $0 }
             if artists.contains(where: longArtists.contains) || track.albumID.map(longAlbums.contains) == true {
                 block(track, "nameTooLongForDeviceLibrary",
-                      String(ui: "아티스트·앨범 이름이 너무 길어 아직 내보낼 수 없습니다. rekordbox에서 이름을 줄인 뒤 다시 시도하세요"),
-                      rule: .pdbFarOffsetRows)
+                      String(ui: "아티스트·앨범 이름이 너무 길어 아직 내보낼 수 없습니다. rekordbox에서 이름을 줄인 뒤 다시 시도하세요"))
             }
         }
         if library.myTags.contains(where: { PdbRowSize.tag(name: $0.name) > PdbRowSize.nearShapeLimit }) {

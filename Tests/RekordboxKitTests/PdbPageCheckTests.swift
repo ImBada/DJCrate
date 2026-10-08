@@ -106,26 +106,20 @@ struct PdbPageCheckTests {
         #expect(brokenReport.compared.contains { $0.table == "genres" && $0.firstDifference == -1 && $0.rebuildFailure == .rowUnreadable })
     }
 
-    /// 다시 만든 행이 원본보다 커서(0x40 긴 ASCII → UTF-16) 한 쪽에 들어가지 않아도 죽지 않고 다시 만들지 못한 쪽으로 보고한다
+    /// 다시 만든 행이 원본보다 커서(합성 행은 4바이트 경계까지만, 작성기는 + 4) 한 쪽에 들어가지 않아도 죽지 않고 다시 만들지 못한 쪽으로 보고한다
     @Test func rebuiltRowsThatDoNotFitArePageFailure() throws {
         var builder = PdbReadTests.sampleExport(tracks: PdbRoundTripTests.sampleTracks())
-        let name = Array(String(repeating: "g", count: 200).utf8)
-        builder.tables[PdbTableType.genres.rawValue] = (1...19).map { id in
-            var row = PdbBuilder.RowBytes(count: 4)
-            row.u32(Int64(id), at: 0)
-            let length = 4 + name.count
-            row.bytes.append(contentsOf: [0x40, UInt8(length & 0xFF), UInt8(length >> 8), 0x00] + name)
-            return PdbBuilder.Row(row.bytes)
-        }
+        // 원본 132바이트 × 30행은 한 쪽에 들어가고, 다시 만든 140바이트 × 30행은 들어가지 않는다
+        builder.tables[PdbTableType.artists.rawValue] = (1...30).map { PdbBuilder.artistRow($0, String(repeating: "g", count: 120)) }
         let built = Self.writerShaped(builder).build()
-        let pages = try #require(built.dataPages[PdbTableType.genres.rawValue])
+        let pages = try #require(built.dataPages[PdbTableType.artists.rawValue])
         #expect(pages.count == 1)
         let report = try PdbPageCheck.check(built.data)
-        let genres = try #require(report.compared.first { $0.number == pages[0] })
-        #expect(genres.category == .data && genres.table == "genres")
-        #expect(genres.firstDifference == -1 && genres.rebuildFailure == .rowsDoNotFit)
+        let artists = try #require(report.compared.first { $0.number == pages[0] })
+        #expect(artists.category == .data && artists.table == "artists")
+        #expect(artists.firstDifference == -1 && artists.rebuildFailure == .rowsDoNotFit)
         // 행마다 커진 크기를 남긴다
-        #expect(genres.rows.count == 19)
-        #expect(genres.rows.allSatisfy { $0.rebuiltSize > $0.originalSize })
+        #expect(artists.rows.count == 30)
+        #expect(artists.rows.allSatisfy { $0.rebuiltSize > $0.originalSize })
     }
 }

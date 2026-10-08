@@ -15,7 +15,7 @@ struct UsbExportPlannerTests {
             fileSize: size, actualFileSize: size, analysis: .complete, analysisModifiedAt: snapshot.addingTimeInterval(-3_600),
             artwork: artwork ? UsbArtworkSource(smallPath: "/share/\(id)_s.jpg", mediumPath: "/share/\(id)_m.jpg", smallBytes: 3_000,
                                                 mediumBytes: 20_000) : nil,
-            artworkPathSetButMissing: false, cues: [], metadata: UsbTrackMetadataFlags(), pdbStrings: ["Title \(id)"])
+            artworkPathSetButMissing: false, cues: [], metadata: UsbTrackMetadataFlags())
     }
 
     func request(_ candidates: [UsbExportCandidate], playlists: [UsbPlaylistInput] = [], existing: UsbExistingState? = nil,
@@ -394,34 +394,17 @@ struct UsbExportPlannerTests {
         #expect(result.blocked.isEmpty)
     }
 
-    @Test("Contents 경로가 순수 ASCII 127자면 pdbLongAscii")
-    func longAsciiContentsPathFlagged() {
+    /// rekordbox 7.2.x 경계 실험(2026-10-08): 곡 행 경로·아티스트·앨범 이름의 127자 이상 ASCII는 긴 ASCII(0x40)라 규칙을 싣지 않는다
+    @Test("Contents 경로·아티스트 이름이 순수 ASCII 127자 이상이어도 pdbLongAscii를 싣지 않는다")
+    func longAsciiTrackStringsNotFlagged() {
         let artist = String(repeating: "a", count: 40), album = String(repeating: "b", count: 40)
-        let short = plan([candidate("1", artist: artist, album: album, file: String(repeating: "f", count: 30) + ".mp3")])
-        #expect(short.tracks.first?.contentsPath.count == 126)
-        #expect(short.tracks.first?.rules.contains(.pdbLongAscii) == false)
-        #expect(!short.requiredRules.contains(.pdbLongAscii))
         let long = plan([candidate("1", artist: artist, album: album, file: String(repeating: "f", count: 31) + ".mp3")])
         #expect(long.tracks.first?.contentsPath.count == 127)
-        #expect(long.tracks.first?.rules.contains(.pdbLongAscii) == true)
-        #expect(long.requiredRules.contains(.pdbLongAscii))
-        #expect(long.ruleCounts[.pdbLongAscii] == 1)
-    }
-
-    @Test("번호를 붙인 뒤의 경로로 판정한다")
-    func longAsciiAfterCollisionSuffix() {
-        let artist = String(repeating: "a", count: 40), album = String(repeating: "b", count: 40)
-        let file = String(repeating: "f", count: 29) + ".mp3"
-        let result = plan([candidate("1", artist: artist, album: album, file: file), candidate("2", artist: artist, album: album, file: file)])
-        #expect(result.tracks.map(\.contentsPath.count) == [125, 129])
-        #expect(result.tracks.map { $0.rules.contains(.pdbLongAscii) } == [false, true])
-    }
-
-    @Test("아티스트 이름은 자르지 않은 원래 이름으로 판정한다")
-    func longAsciiArtistNameFlagged() {
-        let result = plan([candidate("1", artist: String(repeating: "a", count: 130), file: "x.mp3")])
-        #expect(result.tracks.first?.contentsPath == "/Contents/" + String(repeating: "a", count: 48) + "/Album/x.mp3")
-        #expect(result.tracks.first?.rules.contains(.pdbLongAscii) == true)
+        #expect(long.tracks.first?.rules.contains(.pdbLongAscii) == false)
+        #expect(!long.requiredRules.contains(.pdbLongAscii))
+        let longArtist = plan([candidate("1", artist: String(repeating: "a", count: 130), file: "x.mp3")])
+        #expect(longArtist.tracks.first?.contentsPath == "/Contents/" + String(repeating: "a", count: 48) + "/Album/x.mp3")
+        #expect(longArtist.tracks.first?.rules.contains(.pdbLongAscii) == false)
     }
 
     @Test("재생 목록 이름도 같은 함수로 판정한다")

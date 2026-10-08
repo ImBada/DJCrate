@@ -53,15 +53,13 @@ public struct UsbExportCandidate: Codable, Hashable, Sendable {
     public var artworkPathSetButMissing: Bool
     public var cues: [UsbCueTraits]
     public var metadata: UsbTrackMetadataFlags
-    /// 제목·주석·ISRC·날짜 등 pdb 문자열(긴 ASCII 검사용). 출력·로그에 쓰지 않는다
-    public var pdbStrings: [String]
     /// 로컬 분석 파일 크기(있는 것만). 용량 어림에 쓴다. nil이면 파일마다 한 클러스터로 어림한다
     public var analysisFileBytes: [Int64]?
 
     public init(localContentID: String, masterSongID: String, masterDBID: String, artistName: String?, albumName: String?,
                 fileNameL: String, sourcePath: String?, isStreaming: Bool, fileType: Int, fileSize: Int64, actualFileSize: Int64?,
                 analysis: UsbAnalysisState, analysisModifiedAt: Date?, artwork: UsbArtworkSource?, artworkPathSetButMissing: Bool,
-                cues: [UsbCueTraits], metadata: UsbTrackMetadataFlags, pdbStrings: [String], analysisFileBytes: [Int64]? = nil) {
+                cues: [UsbCueTraits], metadata: UsbTrackMetadataFlags, analysisFileBytes: [Int64]? = nil) {
         self.localContentID = localContentID
         self.masterSongID = masterSongID
         self.masterDBID = masterDBID
@@ -79,7 +77,6 @@ public struct UsbExportCandidate: Codable, Hashable, Sendable {
         self.artworkPathSetButMissing = artworkPathSetButMissing
         self.cues = cues
         self.metadata = metadata
-        self.pdbStrings = pdbStrings
         self.analysisFileBytes = analysisFileBytes
     }
 }
@@ -392,9 +389,8 @@ private struct PlanState {
             warnings.append(trackBlock("kind4CueDropped", candidate, String(ui: "USB에 쓸 수 없는 종류의 큐가 있어 빼고 내보냅니다")))
         }
         rules.formUnion(UsbCueRules.rules(fileType: candidate.fileType, cues: candidate.cues))
-        // pdb에는 경로·파일 이름과 자르지 않은 아티스트·앨범 이름도 문자열로 들어간다(번호를 붙인 뒤의 경로로 본다).
-        let strings = candidate.pdbStrings + [path.contentsPath, path.fileName] + [candidate.artistName, candidate.albumName].compactMap { $0 }
-        rules.formUnion(UsbTrackRules.rules(fileType: candidate.fileType, metadata: candidate.metadata, pdbStrings: strings))
+        // 곡 문자열·경로·아티스트·앨범 이름의 긴 ASCII는 rekordbox 7.2.x 경계 실험(2026-10-08)으로 모양을 확인해 규칙을 싣지 않는다
+        rules.formUnion(UsbTrackRules.rules(fileType: candidate.fileType, metadata: candidate.metadata))
 
         if path.disposition == .create {
             newBytes += UsbSpaceEstimate.roundUp(candidate.actualFileSize ?? candidate.fileSize, cluster: cluster)

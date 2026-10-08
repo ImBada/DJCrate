@@ -707,35 +707,30 @@ struct UsbEditEngineTests {
 
     // MARK: - 긴 ASCII
 
-    @Test("긴 ASCII 문자열(127자 이상)은 편집이 만든 값과 다시 쓰는 기존 값 모두 pdbLongAscii로 싣는다")
+    @Test("긴 ASCII 문자열(127자 이상)은 rekordbox에서 본 칸(곡 문자열·경로·아티스트·앨범)이 아닐 때만 pdbLongAscii로 싣는다")
     func longAsciiRulesFromEdits() throws {
         let long = String(repeating: "a", count: 127), short = String(repeating: "a", count: 126)
         let env = try Self.exported(["101", "102"])
+        // 곡 제목의 긴 ASCII는 rekordbox 7.2.x 경계 실험(2026-10-08)으로 확인한 모양이라 싣지 않는다
         try env.updateLocal("101", "TrackInfoUpdated = '2', Title = ?", [.text(long)])
-        #expect(try env.plan([.refreshTracks(usbContentIDs: [1], parts: [.info])]).changes?.requiredRules.contains(.pdbLongAscii) == true)
-        try env.updateLocal("101", "TrackInfoUpdated = '2', Title = ?", [.text(short)])
         #expect(try env.plan([.refreshTracks(usbContentIDs: [1], parts: [.info])]).changes?.requiredRules.contains(.pdbLongAscii) == false)
+        // 장르 이름은 본 적 없는 칸이라 싣는다
+        try env.local.local.addGenre(id: "40", name: long)
+        try env.updateLocal("101", "TrackInfoUpdated = '3', GenreID = '40'")
+        #expect(try env.plan([.refreshTracks(usbContentIDs: [1], parts: [.info])]).changes?.requiredRules.contains(.pdbLongAscii) == true)
         #expect(try env.plan([.playlist(edit: .rename(playlist: .id("1"), name: long))]).changes?.requiredRules.contains(.pdbLongAscii) == true)
         #expect(try env.plan([.playlist(edit: .rename(playlist: .id("1"), name: short))]).changes?.requiredRules.contains(.pdbLongAscii) == false)
-        // 경로 성분은 48자까지라 아티스트·앨범·파일 이름을 모두 길게(순수 ASCII) 준다
+        // 경로 성분은 48자까지라 아티스트·앨범·파일 이름을 모두 길게(순수 ASCII) 준다. 긴 경로는 확인한 모양이다
         let artist = String(repeating: "a", count: 40), album = String(repeating: "b", count: 40)
         let file = String(repeating: "c", count: 40) + ".mp3"
         try env.local.addTrack(id: "103", artist: ("7", artist), album: ("37", album), fileName: file)
-        #expect(try env.plan([.addTracks(localContentIDs: ["103"], playlist: nil)]).changes?.requiredRules.contains(.pdbLongAscii) == true)
-
-        // USB에 이미 긴 ASCII 경로가 있으면 이름만 바꿔도 pdb를 다시 쓰므로 규칙이 붙는다
-        let existing = try UsbEditFixture()
-        try existing.local.addTrack(id: "201", artist: ("7", artist), album: ("37", album), fileName: file)
-        try existing.local.local.addPlaylist(id: "900", name: "list", seq: 1, contentIDs: ["201"])
-        try existing.export(tracks: [], playlists: ["900"])
-        let rename = try existing.plan([.playlist(edit: .rename(playlist: .id("1"), name: "renamed"))])
-        #expect(rename.changes?.requiredRules.contains(.pdbLongAscii) == true)
-        #expect(rename.changes?.requiredRules.contains(.pdbRegeneratedEdit) == true)
+        #expect(try env.plan([.addTracks(localContentIDs: ["103"], playlist: nil)]).changes?.requiredRules.contains(.pdbLongAscii) == false)
 
         // Device Library를 쓰지 않으면(막힘) pdb 문자열 규칙을 싣지 않는다
         let blocked = try Self.exported(["101", "102"])
         blocked.setPdbFlag(4)
-        try blocked.updateLocal("101", "TrackInfoUpdated = '2', Title = ?", [.text(long)])
+        try blocked.local.local.addGenre(id: "40", name: long)
+        try blocked.updateLocal("101", "TrackInfoUpdated = '2', GenreID = '40'")
         let refresh = try blocked.plan([.refreshTracks(usbContentIDs: [1], parts: [.info])])
         #expect(refresh.outcome(1) == .written && refresh.changes?.requiredRules.contains(.pdbLongAscii) == false)
         let create = try blocked.plan([.playlist(edit: .create(key: "l", name: long, isFolder: false, parent: .root))])

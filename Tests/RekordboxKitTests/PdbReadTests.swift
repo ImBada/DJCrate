@@ -138,7 +138,8 @@ struct PdbReadTests {
         #expect(extras.unknownStrings == [5: "", 8: "", 9: "", 13: "", 18: ""])
         #expect(extras.stringKinds.count == 21)
         #expect(extras.stringKinds[0] == .isrc && extras.stringKinds[1] == .utf16LE && extras.stringKinds[2] == .shortASCII)
-        #expect(library.trackRowExtras[2]?.stringKinds[17] == .utf16LE)
+        // 130자 순수 ASCII 제목은 긴 ASCII(0x40)
+        #expect(library.trackRowExtras[2]?.stringKinds[17] == .longASCII)
         #expect(library.trackRowExtras.keys.sorted() == [1, 2, 3])
 
         #expect(library.artists == [UsbNamedRow(id: 11, name: "시험 아티스트"), UsbNamedRow(id: 12, name: "Remixer"),

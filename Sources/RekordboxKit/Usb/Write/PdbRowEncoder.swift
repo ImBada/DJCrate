@@ -17,7 +17,7 @@ enum PdbRowError: Error, Equatable {
     case valueOutOfRange(String)
     /// 빈 쪽에도 들어가지 않는 행
     case rowTooLarge
-    /// 가까운 모양(u8 오프셋)에 들어가지 않는 행. 먼 오프셋 모양은 쓰지 않는다
+    /// 가까운 모양(u8 오프셋)에 들어가지 않는 My Tag 행. My Tag의 먼 오프셋 모양(0x0684)은 rekordbox로 확인하지 못해 쓰지 않는다
     case farOffset
     /// ASCII가 아닌 ISRC(특수형에 담을 수 없음)
     case isrcNotASCII
@@ -61,7 +61,7 @@ struct PdbRowBytes {
         bytes.append(Data(count: count))
     }
 
-    /// 문자열을 끝에 붙이고 행 시작 기준 오프셋을 돌려준다. UTF-16(ISRC 특수형 포함)은 4바이트 경계로 앞을 0으로 채우고,
+    /// 문자열을 끝에 붙이고 행 시작 기준 오프셋을 돌려준다. UTF-16(ISRC 특수형 포함)·긴 ASCII는 4바이트 경계로 앞을 0으로 채우고,
     /// 짧은 ASCII는 앞 문자열 바로 뒤에 붙인다.
     @discardableResult
     mutating func append(_ encoded: PdbStringEncoder.Encoded) -> Int {
@@ -98,22 +98,44 @@ struct PdbRowBytes {
 public enum PdbRowSize {
     /// 쪽 머리 뒤 힙과 행 인덱스가 쓸 수 있는 바이트(4096 − 0x28)
     public static let pageCapacity = PdbPage.size - PdbPage.heapStart
-    /// 가까운 모양(u8 오프셋) 아티스트·앨범·태그 행의 최대 할당 크기. 넘으면 먼 오프셋 모양이라 쓰지 않는다
+    /// 가까운 모양(u8 오프셋) My Tag 행의 최대 할당 크기. 넘으면 먼 오프셋 모양(0x0684)이 필요해 쓰지 않는다(확인 못 함)
     public static let nearShapeLimit = 255
+    /// 아티스트·앨범 행을 먼 모양(0x0064·0x0084)으로 쓰는 할당 크기 하한. 할당 크기 공식은 두 모양이 같다.
+    /// rekordbox 7.2.x 경계 실험(2026-10-08): '가' × 116(UTF-16 236바이트, 아티스트 할당 252)부터 먼 모양이고,
+    /// 'A' × 127(긴 ASCII 131바이트, 아티스트 할당 148)은 가까운 모양이었다. 그 사이 어디서 바뀌는지는 이 실험으로 가르지 못해
+    /// 할당 크기 기준(먼 모양 중 가장 작은 할당)으로 고르고, 그 사이 길이는 `pdbFarOffsetRows`를 붙인다(`nameShapeConfirmed`)
+    public static let farShapeMinimumSize = 252
+    /// 작성기가 먼 모양으로 쓰는 표(`PdbReadReport.farShapeRows`의 표 이름)
+    public static let farShapeTables: Set<String> = ["artists", "albums"]
+    /// 경계 실험에서 가까운 모양으로 본 가장 긴 이름 문자열(머리 포함 바이트, 'A' × 127의 긴 ASCII)
+    static let nearShapeConfirmedStringBytes = 131
+    /// 경계 실험에서 먼 모양으로 본 가장 짧은 이름 문자열(머리 포함 바이트, '가' × 116의 UTF-16)
+    static let farShapeConfirmedStringBytes = 236
 
     /// 트랙 행: 0x88 + Σ align4(문자열 21개 길이) + 4
     public static func track(_ track: UsbTrack, library: UsbLibrary) -> Int {
         PdbRowEncoder.trackSize(PdbRowEncoder.trackStrings(track))
     }
 
-    /// 아티스트 행: align4(0x0A) + align4(이름 길이) + 4
+    /// 아티스트 행: align4(0x0A) + align4(이름 길이) + 4(먼 모양도 같다)
     public static func artist(name: String) -> Int {
-        align4(PdbRowEncoder.artistHeader) + align4(PdbStringEncoder.encoded(name).bytes.count) + 4
+        align4(PdbRowEncoder.artistHeader) + align4(PdbStringEncoder.encode(name).count) + 4
     }
 
-    /// 앨범 행: align4(0x16) + align4(이름 길이) + 4
+    /// 앨범 행: align4(0x16) + align4(이름 길이) + 4(먼 모양도 같다)
     public static func album(name: String) -> Int {
-        align4(PdbRowEncoder.albumHeader) + align4(PdbStringEncoder.encoded(name).bytes.count) + 4
+        align4(PdbRowEncoder.albumHeader) + align4(PdbStringEncoder.encode(name).count) + 4
+    }
+
+    /// 아티스트·앨범 행을 먼 모양으로 쓰는지(할당 크기 252 이상)
+    public static func isFarShape(rowSize: Int) -> Bool {
+        rowSize >= farShapeMinimumSize
+    }
+
+    /// 아티스트·앨범 이름 문자열 길이(머리 포함 바이트)가 경계 실험에서 모양을 확인한 범위인지.
+    /// 아니면(131 < 길이 < 236) 할당 크기 기준으로 고른 모양을 쓰고 `pdbFarOffsetRows`를 붙인다
+    static func nameShapeConfirmed(stringBytes: Int) -> Bool {
+        stringBytes <= nearShapeConfirmedStringBytes || stringBytes >= farShapeConfirmedStringBytes
     }
 
     /// My Tag 행: align4(0x1F) + align4(이름 길이) + align4(빈 문자열) + 4
@@ -143,6 +165,9 @@ enum PdbRowEncoder {
     static let trackHeader = 0x88
     static let artistHeader = 0x0A
     static let albumHeader = 0x16
+    /// 먼 모양 고정 칸 길이(u16 이름 오프셋까지). rekordbox 7.2.x 경계 실험(2026-10-08) 관찰
+    static let artistFarHeader = 0x0C
+    static let albumFarHeader = 0x18
     static let tagHeader = 0x1F
     static let myTagPropertyHeader = 0x22
     static let propertyRowSize = 40
@@ -160,8 +185,9 @@ enum PdbRowEncoder {
             flagString(track.kuvoDeliver), flagString(track.hotCueAutoLoad), "", "", track.dateCreated, track.releaseDate, track.subtitle, "",
             track.analysisDataPath, track.dateAdded, track.comment, track.title, "", track.fileName, track.path,
         ]
+        // 긴 ASCII: rekordbox 7.2.x 경계 실험(2026-10-08) 때 뜬 USB의 트랙 행 경로에서 본 모양
         return values.enumerated().map { index, value in
-            index == 0 ? PdbStringEncoder.encodedISRC(value) : PdbStringEncoder.encoded(value)
+            index == 0 ? PdbStringEncoder.encodedISRC(value) : PdbStringEncoder.encoded(value, longASCIIObserved: true)
         }
     }
 
@@ -231,27 +257,43 @@ enum PdbRowEncoder {
         return row.simpleRow()
     }
 
-    /// artists(2), subtype 0x0060: u32 id @0x04, 0x03 @0x08, u8 이름 오프셋 @0x09
+    /// artists(2). 가까운 모양 0x0060: u32 id @0x04, 0x03 @0x08, u8 이름 오프셋 @0x09.
+    /// 먼 모양 0x0064: 0x09는 0, u16 이름 오프셋 @0x0A, 이름 @0x0C(할당 크기는 같은 공식).
+    /// 먼 모양: rekordbox 7.2.x 경계 실험(2026-10-08) 관찰
     static func artist(_ artist: UsbNamedRow) throws -> PdbEncodedRow {
-        var row = PdbRowBytes(count: artistHeader)
-        try row.u16(0x0060, at: 0, "subtype")
+        let name = PdbStringEncoder.encoded(artist.name, longASCIIObserved: true)
+        let far = PdbRowSize.isFarShape(rowSize: PdbRowSize.artist(name: artist.name))
+        var row = PdbRowBytes(count: far ? artistFarHeader : artistHeader)
+        try row.u16(far ? 0x0064 : 0x0060, at: 0, "subtype")
         try row.u32(Int64(artist.id), at: 0x04, "id")
         try row.u8(nameMarker, at: 0x08, "marker")
-        let nameOffset = row.append(PdbStringEncoder.encoded(artist.name))
-        try row.u8(nameOffset, at: 0x09, "nameOffset")
-        return try near(row.offsetRow(header: artistHeader))
+        let nameOffset = row.append(name)
+        if far { try row.u16(nameOffset, at: 0x0A, "nameOffset") } else { try row.u8(nameOffset, at: 0x09, "nameOffset") }
+        return nameShaped(row.offsetRow(header: artistHeader), stringBytes: name.bytes.count)
     }
 
-    /// albums(3), subtype 0x0080: u32 앨범 아티스트 @0x08, u32 id @0x0C, 0x03 @0x14, u8 이름 오프셋 @0x15
+    /// albums(3). 가까운 모양 0x0080: u32 앨범 아티스트 @0x08, u32 id @0x0C, 0x03 @0x14, u8 이름 오프셋 @0x15.
+    /// 먼 모양 0x0084: 0x15는 0, u16 이름 오프셋 @0x16, 이름 @0x18(할당 크기는 같은 공식).
+    /// 먼 모양: rekordbox 7.2.x 경계 실험(2026-10-08) 관찰
     static func album(_ album: UsbAlbum) throws -> PdbEncodedRow {
-        var row = PdbRowBytes(count: albumHeader)
-        try row.u16(0x0080, at: 0, "subtype")
+        let name = PdbStringEncoder.encoded(album.name, longASCIIObserved: true)
+        let far = PdbRowSize.isFarShape(rowSize: PdbRowSize.album(name: album.name))
+        var row = PdbRowBytes(count: far ? albumFarHeader : albumHeader)
+        try row.u16(far ? 0x0084 : 0x0080, at: 0, "subtype")
         try row.reference(album.artistID, at: 0x08, "artistID")
         try row.u32(Int64(album.id), at: 0x0C, "id")
         try row.u8(nameMarker, at: 0x14, "marker")
-        let nameOffset = row.append(PdbStringEncoder.encoded(album.name))
-        try row.u8(nameOffset, at: 0x15, "nameOffset")
-        return try near(row.offsetRow(header: albumHeader))
+        let nameOffset = row.append(name)
+        if far { try row.u16(nameOffset, at: 0x16, "nameOffset") } else { try row.u8(nameOffset, at: 0x15, "nameOffset") }
+        return nameShaped(row.offsetRow(header: albumHeader), stringBytes: name.bytes.count)
+    }
+
+    /// 경계 실험에서 모양을 확인하지 못한 길이의 이름이면 `pdbFarOffsetRows`를 붙인다
+    static func nameShaped(_ row: PdbEncodedRow, stringBytes: Int) -> PdbEncodedRow {
+        guard !PdbRowSize.nameShapeConfirmed(stringBytes: stringBytes) else { return row }
+        var row = row
+        row.rules.insert(.pdbFarOffsetRows)
+        return row
     }
 
     /// keys(5): u32 id, u32 id, 문자열 @0x08
@@ -381,7 +423,7 @@ enum PdbRowEncoder {
         return row.offsetRow(header: myTagPropertyHeader)
     }
 
-    /// 가까운 모양의 한계를 넘는 행은 먼 오프셋 모양이 필요해 쓰지 않는다
+    /// 가까운 모양의 한계를 넘는 My Tag 행은 먼 오프셋 모양이 필요해 쓰지 않는다
     static func near(_ row: PdbEncodedRow) throws -> PdbEncodedRow {
         guard row.bytes.count <= PdbRowSize.nearShapeLimit else { throw PdbRowError.farOffset }
         return row

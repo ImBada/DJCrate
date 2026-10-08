@@ -19,7 +19,7 @@ public struct PdbReadReport: Sendable {
     public var longestShortASCII: Int
     /// 행 시작 기준 4바이트 경계에 있지 않은 UTF-16 문자열 수
     public var misalignedUTF16: Int
-    /// 표 이름 → 먼 오프셋 모양(0x0064·0x0084·0x0684)으로 읽은 산 행 수. 쓰는 쪽이 `pdbFarOffsetRows`로 막는 근거
+    /// 표 이름 → 먼 오프셋 모양(0x0064·0x0084·0x0684)으로 읽은 산 행 수. 왕복 검사가 다시 쓴 파일의 수와 비교한다
     public var farShapeRows: [String: Int]
 }
 

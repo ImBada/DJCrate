@@ -79,7 +79,8 @@ extension UsbEditEngineTests {
         try env.updateLocal("101", "TrackInfoUpdated = '2', FileType = 5")
         try env.updateLocal("102", "TrackInfoUpdated = '2', ISRC = ?", [.text("ＪＰ－ＡＢＣ")])
         try env.updateLocal("103", "TrackInfoUpdated = '2', Commnt = ?", [.text(String(repeating: "가", count: 3_000))])
-        try env.local.local.addArtist(id: "9", name: String(repeating: "나", count: 200))
+        // 긴 이름은 먼 모양으로 쓰므로 빈 쪽에도 안 들어가는 이름만 막힌다
+        try env.local.local.addArtist(id: "9", name: String(repeating: "나", count: 2_100))
         try env.updateLocal("104", "TrackInfoUpdated = '2', ArtistID = '9'")
         let result = try env.plan((1...4).map { .refreshTracks(usbContentIDs: [$0], parts: [.info]) })
         #expect(Self.isBlocked(result.outcome(1), "fileTypeMismatchForDeviceLibrary"))

@@ -12,7 +12,7 @@ struct UsbPlanLabTests {
                            sourcePath: "/music/\(id)", isStreaming: false, fileType: 1, fileSize: 10, actualFileSize: 10, analysis: .complete,
                            analysisModifiedAt: nil,
                            artwork: UsbArtworkSource(smallPath: "/s", mediumPath: "/m", smallBytes: 100_000, mediumBytes: 150_000),
-                           artworkPathSetButMissing: false, cues: [], metadata: UsbTrackMetadataFlags(), pdbStrings: [])
+                           artworkPathSetButMissing: false, cues: [], metadata: UsbTrackMetadataFlags())
     }
 
     var plan: UsbExportPlan {

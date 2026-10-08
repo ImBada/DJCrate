@@ -13,7 +13,8 @@ public enum PdbWriteMode: Sendable, Hashable {
 public struct PdbFiles: Sendable {
     public var export: Data
     public var exportExt: Data
-    /// 인코더가 낸 규칙의 합집합(Encoded.rules를 버리지 않는다). 지금은 pdbLongAscii 하나뿐
+    /// 인코더가 낸 규칙의 합집합(Encoded.rules를 버리지 않는다). 지금은 pdbLongAscii(긴 ASCII를 본 적 없는 칸)와
+    /// pdbFarOffsetRows(경계 실험으로 모양을 가르지 못한 길이의 아티스트·앨범 이름)
     public var rules: Set<UsbProvisionalRule>
     /// 트랙 행 문자열(0–20: 경로·파일 이름 포함)에서 나온 규칙, content id별(규칙이 있는 곡만).
     /// 목록·아티스트·앨범·장르·레이블·키·태그·columns 이름에서 나온 것은 rules에만
@@ -35,7 +36,8 @@ public struct PdbFiles: Sendable {
 }
 
 /// `UsbLibrary` → `export.pdb`·`exportExt.pdb`(rekordbox가 새로 내보낸 모양). 모델의 Device Library 투영만 쓴다.
-/// 확인한 모양만 쓴다: 먼 오프셋 행·긴 ASCII(0x40)·기기 기록·My Tag 연결·모르는 표의 행은 쓰지 않고 막는다.
+/// 아티스트·앨범 먼 오프셋 행과 긴 ASCII(0x40)는 rekordbox 7.2.x 경계 실험(2026-10-08)대로 쓴다.
+/// My Tag 먼 오프셋 행·기기 기록·My Tag 연결·모르는 표의 행은 쓰지 않고 막는다.
 public enum PdbWriter {
     /// 모델의 .deviceLibrary 투영에서 두 파일을 만든다. 곡 0개면 던진다.
     /// 호출하는 쪽(USB 내보내기·고치기)은 `rules`를 변경 묶음 `requiredRules`에 반드시 합친다 — 계획기(`UsbExportPlanner`)가 모르는 이름(장르·My Tag 등)의 긴 ASCII도 실물 게이트에 걸리게.

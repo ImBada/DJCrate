@@ -232,6 +232,15 @@ struct UsbMigrationTests {
         })
         #expect(Self.codes(try orphan.plan()) == ["pdbUnreadableRows"])
 
+        // 아티스트·앨범 먼 모양 행은 칸을 모두 읽으므로 막지 않는다(rekordbox 7.2.x 경계 실험, 2026-10-08)
+        let far = try Env()
+        far.tree.write(UsbLayout.exportPdb, Self.export {
+            $0.add(.artists, PdbBuilder.artistRow(5, String(repeating: "가", count: 116), far: true))
+            $0.add(.albums, PdbBuilder.albumRow(6, String(repeating: "가", count: 116), artistID: 5, far: true))
+            $0.add(.history19, PdbBuilder.propertyRow(count: 1, date: "2026-01-03"))
+        })
+        #expect(!Self.codes(try far.plan()).contains("pdbUnreadableRows"))
+
         let version = try Env()
         version.tree.write(UsbLayout.exportPdb, Self.export { $0.add(.history19, PdbBuilder.propertyRow(count: 1, date: "2026-01-03", version: "2000")) })
         #expect(Self.codes(try version.plan()) == ["pdbVersionUnsupported"])
