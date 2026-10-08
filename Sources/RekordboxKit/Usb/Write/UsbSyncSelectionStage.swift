@@ -144,10 +144,18 @@ public enum UsbSyncSelectionStage {
     }
 
     /// 생성 편집이 실제 적용된 뒤의 번호만 resolve한다. 부모 폴더도 선택 트리와 같은 계층이어야 한다.
-    /// 해제한 목록은 파일에 행이 없으므로 체크·부분 체크로 쓸 원본만 돌려준다. 형식마다 그 형식 DB의 번호를 본다.
+    /// 해제한 목록은 파일에 행이 없으므로 체크·부분 체크로 쓸 원본만 돌려준다. 형식마다 그 형식 DB의 번호(Dev_ID)를 돌려준다.
+    /// 초안의 참조는 합친 모델의 대표 번호다(두 형식 번호가 다를 수 있다, #233).
     static func resolve(_ draft: UsbSyncSelectionDraft, model: UsbLibrary, formats: Set<UsbFormat>, createdIDs: [String: Int],
                         allocatedIDs: [String: Int] = [:]) throws -> [UsbFormat: [String: Int]] {
-        guard !draft.enabledOnly else { return Dictionary(uniqueKeysWithValues: formats.map { ($0, [:]) }) }
+        try resolveWithRepresentatives(draft, model: model, formats: formats, createdIDs: createdIDs, allocatedIDs: allocatedIDs).formatIDs
+    }
+
+    /// `resolve`와 같고, 원본 → 합친 모델의 대표 번호도 돌려준다
+    static func resolveWithRepresentatives(_ draft: UsbSyncSelectionDraft, model: UsbLibrary, formats: Set<UsbFormat>,
+                                           createdIDs: [String: Int], allocatedIDs: [String: Int] = [:])
+        throws -> (formatIDs: [UsbFormat: [String: Int]], representatives: [String: Int]) {
+        guard !draft.enabledOnly else { return (Dictionary(uniqueKeysWithValues: formats.map { ($0, [:]) }), [:]) }
         let groups = [UsbSyncSourceNode.rekordboxSelectionID, UsbSyncSourceNode.iTunesSelectionID]
         let nodes = draft.sourceNodes.filter { !groups.contains($0.id) }
         guard Set(nodes.map(\.id)).count == nodes.count else { throw UsbError.writeRefused([incompleteBlock]) }
@@ -172,7 +180,7 @@ public enum UsbSyncSelectionStage {
             case let .new(key): merged[id] = createdIDs[key]
             }
         }
-        var result: [UsbFormat: [String: Int]] = [:]
+        var result: [UsbFormat: [String: Int]] = [:], representatives: [String: Int] = [:]
         for format in formats {
             let playlists = Dictionary(model.playlists.filter { $0.presentIn.contains(format) }.map { ($0.id, $0) },
                                        uniquingKeysWith: { first, _ in first })
@@ -183,12 +191,13 @@ public enum UsbSyncSelectionStage {
                 }
                 let parent = byID[id]?.parentID.flatMap { merged[$0] } ?? 0
                 guard playlist.parentID == parent else { throw UsbError.writeRefused([incompleteBlock]) }
-                ids[id] = usbID
+                ids[id] = playlist.id(in: format)
+                representatives[id] = usbID
             }
-            guard Set(ids.values).count == ids.count else { throw UsbError.writeRefused([incompleteBlock]) }
+            guard Set(ids.values).count == ids.count, ids.values.allSatisfy({ $0 > 0 }) else { throw UsbError.writeRefused([incompleteBlock]) }
             result[format] = ids
         }
-        return result
+        return (result, representatives)
     }
 
     /// contract는 내부 인자다. 생산 호출은 production만 쓰고 합성 시험만 내부 준비 함수를 직접 부른다.
@@ -200,11 +209,11 @@ public enum UsbSyncSelectionStage {
         if let root, try !matchesBase(draft, formats: formats, root: root, fileSystem: fileSystem) {
             throw UsbError.writeRefused([changedBlock])
         }
-        let ids = try resolve(draft, model: model, formats: formats, createdIDs: createdIDs, allocatedIDs: allocatedIDs)
-        // 쓴 뒤 검증·회복은 모델에서 찾은 번호만 본다. 같은 묶음의 새 목록 key는 최종 번호로 바꿔 둔다.
-        let merged = ids.values.reduce(into: [String: Int]()) { $0.merge($1) { first, _ in first } }
+        let (ids, representatives) = try resolveWithRepresentatives(draft, model: model, formats: formats, createdIDs: createdIDs,
+                                                                    allocatedIDs: allocatedIDs)
+        // 쓴 뒤 검증·회복은 모델에서 찾은 번호만 본다. 같은 묶음의 새 목록 key는 최종 번호(대표 번호)로 바꿔 둔다.
         let resolvedDraft = UsbSyncSelectionDraft(localDBID: draft.localDBID, sourceNodes: draft.sourceNodes, selection: draft.selection,
-                                                 enabled: draft.enabled, playlistRefs: merged.mapValues { .id(String($0)) },
+                                                 enabled: draft.enabled, playlistRefs: representatives.mapValues { .id(String($0)) },
                                                  baseFiles: draft.baseFiles, enabledOnly: draft.enabledOnly)
         var rendered: [(UsbFormat, Data)] = []
         for format in UsbFormat.allCases where formats.contains(format) {
@@ -257,13 +266,9 @@ struct UsbSyncSelectionVerifier: UsbWriteVerifier {
             guard source.blocks.isEmpty, source.formatsBlocked.isEmpty, expected.formats.isSubset(of: source.formats) else {
                 return problems + ["sync selection model format"]
             }
+            // 초안 참조는 대표 번호다. 다시 읽은 모델에서 형식마다 같은 Dev_ID로 풀리는지 본다(#233: 두 형식 번호가 다를 수 있다)
             for format in expected.formats {
-                let refs = (expected.playlistIDs[format] ?? [:]).mapValues { PlaylistRef.id(String($0)) }
-                let draft = UsbSyncSelectionDraft(localDBID: expected.draft.localDBID, sourceNodes: expected.draft.sourceNodes,
-                                                  selection: expected.draft.selection, enabled: expected.draft.enabled,
-                                                  playlistRefs: refs, baseFiles: expected.draft.baseFiles,
-                                                  enabledOnly: expected.draft.enabledOnly)
-                let actual = try UsbSyncSelectionStage.resolve(draft, model: source.current, formats: [format], createdIDs: [:])
+                let actual = try UsbSyncSelectionStage.resolve(expected.draft, model: source.current, formats: [format], createdIDs: [:])
                 if actual[format] != expected.playlistIDs[format] { problems.append("sync selection model references") }
             }
         } catch {

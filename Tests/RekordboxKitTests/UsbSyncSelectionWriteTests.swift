@@ -95,6 +95,37 @@ struct UsbSyncSelectionWriteTests {
         #expect(try env.read().playlists.contains { $0.id == usbID })
     }
 
+    @Test("#233: 두 형식 번호가 다른 USB 목록을 체크하면 형식마다 그 형식 번호로 쓰고, 다시 읽으면 한 목록에 잇는다")
+    func selectionWriteUsesPerFormatDeviceIDs() throws {
+        let env = try UsbEditEngineTests.rekordboxStyle {
+            var paired = UsbLibraryFixture.Playlist(id: 10, name: "합성 목록", entries: [1, 2])
+            paired.deviceLibraryID = 20
+            var deviceOnly = UsbLibraryFixture.Playlist(id: 10, name: "합성 장치 목록", entries: [3])
+            deviceOnly.formats = [.deviceLibrary]
+            $0.playlists = [paired, deviceOnly]
+        }
+        let local = try localDBID(env)
+        let dbid = try #require(UsbSyncSelectionXML.databaseID(local))
+        let baseFiles = seed(env, UsbSyncSelectionFileTests.file([], dbid: dbid))
+        let source: [UsbSyncSourceNode] = [.init(id: "900", parentID: nil, isFolder: false, timestamp: 1_700_000_000_900)]
+        let draft = UsbSyncSelectionDraft(localDBID: local, sourceNodes: source, selection: .init(selectedIDs: ["900"]), enabled: true,
+                                          playlistRefs: ["900": .id("10")], baseFiles: baseFiles)
+        let planned = try plan(env, [.syncSelection(draft: draft)])
+        #expect(planned.blocks.map(\.code) == [])
+        #expect(planned.changes?.syncSelection?.playlistIDs == [.deviceLibrary: ["900": 20], .oneLibrary: ["900": 10]])
+        #expect(try env.write(planned).outcome == .written)
+        for (format, usbID) in [(UsbFormat.deviceLibrary, 20), (.oneLibrary, 10)] {
+            let parsed = try UsbSyncSelectionFile.parse(try #require(env.usb.data(UsbSyncSelectionFile.relativePath(for: format))))
+            #expect(parsed.nodes.map(\.deviceID) == ["0", String(usbID)])
+        }
+        let model = try env.read()
+        let bundle = try UsbSyncSelectionBundle.read(root: env.usb.root, formats: model.formats)
+        let resolved = bundle.resolution(sourceNodes: source, localDBID: local, usbPlaylistIDs: UsbSyncSelectionBundle.playlistIDs(of: model),
+                                         representatives: UsbSyncSelectionBundle.representatives(of: model), masterNodeIDs: ["384"])
+        #expect(resolved.issues.isEmpty)
+        #expect(resolved.playlistIDs == ["900": 10])
+    }
+
     @Test("masterPlaylists6.xml에 없는 목록을 체크하면 백업 전에 묶음 전체를 막는다")
     func missingMasterNodeBlocksBeforeWriting() throws {
         let env = try UsbEditEngineTests.exported()

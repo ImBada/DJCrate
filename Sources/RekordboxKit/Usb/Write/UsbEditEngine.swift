@@ -172,9 +172,10 @@ public enum UsbEditEngine {
                                    message: String(ui: "두 형식의 곡 번호가 달라 고칠 수 없습니다. rekordbox에서 다시 내보내세요")))
         }
         if mismatches.contains(where: { if case .playlistConflict = $0 { true } else { false } }) {
-            // 합친 모델에는 OneLibrary 목록만 남아 고쳐 쓰면 Device Library 목록을 잃는다
+            // 맨 위에서 닿지 않는 목록은 대표 번호·부모를 정할 수 없어 고쳐 쓰면 다른 자리로 갈 수 있다.
+            // 번호만 다른 같은 목록·같은 번호의 다른 목록은 짝지어 읽으므로 막지 않는다(#233)
             blocks.append(UsbBlock(code: "formatPlaylistConflict", scope: .volume,
-                                   message: String(ui: "두 형식에서 같은 번호의 재생 목록이 서로 달라 고칠 수 없습니다. rekordbox에서 다시 내보내세요")))
+                                   message: String(ui: "부모 폴더를 찾을 수 없는 재생 목록이 있어 고칠 수 없습니다. rekordbox에서 USB를 다시 내보내세요")))
         }
         var formatsBlocked: [UsbFormat: UsbBlock] = [:]
         if let deviceLibrary, let report, let block = try deviceLibraryBlock(deviceLibrary, report: report, snapshot: snapshot) {

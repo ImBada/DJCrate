@@ -85,12 +85,13 @@ struct UsbEditEngineTests {
         #expect(result.changes == nil)
     }
 
-    @Test("같은 번호 목록이 두 형식에서 다르면 목록 편집(과 다른 편집)을 막는다")
-    func playlistConflictBlocksPlaylistEdits() throws {
+    @Test("부모를 찾을 수 없는 목록이 있으면 목록 편집(과 다른 편집)을 막는다")
+    func orphanPlaylistBlocksEdits() throws {
         let env = try Self.rekordboxStyle {
-            var playlist = UsbLibraryFixture.Playlist(id: 10, name: "합성 목록", entries: [1, 2])
-            playlist.deviceLibraryName = "합성 다른 이름"
-            $0.playlists = [playlist]
+            var orphan = UsbLibraryFixture.Playlist(id: 11, name: "합성 고아 목록", entries: [1])
+            orphan.formats = [.deviceLibrary]
+            orphan.parentID = 99
+            $0.playlists.append(orphan)
         }
         let result = try env.plan([.playlist(edit: .rename(playlist: .id("10"), name: "합성 새 이름"))], withLocal: false)
         #expect(Self.isBlocked(result.outcome(1), "formatPlaylistConflict"))

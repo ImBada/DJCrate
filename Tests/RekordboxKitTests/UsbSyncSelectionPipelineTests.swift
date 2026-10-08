@@ -72,6 +72,28 @@ struct UsbSyncSelectionPipelineTests {
         }
     }
 
+    @Test("#233: 두 형식 번호가 다른 목록은 형식마다 그 형식 번호를 Dev_ID로 쓰고, 초안 참조는 대표 번호로 남긴다")
+    func stageWritesPerFormatDeviceIDs() throws {
+        let fixture = UsbChangeSetFixture()
+        defer { fixture.remove() }
+        var library = model()
+        library.playlists[0].formatIDs = [.deviceLibrary: 21]
+        library.playlists[1].formatIDs = [.deviceLibrary: 22]
+        var context = UsbExportAssembly.Context(staging: fixture.folder.appending(path: "sync-staging"))
+        let expected = try UsbSyncSelectionStage.stage(draft(), formats: Self.formats, model: library,
+                                                       createdIDs: ["folder": 11, "list": 12], root: fixture.root,
+                                                       fileSystem: fixture.fileSystem(), into: &context, contract: Self.contract)
+        #expect(expected.playlistIDs == [.deviceLibrary: ["itunes:F": 21, "itunes:A": 22], .oneLibrary: ["itunes:F": 11, "itunes:A": 12]])
+        #expect(expected.draft.playlistRefs == ["itunes:F": .id("11"), "itunes:A": .id("12")])
+        for format in UsbFormat.allCases {
+            let write = try #require(context.writes.first { $0.destination == UsbSyncSelectionFile.relativePath(for: format) })
+            let parsed = try UsbSyncSelectionFile.parse(Data(contentsOf: URL(filePath: write.staged)))
+            #expect(parsed.nodes.map(\.deviceID) == (format == .deviceLibrary ? ["0", "21", "22"] : ["0", "11", "12"]))
+        }
+        // 쓴 뒤 검증처럼 대표 번호 참조를 다시 풀어도 형식별 번호가 같다
+        #expect(try UsbSyncSelectionStage.resolve(expected.draft, model: library, formats: Self.formats, createdIDs: [:]) == expected.playlistIDs)
+    }
+
     @Test("선택한 목록이나 부모 생성이 건너뛰어지면 두 파일 모두 준비하지 않는다")
     func missingAppliedPlaylistStopsBothFiles() throws {
         let fixture = UsbChangeSetFixture()

@@ -20083,22 +20083,6 @@
         }
       }
     },
-    "두 형식에서 같은 번호의 재생 목록이 서로 달라 고칠 수 없습니다. rekordbox에서 다시 내보내세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cannot edit because a playlist with the same number differs between the two formats. Export again from rekordbox"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2つの形式で同じ番号のプレイリストが異なるため編集できません。rekordboxからもう一度エクスポートしてください"
-          }
-        }
-      }
-    },
     "두 형식의 곡 번호가 달라 고칠 수 없습니다. rekordbox에서 다시 내보내세요" : {
       "localizations" : {
         "en" : {
@@ -24917,6 +24901,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ボリューム: %1$@ · %2$@ · %3$@ · エクスポート: %4$@ · 編集: %5$@"
+          }
+        }
+      }
+    },
+    "부모 폴더를 찾을 수 없는 재생 목록이 있어 고칠 수 없습니다. rekordbox에서 USB를 다시 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot edit because a playlist's parent folder can't be found. Export the USB again from rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "親フォルダーが見つからないプレイリストがあるため編集できません。rekordboxからUSBをもう一度エクスポートしてください"
           }
         }
       }

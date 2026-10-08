@@ -222,11 +222,11 @@ public struct UsbSyncSelectionFile: Sendable, Equatable {
 public struct UsbSyncSelectionResolution: Sendable {
     public let selection: ITunesSyncSelection
     public let enabled: Bool?
-    /// 두 형식이 같은 USB 목록을 가리키는 원본 → USB 목록 ID. 동기화 연결로 쓴다.
+    /// 두 형식이 같은 USB 목록을 가리키는 원본 → USB 목록 ID(합친 모델의 대표 번호). 동기화 연결로 쓴다.
     public let playlistIDs: [String: Int]
     /// 형식별 Dev_ID. 두 형식의 목록 번호가 다르면 서로 다를 수 있다(2026-10-08 실험).
     public let formatPlaylistIDs: [UsbFormat: [String: Int]]
-    /// 로컬에서 지운 rekordbox 원본의 행이 가리키던 USB 목록(두 형식이 같은 번호일 때만). rekordbox는 SYNC 때 이 목록을 지운다.
+    /// 로컬에서 지운 rekordbox 원본의 행이 가리키던 USB 목록(두 형식이 같은 목록을 가리킬 때만, 대표 번호). rekordbox는 SYNC 때 이 목록을 지운다.
     public let removedSourcePlaylistIDs: Set<Int>
     public let issues: [UsbSyncSelectionIssue]
     public var canWrite: Bool { issues.isEmpty }
@@ -288,15 +288,24 @@ public struct UsbSyncSelectionBundle: Sendable {
 
     /// 형식마다 그 형식 DB에 있는 목록 번호. Dev_ID는 그 형식의 번호와 견준다.
     public static func playlistIDs(of library: UsbLibrary) -> [UsbFormat: Set<Int>] {
+        representatives(of: library).mapValues { Set($0.keys) }
+    }
+
+    /// 형식마다 그 형식 DB의 목록 번호 → 합친 모델의 대표 번호(#233: 같은 목록의 두 형식 번호가 다를 수 있다)
+    public static func representatives(of library: UsbLibrary) -> [UsbFormat: [Int: Int]] {
         Dictionary(uniqueKeysWithValues: library.formats.map { format in
-            (format, Set(library.playlists.filter { $0.presentIn.contains(format) }.map(\.id)))
+            (format, Dictionary(library.playlists.filter { $0.presentIn.contains(format) }.map { ($0.id(in: format), $0.id) },
+                                uniquingKeysWith: { first, _ in first }))
         })
     }
 
     /// - masterNodeIDs: 로컬 `masterPlaylists6.xml`의 rekordbox NODE Id(16진). 원본 목록에도 이 파일에도 없는 rekordbox 행은
     ///   로컬에서 지운 원본으로 본다(rekordbox는 종료할 때 지운 목록을 이 파일에서 뺀다, 2026-10-08 실험). nil이면 막는다.
+    /// - representatives: 형식 번호 → 대표 번호(`representatives(of:)`). 형식마다 Dev_ID를 대표 번호로 바꿔 같은 목록인지 본다.
+    ///   nil이면 두 형식 번호가 같을 때만 잇는다
     public func resolution(sourceNodes: [UsbSyncSourceNode], localDBID: Int64,
                            usbPlaylistIDs: [UsbFormat: Set<Int>]? = nil,
+                           representatives: [UsbFormat: [Int: Int]]? = nil,
                            masterNodeIDs: Set<String>? = nil) -> UsbSyncSelectionResolution {
         var issues: [UsbSyncSelectionIssue] = []
         func issue(_ value: UsbSyncSelectionIssue) { if !issues.contains(value) { issues.append(value) } }
@@ -384,7 +393,8 @@ public struct UsbSyncSelectionBundle: Sendable {
                 }
                 // Dev_ID는 그 형식 DB의 목록 번호(10진수)다.
                 guard let value = UsbSyncSelectionFile.decimal(corresponding.deviceID).flatMap({ Int(exactly: $0) }), value > 0,
-                      usbPlaylistIDs.map({ $0[format]?.contains(value) == true }) ?? true else {
+                      usbPlaylistIDs.map({ $0[format]?.contains(value) == true }) ?? true,
+                      representatives.map({ $0[format]?[value] != nil }) ?? true else {
                     if report { issue(.deviceIDAmbiguous) }
                     continue
                 }
@@ -392,10 +402,14 @@ public struct UsbSyncSelectionBundle: Sendable {
             }
             return result
         }
+        /// 형식 번호 → 대표 번호(모르면 그 번호 그대로: 두 형식 번호가 같을 때만 한 목록으로 본다)
+        func linked(_ found: [UsbFormat: Int]) -> [UsbFormat: Int] {
+            Dictionary(uniqueKeysWithValues: found.map { format, value in (format, representatives?[format]?[value] ?? value) })
+        }
         for node in file.nodes where [0, 1].contains(node.libraryType) {
             if removedKeys.contains(node.key) {
-                // 지운 원본의 USB 목록은 두 형식이 같은 번호일 때만 지울 대상으로 둔다. 다르면 지우지 않고 남긴다.
-                let found = deviceIDs(node, report: false)
+                // 지운 원본의 USB 목록은 두 형식이 같은 목록을 가리킬 때만 지울 대상으로 둔다. 다르면 지우지 않고 남긴다.
+                let found = linked(deviceIDs(node, report: false))
                 let values = Set(found.values)
                 if found.count == files.count, values.count == 1, let value = values.first { removed.insert(value) }
                 continue
@@ -408,8 +422,9 @@ public struct UsbSyncSelectionBundle: Sendable {
             guard !node.isRoot else { continue }
             let values = deviceIDs(node)
             for (format, value) in values { formatIDs[format, default: [:]][id] = value }
-            // 두 형식이 같은 번호일 때만 한 USB 목록에 잇는다.
-            if Set(values.values).count == 1, let deviceID = values.values.first { ids[id] = deviceID }
+            // 두 형식이 같은 USB 목록(대표 번호)을 가리킬 때만 잇는다. 형식 번호는 다를 수 있다(#233).
+            let linkedValues = linked(values)
+            if Set(linkedValues.values).count == 1, let usbID = linkedValues.values.first { ids[id] = usbID }
         }
         for map in formatIDs.values where Dictionary(grouping: map.keys, by: { map[$0]! }).values.contains(where: { $0.count > 1 }) {
             issue(.deviceIDAmbiguous)

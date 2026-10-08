@@ -357,7 +357,7 @@ struct UsbEditActions {
         if let consistency = info?.consistency, consistency.editBlocked {
             return !consistency.trackIDsMatch || !consistency.pathsMatch
                 ? String(ui: "두 형식의 곡 번호가 달라 고칠 수 없습니다. rekordbox에서 다시 내보내세요")
-                : String(ui: "두 형식에서 같은 번호의 재생 목록이 서로 달라 고칠 수 없습니다. rekordbox에서 다시 내보내세요")
+                : String(ui: "부모 폴더를 찾을 수 없는 재생 목록이 있어 고칠 수 없습니다. rekordbox에서 USB를 다시 내보내세요")
         }
         guard let library else { return nil }
         let missing = String(ui: "대상이 USB에서 사라졌습니다. USB를 다시 읽은 뒤 고치세요")

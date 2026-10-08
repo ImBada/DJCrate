@@ -136,19 +136,131 @@ struct UsbLibraryMergeTests {
         #expect(merged.playlists[0].sortOrder == [.oneLibrary: 10, .deviceLibrary: 10])
     }
 
-    @Test func playlistConflictSameIDDifferentName() {
+    /// 형식 하나의 목록(부모·종류까지)
+    static func list(_ id: Int, _ format: UsbFormat, _ name: String, parent: Int = 0, folder: Bool = false, order: Int = 0,
+                     entries: [Int] = []) -> UsbPlaylist {
+        UsbPlaylist(id: id, name: name, parentID: parent, attribute: folder ? 1 : 0, imageID: nil, presentIn: [format],
+                    sortOrder: [format: order], entries: [format: folder ? [] : entries])
+    }
+
+    /// 두 형식 투영이 각 형식 리더 모델과 같다(쓰기가 건드리지 않은 목록은 그대로 다시 쓴다)
+    static func expectRoundTrip(_ merged: UsbLibrary, _ ol: UsbLibrary, _ dl: UsbLibrary) {
+        #expect(merged.projected(to: .oneLibrary).playlists == ol.playlists.sorted { $0.id < $1.id })
+        #expect(merged.projected(to: .deviceLibrary).playlists == dl.playlists.sorted { $0.id < $1.id })
+        for format in UsbFormat.allCases {
+            let single = format == .oneLibrary ? ol : dl
+            #expect(UsbLibraryDiff.compare(merged.projected(to: format), single, options: .init(formats: [format])).differences.isEmpty)
+        }
+    }
+
+    @Test("#233: 같은 목록이 형식마다 다른 번호여도 자리·이름·종류로 짝짓고 형식 번호를 지킨다")
+    func samePlaylistDifferentIDsPaired() {
+        var (ol, dl) = Samples.pair()
+        ol.playlists = [Self.list(5, .oneLibrary, "합성 폴더", folder: true), Self.list(6, .oneLibrary, "합성 목록 A", parent: 5, entries: [1]),
+                        Self.list(10, .oneLibrary, "합성 목록 B", order: 1, entries: [2])]
+        dl.playlists = [Self.list(3, .deviceLibrary, "합성 폴더", folder: true), Self.list(9, .deviceLibrary, "합성 목록 A", parent: 3, entries: [1]),
+                        Self.list(10, .deviceLibrary, "합성 목록 B", order: 1, entries: [2])]
+        let (merged, mismatches) = UsbLibrary.merge(oneLibrary: ol, deviceLibrary: dl)
+        #expect(mismatches.isEmpty)
+        #expect(merged.playlists.map(\.id) == [5, 6, 10])
+        #expect(merged.playlists.allSatisfy { $0.presentIn == UsbFormat.defaultSet })
+        #expect(merged.playlists.map(\.formatIDs) == [[.deviceLibrary: 3], [.deviceLibrary: 9], [:]])
+        #expect(merged.playlists[1].parentID == 5)
+        #expect(merged.playlists[1].id(in: .deviceLibrary) == 9 && merged.playlists[1].id(in: .oneLibrary) == 6)
+        Self.expectRoundTrip(merged, ol, dl)
+        // 합친 모델을 다시 합쳐도 같다
+        #expect(UsbLibrary.merge(oneLibrary: merged, deviceLibrary: merged).0 == merged)
+    }
+
+    @Test("#233: Device Library는 빈 번호를 다시 쓰고 OneLibrary는 가장 큰 값+1을 써 같은 번호가 다른 목록이어도 짝짓는다")
+    func sameIDDifferentPlaylistsPaired() {
+        // 둘 다 30(지운 목록) 뒤에 X·Y를 만든 모양: Device Library X 30·Y 31, OneLibrary X 31·Y 32
+        var (ol, dl) = Samples.pair()
+        ol.playlists = [Self.list(10, .oneLibrary, "합성 폴더", folder: true), Self.list(31, .oneLibrary, "합성 X", parent: 10, entries: [1]),
+                        Self.list(32, .oneLibrary, "합성 Y", parent: 10, order: 1, entries: [2])]
+        dl.playlists = [Self.list(10, .deviceLibrary, "합성 폴더", folder: true), Self.list(30, .deviceLibrary, "합성 X", parent: 10, entries: [1]),
+                        Self.list(31, .deviceLibrary, "합성 Y", parent: 10, order: 1, entries: [2])]
+        let (merged, mismatches) = UsbLibrary.merge(oneLibrary: ol, deviceLibrary: dl)
+        #expect(mismatches.isEmpty)
+        #expect(!mismatches.contains { $0.blocksEditing })
+        #expect(merged.playlists.map(\.id) == [10, 31, 32])
+        #expect(merged.playlists.map { $0.id(in: .deviceLibrary) } == [10, 30, 31])
+        #expect(merged.playlists.first { $0.id == 31 }?.name == "합성 X")
+        Self.expectRoundTrip(merged, ol, dl)
+    }
+
+    @Test("이름이 다른 같은 번호 목록은 짝짓지 않고 두 한 형식 목록으로 둔다(Device Library 목록을 잃지 않는다)")
+    func sameIDDifferentNameKeptApart() {
         let (ol, original) = Samples.pair()
         var dl = original
         dl.playlists[0].name = "다른 이름"
-        dl.playlists.append(Samples.playlist(11, .deviceLibrary, entries: [2]))
+        dl.playlists.append(Samples.playlist(11, .deviceLibrary, name: "또 다른 목록", entries: [2]))
         let (merged, mismatches) = UsbLibrary.merge(oneLibrary: ol, deviceLibrary: dl)
-        #expect(Set(mismatches) == [.playlistConflict(id: 10), .playlistOnlyIn(.deviceLibrary, id: 11)])
-        #expect(merged.playlists.first { $0.id == 10 }?.name == "시험 목록")
-        #expect(merged.playlists.first { $0.id == 11 }?.presentIn == [.deviceLibrary])
-        // 합친 모델에는 OneLibrary 목록만 남아 Device Library 목록과 항목이 빠진다. 그대로 고쳐 쓰면 그 목록을 잃으므로 편집을 막는다.
-        #expect(merged.projected(to: .deviceLibrary).playlists.map(\.id) == [11])
-        #expect(mismatches.first { $0 == .playlistConflict(id: 10) }?.blocksEditing == true)
-        #expect(mismatches.first { $0 == .playlistOnlyIn(.deviceLibrary, id: 11) }?.blocksEditing == false)
+        #expect(Set(mismatches) == [.playlistOnlyIn(.oneLibrary, id: 10), .playlistOnlyIn(.deviceLibrary, id: -10),
+                                    .playlistOnlyIn(.deviceLibrary, id: 11)])
+        #expect(!mismatches.contains { $0.blocksEditing })
+        #expect(merged.playlists.map(\.id) == [-10, 10, 11])
+        let deviceOnly = merged.playlists.first { $0.id == -10 }
+        #expect(deviceOnly?.name == "다른 이름" && deviceOnly?.presentIn == [.deviceLibrary] && deviceOnly?.id(in: .deviceLibrary) == 10)
+        #expect(merged.playlists.first { $0.id == 10 }?.presentIn == [.oneLibrary])
+        Self.expectRoundTrip(merged, ol, dl)
+    }
+
+    @Test("같은 부모 아래 같은 이름·종류가 여럿이면 번호까지 같은 것만 짝짓는다")
+    func ambiguousNamesPairOnlySameID() {
+        var (ol, dl) = Samples.pair()
+        ol.playlists = [Self.list(10, .oneLibrary, "합성 같은 이름", entries: [1]), Self.list(12, .oneLibrary, "합성 같은 이름", order: 1, entries: [2])]
+        dl.playlists = [Self.list(10, .deviceLibrary, "합성 같은 이름", entries: [1]), Self.list(11, .deviceLibrary, "합성 같은 이름", order: 1, entries: [2])]
+        let (merged, mismatches) = UsbLibrary.merge(oneLibrary: ol, deviceLibrary: dl)
+        #expect(Set(mismatches) == [.playlistOnlyIn(.oneLibrary, id: 12), .playlistOnlyIn(.deviceLibrary, id: 11)])
+        #expect(merged.playlists.map(\.id) == [10, 11, 12])
+        #expect(merged.playlists.map(\.presentIn) == [UsbFormat.defaultSet, [.deviceLibrary], [.oneLibrary]])
+        Self.expectRoundTrip(merged, ol, dl)
+
+        // 번호도 모두 다르면 하나도 짝짓지 않는다
+        dl.playlists = [Self.list(20, .deviceLibrary, "합성 같은 이름", entries: [1]), Self.list(21, .deviceLibrary, "합성 같은 이름", order: 1, entries: [2])]
+        let (apart, apartMismatches) = UsbLibrary.merge(oneLibrary: ol, deviceLibrary: dl)
+        #expect(apart.playlists.allSatisfy { $0.presentIn.count == 1 } && apart.playlists.count == 4)
+        #expect(!apartMismatches.contains { $0.blocksEditing })
+        Self.expectRoundTrip(apart, ol, dl)
+    }
+
+    @Test("짝을 찾지 못한 폴더 아래 목록은 이름이 같아도 짝짓지 않고, 한 형식 목록의 부모는 대표 번호로 적는다")
+    func childrenFollowParentPairing() {
+        var (ol, dl) = Samples.pair()
+        ol.playlists = [Self.list(5, .oneLibrary, "합성 폴더", folder: true), Self.list(6, .oneLibrary, "합성 목록", parent: 5, entries: [1]),
+                        Self.list(7, .oneLibrary, "합성 이름 바꾼 폴더", folder: true, order: 1),
+                        Self.list(8, .oneLibrary, "합성 안 목록", parent: 7, entries: [2])]
+        // Device Library: 짝 폴더(3) 아래 Device Library에만 있는 목록(5, OneLibrary 번호와 겹침), 이름이 다른 폴더(4) 아래 같은 이름 목록
+        dl.playlists = [Self.list(3, .deviceLibrary, "합성 폴더", folder: true), Self.list(5, .deviceLibrary, "합성 장치 목록", parent: 3, entries: [2]),
+                        Self.list(9, .deviceLibrary, "합성 목록", parent: 3, order: 1, entries: [1]),
+                        Self.list(4, .deviceLibrary, "합성 옛 폴더", folder: true, order: 1),
+                        Self.list(6, .deviceLibrary, "합성 안 목록", parent: 4, entries: [2])]
+        let (merged, mismatches) = UsbLibrary.merge(oneLibrary: ol, deviceLibrary: dl)
+        #expect(!mismatches.contains { $0.blocksEditing })
+        let deviceOnly = merged.playlists.first { $0.name == "합성 장치 목록" }
+        #expect(deviceOnly?.id == -5 && deviceOnly?.parentID == 5)
+        #expect(merged.playlists.first { $0.id == 6 }?.formatIDs == [.deviceLibrary: 9])
+        // 이름이 다른 폴더(7·4)는 짝이 없고, 그 아래 같은 이름 목록(8·6)도 짝짓지 않는다
+        let inner = merged.playlists.filter { $0.name == "합성 안 목록" }
+        #expect(inner.count == 2 && inner.allSatisfy { $0.presentIn.count == 1 })
+        let innerDevice = inner.first { $0.presentIn == [.deviceLibrary] }
+        #expect(innerDevice?.id == -6 && innerDevice?.parentID == 4)
+        Self.expectRoundTrip(merged, ol, dl)
+    }
+
+    @Test("맨 위에서 닿지 않는 목록(없는 부모)은 대표 번호를 정할 수 없어 편집을 막는다")
+    func orphanPlaylistBlocks() {
+        let (ol, original) = Samples.pair()
+        var dl = original
+        dl.playlists.append(Self.list(11, .deviceLibrary, "합성 고아 목록", parent: 99, entries: [1]))
+        let (merged, mismatches) = UsbLibrary.merge(oneLibrary: ol, deviceLibrary: dl)
+        #expect(mismatches == [.playlistConflict(id: 11)])
+        #expect(mismatches[0].blocksEditing)
+        #expect(merged.projected(to: .deviceLibrary).playlists == dl.playlists)
+        // 맨 위에서 닿는 목록은 그대로 짝짓는다
+        #expect(merged.playlists.first { $0.id == 10 }?.presentIn == UsbFormat.defaultSet)
+        #expect(merged.projected(to: .oneLibrary).playlists == ol.playlists)
     }
 
     @Test func sharedFieldDifferencesReported() {

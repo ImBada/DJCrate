@@ -36,6 +36,59 @@ extension UsbEditEngineTests {
         #expect(after.playlists.allSatisfy { $0.presentIn == UsbFormat.defaultSet })
     }
 
+    @Test("#233: 형식마다 번호가 다른 짝 목록을 고치면 두 형식을 각자 번호로 고치고, 같은 번호의 다른 목록은 그대로 둔다")
+    func pairedPlaylistWithDifferentIDsEdited() throws {
+        // OneLibrary 10 = Device Library 20(같은 목록), Device Library 10 = Device Library에만 있는 다른 목록
+        let env = try Self.rekordboxStyle {
+            var paired = UsbLibraryFixture.Playlist(id: 10, name: "합성 목록", entries: [1, 2])
+            paired.deviceLibraryID = 20
+            var deviceOnly = UsbLibraryFixture.Playlist(id: 10, name: "합성 장치 목록", entries: [3])
+            deviceOnly.formats = [.deviceLibrary]
+            $0.playlists = [paired, deviceOnly]
+        }
+        let before = try env.source()
+        #expect(before.blocks.isEmpty)
+        #expect(before.current.playlists.map(\.id) == [-10, 10])
+        #expect(before.current.playlists.first { $0.id == 10 }?.formatIDs == [.deviceLibrary: 20])
+        let olBefore = try #require(try env.read(.oneLibrary)), dlBefore = try #require(try env.read(.deviceLibrary))
+
+        let (result, report) = try env.edit([
+            .playlist(edit: .rename(playlist: .id("10"), name: "합성 새 이름")),
+            .playlist(edit: .addTracks(playlist: .id("10"), contentIDs: ["3"])),
+            .playlist(edit: .create(key: "n", name: "합성 새 목록", isFolder: false, parent: .root)),
+        ], withLocal: false)
+        #expect(result.outcomes.allSatisfy { $0.outcome == .written })
+        #expect(report.outcome == .written)
+        // 새 목록 번호는 두 형식 어느 번호와도 겹치지 않고 두 형식에 같은 번호다
+        #expect(result.createdPlaylistIDs == ["n": 21])
+
+        let ol = try #require(try env.read(.oneLibrary)), dl = try #require(try env.read(.deviceLibrary))
+        #expect(ol.playlists.map(\.id) == [10, 21] && dl.playlists.map(\.id) == [10, 20, 21])
+        let olList = try #require(ol.playlists.first { $0.id == 10 }), dlList = try #require(dl.playlists.first { $0.id == 20 })
+        #expect(olList.name == "합성 새 이름" && dlList.name == "합성 새 이름")
+        #expect(olList.entries[.oneLibrary] == [1, 2, 3] && dlList.entries[.deviceLibrary] == [1, 2, 3])
+        // 같은 번호(10)의 Device Library 목록은 이름·항목·순서가 그대로다
+        #expect(dl.playlists.first { $0.id == 10 } == dlBefore.playlists.first { $0.id == 10 })
+        #expect(olBefore.playlists.count == 1)
+
+        let after = try env.source()
+        #expect(after.blocks.isEmpty)
+        #expect(after.current.playlists.map(\.id) == [-10, 10, 21])
+        #expect(after.mismatches.filter { if case .playlistOnlyIn = $0 { false } else { true } }
+            .allSatisfy { if case .playlistConflict = $0 { false } else if case .playlistEntriesDiffer = $0 { false } else { true } })
+
+        // Device Library에만 있는 목록(대표 번호 −10)을 고치면 그 형식의 10번만 바뀐다
+        let (deviceEdit, _) = try env.edit([.playlist(edit: .rename(playlist: .id("-10"), name: "합성 장치 새 이름")),
+                                            .playlist(edit: .removeTracks(playlist: .id("-10"), entries: [PlaylistEntry(trackNo: 1, contentID: "3")]))],
+                                           withLocal: false)
+        #expect(deviceEdit.outcomes.allSatisfy { $0.outcome == .written })
+        let dlAfter = try #require(try env.read(.deviceLibrary)), olAfter = try #require(try env.read(.oneLibrary))
+        let renamedDevice = try #require(dlAfter.playlists.first { $0.id == 10 })
+        #expect(renamedDevice.name == "합성 장치 새 이름" && renamedDevice.entries[.deviceLibrary] == [])
+        #expect(dlAfter.playlists.first { $0.id == 20 } == dl.playlists.first { $0.id == 20 })
+        #expect(olAfter.playlists == ol.playlists)
+    }
+
     @Test("항목을 고친 목록은 OneLibrary 항목 번호를 1..N으로 다시 매긴다")
     func entriesRenumbered1toN() throws {
         let env = try Self.exported()

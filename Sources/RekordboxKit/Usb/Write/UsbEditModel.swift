@@ -99,7 +99,9 @@ enum UsbEditModel {
         }
         switch edit {
         case let .create(playlist):
-            guard !model.playlists.contains(where: { $0.id == playlist.id }) else { throw UsbEditConflict(description: "playlist \(playlist.id) exists") }
+            guard !model.playlists.contains(where: { $0.id == playlist.id || $0.formatIDs.values.contains(playlist.id) }) else {
+                throw UsbEditConflict(description: "playlist \(playlist.id) exists")
+            }
             try requireParent(playlist.parentID)
             model.playlists.append(playlist)
         case let .rename(id, name):

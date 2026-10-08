@@ -109,6 +109,42 @@ struct UsbSyncSelectionFileTests {
         #expect(wrong.issues.contains(.deviceIDAmbiguous))
     }
 
+    /// #233: rekordbox가 두 형식에 다른 번호를 준 같은 목록(OneLibrary 3 = Device Library 2)은 합친 모델의 대표 번호로 잇는다
+    @Test func 형식_번호가_달라도_같은_USB_목록이면_대표_번호로_잇는다() throws {
+        let deviceLibrary = try UsbSyncSelectionFile.parse(Self.xml)
+        let oneLibrary = try UsbSyncSelectionFile.parse(Data(String(decoding: Self.xml, as: UTF8.self)
+            .replacingOccurrences(of: "Dev_ID=\"2\"", with: "Dev_ID=\"3\"").utf8))
+        let bundle = UsbSyncSelectionBundle(files: [.deviceLibrary: deviceLibrary, .oneLibrary: oneLibrary])
+        var model = UsbLibrary.empty
+        model.formats = UsbFormat.defaultSet
+        model.playlists = [
+            UsbPlaylist(id: 1, name: "합성 폴더", attribute: 1, presentIn: UsbFormat.defaultSet),
+            UsbPlaylist(id: 3, name: "합성 목록", parentID: 1, presentIn: UsbFormat.defaultSet, formatIDs: [.deviceLibrary: 2]),
+        ]
+        #expect(UsbSyncSelectionBundle.playlistIDs(of: model) == [.deviceLibrary: [1, 2], .oneLibrary: [1, 3]])
+        #expect(UsbSyncSelectionBundle.representatives(of: model) == [.deviceLibrary: [1: 1, 2: 3], .oneLibrary: [1: 1, 3: 3]])
+        let result = bundle.resolution(sourceNodes: Self.source, localDBID: Self.localDBID,
+                                       usbPlaylistIDs: UsbSyncSelectionBundle.playlistIDs(of: model),
+                                       representatives: UsbSyncSelectionBundle.representatives(of: model))
+        #expect(result.issues.isEmpty)
+        #expect(result.formatPlaylistIDs[.deviceLibrary] == ["itunes:F": 1, "itunes:A": 2])
+        #expect(result.formatPlaylistIDs[.oneLibrary] == ["itunes:F": 1, "itunes:A": 3])
+        #expect(result.playlistIDs == ["itunes:F": 1, "itunes:A": 3])
+
+        // 형식 번호가 같아도 대표 번호가 다르면(같은 번호의 다른 목록) 잇지 않는다
+        model.playlists = [
+            UsbPlaylist(id: 1, name: "합성 폴더", attribute: 1, presentIn: UsbFormat.defaultSet),
+            UsbPlaylist(id: -2, name: "합성 장치 목록", parentID: 1, presentIn: [.deviceLibrary], formatIDs: [.deviceLibrary: 2]),
+            UsbPlaylist(id: 3, name: "합성 목록", parentID: 1, presentIn: UsbFormat.defaultSet, formatIDs: [.deviceLibrary: 5]),
+            UsbPlaylist(id: 2, name: "합성 다른 목록", parentID: 1, presentIn: [.oneLibrary]),
+        ]
+        let same = UsbSyncSelectionBundle(files: [.deviceLibrary: deviceLibrary, .oneLibrary: deviceLibrary])
+        let apart = same.resolution(sourceNodes: Self.source, localDBID: Self.localDBID,
+                                    representatives: UsbSyncSelectionBundle.representatives(of: model))
+        #expect(apart.issues.isEmpty)
+        #expect(apart.playlistIDs == ["itunes:F": 1])
+    }
+
     @Test func DTD_중복_순환_잘못된_숫자와_로컬_동기화_형식을_거부한다() {
         let text = String(decoding: Self.xml, as: UTF8.self)
         for candidate in [

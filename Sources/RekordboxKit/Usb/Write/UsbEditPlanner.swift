@@ -88,7 +88,8 @@ struct UsbEditPlanner {
         each(.key, model.keys.map(\.id))
         each(.label, model.labels.map(\.id))
         each(.image, model.images.map(\.id))
-        each(.playlist, model.playlists.map(\.id))
+        // 두 형식의 번호를 모두 본다(대표 번호만 보면 한 형식에서 쓰는 번호를 새 목록에 줄 수 있다, #233). 음수 대표 번호는 형식 번호가 아니다
+        each(.playlist, model.playlists.flatMap { [$0.id] + $0.formatIDs.values }.filter { $0 > 0 })
     }
 
     // MARK: - 편집 하나
@@ -268,7 +269,7 @@ struct UsbEditPlanner {
     }
 
     /// 목록 이름·부모는 형식마다 따로 두지 않는다(합친 모델에 한 값). 고칠 수 없는 형식에도 있는 목록을 바꾸면 두 형식이 어긋나
-    /// 다음 읽기부터 USB 전체가 막히므로(`formatPlaylistConflict`) 그런 목록의 이름·부모는 바꾸지 않는다
+    /// 다음 읽기부터 짝을 잃고 두 목록으로 보이므로(`UsbPlaylistPairing`) 그런 목록의 이름·부모는 바꾸지 않는다
     func requireWritableEverywhere(_ playlist: UsbPlaylist, ref: PlaylistRef) throws {
         guard playlist.presentIn.isSubset(of: writable) else {
             throw UsbEditBlocked(block: UsbBlock(code: "playlistInBlockedFormat", scope: .playlist(ref.description),

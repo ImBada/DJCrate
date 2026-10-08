@@ -318,6 +318,7 @@ struct UsbSyncQueuedPlan: Sendable {
             nativeBaseFiles = native.baseFiles
             let resolved = native.resolution(sourceNodes: sources.nativeNodes, localDBID: local.localDBID,
                                              usbPlaylistIDs: library.map(UsbSyncSelectionBundle.playlistIDs(of:)),
+                                             representatives: library.map(UsbSyncSelectionBundle.representatives(of:)),
                                              masterNodeIDs: Self.masterNodeIDs(master))
             nativePlaylistIDs = resolved.playlistIDs
             nativeRemovedPlaylistIDs = resolved.removedSourcePlaylistIDs
@@ -787,6 +788,7 @@ struct UsbSyncQueuedPlan: Sendable {
             nativeSelectionFingerprint = native.semanticFingerprint
             let resolved = native.resolution(sourceNodes: UsbSyncSource.nativeNodes(source), localDBID: localDBID,
                                              usbPlaylistIDs: usb.libraries[volumeKey].map(UsbSyncSelectionBundle.playlistIDs(of:)),
+                                             representatives: usb.libraries[volumeKey].map(UsbSyncSelectionBundle.representatives(of:)),
                                              masterNodeIDs: Self.masterNodeIDs(masterNodes))
             nativePlaylistIDs = resolved.playlistIDs
             nativeRemovedPlaylistIDs = resolved.removedSourcePlaylistIDs

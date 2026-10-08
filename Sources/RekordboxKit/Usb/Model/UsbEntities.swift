@@ -54,9 +54,11 @@ public struct UsbImage: Sendable, Hashable {
 }
 
 public struct UsbPlaylist: Sendable, Hashable {
+    /// 한 형식 모델에서는 그 형식 DB의 목록 번호. 두 형식을 합친 모델에서는 대표 번호다(OneLibrary 번호, Device Library에만 있는
+    /// 목록은 그 번호, 그 번호가 OneLibrary에서 쓰이면 음수 −번호). 형식 번호는 `id(in:)`
     public var id: Int
     public var name: String
-    /// 0 = 맨 위
+    /// 0 = 맨 위. 합친 모델에서는 부모의 대표 번호
     public var parentID: Int
     /// 0 목록, 1 폴더, 4 스마트
     public var attribute: Int
@@ -67,9 +69,12 @@ public struct UsbPlaylist: Sendable, Hashable {
     public var sortOrder: [UsbFormat: Int]
     /// content_id 순서(sequenceNo·entry_index 순)
     public var entries: [UsbFormat: [Int]]
+    /// 형식 DB의 목록 번호가 `id`와 다를 때만 그 형식 번호(합친 모델 전용, 투영하면 비운다).
+    /// rekordbox는 새 목록 번호로 Device Library는 빈 번호를 다시 쓰고 OneLibrary는 가장 큰 값+1을 써서 두 형식 번호가 갈린다(#233)
+    public var formatIDs: [UsbFormat: Int]
 
     public init(id: Int, name: String, parentID: Int = 0, attribute: Int = 0, imageID: Int? = nil, presentIn: Set<UsbFormat> = [],
-                sortOrder: [UsbFormat: Int] = [:], entries: [UsbFormat: [Int]] = [:]) {
+                sortOrder: [UsbFormat: Int] = [:], entries: [UsbFormat: [Int]] = [:], formatIDs: [UsbFormat: Int] = [:]) {
         self.id = id
         self.name = name
         self.parentID = parentID
@@ -78,7 +83,11 @@ public struct UsbPlaylist: Sendable, Hashable {
         self.presentIn = presentIn
         self.sortOrder = sortOrder
         self.entries = entries
+        self.formatIDs = formatIDs
     }
+
+    /// 그 형식 DB의 목록 번호
+    public func id(in format: UsbFormat) -> Int { formatIDs[format] ?? id }
 }
 
 public struct UsbMyTag: Sendable, Hashable {

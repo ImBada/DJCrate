@@ -81,13 +81,21 @@ public struct UsbLibrary: Sendable, Hashable {
         result.labels = labels.map { UsbFieldFormats.namedRow.projecting($0, to: format) }
         result.colors = colors.map { UsbFieldFormats.namedRow.projecting($0, to: format) }
         result.images = images.map { UsbFieldFormats.image.projecting($0, to: format) }
+        // 대표 번호 → 그 형식 번호(부모도 그 형식 번호로). 한 형식 모델은 그대로다
+        var formatID: [Int: Int] = [:]
+        for playlist in playlists where playlist.presentIn.contains(format) && formatID[playlist.id] == nil {
+            formatID[playlist.id] = playlist.id(in: format)
+        }
         result.playlists = playlists.filter { $0.presentIn.contains(format) }.map { playlist in
             var playlist = UsbFieldFormats.playlist.projecting(playlist, to: format)
+            playlist.id = playlist.id(in: format)
+            playlist.parentID = formatID[playlist.parentID] ?? playlist.parentID
+            playlist.formatIDs = [:]
             playlist.presentIn = [format]
             playlist.sortOrder = playlist.sortOrder.filter { $0.key == format }
             playlist.entries = playlist.entries.filter { $0.key == format }
             return playlist
-        }
+        }.sorted { $0.id < $1.id }
         result.myTags = myTags.map { UsbFieldFormats.myTag.projecting($0, to: format) }
         result.myTagLinks = myTagLinks.filter { $0.presentIn.contains(format) }.map { link in
             var link = link
@@ -105,7 +113,9 @@ public struct UsbLibrary: Sendable, Hashable {
     /// 두 형식을 한 모델로 합친다. 각 입력은 그 형식으로 투영해서 쓴다.
     /// - 한 형식에만 있는 칸은 그 형식 값을 그대로 가진다(비교하지 않는다).
     /// - 두 형식 모두의 칸은 OneLibrary 값이 앞서고, 다르면 불일치로 보고한다.
-    /// - 같은 id가 다른 파일을 가리키는 곡, 같은 id인데 이름·부모·종류가 다른 목록은 합치지 않고 OneLibrary 쪽만 남긴다(편집 금지 불일치).
+    /// - 같은 id가 다른 파일을 가리키는 곡은 합치지 않고 OneLibrary 쪽만 남긴다(편집 금지 불일치).
+    /// - 목록은 번호가 아니라 자리(부모 짝 아래 같은 이름·종류)로 짝짓고 형식 번호를 `formatIDs`에 둔다(`UsbPlaylistPairing`).
+    ///   짝이 없는 목록은 한 형식 목록으로 그대로 둔다. 맨 위에서 닿지 않는 목록만 편집 금지 불일치다.
     /// - artist·album 같은 공유 표 행이 한 형식에만 있으면 합집합에 두고 `sharedRowDiffers`로 보고한다.
     public static func merge(oneLibrary: UsbLibrary?, deviceLibrary: UsbLibrary?) -> (UsbLibrary, [UsbFormatMismatch]) {
         guard let oneLibrary else { return (deviceLibrary ?? .empty, []) }
@@ -132,25 +142,9 @@ public struct UsbLibrary: Sendable, Hashable {
             return track
         }
 
-        result.playlists = union(a.playlists, b.playlists, id: \.id).map { left, right in
-            guard let left, let right else {
-                let only = (left ?? right)!
-                mismatches.append(.playlistOnlyIn(left == nil ? .deviceLibrary : .oneLibrary, id: only.id))
-                return only
-            }
-            guard left.name == right.name, left.parentID == right.parentID, left.attribute == right.attribute else {
-                mismatches.append(.playlistConflict(id: left.id))
-                return left
-            }
-            var playlist = UsbFieldFormats.playlist.merging(oneLibrary: left, deviceLibrary: right).0
-            playlist.presentIn = left.presentIn.union(right.presentIn)
-            playlist.sortOrder = left.sortOrder.merging(right.sortOrder) { first, _ in first }
-            playlist.entries = left.entries.merging(right.entries) { first, _ in first }
-            if left.entries[.oneLibrary] ?? [] != right.entries[.deviceLibrary] ?? [] {
-                mismatches.append(.playlistEntriesDiffer(id: left.id))
-            }
-            return playlist
-        }
+        let (playlists, playlistMismatches) = UsbPlaylistPairing.merge(oneLibrary: a.playlists, deviceLibrary: b.playlists)
+        result.playlists = playlists
+        mismatches += playlistMismatches
 
         // 공유 표 행에는 형식별 소속이 없어 투영이 거를 수 없다. 한 형식에만 있는 행은 합집합에 두되 불일치로 보고한다
         // (보고하지 않으면 "불일치 없는 USB의 투영 = 한 형식 모델"이 깨진다).
