@@ -104,6 +104,7 @@ extension UsbEditEngine {
             guard edit.op != nil, edit.outcome == .written else { continue }
             rules.formUnion(edit.rules)
             result.warnings += edit.warnings
+            result.audioSizeFromDatabase.formUnion(edit.audioSizeFromDatabase)
             context.copies += edit.files.copies
             context.writes += edit.files.writes
             context.target.merge(edit.files.target) { _, new in new }

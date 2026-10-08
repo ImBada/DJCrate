@@ -14,6 +14,8 @@ struct UsbPlannedEdit {
     var isRemoval = false
     /// 적용이 성공한 뒤 다음 목록 동기화가 참조할 로컬 ID → 새 USB ID
     var addedLocalTracks: [String: Int] = [:]
+    /// 더한 곡 중 파일 크기 칸(로컬 FileSize)이 복사한 음원과 다른 곡(USB content id, `audioChangedSinceAnalysis`)
+    var audioSizeFromDatabase: Set<Int> = []
 }
 
 /// 편집 하나를 막는 이유(그 편집만 빼고 나머지를 쓴다)

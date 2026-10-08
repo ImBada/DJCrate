@@ -597,6 +597,16 @@ len_tag 56이고 0x0C부터 `00 00 00 00 01 00 00 02`, 나머지가 0인 `PQT2`�
 - 같은 로컬 사본으로 계획(`djc lab onelib-export`)한 경로를 골든과 견주면 내보낸 508곡 중 505곡이 같고, 3곡은 아티스트 폴더의 대소문자만 다르다: rekordbox는 대소문자만 다른 아티스트 이름을 곡마다 제 철자로 적고(FAT에서는 한 폴더), DJCrate는 먼저 지은 철자로 맞춘다(`pathCollision`, 아래). 고치기 전 DJCrate 내보내기는 500곡이 같고 5곡이 `~`·파일 이름 원본 때문에 달랐다.
 - 2026-10-09 전 DJCrate는 `~`를 그대로 두고 `FileNameL`로 지었다. 그때 쓴 USB의 곡도 알아보도록 `UsbTrackMatch`는 옛 이름(`~` 그대로)·`FileNameL` 이름도 받는다.
 
+### 분석 뒤 바뀐 음원
+
+로컬 음원 크기가 rekordbox가 적은 `djmdContent.FileSize`와 다른 곡(분석 뒤 태그를 고쳐 파일이 바뀐 곡 등)도 막지 않고 rekordbox처럼 내보낸다(사용자 결정 2026-10-09, #233).
+
+- 음원은 지금 파일을 그대로 복사한다. 복사 크기 검사는 계획 때 본 실제 크기(`UsbTrackPlan.audioSize`)로 하므로, 계획 뒤에 파일이 또 바뀌면 복사가 실패해 쓰기를 되돌린다.
+- 두 DB의 파일 크기 칸(OneLibrary `fileSize`, pdb 트랙 0x10)은 로컬 `FileSize` 그대로다. 길이·비트레이트·샘플레이트·비트 깊이도 로컬 DB 값이고 분석 파일·큐도 로컬 것 그대로라, 옛 파일 기준이다. 그래서 곡 규칙 `audioChangedSinceAnalysis`(CDJ에서 확인하지 않은 항목)를 싣는다.
+- 불변식 ④(음원 크기 = 파일 크기 칸)는 이 쓰기가 이렇게 적은 곡을 빼고 본다(`UsbInvariantVerifier.audioSizeFromDatabase`). 복사한 크기는 목표 지문이 본다. ④의 크기 문제 글은 형식 이름 없이 곡마다 한 번이라, rekordbox가 만든 Device Library만 있는 USB에 OneLibrary를 더할 때(§8.4) 같은 곡의 이 차이를 새 문제로 보지 않는다.
+- 파일이 없거나 읽을 수 없는 곡은 그대로 막는다(`audioMissing`).
+- 근거(2026-10-08 빈 USB 실험, #233 — 값은 적지 않는다): rekordbox 7.2.x가 내보낸 704곡 중 196곡은 지금 로컬 음원 크기가 `FileSize`와 달랐다(177곡은 더 큼, 19곡은 더 작음. 파일 형식 번호 1(MP3) 169·4(M4A) 23·6(M4A) 4). 그 196곡 모두 두 DB(B3·B6 사본, 이어진 동기화 실험 G0 사본)의 파일 크기 칸이 로컬 `FileSize`와 같고 실제 크기와 달랐으며, 길이·비트레이트·샘플레이트·비트 깊이도 로컬 DB 값과 같았다. USB에 복사된 음원 크기(G0·G10 파일 목록)는 196곡 모두 지금 로컬 파일 크기와 같았다(나머지 508곡은 세 값이 모두 같다). 같은 선택을 2026-10-09 전 DJCrate로 계획하면 이 곡들을 `audioSizeMismatch`로 막아 508곡만 내보냈다. 지금 계획(`djc lab usb-plan`)은 704곡 모두 넣고(막힘 0, `audioChangedSinceAnalysis` 196곡), 같은 704곡으로 만든 두 DB(`djc lab onelib-export`·`pdb-export`)의 파일 크기·길이·비트레이트·샘플레이트·비트 깊이 칸이 골든과 704곡 모두 같았다(2026-10-09).
+
 ### 같은 경로가 될 때
 
 FAT는 대소문자와 NFC·NFD를 가리지 않으므로 이름은 `UsbLayout.collisionKey`로 비교한다.
@@ -641,7 +651,6 @@ FAT는 대소문자와 NFC·NFD를 가리지 않으므로 이름은 `UsbLayout.c
 | `audioMissing` | 음원 경로가 없거나 파일이 없음 |
 | `fileTypeUnknown` | 음원 형식 번호를 모름 |
 | `fileTooLarge` | 음원이 4 GiB 이상. FAT32 한계지만 exFAT에서도 똑같이 막는다(사용자 결정 2026-10-07, 어디서나 4GB 제한) |
-| `audioSizeMismatch` | 음원 크기가 rekordbox가 적은 `FileSize`와 다름(분석 뒤 파일이 바뀜) |
 | `analysisIncomplete` | 로컬 분석 파일 셋(`.DAT`·`.EXT`·`.2EX`)이 다 없음 |
 | `analysisNewerThanSnapshot` | 로컬 분석 파일이 스냅샷 사본을 뜬 뒤에 바뀜 |
 | `pathCollisionExhausted` | 같은 이름이 ` (99)`까지 다 참 |
@@ -808,7 +817,7 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 6. **준비**(`UsbExportAssembly`): Mac의 `usb-staging/<세션>/`에 USB와 같은 자리로 만든다.
    - 곡마다 분석 파일 셋(§4, 경고 `analysisPSSIMasked`·`kind4CueDropped` 등), 아트워크(`artwork_s.jpg` → a·b, `artwork_m.jpg` → a_m·b_m, 바이트 복사·원본 수정 시각, a는 Device Library·b는 OneLibrary를 쓸 때만).
    - OneLibrary: `OneLibraryWriter.create` → `verify`(준비한 DB를 읽기 전용으로 열지 않는다 — WAL 모양 파일 곁에 사이드카가 남는다). Device Library: `PdbWriter.files(.fresh)` → `PdbRoundTrip.check`가 빈 배열이어야 한다.
-   - 음원은 복사 목록만(원본 → 계획 경로, 크기 = `FileSize`, 원본 수정 시각). `--settings`면 로컬 설정 파일 셋(§6).
+   - 음원은 복사 목록만(원본 → 계획 경로, 크기 = 계획 때 본 실제 크기 — 분석 뒤 바뀐 곡은 DB의 `FileSize`와 다르다(§5), 원본 수정 시각). `--settings`면 로컬 설정 파일 셋(§6).
    - 목표 지문: DB 셋·분석 파일·아트워크는 크기·SHA-256, 음원은 크기(해시는 복사하며 잰다).
    - 확인 안 된 규칙 = 계획 규칙(목록 이름의 `pdbLongAscii` 포함) ∪ 분석 파일 규칙 ∪ Device Library 작성기 규칙(긴 ASCII를 본 적 없는 칸의 `pdbLongAscii` — 장르·레이블·키·My Tag 이름까지 —, 실험이 보지 못한 이름 끝(앨범 247)의 `pdbFarOffsetRows`) ∪ `settingFiles`(켰을 때). 규칙별 곡 수는 계획 곡 규칙에 작성기의 곡별 규칙을 더해 센다(같은 곡은 한 번).
 7. **막힘 모음**: 곡·목록 단위 막힘은 그 곡·목록만 빼고 쓴다. 볼륨 단위(2·5·확인 안 된 규칙·용량 `insufficientSpace`·곡이 없음 `noTracks`)가 하나라도 있으면 쓰지 않는다.
@@ -821,7 +830,7 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 
 - `OneLibraryVerifier`: 사이드카(`-wal`·`-shm`·`-journal`)가 없고, 사본의 무결성·암호 검사가 통과하고, 다시 읽은 모델 = 기대 모델의 OneLibrary 투영(`UsbLibraryDiff`, formats: [.oneLibrary]).
 - `PdbVerifier`: 두 파일의 칸 = 작성기가 쓴 모델(`PdbFiles.written`)의 Device Library 투영, 머리 0x10 = 5, 머리 순번 > 모든 쪽 순번, 구조 문제 0, 아티스트·앨범 밖의 먼 모양 행 0, 표마다 사슬 마지막 쪽 = 포인터 last_page이고 그 쪽 next = 빈 후보, 빈 후보는 0으로 채운 쪽이거나 파일 끝 너머.
-- `UsbInvariantVerifier`: ① 곡마다 pdb 분석 경로 = OneLibrary 분석 경로(NFC) ② `.DAT` PPTH = 두 DB의 곡 경로 ③ 파일 이름 = 경로 끝 성분 ④ DB가 가리키는 파일(음원·분석 파일 셋·아트워크)이 모두 있고 음원 크기 = 파일 크기 칸 ⑤ 분석 파일 폴더 안 같은 번호를 두 곡이 쓰지 않음 ⑥ 곡 수 칸(OneLibrary property·pdb 표 19)과 두 형식의 곡 수가 같음 ⑦ 이 쓰기가 남긴 `._*`·`.djc-part-*` 0개(쓰기 직전부터 있던 `._*` — 루트 `._.Trashes`, 사용자 음원 옆 등 — 는 쓰기 전 확인이 막지 않으므로 세지 않는다).
+- `UsbInvariantVerifier`: ① 곡마다 pdb 분석 경로 = OneLibrary 분석 경로(NFC) ② `.DAT` PPTH = 두 DB의 곡 경로 ③ 파일 이름 = 경로 끝 성분 ④ DB가 가리키는 파일(음원·분석 파일 셋·아트워크)이 모두 있고 음원 크기 = 파일 크기 칸(이 쓰기가 로컬 `FileSize`로 적은 `audioChangedSinceAnalysis` 곡은 뺀다, 크기 문제는 형식과 무관하게 곡마다 한 번 센다, §5) ⑤ 분석 파일 폴더 안 같은 번호를 두 곡이 쓰지 않음 ⑥ 곡 수 칸(OneLibrary property·pdb 표 19)과 두 형식의 곡 수가 같음 ⑦ 이 쓰기가 남긴 `._*`·`.djc-part-*` 0개(쓰기 직전부터 있던 `._*` — 루트 `._.Trashes`, 사용자 음원 옆 등 — 는 쓰기 전 확인이 막지 않으므로 세지 않는다).
 
 디스크 이미지에서 확인하는 법: `docs/cli.md`의 "USB 내보내기". 골든과는 `djc lab usb-diff <골든> <이미지> --ignore-anlz-folder --files --anlz --mtime`(재생 목록 표는 rekordbox가 항목을 한 번 더 넣는 모양이 있어 `--skip`으로 뺀다), 다시 만들기는 `djc lab usb-rebuild`로 본다(§8.2). 골든과 달라야 정상인 것: 설정 파일 셋(기본 끔), DB 세 파일의 바이트(칸 비교로 판정), property의 createdDate·myTagMasterDBID(Device Library 날짜 포함), 지운 행 id(새 파일에는 없다), 분석 파일의 수정 시각(쓴 시각).
 
@@ -886,12 +895,12 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 **연산별**(편집 하나가 막히면 그 편집만 빼고 나머지를 쓴다. 대상이 없으면 `targetMissing`):
 
 - 곡 빼기(`editRemoveTracks`): 기기 재생 기록(OneLibrary `history_content`·pdb 표 12)이 가리키는 곡은 막는다(`historyReferenced`). 남는 곡이 0이 되는 형식이 있으면 막는다(`lastTrack`). 행은 content(두 형식)·모든 목록 항목(형식마다 그 목록의 항목에서, 1..N 다시)·My Tag 연결을 빼고, 새로 고아가 된 artist·album·genre·key·label·image 행을 치운다(색·메뉴·카테고리·정렬·My Tag 정의는 USB 값 그대로). 곡 수 칸을 고치고, 지운 id는 다시 쓰지 않는다(저널 highWater). OneLibrary 단계에서 기기 큐·추천 행이 그 곡을 가리키면 그 편집만 되돌린다.
-- 곡 갱신(`editRefreshTracks`, 부분 `info`·`cues`·`grid`·`artwork`): 곡마다 판정해 막힌 곡만 빼고(`trackBlocks`, 그 곡을 보며 준비한 파일·이름·번호도 되돌린다) 요청한 곡이 모두 막혔을 때만 편집을 막는다. 로컬 짝은 `UsbTrackMatch`: 이 곡을 내보낸 라이브러리의 DB ID(`masterDbId` = pdb 트랙 0x18)와 곡 ID(`masterContentId` = `MasterSongID`, pdb 트랙 0x14)가 같은 로컬 곡 중, USB 경로 끝 성분이 그 곡의 원본 이름(음원 경로 끝 성분·`FileNameL`) 그대로이거나 내보내기 이름 규칙(§5 금지 글자·자르기, 2026-10-09 전 규칙 포함)으로 지은 이름, 또는 거기에 번호(` (2)`…` (99)`)를 붙인 이름인 곡 하나(FAT처럼 대소문자·NFC/NFD 무시, 그대로 맞는 곡이 번호로 맞는 곡보다 앞선다). 아티스트·앨범 폴더 성분은 보지 않는다(로컬에서 이름을 바꾼 곡도 갱신할 수 있게). 짝이 없거나 둘 이상이면 막는다. `UsbSyncStatus`: 기기에서 고친 곡(OneLibrary hasModified = 1 또는 기기 큐 행)은 통째로 건너뛰고 알리고, 로컬과 같으면 `unchanged`. 로컬 음원의 크기·SHA-1이 USB 파일과 다르면 막는다(`audioChanged` — 음원은 다시 쓰지 않는다). 기존 곡의 음원·분석 파일 경로는 바꾸지 않는다(아티스트 이름이 바뀌어도).
+- 곡 갱신(`editRefreshTracks`, 부분 `info`·`cues`·`grid`·`artwork`): 곡마다 판정해 막힌 곡만 빼고(`trackBlocks`, 그 곡을 보며 준비한 파일·이름·번호도 되돌린다) 요청한 곡이 모두 막혔을 때만 편집을 막는다. 로컬 짝은 `UsbTrackMatch`: 이 곡을 내보낸 라이브러리의 DB ID(`masterDbId` = pdb 트랙 0x18)와 곡 ID(`masterContentId` = `MasterSongID`, pdb 트랙 0x14)가 같은 로컬 곡 중, USB 경로 끝 성분이 그 곡의 원본 이름(음원 경로 끝 성분·`FileNameL`) 그대로이거나 내보내기 이름 규칙(§5 금지 글자·자르기, 2026-10-09 전 규칙 포함)으로 지은 이름, 또는 거기에 번호(` (2)`…` (99)`)를 붙인 이름인 곡 하나(FAT처럼 대소문자·NFC/NFD 무시, 그대로 맞는 곡이 번호로 맞는 곡보다 앞선다). 아티스트·앨범 폴더 성분은 보지 않는다(로컬에서 이름을 바꾼 곡도 갱신할 수 있게). 짝이 없거나 둘 이상이면 막는다. `UsbSyncStatus`: 기기에서 고친 곡(OneLibrary hasModified = 1 또는 기기 큐 행)은 통째로 건너뛰고 알리고, 로컬과 같으면 `unchanged`. 로컬 음원의 크기·SHA-1이 USB 파일과 다르면 막는다(`audioChanged` — 음원은 다시 쓰지 않는다). 비교는 로컬 실제 파일과 USB 파일끼리라, 분석 뒤 바뀐 음원을 그대로 복사한 곡(DJCrate·rekordbox 모두 지금 파일을 복사한다, §5)은 막지 않고 파일 크기 칸도 USB 값 그대로 둔다. 내보낸 뒤 로컬 음원이 또 바뀐 곡을 rekordbox 동기화가 USB에 다시 복사하는지는 골든에 없어(실험 곡들의 로컬 음원은 그동안 바뀌지 않았다) 이 막힘을 그대로 둔다(2026-10-09). 기존 곡의 음원·분석 파일 경로는 바꾸지 않는다(아티스트 이름이 바뀌어도).
   - `info`: 곡 정보 칸을 로컬 값으로(평점·재생 수·hasModified·기록은 USB 값). 이름이 바뀐 아티스트·앨범·장르·키·레이블은 USB에 NFC로 정확히 같은 이름 행이 있으면 그 행, 없으면 새 id, 고아가 된 옛 행은 치운다.
   - `cues`·`grid`: 로컬 분석 파일 + djmdCue를 §4처럼 바꿔 DB에 적힌 자리(폴더·번호 그대로)의 셋을 덮어쓴다. 덮어쓸 USB 파일의 PPTH가 그 곡 경로여야 한다(아니면 그 곡 분석 파일은 고치지 않고 알리고, 큐·그리드 갱신 횟수 칸도 USB 값 그대로 둔다 — DB만 최신이라고 적으면 다음 갱신이 고치지 않는다). 고쳤거나 이미 같으면 갱신 횟수 칸도 로컬 값. 스냅샷 시각 뒤에 로컬 분석 파일이 바뀐 곡은 막는다(`analysisNewerThanSnapshot`).
   - `artwork`: 로컬 그림이 바뀌었으면 같은 image id·폴더의 a·b·_m을 덮어쓴다(형식별로 a는 Device Library, b는 OneLibrary). 덮어쓸 자리는 USB DB에 적힌 경로라, 아트워크 파일 모양(`PIONEER/Artwork/nnnnn/[ab]n(_m).jpg`, `..`·`._` 없음)이 아니면 그 곡을 막는다(`artworkPathRefused`). 그림이 새로 생긴 곡이나 다른 곡과 함께 쓰던 그림은 새 image id를 마지막 아트워크 폴더에 이어 둔다.
   - Device Library를 쓰면 바뀐 곡의 트랙 행을 미리 만들어 본다(행 크기·확장자·ISRC·칸 범위·긴 이름, §7.12의 곡 막힘과 같은 code).
-- 곡 더하기(`editAddTracks`): 내보내기 계획기(`UsbExportPlanner`)에 지금 USB 상태(`UsbExistingState` — `Contents/` 이름·철자, ID highWater, 아트워크 폴더 사용량과 마지막 폴더, 새 곡 번호 범위의 분석 폴더 번호·PPTH)를 주고 `UsbLibraryBuilder.add`로 더한다(이름 행은 NFC로 같은 이름이면 다시 쓴다 [추정]). 분석 폴더는 `IdentifierAnalysisNaming` + `UsbAnalysisSlot`(PPTH가 다른 파일이 있으면 다음 번호, `analysisSlotCollision`). 곡 단위 막힘(§7.12의 5)과 이미 USB에 있는 곡(`alreadyOnUsb`)은 빼고 더한다. `playlist`를 주면 그 목록 끝에 넣는다(항목 편집 규칙).
+- 곡 더하기(`editAddTracks`): 내보내기 계획기(`UsbExportPlanner`)에 지금 USB 상태(`UsbExistingState` — `Contents/` 이름·철자, ID highWater, 아트워크 폴더 사용량과 마지막 폴더, 새 곡 번호 범위의 분석 폴더 번호·PPTH)를 주고 `UsbLibraryBuilder.add`로 더한다(이름 행은 NFC로 같은 이름이면 다시 쓴다 [추정]). 분석 폴더는 `IdentifierAnalysisNaming` + `UsbAnalysisSlot`(PPTH가 다른 파일이 있으면 다음 번호, `analysisSlotCollision`). 곡 단위 막힘(§7.12의 5)과 이미 USB에 있는 곡(`alreadyOnUsb`)은 빼고 더한다. 분석 뒤 크기가 바뀐 음원은 내보내기와 같이 더하고 `audioChangedSinceAnalysis`를 싣는다(§5, 검증은 `UsbEditResult.audioSizeFromDatabase`의 곡을 ④ 크기 비교에서 뺀다). `playlist`를 주면 그 목록 끝에 넣는다(항목 편집 규칙).
 - 재생 목록(`editPlaylists`): 아래 두 형식 목록 규칙. 만들기는 `playlistSiblingBase`, 폴더면 `playlistFolderRow`.
 - 긴 ASCII(127자 이상 순수 ASCII): Device Library에 쓸 때, 편집이 만들거나 바꾸는 pdb 문자열 중 긴 ASCII를 본 적 없는 칸(갱신한 곡의 장르·키·레이블 이름, 목록 이름)을 `UsbTrackRules.pdbStringRules`로 보고, 작성기 규칙(`PdbFiles.rules` — 편집하지 않은 기존 행 포함, §3.8)을 한 번 더 합친다(`pdbLongAscii`·`pdbFarOffsetRows`). 곡 문자열·경로·아티스트·앨범 이름의 긴 ASCII는 확인한 모양이라 싣지 않는다.
 
@@ -966,7 +975,7 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 
 - 파일: 새 `exportLibrary.db`(준비 폴더에서 `OneLibraryWriter.create` — 만들기·확인은 §2.9) + 그림마다 `b{id}.jpg`(a 사본), `a{id}_m.jpg`가 있으면 `b{id}_m.jpg`. 덮어쓰기·지우기·음원 복사는 없다.
 - 변경 묶음: `purpose .edit`, label `migrate`, `formats [.oneLibrary]`, `base` = 사본 지문(pdb 둘), 목표 지문 = 새 DB·b 그림 + **원래 pdb 두 파일의 지금 해시**(G 단계가 "원래 파일 그대로"를 매체에서 다시 확인). `UsbMigrationInspector`가 A 단계에서 한 번 더 본다: DB는 OneLibrary 하나만 만들고 그 파일·사이드카가 없음, 덮어쓰기·지우기·복사 없음, 두 pdb 머리 0x10 = 5.
-- 불변식 미리 보기: 검증의 불변식 1–6(§7.12)을 pdb만으로 본 문제(쓰기 전부터 있던 것 — 없는 음원·분석 파일 등은 두 형식에 같은 문제라 막지 않고 검증에서 뺀다)와 변환 모델의 OneLibrary를 더해 본 문제를 견준다. OneLibrary 쪽에만 새로 생기는 문제(음원 크기·PPTH·파일 이름이 pdb와 어긋남)와 두 형식 불일치(`UsbLibrary.merge`)가 있으면 쓰지 않는다(쓰고 나서 검증이 되돌리지 않게).
+- 불변식 미리 보기: 검증의 불변식 1–6(§7.12)을 pdb만으로 본 문제(쓰기 전부터 있던 것 — 없는 음원·분석 파일, 음원 크기가 파일 크기 칸과 다름 등은 두 형식에 같은 문제라 막지 않고 검증에서 뺀다. 음원 크기 차이는 rekordbox가 분석 뒤 바뀐 음원을 내보낸 USB에 흔하다, §5)와 변환 모델의 OneLibrary를 더해 본 문제를 견준다. OneLibrary 쪽에만 새로 생기는 문제(PPTH·파일 이름이 pdb와 어긋남)와 두 형식 불일치(`UsbLibrary.merge`)가 있으면 쓰지 않는다(쓰고 나서 검증이 되돌리지 않게).
 - 확인 안 된 규칙: `deviceLibraryMigration` ∪ 목록 `playlistSiblingBase`(폴더 `playlistFolderRow`) ∪ My Tag 연결 `myTagLinks` ∪ 그림 없는 곡 `artworkMissing` ∪ 빈 값으로만 본 곡 정보 칸(레이블·리믹서·원곡자·작사가·색·평점·부제) `metadataSeenEmptyOnly` ∪ `exportExt.pdb`가 없으면 `myTagMasterDBID`(0으로 둔다).
 - 골든 대조(pdb만 남긴 골든 사본의 디스크 이미지 → `djc usb-migrate` → `djc lab usb-diff --onelibrary <골든> <이미지> --ignore-ids --files --anlz`): 곡·이름 표·그림·My Tag·메뉴·카테고리·정렬·property 칸이 모두 같고, b 그림 바이트·분석 파일이 같다. 설명된 차이 둘: DB 파일 바이트(칸으로 판정), 한 목록의 OneLibrary 항목 — 골든 자체에서 두 형식의 그 목록 항목이 이미 다르다(rekordbox가 두 형식에 같은 곡을 서로 다르게 중복해 넣은 모양, 규칙 미확인). 옮기기는 사용자의 pdb를 원본으로 보고 pdb 항목을 그대로 옮긴다. `djc lab usb-migrate-check <골든 사본>`도 같은 결과다.
 - 확인 안 된 것: rekordbox 변환 결과의 칸(analysedBits·createdDate·myTagMasterDBID·isComplation·목록 항목), rekordbox 5·6이 쓴 옛 pdb(`.2EX`·`exportExt.pdb`가 없는 USB 포함), OneLibrary 기기가 옮긴 USB(중복 항목이 있는 목록 포함)를 그대로 읽는지.
@@ -1005,6 +1014,7 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 | `editAddTracks` | 확인 안 됨 | 이미 내보낸 USB에 곡을 더할 때 |
 | `editPlaylists` | 확인 안 됨 | 이미 내보낸 USB의 재생 목록을 고칠 때 |
 | `deviceLibraryMigration` | 확인 안 됨 | Device Library만 있는 USB에 OneLibrary를 더할 때(§8.4) |
+| `audioChangedSinceAnalysis` | 칸 모양은 rekordbox와 같음(2026-10-08 빈 USB 실험 196곡, §5), CDJ 재생은 확인 안 됨 | 로컬 음원 크기가 rekordbox `FileSize`와 다른 곡(분석 뒤 파일이 바뀜)을 내보내거나 더할 때 |
 
 확인 안 된 규칙은 쓰기를 막지 않는다(사용자 결정, 2026-10). `carriedDeviceRows`만 늘 막는다(`alwaysBlocks`). 흐름 규칙(`UsbProvisionalRule.flowRules`: `analysisFolderNaming`·`playlistSiblingBase`·`playlistFolderRow`·`editAddTracks`·`editRemoveTracks`·`editPlaylists`·`trackRemovalFiles`·`pdbRegeneratedEdit`·`deviceLibraryMigration`)은 내보내기·수정·옮기기 흐름 자체의 바탕 규칙이고, 이 흐름은 디스크 이미지에서 전 과정(쓰기 → 다시 읽기 검증 → `usb-rebuild`·`usb-diff --ignore-ids` 차이 0 → 되돌리기)을 확인했다(#41·#46). 모든 쓰기에 붙으므로 화면에 알리지 않는다. 나머지(곡 내용에 따라 붙는 규칙, `editRefreshTracks`, `settingFiles` 등, `needsDeviceCheck`)는 앱 미리 보기·확인 창에 "CDJ에서 확인하지 않은 항목이 있는 곡 N개:"(내보내기) 또는 "CDJ에서 확인하지 않은 항목 N개:"(수정·옮기기)와 규칙 목록으로 알리고 쓴다. CLI는 요약의 "확인 안 된 규칙" 줄에 모든 규칙 이름을 적는다. 어느 것도 rekordbox 실험으로 확인한 것은 아니라 `confirmed`에는 넣지 않는다.
 
@@ -1023,7 +1033,7 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 | 스마트(인텔리전트) 재생 목록 | 내보내지 않는다(그 곡은 다른 선택대로 간다) | `smartPlaylist` |
 | 이미 라이브러리가 있는 USB에 내보내기 | 막고 USB 수정으로 안내한다. DB가 없어도 `PIONEER/`에 무엇이 남아 있으면 막는다 | `libraryExists`, `leftoverPioneer` |
 | 확인하지 않은 로컬 rekordbox 버전 | 내보내기를 막는다(확인: 7.2.x) | `localVersionUnverified` |
-| 스냅샷 뒤에 바뀐 곡 | 음원 크기가 `FileSize`와 다른 곡, 스냅샷 뒤 분석 파일이 바뀐 곡은 그 곡만 막는다(§5 막힘) | `audioSizeMismatch`, `analysisNewerThanSnapshot` |
+| 스냅샷 뒤에 바뀐 곡 | 스냅샷 뒤 분석 파일이 바뀐 곡은 그 곡만 막는다(§5 막힘). 음원 크기가 `FileSize`와 다른 곡은 2026-10-09부터 rekordbox처럼 내보내고 알린다(§5 분석 뒤 바뀐 음원) | `analysisNewerThanSnapshot`, `audioChangedSinceAnalysis` |
 | 볼륨 모양 | FAT32·exFAT, MBR·GPT만(파티션 번호·섹터 크기는 보지 않는다). HFS+·APFS(Time Machine 포함)·FAT16·APM·파티션 표 없음·내장·네트워크·읽기 전용·시동 디스크는 막는다. exFAT·GPT는 확인 창에 한 줄로 알린다 | `UsbVolumePolicy`, `unsupportedFileSystem`, `partitionScheme` |
 
 ## 11. 새 USB 쓰기 경로를 여는 방법

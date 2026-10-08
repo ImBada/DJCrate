@@ -332,6 +332,67 @@ struct UsbEditEngineTests {
         #expect(result.changes == nil)
     }
 
+    /// 로컬 곡의 FileSize를 실제 음원보다 작게 적는다(rekordbox 분석 뒤 태그를 고쳐 파일이 커진 곡). 실제 크기를 돌려준다
+    static func shrinkRecordedSize(_ env: UsbEditFixture, _ id: String, by delta: Int = 7) throws -> Int {
+        let row = try env.local.local.rows("SELECT FolderPath FROM djmdContent WHERE ID = '\(id)'")
+        let path = try #require(row.first?["FolderPath"])
+        let actual = try Data(contentsOf: URL(filePath: path)).count
+        try env.updateLocal(id, "FileSize = ?", [.int(actual - delta)])
+        return actual
+    }
+
+    /// 두 형식에서 읽은 곡(로컬 곡 ID로 찾는다, 마스터 곡 ID = "8" + 로컬 ID)
+    static func usbTracks(_ env: UsbEditFixture, local id: String) throws -> [UsbTrack] {
+        try [UsbFormat.oneLibrary, .deviceLibrary].map { format in
+            try #require(try env.read(format)?.tracks.first { $0.masterContentId == Int64("8" + id) })
+        }
+    }
+
+    @Test("분석 뒤 크기가 바뀐 음원도 rekordbox처럼 지금 파일을 그대로 내보내고 두 DB에는 로컬 FileSize를 적는다")
+    func exportAudioChangedSinceAnalysis() throws {
+        let env = try UsbEditFixture()
+        try env.addLocal(["101", "102"])
+        let actual = try Self.shrinkRecordedSize(env, "102")
+        let db = try env.local.open()
+        let build = try env.local.build(db, try env.local.request(db, ids: ["101", "102"]))
+        db.close()
+        #expect(build.plan.blocked.isEmpty && build.plan.tracks.count == 2)
+        #expect(build.plan.requiredRules.contains(.audioChangedSinceAnalysis) && build.plan.ruleCounts[.audioChangedSinceAnalysis] == 1)
+        // 쓰기(모든 검증기 통과는 export가 확인한다)
+        try env.export(tracks: ["101", "102"])
+        let tracks = try Self.usbTracks(env, local: "102")
+        #expect(tracks.allSatisfy { $0.fileSize == Int64(actual - 7) })
+        #expect(env.usb.data(String(tracks[0].path.dropFirst()))?.count == actual)
+        // 다른 곡은 그대로 맞는다. 크기 비교를 빼지 않으면 이 곡만 형식과 무관하게 한 번 잡힌다
+        let scratch = env.usb.folder.appending(path: "problems")
+        #expect(try UsbInvariantVerifier.problems(on: env.usb.root, fileSystem: env.usb.fileSystem(), scratch: scratch)
+            == ["audioSize content \(tracks[0].id)"])
+        // 갱신: USB 음원이 지금 로컬 음원과 같아 막지 않고, 파일 크기 칸도 로컬 FileSize 그대로다
+        try env.updateLocal("102", "TrackInfoUpdated = '2', Title = '합성 새 제목'")
+        let (result, report) = try env.edit([.refreshTracks(usbContentIDs: [tracks[0].id], parts: [.info])])
+        #expect(result.outcome(1) == .written && report.outcome == .written && result.trackBlocks.isEmpty)
+        #expect(try Self.usbTracks(env, local: "102").allSatisfy { $0.title == "합성 새 제목" && $0.fileSize == Int64(actual - 7) })
+    }
+
+    @Test("곡 더하기도 분석 뒤 크기가 바뀐 음원을 실제 크기로 복사해 더하고, 음원 파일이 없는 곡만 막는다")
+    func addAudioChangedSinceAnalysis() throws {
+        let env = try Self.exported(["101"], playlist: false)
+        try env.addLocal(["102", "103"])
+        let actual = try Self.shrinkRecordedSize(env, "102")
+        let missing = try #require(try env.local.local.rows("SELECT FolderPath FROM djmdContent WHERE ID = '103'").first?["FolderPath"])
+        try FileManager.default.removeItem(atPath: missing)
+        let (result, report) = try env.edit([.addTracks(localContentIDs: ["102", "103"], playlist: nil)])
+        #expect(result.outcome(1) == .written && report.outcome == .written)
+        #expect(result.trackBlocks.map(\.code) == ["audioMissing"])
+        let changes = try #require(result.changes)
+        #expect(changes.requiredRules.contains(.audioChangedSinceAnalysis))
+        let tracks = try Self.usbTracks(env, local: "102")
+        #expect(result.audioSizeFromDatabase == [tracks[0].id])
+        #expect(changes.copies.first { $0.destination == String(tracks[0].path.dropFirst()) }?.size == Int64(actual))
+        #expect(tracks.allSatisfy { $0.fileSize == Int64(actual - 7) })
+        #expect(env.usb.data(String(tracks[0].path.dropFirst()))?.count == actual)
+    }
+
     @Test("사본 이름의 시각 뒤에 로컬 분석 파일이 바뀐 곡은 그 곡 갱신만 막는다")
     func refreshUsesSnapshotTimeFromName() throws {
         let env = try Self.exported(["101", "102"], playlist: false)

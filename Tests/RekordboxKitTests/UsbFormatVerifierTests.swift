@@ -113,7 +113,11 @@ struct UsbFormatVerifierTests {
         let written = try Written()
         let audio = written.relative(written.track(0).path)
         written.usb.write(audio, try #require(written.usb.data(audio)) + Data([0]))
-        #expect(try written.problems(UsbInvariantVerifier()).contains { $0.hasPrefix("audioSize") })
+        // 두 형식에 같은 곡이 있어도 한 번만 센다(한 형식만 있던 USB에 다른 형식을 더해도 새 문제가 아니게)
+        #expect(try written.problems(UsbInvariantVerifier()).filter { $0.hasPrefix("audioSize") } == ["audioSize content \(written.track(0).id)"])
+        // 이 쓰기가 로컬 FileSize로 적은 곡(분석 뒤 바뀐 음원, rekordbox와 같게)은 크기 비교를 뺀다
+        let exempt = UsbInvariantVerifier(audioSizeFromDatabase: [written.track(0).id])
+        #expect(try written.problems(exempt).allSatisfy { !$0.hasPrefix("audioSize") })
     }
 
     @Test("곡 수 칸이 어긋나면 OneLibrary·불변식 검증이 잡는다")

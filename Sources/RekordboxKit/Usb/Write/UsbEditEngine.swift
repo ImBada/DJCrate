@@ -51,6 +51,8 @@ public struct UsbEditResult: Sendable {
     public var snapshotSource: UsbSnapshotTime.Source?
     /// 쓰기 전 USB에 이미 있던 불변식 문제(계획 때 USB DB 사본과 USB 파일로 본다). 검증은 이것을 빼고 새로 생긴 문제만 센다
     public var preexistingProblems: Set<String> = []
+    /// 더한 곡 중 파일 크기 칸(로컬 FileSize)이 복사한 음원과 다른 곡(USB content id). 불변식 검증이 크기 비교를 뺀다
+    public var audioSizeFromDatabase: Set<Int> = []
 
     public init(changes: UsbChangeSet? = nil, outcomes: [(edit: Int, outcome: UsbOutcome)] = [], formatsWritten: Set<UsbFormat> = [],
                 formatsBlocked: [UsbFormat: UsbBlock] = [:], mismatches: [UsbFormatMismatch] = [], notes: [String] = [],
@@ -81,7 +83,7 @@ public struct UsbEditResult: Sendable {
         if formatsWritten.contains(.oneLibrary), let applied { result.append(OneLibraryVerifier(expected: applied)) }
         if formatsWritten.contains(.deviceLibrary), let pdbWritten { result.append(PdbVerifier(expected: pdbWritten)) }
         result.append(UsbInvariantVerifier(preexistingAppleDoubles: preexistingAppleDoubles, preexistingProblems: preexistingProblems,
-                                           checkFormatCounts: formatsBlocked.isEmpty))
+                                           checkFormatCounts: formatsBlocked.isEmpty, audioSizeFromDatabase: audioSizeFromDatabase))
         return result
     }
 }

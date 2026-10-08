@@ -9849,6 +9849,22 @@
         }
       }
     },
+    "rekordbox 분석 뒤 크기가 바뀐 음원(분석·큐는 옛 파일 기준)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audio files whose size changed after rekordbox analysis (analysis and cues follow the old file)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxの解析後にサイズが変わった音源（解析・キューは元のファイル基準）"
+          }
+        }
+      }
+    },
     "rekordbox 분석 전" : {
       "localizations" : {
         "en" : {
@@ -32315,22 +32331,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "音源ファイルを読み取れないため、ファイルのアクセス権と外部ドライブの接続を確認してから再度読み込んでください"
-          }
-        }
-      }
-    },
-    "음원 파일이 rekordbox 분석 뒤 바뀌었습니다. rekordbox에서 트랙 정보를 다시 읽고 분석한 뒤 내보내세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The audio file changed after rekordbox analyzed it. Reload the track information and analyze the track in rekordbox, then export"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "rekordboxの解析後に音源ファイルが変更されました。rekordboxでトラック情報を読み込み直して解析してからエクスポートしてください"
           }
         }
       }

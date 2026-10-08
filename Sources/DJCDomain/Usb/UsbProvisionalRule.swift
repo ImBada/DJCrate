@@ -16,6 +16,7 @@ public enum UsbProvisionalRule: String, CaseIterable, Codable, Sendable, Hashabl
     case pdbRegeneratedEdit, trackRemovalFiles
     case editRefreshTracks, editRemoveTracks, editAddTracks, editPlaylists
     case deviceLibraryMigration
+    case audioChangedSinceAnalysis
 
     /// 실험(rekordbox 캡처 → 사본 재현 → 칸 단위 일치 → 골든 테스트)으로 확인한 규칙만 여기에 더한다. 처음에는 비어 있다.
     public static let confirmed: Set<UsbProvisionalRule> = []
@@ -78,6 +79,7 @@ public enum UsbProvisionalRule: String, CaseIterable, Codable, Sendable, Hashabl
         case .editAddTracks: String(ui: "USB에 곡 더하기")
         case .editPlaylists: String(ui: "USB 재생 목록 고치기")
         case .deviceLibraryMigration: String(ui: "Device Library에서 OneLibrary를 만드는 칸 대응")
+        case .audioChangedSinceAnalysis: String(ui: "rekordbox 분석 뒤 크기가 바뀐 음원(분석·큐는 옛 파일 기준)")
         }
     }
 }

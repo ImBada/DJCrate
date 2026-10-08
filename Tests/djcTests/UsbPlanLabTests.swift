@@ -100,12 +100,17 @@ struct UsbPlanLabTests {
             #expect(!output.contains(secret), "\(secret)")
         }
 
-        // 막힘은 code별 수로만
+        // 분석 뒤 크기가 바뀐 곡은 막지 않고 확인 안 된 규칙으로 싣는다(rekordbox와 같게)
         try fixture.setFileSize(track: track, 65)
-        let (_, mismatch) = try run(["usb-plan", "--db", fixture.database.path, "--share", fixture.shareRoot.path, "--all", "--summary",
-                                     "--snapshot-time", "2026-09-27T11:41:08Z"], home: fixture.root.appending(path: "home"))
-        #expect(mismatch.contains("audioSizeMismatch 1"), "\(mismatch)")
-        #expect(!mismatch.contains("SECRET-TITLE"))
+        let all = ["usb-plan", "--db", fixture.database.path, "--share", fixture.shareRoot.path, "--all", "--summary",
+                   "--snapshot-time", "2026-09-27T11:41:08Z"]
+        let (_, changed) = try run(all, home: fixture.root.appending(path: "home"))
+        #expect(changed.contains("막힘 0") && changed.contains("audioChangedSinceAnalysis"), "\(changed)")
+        // 막힘은 code별 수로만
+        try FileManager.default.removeItem(atPath: try #require(track.folderPath))
+        let (_, missing) = try run(all, home: fixture.root.appending(path: "home"))
+        #expect(missing.contains("audioMissing 1"), "\(missing)")
+        #expect(!missing.contains("SECRET-TITLE"))
     }
 
     @Test("임시 폴더 밖 사본은 받지 않는다")

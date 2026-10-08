@@ -98,11 +98,22 @@ struct UsbExportPlannerTests {
         #expect(codes(plan([candidate("1", fileType: 99)]), track: "1") == ["fileTypeUnknown"])
     }
 
-    @Test("분석 뒤 음원 크기가 바뀌었으면 audioSizeMismatch")
-    func blockAudioSizeMismatch() {
-        var track = candidate("1")
-        track.actualFileSize = 1_001
-        #expect(codes(plan([track]), track: "1") == ["audioSizeMismatch"])
+    @Test("분석 뒤 음원 크기가 바뀐 곡도 막지 않고 실제 크기로 계획하며 CDJ 확인 규칙을 싣는다(rekordbox 7.2.x 빈 USB 실험, 2026-10-08)")
+    func audioChangedSinceAnalysisPlanned() throws {
+        var changed = candidate("1")
+        changed.actualFileSize = 1_001
+        let result = plan([changed, candidate("2")])
+        #expect(result.blocked.isEmpty)
+        let track = try #require(result.tracks.first { $0.localContentID == "1" })
+        #expect(track.rules.contains(.audioChangedSinceAnalysis) && track.audioSize == 1_001)
+        let same = try #require(result.tracks.first { $0.localContentID == "2" })
+        #expect(!same.rules.contains(.audioChangedSinceAnalysis) && same.audioSize == 1_000)
+        #expect(result.requiredRules.contains(.audioChangedSinceAnalysis) && result.ruleCounts[.audioChangedSinceAnalysis] == 1)
+        #expect(UsbProvisionalRule.audioChangedSinceAnalysis.needsDeviceCheck)
+        // 파일이 없으면 여전히 막는다
+        var missing = changed
+        missing.actualFileSize = nil
+        #expect(codes(plan([missing]), track: "1") == ["audioMissing"])
     }
 
     @Test("스냅샷 뒤 분석이 바뀌었으면 analysisNewerThanSnapshot")

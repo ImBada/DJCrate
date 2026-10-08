@@ -198,10 +198,13 @@ public struct UsbTrackPlan: Codable, Hashable, Sendable {
     public var imageID: Int?
     public var artworkFolder: Int?
     public var rules: Set<UsbProvisionalRule>
+    /// 계획 때 본 실제 음원 크기(복사 크기 검사에 쓴다). 두 DB의 파일 크기 칸은 로컬 `FileSize`라 다를 수 있다
+    /// (`audioChangedSinceAnalysis`). nil이면 `FileSize`로 본다
+    public var audioSize: Int64?
 
     public init(localContentID: String, contentID: Int, contentsPath: String, fileName: String, audioDisposition: Disposition,
                 analysisFolder: String, analysisSlot: Int, analysisPath: String, imageID: Int?, artworkFolder: Int?,
-                rules: Set<UsbProvisionalRule>) {
+                rules: Set<UsbProvisionalRule>, audioSize: Int64? = nil) {
         self.localContentID = localContentID
         self.contentID = contentID
         self.contentsPath = contentsPath
@@ -213,6 +216,7 @@ public struct UsbTrackPlan: Codable, Hashable, Sendable {
         self.imageID = imageID
         self.artworkFolder = artworkFolder
         self.rules = rules
+        self.audioSize = audioSize
     }
 }
 
@@ -392,6 +396,9 @@ private struct PlanState {
         rules.formUnion(UsbCueRules.rules(fileType: candidate.fileType, cues: candidate.cues))
         // 곡 문자열·경로·아티스트·앨범 이름의 긴 ASCII는 rekordbox 7.2.x 경계 실험(2026-10-08)으로 모양을 확인해 규칙을 싣지 않는다
         rules.formUnion(UsbTrackRules.rules(fileType: candidate.fileType, metadata: candidate.metadata))
+        // 분석 뒤 음원 크기가 바뀐 곡(태그 편집 등)도 rekordbox처럼 지금 파일을 그대로 복사하고 두 DB에는 로컬 FileSize를 적는다
+        // (2026-10-08 빈 USB 실험 704곡 중 196곡, §5). 분석 파일·큐는 옛 파일 기준이라 CDJ 확인 항목으로 알린다
+        if let actual = candidate.actualFileSize, actual != candidate.fileSize { rules.insert(.audioChangedSinceAnalysis) }
 
         if path.disposition == .create {
             newBytes += UsbSpaceEstimate.roundUp(candidate.actualFileSize ?? candidate.fileSize, cluster: cluster)
@@ -403,7 +410,7 @@ private struct PlanState {
         tracks.append(UsbTrackPlan(localContentID: candidate.localContentID, contentID: contentID, contentsPath: path.contentsPath,
                                    fileName: path.fileName, audioDisposition: path.disposition, analysisFolder: folder,
                                    analysisSlot: slot.slot, analysisPath: UsbAnalysisSlot.analysisPath(folder: folder, slot: slot.slot),
-                                   imageID: imageID, artworkFolder: artworkFolder, rules: rules))
+                                   imageID: imageID, artworkFolder: artworkFolder, rules: rules, audioSize: candidate.actualFileSize))
     }
 
     /// 경로와 무관한 막힘. 스트리밍 곡은 그 하나만 낸다.
@@ -422,10 +429,6 @@ private struct PlanState {
         if let actual = candidate.actualFileSize {
             if actual >= UsbExportPlanner.fat32FileLimit {
                 result.append(trackBlock("fileTooLarge", candidate, String(ui: "4GB 이상 음원은 USB에 넣을 수 없습니다. 음원을 줄이거나 내보낼 곡에서 빼세요")))
-            }
-            if actual != candidate.fileSize {
-                let message = String(ui: "음원 파일이 rekordbox 분석 뒤 바뀌었습니다. rekordbox에서 트랙 정보를 다시 읽고 분석한 뒤 내보내세요")
-                result.append(trackBlock("audioSizeMismatch", candidate, message))
             }
         }
         if candidate.analysis != .complete {

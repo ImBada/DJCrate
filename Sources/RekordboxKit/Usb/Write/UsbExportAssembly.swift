@@ -31,14 +31,17 @@ public struct UsbExportAssembled: Sendable {
     public var pdbWritten: UsbLibrary?
     /// 확인 안 된 규칙별 곡 수(계획 규칙 + pdb 트랙 문자열 규칙, 같은 곡은 한 번)
     public var ruleCounts: [UsbProvisionalRule: Int]
+    /// 파일 크기 칸이 음원 파일과 다르게 쓰이는 곡(USB content id, `audioChangedSinceAnalysis`). 불변식 검증이 크기 비교를 뺀다
+    public var audioSizeFromDatabase: Set<Int>
 
     public init(changes: UsbChangeSet, warnings: [UsbBlock], library: UsbLibrary, pdbWritten: UsbLibrary?,
-                ruleCounts: [UsbProvisionalRule: Int]) {
+                ruleCounts: [UsbProvisionalRule: Int], audioSizeFromDatabase: Set<Int> = []) {
         self.changes = changes
         self.warnings = warnings
         self.library = library
         self.pdbWritten = pdbWritten
         self.ruleCounts = ruleCounts
+        self.audioSizeFromDatabase = audioSizeFromDatabase
     }
 }
 
@@ -226,7 +229,7 @@ public enum UsbExportAssembly {
                                    target: UsbTargetFingerprint(mustExist: context.target, mustNotExist: []),
                                    stagingDirectory: staging.path, idHighWater: highWater, syncSelection: syncVerification)
         return UsbExportAssembled(changes: changes, warnings: unique(warnings), library: model.library, pdbWritten: pdbWritten,
-                                  ruleCounts: ruleCounts)
+                                  ruleCounts: ruleCounts, audioSizeFromDatabase: audioSizeFromDatabase(plan))
     }
 
     /// 곡마다 음원 복사 목록·아트워크·분석 파일을 준비 폴더에 만든다(내보내기·USB에 곡 더하기가 같이 쓴다).
@@ -245,7 +248,9 @@ public enum UsbExportAssembly {
             for file in files[trackPlan.contentID] ?? [] {
                 switch file.kind {
                 case let .audio(source):
-                    let copy = UsbFileCopy(source: source, destination: UsbLayout.nfc(file.destination), size: track.fileSize, sourceSHA1: nil,
+                    // 복사 크기는 계획 때 본 실제 파일 크기다. DB 칸(`fileSize`)은 로컬 FileSize라 분석 뒤 바뀐 곡은 다르다(rekordbox와 같게)
+                    let copy = UsbFileCopy(source: source, destination: UsbLayout.nfc(file.destination), size: trackPlan.audioSize ?? track.fileSize,
+                                           sourceSHA1: nil,
                                            modificationDate: try modificationDate(source, "audio", content: id), disposition: .create)
                     context.copies.append(copy)
                     context.target[copy.destination] = UsbTreeStamp(size: copy.size, sha256: nil)
@@ -277,8 +282,14 @@ public enum UsbExportAssembly {
         var result: [any UsbWriteVerifier] = [UsbFingerprintVerifier()]
         if assembled.changes.formats.contains(.oneLibrary) { result.append(OneLibraryVerifier(expected: assembled.library)) }
         if let written = assembled.pdbWritten { result.append(PdbVerifier(expected: written)) }
-        result.append(UsbInvariantVerifier(preexistingAppleDoubles: preexistingAppleDoubles))
+        result.append(UsbInvariantVerifier(preexistingAppleDoubles: preexistingAppleDoubles,
+                                           audioSizeFromDatabase: assembled.audioSizeFromDatabase))
         return result
+    }
+
+    /// 두 DB의 파일 크기 칸(로컬 FileSize)이 복사한 음원과 다른 곡(USB content id)
+    static func audioSizeFromDatabase(_ plan: UsbExportPlan) -> Set<Int> {
+        Set(plan.tracks.filter { $0.rules.contains(.audioChangedSinceAnalysis) }.map(\.contentID))
     }
 
     /// 분석 파일 바이트에서 PPTH 경로(쓰기 절차의 덮어쓰기·지우기 확인용). 읽지 못하면 nil

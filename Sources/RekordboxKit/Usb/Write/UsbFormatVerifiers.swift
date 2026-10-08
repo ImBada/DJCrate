@@ -104,7 +104,8 @@ public struct PdbVerifier: UsbWriteVerifier {
 
 /// 두 형식과 파일이 서로 맞는지(불변식 1–7):
 /// 1 곡마다 pdb 분석 경로 = OneLibrary 분석 경로(NFC) · 2 `.DAT` PPTH = 두 DB의 곡 경로 · 3 fileName = 경로 끝 성분 ·
-/// 4 DB가 가리키는 파일(음원·분석 파일 셋·아트워크)이 모두 있고 음원 크기 = fileSize · 5 분석 파일 폴더 안 같은 번호를 두 곡이 쓰지 않음 ·
+/// 4 DB가 가리키는 파일(음원·분석 파일 셋·아트워크)이 모두 있고 음원 크기 = fileSize(이 쓰기가 로컬 FileSize로 적은 곡은 빼고) ·
+/// 5 분석 파일 폴더 안 같은 번호를 두 곡이 쓰지 않음 ·
 /// 6 곡 수 칸(OneLibrary property·pdb 표 19)과 곡 수가 같음 · 7 이 쓰기가 남긴 `._*`·`.djc-part-*` 0개
 public struct UsbInvariantVerifier: UsbWriteVerifier {
     /// 쓰기 전부터 USB에 있던 `._*`(NFC 상대 경로). 사용자·macOS가 둔 것(루트 `._.Trashes`, 사용자 음원 옆 등)은
@@ -115,11 +116,16 @@ public struct UsbInvariantVerifier: UsbWriteVerifier {
     let preexistingProblems: Set<String>
     /// 두 형식의 곡 수가 같아야 하는지. USB 수정에서 한 형식이 막혀 다른 형식만 고쳤으면 끈다(막힌 형식은 그대로 두었다)
     let checkFormatCounts: Bool
+    /// 이 쓰기가 파일 크기 칸에 로컬 FileSize를 적고 지금 음원을 그대로 복사한 곡(USB content id, `audioChangedSinceAnalysis`).
+    /// rekordbox도 이렇게 쓴다(§5). 복사한 크기는 목표 지문이 본다
+    let audioSizeFromDatabase: Set<Int>
 
-    public init(preexistingAppleDoubles: Set<String> = [], preexistingProblems: Set<String> = [], checkFormatCounts: Bool = true) {
+    public init(preexistingAppleDoubles: Set<String> = [], preexistingProblems: Set<String> = [], checkFormatCounts: Bool = true,
+                audioSizeFromDatabase: Set<Int> = []) {
         self.preexistingAppleDoubles = preexistingAppleDoubles
         self.preexistingProblems = preexistingProblems
         self.checkFormatCounts = checkFormatCounts
+        self.audioSizeFromDatabase = audioSizeFromDatabase
     }
 
     /// 볼륨의 `._*` 항목(NFC 상대 경로, 이름만 본다). 쓰기 직전에 떠서 `preexistingAppleDoubles`로 넘긴다
@@ -159,8 +165,9 @@ public struct UsbInvariantVerifier: UsbWriteVerifier {
         for format in changes.formats {
             if (format == .oneLibrary ? oneLibrary : deviceLibrary) == nil { problems.append("database missing \(format.rawValue)") }
         }
+        let exempt = Set(audioSizeFromDatabase.map(Self.audioSizeProblem))
         problems += try Self.libraryProblems(oneLibrary: oneLibrary, deviceLibrary: deviceLibrary, root: root, fileSystem: fileSystem,
-                                             checkFormatCounts: checkFormatCounts).filter { !preexistingProblems.contains($0) }
+                                             checkFormatCounts: checkFormatCounts).filter { !preexistingProblems.contains($0) && !exempt.contains($0) }
 
         // 7 남은 `._*`(쓰기 전부터 있던 것 빼고)·`.djc-part-*`(늘 우리 것). 이름만 본다
         let entries = try UsbTree.walk(root)
@@ -209,7 +216,11 @@ public struct UsbInvariantVerifier: UsbWriteVerifier {
                 // 4 음원
                 let audio = relative(track.path)
                 if let info = try? stat(root, audio, fileSystem), info.kind == .file {
-                    if info.size != track.fileSize { problems.append("audioSize content \(track.id) \(name)") }
+                    // 형식 이름을 적지 않는다: 한 형식만 있던 USB에 다른 형식을 더해도(옮기기) 같은 문제로 센다.
+                    // rekordbox가 분석 뒤 바뀐 음원을 로컬 FileSize로 적은 USB는 이 문제를 이미 갖고 있다(§5)
+                    if info.size != track.fileSize, checked.insert("size\u{0}\(track.id)").inserted {
+                        problems.append(audioSizeProblem(track.id))
+                    }
                 } else if checked.insert("audio\u{0}" + audio).inserted {
                     problems.append("missing audio content \(track.id)")
                 }
@@ -241,6 +252,8 @@ public struct UsbInvariantVerifier: UsbWriteVerifier {
         }
         return problems
     }
+
+    static func audioSizeProblem(_ id: Int) -> String { "audioSize content \(id)" }
 
     static func relative(_ path: String) -> String { String(path.drop { $0 == "/" }) }
 

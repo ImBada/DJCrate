@@ -407,6 +407,7 @@ extension UsbEditPlanner {
         }
         planned.op = .upsert(upsert)
         planned.addedLocalTracks = Dictionary(uniqueKeysWithValues: plan.tracks.map { ($0.localContentID, $0.contentID) })
+        planned.audioSizeFromDatabase = UsbExportAssembly.audioSizeFromDatabase(plan)
         planned.rules = plan.requiredRules.union(staged.rules).union([.editAddTracks])
         planned.warnings += plan.warnings + staged.warnings
         record(plan, candidates: candidates)
