@@ -45,7 +45,7 @@ enum UsbPlanLab {
         let candidates = try UsbExportCandidates.load(database: database, share: URL(filePath: shareArgument), contentIDs: ids)
         // 빈 USB 계획이라 USB에 있는 파일과 겹치지 않아 같은 내용 비교를 부르지 않는다(기본값을 쓴다).
         let plan = UsbExportPlanner.plan(UsbExportRequest(
-            candidates: candidates, playlists: playlists, existing: nil, formats: UsbFormat.defaultSet, naming: IdentifierAnalysisNaming(),
+            candidates: candidates, playlists: playlists, existing: nil, formats: UsbFormat.defaultSet, naming: RekordboxAnalysisNaming(),
             snapshotTakenAt: snapshot.date, clusterSize: clusterSize))
 
         print("후보 \(ids.count) · 읽은 곡 \(candidates.count) · 계획 \(plan.tracks.count)곡 · 목록 \(plan.playlists.count) · "

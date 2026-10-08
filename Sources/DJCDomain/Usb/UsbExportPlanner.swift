@@ -160,7 +160,7 @@ public struct UsbExportRequest: Sendable {
     public var sameContent: @Sendable (_ candidateID: String, _ usbRelativePath: String) -> Bool
 
     public init(candidates: [UsbExportCandidate], playlists: [UsbPlaylistInput] = [], existing: UsbExistingState? = nil,
-                formats: Set<UsbFormat> = UsbFormat.defaultSet, naming: any UsbAnalysisNaming = IdentifierAnalysisNaming(),
+                formats: Set<UsbFormat> = UsbFormat.defaultSet, naming: any UsbAnalysisNaming = RekordboxAnalysisNaming(),
                 snapshotTakenAt: Date, clusterSize: Int = 32_768,
                 sameContent: @escaping @Sendable (_ candidateID: String, _ usbRelativePath: String) -> Bool = { _, _ in false }) {
         self.candidates = candidates
@@ -363,11 +363,11 @@ private struct PlanState {
         commit(path, for: candidate)
 
         var rules = path.rules
-        if let rule = request.naming.rule { rules.insert(rule) }
-        let slot = UsbAnalysisSlot.choose(existing: (existing?.analysisSlots[folder] ?? []) + (analysisSlots[folder] ?? []),
-                                          contentsPath: path.contentsPath)
+        rules.formUnion(request.naming.rules(contentsPath: path.contentsPath))
+        let slot = UsbAnalysisSlot.choose(existing: existing?.analysisSlots[folder] ?? [], contentsPath: path.contentsPath,
+                                          reserved: Set((analysisSlots[folder] ?? []).map(\.slot)))
         if slot.slot > 0 { rules.insert(.analysisSlotCollision) }
-        if !slot.reuse { analysisSlots[folder, default: []].append((slot.slot, path.contentsPath)) }
+        analysisSlots[folder, default: []].append((slot.slot, path.contentsPath))
         addAnalysisEntries(folder: folder, slot: slot.slot)
 
         var imageID: Int?, artworkFolder: Int?

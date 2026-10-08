@@ -557,7 +557,7 @@ len_tag 56이고 0x0C부터 `00 00 00 00 01 00 00 02`, 나머지가 0인 `PQT2`�
 
 ### 4.10 확인 안 된 규칙
 
-변환 결과의 규칙 표시(`UsbAnlzResult.rules`)는 곡 큐 모양 분류(`UsbCueRules.rules`) 그대로다(§9 `cueVariant`·`cueSeekFields`). 실험 명령 `djc lab usb-anlz-check`는 USB 폴더의 분석 파일을 로컬 분석 파일·큐로 다시 만들어 바이트를 비교한다(모두 읽기만). 곡은 USB `PPTH` 경로의 음원 파일 이름·크기를 로컬 `djmdContent`의 (`FileNameL`, `FileSize`)와 맞춰 짝짓고, 맞는 로컬 곡이 하나가 아니면 짝 없음으로 센다. 라이브러리에 이름·크기가 같은 곡이 여럿이면 `--playlist <재생 목록 ID>`로 내보낸 재생 목록의 곡만 후보로 둔다. 스냅샷을 뜬 뒤 로컬 분석 파일이 바뀐 곡은 따로 센다.
+변환 결과의 규칙 표시(`UsbAnlzResult.rules`)는 곡 큐 모양 분류(`UsbCueRules.rules`) 그대로다(§9 `cueVariant`·`cueSeekFields`). `djc lab usb-anlz-naming <USB 폴더>`는 export.pdb 곡마다 분석 폴더가 곡 경로의 rekordbox 해시 이름(§5)과 같은지 수만 센다(읽기만). 실험 명령 `djc lab usb-anlz-check`는 USB 폴더의 분석 파일을 로컬 분석 파일·큐로 다시 만들어 바이트를 비교한다(모두 읽기만). 곡은 USB `PPTH` 경로의 음원 파일 이름·크기를 로컬 `djmdContent`의 (`FileNameL`, `FileSize`)와 맞춰 짝짓고, 맞는 로컬 곡이 하나가 아니면 짝 없음으로 센다. 라이브러리에 이름·크기가 같은 곡이 여럿이면 `--playlist <재생 목록 ID>`로 내보낸 재생 목록의 곡만 후보로 둔다. 스냅샷을 뜬 뒤 로컬 분석 파일이 바뀐 곡은 따로 센다.
 
 ## 5. 경로·음원·아트워크
 
@@ -589,7 +589,10 @@ FAT는 대소문자와 NFC·NFD를 가리지 않으므로 이름은 `UsbLayout.c
 
 ### 분석 파일(ANLZ) 자리
 
-- 새 곡의 `PIONEER/USBANLZ/` 아래 폴더 이름은 DJCrate 고유 이름(시험용)이다: content ID로 `P%03X/%08X`(`analysisFolderNaming`). rekordbox의 폴더 이름 규칙을 따르지 않는다.
+- 새 곡의 `PIONEER/USBANLZ/` 아래 폴더 이름은 rekordbox 이름이다(`RekordboxAnalysisNaming`): USB 음원 경로(`/Contents/…`, NFC)의 UTF-16 단위마다 `h = (h × 0x5BC9 + c) × 0x93B5 + c`(u32, 넘침 버림, 처음 0), `H = h mod 200003`을 `%08X`로, H의 0·2·6·7·9·13·16번 비트를 차례로 모은 7비트를 `P%03X`로 쓴다. 계산 모양은 MIT 라이선스 rekordbox_converter를 참고했다(THIRD_PARTY_NOTICES.md).
+- 근거: rekordbox 7.2.x가 빈 USB·기존 USB에 쓴 곡 708개(2026-10-08 빈 USB·동기화 실험들)의 pdb 분석 경로가 모두 이 계산과 같았다(`djc lab usb-anlz-naming <USB 사본>`, 해시가 겹친 1곡은 `ANLZ0001`). 그리고 DJCrate 고유 이름(content ID로 `P000/%08X`)으로 내보낸 USB를 CDJ-2000NXS(Device Library만 읽는 기기)에 꽂자, 곡 정보·소리는 나오지만 불러오기 표시가 계속 깜빡이고 파형·큐가 없었다. 기기는 그때 불러온 곡 5개의 빈 `.DAT`(큐 0, 비트 그리드 0)를 정확히 이 계산의 폴더에 만들었다(2026-10-09, #233). 즉 그 기기는 pdb 문자열 14를 보지 않고 곡 경로에서 폴더를 다시 계산한다.
+- 보충 평면 글자(서로게이트 둘)를 UTF-16 단위 둘로 넣는 것은 관찰하지 못했다. 그런 글자가 든 경로는 `supplementaryCharacters`를 싣는다. 시험용 고유 이름(`IdentifierAnalysisNaming`, `analysisFolderNaming`)은 계획기 시험에서 폴더를 ID로 고정할 때만 쓴다.
+- USB 수정(곡 더하기)은 계획이 고른 폴더만 USB에서 읽어 자리를 보고 다시 계획한다(경로·ID는 그대로, 파일 번호만 바뀔 수 있다). 모든 분석 파일을 열지 않는다.
 - 기존 곡은 USB DB에 적힌 분석 경로를 그대로 쓴다.
 - 폴더 안 파일 번호(`ANLZ%04X`): 같은 곡 경로(PPTH)의 파일이 있으면 그 번호를 다시 쓰고, 다른 곡의 파일이 있으면 덮어쓰지 않고 가장 작은 빈 번호를 쓴다. 번호가 0이 아니면 `analysisSlotCollision`.
 
@@ -954,7 +957,7 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 | 규칙 | 지금 값 | 표시 조건 |
 |---|---|---|
 | `physicalVolume` | 확인 안 됨(관문으로만 봄, §12) | 대상이 디스크 이미지가 아닌 실물 USB |
-| `analysisFolderNaming` | 확인 안 됨 | 분석 파일을 USB에 새로 쓸 때 |
+| `analysisFolderNaming` | 확인 안 됨 | 시험용 고유 이름(`IdentifierAnalysisNaming`)으로 분석 파일을 새로 쓸 때(쓰기 경로는 rekordbox 이름을 써서 붙지 않는다, §5) |
 | `analysisSlotCollision` | 확인 안 됨 | 새 분석 파일 폴더 이름이 이미 있는 폴더와 겹칠 때 |
 | `playlistSiblingBase` | 확인 안 됨 | 재생 목록을 쓸 때(같은 폴더 안 순서 번호) |
 | `playlistFolderRow` | 확인 안 됨 | 재생 목록 폴더를 쓸 때 |
@@ -993,7 +996,6 @@ rekordbox·rekordboxAgent는 A, D 전, DB마다, F 전에 다시 본다. 켜져 
 | 무엇 | 지금 | 규칙·code |
 |---|---|---|
 | 실물 USB에 쓰기 | 사용자가 동의한 쓰기에만(앱 내보내기 시트·쓰기 확인 창, CLI `--allow-physical --confirm <볼륨 이름>`, §12) | `physicalVolume`, `physicalDisabled`, `confirmMismatch`, `noVolumeUUID` |
-| 분석 파일 폴더 이름 | rekordbox 규칙을 따르지 않고 DJCrate 고유 이름(content ID)으로 짓는다 | `analysisFolderNaming` |
 | Device Library 먼 오프셋 행 | 아티스트·앨범은 rekordbox 모양대로 쓴다(§3.8). My Tag 행이 가까운 모양에 안 들어가면 내보내기 전체를 막는다. 아티스트·앨범·트랙 행이 빈 쪽에도 안 들어가면 그 곡을 막는다 | `pdbFarOffsetRows`, `nameTooLongForDeviceLibrary`, `myTagNameTooLongForDeviceLibrary`, `trackRowTooLarge` |
 | 긴 ASCII(127자 이상 순수 ASCII) | 모든 칸에 rekordbox의 0x40 모양으로 쓴다. 본 적 없는 칸이면 CDJ 확인 항목으로 알린다 | `pdbLongAscii` |
 | 재생 기록 표 | 쓰지 않는다. 기기 기록 행이 있는 USB를 다시 만드는 쓰기는 디스크 이미지에서도 막는다 | `carriedDeviceRows` |

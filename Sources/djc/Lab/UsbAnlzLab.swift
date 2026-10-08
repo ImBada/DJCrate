@@ -8,7 +8,31 @@ enum UsbAnlzLab {
     static let all: [Command] = [
         Command("usb-anlz-check", "--db <스냅샷 사본> --share <share> [--snapshot-time <ISO 8601>] [--playlist <재생 목록 ID>] <USB 폴더>",
                 "USB 분석 파일을 로컬 분석 파일·큐로 다시 만들어 바이트 비교(모두 읽기만)", UsbAnlzLab.check),
+        Command("usb-anlz-naming", "<USB 폴더>",
+                "export.pdb 곡마다 분석 폴더가 곡 경로의 rekordbox 해시 이름과 같은지 수만(읽기만)", UsbAnlzLab.naming),
     ]
+
+    /// 골든 대조: rekordbox가 만든 USB 사본의 pdb 분석 경로(문자열 14)가 `RekordboxAnalysisNaming`과 같은지 센다.
+    /// 경로·ID는 적지 않는다(수와 파일 번호 분포만)
+    static func naming(_ args: [String]) async throws {
+        let folders = Array(args.dropFirst())
+        guard folders.count == 1 else { throw UsageError() }
+        let usbPath = try UsbScratchPath.check(folders[0], as: .existingDirectory)
+        let pdb = URL(filePath: usbPath).appending(path: "PIONEER/rekordbox/export.pdb")
+        let (library, _) = try PdbReader.read(export: try Data(contentsOf: pdb), exportExt: nil)
+        let naming = RekordboxAnalysisNaming()
+        var same = 0, different = 0, unreadable = 0
+        var slots: [String: Int] = [:]
+        for track in library.tracks {
+            let parts = track.analysisDataPath.split(separator: "/").map(String.init)
+            guard parts.count == 5, parts[0] == "PIONEER", parts[1] == "USBANLZ",
+                  let expected = naming.folder(contentsPath: track.path, contentID: track.id) else { unreadable += 1; continue }
+            if parts[2] + "/" + parts[3] == expected { same += 1 } else { different += 1 }
+            slots[parts[4], default: 0] += 1
+        }
+        print("곡 \(library.tracks.count) · 해시 이름과 같음 \(same) · 다름 \(different) · 분석 경로 모양 아님 \(unreadable)")
+        print("파일 이름: " + slots.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: " · "))
+    }
 
     /// 로컬 곡 행(짝짓기·변환에 쓰는 칸만)
     struct LocalTrack {

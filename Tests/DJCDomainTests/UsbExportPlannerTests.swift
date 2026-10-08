@@ -195,6 +195,26 @@ struct UsbExportPlannerTests {
         #expect(result.tracks.allSatisfy { $0.analysisSlot == 0 && $0.audioDisposition == .create })
     }
 
+    @Test("기본 분석 폴더 이름은 rekordbox 경로 해시이고 규칙을 싣지 않는다")
+    func defaultNamingIsRekordboxPathHash() {
+        let result = UsbExportPlanner.plan(UsbExportRequest(candidates: [candidate("1")], snapshotTakenAt: snapshot))
+        let track = result.tracks.first
+        #expect(track?.contentsPath == "/Contents/Artist/Album/track 1.mp3")
+        #expect(track?.analysisFolder == "P06F/000171CD")
+        #expect(track?.analysisPath == "/PIONEER/USBANLZ/P06F/000171CD/ANLZ0000.DAT")
+        #expect(!result.requiredRules.contains(.analysisFolderNaming))
+    }
+
+    @Test("한 번에 내보내는 두 곡의 해시가 같으면 뒤 곡은 같은 폴더의 다음 번호")
+    func rekordboxHashCollisionWithinExport() {
+        // 합성 경로 "track 1013"과 "track 7700"은 해시가 같다
+        let result = UsbExportPlanner.plan(UsbExportRequest(
+            candidates: [candidate("1013"), candidate("7700")], snapshotTakenAt: snapshot))
+        #expect(result.tracks.map(\.analysisFolder) == ["P062/00012816", "P062/00012816"])
+        #expect(result.tracks.map(\.analysisSlot) == [0, 1])
+        #expect(result.tracks.last?.rules.contains(.analysisSlotCollision) == true)
+    }
+
     @Test("그림 있는 곡만 image ID를 차례로 받는다")
     func imageIDsOnlyForTracksWithArtwork() {
         var missingFile = candidate("4", artwork: false)

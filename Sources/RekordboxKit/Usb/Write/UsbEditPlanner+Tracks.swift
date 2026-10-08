@@ -345,11 +345,11 @@ extension UsbEditPlanner {
             }
             return onUsb
         }
-        let existing = try existingState(adding: candidates.count)
+        let existing = try existingState()
         let rootURL = root.url
         let sources = Dictionary(candidates.map { ($0.localContentID, $0.sourcePath ?? "") }) { first, _ in first }
         var request = UsbExportRequest(
-            candidates: candidates, playlists: [], existing: existing, formats: writable, naming: IdentifierAnalysisNaming(),
+            candidates: candidates, playlists: [], existing: existing, formats: writable, naming: RekordboxAnalysisNaming(),
             snapshotTakenAt: snapshot, clusterSize: clusterSize,
             sameContent: { id, relative in UsbExportCandidates.sameContent(sourcePath: sources[id] ?? "", usbFile: rootURL.appending(path: relative)) })
         var base = working
@@ -357,6 +357,8 @@ extension UsbEditPlanner {
         var rowBlocks: [UsbBlock] = []
         let local = UsbLocalSource(database: database)
         var plan = UsbExportPlanner.plan(request)
+        // 분석 폴더 이름은 곡 경로로 정해진다. 계획이 고른 폴더의 USB 자리를 읽은 뒤 다시 계획한다(경로·ID는 그대로, 파일 번호만 바뀔 수 있다)
+        if try loadAnalysisSlots(plan.tracks.map(\.analysisFolder), into: &request) { plan = UsbExportPlanner.plan(request) }
         var model = try UsbLibraryBuilder.add(plan: plan, into: base, local: local, share: share, highWater: ids.highWater)
         while true {
             // 새 곡만 본다(있던 곡은 왕복 검사를 지났다). 막힌 곡은 빼고 다시 계획해 번호가 빈틈없게 한다
@@ -410,8 +412,8 @@ extension UsbEditPlanner {
     }
 
     /// 곡 더하기가 볼 USB 상태. 처음에는 USB를 훑어 만들고, 그 뒤로는 이번 묶음에서 더한 곡을 반영한다.
-    /// 분석 파일 자리는 새 곡이 받을 번호 범위의 폴더만 본다(모든 분석 파일을 열지 않게)
-    mutating func existingState(adding count: Int) throws -> UsbExistingState {
+    /// 분석 파일 자리는 여기서 읽지 않는다(곡 경로로 폴더가 정해진 뒤 `loadAnalysisSlots`가 그 폴더만 본다)
+    mutating func existingState() throws -> UsbExistingState {
         if existing == nil {
             let contents = try UsbExportAssembly.existingContents(root: root)
             existing = UsbExistingState(hasLibrary: true, usedCollisionKeys: contents?.usedCollisionKeys ?? [:],
@@ -420,14 +422,23 @@ extension UsbEditPlanner {
         var state = existing!
         state.ids = ids
         state.artworkLayout = try artworkLayout()
-        let naming = IdentifierAnalysisNaming()
-        let next = (ids.highWater[.content] ?? 0) + 1
-        for contentID in next..<(next + max(count, 0)) {
-            guard let folder = naming.folder(contentsPath: "", contentID: contentID), state.analysisSlots[folder] == nil else { continue }
-            state.analysisSlots[folder] = try analysisSlots(folder)
-        }
         existing = state
         return state
+    }
+
+    /// 아직 읽지 않은 분석 폴더의 자리를 USB에서 읽어 계획 요청과 다음 편집이 볼 상태에 넣는다(모든 분석 파일을 열지 않게 그 폴더만).
+    /// 이미 파일이 있는 폴더가 하나라도 있었으면 true(다시 계획해야 한다)
+    mutating func loadAnalysisSlots(_ folders: [String], into request: inout UsbExportRequest) throws -> Bool {
+        guard var state = request.existing else { return false }
+        var found = false
+        for folder in Set(folders) where state.analysisSlots[folder] == nil {
+            let slots = try analysisSlots(folder)
+            state.analysisSlots[folder] = slots
+            existing?.analysisSlots[folder] = slots
+            found = found || !slots.isEmpty
+        }
+        request.existing = state
+        return found
     }
 
     /// 분석 폴더 하나의 (번호, PPTH): USB에 있는 `.DAT`와 DB가 그 폴더를 가리키는 곡

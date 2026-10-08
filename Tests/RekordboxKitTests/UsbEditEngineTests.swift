@@ -555,10 +555,15 @@ struct UsbEditEngineTests {
     func slotNextWhenOtherPPTH() throws {
         let env = try Self.exported(["101"], playlist: false)
         try env.addLocal(["102"])
-        env.usb.write("PIONEER/USBANLZ/P000/00000002/ANLZ0000.DAT", UsbLibraryFixture.dat(path: "/Contents/합성 다른 곡.mp3", hotCueA: nil))
+        // 분석 폴더는 곡 경로의 rekordbox 해시다. 먼저 계획만 해 경로를 알고, 그 폴더에 다른 곡의 파일을 둔다
+        let first = try #require(try env.plan([.addTracks(localContentIDs: ["102"], playlist: nil)]).applied?.tracks.first { $0.id == 2 })
+        let folder = try #require(RekordboxAnalysisNaming().folder(contentsPath: first.path, contentID: 2))
+        #expect(first.analysisDataPath == "/PIONEER/USBANLZ/\(folder)/ANLZ0000.DAT")
+        env.usb.write("PIONEER/USBANLZ/\(folder)/ANLZ0000.DAT", UsbLibraryFixture.dat(path: "/Contents/합성 다른 곡.mp3", hotCueA: nil))
         let result = try env.plan([.addTracks(localContentIDs: ["102"], playlist: nil)])
         let added = try #require(result.applied?.tracks.first { $0.id == 2 })
-        #expect(added.analysisDataPath == "/PIONEER/USBANLZ/P000/00000002/ANLZ0001.DAT")
+        #expect(added.path == first.path)
+        #expect(added.analysisDataPath == "/PIONEER/USBANLZ/\(folder)/ANLZ0001.DAT")
         #expect(result.changes?.requiredRules.contains(.analysisSlotCollision) == true)
         #expect(try env.write(result).outcome == .written)
     }

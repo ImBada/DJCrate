@@ -95,7 +95,7 @@ struct UsbPlanLabTests {
         let lines = output.split(separator: "\n").map(String.init)
         #expect(lines.first == "스냅샷 시각: explicit")
         #expect(lines.contains("경로 성분 2/2, 파일 이름 1/1, 아트워크 폴더 1/1(00001: 1), 막힘 0, "
-            + "확인 안 된 규칙: analysisFolderNaming·myTagMasterDBID·playlistSiblingBase"))
+            + "확인 안 된 규칙: myTagMasterDBID·playlistSiblingBase"))
         for secret in ["SECRET-TITLE", "secret-file", "Synthetic", fixture.root.path] {
             #expect(!output.contains(secret), "\(secret)")
         }

@@ -6,7 +6,7 @@ import RekordboxKit
 /// 빈 USB 내보내기 선택
 public struct UsbExportOptions: Sendable {
     public var formats: Set<UsbFormat> = UsbFormat.defaultSet
-    public var naming: any UsbAnalysisNaming = IdentifierAnalysisNaming()
+    public var naming: any UsbAnalysisNaming = RekordboxAnalysisNaming()
     /// 기기 설정 파일을 옮길 로컬 rekordbox 설정 폴더(MYSETTING 등, 확인 안 된 규칙 `settingFiles`). nil이면 옮기지 않는다(기본)
     public var settingsFolder: URL? = nil
     public var verifyAudio = false

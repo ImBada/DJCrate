@@ -172,7 +172,7 @@ enum UsbExportLab {
         let share = URL(filePath: shareArgument)
         let candidates = try UsbExportCandidates.load(database: db, share: share, contentIDs: ids)
         let plan = UsbExportPlanner.plan(UsbExportRequest(
-            candidates: candidates, playlists: playlists, existing: nil, formats: formats, naming: IdentifierAnalysisNaming(),
+            candidates: candidates, playlists: playlists, existing: nil, formats: formats, naming: RekordboxAnalysisNaming(),
             snapshotTakenAt: snapshot.date, clusterSize: clusterSize))
         print("후보 \(ids.count) · 계획 \(plan.tracks.count)곡 · 목록 \(plan.playlists.count) · 막힘 \(plan.blocked.count)"
             + (plan.blocked.isEmpty ? "" : "(\(UsbPlanLab.counts(plan.blocked.map(\.code))))"))
