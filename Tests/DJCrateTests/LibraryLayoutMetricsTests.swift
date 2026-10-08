@@ -104,6 +104,35 @@ struct LibraryLayoutMetricsTests {
         #expect(layout.maximumWaveformHeight == 311)
     }
 
+    @Test func 메뉴_문맥은_창_높이가_바뀌어도_키울_줄일_수_있는지가_같으면_알리지_않는다() {
+        let layout = LibraryLayoutMetrics()
+        layout.measureDetail(height: 900, deckHeight: 390, waveformHeight: 150, hasTrack: true)
+        #expect(layout.canGrowWaveform && layout.canShrinkWaveform)
+        let changed = Mutex(false)
+        withObservationTracking {
+            _ = layout.canGrowWaveform
+            _ = layout.canShrinkWaveform
+        } onChange: { changed.withLock { $0 = true } }
+        let maximum = layout.maximumWaveformHeight
+        for height in stride(from: 900.0, through: 748, by: -8) {
+            layout.measureDetail(height: height, deckHeight: 390, waveformHeight: 150, hasTrack: true)
+        }
+        // 상한은 단계마다 바뀌지만 메뉴가 쓰는 두 값은 그대로다.
+        #expect(layout.maximumWaveformHeight != maximum)
+        #expect(!changed.withLock { $0 })
+        // 메뉴를 누르면 그때의 보이는 높이·상한으로 한 칸 움직인다.
+        var requested: Double?
+        let menu = layout.waveformHeightMenu { requested = $0 }
+        menu.grow()
+        #expect(requested == 150 + DeckLayout.waveformHeightStep)
+        layout.request(480)
+        #expect(layout.waveformHeight == layout.maximumWaveformHeight)
+        #expect(!layout.canGrowWaveform && layout.canShrinkWaveform)
+        #expect(changed.withLock { $0 })
+        menu.shrink()
+        #expect(requested == layout.maximumWaveformHeight - DeckLayout.waveformHeightStep)
+    }
+
     @Test func 낮아진_창과_알림과_머리글은_기존_최소_높이_규칙을_쓴다() {
         let layout = LibraryLayoutMetrics()
         layout.request(480)

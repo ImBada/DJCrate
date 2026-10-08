@@ -182,8 +182,8 @@ private struct LibraryWaveformHeightContext: ViewModifier {
     @Binding var height: Double
 
     func body(content: Content) -> some View {
-        content.focusedSceneValue(\.waveformHeight,
-            WaveformHeightControl(displayed: layout.waveformHeight, maximum: layout.maximumWaveformHeight,
-                                  minimum: layout.minimumWaveformHeight) { height = $0 })
+        let _ = PerfProbe.count("LibraryWaveformHeightContext")
+        // 높이·상한을 읽으면 창 높이를 바꾸는 단계마다 메뉴 막대 전체를 다시 만든다(#155). 켤지 두 값만 읽는다.
+        content.focusedSceneValue(\.waveformHeight, layout.waveformHeightMenu { height = $0 })
     }
 }

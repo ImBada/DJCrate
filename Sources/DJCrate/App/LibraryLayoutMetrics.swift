@@ -15,6 +15,18 @@ final class LibraryLayoutMetrics {
     private(set) var minimumWaveformHeight = DeckLayout.minimumWaveformHeight
     private(set) var maximumWaveformHeight = 213.0
     private(set) var viewportHeight = 390.0
+    /// 메뉴 '파형 크게·작게'를 켤지. 상한은 창 높이를 바꾸는 동안 단계마다 바뀌므로 메뉴 문맥은 이 둘만 읽는다(#155).
+    private(set) var canGrowWaveform = true
+    private(set) var canShrinkWaveform = true
+
+    /// 누를 때의 보이는 높이·상한으로 한 칸 움직인다. 높이를 읽지 않으므로 창 크기가 바뀌어도 메뉴를 다시 만들지 않는다.
+    func waveformHeightMenu(set: @escaping (Double) -> Void) -> WaveformHeightMenu {
+        WaveformHeightMenu(canGrow: canGrowWaveform, canShrink: canShrinkWaveform) { [weak self] in
+            guard let self else { return nil }
+            return WaveformHeightControl(displayed: waveformHeight, maximum: maximumWaveformHeight,
+                                         minimum: minimumWaveformHeight, set: set)
+        }
+    }
 
     func request(_ height: Double) { requested = height; update() }
     func setTextScale(_ scale: Double) {
@@ -44,5 +56,8 @@ final class LibraryLayoutMetrics {
         if waveformHeight != waveform { waveformHeight = waveform }
         if maximumWaveformHeight != maximum { maximumWaveformHeight = maximum }
         if viewportHeight != viewport { viewportHeight = viewport }
+        let control = WaveformHeightControl(displayed: waveform, maximum: maximum, minimum: minimumWaveformHeight) { _ in }
+        if canGrowWaveform != control.canGrow { canGrowWaveform = control.canGrow }
+        if canShrinkWaveform != control.canShrink { canShrinkWaveform = control.canShrink }
     }
 }

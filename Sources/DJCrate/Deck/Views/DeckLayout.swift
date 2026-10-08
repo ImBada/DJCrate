@@ -56,6 +56,16 @@ struct WaveformHeightControl {
     func shrink() { set(DeckLayout.steppedWaveformHeight(displayed: displayed, direction: -1, maximum: maximum, minimum: minimum)) }
 }
 
+/// 메뉴 '파형 크게·작게'의 문맥(#155). 켤지만 값으로 싣고, 높이는 누를 때 그때의 값으로 정한다.
+struct WaveformHeightMenu {
+    var canGrow: Bool
+    var canShrink: Bool
+    var control: () -> WaveformHeightControl?
+
+    func grow() { control()?.grow() }
+    func shrink() { control()?.shrink() }
+}
+
 /// 덱 폭에 따른 배치 단계. 덱 본문은 폭 자체가 아니라 이 단계만 읽어, 창 크기·사이드바·인스펙터가 움직이는 동안
 /// 프레임마다 덱 전체를 다시 계산하지 않는다(#138).
 struct DeckWidthClass: Equatable {

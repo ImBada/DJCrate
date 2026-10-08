@@ -135,6 +135,9 @@ struct LayoutRecomputeTests {
         #expect(PerfProbe.bodyCount("LibraryDetail") <= 2)
         #expect(PerfProbe.bodyCount("DeckView") <= 5)
         #expect(PerfProbe.bodyCount("TrackListView.update") <= 2)
+        // 파형 높이 상한은 단계마다 바뀌어도 메뉴('파형 크게·작게') 문맥은 다시 싣지 않는다. 실으면 창이 앞에 있을 때
+        // 메뉴 막대 전체(`AppCommands`)를 단계마다 다시 만든다(최신 dev 재현: 40단계에 41번).
+        #expect(PerfProbe.bodyCount("LibraryWaveformHeightContext") <= 2)
     }
 
     @Test func 창_높이에_맞춰_파형을_줄여도_덱_전체_본문은_다시_계산하지_않는다() async throws {
