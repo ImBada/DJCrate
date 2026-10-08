@@ -119,12 +119,12 @@ public enum PdbRowSize {
 
     /// 아티스트 행: align4(0x0A) + align4(이름 길이) + 4(먼 모양도 같다)
     public static func artist(name: String) -> Int {
-        align4(PdbRowEncoder.artistHeader) + align4(PdbStringEncoder.encode(name).count) + 4
+        align4(PdbRowEncoder.artistHeader) + align4(PdbStringEncoder.encodedText(name).bytes.count) + 4
     }
 
     /// 앨범 행: align4(0x16) + align4(이름 길이) + 4(먼 모양도 같다)
     public static func album(name: String) -> Int {
-        align4(PdbRowEncoder.albumHeader) + align4(PdbStringEncoder.encode(name).count) + 4
+        align4(PdbRowEncoder.albumHeader) + align4(PdbStringEncoder.encodedText(name).bytes.count) + 4
     }
 
     /// 아티스트·앨범 행을 먼 모양으로 쓰는지(이름 끝 248 이상)
@@ -145,7 +145,7 @@ public enum PdbRowSize {
 
     /// My Tag 행: align4(0x1F) + align4(이름 길이) + align4(빈 문자열) + 4
     public static func tag(name: String) -> Int {
-        align4(PdbRowEncoder.tagHeader) + align4(PdbStringEncoder.encoded(name).bytes.count) + 4 + 4
+        align4(PdbRowEncoder.tagHeader) + align4(PdbStringEncoder.encodedText(name).bytes.count) + 4 + 4
     }
 
     /// 빈 쪽 하나에 들어가는지: L + 행 인덱스 한 자리(6바이트) ≤ 4056
@@ -160,6 +160,10 @@ public enum PdbRowSize {
 
 /// 모델 행 → pdb 행 바이트. 칸 자리는 `docs/usb-internals.md` §3.
 /// rekordbox 7.2.18 골든 관찰(2026-09-26 내보내기)
+///
+/// 문자열 칸의 철자(#233, §3.4): 사람이 읽는 문자열(트랙 작사가·부제·코멘트·제목, 아티스트·앨범·장르·레이블·키·색·재생 목록·
+/// My Tag·columns 이름)은 NFC로 쓴다(`PdbStringEncoder.encodedText`). 파일을 가리키는 문자열(트랙 경로·파일 이름·분석 파일 경로,
+/// 아트워크 경로)은 USB의 실제 철자를 가리켜야 해 그대로 쓴다. ISRC·날짜·갱신 횟수·참·거짓 문자열·표 19 문자열도 그대로다(ASCII 칸).
 enum PdbRowEncoder {
     // MARK: 관찰 고정값
 
@@ -183,16 +187,26 @@ enum PdbRowEncoder {
 
     // MARK: tracks(0)
 
-    /// 트랙 문자열 21개(번호 순)
-    static func trackStrings(_ track: UsbTrack) -> [PdbStringEncoder.Encoded] {
-        let values: [String] = [
+    /// NFC로 쓰는 트랙 문자열 번호: 1 작사가, 12 부제(mix_name), 16 코멘트, 17 제목.
+    /// 14 분석 파일 경로·19 파일 이름·20 파일 경로는 USB 파일의 실제 철자라 그대로 둔다
+    static let trackTextStrings: Set<Int> = [1, 12, 16, 17]
+
+    /// 트랙 문자열 21개의 모델 값(번호 순, NFC로 바꾸기 전)
+    static func trackStringValues(_ track: UsbTrack) -> [String] {
+        [
             track.isrc, track.lyricist, track.informationUpdateCount, track.analysisDataUpdateCount, track.cueUpdateCount, "",
             flagString(track.kuvoDeliver), flagString(track.hotCueAutoLoad), "", "", track.dateCreated, track.releaseDate, track.subtitle, "",
             track.analysisDataPath, track.dateAdded, track.comment, track.title, "", track.fileName, track.path,
         ]
+    }
+
+    /// 트랙 문자열 21개(번호 순)
+    static func trackStrings(_ track: UsbTrack) -> [PdbStringEncoder.Encoded] {
         // 긴 ASCII: rekordbox 7.2.x 경계 실험(2026-10-08) 때 뜬 USB의 트랙 행 경로에서 본 모양
-        return values.enumerated().map { index, value in
-            index == 0 ? PdbStringEncoder.encodedISRC(value) : PdbStringEncoder.encoded(value, longASCIIObserved: true)
+        trackStringValues(track).enumerated().map { index, value in
+            if index == 0 { return PdbStringEncoder.encodedISRC(value) }
+            return trackTextStrings.contains(index) ? PdbStringEncoder.encodedText(value, longASCIIObserved: true)
+                : PdbStringEncoder.encoded(value, longASCIIObserved: true)
         }
     }
 
@@ -254,11 +268,20 @@ enum PdbRowEncoder {
 
     // MARK: export 표
 
-    /// genres(1)·labels(4)·artwork(13): u32 id, 문자열 @0x04
+    /// genres(1)·labels(4): u32 id, 이름 @0x04(NFC)
     static func idName(id: Int, name: String) throws -> PdbEncodedRow {
+        try idString(id: id, PdbStringEncoder.encodedText(name))
+    }
+
+    /// artwork(13): u32 id, 경로 @0x04(USB 파일 철자 그대로)
+    static func artwork(id: Int, path: String) throws -> PdbEncodedRow {
+        try idString(id: id, PdbStringEncoder.encoded(path))
+    }
+
+    static func idString(id: Int, _ string: PdbStringEncoder.Encoded) throws -> PdbEncodedRow {
         var row = PdbRowBytes(count: 4)
         try row.u32(Int64(id), at: 0, "id")
-        row.append(PdbStringEncoder.encoded(name))
+        row.append(string)
         return row.simpleRow()
     }
 
@@ -266,7 +289,7 @@ enum PdbRowEncoder {
     /// 먼 모양 0x0064: 0x09는 0, u16 이름 오프셋 @0x0A, 이름 @0x0C(할당 크기는 같은 공식).
     /// 먼 모양: rekordbox 7.2.x 경계 실험(2026-10-08), 고르는 기준(이름 끝 248 이상): 7.2.19 실험 X1(2026-10-08)
     static func artist(_ artist: UsbNamedRow) throws -> PdbEncodedRow {
-        let name = PdbStringEncoder.encoded(artist.name, longASCIIObserved: true)
+        let name = PdbStringEncoder.encodedText(artist.name, longASCIIObserved: true)
         let nameEnd = PdbRowSize.nameEnd(name, header: artistHeader)
         let far = PdbRowSize.isFarShape(nameEnd: nameEnd)
         var row = PdbRowBytes(count: far ? artistFarHeader : artistHeader)
@@ -282,7 +305,7 @@ enum PdbRowEncoder {
     /// 먼 모양 0x0084: 0x15는 0, u16 이름 오프셋 @0x16, 이름 @0x18(할당 크기는 같은 공식).
     /// 먼 모양: rekordbox 7.2.x 경계 실험(2026-10-08), 고르는 기준(이름 끝 248 이상): 7.2.19 실험 X1(2026-10-08)
     static func album(_ album: UsbAlbum) throws -> PdbEncodedRow {
-        let name = PdbStringEncoder.encoded(album.name, longASCIIObserved: true)
+        let name = PdbStringEncoder.encodedText(album.name, longASCIIObserved: true)
         let nameEnd = PdbRowSize.nameEnd(name, header: albumHeader)
         let far = PdbRowSize.isFarShape(nameEnd: nameEnd)
         var row = PdbRowBytes(count: far ? albumFarHeader : albumHeader)
@@ -308,7 +331,7 @@ enum PdbRowEncoder {
         var row = PdbRowBytes(count: 8)
         try row.u32(Int64(key.id), at: 0, "id")
         try row.u32(Int64(key.id), at: 4, "id")
-        row.append(PdbStringEncoder.encoded(key.name))
+        row.append(PdbStringEncoder.encodedText(key.name))
         return row.simpleRow()
     }
 
@@ -317,7 +340,7 @@ enum PdbRowEncoder {
         var row = PdbRowBytes(count: 8)
         try row.u8(color.id, at: 4, "id")
         try row.u16(color.id, at: 5, "id")
-        row.append(PdbStringEncoder.encoded(color.name))
+        row.append(PdbStringEncoder.encodedText(color.name))
         return row.simpleRow()
     }
 
@@ -328,7 +351,7 @@ enum PdbRowEncoder {
         try row.u32(Int64(sortOrder), at: 0x08, "sortOrder")
         try row.u32(Int64(id), at: 0x0C, "id")
         try row.u32(isFolder ? 1 : 0, at: 0x10, "isFolder")
-        row.append(PdbStringEncoder.encoded(name))
+        row.append(PdbStringEncoder.encodedText(name))
         return row.simpleRow()
     }
 
@@ -409,7 +432,7 @@ enum PdbRowEncoder {
         try row.u32(tag.id, at: 0x14, "id")
         try row.u32(tag.isCategory ? 0x0100_0000 : 0, at: 0x18, "isCategory")
         try row.u8(nameMarker, at: 0x1C, "marker")
-        let nameOffset = row.append(PdbStringEncoder.encoded(tag.name))
+        let nameOffset = row.append(PdbStringEncoder.encodedText(tag.name))
         let secondOffset = row.append(PdbStringEncoder.encoded(""))
         guard secondOffset <= 0xFF else { throw PdbRowError.farOffset }
         try row.u8(nameOffset, at: 0x1D, "nameOffset")

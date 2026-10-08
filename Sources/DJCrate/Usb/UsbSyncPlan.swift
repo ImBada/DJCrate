@@ -155,6 +155,8 @@ struct UsbSyncPlan: Sendable {
             throw PlaylistLayout.Blocked(String(ui: "같은 폴더에 이름이 같은 재생 목록이 있습니다. 이름을 다르게 바꾼 뒤 동기화하세요"))
         }
         var working = usbLayout(library)
+        // USB 목록 번호 → 그 목록이 있는 형식(이름 철자 비교용)
+        let playlistFormats = Dictionary(library.playlists.map { (String($0.id), $0.presentIn) }) { first, _ in first }
         guard working.outline.count == working.items.count else {
             throw PlaylistLayout.Blocked(String(ui: "USB 재생 목록의 부모 관계가 맞지 않습니다. rekordbox에서 USB를 확인한 뒤 다시 동기화하세요"))
         }
@@ -225,7 +227,11 @@ struct UsbSyncPlan: Sendable {
             switch ref {
             case let .new(key): try append(.create(key: key, name: item.name, isFolder: item.isFolder, parent: parent))
             case .id:
-                if working.item(ref.description)?.name != item.name { try append(.rename(playlist: ref, name: item.name)) }
+                // 철자(NFC·NFD)만 다른 이름도 OneLibrary에 있는 목록이면 바꾼다(#233, `UsbNameSpelling.playlistNeedsRename`)
+                if let current = working.item(ref.description)?.name,
+                   UsbNameSpelling.playlistNeedsRename(from: current, to: item.name, formats: playlistFormats[ref.description] ?? library.formats) {
+                    try append(.rename(playlist: ref, name: item.name))
+                }
                 let parentID = parent == .root ? PlaylistLayout.root : parent.description
                 if working.item(ref.description)?.parentID != parentID { try append(.move(playlist: ref, into: parent)) }
             case .root: break

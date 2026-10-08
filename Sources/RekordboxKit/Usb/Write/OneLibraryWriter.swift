@@ -487,7 +487,10 @@ enum OneLibraryRows {
                 throw OneLibraryWriter.failure("playlist \(list.id) entry references missing content \(missing)")
             }
             if let before {
-                if playlist(before).map(\.value) != playlist(list).map(\.value) { try update(db, "playlist", playlist(list)) }
+                // 철자(NFC·NFD)만 바꾼 이름도 쓴다(Swift 문자열 ==는 같다고 본다, #233)
+                if playlist(before).map(\.value) != playlist(list).map(\.value) || !UsbNameSpelling.sameScalars(before.name, list.name) {
+                    try update(db, "playlist", playlist(list))
+                }
                 if itemsChanged {
                     // 편집한 목록만 항목을 지우고 1..N으로 다시 넣는다
                     try db.run("DELETE FROM playlist_content WHERE playlist_id = ?", [.int(list.id)])

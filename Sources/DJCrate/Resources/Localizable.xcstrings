@@ -4557,6 +4557,22 @@
         }
       }
     },
+    "Device Library에 풀어 쓴 글자(NFD)를 완성형(NFC)으로 바꿔 쓴 이름" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Names written to Device Library with decomposed characters (NFD) converted to precomposed form (NFC)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device Libraryに分解された文字(NFD)を合成済みの形(NFC)に変えて書いた名前"
+          }
+        }
+      }
+    },
     "Device Library에서 OneLibrary를 만드는 칸 대응" : {
       "localizations" : {
         "en" : {
