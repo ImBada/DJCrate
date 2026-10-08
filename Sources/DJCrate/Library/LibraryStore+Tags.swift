@@ -125,7 +125,7 @@ extension LibraryStore {
                 guard KeyPicker.unavailableReason(change.row) == nil, let accepted = KeyPicker.accepted(value) else { continue }
                 value = accepted
             }
-            // 평점·곡 색도 고르기 값(별 1~5개·rekordbox 색)만 받고, 고칠 수 없는 곡(추가한 곡·동기화 곡·재생 목록에 든 곡, #65)에는 초안을 만들지 않는다
+            // 평점·곡 색도 고르기 값(별 1~5개·rekordbox 색)만 받고, 고칠 수 없는 곡(추가한 곡·상태 0·256·257 밖의 곡, #65)에는 초안을 만들지 않는다
             if change.key == .rating || change.key == .color, value != original.base[change.key] {
                 guard TrackListTagEditing.unavailableReason(change.row, key: change.key) == nil,
                       let accepted = TagChoice.accepted(change.key, value, colors: trackColors) else { continue }

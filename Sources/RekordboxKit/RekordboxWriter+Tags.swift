@@ -9,14 +9,15 @@ import Foundation
 extension RekordboxWriter {
     /// rekordbox 실험으로 쓰기 규칙을 확인한 칸. 이 밖의 칸을 고친 초안은 곡째 막는다(docs/rekordbox-internals.md "태그 (곡 정보)").
     /// 공유 앨범 값 변경·동명 앨범 선택·미확인 상태는 `checkTags`에서 곡째 막는다.
-    /// 평점·곡 색(#65)은 확인한 범위(상태 0, 재생 목록에 없는 곡)가 좁아 `TagWriteScope.byKey`가 곡마다 더 거른다.
+    /// 평점·곡 색(#65)은 칸마다 확인한 범위(`TagWriteScope.byKey`, 상태 0·256·257, 재생 목록에 든 곡 포함 R65)로 곡마다 다시 거른다.
     public static let writableTagKeys: Set<TagFields.Key> = [.title, .artist, .album, .albumArtist, .genre, .composer, .year, .trackNumber, .comment,
                                                              .musicalKey, .rating, .color]
     /// 태그 쓰기를 확인한 곡·앨범 상태(#171·#173 2026-10-04). 0 그대로, 256 → 257, 257 그대로. 그 밖의 상태는 막는다.
     static let verifiedTagStates: Set<Int> = [0, 256, 257]
     /// 쓰면 재생 목록 XML(`masterPlaylists6.xml`)의 Timestamp를 고치는 칸. 정보 패널 아홉 칸(#173)과 키(S5 K1, 2026-10-04 rekordbox 7.2.18:
     /// 동기화 곡의 키 3B → 5A 저장이 그 곡이 든 목록의 Timestamp를 곡 행 `updated_at` 약 15ms 뒤 시각으로 고쳤다)가 모두 고친다[확인].
-    /// XML 규칙은 이 집합과 `touchesPlaylistXML` 한 곳에서만 정한다. 평점·곡 색은 XML 규칙을 확인하지 못해(`TagWriteScope.playlistXML`) 빠지고,
+    /// 평점·곡 색도 같다(R65, 2026-10-09 rekordbox 7.2.18: 재생 목록에 든 곡의 평점·곡 색 저장이 그 곡이 든 일반 목록 NODE의 Timestamp만 고쳤다).
+    /// XML 규칙은 이 집합과 `touchesPlaylistXML` 한 곳에서만 정한다. XML 규칙을 확인하지 않은 칸(`TagWriteScope.playlistXML` false)은 빠지고
     /// 재생 목록에 든 곡이면 쓰기 전에 막는다.
     static let playlistXMLTagKeys: Set<TagFields.Key> = Set(TagFields.Key.allCases.filter { TagWriteScope.scope(for: $0).playlistXML })
 
@@ -214,14 +215,16 @@ extension RekordboxWriter {
             throw block(String(ui: "앨범이 없는 곡에는 앨범 아티스트를 쓸 수 없습니다"))
         }
         try checkTagState(draft, state: content.state, block: block)
-        // 칸별로 좁게 확인한 범위(평점·곡 색: 재생 목록에 없는 곡, #65). 판단은 `TagWriteScope` 한 곳이다.
+        // 칸별로 확인한 범위(평점·곡 색, #65). 판단은 `TagWriteScope` 한 곳이다.
         let narrowed = draft.changedKeys.filter { scopes[$0] != nil }
         if !narrowed.isEmpty {
             var listed = false
             if narrowed.contains(where: { !TagWriteScope.scope(for: $0, in: scopes).playlistXML }) {
                 listed = try addedToPlaylists.contains(content.id) || !tagPlaylists(db, contentID: content.id).isEmpty
             }
-            if let reason = TagWriteScope.blockReason(keys: narrowed, state: content.state, inPlaylist: listed, scopes: scopes) { throw block(reason) }
+            if let reason = TagWriteScope.blockReason(keys: narrowed, state: content.state, inPlaylist: listed, scopes: scopes, hasDraft: true) {
+                throw block(reason)
+            }
         }
         try checkTagAlbum(draft, contentID: content.id, db: db, checks: albumChecks, block: block)
         // 독립 칸(키·평점·곡 색)은 이 초안이 고칠 때만 기준과 비교한다. 그 칸이 없던 때의 초안(기준이 빈칸)이 이미 값이 있는 곡에서, 또는 그 뒤

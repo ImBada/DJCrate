@@ -2,7 +2,7 @@ import DJCDomain
 import SwiftUI
 
 /// 태그 인스펙터의 평점·곡 색 고르기(#65): 없음·별 1~5개, 없음·rekordbox 색에서 고른다. 글자를 쓰지 않는다.
-/// 값은 고르는 순간에만 초안에 넣는다. 고칠 수 없는 곡(추가한 곡, 동기화 곡·재생 목록에 든 곡처럼 쓰기를 확인하지 않은 곡)은 빼고 쓰며 이유를 보인다.
+/// 값은 고르는 순간에만 초안에 넣는다. 고칠 수 없는 곡(추가한 곡, 상태 258처럼 쓰기를 확인하지 않은 곡)은 빼고 쓰며 이유를 보인다.
 struct TagChoiceField: View {
     @Environment(\.textScale) private var textScale
     @Bindable var store: LibraryStore

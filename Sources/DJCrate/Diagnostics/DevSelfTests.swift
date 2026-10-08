@@ -117,7 +117,7 @@ enum DevSelfTests {
             if let row = artworkAdd { store.setArtwork(Self.selfTestArtwork(), name: "DJC 시험 그림.jpg", rows: [row]) }
             if let row = artworkDelete { store.deleteArtwork(rows: [row]) }
             log("그림 초안: 넣기 \(artworkAdd.map { _ in "1곡" } ?? "없음") · 지우기 \(artworkDelete.map { _ in "1곡" } ?? "없음") · 초안 \(store.artworkDrafts.count)곡")
-            // 평점·곡 색 초안(#65): 쓰기를 확인한 곡(상태 0, 재생 목록에 없음) 하나에 별 4개·두 번째 색(rekordbox Red)
+            // 평점·곡 색 초안(#65): 쓰기를 확인한 곡(상태 0·256·257, 재생 목록에 든 곡도 R65로 열림) 하나에 별 4개·두 번째 색(rekordbox Red)
             let rated = store.rows.first { !$0.isStaged && !$0.track.isStreaming && TrackListTagEditing.unavailableReason($0, key: .rating) == nil }
             let ratedBefore = rated.map { ($0.track.rating, $0.track.colorID) }
             // 지금 값과 다른 값을 고른다(같으면 초안이 생기지 않는다)

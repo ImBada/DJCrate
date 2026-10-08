@@ -154,11 +154,14 @@ struct XMLImportDraftsTests {
                                                 .init(key: .musicalKey, library: "8A", xml: "Dorian"),
                                                 .init(key: .rating, library: "", xml: "4"),
                                                 .init(key: .title, library: "제목", xml: "")]
-        // 재생 목록에 든 곡의 평점은 쓰기 규칙을 확인하지 않았다
-        let plan = XMLImportDrafts.plan(diff: diff(tags: tags), selection: .all, sources: ["101": source(track(), inPlaylist: true)],
+        // 쓰기 규칙을 확인하지 않은 상태(258)의 곡은 평점을 뺀다. 재생 목록에 든 곡은 R65(2026-10-09)로 열어 넣는다.
+        let plan = XMLImportDrafts.plan(diff: diff(tags: tags), selection: .all, sources: ["101": source(track(status: 258), inPlaylist: true)],
                                         layout: PlaylistLayout(), playlistDraft: PlaylistDraft())
         let draft = try #require(plan.tagDrafts.first)
         #expect(draft.changedKeys == [.artist])
+        let listed = XMLImportDrafts.plan(diff: diff(tags: tags), selection: .all, sources: ["101": source(track(), inPlaylist: true)],
+                                          layout: PlaylistLayout(), playlistDraft: PlaylistDraft())
+        #expect(listed.tagDrafts.first?.changedKeys == [.artist, .rating] && listed.losses.count == 2)
         #expect(plan.losses.count == 3 && plan.losses.allSatisfy { $0.kind == .tag })
     }
 
