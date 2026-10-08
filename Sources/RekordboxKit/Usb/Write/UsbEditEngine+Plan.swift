@@ -15,6 +15,14 @@ extension UsbEditEngine {
                             isCancelled: () -> Bool = { false }) throws -> UsbEditResult {
         var result = UsbEditResult(formatsBlocked: source.formatsBlocked, mismatches: source.mismatches, notes: source.notes)
         var whole = source.blocks + UsbVolumePolicy.blocks(volume, purpose: .edit)
+        let selections = edits.enumerated().compactMap { offset, edit -> (index: Int, draft: UsbSyncSelectionDraft)? in
+            if case let .syncSelection(draft) = edit { (offset + 1, draft) } else { nil }
+        }
+        if let selection = selections.first {
+            if let block = UsbSyncSelectionStage.gateBlock(baseFiles: selection.draft.baseFiles, formats: source.formats)
+                ?? UsbSyncSelectionStage.draftBlock(selection.draft) { whole.append(block) }
+            if selections.count != 1 || !source.formatsBlocked.isEmpty { whole.append(UsbSyncSelectionStage.incompleteBlock) }
+        }
         if whole.isEmpty, source.writable.isEmpty {
             // 고칠 수 있는 형식이 하나도 없다(예: Device Library만 있는 USB가 막힘)
             whole = UsbFormat.allCases.compactMap { source.formatsBlocked[$0] }
@@ -25,6 +33,15 @@ extension UsbEditEngine {
             return result
         }
         let writable = source.writable
+        if let selection = selections.first {
+            guard let localDatabase, try UsbLocalSource(database: localDatabase).localDBID() == selection.draft.localDBID else {
+                let block = UsbBlock(code: "syncSelectionLibraryChanged", scope: .volume,
+                                     message: String(ui: "동기화 선택을 만든 로컬 라이브러리와 현재 사본이 다릅니다. 새 스냅샷을 읽고 동기화하세요"))
+                result.blocks = [block]
+                result.outcomes = edits.indices.map { ($0 + 1, .blocked(block)) }
+                return result
+            }
+        }
         let fm = FileManager.default
         if fm.fileExists(atPath: staging.path), (try? fm.contentsOfDirectory(atPath: staging.path))?.isEmpty != true {
             throw UsbError.readFailed(detail: "staging not empty")
@@ -35,6 +52,7 @@ extension UsbEditEngine {
         var planner = UsbEditPlanner(source: source, root: root, fileSystem: fileSystem, staging: staging, localDatabase: localDatabase,
                                      share: share, snapshotTakenAt: snapshotTakenAt, localAppVersion: localAppVersion,
                                      clusterSize: volume.clusterSize ?? 32_768, highWater: highWater)
+        planner.skipsUnaddableTracks = selections.contains { !$0.draft.enabledOnly }
         var planned: [UsbPlannedEdit] = []
         for (offset, edit) in edits.enumerated() {
             if isCancelled() { throw UsbError.cancelled }
@@ -53,9 +71,17 @@ extension UsbEditEngine {
             if writable.contains(.oneLibrary), let copy = snapshot.oneLibrary {
                 let folder = try context.prepare(UsbLayout.oneLibrary).deletingLastPathComponent()
                 let url = try UsbSnapshot.copyDatabase(copy, into: folder)
-                let applyResult = try OneLibraryWriter.apply(from: source.current, steps: steps, database: url)
+                // 계획은 Mac의 USB DB 사본에 적용한다. 다시 읽기가 어긋나면 USB는 열지도 않았으니 "되돌렸다"가 아니라 계획 확인 실패로 알린다
+                let applyResult: OneLibraryApplyResult
+                do {
+                    applyResult = try OneLibraryWriter.apply(from: source.current, steps: steps, database: url)
+                } catch let UsbError.writeRolledBack(reason) {
+                    throw UsbError.planCheckFailed(detail: "onelibrary " + reason)
+                }
                 (applied, skipped) = (applyResult.applied, applyResult.skipped)
-                oneLibraryChanged = applied.projected(to: .oneLibrary) != source.current.projected(to: .oneLibrary)
+                let before = source.current.projected(to: .oneLibrary), after = applied.projected(to: .oneLibrary)
+                // 철자(NFC·NFD)만 바꾼 목록 이름도 바뀐 것이다(Swift 문자열 ==는 같다고 본다, #233)
+                oneLibraryChanged = after != before || UsbEditModel.playlistNamesRespelled(before, after)
                 if oneLibraryChanged {
                     try context.database(.oneLibrary, UsbLayout.oneLibrary, data: Data(contentsOf: url))
                 } else {
@@ -80,22 +106,29 @@ extension UsbEditEngine {
             guard edit.op != nil, edit.outcome == .written else { continue }
             rules.formUnion(edit.rules)
             result.warnings += edit.warnings
+            result.audioSizeFromDatabase.formUnion(edit.audioSizeFromDatabase)
             context.copies += edit.files.copies
             context.writes += edit.files.writes
             context.target.merge(edit.files.target) { _, new in new }
             if edit.isRemoval { writtenRemovals.append(index) }
         }
 
-        // 4. Device Library: 적용 결과 모델에서 새로 만든다(두 형식이 같은 편집 집합을 갖게)
+        // 동기화 계획이 USB에 넣지 않고 건너뛴 곡(iTunes 목록의 연결되지 않은 곡 등)도 넣지 못한 곡으로 함께 알린다
+        if let selection = selections.first {
+            result.trackBlocks += selection.draft.skippedTracks.filter(\.isSkippableInSync)
+        }
+
+        // 4. Device Library: 적용 결과 모델에서 새로 만든다(두 형식이 같은 편집 집합을 갖게).
+        // USB의 pdb에 NFC가 아닌 이름·제목이 있으면 모델이 같아도 다시 만들어 NFC로 고친다(#233, 쓰는 편집이 있을 때만 USB에 간다)
         if writable.contains(.deviceLibrary), let report = source.pdbReport,
-           applied.projected(to: .deviceLibrary) != source.current.projected(to: .deviceLibrary) {
+           applied.projected(to: .deviceLibrary) != source.current.projected(to: .deviceLibrary) || source.deviceLibraryNeedsNFC {
             let pdb = try PdbWriter.files(applied, mode: .edit(previousExportSequence: report.exportHeader.sequence,
                                                                previousExtSequence: report.extHeader?.sequence ?? 0))
             let problems = try PdbRoundTrip.check(export: pdb.export, exportExt: pdb.exportExt)
             guard problems.isEmpty else { throw UsbError.writeRefused([roundTripBlock(problems[0])]) }
             let reread = try PdbReader.read(export: pdb.export, exportExt: pdb.exportExt).0
             let differences = UsbLibraryDiff.compare(reread, pdb.written, options: .init(formats: [.deviceLibrary])).differences
-            guard differences.isEmpty else { throw UsbError.readFailed(detail: "pdb reread: " + OneLibraryWriter.summary(differences)) }
+            guard differences.isEmpty else { throw UsbError.planCheckFailed(detail: "pdb reread: " + OneLibraryWriter.summary(differences)) }
             try context.database(.deviceLibrary, UsbLayout.exportPdb, data: pdb.export, write: true)
             try context.database(.deviceLibrary, UsbLayout.exportExtPdb, data: pdb.exportExt, write: true)
             rules.formUnion(pdb.rules)
@@ -123,6 +156,44 @@ extension UsbEditEngine {
         result.applied = applied
         let appliedPlaylistIDs = Set(applied.playlists.map(\.id))
         result.createdPlaylistIDs = planner.newPlaylists.filter { appliedPlaylistIDs.contains($0.value) }
+        var syncVerification: UsbSyncSelectionVerification?
+        // 선택 파일이 없는 USB에서 동기화를 끄기만 하면 쓸 것이 없다(바뀐 것 없음으로 남는다).
+        if let selection = selections.first, !UsbSyncSelectionStage.writesNothing(selection.draft, formats: writable) {
+            // 넣지 못한 곡만 빼고 쓴 것은 완료다(rekordbox와 같다). 편집이 막혔거나 곡이 스냅샷에 없으면 선택을 갱신하지 않는다
+            let incomplete = result.trackBlocks.contains { !$0.isSkippableInSync }
+                || planned.contains { if case .blocked = $0.outcome { true } else { false } }
+            if incomplete {
+                result.blocks = [UsbSyncSelectionStage.incompleteBlock]
+                result.outcomes = edits.indices.map { ($0 + 1, .blocked(UsbSyncSelectionStage.incompleteBlock)) }
+                result.applied = source.current
+                result.createdPlaylistIDs = [:]
+                result.formatsWritten = []
+                return result
+            }
+            guard let contract = UsbSyncXMLWriteContract.production else {
+                result.blocks = [UsbSyncSelectionStage.unverifiedBlock]
+                return result
+            }
+            do {
+                syncVerification = try UsbSyncSelectionStage.stage(selection.draft, formats: writable, model: applied,
+                                                                  createdIDs: result.createdPlaylistIDs, root: root, fileSystem: fileSystem,
+                                                                  into: &context, contract: contract)
+                planned[selection.index - 1].outcome = .written
+                result.outcomes = planned.map { ($0.index, $0.outcome) }
+                result.formatsWritten.formUnion(writable)
+                // 선택만 바꾸는 쓰기도 최종 USB DB가 계획 때 모델인지를 검증한다.
+                for (path, stamp) in snapshot.fingerprint.files where UsbWriter.databaseOrder.contains(path) && context.target[path] == nil {
+                    context.target[path] = UsbTreeStamp(size: stamp.size, sha256: stamp.sha256)
+                }
+            } catch let UsbError.writeRefused(blocks) {
+                result.blocks = unique(blocks)
+                result.outcomes = edits.indices.map { ($0 + 1, .blocked(result.blocks.first ?? UsbSyncSelectionStage.incompleteBlock)) }
+                result.applied = source.current
+                result.createdPlaylistIDs = [:]
+                result.formatsWritten = []
+                return result
+            }
+        }
         let written = planned.contains { if case .written = $0.outcome { true } else if case .deferred = $0.outcome { true } else { false } }
         guard written, !(context.databases.isEmpty && context.copies.isEmpty && context.writes.isEmpty && removals.isEmpty) else {
             // 바꾼 것이 없다(적용했지만 결과가 같음)
@@ -140,7 +211,7 @@ extension UsbEditEngine {
         result.changes = UsbChangeSet(session: session, label: "edit", purpose: .edit, formats: result.formatsWritten, requiredRules: rules,
                                       databases: context.databases, copies: context.copies, writes: context.writes, removals: removals,
                                       base: snapshot.fingerprint, target: UsbTargetFingerprint(mustExist: context.target, mustNotExist: mustNotExist),
-                                      stagingDirectory: staging.path, idHighWater: highWater)
+                                      stagingDirectory: staging.path, idHighWater: highWater, syncSelection: syncVerification)
         // 편집이 건드리지 않은 곡까지 USB 전체를 보는 검증이 쓰던 USB에 이미 있던 문제로 쓰기를 되돌리지 않게
         result.preexistingProblems = try UsbInvariantVerifier.problems(snapshot: snapshot, root: root, fileSystem: fileSystem,
                                                                        checkFormatCounts: source.formatsBlocked.isEmpty)

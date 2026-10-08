@@ -5,9 +5,18 @@ import Foundation
 extension UsbEditPlanner {
     /// 로컬 사본·share·스냅샷 시각과 로컬 rekordbox 버전(확인한 버전만)
     func requireLocal() throws -> (database: CipherDatabase, share: URL, snapshot: Date) {
-        guard let localDatabase, let share, let snapshotTakenAt else {
+        guard let share, let snapshotTakenAt else {
             throw UsbEditBlocked(block: UsbBlock(code: "localLibraryMissing", scope: .volume,
                                                  message: String(ui: "로컬 라이브러리 사본이 없어 곡을 더하거나 갱신할 수 없습니다. --db로 스냅샷 사본을 주세요")))
+        }
+        return (try requireLocalDatabase(), share, snapshotTakenAt)
+    }
+
+    /// 목록 동기화는 곡의 식별 키만 읽으므로 share·분석 파일을 필요로 하지 않는다
+    func requireLocalDatabase() throws -> CipherDatabase {
+        guard let localDatabase else {
+            throw UsbEditBlocked(block: UsbBlock(code: "localLibraryMissing", scope: .volume,
+                                                 message: String(ui: "로컬 라이브러리 사본이 없어 USB 편집을 계획하지 못했습니다. --db로 스냅샷 사본을 주세요")))
         }
         guard let version = localAppVersion, (try? RekordboxCompatibility.checkApp(version: version)) != nil else {
             let shown = localAppVersion ?? String(ui: "찾지 못함")
@@ -15,17 +24,18 @@ extension UsbEditPlanner {
                                                  message: String(ui: "로컬 rekordbox 버전(\(shown))은 USB 갱신을 확인하지 않았습니다")))
         }
         try UsbExportCandidates.refuseLive(localDatabase, liveDatabase: UsbExportCandidates.liveDatabase)
-        return (localDatabase, share, snapshotTakenAt)
+        return localDatabase
     }
 
     /// USB 곡의 로컬 짝(이 곡을 내보낸 라이브러리 DB ID·곡 ID·파일 이름이 같은 곡 하나). 없거나 둘 이상이면 nil
     static func localMatch(_ track: UsbTrack, database: CipherDatabase) throws -> String? {
         var keys: [UsbLocalTrackKey] = []
         try database.query("""
-            SELECT ID, MasterSongID, FileNameL FROM djmdContent
+            SELECT ID, MasterSongID, FileNameL, FolderPath FROM djmdContent
             WHERE rb_local_deleted = 0 AND CAST(MasterSongID AS INTEGER) = ? AND CAST(MasterDBID AS INTEGER) = ?
             """, [.int(Int(track.masterContentId)), .int(Int(track.masterDbId))]) { row in
-            keys.append(UsbLocalTrackKey(contentID: row.string(0) ?? "", masterSongID: row.string(1) ?? "", fileNameL: row.string(2) ?? ""))
+            keys.append(UsbLocalTrackKey(contentID: row.string(0) ?? "", masterSongID: row.string(1) ?? "", fileNameL: row.string(2) ?? "",
+                                         folderPath: row.string(3)))
         }
         let key = UsbTrackKey(masterDbId: track.masterDbId, masterContentId: track.masterContentId, fileName: track.fileName)
         return UsbTrackMatch.match(key, localDBID: track.masterDbId, local: keys)
@@ -285,26 +295,20 @@ extension UsbEditPlanner {
         if let refusal = UsbExportAssembly.trackRowRefusal(track) {
             throw UsbEditBlocked(block: UsbBlock(code: refusal.code, scope: scope, message: refusal.message))
         }
-        if newRows.artists.contains(where: { PdbRowSize.artist(name: $0.name) > PdbRowSize.nearShapeLimit })
-            || newRows.albums.contains(where: { PdbRowSize.album(name: $0.name) > PdbRowSize.nearShapeLimit }) {
+        // 긴 이름은 먼 모양으로 쓴다. 빈 쪽에도 안 들어가는 행만 막는다
+        if newRows.artists.contains(where: { !PdbRowSize.fitsEmptyPage(rowSize: PdbRowSize.artist(name: $0.name)) })
+            || newRows.albums.contains(where: { !PdbRowSize.fitsEmptyPage(rowSize: PdbRowSize.album(name: $0.name)) }) {
             throw UsbEditBlocked(block: UsbBlock(code: "nameTooLongForDeviceLibrary", scope: scope,
-                                                 message: String(ui: "아티스트·앨범 이름이 너무 길어 아직 내보낼 수 없습니다. rekordbox에서 이름을 줄인 뒤 다시 시도하세요"),
-                                                 rule: .pdbFarOffsetRows))
+                                                 message: String(ui: "아티스트·앨범 이름이 너무 길어 아직 내보낼 수 없습니다. rekordbox에서 이름을 줄인 뒤 다시 시도하세요")))
         }
     }
 
-    /// pdb에 문자열로 들어가는 곡 칸과 곡이 가리키는 이름(긴 ASCII 판정용). 출력·로그에 쓰지 않는다
+    /// 곡이 가리키는 이름 중 긴 ASCII를 rekordbox에서 본 적 없는 칸(장르·키·레이블, 긴 ASCII 판정용). 출력·로그에 쓰지 않는다.
+    /// 트랙 행 문자열·아티스트·앨범 이름의 긴 ASCII는 rekordbox 7.2.x 경계 실험(2026-10-08)으로 확인해 세지 않는다
     static func pdbStrings(_ track: UsbTrack, in model: UsbLibrary,
                            extra: (artists: [UsbNamedRow], albums: [UsbAlbum], genres: [UsbNamedRow], keys: [UsbNamedRow], labels: [UsbNamedRow]))
         -> [String] {
-        let artists = model.artists + extra.artists, albums = model.albums + extra.albums
-        var strings = [track.title, track.subtitle, track.comment, track.isrc, track.releaseDate, track.dateCreated, track.dateAdded,
-                       track.lyricist, track.path, track.fileName, track.analysisDataPath, track.cueUpdateCount, track.analysisDataUpdateCount,
-                       track.informationUpdateCount]
-        for id in [track.artistID, track.remixerID, track.originalArtistID, track.composerID].compactMap({ $0 }) {
-            strings += artists.filter { $0.id == id }.map(\.name)
-        }
-        if let album = track.albumID { strings += albums.filter { $0.id == album }.map(\.name) }
+        var strings: [String] = []
         for (id, table) in [(track.genreID, model.genres + extra.genres), (track.keyID, model.keys + extra.keys),
                             (track.labelID, model.labels + extra.labels)] {
             if let id { strings += table.filter { $0.id == id }.map(\.name) }
@@ -328,24 +332,25 @@ extension UsbEditPlanner {
             planned.trackBlocks.append(UsbBlock(code: "localTrackMissing", scope: .track(id),
                                                 message: String(ui: "스냅샷에서 이 곡을 찾지 못했습니다. 새 스냅샷을 뜬 뒤 다시 내보내세요")))
         }
-        // 이미 USB에 있는 곡은 다시 넣지 않는다(같은 음원·분석 파일을 두 곡이 가리키게 된다)
+        // 파일 이름 정제·번호 꼬리도 같은 짝으로 본다(동기화마다 곡이 중복해 늘지 않게)
+        let pairs = try localPairs(for: wanted, database: database)
         candidates.removeAll { candidate in
-            let onUsb = working.tracks.contains {
-                $0.masterContentId == UsbLibraryBuilder.sqliteInteger(candidate.masterSongID)
-                    && $0.masterDbId == UsbLibraryBuilder.sqliteInteger(candidate.masterDBID)
-                    && UsbLayout.nfc($0.fileName) == UsbLayout.nfc(candidate.fileNameL)
+            if pairs.ambiguous.contains(candidate.localContentID) {
+                planned.trackBlocks.append(Self.syncPairingBlock(candidate.localContentID, ambiguous: true))
+                return true
             }
+            let onUsb = !(pairs.matches[candidate.localContentID] ?? []).isEmpty
             if onUsb {
                 planned.trackBlocks.append(UsbBlock(code: "alreadyOnUsb", scope: .track(candidate.localContentID),
                                                     message: String(ui: "이미 USB에 있는 곡입니다. 곡 정보를 바꾸려면 갱신을 쓰세요")))
             }
             return onUsb
         }
-        let existing = try existingState(adding: candidates.count)
+        let existing = try existingState()
         let rootURL = root.url
         let sources = Dictionary(candidates.map { ($0.localContentID, $0.sourcePath ?? "") }) { first, _ in first }
         var request = UsbExportRequest(
-            candidates: candidates, playlists: [], existing: existing, formats: writable, naming: IdentifierAnalysisNaming(),
+            candidates: candidates, playlists: [], existing: existing, formats: writable, naming: RekordboxAnalysisNaming(),
             snapshotTakenAt: snapshot, clusterSize: clusterSize,
             sameContent: { id, relative in UsbExportCandidates.sameContent(sourcePath: sources[id] ?? "", usbFile: rootURL.appending(path: relative)) })
         var base = working
@@ -353,6 +358,8 @@ extension UsbEditPlanner {
         var rowBlocks: [UsbBlock] = []
         let local = UsbLocalSource(database: database)
         var plan = UsbExportPlanner.plan(request)
+        // 분석 폴더 이름은 곡 경로로 정해진다. 계획이 고른 폴더의 USB 자리를 읽은 뒤 다시 계획한다(경로·ID는 그대로, 파일 번호만 바뀔 수 있다)
+        if try loadAnalysisSlots(plan.tracks.map(\.analysisFolder), into: &request) { plan = UsbExportPlanner.plan(request) }
         var model = try UsbLibraryBuilder.add(plan: plan, into: base, local: local, share: share, highWater: ids.highWater)
         while true {
             // 새 곡만 본다(있던 곡은 왕복 검사를 지났다). 막힌 곡은 빼고 다시 계획해 번호가 빈틈없게 한다
@@ -370,6 +377,8 @@ extension UsbEditPlanner {
         planned.trackBlocks += plan.blocked.filter { $0.scope != .volume } + rowBlocks
         if let block = plan.blocked.first(where: { $0.scope == .volume }) { throw UsbEditBlocked(block: block) }
         guard !plan.tracks.isEmpty else {
+            // 동기화는 넣지 못한 곡만 알리고 나머지를 쓴다(뒤의 목록 동기화가 그 곡을 빼고 맞춘다)
+            if skipsUnaddableTracks, !planned.trackBlocks.isEmpty, planned.trackBlocks.allSatisfy(\.isSkippableInSync) { return }
             throw UsbEditBlocked(block: planned.trackBlocks.first
                 ?? UsbBlock(code: "noTracks", scope: .volume, message: String(ui: "더할 곡이 없습니다. 막힌 곡의 이유를 확인한 뒤 다시 시도하세요")))
         }
@@ -397,14 +406,16 @@ extension UsbEditPlanner {
             upsert.entries = change(playlist.id, formats: formats, before: entries, after: entries + added)
         }
         planned.op = .upsert(upsert)
+        planned.addedLocalTracks = Dictionary(uniqueKeysWithValues: plan.tracks.map { ($0.localContentID, $0.contentID) })
+        planned.audioSizeFromDatabase = UsbExportAssembly.audioSizeFromDatabase(plan)
         planned.rules = plan.requiredRules.union(staged.rules).union([.editAddTracks])
         planned.warnings += plan.warnings + staged.warnings
         record(plan, candidates: candidates)
     }
 
     /// 곡 더하기가 볼 USB 상태. 처음에는 USB를 훑어 만들고, 그 뒤로는 이번 묶음에서 더한 곡을 반영한다.
-    /// 분석 파일 자리는 새 곡이 받을 번호 범위의 폴더만 본다(모든 분석 파일을 열지 않게)
-    mutating func existingState(adding count: Int) throws -> UsbExistingState {
+    /// 분석 파일 자리는 여기서 읽지 않는다(곡 경로로 폴더가 정해진 뒤 `loadAnalysisSlots`가 그 폴더만 본다)
+    mutating func existingState() throws -> UsbExistingState {
         if existing == nil {
             let contents = try UsbExportAssembly.existingContents(root: root)
             existing = UsbExistingState(hasLibrary: true, usedCollisionKeys: contents?.usedCollisionKeys ?? [:],
@@ -413,14 +424,23 @@ extension UsbEditPlanner {
         var state = existing!
         state.ids = ids
         state.artworkLayout = try artworkLayout()
-        let naming = IdentifierAnalysisNaming()
-        let next = (ids.highWater[.content] ?? 0) + 1
-        for contentID in next..<(next + max(count, 0)) {
-            guard let folder = naming.folder(contentsPath: "", contentID: contentID), state.analysisSlots[folder] == nil else { continue }
-            state.analysisSlots[folder] = try analysisSlots(folder)
-        }
         existing = state
         return state
+    }
+
+    /// 아직 읽지 않은 분석 폴더의 자리를 USB에서 읽어 계획 요청과 다음 편집이 볼 상태에 넣는다(모든 분석 파일을 열지 않게 그 폴더만).
+    /// 이미 파일이 있는 폴더가 하나라도 있었으면 true(다시 계획해야 한다)
+    mutating func loadAnalysisSlots(_ folders: [String], into request: inout UsbExportRequest) throws -> Bool {
+        guard var state = request.existing else { return false }
+        var found = false
+        for folder in Set(folders) where state.analysisSlots[folder] == nil {
+            let slots = try analysisSlots(folder)
+            state.analysisSlots[folder] = slots
+            existing?.analysisSlots[folder] = slots
+            found = found || !slots.isEmpty
+        }
+        request.existing = state
+        return found
     }
 
     /// 분석 폴더 하나의 (번호, PPTH): USB에 있는 `.DAT`와 DB가 그 폴더를 가리키는 곡

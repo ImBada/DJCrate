@@ -144,13 +144,13 @@ struct UsbExportAssemblyTests {
 
     @Test("requiredRules = 계획 규칙 ∪ 분석 파일 규칙 ∪ pdb 작성기 규칙 ∪ 설정 파일")
     func requiredRulesUnion() throws {
-        // ① 경로가 순수 ASCII 127자면 pdbLongAscii, 126자면 없다
+        // ① 경로가 순수 ASCII 127자여도 pdbLongAscii는 없다: 트랙 행 문자열의 긴 ASCII는 rekordbox 7.2.x 경계 실험(2026-10-08)으로 확인한 모양
         let long = try UsbExportFixture()
         try long.addTrack(id: "101", artist: ("1", Self.ascii(40, "b")), album: ("30", Self.ascii(40, "c")), fileName: Self.ascii(31, "d") + ".mp3")
         let longStaged = try Self.stage(long, ids: ["101"])
         defer { try? FileManager.default.removeItem(at: longStaged.staging) }
         #expect(longStaged.build.plan.tracks[0].contentsPath.count == 127)
-        #expect(longStaged.changes.requiredRules.contains(.pdbLongAscii))
+        #expect(!longStaged.changes.requiredRules.contains(.pdbLongAscii))
 
         let short = try UsbExportFixture()
         try short.addTrack(id: "101", artist: ("1", Self.ascii(40, "b")), album: ("30", Self.ascii(40, "c")), fileName: Self.ascii(30, "d") + ".mp3")
@@ -180,13 +180,10 @@ struct UsbExportAssemblyTests {
         let playlistStaged = try Self.stage(playlist, ids: [], playlists: ["900"])
         defer { try? FileManager.default.removeItem(at: playlistStaged.staging) }
         #expect(playlistStaged.changes.requiredRules.contains(.pdbLongAscii))
-        // ⑤ ①·③은 계획 규칙이라 OneLibrary만이어도 남는다
+        // ⑤ ③은 계획 규칙이라 OneLibrary만이어도 남는다
         let playlistOneLibrary = try Self.stage(playlist, ids: [], playlists: ["900"], formats: [.oneLibrary])
         defer { try? FileManager.default.removeItem(at: playlistOneLibrary.staging) }
         #expect(playlistOneLibrary.changes.requiredRules.contains(.pdbLongAscii))
-        let longOneLibrary = try Self.stage(long, ids: ["101"], formats: [.oneLibrary])
-        defer { try? FileManager.default.removeItem(at: longOneLibrary.staging) }
-        #expect(longOneLibrary.changes.requiredRules.contains(.pdbLongAscii))
 
         // ④ 분석 파일(큐 모양) 규칙과 설정 파일
         let cue = try UsbExportFixture()
@@ -214,10 +211,12 @@ struct UsbExportAssemblyTests {
         #expect(!longStaged.changes.requiredRules.contains(.settingFiles))
     }
 
-    @Test("실물 관문: 긴 ASCII 경로가 든 묶음은 동의 전에만 막히고, 긴 ASCII는 CDJ 확인 항목으로만 알린다")
+    @Test("실물 관문: 긴 ASCII 장르 이름이 든 묶음은 동의 전에만 막히고, 긴 ASCII는 CDJ 확인 항목으로만 알린다")
     func physicalGateSeesLongAscii() throws {
         let fixture = try UsbExportFixture()
-        try fixture.addTrack(id: "101", artist: ("1", Self.ascii(40, "b")), album: ("30", Self.ascii(40, "c")), fileName: Self.ascii(31, "d") + ".mp3")
+        let track = try fixture.addTrack(id: "101", artist: ("1", "합성"))
+        try fixture.local.addGenre(id: "40", name: Self.ascii(127, "g"))
+        try fixture.local.setContent(track: track, ["GenreID": .text("40")])
         let staged = try Self.stage(fixture, ids: ["101"])
         defer { try? FileManager.default.removeItem(at: staged.staging) }
         let volume = FakeUsbVolume.physicalFAT32()
@@ -344,19 +343,29 @@ struct UsbExportAssemblyTests {
         #expect(oneLibrary.plan.tracks.count == 3)
     }
 
-    @Test("아티스트 이름이 가까운 모양에 안 들어가면 그 이름을 쓰는 곡을 막는다(pdbFarOffsetRows)")
+    @Test("긴 아티스트 이름은 먼 모양으로 쓰고, 빈 쪽에도 안 들어가는 이름만 그 이름을 쓰는 곡을 막는다")
     func longArtistNameBlocked() throws {
         let fixture = try UsbExportFixture()
-        try fixture.addTrack(id: "101", artist: ("1", Self.ascii(250, "z")))
-        try fixture.addTrack(id: "102", artist: ("2", "짧은 이름"))
+        try fixture.addTrack(id: "101", artist: ("1", Self.ascii(4_100, "z")))
+        try fixture.addTrack(id: "102", artist: ("2", Self.ascii(250, "y")))
+        try fixture.addTrack(id: "103", artist: ("3", "짧은 이름"))
         let db = try fixture.open()
         defer { db.close() }
-        let build = try fixture.build(db, try fixture.request(db, ids: ["101", "102"]))
+        let build = try fixture.build(db, try fixture.request(db, ids: ["101", "102", "103"]))
         let block = try #require(build.blocks.first { $0.code == "nameTooLongForDeviceLibrary" })
-        #expect(block.scope == .track("101"))
-        #expect(block.rule == .pdbFarOffsetRows)
-        #expect(build.plan.tracks.map(\.localContentID) == ["102"])
-        #expect(build.model.library.artists.map(\.name) == ["짧은 이름"])
+        #expect(block.scope == .track("101") && block.rule == nil)
+        #expect(build.plan.tracks.map(\.localContentID) == ["102", "103"])
+        // rekordbox 7.2.x 경계 실험(2026-10-08): 'A' × 250은 먼 모양 아티스트 행이다
+        let staging = Self.stagingFolder()
+        defer { try? FileManager.default.removeItem(at: staging) }
+        let (changes, _) = try UsbExportAssembly.assemble(model: build.model, plan: build.plan, localDatabase: db, share: fixture.share,
+                                                     staging: staging, formats: UsbFormat.defaultSet, session: UsbLayout.newSessionID())
+        #expect(!changes.requiredRules.contains(.pdbFarOffsetRows) && !changes.requiredRules.contains(.pdbLongAscii))
+        let export = try Data(contentsOf: staging.appending(path: UsbLayout.exportPdb))
+        let ext = try Data(contentsOf: staging.appending(path: UsbLayout.exportExtPdb))
+        let (library, report) = try PdbReader.read(export: export, exportExt: ext)
+        #expect(report.farShapeRows == ["artists": 1] && report.issues.isEmpty)
+        #expect(Set(library.artists.map(\.name)) == [Self.ascii(250, "y"), "짧은 이름"])
     }
 
     @Test("My Tag 이름이 길면 볼륨 막힘(곡을 빼서 풀 수 없음)이고 작성기를 부르지 않는다")

@@ -99,7 +99,9 @@ enum UsbEditModel {
         }
         switch edit {
         case let .create(playlist):
-            guard !model.playlists.contains(where: { $0.id == playlist.id }) else { throw UsbEditConflict(description: "playlist \(playlist.id) exists") }
+            guard !model.playlists.contains(where: { $0.id == playlist.id || $0.formatIDs.values.contains(playlist.id) }) else {
+                throw UsbEditConflict(description: "playlist \(playlist.id) exists")
+            }
             try requireParent(playlist.parentID)
             model.playlists.append(playlist)
         case let .rename(id, name):
@@ -120,6 +122,14 @@ enum UsbEditModel {
         }
     }
 
+    /// 같은 번호의 목록 이름이 철자(유니코드 스칼라)만 달라졌는지. 모델 비교(Swift 문자열 ==)는 NFC·NFD를 같다고 본다(#233)
+    static func playlistNamesRespelled(_ before: UsbLibrary, _ after: UsbLibrary) -> Bool {
+        let names = Dictionary(before.playlists.map { ($0.id, $0.name) }) { first, _ in first }
+        return after.playlists.contains { playlist in
+            names[playlist.id].map { !UsbNameSpelling.sameScalars($0, playlist.name) } ?? false
+        }
+    }
+
     static func apply(_ change: UsbEntriesChange, to model: inout UsbLibrary) throws {
         guard let at = model.playlists.firstIndex(where: { $0.id == change.playlistID }) else {
             throw UsbEditConflict(description: "playlist \(change.playlistID) missing")
@@ -127,8 +137,11 @@ enum UsbEditModel {
         for (format, before) in change.before where (model.playlists[at].entries[format] ?? []) != before {
             throw UsbEditConflict(description: "playlist \(change.playlistID) entries changed")
         }
-        let tracks = Set(model.tracks.map(\.id))
         for (format, after) in change.after {
+            guard model.playlists[at].presentIn.contains(format) else {
+                throw UsbEditConflict(description: "playlist \(change.playlistID) format \(format.rawValue) missing")
+            }
+            let tracks = Set(model.tracks.filter { $0.presentIn.contains(format) }.map(\.id))
             if let missing = after.first(where: { !tracks.contains($0) }) {
                 throw UsbEditConflict(description: "playlist \(change.playlistID) entry \(missing) missing")
             }

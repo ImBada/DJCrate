@@ -17,6 +17,13 @@ public struct UsbLibraryFixture: Sendable {
         public var deviceLibraryName: String?
         /// 순서 번호(nil이면 목록 배열 자리)
         public var sortOrder: Int?
+        /// Device Library 쪽 번호(nil이면 `id`. rekordbox는 두 형식 번호를 따로 매긴다, #233)
+        public var deviceLibraryID: Int?
+        /// 부모 번호(OneLibrary 쪽, 0 = 맨 위)
+        public var parentID = 0
+        /// Device Library 쪽 부모 번호(nil이면 `parentID`)
+        public var deviceLibraryParentID: Int?
+        public var isFolder = false
 
         public init(id: Int, name: String, entries: [Int]) {
             self.init(id: id, name: name, oneLibraryEntries: entries, deviceLibraryEntries: entries)
@@ -146,7 +153,8 @@ public struct UsbLibraryFixture: Sendable {
             }
         }
         for (index, playlist) in playlists.enumerated() where playlist.formats.contains(.oneLibrary) {
-            try fixture.add(playlist: playlist.id, name: playlist.name, sequenceNo: playlist.sortOrder ?? index, entries: playlist.oneLibraryEntries)
+            try fixture.add(playlist: playlist.id, name: playlist.name, parentID: playlist.parentID, attribute: playlist.isFolder ? 1 : 0,
+                            sequenceNo: playlist.sortOrder ?? index, entries: playlist.isFolder ? [] : playlist.oneLibraryEntries)
         }
         for tag in myTags {
             try fixture.add(myTag: tag.id, name: tag.name, parentID: tag.parentID, sequenceNo: tag.sequenceNo, isCategory: tag.isCategory)
@@ -184,10 +192,12 @@ public struct UsbLibraryFixture: Sendable {
             }
         }
         for (index, playlist) in playlists.enumerated() where playlist.formats.contains(.deviceLibrary) {
-            export.add(.playlistTree, PdbBuilder.playlistTreeRow(id: playlist.id, name: playlist.deviceLibraryName ?? playlist.name,
-                                                                 sortOrder: playlist.sortOrder ?? index))
-            for (position, track) in playlist.deviceLibraryEntries.enumerated() {
-                export.add(.playlistEntries, PdbBuilder.playlistEntryRow(index: position + 1, trackID: track, playlistID: playlist.id))
+            let id = playlist.deviceLibraryID ?? playlist.id
+            export.add(.playlistTree, PdbBuilder.playlistTreeRow(id: id, name: playlist.deviceLibraryName ?? playlist.name,
+                                                                 parentID: playlist.deviceLibraryParentID ?? playlist.parentID,
+                                                                 sortOrder: playlist.sortOrder ?? index, isFolder: playlist.isFolder))
+            for (position, track) in (playlist.isFolder ? [] : playlist.deviceLibraryEntries).enumerated() {
+                export.add(.playlistEntries, PdbBuilder.playlistEntryRow(index: position + 1, trackID: track, playlistID: id))
             }
         }
         for _ in 0..<pdbUnknownRows { export.add(PdbTableType.unknown9.rawValue, PdbBuilder.opaqueRow()) }

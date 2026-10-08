@@ -36,6 +36,59 @@ extension UsbEditEngineTests {
         #expect(after.playlists.allSatisfy { $0.presentIn == UsbFormat.defaultSet })
     }
 
+    @Test("#233: 형식마다 번호가 다른 짝 목록을 고치면 두 형식을 각자 번호로 고치고, 같은 번호의 다른 목록은 그대로 둔다")
+    func pairedPlaylistWithDifferentIDsEdited() throws {
+        // OneLibrary 10 = Device Library 20(같은 목록), Device Library 10 = Device Library에만 있는 다른 목록
+        let env = try Self.rekordboxStyle {
+            var paired = UsbLibraryFixture.Playlist(id: 10, name: "합성 목록", entries: [1, 2])
+            paired.deviceLibraryID = 20
+            var deviceOnly = UsbLibraryFixture.Playlist(id: 10, name: "합성 장치 목록", entries: [3])
+            deviceOnly.formats = [.deviceLibrary]
+            $0.playlists = [paired, deviceOnly]
+        }
+        let before = try env.source()
+        #expect(before.blocks.isEmpty)
+        #expect(before.current.playlists.map(\.id) == [-10, 10])
+        #expect(before.current.playlists.first { $0.id == 10 }?.formatIDs == [.deviceLibrary: 20])
+        let olBefore = try #require(try env.read(.oneLibrary)), dlBefore = try #require(try env.read(.deviceLibrary))
+
+        let (result, report) = try env.edit([
+            .playlist(edit: .rename(playlist: .id("10"), name: "합성 새 이름")),
+            .playlist(edit: .addTracks(playlist: .id("10"), contentIDs: ["3"])),
+            .playlist(edit: .create(key: "n", name: "합성 새 목록", isFolder: false, parent: .root)),
+        ], withLocal: false)
+        #expect(result.outcomes.allSatisfy { $0.outcome == .written })
+        #expect(report.outcome == .written)
+        // 새 목록 번호는 두 형식 어느 번호와도 겹치지 않고 두 형식에 같은 번호다
+        #expect(result.createdPlaylistIDs == ["n": 21])
+
+        let ol = try #require(try env.read(.oneLibrary)), dl = try #require(try env.read(.deviceLibrary))
+        #expect(ol.playlists.map(\.id) == [10, 21] && dl.playlists.map(\.id) == [10, 20, 21])
+        let olList = try #require(ol.playlists.first { $0.id == 10 }), dlList = try #require(dl.playlists.first { $0.id == 20 })
+        #expect(olList.name == "합성 새 이름" && dlList.name == "합성 새 이름")
+        #expect(olList.entries[.oneLibrary] == [1, 2, 3] && dlList.entries[.deviceLibrary] == [1, 2, 3])
+        // 같은 번호(10)의 Device Library 목록은 이름·항목·순서가 그대로다
+        #expect(dl.playlists.first { $0.id == 10 } == dlBefore.playlists.first { $0.id == 10 })
+        #expect(olBefore.playlists.count == 1)
+
+        let after = try env.source()
+        #expect(after.blocks.isEmpty)
+        #expect(after.current.playlists.map(\.id) == [-10, 10, 21])
+        #expect(after.mismatches.filter { if case .playlistOnlyIn = $0 { false } else { true } }
+            .allSatisfy { if case .playlistConflict = $0 { false } else if case .playlistEntriesDiffer = $0 { false } else { true } })
+
+        // Device Library에만 있는 목록(대표 번호 −10)을 고치면 그 형식의 10번만 바뀐다
+        let (deviceEdit, _) = try env.edit([.playlist(edit: .rename(playlist: .id("-10"), name: "합성 장치 새 이름")),
+                                            .playlist(edit: .removeTracks(playlist: .id("-10"), entries: [PlaylistEntry(trackNo: 1, contentID: "3")]))],
+                                           withLocal: false)
+        #expect(deviceEdit.outcomes.allSatisfy { $0.outcome == .written })
+        let dlAfter = try #require(try env.read(.deviceLibrary)), olAfter = try #require(try env.read(.oneLibrary))
+        let renamedDevice = try #require(dlAfter.playlists.first { $0.id == 10 })
+        #expect(renamedDevice.name == "합성 장치 새 이름" && renamedDevice.entries[.deviceLibrary] == [])
+        #expect(dlAfter.playlists.first { $0.id == 20 } == dl.playlists.first { $0.id == 20 })
+        #expect(olAfter.playlists == ol.playlists)
+    }
+
     @Test("항목을 고친 목록은 OneLibrary 항목 번호를 1..N으로 다시 매긴다")
     func entriesRenumbered1toN() throws {
         let env = try Self.exported()
@@ -172,5 +225,66 @@ extension UsbEditEngineTests {
         #expect(Self.isBlocked(result.outcome(6), "duplicateKey"))
         // 이름이 같으면 바꿀 것이 없다
         #expect(result.outcome(7) == .unchanged)
+    }
+
+    // MARK: - #233 NFC 철자
+
+    static func nfd(_ text: String) -> String { text.decomposedStringWithCanonicalMapping }
+
+    static func scalars(_ text: String?) -> [UInt32] { (text ?? "").unicodeScalars.map(\.value) }
+
+    @Test("#233: Device Library에 NFD 목록 이름이 있는 USB는 다음 쓰기에서 Device Library를 NFC로 다시 만든다")
+    func nfdDeviceLibraryNameRewrittenAsNFC() throws {
+        let name = "합성 한글 목록"
+        let env = try Self.rekordboxStyle {
+            var only = UsbLibraryFixture.Playlist(id: 11, name: "합성 한 형식 목록", entries: [3])
+            only.formats = [.oneLibrary]
+            $0.playlists = [UsbLibraryFixture.Playlist(id: 10, name: Self.nfd(name), entries: [1, 2]), only]
+        }
+        let before = try env.source()
+        #expect(before.blocks.isEmpty && before.formatsBlocked.isEmpty)
+        #expect(before.deviceLibraryNeedsNFC)
+        // OneLibrary에만 있는 목록 편집: Device Library 모델은 그대로지만 NFD 이름 때문에 다시 만든다
+        let (result, report) = try env.edit([.playlist(edit: .rename(playlist: .id("11"), name: "합성 바뀐 이름"))], withLocal: false)
+        #expect(report.outcome == .written)
+        #expect(result.formatsWritten == UsbFormat.defaultSet)
+        #expect(result.changes?.requiredRules.contains(.pdbStringNFC) == true)
+        let shown = UsbProvisionalRule.deviceCheckRules(result.changes?.requiredRules ?? [])
+        #expect(shown.contains(.pdbStringNFC))
+        let device = try #require(try env.read(.deviceLibrary)?.playlists.first { $0.id == 10 })
+        #expect(Self.scalars(device.name) == Self.scalars(name.precomposedStringWithCanonicalMapping))
+        // OneLibrary는 받은 철자 그대로 둔다
+        let one = try #require(try env.read(.oneLibrary)?.playlists.first { $0.id == 10 })
+        #expect(Self.scalars(one.name) == Self.scalars(Self.nfd(name)))
+        // 고친 뒤에는 다시 만들 까닭이 없다: 다음 OneLibrary만 바꾸는 편집은 Device Library를 쓰지 않는다
+        let after = try env.source()
+        #expect(!after.deviceLibraryNeedsNFC && after.formatsBlocked.isEmpty)
+        let (next, nextReport) = try env.edit([.playlist(edit: .rename(playlist: .id("11"), name: "합성 또 바뀐 이름"))], withLocal: false)
+        #expect(nextReport.outcome == .written)
+        #expect(next.formatsWritten == [.oneLibrary])
+        #expect(next.changes?.requiredRules.contains(.pdbStringNFC) == false)
+    }
+
+    @Test("#233: 철자만 다른 이름으로 바꾸기는 OneLibrary에 쓰고, Device Library에만 있는 목록은 바꿀 것이 없다")
+    func spellingOnlyRename() throws {
+        let name = "합성 한글 목록"
+        let env = try Self.rekordboxStyle {
+            var device = UsbLibraryFixture.Playlist(id: 12, name: Self.nfd("합성 장치 목록"), entries: [3])
+            device.formats = [.deviceLibrary]
+            $0.playlists = [UsbLibraryFixture.Playlist(id: 10, name: Self.nfd(name), entries: [1, 2]), device]
+        }
+        let nfc = name.precomposedStringWithCanonicalMapping
+        let (result, report) = try env.edit([
+            .playlist(edit: .rename(playlist: .id("10"), name: nfc)),
+            .playlist(edit: .rename(playlist: .id("12"), name: "합성 장치 목록".precomposedStringWithCanonicalMapping)),
+        ], withLocal: false)
+        #expect(report.outcome == .written)
+        #expect(result.outcome(1) == .written)
+        #expect(result.outcome(2) == .unchanged)
+        let one = try #require(try env.read(.oneLibrary)?.playlists.first { $0.id == 10 })
+        #expect(Self.scalars(one.name) == Self.scalars(nfc))
+        let device = try #require(try env.read(.deviceLibrary))
+        #expect(device.playlists.allSatisfy { Self.scalars($0.name) == Self.scalars($0.name.precomposedStringWithCanonicalMapping) })
+        #expect(!(try env.source()).deviceLibraryNeedsNFC)
     }
 }

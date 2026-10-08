@@ -31,14 +31,17 @@ public struct UsbExportAssembled: Sendable {
     public var pdbWritten: UsbLibrary?
     /// 확인 안 된 규칙별 곡 수(계획 규칙 + pdb 트랙 문자열 규칙, 같은 곡은 한 번)
     public var ruleCounts: [UsbProvisionalRule: Int]
+    /// 파일 크기 칸이 음원 파일과 다르게 쓰이는 곡(USB content id, `audioChangedSinceAnalysis`). 불변식 검증이 크기 비교를 뺀다
+    public var audioSizeFromDatabase: Set<Int>
 
     public init(changes: UsbChangeSet, warnings: [UsbBlock], library: UsbLibrary, pdbWritten: UsbLibrary?,
-                ruleCounts: [UsbProvisionalRule: Int]) {
+                ruleCounts: [UsbProvisionalRule: Int], audioSizeFromDatabase: Set<Int> = []) {
         self.changes = changes
         self.warnings = warnings
         self.library = library
         self.pdbWritten = pdbWritten
         self.ruleCounts = ruleCounts
+        self.audioSizeFromDatabase = audioSizeFromDatabase
     }
 }
 
@@ -73,7 +76,7 @@ public enum UsbExportAssembly {
     /// - 트랙 행이 빈 쪽에도 안 들어가면 그 곡
     /// - 파일 확장자가 file_type과 다르면 그 곡
     /// - ISRC가 ASCII가 아니거나 칸 크기를 넘는 값(디스크 번호·연도 등)이 있으면 그 곡
-    /// - 아티스트·앨범 행이 가까운 모양(할당 255바이트)에 안 들어가면 그 이름을 쓰는 곡(`pdbFarOffsetRows`)
+    /// - 아티스트·앨범 행이 빈 쪽에도 안 들어가면 그 이름을 쓰는 곡(긴 이름은 먼 모양으로 쓴다)
     /// - My Tag 행이 안 들어가면 볼륨(My Tag 정의는 곡과 무관하게 모두 들어간다)
     public static func rowSizeBlocks(model: UsbExportModel, plan: UsbExportPlan, formats: Set<UsbFormat>) -> [UsbBlock] {
         guard formats.contains(.deviceLibrary) else { return [] }
@@ -86,8 +89,8 @@ public enum UsbExportAssembly {
             guard blocked.insert(track.id).inserted else { return }
             blocks.append(UsbBlock(code: code, scope: .track(localIDs[track.id] ?? "usb:\(track.id)"), message: message, rule: rule))
         }
-        let longArtists = Set(library.artists.filter { PdbRowSize.artist(name: $0.name) > PdbRowSize.nearShapeLimit }.map(\.id))
-        let longAlbums = Set(library.albums.filter { PdbRowSize.album(name: $0.name) > PdbRowSize.nearShapeLimit }.map(\.id))
+        let longArtists = Set(library.artists.filter { !PdbRowSize.fitsEmptyPage(rowSize: PdbRowSize.artist(name: $0.name)) }.map(\.id))
+        let longAlbums = Set(library.albums.filter { !PdbRowSize.fitsEmptyPage(rowSize: PdbRowSize.album(name: $0.name)) }.map(\.id))
         let albumArtists = Dictionary(library.albums.map { ($0.id, $0.artistID) }) { first, _ in first }
         for track in library.tracks {
             if !PdbRowSize.fitsEmptyPage(rowSize: PdbRowSize.track(track, library: library)) {
@@ -107,8 +110,7 @@ public enum UsbExportAssembly {
                 .compactMap { $0 }
             if artists.contains(where: longArtists.contains) || track.albumID.map(longAlbums.contains) == true {
                 block(track, "nameTooLongForDeviceLibrary",
-                      String(ui: "아티스트·앨범 이름이 너무 길어 아직 내보낼 수 없습니다. rekordbox에서 이름을 줄인 뒤 다시 시도하세요"),
-                      rule: .pdbFarOffsetRows)
+                      String(ui: "아티스트·앨범 이름이 너무 길어 아직 내보낼 수 없습니다. rekordbox에서 이름을 줄인 뒤 다시 시도하세요"))
             }
         }
         if library.myTags.contains(where: { PdbRowSize.tag(name: $0.name) > PdbRowSize.nearShapeLimit }) {
@@ -151,7 +153,11 @@ public enum UsbExportAssembly {
     /// - progress: (끝낸 곡, 곡 수). isCancelled가 참이면 `UsbError.cancelled`
     public static func assembled(model: UsbExportModel, plan: UsbExportPlan, localDatabase: CipherDatabase, share: URL, staging: URL,
                                  formats: Set<UsbFormat>, session: String, settingsFolder: URL? = nil,
+                                 syncSelection: UsbSyncSelectionDraft? = nil,
                                  progress: (Int, Int) -> Void = { _, _ in }, isCancelled: () -> Bool = { false }) throws -> UsbExportAssembled {
+        if let syncSelection, let block = UsbSyncSelectionStage.gateBlock(baseFiles: syncSelection.baseFiles, formats: formats) {
+            throw UsbError.writeRefused([block])
+        }
         guard !formats.isEmpty, !model.library.tracks.isEmpty else {
             throw UsbError.writeRefused([UsbBlock(code: "noTracks", scope: .volume,
                                                   message: String(ui: "내보낼 곡이 없습니다. 막힌 곡의 이유를 확인한 뒤 다시 시도하세요"))])
@@ -206,12 +212,24 @@ public enum UsbExportAssembly {
         }
         let highWater = ["content": plan.tracks.map(\.contentID).max() ?? 0, "image": plan.tracks.compactMap(\.imageID).max() ?? 0,
                          "playlist": plan.playlists.map(\.playlistID).max() ?? 0].filter { $0.value > 0 }
+        var syncVerification: UsbSyncSelectionVerification?
+        if let syncSelection {
+            guard let contract = UsbSyncXMLWriteContract.production,
+                  try UsbLocalSource(database: localDatabase).localDBID() == syncSelection.localDBID,
+                  syncSelection.baseFiles.isEmpty, plan.blocked.allSatisfy(\.isSkippableInSync) else {
+                throw UsbError.writeRefused([UsbSyncSelectionStage.incompleteBlock])
+            }
+            let ids = Dictionary(plan.playlists.map { ($0.localID, $0.playlistID) }, uniquingKeysWith: { first, _ in first })
+            syncVerification = try UsbSyncSelectionStage.stage(syncSelection, formats: formats, model: model.library, createdIDs: [:],
+                                                              allocatedIDs: ids, root: nil, fileSystem: PosixUsbFileSystem(),
+                                                              into: &context, contract: contract)
+        }
         let changes = UsbChangeSet(session: session, label: "export", purpose: .export, formats: formats, requiredRules: requiredRules,
                                    databases: context.databases, copies: context.copies, writes: context.writes, removals: [], base: nil,
                                    target: UsbTargetFingerprint(mustExist: context.target, mustNotExist: []),
-                                   stagingDirectory: staging.path, idHighWater: highWater)
+                                   stagingDirectory: staging.path, idHighWater: highWater, syncSelection: syncVerification)
         return UsbExportAssembled(changes: changes, warnings: unique(warnings), library: model.library, pdbWritten: pdbWritten,
-                                  ruleCounts: ruleCounts)
+                                  ruleCounts: ruleCounts, audioSizeFromDatabase: audioSizeFromDatabase(plan))
     }
 
     /// 곡마다 음원 복사 목록·아트워크·분석 파일을 준비 폴더에 만든다(내보내기·USB에 곡 더하기가 같이 쓴다).
@@ -230,7 +248,9 @@ public enum UsbExportAssembly {
             for file in files[trackPlan.contentID] ?? [] {
                 switch file.kind {
                 case let .audio(source):
-                    let copy = UsbFileCopy(source: source, destination: UsbLayout.nfc(file.destination), size: track.fileSize, sourceSHA1: nil,
+                    // 복사 크기는 계획 때 본 실제 파일 크기다. DB 칸(`fileSize`)은 로컬 FileSize라 분석 뒤 바뀐 곡은 다르다(rekordbox와 같게)
+                    let copy = UsbFileCopy(source: source, destination: UsbLayout.nfc(file.destination), size: trackPlan.audioSize ?? track.fileSize,
+                                           sourceSHA1: nil,
                                            modificationDate: try modificationDate(source, "audio", content: id), disposition: .create)
                     context.copies.append(copy)
                     context.target[copy.destination] = UsbTreeStamp(size: copy.size, sha256: nil)
@@ -262,8 +282,14 @@ public enum UsbExportAssembly {
         var result: [any UsbWriteVerifier] = [UsbFingerprintVerifier()]
         if assembled.changes.formats.contains(.oneLibrary) { result.append(OneLibraryVerifier(expected: assembled.library)) }
         if let written = assembled.pdbWritten { result.append(PdbVerifier(expected: written)) }
-        result.append(UsbInvariantVerifier(preexistingAppleDoubles: preexistingAppleDoubles))
+        result.append(UsbInvariantVerifier(preexistingAppleDoubles: preexistingAppleDoubles,
+                                           audioSizeFromDatabase: assembled.audioSizeFromDatabase))
         return result
+    }
+
+    /// 두 DB의 파일 크기 칸(로컬 FileSize)이 복사한 음원과 다른 곡(USB content id)
+    static func audioSizeFromDatabase(_ plan: UsbExportPlan) -> Set<Int> {
+        Set(plan.tracks.filter { $0.rules.contains(.audioChangedSinceAnalysis) }.map(\.contentID))
     }
 
     /// 분석 파일 바이트에서 PPTH 경로(쓰기 절차의 덮어쓰기·지우기 확인용). 읽지 못하면 nil

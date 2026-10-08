@@ -5,7 +5,7 @@ import Foundation
 /// USB에 쓰는 유일한 길. 형식(OneLibrary·pdb)을 모르는 채로 변경 묶음(`UsbChangeSet`)을 파일 단위로 쓴다.
 ///
 /// 단계(`UsbWriter+*`): A 막힘 확인(부작용 없음) → B 준비·저널 → C 맥에 백업 → D 파일(음원 → 분석 → 아트워크 → 그 밖)
-/// → E DB 교체(exportLibrary.db → export.pdb → exportExt.pdb, 커밋 지점) → F 지우기 → G 검증 → I 끝.
+/// → E DB 교체(exportLibrary.db → export.pdb → exportExt.pdb, 커밋 지점)·동기화 선택 확정 → F 지우기 → G 검증 → I 끝.
 /// D 이후 실패·취소·검증 실패는 H(백업으로 되돌리기). 저널은 맥에 두고 바꿀 때마다 내구 쓰기로 내린 뒤 다음 USB 연산을 한다.
 /// 파일은 늘 같은 폴더의 임시 이름(`UsbLayout.tempName`)에 쓰고 fsync한 뒤 rename한다. 단계마다 볼륨이 아직 붙어 있는지 보고,
 /// 사라졌으면 되돌리지 않고 멈춘다(분리된 마운트 지점 폴더에 쓰면 USB가 아니라 맥에 쓰게 된다) — 다음에 붙으면 회복이 이어 판정한다.

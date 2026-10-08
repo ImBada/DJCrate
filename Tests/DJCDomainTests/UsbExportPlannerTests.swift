@@ -9,13 +9,15 @@ struct UsbExportPlannerTests {
 
     func candidate(_ id: String, artist: String? = "Artist", album: String? = "Album", file: String? = nil, size: Int64 = 1_000,
                    artwork: Bool = true, fileType: Int = 1) -> UsbExportCandidate {
+        // 음원 경로의 끝 성분 = FileNameL(실제 라이브러리처럼). USB 파일 이름은 경로 끝 성분으로 짓는다.
         UsbExportCandidate(
             localContentID: id, masterSongID: id, masterDBID: "424242", artistName: artist, albumName: album,
-            fileNameL: file ?? "track \(id).mp3", sourcePath: "/music/\(id).mp3", isStreaming: false, fileType: fileType,
+            fileNameL: file ?? "track \(id).mp3", sourcePath: "/music/\(id)/" + (file ?? "track \(id).mp3"), isStreaming: false,
+            fileType: fileType,
             fileSize: size, actualFileSize: size, analysis: .complete, analysisModifiedAt: snapshot.addingTimeInterval(-3_600),
             artwork: artwork ? UsbArtworkSource(smallPath: "/share/\(id)_s.jpg", mediumPath: "/share/\(id)_m.jpg", smallBytes: 3_000,
                                                 mediumBytes: 20_000) : nil,
-            artworkPathSetButMissing: false, cues: [], metadata: UsbTrackMetadataFlags(), pdbStrings: ["Title \(id)"])
+            artworkPathSetButMissing: false, cues: [], metadata: UsbTrackMetadataFlags())
     }
 
     func request(_ candidates: [UsbExportCandidate], playlists: [UsbPlaylistInput] = [], existing: UsbExistingState? = nil,
@@ -96,11 +98,22 @@ struct UsbExportPlannerTests {
         #expect(codes(plan([candidate("1", fileType: 99)]), track: "1") == ["fileTypeUnknown"])
     }
 
-    @Test("분석 뒤 음원 크기가 바뀌었으면 audioSizeMismatch")
-    func blockAudioSizeMismatch() {
-        var track = candidate("1")
-        track.actualFileSize = 1_001
-        #expect(codes(plan([track]), track: "1") == ["audioSizeMismatch"])
+    @Test("분석 뒤 음원 크기가 바뀐 곡도 막지 않고 실제 크기로 계획하며 CDJ 확인 규칙을 싣는다(rekordbox 7.2.x 빈 USB 실험, 2026-10-08)")
+    func audioChangedSinceAnalysisPlanned() throws {
+        var changed = candidate("1")
+        changed.actualFileSize = 1_001
+        let result = plan([changed, candidate("2")])
+        #expect(result.blocked.isEmpty)
+        let track = try #require(result.tracks.first { $0.localContentID == "1" })
+        #expect(track.rules.contains(.audioChangedSinceAnalysis) && track.audioSize == 1_001)
+        let same = try #require(result.tracks.first { $0.localContentID == "2" })
+        #expect(!same.rules.contains(.audioChangedSinceAnalysis) && same.audioSize == 1_000)
+        #expect(result.requiredRules.contains(.audioChangedSinceAnalysis) && result.ruleCounts[.audioChangedSinceAnalysis] == 1)
+        #expect(UsbProvisionalRule.audioChangedSinceAnalysis.needsDeviceCheck)
+        // 파일이 없으면 여전히 막는다
+        var missing = changed
+        missing.actualFileSize = nil
+        #expect(codes(plan([missing]), track: "1") == ["audioMissing"])
     }
 
     @Test("스냅샷 뒤 분석이 바뀌었으면 analysisNewerThanSnapshot")
@@ -183,6 +196,17 @@ struct UsbExportPlannerTests {
         #expect(plan([candidate("1")], existing: existing).blocked.isEmpty)
     }
 
+    /// rekordbox 7.2.x 빈 USB 내보내기 골든(2026-10-08): `~`는 폴더·파일 이름에서 `_`, 파일 이름은 음원 경로의 끝 성분
+    @Test("골든: 경로 성분의 ~는 _로, 파일 이름은 음원 경로의 끝 성분으로")
+    func goldenTildeAndAudioFileName() {
+        var track = candidate("1", artist: "DJ ~One~", album: "Best ~Of~", file: "old.mp3")
+        track.sourcePath = "/music/1/01 Song ~Mix~.mp3"
+        let result = plan([track])
+        #expect(result.tracks.first?.contentsPath == "/Contents/DJ _One_/Best _Of_/01 Song _Mix_.mp3")
+        #expect(result.tracks.first?.fileName == "01 Song _Mix_.mp3")
+        #expect(result.tracks.first?.rules.contains(.forbiddenCharacters) == false)
+    }
+
     // MARK: - ID·아트워크
 
     @Test("content ID는 후보 순서")
@@ -193,6 +217,26 @@ struct UsbExportPlannerTests {
         #expect(result.tracks.map(\.analysisFolder) == ["P000/00000001", "P000/00000002", "P000/00000003"])
         #expect(result.tracks.map(\.analysisPath).first == "/PIONEER/USBANLZ/P000/00000001/ANLZ0000.DAT")
         #expect(result.tracks.allSatisfy { $0.analysisSlot == 0 && $0.audioDisposition == .create })
+    }
+
+    @Test("기본 분석 폴더 이름은 rekordbox 경로 해시이고 규칙을 싣지 않는다")
+    func defaultNamingIsRekordboxPathHash() {
+        let result = UsbExportPlanner.plan(UsbExportRequest(candidates: [candidate("1")], snapshotTakenAt: snapshot))
+        let track = result.tracks.first
+        #expect(track?.contentsPath == "/Contents/Artist/Album/track 1.mp3")
+        #expect(track?.analysisFolder == "P06F/000171CD")
+        #expect(track?.analysisPath == "/PIONEER/USBANLZ/P06F/000171CD/ANLZ0000.DAT")
+        #expect(!result.requiredRules.contains(.analysisFolderNaming))
+    }
+
+    @Test("한 번에 내보내는 두 곡의 해시가 같으면 뒤 곡은 같은 폴더의 다음 번호")
+    func rekordboxHashCollisionWithinExport() {
+        // 합성 경로 "track 1013"과 "track 7700"은 해시가 같다
+        let result = UsbExportPlanner.plan(UsbExportRequest(
+            candidates: [candidate("1013"), candidate("7700")], snapshotTakenAt: snapshot))
+        #expect(result.tracks.map(\.analysisFolder) == ["P062/00012816", "P062/00012816"])
+        #expect(result.tracks.map(\.analysisSlot) == [0, 1])
+        #expect(result.tracks.last?.rules.contains(.analysisSlotCollision) == true)
     }
 
     @Test("그림 있는 곡만 image ID를 차례로 받는다")
@@ -268,7 +312,7 @@ struct UsbExportPlannerTests {
         #expect(inPlan.tracks.map { $0.rules.contains(.pathCollision) } == [false, true])
         // 같은 음원 파일을 가리키는 두 곡은 한 파일을 함께 쓴다
         var twin = candidate("3", file: "y.mp3")
-        twin.sourcePath = "/music/1.mp3"
+        twin.sourcePath = "/music/1/y.mp3"
         let shared = plan([candidate("1", file: "y.mp3"), twin])
         #expect(shared.tracks.map(\.audioDisposition) == [.create, .reuse])
         #expect(shared.tracks.map(\.fileName) == ["y.mp3", "y.mp3"])
@@ -394,34 +438,17 @@ struct UsbExportPlannerTests {
         #expect(result.blocked.isEmpty)
     }
 
-    @Test("Contents 경로가 순수 ASCII 127자면 pdbLongAscii")
-    func longAsciiContentsPathFlagged() {
+    /// rekordbox 7.2.x 경계 실험(2026-10-08): 곡 행 경로·아티스트·앨범 이름의 127자 이상 ASCII는 긴 ASCII(0x40)라 규칙을 싣지 않는다
+    @Test("Contents 경로·아티스트 이름이 순수 ASCII 127자 이상이어도 pdbLongAscii를 싣지 않는다")
+    func longAsciiTrackStringsNotFlagged() {
         let artist = String(repeating: "a", count: 40), album = String(repeating: "b", count: 40)
-        let short = plan([candidate("1", artist: artist, album: album, file: String(repeating: "f", count: 30) + ".mp3")])
-        #expect(short.tracks.first?.contentsPath.count == 126)
-        #expect(short.tracks.first?.rules.contains(.pdbLongAscii) == false)
-        #expect(!short.requiredRules.contains(.pdbLongAscii))
         let long = plan([candidate("1", artist: artist, album: album, file: String(repeating: "f", count: 31) + ".mp3")])
         #expect(long.tracks.first?.contentsPath.count == 127)
-        #expect(long.tracks.first?.rules.contains(.pdbLongAscii) == true)
-        #expect(long.requiredRules.contains(.pdbLongAscii))
-        #expect(long.ruleCounts[.pdbLongAscii] == 1)
-    }
-
-    @Test("번호를 붙인 뒤의 경로로 판정한다")
-    func longAsciiAfterCollisionSuffix() {
-        let artist = String(repeating: "a", count: 40), album = String(repeating: "b", count: 40)
-        let file = String(repeating: "f", count: 29) + ".mp3"
-        let result = plan([candidate("1", artist: artist, album: album, file: file), candidate("2", artist: artist, album: album, file: file)])
-        #expect(result.tracks.map(\.contentsPath.count) == [125, 129])
-        #expect(result.tracks.map { $0.rules.contains(.pdbLongAscii) } == [false, true])
-    }
-
-    @Test("아티스트 이름은 자르지 않은 원래 이름으로 판정한다")
-    func longAsciiArtistNameFlagged() {
-        let result = plan([candidate("1", artist: String(repeating: "a", count: 130), file: "x.mp3")])
-        #expect(result.tracks.first?.contentsPath == "/Contents/" + String(repeating: "a", count: 48) + "/Album/x.mp3")
-        #expect(result.tracks.first?.rules.contains(.pdbLongAscii) == true)
+        #expect(long.tracks.first?.rules.contains(.pdbLongAscii) == false)
+        #expect(!long.requiredRules.contains(.pdbLongAscii))
+        let longArtist = plan([candidate("1", artist: String(repeating: "a", count: 130), file: "x.mp3")])
+        #expect(longArtist.tracks.first?.contentsPath == "/Contents/" + String(repeating: "a", count: 48) + "/Album/x.mp3")
+        #expect(longArtist.tracks.first?.rules.contains(.pdbLongAscii) == false)
     }
 
     @Test("재생 목록 이름도 같은 함수로 판정한다")

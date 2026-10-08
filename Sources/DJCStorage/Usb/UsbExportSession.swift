@@ -6,7 +6,7 @@ import RekordboxKit
 /// 빈 USB 내보내기 선택
 public struct UsbExportOptions: Sendable {
     public var formats: Set<UsbFormat> = UsbFormat.defaultSet
-    public var naming: any UsbAnalysisNaming = IdentifierAnalysisNaming()
+    public var naming: any UsbAnalysisNaming = RekordboxAnalysisNaming()
     /// 기기 설정 파일을 옮길 로컬 rekordbox 설정 폴더(MYSETTING 등, 확인 안 된 규칙 `settingFiles`). nil이면 옮기지 않는다(기본)
     public var settingsFolder: URL? = nil
     public var verifyAudio = false
@@ -16,6 +16,10 @@ public struct UsbExportOptions: Sendable {
     public var dryRun = false
     /// `--snapshot-time`(ISO 8601). nil이면 사본 이름 → mtime(`UsbSnapshotTime`)
     public var snapshotTime: String? = nil
+    /// 선택한 로컬·iTunes 목록 모델. nil이면 기존처럼 스냅샷 DB의 재생 목록을 읽는다.
+    public var playlistLayout: PlaylistLayout? = nil
+    /// USB 동기화에서 내보내면 rekordbox 선택 파일도 같은 쓰기 묶음으로 만든다.
+    public var syncSelection: UsbSyncSelectionDraft? = nil
 
     public init() {}
 
@@ -206,6 +210,7 @@ public final class UsbExportSession {
         let volume = try writeGuard.volume(root)
         preview.availableBytes = volume.available
         preview.blocks = try volumeBlocks(volume, usb: usb, options: options)
+        let syncProductionBlock = options.syncSelection.flatMap { UsbSyncSelectionStage.gateBlock(baseFiles: $0.baseFiles, formats: options.formats) }
         guard preview.blocks.isEmpty else { return Prepared(preview: preview) }
         let existing = try UsbExportAssembly.existingContents(root: usb)
 
@@ -218,10 +223,35 @@ public final class UsbExportSession {
         defer { db.close() }
 
         // 4. 후보 → 목록 트리 → 계획, 5·6. 빌더(행 크기 막힘으로 뺀 곡은 다시 계획)
-        let tree = selection.playlistIDs.isEmpty ? [] : try UsbExportCandidates.playlistTree(database: db, rootIDs: selection.playlistIDs)
+        let tree: [UsbPlaylistInput]
+        do {
+            if let layout = options.playlistLayout {
+                tree = try UsbExportCandidates.playlistTree(layout: layout, rootIDs: selection.playlistIDs)
+            } else {
+                tree = selection.playlistIDs.isEmpty ? [] : try UsbExportCandidates.playlistTree(database: db, rootIDs: selection.playlistIDs)
+            }
+        } catch let UsbError.writeRefused(blocks) {
+            preview.blocks = blocks
+            return Prepared(preview: preview)
+        }
         var seen: Set<String> = []
         let ids = (tree.flatMap(\.trackLocalIDs) + selection.trackIDs).filter { seen.insert($0).inserted }
         let candidates = try UsbExportCandidates.load(database: db, share: share, contentIDs: ids)
+        let loadedIDs = Set(candidates.map(\.localContentID))
+        // 후보 로더는 없는 행·삭제된 행을 돌려주지 않는다. 요청과 견줘 조용한 누락을 막는다.
+        let missingBlocks = ids.filter { !loadedIDs.contains($0) }.map {
+            UsbBlock(code: "localTrackMissing", scope: .track($0),
+                     message: String(ui: "내보낼 곡이 로컬 스냅샷에 없습니다. 새 스냅샷을 뜬 뒤 다시 내보내세요"))
+        }
+        preview.blocks = missingBlocks
+        if let syncProductionBlock {
+            preview.blocks.append(syncProductionBlock)
+            if !missingBlocks.isEmpty {
+                preview.blocks.append(UsbBlock(code: "syncSelectionIncomplete", scope: .volume,
+                    message: String(ui: "동기화할 목록이나 곡을 모두 쓸 수 없어 동기화 선택도 갱신하지 않았습니다. 막힌 항목의 이유를 해결한 뒤 다시 시도하세요")))
+            }
+            return Prepared(preview: preview)
+        }
         let sources = Dictionary(candidates.map { ($0.localContentID, $0.sourcePath ?? "") }) { first, _ in first }
         let rootURL = root
         let request = UsbExportRequest(
@@ -234,10 +264,17 @@ public final class UsbExportSession {
         let build = try UsbExportAssembly.planAndBuild(request, local: UsbLocalSource(database: db), share: share,
                                                        myTagMasterDBID: UsbLibraryBuilder.randomMyTagMasterDBID(), createdDate: Self.today())
         preview.plan = build.plan
-        preview.blocks = build.blocks
+        // 동기화 계획이 건너뛴 곡(iTunes 목록의 연결되지 않은 곡 등)도 넣지 못한 곡으로 함께 알린다
+        preview.blocks = missingBlocks + build.blocks + (options.syncSelection?.skippedTracks.filter(\.isSkippableInSync) ?? [])
         preview.warnings = build.plan.warnings
         preview.requiredRules = build.plan.requiredRules
         preview.ruleCounts = build.plan.ruleCounts
+        // 동기화는 넣지 못한 곡만 빼고 쓴다(rekordbox와 같다). 스냅샷에 없는 곡·볼륨 막힘이 있으면 선택을 쓰지 않는다
+        if options.syncSelection != nil, preview.blocks.contains(where: { !$0.isSkippableInSync }) {
+            preview.blocks.append(UsbBlock(code: "syncSelectionIncomplete", scope: .volume,
+                                           message: String(ui: "동기화할 목록이나 곡을 모두 쓸 수 없어 동기화 선택도 갱신하지 않았습니다. 막힌 항목의 이유를 해결한 뒤 다시 시도하세요")))
+            return Prepared(preview: preview)
+        }
         if !build.volumeBlocks.isEmpty { return Prepared(preview: preview) }
         if build.plan.tracks.isEmpty {
             preview.blocks.append(UsbBlock(code: "noTracks", scope: .volume,
@@ -251,7 +288,7 @@ public final class UsbExportSession {
         do {
             assembled = try UsbExportAssembly.assembled(
                 model: build.model, plan: build.plan, localDatabase: db, share: share, staging: staging, formats: options.formats,
-                session: session, settingsFolder: options.settingsFolder,
+                session: session, settingsFolder: options.settingsFolder, syncSelection: options.syncSelection,
                 progress: { done, total in progress(UsbProgress(phase: .staging, completedItems: done, totalItems: total, cancellable: true)) },
                 isCancelled: isCancelled)
         } catch {

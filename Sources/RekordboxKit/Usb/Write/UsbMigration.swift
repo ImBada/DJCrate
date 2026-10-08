@@ -141,14 +141,15 @@ public enum UsbMigration {
         return result
     }
 
-    /// Device Library 상태 막힘: 정상으로 닫지 않은 파일, 읽지 못한 행·먼 모양 행, 기기 기록·모르는 표 행, 모르는 버전, 곡 없음
+    /// Device Library 상태 막힘: 정상으로 닫지 않은 파일, 읽지 못한 행(확인 못 한 먼 모양 My Tag 행 포함), 기기 기록·모르는 표 행, 모르는 버전, 곡 없음.
+    /// 아티스트·앨범 먼 모양 행은 칸을 모두 읽으므로 막지 않는다(rekordbox 7.2.x 경계 실험, 2026-10-08)
     static func deviceLibraryBlocks(_ library: UsbLibrary, report: PdbReadReport) -> [UsbBlock] {
         if report.exportHeader.flag10 != PdbVerifier.closedFlag || (report.extHeader.map { $0.flag10 != PdbVerifier.closedFlag } ?? false) {
             return [UsbBlock(code: "pdbNotClosed", scope: .format(.deviceLibrary),
                              message: String(ui: "rekordbox에 이 USB를 연결했다가 정상적으로 꺼낸 뒤 다시 시도하세요"))]
         }
         // 읽기는 구조 문제가 있으면 읽은 데까지만 모델에 넣는다. 그대로 옮기면 OneLibrary에서 행이 조용히 빠진다
-        if !report.issues.isEmpty || report.farShapeRows.values.contains(where: { $0 > 0 }) {
+        if !report.issues.isEmpty {
             return [UsbBlock(code: "pdbUnreadableRows", scope: .format(.deviceLibrary),
                              message: String(ui: "이 USB의 Device Library에 읽지 못한 행이 있어 옮기지 않았습니다. rekordbox에서 USB를 다시 내보내세요"))]
         }

@@ -35,6 +35,7 @@ public struct UsbExportCandidate: Codable, Hashable, Sendable {
     /// 곡 아티스트(앨범 아티스트가 아님)
     public var artistName: String?
     public var albumName: String?
+    /// djmdContent.FileNameL. USB 파일 이름은 음원 경로의 끝 성분으로 짓고, 경로가 없을 때만 이 값을 쓴다(`UsbPathRules.audioFileName`)
     public var fileNameL: String
     /// 로컬 음원 절대 경로(없으면 nil)
     public var sourcePath: String?
@@ -53,15 +54,13 @@ public struct UsbExportCandidate: Codable, Hashable, Sendable {
     public var artworkPathSetButMissing: Bool
     public var cues: [UsbCueTraits]
     public var metadata: UsbTrackMetadataFlags
-    /// 제목·주석·ISRC·날짜 등 pdb 문자열(긴 ASCII 검사용). 출력·로그에 쓰지 않는다
-    public var pdbStrings: [String]
     /// 로컬 분석 파일 크기(있는 것만). 용량 어림에 쓴다. nil이면 파일마다 한 클러스터로 어림한다
     public var analysisFileBytes: [Int64]?
 
     public init(localContentID: String, masterSongID: String, masterDBID: String, artistName: String?, albumName: String?,
                 fileNameL: String, sourcePath: String?, isStreaming: Bool, fileType: Int, fileSize: Int64, actualFileSize: Int64?,
                 analysis: UsbAnalysisState, analysisModifiedAt: Date?, artwork: UsbArtworkSource?, artworkPathSetButMissing: Bool,
-                cues: [UsbCueTraits], metadata: UsbTrackMetadataFlags, pdbStrings: [String], analysisFileBytes: [Int64]? = nil) {
+                cues: [UsbCueTraits], metadata: UsbTrackMetadataFlags, analysisFileBytes: [Int64]? = nil) {
         self.localContentID = localContentID
         self.masterSongID = masterSongID
         self.masterDBID = masterDBID
@@ -79,7 +78,6 @@ public struct UsbExportCandidate: Codable, Hashable, Sendable {
         self.artworkPathSetButMissing = artworkPathSetButMissing
         self.cues = cues
         self.metadata = metadata
-        self.pdbStrings = pdbStrings
         self.analysisFileBytes = analysisFileBytes
     }
 }
@@ -163,7 +161,7 @@ public struct UsbExportRequest: Sendable {
     public var sameContent: @Sendable (_ candidateID: String, _ usbRelativePath: String) -> Bool
 
     public init(candidates: [UsbExportCandidate], playlists: [UsbPlaylistInput] = [], existing: UsbExistingState? = nil,
-                formats: Set<UsbFormat> = UsbFormat.defaultSet, naming: any UsbAnalysisNaming = IdentifierAnalysisNaming(),
+                formats: Set<UsbFormat> = UsbFormat.defaultSet, naming: any UsbAnalysisNaming = RekordboxAnalysisNaming(),
                 snapshotTakenAt: Date, clusterSize: Int = 32_768,
                 sameContent: @escaping @Sendable (_ candidateID: String, _ usbRelativePath: String) -> Bool = { _, _ in false }) {
         self.candidates = candidates
@@ -200,10 +198,13 @@ public struct UsbTrackPlan: Codable, Hashable, Sendable {
     public var imageID: Int?
     public var artworkFolder: Int?
     public var rules: Set<UsbProvisionalRule>
+    /// 계획 때 본 실제 음원 크기(복사 크기 검사에 쓴다). 두 DB의 파일 크기 칸은 로컬 `FileSize`라 다를 수 있다
+    /// (`audioChangedSinceAnalysis`). nil이면 `FileSize`로 본다
+    public var audioSize: Int64?
 
     public init(localContentID: String, contentID: Int, contentsPath: String, fileName: String, audioDisposition: Disposition,
                 analysisFolder: String, analysisSlot: Int, analysisPath: String, imageID: Int?, artworkFolder: Int?,
-                rules: Set<UsbProvisionalRule>) {
+                rules: Set<UsbProvisionalRule>, audioSize: Int64? = nil) {
         self.localContentID = localContentID
         self.contentID = contentID
         self.contentsPath = contentsPath
@@ -215,6 +216,7 @@ public struct UsbTrackPlan: Codable, Hashable, Sendable {
         self.imageID = imageID
         self.artworkFolder = artworkFolder
         self.rules = rules
+        self.audioSize = audioSize
     }
 }
 
@@ -366,11 +368,11 @@ private struct PlanState {
         commit(path, for: candidate)
 
         var rules = path.rules
-        if let rule = request.naming.rule { rules.insert(rule) }
-        let slot = UsbAnalysisSlot.choose(existing: (existing?.analysisSlots[folder] ?? []) + (analysisSlots[folder] ?? []),
-                                          contentsPath: path.contentsPath)
+        rules.formUnion(request.naming.rules(contentsPath: path.contentsPath))
+        let slot = UsbAnalysisSlot.choose(existing: existing?.analysisSlots[folder] ?? [], contentsPath: path.contentsPath,
+                                          reserved: Set((analysisSlots[folder] ?? []).map(\.slot)))
         if slot.slot > 0 { rules.insert(.analysisSlotCollision) }
-        if !slot.reuse { analysisSlots[folder, default: []].append((slot.slot, path.contentsPath)) }
+        analysisSlots[folder, default: []].append((slot.slot, path.contentsPath))
         addAnalysisEntries(folder: folder, slot: slot.slot)
 
         var imageID: Int?, artworkFolder: Int?
@@ -392,9 +394,11 @@ private struct PlanState {
             warnings.append(trackBlock("kind4CueDropped", candidate, String(ui: "USB에 쓸 수 없는 종류의 큐가 있어 빼고 내보냅니다")))
         }
         rules.formUnion(UsbCueRules.rules(fileType: candidate.fileType, cues: candidate.cues))
-        // pdb에는 경로·파일 이름과 자르지 않은 아티스트·앨범 이름도 문자열로 들어간다(번호를 붙인 뒤의 경로로 본다).
-        let strings = candidate.pdbStrings + [path.contentsPath, path.fileName] + [candidate.artistName, candidate.albumName].compactMap { $0 }
-        rules.formUnion(UsbTrackRules.rules(fileType: candidate.fileType, metadata: candidate.metadata, pdbStrings: strings))
+        // 곡 문자열·경로·아티스트·앨범 이름의 긴 ASCII는 rekordbox 7.2.x 경계 실험(2026-10-08)으로 모양을 확인해 규칙을 싣지 않는다
+        rules.formUnion(UsbTrackRules.rules(fileType: candidate.fileType, metadata: candidate.metadata))
+        // 분석 뒤 음원 크기가 바뀐 곡(태그 편집 등)도 rekordbox처럼 지금 파일을 그대로 복사하고 두 DB에는 로컬 FileSize를 적는다
+        // (2026-10-08 빈 USB 실험 704곡 중 196곡, §5). 분석 파일·큐는 옛 파일 기준이라 CDJ 확인 항목으로 알린다
+        if let actual = candidate.actualFileSize, actual != candidate.fileSize { rules.insert(.audioChangedSinceAnalysis) }
 
         if path.disposition == .create {
             newBytes += UsbSpaceEstimate.roundUp(candidate.actualFileSize ?? candidate.fileSize, cluster: cluster)
@@ -406,7 +410,7 @@ private struct PlanState {
         tracks.append(UsbTrackPlan(localContentID: candidate.localContentID, contentID: contentID, contentsPath: path.contentsPath,
                                    fileName: path.fileName, audioDisposition: path.disposition, analysisFolder: folder,
                                    analysisSlot: slot.slot, analysisPath: UsbAnalysisSlot.analysisPath(folder: folder, slot: slot.slot),
-                                   imageID: imageID, artworkFolder: artworkFolder, rules: rules))
+                                   imageID: imageID, artworkFolder: artworkFolder, rules: rules, audioSize: candidate.actualFileSize))
     }
 
     /// 경로와 무관한 막힘. 스트리밍 곡은 그 하나만 낸다.
@@ -425,10 +429,6 @@ private struct PlanState {
         if let actual = candidate.actualFileSize {
             if actual >= UsbExportPlanner.fat32FileLimit {
                 result.append(trackBlock("fileTooLarge", candidate, String(ui: "4GB 이상 음원은 USB에 넣을 수 없습니다. 음원을 줄이거나 내보낼 곡에서 빼세요")))
-            }
-            if actual != candidate.fileSize {
-                let message = String(ui: "음원 파일이 rekordbox 분석 뒤 바뀌었습니다. rekordbox에서 트랙 정보를 다시 읽고 분석한 뒤 내보내세요")
-                result.append(trackBlock("audioSizeMismatch", candidate, message))
             }
         }
         if candidate.analysis != .complete {
@@ -457,7 +457,7 @@ private struct PlanState {
     func resolvePath(_ candidate: UsbExportCandidate) -> ResolvedPath? {
         let artist = UsbPathRules.folderComponent(candidate.artistName, unknown: "UnknownArtist")
         let album = UsbPathRules.folderComponent(candidate.albumName, unknown: "UnknownAlbum")
-        let file = UsbPathRules.fileName(candidate.fileNameL)
+        let file = UsbPathRules.fileName(UsbPathRules.audioFileName(sourcePath: candidate.sourcePath, fileNameL: candidate.fileNameL))
         var rules = artist.rules.union(album.rules).union(file.rules)
 
         var parentKey = "", parentSpelling = ""

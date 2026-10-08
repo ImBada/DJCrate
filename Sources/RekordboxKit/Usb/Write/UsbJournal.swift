@@ -19,6 +19,49 @@ public struct UsbJournal: Codable, Sendable, Equatable {
     public enum RemovalState: String, Codable, Sendable { case pending, removed, skipped }
     public enum SkipReason: String, Codable, Sendable { case ppthDiffers, hashDiffers, notAllowed }
 
+    /// 임시 쓰기와 실제 rename 진입을 구분한다. nil은 이 단계가 없던 일반 USB 옛 저널이다.
+    public enum WritePhase: String, Codable, Sendable { case preparing, renamePending, renameEntered, done, externalChanged }
+
+    /// 파일 변경 의도. 원래 쓰기의 temp와 복원 temp를 분리하고 완료는 폴더 fsync 뒤에 내린다.
+    public struct FileMutation: Codable, Sendable, Equatable {
+        public enum Operation: String, Codable, Sendable { case replace, delete }
+        public enum Phase: String, Codable, Sendable { case copying, renamePending, renameEntered, deletePending, deleteEntered, done, externalChanged }
+        /// 승인한 끝 성분 링크 자체의 신원. 링크 목적지는 읽거나 따라가지 않는다.
+        public struct LinkIdentity: Codable, Sendable, Equatable {
+            public var device: Int64
+            public var inode: UInt64
+            public var modificationSeconds: Int64
+            public var modificationNanoseconds: Int64
+        }
+        public var destination: String
+        public var operation: Operation
+        public var tempName: String?
+        public var backupSHA256: String?
+        /// 의도 전 고정한 대상 내용(폐기 복원은 전체 승인 기준). nil은 부재 또는 expectedLink이며 백업 해시와 구분한다.
+        public var expectedSHA256: String?
+        /// nil 기대 해시와 링크를 구분한다. 이 칸이 없는 옛 의도는 재개 시 링크를 승인하지 않는다.
+        public var expectedLink: LinkIdentity? = nil
+        public var phase: Phase
+
+        public init(destination: String, operation: Operation, tempName: String?, backupSHA256: String?,
+                    expectedSHA256: String?, phase: Phase, expectedLink: LinkIdentity? = nil) {
+            self.destination = destination
+            self.operation = operation
+            self.tempName = tempName
+            self.backupSHA256 = backupSHA256
+            self.expectedSHA256 = expectedSHA256
+            self.expectedLink = expectedLink
+            self.phase = phase
+        }
+    }
+
+    /// 명시적 폐기 승인 때 고정한 대상. 두 값이 nil인 항목은 부재이며, 사전 자체의 누락과 구분한다.
+    /// 원문·링크 목적지는 담지 않고 내용 해시와 끝 링크의 신원만 남긴다.
+    public struct RestorationTarget: Codable, Sendable, Equatable {
+        public var sha256: String?
+        public var link: FileMutation.LinkIdentity?
+    }
+
     /// 음원·분석 파일·아트워크 하나
     public struct FileEntry: Codable, Sendable, Equatable {
         public var destination: String
@@ -31,6 +74,9 @@ public struct UsbJournal: Codable, Sendable, Equatable {
         public var size: Int64
         public var appleDoublePreexisted: Bool
         public var state: EntryState
+        public var writePhase: WritePhase? = nil
+        /// rollback을 마친 항목. 없던 칸인 옛 저널도 optional로 읽는다.
+        public var rollbackCompleted: Bool? = nil
 
         public init(destination: String, tempName: String?, disposition: FileDisposition, oldSHA256: String?, newSHA256: String?,
                     size: Int64, appleDoublePreexisted: Bool, state: EntryState) {
@@ -58,6 +104,9 @@ public struct UsbJournal: Codable, Sendable, Equatable {
         /// 쓰기 전 USB에 있던 그 DB의 -wal·-shm·-journal(백업에 있음)
         public var sidecarsPreexisted: [String]
         public var state: EntryState
+        public var writePhase: WritePhase? = nil
+        /// rollback을 마친 항목. 없던 칸인 옛 저널도 optional로 읽는다.
+        public var rollbackCompleted: Bool? = nil
 
         public init(destination: String, format: UsbFormat, tempName: String, disposition: FileDisposition, oldSHA256: String?,
                     newSHA256: String, appleDoublePreexisted: Bool, sidecarsPreexisted: [String], state: EntryState) {
@@ -111,9 +160,23 @@ public struct UsbJournal: Codable, Sendable, Equatable {
     public var deletedSidecars: [String] = []
     public var removals: [RemovalEntry] = []
     public var backupDirectory: String?
+    /// 백업 당시 manifest 전체의 해시. 항목을 함께 지운 손상도 재개 전에 찾는다. 옛 저널은 nil이다.
+    public var backupManifestSHA256: String? = nil
     public var reportPath: String?
     /// `usb-restore`가 연 저널. 끊겨도 회복이 같은 방식(되돌리기)으로 마저 하고, 그 쓰기의 백업 기록은 건드리지 않는다
     public var restoringBackup = false
+    /// 복원 시작 때 승인한 외부 변경 폐기. optional이라 이 칸이 없는 옛 저널도 읽는다.
+    public var discardDeviceChanges: Bool? = nil
+    /// 첫 의도 이전의 중단도 승인 당시 전체 대상만 이어받는다. 이 칸 없는 옛 승인은 기존 의도만 근거다.
+    public var restorationBaseline: [String: RestorationTarget]? = nil
+    /// optional로 두어 새 단계 칸이 없는 일반 USB 옛 저널도 읽는다.
+    public var restorations: [FileMutation]? = nil
+    /// DB 교체 전 사이드카 삭제도 한 항목씩 의도·완료를 내린다. deletedSidecars는 옛 저널용 목록이다.
+    public var sidecarDeletions: [FileMutation]? = nil
+    /// 발견한 외부 변경은 이후 temp 모양으로 정상 중단으로 재해석하지 않는다.
+    public var externalChangesDetected: Bool? = nil
+    /// 같은 복원 재개가 기존 승인을 다시 쓰지 못하게 한다. 새 명시적 복원 승인 때만 해제한다.
+    public var restorationApprovalRequired: Bool? = nil
     /// 다음 임시 이름 번호
     public var nextSequence = 1
     public var updatedAt: Date

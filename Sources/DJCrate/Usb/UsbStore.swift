@@ -34,6 +34,8 @@ import RekordboxKit
     private(set) var infos: [String: UsbInfo] = [:]
     /// 볼륨키 → content_id → 상태
     private(set) var syncBadges: [String: [Int: UsbSyncStatus]] = [:]
+    /// 볼륨키 → USB content_id → 로컬 ContentID(짝이 하나인 곡만, 배지와 함께 계산)
+    private(set) var localMatches: [String: [Int: String]] = [:]
     /// 볼륨별 잠금(쓰기 중 표시). 잠긴 볼륨은 다시 읽거나 꺼내지 않는다. `beginWrite`·`endWrite`로만 바꾼다
     private(set) var busyVolumes: Set<String> = []
     private(set) var ejecting: Set<String> = []
@@ -41,6 +43,10 @@ import RekordboxKit
     private(set) var activeWrite: UsbActiveWrite?
     /// 열 내보내기 시트(볼륨·다시 미리 보기 결과)
     var exportSheet: UsbExportSheetRequest?
+    /// 볼륨 이름 옆에서 연 동기화 시트
+    var syncSheet: UsbSyncSheetRequest?
+    /// 볼륨별 동기화 선택. 시험에서는 폴더를 주입할 때만 저장한다.
+    @ObservationIgnored var syncSelectionDirectory: URL?
     let readPolicy: UsbReadPolicy
     /// 볼륨키 → 초안 편집 수(없으면 nil)
     private(set) var draftCounts: [String: Int] = [:]
@@ -52,6 +58,70 @@ import RekordboxKit
     @ObservationIgnored var draftDirectory: URL?
     /// 볼륨키 → 초안 편집(파일에서 읽은 그대로). 순서 옮기기처럼 초안 위에서 판정하는 메뉴가 읽는다
     private(set) var draftEdits: [String: [UsbLibraryEdit]] = [:]
+    /// 같은 실행의 유효한 native 초안은 창을 닫아도 사본을 소유한다. 디스크에서 문맥을 재구성하지 않는다.
+    struct SyncDraftSource: Sendable {
+        var job: UsbEditJob
+        var edits: [UsbLibraryEdit]
+        let snapshotLease: UsbSyncSnapshotLease
+        let id = UUID()
+        let sourceIsCurrent: @MainActor @Sendable () -> Bool
+    }
+    @ObservationIgnored private(set) var syncDraftSources: [String: SyncDraftSource] = [:]
+
+    func rememberSyncDraft(_ job: UsbEditJob, edits: [UsbLibraryEdit],
+                           sourceIsCurrent: @escaping @MainActor @Sendable () -> Bool) {
+        let key = job.volumeKey
+        guard let lease = job.syncSourceContext?.snapshot?.lease, job.database == lease.database,
+              draftEdits[key] == edits, volume(key)?.matchesSyncWriteVolume(job.volume) == true, sourceIsCurrent() else {
+            invalidateSyncDraft(key)
+            return
+        }
+        syncDraftSources[key] = SyncDraftSource(job: job, edits: edits, snapshotLease: lease, sourceIsCurrent: sourceIsCurrent)
+        observeSyncDraftSource(key)
+    }
+
+    /// 초안 파일·원래 스냅샷은 남기고, 이 실행이 만든 사본의 소유권만 해제한다.
+    func invalidateSyncDraft(_ key: String) { syncDraftSources[key] = nil }
+
+    private func observeSyncDraftSource(_ key: String) {
+        guard let saved = syncDraftSources[key] else { return }
+        let id = saved.id
+        let current = withObservationTracking {
+            saved.sourceIsCurrent()
+        } onChange: { [weak self] in
+            // Observation 알림은 변경 직전이다. 새 값으로 판정하고 같은 초안일 때만 다시 관찰한다.
+            Task { @MainActor [weak self] in
+                guard let self, self.syncDraftSources[key]?.id == id else { return }
+                self.observeSyncDraftSource(key)
+            }
+        }
+        if !current { invalidateSyncDraft(key) }
+    }
+    /// 새 USB 읽기를 채택했을 때 원문이 달라졌으면 초안은 남기고 사본만 해제한다.
+    private func validateSyncDraftAfterRead(_ key: String) async {
+        guard let saved = syncDraftSources[key] else { return }
+        let bases = saved.edits.compactMap { edit -> [UsbFormat: Data]? in
+            if case let .syncSelection(draft) = edit { return draft.baseFiles }
+            return nil
+        }
+        guard let expected = bases.first, bases.allSatisfy({ $0 == expected }),
+              saved.sourceIsCurrent(), volume(key)?.matchesSyncWriteVolume(saved.job.volume) == true else {
+            invalidateSyncDraft(key)
+            return
+        }
+        let service = writeService, volume = saved.job.volume
+        let formats = libraries[key]?.formats ?? UsbFormat.defaultSet
+        let matches = await Task.detached(priority: .utility) {
+            guard let actual = try? service.currentVolume(volume), actual.matchesSyncWriteVolume(volume),
+                  let files = try? service.syncSelectionBaseFiles(actual, formats: formats) else { return false }
+            return files == expected
+        }.value
+        guard syncDraftSources[key]?.id == saved.id else { return }
+        if !matches || !saved.sourceIsCurrent() || self.volume(key)?.matchesSyncWriteVolume(volume) != true || draftEdits[key] != saved.edits {
+            invalidateSyncDraft(key)
+        }
+    }
+
     /// 마운트 지점이 임시 폴더 뿌리 아래인지(realpath). 그 밖의 디스크 이미지는 쓰기 때 실물로 본다(편집 막힘 미리 판정).
     /// 시험은 지어낸 마운트 지점을 넘긴다
     @ObservationIgnored var isScratchMount: (String) -> Bool = UsbEditActions.isScratchMount
@@ -129,6 +199,10 @@ import RekordboxKit
         }
         let previous = volumes
         volumes = visible
+        // 부재 초안은 표시하되, 분리·같은 UUID의 장치 변경 뒤 사본을 이어 쓰지는 않는다.
+        for (key, saved) in syncDraftSources where visible.first(where: { $0.usbKey == key })?.matchesSyncWriteVolume(saved.job.volume) != true {
+            invalidateSyncDraft(key)
+        }
         let keys = Set(visible.map(\.usbKey))
         // 초안이 있는 볼륨은 빠져도 쓰기 대기 목록을 남긴다(다시 붙으면 그 볼륨 아래로 돌아간다)
         for volume in previous where !keys.contains(volume.usbKey) { rememberDraft(volume) }
@@ -140,6 +214,7 @@ import RekordboxKit
         journalChecked.formIntersection(keys)
         // 연 내보내기 시트의 볼륨이 빠지면 닫는다(닫을 단추 없는 빈 창으로 남지 않게)
         if let sheet = exportSheet, !keys.contains(sheet.volumeKey) { exportSheet = nil }
+        if let sheet = syncSheet, !keys.contains(sheet.volumeKey), activeWrite == nil { syncSheet = nil }
         defer { onChange?() }
         guard !visible.isEmpty else { return }
         for volume in visible {
@@ -170,12 +245,14 @@ import RekordboxKit
                 shapes[key] = .emptyExportable
             } else {
                 let library = try await host.library(for: volume)
-                let badges = await badges(for: library)
+                let evaluated = await badges(for: library)
                 infos[key] = info
                 libraries[key] = library
-                syncBadges[key] = badges
+                syncBadges[key] = evaluated.badges
+                localMatches[key] = evaluated.matches
                 shapes[key] = .rekordbox(formats: formats)
                 await reloadDraft(key)
+                await validateSyncDraftAfterRead(key)
             }
             readVolumes[key] = volume
         } catch {
@@ -196,25 +273,30 @@ import RekordboxKit
     }
 
     private func forget(_ key: String) {
+        invalidateSyncDraft(key)
         libraries[key] = nil
         infos[key] = nil
         syncBadges[key] = nil
+        localMatches[key] = nil
         readVolumes[key] = nil
     }
 
     /// 로컬 스냅샷을 새로 읽었을 때 배지만 다시 계산한다
     func localLibraryChanged() async {
         for (key, library) in libraries {
-            let badges = await badges(for: library)
+            let evaluated = await badges(for: library)
             // 기다리는 동안 볼륨이 빠졌거나 다시 읽혔으면 버린다
-            if libraries[key] == library { syncBadges[key] = badges }
+            if libraries[key] == library {
+                syncBadges[key] = evaluated.badges
+                localMatches[key] = evaluated.matches
+            }
         }
         onChange?()
     }
 
-    private func badges(for library: UsbLibrary) async -> [Int: UsbSyncStatus] {
+    private func badges(for library: UsbLibrary) async -> (badges: [Int: UsbSyncStatus], matches: [Int: String]) {
         let localLibrary = localLibrary
-        return await Task.detached(priority: .utility) { UsbSyncBadges.compute(library: library, local: localLibrary()) }.value
+        return await Task.detached(priority: .utility) { UsbSyncBadges.evaluate(library: library, local: localLibrary()) }.value
     }
 
     static func message(for error: any Error) -> String {
@@ -245,6 +327,7 @@ import RekordboxKit
         forget(volumeKey)
         shapes[volumeKey] = nil
         if exportSheet?.volumeKey == volumeKey { exportSheet = nil }
+        if syncSheet?.volumeKey == volumeKey { syncSheet = nil }
         onChange?()
         return nil
     }
@@ -259,6 +342,14 @@ import RekordboxKit
             return libraries[key] != nil && (try? UsbEditSession.volumeKey(volume)) == key
         }
         return absentDrafts[key] != nil
+    }
+
+    func presentSync(_ key: String) {
+        guard volume(key) != nil, activeWrite == nil, !busyVolumes.contains(key), !ejecting.contains(key) else { return }
+        switch shapes[key] {
+        case .emptyExportable?, .rekordbox?: syncSheet = UsbSyncSheetRequest(volumeKey: key)
+        default: break
+        }
     }
 
     /// 편집 대상 볼륨 이름(빠진 볼륨도)
@@ -301,6 +392,7 @@ import RekordboxKit
     /// 초안이 바뀌었다(편집 동작·쓰기 뒤). 빠진 볼륨의 초안이 비면 사이드바에서 뺀다
     func setDraft(_ edits: [UsbLibraryEdit], for key: String) {
         let count = edits.count
+        if let saved = syncDraftSources[key], saved.edits != edits { invalidateSyncDraft(key) }
         draftEdits[key] = edits.isEmpty ? nil : edits
         draftCounts[key] = count > 0 ? count : nil
         draftRevisions[key, default: 0] += 1
@@ -455,5 +547,10 @@ struct UsbExportSheetRequest: Equatable, Identifiable {
     var summary: UsbExportSummary?
 
     var volumeKey: String { volume.usbKey }
+    var id: String { volumeKey }
+}
+
+struct UsbSyncSheetRequest: Equatable, Identifiable {
+    var volumeKey: String
     var id: String { volumeKey }
 }

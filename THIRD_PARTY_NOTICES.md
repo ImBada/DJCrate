@@ -544,6 +544,39 @@ SOFTWARE.
 ````
 
 
+## rekordbox_converter (MIT)
+
+- 고지 기준 커밋: `b4cb8b0f7dece5f1b575d1f904c4bec3c67c62bc`
+- 출처: [ModeAxe/rekordbox_converter](https://github.com/ModeAxe/rekordbox_converter/tree/b4cb8b0f7dece5f1b575d1f904c4bec3c67c62bc)
+- 원문: [LICENSE](https://github.com/ModeAxe/rekordbox_converter/blob/b4cb8b0f7dece5f1b575d1f904c4bec3c67c62bc/LICENSE)
+- DJCrate에서 쓰는 곳: `Sources/DJCDomain/Usb/UsbAnalysisNaming.swift`(`RekordboxAnalysisNaming`)의 USB 분석 파일 폴더 이름 계산(경로 해시의 곱수 0x5BC9·0x93B5, 나머지 200003, P 번호 비트).
+- 규칙 참고: [PR #2](https://github.com/ModeAxe/rekordbox_converter/pull/2)의 `core/src/anlz.rs` `hash_audio_path`(계산 모양만 참고하고 코드는 옮기지 않음). rekordbox 7.2.x가 만든 USB 곡 708개와 CDJ-2000NXS가 만든 폴더 5개로 다시 확인했다(`docs/usb-internals.md` §5).
+
+````text
+MIT License
+
+Copyright (c) 2026 xeadmo
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+````
+
+
 ## pyrekordbox — 프레이즈(PSSI) 마스크
 
 - 기준 커밋: `f695541827cc488af267d6ca8a8e0052598d85a0`

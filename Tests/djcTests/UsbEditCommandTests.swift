@@ -19,6 +19,14 @@ struct UsbEditCommandTests {
       {"refreshTracks": {"usbContentIDs": [2], "parts": ["info","cues","grid","artwork"]}} ]
     """
 
+    @Test("목록 동기화 JSON은 로컬 순서·중복을 보존하고 로컬 사본이 필요한 편집으로 판정한다")
+    func parsesSyncPlaylistAndRequiresLocal() throws {
+        let edits = try UsbCommands.editList(Data(#"[{"syncPlaylist":{"playlist":"new:sync","localContentIDs":["103","101","103"]}}]"#.utf8))
+        #expect(edits == [.syncPlaylist(playlist: .new("sync"), localContentIDs: ["103", "101", "103"])])
+        #expect(UsbCommands.needsLocal(edits))
+        #expect(UsbCommands.needsLocal([.syncPlaylist(playlist: .id("1"), localContentIDs: [])]))
+    }
+
     @Test("편집 파일: UsbLibraryEdit 배열(재생 목록은 {\"playlist\":{\"edit\":…}})")
     func parsesEditFile() throws {
         let edits = try UsbCommands.editList(Data(Self.json.utf8))

@@ -13,6 +13,8 @@ struct UsbEditJob: Sendable, Equatable {
     var volume: UsbVolumeInfo
     /// ISO 8601 스냅샷 시각(nil이면 사본 이름 → mtime)
     var snapshotTime: String?
+    /// native 선택 초안은 만든 때의 전체 원본을 확인 창 뒤까지 고정한다.
+    var syncSourceContext: UsbExportSyncSourceContext? = nil
 
     var volumeKey: String { volume.usbKey }
     var root: URL { URL(filePath: volume.mountPoint) }
@@ -110,7 +112,7 @@ struct UsbEditSummary: Equatable, Sendable {
             }
             switch edits[entry.edit - 1] {
             case .addTracks, .removeTracks: return true
-            case .refreshTracks, .playlist: return false
+            case .refreshTracks, .playlist, .syncPlaylist, .syncSelection: return false
             }
         }
         self.init(editCount: edits.count, outcomes: outcomes, stopping: Self.unique(result.blocks.map(\.message)),
@@ -218,6 +220,9 @@ enum UsbEditText {
         case let .addTracks(ids, .some(playlist)): return String(ui: "곡 \(ids.count)개 더하기 · ‘\(name(playlist))’에 넣기")
         case let .removeTracks(ids): return String(ui: "곡 \(ids.count)개 USB에서 빼기")
         case let .refreshTracks(ids, _): return String(ui: "곡 \(ids.count)개 로컬 변경 반영")
+        case let .syncPlaylist(playlist, ids): return String(ui: "‘\(name(playlist))’ 동기화 · 곡 \(ids.count)개")
+        case let .syncSelection(draft):
+            return draft.enabledOnly ? String(ui: "USB 동기화 켜짐 저장") : String(ui: "USB 동기화 선택 저장")
         case let .playlist(edit):
             switch edit {
             case let .create(_, newName, isFolder, parent):
@@ -276,6 +281,55 @@ struct UsbEditActions {
                          isScratchMount: usb.isScratchMount, physicalGate: usb.physicalGate)
     }
 
+    /// 동기화 묶음은 앞선 폴더 이동을 반영한 트리에서 차례로 검사한다.
+    func blockReason(_ edits: [UsbLibraryEdit], volumeKey: String) -> String? {
+        Self.blockReason(edits, volume: usb.volume(volumeKey), library: usb.editLibrary(volumeKey), info: usb.infos[volumeKey],
+                         isScratchMount: usb.isScratchMount, physicalGate: usb.physicalGate)
+    }
+
+    static func blockReason(_ edits: [UsbLibraryEdit], volume: UsbVolumeInfo?, library: UsbLibrary?, info: UsbInfo?,
+                            isScratchMount: (String) -> Bool = UsbEditActions.isScratchMount,
+                            physicalGate: UsbPhysicalWriteGate = .init()) -> String? {
+        var projected = library
+        var tree = library.map(UsbSyncPlan.usbLayout)
+        for edit in edits {
+            if let reason = blockReason(edit, volume: volume, library: projected, info: info,
+                                        isScratchMount: isScratchMount, physicalGate: physicalGate) { return reason }
+            guard case let .playlist(playlistEdit) = edit, var working = tree else { continue }
+            switch playlistEdit {
+            case .addTracks, .removeTracks, .moveTracks:
+                // 새 곡의 USB 번호와 형식별 항목 변경은 최종 엔진이 확인한다.
+                continue
+            case .create, .rename, .move, .reorder, .delete:
+                break
+            }
+            // 새 참조를 앞에서 만들지 못했는지는 최종 엔진이 확인한다.
+            if case .create = playlistEdit {} else if working.item(playlistEdit.playlist.description) == nil { continue }
+            if let destination = playlistEdit.destination, destination != .root,
+               working.item(destination.description) == nil { continue }
+            if case let .move(ref, into) = playlistEdit,
+               working.subtree(of: ref.description).contains(into.description) {
+                return String(ui: "재생 목록 폴더를 자기 안으로 옮길 수 없습니다. 다른 폴더를 고르세요")
+            }
+            do { try working.apply(playlistEdit) }
+            catch let failure as PlaylistLayout.Blocked { return failure.reason }
+            catch { return String(ui: "대상이 USB에서 사라졌습니다. USB를 다시 읽은 뒤 고치세요") }
+            tree = working
+            // .new 부모의 실제 USB 번호는 아직 없다. 트리에는 기호 참조로 남기고 DB 모델은 기존 ID만 갱신한다.
+            if var model = projected {
+                model.playlists = model.playlists.compactMap { old in
+                    guard let item = working.item(String(old.id)) else { return nil }
+                    var playlist = old
+                    playlist.name = item.name
+                    playlist.parentID = Int(item.parentID) ?? 0
+                    return playlist
+                }
+                projected = model
+            }
+        }
+        return nil
+    }
+
     /// 마운트 지점(realpath)이 임시 폴더 뿌리 아래인지. 쓰기 세션의 실물 관문과 같은 판정이다
     nonisolated static func isScratchMount(_ mountPoint: String) -> Bool {
         UsbScratchRoots.realPath(mountPoint).map(UsbScratchRoots.isUnderAllowedRoot) ?? false
@@ -288,6 +342,11 @@ struct UsbEditActions {
     static func blockReason(_ edit: UsbLibraryEdit, volume: UsbVolumeInfo?, library: UsbLibrary?, info: UsbInfo?,
                             isScratchMount: (String) -> Bool = UsbEditActions.isScratchMount,
                             physicalGate: UsbPhysicalWriteGate = .init()) -> String? {
+        if case let .syncSelection(draft) = edit,
+           let block = (library.map({ UsbSyncSelectionStage.gateBlock(baseFiles: draft.baseFiles, formats: $0.formats) }) ?? UsbSyncSelectionStage.productionBlock)
+               ?? UsbSyncSelectionStage.draftBlock(draft) {
+            return block.message
+        }
         if let volume {
             if let problem = UsbVolumePolicy.problems(volume, purpose: .edit).first { return problem.message }
             // 임시 폴더 뿌리 밖에 붙인 디스크 이미지도 실물로 판정한다(세션의 실물 관문과 같다)
@@ -298,7 +357,7 @@ struct UsbEditActions {
         if let consistency = info?.consistency, consistency.editBlocked {
             return !consistency.trackIDsMatch || !consistency.pathsMatch
                 ? String(ui: "두 형식의 곡 번호가 달라 고칠 수 없습니다. rekordbox에서 다시 내보내세요")
-                : String(ui: "두 형식에서 같은 번호의 재생 목록이 서로 달라 고칠 수 없습니다. rekordbox에서 다시 내보내세요")
+                : String(ui: "부모 폴더를 찾을 수 없는 재생 목록이 있어 고칠 수 없습니다. rekordbox에서 USB를 다시 내보내세요")
         }
         guard let library else { return nil }
         let missing = String(ui: "대상이 USB에서 사라졌습니다. USB를 다시 읽은 뒤 고치세요")
@@ -346,6 +405,10 @@ struct UsbEditActions {
         switch edit {
         case let .addTracks(_, playlist):
             return playlist.flatMap { entryReason($0) }
+        case let .syncPlaylist(playlist, _):
+            return entryReason(playlist)
+        case .syncSelection:
+            return nil
         case let .removeTracks(ids):
             let removing = Set(ids), all = trackIDs()
             if !removing.isSubset(of: all) { return missing }
@@ -437,7 +500,7 @@ struct UsbEditActions {
     }
 
     /// 편집 여럿을 차례로 한 번에 더한다
-    private func append(_ edits: [UsbLibraryEdit], to volumeKey: String, detail: String) async -> Bool {
+    func append(_ edits: [UsbLibraryEdit], to volumeKey: String, detail: String) async -> Bool {
         guard !edits.isEmpty, usb.acceptsEdits(volumeKey) else { return false }
         let name = usb.editName(volumeKey) ?? "USB"
         switch await mutateDraft(volumeKey, { $0 + edits }) {
@@ -459,7 +522,7 @@ struct UsbEditActions {
     /// 하나라도 막히면 모두 더하지 않는다
     @discardableResult
     private func appendChecked(_ edits: [UsbLibraryEdit], to volumeKey: String, detail: String) async -> Bool {
-        if let reason = edits.lazy.compactMap({ blockReason($0, volumeKey: volumeKey) }).first {
+        if let reason = blockReason(edits, volumeKey: volumeKey) {
             warnNotAdded(reason)
             return false
         }

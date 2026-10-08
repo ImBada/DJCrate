@@ -100,6 +100,21 @@ struct PdbRoundTripTests {
         #expect(try PdbRoundTrip.check(export: export, exportExt: nil).isEmpty)
     }
 
+    /// rekordbox 7.2.x 경계 실험(2026-10-08): 긴 이름의 먼 모양 아티스트·앨범 행과 긴 ASCII 이름은 다시 써도 같은 모양·같은 칸이다
+    @Test func roundTripPassesWithFarRowsAndLongASCII() throws {
+        let (export, ext) = Self.sample { builder in
+            builder.add(.artists, PdbBuilder.artistRow(19, String(repeating: "가", count: 116), far: true))
+            builder.add(.artists, PdbBuilder.artistRow(20, String(repeating: "A", count: 127)))
+            builder.add(.artists, PdbBuilder.artistRow(21, String(repeating: "A", count: 250), far: true))
+            builder.add(.albums, PdbBuilder.albumRow(29, String(repeating: "가", count: 120), artistID: 19, far: true))
+        }
+        let report = try PdbReader.read(export: export, exportExt: ext).1
+        let base = try PdbReader.read(export: Self.sample().export, exportExt: ext).1
+        #expect(report.farShapeRows == ["artists": 2, "albums": 1])
+        #expect(report.stringKinds["longASCII", default: 0] == base.stringKinds["longASCII", default: 0] + 2)
+        #expect(try PdbRoundTrip.check(export: export, exportExt: ext) == [])
+    }
+
     // rekordbox 7.2.18 골든 관찰(2026-09-26 내보내기)
     @Test func roundTripDetectsUnknownTrackConstant() throws {
         var tracks = Self.sampleTracks()
@@ -171,10 +186,10 @@ struct PdbRoundTripTests {
         let export = PdbReadTests.sampleExport(tracks: Self.sampleTracks()).build().data
         let withLinks = PdbReadTests.sampleExt().build().data
         #expect(try PdbRoundTrip.check(export: export, exportExt: withLinks).contains { $0.contains("myTagLinks") })
-        // 먼 모양 아티스트 행
+        // 작성기가 고르지 않는 모양의 아티스트 행(짧은 이름을 먼 모양으로): 다시 쓰면 모양이 바뀐다
         let far = PdbReadTests.sampleExport(tracks: Self.sampleTracks()) { $0.add(.artists, PdbBuilder.artistRow(19, "Far", far: true)) }
             .build().data
-        #expect(try PdbRoundTrip.check(export: far, exportExt: nil).contains { $0.contains("far") })
+        #expect(try PdbRoundTrip.check(export: far, exportExt: nil).contains("far_shape_rows artists 1 -> 0"))
         // 모르는 표의 행
         let unknown = PdbReadTests.sampleExport(tracks: Self.sampleTracks()) { $0.add(9, PdbBuilder.opaqueRow()) }.build().data
         #expect(!(try PdbRoundTrip.check(export: unknown, exportExt: nil)).isEmpty)

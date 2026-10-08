@@ -75,16 +75,23 @@ enum UsbLibraryRows {
 enum UsbSyncBadges {
     /// 로컬 키를 모르면(스냅샷을 아직 읽지 않음) 배지를 달지 않는다
     static func compute(library: UsbLibrary, local: LocalLibraryKeys?) -> [Int: UsbSyncStatus] {
-        guard let local else { return [:] }
+        evaluate(library: library, local: local).badges
+    }
+
+    /// 배지와 로컬 짝(USB content_id → 로컬 ContentID, 짝이 하나인 곡만). 동기화·큐 가져오기가 짝을 쓴다
+    static func evaluate(library: UsbLibrary, local: LocalLibraryKeys?) -> (badges: [Int: UsbSyncStatus], matches: [Int: String]) {
+        guard let local else { return ([:], [:]) }
         // 짝은 MasterSongID가 같아야 하므로 그 값으로 먼저 추려 곡마다 전체를 훑지 않는다
         let bySong = Dictionary(grouping: local.tracks) { Int64($0.masterSongID) ?? -1 }
         var result: [Int: UsbSyncStatus] = [:]
+        var matches: [Int: String] = [:]
         for track in library.tracks {
             let key = UsbTrackKey(masterDbId: track.masterDbId, masterContentId: track.masterContentId, fileName: track.fileName)
             guard let contentID = UsbTrackMatch.match(key, localDBID: local.localDBID, local: bySong[track.masterContentId] ?? []) else {
                 result[track.id] = .missingLocal
                 continue
             }
+            matches[track.id] = contentID
             let counters = local.counters[contentID]
             let modified = max(track.hasModified, track.deviceFields.values.compactMap(\.hasModified).max() ?? 0)
             result[track.id] = UsbSyncStatus.compare(localInfo: counters?.information, localAnalysis: counters?.analysis,
@@ -92,7 +99,7 @@ enum UsbSyncBadges {
                                                      usbAnalysis: track.analysisDataUpdateCount, usbCue: track.cueUpdateCount,
                                                      hasModified: modified, hasCueRows: false)
         }
-        return result
+        return (result, matches)
     }
 }
 

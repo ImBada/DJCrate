@@ -77,7 +77,6 @@ struct UsbExportCandidatesTests {
         #expect(!candidate.artworkPathSetButMissing)
         #expect(candidate.cues == [UsbCueTraits(kind: 0, colorTableIndex: nil, color: -1, inMsec: 1_000, outMsec: -1)])
         #expect(candidate.metadata == UsbTrackMetadataFlags(hasRating: true, hasSubtitle: true, hasSearchString: true, isCompilation: true))
-        #expect(Set(candidate.pdbStrings) == ["Title", "comment", "ISRC0", "Sub", "2026-01-01", "2026-02-02", "2026-03-03"])
     }
 
     @Test("곡 정보 칸마다 그 플래그 하나만 선다")

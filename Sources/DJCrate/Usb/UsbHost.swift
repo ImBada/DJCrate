@@ -105,6 +105,7 @@ enum UsbAppSetup {
         usb.writeService = service
         // 초안은 DJC_HOME 아래(시험 실행이 사용자 초안을 건드리지 않게)
         usb.draftDirectory = DJCPaths.usbDrafts
+        usb.syncSelectionDirectory = DJCPaths.usbSyncSelections
         usb.onPendingJournal = { [weak store] volume in
             Task { await store?.usbCoordinator?.offerRecovery(volume) }
         }

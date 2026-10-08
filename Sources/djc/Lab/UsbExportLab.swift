@@ -172,7 +172,7 @@ enum UsbExportLab {
         let share = URL(filePath: shareArgument)
         let candidates = try UsbExportCandidates.load(database: db, share: share, contentIDs: ids)
         let plan = UsbExportPlanner.plan(UsbExportRequest(
-            candidates: candidates, playlists: playlists, existing: nil, formats: formats, naming: IdentifierAnalysisNaming(),
+            candidates: candidates, playlists: playlists, existing: nil, formats: formats, naming: RekordboxAnalysisNaming(),
             snapshotTakenAt: snapshot.date, clusterSize: clusterSize))
         print("후보 \(ids.count) · 계획 \(plan.tracks.count)곡 · 목록 \(plan.playlists.count) · 막힘 \(plan.blocked.count)"
             + (plan.blocked.isEmpty ? "" : "(\(UsbPlanLab.counts(plan.blocked.map(\.code))))"))
@@ -297,7 +297,7 @@ enum UsbExportLab {
             return "\(names[category] ?? category.rawValue) \(count.same)/\(count.total)"
         }.joined(separator: " · "))
         let labels = [("deadRows", "지운 행이 있는 데이터 쪽"), ("inPlaceShape", "제자리 수정 모양 데이터 쪽"),
-                      ("indexEntries", "지운 쪽 목록이 있는 인덱스 쪽")]
+                      ("indexEntries", "지운 쪽 목록이 있는 인덱스 쪽"), ("nfcStrings", "NFC로 바꿔 쓰는 문자열이 든 데이터 쪽")]
         for (reason, label) in labels {
             let pages = report.excluded.filter { $0.reason == reason }.map(\.number)
             guard !pages.isEmpty else { continue }

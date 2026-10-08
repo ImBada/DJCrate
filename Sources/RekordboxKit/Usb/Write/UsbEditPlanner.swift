@@ -12,6 +12,10 @@ struct UsbPlannedEdit {
     var warnings: [UsbBlock] = []
     var trackBlocks: [UsbBlock] = []
     var isRemoval = false
+    /// 적용이 성공한 뒤 다음 목록 동기화가 참조할 로컬 ID → 새 USB ID
+    var addedLocalTracks: [String: Int] = [:]
+    /// 더한 곡 중 파일 크기 칸(로컬 FileSize)이 복사한 음원과 다른 곡(USB content id, `audioChangedSinceAnalysis`)
+    var audioSizeFromDatabase: Set<Int> = []
 }
 
 /// 편집 하나를 막는 이유(그 편집만 빼고 나머지를 쓴다)
@@ -37,11 +41,24 @@ struct UsbEditPlanner {
     var newPlaylists: [String: Int] = [:]
     /// 이번 묶음에서 이미 갱신한 곡
     var refreshed: Set<Int> = []
+    /// 같은 묶음에서 더한 곡은 내보내며 바뀐 파일 이름과 무관하게 정확한 번호로 연결한다
+    var addedLocalTracks: [String: Int] = [:]
+    /// 짝짓기는 삭제되지 않은 로컬 곡 전체를 보고, 같은 DB·곡 ID끼리 묶어 이름의 모호함도 확인한다
+    struct LocalIdentity: Hashable {
+        var database: Int64
+        var song: Int64
+    }
+    var localTrackKeys: [LocalIdentity: [UsbLocalTrackKey]]?
     /// 곡 더하기가 볼 USB 상태(처음 쓸 때 USB를 훑어 만든다)
     var existing: UsbExistingState?
     var artwork: UsbArtworkLayout?
     /// OneLibrary 사본의 기기 큐 행 수(곡 id → 수)
     var deviceCueRows: [Int: Int]?
+    /// 동기화 묶음(선택 파일을 함께 쓴다)이면 더할 곡이 모두 막혀도 곡 더하기 편집을 막지 않고 건너뛴다.
+    /// rekordbox처럼 넣지 못한 곡만 알리고 목록은 넣은 곡으로 맞춘다
+    var skipsUnaddableTracks = false
+    /// 앞 편집에서 이미 곡 단위 막힘으로 알린 로컬 곡(목록 동기화가 같은 곡을 다른 이유로 다시 세지 않게)
+    var reportedLocalTracks: Set<String> = []
 
     init(source: UsbEditSource, root: UsbRoot, fileSystem: any UsbFileSystem, staging: URL, localDatabase: CipherDatabase?, share: URL?,
          snapshotTakenAt: Date?, localAppVersion: String?, clusterSize: Int, highWater: [String: Int]) {
@@ -78,7 +95,8 @@ struct UsbEditPlanner {
         each(.key, model.keys.map(\.id))
         each(.label, model.labels.map(\.id))
         each(.image, model.images.map(\.id))
-        each(.playlist, model.playlists.map(\.id))
+        // 두 형식의 번호를 모두 본다(대표 번호만 보면 한 형식에서 쓰는 번호를 새 목록에 줄 수 있다, #233). 음수 대표 번호는 형식 번호가 아니다
+        each(.playlist, model.playlists.flatMap { [$0.id] + $0.formatIDs.values }.filter { $0 > 0 })
     }
 
     // MARK: - 편집 하나
@@ -92,6 +110,11 @@ struct UsbEditPlanner {
             case let .refreshTracks(usbContentIDs, parts): try planRefresh(usbContentIDs, parts: parts, into: &planned)
             case let .addTracks(localContentIDs, playlist):
                 try planAdd(localContentIDs, playlist: playlist, into: &planned, progress: progress, isCancelled: isCancelled)
+            case let .syncPlaylist(playlist, localContentIDs):
+                try planSyncPlaylist(playlist, localIDs: localContentIDs, into: &planned)
+            case .syncSelection:
+                // ID는 모든 목록 편집을 실제 적용한 뒤 정한다(계획 중에 미리 성공으로 기록하지 않는다).
+                break
             }
         } catch let blocked as UsbEditBlocked {
             planned.op = nil
@@ -103,11 +126,13 @@ struct UsbEditPlanner {
             planned.outcome = .blocked(blocks[0])
             planned.files = UsbExportAssembly.Context(staging: planned.files.staging)
         }
+        for block in planned.trackBlocks { if case let .track(id) = block.scope { reportedLocalTracks.insert(id) } }
         if let op = planned.op {
             do {
                 let next = try UsbEditModel.apply(op, to: working, writable: writable)
                 working = OneLibraryWriter.normalized(next, from: working)
                 Self.observe(working, into: &ids)
+                addedLocalTracks.merge(planned.addedLocalTracks) { _, new in new }
                 planned.outcome = .written
             } catch {
                 planned.op = nil
@@ -171,7 +196,10 @@ struct UsbEditPlanner {
             if formats.contains(.deviceLibrary) { planned.rules.formUnion(UsbTrackRules.pdbStringRules([name])) }
         case let .rename(ref, name):
             let playlist = try target(ref)
-            guard playlist.name != name else { return }
+            // 철자(NFC·NFD)만 다른 이름도 OneLibrary에는 바꿔 쓴다. Device Library는 늘 NFC로 쓰므로 그것만으로는 바꾸지 않는다(#233)
+            guard UsbNameSpelling.playlistNeedsRename(from: playlist.name, to: name, formats: playlist.presentIn.intersection(writable)) else {
+                return
+            }
             try requireWritableEverywhere(playlist, ref: ref)
             if playlist.presentIn.contains(.deviceLibrary) { planned.rules.formUnion(UsbTrackRules.pdbStringRules([name])) }
             planned.op = .playlist(.rename(id: playlist.id, name: name))
@@ -252,7 +280,7 @@ struct UsbEditPlanner {
     }
 
     /// 목록 이름·부모는 형식마다 따로 두지 않는다(합친 모델에 한 값). 고칠 수 없는 형식에도 있는 목록을 바꾸면 두 형식이 어긋나
-    /// 다음 읽기부터 USB 전체가 막히므로(`formatPlaylistConflict`) 그런 목록의 이름·부모는 바꾸지 않는다
+    /// 다음 읽기부터 짝을 잃고 두 목록으로 보이므로(`UsbPlaylistPairing`) 그런 목록의 이름·부모는 바꾸지 않는다
     func requireWritableEverywhere(_ playlist: UsbPlaylist, ref: PlaylistRef) throws {
         guard playlist.presentIn.isSubset(of: writable) else {
             throw UsbEditBlocked(block: UsbBlock(code: "playlistInBlockedFormat", scope: .playlist(ref.description),

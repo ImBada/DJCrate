@@ -9,6 +9,8 @@ extension DJCPaths {
     /// USB DB를 맥에서 열려고 뜬 사본
     public static var usbSnapshots: URL { userData.appending(path: "usb-snapshots") }
     public static var usbDrafts: URL { userData.appending(path: "usb-drafts") }
+    /// USB마다 기억하는 동기화 선택·목록 연결
+    public static var usbSyncSelections: URL { userData.appending(path: "usb-sync-selections") }
     /// 저널(<볼륨키>.json)·잠금(<볼륨키>.lock)
     public static var usbSessions: URL { userData.appending(path: "usb-sessions") }
     /// 쓰기 전에 만든 파일(분석·아트워크·DB)

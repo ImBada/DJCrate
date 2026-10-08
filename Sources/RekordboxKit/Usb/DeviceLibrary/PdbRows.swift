@@ -13,7 +13,7 @@ struct PdbRowReader {
     let data: Data
     private let bytes: [UInt8]
     private(set) var strings: [DecodedString] = []
-    /// 먼 오프셋 모양(0x0064·0x0084·0x0684)으로 읽었는지. 쓰는 쪽이 `pdbFarOffsetRows`로 막을 수 있게 보고서에 센다
+    /// 먼 오프셋 모양(0x0064·0x0084·0x0684)으로 읽었는지. 왕복 검사가 다시 쓴 파일과 비교할 수 있게 보고서에 센다
     private(set) var farShape = false
 
     init(_ data: Data) {
@@ -59,8 +59,8 @@ struct PdbRowReader {
     }
 }
 
-/// 표별 행 해석. rekordbox 7.2.18 골든 관찰(2026-09-26 내보내기)로 칸을 정했다. 먼 오프셋 모양(0x0064·0x0084·0x0684)은
-/// 골든에서 보지 못한 모양이라 읽기만 하고 `PdbRowReader.farShape`로 표시한다.
+/// 표별 행 해석. rekordbox 7.2.18 골든 관찰(2026-09-26 내보내기)로 칸을 정했다. 아티스트·앨범 먼 오프셋 모양(0x0064·0x0084)은
+/// rekordbox 7.2.x 경계 실험(2026-10-08)에서 확인했다. 먼 모양 행은 `PdbRowReader.farShape`로 표시한다(My Tag 0x0684는 확인 못 함).
 enum PdbRows {
     /// 트랙 행 고정 칸 길이(문자열 오프셋 21개까지)
     static let trackFixedSize = 0x5E + 2 * trackStringCount

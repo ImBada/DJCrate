@@ -85,12 +85,13 @@ struct UsbEditEngineTests {
         #expect(result.changes == nil)
     }
 
-    @Test("같은 번호 목록이 두 형식에서 다르면 목록 편집(과 다른 편집)을 막는다")
-    func playlistConflictBlocksPlaylistEdits() throws {
+    @Test("부모를 찾을 수 없는 목록이 있으면 목록 편집(과 다른 편집)을 막는다")
+    func orphanPlaylistBlocksEdits() throws {
         let env = try Self.rekordboxStyle {
-            var playlist = UsbLibraryFixture.Playlist(id: 10, name: "합성 목록", entries: [1, 2])
-            playlist.deviceLibraryName = "합성 다른 이름"
-            $0.playlists = [playlist]
+            var orphan = UsbLibraryFixture.Playlist(id: 11, name: "합성 고아 목록", entries: [1])
+            orphan.formats = [.deviceLibrary]
+            orphan.parentID = 99
+            $0.playlists.append(orphan)
         }
         let result = try env.plan([.playlist(edit: .rename(playlist: .id("10"), name: "합성 새 이름"))], withLocal: false)
         #expect(Self.isBlocked(result.outcome(1), "formatPlaylistConflict"))
@@ -331,6 +332,67 @@ struct UsbEditEngineTests {
         #expect(result.changes == nil)
     }
 
+    /// 로컬 곡의 FileSize를 실제 음원보다 작게 적는다(rekordbox 분석 뒤 태그를 고쳐 파일이 커진 곡). 실제 크기를 돌려준다
+    static func shrinkRecordedSize(_ env: UsbEditFixture, _ id: String, by delta: Int = 7) throws -> Int {
+        let row = try env.local.local.rows("SELECT FolderPath FROM djmdContent WHERE ID = '\(id)'")
+        let path = try #require(row.first?["FolderPath"])
+        let actual = try Data(contentsOf: URL(filePath: path)).count
+        try env.updateLocal(id, "FileSize = ?", [.int(actual - delta)])
+        return actual
+    }
+
+    /// 두 형식에서 읽은 곡(로컬 곡 ID로 찾는다, 마스터 곡 ID = "8" + 로컬 ID)
+    static func usbTracks(_ env: UsbEditFixture, local id: String) throws -> [UsbTrack] {
+        try [UsbFormat.oneLibrary, .deviceLibrary].map { format in
+            try #require(try env.read(format)?.tracks.first { $0.masterContentId == Int64("8" + id) })
+        }
+    }
+
+    @Test("분석 뒤 크기가 바뀐 음원도 rekordbox처럼 지금 파일을 그대로 내보내고 두 DB에는 로컬 FileSize를 적는다")
+    func exportAudioChangedSinceAnalysis() throws {
+        let env = try UsbEditFixture()
+        try env.addLocal(["101", "102"])
+        let actual = try Self.shrinkRecordedSize(env, "102")
+        let db = try env.local.open()
+        let build = try env.local.build(db, try env.local.request(db, ids: ["101", "102"]))
+        db.close()
+        #expect(build.plan.blocked.isEmpty && build.plan.tracks.count == 2)
+        #expect(build.plan.requiredRules.contains(.audioChangedSinceAnalysis) && build.plan.ruleCounts[.audioChangedSinceAnalysis] == 1)
+        // 쓰기(모든 검증기 통과는 export가 확인한다)
+        try env.export(tracks: ["101", "102"])
+        let tracks = try Self.usbTracks(env, local: "102")
+        #expect(tracks.allSatisfy { $0.fileSize == Int64(actual - 7) })
+        #expect(env.usb.data(String(tracks[0].path.dropFirst()))?.count == actual)
+        // 다른 곡은 그대로 맞는다. 크기 비교를 빼지 않으면 이 곡만 형식과 무관하게 한 번 잡힌다
+        let scratch = env.usb.folder.appending(path: "problems")
+        #expect(try UsbInvariantVerifier.problems(on: env.usb.root, fileSystem: env.usb.fileSystem(), scratch: scratch)
+            == ["audioSize content \(tracks[0].id)"])
+        // 갱신: USB 음원이 지금 로컬 음원과 같아 막지 않고, 파일 크기 칸도 로컬 FileSize 그대로다
+        try env.updateLocal("102", "TrackInfoUpdated = '2', Title = '합성 새 제목'")
+        let (result, report) = try env.edit([.refreshTracks(usbContentIDs: [tracks[0].id], parts: [.info])])
+        #expect(result.outcome(1) == .written && report.outcome == .written && result.trackBlocks.isEmpty)
+        #expect(try Self.usbTracks(env, local: "102").allSatisfy { $0.title == "합성 새 제목" && $0.fileSize == Int64(actual - 7) })
+    }
+
+    @Test("곡 더하기도 분석 뒤 크기가 바뀐 음원을 실제 크기로 복사해 더하고, 음원 파일이 없는 곡만 막는다")
+    func addAudioChangedSinceAnalysis() throws {
+        let env = try Self.exported(["101"], playlist: false)
+        try env.addLocal(["102", "103"])
+        let actual = try Self.shrinkRecordedSize(env, "102")
+        let missing = try #require(try env.local.local.rows("SELECT FolderPath FROM djmdContent WHERE ID = '103'").first?["FolderPath"])
+        try FileManager.default.removeItem(atPath: missing)
+        let (result, report) = try env.edit([.addTracks(localContentIDs: ["102", "103"], playlist: nil)])
+        #expect(result.outcome(1) == .written && report.outcome == .written)
+        #expect(result.trackBlocks.map(\.code) == ["audioMissing"])
+        let changes = try #require(result.changes)
+        #expect(changes.requiredRules.contains(.audioChangedSinceAnalysis))
+        let tracks = try Self.usbTracks(env, local: "102")
+        #expect(result.audioSizeFromDatabase == [tracks[0].id])
+        #expect(changes.copies.first { $0.destination == String(tracks[0].path.dropFirst()) }?.size == Int64(actual))
+        #expect(tracks.allSatisfy { $0.fileSize == Int64(actual - 7) })
+        #expect(env.usb.data(String(tracks[0].path.dropFirst()))?.count == actual)
+    }
+
     @Test("사본 이름의 시각 뒤에 로컬 분석 파일이 바뀐 곡은 그 곡 갱신만 막는다")
     func refreshUsesSnapshotTimeFromName() throws {
         let env = try Self.exported(["101", "102"], playlist: false)
@@ -554,10 +616,15 @@ struct UsbEditEngineTests {
     func slotNextWhenOtherPPTH() throws {
         let env = try Self.exported(["101"], playlist: false)
         try env.addLocal(["102"])
-        env.usb.write("PIONEER/USBANLZ/P000/00000002/ANLZ0000.DAT", UsbLibraryFixture.dat(path: "/Contents/합성 다른 곡.mp3", hotCueA: nil))
+        // 분석 폴더는 곡 경로의 rekordbox 해시다. 먼저 계획만 해 경로를 알고, 그 폴더에 다른 곡의 파일을 둔다
+        let first = try #require(try env.plan([.addTracks(localContentIDs: ["102"], playlist: nil)]).applied?.tracks.first { $0.id == 2 })
+        let folder = try #require(RekordboxAnalysisNaming().folder(contentsPath: first.path, contentID: 2))
+        #expect(first.analysisDataPath == "/PIONEER/USBANLZ/\(folder)/ANLZ0000.DAT")
+        env.usb.write("PIONEER/USBANLZ/\(folder)/ANLZ0000.DAT", UsbLibraryFixture.dat(path: "/Contents/합성 다른 곡.mp3", hotCueA: nil))
         let result = try env.plan([.addTracks(localContentIDs: ["102"], playlist: nil)])
         let added = try #require(result.applied?.tracks.first { $0.id == 2 })
-        #expect(added.analysisDataPath == "/PIONEER/USBANLZ/P000/00000002/ANLZ0001.DAT")
+        #expect(added.path == first.path)
+        #expect(added.analysisDataPath == "/PIONEER/USBANLZ/\(folder)/ANLZ0001.DAT")
         #expect(result.changes?.requiredRules.contains(.analysisSlotCollision) == true)
         #expect(try env.write(result).outcome == .written)
     }
@@ -707,35 +774,30 @@ struct UsbEditEngineTests {
 
     // MARK: - 긴 ASCII
 
-    @Test("긴 ASCII 문자열(127자 이상)은 편집이 만든 값과 다시 쓰는 기존 값 모두 pdbLongAscii로 싣는다")
+    @Test("긴 ASCII 문자열(127자 이상)은 rekordbox에서 본 칸(곡 문자열·경로·아티스트·앨범)이 아닐 때만 pdbLongAscii로 싣는다")
     func longAsciiRulesFromEdits() throws {
         let long = String(repeating: "a", count: 127), short = String(repeating: "a", count: 126)
         let env = try Self.exported(["101", "102"])
+        // 곡 제목의 긴 ASCII는 rekordbox 7.2.x 경계 실험(2026-10-08)으로 확인한 모양이라 싣지 않는다
         try env.updateLocal("101", "TrackInfoUpdated = '2', Title = ?", [.text(long)])
-        #expect(try env.plan([.refreshTracks(usbContentIDs: [1], parts: [.info])]).changes?.requiredRules.contains(.pdbLongAscii) == true)
-        try env.updateLocal("101", "TrackInfoUpdated = '2', Title = ?", [.text(short)])
         #expect(try env.plan([.refreshTracks(usbContentIDs: [1], parts: [.info])]).changes?.requiredRules.contains(.pdbLongAscii) == false)
+        // 장르 이름은 본 적 없는 칸이라 싣는다
+        try env.local.local.addGenre(id: "40", name: long)
+        try env.updateLocal("101", "TrackInfoUpdated = '3', GenreID = '40'")
+        #expect(try env.plan([.refreshTracks(usbContentIDs: [1], parts: [.info])]).changes?.requiredRules.contains(.pdbLongAscii) == true)
         #expect(try env.plan([.playlist(edit: .rename(playlist: .id("1"), name: long))]).changes?.requiredRules.contains(.pdbLongAscii) == true)
         #expect(try env.plan([.playlist(edit: .rename(playlist: .id("1"), name: short))]).changes?.requiredRules.contains(.pdbLongAscii) == false)
-        // 경로 성분은 48자까지라 아티스트·앨범·파일 이름을 모두 길게(순수 ASCII) 준다
+        // 경로 성분은 48자까지라 아티스트·앨범·파일 이름을 모두 길게(순수 ASCII) 준다. 긴 경로는 확인한 모양이다
         let artist = String(repeating: "a", count: 40), album = String(repeating: "b", count: 40)
         let file = String(repeating: "c", count: 40) + ".mp3"
         try env.local.addTrack(id: "103", artist: ("7", artist), album: ("37", album), fileName: file)
-        #expect(try env.plan([.addTracks(localContentIDs: ["103"], playlist: nil)]).changes?.requiredRules.contains(.pdbLongAscii) == true)
-
-        // USB에 이미 긴 ASCII 경로가 있으면 이름만 바꿔도 pdb를 다시 쓰므로 규칙이 붙는다
-        let existing = try UsbEditFixture()
-        try existing.local.addTrack(id: "201", artist: ("7", artist), album: ("37", album), fileName: file)
-        try existing.local.local.addPlaylist(id: "900", name: "list", seq: 1, contentIDs: ["201"])
-        try existing.export(tracks: [], playlists: ["900"])
-        let rename = try existing.plan([.playlist(edit: .rename(playlist: .id("1"), name: "renamed"))])
-        #expect(rename.changes?.requiredRules.contains(.pdbLongAscii) == true)
-        #expect(rename.changes?.requiredRules.contains(.pdbRegeneratedEdit) == true)
+        #expect(try env.plan([.addTracks(localContentIDs: ["103"], playlist: nil)]).changes?.requiredRules.contains(.pdbLongAscii) == false)
 
         // Device Library를 쓰지 않으면(막힘) pdb 문자열 규칙을 싣지 않는다
         let blocked = try Self.exported(["101", "102"])
         blocked.setPdbFlag(4)
-        try blocked.updateLocal("101", "TrackInfoUpdated = '2', Title = ?", [.text(long)])
+        try blocked.local.local.addGenre(id: "40", name: long)
+        try blocked.updateLocal("101", "TrackInfoUpdated = '2', GenreID = '40'")
         let refresh = try blocked.plan([.refreshTracks(usbContentIDs: [1], parts: [.info])])
         #expect(refresh.outcome(1) == .written && refresh.changes?.requiredRules.contains(.pdbLongAscii) == false)
         let create = try blocked.plan([.playlist(edit: .create(key: "l", name: long, isFolder: false, parent: .root))])

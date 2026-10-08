@@ -22,7 +22,7 @@ struct PdbStringTests {
         #expect(empty.value == "" && empty.kind == .shortASCII && empty.byteLength == 1)
         // 126자까지
         let long = String(repeating: "x", count: 126)
-        let encoded = try #require(PdbStringEncoder.encode(long))
+        let encoded = PdbStringEncoder.encode(long)
         #expect(encoded.count == 127)
         #expect(try PdbStringDecoder.decode(encoded, at: 0).value == long)
     }
@@ -34,9 +34,9 @@ struct PdbStringTests {
         #expect(decoded.value == "시험" && decoded.kind == .utf16LE && decoded.byteLength == 8)
         // ASCII가 아닌 글자가 있으면 UTF-16LE로 쓴다
         #expect(PdbStringEncoder.encode("시험") == Data([0x90, 0x08, 0x00, 0x00, 0xDC, 0xC2, 0xD8, 0xD5]))
-        // 126자를 넘는 ASCII의 UTF-16LE는 확인 안 된 임시 모양(pdbLongAscii)이라 encode는 고르지 않는다. 부르는 쪽이 명시해서 쓴다
+        // 126자를 넘는 순수 ASCII는 긴 ASCII(0x40)로 쓴다. UTF-16LE는 부르는 쪽이 명시할 때만(메뉴 이름 등)
         let long = String(repeating: "y", count: 127)
-        #expect(PdbStringEncoder.encode(long) == nil)
+        #expect(PdbStringEncoder.encode(long).first == 0x40)
         let encoded = PdbStringEncoder.encodeUTF16(long)
         #expect(encoded.first == 0x90 && encoded.count == 4 + 254)
         #expect(try PdbStringDecoder.decode(encoded, at: 0).value == long)
@@ -49,6 +49,18 @@ struct PdbStringTests {
         let row = Data([0x40, 0x07, 0x00, 0x00, 0x61, 0x62, 0x63])
         let decoded = try PdbStringDecoder.decode(row, at: 0)
         #expect(decoded.value == "abc" && decoded.kind == .longASCII && decoded.byteLength == 7)
+    }
+
+    /// rekordbox 7.2.x 경계 실험(2026-10-08): 'A' × 127·236·244·250은 `40`, u16 길이 = 4 + n, `00`, ASCII n바이트(끝 표시 없음)
+    @Test func encodeLongASCII0x40() throws {
+        for count in [127, 236, 244, 250] {
+            let value = String(repeating: "A", count: count)
+            let encoded = PdbStringEncoder.encode(value)
+            #expect(Array(encoded.prefix(4)) == [0x40, UInt8((4 + count) & 0xFF), UInt8((4 + count) >> 8), 0x00])
+            #expect(encoded.count == 4 + count && encoded.dropFirst(4).allSatisfy { $0 == 0x41 })
+            let decoded = try PdbStringDecoder.decode(encoded, at: 0)
+            #expect(decoded.value == value && decoded.kind == .longASCII && decoded.byteLength == 4 + count)
+        }
     }
 
     @Test func decodeISRCSpecial() throws {

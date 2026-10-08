@@ -237,11 +237,11 @@ extension PdbBuilder {
             for index in 0..<4 { bytes[offset + index] = UInt8(truncatingIfNeeded: value >> (8 * index)) }
         }
 
-        /// 문자열을 끝에 붙이고 그 오프셋을 돌려준다. 127자 이상 순수 ASCII는 확인 안 된 모양이라 읽기 시험용으로 UTF-16LE로 둔다
+        /// 문자열을 끝에 붙이고 그 오프셋을 돌려준다. UTF-16·긴 ASCII(127자 이상 순수 ASCII)는 4바이트 경계에 둔다
         @discardableResult
         public mutating func append(_ value: String, isrc: Bool = false) -> Int {
-            let encoded = isrc ? PdbStringEncoder.encodeISRC(value) : PdbStringEncoder.encode(value) ?? PdbStringEncoder.encodeUTF16(value)
-            if encoded.first == 0x90 { while bytes.count % 4 != 0 { bytes.append(0) } }
+            let encoded = isrc ? PdbStringEncoder.encodeISRC(value) : PdbStringEncoder.encode(value)
+            if encoded.first == 0x90 || encoded.first == 0x40 { while bytes.count % 4 != 0 { bytes.append(0) } }
             let offset = bytes.count
             bytes.append(encoded)
             return offset

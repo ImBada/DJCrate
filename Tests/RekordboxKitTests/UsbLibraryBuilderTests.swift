@@ -19,7 +19,8 @@ struct UsbLibraryBuilderTests {
         track.artistID = artist
         track.albumID = album
         track.composerID = composer
-        track.folderPath = try fixture.writeAudio(named: "\(id).mp3", bytes: bytes).path
+        // 음원 경로의 끝 성분 = FileNameL(USB 파일 이름은 경로 끝 성분으로 짓는다)
+        track.folderPath = try fixture.writeAudio(named: "\(id)/" + (fileName ?? "\(id).mp3"), bytes: bytes).path
         try fixture.add(track)
         try fixture.setIdentity(track: track, masterSongID: "9\(id)", masterDBID: dbid, fileNameL: fileName ?? "\(id).mp3")
         try fixture.setFileSize(track: track, Int64(bytes))

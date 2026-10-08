@@ -15,16 +15,21 @@ struct PdbStringEncodeTests {
         #expect(try PdbStringDecoder.decode(encoded.bytes, at: 0).value == value)
     }
 
-    @Test func ascii127IsUTF16AndFlagged() throws {
+    /// rekordbox 7.2.x 경계 실험(2026-10-08): 127자 순수 ASCII는 긴 ASCII(0x40).
+    /// 트랙 행 문자열·아티스트·앨범 이름(본 칸)에는 규칙을 붙이지 않고, 그 밖의 칸에는 pdbLongAscii를 붙인다
+    @Test func ascii127IsLongASCII() throws {
         let value = String(repeating: "a", count: 127)
         let encoded = PdbStringEncoder.encoded(value)
-        #expect(encoded.kind == .utf16LE)
+        #expect(encoded.kind == .longASCII)
         #expect(encoded.rules == [.pdbLongAscii])
-        let length = 4 + 2 * 127
-        #expect(Array(encoded.bytes.prefix(4)) == [0x90, UInt8(length & 0xFF), UInt8(length >> 8), 0x00])
-        #expect(encoded.bytes.count == length)
+        #expect(Array(encoded.bytes.prefix(4)) == [0x40, UInt8(4 + 127), 0x00, 0x00])
+        #expect(encoded.bytes.count == 4 + 127 && encoded.needsAlignment)
         let decoded = try PdbStringDecoder.decode(encoded.bytes, at: 0)
-        #expect(decoded.value == value && decoded.kind == .utf16LE)
+        #expect(decoded.value == value && decoded.kind == .longASCII)
+        let observed = PdbStringEncoder.encoded(value, longASCIIObserved: true)
+        #expect(observed.bytes == encoded.bytes && observed.kind == .longASCII && observed.rules.isEmpty)
+        // 짧은 ASCII·UTF-16은 본 칸이든 아니든 같다
+        #expect(PdbStringEncoder.encoded("abc", longASCIIObserved: true) == PdbStringEncoder.encoded("abc"))
     }
 
     @Test func emptyIs03() {
@@ -79,6 +84,25 @@ struct PdbStringEncodeTests {
         #expect(row[0x8C] == 0x90)
         // 문자열 2(짧은 ASCII)는 UTF-16 바로 뒤
         #expect(u16(0x62) == 0x8C + 8)
+    }
+
+    /// 긴 ASCII도 4바이트 경계로 앞을 0으로 채운다.
+    /// rekordbox 7.2.x 경계 실험(2026-10-08) 때 뜬 USB의 트랙 행 경로(문자열 20)에서 본 모양
+    @Test func longASCIIAlignedWithinRow() throws {
+        var track = UsbTrack(id: 1, fileName: "a.mp3", fileType: 1)
+        track.isrc = ""
+        track.path = "/Contents/" + String(repeating: "p", count: 120) + "/a.mp3"
+        let (encoded, kinds) = try PdbRowEncoder.track(track)
+        let row = encoded.bytes
+        func u16(_ at: Int) -> Int { Int(row[at]) | Int(row[at + 1]) << 8 }
+        let offset = u16(0x5E + 2 * 20)
+        #expect(offset % 4 == 0 && row[offset] == 0x40 && kinds[20] == .longASCII)
+        // 앞 문자열(19, 파일 이름) 끝에서 경계까지는 0
+        let previousEnd = u16(0x5E + 2 * 19) + 1 + "a.mp3".utf8.count
+        #expect(previousEnd <= offset && row[previousEnd..<offset].allSatisfy { $0 == 0 })
+        #expect(try PdbStringDecoder.decode(row, at: offset).value == track.path)
+        // 트랙 행 문자열은 본 칸이라 규칙이 없다
+        #expect(encoded.rules.isEmpty)
     }
 
     /// 쓰기 판정은 계획기의 문자열 규칙과 같은 기준이다

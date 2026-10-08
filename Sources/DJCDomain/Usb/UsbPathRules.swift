@@ -5,10 +5,13 @@ import Foundation
 public enum UsbPathRules {
     /// 성분 하나의 최대 길이(유니코드 스칼라 수)
     public static let maxScalars = 48
-    /// FAT에 쓸 수 없는 글자. 제어 문자(U+0000–U+001F, U+007F)도 같게 `_`로 바꾼다.
-    public static let forbidden: Set<Character> = ["\"", "*", "/", ":", "<", ">", "?", "\\", "|"]
-    /// rekordbox가 `_`로 바꾸는 것을 본 글자(규칙 없이 통과)
-    static let confirmedForbidden: Set<Unicode.Scalar> = [":", "/"]
+    /// `_`로 바꾸는 글자: FAT에 쓸 수 없는 글자와 rekordbox가 바꾸는 `~`. 제어 문자(U+0000–U+001F, U+007F)도 같게 `_`로 바꾼다.
+    public static let forbidden: Set<Character> = ["\"", "*", "/", ":", "<", ">", "?", "\\", "|", "~"]
+    /// rekordbox가 `_`로 바꾸는 것을 본 글자(규칙 없이 통과). rekordbox 7.2.x 빈 USB 내보내기 704곡(2026-10-08)에서
+    /// 폴더 성분의 `" * / : > ? ~`, 파일 이름의 `~`를 봤다. `< \ |`·제어 문자는 본 적 없어 `forbiddenCharacters`를 싣는다.
+    static let confirmedForbidden: Set<Unicode.Scalar> = ["\"", "*", "/", ":", ">", "?", "~"]
+    /// 2026-10-09 전 DJCrate가 `~`를 그대로 두고 지은 이름. 그때 쓴 USB의 곡을 알아볼 때만 쓴다(`UsbTrackMatch`).
+    static let legacyForbidden: Set<Character> = forbidden.subtracting(["~"])
 
     /// 지은 이름과 그 이름에 쓴 확인 안 된 규칙
     public struct Named: Sendable, Hashable {
@@ -29,7 +32,7 @@ public enum UsbPathRules {
         let normalized = (name ?? "").precomposedStringWithCanonicalMapping
         guard normalized.unicodeScalars.contains(where: { $0 != " " && $0 != "." }) else { return empty }
 
-        var scalars = replaceForbidden(normalized, rules: &rules)
+        var scalars = replaceForbidden(normalized, forbidden: forbidden, rules: &rules)
         if scalars.last == "." { scalars[scalars.count - 1] = "_" }
         if scalars.count > maxScalars {
             scalars = Array(scalars.prefix(maxScalars))
@@ -41,10 +44,28 @@ public enum UsbPathRules {
         return Named(value: string(scalars), rules: rules)
     }
 
-    /// 음원 파일 이름(`FileNameL`). 48 스칼라를 넘으면 확장자를 남기고 줄기만 자른다.
+    /// 음원 파일 이름(`audioFileName`). 48 스칼라를 넘으면 확장자를 남기고 줄기만 자른다.
     public static func fileName(_ name: String) -> Named {
+        fileName(name, forbidden: forbidden)
+    }
+
+    /// 2026-10-09 전 규칙(`~`를 그대로 둠)으로 지은 파일 이름
+    static func legacyFileName(_ name: String) -> String {
+        fileName(name, forbidden: legacyForbidden).value
+    }
+
+    /// USB 파일 이름의 원본: 음원 경로(`FolderPath`)의 끝 성분. 경로가 없으면 `FileNameL`.
+    /// rekordbox는 `FileNameL`이 실제 파일 이름과 다른 곡(파일 이름을 바꾼 뒤 남은 옛 값)도 실제 파일 이름으로 내보냈다(2026-10-08 골든 1곡).
+    public static func audioFileName(sourcePath: String?, fileNameL: String) -> String {
+        guard let sourcePath, sourcePath.hasPrefix("/"),
+              let last = sourcePath.split(separator: "/", omittingEmptySubsequences: true).last
+        else { return fileNameL }
+        return String(last)
+    }
+
+    static func fileName(_ name: String, forbidden: Set<Character>) -> Named {
         var rules: Set<UsbProvisionalRule> = []
-        let scalars = replaceForbidden(name.precomposedStringWithCanonicalMapping, rules: &rules)
+        let scalars = replaceForbidden(name.precomposedStringWithCanonicalMapping, forbidden: forbidden, rules: &rules)
         var result = scalars
         if scalars.count > maxScalars {
             let (stem, ext) = split(scalars)
@@ -77,7 +98,7 @@ public enum UsbPathRules {
 
     // MARK: - 도우미
 
-    static func replaceForbidden(_ text: String, rules: inout Set<UsbProvisionalRule>) -> [Unicode.Scalar] {
+    static func replaceForbidden(_ text: String, forbidden: Set<Character>, rules: inout Set<UsbProvisionalRule>) -> [Unicode.Scalar] {
         text.unicodeScalars.map { scalar in
             let isControl = scalar.value < 0x20 || scalar.value == 0x7F
             guard isControl || forbidden.contains(Character(scalar)) else { return scalar }

@@ -9,10 +9,10 @@ import Testing
 struct UsbPlanLabTests {
     func candidate(_ id: String, artist: String, album: String, file: String) -> UsbExportCandidate {
         UsbExportCandidate(localContentID: id, masterSongID: id, masterDBID: "424242", artistName: artist, albumName: album, fileNameL: file,
-                           sourcePath: "/music/\(id)", isStreaming: false, fileType: 1, fileSize: 10, actualFileSize: 10, analysis: .complete,
+                           sourcePath: "/music/\(id)/\(file)", isStreaming: false, fileType: 1, fileSize: 10, actualFileSize: 10, analysis: .complete,
                            analysisModifiedAt: nil,
                            artwork: UsbArtworkSource(smallPath: "/s", mediumPath: "/m", smallBytes: 100_000, mediumBytes: 150_000),
-                           artworkPathSetButMissing: false, cues: [], metadata: UsbTrackMetadataFlags(), pdbStrings: [])
+                           artworkPathSetButMissing: false, cues: [], metadata: UsbTrackMetadataFlags())
     }
 
     var plan: UsbExportPlan {
@@ -95,17 +95,22 @@ struct UsbPlanLabTests {
         let lines = output.split(separator: "\n").map(String.init)
         #expect(lines.first == "스냅샷 시각: explicit")
         #expect(lines.contains("경로 성분 2/2, 파일 이름 1/1, 아트워크 폴더 1/1(00001: 1), 막힘 0, "
-            + "확인 안 된 규칙: analysisFolderNaming·myTagMasterDBID·playlistSiblingBase"))
+            + "확인 안 된 규칙: myTagMasterDBID·playlistSiblingBase"))
         for secret in ["SECRET-TITLE", "secret-file", "Synthetic", fixture.root.path] {
             #expect(!output.contains(secret), "\(secret)")
         }
 
-        // 막힘은 code별 수로만
+        // 분석 뒤 크기가 바뀐 곡은 막지 않고 확인 안 된 규칙으로 싣는다(rekordbox와 같게)
         try fixture.setFileSize(track: track, 65)
-        let (_, mismatch) = try run(["usb-plan", "--db", fixture.database.path, "--share", fixture.shareRoot.path, "--all", "--summary",
-                                     "--snapshot-time", "2026-09-27T11:41:08Z"], home: fixture.root.appending(path: "home"))
-        #expect(mismatch.contains("audioSizeMismatch 1"), "\(mismatch)")
-        #expect(!mismatch.contains("SECRET-TITLE"))
+        let all = ["usb-plan", "--db", fixture.database.path, "--share", fixture.shareRoot.path, "--all", "--summary",
+                   "--snapshot-time", "2026-09-27T11:41:08Z"]
+        let (_, changed) = try run(all, home: fixture.root.appending(path: "home"))
+        #expect(changed.contains("막힘 0") && changed.contains("audioChangedSinceAnalysis"), "\(changed)")
+        // 막힘은 code별 수로만
+        try FileManager.default.removeItem(atPath: try #require(track.folderPath))
+        let (_, missing) = try run(all, home: fixture.root.appending(path: "home"))
+        #expect(missing.contains("audioMissing 1"), "\(missing)")
+        #expect(!missing.contains("SECRET-TITLE"))
     }
 
     @Test("임시 폴더 밖 사본은 받지 않는다")

@@ -27,3 +27,13 @@ public struct UsbBlock: Codable, Hashable, Sendable {
         self.rule = rule
     }
 }
+
+extension UsbBlock {
+    /// 동기화가 그 곡만 빼고 나머지를 쓰는 곡 단위 막힘인지. rekordbox도 동기화할 수 없는 곡(분석 파일 없음 등)은
+    /// 내보내기 기록에 남기고 나머지를 동기화했다(2026-10-08 실제 동기화). 로컬 스냅샷에 없는 곡은 원본과 사본이
+    /// 어긋났다는 뜻이라 빼고 쓰지 않는다(선택을 동기화했다고 잘못 적게 된다)
+    public var isSkippableInSync: Bool {
+        guard case .track = scope else { return false }
+        return code != "localTrackMissing"
+    }
+}

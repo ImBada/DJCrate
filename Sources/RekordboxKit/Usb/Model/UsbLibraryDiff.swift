@@ -111,6 +111,8 @@ public enum UsbLibraryDiff {
             playlistFields.append(Field(name: "sortOrder.\(format.rawValue)") { $0.sortOrder[format] == $1.sortOrder[format] })
             // 항목이 없는 것과 빈 항목은 같다(형식 리더마다 폴더를 다르게 둘 수 있다)
             playlistFields.append(Field(name: "entries.\(format.rawValue)") { ($0.entries[format] ?? []) == ($1.entries[format] ?? []) })
+            // 합친 모델은 대표 번호로 짝짓고 형식 번호도 견준다(#233). ID를 무시할 때는 번호를 보지 않는다
+            if !natural { playlistFields.append(Field(name: "id.\(format.rawValue)") { $0.id(in: format) == $1.id(in: format) }) }
         }
         // 오른쪽 id는 이미 왼쪽 id로 옮겼다(짝이 없으면 음수). 그래서 두 쪽 경로 표를 합쳐도 id가 겹치지 않는다.
         // 경로는 형식으로 거르기 전 목록에서 구한다(짝지을 때와 같은 키라야 짝과 비교 순서가 맞는다).

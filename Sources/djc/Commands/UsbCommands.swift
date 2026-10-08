@@ -328,7 +328,7 @@ enum UsbCommands {
     static func needsLocal(_ edits: [UsbLibraryEdit]) -> Bool {
         edits.contains {
             switch $0 {
-            case .addTracks, .refreshTracks: true
+            case .addTracks, .refreshTracks, .syncPlaylist, .syncSelection: true
             case .removeTracks, .playlist: false
             }
         }
@@ -342,11 +342,11 @@ enum UsbCommands {
         if let file = request.editsFile {
             edits = try editList(Data(contentsOf: URL(filePath: file)))
         } else {
-            // 초안에 곡 더하기·갱신이 있는지 보려고 볼륨 번호로 초안만 읽는다(USB 파일은 열지 않는다)
+            // 초안에 곡 더하기·갱신·동기화가 있는지 보려고 볼륨 번호로 초안만 읽는다(USB 파일은 열지 않는다)
             let key = try UsbEditSession.volumeKey(try UsbVolumes.info(root: root))
             edits = try UsbDraftStore().load(volumeKey: key)?.edits ?? []
         }
-        // --db를 주지 않으면 곡 더하기·갱신이 있을 때만 가장 최근 스냅샷을 읽기만 한다(새로 뜨거나 정리하지 않는다)
+        // --db를 주지 않으면 곡 더하기·갱신·동기화가 있을 때만 가장 최근 스냅샷을 읽기만 한다(새로 뜨거나 정리하지 않는다)
         let local = needsLocal(edits)
         let database = try request.database.map { URL(filePath: $0) } ?? (local ? LibrarySnapshot.latest() : nil)
         let share = request.share.map { URL(filePath: $0) } ?? (local ? LibrarySnapshot.rekordboxDirectory.appending(path: "share") : nil)
@@ -572,7 +572,7 @@ enum UsbCommands {
         case .written: String(ui: "썼습니다")
         case .rolledBack: String(ui: "쓰기 전 상태로 되돌렸습니다")
         case .restoreFailed: String(ui: "되돌리지 못했습니다")
-        case .restorePending: String(ui: "rekordbox가 켜져 있어 되돌리기를 미뤘습니다")
+        case .restorePending: String(ui: "되돌리기를 미뤘습니다")
         case .recovered: String(ui: "끊긴 쓰기를 마저 썼습니다")
         case .restored: String(ui: "쓰기 전 백업으로 되돌렸습니다")
         case .needsReplan: String(ui: "USB가 기기에서 바뀌어 이어 쓰지 않았습니다. 지금 USB 상태로 다시 미리 보기한 뒤 쓰세요")

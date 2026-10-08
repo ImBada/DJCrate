@@ -51,6 +51,8 @@ public struct UsbEditResult: Sendable {
     public var snapshotSource: UsbSnapshotTime.Source?
     /// 쓰기 전 USB에 이미 있던 불변식 문제(계획 때 USB DB 사본과 USB 파일로 본다). 검증은 이것을 빼고 새로 생긴 문제만 센다
     public var preexistingProblems: Set<String> = []
+    /// 더한 곡 중 파일 크기 칸(로컬 FileSize)이 복사한 음원과 다른 곡(USB content id). 불변식 검증이 크기 비교를 뺀다
+    public var audioSizeFromDatabase: Set<Int> = []
 
     public init(changes: UsbChangeSet? = nil, outcomes: [(edit: Int, outcome: UsbOutcome)] = [], formatsWritten: Set<UsbFormat> = [],
                 formatsBlocked: [UsbFormat: UsbBlock] = [:], mismatches: [UsbFormatMismatch] = [], notes: [String] = [],
@@ -81,7 +83,7 @@ public struct UsbEditResult: Sendable {
         if formatsWritten.contains(.oneLibrary), let applied { result.append(OneLibraryVerifier(expected: applied)) }
         if formatsWritten.contains(.deviceLibrary), let pdbWritten { result.append(PdbVerifier(expected: pdbWritten)) }
         result.append(UsbInvariantVerifier(preexistingAppleDoubles: preexistingAppleDoubles, preexistingProblems: preexistingProblems,
-                                           checkFormatCounts: formatsBlocked.isEmpty))
+                                           checkFormatCounts: formatsBlocked.isEmpty, audioSizeFromDatabase: audioSizeFromDatabase))
         return result
     }
 }
@@ -100,9 +102,13 @@ public struct UsbEditSource: Sendable {
     /// 그 형식만 막힘
     public var formatsBlocked: [UsbFormat: UsbBlock]
     public var notes: [String]
+    /// USB의 Device Library에 작성기가 NFC로 바꿔 쓸 이름·제목(rekordbox가 쓴 NFD 등)이 있다(#233).
+    /// 그러면 쓰는 편집이 모델이 바뀌지 않아도 Device Library를 다시 만들어 CDJ에서 보이게 고친다
+    public var deviceLibraryNeedsNFC: Bool
 
     public init(snapshot: UsbSnapshot?, formats: Set<UsbFormat>, current: UsbLibrary, mismatches: [UsbFormatMismatch],
-                pdbReport: PdbReadReport?, blocks: [UsbBlock], formatsBlocked: [UsbFormat: UsbBlock], notes: [String]) {
+                pdbReport: PdbReadReport?, blocks: [UsbBlock], formatsBlocked: [UsbFormat: UsbBlock], notes: [String],
+                deviceLibraryNeedsNFC: Bool = false) {
         self.snapshot = snapshot
         self.formats = formats
         self.current = current
@@ -111,6 +117,7 @@ public struct UsbEditSource: Sendable {
         self.blocks = blocks
         self.formatsBlocked = formatsBlocked
         self.notes = notes
+        self.deviceLibraryNeedsNFC = deviceLibraryNeedsNFC
     }
 
     /// 이번에 고칠 수 있는 형식
@@ -172,9 +179,10 @@ public enum UsbEditEngine {
                                    message: String(ui: "두 형식의 곡 번호가 달라 고칠 수 없습니다. rekordbox에서 다시 내보내세요")))
         }
         if mismatches.contains(where: { if case .playlistConflict = $0 { true } else { false } }) {
-            // 합친 모델에는 OneLibrary 목록만 남아 고쳐 쓰면 Device Library 목록을 잃는다
+            // 맨 위에서 닿지 않는 목록은 대표 번호·부모를 정할 수 없어 고쳐 쓰면 다른 자리로 갈 수 있다.
+            // 번호만 다른 같은 목록·같은 번호의 다른 목록은 짝지어 읽으므로 막지 않는다(#233)
             blocks.append(UsbBlock(code: "formatPlaylistConflict", scope: .volume,
-                                   message: String(ui: "두 형식에서 같은 번호의 재생 목록이 서로 달라 고칠 수 없습니다. rekordbox에서 다시 내보내세요")))
+                                   message: String(ui: "부모 폴더를 찾을 수 없는 재생 목록이 있어 고칠 수 없습니다. rekordbox에서 USB를 다시 내보내세요")))
         }
         var formatsBlocked: [UsbFormat: UsbBlock] = [:]
         if let deviceLibrary, let report, let block = try deviceLibraryBlock(deviceLibrary, report: report, snapshot: snapshot) {
@@ -183,7 +191,8 @@ public enum UsbEditEngine {
         let differing = mismatches.filter { if case .playlistEntriesDiffer = $0 { true } else { false } }.count
         if differing > 0 { notes.append(String(ui: "형식 사이 목록 불일치 \(differing)")) }
         return UsbEditSource(snapshot: snapshot, formats: formats, current: current, mismatches: mismatches, pdbReport: report,
-                             blocks: unique(blocks), formatsBlocked: formatsBlocked, notes: notes)
+                             blocks: unique(blocks), formatsBlocked: formatsBlocked, notes: notes,
+                             deviceLibraryNeedsNFC: deviceLibrary.map(PdbWriter.needsNFC) ?? false)
     }
 
     /// Device Library만 막는 조건(그 형식만 고치지 않고 OneLibrary는 쓴다)

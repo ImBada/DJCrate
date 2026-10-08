@@ -197,10 +197,16 @@ struct UsbMigrationTests {
     @Test("USB 파일이 pdb와 맞지 않아 OneLibrary에 새 문제가 생기면 옮기지 않는다")
     func newInvariantProblemBlocks() throws {
         let env = try Env()
-        // 음원 크기가 pdb 파일 크기 칸과 다르다(pdb에는 이미 있던 문제, OneLibrary에는 새 문제)
-        env.tree.write(String(UsbLibraryFixture.trackPath(2).dropFirst()), Data(repeating: 1, count: 3))
+        // 분석 파일의 PPTH가 곡 경로와 다르다(pdb에는 이미 있던 문제, OneLibrary에는 새 문제)
+        env.tree.write(String(env.fixture.analysisPath(2).dropFirst()), UsbLibraryFixture.dat(path: "/Contents/합성 다른 곡.mp3", hotCueA: nil))
         let result = try env.plan()
         #expect(Self.codes(result) == ["libraryFilesMismatch"] && result.changes == nil)
+        // 음원 크기가 파일 크기 칸과 다른 것은 rekordbox가 만든 USB에도 흔하다(분석 뒤 바뀐 음원, 2026-10-08 빈 USB 실험 §5).
+        // OneLibrary는 pdb 칸을 그대로 옮기므로 같은 문제로 보고 막지 않는다
+        let resized = try Env()
+        resized.tree.write(String(UsbLibraryFixture.trackPath(2).dropFirst()), Data(repeating: 1, count: 3))
+        let kept = try resized.plan()
+        #expect(kept.blocks.isEmpty && kept.preexistingProblems.contains("audioSize content 2"))
         // 음원이 아예 없는 것은 두 형식에 같은 문제라 막지 않는다
         let missing = try Env()
         try FileManager.default.removeItem(at: missing.usb.usb(String(UsbLibraryFixture.trackPath(3).dropFirst())))
@@ -231,6 +237,15 @@ struct UsbMigrationTests {
             $0.add(.history19, PdbBuilder.propertyRow(count: 1, date: "2026-01-03"))
         })
         #expect(Self.codes(try orphan.plan()) == ["pdbUnreadableRows"])
+
+        // 아티스트·앨범 먼 모양 행은 칸을 모두 읽으므로 막지 않는다(rekordbox 7.2.x 경계 실험, 2026-10-08)
+        let far = try Env()
+        far.tree.write(UsbLayout.exportPdb, Self.export {
+            $0.add(.artists, PdbBuilder.artistRow(5, String(repeating: "가", count: 116), far: true))
+            $0.add(.albums, PdbBuilder.albumRow(6, String(repeating: "가", count: 116), artistID: 5, far: true))
+            $0.add(.history19, PdbBuilder.propertyRow(count: 1, date: "2026-01-03"))
+        })
+        #expect(!Self.codes(try far.plan()).contains("pdbUnreadableRows"))
 
         let version = try Env()
         version.tree.write(UsbLayout.exportPdb, Self.export { $0.add(.history19, PdbBuilder.propertyRow(count: 1, date: "2026-01-03", version: "2000")) })

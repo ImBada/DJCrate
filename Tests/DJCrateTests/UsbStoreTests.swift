@@ -300,8 +300,9 @@ struct UsbStoreTests {
         defer { database.close() }
         let keys = try LocalLibraryKeys.load(database: database)
         #expect(keys.localDBID == 424_242)
-        #expect(Set(keys.tracks) == [UsbLocalTrackKey(contentID: "71", masterSongID: "801", fileNameL: "a.mp3"),
-                                     UsbLocalTrackKey(contentID: "72", masterSongID: "802", fileNameL: "b.mp3")])
+        let folderPath = TrackSpec(id: "71").folderPath
+        #expect(Set(keys.tracks) == [UsbLocalTrackKey(contentID: "71", masterSongID: "801", fileNameL: "a.mp3", folderPath: folderPath),
+                                     UsbLocalTrackKey(contentID: "72", masterSongID: "802", fileNameL: "b.mp3", folderPath: folderPath)])
         #expect(keys.counters["71"] == LocalTrackCounters(information: "6", analysis: "5", cue: "4"))
         #expect(keys.counters["72"]?.cue == nil)
         #expect(keys.counters["73"] == nil)

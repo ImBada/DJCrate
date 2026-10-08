@@ -86,6 +86,7 @@ public extension RekordboxFixture {
     /// 임시 폴더 안 합성 음원(크기만 중요)
     func writeAudio(named name: String, bytes: Int) throws -> URL {
         let url = audio.appending(path: name)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(repeating: 0x55, count: bytes).write(to: url)
         return url
     }

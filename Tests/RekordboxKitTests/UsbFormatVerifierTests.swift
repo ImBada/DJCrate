@@ -71,6 +71,21 @@ struct UsbFormatVerifierTests {
         #expect(UsbExportAssembly.verifiers(for: written.staged.assembled).count == 4)
     }
 
+    /// rekordbox 7.2.x 경계 실험(2026-10-08): 긴 이름의 아티스트·앨범은 먼 모양으로 쓴다. My Tag 먼 모양은 쓰지 않으므로 잡는다
+    @Test("작성기가 쓴 먼 모양 아티스트·앨범 행은 문제가 아니고, 그 밖의 표의 먼 모양 행만 잡는다")
+    func farShapeRowsOnlyOutsideWrittenTables() throws {
+        var model = PdbWriterTests.model()
+        model.artists[0].name = String(repeating: "가", count: 116)
+        model.albums[0].name = String(repeating: "A", count: 250)
+        let files = try PdbWriter.files(model, mode: .fresh)
+        let report = try PdbReader.inspect(files.export)
+        #expect(report.farShapeRows == ["artists": 1, "albums": 1])
+        #expect(!PdbVerifier.fileProblems("export", report, data: files.export).contains { $0.hasPrefix("far_shape_rows") })
+        var tags = try PdbReader.inspect(files.exportExt)
+        tags.farShapeRows = ["exportExt.tags": 1]
+        #expect(PdbVerifier.fileProblems("exportExt", tags, data: files.exportExt).contains("far_shape_rows exportExt 1"))
+    }
+
     @Test("분석 파일 PPTH가 DB 경로와 다르면 불변식 검증이 잡는다")
     func ppthMismatchCaught() throws {
         let written = try Written()
@@ -98,7 +113,11 @@ struct UsbFormatVerifierTests {
         let written = try Written()
         let audio = written.relative(written.track(0).path)
         written.usb.write(audio, try #require(written.usb.data(audio)) + Data([0]))
-        #expect(try written.problems(UsbInvariantVerifier()).contains { $0.hasPrefix("audioSize") })
+        // 두 형식에 같은 곡이 있어도 한 번만 센다(한 형식만 있던 USB에 다른 형식을 더해도 새 문제가 아니게)
+        #expect(try written.problems(UsbInvariantVerifier()).filter { $0.hasPrefix("audioSize") } == ["audioSize content \(written.track(0).id)"])
+        // 이 쓰기가 로컬 FileSize로 적은 곡(분석 뒤 바뀐 음원, rekordbox와 같게)은 크기 비교를 뺀다
+        let exempt = UsbInvariantVerifier(audioSizeFromDatabase: [written.track(0).id])
+        #expect(try written.problems(exempt).allSatisfy { !$0.hasPrefix("audioSize") })
     }
 
     @Test("곡 수 칸이 어긋나면 OneLibrary·불변식 검증이 잡는다")

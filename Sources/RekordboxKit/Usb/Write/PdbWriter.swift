@@ -13,14 +13,15 @@ public enum PdbWriteMode: Sendable, Hashable {
 public struct PdbFiles: Sendable {
     public var export: Data
     public var exportExt: Data
-    /// 인코더가 낸 규칙의 합집합(Encoded.rules를 버리지 않는다). 지금은 pdbLongAscii 하나뿐
+    /// 인코더가 낸 규칙의 합집합(Encoded.rules를 버리지 않는다). 지금은 pdbLongAscii(긴 ASCII를 본 적 없는 칸),
+    /// pdbFarOffsetRows(경계 실험이 보지 못한 이름 끝 247의 앨범 이름), pdbStringNFC(NFC로 바꿔 쓴 이름·제목이 있음)
     public var rules: Set<UsbProvisionalRule>
     /// 트랙 행 문자열(0–20: 경로·파일 이름 포함)에서 나온 규칙, content id별(규칙이 있는 곡만).
     /// 목록·아티스트·앨범·장르·레이블·키·태그·columns 이름에서 나온 것은 rules에만
     public var rulesByTrack: [Int: Set<UsbProvisionalRule>]
     /// 두 파일을 다시 읽으면 나올 모델: 입력의 Device Library 투영에 작성기가 정하는 칸을 채운 것
     /// (트랙 행 관찰값, 표 19의 곡 수·버전·날짜·두 번째 문자열, 평점·재생 수는 기기 칸 값, 카테고리·정렬 Disable,
-    /// 목록 폴더 여부, 0인 참조는 nil, Device Library 경로가 없는 아트워크는 뺌).
+    /// 목록 폴더 여부, 0인 참조는 nil, Device Library 경로가 없는 아트워크는 뺌, 사람이 읽는 문자열은 NFC).
     /// 쓴 뒤 확인은 다시 읽은 모델과 이 모델을 `UsbLibraryDiff`(formats: [.deviceLibrary])로 비교한다.
     /// 입력이 Device Library 읽기에서 온 모델이면 입력의 투영과 같다.
     public var written: UsbLibrary
@@ -35,7 +36,9 @@ public struct PdbFiles: Sendable {
 }
 
 /// `UsbLibrary` → `export.pdb`·`exportExt.pdb`(rekordbox가 새로 내보낸 모양). 모델의 Device Library 투영만 쓴다.
-/// 확인한 모양만 쓴다: 먼 오프셋 행·긴 ASCII(0x40)·기기 기록·My Tag 연결·모르는 표의 행은 쓰지 않고 막는다.
+/// 아티스트·앨범 먼 오프셋 행과 긴 ASCII(0x40)는 rekordbox 7.2.x 경계 실험(2026-10-08)대로 쓴다.
+/// 사람이 읽는 문자열은 rekordbox와 달리 NFC로 쓴다(CDJ-2000NXS가 NFD 한글을 "~"로 보임, #233, `PdbRowEncoder` 칸 표).
+/// My Tag 먼 오프셋 행·기기 기록·My Tag 연결·모르는 표의 행은 쓰지 않고 막는다.
 public enum PdbWriter {
     /// 모델의 .deviceLibrary 투영에서 두 파일을 만든다. 곡 0개면 던진다.
     /// 호출하는 쪽(USB 내보내기·고치기)은 `rules`를 변경 묶음 `requiredRules`에 반드시 합친다 — 계획기(`UsbExportPlanner`)가 모르는 이름(장르·My Tag 등)의 긴 ASCII도 실물 게이트에 걸리게.
@@ -83,7 +86,7 @@ public enum PdbWriter {
         }
         let images = model.images.filter { $0.pdbPath != nil }
         export[PdbTableType.artwork.rawValue] = try rows(images, sortedBy: { $0.id < $1.id }) {
-            try PdbRowEncoder.idName(id: $0.id, name: $0.pdbPath ?? "")
+            try PdbRowEncoder.artwork(id: $0.id, path: $0.pdbPath ?? "")
         }
         export[PdbTableType.columns.rawValue] = try rows(model.menuItems, sortedBy: { $0.id < $1.id }, PdbRowEncoder.column)
         export[PdbTableType.category.rawValue] = try rows(model.categories, sortedBy: { ($0.sequenceNo, $0.id) < ($1.sequenceNo, $1.id) },
@@ -253,7 +256,45 @@ public enum PdbWriter {
         result.property.pdbDeviceName = ""
         result.trackRowExtras = extras
         result.deadIDs = [:]
-        return result.canonicalized()
+        return nfcText(result).canonicalized()
+    }
+
+    // MARK: - 철자(#233)
+
+    /// 작성기가 NFC로 쓰는 문자열 칸(`PdbRowEncoder` 칸 표와 같은 칸)마다 `transform`을 부른다.
+    /// 트랙 경로·파일 이름·분석 파일 경로·아트워크 경로는 USB 파일 철자라 넣지 않는다
+    static func mapText(_ model: inout UsbLibrary, _ transform: (String) -> String) {
+        for index in model.tracks.indices {
+            model.tracks[index].lyricist = transform(model.tracks[index].lyricist)
+            model.tracks[index].subtitle = transform(model.tracks[index].subtitle)
+            model.tracks[index].comment = transform(model.tracks[index].comment)
+            model.tracks[index].title = transform(model.tracks[index].title)
+        }
+        for table in [\UsbLibrary.artists, \.genres, \.keys, \.labels, \.colors] {
+            for index in model[keyPath: table].indices { model[keyPath: table][index].name = transform(model[keyPath: table][index].name) }
+        }
+        for index in model.albums.indices { model.albums[index].name = transform(model.albums[index].name) }
+        for index in model.playlists.indices { model.playlists[index].name = transform(model.playlists[index].name) }
+        for index in model.myTags.indices { model.myTags[index].name = transform(model.myTags[index].name) }
+        for index in model.menuItems.indices { model.menuItems[index].name = transform(model.menuItems[index].name) }
+    }
+
+    /// 작성기가 쓸 철자(사람이 읽는 문자열을 NFC로)
+    static func nfcText(_ model: UsbLibrary) -> UsbLibrary {
+        var result = model
+        mapText(&result, UsbNameSpelling.deviceLibraryText)
+        return result
+    }
+
+    /// 다시 쓰면 철자가 바뀌는 문자열(NFC가 아닌 이름·제목)이 있는지. USB에서 읽은 Device Library 모델에 주면
+    /// rekordbox가 NFD로 쓴 이름이 남아 있는지를 알려 준다(편집이 그 USB의 Device Library를 다시 만들어 고치게, `UsbEditSource`)
+    public static func needsNFC(_ model: UsbLibrary) -> Bool {
+        var copy = model, found = false
+        mapText(&copy) { value in
+            if !found, UsbNameSpelling.changesUnderNFC(value) { found = true }
+            return value
+        }
+        return found
     }
 
     /// 오늘(이 Mac의 시간대) "YYYY-MM-DD"
