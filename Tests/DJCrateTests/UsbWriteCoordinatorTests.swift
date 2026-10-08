@@ -67,6 +67,8 @@ final class FakeUsbWriteService: UsbWriteService, @unchecked Sendable {
         var onWriteEdit: (@Sendable () -> Void)?
         /// 수정 미리 보기 때 부른다(메인 액터 밖, 잠금 밖)
         var onPreviewEdit: (@Sendable () -> Void)?
+        /// 수정 미리 보기가 던질 오류(계획이 Mac 사본에서 실패)
+        var editPreviewError: UsbError?
         /// 초안 폴더. 주면 실제 창구처럼 미리 보기가 그때 초안 편집을 읽어 요약(`edits`)에 담는다
         var drafts: URL?
     }
@@ -214,6 +216,7 @@ final class FakeUsbWriteService: UsbWriteService, @unchecked Sendable {
         // 실제 창구처럼 초안을 먼저 읽고 계획한다(계획하는 동안 더한 편집은 이 요약에 없다)
         let edits = try drafts.map { try UsbDraftStore(directory: $0).load(volumeKey: UsbEditSession.volumeKey(job.volume))?.edits ?? [] }
         hook?()
+        if let error = lock.withLock({ state.editPreviewError }) { throw error }
         var summary = lock.withLock { state.editSummary }
         if let edits { summary.edits = edits }
         return summary

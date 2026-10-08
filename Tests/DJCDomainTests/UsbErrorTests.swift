@@ -8,6 +8,7 @@ struct UsbErrorTests {
         .writeRefused([UsbBlock(code: "readOnly", scope: .volume, message: "USB가 읽기 전용으로 연결됐습니다. 잠금 스위치를 풀고 다시 연결하세요")]),
         .writeRefused([]),
         .writeRolledBack(reason: "SQLITE_CORRUPT"),
+        .planCheckFailed(detail: "SQLITE onelibrary reread"),
         .restoreFailed(reason: "SQLITE_CORRUPT", restoreError: "EIO", backup: "/fixture/backup"),
         .restorePending(reason: "rekordbox"),
         .recoveryNeeded(volumeName: "DJCVOL"),
@@ -37,6 +38,7 @@ struct UsbErrorTests {
         #expect(UsbError.volumeLost(volumeName: "DJCVOL").localizedDescription.contains("djc usb-recover"))
         #expect(UsbError.restoreFailed(reason: "SQLITE_CORRUPT", restoreError: "EIO", backup: "/fixture/backup").description.contains("/fixture/backup"))
         #expect(UsbError.readFailed(detail: "opendir PIONEER: EIO").description.contains("opendir PIONEER: EIO"))
+        #expect(UsbError.planCheckFailed(detail: "onelibrary reread: key.onlyRight×1").description.contains("key.onlyRight×1"))
         let refused = UsbError.writeRefused([UsbBlock(code: "notFAT32", scope: .volume, message: "막힘")])
         #expect(refused.description.contains("[notFAT32] 막힘"))
         #expect(refused.localizedDescription == "막힘")

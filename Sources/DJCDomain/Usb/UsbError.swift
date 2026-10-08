@@ -7,6 +7,8 @@ public enum UsbError: Error, LocalizedError, CustomStringConvertible, Sendable {
     case writeRefused([UsbBlock])
     /// 쓰기 뒤 실패, 백업으로 되돌림
     case writeRolledBack(reason: String)
+    /// 쓰기 전 Mac 사본에서 만든 DB를 다시 읽어 확인하지 못함. USB는 열지 않았다(detail은 번역하지 않는 기술 정보)
+    case planCheckFailed(detail: String)
     case restoreFailed(reason: String, restoreError: String, backup: String)
     /// 복원을 미룸(rekordbox가 켜져 있음, 복원 대상이 그 사이 바뀜 등. reason이 이유)
     case restorePending(reason: String)
@@ -33,6 +35,8 @@ public enum UsbError: Error, LocalizedError, CustomStringConvertible, Sendable {
                 : blocks.map(\.message).joined(separator: "\n")
         case .writeRolledBack:
             String(ui: "USB에 쓴 결과를 확인하지 못해 쓰기 전 상태로 되돌렸습니다. USB를 다시 읽은 뒤 다시 시도하세요")
+        case .planCheckFailed:
+            String(ui: "USB에 쓸 내용을 Mac에서 만들어 확인하지 못해 USB에 쓰지 않았습니다. USB를 다시 읽은 뒤 다시 시도하세요")
         case .restoreFailed:
             String(ui: "USB를 쓰기 전 상태로 되돌리지 못했습니다. 기기에 꽂기 전에 `djc usb-recover`로 회복하세요")
         case let .restorePending(reason):
@@ -64,6 +68,8 @@ public enum UsbError: Error, LocalizedError, CustomStringConvertible, Sendable {
                 + blocks.map { "\n- [\($0.code)\($0.rule.map { ":" + $0.rawValue } ?? "")] \($0.message)" }.joined()
         case let .writeRolledBack(reason):
             String(ui: "USB에 쓴 결과를 확인하지 못해 쓰기 전 상태로 되돌렸습니다: \(reason)")
+        case let .planCheckFailed(detail):
+            String(ui: "USB에 쓸 내용을 Mac에서 만들어 확인하지 못해 USB에 쓰지 않았습니다: \(detail)")
         case let .restoreFailed(reason, restoreError, backup):
             String(ui: """
             USB에 쓴 결과를 확인하지 못했고 쓰기 전 상태로 되돌리지도 못했습니다. USB를 기기에 꽂지 말고 `djc usb-recover`로 회복하세요.

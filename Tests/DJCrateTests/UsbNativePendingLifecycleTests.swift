@@ -70,7 +70,8 @@ private final class NativePendingFixture {
     let edits: [UsbLibraryEdit]
     var lease: UsbSyncSnapshotLease?
 
-    init() throws {
+    /// physical이면 실물 FAT32로 보이는 볼륨(쓰기 확인 창이 볼륨 줄과 "실물 USB입니다"를 보여야 한다)
+    init(physical: Bool = false) throws {
         let root = FileManager.default.temporaryDirectory.appending(path: "djc-native-pending-\(UUID())")
         self.root = root
         var initialized = false
@@ -80,7 +81,7 @@ private final class NativePendingFixture {
         try Data("합성 스냅샷".utf8).write(to: source)
         host = PendingSyncSourceHost(database: source, share: root.appending(path: "share"))
         lease = try UsbSyncSnapshotLease.capture(.capture(source), directory: root.appending(path: "copies"))
-        var volume = FakeUsbVolume.diskImageFAT32(name: "합성 pending USB")
+        var volume = physical ? FakeUsbVolume.physicalFAT32(name: "합성 실물 USB") : FakeUsbVolume.diskImageFAT32(name: "합성 pending USB")
         volume.mountPoint = root.appending(path: "fake-mount").path
         self.volume = volume
         live = FakeUsbLiveVolumeReader(volume)
@@ -103,6 +104,7 @@ private final class NativePendingFixture {
             $0.liveSyncFilesReader = { _, _ in [:] }
             $0.drafts = directory
             $0.editSummary.edits = edits
+            $0.editSummary.isTestVolume = !physical
         }
         initialized = true
     }
@@ -147,6 +149,40 @@ struct UsbNativePendingLifecycleTests {
         #expect(f.service.current.editJobs.allSatisfy { $0.database == f.job.database })
         #expect(f.usb.syncDraftSources[key] == nil && !f.copyExists)
         #expect(FileManager.default.fileExists(atPath: f.host.database.path))
+    }
+
+    @Test("실물 USB 동기화는 볼륨 줄·'실물 USB입니다'를 보인 쓰기 확인 창을 거쳐야 쓰고, 취소하면 쓰지 않는다")
+    func physicalSyncRequiresWriteConfirmation() async throws {
+        let f = try NativePendingFixture(physical: true)
+        await f.prepare()
+        let declined = ScriptedPrompter(); declined.answers = [false]
+        var model: FakePreparedSyncViewModel? = FakePreparedSyncViewModel(job: f.job, edits: f.edits)
+        f.lease = nil
+        #expect(await model?.sync(using: f.coordinator(declined)) == false)
+        #expect(!f.service.current.calls.contains("writeEdit") && f.service.current.fileOperations == 0)
+        let shown = try #require(declined.shown.last)
+        #expect(shown.confirm == "USB에 쓰기")
+        #expect(shown.details.first?.hasPrefix("실물 USB입니다: 합성 실물 USB · ") == true)
+        #expect(!shown.details.contains("시험 볼륨(디스크 이미지)입니다"))
+        model = nil
+
+        let accepted = ScriptedPrompter(); accepted.answers = [true]
+        let directory = f.usb.draftDirectory!, key = f.volume.usbKey
+        f.service.update { $0.onWriteEdit = { try? UsbDraftStore(directory: directory).discard(volumeKey: key) } }
+        #expect(await f.coordinator(accepted).writeDraft(volumeKey: key, database: f.host.database, share: f.host.share))
+        #expect(accepted.shown.count == 1 && accepted.shown[0].details.first?.hasPrefix("실물 USB입니다: ") == true)
+        #expect(f.service.current.calls.filter { $0 == "writeEdit" }.count == 1)
+    }
+
+    @Test("미리 보기(Mac 사본에서 계획)가 실패하면 USB를 되돌렸다고 하지 않고 미리 보기 실패로 알리며 쓰지 않는다")
+    func previewFailureIsNotReportedAsRollback() async throws {
+        let f = try NativePendingFixture(physical: true)
+        await f.prepare(); f.remember()
+        f.service.update { $0.editPreviewError = .writeRolledBack(reason: "reread differs: key.onlyRight×1") }
+        let prompt = ScriptedPrompter()
+        #expect(await f.coordinator(prompt).writeDraft(volumeKey: f.volume.usbKey, database: f.host.database, share: f.host.share) == false)
+        #expect(!f.service.current.calls.contains("writeEdit") && f.service.current.fileOperations == 0)
+        #expect(prompt.shown.map(\.title) == ["USB 미리 보기를 하지 못했습니다"])
     }
 
     @Test("실제 마운트 확인이 없으면 native는 거부하고 일반 편집은 그대로 쓴다")

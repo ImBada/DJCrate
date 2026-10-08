@@ -111,7 +111,7 @@ rekordbox 7이 USB에 내보내는 라이브러리(OneLibrary·Device Library)�
   - 새 목록 번호는 두 형식의 번호·pdb 죽은 번호를 모두 본 다음 번호이고, 두 형식에 같은 번호로 쓴다.
   - 맨 위에서 닿지 않는 목록(없는 부모·고리·한 형식 안 번호 중복)만 대표 번호와 부모를 정할 수 없어 `playlistConflict`로 편집을 막는다.
   - 근거: 2026-10-08 rekordbox 7.2.x 동기화 실험 두 벌의 단계별 USB 사본 34개(체크·이름 바꾸기·옮기기·해제·지우기·폴더 이름 바꾸기, 형식 번호가 다른 짝이 단계마다 0–14개)에서 이 규칙으로 모든 목록이 모호함 없이 짝지어졌고(합친 목록 수 = 형식별 목록 수, 두 투영 = 형식별 읽기), 두 선택 파일의 `Dev_ID` 짝도 모두 같은 대표 번호를 가리켰다. 번호가 다른 짝을 고쳐 쓴 사본 하나에서 두 형식이 각자 번호로 고쳐지고 나머지 목록은 그대로였다(값은 적지 않는다).
-- artist·album·genre·key·label·color·image·My Tag·menuItem·category·sort 행에는 형식별 소속이 없어 투영이 거를 수 없다. 한 형식에만 있는 행은 합집합에 두되 `sharedRowDiffers`로 보고한다(편집은 막지 않음).
+- artist·album·genre·key·label·color·image·My Tag·menuItem·category·sort 행에는 형식별 소속 칸이 없다. 한 형식에만 있는 행은 합집합에 두고 `sharedRowDiffers`로 보고하며(편집은 막지 않음), 읽은 형식을 `oneFormatRows`에 적어 투영이 그 형식에만 둔다. 다른 형식의 곡·앨범·목록(My Tag는 연결, 메뉴는 분류·정렬)이 가리키게 되면 그 형식 투영에도 넣어 쓴다(#234: rekordbox 동기화 USB에서 아무 곡도 가리키지 않는 key 행이 Device Library에만, image 행이 OneLibrary에만 있던 사본. 전에는 모든 편집이 OneLibrary 다시 읽기 `key.onlyRight`로 막혔다).
 - `projected(to:)`: 그 형식에 있는 곡·목록·My Tag 연결과 그 형식 몫(기록·항목·기기 칸)만 남기고, 그 형식이 담지 않는 칸은 그 형식 리더의 기본값으로 바꾼다. 불일치 없는 USB(위 보고가 하나도 없음)에서는 `merge(ol, dl).projected(to: .oneLibrary) == ol`이다(목록 번호가 형식마다 달라도 같다). 쓰기·검증은 늘 형식별 투영과 비교한다(`UsbLibraryDiff`의 `formats`).
 - `UsbLibraryDiff`와 `djc lab usb-diff`는 칸 이름·ID·수만 출력한다(제목·이름·경로 값은 찍지 않음). ID를 무시하고 견줄 때 이름(경로)이 같은 행이 여럿이면 나온 순서대로 짝짓는다.
 

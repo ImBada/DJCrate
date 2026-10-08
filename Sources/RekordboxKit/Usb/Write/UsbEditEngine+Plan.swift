@@ -71,7 +71,13 @@ extension UsbEditEngine {
             if writable.contains(.oneLibrary), let copy = snapshot.oneLibrary {
                 let folder = try context.prepare(UsbLayout.oneLibrary).deletingLastPathComponent()
                 let url = try UsbSnapshot.copyDatabase(copy, into: folder)
-                let applyResult = try OneLibraryWriter.apply(from: source.current, steps: steps, database: url)
+                // 계획은 Mac의 USB DB 사본에 적용한다. 다시 읽기가 어긋나면 USB는 열지도 않았으니 "되돌렸다"가 아니라 계획 확인 실패로 알린다
+                let applyResult: OneLibraryApplyResult
+                do {
+                    applyResult = try OneLibraryWriter.apply(from: source.current, steps: steps, database: url)
+                } catch let UsbError.writeRolledBack(reason) {
+                    throw UsbError.planCheckFailed(detail: "onelibrary " + reason)
+                }
                 (applied, skipped) = (applyResult.applied, applyResult.skipped)
                 oneLibraryChanged = applied.projected(to: .oneLibrary) != source.current.projected(to: .oneLibrary)
                 if oneLibraryChanged {
@@ -118,7 +124,7 @@ extension UsbEditEngine {
             guard problems.isEmpty else { throw UsbError.writeRefused([roundTripBlock(problems[0])]) }
             let reread = try PdbReader.read(export: pdb.export, exportExt: pdb.exportExt).0
             let differences = UsbLibraryDiff.compare(reread, pdb.written, options: .init(formats: [.deviceLibrary])).differences
-            guard differences.isEmpty else { throw UsbError.readFailed(detail: "pdb reread: " + OneLibraryWriter.summary(differences)) }
+            guard differences.isEmpty else { throw UsbError.planCheckFailed(detail: "pdb reread: " + OneLibraryWriter.summary(differences)) }
             try context.database(.deviceLibrary, UsbLayout.exportPdb, data: pdb.export, write: true)
             try context.database(.deviceLibrary, UsbLayout.exportExtPdb, data: pdb.exportExt, write: true)
             rules.formUnion(pdb.rules)

@@ -31,6 +31,9 @@ public struct UsbLibrary: Sendable, Hashable {
     public var deadIDs: [UsbIDKindKey: Set<Int>]
     /// pdb 트랙 행의 상수 칸 관찰값(왕복 검사용)
     public var trackRowExtras: [Int: UsbPdbTrackExtras]
+    /// 합친 모델에서 한 형식에서만 읽은 공유 표 행: 표 이름(`sharedRowDiffers`와 같은 이름) → id → 그 형식(#234).
+    /// 투영은 이 행을 그 형식에 두고, 다른 형식에는 그 형식의 곡·앨범 등이 가리킬 때만 둔다. 한 형식 모델은 비어 있다
+    public var oneFormatRows: [String: [Int: UsbFormat]] = [:]
 
     public init(formats: Set<UsbFormat>, property: UsbProperty, tracks: [UsbTrack] = [], artists: [UsbNamedRow] = [],
                 albums: [UsbAlbum] = [], genres: [UsbNamedRow] = [], keys: [UsbNamedRow] = [], labels: [UsbNamedRow] = [],
@@ -107,7 +110,39 @@ public struct UsbLibrary: Sendable, Hashable {
         result.sorts = sorts.map { UsbFieldFormats.sort.projecting($0, to: format) }
         result.histories = histories.filter { $0.format == format }
         result.unknownRows = unknownRows.filter { $0.format == format }
+        if !oneFormatRows.isEmpty { result.dropOtherFormatRows(oneFormatRows, keeping: format) }
+        result.oneFormatRows = [:]
         return result
+    }
+
+    /// 투영에서 다른 형식에서만 읽은 공유 표 행을 뺀다. 이 형식의 곡·앨범·목록 등이 가리키는 행은 남긴다
+    /// (편집이 그 행을 쓰게 됐으면 이 형식에도 넣어야 가리키는 곳 없는 번호가 생기지 않는다).
+    /// 가리키는 쪽부터 걸러 그 결과로 가리켜지는 쪽을 거른다: 곡 → 앨범 → 아티스트·그림, My Tag 연결 → My Tag, 분류·정렬 → 메뉴
+    private mutating func dropOtherFormatRows(_ only: [String: [Int: UsbFormat]], keeping format: UsbFormat) {
+        func keep<Row>(_ table: String, _ rows: [Row], id: KeyPath<Row, Int>, referenced: Set<Int>) -> [Row] {
+            guard let formats = only[table], !formats.isEmpty else { return rows }
+            return rows.filter { row in
+                let rowID = row[keyPath: id]
+                guard let source = formats[rowID], source != format else { return true }
+                return referenced.contains(rowID)
+            }
+        }
+        albums = keep("album", albums, id: \.id, referenced: Set(tracks.compactMap(\.albumID)))
+        let artistRefs = tracks.flatMap { [$0.artistID, $0.remixerID, $0.originalArtistID, $0.composerID, $0.lyricistArtistID] }
+            + albums.map(\.artistID)
+        artists = keep("artist", artists, id: \.id, referenced: Set(artistRefs.compactMap { $0 }))
+        genres = keep("genre", genres, id: \.id, referenced: Set(tracks.compactMap(\.genreID)))
+        keys = keep("key", keys, id: \.id, referenced: Set(tracks.compactMap(\.keyID)))
+        labels = keep("label", labels, id: \.id, referenced: Set(tracks.compactMap(\.labelID)))
+        colors = keep("color", colors, id: \.id, referenced: Set(tracks.map(\.colorID)))
+        let imageRefs = tracks.map(\.imageID) + albums.map(\.imageID) + playlists.map(\.imageID)
+        images = keep("image", images, id: \.id, referenced: Set(imageRefs.compactMap { $0 }))
+        let tagRefs = Set(myTagLinks.map { Int($0.myTagID) })
+        let linkedTags = myTags.filter { tagRefs.contains($0.intID) }
+        myTags = keep("myTag", myTags, id: \.intID, referenced: tagRefs.union(linkedTags.map { Int($0.parentID) }))
+        categories = keep("category", categories, id: \.id, referenced: [])
+        sorts = keep("sort", sorts, id: \.id, referenced: [])
+        menuItems = keep("menuItem", menuItems, id: \.id, referenced: Set(categories.map(\.menuItemID) + sorts.map(\.menuItemID)))
     }
 
     /// 두 형식을 한 모델로 합친다. 각 입력은 그 형식으로 투영해서 쓴다.
@@ -146,13 +181,15 @@ public struct UsbLibrary: Sendable, Hashable {
         result.playlists = playlists
         mismatches += playlistMismatches
 
-        // 공유 표 행에는 형식별 소속이 없어 투영이 거를 수 없다. 한 형식에만 있는 행은 합집합에 두되 불일치로 보고한다
-        // (보고하지 않으면 "불일치 없는 USB의 투영 = 한 형식 모델"이 깨진다).
+        // 공유 표 행에는 형식별 소속 칸이 없다. 한 형식에만 있는 행은 합집합에 두고 읽은 형식을 `oneFormatRows`에 적어
+        // 투영이 그 형식에만 두게 한다(#234: 편집이 건드리지 않은 행을 다른 형식에 넣거나 다시 읽기 차이로 세지 않게). 불일치로도 보고한다
+        var oneFormatRows: [String: [Int: UsbFormat]] = [:]
         func shared<Row>(_ table: String, _ left: [Row], _ right: [Row], id: KeyPath<Row, Int>, rules: [UsbFieldRule<Row>]) -> [Row] {
             union(left, right, id: id).map { left, right in
                 guard let left, let right else {
                     let only = (left ?? right)!
                     mismatches.append(.sharedRowDiffers(table: table, id: only[keyPath: id]))
+                    oneFormatRows[table, default: [:]][only[keyPath: id]] = left == nil ? .deviceLibrary : .oneLibrary
                     return only
                 }
                 let (row, differing) = rules.merging(oneLibrary: left, deviceLibrary: right)
@@ -171,6 +208,7 @@ public struct UsbLibrary: Sendable, Hashable {
         result.menuItems = shared("menuItem", a.menuItems, b.menuItems, id: \.id, rules: UsbFieldFormats.menuItem)
         result.categories = shared("category", a.categories, b.categories, id: \.id, rules: UsbFieldFormats.category)
         result.sorts = shared("sort", a.sorts, b.sorts, id: \.id, rules: UsbFieldFormats.sort)
+        result.oneFormatRows = oneFormatRows
 
         var links: [UsbMyTagLink] = []
         var linkIndex: [UsbMyTagLink.Key: Int] = [:]

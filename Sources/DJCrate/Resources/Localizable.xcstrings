@@ -7833,6 +7833,38 @@
         }
       }
     },
+    "USB에 쓸 내용을 Mac에서 만들어 확인하지 못해 USB에 쓰지 않았습니다. USB를 다시 읽은 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not prepare and check the changes on the Mac, so nothing was written to the USB. Reload the USB and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込む内容をMacで作成・確認できなかったため、USBには書き込んでいません。USBを読み込み直してから、もう一度お試しください"
+          }
+        }
+      }
+    },
+    "USB에 쓸 내용을 Mac에서 만들어 확인하지 못해 USB에 쓰지 않았습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not prepare and check the changes on the Mac, so nothing was written to the USB: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込む内容をMacで作成・確認できなかったため、USBには書き込んでいません: %@"
+          }
+        }
+      }
+    },
     "USB에 쓸 내용을 확인하는 중…" : {
       "localizations" : {
         "en" : {

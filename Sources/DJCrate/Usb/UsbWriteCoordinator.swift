@@ -382,7 +382,7 @@ struct UsbWriteCoordinator {
         } else {
             switch await Task.detached(priority: .userInitiated, operation: { Result { try service.preview(job) } }).value {
             case let .success(value): summary = value
-            case let .failure(error): return .failed(error)
+            case let .failure(error): return previewFailed(error)
             }
         }
         if flag.isSet { return .cancelled }
@@ -425,6 +425,18 @@ struct UsbWriteCoordinator {
         continuation.finish()
         await consumer.value
         return result
+    }
+
+    /// 미리 보기(Mac 사본에서 계획) 실패. USB에는 쓰지 않았으니 쓰기 실패(되돌림)로 알리지 않고 미리 보기 실패로 알린다.
+    /// 볼륨이 빠지거나 바뀐 것은 쓰기 실패처럼 알린다(동기화 초안 사본을 놓는다)
+    private func previewFailed<Summary>(_ error: any Error) -> Outcome<Summary> {
+        switch error as? UsbError {
+        case .volumeLost?, .volumeChanged?: return .failed(error)
+        case .cancelled?: return .cancelled
+        default:
+            fail(String(ui: "USB 미리 보기를 하지 못했습니다"), error)
+            return .stopped
+        }
     }
 
     /// 쓰기 실패 → 결과(취소·회복 필요·실패)
@@ -759,7 +771,7 @@ struct UsbWriteCoordinator {
             guard await editInputsAreCurrent(job, edits: usb.draftEdits[key] ?? []) else { return .stopped }
             switch preview {
             case let .success(value): summary = value
-            case let .failure(error): return .failed(error)
+            case let .failure(error): return previewFailed(error)
             }
         }
         guard await editInputsAreCurrent(job, edits: summary.edits) else { return .stopped }
@@ -797,7 +809,7 @@ struct UsbWriteCoordinator {
             guard let result else {
                 switch await editPreview(job) {
                 case let .success(value): summary = value
-                case let .failure(error): return .failed(error)
+                case let .failure(error): return previewFailed(error)
                 }
                 draftChanged = true
                 continue
