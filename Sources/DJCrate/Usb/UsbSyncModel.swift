@@ -123,6 +123,10 @@ struct UsbSyncQueuedPlan: Sendable {
     private var masterNodes: [MasterPlaylistsXML.Node] = []
     /// 닫으며 쓰지 못한 뒤 다시 닫으면 그대로 닫는다(초안은 쓰기 대기에 남는다).
     private var closeDeclined = false
+    /// 닫기가 확인 창·쓰기를 기다리는 중. 그 사이 다시 닫으면 들어가지 않는다.
+    @ObservationIgnored private var isClosing = false
+    /// 계획한 동기화가 USB를 비우지 않으려고 빼지 않은 곡 수(쓴 뒤 알린다)
+    @ObservationIgnored private var keptOrphanCount = 0
     /// 지금 USB에 있는 선택(선택 파일, 없으면 창을 열 때의 선택). 닫을 때 이 선택과 다르면 동기화할지 묻는다.
     private(set) var usbSelection = ITunesSyncSelection()
     private(set) var nativeSelectionIssues: [String] = []
@@ -277,8 +281,8 @@ struct UsbSyncQueuedPlan: Sendable {
         let formats = library?.formats ?? UsbFormat.defaultSet
         let service = usb.writeService
         let wasEmpty = emptyVolume
-        // 라이브 폴더의 파일이지만 읽기만 한다. 못 읽으면 체크한 목록을 쓸 때 막힌다.
-        let masterURL = store.rekordboxDatabase.deletingLastPathComponent().appending(path: "masterPlaylists6.xml")
+        // 라이브 폴더가 아니라 스냅샷을 뜰 때 함께 복사한 사본을 읽는다. 없으면(옛 스냅샷) 체크한 목록을 쓸 때 막힌다.
+        let masterURL = LibrarySnapshot.masterPlaylistsURL(of: snapshot)
         let result = await Task.detached(priority: .userInitiated) { () -> Result<(LocalLibraryKeys, Result<UsbSyncPreferences?, any Error>, UsbSyncSelectionBundle, UsbFingerprint, [MasterPlaylistsXML.Node]), any Error> in
             Result {
                 let local = try LocalLibraryKeys.load(snapshot: lease.database)
@@ -529,6 +533,7 @@ struct UsbSyncQueuedPlan: Sendable {
         } else {
             do {
                 var edits: [UsbLibraryEdit] = []
+                keptOrphanCount = 0
                 var refs = nativePlaylistIDs.mapValues { PlaylistRef.id(String($0)) }
                 for (sourceID, binding) in bindings where refs[sourceID] == nil {
                     refs[sourceID] = .id(String(binding.usbID))
@@ -539,6 +544,7 @@ struct UsbSyncQueuedPlan: Sendable {
                                                      removedPlaylistIDs: inputs.nativeRemovedPlaylistIDs, excluding: Set(localSkips.keys))
                     edits = plan.edits
                     refs.merge(plan.playlistRefs) { _, planned in planned }
+                    keptOrphanCount = plan.keptOrphanTrackIDs.count
                     // rekordbox처럼 어느 목록에도 남지 않는 USB 곡은 확인을 받고 뺀다. 음원 파일은 곡 빼기 규칙을 따른다.
                     if !plan.orphanTrackIDs.isEmpty {
                         guard actions.prompter.show(Self.orphanPrompt(count: plan.orphanTrackIDs.count)) else {
@@ -606,7 +612,13 @@ struct UsbSyncQueuedPlan: Sendable {
         usbSelection = selection
         guard await adoptWrittenNativeFiles(usb: usb) else { return false }
         _ = await savePreferences(usb: usb)
+        if keptOrphanCount > 0 { message = Self.keptOrphansNotice(count: keptOrphanCount) }
         return true
+    }
+
+    /// 곡 빼기를 생략했을 때 알림. rekordbox는 확인 창 뒤 곡을 뺐지만 DJCrate는 곡 0개 라이브러리를 쓰지 않는다(모양 미확인)
+    nonisolated static func keptOrphansNotice(count: Int) -> String {
+        String(ui: "USB에 곡이 하나도 남지 않게 되어 어느 재생 목록에도 없는 곡 \(count)개는 빼지 않았습니다. 곡까지 지우려면 USB를 비운 뒤 새로 내보내세요")
     }
 
     /// 선택한 목록 중 USB에 넣을 수 없는 로컬 곡(스트리밍·추가 대기·찾지 못한 곡). 동기화는 이 곡만 빼고 쓴다
@@ -708,8 +720,21 @@ struct UsbSyncQueuedPlan: Sendable {
     /// "아니오"나 꺼진 채 닫으면 바꾼 체크는 버리고, 동기화 켜짐을 바꿨으면 두 선택 파일의 AutomaticSync만 쓴다
     /// (다른 칸·선택은 그대로, G5c에서 켜고 "아니오"로 닫아도 이 칸만 바뀌었다). 다른 USB 쓰기와 같은 미리 보기·확인 창을 거친다.
     /// 닫아도 되면 true.
+    /// 닫기를 시작한다. 이미 닫는 중이면 false(확인 창·쓰기를 기다리는 사이 다시 불린 닫기)
+    func beginClosing() -> Bool {
+        guard !isClosing else { return false }
+        isClosing = true
+        return true
+    }
+
+    func endClosing() { isClosing = false }
+
     func close(store: LibraryStore, usb: UsbStore) async -> Bool {
         guard !isLoading, !isSyncing, !isImporting else { return true }
+        // 가드 바로 뒤에 표시한다. 아래 확인 창·저장·쓰기를 기다리는 동안 다시 닫으면 같은 쓰기를 두 번 시작했다.
+        // 첫 닫기가 결과를 정하므로 두 번째는 창을 남긴다.
+        guard beginClosing() else { return false }
+        defer { endClosing() }
         if !closeDeclined, Self.asksToSyncOnClose(syncPlaylists: syncPlaylists, canSync: canSync,
                                                   selectionDiffers: selectionDiffersFromUsb, enabledChanged: enabledChanged) {
             let prompter = store.usbEdits?.prompter ?? AlertPrompter()

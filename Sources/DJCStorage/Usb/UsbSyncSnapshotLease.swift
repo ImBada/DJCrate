@@ -156,7 +156,8 @@ public final class UsbSyncSnapshotLease: Sendable, Equatable {
         let fm = FileManager.default
         try checkDirectory(directory)
         guard try provenance.matches(provenance.sourceURL) else { throw UsbSyncSnapshotError.changed }
-        let root = directory.appending(path: UUID().uuidString)
+        // 앱이 죽으면 deinit이 돌지 않는다. 다음 실행의 청소(`DJCTempCleanup`)가 주인이 없는 사본만 지우도록 pid를 앞에 둔다.
+        let root = directory.appending(path: "\(ProcessInfo.processInfo.processIdentifier)-\(UUID().uuidString)")
         try fm.createDirectory(at: root, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         var keep = false
         defer { if !keep { try? fm.removeItem(at: root) } }

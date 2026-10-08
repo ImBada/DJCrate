@@ -27,7 +27,7 @@ struct UsbSyncPlanTests {
     private func library(_ playlists: [UsbPlaylist], tracks: [Int] = [], history: [Int] = []) -> UsbLibrary {
         var library = UsbLibrary(formats: UsbFormat.defaultSet, property: UsbProperty(dbVersion: "1000"))
         library.playlists = playlists
-        library.tracks = tracks.map { UsbTrack(id: $0) }
+        library.tracks = tracks.map { UsbTrack(id: $0, presentIn: UsbFormat.defaultSet) }
         if !history.isEmpty { library.histories = [UsbHistory(format: .oneLibrary, id: 1, name: "합성 기록", entries: history)] }
         return library
     }
@@ -453,4 +453,83 @@ struct UsbSyncPlanTests {
         #expect(plan.unlinkedPlaylistCount == 0)
         #expect(plan.trackIDs == ["local-one", "local-two"])
     }
+    // MARK: - PR #235 리뷰
+
+    /// 두 형식의 항목이 다른 USB: OneLibrary 항목만 보면 Device Library 항목에만 든 곡을 고아로 보고 모든 형식에서 지웠다.
+    @Test("한 형식의 항목에만 든 곡은 뺄 곡으로 보지 않고, 형식마다 다른 이은 목록은 맞추도록 남긴다")
+    func entriesOfEveryFormatKeepTracks() throws {
+        let source = layout([item("one", "이은 목록", tracks: ["local-one"])])
+        var linked = playlist(10, "이은 목록", tracks: [1])
+        linked.entries[.deviceLibrary] = [1, 2]
+        var unlinked = playlist(20, "남는 목록", order: 1, tracks: [])
+        unlinked.entries[.deviceLibrary] = [3]
+        let usb = library([linked, unlinked], tracks: [1, 2, 3, 4])
+        let plan = try UsbSyncPlan.build(source: source, selection: ITunesSyncSelection(selectedIDs: ["one"]),
+                                        library: usb, matches: [1: "local-one"], badges: [:],
+                                        bindings: ["one": UsbSyncPlaylistBinding(usbID: 10, path: ["이은 목록"], isFolder: false)],
+                                        linkedPlaylistIDs: ["one": 10])
+        // 2는 형식마다 다른 이은 목록(곡 맞추기가 막힐 수 있다)의 Device Library에, 3은 남는 목록의 Device Library에만 있다.
+        #expect(plan.orphanTrackIDs == [4])
+        // OneLibrary 항목이 같아도 Device Library 항목이 달라 맞추기 편집을 만든다.
+        #expect(plan.edits.contains(.syncPlaylist(playlist: .id("10"), localContentIDs: ["local-one"])))
+    }
+
+    /// 선택을 모두 해제하면 모든 곡이 고아가 되어 곡 빼기가 `lastTrack`으로 막히고 묶음 전체가 쓰이지 않았다.
+    @Test("뺄 곡을 빼면 USB에 곡이 하나도 남지 않을 때는 곡 빼기만 하지 않고 목록 지우기는 계획한다")
+    func orphansThatWouldEmptyUsbAreKept() throws {
+        let source = layout([item("one", "이은 목록", tracks: ["local-one"])])
+        let usb = library([playlist(10, "이은 목록", tracks: [1, 2])], tracks: [1, 2])
+        let plan = try UsbSyncPlan.build(source: source, selection: ITunesSyncSelection(),
+                                        library: usb, matches: [1: "local-one"], badges: [:],
+                                        bindings: ["one": UsbSyncPlaylistBinding(usbID: 10, path: ["이은 목록"], isFolder: false)],
+                                        linkedPlaylistIDs: ["one": 10])
+        #expect(plan.edits == [.playlist(edit: .delete(playlist: .id("10")))])
+        #expect(plan.orphanTrackIDs.isEmpty)
+        #expect(plan.keptOrphanTrackIDs == [1, 2])
+    }
+
+    @Test("한 형식에만 있는 곡이 다 빠져 그 형식이 비게 되어도 곡 빼기만 하지 않는다")
+    func orphansThatWouldEmptyOneFormatAreKept() throws {
+        var only = UsbTrack(id: 3)
+        only.presentIn = [.oneLibrary]
+        var usb = library([playlist(10, "이은 목록", tracks: [1, 2]), playlist(20, "남는 목록", order: 1, tracks: [3])],
+                          tracks: [1, 2])
+        usb.tracks.append(only)
+        let source = layout([item("one", "이은 목록")])
+        let plan = try UsbSyncPlan.build(source: source, selection: ITunesSyncSelection(),
+                                        library: usb, matches: [:], badges: [:], bindings: [:],
+                                        linkedPlaylistIDs: ["one": 10])
+        // Device Library에는 1·2뿐이라 둘을 빼면 그 형식에 곡이 남지 않는다.
+        #expect(plan.orphanTrackIDs.isEmpty && plan.keptOrphanTrackIDs == [1, 2])
+    }
 }
+
+/// 고아 판정(앱의 짝)과 쓰기 계획(`UsbEditPlanner.localPairs`)이 같은 규칙으로 곡을 짝짓는지
+@Suite("USB 동기화 곡 짝짓기 규칙")
+struct UsbSyncPairingRuleTests {
+    /// 다른 라이브러리에서 가져온 곡처럼 로컬 행의 MasterDBID가 이 라이브러리 DBID와 다르다.
+    /// 내보내기·쓰기 계획은 그 행의 MasterDBID로 USB 곡과 잇는다.
+    @Test("로컬 행의 MasterDBID로 짝짓고 이 라이브러리 DBID로 짝짓지 않는다")
+    func pairsByRowMasterDBID() {
+        let local = LocalLibraryKeys(localDBID: 100,
+                                     tracks: [.init(contentID: "imported", masterSongID: "10", fileNameL: "a.mp3"),
+                                              .init(contentID: "native", masterSongID: "20", fileNameL: "b.mp3")],
+                                     counters: [:], masterDBIDs: ["imported": 200, "native": 100])
+        var library = UsbLibrary.empty
+        library.tracks = [.init(id: 1, fileName: "a.mp3", masterDbId: 200, masterContentId: 10),
+                          .init(id: 2, fileName: "a.mp3", masterDbId: 100, masterContentId: 10),
+                          .init(id: 3, fileName: "b.mp3", masterDbId: 100, masterContentId: 20)]
+        let matches = UsbSyncBadges.evaluate(library: library, local: local).matches
+        #expect(matches == [1: "imported", 3: "native"])
+    }
+
+    @Test("MasterDBID를 모르는 행은 이 라이브러리 DBID로 본다")
+    func missingMasterDBIDFallsBackToLocal() {
+        let local = LocalLibraryKeys(localDBID: 100, tracks: [.init(contentID: "one", masterSongID: "10", fileNameL: "a.mp3")],
+                                     counters: [:])
+        var library = UsbLibrary.empty
+        library.tracks = [.init(id: 1, fileName: "a.mp3", masterDbId: 100, masterContentId: 10)]
+        #expect(UsbSyncBadges.evaluate(library: library, local: local).matches == [1: "one"])
+    }
+}
+

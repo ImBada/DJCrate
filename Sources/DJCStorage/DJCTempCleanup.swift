@@ -4,10 +4,12 @@ import Foundation
 import RekordboxKit
 
 /// 비정상 종료·강제 종료 뒤 남은 임시 파일·폴더 청소(#219). 앱이 켜질 때 뒤에서 조용히 돌고, 지운 것은 로그에만 남긴다.
-/// 지우는 자리는 아래 넷뿐이다. 초안·추가 목록·백업·USB 저널·허용·거부 목록은 이름도 읽지 않는다.
+/// 지우는 자리는 아래 다섯뿐이다. 초안·추가 목록·백업·USB 저널·허용·거부 목록은 이름도 읽지 않는다.
 /// - 데이터 폴더의 `preview-waveforms.plist.sb-*`: 원자적 저장이 끊긴 임시 파일(다음 저장이 새 이름을 쓴다)
 /// - `$TMPDIR/djc-preview-<UUID>/`: 쓰기 미리 보기의 DB 사본. 주인 pid가 이름에 없어 오래된 것만(`defer`가 못 지운 것)
 /// - `$TMPDIR/djc-test-sandbox-<pid>/`: 시험 프로세스의 임시 폴더. 그 pid가 살아 있지 않을 때만
+/// - USB 동기화 전용 DB 사본 `$TMPDIR/djc-usb-sync-snapshots/<pid>-<UUID>/`(`DJC_HOME`이 있으면 `<데이터 폴더>/usb-sync-snapshots/`):
+///   클라우드 토큰이 든 사본이라 앱이 죽어 남은 것을 치운다. 그 pid가 살아 있지 않을 때만, pid가 없는 옛 이름은 하루 지난 것만
 /// - `usb-staging/<세션>[-verify]/`: 회복용이라 pid가 아니라 저널로 판단한다. 닫히지 않은 저널이 가리키면 남기고,
 ///   읽지 못하는 저널이 있거나 USB 쓰기 잠금이 잡혀 있으면 통째로 건너뛰며, 저널이 아직 없는 계획 중일 수 있어 갓 만든 폴더도 남긴다
 public enum DJCTempCleanup {
@@ -28,6 +30,9 @@ public enum DJCTempCleanup {
         var targets = previewWaveformLeftovers(in: paths.root, now: now)
         targets += temporaryLeftovers(in: temporaryDirectory, now: now, isProcessAlive: isProcessAlive)
         targets += stagingLeftovers(paths: paths, now: now)
+        for directory in [temporaryDirectory.appending(path: "djc-usb-sync-snapshots"), paths.root.appending(path: "usb-sync-snapshots")] {
+            targets += syncSnapshotLeftovers(in: directory, now: now, isProcessAlive: isProcessAlive)
+        }
         var removed: [URL] = []
         for target in targets {
             do { try FileManager.default.removeItem(at: target) } catch { continue }
@@ -61,6 +66,21 @@ public enum DJCTempCleanup {
                 return pid != mine && !isProcessAlive(pid)
             }
             return false
+        }
+    }
+
+    /// `UsbSyncSnapshotLease`의 사본 폴더(`<pid>-<UUID>`). 다른 실행이 쓰는 중인 사본은 남긴다
+    static func syncSnapshotLeftovers(in directory: URL, now: Date, isProcessAlive: (pid_t) -> Bool) -> [URL] {
+        let mine = ProcessInfo.processInfo.processIdentifier
+        return entries(of: directory).filter { url in
+            guard isDirectory(url) else { return false }
+            let name = url.lastPathComponent
+            // UUID 앞 토막이 숫자뿐일 수 있어 뒤가 온전한 UUID일 때만 pid로 읽는다
+            if let dash = name.firstIndex(of: "-"), let pid = pid_t(name[..<dash]), pid > 0,
+               UUID(uuidString: String(name[name.index(after: dash)...])) != nil {
+                return pid != mine && !isProcessAlive(pid)
+            }
+            return newestChange(url).map { now.timeIntervalSince($0) > stagingAge } ?? false
         }
     }
 

@@ -81,6 +81,10 @@ public enum LibrarySnapshot {
         let before = try fm.attributesOfItem(atPath: source.path)
         // 명시한 사본을 다시 뜰 때는 그 사본의 iTunes 목록만 함께 가져온다.
         let iTunesData = try? Data(contentsOf: source.appendingPathExtension("itunes.json"))
+        // 재생 목록 XML(USB 동기화가 선택 파일의 Timestamp를 옮긴다)도 DB와 같은 때의 사본을 둔다. 사본에서 다시 뜨면 그 사본 옆 것을,
+        // 아니면 DB 옆 것을 읽는다. 라이브 폴더의 XML은 여기서 한 번만 읽는다.
+        let masterXMLData = (try? Data(contentsOf: masterPlaylistsURL(of: source)))
+            ?? (try? Data(contentsOf: source.deletingLastPathComponent().appending(path: "masterPlaylists6.xml")))
 
         let stamp = now.formatted(.iso8601.year().month().day().time(includingFractionalSeconds: false).dateTimeSeparator(.standard))
             .replacingOccurrences(of: ":", with: "")
@@ -103,6 +107,8 @@ public enum LibrarySnapshot {
         let iTunesDestination = destination.appendingPathExtension("itunes.json")
         // 같은 초의 파일 이름을 재사용해도 이전 DB의 목록을 붙들지 않는다.
         try? fm.removeItem(at: iTunesDestination)
+        let masterXMLDestination = masterPlaylistsURL(of: destination)
+        try? fm.removeItem(at: masterXMLDestination)
 
         // rekordbox가 켜져 있으면 최근 변경이 WAL에만 있다. WAL도 사본 옆에 복사해 사본 안에서 합친다.
         let sourceWAL = source.deletingLastPathComponent().appending(path: source.lastPathComponent + "-wal")
@@ -124,6 +130,10 @@ public enum LibrarySnapshot {
             try iTunesData.write(to: iTunesDestination, options: .atomic)
             try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: iTunesDestination.path)
         }
+        if let masterXMLData {
+            try masterXMLData.write(to: masterXMLDestination, options: .atomic)
+            try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: masterXMLDestination.path)
+        }
         prune(keeping: 3, in: directory)
         return destination
     }
@@ -136,7 +146,10 @@ public enum LibrarySnapshot {
             .sorted { $0.lastPathComponent > $1.lastPathComponent }
         for old in files.dropFirst(keeping) {
             try? fm.removeItem(at: old)
-            if !fm.fileExists(atPath: old.path) { try? fm.removeItem(at: old.appendingPathExtension("itunes.json")) }
+            if !fm.fileExists(atPath: old.path) {
+                try? fm.removeItem(at: old.appendingPathExtension("itunes.json"))
+                try? fm.removeItem(at: masterPlaylistsURL(of: old))
+            }
         }
         // 읽는 연결이 남긴 -shm·-wal 중 본 파일이 지워진 것
         for leftover in ((try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [])
@@ -151,6 +164,9 @@ public enum LibrarySnapshot {
             if Date().timeIntervalSince(modified) > 600 { try? fm.removeItem(at: stale) }
         }
     }
+
+    /// 스냅샷을 뜰 때 함께 복사한 `masterPlaylists6.xml`(`master-….db.masterPlaylists6.xml`)
+    public static func masterPlaylistsURL(of snapshot: URL) -> URL { snapshot.appendingPathExtension("masterPlaylists6.xml") }
 
     /// 스냅샷 파일 이름(`master-2026-09-26T083646.db`, UTC)에 적힌 뜬 시각
     public static func takenAt(_ snapshot: URL) -> Date? {

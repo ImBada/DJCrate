@@ -7603,6 +7603,22 @@
         }
       }
     },
+    "USB에 곡이 하나도 남지 않게 되어 어느 재생 목록에도 없는 곡 %lld개는 빼지 않았습니다. 곡까지 지우려면 USB를 비운 뒤 새로 내보내세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld tracks that are no longer in any playlist were kept because no tracks would remain on the USB. To remove them too, empty the USB and export it anew"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに曲が1曲も残らなくなるため、どのプレイリストにもない%lld曲は削除しませんでした。曲も削除するには、USBを空にしてから新しくエクスポートしてください"
+          }
+        }
+      }
+    },
     "USB에 곡이 하나도 남지 않습니다. 곡을 남기거나 USB를 새로 내보내세요" : {
       "localizations" : {
         "en" : {

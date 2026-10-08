@@ -46,6 +46,9 @@ struct UsbSyncPlan: Sendable {
     var deletedPlaylists: [PlaylistLayout.Item] = []
     /// 동기화 뒤 USB의 어느 목록에도 없는 곡. rekordbox처럼 확인을 받은 뒤에만 USB에서 뺀다.
     var orphanTrackIDs: [Int] = []
+    /// 어느 목록에도 없지만 빼면 USB(어느 형식이든)에 곡이 하나도 남지 않아 빼지 않는 곡. 곡 0개 라이브러리는 쓰지 않는다
+    /// (`lastTrack`, 곡 빼기가 막히면 목록 지우기·선택 파일까지 묶음 전체가 쓰이지 않는다)
+    var keptOrphanTrackIDs: [Int] = []
     /// 원본 목록 ID → 기존 USB 목록 또는 같은 묶음에서 만든 목록
     var playlistRefs: [String: PlaylistRef] = [:]
 
@@ -91,6 +94,12 @@ struct UsbSyncPlan: Sendable {
                                            isFolder: playlist.attribute == 1, isSmart: playlist.attribute == 4, entries: entries)
             return (item: item, seq: playlist.sortOrder[.oneLibrary] ?? playlist.sortOrder[.deviceLibrary] ?? 0)
         })
+    }
+
+    /// 목록이 있는 형식마다의 항목. 두 형식의 항목이 다를 수 있어 `usbLayout`(보이는 형식 하나)만으로는 곡이 남는지 알 수 없다
+    static func entriesByFormat(_ playlist: UsbPlaylist) -> [[Int]] {
+        let lists = UsbFormat.allCases.filter(playlist.presentIn.contains).map { playlist.entries[$0] ?? [] }
+        return lists.isEmpty ? [UsbLibraryRows.entries(of: playlist)] : lists
     }
 
     static func path(_ item: PlaylistLayout.Item, in layout: PlaylistLayout) -> [String] {
@@ -305,21 +314,38 @@ struct UsbSyncPlan: Sendable {
             else { refresh.append((parts: parts, ids: [usbID])) }
         }
         edits += refresh.map { .refreshTracks(usbContentIDs: $0.ids, parts: $0.parts) }
-        // 동기화 뒤에도 곡을 가리키는 USB 목록: 이은 목록은 원본 곡, 남은 목록은 지금 곡
+        // 동기화 뒤에도 곡을 가리키는 USB 목록: 이은 목록은 원본 곡, 남은 목록은 지금 곡. 곡 빼기는 모든 형식에서 빼므로
+        // 지금 곡은 목록이 있는 모든 형식의 항목을 합친다(한 형식의 항목에만 든 곡도 남는다).
+        let usbEntries = Dictionary(library.playlists.map { (String($0.id), entriesByFormat($0)) }, uniquingKeysWith: { first, _ in first })
         var referenced = Set<String>()
         for item in desired.outline where item.holdsTracks {
             guard let ref = refs[item.id] else { continue }
             let expected = item.trackIDs.compactMap { usbByLocal[$0]?.first }.map(String.init)
             referenced.formUnion(expected)
-            if expected.count != item.trackIDs.count || working.item(ref.description)?.trackIDs != expected {
+            let current: [[String]]
+            if case .id = ref, let lists = usbEntries[ref.description] { current = lists.map { $0.map(String.init) } }
+            else { current = [working.item(ref.description)?.trackIDs ?? []] }
+            // 형식마다 항목이 다른 목록은 곡 맞추기가 막힐 수 있다(`playlistEntriesDiffer`). 그때 남을 곡을 빼지 않게 지금 곡도 남긴다.
+            if current.contains(where: { $0 != current.first }) { referenced.formUnion(current.joined()) }
+            if expected.count != item.trackIDs.count || current.contains(where: { $0 != expected }) {
                 edits.append(.syncPlaylist(playlist: ref, localContentIDs: item.trackIDs))
             }
         }
-        for item in unlinked { referenced.formUnion(item.trackIDs) }
+        for item in unlinked {
+            referenced.formUnion(usbEntries[item.id].map { $0.joined().map(String.init) } ?? item.trackIDs)
+        }
         // 재생 기록에 남은 곡은 곡 빼기가 막으므로 지울 곡에 넣지 않는다.
         let history = Set(library.histories.flatMap(\.entries))
-        let orphans = library.tracks.map(\.id).filter { !referenced.contains(String($0)) && !history.contains($0) }.sorted()
+        var orphans = library.tracks.map(\.id).filter { !referenced.contains(String($0)) && !history.contains($0) }.sorted()
+        var kept: [Int] = []
+        // 빼면 곡이 하나도 남지 않는 형식이 있으면 곡 빼기만 하지 않는다. 목록 지우기·선택 파일은 쓴다.
+        let removing = Set(orphans)
+        let empties = library.formats.contains { format in
+            let present = library.tracks.filter { $0.presentIn.contains(format) }
+            return !present.isEmpty && present.allSatisfy { removing.contains($0.id) }
+        }
+        if !orphans.isEmpty, empties { swap(&orphans, &kept) }
         return UsbSyncPlan(edits: edits, layout: desired, trackIDs: trackIDs, unlinkedPlaylistCount: unlinked.count,
-                           deletedPlaylists: deleted, orphanTrackIDs: orphans, playlistRefs: refs)
+                           deletedPlaylists: deleted, orphanTrackIDs: orphans, keptOrphanTrackIDs: kept, playlistRefs: refs)
     }
 }

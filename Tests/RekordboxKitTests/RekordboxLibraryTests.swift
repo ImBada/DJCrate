@@ -139,6 +139,26 @@ struct RekordboxLibraryTests {
         #expect(try RekordboxLibrary.load(snapshot: taken.last!).allTracks.count == 2)
     }
 
+    /// USB 동기화는 선택 파일의 Timestamp를 masterPlaylists6.xml에서 옮긴다. 라이브 폴더의 XML을 읽지 않도록 스냅샷 옆에 사본을 둔다.
+    @Test func 스냅샷은_재생_목록_XML도_옆에_복사하고_정리할_때_함께_지운다() throws {
+        let (fixture, _, _) = try makeLibrary()
+        let xml = fixture.database.deletingLastPathComponent().appending(path: "masterPlaylists6.xml")
+        try Data("<PLAYLISTS>합성</PLAYLISTS>".utf8).write(to: xml)
+        let folder = fixture.root.appending(path: "snapshots")
+        var taken: [URL] = []
+        for n in 0..<4 {
+            taken.append(try LibrarySnapshot.take(from: fixture.database, into: folder, force: true,
+                                                  now: Date(timeIntervalSince1970: 1_790_000_000 + Double(n))))
+        }
+        let copy = LibrarySnapshot.masterPlaylistsURL(of: taken.last!)
+        #expect(try Data(contentsOf: copy) == Data("<PLAYLISTS>합성</PLAYLISTS>".utf8))
+        #expect(!FileManager.default.fileExists(atPath: LibrarySnapshot.masterPlaylistsURL(of: taken[0]).path), "지운 스냅샷의 XML도 지운다")
+        // 사본에서 다시 뜨면 사본 옆 XML을 옮긴다(라이브 XML이 바뀌어도 같은 때의 XML).
+        try Data("<PLAYLISTS>바뀜</PLAYLISTS>".utf8).write(to: xml)
+        let again = try LibrarySnapshot.take(from: taken.last!, into: fixture.root.appending(path: "again"), force: true)
+        #expect(try Data(contentsOf: LibrarySnapshot.masterPlaylistsURL(of: again)) == Data("<PLAYLISTS>합성</PLAYLISTS>".utf8))
+    }
+
     @Test func 스냅샷_뒤에_rekordbox가_라이브러리를_바꿨는지_안다() throws {
         let (fixture, _, _) = try makeLibrary()
         let folder = fixture.root.appending(path: "snapshots")

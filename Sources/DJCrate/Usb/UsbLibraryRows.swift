@@ -81,13 +81,18 @@ enum UsbSyncBadges {
     /// 배지와 로컬 짝(USB content_id → 로컬 ContentID, 짝이 하나인 곡만). 동기화·큐 가져오기가 짝을 쓴다
     static func evaluate(library: UsbLibrary, local: LocalLibraryKeys?) -> (badges: [Int: UsbSyncStatus], matches: [Int: String]) {
         guard let local else { return ([:], [:]) }
-        // 짝은 MasterSongID가 같아야 하므로 그 값으로 먼저 추려 곡마다 전체를 훑지 않는다
-        let bySong = Dictionary(grouping: local.tracks) { Int64($0.masterSongID) ?? -1 }
+        // 쓰기 계획(`UsbEditPlanner.localPairs`)과 같은 규칙: 로컬 행의 MasterDBID·MasterSongID가 USB 곡의 값과 같은 행 중에서
+        // 고른다. 이 라이브러리 DBID로 고르면 다른 라이브러리에서 가져온 곡을 계획은 잇고 고아 판정은 빼서 더하기·빼기가 번갈아 생긴다.
+        struct Identity: Hashable { var database: Int64; var song: Int64 }
+        let byIdentity = Dictionary(grouping: local.tracks) {
+            Identity(database: local.masterDBID(of: $0.contentID), song: UsbLibraryBuilder.sqliteInteger($0.masterSongID) ?? 0)
+        }
         var result: [Int: UsbSyncStatus] = [:]
         var matches: [Int: String] = [:]
         for track in library.tracks {
             let key = UsbTrackKey(masterDbId: track.masterDbId, masterContentId: track.masterContentId, fileName: track.fileName)
-            guard let contentID = UsbTrackMatch.match(key, localDBID: local.localDBID, local: bySong[track.masterContentId] ?? []) else {
+            let family = byIdentity[Identity(database: track.masterDbId, song: track.masterContentId)] ?? []
+            guard let contentID = UsbTrackMatch.match(key, localDBID: track.masterDbId, local: family) else {
                 result[track.id] = .missingLocal
                 continue
             }

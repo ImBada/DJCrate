@@ -26,6 +26,15 @@ struct UsbSyncSnapshotLeaseTests {
         #expect(lease.database != source)
     }
 
+    /// 앱이 죽어 deinit이 돌지 않은 사본을 다음 실행이 주인 pid로 가려 지운다(`DJCTempCleanup`).
+    @Test func 사본_폴더_이름은_주인_pid로_시작한다() throws {
+        let (root, source) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let lease = try UsbSyncSnapshotLease.capture(try UsbSyncSnapshotProvenance.capture(source), directory: root.appending(path: "copies"))
+        let folder = lease.database.deletingLastPathComponent().lastPathComponent
+        #expect(folder.hasPrefix("\(ProcessInfo.processInfo.processIdentifier)-"))
+    }
+
     /// 이름에 시각이 없는 사본(`--db snapshot.db` 등)은 mtime을 쓰되, 쓰기 단계가 읽는 시간대 있는 ISO 8601이어야 한다
     @Test func 이름에_시각이_없는_사본은_mtime을_날짜와_시간대까지_적는다() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: "djc-sync-lease-test-\(UUID())")

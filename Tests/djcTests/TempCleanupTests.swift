@@ -98,6 +98,32 @@ struct TempCleanupTests {
         #expect(scene.exists("djc-test-sandbox-notapid", under: scene.tmp), "pid를 읽지 못하면 남긴다")
     }
 
+    /// USB 동기화 전용 DB 사본(클라우드 토큰 포함)은 앱이 죽으면 deinit이 지우지 못한다.
+    @Test func USB_동기화_사본은_주인_프로세스가_없거나_오래된_옛_이름만_지운다() throws {
+        let scene = try scene()
+        defer { try? FileManager.default.removeItem(at: scene.root) }
+        let mine = ProcessInfo.processInfo.processIdentifier
+        let uuid = "12345678-0000-4000-8000-000000000000"
+        for base in [scene.tmp.appending(path: "djc-usb-sync-snapshots"), scene.home.appending(path: "usb-sync-snapshots")] {
+            try scene.write("111-\(uuid)/master.db", under: base)
+            try scene.write("222-\(uuid)/master.db", under: base)
+            try scene.write("\(mine)-\(uuid)/master.db", under: base)
+            let old = try scene.write("\(uuid)/master.db", under: base)
+            try scene.age(old.deletingLastPathComponent(), 172_800)
+            try scene.write("87654321-0000-4000-8000-000000000000/master.db", under: base)
+        }
+
+        DJCTempCleanup.run(paths: scene.paths, temporaryDirectory: scene.tmp, isProcessAlive: { $0 == 222 })
+
+        for base in [scene.tmp.appending(path: "djc-usb-sync-snapshots"), scene.home.appending(path: "usb-sync-snapshots")] {
+            #expect(!scene.exists("111-\(uuid)", under: base))
+            #expect(scene.exists("222-\(uuid)/master.db", under: base), "다른 실행이 쓰는 중")
+            #expect(scene.exists("\(mine)-\(uuid)/master.db", under: base))
+            #expect(!scene.exists("\(uuid)", under: base), "주인을 모르는 옛 이름은 오래된 것만")
+            #expect(scene.exists("87654321-0000-4000-8000-000000000000/master.db", under: base))
+        }
+    }
+
     @Test func 내_프로세스의_샌드박스는_지우지_않는다() throws {
         let scene = try scene()
         defer { try? FileManager.default.removeItem(at: scene.root) }

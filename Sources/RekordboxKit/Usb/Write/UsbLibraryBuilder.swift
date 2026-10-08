@@ -187,7 +187,7 @@ public enum UsbLibraryBuilder {
     }
 
     /// SQLite `CAST(x AS INTEGER)`처럼 앞 공백 뒤의 부호·숫자만 읽는다(숫자가 없으면 0, NULL이면 nil)
-    static func sqliteInteger(_ text: String?) -> Int64? {
+    public static func sqliteInteger(_ text: String?) -> Int64? {
         guard let text else { return nil }
         var scalars = Substring(text).drop { $0 == " " || $0 == "\t" || $0 == "\n" || $0 == "\r" }
         var negative = false
