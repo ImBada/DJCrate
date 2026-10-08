@@ -222,7 +222,7 @@ struct ListActionBar: View {
                 let selectedStaged = store.selectedRows.filter(\.isStaged)
                 let addTargets = selectedStaged.isEmpty ? store.stagedRows : selectedStaged
                 Button { DirectWritePanels.addTracks(store: store, rows: addTargets) } label: {
-                    Label(store.isWritingRekordbox ? LocalizedStringResource.ui("rekordbox에 쓰는 중…") : .ui("rekordbox에 바로 넣기 (\(addTargets.count)곡)…"),
+                    Label(store.isWritingRekordbox ? LocalizedStringResource.ui("rekordbox에 쓰는 중…") : .ui("rekordbox에 바로 넣기 (\(addTargets.count)곡)"),
                           systemImage: "tray.and.arrow.down")
                 }
                 .buttonStyle(.borderedProminent)
@@ -246,8 +246,8 @@ struct ListActionBar: View {
                 let targets = store.selection.isEmpty ? store.displayRows : store.selectedRows
                 let playlistEdits = store.playlistDraft.steps.count
                 Button { DirectWritePanels.write(store: store, rows: targets) } label: {
-                    Label(playlistEdits > 0 ? LocalizedStringResource.ui("rekordbox에 쓰기 (\(targets.count)곡 · 재생 목록 \(playlistEdits)건)…")
-                            : .ui("rekordbox에 쓰기 (\(targets.count)곡)…"),
+                    Label(playlistEdits > 0 ? LocalizedStringResource.ui("rekordbox에 쓰기 (\(targets.count)곡 · 재생 목록 \(playlistEdits)건)")
+                            : .ui("rekordbox에 쓰기 (\(targets.count)곡)"),
                           systemImage: "square.and.arrow.up.on.square")
                 }
                 .disabled((targets.isEmpty && playlistEdits == 0) || store.isWritingRekordbox || store.writesBlockedBySheet)

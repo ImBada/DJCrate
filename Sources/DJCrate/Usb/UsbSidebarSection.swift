@@ -392,7 +392,7 @@ struct UsbSidebarMenu: View {
                     }
                 }
                 .disabled(actions.usb.volume(key) == nil || (actions.usb.draftCounts[key] ?? 0) == 0)
-                Button(.ui("초안 버리기…"), role: .destructive) { Task { await actions.discardDraft(volumeKey: key) } }
+                Button(.ui("초안 버리기"), role: .destructive) { Task { await actions.discardDraft(volumeKey: key) } }
                     .disabled((actions.usb.draftCounts[key] ?? 0) == 0)
             }
         }

@@ -13,7 +13,7 @@ extension LibraryStore {
             // 추가한 곡·USB 곡은 이 쓰기의 대상이 아니니 쓰기 확인 목록에 섞지 않는다.
             if blockedOnly, row.isStaged || row.isUsb { return [] }
             if row.isStaged {
-                return [line(String(ui: "추가한 곡은 기존 곡의 초안 쓰기에서 제외하니 ‘rekordbox에 넣기…’ 또는 추가 목록의 XML 만들기를 사용하세요"))]
+                return [line(String(ui: "추가한 곡은 기존 곡의 초안 쓰기에서 제외하니 ‘rekordbox에 넣기’ 또는 추가 목록의 XML 만들기를 사용하세요"))]
             }
             if row.isUsb {
                 return [line(String(ui: "USB 곡은 이 라이브러리의 초안 쓰기를 지원하지 않으니 라이브러리에서 곡을 고르세요"))]
@@ -38,7 +38,7 @@ extension LibraryStore {
                 } else if changed == false {
                     if !blockedOnly { reasons.append(line(kind.unchanged)) }
                 } else if xml, kind != .cue && kind != .grid {
-                    reasons.append(line(kind.blocked(String(ui: "기존 곡의 XML은 큐·그리드만 지원하니 이 종류의 초안은 ‘rekordbox에 쓰기…’를 사용하세요"))))
+                    reasons.append(line(kind.blocked(String(ui: "기존 곡의 XML은 큐·그리드만 지원하니 이 종류의 초안은 ‘rekordbox에 쓰기’를 사용하세요"))))
                 }
             }
             if !blockedOnly, !candidates.contains(where: { $0.1 }) {

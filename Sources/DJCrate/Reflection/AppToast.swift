@@ -99,7 +99,7 @@ struct AppToastView: View {
                 Button(action.title, action: onAction).controlSize(ControlSize.small.scaled(textScale))
             }
             if let onUndo, toast.undoBackup != nil {
-                Button(.ui("쓰기 전으로 복원…"), action: onUndo)
+                Button(.ui("쓰기 전으로 복원"), action: onUndo)
                     .controlSize(ControlSize.small.scaled(textScale))
                     .help(.ui("라이브러리 전체를 이번 쓰기 전으로 복원합니다. rekordbox를 먼저 종료하세요."))
             }

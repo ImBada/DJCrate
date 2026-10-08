@@ -255,6 +255,8 @@ struct UsbEditActions {
     let host: any UsbWriteHost
     var prompter: any ReflectionPrompter = AlertPrompter()
     var namePrompter: any UsbNamePrompter = AlertNamePrompter()
+    /// 초안 버리기를 되돌리는 곳(편집 › 실행 취소). nil이면 걸지 않는다
+    weak var undoManager: UndoManager?
     /// 새 목록의 key(같은 초안 안에서 겹치지 않게)
     var newKey: () -> String = { "djc-" + UUID().uuidString.prefix(8).lowercased() }
 
@@ -557,14 +559,82 @@ struct UsbEditActions {
         if case let .failure(error) = result { draftFailed(error) }
     }
 
-    /// 초안 버리기(확인). USB는 바뀌지 않는다
+    /// 초안 버리기. 쓰기 전 편집이라 묻지 않고 편집 › 실행 취소(⌘Z)로 되살린다(#237). USB는 바뀌지 않는다
     func discardDraft(volumeKey: String) async {
-        let count = usb.draftCounts[volumeKey] ?? 0
-        guard usb.draftDirectory != nil, count > 0, prompter.show(ReflectionPrompt(
-            title: String(ui: "USB 초안 \(count)건을 버릴까요?"),
-            text: String(ui: "\(usb.editName(volumeKey) ?? "USB")에 아직 쓰지 않은 편집(곡 더하기·빼기·갱신, 재생 목록 편집)을 모두 버립니다. USB는 바뀌지 않습니다."),
-            confirm: String(ui: "버리기"), destructive: true)) else { return }
-        if case let .failure(error) = await mutateDraft(volumeKey, { _ in [] }) { draftFailed(error) }
+        guard usb.draftDirectory != nil, (usb.draftCounts[volumeKey] ?? 0) > 0 else { return }
+        let discarded = DiscardedDraft()
+        if await replaceDraft(volumeKey, change: { { _ in nil } }, replaced: { discarded.draft = $0 }) {
+            registerRestore(discarded, volumeKey: volumeKey)
+        }
+    }
+
+    /// 버린 초안(실행 복귀로 다시 버리면 그때 채운다)
+    @MainActor private final class DiscardedDraft { var draft: UsbDraft? }
+
+    /// 실행 취소 → 되살리기. 반대 동작(실행 복귀)은 실행 취소 안에서 바로 걸어야 복귀 쪽에 쌓인다. 파일은 그 뒤 비동기로 고친다
+    private func registerRestore(_ discarded: DiscardedDraft, volumeKey: String) {
+        guard let undoManager else { return }
+        let actions = self
+        undoManager.registerUndo(withTarget: usb) { _ in
+            actions.registerDiscardAgain(volumeKey: volumeKey)
+            Task { @MainActor in
+                // 처음 base·만든 때를 그대로 두고, 버린 뒤 더한 편집은 뒤에 남긴다
+                await actions.replaceDraft(volumeKey, change: {
+                    guard let draft = discarded.draft else { return { $0 } }
+                    return { current in
+                        UsbDraft(volumeKey: draft.volumeKey, base: draft.base, edits: draft.edits + (current?.edits ?? []),
+                                 createdAt: draft.createdAt)
+                    }
+                })
+            }
+        }
+        undoManager.setActionName(String(ui: "USB 초안 버리기"))
+    }
+
+    /// 실행 복귀 → 다시 버리기
+    private func registerDiscardAgain(volumeKey: String) {
+        guard let undoManager else { return }
+        let actions = self
+        undoManager.registerUndo(withTarget: usb) { _ in
+            let discarded = DiscardedDraft()
+            actions.registerRestore(discarded, volumeKey: volumeKey)
+            Task { @MainActor in await actions.replaceDraft(volumeKey, change: { { _ in nil } }, replaced: { discarded.draft = $0 }) }
+        }
+        undoManager.setActionName(String(ui: "USB 초안 버리기"))
+    }
+
+    /// 그 볼륨의 초안 파일을 통째로 바꾼다(nil·빈 편집이면 지운다). `change`는 차례가 왔을 때 만들고, 바꾸기 전 초안은 `replaced`로 받는다.
+    /// 고쳤으면 true
+    @discardableResult
+    private func replaceDraft(_ volumeKey: String, change: @escaping @MainActor () -> @Sendable (UsbDraft?) -> UsbDraft?,
+                              replaced: @escaping @MainActor (UsbDraft?) -> Void = { _ in }) async -> Bool {
+        guard let directory = usb.draftDirectory else { return false }
+        let usb = usb
+        let result = await usb.draftQueue(volumeKey) { () -> Result<UsbDraft?, any Error> in
+            let transform = change()
+            let result = await Task.detached(priority: .userInitiated) { () -> Result<(old: UsbDraft?, new: UsbDraft?), any Error> in
+                Result {
+                    let store = UsbDraftStore(directory: directory)
+                    let old = try store.load(volumeKey: volumeKey)
+                    let new = transform(old).flatMap { $0.edits.isEmpty ? nil : $0 }
+                    if let new { try store.save(new) } else if old != nil { try store.discard(volumeKey: volumeKey) }
+                    return (old, new)
+                }
+            }.value
+            switch result {
+            case let .success((old, new)):
+                usb.setDraft(new?.edits ?? [], for: volumeKey)
+                replaced(old)
+                return .success(old)
+            case let .failure(error):
+                return .failure(error)
+            }
+        }
+        if case let .failure(error) = result {
+            draftFailed(error)
+            return false
+        }
+        return true
     }
 
     // MARK: - 곡
@@ -836,7 +906,7 @@ struct UsbEditActions {
 
 extension LibraryStore {
     /// 앱의 USB 초안 편집(사이드바 USB 절이 붙은 뒤에만)
-    var usbEdits: UsbEditActions? { usb.map { UsbEditActions(usb: $0, host: self) } }
+    var usbEdits: UsbEditActions? { usb.map { UsbEditActions(usb: $0, host: self, undoManager: undoManager) } }
 
     /// USB 목록에서 고른 줄(표 순서, 같은 곡이 목록에 여러 번 있으면 줄마다)
     var selectedUsbRows: [TrackRow] { displayRows.filter { $0.isUsb && selection.contains($0.id) } }

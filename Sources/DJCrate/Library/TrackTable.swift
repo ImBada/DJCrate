@@ -649,7 +649,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         let pending = targets.filter { !$0.isStaged && store.pendingUUIDs.contains($0.track.uuid) }
         if !pending.isEmpty {
             menu.addItem(.separator())
-            let reflect = NSMenuItem(title: String(ui: "선택한 곡 rekordbox에 쓰기 (\(pending.count)곡)…"),
+            let reflect = NSMenuItem(title: String(ui: "선택한 곡 rekordbox에 쓰기 (\(pending.count)곡)"),
                                      action: #selector(reflectSelected), keyEquivalent: "")
             reflect.target = self
             menu.addItem(reflect)
@@ -662,7 +662,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         let staged = targets.filter(\.isStaged)
         if !staged.isEmpty {
             menu.addItem(.separator())
-            let add = NSMenuItem(title: String(ui: "rekordbox에 바로 넣기 (\(staged.count)곡)…"), action: #selector(addToRekordbox), keyEquivalent: "")
+            let add = NSMenuItem(title: String(ui: "rekordbox에 바로 넣기 (\(staged.count)곡)"), action: #selector(addToRekordbox), keyEquivalent: "")
             add.target = self
             menu.addItem(add)
             let export = NSMenuItem(title: String(ui: "추가한 곡 XML 만들기 (\(staged.count)곡)"), action: #selector(exportStaged), keyEquivalent: "")
