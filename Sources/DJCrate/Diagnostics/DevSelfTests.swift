@@ -21,6 +21,7 @@ enum DevSelfTests {
         runSearchLayoutIfRequested()
         runReflectionLayoutIfRequested(store: store)
         Issue237Capture.runIfRequested(store: store)
+        ColumnHeaderCapture.runIfRequested(store: store)
         runDuplicateLayoutIfRequested(store: store)
         runMissingFilesCaptureIfRequested(store: store)
         runDraftNoticeCaptureIfRequested(store: store)

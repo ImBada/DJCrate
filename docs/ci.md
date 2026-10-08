@@ -49,6 +49,8 @@ quick과 stress는 `swift build --build-tests --enable-code-coverage`의 같은 
 
 메뉴가 보이는 화면(#237 전·후)은 `--issue237-capture=<임시 폴더> --issue237-usb-mount=<합성 디스크 이미지 마운트>`로 찍는다. `LayoutFixtureCapture` 합성 사본(`--db`·`DJC_REKORDBOX_DIR`)과 `UsbSelfTestLibrary`로 내보낸 `DJCDEMO` 이미지(`djc lab usb-image`·`usb-export`)만 읽고 USB 절은 그 볼륨 하나로 바꾼다. 창은 `screencapture -l <창 번호>`로 찍고, 메뉴는 앱 안에서 `NSMenu.popUpContextMenu`로 열어 두고 그 메뉴 창만 찍는다. 비활성 앱은 메뉴를 열지 못해 메뉴가 열려 있는 동안만 잠깐 활성화한다(창은 보고 있는 데스크톱으로 옮겨 다른 창 뒤에 둔다). 앱을 쓰는 중에는 돌리지 않는다.
 
+곡 목록 머리글(#241 전·후)은 `--column-header-capture=<임시 폴더> --column-header-usb-mount=<합성 디스크 이미지 마운트>`로 찍는다. `UsbMigrateAppFixtureCapture`의 합성 사본(`local`)을 `--db`·`DJC_REKORDBOX_DIR`로 열고, 그 사본 복사본에서 `usb-export`로 내보낸 디스크 이미지 볼륨 하나만 USB 절로 읽는다. 로컬 → USB 목록 → USB 쓰기 대기 → USB 목록 → 로컬로 오가며 창만 `screencapture -l`로 찍고 칸 순서·머리글 자리를 출력한다.
+
 ## 진행 로그·실패 진단
 
 `scripts/check.sh`는 각 단계의 UTC 시작·종료 시각, 경과 초, 종료 코드를 출력한다. 명령 출력은 즉시 화면과 단계별 로그에 함께 쓰고, 출력이 없어도 30초마다 현재 단계와 경과 시간을 알린다. 디버그·테스트 컴파일, 릴리스 빌드, 번역, 전체 테스트 실행·프로파일 수집, 커버리지 보고·목표 검사를 구분한다. SwiftPM의 테스트 실행 명령에는 프로파일 병합·내보내기도 포함되므로 이 단계 전체를 순수 테스트 실행 시간으로 부르지 않는다.
