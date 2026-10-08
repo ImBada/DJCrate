@@ -29,7 +29,7 @@ djc parse 'TVA 시험 OP 1' --json
 djc compat --db /tmp/djc-fixture/master.db --json
 ```
 
-`--json`을 빼면 사람이 읽는 출력이다. 기존 `report`, `path`, `parse`, `compat`의 일반 출력은 유지한다. 분석·파일 생성·실험·쓰기 명령(`analyze`, `snapshot`, `cache`, `schema-dump`, `lab`, `reflection-dry-run`, `cue-write`, `track-add`, `track-delete`, `playlist-write`, `rekordbox-restore`, `snapshot-point`, `xml-export`)은 이 JSON 계약에 포함하지 않는다.
+`--json`을 빼면 사람이 읽는 출력이다. 기존 `report`, `path`, `parse`, `compat`의 일반 출력은 유지한다. 분석·파일 생성·실험·쓰기 명령(`analyze`, `snapshot`, `cache`, `schema-dump`, `lab`, `reflection-dry-run`, `cue-write`, `track-add`, `track-delete`, `playlist-write`, `rekordbox-restore`, `snapshot-point`, `xml-export`)은 이 JSON 계약에 포함하지 않는다. `xml-diff --json`은 같은 봉투를 쓰지만 자기 모양을 가진다([아래](#rekordbox-xml과-비교하기xml-diff)).
 
 **CLI 동의 규칙**: `djc`에는 대화형 질문이 없다. 플래그가 곧 동의다(`--live`, `--allow-physical --confirm <볼륨 이름>`, `--discard-device-changes`, `--overwrite`). 파일을 만드는 명령(`xml-export`, `reflection-dry-run --out`, `schema-dump`)은 출력 파일이 이미 있으면 `--overwrite` 없이는 거부한다. lab 쓰기 실험(`gain-write-test`, `tag-write-test`, `artwork-write-test`, `analysis-attach-test`, `cue-write-selftest`)은 라이브 DB·실제 분석 폴더를 거부하고, 거부하면 오류 메시지와 함께 종료 코드 1로 끝난다.
 
@@ -242,6 +242,28 @@ djc xml-export --db /tmp/djc-fixture/master.db --out /tmp/djc-fixture/library.xm
 3. `python3 -I scripts/xml-compare.py <rekordbox가 만든.xml> <djc가 만든.xml>`. 곡은 `Location`으로 짝짓고, 칸마다 같음·다름·한쪽에만 있음의 개수, TEMPO·POSITION_MARK의 곡 단위 일치, 재생 목록 트리의 경로·곡 순서를 센다. 값은 찍지 않는다(`--examples N`은 이 Mac에서만 볼 값 예를 찍는다).
 
 rekordbox가 만든 XML에는 곡 정보가 들어 있으니 저장소·이슈에 올리지 않는다. 결과에서 먼저 볼 가정: `TrackID` = `ContentID`, `DateAdded` = `StockDate`, `PlayCount` = `DJPlayCount`, `Tonality` = 키 이름(rekordbox의 키 표시 설정과 같은지), `Kind`·`Location` 퍼센트 인코딩(`&`·`#`·괄호 등), 값이 0일 때 칸을 빼는 `BitRate`·`SampleRate`·`Size`·`AverageBpm`, TEMPO의 BPM 반올림·변속 곡 구간 수, 자동 큐 포함 여부, 루프·핫큐 루프의 `Type`·`End`·`Num`, rekordbox만 가진 `POSITION_MARK` 칸(색), 인텔리전트·My Tag 노드의 모양.
+
+## rekordbox XML과 비교하기(`xml-diff`)
+
+```sh
+djc xml-diff --db <스냅샷 사본.db> --xml <파일.xml> [--share <분석 파일 폴더> | --no-analysis] [--limit N] [--json]
+
+# djc snapshot 사본 옆에는 share가 없으니 rekordbox 폴더의 share를 준다(읽기만).
+djc xml-diff --db <스냅샷 사본.db> --xml ~/Desktop/other.xml --share ~/Library/Pioneer/rekordbox/share
+```
+
+다른 도구나 rekordbox가 만든 rekordbox XML(`DJ_PLAYLISTS`)을 읽어 지금 라이브러리(스냅샷 사본)와의 차이를 보인다(#72 가져오기). 사본·분석 파일·XML 파일 모두 읽기만 한다. 라이브 `master.db`는 입력으로 거부하고, 분석 파일 폴더 규칙은 `xml-export`와 같다(`--no-analysis`면 그리드를 비교하지 않는다).
+
+- **곡 맞추기**: XML `Location`(`file://localhost/…` 퍼센트 인코딩)을 풀어 파일 경로로 맞춘다. 경로는 NFC로 비교하고, 같은 경로가 없으면 대소문자만 다른 경로가 하나뿐일 때 맞춘다. 라이브러리에 없는 곡(파일이 아닌 위치 포함)과 여러 곡에 맞는 곡(라이브러리에 같은 경로가 여럿이거나 XML이 같은 곡을 여러 번 적음)은 비교하지 않고 센다.
+- **큐**: 메모리 큐(`Num` -1)·핫큐 A~H·루프(`Type` 4)를 종류·위치(1ms 미만은 같음)·루프 끝·이름으로 짝짓고, XML에만 있는 것(+)과 라이브러리에만 있는 것(−)을 센다. 핫큐 색은 보지 않는다.
+- **그리드**: XML에 `TEMPO`가 있는 곡만. 첫 구간을 곡 시작 쪽 첫 박으로 당긴 뒤(같은 그리드를 다른 박부터 적어도 같게) 구간 수·시작(1ms)·BPM(소수 둘째 자리)·박 번호를 비교한다. 4/4가 아닌 `TEMPO`나 읽지 못한 값이 있는 곡은 그리드를 읽지 않는다.
+- **태그**: XML에 있는 칸만(`Name`·`Artist`·`Album`·`Genre`·`Composer`·`Comments`·`Year`·`TrackNumber`·`Tonality`·`Rating`). 연도·트랙 번호 0은 빈칸, 키는 표기가 달라도(`Am`·`8A`) 같은 키면 같다, `Rating` 0·51·…·255는 별 0~5개. `Colour`는 rekordbox XML 색 값과 곡 색 번호의 짝을 확인하기 전이라 읽지 않고 센다.
+- **재생 목록**: 폴더 이름 경로로 맞춘다. 라이브러리에 없는 목록과, 맞춘 곡의 구성·순서가 다른 목록을 낸다. 라이브러리에만 있는 목록은 차이로 치지 않는다. 같은 경로가 여럿이면 비교하지 않고 센다. `KeyType` 1(위치로 적은 항목)도 읽는다.
+- 모르는 요소·값(큐·루프가 아닌 위치 표시, A~H 밖 핫큐, 모르는 목록 종류, 컬렉션에 없는 곡을 가리킨 항목 등)은 막지 않고 건너뛰며 "읽지 않고 건너뛴 것"에 센다. 문서가 깨졌거나 `DJ_PLAYLISTS`가 아니면 오류로 멈춘다.
+- 글 출력은 개수 줄 다음에 곡별 요약(`경로 — 제목: 큐 +1 −1 · 그리드 · 태그 제목·아티스트`)과 목록별 요약을 `--limit`(기본 50)개까지 적는다. 출력에 파일 경로·곡 이름이 나오니 로그·이슈에 붙이지 않는다.
+- `--json`은 `{"schemaVersion":1,"command":"xml-diff","data":{…}}`이다: `matching`(xmlTracks·matched·unmatched·ambiguous), `counts`(cueTracks·gridTracks·tagTracks·missingPlaylists·changedPlaylists·ambiguousPlaylists·libraryOnlyPlaylists·xmlWithoutGrid), `gridsCompared`, `skipped`(종류별 개수), `tracks`(xmlID·libraryID·path·title·cues{added,removed}·grid{library,xml}·tags[{key,library,xml}]), `unmatched`·`ambiguous`(xmlID·path·title), `playlists`(kind missing|changed·path·libraryID·xmlEntries·libraryEntries(ContentID)·unmatchedEntries). 오류도 같은 봉투(`error`)로 표준 오류에 낸다.
+
+내보낸 XML을 그대로 비교하면 차이가 0이다(시험으로 확인한다).
 
 ## USB 내보내기(`usb-export`)
 

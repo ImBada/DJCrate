@@ -3495,6 +3495,22 @@
         }
       }
     },
+    "4/4가 아닌 박자의 그리드" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grids not in 4/4"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4/4以外の拍子のグリッド"
+          }
+        }
+      }
+    },
     "4GB 이상 음원은 USB에 넣을 수 없습니다. 음원을 줄이거나 내보낼 곡에서 빼세요" : {
       "localizations" : {
         "en" : {
@@ -3683,6 +3699,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Apple Music XMLを読み込む…"
+          }
+        }
+      }
+    },
+    "A~H 밖의 핫큐" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hot cues outside A–H"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A〜H以外のホットキュー"
           }
         }
       }
@@ -7477,6 +7509,28 @@
         }
       }
     },
+    "XML 곡 %lld · 맞춘 곡 %lld · 라이브러리에 없는 곡 %lld · 여러 곡에 맞는 곡 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XML tracks %1$lld · Matched %2$lld · Not in library %3$lld · Matching several tracks %4$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XMLの曲%1$lld · 一致した曲%2$lld · ライブラリにない曲%3$lld · 複数の曲に一致する曲%4$lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "XML 곡 %1$lld · 맞춘 곡 %2$lld · 라이브러리에 없는 곡 %3$lld · 여러 곡에 맞는 곡 %4$lld"
+          }
+        }
+      }
+    },
     "XML 만들기" : {
       "localizations" : {
         "en" : {
@@ -7509,6 +7563,54 @@
         }
       }
     },
+    "XML 파일을 열지 못했습니다. 파일 위치와 권한을 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't open the XML file. Check its location and permissions."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XMLファイルを開けませんでした。ファイルの場所と権限を確認してください"
+          }
+        }
+      }
+    },
+    "XML 파일을 읽지 못했습니다(%lld번째 줄). 파일이 깨지지 않았는지 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read the XML file (line %lld). Check that the file isn't damaged."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XMLファイルを読み込めませんでした（%lld行目）。ファイルが壊れていないか確認してください"
+          }
+        }
+      }
+    },
+    "XML 파일이 없습니다: %@. 파일 위치를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XML file not found: %@. Check the file location."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XMLファイルがありません：%@。ファイルの場所を確認してください"
+          }
+        }
+      }
+    },
     "XML로 넘길 추가한 곡이나 큐·그리드 초안을 먼저 만드세요" : {
       "localizations" : {
         "en" : {
@@ -7537,6 +7639,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "XMLに出力する曲がありません"
+          }
+        }
+      }
+    },
+    "XML에 그리드가 없어 비교하지 않은 곡 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks not compared because the XML has no grid: %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XMLにグリッドがないため比較しなかった曲%lld"
           }
         }
       }
@@ -8191,6 +8309,38 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "rekordbox XML 가져오기 확인(%1$@ 묶음): 일치 %2$lld"
+          }
+        }
+      }
+    },
+    "rekordbox XML(DJ_PLAYLISTS) 파일이 아닙니다. rekordbox 형식으로 내보낸 XML을 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This isn't a rekordbox XML (DJ_PLAYLISTS) file. Choose an XML exported in rekordbox format."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox XML（DJ_PLAYLISTS）ファイルではありません。rekordbox形式で書き出したXMLを選んでください"
+          }
+        }
+      }
+    },
+    "rekordbox XML과 라이브러리의 차이를 본다(읽기만)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show differences between a rekordbox XML and the library (read-only)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox XMLとライブラリの違いを表示（読み込みのみ）"
           }
         }
       }
@@ -13929,6 +14079,22 @@
         }
       }
     },
+    "곡 %lld개는 줄였습니다. --limit으로 늘리거나 --json으로 모두 보세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks not shown: %lld. Raise --limit or use --json to see all."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示を省いた曲：%lld。--limitで増やすか--jsonですべて表示してください"
+          }
+        }
+      }
+    },
     "곡 %lld개를 USB에 썼습니다" : {
       "localizations" : {
         "en" : {
@@ -14345,6 +14511,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxのカラーではないため、カラーの%lldセルをスキップ"
+          }
+        }
+      }
+    },
+    "곡 색(확인 전이라 읽지 않음)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Track colors (not read; mapping not yet verified)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲の色（確認前のため読み込まない）"
           }
         }
       }
@@ -15213,6 +15395,28 @@
         }
       }
     },
+    "곡이 다른 재생 목록: %@ (XML %lld곡 · 라이브러리 %lld곡)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlist with different tracks: %1$@ (XML %2$lld · library %3$lld)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲が異なるプレイリスト：%1$@（XML %2$lld曲 · ライブラリ%3$lld曲）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "곡이 다른 재생 목록: %1$@ (XML %2$lld곡 · 라이브러리 %3$lld곡)"
+          }
+        }
+      }
+    },
     "곡이 목록에서 사라졌거나 같은 곡의 대응이 모호하니 이 편집을 버리고 목록을 다시 편집하세요." : {
       "localizations" : {
         "en" : {
@@ -15991,6 +16195,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ビートグリッドが最大%.0fmsずれています"
+          }
+        }
+      }
+    },
+    "그리드는 비교하지 않았습니다(분석 파일을 읽지 않음)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grids were not compared (analysis files not read)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グリッドは比較しませんでした（解析ファイルを読み込んでいません）"
           }
         }
       }
@@ -21451,6 +21671,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "すべての評価"
+          }
+        }
+      }
+    },
+    "모르는 요소" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown elements"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不明な要素"
+          }
+        }
+      }
+    },
+    "모르는 재생 목록 종류" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown playlist types"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不明なプレイリストの種類"
           }
         }
       }
@@ -28839,6 +29091,50 @@
         }
       }
     },
+    "없는 재생 목록 %lld · 곡이 다른 재생 목록 %lld · 이름이 겹쳐 비교하지 않은 목록 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missing playlists %1$lld · Playlists with different tracks %2$lld · Not compared (duplicate names) %3$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ないプレイリスト%1$lld · 曲が異なるプレイリスト%2$lld · 名前が重複して比較しなかったリスト%3$lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "없는 재생 목록 %1$lld · 곡이 다른 재생 목록 %2$lld · 이름이 겹쳐 비교하지 않은 목록 %3$lld"
+          }
+        }
+      }
+    },
+    "없는 재생 목록: %@ (곡 %lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missing playlist: %1$@ (tracks %2$lld)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ないプレイリスト：%1$@（%2$lld曲）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "없는 재생 목록: %1$@ (곡 %2$lld)"
+          }
+        }
+      }
+    },
     "없는 칸 %@" : {
       "localizations" : {
         "en" : {
@@ -32649,6 +32945,22 @@
         }
       }
     },
+    "읽지 못한 값" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unreadable values"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込めない値"
+          }
+        }
+      }
+    },
     "읽지 못한 초안 파일을 damaged-drafts에 옮겨 두었으니 남은 초안을 확인한 뒤 쓰기를 다시 시도하세요." : {
       "localizations" : {
         "en" : {
@@ -32693,6 +33005,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "読み込めませんでした: %@。コピーとアクセス権限を確認してください"
+          }
+        }
+      }
+    },
+    "읽지 않고 건너뛴 것: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skipped without reading: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込まずに飛ばしたもの：%@"
           }
         }
       }
@@ -33153,6 +33481,22 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "재생 목록 %1$lld · 폴더 %2$lld · 목록 항목 %3$lld"
+          }
+        }
+      }
+    },
+    "재생 목록 %lld개는 줄였습니다. --limit으로 늘리거나 --json으로 모두 보세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists not shown: %lld. Raise --limit or use --json to see all."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示を省いたプレイリスト：%lld。--limitで増やすか--jsonですべて表示してください"
           }
         }
       }
@@ -35581,6 +35925,22 @@
         }
       }
     },
+    "차이가 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No differences"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "違いはありません"
+          }
+        }
+      }
+    },
     "찾기" : {
       "localizations" : {
         "en" : {
@@ -36909,6 +37269,22 @@
         }
       }
     },
+    "컬렉션에 없는 곡을 가리킨 목록 항목" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlist entries pointing to tracks not in the collection"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コレクションにない曲を指すリスト項目"
+          }
+        }
+      }
+    },
     "컬렉션에 없음" : {
       "localizations" : {
         "en" : {
@@ -37293,6 +37669,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キュー%lld曲"
+          }
+        }
+      }
+    },
+    "큐 +%lld −%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cues +%1$lld −%2$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キュー +%1$lld −%2$lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "큐 +%1$lld −%2$lld"
           }
         }
       }
@@ -37953,6 +38351,22 @@
         }
       }
     },
+    "큐·루프가 아닌 위치 표시" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Position marks that aren't cues or loops"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キュー・ループ以外の位置マーク"
+          }
+        }
+      }
+    },
     "큐·루프를 박에 맞춥니다(Q). 재생 중 핫큐는 다음 박에서 저장 위치로 점프합니다." : {
       "localizations" : {
         "en" : {
@@ -37997,6 +38411,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キュー・タグの下書きを作成・削除（docs/cli.md）"
+          }
+        }
+      }
+    },
+    "큐가 다른 곡 %lld · 그리드가 다른 곡 %lld · 태그가 다른 곡 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks with different cues %1$lld · different grids %2$lld · different tags %3$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キューが異なる曲%1$lld · グリッドが異なる曲%2$lld · タグが異なる曲%3$lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "큐가 다른 곡 %1$lld · 그리드가 다른 곡 %2$lld · 태그가 다른 곡 %3$lld"
           }
         }
       }
@@ -38621,6 +39057,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "タグ"
+          }
+        }
+      }
+    },
+    "태그 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tags %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タグ %@"
           }
         }
       }
@@ -39471,6 +39923,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ファイルが想定した曲に属していません"
+          }
+        }
+      }
+    },
+    "파일이 아닌 위치의 곡" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks whose location isn't a file"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイル以外の場所の曲"
           }
         }
       }

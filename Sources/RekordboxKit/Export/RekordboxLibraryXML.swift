@@ -59,7 +59,11 @@ public enum RekordboxLibraryXML {
         public var children: [ListNode]?
         /// 재생 목록의 `TrackID`(곡 순서, 같은 곡이 여러 번 있을 수 있다)
         public var keys: [Int]
-        public init(name: String, children: [ListNode]? = nil, keys: [Int] = []) { self.name = name; self.children = children; self.keys = keys }
+        /// rekordbox 목록 ID(가져오기 비교가 초안을 만들 때 쓴다, 파일에는 쓰지 않는다)
+        public var id: String?
+        public init(name: String, children: [ListNode]? = nil, keys: [Int] = [], id: String? = nil) {
+            self.name = name; self.children = children; self.keys = keys; self.id = id
+        }
     }
 
     /// 파일에 넣지 못해 뺀 것
@@ -235,10 +239,10 @@ public enum RekordboxLibraryXML {
             (byParent[parent] ?? []).sorted { ($0.seq, $0.id) < ($1.seq, $1.id) }.compactMap { playlist in
                 guard reached.insert(playlist.id).inserted else { return nil }
                 if playlist.isSmart { omitted.intelligentPlaylists += 1; return nil }
-                if playlist.isFolder { return ListNode(name: playlist.name, children: build(playlist.id)) }
+                if playlist.isFolder { return ListNode(name: playlist.name, children: build(playlist.id), id: playlist.id) }
                 let present = playlist.trackIDs.compactMap { keys[$0] }
                 omitted.playlistEntries += playlist.trackIDs.count - present.count
-                return ListNode(name: playlist.name, keys: present)
+                return ListNode(name: playlist.name, keys: present, id: playlist.id)
             }
         }
         let tree = build("root")

@@ -46,6 +46,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 .build/debug/djc track-delete --db <사본.db> --share <폴더> <ContentID…>      # 곡 빼기, 사본에만
 .build/debug/djc playlist-write --db <사본.db> [--dry-run] <편집.json>        # 재생 목록 편집(JSON), 사본에만
 .build/debug/djc xml-export --db <사본.db> --out <파일.xml> (--share <rekordbox 폴더>/share | --no-analysis) [--overwrite] [--dry-run]   # 라이브러리 전체를 rekordbox XML 한 파일로(읽기만, 지정한 파일만 씀, rekordbox 폴더·USB PIONEER·DJCrate 데이터 폴더·연동 XML 자리는 거부)
+.build/debug/djc xml-diff --db <사본.db> --xml <파일.xml> (--share <rekordbox 폴더>/share | --no-analysis) [--limit N] [--json]   # 다른 도구가 만든 rekordbox XML과 라이브러리의 차이(곡은 경로로 맞춤, 읽기만)
 .build/debug/djc lab                                   # 실험 명령 목록(sql·loop-repro·seekinfo-check …)
 .build/debug/djc lab sql <사본.db> "SELECT …"           # 사본에 읽기 전용 질의
 .build/debug/djc usb-export --volume <마운트> --db <사본.db> (--playlist <ID>… | --tracks <ID,…>) [--dry-run] [--snapshot-time <ISO 8601>] [--allow-physical --confirm <볼륨 이름>]   # 빈 USB에 두 형식으로 내보내기(시험은 디스크 이미지만, 예: --volume $DJC_HOME/mnt)

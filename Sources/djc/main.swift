@@ -91,7 +91,8 @@ enum CLI {
 // 새 읽기 명령(JSON 조회·XML 내보내기)은 옛 데이터 폴더를 옮기지도 않는다.
 let arguments = Array(CommandLine.arguments.dropFirst())
 if arguments.first != "lab" { CLILocalization.configure() }
-if arguments.first != "draft", arguments.first != "usb-info", arguments.first != "xml-export", !ReadCommands.names.contains(arguments.first ?? ""),
+if arguments.first != "draft", arguments.first != "usb-info", arguments.first != "xml-export", arguments.first != "xml-diff",
+   !ReadCommands.names.contains(arguments.first ?? ""),
    !ReadCommands.handlesJSON(arguments) {
     LegacyMigration.run()
 }
@@ -99,7 +100,7 @@ if arguments.first != "draft", arguments.first != "usb-info", arguments.first !=
 do {
     try await CLI.run(arguments)
 } catch {
-    if (ReadCommands.handlesJSON(arguments) || (arguments.first == "draft" && arguments.contains("--json"))), let data = try? ReadJSON.error(command: arguments.first ?? "", error: error) {
+    if (ReadCommands.handlesJSON(arguments) || (["draft", "xml-diff"].contains(arguments.first ?? "") && arguments.contains("--json"))), let data = try? ReadJSON.error(command: arguments.first ?? "", error: error) {
         FileHandle.standardError.write(data + Data("\n".utf8))
     } else {
         FileHandle.standardError.write(Data(String(ui: "오류: \(String(describing: error))\n").utf8))
