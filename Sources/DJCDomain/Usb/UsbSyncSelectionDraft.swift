@@ -34,9 +34,13 @@ public struct UsbSyncSelectionDraft: Codable, Hashable, Sendable {
     public let baseFiles: [UsbFormat: Data]
     /// 동기화 켜짐(AutomaticSync)만 바꾼다. rekordbox처럼 선택·NODE는 원문 그대로 둔다.
     public let enabledOnly: Bool
+    /// 동기화 계획이 USB에 넣지 않고 건너뛴 곡(iTunes 목록의 연결되지 않은 곡, 스트리밍 곡 등). rekordbox의 내보내기 기록처럼
+    /// 쓰기를 막지 않고 미리 보기·확인·결과에 이유별 수로 알린다. 모두 곡 단위(`.track`) 막힘이다.
+    public let skippedTracks: [UsbBlock]
 
     public init(localDBID: Int64, sourceNodes: [UsbSyncSourceNode], selection: ITunesSyncSelection,
-                enabled: Bool, playlistRefs: [String: PlaylistRef], baseFiles: [UsbFormat: Data], enabledOnly: Bool = false) {
+                enabled: Bool, playlistRefs: [String: PlaylistRef], baseFiles: [UsbFormat: Data], enabledOnly: Bool = false,
+                skippedTracks: [UsbBlock] = []) {
         self.localDBID = localDBID
         self.sourceNodes = sourceNodes
         self.selection = selection
@@ -44,6 +48,7 @@ public struct UsbSyncSelectionDraft: Codable, Hashable, Sendable {
         self.playlistRefs = playlistRefs
         self.baseFiles = baseFiles
         self.enabledOnly = enabledOnly
+        self.skippedTracks = skippedTracks
     }
 
     /// 켜짐만 바꾸는 초안. 원본 목록·선택은 쓰지 않는다.
@@ -53,7 +58,7 @@ public struct UsbSyncSelectionDraft: Codable, Hashable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case localDBID, sourceNodes, selection, enabled, playlistRefs, baseFiles, enabledOnly
+        case localDBID, sourceNodes, selection, enabled, playlistRefs, baseFiles, enabledOnly, skippedTracks
     }
 
     public init(from decoder: any Decoder) throws {
@@ -66,6 +71,7 @@ public struct UsbSyncSelectionDraft: Codable, Hashable, Sendable {
         baseFiles = try container.decode([UsbFormat: Data].self, forKey: .baseFiles)
         // 이 칸이 없던 초안은 선택 전체를 쓰는 초안이다.
         enabledOnly = try container.decodeIfPresent(Bool.self, forKey: .enabledOnly) ?? false
+        skippedTracks = try container.decodeIfPresent([UsbBlock].self, forKey: .skippedTracks) ?? []
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -76,5 +82,6 @@ public struct UsbSyncSelectionDraft: Codable, Hashable, Sendable {
         hasher.combine(playlistRefs)
         hasher.combine(baseFiles)
         hasher.combine(enabledOnly)
+        hasher.combine(skippedTracks)
     }
 }

@@ -141,6 +141,69 @@ struct UsbSyncSelectionWriteTests {
         #expect(result.changes == nil && env.usb.tree() == before)
     }
 
+    // MARK: - 넣지 못한 곡(2026-10-08 실제 동기화: rekordbox는 분석 파일이 없는 곡을 내보내기 기록에 남기고 나머지를 동기화했다)
+
+    static let skippedITunes = UsbBlock(code: "iTunes.notInCollection", scope: .track("itunes:synthetic"),
+                                        message: "합성: 컬렉션에 없는 iTunes 곡")
+
+    @Test("동기화 묶음은 넣지 못한 곡만 빼고 목록·선택 파일을 쓰며, 건너뛴 곡을 곡 단위로 알린다")
+    func syncBatchSkipsUnaddableTracksAndWritesSelection() throws {
+        let env = try UsbEditEngineTests.exported()
+        try env.addLocal(["104", "105"])
+        try env.updateLocal("104", "AnalysisDataPath = NULL")
+        let (fresh, _, usbID) = try newFileDraft(env)
+        let draft = fresh.with(skippedTracks: [Self.skippedITunes])
+        let planned = try plan(env, [
+            .addTracks(localContentIDs: ["104", "105"], playlist: nil),
+            .syncPlaylist(playlist: .id(String(usbID)), localContentIDs: ["105", "104", "101", "105"]),
+            .syncSelection(draft: draft),
+        ])
+        #expect(planned.blocks.map(\.code) == [])
+        #expect(planned.outcomes.map(\.outcome) == [.written, .written, .written])
+        #expect(Set(planned.trackBlocks.map(\.scope)) == [.track("104"), Self.skippedITunes.scope])
+        #expect(planned.trackBlocks.contains(Self.skippedITunes))
+        #expect(try env.write(planned).outcome == .written)
+        let after = try env.read()
+        let added = try #require(after.tracks.first { $0.masterContentId == 8_105 }?.id)
+        #expect(!after.tracks.contains { $0.masterContentId == 8_104 })
+        for format in UsbFormat.allCases {
+            #expect(after.playlists.first { $0.id == usbID }?.entries[format] == [added, 1, added])
+            #expect(env.usb.exists(UsbSyncSelectionFile.relativePath(for: format)))
+        }
+    }
+
+    @Test("동기화 묶음에서 더할 곡이 모두 막혀도 곡 더하기는 건너뛰고 나머지를 쓴다")
+    func syncBatchWithAllAddsBlockedStillSyncs() throws {
+        let env = try UsbEditEngineTests.exported()
+        try env.addLocal(["104"])
+        try env.updateLocal("104", "AnalysisDataPath = NULL")
+        let (draft, _, usbID) = try newFileDraft(env)
+        let planned = try plan(env, [
+            .addTracks(localContentIDs: ["104"], playlist: nil),
+            .syncPlaylist(playlist: .id(String(usbID)), localContentIDs: ["103", "104"]),
+            .syncSelection(draft: draft),
+        ])
+        #expect(planned.blocks.map(\.code) == [])
+        #expect(planned.outcomes.map(\.outcome) == [.unchanged, .written, .written])
+        #expect(planned.trackBlocks.map(\.scope) == [.track("104")])
+        #expect(try env.write(planned).outcome == .written)
+        for format in UsbFormat.allCases { #expect(try env.read().playlists.first { $0.id == usbID }?.entries[format] == [3]) }
+    }
+
+    @Test("동기화 묶음에서 스냅샷에 없는 곡이나 막힌 목록 편집이 있으면 선택 파일까지 묶음 전체를 쓰지 않는다")
+    func syncBatchStillRefusesUnknownLocalTrack() throws {
+        let env = try UsbEditEngineTests.exported()
+        let (draft, _, usbID) = try newFileDraft(env)
+        let before = env.usb.tree()
+        let planned = try plan(env, [
+            .addTracks(localContentIDs: ["999"], playlist: nil),
+            .syncPlaylist(playlist: .id(String(usbID)), localContentIDs: ["101"]),
+            .syncSelection(draft: draft),
+        ])
+        #expect(planned.blocks.map(\.code) == ["syncSelectionIncomplete"])
+        #expect(planned.changes == nil && env.usb.tree() == before)
+    }
+
     // MARK: - 새 선택 파일(2026-10-08 빈 USB 실험)
 
     /// rekordbox 라이브러리는 있지만 선택 파일이 없는 USB에 체크한 목록 하나를 쓰는 초안
@@ -286,6 +349,11 @@ struct UsbSyncSelectionWriteTests {
 private extension UsbSyncSelectionDraft {
     func with(baseFiles: [UsbFormat: Data]) -> Self {
         Self(localDBID: localDBID, sourceNodes: sourceNodes, selection: selection, enabled: enabled, playlistRefs: playlistRefs,
-             baseFiles: baseFiles, enabledOnly: enabledOnly)
+             baseFiles: baseFiles, enabledOnly: enabledOnly, skippedTracks: skippedTracks)
+    }
+
+    func with(skippedTracks: [UsbBlock]) -> Self {
+        Self(localDBID: localDBID, sourceNodes: sourceNodes, selection: selection, enabled: enabled, playlistRefs: playlistRefs,
+             baseFiles: baseFiles, enabledOnly: enabledOnly, skippedTracks: skippedTracks)
     }
 }

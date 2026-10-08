@@ -66,6 +66,7 @@ struct SyncedITunesLibraryTests {
         #expect(view.tree.first?.children?.first?.trackIDs == ["2", "1", "2"])
         #expect(view.tree.first?.trackIDs == ["2", "1"])
         #expect(view.tree.first?.children?.first?.unavailableTrackCount == 3)
+        #expect(view.tree.first?.children?.first?.unlinked.map(\.reason) == [.ambiguous, .notInCollection, .noLocalFile])
         #expect(view.index["itunes:A"]?.name == "순서")
     }
 

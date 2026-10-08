@@ -348,8 +348,10 @@ struct UsbWriteCoordinator {
             break
         case let .written(summary):
             usb.migrationBackups[key] = nil
+            let skipped = summary.blockedTrackCount
             host.toast = AppToast(kind: .success, title: String(ui: "곡 \(summary.trackCount)개를 USB에 썼습니다"),
-                                  detail: String(ui: "\(job.volume.name) · 재생 목록 \(summary.playlistCount)개"),
+                                  detail: String(ui: "\(job.volume.name) · 재생 목록 \(summary.playlistCount)개")
+                                      + (skipped > 0 ? " · " + String(ui: "USB에 넣지 못한 곡 \(skipped)개") : ""),
                                   action: .ejectUsb(volumeKey: key), isUsb: true)
             await usb.refresh()
             return true
@@ -720,9 +722,12 @@ struct UsbWriteCoordinator {
         case let .written(summary):
             usb.invalidateSyncDraft(volumeKey)
             usb.migrationBackups[volumeKey] = nil
-            let blocked = summary.blockedCount
+            let blocked = summary.blockedCount, skipped = summary.skippedTrackCount
+            // rekordbox의 내보내기 기록처럼 넣지 못한 곡 수를 결과에 남긴다(이유는 확인 창에 이유별로 보였다)
+            let detail = (blocked > 0 ? String(ui: "\(job.volume.name) · 막힌 편집 \(blocked)건은 초안에 남겼습니다") : job.volume.name)
+                + (skipped > 0 ? " · " + String(ui: "USB에 넣지 못한 곡 \(skipped)개") : "")
             host.toast = AppToast(kind: .success, title: String(ui: "USB에 편집 \(summary.writtenCount)건을 썼습니다"),
-                                  detail: blocked > 0 ? String(ui: "\(job.volume.name) · 막힌 편집 \(blocked)건은 초안에 남겼습니다") : job.volume.name,
+                                  detail: detail,
                                   action: .ejectUsb(volumeKey: volumeKey), isUsb: true)
             await usb.refresh()
         case .cancelled:

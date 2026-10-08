@@ -213,7 +213,7 @@ public enum UsbExportAssembly {
         if let syncSelection {
             guard let contract = UsbSyncXMLWriteContract.production,
                   try UsbLocalSource(database: localDatabase).localDBID() == syncSelection.localDBID,
-                  syncSelection.baseFiles.isEmpty, plan.blocked.isEmpty else {
+                  syncSelection.baseFiles.isEmpty, plan.blocked.allSatisfy(\.isSkippableInSync) else {
                 throw UsbError.writeRefused([UsbSyncSelectionStage.incompleteBlock])
             }
             let ids = Dictionary(plan.playlists.map { ($0.localID, $0.playlistID) }, uniquingKeysWith: { first, _ in first })

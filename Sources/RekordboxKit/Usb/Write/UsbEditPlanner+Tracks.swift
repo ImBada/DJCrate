@@ -374,6 +374,8 @@ extension UsbEditPlanner {
         planned.trackBlocks += plan.blocked.filter { $0.scope != .volume } + rowBlocks
         if let block = plan.blocked.first(where: { $0.scope == .volume }) { throw UsbEditBlocked(block: block) }
         guard !plan.tracks.isEmpty else {
+            // 동기화는 넣지 못한 곡만 알리고 나머지를 쓴다(뒤의 목록 동기화가 그 곡을 빼고 맞춘다)
+            if skipsUnaddableTracks, !planned.trackBlocks.isEmpty, planned.trackBlocks.allSatisfy(\.isSkippableInSync) { return }
             throw UsbEditBlocked(block: planned.trackBlocks.first
                 ?? UsbBlock(code: "noTracks", scope: .volume, message: String(ui: "더할 곡이 없습니다. 막힌 곡의 이유를 확인한 뒤 다시 시도하세요")))
         }

@@ -52,6 +52,11 @@ struct UsbEditPlanner {
     var artwork: UsbArtworkLayout?
     /// OneLibrary 사본의 기기 큐 행 수(곡 id → 수)
     var deviceCueRows: [Int: Int]?
+    /// 동기화 묶음(선택 파일을 함께 쓴다)이면 더할 곡이 모두 막혀도 곡 더하기 편집을 막지 않고 건너뛴다.
+    /// rekordbox처럼 넣지 못한 곡만 알리고 목록은 넣은 곡으로 맞춘다
+    var skipsUnaddableTracks = false
+    /// 앞 편집에서 이미 곡 단위 막힘으로 알린 로컬 곡(목록 동기화가 같은 곡을 다른 이유로 다시 세지 않게)
+    var reportedLocalTracks: Set<String> = []
 
     init(source: UsbEditSource, root: UsbRoot, fileSystem: any UsbFileSystem, staging: URL, localDatabase: CipherDatabase?, share: URL?,
          snapshotTakenAt: Date?, localAppVersion: String?, clusterSize: Int, highWater: [String: Int]) {
@@ -119,6 +124,7 @@ struct UsbEditPlanner {
             planned.outcome = .blocked(blocks[0])
             planned.files = UsbExportAssembly.Context(staging: planned.files.staging)
         }
+        for block in planned.trackBlocks { if case let .track(id) = block.scope { reportedLocalTracks.insert(id) } }
         if let op = planned.op {
             do {
                 let next = try UsbEditModel.apply(op, to: working, writable: writable)

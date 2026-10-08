@@ -71,6 +71,16 @@ struct UsbSyncPlan: Sendable {
         })
     }
 
+    /// 목록 항목에서 그 곡들만 뺀다(목록·폴더와 남은 곡의 순서는 그대로)
+    static func removing(_ trackIDs: Set<String>, from layout: PlaylistLayout) -> PlaylistLayout {
+        guard !trackIDs.isEmpty else { return layout }
+        return PlaylistLayout(layout.outline.map { item in
+            var item = item
+            item.entries.removeAll { trackIDs.contains($0.contentID) }
+            return (item: item, seq: layout.childIDs(of: item.parentID).firstIndex(of: item.id) ?? 0)
+        })
+    }
+
     static func usbLayout(_ library: UsbLibrary) -> PlaylistLayout {
         PlaylistLayout(library.playlists.map { playlist in
             let entries = UsbLibraryRows.entries(of: playlist).enumerated().map {
@@ -110,21 +120,22 @@ struct UsbSyncPlan: Sendable {
     /// 읽기 실패를 정상적인 빈 선택으로 계획하기 전에 막는다.
     static func build(source: UsbSyncSource, selection: ITunesSyncSelection, library: UsbLibrary,
                       matches: [Int: String], badges: [Int: UsbSyncStatus], bindings: [String: UsbSyncPlaylistBinding],
-                      linkedPlaylistIDs: [String: Int] = [:], removedPlaylistIDs: Set<Int> = [],
+                      linkedPlaylistIDs: [String: Int] = [:], removedPlaylistIDs: Set<Int> = [], excluding: Set<String> = [],
                       newKey: () -> String = { "sync-" + UUID().uuidString.lowercased() }) throws -> UsbSyncPlan {
         if let reason = source.blockReason(selection: selection) { throw PlaylistLayout.Blocked(reason) }
         return try build(source: source.layout, selection: selection, library: library, matches: matches,
                          badges: badges, bindings: bindings, linkedPlaylistIDs: linkedPlaylistIDs,
-                         removedPlaylistIDs: removedPlaylistIDs, newKey: newKey)
+                         removedPlaylistIDs: removedPlaylistIDs, excluding: excluding, newKey: newKey)
     }
 
     /// - linkedPlaylistIDs: 지난 선택 파일 행이 이은 원본 ID → USB 목록 번호(두 형식이 같은 번호인 것만)
     /// - removedPlaylistIDs: 로컬에서 지운 원본의 행이 가리키던 USB 목록 번호
+    /// - excluding: USB에 넣을 수 없어 목록에서 빼는 로컬 곡(`UsbSyncSource.skippedLocalTracks`). 남은 곡의 순서·반복은 그대로다
     static func build(source: PlaylistLayout, selection: ITunesSyncSelection, library: UsbLibrary,
                       matches: [Int: String], badges: [Int: UsbSyncStatus], bindings: [String: UsbSyncPlaylistBinding],
-                      linkedPlaylistIDs: [String: Int] = [:], removedPlaylistIDs: Set<Int> = [],
+                      linkedPlaylistIDs: [String: Int] = [:], removedPlaylistIDs: Set<Int> = [], excluding: Set<String> = [],
                       newKey: () -> String = { "sync-" + UUID().uuidString.lowercased() }) throws -> UsbSyncPlan {
-        let desired = selectedLayout(source, selection: selection)
+        let desired = removing(excluding, from: selectedLayout(source, selection: selection))
         let playlists = try playlistPlan(desired: desired, library: library, bindings: bindings, linkedPlaylistIDs: linkedPlaylistIDs,
                                          removedPlaylistIDs: removedPlaylistIDs, newKey: newKey)
         let refs = playlists.refs, working = playlists.result

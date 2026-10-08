@@ -54,7 +54,9 @@ extension UsbEditPlanner {
         return result
     }
 
-    /// 모든 짝을 확인한 뒤 목록을 통째로 맞춘다. 일부 곡만 들어간 목록으로 덮어쓰거나 조용히 비우지 않는다
+    /// 모든 짝을 확인한 뒤 목록을 통째로 맞춘다. USB에 없는 곡(곡 더하기가 막힌 곡)은 rekordbox처럼 그 곡만 빼고 맞추며
+    /// 곡 단위 막힘으로 알린다(2026-10-08 실제 동기화: rekordbox는 분석 파일이 없는 곡을 내보내기 기록에 남기고 나머지를 동기화했다).
+    /// 로컬 스냅샷에 없는 곡·짝이 모호한 곡은 추측하지 않고 목록 전체를 막는다
     mutating func planSyncPlaylist(_ ref: PlaylistRef, localIDs: [String], into planned: inout UsbPlannedEdit) throws {
         let (playlist, formats, before) = try entryTarget(ref)
         let database = try requireLocalDatabase()
@@ -70,7 +72,10 @@ extension UsbEditPlanner {
                 throw UsbEditBlocked(block: Self.syncPairingBlock(localID, ambiguous: true))
             }
             guard let id = matches.first else {
-                throw UsbEditBlocked(block: Self.syncPairingBlock(localID, ambiguous: false))
+                if reportedLocalTracks.insert(localID).inserted {
+                    planned.trackBlocks.append(Self.syncPairingBlock(localID, ambiguous: false))
+                }
+                continue
             }
             // 항목 편집과 같이 목록이 쓰일 형식마다 그 곡이 있어야 한다
             resolved[localID] = try trackID(String(id), formats: formats)
@@ -85,6 +90,6 @@ extension UsbEditPlanner {
         UsbBlock(code: ambiguous ? "syncTrackAmbiguous" : "syncTrackMissing", scope: .track(localID),
                  message: ambiguous
                      ? String(ui: "로컬 곡의 USB 짝을 하나로 정할 수 없어 목록을 바꾸지 않았습니다. 로컬과 USB의 중복 곡을 정리한 뒤 다시 동기화하세요")
-                     : String(ui: "동기화할 곡이 USB에 없어 목록을 바꾸지 않았습니다. 곡 더하기가 막힌 이유를 푼 뒤 다시 동기화하세요"))
+                     : String(ui: "USB에 넣지 못한 곡이라 재생 목록에서 뺐습니다. 곡 더하기가 막힌 이유를 푼 뒤 다시 동기화하세요"))
     }
 }

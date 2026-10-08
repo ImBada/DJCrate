@@ -94,6 +94,11 @@ struct UsbSyncView: View {
                 Text(.ui("USB에 쓰기 전에 변경 내용을 확인합니다."))
                     .font(.caption).foregroundStyle(.secondary)
             }
+            // rekordbox의 내보내기 기록처럼 넣지 못할 곡을 알리기만 한다(동기화는 나머지 곡으로 한다)
+            if let skipped = model.skippedSummary(store: store) {
+                Text(verbatim: skipped).font(.caption).foregroundStyle(.orange).lineLimit(3).help(skipped)
+                    .accessibilityIdentifier("usb-sync-skipped")
+            }
             if let message = store.iTunesLibrary.status.message {
                 Text(message).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

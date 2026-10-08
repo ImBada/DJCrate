@@ -5123,6 +5123,22 @@
         }
       }
     },
+    "Music에 음원 파일이 없는 곡(스트리밍·클라우드)이라 USB에 넣지 않았습니다. Music에서 내려받아 rekordbox 컬렉션에 넣은 뒤 다시 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not added to the USB because Music has no audio file for this track (streaming or cloud only). Download it in Music, add it to the rekordbox collection, then sync again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ミュージックにオーディオファイルがない曲（ストリーミング・クラウド）のため、USBに入れませんでした。ミュージックでダウンロードしてrekordboxコレクションに追加してから、もう一度同期してください"
+          }
+        }
+      }
+    },
     "Music의 파일 › 보관함 › 보관함 내보내기에서 XML을 저장하세요. 재생 목록 내보내기에서 XML을 골라도 됩니다." : {
       "localizations" : {
         "en" : {
@@ -7467,6 +7483,78 @@
         }
       }
     },
+    "USB에 넣지 못한 곡 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld track not added to the USB"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tracks not added to the USB"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに入れられなかった曲 %lld曲"
+          }
+        }
+      }
+    },
+    "USB에 넣지 못한 곡이라 재생 목록에서 뺐습니다. 곡 더하기가 막힌 이유를 푼 뒤 다시 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removed from the playlist because the track couldn't be added to the USB. Resolve why adding it was blocked, then sync again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに入れられなかった曲のため、プレイリストから外しました。曲の追加がブロックされた理由を解決してから、もう一度同期してください"
+          }
+        }
+      }
+    },
+    "USB에 넣지 못할 곡 %lld개:" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld track can't be added to the USB:"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tracks can't be added to the USB:"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに入れられない曲 %lld曲："
+          }
+        }
+      }
+    },
     "USB에 쓰기" : {
       "localizations" : {
         "en" : {
@@ -7957,6 +8045,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBに編集%lld件を書き込みますか？"
+          }
+        }
+      }
+    },
+    "USB에만 있는 곡이라 다시 넣지 않았습니다. 로컬 컬렉션의 곡으로 목록을 고친 뒤 다시 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not added again because the track exists only on a USB. Replace it with a track from your local collection, then sync again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBにだけある曲のため、もう一度入れませんでした。ローカルコレクションの曲でプレイリストを直してから、もう一度同期してください"
           }
         }
       }
@@ -8869,22 +8973,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "iTunesプレイリストのスナップショットを読み込み中…"
-          }
-        }
-      }
-    },
-    "iTunes 목록에 연결되지 않은 곡이 있습니다. rekordbox 컬렉션의 곡과 음원 경로를 확인한 뒤 새로고침하세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Some tracks in this iTunes playlist are not linked. Check their audio paths against the rekordbox Collection, then refresh."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このiTunesプレイリストにはリンクされていない曲があります。rekordboxのコレクションの曲と音源のパスを確認してから更新してください。"
           }
         }
       }
@@ -10209,6 +10297,22 @@
         }
       }
     },
+    "rekordbox 컬렉션에 없는 곡이라 USB에 넣지 않았습니다. rekordbox 컬렉션에 넣은 뒤 다시 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not added to the USB because the track isn't in the rekordbox collection. Add it to the rekordbox collection, then sync again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxコレクションにない曲のため、USBに入れませんでした。rekordboxコレクションに追加してから、もう一度同期してください"
+          }
+        }
+      }
+    },
     "rekordbox 컬렉션에 없는 곡입니다(ContentID %@)" : {
       "localizations" : {
         "en" : {
@@ -10221,6 +10325,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxのコレクションにない曲です（ContentID %@）"
+          }
+        }
+      }
+    },
+    "rekordbox 컬렉션에 잇지 못한 %lld곡은 USB에 넣지 않습니다. 컬렉션 등록과 음원 경로를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld track not linked to the rekordbox collection won't be added to the USB. Check that it's in the collection and its audio path"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tracks not linked to the rekordbox collection won't be added to the USB. Check that they're in the collection and their audio paths"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxコレクションに結び付けられない%lld曲はUSBに入れません。コレクションへの登録とオーディオパスを確認してください"
           }
         }
       }
@@ -13249,6 +13381,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同じ一括処理に同じkey（%@）で作成したプレイリストがあります"
+          }
+        }
+      }
+    },
+    "같은 음원 경로의 곡이 rekordbox 컬렉션에 여럿이라 USB에 넣지 않았습니다. 중복 곡을 정리한 뒤 다시 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not added to the USB because several tracks in the rekordbox collection use the same audio path. Clean up the duplicates, then sync again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じオーディオパスの曲がrekordboxコレクションに複数あるため、USBに入れませんでした。重複した曲を整理してから、もう一度同期してください"
           }
         }
       }
@@ -19795,22 +19943,6 @@
         }
       }
     },
-    "동기화할 곡이 USB에 없어 목록을 바꾸지 않았습니다. 곡 더하기가 막힌 이유를 푼 뒤 다시 동기화하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The playlist was kept because a track to sync is missing from the USB. Resolve the reason blocking track addition, then sync again."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "同期する曲がUSBにないため、プレイリストを変更しませんでした。曲の追加がブロックされた理由を解消してから再度同期してください。"
-          }
-        }
-      }
-    },
     "동기화할 곡이 로컬 스냅샷에 없어 목록을 바꾸지 않았습니다. 새 스냅샷을 뜬 뒤 다시 동기화하세요" : {
       "localizations" : {
         "en" : {
@@ -21163,6 +21295,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ローカルライブラリにこの曲が見つかりませんでした。USBから削除して、もう一度追加してください"
+          }
+        }
+      }
+    },
+    "로컬 라이브러리에서 찾지 못한 곡이라 USB에 넣지 않았습니다. 라이브러리를 새로고침한 뒤 다시 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not added to the USB because the track wasn't found in the local library. Refresh the library, then sync again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルライブラリで見つからない曲のため、USBに入れませんでした。ライブラリを再読み込みしてから、もう一度同期してください"
           }
         }
       }
@@ -24505,6 +24653,22 @@
         }
       }
     },
+    "보호된 음원(m4p)이라 rekordbox 컬렉션에 없어 USB에 넣지 않았습니다. 보호되지 않은 음원으로 바꿔 넣은 뒤 다시 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not added to the USB because protected audio (m4p) can't be in the rekordbox collection. Replace it with unprotected audio, add it, then sync again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保護されたオーディオ（m4p）のためrekordboxコレクションになく、USBに入れませんでした。保護されていないオーディオに替えて追加してから、もう一度同期してください"
+          }
+        }
+      }
+    },
     "복구 방법" : {
       "localizations" : {
         "en" : {
@@ -27009,22 +27173,6 @@
         }
       }
     },
-    "선택한 목록에 내보낼 수 없는 곡이 있습니다. 스트리밍 곡이나 사라진 곡을 제외한 뒤 동기화하세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Selected playlists contain tracks that cannot be exported. Exclude streaming or missing tracks, then sync again."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選択したプレイリストにエクスポートできない曲があります。ストリーミングの曲や見つからない曲を除外してから同期してください。"
-          }
-        }
-      }
-    },
     "선택한 목록을 USB와 동기화합니다" : {
       "localizations" : {
         "en" : {
@@ -27829,6 +27977,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ストリーミング曲のタグは編集できないため、ローカル音源ファイルのある曲を選んでください"
+          }
+        }
+      }
+    },
+    "스트리밍 곡이라 USB에 넣지 않았습니다. 로컬 음원으로 바꾼 뒤 다시 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not added to the USB because it's a streaming track. Replace it with a local audio file, then sync again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ストリーミング曲のため、USBに入れませんでした。ローカルのオーディオに替えてから、もう一度同期してください"
           }
         }
       }
@@ -29361,6 +29525,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下方向へ入力"
+          }
+        }
+      }
+    },
+    "아직 rekordbox 컬렉션에 넣지 않은 곡이라 USB에 넣지 않았습니다. rekordbox에 쓴 뒤 다시 동기화하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not added to the USB because the track isn't in the rekordbox collection yet. Write it to rekordbox, then sync again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだrekordboxコレクションに追加していない曲のため、USBに入れませんでした。rekordboxに書き込んでから、もう一度同期してください"
           }
         }
       }

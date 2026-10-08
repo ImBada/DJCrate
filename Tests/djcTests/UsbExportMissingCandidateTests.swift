@@ -88,4 +88,37 @@ extension UsbExportSessionTests {
         for format in UsbFormat.allCases { #expect(!env.usb.exists(UsbSyncSelectionFile.relativePath(for: format))) }
         #expect(env.leftoverCopies.isEmpty && env.leftoverStaging.isEmpty)
     }
+
+    /// 2026-10-08 실제 동기화: rekordbox는 분석 파일이 없는 곡을 내보내기 기록에 남기고 나머지를 동기화했다
+    @Test("빈 USB의 native 내보내기는 넣지 못한 곡만 빼고 선택 파일까지 쓰고, 건너뛴 곡을 알린다")
+    func nativeExportSkipsUnexportableTracksAndReportsThem() throws {
+        let env = try Env(tracks: 2)
+        let db = try env.local.local.open()
+        let local = try UsbLocalSource(database: db).localDBID()
+        try db.execute("UPDATE djmdContent SET AnalysisDataPath = NULL WHERE ID = '102'")
+        db.close()
+        let layout = PlaylistLayout([(.init(id: "itunes:A", name: "합성 목록", entries: [
+            .init(trackNo: 1, contentID: "102"), .init(trackNo: 2, contentID: "101"), .init(trackNo: 4, contentID: "101"),
+        ]), 1)])
+        let skipped = UsbBlock(code: "iTunes.protectedFile", scope: .track("itunes:synthetic"), message: "합성: 보호된 음원")
+        let options = Self.options {
+            $0.playlistLayout = layout
+            $0.syncSelection = .init(localDBID: local, sourceNodes: [.init(id: "itunes:A", parentID: nil, isFolder: false, timestamp: 0)],
+                                     selection: .init(selectedIDs: ["itunes:A"]), enabled: true, playlistRefs: [:], baseFiles: [:],
+                                     skippedTracks: [skipped])
+        }
+        let session = env.session()
+        let preview = try session.preview(selection: .playlists(["itunes:A"]), options: options)
+        #expect(!preview.blocks.contains { $0.code == "syncSelectionIncomplete" })
+        #expect(preview.blocks.contains(skipped))
+        #expect(preview.blockedTrackCount == 2)
+        #expect(preview.changes != nil)
+        let report = try session.write(selection: .playlists(["itunes:A"]), options: options, progress: { _ in }, isCancelled: { false })
+        #expect(report.outcome == .written)
+        let id = try #require(session.lastPreview?.plan.tracks.first { $0.localContentID == "101" }?.contentID)
+        #expect(session.lastPreview?.plan.tracks.map(\.localContentID) == ["101"])
+        #expect(session.lastPreview?.plan.playlists.first?.contentIDs == [id, id])
+        for format in UsbFormat.allCases { #expect(env.usb.exists(UsbSyncSelectionFile.relativePath(for: format))) }
+        #expect(env.leftoverCopies.isEmpty && env.leftoverStaging.isEmpty)
+    }
 }

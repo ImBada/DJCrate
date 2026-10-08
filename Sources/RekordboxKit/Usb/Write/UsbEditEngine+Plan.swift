@@ -52,6 +52,7 @@ extension UsbEditEngine {
         var planner = UsbEditPlanner(source: source, root: root, fileSystem: fileSystem, staging: staging, localDatabase: localDatabase,
                                      share: share, snapshotTakenAt: snapshotTakenAt, localAppVersion: localAppVersion,
                                      clusterSize: volume.clusterSize ?? 32_768, highWater: highWater)
+        planner.skipsUnaddableTracks = selections.contains { !$0.draft.enabledOnly }
         var planned: [UsbPlannedEdit] = []
         for (offset, edit) in edits.enumerated() {
             if isCancelled() { throw UsbError.cancelled }
@@ -103,6 +104,11 @@ extension UsbEditEngine {
             if edit.isRemoval { writtenRemovals.append(index) }
         }
 
+        // 동기화 계획이 USB에 넣지 않고 건너뛴 곡(iTunes 목록의 연결되지 않은 곡 등)도 넣지 못한 곡으로 함께 알린다
+        if let selection = selections.first {
+            result.trackBlocks += selection.draft.skippedTracks.filter(\.isSkippableInSync)
+        }
+
         // 4. Device Library: 적용 결과 모델에서 새로 만든다(두 형식이 같은 편집 집합을 갖게)
         if writable.contains(.deviceLibrary), let report = source.pdbReport,
            applied.projected(to: .deviceLibrary) != source.current.projected(to: .deviceLibrary) {
@@ -143,7 +149,9 @@ extension UsbEditEngine {
         var syncVerification: UsbSyncSelectionVerification?
         // 선택 파일이 없는 USB에서 동기화를 끄기만 하면 쓸 것이 없다(바뀐 것 없음으로 남는다).
         if let selection = selections.first, !UsbSyncSelectionStage.writesNothing(selection.draft, formats: writable) {
-            let incomplete = !result.trackBlocks.isEmpty || planned.contains { if case .blocked = $0.outcome { true } else { false } }
+            // 넣지 못한 곡만 빼고 쓴 것은 완료다(rekordbox와 같다). 편집이 막혔거나 곡이 스냅샷에 없으면 선택을 갱신하지 않는다
+            let incomplete = result.trackBlocks.contains { !$0.isSkippableInSync }
+                || planned.contains { if case .blocked = $0.outcome { true } else { false } }
             if incomplete {
                 result.blocks = [UsbSyncSelectionStage.incompleteBlock]
                 result.outcomes = edits.indices.map { ($0 + 1, .blocked(UsbSyncSelectionStage.incompleteBlock)) }

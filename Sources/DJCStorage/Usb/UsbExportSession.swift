@@ -264,11 +264,13 @@ public final class UsbExportSession {
         let build = try UsbExportAssembly.planAndBuild(request, local: UsbLocalSource(database: db), share: share,
                                                        myTagMasterDBID: UsbLibraryBuilder.randomMyTagMasterDBID(), createdDate: Self.today())
         preview.plan = build.plan
-        preview.blocks = missingBlocks + build.blocks
+        // 동기화 계획이 건너뛴 곡(iTunes 목록의 연결되지 않은 곡 등)도 넣지 못한 곡으로 함께 알린다
+        preview.blocks = missingBlocks + build.blocks + (options.syncSelection?.skippedTracks.filter(\.isSkippableInSync) ?? [])
         preview.warnings = build.plan.warnings
         preview.requiredRules = build.plan.requiredRules
         preview.ruleCounts = build.plan.ruleCounts
-        if options.syncSelection != nil, !preview.blocks.isEmpty {
+        // 동기화는 넣지 못한 곡만 빼고 쓴다(rekordbox와 같다). 스냅샷에 없는 곡·볼륨 막힘이 있으면 선택을 쓰지 않는다
+        if options.syncSelection != nil, preview.blocks.contains(where: { !$0.isSkippableInSync }) {
             preview.blocks.append(UsbBlock(code: "syncSelectionIncomplete", scope: .volume,
                                            message: String(ui: "동기화할 목록이나 곡을 모두 쓸 수 없어 동기화 선택도 갱신하지 않았습니다. 막힌 항목의 이유를 해결한 뒤 다시 시도하세요")))
             return Prepared(preview: preview)

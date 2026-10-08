@@ -69,33 +69,37 @@ extension UsbEditEngineTests {
         for format in UsbFormat.allCases { #expect(result.applied?.playlists.first?.entries[format] == [2, 1, 2]) }
     }
 
-    @Test("USB 짝이 없는 곡이 하나라도 있으면 목록 전체를 보존하고 동기화 편집을 막는다")
-    func syncMissingPairDoesNotPartiallyReplacePlaylist() throws {
+    @Test("USB에 없는 곡은 rekordbox처럼 그 곡만 빼고 목록을 맞추고, 스냅샷에 없는 곡은 목록 전체를 막는다")
+    func syncSkipsTracksMissingOnUsbButBlocksUnknownLocalTracks() throws {
         let env = try Self.exported()
         try env.addLocal(["104"])
-        let before = try env.read().playlists
         let result = try env.plan([
-            .syncPlaylist(playlist: .id("1"), localContentIDs: ["101", "104"]),
+            .syncPlaylist(playlist: .id("1"), localContentIDs: ["103", "104", "101", "104"]),
             .syncPlaylist(playlist: .id("1"), localContentIDs: ["999"]),
         ])
-        #expect(Self.isBlocked(result.outcome(1), "syncTrackMissing"))
+        #expect(result.outcome(1) == .written)
+        // 남은 곡의 순서·반복은 그대로, 빠진 곡은 한 번만 알린다
+        for format in UsbFormat.allCases { #expect(result.applied?.playlists.first?.entries[format] == [3, 1]) }
+        #expect(result.trackBlocks.map(\.code) == ["syncTrackMissing"])
+        #expect(result.trackBlocks.first?.scope == .track("104"))
         #expect(Self.isBlocked(result.outcome(2), "localTrackMissing"))
-        #expect(result.applied?.playlists == before && result.changes == nil)
     }
 
-    @Test("새 곡 더하기가 막혀도 뒤의 동기화가 기존 USB 목록을 비우지 않는다")
-    func syncAfterBlockedAddKeepsExistingEntries() throws {
+    @Test("새 곡 더하기가 막히면 뒤의 동기화는 그 곡만 빼고 맞추고, 같은 곡을 두 번 알리지 않는다")
+    func syncAfterBlockedAddSkipsThatTrackOnly() throws {
         let env = try Self.exported()
         try env.addLocal(["104"])
         try env.updateLocal("104", "AnalysisDataPath = NULL")
         let result = try env.plan([
             .addTracks(localContentIDs: ["104"], playlist: nil),
-            .syncPlaylist(playlist: .id("1"), localContentIDs: ["104"]),
+            .syncPlaylist(playlist: .id("1"), localContentIDs: ["102", "104"]),
         ])
+        // 동기화 묶음이 아니면 곡 더하기 편집은 막힌 채 초안에 남는다
         guard case .blocked = result.outcome(1) else { Issue.record("곡 더하기를 막지 않음"); return }
-        #expect(Self.isBlocked(result.outcome(2), "syncTrackMissing"))
-        for format in UsbFormat.allCases { #expect(result.applied?.playlists.first?.entries[format] == [1, 2, 3]) }
-        #expect(result.changes == nil)
+        #expect(result.outcome(2) == .written)
+        for format in UsbFormat.allCases { #expect(result.applied?.playlists.first?.entries[format] == [2]) }
+        #expect(result.trackBlocks.filter { $0.scope == .track("104") }.count == 1)
+        #expect(!result.trackBlocks.contains { $0.code == "syncTrackMissing" })
     }
 
     @Test("선택하지 않은 로컬 중복 행까지 보고 USB 짝이 모호한 동기화는 막는다")

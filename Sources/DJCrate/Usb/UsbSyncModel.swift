@@ -261,7 +261,7 @@ struct UsbSyncQueuedPlan: Sendable {
         self.source = source
         rekordboxSource = sources.rekordbox
         iTunesSource = sources.iTunes
-        sourceBlockReasons = sources.blockedReasons
+        sourceBlockReasons = sources.notices
         let revision = store.previewRevision
         let epoch = store.snapshotReadEpoch
         guard let lease = await store.leaseUsbSyncSnapshot(), store.snapshotReadEpoch == epoch,
@@ -447,7 +447,7 @@ struct UsbSyncQueuedPlan: Sendable {
             error = String(ui: "라이브러리가 바뀌었습니다. 동기화 목록을 새로고침한 뒤 다시 시도하세요")
             return false
         }
-        if let reason = loadedSources?.blockReason(selection: selection, syncPlaylists: syncPlaylists) {
+        if let reason = loadedSources?.blockReason(selection: selection) {
             error = reason
             return false
         }
@@ -477,7 +477,7 @@ struct UsbSyncQueuedPlan: Sendable {
             error = String(ui: "라이브러리가 바뀌었습니다. 동기화 목록을 새로고침한 뒤 다시 시도하세요")
             return false
         }
-        if let reason = loadedSources?.blockReason(selection: selection, syncPlaylists: syncPlaylists) {
+        if let reason = loadedSources?.blockReason(selection: selection) {
             error = reason
             return false
         }
@@ -487,16 +487,20 @@ struct UsbSyncQueuedPlan: Sendable {
             error = String(ui: "라이브러리가 바뀌었습니다. 동기화 목록을 새로고침한 뒤 다시 시도하세요")
             return false
         }
+        // rekordbox처럼 USB에 넣을 수 없는 곡(잇지 못한 iTunes 곡·스트리밍 곡 등)은 빼고 동기화하고, 넣지 못한 곡으로 알린다
+        let localSkips = skippedLocalTracks(store: store)
+        let skippedTracks = skippedTrackBlocks(localSkips: localSkips)
         if emptyVolume {
             guard syncPlaylists, let coordinator = store.usbCoordinator,
                   let localDBID, let loadedSources, let catalogRevision else { return false }
             let topIDs = selected.childIDs(of: PlaylistLayout.root)
             let job = UsbExportJob(database: lease.database, share: store.rekordboxShareRoot ?? RekordboxShare.directory,
                                    volume: volume, selection: .playlists(topIDs), formats: UsbFormat.defaultSet, snapshotTime: lease.provenance.snapshotTime,
-                                   playlistLayout: selected,
+                                   playlistLayout: UsbSyncPlan.removing(Set(localSkips.keys), from: selected),
                                    syncSelection: UsbSyncSelectionDraft(localDBID: localDBID, sourceNodes: UsbSyncSource.nativeNodes(source, master: masterNodes),
                                                                         selection: selection, enabled: syncPlaylists,
-                                                                        playlistRefs: [:], baseFiles: nativeBaseFiles),
+                                                                        playlistRefs: [:], baseFiles: nativeBaseFiles,
+                                                                        skippedTracks: skippedTracks),
                                    syncSourceContext: UsbExportSyncSourceContext(source: loadedSources, catalogRevision: catalogRevision,
                                                                                  readEpoch: readEpoch, snapshot: lease.reference),
                                    snapshotLease: lease)
@@ -532,11 +536,7 @@ struct UsbSyncQueuedPlan: Sendable {
                 if syncPlaylists {
                     let plan = try UsbSyncPlan.build(source: inputs.source, selection: selection, library: inputs.library, matches: matches,
                                                      badges: badges, bindings: bindings, linkedPlaylistIDs: inputs.nativePlaylistIDs,
-                                                     removedPlaylistIDs: inputs.nativeRemovedPlaylistIDs)
-                    guard plan.trackIDs.allSatisfy({ store.rowsByID[$0].map { !$0.isStaged && !$0.isUsb && !$0.track.isStreaming } ?? false }) else {
-                        error = String(ui: "선택한 목록에 내보낼 수 없는 곡이 있습니다. 스트리밍 곡이나 사라진 곡을 제외한 뒤 동기화하세요")
-                        return false
-                    }
+                                                     removedPlaylistIDs: inputs.nativeRemovedPlaylistIDs, excluding: Set(localSkips.keys))
                     edits = plan.edits
                     refs.merge(plan.playlistRefs) { _, planned in planned }
                     // rekordbox처럼 어느 목록에도 남지 않는 USB 곡은 확인을 받고 뺀다. 음원 파일은 곡 빼기 규칙을 따른다.
@@ -552,7 +552,8 @@ struct UsbSyncQueuedPlan: Sendable {
                 edits.append(.syncSelection(draft: UsbSyncSelectionDraft(localDBID: localDBID,
                                                                          sourceNodes: UsbSyncSource.nativeNodes(source, master: masterNodes),
                                                                          selection: selection, enabled: syncPlaylists,
-                                                                         playlistRefs: refs, baseFiles: nativeBaseFiles)))
+                                                                         playlistRefs: refs, baseFiles: nativeBaseFiles,
+                                                                         skippedTracks: syncPlaylists ? skippedTracks : [])))
                 if let reason = actions.blockReason(edits, volumeKey: volumeKey) {
                     error = reason
                     return false
@@ -582,10 +583,10 @@ struct UsbSyncQueuedPlan: Sendable {
             error = String(ui: "라이브러리가 바뀌었습니다. 동기화 목록을 새로고침한 뒤 다시 시도하세요")
             return false
         }
-        let trackIDs = selected.outline.filter(\.holdsTracks).flatMap(\.trackIDs)
-        guard !syncPlaylists || trackIDs.allSatisfy({ store.rowsByID[$0].map { !$0.isStaged && !$0.isUsb && !$0.track.isStreaming } ?? false }) else {
+        // 계획 뒤 곡 상태가 바뀌었으면(빼는 곡이 달라짐) 계획한 초안을 쓰지 않는다
+        guard skippedLocalTracks(store: store) == localSkips else {
             queuedPlan = nil
-            error = String(ui: "선택한 목록에 내보낼 수 없는 곡이 있습니다. 스트리밍 곡이나 사라진 곡을 제외한 뒤 동기화하세요")
+            error = String(ui: "라이브러리가 바뀌었습니다. 동기화 목록을 새로고침한 뒤 다시 시도하세요")
             return false
         }
         let job = UsbEditJob(database: lease.database, share: inputs.share, volume: inputs.volume,
@@ -606,6 +607,46 @@ struct UsbSyncQueuedPlan: Sendable {
         guard await adoptWrittenNativeFiles(usb: usb) else { return false }
         _ = await savePreferences(usb: usb)
         return true
+    }
+
+    /// 선택한 목록 중 USB에 넣을 수 없는 로컬 곡(스트리밍·추가 대기·찾지 못한 곡). 동기화는 이 곡만 빼고 쓴다
+    func skippedLocalTracks(store: LibraryStore) -> [String: UsbBlock] {
+        guard syncPlaylists else { return [:] }
+        return UsbSyncSource.skippedLocalTracks(selected) { id in
+            guard let row = store.rowsByID[id] else { return .missing }
+            if row.isStaged { return .staged }
+            if row.isUsb { return .usb }
+            return row.track.isStreaming ? .streaming : nil
+        }
+    }
+
+    /// 동기화 계획이 USB에 넣지 않고 건너뛸 곡(잇지 못한 iTunes 곡 + 넣을 수 없는 로컬 곡, 목록 순서대로)
+    private func skippedTrackBlocks(localSkips: [String: UsbBlock]) -> [UsbBlock] {
+        guard syncPlaylists else { return [] }
+        var seen = Set<String>()
+        let local = selected.outline.filter(\.holdsTracks).flatMap(\.trackIDs).compactMap { id in
+            seen.insert(id).inserted ? localSkips[id] : nil
+        }
+        return (loadedSources?.skippedITunesTracks(selection: selection) ?? []) + local
+    }
+
+    /// SYNC 전에 보이는 알림: USB에 넣지 못할 곡 수(이유별). 음원·분석 파일 문제는 쓰기 확인 창에서 더 알린다
+    func skippedSummary(store: LibraryStore) -> String? {
+        let blocks = skippedTrackBlocks(localSkips: skippedLocalTracks(store: store))
+        guard !blocks.isEmpty else { return nil }
+        return Self.skippedSummary(blocks)
+    }
+
+    /// "USB에 넣지 못할 곡 N개" + 이유별 수(처음 나온 순서). 같은 곡은 한 번 센다
+    nonisolated static func skippedSummary(_ blocks: [UsbBlock]) -> String {
+        var order: [String] = [], targets: [String: Set<UsbBlock.Scope>] = [:]
+        for block in blocks {
+            if targets[block.message] == nil { order.append(block.message) }
+            targets[block.message, default: []].insert(block.scope)
+        }
+        let count = Set(blocks.map(\.scope)).count
+        return ([String(ui: "USB에 넣지 못할 곡 \(count)개:")] + order.map { "• \($0) (\(targets[$0]?.count ?? 0))" })
+            .joined(separator: "\n")
     }
 
     /// masterPlaylists6.xml의 rekordbox NODE Id. 못 읽었으면 nil(지운 원본을 판정하지 않고 막는다)
