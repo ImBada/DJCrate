@@ -363,6 +363,9 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     private struct SavedLayout {
         var hidden: [String: Bool]
         var autosave: Bool
+        /// 들어가기 전 칸 순서·너비. USB 칸 배치(갱신 상태 칸을 키 뒤로)와 남는 폭 나누기를 나올 때 직접 되돌린다(#241)
+        var order: [String] = []
+        var widths: [String: CGFloat] = [:]
     }
     private var usbSavedLayout: SavedLayout?
     /// 표 → 스토어로 선택·정렬을 넘기는 중에는 스토어 → 표 동기화를 건너뛴다(되먹임 방지).
@@ -958,7 +961,7 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
     }
 
     /// USB 목록이면 USB 칸(`TrackColumn.usbColumns`)만 보이고 갱신 상태 칸을 키 칸 바로 뒤에 둔다.
-    /// 나오면 들어가기 전 칸 숨김 상태로 돌리고 갱신 상태 칸은 숨긴다. 고치던 칸은 닫는다.
+    /// 나오면 들어가기 전 칸 순서·너비·숨김 상태로 돌리고 갱신 상태 칸은 숨긴다. 고치던 칸은 닫는다.
     func updateUsbMode(_ usb: Bool) {
         guard usbMode != usb else { return }
         usbMode = usb
@@ -970,7 +973,10 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
             // USB 목록의 칸 배치가 사용자 칸 배치로 저장되지 않게 자동 저장을 멈춘 뒤 바꾼다(켠 채 앱을 끝내도 로컬 배치가 남게)
             usbSavedLayout = SavedLayout(hidden: Dictionary(table.tableColumns.map { ($0.identifier.rawValue, $0.isHidden) },
                                                             uniquingKeysWith: { first, _ in first }),
-                                         autosave: table.autosaveTableColumns)
+                                         autosave: table.autosaveTableColumns,
+                                         order: table.tableColumns.map(\.identifier.rawValue),
+                                         widths: Dictionary(table.tableColumns.map { ($0.identifier.rawValue, $0.width) },
+                                                            uniquingKeysWith: { first, _ in first }))
             table.autosaveTableColumns = false
             for column in table.tableColumns { column.isHidden = !TrackColumn.usbColumns.contains(column.identifier.rawValue) }
             let ids = table.tableColumns.map(\.identifier.rawValue)
@@ -980,12 +986,27 @@ final class TrackListCoordinator: NSObject, NSTableViewDataSource, NSTableViewDe
         } else {
             let saved = usbSavedLayout
             usbSavedLayout = nil
+            // 순서는 moveColumn으로 먼저 되돌린다. 자동 저장을 다시 켜면 AppKit이 저장된 배치를 읽어 moveColumn 없이 순서·너비를 바꾸고,
+            // 그 뒤 머리글이 USB 때 칸 순서·숨김으로 그린 모양으로 남아 데이터 열과 어긋났다(#241). 끝에서 머리글·표도 다시 그린다.
+            for (target, id) in (saved?.order ?? []).enumerated() {
+                if let from = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == id }), from != target,
+                   target < table.numberOfColumns {
+                    table.moveColumn(from, toColumn: target)
+                }
+            }
             for column in table.tableColumns {
                 let id = column.identifier.rawValue
                 column.isHidden = id == TrackColumn.usbSyncID || (saved?.hidden[id] ?? column.isHidden)
             }
+            // 칸을 다시 보이면 남는 폭을 나눠 가진 칸 너비가 바뀌므로 숨김을 다 돌린 뒤 너비를 맞춘다
+            for column in table.tableColumns {
+                if let width = saved?.widths[column.identifier.rawValue], column.width != width { column.width = width }
+            }
             if let saved { table.autosaveTableColumns = saved.autosave }
         }
+        table.tile()
+        table.headerView?.needsDisplay = true
+        table.needsDisplay = true
     }
 
     private func refreshTagCells(_ table: NSTableView) {
