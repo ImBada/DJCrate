@@ -68,15 +68,18 @@ struct PointSnapshotCommandTests {
         let shared = fixture.root.appending(path: "shared-settings.json")
         let old = try RekordboxPointSnapshot.create(name: "", kind: .auto, database: fixture.database, shareRoot: nil, in: folder,
                                                     autoDays: 90, now: now.addingTimeInterval(-3 * 86_400), guard: Self.copyGuard)
+        let older = try RekordboxPointSnapshot.create(name: "", kind: .auto, database: fixture.database, shareRoot: nil, in: folder,
+                                                      autoDays: 90, now: now.addingTimeInterval(-4 * 86_400), guard: Self.copyGuard)
         // 공유 파일이 없으면 기본 7일: 사흘 전 자동 스냅샷은 남는다
         _ = try PointSnapshotCommand.run(["snapshot-point", "create", "--db", fixture.database.path], now: now, guard: Self.copyGuard,
                                          sharedSettings: shared)
-        #expect(FileManager.default.fileExists(atPath: old.url.path))
+        #expect(FileManager.default.fileExists(atPath: old.url.path) && FileManager.default.fileExists(atPath: older.url.path))
         // 앱에서 2일로 줄이면 CLI도 그 값으로 정리한다
         try SharedSettingsFile.set(2.0, for: SettingKeys.pointSnapshotAutoDays.name, in: shared)
         _ = try PointSnapshotCommand.run(["snapshot-point", "create", "--db", fixture.database.path], now: now, guard: Self.copyGuard,
                                          sharedSettings: shared)
-        #expect(!FileManager.default.fileExists(atPath: old.url.path))
+        // 2일보다 옛 자동 중 가장 최근(사흘 전)은 남기고 더 옛 것(나흘 전)은 지운다(#236)
+        #expect(FileManager.default.fileExists(atPath: old.url.path) && !FileManager.default.fileExists(atPath: older.url.path))
     }
 
     @Test func 명령_목록에_있고_읽기_사본_snapshot과_이름이_다르다() {

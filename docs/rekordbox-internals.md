@@ -677,7 +677,7 @@ rekordbox 7.2.18에서 직접 만든 인텔리전트 목록으로 확인한 것�
 - 담는 것: `master.db`, `masterPlaylists6.xml`, `playlists3.sync`, `share/PIONEER/USBANLZ/`, `share/PIONEER/Artwork/`. rekordbox 폴더의 그 밖 파일(`*.edb`, `networkAnalyze6.db`, `master.backup*.db` 등)과 음원은 담지 않는다.
 - 저장: DJCrate 데이터 폴더 `point-snapshots/<UTC 시각>Z-<종류>/`(사본 DB면 그 옆 `point-snapshots/`). `FileManager.copyItem`이라 같은 APFS 볼륨이면 클론이다(처음엔 공간을 거의 쓰지 않고 바뀐 만큼만 는다). 다른 볼륨이면 전체 복사가 되고 창·CLI가 알린다. 폴더 0700·파일 0600(클라우드 토큰이 든 DB), 내용은 출력·로그하지 않는다.
 - 뜨기: rekordbox·rekordboxAgent가 꺼져 있고 WAL이 비었을 때만. `.partial-<UUID>`에 다 뜬 뒤 이름을 붙인다. 뜨는 동안 `master.db` 크기·수정 시각이 바뀌거나 rekordbox가 켜지면 버린다. 분석·앨범아트 폴더 안의 심볼릭 링크는 거부한다(복원이 폴더 밖을 가리키는 링크를 되살리지 않게). 뜬 DB는 `quick_check`·`cipher_integrity_check`를 거치고, `snapshot.json`에 이름·종류(수동·자동·복원 직전)·UTC 시각·고정 여부·`djmdProperty.DBID`·변경 카운터 두 개(`agentRegistry` 정수 칸만)·곡 수·담은 항목·클론 여부를 적는다. 대상 DB·share는 부르는 쪽이 적고(라이브 기본 인자 없음) `resolveShareRoot`를 지나 시험 프로세스의 실제 라이브러리를 거부한다(#182).
-- 보존: 수동·고정은 지우지 않는다(사용자가 지울 때만, 고정은 푼 뒤). 자동(#228)은 최근 N일(설정 › 저장 공간, 기본 7일), 복원 직전은 고정하지 않은 최근 3개. 스냅샷마다 전체를 담아 서로 기대지 않으므로 어느 것을 지워도 남은 스냅샷의 복원은 끊기지 않는다(#221의 연쇄 문제가 생기지 않는다). 쓰기 전 백업과는 따로 정리하고, 창(rekordbox › 시점 스냅샷…)·`djc snapshot-point list`에서 목록만 함께 보인다.
+- 보존: 수동·고정은 지우지 않는다(사용자가 지울 때만, 고정은 푼 뒤). 자동(#228)은 최근 N일(설정 › 저장 공간, 기본 7일)과 N일보다 오래된 것 중 가장 최근 하나(#236, 라이브러리를 오래 두다 바꿔도 바꾸기 직전 상태가 남게. 고정한 것도 세므로 그것이 가장 최근이면 고정이 그 몫을 한다), 복원 직전은 고정하지 않은 최근 3개. 스냅샷마다 전체를 담아 서로 기대지 않으므로 어느 것을 지워도 남은 스냅샷의 복원은 끊기지 않는다(#221의 연쇄 문제가 생기지 않는다). 쓰기 전 백업과는 따로 정리하고, 창(rekordbox › 시점 스냅샷…)·`djc snapshot-point list`에서 목록만 함께 보인다.
 - 시험: `RekordboxPointSnapshotTests`(합성 사본으로 범위·권한·클론 독립·rekordbox 켜짐·WAL·링크·실제 라이브러리 거부·보존 정리).
 
 ### 자동 시점 스냅샷 (`RekordboxPointSnapshot.takeAutoIfDue`, #228)

@@ -9,7 +9,7 @@ import Foundation
 /// - 범위(#223 결정): `master.db`, `masterPlaylists6.xml`, `playlists3.sync`, `share/PIONEER/USBANLZ`, `share/PIONEER/Artwork`
 /// - 저장: `FileManager.copyItem`(같은 APFS 볼륨이면 클론이라 처음에는 공간을 거의 쓰지 않는다). 폴더 0700·파일 0600
 /// - rekordbox·rekordboxAgent가 꺼져 있고 WAL이 비었을 때만 뜬다. 뜨는 동안 DB가 바뀌거나 rekordbox가 켜지면 버린다
-/// - 보존: 수동·고정은 지우지 않는다. 자동은 최근 `autoDays`일, 복원 직전은 최근 3개(고정 제외)
+/// - 보존: 수동·고정은 지우지 않는다. 자동은 최근 `autoDays`일과 그보다 옛 것 중 가장 최근 하나(#236), 복원 직전은 최근 3개(고정 제외)
 /// - 자동(하루 한 번, #228)은 `RekordboxPointSnapshot+Auto`
 public enum RekordboxPointSnapshot {
     public enum Kind: String, Codable, Sendable, CaseIterable {
@@ -335,7 +335,7 @@ public enum RekordboxPointSnapshot {
         return entry
     }
 
-    /// 보존 정리(#223 결정). 수동·고정은 지우지 않는다. 자동은 `autoDays`일보다 옛 것, 복원 직전은 최근 3개 밖의 것을 지운다.
+    /// 보존 정리(#223 결정). 수동·고정은 지우지 않는다. 자동은 `autoDays`일보다 옛 것(가장 최근 하나는 남김, #236), 복원 직전은 최근 3개 밖의 것을 지운다.
     /// 스냅샷마다 전체를 담아 서로 기대지 않으므로 어느 것을 지워도 남은 것의 복원은 그대로다.
     /// 10분 넘은 반쯤 뜬 폴더도 치운다(뜨는 중인 것은 건드리지 않는다).
     @discardableResult
@@ -344,7 +344,10 @@ public enum RekordboxPointSnapshot {
         var removed: [URL] = []
         let entries = list(in: directory).filter { !$0.metadata.pinned }
         let cutoff = now.addingTimeInterval(-Double(max(autoDays, 1)) * 86_400)
-        removed += entries.filter { $0.metadata.kind == .auto && $0.metadata.createdAt < cutoff }.map(\.url)
+        // 보존 일수를 넘은 자동 중 가장 최근 하나는 늘 남긴다(#236): 라이브러리를 오래 두다 바꿀 때 바꾸기 직전 상태가 보존 기간에 지워지지 않게.
+        // 고정한 것도 옛 자동으로 세어(목록은 최근 순) 그것이 가장 최근이면 고정이 이미 그 몫을 한다.
+        let expired = list(in: directory).filter { $0.metadata.kind == .auto && $0.metadata.createdAt < cutoff }
+        removed += expired.dropFirst().filter { !$0.metadata.pinned }.map(\.url)
         removed += entries.filter { $0.metadata.kind == .beforeRestore }.dropFirst(beforeRestoreToKeep).map(\.url)
         removed = removed.filter { (try? fm.removeItem(at: $0)) != nil }
         for stale in (try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.creationDateKey])) ?? []

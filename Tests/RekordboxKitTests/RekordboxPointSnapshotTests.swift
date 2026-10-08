@@ -181,6 +181,7 @@ struct RekordboxPointSnapshotTests {
         let day = 86_400.0
         let oldManual = try take(fixture, name: "아주 옛 수동", kind: .manual, at: now.addingTimeInterval(-60 * day))
         let oldAuto = try take(fixture, kind: .auto, at: now.addingTimeInterval(-8 * day))
+        let olderAuto = try take(fixture, kind: .auto, at: now.addingTimeInterval(-20 * day))
         let pinnedAuto = try take(fixture, kind: .auto, at: now.addingTimeInterval(-9 * day))
         try RekordboxPointSnapshot.setPinned(true, pinnedAuto.url, in: folder)
         let recentAuto = try take(fixture, kind: .auto, at: now.addingTimeInterval(-6 * day))
@@ -191,24 +192,69 @@ struct RekordboxPointSnapshotTests {
         let removed = RekordboxPointSnapshot.prune(in: folder, autoDays: 7, now: now)
         let kept = Set(RekordboxPointSnapshot.list(in: folder).map(\.id))
         #expect(kept.contains(oldManual.id) && kept.contains(pinnedAuto.id) && kept.contains(recentAuto.id))
-        #expect(!kept.contains(oldAuto.id))
+        // 7일 넘은 자동 중 가장 최근 하나는 남기고(#236), 더 옛 것은 지운다
+        #expect(kept.contains(oldAuto.id) && !kept.contains(olderAuto.id))
         // 복원 직전: 고정한 하나 + 최근 셋
         #expect(kept.contains(restores[0].id))
         #expect(Set(restores[2...4].map(\.id)).isSubset(of: kept))
         #expect(!kept.contains(restores[1].id))
         #expect(removed.count == 2)
 
-        // 일수를 줄이면 남은 자동도 지운다(고정은 그대로)
+        // 일수를 줄이면 7일 안이던 자동도 옛 것이 된다: 그중 가장 최근 하나만 남는다(고정은 그대로)
         RekordboxPointSnapshot.prune(in: folder, autoDays: 3, now: now)
         let after = Set(RekordboxPointSnapshot.list(in: folder).map(\.id))
-        #expect(!after.contains(recentAuto.id) && after.contains(pinnedAuto.id))
+        #expect(after.contains(recentAuto.id) && !after.contains(oldAuto.id) && after.contains(pinnedAuto.id))
+    }
+
+    /// 자동 스냅샷을 주어진 며칠 전 시각들로 뜨고 정리한 뒤 남은 것의 며칠 전 값(옛 → 새 순서 아님, 큰 값 먼저)을 돌려준다
+    func keptAutoAges(_ ages: [Double], pinned pinnedAges: Set<Double> = []) throws -> [Double] {
+        let fixture = try RekordboxFixture()
+        let folder = fixture.root.appending(path: "point-snapshots")
+        for age in ages {
+            let entry = try take(fixture, kind: .auto, at: now.addingTimeInterval(-age * 86_400))
+            if pinnedAges.contains(age) { try RekordboxPointSnapshot.setPinned(true, entry.url, in: folder) }
+        }
+        RekordboxPointSnapshot.prune(in: folder, autoDays: 7, now: now)
+        return RekordboxPointSnapshot.list(in: folder).map { (now.timeIntervalSince($0.metadata.createdAt) / 86_400).rounded() }.sorted(by: >)
+    }
+
+    @Test func 보존_정리는_7일_안의_자동만_있으면_그대로_둔다() throws {
+        #expect(try keptAutoAges([1, 3, 6]) == [6, 3, 1])
+    }
+
+    @Test func 보존_정리는_7일_넘은_자동_중_가장_최근_하나를_남긴다() throws {
+        #expect(try keptAutoAges([2, 8, 10, 30]) == [8, 2])
+    }
+
+    @Test func 보존_정리는_7일_넘은_자동이_하나뿐이어도_남긴다() throws {
+        #expect(try keptAutoAges([40]) == [40])
+        #expect(try keptAutoAges([1, 40]) == [40, 1])
+    }
+
+    @Test func 보존_정리는_고정한_옛_자동이_가장_최근이면_다른_옛_자동은_지운다() throws {
+        // 가장 최근 옛 자동(8일)이 고정이라 이미 남는다. 더 옛 것(20일)은 지운다
+        #expect(try keptAutoAges([8, 20], pinned: [8]) == [8])
+        // 가장 최근 옛 자동이 아닌 것만 고정이면 둘 다 남는다
+        #expect(try keptAutoAges([8, 20], pinned: [20]) == [20, 8])
+    }
+
+    @Test func 보존_정리는_수동과_복원_직전을_옛_자동으로_세지_않는다() throws {
+        let fixture = try RekordboxFixture()
+        let folder = fixture.root.appending(path: "point-snapshots")
+        let manual = try take(fixture, name: "수동", kind: .manual, at: now.addingTimeInterval(-9 * 86_400))
+        let auto = try take(fixture, kind: .auto, at: now.addingTimeInterval(-30 * 86_400))
+        RekordboxPointSnapshot.prune(in: folder, autoDays: 7, now: now)
+        let kept = Set(RekordboxPointSnapshot.list(in: folder).map(\.id))
+        #expect(kept.contains(manual.id) && kept.contains(auto.id))
     }
 
     @Test func 만들면_보존_정리도_한다() throws {
         let fixture = try RekordboxFixture()
-        let old = try take(fixture, kind: .auto, at: now.addingTimeInterval(-30 * 86_400))
+        let latestOld = try take(fixture, kind: .auto, at: now.addingTimeInterval(-40 * 86_400))
+        let older = try take(fixture, kind: .auto, at: now.addingTimeInterval(-50 * 86_400))
         _ = try create(fixture, name: "새 수동")
-        #expect(!FileManager.default.fileExists(atPath: old.url.path))
+        #expect(FileManager.default.fileExists(atPath: latestOld.url.path), "7일 넘은 자동 중 가장 최근 하나는 남긴다(#236)")
+        #expect(!FileManager.default.fileExists(atPath: older.url.path))
     }
 
     @Test func 반쯤_뜬_폴더는_목록에_없고_오래되면_치운다() throws {
