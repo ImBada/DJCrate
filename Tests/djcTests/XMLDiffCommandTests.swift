@@ -110,4 +110,61 @@ struct XMLDiffCommandTests {
         #expect(report.diff.isEmpty, "그리드를 읽지 않으면 그리드를 비교하지 않는다")
         #expect(XMLDiffCommand.lines(report, limit: 50).joined(separator: "\n").contains("그리드는 비교하지 않았습니다"))
     }
+
+    // MARK: 초안 만들기(--draft)
+
+    @Test func draft_인자는_only로_종류를_고른다() throws {
+        let request = try XMLDiffCommand.request(["xml-diff", "--db", "/a", "--xml", "/b", "--draft", "--only", "cue,tag"])
+        #expect(request.draft && request.kinds == [.cue, .tag])
+        #expect(try XMLDiffCommand.request(["xml-diff", "--db", "/a", "--xml", "/b", "--draft"]).kinds == Set(XMLImportDrafts.Kind.allCases))
+        for bad in [["xml-diff", "--db", "/a", "--xml", "/b", "--only", "cue"],
+                    ["xml-diff", "--db", "/a", "--xml", "/b", "--draft", "--only", "cue,모름"],
+                    ["xml-diff", "--db", "/a", "--xml", "/b", "--draft", "--draft"],
+                    ["xml-diff", "--db", "/a", "--xml", "/b", "--draft", "--json"]] {
+            #expect(throws: UsageError.self) { _ = try XMLDiffCommand.request(bad) }
+        }
+    }
+
+    @Test func 고른_차이를_초안_폴더에만_쓰고_기존_초안은_덮지_않는다() throws {
+        let fixture = try library()
+        let url = try xml(fixture) {
+            $0.replacingOccurrences(of: #"Name="시험 곡""#, with: #"Name="새 제목""#)
+                .replacingOccurrences(of: #"Start="20.000" Num="0""#, with: #"Start="22.000" Num="0""#)
+                .replacingOccurrences(of: #"<NODE Name="셋""#, with: #"<NODE Name="새 셋""#)
+        }
+        let before = try Data(contentsOf: fixture.database)
+        let home = fixture.root.appending(path: "home")
+        let uuid = try RekordboxLibrary.load(snapshot: fixture.database).tracks.first { $0.id == "101" }!.uuid
+        let request = XMLDiffCommand.Request(database: fixture.database, xml: url, share: nil, draft: true)
+        let report = try XMLDiffCommand.report(request)
+        let lines = try XMLDiffCommand.makeDrafts(report, request: request, home: home).joined(separator: "\n")
+        #expect(lines.contains("초안을 만들었습니다: 큐 1 · 그리드 0 · 태그 1 · 재생 목록 1"))
+        let tag = try JSONDecoder().decode(TagDraft.self, from: Data(contentsOf: home.appending(path: "tag-drafts/\(uuid).json")))
+        #expect(tag.base.title == "시험 곡" && tag.fields.title == "새 제목")
+        let cue = try JSONDecoder().decode(CueDraft.self, from: Data(contentsOf: home.appending(path: "cue-drafts/\(uuid).json")))
+        #expect(cue.cues.map(\.time) == [22] && cue.base.map(\.time) == [20])
+        #expect(FileManager.default.fileExists(atPath: home.appending(path: "playlist-drafts.json").path))
+        #expect(try Data(contentsOf: fixture.database) == before, "사본 DB는 그대로")
+
+        // 다시 가져오면 덮지 않고 건너뛴다
+        let again = try XMLDiffCommand.makeDrafts(report, request: request, home: home).joined(separator: "\n")
+        #expect(again.contains("초안을 만들었습니다: 큐 0 · 그리드 0 · 태그 0 · 재생 목록 0"))
+        #expect(again.contains("이 곡에 큐 초안이 이미 있어 덮지 않았습니다"))
+        #expect(again.contains("같은 이름의 목록이 재생 목록 초안에 이미 있어 덮지 않았습니다"))
+        let kept = try JSONDecoder().decode(TagDraft.self, from: Data(contentsOf: home.appending(path: "tag-drafts/\(uuid).json")))
+        #expect(kept == tag)
+    }
+
+    @Test func only로_고른_종류만_초안으로_만든다() throws {
+        let fixture = try library()
+        let url = try xml(fixture) {
+            $0.replacingOccurrences(of: #"Name="시험 곡""#, with: #"Name="새 제목""#)
+                .replacingOccurrences(of: #"Start="20.000" Num="0""#, with: #"Start="22.000" Num="0""#)
+        }
+        let home = fixture.root.appending(path: "home")
+        let request = XMLDiffCommand.Request(database: fixture.database, xml: url, share: nil, draft: true, kinds: [.tag])
+        let lines = try XMLDiffCommand.makeDrafts(try XMLDiffCommand.report(request), request: request, home: home)
+        #expect(lines.joined(separator: "\n").contains("초안을 만들었습니다: 큐 0 · 그리드 0 · 태그 1 · 재생 목록 0"))
+        #expect(!FileManager.default.fileExists(atPath: home.appending(path: "cue-drafts").path))
+    }
 }

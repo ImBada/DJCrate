@@ -246,7 +246,7 @@ rekordbox가 만든 XML에는 곡 정보가 들어 있으니 저장소·이슈�
 ## rekordbox XML과 비교하기(`xml-diff`)
 
 ```sh
-djc xml-diff --db <스냅샷 사본.db> --xml <파일.xml> [--share <분석 파일 폴더> | --no-analysis] [--limit N] [--json]
+djc xml-diff --db <스냅샷 사본.db> --xml <파일.xml> [--share <분석 파일 폴더> | --no-analysis] [--limit N] [--json | --draft [--only cue,grid,tag,playlist]]
 
 # djc snapshot 사본 옆에는 share가 없으니 rekordbox 폴더의 share를 준다(읽기만).
 djc xml-diff --db <스냅샷 사본.db> --xml ~/Desktop/other.xml --share ~/Library/Pioneer/rekordbox/share
@@ -264,6 +264,18 @@ djc xml-diff --db <스냅샷 사본.db> --xml ~/Desktop/other.xml --share ~/Libr
 - `--json`은 `{"schemaVersion":1,"command":"xml-diff","data":{…}}`이다: `matching`(xmlTracks·matched·unmatched·ambiguous), `counts`(cueTracks·gridTracks·tagTracks·missingPlaylists·changedPlaylists·ambiguousPlaylists·libraryOnlyPlaylists·xmlWithoutGrid), `gridsCompared`, `skipped`(종류별 개수), `tracks`(xmlID·libraryID·path·title·cues{added,removed}·grid{library,xml}·tags[{key,library,xml}]), `unmatched`·`ambiguous`(xmlID·path·title), `playlists`(kind missing|changed·path·libraryID·xmlEntries·libraryEntries(ContentID)·unmatchedEntries). 오류도 같은 봉투(`error`)로 표준 오류에 낸다.
 
 내보낸 XML을 그대로 비교하면 차이가 0이다(시험으로 확인한다).
+
+### 차이를 초안으로(`--draft`)
+
+`--draft`를 주면 차이를 DJCrate 초안으로 만들어 `DJC_HOME`(없으면 `~/Library/Application Support/DJCrate`) 아래 초안 폴더(`cue-drafts/`·`grid-drafts/`·`tag-drafts/`·`playlist-drafts.json`)에만 쓴다. rekordbox에는 쓰지 않는다. 쓰기는 앱의 "rekordbox에 쓰기"(미리 보기 → 쓰기)가 다른 초안과 똑같이 한다. `--only`로 종류를 고르고(쉼표로 여럿), `--json`과는 함께 줄 수 없다.
+
+- **base는 지금 라이브러리 상태**다: 큐는 지금 큐(자동 큐 포함), 그리드는 분석 파일의 박, 태그는 지금 곡 정보, 재생 목록은 지금 목록. 그 뒤 rekordbox에서 바뀐 곡·목록은 기존 규칙대로 쓰기 미리 보기에서 막힌다.
+- **기존 초안은 덮지 않는다.** 그 곡에 같은 종류의 초안 파일이 있으면(읽지 못하는 파일도) 건너뛰고 이유를 적는다. 재생 목록은 기존 재생 목록 초안에 편집을 덧붙이되, 이미 초안이 손댄 목록과 초안에 같은 이름으로 만든 목록은 건너뛴다. 계획을 세운 뒤 저장하기 전에 생긴 초안도 덮지 않는다.
+- **큐**: XML과 같은 큐는 지금 행을 그대로 두어(활성 루프·박 루프 크기처럼 XML에 없는 칸을 잃지 않게) 남기고, XML에만 있는 큐를 더하고, 라이브러리에만 있는 큐를 뺀다. 새 루프는 활성 루프가 아니고 박 크기도 없다.
+- **그리드**: 분석 파일에 박이 있고 구간으로 다룰 수 있는(재생성 오차 2ms 이하) 곡만. 구간은 XML의 TEMPO 그대로다.
+- **태그**: 바뀐 칸만 고친다. 키는 Camelot(1A~12B)으로 읽히는 값만, 평점은 별 0~5개만 넣는다.
+- **재생 목록**: 없는 목록은 폴더 경로를 따라(없는 폴더는 만들고) 만들어 곡을 넣는다. 새 목록·폴더는 부모 맨 위에 XML 순서로 생긴다. 곡이 다른 목록은 곡을 모두 빼고 XML 순서로 다시 넣는다.
+- **손실**: 초안이 담지 못하는 차이는 빼고 "초안에 담지 못한 차이"로 센다: 곡 길이 밖 큐, 메모리 큐 10개 초과, 같은 핫큐 슬롯의 두 번째 큐, 분석 파일이 없거나 구간으로 다룰 수 없는 그리드, 범위 밖 BPM·박 번호, Camelot이 아닌 키, 빈 제목, 쓰기 규칙을 확인하지 않은 칸(동기화 곡·재생 목록에 든 곡의 평점 등, `TagWriteScope`), 비교하지 않은 곡(스트리밍·지운 곡)이 든 목록, 이름이 겹친 폴더.
 
 ## USB 내보내기(`usb-export`)
 

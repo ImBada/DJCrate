@@ -6,14 +6,17 @@ import RekordboxKit
 /// `djc xml-diff`: 다른 도구·rekordbox가 만든 rekordbox XML을 스냅샷 사본과 비교한다(#72 가져오기). 읽기만 한다.
 /// 곡은 파일 경로로 맞추고, 큐·그리드·태그·재생 목록의 차이를 종류별로 센다(규칙은 `XMLLibraryDiff`).
 enum XMLDiffCommand {
-    static let command = Command("xml-diff", "--db <사본.db> --xml <파일.xml> [--share <폴더> | --no-analysis] [--limit N] [--json]",
-                                 String(ui: "rekordbox XML과 라이브러리의 차이를 본다(읽기만)")) { args in
+    static let command = Command("xml-diff", "--db <사본.db> --xml <파일.xml> [--share <폴더> | --no-analysis] [--limit N] [--json] [--draft [--only cue,grid,tag,playlist]]",
+                                 String(ui: "rekordbox XML과 라이브러리의 차이를 본다(읽기만, --draft면 고른 차이를 초안으로)")) { args in
         let request = try request(args)
         let report = try report(request)
         if request.json {
             FileHandle.standardOutput.write(try json(report) + Data("\n".utf8))
         } else {
             for line in lines(report, limit: request.limit) { print(line) }
+        }
+        if request.draft {
+            for line in try makeDrafts(report, request: request, home: try draftHome()) { print(line) }
         }
     }
 
@@ -27,9 +30,15 @@ enum XMLDiffCommand {
         var json = false
         /// 글 출력에서 곡·재생 목록을 몇 개까지 적을지
         var limit = 50
+        /// 차이를 DJCrate 초안으로 만든다(DJC_HOME 아래 초안 폴더에만 쓴다)
+        var draft = false
+        /// 초안으로 만들 종류(`--only`)
+        var kinds: Set<XMLImportDrafts.Kind> = Set(XMLImportDrafts.Kind.allCases)
     }
 
     struct Report {
+        var snapshot: URL
+        var share: URL?
         var xml: XMLLibrary
         var library: XMLLibrary
         var diff: XMLLibraryDiff.Result
@@ -41,11 +50,11 @@ enum XMLDiffCommand {
         while index < args.count {
             let arg = args[index]
             switch arg {
-            case "--db", "--xml", "--share", "--limit":
+            case "--db", "--xml", "--share", "--limit", "--only":
                 guard values[arg] == nil, index + 1 < args.count, !args[index + 1].hasPrefix("--"), !args[index + 1].isEmpty else { throw UsageError() }
                 values[arg] = args[index + 1]
                 index += 1
-            case "--json", "--no-analysis":
+            case "--json", "--no-analysis", "--draft":
                 guard flags.insert(arg).inserted else { throw UsageError() }
             default:
                 throw UsageError()
@@ -60,8 +69,19 @@ enum XMLDiffCommand {
             guard let value = Int(text), value >= 0 else { throw UsageError() }
             limit = value
         }
+        // JSON 출력에 초안 결과 줄이 섞이지 않게 함께 받지 않는다
+        guard !(flags.contains("--json") && flags.contains("--draft")) else { throw UsageError() }
+        var kinds = Set(XMLImportDrafts.Kind.allCases)
+        if let text = values["--only"] {
+            // 종류를 고르는 것은 초안을 만들 때만 뜻이 있다
+            guard flags.contains("--draft") else { throw UsageError() }
+            let parsed = text.split(separator: ",").map { XMLImportDrafts.Kind(rawValue: String($0)) }
+            guard !parsed.isEmpty, parsed.allSatisfy({ $0 != nil }) else { throw UsageError() }
+            kinds = Set(parsed.compactMap { $0 })
+        }
         return Request(database: URL(filePath: db), xml: URL(filePath: xml), share: values["--share"].map { URL(filePath: $0) },
-                       noAnalysis: flags.contains("--no-analysis"), json: flags.contains("--json"), limit: limit)
+                       noAnalysis: flags.contains("--no-analysis"), json: flags.contains("--json"), limit: limit,
+                       draft: flags.contains("--draft"), kinds: kinds)
     }
 
     /// 라이브 DB를 먼저 거부하고(DB·XML을 열기 전), XML과 사본을 읽어 비교한다.
@@ -74,7 +94,7 @@ enum XMLDiffCommand {
         let share = try XMLExportCommand.shareRoot(share: request.share, noAnalysis: request.noAnalysis, snapshot: snapshot)
         let xml = try RekordboxXMLReader.read(url: request.xml)
         let library = try RekordboxXMLImport.library(snapshot: snapshot, shareRoot: share)
-        return Report(xml: xml, library: library, diff: XMLLibraryDiff.compute(xml: xml, library: library))
+        return Report(snapshot: snapshot, share: share, xml: xml, library: library, diff: XMLLibraryDiff.compute(xml: xml, library: library))
     }
 
     // MARK: - 글
@@ -121,6 +141,44 @@ enum XMLDiffCommand {
             parts.append(String(ui: "태그 \(track.tags.map(\.key.label).joined(separator: "·"))"))
         }
         return "\(track.path) — \(track.title): \(parts.joined(separator: " · "))"
+    }
+
+    // MARK: - 초안
+
+    /// DJC_HOME(없으면 사용자 데이터 폴더). 링크를 따라 초안 폴더 밖을 고치지 않는다(`djc draft`와 같은 확인).
+    static func draftHome() throws -> URL {
+        let home = DJCPaths.userData.resolvingSymlinksInPath().standardizedFileURL
+        for name in ["cue-drafts", "grid-drafts", "tag-drafts", "playlist-drafts.json"] {
+            let url = home.appending(path: name)
+            guard url.resolvingSymlinksInPath().standardizedFileURL == url.standardizedFileURL else {
+                throw ReadFailure("invalid_arguments", String(ui: "초안 폴더나 파일의 심볼릭 링크를 해제하세요"))
+            }
+        }
+        return home
+    }
+
+    /// 차이를 초안으로 만들어 `home` 아래 초안 폴더에만 쓴다. 기존 초안은 덮지 않고, 초안이 담지 못한 차이는 손실로 알린다.
+    static func makeDrafts(_ report: Report, request: Request, home: URL) throws -> [String] {
+        let folders = XMLImportDraftStore.Folders(home: home)
+        let selection = XMLImportDrafts.Selection(kinds: request.kinds)
+        let playlistBase = PlaylistDraftStore.load(url: folders.playlists)
+        let plan = try XMLImportDraftStore.plan(diff: report.diff, selection: selection, snapshot: report.snapshot,
+                                                shareRoot: report.share, folders: folders)
+        let result = try XMLImportDraftStore.save(plan, folders: folders, playlistBase: playlistBase)
+        let raced = Set(result.raced.map(\.subject))
+        func saved(_ uuids: [String]) -> Int { uuids.filter { !raced.contains($0) }.count }
+        let lists = result.raced.contains { $0.kind == .playlist } ? 0 : plan.playlistLists
+        var lines = [String(ui: "초안을 만들었습니다: 큐 \(saved(plan.cueDrafts.map(\.trackUUID))) · 그리드 \(saved(plan.gridDrafts.map(\.trackUUID))) · 태그 \(saved(plan.tagDrafts.map(\.trackUUID))) · 재생 목록 \(lists)")]
+        let skipped = plan.skipped + result.raced
+        if !skipped.isEmpty { lines.append(String(ui: "기존 초안이 있어 건너뛴 것 \(skipped.count)")) }
+        for note in skipped.prefix(request.limit) { lines.append("• \(note.kind.label) · \(note.subject): \(note.reason)") }
+        if !plan.losses.isEmpty { lines.append(String(ui: "초안에 담지 못한 차이 \(plan.losses.count)")) }
+        for note in plan.losses.prefix(request.limit) { lines.append("• \(note.kind.label) · \(note.subject): \(note.reason)") }
+        if skipped.count > request.limit || plan.losses.count > request.limit {
+            lines.append(String(ui: "일부 줄은 줄였습니다. --limit으로 늘려 보세요"))
+        }
+        lines.append(String(ui: "rekordbox에는 아직 쓰지 않았습니다. DJCrate의 rekordbox에 쓰기에서 미리 보고 쓰세요"))
+        return lines
     }
 
     // MARK: - JSON
