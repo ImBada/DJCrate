@@ -1,4 +1,5 @@
 @testable import DJCStorage
+import RekordboxKit
 import Foundation
 import Testing
 
@@ -23,6 +24,21 @@ struct UsbSyncSnapshotLeaseTests {
         #expect(lease.provenance.sourceURL == source)
         #expect(lease.provenance.snapshotTime == "2026-10-08T00:00:00Z")
         #expect(lease.database != source)
+    }
+
+    /// 이름에 시각이 없는 사본(`--db snapshot.db` 등)은 mtime을 쓰되, 쓰기 단계가 읽는 시간대 있는 ISO 8601이어야 한다
+    @Test func 이름에_시각이_없는_사본은_mtime을_날짜와_시간대까지_적는다() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: "djc-sync-lease-test-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appending(path: "snapshot.db")
+        try Data("합성 A".utf8).write(to: source)
+        let modified = Date(timeIntervalSince1970: 1_791_440_792.154)
+        try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: source.path)
+        let provenance = try UsbSyncSnapshotProvenance.capture(source)
+        let resolved = try UsbSnapshotTime.resolve(explicit: provenance.snapshotTime, database: source)
+        #expect(abs(resolved.date.timeIntervalSince(modified)) < 0.001)
+        #expect(resolved.source == .explicit)
     }
 
     @Test func 목록을_채택한_지문과_다른_DB를_복사하면_거부하고_실패_폴더를_남기지_않는다() throws {

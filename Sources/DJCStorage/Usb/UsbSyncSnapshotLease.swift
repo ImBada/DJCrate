@@ -24,7 +24,9 @@ public struct UsbSyncSnapshotProvenance: Sendable, Equatable {
         try refuseLive(source)
         let fingerprint = try readFingerprint(source)
         let namedTime = LibrarySnapshot.takenAt(source)
-        let time = namedTime?.formatted(.iso8601) ?? fingerprint.modified.formatted(.iso8601.time(includingFractionalSeconds: true))
+        // 이름에 시각이 없으면 mtime. 쓰기 단계(`UsbSnapshotTime.parse`)가 읽도록 날짜·시간대까지 적는다
+        let time = namedTime?.formatted(.iso8601) ?? fingerprint.modified.formatted(.iso8601.year().month().day()
+            .time(includingFractionalSeconds: true).timeZone(separator: .omitted))
         return Self(sourceURL: source, snapshotTime: time, fingerprint: fingerprint)
     }
 
