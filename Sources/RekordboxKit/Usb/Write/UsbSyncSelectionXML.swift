@@ -40,11 +40,12 @@ public enum UsbSyncSelectionXML {
     static let nodeFields = ["Id", "ParentId", "Attribute", "Lib_Type", "Dev_ID", "Timestamp", "CheckType"]
     static let newline = "\r\n"
 
-    /// 원문이 없을 때의 루트 칸. 실험한 USB에서 본 값일 뿐 rekordbox가 새 파일을 만드는 규칙은 확인하지 않았다.
-    /// 생산 쓰기는 새 파일을 막는다(`UsbSyncSelectionStage.newFileBlock`).
-    static let observedRootDefaults = ["AllPlaylists": "0", "IncludeCue": "1", "ForcedSync": "0", "Timestamp": "0"]
+    /// 원문이 없을 때(새 파일)의 루트 칸. 2026-10-08 빈 USB 실험: rekordbox가 처음 만든 두 파일(첫 SYNC 뒤)의 루트가
+    /// 모두 이 값이었다(`AutomaticSync`는 체크 값, `DBID`는 로컬 DBID).
+    static let newFileRootDefaults = ["AllPlaylists": "0", "IncludeCue": "1", "ForcedSync": "0", "Timestamp": "0"]
 
     /// 선언·빈 줄·`<Sync …>`·2칸 `<Playlists>`·4칸 `<NODE …/>`, 줄 끝은 모두 CRLF(마지막 줄 포함).
+    /// 행이 없으면 `  <Playlists/>` 한 줄이다(빈 USB에서 동기화를 켜면 rekordbox가 만든 173바이트 파일, 길이로 확인).
     static func canonical(root: [String: String], nodes: [[String: String]]) throws -> Data {
         func line(_ name: String, _ fields: [String], _ values: [String: String], close: String) throws -> String {
             guard Set(values.keys) == Set(fields) else { throw RenderError.contractMismatch }
@@ -58,9 +59,15 @@ public enum UsbSyncSelectionXML {
             }
             return "<\(name) " + attributes.joined(separator: " ") + close
         }
-        var lines = [#"<?xml version="1.0" encoding="UTF-8"?>"#, "", try line("Sync", rootFields, root, close: ">"), "  <Playlists>"]
-        for node in nodes { lines.append("    " + (try line("NODE", nodeFields, node, close: "/>"))) }
-        lines += ["  </Playlists>", "</Sync>"]
+        var lines = [#"<?xml version="1.0" encoding="UTF-8"?>"#, "", try line("Sync", rootFields, root, close: ">")]
+        if nodes.isEmpty {
+            lines.append("  <Playlists/>")
+        } else {
+            lines.append("  <Playlists>")
+            for node in nodes { lines.append("    " + (try line("NODE", nodeFields, node, close: "/>"))) }
+            lines.append("  </Playlists>")
+        }
+        lines.append("</Sync>")
         return Data((lines.joined(separator: newline) + newline).utf8)
     }
 
@@ -84,14 +91,18 @@ public enum UsbSyncSelectionXML {
             root = file.rootAttributes
             original = file
         } else {
-            root = observedRootDefaults
+            root = newFileRootDefaults
             root["DBID"] = databaseID
         }
         // 동기화 켜짐 말고 루트 칸(AllPlaylists·IncludeCue·ForcedSync·Timestamp)은 SYNC로 바뀌지 않았다.
         root["AutomaticSync"] = draft.enabled ? "1" : "0"
         if draft.enabledOnly {
-            // 켜짐만 바꿀 때는 rekordbox처럼 다른 칸·NODE를 그대로 둔다.
-            guard let original else { throw RenderError.invalidSource }
+            // 켜짐만 바꿀 때는 rekordbox처럼 다른 칸·NODE를 그대로 둔다. 파일이 없는 USB에서 켜면 rekordbox처럼
+            // 행 없는 파일을 만들고, 끄는 것은 만들 파일이 없다(`UsbSyncSelectionStage.writesNothing`).
+            guard let original else {
+                guard draft.enabled else { throw RenderError.invalidSource }
+                return try canonical(root: root, nodes: [])
+            }
             return try canonical(root: root, nodes: original.nodes.map(\.attributes))
         }
         if original?.nodes.contains(where: { ![0, 1].contains($0.libraryType) }) == true { throw RenderError.contractMismatch }

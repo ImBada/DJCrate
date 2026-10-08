@@ -78,7 +78,7 @@ struct UsbSyncPlanTests {
         #expect(UsbSyncPlan.selectedLayout(source, selection: selection).outline.map(\.id) == ["folder", "one"])
     }
 
-    @Test("이름·부모가 바뀐 원본은 rekordbox처럼 새 USB 목록을 만들고 옛 목록은 옮기거나 지우지 않는다")
+    @Test("이름이 바뀐 원본은 rekordbox처럼 새 USB 목록을 만들고 옛 목록은 옮기거나 지우지 않는다")
     func renamedSourceCreatesNewPlaylistAndKeepsOld() throws {
         let source = layout([item("new-parent", "남길 폴더", folder: true),
                              item("local-list", "바꾼 목록 이름", parent: "new-parent")])
@@ -86,11 +86,13 @@ struct UsbSyncPlanTests {
                            playlist(11, "예전 목록 이름", parent: 10),
                            playlist(20, "남길 폴더", folder: true, order: 1)])
         let bindings = ["local-list": UsbSyncPlaylistBinding(usbID: 11, path: ["옛 폴더", "예전 목록 이름"], isFolder: false)]
+        // 지난 선택 파일 행으로 이었어도 원본이 아직 선택돼 있으니 옛 목록은 지우지 않는다(2026-10-08 정상 USB 실험).
         let plan = try UsbSyncPlan.build(source: source, selection: ITunesSyncSelection(selectedIDs: ["local-list"]),
-                                        library: usb, matches: [:], badges: [:], bindings: bindings, newKey: { "renamed" })
+                                        library: usb, matches: [:], badges: [:], bindings: bindings,
+                                        linkedPlaylistIDs: ["local-list": 11], newKey: { "renamed" })
         #expect(plan.edits == [.playlist(edit: .create(key: "renamed", name: "바꾼 목록 이름", isFolder: false, parent: .id("20")))])
         #expect(plan.playlistRefs == ["new-parent": .id("20"), "local-list": .new("renamed")])
-        #expect(plan.unlinkedPlaylistCount == 2)
+        #expect(plan.unlinkedPlaylistCount == 2 && plan.deletedPlaylists.isEmpty)
     }
 
     @Test("이름과 위치가 그대로면 저장한 연결의 USB 목록을 쓴다")
@@ -115,8 +117,9 @@ struct UsbSyncPlanTests {
         #expect(plan.edits == [.playlist(edit: .create(key: "fresh", name: "같은 이름", isFolder: false, parent: .root))])
     }
 
-    @Test("옛 부모에 이어진 목록을 새 폴더로 옮기지 않고 어느 목록에도 없는 곡만 뺄 곡으로 알린다")
-    func movedSourceKeepsOldTreeAndReportsOrphans() throws {
+    /// 2026-10-08 정상 USB 실험: 옮긴 원본은 SYNC 뒤 새 자리에만 보이고 옛 자리에 남지 않았다.
+    @Test("이름이 같은 원본을 옮기면 이은 USB 목록을 새 자리로 옮기고 어느 목록에도 없는 곡만 뺄 곡으로 알린다")
+    func movedSourceMovesLinkedPlaylistAndReportsOrphans() throws {
         let source = layout([item("new-parent", "새 폴더", folder: true),
                              item("local-list", "남길 목록", parent: "new-parent", tracks: ["local-one"])])
         let usb = library([playlist(10, "옛 폴더", folder: true),
@@ -124,21 +127,22 @@ struct UsbSyncPlanTests {
                            playlist(12, "선택하지 않은 목록", parent: 10, order: 1, tracks: [2])],
                           tracks: [1, 2, 3, 4], history: [4])
         let bindings = ["local-list": UsbSyncPlaylistBinding(usbID: 11, path: ["옛 폴더", "남길 목록"], isFolder: false)]
-        var keys = ["folder-key", "list-key"].makeIterator()
+        var keys = ["folder-key"].makeIterator()
         let plan = try UsbSyncPlan.build(source: source, selection: ITunesSyncSelection(selectedIDs: ["local-list"]),
                                         library: usb, matches: [1: "local-one"], badges: [:], bindings: bindings,
                                         newKey: { keys.next()! })
-        #expect(plan.edits == [.playlist(edit: .create(key: "folder-key", name: "새 폴더", isFolder: true, parent: .root)),
-                               .playlist(edit: .create(key: "list-key", name: "남길 목록", isFolder: false, parent: .new("folder-key"))),
-                               .syncPlaylist(playlist: .new("list-key"), localContentIDs: ["local-one"])])
-        #expect(plan.unlinkedPlaylistCount == 3)
+        #expect(plan.edits == [.playlist(edit: .move(playlist: .id("11"), into: .root)),
+                               .playlist(edit: .create(key: "folder-key", name: "새 폴더", isFolder: true, parent: .root)),
+                               .playlist(edit: .move(playlist: .id("11"), into: .new("folder-key")))])
+        #expect(plan.playlistRefs == ["new-parent": .new("folder-key"), "local-list": .id("11")])
+        #expect(plan.unlinkedPlaylistCount == 2)
         #expect(plan.trackIDs == ["local-one"])
         // 3은 어느 목록에도 없다. 4는 재생 기록에 있어 곡 빼기가 막으므로 넣지 않는다. 곡 빼기는 확인 뒤 모델이 더한다.
         #expect(plan.orphanTrackIDs == [3])
         #expect(!plan.edits.contains { if case .removeTracks = $0 { true } else { false } })
     }
 
-    @Test("전체 해제는 USB 목록을 지우지 않고 연결만 끊는다")
+    @Test("선택 파일 행으로 이은 적 없는 USB 목록은 전체 해제해도 지우지 않는다")
     func clearingSelectionKeepsUsbPlaylists() throws {
         let usb = library([playlist(10, "폴더", folder: true),
                            playlist(11, "하위 목록", parent: 10, tracks: [1]),
@@ -148,6 +152,96 @@ struct UsbSyncPlanTests {
         #expect(plan.edits.isEmpty)
         #expect(plan.unlinkedPlaylistCount == 3)
         #expect(plan.trackIDs.isEmpty && plan.orphanTrackIDs.isEmpty)
+    }
+
+    // MARK: - 2026-10-08 정상 USB 실험(장치 동기화 켜짐, 두 형식이 맞는 USB)
+
+    @Test("선택에서 뺀 원본에 지난 선택 파일 행으로 이었던 USB 목록은 지우고 그 곡은 뺄 곡으로 알린다")
+    func uncheckedLinkedPlaylistIsDeleted() throws {
+        let source = layout([item("folder", "시험 폴더", folder: true),
+                             item("x", "X", parent: "folder"),
+                             item("y", "Y", tracks: ["local-two"])])
+        let usb = library([playlist(10, "시험 폴더", folder: true),
+                           playlist(11, "X", parent: 10),
+                           playlist(12, "Y", order: 1, tracks: [2]),
+                           playlist(13, "USB에만 있는 목록", order: 2, tracks: [3])], tracks: [2, 3])
+        let linked = ["folder": 10, "x": 11, "y": 12]
+        let bindings = linked.mapValues { UsbSyncPlaylistBinding(usbID: $0, path: [], isFolder: $0 == 10) }
+        let plan = try UsbSyncPlan.build(source: source, selection: ITunesSyncSelection(selectedIDs: ["folder"]),
+                                        library: usb, matches: [2: "local-two"], badges: [:], bindings: bindings,
+                                        linkedPlaylistIDs: linked)
+        #expect(plan.edits == [.playlist(edit: .delete(playlist: .id("12")))])
+        #expect(plan.deletedPlaylists.map(\.id) == ["12"])
+        // 이은 적 없는 USB 목록은 남는다. 지운 목록에만 있던 곡은 확인을 받고 뺄 곡이 된다.
+        #expect(plan.unlinkedPlaylistCount == 1)
+        #expect(plan.orphanTrackIDs == [2])
+    }
+
+    @Test("로컬에서 지운 원본의 USB 목록은 지우고 같은 이름의 새 원본에 잇지 않는다")
+    func removedSourcePlaylistIsDeletedAndNotReused() throws {
+        let source = layout([item("fresh", "X2")])
+        let usb = library([playlist(11, "X2")])
+        let plan = try UsbSyncPlan.build(source: source, selection: ITunesSyncSelection(selectedIDs: ["fresh"]),
+                                        library: usb, matches: [:], badges: [:], bindings: [:],
+                                        removedPlaylistIDs: [11], newKey: { "fresh-key" })
+        #expect(plan.playlistRefs == ["fresh": .new("fresh-key")])
+        #expect(plan.edits == [.playlist(edit: .create(key: "fresh-key", name: "X2", isFolder: false, parent: .root)),
+                               .playlist(edit: .delete(playlist: .id("11")))])
+    }
+
+    @Test("지울 폴더 안에 연결 없는 목록이 남으면 폴더는 남기고 안의 이은 목록만 지운다")
+    func folderWithUnlinkedChildStays() throws {
+        // 시험 폴더(10)를 로컬에서 지웠다. 안에는 이름을 바꾸기 전의 옛 X(11, 연결 없음)와 지운 X2(12)가 있었다.
+        let usb = library([playlist(10, "시험 폴더", folder: true),
+                           playlist(11, "X", parent: 10),
+                           playlist(12, "X2", parent: 10, order: 1)])
+        let plan = try UsbSyncPlan.build(source: PlaylistLayout(), selection: ITunesSyncSelection(), library: usb,
+                                        matches: [:], badges: [:], bindings: [:], removedPlaylistIDs: [10, 12])
+        #expect(plan.edits == [.playlist(edit: .delete(playlist: .id("12")))])
+        #expect(plan.unlinkedPlaylistCount == 2)
+    }
+
+    @Test("지울 폴더 안이 모두 지울 목록이면 폴더 하나만 지운다")
+    func fullyLinkedFolderIsDeletedOnce() throws {
+        let source = layout([item("folder", "폴더", folder: true), item("a", "A", parent: "folder"),
+                             item("sub", "하위", parent: "folder", folder: true), item("b", "B", parent: "sub")])
+        let usb = library([playlist(10, "폴더", folder: true), playlist(11, "A", parent: 10),
+                           playlist(12, "하위", parent: 10, folder: true, order: 1), playlist(13, "B", parent: 12)])
+        let linked = ["folder": 10, "a": 11, "sub": 12, "b": 13]
+        let plan = try UsbSyncPlan.build(source: source, selection: ITunesSyncSelection(), library: usb, matches: [:],
+                                        badges: [:], bindings: [:], linkedPlaylistIDs: linked)
+        #expect(plan.edits == [.playlist(edit: .delete(playlist: .id("10")))])
+        #expect(plan.deletedPlaylists.map(\.id) == ["10"] && plan.unlinkedPlaylistCount == 0)
+    }
+
+    @Test("옮긴 원본은 이은 목록을 새 자리로 옮기고 남은 폴더와 다른 목록은 그대로 둔다")
+    func movedOutOfFolderKeepsFolder() throws {
+        // Y를 시험 폴더 밖 맨 위로 옮겼다. 폴더와 X2는 계속 선택돼 있다.
+        let source = layout([item("folder", "시험 폴더", folder: true), item("x2", "X2", parent: "folder"), item("y", "Y")])
+        let usb = library([playlist(10, "시험 폴더", folder: true), playlist(11, "Y", parent: 10),
+                           playlist(12, "X2", parent: 10, order: 1)])
+        let linked = ["folder": 10, "y": 11, "x2": 12]
+        let bindings = linked.mapValues { UsbSyncPlaylistBinding(usbID: $0, path: [], isFolder: $0 == 10) }
+        let plan = try UsbSyncPlan.build(source: source, selection: ITunesSyncSelection(selectedIDs: ["0"]), library: usb,
+                                        matches: [:], badges: [:], bindings: bindings, linkedPlaylistIDs: linked)
+        #expect(plan.edits == [.playlist(edit: .move(playlist: .id("11"), into: .root))])
+        #expect(plan.deletedPlaylists.isEmpty && plan.unlinkedPlaylistCount == 0)
+    }
+
+    @Test("동기화 후 미리 보기는 새로 만든 목록·옮긴 목록·연결 없는 목록과 지울 목록을 쓰기 계획과 같게 보인다")
+    func previewMarksMatchPlan() throws {
+        let source = layout([item("folder", "시험 폴더", folder: true), item("x2", "X2", parent: "folder"), item("y", "Y")])
+        let usb = library([playlist(10, "시험 폴더", folder: true), playlist(11, "X", parent: 10),
+                           playlist(12, "Y", parent: 10, order: 1), playlist(13, "Z", order: 1)])
+        let linked = ["folder": 10, "x2": 11, "y": 12, "z": 13]
+        let bindings = linked.mapValues { UsbSyncPlaylistBinding(usbID: $0, path: [], isFolder: $0 == 10) }
+        let desired = UsbSyncPlan.selectedLayout(source, selection: ITunesSyncSelection(selectedIDs: ["0"]))
+        let preview = try UsbSyncPlan.playlistPlan(desired: desired, library: usb, bindings: bindings, linkedPlaylistIDs: linked,
+                                                   newKey: { "renamed" })
+        #expect(preview.marks == ["new:renamed": .created, "12": .moved, "11": .unlinked])
+        #expect(preview.deleted.map(\.name) == ["Z"])
+        #expect(UsbSyncPreviewMark.created.note == "새로 만듦" && UsbSyncPreviewMark.moved.note == "옮김")
+        #expect(preview.result.outline.map(\.id) == ["10", "11", "new:renamed", "12"])
     }
 
     @Test("이은 목록끼리만 원본 순서로 맞추고 남은 목록은 그 자리에 둔다")

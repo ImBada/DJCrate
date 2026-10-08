@@ -42,10 +42,10 @@ extension UsbEditActionsTests {
                                             "A": .init(usbID: 10, path: ["A"], isFolder: true),
                                             "B": .init(usbID: 20, path: ["A", "B"], isFolder: true),
                                         ], newKey: { keys.next()! })
-        // 위치가 바뀐 원본은 rekordbox처럼 새 USB 폴더로 만들고 옛 폴더는 옮기지 않는다.
+        // 이름이 같은 원본을 옮기면 rekordbox처럼 이은 USB 폴더를 새 자리로 옮긴다(2026-10-08 정상 USB 실험).
         #expect(plan.edits == [
-            .playlist(edit: .create(key: "B-key", name: "B", isFolder: true, parent: .root)),
-            .playlist(edit: .create(key: "A-key", name: "A", isFolder: true, parent: .new("B-key"))),
+            .playlist(edit: .move(playlist: .id("20"), into: .root)),
+            .playlist(edit: .move(playlist: .id("10"), into: .id("20"))),
         ])
         #expect(UsbEditActions.blockReason(plan.edits, volume: nil, library: library, info: nil) == nil)
         // 묶음 검사는 작성 순서대로 얹은 트리로 본다(손으로 만든 재부모화 묶음).

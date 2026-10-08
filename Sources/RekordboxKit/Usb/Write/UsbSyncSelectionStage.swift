@@ -24,11 +24,20 @@ public enum UsbSyncSelectionStage {
         UsbSyncXMLWriteContract.production == nil ? unverifiedBlock : nil
     }
 
-    /// 생산 쓰기의 관문. 확인한 규칙은 rekordbox가 만든 파일을 고쳐 쓰는 것뿐이라 새 파일 만들기는 막는다.
+    /// 생산 쓰기의 관문. 선택 파일은 USB에 있는 형식마다 하나씩이다. 모두 있으면 고쳐 쓰고, 모두 없으면 새로 만든다
+    /// (2026-10-08 빈 USB 실험: rekordbox도 첫 SYNC에서 두 형식의 파일을 함께 만들었다). 두 형식 중 한쪽만 있으면
+    /// 어느 쪽이 맞는지 모르므로 막는다.
     /// - baseFiles: 선택 창을 열 때 읽은 두 선택 파일(없는 형식은 키가 없다)
+    /// - formats: USB에 있는(내보내기는 만들) 형식
     public static func gateBlock(baseFiles: [UsbFormat: Data], formats: Set<UsbFormat>) -> UsbBlock? {
         if let productionBlock { return productionBlock }
-        return formats.allSatisfy { baseFiles[$0] != nil } ? nil : newFileBlock
+        let present = formats.filter { baseFiles[$0] != nil }
+        return present.isEmpty || present == formats ? nil : partialFilesBlock
+    }
+
+    /// 선택 파일이 없는 USB에서 동기화를 끄기만 하는 초안. rekordbox도 이때는 파일을 만들지 않는다.
+    public static func writesNothing(_ draft: UsbSyncSelectionDraft, formats: Set<UsbFormat>) -> Bool {
+        draft.enabledOnly && !draft.enabled && formats.allSatisfy { draft.baseFiles[$0] == nil }
     }
 
     public static func isSelectionPath(_ path: String) -> Bool {
@@ -40,9 +49,9 @@ public enum UsbSyncSelectionStage {
                  message: String(ui: "rekordbox의 동기화 선택 파일 갱신 규칙을 아직 확인하지 못했습니다. rekordbox에서 선택을 바꿔 동기화한 전후 파일을 확인한 뒤 다시 시도하세요"))
     }
 
-    static var newFileBlock: UsbBlock {
-        UsbBlock(code: "syncSelectionNewFile", scope: .volume,
-                 message: String(ui: "이 USB에는 rekordbox의 동기화 선택 파일이 없습니다. rekordbox의 동기화 관리자에서 이 USB를 한 번 동기화한 뒤 다시 시도하세요"))
+    static var partialFilesBlock: UsbBlock {
+        UsbBlock(code: "syncSelectionPartialFiles", scope: .volume,
+                 message: String(ui: "이 USB에는 두 형식 중 한 형식의 동기화 선택 파일만 있습니다. rekordbox의 동기화 관리자에서 이 USB를 다시 동기화해 두 파일을 맞춘 뒤 다시 시도하세요"))
     }
 
     static var sourceNodeBlock: UsbBlock {

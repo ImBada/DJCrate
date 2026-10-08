@@ -3,13 +3,46 @@ import DJCStorage
 import Foundation
 import RekordboxKit
 
-/// 선택한 로컬 트리를 USB 편집으로 만든다. rekordbox처럼 선택에서 뺀 USB 목록은 지우지 않고 연결만 끊는다.
+/// 동기화 뒤 USB 목록 미리 보기의 표시
+enum UsbSyncPreviewMark: Hashable, Sendable {
+    /// 새로 만든다(이름을 바꾼 원본도 새 목록이 된다)
+    case created
+    /// 이은 USB 목록을 새 자리로 옮긴다
+    case moved
+    /// 어느 원본에도 잇지 않고 그대로 남는다(rekordbox 장치 트리에서 회색)
+    case unlinked
+
+    var note: String? {
+        switch self {
+        case .created: String(ui: "새로 만듦")
+        case .moved: String(ui: "옮김")
+        case .unlinked: nil
+        }
+    }
+}
+
+/// 재생 목록 편집만 계획한 결과(곡 편집 없이 미리 보기에도 쓴다)
+struct UsbSyncPlaylistPlan: Sendable {
+    var edits: [PlaylistEdit]
+    /// 원본 목록 ID → 기존 USB 목록 또는 같은 묶음에서 만든 목록
+    var refs: [String: PlaylistRef]
+    /// 편집을 얹은 USB 목록 트리
+    var result: PlaylistLayout
+    /// 지우는 USB 목록(폴더면 안에 든 것까지 함께 지운다). 편집 전 트리의 항목
+    var deleted: [PlaylistLayout.Item]
+    var marks: [String: UsbSyncPreviewMark]
+}
+
+/// 선택한 로컬 트리를 USB 편집으로 만든다. rekordbox처럼(2026-10-08 정상 USB 실험) 지난 선택 파일 행으로 이어졌던 USB 목록은
+/// 원본을 선택에서 빼거나 로컬에서 지우면 지우고, 이름을 바꾼 원본은 새 목록을 만들어 옛 목록을 연결 없이 남긴다.
 struct UsbSyncPlan: Sendable {
     var edits: [UsbLibraryEdit]
     var layout: PlaylistLayout
     var trackIDs: [String]
     /// 동기화에 잇지 않고 USB에 그대로 남는 목록·폴더 수(rekordbox 장치 트리에서 회색)
     var unlinkedPlaylistCount: Int
+    /// 지우는 USB 목록(폴더면 안에 든 것까지)
+    var deletedPlaylists: [PlaylistLayout.Item] = []
     /// 동기화 뒤 USB의 어느 목록에도 없는 곡. rekordbox처럼 확인을 받은 뒤에만 USB에서 뺀다.
     var orphanTrackIDs: [Int] = []
     /// 원본 목록 ID → 기존 USB 목록 또는 같은 묶음에서 만든 목록
@@ -76,16 +109,35 @@ struct UsbSyncPlan: Sendable {
     /// 읽기 실패를 정상적인 빈 선택으로 계획하기 전에 막는다.
     static func build(source: UsbSyncSource, selection: ITunesSyncSelection, library: UsbLibrary,
                       matches: [Int: String], badges: [Int: UsbSyncStatus], bindings: [String: UsbSyncPlaylistBinding],
+                      linkedPlaylistIDs: [String: Int] = [:], removedPlaylistIDs: Set<Int> = [],
                       newKey: () -> String = { "sync-" + UUID().uuidString.lowercased() }) throws -> UsbSyncPlan {
         if let reason = source.blockReason(selection: selection) { throw PlaylistLayout.Blocked(reason) }
         return try build(source: source.layout, selection: selection, library: library, matches: matches,
-                         badges: badges, bindings: bindings, newKey: newKey)
+                         badges: badges, bindings: bindings, linkedPlaylistIDs: linkedPlaylistIDs,
+                         removedPlaylistIDs: removedPlaylistIDs, newKey: newKey)
     }
 
+    /// - linkedPlaylistIDs: 지난 선택 파일 행이 이은 원본 ID → USB 목록 번호(두 형식이 같은 번호인 것만)
+    /// - removedPlaylistIDs: 로컬에서 지운 원본의 행이 가리키던 USB 목록 번호
     static func build(source: PlaylistLayout, selection: ITunesSyncSelection, library: UsbLibrary,
                       matches: [Int: String], badges: [Int: UsbSyncStatus], bindings: [String: UsbSyncPlaylistBinding],
+                      linkedPlaylistIDs: [String: Int] = [:], removedPlaylistIDs: Set<Int> = [],
                       newKey: () -> String = { "sync-" + UUID().uuidString.lowercased() }) throws -> UsbSyncPlan {
         let desired = selectedLayout(source, selection: selection)
+        let playlists = try playlistPlan(desired: desired, library: library, bindings: bindings, linkedPlaylistIDs: linkedPlaylistIDs,
+                                         removedPlaylistIDs: removedPlaylistIDs, newKey: newKey)
+        let refs = playlists.refs, working = playlists.result
+        let edits: [UsbLibraryEdit] = playlists.edits.map { .playlist(edit: $0) }
+        let keep = Set(refs.values.map(\.description))
+        let unlinked = working.outline.filter { !keep.contains($0.id) }
+        return try tracks(desired: desired, library: library, matches: matches, badges: badges, refs: refs, working: working,
+                          unlinked: unlinked, edits: edits, deleted: playlists.deleted)
+    }
+
+    /// 재생 목록 편집만 계획한다. 미리 보기와 쓰기가 같은 규칙을 쓴다.
+    static func playlistPlan(desired: PlaylistLayout, library: UsbLibrary, bindings: [String: UsbSyncPlaylistBinding],
+                             linkedPlaylistIDs: [String: Int] = [:], removedPlaylistIDs: Set<Int> = [],
+                             newKey: () -> String) throws -> UsbSyncPlaylistPlan {
         let desiredPaths = Dictionary(grouping: desired.outline, by: { path($0, in: desired) })
         guard !desiredPaths.values.contains(where: { $0.count > 1 }) else {
             throw PlaylistLayout.Blocked(String(ui: "같은 폴더에 이름이 같은 재생 목록이 있습니다. 이름을 다르게 바꾼 뒤 동기화하세요"))
@@ -94,20 +146,27 @@ struct UsbSyncPlan: Sendable {
         guard working.outline.count == working.items.count else {
             throw PlaylistLayout.Blocked(String(ui: "USB 재생 목록의 부모 관계가 맞지 않습니다. rekordbox에서 USB를 확인한 뒤 다시 동기화하세요"))
         }
-        // 선택에서 뺀 목록이 남으므로 USB에는 이름이 같은 목록이 있을 수 있다. 이름으로 이어야 할 때만 모호함을 막는다.
+        let before = working
+        // 이름을 바꾼 원본의 옛 목록처럼 연결 없이 남은 목록이 있어 USB에는 이름이 같은 목록이 있을 수 있다.
+        // 이름으로 이어야 할 때만 모호함을 막는다.
         let byPath = Dictionary(grouping: working.outline, by: { path($0, in: working) })
         var refs: [String: PlaylistRef] = [:], retained = Set<String>()
-        // 다른 원본에 이어진 USB 목록은 이름이 같아도 이 원본에 잇지 않는다.
-        let linked = Set(bindings.map { String($0.value.usbID) })
+        // 다른 원본에 이어진(지운 원본 포함) USB 목록은 이름이 같아도 이 원본에 잇지 않는다.
+        let linked = Set(bindings.map { String($0.value.usbID) } + linkedPlaylistIDs.values.map(String.init)
+            + removedPlaylistIDs.map(String.init))
         for item in desired.outline {
             var match: PlaylistLayout.Item?
             let wanted = path(item, in: desired)
             if let bound = bindings[item.id], let old = working.item(String(bound.usbID)),
-               old.isFolder == bound.isFolder, !old.isSmart, path(old, in: working) == wanted {
+               old.isFolder == bound.isFolder, !old.isSmart, UsbLayout.nfc(old.name) == UsbLayout.nfc(item.name) {
+                // 이름이 같으면 위치가 바뀌어도 이은 목록을 새 자리로 옮긴다(항목 유지). rekordbox도 옮긴 원본은
+                // 새 자리에만 보이고 옛 자리에 남기지 않았다(2026-10-08 정상 USB 실험).
                 match = old
-            } else if let candidates = byPath[wanted]?.filter({ bindings[item.id]?.usbID == Int($0.id) || !linked.contains($0.id) }),
+            } else if let candidates = byPath[wanted]?.filter({
+                bindings[item.id]?.usbID == Int($0.id) || linkedPlaylistIDs[item.id] == Int($0.id) || !linked.contains($0.id)
+            }),
                       !candidates.isEmpty {
-                // 이름·위치가 바뀐 원본은 rekordbox처럼 새 USB 목록으로 만든다(옛 목록은 남는다).
+                // 이름이 바뀐 원본은 rekordbox처럼 새 USB 목록으로 만든다(옛 목록은 연결 없이 남는다, 2026-10-08 실험).
                 // 바뀐 자리에 잇지 않은 USB 목록이 이미 있을 때만 그 목록에 잇는다(rekordbox 동작은 확인하지 않음).
                 guard candidates.count == 1 else {
                     throw PlaylistLayout.Blocked(String(ui: "USB의 같은 폴더에 이름이 같은 재생 목록이 있습니다. 이름을 다르게 바꾼 뒤 동기화하세요"))
@@ -123,7 +182,7 @@ struct UsbSyncPlan: Sendable {
                 refs[item.id] = .new(newKey())
             }
         }
-        var edits: [UsbLibraryEdit] = []
+        var edits: [PlaylistEdit] = []
         func append(_ edit: PlaylistEdit) throws {
             let previousCount = edit.destination.map { working.childIDs(of: $0 == .root ? PlaylistLayout.root : $0.description).count }
             try working.apply(edit)
@@ -131,7 +190,7 @@ struct UsbSyncPlan: Sendable {
             if case let .create(key, _, _, _) = edit, let previousCount {
                 try working.apply(.reorder(playlist: .new(key), index: previousCount))
             }
-            edits.append(.playlist(edit: edit))
+            edits.append(edit)
         }
         // 옮길 항목을 먼저 맨 위로 꺼내 두면 폴더의 부모·자식을 바꾸어도 순환하지 않는다.
         for item in desired.outline {
@@ -152,9 +211,26 @@ struct UsbSyncPlan: Sendable {
             case .root: break
             }
         }
-        // 선택에서 뺀 USB 목록은 지우지 않는다(rekordbox는 선택 파일의 행만 빼고 장치 목록은 남긴다, 2026-10-08 실험).
+        // 지난 선택 파일 행으로 이었던 USB 목록 중 원본을 선택에서 빼거나 로컬에서 지운 것은 지운다(rekordbox와 같다,
+        // 2026-10-08 정상 USB 실험). 행으로 이은 적 없는 USB 목록과 이름을 바꾼 원본의 옛 목록은 지우지 않는다.
+        // 폴더는 남는 목록이 안에 없을 때만 지운다(연결 없는 목록이 든 폴더는 rekordbox도 남겼다).
         let keep = Set(refs.values.map(\.description))
-        let unlinked = working.outline.filter { !keep.contains($0.id) }
+        let desiredIDs = Set(desired.outline.map(\.id))
+        let doomed = Set((linkedPlaylistIDs.filter { !desiredIDs.contains($0.key) }.map(\.value) + removedPlaylistIDs).map(String.init))
+            .filter { working.item($0) != nil }.subtracting(keep)
+        var removable: [String: Bool] = [:]
+        func isRemovable(_ id: String) -> Bool {
+            if let known = removable[id] { return known }
+            let children = working.childIDs(of: id)
+            let value = doomed.contains(id) && children.allSatisfy(isRemovable)
+            removable[id] = value
+            return value
+        }
+        var deleted: [PlaylistLayout.Item] = []
+        for item in working.outline where isRemovable(item.id) && !working.ancestors(of: item.id).contains(where: { isRemovable($0.id) }) {
+            deleted.append(item)
+        }
+        for item in deleted { try append(.delete(playlist: .id(item.id))) }
         // 이은 목록끼리만 원본 순서로 맞추고, 남은 목록은 그 자리에 둔다.
         let parents = [PlaylistLayout.root] + desired.outline.filter(\.isFolder).map(\.id)
         for parent in parents {
@@ -170,6 +246,19 @@ struct UsbSyncPlan: Sendable {
                 try append(.reorder(playlist: ref, index: index))
             }
         }
+        var marks: [String: UsbSyncPreviewMark] = [:]
+        for item in working.outline {
+            if !keep.contains(item.id) { marks[item.id] = .unlinked }
+            else if item.id.hasPrefix(PlaylistRef.new("").description) { marks[item.id] = .created }
+            else if let old = before.item(item.id), old.parentID != item.parentID { marks[item.id] = .moved }
+        }
+        return UsbSyncPlaylistPlan(edits: edits, refs: refs, result: working, deleted: deleted, marks: marks)
+    }
+
+    static func tracks(desired: PlaylistLayout, library: UsbLibrary, matches: [Int: String], badges: [Int: UsbSyncStatus],
+                       refs: [String: PlaylistRef], working: PlaylistLayout, unlinked: [PlaylistLayout.Item],
+                       edits playlistEdits: [UsbLibraryEdit], deleted: [PlaylistLayout.Item]) throws -> UsbSyncPlan {
+        var edits = playlistEdits
         var seen = Set<String>()
         let trackIDs = desired.outline.filter(\.holdsTracks).flatMap(\.trackIDs).filter { seen.insert($0).inserted }
         let usbByLocal = Dictionary(grouping: matches.keys, by: { matches[$0]! })
@@ -205,6 +294,6 @@ struct UsbSyncPlan: Sendable {
         let history = Set(library.histories.flatMap(\.entries))
         let orphans = library.tracks.map(\.id).filter { !referenced.contains(String($0)) && !history.contains($0) }.sorted()
         return UsbSyncPlan(edits: edits, layout: desired, trackIDs: trackIDs, unlinkedPlaylistCount: unlinked.count,
-                           orphanTrackIDs: orphans, playlistRefs: refs)
+                           deletedPlaylists: deleted, orphanTrackIDs: orphans, playlistRefs: refs)
     }
 }

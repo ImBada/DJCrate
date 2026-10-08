@@ -87,4 +87,27 @@ struct UsbSyncNativeSelectionTests {
         #expect(choice.selection == native)
         #expect(!choice.enabled)
     }
+
+    /// 2026-10-08 빈 USB 실험: rekordbox는 선택 파일이 없는 USB를 동기화 꺼짐으로 열고, 켜면 행 없는 선택 파일을 만든다.
+    @Test("선택 파일과 앱 설정이 없는 USB는 동기화 꺼짐으로 연다")
+    func noNativeFilesStartDisabled() {
+        let choice = UsbSyncPreferenceChoice.resolve(preferences: nil, localDBID: localDBID, hasNativeFiles: false, fingerprint: nil,
+                                                     nativeSelection: native, nativeEnabled: nil, fallbackSelection: app)
+        #expect(choice.selection == app)
+        #expect(!choice.enabled)
+        #expect(!choice.usesSavedPreferences)
+    }
+
+    @Test("닫을 때 켜짐 쓰기: 파일이 없으면 라이브러리가 있는 USB에서 켰을 때만 쓴다")
+    func enabledChangeWithoutNativeFiles() {
+        typealias Model = UsbSyncModel
+        #expect(Model.enabledChanged(hasNativeFiles: false, nativeEnabled: nil, hasLibrary: true, syncPlaylists: true))
+        #expect(!Model.enabledChanged(hasNativeFiles: false, nativeEnabled: nil, hasLibrary: true, syncPlaylists: false))
+        // 라이브러리가 없는 빈 USB는 켜짐만 쓰지 않는다(SYNC 때 DB와 함께 만든다).
+        #expect(!Model.enabledChanged(hasNativeFiles: false, nativeEnabled: nil, hasLibrary: false, syncPlaylists: true))
+        #expect(Model.enabledChanged(hasNativeFiles: true, nativeEnabled: true, hasLibrary: true, syncPlaylists: false))
+        #expect(!Model.enabledChanged(hasNativeFiles: true, nativeEnabled: true, hasLibrary: true, syncPlaylists: true))
+        // 두 파일의 켜짐이 달라 확인하지 못하면 쓰지 않는다.
+        #expect(!Model.enabledChanged(hasNativeFiles: true, nativeEnabled: nil, hasLibrary: true, syncPlaylists: true))
+    }
 }

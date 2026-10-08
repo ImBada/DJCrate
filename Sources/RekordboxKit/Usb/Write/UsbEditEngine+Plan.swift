@@ -140,7 +140,8 @@ extension UsbEditEngine {
         let appliedPlaylistIDs = Set(applied.playlists.map(\.id))
         result.createdPlaylistIDs = planner.newPlaylists.filter { appliedPlaylistIDs.contains($0.value) }
         var syncVerification: UsbSyncSelectionVerification?
-        if let selection = selections.first {
+        // 선택 파일이 없는 USB에서 동기화를 끄기만 하면 쓸 것이 없다(바뀐 것 없음으로 남는다).
+        if let selection = selections.first, !UsbSyncSelectionStage.writesNothing(selection.draft, formats: writable) {
             let incomplete = !result.trackBlocks.isEmpty || planned.contains { if case .blocked = $0.outcome { true } else { false } }
             if incomplete {
                 result.blocks = [UsbSyncSelectionStage.incompleteBlock]

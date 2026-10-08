@@ -65,9 +65,8 @@ struct UsbSyncView: View {
                 transferButtons
                 PlaylistSyncPane(tree: model.targetTree, isLoading: model.isLoading,
                                  emptyMessage: model.targetEmptyMessage,
-                                 dimmed: { [unlinked = model.targetDisplay == .currentUsb ? model.unlinkedUsbIDs : []] node in
-                                     unlinked.contains(node.id)
-                                 }) {
+                                 dimmed: { [dimmed = model.dimmedTargetIDs] node in dimmed.contains(node.id) },
+                                 note: { [marks = model.targetMarks] node in marks[node.id]?.note }) {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text(.ui("USB 동기화 목록")).font(.headline)
@@ -82,6 +81,9 @@ struct UsbSyncView: View {
                         .pickerStyle(.segmented)
                         .disabled(controlsDisabled || !model.syncPlaylists)
                         .accessibilityIdentifier("usb-sync-target-display")
+                        if let summary = model.deletedTargetSummary {
+                            Text(verbatim: summary).font(.caption).foregroundStyle(.orange).lineLimit(2).help(summary)
+                        }
                     }
                 }
                 .disabled(controlsDisabled)

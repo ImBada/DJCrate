@@ -32,16 +32,20 @@ struct PlaylistSyncPane<Node: PlaylistSyncNode, Header: View>: View {
     let selection: PlaylistSyncSelectionControls<Node>?
     /// 동기화에 이어지지 않은 USB 목록처럼 흐리게 보일 칸
     let dimmed: (Node) -> Bool
+    /// 칸 옆에 작게 붙일 설명(동기화 후 미리 보기의 "새로 만듦"·"옮김")
+    let note: (Node) -> String?
     @ViewBuilder let header: () -> Header
 
     init(tree: [Node], isLoading: Bool = false, emptyMessage: String,
          selection: PlaylistSyncSelectionControls<Node>? = nil, dimmed: @escaping (Node) -> Bool = { _ in false },
+         note: @escaping (Node) -> String? = { _ in nil },
          @ViewBuilder header: @escaping () -> Header) {
         self.tree = tree
         self.isLoading = isLoading
         self.emptyMessage = emptyMessage
         self.selection = selection
         self.dimmed = dimmed
+        self.note = note
         self.header = header
     }
 
@@ -54,6 +58,9 @@ struct PlaylistSyncPane<Node: PlaylistSyncNode, Header: View>: View {
                         Label(node.name, systemImage: node.isFolder ? "folder" : "music.note.list")
                             .lineLimit(1).help(node.syncIssue ?? node.name)
                             .foregroundStyle(dimmed(node) ? .secondary : .primary)
+                        if let note = note(node) {
+                            Text(verbatim: note).font(.caption).foregroundStyle(.secondary)
+                        }
                         if let issue = node.syncIssue {
                             Image(systemName: "exclamationmark.triangle")
                                 .foregroundStyle(.orange).help(issue).accessibilityLabel(issue)

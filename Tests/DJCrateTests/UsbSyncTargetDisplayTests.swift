@@ -19,7 +19,8 @@ struct UsbSyncTargetDisplayTests {
     func currentUsbIsVisibleWithoutAnySourceSelection() {
         let model = UsbSyncModel(volumeKey: "synthetic", library: library())
         #expect(model.selection.selectedIDs.isEmpty)
-        #expect(model.previewTree.isEmpty)
+        // 동기화 후 미리 보기도 이은 적 없는 USB 목록을 그대로 남긴다(지우지 않는다).
+        #expect(model.previewTree.map(\.id) == ["7", "9"])
         #expect(model.targetDisplay == .currentUsb)
         #expect(model.targetTree.map(\.name) == ["DJ", "인텔리전트 목록"])
         #expect(model.targetTree.first?.children?.first?.name == "목록")
@@ -30,11 +31,15 @@ struct UsbSyncTargetDisplayTests {
         #expect(model.targetPlaylistCount == 2)
     }
 
-    @Test("모든 목록을 해제한 예상 결과와 USB의 현재 내용은 따로 표시한다")
+    @Test("모든 목록을 해제한 예상 결과는 이은 적 없는 USB 목록을 흐리게 남기고 지울 목록이 없다")
     func emptyPreviewDoesNotEraseTheCurrentUsbDisplay() {
         let model = UsbSyncModel(volumeKey: "synthetic", library: library())
         model.targetDisplay = .afterSync
-        #expect(model.targetTree.isEmpty)
+        // 선택 파일 행으로 이은 목록이 없으니 동기화해도 USB 목록은 그대로 남는다(rekordbox 장치 트리의 회색).
+        #expect(model.targetTree.map(\.id) == ["7", "9"])
+        #expect(model.dimmedTargetIDs == ["7", "8", "9"])
+        #expect(model.targetMarks.values.allSatisfy { $0 == .unlinked })
+        #expect(model.deletedTargetSummary == nil)
         #expect(model.targetPlaylistCount == 0)
         #expect(model.targetEmptyMessage == "동기화할 목록을 선택하세요")
 

@@ -10,11 +10,12 @@ struct UsbSyncSelectionFileTests {
     static let localDBID: Int64 = 4_000_000_000
     static let fileDBID = "-294967296"
 
-    /// rekordbox가 쓰는 모양 그대로의 합성 파일
+    /// rekordbox가 쓰는 모양 그대로의 합성 파일. 행이 없으면 `  <Playlists/>`다(2026-10-08 빈 USB 실험의 173바이트 파일).
     static func file(_ nodes: [String], dbid: String = fileDBID, automaticSync: String = "0") -> Data {
+        let playlists = nodes.isEmpty ? ["  <Playlists/>"] : ["  <Playlists>"] + nodes.map { "    " + $0 } + ["  </Playlists>"]
         let lines = [#"<?xml version="1.0" encoding="UTF-8"?>"#, "",
-                     #"<Sync DBID="\#(dbid)" AutomaticSync="\#(automaticSync)" AllPlaylists="0" IncludeCue="1" ForcedSync="0" Timestamp="0">"#,
-                     "  <Playlists>"] + nodes.map { "    " + $0 } + ["  </Playlists>", "</Sync>"]
+                     #"<Sync DBID="\#(dbid)" AutomaticSync="\#(automaticSync)" AllPlaylists="0" IncludeCue="1" ForcedSync="0" Timestamp="0">"#]
+            + playlists + ["</Sync>"]
         return Data((lines.joined(separator: "\r\n") + "\r\n").utf8)
     }
 
@@ -140,6 +141,70 @@ struct UsbSyncSelectionFileTests {
         #expect(result.playlistIDs == ["17": 5, "18": 6])
         let missing = bundle.resolution(sourceNodes: Array(source.prefix(2)), localDBID: Self.localDBID)
         #expect(missing.issues.contains(.sourceMissing) && missing.selection.selectedIDs.isEmpty && !missing.canWrite)
+    }
+
+    /// 2026-10-08 정상 USB 실험: 체크한 원본을 지우거나 옮겨도 rekordbox는 SYNC 전까지 선택 파일 행을 그대로 둔다.
+    /// 지운 원본은 종료 때 masterPlaylists6.xml에서도 빠지고, SYNC가 그 행의 USB 목록을 지운다.
+    @Test func 지운_rekordbox_원본의_행은_master에도_없을_때만_지울_USB_목록으로_돌려준다() throws {
+        let data = Self.file([
+            Self.node("0", folder: true, library: 0, device: 0, check: 2),
+            Self.node("11", folder: true, library: 0, device: 5, timestamp: 100, check: 2),
+            Self.node("12", parent: "11", library: 0, device: 6, timestamp: 100),
+            Self.node("13", parent: "11", library: 0, device: 7, timestamp: 100),
+        ])
+        let source: [UsbSyncSourceNode] = [.init(id: "17", parentID: nil, isFolder: true), .init(id: "18", parentID: "17", isFolder: false)]
+        let bundle = UsbSyncSelectionBundle(files: [.deviceLibrary: try .parse(data), .oneLibrary: try .parse(data)])
+        let ids: [UsbFormat: Set<Int>] = [.deviceLibrary: [5, 6, 7], .oneLibrary: [5, 6, 7]]
+        // 원본 19(16진 13)를 로컬에서 지웠다. master에도 없다.
+        let removed = bundle.resolution(sourceNodes: source, localDBID: Self.localDBID, usbPlaylistIDs: ids, masterNodeIDs: ["11", "12"])
+        #expect(removed.issues.isEmpty)
+        #expect(removed.selection.selectedIDs == ["18"])
+        #expect(removed.playlistIDs == ["17": 5, "18": 6])
+        #expect(removed.removedSourcePlaylistIDs == [7])
+        // 지운 원본의 USB 목록이 이미 없으면 지울 것이 없고 막지도 않는다.
+        let gone = bundle.resolution(sourceNodes: source, localDBID: Self.localDBID,
+                                     usbPlaylistIDs: [.deviceLibrary: [5, 6], .oneLibrary: [5, 6]], masterNodeIDs: ["11", "12"])
+        #expect(gone.issues.isEmpty && gone.removedSourcePlaylistIDs.isEmpty && gone.playlistIDs == ["17": 5, "18": 6])
+        // master에 남아 있으면 로컬 사본이 오래된 것일 수 있어 지우지 않고 막는다. master를 못 읽어도 막는다.
+        for master in [Set(["11", "12", "13"]), nil] {
+            let stale = bundle.resolution(sourceNodes: source, localDBID: Self.localDBID, usbPlaylistIDs: ids, masterNodeIDs: master)
+            #expect(stale.issues.contains(.sourceMissing) && stale.removedSourcePlaylistIDs.isEmpty && !stale.canWrite)
+        }
+        // iTunes 원본은 iTunes 목록을 못 읽은 것과 구분할 수 없어 늘 막는다.
+        let iTunes = UsbSyncSelectionBundle(files: [.deviceLibrary: try .parse(Self.xml)])
+        let missing = iTunes.resolution(sourceNodes: [.init(id: "itunes:F", parentID: nil, isFolder: true)], localDBID: Self.localDBID,
+                                        usbPlaylistIDs: Self.usbIDs, masterNodeIDs: [])
+        #expect(missing.issues.contains(.sourceMissing))
+        // 두 형식의 번호가 다르면 어느 목록인지 몰라 지울 대상에 넣지 않는다.
+        let other = Self.file([
+            Self.node("0", folder: true, library: 0, device: 0, check: 2),
+            Self.node("11", folder: true, library: 0, device: 5, timestamp: 100, check: 2),
+            Self.node("12", parent: "11", library: 0, device: 6, timestamp: 100),
+            Self.node("13", parent: "11", library: 0, device: 8, timestamp: 100),
+        ])
+        let diverged = UsbSyncSelectionBundle(files: [.deviceLibrary: try .parse(data), .oneLibrary: try .parse(other)])
+        let result = diverged.resolution(sourceNodes: source, localDBID: Self.localDBID,
+                                         usbPlaylistIDs: [.deviceLibrary: [5, 6, 7], .oneLibrary: [5, 6, 8]], masterNodeIDs: ["11", "12"])
+        #expect(result.issues.isEmpty && result.removedSourcePlaylistIDs.isEmpty)
+    }
+
+    @Test func 옮긴_원본은_행의_부모가_달라도_체크와_연결을_유지한다() throws {
+        // 폴더 17 안에 있던 18을 맨 위로 옮겼다(행은 SYNC 전까지 옛 부모를 가리킨다).
+        let data = Self.file([
+            Self.node("0", folder: true, library: 0, device: 0, check: 2),
+            Self.node("11", folder: true, library: 0, device: 5, timestamp: 100, check: 1),
+            Self.node("12", parent: "11", library: 0, device: 6, timestamp: 100),
+        ])
+        let source: [UsbSyncSourceNode] = [.init(id: "17", parentID: nil, isFolder: true), .init(id: "18", parentID: nil, isFolder: false)]
+        let bundle = UsbSyncSelectionBundle(files: [.deviceLibrary: try .parse(data)])
+        let result = bundle.resolution(sourceNodes: source, localDBID: Self.localDBID, usbPlaylistIDs: [.deviceLibrary: [5, 6]])
+        #expect(result.issues.isEmpty)
+        #expect(result.selection.selectedIDs == ["17", "18"])
+        #expect(result.playlistIDs == ["17": 5, "18": 6])
+        // 목록이던 원본이 폴더가 되면 여전히 막는다.
+        let changed = bundle.resolution(sourceNodes: [source[0], .init(id: "18", parentID: nil, isFolder: true)],
+                                        localDBID: Self.localDBID, usbPlaylistIDs: [.deviceLibrary: [5, 6]])
+        #expect(changed.issues.contains(.sourceStructure))
     }
 
     @Test func 허용한_두_파일만_읽고_부모나_파일_링크를_거부한다() throws {

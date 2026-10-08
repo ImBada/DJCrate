@@ -28,17 +28,19 @@ struct UsbSyncSelectionPipelineTests {
               playlistRefs: ["itunes:F": .new("folder"), "itunes:A": .new("list")], baseFiles: baseFiles)
     }
 
-    @Test("rekordbox가 만든 선택 파일이 없으면 새로 만들지 않고 앞 목록 편집까지 함께 막는다")
-    func missingSelectionFileStopsWholeBatch() throws {
+    @Test("두 형식 중 한 형식의 선택 파일만 있으면 새로 만들거나 고치지 않고 앞 목록 편집까지 함께 막는다")
+    func oneFormatSelectionFileStopsWholeBatch() throws {
         let env = try UsbEditEngineTests.exported()
+        let base = UsbSyncSelectionFileTests.file([])
+        env.usb.write(UsbSyncSelectionFile.relativePath(for: .deviceLibrary), base)
         let before = env.usb.tree()
         let draft = UsbSyncSelectionDraft(localDBID: 1, sourceNodes: [], selection: ITunesSyncSelection(), enabled: true,
-                                           playlistRefs: [:], baseFiles: [:])
+                                           playlistRefs: [:], baseFiles: [.deviceLibrary: base])
         let result = try env.plan([
             .playlist(edit: .rename(playlist: .id("1"), name: "합성 새 이름")),
             .syncSelection(draft: draft),
         ])
-        #expect(result.blocks.map(\.code).contains("syncSelectionNewFile"))
+        #expect(result.blocks.map(\.code).contains("syncSelectionPartialFiles"))
         #expect(result.changes == nil)
         #expect(result.outcomes.allSatisfy { if case .blocked = $0.outcome { true } else { false } })
         #expect(env.usb.tree() == before)

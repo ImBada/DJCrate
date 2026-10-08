@@ -200,6 +200,8 @@ public struct UsbSyncSelectionResolution: Sendable {
     public let playlistIDs: [String: Int]
     /// 형식별 Dev_ID. 두 형식의 목록 번호가 다르면 서로 다를 수 있다(2026-10-08 실험).
     public let formatPlaylistIDs: [UsbFormat: [String: Int]]
+    /// 로컬에서 지운 rekordbox 원본의 행이 가리키던 USB 목록(두 형식이 같은 번호일 때만). rekordbox는 SYNC 때 이 목록을 지운다.
+    public let removedSourcePlaylistIDs: Set<Int>
     public let issues: [UsbSyncSelectionIssue]
     public var canWrite: Bool { issues.isEmpty }
 }
@@ -265,8 +267,11 @@ public struct UsbSyncSelectionBundle: Sendable {
         })
     }
 
+    /// - masterNodeIDs: 로컬 `masterPlaylists6.xml`의 rekordbox NODE Id(16진). 원본 목록에도 이 파일에도 없는 rekordbox 행은
+    ///   로컬에서 지운 원본으로 본다(rekordbox는 종료할 때 지운 목록을 이 파일에서 뺀다, 2026-10-08 실험). nil이면 막는다.
     public func resolution(sourceNodes: [UsbSyncSourceNode], localDBID: Int64,
-                           usbPlaylistIDs: [UsbFormat: Set<Int>]? = nil) -> UsbSyncSelectionResolution {
+                           usbPlaylistIDs: [UsbFormat: Set<Int>]? = nil,
+                           masterNodeIDs: Set<String>? = nil) -> UsbSyncSelectionResolution {
         var issues: [UsbSyncSelectionIssue] = []
         func issue(_ value: UsbSyncSelectionIssue) { if !issues.contains(value) { issues.append(value) } }
         let enabledStates = files.values.compactMap { file -> Bool? in
@@ -278,10 +283,10 @@ public struct UsbSyncSelectionBundle: Sendable {
         }
         let enabled = enabledStates.count == files.count && Set(enabledStates).count == 1 ? enabledStates.first : nil
         func result(_ selected: Set<String> = [], _ ids: [String: Int] = [:],
-                    _ formatIDs: [UsbFormat: [String: Int]] = [:]) -> UsbSyncSelectionResolution {
+                    _ formatIDs: [UsbFormat: [String: Int]] = [:], _ removed: Set<Int> = []) -> UsbSyncSelectionResolution {
             if enabledStates.count != files.count { issue(.enabledStateUnknown) }
             return .init(selection: .init(selectedIDs: selected), enabled: enabled, playlistIDs: ids,
-                         formatPlaylistIDs: formatIDs, issues: issues)
+                         formatPlaylistIDs: formatIDs, removedSourcePlaylistIDs: removed, issues: issues)
         }
         guard !files.isEmpty else { return result() }
         guard semanticFingerprint != nil else { issue(.formatConflict); return result() }
@@ -313,7 +318,8 @@ public struct UsbSyncSelectionBundle: Sendable {
             }
         }
         let file = files[.deviceLibrary] ?? files[.oneLibrary]!
-        var mappings: [String: String] = [:], reverseMappings: [String: String] = [:]
+        let master = masterNodeIDs.map { Set($0.map(UsbSyncSelectionFile.Node.normalized)) }
+        var mappings: [String: String] = [:], reverseMappings: [String: String] = [:], removedKeys = Set<String>()
         for node in file.nodes {
             guard [0, 1].contains(node.libraryType) else {
                 if node.checkType > 0 { issue(.unsupportedSource) }
@@ -329,6 +335,10 @@ public struct UsbSyncSelectionBundle: Sendable {
                 let value = UsbSyncSelectionFile.hexadecimal(node.id)
                 candidates = actual.filter { !$0.id.hasPrefix("itunes:") && value != nil && UInt64($0.id) == value }.map(\.id)
             }
+            if candidates.isEmpty, node.libraryType == 0, let master, !master.contains(UsbSyncSelectionFile.Node.normalized(node.id)) {
+                removedKeys.insert(node.key)
+                continue
+            }
             guard candidates.count == 1, let id = candidates.first else { issue(candidates.isEmpty ? .sourceMissing : .sourceAmbiguous); continue }
             guard catalog[id]?.isFolder == node.isFolder else { issue(.sourceStructure); continue }
             if let previous = reverseMappings[id], previous != node.key { issue(.sourceAmbiguous); continue }
@@ -337,30 +347,48 @@ public struct UsbSyncSelectionBundle: Sendable {
         }
         // 일부만 복원하면 누락된 선택이 다음 동기화에서 빠질 수 있어 전체 연결이 맞아야 한다.
         guard issues.isEmpty else { return result() }
-        var selected = Set<String>(), ids: [String: Int] = [:], formatIDs: [UsbFormat: [String: Int]] = [:]
-        for node in file.nodes where [0, 1].contains(node.libraryType) {
-            guard let id = mappings[node.key] else { issue(.sourceMissing); continue }
-            if !node.isRoot {
-                guard let source = catalog[id], mappings[node.parentKey] == parent(source) else { issue(.sourceStructure); continue }
-            }
-            if node.checkType == 1 { selected.insert(id) }
-            guard !node.isRoot else { continue }
-            var deviceIDs = Set<Int>()
+        var selected = Set<String>(), ids: [String: Int] = [:], formatIDs: [UsbFormat: [String: Int]] = [:], removed = Set<Int>()
+        /// - report: 거짓이면 문제를 막힘으로 올리지 않는다(지운 원본의 행은 USB 목록이 이미 없어도 막을 일이 아니다)
+        func deviceIDs(_ node: UsbSyncSelectionFile.Node, report: Bool = true) -> [UsbFormat: Int] {
+            var result: [UsbFormat: Int] = [:]
             for (format, other) in files {
-                guard let corresponding = other.nodes.first(where: { $0.key == node.key }) else { issue(.formatConflict); continue }
+                guard let corresponding = other.nodes.first(where: { $0.key == node.key }) else {
+                    if report { issue(.formatConflict) }
+                    continue
+                }
                 // Dev_ID는 그 형식 DB의 목록 번호(10진수)다.
                 guard let value = UsbSyncSelectionFile.decimal(corresponding.deviceID).flatMap({ Int(exactly: $0) }), value > 0,
-                      usbPlaylistIDs.map({ $0[format]?.contains(value) == true }) ?? true else { issue(.deviceIDAmbiguous); continue }
-                deviceIDs.insert(value)
-                formatIDs[format, default: [:]][id] = value
+                      usbPlaylistIDs.map({ $0[format]?.contains(value) == true }) ?? true else {
+                    if report { issue(.deviceIDAmbiguous) }
+                    continue
+                }
+                result[format] = value
             }
+            return result
+        }
+        for node in file.nodes where [0, 1].contains(node.libraryType) {
+            if removedKeys.contains(node.key) {
+                // 지운 원본의 USB 목록은 두 형식이 같은 번호일 때만 지울 대상으로 둔다. 다르면 지우지 않고 남긴다.
+                let found = deviceIDs(node, report: false)
+                let values = Set(found.values)
+                if found.count == files.count, values.count == 1, let value = values.first { removed.insert(value) }
+                continue
+            }
+            guard let id = mappings[node.key] else { issue(.sourceMissing); continue }
+            // 행의 부모가 지금 원본의 부모와 달라도 막지 않는다. rekordbox는 옮긴 원본의 체크를 그대로 두고
+            // SYNC 때 새 자리로 옮긴다(2026-10-08 실험).
+            guard node.isRoot || catalog[id] != nil else { issue(.sourceStructure); continue }
+            if node.checkType == 1 { selected.insert(id) }
+            guard !node.isRoot else { continue }
+            let values = deviceIDs(node)
+            for (format, value) in values { formatIDs[format, default: [:]][id] = value }
             // 두 형식이 같은 번호일 때만 한 USB 목록에 잇는다.
-            if deviceIDs.count == 1, let deviceID = deviceIDs.first { ids[id] = deviceID }
+            if Set(values.values).count == 1, let deviceID = values.values.first { ids[id] = deviceID }
         }
         for map in formatIDs.values where Dictionary(grouping: map.keys, by: { map[$0]! }).values.contains(where: { $0.count > 1 }) {
             issue(.deviceIDAmbiguous)
         }
         if issues.contains(.sourceMissing) || issues.contains(.sourceAmbiguous) || issues.contains(.sourceStructure) { return result() }
-        return result(selected, ids, formatIDs)
+        return result(selected, ids, formatIDs, removed.subtracting(ids.values))
     }
 }

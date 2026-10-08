@@ -34,7 +34,8 @@ struct UsbSyncPreferenceChoice {
                         enabled: nativeEnabled ?? (sameLibrary ? preferences?.syncPlaylists : nil) ?? currentEnabled,
                         usesSavedPreferences: false)
         }
-        return Self(selection: fallbackSelection, enabled: true, usesSavedPreferences: false)
+        // rekordbox는 선택 파일이 없는 USB를 "장치와 플레이리스트 동기화" 꺼짐으로 연다(2026-10-08 빈 USB 실험).
+        return Self(selection: fallbackSelection, enabled: false, usesSavedPreferences: false)
     }
 }
 
@@ -60,6 +61,7 @@ struct UsbSyncPlanInputs: Sendable, Equatable {
     var nativeIssues: [String]
     var readEpoch: Int = 0
     var snapshotProvenance: UsbSyncSnapshotProvenance? = nil
+    var nativeRemovedPlaylistIDs: Set<Int> = []
 }
 
 struct UsbSyncQueuedPlan: Sendable {
@@ -107,6 +109,8 @@ struct UsbSyncQueuedPlan: Sendable {
     private var nativeSelectionFingerprint: String?
     private var nativeBaseFiles: [UsbFormat: Data] = [:]
     private var nativePlaylistIDs: [String: Int] = [:]
+    /// 로컬에서 지운 원본의 선택 파일 행이 가리키던 USB 목록. SYNC 때 지운다(rekordbox와 같다).
+    private var nativeRemovedPlaylistIDs: Set<Int> = []
     private var nativeSelectionCanWrite = true
     /// USB 선택 파일의 AutomaticSync(두 형식이 같을 때만). 닫을 때 바뀌었으면 이 칸만 쓴다.
     private var nativeEnabled: Bool?
@@ -129,7 +133,34 @@ struct UsbSyncQueuedPlan: Sendable {
     var iTunesTree: [PlaylistOutlineNode] { PlaylistOutlineNode.tree(iTunesSource, blocked: sourceBlockReasons) }
     var nodes: [ITunesSyncSelection.Node] { UsbSyncPlan.nodes(source) }
     private var selected: PlaylistLayout { UsbSyncPlan.selectedLayout(source, selection: selection) }
-    var previewTree: [PlaylistOutlineNode] { PlaylistOutlineNode.tree(selected) }
+    /// 동기화 뒤 USB 목록 트리(쓰기 계획과 같은 규칙). 라이브러리가 없거나 계획할 수 없으면 nil
+    var afterSyncPlan: UsbSyncPlaylistPlan? {
+        guard let library else { return nil }
+        var counter = 0
+        return try? UsbSyncPlan.playlistPlan(desired: selected, library: library, bindings: bindings,
+                                             linkedPlaylistIDs: nativePlaylistIDs, removedPlaylistIDs: nativeRemovedPlaylistIDs,
+                                             newKey: { counter += 1; return "preview-\(counter)" })
+    }
+    var previewTree: [PlaylistOutlineNode] {
+        afterSyncPlan.map { PlaylistOutlineNode.tree($0.result) } ?? PlaylistOutlineNode.tree(selected)
+    }
+    /// 흐리게 보일 USB 목록: 현재 USB는 선택에 잇지 않은 목록, 동기화 후는 연결 없이 남는 목록
+    var dimmedTargetIDs: Set<String> {
+        switch targetDisplay {
+        case .currentUsb: unlinkedUsbIDs
+        case .afterSync: Set((afterSyncPlan?.marks ?? [:]).filter { $0.value == .unlinked }.keys)
+        }
+    }
+    /// 동기화 후 미리 보기의 칸 표시(새로 만듦·옮김·연결 없음). 현재 USB 보기에서는 비어 있다
+    var targetMarks: [String: UsbSyncPreviewMark] {
+        targetDisplay == .afterSync ? afterSyncPlan?.marks ?? [:] : [:]
+    }
+    /// 동기화하면 지울 USB 목록(폴더면 안에 든 것까지)
+    var deletedTargetSummary: String? {
+        guard targetDisplay == .afterSync, syncPlaylists, let deleted = afterSyncPlan?.deleted, !deleted.isEmpty else { return nil }
+        let names = deleted.map(\.name).joined(separator: ", ")
+        return String(ui: "동기화하면 USB에서 지울 목록 \(deleted.count)개: \(names)")
+    }
     private var usbLayout: PlaylistLayout { library.map(UsbSyncPlan.usbLayout) ?? PlaylistLayout() }
     var usbTree: [PlaylistOutlineNode] { PlaylistOutlineNode.tree(usbLayout) }
     /// 선택한 원본에 이어지지 않아 동기화가 건드리지 않는 USB 목록(rekordbox처럼 흐리게 보인다)
@@ -199,6 +230,7 @@ struct UsbSyncQueuedPlan: Sendable {
         nativeSelectionFingerprint = nil
         nativeBaseFiles = [:]
         nativePlaylistIDs = [:]
+        nativeRemovedPlaylistIDs = []
         nativeSelectionCanWrite = true
         nativeEnabled = nil
         masterNodes = []
@@ -272,8 +304,10 @@ struct UsbSyncQueuedPlan: Sendable {
             nativeSelectionFingerprint = native.semanticFingerprint
             nativeBaseFiles = native.baseFiles
             let resolved = native.resolution(sourceNodes: sources.nativeNodes, localDBID: local.localDBID,
-                                             usbPlaylistIDs: library.map(UsbSyncSelectionBundle.playlistIDs(of:)))
+                                             usbPlaylistIDs: library.map(UsbSyncSelectionBundle.playlistIDs(of:)),
+                                             masterNodeIDs: Self.masterNodeIDs(master))
             nativePlaylistIDs = resolved.playlistIDs
+            nativeRemovedPlaylistIDs = resolved.removedSourcePlaylistIDs
             nativeEnabled = native.files.isEmpty ? nil : resolved.enabled
             nativeSelectionCanWrite = resolved.canWrite
             nativeSelectionIssues = resolved.issues.map(\.message)
@@ -331,7 +365,8 @@ struct UsbSyncQueuedPlan: Sendable {
                                  bindings: bindings, selection: selection, syncPlaylists: syncPlaylists,
                                  nativeBaseFiles: nativeBaseFiles, nativeFingerprint: nativeSelectionFingerprint,
                                  nativePlaylistIDs: nativePlaylistIDs, nativeCanWrite: nativeSelectionCanWrite,
-                                 nativeIssues: nativeSelectionIssues, readEpoch: readEpoch, snapshotProvenance: snapshotProvenance)
+                                 nativeIssues: nativeSelectionIssues, readEpoch: readEpoch, snapshotProvenance: snapshotProvenance,
+                                 nativeRemovedPlaylistIDs: nativeRemovedPlaylistIDs)
     }
 
     private func inputsAreCurrent(_ inputs: UsbSyncPlanInputs, store: LibraryStore, usb: UsbStore) -> Bool {
@@ -480,7 +515,8 @@ struct UsbSyncQueuedPlan: Sendable {
                 }
                 if syncPlaylists {
                     let plan = try UsbSyncPlan.build(source: inputs.source, selection: selection, library: inputs.library, matches: matches,
-                                                     badges: badges, bindings: bindings)
+                                                     badges: badges, bindings: bindings, linkedPlaylistIDs: inputs.nativePlaylistIDs,
+                                                     removedPlaylistIDs: inputs.nativeRemovedPlaylistIDs)
                     guard plan.trackIDs.allSatisfy({ store.rowsByID[$0].map { !$0.isStaged && !$0.isUsb && !$0.track.isStreaming } ?? false }) else {
                         error = String(ui: "선택한 목록에 내보낼 수 없는 곡이 있습니다. 스트리밍 곡이나 사라진 곡을 제외한 뒤 동기화하세요")
                         return false
@@ -555,6 +591,12 @@ struct UsbSyncQueuedPlan: Sendable {
         return true
     }
 
+    /// masterPlaylists6.xml의 rekordbox NODE Id. 못 읽었으면 nil(지운 원본을 판정하지 않고 막는다)
+    nonisolated static func masterNodeIDs(_ nodes: [MasterPlaylistsXML.Node]) -> Set<String>? {
+        let ids = nodes.filter { $0.libType == 0 }.map(\.id)
+        return ids.isEmpty ? nil : Set(ids)
+    }
+
     /// rekordbox의 내보내기 확인 창과 같은 문구(OK/취소). 취소하면 동기화 전체를 하지 않는다.
     static func orphanPrompt(count: Int) -> ReflectionPrompt {
         ReflectionPrompt(title: String(ui: "플레이리스트에 더 이상 존재하지 않는 트랙은 삭제될 것입니다."),
@@ -562,8 +604,18 @@ struct UsbSyncQueuedPlan: Sendable {
                          confirm: String(ui: "확인"), destructive: true)
     }
 
-    /// 닫을 때 USB에 쓸 것이 있는지: "장치와 플레이리스트 동기화"를 USB 파일과 다르게 바꿨을 때만
-    var enabledChanged: Bool { nativeEnabled != nil && nativeEnabled != syncPlaylists && !nativeBaseFiles.isEmpty }
+    /// 닫을 때 USB에 쓸 것이 있는지: "장치와 플레이리스트 동기화"를 USB 파일과 다르게 바꿨을 때만.
+    /// 선택 파일이 없는 USB는 꺼짐으로 본다. rekordbox처럼 켜면 행 없는 선택 파일을 만들고, 꺼진 채면 쓰지 않는다.
+    /// 라이브러리가 없는 빈 USB는 켜짐만 쓰지 않는다(rekordbox는 이때 빈 DB도 만들지만 DJCrate는 SYNC 때 함께 만든다).
+    var enabledChanged: Bool {
+        Self.enabledChanged(hasNativeFiles: !nativeBaseFiles.isEmpty, nativeEnabled: nativeEnabled,
+                            hasLibrary: localDBID != nil && library != nil && !emptyVolume, syncPlaylists: syncPlaylists)
+    }
+
+    nonisolated static func enabledChanged(hasNativeFiles: Bool, nativeEnabled: Bool?, hasLibrary: Bool, syncPlaylists: Bool) -> Bool {
+        guard hasNativeFiles else { return hasLibrary && syncPlaylists }
+        return nativeEnabled != nil && nativeEnabled != syncPlaylists
+    }
 
     /// rekordbox처럼 동기화 켜짐을 바꾸고 닫으면 두 선택 파일의 AutomaticSync만 쓴다(다른 칸·선택은 그대로).
     /// 다른 USB 쓰기와 같은 미리 보기·확인 창을 거친다. 닫아도 되면 true.
@@ -672,8 +724,10 @@ struct UsbSyncQueuedPlan: Sendable {
             nativeBaseFiles = native.baseFiles
             nativeSelectionFingerprint = native.semanticFingerprint
             let resolved = native.resolution(sourceNodes: UsbSyncSource.nativeNodes(source), localDBID: localDBID,
-                                             usbPlaylistIDs: usb.libraries[volumeKey].map(UsbSyncSelectionBundle.playlistIDs(of:)))
+                                             usbPlaylistIDs: usb.libraries[volumeKey].map(UsbSyncSelectionBundle.playlistIDs(of:)),
+                                             masterNodeIDs: Self.masterNodeIDs(masterNodes))
             nativePlaylistIDs = resolved.playlistIDs
+            nativeRemovedPlaylistIDs = resolved.removedSourcePlaylistIDs
             nativeEnabled = native.files.isEmpty ? nil : resolved.enabled
             nativeSelectionCanWrite = resolved.canWrite
             nativeSelectionIssues = resolved.issues.map(\.message)

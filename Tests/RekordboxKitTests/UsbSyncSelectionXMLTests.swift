@@ -49,9 +49,14 @@ struct UsbSyncSelectionXMLTests {
     static func expected(automaticSync: String = "1", _ nodes: [String]) -> Data {
         var text = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n\r\n"
         text += "<Sync DBID=\"\(dbid)\" AutomaticSync=\"\(automaticSync)\" AllPlaylists=\"0\" IncludeCue=\"1\" ForcedSync=\"0\" Timestamp=\"0\">\r\n"
-        text += "  <Playlists>\r\n"
-        for node in nodes { text += "    \(node)\r\n" }
-        text += "  </Playlists>\r\n</Sync>\r\n"
+        if nodes.isEmpty {
+            text += "  <Playlists/>\r\n"
+        } else {
+            text += "  <Playlists>\r\n"
+            for node in nodes { text += "    \(node)\r\n" }
+            text += "  </Playlists>\r\n"
+        }
+        text += "</Sync>\r\n"
         return Data(text.utf8)
     }
 
@@ -88,7 +93,7 @@ struct UsbSyncSelectionXMLTests {
             #"<NODE Id="66" ParentId="64" Attribute="0" Lib_Type="0" Dev_ID="13" Timestamp="1700000000102" CheckType="1"/>"#,
             #"<NODE Id="C8" ParentId="0" Attribute="0" Lib_Type="0" Dev_ID="14" Timestamp="1700000000200" CheckType="1"/>"#,
         ]))
-        // 모두 해제하면 뿌리 행도 빠져 빈 목록이 된다(실험 5단계: 실험 전 바이트로 돌아감).
+        // 모두 해제하면 뿌리 행도 빠져 빈 목록이 된다. 행이 없는 파일은 `<Playlists/>` 한 줄이다(빈 USB 실험의 173바이트 파일).
         #expect(try render(draft([])) == Self.expected([]))
     }
 
@@ -120,10 +125,12 @@ struct UsbSyncSelectionXMLTests {
                 == String(decoding: original, as: UTF8.self).replacingOccurrences(of: "AutomaticSync=\"0\"", with: "AutomaticSync=\"\(value)\""))
             try UsbSyncSelectionXML.verify(data: output, draft: request, format: .deviceLibrary, playlistIDs: [:], contract: Self.contract)
         }
-        // 원문이 없으면 켜짐만 쓸 수 없다.
-        #expect(throws: UsbSyncSelectionXML.RenderError.invalidSource) {
-            try render(UsbSyncSelectionDraft.enabledOnly(localDBID: Self.localDBID, enabled: false, baseFiles: [:]), ids: [:])
-        }
+        // 원문이 없는 USB에서 끄기만 하면 만들 파일이 없다(쓰기 계획이 건너뛴다).
+        let off = UsbSyncSelectionDraft.enabledOnly(localDBID: Self.localDBID, enabled: false, baseFiles: [:])
+        #expect(throws: UsbSyncSelectionXML.RenderError.invalidSource) { try render(off, ids: [:]) }
+        #expect(UsbSyncSelectionStage.writesNothing(off, formats: UsbFormat.defaultSet))
+        #expect(!UsbSyncSelectionStage.writesNothing(.enabledOnly(localDBID: Self.localDBID, enabled: true, baseFiles: [:]),
+                                                     formats: UsbFormat.defaultSet))
     }
 
     @Test func 원문이_rekordbox_모양이_아니면_고쳐_쓰지_않는다() throws {
@@ -169,18 +176,56 @@ struct UsbSyncSelectionXMLTests {
         }
     }
 
-    @Test func 원문이_없으면_본_루트_값으로_만든다() throws {
-        // 생산 쓰기는 새 파일을 막는다(gateBlock). 내부 렌더만 실험 USB에서 본 루트 값을 쓴다.
+    /// 2026-10-08 빈 USB 실험(첫 SYNC): rekordbox가 새로 만든 두 파일의 루트는
+    /// `AutomaticSync="1" AllPlaylists="0" IncludeCue="1" ForcedSync="0" Timestamp="0"`, 행은 기존 규칙과 같았다.
+    @Test func 원문이_없으면_새_파일_루트_값으로_만든다() throws {
         let output = try render(draft(["itunes:C"], base: nil))
         #expect(output == Self.expected([
             #"<NODE Id="0" ParentId="0" Attribute="1" Lib_Type="1" Dev_ID="0" Timestamp="0" CheckType="2"/>"#,
             #"<NODE Id="C" ParentId="0" Attribute="0" Lib_Type="1" Dev_ID="24" Timestamp="0" CheckType="1"/>"#,
         ]))
-        #expect(UsbSyncSelectionStage.gateBlock(baseFiles: [:], formats: [.deviceLibrary])?.code == "syncSelectionNewFile")
-        #expect(UsbSyncSelectionStage.gateBlock(baseFiles: [.deviceLibrary: Self.base], formats: UsbFormat.defaultSet)?.code
-            == "syncSelectionNewFile")
+        try UsbSyncSelectionXML.verify(data: output, draft: draft(["itunes:C"], base: nil), format: .deviceLibrary,
+                                       playlistIDs: ["b": 13, "ib": 23], contract: Self.contract)
+        // 끈 채 첫 SYNC를 할 수는 없지만(rekordbox는 SYNC 버튼이 비활성) 칸은 체크 값을 따른다.
+        #expect(try render(draft(["itunes:C"], base: nil, enabled: false)) == Self.expected(automaticSync: "0", [
+            #"<NODE Id="0" ParentId="0" Attribute="1" Lib_Type="1" Dev_ID="0" Timestamp="0" CheckType="2"/>"#,
+            #"<NODE Id="C" ParentId="0" Attribute="0" Lib_Type="1" Dev_ID="24" Timestamp="0" CheckType="1"/>"#,
+        ]))
+        // 형식마다 파일이 모두 있거나 모두 없을 때만 쓴다. 한쪽만 있으면 막는다.
+        #expect(UsbSyncSelectionStage.gateBlock(baseFiles: [:], formats: [.deviceLibrary]) == nil)
+        #expect(UsbSyncSelectionStage.gateBlock(baseFiles: [:], formats: UsbFormat.defaultSet) == nil)
+        #expect(UsbSyncSelectionStage.gateBlock(baseFiles: [.deviceLibrary: Self.base], formats: [.deviceLibrary]) == nil)
+        for present in UsbFormat.allCases {
+            #expect(UsbSyncSelectionStage.gateBlock(baseFiles: [present: Self.base], formats: UsbFormat.defaultSet)?.code
+                == "syncSelectionPartialFiles")
+        }
         #expect(UsbSyncSelectionStage.gateBlock(baseFiles: [.deviceLibrary: Self.base, .oneLibrary: Self.base],
                                                 formats: UsbFormat.defaultSet) == nil)
         #expect(UsbSyncXMLWriteContract.production == .confirmed)
+    }
+
+    /// 2026-10-08 빈 USB 실험: "장치와 플레이리스트 동기화"를 켜면 SYNC 전에 두 파일이 173바이트로 생겼다.
+    /// 그 길이가 정확히 맞는 모양은 행 없는 `<Playlists/>`뿐이다(DBID 11자, CRLF).
+    @Test func 파일이_없는_USB에서_켜면_행_없는_173바이트_파일을_만든다() throws {
+        let local: Int64 = 2_200_000_000
+        let dbid = try #require(UsbSyncSelectionXML.databaseID(local))
+        #expect(dbid == "-2094967296")
+        let request = UsbSyncSelectionDraft.enabledOnly(localDBID: local, enabled: true, baseFiles: [:])
+        let expected = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n\r\n"
+            + "<Sync DBID=\"-2094967296\" AutomaticSync=\"1\" AllPlaylists=\"0\" IncludeCue=\"1\" ForcedSync=\"0\" Timestamp=\"0\">\r\n"
+            + "  <Playlists/>\r\n</Sync>\r\n"
+        for format in UsbFormat.allCases {
+            let output = try UsbSyncSelectionXML.render(draft: request, format: format, playlistIDs: [:], contract: Self.contract)
+            #expect(output == Data(expected.utf8))
+            #expect(output.count == 173)
+            try UsbSyncSelectionXML.verify(data: output, draft: request, format: format, playlistIDs: [:], contract: Self.contract)
+            // rekordbox가 만든 이 모양도 고쳐 쓸 수 있는 원문이다. 이어서 끄면 AutomaticSync만 바뀐다.
+            let parsed = try UsbSyncSelectionFile.parse(output)
+            #expect(parsed.isCanonical && parsed.nodes.isEmpty)
+            let off = try UsbSyncSelectionXML.render(draft: .enabledOnly(localDBID: local, enabled: false, baseFiles: [format: output]),
+                                                     format: format, playlistIDs: [:], contract: Self.contract)
+            #expect(String(decoding: off, as: UTF8.self)
+                == expected.replacingOccurrences(of: "AutomaticSync=\"1\"", with: "AutomaticSync=\"0\""))
+        }
     }
 }

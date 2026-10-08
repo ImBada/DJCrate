@@ -19693,6 +19693,28 @@
         }
       }
     },
+    "동기화하면 USB에서 지울 목록 %lld개: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lists to delete from the USB on sync (%1$lld): %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期でUSBから削除するリスト（%1$lld件）: %2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "동기화하면 USB에서 지울 목록 %1$lld개: %2$@"
+          }
+        }
+      }
+    },
     "동기화한 iTunes 목록이 없습니다" : {
       "localizations" : {
         "en" : {
@@ -26611,6 +26633,22 @@
         }
       }
     },
+    "새로 만듦" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規作成"
+          }
+        }
+      }
+    },
     "색 모드" : {
       "localizations" : {
         "en" : {
@@ -31251,6 +31289,22 @@
         }
       }
     },
+    "옮김" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moved"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動"
+          }
+        }
+      }
+    },
     "옵션 값이 없거나 중복되었습니다" : {
       "localizations" : {
         "en" : {
@@ -32507,18 +32561,18 @@
         }
       }
     },
-    "이 USB에는 rekordbox의 동기화 선택 파일이 없습니다. rekordbox의 동기화 관리자에서 이 USB를 한 번 동기화한 뒤 다시 시도하세요" : {
+    "이 USB에는 두 형식 중 한 형식의 동기화 선택 파일만 있습니다. rekordbox의 동기화 관리자에서 이 USB를 다시 동기화해 두 파일을 맞춘 뒤 다시 시도하세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This USB has no rekordbox sync selection file. Sync this USB once in rekordbox’s Sync Manager, then try again."
+            "value" : "This USB has a sync selection file for only one of its two formats. Sync this USB again in rekordbox’s Sync Manager so both files match, then try again."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このUSBにはrekordboxの同期選択ファイルがありません。rekordboxのSync ManagerでこのUSBを一度同期してから再試行してください。"
+            "value" : "このUSBには2つの形式のうち片方の同期選択ファイルしかありません。rekordboxのSync ManagerでこのUSBを再度同期して両方のファイルを揃えてから再試行してください。"
           }
         }
       }
