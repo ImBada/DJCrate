@@ -143,7 +143,7 @@ struct RekordboxAutoPointSnapshotTests {
         #expect(RekordboxPointSnapshot.list(in: folder(fixture)).isEmpty)
     }
 
-    @Test func 보관_일수가_지난_자동만_정리하고_수동·고정·복원_직전은_남긴다() throws {
+    @Test func 보관_일수가_지난_자동은_가장_최근_하나만_남기고_수동·고정·복원_직전은_남긴다() throws {
         let fixture = try RekordboxFixture()
         let manual = try RekordboxPointSnapshot.take(name: "옛 수동", kind: .manual, database: fixture.database, shareRoot: nil,
                                                      in: folder(fixture), now: now.addingTimeInterval(-30 * day), guard: Self.copyGuard)
@@ -162,7 +162,12 @@ struct RekordboxAutoPointSnapshotTests {
         // 바뀐 것이 없어 건너뛰어도 정리는 한다
         #expect(try auto(fixture, at: now, days: 7) == .skipped(.unchanged))
         let kept = Set(RekordboxPointSnapshot.list(in: folder(fixture)).map(\.id))
-        #expect(kept == [manual.id, restore.id, autos[0].id, autos[2].id])
+        // 7일 넘은 자동은 -10일(가장 최근)과 고정한 -20일만, -5일은 보관 일수 안(#236)
+        #expect(kept == [manual.id, restore.id, autos[0].id, autos[1].id, autos[2].id])
+        // 더 옛 자동(고정 아님)은 지운다: 보관 일수를 줄이면 -5일이 가장 최근 옛 것이 되어 -10일이 지워진다
+        #expect(try auto(fixture, at: now, days: 2) == .skipped(.unchanged))
+        let shorter = Set(RekordboxPointSnapshot.list(in: folder(fixture)).map(\.id))
+        #expect(shorter == [manual.id, restore.id, autos[0].id, autos[2].id])
     }
 
     @Test func 시험_프로세스는_실제_rekordbox_라이브러리에서_뜨지_않는다() throws {
