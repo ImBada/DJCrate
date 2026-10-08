@@ -40,20 +40,27 @@ struct UsbCueGridImportTests {
                                                       legacy: false)
         #expect(draft.cues.count == 2 && draft.hasChanges)
         #expect(draft.cues.map(\.sourceID) == ["a", "b"])
-        for part in [UsbCueGridDraftImport.Part.cue, .grid, .rating] {
+        for part in UsbCueGridDraftImport.Part.allCases {
             #expect(UsbCueGridDraftImport.formatConflictReason(part, conflicts: []) == nil)
         }
         #expect(UsbCueGridDraftImport.formatConflictReason(.cue, conflicts: ["cueUpdateCount"]) != nil)
         #expect(UsbCueGridDraftImport.formatConflictReason(.grid, conflicts: ["analysisDataUpdateCount"]) != nil)
-        #expect(UsbCueGridDraftImport.formatConflictReason(.rating, conflicts: ["informationUpdateCount"]) != nil)
         #expect(UsbCueGridDraftImport.formatConflictReason(.grid, conflicts: ["cueUpdateCount"]) == nil)
+        // 곡 정보 칸이 두 형식에서 달라도 큐·그리드는 막지 않는다(정보 칸은 가져오지 않는다)
+        for part in UsbCueGridDraftImport.Part.allCases {
+            #expect(UsbCueGridDraftImport.formatConflictReason(part, conflicts: ["rating", "informationUpdateCount"]) == nil)
+        }
     }
 
-    /// 2026-10-08 실험 G5b: USB 평점이 0인 곡의 로컬 평점(3)은 가져온 뒤에도 그대로였다.
-    @Test func USB_평점이_비었으면_로컬_평점을_지우지_않는다() throws {
-        #expect(try UsbCueGridDraftImport.importedRating(0) == nil)
-        #expect(try UsbCueGridDraftImport.importedRating(3) == "3")
-        #expect(throws: UsbCueGridReader.ReadFailure.self) { try UsbCueGridDraftImport.importedRating(6) }
+    /// rekordbox 7.2.19 실험 X1(2026-10-08, C1·C2): USB는 평점 3·Red·코멘트 'DJC233A', 로컬은 평점 5·Blue·'DJC233B'에
+    /// 메모리 큐 하나를 더한 곡에 ← CUE GRID INFO를 하자 큐는 USB의 넷으로 돌아갔지만 평점·색·코멘트는 로컬 값 그대로였다.
+    /// 확인 창은 "트랙 정보(색상, 레이팅 및 코멘트)"도 적었지만 실제로는 큐·루프·핫큐·그리드만 가져온다.
+    @Test func 평점_색_코멘트는_가져오지_않고_큐와_그리드만_가져온다() {
+        #expect(UsbCueGridDraftImport.Part.allCases == [.cue, .grid])
+        let prompt = UsbSyncModel.cueGridImportPrompt
+        #expect(!prompt.text.contains("- 레이팅") && prompt.text.contains("- 비트 그리드"))
+        let summary = UsbCueGridImportSummary(cueCount: 1, gridCount: 2, skippedCount: 3)
+        #expect(summary.message == "큐 1곡·그리드 2곡을 초안으로 가져왔습니다. 3곡은 건너뛰었습니다.")
     }
 
     @Test func 일정_그리드는_로컬_기준으로_초안을_만든다() throws {

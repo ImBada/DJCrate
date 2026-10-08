@@ -6,11 +6,10 @@ import RekordboxKit
 struct UsbCueGridImportSummary: Sendable {
     var cueCount = 0
     var gridCount = 0
-    var infoCount = 0
     var skippedCount = 0
     var details: [String] = []
     var message: String {
-        let counts = String(ui: "큐 \(cueCount)곡·그리드 \(gridCount)곡·평점 \(infoCount)곡을 초안으로 가져왔습니다. \(skippedCount)곡은 건너뛰었습니다.")
+        let counts = String(ui: "큐 \(cueCount)곡·그리드 \(gridCount)곡을 초안으로 가져왔습니다. \(skippedCount)곡은 건너뛰었습니다.")
         return details.first.map { counts + "\n" + $0 } ?? counts
     }
 }
@@ -30,7 +29,9 @@ enum UsbCueGridDraftImport {
 
     /// 가져오는 칸. rekordbox의 "← CUE GRID INFO"는 로컬이 더 새로워도 USB 값으로 바꿨다(2026-10-08 실험 G5b: 로컬에서
     /// 더한 메모리 큐가 USB의 큐로 돌아갔다). 그래서 로컬 갱신 횟수는 보지 않고, 두 USB 형식이 서로 다를 때만 건너뛴다.
-    enum Part: Sendable { case cue, grid, rating }
+    /// 평점·색·코멘트는 가져오지 않는다: 확인 창은 곡 정보도 적었지만 USB와 로컬 값이 다른 곡에서도 로컬 값을 그대로 두었다
+    /// (rekordbox 7.2.19 실험 X1, 2026-10-08)
+    enum Part: Sendable, CaseIterable { case cue, grid }
 
     static func formatConflictReason(_ part: Part, conflicts: Set<String>) -> String? {
         switch part {
@@ -38,19 +39,8 @@ enum UsbCueGridDraftImport {
             String(ui: "두 USB 형식의 큐 갱신 횟수가 다르니 rekordbox에서 USB를 확인한 뒤 큐를 가져오세요.")
         case .grid where conflicts.contains("analysisDataUpdateCount"):
             String(ui: "두 USB 형식의 그리드 갱신 횟수가 다르니 rekordbox에서 USB를 확인한 뒤 그리드를 가져오세요.")
-        case .rating where conflicts.contains("rating") || conflicts.contains("informationUpdateCount"):
-            String(ui: "두 USB 형식의 평점이나 정보 갱신 횟수가 다르니 rekordbox에서 확인한 뒤 다시 가져오세요.")
         default: nil
         }
-    }
-
-    /// USB 평점을 초안의 평점 칸 값으로. 0(빈 평점)은 가져오지 않는다(nil): rekordbox도 USB 평점이 0인 곡의
-    /// 로컬 평점을 지우지 않았다(2026-10-08 실험 G5b). 범위 밖이면 막는다.
-    static func importedRating(_ rating: Int) throws -> String? {
-        guard (0...5).contains(rating) else {
-            throw issue(String(ui: "USB 평점이 별 0~5개 범위를 벗어나니 rekordbox에서 확인한 뒤 다시 가져오세요."))
-        }
-        return rating > 0 ? String(rating) : nil
     }
 
     static func cueDraft(uuid: String, local: [Cue], imported: [EditableCue], legacy: Bool) throws -> CueDraft {
@@ -124,7 +114,7 @@ enum UsbCueGridDraftImport {
 
 @MainActor
 extension LibraryStore {
-    /// USB를 읽고 로컬 큐·그리드·평점 초안만 만든다. rekordbox와 USB에 쓰는 것은 별도의 반영 동작이다.
+    /// USB를 읽고 로컬 큐·그리드 초안만 만든다. rekordbox와 USB에 쓰는 것은 별도의 반영 동작이다.
     func importUsbCueGrid(volumeKey: String) async -> UsbCueGridImportSummary {
         var summary = UsbCueGridImportSummary()
         guard !isLoading, !isWritingRekordbox, !isSynchronizingLibrary, allowsLibrarySync?() != false,
@@ -160,7 +150,6 @@ extension LibraryStore {
                 return summary
             }
             let cueDirectory = home.appending(path: "cue-drafts"), gridDirectory = home.appending(path: "grid-drafts")
-            let tagDirectory = home.appending(path: "tag-drafts")
             DraftWriter.flush()
             var importedCues: [String: CueDraft] = [:]
             for item in plan.rows {
@@ -192,19 +181,6 @@ extension LibraryStore {
                             draftChanged(trackUUID: uuid, kind: .grid, exists: true)
                             onGridDraftSaved?(uuid)
                             summary.gridCount += 1
-                        } catch { reasons.append(Self.usbImportSaveFailure) }
-                    }
-                }
-                if let draft = item.info, draft.hasChanges {
-                    if tagDrafts[uuid] != nil || FileManager.default.fileExists(atPath: tagDirectory.appending(path: "\(uuid).json").path) {
-                        reasons.append(String(ui: "태그 초안이 이미 있으니 먼저 반영하거나 버린 뒤 다시 가져오세요."))
-                    } else {
-                        do {
-                            try TagDraftStore.save(draft, directory: tagDirectory)
-                            tagDrafts[uuid] = draft
-                            tagRevision += 1
-                            updateEdited(uuid)
-                            summary.infoCount += 1
                         } catch { reasons.append(Self.usbImportSaveFailure) }
                     }
                 }
@@ -247,7 +223,6 @@ private struct UsbCueGridImportPlan: Sendable {
         var row: TrackRow
         var cues: CueDraft?
         var grid: GridDraft?
-        var info: TagDraft?
         var reasons: [String] = []
     }
     var rows: [Row] = []
@@ -297,19 +272,6 @@ private struct UsbCueGridImportPlan: Sendable {
                 continue
             }
             let conflictSet = Set(conflicts)
-            if let reason = UsbCueGridDraftImport.formatConflictReason(.rating, conflicts: conflictSet) {
-                item.reasons.append(reason)
-            } else {
-                do {
-                    if let rating = try UsbCueGridDraftImport.importedRating(track.rating) {
-                        var info = TagDraft(track: row.track)
-                        info.fields.rating = rating
-                        if info.hasChanges, let reason = TrackListTagEditing.unavailableReason(row, key: .rating) {
-                            item.reasons.append(reason)
-                        } else { item.info = info }
-                    }
-                } catch { item.reasons.append(reason(error)) }
-            }
             if conflicts.contains("analysisDataPath") || conflicts.contains("fileType") || conflicts.contains("fileSize") {
                 item.reasons.append(String(ui: "두 USB 형식의 분석 파일 정보가 다르니 rekordbox에서 확인한 뒤 다시 가져오세요."))
                 result.rows.append(item)

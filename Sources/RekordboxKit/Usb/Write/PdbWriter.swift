@@ -14,7 +14,7 @@ public struct PdbFiles: Sendable {
     public var export: Data
     public var exportExt: Data
     /// 인코더가 낸 규칙의 합집합(Encoded.rules를 버리지 않는다). 지금은 pdbLongAscii(긴 ASCII를 본 적 없는 칸)와
-    /// pdbFarOffsetRows(경계 실험으로 모양을 가르지 못한 길이의 아티스트·앨범 이름)
+    /// pdbFarOffsetRows(경계 실험이 보지 못한 이름 끝 247의 앨범 이름)
     public var rules: Set<UsbProvisionalRule>
     /// 트랙 행 문자열(0–20: 경로·파일 이름 포함)에서 나온 규칙, content id별(규칙이 있는 곡만).
     /// 목록·아티스트·앨범·장르·레이블·키·태그·columns 이름에서 나온 것은 rules에만

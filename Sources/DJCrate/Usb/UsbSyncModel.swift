@@ -803,10 +803,10 @@ struct UsbSyncQueuedPlan: Sendable {
     }
 
     /// rekordbox의 "← CUE GRID INFO" 확인(2026-10-08 실험 G5b)을 DJCrate에 맞게 고친 문구. rekordbox는 바로 바꾸지만
-    /// DJCrate는 초안만 만들고, 색상·코멘트는 아직 가져오지 않는다.
+    /// DJCrate는 초안만 만든다. rekordbox 창은 곡 정보(색상·레이팅·코멘트)도 적지만 실제로는 바꾸지 않아(실험 X1) 적지 않는다.
     nonisolated static var cueGridImportPrompt: ReflectionPrompt {
         ReflectionPrompt(title: String(ui: "USB에 있는 모든 곡의 다음 정보로 로컬 곡 정보를 바꾸는 초안을 만듭니다."),
-                         text: String(ui: "- 큐 포인트와 루프 포인트\n- 핫 큐\n- 비트 그리드\n- 레이팅\n\nrekordbox의 곡이 더 최근에 바뀌었어도 USB 값으로 바꿉니다. USB 레이팅이 비어 있으면 로컬 레이팅을 그대로 두고, 색상과 코멘트는 아직 가져오지 않습니다. 초안이 이미 있는 곡은 건너뜁니다. 가져온 초안을 확인한 뒤 rekordbox에 쓰기…로 반영하세요.\n\n계속하시겠습니까?"),
+                         text: String(ui: "- 큐 포인트와 루프 포인트\n- 핫 큐\n- 비트 그리드\n\nrekordbox의 곡이 더 최근에 바뀌었어도 USB 값으로 바꿉니다. 레이팅·색상·코멘트는 rekordbox처럼 가져오지 않습니다. 초안이 이미 있는 곡은 건너뜁니다. 가져온 초안을 확인한 뒤 rekordbox에 쓰기…로 반영하세요.\n\n계속하시겠습니까?"),
                          confirm: String(ui: "가져오기"))
     }
 

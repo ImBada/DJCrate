@@ -425,18 +425,24 @@ struct PdbWriterTests {
         #expect(throws: UsbError.self) { try PdbWriter.files(model, mode: .fresh) }
     }
 
-    /// 경계 실험 한 단계: 이름, 먼 모양인지, 아티스트·앨범 할당 크기, 이름 문자열 모양
+    /// 경계 실험 한 단계: 이름, 아티스트·앨범 행이 먼 모양인지, 아티스트·앨범 할당 크기, 이름 문자열 모양
     struct BoundaryCase: Sendable, CustomTestStringConvertible {
         var name: String
-        var far: Bool
+        var artistFar: Bool
+        var albumFar: Bool
         var artistSize: Int
         var albumSize: Int
         var kind: PdbStringKind
         var testDescription: String { "\(name.first.map(String.init) ?? "") × \(name.count)" }
 
         init(_ letter: String, _ count: Int, far: Bool, artist: Int, album: Int, _ kind: PdbStringKind) {
+            self.init(letter, count, artistFar: far, albumFar: far, artist: artist, album: album, kind)
+        }
+
+        init(_ letter: String, _ count: Int, artistFar: Bool, albumFar: Bool, artist: Int, album: Int, _ kind: PdbStringKind) {
             name = String(repeating: letter, count: count)
-            self.far = far
+            self.artistFar = artistFar
+            self.albumFar = albumFar
             artistSize = artist
             albumSize = album
             self.kind = kind
@@ -444,6 +450,7 @@ struct PdbWriterTests {
     }
 
     static let boundaryCases: [BoundaryCase] = [
+        // rekordbox 7.2.x 경계 실험(2026-10-08)
         BoundaryCase("A", 126, far: false, artist: 144, album: 156, .shortASCII),
         BoundaryCase("A", 127, far: false, artist: 148, album: 160, .longASCII),
         BoundaryCase("가", 116, far: true, artist: 252, album: 264, .utf16LE),
@@ -453,15 +460,34 @@ struct PdbWriterTests {
         BoundaryCase("A", 236, far: true, artist: 256, album: 268, .longASCII),
         BoundaryCase("A", 244, far: true, artist: 264, album: 276, .longASCII),
         BoundaryCase("A", 250, far: true, artist: 272, album: 284, .longASCII),
+        // rekordbox 7.2.19 실험 X1(2026-10-08): 이름 끝(아티스트 0x0C·앨범 0x18 + 문자열 바이트) 248부터 먼 모양
+        BoundaryCase("가", 100, far: false, artist: 220, album: 232, .utf16LE),
+        BoundaryCase("가", 108, far: false, artist: 236, album: 248, .utf16LE),
+        BoundaryCase("가", 109, far: false, artist: 240, album: 252, .utf16LE),  // 앨범 이름 끝 246
+        BoundaryCase("가", 110, artistFar: false, albumFar: true, artist: 240, album: 252, .utf16LE),  // 앨범 이름 끝 248
+        BoundaryCase("가", 112, artistFar: false, albumFar: true, artist: 244, album: 256, .utf16LE),
+        BoundaryCase("가", 113, artistFar: false, albumFar: true, artist: 248, album: 260, .utf16LE),
+        BoundaryCase("가", 114, artistFar: false, albumFar: true, artist: 248, album: 260, .utf16LE),
+        BoundaryCase("가", 115, artistFar: false, albumFar: true, artist: 252, album: 264, .utf16LE),  // 아티스트 이름 끝 246, 할당 252
+        BoundaryCase("A", 200, far: false, artist: 220, album: 232, .longASCII),
+        BoundaryCase("A", 220, artistFar: false, albumFar: true, artist: 240, album: 252, .longASCII),
+        BoundaryCase("A", 226, artistFar: false, albumFar: true, artist: 248, album: 260, .longASCII),
+        BoundaryCase("A", 228, artistFar: false, albumFar: true, artist: 248, album: 260, .longASCII),
+        BoundaryCase("A", 229, artistFar: false, albumFar: true, artist: 252, album: 264, .longASCII),
+        BoundaryCase("A", 231, artistFar: false, albumFar: true, artist: 252, album: 264, .longASCII),  // 아티스트 이름 끝 247
     ]
 
     /// 아티스트·앨범 행의 가까운·먼 모양 경계와 칸 자리.
     /// rekordbox 7.2.x 경계 실험(2026-10-08): 한 곡의 아티스트·앨범을 '가' × 116·117·119·120, 'A' × 126·127·236·244·250으로 차례로 바꿔
-    /// USB 동기화한 뒤 행을 읽었다. 할당 크기(자리 사이 거리)와 모양은 아래 표 그대로였다
+    /// USB 동기화한 뒤 행을 읽었다. rekordbox 7.2.19 실험 X1(2026-10-08): 같은 방법으로 '가' × 100·108·109·110·112·113·114·115,
+    /// 'A' × 200·220·226·228·229·231. 모양·칸은 아래 표 그대로였고, 새로 붙인 행의 할당 크기(자리 사이 거리)도 같았다
+    /// (지운 자리를 제자리에서 다시 쓴 행은 원래 자리 크기를 썼다)
     @Test(arguments: boundaryCases)
     func artistAlbumBoundaryGolden(_ golden: BoundaryCase) throws {
-        let (name, far, artistSize, albumSize, kind) = (golden.name, golden.far, golden.artistSize, golden.albumSize, golden.kind)
-        let artist = try PdbRowEncoder.artist(UsbNamedRow(id: 7, name: name)).bytes
+        let (name, artistSize, albumSize, kind) = (golden.name, golden.artistSize, golden.albumSize, golden.kind)
+        let artistRow = try PdbRowEncoder.artist(UsbNamedRow(id: 7, name: name))
+        let artist = artistRow.bytes, far = golden.artistFar
+        #expect(artistRow.rules.isEmpty)
         #expect(artist.count == artistSize && PdbRowSize.artist(name: name) == artistSize)
         #expect(Self.u16(artist, 0) == (far ? 0x0064 : 0x0060) && Self.u32(artist, 4) == 7 && artist[8] == 0x03)
         // 먼 모양: 0x09는 0, u16 이름 오프셋 0x000C @0x0A. 가까운 모양: u8 오프셋 @0x09(짧은 ASCII 0x0A, 그 밖은 0x0C)
@@ -475,15 +501,18 @@ struct PdbWriterTests {
         #expect(artistName.value == name && artistName.kind == kind)
         // 이름 앞 정렬 빈칸과 이름 뒤 할당 끝까지는 0
         let artistEnd = artistOffset + artistName.byteLength
+        #expect((artistEnd >= PdbRowSize.farShapeNameEnd) == far)
         #expect(artist[artistEnd...].allSatisfy { $0 == 0 })
         if !far { #expect(artist[0x0A..<artistOffset].allSatisfy { $0 == 0 }) }
 
-        let album = try PdbRowEncoder.album(UsbAlbum(id: 9, name: name, artistID: 7)).bytes
+        let albumRow = try PdbRowEncoder.album(UsbAlbum(id: 9, name: name, artistID: 7))
+        let album = albumRow.bytes, albumFar = golden.albumFar
+        #expect(albumRow.rules.isEmpty)
         #expect(album.count == albumSize && PdbRowSize.album(name: name) == albumSize)
-        #expect(Self.u16(album, 0) == (far ? 0x0084 : 0x0080) && Self.u32(album, 4) == 0 && Self.u32(album, 8) == 7)
+        #expect(Self.u16(album, 0) == (albumFar ? 0x0084 : 0x0080) && Self.u32(album, 4) == 0 && Self.u32(album, 8) == 7)
         #expect(Self.u32(album, 0x0C) == 9 && Self.u32(album, 0x10) == 0 && album[0x14] == 0x03)
-        let albumOffset = far ? Self.u16(album, 0x16) : Int(album[0x15])
-        if far {
+        let albumOffset = albumFar ? Self.u16(album, 0x16) : Int(album[0x15])
+        if albumFar {
             #expect(album[0x15] == 0 && albumOffset == 0x18)
         } else {
             #expect(albumOffset == (kind == .shortASCII ? 0x16 : 0x18))
@@ -491,32 +520,36 @@ struct PdbWriterTests {
         let albumName = try PdbStringDecoder.decode(album, at: albumOffset)
         #expect(albumName.value == name && albumName.kind == kind)
         let albumEnd = albumOffset + albumName.byteLength
+        #expect((albumEnd >= PdbRowSize.farShapeNameEnd) == albumFar)
         #expect(album[albumEnd...].allSatisfy { $0 == 0 })
-        if !far { #expect(album[0x16..<albumOffset].allSatisfy { $0 == 0 }) }
+        if !albumFar { #expect(album[0x16..<albumOffset].allSatisfy { $0 == 0 }) }
     }
 
-    /// 실험이 확인한 길이(이름 문자열 131바이트 이하는 가까운 모양, 236바이트 이상은 먼 모양) 사이는 할당 크기 252부터 먼 모양으로 고르고
-    /// pdbFarOffsetRows를 붙인다(쓰기를 막지 않고 CDJ 확인 항목으로 알린다)
-    @Test func artistAlbumUnconfirmedBandFlagged() throws {
-        // (이름, 먼 모양, 규칙): 문자열 바이트 = 4 + 2 × 글자 수
-        let cases: [(String, Bool, Bool)] = [
-            (String(repeating: "가", count: 63), false, false),  // 130바이트
-            (String(repeating: "가", count: 64), false, true),  // 132바이트
-            (String(repeating: "가", count: 114), false, true),  // 232바이트, 아티스트 할당 248
-            (String(repeating: "가", count: 115), true, true),  // 234바이트, 아티스트 할당 252
-            (String(repeating: "가", count: 116), true, false),  // 236바이트
+    /// 모양은 할당 크기가 아니라 이름 끝(248 이상이면 먼 모양)으로 고른다. 실험이 보지 못한 앨범 이름 끝 247(긴 ASCII 219자)만
+    /// 같은 기준(가까운 모양)으로 쓰고 pdbFarOffsetRows를 붙인다(쓰기를 막지 않고 CDJ 확인 항목으로 알린다)
+    @Test func artistAlbumShapeByNameEnd() throws {
+        // (글자, 수, 아티스트 먼 모양, 앨범 먼 모양, 앨범 규칙)
+        let cases: [(String, Int, Bool, Bool, Bool)] = [
+            ("A", 218, false, false, false),  // 222바이트: 앨범 이름 끝 246
+            ("A", 219, false, false, true),  // 223바이트: 앨범 이름 끝 247(본 적 없음)
+            ("A", 220, false, true, false),  // 224바이트: 앨범 이름 끝 248
+            ("A", 232, true, true, false),  // 236바이트: 아티스트 이름 끝 248
+            ("가", 64, false, false, false),  // 132바이트: 전에는 확인 안 된 길이
         ]
-        for (name, far, flagged) in cases {
+        for (letter, count, artistFar, albumFar, flagged) in cases {
+            let name = String(repeating: letter, count: count)
             let artist = try PdbRowEncoder.artist(UsbNamedRow(id: 1, name: name))
-            #expect((Self.u16(artist.bytes, 0) == 0x0064) == far, "\(name.count)")
-            #expect(artist.rules == (flagged ? [.pdbFarOffsetRows] : []), "\(name.count)")
+            #expect((Self.u16(artist.bytes, 0) == 0x0064) == artistFar, "\(count)")
+            #expect(artist.rules.isEmpty, "\(count)")
             let album = try PdbRowEncoder.album(UsbAlbum(id: 1, name: name, artistID: nil))
-            #expect(album.rules == (flagged ? [.pdbFarOffsetRows] : []), "\(name.count)")
+            #expect((Self.u16(album.bytes, 0) == 0x0084) == albumFar, "\(count)")
+            #expect(album.rules == (flagged ? [.pdbFarOffsetRows] : []), "\(count)")
         }
-        // 앨범은 고정 칸이 길어 같은 이름도 할당이 12 크다: '가' × 109(222바이트)는 앨범 할당 252로 먼 모양, 아티스트 할당 240으로 가까운 모양
-        let name = String(repeating: "가", count: 109)
-        #expect(Self.u16(try PdbRowEncoder.album(UsbAlbum(id: 1, name: name, artistID: nil)).bytes, 0) == 0x0084)
-        #expect(Self.u16(try PdbRowEncoder.artist(UsbNamedRow(id: 1, name: name)).bytes, 0) == 0x0060)
+        // 할당 크기는 기준이 아니다: 'A' × 231 아티스트는 할당 252인데 가까운 모양, '가' × 116은 같은 할당 252로 먼 모양
+        let near = String(repeating: "A", count: 231), far = String(repeating: "가", count: 116)
+        #expect(PdbRowSize.artist(name: near) == 252 && PdbRowSize.artist(name: far) == 252)
+        #expect(Self.u16(try PdbRowEncoder.artist(UsbNamedRow(id: 1, name: near)).bytes, 0) == 0x0060)
+        #expect(Self.u16(try PdbRowEncoder.artist(UsbNamedRow(id: 1, name: far)).bytes, 0) == 0x0064)
     }
 
     /// 먼 모양 아티스트·앨범 행을 쓴 파일을 다시 읽으면 같은 모델이고, 규칙은 작성기 규칙에 모인다
@@ -531,8 +564,8 @@ struct PdbWriterTests {
         #expect(UsbLibraryDiff.compare(reread, files.written, options: .init(formats: [.deviceLibrary])).differences.isEmpty)
         let artists = try Self.rows(export, 2)
         #expect(artists.map { Self.u16($0, 0) } == [0x0064, 0x0064])
-        // 경계 사이 길이의 이름은 쓰되 규칙을 싣는다
-        model.albums[0].name = String(repeating: "가", count: 100)
+        // 실험이 보지 못한 이름 끝(앨범 247)의 이름은 쓰되 규칙을 싣는다
+        model.albums[0].name = String(repeating: "A", count: 219)
         #expect(try PdbWriter.files(model, mode: .fresh).rules == [.pdbFarOffsetRows])
     }
 

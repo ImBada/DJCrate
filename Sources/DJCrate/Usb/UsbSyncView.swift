@@ -113,7 +113,7 @@ struct UsbSyncView: View {
                     .frame(maxHeight: 92)
             }
             HStack(alignment: .bottom) {
-                Text(.ui("USB의 큐·그리드·평점은 로컬이 더 새로워도 USB 값으로 바꾸는 초안으로 가져옵니다."))
+                Text(.ui("USB의 큐·그리드는 로컬이 더 새로워도 USB 값으로 바꾸는 초안으로 가져옵니다."))
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
@@ -191,8 +191,8 @@ struct UsbSyncView: View {
                 .frame(minWidth: 112)
             }
             .disabled(controlsDisabled || !model.canImport)
-            .help(.ui("USB의 큐·그리드·평점으로 로컬 값을 바꾸는 초안을 만듭니다. 동기화가 꺼져 있어도 쓸 수 있습니다"))
-            .accessibilityLabel(.ui("USB 큐·그리드·평점 가져오기…"))
+            .help(.ui("USB의 큐·그리드로 로컬 값을 바꾸는 초안을 만듭니다. 동기화가 꺼져 있어도 쓸 수 있습니다"))
+            .accessibilityLabel(.ui("USB 큐·그리드 가져오기…"))
             .accessibilityIdentifier("usb-sync-import-cue-grid")
             if isOperating {
                 ProgressView().controlSize(.small)

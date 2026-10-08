@@ -3035,18 +3035,18 @@
         }
       }
     },
-    "- 큐 포인트와 루프 포인트\n- 핫 큐\n- 비트 그리드\n- 레이팅\n\nrekordbox의 곡이 더 최근에 바뀌었어도 USB 값으로 바꿉니다. USB 레이팅이 비어 있으면 로컬 레이팅을 그대로 두고, 색상과 코멘트는 아직 가져오지 않습니다. 초안이 이미 있는 곡은 건너뜁니다. 가져온 초안을 확인한 뒤 rekordbox에 쓰기…로 반영하세요.\n\n계속하시겠습니까?" : {
+    "- 큐 포인트와 루프 포인트\n- 핫 큐\n- 비트 그리드\n\nrekordbox의 곡이 더 최근에 바뀌었어도 USB 값으로 바꿉니다. 레이팅·색상·코멘트는 rekordbox처럼 가져오지 않습니다. 초안이 이미 있는 곡은 건너뜁니다. 가져온 초안을 확인한 뒤 rekordbox에 쓰기…로 반영하세요.\n\n계속하시겠습니까?" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "- Cue points and loop points\n- Hot cues\n- Beat grid\n- Rating\n\nUSB values replace local ones even if the track changed more recently in rekordbox. An empty USB rating keeps the local rating, and colors and comments are not imported yet. Tracks that already have drafts are skipped. Review the imported drafts, then apply them with Write to rekordbox….\n\nDo you want to continue?"
+            "value" : "- Cue points and loop points\n- Hot cues\n- Beat grid\n\nUSB values replace local ones even if the track changed more recently in rekordbox. As in rekordbox, ratings, colors, and comments are not imported. Tracks that already have drafts are skipped. Review the imported drafts, then apply them with Write to rekordbox….\n\nDo you want to continue?"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "- キューポイントとループポイント\n- ホットキュー\n- ビートグリッド\n- レーティング\n\nrekordboxのトラックの方が新しく変更されていてもUSBの値に置き換えます。USBのレーティングが空ならローカルのレーティングはそのまま残し、カラーとコメントはまだ取り込みません。下書きがすでにあるトラックはスキップします。取り込んだ下書きを確認してから「rekordboxに書き込む…」で反映してください。\n\n続行しますか?"
+            "value" : "- キューポイントとループポイント\n- ホットキュー\n- ビートグリッド\n\nrekordboxのトラックの方が新しく変更されていてもUSBの値に置き換えます。rekordboxと同じく、レーティング・カラー・コメントは取り込みません。下書きがすでにあるトラックはスキップします。取り込んだ下書きを確認してから「rekordboxに書き込む…」で反映してください。\n\n続行しますか?"
           }
         }
       }
@@ -6763,18 +6763,18 @@
         }
       }
     },
-    "USB 큐·그리드·평점 가져오기…" : {
+    "USB 큐·그리드 가져오기…" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Import USB Cues, Grids, and Ratings…"
+            "value" : "Import USB Cues and Grids…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "USBのキュー・グリッド・評価を取り込む…"
+            "value" : "USBのキュー・グリッドを取り込む…"
           }
         }
       }
@@ -6823,22 +6823,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBの編集は下書きとしてためて、「USBに書き込む…」で反映します"
-          }
-        }
-      }
-    },
-    "USB 평점이 별 0~5개 범위를 벗어나니 rekordbox에서 확인한 뒤 다시 가져오세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The USB rating is outside the range of 0–5 stars; check it in rekordbox, then import again."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "USBの評価が星0～5個の範囲外のため、rekordboxで確認してから再度取り込んでください。"
           }
         }
       }
@@ -8293,34 +8277,34 @@
         }
       }
     },
-    "USB의 큐·그리드·평점으로 로컬 값을 바꾸는 초안을 만듭니다. 동기화가 꺼져 있어도 쓸 수 있습니다" : {
+    "USB의 큐·그리드는 로컬이 더 새로워도 USB 값으로 바꾸는 초안으로 가져옵니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Create drafts that replace local values with the USB cues, grids, and ratings. Works even when sync is off"
+            "value" : "USB cues and grids are imported as drafts that replace local values, even newer ones."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "USBのキュー・グリッド・評価でローカルの値を置き換える下書きを作成します。同期がオフでも使えます"
+            "value" : "USBのキュー・グリッドは、ローカルの方が新しくてもUSBの値に置き換える下書きとして取り込みます。"
           }
         }
       }
     },
-    "USB의 큐·그리드·평점은 로컬이 더 새로워도 USB 값으로 바꾸는 초안으로 가져옵니다." : {
+    "USB의 큐·그리드로 로컬 값을 바꾸는 초안을 만듭니다. 동기화가 꺼져 있어도 쓸 수 있습니다" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "USB cues, grids, and ratings are imported as drafts that replace local values, even newer ones."
+            "value" : "Create drafts that replace local values with the USB cues and grids. Works even when sync is off"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "USBのキュー・グリッド・評価は、ローカルの方が新しくてもUSBの値に置き換える下書きとして取り込みます。"
+            "value" : "USBのキュー・グリッドでローカルの値を置き換える下書きを作成します。同期がオフでも使えます"
           }
         }
       }
@@ -20031,22 +20015,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "2つのUSB形式でキューの更新回数が異なるため、rekordboxでUSBを確認してからキューを取り込んでください。"
-          }
-        }
-      }
-    },
-    "두 USB 형식의 평점이나 정보 갱신 횟수가 다르니 rekordbox에서 확인한 뒤 다시 가져오세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ratings or information update counts differ between the two USB formats; check them in rekordbox, then import again."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2つのUSB形式で評価または情報の更新回数が異なるため、rekordboxで確認してから再度取り込んでください。"
           }
         }
       }
@@ -39399,18 +39367,24 @@
         }
       }
     },
-    "큐 %lld곡·그리드 %lld곡·평점 %lld곡을 초안으로 가져왔습니다. %lld곡은 건너뛰었습니다." : {
+    "큐 %lld곡·그리드 %lld곡을 초안으로 가져왔습니다. %lld곡은 건너뛰었습니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Imported track drafts — cues: %1$lld; beat grids: %2$lld; ratings: %3$lld. Skipped: %4$lld."
+            "value" : "Imported track drafts — cues: %1$lld; beat grids: %2$lld. Skipped: %3$lld."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "キューを%1$lld曲、グリッドを%2$lld曲、評価を%3$lld曲の下書きとして取り込みました。%4$lld曲をスキップしました。"
+            "value" : "キューを%1$lld曲、グリッドを%2$lld曲の下書きとして取り込みました。%3$lld曲をスキップしました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "큐 %1$lld곡·그리드 %2$lld곡을 초안으로 가져왔습니다. %3$lld곡은 건너뛰었습니다."
           }
         }
       }
@@ -40991,22 +40965,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "タグの下書きを保存できませんでした。下書きフォルダのアクセス権を確認してから、同期または書き込みを再試行してください。"
-          }
-        }
-      }
-    },
-    "태그 초안이 이미 있으니 먼저 반영하거나 버린 뒤 다시 가져오세요." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A tag draft already exists; apply or discard it before importing again."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "タグの下書きがすでにあるため、反映または破棄してから再度取り込んでください。"
           }
         }
       }
