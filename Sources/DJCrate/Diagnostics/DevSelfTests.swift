@@ -24,6 +24,7 @@ enum DevSelfTests {
         runMissingFilesCaptureIfRequested(store: store)
         runDraftNoticeCaptureIfRequested(store: store)
         runXMLExportCaptureIfRequested(store: store)
+        runXMLImportCaptureIfRequested(store: store)
         runPlaylistRecoveryIfRequested(store: store)
         runWriteSelfTestIfRequested(store: store, deck: deck)
         runTrackSelfTestIfRequested(store: store)

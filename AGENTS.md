@@ -46,6 +46,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 .build/debug/djc track-delete --db <사본.db> --share <폴더> <ContentID…>      # 곡 빼기, 사본에만
 .build/debug/djc playlist-write --db <사본.db> [--dry-run] <편집.json>        # 재생 목록 편집(JSON), 사본에만
 .build/debug/djc xml-export --db <사본.db> --out <파일.xml> (--share <rekordbox 폴더>/share | --no-analysis) [--overwrite] [--dry-run]   # 라이브러리 전체를 rekordbox XML 한 파일로(읽기만, 지정한 파일만 씀, rekordbox 폴더·USB PIONEER·DJCrate 데이터 폴더·연동 XML 자리는 거부)
+.build/debug/djc xml-diff --db <사본.db> --xml <파일.xml> (--share <rekordbox 폴더>/share | --no-analysis) [--limit N] [--json | --draft [--only cue,grid,tag,playlist]]   # 다른 도구가 만든 rekordbox XML과 라이브러리의 차이(곡은 경로로 맞춤, 읽기만). --draft면 고른 차이를 DJC_HOME 초안으로(기존 초안은 덮지 않음)
 .build/debug/djc lab                                   # 실험 명령 목록(sql·loop-repro·seekinfo-check …)
 .build/debug/djc lab sql <사본.db> "SELECT …"           # 사본에 읽기 전용 질의
 .build/debug/djc usb-export --volume <마운트> --db <사본.db> (--playlist <ID>… | --tracks <ID,…>) [--dry-run] [--snapshot-time <ISO 8601>] [--allow-physical --confirm <볼륨 이름>]   # 빈 USB에 두 형식으로 내보내기(시험은 디스크 이미지만, 예: --volume $DJC_HOME/mnt)
@@ -104,6 +105,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 | `--edit-selftest` | 곡 편집 창: 창 재생기(스페이스바·시킹·이음새 듣기, 덱은 그대로)·넣기·자르기·복제·옮기기·지우기와 편집 메뉴 실행 취소·확대 키·실제 마우스 끌기(클립 끝 다듬기·원곡 구간 끌어 넣기, 앱이 앞에 있을 때만)·렌더·추가한 곡으로 이동·덱에 편집본 | `EditLayoutFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로 |
 | `--usb-selftest` | 합성 라이브러리 → 디스크 이미지 내보내기 → 꺼내기·다시 붙여 확인 → USB 편집(곡 빼기·목록 만들기·이름 바꾸기 초안 → 미리 보기 → 쓰기 → 다시 읽기 → 되돌리기, "USB 시험 편집 통과" 줄) → 되돌리기 → Device Library만 내보내기·OneLibrary 더하기·원래 파일 SHA-256·다시 붙여 읽기·되돌리기("USB 시험 옮기기 통과" 줄) → "USB 시험 통과" 줄 | rekordbox 꺼짐, `DJC_HOME` 임시 폴더, `--db <스냅샷 사본>`(`DJC_HOME`은 스냅샷을 옮기지 않는다). 앱 없이 같은 흐름: `DJC_USB_SELFTEST_SCRATCH=<임시 폴더> swift test --filter UsbSelfTestScenarioCapture` |
 | `--xml-export-capture=<폴더>` | 라이브러리 XML 내보내기(#72): 합성 라이브러리로 내보내며 진행 줄·완료 안내를 `<폴더>`에 캡처하고, 내보낸 파일의 곡·재생 목록 수와 사본 DB 불변을 확인("라이브러리 XML 시험 통과" 줄). `<폴더>`는 `DJC_HOME` 밖(데이터 폴더 안은 내보내기가 거부한다) | `DJC_XMLEXPORT_FIXTURE=<없는 폴더> swift test --filter XMLExportFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로, 임시 `DJC_HOME` |
+| `--xml-import-capture=<폴더>` | rekordbox XML 가져오기(#72): 합성 라이브러리를 내보낸 XML을 고쳐(제목·핫큐·그리드·새 재생 목록) 가져와 미리 보기·결과 시트를 `<폴더>`에 캡처하고, 차이 수·만든 초안 수·사본 DB 불변을 확인("rekordbox XML 가져오기 시험 통과" 줄). `<폴더>`는 `DJC_HOME` 밖 | `XMLExportFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로, 임시 `DJC_HOME` |
 
 예: `DJC_HOME=$(mktemp -d) .build/debug/DJCrate --db <스냅샷> --select 32395449 --loop-selftest 2>&1 | grep "루프 시험"`
 

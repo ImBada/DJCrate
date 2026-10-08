@@ -29,7 +29,7 @@ djc parse 'TVA 시험 OP 1' --json
 djc compat --db /tmp/djc-fixture/master.db --json
 ```
 
-`--json`을 빼면 사람이 읽는 출력이다. 기존 `report`, `path`, `parse`, `compat`의 일반 출력은 유지한다. 분석·파일 생성·실험·쓰기 명령(`analyze`, `snapshot`, `cache`, `schema-dump`, `lab`, `reflection-dry-run`, `cue-write`, `track-add`, `track-delete`, `playlist-write`, `rekordbox-restore`, `snapshot-point`, `xml-export`)은 이 JSON 계약에 포함하지 않는다.
+`--json`을 빼면 사람이 읽는 출력이다. 기존 `report`, `path`, `parse`, `compat`의 일반 출력은 유지한다. 분석·파일 생성·실험·쓰기 명령(`analyze`, `snapshot`, `cache`, `schema-dump`, `lab`, `reflection-dry-run`, `cue-write`, `track-add`, `track-delete`, `playlist-write`, `rekordbox-restore`, `snapshot-point`, `xml-export`)은 이 JSON 계약에 포함하지 않는다. `xml-diff --json`은 같은 봉투를 쓰지만 자기 모양을 가진다([아래](#rekordbox-xml과-비교하기xml-diff)).
 
 **CLI 동의 규칙**: `djc`에는 대화형 질문이 없다. 플래그가 곧 동의다(`--live`, `--allow-physical --confirm <볼륨 이름>`, `--discard-device-changes`, `--overwrite`). 파일을 만드는 명령(`xml-export`, `reflection-dry-run --out`, `schema-dump`)은 출력 파일이 이미 있으면 `--overwrite` 없이는 거부한다. lab 쓰기 실험(`gain-write-test`, `tag-write-test`, `artwork-write-test`, `analysis-attach-test`, `cue-write-selftest`)은 라이브 DB·실제 분석 폴더를 거부하고, 거부하면 오류 메시지와 함께 종료 코드 1로 끝난다.
 
@@ -242,6 +242,40 @@ djc xml-export --db /tmp/djc-fixture/master.db --out /tmp/djc-fixture/library.xm
 3. `python3 -I scripts/xml-compare.py <rekordbox가 만든.xml> <djc가 만든.xml>`. 곡은 `Location`으로 짝짓고, 칸마다 같음·다름·한쪽에만 있음의 개수, TEMPO·POSITION_MARK의 곡 단위 일치, 재생 목록 트리의 경로·곡 순서를 센다. 값은 찍지 않는다(`--examples N`은 이 Mac에서만 볼 값 예를 찍는다).
 
 rekordbox가 만든 XML에는 곡 정보가 들어 있으니 저장소·이슈에 올리지 않는다. 결과에서 먼저 볼 가정: `TrackID` = `ContentID`, `DateAdded` = `StockDate`, `PlayCount` = `DJPlayCount`, `Tonality` = 키 이름(rekordbox의 키 표시 설정과 같은지), `Kind`·`Location` 퍼센트 인코딩(`&`·`#`·괄호 등), 값이 0일 때 칸을 빼는 `BitRate`·`SampleRate`·`Size`·`AverageBpm`, TEMPO의 BPM 반올림·변속 곡 구간 수, 자동 큐 포함 여부, 루프·핫큐 루프의 `Type`·`End`·`Num`, rekordbox만 가진 `POSITION_MARK` 칸(색), 인텔리전트·My Tag 노드의 모양.
+
+## rekordbox XML과 비교하기(`xml-diff`)
+
+```sh
+djc xml-diff --db <스냅샷 사본.db> --xml <파일.xml> [--share <분석 파일 폴더> | --no-analysis] [--limit N] [--json | --draft [--only cue,grid,tag,playlist]]
+
+# djc snapshot 사본 옆에는 share가 없으니 rekordbox 폴더의 share를 준다(읽기만).
+djc xml-diff --db <스냅샷 사본.db> --xml ~/Desktop/other.xml --share ~/Library/Pioneer/rekordbox/share
+```
+
+다른 도구나 rekordbox가 만든 rekordbox XML(`DJ_PLAYLISTS`)을 읽어 지금 라이브러리(스냅샷 사본)와의 차이를 보인다(#72 가져오기). 사본·분석 파일·XML 파일 모두 읽기만 한다. 라이브 `master.db`는 입력으로 거부하고, 분석 파일 폴더 규칙은 `xml-export`와 같다(`--no-analysis`면 그리드를 비교하지 않는다).
+
+- **곡 맞추기**: XML `Location`(`file://localhost/…` 퍼센트 인코딩)을 풀어 파일 경로로 맞춘다. 경로는 NFC로 비교하고, 같은 경로가 없으면 대소문자만 다른 경로가 하나뿐일 때 맞춘다. 라이브러리에 없는 곡(파일이 아닌 위치 포함)과 여러 곡에 맞는 곡(라이브러리에 같은 경로가 여럿이거나 XML이 같은 곡을 여러 번 적음, `TrackID`가 겹친 곡)은 비교하지 않고 센다. 그 곡을 가리키는 목록 항목은 맞추지 못한 항목이다.
+- **큐**: 메모리 큐(`Num` -1)·핫큐 A~H·루프(`Type` 4)를 종류·위치(1ms 미만은 같음)·루프 끝·이름으로 짝짓는다. 남은 것 중 같은 핫큐 슬롯·같은 위치의 메모리 큐는 고친 것(~), 나머지는 XML에만 있는 것(+)과 라이브러리에만 있는 것(−)으로 센다. 핫큐 색은 보지 않는다. 큐·루프 `POSITION_MARK`가 하나도 없는 곡(큐를 내보내지 않는 도구)과 읽지 못한 큐(깨진 값·A~H 밖 핫큐)가 있는 곡은 큐를 비교하지 않고 센다. XML에 없는 rekordbox 자동 큐(`CUE(Auto)`·`1.1Bars`)는 −로 치지 않는다.
+- **그리드**: XML에 `TEMPO`가 있는 곡만(분석 파일도 그 곡만 읽는다). 두 쪽 구간으로 곡 길이까지 박을 만들어 박 시각(1ms 반올림 오차 안)·박 번호를 비교한다. 같은 박을 구간을 달리 나눠 적어도 같다. 4/4가 아닌 `TEMPO`나 읽지 못한 값(1~4 밖 `Battito` 포함)이 있는 곡은 그리드를 읽지 않는다.
+- **태그**: XML에 있는 칸만, 글자는 NFC로 비교한다(`Name`·`Artist`·`Album`·`Genre`·`Composer`·`Comments`·`Year`·`TrackNumber`·`Tonality`·`Rating`). 연도·트랙 번호 0은 빈칸, 키는 표기가 달라도(`Am`·`8A`) 같은 키면 같다, `Rating` 0·51·…·255는 별 0~5개. `Colour`는 rekordbox XML 색 값과 곡 색 번호의 짝을 확인하기 전이라 읽지 않고 센다.
+- **재생 목록**: 폴더 이름 경로로 맞춘다. 라이브러리에 없는 목록과, 맞춘 곡의 구성·순서가 다른 목록을 낸다. 맞추지 못한 항목 수를 함께 적는다. 라이브러리에만 있는 목록은 차이로 치지 않는다. 같은 경로가 여럿이면 비교하지 않고 센다. `KeyType` 1(위치로 적은 항목)도 읽는다.
+- 모르는 요소·값(큐·루프가 아닌 위치 표시, A~H 밖 핫큐, 모르는 목록 종류, 컬렉션에 없는 곡을 가리킨 항목 등)은 막지 않고 건너뛰며 "읽지 않고 건너뛴 것"에 센다. 문서가 깨졌거나 `DJ_PLAYLISTS`가 아니면 오류로 멈춘다.
+- 글 출력은 개수 줄 다음에 곡별 요약(`경로 — 제목: 큐 +1 ~1 −0 · 그리드 · 태그 제목·아티스트`)과 목록별 요약을 `--limit`(기본 50)개까지 적는다. 출력에 파일 경로·곡 이름이 나오니 로그·이슈에 붙이지 않는다.
+- `--json`은 `{"schemaVersion":1,"command":"xml-diff","data":{…}}`이다: `matching`(xmlTracks·matched·unmatched·ambiguous), `counts`(cueTracks·gridTracks·tagTracks·missingPlaylists·changedPlaylists·ambiguousPlaylists·libraryOnlyPlaylists·xmlWithoutGrid·xmlWithoutCues·xmlUnreadableCues), `gridsCompared`, `skipped`(종류별 개수), `tracks`(xmlID·libraryID·path·title·cues{added,removed,modified[{library,xml}]}·grid{library,xml}·tags[{key,library,xml}]), `unmatched`·`ambiguous`(xmlID·path·title), `playlists`(kind missing|changed·path·libraryID·xmlEntries·libraryEntries(ContentID)·unmatchedEntries). 오류도 같은 봉투(`error`)로 표준 오류에 낸다.
+
+내보낸 XML을 그대로 비교하면 차이가 0이다(시험으로 확인한다).
+
+### 차이를 초안으로(`--draft`)
+
+`--draft`를 주면 차이를 DJCrate 초안으로 만들어 `DJC_HOME`(없으면 `~/Library/Application Support/DJCrate`) 아래 초안 폴더(`cue-drafts/`·`grid-drafts/`·`tag-drafts/`·`playlist-drafts.json`)에만 쓴다. rekordbox에는 쓰지 않는다. 쓰기는 앱의 "rekordbox에 쓰기"(미리 보기 → 쓰기)가 다른 초안과 똑같이 한다. `--only`로 종류를 고르고(쉼표로 여럿), `--json`과는 함께 줄 수 없다.
+
+- **base는 지금 라이브러리 상태**다: 큐는 지금 큐(자동 큐 포함), 그리드는 분석 파일의 박, 태그는 지금 곡 정보, 재생 목록은 지금 목록. 그 뒤 rekordbox에서 바뀐 곡·목록은 기존 규칙대로 쓰기 미리 보기에서 막힌다.
+- **기존 초안은 덮지 않는다.** 그 곡에 같은 종류의 초안 파일이 있으면(읽지 못하는 파일도) 건너뛰고 이유를 적는다. 재생 목록은 기존 재생 목록 초안에 편집을 덧붙이되, 이미 초안이 손댄 목록과 초안에 같은 이름으로 만든 목록은 건너뛴다. 계획을 세운 뒤 저장하기 전에 생긴 초안도 덮지 않는다.
+- **큐**: XML과 같은 큐는 지금 행을 그대로 두고, 고친 큐(같은 핫큐 슬롯·같은 위치의 메모리 큐)는 지금 행을 고쳐(핫큐 색·활성 루프처럼 XML에 없는 칸을 잃지 않게, 루프 길이가 바뀌면 박 루프 크기만 지운다) 남기고, XML에만 있는 큐를 더하고, 라이브러리에만 있는 큐를 뺀다. XML에 없는 rekordbox 자동 큐는 남긴다. 새 루프는 활성 루프가 아니고 박 크기도 없다.
+- **그리드**: 분석 파일에 박이 있고 구간으로 다룰 수 있는(재생성 오차 2ms 이하) 곡만. 구간은 XML의 TEMPO 그대로다. 변속 지점이 앞 구간과 반 박 안쪽이면(덱의 변속 지점 넣기와 같은 규칙, 쓰기에서 막힌다) 손실로 센다.
+- **태그**: 바뀐 칸만 고친다. 키는 Camelot(1A~12B)으로 읽히는 값만, 평점은 별 0~5개만 넣는다.
+- **재생 목록**: 없는 목록은 폴더 경로를 따라(없는 폴더는 만들고) 만들어 곡을 넣는다. 새 목록·폴더는 부모 맨 위에 XML 순서로 생긴다. 곡이 다른 목록은 곡을 모두 빼고 XML 순서로 다시 넣는다. 라이브러리 목록 뒤에 곡만 더한 목록은 더한 곡만 넣는다. 같은 자리에 인텔리전트 목록이 있으면 건너뛴다. DJCrate 앱이 켜져 있으면 재생 목록 초안은 만들지 않는다(앱이 그 파일을 다시 읽지 않고 자기 초안으로 덮는다). 그리드 초안을 만들면 덱에 올린 곡의 그리드는 덱 편집이 덮을 수 있다고 알린다.
+- **손실**: 초안이 담지 못하는 차이는 빼고 "초안에 담지 못한 차이"로 센다: 곡 길이 밖 큐, 메모리 큐 10개 초과, 같은 핫큐 슬롯의 두 번째 큐, 분석 파일이 없거나 구간으로 다룰 수 없는 그리드, 범위 밖 BPM·박 번호, Camelot이 아닌 키, 빈 제목, 쓰기 규칙을 확인하지 않은 칸(동기화 곡·재생 목록에 든 곡의 평점 등, `TagWriteScope`), 비교하지 않은 곡(스트리밍·지운 곡)이 든 목록, 맞추지 못한 XML 항목이 있는 곡이 다른 목록(통째로 바꾸지 않는다), 없는 목록을 만들 때 맞추지 못해 빠진 항목, 반 박 안쪽 변속 지점, 이름이 겹친 폴더.
 
 ## USB 내보내기(`usb-export`)
 

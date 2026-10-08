@@ -360,6 +360,20 @@ final class LibraryStore {
     }
     private(set) var hasXMLExportJob = false
     @ObservationIgnored var xmlExportTask: Task<Void, Never>?
+    /// rekordbox XML 가져오기(`LibraryStore+XMLImport.swift`): XML·라이브러리를 읽는 중인지와 차이 미리 보기 시트
+    var isReadingXMLImport = false
+    var xmlImportPreview: XMLImportPreview? {
+        didSet { if oldValue?.id != xmlImportPreview?.id { xmlImportResult = nil } }
+    }
+    /// 미리 보기에서 만든 초안 결과(시트가 결과 화면으로 바뀐다)
+    var xmlImportResult: XMLImportDraftResult?
+    var isMakingXMLImportDrafts = false
+    @ObservationIgnored var xmlImportTask: Task<Void, Never>?
+    @ObservationIgnored var xmlImportDraftTask: Task<Void, Never>?
+    /// 덱에 올린 곡과 그 그리드 초안을 덱에서 바꿨는지(가져오기가 덱 곡의 그리드 초안을 덱에 넘길지 정한다)
+    @ObservationIgnored var deckGridDraftState: (() -> (uuid: String, hasChanges: Bool)?)?
+    /// 가져온 그리드 초안을 덱이 받아 저장한다. 받지 못하면(덱에서 고쳤거나 다른 곡) false.
+    @ObservationIgnored var adoptImportedGridDraft: ((GridDraft) -> Bool)?
     /// 곡 추가·내보내기 결과 안내
     var stagingMessage: AppMessage? {
         didSet { if let stagingMessage { feedback.announce(stagingMessage) } }

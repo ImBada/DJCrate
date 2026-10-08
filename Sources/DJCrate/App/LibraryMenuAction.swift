@@ -3,9 +3,9 @@ import RekordboxKit
 import SwiftUI
 
 enum LibraryMenuAction: CaseIterable {
-    case addFiles, importAppleMusic, snapshot, exportXML, exportLibraryXML, reflect, pending, writeResult, restore, pointSnapshots, removeTracks
+    case addFiles, importAppleMusic, snapshot, exportXML, exportLibraryXML, importRekordboxXML, reflect, pending, writeResult, restore, pointSnapshots, removeTracks
 
-    static let fileActions: [Self] = [.addFiles, .importAppleMusic, .snapshot, .exportXML, .exportLibraryXML]
+    static let fileActions: [Self] = [.addFiles, .importAppleMusic, .snapshot, .exportXML, .exportLibraryXML, .importRekordboxXML]
     static let rekordboxActions: [Self] = [.reflect, .pending, .writeResult, .restore, .pointSnapshots, .removeTracks]
 
     var title: String {
@@ -16,6 +16,8 @@ enum LibraryMenuAction: CaseIterable {
         case .exportXML: String(ui: "XML 만들기")
         // 연동 파일을 만드는 "XML 만들기"와 달리 라이브러리 전체를 고른 파일로 내보낸다(저장 위치를 고르므로 …).
         case .exportLibraryXML: String(ui: "라이브러리 XML 내보내기…")
+        // 다른 도구가 만든 rekordbox XML과의 차이를 보고 고른 것만 초안으로 만든다(#72, 열기 창을 여므로 …).
+        case .importRekordboxXML: String(ui: "rekordbox XML 가져오기…")
         case .reflect: String(ui: "rekordbox에 쓰기…")
         case .pending: String(ui: "쓰기 대기 목록 보기")
         case .writeResult: String(ui: "마지막 쓰기 결과…")
@@ -51,6 +53,9 @@ enum LibraryMenuAction: CaseIterable {
         case .exportLibraryXML:
             guard case .loaded = store.phase else { return false }
             return store.snapshotURL != nil && !store.isLoading && !store.hasXMLExportJob
+        case .importRekordboxXML:
+            guard case .loaded = store.phase else { return false }
+            return store.snapshotURL != nil && !store.isLoading && !store.isReadingXMLImport && store.xmlImportPreview == nil
         case .reflect: return store.pendingLibraryCount > 0 || store.hasPlaylistDrafts
         case .pending, .writeResult: return true
         case .restore: return store.hasWriteBackup
@@ -73,6 +78,7 @@ enum LibraryMenuAction: CaseIterable {
             if store.sidebar == .staged { StagingPanels.exportXML(store: store) }
             else { ReflectionPanels.export(store: store, rows: store.reflectionPreviewRows) }
         case .exportLibraryXML: LibraryXMLPanels.export(store: store)
+        case .importRekordboxXML: LibraryXMLPanels.importXML(store: store)
         case .reflect: DirectWritePanels.write(store: store, rows: store.reflectionPreviewRows)
         case .pending: store.sidebar = .pending
         case .writeResult: store.showingWriteResult = true
@@ -98,6 +104,9 @@ enum LibraryMenuAction: CaseIterable {
         case .exportXML: return String(ui: "XML로 넘길 추가한 곡이나 큐·그리드 초안을 먼저 만드세요")
         case .exportLibraryXML:
             return store.hasXMLExportJob ? String(ui: "라이브러리 XML 내보내기가 끝난 뒤 다시 시도하세요") : String(ui: "라이브러리를 먼저 불러온 뒤 내보내세요")
+        case .importRekordboxXML:
+            return store.isReadingXMLImport || store.xmlImportPreview != nil
+                ? String(ui: "지금 가져오는 XML이 끝난 뒤 다시 시도하세요") : String(ui: "라이브러리를 먼저 불러온 뒤 가져오세요")
         case .restore: return String(ui: "쓰기 전 백업이 없으니 마지막 쓰기 결과를 확인하세요")
         case .addFiles, .importAppleMusic: return String(ui: "라이브러리를 먼저 불러온 뒤 곡을 추가하세요")
         case .pending, .writeResult, .pointSnapshots: return nil

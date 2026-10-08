@@ -90,6 +90,7 @@ struct ContentView: View {
         .sheet(isPresented: $store.showingWriteResult) { WriteResultView(history: store.resultHistory) }
         .sheet(isPresented: $store.showingPlaylistPicker) { PlaylistPickerView(store: store) }
         .sheet(isPresented: $store.showingUnlinkedDrafts) { UnlinkedDraftsView(store: store) }
+        .sheet(item: $store.xmlImportPreview) { preview in XMLImportSheet(store: store, preview: preview) }
         .modifier(RecoverySheetHost(store: store, anchor: .library))
         .animation(.easeInOut(duration: 0.15), value: store.writeStage)
         .searchable(text: $store.search, placement: .toolbar, prompt: Text(.ui("제목·아티스트·코멘트")))
@@ -218,6 +219,11 @@ struct ContentView: View {
                 deck.reloadExternalCueDraft(drafts[uuid])
             }
             store.onGridDraftSaved = { [weak deck] uuid in deck?.gridDraftSavedExternally(uuid) }
+            store.deckGridDraftState = { [weak deck] in
+                guard let deck, let uuid = deck.row?.track.uuid else { return nil }
+                return (uuid, deck.gridDraft?.hasChanges == true || deck.gridDragBase != nil)
+            }
+            store.adoptImportedGridDraft = { [weak deck] draft in deck?.adoptImportedGridDraft(draft) ?? false }
             deck.onStagedGridChange = { [weak store] uuid, bpm in store?.stagedGridChanged(uuid: uuid, bpm: bpm) }
             deck.onCueDraftChange = { [weak store] draft in store?.cueDraftChanged(draft) }
             deck.onReanalyze = { [weak store] uuid in store?.restoreKeySuggestion(uuid: uuid) }

@@ -62,8 +62,12 @@ enum XMLExportCommand {
     /// 분석 파일 뿌리. `djc snapshot` 사본 옆에는 `share`가 없어서, 없는 폴더를 그대로 쓰면 모든 곡의 TEMPO가 조용히 빠진다.
     /// 그래서 폴더가 없으면 막고, 분석 없이 내보내는 것은 `--no-analysis`로 명시할 때만 한다(nil).
     static func shareRoot(_ request: Request, snapshot: URL) throws -> URL? {
-        if request.noAnalysis { return nil }
-        let share = request.share ?? snapshot.deletingLastPathComponent().appending(path: "share")
+        try shareRoot(share: request.share, noAnalysis: request.noAnalysis, snapshot: snapshot)
+    }
+
+    static func shareRoot(share: URL?, noAnalysis: Bool, snapshot: URL) throws -> URL? {
+        if noAnalysis { return nil }
+        let share = share ?? snapshot.deletingLastPathComponent().appending(path: "share")
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: share.path, isDirectory: &isDirectory), isDirectory.boolValue else {
             throw ReadFailure("missing_share", String(ui: "분석 파일 폴더가 없습니다: \(share.path). --share <rekordbox 폴더>/share를 주거나, 그리드 없이 내보내려면 --no-analysis를 주세요"))

@@ -22,6 +22,7 @@ enum MainCommands {
                 String(ui: "재생 목록 편집(JSON 배열)을 사본 DB와 그 옆 masterPlaylists6.xml에 쓴다(라이브 라이브러리는 거부)"), playlistWrite),
         Command("rekordbox-restore", String(ui: "[--backup <폴더> (--db <사본> | --live) [--share <폴더>]]"), String(ui: "백업으로 되돌린다"), rekordboxRestore),
         XMLExportCommand.command,
+        XMLDiffCommand.command,
         Command("schema-dump", String(ui: "<사본.db> <출력.sql> [--overwrite]"), String(ui: "사본 DB의 구조(CREATE 문)만 뽑는다"), schemaDump),
         Command("path", String(ui: "<제목> [--db PATH] [--json]"), String(ui: "제목으로 파일 경로 찾기"), path),
         Command("parse", String(ui: "\"<코멘트>\" [--json]"), String(ui: "애니송 프리셋으로 코멘트 파싱"), parse),
