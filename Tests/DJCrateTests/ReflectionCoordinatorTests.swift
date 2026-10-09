@@ -22,6 +22,9 @@ final class FakeReflectionHost: ReflectionHost {
     var wrote: (drafts: [String], grids: [String], gains: [String], tags: [String])?
     var wroteArtworks: [String]?
     var hasPlaylistDrafts = false
+    /// 쓰기 대기 재생 기록(#43)이 있는지, 쓰기에 넘긴 기록 ID
+    var hasHistoryDrafts = false
+    var wroteHistories: [String]?
     /// 미리 보기에 재생 목록 초안을 넣으라고 했는지, 쓰기에 넘긴 재생 목록 초안
     var previewedPlaylists: Bool?
     var wroteMerges: [DuplicateMergeDraft]?
@@ -43,11 +46,12 @@ final class FakeReflectionHost: ReflectionHost {
         return try preview.get()
     }
     func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], tags: [TagDraft], artworks: [ArtworkEdit],
-                          playlists: PlaylistDraft?, merges: [DuplicateMergeDraft]) async throws -> RekordboxWriter.Report {
+                          playlists: PlaylistDraft?, merges: [DuplicateMergeDraft], histories: [HistoryImport]) async throws -> RekordboxWriter.Report {
         wrote = (drafts.map(\.trackUUID), grids.map(\.trackUUID), gains.keys.sorted(), tags.map(\.trackUUID))
         wroteArtworks = artworks.map(\.trackUUID)
         wrotePlaylists = .some(playlists)
         wroteMerges = merges
+        wroteHistories = histories.map(\.id)
         if let writeError { throw writeError }
         return try writtenReport ?? preview.get().report
     }

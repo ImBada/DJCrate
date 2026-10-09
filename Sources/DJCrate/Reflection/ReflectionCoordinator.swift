@@ -133,9 +133,12 @@ protocol ReflectionHost: AnyObject {
     func writeTargets(_ rows: [TrackRow]) -> [TrackRow]
     /// 재생 목록 초안이 있는지(곡을 고르지 않아도 반영할 것이 있다)
     var hasPlaylistDrafts: Bool { get }
+    /// 쓰기 대기 재생 기록(USB에서 보존한 기록, #43)이 있는지(곡을 고르지 않아도 반영할 것이 있다)
+    var hasHistoryDrafts: Bool { get }
+    /// - Parameter playlists: 곡이 아닌 초안(재생 목록 초안·쓰기 대기 재생 기록)도 함께 볼지
     func previewWrite(rows: [TrackRow], playlists: Bool) async throws -> LibraryStore.WritePreview
     func writeToRekordbox(_ drafts: [CueDraft], grids: [GridDraft], gains: [String: Double], tags: [TagDraft], artworks: [ArtworkEdit],
-                          playlists: PlaylistDraft?, merges: [DuplicateMergeDraft]) async throws -> RekordboxWriter.Report
+                          playlists: PlaylistDraft?, merges: [DuplicateMergeDraft], histories: [HistoryImport]) async throws -> RekordboxWriter.Report
     func libraryChangedSince(_ backup: RekordboxWriter.Backup) async -> Bool?
     func restoreRekordbox(_ backup: RekordboxWriter.Backup) async throws -> URL
     /// 쓰기·복원은 끝났지만 뒤따른 일(초안 정리·다시 읽기·복원 충돌)에 남은 경고(#175)
@@ -162,6 +165,7 @@ protocol ReflectionHost: AnyObject {
 }
 
 extension ReflectionHost {
+    var hasHistoryDrafts: Bool { false }
     var writeFollowUp: [String] { [] }
     var canBackUpBeforeWrite: Bool { true }
     func draftExclusions(for rows: [TrackRow], blockedOnly: Bool) -> [String] { [] }
@@ -182,7 +186,7 @@ struct ReflectionCoordinator {
     var prompter: any ReflectionPrompter = AlertPrompter()
     var isRekordboxRunning: () -> Bool = LibrarySnapshot.isRekordboxRunning
 
-    /// - Parameter playlists: 재생 목록 초안도 함께 쓸지(곡을 골라 쓰는 오른쪽 클릭 메뉴는 곡 초안만 쓴다)
+    /// - Parameter playlists: 곡이 아닌 초안(재생 목록 초안·쓰기 대기 재생 기록)도 함께 쓸지(곡을 골라 쓰는 오른쪽 클릭 메뉴는 곡 초안만 쓴다)
     func write(rows: [TrackRow], playlists: Bool = true) async {
         guard !host.isWritingRekordbox else { return }
         guard !isRekordboxRunning() else {
@@ -191,7 +195,8 @@ struct ReflectionCoordinator {
         }
         let targets = host.writeTargets(rows)
         let withPlaylists = playlists && host.hasPlaylistDrafts
-        guard !targets.isEmpty || withPlaylists else {
+        let withHistories = playlists && host.hasHistoryDrafts
+        guard !targets.isEmpty || withPlaylists || withHistories else {
             notify(String(ui: "쓸 초안이 없습니다"), String(ui: "고른 곡에 rekordbox와 다른 큐·그리드·게인·태그 초안이 없습니다."),
                    lines: host.draftExclusions(for: rows, blockedOnly: false))
             return
@@ -201,13 +206,13 @@ struct ReflectionCoordinator {
         do {
             host.writeStage = WriteStage(String(ui: "바꿀 내용을 확인하는 중…"), completed: 0, total: targets.count, cancellable: true)
             try Task.checkCancellation()
-            let preview = try await host.previewWrite(rows: rows, playlists: withPlaylists)
+            let preview = try await host.previewWrite(rows: rows, playlists: withPlaylists || withHistories)
             try Task.checkCancellation()
             host.writeStage = nil
             let report = preview.report
             guard !report.written.isEmpty || !report.gridWritten.isEmpty || !report.analysisWritten.isEmpty || !report.gainWritten.isEmpty
                     || !report.tagWritten.isEmpty || !report.artworkWritten.isEmpty || !report.playlistWritten.isEmpty
-                    || !report.mergeWritten.isEmpty else {
+                    || !report.mergeWritten.isEmpty || !report.historyWritten.isEmpty else {
                 // 창 대신 결과에 제외한 초안까지 남긴다(#230).
                 var result = WriteResult.written(report, preview: report)
                 if !preview.exclusions.isEmpty {
@@ -235,6 +240,8 @@ struct ReflectionCoordinator {
             let cues = Set(report.written.map(\.trackUUID)), grids = Set((report.gridWritten + report.analysisWritten).map(\.trackUUID))
             let gains = Set(report.gainWritten.map(\.trackUUID)), tags = Set(report.tagWritten.map(\.trackUUID))
             let artworks = Set(report.artworkWritten.map(\.trackUUID))
+            // 재생 기록은 곡 초안처럼 미리 보기에서 쓸 수 있던 것만 넘긴다(막힌 기록은 쓰기 대기에 남는다)
+            let histories = Set(report.historyWritten.map(\.id))
             try Task.checkCancellation()
             let written = try await host.writeToRekordbox(preview.drafts.filter { cues.contains($0.trackUUID) },
                                                 grids: preview.grids.filter { grids.contains($0.trackUUID) },
@@ -242,7 +249,8 @@ struct ReflectionCoordinator {
                                                 tags: preview.tags.filter { tags.contains($0.trackUUID) },
                                                 artworks: preview.artworks.filter { artworks.contains($0.trackUUID) },
                                                 playlists: report.playlistWritten.isEmpty ? nil : preview.playlists,
-                                                merges: preview.merges.filter { draft in report.mergeWritten.contains { $0.trackUUID == draft.id } })
+                                                merges: preview.merges.filter { draft in report.mergeWritten.contains { $0.trackUUID == draft.id } },
+                                                histories: preview.histories.filter { histories.contains($0.id) })
             // 쓰기 결과와 뒤따른 일(초안 정리·다시 읽기)의 경고를 나눠 알린다(#175).
             publish(WriteResult.written(written, preview: report).followedUp(host.writeFollowUp), undo: written.backup)
         } catch is CancellationError {
@@ -465,6 +473,7 @@ struct ReflectionCoordinator {
         (report.blocked + report.gridBlocked + report.analysisBlocked + report.gainBlocked + report.tagBlocked + report.artworkBlocked
             + report.mergeBlocked).map { "• \($0.title): \($0.reason ?? "")" }
             + report.playlistBlocked.map(PlaylistWriteText.reason)
+            + report.historyBlocked.map(HistoryWriteText.reason)
     }
 
     /// 쓰기 전 확인 창(#210): 막힘·제외·손실이 있거나 백업을 만들 수 없을 때만 뜬다(`WriteConfirmPolicy`).
@@ -479,6 +488,7 @@ struct ReflectionCoordinator {
         if !report.artworkWritten.isEmpty { kinds.append(WriteResult.Part.artwork.summary(report.artworkWritten.count)) }
         if !report.mergeWritten.isEmpty { kinds.append(String(ui: "합치기 \(report.mergeWritten.count)묶음")) }
         if !report.playlistWritten.isEmpty { kinds.append(PlaylistWriteText.summary(report.playlistWritten.count)) }
+        if !report.historyWritten.isEmpty { kinds.append(HistoryWriteText.summary(report.historyWritten.count)) }
         var sections: [[String]] = []
         if !report.mergeWritten.isEmpty {
             sections.append(report.mergeWritten.map { String(ui: "• \($0.title) 유지 · 중복 \($0.removed)곡을 컬렉션에서 뺍니다") }

@@ -30,6 +30,7 @@ enum DevSelfTests {
         runXMLImportCaptureIfRequested(store: store)
         runPlaylistRecoveryIfRequested(store: store)
         runWriteSelfTestIfRequested(store: store, deck: deck)
+        HistorySelfTest.runIfRequested(store: store)
         runTrackSelfTestIfRequested(store: store)
         runLoopSelfTestIfRequested(deck: deck)
         runScrollPerfIfRequested(deck: deck)

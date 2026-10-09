@@ -90,6 +90,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
 |---|---|---|
 | `--itunes-selftest` | iTunes 목록 순서·읽기 전용 제한·덱 핫큐·태그 초안·DB 불변 | `DJC_ITUNES_FIXTURE=<폴더> swift test --filter ITunesFixtureCapture` 합성 사본을 `DJC_REKORDBOX_DIR`·`--db`로 |
 | `--write-selftest` | 반영(미리 보기·쓰기·조용한 다시 읽기·되돌리기) 전 과정. 재생 목록 초안(새 폴더·목록, 있던 목록에 곡)도 만들어 함께 쓰고 되돌린다 | `DJC_REKORDBOX_DIR` 사본 필수. 합성 사본은 `DJC_PLAYLIST_FIXTURE=<폴더> swift test --filter PlaylistWriteFixtureCapture` |
+| `--history-selftest` | USB 보존 기록의 화면·쓰기 대기·미리 보기·쓰기·다시 읽기·복원 후 재대기. `--history-capture=<임시 폴더>`로 대기·쓰기 뒤·복원 뒤 창만 PNG 캡처 | `DJC_HISTORY_SELFTEST_FIXTURE=<없는 임시 폴더> swift test --filter HistorySelfTestFixtureCapture` 합성 폴더를 `DJC_REKORDBOX_DIR`로, `--db <폴더>/history-snapshot.db`, 임시 `DJC_HOME`. 소리·실물 USB 없이 실행 |
 | `--loop-selftest` | 활성 루프·즉석 루프·½·핫큐 저장·나가기 | `--select`로 활성 루프 있는 곡 |
 | `--loop-audio-selftest` | 루프 이음새가 샘플 단위로 맞는지(램프 WAV) | — |
 | `--hotcue-click-selftest` | 2초 스크럽·관성이 실제 파형 모니터에 도착하는지(21·42개), 관성 누출과 핫큐 클릭·이동 확인(물리 트랙패드의 OS 감속·클릭 억제는 별도 확인) | `EditLayoutFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로 |
@@ -137,7 +138,7 @@ scripts/build-app.sh [--install]     # dist/DJCrate.app(릴리스·번들·로�
   - 초안: `cue-drafts/`, `grid-drafts/`, `gain-drafts.json`, `tag-drafts/`, `artwork-drafts/`(앨범아트 초안과 고른 앨범아트 사본), `playlist-drafts.json`(재생 목록 편집, 순서대로)
   - `damaged-drafts/`: 읽지 못한 초안 파일(합치기 초안 `merge-drafts.json`·추가 목록 `staged.json` 포함)을 지우거나 빈 값으로 덮지 않고 옮겨 둔 곳(앱이 읽기·저장할 때 옮기고 목록 위에 알린다)
   - 그 밖: `staged.json`, `snapshots/`, `rekordbox-backups/`, `point-snapshots/`(시점 스냅샷, #224), 캐시(`analysis/`, `waveforms/`, `loudness.json`)
-  - USB: `usb-backups/`, `usb-snapshots/`(USB DB의 Mac 사본), `usb-drafts/`, `usb-sessions/`(저널·잠금), `usb-staging/`
+  - USB: `usb-backups/`, `usb-snapshots/`(USB DB의 Mac 사본), `usb-drafts/`, `usb-sessions/`(저널·잠금), `usb-staging/`, `usb-histories/`(USB에서 가져와 보존한 기기 재생 기록, 기록마다 JSON 한 파일. 캐시가 아니라 지우지 않는다)
 
 ## 핵심 설계 결정 (코드만 봐서는 모르는 것)
 
