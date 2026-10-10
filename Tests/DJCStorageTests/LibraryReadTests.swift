@@ -47,6 +47,13 @@ struct LibraryReadTests {
         #expect(try read.search(query: "", filter: .emptyComment).tracks.map(\.id) == ["102"])
     }
 
+    @Test func 빈_코멘트_필터는_프리셋_없이_쓰고_규칙_밖_필터는_프리셋을_요구한다() throws {
+        let read = try reader(try fixture())
+        #expect(try read.search(query: "", filter: .emptyComment).tracks.map(\.id) == ["102"])
+        let failure = try #require(throws: ReadFailure.self) { _ = try read.search(query: "", filter: .offConvention) }
+        #expect(failure.code == "invalid_arguments")
+    }
+
     @Test func 곡_상세_JSON은_큐_그리드_게인_소속_초안을_담는다() throws {
         let fixture = try fixture(), read = try reader(fixture)
         let data = try json("track", read.track(id: "101"))

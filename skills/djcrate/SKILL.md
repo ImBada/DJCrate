@@ -15,8 +15,11 @@ description: DJCrate의 명령줄 도구 djc로 rekordbox 라이브러리(스냅
    - 음원 파일
 
    읽기는 아래 djc 읽기 명령으로만 한다. `--db`에 라이브 DB(링크 포함)를 주면 djc가 `live_database`로 거절한다. 우회하지 않는다.
-2. **rekordbox에 쓰지 않는다.** 아래 명령은 실행하지 않는다.
-   - `cue-write`, `track-add`, `track-delete`, `playlist-write`, `rekordbox-restore`
+2. **rekordbox와 USB에 쓰지 않는다.** 이 스킬이 실행하는 명령은 아래 "명령" 절 표의 읽기·초안 명령과 `djc snapshot`뿐이다. `djc` 사용법의 다른 명령은 실행하지 않는다. 특히 아래 명령은 실행하지 않는다.
+   - rekordbox 쓰기: `cue-write`, `track-add`, `track-delete`, `playlist-write`, `rekordbox-restore`
+   - USB 쓰기: `usb-export`, `usb-edit`, `usb-migrate`, `usb-restore`, `usb-recover`
+   - 시점 스냅샷 복원·삭제(`snapshot-point restore`·`delete`), 캐시 비우기(`cache --clear`)
+   - 다른 길로 초안을 만드는 `xml-diff --draft`
    - `--live`가 붙은 명령
    - `djc lab …`
 
@@ -53,6 +56,7 @@ description: DJCrate의 명령줄 도구 djc로 rekordbox 라이브러리(스냅
 - `djc draft`는 `DJC_HOME`의 초안 폴더에 쓴다. `DJC_HOME` 기본값은 `~/Library/Application Support/DJCrate`다. 기본값이 곧 앱이 읽는 사용자 초안이다.
 - 연습·시험에는 `DJC_HOME=$(mktemp -d)`와 `DJC_REKORDBOX_DIR=<합성 또는 사본 폴더>`를 함께 지정한다. DB를 읽는 명령마다 `--db <그 폴더/master.db>`를 붙인다.
   - `--db`만으로는 사용자 초안 폴더를 격리하지 못한다.
+  - `DJC_HOME`만으로는 스냅샷을 격리하지 못한다. 스냅샷 폴더는 `DJC_HOME`을 따르지 않는다. `DJC_REKORDBOX_DIR` 없이 `--db`를 빠뜨리면 사용자 스냅샷을 읽는다.
   - 명시한 DB의 그리드는 DB 옆 `share/PIONEER/USBANLZ`에서 읽는다.
   - 분석 파일이 없다고 라이브 파일로 대체하지 않는다.
 - 이 CLI 조회·초안 명령의 DB 선택은 `--db` 또는 최신 스냅샷이다. 앱용 `DJC_DB`만 설정해서는 이 명령의 DB가 바뀌지 않는다.
@@ -130,7 +134,7 @@ description: DJCrate의 명령줄 도구 djc로 rekordbox 라이브러리(스냅
   - 마디 첫 박은 `firstBeatNumber`가 1이 아니면 `(5 − firstBeatNumber) mod 4`박 뒤다.
   - `grid.status`가 `unavailable`이면 시각을 계산하지 않는다. `tempoChanges`가 있어도 계산하지 않는다. 앱에서 찍으라고 제안만 한다.
 - 메모리 큐는 자동 큐를 포함해 10개까지다. 넘으면 `invalid_draft`가 난다.
-- 같은 자리 ±30ms에 메모리 큐가 이미 있으면 새로 만들지 않고 이름도 바꾸지 않는다. 루프를 더할 때는 기존 루프만 해당하며 길이도 유지한다. `--dry-run` 결과로 확인한다.
+- 같은 자리 ±30ms에 메모리 큐가 이미 있으면 새로 만들지 않고 이름도 바꾸지 않는다. 루프를 더할 때는 기존 루프만 해당하며 길이도 유지한다. `--dry-run` 결과의 `cue.cues` 개수와 이름으로 확인한다. 곡에 초안이 이미 있으면 `hasChanges`는 그대로 `true`라 이 확인에 쓰지 않는다.
 - `--slot`을 주기 전에 `djc track <ID> --json`의 `cues[].hotCueSlot`으로 그 자리가 비었는지 본다. 차 있으면 교체해도 되는지 사용자에게 묻는다.
 - 곡에 이미 초안이 있으면 그 초안에 이어 쓴다. 처음 만들 때의 rekordbox 값 `base`와 앱에서 한 편집을 유지한다.
 
@@ -206,6 +210,7 @@ djc drafts --json | jq -r '.data.drafts[] | [.contentID, .title, (.kinds | join(
 ### 3. 코멘트·태그 정리 제안과 태그 초안
 
 ```sh
+djc search '' --filter empty-comment --json | jq -r '.data.tracks[] | [.id, .title] | @tsv'   # 빈 코멘트 곡(프리셋 없이)
 djc report --comment-preset anisong --json | jq '.data.commentClasses'          # convention·legacy·residue·credit·empty·other 개수
 djc search '' --filter off-convention --comment-preset anisong --json | jq -r '.data.tracks[] | [.id, .title, .comment] | @tsv'
 djc parse "TVA 시험 OP 1" --json | jq -r '.data.classification'   # 제안한 코멘트가 규칙에 맞는지 → convention

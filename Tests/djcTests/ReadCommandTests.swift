@@ -75,6 +75,15 @@ struct ReadCommandTests {
         #expect(message.contains("--filter empty-comment"))
     }
 
+    @Test func CLI는_빈_코멘트_필터를_프리셋_없이_쓴다() throws {
+        let fixture = try readLibraryFixture()
+        let result = try run(["search", "", "--filter", "empty-comment", "--db", fixture.database.path, "--json"], fixture: fixture)
+        #expect(result.status == 0 && result.stderr.isEmpty)
+        let envelope = try #require(JSONSerialization.jsonObject(with: result.stdout) as? [String: Any])
+        let tracks = try #require((envelope["data"] as? [String: Any])?["tracks"] as? [[String: Any]])
+        #expect(tracks.map { $0["id"] as? String } == ["102"])
+    }
+
     @Test func CLI는_후보와_빈목록과_잘못된_인자를_JSON으로_출력한다() throws {
         let fixture = try duplicateLibraryFixture()
         for invalid in [false, true] {
