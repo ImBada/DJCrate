@@ -2,6 +2,9 @@
 
 [![빌드·테스트](https://github.com/fotoner/DJCrate/actions/workflows/check.yml/badge.svg?branch=dev)](https://github.com/fotoner/DJCrate/actions/workflows/check.yml) [![라이선스: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+> [!WARNING]
+> DJCrate는 **베타**다(0.x). 기능과 저장 형식이 바뀔 수 있다. rekordbox에 쓰기 전에 라이브러리를 따로 백업한다. 문제는 [이슈](https://github.com/fotoner/DJCrate/issues)로 알린다.
+
 DJCrate는 rekordbox 7 라이브러리를 고치는 macOS 앱이다. 고칠 때 rekordbox를 켤 필요가 없다. 공연용이 아니라 라이브러리 관리 도구다. 명령줄 도구 `djc`도 함께 있다. 화면은 한국어·영어·일본어로 볼 수 있다. English summary: [below](#english).
 
 ![DJCrate 덱과 곡 목록 화면(합성 시험 데이터)](docs/images/deck-library.png)
@@ -17,7 +20,9 @@ DJCrate는 rekordbox 7 라이브러리를 고치는 macOS 앱이다. 고칠 때 
 
 ## 설치와 실행
 
-필요한 것은 아래와 같다.
+빌드한 앱(베타, Apple Silicon)은 [GitHub Releases](https://github.com/fotoner/DJCrate/releases)에서 받는다. 받은 앱의 설치 절차는 [배포 문서](docs/releasing.md#설치)에 있다.
+
+소스에서 빌드할 때 필요한 것은 아래와 같다.
 
 - macOS 27 이상
 - Swift 6.2 이상(Xcode)
@@ -63,6 +68,8 @@ swift build -c release --product djc  # .build/release/djc
 | [CONTRIBUTING.md](CONTRIBUTING.md) · [AGENTS.md](AGENTS.md) · [docs/issues.md](docs/issues.md) | 빌드·검증, 작업 규칙, [GitHub 이슈](https://github.com/fotoner/DJCrate/issues) 규칙 |
 
 ## English
+
+DJCrate is in **beta** (0.x). Features and data formats may change. Back up your rekordbox library before you write to it. Prebuilt Apple Silicon builds are on [GitHub Releases](https://github.com/fotoner/DJCrate/releases).
 
 DJCrate is a macOS app for editing a rekordbox 7 library (cues, beat grids, Auto Gain, tags, playlists, adding and removing tracks) without launching rekordbox. Every edit stays a draft until you choose Write to rekordbox (⇧⌘E). It never writes while rekordbox or rekordboxAgent is running, only writes to rekordbox 7.2.x with a verified database layout, backs up the whole library first and verifies the result. USB support is experimental; physical USBs are written only after you confirm the write dialog. Requires macOS 27+, Swift 6.2+ (Xcode); install with `scripts/build-app.sh --install`. The app UI is available in English, Japanese and Korean (others fall back to English); docs, the `djc` CLI and issues are in Korean.
 
