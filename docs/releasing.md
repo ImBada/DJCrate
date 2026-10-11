@@ -157,14 +157,14 @@ SPARKLE_ED_PRIVATE_KEY="$(cat <임시 폴더>/priv.txt)" scripts/sparkle-appcast
 ### 서명 키
 
 - 공개 키는 `Assets/sparkle-public-ed-key.txt`에 있다. 내용은 ed25519 공개 키 32바이트의 base64 한 줄이다. `build-app.sh`가 읽어 `SUPublicEDKey`로 넣는다. 형식이 틀리면 빌드 전에 실패한다.
-- 비밀 키는 저장소 시크릿 `SPARKLE_ED_PRIVATE_KEY`에 있다. 내용은 `generate_keys -x`로 내보낸 base64 한 줄이다. 비밀 키를 저장소와 로그에 두지 않는다.
+- 비밀 키는 저장소 시크릿 `SPARKLE_ED_PRIVATE_KEY`에 있다. 내용은 `generate_keys --account djcrate -x`로 내보낸 base64 한 줄이다. 비밀 키를 저장소와 로그에 두지 않는다.
 - 비밀 키를 잃으면 이미 설치한 앱은 새 업데이트를 받지 못한다. 사용자는 새 키의 앱을 한 번 직접 받아 설치해야 한다. 그래서 비밀 키를 안전한 곳에 따로 보관한다.
 
 진짜 키는 관리자가 아래 순서로 만든다. 도구는 `swift build`가 받은 `.build/artifacts/sparkle/Sparkle/bin/`에 있다.
 
-1. `generate_keys`를 실행한다. 이 도구는 비밀 키를 로그인 키체인에 만든다. 그 뒤 공개 키를 출력한다.
+1. `generate_keys --account djcrate`를 실행한다. 이 도구는 비밀 키를 로그인 키체인의 `djcrate` 계정에 만든다. 그 뒤 공개 키를 출력한다.
 2. 출력한 공개 키를 `Assets/sparkle-public-ed-key.txt`에 한 줄로 쓴다. 커밋한다.
-3. `generate_keys -x <임시 파일>`로 비밀 키를 내보낸다.
+3. `generate_keys --account djcrate -x <임시 파일>`로 비밀 키를 내보낸다.
 4. `gh secret set SPARKLE_ED_PRIVATE_KEY -R fotoner/DJCrate < <임시 파일>`로 시크릿에 넣는다.
 5. 임시 파일을 지운다. 키체인의 키나 별도 보관본은 남긴다.
 6. 시험용 패키지를 만든다. 비밀 키를 표준 입력으로 넘겨 위 [로컬에서 확인할 것](#로컬에서-확인할-것)의 `sparkle-appcast.sh`를 돌린다. "EdDSA 서명 확인" 줄이 나오면 공개 키 파일과 비밀 키가 짝이다.
