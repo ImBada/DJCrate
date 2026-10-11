@@ -8161,6 +8161,22 @@
         }
       }
     },
+    "USB에 쓰는 중입니다. 끝난 뒤 종료하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate is writing to a USB. Quit after it finishes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに書き込み中です。終わってから終了してください"
+          }
+        }
+      }
+    },
     "USB에 쓰는 중입니다. 쓰기가 끝난 뒤 꺼내세요" : {
       "localizations" : {
         "en" : {

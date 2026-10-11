@@ -14,6 +14,13 @@ public struct AppWriteActivity: Equatable, Sendable {
     }
 
     public static let idle = AppWriteActivity(writingRekordbox: false, writingUsb: false)
+
+    /// 앱 끄기를 막는 이유. 업데이트의 다시 켜기·끌 때 설치도 앱 끄기를 지나므로 쓰는 중에는 여기서 멈춘다.
+    public var quitBlockedReason: String? {
+        if writingRekordbox { return String(ui: "rekordbox에 쓰는 중입니다. 끝난 뒤 종료하세요") }
+        if writingUsb { return String(ui: "USB에 쓰는 중입니다. 끝난 뒤 종료하세요") }
+        return nil
+    }
 }
 
 /// 업데이트를 설치하고 앱을 다시 켜도 되는지. 쓰는 중에 앱이 꺼지면 라이브러리나 USB가 반쯤 쓴 채로 남는다.

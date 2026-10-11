@@ -52,6 +52,7 @@ UPDATE_PUBLIC_KEY=$(<Assets/sparkle-public-ed-key.txt)
 # 업데이트 E2E 시험 빌드만 번들 ID·빌드 번호·정보 파일 주소·공개 키를 바꾼다. 시험 앱이 설치 앱의 환경설정(com.fotone.djcrate)에 쓰지 않게 한다.
 if [[ -n "${DJC_BUNDLE_ID:-}${DJC_BUILD_NUMBER:-}${DJC_UPDATE_FEED_URL:-}${DJC_UPDATE_PUBLIC_KEY:-}" ]]; then
     [[ "$PACKAGE" != true && "$INSTALL" != true ]] || fail "DJC_BUNDLE_ID·DJC_BUILD_NUMBER·DJC_UPDATE_*는 시험 빌드에만 씁니다. --package·--install에서는 지우세요."
+    [[ -n "${DJC_BUNDLE_ID:-}" && "${DJC_BUNDLE_ID}" != "$BUNDLE_ID" ]] || fail "시험 빌드에는 설치 앱과 다른 DJC_BUNDLE_ID를 주세요(예: com.fotone.djcrate.updatetest)."
     BUNDLE_ID="${DJC_BUNDLE_ID:-$BUNDLE_ID}"
     BUILD="${DJC_BUILD_NUMBER:-$BUILD}"
     UPDATE_FEED_URL="${DJC_UPDATE_FEED_URL:-$UPDATE_FEED_URL}"

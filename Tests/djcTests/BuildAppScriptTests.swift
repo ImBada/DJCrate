@@ -146,8 +146,12 @@ struct BuildAppScriptTests {
         (["--install"], ["DJC_UPDATE_FEED_URL": "http://127.0.0.1:8000/appcast.xml"]),
         (["--package", "--version", "1.2.3"], ["DJC_BUILD_NUMBER": "42"]),
         (["--install"], ["DJC_UPDATE_PUBLIC_KEY": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="]),
-        ([], ["DJC_BUILD_NUMBER": "0"]),
-        ([], ["DJC_UPDATE_PUBLIC_KEY": "짧은키"]),
+        ([], ["DJC_BUNDLE_ID": "com.fotone.djcrate.updatetest", "DJC_BUILD_NUMBER": "0"]),
+        ([], ["DJC_BUNDLE_ID": "com.fotone.djcrate.updatetest", "DJC_UPDATE_PUBLIC_KEY": "짧은키"]),
+        // 시험 빌드는 설치 앱과 다른 번들 ID가 있어야 한다(Sparkle이 번들 ID 환경설정에 SU… 값을 쓴다)
+        ([], ["DJC_UPDATE_FEED_URL": "http://127.0.0.1:8000/appcast.xml"]),
+        ([], ["DJC_BUILD_NUMBER": "42"]),
+        ([], ["DJC_BUNDLE_ID": "com.fotone.djcrate", "DJC_UPDATE_FEED_URL": "http://127.0.0.1:8000/appcast.xml"]),
     ])
     func 배포_빌드의_업데이트_값_덮어쓰기와_잘못된_값은_빌드_전에_막는다(_ arguments: [String], _ environment: [String: String]) throws {
         let result = try run(identity: "none", install: arguments.contains("--install"), arguments: arguments, environment: environment)

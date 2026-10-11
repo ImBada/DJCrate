@@ -142,7 +142,8 @@ SPARKLE_ED_PRIVATE_KEY="$(cat <임시 폴더>/priv.txt)" scripts/sparkle-appcast
 - 확인·받기·설치 창은 Sparkle 표준 창(`SPUStandardUpdaterController`)이다. Sparkle의 한국어·일본어 지역화가 그대로 나온다.
 - 자동 확인·자동 설치·마지막 확인 시각은 Sparkle이 앱 번들 ID의 환경설정(`SU…` 키)에 저장한다.
 - 앱은 `SUFeedURL`과 `SUPublicEDKey`가 모두 있는 번들에서만 업데이트 도구를 만든다. 개발 빌드(`.build/debug/DJCrate`)와 시험 프로세스는 Sparkle 환경설정에 쓰지 않는다.
-- rekordbox·USB에 쓰는 동안에는 설치와 다시 켜기를 미룬다. 복원도 쓰기에 든다. 쓰기가 끝나면 이어서 설치한다. 판정은 `UpdateInstallPolicy`·`UpdateDeferral`에 있다. 자동으로 받은 업데이트는 앱을 끌 때 설치한다. 쓰는 동안에는 앱이 끄기를 막는다.
+- rekordbox·USB에 쓰는 동안에는 설치와 다시 켜기를 미룬다. 복원도 쓰기에 든다. 쓰기가 끝나면 이어서 설치한다. 판정은 `UpdateInstallPolicy`·`UpdateDeferral`에 있다.
+- 자동으로 받은 업데이트는 앱을 끌 때 설치한다. 받아 둔 업데이트를 다시 켜기로 설치할 때 Sparkle은 미룸 판정을 부르지 않는다. 두 경로 모두 앱 끄기를 지난다. 그래서 앱은 rekordbox·USB에 쓰는 동안 끄기를 막는다(`AppWriteActivity.quitBlockedReason`).
 
 ### 신뢰 모델
 
@@ -191,6 +192,7 @@ Sparkle은 `sparkle:version`을 지금 앱의 `CFBundleVersion`과 비교한다.
 ### 시험 빌드와 E2E
 
 - 아래 환경 변수는 시험 빌드에만 쓴다. `--package`·`--install`에서 주면 빌드 전에 실패한다.
+- 하나라도 주면 `DJC_BUNDLE_ID`도 꼭 준다. 값은 설치 앱의 번들 ID와 달라야 한다. 아니면 빌드 전에 실패한다.
 
 | 변수 | 바꾸는 것 |
 |---|---|

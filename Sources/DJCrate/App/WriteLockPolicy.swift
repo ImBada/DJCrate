@@ -8,8 +8,8 @@ struct WriteLockPolicy {
     var canCancelPreparation = false
 
     var allowsLibraryInteraction: Bool { !isWriting }
+    /// 앱 끄기는 USB 쓰기도 함께 본다(`AppWriteActivity.quitBlockedReason`)
     var allowsTermination: Bool { !isWriting }
-    static var terminationMessage: String { String(ui: "rekordbox에 쓰는 중입니다. 끝난 뒤 종료하세요") }
 
     func blocksKey(_ keyCode: UInt16, in context: KeyRoutingPolicy.Context) -> Bool {
         guard isWriting, context.isMainWindow, !context.hasModalWindow, !context.hasAttachedSheet,

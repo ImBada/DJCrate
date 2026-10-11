@@ -82,7 +82,8 @@ final class AppUpdater: NSObject, UpdaterControl {
 
 extension AppUpdater: @preconcurrency SPUUpdaterDelegate {
     /// 받은 업데이트를 설치하고 다시 켜기 직전. rekordbox·USB에 쓰는 중이면 미뤘다가 쓰기가 끝나면 이어 간다.
-    /// 자동으로 받은 업데이트는 앱을 끌 때 설치한다. 쓰는 중에는 앱이 끄기를 막으므로(`AppDelegate`) 따로 미루지 않는다.
+    /// 자동으로 받은 업데이트는 앱을 끌 때 설치한다. 받아 둔 업데이트는 이 위임 없이 바로 다시 켜기도 한다(SPUUpdaterDelegate.h).
+    /// 두 경로 모두 앱 끄기를 지나고, 쓰는 중에는 `AppDelegate`가 끄기를 막는다.
     func updater(_ updater: SPUUpdater, shouldPostponeRelaunchForUpdate item: SUAppcastItem,
                  untilInvokingBlock installHandler: @escaping () -> Void) -> Bool {
         let decision = deferral.postpone { installHandler() }
