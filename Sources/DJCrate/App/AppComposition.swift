@@ -256,7 +256,11 @@ final class AppComposition {
         // 옛 AI 에이전트 설치본 알림(#262)은 읽기를 기다리지 않는다. 다른 알림을 덮지 않는다
         if agentNoticeEnabled, let agentTools {
             Task { [store] in
-                if let toast = await agentTools.launchNotice(), store.toast == nil { store.toast = toast }
+                _ = await agentTools.launchNotice { toast in
+                    guard store.toast == nil else { return false }
+                    store.toast = toast
+                    return true
+                }
             }
         }
         await store.loadInitial()

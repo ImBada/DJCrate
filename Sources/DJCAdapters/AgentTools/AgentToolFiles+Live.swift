@@ -35,6 +35,7 @@ enum AgentToolFilesError: LocalizedError {
     case notLink(String)
     case missingSource(String)
     case outsideSandbox(String)
+    case blocked(String)
 
     var errorDescription: String? {
         switch self {
@@ -42,6 +43,7 @@ enum AgentToolFilesError: LocalizedError {
         case let .notLink(path): String(ui: "\(path)는 링크가 아니라 지우지 않았습니다. 직접 확인한 뒤 지우세요.")
         case let .missingSource(path): String(ui: "앱 안 재료 \(path)를 찾지 못했습니다. DJCrate를 다시 받아 설치하세요.")
         case let .outsideSandbox(path): "시험 프로세스는 임시 폴더 밖(\(path))에 쓰지 않습니다"
+        case let .blocked(path): String(ui: "\(path)에 DJCrate가 넣지 않은 폴더나 링크가 있어 바꾸지 않았습니다. 그 항목을 옮긴 뒤 다시 하세요.")
         }
     }
 }
@@ -136,6 +138,7 @@ extension AgentToolFiles {
         let fm = FileManager.default, folder = change.folder, plan = change.plan
         try guardWritable(folder)
         if plan.replaces != nil, entry(folder) != .missing { try moveToTrash(folder, trash: trash) }
+        if plan.replaces == nil { try preflight(plan, folder: folder) }
         try fm.createDirectory(at: folder, withIntermediateDirectories: true)
         for path in plan.trash where entry(folder.appending(path: path)) != .missing { try moveToTrash(folder.appending(path: path), trash: trash) }
         for path in plan.delete where entry(folder.appending(path: path)) != .missing { try fm.removeItem(at: folder.appending(path: path)) }
@@ -143,8 +146,6 @@ extension AgentToolFiles {
             let source = change.source.appending(path: path), target = folder.appending(path: path)
             guard let data = try? Data(contentsOf: source) else { throw AgentToolFilesError.missingSource(path) }
             try fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-            // 링크·폴더가 그 자리에 있으면 원자 쓰기가 링크 대상에 쓰지 않게 먼저 치운다(계획이 덮어도 된다고 정한 자리다)
-            if entry(target) != .file, entry(target) != .missing { try fm.removeItem(at: target) }
             try data.write(to: target, options: .atomic)
         }
         // 표시는 마지막에 쓴다: 중간에 실패하면 옛 표시가 남아 다시 갱신할 때 같은 계획이 나온다
@@ -154,6 +155,23 @@ extension AgentToolFiles {
         } else {
             if entry(manifestURL) != .missing { try fm.removeItem(at: manifestURL) }
             removeEmptyFolders(folder)
+        }
+    }
+
+    /// 바꾸기 전에 모든 자리를 본다(반쯤 바꾸고 멈추지 않게). 링크를 따라 스킬 폴더 밖으로 나가지 않고,
+    /// 쓸 자리에 폴더·링크가 남아 있으면(해시에 잡히지 않아 계획이 몰랐던 것) 지우거나 덮지 않는다
+    static func preflight(_ plan: AgentSkillPlan, folder: URL) throws {
+        let base = folder.resolvingSymlinksInPath().standardizedFileURL.path
+        for path in plan.trash + plan.delete + plan.write {
+            let parent = folder.appending(path: path).deletingLastPathComponent().resolvingSymlinksInPath().standardizedFileURL.path
+            guard parent == base || parent.hasPrefix(base + "/") else { throw AgentToolFilesError.blocked(path) }
+        }
+        for path in plan.delete where entry(folder.appending(path: path)) == .folder { throw AgentToolFilesError.blocked(path) }
+        for path in plan.write where !plan.trash.contains(path) {
+            switch entry(folder.appending(path: path)) {
+            case .missing, .file: continue
+            case .folder, .link: throw AgentToolFilesError.blocked(path)
+            }
         }
     }
 
@@ -222,7 +240,7 @@ extension AgentToolFiles {
 
     /// 셸을 띄워 PATH를 읽는다. 시간 안에 끝나지 않거나 표시 줄이 없으면 nil.
     /// 출력은 파일로 받는다(셸이 띄운 다른 프로세스가 파이프를 붙잡아도 기다리지 않게)
-    static func readPath(shell: String, arguments: [String], home: URL, timeout: Duration) -> String? {
+    static func readPath(shell: String, arguments: [String], home: URL, timeout: Duration, launched: ((pid_t) -> Void)? = nil) -> String? {
         let output = FileManager.default.temporaryDirectory.appending(path: "djc-shell-path-\(UUID().uuidString)")
         guard FileManager.default.createFile(atPath: output.path, contents: nil), let handle = try? FileHandle(forWritingTo: output) else { return nil }
         defer {
@@ -242,9 +260,12 @@ extension AgentToolFiles {
         let finished = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in finished.signal() }
         do { try process.run() } catch { return nil }
+        launched?(process.processIdentifier)
         let seconds = Double(timeout.components.seconds) + Double(timeout.components.attoseconds) / 1e18
         guard finished.wait(timeout: .now() + seconds) == .success else {
-            process.terminate()
+            // 대화형 셸은 SIGTERM을 무시한다. 이 프로세스가 띄운 셸 PID에만 SIGKILL을 보내고 거둘 때까지 기다린다
+            kill(process.processIdentifier, SIGKILL)
+            _ = finished.wait(timeout: .now() + 5)
             return nil
         }
         guard let text = try? String(contentsOf: output, encoding: .utf8) else { return nil }

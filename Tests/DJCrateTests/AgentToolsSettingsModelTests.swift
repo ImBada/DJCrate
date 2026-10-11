@@ -20,6 +20,8 @@ struct AgentToolsSettingsModelTests {
     final class Prompts {
         var shown: [ReflectionPrompt] = []
         var answer = true
+        /// 확인 창이 떠 있는 동안 할 일(시험이 다른 입구를 부른다)
+        var whileShown: (() -> Void)?
     }
     let prompts = Prompts()
 
@@ -42,12 +44,16 @@ struct AgentToolsSettingsModelTests {
 
     func read(_ url: URL) -> String? { try? String(contentsOf: url, encoding: .utf8) }
 
-    func model(_ version: AgentPayloadVersion? = nil, settings: SettingsStore? = nil) -> AgentToolsSettingsModel {
+    func model(_ version: AgentPayloadVersion? = nil, settings: SettingsStore? = nil, shellPath: String? = nil) -> AgentToolsSettingsModel {
         let layout = AgentBundleLayout.appBundle(app, info: ["CFBundleShortVersionString": (version ?? v1).version,
                                                              "CFBundleVersion": (version ?? v1).build])
         let prompts = prompts
-        return AgentToolsSettingsModel(tools: AgentTools(files: .live(layout: layout, trash: trash), home: home), settings: settings) {
+        // 파일 일은 임시 폴더의 실제 구현, 로그인 셸은 정해 둔 값(이 Mac의 셸을 띄우지 않는다)
+        var files = AgentToolFiles.live(layout: layout, trash: trash)
+        files.shell = { _ in AgentShellInfo(shell: "/bin/zsh", path: shellPath) }
+        return AgentToolsSettingsModel(tools: AgentTools(files: files, home: home), settings: settings) {
             prompts.shown.append($0)
+            prompts.whileShown?()
             return prompts.answer
         }
     }
@@ -136,9 +142,16 @@ struct AgentToolsSettingsModelTests {
         #expect(model.commandRow?.status == String(ui: "이 앱의 djc를 가리킴"))
         #expect(try FileManager.default.destinationOfSymbolicLink(atPath: home.appending(path: ".local/bin/djc").path)
             == app.appending(path: "Contents/Helpers/djc").path)
-        // 셸을 읽은 결과와 상관없이 안내 문장은 늘 있다(PATH에 없으면 더할 줄도 보인다)
+        // PATH에 없으면 더할 줄을, 셸을 읽지 못하면 확인 방법과 줄을 보인다
         let path = try #require(model.pathText)
-        #expect(!path.text.isEmpty)
+        #expect(path.text == String(ui: "셸 PATH를 읽지 못했습니다. 터미널에서 which djc로 확인하고, 없으면 ~/.zshrc에 아래 줄을 더하세요."))
+        #expect(path.line == #"export PATH="$HOME/.local/bin:$PATH""#)
+        let outside = self.model(shellPath: "/usr/bin:/bin")
+        await outside.refresh()
+        #expect(outside.pathText?.text == String(ui: "~/.local/bin가 셸 PATH에 없습니다. ~/.zshrc에 아래 줄을 더한 뒤 새 터미널을 여세요."))
+        let inside = self.model(shellPath: "/usr/bin:\(home.path)/.local/bin")
+        await inside.refresh()
+        #expect(inside.pathText?.line == nil)
         model.start(.unlinkCommand)
         await model.task?.value
         #expect(model.commandRow?.status == String(ui: "없음"))
@@ -153,6 +166,9 @@ struct AgentToolsSettingsModelTests {
         #expect(await old.launchNotice() == nil)
 
         let updated = model(v2, settings: settings)
+        // 다른 알림이 떠 있어 보이지 못했으면 알린 것으로 치지 않는다
+        #expect(await updated.launchNotice(present: { _ in false }) == nil)
+        #expect(settings.value(SettingKeys.agentToolsNotifiedVersion) == "")
         let toast = try #require(await updated.launchNotice())
         #expect(toast.action == .updateAgentTools)
         #expect(toast.kind == .warning)
@@ -168,6 +184,21 @@ struct AgentToolsSettingsModelTests {
         #expect(store.toast?.kind == .success)
         #expect(store.toast?.title == String(ui: "모두 갱신했습니다. 에이전트의 새 세션부터 새 스킬을 읽습니다."))
         #expect(row(updated, ".agents/skills/djcrate")?.state == .installed(v2, isCurrent: true, changes: AgentUserChanges()))
+    }
+
+    @Test func 다른_작업_중이면_알림의_모두_갱신은_기다리라고_알린다() async throws {
+        let model = model()
+        let codex = AgentTarget(kind: .codex, folder: home.appending(path: ".agents/skills/djcrate"))
+        await model.perform(.install(codex))
+        try write(codex.folder.appending(path: "SKILL.md"), "mine")
+        // 제거가 확인 창을 띄운 사이(작업 중) 알림의 "모두 갱신"을 누른다
+        var notice: Task<AppToast, Never>?
+        prompts.whileShown = { notice = Task { await model.updateAllFromNotice() } }
+        await model.perform(.remove(codex))
+        let toast = try #require(await notice?.value)
+        #expect(toast.title == String(ui: "설정의 AI 에이전트 작업이 끝난 뒤 다시 하세요."))
+        #expect(toast.kind == .warning)
+        #expect(model.message == String(ui: "스킬을 제거했습니다."))
     }
 
     @Test func 다른_위치를_더하고_목록에서만_뺀다() async throws {

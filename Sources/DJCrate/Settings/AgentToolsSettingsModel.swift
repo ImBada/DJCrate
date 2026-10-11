@@ -72,27 +72,31 @@ final class AgentToolsSettingsModel {
         pathStatus = await BlockingWork.run { tools.pathStatus() }
     }
 
-    /// 앱을 켤 때: DJCrate가 설치한 것 가운데 이 앱과 다른 것이 있으면 앱 판마다 한 번 알릴 토스트
-    func launchNotice() async -> AppToast? {
+    /// 앱을 켤 때: DJCrate가 설치한 것 가운데 이 앱과 다른 것이 있으면 앱 판마다 한 번 알린다.
+    /// `present`가 실제로 보였을 때만(다른 알림이 없을 때) 알린 판을 남긴다. 보인 토스트를 돌려준다
+    func launchNotice(present: (AppToast) -> Bool = { _ in true }) async -> AppToast? {
         let tools = tools, custom = customFolders
         let report = await BlockingWork.run { tools.report(customClaudeFolders: custom) }
         self.report = report
         guard let version = report.version,
               AgentUpdateNotice.shouldShow(skills: report.skills.map(\.state), command: report.command.state, app: version,
                                            lastShown: settings?.value(SettingKeys.agentToolsNotifiedVersion)) else { return nil }
-        settings?.set(SettingKeys.agentToolsNotifiedVersion, version.key)
         var toast = AppToast.notice(String(ui: "AI 에이전트 스킬이 옛 버전입니다"),
                                     String(ui: "Claude Code·Codex에 설치한 DJCrate 스킬·djc를 이 앱(\(version.version))에 맞춰 갱신하세요. 설정 › AI 에이전트에서도 할 수 있습니다."))
         toast.action = .updateAgentTools
+        guard present(toast) else { return nil }
+        settings?.set(SettingKeys.agentToolsNotifiedVersion, version.key)
         return toast
     }
 
     // MARK: - 단추
 
-    func start(_ action: AgentToolsAction) { task = Task { await perform(action) } }
+    func start(_ action: AgentToolsAction) { task = Task { _ = await perform(action) } }
 
-    func perform(_ action: AgentToolsAction) async {
-        guard !isWorking else { return }
+    /// 다른 작업 중이면 하지 않고 false
+    @discardableResult
+    func perform(_ action: AgentToolsAction) async -> Bool {
+        guard !isWorking else { return false }
         isWorking = true
         defer { isWorking = false }
         let tools = tools, custom = customFolders
@@ -101,7 +105,7 @@ final class AgentToolsSettingsModel {
             guard confirm(Self.prompt(action, confirmation, home: tools.home)) else {
                 message = String(ui: "바꾸지 않았습니다.")
                 lastFailed = false
-                return
+                return true
             }
             result = await BlockingWork.run { tools.perform(action, customClaudeFolders: custom, confirmed: confirmation) }
         }
@@ -112,12 +116,15 @@ final class AgentToolsSettingsModel {
         case .needsConfirmation: false
         }
         await refresh()
+        return true
     }
 
-    /// 켤 때 알림의 "모두 갱신": 결과를 알림으로 돌려준다
+    /// 켤 때 알림의 "모두 갱신": 결과를 알림으로 돌려준다(설정 창의 작업이 돌고 있으면 기다리라고 알린다)
     func updateAllFromNotice() async -> AppToast {
-        await perform(.updateAll)
-        return .notice(message ?? "", nil, kind: lastFailed ? .warning : .success)
+        guard await perform(.updateAll), let message else {
+            return .notice(String(ui: "설정의 AI 에이전트 작업이 끝난 뒤 다시 하세요."), nil, kind: .warning)
+        }
+        return .notice(message, nil, kind: lastFailed ? .warning : .success)
     }
 
     /// "다른 위치…"에서 고른 폴더를 더한다(스킬 폴더·skills 폴더·설정 폴더 어느 것이든)

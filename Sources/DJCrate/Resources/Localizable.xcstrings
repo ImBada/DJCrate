@@ -1785,6 +1785,22 @@
         }
       }
     },
+    "%@에 DJCrate가 넣지 않은 폴더나 링크가 있어 바꾸지 않았습니다. 그 항목을 옮긴 뒤 다시 하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ contains a folder or link that DJCrate did not install, so nothing was changed. Move that item, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ に DJCrate が入れていないフォルダまたはリンクがあるため、変更しませんでした。その項目を移動してからやり直してください。"
+          }
+        }
+      }
+    },
     "%@에 OneLibrary를 더하기 전의 백업으로 되돌립니다. 끝날 때까지 USB를 뽑지 마세요." : {
       "localizations" : {
         "en" : {
@@ -29655,6 +29671,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定ファイルを確認できなかったため、rekordboxで機器設定を保存し直してからUSBにエクスポートしてください"
+          }
+        }
+      }
+    },
+    "설정의 AI 에이전트 작업이 끝난 뒤 다시 하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try again after the task in Settings › AI Agents finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定 › AIエージェントの作業が終わってからやり直してください。"
           }
         }
       }

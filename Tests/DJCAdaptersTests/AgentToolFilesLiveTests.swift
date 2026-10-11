@@ -77,6 +77,44 @@ struct AgentToolFilesLiveTests {
         #expect(live.shell(FileManager.default.homeDirectoryForCurrentUser).path == nil)
     }
 
+    @Test func 대화형_셸이_시간을_넘기면_끝낸다() throws {
+        // 대화형 zsh는 SIGTERM을 무시한다. 시간을 넘긴 셸이 남지 않게 끝까지 끝낸 뒤 돌아온다
+        let folder = try TemporaryFolder(prefix: "djc-agent-shell")
+        try Data("sleep 30\n".utf8).write(to: folder.url.appending(path: ".zshrc"))
+        var launched: pid_t?
+        #expect(AgentToolFiles.readPath(shell: "/bin/zsh", arguments: ["-l", "-i", "-c"], home: folder.url, timeout: .milliseconds(300),
+                                        launched: { launched = $0 }) == nil)
+        let pid = try #require(launched)
+        // 이 시험이 띄운 셸 PID만 본다(kill 0은 신호를 보내지 않고 있는지만 묻는다)
+        #expect(kill(pid, 0) == -1 && errno == ESRCH)
+    }
+
+    @Test func 갱신은_폴더나_밖을_가리키는_링크가_있는_자리에_쓰지_않는다() throws {
+        let folder = try TemporaryFolder(prefix: "djc-agent")
+        let root = folder.url.resolvingSymlinksInPath()
+        let bench = FolderBench(trash: root.appending(path: "trash"))
+        let source = root.appending(path: "payload/skills/djcrate"), target = root.appending(path: "home/.claude/skills/djcrate")
+        try bench.put(source.appending(path: "SKILL.md"), "v2")
+        try bench.put(source.appending(path: "ref/a.md"), "r2")
+        let files = AgentToolFiles.live(layout: AgentBundleLayout(skillSource: source, command: nil, version: .init(version: "2", build: "2")),
+                                        trash: root.appending(path: "trash"))
+        // SKILL.md 자리에 사용자가 둔 폴더, ref는 바깥 폴더를 가리키는 링크
+        try bench.put(target.appending(path: "SKILL.md/notes.txt"), "mine")
+        let outside = root.appending(path: "outside")
+        try bench.put(outside.appending(path: "a.md"), "outside")
+        try bench.putLink(target.appending(path: "ref"), to: outside.path)
+        let manifest = AgentInstallManifest(app: .init(version: "1", build: "1"), files: ["SKILL.md": "x", "ref/a.md": "y"])
+        try manifest.encoded().write(to: target.appending(path: AgentInstallManifest.fileName))
+        let plan = AgentSkillRules.installPlan(for: files.inspectSkill(target), payload: try #require(files.payload()).skill)
+        #expect(throws: (any Error).self) { try files.applySkill(AgentSkillChange(folder: target, source: source, plan: plan)) }
+        #expect(bench.content(target.appending(path: "SKILL.md/notes.txt")) == "mine")
+        #expect(bench.content(outside.appending(path: "a.md")) == "outside")
+        // 지우기·휴지통도 링크를 따라 밖으로 나가지 않는다
+        let remove = AgentSkillPlan(delete: ["ref/a.md"])
+        #expect(throws: (any Error).self) { try files.applySkill(AgentSkillChange(folder: target, source: source, plan: remove)) }
+        #expect(bench.content(outside.appending(path: "a.md")) == "outside")
+    }
+
     @Test func 시험_프로세스는_임시_폴더_밖과_macOS_휴지통에_쓰지_않는다() throws {
         let outside = FileManager.default.homeDirectoryForCurrentUser.appending(path: ".djc-agent-guard-\(UUID().uuidString)/skills/djcrate")
         let files = AgentToolFiles.live(layout: AgentBundleLayout(skillSource: nil, command: nil, version: .init(version: "1", build: "1")))
