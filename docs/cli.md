@@ -440,7 +440,10 @@ djc draft playlist order 901 103 101 --before 102 --db /tmp/djc-fixture/master.d
   - 앱이 저장하지 못한 초안이 있으면(디스크보다 최신) 다시 읽지 않는다.
 - 앱에서 편집하기 전에도 파일을 확인한다. 바깥에서 바뀌었으면 그 초안을 받은 뒤 그 위에 쌓는다. ⌘Z·초안 버리기처럼 옛 초안으로 되돌리는 변경은 하지 않는다. 대신 이유를 알린다.
   - 곡 추가의 목록 연결과 rekordbox XML 가져오기도 초안을 저장하기 전에 파일을 확인한다.
-- 앱이 rekordbox에 쓰는 동안 CLI가 더한 편집은 쓴 뒤에도 남는다. 앱은 쓴 편집만 초안에서 뺀다.
+- 앱은 rekordbox에 쓰는 동안 초안 파일 잠금(`playlist-drafts.lock`)을 든다. 쓰기 미리 보기와 확인 창도 이 시간에 든다.
+  - 그동안 CLI는 쌓지 않고 `draft_busy`로 끝난다. 쓰기가 끝난 뒤 같은 명령을 다시 실행한다. `--dry-run`은 그대로 된다.
+  - CLI도 초안 파일을 읽고 저장하는 동안 이 잠금을 든다. 다른 `djc`가 들고 있으면 2초까지 기다린다.
+  - 앱은 잠금을 잡을 때 바깥에서 바뀐 초안을 먼저 받는다. 그래서 1초 확인 전에 쓰기를 시작해도 CLI 초안이 쓰기에 든다.
 - 계획하는 동안 초안 파일이 바뀌었으면 CLI는 `draft_changed`로 끝난다. 파일은 덮지 않는다. 같은 명령을 다시 실행한다.
 - 초안 파일을 읽지 못하면 `invalid_draft`로 끝난다. 그 파일은 덮지 않는다.
 - 쓰기 미리 보기는 CLI로 만든 초안을 앱 초안과 똑같이 보인다. 반영도 같다.
@@ -465,7 +468,7 @@ djc draft playlist order 901 103 101 --before 102 --db /tmp/djc-fixture/master.d
 - `aliases`: 만든 `@이름` → `new:키`.
 - `playlist`: 쌓은 뒤 초안 전체(앱 파일과 같다). 미리 보기면 저장하지 않은 값이다.
 
-추가 오류 코드는 두 가지다. `playlist_edit_blocked`는 쌓은 편집 없이 막혔다는 뜻이다. `draft_changed`는 계획하는 동안 초안 파일이 바뀌었다는 뜻이다. `invalid_arguments`, `invalid_draft`, `draft_io_failed`, `not_found`, `live_database`, `read_failed`도 쓴다.
+추가 오류 코드는 세 가지다. `playlist_edit_blocked`는 쌓은 편집 없이 막혔다는 뜻이다. `draft_changed`는 계획하는 동안 초안 파일이 바뀌었다는 뜻이다. `draft_busy`는 앱이 rekordbox에 쓰는 중이라 쌓지 않았다는 뜻이다. `invalid_arguments`, `invalid_draft`, `draft_io_failed`, `not_found`, `live_database`, `read_failed`도 쓴다.
 ## 쓰기 명령(사본에만)
 
 rekordbox 라이브러리에 쓰는 명령이다. 앱과 같은 반영 세션과 쓰기 관문을 지난다. 순서는 사전 확인, 전체 백업, 한 트랜잭션, 검증이다. 실패하면 복원한다.
@@ -768,6 +771,7 @@ rekordbox에는 쓰지 않는다. 쓰기는 앱의 "rekordbox에 쓰기"(미리 
   - 라이브러리 목록 뒤에 곡만 더한 목록은 더한 곡만 넣는다.
   - 같은 자리에 인텔리전트 목록이 있으면 건너뛴다.
   - DJCrate 앱이 켜져 있어도 재생 목록 초안을 만든다. 앱이 그 파일을 다시 읽는다(#260). 자세한 규칙은 [재생 목록 초안 만들기](#재생-목록-초안-만들기draft-playlist)에 있다.
+  - 앱이 rekordbox에 쓰는 중이면 재생 목록 초안만 만들지 않고 알린다. 다른 초안은 만든다.
   - 그리드 초안을 만들면 덱에 올린 곡의 그리드를 덱 편집이 덮을 수 있다고 알린다.
 - **손실**: 초안이 담지 못하는 차이는 초안에서 뺀다. "초안에 담지 못한 차이"로 센다. 해당하는 경우는 다음과 같다.
   - 곡 길이 밖 큐

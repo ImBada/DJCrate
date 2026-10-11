@@ -75,7 +75,9 @@ DJCApplication은 기능별 폴더에 유스케이스와 포트를 둔다. 유�
 - **재생 목록 트리·초안·연결 기록은 기능 조각 `PlaylistEditStore`가 든다(#251).** 조각은 저장소의 `playlists` 속성이다. 최근 목록·넣기 전 나누기·기록 원본 고르기의 규칙은 유스케이스 `EditPlaylists`가 정한다. 사이드바의 폴더 펼침과 이름 바꾸기는 화면 모델 `PlaylistSidebarModel`이 든다.
   - 사이드바의 목록·곡 편집은 요청 `PlaylistEditRequest`로 `EditPlaylists.planning`을 지난다(#260). CLI `djc draft playlist`(`EditDraftFiles.stackPlaylistEdits`)도 같은 계획을 부른다. 앱은 하나라도 막히면 쌓지 않는다. CLI는 막힌 요청만 건너뛴다.
   - 바깥(CLI)에서 바꾼 `playlist-drafts.json`은 바깥 변경 확인(`WatchDrafts.refresh`)이 읽는다. 조각은 다르면 받는다(`adoptExternalDraft`). 받으면 라이브러리 ⌘Z 기록을 비운다. 편집하기 전에도 디스크 초안을 견준다(`syncExternalPlaylistDraft`). 곡 추가 연결과 XML 가져오기도 저장 전에 견준다.
-  - 쓴 뒤 정리(`EditPlaylists.finishWrite`)는 디스크 초안이 쓴 초안 뒤에 편집을 더했으면 쓴 편집만 뺀다(`keepingExternal`). 쓰는 동안 CLI가 더한 편집은 남는다.
+  - 앱은 쓰기 잠금(`setWriteLock`) 동안 초안 파일 잠금 `PlaylistDraftLock`(flock)을 든다. 포트는 `DraftStore.lockPlaylistDraft`다. 잡기 전에 바깥 초안을 먼저 받는다.
+  - CLI(`EditDraftFiles`, `ImportXML.makeDraftsNow`)는 `DraftFiles.lockPlaylist` 안에서 읽고 저장한다. 잡지 못하면 쌓지 않는다. 쓴 뒤 정리가 앞 단계를 접은 바깥 편집을 지우지 않게 하려는 것이다.
+  - 앱이 잠금을 잡지 못한 드문 경우의 대비가 있다. 쓴 뒤 정리(`EditPlaylists.finishWrite`)는 디스크 초안이 쓴 초안 뒤에 편집을 더했으면 쓴 편집만 뺀다(`keepingExternal`).
 - **추가한 곡·그리드 일괄 추정·XML 내보내기는 기능 조각 `TrackStagingStore`가 든다(#252).** 조각은 저장소의 `staging` 속성이다. 넣기·저장·추정의 규칙과 순서는 유스케이스 `StageTracks`와 `ExportXML`이 정한다. 목록 아래 막대의 단추·막힘 이유는 화면 모델 `ListActionBarModel`이 든다. 파일 없음 확인은 곡 행을 바꾸므로 공유 핵심이 한다(#254).
 - **주 창이 띄우는 시트와 단추 입구는 화면 모델 `LibraryWindowModel`이 든다(#254).** 그 시트는 쓰기 결과, 연결되지 않은 초안, rekordbox XML 가져오기다. 처음 읽기, 스냅샷, 동기화, 끌어 놓기 같은 주 창 단추는 이 모델의 입구를 부른다. 메뉴 막대의 메뉴 항목(`LibraryMenuAction`)도 이 모델을 받는다. 재생 목록 고르기, USB, 막힌 초안 복구의 시트는 그 주인이 든다.
 - 패널 화면 모델은 조립 지점 `AppComposition`이 한 번 만든다. 예: `LibraryWindowModel`, `TagInspectorModel`, `PlaylistSidebarModel`, `ListActionBarModel`. 시트 모델은 띄울 때 한 번 만든다. 예: `UnlinkedDraftsModel`, `ITunesSyncModel`.
@@ -264,7 +266,7 @@ DJCrate 데이터는 `~/Library/Application Support/DJCrate/`에 있다. `DJC_HO
 
 - 초안: `cue-drafts/`, `grid-drafts/`, `gain-drafts.json`, `tag-drafts/`
 - 앨범아트 초안: `artwork-drafts/`. 앨범아트 초안과 고른 앨범아트 사본이 있다.
-- 재생 목록 초안: `playlist-drafts.json`. 재생 목록 편집을 순서대로 적는다.
+- 재생 목록 초안: `playlist-drafts.json`. 재생 목록 편집을 순서대로 적는다. 옆의 `playlist-drafts.lock`은 앱과 CLI가 함께 쓰는 잠금 파일이다.
 - `damaged-drafts/`: 읽지 못한 초안 파일을 옮겨 둔 곳이다. 그 파일을 지우지 않는다. 빈 값으로 덮지도 않는다. 합치기 초안 `merge-drafts.json`과 추가 목록 `staged.json`도 여기로 옮긴다. 앱은 읽기·저장 때 파일을 옮긴 뒤 목록 위에 알린다.
 - 추가한 곡: `staged.json`
 - 읽기용 스냅샷: `snapshots/`
