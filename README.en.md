@@ -48,7 +48,7 @@ swift build -c release --product djc  # .build/release/djc
 1. Click ⟳ [Sync with rekordbox] in the toolbar (⌘R) to take a copy (snapshot) of the library. rekordbox can stay open for this step.
 2. Edit in the deck and the track list. Edited tracks get a pending-write mark and are collected under [Pending rekordbox Writes] in the sidebar.
 3. Quit rekordbox and rekordboxAgent completely.
-4. Click [Write to rekordbox]. DJCrate first does a trial write to a copy. If no draft is blocked, it writes right away without a confirmation dialog. Otherwise, a confirmation dialog lists those drafts.
+4. Click [Write to rekordbox]. DJCrate first does a trial write to a copy. If anything is blocked or left out, a confirmation dialog lists those items first. Otherwise, it writes right away.
 5. To roll back, click [Restore Before Write] in the result notification.
 
 Copies, drafts, and backups are stored in `~/Library/Application Support/DJCrate/`. They contain a cloud token, so do not share them.
@@ -64,7 +64,7 @@ Copies, drafts, and backups are stored in `~/Library/Application Support/DJCrate
 | Playlists | Create playlists and folders, rename, move, delete, add and remove tracks, reorder |
 | History | Browse play history and turn a history into a playlist. Keeps the history that CDJs and XDJs leave on a USB drive, then adds it to rekordbox's history |
 | XML | Linked XML for importing into rekordbox, full-library XML export (read-only), rekordbox XML import (preview the differences, then make drafts), Apple Music XML import |
-| USB (experimental) | Read, export, edit, and sync OneLibrary and Device Library; add OneLibrary to older USB drives. A physical USB drive is written only when you click [Write to USB] in the [Export to USB] sheet or the write confirmation dialog (backed up before writing, verified after) |
+| USB (experimental) | Read, export, edit, and sync OneLibrary and Device Library; add OneLibrary to older USB drives. A physical USB drive is written only after you confirm the write in the [Export to USB] sheet or a write confirmation dialog (backed up before writing, verified after) |
 | Rollback | Restore Before Write, restore points (automatic once a day, compare with now, restore to that point), fixing blocked drafts |
 | Labs | Show intelligent playlists (read-only). Turn it on in Settings › [Labs] |
 | CLI and agents | Use `djc` to browse the library and make cue and tag drafts. It also has XML, USB, and restore point commands. [Skill](skills/djcrate/SKILL.md) for Claude Code and Codex |

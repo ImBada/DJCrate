@@ -48,7 +48,7 @@ swift build -c release --product djc  # .build/release/djc
 1. 点击工具栏中的 ⟳ [Sync with rekordbox]（与 rekordbox 同步），创建资料库的副本（快照）。快捷键为 ⌘R。此时 rekordbox 可以保持打开。
 2. 在 Deck 和曲目列表中编辑。编辑过的曲目会带有待写入标记，并汇集到侧边栏的 [Pending rekordbox Writes]（待写入 rekordbox）中。
 3. 完全退出 rekordbox 和 rekordboxAgent。
-4. 点击 [Write to rekordbox]。DJCrate 会先在副本上试写。如果没有无法写入的草稿，就直接写入，不弹出确认对话框；如果有，确认对话框会列出这些草稿。
+4. 点击 [Write to rekordbox]。DJCrate 会先在副本上试写。只有存在被阻止或被略过的内容时，才会先在确认对话框中列出这些项目；否则直接写入。
 5. 如需还原，请点击结果通知中的 [Restore Before Write]（恢复到写入前）。
 
 副本、草稿和备份保存在 `~/Library/Application Support/DJCrate/`。其中包含云端令牌，请勿分享。
@@ -64,7 +64,7 @@ swift build -c release --product djc  # .build/release/djc
 | 播放列表 | 创建播放列表与文件夹、重命名、移动、删除、添加与移除曲目、调整顺序 |
 | 播放历史 | 浏览播放历史，并由历史生成播放列表。保存 CDJ、XDJ 留在 USB 上的历史，再将其加入 rekordbox 的播放历史 |
 | XML | 供 rekordbox 导入的联动 XML、整个资料库的 XML 导出（只读）、导入 rekordbox XML（先预览差异，再生成草稿）、导入 Apple Music XML |
-| USB（实验性） | 读取、导出、编辑与同步 OneLibrary 和 Device Library；为旧 USB 添加 OneLibrary。只有在 [Export to USB]（导出到 USB）面板或写入确认对话框中点击 [Write to USB]（写入 USB）时，才会写入实体 USB（写入前备份，写入后校验） |
+| USB（实验性） | 读取、导出、编辑与同步 OneLibrary 和 Device Library；为旧 USB 添加 OneLibrary。只有在 [Export to USB]（导出到 USB）面板或写入确认对话框中确认写入后，才会写入实体 USB（写入前备份，写入后校验） |
 | 还原 | 恢复到写入前、还原点（每天自动创建一次、与当前比较、还原到该时间点）、修复被阻止的草稿 |
 | 实验室 | 显示智能播放列表（只读）。在 Settings › [Labs]（设置 › 实验室）中开启 |
 | CLI 与智能体 | 使用 `djc` 浏览资料库，并创建 Cue 与标签草稿。还提供 XML、USB 和还原点相关命令。适用于 Claude Code 与 Codex 的[技能](skills/djcrate/SKILL.md) |
