@@ -100,34 +100,46 @@ struct ImportXMLTests {
         #expect(files.playlist.isEmpty, "바뀐 초안을 덮지 않는다")
     }
 
+    /// 일어난 차례를 적는다
+    final class Events: Sendable {
+        private let list = Mutex<[String]>([])
+        func add(_ event: String) { list.withLock { $0.append(event) } }
+        var all: [String] { list.withLock { $0 } }
+    }
+
     @Test func 재생_목록_초안_파일_잠금은_마지막_비교와_저장_동안만_잡는다() throws {
         // 앱의 쓰기도 같은 잠금을 잡는다(#260). 계획·곡별 저장 동안 들고 있으면 앱이 잡지 못해 잠금 없이 쓴다
-        let memory = MemoryDraftFiles()
-        let events = Mutex<[String]>([])
-        var files = memory.files
-        let saveTag = files.saveTag, lock = files.lockPlaylist
-        files.saveTag = { draft in events.withLock { $0.append("tag") }; try saveTag(draft) }
-        files.lockPlaylist = {
-            events.withLock { $0.append("lock") }
-            guard let unlock = lock() else { return nil }
-            return { events.withLock { $0.append("unlock") }; unlock() }
+        /// 곡별 저장과 잠금 잡기·풀기를 차례로 적는 새 초안 파일과 가져오기
+        func recording() -> (memory: MemoryDraftFiles, events: Events, importer: ImportXML) {
+            let memory = MemoryDraftFiles()
+            let events = Events()
+            var files = memory.files
+            let saveTag = files.saveTag, lock = files.lockPlaylist
+            files.saveTag = { draft in events.add("tag"); try saveTag(draft) }
+            files.lockPlaylist = {
+                events.add("lock")
+                guard let unlock = lock() else { return nil }
+                return { events.add("unlock"); unlock() }
+            }
+            let counter = Mutex(0)
+            let library = RekordboxLibrary(allTracks: ["1", "2", "3"].map { Self.track($0, title: "곡 \($0)") }, cues: [], playCounts: [:])
+            let importer = ImportXML(files: .unused, source: .memory([Self.snapshot: library]), drafts: MemoryDrafts().store, draftFiles: files,
+                                     newKey: { counter.withLock { $0 += 1; return "key-\($0)" } })
+            return (memory, events, importer)
         }
-        let counter = Mutex(0)
-        let library = RekordboxLibrary(allTracks: ["1", "2", "3"].map { Self.track($0, title: "곡 \($0)") }, cues: [], playCounts: [:])
-        let importer = ImportXML(files: .unused, source: .memory([Self.snapshot: library]), drafts: MemoryDrafts().store, draftFiles: files,
-                                 newKey: { counter.withLock { $0 += 1; return "key-\($0)" } })
-        _ = try importer.makeDraftsNow(Self.comparison(), selection: XMLImportDrafts.Selection(kinds: [.tag]))
-        #expect(!events.withLock { $0 }.contains("lock"), "재생 목록을 고르지 않으면 잡지 않는다")
-        events.withLock { $0 = [] }
-        memory.setPlaylist(PlaylistDraft())
-        let result = try importer.makeDraftsNow(Self.comparison(), selection: .all)
-        #expect(result.playlists == 1)
-        #expect(events.withLock { $0 }.suffix(2) == ["lock", "unlock"] && events.withLock { $0 }.filter { $0 == "lock" }.count == 1)
+        let tagsOnly = recording()
+        _ = try tagsOnly.importer.makeDraftsNow(Self.comparison(), selection: XMLImportDrafts.Selection(kinds: [.tag]))
+        #expect(tagsOnly.events.all == ["tag", "tag", "tag"], "재생 목록을 고르지 않으면 잡지 않는다")
+        let all = recording()
+        let result = try all.importer.makeDraftsNow(Self.comparison(), selection: .all)
+        #expect(result.tags == 3 && result.playlists == 1)
+        // 곡별 저장을 모두 마친 뒤 잡고 바로 푼다
+        #expect(all.events.all == ["tag", "tag", "tag", "lock", "unlock"])
         // 잡지 못하면 재생 목록만 건너뛰고 알린다
-        memory.setPlaylist(PlaylistDraft())
-        memory.setPlaylistLocked(true)
-        let busy = try importer.makeDraftsNow(Self.comparison(), selection: .all)
-        #expect(busy.playlists == 0 && busy.skipped.last?.kind == .playlist && memory.playlist.isEmpty)
+        let busy = recording()
+        busy.memory.setPlaylistLocked(true)
+        let skipped = try busy.importer.makeDraftsNow(Self.comparison(), selection: .all)
+        #expect(skipped.tags == 3 && skipped.playlists == 0 && skipped.skipped.last?.kind == .playlist && busy.memory.playlist.isEmpty)
     }
 
     @MainActor

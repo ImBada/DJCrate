@@ -78,8 +78,8 @@ public struct DraftStore: Sendable {
     public var readPlaylistDraft: @Sendable () throws -> PlaylistDraft
     public var savePlaylistDraft: @MainActor (PlaylistDraft) throws -> Void
     /// 재생 목록 초안 파일 잠금(#260): 앱이 rekordbox에 쓰는 동안 들고 있어 CLI가 초안 파일을 고치지 못하게 한다.
-    /// 잡으면 푸는 함수, 다른 실행이 들고 있으면 nil. 잠금이 없는 구현은 늘 잡는다
-    public var lockPlaylistDraft: @Sendable () -> (@Sendable () -> Void)? = { {} }
+    /// 잡으면 푸는 함수, 다른 실행이 `wait`초 넘게 들고 있으면 nil. 잠금이 없는 구현은 늘 잡는다
+    public var lockPlaylistDraft: @Sendable (_ wait: TimeInterval) -> (@Sendable () -> Void)? = { _ in {} }
     public var mergeDrafts: @Sendable () -> [DuplicateMergeDraft]
     public var saveMergeDrafts: @MainActor ([DuplicateMergeDraft]) throws -> Void
 

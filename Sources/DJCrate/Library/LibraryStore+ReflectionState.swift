@@ -59,7 +59,8 @@ extension LibraryStore {
     func setWriteLock(_ locked: Bool, deck: Bool = true) {
         if locked {
             // 쓰는 동안 CLI가 재생 목록 초안 파일을 고치지 못하게 잡고(#260), 그 전에 바깥에서 바뀐 초안을 먼저 받는다(1초 확인을 기다리지 않게)
-            if playlistDraftUnlock == nil { playlistDraftUnlock = useCases.playlists.lockDraftFile() }
+            // CLI는 초안 파일을 읽고 저장하는 동안만 든다. 그만큼만 기다려 잡으면 그사이 CLI가 저장한 초안도 아래에서 받는다
+            if playlistDraftUnlock == nil { playlistDraftUnlock = useCases.playlists.lockDraftFile(wait: 0.3) }
             if playlistDraftUnlock == nil { retryPlaylistDraftLock() }
             playlists.syncExternalPlaylistDraft()
         } else {

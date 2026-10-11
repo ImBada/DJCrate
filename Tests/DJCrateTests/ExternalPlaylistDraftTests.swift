@@ -123,6 +123,20 @@ struct ExternalPlaylistDraftTests {
         release()
     }
 
+    @Test func CLI가_잠금을_든_채_쓰기가_끝나면_풀린_뒤에도_잡지_않는다() async throws {
+        let h = Harness()
+        let cli = try #require(PlaylistDraftLock.acquire(PlaylistDraftLock.url(for: h.file)))
+        h.store.setWriteLock(true)
+        #expect(h.store.playlistDraftUnlock == nil)
+        h.store.setWriteLock(false)
+        cli()
+        // 다시 잡기는 쓰기가 끝났으면 멈춘다(잠금을 쥔 채 남지 않는다)
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(h.store.playlistDraftUnlock == nil)
+        let release = try #require(PlaylistDraftLock.acquire(PlaylistDraftLock.url(for: h.file)))
+        release()
+    }
+
     @Test func 저장하지_못한_메모리_초안과_읽지_못한_파일은_받지_않는다() async throws {
         let h = Harness()
         h.store.playlists.renamePlaylist("A", to: "앱에서 바꾼 이름")
