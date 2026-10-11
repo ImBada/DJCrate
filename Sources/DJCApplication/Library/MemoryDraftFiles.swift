@@ -48,6 +48,9 @@ public final class MemoryDraftFiles: Sendable {
             playlist: { [self] in
                 state.withLock { $0.playlistReads.isEmpty ? $0.playlist : $0.playlistReads.removeFirst() }
             },
+            readPlaylist: { [self] in
+                state.withLock { $0.playlistReads.isEmpty ? $0.playlist : $0.playlistReads.removeFirst() }
+            },
             savePlaylist: { [self] draft in setPlaylist(draft) },
             cue: { [self] uuid in cue(uuid) },
             tag: { [self] uuid in tag(uuid) },

@@ -53,6 +53,7 @@ extension DraftFiles {
             saveGrid: { try GridDraftStore.save($0, directory: places.grid) },
             saveTag: { try TagDraftStore.save($0, directory: places.tags) },
             playlist: { PlaylistDraftStore.load(url: places.playlist) },
+            readPlaylist: { try PlaylistDraftStore.read(url: places.playlist) },
             savePlaylist: { try PlaylistDraftStore.save($0, url: places.playlist) },
             cue: { try existing(places.cue.appending(path: "\($0).json")) },
             tag: { try existing(places.tags.appending(path: "\($0).json")) },

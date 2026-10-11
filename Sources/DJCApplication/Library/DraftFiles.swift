@@ -12,6 +12,8 @@ public struct DraftFiles: Sendable {
     public var saveTag: @Sendable (TagDraft) throws -> Void
     /// 재생 목록 초안 파일(CLI는 앱이 꺼져 있을 때 이 파일을 바로 고친다)
     public var playlist: @Sendable () -> PlaylistDraft
+    /// 재생 목록 초안 파일(없으면 빈 초안, 읽지 못하면 던진다: CLI `djc draft playlist`가 손상 파일을 덮지 않게)
+    public var readPlaylist: @Sendable () throws -> PlaylistDraft
     public var savePlaylist: @Sendable (PlaylistDraft) throws -> Void
     /// 큐·태그 초안 파일을 읽는다. 없으면 nil, 읽지 못하면 던진다
     public var cue: @Sendable (_ trackUUID: String) throws -> CueDraft?
@@ -28,6 +30,7 @@ public struct DraftFiles: Sendable {
                 saveGrid: @escaping @Sendable (GridDraft) throws -> Void,
                 saveTag: @escaping @Sendable (TagDraft) throws -> Void,
                 playlist: @escaping @Sendable () -> PlaylistDraft,
+                readPlaylist: @escaping @Sendable () throws -> PlaylistDraft,
                 savePlaylist: @escaping @Sendable (PlaylistDraft) throws -> Void,
                 cue: @escaping @Sendable (_ trackUUID: String) throws -> CueDraft?,
                 tag: @escaping @Sendable (_ trackUUID: String) throws -> TagDraft?,
@@ -40,6 +43,7 @@ public struct DraftFiles: Sendable {
         self.saveGrid = saveGrid
         self.saveTag = saveTag
         self.playlist = playlist
+        self.readPlaylist = readPlaylist
         self.savePlaylist = savePlaylist
         self.cue = cue
         self.tag = tag

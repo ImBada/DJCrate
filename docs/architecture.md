@@ -73,6 +73,8 @@ DJCApplication은 기능별 폴더에 유스케이스와 포트를 둔다. 유�
 - 동기화 창 화면 모델 `ITunesSyncModel`은 저장소 대신 좁은 포트(`ITunesSyncModel.Ports`)를 받는다. Music 결과에 맞춰 곡 목록·사이드바 선택을 고치는 일은 저장소가 한다.
 - **재생 기록 트리·보존본·쓰기 대기는 기능 조각 `HistoryStore`가 든다(#251).** 조각은 저장소의 `history` 속성이다. 보존의 줄 세우기·채택·실패 알림은 유스케이스 `ArchiveUsbHistories`가 정한다. 유스케이스는 화면 포트 `UsbHistoryScreen`으로 조각의 값을 읽는다. 결과도 그 포트로 알린다.
 - **재생 목록 트리·초안·연결 기록은 기능 조각 `PlaylistEditStore`가 든다(#251).** 조각은 저장소의 `playlists` 속성이다. 최근 목록·넣기 전 나누기·기록 원본 고르기의 규칙은 유스케이스 `EditPlaylists`가 정한다. 사이드바의 폴더 펼침과 이름 바꾸기는 화면 모델 `PlaylistSidebarModel`이 든다.
+  - 사이드바의 목록·곡 편집은 요청 `PlaylistEditRequest`로 `EditPlaylists.planning`을 지난다(#260). CLI `djc draft playlist`(`EditDraftFiles.stackPlaylistEdits`)도 같은 계획을 부른다. 앱은 하나라도 막히면 쌓지 않는다. CLI는 막힌 요청만 건너뛴다.
+  - 바깥(CLI)에서 바꾼 `playlist-drafts.json`은 바깥 변경 확인(`WatchDrafts.refresh`)이 읽는다. 조각은 다르면 받는다(`adoptExternalDraft`). 받으면 라이브러리 ⌘Z 기록을 비운다. 편집하기 전에도 디스크 초안을 견준다(`syncExternalPlaylistDraft`).
 - **추가한 곡·그리드 일괄 추정·XML 내보내기는 기능 조각 `TrackStagingStore`가 든다(#252).** 조각은 저장소의 `staging` 속성이다. 넣기·저장·추정의 규칙과 순서는 유스케이스 `StageTracks`와 `ExportXML`이 정한다. 목록 아래 막대의 단추·막힘 이유는 화면 모델 `ListActionBarModel`이 든다. 파일 없음 확인은 곡 행을 바꾸므로 공유 핵심이 한다(#254).
 - **주 창이 띄우는 시트와 단추 입구는 화면 모델 `LibraryWindowModel`이 든다(#254).** 그 시트는 쓰기 결과, 연결되지 않은 초안, rekordbox XML 가져오기다. 처음 읽기, 스냅샷, 동기화, 끌어 놓기 같은 주 창 단추는 이 모델의 입구를 부른다. 메뉴 막대의 메뉴 항목(`LibraryMenuAction`)도 이 모델을 받는다. 재생 목록 고르기, USB, 막힌 초안 복구의 시트는 그 주인이 든다.
 - 패널 화면 모델은 조립 지점 `AppComposition`이 한 번 만든다. 예: `LibraryWindowModel`, `TagInspectorModel`, `PlaylistSidebarModel`, `ListActionBarModel`. 시트 모델은 띄울 때 한 번 만든다. 예: `UnlinkedDraftsModel`, `ITunesSyncModel`.

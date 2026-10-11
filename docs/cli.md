@@ -355,7 +355,115 @@ djc draft rm tag 101 --db /tmp/djc-fixture/master.db
 
 기존 `invalid_arguments`, `not_found`, `live_database`, `read_failed`도 사용한다. 실패하면 종료 코드 1이다. JSON은 stderr에만 나온다.
 
-앱은 재생 목록 초안을 지원하지만 `djc draft`의 대상은 큐·태그뿐이다. `playlist-write`는 JSON 편집을 DB에 쓰는 명령이다. DJCrate 재생 목록 초안 생성 명령이 아니다. 에이전트 스킬에서는 실행하지 않는다. 사람이 앱에서 재생 목록 초안을 만들도록 안내한다.
+## 재생 목록 초안 만들기(`draft playlist`)
+
+`djc draft playlist`는 앱 사이드바와 같은 재생 목록 편집을 초안으로 쌓는다(#260). 초안은 앱 편집과 같은 `DJC_HOME`의 `playlist-drafts.json`이다. rekordbox는 스냅샷 사본으로 읽기만 한다. `djc draft cue|tag`와 같은 스냅샷 경로를 쓰므로 라이브 DB를 거절한다.
+
+`playlist-write`는 JSON 편집을 DB에 바로 쓰는 명령이다. 초안을 만들지 않는다. 에이전트 스킬에서는 실행하지 않는다.
+
+```sh
+# 시험할 때는 반드시 임시 DJC_HOME을 쓴다.
+export DJC_HOME="$(mktemp -d)"
+djc draft playlist apply --file edits.json --db /tmp/djc-fixture/master.db --dry-run --json
+djc draft playlist create '합성 세트' --parent 900 --tracks 101,102 --db /tmp/djc-fixture/master.db --json
+djc draft playlist create '합성 폴더' --folder --index 0 --db /tmp/djc-fixture/master.db
+djc draft playlist rename 901 '새 이름' --db /tmp/djc-fixture/master.db
+djc draft playlist move 901 --parent 900 --before 902 --db /tmp/djc-fixture/master.db
+djc draft playlist delete 'name:지울 목록' --db /tmp/djc-fixture/master.db
+djc draft playlist add 901 101 102 --db /tmp/djc-fixture/master.db
+djc draft playlist remove 901 102 --db /tmp/djc-fixture/master.db
+djc draft playlist order 901 103 101 --before 102 --db /tmp/djc-fixture/master.db
+```
+
+**목록 가리키기**
+
+- `root`: 맨 위다. 부모로만 쓴다.
+- rekordbox ID: `djc playlists --tree --json`의 `id`다.
+- `new:키`: 초안으로 만든 목록이다. 아직 rekordbox에 쓰지 않았다. 앞선 `djc draft playlist` 결과의 `playlistID`이고, 앱에서 만든 목록도 같다.
+- `@이름`: 같은 편집 파일 안에서 앞서 `"as": "@이름"`으로 만든 목록이다.
+- `name:이름`: 이름이 정확히 같은 목록이다. 그 편집 차례의 모양에서 찾는다. 이 모양은 rekordbox에 초안과 앞 편집을 얹은 것이다. 그 이름의 목록이 하나가 아니면 그 편집을 막는다. 이때는 ID로 가리킨다.
+
+**하위 명령**: 편집 하나를 쌓는다.
+
+| 하위 명령 | 하는 것 |
+|---|---|
+| `create <이름> [--folder] [--parent <목록>] [--before <목록> \| --index N] [--tracks <ID,ID…>]` | 목록·폴더를 만든다. 자리를 주지 않으면 부모 맨 위다(rekordbox와 같다). `--tracks`는 목록에만 준다 |
+| `rename <목록> <이름>` | 이름을 바꾼다. 앞뒤 공백은 뺀다 |
+| `move <목록> [--parent <폴더>] [--before <목록> \| --index N]` | 옮긴다. 자리가 없으면 새 부모의 맨 끝이다(rekordbox와 같다). 부모 없이 자리만 주면 지금 부모 안 순서만 바꾼다 |
+| `delete <목록>` | 지운다. 폴더면 안의 목록까지 지운다 |
+| `add <목록> <ContentID…>` | 목록 끝에 넣는다. 이미 든 곡은 넣지 않는다(앱과 같다) |
+| `remove <목록> <ContentID…>` | 그 곡의 모든 자리를 뺀다. 컬렉션에서는 빼지 않는다 |
+| `order <목록> <ContentID…> [--before <ContentID>]` | 곡을 준 순서대로 `--before` 곡 앞에 놓는다. 없으면 맨 끝이다 |
+
+`--index`는 부모 안 자리(0부터)다. 형제 수보다 크면 맨 끝이다. `--before`와 함께 줄 수 없다.
+
+**편집 파일**: `apply --file <파일>`은 편집 여러 개를 한 번에 계획한다. 결과는 초안 하나로 쌓는다. `--file -`는 표준 입력에서 읽는다. 파일은 `{"edits": [편집…]}` 또는 배열이다.
+
+```json
+{"edits": [
+  {"op": "create", "name": "합성 폴더", "folder": true, "as": "@f"},
+  {"op": "create", "name": "합성 세트", "parent": "@f", "as": "@s", "tracks": ["101", "102"]},
+  {"op": "move", "playlist": "901", "parent": "@f", "before": "@s"},
+  {"op": "delete", "playlist": "name:지울 목록"},
+  {"op": "order", "playlist": "@s", "tracks": ["102", "101"]}
+]}
+```
+
+| `op` | 칸(굵게는 꼭 있어야 한다) |
+|---|---|
+| `create` | **`name`**, `folder`(불리언), `parent`, `as`(`@`로 시작), `before` 또는 `index`, `tracks` |
+| `rename` | **`playlist`**, **`name`** |
+| `move` | **`playlist`**, `parent`, `before` 또는 `index`(`parent`나 자리 중 하나는 있어야 한다) |
+| `delete` | **`playlist`** |
+| `add`·`remove` | **`playlist`**, **`tracks`** |
+| `order` | **`playlist`**, **`tracks`**, `before`(ContentID) |
+
+- 모르는 `op`, 모르는 칸, 잘못된 값이 있으면 `invalid_arguments`로 거절한다. 이때 아무것도 쌓지 않는다. 오류 문구는 편집 번호(`#1`부터)로 시작한다.
+- 편집 하나가 rekordbox 편집 여러 개가 될 수 있다. 예를 들어 만들기와 곡 넣기, 옮기기와 순서 바꾸기다. 이것은 함께 쌓는다. 하나라도 막히면 그 편집 전체를 건너뛴다.
+
+**막힘**: 앱 사이드바와 같은 유스케이스(`EditPlaylists.planning`)가 판정한다.
+
+- 편집마다 지금 rekordbox 목록 상태를 `base`로 적는다. 그 뒤 rekordbox에서 바뀐 목록의 편집은 쓰기 미리 보기에서 막힌다.
+- 아래 편집은 건너뛴다. 결과에 이유를 보인다. 나머지는 쌓는다.
+  - 인텔리전트 목록과 쓰기 규칙을 확인하지 않은 목록. `Attribute`가 0·1이 아닌 목록이다.
+  - 폴더가 아닌 부모, 폴더를 제 안으로 옮기기, 폴더에 곡 넣기
+  - rekordbox 컬렉션에 없는 곡, 목록에 없는 곡
+  - 찾지 못한 목록, 이름이 겹친 목록, 앞에서 만들지 못한 `@이름`
+- `--all-or-nothing`을 주면 하나라도 막혔을 때 아무것도 쌓지 않는다.
+- 막힌 편집만 있어 쌓은 편집이 하나도 없으면 `playlist_edit_blocked`로 끝난다(종료 코드 1). 하나라도 쌓았으면 성공(종료 코드 0)이다. 건너뛴 편집은 결과에 있다.
+- 이미 그 모양이라 쌓을 것이 없는 편집은 `unchanged`다. 예를 들어 같은 이름, 같은 자리, 이미 든 곡이다.
+
+**앱과 함께 쓸 때**
+
+- 켜져 있는 앱은 약 1초마다 `playlist-drafts.json`을 확인한다. 바뀌었으면 다시 읽는다.
+  - 다시 읽으면 그 앞의 라이브러리 ⌘Z 기록(태그·재생 목록)을 비운다. 덱의 큐·그리드 기록은 남는다.
+  - 앱이 저장하지 못한 초안이 있으면(디스크보다 최신) 다시 읽지 않는다.
+- 앱에서 편집하기 전에도 파일을 확인한다. 바깥에서 바뀌었으면 그 초안을 받은 뒤 그 위에 쌓는다. ⌘Z·초안 버리기처럼 옛 초안으로 되돌리는 변경은 하지 않는다. 대신 이유를 알린다.
+- 계획하는 동안 초안 파일이 바뀌었으면 CLI는 `draft_changed`로 끝난다. 파일은 덮지 않는다. 같은 명령을 다시 실행한다.
+- 초안 파일을 읽지 못하면 `invalid_draft`로 끝난다. 그 파일은 덮지 않는다.
+- 쓰기 미리 보기는 CLI로 만든 초안을 앱 초안과 똑같이 보인다. 반영도 같다.
+
+`--json`의 `data`는 아래와 같다. `command`는 `draft`다.
+
+```json
+{"kind": "playlist", "action": "apply", "dryRun": false, "hasChanges": true,
+ "stacked": 4, "unchanged": 0, "skipped": 1,
+ "results": [{"index": 0, "op": "create", "status": "stacked", "playlistID": "new:…", "name": "합성 폴더"}],
+ "aliases": {"@f": "new:…"},
+ "playlist": {"steps": […], "base": {…}}}
+```
+
+- `action`: 하위 명령 이름이다(`apply`·`create`·…).
+- `results[]`: 편집 순서다. `status`는 `stacked`·`unchanged`·`skipped`다.
+  - `playlistID`: 편집한 목록이다. 만든 목록은 `new:키`다.
+  - `name`: 편집하기 전 이름이다. 만들기면 새 이름이다.
+  - `reason`: 막힌 이유다.
+  - `ignored`: 이미 든 곡이나 목록에 없는 곡이다. 이 곡은 넣거나 빼지 않았다.
+  - 이 네 칸은 값이 없으면 빠진다.
+- `aliases`: 만든 `@이름` → `new:키`.
+- `playlist`: 쌓은 뒤 초안 전체(앱 파일과 같다). 미리 보기면 저장하지 않은 값이다.
+
+추가 오류 코드는 두 가지다. `playlist_edit_blocked`는 쌓은 편집 없이 막혔다는 뜻이다. `draft_changed`는 계획하는 동안 초안 파일이 바뀌었다는 뜻이다. `invalid_arguments`, `invalid_draft`, `draft_io_failed`, `not_found`, `live_database`, `read_failed`도 쓴다.
 ## 쓰기 명령(사본에만)
 
 rekordbox 라이브러리에 쓰는 명령이다. 앱과 같은 반영 세션과 쓰기 관문을 지난다. 순서는 사전 확인, 전체 백업, 한 트랜잭션, 검증이다. 실패하면 복원한다.
@@ -657,7 +765,7 @@ rekordbox에는 쓰지 않는다. 쓰기는 앱의 "rekordbox에 쓰기"(미리 
   - 곡이 다른 목록은 곡을 모두 뺀다. 그다음 XML 순서로 다시 넣는다.
   - 라이브러리 목록 뒤에 곡만 더한 목록은 더한 곡만 넣는다.
   - 같은 자리에 인텔리전트 목록이 있으면 건너뛴다.
-  - DJCrate 앱이 켜져 있으면 재생 목록 초안은 만들지 않는다. 앱이 그 파일을 다시 읽지 않는다. 앱은 자기 초안으로 덮는다.
+  - DJCrate 앱이 켜져 있어도 재생 목록 초안을 만든다. 앱이 그 파일을 다시 읽는다(#260). 자세한 규칙은 [재생 목록 초안 만들기](#재생-목록-초안-만들기draft-playlist)에 있다.
   - 그리드 초안을 만들면 덱에 올린 곡의 그리드를 덱 편집이 덮을 수 있다고 알린다.
 - **손실**: 초안이 담지 못하는 차이는 초안에서 뺀다. "초안에 담지 못한 차이"로 센다. 해당하는 경우는 다음과 같다.
   - 곡 길이 밖 큐

@@ -74,6 +74,8 @@ public struct DraftStore: Sendable {
     // MARK: 재생 목록·합치기(화면이 들고 있는 메모리 초안). 추가 목록은 `StagingStore`
 
     public var playlistDraft: @Sendable () -> PlaylistDraft
+    /// 디스크의 재생 목록 초안(없으면 빈 초안, 읽지 못하면 던진다). 바깥(CLI)에서 바꾼 초안을 받을 때 손상 파일을 빈 초안으로 받지 않게 한다
+    public var readPlaylistDraft: @Sendable () throws -> PlaylistDraft
     public var savePlaylistDraft: @MainActor (PlaylistDraft) throws -> Void
     public var mergeDrafts: @Sendable () -> [DuplicateMergeDraft]
     public var saveMergeDrafts: @MainActor ([DuplicateMergeDraft]) throws -> Void
@@ -116,6 +118,7 @@ public struct DraftStore: Sendable {
                 saveArtwork: @escaping @Sendable (ArtworkEdit) throws -> Void,
                 removeArtwork: @escaping @Sendable (String) throws -> Void,
                 playlistDraft: @escaping @Sendable () -> PlaylistDraft,
+                readPlaylistDraft: @escaping @Sendable () throws -> PlaylistDraft,
                 savePlaylistDraft: @escaping @MainActor (PlaylistDraft) throws -> Void,
                 mergeDrafts: @escaping @Sendable () -> [DuplicateMergeDraft],
                 saveMergeDrafts: @escaping @MainActor ([DuplicateMergeDraft]) throws -> Void,
@@ -152,6 +155,7 @@ public struct DraftStore: Sendable {
         self.saveArtwork = saveArtwork
         self.removeArtwork = removeArtwork
         self.playlistDraft = playlistDraft
+        self.readPlaylistDraft = readPlaylistDraft
         self.savePlaylistDraft = savePlaylistDraft
         self.mergeDrafts = mergeDrafts
         self.saveMergeDrafts = saveMergeDrafts

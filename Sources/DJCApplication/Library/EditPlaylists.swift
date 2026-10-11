@@ -16,7 +16,7 @@ public struct PlaylistImportsStore: Sendable {
     public static let none = PlaylistImportsStore(load: { PlaylistImports() }, save: { _ in })
 }
 
-/// 재생 목록 초안 편집(유스케이스, #39·#40): 편집 더하기(하나라도 막히면 아무것도 더하지 않는다), 쓴 뒤 정리(새 목록 ID 잇기),
+/// 재생 목록 초안 편집(유스케이스, #39·#40): 편집 요청 묶음 계획(`planning`, 앱 사이드바와 CLI `djc draft playlist`), 쓴 뒤 정리(새 목록 ID 잇기),
 /// 복원 뒤 다시 쌓기, 컬렉션 등록 뒤 목록 연결, 최근 목록·넣기 전 나누기·재생 기록 원본 고르기(#251).
 /// 초안은 앱의 재생 목록 조각(`PlaylistEditStore`)이 들고(되돌리기·표시), 초안 파일·연결 기록 저장은 여기서 포트로 한다.
 /// 저장 순서는 초안 → 연결 기록이다: 초안을 저장하지 못하면 연결 기록은 그대로 두어 다음 읽기에서 다시 확인한다.
@@ -35,6 +35,9 @@ public struct EditPlaylists: Sendable {
     /// 재생 목록 초안을 저장한다(실패하면 던진다: 화면은 메모리 초안을 그대로 두고 쓰기 전에 다시 저장한다, #174)
     @MainActor
     public func saveDraft(_ draft: PlaylistDraft) throws { try drafts.savePlaylistDraft(draft) }
+
+    /// 디스크의 재생 목록 초안을 읽는다(없으면 빈 초안, 읽지 못하면 던진다). 앱은 편집 전에 바깥(CLI)에서 바뀌었는지 본다(#260)
+    public func loadDraft() throws -> PlaylistDraft { try drafts.readPlaylistDraft() }
 
     /// 연결 기록을 읽는다(파일이 없으면 빈 기록, 읽지 못하면 던진다)
     public func loadImports() throws -> PlaylistImports { try imports.load() }
@@ -199,21 +202,9 @@ public struct EditPlaylists: Sendable {
                         imports: saveImports(restoredImports, over: imports, loadFailed: importsLoadFailed), failed: rebuilt.failed)
     }
 
-    /// 편집을 더하지 않은 이유(화면에 그대로 보인다)
-    public struct Refused: Error, Sendable {
-        public var message: String
-    }
-
-    /// 편집을 차례로 초안에 더한다. 하나라도 쓸 수 없으면 아무것도 더하지 않고 이유(`Refused`)를 던진다
-    public static func appending(_ edits: [PlaylistEdit], to draft: PlaylistDraft, rekordbox: PlaylistLayout) throws -> PlaylistDraft {
-        var draft = draft
-        do {
-            for edit in edits { try draft.append(edit, rekordbox: rekordbox) }
-        } catch {
-            let reason = (error as? PlaylistLayout.Blocked)?.reason ?? DJCError.reason(of: error)
-            throw Refused(message: String(ui: "재생 목록을 고치지 않았습니다: \(reason)"))
-        }
-        return draft
+    /// 하나라도 막혀 편집을 더하지 않은 안내(화면에 그대로 보인다, `planning`의 `allOrNothing`)
+    public static func refusedMessage(_ reason: String) -> String {
+        String(ui: "재생 목록을 고치지 않았습니다: \(reason)")
     }
 
     // MARK: - 최근 목록·넣기 전 나누기·재생 기록 원본(#251)

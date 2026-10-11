@@ -33,6 +33,10 @@ extension DraftStore {
                         stamps[file.path] = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
                     }
                 }
+                // 재생 목록 초안 파일도 CLI(`djc draft playlist`)가 바꾼다(#260)
+                if let date = (try? places.playlist.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate {
+                    stamps[places.playlist.path] = date
+                }
                 return stamps
             },
             preserveDamaged: { writer.preserveDamagedDrafts(home: home) },
@@ -58,6 +62,7 @@ extension DraftStore {
             saveArtwork: { try ArtworkDraftStore.save($0, directory: places.artwork) },
             removeArtwork: { try ArtworkDraftStore.remove(trackUUID: $0, directory: places.artwork) },
             playlistDraft: { PlaylistDraftStore.load(url: places.playlist) },
+            readPlaylistDraft: { try PlaylistDraftStore.read(url: places.playlist) },
             savePlaylistDraft: { try PlaylistDraftStore.save($0, url: places.playlist) },
             mergeDrafts: { DuplicateMergeDraftStore.load(url: places.merge) },
             saveMergeDrafts: { try DuplicateMergeDraftStore.save($0, url: places.merge) },
