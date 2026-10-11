@@ -22,6 +22,8 @@ struct PlaylistImportIntegrationTests {
         let store = store()
         store.playlists.playlistImports.addFiles(["/fixtures/a", "/fixtures/b"], to: .new("P"))
         try store.playlists.playlistDraft.append(.create(key: "P", name: "세트", isFolder: false, parent: .root), rekordbox: PlaylistLayout())
+        // 앱 편집처럼 저장한다: 연결 전 바깥 초안 확인(#260)이 저장하지 않은 메모리 초안을 디스크 초안으로 바꾸지 않게
+        store.playlists.savePlaylistDraft()
         store.playlists.resolvePlaylistImports(contentIDsByPath: ["/fixtures/a": "1"])
         let written = store.playlists.playlistDraft
         store.finishPlaylistWrite(written, outcomes: written.edits.map {

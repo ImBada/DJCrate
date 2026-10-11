@@ -79,6 +79,17 @@ struct ExternalPlaylistDraftTests {
         #expect(!h.undo.canUndo && !h.undo.canRedo)
     }
 
+    @Test func 곡_추가를_연결하기_전에_바깥_초안을_받고_그_위에_쌓는다() throws {
+        let h = Harness()
+        h.store.playlists.playlistImports.addFiles(["/fixtures/a"], to: .id("A"))
+        _ = try h.cli([.delete(playlist: .id("B"))])
+        // 1초 확인보다 먼저 연결해도 메모리 초안으로 저장해 CLI 초안을 덮지 않는다
+        h.store.playlists.resolvePlaylistImports(contentIDsByPath: ["/fixtures/a": "1"])
+        let disk = try PlaylistDraftStore.read(url: h.file)
+        #expect(disk == h.store.playlists.playlistDraft)
+        #expect(disk.edits == [.delete(playlist: .id("B")), .addTracks(playlist: .id("A"), contentIDs: ["1"])])
+    }
+
     @Test func 저장하지_못한_메모리_초안과_읽지_못한_파일은_받지_않는다() async throws {
         let h = Harness()
         h.store.playlists.renamePlaylist("A", to: "앱에서 바꾼 이름")

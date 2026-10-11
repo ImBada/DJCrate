@@ -134,7 +134,12 @@ public struct EditPlaylists: Sendable {
     @MainActor
     public func finishWrite(_ written: PlaylistDraft, outcomes: [PlaylistOutcome], current: PlaylistDraft,
                             imports: PlaylistImports, importsLoadFailed: Bool) -> WriteCleanup {
-        let finished = Self.afterWrite(written, outcomes: outcomes, current: current)
+        var finished = Self.afterWrite(written, outcomes: outcomes, current: current)
+        // 쓰는 동안(또는 1초 바깥 변경 확인 전에) CLI가 디스크 초안 뒤에 더한 편집은 남긴다(#260). 메모리 초안으로 저장하면 사라진다
+        if finished.draft != nil, let disk = try? drafts.readPlaylistDraft(), disk != current,
+           let kept = Self.keepingExternal(disk, written: written, outcomes: outcomes) {
+            finished.draft = kept
+        }
         var cleanup = WriteCleanup(draft: finished.draft, ids: finished.ids)
         if let draft = finished.draft {
             do { try saveDraft(draft) } catch { cleanup.draftError = error }
@@ -284,6 +289,14 @@ public struct EditPlaylists: Sendable {
         var draft = written
         draft.removeSteps(at: outcomes.indices.filter { outcomes[$0].status != .blocked })
         return (draft, ids)
+    }
+
+    /// 쓴 뒤: 디스크 초안이 쓴 초안으로 시작하면(그 뒤에 바깥에서 편집을 더함) 쓴 편집만 뺀 디스크 초안. 아니면 nil(메모리 초안으로 정리한다)
+    public static func keepingExternal(_ disk: PlaylistDraft, written: PlaylistDraft, outcomes: [PlaylistOutcome]) -> PlaylistDraft? {
+        guard disk.steps.count > written.steps.count, disk.steps.starts(with: written.steps) else { return nil }
+        var draft = disk
+        draft.removeSteps(at: outcomes.indices.filter { outcomes[$0].status != .blocked })
+        return draft
     }
 
     /// 복원한 뒤: 그때 쓴 편집을 되돌린 rekordbox 상태에 다시 쌓고 그 뒤 쌓은 초안을 이어 붙인다. 다시 쌓지 못한 편집 수와 다시 만들 목록 열쇠도 준다

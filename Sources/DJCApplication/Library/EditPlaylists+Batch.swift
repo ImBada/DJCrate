@@ -180,7 +180,8 @@ private struct RequestPlanner {
             let item = try item(target)
             let parent = try into.map(resolve) ?? item.parentID
             let others = layout.childIDs(of: parent).filter { $0 != item.id }
-            if case let .before(sibling) = position, try resolve(sibling) == item.id { return outcome([]) }
+            // 같은 부모 안에서 자기 앞이면 그대로다(다른 폴더면 아래에서 그 폴더 안 자리가 아니라고 막는다)
+            if parent == item.parentID, case let .before(sibling) = position, try resolve(sibling) == item.id { return outcome([]) }
             let index = try position.map { try self.index($0, in: parent, moving: item.id) } ?? others.count
             let ref = PlaylistRef(item.id)
             if item.parentID != parent {

@@ -4667,22 +4667,6 @@
         }
       }
     },
-    "DJCrate가 켜져 있어 재생 목록 초안은 만들지 않았습니다(앱이 자기 초안으로 덮습니다). DJCrate를 끈 뒤 다시 실행하거나 앱의 rekordbox XML 가져오기를 쓰세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No playlist drafts were made because DJCrate is running (the app would overwrite them with its own drafts). Quit DJCrate and run this again, or use Import rekordbox XML in the app."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DJCrateが起動中のため、プレイリストの下書きは作りませんでした（アプリが自分の下書きで上書きします）。DJCrateを終了してから再実行するか、アプリの「rekordbox XMLを読み込む」を使ってください"
-          }
-        }
-      }
-    },
     "DJCrate는 XML을 늘 이 파일에 만듭니다(경로를 클립보드에 복사했습니다):\n%@" : {
       "localizations" : {
         "en" : {

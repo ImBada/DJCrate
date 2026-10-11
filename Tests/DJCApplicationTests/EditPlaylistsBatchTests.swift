@@ -168,9 +168,12 @@ struct EditPlaylistsBatchTests {
             .move(PlaylistTarget("P3"), into: nil, position: .index(0)),
             .move(PlaylistTarget("P2"), into: PlaylistTarget("root"), position: nil),
             .move(PlaylistTarget("P1"), into: nil, position: .before(PlaylistTarget("P1"))),
+            // 다른 폴더로 옮기며 자기 앞을 주면 그 폴더 안 자리가 아니다
+            .move(PlaylistTarget("P1"), into: PlaylistTarget("F1"), position: .before(PlaylistTarget("P1"))),
             .move(PlaylistTarget("S1"), into: PlaylistTarget("F1"), position: .before(PlaylistTarget("P1"))),
         ])
-        #expect(batch.outcomes.map(\.status) == [.stacked, .stacked, .stacked, .stacked, .unchanged, .skipped])
+        #expect(batch.outcomes.map(\.status) == [.stacked, .stacked, .stacked, .stacked, .unchanged, .skipped, .skipped])
+        #expect(batch.outcomes[5].reason == "자리로 준 항목이 그 폴더 안에 없습니다")
         #expect(batch.layout.childIDs(of: "root") == ["F1", "new:k2", "P1", "S1", "new:k1", "P2"])
         #expect(batch.layout.childIDs(of: "F1") == ["P3"])
     }
