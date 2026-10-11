@@ -102,7 +102,8 @@ final class AppComposition {
 
     /// AI 에이전트 설치(#262): 재료는 이 앱 번들 안(`Contents/Resources/skills/djcrate`·`Contents/Helpers/djc`), 설치 자리의 뿌리는 사용자 홈.
     /// 디버그 빌드는 `--agent-home=<폴더>`로 홈을 바꾼다(자가 테스트·캡처가 사용자 홈과 휴지통에 쓰지 않게 휴지통도 그 안으로 둔다)
-    static func agentTools(arguments: [String], settings: SettingsStore) -> AgentToolsSettingsModel {
+    static func agentTools(arguments: [String], settings: SettingsStore?,
+                           confirm: @escaping @MainActor (ReflectionPrompt) -> Bool = { AlertPrompter().show($0) }) -> AgentToolsSettingsModel {
         var home = FileManager.default.homeDirectoryForCurrentUser
         var trash: URL?
         #if DEBUG
@@ -112,7 +113,7 @@ final class AppComposition {
         }
         #endif
         let tools = AgentTools(files: .live(layout: agentLayout(), trash: trash), home: home)
-        return AgentToolsSettingsModel(tools: tools, settings: settings, confirm: { AlertPrompter().show($0) })
+        return AgentToolsSettingsModel(tools: tools, settings: settings, confirm: confirm)
     }
 
     /// 앱 번들이면 번들 안 재료, 디버그 실행 파일이면 저장소의 `skills/djcrate`와 실행 파일 옆 djc(`swift build`가 함께 만든다)
@@ -237,6 +238,7 @@ final class AppComposition {
                                     libraryWindow: libraryWindow)
         DevSelfTests.runAsyncGuidanceCaptureIfRequested(store: store, deck: deck)
         UsbMigrateCapture.runIfRequested(store: store)
+        AgentToolsCapture.runIfRequested()
         DevSelfTests.runKeyRoutingSelfTestIfRequested(store: store, deck: deck, windows: windows)
         #endif
         deck.onDraftChange = { [weak store] uuid, kind, exists in
