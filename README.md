@@ -3,7 +3,11 @@
 [![빌드·테스트](https://github.com/fotoner/DJCrate/actions/workflows/check.yml/badge.svg?branch=dev)](https://github.com/fotoner/DJCrate/actions/workflows/check.yml) [![라이선스: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > [!WARNING]
-> DJCrate는 **베타**다(0.x). 기능과 저장 형식이 바뀔 수 있다. rekordbox에 쓰기 전에 라이브러리를 따로 백업한다. 문제는 [이슈](https://github.com/fotoner/DJCrate/issues)로 알린다.
+> DJCrate는 아직 **베타**(0.x)라서 예상하지 못한 문제가 생길 수 있습니다.
+>
+> DJCrate는 rekordbox에 쓰기 전에 라이브러리 전체를 자동으로 백업합니다. 쓴 뒤 문제가 생기면 툴바 **rekordbox에 쓰기** 메뉴의 **쓰기 전으로 복원…**으로 되돌려 주세요. 그래도 문제가 남으면 [이슈](https://github.com/fotoner/DJCrate/issues)로 연락해 주세요.
+>
+> DJCrate는 [MIT 라이선스](LICENSE)에 따라 있는 그대로 제공됩니다. 사용 중 생긴 데이터 손실이나 손해는 개발자가 책임지지 않습니다.
 
 DJCrate는 rekordbox 7 라이브러리를 고치는 macOS 앱이다. 고칠 때 rekordbox를 켤 필요가 없다. 공연용이 아니라 라이브러리 관리 도구다. 명령줄 도구 `djc`도 함께 있다. 화면은 한국어·영어·일본어로 볼 수 있다. English summary: [below](#english).
 
@@ -69,7 +73,7 @@ swift build -c release --product djc  # .build/release/djc
 
 ## English
 
-DJCrate is in **beta** (0.x). Features and data formats may change. Back up your rekordbox library before you write to it. Prebuilt Apple Silicon builds are on [GitHub Releases](https://github.com/fotoner/DJCrate/releases).
+DJCrate is in **beta** (0.x). Features may change, and you may run into unexpected problems. DJCrate backs up your whole rekordbox library automatically before every write. If something goes wrong, roll back with **Restore Before Write…** in the toolbar's **Write to rekordbox** menu. If that does not fix it, please contact us through [Issues](https://github.com/fotoner/DJCrate/issues). DJCrate is provided "as is" under the [MIT License](LICENSE), and the developer is not responsible for any data loss or damage. Prebuilt Apple Silicon builds are on [GitHub Releases](https://github.com/fotoner/DJCrate/releases).
 
 DJCrate is a macOS app for editing a rekordbox 7 library (cues, beat grids, Auto Gain, tags, playlists, adding and removing tracks) without launching rekordbox. Every edit stays a draft until you choose Write to rekordbox (⇧⌘E). It never writes while rekordbox or rekordboxAgent is running, only writes to rekordbox 7.2.x with a verified database layout, backs up the whole library first and verifies the result. USB support is experimental; physical USBs are written only after you confirm the write dialog. Requires macOS 27+, Swift 6.2+ (Xcode); install with `scripts/build-app.sh --install`. The app UI is available in English, Japanese and Korean (others fall back to English); docs, the `djc` CLI and issues are in Korean.
 
