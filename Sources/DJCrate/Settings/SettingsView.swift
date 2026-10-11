@@ -9,12 +9,16 @@ struct SettingsView: View {
     @Bindable var deck: DeckModel
     /// 저장 공간 탭의 모델(조립 지점이 캐시 자리·캐시 폴더를 붙여 만든다)
     let storage: () -> StorageSettingsModel
+    /// 업데이트 탭의 모델(조립 지점이 하나 만들어 앱 메뉴와 함께 쓴다)
+    let updates: UpdateSettingsModel
     @State private var tab: SettingsTab
 
-    init(store: LibraryStore, deck: DeckModel, storage: @escaping () -> StorageSettingsModel, tab: SettingsTab = .general) {
+    init(store: LibraryStore, deck: DeckModel, storage: @escaping () -> StorageSettingsModel, updates: UpdateSettingsModel,
+         tab: SettingsTab = .general) {
         self.store = store
         self.deck = deck
         self.storage = storage
+        self.updates = updates
         _tab = State(initialValue: tab)
     }
 
@@ -43,6 +47,9 @@ struct SettingsView: View {
             Tab(.ui("저장 공간"), systemImage: "internaldrive", value: SettingsTab.storage) {
                 StorageSettingsView(model: storage())
             }
+            Tab(.ui("업데이트"), systemImage: "arrow.triangle.2.circlepath", value: SettingsTab.update) {
+                UpdateSettingsView(model: updates)
+            }
             Tab(.ui("실험실"), systemImage: "testtube.2", value: SettingsTab.lab) {
                 LabSettingsView(store: store)
             }
@@ -52,7 +59,7 @@ struct SettingsView: View {
 }
 
 enum SettingsTab: Hashable {
-    case general, deck, shortcuts, waveform, storage, lab
+    case general, deck, shortcuts, waveform, storage, update, lab
 }
 
 /// 지금 열린 설정 창. 설정 창도 주 창이 될 수 있어서, KeyRouter가 이 창의 키(단축키 기록 등)를 덱으로 보내지 않게 한다.

@@ -33,12 +33,19 @@ final class AppComposition {
     let listActionBar: ListActionBarModel
     /// 주 창 화면 모델(주 창이 띄우는 시트와 단추·메뉴 입구). 주 창을 다시 그려도 같은 모델을 쓴다.
     let libraryWindow: LibraryWindowModel
+    /// 설정 › 업데이트와 앱 메뉴 "업데이트 확인…"의 화면 모델(#59)
+    let updates: UpdateSettingsModel
+    /// Sparkle 연결. 배포 앱 번들에서만 있다(개발 빌드·화면 시험은 nil)
+    private let updater: AppUpdater?
     /// 덱 단축키(창이 처음 나타날 때 붙인다)
     let keys = KeyRouter()
     private var connected = false
 
-    init(settings: SettingsStore, store: LibraryStore, deck: DeckModel, windows: AppWindows, reflection: ReflectionCoordinator) {
+    init(settings: SettingsStore, store: LibraryStore, deck: DeckModel, windows: AppWindows, reflection: ReflectionCoordinator,
+         updater: AppUpdater? = nil) {
         self.settings = settings
+        self.updater = updater
+        updates = UpdateSettingsModel(updater: updater, version: .of(.main))
         self.store = store
         self.deck = deck
         self.windows = windows
@@ -85,7 +92,11 @@ final class AppComposition {
         // 덱은 저장소와 같은 초안 저장소(같은 저장 큐)·설정을 쓴다(읽기는 메인 밖에서 실제 파일을 본다).
         let storage = DeckStorage(drafts: drafts, settings: settings)
         let deck = DeckModel(audio: DeckAudio(), storage: storage, assets: .live(drafts: drafts), analysis: deckAnalysis(), runsAnalysis: true)
-        return AppComposition(settings: settings, store: store, deck: deck, windows: AppWindows(), reflection: reflection(store: store))
+        // 앱 자동 업데이트(#59): 쓰는 동안 설치를 미루고 그 사실을 알림으로 보인다
+        let updater = AppUpdater.make(activity: { [weak store] in store?.writeActivity ?? .idle },
+                                      announce: { [weak store] in store?.toast = .notice($0, nil) })
+        return AppComposition(settings: settings, store: store, deck: deck, windows: AppWindows(), reflection: reflection(store: store),
+                              updater: updater)
     }
 
     /// rekordbox 쓰기를 잇는다: 반영 세션(DJCApplication)의 포트에 실제 구현(관문·백업 폴더·음원·실행 중인 앱, DJCAdapters)과
@@ -204,6 +215,7 @@ final class AppComposition {
 
     /// 창을 띄운 뒤: 사이드바 USB 절을 붙이고, 읽을 때마다 도는 캐시 정리를 붙이고, 라이브러리를 처음 읽는다.
     func start() async {
+        updater?.start()
         UsbAppSetup.attach(to: store)
         // CLI가 앱의 시점 스냅샷 보관 일수를 따르게 공유 파일에 맞춘다
         settings.syncShared()

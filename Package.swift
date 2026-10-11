@@ -29,6 +29,10 @@ let package = Package(
         .executable(name: "djc", targets: ["djcExecutable"]),
         .executable(name: "DJCrate", targets: ["DJCrateExecutable"]),
     ],
+    dependencies: [
+        // 앱 자동 업데이트(#59, MIT). 업데이트 검증 코드를 확인한 버전으로 고정한다. 올리면 docs/releasing.md "자동 업데이트"의 확인을 다시 한다.
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0"),
+    ],
     targets: [
         // 공식 4.19.0 바이너리·체크섬은 그대로다. 외부 manifest의 폐기된 watchOS 4 선언은 읽지 않는다.
         .binaryTarget(
@@ -65,10 +69,11 @@ let package = Package(
             resources: [.process("Resources")],
             swiftSettings: swiftSettings
         ),
-        // macOS 앱 본체. 문구 카탈로그는 Resources/에 있다.
+        // macOS 앱 본체. 문구 카탈로그는 Resources/에 있다. Sparkle은 업데이트 연결 파일 한 곳만 import한다(scripts/check-imports.py).
         .target(
             name: "DJCrate",
-            dependencies: ["DJCDomain", "DJCEnvironment", "RekordboxKit", "DJCStorage", "DJCAnalysis", "DJCApplication", "DJCAdapters"],
+            dependencies: ["DJCDomain", "DJCEnvironment", "RekordboxKit", "DJCStorage", "DJCAnalysis", "DJCApplication", "DJCAdapters",
+                           .product(name: "Sparkle", package: "Sparkle")],
             exclude: ["Info.plist"],
             resources: [.process("Resources")],
             swiftSettings: swiftSettings

@@ -26,4 +26,10 @@ extension LibraryStore {
     var writeLockPolicy: WriteLockPolicy {
         WriteLockPolicy(isWriting: isWritingRekordbox, canCancelPreparation: writeStage?.cancellable == true)
     }
+
+    /// 앱이 쓰는 중인 것: rekordbox 쓰기·복원(쓰기 잠금)과 USB 쓰기(진행 중·볼륨을 붙잡은 작업). 관찰할 수 있는 값에서 읽는다.
+    var writeActivity: AppWriteActivity {
+        AppWriteActivity(writingRekordbox: isWritingRekordbox,
+                         writingUsb: usb.map { $0.activeWrite != nil || !$0.busyVolumes.isEmpty } ?? false)
+    }
 }
