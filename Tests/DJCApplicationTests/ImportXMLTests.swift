@@ -100,6 +100,36 @@ struct ImportXMLTests {
         #expect(files.playlist.isEmpty, "바뀐 초안을 덮지 않는다")
     }
 
+    @Test func 재생_목록_초안_파일_잠금은_마지막_비교와_저장_동안만_잡는다() throws {
+        // 앱의 쓰기도 같은 잠금을 잡는다(#260). 계획·곡별 저장 동안 들고 있으면 앱이 잡지 못해 잠금 없이 쓴다
+        let memory = MemoryDraftFiles()
+        let events = Mutex<[String]>([])
+        var files = memory.files
+        let saveTag = files.saveTag, lock = files.lockPlaylist
+        files.saveTag = { draft in events.withLock { $0.append("tag") }; try saveTag(draft) }
+        files.lockPlaylist = {
+            events.withLock { $0.append("lock") }
+            guard let unlock = lock() else { return nil }
+            return { events.withLock { $0.append("unlock") }; unlock() }
+        }
+        let counter = Mutex(0)
+        let library = RekordboxLibrary(allTracks: ["1", "2", "3"].map { Self.track($0, title: "곡 \($0)") }, cues: [], playCounts: [:])
+        let importer = ImportXML(files: .unused, source: .memory([Self.snapshot: library]), drafts: MemoryDrafts().store, draftFiles: files,
+                                 newKey: { counter.withLock { $0 += 1; return "key-\($0)" } })
+        _ = try importer.makeDraftsNow(Self.comparison(), selection: XMLImportDrafts.Selection(kinds: [.tag]))
+        #expect(!events.withLock { $0 }.contains("lock"), "재생 목록을 고르지 않으면 잡지 않는다")
+        events.withLock { $0 = [] }
+        memory.setPlaylist(PlaylistDraft())
+        let result = try importer.makeDraftsNow(Self.comparison(), selection: .all)
+        #expect(result.playlists == 1)
+        #expect(events.withLock { $0 }.suffix(2) == ["lock", "unlock"] && events.withLock { $0 }.filter { $0 == "lock" }.count == 1)
+        // 잡지 못하면 재생 목록만 건너뛰고 알린다
+        memory.setPlaylist(PlaylistDraft())
+        memory.setPlaylistLocked(true)
+        let busy = try importer.makeDraftsNow(Self.comparison(), selection: .all)
+        #expect(busy.playlists == 0 && busy.skipped.last?.kind == .playlist && memory.playlist.isEmpty)
+    }
+
     @MainActor
     @Test func 앱과_CLI는_같은_입력에_같은_초안을_만든다() async throws {
         let cliFiles = MemoryDraftFiles(), appFiles = MemoryDraftFiles()

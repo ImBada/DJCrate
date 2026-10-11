@@ -67,8 +67,8 @@ extension DraftStore {
             mergeDrafts: { DuplicateMergeDraftStore.load(url: places.merge) },
             saveMergeDrafts: { try DuplicateMergeDraftStore.save($0, url: places.merge) },
             newCueID: { UUID() })
-        // CLI는 읽고 저장하는 동안만 짧게 든다. 쓰기를 시작하는 메인 액터가 오래 멈추지 않게 조금만 기다린다
-        store.lockPlaylistDraft = { PlaylistDraftLock.acquire(PlaylistDraftLock.url(for: places.playlist), wait: 0.2) }
+        // 메인 액터에서 부르므로 기다리지 않는다. 앱은 잡을 때까지 다시 해 본다(`LibraryStore.setWriteLock`)
+        store.lockPlaylistDraft = { PlaylistDraftLock.acquire(PlaylistDraftLock.url(for: places.playlist)) }
         return store
     }
 }

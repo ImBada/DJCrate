@@ -154,18 +154,19 @@ public struct ImportXML: Sendable {
     public func makeDraftsNow(_ comparison: XMLImportComparison, selection: XMLImportDrafts.Selection) throws -> XMLImportDraftResult {
         let existing = settledExisting([:])
         let current = draftFiles.playlist, savePlaylist = draftFiles.savePlaylist
-        // 재생 목록 초안은 파일 잠금 안에서 읽고 저장한다. 앱이 rekordbox에 쓰는 중이면(#260) 재생 목록만 건너뛴다
-        let unlock = draftFiles.lockPlaylist()
-        defer { unlock?() }
         let base = current()
         var plan = try plan(comparison, selection: selection, playlistDraft: base, existing: existing)
         let playlist = plan.playlistDraft
         plan.playlistDraft = nil
         var result = Self.result(plan, saved: try save(plan))
-        if unlock == nil, playlist != nil {
+        guard playlist != nil else { return result }
+        // 마지막 비교와 저장만 초안 파일 잠금 안에서 한다(#260). 앱의 쓰기도 이 잠금을 잡으므로 오래 들지 않는다.
+        // 앱이 rekordbox에 쓰는 중이면 재생 목록만 건너뛴다
+        guard let unlock = draftFiles.lockPlaylist() else {
             result.skipped.append(Self.playlistBusy)
             return result
         }
+        defer { unlock() }
         switch Self.playlistStep(playlist, base: base, current: current()) {
         case .none: break
         case let .save(draft):
@@ -205,7 +206,7 @@ public struct ImportXML: Sendable {
 
     private static var playlistBusy: XMLImportDrafts.Note {
         XMLImportDrafts.Note(kind: .playlist, libraryKey: nil, subject: "",
-                             reason: String(ui: "DJCrate가 rekordbox에 쓰는 중이라 재생 목록 초안은 만들지 않았습니다. 쓰기가 끝난 뒤 다시 가져오세요"))
+                             reason: String(ui: "DJCrate가 rekordbox에 쓰는 중이거나 다른 djc가 재생 목록 초안을 고치는 중이라 재생 목록 초안은 만들지 않았습니다. 그 일이 끝난 뒤 다시 가져오세요"))
     }
 
     /// 사본·분석 파일·기존 초안을 읽어 계획을 세운다(쓰지 않는다, 메인 밖에서 부른다)

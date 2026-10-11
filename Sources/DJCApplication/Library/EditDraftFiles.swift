@@ -153,7 +153,7 @@ public struct EditDraftFiles: Sendable {
 
     private func lockPlaylist() throws -> @Sendable () -> Void {
         guard let unlock = files.lockPlaylist() else {
-            throw ReadFailure("draft_busy", String(ui: "DJCrate가 rekordbox에 쓰는 중이라 재생 목록 초안을 쌓지 않았습니다. 쓰기가 끝난 뒤 같은 명령을 다시 실행하세요"))
+            throw ReadFailure("draft_busy", String(ui: "DJCrate가 rekordbox에 쓰는 중이거나 다른 djc가 재생 목록 초안을 고치는 중이라 쌓지 않았습니다. 그 일이 끝난 뒤 같은 명령을 다시 실행하세요"))
         }
         return unlock
     }

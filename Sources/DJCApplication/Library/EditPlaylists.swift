@@ -40,7 +40,7 @@ public struct EditPlaylists: Sendable {
     public func loadDraft() throws -> PlaylistDraft { try drafts.readPlaylistDraft() }
 
     /// 재생 목록 초안 파일 잠금을 잡는다(#260). 앱은 rekordbox에 쓰는 동안 들고 있어 CLI가 그 파일을 고치지 못하게 한다.
-    /// 잡으면 푸는 함수, CLI가 들고 있으면 nil(그때는 잠금 없이 쓴다. 쓴 뒤 정리가 뒤에 더한 편집을 남긴다)
+    /// 잡으면 푸는 함수, CLI가 들고 있으면 nil(기다리지 않는다. 앱은 쓰는 동안 다시 해 본다)
     public func lockDraftFile() -> (@Sendable () -> Void)? { drafts.lockPlaylistDraft() }
 
     /// 연결 기록을 읽는다(파일이 없으면 빈 기록, 읽지 못하면 던진다)

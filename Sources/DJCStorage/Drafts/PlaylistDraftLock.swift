@@ -32,6 +32,9 @@ public enum PlaylistDraftLock {
 
         init(_ descriptor: Int32) { self.descriptor = descriptor }
 
+        // 푸는 함수를 버리면 잠금도 푼다(파일 설명자를 남기지 않게)
+        deinit { release() }
+
         func release() {
             lock.withLock {
                 guard let descriptor else { return }
