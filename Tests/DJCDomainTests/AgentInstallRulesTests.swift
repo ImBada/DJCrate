@@ -39,8 +39,21 @@ struct AgentInstallRulesTests {
         #expect(!state.needsUpdate)
     }
 
-    @Test func 앱_판이_다르면_내용이_같아도_옛_버전이다() {
+    @Test func 앱_판만_다르고_내용이_같으면_설치됨이다() {
+        // 개발 설치마다 빌드 번호가 바뀐다. 스킬이 같으면 알리거나 갱신할 것이 없다
         let state = AgentSkillRules.state(of: ours(["SKILL.md": "a"], disk: ["SKILL.md": "a"]), payload: payload(["SKILL.md": "a"]))
+        #expect(state == .installed(new, isCurrent: true, changes: AgentUserChanges()))
+        #expect(state.badge == .installed)
+        #expect(!state.needsUpdate)
+        #expect(!AgentUpdateNotice.shouldShow(skills: [state], command: .linked, app: new, lastShown: nil))
+        // 고친 파일이 있어도 판만 다른 것으로는 갱신하지 않는다(고친 파일은 따로 보인다)
+        let modified = AgentSkillRules.state(of: ours(["SKILL.md": "a"], disk: ["SKILL.md": "a2"]), payload: payload(["SKILL.md": "a"]))
+        #expect(modified.badge == .modified)
+        #expect(!modified.needsUpdate)
+    }
+
+    @Test func 앱_판과_내용이_모두_다르면_옛_버전이다() {
+        let state = AgentSkillRules.state(of: ours(["SKILL.md": "a"], disk: ["SKILL.md": "a"]), payload: payload(["SKILL.md": "b"]))
         #expect(state == .installed(old, isCurrent: false, changes: AgentUserChanges()))
         #expect(state.badge == .outdated)
         #expect(state.needsUpdate)
@@ -54,7 +67,8 @@ struct AgentInstallRulesTests {
 
     @Test func 설치한_뒤_고치거나_지우거나_더한_파일을_찾는다() {
         let folder = ours(["SKILL.md": "a", "ref/a.md": "r", "ref/b.md": "s"], disk: ["SKILL.md": "a2", "ref/b.md": "s", "notes.md": "n"])
-        let state = AgentSkillRules.state(of: folder, payload: payload(["SKILL.md": "a", "ref/a.md": "r", "ref/b.md": "s"]))
+        // 새 앱은 ref/b.md를 바꿨다(옛 버전이면서 고친 파일도 있다)
+        let state = AgentSkillRules.state(of: folder, payload: payload(["SKILL.md": "a", "ref/a.md": "r", "ref/b.md": "s2"]))
         let changes = AgentUserChanges(changed: ["SKILL.md"], removed: ["ref/a.md"], added: ["notes.md"])
         #expect(state == .installed(old, isCurrent: false, changes: changes))
         // 고친 파일이 있으면 옛 버전보다 먼저 알린다(덮기 전에 물어야 하므로)

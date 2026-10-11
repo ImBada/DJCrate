@@ -165,6 +165,9 @@ struct AgentToolsSettingsModelTests {
         await old.task?.value
         #expect(await old.launchNotice() == nil)
 
+        // 판만 바뀐 앱은 스킬이 같아 알리지 않는다
+        #expect(await model(v2, settings: settings).launchNotice() == nil)
+        try write(app.appending(path: "Contents/Resources/skills/djcrate/SKILL.md"), "skill v2")
         let updated = model(v2, settings: settings)
         // 다른 알림이 떠 있어 보이지 못했으면 알린 것으로 치지 않는다
         #expect(await updated.launchNotice(present: { _ in false }) == nil)

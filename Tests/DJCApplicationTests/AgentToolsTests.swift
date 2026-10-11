@@ -99,6 +99,16 @@ struct AgentToolsTests {
         #expect(state(".claude-goondori/skills/djcrate") == nil)
     }
 
+    @Test func 앱_판만_바뀌고_스킬이_같으면_알리지_않고_건드리지_않는다() throws {
+        #expect(tools.perform(.install(target(".claude/skills/djcrate"))) == .done(failures: []))
+        fake.setPayload(source: source, version: v2, command: bundled)
+        let report = tools.report(customClaudeFolders: [])
+        #expect(!report.needsUpdate)
+        #expect(state(".claude/skills/djcrate") == .installed(v2, isCurrent: true, changes: AgentUserChanges()))
+        #expect(tools.perform(.updateAll) == .done(failures: []))
+        #expect(fake.applied.count == 1)
+    }
+
     @Test func 모두_갱신은_고친_파일을_덮기_전에_묻는다() throws {
         #expect(tools.perform(.install(target(".claude/skills/djcrate"))) == .done(failures: []))
         try fake.put(path(".claude/skills/djcrate/SKILL.md"), "my notes")
@@ -116,6 +126,7 @@ struct AgentToolsTests {
     @Test func 모두_갱신은_실패한_자리를_알리고_나머지를_끝까지_한다() throws {
         #expect(tools.perform(.install(target(".claude/skills/djcrate"))) == .done(failures: []))
         #expect(tools.perform(.install(target(".agents/skills/djcrate", .codex))) == .done(failures: []))
+        try fake.put(source.appending(path: "SKILL.md"), "skill v2")
         fake.setPayload(source: source, version: v2, command: bundled)
         fake.fail([path(".claude/skills/djcrate")])
         guard case let .done(failures) = tools.perform(.updateAll) else { Issue.record("갱신하지 않았다"); return }

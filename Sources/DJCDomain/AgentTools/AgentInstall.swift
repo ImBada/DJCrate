@@ -120,7 +120,7 @@ public enum AgentInstallBadge: Sendable, Equatable {
 public enum AgentSkillState: Sendable, Equatable {
     case notInstalled
     case foreign(AgentForeignKind)
-    /// DJCrate가 설치했다. `isCurrent`는 판과 내용이 이 앱의 재료와 같은지다
+    /// DJCrate가 설치했다. `isCurrent`는 설치한 내용이 이 앱의 재료와 같은지다(판은 보지 않는다)
     case installed(AgentPayloadVersion, isCurrent: Bool, changes: AgentUserChanges)
 
     /// "모두 갱신"이 맞출 것인지(DJCrate가 설치했고 이 앱과 다르다)
@@ -173,8 +173,9 @@ public enum AgentSkillRules {
         case .folder:
             guard let manifest = folder.manifest else { return folder.files.isEmpty ? .notInstalled : .foreign(.folder) }
             let changes = changes(installed: manifest.files, disk: folder.files)
-            let isCurrent = manifest.app == payload.version && manifest.files == payload.files
-            return .installed(manifest.app, isCurrent: isCurrent, changes: changes)
+            // 내용(해시)으로만 판정한다. 개발 설치마다 빌드 번호가 바뀌므로 판만 다른 것은 이 앱의 설치본으로 본다
+            let isCurrent = manifest.files == payload.files
+            return .installed(isCurrent ? payload.version : manifest.app, isCurrent: isCurrent, changes: changes)
         }
     }
 
