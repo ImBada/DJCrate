@@ -57,6 +57,7 @@ DJCApplication은 기능별 폴더에 유스케이스와 포트를 둔다. 유�
 | `Edit/` | `RenderEdit`, `StageEdit` |
 | `Library/` | `LoadLibrary`, `LibraryReadFlow`, `ImportXML`, `RecoverDrafts`, `RelocateTracks`, `StageTracks`, `EditPlaylists`, `EditTags`, `ArchiveUsbHistories` |
 | `Reflection/` | `ReflectionSession`, `CompatibilityCheck` |
+| `Update/` | `UpdateDeferral`(앱 업데이트 설치를 쓰기가 끝날 때까지 미룬다, #59) |
 | `Usb/` | `UsbSync`, `UsbExportSession`, `UsbWriteFlow` |
 
 - 반영 세션 `ReflectionSession`은 rekordbox 쓰기 흐름이 함께 쓰는 유스케이스다. 앱의 반영, 곡 넣기·빼기, 복원이 이 세션을 쓴다. 시점 복원과 iTunes 동기화도 같은 세션을 쓴다.
@@ -108,7 +109,7 @@ DJCApplication은 기능별 폴더에 유스케이스와 포트를 둔다. 유�
 
 ### 경계 규칙
 
-`scripts/check-imports.py`가 소스에서 경계 규칙을 기계로 검사한다. 이 검사는 모든 검사 모드의 첫 단계로 1~2초 걸린다. 규칙 표의 정본은 그 스크립트 맨 위다. 표 이름은 `ALLOWED`·`FORBIDDEN_API`이고, 예외 목록은 `ASSEMBLY_FILES`·`BROAD_FOLDERS`다.
+`scripts/check-imports.py`가 소스에서 경계 규칙을 기계로 검사한다. 이 검사는 모든 검사 모드의 첫 단계로 1~2초 걸린다. 규칙 표의 정본은 그 스크립트 맨 위다. 표 이름은 `ALLOWED`·`FORBIDDEN_API`이다. 예외 목록은 `ASSEMBLY_FILES`·`BROAD_FOLDERS`다. 외부 모듈 목록은 `EXTERNAL_FILES`다.
 
 - 파일의 모듈은 `Package.swift`의 타깃 경로로 정한다.
 - 어느 타깃에도 속하지 않는 Swift 파일과 규칙이 없는 타깃은 실패한다. 그래서 폴더를 옮겨도 검사에서 조용히 빠지지 않는다.
@@ -120,6 +121,7 @@ DJCApplication은 기능별 폴더에 유스케이스와 포트를 둔다. 유�
 | import | 앱의 화면 모델·뷰와 CLI 명령은 DJCApplication·DJCDomain만 import한다 |
 | import 예외 | 조립 지점은 파일 이름 목록 `ASSEMBLY_FILES` 5개다. 아래 층을 모두 import한다 |
 | import 예외 | 디버그 자가 테스트(`Sources/DJCrate/Diagnostics/`), 실험 명령(`Sources/djc/Lab/`)은 `BROAD_FOLDERS`에 적은 import만 더 받는다 |
+| import 제한 | 외부 모듈 Sparkle은 `EXTERNAL_FILES`에 적은 파일 하나(`Sources/DJCrate/App/AppUpdater.swift`)만 import한다. 화면 모델과 핵심부로 번지지 않게 한다 |
 | api | 핵심부(DJCDomain·DJCApplication)는 `FileManager`, `ProcessInfo`, `UserDefaults`를 직접 쓰지 않는다 |
 | api | 핵심부는 `Bundle` 타입, `Date()`·`Date.now`, `UUID()`도 직접 쓰지 않는다. `.init()` 꼴도 같다. 시계·ID·환경·파일·번들은 포트나 주입으로 받는다 |
 | api | 핵심부는 `Locale`·`TimeZone`·`Calendar`의 `.current`·`.autoupdatingCurrent`를 쓰지 않는다. 타입 없이 쓴 `.main`·`.current`·`.now`도 쓰지 않는다 |
@@ -220,6 +222,7 @@ DJCApplication은 기능별 폴더에 유스케이스와 포트를 둔다. 유�
   - 스냅샷 함수 `LibrarySnapshot.latest`·`LibrarySnapshot.take`
 - 예외 파일은 `Diagnostics/`, CLI `Lab/`, 조립 지점뿐이다.
 - 설정 › 저장 공간의 화면 모델은 `AppComposition.storageSettings()`가 만든다.
+- 앱 자동 업데이트(#59)의 Sparkle 연결 `AppUpdater`는 `live()`가 만든다. Info.plist에 정보 파일 주소와 공개 키가 있는 배포 번들에서만 만든다. 쓰기 상태는 `LibraryStore.writeActivity`에서 읽는다. 설정 › 업데이트와 앱 메뉴는 화면 모델 `UpdateSettingsModel` 하나를 함께 쓴다.
 - **목록 그림 캐시 싱글턴은 없앴다.** 옛 `PreviewWaveformCache.shared`·`Thumbnails.shared` 대신 라이브러리 저장소가 하나씩 든다(`previewImages`·`thumbnails`).
 - 남은 싱글턴은 넷이다.
   - `LoudnessCache.shared`: 인프라 쪽 캐시다. 조립 지점이 붙인다.
@@ -242,6 +245,7 @@ DJCApplication은 기능별 폴더에 유스케이스와 포트를 둔다. 유�
 | 소리 분석·렌더 | DJCAnalysis |
 | 화면 상태·의도 전달 | 앱 화면 모델. 유스케이스를 부른다. 모양은 [MVVM 패턴](mvvm.md) |
 | 실제 구현 연결 | 앱은 `AppComposition`, CLI는 `CLIComposition` |
+| 외부 프레임워크(예: Sparkle) 연결 | 앱의 연결 파일 한 곳. `scripts/check-imports.py`의 `EXTERNAL_FILES`에 적는다. 판정은 DJCDomain·DJCApplication에 둔다 |
 | CLI 인자·출력 | `djc` 명령 |
 | 규칙을 알아낼 때 쓴 실험 | `djc/Lab/` |
 
