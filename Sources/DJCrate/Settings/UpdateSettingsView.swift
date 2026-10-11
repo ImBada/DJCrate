@@ -45,7 +45,7 @@ struct UpdateSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 330)
+        .frame(width: 520, height: 400)
     }
 }
 
