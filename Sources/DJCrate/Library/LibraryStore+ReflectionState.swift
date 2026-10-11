@@ -57,6 +57,14 @@ extension LibraryStore {
 
     /// 쓰는 동안 잠근다. `deck`이면 덱도 재생을 멈추고 조작을 막는다(iTunes 동기화는 덱을 잠그지 않는다).
     func setWriteLock(_ locked: Bool, deck: Bool = true) {
+        if locked {
+            // 쓰는 동안 CLI가 재생 목록 초안 파일을 고치지 못하게 잡고(#260), 그 전에 바깥에서 바뀐 초안을 먼저 받는다(1초 확인을 기다리지 않게)
+            if playlistDraftUnlock == nil { playlistDraftUnlock = useCases.playlists.lockDraftFile() }
+            playlists.syncExternalPlaylistDraft()
+        } else {
+            playlistDraftUnlock?()
+            playlistDraftUnlock = nil
+        }
         isWritingRekordbox = locked
         if deck { onWriteLock?(locked) }
     }

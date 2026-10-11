@@ -90,6 +90,19 @@ struct ExternalPlaylistDraftTests {
         #expect(disk.edits == [.delete(playlist: .id("B")), .addTracks(playlist: .id("A"), contentIDs: ["1"])])
     }
 
+    @Test func 쓰는_동안_초안_파일을_잡고_그_전에_바깥_초안을_받는다() throws {
+        let h = Harness()
+        let external = try h.cli([.delete(playlist: .id("B"))])
+        h.store.setWriteLock(true)
+        // 1초 확인보다 먼저 쓰기를 시작해도 CLI 초안을 받은 뒤 쓴다
+        #expect(h.store.playlists.playlistDraft == external)
+        // 쓰는 동안 CLI는 초안 파일을 잡지 못한다(`draft_busy`)
+        #expect(PlaylistDraftLock.acquire(PlaylistDraftLock.url(for: h.file)) == nil)
+        h.store.setWriteLock(false)
+        let release = try #require(PlaylistDraftLock.acquire(PlaylistDraftLock.url(for: h.file)))
+        release()
+    }
+
     @Test func 저장하지_못한_메모리_초안과_읽지_못한_파일은_받지_않는다() async throws {
         let h = Harness()
         h.store.playlists.renamePlaylist("A", to: "앱에서 바꾼 이름")

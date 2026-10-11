@@ -80,6 +80,18 @@ struct EditDraftFilesPlaylistTests {
         #expect(files.playlist == app)
     }
 
+    @Test func 초안_파일을_잡지_못하면_쌓지_않고_미리_보기는_한다() throws {
+        // 앱이 rekordbox에 쓰는 동안(또는 다른 djc가 고치는 동안) 초안 파일 잠금을 들고 있다
+        let files = MemoryDraftFiles()
+        files.setPlaylistLocked(true)
+        let request = PlaylistEditRequest.rename(.ref(.id("P1")), name: "새")
+        #expect(EditDraftFilesTests.code { _ = try Self.stack(Self.edits(files), [request]) } == "draft_busy")
+        #expect(files.playlist.isEmpty)
+        #expect(try Self.stack(Self.edits(files), [request], dryRun: true).hasChanges)
+        files.setPlaylistLocked(false)
+        #expect(try Self.stack(Self.edits(files), [request]).hasChanges && !files.playlist.isEmpty)
+    }
+
     @Test func 읽지_못하는_초안_파일은_덮지_않는다() {
         let files = MemoryDraftFiles()
         var broken = files.files

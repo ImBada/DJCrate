@@ -8,7 +8,7 @@ extension DraftStore {
     /// 같은 파일(게인 초안 하나)을 쓰는 곳이 모두 같은 `writer`를 받아야 저장 순서가 지켜진다(조립 지점이 하나를 만들어 나눠 준다).
     public static func live(writer: DraftWriter, home: URL) -> DraftStore {
         let places = DraftLocations(home: home)
-        return DraftStore(
+        var store = DraftStore(
             flush: { writer.flush() },
             saveRevision: { writer.saveRevision(in: places) },
             failures: { writer.failures(in: places) },
@@ -67,5 +67,8 @@ extension DraftStore {
             mergeDrafts: { DuplicateMergeDraftStore.load(url: places.merge) },
             saveMergeDrafts: { try DuplicateMergeDraftStore.save($0, url: places.merge) },
             newCueID: { UUID() })
+        // CLI는 읽고 저장하는 동안만 짧게 든다. 쓰기를 시작하는 메인 액터가 오래 멈추지 않게 조금만 기다린다
+        store.lockPlaylistDraft = { PlaylistDraftLock.acquire(PlaylistDraftLock.url(for: places.playlist), wait: 0.2) }
+        return store
     }
 }

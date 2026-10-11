@@ -4523,6 +4523,38 @@
         }
       }
     },
+    "DJCrate가 rekordbox에 쓰는 중이라 재생 목록 초안은 만들지 않았습니다. 쓰기가 끝난 뒤 다시 가져오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No playlist drafts were made because DJCrate is writing to rekordbox. Import again after the write finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateがrekordboxに書き込み中のため、プレイリストの下書きは作りませんでした。書き込みが終わってからもう一度読み込んでください"
+          }
+        }
+      }
+    },
+    "DJCrate가 rekordbox에 쓰는 중이라 재생 목록 초안을 쌓지 않았습니다. 쓰기가 끝난 뒤 같은 명령을 다시 실행하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The playlist edits weren't added to the draft because DJCrate is writing to rekordbox. Run the same command again after the write finishes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateがrekordboxに書き込み中のため、プレイリスト下書きに追加しませんでした。書き込みが終わってから同じコマンドをもう一度実行してください"
+          }
+        }
+      }
+    },
     "DJCrate가 rekordbox에 쓴 적이 없거나 백업이 정리됐습니다." : {
       "localizations" : {
         "en" : {

@@ -129,11 +129,15 @@ public struct EditDraftFiles: Sendable {
     /// 재생 목록 초안 파일에 편집 묶음을 쌓는다(미리 보기면 저장하지 않는다). 규칙은 앱 사이드바와 같은 `EditPlaylists.planning`이다.
     /// 막힌 요청은 건너뛰고 나머지를 쌓는다(`allOrNothing`이면 하나도 쌓지 않는다). 쌓은 것 없이 막힌 요청만 있으면 `playlist_edit_blocked`로 멈춘다.
     /// 계획하는 동안 초안 파일이 바뀌었으면(앱·다른 실행) 덮지 않고 `draft_changed`로 멈춘다. 켜져 있는 앱은 저장한 파일을 다시 읽는다.
+    /// 저장할 때는 초안 파일 잠금 안에서 읽고 저장한다. 앱이 rekordbox에 쓰는 중이면(잠금을 들고 있다) `draft_busy`로 멈춘다.
     /// - Parameters:
     ///   - rekordbox: 스냅샷의 재생 목록 트리, `contentIDs`: 스냅샷 컬렉션의 곡
     public func stackPlaylistEdits(_ requests: [PlaylistEditRequest], rekordbox: PlaylistLayout, contentIDs: Set<String>,
                                    allOrNothing: Bool, dryRun: Bool) throws -> EditPlaylists.Batch {
         try Self.io {
+            // 쓰는 동안 바꾼 초안은 앱의 쓴 뒤 정리가 지우거나 낡은 편집으로 남긴다(#260). 미리 보기는 저장하지 않아 잡지 않는다
+            let unlock = dryRun ? nil : try lockPlaylist()
+            defer { unlock?() }
             let base = try existing { try files.readPlaylist() } ?? PlaylistDraft()
             let batch = EditPlaylists.planning(requests, onto: base, rekordbox: rekordbox, contentIDs: contentIDs,
                                                allOrNothing: allOrNothing, newKey: newKey)
@@ -145,6 +149,13 @@ public struct EditDraftFiles: Sendable {
             try files.savePlaylist(batch.draft)
             return batch
         }
+    }
+
+    private func lockPlaylist() throws -> @Sendable () -> Void {
+        guard let unlock = files.lockPlaylist() else {
+            throw ReadFailure("draft_busy", String(ui: "DJCrate가 rekordbox에 쓰는 중이라 재생 목록 초안을 쌓지 않았습니다. 쓰기가 끝난 뒤 같은 명령을 다시 실행하세요"))
+        }
+        return unlock
     }
 
     /// 쌓은 편집 없이 막힌 요청의 이유(요청 번호는 1부터)

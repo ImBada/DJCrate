@@ -146,6 +146,22 @@ struct XMLDiffCommandTests {
         #expect(kept == tag)
     }
 
+    @Test func 재생_목록_초안_파일을_잡지_못하면_재생_목록만_건너뛴다() throws {
+        // 앱이 rekordbox에 쓰는 동안 초안 파일 잠금을 들고 있다(#260)
+        let fixture = try library()
+        let url = try xml(fixture) {
+            $0.replacingOccurrences(of: #"Name="시험 곡""#, with: #"Name="새 제목""#)
+                .replacingOccurrences(of: #"<NODE Name="셋""#, with: #"<NODE Name="새 셋""#)
+        }
+        let home = fixture.root.appending(path: "home")
+        let held = try #require(PlaylistDraftLock.acquire(PlaylistDraftLock.url(for: home.appending(path: PlaylistDraftStore.fileName))))
+        defer { held() }
+        let request = XMLDiffCommand.Request(database: fixture.database, xml: url, share: nil, draft: true)
+        let lines = try XMLDiffCommand.makeDrafts(try XMLDiffCommand.report(request), request: request, home: home).joined(separator: "\n")
+        #expect(lines.contains("태그 1 · 재생 목록 0"))
+        #expect(!FileManager.default.fileExists(atPath: home.appending(path: PlaylistDraftStore.fileName).path))
+    }
+
     @Test func only로_고른_종류만_초안으로_만든다() throws {
         let fixture = try library()
         let url = try xml(fixture) {

@@ -15,6 +15,9 @@ public struct DraftFiles: Sendable {
     /// 재생 목록 초안 파일(없으면 빈 초안, 읽지 못하면 던진다: CLI `djc draft playlist`가 손상 파일을 덮지 않게)
     public var readPlaylist: @Sendable () throws -> PlaylistDraft
     public var savePlaylist: @Sendable (PlaylistDraft) throws -> Void
+    /// 재생 목록 초안 파일 잠금(#260): 잡으면 푸는 함수, 앱이 rekordbox에 쓰는 중이거나 다른 실행이 들고 있으면 nil.
+    /// 읽기·계획·저장을 이 잠금 안에서 한다. 잠금이 없는 구현은 늘 잡는다
+    public var lockPlaylist: @Sendable () -> (@Sendable () -> Void)? = { {} }
     /// 큐·태그 초안 파일을 읽는다. 없으면 nil, 읽지 못하면 던진다
     public var cue: @Sendable (_ trackUUID: String) throws -> CueDraft?
     public var tag: @Sendable (_ trackUUID: String) throws -> TagDraft?
