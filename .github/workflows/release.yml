@@ -79,7 +79,22 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           ARCHIVE="DJCrate-${RELEASE_TAG#v}-macOS-arm64.zip"
-          cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
+          TITLE="DJCrate $RELEASE_TAG"
+          PRERELEASE=()
+          : > "$RUNNER_TEMP/release-notes.md"
+          # 0.x는 베타다: Pre-release로 올리고 제목과 노트 첫머리에 적는다(docs/releasing.md "베타").
+          if [[ "$RELEASE_TAG" == v0.* ]]; then
+            TITLE="DJCrate $RELEASE_TAG (베타)"
+            PRERELEASE=(--prerelease)
+            cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
+          > [!WARNING]
+          > **베타 버전입니다.** 기능과 저장 형식이 바뀔 수 있습니다. 확인하지 않은 환경에서는 문제가 생길 수 있습니다. rekordbox에 쓰기 전에 라이브러리를 따로 백업하세요. 문제는 [이슈](https://github.com/fotoner/DJCrate/issues)로 알려 주세요.
+          >
+          > **This is a beta release.** Features and data formats may change. Back up your rekordbox library before you write to it.
+
+          NOTES
+          fi
+          cat >> "$RUNNER_TEMP/release-notes.md" <<'NOTES'
           macOS 27 이상 / Apple Silicon(arm64)용 앱입니다.
 
           **Developer ID 서명·Apple 공증을 제공하지 않습니다.** 번들의 ad-hoc 서명은 배포자 신원을 보증하지 않으며, 다운로드한 앱은 macOS에서 차단될 수 있습니다.
@@ -88,5 +103,5 @@ jobs:
           NOTES
           printf '\n[설치·검증 안내](%s/%s/blob/%s/docs/releasing.md)\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$RELEASE_TAG" >> "$RUNNER_TEMP/release-notes.md"
           gh release create "$RELEASE_TAG" "dist/$ARCHIVE" "dist/$ARCHIVE.sha256" \
-            --verify-tag --title "DJCrate $RELEASE_TAG" --generate-notes \
+            --verify-tag --title "$TITLE" "${PRERELEASE[@]}" --generate-notes \
             --notes-file "$RUNNER_TEMP/release-notes.md"
