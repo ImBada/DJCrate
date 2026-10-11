@@ -148,7 +148,7 @@ public struct AgentTools: Sendable {
 
     /// 로그인 셸을 띄워 PATH를 읽는다(느릴 수 있어 상태 읽기와 따로 부른다)
     public func pathStatus() -> AgentPathStatus {
-        let shell = files.shell()
+        let shell = files.shell(home)
         let directory = commandLink.deletingLastPathComponent().path
         return AgentPathStatus(inPath: shell.path.map { AgentCommandRules.pathContains(directory, path: $0, home: home.path) },
                                guide: AgentCommandRules.pathGuide(shell: shell.shell))

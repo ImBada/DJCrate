@@ -25,7 +25,14 @@ CLI 조회·초안 명령은 `DJC_DB`로 DB를 고르지 않으므로 사본은 
 
 사람이 읽는 문구는 macOS 언어 설정(`Locale.preferredLanguages`)을 따른다. `DJC_LANG=ko|en|ja`로 먼저 지정할 수 있다. 예를 들어 `DJC_LANG=en djc search '시험' --json`을 쓴다. 지원하지 않는 언어는 영어로 나온다. JSON의 `code`·칸 이름·데이터는 그대로 둔다. 오류 `message`만 번역한다.
 
-PATH로 옮길 때는 `djc`와 같은 빌드 폴더의 `DJCrate_djc.bundle`도 실행 파일 옆에 둔다. 기존 실행 의존성 `SQLCipher.framework`도 함께 유지한다. 번역 번들이 없으면 한국어 원문으로 실행한다. 개발자용 `djc lab …`은 한국어를 유지한다.
+릴리스 앱은 `djc`를 앱 번들 안 `Contents/Helpers/djc`에 넣는다. 설정 › AI 에이전트가 `~/.local/bin/djc` 링크와 스킬 사본을 만든다([기능 안내](features.md#스킬과-djc-설치설정--ai-에이전트)).
+
+- 링크로 불러도 `djc`는 실제 자리 기준으로 `Contents/Resources/DJCrate_djc.bundle`과 `Contents/Frameworks/SQLCipher.framework`를 찾는다.
+- `Contents/MacOS`에 두지 않는다. 거기서 직접 부르면 `Bundle.main`이 앱 번들이 된다. 그러면 `djc`가 앱의 번들 ID와 실행 파일을 본다.
+- Codex는 `~/.agents/skills`를 읽는다. 옛 자리 `$CODEX_HOME/skills`(기본 `~/.codex/skills`)도 아직 읽는다. 이 자리는 폐기 예정이다. 두 곳에 같은 스킬이 있으면 두 번 보일 수 있다. 앱은 `~/.agents/skills`에만 설치한다. 옛 자리에 사본이 있으면 알린다.
+- Claude Code는 `CLAUDE_CONFIG_DIR`을 주면 그 폴더의 `skills`를 읽는다.
+
+빌드 폴더의 `djc`를 PATH로 옮길 때는 `djc`와 같은 빌드 폴더의 `DJCrate_djc.bundle`도 실행 파일 옆에 둔다. 기존 실행 의존성 `SQLCipher.framework`도 함께 유지한다. 번역 번들이 없으면 한국어 원문으로 실행한다. 개발자용 `djc lab …`은 한국어를 유지한다.
 
 ## 환경 변수
 

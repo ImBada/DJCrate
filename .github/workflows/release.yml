@@ -72,6 +72,12 @@ jobs:
           cmp dist/DJCrate.app/Contents/MacOS/DJCrate "$APP/Contents/MacOS/DJCrate"
           test -f "$APP/Contents/Resources/LICENSE"
           test -f "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"
+          # AI 에이전트 재료(#262): 번들 djc가 링크로 불려도 리소스 번들·SQLCipher를 찾고, 스킬이 저장소와 같다
+          test -x "$APP/Contents/Helpers/djc"
+          test -d "$APP/Contents/Resources/DJCrate_djc.bundle"
+          diff -r skills/djcrate "$APP/Contents/Resources/skills/djcrate"
+          mkdir -p "$RUNNER_TEMP/agent-bin" && ln -s "$APP/Contents/Helpers/djc" "$RUNNER_TEMP/agent-bin/djc"
+          (cd "$RUNNER_TEMP" && "$RUNNER_TEMP/agent-bin/djc" --help > /dev/null)
 
       - name: GitHub Release 발행
         env:

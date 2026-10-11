@@ -166,7 +166,7 @@ public final class MemoryAgentToolFiles: AgentToolFilesBench, Sendable {
                     state.nodes[Self.key(at)] = nil
                 }
             },
-            shell: { self.state.withLock { $0.shell } })
+            shell: { _ in self.state.withLock { $0.shell } })
     }
 
     // MARK: - 안쪽

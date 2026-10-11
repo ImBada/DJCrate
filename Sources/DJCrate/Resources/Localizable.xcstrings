@@ -954,6 +954,38 @@
         }
       }
     },
+    "%@ — DJCrate가 설치하지 않음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — not installed by DJCrate"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — DJCrateがインストールしたものではありません"
+          }
+        }
+      }
+    },
+    "%@ — 설치한 뒤 고침" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — edited after installation"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — インストール後に編集されています"
+          }
+        }
+      }
+    },
     "%@ — 이유와 할 일은 ‘결과 보기’에서 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -1549,6 +1581,44 @@
         }
       }
     },
+    "%@가 셸 PATH에 없습니다. %@에 아래 줄을 더한 뒤 새 터미널을 여세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ is not in your shell PATH. Add the line below to %2$@, then open a new terminal."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ はシェルの PATH にありません。%2$@ に下の行を追加してから、新しいターミナルを開いてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@가 셸 PATH에 없습니다. %2$@에 아래 줄을 더한 뒤 새 터미널을 여세요."
+          }
+        }
+      }
+    },
+    "%@가 셸 PATH에 있어 터미널과 에이전트가 djc를 바로 부릅니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is in your shell PATH, so terminals and agents can run djc directly."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ はシェルの PATH にあるため、ターミナルとエージェントから djc をそのまま実行できます。"
+          }
+        }
+      }
+    },
     "%@가 일반 파일이 아니라 스냅샷에 담지 않았습니다. rekordbox 폴더를 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -1577,6 +1647,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@は0以上にしてください"
+          }
+        }
+      }
+    },
+    "%@는 링크가 아니라 지우지 않았습니다. 직접 확인한 뒤 지우세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is not a link, so it was not removed. Check it and remove it yourself."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ はリンクではないため削除しませんでした。内容を確認してから手動で削除してください。"
           }
         }
       }
@@ -1715,6 +1801,22 @@
         }
       }
     },
+    "%@에 다른 파일이 있어 링크를 만들지 않았습니다. 그 파일을 옮긴 뒤 다시 하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another file exists at %@, so the link was not created. Move that file, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ に別のファイルがあるため、リンクを作成しませんでした。そのファイルを移動してからやり直してください。"
+          }
+        }
+      }
+    },
     "%@에 모르는 칸(%@)" : {
       "localizations" : {
         "en" : {
@@ -1835,6 +1937,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@にキーを追加"
+          }
+        }
+      }
+    },
+    "%@에도 DJCrate 스킬이 있습니다. Codex가 같은 스킬을 두 번 보일 수 있으니 하나를 지우세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There is also a DJCrate skill in %@. Codex may show the same skill twice, so remove one of them."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ にも DJCrate スキルがあります。Codex に同じスキルが2回表示されることがあるため、どちらかを削除してください。"
           }
         }
       }
@@ -2637,6 +2755,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld曲のキーは書き込みませんでした"
+          }
+        }
+      }
+    },
+    "%lld곳을 바꾸지 못했습니다. 권한을 확인한 뒤 다시 하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not change %lld location(s). Check permissions, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld か所を変更できませんでした。権限を確認してからやり直してください。"
           }
         }
       }
@@ -3807,6 +3941,38 @@
         }
       }
     },
+    "AI 에이전트" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI Agents"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AIエージェント"
+          }
+        }
+      }
+    },
+    "AI 에이전트 스킬이 옛 버전입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI agent skills are out of date"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AIエージェントのスキルが古いバージョンです"
+          }
+        }
+      }
+    },
     "Apple Music XML 가져오기" : {
       "localizations" : {
         "en" : {
@@ -4101,6 +4267,38 @@
         }
       }
     },
+    "Claude Code·Codex에 설치한 DJCrate 스킬·djc를 이 앱(%@)에 맞춰 갱신하세요. 설정 › AI 에이전트에서도 할 수 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update the DJCrate skill and djc installed for Claude Code and Codex to match this app (%@). You can also do this in Settings › AI Agents."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code・Codex にインストールした DJCrate スキルと djc を、このアプリ(%@)に合わせて更新してください。設定 › AIエージェントでも更新できます。"
+          }
+        }
+      }
+    },
+    "Claude Code는 설정 폴더(기본 ~/.claude, CLAUDE_CONFIG_DIR로 바꾼 폴더)의 skills를, Codex는 ~/.agents/skills를 읽습니다. 사용자가 고친 파일과 DJCrate가 설치하지 않은 것은 바꾸기 전에 묻고 휴지통으로 옮깁니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code reads skills from its config folder (~/.claude by default, or the folder set with CLAUDE_CONFIG_DIR). Codex reads ~/.agents/skills. Files you edited and items DJCrate did not install are moved to the Trash only after you confirm."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code は設定フォルダ(既定は ~/.claude、CLAUDE_CONFIG_DIR で変更したフォルダ)の skills を、Codex は ~/.agents/skills を読みます。ユーザーが編集したファイルや DJCrate がインストールしていないものは、確認してからゴミ箱に移します。"
+          }
+        }
+      }
+    },
     "ContentID 하나를 지정하세요" : {
       "localizations" : {
         "en" : {
@@ -4183,6 +4381,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "DBを開けませんでした（%1$@）: %2$@"
+          }
+        }
+      }
+    },
+    "DJCrate 것으로 바꾸기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replace with DJCrate’s…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateのものに置き換え…"
           }
         }
       }
@@ -4299,6 +4513,22 @@
         }
       }
     },
+    "DJCrate 스킬을 설치하면 Claude Code·Codex가 djc로 라이브러리를 조회하고 큐·태그 초안을 만듭니다. rekordbox에 쓰는 일은 앱에서 사람이 합니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With the DJCrate skill installed, Claude Code and Codex use djc to browse your library and create cue and tag drafts. Writing to rekordbox is always done by you in the app."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate スキルをインストールすると、Claude Code・Codex が djc でライブラリを調べ、キュー・タグの下書きを作成します。rekordbox への書き込みはアプリで人が行います。"
+          }
+        }
+      }
+    },
     "DJCrate 초안이 있는 곡 (rekordbox·파일에 쓰기 전)" : {
       "localizations" : {
         "en" : {
@@ -4407,6 +4637,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "DJCrateが曲を解析して推定したキーです。クリックするとこのキーの下書きを作ります。rekordboxには書き込むまで入りません。"
+          }
+        }
+      }
+    },
+    "DJCrate가 설치하지 않았거나 설치한 뒤 고친 것입니다. 휴지통에서 되살릴 수 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These were not installed by DJCrate or were edited after installation. You can restore them from the Trash."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate がインストールしていないもの、またはインストール後に編集されたものです。ゴミ箱から復元できます。"
+          }
+        }
+      }
+    },
+    "DJCrate가 설치하지 않음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not installed by DJCrate"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateがインストールしたものではありません"
           }
         }
       }
@@ -4535,6 +4797,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "DJCrateは常にこのファイルにXMLを作成します（パスをクリップボードにコピーしました）：\n%@"
+          }
+        }
+      }
+    },
+    "DJCrate를 응용 프로그램 폴더로 옮긴 뒤 다시 열고 하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move DJCrate to the Applications folder, reopen it, and try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate をアプリケーションフォルダに移動し、開き直してからやり直してください。"
           }
         }
       }
@@ -9501,6 +9779,38 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Flip"
+          }
+        }
+      }
+    },
+    "djc 링크를 만들었습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Created the djc link."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "djc のリンクを作成しました。"
+          }
+        }
+      }
+    },
+    "djc 링크를 지웠습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removed the djc link."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "djc のリンクを削除しました。"
           }
         }
       }
@@ -14881,6 +15191,22 @@
         }
       }
     },
+    "갱신" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新"
+          }
+        }
+      }
+    },
     "갱신 가능" : {
       "localizations" : {
         "en" : {
@@ -16053,6 +16379,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ピン留めしました: %@"
+          }
+        }
+      }
+    },
+    "고친 파일 있음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edited files"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集されたファイルあり"
+          }
+        }
+      }
+    },
+    "고친 파일도 휴지통으로 옮기고 제거할까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move the edited files to the Trash too and remove the skill?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集されたファイルもゴミ箱に移して削除しますか?"
           }
         }
       }
@@ -20257,6 +20615,22 @@
         }
       }
     },
+    "다른 djc가 있음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another djc exists"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別の djc があります"
+          }
+        }
+      }
+    },
     "다른 rekordbox 라이브러리에서 뜬 백업입니다. 이 라이브러리의 백업을 고르세요" : {
       "localizations" : {
         "en" : {
@@ -20369,6 +20743,22 @@
         }
       }
     },
+    "다른 위치…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other Location…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ほかの場所…"
+          }
+        }
+      }
+    },
     "다른 폴더로 옮겨짐" : {
       "localizations" : {
         "en" : {
@@ -20461,6 +20851,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再解析します"
+          }
+        }
+      }
+    },
+    "다시 설치" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reinstall"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再インストール"
           }
         }
       }
@@ -23605,6 +24011,86 @@
         }
       }
     },
+    "링크 만들기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create Link"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リンクを作成"
+          }
+        }
+      }
+    },
+    "링크 지우기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove Link"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リンクを削除"
+          }
+        }
+      }
+    },
+    "링크: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リンク: %@"
+          }
+        }
+      }
+    },
+    "링크는 앱 안의 djc를 가리켜 앱을 갱신하면 djc도 함께 바뀝니다. 셸 설정 파일은 고치지 않습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The link points to the djc inside the app, so djc updates together with the app. Your shell configuration files are not changed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リンクはアプリ内の djc を指すため、アプリを更新すると djc も一緒に更新されます。シェルの設定ファイルは変更しません。"
+          }
+        }
+      }
+    },
+    "링크를 만들 수 없음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot create link"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リンクを作成できません"
+          }
+        }
+      }
+    },
     "마디" : {
       "localizations" : {
         "en" : {
@@ -24553,6 +25039,22 @@
         }
       }
     },
+    "명령줄 도구 djc" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Command-Line Tool djc"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンドラインツール djc"
+          }
+        }
+      }
+    },
     "명시한 사본(--db)으로 연 창에서는 스냅샷을 뜨지 않습니다. --db 없이 다시 여세요" : {
       "localizations" : {
         "en" : {
@@ -24597,6 +25099,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "すべてrekordbox書き込み待ちから外す"
+          }
+        }
+      }
+    },
+    "모두 갱신" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update All"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべて更新"
+          }
+        }
+      }
+    },
+    "모두 갱신했습니다. 에이전트의 새 세션부터 새 스킬을 읽습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updated everything. Agents load the new skill from their next session."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべて更新しました。エージェントは次のセッションから新しいスキルを読み込みます。"
           }
         }
       }
@@ -24965,6 +25499,22 @@
         }
       }
     },
+    "목록에서 빼기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from List"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リストから外す"
+          }
+        }
+      }
+    },
     "목록은 맨 위에 만듭니다. 같은 이름은 ‘ (2)’, ‘ (3)’을 붙여 새로 만들고, 같은 출처는 기존 연결에 이어 넣습니다. 목록 초안은 ‘rekordbox에 쓰기’로 저장합니다." : {
       "localizations" : {
         "en" : {
@@ -25313,6 +25863,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未割り当て"
+          }
+        }
+      }
+    },
+    "바꾸지 않았습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing was changed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更しませんでした。"
           }
         }
       }
@@ -29093,6 +29659,70 @@
         }
       }
     },
+    "설치" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インストール"
+          }
+        }
+      }
+    },
+    "설치됨(%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installed (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インストール済み(%@)"
+          }
+        }
+      }
+    },
+    "설치하지 않음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not installed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未インストール"
+          }
+        }
+      }
+    },
+    "설치한 뒤 바뀐 파일: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files changed after installation: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インストール後に変更されたファイル: %@"
+          }
+        }
+      }
+    },
     "세로 휠·핀치·= 키로 확대합니다" : {
       "localizations" : {
         "en" : {
@@ -29191,6 +29821,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "セクション別エネルギー（ラウドネスLUFS / ボーカル / ドラム / スコア）"
+          }
+        }
+      }
+    },
+    "셸 PATH를 읽지 못했습니다. 터미널에서 which djc로 확인하고, 없으면 %@에 아래 줄을 더하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read your shell PATH. Run which djc in a terminal; if nothing is found, add the line below to %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シェルの PATH を読み取れませんでした。ターミナルで which djc を実行し、見つからなければ %@ に下の行を追加してください。"
           }
         }
       }
@@ -29565,6 +30211,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "スナップショットがありません。先に`djc snapshot`を実行してください。"
+          }
+        }
+      }
+    },
+    "스킬" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skills"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキル"
+          }
+        }
+      }
+    },
+    "스킬을 설치했습니다. 에이전트의 새 세션부터 읽습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installed the skill. Agents load it from their next session."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキルをインストールしました。エージェントは次のセッションから読み込みます。"
+          }
+        }
+      }
+    },
+    "스킬을 제거했습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removed the skill."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキルを削除しました。"
           }
         }
       }
@@ -31369,6 +32063,22 @@
         }
       }
     },
+    "아래 항목을 휴지통으로 옮기고 바꿀까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move the items below to the Trash and replace them?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下の項目をゴミ箱に移して置き換えますか?"
+          }
+        }
+      }
+    },
     "아래로 옮기기" : {
       "localizations" : {
         "en" : {
@@ -32689,6 +33399,22 @@
         }
       }
     },
+    "앱 안 재료 %@를 찾지 못했습니다. DJCrate를 다시 받아 설치하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not find %@ inside the app. Download and install DJCrate again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アプリ内の %@ が見つかりませんでした。DJCrate をもう一度ダウンロードしてインストールしてください。"
+          }
+        }
+      }
+    },
     "약칭 %@" : {
       "localizations" : {
         "en" : {
@@ -33183,6 +33909,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "はい"
+          }
+        }
+      }
+    },
+    "옛 버전(%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Out of date (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "古いバージョン(%@)"
+          }
+        }
+      }
+    },
+    "옛 앱을 가리킴" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Points to an old app"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "古いアプリを指しています"
           }
         }
       }
@@ -35625,6 +36383,54 @@
         }
       }
     },
+    "이 빌드에는 djc가 없습니다. 릴리스 앱(DJCrate.app)에서 하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This build does not include djc. Use the release app (DJCrate.app)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このビルドには djc が含まれていません。リリース版アプリ(DJCrate.app)で行ってください。"
+          }
+        }
+      }
+    },
+    "이 빌드에는 설치할 스킬·djc가 없습니다. 릴리스 앱(DJCrate.app)에서 하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This build does not include the skill or djc. Use the release app (DJCrate.app)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このビルドにはインストールするスキル・djc が含まれていません。リリース版アプリ(DJCrate.app)で行ってください。"
+          }
+        }
+      }
+    },
+    "이 빌드에는 설치할 스킬이 없습니다. 릴리스 앱(DJCrate.app)에서 설치하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This build does not include the skill. Install it from the release app (DJCrate.app)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このビルドにはインストールするスキルが含まれていません。リリース版アプリ(DJCrate.app)からインストールしてください。"
+          }
+        }
+      }
+    },
     "이 사본에는 캡처한 iTunes 목록이 없습니다" : {
       "localizations" : {
         "en" : {
@@ -35781,6 +36587,44 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このアルバムの同期状態でのタグ書き込みは未確認です。rekordboxで直接変更してください。"
+          }
+        }
+      }
+    },
+    "이 앱의 djc를 가리킴" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Points to this app’s djc"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアプリの djc を指しています"
+          }
+        }
+      }
+    },
+    "이 앱의 스킬·djc: %@ (빌드 %@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skill and djc in this app: %1$@ (build %2$@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアプリのスキル・djc: %1$@(ビルド %2$@)"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "이 앱의 스킬·djc: %1$@ (빌드 %2$@)"
           }
         }
       }
@@ -39161,6 +40005,22 @@
         }
       }
     },
+    "제거" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除"
+          }
+        }
+      }
+    },
     "제목" : {
       "localizations" : {
         "en" : {
@@ -40261,6 +41121,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "削除しました: %@"
+          }
+        }
+      }
+    },
+    "직접 둔 파일" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File placed manually"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手動で置いたファイル"
+          }
+        }
+      }
+    },
+    "직접 둔 폴더(설치 표시 없음)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folder placed manually (no install marker)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手動で置いたフォルダ(インストール記録なし)"
           }
         }
       }
@@ -47175,6 +48067,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ホイール"
+          }
+        }
+      }
+    },
+    "휴지통으로 옮기고 계속" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move to Trash and Continue"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゴミ箱に移して続ける"
           }
         }
       }

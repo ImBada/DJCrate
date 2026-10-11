@@ -68,9 +68,13 @@ struct AgentToolFilesLiveTests {
     }
 
     @Test func 셸_PATH를_시간_안에_읽는다() {
-        #expect(AgentToolFiles.readPath(shell: "/bin/sh", arguments: ["-c"], timeout: .seconds(10)) != nil)
+        let home = FileManager.default.temporaryDirectory
+        #expect(AgentToolFiles.readPath(shell: "/bin/sh", arguments: ["-c"], home: home, timeout: .seconds(10)) != nil)
         // 끝나지 않는 셸 설정(예: 입력을 기다리는 rc 파일)은 기다리지 않는다
-        #expect(AgentToolFiles.readPath(shell: "/bin/sh", arguments: ["-c", "sleep 30"], timeout: .milliseconds(200)) == nil)
+        #expect(AgentToolFiles.readPath(shell: "/bin/sh", arguments: ["-c", "sleep 30"], home: home, timeout: .milliseconds(200)) == nil)
+        // 시험 프로세스는 사용자 홈으로 셸을 띄우지 않는다
+        let live = AgentToolFiles.live(layout: AgentBundleLayout(skillSource: nil, command: nil, version: .init(version: "1", build: "1")))
+        #expect(live.shell(FileManager.default.homeDirectoryForCurrentUser).path == nil)
     }
 
     @Test func 시험_프로세스는_임시_폴더_밖과_macOS_휴지통에_쓰지_않는다() throws {

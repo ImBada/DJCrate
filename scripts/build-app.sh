@@ -1,5 +1,5 @@
 #!/bin/zsh
-# DJCrate.app을 만든다: 릴리스 빌드 → 번들(실행 파일·SQLCipher 프레임워크·Info.plist·아이콘) → 로컬 서명.
+# DJCrate.app을 만든다: 릴리스 빌드 → 번들(실행 파일·SQLCipher 프레임워크·Info.plist·아이콘, AI 에이전트용 djc·스킬) → 로컬 서명.
 # 사용: scripts/build-app.sh [--version X.Y.Z | --tag vX.Y.Z] [--package | --install]
 set -euo pipefail
 cd "${0:A:h}/.."
@@ -45,6 +45,8 @@ BUNDLE_ID="com.fotone.djcrate"
 APP="dist/DJCrate.app"
 
 swift build -c release --product DJCrate
+# ── AI 에이전트 재료(#262) 빌드 ──
+swift build -c release --product djc
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Frameworks" "$APP/Contents/Resources"
@@ -61,6 +63,17 @@ for lproj in "$RESOURCES"/Contents/Resources/*.lproj(N); do
 done
 # 실행 파일은 @loader_path에서 프레임워크를 찾는다. 번들 안 Frameworks 폴더도 찾게 한다.
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/DJCrate"
+
+# ── AI 에이전트 재료(#262): 설정 › AI 에이전트가 ~/.local/bin/djc 링크와 스킬 복사본을 만든다 ──
+# djc는 Contents/Helpers에 둔다. Contents/MacOS에서 직접 부르면 Bundle.main이 앱 번들이 되어 앱의 번들 ID·실행 파일을 본다.
+# djc 리소스 번들은 Contents/Resources에 둔다(CLILocalization이 실행 파일 옆 다음 ../Resources를 찾는다).
+# SQLCipher는 앱과 같은 Frameworks를 쓴다. 링크로 불러도 dyld는 실제 자리 기준으로 @executable_path를 푼다.
+mkdir -p "$APP/Contents/Helpers" "$APP/Contents/Resources/skills"
+cp .build/release/djc "$APP/Contents/Helpers/djc"
+cp -R .build/release/DJCrate_djc.bundle "$APP/Contents/Resources/"
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/Helpers/djc"
+cp -R skills/djcrate "$APP/Contents/Resources/skills/"
+find "$APP/Contents/Resources/skills" -name .DS_Store -delete
 
 ICON_TEMP=$(mktemp -d)
 trap 'rm -rf "$ICON_TEMP"' EXIT
@@ -118,6 +131,8 @@ else
     IDENTITY="${IDENTITY:--}"
 fi
 codesign --force --timestamp=none --sign "$IDENTITY" "$APP/Contents/Frameworks/SQLCipher.framework"
+# AI 에이전트용 djc(#262)도 앱보다 먼저 서명한다
+codesign --force --timestamp=none --sign "$IDENTITY" "$APP/Contents/Helpers/djc"
 codesign --force --timestamp=none --sign "$IDENTITY" "$APP"
 codesign --verify --deep --strict "$APP"
 echo "만듦: $APP ($VERSION, 빌드 $BUILD, 서명 ${IDENTITY:0:8})"

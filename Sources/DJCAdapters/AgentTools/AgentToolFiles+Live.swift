@@ -66,9 +66,12 @@ extension AgentToolFiles {
                 guard case .link = entry(at) else { throw AgentToolFilesError.notLink(at.path) }
                 try FileManager.default.removeItem(at: at)
             },
-            shell: {
+            shell: { home in
                 let shell = loginShell()
-                return AgentShellInfo(shell: shell, path: shell.flatMap { readPath(shell: $0, arguments: ["-l", "-i", "-c"], timeout: shellTimeout) })
+                // 시험 프로세스는 사용자 셸 설정(~/.zshrc 등)을 돌리지 않는다. 임시 홈일 때만 띄운다
+                guard !TestProcess.isRunning || isTemporary(home) else { return AgentShellInfo(shell: shell, path: nil) }
+                return AgentShellInfo(shell: shell, path: shell.flatMap { readPath(shell: $0, arguments: ["-l", "-i", "-c"], home: home,
+                                                                                    timeout: shellTimeout) })
             })
     }
 
@@ -198,10 +201,12 @@ extension AgentToolFiles {
 
     /// 시험 프로세스는 임시 폴더 밖에 쓰지 않는다(주입을 빠뜨려도 사용자 홈을 고치지 않게)
     static func guardWritable(_ url: URL) throws {
-        guard TestProcess.isRunning else { return }
+        guard !TestProcess.isRunning || isTemporary(url.deletingLastPathComponent()) else { throw AgentToolFilesError.outsideSandbox(url.path) }
+    }
+
+    static func isTemporary(_ url: URL) -> Bool {
         let temporary = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().standardizedFileURL.path
-        let parent = url.deletingLastPathComponent().resolvingSymlinksInPath().standardizedFileURL.path
-        guard parent.hasPrefix(temporary) else { throw AgentToolFilesError.outsideSandbox(url.path) }
+        return url.resolvingSymlinksInPath().standardizedFileURL.path.hasPrefix(temporary)
     }
 
     // MARK: - 셸
@@ -217,7 +222,7 @@ extension AgentToolFiles {
 
     /// 셸을 띄워 PATH를 읽는다. 시간 안에 끝나지 않거나 표시 줄이 없으면 nil.
     /// 출력은 파일로 받는다(셸이 띄운 다른 프로세스가 파이프를 붙잡아도 기다리지 않게)
-    static func readPath(shell: String, arguments: [String], timeout: Duration) -> String? {
+    static func readPath(shell: String, arguments: [String], home: URL, timeout: Duration) -> String? {
         let output = FileManager.default.temporaryDirectory.appending(path: "djc-shell-path-\(UUID().uuidString)")
         guard FileManager.default.createFile(atPath: output.path, contents: nil), let handle = try? FileHandle(forWritingTo: output) else { return nil }
         defer {
@@ -231,7 +236,7 @@ extension AgentToolFiles {
         process.standardOutput = handle
         process.standardError = FileHandle.nullDevice
         let environment = ProcessInfo.processInfo.environment
-        process.environment = ["HOME", "USER", "LOGNAME", "LANG", "TMPDIR"].reduce(into: ["TERM": "dumb", "SHELL": shell]) { result, key in
+        process.environment = ["USER", "LOGNAME", "LANG", "TMPDIR"].reduce(into: ["TERM": "dumb", "SHELL": shell, "HOME": home.path]) { result, key in
             if let value = environment[key] { result[key] = value }
         }
         let finished = DispatchSemaphore(value: 0)

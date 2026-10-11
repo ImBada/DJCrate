@@ -71,14 +71,14 @@ public struct AgentToolFiles: Sendable {
     public var link: @Sendable (_ at: URL, _ destination: URL, _ replacing: AgentLinkReplace) throws -> Void
     /// 링크를 지운다(링크 대상은 건드리지 않는다)
     public var unlink: @Sendable (URL) throws -> Void
-    /// 사용자 로그인 셸과 그 PATH(짧은 시간 제한)
-    public var shell: @Sendable () -> AgentShellInfo
+    /// 사용자 로그인 셸과 그 PATH(짧은 시간 제한). 셸은 `home`을 홈으로 띄운다(설치 자리와 같은 셸 설정을 읽는다)
+    public var shell: @Sendable (_ home: URL) -> AgentShellInfo
 
     public init(payload: @escaping @Sendable () -> AgentToolsPayload?, inspectSkill: @escaping @Sendable (URL) -> AgentSkillFolder,
                 inspectEntry: @escaping @Sendable (URL) -> AgentPathEntry, homeEntries: @escaping @Sendable (URL, String) -> [AgentHomeEntry],
                 applySkill: @escaping @Sendable (AgentSkillChange) throws -> Void,
                 link: @escaping @Sendable (URL, URL, AgentLinkReplace) throws -> Void, unlink: @escaping @Sendable (URL) throws -> Void,
-                shell: @escaping @Sendable () -> AgentShellInfo) {
+                shell: @escaping @Sendable (URL) -> AgentShellInfo) {
         self.payload = payload
         self.inspectSkill = inspectSkill
         self.inspectEntry = inspectEntry

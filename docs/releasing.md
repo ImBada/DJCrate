@@ -68,6 +68,13 @@ scripts/build-app.sh --tag v0.0.0 --package   # 태그 문자열을 직접 전�
 
 앱에는 실행 파일, SQLCipher 프레임워크, 아이콘이 들어간다. 한국어/영어/일본어 리소스와 `LICENSE`·`THIRD_PARTY_NOTICES.md`도 들어간다. 개발용 데이터나 라이브러리 사본은 넣지 않는다.
 
+AI 에이전트용 재료도 들어간다(#262).
+
+- `djc`: `Contents/Helpers/djc`. 앱의 SQLCipher 프레임워크를 함께 쓴다. 서명은 앱보다 먼저 한다.
+- `djc` 리소스 번들: `Contents/Resources/DJCrate_djc.bundle`.
+- 스킬: `Contents/Resources/skills/djcrate`.
+- 릴리스 워크플로는 패키지를 푼 뒤 스킬이 저장소와 같은지 본다. 다른 폴더의 링크로 `djc --help`도 실행해 본다.
+
 CLI `djc`를 앱 밖으로 옮길 때나 따로 나눠 줄 때는 `LICENSE`·`THIRD_PARTY_NOTICES.md`도 함께 둔다. 두 파일은 `DJCrate_djc.bundle`과 같이 실행 파일 옆에 둔다.
 
 ## 태그에서 Release까지

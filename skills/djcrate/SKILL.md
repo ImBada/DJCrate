@@ -47,7 +47,7 @@ description: DJCrate의 명령줄 도구 djc로 rekordbox 라이브러리(스냅
   - 예: `DJC_LANG=en djc search '시험' --json`
   - 지원하지 않는 언어는 영어로 나온다.
   - JSON의 `code`·칸 이름·데이터는 그대로다. 오류 `message`만 번역한다.
-- `djc` 찾기: PATH에 `djc`가 있으면 그것을 쓴다. 없으면 DJCrate 저장소에서 `swift build --product djc`를 돌린 뒤 `.build/debug/djc`를 쓴다.
+- `djc` 찾기: PATH에 `djc`가 있으면 그것을 쓴다. 없으면 `~/.local/bin/djc`를 본다. 그것도 없으면 사용자에게 DJCrate 앱의 설정 › AI 에이전트에서 djc 링크를 만들어 달라고 한다. DJCrate 저장소를 연 경우에는 `swift build --product djc`를 돌린 뒤 `.build/debug/djc`를 쓴다.
 - 읽기 명령과 `djc draft`는 최신 스냅샷을 읽는다. 스냅샷이 없으면 `read_failed`("스냅샷이 없습니다") 오류가 난다.
 - `djc snapshot`은 라이브 DB를 읽기만 해서 사본을 뜬다. rekordbox에는 쓰지 않는다. 사람이 rekordbox에서 고친 뒤라면 새로 뜬다.
   - rekordbox가 켜져 있으면 막힌다. 막 끈 뒤 `master.db-wal`이 남아 있어도 막힌다.
