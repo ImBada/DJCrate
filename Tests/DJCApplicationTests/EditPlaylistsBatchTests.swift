@@ -100,6 +100,8 @@ struct EditPlaylistsBatchTests {
         #expect(batch.outcomes[0].reason == "폴더가 아닌 재생 목록(세트) 안에는 넣을 수 없습니다")
         #expect(batch.outcomes[1].reason?.contains("@x") == true)
         #expect(batch.outcomes[3].reason?.contains("@y") == true)
+        // 만들지 못한 목록의 `new:키`는 결과에 내지 않는다(뒤 명령이 그 ID로 이어 편집하지 않게)
+        #expect(batch.outcomes[0].playlistID == nil && batch.outcomes[3].playlistID == nil)
         #expect(batch.aliases == ["y": "new:k2"])
     }
 

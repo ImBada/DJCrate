@@ -121,7 +121,9 @@ extension EditPlaylists {
                 outcomes.append(outcome)
             } catch {
                 let reason = (error as? PlaylistLayout.Blocked)?.reason ?? DJCError.reason(of: error)
-                outcomes.append(BatchOutcome(status: .skipped, reason: reason, playlistID: planner.resolvedID, name: planner.resolvedName))
+                // 만들지 못한 목록의 `new:키`는 내지 않는다(그 ID로 이어 편집하면 찾지 못한 목록이 된다)
+                let made: String? = if case .create = request { nil } else { planner.resolvedID }
+                outcomes.append(BatchOutcome(status: .skipped, reason: reason, playlistID: made, name: planner.resolvedName))
             }
         }
         let refused = allOrNothing && outcomes.contains { $0.status == .skipped }
