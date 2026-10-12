@@ -69,7 +69,21 @@ struct SidebarMultiSelectTests {
         #expect(store.sidebar == .playlist("S") && model.selection == playlists("S", "D", "T"))
     }
 
-    @Test func 보던_목록을_빼면_남은_것_중_마지막을_보인다() {
+    @Test func 범위를_줄이면_누른_끝의_목록을_보인다() {
+        // D를 누른 뒤 B를 ⇧ 클릭(위로 넓힘), 이어 S를 ⇧ 클릭(줄임): 고정점 D가 아니라 누른 S를 보인다
+        model.select(playlists("D"))
+        model.select(playlists("B", "S", "D"))
+        #expect(store.sidebar == .playlist("B"))
+        model.select(playlists("S", "D"))
+        #expect(store.sidebar == .playlist("S") && model.selection == playlists("S", "D"))
+        // 아래로 넓힌 뒤 줄여도 누른 끝이다
+        model.select(playlists("B"))
+        model.select(playlists("B", "S", "D"))
+        model.select(playlists("B", "S"))
+        #expect(store.sidebar == .playlist("S"))
+    }
+
+    @Test func 보던_목록을_빼면_남은_것_중_그쪽_끝을_보인다() {
         model.select(playlists("A"))
         model.select(playlists("A", "B"))
         model.select(playlists("A", "B", "D"))

@@ -19,9 +19,12 @@ enum SidebarMultiCapture {
         guard capture != nil || write != nil else { return }
         Task {
             do {
-                let environment = ProcessInfo.processInfo.environment, temporary = FileManager.default.temporaryDirectory.path
+                // `..`·링크로 임시 폴더를 벗어나지 않게 풀어서 견준다
+                func resolved(_ path: String) -> String { URL(filePath: path).standardizedFileURL.resolvingSymlinksInPath().path }
+                let environment = ProcessInfo.processInfo.environment
+                let temporary = resolved(FileManager.default.temporaryDirectory.path) + "/"
                 guard let home = environment["DJC_HOME"], let root = environment["DJC_REKORDBOX_DIR"],
-                      URL(filePath: home).path.hasPrefix(temporary), URL(filePath: root).path.hasPrefix(temporary) else {
+                      resolved(home).hasPrefix(temporary), resolved(root).hasPrefix(temporary) else {
                     throw DJCError.writeRefused("합성 사본(DJC_REKORDBOX_DIR)과 임시 데이터(DJC_HOME)를 임시 폴더 안에 주세요")
                 }
                 for _ in 0..<100 {

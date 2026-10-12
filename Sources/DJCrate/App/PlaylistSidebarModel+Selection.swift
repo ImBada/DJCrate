@@ -26,7 +26,7 @@ extension PlaylistSidebarModel {
     private var layout: PlaylistLayout { playlists.playlistProjection.layout }
 
     /// 사이드바 목록이 바꾼 고르기를 받는다. 더한 항목이 하나면 그것을(⌘ 클릭), 여럿이면 누른 끝을(⇧ 클릭) 보인다.
-    /// 보던 항목을 빼면 남은 것 중 사이드바에서 마지막 것을 보인다. 여럿은 재생 목록끼리만 고른다(다른 항목을 고르면 그 하나만).
+    /// 보던 항목이 빠지면(⌘ 클릭으로 빼기, ⇧ 클릭으로 범위 줄이기) 남은 것 중 보던 항목 쪽 끝을 보인다. 여럿은 재생 목록끼리만 고른다(다른 항목을 고르면 그 하나만).
     /// 빈 곳을 눌러 비면 고른 것을 그대로 두고 목록에 다시 알려 강조를 되살린다(한 개 고르기 때와 같다).
     func select(_ items: Set<SidebarItem>) {
         let before = selection
@@ -39,14 +39,20 @@ extension PlaylistSidebarModel {
             primary = only
         } else {
             // 범위는 보던 항목에서 누른 줄까지다. 모두 아래면 맨 아래, 아니면 맨 위가 누른 줄이다.
-            // 보던 항목을 빼면 남은 것 중 맨 아래다. 재생 목록 칸 밖(필터·재생 기록·USB)도 사이드바 순서로 센다
+            // 범위를 줄이면 누른 줄이 보던 항목 쪽 끝이다(고정점은 반대쪽). 재생 목록 칸 밖(필터·재생 기록·USB)도 사이드바 순서로 센다
             let order = sidebarOrder()
             func position(_ item: SidebarItem) -> Int { order[item] ?? -1 }
             let from = position(current)
             let pool = added.isEmpty ? items : added
             let last = pool.max { position($0) < position($1) } ?? current
             let first = pool.min { position($0) < position($1) } ?? current
-            primary = added.isEmpty ? (items.contains(current) ? current : last) : added.allSatisfy({ position($0) > from }) ? last : first
+            if !added.isEmpty {
+                primary = added.allSatisfy({ position($0) > from }) ? last : first
+            } else if items.contains(current) {
+                primary = current
+            } else {
+                primary = from < position(first) ? first : last
+            }
         }
         guard primary.isPlaylist else {
             library.selectSidebar([primary], showing: primary)
