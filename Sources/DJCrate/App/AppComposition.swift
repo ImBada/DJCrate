@@ -38,13 +38,19 @@ final class AppComposition {
     let agentTools: AgentToolsSettingsModel?
     /// 켤 때 옛 설치본을 알릴지(자가 테스트·측정 실행은 알리지 않는다)
     private let agentNoticeEnabled: Bool
+    /// 설정 › 업데이트와 앱 메뉴 "업데이트 확인…"의 화면 모델(#59)
+    let updates: UpdateSettingsModel
+    /// Sparkle 연결. 배포 앱 번들에서만 있다(개발 빌드·화면 시험은 nil)
+    private let updater: AppUpdater?
     /// 덱 단축키(창이 처음 나타날 때 붙인다)
     let keys = KeyRouter()
     private var connected = false
 
     init(settings: SettingsStore, store: LibraryStore, deck: DeckModel, windows: AppWindows, reflection: ReflectionCoordinator,
-         agentTools: AgentToolsSettingsModel? = nil, agentNoticeEnabled: Bool = false) {
+         agentTools: AgentToolsSettingsModel? = nil, agentNoticeEnabled: Bool = false, updater: AppUpdater? = nil) {
         self.settings = settings
+        self.updater = updater
+        updates = UpdateSettingsModel(updater: updater, version: .of(.main))
         self.store = store
         self.deck = deck
         self.windows = windows
@@ -96,8 +102,12 @@ final class AppComposition {
         let deck = DeckModel(audio: DeckAudio(), storage: storage, assets: .live(drafts: drafts), analysis: deckAnalysis(), runsAnalysis: true)
         let notice = !info.arguments.contains { $0.contains("selftest") || $0.contains("capture") || $0.hasPrefix("--ui-perf") || $0.hasPrefix("--perf-")
             || $0 == "--autoplay" || $0 == "--scroll-perf" }
+        // 앱 자동 업데이트(#59): 쓰는 동안 설치를 미루고 그 사실을 알림으로 보인다
+        let updater = AppUpdater.make(activity: { [weak store] in store?.writeActivity ?? .idle },
+                                      announce: { [weak store] in store?.toast = .notice($0, nil) })
         return AppComposition(settings: settings, store: store, deck: deck, windows: AppWindows(), reflection: reflection(store: store),
-                              agentTools: agentTools(arguments: info.arguments, settings: settings), agentNoticeEnabled: notice)
+                              agentTools: agentTools(arguments: info.arguments, settings: settings), agentNoticeEnabled: notice,
+                              updater: updater)
     }
 
     /// AI 에이전트 설치(#262): 재료는 이 앱 번들 안(`Contents/Resources/skills/djcrate`·`Contents/Helpers/djc`), 설치 자리의 뿌리는 사용자 홈.
@@ -248,6 +258,7 @@ final class AppComposition {
 
     /// 창을 띄운 뒤: 사이드바 USB 절을 붙이고, 읽을 때마다 도는 캐시 정리를 붙이고, 라이브러리를 처음 읽는다.
     func start() async {
+        updater?.start()
         UsbAppSetup.attach(to: store)
         // CLI가 앱의 시점 스냅샷 보관 일수를 따르게 공유 파일에 맞춘다
         settings.syncShared()

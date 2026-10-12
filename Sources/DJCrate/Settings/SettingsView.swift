@@ -11,13 +11,17 @@ struct SettingsView: View {
     let storage: () -> StorageSettingsModel
     /// AI 에이전트 탭의 모델(조립 지점이 하나 만들어 켤 때 알림과 함께 쓴다). nil이면 탭을 숨긴다
     let agents: AgentToolsSettingsModel?
+    /// 업데이트 탭의 모델(조립 지점이 하나 만들어 앱 메뉴와 함께 쓴다)
+    let updates: UpdateSettingsModel
     @State private var tab: SettingsTab
 
-    init(store: LibraryStore, deck: DeckModel, storage: @escaping () -> StorageSettingsModel, agents: AgentToolsSettingsModel? = nil,
+    init(store: LibraryStore, deck: DeckModel, storage: @escaping () -> StorageSettingsModel, updates: UpdateSettingsModel,
+         agents: AgentToolsSettingsModel? = nil,
          tab: SettingsTab = .general) {
         self.store = store
         self.deck = deck
         self.storage = storage
+        self.updates = updates
         self.agents = agents
         _tab = State(initialValue: tab)
     }
@@ -47,6 +51,9 @@ struct SettingsView: View {
             Tab(.ui("저장 공간"), systemImage: "internaldrive", value: SettingsTab.storage) {
                 StorageSettingsView(model: storage())
             }
+            Tab(.ui("업데이트"), systemImage: "arrow.triangle.2.circlepath", value: SettingsTab.update) {
+                UpdateSettingsView(model: updates)
+            }
             if let agents {
                 Tab(.ui("AI 에이전트"), systemImage: "sparkles", value: SettingsTab.agents) {
                     AgentToolsSettingsView(model: agents)
@@ -61,7 +68,7 @@ struct SettingsView: View {
 }
 
 enum SettingsTab: Hashable {
-    case general, deck, shortcuts, waveform, storage, agents, lab
+    case general, deck, shortcuts, waveform, storage, update, agents, lab
 }
 
 /// 지금 열린 설정 창. 설정 창도 주 창이 될 수 있어서, KeyRouter가 이 창의 키(단축키 기록 등)를 덱으로 보내지 않게 한다.

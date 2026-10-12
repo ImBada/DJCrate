@@ -8615,6 +8615,38 @@
         }
       }
     },
+    "USB에 쓰는 중이라 업데이트 설치를 미룹니다. 쓰기가 끝나면 이어서 설치합니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing to a USB, so the update will be installed after the write finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに書き込み中のため、アップデートのインストールを延期します。書き込みが終わったら続けてインストールします"
+          }
+        }
+      }
+    },
+    "USB에 쓰는 중입니다. 끝난 뒤 종료하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate is writing to a USB. Quit after it finishes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに書き込み中です。終わってから終了してください"
+          }
+        }
+      }
+    },
     "USB에 쓰는 중입니다. 쓰기가 끝난 뒤 꺼내세요" : {
       "localizations" : {
         "en" : {
@@ -13113,6 +13145,22 @@
         }
       }
     },
+    "rekordbox에 쓰는 중이라 업데이트 설치를 미룹니다. 쓰기가 끝나면 이어서 설치합니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing to rekordbox, so the update will be installed after the write finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxに書き込み中のため、アップデートのインストールを延期します。書き込みが終わったら続けてインストールします"
+          }
+        }
+      }
+    },
     "rekordbox에 쓰는 중이라 큐 편집을 잠시 막았습니다." : {
       "localizations" : {
         "en" : {
@@ -15555,6 +15603,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同じホットキュースロットにキューが2つ以上あります"
+          }
+        }
+      }
+    },
+    "개발 빌드에서는 업데이트를 확인하지 않습니다. 배포한 앱에서 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Development builds don't check for updates. Use a released build to check."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開発ビルドではアップデートを確認しません。配布版のアプリで確認してください"
           }
         }
       }
@@ -24771,6 +24835,22 @@
         }
       }
     },
+    "마지막 확인" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last Checked"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最終確認"
+          }
+        }
+      }
+    },
     "마지막에 쓴 목록에 넣기" : {
       "localizations" : {
         "en" : {
@@ -29287,6 +29367,38 @@
         }
       }
     },
+    "새 버전 자동 확인" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatically check for updates"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいバージョンを自動で確認"
+          }
+        }
+      }
+    },
+    "새 버전을 뒤에서 받아 두고 앱을 끌 때 설치합니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloads new versions in the background and installs them when you quit the app."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいバージョンをバックグラウンドでダウンロードし、アプリの終了時にインストールします。"
+          }
+        }
+      }
+    },
     "새 스냅샷을 뜨고 있습니다" : {
       "localizations" : {
         "en" : {
@@ -32671,6 +32783,22 @@
         }
       }
     },
+    "아직 확인하지 않음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Never"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだ確認していません"
+          }
+        }
+      }
+    },
     "아티스트" : {
       "localizations" : {
         "en" : {
@@ -33907,6 +34035,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "略称 %@"
+          }
+        }
+      }
+    },
+    "업데이트" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updates"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップデート"
+          }
+        }
+      }
+    },
+    "업데이트 확인…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check for Updates…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップデートを確認…"
+          }
+        }
+      }
+    },
+    "업데이트는 DJCrate 서명을 확인한 뒤에만 설치합니다. rekordbox·USB에 쓰는 중이면 쓰기가 끝난 뒤 설치합니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updates are installed only after their DJCrate signature is verified. If DJCrate is writing to rekordbox or a USB, the update is installed after the write finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップデートはDJCrateの署名を確認してからインストールします。rekordbox・USBに書き込み中の場合は、書き込みが終わってからインストールします。"
           }
         }
       }
@@ -38569,6 +38745,22 @@
         }
       }
     },
+    "자동으로 받아 설치" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatically download and install updates"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動でダウンロードしてインストール"
+          }
+        }
+      }
+    },
     "자르기" : {
       "localizations" : {
         "en" : {
@@ -41237,6 +41429,22 @@
         }
       }
     },
+    "지금 버전" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current Version"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のバージョン"
+          }
+        }
+      }
+    },
     "지금 붙은 USB에는 쓰지 않았습니다. 처음 USB를 기기에 꽂지 말고 다시 연결하세요. 다시 연결하면 나오는 알림에서 회복할 수 있습니다." : {
       "localizations" : {
         "en" : {
@@ -41361,6 +41569,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "現在のピーク %+.0f dB"
+          }
+        }
+      }
+    },
+    "지금 확인" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check Now"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今すぐ確認"
           }
         }
       }
@@ -47289,6 +47513,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィルターは%@のいずれかを指定してください"
+          }
+        }
+      }
+    },
+    "하루 한 번 GitHub Releases에서 새 버전을 찾아 알립니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checks GitHub Releases once a day and tells you about new versions."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1日1回GitHub Releasesで新しいバージョンを探してお知らせします。"
           }
         }
       }

@@ -97,11 +97,86 @@ struct BuildAppScriptTests {
         #expect(result.version == "0.1")
     }
 
+    // 앱 자동 업데이트(#59)
+
+    @Test(arguments: [[], ["--package", "--version", "1.2.3"]])
+    func 번들에_업데이트_정보_파일_주소와_공개_키를_넣는다(_ arguments: [String]) throws {
+        let result = try run(identity: "none", arguments: arguments)
+        #expect(result.status == 0, "\(result.output)")
+        let info = result.bundleInfo
+        #expect(info["SUFeedURL"] as? String == "https://github.com/fotoner/DJCrate/releases/latest/download/appcast.xml")
+        #expect(info["SUPublicEDKey"] as? String == Self.publicKey)
+        #expect(info["SUEnableAutomaticChecks"] as? Bool == true)
+        #expect(info["SUScheduledCheckInterval"] as? Int == 86400)
+        #expect(info["SUAutomaticallyUpdate"] as? Bool == false)
+        #expect(info["CFBundleIdentifier"] as? String == "com.fotone.djcrate")
+    }
+
+    @Test func Sparkle을_XPC_서비스_없이_넣고_안쪽부터_서명한다() throws {
+        let result = try run(identity: "none")
+        #expect(result.status == 0, "\(result.output)")
+        let sparkle = "dist/DJCrate.app/Contents/Frameworks/Sparkle.framework"
+        #expect(result.files.contains("\(sparkle)/Versions/B/Sparkle"))
+        #expect(!result.files.contains { $0.contains("XPCServices") })
+        // 서명 줄만(끝의 --verify 줄은 뺀다). 안쪽 도구 → 프레임워크 → 앱, --deep 없이
+        let signs = result.signatures.split(separator: "\n").filter { $0.contains("--sign ") }
+        #expect(signs.compactMap { $0.split(separator: " ").last.map(String.init) } == [
+            "dist/DJCrate.app/Contents/Frameworks/SQLCipher.framework",
+            "\(sparkle)/Versions/B/Autoupdate", "\(sparkle)/Versions/B/Updater.app", sparkle, "dist/DJCrate.app",
+        ])
+        #expect(signs.filter { $0.contains("Sparkle.framework") }.allSatisfy { $0.contains("--options runtime") })
+        #expect(!signs.contains { $0.contains("--deep") })
+    }
+
+    @Test func 시험_빌드는_번들_ID와_업데이트_값을_바꾼다() throws {
+        let key = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
+        let result = try run(identity: "none", environment: [
+            "DJC_BUNDLE_ID": "com.fotone.djcrate.updatetest", "DJC_BUILD_NUMBER": "42",
+            "DJC_UPDATE_FEED_URL": "http://127.0.0.1:8000/appcast.xml", "DJC_UPDATE_PUBLIC_KEY": key,
+        ])
+        #expect(result.status == 0, "\(result.output)")
+        #expect(result.bundleInfo["CFBundleIdentifier"] as? String == "com.fotone.djcrate.updatetest")
+        #expect(result.bundleInfo["CFBundleVersion"] as? String == "42")
+        #expect(result.bundleInfo["SUFeedURL"] as? String == "http://127.0.0.1:8000/appcast.xml")
+        #expect(result.bundleInfo["SUPublicEDKey"] as? String == key)
+    }
+
+    @Test(arguments: [
+        (["--package", "--version", "1.2.3"], ["DJC_BUNDLE_ID": "com.fotone.djcrate.updatetest"]),
+        (["--install"], ["DJC_UPDATE_FEED_URL": "http://127.0.0.1:8000/appcast.xml"]),
+        (["--package", "--version", "1.2.3"], ["DJC_BUILD_NUMBER": "42"]),
+        (["--install"], ["DJC_UPDATE_PUBLIC_KEY": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="]),
+        ([], ["DJC_BUNDLE_ID": "com.fotone.djcrate.updatetest", "DJC_BUILD_NUMBER": "0"]),
+        ([], ["DJC_BUNDLE_ID": "com.fotone.djcrate.updatetest", "DJC_UPDATE_PUBLIC_KEY": "짧은키"]),
+        // 시험 빌드는 설치 앱과 다른 번들 ID가 있어야 한다(Sparkle이 번들 ID 환경설정에 SU… 값을 쓴다)
+        ([], ["DJC_UPDATE_FEED_URL": "http://127.0.0.1:8000/appcast.xml"]),
+        ([], ["DJC_BUILD_NUMBER": "42"]),
+        ([], ["DJC_BUNDLE_ID": "com.fotone.djcrate", "DJC_UPDATE_FEED_URL": "http://127.0.0.1:8000/appcast.xml"]),
+    ])
+    func 배포_빌드의_업데이트_값_덮어쓰기와_잘못된_값은_빌드_전에_막는다(_ arguments: [String], _ environment: [String: String]) throws {
+        let result = try run(identity: "none", install: arguments.contains("--install"), arguments: arguments, environment: environment)
+        #expect(result.status != 0)
+        #expect(!result.buildStarted)
+        #expect(!result.installed)
+        #expect(result.signatures.isEmpty)
+    }
+
+    @Test func 공개_키_파일이_ed25519_키가_아니면_빌드_전에_막는다() throws {
+        let result = try run(identity: "none", publicKey: "not-a-key")
+        #expect(result.status != 0)
+        #expect(!result.buildStarted)
+        #expect(result.output.contains("sparkle-public-ed-key.txt"))
+    }
+
+    /// 합성 공개 키(32바이트 base64). 저장소의 실제 키 파일은 읽지 않는다.
+    private static let publicKey = "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8="
+
     private func run(identity: String, install: Bool = false, signingFails: Bool = false,
-                     arguments: [String]? = nil, tag: String = "", iconCompilationFails: Bool = false) throws
+                     arguments: [String]? = nil, tag: String = "", iconCompilationFails: Bool = false,
+                     environment overrides: [String: String] = [:], publicKey: String = Self.publicKey) throws
         -> (status: Int32, output: String, installed: Bool, signatures: String, exportedTypes: [String],
             version: String, packageFiles: [String], buildStarted: Bool,
-            iconName: String, hasIconAssets: Bool, iconCompilation: String) {
+            iconName: String, hasIconAssets: Bool, iconCompilation: String, bundleInfo: [String: Any], files: [String]) {
         let fm = FileManager.default
         let root = fm.temporaryDirectory.appending(path: "djc-build-script-\(UUID())")
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
@@ -119,6 +194,15 @@ struct BuildAppScriptTests {
         for path in [".build/release/DJCrate", ".build/release/SQLCipher.framework/SQLCipher",
                      ".build/release/DJCrate_DJCrate.bundle/Contents/Resources/ko.lproj/InfoPlist.strings",
                      "LICENSE", "THIRD_PARTY_NOTICES.md"] { try file(path) }
+        // Sparkle 2 프레임워크 모양(Versions/B와 꼭대기 링크)
+        let sparkle = ".build/release/Sparkle.framework"
+        for path in ["Sparkle", "Autoupdate", "Updater.app/Contents/MacOS/Updater", "XPCServices/Installer.xpc/Contents/MacOS/Installer",
+                     "XPCServices/Downloader.xpc/Contents/MacOS/Downloader"] { try file("\(sparkle)/Versions/B/\(path)") }
+        try fm.createSymbolicLink(atPath: root.appending(path: "\(sparkle)/Versions/Current").path, withDestinationPath: "B")
+        for link in ["Sparkle", "Autoupdate", "Updater.app", "XPCServices"] {
+            try fm.createSymbolicLink(atPath: root.appending(path: "\(sparkle)/\(link)").path, withDestinationPath: "Versions/Current/\(link)")
+        }
+        try file("Assets/sparkle-public-ed-key.txt", publicKey + "\n")
         // 빌드·키체인·서명은 가짜 도구로 실행하고 설치 대상도 임시 폴더로 돌린다.
         try file("bin/tool", #"""
         #!/bin/zsh
@@ -188,6 +272,7 @@ struct BuildAppScriptTests {
         environment["DJC_TEST_ICON_FAIL"] = iconCompilationFails ? "1" : "0"
         environment["DJC_TEST_TAG"] = tag
         environment["DJC_SIGN_IDENTITY"] = identity == "override" ? "TEST_IDENTITY" : nil
+        for key in ["DJC_BUNDLE_ID", "DJC_BUILD_NUMBER", "DJC_UPDATE_FEED_URL", "DJC_UPDATE_PUBLIC_KEY"] { environment[key] = overrides[key] }
         process.environment = environment
         process.standardOutput = output; process.standardError = output
         try process.run()
@@ -195,6 +280,7 @@ struct BuildAppScriptTests {
         process.waitUntilExit()
         let signatures = (try? String(contentsOf: root.appending(path: "signatures"), encoding: .utf8)) ?? ""
         let bundleInfo = NSDictionary(contentsOf: root.appending(path: "dist/DJCrate.app/Contents/Info.plist"))
+        let files = (fm.enumerator(atPath: root.path)?.allObjects as? [String]) ?? []
         let declarations = bundleInfo?["UTExportedTypeDeclarations"] as? [[String: Any]] ?? []
         return (process.terminationStatus, text,
                 fm.fileExists(atPath: root.appending(path: "installed/DJCrate.app/Contents/MacOS/DJCrate").path), signatures,
@@ -204,6 +290,7 @@ struct BuildAppScriptTests {
                 fm.fileExists(atPath: root.appending(path: "build-started").path),
                 bundleInfo?["CFBundleIconName"] as? String ?? "",
                 fm.fileExists(atPath: root.appending(path: "dist/DJCrate.app/Contents/Resources/Assets.car").path),
-                (try? String(contentsOf: root.appending(path: "icon-compilation"), encoding: .utf8)) ?? "")
+                (try? String(contentsOf: root.appending(path: "icon-compilation"), encoding: .utf8)) ?? "",
+                bundleInfo as? [String: Any] ?? [:], files.filter { $0.hasPrefix("dist/") })
     }
 }
