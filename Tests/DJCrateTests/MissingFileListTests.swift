@@ -1,12 +1,14 @@
 @testable import DJCrate
 import AppKit
+import DJCApplication
 import DJCDomain
 import DJCStorage
-import DJCTestSupport
 import Foundation
+import RekordboxFixtures
 import Testing
 
 /// 파일이 없는 곡 모아 보기(#126): 라이브러리를 읽은 뒤 메인 스레드 밖에서 파일을 확인해 필터·개수·행에 반영한다.
+/// 확인은 곡 행을 바꾸는 라이브러리 전체의 일이라 핵심이 한다. 목록 아래 막대 화면 모델이 없는 저장소도 읽은 뒤 확인한다(#254).
 @Suite("파일이 없는 곡 목록")
 @MainActor
 struct MissingFileListTests {
@@ -34,12 +36,13 @@ struct MissingFileListTests {
     }
 
     func store(_ fixture: RekordboxFixture, log: ThreadLog) -> LibraryStore {
-        let store = LibraryStore(resultHistory: WriteResultHistory(url: fixture.root.appending(path: "result.json")), saveTagDrafts: { _ in })
-        store.fileExists = { path in
-            log.record()
-            return FileManager.default.fileExists(atPath: path)
-        }
-        return store
+        LibraryStore.test(resultHistory: WriteResultHistory(url: fixture.root.appending(path: "result.json")), saveTagDrafts: { _ in },
+                          ports: { ports in
+                              ports.files.exists = { path in
+                                  log.record()
+                                  return FileManager.default.fileExists(atPath: path)
+                              }
+                          })
     }
 
     @Test func 읽은_뒤_메인_스레드_밖에서_확인해_필터와_행에_반영한다() async throws {

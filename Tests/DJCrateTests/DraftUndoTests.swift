@@ -1,3 +1,4 @@
+import DJCApplication
 @testable import DJCrate
 import AppKit
 import DJCAnalysis
@@ -39,7 +40,8 @@ struct DraftUndoTests {
         #expect(h.deck.draft == moved)
         undo.redo()
         #expect(h.deck.draft == deleted)
-        #expect(h.drafts.cue("track-1") == deleted)
+        // 고친 것이 없는 초안 저장은 지우기다(실제 저장소와 같다).
+        #expect(deleted?.hasChanges == false && h.drafts.cue("track-1") == nil)
     }
 
     @Test func 큐_끌기는_한_단계이며_무변경은_등록하지_않는다() async throws {
@@ -134,12 +136,12 @@ struct DraftUndoTests {
         try await h.loaded()
         let undo = manager(h.deck)
         var saved: [TagDraft] = []
-        let store = LibraryStore(saveTagDrafts: { saved = $0 })
+        let store = LibraryStore.test(saveTagDrafts: { saved = $0 })
         store.undoManager = undo
         let row = try #require(h.deck.row)
         store.rowsByUUID[row.track.uuid] = row
         h.deck.pressHotCue(slot: 0)
-        store.applyTagEdits([(row, .title, "새 제목"), (row, .artist, "새 아티스트")])
+        store.tags.applyTagEdits([(row, .title, "새 제목"), (row, .artist, "새 아티스트")])
         let edited = store.tagDrafts
         #expect(undo.undoActionName == "태그 편집")
         undo.undo()
@@ -152,7 +154,7 @@ struct DraftUndoTests {
         #expect(store.tagDrafts == edited)
         #expect(saved.first == edited[row.track.uuid])
         store.isWritingRekordbox = true
-        store.setTag(.title, "차단", rows: [row])
+        store.tags.setTag(.title, "차단", rows: [row])
         undo.undo()
         #expect(store.tagDrafts == edited)
     }
@@ -204,16 +206,16 @@ struct DraftUndoTests {
         let h = try DeckHarness()
         try await h.loaded()
         let undo = manager(h.deck)
-        let store = LibraryStore(saveTagDrafts: { _ in })
+        let store = LibraryStore.test(saveTagDrafts: { _ in })
         store.undoManager = undo
         let row = try #require(h.deck.row)
         store.rowsByUUID[row.track.uuid] = row
-        store.applyTagEdits([(row, .title, "첫 값"), (row, .title, "끝 값")])
-        #expect(store.tagCell(row, .title) == "끝 값")
+        store.tags.applyTagEdits([(row, .title, "첫 값"), (row, .title, "끝 값")])
+        #expect(store.tags.tagCell(row, .title) == "끝 값")
         undo.undo()
         #expect(store.tagDrafts.isEmpty && !undo.canUndo)
         undo.redo()
-        store.setTag(.title, "끝 값", rows: [row])
+        store.tags.setTag(.title, "끝 값", rows: [row])
         undo.undo()
         #expect(store.tagDrafts.isEmpty && !undo.canUndo)
     }
@@ -223,7 +225,7 @@ struct DraftUndoTests {
         let h = try DeckHarness()
         try await h.loaded()
         let undo = manager(h.deck)
-        let store = LibraryStore(saveTagDrafts: { _ in })
+        let store = LibraryStore.test(saveTagDrafts: { _ in })
         store.undoManager = undo
         let row = try #require(h.deck.row)
         let coordinator = SheetCoordinator(store: store)
@@ -242,9 +244,9 @@ struct DraftUndoTests {
         let delete = NSMenuItem(title: "지우기", action: #selector(SheetTableView.delete(_:)), keyEquivalent: "")
         #expect(table.validateUserInterfaceItem(delete))
         table.delete(nil)
-        #expect(store.tagCell(row, .title).isEmpty)
+        #expect(store.tags.tagCell(row, .title).isEmpty)
         undo.undo()
-        #expect(store.tagCell(row, .title) == row.track.title)
+        #expect(store.tags.tagCell(row, .title) == row.track.title)
         let text = NSTextView()
         window.contentView?.addSubview(text)
         window.makeFirstResponder(text)

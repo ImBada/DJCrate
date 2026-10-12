@@ -1,4 +1,7 @@
+import DJCApplication
+import DJCDomain
 import DJCStorage
+import DJCTestKit
 import Foundation
 import Testing
 @testable import DJCrate
@@ -6,8 +9,11 @@ import Testing
 @Suite("Apple Music 가져오기 선택 창")
 @MainActor
 struct AppleMusicImportModelTests {
+    /// 창 모델은 추가 목록 조각만 든다. 조각은 저장소를 붙들지 않으므로(unowned) 저장소는 시험이 든다
+    let store = LibraryStore.test(resultHistory: WriteResultHistory(url: nil), saveTagDrafts: { _ in })
+
     func model() -> AppleMusicImportModel {
-        AppleMusicImportModel(store: LibraryStore(resultHistory: WriteResultHistory(url: nil), saveTagDrafts: { _ in }))
+        AppleMusicImportModel(staging: store.staging, appleMusic: store.useCases.appleMusic)
     }
 
     @Test func 보관함_ID가_없는_XML도_같은_파일이면_출처를_유지한다() async throws {
@@ -23,10 +29,9 @@ struct AppleMusicImportModelTests {
     }
 
     @Test func 목록을_바꾸어도_선택을_유지하고_제외한_곡은_선택하지_않는다() throws {
-        let fixture = AppleMusicLibraryTests()
         let model = model()
-        model.library = try AppleMusicLibrary.parse(fixture.xml(tracks: [
-            "1": fixture.track(1), "2": fixture.track(2), "3": fixture.track(3, ["Protected": true])
+        model.library = try AppleMusicLibrary.parse(AppleMusicXMLFixture.xml(tracks: [
+            "1": AppleMusicXMLFixture.track(1), "2": AppleMusicXMLFixture.track(2), "3": AppleMusicXMLFixture.track(3, ["Protected": true])
         ], playlists: [["Playlist ID": 1, "Name": "합성 목록", "Playlist Items": [["Track ID": 2], ["Track ID": 2], ["Track ID": 3]]]]),
             isReadableFile: { _ in true })
         model.playlistID = "1"
@@ -42,9 +47,8 @@ struct AppleMusicImportModelTests {
     }
 
     @Test func 다른_XML을_열다_실패하면_앞의_보관함을_잘못_추가하지_않는다() async throws {
-        let fixture = AppleMusicLibraryTests()
         let model = model()
-        model.library = try AppleMusicLibrary.parse(fixture.xml(tracks: ["1": fixture.track(1)]), isReadableFile: { _ in true })
+        model.library = try AppleMusicLibrary.parse(AppleMusicXMLFixture.xml(tracks: ["1": AppleMusicXMLFixture.track(1)]), isReadableFile: { _ in true })
         model.selected = [1]
         await model.load(URL(filePath: "/nonexistent-djc-fixture/\(UUID()).xml"))
         #expect(model.library == nil && model.selected.isEmpty)
@@ -52,26 +56,36 @@ struct AppleMusicImportModelTests {
     }
 
     @Test func XML을_연_뒤_사라진_파일은_추가하기_전에_제외한다() async throws {
-        let fixture = AppleMusicLibraryTests()
         let model = model()
-        model.library = try AppleMusicLibrary.parse(fixture.xml(tracks: ["1": fixture.track(1, [
+        model.library = try AppleMusicLibrary.parse(AppleMusicXMLFixture.xml(tracks: ["1": AppleMusicXMLFixture.track(1, [
             "Location": "file:///nonexistent-djc-fixture/\(UUID()).mp3"
         ])]), isReadableFile: { _ in true })
         model.selected = [1]
         await model.addSelected()
         #expect(model.library?.tracks.first?.exclusion == .unavailableFile)
-        #expect(model.selected.isEmpty && model.store.staged.isEmpty && !model.isBusy)
+        #expect(model.selected.isEmpty && store.staging.staged.isEmpty && !model.isBusy)
         #expect(model.message != nil)
     }
 
-    @Test func 반영_중에는_가져오기를_시작하지_않는다() async throws {
-        let fixture = AppleMusicLibraryTests()
+    @Test func 추가_단추는_일을_시작하고_그_손잡이를_모델이_든다() async throws {
         let model = model()
-        model.library = try AppleMusicLibrary.parse(fixture.xml(tracks: ["1": fixture.track(1)]), isReadableFile: { _ in true })
+        model.library = try AppleMusicLibrary.parse(AppleMusicXMLFixture.xml(tracks: ["1": AppleMusicXMLFixture.track(1, [
+            "Location": "file:///nonexistent-djc-fixture/\(UUID()).mp3"
+        ])]), isReadableFile: { _ in true })
         model.selected = [1]
-        model.store.isWritingRekordbox = true
+        model.startAddSelected()
+        await model.task?.value
+        #expect(model.library?.tracks.first?.exclusion == .unavailableFile)
+        #expect(model.selected.isEmpty && !model.isBusy && model.message != nil)
+    }
+
+    @Test func 반영_중에는_가져오기를_시작하지_않는다() async throws {
+        let model = model()
+        model.library = try AppleMusicLibrary.parse(AppleMusicXMLFixture.xml(tracks: ["1": AppleMusicXMLFixture.track(1)]), isReadableFile: { _ in true })
+        model.selected = [1]
+        store.isWritingRekordbox = true
         await model.addSelected()
         #expect(model.library?.tracks.first?.exclusion == nil)
-        #expect(model.store.staged.isEmpty && model.message == nil)
+        #expect(store.staging.staged.isEmpty && model.message == nil)
     }
 }

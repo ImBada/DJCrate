@@ -1,6 +1,7 @@
 import DJCDomain
-import DJCTestSupport
+import DJCTestKit
 import Foundation
+import RekordboxFixtures
 @testable import RekordboxKit
 import Testing
 
@@ -20,6 +21,19 @@ struct RekordboxTempCopyPathTests {
     }
 
     func alias(_ url: URL) -> URL { URL(filePath: alias(url.path)) }
+
+    /// 쓰기·복원을 끝까지 도는 시험은 표기를 둘씩 나눠 쓴다(#167): `/private`가 없는 표기와 있는 표기. 네 표기가 이 시험들 전체에서
+    /// 한 번 이상 쓰인다. 표기마다 같은 상대 경로가 되는지는 DB 없이 네 표기를 모두 보는 `절대_경로는_…`가, 같은 시험 안의 다른 표기는
+    /// `alias`가 본다.
+    static let plainParents = [parents[0], parents[2]]
+    static let privateParents = [parents[1], parents[parents.count - 1]]
+    /// 옛 절대 경로 복원: 표기마다 한 번, 다른 표기로 적기는 번갈아
+    static let oldPathCases = parents.enumerated().map { ($0.element, $0.offset % 2 == 1) }
+
+    @Test func 쓰기_시험은_모든_표기를_한_번_이상_쓴다() {
+        #expect(Set(Self.plainParents + Self.privateParents) == Set(Self.parents))
+        #expect(Set(Self.oldPathCases.map(\.0)) == Set(Self.parents) && Set(Self.oldPathCases.map(\.1)) == [false, true])
+    }
 
     @Test(arguments: parents)
     func 절대_경로는_임시_폴더의_어느_표기로_적어도_같은_상대_경로가_된다(_ parent: String) throws {
@@ -43,7 +57,7 @@ struct RekordboxTempCopyPathTests {
         }
     }
 
-    @Test(arguments: parents)
+    @Test(arguments: privateParents)
     func 그리드_쓰기의_분석_파일_백업과_되돌리기가_통과한다(_ parent: String) throws {
         let fixture = try RekordboxFixture(parent: URL(filePath: parent))
         let (track, _) = try RekordboxGridWriterTests().makeTrack(fixture)
@@ -62,7 +76,7 @@ struct RekordboxTempCopyPathTests {
         #expect(try files.map { try Data(contentsOf: $0) } == originals)
     }
 
-    @Test(arguments: parents)
+    @Test(arguments: plainParents)
     func 분석_붙이기로_만든_파일도_되돌리고_다시_살린다(_ parent: String) async throws {
         let attach = RekordboxAnalysisAttachTests()
         let fixture = try RekordboxFixture(parent: URL(filePath: parent))
@@ -80,7 +94,7 @@ struct RekordboxTempCopyPathTests {
         #expect(created.allSatisfy { FileManager.default.fileExists(atPath: $0.path) })
     }
 
-    @Test(arguments: parents, [false, true])
+    @Test(arguments: oldPathCases)
     func 옛_절대_경로는_다른_표기로_적혀도_복원한다(_ parent: String, _ aliased: Bool) throws {
         let paths = RekordboxBackupPathTests()
         let (fixture, backup, target) = try paths.setup(parent: URL(filePath: parent))
@@ -91,7 +105,17 @@ struct RekordboxTempCopyPathTests {
         #expect(Array(savedManifest.values) == [paths.relative])
     }
 
-    @Test(arguments: parents, ["outside", "sibling", "traversal", "other-folder", "link", "duplicate"])
+    /// 막는 경우마다 표기 하나: 표기를 돌려 네 표기가 모두 한 번 이상 쓰인다. 표기 × 경우 전체(24가지)는 같은 규칙(`backupTarget`)을
+    /// 되풀이할 뿐이라 줄였다(#167). 표기마다 같은 상대 경로가 되는 것은 위 `절대_경로는_…` 시험이 본다.
+    static let refusedKinds = ["outside", "sibling", "traversal", "other-folder", "link", "duplicate"]
+    static let refusedCases = refusedKinds.enumerated().map { (parents[$0.offset % parents.count], $0.element) }
+
+    @Test func 막는_경우는_모든_표기를_한_번_이상_쓴다() {
+        #expect(Set(Self.refusedCases.map(\.0)) == Set(Self.parents))
+        #expect(Self.refusedCases.map(\.1) == Self.refusedKinds)
+    }
+
+    @Test(arguments: refusedCases)
     func 임시_폴더에서도_루트_밖_이동_링크_중복은_막는다(_ parent: String, _ kind: String) throws {
         let paths = RekordboxBackupPathTests()
         let (fixture, backup, target) = try paths.setup(parent: URL(filePath: parent))
@@ -121,7 +145,7 @@ struct RekordboxTempCopyPathTests {
         #expect(try Data(contentsOf: sentinel) == Data("보존".utf8))
     }
 
-    @Test(arguments: parents)
+    @Test(arguments: plainParents)
     func 미리_보기_사본은_없는_분석_파일과_폴더도_같은_규칙으로_본다(_ parent: String) async throws {
         let fixture = try RekordboxFixture(parent: URL(filePath: parent))
         // EXT가 없는 곡과 분석 전 곡(UUID 폴더가 아직 없음)
@@ -140,7 +164,7 @@ struct RekordboxTempCopyPathTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
     }
 
-    @Test(arguments: parents)
+    @Test(arguments: privateParents)
     func 곡을_뺄_때_같은_분석_폴더를_가리키는_다른_곡은_표기와_상관없이_알아챈다(_ parent: String) throws {
         let deletion = RekordboxDeletionFilesTests()
         let fixture = try RekordboxFixture(parent: URL(filePath: parent))

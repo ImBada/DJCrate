@@ -17,11 +17,11 @@ enum LibraryXMLPanels {
         panel.message = String(ui: "라이브러리 전체(곡·큐·그리드·재생 목록)를 rekordbox XML 파일로 내보냅니다. rekordbox 라이브러리는 바뀌지 않으며, 쓰지 않은 초안은 넣지 않습니다.")
         panel.prompt = String(ui: "내보내기")
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        store.exportLibraryXML(to: url)
+        store.staging.exportLibraryXML(to: url)
     }
 
     /// rekordbox XML 가져오기 열기 창. 읽은 뒤 차이 미리 보기 시트가 열린다(rekordbox에는 쓰지 않는다).
-    static func importXML(store: LibraryStore) {
+    static func importXML(into model: XMLImportModel) {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.xml]
         panel.allowsMultipleSelection = false
@@ -31,7 +31,7 @@ enum LibraryXMLPanels {
         panel.message = String(ui: "다른 도구나 rekordbox가 만든 rekordbox XML을 골라 지금 라이브러리와의 차이를 봅니다. 고른 차이만 초안으로 만들고 rekordbox에는 쓰지 않습니다.")
         panel.prompt = String(ui: "열기")
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        store.importRekordboxXML(from: url)
+        model.start(from: url)
     }
 
     /// 파일 이름은 번역하지 않는다.

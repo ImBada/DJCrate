@@ -1,3 +1,4 @@
+import DJCApplication
 import DJCDomain
 import SwiftUI
 
@@ -51,7 +52,7 @@ struct RecoverySheetView: View {
             Button(model.hasSaved ? String(ui: "닫기") : String(ui: "취소")) { model.cancel() }
                 .keyboardShortcut(.cancelAction)
                 .disabled(model.isSaving)
-            Button(.ui("저장")) { Task { await model.save() } }
+            Button(.ui("저장")) { model.startSave() }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!model.canSave)
         }

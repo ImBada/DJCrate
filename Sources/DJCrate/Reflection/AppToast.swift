@@ -1,3 +1,4 @@
+import DJCApplication
 import DJCDomain
 import SwiftUI
 
@@ -27,10 +28,13 @@ struct AppToast: Identifiable, Equatable {
     enum Action: Equatable {
         /// USB 쓰기가 끝난 뒤 그 볼륨 꺼내기
         case ejectUsb(volumeKey: String)
+        /// 옛 AI 에이전트 스킬·djc 링크를 이 앱에 맞추기(#262)
+        case updateAgentTools
 
         var title: String {
             switch self {
             case .ejectUsb: String(ui: "꺼내기")
+            case .updateAgentTools: String(ui: "모두 갱신")
             }
         }
     }
@@ -76,7 +80,7 @@ struct AppToastView: View {
     var onDetails: (() -> Void)?
     var onAction: (() -> Void)?
     var onClose: () -> Void
-    @State private var hovering = false
+    @State private var timer = AppToastTimer()
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -120,18 +124,8 @@ struct AppToastView: View {
         .shadow(color: .black.opacity(0.25), radius: 16, y: 6)
         .selfTestFrame("toast.\(toast.id)")
         .onDisappear { SelfTestFrames.frames.removeValue(forKey: "toast.\(toast.id)") }
-        .onHover { hovering = $0 }
-        .task(id: toast.id) {
-            // 올려 둔 동안은 기다린다.
-            guard toast.automaticallyDismisses(voiceOverEnabled: NSWorkspace.shared.isVoiceOverEnabled) else { return }
-            var remaining = toast.duration
-            while remaining > 0 {
-                try? await Task.sleep(for: .milliseconds(250))
-                if Task.isCancelled || NSWorkspace.shared.isVoiceOverEnabled { return }
-                if !hovering { remaining -= 0.25 }
-            }
-            onClose()
-        }
+        .onHover { timer.hovering = $0 }
+        .task(id: toast.id) { await timer.run(toast, close: onClose) }
     }
 
 

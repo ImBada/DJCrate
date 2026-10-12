@@ -1,7 +1,5 @@
-import RekordboxKit
-import DJCAnalysis
+import DJCApplication
 import DJCDomain
-import DJCStorage
 import SwiftUI
 
 /// 템포(변속) · 키 고정 · 큐 제안 표시 · 단축키 도움말. 곡 정보 헤더 오른쪽(시간·BPM 아래)에 놓는다.

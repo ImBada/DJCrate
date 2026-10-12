@@ -1,8 +1,10 @@
 @testable import DJCrate
+import DJCApplication
 import DJCDomain
 import DJCStorage
-import DJCTestSupport
+import DJCTestKit
 import Foundation
+import RekordboxFixtures
 import RekordboxKit
 import Testing
 
@@ -52,7 +54,7 @@ struct UsbExportJobLayoutTests {
                                selection: .playlists(["itunes:F"]), formats: [.oneLibrary], snapshotTime: "2026-10-08T00:00:00Z",
                                playlistLayout: layout, syncSelection: request,
                                syncSourceContext: .init(source: source, catalogRevision: 1))
-        var model = UsbExportSheetModel(volume: volume, selectedTrackIDs: ["different-current-track"])
+        var model = UsbExportSelection(volume: volume, selectedTrackIDs: ["different-current-track"])
         let summary = UsbTestData.summary()
         model.restore(job, summary: summary, layout: layout)
         #expect(model.summary == summary)
@@ -93,7 +95,7 @@ struct UsbExportJobLayoutTests {
                                                     selection: .init(selectedIDs: ["11"]), enabled: true,
                                                     playlistRefs: [:], baseFiles: [:]),
                                syncSourceContext: .init(source: source, catalogRevision: 1))
-        var model = UsbExportSheetModel(volume: volume, selectedTrackIDs: [])
+        var model = UsbExportSelection(volume: volume, selectedTrackIDs: [])
         model.restore(job, summary: nil, layout: layout)
         #expect(model.job(database: job.database, share: job.share, volume: volume, layout: layout,
                           syncSource: source, catalogRevision: 2) == nil)
@@ -118,7 +120,7 @@ struct UsbExportJobLayoutTests {
         let job = UsbExportJob(database: URL(filePath: "/tmp/djc-synthetic/snapshot.db"),
                                share: URL(filePath: "/tmp/djc-synthetic/share"), volume: volume,
                                selection: .playlists(["11"]), formats: UsbFormat.defaultSet, snapshotTime: nil)
-        var model = UsbExportSheetModel(volume: volume, selectedTrackIDs: [])
+        var model = UsbExportSelection(volume: volume, selectedTrackIDs: [])
         model.restore(job, summary: nil, layout: layout)
         model.setPlaylist("11", selected: false)
         model.setPlaylist("12", selected: true)
@@ -132,15 +134,14 @@ struct UsbExportJobLayoutTests {
         let fixture = try RekordboxFixture()
         try fixture.add(TrackSpec(id: "101"))
         try fixture.add(PlaylistSpec(id: "11", name: "합성 목록", seq: 1, contentIDs: ["101", "101"]))
-        let store = LibraryStore(settings: SettingsStore(defaults: UserDefaults(suiteName: "djc.test.usb-retry.\(UUID())")!, persist: false),
+        let store = LibraryStore.test(settings: SettingsStore(defaults: TestDefaults.make("usb-retry"), persist: false),
                                  resultHistory: WriteResultHistory(url: nil), feedback: AppFeedback(announce: { _ in }),
                                  saveTagDrafts: { _ in }, backupDirectory: fixture.backups, playlistDraftSaver: { _ in },
                                  mergeDraftSaver: { _ in }, playlistImportURL: nil, stagingSaver: { _ in },
-                                 draftHome: fixture.root.appending(path: "drafts"))
-        store.rekordboxShareRoot = fixture.shareRoot
-        await store.load(snapshot: fixture.database, arguments: ["test", "--db", fixture.database.path], environment: [:])
+                                 draftHome: fixture.root.appending(path: "drafts"), rekordboxShareRoot: fixture.shareRoot)
+        await store.load(snapshot: fixture.database)
         let lease = try #require(await store.leaseUsbSyncSnapshot(directory: fixture.root.appending(path: "copies")))
-        let source = UsbSyncSource.make(rekordbox: store.rekordboxPlaylists, iTunes: store.iTunesLibrary)
+        let source = UsbSyncSource.make(rekordbox: store.playlists.rekordboxPlaylists, iTunes: store.music.library)
         let context = UsbExportSyncSourceContext(source: source, catalogRevision: store.previewRevision,
                                                 readEpoch: store.snapshotReadEpoch, snapshot: lease.reference)
         var volume = FakeUsbVolume.diskImageFAT32(name: "합성 재시도 USB")
@@ -168,9 +169,9 @@ struct UsbExportJobLayoutTests {
         defer { withExtendedLifetime(fixture) {} }
         let layout = try #require(job.playlistLayout), context = try #require(job.syncSourceContext)
         let lease = try #require(job.snapshotLease), summary = UsbTestData.summary()
-        var model = UsbExportSheetModel(volume: job.volume, selectedTrackIDs: job.selection.trackIDs)
+        var model = UsbExportSelection(volume: job.volume, selectedTrackIDs: job.selection.trackIDs)
         model.restore(job, summary: summary, layout: layout)
-        let sheet = UsbExportSheet(store: store, usb: usb, request: .init(volume: job.volume, job: job, summary: summary))
+        let sheet = UsbExportSheetModel(store: store, usb: usb, request: .init(volume: job.volume, job: job, summary: summary))
         #expect(sheet.canPreview && sheet.canExport)
         var changed = job.volume
         changed.available -= 4096
@@ -201,9 +202,9 @@ struct UsbExportJobLayoutTests {
         defer { withExtendedLifetime(fixture) {} }
         let layout = try #require(job.playlistLayout), context = try #require(job.syncSourceContext)
         let summary = UsbTestData.summary()
-        var model = UsbExportSheetModel(volume: job.volume, selectedTrackIDs: job.selection.trackIDs)
+        var model = UsbExportSelection(volume: job.volume, selectedTrackIDs: job.selection.trackIDs)
         model.restore(job, summary: summary, layout: layout)
-        let sheet = UsbExportSheet(store: store, usb: usb, request: .init(volume: job.volume, job: job, summary: summary))
+        let sheet = UsbExportSheetModel(store: store, usb: usb, request: .init(volume: job.volume, job: job, summary: summary))
         #expect(sheet.canPreview && sheet.canExport)
         for field in ["uuid", "mount", "protocol", "image"] {
             var changed = job.volume

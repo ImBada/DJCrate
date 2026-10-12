@@ -1,6 +1,8 @@
 @testable import DJCrate
 import AppKit
-import DJCTestSupport
+import DJCDomain
+import DJCTestKit
+import RekordboxFixtures
 import Testing
 
 /// 태그 시트 칸을 가볍게 만든 것(#140)이 모양·동작을 바꾸지 않는지 고정한다.
@@ -173,12 +175,11 @@ struct SheetCellLayoutTests {
     }
 
     @Test func 스트리밍_칸의_전체_글자와_편집_불가_이유를_표_툴팁으로_알린다() throws {
-        let fixture = try RekordboxFixture()
-        let store = LibraryStore(saveTagDrafts: { _ in }, backupDirectory: fixture.backups,
+        let folder = try TemporaryFolder()
+        let store = LibraryStore.test(saveTagDrafts: { _ in }, backupDirectory: folder.url.appending(path: "backups"),
                                  playlistDraftSaver: { _ in }, mergeDraftSaver: { _ in }, playlistImportURL: nil,
-                                 stagingSaver: { _ in }, draftHome: fixture.root.appending(path: "drafts"))
-        store.rekordboxDatabase = fixture.database
-        store.rekordboxShareRoot = fixture.shareRoot
+                                 stagingSaver: { _ in }, draftHome: folder.url.appending(path: "drafts"),
+                                 rekordboxDatabase: folder.url.appending(path: "master.db"), rekordboxShareRoot: folder.url.appending(path: "share"))
         let h = SheetCellLayoutHarness(store: store)
         defer { h.window.close() }
         let stream = TrackListTagEditTests.row("stream", streaming: true)
@@ -229,7 +230,7 @@ private final class SheetCellLayoutHarness {
     let table = SheetTableView()
     let window: NSWindow
 
-    init(store: LibraryStore = LibraryStore(saveTagDrafts: { _ in })) {
+    init(store: LibraryStore = LibraryStore.test(saveTagDrafts: { _ in })) {
         self.store = store
         _ = NSApplication.shared
         coordinator = SheetCoordinator(store: store)

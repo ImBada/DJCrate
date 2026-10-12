@@ -1,6 +1,6 @@
 import DJCDomain
-import DJCTestSupport
 import Foundation
+import RekordboxFixtures
 @testable import RekordboxKit
 import Testing
 
@@ -215,7 +215,8 @@ extension RekordboxTagWriterTests {
             + "<CONDITION PropertyName=\"\(property)\" Operator=\"\(op)\" ValueUnit=\"\" ValueLeft=\"\(left)\" ValueRight=\"\"/></NODE>"
     }
 
-    @Test(arguments: [condition("rating", 3), condition("color"), "<NODE/>", "", nil])
+    /// 태그 쓰기는 `SmartList`를 읽지 않는다(읽는 곳은 재생 목록 쓰기뿐). 막을 이유가 될 만한 평점·곡 색 조건 둘만 본다.
+    @Test(arguments: [condition("rating", 3), condition("color")])
     func 평점이나_곡_색_조건의_인텔리전트_목록이_있어도_평점과_곡_색을_쓴다(smart: String?) throws {
         // rekordbox가 그 목록의 Timestamp·결과를 고치는지는 보지 못했지만 막지 않는다(사용자가 rekordbox에서 목록을 다시 정렬한다)
         let (fixture, track) = try ratingLibrary()
@@ -270,7 +271,8 @@ extension RekordboxTagWriterTests {
         #expect(row["Rating"] == "3" && row["TrackInfoUpdated"] == "3" && row["rb_data_status"] == "257")
     }
 
-    @Test(arguments: ["9", "0", "Red"]) func 색_번호가_여덟_색이_아니면_막는다(value: String) throws {
+    /// 쓰기는 초안 문제(`TagDraft.issues`)로 막는다. 쓰기 입구가 막는지 대표 하나. 값 규칙(여덟 색 번호·이름)은 `RatingColorTagTests`가 본다(#167).
+    @Test(arguments: ["9"]) func 색_번호가_여덟_색이_아니면_막는다(value: String) throws {
         let (fixture, track) = try ratingLibrary()
         let before = try content(fixture)
         let report = try write(fixture, tags: [try draft(fixture, track) { $0.color = value }])
@@ -297,7 +299,8 @@ extension RekordboxTagWriterTests {
         #expect(try raw(fixture, "ColorID").value == "'0'")
     }
 
-    @Test(arguments: ["6", "-1", "★"]) func 평점이_1에서_5가_아니면_막는다(value: String) throws {
+    /// 대표 하나. 값 규칙(1~5·별 표기)은 `RatingColorTagTests`가 본다(#167).
+    @Test(arguments: ["6"]) func 평점이_1에서_5가_아니면_막는다(value: String) throws {
         let (fixture, track) = try ratingLibrary()
         let report = try write(fixture, tags: [try draft(fixture, track) { $0.rating = value }])
         #expect(report.tagWritten.isEmpty && report.tagBlocked.first?.reason?.contains("평점") == true)

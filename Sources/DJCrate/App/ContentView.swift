@@ -1,7 +1,5 @@
-import RekordboxKit
-import DJCAnalysis
+import DJCApplication
 import DJCDomain
-import DJCStorage
 import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
@@ -12,13 +10,16 @@ struct ContentView: View {
     @Environment(\.undoManager) private var undoManager
     @Bindable var store: LibraryStore
     @Bindable var deck: DeckModel
+    /// 저장소·덱·창을 잇는 조립 지점(처음 나타날 때 한 번 잇는다)
+    let app: AppComposition
+    /// 주 창 화면 모델(시트와 단추·메뉴 입구). 조립 지점이 한 번 만든다
+    private var window: LibraryWindowModel { app.libraryWindow }
     /// 저장된 창 프레임을 적용했는지. 그 전의 기본 크기 폭으로는 사이드바를 접지 않는다(#119).
     var windowFrameRestored = true
     @AppStorage(SettingKeys.showTagEditor.name) private var showTagEditor = SettingKeys.showTagEditor.defaultValue
     @AppStorage(SettingKeys.sheetMode.name) private var sheetMode = SettingKeys.sheetMode.defaultValue
     /// 이름에 점이 들어 `@AppStorage`로 두면 창 프레임 자동 저장 같은 다른 설정이 바뀔 때마다 본문을 다시 계산한다(#138).
     @State private var sidebarVisible = ObservedSetting(SettingKeys.sidebarVisible)
-    @State private var keys = KeyRouter()
     /// 인스펙터 내용을 그릴지. 닫혀 있어도 SwiftUI가 내용을 계속 계산해, 곡을 고를 때마다 입력 칸을 새로 만들고
     /// 덱까지 창 레이아웃을 다시 잡았다(#129). 열려 있을 때만 그린다.
     @State private var inspectorContentShown = false
@@ -39,7 +40,7 @@ struct ContentView: View {
     var body: some View {
         let _ = PerfProbe.body(Self.self)
         NavigationSplitView(columnVisibility: columnVisibility) {
-            Sidebar(store: store)
+            Sidebar(store: store, playlistSidebar: app.playlistSidebar)
                 .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
                 .navigationSplitViewColumnWidth(min: 210, ideal: 230)
         } detail: {
@@ -47,24 +48,19 @@ struct ContentView: View {
                 // 본문(덱·목록)에 바로 붙이면 인스펙터를 연 뒤 임시 높이의 본문 사본이 생겨, 창 크기를 바꿀 때마다
                 // 크기 측정이 진짜 본문과 번갈아 와서 본문을 두 번씩 다시 계산했다(#138). 상세 열 전체에 붙인다.
                 .inspector(isPresented: inspectorPresented) {
-                    Group { if inspectorContentShown { TagInspector(store: store) } }
+                    Group { if inspectorContentShown { TagInspector(model: app.tagInspector) } }
                         .inspectorColumnWidth(min: 300, ideal: 340, max: 460)
                 }
-                .task(id: showTagEditor) {
-                    if showTagEditor { inspectorContentShown = true; return }
-                    // 접히는 애니메이션이 끝난 뒤에 지운다(빈 패널이 미끄러지지 않게).
-                    try? await Task.sleep(for: .milliseconds(400))
-                    if !Task.isCancelled { inspectorContentShown = false }
-                }
+                .task(id: showTagEditor) { await InspectorReveal.follow(showTagEditor, shown: $inspectorContentShown) }
                 .modifier(LibraryWindowTitle(store: store))
                 .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
                 // 위쪽 알림 줄(스냅샷 오류·반영·곡 추가)과 겹치지 않게 아래에 띄운다(#122).
                 .overlay(alignment: .bottom) {
                     if let toast = store.toast {
                         AppToastView(toast: toast,
-                                     onUndo: toast.undoBackup.map { url in { store.toast = nil; DirectWritePanels.restore(store: store, backupURL: url) } },
-                                     onDetails: toast.showsResult ? { store.showingWriteResult = true } : nil,
-                                     onAction: toast.action.map { action in { Task { await store.usbCoordinator?.perform(action) } } },
+                                     onUndo: toast.undoBackup.map { url in { store.toast = nil; app.reflection.startRestore(backupURL: url) } },
+                                     onDetails: toast.showsResult ? { window.showWriteResult() } : nil,
+                                     onAction: toast.action.map { action in { window.performToastAction(action) } },
                                      onClose: { if store.toast?.id == toast.id { store.toast = nil } })
                             .padding(.bottom, 16)
                             .padding(.horizontal, 16)
@@ -98,46 +94,53 @@ struct ContentView: View {
                 UsbExportSheet(store: store, usb: usb, request: request)
             }
         }
-        .sheet(isPresented: $store.showingWriteResult) { WriteResultView(history: store.resultHistory) }
-        .sheet(isPresented: $store.showingPlaylistPicker) { PlaylistPickerView(store: store) }
-        .sheet(isPresented: $store.showingUnlinkedDrafts) { UnlinkedDraftsView(store: store) }
-        .sheet(item: $store.xmlImportPreview) { preview in XMLImportSheet(store: store, preview: preview) }
+        // 주 창만 쓰는 시트는 주 창 모델이, 다른 화면이 여는 시트(재생 목록 고르기·USB·복구)는 그 주인이 든다
+        .sheet(isPresented: Binding(get: { window.showingWriteResult }, set: { window.showingWriteResult = $0 })) {
+            WriteResultView(history: store.resultHistory)
+        }
+        .sheet(item: Binding(get: { store.playlists.playlistPicker }, set: { store.playlists.playlistPicker = $0 })) { PlaylistPickerView(model: $0) }
+        .sheet(item: Binding(get: { window.unlinkedDrafts }, set: { window.unlinkedDrafts = $0 })) { UnlinkedDraftsView(model: $0) }
+        .sheet(item: Binding(get: { window.xmlImport.preview }, set: { window.xmlImport.preview = $0 })) { preview in
+            XMLImportSheet(model: window.xmlImport, preview: preview)
+        }
         .modifier(RecoverySheetHost(store: store, anchor: .library))
         .animation(.easeInOut(duration: 0.15), value: store.writeStage)
         .searchable(text: $store.search, placement: .toolbar, prompt: Text(.ui("제목·아티스트·코멘트")))
         .toolbar(id: "main") { toolbarContent }
-        .focusedSceneValue(\.appCommands, AppCommandContext(store: store, deck: deck, showTagEditor: $showTagEditor))
+        .focusedSceneValue(\.appCommands, AppCommandContext(window: window, deck: deck, windows: app.windows, reflection: app.reflection,
+                                                            showTagEditor: $showTagEditor))
         .onAppear { setUp() }
+        // 보조 창·목록 메뉴 동작은 조립 지점이 한 번 만든 것을 내려 준다(값이 바뀌지 않아 본문을 다시 계산하지 않는다).
+        .environment(\.appWindows, app.windows)
+        .environment(\.trackListActions, app.trackListActions)
+        .environment(\.reflection, app.reflection)
+        .environment(\.libraryWindow, window)
         .onChange(of: undoManager, initial: true) {
             deck.undoManager = undoManager
             store.undoManager = undoManager
         }
-        .task {
-            while !Task.isCancelled {
-                // 끄는 중인 큐·그리드는 손을 놓아 저장한 뒤에 다시 읽는다.
-                if !deck.hasUncommittedCueEdits, deck.cueDragBase == nil, deck.gridDragBase == nil { store.refreshExternalDrafts() }
-                do { try await Task.sleep(for: .seconds(1)) } catch { break }
-            }
-        }
+        // CLI·다른 앱이 바꾼 초안 파일을 1초마다 다시 읽는다
+        .task { await app.watchExternalDrafts() }
         // 하루 한 번 자동 시점 스냅샷(#228): rekordbox가 꺼져 있고 라이브러리가 바뀌었으면 뒤에서 조용히 남긴다
-        .task { await AutoPointSnapshotRunner(store: store).loop() }
+        .task { await app.runAutoPointSnapshots() }
         // rekordbox에서 곡을 지우거나 고치고 돌아오면 새로 읽는다(옛 목록에 지워진 곡이 남지 않게)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            Task { await store.refreshIfRekordboxChanged() }
+            window.startRefreshIfRekordboxChanged()
         }
     }
 
     @ViewBuilder private var detail: some View {
             switch store.phase {
             case .loaded:
-                LibraryDetail(store: store, deck: deck, windowFrameRestored: windowFrameRestored, sidebarVisible: sidebarVisible)
+                LibraryDetail(store: store, deck: deck, windowFrameRestored: windowFrameRestored, sidebarVisible: sidebarVisible,
+                              listActionBar: app.listActionBar, window: window)
             case .idle:
                 ContentUnavailableView {
                     Label(.ui("스냅샷이 없습니다"), systemImage: "externaldrive.badge.questionmark")
                 } description: {
                     Text(.ui("rekordbox를 종료한 뒤 master.db 사본을 떠 주세요. 원본은 읽기만 합니다."))
                 } actions: {
-                    Button(.ui("스냅샷 뜨기")) { Task { await store.takeSnapshot() } }
+                    Button(.ui("스냅샷 뜨기")) { window.startTakeSnapshot() }
                 }
             case let .loading(message):
                 ProgressView(message)
@@ -147,8 +150,8 @@ struct ContentView: View {
                 } description: {
                     Text(message)
                 } actions: {
-                    Button(.ui("다시 시도")) { Task { await store.loadInitial() } }
-                    Button(.ui("실행 중이어도 읽기용 스냅샷 뜨기")) { Task { await store.takeSnapshot(force: true) } }
+                    Button(.ui("다시 시도")) { window.startLoadInitial() }
+                    Button(.ui("실행 중이어도 읽기용 스냅샷 뜨기")) { window.startTakeSnapshot(force: true) }
                 }
             }
     }
@@ -184,7 +187,7 @@ struct ContentView: View {
                 } label: {
                     Label(.ui("곡 추가"), systemImage: "plus")
                 }
-                .disabled(!LibraryMenuAction.addFiles.isEnabled(in: store))
+                .disabled(!LibraryMenuAction.addFiles.isEnabled(in: window))
                 .help(.ui("음원 파일·폴더를 추가합니다. 창에 끌어다 놓아도 됩니다."))
             }
             ToolbarItem(id: "tagEditor") {
@@ -199,66 +202,22 @@ struct ContentView: View {
             ToolbarItem(id: "snapshot") {
                 Button {
                     // rekordbox가 켜져 있어도 읽기용 사본을 뜬다(최근 변경이 담긴 WAL까지 사본 안에서 합친다).
-                    Task { await store.synchronizeLibrary() }
+                    window.startSynchronizeLibrary()
                 } label: {
                     Label(.ui("rekordbox와 동기화"), systemImage: "arrow.clockwise")
                 }
-                .disabled(!LibraryMenuAction.snapshot.isEnabled(in: store))
-                .help(LibraryMenuAction.snapshot.disabledReason(in: store) ?? String(ui: "rekordbox 내용을 새로 읽고 편집 중인 초안을 보존합니다(⌘R)."))
+                .disabled(!LibraryMenuAction.snapshot.isEnabled(in: window))
+                .help(LibraryMenuAction.snapshot.disabledReason(in: window) ?? String(ui: "rekordbox 내용을 새로 읽고 편집 중인 초안을 보존합니다(⌘R)."))
             }
             ToolbarItem(id: "reflection", placement: .primaryAction) {
-                ReflectionMenu(store: store)
+                ReflectionMenu(store: store, window: window)
             }
     }
 
     private func setUp() {
-            deck.feedback = store.feedback
-            store.recoveryMemoryInput = { [weak deck] uuid, kind in deck?.inputForDraftRecovery(uuid: uuid, kind: kind) }
-            store.onDraftRecovered = { [weak deck] draft, row, grid in
-                deck?.applyDraftRecovery(draft, currentRow: row, currentGrid: grid)
-                TrackEditWindow.shared.draftRecovered(draft.uuid)
-            }
-            // 목록 선택은 덱을 바꾸지 않는다. 더블클릭·⌘→·오른쪽 클릭·끌어다 놓기로만 덱에 올린다(#93).
-            store.onLoadToDeck = { [weak deck] row in deck?.load(row) }
-            store.confirmDeckReplacement = { [weak deck] _ in deck?.confirmDiscardingFlip() ?? true }
-            store.allowsLibrarySync = { [weak deck] in
-                guard let deck else { return true }
-                return !deck.hasUncommittedCueEdits && deck.cueDragBase == nil && deck.gridDragBase == nil
-            }
-            store.onCueDraftsReloaded = { [weak deck] drafts in
-                guard let deck, let uuid = deck.row?.track.uuid else { return }
-                deck.reloadExternalCueDraft(drafts[uuid])
-            }
-            store.onGridDraftSaved = { [weak deck] uuid in deck?.gridDraftSavedExternally(uuid) }
-            store.deckGridDraftState = { [weak deck] in
-                guard let deck, let uuid = deck.row?.track.uuid else { return nil }
-                return (uuid, deck.gridDraft?.hasChanges == true || deck.gridDragBase != nil)
-            }
-            store.adoptImportedGridDraft = { [weak deck] draft in deck?.adoptImportedGridDraft(draft) ?? false }
-            deck.onStagedGridChange = { [weak store] uuid, bpm in store?.stagedGridChanged(uuid: uuid, bpm: bpm) }
-            deck.onCueDraftChange = { [weak store] draft in store?.cueDraftChanged(draft) }
-            deck.onReanalyze = { [weak store] uuid in store?.restoreKeySuggestion(uuid: uuid) }
-            store.onWriteLock = { [weak deck] locked in deck?.isWriteLocked = locked }
-            store.onRekordboxWritten = { [weak deck, weak store] uuids in
-                // 처음부터 다시 불러오지 않고 초안·그리드·게인만 새 rekordbox 값으로 맞춘다(소리·파형은 그대로).
-                guard let deck, let uuid = deck.row?.track.uuid, uuids.contains(uuid) else { return }
-                deck.refreshAfterWrite(store?.rowsByUUID[uuid])
-            }
-            keys.install(deck: deck, store: store)
-            TrackEditWindow.shared.attach(deck: deck, store: store)
-            FlipWindow.shared.attach(deck: deck, store: store)
-            #if DEBUG
-            DevSelfTests.runIfRequested(store: store, deck: deck)
-            DevSelfTests.runBlockedReasonsCaptureIfRequested(store: store, deck: deck)
-            DevSelfTests.runAsyncGuidanceCaptureIfRequested(store: store, deck: deck)
-            UsbMigrateCapture.runIfRequested(store: store)
-            DevSelfTests.runKeyRoutingSelfTestIfRequested(store: store, deck: deck)
-            #endif
-            deck.onDraftChange = { [weak store] uuid, kind, exists in
-                store?.draftChanged(trackUUID: uuid, kind: kind, exists: exists)
-            }
-            if ProcessInfo.processInfo.arguments.contains("--inspector") { showTagEditor = true }
-            if ProcessInfo.processInfo.arguments.contains("--sheet") { sheetMode = true }
+        app.connect()
+        if ProcessInfo.processInfo.arguments.contains("--inspector") { showTagEditor = true }
+        if ProcessInfo.processInfo.arguments.contains("--sheet") { sheetMode = true }
     }
 }
 
@@ -289,7 +248,7 @@ struct EmptyLibraryOverlay: View {
     @ViewBuilder private var message: some View {
         if !store.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             ContentUnavailableView.search(text: store.search)
-        } else if let summary = store.selectedSmartPlaylistResult?.unsupportedSummary {
+        } else if let summary = store.playlists.selectedSmartPlaylistResult?.unsupportedSummary {
             ContentUnavailableView {
                 Label(.ui("조건을 계산하지 못했습니다"), systemImage: WarningMark.symbol)
             } description: {
@@ -303,11 +262,18 @@ struct EmptyLibraryOverlay: View {
             } actions: {
                 Button(.ui("평점·곡 색 거르기 끄기")) { store.minimumRating = 0; store.colorFilter = nil }
             }
-        } else if store.selectedSmartPlaylistResult != nil, store.streamingHiddenInView == 0 {
+        } else if store.playlists.selectedSmartPlaylistResult != nil, store.streamingHiddenInView == 0 {
             ContentUnavailableView {
                 Label(.ui("조건에 맞는 곡이 없습니다"), systemImage: "music.note.list")
             } description: {
                 Text(.ui("DJCrate가 계산한 결과입니다. rekordbox 화면과 다를 수 있습니다."))
+            }
+        } else if store.sidebar == .pending, !store.history.pendingHistories.isEmpty {
+            // 쓰기 대기 재생 기록(#43)은 곡 줄이 아니라 위 쓰기 대기 바에서 함께 쓴다
+            ContentUnavailableView {
+                Label(.ui("쓸 곡 초안이 없습니다"), systemImage: "clock.arrow.circlepath")
+            } description: {
+                Text(.ui("USB 재생 기록 \(store.history.pendingHistories.count)건이 쓰기 대기에 있습니다. 위 ‘rekordbox에 쓰기’로 rekordbox 재생 기록에 넣습니다."))
             }
         } else if store.sidebar == .pending {
             ContentUnavailableView {
@@ -414,7 +380,8 @@ struct SplitHandle: View {
 
 /// 파일 URL과 내부 곡 ID를 함께 싣는 드래그를 구별해야 하므로 형식을 검사할 수 있는 delegate를 쓴다.
 struct LibraryFileDropDelegate: DropDelegate {
-    let store: LibraryStore
+    /// 주 창 화면 모델(받을지 판정과 곡 추가 입구)
+    let window: LibraryWindowModel
     @Binding var highlight: DropHighlight
 
     static func accepts(_ providers: [NSItemProvider]) -> Bool {
@@ -425,10 +392,7 @@ struct LibraryFileDropDelegate: DropDelegate {
     }
 
     func validateDrop(info: DropInfo) -> Bool {
-        store.writeLockPolicy.allowsLibraryInteraction
-            && !store.isITunesSelection
-            && !store.isUsbSelection
-            && Self.accepts(info.itemProviders(for: [.fileURL, DeckDragType.track, PlaylistDragType.tracks]))
+        window.acceptsFileDrop && Self.accepts(info.itemProviders(for: [.fileURL, DeckDragType.track, PlaylistDragType.tracks]))
     }
 
     func dropEntered(info: DropInfo) { highlight.enter(accepted: validateDrop(info: info)) }
@@ -443,18 +407,13 @@ struct LibraryFileDropDelegate: DropDelegate {
     func performDrop(info: DropInfo) -> Bool {
         highlight.drop()
         guard validateDrop(info: info) else { return false }
-        let providers = info.itemProviders(for: [.fileURL])
-        Task { @MainActor in
-            var urls: [URL] = []
-            for provider in providers {
-                let url: URL? = await withCheckedContinuation { continuation in
-                    _ = provider.loadObject(ofClass: URL.self) { url, _ in continuation.resume(returning: url) }
-                }
-                if let url, url.isFileURL { urls.append(url) }
-            }
-            guard !urls.isEmpty, store.writeLockPolicy.allowsLibraryInteraction else { return }
-            await store.addFiles(urls)
-        }
+        window.addDroppedFiles(info.itemProviders(for: [.fileURL]))
         return true
     }
+}
+
+extension EnvironmentValues {
+    /// 주 창 화면 모델. 사이드바 줄처럼 부모 본문에 클로저를 넣으면 다시 계산이 늘어나는 잎 뷰가 받는다.
+    /// 조립 지점이 붙이지 않은 화면(시험·미리 보기)에서는 nil이다.
+    @Entry var libraryWindow: LibraryWindowModel? = nil
 }

@@ -6,7 +6,7 @@ import SwiftUI
 /// GRID 탭이 곧 그리드 편집 모드다: 탭을 고르면 편집을 켜고, 다른 탭으로 가면 끈다.
 struct DeckControlTabs: View {
     @Environment(\.textScale) private var textScale
-    let store: LibraryStore
+    let tags: TagEditStore
     @Bindable var deck: DeckModel
     let tabWidth: CGFloat
     @AppStorage(SettingKeys.deckControlTab.name) private var tabName = SettingKeys.deckControlTab.defaultValue
@@ -30,7 +30,7 @@ struct DeckControlTabs: View {
                     VStack(alignment: .leading, spacing: 6) {
                         GridEditorBar(deck: deck, framed: false)
                         // 게인·그리드·키 제안도 이 판 안에 둔다. 보류 중인 제안이 있으면 GRID 탭에 점을 찍는다.
-                        DeckSuggestionBar(store: store, deck: deck)
+                        DeckSuggestionBar(tags: tags, deck: deck)
                             .frame(maxWidth: .infinity, minHeight: TextScale.length(24, scale: textScale), alignment: .leading)
                     }
                 }
@@ -73,7 +73,7 @@ struct DeckControlTabs: View {
                 .background(selected ? fill(item) : Color.clear,
                             in: UnevenRoundedRectangle(topLeadingRadius: radius, bottomLeadingRadius: radius))
                 .overlay(alignment: .topTrailing) {
-                    if item == .grid { DeckSuggestionBadge(store: store, deck: deck) }
+                    if item == .grid { DeckSuggestionBadge(tags: tags, deck: deck) }
                 }
                 .contentShape(Rectangle())
         }
@@ -102,11 +102,11 @@ struct DeckControlTabs: View {
 /// 보류 중인 제안이 있으면 GRID 탭 모서리에 빨간 점. 목록 상태는 이 작은 뷰 안에서만 읽는다(#129).
 private struct DeckSuggestionBadge: View {
     @Environment(\.textScale) private var textScale
-    let store: LibraryStore
+    let tags: TagEditStore
     let deck: DeckModel
 
     var body: some View {
-        let count = DeckSuggestions(deck: deck, store: store).list.shown.count
+        let count = DeckSuggestions(deck: deck, tags: tags).list.shown.count
         if count > 0 {
             Circle()
                 .fill(Color.red)

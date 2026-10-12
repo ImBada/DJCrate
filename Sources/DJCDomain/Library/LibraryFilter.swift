@@ -42,7 +42,8 @@ public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    public var requiresCommentRule: Bool { self == .emptyComment || self == .offConvention }
+    /// 규칙이 있어야 고를 수 있는 필터. 빈 코멘트는 규칙과 상관없이 정리한 코멘트가 비었는지로 고른다(현황 집계와 같은 판정).
+    public var requiresCommentRule: Bool { self == .offConvention }
 
     /// 사이드바에 보이는 필터. 스트리밍 곡을 숨기는 동안은 '스트리밍' 필터도 보이지 않는다.
     public static func visible(commentPreset: CommentPreset, hidingStreaming: Bool = false) -> [LibraryFilter] {
@@ -53,7 +54,7 @@ public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable {
     public func includes(track: Track, comment: CommentEvaluation?, hasCues: Bool, playCount: Int, tempoChanges: [Double],
                          fileMissing: Bool) -> Bool {
         switch self {
-        case .emptyComment: comment?.isEmpty == true
+        case .emptyComment: CommentText.normalize(track.comment).isEmpty
         case .offConvention: comment.map { !$0.isEmpty && !$0.isMatch } ?? false
         case .noCues: !hasCues
         case .played: playCount > 0

@@ -1,5 +1,6 @@
 #if DEBUG
 import AppKit
+import DJCApplication
 import DJCDomain
 import DJCStorage
 import Foundation
@@ -29,13 +30,13 @@ enum UsbMigrateCapture {
                       let window = NSApp.windows.first(where: { $0.canBecomeMain && $0.isVisible }) else {
                     throw UsbSelfTestScenario.Failure("앱 비활성·주 창 조건을 확인하세요")
                 }
-                let volume = try await Task.detached { try UsbVolumes.info(root: URL(filePath: mount)) }.value
+                let volume = try await BlockingWork.run(qos: .default) { try UsbVolumes.info(root: URL(filePath: mount)) }
                 guard volume.isDiskImage, volume.name == "DJC191" else { throw UsbSelfTestScenario.Failure("합성 디스크 이미지가 아님") }
                 let (events, continuation) = AsyncStream.makeStream(of: [UsbVolumeInfo].self)
                 defer { continuation.finish() }
                 let snapshots = DJCPaths.userData.appending(path: "usb-migrate-capture-\(UUID().uuidString)")
-                let host = SystemUsbHost(io: .reading(snapshots: snapshots), events: events, current: { [volume] })
-                let usb = UsbStore(host: host, readPolicy: .diskImagesOnly, localLibrary: { nil })
+                let host = SystemUsbHost(io: UsbAppComposition.hostIO(snapshots: snapshots), events: events, current: { [volume] })
+                let usb = UsbStore(host: host, readPolicy: .diskImagesOnly, writeService: UsbAppComposition.writeService(), localLibrary: { nil })
                 store.usb = usb
                 await usb.refresh()
                 guard usb.libraries[volume.usbKey]?.tracks.count == 3 else { throw UsbSelfTestScenario.Failure("합성 USB 읽기 실패") }
@@ -44,11 +45,11 @@ enum UsbMigrateCapture {
                 try await Task.sleep(for: .milliseconds(600))
                 try captureWindow(window, to: directory + "/sidebar.jpg")
                 if args.contains("--usb-migrate-capture-write") {
-                    let before = try await Task.detached { try UsbTree.fingerprint(UsbRoot(URL(filePath: mount))).files }.value
+                    let before = try await BlockingWork.run(qos: .default) { try UsbTree.fingerprint(UsbRoot(URL(filePath: mount))).files }
                     let prompter = CapturePrompter(directory: directory)
                     let coordinator = UsbWriteCoordinator(usb: usb, host: store, service: usb.writeService, prompter: prompter)
                     await coordinator.migrate(volume)
-                    let after = try await Task.detached { try UsbTree.fingerprint(UsbRoot(URL(filePath: mount))).files }.value
+                    let after = try await BlockingWork.run(qos: .default) { try UsbTree.fingerprint(UsbRoot(URL(filePath: mount))).files }
                     guard prompter.failure == nil, usb.libraries[volume.usbKey]?.formats == UsbFormat.defaultSet,
                           usb.infos[volume.usbKey]?.warnings.isEmpty == true,
                           usb.infos[volume.usbKey]?.deviceLibrary?.roundTripOK == true,
@@ -59,7 +60,7 @@ enum UsbMigrateCapture {
                     try await Task.sleep(for: .milliseconds(600))
                     try captureWindow(window, to: directory + "/written.jpg")
                     await coordinator.restoreMigration(volume)
-                    let restored = try await Task.detached { try UsbTree.fingerprint(UsbRoot(URL(filePath: mount))).files }.value
+                    let restored = try await BlockingWork.run(qos: .default) { try UsbTree.fingerprint(UsbRoot(URL(filePath: mount))).files }
                     guard prompter.failure == nil, before == restored, usb.libraries[volume.usbKey]?.formats == [.deviceLibrary],
                           usb.migrationBackups[volume.usbKey] == nil else { throw UsbSelfTestScenario.Failure("옮기기 되돌림·다시 읽기 실패") }
                     try await Task.sleep(for: .milliseconds(600))

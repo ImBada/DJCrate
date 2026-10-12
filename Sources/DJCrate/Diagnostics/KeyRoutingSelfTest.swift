@@ -11,7 +11,7 @@ extension DevSelfTests {
     }
 
     /// 앱 큐에만 키를 넣는다. active 모드는 사용자 직접 클릭을 기다리며 OS 키 입력은 보내지 않는다.
-    static func runKeyRoutingSelfTestIfRequested(store: LibraryStore, deck: DeckModel) {
+    static func runKeyRoutingSelfTestIfRequested(store: LibraryStore, deck: DeckModel, windows: AppWindows) {
         guard ProcessInfo.processInfo.arguments.contains("--key-routing-selftest"),
               ProcessInfo.processInfo.environment["DJC_HOME"] != nil,
               ProcessInfo.processInfo.environment["DJC_REKORDBOX_DIR"] != nil else { return }
@@ -188,14 +188,14 @@ extension DevSelfTests {
                 await send(window, code: 36, text: "\r")
                 check(!coordinator.isEditing && window.firstResponder === sheet
                       && coordinator.cursor == .init(row: 1, column: 2)
-                      && store.tagCell(coordinator.rows[0], .artist) == "m", "태그 Return은 칸 확정으로")
+                      && store.tags.tagCell(coordinator.rows[0], .artist) == "m", "태그 Return은 칸 확정으로")
                 capture(window, "tag-return-after")
                 coordinator.select(.init(row: 0, column: 2), extend: false)
                 await send(window, code: 24, text: "=")
                 capture(window, "tag-escape-before")
                 await send(window, code: 53, text: "\u{1b}")
                 check(!coordinator.isEditing && window.firstResponder === sheet
-                      && store.tagCell(coordinator.rows[0], .artist) == "m" && deck.zoomSeconds == zoom,
+                      && store.tags.tagCell(coordinator.rows[0], .artist) == "m" && deck.zoomSeconds == zoom,
                       "태그 Esc는 칸 취소로")
                 capture(window, "tag-escape-after")
             } else { check(false, "실제 태그 시트 찾기") }
@@ -271,8 +271,8 @@ extension DevSelfTests {
             }
 
             // 제품의 곡 편집 창에 온 확대 키는 편집 창만 바꾼다.
-            TrackEditWindow.shared.open()
-            if let editWindow = TrackEditWindow.shared.window, let model = TrackEditWindow.shared.model {
+            await windows.trackEdit.open()
+            if let editWindow = windows.trackEdit.window, let model = windows.trackEdit.model {
                 editWindow.makeFirstResponder(nil)
                 let before = model.sourceView, deckZoom = deck.zoomSeconds
                 capture(editWindow, "edit-before")

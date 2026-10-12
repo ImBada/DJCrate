@@ -1,8 +1,10 @@
+import DJCApplication
 @testable import DJCrate
 import DJCDomain
 import DJCStorage
-import DJCTestSupport
+import DJCTestKit
 import Foundation
+import RekordboxFixtures
 @testable import RekordboxKit
 import Testing
 
@@ -40,20 +42,16 @@ struct SmartPlaylistAppTests {
     }
 
     static func makeStore(_ fixture: RekordboxFixture, lab: Bool? = nil, persist: Bool = false, defaults: UserDefaults? = nil) async -> LibraryStore {
-        let defaults = defaults ?? UserDefaults(suiteName: "djc.test.smart-playlists.\(UUID())")!
+        let defaults = defaults ?? TestDefaults.make("smart-playlists")
         let settings = SettingsStore(defaults: defaults, persist: persist)
         if persist, let lab { defaults.set(lab, forKey: SettingKeys.labSmartPlaylists.name) }
-        let store = LibraryStore(settings: settings, resultHistory: WriteResultHistory(url: nil), feedback: AppFeedback(announce: { _ in }),
+        let store = LibraryStore.test(settings: settings, resultHistory: WriteResultHistory(url: nil), feedback: AppFeedback(announce: { _ in }),
                                  saveTagDrafts: { _ in }, backupDirectory: fixture.backups,
-                                 playlistDraftSaver: { _ in }, mergeDraftSaver: { _ in }, playlistImportURL: nil, stagingSaver: { _ in })
-        let database = fixture.database
-        store.takeLiveSnapshot = { _ in database }
-        store.launchArguments = ["test"]
-        store.launchEnvironment = [:]
-        store.draftHome = fixture.root.appending(path: "drafts")
-        store.rekordboxDatabase = fixture.database
-        store.rekordboxShareRoot = fixture.shareRoot
-        await store.load(snapshot: fixture.database, arguments: ["test"], environment: [:])
+                                 playlistDraftSaver: { _ in }, mergeDraftSaver: { _ in }, playlistImportURL: nil, stagingSaver: { _ in },
+                                 draftHome: fixture.root.appending(path: "drafts"), rekordboxDatabase: fixture.database,
+                                 rekordboxShareRoot: fixture.shareRoot, arguments: ["test"], environment: [:],
+                                 takeLiveSnapshot: { [database = fixture.database] _ in database })
+        await store.load(snapshot: fixture.database)
         if !persist, lab == true { store.showSmartPlaylists = true }
         return store
     }
@@ -66,44 +64,35 @@ struct SmartPlaylistAppTests {
         let fixture = try Self.fixture()
         let store = await Self.makeStore(fixture)
         #expect(!store.showSmartPlaylists)
-        #expect(store.smartPlaylistResults.isEmpty)
+        #expect(store.playlists.smartPlaylistResults.isEmpty)
         for id in ["S1", "S2", "S3"] {
-            let node = try #require(store.playlistIndex[id])
-            #expect(node.isSmart && node.trackIDs.isEmpty && store.playlistCounts[id] == 0, "\(id)")
+            let node = try #require(store.playlists.playlistIndex[id])
+            #expect(node.isSmart && node.trackIDs.isEmpty && store.playlists.playlistCounts[id] == 0, "\(id)")
         }
         store.sidebar = .playlist("S1")
         #expect(store.displayRows.isEmpty)
         // 일반 목록·폴더는 그대로
-        #expect(store.playlistIndex["P"]?.trackIDs == ["1", "2"] && store.playlistCounts["P"] == 2)
-        #expect(store.playlistIndex["F"]?.trackIDs == ["1", "2"])
+        #expect(store.playlists.playlistIndex["P"]?.trackIDs == ["1", "2"] && store.playlists.playlistCounts["P"] == 2)
+        #expect(store.playlists.playlistIndex["F"]?.trackIDs == ["1", "2"])
     }
 
     @Test func 꺼져_있으면_인텔리전트_목록을_고쳐_보려_해도_조용하다() async throws {
         let fixture = try Self.fixture()
         let store = await Self.makeStore(fixture)
-        #expect(!store.blockSmartPlaylistEdit("S1"))
-        #expect(store.playlistMessage == nil)
+        #expect(!store.playlists.blockSmartPlaylistEdit("S1"))
+        #expect(store.playlists.playlistMessage == nil)
     }
 
     // MARK: 켬
-
-    @Test func 켜면_조건에_맞는_곡을_계산해_보인다() async throws {
-        let fixture = try Self.fixture()
-        let store = await Self.makeStore(fixture, lab: true)
-        let node = try #require(store.playlistIndex["S1"])
-        #expect(Set(node.trackIDs) == ["2", "3", "4"])
-        #expect(store.playlistCounts["S1"] == 3)
-        #expect(store.smartPlaylistResults["S1"]?.unsupportedReasons.isEmpty == true)
-        store.sidebar = .playlist("S1")
-        #expect(Self.ids(store) == ["2", "3", "4"])
-    }
+    // 조건 계산(제목 포함·연도 범위 2015~2020 → 2,3,4)은 DJCDomainTests `SmartPlaylistEvaluatorTests`가 본다.
+    // 켠 저장소가 계산한 곡을 목록·곡 수·보기에 넣는 연결은 아래 설정 바꾸기·스트리밍·저장 유지 시험이 본다.
 
     @Test func 켜도_계산하지_못하는_목록은_곡을_보이지_않고_이유를_든다() async throws {
         let fixture = try Self.fixture()
         let store = await Self.makeStore(fixture, lab: true)
         for id in ["S2", "S3"] {
-            #expect(store.playlistIndex[id]?.trackIDs.isEmpty == true && store.playlistCounts[id] == 0, "\(id)")
-            #expect(store.smartPlaylistResults[id]?.unsupportedReasons.isEmpty == false, "\(id)")
+            #expect(store.playlists.playlistIndex[id]?.trackIDs.isEmpty == true && store.playlists.playlistCounts[id] == 0, "\(id)")
+            #expect(store.playlists.smartPlaylistResults[id]?.unsupportedReasons.isEmpty == false, "\(id)")
         }
         store.sidebar = .playlist("S2")
         #expect(store.displayRows.isEmpty)
@@ -112,15 +101,15 @@ struct SmartPlaylistAppTests {
     @Test func 켜도_일반_목록과_폴더는_그대로고_껐다_켜면_처음_모양으로_돌아온다() async throws {
         let fixture = try Self.fixture()
         let store = await Self.makeStore(fixture)
-        let off = store.playlistTree, offCounts = store.playlistCounts
+        let off = store.playlists.playlistTree, offCounts = store.playlists.playlistCounts
         store.showSmartPlaylists = true
-        #expect(store.playlistTree != off)
-        let folder = try #require(store.playlistIndex["F"])
+        #expect(store.playlists.playlistTree != off)
+        let folder = try #require(store.playlists.playlistIndex["F"])
         #expect(folder.trackIDs == ["1", "2"], "폴더 곡 모음에는 인텔리전트 목록 곡을 넣지 않는다")
-        #expect(store.playlistIndex["P"]?.trackIDs == ["1", "2"])
+        #expect(store.playlists.playlistIndex["P"]?.trackIDs == ["1", "2"])
         store.showSmartPlaylists = false
-        #expect(store.playlistTree == off && store.playlistCounts == offCounts)
-        #expect(store.smartPlaylistResults.isEmpty)
+        #expect(store.playlists.playlistTree == off && store.playlists.playlistCounts == offCounts)
+        #expect(store.playlists.smartPlaylistResults.isEmpty)
     }
 
     @Test func 목록을_보는_중에_설정을_바꾸면_곧바로_곡이_바뀐다() async throws {
@@ -138,9 +127,9 @@ struct SmartPlaylistAppTests {
         let fixture = try Self.fixture()
         try fixture.execute("UPDATE djmdContent SET FolderPath = 'spotify:track:abc' WHERE ID = '3'")
         let store = await Self.makeStore(fixture, lab: true)
-        #expect(store.playlistCounts["S1"] == 3)
+        #expect(store.playlists.playlistCounts["S1"] == 3)
         store.hideStreaming = true
-        #expect(store.playlistCounts["S1"] == 2)
+        #expect(store.playlists.playlistCounts["S1"] == 2)
         store.sidebar = .playlist("S1")
         #expect(Self.ids(store) == ["2", "4"])
     }
@@ -151,29 +140,29 @@ struct SmartPlaylistAppTests {
         let fixture = try Self.fixture()
         let store = await Self.makeStore(fixture, lab: true)
         let row = try #require(store.rowsByID["1"])
-        store.renamePlaylist("S1", to: "다른 이름")
-        store.addTracks([row], toPlaylist: "S1")
-        store.movePlaylist("S1", into: PlaylistLayout.root)
-        store.deletePlaylist("S1")
-        #expect(store.playlistDraft.isEmpty)
-        #expect(!store.canEditTracks(of: "S1"))
+        store.playlists.renamePlaylist("S1", to: "다른 이름")
+        store.playlists.addTracks([row], toPlaylist: "S1")
+        store.playlists.movePlaylist("S1", into: PlaylistLayout.root)
+        store.playlists.deletePlaylist("S1")
+        #expect(store.playlists.playlistDraft.isEmpty)
+        #expect(!store.playlists.canEditTracks(of: "S1"))
         store.sidebar = .playlist("S1")
-        #expect(store.editablePlaylistID == nil && !store.canReorderDisplayedTracks)
-        #expect(!store.trackPlaylists.contains { $0.item.id == "S1" })
-        #expect(store.applyPlaylistEdits([.rename(playlist: .id("S1"), name: "x")], actionName: "시험") == false)
-        #expect(store.playlistDraft.isEmpty)
+        #expect(store.playlists.editablePlaylistID == nil && !store.playlists.canReorderDisplayedTracks)
+        #expect(!store.playlists.trackPlaylists.contains { $0.item.id == "S1" })
+        #expect(store.playlists.applyPlaylistRequests([.rename(.ref(.id("S1")), name: "x")], actionName: "시험") == nil)
+        #expect(store.playlists.playlistDraft.isEmpty)
     }
 
     @Test func 켜져_있으면_고쳐_보려_할_때_이유를_알린다() async throws {
         let fixture = try Self.fixture()
         let store = await Self.makeStore(fixture, lab: true)
-        #expect(store.blockSmartPlaylistEdit("S1"))
-        let message = try #require(store.playlistMessage)
+        #expect(store.playlists.blockSmartPlaylistEdit("S1"))
+        let message = try #require(store.playlists.playlistMessage)
         #expect(message.text == "인텔리전트 재생 목록은 아직 쓰지 않습니다(rekordbox에서 고치세요)")
         // 일반 목록은 막지 않는다
-        store.playlistMessage = nil
-        #expect(!store.blockSmartPlaylistEdit("P"))
-        #expect(store.playlistMessage == nil)
+        store.playlists.playlistMessage = nil
+        #expect(!store.playlists.blockSmartPlaylistEdit("P"))
+        #expect(store.playlists.playlistMessage == nil)
     }
 
     @Test func 켜도_rekordbox_목록_상태와_USB_내보내기_후보는_인텔리전트_목록을_그대로_다룬다() async throws {
@@ -182,10 +171,10 @@ struct SmartPlaylistAppTests {
             let store = await Self.makeStore(fixture, lab: lab)
             // 초안을 얹기 전 rekordbox 목록 상태(쓰기·USB 후보가 보는 모양)에는 계산한 곡이 들어오지 않는다
             for id in ["S1", "S2", "S3"] {
-                let item = try #require(store.rekordboxPlaylists.item(id))
+                let item = try #require(store.playlists.rekordboxPlaylists.item(id))
                 #expect(item.isSmart && !item.holdsTracks && item.entries.isEmpty, "\(id) lab=\(lab)")
             }
-            let rows = UsbExportSheetModel.rows(store.rekordboxPlaylists)
+            let rows = UsbExportSelection.rows(store.playlists.rekordboxPlaylists)
             #expect(rows.first { $0.id == "S1" }?.isSmart == true && rows.first { $0.id == "S1" }?.trackCount == 0, "lab=\(lab)")
             #expect(rows.first { $0.id == "P" }?.trackCount == 2)
         }
@@ -200,21 +189,21 @@ struct SmartPlaylistAppTests {
 
     @Test func 켜_둔_설정은_저장돼_다시_열어도_이어진다() async throws {
         let fixture = try Self.fixture()
-        let defaults = UserDefaults(suiteName: "djc.test.smart-playlists.save.\(UUID())")!
+        let defaults = TestDefaults.make("smart-playlists.save")
         let store = await Self.makeStore(fixture, persist: true, defaults: defaults)
         #expect(!store.showSmartPlaylists)
         store.showSmartPlaylists = true
         #expect(SettingsStore(defaults: defaults, persist: true).value(SettingKeys.labSmartPlaylists))
         let reopened = await Self.makeStore(fixture, lab: true, persist: true, defaults: defaults)
         #expect(reopened.showSmartPlaylists)
-        #expect(Set(reopened.playlistIndex["S1"]?.trackIDs ?? []) == ["2", "3", "4"])
+        #expect(Set(reopened.playlists.playlistIndex["S1"]?.trackIDs ?? []) == ["2", "3", "4"])
         store.showSmartPlaylists = false
         #expect(!SettingsStore(defaults: defaults, persist: true).value(SettingKeys.labSmartPlaylists))
     }
 
     @Test func 자가_테스트_프로세스는_저장된_설정을_읽지_않는다() async throws {
         let fixture = try Self.fixture()
-        let defaults = UserDefaults(suiteName: "djc.test.smart-playlists.selftest.\(UUID())")!
+        let defaults = TestDefaults.make("smart-playlists.selftest")
         defaults.set(true, forKey: SettingKeys.labSmartPlaylists.name)
         #expect(!SettingsStore(defaults: defaults, persist: false).value(SettingKeys.labSmartPlaylists))
         let store = await Self.makeStore(fixture, persist: false, defaults: defaults)

@@ -12,7 +12,7 @@ struct SheetColumnLookupTests {
     /// 저장된 배치처럼 열을 옮긴 시트: 코멘트·파일·키가 앞으로 와서 `SheetColumn.all` 순서와 화면 순서가 다르다.
     @MainActor
     final class Harness {
-        let store = LibraryStore(saveTagDrafts: { _ in })
+        let store = LibraryStore.test(saveTagDrafts: { _ in })
         let coordinator: SheetCoordinator
         let table = SheetTableView()
         let window: NSWindow
@@ -70,7 +70,7 @@ struct SheetColumnLookupTests {
                 let expected: String = switch spec.id {
                 case "index": "\(row + 1)"
                 case "file": (h.coordinator.rows[row].track.folderPath as NSString).lastPathComponent
-                default: spec.key.map { h.store.tagCell(h.coordinator.rows[row], $0) } ?? ""
+                default: spec.key.map { h.store.tags.tagCell(h.coordinator.rows[row], $0) } ?? ""
                 }
                 #expect(h.coordinator.text(row: row, column: c) == expected, "\(spec.id) 줄 \(row)")
                 let cell = try #require(h.coordinator.tableView(h.table, viewFor: tableColumn, row: row) as? SheetCell)
@@ -117,8 +117,8 @@ struct SheetColumnLookupTests {
         h.coordinator.select(.init(row: 1, column: h.column("key")), extend: true)
         h.coordinator.fillDown()
         let second = h.coordinator.rows[1]
-        #expect(h.store.tagCell(second, .comment) == "코멘트 하나", "코멘트 열이 채워졌다")
-        #expect(h.store.tagCell(second, .title) == "곡 둘" && h.store.tagCell(second, .musicalKey) == "", "제목·키는 그대로(키는 빈칸을 그대로 채워 바뀌지 않는다)")
+        #expect(h.store.tags.tagCell(second, .comment) == "코멘트 하나", "코멘트 열이 채워졌다")
+        #expect(h.store.tags.tagCell(second, .title) == "곡 둘" && h.store.tags.tagCell(second, .musicalKey) == "", "제목·키는 그대로(키는 빈칸을 그대로 채워 바뀌지 않는다)")
         #expect(h.store.tagDrafts[second.track.uuid]?.changedKeys == [.comment])
     }
 
@@ -128,7 +128,7 @@ struct SheetColumnLookupTests {
         let first = h.coordinator.rows[0]
         h.coordinator.select(.init(row: 0, column: h.column("comment")), extend: false)
         h.coordinator.clearSelection()
-        #expect(h.store.tagCell(first, .comment) == "" && h.store.tagCell(first, .title) == "곡 하나")
+        #expect(h.store.tags.tagCell(first, .comment) == "" && h.store.tags.tagCell(first, .title) == "곡 하나")
         #expect(h.store.tagDrafts[first.track.uuid]?.changedKeys == [.comment])
     }
 
@@ -158,7 +158,7 @@ struct SheetColumnLookupTests {
 
     @Test func 표_열_배치를_저장하는_이름을_올려_옛_배치를_되살리지_않는다() throws {
         // 키 열을 더하기 전에 저장한 배치("v1")는 열 순서가 달라 새 열이 맨 끝으로 밀린다. 새 이름으로 시작한다.
-        let store = LibraryStore(saveTagDrafts: { _ in })
+        let store = LibraryStore.test(saveTagDrafts: { _ in })
         let controller = NSHostingController(rootView: TagSheetView(store: store))
         let window = NSWindow(contentViewController: controller)
         window.isReleasedWhenClosed = false

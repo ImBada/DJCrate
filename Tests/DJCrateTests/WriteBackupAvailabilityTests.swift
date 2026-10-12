@@ -8,34 +8,34 @@ struct WriteBackupAvailabilityTests {
     @Test func 시작할_때_쓰기_백업만_되돌리기를_켠다() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = LibraryStore(resultHistory: WriteResultHistory(url: nil), backupDirectory: root)
+        let store = LibraryStore.test(resultHistory: WriteResultHistory(url: nil), backupDirectory: root)
         #expect(!store.hasWriteBackup)
         try backup("2026-01-01-before-restore", in: root)
         store.refreshWriteBackups()
         #expect(!store.hasWriteBackup)
         try backup("2026-01-02-write", in: root)
-        let reopened = LibraryStore(resultHistory: WriteResultHistory(url: nil), backupDirectory: root)
+        let reopened = LibraryStore.test(resultHistory: WriteResultHistory(url: nil), backupDirectory: root)
         #expect(reopened.hasWriteBackup)
-        #expect(LibraryMenuAction.restore.isEnabled(in: reopened))
+        #expect(LibraryMenuAction.restore.isEnabled(in: LibraryWindowModel(store: reopened)))
     }
 
     @Test func 쓰기와_되돌리기_종료마다_백업_상태를_다시_읽는다() throws {
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = LibraryStore(resultHistory: WriteResultHistory(url: nil), backupDirectory: root)
+        let store = LibraryStore.test(resultHistory: WriteResultHistory(url: nil), backupDirectory: root)
         store.setWriteLock(true)
         try backup("2026-01-02-write", in: root)
         #expect(!store.hasWriteBackup)
-        #expect(!LibraryMenuAction.restore.isEnabled(in: store))
+        #expect(!LibraryMenuAction.restore.isEnabled(in: LibraryWindowModel(store: store)))
         store.setWriteLock(false)
         #expect(store.hasWriteBackup)
-        #expect(LibraryMenuAction.restore.isEnabled(in: store))
+        #expect(LibraryMenuAction.restore.isEnabled(in: LibraryWindowModel(store: store)))
         store.setWriteLock(true)
         try FileManager.default.removeItem(at: root.appending(path: "2026-01-02-write"))
         try backup("2026-01-03-before-restore", in: root)
         store.setWriteLock(false)
         #expect(!store.hasWriteBackup)
-        #expect(!LibraryMenuAction.restore.isEnabled(in: store))
+        #expect(!LibraryMenuAction.restore.isEnabled(in: LibraryWindowModel(store: store)))
     }
 
     private func backup(_ name: String, in root: URL) throws {

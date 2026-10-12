@@ -321,6 +321,22 @@
         }
       }
     },
+    "#%lld 편집: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit #%1$lld: %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集 #%1$lld: %2$@"
+          }
+        }
+      }
+    },
     "#태그 겹침" : {
       "localizations" : {
         "en" : {
@@ -646,6 +662,28 @@
         }
       }
     },
+    "%@ · %lld개를 rekordbox 쓰기 대기에 올렸습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · Added to Pending rekordbox Writes: %2$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$lld件をrekordbox書き込み待ちに入れました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld개를 rekordbox 쓰기 대기에 올렸습니다"
+          }
+        }
+      }
+    },
     "%@ · %lld곡" : {
       "localizations" : {
         "en" : {
@@ -712,6 +750,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ · USB書き込み待ち"
+          }
+        }
+      }
+    },
+    "%@ · rekordbox 쓰기 대기에 올렸습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · Added to Pending rekordbox Writes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · rekordbox書き込み待ちに入れました"
           }
         }
       }
@@ -884,6 +938,22 @@
         }
       }
     },
+    "%@ · 재생 목록 초안 · 쌓은 편집 %lld · 바뀌지 않은 편집 %lld · 건너뛴 편집 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · Playlist draft · Stacked %2$lld · Unchanged %3$lld · Skipped %4$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · プレイリスト下書き · 追加した編集 %2$lld · 変更なし %3$lld · スキップ %4$lld"
+          }
+        }
+      }
+    },
     "%@ · 컬렉션" : {
       "localizations" : {
         "en" : {
@@ -912,6 +982,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ — %2$@\nコメント: %3$@"
+          }
+        }
+      }
+    },
+    "%@ — DJCrate가 설치하지 않음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — not installed by DJCrate"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — DJCrateがインストールしたものではありません"
+          }
+        }
+      }
+    },
+    "%@ — 설치한 뒤 고침" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — edited after installation"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — インストール後に編集されています"
           }
         }
       }
@@ -1311,6 +1413,22 @@
         }
       }
     },
+    "%@. docs/cli.md의 draft playlist 사용법을 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. See draft playlist usage in docs/cli.md"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@。docs/cli.mdでdraft playlistの使い方を確認してください"
+          }
+        }
+      }
+    },
     "%@. docs/cli.md의 draft 사용법을 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -1511,6 +1629,44 @@
         }
       }
     },
+    "%@가 셸 PATH에 없습니다. %@에 아래 줄을 더한 뒤 새 터미널을 여세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ is not in your shell PATH. Add the line below to %2$@, then open a new terminal."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ はシェルの PATH にありません。%2$@ に下の行を追加してから、新しいターミナルを開いてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@가 셸 PATH에 없습니다. %2$@에 아래 줄을 더한 뒤 새 터미널을 여세요."
+          }
+        }
+      }
+    },
+    "%@가 셸 PATH에 있어 터미널과 에이전트가 djc를 바로 부릅니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is in your shell PATH, so terminals and agents can run djc directly."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ はシェルの PATH にあるため、ターミナルとエージェントから djc をそのまま実行できます。"
+          }
+        }
+      }
+    },
     "%@가 일반 파일이 아니라 스냅샷에 담지 않았습니다. rekordbox 폴더를 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -1539,6 +1695,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@は0以上にしてください"
+          }
+        }
+      }
+    },
+    "%@는 링크가 아니라 지우지 않았습니다. 직접 확인한 뒤 지우세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is not a link, so it was not removed. Check it and remove it yourself."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ はリンクではないため削除しませんでした。内容を確認してから手動で削除してください。"
+          }
+        }
+      }
+    },
+    "%@는 빈칸이 아닌 문자열입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ must be a non-empty string"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@は空でない文字列です"
           }
         }
       }
@@ -1661,6 +1849,22 @@
         }
       }
     },
+    "%@에 DJCrate가 넣지 않은 폴더나 링크가 있어 바꾸지 않았습니다. 그 항목을 옮긴 뒤 다시 하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ contains a folder or link that DJCrate did not install, so nothing was changed. Move that item, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ に DJCrate が入れていないフォルダまたはリンクがあるため、変更しませんでした。その項目を移動してからやり直してください。"
+          }
+        }
+      }
+    },
     "%@에 OneLibrary를 더하기 전의 백업으로 되돌립니다. 끝날 때까지 USB를 뽑지 마세요." : {
       "localizations" : {
         "en" : {
@@ -1673,6 +1877,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@をOneLibrary追加前のバックアップから復元します。完了するまでUSBを抜かないでください。"
+          }
+        }
+      }
+    },
+    "%@에 다른 파일이 있어 링크를 만들지 않았습니다. 그 파일을 옮긴 뒤 다시 하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another file exists at %@, so the link was not created. Move that file, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ に別のファイルがあるため、リンクを作成しませんでした。そのファイルを移動してからやり直してください。"
           }
         }
       }
@@ -1797,6 +2017,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@にキーを追加"
+          }
+        }
+      }
+    },
+    "%@에는 %@ 칸이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ has no %2$@ field"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@には%2$@フィールドがありません"
+          }
+        }
+      }
+    },
+    "%@에는 %@ 칸이 있어야 합니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ requires the %2$@ field"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@には%2$@フィールドが必要です"
+          }
+        }
+      }
+    },
+    "%@에도 DJCrate 스킬이 있습니다. Codex가 같은 스킬을 두 번 보일 수 있으니 하나를 지우세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There is also a DJCrate skill in %@. Codex may show the same skill twice, so remove one of them."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ にも DJCrate スキルがあります。Codex に同じスキルが2回表示されることがあるため、どちらかを削除してください。"
           }
         }
       }
@@ -2001,6 +2269,38 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$lld개 빠짐(%2$@)"
+          }
+        }
+      }
+    },
+    "%lld개 옮기기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move %lld Items"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld件を移動"
+          }
+        }
+      }
+    },
+    "%lld개 지우기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete %lld Items…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld件を削除…"
           }
         }
       }
@@ -2603,6 +2903,22 @@
         }
       }
     },
+    "%lld곳을 바꾸지 못했습니다. 권한을 확인한 뒤 다시 하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not change %lld location(s). Check permissions, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld か所を変更できませんでした。権限を確認してからやり直してください。"
+          }
+        }
+      }
+    },
     "%lld기" : {
       "localizations" : {
         "en" : {
@@ -3161,6 +3477,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "--db <コピー.db> [--share <解析ルート>] [--dry-run] <ContentID…> | --live …"
+          }
+        }
+      }
+    },
+    "--index는 0 이상의 정수입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "--index must be an integer of 0 or more"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "--indexは0以上の整数です"
+          }
+        }
+      }
+    },
+    "--parent나 자리(--before·--index)를 지정하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Specify --parent or a position (--before or --index)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "--parentか位置（--before・--index）を指定してください"
+          }
+        }
+      }
+    },
+    "--tracks는 쉼표로 나눈 ContentID이고 폴더에는 줄 수 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "--tracks takes comma-separated ContentIDs and can't be used for a folder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "--tracksはカンマ区切りのContentIDで、フォルダには指定できません"
           }
         }
       }
@@ -3769,6 +4133,38 @@
         }
       }
     },
+    "AI 에이전트" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI Agents"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AIエージェント"
+          }
+        }
+      }
+    },
+    "AI 에이전트 스킬이 옛 버전입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI agent skills are out of date"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AIエージェントのスキルが古いバージョンです"
+          }
+        }
+      }
+    },
     "Apple Music XML 가져오기" : {
       "localizations" : {
         "en" : {
@@ -4063,6 +4459,38 @@
         }
       }
     },
+    "Claude Code·Codex에 설치한 DJCrate 스킬·djc를 이 앱(%@)에 맞춰 갱신하세요. 설정 › AI 에이전트에서도 할 수 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update the DJCrate skill and djc installed for Claude Code and Codex to match this app (%@). You can also do this in Settings › AI Agents."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code・Codex にインストールした DJCrate スキルと djc を、このアプリ(%@)に合わせて更新してください。設定 › AIエージェントでも更新できます。"
+          }
+        }
+      }
+    },
+    "Claude Code는 설정 폴더(기본 ~/.claude, CLAUDE_CONFIG_DIR로 바꾼 폴더)의 skills를, Codex는 ~/.agents/skills를 읽습니다. 사용자가 고친 파일과 DJCrate가 설치하지 않은 것은 바꾸기 전에 묻고 휴지통으로 옮깁니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code reads skills from its config folder (~/.claude by default, or the folder set with CLAUDE_CONFIG_DIR). Codex reads ~/.agents/skills. Files you edited and items DJCrate did not install are moved to the Trash only after you confirm."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code は設定フォルダ(既定は ~/.claude、CLAUDE_CONFIG_DIR で変更したフォルダ)の skills を、Codex は ~/.agents/skills を読みます。ユーザーが編集したファイルや DJCrate がインストールしていないものは、確認してからゴミ箱に移します。"
+          }
+        }
+      }
+    },
     "ContentID 하나를 지정하세요" : {
       "localizations" : {
         "en" : {
@@ -4075,6 +4503,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ContentIDを1つ指定してください"
+          }
+        }
+      }
+    },
+    "ContentID를 하나 이상 지정하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Specify at least one ContentID"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ContentIDを1つ以上指定してください"
           }
         }
       }
@@ -4149,6 +4593,22 @@
         }
       }
     },
+    "DJCrate 것으로 바꾸기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replace with DJCrate’s…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateのものに置き換え…"
+          }
+        }
+      }
+    },
     "DJCrate 단축키" : {
       "localizations" : {
         "en" : {
@@ -4209,6 +4669,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "DJCrateデータフォルダのusb-draftsを確認してから、もう一度お試しください"
+          }
+        }
+      }
+    },
+    "DJCrate 데이터 폴더의 usb-histories 쓰기 권한을 확인한 뒤 다시 바꾸세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check write permission for usb-histories in the DJCrate data folder, then change it again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateデータフォルダのusb-historiesの書き込み権限を確認してから、もう一度変更してください"
+          }
+        }
+      }
+    },
+    "DJCrate 데이터 폴더의 usb-histories 쓰기 권한을 확인한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check write permissions for usb-histories in the DJCrate data folder, then try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateデータフォルダー内のusb-historiesの書き込み権限を確認して、再試行してください。"
+          }
+        }
+      }
+    },
+    "DJCrate 데이터 폴더의 usb-histories를 확인한 뒤 USB를 다시 연결하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check usb-histories in the DJCrate data folder, then reconnect the USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateデータフォルダのusb-historiesを確認してから、USBを接続し直してください"
+          }
+        }
+      }
+    },
+    "DJCrate 스킬을 설치하면 Claude Code·Codex가 djc로 라이브러리를 조회하고 큐·태그 초안을 만듭니다. rekordbox에 쓰는 일은 앱에서 사람이 합니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With the DJCrate skill installed, Claude Code and Codex use djc to browse your library and create cue and tag drafts. Writing to rekordbox is always done by you in the app."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate スキルをインストールすると、Claude Code・Codex が djc でライブラリを調べ、キュー・タグの下書きを作成します。rekordbox への書き込みはアプリで人が行います。"
           }
         }
       }
@@ -4277,6 +4801,38 @@
         }
       }
     },
+    "DJCrate가 rekordbox에 쓰는 중이거나 다른 djc가 재생 목록 초안을 고치는 중이라 쌓지 않았습니다. 그 일이 끝난 뒤 같은 명령을 다시 실행하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The playlist edits weren't added because DJCrate is writing to rekordbox or another djc is editing the playlist draft. Run the same command again when that finishes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateがrekordboxに書き込み中か、別のdjcがプレイリスト下書きを編集中のため、追加しませんでした。終わってから同じコマンドをもう一度実行してください"
+          }
+        }
+      }
+    },
+    "DJCrate가 rekordbox에 쓰는 중이거나 다른 djc가 재생 목록 초안을 고치는 중이라 재생 목록 초안은 만들지 않았습니다. 그 일이 끝난 뒤 다시 가져오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No playlist drafts were made because DJCrate is writing to rekordbox or another djc is editing the playlist draft. Import again when that finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateがrekordboxに書き込み中か、別のdjcがプレイリスト下書きを編集中のため、プレイリストの下書きは作りませんでした。終わってからもう一度読み込んでください"
+          }
+        }
+      }
+    },
     "DJCrate가 rekordbox에 쓴 적이 없거나 백업이 정리됐습니다." : {
       "localizations" : {
         "en" : {
@@ -4321,6 +4877,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "DJCrateが曲を解析して推定したキーです。クリックするとこのキーの下書きを作ります。rekordboxには書き込むまで入りません。"
+          }
+        }
+      }
+    },
+    "DJCrate가 설치하지 않았거나 설치한 뒤 고친 것입니다. 휴지통에서 되살릴 수 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These were not installed by DJCrate or were edited after installation. You can restore them from the Trash."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate がインストールしていないもの、またはインストール後に編集されたものです。ゴミ箱から復元できます。"
+          }
+        }
+      }
+    },
+    "DJCrate가 설치하지 않음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not installed by DJCrate"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateがインストールしたものではありません"
           }
         }
       }
@@ -4421,22 +5009,6 @@
         }
       }
     },
-    "DJCrate가 켜져 있어 재생 목록 초안은 만들지 않았습니다(앱이 자기 초안으로 덮습니다). DJCrate를 끈 뒤 다시 실행하거나 앱의 rekordbox XML 가져오기를 쓰세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No playlist drafts were made because DJCrate is running (the app would overwrite them with its own drafts). Quit DJCrate and run this again, or use Import rekordbox XML in the app."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DJCrateが起動中のため、プレイリストの下書きは作りませんでした（アプリが自分の下書きで上書きします）。DJCrateを終了してから再実行するか、アプリの「rekordbox XMLを読み込む」を使ってください"
-          }
-        }
-      }
-    },
     "DJCrate는 XML을 늘 이 파일에 만듭니다(경로를 클립보드에 복사했습니다):\n%@" : {
       "localizations" : {
         "en" : {
@@ -4449,6 +5021,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "DJCrateは常にこのファイルにXMLを作成します（パスをクリップボードにコピーしました）：\n%@"
+          }
+        }
+      }
+    },
+    "DJCrate를 응용 프로그램 폴더로 옮긴 뒤 다시 열고 하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move DJCrate to the Applications folder, reopen it, and try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate をアプリケーションフォルダに移動し、開き直してからやり直してください。"
           }
         }
       }
@@ -4881,6 +5469,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Flipの結果"
+          }
+        }
+      }
+    },
+    "Flip 결과 창을 여는 중입니다. 창이 열린 뒤 다시 기록하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Flip result window is opening. Record again after it opens."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flipの結果ウィンドウを開いています。ウィンドウが開いてから記録し直してください。"
           }
         }
       }
@@ -5793,6 +6397,102 @@
         }
       }
     },
+    "USB ‘%@’에서 가져와 DJCrate에 보존한 기록입니다. rekordbox 쓰기 대기에 있어 rekordbox에 쓰기(⇧⌘E) 때 rekordbox 재생 기록에 넣습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imported from the USB ‘%@’ and kept in DJCrate. It's in Pending rekordbox Writes and goes into rekordbox History when you Write to rekordbox (⇧⌘E)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB「%@」から取り込んでDJCrateに保存した履歴です。rekordbox書き込み待ちにあり、rekordboxに書き込む（⇧⌘E）ときにrekordboxの演奏履歴に入れます"
+          }
+        }
+      }
+    },
+    "USB ‘%@’에서 가져와 DJCrate에 보존한 기록입니다. rekordbox 쓰기 대기에서 뺐습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imported from the USB ‘%@’ and kept in DJCrate. Removed from Pending rekordbox Writes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB「%@」から取り込んでDJCrateに保存した履歴です。rekordbox書き込み待ちから外しました"
+          }
+        }
+      }
+    },
+    "USB ‘%@’에서 가져와 DJCrate에 보존한 기록입니다. rekordbox에 썼습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imported from the USB ‘%@’ and kept in DJCrate. Written to rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB「%@」から取り込んでDJCrateに保存した履歴です。rekordboxに書き込みました"
+          }
+        }
+      }
+    },
+    "USB ‘%@’에서 가져와 DJCrate에 보존한 기록입니다. rekordbox에는 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imported from the USB ‘%@’ and kept in DJCrate. It isn't in rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB「%@」から取り込んでDJCrateに保存した履歴です。rekordboxにはありません"
+          }
+        }
+      }
+    },
+    "USB ‘%@’에서 가져와 DJCrate에 보존한 기록입니다. 같은 곡이 두 번 이상 들어 DJCrate는 rekordbox에 쓰지 않으니 rekordbox에서 USB를 연결해 직접 가져오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imported from the USB ‘%@’ and kept in DJCrate. It has the same track more than once, so DJCrate does not write it to rekordbox. Connect the USB to rekordbox and import it there"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB「%@」から取り込んでDJCrateに保存した履歴です。同じ曲が2回以上入っているためDJCrateはrekordboxに書き込みません。rekordboxにUSBを接続して直接取り込んでください"
+          }
+        }
+      }
+    },
+    "USB ‘%@’에서 가져와 DJCrate에 보존한 기록입니다. 컬렉션에 있는 곡이 없어 rekordbox에는 쓰지 않습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imported from the USB ‘%@’ and kept in DJCrate. None of its tracks are in the Collection, so it isn't written to rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB「%@」から取り込んでDJCrateに保存した履歴です。コレクションにある曲がないため、rekordboxには書き込みません"
+          }
+        }
+      }
+    },
     "USB 곡 순서 바꾸기" : {
       "localizations" : {
         "en" : {
@@ -5805,6 +6505,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBの曲の並べ替え"
+          }
+        }
+      }
+    },
+    "USB 곡과 짝인 로컬 곡을 찾을 수 없으니 라이브러리를 다시 읽은 뒤 덱에 불러오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The local track matching this USB track can’t be found, so reload the library and then load it to the deck"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSBの曲に対応するローカルの曲が見つからないため、ライブラリを読み込み直してからデッキに読み込んでください"
           }
         }
       }
@@ -6855,6 +7571,66 @@
         }
       }
     },
+    "USB 재생 기록 %lld건이 쓰기 대기에 있습니다. 위 ‘rekordbox에 쓰기’로 rekordbox 재생 기록에 넣습니다." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld USB history is pending. Use ‘Write to rekordbox’ above to add it to rekordbox History."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld USB histories are pending. Use ‘Write to rekordbox’ above to add them to rekordbox History."
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの演奏履歴%lld件が書き込み待ちです。上の「rekordboxに書き込む」でrekordboxの演奏履歴に入れます。"
+          }
+        }
+      }
+    },
+    "USB 재생 기록 파일을 읽지 못했습니다. usb-histories 읽기 권한을 확인한 뒤 USB를 다시 연결하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read the USB history files. Check read permissions for usb-histories, then reconnect the USB."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB再生履歴ファイルを読み込めませんでした。usb-historiesの読み取り権限を確認して、USBを再接続してください。"
+          }
+        }
+      }
+    },
+    "USB 재생 기록을 보존하지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not keep the USB history"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBの演奏履歴を保存できませんでした"
+          }
+        }
+      }
+    },
     "USB 재생 목록 고치기" : {
       "localizations" : {
         "en" : {
@@ -7871,6 +8647,38 @@
         }
       }
     },
+    "USB에 쓰는 중이라 업데이트 설치를 미룹니다. 쓰기가 끝나면 이어서 설치합니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing to a USB, so the update will be installed after the write finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに書き込み中のため、アップデートのインストールを延期します。書き込みが終わったら続けてインストールします"
+          }
+        }
+      }
+    },
+    "USB에 쓰는 중입니다. 끝난 뒤 종료하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate is writing to a USB. Quit after it finishes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBに書き込み中です。終わってから終了してください"
+          }
+        }
+      }
+    },
     "USB에 쓰는 중입니다. 쓰기가 끝난 뒤 꺼내세요" : {
       "localizations" : {
         "en" : {
@@ -8317,6 +9125,22 @@
         }
       }
     },
+    "USB에서 가져온 기록" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imported from USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBから取り込んだ履歴"
+          }
+        }
+      }
+    },
     "USB에서 같은 경로가 되는 곡 파일 이름의 처리" : {
       "localizations" : {
         "en" : {
@@ -8421,6 +9245,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBで選択されていた元のプレイリストが見つかりません。iTunesとrekordboxのプレイリストを読み直すか、rekordboxでUSB同期選択を確認してください。"
+          }
+        }
+      }
+    },
+    "USB에서 재생 기록 %lld개를 가져왔습니다" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld history from the USB"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Imported %lld histories from the USB"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBから演奏履歴を%lld件取り込みました"
           }
         }
       }
@@ -9109,6 +9961,22 @@
         }
       }
     },
+    "as는 @로 시작하는 임시 이름입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "as must be a temporary name starting with @"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "asは@で始まる仮の名前です"
+          }
+        }
+      }
+    },
     "backlog 필터는 삭제되었습니다. 빈 코멘트는 --filter empty-comment로 찾으세요" : {
       "localizations" : {
         "en" : {
@@ -9121,6 +9989,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "backlogフィルターは削除されました。空のコメントは--filter empty-commentで検索してください"
+          }
+        }
+      }
+    },
+    "before와 index는 함께 줄 수 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "before and index can't be used together"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "beforeとindexは同時に指定できません"
           }
         }
       }
@@ -9187,6 +10071,38 @@
         }
       }
     },
+    "djc 링크를 만들었습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Created the djc link."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "djc のリンクを作成しました。"
+          }
+        }
+      }
+    },
+    "djc 링크를 지웠습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removed the djc link."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "djc のリンクを削除しました。"
+          }
+        }
+      }
+    },
     "exFAT USB는 CDJ-2000NXS2 등 이전 기기가 읽지 못할 수 있습니다" : {
       "localizations" : {
         "en" : {
@@ -9199,6 +10115,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "exFATのUSBはCDJ-2000NXS2など以前の機器で読めないことがあります"
+          }
+        }
+      }
+    },
+    "folder는 true 또는 false입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "folder must be true or false"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "folderはtrueかfalseです"
           }
         }
       }
@@ -9363,6 +10295,22 @@
         }
       }
     },
+    "iTunes 동기화를 rekordbox에 썼습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wrote the iTunes sync to rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iTunes同期をrekordboxに書き込みました"
+          }
+        }
+      }
+    },
     "iTunes 목록 갱신에 실패해 이전 사본을 표시합니다. Music 접근 권한과 rekordbox의 iTunes 읽기 설정을 확인한 뒤 새로고침하세요." : {
       "localizations" : {
         "en" : {
@@ -9407,6 +10355,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "iTunesプレイリストを読み込めません。Musicへのアクセス権とrekordboxのiTunes読み込み設定を確認してから更新してください。"
+          }
+        }
+      }
+    },
+    "index는 0 이상의 정수입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "index must be an integer of 0 or more"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "indexは0以上の整数です"
           }
         }
       }
@@ -9530,6 +10494,38 @@
         }
       }
     },
+    "move에는 parent나 자리(before·index)가 있어야 합니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "move requires parent or a position (before or index)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "moveにはparentか位置（before・index）が必要です"
+          }
+        }
+      }
+    },
+    "op는 create·rename·move·delete·add·remove·order 가운데 하나입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "op must be one of create, rename, move, delete, add, remove, order"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "opはcreate・rename・move・delete・add・remove・orderのいずれかです"
+          }
+        }
+      }
+    },
     "playlist-write는 사본에만 씁니다. rekordbox 라이브러리는 앱의 반영으로 쓰세요" : {
       "localizations" : {
         "en" : {
@@ -9635,6 +10631,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxのDBキーを解除できませんでした。"
+          }
+        }
+      }
+    },
+    "rekordbox Histories에 %@ 폴더 없이 %@ 폴더만 있어 쓰지 않으니 rekordbox에서 Histories를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox Histories has the %2$@ folder without the %1$@ folder, so it was not written. Check Histories in rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxの演奏履歴に%1$@フォルダがなく%2$@フォルダだけがあるため書き込みません。rekordboxで演奏履歴を確認してください"
+          }
+        }
+      }
+    },
+    "rekordbox Histories의 %@ 폴더 자리에 다른 행이 있어 쓰지 않으니 rekordbox에서 그 폴더를 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another item occupies the %@ folder in rekordbox Histories, so it was not written. Check that folder in rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxの演奏履歴の%@フォルダの位置に別の項目があるため書き込みません。rekordboxでそのフォルダを確認してください"
           }
         }
       }
@@ -10603,6 +11631,38 @@
         }
       }
     },
+    "rekordbox 쓰기 대기에 넣기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to Pending rekordbox Writes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox書き込み待ちに入れる"
+          }
+        }
+      }
+    },
+    "rekordbox 쓰기 대기에서 빼기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from Pending rekordbox Writes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox書き込み待ちから外す"
+          }
+        }
+      }
+    },
     "rekordbox 쓰기 전 백업" : {
       "localizations" : {
         "en" : {
@@ -10867,6 +11927,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxコレクションに結び付けられない%lld曲はUSBに入れません。コレクションへの登録とオーディオパスを確認してください"
+          }
+        }
+      }
+    },
+    "rekordbox 컬렉션에 있는 곡이 하나도 없는 기록이라 쓰지 않으니 곡을 컬렉션에 넣은 뒤 다시 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "None of the history's tracks are in the rekordbox Collection, so it was not written. Add the tracks to the Collection, then write again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxのコレクションにある曲が1曲もない履歴のため書き込みません。曲をコレクションに追加してから書き込み直してください"
           }
         }
       }
@@ -11943,6 +13019,50 @@
         }
       }
     },
+    "rekordbox에 쓰기 (%lld곡 · 재생 기록 %lld건)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write to rekordbox (Tracks: %1$lld · Histories: %2$lld)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxに書き込む（%1$lld曲・演奏履歴%2$lld件）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "rekordbox에 쓰기 (%1$lld곡 · 재생 기록 %2$lld건)"
+          }
+        }
+      }
+    },
+    "rekordbox에 쓰기 (%lld곡 · 재생 목록 %lld건 · 재생 기록 %lld건)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write to rekordbox (Tracks: %1$lld · Playlist Edits: %2$lld · Histories: %3$lld)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxに書き込む（%1$lld曲・プレイリスト%2$lld件・演奏履歴%3$lld件）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "rekordbox에 쓰기 (%1$lld곡 · 재생 목록 %2$lld건 · 재생 기록 %3$lld건)"
+          }
+        }
+      }
+    },
     "rekordbox에 쓰기 (%lld곡 · 재생 목록 %lld건)" : {
       "localizations" : {
         "en" : {
@@ -11989,6 +13109,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxに書き込む（%lld曲）"
+          }
+        }
+      }
+    },
+    "rekordbox에 쓰기 전까지는 초안이라 실행 취소(⌘Z)로 되돌릴 수 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These stay drafts until you write to rekordbox, so you can undo with ⌘Z."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxに書き込むまでは下書きなので、取り消す（⌘Z）で元に戻せます。"
           }
         }
       }
@@ -12053,6 +13189,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxに書き込み中は削除できません。書き込みが終わってから削除してください"
+          }
+        }
+      }
+    },
+    "rekordbox에 쓰는 중이라 업데이트 설치를 미룹니다. 쓰기가 끝나면 이어서 설치합니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing to rekordbox, so the update will be installed after the write finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxに書き込み中のため、アップデートのインストールを延期します。書き込みが終わったら続けてインストールします"
           }
         }
       }
@@ -12169,18 +13321,18 @@
         }
       }
     },
-    "rekordbox에 쓸 곡 초안을 모아 봅니다. 재생 목록 초안도 함께 쓸 수 있습니다." : {
+    "rekordbox에 쓸 곡 초안과 USB 재생 기록을 모아 봅니다. 재생 목록 초안도 함께 쓸 수 있습니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "View pending track drafts; playlist drafts can be written with them."
+            "value" : "View pending track drafts and USB histories; playlist drafts can be written with them."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "書き込み待ちの曲の下書きを表示します。プレイリストの下書きも一緒に書き込めます。"
+            "value" : "書き込み待ちの曲の下書きとUSBの演奏履歴を表示します。プレイリストの下書きも一緒に書き込めます。"
           }
         }
       }
@@ -12293,6 +13445,22 @@
         }
       }
     },
+    "rekordbox에 이미 있는 재생 기록입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This history is already in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この再生履歴はすでにrekordboxにあります。"
+          }
+        }
+      }
+    },
     "rekordbox에는 넣었지만 추가 목록을 백업에 저장하지 못해 ‘쓰기 전으로 복원…’으로 되돌려도 곡이 추가 목록으로 돌아오지 않으니, 되돌렸다면 음원을 다시 추가하세요." : {
       "localizations" : {
         "en" : {
@@ -12321,6 +13489,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxには書き込みましたが、ライブラリを読み直せませんでした。「rekordboxと同期」（⌘R）で読み直してから編集を続けてください。"
+          }
+        }
+      }
+    },
+    "rekordbox에는 썼지만 보존한 재생 기록 %lld건에 쓴 표시를 저장하지 못했으니, 다시 켠 뒤 그 기록이 쓰기 대기에 오르면 사이드바에서 쓰기 대기에서 빼세요." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Changes were written to rekordbox, but %lld kept history couldn't be marked as written. If it shows up in Pending rekordbox Writes after you reopen DJCrate, remove it from there in the sidebar."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Changes were written to rekordbox, but %lld kept histories couldn't be marked as written. If they show up in Pending rekordbox Writes after you reopen DJCrate, remove them from there in the sidebar."
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxには書き込みましたが、保存した演奏履歴%lld件に書き込み済みの印を保存できませんでした。再起動後にその履歴が書き込み待ちに入ったら、サイドバーで書き込み待ちから外してください。"
           }
         }
       }
@@ -12931,6 +14127,38 @@
         }
       }
     },
+    "tracks는 ContentID 문자열 배열입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tracks must be an array of ContentID strings"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tracksはContentID文字列の配列です"
+          }
+        }
+      }
+    },
+    "tracks에 ContentID를 하나 이상 주세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Give at least one ContentID in tracks"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tracksにContentIDを1つ以上指定してください"
+          }
+        }
+      }
+    },
     "~%.3f 루프" : {
       "localizations" : {
         "en" : {
@@ -13141,6 +14369,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "「%@」内に移動"
+          }
+        }
+      }
+    },
+    "‘%@’ 이름의 목록이 %lld개라 고를 수 없습니다. ID로 가리키세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are %2$lld playlists named ‘%1$@’, so none was chosen. Refer to it by ID"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "‘%1$@’という名前のプレイリストが%2$lld個あるため選べません。IDで指定してください"
+          }
+        }
+      }
+    },
+    "‘%@’ 이름의 재생 목록이 없습니다. djc playlists로 이름을 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There's no playlist named ‘%@’. Check names with djc playlists"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "‘%@’という名前のプレイリストはありません。djc playlistsで名前を確認してください"
           }
         }
       }
@@ -13851,6 +15111,22 @@
         }
       }
     },
+    "같은 곡의 곡 정보·앨범아트 초안과 함께 쓰면 곡 행을 두 번 고치게 되니 곡 정보·앨범아트를 먼저 쓴 뒤 기록을 다시 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing together with track info or album art drafts for the same track would change the track twice. Write the track info or album art first, then write the history again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ曲のトラック情報・アルバムアートの下書きと一緒に書き込むと曲を2回変更することになります。トラック情報・アルバムアートを先に書き込んでから、履歴を書き込み直してください"
+          }
+        }
+      }
+    },
     "같은 곡의 다른 초안이나 재생 목록 초안이 있습니다. 먼저 쓰거나 버린 뒤 합치세요" : {
       "localizations" : {
         "en" : {
@@ -13863,6 +15139,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同じ曲の別の下書き、またはプレイリストの下書きがあります。先に書き込むか破棄してから統合してください。"
+          }
+        }
+      }
+    },
+    "같은 곡의 중복 합치기와 함께 쓰지 않으니 합치기를 먼저 쓰거나 버린 뒤 기록을 다시 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not written together with a duplicate merge of the same track. Write or discard the merge first, then write the history again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ曲の重複統合と一緒には書き込みません。統合を先に書き込むか破棄してから、履歴を書き込み直してください"
+          }
+        }
+      }
+    },
+    "같은 곡이 두 번 이상 든 기록은 rekordbox 재생 횟수 규칙을 확인하지 않아 쓰지 않으니 rekordbox에서 USB를 연결해 직접 가져오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Histories with the same track more than once are not written because the rekordbox DJ Play Count rule is unverified. Connect the USB to rekordbox and import it there"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ曲が2回以上入った履歴は、rekordboxのDJプレイ回数のルールを確認していないため書き込みません。rekordboxにUSBを接続して直接取り込んでください"
+          }
+        }
+      }
+    },
+    "같은 곡이 여러 기록에 든 묶음은 재생 횟수 규칙을 확인하지 않아 쓰지 않으니 기록을 하나씩 쓰거나 rekordbox에서 직접 가져오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The play count rule for batches with the same track in multiple histories has not been verified. Write one history at a time or import directly in rekordbox."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数の履歴に同じ曲が含まれる場合の再生回数規則を確認できていません。履歴を1件ずつ書き込むか、rekordboxで直接取り込んでください。"
+          }
+        }
+      }
+    },
+    "같은 기록이 한 번에 두 번 들어 있어 앞의 것만 쓰니 쓴 뒤 기록을 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The same history was included twice, so only the first was written. Check the history after writing"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ履歴が一度に2回含まれているため、最初のものだけを書き込みます。書き込んだ後に履歴を確認してください"
           }
         }
       }
@@ -13911,6 +15251,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同じ一括処理に同じkey（%@）で作成したプレイリストがあります"
+          }
+        }
+      }
+    },
+    "같은 묶음에 같은 임시 이름(@%@)으로 만든 목록이 있습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A playlist with the same temporary name (@%@) was already created in this batch"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じまとまりに同じ仮の名前（@%@）で作成したプレイリストがあります"
           }
         }
       }
@@ -14299,6 +15655,38 @@
         }
       }
     },
+    "개발 빌드에서는 업데이트를 확인하지 않습니다. 배포한 앱에서 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Development builds don't check for updates. Use a released build to check."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開発ビルドではアップデートを確認しません。配布版のアプリで確認してください"
+          }
+        }
+      }
+    },
+    "갱신" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新"
+          }
+        }
+      }
+    },
     "갱신 가능" : {
       "localizations" : {
         "en" : {
@@ -14359,6 +15747,44 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "絞り込み中：%@"
+          }
+        }
+      }
+    },
+    "건너뛴 %lld개: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skipped %1$lld: %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキップした%1$lld件：%2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "건너뛴 %1$lld개: %2$@"
+          }
+        }
+      }
+    },
+    "건너뛸 항목: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Will skip: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキップする項目：%@"
           }
         }
       }
@@ -15019,18 +16445,18 @@
         }
       }
     },
-    "고른 곡(없으면 목록 전체)과 재생 목록 초안을 rekordbox에 씁니다." : {
+    "고른 곡(없으면 목록 전체)과 재생 목록 초안·USB 재생 기록을 rekordbox에 씁니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Writes the selected tracks (or the whole list) and playlist drafts to rekordbox."
+            "value" : "Writes the selected tracks (or the whole list), playlist drafts, and USB histories to rekordbox."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選んだ曲（なければリスト全体）とプレイリストの下書きをrekordboxに書き込みます。"
+            "value" : "選んだ曲（なければリスト全体）とプレイリストの下書き・USBの演奏履歴をrekordboxに書き込みます。"
           }
         }
       }
@@ -15471,6 +16897,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ピン留めしました: %@"
+          }
+        }
+      }
+    },
+    "고친 파일 있음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edited files"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集されたファイルあり"
+          }
+        }
+      }
+    },
+    "고친 파일도 휴지통으로 옮기고 제거할까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move the edited files to the Trash too and remove the skill?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集されたファイルもゴミ箱に移して削除しますか?"
           }
         }
       }
@@ -16755,6 +18213,22 @@
         }
       }
     },
+    "곡을 바꾸면 방금 마친 기록(점프·루프 %lld개)으로 결과 창을 열지 않고 버립니다. 버린 기록은 다시 만들 수 없으니, 남기려면 취소하고 결과 창이 열릴 때까지 기다리세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changing the track discards the recording you just finished (%lld jumps and loops) without opening its result window. A discarded recording can't be made again; to keep it, cancel and wait for the result window to open."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲を変えると、終えたばかりの記録(ジャンプ・ループ%lld個)を結果ウィンドウを開かずに破棄します。破棄した記録は作り直せません。残すには、キャンセルして結果ウィンドウが開くまで待ってください。"
+          }
+        }
+      }
+    },
     "곡을 바꾸면 지금까지 기록한 점프·루프 %lld개를 버립니다. 버린 기록은 다시 만들 수 없으니, 남기려면 취소하고 Flip을 눌러 기록을 마치세요" : {
       "localizations" : {
         "en" : {
@@ -17313,6 +18787,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "その後USB書き込み待ちが変わりました。USB書き込み待ちで編集を外してください"
+          }
+        }
+      }
+    },
+    "그 목록에 든 곡이 아닙니다. djc playlist로 곡을 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The track isn't in that playlist. Check its tracks with djc playlist"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "そのプレイリストに入っている曲ではありません。djc playlistで曲を確認してください"
           }
         }
       }
@@ -18179,6 +19669,22 @@
         }
       }
     },
+    "기록 날짜를 읽지 못해 쓰지 않으니 DJCrate에서 기록을 다시 가져온 뒤 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read the history date, so it was not written. Import the history into DJCrate again, then write"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "履歴の日付を読み取れなかったため書き込みません。DJCrateで履歴を取り込み直してから書き込んでください"
+          }
+        }
+      }
+    },
     "기록 버리기" : {
       "localizations" : {
         "en" : {
@@ -18191,6 +19697,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "記録を破棄"
+          }
+        }
+      }
+    },
+    "기록 이름이 비어 있어 쓰지 않으니 DJCrate에서 기록을 다시 가져온 뒤 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The history has no name, so it was not written. Import the history into DJCrate again, then write"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "履歴の名前が空のため書き込みません。DJCrateで履歴を取り込み直してから書き込んでください"
           }
         }
       }
@@ -18255,6 +19777,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "履歴の曲を再生順に表示"
+          }
+        }
+      }
+    },
+    "기록의 원본 곡 식별이 없어 라이브러리에 쓰지 않으니 DJCrate에서 USB 기록을 다시 가져온 뒤 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The history has no original track identities, so it cannot be written to the library. Import the USB history again in DJCrate, then retry."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "履歴に元の曲の識別情報がないため、ライブラリに書き込めません。DJCrateでUSB履歴を再度取り込んでから書き込んでください。"
+          }
+        }
+      }
+    },
+    "기록의 짝을 확인한 라이브러리와 쓰기 대상이 다르니 새 스냅샷을 읽은 뒤 다시 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The target library differs from the library used to match this history. Read a new snapshot, then retry."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "履歴を照合したライブラリと書き込み先が異なります。新しいスナップショットを読み込んでから書き込んでください。"
+          }
+        }
+      }
+    },
+    "기록한 곡이 덱에서 바뀌어 Flip 결과를 만들지 않았습니다. 그 곡을 다시 불러와 Flip을 기록하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The recorded track changed in the deck, so no Flip result was made. Load that track again and record a Flip."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記録した曲がデッキで変わったため、Flipの結果を作りませんでした。その曲を読み込み直してFlipを記録してください。"
           }
         }
       }
@@ -19215,6 +20785,22 @@
         }
       }
     },
+    "넣거나 빼지 않은 곡 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracks not added or removed: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加・削除しなかった曲 %@"
+          }
+        }
+      }
+    },
     "넣기" : {
       "localizations" : {
         "en" : {
@@ -19595,6 +21181,22 @@
         }
       }
     },
+    "다른 djc가 있음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another djc exists"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別の djc があります"
+          }
+        }
+      }
+    },
     "다른 rekordbox 라이브러리에서 뜬 백업입니다. 이 라이브러리의 백업을 고르세요" : {
       "localizations" : {
         "en" : {
@@ -19707,6 +21309,22 @@
         }
       }
     },
+    "다른 위치…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other Location…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ほかの場所…"
+          }
+        }
+      }
+    },
     "다른 폴더로 옮겨짐" : {
       "localizations" : {
         "en" : {
@@ -19799,6 +21417,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再解析します"
+          }
+        }
+      }
+    },
+    "다시 설치" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reinstall"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再インストール"
           }
         }
       }
@@ -22093,6 +23727,22 @@
         }
       }
     },
+    "로컬 rekordbox에 없는 USB 곡이라 덱에 올릴 수 없으니 rekordbox 컬렉션에 먼저 더하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This USB track isn’t in your local rekordbox, so it can’t be loaded to the deck; add it to the rekordbox collection first"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルのrekordboxにないUSBの曲のためデッキに読み込めません。先にrekordboxのコレクションに追加してください"
+          }
+        }
+      }
+    },
     "로컬 곡과 짝이 하나로 맞지 않는 %lld곡은 가져오지 않았으니 원본 라이브러리를 확인하세요." : {
       "localizations" : {
         "en" : {
@@ -22927,6 +24577,86 @@
         }
       }
     },
+    "링크 만들기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create Link"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リンクを作成"
+          }
+        }
+      }
+    },
+    "링크 지우기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove Link"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リンクを削除"
+          }
+        }
+      }
+    },
+    "링크: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リンク: %@"
+          }
+        }
+      }
+    },
+    "링크는 앱 안의 djc를 가리켜 앱을 갱신하면 djc도 함께 바뀝니다. 셸 설정 파일은 고치지 않습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The link points to the djc inside the app, so djc updates together with the app. Your shell configuration files are not changed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リンクはアプリ内の djc を指すため、アプリを更新すると djc も一緒に更新されます。シェルの設定ファイルは変更しません。"
+          }
+        }
+      }
+    },
+    "링크를 만들 수 없음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot create link"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リンクを作成できません"
+          }
+        }
+      }
+    },
     "마디" : {
       "localizations" : {
         "en" : {
@@ -23203,6 +24933,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最後のクリップはこれ以上後ろに移動できないため、前に移動するか別のクリップを選んでください"
+          }
+        }
+      }
+    },
+    "마지막 확인" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last Checked"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最終確認"
           }
         }
       }
@@ -23875,6 +25621,22 @@
         }
       }
     },
+    "명령줄 도구 djc" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Command-Line Tool djc"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンドラインツール djc"
+          }
+        }
+      }
+    },
     "명시한 사본(--db)으로 연 창에서는 스냅샷을 뜨지 않습니다. --db 없이 다시 여세요" : {
       "localizations" : {
         "en" : {
@@ -23903,6 +25665,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "モノラル・ステレオの音源のみ編集できます"
+          }
+        }
+      }
+    },
+    "모두 rekordbox 쓰기 대기에서 빼기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove All from Pending rekordbox Writes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてrekordbox書き込み待ちから外す"
+          }
+        }
+      }
+    },
+    "모두 갱신" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update All"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべて更新"
+          }
+        }
+      }
+    },
+    "모두 갱신했습니다. 에이전트의 새 세션부터 새 스킬을 읽습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updated everything. Agents load the new skill from their next session."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべて更新しました。エージェントは次のセッションから新しいスキルを読み込みます。"
           }
         }
       }
@@ -24271,6 +26081,22 @@
         }
       }
     },
+    "목록에서 빼기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from List"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リストから外す"
+          }
+        }
+      }
+    },
     "목록은 맨 위에 만듭니다. 같은 이름은 ‘ (2)’, ‘ (3)’을 붙여 새로 만들고, 같은 출처는 기존 연결에 이어 넣습니다. 목록 초안은 ‘rekordbox에 쓰기’로 저장합니다." : {
       "localizations" : {
         "en" : {
@@ -24299,6 +26125,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ライブラリでリストが見つかりませんでした。スナップショットを取り直してから再度読み込んでください"
+          }
+        }
+      }
+    },
+    "목록을 지정하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Specify a playlist"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストを指定してください"
           }
         }
       }
@@ -24619,6 +26461,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未割り当て"
+          }
+        }
+      }
+    },
+    "바깥에서 바뀐 재생 목록 초안을 다시 읽어 방금 변경은 하지 않았습니다. 다시 해 주세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The playlist draft was changed outside DJCrate and has been reloaded, so your last change wasn't applied. Please do it again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外部で変更されたプレイリスト下書きを読み直したため、直前の変更は行いませんでした。もう一度行ってください。"
+          }
+        }
+      }
+    },
+    "바꾸지 않았습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing was changed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更しませんでした。"
           }
         }
       }
@@ -25603,6 +27477,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "表示する列"
+          }
+        }
+      }
+    },
+    "보존 기록의 곡 원본 식별을 확인하지 못해 쓰지 않으니 USB를 다시 연결한 뒤 새 스냅샷을 읽으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The original track identity in the saved history could not be verified. Reconnect the USB and read a new snapshot."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存した履歴の元の曲の識別情報を確認できません。USBを再接続して、新しいスナップショットを読み込んでください。"
+          }
+        }
+      }
+    },
+    "보존 기록의 곡 원본 식별이 서로 다르니 USB를 다시 연결해 기록을 확인한 뒤 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The saved history contains conflicting original track identities. Reconnect the USB and check the history before writing."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存した履歴に矛盾する元の曲の識別情報があります。USBを再接続し、履歴を確認してから書き込んでください。"
           }
         }
       }
@@ -27563,6 +29469,38 @@
         }
       }
     },
+    "새 버전 자동 확인" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatically check for updates"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいバージョンを自動で確認"
+          }
+        }
+      }
+    },
+    "새 버전을 뒤에서 받아 두고 앱을 끌 때 설치합니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloads new versions in the background and installs them when you quit the app."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいバージョンをバックグラウンドでダウンロードし、アプリの終了時にインストールします。"
+          }
+        }
+      }
+    },
     "새 스냅샷을 뜨고 있습니다" : {
       "localizations" : {
         "en" : {
@@ -27575,6 +29513,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新しいスナップショットを作成しています。"
+          }
+        }
+      }
+    },
+    "새 연 폴더를 만드는 규칙을 확인하지 않아 쓰지 않으니 rekordbox에서 USB를 연결해 직접 가져오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creating a new year folder has not been verified. Connect the USB in rekordbox to import the history directly."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい年フォルダーの作成規則を確認できていません。rekordboxでUSBを接続して履歴を直接取り込んでください。"
+          }
+        }
+      }
+    },
+    "새 재생 기록 ID를 만들지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not create a new history ID"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい演奏履歴のIDを作成できませんでした"
+          }
+        }
+      }
+    },
+    "새 재생 기록 항목 ID를 만들지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not create a new history entry ID"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい演奏履歴の項目IDを作成できませんでした"
           }
         }
       }
@@ -28319,6 +30305,86 @@
         }
       }
     },
+    "설정의 AI 에이전트 작업이 끝난 뒤 다시 하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try again after the task in Settings › AI Agents finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定 › AIエージェントの作業が終わってからやり直してください。"
+          }
+        }
+      }
+    },
+    "설치" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インストール"
+          }
+        }
+      }
+    },
+    "설치됨(%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installed (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インストール済み(%@)"
+          }
+        }
+      }
+    },
+    "설치하지 않음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not installed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未インストール"
+          }
+        }
+      }
+    },
+    "설치한 뒤 바뀐 파일: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files changed after installation: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インストール後に変更されたファイル: %@"
+          }
+        }
+      }
+    },
     "세로 휠·핀치·= 키로 확대합니다" : {
       "localizations" : {
         "en" : {
@@ -28417,6 +30483,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "セクション別エネルギー（ラウドネスLUFS / ボーカル / ドラム / スコア）"
+          }
+        }
+      }
+    },
+    "셸 PATH를 읽지 못했습니다. 터미널에서 which djc로 확인하고, 없으면 %@에 아래 줄을 더하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read your shell PATH. Run which djc in a terminal; if nothing is found, add the line below to %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シェルの PATH を読み取れませんでした。ターミナルで which djc を実行し、見つからなければ %@ に下の行を追加してください。"
           }
         }
       }
@@ -28791,6 +30873,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "スナップショットがありません。先に`djc snapshot`を実行してください。"
+          }
+        }
+      }
+    },
+    "스킬" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skills"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキル"
+          }
+        }
+      }
+    },
+    "스킬을 설치했습니다. 에이전트의 새 세션부터 읽습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installed the skill. Agents load it from their next session."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキルをインストールしました。エージェントは次のセッションから読み込みます。"
+          }
+        }
+      }
+    },
+    "스킬을 제거했습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removed the skill."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキルを削除しました。"
           }
         }
       }
@@ -29743,6 +31873,38 @@
         }
       }
     },
+    "쓰기 대기에 오른 USB 재생 기록입니다. 고르면 그 기록을 보고, 빼면 실행 취소로 되돌립니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB histories in Pending rekordbox Writes. Choose one to view it; removing them can be undone."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込み待ちに入っているUSBの演奏履歴です。選ぶとその履歴を表示し、外しても取り消せます。"
+          }
+        }
+      }
+    },
+    "쓰기 대상의 곡 원본 식별이 보존 기록과 달라 쓰지 않으니 새 스냅샷을 읽은 뒤 다시 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The target track identity differs from the saved history, so it was not written. Read a new snapshot, then retry."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込み先の曲の識別情報が保存した履歴と異なるため、書き込みませんでした。新しいスナップショットを読み込んでから書き込んでください。"
+          }
+        }
+      }
+    },
     "쓰기 미리 보기에서 지원 제한과 최신 상태를 다시 확인하세요." : {
       "localizations" : {
         "en" : {
@@ -30365,6 +32527,22 @@
         }
       }
     },
+    "쓸 곡 초안이 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Track Drafts to Write"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込む曲の下書きがありません"
+          }
+        }
+      }
+    },
     "쓸 수 없는 초안" : {
       "localizations" : {
         "en" : {
@@ -30547,6 +32725,22 @@
         }
       }
     },
+    "아래 항목을 휴지통으로 옮기고 바꿀까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move the items below to the Trash and replace them?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下の項目をゴミ箱に移して置き換えますか?"
+          }
+        }
+      }
+    },
     "아래로 옮기기" : {
       "localizations" : {
         "en" : {
@@ -30687,6 +32881,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "まだ追加した曲に入れていないFlip（ジャンプ・ループ%lld個）を破棄します。破棄した記録は作り直せません。残すには、キャンセルしてレンダリングして入れてください。"
+          }
+        }
+      }
+    },
+    "아직 확인하지 않음" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Never"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだ確認していません"
           }
         }
       }
@@ -30979,6 +33189,22 @@
         }
       }
     },
+    "앞에 둘 곡(ContentID %@)이 그 목록에 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The track to place before (ContentID %@) isn't in that playlist"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前に置く曲（ContentID %@）がそのプレイリストにありません"
+          }
+        }
+      }
+    },
     "앞에서 만들지 못한 목록입니다" : {
       "localizations" : {
         "en" : {
@@ -30991,6 +33217,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "前の編集で作成できなかったプレイリストです"
+          }
+        }
+      }
+    },
+    "앞에서 만들지 못한 목록입니다(@%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The playlist couldn't be created by an earlier edit (@%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前の編集で作成できなかったプレイリストです（@%@）"
           }
         }
       }
@@ -31867,6 +34109,22 @@
         }
       }
     },
+    "앱 안 재료 %@를 찾지 못했습니다. DJCrate를 다시 받아 설치하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not find %@ inside the app. Download and install DJCrate again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アプリ内の %@ が見つかりませんでした。DJCrate をもう一度ダウンロードしてインストールしてください。"
+          }
+        }
+      }
+    },
     "약칭 %@" : {
       "localizations" : {
         "en" : {
@@ -31879,6 +34137,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "略称 %@"
+          }
+        }
+      }
+    },
+    "업데이트" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updates"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップデート"
+          }
+        }
+      }
+    },
+    "업데이트 확인…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check for Updates…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップデートを確認…"
+          }
+        }
+      }
+    },
+    "업데이트는 DJCrate 서명을 확인한 뒤에만 설치합니다. rekordbox·USB에 쓰는 중이면 쓰기가 끝난 뒤 설치합니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updates are installed only after their DJCrate signature is verified. If DJCrate is writing to rekordbox or a USB, the update is installed after the write finishes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップデートはDJCrateの署名を確認してからインストールします。rekordbox・USBに書き込み中の場合は、書き込みが終わってからインストールします。"
           }
         }
       }
@@ -32361,6 +34667,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "はい"
+          }
+        }
+      }
+    },
+    "옛 버전(%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Out of date (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "古いバージョン(%@)"
+          }
+        }
+      }
+    },
+    "옛 앱을 가리킴" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Points to an old app"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "古いアプリを指しています"
           }
         }
       }
@@ -34385,28 +36723,6 @@
         }
       }
     },
-    "이 곡의 그리드는 템포 구간 %lld개로 복잡해 정확히 재현되지 않습니다(최대 %.0fms). 편집을 막았습니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This track’s grid has %lld tempo sections and is too complex to reproduce exactly (off by up to %.0f ms). Grid editing is disabled."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この曲のグリッドはテンポ区間が%lld個あり複雑なため、正確に再現できません（最大%.0fmsのずれ）。編集を止めました。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "이 곡의 그리드는 템포 구간 %1$lld개로 복잡해 정확히 재현되지 않습니다(최대 %2$.0fms). 편집을 막았습니다."
-          }
-        }
-      }
-    },
     "이 곡의 그리드는 템포 구간 %lld개로 정확히 재현되지 않으니(최대 %.0fms) 추정 그리드를 적용하거나 rekordbox에서 직접 편집하세요" : {
       "localizations" : {
         "en" : {
@@ -34825,6 +37141,54 @@
         }
       }
     },
+    "이 빌드에는 djc가 없습니다. 릴리스 앱(DJCrate.app)에서 하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This build does not include djc. Use the release app (DJCrate.app)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このビルドには djc が含まれていません。リリース版アプリ(DJCrate.app)で行ってください。"
+          }
+        }
+      }
+    },
+    "이 빌드에는 설치할 스킬·djc가 없습니다. 릴리스 앱(DJCrate.app)에서 하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This build does not include the skill or djc. Use the release app (DJCrate.app)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このビルドにはインストールするスキル・djc が含まれていません。リリース版アプリ(DJCrate.app)で行ってください。"
+          }
+        }
+      }
+    },
+    "이 빌드에는 설치할 스킬이 없습니다. 릴리스 앱(DJCrate.app)에서 설치하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This build does not include the skill. Install it from the release app (DJCrate.app)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このビルドにはインストールするスキルが含まれていません。リリース版アプリ(DJCrate.app)からインストールしてください。"
+          }
+        }
+      }
+    },
     "이 사본에는 캡처한 iTunes 목록이 없습니다" : {
       "localizations" : {
         "en" : {
@@ -34981,6 +37345,44 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このアルバムの同期状態でのタグ書き込みは未確認です。rekordboxで直接変更してください。"
+          }
+        }
+      }
+    },
+    "이 앱의 djc를 가리킴" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Points to this app’s djc"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアプリの djc を指しています"
+          }
+        }
+      }
+    },
+    "이 앱의 스킬·djc: %@ (빌드 %@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skill and djc in this app: %1$@ (build %2$@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアプリのスキル・djc: %1$@(ビルド %2$@)"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "이 앱의 스킬·djc: %1$@ (빌드 %2$@)"
           }
         }
       }
@@ -35915,6 +38317,22 @@
         }
       }
     },
+    "인자 수가 맞지 않습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wrong number of arguments"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "引数の数が合いません"
+          }
+        }
+      }
+    },
     "인텔리전트 재생 목록 보기" : {
       "localizations" : {
         "en" : {
@@ -36187,6 +38605,34 @@
         }
       }
     },
+    "읽지 못한 USB 재생 기록 파일 %lld개를 damaged-drafts로 옮겼습니다. 기록이 남은 USB를 다시 연결하면 다시 가져옵니다" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Moved %lld unreadable USB history file to damaged-drafts. Reconnect a USB that still has the history to import it again"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Moved %lld unreadable USB history files to damaged-drafts. Reconnect a USB that still has the histories to import them again"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込めないUSBの演奏履歴ファイル%lld件をdamaged-draftsに移しました。履歴が残っているUSBを接続し直すと、もう一度取り込みます"
+          }
+        }
+      }
+    },
     "읽지 못한 값" : {
       "localizations" : {
         "en" : {
@@ -36401,6 +38847,22 @@
         }
       }
     },
+    "자동으로 받아 설치" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatically download and install updates"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動でダウンロードしてインストール"
+          }
+        }
+      }
+    },
     "자르기" : {
       "localizations" : {
         "en" : {
@@ -36429,6 +38891,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分割する結果がないため、原曲の区間を先に結果へ追加してください"
+          }
+        }
+      }
+    },
+    "자리로 준 항목이 그 폴더 안에 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The item given as the position isn't in that folder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置として指定した項目がそのフォルダ内にありません"
           }
         }
       }
@@ -36625,6 +39103,148 @@
         }
       }
     },
+    "재생 기록 %lld건" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld history"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld histories"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "演奏履歴%lld件"
+          }
+        }
+      }
+    },
+    "재생 기록 곡의 재생 횟수·변경 번호가 쓴 것과 다릅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The DJ Play Count or change number of a history track differs from what was written"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "演奏履歴の曲のDJプレイ回数・変更番号が書き込んだ内容と異なります"
+          }
+        }
+      }
+    },
+    "재생 기록 곡의 재생 횟수를 고치지 못했습니다 (ContentID %@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not update the DJ Play Count of a history track (ContentID %@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "演奏履歴の曲のDJプレイ回数を変更できませんでした（ContentID %@）"
+          }
+        }
+      }
+    },
+    "재생 기록 쓰기 완료: %lld곡" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "History written: %lld track"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "History written: %lld tracks"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "演奏履歴を書き込みました：%lld曲"
+          }
+        }
+      }
+    },
+    "재생 기록 쓰기 완료: %lld곡 · 컬렉션에 없는 %lld곡은 뺐습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History written: Tracks: %1$lld · Skipped (not in the Collection): %2$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "演奏履歴を書き込みました：%1$lld曲・コレクションにない%2$lld曲は除きました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "재생 기록 쓰기 완료: %1$lld곡 · 컬렉션에 없는 %2$lld곡은 뺐습니다"
+          }
+        }
+      }
+    },
+    "재생 기록 쓰기는 rekordbox 실험을 사본에서 다시 확인하기 전이라 아직 쓰지 않습니다. DJCrate에는 보존돼 있습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History writing is not enabled yet because the rekordbox experiment has not been re-verified on a copy. The history is kept in DJCrate"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "演奏履歴の書き込みは、rekordboxでの実験をコピーで再確認するまでまだ行いません。DJCrateには保存されています"
+          }
+        }
+      }
+    },
+    "재생 기록 쓰지 않음: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "history not written: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "演奏履歴未反映：%@"
+          }
+        }
+      }
+    },
     "재생 기록 있는 곡 %lld · 그중 빈 코멘트 %lld" : {
       "localizations" : {
         "en" : {
@@ -36637,6 +39257,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再生履歴のある曲%1$lld · うち空のコメント%2$lld"
+          }
+        }
+      }
+    },
+    "재생 기록 항목이 쓴 것과 다릅니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History entries differ from what was written"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "演奏履歴の項目が書き込んだ内容と異なります"
+          }
+        }
+      }
+    },
+    "재생 기록 확인 실패" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History check failed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "演奏履歴の確認に失敗"
           }
         }
       }
@@ -36685,6 +39337,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "履歴が見つかりませんでした。historiesでIDを確認してください"
+          }
+        }
+      }
+    },
+    "재생 기록의 쓰기 대기 상태를 저장하지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not save the history's pending write status"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "演奏履歴の書き込み待ちの状態を保存できませんでした"
           }
         }
       }
@@ -36787,6 +39455,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "表示を省いたプレイリスト：%lld。--limitで増やすか--jsonですべて表示してください"
+          }
+        }
+      }
+    },
+    "재생 목록 %lld개를 옮겼습니다(쓰기 대기)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moved playlists: %lld (pending write)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト%lld件を移動しました（書き込み待ち）。"
+          }
+        }
+      }
+    },
+    "재생 목록 %lld개를 지울까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete playlists? Count: %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト%lld件を削除しますか？"
+          }
+        }
+      }
+    },
+    "재생 목록 %lld개를 지웠습니다(쓰기 대기)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deleted playlists: %lld (pending write)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト%lld件を削除しました（書き込み待ち）。"
           }
         }
       }
@@ -37077,6 +39793,22 @@
         }
       }
     },
+    "재생 목록 초안에 쌓지 않았습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing was added to the playlist draft: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト下書きに追加しませんでした: %@"
+          }
+        }
+      }
+    },
     "재생 목록 초안을 저장하지 못했습니다. DJCrate 데이터 폴더의 쓰기 권한을 확인하세요: %@" : {
       "localizations" : {
         "en" : {
@@ -37133,6 +39865,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレイリストの編集%lld件は下書きとして復元できませんでした。"
+          }
+        }
+      }
+    },
+    "재생 목록 편집 종류는 apply·create·rename·move·delete·add·remove·order입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlist edit kinds are apply, create, rename, move, delete, add, remove, order"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト編集の種類はapply・create・rename・move・delete・add・remove・orderです"
+          }
+        }
+      }
+    },
+    "재생 목록 편집 종류를 지정하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Specify a playlist edit kind"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト編集の種類を指定してください"
           }
         }
       }
@@ -37245,6 +40009,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレイリスト: %@"
+          }
+        }
+      }
+    },
+    "재생 목록·폴더 %lld개를 지울까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete playlists and folders? Count: %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト・フォルダ%lld件を削除しますか？"
+          }
+        }
+      }
+    },
+    "재생 목록·폴더 %lld개를 지웠습니다(쓰기 대기)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deleted playlists and folders: %lld (pending write)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト・フォルダ%lld件を削除しました（書き込み待ち）。"
           }
         }
       }
@@ -37437,6 +40233,54 @@
         }
       }
     },
+    "재생 목록을 옮기지 않았습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists not moved"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストを移動しませんでした"
+          }
+        }
+      }
+    },
+    "재생 목록을 지우지 않았습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists not deleted"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストを削除しませんでした"
+          }
+        }
+      }
+    },
+    "재생 목록을 지우지 않았습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists not deleted: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストを削除しませんでした：%@"
+          }
+        }
+      }
+    },
     "재생 목록을 찾지 못했습니다. playlists로 ID를 확인하세요" : {
       "localizations" : {
         "en" : {
@@ -37609,6 +40453,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再生回数"
+          }
+        }
+      }
+    },
+    "재생 횟수가 비어 있는 곡의 기록은 쓰는 규칙을 확인하지 않아 쓰지 않으니 rekordbox에서 USB를 연결해 직접 가져오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing history for tracks without a play count has not been verified. Connect the USB in rekordbox to import it directly."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再生回数が空の曲の履歴は書き込み規則を確認できていません。rekordboxでUSBを接続して直接取り込んでください。"
           }
         }
       }
@@ -38139,6 +40999,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "情報にない%@フォルダがあります"
+          }
+        }
+      }
+    },
+    "제거" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除"
           }
         }
       }
@@ -38815,6 +41691,22 @@
         }
       }
     },
+    "지금 버전" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current Version"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のバージョン"
+          }
+        }
+      }
+    },
     "지금 붙은 USB에는 쓰지 않았습니다. 처음 USB를 기기에 꽂지 말고 다시 연결하세요. 다시 연결하면 나오는 알림에서 회복할 수 있습니다." : {
       "localizations" : {
         "en" : {
@@ -38863,6 +41755,38 @@
         }
       }
     },
+    "지금 연 사본(--db)에는 보이지 않으니 --db 없이 다시 열어 확인하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The copy open now (--db) doesn't show it. Reopen without --db to check."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今開いているコピー（--db）には表示されません。--dbなしで開き直して確認してください。"
+          }
+        }
+      }
+    },
+    "지금 연 사본(--db)의 동기화 선택이 rekordbox와 다르니 --db 없이 다시 열어 동기화하세요." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The sync selection in the copy open now (--db) differs from rekordbox. Reopen without --db, then sync."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今開いているコピー（--db）の同期選択がrekordboxと異なります。--dbなしで開き直してから同期してください。"
+          }
+        }
+      }
+    },
     "지금 조성(Camelot)" : {
       "localizations" : {
         "en" : {
@@ -38907,6 +41831,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "現在のピーク %+.0f dB"
+          }
+        }
+      }
+    },
+    "지금 확인" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check Now"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今すぐ確認"
           }
         }
       }
@@ -39227,6 +42167,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "削除しました: %@"
+          }
+        }
+      }
+    },
+    "직접 둔 파일" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File placed manually"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手動で置いたファイル"
+          }
+        }
+      }
+    },
+    "직접 둔 폴더(설치 표시 없음)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folder placed manually (no install marker)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手動で置いたフォルダ(インストール記録なし)"
           }
         }
       }
@@ -41973,18 +44945,18 @@
         }
       }
     },
-    "큐·태그 초안 만들기·지우기(docs/cli.md)" : {
+    "큐·태그·재생 목록 초안 만들기·지우기(docs/cli.md)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Create or delete cue and tag drafts (docs/cli.md)"
+            "value" : "Create or delete cue, tag, and playlist drafts (docs/cli.md)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "キュー・タグの下書きを作成・削除（docs/cli.md）"
+            "value" : "キュー・タグ・プレイリスト下書きの作成・削除（docs/cli.md）"
           }
         }
       }
@@ -42243,6 +45215,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "クレジット"
+          }
+        }
+      }
+    },
+    "클라우드 동기화 곡이 든 기록은 쓰는 규칙을 확인하지 않아 쓰지 않으니 rekordbox에서 USB를 연결해 직접 가져오세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Histories containing cloud-synced tracks are not written because the write rule is unverified. Connect the USB to rekordbox and import it there"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クラウド同期した曲を含む履歴は、書き込みのルールを確認していないため書き込みません。rekordboxにUSBを接続して直接取り込んでください"
           }
         }
       }
@@ -43875,6 +46863,70 @@
         }
       }
     },
+    "편집 JSON 파일을 --file로 지정하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Specify the edit JSON file with --file"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集JSONファイルを--fileで指定してください"
+          }
+        }
+      }
+    },
+    "편집 JSON 파일을 읽지 못했습니다(%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read the edit JSON file (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集JSONファイルを読み込めませんでした（%@）"
+          }
+        }
+      }
+    },
+    "편집 JSON은 {\"edits\": [...]} 또는 배열입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit JSON must be {\"edits\": [...]} or an array"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集JSONは{\"edits\": [...]}か配列です"
+          }
+        }
+      }
+    },
+    "편집 JSON을 읽지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read the edit JSON"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集JSONを読み込めませんでした"
+          }
+        }
+      }
+    },
     "편집 결과 타임라인" : {
       "localizations" : {
         "en" : {
@@ -43919,6 +46971,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "編集のタイムラインがつながっていません（フレーム%lld）"
+          }
+        }
+      }
+    },
+    "편집 창을 여는 사이 덱의 곡이 바뀌어 열지 않았습니다. 편집할 곡을 덱에 올린 뒤 다시 여세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The deck track changed while the track editor was opening, so it was not opened. Load the track you want to edit into the deck and open it again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲編集ウインドウを開く間にデッキの曲が変わったため、開きませんでした。編集する曲をデッキに読み込んでから開き直してください"
           }
         }
       }
@@ -43973,6 +47041,38 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "편집본을 추가한 곡에 넣었습니다: %1$@ · %2$@ · 큐 %3$lld개"
+          }
+        }
+      }
+    },
+    "편집을 계획하는 동안 재생 목록 초안이 바뀌었습니다. 같은 명령을 다시 실행하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The playlist draft changed while the edits were being planned. Run the same command again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集を計画している間にプレイリスト下書きが変わりました。同じコマンドをもう一度実行してください"
+          }
+        }
+      }
+    },
+    "편집이 하나도 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no edits"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集が1つもありません"
           }
         }
       }
@@ -44277,6 +47377,22 @@
         }
       }
     },
+    "폴더 안의 목록도 함께 지웁니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists inside the folders are deleted too."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダ内のプレイリストも一緒に削除します。"
+          }
+        }
+      }
+    },
     "폴더 지우기" : {
       "localizations" : {
         "en" : {
@@ -44385,6 +47501,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "フォルダをそれ自身の中へは移動できません"
+          }
+        }
+      }
+    },
+    "폴더에는 tracks를 줄 수 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tracks can't be given for a folder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダにはtracksを指定できません"
           }
         }
       }
@@ -44675,6 +47807,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "フィルターは%@のいずれかを指定してください"
+          }
+        }
+      }
+    },
+    "하루 한 번 GitHub Releases에서 새 버전을 찾아 알립니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checks GitHub Releases once a day and tells you about new versions."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1日1回GitHub Releasesで新しいバージョンを探してお知らせします。"
           }
         }
       }
@@ -46125,6 +49273,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ホイール"
+          }
+        }
+      }
+    },
+    "휴지통으로 옮기고 계속" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move to Trash and Continue"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゴミ箱に移して続ける"
           }
         }
       }

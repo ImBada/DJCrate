@@ -1,7 +1,7 @@
 @testable import DJCrate
 import AppKit
 import DJCDomain
-import DJCTestSupport
+import DJCTestKit
 import Foundation
 import SwiftUI
 import Testing
@@ -10,16 +10,18 @@ import Testing
 @MainActor
 @Suite("덱 — 파형 묶음의 빈 높이", .serialized)
 struct DeckWaveformLayoutTests {
-    @Test(arguments: TextScale.steps, [80.0, 150.0, 480.0])
+    /// 배율·요청값 식 12경우는 `LibraryLayoutMetricsTests`가 순수하게 본다. 실제 창은 배율마다 한 번, 요청값마다 한 번 이상
+    /// (가장 큰 배율의 최소 요청 포함) 띄워 묶음이 빈 높이 없이 채워지는 연결만 본다.
+    @Test(arguments: zip(TextScale.steps, [80.0, 150.0, 480.0, 80.0]))
     func 조작부가_남긴_최소_높이는_확대_파형이_채운다(_ scale: Double, _ requested: Double) async throws {
         _ = NSApplication.shared
         let harness = try DeckHarness()
         try await harness.loaded()
         let deck = harness.deck
-        let domain = "deck-waveform-layout.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: domain))
+        let domain = TestDefaults.suiteName("deck-waveform-layout")
+        let defaults = TestDefaults.open(domain)
         defer { defaults.removePersistentDomain(forName: domain) }
-        let store = LibraryStore(settings: SettingsStore(defaults: defaults, persist: false),
+        let store = LibraryStore.test(settings: SettingsStore(defaults: defaults, persist: false),
                                  resultHistory: WriteResultHistory(url: nil), feedback: AppFeedback(announce: { _ in }))
         let key = String(describing: ObjectIdentifier(deck))
         let zoomKey = "deck.zoom.\(key)", groupKey = "deck.waveGroup.\(key)"
@@ -27,7 +29,7 @@ struct DeckWaveformLayoutTests {
             SelfTestFrames.frames.removeValue(forKey: zoomKey)
             SelfTestFrames.frames.removeValue(forKey: groupKey)
         }
-        let controller = NSHostingController(rootView: DeckView(store: store, deck: deck, widthClass: DeckWidthClass(width: 1300))
+        let controller = NSHostingController(rootView: DeckView(library: store, tags: store.tags, deck: deck, widthClass: DeckWidthClass(width: 1300))
             .environment(\.deckWaveformHeight, requested)
             .environment(\.textScale, scale).defaultAppStorage(defaults)
             .fixedSize(horizontal: false, vertical: true))

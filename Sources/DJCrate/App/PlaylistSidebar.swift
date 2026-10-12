@@ -13,11 +13,12 @@ enum PlaylistDragType {
     static let usbTracks = UTType(exportedAs: "com.djcrate.usb-track-ids", conformingTo: .data)
     static let pasteboardUsbTracks = NSPasteboard.PasteboardType(usbTracks.identifier)
 
-    static func provider(for node: PlaylistOutlineNode) -> NSItemProvider {
+    /// 끄는 목록 ID를 줄마다 싣는다(여럿 고르면 고른 것 모두, #261)
+    static func provider(for node: PlaylistOutlineNode, ids: [String]) -> NSItemProvider {
         let provider = NSItemProvider()
-        // 인텔리전트 목록은 옮기지 않는다(규칙 미확인).
-        guard !node.isSmart else { return provider }
-        let data = Data(node.id.utf8)
+        // 인텔리전트 목록 하나는 옮기지 않는다(규칙 미확인). 여럿에 섞이면 놓을 때 그 항목만 건너뛰고 이유를 보인다.
+        guard ids.count > 1 || !node.isSmart else { return provider }
+        let data = Data(ids.joined(separator: "\n").utf8)
         provider.registerDataRepresentation(forTypeIdentifier: playlist.identifier, visibility: .all) { completion in
             completion(data, nil)
             return nil
@@ -30,22 +31,24 @@ enum PlaylistDragType {
 /// 바꾼 것은 모두 초안이고 반영(⇧⌘E) 때 rekordbox에 쓴다.
 struct PlaylistSection: View {
     @Bindable var store: LibraryStore
+    /// 폴더 펼침·이름 바꾸기(조립 지점이 한 번 만든 화면 모델)
+    let sidebar: PlaylistSidebarModel
     /// 펼침 설정은 사이드바 본문이 아니라 여기서 든다(`@AppStorage`를 든 뷰는 부모가 다시 계산될 때마다 본문이 새로 계산된다, #141).
     @AppStorage(SettingKeys.sidebarPlaylistsExpanded.name) private var isExpanded = SettingKeys.sidebarPlaylistsExpanded.defaultValue
 
     var body: some View {
         Section(isExpanded: $isExpanded) {
-            ForEach(store.playlistTree) { node in
-                PlaylistTreeRow(store: store, node: node)
+            ForEach(store.playlists.playlistTree) { node in
+                PlaylistTreeRow(store: store, sidebar: sidebar, node: node)
             }
         } header: {
             HStack(spacing: 4) {
-                Text(.ui("rekordbox 플레이리스트 (\(store.playlistCount))"))
-                if store.hasPlaylistDrafts {
+                Text(.ui("rekordbox 플레이리스트 (\(store.playlists.playlistCount))"))
+                if store.playlists.hasPlaylistDrafts {
                     Image(systemName: DraftMark.symbol)
                         .foregroundStyle(UIColors.draft.color)
-                        .help(.ui("아직 쓰지 않은 재생 목록 초안 \(store.playlistDraft.steps.count)건"))
-                        .accessibilityLabel(.ui("재생 목록 초안 \(store.playlistDraft.steps.count)건"))
+                        .help(.ui("아직 쓰지 않은 재생 목록 초안 \(store.playlists.playlistDraft.steps.count)건"))
+                        .accessibilityLabel(.ui("재생 목록 초안 \(store.playlists.playlistDraft.steps.count)건"))
                 }
                 Spacer(minLength: 0)
                 Menu {
@@ -62,10 +65,13 @@ struct PlaylistSection: View {
             .sidebarSectionHeader()
             // 제목 줄에 놓으면 맨 위의 맨 끝으로 옮긴다.
             .onDrop(of: [PlaylistDragType.playlist], isTargeted: nil) { providers in
-                PlaylistDrop.movePlaylist(providers) { store.movePlaylist($0, into: PlaylistLayout.root) }
+                PlaylistDrop.movePlaylists(providers) { ids in
+                    if ids.count > 1 { sidebar.movePlaylists(ids, to: .into(PlaylistLayout.root)) }
+                    else { store.playlists.movePlaylist(ids[0], into: PlaylistLayout.root) }
+                }
             }
         }
-        .onChange(of: store.renamingPlaylistID) { _, id in
+        .onChange(of: sidebar.renamingPlaylistID) { _, id in
             if id != nil { isExpanded = true }
         }
     }
@@ -74,26 +80,24 @@ struct PlaylistSection: View {
 /// 펼침 상태를 직접 묶어야 접힌 폴더에 만든 항목의 이름 편집도 보인다.
 struct PlaylistTreeRow: View {
     @Bindable var store: LibraryStore
+    let sidebar: PlaylistSidebarModel
     let node: PlaylistOutlineNode
 
     var body: some View {
         if let children = node.children {
             DisclosureGroup(isExpanded: Binding(
-                get: { store.expandedPlaylistIDs.contains(node.id) },
-                set: { expanded in
-                    if expanded { store.expandedPlaylistIDs.insert(node.id) }
-                    else { store.expandedPlaylistIDs.remove(node.id) }
-                }
+                get: { sidebar.isExpanded(node.id) },
+                set: { sidebar.setExpanded(node.id, $0) }
             )) {
                 ForEach(children) { child in
-                    PlaylistTreeRow(store: store, node: child)
+                    PlaylistTreeRow(store: store, sidebar: sidebar, node: child)
                 }
             } label: {
-                PlaylistRow(store: store, node: node)
+                PlaylistRow(store: store, sidebar: sidebar, node: node)
             }
             .tag(SidebarItem.playlist(node.id))
         } else {
-            PlaylistRow(store: store, node: node)
+            PlaylistRow(store: store, sidebar: sidebar, node: node)
                 .tag(SidebarItem.playlist(node.id))
         }
     }
@@ -105,16 +109,17 @@ struct PlaylistCreateButtons: View {
     let parent: String
 
     var body: some View {
-        Button(.ui("새 재생 목록")) { store.createPlaylist(isFolder: false, in: parent) }
-        Button(.ui("새 폴더")) { store.createPlaylist(isFolder: true, in: parent) }
+        Button(.ui("새 재생 목록")) { store.playlists.createPlaylist(isFolder: false, in: parent) }
+        Button(.ui("새 폴더")) { store.playlists.createPlaylist(isFolder: true, in: parent) }
         let tracks = store.selectedRows.filter { !$0.isStaged }
-        Button(.ui("고른 곡으로 새 재생 목록 (\(tracks.count)곡)")) { store.createPlaylist(isFolder: false, in: parent, tracks: tracks) }
+        Button(.ui("고른 곡으로 새 재생 목록 (\(tracks.count)곡)")) { store.playlists.createPlaylist(isFolder: false, in: parent, tracks: tracks) }
             .disabled(tracks.isEmpty)
     }
 }
 
 struct PlaylistRow: View {
     let store: LibraryStore
+    let sidebar: PlaylistSidebarModel
     let node: PlaylistOutlineNode
     @State private var isTargeted = false
     @State private var name = ""
@@ -123,7 +128,7 @@ struct PlaylistRow: View {
     private var title: String { node.name.isEmpty ? String(ui: "(이름 없음)") : node.name }
     private var icon: String { node.isSmart ? "gearshape" : node.isFolder ? "folder" : "music.note.list" }
     /// 실험실 '인텔리전트 재생 목록 보기'를 켰을 때 이 목록의 계산 결과(아니면 nil)
-    private var smartResult: SmartPlaylistResult? { node.isSmart && store.showSmartPlaylists ? store.smartPlaylistResults[node.id] : nil }
+    private var smartResult: SmartPlaylistResult? { node.isSmart && store.showSmartPlaylists ? store.playlists.smartPlaylistResults[node.id] : nil }
     /// 계산하지 못한 인텔리전트 목록의 이유 한 줄
     private var smartUnsupported: String? { smartResult?.unsupportedSummary }
     private var smartHelp: String? {
@@ -136,27 +141,25 @@ struct PlaylistRow: View {
             .badge(store.count(playlist: node))
             .lineLimit(1)
             .help(node.blockedReason.map { String(ui: "이 목록의 초안 일부를 쓸 수 없습니다: \($0)") } ?? smartHelp ?? title)
-            .onDrag { PlaylistDragType.provider(for: node) }
-            .onDrop(of: [PlaylistDragType.tracks, PlaylistDragType.playlist, .fileURL], isTargeted: $isTargeted) { providers in
-                PlaylistDrop.perform(providers, on: node, store: store)
-            }
+            .onDrag { PlaylistDragType.provider(for: node, ids: sidebar.dragIDs(for: node.id)) }
+            .onDrop(of: PlaylistDrop.rowTypes, delegate: PlaylistRowDrop(node: node, store: store, sidebar: sidebar, isTargeted: $isTargeted))
             .background(isTargeted ? Color.accentColor.opacity(0.25) : .clear, in: RoundedRectangle(cornerRadius: 4))
     }
 
     @ViewBuilder private var content: some View {
-        if store.renamingPlaylistID == node.id {
+        if sidebar.renamingPlaylistID == node.id {
             TextField(text: $name, prompt: Text(verbatim: title)) { Text(.ui("재생 목록 이름")) }
                 .textFieldStyle(.plain)
                 .focused($isEditing)
-                .onSubmit { store.renamePlaylist(node.id, to: name) }
-                .onExitCommand { store.renamingPlaylistID = nil }
+                .onSubmit { sidebar.finishRenaming(node.id, to: name) }
+                .onExitCommand { sidebar.cancelRenaming() }
                 .onAppear {
                     name = node.name
                     isEditing = true
                 }
                 .onChange(of: isEditing) { _, editing in
                     // 다른 곳을 누르면 고친 이름으로 끝낸다(Finder와 같다).
-                    if !editing, store.renamingPlaylistID == node.id { store.renamePlaylist(node.id, to: name) }
+                    if !editing, sidebar.renamingPlaylistID == node.id { sidebar.finishRenaming(node.id, to: name) }
                 }
         } else {
             Label {
@@ -189,35 +192,51 @@ struct PlaylistRow: View {
 /// 두 번 누르기·Return은 이름 바꾸기(Finder·rekordbox와 같다). 한 번 누르기는 그대로 고르기다.
 struct PlaylistSidebarMenu: ViewModifier {
     let store: LibraryStore
+    let sidebar: PlaylistSidebarModel
 
     func body(content: Content) -> some View {
         content.contextMenu(forSelectionType: SidebarItem.self) { items in
             if items.isEmpty {
                 PlaylistCreateButtons(store: store, parent: PlaylistLayout.root)
-            } else if items.count == 1, case let .playlist(id)? = items.first, let node = store.playlistIndex[id] {
-                PlaylistContextMenu(store: store, node: node)
+            } else if items.count == 1, case let .playlist(id)? = items.first, let node = store.playlists.playlistIndex[id] {
+                PlaylistContextMenu(store: store, sidebar: sidebar, node: node)
+            } else if items.count > 1, items.allSatisfy(\.isPlaylist) {
+                PlaylistMultiMenu(store: store, sidebar: sidebar, ids: items.compactMap(\.playlistID))
             } else if items.count == 1, case let .history(id)? = items.first {
-                Button(.ui("재생 목록으로 만들기")) { store.createPlaylist(fromHistory: id) }
-                    .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
+                // USB에서 보존한 기록도 같다(컬렉션 짝이 있는 곡만 넣는다). 넣을 곡이 없으면 누를 수 없다
+                Button(.ui("재생 목록으로 만들기")) { store.playlists.createPlaylist(fromHistory: id) }
+                    .disabled(!store.writeLockPolicy.allowsLibraryInteraction || store.playlists.historyPlaylistSource(id)?.rows.isEmpty != false)
+                // USB에서 보존한 기록(#43): rekordbox 쓰기 대기에서 빼거나 다시 넣는다(편집 › 실행 취소로 되돌린다)
+                if let archived = store.history.archivedHistory(id) {
+                    if store.history.pendingHistoryIDs.contains(id) {
+                        Button(.ui("rekordbox 쓰기 대기에서 빼기")) { store.history.setHistoriesExcluded([id], excluded: true) }
+                            .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
+                    } else if archived.excludedFromRekordbox, store.history.writesHistories {
+                        Button(.ui("rekordbox 쓰기 대기에 넣기")) { store.history.setHistoriesExcluded([id], excluded: false) }
+                            .disabled(!store.writeLockPolicy.allowsLibraryInteraction)
+                    }
+                }
             } else if items.count == 1, case let .usb(target)? = items.first, let actions = store.usbEdits {
                 UsbSidebarMenu(store: store, actions: actions, target: target)
             }
         } primaryAction: { items in
-            guard items.count == 1, case let .playlist(id)? = items.first, let node = store.playlistIndex[id] else { return }
+            guard items.count == 1, case let .playlist(id)? = items.first, let node = store.playlists.playlistIndex[id] else { return }
             // 실험실에서 인텔리전트 목록을 보는 중이면 이름을 바꿀 수 없는 이유를 알린다(끄면 지금처럼 조용히 넘어간다).
             if node.isSmart {
-                store.blockSmartPlaylistEdit(id)
+                store.playlists.blockSmartPlaylistEdit(id)
                 return
             }
             guard store.writeLockPolicy.allowsLibraryInteraction else { return }
-            store.renamingPlaylistID = id
+            sidebar.startRenaming(id)
         }
         // ⌫: 고른 목록·폴더를 지운다(초안, ⌘Z로 되돌림)
         .onDeleteCommand {
+            // 여럿 고르면 개수·이름을 묻고 한 번에 지운다(#261)
+            if sidebar.isSelectingManyPlaylists { return sidebar.deleteSelection() }
             guard case let .playlist(id) = store.sidebar else { return }
-            if store.blockSmartPlaylistEdit(id) { return }
-            guard store.playlistIndex[id]?.isSmart == false,
-                  store.renamingPlaylistID == nil, store.writeLockPolicy.allowsLibraryInteraction else { return }
+            if store.playlists.blockSmartPlaylistEdit(id) { return }
+            guard store.playlists.playlistIndex[id]?.isSmart == false,
+                  sidebar.renamingPlaylistID == nil, store.writeLockPolicy.allowsLibraryInteraction else { return }
             PlaylistPanels.delete(store: store, id: id)
         }
     }
@@ -226,18 +245,19 @@ struct PlaylistSidebarMenu: ViewModifier {
 /// 사이드바 재생 목록 오른쪽 클릭 메뉴
 struct PlaylistContextMenu: View {
     let store: LibraryStore
+    let sidebar: PlaylistSidebarModel
     let node: PlaylistOutlineNode
 
     var body: some View {
-        let parent = node.isFolder ? node.id : store.playlistItem(node.id)?.parentID ?? PlaylistLayout.root
+        let parent = node.isFolder ? node.id : store.playlists.playlistItem(node.id)?.parentID ?? PlaylistLayout.root
         if !node.isSmart {
             PlaylistCreateButtons(store: store, parent: parent)
             Divider()
-            Button(.ui("이름 바꾸기")) { store.renamingPlaylistID = node.id }
+            Button(.ui("이름 바꾸기")) { sidebar.startRenaming(node.id) }
             Menu(.ui("옮기기")) {
-                Button(.ui("맨 위")) { store.movePlaylist(node.id, into: PlaylistLayout.root) }
-                    .disabled(store.playlistItem(node.id)?.parentID == PlaylistLayout.root)
-                PlaylistFolderMenu(store: store, nodes: store.playlistTree, moving: node.id)
+                Button(.ui("맨 위")) { store.playlists.movePlaylist(node.id, into: PlaylistLayout.root) }
+                    .disabled(store.playlists.playlistItem(node.id)?.parentID == PlaylistLayout.root)
+                PlaylistFolderMenu(nodes: store.playlists.playlistTree, moving: [node.id]) { store.playlists.movePlaylist(node.id, into: $0) }
             }
             Button(.ui("위로 옮기기")) { move(by: -1) }.disabled(!canMove(by: -1))
             Button(.ui("아래로 옮기기")) { move(by: 1) }.disabled(!canMove(by: 1))
@@ -253,13 +273,13 @@ struct PlaylistContextMenu: View {
         }
         if node.isDraft || node.blockedReason != nil {
             Divider()
-            Button(.ui("이 목록의 초안 버리기")) { store.discardPlaylistDraft(node.id) }
+            Button(.ui("이 목록의 초안 버리기")) { store.playlists.discardPlaylistDraft(node.id) }
         }
     }
 
     private var siblings: [String] {
-        let parent = store.playlistItem(node.id)?.parentID ?? PlaylistLayout.root
-        return store.playlistProjection.layout.childIDs(of: parent)
+        let parent = store.playlists.playlistItem(node.id)?.parentID ?? PlaylistLayout.root
+        return store.playlists.playlistProjection.layout.childIDs(of: parent)
     }
 
     private func canMove(by step: Int) -> Bool {
@@ -271,80 +291,131 @@ struct PlaylistContextMenu: View {
     private func move(by step: Int) {
         let siblings = siblings
         guard let index = siblings.firstIndex(of: node.id), siblings.indices.contains(index + step),
-              let parent = store.playlistItem(node.id)?.parentID else { return }
+              let parent = store.playlists.playlistItem(node.id)?.parentID else { return }
         let before = step < 0 ? siblings[index - 1] : siblings.indices.contains(index + 2) ? siblings[index + 2] : nil
-        store.movePlaylist(node.id, into: parent, before: before)
+        store.playlists.movePlaylist(node.id, into: parent, before: before)
+    }
+}
+
+/// 여럿 고른 재생 목록·폴더의 오른쪽 클릭 메뉴(#261): 한 번에 옮기기·지우기. 막힌 항목은 건너뛰고 이유를 알린다
+struct PlaylistMultiMenu: View {
+    let store: LibraryStore
+    let sidebar: PlaylistSidebarModel
+    let ids: [String]
+
+    var body: some View {
+        let count = sidebar.targets(ids).count
+        let enabled = store.writeLockPolicy.allowsLibraryInteraction
+        Menu(.ui("\(count)개 옮기기")) {
+            Button(.ui("맨 위")) { sidebar.movePlaylists(ids, to: .into(PlaylistLayout.root)) }
+            PlaylistFolderMenu(nodes: store.playlists.playlistTree, moving: Set(ids)) { sidebar.movePlaylists(ids, to: .into($0)) }
+        }
+        .disabled(!enabled)
+        Divider()
+        Button(.ui("\(count)개 지우기…"), role: .destructive) { sidebar.deletePlaylists(ids) }
+            .disabled(!enabled)
     }
 }
 
 /// '옮기기 ▸'의 폴더 트리(옮기는 폴더 자신과 그 아래는 뺀다)
 struct PlaylistFolderMenu: View {
-    let store: LibraryStore
     let nodes: [PlaylistOutlineNode]
-    let moving: String
+    let moving: Set<String>
+    let move: (String) -> Void
 
     var body: some View {
-        ForEach(nodes.filter { $0.isFolder && !$0.isSmart && $0.id != moving }) { folder in
-            let children = (folder.children ?? []).filter { $0.isFolder && !$0.isSmart && $0.id != moving }
+        ForEach(nodes.filter { $0.isFolder && !$0.isSmart && !moving.contains($0.id) }) { folder in
+            let children = (folder.children ?? []).filter { $0.isFolder && !$0.isSmart && !moving.contains($0.id) }
             if children.isEmpty {
-                Button(folder.name) { store.movePlaylist(moving, into: folder.id) }
+                Button(folder.name) { move(folder.id) }
             } else {
                 Menu(folder.name) {
-                    Button(.ui("이 폴더에")) { store.movePlaylist(moving, into: folder.id) }
+                    Button(.ui("이 폴더에")) { move(folder.id) }
                     Divider()
-                    PlaylistFolderMenu(store: store, nodes: children, moving: moving)
+                    PlaylistFolderMenu(nodes: children, moving: moving, move: move)
                 }
             }
         }
     }
 }
 
+/// 재생 목록 줄에 놓기. 끄는 재생 목록 중 하나 위에는 놓지 않는다(강조도 하지 않는다, #261)
+@MainActor
+struct PlaylistRowDrop: DropDelegate {
+    let node: PlaylistOutlineNode
+    let store: LibraryStore
+    let sidebar: PlaylistSidebarModel
+    @Binding var isTargeted: Bool
+
+    private func accepts(_ info: DropInfo) -> Bool {
+        !(info.hasItemsConforming(to: [PlaylistDragType.playlist]) && sidebar.refusesPlaylistDrop(on: node.id))
+    }
+
+    func validateDrop(info: DropInfo) -> Bool { accepts(info) }
+    func dropEntered(info: DropInfo) { isTargeted = accepts(info) }
+    func dropExited(info: DropInfo) { isTargeted = false }
+
+    func performDrop(info: DropInfo) -> Bool {
+        isTargeted = false
+        guard accepts(info) else { return false }
+        return PlaylistDrop.perform(info.itemProviders(for: PlaylistDrop.rowTypes), on: node, store: store, sidebar: sidebar)
+    }
+}
+
 /// 사이드바에 놓은 곡·재생 목록
 @MainActor
 enum PlaylistDrop {
+    /// 재생 목록 줄이 받는 형식
+    static let rowTypes: [UTType] = [PlaylistDragType.tracks, PlaylistDragType.playlist, .fileURL]
+
     /// 곡을 목록에 놓으면 넣고, 재생 목록을 폴더에 놓으면 그 안(맨 끝)으로, 목록에 놓으면 그 앞으로 옮긴다.
-    static func perform(_ providers: [NSItemProvider], on node: PlaylistOutlineNode, store: LibraryStore) -> Bool {
+    /// 여럿을 끌어 놓으면 사이드바 순서대로 한 번에 옮긴다(`PlaylistSidebarModel.movePlaylists`).
+    static func perform(_ providers: [NSItemProvider], on node: PlaylistOutlineNode, store: LibraryStore,
+                        sidebar: PlaylistSidebarModel) -> Bool {
         guard store.writeLockPolicy.allowsLibraryInteraction else { return false }
         let tracks = providers.filter { $0.hasItemConformingToTypeIdentifier(PlaylistDragType.tracks.identifier) }
         if !tracks.isEmpty {
-            guard store.canEditTracks(of: node.id) else {
-                store.blockSmartPlaylistEdit(node.id)
+            guard store.playlists.canEditTracks(of: node.id) else {
+                store.playlists.blockSmartPlaylistEdit(node.id)
                 return false
             }
             loadStrings(tracks, type: PlaylistDragType.tracks) { ids in
-                store.addTracks(ids.compactMap { store.rowsByID[$0] }, toPlaylist: node.id)
+                store.playlists.addTracks(ids.compactMap { store.rowsByID[$0] }, toPlaylist: node.id)
             }
             return true
         }
         let files = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
         if !files.isEmpty {
-            guard store.canEditTracks(of: node.id) else {
-                store.blockSmartPlaylistEdit(node.id)
+            guard store.playlists.canEditTracks(of: node.id) else {
+                store.playlists.blockSmartPlaylistEdit(node.id)
                 return false
             }
             loadStrings(files, type: .fileURL) { strings in
                 let urls = strings.compactMap(URL.init(string:)).filter(\.isFileURL)
-                Task { await store.addFiles(urls, toPlaylist: node.id) }
+                store.staging.startAddingFiles(urls, toPlaylist: node.id)
             }
             return true
         }
         guard !node.isSmart else {
-            store.blockSmartPlaylistEdit(node.id)
+            store.playlists.blockSmartPlaylistEdit(node.id)
             return false
         }
-        return movePlaylist(providers) { id in
+        return movePlaylists(providers) { ids in
+            if ids.count > 1 { return sidebar.movePlaylists(ids, to: node.isFolder ? .into(node.id) : .before(node.id)) }
+            let id = ids[0]
             if node.isFolder {
-                store.movePlaylist(id, into: node.id)
-            } else if let parent = store.playlistItem(node.id)?.parentID {
-                store.movePlaylist(id, into: parent, before: node.id)
+                store.playlists.movePlaylist(id, into: node.id)
+            } else if let parent = store.playlists.playlistItem(node.id)?.parentID {
+                store.playlists.movePlaylist(id, into: parent, before: node.id)
             }
         }
     }
 
-    static func movePlaylist(_ providers: [NSItemProvider], _ move: @escaping @MainActor (String) -> Void) -> Bool {
+    /// 끈 재생 목록 ID를 모두 읽어 넘긴다(하나 이상일 때만)
+    static func movePlaylists(_ providers: [NSItemProvider], _ move: @escaping @MainActor ([String]) -> Void) -> Bool {
         let playlists = providers.filter { $0.hasItemConformingToTypeIdentifier(PlaylistDragType.playlist.identifier) }
         guard !playlists.isEmpty else { return false }
-        loadStrings(playlists, type: PlaylistDragType.playlist) { ids in ids.first.map(move) }
+        loadStrings(playlists, type: PlaylistDragType.playlist) { ids in if !ids.isEmpty { move(ids) } }
         return true
     }
 
@@ -379,11 +450,11 @@ private final class StringBox: @unchecked Sendable {
 @MainActor
 enum PlaylistPanels {
     static func delete(store: LibraryStore, id: String) {
-        store.deletePlaylist(id)
+        store.playlists.deletePlaylist(id)
     }
 
     static func discardAll(store: LibraryStore) {
-        guard !store.playlistDraft.steps.isEmpty else { return }
-        store.discardPlaylistDraft()
+        guard !store.playlists.playlistDraft.steps.isEmpty else { return }
+        store.playlists.discardPlaylistDraft()
     }
 }

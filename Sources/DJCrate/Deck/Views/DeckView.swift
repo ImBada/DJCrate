@@ -1,7 +1,4 @@
-import RekordboxKit
-import DJCAnalysis
 import DJCDomain
-import DJCStorage
 import Foundation
 import SwiftUI
 
@@ -10,7 +7,10 @@ import SwiftUI
 /// 커버는 창 폭과 관계없이 위쪽에 두고, 컨트롤 줄은 필요하면 줄바꿈한다.
 struct DeckView: View {
     @Environment(\.textScale) private var textScale
-    let store: LibraryStore
+    /// 이전·다음 단추가 쓰는 라이브러리 입력(본문은 읽지 않고 넘긴다)
+    let library: any DeckLibrarySource
+    /// 키 제안 줄이 쓰는 태그 편집 조각
+    let tags: TagEditStore
     @Bindable var deck: DeckModel
     var widthClass: DeckWidthClass
 
@@ -35,9 +35,9 @@ struct DeckView: View {
                         }
                         .font(.scaled(.caption, textScale))
                     }
-                    DeckWaveformGroup(store: store, deck: deck, leftRailWidth: leftRailWidth, rightRailWidth: rightRailWidth)
+                    DeckWaveformGroup(library: library, deck: deck, leftRailWidth: leftRailWidth, rightRailWidth: rightRailWidth)
                     // 탭 줄은 왼쪽 조작부 열에 두고, 탭 판은 오른쪽 음량 미터 열 끝까지 채운다.
-                    DeckControlTabs(store: store, deck: deck, tabWidth: leftRailWidth)
+                    DeckControlTabs(tags: tags, deck: deck, tabWidth: leftRailWidth)
                     GainDraftDiscardButton(deck: deck)
                         .padding(.leading, leftRailWidth + 8)
                         .padding(.trailing, PerfProbe.hidden.contains("meter") ? 0 : rightRailWidth + 8)
@@ -69,7 +69,7 @@ extension EnvironmentValues {
 private struct DeckWaveformGroup: View {
     @Environment(\.textScale) private var textScale
     @Environment(\.deckWaveformHeight) private var waveformHeight
-    let store: LibraryStore
+    let library: any DeckLibrarySource
     let deck: DeckModel
     let leftRailWidth: CGFloat
     let rightRailWidth: CGFloat
@@ -89,7 +89,7 @@ private struct DeckWaveformGroup: View {
         let _ = PerfProbe.body(Self.self)
         let _ = PerfProbe.recordWaveformHeight(waveformHeight)
         HStack(alignment: .top, spacing: 8) {
-            DeckSideControls(store: store, deck: deck, availableHeight: waveGroupHeight)
+            DeckSideControls(library: library, deck: deck, availableHeight: waveGroupHeight)
                 .frame(width: leftRailWidth, height: waveGroupHeight)
             VStack(alignment: .leading, spacing: 8) {
                 Group {
@@ -171,7 +171,7 @@ private struct DeckWaveformGroup: View {
 /// 현재 목록의 곡과 재생 위치를 큰 파형 왼쪽에서 조작한다.
 private struct DeckSideControls: View {
     @Environment(\.textScale) private var textScale
-    let store: LibraryStore
+    let library: any DeckLibrarySource
     let deck: DeckModel
     let availableHeight: Double
     @State private var beatStep = 4
@@ -195,7 +195,7 @@ private struct DeckSideControls: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            DeckTrackStepButtons(store: store, deck: deck)
+            DeckTrackStepButtons(library: library, deck: deck)
                 .padding(.bottom, gap(10, 20))
             HStack(spacing: 4) {
                 Button { deck.beatJump(beats: -beatStep) } label: {
@@ -252,25 +252,25 @@ private struct DeckSideControls: View {
 /// 목록·덱 곡이 바뀔 때만 다시 찾는다(창 높이를 바꾸는 단계마다 찾지 않게, #155).
 private struct DeckTrackStepButtons: View {
     @Environment(\.textScale) private var textScale
-    let store: LibraryStore
+    /// 표시 줄과 쓰기 잠금은 이 잎 뷰가 읽는다(값으로 넘기면 조작부 본문이 목록을 읽게 된다, #155)
+    let library: any DeckLibrarySource
     let deck: DeckModel
 
     private func load(_ row: TrackRow?) {
         guard let row else { return }
-        store.selection = [row.id]
-        store.loadToDeck(row)
+        library.selectAndLoadToDeck(row)
     }
 
     var body: some View {
         let _ = PerfProbe.count("DeckTrackNavigation.adjacentRows")
-        let (previous, next) = DeckTrackNavigation.adjacentRows(in: store.displayRows, currentUUID: deck.row?.track.uuid)
+        let (previous, next) = DeckTrackNavigation.adjacentRows(in: library.displayRows, currentUUID: deck.row?.track.uuid)
         HStack(spacing: 4) {
             Button { load(previous) } label: {
                 Image(systemName: "backward.end.fill")
                     .frame(width: TextScale.length(24, scale: textScale), height: TextScale.length(24, scale: textScale))
                     .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
             }
-                .disabled(previous == nil || !store.writeLockPolicy.allowsLibraryInteraction)
+                .disabled(previous == nil || !library.allowsLibraryInteraction)
                 .help(.ui("이전 곡"))
                 .accessibilityLabel(.ui("이전 곡"))
             Button { load(next) } label: {
@@ -278,11 +278,40 @@ private struct DeckTrackStepButtons: View {
                     .frame(width: TextScale.length(24, scale: textScale), height: TextScale.length(24, scale: textScale))
                     .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
             }
-                .disabled(next == nil || !store.writeLockPolicy.allowsLibraryInteraction)
+                .disabled(next == nil || !library.allowsLibraryInteraction)
                 .help(.ui("다음 곡"))
                 .accessibilityLabel(.ui("다음 곡"))
         }
     }
+}
+
+/// 덱 묶음이 라이브러리에서 쓰는 것(#254): 이전·다음 단추가 훑는 표시 줄과 쓰기 잠금, 곡을 고르고 덱에 올리기, 덱에 끌어 놓은 곡·파일.
+/// 덱 묶음은 라이브러리 저장소를 통째로 받지 않는다. 이전·다음 단추는 성능 때문에 잎 뷰에서 읽으므로 값 대신 이 입력을 받는다(D6).
+/// 끌어 놓은 곡을 읽는 콜백에서 메인 액터로 넘기므로 `Sendable`이다(메인 액터 클래스만 따른다).
+@MainActor
+protocol DeckLibrarySource: AnyObject, Sendable {
+    var displayRows: [TrackRow] { get }
+    /// rekordbox에 쓰는 동안은 덱에 곡을 올리지 않는다
+    var allowsLibraryInteraction: Bool { get }
+    /// 이전·다음 곡: 목록에서 고르고 덱에 올린다
+    func selectAndLoadToDeck(_ row: TrackRow)
+    /// 곡 목록에서 끌어 온 곡(첫 곡을 올린다)
+    func loadDroppedTracks(_ ids: [String])
+    /// 곡 목록에서 끌어 온 USB 곡(짝인 로컬 곡을 올린다)
+    func loadDroppedUsbTracks(_ dragged: [UsbTrackDrag])
+    /// Finder에서 끌어 온 음원(곡 추가로 넘긴다. 덱에는 올리지 않는다)
+    func startAddingDroppedFiles(_ urls: [URL])
+}
+
+extension LibraryStore: DeckLibrarySource {
+    var allowsLibraryInteraction: Bool { writeLockPolicy.allowsLibraryInteraction }
+
+    func selectAndLoadToDeck(_ row: TrackRow) {
+        selection = [row.id]
+        loadToDeck(row)
+    }
+
+    func startAddingDroppedFiles(_ urls: [URL]) { staging.startAddingFiles(urls) }
 }
 
 /// 창 폭과 관계없이 쓰는 한 줄 곡 정보 헤더.
@@ -377,18 +406,8 @@ struct DeckInfoHeader: View {
         }
     }
 
-    /// 분석 파일이 없는 곡과 파형 파일이 빠진 곡은 그리드 쓰기 조건이 다르다.
-    private var analysisNote: (title: String, help: String)? {
-        let path = row.track.analysisDataPath
-        if RekordboxWriter.needsAnalysis(path) {
-            return (String(ui: "rekordbox 분석 전"), RekordboxWriter.attachesAnalysis
-                ? String(ui: "그리드 초안을 쓰면 이 미분석 곡에 파형·그리드·오토게인 분석 파일을 붙입니다.")
-                : String(ui: "rekordbox가 이 곡을 아직 분석하지 않았습니다. rekordbox에서 트랙 분석을 먼저 해야 그리드를 쓸 수 있습니다"))
-        }
-        guard !RekordboxShare.hasWaveformAnalysis(path) else { return nil }
-        return (String(ui: "rekordbox 분석 전 · 파형 없음"),
-                String(ui: "rekordbox 분석이 끝나지 않은 곡입니다(파형 파일 없음). rekordbox에서 트랙 분석을 다시 해야 그리드를 쓸 수 있습니다"))
-    }
+    /// 분석 파일이 없는 곡과 파형 파일이 빠진 곡은 그리드 쓰기 조건이 다르다(곡을 불러올 때 읽은 값).
+    private var analysisNote: (title: String, help: String)? { deck.analysisState?.note }
 }
 
 /// 재생 틱보다 느린 표시 시각으로 남은 시간·현재 시각만 갱신한다.

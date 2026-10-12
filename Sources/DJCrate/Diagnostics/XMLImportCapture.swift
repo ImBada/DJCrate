@@ -1,5 +1,6 @@
 #if DEBUG
 import AppKit
+import DJCApplication
 import DJCDomain
 import DJCStorage
 import Foundation
@@ -10,7 +11,7 @@ extension DevSelfTests {
     /// 사본을 내보낸 XML을 고쳐(제목·핫큐·그리드·새 재생 목록) 가져오고, 모든 차이를 초안으로 만든 뒤
     /// 초안이 생겼는지와 사본 DB가 그대로인지 본다("rekordbox XML 가져오기 시험 통과" 줄).
     /// 창을 앞으로 가져오지 않고 이 앱의 창 번호로만 찍는다. 합성 사본(곡 제목이 "합성 곡"으로 시작)과 사본 폴더(`DJC_REKORDBOX_DIR`)·임시 `DJC_HOME`에서만 돈다.
-    static func runXMLImportCaptureIfRequested(store: LibraryStore) {
+    static func runXMLImportCaptureIfRequested(store: LibraryStore, libraryWindow: LibraryWindowModel) {
         guard let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--xml-import-capture=") }),
               ProcessInfo.processInfo.environment["DJC_HOME"] != nil,
               ProcessInfo.processInfo.environment["DJC_REKORDBOX_DIR"]?.isEmpty == false else { return }
@@ -59,11 +60,11 @@ extension DevSelfTests {
             do { try Data(xml.utf8).write(to: url) } catch { log("XML을 쓰지 못했습니다"); exit(1) }
 
             store.sidebar = .filter(.all)
-            store.importRekordboxXML(from: url)
-            check(store.isReadingXMLImport, "시작하자마자 읽는 중이어야 합니다")
-            await store.xmlImportTask?.value
-            guard let preview = store.xmlImportPreview else {
-                log("미리 보기가 열리지 않았습니다: \(store.stagingMessage?.text ?? "")")
+            libraryWindow.xmlImport.start(from: url)
+            check(libraryWindow.xmlImport.isReading, "시작하자마자 읽는 중이어야 합니다")
+            await libraryWindow.xmlImport.task?.value
+            guard let preview = libraryWindow.xmlImport.preview else {
+                log("미리 보기가 열리지 않았습니다: \(store.staging.stagingMessage?.text ?? "")")
                 exit(1)
             }
             let counts = preview.diff.counts
@@ -77,15 +78,15 @@ extension DevSelfTests {
                 exit(1)
             }
             capture("preview", sheet)
-            await store.makeXMLImportDrafts(preview, selection: .all)
+            await libraryWindow.xmlImport.makeDrafts(preview, selection: .all)
             await wait(1.5)
             capture("result", window.attachedSheet ?? sheet)
-            let result = store.xmlImportResult
+            let result = libraryWindow.xmlImport.result
             check(result?.failure == nil, "실패 없음(\(result?.failure ?? ""))")
             check(result?.tags == 2 && result?.cues == 1 && result?.grids == 1 && result?.playlists == 1,
                   "초안 수 \(String(describing: result))")
             check(store.tagDrafts.values.contains { $0.fields.title == "합성 곡 01 (가져옴)" }, "태그 초안이 보여야 합니다")
-            check(store.playlistDraft.project(onto: store.rekordboxPlaylists).layout.outline.contains { $0.name == "합성 목록 3" },
+            check(store.playlists.playlistDraft.project(onto: store.playlists.rekordboxPlaylists).layout.outline.contains { $0.name == "합성 목록 3" },
                   "재생 목록 초안이 보여야 합니다")
             check((try? Data(contentsOf: snapshot)) == before, "사본 DB가 그대로여야 합니다")
             log("차이: 큐 \(counts.cueTracks) · 그리드 \(counts.gridTracks) · 태그 \(counts.tagTracks) · 없는 목록 \(counts.missingPlaylists)")

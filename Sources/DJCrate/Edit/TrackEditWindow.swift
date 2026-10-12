@@ -1,6 +1,6 @@
 import AppKit
+import DJCApplication
 import DJCDomain
-import DJCStorage
 import SwiftUI
 
 /// 곡 편집 창 하나를 띄우고 닫는다. 창 안에 자체 재생기가 있어 덱과 따로 듣고 고친다.
@@ -10,43 +10,66 @@ import SwiftUI
 /// 실행 취소는 이 창의 `undoManager`(편집 › 실행 취소 ⌘Z)에 쌓는다.
 @MainActor
 final class TrackEditWindow: NSObject, NSWindowDelegate {
-    static let shared = TrackEditWindow()
-
-    private(set) weak var deck: DeckModel?
-    private(set) weak var store: LibraryStore?
+    /// 조립 지점이 붙인 덱·목록·편집본 쓰기
+    private(set) var links: EditWindowLinks?
+    var deck: DeckModel? { links?.deck }
+    var store: LibraryStore? { links?.store }
     /// 자가 테스트도 이 창을 쓴다(제목은 언어마다 달라 제목으로 찾지 않는다).
     private(set) var window: NSWindow?
     private var host: NSHostingController<TrackEditView>?
     private(set) var model: TrackEditModel?
+    /// 마지막으로 시작한 여는 일(시험이 기다린다)
+    private(set) var opening: Task<Void, Never>?
     private var monitors: [Any] = []
 
-    func attach(deck: DeckModel, store: LibraryStore) {
-        self.deck = deck
-        self.store = store
+    func attach(_ links: EditWindowLinks) {
+        self.links = links
         #if DEBUG
         runLayoutCaptureIfRequested()
         #endif
     }
 
+    /// 창을 열기 전에 덱의 곡이 바뀌었을 때(같은 곡이라도 파일이 다르면 바뀐 것)
+    static var trackChangedReason: String {
+        String(ui: "편집 창을 여는 사이 덱의 곡이 바뀌어 열지 않았습니다. 편집할 곡을 덱에 올린 뒤 다시 여세요")
+    }
+
     /// 아직 편집을 시작할 수 없던 창만 다시 판정한다. 열린 편집의 출력 구간은 건드리지 않는다.
     func draftRecovered(_ uuid: String) {
         guard model?.row.track.uuid == uuid, model?.blockedReason != nil else { return }
-        open()
+        startOpen()
     }
 
+    /// 메뉴(덱 › 곡 편집…)와 덱의 편집 단추가 부른다. 단추를 누른 뒤 창을 닫아도 여는 일은 취소하지 않는다.
+    func startOpen() { opening = Task { await open() } }
+
     /// 덱에 올린 곡으로 연다. 같은 곡을 다시 열면 고른 구간을 이어 쓴다(그리드·큐는 덱에서 새로 읽는다).
-    func open(entries: [BarRange]? = nil) {
-        guard let deck else { return }
-        guard TrackEditModel.canOpen(deck) else {
-            if let reason = TrackEditModel.openingUnavailableReason(deck) { deck.showToast(reason) }
+    /// 음원 파일이 있는지는 메인 스레드 밖에서 보고, 그 사이 덱의 곡이 바뀌었으면 열지 않는다.
+    func open(entries: [BarRange]? = nil) async {
+        guard let links, let deck = links.deck else { return }
+        if let reason = deck.trackEditUnavailableReason {
+            deck.showToast(reason)
             return
         }
-        let kept = model?.row.id == deck.row?.id ? model?.entries.map(\.range) ?? [] : []
+        guard let track = deck.row?.track else { return }
+        let exists = track.isStreaming ? false : await links.writer.sourceExists(URL(filePath: track.folderPath))
+        if let reason = deck.trackEditUnavailableReason {
+            deck.showToast(reason)
+            return
+        }
+        // 기다리는 사이 다른 곡·다른 파일을 올렸으면 열지 않고 알린다(Flip 결과 창과 같은 비교).
+        guard deck.row?.track.uuid == track.uuid, deck.row?.track.folderPath == track.folderPath else {
+            deck.showToast(Self.trackChangedReason)
+            return
+        }
+        guard let source = deck.editSource(audioFileExists: exists) else { return }
+        let kept = model?.row.id == source.row.id ? model?.entries.map(\.range) ?? [] : []
         model?.close()
-        guard let model = TrackEditModel(deck: deck, entries: entries ?? kept, edits: DJCPaths.editOutput) else { return }
+        let model = TrackEditModel(source: source, entries: entries ?? kept, audio: links.makeAudio(), deck: deck.editControl,
+                                   writer: links.writer)
         model.onStaged = { [weak self] staged in self?.finish(staged) }
         self.model = model
-        let root = TrackEditView(model: model, deck: deck, store: store)
+        let root = TrackEditView(model: model, deck: deck, store: links.store, reflection: links.reflection)
         if let host {
             host.rootView = root
         } else {
@@ -103,7 +126,7 @@ final class TrackEditWindow: NSObject, NSWindowDelegate {
     }
 
     private func finish(_ staged: StagedTrack) {
-        store?.showStagedEdit(staged)
+        links?.showStaged(staged, true)
         window?.close()
         model = nil
     }
@@ -193,89 +216,5 @@ enum TrackEditCommand: Equatable {
             model.fit(model.focus)
         }
         return true
-    }
-}
-
-/// 확대 파형 오른쪽의 세로 단추 한 쌍: 위는 곡 편집 창, 아래는 Flip 기록(누르면 기록, 다시 누르면 마치고 결과 창).
-struct TrackEditButton: View {
-    @Environment(\.textScale) private var textScale
-    let deck: DeckModel
-    /// 확대 파형 높이(가장 낮을 때도 두 칸이 들어가게 줄인다)
-    let availableHeight: Double
-
-    var body: some View {
-        let width = TextScale.length(46, scale: textScale)
-        let half = min(TextScale.length(40, scale: textScale), max(28, (availableHeight - 16) / 2))
-        VStack(spacing: 0) {
-            editHalf.frame(width: width, height: half)
-            Rectangle().fill(.white.opacity(0.2)).frame(width: width, height: 1)
-            flipHalf.frame(width: width, height: half)
-        }
-        .background(Palette.well.opacity(0.85))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(.white.opacity(0.2)))
-    }
-
-    private var editHalf: some View {
-        Button {
-            TrackEditWindow.shared.open()
-        } label: {
-            label(symbol: "scissors",
-                  title: LocalizedStringResource("deck.editButton", defaultValue: "편집", bundle: UIStrings.bundle))
-        }
-        .buttonStyle(.plain)
-        .disabled(!TrackEditModel.canOpen(deck))
-        .help(TrackEditModel.openingUnavailableReason(deck) ?? String(ui: "마디 단위로 잘라 이은 편집본(인트로 늘이기·짧은 버전)을 만듭니다. 원곡은 그대로 두고 새 곡으로 추가한 곡에 넣습니다"))
-    }
-
-    private var flipHalf: some View {
-        let recording = deck.isFlipRecording
-        return Button {
-            FlipWindow.shared.toggleRecording()
-        } label: {
-            label(symbol: recording ? "stop.circle.fill" : "record.circle",
-                  title: LocalizedStringResource("deck.flipButton", defaultValue: "Flip", bundle: UIStrings.bundle))
-                .background(recording ? Color.red.opacity(0.8) : .clear)
-        }
-        .buttonStyle(.plain)
-        .disabled(deck.flipUnavailableReason != nil)
-        .help(deck.flipUnavailableReason ?? (recording
-            ? String(ui: "Flip 기록 중입니다. 다시 누르면 기록을 마치고 결과 창을 엽니다")
-            : String(ui: "Flip 기록을 시작합니다. 재생하며 쓴 핫큐 점프·루프만 모아 같은 소리로 재생되는 편집본을 만듭니다")))
-        .accessibilityLabel(.ui("Flip 기록"))
-        .accessibilityValue(recording ? String(ui: "기록 중") : String(ui: "꺼짐"))
-        .accessibilityAddTraits(.isToggle)
-    }
-
-    private func label(symbol: String, title: LocalizedStringResource) -> some View {
-        VStack(spacing: 2) {
-            Image(systemName: symbol)
-                .font(.scaled(.caption, textScale))
-            Text(title)
-                .font(.scaled(.caption2, textScale))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-        }
-        .foregroundStyle(.white)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .contentShape(Rectangle())
-    }
-}
-
-extension LibraryStore {
-    /// 렌더해 넣은 편집본(곡 편집·Flip)을 추가한 곡 목록에서 고르고 덱에 올린다(덱의 곡을 편집한 결과라 이어서 확인한다).
-    /// 초안은 편집 창이 파일로 써 두었다.
-    /// - Parameter hasGrid: 그리드 초안을 함께 넣었는지(원곡 그리드를 옮기지 못한 Flip은 없다)
-    func showStagedEdit(_ track: StagedTrack, hasGrid: Bool = true) {
-        loadStaged()
-        // 넣기가 손상된 추가 목록을 옮겼으면(옛 목록은 보관만 된다) 알린다. 새로 읽은 목록은 비어 있지 않아 저장 알림 규칙을 쓰지 않는다.
-        applyMovedDrafts(DamagedDrafts.take(home: draftHome ?? DJCPaths.userData))
-        refreshExternalDrafts()
-        if hasGrid { draftChanged(trackUUID: track.uuid, kind: .grid, exists: true) }
-        search = ""
-        sidebar = .staged
-        selection = [track.id]
-        loadToDeck(rowsByID[track.id])
-        stagingMessage = AppMessage(kind: .success, text: String(ui: "편집본 ‘\(track.title)’을 추가한 곡에 넣었습니다. rekordbox에 바로 넣기나 XML로 넘기세요"))
     }
 }

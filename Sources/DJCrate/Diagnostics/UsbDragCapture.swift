@@ -1,5 +1,7 @@
 #if DEBUG
 import AppKit
+import DJCAdapters
+import DJCApplication
 import DJCDomain
 import DJCStorage
 import Foundation
@@ -53,13 +55,14 @@ enum UsbDragCapture {
               let window = NSApp.windows.first(where: { $0.canBecomeMain && $0.isVisible }), let content = window.contentView else {
             throw Failure("합성 라이브러리(UsbDragFixtureCapture)·주 창을 확인하세요")
         }
-        let volume = try await Task.detached { try UsbVolumes.info(root: URL(filePath: mount)) }.value
+        let volume = try await BlockingWork.run(qos: .default) { try UsbVolumes.info(root: URL(filePath: mount)) }
         guard volume.isDiskImage, volume.name == "DJCDRAG" else { throw Failure("합성 디스크 이미지(DJCDRAG)가 아님") }
         let (events, continuation) = AsyncStream.makeStream(of: [UsbVolumeInfo].self)
         defer { continuation.finish() }
-        let host = SystemUsbHost(io: .reading(snapshots: DJCPaths.userData.appending(path: "drag-usb-snapshots")), events: events, current: { [volume] })
-        let usb = UsbStore(host: host, readPolicy: .diskImagesOnly, localLibrary: { nil })
-        usb.draftDirectory = DJCPaths.usbDrafts
+        let host = SystemUsbHost(io: UsbAppComposition.hostIO(snapshots: DJCPaths.userData.appending(path: "drag-usb-snapshots")), events: events,
+                                 current: { [volume] })
+        let usb = UsbStore(host: host, readPolicy: .diskImagesOnly, writeService: UsbAppComposition.writeService(), localLibrary: { nil })
+        usb.drafts = .live(directory: DJCPaths.usbDrafts)
         store.usb = usb
         await usb.refresh()
         NSApp.appearance = NSAppearance(named: .aqua)
@@ -114,7 +117,7 @@ enum UsbDragCapture {
         var dropped = try await drop(dragged, at: targets[local]!, in: window)
         try await settle()
         await dragged.end()
-        log("1 로컬 곡 → 로컬 목록: 놓기 \(dropped) · '빈 목록' 곡 \(store.playlistItem("2403")?.entries.count ?? -1)개")
+        log("1 로컬 곡 → 로컬 목록: 놓기 \(dropped) · '빈 목록' 곡 \(store.playlists.playlistItem("2403")?.entries.count ?? -1)개")
 
         // 2. 로컬 곡 두 개 → USB '목록 나'
         table.selectRowIndexes([6, 7], byExtendingSelection: false)
@@ -167,19 +170,19 @@ enum UsbDragCapture {
         log("5 USB 곡 → 다른 USB 목록: 끌기 \(dragged.summary) · 놓기 \(dropped) · USB 초안 \(before)→\(usbDrafts().count)건 \(lastEdit(usbDrafts(), library))")
 
         // 6·7. 받지 않을 곳: 로컬 목록, 같은 USB 컬렉션
-        let localBefore = store.playlistItem("2403")?.entries.count ?? -1
+        let localBefore = store.playlists.playlistItem("2403")?.entries.count ?? -1
         before = usbDrafts().count
         dropped = try await drop(dragged, at: targets[local]!, in: window)
         try await settle()
-        log("6 USB 곡 → 로컬 목록: 놓기 \(dropped) · '빈 목록' 곡 \(localBefore)→\(store.playlistItem("2403")?.entries.count ?? -1)개 · USB 초안 \(usbDrafts().count)건")
+        log("6 USB 곡 → 로컬 목록: 놓기 \(dropped) · '빈 목록' 곡 \(localBefore)→\(store.playlists.playlistItem("2403")?.entries.count ?? -1)개 · USB 초안 \(usbDrafts().count)건")
         dropped = try await drop(dragged, at: targets[usbCollection]!, in: window)
         try await settle()
         await dragged.end()
         log("7 USB 곡 → 같은 USB 컬렉션: 놓기 \(dropped) · USB 초안 \(before)→\(usbDrafts().count)건")
 
         // 8. 끌 수 없는 USB 줄(초안을 받지 않는 볼륨): 끌기가 시작되지 않을 때 고른 줄이 숨지 않는다
-        let directory = usb.draftDirectory
-        usb.draftDirectory = nil
+        let drafts = usb.drafts
+        usb.drafts = nil
         table = try await show(.usb(.playlist(volumeKey: key, id: ga.id)))
         table.selectRowIndexes([1, 3], byExtendingSelection: false)
         // 앞선 끌기가 순서를 바꿀 수 있는 목록이었으면 표는 간격 표시인 채로 남아 있다
@@ -189,7 +192,7 @@ enum UsbDragCapture {
         log("8 초안을 받지 않는 USB 목록: 끌기 \(dragged.summary) · 선택 [\(selected(table))] · 숨은 줄 \(Array(table.hiddenRowIndexes))")
         try captureWindow(window, to: path("usb-playlist-not-draggable"))
         await dragged.end()
-        usb.draftDirectory = directory
+        usb.drafts = drafts
 
         _ = try await show(.usb(.playlist(volumeKey: key, id: na.id)))
         try captureWindow(window, to: path("usb-playlist-na"))
@@ -231,7 +234,7 @@ enum UsbDragCapture {
 
     /// 표의 줄을 눌러 끈다: mouseDown 추적 루프가 읽을 끌기·떼기 이벤트를 먼저 넣고 mouseDown을 부른다.
     /// 표가 끌기를 시작하면 창 서버 세션 대신 표가 만든 끌 항목을 받는다
-    private static func drag(_ table: TrackListTableView, row: Int) async -> Dragged {
+    static func drag(_ table: TrackListTableView, row: Int) async -> Dragged {
         let box = await onRunLoop { UncheckedBox(dragNow(table, row: row)) }
         return box.value
     }
@@ -277,11 +280,17 @@ enum UsbDragCapture {
     // MARK: 놓기
 
     /// 끈 항목을 담은 페이스트보드로 그 자리의 놓기 대상(등록한 형식이 있는 가장 안쪽 뷰)에 끌어 들어가 놓는다. 받았는지 글로 돌려준다
-    private static func drop(_ dragged: Dragged, at point: NSPoint, in window: NSWindow, source: Any? = nil) async throws -> String {
+    static func drop(_ dragged: Dragged, at point: NSPoint, in window: NSWindow, source: Any? = nil) async throws -> String {
         guard dragged.started else { return "끌 항목 없음" }
         guard let content = window.contentView else { throw Failure("창 내용이 없습니다") }
         var view = content.hitTest(point)
         while let current = view, current.registeredDraggedTypes.isEmpty { view = current.superview }
+        // SwiftUI `onDrop`은 감싼 뷰의 조상이 아니라 그 자리에 겹친 형제 뷰(`_PlatformDraggingDestinationView`)로 받는다. 가장 앞의 것
+        if view == nil, let root = content.superview {
+            view = views(in: root).last {
+                String(describing: type(of: $0)).contains("DraggingDestinationView") && $0.convert($0.bounds, to: nil).contains(point)
+            }
+        }
         guard let destination = view else { return "놓기 대상 없음" }
         let pasteboard = NSPasteboard(name: NSPasteboard.Name("com.djcrate.drag-capture.\(UUID().uuidString)"))
         defer { pasteboard.releaseGlobally() }
@@ -384,7 +393,7 @@ enum UsbDragCapture {
         init(_ value: T) { self.value = value }
     }
 
-    private static func views(in view: NSView) -> [NSView] { [view] + view.subviews.flatMap(views(in:)) }
+    static func views(in view: NSView) -> [NSView] { [view] + view.subviews.flatMap(views(in:)) }
 
     /// 손쉬운 사용 요소 아래의 이름·값 글자(SwiftUI 요소는 비공식 속성 API로만 읽힌다)
     private static func axTexts(_ element: Any, depth: Int = 0) -> [String] {
@@ -403,7 +412,7 @@ enum UsbDragCapture {
         return condition()
     }
 
-    private static func captureWindow(_ window: NSWindow, to path: String) throws {
+    static func captureWindow(_ window: NSWindow, to path: String) throws {
         let process = Process()
         process.executableURL = URL(filePath: "/usr/sbin/screencapture")
         process.arguments = ["-x", "-o", "-t", "jpg", "-l", String(window.windowNumber), path]

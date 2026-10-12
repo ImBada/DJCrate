@@ -1,6 +1,7 @@
 @testable import DJCrate
 import AppKit
 import DJCDomain
+import DJCTestKit
 import Foundation
 import Testing
 
@@ -14,14 +15,14 @@ struct TrackListKeyEditTests {
         defer { h.close() }
         let cell = try #require(h.cell(row: 0, column: "key"))
         #expect(cell.text == "5A" && !cell.showsDraftMark)
-        h.store.setTag(.musicalKey, "8A", rows: [row])
+        h.store.tags.setTag(.musicalKey, "8A", rows: [row])
         h.coordinator.updateTagRevision(h.store.tagRevision)
         #expect(cell.text == "8A" && cell.showsDraftMark)
         #expect(cell.label.accessibilityValue() == "8A, 초안")
         h.undo.undo()
         h.coordinator.updateTagRevision(h.store.tagRevision)
         #expect(cell.text == "5A" && !cell.showsDraftMark)
-        h.store.setTag(.musicalKey, "", rows: [row])
+        h.store.tags.setTag(.musicalKey, "", rows: [row])
         h.coordinator.updateTagRevision(h.store.tagRevision)
         #expect(cell.text.isEmpty && cell.showsDraftMark)
     }
@@ -31,7 +32,7 @@ struct TrackListKeyEditTests {
         row.keyEstimated = true
         let h = ListHarness(rows: [row], selection: [row.id], showKey: true)
         defer { h.close() }
-        h.store.setTag(.title, "새 제목", rows: [row])
+        h.store.tags.setTag(.title, "새 제목", rows: [row])
         h.coordinator.updateTagRevision(h.store.tagRevision)
         let cell = try #require(h.cell(row: 0, column: "key"))
         #expect(cell.text == "8A" && !cell.showsDraftMark)
@@ -40,22 +41,22 @@ struct TrackListKeyEditTests {
         let menu = try #require(h.coordinator.keyMenu(row: 0))
         #expect(menu.items.first { $0.state == .on }?.title == "없음")
         try choose("8A", menu: menu)
-        #expect(h.store.confirmedStagedKey(uuid: row.track.uuid) == "8A")
+        #expect(h.store.tags.confirmedStagedKey(uuid: row.track.uuid) == "8A")
         #expect(cell.text == "8A" && cell.showsDraftMark)
         #expect(cell.label.accessibilityValue() == "8A, 초안")
     }
 
     /// 덱 제안 줄의 [적용]으로 생긴 키 초안도 목록 칸에 초안으로 보인다.
     @Test func 덱_제안_적용으로_생긴_키_초안도_목록에_보인다() throws {
-        let suite = "djc.test.list-key-suggestion.\(UUID())"
+        let suite = TestDefaults.suiteName("list-key-suggestion")
         defer { UserDefaults().removePersistentDomain(forName: suite) }
-        let store = LibraryStore(settings: SettingsStore(defaults: try #require(UserDefaults(suiteName: suite))), saveTagDrafts: { _ in })
+        let store = LibraryStore.test(settings: SettingsStore(defaults: TestDefaults.open(suite), persist: false), saveTagDrafts: { _ in })
         let row = MusicalKeyEditingTests.row("1")
         let h = ListHarness(rows: [row], selection: [row.id], store: store, showKey: true)
         defer { h.close() }
         let cell = try #require(h.cell(row: 0, column: "key"))
         #expect(cell.text.isEmpty && !cell.showsDraftMark)
-        store.applyKeySuggestion(estimate: "8B", rows: [row])
+        store.tags.applyKeySuggestion(estimate: "8B", rows: [row])
         h.coordinator.updateTagRevision(store.tagRevision)
         #expect(cell.text == "8B" && cell.showsDraftMark)
     }
@@ -83,7 +84,7 @@ struct TrackListKeyEditTests {
         h.coordinator.cancelEditing()
         #expect(h.store.tagDrafts.isEmpty && h.window.firstResponder === h.table)
         try choose("8A", menu: menu)
-        #expect(h.store.tagCell(row, .musicalKey) == "8A")
+        #expect(h.store.tags.tagCell(row, .musicalKey) == "8A")
         // 다른 칸을 누르면 Return은 다시 제목부터다
         opened = nil
         h.click(row: 0, column: "artist")
@@ -132,8 +133,8 @@ struct TrackListKeyEditTests {
         #expect(shown.point == NSPoint(x: rect.minX, y: rect.maxY))
         #expect(h.coordinator.editingColumn == nil && h.editor == nil)
         try choose("8A", menu: shown.menu)
-        #expect([0, 1, 3].allSatisfy { h.store.tagCell(rows[$0], .musicalKey) == "8A" })
-        #expect(h.store.tagCell(rows[2], .musicalKey) == "5A")
+        #expect([0, 1, 3].allSatisfy { h.store.tags.tagCell(rows[$0], .musicalKey) == "8A" })
+        #expect(h.store.tags.tagCell(rows[2], .musicalKey) == "5A")
     }
 
     /// 누른 줄이 선택에서 빠지면 기억도 지워져 Return은 고른 줄 중 첫 곡의 보이는 첫 글자 칸이다.
@@ -166,8 +167,8 @@ struct TrackListKeyEditTests {
         // 고른 곡 모두가 대상이다(인스펙터 여러 곡 편집과 같다)
         h.type("새 제목")
         h.command(#selector(NSResponder.insertNewline(_:)))
-        #expect([0, 1, 3].allSatisfy { h.store.tagCell(rows[$0], .title) == "새 제목" })
-        #expect(h.store.tagCell(rows[2], .title) == rows[2].track.title)
+        #expect([0, 1, 3].allSatisfy { h.store.tags.tagCell(rows[$0], .title) == "새 제목" })
+        #expect(h.store.tags.tagCell(rows[2], .title) == rows[2].track.title)
     }
 
     /// 누른 줄이 스트리밍·USB 곡이면 고칠 수 없으니 지금처럼 고른 줄 중 첫 곡의 보이는 첫 글자 칸이다.
@@ -296,21 +297,6 @@ struct TrackListKeyEditTests {
         #expect(h.coordinator.clickedCell == nil)
     }
 
-    @Test func Return과_Tab의_글자_칸_흐름은_키_칸을_건너뛴다() {
-        let order = ["index", "title", "artist", "key", "comment"]
-        #expect(TrackListTagEditing.firstColumn(in: ["index", "key", "title"]) == "title")
-        #expect(TrackListTagEditing.firstColumn(in: order, clicked: "key") == "key")
-        #expect(TrackListTagEditing.firstColumn(in: order, clicked: "artist") == "title")
-        #expect(TrackListTagEditing.firstColumn(in: ["title"], clicked: "key") == "title")
-        // 글자 칸이 하나도 보이지 않으면 키 칸을 누르기 전에는 고칠 칸이 없다(Return이 키 메뉴를 열지 않는다)
-        #expect(TrackListTagEditing.firstColumn(in: ["index", "bpm", "key"]) == nil)
-        #expect(TrackListTagEditing.firstColumn(in: ["index", "bpm", "key"], clicked: "key") == "key")
-        #expect(TrackListTagEditing.firstColumn(in: ["index", "bpm"], clicked: "key") == nil)
-        #expect(TrackListTagEditing.column(after: "artist", forward: true, in: order) == "comment")
-        #expect(TrackListTagEditing.column(after: "comment", forward: false, in: order) == "artist")
-        #expect(TrackListTagEditing.column(after: "key", forward: true, in: order) == nil)
-    }
-
     @Test func Tab은_키_칸에서_메뉴를_열지_않고_다음_글자_칸으로_간다() {
         let row = MusicalKeyEditingTests.row("1", key: "5A")
         let h = ListHarness(rows: [row], selection: [row.id], showKey: true)
@@ -353,7 +339,7 @@ struct TrackListKeyEditTests {
         #expect(opened == 1 && loaded == [row.track.id])
         // 키를 고칠 수 없는 곡(스트리밍·USB)은 경고 대신 다른 칸처럼 덱에 올린다
         h.coordinator.doubleClicked(row: 1, column: "key")
-        #expect(opened == 1 && loaded == [row.track.id, s.track.id] && h.store.stagingMessage == nil)
+        #expect(opened == 1 && loaded == [row.track.id, s.track.id] && h.store.staging.stagingMessage == nil)
     }
 
     // MARK: - 고르기 규칙
@@ -370,7 +356,7 @@ struct TrackListKeyEditTests {
         #expect(menu.items.allSatisfy { $0.state == .off })
         #expect(h.store.tagDrafts.isEmpty)
         try choose("없음", menu: menu)
-        #expect(h.store.tagCell(a, .musicalKey).isEmpty && h.store.tagCell(b, .musicalKey).isEmpty)
+        #expect(h.store.tags.tagCell(a, .musicalKey).isEmpty && h.store.tags.tagCell(b, .musicalKey).isEmpty)
         #expect(h.store.tagDrafts.count == 2)
         #expect(h.store.tagDrafts[s.track.uuid] == nil && h.store.tagDrafts[usb.track.uuid] == nil)
         h.undo.undo()
@@ -379,12 +365,12 @@ struct TrackListKeyEditTests {
         #expect(h.store.tagDrafts.count == 2)
         let single = try #require(h.coordinator.keyMenu(row: 1))
         try choose("12B", menu: single)
-        #expect(h.store.tagCell(a, .musicalKey) == "12B" && h.store.tagCell(b, .musicalKey) == "12B")
+        #expect(h.store.tags.tagCell(a, .musicalKey) == "12B" && h.store.tags.tagCell(b, .musicalKey) == "12B")
         // 고른 줄 밖을 누르면 그 곡 하나만
         h.table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
         let outside = try #require(h.coordinator.keyMenu(row: 1))
         try choose("3A", menu: outside)
-        #expect(h.store.tagCell(a, .musicalKey) == "12B" && h.store.tagCell(b, .musicalKey) == "3A")
+        #expect(h.store.tags.tagCell(a, .musicalKey) == "12B" && h.store.tags.tagCell(b, .musicalKey) == "3A")
     }
 
     /// 메뉴를 연 사이 줄이 바뀌어도(빠짐·순서 바뀜) 줄 ID로 다시 찾아 지금 있는 대상에만 넣는다.
@@ -397,8 +383,8 @@ struct TrackListKeyEditTests {
         h.coordinator.update(rows: [rows[3], rows[2], rows[1]], edited: [], selection: [], sortOrder: [], snapshotURL: nil, previewRevision: 0)
         try choose("9B", menu: menu)
         #expect(h.store.tagDrafts.keys.sorted() == [rows[1].track.uuid, rows[3].track.uuid].sorted())
-        #expect(h.store.tagCell(rows[1], .musicalKey) == "9B" && h.store.tagCell(rows[3], .musicalKey) == "9B")
-        #expect(h.store.tagCell(rows[0], .musicalKey) == "5A" && h.store.tagCell(rows[2], .musicalKey) == "5A")
+        #expect(h.store.tags.tagCell(rows[1], .musicalKey) == "9B" && h.store.tags.tagCell(rows[3], .musicalKey) == "9B")
+        #expect(h.store.tags.tagCell(rows[0], .musicalKey) == "5A" && h.store.tags.tagCell(rows[2], .musicalKey) == "5A")
     }
 
     @Test func 읽기_전용_곡과_쓰기_중에는_메뉴와_선택을_막는다() throws {
@@ -412,9 +398,9 @@ struct TrackListKeyEditTests {
         let rows = [a, s, usb]
         for index in [1, 2] {
             #expect(h.coordinator.keyMenu(row: index) == nil)
-            h.store.stagingMessage = nil
+            h.store.staging.stagingMessage = nil
             #expect(!h.coordinator.beginEditing(row: index, column: "key"))
-            #expect(h.store.stagingMessage?.text == KeyPicker.unavailableReason(rows[index]))
+            #expect(h.store.staging.stagingMessage?.text == KeyPicker.unavailableReason(rows[index]))
         }
         let menu = try #require(h.coordinator.keyMenu(row: 0))
         h.store.isWritingRekordbox = true
@@ -471,12 +457,12 @@ struct TrackListKeyEditTests {
         let a = MusicalKeyEditingTests.row("1", key: "1A"), b = MusicalKeyEditingTests.row("2", key: "8A")
         let h = ListHarness(rows: [a, b], selection: [a.id], showKey: true)
         defer { h.close() }
-        h.store.setTag(.musicalKey, "12B", rows: [a])
+        h.store.tags.setTag(.musicalKey, "12B", rows: [a])
         let sort = try #require(TrackColumn.comparator(key: "key", ascending: true))
         #expect([b, a].sorted(using: sort).map(\.id) == [a.id, b.id])
         #expect(TrackColumn.sortKey(of: sort.keyPath) == "key")
         // 제목도 초안 전 값으로 정렬한다(같은 규칙)
-        h.store.setTag(.title, "가", rows: [b])
+        h.store.tags.setTag(.title, "가", rows: [b])
         let title = try #require(TrackColumn.comparator(key: "title", ascending: true))
         #expect([b, a].sorted(using: title).map(\.id) == [a.id, b.id])
     }

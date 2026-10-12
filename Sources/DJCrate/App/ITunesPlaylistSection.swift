@@ -1,6 +1,4 @@
 import DJCDomain
-import DJCStorage
-import RekordboxKit
 import SwiftUI
 
 /// iTunes 목록은 구성 편집·드롭 메뉴를 달지 않는다. 반복 곡의 행은 구분하고 편집은 기존 곡에 연결한다.
@@ -9,18 +7,18 @@ struct ITunesPlaylistSection: View {
     @State private var isExpanded = true
 
     var body: some View {
-        @Bindable var store = store
+        @Bindable var music = store.music
         Section(isExpanded: $isExpanded) {
-            if let message = store.iTunesLibrary.status.message {
+            if let message = music.library.status.message {
                 Text(message).font(.caption).foregroundStyle(.secondary)
-            } else if store.iTunesLibrary.tree.isEmpty {
+            } else if music.library.tree.isEmpty {
                 Text(.ui("동기화한 iTunes 목록이 없습니다")).foregroundStyle(.secondary)
             }
-            if store.iTunesLibrary.unavailablePlaylistCount > 0 {
-                Text(.ui("원본에서 찾지 못한 목록 \(store.iTunesLibrary.unavailablePlaylistCount)개 · 동기화 선택을 확인하세요"))
+            if music.library.unavailablePlaylistCount > 0 {
+                Text(.ui("원본에서 찾지 못한 목록 \(music.library.unavailablePlaylistCount)개 · 동기화 선택을 확인하세요"))
                     .font(.caption).foregroundStyle(.secondary)
             }
-            OutlineGroup(store.iTunesLibrary.tree, children: \.children) { node in
+            OutlineGroup(music.library.tree, children: \.children) { node in
                 Label(node.name, systemImage: node.isFolder ? "folder" : "music.note.list")
                     .badge(node.trackIDs.count)
                     .lineLimit(1)
@@ -34,13 +32,13 @@ struct ITunesPlaylistSection: View {
                 // 비슷한 원형 화살표 버튼 둘이 펼침 화살표 옆에 붙어 헷갈려 메뉴 하나로 모은다(#120).
                 Menu {
                     Button {
-                        store.presentITunesSync()
+                        music.presentSyncWindow()
                     } label: {
                         Label(.ui("iTunes 동기화…"), systemImage: "arrow.triangle.2.circlepath")
                     }
                     .disabled(store.isLoading || store.isWritingRekordbox || store.snapshotURL == nil)
                     Button {
-                        Task { await store.refreshITunesPlaylists() }
+                        music.startRefreshPlaylists()
                     } label: {
                         Label(.ui("iTunes 동기화 목록 새로고침"), systemImage: "arrow.clockwise")
                     }
@@ -56,6 +54,6 @@ struct ITunesPlaylistSection: View {
             }
             .sidebarSectionHeader()
         }
-        .sheet(isPresented: $store.showingITunesSync) { ITunesSyncView(store: store) }
+        .sheet(item: $music.syncWindow) { ITunesSyncView(model: $0) }
     }
 }

@@ -1,4 +1,5 @@
 import AppKit
+import DJCApplication
 import DJCDomain
 import Foundation
 import OSLog
@@ -28,7 +29,8 @@ enum UIPerfSelfTest {
 
     static func log(_ text: String) { FileHandle.standardError.write(Data("[화면 성능] \(text)\n".utf8)) }
 
-    static func runIfRequested(store: LibraryStore, deck: DeckModel) {
+    static func runIfRequested(store: LibraryStore, deck: DeckModel, windows: AppWindows, reflection: ReflectionCoordinator,
+                               playlistSidebar: PlaylistSidebarModel) {
         guard let names = requested else { return }
         // 실행 인자로 준 값(`-NSWindow Frame …`)이 아니라 저장된 값을 되돌린다.
         let stored = UserDefaults.standard.persistentDomain(forName: ProcessInfo.processInfo.processName) ?? [:]
@@ -48,7 +50,8 @@ enum UIPerfSelfTest {
                 try? await Task.sleep(for: .seconds(seconds))
             }
             let recorder = UIPerfRecorder()
-            let runner = UIPerfRunner(store: store, deck: deck, recorder: recorder)
+            let runner = UIPerfRunner(store: store, deck: deck, windows: windows, reflection: reflection, playlistSidebar: playlistSidebar,
+                                      recorder: recorder)
             var load = [0.0, 0.0, 0.0]
             getloadavg(&load, 3)
             log(String(format: "부하(1·5·15분) %.1f %.1f %.1f · 코어 %d", load[0], load[1], load[2], ProcessInfo.processInfo.activeProcessorCount))
@@ -154,6 +157,9 @@ struct UIPerfSample {
 final class UIPerfRunner {
     let store: LibraryStore
     let deck: DeckModel
+    let windows: AppWindows
+    let reflection: ReflectionCoordinator
+    let playlistSidebar: PlaylistSidebarModel
     let recorder: UIPerfRecorder
     private(set) var window: NSWindow?
     private(set) var originalFrame: NSRect?
@@ -161,9 +167,13 @@ final class UIPerfRunner {
     private var failed = false
     private let signposter = OSSignposter(subsystem: "DJCrate.uiperf", category: .pointsOfInterest)
 
-    init(store: LibraryStore, deck: DeckModel, recorder: UIPerfRecorder) {
+    init(store: LibraryStore, deck: DeckModel, windows: AppWindows, reflection: ReflectionCoordinator, playlistSidebar: PlaylistSidebarModel,
+         recorder: UIPerfRecorder) {
         self.store = store
         self.deck = deck
+        self.windows = windows
+        self.reflection = reflection
+        self.playlistSidebar = playlistSidebar
         self.recorder = recorder
     }
 
@@ -235,7 +245,7 @@ final class UIPerfRunner {
         if names.contains("launch") {
             log(String(format: "첫 로딩: 프로세스 시작 → 목록 읽음 %.0fms · 목록 읽음 → 측정 준비 %.0fms · 곡 %d개 · 재생 목록 %d개",
                        (loadedAt - launched + UIPerfRunner.processAge(at: launched)) * 1000, (CACurrentMediaTime() - loadedAt) * 1000,
-                       store.rows.count, store.playlistCount))
+                       store.rows.count, store.playlists.playlistCount))
         }
         for name in names where name != "launch" {
             recorder.reset()
@@ -393,8 +403,8 @@ final class UIPerfRunner {
     }
 
     private func sidebarItems() async {
-        let playlists = store.playlistIndex.values.filter { !$0.isFolder && !$0.isSmart }.sorted { $0.trackIDs.count > $1.trackIDs.count }
-        let history = store.histories.first
+        let playlists = store.playlists.playlistIndex.values.filter { !$0.isFolder && !$0.isSmart }.sorted { $0.trackIDs.count > $1.trackIDs.count }
+        let history = store.history.histories.first
         var targets: [(String, SidebarItem)] = [("전체", .filter(.all))]
         if let big = playlists.first { targets.append(("큰 재생 목록(\(big.trackIDs.count)곡)", .playlist(big.id))) }
         if let small = playlists.last { targets.append(("작은 재생 목록(\(small.trackIDs.count)곡)", .playlist(small.id))) }
@@ -526,12 +536,12 @@ final class UIPerfRunner {
 
     private func edit() async {
         await ensureDeck()
-        guard TrackEditModel.canOpen(deck) else { log("곡 편집 창: 열 수 없는 곡"); return }
+        guard deck.canOpenTrackEdit else { log("곡 편집 창: 열 수 없는 곡"); return }
         await measure("곡 편집 창 열기", repeats: 3, window: 1.5, rest: 0.5, prepare: { _ in
-            TrackEditWindow.shared.window?.close()
+            self.windows.trackEdit.window?.close()
             await self.wait(0.3)
-        }) { _ in TrackEditWindow.shared.open() }
-        TrackEditWindow.shared.window?.close()
+        }) { _ in Task { await self.windows.trackEdit.open() } }
+        windows.trackEdit.window?.close()
         window?.makeKeyAndOrderFront(nil)
         await wait(0.5)
     }
@@ -583,8 +593,8 @@ final class UIPerfRunner {
         guard !items.isEmpty else { log("그리드 일괄 추정: 곡이 없음"); return }
         recorder.reset()
         let start = CACurrentMediaTime()
-        store.enqueueGrid(items)
-        while store.gridJob != nil, CACurrentMediaTime() - start < 180 { await wait(0.1) }
+        store.staging.enqueueGrid(items)
+        while store.staging.gridJob != nil, CACurrentMediaTime() - start < 180 { await wait(0.1) }
         let elapsed = (CACurrentMediaTime() - start) * 1000
         let result = recorder.result(from: start, to: CACurrentMediaTime(), sync: 0)
         log(String(format: "그리드 일괄 추정 곡 %d개: 걸린 시간 %.0fms · 메인 일한 합 %.0fms · 한 번 최대 %.1fms · 프레임 최대 간격 %.1fms · 25ms 넘은 프레임 %d · 쓰기 대기 %d곡",
@@ -593,22 +603,22 @@ final class UIPerfRunner {
 
     private func drafts() async {
         let rows = Array(store.rows.prefix(600))
-        await measure("태그 초안 600곡 만들기", repeats: 1, window: 1.5) { _ in self.store.setTag(.comment, "성능 측정 초안", rows: rows) }
+        await measure("태그 초안 600곡 만들기", repeats: 1, window: 1.5) { _ in self.store.tags.setTag(.comment, "성능 측정 초안", rows: rows) }
         log("쓰기 대기 \(store.pendingLibraryCount)곡")
     }
 
     private func preview() async {
         let tracks = Array(store.rows.prefix(50))
-        guard let id = store.createPlaylist(isFolder: false, in: PlaylistLayout.root, name: "성능 측정 목록", tracks: tracks) else {
+        guard let id = store.playlists.createPlaylist(isFolder: false, in: PlaylistLayout.root, name: "성능 측정 목록", tracks: tracks) else {
             log("쓰기 미리 보기: 재생 목록 초안을 만들지 못함"); return
         }
-        store.renamingPlaylistID = nil
+        playlistSidebar.cancelRenaming()
         await wait(0.5)
         recorder.reset()
         let start = CACurrentMediaTime()
         store.setWriteLock(true)
         do {
-            let preview = try await store.previewWrite(rows: [], playlists: true)
+            let preview = try await reflection.session.previewWrite(rows: [], playlists: true)
             let whole = recorder.result(from: start, to: CACurrentMediaTime(), sync: 0)
             log(String(format: "쓰기 미리 보기(재생 목록 초안 1건): 걸린 시간 %.0fms · 메인 일한 합 %.0fms · 한 번 최대 %.1fms · 프레임 최대 간격 %.1fms · 재생 목록 %d건",
                        (CACurrentMediaTime() - start) * 1000, whole.busy, whole.longest, whole.maxFrameGap, preview.report.playlistWritten.count))
@@ -617,7 +627,7 @@ final class UIPerfRunner {
         }
         store.writeStage = nil
         store.setWriteLock(false)
-        store.discardPlaylistDraft(id)
+        store.playlists.discardPlaylistDraft(id)
         store.sidebar = .filter(.all)
         await wait(0.5)
     }

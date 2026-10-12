@@ -1,12 +1,13 @@
 #if DEBUG
 import AppKit
+import DJCApplication
 import DJCDomain
 import DJCStorage
 import Foundation
 
 extension DevSelfTests {
     /// 합성 목록의 막힘 → 비교 → 초안 재적용 → 기존 쓰기 미리 보기를 활성화 없이 확인한다.
-    static func runPlaylistRecoveryIfRequested(store: LibraryStore) {
+    static func runPlaylistRecoveryIfRequested(store: LibraryStore, reflection: ReflectionCoordinator) {
         let args = ProcessInfo.processInfo.arguments, environment = ProcessInfo.processInfo.environment
         guard args.contains("--playlist-recovery-selftest") else { return }
         Task {
@@ -22,7 +23,7 @@ extension DevSelfTests {
                     try await Task.sleep(for: .milliseconds(100))
                 }
                 guard case .loaded = store.phase, store.rows.allSatisfy({ $0.title.hasPrefix("합성 곡 ") }),
-                      store.playlistDraft.steps.count == 2, store.blockedPlaylistEditCount == 2,
+                      store.playlists.playlistDraft.steps.count == 2, store.playlists.blockedPlaylistEditCount == 2,
                       let window = NSApp.windows.first(where: { $0.canBecomeMain }) else {
                     throw DJCError.writeRefused("합성 목록의 막힌 편집을 확인하지 못했습니다")
                 }
@@ -37,7 +38,7 @@ extension DevSelfTests {
                 try capturePlaylistWindow(window, at: directory.appending(path: before ? "before.jpg" : "after-blocked.jpg"))
                 if before { exit(0) }
                 // 복구 시트(#232)의 한 줄을 화면 없이 읽고 고르고 저장한다.
-                let sheet = RecoverySheetModel(store: store, requests: [.playlist("179")])
+                let sheet = RecoverySheetModel(host: store, requests: [.playlist("179")])
                 await sheet.load()
                 guard let line = sheet.lines.first, line.phase == .ready, line.canKeep else {
                     throw DJCError.writeRefused("합성 목록을 비교하지 못했습니다")
@@ -45,21 +46,21 @@ extension DevSelfTests {
                 sheet.choose(.keep, for: line)
                 guard await sheet.save() else { throw DJCError.writeRefused("비교 뒤 초안을 저장하지 못했습니다") }
                 let prompter = PlaylistCapturePrompter(directory: directory)
-                guard store.blockedPlaylistEditCount == 0, store.playlistItem("179")?.name == "합성 내 목록",
-                      store.playlistItem("179")?.trackIDs == ["1", "2", "3"] else {
+                guard store.playlists.blockedPlaylistEditCount == 0, store.playlists.playlistItem("179")?.name == "합성 내 목록",
+                      store.playlists.playlistItem("179")?.trackIDs == ["1", "2", "3"] else {
                     throw DJCError.writeRefused("비교 뒤 초안을 다시 적용하지 못했습니다")
                 }
                 let saved = PlaylistDraftStore.load()
-                guard saved == store.playlistDraft else { throw DJCError.writeRefused("다시 적용한 초안을 저장하지 못했습니다") }
+                guard saved == store.playlists.playlistDraft else { throw DJCError.writeRefused("다시 적용한 초안을 저장하지 못했습니다") }
                 try await Task.sleep(for: .milliseconds(700))
                 try capturePlaylistWindow(window, at: directory.appending(path: "after-reapplied.jpg"))
                 store.setWriteLock(true)
                 defer { store.setWriteLock(false) }
-                let preview = try await store.previewWrite(rows: [], playlists: true)
+                let preview = try await reflection.session.previewWrite(rows: [], playlists: true)
                 guard preview.report.playlistWritten.count == 2, preview.report.playlistBlocked.isEmpty else {
                     throw DJCError.writeRefused("다시 적용한 편집의 쓰기 미리 보기가 막혔습니다")
                 }
-                _ = prompter.show(ReflectionCoordinator.confirmation(preview.report))
+                _ = prompter.show(ReflectionPrompts.confirmation(preview.report))
                 guard prompter.captureSucceeded, !NSApp.isActive else { throw DJCError.writeRefused("비교·미리 보기 창을 캡처하지 못했습니다") }
                 FileHandle.standardError.write(Data("재생 목록 복구 시험 통과: 막힘 2 → 다시 적용 2 → 미리 보기 2, 실제 쓰기 0\n".utf8))
                 exit(0)
