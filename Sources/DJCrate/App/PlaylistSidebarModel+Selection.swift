@@ -27,21 +27,26 @@ extension PlaylistSidebarModel {
 
     /// 사이드바 목록이 바꾼 고르기를 받는다. 더한 항목이 하나면 그것을(⌘ 클릭), 여럿이면 누른 끝을(⇧ 클릭) 보인다.
     /// 보던 항목을 빼면 남은 것 중 사이드바에서 마지막 것을 보인다. 여럿은 재생 목록끼리만 고른다(다른 항목을 고르면 그 하나만).
-    /// 빈 곳을 눌러 비면 고른 것을 그대로 둔다(한 개 고르기 때와 같다).
+    /// 빈 곳을 눌러 비면 고른 것을 그대로 두고 목록에 다시 알려 강조를 되살린다(한 개 고르기 때와 같다).
     func select(_ items: Set<SidebarItem>) {
         let before = selection
-        guard !items.isEmpty, items != before else { return }
+        guard !items.isEmpty else { return library.reassertSidebarSelection() }
+        guard items != before else { return }
         let current = library.sidebar
         let added = items.subtracting(before)
         let primary: SidebarItem
         if added.count == 1, let only = added.first {
             primary = only
-        } else if !added.isEmpty {
-            // 범위는 보던 항목에서 누른 줄까지다. 모두 아래면 맨 아래, 아니면 맨 위가 누른 줄이다
-            let from = position(current)
-            primary = added.allSatisfy({ position($0) > from }) ? last(of: added) : first(of: added)
         } else {
-            primary = items.contains(current) ? current : last(of: items)
+            // 범위는 보던 항목에서 누른 줄까지다. 모두 아래면 맨 아래, 아니면 맨 위가 누른 줄이다.
+            // 보던 항목을 빼면 남은 것 중 맨 아래다. 재생 목록 칸 밖(필터·재생 기록·USB)도 사이드바 순서로 센다
+            let order = sidebarOrder()
+            func position(_ item: SidebarItem) -> Int { order[item] ?? -1 }
+            let from = position(current)
+            let pool = added.isEmpty ? items : added
+            let last = pool.max { position($0) < position($1) } ?? current
+            let first = pool.min { position($0) < position($1) } ?? current
+            primary = added.isEmpty ? (items.contains(current) ? current : last) : added.allSatisfy({ position($0) > from }) ? last : first
         }
         guard primary.isPlaylist else {
             library.selectSidebar([primary], showing: primary)
@@ -50,18 +55,33 @@ extension PlaylistSidebarModel {
         library.selectSidebar(items.filter(\.isPlaylist), showing: primary)
     }
 
-    /// 사이드바 순서(재생 목록 칸 위의 항목은 모두 앞)
-    private func position(_ item: SidebarItem) -> Int {
-        guard let id = item.playlistID else { return -1 }
-        return layout.outline.firstIndex { $0.id == id } ?? -1
-    }
-
-    private func first(of items: Set<SidebarItem>) -> SidebarItem {
-        items.min { position($0) < position($1) } ?? library.sidebar
-    }
-
-    private func last(of items: Set<SidebarItem>) -> SidebarItem {
-        items.max { position($0) < position($1) } ?? library.sidebar
+    /// 고를 수 있는 사이드바 줄의 차례(`Sidebar` 본문과 같은 순서). 접힌 폴더 안 줄도 트리 순서로 센다.
+    /// ⇧ 범위에서 누른 끝을 찾을 때만 만든다(⌘ 클릭·한 줄 고르기는 만들지 않는다)
+    private func sidebarOrder() -> [SidebarItem: Int] {
+        var items = LibraryFilter.visible(commentPreset: library.commentPreset, hidingStreaming: library.hideStreaming).map(SidebarItem.filter)
+        items += [.duplicates, .staged, .pending]
+        items += layout.outline.map { .playlist($0.id) }
+        func music(_ nodes: [SyncedITunesLibrary.Node]) {
+            for node in nodes { items.append(.itunesPlaylist(node.id)); music(node.children ?? []) }
+        }
+        music(library.music.library.tree)
+        let history = library.history.historyTree
+        items += history.years.flatMap { $0.months.flatMap { $0.items.map { .history($0.id) } } } + history.undated.map { .history($0.id) }
+        if let usb = library.usb {
+            for volume in UsbSidebarModel.volumes(usb) {
+                items += [volume.collection, volume.pending].compactMap { $0.map(SidebarItem.usb) }
+                func playlists(_ nodes: [UsbPlaylistNode]) {
+                    for node in nodes {
+                        items.append(.usb(.playlist(volumeKey: volume.id, id: node.id)))
+                        playlists(node.children ?? [])
+                    }
+                }
+                playlists(volume.playlists)
+            }
+        }
+        var order: [SidebarItem: Int] = [:]
+        for (index, item) in items.enumerated() where order[item] == nil { order[item] = index }
+        return order
     }
 
     // MARK: - 요청 만들기

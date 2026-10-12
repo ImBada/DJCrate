@@ -136,6 +136,9 @@ final class PlaylistEditStore {
         } else if refreshList, case .playlist = library.sidebar {
             library.refreshBase()
         }
+        // 함께 고른 목록 중 없어진 것은 고르기에서 뺀다(보던 목록은 남은 경우, #261)
+        let gone = library.sidebarSelection.filter { if case let .playlist(id) = $0 { index[id] == nil } else { false } }
+        if !gone.isEmpty { library.selectSidebar(library.sidebarSelection.subtracting(gone), showing: library.sidebar) }
     }
 
     /// 사이드바 재생 목록 곡 수. 컬렉션에 없는 곡과 숨기는 스트리밍 곡은 세지 않는다.

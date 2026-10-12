@@ -3,6 +3,7 @@ import DJCApplication
 import DJCDomain
 import DJCTestKit
 import Foundation
+import Observation
 import Testing
 
 /// 사이드바에서 재생 목록·폴더를 여러 개 골라 한꺼번에 지우고 옮긴다(#261).
@@ -87,9 +88,28 @@ struct SidebarMultiSelectTests {
         #expect(store.sidebar == .playlist("B") && model.selection == playlists("B"))
     }
 
-    @Test func 빈_곳을_누르면_고른_것을_그대로_둔다() {
+    @Test func 범위가_재생_목록_칸을_넘으면_누른_끝을_보인다() {
+        let top = LibraryFilter.visible(commentPreset: store.commentPreset, hidingStreaming: store.hideStreaming).map(SidebarItem.filter)
+            + [.duplicates, .staged, .pending]
+        // 맨 위 필터를 보다가 재생 목록 B를 ⇧ 클릭: 사이의 필터·쓰기 대기가 아니라 B를 보이고 재생 목록만 고른다
+        store.sidebar = top[0]
+        model.select(Set(top).union(playlists("F", "A", "G", "H", "B")))
+        #expect(store.sidebar == .playlist("B") && model.selection == playlists("F", "A", "G", "H", "B"))
+        // 쓰기 대기를 보다가 맨 위 필터를 ⇧ 클릭: 그 필터 하나다
+        store.sidebar = .pending
+        model.select(Set(top))
+        #expect(store.sidebar == top[0] && model.selection == [top[0]])
+    }
+
+    private final class Flag: @unchecked Sendable { var fired = false }
+
+    @Test func 빈_곳을_누르면_고른_것을_그대로_두고_목록에_다시_알린다() {
+        model.select(playlists("A"))
         model.select(playlists("A", "D"))
+        let flag = Flag()
+        withObservationTracking { _ = model.selection } onChange: { flag.fired = true }
         model.select([])
+        #expect(flag.fired, "목록이 고르기를 다시 읽어 강조를 되살린다(모델과 화면이 어긋나지 않게)")
         #expect(model.selection == playlists("A", "D") && store.sidebar == .playlist("D"))
     }
 
@@ -143,6 +163,14 @@ struct SidebarMultiSelectTests {
         undo.undo()
         #expect(layout.item("B") != nil && layout.item("D") != nil && layout.item("H") != nil)
         #expect(store.playlists.playlistDraft.isEmpty)
+    }
+
+    @Test func 보던_항목이_남으면_지운_항목만_고르기에서_뺀다() {
+        model.select(playlists("B"))
+        model.select(playlists("B", "S"))
+        model.deleteSelection()
+        #expect(layout.item("B") == nil && store.sidebar == .playlist("S"))
+        #expect(model.selection == playlists("S") && !model.isSelectingManyPlaylists)
     }
 
     @Test func 지우기를_취소하면_아무것도_쌓지_않는다() {

@@ -160,6 +160,12 @@ final class LibraryStore {
         let items = items.union([primary])
         if sidebarSelection != items { sidebarSelection = items }
     }
+
+    /// 같은 고르기를 다시 알린다. 사이드바 목록이 빈 고르기를 보냈을 때 강조를 되살린다(받지 않으면 화면만 비어 어긋난다)
+    /// 같은 값을 넣으면 관찰 알림이 나가지 않아 바뀐 것으로 알린다
+    func reassertSidebarSelection() {
+        withMutation(keyPath: \.sidebarSelection) {}
+    }
     /// Music(iTunes) 표시 상태와 동기화 창(기능 조각, `MusicLibraryStore`). `let`이라 관찰하지 않는다: 화면은 조각의 값을 읽는다
     let music: MusicLibraryStore
     var isITunesSelection: Bool { if case .itunesPlaylist = sidebar { true } else { false } }
