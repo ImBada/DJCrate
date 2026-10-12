@@ -77,6 +77,8 @@ DJCApplication은 기능별 폴더에 유스케이스와 포트를 둔다. 유�
 - **재생 기록 트리·보존본·쓰기 대기는 기능 조각 `HistoryStore`가 든다(#251).** 조각은 저장소의 `history` 속성이다. 보존의 줄 세우기·채택·실패 알림은 유스케이스 `ArchiveUsbHistories`가 정한다. 유스케이스는 화면 포트 `UsbHistoryScreen`으로 조각의 값을 읽는다. 결과도 그 포트로 알린다.
 - **재생 목록 트리·초안·연결 기록은 기능 조각 `PlaylistEditStore`가 든다(#251).** 조각은 저장소의 `playlists` 속성이다. 최근 목록·넣기 전 나누기·기록 원본 고르기의 규칙은 유스케이스 `EditPlaylists`가 정한다. 사이드바의 폴더 펼침과 이름 바꾸기는 화면 모델 `PlaylistSidebarModel`이 든다.
   - 사이드바의 목록·곡 편집은 요청 `PlaylistEditRequest`로 `EditPlaylists.planning`을 지난다(#260). CLI `djc draft playlist`(`EditDraftFiles.stackPlaylistEdits`)도 같은 계획을 부른다. 앱은 하나라도 막히면 쌓지 않는다. CLI는 막힌 요청만 건너뛴다.
+  - 사이드바 여러 개 고르기(#261)는 막힌 요청만 건너뛴다(`applyPlaylistRequests(…, allOrNothing: false)`). 묶음 하나가 ⌘Z 하나다. 고른 항목은 핵심의 `sidebarSelection`에 둔다. 다른 곳이 `sidebar`를 바꾸면 그 하나로 돌아간다.
+  - 고르기 규칙과 요청 만들기는 `PlaylistSidebarModel+Selection`에 있다. 요청은 사이드바 순서로 만든다. 고른 폴더 안의 항목은 뺀다.
   - 바깥(CLI)에서 바꾼 `playlist-drafts.json`은 바깥 변경 확인(`WatchDrafts.refresh`)이 읽는다. 조각은 다르면 받는다(`adoptExternalDraft`). 받으면 라이브러리 ⌘Z 기록을 비운다. 편집하기 전에도 디스크 초안을 견준다(`syncExternalPlaylistDraft`). 곡 추가 연결과 XML 가져오기도 저장 전에 견준다.
   - 앱은 쓰기 잠금(`setWriteLock`) 동안 초안 파일 잠금 `PlaylistDraftLock`(flock)을 든다. 포트는 `DraftStore.lockPlaylistDraft`다. 0.3초까지 기다려 잡은 뒤 바깥 초안을 받는다. 못 잡으면 쓰는 동안 20ms마다 다시 잡아 본다. 그때는 바깥 초안을 받지 않는다. 쓸 초안을 이미 정했기 때문이다.
   - CLI(`EditDraftFiles`, `ImportXML.makeDraftsNow`)는 `DraftFiles.lockPlaylist` 안에서 읽고 저장한다. `makeDraftsNow`는 마지막 비교와 저장 동안만 든다. 잡지 못하면 쌓지 않는다. 쓴 뒤 정리가 앞 단계를 접은 바깥 편집을 지우지 않게 하려는 것이다.
