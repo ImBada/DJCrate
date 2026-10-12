@@ -33,6 +33,8 @@ DJCrate is a macOS app for editing a rekordbox 7 library without launching rekor
 
 Prebuilt app builds (beta, Apple Silicon) are on [GitHub Releases](https://github.com/fotoner/DJCrate/releases). Installation steps for the downloaded app are in the [release documentation](docs/releasing.md#설치).
 
+The app checks for new versions and lets you know. It installs an update only after verifying its signature, and it waits while it is writing to rekordbox or a USB drive. Choose automatic checks and automatic installs in Settings › [Updates]. v0.1.0 does not have this feature, so install the next version manually once.
+
 To build from source, you need:
 
 - macOS 27 or later
@@ -66,8 +68,9 @@ Copies, drafts, and backups are stored in `~/Library/Application Support/DJCrate
 | XML | Linked XML for importing into rekordbox, full-library XML export (read-only), rekordbox XML import (preview the differences, then make drafts), Apple Music XML import |
 | USB (experimental) | Read, export, edit, and sync OneLibrary and Device Library; add OneLibrary to older USB drives. A physical USB drive is written only after you confirm the write in the [Export to USB] sheet or a write confirmation dialog (backed up before writing, verified after) |
 | Rollback | Restore Before Write, restore points (automatic once a day, compare with now, restore to that point), fixing blocked drafts |
+| Updates | Finds new versions on GitHub Releases, verifies the signature, then installs. Settings › [Updates] |
 | Labs | Show intelligent playlists (read-only). Turn it on in Settings › [Labs] |
-| CLI and agents | Use `djc` to browse the library and make cue and tag drafts. It also has XML, USB, and restore point commands. [Skill](skills/djcrate/SKILL.md) for Claude Code and Codex |
+| CLI and agents | Use `djc` to browse the library and make cue, tag, and playlist drafts. It also has XML, USB, and restore point commands. Install and update the [skill](skills/djcrate/SKILL.md) for Claude Code and Codex, along with `djc`, in Settings › [AI Agents] |
 
 ![Tag Sheet and playlist tree (synthetic test data)](docs/images/readme/en/tag-sheet.png)
 

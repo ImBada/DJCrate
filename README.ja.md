@@ -33,6 +33,8 @@ DJCrate は、rekordbox を起動せずに rekordbox 7 のライブラリを編�
 
 ビルド済みのアプリ（ベータ版、Apple Silicon）は [GitHub Releases](https://github.com/fotoner/DJCrate/releases) から入手できます。ダウンロードしたアプリのインストール手順は[リリースのドキュメント](docs/releasing.md#설치)にあります。
 
+アプリは新しいバージョンを自動で確認してお知らせします。署名を確認してからインストールし、rekordbox や USB への書き込み中はインストールを待ちます。自動確認と自動インストールは 設定 › [アップデート] で選べます。v0.1.0 にはこの機能がないため、次のバージョンは一度だけ手動でインストールしてください。
+
 ソースからビルドするには、次のものが必要です。
 
 - macOS 27 以降
@@ -66,8 +68,9 @@ swift build -c release --product djc  # .build/release/djc
 | XML | rekordbox に取り込む連携 XML、ライブラリ全体の XML エクスポート（読み取りのみ）、rekordbox XML の読み込み（差分を確認してから下書きに）、Apple Music XML の読み込み |
 | USB（試験的） | OneLibrary・Device Library の読み込み・エクスポート・編集・同期、古い USB への OneLibrary の追加。実物の USB には、[USBにエクスポート] シートか書き込み確認ダイアログで書き込みを確定したときだけ書き込みます（書き込み前にバックアップ、書き込み後に検証） |
 | 元に戻す | 書き込み前に復元、復元ポイント（1 日 1 回自動作成、現在との比較、その時点への復元）、ブロックされた下書きの修正 |
+| アップデート | GitHub Releases で新しいバージョンを見つけてお知らせし、署名を確認してからインストールします。設定 › [アップデート] |
 | ラボ | インテリジェントプレイリストの表示（読み取りのみ）。設定 › [ラボ] でオンにします |
-| CLI・エージェント | `djc` でライブラリを調べ、キューとタグの下書きを作れます。XML・USB・復元ポイントのコマンドもあります。Claude Code・Codex 用の[スキル](skills/djcrate/SKILL.md) |
+| CLI・エージェント | `djc` でライブラリを調べ、キュー・タグ・プレイリストの下書きを作れます。XML・USB・復元ポイントのコマンドもあります。Claude Code・Codex 用の[スキル](skills/djcrate/SKILL.md)と `djc` は 設定 › [AIエージェント] でインストール・更新します |
 
 ![タグシートとプレイリストツリー（合成テストデータ）](docs/images/readme/ja/tag-sheet.png)
 

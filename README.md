@@ -30,6 +30,8 @@ DJCrate는 rekordbox 7 라이브러리를 고치는 macOS 앱이다. 고칠 때 
 
 빌드한 앱(베타, Apple Silicon)은 [GitHub Releases](https://github.com/fotoner/DJCrate/releases)에서 받는다. 받은 앱의 설치 절차는 [배포 문서](docs/releasing.md#설치)에 있다.
 
+앱은 새 버전을 스스로 찾아 알린다. 업데이트는 서명을 확인한 뒤에만 설치한다. rekordbox·USB에 쓰는 중이면 설치를 미룬다. 설정 › [업데이트]에서 자동 확인과 자동 설치를 고른다. v0.1.0에는 이 기능이 없으니 다음 버전을 한 번 직접 받아 설치한다.
+
 소스에서 빌드할 때 필요한 것은 아래와 같다.
 
 - macOS 27 이상
@@ -63,8 +65,9 @@ swift build -c release --product djc  # .build/release/djc
 | XML | rekordbox로 가져오는 연동 XML, 라이브러리 전체 XML 내보내기(읽기만), rekordbox XML 가져오기(차이를 미리 본 뒤 초안으로), Apple Music XML 가져오기 |
 | USB(시험) | OneLibrary·Device Library 읽기·내보내기·편집·동기화, 옛 USB에 OneLibrary 더하기. 실물 USB에는 [USB로 내보내기] 시트나 쓰기 확인 창에서 쓰기를 확인했을 때만 쓴다(쓰기 전 백업·쓴 뒤 검증) |
 | 되돌리기 | 쓰기 전으로 복원, 시점 스냅샷(하루 한 번 자동, 현재와 비교, 그 시점으로 복원), 막힌 초안 고치기 |
+| 업데이트 | GitHub Releases에서 새 버전을 찾아 알리고, 서명을 확인한 뒤 설치한다. 설정 › [업데이트] |
 | 실험실 | 인텔리전트 재생 목록 보기(읽기만). 설정 › [실험실]에서 켠다 |
-| CLI·에이전트 | `djc`로 라이브러리를 찾아보고 큐·태그 초안을 만든다. XML·USB·시점 스냅샷 명령도 있다. Claude Code·Codex용 [스킬](skills/djcrate/SKILL.md) |
+| CLI·에이전트 | `djc`로 라이브러리를 찾아보고 큐·태그·재생 목록 초안을 만든다. XML·USB·시점 스냅샷 명령도 있다. Claude Code·Codex용 [스킬](skills/djcrate/SKILL.md)과 `djc`는 설정 › [AI 에이전트]에서 설치한다 |
 
 ![태그 시트와 재생 목록 트리(합성 시험 데이터)](docs/images/readme/ko/tag-sheet.png)
 

@@ -33,6 +33,8 @@ DJCrate 是一款 macOS 应用，无需启动 rekordbox 即可编辑 rekordbox 7
 
 预先构建的应用（测试版，Apple Silicon）可在 [GitHub Releases](https://github.com/fotoner/DJCrate/releases) 下载。下载后的安装步骤见[发布文档](docs/releasing.md#설치)。
 
+应用会自动检查新版本并提示。只有在验证签名后才会安装更新；正在写入 rekordbox 或 USB 时会推迟安装。可在 Settings › [Updates]（设置 › 更新）中选择自动检查与自动安装。v0.1.0 没有此功能，请手动下载并安装一次下一个版本。
+
 从源码构建需要：
 
 - macOS 27 或更高版本
@@ -66,8 +68,9 @@ swift build -c release --product djc  # .build/release/djc
 | XML | 供 rekordbox 导入的联动 XML、整个资料库的 XML 导出（只读）、导入 rekordbox XML（先预览差异，再生成草稿）、导入 Apple Music XML |
 | USB（实验性） | 读取、导出、编辑与同步 OneLibrary 和 Device Library；为旧 USB 添加 OneLibrary。只有在 [Export to USB]（导出到 USB）面板或写入确认对话框中确认写入后，才会写入实体 USB（写入前备份，写入后校验） |
 | 还原 | 恢复到写入前、还原点（每天自动创建一次、与当前比较、还原到该时间点）、修复被阻止的草稿 |
+| 更新 | 在 GitHub Releases 上查找新版本并提示，验证签名后安装。Settings › [Updates]（设置 › 更新） |
 | 实验室 | 显示智能播放列表（只读）。在 Settings › [Labs]（设置 › 实验室）中开启 |
-| CLI 与智能体 | 使用 `djc` 浏览资料库，并创建 Cue 与标签草稿。还提供 XML、USB 和还原点相关命令。适用于 Claude Code 与 Codex 的[技能](skills/djcrate/SKILL.md) |
+| CLI 与智能体 | 使用 `djc` 浏览资料库，并创建 Cue、标签与播放列表草稿。还提供 XML、USB 和还原点相关命令。适用于 Claude Code 与 Codex 的[技能](skills/djcrate/SKILL.md)和 `djc` 可在 Settings › [AI Agents]（设置 › AI 智能体）中安装与更新 |
 
 ![Tag Sheet（标签表）与播放列表树（合成测试数据）](docs/images/readme/en/tag-sheet.png)
 
