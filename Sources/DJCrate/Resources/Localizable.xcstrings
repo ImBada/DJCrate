@@ -45553,6 +45553,22 @@
         }
       }
     },
+    "키 고정·큐 제안 표시 설정" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key Lock and Cue Suggestion Settings"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーロック・キュー候補の表示設定"
+          }
+        }
+      }
+    },
     "키 더하기" : {
       "localizations" : {
         "en" : {

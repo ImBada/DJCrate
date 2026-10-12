@@ -9,33 +9,68 @@ struct AudioControlsRow: View {
 
     var body: some View {
         let _ = PerfProbe.body(Self.self)
-        HStack(spacing: TextScale.length(12, scale: textScale)) {
-            HStack(spacing: 4) {
-                Text(.ui("템포")).foregroundStyle(.secondary)
-                TempoFader(value: Binding(get: { deck.tempoPercent }, set: { deck.tempoPercent = $0 }))
-                    .frame(width: TextScale.length(100, scale: textScale))
-                Text(verbatim: deck.tempoPercent.unitText(signed: true) + "%").font(.scaled(.caption, textScale).monospacedDigit())
-                    .frame(width: TextScale.length(46, scale: textScale), alignment: .trailing)
-                Button { deck.tempoPercent = 0 } label: { Text(verbatim: "RST") }.help(.ui("원래 속도로"))
-                    .accessibilityLabel(.ui("템포 0으로"))
+        // 먼저 페이더를 줄이고, 더 좁으면 표시 설정을 메뉴로 묶는다.
+        ViewThatFits(in: .horizontal) {
+            row(sliderWidth: 100, compact: false)
+            row(sliderWidth: 56, compact: false)
+            row(sliderWidth: 56, compact: true)
+            FlowLayout(spacing: 8, justified: true, centerItems: true) {
+                tempoControls(sliderWidth: 56, showLabel: false)
+                displaySettingsMenu
+                ShortcutsButton()
             }
-            .fixedSize()
-            Divider()
-                .frame(height: TextScale.length(14, scale: textScale))
-            Toggle(.ui("키 고정"), isOn: $deck.keyLock)
-                .toggleStyle(.checkbox)
-                .fixedSize()
-                .help(.ui("켜면 음정을 유지한 채 속도만 바꿉니다(마스터 템포). 끄면 바이닐처럼 음정도 함께 바뀝니다."))
-            Toggle(.ui("큐 제안 표시"), isOn: $deck.showSuggestions)
-                .toggleStyle(.checkbox)
-                .fixedSize()
-                .help(.ui("큐 제안을 표시합니다. 파형 아래 + 배지를 누르면 메모리 큐로 추가합니다."))
-            Spacer(minLength: 0)
-            ShortcutsButton()
         }
         .frame(maxWidth: .infinity, minHeight: TextScale.length(24, scale: textScale), alignment: .leading)
         .font(.scaled(.caption, textScale))
         .controlSize(ControlSize.small.scaled(textScale))
+    }
+
+    private func row(sliderWidth: Double, compact: Bool) -> some View {
+        HStack(spacing: TextScale.length(compact ? 6 : 12, scale: textScale)) {
+            tempoControls(sliderWidth: sliderWidth, showLabel: !compact)
+            if compact {
+                displaySettingsMenu
+            } else {
+                Divider().frame(height: TextScale.length(14, scale: textScale))
+                displaySettings.toggleStyle(.checkbox).fixedSize()
+            }
+            Spacer(minLength: 0)
+            ShortcutsButton()
+        }
+    }
+
+    private func tempoControls(sliderWidth: Double, showLabel: Bool) -> some View {
+        HStack(spacing: 4) {
+            if showLabel { Text(.ui("템포")).foregroundStyle(.secondary) }
+            TempoFader(value: Binding(get: { deck.tempoPercent }, set: { deck.tempoPercent = $0 }))
+                .frame(width: TextScale.length(sliderWidth, scale: textScale))
+            Text(verbatim: deck.tempoPercent.unitText(signed: true) + "%")
+                .monospacedDigit()
+                .frame(width: TextScale.length(46, scale: textScale), alignment: .trailing)
+            Button { deck.tempoPercent = 0 } label: { Text(verbatim: "RST") }
+                .help(.ui("원래 속도로"))
+                .accessibilityLabel(.ui("템포 0으로"))
+        }
+        .fixedSize()
+    }
+
+    @ViewBuilder private var displaySettings: some View {
+        Toggle(.ui("키 고정"), isOn: $deck.keyLock)
+            .help(.ui("켜면 음정을 유지한 채 속도만 바꿉니다(마스터 템포). 끄면 바이닐처럼 음정도 함께 바뀝니다."))
+        Toggle(.ui("큐 제안 표시"), isOn: $deck.showSuggestions)
+            .help(.ui("큐 제안을 표시합니다. 파형 아래 + 배지를 누르면 메모리 큐로 추가합니다."))
+    }
+
+    private var displaySettingsMenu: some View {
+        Menu { displaySettings } label: {
+            Image(systemName: "slider.horizontal.3")
+                .frame(width: TextScale.length(22, scale: textScale))
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .accessibilityLabel(.ui("키 고정·큐 제안 표시 설정"))
+        .help(.ui("키 고정·큐 제안 표시 설정"))
     }
 }
 
