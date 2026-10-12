@@ -4,36 +4,15 @@ import DJCDomain
 import DJCStorage
 import SwiftUI
 
-/// 템포(변속) · 키 고정 · 큐 제안 표시 · 게인 초안 버리기
-struct AudioBar: View {
+/// 템포(변속) · 키 고정 · 큐 제안 표시 · 단축키 도움말. 곡 정보 헤더 오른쪽(시간·BPM 아래)에 놓는다.
+struct AudioControlsRow: View {
     @Environment(\.textScale) private var textScale
     @Bindable var deck: DeckModel
+    var sliderWidth: CGFloat = 80
 
     var body: some View {
         let _ = PerfProbe.body(Self.self)
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 10) {
-                // 줄을 바꾸지 않는다. 좁아지면 템포 슬라이더부터 줄인다.
-                ViewThatFits(in: .horizontal) {
-                    audioRow(sliderWidth: 120)
-                    audioRow(sliderWidth: 80)
-                    audioRow(sliderWidth: 56)
-                }
-                .frame(maxWidth: .infinity)
-                ShortcutsButton()
-            }
-            // 게인 제안은 덱 제안 줄에 있다. 초안을 만든 뒤에는 여기서 바로 버릴 수 있다.
-            if deck.hasGainOverride {
-                Button(.ui("게인 초안 버리기")) { deck.clearGainDraft() }
-                    .font(.scaled(.caption, textScale))
-                    .help(.ui("이 곡의 게인 초안을 지우고 rekordbox 오토게인으로 돌아갑니다"))
-            }
-        }
-        .controlSize(ControlSize.small.scaled(textScale))
-    }
-
-    private func audioRow(sliderWidth: CGFloat) -> some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 10) {
             HStack(spacing: 4) {
                 Text(.ui("템포")).foregroundStyle(.secondary)
                 Slider(value: Binding(get: { deck.tempoPercent }, set: { deck.tempoPercent = ($0 * 10).rounded() / 10 }),
@@ -49,17 +28,31 @@ struct AudioBar: View {
                 Button { deck.tempoPercent = 0 } label: { Text(verbatim: "RST") }.help(.ui("원래 속도로"))
                     .accessibilityLabel(.ui("템포 0으로"))
             }
-            .fixedSize()
-            Spacer(minLength: sliderWidth >= 120 ? 12 : 8)
-            HStack(spacing: sliderWidth >= 120 ? 12 : 8) {
-                Toggle(.ui("키 고정"), isOn: $deck.keyLock)
-                    .toggleStyle(.checkbox)
-                    .help(.ui("켜면 음정을 유지한 채 속도만 바꿉니다(마스터 템포). 끄면 바이닐처럼 음정도 함께 바뀝니다."))
-                Toggle(.ui("큐 제안 표시"), isOn: $deck.showSuggestions)
-                    .toggleStyle(.checkbox)
-                    .help(.ui("큐 제안을 표시합니다. 파형 아래 + 배지를 누르면 메모리 큐로 추가합니다."))
-            }
-            .fixedSize()
+            Toggle(.ui("키 고정"), isOn: $deck.keyLock)
+                .toggleStyle(.checkbox)
+                .help(.ui("켜면 음정을 유지한 채 속도만 바꿉니다(마스터 템포). 끄면 바이닐처럼 음정도 함께 바뀝니다."))
+            Toggle(.ui("큐 제안 표시"), isOn: $deck.showSuggestions)
+                .toggleStyle(.checkbox)
+                .help(.ui("큐 제안을 표시합니다. 파형 아래 + 배지를 누르면 메모리 큐로 추가합니다."))
+            ShortcutsButton()
+        }
+        .fixedSize()
+        .font(.scaled(.caption, textScale))
+        .controlSize(ControlSize.small.scaled(textScale))
+    }
+}
+
+/// 게인 제안은 덱 제안 줄에 있다. 초안을 만든 뒤에는 여기서 바로 버릴 수 있다.
+struct GainDraftDiscardButton: View {
+    @Environment(\.textScale) private var textScale
+    let deck: DeckModel
+
+    var body: some View {
+        if deck.hasGainOverride {
+            Button(.ui("게인 초안 버리기")) { deck.clearGainDraft() }
+                .font(.scaled(.caption, textScale))
+                .controlSize(ControlSize.small.scaled(textScale))
+                .help(.ui("이 곡의 게인 초안을 지우고 rekordbox 오토게인으로 돌아갑니다"))
         }
     }
 }

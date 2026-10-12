@@ -55,12 +55,10 @@ struct TransportBar: View {
             gap(density)
             LoopControl(deck: deck).fixedSize()
             gap(density)
-            HStack(spacing: density == .squeezed ? 4 : 6) {
-                MetronomeToggle(deck: deck)
-                PlayQuantizeToggle(deck: deck)
-            }
-            .fixedSize()
+            DeckQuantizeToggles(deck: deck)
         }
+        // 그리드 판 줄과 같은 높이로 두어 오른쪽 끝 메트로놈·Q가 두 판에서 같은 자리에 온다.
+        .frame(height: TextScale.length(24, scale: textScale))
     }
 
     /// 묶음 사이는 남는 폭을 고르게 나눠 양 끝을 맞춘다(예전 justified 줄과 같은 모양).
@@ -72,6 +70,19 @@ struct TransportBar: View {
 /// 핫큐 줄을 한 줄에 넣으려고 줄이는 단계. 뒤로 갈수록 좁은 폭용이다.
 private enum TransportDensity {
     case regular, tight, iconMemory, squeezed
+}
+
+/// 메트로놈·Q. CUE/LOOP·GRID 두 판의 오른쪽 끝에 같은 모양으로 둔다.
+struct DeckQuantizeToggles: View {
+    let deck: DeckModel
+
+    var body: some View {
+        HStack(spacing: 6) {
+            MetronomeToggle(deck: deck)
+            PlayQuantizeToggle(deck: deck)
+        }
+        .fixedSize()
+    }
 }
 
 /// Q 하나로 큐·루프 등록 스냅과 재생 중 핫큐 점프 퀀타이즈를 함께 켠다.

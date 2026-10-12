@@ -12,6 +12,7 @@ struct DeckSuggestionBar: View {
         let _ = PerfProbe.body(Self.self)
         let suggestions = DeckSuggestions(deck: deck, store: store)
         DeckSuggestionBarContent(list: suggestions.list, gridStatus: suggestions.gridStatus, isLocked: suggestions.isLocked,
+                                 notice: deck.gridUnavailableReason ?? deck.gridSourceNotice,
                                  apply: suggestions.apply, dismiss: suggestions.dismiss,
                                  restore: suggestions.restoreDismissed, reanalyze: deck.reanalyze)
     }
@@ -33,6 +34,8 @@ struct DeckSuggestionBarContent: View {
     var list: DeckSuggestionList
     var gridStatus: DeckSuggestions.GridStatus?
     var isLocked: Bool
+    /// 그리드를 편집할 수 없는 이유·출처 안내. 줄을 늘리지 않게 남는 폭에서 한 줄로 자른다(전체 문장은 툴팁).
+    var notice: String? = nil
     var titles = Titles()
     var apply: @MainActor (DeckSuggestion.Kind) -> Void = { _ in }
     var dismiss: @MainActor (DeckSuggestion.Kind) -> Void = { _ in }
@@ -46,7 +49,13 @@ struct DeckSuggestionBarContent: View {
                 if !list.shown.isEmpty { icon }
                 ForEach(list.shown) { chip($0) }
                 status
-                Spacer(minLength: 0)
+                if let notice {
+                    // 이상적인 폭을 작게 두어, 긴 안내 때문에 여러 줄 배치로 넘어가지 않는다.
+                    noticeLabel(notice)
+                        .frame(minWidth: 0, idealWidth: 40, maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Spacer(minLength: 0)
+                }
                 restoreButton
                 reanalyzeButton
             }
@@ -56,12 +65,20 @@ struct DeckSuggestionBarContent: View {
                 if !list.shown.isEmpty { icon }
                 ForEach(list.shown) { chip($0) }
                 status.fixedSize(horizontal: false, vertical: true)
+                if let notice { noticeLabel(notice).fixedSize(horizontal: false, vertical: true) }
                 restoreButton
                 reanalyzeButton
             }
         }
         .font(.scaled(.caption, textScale))
         .controlSize(ControlSize.small.scaled(textScale))
+    }
+
+    private func noticeLabel(_ notice: String) -> some View {
+        Label(notice, systemImage: "lock")
+            .foregroundStyle(UIColors.warning.color)
+            .truncationMode(.tail)
+            .help(notice)
     }
 
     /// "DJCrate 제안:" 대신 줄 앞에 한 번만 둔다.

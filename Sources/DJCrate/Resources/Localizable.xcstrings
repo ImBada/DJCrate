@@ -38287,6 +38287,22 @@
         }
       }
     },
+    "제안 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld Suggestions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提案 %lld件"
+          }
+        }
+      }
+    },
     "제안을 받아 %@에 메모리 큐를 찍었습니다" : {
       "localizations" : {
         "en" : {
@@ -40821,22 +40837,6 @@
         }
       }
     },
-    "켜면 아래 막대로 그리드를 옮기고 BPM·1박·변속 지점을 고칩니다." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "When on, use the bar below to move the grid and fix the BPM, first beat, and tempo-change points."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "オンにすると下のバーでグリッドを動かし、BPM・1拍目・テンポ変化点を修正します。"
-          }
-        }
-      }
-    },
     "켜면 음정을 유지한 채 속도만 바꿉니다(마스터 템포). 끄면 바이닐처럼 음정도 함께 바뀝니다." : {
       "localizations" : {
         "en" : {
@@ -41889,6 +41889,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キュー・グリッド・ゲイン・タグの下書きをすべて破棄します。元に戻せません。"
+          }
+        }
+      }
+    },
+    "큐·루프" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cue & Loop"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キュー・ループ"
           }
         }
       }

@@ -48,6 +48,10 @@ public enum SettingKeys {
     public static let cueListFilter = SettingKey("deck.cueListFilter", CueListFilter.all.rawValue) {
         CueListFilter(rawValue: $0)?.rawValue
     }
+    /// 덱 아래에서 마지막으로 고른 조작 탭(CUE/LOOP · GRID)
+    public static let deckControlTab = SettingKey("deck.controlTab", DeckControlTab.cueLoop.rawValue) {
+        DeckControlTab(rawValue: $0)?.rawValue
+    }
     public static let waveformHeight = SettingKey<Double>("waveformHeight", 130, in: nil)
     public static let sheetMode = SettingKey("sheetMode", false)
     public static let showTagEditor = SettingKey("showTagEditor", false)
@@ -98,6 +102,6 @@ public enum SettingKeys {
             + [quantize, playQuantize, carryCues, showSuggestions, showKeyBand, keyLock, autoGain, peakProtection, useRekordboxGain,
                sheetMode, showTagEditor, sidebarPlaylistsExpanded, sidebarSummaryExpanded, sidebarHistoriesExpanded, sidebarShowsStatus,
                sidebarVisible, commentClassColumnHidden, hideStreaming, labSmartPlaylists, pointSnapshotAuto].map(\.name)
-            + [dismissedGainSuggestions, dismissedGridSuggestions, dismissedKeySuggestions, deckShortcuts, waveformColorMode.name, commentPreset.name, cueListFilter.name]
+            + [dismissedGainSuggestions, dismissedGridSuggestions, dismissedKeySuggestions, deckShortcuts, waveformColorMode.name, commentPreset.name, cueListFilter.name, deckControlTab.name]
     }
 }
