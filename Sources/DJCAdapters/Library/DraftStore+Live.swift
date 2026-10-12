@@ -33,8 +33,11 @@ extension DraftStore {
                         stamps[file.path] = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
                     }
                 }
-                // 재생 목록 초안 파일도 CLI(`djc draft playlist`)가 바꾼다(#260)
-                if let date = (try? places.playlist.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate {
+                // 재생 목록 초안 파일도 CLI(`djc draft playlist`)가 바꾼다(#260).
+                // 같은 URL 값은 Foundation이 처음 읽은 시각을 캐시해 두 번째 변경부터 놓친다. 매번 캐시를 비우고 읽는다.
+                var playlist = places.playlist
+                playlist.removeAllCachedResourceValues()
+                if let date = (try? playlist.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate {
                     stamps[places.playlist.path] = date
                 }
                 return stamps
