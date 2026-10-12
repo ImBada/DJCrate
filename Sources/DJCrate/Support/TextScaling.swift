@@ -97,6 +97,8 @@ struct WaveformMetrics: Equatable {
     var keyBandHeight: Double { TextScale.length(12, scale: scale) }
     /// 파형 아래 섹션·조성 띠 자리(위아래 여백 포함)
     var overviewBandsHeight: Double { 3 + sectionBandHeight + (showsKeyBand ? keyBandSpace : 0) + 3 }
+    /// 전체 파형 아래 템포 구간(BPM) 띠. 바로 위 섹션 띠보다 1pt 높다(글자가 들어가고 눈으로 보기에 비슷하게).
+    var tempoBandHeight: Double { TextScale.length(15, scale: scale) }
     /// 조성 띠와 그 위 간격. 띠를 끄면 이만큼 확대 파형이 커져 덱 높이는 그대로다.
     var keyBandSpace: Double { 2 + keyBandHeight }
     /// 파형은 위쪽 절반만 그려 높이 28pt를 쓴다(위아래가 같은 모양이라 절반이면 충분하다).

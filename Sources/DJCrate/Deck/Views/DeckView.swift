@@ -85,7 +85,7 @@ private struct DeckWaveformGroup: View {
 
     private var waveGroupHeight: Double {
         zoomWaveformHeight + 8 + WaveformMetrics(scale: textScale, showsKeyBand: deck.showKeyBand).overviewHeight
-            + TextScale.length(28, scale: textScale)
+            + WaveformMetrics(scale: textScale).tempoBandHeight
     }
     /// 조작부의 최소 높이에서 남는 자리를 확대 파형이 채워 빈 띠를 남기지 않는다.
     /// 조성 띠를 끄면 그 자리도 확대 파형이 가져가 왼쪽 조작부 높이가 띠 설정에 따라 바뀌지 않는다.

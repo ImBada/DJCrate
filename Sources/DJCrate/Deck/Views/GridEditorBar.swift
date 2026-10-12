@@ -339,7 +339,7 @@ struct GridTempoSegments: View {
         let segments = deck.gridDraft?.segments ?? []
         let current = deck.gridDraft?.segmentIndex(at: deck.displayTime) ?? 0
         let duration = max(deck.duration, 1)
-        let height = CGFloat(TextScale.length(28, scale: textScale))
+        let height = CGFloat(WaveformMetrics(scale: textScale).tempoBandHeight)
         GeometryReader { geometry in
             let cursorX = geometry.size.width * CGFloat(min(max(deck.displayTime, 0), duration) / duration)
             ZStack(alignment: .topLeading) {
@@ -364,8 +364,8 @@ struct GridTempoSegments: View {
                 if deck.gridEditing && deck.gridDraft != nil {
                     Button { deck.addTempoChangeAtPlayhead() } label: {
                         Image(systemName: "plus")
-                            .font(.scaled(.caption, textScale).bold())
-                            .frame(width: height - 4, height: height - 4)
+                            .font(.scaled(.caption2, textScale).bold())
+                            .frame(width: height - 2, height: height - 2)
                             .background(UIColors.draftFill, in: Circle())
                             .overlay(Circle().stroke(UIColors.draft.color, lineWidth: 1))
                     }
