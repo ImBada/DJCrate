@@ -25,6 +25,7 @@ struct SettingsTests {
             (SettingKeys.quantize, "deck.quantize", true),
             (SettingKeys.carryCues, "deck.carryCues", true),
             (SettingKeys.showSuggestions, "deck.showSuggestions", true),
+            (SettingKeys.showKeyBand, "waveform.showKeyBand", false),
             (SettingKeys.keyLock, "deck.keyLock", true),
             (SettingKeys.autoGain, "deck.autoGain", true),
             (SettingKeys.peakProtection, "deck.peakProtection", true),

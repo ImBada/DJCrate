@@ -16,7 +16,7 @@ struct LibraryLayoutMetricsTests {
         layout.request(requested)
         layout.setTextScale(scale)
         let minimum = max(80, TextScale.length(190, scale: scale) - 8
-            - WaveformMetrics(scale: scale).overviewHeight - TextScale.length(28, scale: scale))
+            - WaveformMetrics(scale: scale, showsKeyBand: true).overviewHeight - TextScale.length(28, scale: scale))
         #expect(layout.minimumWaveformHeight == minimum)
         #expect(layout.waveformHeight == max(requested, minimum))
     }

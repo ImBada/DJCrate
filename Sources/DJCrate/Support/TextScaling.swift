@@ -69,6 +69,8 @@ extension ControlSize {
 /// 파형 위 글자·띠 크기. 글자 배율을 따라 커지고, 가장 작은 글자는 10pt다.
 struct WaveformMetrics: Equatable {
     var scale: Double = 1
+    /// 전체 파형 아래 조성 띠를 그리는지(설정 › 파형, 기본 끔).
+    var showsKeyBand = false
 
     /// 파형 위 글자는 이 한 가지 크기다: 눈금(마디.박)·박 번호·조성 이름·핫큐 칩·큐 이름·루프·변속 BPM
     var labelSize: Double { TextScale.pointSize(10, scale: scale) }
@@ -94,7 +96,9 @@ struct WaveformMetrics: Equatable {
     var sectionBandHeight: Double { TextScale.length(14, scale: scale) }
     var keyBandHeight: Double { TextScale.length(12, scale: scale) }
     /// 파형 아래 섹션·조성 띠 자리(위아래 여백 포함)
-    var overviewBandsHeight: Double { 3 + sectionBandHeight + 2 + keyBandHeight + 3 }
+    var overviewBandsHeight: Double { 3 + sectionBandHeight + (showsKeyBand ? keyBandSpace : 0) + 3 }
+    /// 조성 띠와 그 위 간격. 띠를 끄면 이만큼 확대 파형이 커져 덱 높이는 그대로다.
+    var keyBandSpace: Double { 2 + keyBandHeight }
     /// 파형은 위쪽 절반만 그려 높이 28pt를 쓴다(위아래가 같은 모양이라 절반이면 충분하다).
     var overviewHeight: Double { 28 + overviewBandsHeight }
 

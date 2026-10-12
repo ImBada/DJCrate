@@ -18601,6 +18601,22 @@
         }
       }
     },
+    "끄면 조성 띠가 차지하던 높이만큼 전체 파형이 낮아집니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turning this off shortens the overview waveform by the key band's height"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オフにするとキーの帯の分だけ全体波形が低くなります"
+          }
+        }
+      }
+    },
     "끊긴 USB 쓰기를 되돌렸습니다" : {
       "localizations" : {
         "en" : {
@@ -37957,6 +37973,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全体波形"
+          }
+        }
+      }
+    },
+    "전체 파형 아래 조성 띠 보이기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Key Band Below Overview Waveform"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全体波形の下にキーの帯を表示"
           }
         }
       }

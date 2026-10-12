@@ -14,7 +14,7 @@ struct OverviewWaveformView: View {
         let _ = PerfProbe.body(Self.self)
         GeometryReader { geo in
             let duration = max(deck.duration, 1)
-            let metrics = WaveformMetrics(scale: textScale)
+            let metrics = WaveformMetrics(scale: textScale, showsKeyBand: deck.showKeyBand)
             ZStack(alignment: .bottom) {
                 OverviewStaticLayer(deck: deck, duration: duration, metrics: metrics)
                 if deck.isAnalyzingSections {
@@ -25,7 +25,7 @@ struct OverviewWaveformView: View {
                     }
                     .padding(.horizontal, 6)
                     .frame(height: metrics.sectionBandHeight + 2)
-                    .padding(.bottom, metrics.keyBandHeight + 3)
+                    .padding(.bottom, metrics.showsKeyBand ? metrics.keyBandHeight + 3 : 1)
                     .allowsHitTesting(false)
                     .accessibilityLabel(.ui("섹션 분석 중"))
                 }
@@ -148,7 +148,7 @@ struct OverviewStaticLayer: View {
                 context.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(Palette.section.opacity(0.1 + 0.62 * norm * norm)))
             }
             // 조성 띠(섹션 띠 아래). 바뀌는 곳이 있으면 진하게. 이름은 띠 안에 다 들어갈 때만 쓴다(글자를 줄이지 않는다).
-            for key in keys {
+            for key in metrics.showsKeyBand ? keys : [] {
                 let rect = CGRect(x: xOf(key.segment.start), y: waveHeight + 3 + metrics.sectionBandHeight + 2,
                                   width: max(1, xOf(key.segment.end) - xOf(key.segment.start) - 1), height: metrics.keyBandHeight)
                 let color = Palette.keyColor(key.name)

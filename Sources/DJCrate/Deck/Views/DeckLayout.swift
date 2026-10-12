@@ -10,9 +10,10 @@ enum DeckLayout {
     static let minimumDetailWidth = 620.0
 
     /// 조작부가 차지하는 최소 높이의 남는 자리는 확대 파형에 배분한다.
+    /// 조성 띠를 켠 높이로 잰다. 띠를 끄면 덱이 그 자리를 확대 파형에 더한다(`DeckWaveformGroup`).
     static func minimumZoomWaveformHeight(scale: Double) -> Double {
         max(minimumWaveformHeight, TextScale.length(190, scale: scale) - 8
-            - WaveformMetrics(scale: scale).overviewHeight - TextScale.length(28, scale: scale))
+            - WaveformMetrics(scale: scale, showsKeyBand: true).overviewHeight - TextScale.length(28, scale: scale))
     }
 
     static func waveformHeight(requested: Double, detailHeight: Double,
