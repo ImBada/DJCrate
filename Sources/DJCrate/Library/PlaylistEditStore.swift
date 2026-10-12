@@ -136,6 +136,9 @@ final class PlaylistEditStore {
         } else if refreshList, case .playlist = library.sidebar {
             library.refreshBase()
         }
+        // 함께 고른 목록 중 없어진 것은 고르기에서 뺀다(보던 목록은 남은 경우, #261)
+        let gone = library.sidebarSelection.filter { if case let .playlist(id) = $0 { index[id] == nil } else { false } }
+        if !gone.isEmpty { library.selectSidebar(library.sidebarSelection.subtracting(gone), showing: library.sidebar) }
     }
 
     /// 사이드바 재생 목록 곡 수. 컬렉션에 없는 곡과 숨기는 스트리밍 곡은 세지 않는다.
@@ -166,13 +169,17 @@ final class PlaylistEditStore {
 
     /// 편집 요청을 차례로 초안에 더한다(유스케이스 `EditPlaylists.planning`, CLI `djc draft playlist`와 같은 규칙).
     /// 하나라도 쓸 수 없으면 아무것도 더하지 않고 이유를 알린다. 더했으면 계획(만든 목록 ID·쌓은 뒤 모양)을 돌려준다.
+    /// `allOrNothing`이 false면(사이드바 여러 개 편집, #261) 막힌 요청만 건너뛰고 나머지를 쌓는다. 쌓은 것이 없어도 계획을 돌려준다
+    /// (건너뛴 이유는 부른 쪽이 보인다). 묶음 하나는 ⌘Z 한 번에 되돌린다.
     @discardableResult
-    func applyPlaylistRequests(_ requests: [PlaylistEditRequest], actionName: String) -> EditPlaylists.Batch? {
+    func applyPlaylistRequests(_ requests: [PlaylistEditRequest], actionName: String, allOrNothing: Bool = true) -> EditPlaylists.Batch? {
         guard !library.isWritingRekordbox, !requests.isEmpty else { return nil }
         // 바깥(CLI)에서 바뀐 초안이 있으면 먼저 받고 그 위에 쌓는다(덮지 않게)
         syncExternalPlaylistDraft()
-        let batch = EditPlaylists.planning(requests, onto: playlistDraft, rekordbox: rekordboxPlaylists, allOrNothing: true) {
-            UUID().uuidString.lowercased()
+        let batch = planPlaylistRequests(requests, allOrNothing: allOrNothing)
+        if !allOrNothing {
+            if batch.hasChanges { commitPlaylistDraft(batch.draft, actionName: actionName) }
+            return batch
         }
         if batch.refused {
             playlistMessage = AppMessage(kind: .warning, text: EditPlaylists.refusedMessage(batch.firstSkipReason ?? ""))
@@ -181,6 +188,13 @@ final class PlaylistEditStore {
         guard batch.hasChanges else { return nil }
         commitPlaylistDraft(batch.draft, actionName: actionName)
         return batch
+    }
+
+    /// 요청을 지금 초안에 얹어 계획만 한다(쌓지 않는다). 확인 창이 쌓을 것과 건너뛸 것을 미리 보인다
+    func planPlaylistRequests(_ requests: [PlaylistEditRequest], allOrNothing: Bool = false) -> EditPlaylists.Batch {
+        EditPlaylists.planning(requests, onto: playlistDraft, rekordbox: rekordboxPlaylists, allOrNothing: allOrNothing) {
+            UUID().uuidString.lowercased()
+        }
     }
 
     /// 초안을 바꾸고 저장·화면 갱신·되돌리기(⌘Z)를 건다. 되돌리기 대상은 핵심이다(쓰기 잠금이 핵심 대상으로 지운다).

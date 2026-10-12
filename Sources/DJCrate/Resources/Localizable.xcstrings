@@ -2273,6 +2273,38 @@
         }
       }
     },
+    "%lld개 옮기기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move %lld Items"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld件を移動"
+          }
+        }
+      }
+    },
+    "%lld개 지우기…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete %lld Items…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld件を削除…"
+          }
+        }
+      }
+    },
     "%lld곡" : {
       "localizations" : {
         "en" : {
@@ -13081,6 +13113,22 @@
         }
       }
     },
+    "rekordbox에 쓰기 전까지는 초안이라 실행 취소(⌘Z)로 되돌릴 수 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These stay drafts until you write to rekordbox, so you can undo with ⌘Z."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxに書き込むまでは下書きなので、取り消す（⌘Z）で元に戻せます。"
+          }
+        }
+      }
+    },
     "rekordbox에 쓰기…" : {
       "localizations" : {
         "en" : {
@@ -15699,6 +15747,44 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "絞り込み中：%@"
+          }
+        }
+      }
+    },
+    "건너뛴 %lld개: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skipped %1$lld: %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキップした%1$lld件：%2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "건너뛴 %1$lld개: %2$@"
+          }
+        }
+      }
+    },
+    "건너뛸 항목: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Will skip: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキップする項目：%@"
           }
         }
       }
@@ -39357,6 +39443,54 @@
         }
       }
     },
+    "재생 목록 %lld개를 옮겼습니다(쓰기 대기)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moved playlists: %lld (pending write)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト%lld件を移動しました（書き込み待ち）。"
+          }
+        }
+      }
+    },
+    "재생 목록 %lld개를 지울까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete playlists? Count: %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト%lld件を削除しますか？"
+          }
+        }
+      }
+    },
+    "재생 목록 %lld개를 지웠습니다(쓰기 대기)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deleted playlists: %lld (pending write)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト%lld件を削除しました（書き込み待ち）。"
+          }
+        }
+      }
+    },
     "재생 목록 %lld건" : {
       "localizations" : {
         "en" : {
@@ -39863,6 +39997,38 @@
         }
       }
     },
+    "재생 목록·폴더 %lld개를 지울까요?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete playlists and folders? Count: %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト・フォルダ%lld件を削除しますか？"
+          }
+        }
+      }
+    },
+    "재생 목록·폴더 %lld개를 지웠습니다(쓰기 대기)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deleted playlists and folders: %lld (pending write)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリスト・フォルダ%lld件を削除しました（書き込み待ち）。"
+          }
+        }
+      }
+    },
     "재생 목록·폴더 보기" : {
       "localizations" : {
         "en" : {
@@ -40047,6 +40213,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プレイリスト表示中：このプレイリストから外す"
+          }
+        }
+      }
+    },
+    "재생 목록을 옮기지 않았습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists not moved"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストを移動しませんでした"
+          }
+        }
+      }
+    },
+    "재생 목록을 지우지 않았습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists not deleted"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストを削除しませんでした"
+          }
+        }
+      }
+    },
+    "재생 목록을 지우지 않았습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists not deleted: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレイリストを削除しませんでした：%@"
           }
         }
       }
@@ -47095,6 +47309,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "フォルダ内の項目が変更されました"
+          }
+        }
+      }
+    },
+    "폴더 안의 목록도 함께 지웁니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists inside the folders are deleted too."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダ内のプレイリストも一緒に削除します。"
           }
         }
       }

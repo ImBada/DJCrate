@@ -73,7 +73,7 @@ struct PlaylistImportIntegrationTests {
         store.staging.staged = [StagedTrack(uuid: UUID().uuidString.lowercased(), path: file.path, title: "합성 곡", duration: 0.1, addedOn: "2026-09-27")]
         let provider = NSItemProvider(object: file as NSURL)
         let node = try #require(store.playlists.playlistIndex["P"])
-        #expect(PlaylistDrop.perform([provider], on: node, store: store))
+        #expect(PlaylistDrop.perform([provider], on: node, store: store, sidebar: PlaylistSidebarModel(playlists: store.playlists)))
         for _ in 0..<100 where store.playlists.playlistImports.pendingCount == 0 {
             try await Task.sleep(for: .milliseconds(10))
         }

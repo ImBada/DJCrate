@@ -63,7 +63,7 @@ swift build -c release --product djc  # .build/release/djc
 | Deck | 三频段波形、CUE、Hot Cue 与 Memory Cue、采样级精度的 Loop、Quantize、速度调节与 Master Tempo（锁定调性）、节拍器、Auto Gain、Cue／网格／增益／调性建议 |
 | 编辑 | Cue、网格与 BPM（包括变速曲目）、增益、标签、评分与曲目颜色、专辑封面。可像电子表格一样编辑的 [Tag Sheet]（标签表）。对于未分析的曲目，DJCrate 会生成并附加分析文件 |
 | 曲目编辑与 Flip（实验性） | 将按小节剪接的编辑版本，或记录了 Hot Cue 跳转与 Loop 演奏的编辑版本渲染为 WAV，并加入资料库 |
-| 播放列表 | 创建播放列表与文件夹、重命名、移动、删除、添加与移除曲目、调整顺序 |
+| 播放列表 | 创建播放列表与文件夹、重命名、移动、删除、添加与移除曲目、调整顺序。可在侧边栏中按住 ⌘ 或 ⇧ 点击，一次删除或移动多个 |
 | 播放历史 | 浏览播放历史，并由历史生成播放列表。保存 CDJ、XDJ 留在 USB 上的历史，再将其加入 rekordbox 的播放历史 |
 | XML | 供 rekordbox 导入的联动 XML、整个资料库的 XML 导出（只读）、导入 rekordbox XML（先预览差异，再生成草稿）、导入 Apple Music XML |
 | USB（实验性） | 读取、导出、编辑与同步 OneLibrary 和 Device Library；为旧 USB 添加 OneLibrary。只有在 [Export to USB]（导出到 USB）面板或写入确认对话框中确认写入后，才会写入实体 USB（写入前备份，写入后校验） |
