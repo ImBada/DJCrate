@@ -35,8 +35,9 @@ struct DeckControlTabs: View {
                     VStack(alignment: .leading, spacing: 6) {
                         GridEditorBar(deck: deck, framed: false)
                         // 게인·그리드·키 제안도 이 판 안에 둔다. 보류 중인 제안이 있으면 GRID 탭에 점을 찍는다.
-                        DeckSuggestionBar(tags: tags, deck: deck)
-                            .frame(maxWidth: .infinity, minHeight: TextScale.length(24, scale: textScale), alignment: .leading)
+                        DeckSuggestionBar(tags: tags, deck: deck, singleLine: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(height: TextScale.length(24, scale: textScale))
                     }
                 }
             }
