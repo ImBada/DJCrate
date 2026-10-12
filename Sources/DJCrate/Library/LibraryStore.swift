@@ -265,6 +265,8 @@ final class LibraryStore {
             if oldValue && !isWritingRekordbox { refreshWriteBackups() }
         }
     }
+    /// 쓰는 동안 든 재생 목록 초안 파일 잠금을 푸는 함수(#260)
+    @ObservationIgnored var playlistDraftUnlock: (@Sendable () -> Void)?
     /// 쓰는 동안 덱 큐 편집을 잠근다
     var onWriteLock: ((Bool) -> Void)?
     /// rekordbox에 쓰거나 되돌린 곡(UUID). 덱이 그 곡이면 다시 읽는다. 새 스냅샷을 읽은 뒤에만 부른다(#175).
