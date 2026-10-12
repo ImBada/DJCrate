@@ -167,7 +167,7 @@ SPARKLE_ED_PRIVATE_KEY="$(cat <임시 폴더>/priv.txt)" scripts/sparkle-appcast
 - 비밀 키는 저장소 시크릿 `SPARKLE_ED_PRIVATE_KEY`에 있다. 내용은 `generate_keys --account djcrate -x`로 내보낸 base64 한 줄이다. 비밀 키를 저장소와 로그에 두지 않는다.
 - 비밀 키를 잃으면 이미 설치한 앱은 새 업데이트를 받지 못한다. 사용자는 새 키의 앱을 한 번 직접 받아 설치해야 한다. 그래서 비밀 키를 안전한 곳에 따로 보관한다.
 
-진짜 키는 관리자가 아래 순서로 만든다. 도구는 `swift build`가 받은 `.build/artifacts/sparkle/Sparkle/bin/`에 있다.
+진짜 키는 관리자가 아래 순서로 만든다. 도구는 `swift build`가 받은 `.build/artifacts/<체크아웃 폴더 이름>/Sparkle/bin/`에 있다(예: `.build/artifacts/DJCrate/Sparkle/bin/`).
 
 1. `generate_keys --account djcrate`를 실행한다. 이 도구는 비밀 키를 로그인 키체인의 `djcrate` 계정에 만든다. 그 뒤 공개 키를 출력한다.
 2. 출력한 공개 키를 `Assets/sparkle-public-ed-key.txt`에 한 줄로 쓴다. 커밋한다.

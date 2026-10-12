@@ -75,7 +75,7 @@ struct SparkleAppcastScriptTests {
         try fm.createDirectory(at: app, withIntermediateDirectories: true)
         try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: app.appending(path: "Info.plist"))
         // 가짜 sign_update: 인자와 표준 입력을 적고, 서명할 때는 시험이 준 서명을 낸다
-        let tool = root.appending(path: ".build/artifacts/sparkle/Sparkle/bin/sign_update")
+        let tool = root.appending(path: ".build/artifacts/DJCrate/Sparkle/bin/sign_update")
         try fm.createDirectory(at: tool.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(#"""
         #!/bin/zsh

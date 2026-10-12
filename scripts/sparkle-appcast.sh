@@ -13,8 +13,10 @@ ARCHIVE="$1" APP="$2" TAG="$3" REPO="$4" OUT="$5"
 [[ -f "$ARCHIVE" ]] || fail "ZIP이 없습니다: $ARCHIVE"
 INFO="$APP/Contents/Info.plist"
 [[ -f "$INFO" ]] || fail "앱 Info.plist가 없습니다: $INFO"
-SIGN_UPDATE=.build/artifacts/sparkle/Sparkle/bin/sign_update
-[[ -x "$SIGN_UPDATE" ]] || fail "sign_update가 없습니다. swift build로 Sparkle 패키지를 먼저 받으세요."
+# Sparkle은 이 패키지의 바이너리 타깃이라 도구 폴더 이름이 체크아웃 폴더 이름(패키지 ID)이다. 글롭으로 찾는다.
+SIGN_UPDATE=(.build/artifacts/*/Sparkle/bin/sign_update(N))
+SIGN_UPDATE=${SIGN_UPDATE[1]:-}
+[[ -n "$SIGN_UPDATE" && -x "$SIGN_UPDATE" ]] || fail "sign_update가 없습니다. swift build로 Sparkle 바이너리를 먼저 받으세요."
 
 plist() { plutil -extract "$1" raw "$INFO"; }
 BUILD=$(plist CFBundleVersion)
