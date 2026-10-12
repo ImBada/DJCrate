@@ -25,7 +25,12 @@ struct DeckControlTabs: View {
             .frame(width: tabWidth)
             .frame(maxHeight: .infinity)
             ZStack(alignment: .topLeading) {
-                page(.cueLoop) { TransportBar(deck: deck) }
+                page(.cueLoop) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        TransportBar(deck: deck)
+                        AudioControlsRow(deck: deck)
+                    }
+                }
                 page(.grid) {
                     VStack(alignment: .leading, spacing: 6) {
                         GridEditorBar(deck: deck, framed: false)

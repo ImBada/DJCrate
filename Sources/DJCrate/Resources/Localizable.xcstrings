@@ -40441,6 +40441,22 @@
         }
       }
     },
+    "재생 템포 (−16…+16%). 두 번 누르면 0%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playback tempo (−16…+16%). Double-click to reset to 0%"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再生テンポ（−16…+16%）。ダブルクリックで0%"
+          }
+        }
+      }
+    },
     "재생 횟수" : {
       "localizations" : {
         "en" : {

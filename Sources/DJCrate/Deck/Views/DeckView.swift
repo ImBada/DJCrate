@@ -322,35 +322,6 @@ struct DeckInfoHeader: View {
     let coverSize: CGFloat
 
     var body: some View {
-        // 넓으면 템포·키 고정 줄을 시간·BPM 아래 오른쪽에 둔다. 모자라면 헤더는 예전 모양 그대로 두고 그 줄만 헤더 아래 오른쪽에 둔다.
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 10) {
-                cover
-                details.fixedSize(horizontal: true, vertical: false)
-                Spacer(minLength: 8)
-                VStack(alignment: .trailing, spacing: 6) {
-                    if !PerfProbe.hidden.contains("label") {
-                        HStack(spacing: 10) {
-                            DeckHeaderTime(deck: deck)
-                            DeckHeaderMetrics(deck: deck)
-                        }
-                    }
-                    AudioControlsRow(deck: deck)
-                }
-            }
-            .frame(height: coverSize)
-            VStack(alignment: .trailing, spacing: 6) {
-                infoRows.frame(height: coverSize)
-                ViewThatFits(in: .horizontal) {
-                    AudioControlsRow(deck: deck)
-                    AudioControlsRow(deck: deck, sliderWidth: 56)
-                }
-                .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-        }
-    }
-
-    private var infoRows: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 10) {
                 cover
@@ -363,7 +334,7 @@ struct DeckInfoHeader: View {
             }
             HStack(spacing: 10) {
                 cover
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 2) {
                     title
                     if !PerfProbe.hidden.contains("label") {
                         HStack(spacing: 8) {
