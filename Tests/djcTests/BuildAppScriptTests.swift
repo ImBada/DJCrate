@@ -122,10 +122,19 @@ struct BuildAppScriptTests {
         let signs = result.signatures.split(separator: "\n").filter { $0.contains("--sign ") }
         #expect(signs.compactMap { $0.split(separator: " ").last.map(String.init) } == [
             "dist/DJCrate.app/Contents/Frameworks/SQLCipher.framework",
-            "\(sparkle)/Versions/B/Autoupdate", "\(sparkle)/Versions/B/Updater.app", sparkle, "dist/DJCrate.app",
+            "\(sparkle)/Versions/B/Autoupdate", "\(sparkle)/Versions/B/Updater.app", sparkle,
+            "dist/DJCrate.app/Contents/Helpers/djc", "dist/DJCrate.app",
         ])
         #expect(signs.filter { $0.contains("Sparkle.framework") }.allSatisfy { $0.contains("--options runtime") })
         #expect(!signs.contains { $0.contains("--deep") })
+    }
+
+    @Test func AI_에이전트용_djc와_스킬을_넣는다() throws {
+        let result = try run(identity: "none")
+        #expect(result.status == 0, "\(result.output)")
+        #expect(result.files.contains("dist/DJCrate.app/Contents/Helpers/djc"))
+        #expect(result.files.contains("dist/DJCrate.app/Contents/Resources/DJCrate_djc.bundle/Contents/Resources/ko.lproj/Localizable.strings"))
+        #expect(result.files.contains("dist/DJCrate.app/Contents/Resources/skills/djcrate/SKILL.md"))
     }
 
     @Test func 시험_빌드는_번들_ID와_업데이트_값을_바꾼다() throws {
@@ -194,6 +203,9 @@ struct BuildAppScriptTests {
         for path in [".build/release/DJCrate", ".build/release/SQLCipher.framework/SQLCipher",
                      ".build/release/DJCrate_DJCrate.bundle/Contents/Resources/ko.lproj/InfoPlist.strings",
                      "LICENSE", "THIRD_PARTY_NOTICES.md"] { try file(path) }
+        // AI 에이전트 재료(#262): 번들 안 djc·djc 리소스 번들·스킬
+        for path in [".build/release/djc", ".build/release/DJCrate_djc.bundle/Contents/Resources/ko.lproj/Localizable.strings",
+                     "skills/djcrate/SKILL.md"] { try file(path) }
         // Sparkle 2 프레임워크 모양(Versions/B와 꼭대기 링크)
         let sparkle = ".build/release/Sparkle.framework"
         for path in ["Sparkle", "Autoupdate", "Updater.app/Contents/MacOS/Updater", "XPCServices/Installer.xpc/Contents/MacOS/Installer",
