@@ -62,9 +62,11 @@ fi
 [[ $(print -rn -- "$UPDATE_PUBLIC_KEY" | base64 -d 2>/dev/null | wc -c) -eq 32 ]] || fail "업데이트 공개 키가 ed25519 base64(32바이트)가 아닙니다. Assets/sparkle-public-ed-key.txt를 확인하세요."
 # --- 앱 자동 업데이트 끝 ---
 
-swift build -c release --product DJCrate
 # ── AI 에이전트 재료(#262) 빌드 ──
+# djc를 먼저 빌드한다. 한 제품만 빌드하면 그 제품이 쓰지 않는 Products의 프레임워크(Sparkle)를 낡은 결과로 지우므로
+# 앱을 마지막에 빌드해야 아래에서 .build/release/Sparkle.framework를 복사할 수 있다.
 swift build -c release --product djc
+swift build -c release --product DJCrate
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Frameworks" "$APP/Contents/Resources"

@@ -137,6 +137,13 @@ struct BuildAppScriptTests {
         #expect(result.files.contains("dist/DJCrate.app/Contents/Resources/skills/djcrate/SKILL.md"))
     }
 
+    @Test func 앱을_마지막에_빌드해_Sparkle이_남는다() throws {
+        // 한 제품만 빌드하면 그 제품이 쓰지 않는 프레임워크를 지운다. djc 다음에 앱을 빌드해야 Sparkle.framework를 복사할 수 있다.
+        let result = try run(identity: "none")
+        #expect(result.status == 0, "\(result.output)")
+        #expect(result.swiftCalls == ["build -c release --product djc", "build -c release --product DJCrate"])
+    }
+
     @Test func 시험_빌드는_번들_ID와_업데이트_값을_바꾼다() throws {
         let key = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
         let result = try run(identity: "none", environment: [
@@ -185,7 +192,7 @@ struct BuildAppScriptTests {
                      environment overrides: [String: String] = [:], publicKey: String = Self.publicKey) throws
         -> (status: Int32, output: String, installed: Bool, signatures: String, exportedTypes: [String],
             version: String, packageFiles: [String], buildStarted: Bool,
-            iconName: String, hasIconAssets: Bool, iconCompilation: String, bundleInfo: [String: Any], files: [String]) {
+            iconName: String, hasIconAssets: Bool, iconCompilation: String, bundleInfo: [String: Any], files: [String], swiftCalls: [String]) {
         let fm = FileManager.default
         let root = fm.temporaryDirectory.appending(path: "djc-build-script-\(UUID())")
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
@@ -220,7 +227,7 @@ struct BuildAppScriptTests {
         #!/bin/zsh
         set -e
         case "${0:t}" in
-          swift) /usr/bin/touch "$DJC_TEST_ROOT/build-started"; exit 0 ;;
+          swift) print -r -- "$*" >> "$DJC_TEST_ROOT/swift-calls"; /usr/bin/touch "$DJC_TEST_ROOT/build-started"; exit 0 ;;
           install_name_tool) exit 0 ;;
           git)
             case "$1" in
@@ -303,6 +310,7 @@ struct BuildAppScriptTests {
                 bundleInfo?["CFBundleIconName"] as? String ?? "",
                 fm.fileExists(atPath: root.appending(path: "dist/DJCrate.app/Contents/Resources/Assets.car").path),
                 (try? String(contentsOf: root.appending(path: "icon-compilation"), encoding: .utf8)) ?? "",
-                bundleInfo as? [String: Any] ?? [:], files.filter { $0.hasPrefix("dist/") })
+                bundleInfo as? [String: Any] ?? [:], files.filter { $0.hasPrefix("dist/") },
+                ((try? String(contentsOf: root.appending(path: "swift-calls"), encoding: .utf8)) ?? "").split(separator: "\n").map(String.init))
     }
 }
