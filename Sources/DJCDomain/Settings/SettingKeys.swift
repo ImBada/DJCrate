@@ -48,7 +48,7 @@ public enum SettingKeys {
     public static let cueListFilter = SettingKey("deck.cueListFilter", CueListFilter.all.rawValue) {
         CueListFilter(rawValue: $0)?.rawValue
     }
-    public static let waveformHeight = SettingKey<Double>("waveformHeight", 150, in: nil)
+    public static let waveformHeight = SettingKey<Double>("waveformHeight", 130, in: nil)
     public static let sheetMode = SettingKey("sheetMode", false)
     public static let showTagEditor = SettingKey("showTagEditor", false)
     public static let sidebarPlaylistsExpanded = SettingKey("sidebar.playlistsExpanded", true)

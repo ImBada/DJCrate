@@ -89,6 +89,7 @@ struct LibraryLayoutMetricsTests {
 
     @Test func 들어맞는_창의_원시_높이는_덱과_파형에_알리지_않는다() {
         let layout = LibraryLayoutMetrics()
+        layout.request(150)
         layout.measureDetail(height: 900, deckHeight: 390, waveformHeight: 150, hasTrack: true)
         let changed = Mutex(false)
         withObservationTracking {
@@ -106,6 +107,7 @@ struct LibraryLayoutMetricsTests {
 
     @Test func 메뉴_문맥은_창_높이가_바뀌어도_키울_줄일_수_있는지가_같으면_알리지_않는다() {
         let layout = LibraryLayoutMetrics()
+        layout.request(150)
         layout.measureDetail(height: 900, deckHeight: 390, waveformHeight: 150, hasTrack: true)
         #expect(layout.canGrowWaveform && layout.canShrinkWaveform)
         let changed = Mutex(false)

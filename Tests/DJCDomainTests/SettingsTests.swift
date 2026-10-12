@@ -12,7 +12,7 @@ struct SettingsTests {
             (SettingKeys.volume, "deck.volume", 0.9),
             (SettingKeys.gainTarget, "deck.gainTarget", -10),
             (SettingKeys.gainTrim, "deck.gainTrim", 0),
-            (SettingKeys.waveformHeight, "waveformHeight", 150),
+            (SettingKeys.waveformHeight, "waveformHeight", 130),
             // 옛 코드 상수: DeckAudio.metronomeVolume, DeckAudio.idleSeconds
             (SettingKeys.metronomeVolume, "deck.metronomeVolume", 0.8),
             (SettingKeys.idleSeconds, "deck.idleSeconds", 20),

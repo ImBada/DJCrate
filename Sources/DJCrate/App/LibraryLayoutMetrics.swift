@@ -11,7 +11,7 @@ final class LibraryLayoutMetrics {
     @ObservationIgnored private var noticeHeight = 0.0
     @ObservationIgnored private var listHeaderHeight = 40.0
 
-    private(set) var waveformHeight = 150.0
+    private(set) var waveformHeight = DeckLayout.defaultWaveformHeight
     private(set) var minimumWaveformHeight = DeckLayout.minimumWaveformHeight
     private(set) var maximumWaveformHeight = 213.0
     private(set) var viewportHeight = 390.0
