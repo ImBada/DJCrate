@@ -42043,6 +42043,22 @@
         }
       }
     },
+    "큐도 함께" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Cues Too"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キューも一緒に"
+          }
+        }
+      }
+    },
     "큐도 함께(핫큐·메모리)" : {
       "localizations" : {
         "en" : {
