@@ -95,8 +95,8 @@ struct WaveformMetrics: Equatable {
     var keyBandHeight: Double { TextScale.length(12, scale: scale) }
     /// 파형 아래 섹션·조성 띠 자리(위아래 여백 포함)
     var overviewBandsHeight: Double { 3 + sectionBandHeight + 2 + keyBandHeight + 3 }
-    /// 띠가 커진 만큼 늘려 파형 높이(52pt)는 그대로 둔다.
-    var overviewHeight: Double { 52 + overviewBandsHeight }
+    /// 파형은 위쪽 절반만 그려 높이 28pt를 쓴다(위아래가 같은 모양이라 절반이면 충분하다).
+    var overviewHeight: Double { 28 + overviewBandsHeight }
 
     /// 한 줄에 놓는 라벨(큐 이름 등)을 왼쪽부터 놓고, 앞 라벨과 `gap`보다 가까이 겹치는 것은 뺀다.
     /// 자리가 모자라면 글자를 줄이지 않고 라벨 수를 줄인다. 결과는 들어온 순서다.

@@ -127,17 +127,17 @@ struct OverviewStaticLayer: View {
             defer { PerfProbe.endInterval("overview.static.draw", from: start) }
             let xOf = { (t: Double) in CGFloat(t / duration) * size.width }
             let waveHeight = size.height - metrics.overviewBandsHeight
+            // 위아래 대칭 파형을 두 배 높이로 그리고 위쪽 절반만 남긴다(가운데 선이 파형 칸 아래 끝).
+            let rect = CGRect(x: 0, y: 2, width: size.width, height: (waveHeight - 2) * 2)
+            var clipped = context
+            clipped.clip(to: Path(CGRect(x: 0, y: 0, width: size.width, height: waveHeight)))
             if mode == .threeBand, let waveform {
-                let rect = CGRect(x: 0, y: 2, width: size.width, height: waveHeight - 2)
                 let paths = bandPaths.paths(waveform: waveform, from: -audioOffset, to: duration - audioOffset, in: rect)
-                var clipped = context
-                clipped.clip(to: Path(rect.insetBy(dx: 0, dy: -rect.height)))
                 for (path, color) in zip(paths, [Palette.low, Palette.mid, Palette.high]) {
                     clipped.fill(path, with: .color(color))
                 }
             } else {
-                colorWaveform?.draw(context, from: 0, to: duration,
-                                    in: CGRect(x: 0, y: 2, width: size.width, height: waveHeight - 2), full: true)
+                colorWaveform?.draw(clipped, from: 0, to: duration, in: rect, full: true)
             }
             let scores = energies.map(\.score).filter(\.isFinite)
             let lo = scores.min() ?? 0, hi = scores.max() ?? 1

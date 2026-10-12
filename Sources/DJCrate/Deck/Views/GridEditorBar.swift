@@ -401,7 +401,6 @@ private struct GridTempoSegmentCell: View {
     let isCurrent: Bool
 
     private var name: String { String(ui: "템포 구간 \(index + 1)") }
-    private var shortName: String { String(ui: "템포") + " \(index + 1)" }
     private var bpmText: String { segment.bpm.formatted(.number.precision(.fractionLength(2)).grouping(.never)) }
     private var seekHelp: String {
         [name, bpmText, segment.start.clockText, String(ui: "누르면 이 자리로 옮깁니다")].joined(separator: " · ")
@@ -434,8 +433,9 @@ private struct GridTempoSegmentCell: View {
         let trailing = deck.gridEditing && index > 0 ? CGFloat(23) : CGFloat(7)
         let labelWidth = max(0, width - 7 - trailing)
         return ViewThatFits(in: .horizontal) {
-            Text(verbatim: name + " · " + bpmText).fixedSize(horizontal: true, vertical: false)
-            Text(verbatim: shortName).fixedSize(horizontal: true, vertical: false)
+            // 띠 안은 구간 번호와 BPM 숫자만 쓴다. 좁으면 BPM 단위 → 구간 번호 순서로 뺀다.
+            Text(verbatim: "\(index + 1) · \(bpmText) BPM").fixedSize(horizontal: true, vertical: false)
+            Text(verbatim: "\(index + 1) · \(bpmText)").fixedSize(horizontal: true, vertical: false)
             Text(verbatim: bpmText).lineLimit(1).minimumScaleFactor(0.65)
         }
         .font(.scaled(.caption, textScale).monospacedDigit())
