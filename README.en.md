@@ -63,7 +63,7 @@ Copies, drafts, and backups are stored in `~/Library/Application Support/DJCrate
 | Deck | 3-band waveform, CUE, hot cues and memory cues, sample-accurate loops, quantize, tempo and Master Tempo (key lock), metronome, Auto Gain, cue, grid, gain, and key suggestions |
 | Editing | Cues, grid and BPM (including tracks with tempo changes), gain, tags, rating and track color, album art. A spreadsheet-style Tag Sheet. For unanalyzed tracks, DJCrate creates and attaches the analysis files |
 | Track edit and Flip (experimental) | Render bar-based cut edits, or edits that capture hot cue jumps and loop playing, to WAV and add them to the library |
-| Playlists | Create playlists and folders, rename, move, delete, add and remove tracks, reorder |
+| Playlists | Create playlists and folders, rename, move, delete, add and remove tracks, reorder. ⌘-click or ⇧-click in the sidebar to delete or move several at once |
 | History | Browse play history and turn a history into a playlist. Keeps the history that CDJs and XDJs leave on a USB drive, then adds it to rekordbox's history |
 | XML | Linked XML for importing into rekordbox, full-library XML export (read-only), rekordbox XML import (preview the differences, then make drafts), Apple Music XML import |
 | USB (experimental) | Read, export, edit, and sync OneLibrary and Device Library; add OneLibrary to older USB drives. A physical USB drive is written only after you confirm the write in the [Export to USB] sheet or a write confirmation dialog (backed up before writing, verified after) |
