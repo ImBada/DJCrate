@@ -332,7 +332,7 @@ func tick() {
 
 | 접미사 | 뜻 | 예 |
 |---|---|---|
-| `…Model` | 화면 하나 전용 화면 모델 | `RelocateModel`, `TrackEditModel`, `StorageSettingsModel` |
+| `…Model` | 화면 하나 전용 화면 모델 | `RelocateModel`, `TrackEditModel`, `StorageSettingsModel`, `AgentToolsSettingsModel` |
 | `…Store` | 여러 화면이 함께 쓰는 저장소·기능 조각 | `LibraryStore`, `UsbStore`, `TagEditStore` |
 | `…Coordinator` | 화면 여러 개를 잇는 흐름 | `ReflectionCoordinator`, `UsbWriteCoordinator` |
 | `…Coordinator`(AppKit) | `NSViewRepresentable`의 대리자 | `TrackListCoordinator`, `SheetCoordinator` |

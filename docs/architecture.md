@@ -46,6 +46,7 @@ DJCDomain은 입출력 없는 규칙과 값을 둔다. 규칙은 시험이 가�
 - 읽은 rekordbox 라이브러리와 iTunes 목록
 - CLI JSON 계약 값과 분석 결과 값
 - 순수 화면 규칙(입력 → 할 동작). 앱을 빌드하지 않은 채 시험할 수 있게 여기 둔다.
+- AI 에이전트 설치 규칙(`AgentTools/`): 설치 표시로 상태를 정한다. 설치·갱신·제거 계획도 세운다.
 
 ### DJCApplication
 
@@ -58,6 +59,7 @@ DJCApplication은 기능별 폴더에 유스케이스와 포트를 둔다. 유�
 | `Library/` | `LoadLibrary`, `LibraryReadFlow`, `ImportXML`, `RecoverDrafts`, `RelocateTracks`, `StageTracks`, `EditPlaylists`, `EditTags`, `ArchiveUsbHistories` |
 | `Reflection/` | `ReflectionSession`, `CompatibilityCheck` |
 | `Usb/` | `UsbSync`, `UsbExportSession`, `UsbWriteFlow` |
+| `AgentTools/` | `AgentTools`(스킬·djc 설치, #262) |
 
 - 반영 세션 `ReflectionSession`은 rekordbox 쓰기 흐름이 함께 쓰는 유스케이스다. 앱의 반영, 곡 넣기·빼기, 복원이 이 세션을 쓴다. 시점 복원과 iTunes 동기화도 같은 세션을 쓴다.
 - CLI 쓰기 명령도 같은 세션을 쓴다. CLI는 세션 옵션으로 쓴 뒤의 초안 정리와 되살리기를 끈다.
@@ -220,6 +222,7 @@ DJCApplication은 기능별 폴더에 유스케이스와 포트를 둔다. 유�
   - 스냅샷 함수 `LibrarySnapshot.latest`·`LibrarySnapshot.take`
 - 예외 파일은 `Diagnostics/`, CLI `Lab/`, 조립 지점뿐이다.
 - 설정 › 저장 공간의 화면 모델은 `AppComposition.storageSettings()`가 만든다.
+- 설정 › AI 에이전트의 화면 모델은 `AppComposition.agentTools(arguments:settings:)`가 한 번 만든다. 설정 창과 켤 때 알림이 이 모델을 함께 쓴다. 설치 자리의 뿌리(홈)는 조립 지점이 준다. 디버그 빌드는 `--agent-home=<폴더>`로 홈과 휴지통을 임시 폴더로 바꾼다.
 - **목록 그림 캐시 싱글턴은 없앴다.** 옛 `PreviewWaveformCache.shared`·`Thumbnails.shared` 대신 라이브러리 저장소가 하나씩 든다(`previewImages`·`thumbnails`).
 - 남은 싱글턴은 넷이다.
   - `LoudnessCache.shared`: 인프라 쪽 캐시다. 조립 지점이 붙인다.
