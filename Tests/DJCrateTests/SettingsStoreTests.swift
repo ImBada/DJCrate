@@ -10,6 +10,40 @@ import Testing
 struct SettingsStoreTests {
     static func freshDefaults() -> UserDefaults { TestDefaults.make("settings") }
 
+    /// 쓰기 뒤에도 이전 값을 돌려주는 저장소로 영속화 지연을 결정적으로 재현한다.
+    private final class StaleDefaults: UserDefaults, @unchecked Sendable {
+        init() { super.init(suiteName: TestDefaults.suiteName("stale-settings"))! }
+        override func object(forKey defaultName: String) -> Any? {
+            if defaultName == SettingKeys.hideStreaming.name { return false }
+            if defaultName == SettingKeys.waveformHeight.name { return 80.0 }
+            return nil
+        }
+        override func set(_ value: Any?, forKey defaultName: String) {}
+        override func removeObject(forKey defaultName: String) {}
+    }
+
+    @Test func 저장소가_이전_값을_돌려줘도_방금_쓴_설정을_읽는다() {
+        let defaults = StaleDefaults()
+        let store = SettingsStore(defaults: defaults, persist: true)
+        #expect(!store.value(SettingKeys.hideStreaming))
+        #expect(store.value(SettingKeys.waveformHeight) == 80)
+        store.set(SettingKeys.hideStreaming, true)
+        store.set(SettingKeys.waveformHeight, 199)
+        #expect(store.value(SettingKeys.hideStreaming))
+        #expect(store.value(SettingKeys.waveformHeight) == 199)
+        #expect(defaults.object(forKey: SettingKeys.hideStreaming.name) as? Bool == false)
+        #expect(defaults.object(forKey: SettingKeys.waveformHeight.name) as? Double == 80)
+        // 새 저장소는 영속 저장값에서 시작하며 이전 인스턴스의 캐시를 물려받지 않는다.
+        #expect(!SettingsStore(defaults: defaults, persist: true).value(SettingKeys.hideStreaming))
+    }
+
+    @Test func 저장이_늦어도_재생_퀀타이즈의_새_값이_옛_설정보다_우선한다() {
+        let store = SettingsStore(defaults: StaleDefaults(), persist: true)
+        #expect(store.quantize)
+        store.set(SettingKeys.playQuantize, false)
+        #expect(!store.quantize)
+    }
+
     /// 시험 설정이 사용자 환경설정 폴더(~/Library/Preferences)에 plist를 남기지 않는다(adv4 T6: 10만 개 넘게 쌓였다).
     @Test func 시험_설정은_사용자_환경설정_폴더에_plist를_남기지_않는다() throws {
         let name = TestDefaults.suiteName("no-leak")
