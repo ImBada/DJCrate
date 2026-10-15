@@ -4657,6 +4657,22 @@
         }
       }
     },
+    "DJCrate 데이터 폴더나 rekordbox 라이브러리와 겹치는 볼륨은 USB 스냅샷을 뜨지 않습니다. USB 볼륨을 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore points are not created for a volume that overlaps the DJCrate data folder or the rekordbox library. Choose a USB volume"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateのデータフォルダまたはrekordboxライブラリと重なるボリュームでは、USB復元ポイントを作成しません。USBボリュームを選んでください"
+          }
+        }
+      }
+    },
     "DJCrate 데이터 폴더의 usb-drafts를 확인한 뒤 다시 시도하세요" : {
       "localizations" : {
         "en" : {
@@ -7021,6 +7037,54 @@
         }
       }
     },
+    "USB 라이브러리 파일(DB·분석 파일·앨범아트·설정 파일)을 시점 스냅샷으로 남기고 같은 USB로 되돌린다(음원은 담지 않음)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saves the USB library files (DBs, analysis files, artwork, settings files) as a restore point and restores them to the same USB (audio files are not included)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBのライブラリファイル（DB・解析ファイル・アートワーク・設定ファイル）を復元ポイントとして保存し、同じUSBに戻す（音声ファイルは含めない）"
+          }
+        }
+      }
+    },
+    "USB 라이브러리 폴더에 링크나 일반 파일이 아닌 것이 있어 되돌리지 않았습니다. USB를 확인한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB library folders contain a link or something that is not a regular file, so nothing was restored. Check the USB and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBのライブラリフォルダにリンクまたは通常ファイルでないものがあるため、復元しませんでした。USBを確認してからもう一度お試しください"
+          }
+        }
+      }
+    },
+    "USB 라이브러리 폴더에 링크나 일반 파일이 아닌 것이 있어 스냅샷을 남기지 않았습니다. USB를 확인한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB library folders contain a link or something that is not a regular file, so no restore point was created. Check the USB and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USBのライブラリフォルダにリンクまたは通常ファイルでないものがあるため、復元ポイントを作成しませんでした。USBを確認してからもう一度お試しください"
+          }
+        }
+      }
+    },
     "USB 라이브러리가 손상됐습니다. rekordbox에서 USB를 점검한 뒤 다시 시도하세요" : {
       "localizations" : {
         "en" : {
@@ -7209,6 +7273,98 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBの編集は既存のライブラリファイルだけを変更します。USBを読み込み直してから編集してください"
+          }
+        }
+      }
+    },
+    "USB 스냅샷 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld USB restore point"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld USB restore points"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB復元ポイント%lld個"
+          }
+        }
+      }
+    },
+    "USB 스냅샷 정보(snapshot.json)를 읽지 못했습니다. 스냅샷 목록을 다시 본 뒤 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read the USB restore point info (snapshot.json). Check the restore point list again and choose one"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB復元ポイントの情報（snapshot.json）を読み込めませんでした。復元ポイントの一覧を確認し直してから選んでください"
+          }
+        }
+      }
+    },
+    "USB 스냅샷 파일이 없거나 바뀌어 되돌리지 않았습니다. 다른 스냅샷을 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB restore point files are missing or changed, so nothing was restored. Choose another restore point"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB復元ポイントのファイルが見つからないか変更されているため、復元しませんでした。別の復元ポイントを選んでください"
+          }
+        }
+      }
+    },
+    "USB 스냅샷 폴더 밖의 항목은 고치지 않습니다. 목록에서 스냅샷을 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Items outside the USB restore point folder are not changed. Choose a restore point from the list"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB復元ポイントフォルダ外の項目は変更しません。一覧から復元ポイントを選んでください"
+          }
+        }
+      }
+    },
+    "USB 스냅샷을 남겼습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB restore point created: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB復元ポイントを作成しました: %@"
           }
         }
       }
@@ -10025,6 +10181,22 @@
         }
       }
     },
+    "create [--name 이름] | list | restore|pin|unpin|delete <ID> — --volume <마운트> [--discard-device-changes] [--dry-run] [--allow-physical --confirm <볼륨 이름>]" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "create [--name NAME] | list | restore|pin|unpin|delete <ID> — --volume <mount point> [--discard-device-changes] [--dry-run] [--allow-physical --confirm <volume name>]"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "create [--name 名前] | list | restore|pin|unpin|delete <ID> — --volume <マウントポイント> [--discard-device-changes] [--dry-run] [--allow-physical --confirm <ボリューム名>]"
+          }
+        }
+      }
+    },
     "deck.editButton" : {
       "extractionState" : "extracted_with_value",
       "localizations" : {
@@ -12455,6 +12627,22 @@
         }
       }
     },
+    "rekordbox가 켜져 있어 USB 스냅샷을 남기지 않았습니다. rekordbox를 완전히 종료한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox is running, so no USB restore point was created. Quit rekordbox completely and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordboxが起動しているため、USB復元ポイントを作成しませんでした。rekordboxを完全に終了してからもう一度お試しください"
+          }
+        }
+      }
+    },
     "rekordbox가 켜져 있어 USB에 쓰지 않았습니다" : {
       "localizations" : {
         "en" : {
@@ -14337,6 +14525,28 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "‘%1$@’ 시점으로 복원했습니다. 복원 전 상태는 ‘복원 직전’ 스냅샷(%2$@)으로 남겼습니다."
+          }
+        }
+      }
+    },
+    "‘%@’ 시점으로: DB %lld · 만들 파일 %lld · 덮을 파일 %lld · 지울 파일 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To ‘%1$@’: DBs %2$lld · files to create %3$lld · files to overwrite %4$lld · files to delete %5$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "‘%1$@’の時点へ: DB %2$lld · 作成するファイル %3$lld · 上書きするファイル %4$lld · 削除するファイル %5$lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "‘%1$@’ 시점으로: DB %2$lld · 만들 파일 %3$lld · 덮을 파일 %4$lld · 지울 파일 %5$lld"
           }
         }
       }
@@ -16853,6 +17063,22 @@
         }
       }
     },
+    "고정한 USB 스냅샷은 지우지 않습니다. 고정을 푼 뒤 지우세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinned USB restore points are not deleted. Unpin it before deleting."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピン留めしたUSB復元ポイントは削除しません。ピン留めを解除してから削除してください"
+          }
+        }
+      }
+    },
     "고정한 시점 스냅샷은 지우지 않습니다. 고정을 푼 뒤 지우세요" : {
       "localizations" : {
         "en" : {
@@ -18775,6 +19001,38 @@
         }
       }
     },
+    "그 USB 스냅샷을 찾지 못했습니다. 목록에서 ID를 확인한 뒤 다시 주세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not find that USB restore point. Check the ID in the list and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "そのUSB復元ポイントが見つかりませんでした。一覧でIDを確認してからもう一度指定してください"
+          }
+        }
+      }
+    },
+    "그 뒤 USB가 바뀐 내용(기기가 쓴 기록 등)은 버렸습니다. 쓰기 전 백업에는 남아 있습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changes made to the USB since then (for example, history written by a player) were discarded. They remain in the pre-write backup."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その後USBで変更された内容（機器が書き込んだ履歴など）は破棄しました。書き込み前のバックアップには残っています。"
+          }
+        }
+      }
+    },
     "그 뒤에 USB 쓰기 대기가 바뀌었습니다. USB 쓰기 대기에서 편집을 빼세요" : {
       "localizations" : {
         "en" : {
@@ -19601,6 +19859,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "文字サイズ"
+          }
+        }
+      }
+    },
+    "기기 설정 파일 %lld개를 스냅샷 때 것으로 되돌립니다. 기기에서 저장한 설정이었다면 그 설정은 쓰기 전 백업에만 남습니다" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Restoring %lld device settings file to its state at the restore point. If a player saved those settings, they remain only in the pre-write backup"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Restoring %lld device settings files to their state at the restore point. If a player saved those settings, they remain only in the pre-write backup"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "機器設定ファイル%lld個を復元ポイントの時点のものに戻します。機器で保存した設定だった場合、その設定は書き込み前のバックアップにのみ残ります"
           }
         }
       }
@@ -21181,6 +21467,22 @@
         }
       }
     },
+    "다른 USB의 스냅샷입니다. 이 USB에서 뜬 스냅샷을 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This restore point belongs to another USB. Choose a restore point taken from this USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別のUSBの復元ポイントです。このUSBで作成した復元ポイントを選んでください"
+          }
+        }
+      }
+    },
     "다른 djc가 있음" : {
       "localizations" : {
         "en" : {
@@ -21737,6 +22039,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "記録された%@フォルダがないか、リンクです"
+          }
+        }
+      }
+    },
+    "담은 것: DB %lld · 분석 파일 %lld · 앨범아트 %lld · 설정 파일 %lld · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contents: DBs %1$lld · analysis files %2$lld · artwork %3$lld · settings files %4$lld · %5$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内容: DB %1$lld · 解析ファイル %2$lld · アートワーク %3$lld · 設定ファイル %4$lld · %5$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "담은 것: DB %1$lld · 분석 파일 %2$lld · 앨범아트 %3$lld · 설정 파일 %4$lld · %5$@"
           }
         }
       }
@@ -22511,6 +22835,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "復元"
+          }
+        }
+      }
+    },
+    "되돌리기 전으로 돌리려면: djc usb-restore --volume %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To undo this restore: djc usb-restore --volume %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この復元を取り消すには: djc usb-restore --volume %@"
+          }
+        }
+      }
+    },
+    "되돌리기가 지우지 않는 파일 %lld개는 그대로 둡니다(스냅샷 뒤에 생긴 설정 파일 등)" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld file that restoring does not delete is left as is (for example, a settings file created after the restore point)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld files that restoring does not delete are left as is (for example, settings files created after the restore point)"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元で削除しないファイル%lld個はそのまま残します（復元ポイントの後に作成された設定ファイルなど）"
           }
         }
       }
@@ -30653,6 +31021,50 @@
         }
       }
     },
+    "스냅샷 DB의 곡 %lld개는 지금 USB에 음원이 없습니다. 음원은 스냅샷에 담지 않아 되돌려도 생기지 않습니다" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld track in the restore point DB has no audio file on the USB now. Audio files are not included in restore points, so restoring does not bring them back"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tracks in the restore point DB have no audio file on the USB now. Audio files are not included in restore points, so restoring does not bring them back"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイントのDBの曲%lld曲は、現在USBに音声ファイルがありません。音声ファイルは復元ポイントに含めないため、復元しても戻りません"
+          }
+        }
+      }
+    },
+    "스냅샷 DB의 곡 음원이 USB에 있는지 확인하지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not check whether the audio files of the restore point DB tracks are on the USB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイントのDBの曲の音声ファイルがUSBにあるか確認できませんでした"
+          }
+        }
+      }
+    },
     "스냅샷 기준 · 후보가 같은 음원인지는 직접 확인하세요 · 한 곡이 여러 묶음에 나올 수 있습니다" : {
       "localizations" : {
         "en" : {
@@ -30665,6 +31077,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "スナップショット基準 · 候補が同じ音源かどうかはご自身で確認してください · 1曲が複数のグループに出ることがあります"
+          }
+        }
+      }
+    },
+    "스냅샷 뒤 USB에 DJCrate가 모르는 변경이 있습니다(기기가 쓴 기록 등). 되돌리면 그 내용을 잃습니다. 그래도 되돌리려면 --discard-device-changes를 주세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB has changes that DJCrate does not know about since the restore point (for example, history written by a player). Restoring would lose those changes. To restore anyway, pass --discard-device-changes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイントの後、USBにDJCrateが把握していない変更があります（機器が書き込んだ履歴など）。復元するとその内容が失われます。それでも復元するには--discard-device-changesを指定してください"
+          }
+        }
+      }
+    },
+    "스냅샷 뒤에 생긴 DB(%@)는 되돌리기가 지우지 않습니다. 그 DB를 만든 쓰기를 `djc usb-restore`로 먼저 되돌리세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restoring does not delete DBs created after the restore point (%@). Undo the write that created that DB with `djc usb-restore` first"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイントの後に作成されたDB（%@）は復元で削除しません。そのDBを作成した書き込みを先に`djc usb-restore`で元に戻してください"
           }
         }
       }
@@ -30793,6 +31237,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "スナップショットにこの楽曲が見つかりませんでした。スナップショットを取り直してから、もう一度エクスポートしてください"
+          }
+        }
+      }
+    },
+    "스냅샷을 뜨는 동안 USB 파일이 바뀌어 그 스냅샷은 버렸습니다. 다른 프로그램이 USB를 쓰지 않는지 확인한 뒤 다시 시도하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "USB files changed while the restore point was being created, so it was discarded. Make sure no other program is writing to the USB and try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元ポイントの作成中にUSBのファイルが変更されたため、その復元ポイントは破棄しました。他のプログラムがUSBに書き込んでいないことを確認してからもう一度お試しください"
           }
         }
       }
@@ -31645,6 +32105,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "実際のコレクション・削除済みの行・手動キューのある曲の数と、開いているスナップショットのファイル名をサイドバーの一番下に表示します。"
+          }
+        }
+      }
+    },
+    "실제로 되돌리면 그 뒤 USB가 바뀐 내용(기기가 쓴 기록 등)을 버립니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An actual restore would discard the changes made to the USB since then (for example, history written by a player)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実際に復元すると、その後USBで変更された内容（機器が書き込んだ履歴など）は破棄されます。"
           }
         }
       }
@@ -35933,6 +36409,22 @@
         }
       }
     },
+    "음원은 담지 않습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audio files are not included."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音声ファイルは含めません。"
+          }
+        }
+      }
+    },
     "음원을 rekordbox 컬렉션에 넣는다(--analyze면 그리드·파형·오토게인까지, 기본은 사본)" : {
       "localizations" : {
         "en" : {
@@ -36303,6 +36795,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このUSBには2つの形式のうち片方の同期選択ファイルしかありません。rekordboxのSync ManagerでこのUSBを再度同期して両方のファイルを揃えてから再試行してください。"
+          }
+        }
+      }
+    },
+    "이 USB에는 라이브러리 DB가 없어 스냅샷을 남기지 않았습니다. rekordbox나 DJCrate로 내보낸 USB를 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This USB has no library DB, so no restore point was created. Choose a USB exported with rekordbox or DJCrate"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このUSBにはライブラリDBがないため、復元ポイントを作成しませんでした。rekordboxまたはDJCrateで書き出したUSBを選んでください"
           }
         }
       }
@@ -37233,6 +37741,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "この復元ポイントの後にクラウド同期がありました。rekordboxを起動すると、同期が復元した内容の一部を再び変更する場合があります。"
+          }
+        }
+      }
+    },
+    "이 스냅샷에는 라이브러리 DB가 없어 되돌리지 않습니다. 라이브러리가 있을 때 뜬 스냅샷을 고르세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This restore point has no library DB, so it is not restored. Choose a restore point taken while the USB had a library"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この復元ポイントにはライブラリDBがないため、復元しません。ライブラリがあったときに作成した復元ポイントを選んでください"
           }
         }
       }
@@ -41639,6 +42163,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "現在のBPM（グリッド基準。テンポが変わる曲では区間ごとに変わります）"
+          }
+        }
+      }
+    },
+    "지금 USB가 ‘%@’ 시점과 같아 바꾸지 않았습니다." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The USB already matches ‘%@’, so nothing was changed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のUSBは‘%@’の時点と同じなので、何も変更しませんでした。"
           }
         }
       }

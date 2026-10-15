@@ -284,6 +284,7 @@ DJCrate 데이터는 `~/Library/Application Support/DJCrate/`에 있다. `DJC_HO
 - 캐시: `analysis/`, `waveforms/`, `loudness.json`
 - USB 백업과 초안: `usb-backups/`, `usb-drafts/`
 - USB DB의 Mac 사본: `usb-snapshots/`
+- USB 시점 스냅샷: `usb-point-snapshots/<볼륨>/`(#226). 사용자가 남긴 것이라 캐시가 아니다.
 - USB 저널과 잠금: `usb-sessions/`
 - USB 준비 폴더: `usb-staging/`
 - USB에서 가져와 보존한 기기 재생 기록: `usb-histories/`. 기록마다 JSON 한 파일이다. 캐시가 아니므로 지우지 않는다(#43).
