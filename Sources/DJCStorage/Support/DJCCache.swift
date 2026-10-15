@@ -28,7 +28,8 @@ public enum DJCCache {
         }
         return [usage(.rekordboxBackups, folders(root.appending(path: "rekordbox-backups"))),
                 usage(.pointSnapshots, folders(root.appending(path: "point-snapshots"))),
-                usage(.usbBackups, folders(root.appending(path: "usb-backups")).flatMap(folders))]
+                usage(.usbBackups, folders(root.appending(path: "usb-backups")).flatMap(folders)),
+                usage(.usbPointSnapshots, folders(root.appending(path: "usb-point-snapshots")).flatMap(folders))]
     }
 
     public static func usage(paths: DJCCachePaths = .current) -> [Usage] {

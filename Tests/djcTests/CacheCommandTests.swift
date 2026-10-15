@@ -51,4 +51,17 @@ struct CacheCommandTests {
         #expect(FileManager.default.fileExists(atPath: paths.loudness.path), "고르지 않은 종류는 그대로")
         #expect(FileManager.default.fileExists(atPath: paths.root.appending(path: "cue-drafts/a.json").path))
     }
+
+    @Test func USB_시점_스냅샷_사용량을_보이고_모두_비워도_지우지_않는다() throws {
+        let paths = try paths()
+        defer { try? FileManager.default.removeItem(at: paths.root.deletingLastPathComponent()) }
+        let snapshot = paths.root.appending(path: "usb-point-snapshots/V/pinned/files/PIONEER/rekordbox/export.pdb")
+        try FileManager.default.createDirectory(at: snapshot.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(count: 1_024).write(to: snapshot)
+        let text = try CacheCommand.run(["cache"], paths: paths)
+        #expect(text.contains("USB 시점 스냅샷"))
+        #expect(text.contains("1개"))
+        _ = try CacheCommand.run(["cache", "--clear", "all"], paths: paths)
+        #expect(FileManager.default.fileExists(atPath: snapshot.path))
+    }
 }

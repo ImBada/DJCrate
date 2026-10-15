@@ -14,6 +14,8 @@ final class UsbWriteModel {
     private(set) var activeWrite: UsbActiveWrite?
     /// 이 실행에서 옮긴 쓰기의 백업(사이드바 "쓰기 전으로 되돌리기…")
     private(set) var migrationBackups: [String: URL] = [:]
+    /// 시점 스냅샷 되돌리기를 취소할 쓰기 전 백업
+    private(set) var pointRestoreBackups: [String: URL] = [:]
     /// 마지막 옮기기 미리 보기의 막힘(사이드바 도움말)
     private(set) var migrationBlockReasons: [String: String] = [:]
 
@@ -32,6 +34,7 @@ final class UsbWriteModel {
         busyVolumes = state.busyVolumes
         activeWrite = state.activeWrite
         migrationBackups = state.migrationBackups
+        pointRestoreBackups = state.pointRestoreBackups
         migrationBlockReasons = state.migrationBlockReasons
     }
 }

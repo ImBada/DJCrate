@@ -56,6 +56,7 @@ grep "루프 시험" /tmp/djc-loop.log
 | `--ui-perf=all` | 조작마다 메인 스레드 일한 시간·프레임 간격·본문 다시 계산 횟수(`PerfProbe.body`)·메인 CPU. 아래 자세히 | `UIPerfFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로 |
 | `--edit-selftest` | 곡 편집 창의 재생·편집·렌더와 덱 연결. 아래 자세히 | `EditLayoutFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로 |
 | `--usb-selftest` | 합성 라이브러리로 USB 내보내기·편집·옮기기·되돌리기 전 과정("USB 시험 통과" 줄). 아래 자세히 | rekordbox 꺼짐, 임시 `DJC_HOME`, `--db <스냅샷 사본>`(`DJC_HOME`은 스냅샷을 옮기지 않는다). 앱 없이 같은 흐름: `DJC_USB_SELFTEST_SCRATCH=<임시 폴더>`로 `UsbSelfTestScenarioCapture` |
+| `--usb-snapshot-capture=<폴더>` | USB 시점 스냅샷·확인 창·저장 공간 캡처("USB 스냅샷 시험 통과" 줄) | 아래 자세히 |
 | `--xml-export-capture=<폴더>` | 라이브러리 XML 내보내기(#72) 캡처와 결과 확인("라이브러리 XML 시험 통과" 줄). `<폴더>`는 `DJC_HOME` 밖. 아래 자세히 | `XMLExportFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로, 임시 `DJC_HOME` |
 | `--xml-import-capture=<폴더>` | rekordbox XML 가져오기(#72) 캡처와 결과 확인("rekordbox XML 가져오기 시험 통과" 줄). `<폴더>`는 `DJC_HOME` 밖. 아래 자세히 | `XMLExportFixtureCapture` 합성 라이브러리를 `DJC_REKORDBOX_DIR`·`--db`로, 임시 `DJC_HOME` |
 | `--agent-tools-capture=<폴더>` | 설정 › AI 에이전트(#262): 손 설치 보기·설치·다른 djc 바꾸기·고친 파일 다시 설치·제거의 창과 확인 창 PNG, "AI 에이전트 캡처 통과" 줄 | `--agent-home=<임시 폴더>` 필수(임시 폴더가 아니면 종료 코드 2). 홈의 휴지통도 그 안 `.djc-test-trash`다. 라이브러리는 임시 `DJC_HOME`·`DJC_REKORDBOX_DIR` |
@@ -106,6 +107,15 @@ grep "루프 시험" /tmp/djc-loop.log
 4. 되돌린다.
 5. 옮기기를 한다: Device Library만 내보내기 → OneLibrary 더하기 → 원래 파일 SHA-256 → 다시 붙여 읽기 → 되돌리기. "USB 시험 옮기기 통과" 줄을 본다.
 6. 끝에 "USB 시험 통과" 줄을 본다.
+
+`--usb-snapshot-capture=<폴더>`
+
+- `--usb-snapshot-volume=<마운트>`를 함께 준다. 지정한 이미지 한 개만 화면에 주입한다.
+- `UsbMigrateAppFixtureCapture` 합성 재료를 만든다. `djc lab usb-image`로 이름 `DJC226` 이미지를 만들어 채운다.
+- 마운트·캡처·`DJC_HOME`은 임시 폴더다. `DJC_REKORDBOX_DIR`·`--db`는 합성 로컬 사본이다.
+- 스냅샷을 만든 뒤 목록을 확인한다. 고정·풀기·지우기도 확인한다. USB 편집 뒤 되돌린 지문이 처음과 같은지 본다.
+- 기기 변경 동의를 거부하면 쓰지 않는다. 동의하면 복원한다. 되돌리기 취소 뒤에는 직전 지문과 같다.
+- 볼륨·목록·저장 공간을 JPG로 남긴다. 되돌리기 확인 창은 기기 변경 유무별로 남긴다. 기기 변경 동의 창도 남긴다.
 
 `--xml-export-capture=<폴더>`
 

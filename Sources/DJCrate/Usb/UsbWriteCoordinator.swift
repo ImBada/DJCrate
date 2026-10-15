@@ -67,6 +67,17 @@ struct UsbWriteCoordinator {
 
     // MARK: - 내보내기
 
+    func openPointSnapshots(volumeKey: String) {
+        guard let volume = usb.volume(volumeKey), let snapshots = usb.pointSnapshots else { return }
+        usb.pointSnapshotSheet = UsbPointSnapshotsModel(volume: volume, usb: usb, snapshots: snapshots, coordinator: self)
+    }
+
+    func restorePointSnapshot(_ volume: UsbVolumeInfo, entry: UsbPointSnapshotEntry, snapshots: UsbPointSnapshots) async -> Bool {
+        await flow.restorePointSnapshot(volume, entry: entry, snapshots: snapshots)
+    }
+
+    func undoPointRestore(_ volume: UsbVolumeInfo) async -> Bool { await flow.undoPointRestore(volume) }
+
     /// 시트의 미리 보기. 막히면(rekordbox·잠금·끝나지 않은 쓰기·오류) 알리고 nil
     func preview(_ job: UsbExportJob) async -> UsbExportSummary? { await flow.preview(job) }
 

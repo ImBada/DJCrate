@@ -70,6 +70,20 @@ struct StorageSettingsTests {
         #expect(SharedSettingsFile.value(SettingKeys.pointSnapshotAutoDays, in: shared) == 14)
     }
 
+    @Test func USB_시점_스냅샷은_용량만_보이고_캐시_비우기에서_고정도_그대로_둔다() async throws {
+        let scene = try scene()
+        defer { try? FileManager.default.removeItem(at: scene.root) }
+        try scene.write("usb-point-snapshots/V/saved/files/PIONEER/rekordbox/export.pdb", bytes: 900)
+        try scene.write("usb-point-snapshots/V/pinned/files/PIONEER/rekordbox/export.pdb", bytes: 700)
+        try scene.write("usb-point-snapshots/V/.partial-x/file", bytes: 100)
+        let model = StorageSettingsModel(paths: scene.paths, files: .live)
+        await model.refresh()
+        #expect(model.backups.first { $0.kind == .usbPointSnapshots } == .init(kind: .usbPointSnapshots, count: 2, bytes: 1_600))
+        await model.clear(DJCCacheKind.allCases)
+        #expect(scene.exists("usb-point-snapshots/V/saved/files/PIONEER/rekordbox/export.pdb"))
+        #expect(scene.exists("usb-point-snapshots/V/pinned/files/PIONEER/rekordbox/export.pdb"))
+    }
+
     @Test func 자동_시점_스냅샷은_기본으로_켜고_끄면_저장한다() throws {
         let defaults = TestDefaults.make("storage.auto")
         let settings = SettingsStore(defaults: defaults, persist: true, sharedFile: nil)

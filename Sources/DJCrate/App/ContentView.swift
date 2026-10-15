@@ -94,6 +94,9 @@ struct ContentView: View {
                 UsbExportSheet(store: store, usb: usb, request: request)
             }
         }
+        .sheet(item: Binding(get: { store.usb?.pointSnapshotSheet }, set: { store.usb?.pointSnapshotSheet = $0 })) { model in
+            UsbPointSnapshotsView(model: model)
+        }
         // 주 창만 쓰는 시트는 주 창 모델이, 다른 화면이 여는 시트(재생 목록 고르기·USB·복구)는 그 주인이 든다
         .sheet(isPresented: Binding(get: { window.showingWriteResult }, set: { window.showingWriteResult = $0 })) {
             WriteResultView(history: store.resultHistory)

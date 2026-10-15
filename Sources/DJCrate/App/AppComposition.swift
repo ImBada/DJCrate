@@ -74,7 +74,7 @@ final class AppComposition {
     nonisolated static func migrateLegacyData() {
         #if DEBUG
         // 합성 사본 자가 테스트가 사용자 폴더·설정을 옮기지 않게 한다.
-        if CommandLine.arguments.contains("--history-selftest") { return }
+        if CommandLine.arguments.contains("--history-selftest") || CommandLine.arguments.contains(where: { $0.hasPrefix("--usb-snapshot-capture=") }) { return }
         #endif
         LegacyMigration.run()
     }
@@ -248,6 +248,7 @@ final class AppComposition {
                                     libraryWindow: libraryWindow)
         DevSelfTests.runAsyncGuidanceCaptureIfRequested(store: store, deck: deck)
         UsbMigrateCapture.runIfRequested(store: store)
+        UsbSnapshotCapture.runIfRequested(store: store)
         AgentToolsCapture.runIfRequested()
         DevSelfTests.runKeyRoutingSelfTestIfRequested(store: store, deck: deck, windows: windows)
         #endif
