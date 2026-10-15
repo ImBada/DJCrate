@@ -130,6 +130,41 @@ struct UsbRecoveryRecordsFlowTests {
         #expect(world.exportSheet?.volume == world.volume, "어느 쓰기도 이어 가지 않으니 빈 내보내기 시트를 연다")
     }
 
+    @Test("내보내기 뒤 초안 쓰기를 마치면, 다른 곳에서 끊긴 쓰기의 다시 미리 보기는 앞서 한 내보내기도 되풀이하지 않는다")
+    func finishedDraftWriteReplacesTheExportRecord() async throws {
+        let world = UsbWriteWorld()
+        #expect(await world.flow.export(world.job()) == true)
+        world.service.state.withLock {
+            $0.editSummary = .success(Self.editSummary)
+            $0.editWriteResult = .success(Self.editWritten(session: "d1"))
+        }
+        #expect(await world.flow.writeDraft(volumeKey: world.volume.usbKey, database: Self.database, share: Self.share) == true)
+        let exportPreviews = world.service.calls.filter { $0 == "preview" }.count
+        await Self.recoverNeedingReplan(world)
+
+        #expect(world.prompts.contains(UsbWriteFlow.replanPrompt))
+        #expect(world.service.calls.filter { $0 == "preview" }.count == exportPreviews, "옛 내보내기를 다시 미리 보지 않는다")
+        #expect(world.exportSheet?.job == nil && world.exportSheet?.volume == world.volume, "어느 쓰기도 이어 가지 않으니 빈 내보내기 시트를 연다")
+    }
+
+    @Test("확인 창에서 멈춘 초안 쓰기 뒤에 시점 되돌리기를 마치면, 다른 곳에서 끊긴 쓰기의 다시 미리 보기는 그 초안 쓰기를 되살리지 않는다")
+    func pointRestoreReplacesAStoppedDraftRecord() async throws {
+        let world = UsbWriteWorld()
+        let ports = UsbPointRestoreFlowTests.ports()
+        let snapshots = ports.pointSnapshots(directory: UsbPointRestoreFlowTests.directory)
+        world.service.state.withLock { $0.editSummary = .success(Self.editSummary) }
+        world.answers = [false]
+        #expect(await world.flow.writeDraft(volumeKey: world.volume.usbKey, database: Self.database, share: Self.share) == false)
+        #expect(!world.service.calls.contains("writeEdit"), "확인 창에서 멈췄다")
+        #expect(await world.flow.restorePointSnapshot(world.volume, entry: UsbPointSnapshotsFlowTests.entry(), snapshots: snapshots) == true)
+        let draftPreviews = world.service.calls.filter { $0 == "previewEdit" }.count
+        await Self.recoverNeedingReplan(world)
+
+        #expect(world.prompts.contains(UsbWriteFlow.replanPrompt))
+        #expect(world.service.calls.filter { $0 == "previewEdit" }.count == draftPreviews, "멈춘 초안 쓰기를 다시 미리 보지 않는다")
+        #expect(world.exportSheet?.volume == world.volume)
+    }
+
     enum RestoreFailure: CaseIterable {
         /// 그 사이 기기가 USB를 바꿔 버리기 확인을 거부했다
         case deviceChangedDeclined
