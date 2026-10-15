@@ -8,10 +8,11 @@ extension UsbWriteFlow {
         guard await ready(volume), let flag = begin(volume, title: String(ui: "USB에 쓸 내용을 확인하는 중…")) else { return false }
         let key = volume.usbKey, root = URL(filePath: volume.mountPoint)
         let options = UsbWriteService.writeOptions(volume)
-        // 끊긴 뒤 회복의 다시 미리 보기가 앞서 한 내보내기·옮기기를 따라가지 않게, 지난 쓰기 기록을 이 되돌리기로 바꾼다
+        // 끊긴 뒤 회복의 다시 미리 보기가 앞서 한 내보내기·옮기기·초안 쓰기를 따라가지 않게, 지난 쓰기 기록을 이 되돌리기로 바꾼다
         session.lastPointRestores[key] = UsbPointRestoreRetry(entry: entry, snapshots: snapshots)
         session.lastExports[key] = nil
         session.lastMigrations.remove(key)
+        session.lastDraftWrites[key] = nil
         var ended = false
         defer { if !ended { session.end(key) } }
         do {

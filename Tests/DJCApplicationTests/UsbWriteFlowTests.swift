@@ -15,6 +15,10 @@ final class FlowFakeService: UsbWriting, Sendable {
                                        requiredBytes: 1, availableBytes: 100, hasChanges: true, isTestVolume: true, unverifiedTrackCount: 0)
         var writeResult: Result<UsbWriteReport, UsbError> = .success(UsbWriteReport(outcome: .written, session: "s1"))
         var recoverResult: Result<UsbWriteReport, UsbError> = .success(UsbWriteReport(outcome: .recovered, session: "s1"))
+        var restoreResult: Result<UsbWriteReport, UsbError> = .success(UsbWriteReport(outcome: .restored, session: "s1"))
+        /// 초안 미리 보기·쓰기: 기본은 이 시험이 쓰지 않는 것(취소)
+        var editSummary: Result<UsbEditSummary, UsbError> = .failure(.cancelled)
+        var editWriteResult: Result<UsbEditWritten, UsbError> = .failure(.cancelled)
         var latestBackup: URL?
     }
     let state = Mutex(State())
@@ -39,13 +43,22 @@ final class FlowFakeService: UsbWriting, Sendable {
     }
     func restore(_ volume: UsbVolumeInfo, backup: URL?, discardDeviceChanges: Bool) throws -> UsbWriteReport {
         record("restore")
-        return UsbWriteReport(outcome: .restored, session: "s1")
+        return try state.withLock { $0.restoreResult }.get()
     }
     func latestBackup(volumeKey: String) -> URL? { record("latestBackup"); return state.withLock { $0.latestBackup } }
     func currentVolume(_ volume: UsbVolumeInfo) throws -> UsbVolumeInfo { record("currentVolume"); return volume }
     func syncSelectionBaseFiles(_ volume: UsbVolumeInfo, formats: Set<UsbFormat>) throws -> [UsbFormat: Data] {
         record("syncFiles")
         return [:]
+    }
+    func previewEdit(_ input: UsbEditInput) throws -> UsbEditSummary {
+        record("previewEdit")
+        return try state.withLock { $0.editSummary }.get()
+    }
+    func writeEdit(_ input: UsbEditInput, progress: @escaping @Sendable (UsbProgress) -> Void,
+                   isCancelled: @escaping @Sendable () -> Bool) throws -> UsbEditWritten {
+        record("writeEdit")
+        return try state.withLock { $0.editWriteResult }.get()
     }
     func isScratchMount(_ mountPoint: String) -> Bool { true }
     var syncGate: UsbSyncSelectionGate { UsbSyncSelectionGate(gateBlock: { _, _ in nil }, productionBlock: { nil }, draftBlock: { _ in nil }) }
@@ -55,9 +68,6 @@ final class FlowFakeService: UsbWriting, Sendable {
     func writeMigration(_ volume: UsbVolumeInfo, progress: @escaping @Sendable (UsbProgress) -> Void,
                         isCancelled: @escaping @Sendable () -> Bool) throws -> UsbMigrationWritten { throw UsbError.cancelled }
     func draftBase(_ volume: UsbVolumeInfo) throws -> UsbFingerprint { UsbFingerprint(files: [:]) }
-    func previewEdit(_ input: UsbEditInput) throws -> UsbEditSummary { throw UsbError.cancelled }
-    func writeEdit(_ input: UsbEditInput, progress: @escaping @Sendable (UsbProgress) -> Void,
-                   isCancelled: @escaping @Sendable () -> Bool) throws -> UsbEditWritten { throw UsbError.cancelled }
     func planCueGridImport(volume: UsbVolumeInfo, snapshot: URL, share: URL, scratch: URL,
                            rows: [String: UsbCueGridImportTrack]) throws -> UsbCueGridImportPlan { throw UsbError.cancelled }
 }
