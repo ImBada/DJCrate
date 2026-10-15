@@ -136,8 +136,11 @@ def prepare(root):
     (root / "scripts").mkdir()
     (root / "bin").mkdir()
     (root / ".build/out/Products/Debug/FakeTests.xctest/Contents/MacOS").mkdir(parents=True)
-    for bundle in ("DJCDomainTests", "RekordboxKitTests", "djcTests"):
+    for bundle in ("DJCDomainTests", "RekordboxKitTests", "djcTests", "DJCApplicationTests"):
         (root / f".build/out/Products/Debug/{bundle}.xctest/Contents/MacOS").mkdir(parents=True)
+        (root / f".build/out/Products/Debug/{bundle}.xctest/Contents/MacOS/{bundle}").write_text("합성 실행 파일")
+    # 앱 시험 번들이 링크하는 프레임워크(#270). 시험 타깃을 빌드하면 지워질 수 있다.
+    (root / ".build/out/Products/Debug/Sparkle.framework").mkdir(parents=True)
     (root / "fake-index").write_text("합성 index")
     (root / ".build/out/Products/Debug/codecov").mkdir(parents=True)
     (root / ".build/out/Products/Debug/codecov/default.profdata").write_text("이전 실행의 프로파일")
@@ -187,6 +190,39 @@ with open("defaults-prefix.txt", "a") as log:
 if args[0] == "test":
     with open("kdf-env.txt", "a") as log:
         log.write(os.environ.get("DJC_CHECK_TEST_KDF", "unset") + "\n")
+# SwiftPM 모델(#270): 빌드 타깃마다 번들을 만들고, --skip-build 시험은 필터와 상관없이 패키지의 모든 시험 번들을 열어 본다.
+# 타깃을 하나씩 빌드하면 그 타깃이 쓰지 않는 Sparkle.framework를 지울 수 있다(SPARKLE_REMOVERS에 든 타깃). 앱 시험 번들이 그것을 링크한다.
+if os.environ.get("SWIFTPM_ALL_BUNDLES") == "1":
+    import shutil
+    products = root / ".build/out/Products/Debug"
+    sparkle = products / "Sparkle.framework"
+    tests = [t["name"] for t in json.loads((root / "dump.json").read_text())["targets"] if t["type"] == "test"]
+    if args[0] == "build" and "-c" not in args:
+        if "--build-tests" in args:
+            for name in tests:
+                (products / f"{name}.xctest/Contents/MacOS").mkdir(parents=True, exist_ok=True)
+                (products / f"{name}.xctest/Contents/MacOS/{name}").write_text("합성 실행 파일")
+            sparkle.mkdir(parents=True, exist_ok=True)
+        elif "--target" in args:
+            target = args[args.index("--target") + 1]
+            if target in tests:
+                (products / f"{target}.xctest/Contents/MacOS").mkdir(parents=True, exist_ok=True)
+                (products / f"{target}.xctest/Contents/MacOS/{target}").write_text("합성 실행 파일")
+            if target == "DJCrateTests":
+                sparkle.mkdir(parents=True, exist_ok=True)
+            elif target in os.environ.get("SPARKLE_REMOVERS", "").split(","):
+                shutil.rmtree(sparkle, ignore_errors=True)
+        else:
+            sparkle.mkdir(parents=True, exist_ok=True)
+    if args[0] == "test" and "--skip-build" in args:
+        for name in tests:
+            if not (products / f"{name}.xctest/Contents/MacOS/{name}").is_file():
+                print(f"error: {products}/{name}.xctest doesn't exist in file system", flush=True)
+                sys.exit(1)
+        if "DJCrateTests" in tests and not sparkle.is_dir():
+            print(f"error: terminated(1): swiftpm-xctest-helper {products}/DJCrateTests.xctest output:\n"
+                  "    error: Library not loaded: @rpath/Sparkle.framework/Versions/B/Sparkle", flush=True)
+            sys.exit(1)
 if mode == "pulse-orphan" and args[0] == "build":
     time.sleep(1.5)
 if mode == "build-silent" and args[0] == "build":
@@ -1788,6 +1824,81 @@ def check_changed(case, arguments, changed, mode, expected, expected_calls, note
         assert "requested=changed" in info, info
 
 
+# 새 워크트리·낡은 번들(#270): swift test --skip-build --filter는 고르지 않은 타깃을 포함해 패키지의 모든 시험 번들을 연다.
+# 고른 타깃만 빌드하면 번들이 없는 새 워크트리에서 곧바로 "xctest doesn't exist"로 끝났고, 다른 타깃을 빌드하며 Sparkle.framework가
+# 지워지면 이미 있는 DJCrateTests 번들도 열리지 않았다. 합성 패키지에 앱 시험 타깃(DJCrateTests)을 더해 그 둘을 SwiftPM처럼 흉내 낸다.
+BUNDLE_TARGETS = ["DJCApplicationTests", "DJCDomainTests", "DJCrateTests", "RekordboxKitTests", "djcTests"]
+BUNDLE_FILES = {"Tests/DJCrateTests/CrateTests.swift": "import Testing\nstruct CrateTests {\n    @Test func a() {}\n}\n"}
+FOO_FILTER = TEST + r" --filter ^(DJCDomainTests\.(FooTests)/)"
+BUNDLE_CASES = {
+    # 이미 빌드된 작업 트리: 고른 타깃만 빌드한다(시간이 늘지 않는다)
+    "bundles-built": ("Tests/DJCDomainTests/FooTests.swift", [], "", [SOURCES, build_target("DJCDomainTests"), FOO_FILTER], 0, []),
+    # 새 워크트리: 없는 번들을 모두 빌드하고, Sparkle을 쓰는 DJCrateTests를 마지막에 빌드한다
+    "bundles-fresh": ("Tests/DJCDomainTests/FooTests.swift", BUNDLE_TARGETS, "",
+                      [SOURCES, *(build_target(name) for name in ("DJCDomainTests", "DJCApplicationTests", "RekordboxKitTests", "djcTests", "DJCrateTests")),
+                       FOO_FILTER], 0, ["더 빌드합니다", "DJCApplicationTests", "djcTests"]),
+    "bundles-one-missing": ("Tests/DJCDomainTests/FooTests.swift", ["djcTests"], "",
+                            [SOURCES, build_target("DJCDomainTests"), build_target("djcTests"), FOO_FILTER], 0, ["더 빌드합니다: djcTests"]),
+    # 고른 타깃을 빌드하며 Sparkle이 지워지면 이미 있는 DJCrateTests 번들을 다시 빌드한다
+    "bundles-sparkle-removed": ("Tests/RekordboxKitTests/KitMiscTests.swift", [], "RekordboxKitTests",
+                                [SOURCES, build_target("RekordboxKitTests"), build_target("DJCrateTests"),
+                                 TEST + r" --filter ^(RekordboxKitTests\.(KitMiscTests)/)"], 0, ["Sparkle.framework"]),
+    # 끊긴 빌드가 디렉터리만 남긴 번들(실행 파일 없음)도 없는 번들처럼 다시 빌드한다
+    "bundles-hollow": ("Tests/DJCDomainTests/FooTests.swift", [], "",
+                       [SOURCES, build_target("DJCDomainTests"), build_target("djcTests"), FOO_FILTER], 0, ["더 빌드합니다: djcTests"], ["djcTests"]),
+    # 앱 시험을 골랐어도 빠진 번들을 더 빌드하되 DJCrateTests를 마지막에 둔다
+    "bundles-crate-selected": ("Tests/DJCrateTests/CrateTests.swift", ["DJCApplicationTests", "DJCDomainTests", "RekordboxKitTests", "djcTests"],
+                               "DJCDomainTests,RekordboxKitTests",
+                               [SOURCES, *(build_target(name) for name in ("DJCApplicationTests", "DJCDomainTests", "RekordboxKitTests", "djcTests", "DJCrateTests")),
+                                TEST + r" --filter ^(DJCrateTests\.(CrateTests)/)"], 0, ["더 빌드합니다"]),
+}
+
+
+def check_bundles(case, changed, absent, removers, expected_calls, expected, notes, hollow=()):
+    with tempfile.TemporaryDirectory(prefix="djc-check-bundles-") as directory:
+        root = Path(directory)
+        prepare(root)
+        make_synthetic_repo(root)
+        for relative, content in BUNDLE_FILES.items():
+            (root / relative).parent.mkdir(parents=True, exist_ok=True)
+            (root / relative).write_text(content)
+        dump = json.loads((root / "dump.json").read_text())
+        dump["targets"].append({"name": "DJCrateTests", "type": "test", "dependencies": [{"byName": ["DJCrate", None]}]})
+        (root / "dump.json").write_text(json.dumps(dump))
+        products = root / ".build/out/Products/Debug"
+        (products / "DJCrateTests.xctest/Contents/MacOS").mkdir(parents=True)
+        (products / "DJCrateTests.xctest/Contents/MacOS/DJCrateTests").write_text("합성 실행 파일")
+        for name in absent:
+            shutil.rmtree(products / f"{name}.xctest", ignore_errors=True)
+        for name in hollow:
+            (products / f"{name}.xctest/Contents/MacOS/{name}").unlink()
+        if "DJCrateTests" in absent:
+            shutil.rmtree(products / "Sparkle.framework")
+        env = check_env(root, "ok", CHANGED=changed, SWIFTPM_ALL_BUNDLES="1", SPARKLE_REMOVERS=removers)
+        result = run_check(root, env, "--changed")
+        output = result.stdout + result.stderr
+        assert result.returncode == expected, f"종료코드 {result.returncode}, 기대값 {expected}\n{output}"
+        assert swift_calls(root) == expected_calls, f"swift 호출 불일치: {swift_calls(root)}\n{output}"
+        for note in notes:
+            assert note in output, f"출력에 {note!r} 없음\n{output}"
+        if not absent and not hollow and not removers:
+            assert "더 빌드" not in output and "Sparkle" not in output, f"이미 빌드된 작업 트리인데 안내를 냄\n{output}"
+
+
+def check_bundles_quick():
+    """--quick은 swift build --build-tests로 모든 번들을 만들어 새 워크트리에서도 이미 깨지지 않는다(이슈 본문은 --quick도 들었다)."""
+    with tempfile.TemporaryDirectory(prefix="djc-check-bundles-") as directory:
+        root = Path(directory)
+        prepare(root)
+        make_synthetic_repo(root)
+        products = root / ".build/out/Products/Debug"
+        for bundle in products.glob("*.xctest"):
+            shutil.rmtree(bundle)
+        result = run_check(root, check_env(root, "ok", SWIFTPM_ALL_BUNDLES="1"), "--quick", "--filter", "SampleTests")
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert swift_calls(root) == [DEBUG, QUICK], swift_calls(root)
+
+
 # 멈춤 감시: (가짜 swift 동작, 환경 변수, 종료코드). 시험 단계가 정한 초 동안 출력을 내지 않으면 끝나지 않은 시험과
 # 시험 프로세스의 스택을 남기고 124로 끝난다(CI에서 DJCrateTests가 출력 없이 30분 제한까지 갔다).
 STALL_CASES = {
@@ -2002,6 +2113,8 @@ runs += [("affected-real-map", check_real_map, ())]
 runs += [(case, check_real_safety, (case, *arguments)) for case, arguments in REAL_SAFETY_CASES.items()]
 runs += [(case, check_reuse, (case,)) for case in REUSE_CASES]
 runs += [(case, check_changed, (case, *arguments)) for case, arguments in CHANGED_CASES.items()]
+runs += [(case, check_bundles, (case, *arguments)) for case, arguments in BUNDLE_CASES.items()]
+runs += [("bundles-quick-fresh", check_bundles_quick, ())]
 runs += [(case, check_optin_check, (case, *arguments)) for case, arguments in OPTIN_CHECK_CASES.items()]
 runs += [(case, check_stall, (case, *arguments)) for case, arguments in STALL_CASES.items()]
 runs += [(case, check_ci_base, (case, *arguments)) for case, arguments in CI_BASE_CASES.items()]

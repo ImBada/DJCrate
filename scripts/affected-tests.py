@@ -913,6 +913,8 @@ def render(plan, base, files, selected, total, needs, optin=()):
         "scope": scope,
         "filter": test_filter,
         "targets": targets,
+        # 패키지의 모든 시험 타깃. swift test --skip-build는 고르지 않은 타깃의 번들도 열어 본다(#270)
+        "testTargets": list(plan.index.tests),
         "products": products,
         "suites": suites,
         "wholeTargets": sorted(plan.whole) if scope == "tests" else [],
@@ -962,6 +964,7 @@ def shell(result):
         "plan_scope": result["scope"],
         "plan_filter": result["filter"] or "",
         "plan_targets": " ".join(result["targets"]),
+        "plan_test_targets": " ".join(result["testTargets"]),
         "plan_products": " ".join(result["products"]),
         "plan_checks": " ".join(n for n, on in result["checks"].items() if on),
         "plan_widen": result["widen"] or "",

@@ -36,6 +36,11 @@ quick·stress·changed는 릴리스 빌드와 전체 커버리지 보고를 하�
 
 - quick·stress: `swift build --build-tests --enable-code-coverage`로 시험 타깃 전체의 계측 디버그 빌드를 만들되, 이미 있으면 재사용한다.
 - changed: 시험 타깃을 뺀 소스 타깃 전체(앱·CLI 제품 포함)를 `swift build --enable-code-coverage`로 먼저 빌드한 뒤 고른 시험 타깃만 빌드한다. 그래서 앱이나 CLI에 컴파일 오류가 있으면 changed도 실패한다. 이 빌드로 더 드는 시간은 공개 인터페이스가 그대로면 약 3초, DJCDomain 공개 API를 바꾸면 17~19초다.
+  - `swift test --skip-build`는 `--filter`를 줘도 패키지의 모든 시험 번들(`.build/out/Products/Debug/<타깃>.xctest`)을 열어 시험을 나열한다. 고르지 않은 타깃의 번들도 필요하다. 번들이 하나라도 빠지면 실행이 곧바로 실패한다.
+  - 그래서 번들이 없는 시험 타깃은 고른 타깃과 함께 더 빌드한다. 새 작업 트리의 첫 실행이 그렇다. 번들이 모두 있는 작업 트리에서는 번들 때문에 더 빌드하지 않는다. 추가로 빌드하면 이유와 타깃을 한 줄로 알린다.
+  - 시험 타깃을 하나씩 빌드하면 그 타깃이 쓰지 않는 `Sparkle.framework`를 지울 수 있다. 앱 시험 번들(`DJCrateTests`)이 그것을 링크한다. 그래서 `DJCrateTests`는 빌드 목록의 맨 끝에 둔다. 빌드를 마친 뒤 `Sparkle.framework`가 없으면 `DJCrateTests`를 다시 빌드한다.
+  - 이 다시 빌드는 `RekordboxKitTests`만 골라도 일어난다. 7초쯤 더 든다. 고치기 전에는 그 실행이 실패했다.
+  - 번들 확인은 `affected-tests.py`가 내는 패키지의 모든 시험 타깃(`plan_test_targets`)을 쓴다. 시험 고르기 규칙과는 관계가 없다.
 
 quick의 필터는 Swift 시험 필터 정규식이다. 타깃 이름으로 앵커하면 그 타깃의 시험만 돈다(예: `'^DJCDomainTests\.LoopPlannerTests/'`). 다음 경우는 성공시키지 않는다.
 
@@ -60,7 +65,7 @@ quick의 필터는 Swift 시험 필터 정규식이다. 타깃 이름으로 앵�
 
 1. 고른 범위와 이유, 필터를 출력한다. 이유는 파일 → 규칙 → Suite 순서로 보인다.
 2. Swift 변경이 있으면 모듈 경계 검사를 돈다.
-3. 소스 타깃 전체를 빌드한 뒤 고른 시험 타깃을 빌드한다.
+3. 소스 타깃 전체를 빌드한 뒤 고른 시험 타깃을 빌드한다. 번들이 없는 시험 타깃도 함께 빌드한다.
 4. 고른 시험을 돌린 뒤 1개 이상 끝났는지 필터 결과로 본다. 선택 실행 Suite만 골라 모두 건너뛰면 이 단계가 원인을 알린다.
 5. 바뀐 파일에 따른 조건부 검사를 돈다.
 
