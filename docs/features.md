@@ -645,6 +645,7 @@ djc draft cue <ContentID> --time 12.5 --name '진입'   # 메모리 큐 초안
   - Claude Code: `~/.claude/skills/djcrate`. 홈의 다른 Claude 설정 폴더(`CLAUDE_CONFIG_DIR`로 쓰는 `~/.claude-…`)도 목록에 보인다. "다른 위치…"로 폴더를 더할 수 있다.
   - Codex: `~/.agents/skills/djcrate`.
 - `djc`는 `~/.local/bin/djc` 링크로 둔다. 링크는 앱 안의 `djc`를 가리키므로 앱을 갱신하면 `djc`도 함께 바뀐다.
+- 받은 ZIP의 앱으로 직접 바꿔 넣은 뒤 아직 열지 않았으면 macOS가 그 앱 안의 `djc`도 막는다. 이때 터미널의 `djc`는 오류 없이 멈춘다. 화면에는 macOS 경고 창이 떠 있다. 앱을 한 번 열어 열기 승인을 마친 뒤 다시 부른다([설치](releasing.md#설치)).
 - 그 폴더가 셸 PATH에 없으면 셸 설정 파일에 더할 줄을 보인다. 셸 설정 파일은 앱이 고치지 않는다.
 - 자리마다 상태를 보인다: 설치하지 않음, 설치됨, 옛 버전, 고친 파일 있음, DJCrate가 설치하지 않음.
 - 설치한 폴더에는 표시 파일 `.djcrate-install.json`이 남는다. 이 파일에는 앱 버전과 파일별 해시가 있다. 상태는 이 표시와 지금 파일로 정한다.
