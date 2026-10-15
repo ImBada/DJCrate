@@ -475,14 +475,20 @@ extension UsbEditPlanner {
         return found
     }
 
-    /// 분석 폴더 하나의 (번호, PPTH): USB에 있는 `.DAT`와 DB가 그 폴더를 가리키는 곡
+    /// 분석 폴더 하나의 (번호, PPTH): USB에 있는 `.DAT`와 DB가 그 폴더를 가리키는 곡.
+    /// 두 형식의 분석 경로가 다른 곡은 Device Library 값의 경로도 센다. 그 `.DAT`가 USB에 없어도 새 곡이 그 번호를 받으면
+    /// 두 곡이 한 번호를 가리켜 쓴 뒤 검증(`slotDuplicate`)에 걸린다(#238)
     func analysisSlots(_ folder: String) throws -> [(slot: Int, ppth: String)] {
         var slots: [(slot: Int, ppth: String)] = []
         let prefix = UsbLayout.collisionKey(UsbLayout.analysisRoot + "/" + folder + "/")
-        for track in working.tracks {
+        func add(_ track: UsbTrack) {
             let path = Self.relative(track.analysisDataPath)
-            guard UsbLayout.collisionKey(path).hasPrefix(prefix), let slot = Self.slot(path) else { continue }
+            guard UsbLayout.collisionKey(path).hasPrefix(prefix), let slot = Self.slot(path) else { return }
             slots.append((slot, track.path))
+        }
+        working.tracks.forEach(add)
+        for id in working.deviceLibraryValueIDs(table: "content").sorted() {
+            if let track = working.deviceLibraryTrack(id) { add(track) }
         }
         let directory = root.url.appending(path: UsbLayout.analysisRoot + "/" + folder)
         guard let info = try fileSystem.stat(directory), info.kind == .directory else { return slots }
