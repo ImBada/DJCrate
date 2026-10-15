@@ -194,6 +194,19 @@ DJCrate는 이 행을 지우지 않는다. 다시 만들지도 않는다(§2.10,
 - `UsbLibrary.merge`의 규칙은 아래와 같다.
   - 한 형식에만 있는 칸은 그 형식 값을 그대로 지킨다. 다른 형식 리더의 빈 값으로 덮지 않는다. 비교도 하지 않는다.
   - 두 형식 모두에 있는 칸은 OneLibrary 값이 앞선다. 값이 다르면 불일치로 보고한다.
+    - 곡·공유 표 행·property의 값이 다르면 Device Library 행을 `deviceLibraryValues`에 함께 둔다(#238). 합친 모델의 대표 값은 OneLibrary 값이다.
+    - Device Library 투영은 합칠 때 달랐던 칸 가운데 지금도 대표 값 그대로인 칸을 Device Library 값으로 되돌린다. 편집이 바꾼 칸만 두 형식에 새 값을 쓴다.
+    - 그래서 불일치가 이 보고뿐인 USB도 `merge(ol, dl).projected(to: .deviceLibrary) == dl`이다.
+    - 곡 갱신은 같은 갱신을 그 곡의 Device Library 값(`deviceLibraryTrack`)에도 한다(`setDeviceLibraryTrack`). 갱신이 쓴 칸은 값이 OneLibrary와 같아도 두 형식에 같게 쓴다.
+      - 정보 갱신은 정보 칸을 쓴다. 큐·그리드 갱신은 갱신 횟수와 분석 파일 경로를 쓴다. 분석 파일은 합친 모델의 경로에 쓰기 때문이다.
+      - 그림 갱신은 그림 번호를 쓴다. 그 그림 행에 Device Library 그림 파일이 없으면 그 형식 값을 그대로 둔다.
+      - 갱신이 쓰지 않은 칸은 그 형식 값 그대로다. 예를 들어 그림만 갱신한 곡의 아티스트가 그렇다.
+    - 전에는 어떤 편집이든 `export.pdb`를 다시 쓰면 이 칸이 OneLibrary 값으로 바뀌었다. 다시 읽기 비교도 같은 모델끼리라 걸리지 않았다.
+    - 참조 칸(곡 `artistID`·`imageID` 등)도 형식 값으로 되돌리므로, 가리키는 행을 세는 곳은 Device Library 투영도 함께 본다(`hasDeviceLibraryValues`).
+      그런 곳은 고아 행 빼기(`OneLibraryWriter.pruneNewOrphans`), 지울 파일, 그림 갱신의 덮어쓰기 판정(`isShared`)이다.
+      그래서 Device Library 곡만 가리키는 행과 그림 파일은 남는다. OneLibrary에서는 가리키는 곳 없는 행으로 남을 수 있다.
+    - 새 곡·갱신한 곡은 형식마다 값이 다른 이름 행을 이름으로 다시 쓰지 않는다. 새 행을 만든다. 이름 행은 artist, album, genre, key, label이다.
+      다시 쓰면 Device Library에서 다른 이름을 가리키기 때문이다. 이름이 같은 행이 둘 생길 수 있다. 빈 USB 내보내기도 로컬 ID가 다르면 그렇게 쓴다.
   - 같은 id인데 경로(NFC)가 다른 곡은 편집을 막는 불일치다. 한 형식에만 있는 곡도 편집을 막는 불일치다.
 - 재생 목록은 번호가 아니라 자리로 짝짓는다. 이 일은 `UsbPlaylistPairing`이 한다(#233).
   - rekordbox는 새 목록 번호를 형식마다 다르게 정한다(2026-10-08 실험). Device Library는 빈 번호를 다시 쓴다. OneLibrary는 가장 큰 값+1을 쓴다.
@@ -1886,6 +1899,11 @@ USB에 이미 있는 기기 행을 새 파일로 옮기는 일은 아직 하지 
   1. `PdbWriter.files(.edit(옛 머리 순번))`로 파일을 만든다.
   2. `PdbRoundTrip.check`로 검사한다.
   3. 다시 읽은 모델이 작성기 모델 `PdbFiles.written`과 같은지 본다.
+  4. 다시 읽은 모델에서 편집이 건드리지 않은 행이 원래 값 그대로인지 본다(#238).
+     - 편집이 건드리지 않은 행은 편집 전후 합친 모델에서 같은 행이다. 원래 값은 합치기 전에 읽은 `UsbEditSource.deviceLibrary`다.
+     - 이 비교는 `UsbLibraryDiff.untouchedRowChanges`가 한다.
+     - 원래 Device Library에 없던 행이 생긴 것(`onlyRight`)은 세지 않는다. 편집이 가리키게 되어 넣은 한 형식 행이다(#234).
+     - 다르면 `planCheckFailed`(`pdb untouched: …`)로 멈춘다. USB에는 쓰지 않는다.
 - 그래서 두 형식에는 같은 편집 집합만 들어간다. 모델이 바뀌지 않은 형식은 다시 쓰지 않는다.
 - 모델 비교는 NFC와 NFD를 같다고 보므로 철자를 따로 본다(#233).
   - OneLibrary는 같은 번호 목록의 이름 철자가 바뀌었으면 쓴다. 이 판정은 `UsbEditModel.playlistNamesRespelled`가 하고, 행 갱신도 철자로 본다.
