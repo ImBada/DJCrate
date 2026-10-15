@@ -258,13 +258,38 @@ struct LayoutRecomputeTests {
         try await settle(window)
         #expect(try #require(PerfProbe.lastWaveformHeight) < grown)
         #expect(UserDefaults.standard.double(forKey: SettingKeys.waveformHeight.name) == 480)
+        // 저장값 80은 최소 확대 높이보다 낮다(옛 최소값). 그려진 높이만 최소로 올리고 저장값은 건드리지 않는다.
         UserDefaults.standard.set(80.0, forKey: SettingKeys.waveformHeight.name)
         try await settle(window)
-        #expect(PerfProbe.lastWaveformHeight == 80)
+        #expect(PerfProbe.lastWaveformHeight == Self.minimumZoomHeight)
         window.setContentSize(NSSize(width: 1440, height: 900))
         try await settle(window)
         #expect(UserDefaults.standard.double(forKey: SettingKeys.waveformHeight.name) == 80)
-        #expect(PerfProbe.lastWaveformHeight == 80)
+        #expect(PerfProbe.lastWaveformHeight == Self.minimumZoomHeight)
+    }
+
+    /// 확대 파형의 최소 높이(글자 배율 1배). 조작부 최소 190pt − 여백 8 − 개요·조성 띠 62 − 템포 띠 15 = 105pt다.
+    /// 80pt였던 것이 #263에서 개요(52→28pt, `abcdc8a5`)와 템포 띠(28→15pt, `bd9fb953`)를 줄이며 올랐다(#266).
+    private static let minimumZoomHeight = 105.0
+
+    @Test func 설정에서_고를_수_있는_가장_작은_파형_높이는_창_높이를_바꿔도_저장값과_그려진_높이가_같다() async throws {
+        #expect(Self.minimumZoomHeight == DeckLayout.minimumZoomWaveformHeight(scale: 1))
+        PerfProbe.countsBodies = true
+        defer { PerfProbe.countsBodies = false }
+        let (window, _, close) = try await mainWindow()
+        defer { close() }
+        try await settle(window)
+        #expect(PerfProbe.lastWaveformHeight == 150)
+        // 핸들·메뉴 '파형 작게'가 멈추는 값을 저장한다.
+        UserDefaults.standard.set(Self.minimumZoomHeight, forKey: SettingKeys.waveformHeight.name)
+        try await settle(window)
+        #expect(PerfProbe.lastWaveformHeight == Self.minimumZoomHeight)
+        for height in [680.0, 900.0] {
+            window.setContentSize(NSSize(width: 1440, height: height))
+            try await settle(window)
+            #expect(UserDefaults.standard.double(forKey: SettingKeys.waveformHeight.name) == Self.minimumZoomHeight)
+            #expect(PerfProbe.lastWaveformHeight == Self.minimumZoomHeight)
+        }
     }
 
     /// 실제 커서·키·포커스를 건드리지 않는 테스트 창에서 번갈아 A/B할 때 쓴다.
