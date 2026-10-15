@@ -171,6 +171,7 @@ public struct UsbWriteFlow {
         session.lastExports[key] = cached
         session.lastMigrations.remove(key)
         session.lastPointRestores[key] = nil
+        session.lastDraftWrites[key] = nil
         let outcome = await run(job, reused: reused, consented: consented && reused != nil, flag: flag)
         session.end(key)
         switch outcome {
@@ -316,6 +317,7 @@ public struct UsbWriteFlow {
         session.lastMigrations.insert(key)
         session.lastExports[key] = nil
         session.lastPointRestores[key] = nil
+        session.lastDraftWrites[key] = nil
         let outcome = await runMigration(volume, flag: flag)
         session.end(key)
         switch outcome {
@@ -554,8 +556,11 @@ public struct UsbWriteFlow {
               await ready(job.volume, sourceIsCurrent: { await editInputsAreCurrent(job, edits: screen.draftEdits(volumeKey) ?? []) }) else { return false }
         guard await editInputsAreCurrent(job, edits: screen.draftEdits(volumeKey) ?? []) else { return false }
         guard let flag = begin(job.volume, title: String(ui: "USB에 쓸 내용을 확인하는 중…")) else { return false }
+        // 끊긴 뒤 회복의 다시 미리 보기가 앞서 한 내보내기·옮기기를 따라가지 않게, 지난 쓰기 기록을 이 초안 쓰기로 바꾼다
+        session.lastExports[volumeKey] = nil
         session.lastMigrations.remove(volumeKey)
         session.lastPointRestores[volumeKey] = nil
+        session.lastDraftWrites[volumeKey] = UsbDraftWriteRetry(database: database, share: share, snapshotTime: snapshotTime)
         let outcome = await runEdit(job, reused: reused, flag: flag)
         session.end(volumeKey)
         switch outcome {
@@ -563,6 +568,7 @@ public struct UsbWriteFlow {
             break
         case let .written(summary):
             screen.invalidateSyncDraft(volumeKey)
+            session.lastDraftWrites[volumeKey] = nil
             session.migrationBackups[volumeKey] = nil
             session.pointRestoreBackups[volumeKey] = nil
             let blocked = summary.blockedCount, skipped = summary.skippedTrackCount
@@ -788,6 +794,8 @@ public struct UsbWriteFlow {
             inform(Text.notRestoredTitle, Text.backupMissingText)
             await screen.refresh()
         case let .restore(backup):
+            // 회복이 끊긴 다른 쓰기를 마저 썼으면 되돌리기 취소용 백업은 이미 쓸 수 없다. 뒤 복원이 거부·실패해도 마찬가지다
+            if UsbWriteDecision.recovery(report) == .recovered { releaseUndoBackups(key) }
             await restore(volume, backup: backup)
         }
     }
@@ -821,7 +829,7 @@ public struct UsbWriteFlow {
         }
     }
 
-    /// 회복이 다시 계획하라고 했을 때: 누르면 USB를 다시 읽고 새로 미리 본 뒤 내보내기 시트를 연다
+    /// 회복이 다시 계획하라고 했을 때: 누르면 USB를 다시 읽고, 마지막으로 시작한 쓰기를 새로 미리 본다(내보내기는 시트를 연다)
     private func offerReplan(_ volume: UsbVolumeInfo) async {
         guard confirmation.confirm(Self.replanPrompt) else { return }
         await screen.refresh()
@@ -829,6 +837,11 @@ public struct UsbWriteFlow {
         // 끊긴 쓰기가 무엇이었는지는 마지막 쓰기 기록이 가린다(쓰기를 시작할 때마다 다른 기록은 놓는다)
         if let retry = session.lastPointRestores[key], let current = screen.volume(key) {
             await restorePointSnapshot(current, entry: retry.entry, snapshots: retry.snapshots)
+            return
+        }
+        if let retry = session.lastDraftWrites[key] {
+            // 쓰기 대기 목록에는 시트가 없어, 같은 초안을 지금 USB 상태로 다시 미리 보고 묻고 쓴다(볼륨이 없으면 쓰기가 알린다)
+            await writeDraft(volumeKey: key, database: retry.database, share: retry.share, snapshotTime: retry.snapshotTime)
             return
         }
         if session.lastMigrations.contains(key), let current = screen.volume(key) {

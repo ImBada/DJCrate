@@ -52,6 +52,8 @@ public final class UsbWriteSession {
     public var lastMigrations: Set<String> = []
     /// 마지막 시점 스냅샷 되돌리기(회복 뒤 재계획할 때 내보내기·옮기기와 구분한다). 화면에 내보내지 않는 흐름 기록
     public var lastPointRestores: [String: UsbPointRestoreRetry] = [:]
+    /// 마지막 초안 쓰기(회복 뒤 재계획할 때 내보내기·옮기기·시점 되돌리기와 구분한다). 화면에 내보내지 않는 흐름 기록
+    public var lastDraftWrites: [String: UsbDraftWriteRetry] = [:]
     private var cancelFlag: UsbCancelFlag?
 
     public init() {}
@@ -149,6 +151,19 @@ public struct UsbPointRestoreRetry: Sendable {
     public init(entry: UsbPointSnapshotEntry, snapshots: UsbPointSnapshots) {
         self.entry = entry
         self.snapshots = snapshots
+    }
+}
+
+/// 초안 쓰기를 다시 미리 볼 때 넘기는 것: 처음 쓰기를 시작한 때의 로컬 사본·share·스냅샷 시각
+public struct UsbDraftWriteRetry: Equatable, Sendable {
+    public var database: URL?
+    public var share: URL?
+    public var snapshotTime: String?
+
+    public init(database: URL?, share: URL?, snapshotTime: String?) {
+        self.database = database
+        self.share = share
+        self.snapshotTime = snapshotTime
     }
 }
 
