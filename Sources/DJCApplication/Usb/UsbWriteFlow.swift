@@ -170,6 +170,7 @@ public struct UsbWriteFlow {
         cached.snapshotLease = nil
         session.lastExports[key] = cached
         session.lastMigrations.remove(key)
+        session.lastPointRestores[key] = nil
         let outcome = await run(job, reused: reused, consented: consented && reused != nil, flag: flag)
         session.end(key)
         switch outcome {
@@ -314,6 +315,7 @@ public struct UsbWriteFlow {
         let key = volume.usbKey
         session.lastMigrations.insert(key)
         session.lastExports[key] = nil
+        session.lastPointRestores[key] = nil
         let outcome = await runMigration(volume, flag: flag)
         session.end(key)
         switch outcome {
@@ -553,6 +555,7 @@ public struct UsbWriteFlow {
         guard await editInputsAreCurrent(job, edits: screen.draftEdits(volumeKey) ?? []) else { return false }
         guard let flag = begin(job.volume, title: String(ui: "USB에 쓸 내용을 확인하는 중…")) else { return false }
         session.lastMigrations.remove(volumeKey)
+        session.lastPointRestores[volumeKey] = nil
         let outcome = await runEdit(job, reused: reused, flag: flag)
         session.end(volumeKey)
         switch outcome {
@@ -724,6 +727,12 @@ public struct UsbWriteFlow {
         }
     }
 
+    /// 되돌리기 취소용 백업(옮기기·시점 복원)을 놓는다. 다른 쓰기가 USB를 바꾼 뒤 이 백업으로 되돌리면 그 쓰기를 잃는다
+    private func releaseUndoBackups(_ key: String) {
+        session.migrationBackups[key] = nil
+        session.pointRestoreBackups[key] = nil
+    }
+
     /// 회복: USB의 DB를 보고 마저 쓰거나 되돌린다(쓰기와 같은 확인·실물 관문을 먼저 거친다)
     private func recover(_ volume: UsbVolumeInfo) async {
         guard begin(volume, title: String(ui: "USB를 회복하는 중…"), cancellable: false) != nil else { return }
@@ -739,8 +748,10 @@ public struct UsbWriteFlow {
             case .rolledBack:
                 results.show(.success(title: Text.rolledBackInterruptedTitle, detail: Text.unchangedDetail))
             case .restored:
+                releaseUndoBackups(volume.usbKey)
                 results.show(.success(title: Text.restoredTitle))
             case .recovered:
+                releaseUndoBackups(volume.usbKey)
                 results.show(.success(title: Text.recoveredTitle, ejectVolumeKey: volume.usbKey))
             case .nothingToRecover:
                 results.show(.success(title: Text.nothingToRecoverTitle))
@@ -768,6 +779,8 @@ public struct UsbWriteFlow {
         switch UsbWriteDecision.revertStep(afterRecover: report) {
         case .alreadyRestored:
             session.end(key)
+            // 끊긴 되돌리기를 마쳤으면(끊긴 쓰기를 되돌렸을 뿐이면 그대로) 되돌리기 취소용 백업은 쓰였다
+            if report.outcome == .restored { releaseUndoBackups(key) }
             results.show(.success(title: Text.restoredTitle))
             await screen.refresh()
         case .backupMissing:
@@ -792,8 +805,7 @@ public struct UsbWriteFlow {
             case .success:
                 session.end(key)
                 results.show(.success(title: Text.restoredTitle))
-                session.migrationBackups[key] = nil
-                session.pointRestoreBackups[key] = nil
+                releaseUndoBackups(key)
                 await screen.refresh()
                 return true
             case let .failure(error) where UsbWriteDecision.asksToDiscardDeviceChanges(error, discarding: discard):
@@ -814,6 +826,11 @@ public struct UsbWriteFlow {
         guard confirmation.confirm(Self.replanPrompt) else { return }
         await screen.refresh()
         let key = volume.usbKey
+        // 끊긴 쓰기가 무엇이었는지는 마지막 쓰기 기록이 가린다(쓰기를 시작할 때마다 다른 기록은 놓는다)
+        if let retry = session.lastPointRestores[key], let current = screen.volume(key) {
+            await restorePointSnapshot(current, entry: retry.entry, snapshots: retry.snapshots)
+            return
+        }
         if session.lastMigrations.contains(key), let current = screen.volume(key) {
             await migrate(current)
             return
@@ -848,7 +865,7 @@ public struct UsbWriteFlow {
     }
 
     /// USB에 손대지 않은 안내(지금은 못 함·할 것 없음): 창 대신 닫을 때까지 남는 경고 토스트(#230)
-    private func notify(_ title: String, _ text: String) {
+    func notify(_ title: String, _ text: String) {
         results.show(.notice(title: title, text: text))
     }
 

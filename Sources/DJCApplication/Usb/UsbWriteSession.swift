@@ -50,6 +50,8 @@ public final class UsbWriteSession {
     public var lastExports: [String: UsbExportJob] = [:]
     /// 마지막 옮기기(회복 뒤 재계획할 때 내보내기와 구분한다). 화면에 내보내지 않는 흐름 기록
     public var lastMigrations: Set<String> = []
+    /// 마지막 시점 스냅샷 되돌리기(회복 뒤 재계획할 때 내보내기·옮기기와 구분한다). 화면에 내보내지 않는 흐름 기록
+    public var lastPointRestores: [String: UsbPointRestoreRetry] = [:]
     private var cancelFlag: UsbCancelFlag?
 
     public init() {}
@@ -136,6 +138,17 @@ public struct UsbActiveWrite: Equatable, Sendable {
         self.title = title
         self.cancellable = cancellable
         self.progress = progress
+    }
+}
+
+/// 시점 스냅샷 되돌리기를 다시 미리 볼 때 넘기는 것: 어느 스냅샷을 어느 창구로 되돌렸는지
+public struct UsbPointRestoreRetry: Sendable {
+    public var entry: UsbPointSnapshotEntry
+    public var snapshots: UsbPointSnapshots
+
+    public init(entry: UsbPointSnapshotEntry, snapshots: UsbPointSnapshots) {
+        self.entry = entry
+        self.snapshots = snapshots
     }
 }
 

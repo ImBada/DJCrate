@@ -8,6 +8,10 @@ extension UsbWriteFlow {
         guard await ready(volume), let flag = begin(volume, title: String(ui: "USB에 쓸 내용을 확인하는 중…")) else { return false }
         let key = volume.usbKey, root = URL(filePath: volume.mountPoint)
         let options = UsbWriteService.writeOptions(volume)
+        // 끊긴 뒤 회복의 다시 미리 보기가 앞서 한 내보내기·옮기기를 따라가지 않게, 지난 쓰기 기록을 이 되돌리기로 바꾼다
+        session.lastPointRestores[key] = UsbPointRestoreRetry(entry: entry, snapshots: snapshots)
+        session.lastExports[key] = nil
+        session.lastMigrations.remove(key)
         var ended = false
         defer { if !ended { session.end(key) } }
         do {
@@ -18,7 +22,7 @@ extension UsbWriteFlow {
                 return false
             }
             guard !summary.result.isUnchanged else {
-                results.show(.success(title: String(ui: "USB가 이미 시점 스냅샷과 같습니다")))
+                notify(Text.nothingToWriteTitle, String(ui: "USB가 이미 시점 스냅샷과 같습니다"))
                 return false
             }
             guard confirmation.confirm(Self.pointRestoreConfirmation(volume, entry: entry, summary: summary)) else { return false }
@@ -34,8 +38,7 @@ extension UsbWriteFlow {
                 case let .success(written):
                     guard written.report?.outcome == .written else { return false }
                     session.migrationBackups[key] = nil
-                    session.lastMigrations.remove(key)
-                    session.lastExports[key] = nil
+                    session.lastPointRestores[key] = nil
                     session.pointRestoreBackups[key] = written.report?.backup.map { URL(filePath: $0) }
                     session.end(key)
                     ended = true

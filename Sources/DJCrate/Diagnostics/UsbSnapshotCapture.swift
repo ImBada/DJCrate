@@ -110,7 +110,6 @@ enum UsbSnapshotCapture {
             }
         }
         try await edit("공연 뒤", using: coordinator)
-        prompter.restoreCapture = "restore-confirmation"
         await model.restore(entry)
         guard model.undoBackup != nil, prompter.devicePrompts == 0,
               try await BlockingWork.run({ try UsbTree.fingerprint(root).files }) == before else {
@@ -131,7 +130,6 @@ enum UsbSnapshotCapture {
         try await edit("기기에서 바뀐 목록", using: externalWriter)
         let deviceState = try await BlockingWork.run { try UsbTree.fingerprint(root).files }
         guard deviceState != before else { throw UsbSelfTestScenario.Failure("기기 변경 흉내 실패") }
-        prompter.restoreCapture = "restore-with-device-changes"
         prompter.discard = false
         await model.restore(entry)
         guard prompter.devicePrompts == 1,
@@ -169,7 +167,6 @@ enum UsbSnapshotCapture {
 
     private final class CapturePrompter: HeadlessReflectionPrompter {
         let directory: String
-        var restoreCapture = "restore-confirmation"
         var discard = true
         var devicePrompts = 0
         var failure: (any Error)?
@@ -182,7 +179,10 @@ enum UsbSnapshotCapture {
             if prompt.title == String(ui: "스냅샷 뒤의 기기 변경을 버릴까요?") {
                 devicePrompts += 1
                 file = "device-changes-consent"
-            } else if prompt.title.hasPrefix("USB를 ‘") { file = restoreCapture }
+            } else if prompt.title.hasPrefix("USB를 ‘") {
+                // 첫 확인 창은 기기 변경이 있어도 똑같다(기기 변경은 다음 동의 창에서 따로 묻는다). 한 장만 남긴다
+                file = "restore-confirmation"
+            }
             else if prompt.confirm == String(ui: "USB에 쓰기") || prompt.confirm == String(ui: "되돌리기 취소") || prompt.confirm == String(ui: "지우기") { return true }
             else {
                 failure = UsbSelfTestScenario.Failure("뜻밖의 확인 창: \(prompt.title) · \(prompt.text)")
