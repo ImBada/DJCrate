@@ -56,7 +56,7 @@ release_build=0
 if [[ "$mode" == full || "$mode" == release ]]; then release_build=1; fi
 
 # --changed: 바꾼 파일에서 시험을 고른다(scripts/affected-tests.py). 고른 범위·이유를 먼저 보인다.
-plan_scope="" plan_filter="" plan_targets="" plan_products="" plan_checks="" plan_widen="" plan_base=""
+plan_scope="" plan_filter="" plan_targets="" plan_test_targets="" plan_products="" plan_checks="" plan_widen="" plan_base=""
 plan_suites="" plan_total_suites="" plan_text="" plan_json="" plan_required="" plan_skipped=""
 if [[ "$mode" == changed ]]; then
     plan_arguments=(--shell)
@@ -594,13 +594,31 @@ if [[ "$mode" == changed ]]; then
     case "$plan_scope" in
         tests)
             run_stage "소스 타깃 전체 빌드: 앱·CLI 포함(커버리지 계측)" build-sources swift build --enable-code-coverage
+            # swift test --skip-build는 --filter를 줘도 패키지의 모든 시험 번들을 열어 시험을 나열한다. 고르지 않은 타깃의 번들도
+            # 있어야 하고 열려야 한다. 없으면 "<타깃>.xctest doesn't exist in file system"으로 1초 만에 끝난다(새 작업 트리의 첫 실행, #270).
+            # 그래서 고른 타깃에 더해 번들(실행 파일까지)이 없는 타깃만 더 빌드한다. 번들이 다 있으면 더하는 것이 없다.
+            build_targets=(${=plan_targets})
+            absent_targets=()
+            for target in ${=plan_test_targets}; do
+                if (( ! ${build_targets[(Ie)$target]} )) && [[ ! -e ".build/out/Products/Debug/$target.xctest/Contents/MacOS/$target" ]]; then absent_targets+=("$target"); fi
+            done
+            if (( ${#absent_targets} )); then
+                print -r -- "▸ 안내: swift test는 고르지 않은 시험 타깃의 번들도 열어 보므로(새 작업 트리의 첫 실행) 번들이 없는 타깃을 더 빌드합니다: ${absent_targets[*]}"
+                build_targets+=($absent_targets)
+            fi
             # 타깃 하나만 빌드하면 그 타깃이 쓰지 않는 Products/Debug의 프레임워크(Sparkle)를 낡은 결과로 지운다.
             # Sparkle을 쓰는 DJCrateTests를 마지막에 빌드해 그 번들이 열리게 한다.
-            build_targets=(${=plan_targets})
             if (( ${build_targets[(Ie)DJCrateTests]} )); then build_targets=(${build_targets:#DJCrateTests} DJCrateTests); fi
             for target in $build_targets; do
                 run_stage "시험 타깃 빌드: $target(커버리지 계측)" "build-$target" swift build --target "$target" --enable-code-coverage
             done
+            # DJCrateTests를 빌드하지 않았는데 다른 타깃 빌드가 Sparkle을 지웠다면, 이미 있던(낡은) DJCrateTests 번들이 열리지 않는다.
+            # 그때만 DJCrateTests를 다시 빌드한다. 바뀐 것이 없어도 링크를 다시 해 7초쯤 들고 Sparkle을 되돌린다.
+            if [[ " ${=plan_test_targets} " == *" DJCrateTests "* ]] && (( ! ${build_targets[(Ie)DJCrateTests]} )) \
+                && [[ ! -d .build/out/Products/Debug/Sparkle.framework ]]; then
+                print -r -- "▸ 안내: 다른 시험 타깃을 빌드하며 Sparkle.framework가 지워져 DJCrateTests를 다시 빌드합니다(이 번들이 열려야 swift test가 돕니다)"
+                run_stage "시험 타깃 빌드: DJCrateTests(Sparkle.framework 복원)" "build-DJCrateTests" swift build --target DJCrateTests --enable-code-coverage
+            fi
             if [[ " $plan_checks " == *" write-coverage "* ]]; then fresh_profile; fi
             run_stage "고른 시험 실행(빌드 생략)" test swift test --skip-build --enable-code-coverage --filter "$test_filter"
             run_stage "필터 결과(1개 이상 완료)" filter-result require_filtered_tests ;;
