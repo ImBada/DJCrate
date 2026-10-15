@@ -57,7 +57,7 @@ if [[ "$mode" == full || "$mode" == release ]]; then release_build=1; fi
 
 # --changed: 바꾼 파일에서 시험을 고른다(scripts/affected-tests.py). 고른 범위·이유를 먼저 보인다.
 plan_scope="" plan_filter="" plan_targets="" plan_products="" plan_checks="" plan_widen="" plan_base=""
-plan_suites="" plan_total_suites="" plan_text="" plan_json="" plan_required=""
+plan_suites="" plan_total_suites="" plan_text="" plan_json="" plan_required="" plan_skipped=""
 if [[ "$mode" == changed ]]; then
     plan_arguments=(--shell)
     if [[ -n "$changed_base" ]]; then plan_arguments+=(--base "$changed_base"); fi
@@ -276,6 +276,8 @@ print_summary() {
         fi
         # 지도가 적은 필수 검사(stress 등)는 --changed가 대신하지 않는다. 통과 뒤에도 남은 일로 다시 알린다.
         if [[ -n "$plan_required" ]]; then print -rl -- ${(f)plan_required} | sed 's/^/⚠ 남은 필수 검사: /'; fi
+        # 환경 변수가 있어야 도는 선택 실행 Suite를 골랐는데 변수가 없어 건너뛰었다면 그 시험은 이 통과에 들어 있지 않다(#267).
+        if [[ -n "$plan_skipped" ]]; then print -rl -- ${(f)plan_skipped} | sed 's/^/⚠ 건너뜀: /'; fi
     else
         echo "✘ 실패: $title · 종료코드 $code · 총 $((SECONDS - check_started))초${tests:+ · 시험 ${tests}개}"
         if [[ -f "$log_dir/stall.txt" ]]; then
@@ -478,7 +480,15 @@ require_filtered_tests() {
     # 집계에는 skip된 시험도 들어갈 수 있으므로 실제 개별 시험의 완료를 확인한다.
     if ! awk '/Test .+ passed after / && !/Test run with / { completed = 1 }
         END { exit !completed }' "$log_dir/test.log"; then
-        print -r -- "실제로 완료한 시험이 없습니다. 필터를 확인하세요: $test_filter" >&2
+        # 환경 변수가 있어야 도는 선택 실행 Suite(scripts/optin-suites.txt)만 골랐다면 필터는 맞다. 원인과 할 일을 알린다(#267).
+        local hint
+        hint=$(python3 scripts/affected-tests.py "--optin-hint=$test_filter" 2>/dev/null || true)
+        if [[ -n "$hint" ]]; then
+            print -r -- "실제로 완료한 시험이 없습니다: $test_filter" >&2
+            print -r -- "$hint" >&2
+        else
+            print -r -- "실제로 완료한 시험이 없습니다. 필터를 확인하세요: $test_filter" >&2
+        fi
         return 1
     fi
 }
