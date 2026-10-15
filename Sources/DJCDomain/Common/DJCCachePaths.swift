@@ -101,7 +101,7 @@ public struct DJCCacheOutcome: Sendable, Equatable {
 
 /// 비우기 대상이 아닌 백업(`DJCCache.BackupUsage`, 용량만 보인다). 개수는 백업 폴더 수다(#227)
 public struct DJCBackupUsage: Sendable, Equatable {
-    public enum Kind: Sendable, Equatable { case rekordboxBackups, pointSnapshots, usbBackups }
+    public enum Kind: Sendable, Equatable { case rekordboxBackups, pointSnapshots, usbBackups, usbPointSnapshots }
     public var kind: Kind
     public var count: Int
     public var bytes: Int64

@@ -525,6 +525,8 @@ djc cache --clear waveforms analysis --dry-run   # 지울 양만 보기
 djc cache --clear all                       # 모든 종류 비우기
 ```
 
+USB 시점 스냅샷(`usb-point-snapshots/`)의 개수와 사용량도 보인다. USB 쓰기 전 백업처럼 용량만 보고, `--clear all`로도 지우지 않는다.
+
 캐시는 앱이 다시 만든다. 그래서 따로 묻지 않는다. 플래그가 곧 동의다. 종류는 허용 목록 하나(`DJCCacheKind`)뿐이다. 지우는 규칙은 `DJCCache` 한 곳에 있다.
 
 | 종류 | 자리 | 비우는 것 | 다시 만들어지는 때 |

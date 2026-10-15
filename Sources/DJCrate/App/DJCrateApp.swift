@@ -56,6 +56,12 @@ struct DJCrateApp: App {
 
     private static func checkHistorySelfTestStartup() {
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("--usb-snapshot-capture=") }),
+           let refusal = UsbSelfTest.startupRefusal(arguments: ProcessInfo.processInfo.arguments,
+                                                  environment: ProcessInfo.processInfo.environment) {
+            UsbSelfTest.log(refusal)
+            exit(2)
+        }
         guard ProcessInfo.processInfo.arguments.contains("--history-selftest") else { return }
         do {
             _ = try HistorySelfTest.startupDatabase(arguments: ProcessInfo.processInfo.arguments, environment: ProcessInfo.processInfo.environment)

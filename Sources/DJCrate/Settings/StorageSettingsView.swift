@@ -64,7 +64,7 @@ struct StorageSettingsView: View {
             } header: {
                 Text(.ui("백업(읽기만)"))
             } footer: {
-                Text(.ui("같은 디스크의 복사본은 공간을 나눠 써서 실제로 차지하는 공간은 더 작을 수 있습니다. 백업과 자동 시점 스냅샷은 오래된 것부터 저절로 정리되고, 수동·고정 시점 스냅샷은 지우지 않습니다."))
+                Text(.ui("같은 디스크의 복사본은 공간을 나눠 써서 실제로 차지하는 공간은 더 작을 수 있습니다. 백업과 자동 시점 스냅샷은 오래된 것부터 저절로 정리되고, rekordbox 수동·고정 시점 스냅샷은 지우지 않고, USB 시점 스냅샷은 볼륨마다 최근 5개와 고정한 것을 남깁니다."))
                     .foregroundStyle(.secondary)
             }
             Section {
@@ -98,6 +98,7 @@ struct StorageSettingsView: View {
         case .rekordboxBackups: String(ui: "rekordbox 쓰기 전 백업")
         case .pointSnapshots: String(ui: "rekordbox 시점 스냅샷")
         case .usbBackups: String(ui: "USB 쓰기 전 백업")
+        case .usbPointSnapshots: String(ui: "USB 시점 스냅샷")
         }
     }
 }

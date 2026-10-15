@@ -248,6 +248,10 @@ struct UsbSidebarSection: View {
     }
 
     @ViewBuilder private func migrationButtons(_ volume: UsbSidebarVolume) -> some View {
+        if usb.volume(volume.id) != nil, usb.pointSnapshots != nil {
+            Button(.ui("USB 시점 스냅샷…")) { store.usbCoordinator?.openPointSnapshots(volumeKey: volume.id) }
+                .disabled(usb.activeWrite != nil)
+        }
         if volume.showsMigration {
             Button {
                 store.usbCoordinator?.startMigrate(volumeKey: volume.id)
