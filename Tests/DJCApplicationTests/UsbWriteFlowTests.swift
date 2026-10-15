@@ -29,7 +29,14 @@ final class FlowFakeService: UsbWriting, Sendable {
         record("write")
         return try state.withLock { $0.writeResult }.get()
     }
-    func recover(_ volume: UsbVolumeInfo) throws -> UsbWriteReport { record("recover"); return try state.withLock { $0.recoverResult }.get() }
+    func recover(_ volume: UsbVolumeInfo) throws -> UsbWriteReport {
+        record("recover")
+        return try state.withLock {
+            let report = try $0.recoverResult.get()
+            $0.journal = .none
+            return report
+        }
+    }
     func restore(_ volume: UsbVolumeInfo, backup: URL?, discardDeviceChanges: Bool) throws -> UsbWriteReport {
         record("restore")
         return UsbWriteReport(outcome: .restored, session: "s1")
@@ -44,7 +51,7 @@ final class FlowFakeService: UsbWriting, Sendable {
     var syncGate: UsbSyncSelectionGate { UsbSyncSelectionGate(gateBlock: { _, _ in nil }, productionBlock: { nil }, draftBlock: { _ in nil }) }
 
     // 이 시험이 쓰지 않는 것
-    func previewMigration(_ volume: UsbVolumeInfo) throws -> UsbMigrationSummary { throw UsbError.cancelled }
+    func previewMigration(_ volume: UsbVolumeInfo) throws -> UsbMigrationSummary { record("previewMigration"); throw UsbError.cancelled }
     func writeMigration(_ volume: UsbVolumeInfo, progress: @escaping @Sendable (UsbProgress) -> Void,
                         isCancelled: @escaping @Sendable () -> Bool) throws -> UsbMigrationWritten { throw UsbError.cancelled }
     func draftBase(_ volume: UsbVolumeInfo) throws -> UsbFingerprint { UsbFingerprint(files: [:]) }
