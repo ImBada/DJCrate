@@ -1623,6 +1623,51 @@ rekordbox와 rekordboxAgent는 A 단계에서 본다. D 전, DB마다, F 전에�
 - 지운 행 id. 새 파일에는 없다.
 - 분석 파일의 수정 시각. 쓴 시각이다.
 
+### 7.13 시점 스냅샷(`UsbPointSnapshot`, `UsbPointRestore`, `djc usb-snapshot`, #226)
+
+USB의 라이브러리 파일을 이름 붙여 Mac에 그대로 남기고, 같은 볼륨을 그 시점으로 되돌린다. 쓰기 전 백업(7.1 C)은 그 쓰기가 덮거나 지울 파일만 담는다. 시점 스냅샷은 범위 전체를 담아 다른 백업 없이 혼자 되돌린다. 새 형식 규칙은 없다. 남긴 바이트를 그대로 돌려놓는다.
+
+- **담는 것**: 아래 파일을 바이트 그대로 담는다. 파일마다 상대 경로, 크기, 수정 시각, SHA-256을 적는다.
+  - `PIONEER/rekordbox/`의 `exportLibrary.db`와 `-wal`·`-shm`·`-journal`, `export.pdb`, `exportExt.pdb`.
+  - `PIONEER/USBANLZ/`·`PIONEER/Artwork/` 아래 파일 전부. `._*`는 뺀다.
+  - 설정 파일 넷(§6): `MYSETTING.DAT`, `MYSETTING2.DAT`, `DJMMYSETTING.DAT`, `DEVSETTING.DAT`.
+- **담지 않는 것**: 음원(`Contents/`), `export.pdb.bak`, 동기화 선택 두 파일, `ImportedHistory.xml`, 열지 않는 경로.
+  - 이름이 정해진 파일은 그 이름만 stat한다. 분석·아트워크 폴더만 내려간다. `PIONEER/` 자체는 열거하지 않는다. 그래서 `PIONEER/extracted`·`PIONEER/CDP`·`djprofile.nxs`는 이름도 보지 않는다.
+- **뜨기**: USB는 읽기만 한다.
+  - 루트가 마운트 지점이어야 한다. 볼륨 UUID가 있어야 한다.
+  - 스냅샷·저널 폴더가 그 볼륨 안이면 막는다. rekordbox 라이브러리나 DJCrate 데이터 폴더와 겹치는 볼륨도 막는다(`protectedPath`). 이때는 Mac 쪽 폴더도 만들지 않는다.
+  - rekordbox가 꺼져 있어야 한다. 닫히지 않은 저널과 우리 폴더의 `.djc-part-*`가 없어야 한다.
+  - 라이브러리 DB가 하나는 있어야 한다(`pointSnapshotNoDatabase`). 되돌리기가 DB를 지우지 않으므로 DB 없는 스냅샷은 되돌릴 수 없다.
+  - 볼륨 정보를 읽기 전에 루트를 붙잡는다(7.5). 뜨는 동안 볼륨 잠금(7.2의 3)을 쥔다. 이 Mac의 다른 DJCrate 쓰기와 겹치지 않게 한다.
+  - 파일마다 복사 전후 크기·mtime이 같아야 한다. DB는 처음 지문의 SHA-256과 같아야 한다. 끝에 모든 파일을 다시 stat한다. 하나라도 바뀌면 그 스냅샷은 버린다(`sourceChangedDuringCopy`).
+  - 링크나 일반 파일이 아닌 것이 있으면 뜨지 않는다(`pointSnapshotUnreadable`).
+  - 다 뜬 뒤에만 이름을 붙인다(`.partial-…` → `<UTC 시각>-manual`).
+- **저장**: `usb-point-snapshots/<볼륨 UUID>/<폴더>/`의 `snapshot.json`과 `files/<상대 경로>`. 폴더 0700, 파일 0600.
+  - `snapshot.json`의 이름, 종류, 만든 시각, 고정은 로컬 시점 스냅샷과 같은 뜻이다. 볼륨 UUID와 이름, 파일 지문을 더 담는다.
+- **보존**: 볼륨마다 최근 5개(7.9와 같은 수)만 남긴다. 고정한 것은 수와 상관없이 남긴다. 고정한 것은 고정을 푼 뒤에만 지운다.
+- **되돌리기**: 새 쓰기 경로가 아니다. 스냅샷을 변경 묶음 `UsbChangeSet`으로 바꿔 `UsbWriter.write` 한 길로 쓴다. 묶음의 목적은 수정(`.edit`)이고 이름은 `point-restore-<스냅샷 ID>`다. 검증기는 목표 지문(`UsbFingerprintVerifier`)이다. 쓰기 전 백업이 남으므로 `usb-restore`로 되돌리기 전 상태로 돌아간다.
+  1. 볼륨 정책·보호 경로·실물 관문을 본다. 막히면 USB를 읽지 않는다.
+  2. 그 볼륨의 스냅샷인지 본다(`pointSnapshotOtherVolume`). 닫히지 않은 저널은 막는다. 닫힌 저널의 ID 상한은 그대로 잇는다.
+  3. 기기 변경을 본다. DB 셋의 SHA-256과 OneLibrary 사이드카로 보는 것은 `usb-restore --discard-device-changes`(7.8)와 같다.
+     - 스냅샷 뒤의 사건을 시각 순으로 따라간다. 사건은 뒤에 뜬 스냅샷, 쓰기, `usb-restore`다. 백업 폴더의 기록에서 모은다.
+     - 쓰기 전 상태(manifest)가 따라온 상태와 다르면 그 사이 DJCrate가 모르는 변경이 있었다. 수정·옮기기·동기화는 기기 행을 이어 쓰므로 그 결과에도 실린다.
+     - 이 스냅샷으로 돌려놓은 시점 되돌리기와 빈 USB 내보내기는 앞의 변경을 싣지 않는다. 다른 스냅샷으로 돌려놓은 되돌리기는 DB가 같지 않으면 모른다고 본다.
+     - 어느 스냅샷을 돌려놓았는지는 변경 묶음 이름(`point-restore-<스냅샷 ID>`)으로 안다. 담은 사이드카를 합친 DB는 해시가 스냅샷과 달라 해시로는 모르기 때문이다.
+     - `usb-restore`는 그 쓰기 전 상태의 판정으로 돌아간다. 다시 계획이나 되돌리기 실패로 닫은 쓰기는 바뀐 것으로 본다.
+     - 정리로 기록이 지워져 상태가 이어지지 않으면 바뀐 것으로 본다. 지금이 스냅샷과 같으면 잃을 것이 없다.
+     - 바뀌었으면 `deviceChanged`로 막는다. `--discard-device-changes`를 줘야 쓴다.
+     - 판정한 DB 지문을 변경 묶음의 base로 쓴다. 계획하는 동안 USB DB가 달라지면 막는다(`usbChanged`). 쓰기 전 확인도 다시 본다.
+  4. 스냅샷이 온전한지 본다. 경로가 모두 범위 안이어야 하고 파일의 크기·SHA-256이 정보와 같아야 한다(`pointSnapshotDamaged`).
+  5. DB: 스냅샷 폴더를 USB 루트처럼 `UsbSnapshot.take`로 떠 준비 폴더에 둔다(2.3). 담은 사이드카는 사본 안에서 합친다. 사이드카가 없던 DB는 담은 바이트 그대로다. 지금 USB와 해시가 다르거나 OneLibrary 사이드카가 있으면 바꾼다. 쓰기 절차가 E에서 사이드카를 지운다.
+  6. 스냅샷 뒤에 생긴 DB는 지우기 허용 목록 밖이라 지우지 않는다. 그래서 막는다(`pointSnapshotNewDatabase`).
+  7. 분석 파일·아트워크·설정 파일: 없으면 만든다. 다르면 덮는다. 분석 파일은 지금 PPTH를 덮어쓰기 기대값으로 둔다. 스냅샷에 없는 것은 지우기 허용 목록 안이면 지운다. 분석 파일은 PPTH를 읽어야 지운다. 그 밖의 것은 남기고 수를 알린다.
+     - 되돌리는 설정 파일 수는 따로 알린다. CDJ가 USB에 저장한 설정일 수 있지만 DB 지문으로는 모르기 때문이다.
+  8. 음원은 건드리지 않는다. 스냅샷 DB의 곡 중 지금 음원이 없는 곡 수를 알린다. 곡은 OneLibrary에서 읽는다. OneLibrary가 없으면 Device Library에서 읽는다.
+- 한계(기기에서 확인하지 않음):
+  - 동기화 선택 파일은 담지 않는다. 되돌린 뒤에도 지금 선택이 남는다.
+  - 스냅샷 뒤에 더한 곡의 음원은 USB에 남는다.
+  - 앱 화면은 아직 없다.
+
 ## 8. USB 안 수정
 
 ### 8.1 읽기 점검(`UsbRead`, `djc usb-info`)

@@ -1087,6 +1087,36 @@ djc usb-restore --volume <마운트> [--backup <폴더>] [--discard-device-chang
 - 출력은 결과, 백업 폴더, 파일 수다. USB 경로가 붙은 알림은 이유별 개수만 찍는다. 건너뛴 분석 파일 등이 그 예다.
 - 종료 코드는 성공 0, 막힘·실패 1이다. 막힘 이유는 무엇을 하면 되는지까지 한 문장으로 나온다.
 
+## USB 시점 스냅샷(`usb-snapshot`)
+
+USB의 라이브러리 파일을 이름 붙인 시점 스냅샷으로 Mac에 남기고, 같은 USB를 그 시점으로 되돌린다(#226). 규칙은 `docs/usb-internals.md` §7.13에 있다.
+
+```sh
+djc usb-snapshot create --volume <마운트> [--name <이름>]
+djc usb-snapshot list --volume <마운트>
+djc usb-snapshot restore <ID|이름> --volume <마운트> [--discard-device-changes] [--dry-run] [--allow-physical --confirm <볼륨 이름>]
+djc usb-snapshot pin|unpin|delete <ID|이름> --volume <마운트>
+```
+
+- 담는 것은 `PIONEER/rekordbox`의 DB 셋과 사이드카, `PIONEER/USBANLZ`, `PIONEER/Artwork`, 기기 설정 파일 넷이다. 음원(`Contents/`)은 담지 않는다.
+- 스냅샷은 `DJC_HOME`의 `usb-point-snapshots/<볼륨>/`에 둔다. USB DB를 읽으려고 뜨는 사본(`usb-snapshots/`)과 다른 폴더다. 캐시가 아니므로 `djc cache`가 비우지 않는다.
+- `create`·`list`는 USB를 읽기만 한다. 실물 USB도 동의 없이 뜬다. rekordbox가 켜져 있거나, 끝나지 않은 USB 쓰기가 있거나, 라이브러리 DB가 없으면 뜨지 않는다.
+- `DJC_HOME`이 그 볼륨 안이면 뜨지 않는다. 스냅샷이 그 볼륨에 쓰이기 때문이다.
+- 볼륨마다 최근 5개를 남긴다. `pin`한 것은 수와 상관없이 남는다. 고정한 것은 `unpin`한 뒤에만 지운다.
+- ID는 `list`가 보이는 폴더 이름이다. 겹치지 않는 이름도 받는다.
+- `restore`는 USB 쓰기다. 쓰기와 같은 확인을 거친다. 실물 USB는 `--allow-physical --confirm <볼륨 이름>`이 있어야 받는다.
+  - 다른 USB의 스냅샷은 거부한다.
+  - 스냅샷 뒤 USB에 DJCrate가 모르는 변경이 있으면 막는다. 기기가 쓴 재생 기록이 그 예다. `-wal`·`-journal`이 있어도 같다. `--discard-device-changes`를 줘야 그 변경을 버리고 되돌린다.
+  - 기기가 바꾼 뒤 DJCrate로 고쳐 쓴 USB도 막는다. 수정은 기기 기록을 이어 쓰기 때문이다.
+  - 음원은 되돌리지 않는다. 스냅샷 DB가 가리키는 음원이 지금 USB에 없으면 곡 수를 알린다.
+  - 스냅샷 뒤에 생긴 DB는 지우지 않으므로 막는다. 그 DB를 만든 쓰기를 `usb-restore`로 먼저 되돌린다.
+  - 지우기 허용 목록 밖의 파일은 남긴다. 스냅샷 뒤에 생긴 설정 파일이 그 예다.
+  - 기기 설정 파일을 되돌리면 그 수를 알린다. CDJ가 USB에 저장한 설정일 수 있다.
+  - 되돌리기도 쓰기 전 백업을 남긴다. `djc usb-restore --volume <마운트>`로 되돌리기 전 상태로 돌아간다.
+  - `--dry-run`은 계획과 준비까지만 하고 USB를 바꾸지 않는다.
+- 출력은 스냅샷 ID, 담은 파일 수, 바꿀 파일 수다. 스냅샷 폴더 경로와 곡 경로는 찍지 않는다. JSON 계약에는 포함하지 않는다.
+- 종료 코드는 성공 0, 막힘·실패 1이다.
+
 ## 실물 USB에 쓰기(`--allow-physical`)
 
 ```sh
