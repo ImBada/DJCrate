@@ -135,10 +135,7 @@ struct LinkDeviceTile: View {
                                                                 lineWidth: isTargeted ? 2 : 1))
         .help(Text(verbatim: "\(device.name) · \(device.number) · \(device.address)"))
         .accessibilityElement(children: .combine)
-        .onDrop(of: onDrop == nil ? [] : [DeckDragType.track], isTargeted: $isTargeted) { providers in
-            guard let onDrop else { return false }
-            return LinkTrackDrop.read(providers, then: onDrop)
-        }
+        .onDrop(of: [DeckDragType.track], delegate: LinkTrackDropDelegate(onDrop: onDrop, isTargeted: $isTargeted))
     }
 
     static func symbol(_ kind: LinkDevice.Kind) -> String {
