@@ -249,9 +249,46 @@ public final class LinkExportServer: Sendable {
         var analysis = StrColumn()
         for track in tracks { analysis.push(track.analysisPath) }
         library.analysis_path = analysis
+        mergeNames(library)
         let rowOfID = Dictionary(tracks.enumerated().map { ($0.element.id, Row($0.offset)) }, uniquingKeysWith: { first, _ in first })
         library.set_playlists(playlistTree(playlists, row: { rowOfID[$0] }))
         return library
+    }
+
+    /// 같은 이름의 아티스트·앨범·장르·레이블을 한 번호로 합친다. `library_from`(DJLinkKit의 시험용 만들기)은 곡마다 새 번호를 매겨,
+    /// CDJ의 ARTIST·ALBUM·GENRE 목록에 같은 이름이 곡 수만큼 따로 나왔다(2026-10-16 실기). 합친 뒤 정렬·검색 색인을 다시 만든다
+    static func mergeNames(_ library: Library) {
+        func merge(_ names: Interner, _ column: [UInt32]) -> (Interner, [UInt32]) {
+            let merged = mergedIDs(column.map { names.name($0) })
+            var interner = Interner()
+            for name in merged.names { _ = interner.push(name) }
+            return (interner, merged.ids)
+        }
+        (library.artists, library.artist) = merge(library.artists, library.artist)
+        (library.albums, library.album) = merge(library.albums, library.album)
+        (library.genres, library.genre) = merge(library.genres, library.genre)
+        (library.labels, library.label) = merge(library.labels, library.label)
+        // 화면 번호는 0을 비워 두므로 1부터다(`library_from`과 같다)
+        library.artist_ids = library.artist.map { $0 + 1 }
+        library.album_ids = library.album.map { $0 + 1 }
+        library.genre_ids = library.genre.map { $0 + 1 }
+        library.label_ids = library.label.map { $0 + 1 }
+        library.build_ranks()
+        library.build_search()
+    }
+
+    /// 곡마다의 이름 → 겹치지 않는 이름 목록과 곡마다의 번호(처음 나온 차례). 이름이 같으면 같은 번호다
+    static func mergedIDs(_ perTrack: [String]) -> (names: [String], ids: [UInt32]) {
+        var names: [String] = []
+        var index: [String: UInt32] = [:]
+        let ids = perTrack.map { name -> UInt32 in
+            if let id = index[name] { return id }
+            let id = UInt32(names.count)
+            index[name] = id
+            names.append(name)
+            return id
+        }
+        return (names, ids)
     }
 
     /// 재생 목록 나무. 부모는 목록 안 순번, 차례는 목록 순서다(CDJ는 같은 층에서 폴더 먼저, 그 안에서 이 차례로 보인다)
