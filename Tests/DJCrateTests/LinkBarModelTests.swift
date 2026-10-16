@@ -130,6 +130,21 @@ struct LinkBarModelTests {
         #expect(model.connection == .off)
     }
 
+    @Test func 펼친_채_rekordbox가_꺼지면_다시_내어_준다() async throws {
+        let notes = NotesBox()
+        let model = Self.connectable(notes: notes)
+        model.apply(.blockedByRekordbox)
+        model.toggle()
+        // 포트를 다시 열면 빈 목록이 먼저 온다
+        model.apply(.listening([]))
+        #expect(model.connection == .off)
+        model.apply(.listening([Self.cdj1]))
+        let deadline = ContinuousClock.now.advanced(by: .seconds(300))
+        while !model.isConnected, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(2)) }
+        #expect(model.connection == .on(tracks: 1))
+        #expect(notes.values.isEmpty)
+    }
+
     @Test func 장치가_없으면_연결하지_않고_이유를_알린다() async {
         let notes = NotesBox()
         let model = Self.connectable(notes: notes)

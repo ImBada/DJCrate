@@ -1,4 +1,4 @@
-import DJCApplication
+@testable import DJCApplication
 import DJCDomain
 import Foundation
 import Synchronization
@@ -29,8 +29,14 @@ struct LinkSessionTests {
         let holdsStart = Mutex(false)
         let held = Mutex<CheckedContinuation<Void, Never>?>(nil)
 
+        /// 켜면 rekordbox 확인을 시험이 풀어 줄 때까지 막는다(확인은 메인 밖 스레드에서 돈다)
+        let holdsRekordboxCheck = Mutex(false)
+        let checking = Mutex(false)
+        let checkGate = DispatchSemaphore(value: 0)
+
         func releaseStart() { held.withLock { $0?.resume(); $0 = nil } }
         var isHolding: Bool { held.withLock { $0 != nil } }
+        var isChecking: Bool { checking.withLock { $0 } }
 
         var source: LinkServerSource {
             LinkServerSource(
@@ -47,7 +53,13 @@ struct LinkSessionTests {
                     if let problem = loadProblem.withLock({ $0 }) { throw problem }
                     loaded.withLock { $0.append((player, id)) }
                 },
-                isRekordboxRunning: { [self] in rekordbox.withLock { $0 } })
+                isRekordboxRunning: { [self] in
+                    if holdsRekordboxCheck.withLock({ $0 }) {
+                        checking.withLock { $0 = true }
+                        checkGate.wait()
+                    }
+                    return rekordbox.withLock { $0 }
+                })
         }
     }
 
@@ -141,10 +153,90 @@ struct LinkSessionTests {
         let deadline = ContinuousClock.now.advanced(by: .seconds(300))
         while !fake.isHolding, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(2)) }
         #expect(fake.isHolding)
-        await session.disconnect()
+        // 끄기는 켜기 뒤에 줄을 선다. 들어온 것을 본 뒤 띄우기를 풀어 준다
+        let disconnecting = Task { await session.disconnect() }
+        while await session.currentGeneration < 2, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(2)) }
         fake.releaseStart()
         await #expect(throws: LinkProblem.cancelled) { try await connecting.value }
-        #expect(fake.stopped.withLock { $0 } == 2)
+        await disconnecting.value
+        // 띄운 서버는 켜기가 바로 내린다. 끄기는 이미 내려간 서버를 다시 내리지 않는다
+        #expect(fake.started.withLock { $0.count } == 1)
+        #expect(fake.stopped.withLock { $0 } == 1)
         #expect(!(await session.isConnected))
+    }
+
+    @Test func rekordbox_확인을_기다리는_사이_끄면_서버를_띄우지_않는다() async throws {
+        let fake = Fake()
+        fake.holdsRekordboxCheck.withLock { $0 = true }
+        let session = LinkSession(source: fake.source)
+        let connecting = Task {
+            try await session.connect(rows: [Self.row("10")], playlists: PlaylistLayout(), shareRoot: "/share", peers: [Self.cdj2])
+        }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(300))
+        while !fake.isChecking, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(2)) }
+        #expect(fake.isChecking)
+        // 끄기는 줄 서서 기다린다. 확인을 풀어 준 뒤 둘 다 끝난다
+        let disconnecting = Task { await session.disconnect() }
+        while await session.currentGeneration < 2, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(2)) }
+        fake.checkGate.signal()
+        await #expect(throws: LinkProblem.cancelled) { try await connecting.value }
+        await disconnecting.value
+        #expect(fake.started.withLock { $0.isEmpty })
+        #expect(!(await session.isConnected))
+    }
+
+    @Test func 끈_뒤에_앞_켜기가_실패해도_알릴_실패가_아니다() async throws {
+        let fake = Fake()
+        fake.holdsStart.withLock { $0 = true }
+        // 앞 켜기의 띄우기가 포트 충돌로 실패하는 경우
+        let failing = LinkServerSource(
+            start: { library, root, peer throws(LinkProblem) in
+                try await fake.source.start(library, root, peer)
+                throw .portInUse("UDP 50000")
+            },
+            stop: fake.source.stop, status: fake.source.status, load: fake.source.load,
+            isRekordboxRunning: fake.source.isRekordboxRunning)
+        let failingSession = LinkSession(source: failing)
+        let connecting = Task {
+            try await failingSession.connect(rows: [Self.row("10")], playlists: PlaylistLayout(), shareRoot: "/share",
+                                             peers: [Self.cdj2])
+        }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(300))
+        while !fake.isHolding, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(2)) }
+        let disconnecting = Task { await failingSession.disconnect() }
+        while await failingSession.currentGeneration < 2, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(2)) }
+        fake.releaseStart()
+        await #expect(throws: LinkProblem.cancelled) { try await connecting.value }
+        await disconnecting.value
+        #expect(!(await failingSession.isConnected))
+    }
+
+    @Test func 켜기_끄기_켜기가_겹쳐도_서버는_마지막_켜기_하나만_남는다() async throws {
+        let fake = Fake()
+        fake.holdsStart.withLock { $0 = true }
+        let session = LinkSession(source: fake.source)
+        let first = Task {
+            try await session.connect(rows: [Self.row("10")], playlists: PlaylistLayout(), shareRoot: "/share", peers: [Self.cdj2])
+        }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(300))
+        while !fake.isHolding, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(2)) }
+        fake.holdsStart.withLock { $0 = false }
+        let off = Task { await session.disconnect() }
+        // 끄기가 먼저 차례를 받은 뒤에 두 번째 켜기를 띄운다
+        while await session.currentGeneration < 2, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(2)) }
+        let second = Task {
+            try await session.connect(rows: [Self.row("10"), Self.row("20")], playlists: PlaylistLayout(), shareRoot: "/share",
+                                      peers: [Self.cdj2])
+        }
+        while await session.currentGeneration < 3, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(2)) }
+        // 줄 선 끄기·두 번째 켜기는 첫 켜기가 끝날 때까지 서버에 손대지 않는다
+        #expect(fake.started.withLock { $0.isEmpty })
+        fake.releaseStart()
+        await #expect(throws: LinkProblem.cancelled) { try await first.value }
+        await off.value
+        #expect(try await second.value == 2)
+        #expect(fake.started.withLock { $0.map(\.library.tracks.count) } == [1, 2])
+        #expect(fake.stopped.withLock { $0 } == 1)
+        #expect(await session.isConnected)
     }
 }

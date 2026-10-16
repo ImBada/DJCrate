@@ -34,6 +34,8 @@ final class LinkBarModel {
     @ObservationIgnored private let session: LinkSession
     @ObservationIgnored private let library: () -> LibraryInput?
     @ObservationIgnored private let notify: (_ text: String, _ kind: AppToast.Kind) -> Void
+    /// 펼친 채 rekordbox 때문에 막혔는지. 풀리고 장치가 다시 보이면 내어 주기를 다시 켠다
+    @ObservationIgnored private var reconnectWhenFree = false
     /// 서버 상태를 다시 볼 간격
     @ObservationIgnored var statusInterval: Duration = .seconds(1)
 
@@ -104,10 +106,11 @@ final class LinkBarModel {
     func toggle() {
         if isExpanded {
             isExpanded = false
+            reconnectWhenFree = false
             Task { await disconnect() }
         } else {
             isExpanded = true
-            if blockReason == nil { Task { await connect() } }
+            if blockReason == nil { Task { await connect() } } else { reconnectWhenFree = true }
         }
     }
 
@@ -174,6 +177,12 @@ final class LinkBarModel {
 
     func apply(_ state: LinkDiscoveryState) {
         self.state = state
+        if state == .blockedByRekordbox, isExpanded { reconnectWhenFree = true }
+        // 펼친 채 rekordbox가 꺼지면 다시 내어 준다(펼친 동안 내어 준다). 포트를 다시 열면 빈 목록부터 오므로 장치가 보일 때까지 기다린다
+        if reconnectWhenFree, case let .listening(devices) = state, !devices.isEmpty, isExpanded, connection == .off {
+            reconnectWhenFree = false
+            Task { await connect() }
+        }
         // rekordbox가 켜지면 같은 포트를 쓰므로 비켜 준다(LNK-3)
         if state == .blockedByRekordbox, connection != .off {
             connection = .off
