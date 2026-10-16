@@ -33,6 +33,13 @@ public struct LinkLibrary: Equatable, Sendable {
         /// 핫 큐 글자(A~H). nil이면 메모리 큐
         public var hotCue: Character?
         public var colour: UInt8
+
+        public init(positionMs: UInt32, outMs: UInt32, hotCue: Character?, colour: UInt8) {
+            self.positionMs = positionMs
+            self.outMs = outMs
+            self.hotCue = hotCue
+            self.colour = colour
+        }
     }
 
     /// 재생 목록·폴더. 부모는 `playlists` 안의 순번(nil이면 맨 위)
@@ -41,6 +48,13 @@ public struct LinkLibrary: Equatable, Sendable {
         public var parent: Int?
         public var isFolder: Bool
         public var trackIDs: [UInt32]
+
+        public init(name: String, parent: Int? = nil, isFolder: Bool, trackIDs: [UInt32]) {
+            self.name = name
+            self.parent = parent
+            self.isFolder = isFolder
+            self.trackIDs = trackIDs
+        }
     }
 
     public private(set) var tracks: [Track] = []

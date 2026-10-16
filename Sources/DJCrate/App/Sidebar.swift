@@ -279,9 +279,6 @@ struct SidebarHistoryRow: View {
         if let id = archived.rekordboxHistoryID, history.historyIndex[id] != nil {
             return String(ui: "LINK로 라이브러리를 내어 주는 동안 CDJ가 남긴 기록입니다. rekordbox에 썼습니다")
         }
-        if LinkHistory.exceedsConfirmedShape(archived) {
-            return String(ui: "LINK로 라이브러리를 내어 주는 동안 CDJ가 남긴 기록입니다. 곡이 둘 이상인 LINK 기록은 rekordbox 쓰기 규칙을 아직 확인하지 않아 rekordbox에는 쓰지 않습니다")
-        }
         if HistoryWriteQueue.hasRepeatedTracks(archived) {
             return String(ui: "LINK로 라이브러리를 내어 주는 동안 CDJ가 남긴 기록입니다. 같은 곡이 두 번 이상 들어 rekordbox 재생 횟수 규칙을 확인하지 않아 rekordbox에는 쓰지 않습니다")
         }

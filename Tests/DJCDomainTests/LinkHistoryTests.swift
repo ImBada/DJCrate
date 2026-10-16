@@ -98,14 +98,13 @@ struct LinkHistoryTests {
         #expect(pending([]) == [history.id])
     }
 
-    @Test func 곡이_둘_이상인_LINK_기록은_rekordbox_실험_전에는_쓰기_대기에_올리지_않는다() {
+    @Test func 곡이_여럿인_LINK_기록도_쓰기_대기에_오른다() {
+        // 2026-10-16 rekordbox 실험(곡 세 개)과 사본 재현이 칸 단위로 맞았다(docs/rekordbox-internals.md "LINK 기록")
         let one = Self.record("10", existing: []).history
-        let two = Self.record("20", existing: [one]).history
-        #expect(!LinkHistory.exceedsConfirmedShape(one))
-        #expect(LinkHistory.exceedsConfirmedShape(two))
-        let view = UsbHistoryRules.view(histories: [], archived: [two], local: LocalLibraryKeys(localDBID: 100, tracks: [], counters: [:]),
+        let three = Self.record("30", existing: [Self.record("20", existing: [one]).history]).history
+        let view = UsbHistoryRules.view(histories: [], archived: [three], local: LocalLibraryKeys(localDBID: 100, tracks: [], counters: [:]),
                                         inCollection: { _ in true }, queueOpen: true, awaitingReload: [], calendar: Self.calendar)
-        #expect(view.pending.isEmpty)
+        #expect(view.pending.map(\.matchedContentIDs) == [["10", "20", "30"]])
     }
 
     @Test func 쓰지_않은_보존_기록은_rekordbox에_같은_이름이_있으면_rekordbox처럼_번호를_붙여_보인다() {

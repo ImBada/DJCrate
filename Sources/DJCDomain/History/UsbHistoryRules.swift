@@ -86,7 +86,7 @@ public enum UsbHistoryRules {
         let visible = archived.filter { !shadowed.contains($0.id) }
         let pending = !queueOpen || local == nil ? [] : HistoryWriteQueue.pending(
             validatedMarkers(archived, local: local, rekordbox: index, inCollection: inCollection), shadowed: shadowed,
-            rekordboxHistoryIDs: Set(index.keys).union(awaitingReload)).filter { !LinkHistory.isOpen($0, openSessions: openLinkSessions) && !LinkHistory.exceedsConfirmedShape($0) }
+            rekordboxHistoryIDs: Set(index.keys).union(awaitingReload)).filter { !LinkHistory.isOpen($0, openSessions: openLinkSessions) }
         // 이름은 쓰기 관문과 같은 차례로 매긴다(쓰기 대기 먼저, 쓴 표시가 무효가 되어 다시 대기에 오른 기록 포함)
         let pendingIDs = Set(pending.map(\.id))
         let others = visible.filter { $0.rekordboxHistoryID == nil && !pendingIDs.contains($0.id) }

@@ -2625,11 +2625,32 @@ DJCrate(`TrackArtwork`·`ArtworkJPEG`):
 - LINK 동안 rekordbox 라이브러리에 쓰지 않는다. USB 기록처럼 DJCrate에 보존한다. rekordbox에는 rekordbox에 쓰기 때 넣는다.
 - 이미 rekordbox에 쓴 기록에는 곡을 더하지 않는다. 그 뒤 곡은 새 기록 "… (1)"이 된다.
 - 곡이 여럿인 LINK 기록의 모양은 rekordbox가 예전에 만든 9곡 기록 "LINK HISTORY 2023-01-07"로 보았다. 스냅샷을 읽기만 했다. 항목 `TrackNo`는 1부터 차례였다. 항목 ID는 v4였다. USB 기록 쓰기와 같은 모양이다.
-- rekordbox가 곡을 넣을 때마다 기록 행의 `updated_at`을 고치는지는 보지 못했다. DJCrate는 USB 기록처럼 쓰는 순간의 시각을 둘 다에 적는다.
 - CDJ가 기록을 지우면 서버는 새 기록을 연다. DJCrate도 그때 새 보존 기록을 만든다. 세션 열쇠에 서버 기록 번호가 들기 때문이다.
-- 곡이 둘 이상인 LINK 기록은 쓰기 대기에 올리지 않는다(`LinkHistory.confirmedTrackLimit`). rekordbox 실험으로 곡마다 고치는 행을 확인한 뒤 연다.
 - 연결 중인 세션의 기록은 곡이 계속 붙으므로 쓰기 대기에 올리지 않는다. LINK를 끄면 올린다. 그래서 쓰는 사이 곡이 붙는 일이 없다.
 - 쓰지 않은 보존 기록의 이름은 보존본끼리 매긴다. USB 기록 숨김 판정이 그 이름을 쓴다. 화면에는 rekordbox에 쓰일 이름을 보인다(`HistoryNaming.displayNames`). 쓰기 관문처럼 rekordbox 기록 이름을 피해 " (n)"을 붙인다.
+
+### LINK 기록 여러 곡 (2026-10-16, rekordbox 7.2.x) [확인]
+
+**조건**
+
+- rekordbox를 PRO DJ Link로 CDJ-2000nexus 하나와 이었다.
+- CDJ에서 "ワンモアタイム", "Wondrous", "FRIENDS & SMILE"을 차례로 1분 넘게 틀었다. 같은 곡을 두 번 틀지는 않았다.
+- 실험 전후 스냅샷을 `djc lab db-diff`로 비교했다. 인증 표는 가렸다.
+
+**결과**
+
+- `djmdHistory` 한 행이 늘었다. 이름은 "LINK HISTORY 2026-10-16 (1)"이다. 같은 날 기록이 이미 있어 번호가 붙었다.
+- 기록 행의 `DateCreated`·`created_at`·`updated_at`은 첫 곡을 넣은 시각이다. 뒤 곡을 넣어도 기록 행은 고치지 않았다.
+- `djmdSongHistory` 세 행이 늘었다. `TrackNo` 1·2·3이고, 각 행의 시각은 그 곡을 넣은 시각이다.
+- 곡마다 `DJPlayCount` +1, `TrackInfoUpdated` +1이다.
+- 변경 번호는 곡마다 항목 → 곡 행 차례다. rekordbox는 그 사이에 빈 번호를 둔다.
+
+**DJCrate가 쓰는 것**
+
+- 이름이 "LINK HISTORY "로 시작하는 기록은 곡마다 항목 → 곡 행 차례로 번호를 받는다(`RekordboxWriter+History`). USB 기록은 그대로 항목을 모두 쓴 뒤 곡 행을 쓴다.
+- 시각은 USB 기록처럼 쓰는 순간이다. 기록 행의 `DateCreated`는 첫 곡을 기록한 시각이다.
+- 사본 재현: `djc lab history-repro`로 실험 전 사본에 같은 기록을 썼다. rekordbox 결과와 칸·변경 번호 차례가 모두 맞았다(차이 0). 번호 값과 시각은 비교하지 않는다.
+- 같은 곡을 두 번 튼 LINK 기록은 실험하지 않았다. USB 기록처럼 막아 둔다.
 
 ## ALAC 분석 파일 조사 (#8, 2026-09-26)
 

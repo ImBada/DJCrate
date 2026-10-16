@@ -139,7 +139,8 @@ struct LinkSessionTests {
         // 다시 켜면 차례가 바뀐다
         await session.disconnect()
         try await session.connect(rows: [Self.row("10")], playlists: PlaylistLayout(), shareRoot: "/share", peers: [Self.cdj2])
-        try #require(fake.history.withLock { $0 })(.added(1, history: 7))
+        let second = try #require(fake.history.withLock { $0 })
+        second(.added(1, history: 7))
         #expect(plays.withLock { $0.last } == LinkPlay(contentID: "10", linkID: 1, session: 3, history: 7))
     }
 

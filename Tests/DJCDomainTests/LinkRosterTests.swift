@@ -19,8 +19,10 @@ struct LinkRosterTests {
 
     @Test func 같은_알림이_되풀이되면_바뀌지_않았다고_한다() {
         var roster = LinkRoster()
-        #expect(roster.announce(Self.cdj1, at: Self.start))
-        #expect(!roster.announce(Self.cdj1, at: Self.start.addingTimeInterval(1.5)))
+        let changed1 = roster.announce(Self.cdj1, at: Self.start)
+        #expect(changed1)
+        let changed2 = roster.announce(Self.cdj1, at: Self.start.addingTimeInterval(1.5))
+        #expect(!changed2)
     }
 
     @Test func 같은_번호의_이름이나_주소가_바뀌면_바꾼다() {
@@ -28,7 +30,8 @@ struct LinkRosterTests {
         roster.announce(Self.cdj1, at: Self.start)
         var moved = Self.cdj1
         moved.address = "169.254.86.200"
-        #expect(roster.announce(moved, at: Self.start.addingTimeInterval(1)))
+        let changed3 = roster.announce(moved, at: Self.start.addingTimeInterval(1))
+        #expect(changed3)
         #expect(roster.devices == [moved])
     }
 
@@ -36,8 +39,10 @@ struct LinkRosterTests {
         var roster = LinkRoster()
         roster.announce(Self.cdj1, at: Self.start)
         roster.announce(Self.djm, at: Self.start.addingTimeInterval(5))
-        #expect(!roster.expire(now: Self.start.addingTimeInterval(10)))
-        #expect(roster.expire(now: Self.start.addingTimeInterval(10.5)))
+        let changed4 = roster.expire(now: Self.start.addingTimeInterval(10))
+        #expect(!changed4)
+        let changed5 = roster.expire(now: Self.start.addingTimeInterval(10.5))
+        #expect(changed5)
         #expect(roster.devices == [Self.djm])
     }
 
@@ -45,7 +50,8 @@ struct LinkRosterTests {
         var roster = LinkRoster()
         roster.announce(Self.cdj1, at: Self.start)
         roster.announce(Self.cdj1, at: Self.start.addingTimeInterval(9))
-        #expect(!roster.expire(now: Self.start.addingTimeInterval(15)))
+        let changed6 = roster.expire(now: Self.start.addingTimeInterval(15))
+        #expect(!changed6)
         #expect(roster.devices == [Self.cdj1])
     }
 

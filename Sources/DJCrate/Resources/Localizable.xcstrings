@@ -6055,22 +6055,6 @@
         }
       }
     },
-    "LINK로 라이브러리를 내어 주는 동안 CDJ가 남긴 기록입니다. 곡이 둘 이상인 LINK 기록은 rekordbox 쓰기 규칙을 아직 확인하지 않아 rekordbox에는 쓰지 않습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Left by a CDJ while DJCrate shared its library over LINK. The rekordbox write rule for LINK histories with two or more tracks isn't confirmed yet, so it isn't written to rekordbox"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "LINKでライブラリを共有している間にCDJが残した履歴です。曲が2つ以上のLINK履歴はrekordboxの書き込み規則をまだ確認していないため、rekordboxには書き込みません"
-          }
-        }
-      }
-    },
     "LINK로 라이브러리를 내어 주는 동안 CDJ가 남긴 기록입니다. 컬렉션 곡을 확인하지 못해 rekordbox에는 쓰지 않습니다" : {
       "localizations" : {
         "en" : {

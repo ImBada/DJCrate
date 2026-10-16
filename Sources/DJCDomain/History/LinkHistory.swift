@@ -62,15 +62,6 @@ public enum LinkHistory {
         existing.last { $0.source.isLink && $0.source.historyName == session && $0.rekordboxHistoryID == nil }
     }
 
-    /// rekordbox 실험으로 확인한 LINK 기록의 곡 수. 2026-10-16 곡 하나짜리만 전후 스냅샷으로 비교했다.
-    /// 곡이 여럿일 때 rekordbox가 곡 행·기록 행을 어떻게 고치는지 실험하기 전에는 그보다 긴 LINK 기록을 쓰기 대기에 올리지 않는다(SAFE-12·13)
-    public static let confirmedTrackLimit = 1
-
-    /// 확인한 범위를 넘어 rekordbox에 쓰지 않는 LINK 기록인지(DJCrate에는 보존한다)
-    public static func exceedsConfirmedShape(_ history: ArchivedHistory) -> Bool {
-        history.source.isLink && history.matchedContentIDs.count > confirmedTrackLimit
-    }
-
     /// 연결 중인 LINK 세션의 기록인지. 이 기록은 곡이 계속 붙으므로 rekordbox 쓰기 대기에 올리지 않는다
     /// (쓰는 사이 붙은 곡이 쓴 표시에 묻히지 않게). LINK를 끄면(앱을 다시 켜도) 세션이 닫혀 대기에 오른다
     public static func isOpen(_ history: ArchivedHistory, openSessions: Set<String>) -> Bool {
