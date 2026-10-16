@@ -4,7 +4,7 @@ import DJCDomain
 import Foundation
 import Testing
 
-/// 창 아래 LINK 막대(#272): 장치가 보일 때만 단추를 띄우고, 펼치면 장치를, rekordbox가 켜져 있으면 이유를 보인다.
+/// 창 아래 LINK 막대(#272): 장치가 보일 때만 단추를 띄우고, 펼치면 장치를 보이며 라이브러리를 내어 준다. rekordbox가 켜져 있으면 이유를 보인다.
 /// 장치 찾기 상태는 직접 넣는다(포트를 열지 않는다).
 @Suite("LINK 막대")
 @MainActor
@@ -90,6 +90,30 @@ struct LinkBarModelTests {
         #expect(model.acceptsDrop(Self.cdj1))
         #expect(model.connectionText != nil)
         #expect(notes.values.isEmpty)
+    }
+
+    @Test func LINK를_펼치면_내어_주고_접으면_내어_주기를_끈다() async throws {
+        let model = Self.connectable(notes: NotesBox())
+        model.apply(.listening([Self.cdj1]))
+        model.toggle()
+        #expect(model.isExpanded)
+        // 펼치기가 띄운 연결을 기다린다(안전망 300초, TEST-32)
+        let deadline = ContinuousClock.now.advanced(by: .seconds(300))
+        while !model.isConnected, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(2)) }
+        #expect(model.connection == .on(tracks: 1))
+        model.toggle()
+        #expect(!model.isExpanded)
+        while model.connection != .off, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(2)) }
+        #expect(model.connection == .off)
+        #expect(model.server == nil)
+    }
+
+    @Test func rekordbox가_켜져_있으면_펼쳐도_내어_주지_않는다() async {
+        let model = Self.connectable(notes: NotesBox())
+        model.apply(.blockedByRekordbox)
+        model.toggle()
+        #expect(model.isExpanded)
+        #expect(model.connection == .off)
     }
 
     @Test func 장치가_없으면_연결하지_않고_이유를_알린다() async {

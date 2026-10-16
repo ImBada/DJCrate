@@ -5901,22 +5901,6 @@
         }
       }
     },
-    "LINK 연결을 켠 뒤 곡을 놓으세요" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Turn on the LINK connection, then drop the track"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "LINK 接続をオンにしてから曲をドロップしてください"
-          }
-        }
-      }
-    },
     "LINK 일이 실패했습니다: %@" : {
       "localizations" : {
         "en" : {
@@ -5945,6 +5929,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "LINK ポートを開けませんでした(%@)。そのポートを使っているアプリを終了してからもう一度オンにしてください"
+          }
+        }
+      }
+    },
+    "LINK를 누른 뒤 곡을 놓으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press LINK, then drop the track"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LINK を押してから曲をドロップしてください"
           }
         }
       }
@@ -21267,22 +21267,6 @@
         }
       }
     },
-    "네트워크의 Pro DJ Link 장치를 보입니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shows Pro DJ Link devices on the network"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ネットワーク上の Pro DJ Link 機器を表示します"
-          }
-        }
-      }
-    },
     "누르거나 끌어서 재생선을 옮깁니다. 스페이스바로 재생합니다" : {
       "localizations" : {
         "en" : {
@@ -21311,6 +21295,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "クリックしてから新しいキーを押すと変更します（右クリック：削除）"
+          }
+        }
+      }
+    },
+    "누르면 네트워크의 Pro DJ Link 장치를 보이고 DJCrate 라이브러리를 CDJ에 내어 줍니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows Pro DJ Link devices on the network and shares the DJCrate library with CDJs"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "押すとネットワーク上の Pro DJ Link 機器を表示し、DJCrate ライブラリを CDJ に共有します"
           }
         }
       }
@@ -23301,22 +23301,6 @@
         }
       }
     },
-    "라이브러리 내어 주기" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Share Library"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ライブラリを共有"
-          }
-        }
-      }
-    },
     "라이브러리 대부분의 곡보다 세게 들립니다" : {
       "localizations" : {
         "en" : {
@@ -23717,18 +23701,18 @@
         }
       }
     },
-    "라이브러리를 읽은 뒤 LINK 연결을 켜세요" : {
+    "라이브러리를 읽은 뒤 LINK를 다시 누르세요" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Turn on the LINK connection after the library has loaded"
+            "value" : "Press LINK again after the library has loaded"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ライブラリを読み込んでから LINK 接続をオンにしてください"
+            "value" : "ライブラリを読み込んでから、もう一度 LINK を押してください"
           }
         }
       }
@@ -44147,22 +44131,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "コレクションから削除する曲：%@"
-          }
-        }
-      }
-    },
-    "켜면 CDJ의 LINK 화면에서 DJCrate 라이브러리를 고르고, 곡을 플레이어 칸에 놓아 실을 수 있습니다" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "When on, CDJs can browse the DJCrate library over LINK, and you can drop tracks onto a player"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "オンにすると CDJ の LINK 画面で DJCrate ライブラリを選べ、曲をプレーヤーにドロップしてロードできます"
           }
         }
       }

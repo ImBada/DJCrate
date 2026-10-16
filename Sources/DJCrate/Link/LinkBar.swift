@@ -4,7 +4,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// 창 아래 LINK 막대(#272). 네트워크에 Pro DJ Link 장치가 보이면 왼쪽에 LINK 단추가 뜨고, 누르면 오른쪽에 장치를 늘어놓는다.
-/// 연결을 켜면 DJCrate 라이브러리를 CDJ에 내어 주고(#273), 곡 목록의 곡을 플레이어 칸에 놓으면 그 플레이어에 싣는다(#274).
+/// 펼친 동안 DJCrate 라이브러리를 CDJ에 내어 주고(#273), 곡 목록의 곡을 플레이어 칸에 놓으면 그 플레이어에 싣는다(#274).
 /// 장치가 없으면 아무것도 그리지 않아 창 높이를 차지하지 않는다. 이 막대만 모델을 읽어 장치가 바뀌어도 본문을 다시 계산하지 않는다.
 struct LinkBar: View {
     let model: LinkBarModel
@@ -15,9 +15,12 @@ struct LinkBar: View {
                 Divider()
                 HStack(spacing: 10) {
                     LinkToggle(isOn: model.isExpanded, blockReason: model.blockReason, toggle: { model.toggle() })
-                    if model.isExpanded, model.blockReason == nil {
-                        LinkConnectButton(connection: model.connection, text: model.connectionText,
-                                          toggle: { model.toggleConnection() })
+                    if model.isExpanded, model.blockReason == nil, let text = model.connectionText {
+                        Text(verbatim: text)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .fixedSize()
                     }
                     if model.showsDevices {
                         ScrollView(.horizontal) {
@@ -67,39 +70,13 @@ private struct LinkToggle: View {
         }
         .buttonStyle(.plain)
         .opacity(blockReason == nil ? 1 : 0.5)
-        .help(blockReason ?? String(ui: "네트워크의 Pro DJ Link 장치를 보입니다"))
+        .help(blockReason ?? String(ui: "누르면 네트워크의 Pro DJ Link 장치를 보이고 DJCrate 라이브러리를 CDJ에 내어 줍니다"))
         .accessibilityLabel(Text(.ui("LINK")))
         .accessibilityValue(blockReason ?? (isOn ? String(ui: "펼침") : String(ui: "접힘")))
     }
 }
 
-/// 연결 단추: 켜면 DJCrate 라이브러리를 CDJ에 내어 준다(네트워크에 참여한다)
-private struct LinkConnectButton: View {
-    let connection: LinkBarModel.Connection
-    let text: String?
-    let toggle: () -> Void
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Toggle(isOn: Binding(get: { connection != .off }, set: { _ in toggle() })) {
-                Text(.ui("라이브러리 내어 주기"))
-            }
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            .disabled(connection == .connecting)
-            .help(String(ui: "켜면 CDJ의 LINK 화면에서 DJCrate 라이브러리를 고르고, 곡을 플레이어 칸에 놓아 실을 수 있습니다"))
-            if let text {
-                Text(verbatim: text)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-        }
-        .fixedSize()
-    }
-}
-
-/// 장치 하나. 덱이 있는 장치(플레이어)는 번호를 크게 보이고, 연결을 켰으면 곡을 놓을 자리가 된다(#274).
+/// 장치 하나. 덱이 있는 장치(플레이어)는 번호를 크게 보이고, 내어 주는 동안 곡을 놓을 자리가 된다(#274).
 struct LinkDeviceTile: View {
     let device: LinkDevice
     /// DJCrate 라이브러리를 마운트했는지(곡을 실을 수 있는지)

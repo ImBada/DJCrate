@@ -4,8 +4,8 @@ import Foundation
 import Observation
 
 /// 창 아래 LINK 막대의 화면 모델(#272·#273·#274). 장치 찾기(`LinkDiscovery`)의 상태를 들고, LINK 단추로 장치 목록을 펼치고 접는다.
-/// 사용자가 연결을 켜면 라이브러리를 CDJ에 내어 주고(`LinkSession`), 플레이어 칸에 놓은 곡을 그 플레이어에 싣는다.
-/// 조립 지점(`AppComposition`)이 한 번 만든다. 찾기는 받기만 하고, 보내는 일은 연결을 켰을 때만 한다(LNK-1·LNK-2).
+/// LINK 단추로 펼치면 라이브러리를 CDJ에 내어 주고(`LinkSession`), 플레이어 칸에 놓은 곡을 그 플레이어에 싣는다.
+/// 조립 지점(`AppComposition`)이 한 번 만든다. 찾기는 받기만 하고, 보내는 일은 LINK를 펼쳤을 때만 한다(LNK-1·LNK-2).
 @MainActor
 @Observable
 final class LinkBarModel {
@@ -24,8 +24,8 @@ final class LinkBarModel {
     }
 
     private(set) var state: LinkDiscoveryState = .idle
-    /// 장치 목록을 펼쳤는지(rekordbox처럼 LINK 단추로 연다)
-    var isExpanded = false
+    /// 장치 목록을 펼쳤는지(rekordbox처럼 LINK 단추로 연다). 펼친 동안 라이브러리를 내어 준다
+    private(set) var isExpanded = false
     private(set) var connection: Connection = .off
     /// 켠 서버의 상태(참여 번호·마운트한 장치). 꺼져 있으면 nil
     private(set) var server: LinkServerStatus?
@@ -93,23 +93,22 @@ final class LinkBarModel {
     /// 곡을 놓을 수 있는 칸: 연결을 켰고 덱이 있는 장치
     func acceptsDrop(_ device: LinkDevice) -> Bool { isConnected && device.hasDeck }
 
+    /// LINK 단추: 펼치면서 라이브러리를 내어 주고, 접으면서 내어 주기를 끈다(rekordbox의 LINK 단추처럼).
+    /// rekordbox 때문에 막혔으면 펼쳐 이유만 보인다
     func toggle() {
-        isExpanded.toggle()
-    }
-
-    /// 연결 단추: 꺼져 있으면 켜고, 켜져 있으면 끈다
-    func toggleConnection() {
-        switch connection {
-        case .off: Task { await connect() }
-        case .on: Task { await disconnect() }
-        case .connecting: break
+        if isExpanded {
+            isExpanded = false
+            Task { await disconnect() }
+        } else {
+            isExpanded = true
+            if blockReason == nil { Task { await connect() } }
         }
     }
 
     func connect() async {
         guard connection == .off else { return }
         guard let input = library() else {
-            notify(String(ui: "라이브러리를 읽은 뒤 LINK 연결을 켜세요"), .warning)
+            notify(String(ui: "라이브러리를 읽은 뒤 LINK를 다시 누르세요"), .warning)
             return
         }
         connection = .connecting
@@ -193,7 +192,7 @@ enum LinkText {
         case .noDevice: String(ui: "네트워크에 CDJ가 보이지 않습니다. CDJ를 같은 네트워크에 연결한 뒤 켜세요")
         case .noInterface: String(ui: "CDJ로 가는 네트워크 연결을 찾지 못했습니다. 케이블·네트워크 설정을 확인한 뒤 다시 켜세요")
         case let .portInUse(why): String(ui: "LINK 포트를 열지 못했습니다(\(why)). 그 포트를 쓰는 앱을 끈 뒤 다시 켜세요")
-        case .notConnected: String(ui: "LINK 연결을 켠 뒤 곡을 놓으세요")
+        case .notConnected: String(ui: "LINK를 누른 뒤 곡을 놓으세요")
         case .notJoined: String(ui: "아직 LINK에 참여하는 중입니다. 잠시 뒤 다시 놓으세요")
         case .trackNotShared: String(ui: "이 곡은 LINK로 내어 주지 않습니다. rekordbox 컬렉션에 있고 파일이 있는 MP3·WAV·AIFF·M4A·FLAC 곡만 실을 수 있습니다")
         case let .playerMissing(number): String(ui: "\(number)번 플레이어가 네트워크에 없습니다. 플레이어를 확인한 뒤 다시 놓으세요")

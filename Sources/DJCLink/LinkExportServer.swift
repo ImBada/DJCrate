@@ -111,7 +111,7 @@ public enum LinkExportError: Error, Equatable, Sendable {
 }
 
 /// DJCrate 라이브러리를 rekordbox처럼 CDJ에 내어 주는 서버(DJLinkKit `DJLinkExport`, #273).
-/// 알림·상태를 보내고 dbserver·NFS를 연다. 음원·분석 파일은 읽기만 한다. 사용자가 LINK 연결을 켰을 때만 만든다(LNK-2).
+/// 알림·상태를 보내고 dbserver·NFS를 연다. 음원·분석 파일은 읽기만 한다. 사용자가 LINK 단추로 막대를 펼쳤을 때만 만든다(LNK-2).
 public final class LinkExportServer: Sendable {
     private let export: LinkExport
 
