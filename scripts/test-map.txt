@@ -165,10 +165,20 @@ suite DJCrateTests.SidebarObservationTests
 suite DJCrateTests.LayoutRecomputeTests
 require 관찰 범위를 바꿨으면 DJC_LAYOUT_RECOMPUTE_TESTS=1 scripts/check.sh --quick --filter LayoutRecomputeTests
 
-# Pro DJ Link 인프라(DJLinkKit을 감싼다, #268). 시험이 작아 DJCLinkTests 전체를 돈다(내부 도우미 타입은 기호 grep에 걸리지 않는다).
+# Pro DJ Link(DJLinkKit을 감싼다, #268·#272). 시험이 작아 DJCLinkTests 전체와 층마다의 LINK 시험을 함께 돈다
+# (내부 도우미 타입은 기호 grep에 걸리지 않는다).
 group link
 when Sources/DJCLink/**
+when Sources/DJCDomain/Link/**
+when Sources/DJCApplication/Link/**
+when Sources/DJCAdapters/Link/**
+when Sources/DJCrate/Link/**
 target DJCLinkTests
+suite DJCDomainTests.LinkRosterTests
+suite DJCDomainTests.LinkLibraryTests
+suite DJCApplicationTests.LinkSessionTests
+suite DJCApplicationTests.LinkDiscoveryTests
+suite DJCrateTests.LinkBarModelTests
 
 # 번역 카탈로그·화면 문구 검사 도구
 group localization

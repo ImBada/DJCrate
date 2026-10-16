@@ -3101,6 +3101,60 @@
         }
       }
     },
+    "%lld번 플레이어가 네트워크에 없습니다. 플레이어를 확인한 뒤 다시 놓으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Player %lld is not on the network. Check the player, then drop the track again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレーヤー %lld がネットワークにいません。プレーヤーを確認してからもう一度ドロップしてください"
+          }
+        }
+      }
+    },
+    "%lld번 플레이어가 아직 DJCrate 라이브러리를 열지 않았습니다. 잠시 뒤 다시 놓으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Player %lld hasn't opened the DJCrate library yet. Wait a moment, then drop the track again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレーヤー %lld はまだ DJCrate ライブラリを開いていません。少し待ってからもう一度ドロップしてください"
+          }
+        }
+      }
+    },
+    "%lld번으로 참여 · 곡 %lld개" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Joined as %lld · %lld tracks"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 番で参加 · %lld 曲"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld번으로 참여 · 곡 %2$lld개"
+          }
+        }
+      }
+    },
     "%lld번째 · %@" : {
       "localizations" : {
         "en" : {
@@ -4395,6 +4449,22 @@
         }
       }
     },
+    "CDJ로 가는 네트워크 연결을 찾지 못했습니다. 케이블·네트워크 설정을 확인한 뒤 다시 켜세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't find a network connection to the CDJs. Check the cable and network settings, then turn it on again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CDJ へのネットワーク接続が見つかりません。ケーブルとネットワーク設定を確認してからもう一度オンにしてください"
+          }
+        }
+      }
+    },
     "CDJ에서 확인하지 않은 항목 %lld개:" : {
       "localizations" : {
         "en" : {
@@ -4717,6 +4787,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "DJCrateデータフォルダのusb-historiesを確認してから、USBを接続し直してください"
+          }
+        }
+      }
+    },
+    "DJCrate 라이브러리를 열었습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opened the DJCrate library"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrate ライブラリを開きました"
           }
         }
       }
@@ -5779,6 +5865,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "JPEG・PNG以外のアルバムアートはrekordboxで未確認です。JPEGかPNGのアルバムアートを選んでください"
+          }
+        }
+      }
+    },
+    "LINK" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LINK"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LINK"
+          }
+        }
+      }
+    },
+    "LINK 연결을 껐습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turned off the LINK connection"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LINK 接続をオフにしました"
+          }
+        }
+      }
+    },
+    "LINK 연결을 켠 뒤 곡을 놓으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn on the LINK connection, then drop the track"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LINK 接続をオンにしてから曲をドロップしてください"
+          }
+        }
+      }
+    },
+    "LINK 일이 실패했습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LINK failed: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LINK の処理に失敗しました: %@"
+          }
+        }
+      }
+    },
+    "LINK 포트를 열지 못했습니다(%@). 그 포트를 쓰는 앱을 끈 뒤 다시 켜세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't open the LINK ports (%@). Quit the app using them, then turn it on again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LINK ポートを開けませんでした(%@)。そのポートを使っているアプリを終了してからもう一度オンにしてください"
           }
         }
       }
@@ -12231,6 +12397,22 @@
         }
       }
     },
+    "rekordbox가 같은 LINK 포트를 쓰고 있습니다. rekordbox를 끈 뒤 쓰세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox is using the same LINK ports. Quit rekordbox, then try again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox が同じ LINK ポートを使っています。rekordbox を終了してから使ってください"
+          }
+        }
+      }
+    },
     "rekordbox가 꺼져 있고 라이브러리가 바뀌었을 때 뒤에서 조용히 남깁니다." : {
       "localizations" : {
         "en" : {
@@ -12403,6 +12585,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "rekordboxが正常に終了しなかったようです（WALファイルが残っています）。rekordboxを一度起動して終了してから、もう一度お試しください"
+          }
+        }
+      }
+    },
+    "rekordbox가 켜져 LINK 연결을 껐습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox started, so the LINK connection was turned off"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rekordbox が起動したため LINK 接続をオフにしました"
           }
         }
       }
@@ -21053,6 +21251,38 @@
         }
       }
     },
+    "네트워크에 CDJ가 보이지 않습니다. CDJ를 같은 네트워크에 연결한 뒤 켜세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No CDJs are visible on the network. Connect a CDJ to the same network, then turn it on"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ネットワークに CDJ が見つかりません。CDJ を同じネットワークに接続してからオンにしてください"
+          }
+        }
+      }
+    },
+    "네트워크의 Pro DJ Link 장치를 보입니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows Pro DJ Link devices on the network"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ネットワーク上の Pro DJ Link 機器を表示します"
+          }
+        }
+      }
+    },
     "누르거나 끌어서 재생선을 옮깁니다. 스페이스바로 재생합니다" : {
       "localizations" : {
         "en" : {
@@ -23071,6 +23301,22 @@
         }
       }
     },
+    "라이브러리 내어 주기" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share Library"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリを共有"
+          }
+        }
+      }
+    },
     "라이브러리 대부분의 곡보다 세게 들립니다" : {
       "localizations" : {
         "en" : {
@@ -23467,6 +23713,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "先にライブラリを読み込んでから、エクスポートしてください。"
+          }
+        }
+      }
+    },
+    "라이브러리를 읽은 뒤 LINK 연결을 켜세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn on the LINK connection after the library has loaded"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリを読み込んでから LINK 接続をオンにしてください"
           }
         }
       }
@@ -32773,6 +33035,22 @@
         }
       }
     },
+    "아직 LINK에 참여하는 중입니다. 잠시 뒤 다시 놓으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Still joining LINK. Wait a moment, then drop the track again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだ LINK に参加中です。少し待ってからもう一度ドロップしてください"
+          }
+        }
+      }
+    },
     "아직 rekordbox 컬렉션에 넣지 않은 곡이라 USB에 넣지 않았습니다. rekordbox에 쓴 뒤 다시 동기화하세요" : {
       "localizations" : {
         "en" : {
@@ -34523,6 +34801,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "接続されたUSBはありません"
+          }
+        }
+      }
+    },
+    "연결하는 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecting…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接続中…"
           }
         }
       }
@@ -36623,6 +36917,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "この曲では候補を表示しなくなります"
+          }
+        }
+      }
+    },
+    "이 곡은 LINK로 내어 주지 않습니다. rekordbox 컬렉션에 있고 파일이 있는 MP3·WAV·AIFF·M4A·FLAC 곡만 실을 수 있습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This track isn't shared over LINK. Only MP3, WAV, AIFF, M4A, or FLAC tracks in the rekordbox collection whose files exist can be loaded"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この曲は LINK で共有されません。rekordbox コレクションにありファイルがある MP3・WAV・AIFF・M4A・FLAC の曲だけをロードできます"
           }
         }
       }
@@ -42331,6 +42641,38 @@
         }
       }
     },
+    "참여하는 중…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Joining…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "参加中…"
+          }
+        }
+      }
+    },
+    "참여하지 못했습니다: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't join: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "参加できませんでした: %@"
+          }
+        }
+      }
+    },
     "찾기" : {
       "localizations" : {
         "en" : {
@@ -43805,6 +44147,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "コレクションから削除する曲：%@"
+          }
+        }
+      }
+    },
+    "켜면 CDJ의 LINK 화면에서 DJCrate 라이브러리를 고르고, 곡을 플레이어 칸에 놓아 실을 수 있습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When on, CDJs can browse the DJCrate library over LINK, and you can drop tracks onto a player"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オンにすると CDJ の LINK 画面で DJCrate ライブラリを選べ、曲をプレーヤーにドロップしてロードできます"
           }
         }
       }

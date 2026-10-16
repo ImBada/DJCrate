@@ -67,14 +67,18 @@ let package = Package(
         // 소리 분석: 파형·그리드 추정·조성·음량·섹션
         .target(name: "DJCAnalysis", dependencies: ["DJCDomain", "DJCEnvironment"], swiftSettings: swiftSettings),
         // Pro DJ Link(CDJ·DJM 네트워크): DJLinkKit을 import하는 유일한 모듈(scripts/check-imports.py). DJLinkKit 타입을 공개 API에 내지 않는다.
-        // 아직 어댑터·앱·CLI에 잇지 않았다.
-        .target(name: "DJCLink", dependencies: [.product(name: "DJLinkKit", package: "DJLinkKit")], swiftSettings: swiftSettings),
+        // 어댑터(DJCAdapters/Link)만 부른다.
+        .target(
+            name: "DJCLink",
+            dependencies: [.product(name: "DJLinkKit", package: "DJLinkKit"), .product(name: "DJLinkExport", package: "DJLinkKit")],
+            swiftSettings: swiftSettings
+        ),
         // 기능별(Library·Deck·Edit·Reflection·Usb) 유스케이스와 포트. DJCStorage는 모르고, 환경(DJCEnvironment)·Mac 파일 시스템은 포트로 받는다(남은 예외는 docs/architecture.md 경계 규칙).
         .target(name: "DJCApplication", dependencies: ["DJCDomain"], swiftSettings: swiftSettings),
         // 피동 어댑터: DJCApplication 포트의 실제 구현(.live) 한 벌. 인프라를 부르기만 하고 쓰기 관문의 위치·동작은 그대로 둔다.
         .target(
             name: "DJCAdapters",
-            dependencies: ["DJCApplication", "DJCDomain", "RekordboxKit", "DJCStorage", "DJCAnalysis", "DJCEnvironment"],
+            dependencies: ["DJCApplication", "DJCDomain", "RekordboxKit", "DJCStorage", "DJCAnalysis", "DJCEnvironment", "DJCLink"],
             swiftSettings: swiftSettings
         ),
         // 명령줄 도구 본체. 라이브러리로 두어 실행 파일과 테스트가 컴파일 결과를 함께 쓴다.

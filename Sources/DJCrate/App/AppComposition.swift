@@ -42,12 +42,15 @@ final class AppComposition {
     let updates: UpdateSettingsModel
     /// Sparkle 연결. 배포 앱 번들에서만 있다(개발 빌드·화면 시험은 nil)
     private let updater: AppUpdater?
+    /// 창 아래 LINK 막대 화면 모델(#272). 실제 앱만 장치 알림을 받는다. 화면 시험·자가 테스트·측정 실행은 nil이다(네트워크 포트를 열지 않게)
+    let link: LinkBarModel?
     /// 덱 단축키(창이 처음 나타날 때 붙인다)
     let keys = KeyRouter()
     private var connected = false
 
     init(settings: SettingsStore, store: LibraryStore, deck: DeckModel, windows: AppWindows, reflection: ReflectionCoordinator,
-         agentTools: AgentToolsSettingsModel? = nil, agentNoticeEnabled: Bool = false, updater: AppUpdater? = nil) {
+         agentTools: AgentToolsSettingsModel? = nil, agentNoticeEnabled: Bool = false, updater: AppUpdater? = nil, link: LinkBarModel? = nil) {
+        self.link = link
         self.settings = settings
         self.updater = updater
         updates = UpdateSettingsModel(updater: updater, version: .of(.main))
@@ -107,7 +110,22 @@ final class AppComposition {
                                       announce: { [weak store] in store?.toast = .notice($0, nil) })
         return AppComposition(settings: settings, store: store, deck: deck, windows: AppWindows(), reflection: reflection(store: store),
                               agentTools: agentTools(arguments: info.arguments, settings: settings), agentNoticeEnabled: notice,
-                              updater: updater)
+                              updater: updater, link: DiagnosticRun.isActive(arguments: info.arguments) ? nil : linkBar(store: store))
+    }
+
+    /// LINK 막대(#272·#273): 실제 알림 포트(받기만 한다)와 사용자가 켤 때만 띄우는 Link Export 서버.
+    /// 내어 줄 라이브러리는 저장소가 읽은 rekordbox 컬렉션·재생 목록이고, 분석 파일은 저장소의 share 뿌리에서 읽기만 한다.
+    /// 포트 실패는 표준 오류에만 남기고, 연결·싣기 실패는 알림으로 보인다
+    static func linkBar(store: LibraryStore) -> LinkBarModel {
+        LinkBarModel(
+            discovery: LinkDiscovery(source: .live, log: { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }),
+            session: LinkSession(source: .live()),
+            library: { [weak store] in
+                guard let store, case .loaded = store.phase else { return nil }
+                return LinkBarModel.LibraryInput(rows: store.rows, playlists: store.playlists.rekordboxPlaylists,
+                                                 shareRoot: store.shareRoot.path)
+            },
+            notify: { [weak store] text, kind in store?.toast = .notice(text, nil, kind: kind) })
     }
 
     /// AI 에이전트 설치(#262): 재료는 이 앱 번들 안(`Contents/Resources/skills/djcrate`·`Contents/Helpers/djc`), 설치 자리의 뿌리는 사용자 홈.

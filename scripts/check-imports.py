@@ -43,7 +43,7 @@ DEBT = ROOT / "scripts/import-debt.txt"
 # 프로젝트 모듈 전부(이 밖의 import는 시스템·외부 모듈이라 보지 않는다). SQLCipher도 이 저장소가 고른 의존이라 본다.
 INFRA = {"RekordboxKit", "DJCStorage", "DJCAnalysis", "DJCEnvironment", "DJCLink"}
 # DJLinkKit 패키지(Pro DJ Link, #268)의 제품. DJCLink만 import한다(외부 패키지 타입과 네트워크 코드가 다른 모듈로 번지지 않게).
-DJLINK_MODULES = {"DJLinkKit", "DJLinkControl", "DJLinkPassive", "DJLinkExport"}
+DJLINK_MODULES = {"DJLinkKit", "DJLinkControl", "DJLinkPassive", "DJLinkExport", "DJLinkExportModel", "DJLinkExportProtocol"}
 CORE = {"DJCDomain", "DJCApplication"}
 EVERYTHING_BELOW_APP = CORE | INFRA | {"DJCAdapters"}
 TEST_KITS = {"DJCTestKit", "RekordboxFixtures"}
@@ -56,7 +56,8 @@ ALLOWED = {
     "RekordboxKit": {"DJCDomain", "DJCEnvironment", "SQLCipher"},
     "DJCStorage": {"DJCDomain", "DJCEnvironment", "RekordboxKit"},
     "DJCAnalysis": {"DJCDomain", "DJCEnvironment"},
-    "DJCLink": {"DJLinkKit"},
+    # DJLinkExportModel·DJLinkExportProtocol은 제품이 아니지만 DJLinkExport가 쓰는 형(`Library`·`Cue`·`LinkAddress`)이 거기 있다(#273)
+    "DJCLink": {"DJLinkKit", "DJLinkExport", "DJLinkExportModel", "DJLinkExportProtocol"},
     "DJCAdapters": EVERYTHING_BELOW_APP - {"DJCAdapters"},
     # 앱·CLI의 화면 모델·뷰·명령은 유스케이스와 도메인만. 조립 지점·자가 테스트·실험 명령은 아래 FILE_EXCEPTIONS.
     "DJCrate": {"DJCApplication", "DJCDomain"},
