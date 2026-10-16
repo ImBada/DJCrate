@@ -3133,28 +3133,6 @@
         }
       }
     },
-    "%lld번으로 참여 · 곡 %lld개" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Joined as %lld · %lld tracks"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 番で参加 · %lld 曲"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld번으로 참여 · 곡 %2$lld개"
-          }
-        }
-      }
-    },
     "%lld번째 · %@" : {
       "localizations" : {
         "en" : {
@@ -5949,6 +5927,22 @@
         }
       }
     },
+    "MASTER" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MASTER"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MASTER"
+          }
+        }
+      }
+    },
     "MBR이나 GPT 파티션이 아닌 USB에는 쓸 수 없습니다. 디스크 유틸리티에서 MBR로 포맷한 뒤 다시 시도하세요" : {
       "localizations" : {
         "en" : {
@@ -6447,6 +6441,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "PWAVのヘッダーが短すぎます"
+          }
+        }
+      }
+    },
+    "SYNC" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SYNC"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SYNC"
           }
         }
       }
@@ -17231,6 +17241,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld曲・プレイリスト%lld件・新しいアルバムアートファイル%lld個"
+          }
+        }
+      }
+    },
+    "곡 %lld개 내어 주는 중" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sharing tracks: %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld曲を共有中"
           }
         }
       }
@@ -40715,6 +40741,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再生位置に最も近い候補をメモリーキューとして受け入れる"
+          }
+        }
+      }
+    },
+    "재생 중" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "playing"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再生中"
           }
         }
       }

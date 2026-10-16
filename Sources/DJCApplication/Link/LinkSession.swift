@@ -9,11 +9,37 @@ public struct LinkServerStatus: Equatable, Sendable {
     public var down: String?
     /// 라이브러리를 마운트한 장치의 주소
     public var mounted: Set<String>
+    /// 플레이어 번호별 재생 상태
+    public var players: [Int: LinkPlayerState]
 
-    public init(deviceNumber: Int? = nil, down: String? = nil, mounted: Set<String> = []) {
+    public init(deviceNumber: Int? = nil, down: String? = nil, mounted: Set<String> = [], players: [Int: LinkPlayerState] = [:]) {
         self.deviceNumber = deviceNumber
         self.down = down
         self.mounted = mounted
+        self.players = players
+    }
+}
+
+/// 플레이어 하나의 재생 상태(LINK 막대의 간단한 표시)
+public struct LinkPlayerState: Equatable, Sendable {
+    public var isPlaying: Bool
+    public var isMaster: Bool
+    public var isSync: Bool
+    /// 내어 준 곡을 실었으면 그 번호. 다른 곳(USB 등)의 곡이면 nil
+    public var loadedTrackID: UInt32?
+    /// 실은 곡 제목. 연결(`LinkSession.status`)이 내어 준 곡에서 찾아 채운다
+    public var title: String?
+    /// 피치를 반영한 BPM. 모르면 nil
+    public var bpm: Double?
+
+    public init(isPlaying: Bool = false, isMaster: Bool = false, isSync: Bool = false, loadedTrackID: UInt32? = nil,
+                title: String? = nil, bpm: Double? = nil) {
+        self.isPlaying = isPlaying
+        self.isMaster = isMaster
+        self.isSync = isSync
+        self.loadedTrackID = loadedTrackID
+        self.title = title
+        self.bpm = bpm
     }
 }
 
@@ -112,9 +138,14 @@ public actor LinkSession {
         await source.stop()
     }
 
+    /// 서버 상태. 플레이어가 실은 곡은 내어 준 곡에서 제목을 찾아 채운다
     public func status() async -> LinkServerStatus? {
-        guard library != nil else { return nil }
-        return await source.status()
+        // 기다리는 사이 껐거나 다시 켰으면 지금 라이브러리로 찾는다
+        guard library != nil, var status = await source.status(), let library else { return nil }
+        for (number, player) in status.players {
+            status.players[number]?.title = player.loadedTrackID.flatMap(library.title(ofLinkID:))
+        }
+        return status
     }
 
     /// rekordbox 곡(`contentID`)을 플레이어에 싣는다

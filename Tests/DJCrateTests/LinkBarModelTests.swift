@@ -53,6 +53,20 @@ struct LinkBarModelTests {
         #expect(!model.showsDevices)
     }
 
+    @Test func 플레이어는_반씩_믹서_양쪽에_두고_그_밖의_장치는_오른쪽_끝에_둔다() {
+        func device(_ number: Int, _ kind: LinkDevice.Kind) -> LinkDevice {
+            LinkDevice(number: number, name: "\(number)", kind: kind, address: "169.254.0.\(number)")
+        }
+        let devices = [device(33, .mixer), device(4, .player), device(1, .player), device(3, .player), device(2, .player),
+                       device(18, .rekordbox)]
+        let arrangement = LinkArrangement(devices)
+        #expect(arrangement.left.map(\.number) == [1, 2])
+        #expect(arrangement.mixers.map(\.number) == [33])
+        #expect(arrangement.right.map(\.number) == [3, 4, 18])
+        // 홀수면 왼쪽이 하나 더 많다
+        #expect(LinkArrangement([device(2, .player), device(1, .player), device(3, .player)]).left.map(\.number) == [1, 2])
+    }
+
     // MARK: - 연결(#273·#274)
 
     static let own = LinkDevice(number: 17, name: "DJCrate", kind: .rekordbox, address: "169.254.1.2")

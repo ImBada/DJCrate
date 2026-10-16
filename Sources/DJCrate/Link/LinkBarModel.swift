@@ -71,14 +71,14 @@ final class LinkBarModel {
 
     var isConnected: Bool { if case .on = connection { true } else { false } }
 
-    /// 연결 단추 옆 글: 참여 번호·내어 준 곡 수
+    /// LINK 단추 옆 글: 내어 준 곡 수. 참여 번호는 단추에 보인다
     var connectionText: String? {
         switch connection {
         case .off: nil
         case .connecting: String(ui: "연결하는 중…")
         case let .on(tracks):
-            if let number = server?.deviceNumber {
-                String(ui: "\(number)번으로 참여 · 곡 \(tracks)개")
+            if server?.deviceNumber != nil {
+                String(ui: "곡 \(tracks)개 내어 주는 중")
             } else if let down = server?.down {
                 String(ui: "참여하지 못했습니다: \(down)")
             } else {
@@ -86,6 +86,12 @@ final class LinkBarModel {
             }
         }
     }
+
+    /// 막대 가운데에 늘어놓을 차례: rekordbox처럼 플레이어를 반씩 믹서 양쪽에 둔다(1·2 | 믹서 | 3·4). 그 밖의 장치는 오른쪽 끝에 둔다
+    var arrangement: LinkArrangement { LinkArrangement(devices) }
+
+    /// 그 플레이어의 재생 상태(서버를 켰을 때만 안다)
+    func player(_ device: LinkDevice) -> LinkPlayerState? { server?.players[device.number] }
 
     /// 그 장치가 DJCrate 라이브러리를 마운트했는지(곡을 실을 수 있는지)
     func isMounted(_ device: LinkDevice) -> Bool { server?.mounted.contains(device.address) ?? false }
@@ -181,6 +187,21 @@ final class LinkBarModel {
         guard isConnected else { return }
         let status = await session.status()
         if isConnected { server = status }
+    }
+}
+
+/// LINK 막대 가운데의 장치 차례
+struct LinkArrangement: Equatable {
+    var left: [LinkDevice]
+    var mixers: [LinkDevice]
+    var right: [LinkDevice]
+
+    init(_ devices: [LinkDevice]) {
+        let players = devices.filter(\.hasDeck).sorted { $0.number < $1.number }
+        let half = (players.count + 1) / 2
+        left = Array(players.prefix(half))
+        mixers = devices.filter { $0.kind == .mixer }.sorted { $0.number < $1.number }
+        right = Array(players.dropFirst(half)) + devices.filter { !$0.hasDeck && $0.kind != .mixer }.sorted { $0.number < $1.number }
     }
 }
 

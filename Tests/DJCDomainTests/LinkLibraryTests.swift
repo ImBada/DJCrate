@@ -40,6 +40,14 @@ struct LinkLibraryTests {
         #expect(library.linkID(of: "13") == nil)
     }
 
+    @Test func CDJ_번호로_곡_제목을_찾는다() {
+        let library = LinkLibrary.build(rows: [Self.row("10"), Self.row("djc-1"), Self.row("15")], playlists: PlaylistLayout())
+        #expect(library.title(ofLinkID: 1) == "곡 10")
+        #expect(library.title(ofLinkID: 2) == "곡 15")
+        #expect(library.title(ofLinkID: 0) == nil)
+        #expect(library.title(ofLinkID: 3) == nil)
+    }
+
     @Test func 곡_값을_옮긴다() throws {
         let track = try #require(LinkLibrary.build(rows: [Self.row("10")], playlists: PlaylistLayout()).tracks.first)
         #expect(track.title == "곡 10")

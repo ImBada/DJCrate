@@ -44,7 +44,12 @@ private actor LinkServerSlot {
     func status() async -> LinkServerStatus? {
         guard let server else { return nil }
         let status = await server.status()
-        return LinkServerStatus(deviceNumber: status.deviceNumber, down: status.down, mounted: status.mounted)
+        let players = Dictionary(status.players.map { player in
+            (player.number, LinkPlayerState(isPlaying: player.isPlaying, isMaster: player.isMaster, isSync: player.isSync,
+                                            loadedTrackID: player.loadedTrackID,
+                                            bpm: player.bpmX100 > 0 ? Double(player.bpmX100) / 100 : nil))
+        }, uniquingKeysWith: { first, _ in first })
+        return LinkServerStatus(deviceNumber: status.deviceNumber, down: status.down, mounted: status.mounted, players: players)
     }
 
     func load(player: Int, trackID: UInt32) async throws(LinkProblem) {

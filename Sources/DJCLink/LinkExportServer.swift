@@ -88,11 +88,35 @@ public struct LinkExportStatus: Equatable, Sendable {
     public var down: String?
     /// 라이브러리를 마운트한 장치의 IPv4 주소
     public var mounted: Set<String>
+    /// 플레이어가 상태 패킷으로 알린 재생 상태
+    public var players: [LinkExportPlayer]
 
-    public init(deviceNumber: Int?, down: String?, mounted: Set<String>) {
+    public init(deviceNumber: Int?, down: String?, mounted: Set<String>, players: [LinkExportPlayer] = []) {
         self.deviceNumber = deviceNumber
         self.down = down
         self.mounted = mounted
+        self.players = players
+    }
+}
+
+/// 플레이어 하나의 재생 상태(상태 패킷)
+public struct LinkExportPlayer: Equatable, Sendable {
+    public var number: Int
+    public var isPlaying: Bool
+    public var isMaster: Bool
+    public var isSync: Bool
+    /// 이 서버가 내어 준 곡을 실었으면 그 번호. 다른 곳(USB 등)의 곡이면 nil
+    public var loadedTrackID: UInt32?
+    /// 피치를 반영한 BPM×100. 모르면 0
+    public var bpmX100: Int
+
+    public init(number: Int, isPlaying: Bool, isMaster: Bool, isSync: Bool, loadedTrackID: UInt32?, bpmX100: Int) {
+        self.number = number
+        self.isPlaying = isPlaying
+        self.isMaster = isMaster
+        self.isSync = isSync
+        self.loadedTrackID = loadedTrackID
+        self.bpmX100 = bpmX100
     }
 }
 
@@ -160,7 +184,12 @@ public final class LinkExportServer: Sendable {
             case let .down(why): (number, down) = (nil, why)
             case .waiting, .joining: (number, down) = (nil, nil)
             }
-            return LinkExportStatus(deviceNumber: number, down: down, mounted: Set(snapshot.mounted.map(\.description)))
+            let players = snapshot.players.map {
+                LinkExportPlayer(number: Int($0.number), isPlaying: $0.playing, isMaster: $0.master, isSync: $0.sync,
+                                 loadedTrackID: $0.loaded, bpmX100: Int($0.bpm_x100))
+            }
+            return LinkExportStatus(deviceNumber: number, down: down, mounted: Set(snapshot.mounted.map(\.description)),
+                                    players: players)
         }.value
     }
 

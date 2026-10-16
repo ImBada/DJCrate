@@ -41,7 +41,8 @@ struct LinkSessionTests {
                     started.withLock { $0.append((library, root, peer)) }
                 },
                 stop: { [self] in stopped.withLock { $0 += 1 } },
-                status: { LinkServerStatus(deviceNumber: 17) },
+                status: { LinkServerStatus(deviceNumber: 17, players: [2: LinkPlayerState(isPlaying: true, loadedTrackID: 2),
+                                                                        1: LinkPlayerState(loadedTrackID: nil)]) },
                 load: { [self] player, id throws(LinkProblem) in
                     if let problem = loadProblem.withLock({ $0 }) { throw problem }
                     loaded.withLock { $0.append((player, id)) }
@@ -106,6 +107,16 @@ struct LinkSessionTests {
         let session = LinkSession(source: fake.source)
         try await session.connect(rows: [Self.row("10")], playlists: PlaylistLayout(), shareRoot: "/share", peers: [Self.cdj2])
         await #expect(throws: LinkProblem.notMounted(2)) { try await session.load(contentID: "10", player: 2) }
+    }
+
+    @Test func 상태의_실은_곡은_내어_준_곡에서_제목을_찾는다() async throws {
+        let session = LinkSession(source: Fake().source)
+        try await session.connect(rows: [Self.row("10"), Self.row("20")], playlists: PlaylistLayout(), shareRoot: "/share",
+                                  peers: [Self.cdj2])
+        let status = try #require(await session.status())
+        #expect(status.players[2]?.title == "곡 20")
+        #expect(status.players[2]?.isPlaying == true)
+        #expect(status.players[1]?.title == nil)
     }
 
     @Test func 끄면_서버를_내리고_다시_싣지_않는다() async throws {

@@ -52,6 +52,13 @@ public struct LinkLibrary: Equatable, Sendable {
     /// 그 rekordbox 곡의 CDJ 번호. 내어 주지 않는 곡이면 nil
     public func linkID(of contentID: String) -> UInt32? { idsByContent[contentID] }
 
+    /// 그 CDJ 번호로 내어 준 곡의 제목. 번호는 1부터 차례로 매기므로 자리로 찾는다
+    public func title(ofLinkID id: UInt32) -> String? {
+        let index = Int(id) - 1
+        guard tracks.indices.contains(index), tracks[index].id == id else { return nil }
+        return tracks[index].title
+    }
+
     /// rekordbox 컬렉션의 곡과 재생 목록으로 만든다. 내어 줄 수 없는 곡(`isShareable`)은 빼고, 재생 목록에서도 뺀다.
     /// 스마트 재생 목록은 규칙을 옮기지 않으므로 뺀다.
     public static func build(rows: [TrackRow], playlists layout: PlaylistLayout) -> LinkLibrary {
