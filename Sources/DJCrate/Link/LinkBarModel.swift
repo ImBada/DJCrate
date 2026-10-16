@@ -38,6 +38,10 @@ final class LinkBarModel {
     @ObservationIgnored private let notify: (_ text: String, _ kind: AppToast.Kind) -> Void
     /// 내어 주기를 껐을 때(LINK 재생 기록을 rekordbox 쓰기 대기에 올린다)
     @ObservationIgnored private let sessionEnded: () -> Void
+    /// CDJ가 실은 곡(rekordbox 곡 ID)이 바뀌었을 때(DJCrate 덱이 같은 곡을 내리거나 막는다, #278)
+    @ObservationIgnored private let cdjTracks: (_ loaded: Set<String>) -> Void
+    /// 마지막으로 알린 CDJ 곡(바뀔 때만 알린다)
+    @ObservationIgnored private var lastCDJTracks: Set<String> = []
     /// 펼친 채 rekordbox 때문에 막혔는지. 풀리고 장치가 다시 보이면 내어 주기를 다시 켠다
     @ObservationIgnored private var reconnectWhenFree = false
     /// 켠 서버에 iTunes 목록을 넣었는지(켤 때 아직 읽는 중이었으면 다 읽은 뒤 넣는다)
@@ -46,12 +50,14 @@ final class LinkBarModel {
     @ObservationIgnored var statusInterval: Duration = .seconds(1)
 
     init(discovery: LinkDiscovery, session: LinkSession = LinkSession(source: .none), library: @escaping () -> LibraryInput? = { nil },
-         notify: @escaping (_ text: String, _ kind: AppToast.Kind) -> Void = { _, _ in }, sessionEnded: @escaping () -> Void = {}) {
+         notify: @escaping (_ text: String, _ kind: AppToast.Kind) -> Void = { _, _ in }, sessionEnded: @escaping () -> Void = {},
+         cdjTracks: @escaping (_ loaded: Set<String>) -> Void = { _ in }) {
         self.discovery = discovery
         self.session = session
         self.library = library
         self.notify = notify
         self.sessionEnded = sessionEnded
+        self.cdjTracks = cdjTracks
     }
 
     /// 보이는 장치. 연결을 켰으면 DJCrate 자신(서버가 참여한 번호)은 뺀다
@@ -148,6 +154,7 @@ final class LinkBarModel {
         guard connection != .off else { return }
         connection = .off
         server = nil
+        publishCDJTracks()
         await session.disconnect()
         sessionEnded()
     }
@@ -199,6 +206,7 @@ final class LinkBarModel {
         if state == .blockedByRekordbox, connection != .off {
             connection = .off
             server = nil
+            publishCDJTracks()
             Task { [session, sessionEnded] in
                 await session.disconnect()
                 sessionEnded()
@@ -211,7 +219,16 @@ final class LinkBarModel {
         guard isConnected else { return }
         let status = await session.status()
         if isConnected { server = status }
+        publishCDJTracks()
         await addITunesWhenReady()
+    }
+
+    /// CDJ가 실은 곡을 바뀔 때만 알린다(서버를 끄면 비운다)
+    func publishCDJTracks() {
+        let loaded = Set(server?.players.values.compactMap(\.contentID) ?? [])
+        guard loaded != lastCDJTracks else { return }
+        lastCDJTracks = loaded
+        cdjTracks(loaded)
     }
 
     /// 켤 때 iTunes 목록을 아직 읽는 중이었으면, 다 읽은 뒤 켜 둔 서버의 재생 목록에 넣는다(서버를 다시 띄우지 않는다)

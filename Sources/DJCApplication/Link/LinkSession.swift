@@ -29,6 +29,8 @@ public struct LinkPlayerState: Equatable, Sendable {
     public var loadedTrackID: UInt32?
     /// 실은 곡 제목. 연결(`LinkSession.status`)이 내어 준 곡에서 찾아 채운다
     public var title: String?
+    /// 실은 곡의 rekordbox 곡 ID. 연결이 채운다(DJCrate가 내어 준 곡일 때만)
+    public var contentID: String?
     /// 피치를 반영한 BPM. 모르면 nil
     public var bpm: Double?
 
@@ -277,7 +279,9 @@ public actor LinkSession {
         // 기다리는 사이 껐거나 다시 켰으면 지금 라이브러리로 찾는다
         guard library != nil, var status = await source.status(), let library else { return nil }
         for (number, player) in status.players {
-            status.players[number]?.title = player.loadedTrackID.flatMap(library.title(ofLinkID:))
+            let track = player.loadedTrackID.flatMap(library.track(linkID:))
+            status.players[number]?.title = track?.title
+            status.players[number]?.contentID = track?.contentID
         }
         return status
     }

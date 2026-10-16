@@ -179,6 +179,7 @@ suite DJCDomainTests.LinkRosterTests
 suite DJCDomainTests.LinkLibraryTests
 suite DJCDomainTests.LinkHistoryTests
 suite DJCAdaptersTests.LinkAudioConverterLiveTests
+suite DJCrateTests.DeckLinkLockTests
 suite DJCApplicationTests.LinkSessionTests
 suite DJCApplicationTests.LinkDiscoveryTests
 suite DJCrateTests.LinkBarModelTests

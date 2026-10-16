@@ -211,6 +211,8 @@ struct LinkSessionTests {
                                   peers: [Self.cdj2])
         let status = try #require(await session.status())
         #expect(status.players[2]?.title == "곡 20")
+        #expect(status.players[2]?.contentID == "20")
+        #expect(status.players[1]?.contentID == nil)
         #expect(status.players[2]?.isPlaying == true)
         #expect(status.players[1]?.title == nil)
     }

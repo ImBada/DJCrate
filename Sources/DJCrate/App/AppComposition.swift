@@ -110,13 +110,13 @@ final class AppComposition {
                                       announce: { [weak store] in store?.toast = .notice($0, nil) })
         return AppComposition(settings: settings, store: store, deck: deck, windows: AppWindows(), reflection: reflection(store: store),
                               agentTools: agentTools(arguments: info.arguments, settings: settings), agentNoticeEnabled: notice,
-                              updater: updater, link: DiagnosticRun.isActive(arguments: info.arguments) ? nil : linkBar(store: store))
+                              updater: updater, link: DiagnosticRun.isActive(arguments: info.arguments) ? nil : linkBar(store: store, deck: deck))
     }
 
     /// LINK 막대(#272·#273): 실제 알림 포트(받기만 한다)와 사용자가 켤 때만 띄우는 Link Export 서버.
     /// 내어 줄 라이브러리는 저장소가 읽은 rekordbox 컬렉션·재생 목록이고, 분석 파일은 저장소의 share 뿌리에서 읽기만 한다.
     /// 포트 실패는 표준 오류에만 남기고, 연결·싣기 실패는 알림으로 보인다
-    static func linkBar(store: LibraryStore) -> LinkBarModel {
+    static func linkBar(store: LibraryStore, deck: DeckModel) -> LinkBarModel {
         // LINK 재생 기록의 세션 열쇠: 앱 실행마다 새 앞부분 + 연결 차례 + 서버가 연 기록 번호
         // (보존본은 다시 켠 뒤에도 남아 앞 실행의 차례와 섞이지 않게, CDJ가 기록을 지우고 새로 열면 새 기록이 되게)
         let launch = UUID().uuidString
@@ -137,7 +137,11 @@ final class AppComposition {
                                                  shareRoot: store.shareRoot.path)
             },
             notify: { [weak store] text, kind in store?.toast = .notice(text, nil, kind: kind) },
-            sessionEnded: { [weak store] in store?.history.closeLinkSessions() })
+            sessionEnded: { [weak store] in store?.history.closeLinkSessions() },
+            // CDJ가 덱의 곡을 실으면 라이브러리가 덱 곡 ID와 함께 내린다(다시 읽을 때 그 곡을 되올리지 않게)
+            cdjTracks: { [weak deck, weak store] loaded in
+                if deck?.applyCDJTracks(loaded: loaded) == true { store?.unloadDeckForCDJ() }
+            })
     }
 
     /// AI 에이전트 설치(#262): 재료는 이 앱 번들 안(`Contents/Resources/skills/djcrate`·`Contents/Helpers/djc`), 설치 자리의 뿌리는 사용자 홈.
@@ -241,6 +245,12 @@ final class AppComposition {
         }
         // 목록 선택은 덱을 바꾸지 않는다. 더블클릭·⌘→·오른쪽 클릭·끌어다 놓기로만 덱에 올린다(#93).
         store.onLoadToDeck = { [weak deck] row in deck?.load(row) }
+        // 덱이 비어 있으면 덱 위 알림이 보이지 않으므로 창 아래 알림으로 까닭을 알린다(#278)
+        store.deckRefuses = { [weak deck, weak store] row in
+            guard let reason = deck?.cdjRefusal(row) else { return false }
+            store?.toast = .notice(reason, nil, kind: .warning)
+            return true
+        }
         // 덱이 분석 파일·그림을 읽는 곳을 쓰기 대상 라이브러리와 맞춘다.
         deck.shareRoot = { [weak store] in store?.shareRoot }
         store.confirmDeckReplacement = { [weak deck] _ in deck?.confirmDiscardingFlip() ?? true }

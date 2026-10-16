@@ -26,6 +26,7 @@ CDJ·DJM 네트워크 코드를 고칠 때 지키는 규칙이다. 리뷰는 규
 - **LNK-10** 내어 주는 라이브러리는 저장소가 읽은 rekordbox 컬렉션이다. 이 Mac에 파일이 없는 곡은 내어 주지 않는다(`LinkLibrary.isShareable`).
 - **LNK-11** 음원·분석 파일은 읽기만 한다. Link Export의 NFS는 쓰기 요청을 거절한다. CDJ의 큐·곡 정보 편집(`Source.edit`)은 받지 않는다.
 - **LNK-14** FLAC·ALAC을 못 읽는 기종(`LinkPlayerFormats`)에 DJCrate에서 끌어 놓아 실을 때만 WAV로 바꾼다(`LinkAudioConverter`). 바꾼 파일은 `~/Music/DJCrate/LINK`에만 쓴다. 원본은 읽기만 한다. 시험은 임시 폴더에서만 바꾼다.
+- **LNK-15** CDJ가 실은 DJCrate 곡은 DJCrate 덱에서 내린다. CDJ에 실려 있는 곡은 재생 중이 아니어도 덱에 올리지 않는다(`DeckModel.applyCDJTracks`).
 - **LNK-13** CDJ가 보낸 재생 기록(`add_to_history`)은 DJCrate에 "LINK HISTORY yyyy-MM-dd" 보존본으로만 남긴다(`LinkHistory`). LINK 동안 rekordbox 라이브러리에 쓰지 않는다. rekordbox에는 USB 기록과 같은 쓰기 대기로 올려 rekordbox에 쓰기 때 넣는다.
 - **LNK-12** 실기 확인은 시험용 네트워크에서 사용자가 한다. 에이전트는 LINK 단추를 누르지 않는다.
 

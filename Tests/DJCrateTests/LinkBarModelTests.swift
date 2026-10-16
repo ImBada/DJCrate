@@ -175,6 +175,36 @@ struct LinkBarModelTests {
         var tree: [SyncedITunesLibrary.Node]?
     }
 
+    @Test func CDJ가_실은_DJCrate_곡을_바뀔_때만_알리고_끄면_비운다() async {
+        let reports = NotesBox()
+        let box = LoadedBox()
+        let source = LinkServerSource(
+            start: { _, _, _, _ throws(LinkProblem) in }, stop: {},
+            status: { LinkServerStatus(deviceNumber: 17, players: [2: LinkPlayerState(loadedTrackID: box.id)]) },
+            load: { _, _ throws(LinkProblem) in }, isRekordboxRunning: { false })
+        let row = TrackRow(track: Track(id: "10", uuid: "u10", title: "곡", artist: nil, album: nil, albumArtist: nil, genre: nil,
+                                        composer: nil, releaseYear: nil, trackNumber: nil, key: nil, bpm: 120, lengthSeconds: 60,
+                                        folderPath: "/Users/dj/Music/10.mp3", comment: "", importedOn: nil, analysisDataPath: nil,
+                                        imagePath: nil, isDeleted: false),
+                           cues: [], playCount: 0)
+        let model = LinkBarModel(discovery: LinkDiscovery(source: .none), session: LinkSession(source: source),
+                                 library: { .init(rows: [row], playlists: PlaylistLayout(), shareRoot: "/share") },
+                                 cdjTracks: { reports.values.append($0.sorted().joined(separator: ",")) })
+        model.apply(.listening([Self.cdj1]))
+        await model.connect()
+        #expect(reports.values == [])
+        box.id = 1
+        await model.refreshStatus()
+        await model.refreshStatus()
+        #expect(reports.values == ["10"])
+        await model.disconnect()
+        #expect(reports.values == ["10", ""])
+    }
+
+    final class LoadedBox: @unchecked Sendable {
+        var id: UInt32?
+    }
+
     @Test func 장치가_없으면_연결하지_않고_이유를_알린다() async {
         let notes = NotesBox()
         let model = Self.connectable(notes: notes)

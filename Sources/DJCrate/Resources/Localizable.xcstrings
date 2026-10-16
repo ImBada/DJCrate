@@ -4395,6 +4395,22 @@
         }
       }
     },
+    "CDJ가 같은 곡을 불러와 DJCrate 덱에서 내렸습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A CDJ loaded the same track, so it was unloaded from the DJCrate deck"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CDJが同じ曲をロードしたため、DJCrateのデッキから外しました"
+          }
+        }
+      }
+    },
     "CDJ가 쓴 기록·목록이 있어 Device Library는 아직 고칠 수 없습니다" : {
       "localizations" : {
         "en" : {
@@ -4471,6 +4487,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "CDJ へのネットワーク接続が見つかりません。ケーブルとネットワーク設定を確認してからもう一度オンにしてください"
+          }
+        }
+      }
+    },
+    "CDJ에 실려 있는 곡이라 덱에 올리지 않습니다. CDJ에서 다른 곡을 실은 뒤 올리세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This track is loaded on a CDJ, so it won't load on the deck. Load another track on the CDJ, then load it"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CDJにロードされている曲のため、デッキにロードしません。CDJで別の曲をロードしてからロードしてください"
           }
         }
       }
