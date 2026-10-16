@@ -17245,22 +17245,6 @@
         }
       }
     },
-    "곡 %lld개 내어 주는 중" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sharing tracks: %lld"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld曲を共有中"
-          }
-        }
-      }
-    },
     "곡 %lld개 더하기" : {
       "localizations" : {
         "en" : {
@@ -34811,6 +34795,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "接続されたUSBはありません"
+          }
+        }
+      }
+    },
+    "연결됨" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connected"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接続済み"
           }
         }
       }

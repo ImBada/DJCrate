@@ -71,14 +71,14 @@ final class LinkBarModel {
 
     var isConnected: Bool { if case .on = connection { true } else { false } }
 
-    /// LINK 단추 옆 글: 내어 준 곡 수. 참여 번호는 단추에 보인다
+    /// LINK 단추 옆 글: 연결 상태. 참여 번호는 단추에 보인다
     var connectionText: String? {
         switch connection {
         case .off: nil
         case .connecting: String(ui: "연결하는 중…")
-        case let .on(tracks):
+        case .on:
             if server?.deviceNumber != nil {
-                String(ui: "곡 \(tracks)개 내어 주는 중")
+                String(ui: "연결됨")
             } else if let down = server?.down {
                 String(ui: "참여하지 못했습니다: \(down)")
             } else {

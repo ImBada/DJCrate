@@ -118,9 +118,7 @@ struct LinkDeviceTile: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: Self.symbol(device.kind))
-                .font(.system(size: 14))
-                .foregroundStyle(isPlaying ? Color.green : Color.secondary)
+            LinkDeviceIcon(kind: device.kind, color: isPlaying ? .green : .secondary, size: 20)
                 .frame(width: 28, height: 28)
                 .background(RoundedRectangle(cornerRadius: 5).fill(tint.opacity(0.15)))
             if device.hasDeck {
@@ -183,15 +181,6 @@ struct LinkDeviceTile: View {
         var parts = [device.name, "\(device.number)", device.address]
         if let bpm = player?.bpm { parts.append(bpm.formatted(.number.precision(.fractionLength(2))) + " BPM") }
         return parts.joined(separator: " · ")
-    }
-
-    static func symbol(_ kind: LinkDevice.Kind) -> String {
-        switch kind {
-        case .player: "opticaldiscdrive"
-        case .mixer: "slider.vertical.3"
-        case .rekordbox: "laptopcomputer"
-        case .other: "questionmark.circle"
-        }
     }
 }
 
