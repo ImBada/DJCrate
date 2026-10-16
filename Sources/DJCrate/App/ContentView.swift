@@ -45,6 +45,11 @@ struct ContentView: View {
                 .navigationSplitViewColumnWidth(min: 210, ideal: 230)
         } detail: {
             detail
+                // 창 아래 LINK 막대(#272): Pro DJ Link 장치가 보일 때만 높이를 차지한다. 막대만 장치 목록을 읽는다.
+                // 분할 화면 전체 아래에 붙이면 열의 화면이 막대 위까지 덮어 플레이어 칸이 끌어다 놓기를 받지 못했다(#274). 상세 열 안에 둔다
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if let link = app.link { LinkBar(model: link) }
+                }
                 // 본문(덱·목록)에 바로 붙이면 인스펙터를 연 뒤 임시 높이의 본문 사본이 생겨, 창 크기를 바꿀 때마다
                 // 크기 측정이 진짜 본문과 번갈아 와서 본문을 두 번씩 다시 계산했다(#138). 상세 열 전체에 붙인다.
                 .inspector(isPresented: inspectorPresented) {
@@ -69,10 +74,6 @@ struct ContentView: View {
                     }
                 }
                 .animation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(duration: 0.35), value: store.toast?.id)
-        }
-        // 창 아래 LINK 막대(#272): Pro DJ Link 장치가 보일 때만 높이를 차지한다. 막대만 장치 목록을 읽는다
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let link = app.link { LinkBar(model: link) }
         }
         // rekordbox·USB에 쓰는 동안은 창 전체를 덮어 다른 조작을 막는다.
         .overlay {
