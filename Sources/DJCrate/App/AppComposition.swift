@@ -110,7 +110,17 @@ final class AppComposition {
                                       announce: { [weak store] in store?.toast = .notice($0, nil) })
         return AppComposition(settings: settings, store: store, deck: deck, windows: AppWindows(), reflection: reflection(store: store),
                               agentTools: agentTools(arguments: info.arguments, settings: settings), agentNoticeEnabled: notice,
-                              updater: updater, link: DiagnosticRun.isActive(arguments: info.arguments) ? nil : linkBar(store: store, deck: deck))
+                              updater: updater, link: DiagnosticRun.isActive(arguments: info.arguments) ? diagnosticLink(arguments: info.arguments, store: store)
+                                  : linkBar(store: store, deck: deck))
+    }
+
+    /// 자가 테스트·측정·캡처 실행의 LINK 막대: 장치 찾기를 붙이지 않는다(LNK-6). LINK 캡처만 포트 없는 가상 장치를 보인다
+    static func diagnosticLink(arguments: [String], store: LibraryStore) -> LinkBarModel? {
+        #if DEBUG
+        LinkCapture.model(arguments: arguments, store: store)
+        #else
+        nil
+        #endif
     }
 
     /// LINK 막대(#272·#273): 실제 알림 포트(받기만 한다)와 사용자가 켤 때만 띄우는 Link Export 서버.
@@ -289,6 +299,7 @@ final class AppComposition {
         DevSelfTests.runAsyncGuidanceCaptureIfRequested(store: store, deck: deck)
         UsbMigrateCapture.runIfRequested(store: store)
         AgentToolsCapture.runIfRequested()
+        LinkCapture.runIfRequested(link: link, store: store)
         DevSelfTests.runKeyRoutingSelfTestIfRequested(store: store, deck: deck, windows: windows)
         #endif
         deck.onDraftChange = { [weak store] uuid, kind, exists in

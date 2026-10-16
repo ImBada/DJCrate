@@ -19,7 +19,7 @@ CDJ·DJM 네트워크 코드를 고칠 때 지키는 규칙이다. 리뷰는 규
 - **LNK-3** rekordbox·rekordboxAgent가 켜져 있으면 포트를 열지 않는다. 같은 포트(UDP 50000~50002 등)를 쓴다.
 - **LNK-4** 시험과 에이전트는 실제 네트워크에 Pro DJ Link 패킷을 보내지 않는다. 공연·리허설 중인 네트워크에서는 듣지도 않는다.
 - **LNK-5** 시험은 소켓을 열지 않는다. 가짜 포트를 쓴다. DJLinkKit `LiveSocketFactory`는 시험 프로세스에서 소켓을 만들지 않는다.
-- **LNK-6** 화면 시험·자가 테스트·측정 실행의 조립은 장치 찾기를 붙이지 않는다(`AppComposition.link`가 nil).
+- **LNK-6** 화면 시험·자가 테스트·측정 실행의 조립은 장치 찾기를 붙이지 않는다(`AppComposition.link`가 nil). LINK 캡처(`--link-capture=`)만 포트 없는 가상 장치를 화면 모델에 넣는다(`LinkCapture`).
 
 ## 내어 주기
 
