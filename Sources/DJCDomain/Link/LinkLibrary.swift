@@ -19,6 +19,8 @@ public struct LinkLibrary: Equatable, Sendable {
         public var path: String
         /// share 뿌리 아래 분석 파일(.DAT) 경로. 없으면 빈 문자열
         public var analysisPath: String
+        /// share 뿌리 아래 앨범아트 경로(rekordbox `ImagePath`, 예: "/PIONEER/Artwork/00001/a1.jpg"). 없으면 빈 문자열
+        public var artworkPath: String = ""
         public var fileType: UInt8
         public var bitrateKbps: UInt32
         public var rating: UInt8
@@ -138,7 +140,7 @@ public struct LinkLibrary: Equatable, Sendable {
         return Track(id: id, contentID: track.id, title: track.title, artist: track.artist ?? "", album: track.album ?? "",
                      genre: track.genre ?? "", key: track.key ?? "", bpmX100: UInt32(max(0, ((track.bpm ?? 0) * 100).rounded())),
                      lengthSeconds: UInt32(max(0, track.lengthSeconds)), path: track.folderPath,
-                     analysisPath: track.analysisDataPath ?? "", fileType: fileType,
+                     analysisPath: track.analysisDataPath ?? "", artworkPath: track.imagePath ?? "", fileType: fileType,
                      bitrateKbps: UInt32(max(0, track.bitrateKbps ?? 0)), rating: UInt8(clamping: track.rating),
                      comment: track.comment, cues: row.cues.compactMap(cue))
     }

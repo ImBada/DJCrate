@@ -20,6 +20,8 @@ public struct LinkExportTrack: Equatable, Sendable {
     public var path: String
     /// 공유 뿌리(`shareRoot`) 아래 분석 파일(.DAT) 상대 경로. 없으면 빈 문자열(파형·그리드 없이 실린다)
     public var analysisPath: String
+    /// 공유 뿌리 아래 앨범아트 상대 경로(rekordbox `ImagePath`). 없으면 빈 문자열(그림 없이 보인다)
+    public var artworkPath: String
     /// rekordbox 파일 형식 번호(MP3 1, WAV 11). CDJ가 이 값으로 디코더를 고른다
     public var fileType: UInt8
     public var bitrate: UInt32
@@ -28,8 +30,8 @@ public struct LinkExportTrack: Equatable, Sendable {
     public var cues: [LinkExportCue]
 
     public init(id: UInt32, title: String, artist: String, album: String, genre: String, key: String, bpmX100: UInt32,
-                lengthSeconds: UInt32, path: String, analysisPath: String, fileType: UInt8, bitrate: UInt32, rating: UInt8,
-                comment: String, cues: [LinkExportCue]) {
+                lengthSeconds: UInt32, path: String, analysisPath: String, artworkPath: String = "", fileType: UInt8, bitrate: UInt32,
+                rating: UInt8, comment: String, cues: [LinkExportCue]) {
         self.id = id
         self.title = title
         self.artist = artist
@@ -40,6 +42,7 @@ public struct LinkExportTrack: Equatable, Sendable {
         self.lengthSeconds = lengthSeconds
         self.path = path
         self.analysisPath = analysisPath
+        self.artworkPath = artworkPath
         self.fileType = fileType
         self.bitrate = bitrate
         self.rating = rating
@@ -249,6 +252,11 @@ public final class LinkExportServer: Sendable {
         var analysis = StrColumn()
         for track in tracks { analysis.push(track.analysisPath) }
         library.analysis_path = analysis
+        // 앨범아트: `library_from`이 비워 둬 CDJ 목록·덱에 그림이 하나도 나오지 않았다(2026-10-16 실기). 서버는 이 경로를 공유 뿌리 아래에서
+        // 찾고, 옆의 중간 크기("_m") 파일을 먼저 쓴다
+        var artwork = StrColumn()
+        for track in tracks { artwork.push(track.artworkPath) }
+        library.artwork_path = artwork
         mergeNames(library)
         let rowOfID = Dictionary(tracks.enumerated().map { ($0.element.id, Row($0.offset)) }, uniquingKeysWith: { first, _ in first })
         library.set_playlists(playlistTree(playlists, row: { rowOfID[$0] }))

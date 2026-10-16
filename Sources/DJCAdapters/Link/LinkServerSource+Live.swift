@@ -96,6 +96,7 @@ extension LinkExportTrack {
     init(_ track: LinkLibrary.Track) {
         self.init(id: track.id, title: track.title, artist: track.artist, album: track.album, genre: track.genre, key: track.key,
                   bpmX100: track.bpmX100, lengthSeconds: track.lengthSeconds, path: track.path, analysisPath: track.analysisPath,
+                  artworkPath: track.artworkPath,
                   fileType: track.fileType, bitrate: track.bitrateKbps, rating: track.rating, comment: track.comment,
                   cues: track.cues.map { LinkExportCue(positionMs: $0.positionMs, outMs: $0.outMs, hotCue: $0.hotCue, colour: $0.colour) })
     }

@@ -61,6 +61,18 @@ struct LinkLibraryTests {
         #expect(track.rating == 3)
     }
 
+    @Test func 앨범아트는_rekordbox_ImagePath를_옮기고_없으면_비운다() throws {
+        // 2026-10-16 실기: 경로를 넘기지 않아 CDJ 목록·덱에 그림이 하나도 나오지 않았다
+        let plain = Self.row("10")
+        let withArt = TrackRow(track: Track(id: "11", uuid: "u11", title: "곡", artist: nil, album: nil, albumArtist: nil, genre: nil,
+                                            composer: nil, releaseYear: nil, trackNumber: nil, key: nil, bpm: 120, lengthSeconds: 60,
+                                            folderPath: "/Users/dj/Music/11.mp3", comment: "", importedOn: nil, analysisDataPath: nil,
+                                            imagePath: "/PIONEER/Artwork/00001/a1.jpg", isDeleted: false),
+                               cues: [], playCount: 0)
+        let tracks = LinkLibrary.build(rows: [plain, withArt], playlists: PlaylistLayout()).tracks
+        #expect(tracks.map(\.artworkPath) == ["", "/PIONEER/Artwork/00001/a1.jpg"])
+    }
+
     @Test func 형식_번호는_rekordbox_번호를_쓰고_모르는_형식은_뺀다() {
         #expect(LinkLibrary.fileType(ofExtension: "MP3") == 1)
         #expect(LinkLibrary.fileType(ofExtension: "wav") == 11)
