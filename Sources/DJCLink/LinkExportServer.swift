@@ -178,7 +178,9 @@ public final class LinkExportServer: Sendable {
             let source = ExportSource(library: library(tracks: tracks, playlists: playlists), shareRoot: shareRoot,
                                       tracks: tracks, onHistory: onHistory)
             do {
-                return LinkExportServer(export: try await LinkExport.start(source, interface), source: source)
+                // 장치 찾기가 방금 들은 알림을 넘겨 CDJ의 다음 알림(약 2초 간격)을 기다리지 않고 바로 참여한다
+                let export = try await LinkExport.start(source, interface, seedAnnouncements: RecentAnnouncements.recent())
+                return LinkExportServer(export: export, source: source)
             } catch let error as LinkError {
                 throw LinkExportError.bind(error.description)
             }

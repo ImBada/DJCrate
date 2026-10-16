@@ -48,6 +48,16 @@ final class LinkBarModel {
     @ObservationIgnored private var servesITunes = false
     /// 서버 상태를 다시 볼 간격
     @ObservationIgnored var statusInterval: Duration = .seconds(1)
+    /// 참여하고 플레이어가 마운트할 때까지 볼 간격(연결됨·🔗가 늦게 보이지 않게)
+    @ObservationIgnored var settlingInterval: Duration = .milliseconds(250)
+
+    /// 다음 상태 확인까지 기다릴 시간: 켜는 중·참여 전·덱 있는 장치가 아직 마운트하지 않았으면 짧게
+    var pollInterval: Duration {
+        guard connection != .off else { return statusInterval }
+        guard let server, server.deviceNumber != nil else { return settlingInterval }
+        let unmounted = devices.contains { $0.hasDeck && !server.mounted.contains($0.address) }
+        return unmounted ? settlingInterval : statusInterval
+    }
 
     init(discovery: LinkDiscovery, session: LinkSession = LinkSession(source: .none), library: @escaping () -> LibraryInput? = { nil },
          notify: @escaping (_ text: String, _ kind: AppToast.Kind) -> Void = { _, _ in }, sessionEnded: @escaping () -> Void = {},
@@ -178,14 +188,13 @@ final class LinkBarModel {
     /// 창이 떠 있는 동안 장치를 찾고, 연결을 켰으면 서버 상태를 본다(창의 `.task`가 부르고, 창이 닫히면 취소된다).
     func watch() async {
         // 창이 떠 있는 동안만 돈다(창의 `.task`가 취소하면 끝난다). 그동안 모델을 붙잡아도 된다
-        let interval = statusInterval
         await withTaskGroup(of: Void.self) { group in
             group.addTask { [discovery] in
                 await discovery.run { state in await self.apply(state) }
             }
             group.addTask {
                 while !Task.isCancelled {
-                    do { try await Task.sleep(for: interval) } catch { return }
+                    do { try await Task.sleep(for: await self.pollInterval) } catch { return }
                     await self.refreshStatus()
                 }
             }

@@ -205,6 +205,18 @@ struct LinkBarModelTests {
         var id: UInt32?
     }
 
+    @Test func 참여하고_플레이어가_마운트할_때까지는_상태를_자주_본다() async {
+        let model = Self.connectable(notes: NotesBox())
+        #expect(model.pollInterval == model.statusInterval)
+        model.apply(.listening([Self.cdj1, Self.own]))
+        await model.connect()
+        // 가짜 서버는 17번으로 참여했고 cdj1이 마운트했다
+        #expect(model.pollInterval == model.statusInterval)
+        let other = LinkDevice(number: 2, name: "CDJ-2000nexus", kind: .player, address: "169.254.86.211")
+        model.apply(.listening([Self.cdj1, other]))
+        #expect(model.pollInterval == model.settlingInterval)
+    }
+
     @Test func 장치가_없으면_연결하지_않고_이유를_알린다() async {
         let notes = NotesBox()
         let model = Self.connectable(notes: notes)
