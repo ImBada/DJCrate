@@ -34,17 +34,20 @@ final class LinkBarModel {
     @ObservationIgnored private let session: LinkSession
     @ObservationIgnored private let library: () -> LibraryInput?
     @ObservationIgnored private let notify: (_ text: String, _ kind: AppToast.Kind) -> Void
+    /// 내어 주기를 껐을 때(LINK 재생 기록을 rekordbox 쓰기 대기에 올린다)
+    @ObservationIgnored private let sessionEnded: () -> Void
     /// 펼친 채 rekordbox 때문에 막혔는지. 풀리고 장치가 다시 보이면 내어 주기를 다시 켠다
     @ObservationIgnored private var reconnectWhenFree = false
     /// 서버 상태를 다시 볼 간격
     @ObservationIgnored var statusInterval: Duration = .seconds(1)
 
     init(discovery: LinkDiscovery, session: LinkSession = LinkSession(source: .none), library: @escaping () -> LibraryInput? = { nil },
-         notify: @escaping (_ text: String, _ kind: AppToast.Kind) -> Void = { _, _ in }) {
+         notify: @escaping (_ text: String, _ kind: AppToast.Kind) -> Void = { _, _ in }, sessionEnded: @escaping () -> Void = {}) {
         self.discovery = discovery
         self.session = session
         self.library = library
         self.notify = notify
+        self.sessionEnded = sessionEnded
     }
 
     /// 보이는 장치. 연결을 켰으면 DJCrate 자신(서버가 참여한 번호)은 뺀다
@@ -141,6 +144,7 @@ final class LinkBarModel {
         connection = .off
         server = nil
         await session.disconnect()
+        sessionEnded()
     }
 
     /// 플레이어 칸에 놓은 곡(rekordbox 곡 ID)을 그 플레이어에 싣는다
@@ -187,7 +191,10 @@ final class LinkBarModel {
         if state == .blockedByRekordbox, connection != .off {
             connection = .off
             server = nil
-            Task { [session] in await session.disconnect() }
+            Task { [session, sessionEnded] in
+                await session.disconnect()
+                sessionEnded()
+            }
             notify(String(ui: "rekordbox가 켜져 LINK 연결을 껐습니다"), .warning)
         }
     }

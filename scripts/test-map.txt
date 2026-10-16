@@ -173,9 +173,11 @@ when Sources/DJCDomain/Link/**
 when Sources/DJCApplication/Link/**
 when Sources/DJCAdapters/Link/**
 when Sources/DJCrate/Link/**
+when Sources/DJCDomain/History/LinkHistory.swift
 target DJCLinkTests
 suite DJCDomainTests.LinkRosterTests
 suite DJCDomainTests.LinkLibraryTests
+suite DJCDomainTests.LinkHistoryTests
 suite DJCApplicationTests.LinkSessionTests
 suite DJCApplicationTests.LinkDiscoveryTests
 suite DJCrateTests.LinkBarModelTests

@@ -4721,6 +4721,22 @@
         }
       }
     },
+    "DJCrate 데이터 폴더의 usb-histories 쓰기 권한을 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check write permission for usb-histories in the DJCrate data folder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DJCrateデータフォルダのusb-historiesの書き込み権限を確認してください"
+          }
+        }
+      }
+    },
     "DJCrate 데이터 폴더의 usb-histories 쓰기 권한을 확인한 뒤 다시 바꾸세요" : {
       "localizations" : {
         "en" : {
@@ -5895,6 +5911,22 @@
         }
       }
     },
+    "LINK 재생 기록을 보존하지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not keep the LINK history"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LINKの演奏履歴を保存できませんでした"
+          }
+        }
+      }
+    },
     "LINK 포트를 열지 못했습니다(%@). 그 포트를 쓰는 앱을 끈 뒤 다시 켜세요" : {
       "localizations" : {
         "en" : {
@@ -5907,6 +5939,150 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "LINK ポートを開けませんでした(%@)。そのポートを使っているアプリを終了してからもう一度オンにしてください"
+          }
+        }
+      }
+    },
+    "LINK로 남긴 기록" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recorded over LINK"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LINKで残した履歴"
+          }
+        }
+      }
+    },
+    "LINK로 라이브러리를 내어 주는 동안 CDJ가 남기는 기록입니다. 곡이 계속 붙으므로 LINK를 끄면 rekordbox 쓰기 대기에 올립니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Being recorded by a CDJ while DJCrate shares its library over LINK. Tracks keep being added, so it goes to Pending rekordbox Writes when you turn LINK off"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LINKでライブラリを共有している間にCDJが残している履歴です。曲が追加され続けるため、LINKをオフにするとrekordbox書き込み待ちに入れます"
+          }
+        }
+      }
+    },
+    "LINK로 라이브러리를 내어 주는 동안 CDJ가 남긴 기록입니다. rekordbox 쓰기 대기에 있어 rekordbox에 쓰기(⇧⌘E) 때 rekordbox 재생 기록에 넣습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left by a CDJ while DJCrate shared its library over LINK. It's in Pending rekordbox Writes and goes into rekordbox History when you Write to rekordbox (⇧⌘E)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LINKでライブラリを共有している間にCDJが残した履歴です。rekordbox書き込み待ちにあり、rekordboxに書き込む（⇧⌘E）ときにrekordboxの演奏履歴に入れます"
+          }
+        }
+      }
+    },
+    "LINK로 라이브러리를 내어 주는 동안 CDJ가 남긴 기록입니다. rekordbox 쓰기 대기에서 뺐습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left by a CDJ while DJCrate shared its library over LINK. Removed from Pending rekordbox Writes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LINKでライブラリを共有している間にCDJが残した履歴です。rekordbox書き込み待ちから外しました"
+          }
+        }
+      }
+    },
+    "LINK로 라이브러리를 내어 주는 동안 CDJ가 남긴 기록입니다. rekordbox에 썼습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left by a CDJ while DJCrate shared its library over LINK. Written to rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LINKでライブラリを共有している間にCDJが残した履歴です。rekordboxに書き込みました"
+          }
+        }
+      }
+    },
+    "LINK로 라이브러리를 내어 주는 동안 CDJ가 남긴 기록입니다. rekordbox에는 없습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left by a CDJ while DJCrate shared its library over LINK. It's not in rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LINKでライブラリを共有している間にCDJが残した履歴です。rekordboxにはありません"
+          }
+        }
+      }
+    },
+    "LINK로 라이브러리를 내어 주는 동안 CDJ가 남긴 기록입니다. 같은 곡이 두 번 이상 들어 rekordbox 재생 횟수 규칙을 확인하지 않아 rekordbox에는 쓰지 않습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left by a CDJ while DJCrate shared its library over LINK. It has the same track more than once, and the rekordbox play count rule for that isn't confirmed, so it isn't written to rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LINKでライブラリを共有している間にCDJが残した履歴です。同じ曲が2回以上あり、rekordboxの再生回数の規則を確認していないため、rekordboxには書き込みません"
+          }
+        }
+      }
+    },
+    "LINK로 라이브러리를 내어 주는 동안 CDJ가 남긴 기록입니다. 곡이 둘 이상인 LINK 기록은 rekordbox 쓰기 규칙을 아직 확인하지 않아 rekordbox에는 쓰지 않습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left by a CDJ while DJCrate shared its library over LINK. The rekordbox write rule for LINK histories with two or more tracks isn't confirmed yet, so it isn't written to rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LINKでライブラリを共有している間にCDJが残した履歴です。曲が2つ以上のLINK履歴はrekordboxの書き込み規則をまだ確認していないため、rekordboxには書き込みません"
+          }
+        }
+      }
+    },
+    "LINK로 라이브러리를 내어 주는 동안 CDJ가 남긴 기록입니다. 컬렉션 곡을 확인하지 못해 rekordbox에는 쓰지 않습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left by a CDJ while DJCrate shared its library over LINK. Its collection tracks couldn't be confirmed, so it isn't written to rekordbox"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LINKでライブラリを共有している間にCDJが残した履歴です。コレクションの曲を確認できないため、rekordboxには書き込みません"
           }
         }
       }
@@ -7743,34 +7919,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "USBの操作が進行中のため、終了してから再度取り込んでください。"
-          }
-        }
-      }
-    },
-    "USB 재생 기록 %lld건이 쓰기 대기에 있습니다. 위 ‘rekordbox에 쓰기’로 rekordbox 재생 기록에 넣습니다." : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld USB history is pending. Use ‘Write to rekordbox’ above to add it to rekordbox History."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld USB histories are pending. Use ‘Write to rekordbox’ above to add them to rekordbox History."
-                }
-              }
-            }
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "USBの演奏履歴%lld件が書き込み待ちです。上の「rekordboxに書き込む」でrekordboxの演奏履歴に入れます。"
           }
         }
       }
@@ -16653,18 +16801,18 @@
         }
       }
     },
-    "고른 곡(없으면 목록 전체)과 재생 목록 초안·USB 재생 기록을 rekordbox에 씁니다." : {
+    "고른 곡(없으면 목록 전체)과 재생 목록 초안·재생 기록(USB·LINK)을 rekordbox에 씁니다." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Writes the selected tracks (or the whole list), playlist drafts, and USB histories to rekordbox."
+            "value" : "Writes the selected tracks (or the whole list), playlist drafts, and histories (USB and LINK) to rekordbox."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選んだ曲（なければリスト全体）とプレイリストの下書き・USBの演奏履歴をrekordboxに書き込みます。"
+            "value" : "選んだ曲（なければリスト全体）とプレイリストの下書き・演奏履歴（USB・LINK）をrekordboxに書き込みます。"
           }
         }
       }
@@ -39447,6 +39595,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "演奏履歴%lld件"
+          }
+        }
+      }
+    },
+    "재생 기록 %lld건이 쓰기 대기에 있습니다. 위 ‘rekordbox에 쓰기’로 rekordbox 재생 기록에 넣습니다." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld history is pending. Use ‘Write to rekordbox’ above to add it to rekordbox History."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld histories are pending. Use ‘Write to rekordbox’ above to add them to rekordbox History."
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "演奏履歴%lld件が書き込み待ちです。上の「rekordboxに書き込む」でrekordboxの演奏履歴に入れます。"
           }
         }
       }

@@ -22,6 +22,8 @@ struct LinkSessionTests {
     final class Fake: Sendable {
         let rekordbox = Mutex(false)
         let started = Mutex<[(library: LinkLibrary, shareRoot: String, peer: String)]>([])
+        /// 마지막으로 띄운 서버의 재생 기록 알림(시험이 CDJ 대신 부른다)
+        let history = Mutex<(@Sendable (LinkHistoryEvent) -> Void)?>(nil)
         let stopped = Mutex(0)
         let loaded = Mutex<[(player: Int, id: UInt32)]>([])
         let loadProblem = Mutex<LinkProblem?>(nil)
@@ -40,7 +42,8 @@ struct LinkSessionTests {
 
         var source: LinkServerSource {
             LinkServerSource(
-                start: { [self] library, root, peer throws(LinkProblem) in
+                start: { [self] library, root, peer, history throws(LinkProblem) in
+                    self.history.withLock { $0 = history }
                     if holdsStart.withLock({ $0 }) {
                         await withCheckedContinuation { continuation in held.withLock { $0 = continuation } }
                     }
@@ -121,6 +124,25 @@ struct LinkSessionTests {
         await #expect(throws: LinkProblem.notMounted(2)) { try await session.load(contentID: "10", player: 2) }
     }
 
+    @Test func CDJ가_기록에_넣고_뺀_곡을_rekordbox_곡과_연결_차례로_알린다() async throws {
+        let fake = Fake()
+        let plays = Mutex<[LinkPlay]>([])
+        let session = LinkSession(source: fake.source, played: { play in plays.withLock { $0.append(play) } })
+        try await session.connect(rows: [Self.row("10"), Self.row("20")], playlists: PlaylistLayout(), shareRoot: "/share",
+                                  peers: [Self.cdj2])
+        let history = try #require(fake.history.withLock { $0 })
+        history(.added(2, history: 7))
+        history(.added(99, history: 7))
+        history(.removed(1, history: 8))
+        #expect(plays.withLock { $0 } == [LinkPlay(contentID: "20", linkID: 2, session: 1, history: 7),
+                                         LinkPlay(contentID: "10", linkID: 1, session: 1, history: 8, removed: true)])
+        // 다시 켜면 차례가 바뀐다
+        await session.disconnect()
+        try await session.connect(rows: [Self.row("10")], playlists: PlaylistLayout(), shareRoot: "/share", peers: [Self.cdj2])
+        try #require(fake.history.withLock { $0 })(.added(1, history: 7))
+        #expect(plays.withLock { $0.last } == LinkPlay(contentID: "10", linkID: 1, session: 3, history: 7))
+    }
+
     @Test func 상태의_실은_곡은_내어_준_곡에서_제목을_찾는다() async throws {
         let session = LinkSession(source: Fake().source)
         try await session.connect(rows: [Self.row("10"), Self.row("20")], playlists: PlaylistLayout(), shareRoot: "/share",
@@ -190,8 +212,8 @@ struct LinkSessionTests {
         fake.holdsStart.withLock { $0 = true }
         // 앞 켜기의 띄우기가 포트 충돌로 실패하는 경우
         let failing = LinkServerSource(
-            start: { library, root, peer throws(LinkProblem) in
-                try await fake.source.start(library, root, peer)
+            start: { library, root, peer, history throws(LinkProblem) in
+                try await fake.source.start(library, root, peer, history)
                 throw .portInUse("UDP 50000")
             },
             stop: fake.source.stop, status: fake.source.status, load: fake.source.load,

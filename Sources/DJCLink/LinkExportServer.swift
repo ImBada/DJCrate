@@ -2,6 +2,7 @@ internal import DJLinkExport
 internal import DJLinkExportModel
 internal import DJLinkExportProtocol
 internal import DJLinkKit
+import Foundation
 
 /// CDJ에 내어 줄 곡 하나(#273). DJLinkExport 타입을 밖에 내지 않으려고 쓰는 값만 옮긴다.
 public struct LinkExportTrack: Equatable, Sendable {
@@ -99,6 +100,15 @@ public struct LinkExportStatus: Equatable, Sendable {
     }
 }
 
+/// CDJ가 보낸 재생 기록 편집. CDJ는 곡을 얼마간 튼 뒤 "기록에 넣기"를 보낸다(rekordbox가 LINK HISTORY를 만드는 요청)
+public enum LinkExportHistoryEvent: Equatable, Sendable {
+    /// 그 곡(서버가 매긴 번호)을 기록 끝에 넣었다. 같은 곡을 잇달아 두 번 넣으면 DJLinkKit이 한 번으로 친다.
+    /// `history`는 서버가 연 기록 번호다. CDJ가 기록을 지우면 서버는 새 번호로 다시 연다
+    case added(trackID: UInt32, history: UInt32)
+    /// 그 곡을 기록에서 뺐다
+    case removed(trackID: UInt32, history: UInt32)
+}
+
 /// 플레이어 하나의 재생 상태(상태 패킷)
 public struct LinkExportPlayer: Equatable, Sendable {
     public var number: Int
@@ -145,14 +155,15 @@ public final class LinkExportServer: Sendable {
 
     /// 곡과 재생 목록으로 서버를 띄운다. `peer`(보이는 CDJ 하나의 주소)로 가는 인터페이스에 참여한다.
     /// 시험 프로세스에서는 DJLinkKit이 소켓을 만들지 않고 바로 실패한다.
-    public static func start(tracks: [LinkExportTrack], playlists: [LinkExportPlaylist], shareRoot: String,
-                             peer: String) async throws -> LinkExportServer {
+    /// - Parameter onHistory: CDJ가 재생 기록에 곡을 넣거나 뺄 때(rekordbox의 LINK HISTORY). DJLinkKit 액터에서 부른다
+    public static func start(tracks: [LinkExportTrack], playlists: [LinkExportPlaylist], shareRoot: String, peer: String,
+                             onHistory: @escaping @Sendable (LinkExportHistoryEvent) -> Void = { _ in }) async throws -> LinkExportServer {
         try await Task { @DJLinkActor in
             guard let address = try? LinkAddress(peer), let interface = interface(toward: address) else {
                 throw LinkExportError.noInterface(peer: peer)
             }
             let source = ExportSource(library: library(tracks: tracks, playlists: playlists), shareRoot: shareRoot,
-                                      tracks: tracks)
+                                      tracks: tracks, onHistory: onHistory)
             do {
                 return LinkExportServer(export: try await LinkExport.start(source, interface))
             } catch let error as LinkError {
@@ -252,10 +263,14 @@ private final class ExportSource: Source {
     private let snapshot: Library
     private let root: String
     private let details: [String: DJLinkExportModel.TrackDetails]
+    private let onHistory: @Sendable (LinkExportHistoryEvent) -> Void
+    /// 서버가 연 재생 기록 번호(서버를 띄운 동안 하나)
+    private var historySession: UInt32 = 0
 
-    init(library: Library, shareRoot: String, tracks: [LinkExportTrack]) {
+    init(library: Library, shareRoot: String, tracks: [LinkExportTrack], onHistory: @escaping @Sendable (LinkExportHistoryEvent) -> Void) {
         snapshot = library
         root = shareRoot
+        self.onHistory = onHistory
         var details: [String: DJLinkExportModel.TrackDetails] = [:]
         for (row, track) in tracks.enumerated() {
             func id(_ column: [UInt32]) -> UInt32 { column.indices.contains(row) ? column[row] : 0 }
@@ -272,4 +287,51 @@ private final class ExportSource: Source {
     func library() -> Library? { snapshot }
     func share_root() -> String { root }
     func details(_ id: String) -> DJLinkExportModel.TrackDetails? { details[id] }
+
+    // 재생 기록: 서버를 띄운 동안 기록 하나를 열고, CDJ가 넣고 뺀 곡을 앱에 알린다. 기록은 앱이 DJCrate에 보존한다(LNK-13).
+    // CDJ의 HISTORY 화면은 내어 준 라이브러리의 기록 목록을 읽으므로 같은 기록을 그 목록에도 넣는다(rekordbox처럼 CDJ에서도 보이게)
+
+    func new_link_history() -> UInt32? {
+        historySession += 1
+        // 재생 목록 번호와 겹치지 않는 자리
+        let id = 0x4C00_0000 + historySession
+        var histories = snapshot.histories()
+        histories.ids.append(UInt64(id))
+        histories.names.push(Self.historyName(Date()))
+        histories.parent.append(NO_ID)
+        histories.seq.append(UInt32(histories.ids.count))
+        histories.attribute.append(0)
+        histories.smart.push("")
+        histories.members.append([])
+        snapshot.set_histories(histories)
+        return id
+    }
+
+    func add_to_history(_ history: UInt32, _ track: UInt32) -> Bool {
+        guard let row = snapshot.row_of_id(UInt64(track)), edit(history: history, { $0.append(row) }) else { return false }
+        onHistory(.added(trackID: track, history: history))
+        return true
+    }
+
+    func remove_from_history(_ history: UInt32, _ track: UInt32) -> Bool {
+        guard let row = snapshot.row_of_id(UInt64(track)),
+              edit(history: history, { members in members.lastIndex(of: row).map { _ = members.remove(at: $0) } }) else { return false }
+        onHistory(.removed(trackID: track, history: history))
+        return true
+    }
+
+    /// 서버 라이브러리의 그 기록 곡 목록을 고친다. 그 기록이 없으면 false
+    private func edit(history: UInt32, _ change: (inout [Row]) -> Void) -> Bool {
+        var histories = snapshot.histories()
+        guard let index = histories.index_of(UInt64(history)), histories.members.indices.contains(index) else { return false }
+        change(&histories.members[index])
+        snapshot.set_histories(histories)
+        return true
+    }
+
+    /// rekordbox가 짓는 이름 "LINK HISTORY yyyy-MM-dd"(이 Mac의 날짜). 같은 이름의 번호 붙이기는 DJCrate 보존본이 한다
+    private static func historyName(_ date: Date) -> String {
+        let parts = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return String(format: "LINK HISTORY %04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
 }

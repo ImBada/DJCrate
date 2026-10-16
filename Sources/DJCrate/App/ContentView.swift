@@ -280,7 +280,7 @@ struct EmptyLibraryOverlay: View {
             ContentUnavailableView {
                 Label(.ui("쓸 곡 초안이 없습니다"), systemImage: "clock.arrow.circlepath")
             } description: {
-                Text(.ui("USB 재생 기록 \(store.history.pendingHistories.count)건이 쓰기 대기에 있습니다. 위 ‘rekordbox에 쓰기’로 rekordbox 재생 기록에 넣습니다."))
+                Text(.ui("재생 기록 \(store.history.pendingHistories.count)건이 쓰기 대기에 있습니다. 위 ‘rekordbox에 쓰기’로 rekordbox 재생 기록에 넣습니다."))
             }
         } else if store.sidebar == .pending {
             ContentUnavailableView {

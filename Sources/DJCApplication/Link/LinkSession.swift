@@ -43,6 +43,34 @@ public struct LinkPlayerState: Equatable, Sendable {
     }
 }
 
+/// CDJ가 보낸 재생 기록 편집(서버가 매긴 곡 번호, 서버가 연 기록 번호)
+public enum LinkHistoryEvent: Equatable, Sendable {
+    case added(UInt32, history: UInt32)
+    case removed(UInt32, history: UInt32)
+}
+
+/// CDJ가 재생 기록에 넣거나 뺀 rekordbox 곡(rekordbox의 LINK HISTORY). 앱이 DJCrate에 보존한다
+public struct LinkPlay: Equatable, Sendable {
+    /// rekordbox 곡 ID
+    public var contentID: String
+    /// 서버가 매긴 곡 번호
+    public var linkID: UInt32
+    /// 연결 차례. 서버를 띄울 때마다 바뀐다
+    public var session: Int
+    /// 서버가 연 기록 번호. CDJ가 기록을 지우면 서버가 새로 연다. 앱은 (차례, 기록 번호)마다 기록 하나를 만든다
+    public var history: UInt32
+    /// 기록에서 뺐는지(아니면 넣었다)
+    public var removed: Bool
+
+    public init(contentID: String, linkID: UInt32, session: Int, history: UInt32 = 1, removed: Bool = false) {
+        self.contentID = contentID
+        self.linkID = linkID
+        self.session = session
+        self.history = history
+        self.removed = removed
+    }
+}
+
 /// 곡 싣기·연결이 막힌 이유. 화면이 한 문장으로 바꾼다
 public enum LinkProblem: Error, Equatable, Sendable {
     /// rekordbox가 같은 포트를 쓰는 중
@@ -70,8 +98,10 @@ public enum LinkProblem: Error, Equatable, Sendable {
 
 /// LINK 서버 포트(#273). 실제 구현은 DJLinkKit `DJLinkExport`를 띄운다. 한 번에 서버 하나만 둔다.
 public struct LinkServerSource: Sendable {
-    /// 라이브러리를 내어 주는 서버를 띄운다(이미 떠 있으면 내리고 새로 띄운다). `peer` 장치로 가는 인터페이스에 참여한다
-    public var start: @Sendable (_ library: LinkLibrary, _ shareRoot: String, _ peer: String) async throws(LinkProblem) -> Void
+    /// 라이브러리를 내어 주는 서버를 띄운다(이미 떠 있으면 내리고 새로 띄운다). `peer` 장치로 가는 인터페이스에 참여한다.
+    /// CDJ가 재생 기록에 곡을 넣거나 빼면 `history`로 알린다(서버를 띄운 동안 아무 스레드에서나)
+    public var start: @Sendable (_ library: LinkLibrary, _ shareRoot: String, _ peer: String,
+                                 _ history: @escaping @Sendable (LinkHistoryEvent) -> Void) async throws(LinkProblem) -> Void
     /// 서버를 내리고 포트를 돌려준다
     public var stop: @Sendable () async -> Void
     public var status: @Sendable () async -> LinkServerStatus?
@@ -80,7 +110,7 @@ public struct LinkServerSource: Sendable {
     /// rekordbox·rekordboxAgent가 켜져 있는지. 프로세스를 띄워 보므로 메인 밖에서 부른다
     public var isRekordboxRunning: @Sendable () -> Bool
 
-    public init(start: @escaping @Sendable (LinkLibrary, String, String) async throws(LinkProblem) -> Void,
+    public init(start: @escaping @Sendable (LinkLibrary, String, String, @escaping @Sendable (LinkHistoryEvent) -> Void) async throws(LinkProblem) -> Void,
                 stop: @escaping @Sendable () async -> Void,
                 status: @escaping @Sendable () async -> LinkServerStatus?,
                 load: @escaping @Sendable (Int, UInt32) async throws(LinkProblem) -> Void,
@@ -93,7 +123,7 @@ public struct LinkServerSource: Sendable {
     }
 
     /// 서버를 띄우지 않는다(화면 시험·자가 테스트 실행). 연결을 켜면 쓸 수 없다고 한다
-    public static let none = LinkServerSource(start: { _, _, _ throws(LinkProblem) in throw .noInterface }, stop: {},
+    public static let none = LinkServerSource(start: { _, _, _, _ throws(LinkProblem) in throw .noInterface }, stop: {},
                                               status: { nil }, load: { _, _ throws(LinkProblem) in throw .notConnected },
                                               isRekordboxRunning: { false })
 }
@@ -110,8 +140,12 @@ public actor LinkSession {
     /// 마지막으로 줄 세운 켜기·끄기. 서버 띄우기·내리기는 부른 차례대로 하나씩 한다(겹쳐 뜨거나 새 서버를 내리지 않게)
     private var tail: Task<Void, Never>?
 
-    public init(source: LinkServerSource) {
+    /// CDJ가 재생 기록에 곡을 넣거나 뺐을 때(아무 스레드에서나 부른다)
+    private let played: @Sendable (LinkPlay) -> Void
+
+    public init(source: LinkServerSource, played: @escaping @Sendable (LinkPlay) -> Void = { _ in }) {
         self.source = source
+        self.played = played
     }
 
     public var isConnected: Bool { library != nil }
@@ -149,8 +183,21 @@ public actor LinkSession {
             return .failure(.noDevice)
         }
         let built = LinkLibrary.build(rows: rows, playlists: playlists)
+        // 서버가 매긴 곡 번호 → rekordbox 곡 ID. 이 켜기에서 띄운 서버의 기록만 이 차례로 알린다
+        let contentIDs = Dictionary(built.tracks.map { ($0.id, $0.contentID) }, uniquingKeysWith: { first, _ in first })
+        let played = played
+        let history: @Sendable (LinkHistoryEvent) -> Void = { event in
+            switch event {
+            case let .added(id, list):
+                if let contentID = contentIDs[id] { played(LinkPlay(contentID: contentID, linkID: id, session: mine, history: list)) }
+            case let .removed(id, list):
+                if let contentID = contentIDs[id] {
+                    played(LinkPlay(contentID: contentID, linkID: id, session: mine, history: list, removed: true))
+                }
+            }
+        }
         do {
-            try await source.start(built, shareRoot, peer.address)
+            try await source.start(built, shareRoot, peer.address, history)
         } catch {
             // 기다리는 사이 껐거나 다시 켰으면 이 실패는 알릴 일이 아니다(화면이 뒤 켜기의 상태를 끄지 않게)
             return .failure(generation == mine ? error : .cancelled)

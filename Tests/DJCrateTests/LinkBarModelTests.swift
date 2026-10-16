@@ -73,7 +73,7 @@ struct LinkBarModelTests {
 
     static func connectable(notes: NotesBox, problem: LinkProblem? = nil) -> LinkBarModel {
         let source = LinkServerSource(
-            start: { _, _, _ throws(LinkProblem) in },
+            start: { _, _, _, _ throws(LinkProblem) in },
             stop: {},
             status: { LinkServerStatus(deviceNumber: 17, mounted: ["169.254.86.192"]) },
             load: { _, _ throws(LinkProblem) in if let problem { throw problem } },

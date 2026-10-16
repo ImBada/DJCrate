@@ -117,15 +117,21 @@ final class AppComposition {
     /// 내어 줄 라이브러리는 저장소가 읽은 rekordbox 컬렉션·재생 목록이고, 분석 파일은 저장소의 share 뿌리에서 읽기만 한다.
     /// 포트 실패는 표준 오류에만 남기고, 연결·싣기 실패는 알림으로 보인다
     static func linkBar(store: LibraryStore) -> LinkBarModel {
-        LinkBarModel(
+        // LINK 재생 기록의 세션 열쇠: 앱 실행마다 새 앞부분 + 연결 차례 + 서버가 연 기록 번호
+        // (보존본은 다시 켠 뒤에도 남아 앞 실행의 차례와 섞이지 않게, CDJ가 기록을 지우고 새로 열면 새 기록이 되게)
+        let launch = UUID().uuidString
+        return LinkBarModel(
             discovery: LinkDiscovery(source: .live, log: { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }),
-            session: LinkSession(source: .live()),
+            session: LinkSession(source: .live(), played: { [weak store] play in
+                Task { @MainActor in store?.history.recordLinkPlay(play, session: "\(launch)-\(play.session)-\(play.history)") }
+            }),
             library: { [weak store] in
                 guard let store, case .loaded = store.phase else { return nil }
                 return LinkBarModel.LibraryInput(rows: store.rows, playlists: store.playlists.rekordboxPlaylists,
                                                  shareRoot: store.shareRoot.path)
             },
-            notify: { [weak store] text, kind in store?.toast = .notice(text, nil, kind: kind) })
+            notify: { [weak store] text, kind in store?.toast = .notice(text, nil, kind: kind) },
+            sessionEnded: { [weak store] in store?.history.closeLinkSessions() })
     }
 
     /// AI 에이전트 설치(#262): 재료는 이 앱 번들 안(`Contents/Resources/skills/djcrate`·`Contents/Helpers/djc`), 설치 자리의 뿌리는 사용자 홈.

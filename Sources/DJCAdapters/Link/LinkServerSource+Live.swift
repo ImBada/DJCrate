@@ -9,7 +9,9 @@ extension LinkServerSource {
     public static func live() -> LinkServerSource {
         let slot = LinkServerSlot()
         return LinkServerSource(
-            start: { library, shareRoot, peer throws(LinkProblem) in try await slot.start(library, shareRoot: shareRoot, peer: peer) },
+            start: { library, shareRoot, peer, history throws(LinkProblem) in
+                try await slot.start(library, shareRoot: shareRoot, peer: peer, history: history)
+            },
             stop: { await slot.stop() },
             status: { await slot.status() },
             load: { player, id throws(LinkProblem) in try await slot.load(player: player, trackID: id) },
@@ -22,12 +24,18 @@ private actor LinkServerSlot {
     private var server: LinkExportServer?
     private var stopping: Task<Void, Never>?
 
-    func start(_ library: LinkLibrary, shareRoot: String, peer: String) async throws(LinkProblem) {
+    func start(_ library: LinkLibrary, shareRoot: String, peer: String,
+               history: @escaping @Sendable (LinkHistoryEvent) -> Void) async throws(LinkProblem) {
         await stop()
         do {
             server = try await LinkExportServer.start(tracks: library.tracks.map(LinkExportTrack.init),
                                                       playlists: library.playlists.map(LinkExportPlaylist.init),
-                                                      shareRoot: shareRoot, peer: peer)
+                                                      shareRoot: shareRoot, peer: peer, onHistory: { event in
+                                                          switch event {
+                                                          case let .added(id, list): history(.added(id, history: list))
+                                                          case let .removed(id, list): history(.removed(id, history: list))
+                                                          }
+                                                      })
         } catch {
             throw Self.problem(error)
         }
