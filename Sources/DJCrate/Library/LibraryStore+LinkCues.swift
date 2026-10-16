@@ -45,5 +45,17 @@ extension LibraryStore {
         return cues
     }
 
+    /// 그 곡들의 지금 큐(초안이 있으면 초안의 큐, 없으면 rekordbox 큐)를 LINK로 보낸다(#281). LINK가 연결된 동안만 읽는다
+    /// - Parameter drafts: 이미 읽은 큐 초안(없는 곡은 저장을 맡은 입력·디스크에서 읽는다)
+    /// rekordbox에 쓰는 동안은 보내지 않는다. 쓰기는 초안을 먼저 지우고 나중에 다시 읽으므로, 쓴 곡은 다시 읽은 뒤 보낸다(`deliverWrittenAfterReload`)
+    func publishLinkCues(_ uuids: some Sequence<String>, drafts: [String: CueDraft]? = nil) {
+        guard let onLinkCuesChanged, !isWritingRekordbox, isLinkServing() else { return }
+        for uuid in uuids {
+            guard let row = rowsByUUID[uuid] else { continue }
+            let draft = drafts.map { $0[uuid] } ?? useCases.watch.currentCue(uuid)
+            onLinkCuesChanged(row.track.id, draft?.rekordboxShapedCues(contentID: row.track.id, rekordboxCues: row.cues) ?? row.cues)
+        }
+    }
+
     private var isLoaded: Bool { if case .loaded = phase { true } else { false } }
 }

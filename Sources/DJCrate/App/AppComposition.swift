@@ -309,6 +309,11 @@ final class AppComposition {
         deck.onDraftChange = { [weak store] uuid, kind, exists in
             store?.draftChanged(trackUUID: uuid, kind: kind, exists: exists)
         }
+        // DJCrate에서 고친 큐를 LINK로 내어 주는 큐에 옮긴다(#281)
+        if let link {
+            store.isLinkServing = { [weak link] in link?.isServing ?? false }
+            store.onLinkCuesChanged = { [weak link] contentID, cues in link?.updateCues(contentID: contentID, cues: cues) }
+        }
     }
 
     /// 창을 띄운 뒤: 사이드바 USB 절을 붙이고, 읽을 때마다 도는 캐시 정리를 붙이고, 라이브러리를 처음 읽는다.

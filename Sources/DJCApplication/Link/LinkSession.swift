@@ -119,6 +119,8 @@ public struct LinkServerSource: Sendable {
     public var updatePlaylists: @Sendable (_ playlists: [LinkLibrary.Playlist]) async -> Void
     /// 곡 하나를 다른 파일·형식으로 내어 준다(CDJ가 못 읽는 형식을 바꾼 WAV)
     public var substitute: @Sendable (_ trackID: UInt32, _ path: String, _ fileType: UInt8) async -> Void
+    /// 곡 하나의 큐 목록을 바꾼다(연결한 뒤 DJCrate에서 고친 큐, #281). CDJ는 곡을 실을 때 다시 묻는다
+    public var updateCues: @Sendable (_ trackID: UInt32, _ cues: [LinkLibrary.Cue]) async -> Void
 
     public init(start: @escaping @Sendable (LinkLibrary, String, String, @escaping @Sendable (LinkHistoryEvent) -> Void) async throws(LinkProblem) -> Void,
                 stop: @escaping @Sendable () async -> Void,
@@ -126,7 +128,8 @@ public struct LinkServerSource: Sendable {
                 load: @escaping @Sendable (Int, UInt32) async throws(LinkProblem) -> Void,
                 isRekordboxRunning: @escaping @Sendable () -> Bool,
                 updatePlaylists: @escaping @Sendable ([LinkLibrary.Playlist]) async -> Void = { _ in },
-                substitute: @escaping @Sendable (UInt32, String, UInt8) async -> Void = { _, _, _ in }) {
+                substitute: @escaping @Sendable (UInt32, String, UInt8) async -> Void = { _, _, _ in },
+                updateCues: @escaping @Sendable (UInt32, [LinkLibrary.Cue]) async -> Void = { _, _ in }) {
         self.start = start
         self.stop = stop
         self.status = status
@@ -134,6 +137,7 @@ public struct LinkServerSource: Sendable {
         self.isRekordboxRunning = isRekordboxRunning
         self.updatePlaylists = updatePlaylists
         self.substitute = substitute
+        self.updateCues = updateCues
     }
 
     /// 서버를 띄우지 않는다(화면 시험·자가 테스트 실행). 연결을 켜면 쓸 수 없다고 한다
@@ -332,6 +336,12 @@ public actor LinkSession {
         let result = await task.value
         converting[path] = nil
         return result
+    }
+
+    /// DJCrate에서 고친 그 곡(rekordbox 곡 ID)의 큐를 서버에 보낸다(#281). 내어 주지 않은 곡이거나 꺼져 있으면 보내지 않는다
+    public func updateCues(contentID: String, cues: [Cue]) async {
+        guard let library, let id = library.linkID(of: contentID) else { return }
+        await source.updateCues(id, LinkLibrary.linkCues(cues))
     }
 
     /// 그 곡을 그 기종에 실을 때 형식을 바꿀 수도 있는지(바꾸는 동안 화면이 알린다)

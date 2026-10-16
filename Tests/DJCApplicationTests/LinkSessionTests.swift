@@ -252,6 +252,25 @@ struct LinkSessionTests {
         #expect(fake.loaded.withLock { $0.isEmpty })
     }
 
+    @Test func DJCrate에서_고친_큐는_내어_준_번호로_서버에_보낸다() async throws {
+        // #281: 연결한 뒤 고친 큐·루프도 CDJ가 곡을 다시 실으면 보이게 한다. 내어 주지 않은 곡·꺼진 연결은 보내지 않는다
+        let fake = Fake()
+        let sent = Mutex<[(id: UInt32, cues: [LinkLibrary.Cue])]>([])
+        var source = fake.source
+        source.updateCues = { id, cues in sent.withLock { $0.append((id, cues)) } }
+        let session = LinkSession(source: source)
+        let cues = [Cue(id: "1", contentID: "20", kind: 0, inMsec: 1_000, name: "", colorTableIndex: nil),
+                    Cue(id: "2", contentID: "20", kind: 2, inMsec: 2_000, name: "", colorTableIndex: nil, outMsec: 4_000)]
+        await session.updateCues(contentID: "20", cues: cues)
+        try await session.connect(rows: [Self.row("10"), Self.row("20")], playlists: PlaylistLayout(), shareRoot: "/share",
+                                  peers: [Self.cdj2])
+        await session.updateCues(contentID: "20", cues: cues)
+        await session.updateCues(contentID: "99", cues: cues)
+        #expect(sent.withLock { $0.map(\.id) } == [2])
+        #expect(sent.withLock { $0.first?.cues } == [LinkLibrary.Cue(positionMs: 1_000, outMs: 0, hotCue: nil, colour: 0),
+                                                     LinkLibrary.Cue(positionMs: 2_000, outMs: 4_000, hotCue: "B", colour: 0)])
+    }
+
     @Test func CDJ가_저장한_큐는_rekordbox_곡_ID로_알린다() async throws {
         // #280: CDJ MEMORY로 더한 큐를 DJCrate 큐 초안으로 옮기려고 앱에 알린다. 내어 주지 않은 번호는 버린다
         let fake = Fake()

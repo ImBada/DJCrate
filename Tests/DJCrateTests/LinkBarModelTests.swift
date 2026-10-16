@@ -72,13 +72,14 @@ struct LinkBarModelTests {
 
     static let own = LinkDevice(number: 17, name: "DJCrate", kind: .rekordbox, address: "169.254.1.2")
 
-    static func connectable(notes: NotesBox, problem: LinkProblem? = nil) -> LinkBarModel {
+    static func connectable(notes: NotesBox, problem: LinkProblem? = nil,
+                            updated: @escaping @Sendable (UInt32, [LinkLibrary.Cue]) async -> Void = { _, _ in }) -> LinkBarModel {
         let source = LinkServerSource(
             start: { _, _, _, _ throws(LinkProblem) in },
             stop: {},
             status: { LinkServerStatus(deviceNumber: 17, mounted: ["169.254.86.192"]) },
             load: { _, _ throws(LinkProblem) in if let problem { throw problem } },
-            isRekordboxRunning: { false })
+            isRekordboxRunning: { false }, updateCues: updated)
         let row = TrackRow(track: Track(id: "10", uuid: "u10", title: "곡", artist: nil, album: nil, albumArtist: nil, genre: nil,
                                         composer: nil, releaseYear: nil, trackNumber: nil, key: nil, bpm: 120, lengthSeconds: 60,
                                         folderPath: "/Users/dj/Music/10.mp3", comment: "", importedOn: nil, analysisDataPath: nil,
@@ -91,6 +92,47 @@ struct LinkBarModelTests {
 
     @MainActor final class NotesBox {
         var values: [String] = []
+    }
+
+    @Test func 연결한_동안_고친_큐를_바뀔_때만_차례대로_서버에_보낸다() async {
+        // #281: DJCrate에서 고친 큐·루프를 CDJ가 다시 실으면 보이게 한다
+        let sent = Mutex<[[UInt32]]>([])
+        let model = Self.connectable(notes: NotesBox(), updated: { _, cues in sent.withLock { $0.append(cues.map(\.positionMs)) } })
+        let cue = Cue(id: "1", contentID: "10", kind: 0, inMsec: 1_000, name: "", colorTableIndex: nil)
+        model.updateCues(contentID: "10", cues: [cue])
+        model.apply(.listening([Self.cdj1]))
+        await model.connect()
+        model.updateCues(contentID: "10", cues: [cue])
+        model.updateCues(contentID: "10", cues: [cue])
+        model.updateCues(contentID: "10", cues: [])
+        await model.cueUpdatesSent()
+        #expect(sent.withLock { $0 } == [[1_000], []])
+    }
+
+    @Test func 켜는_중에_고친_큐는_연결된_뒤에_보낸다() async {
+        // 켜는 동안(.connecting) 고친 큐를 버리면, 켤 때 읽은 옛 초안 큐가 그대로 남았다(#281 리뷰)
+        let sent = Mutex<[[UInt32]]>([])
+        let gate = Mutex<CheckedContinuation<Void, Never>?>(nil)
+        let source = LinkServerSource(
+            start: { _, _, _, _ throws(LinkProblem) in await withCheckedContinuation { c in gate.withLock { $0 = c } } },
+            stop: {}, status: { LinkServerStatus(deviceNumber: 17) }, load: { _, _ throws(LinkProblem) in },
+            isRekordboxRunning: { false }, updateCues: { _, cues in sent.withLock { $0.append(cues.map(\.positionMs)) } })
+        let row = TrackRow(track: Track(id: "10", uuid: "u10", title: "곡", artist: nil, album: nil, albumArtist: nil, genre: nil,
+                                        composer: nil, releaseYear: nil, trackNumber: nil, key: nil, bpm: 120, lengthSeconds: 60,
+                                        folderPath: "/Users/dj/Music/10.mp3", comment: "", importedOn: nil, analysisDataPath: nil,
+                                        imagePath: nil, isDeleted: false),
+                           cues: [], playCount: 0)
+        let model = LinkBarModel(discovery: LinkDiscovery(source: .none), session: LinkSession(source: source),
+                                 library: { .init(rows: [row], playlists: PlaylistLayout(), shareRoot: "/share") })
+        model.apply(.listening([Self.cdj1]))
+        let connecting = Task { await model.connect() }
+        while gate.withLock({ $0 == nil }) { await Task.yield() }
+        #expect(model.isServing)
+        model.updateCues(contentID: "10", cues: [Cue(id: "1", contentID: "10", kind: 0, inMsec: 3_000, name: "", colorTableIndex: nil)])
+        gate.withLock { $0?.resume(); $0 = nil }
+        await connecting.value
+        await model.cueUpdatesSent()
+        #expect(sent.withLock { $0 } == [[3_000]])
     }
 
     @Test func 연결을_켜면_내어_준_곡_수와_참여_번호를_보이고_자신은_목록에서_뺀다() async {

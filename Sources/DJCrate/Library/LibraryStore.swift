@@ -250,6 +250,9 @@ final class LibraryStore {
     @ObservationIgnored var recoverySnapshotReads = 0
     /// CDJ 큐 편집(#280)을 받은 차례대로 하나씩 얹는 줄의 끝
     @ObservationIgnored var linkCueTail: Task<Void, Never>?
+    /// LINK로 내어 주는 큐를 바꿀 곡(rekordbox 곡 ID)과 지금 큐(#281). LINK가 연결된 동안만 받는다(`isLinkServing`)
+    @ObservationIgnored var onLinkCuesChanged: ((_ contentID: String, _ cues: [Cue]) -> Void)?
+    @ObservationIgnored var isLinkServing: () -> Bool = { false }
     private(set) var cueDraftUUIDs: Set<String> = []
     private(set) var gridDraftUUIDs: Set<String> = []
     private(set) var gainDraftUUIDs: Set<String> = []

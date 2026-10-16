@@ -186,6 +186,11 @@ public final class LinkExportServer: Sendable {
         await Task { @DJLinkActor [source] in source.substitute(trackID: trackID, path: path, fileType: fileType) }.value
     }
 
+    /// 곡 하나의 큐 목록을 바꾼다(#281). CDJ는 곡을 실을 때 큐를 다시 묻는다. 이미 실린 곡은 다시 실어야 보인다
+    public func updateCues(trackID: UInt32, cues: [LinkExportCue]) async {
+        await Task { @DJLinkActor [source] in source.replaceCues(trackID: trackID, cues: cues) }.value
+    }
+
     /// 재생 목록 나무를 바꾼다(곡·경로는 그대로). CDJ 탐색 결과는 라이브러리 단위로 기억하므로 새 라이브러리로 바꿔 끼운다
     public func updatePlaylists(_ playlists: [LinkExportPlaylist]) async {
         await Task { @DJLinkActor [source] in source.replacePlaylists(playlists) }.value
@@ -374,7 +379,7 @@ public final class LinkExportServer: Sendable {
         return lists
     }
 
-    private static func cue(_ cue: LinkExportCue) -> DJLinkExportModel.Cue {
+    static func cue(_ cue: LinkExportCue) -> DJLinkExportModel.Cue {
         DJLinkExportModel.Cue(position_ms: cue.positionMs, out_ms: cue.outMs,
             kind: cue.hotCue.flatMap { DJLinkExportModel.Cue.kind_of_letter($0) } ?? DJLinkExportModel.Cue.MEMORY, colour: cue.colour)
     }
@@ -412,6 +417,16 @@ private final class ExportSource: Source {
     func library() -> Library? { snapshot }
 
     /// 그 곡의 경로·형식만 바꾼 새 라이브러리로 바꿔 끼운다(CDJ 탐색 기억은 라이브러리 단위라 새로 읽힌다)
+    /// 그 곡의 큐 목록을 바꾼다(DJCrate에서 고친 큐, #281)
+    func replaceCues(trackID: UInt32, cues: [LinkExportCue]) {
+        guard let row = snapshot.row_of_id(UInt64(trackID)) else { return }
+        snapshot.set_cues_of(row, cues.enumerated().map { index, cue in
+            var served = LinkExportServer.cue(cue)
+            served.id = UInt32(index + 1)
+            return served
+        })
+    }
+
     func substitute(trackID: UInt32, path: String, fileType: UInt8) {
         let current = snapshot
         guard let row = current.row_of_id(UInt64(trackID)) else { return }

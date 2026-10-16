@@ -17,7 +17,10 @@ extension LinkServerSource {
             load: { player, id throws(LinkProblem) in try await slot.load(player: player, trackID: id) },
             isRekordboxRunning: { LibrarySnapshot.isRekordboxRunning() },
             updatePlaylists: { playlists in await slot.updatePlaylists(playlists.map(LinkExportPlaylist.init)) },
-            substitute: { id, path, fileType in await slot.substitute(id, path: path, fileType: fileType) })
+            substitute: { id, path, fileType in await slot.substitute(id, path: path, fileType: fileType) },
+            updateCues: { id, cues in
+                await slot.updateCues(id, cues.map { LinkExportCue(positionMs: $0.positionMs, outMs: $0.outMs, hotCue: $0.hotCue, colour: $0.colour) })
+            })
     }
 }
 
@@ -60,6 +63,10 @@ private actor LinkServerSlot {
 
     func updatePlaylists(_ playlists: [LinkExportPlaylist]) async {
         await server?.updatePlaylists(playlists)
+    }
+
+    func updateCues(_ trackID: UInt32, _ cues: [LinkExportCue]) async {
+        await server?.updateCues(trackID: trackID, cues: cues)
     }
 
     func status() async -> LinkServerStatus? {

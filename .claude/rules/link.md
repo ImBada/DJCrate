@@ -29,6 +29,7 @@ CDJ·DJM 네트워크 코드를 고칠 때 지키는 규칙이다. 리뷰는 규
 - **LNK-15** CDJ가 실은 DJCrate 곡은 DJCrate 덱에서 내린다. CDJ에 실려 있는 곡은 재생 중이 아니어도 덱에 올리지 않는다(`DeckModel.applyCDJTracks`).
 - **LNK-13** CDJ가 보낸 재생 기록(`add_to_history`)은 DJCrate에 "LINK HISTORY yyyy-MM-dd" 보존본으로만 남긴다(`LinkHistory`). LINK 동안 rekordbox 라이브러리에 쓰지 않는다. rekordbox에는 USB 기록과 같은 쓰기 대기로 올려 rekordbox에 쓰기 때 넣는다.
 - **LNK-16** CDJ의 큐 저장·삭제(#280)는 내어 주는 큐 목록을 바꿔 답한다. 거절하면 서버가 빈 목록으로 답해 CDJ의 메모리 큐가 사라진다. 받은 편집은 그 곡의 큐 초안에만 얹는다(`LinkCueDrafts`). LINK 동안 rekordbox 라이브러리에 쓰지 않는다. 큐 초안이 있는 곡은 연결할 때 초안의 큐를 내어 준다.
+- **LNK-17** 연결한 뒤 DJCrate에서 큐 초안이 바뀌면 그 곡의 큐만 서버에 보낸다(#281, `LinkBarModel.updateCues`). 곡 정보(제목·태그 등)와 그리드는 보내지 않는다. 곡 정보는 CDJ가 목록을 다시 읽어야 보여 LINK를 다시 켤 때 반영한다.
 - **LNK-12** 실기 확인은 시험용 네트워크에서 사용자가 한다. 에이전트는 LINK 단추를 누르지 않는다.
 
 ## 경계

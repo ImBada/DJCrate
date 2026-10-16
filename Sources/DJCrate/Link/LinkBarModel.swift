@@ -48,6 +48,12 @@ final class LinkBarModel {
     @ObservationIgnored private var reconnectWhenFree = false
     /// 켠 서버에 iTunes 목록을 넣었는지(켤 때 아직 읽는 중이었으면 다 읽은 뒤 넣는다)
     @ObservationIgnored private var servesITunes = false
+    /// 연결한 뒤 서버에 보낸 곡별 큐(rekordbox 곡 ID). 같은 큐는 다시 보내지 않는다(#281)
+    @ObservationIgnored private var sentCues: [String: [Cue]] = [:]
+    /// 켜는 동안 고친 곡별 큐. 켜진 뒤에 보낸다(켤 때 읽은 초안 큐보다 새것이다)
+    @ObservationIgnored private var pendingCues: [String: [Cue]] = [:]
+    /// 큐 보내기를 받은 차례대로 하나씩 하는 줄의 끝
+    @ObservationIgnored private var cueTail: Task<Void, Never>?
     /// 서버 상태를 다시 볼 간격
     @ObservationIgnored var statusInterval: Duration = .seconds(1)
     /// 참여하고 플레이어가 마운트할 때까지 볼 간격(연결됨·🔗가 늦게 보이지 않게)
@@ -97,6 +103,9 @@ final class LinkBarModel {
     var showsDevices: Bool { isExpanded && blockReason == nil && !devices.isEmpty }
 
     var isConnected: Bool { if case .on = connection { true } else { false } }
+
+    /// 켜는 중이거나 켜져 있다(DJCrate에서 고친 큐를 받는다, #281)
+    var isServing: Bool { connection != .off }
 
     /// LINK 단추 옆 글: 연결 상태. 참여 번호는 단추에 보인다
     var connectionText: String? {
@@ -153,11 +162,17 @@ final class LinkBarModel {
             // 기다리는 사이 껐으면(rekordbox 켜짐·끄기) 켜진 것으로 되돌리지 않는다
             guard connection == .connecting else { return }
             connection = .on(tracks: count)
+            // 켤 때 내어 준 초안의 큐는 보낸 것으로 치고, 켜는 동안 고친 큐를 보낸다
+            sentCues = input.draftCues
+            let pending = pendingCues
+            pendingCues = [:]
+            for (contentID, cues) in pending { updateCues(contentID: contentID, cues: cues) }
             await refreshStatus()
         } catch .cancelled {
             return
         } catch {
             if connection == .connecting { connection = .off }
+            pendingCues = [:]
             notify(LinkText.problem(error), .warning)
         }
     }
@@ -166,10 +181,28 @@ final class LinkBarModel {
         guard connection != .off else { return }
         connection = .off
         server = nil
+        sentCues = [:]
+        pendingCues = [:]
         publishCDJTracks()
         await session.disconnect()
         sessionEnded()
     }
+
+    /// DJCrate에서 고친 그 곡(rekordbox 곡 ID)의 큐를 서버에 보낸다(#281). 연결한 동안, 보낸 것과 다를 때만 받은 차례대로 보낸다.
+    /// CDJ는 곡을 실을 때 큐를 다시 묻는다. 이미 실린 곡은 다시 실어야 보인다
+    func updateCues(contentID: String, cues: [Cue]) {
+        if connection == .connecting { pendingCues[contentID] = cues }
+        guard isConnected, sentCues[contentID] != cues else { return }
+        sentCues[contentID] = cues
+        let previous = cueTail
+        cueTail = Task { [session] in
+            await previous?.value
+            await session.updateCues(contentID: contentID, cues: cues)
+        }
+    }
+
+    /// 걸어 둔 큐 보내기가 다 끝날 때까지 기다린다(시험)
+    func cueUpdatesSent() async { await cueTail?.value }
 
     /// 플레이어 칸에 놓은 곡(rekordbox 곡 ID)을 그 플레이어에 싣는다
     func drop(contentID: String, on device: LinkDevice) {
@@ -217,6 +250,8 @@ final class LinkBarModel {
         if state == .blockedByRekordbox, connection != .off {
             connection = .off
             server = nil
+            sentCues = [:]
+            pendingCues = [:]
             publishCDJTracks()
             Task { [session, sessionEnded] in
                 await session.disconnect()

@@ -144,10 +144,13 @@ public struct LinkLibrary: Equatable, Sendable {
                      lengthSeconds: UInt32(max(0, track.lengthSeconds)), path: track.folderPath,
                      analysisPath: track.analysisDataPath ?? "", artworkPath: track.imagePath ?? "", fileType: fileType,
                      bitrateKbps: UInt32(max(0, track.bitrateKbps ?? 0)), rating: UInt8(clamping: track.rating),
-                     comment: track.comment, cues: cues.compactMap(cue))
+                     comment: track.comment, cues: linkCues(cues))
     }
 
     /// 메모리 큐와 A~H 핫 큐만 옮긴다(뜻을 모르는 종류는 뺀다)
+    /// rekordbox 큐 → 내어 줄 큐(메모리 큐와 A~H 핫 큐만)
+    public static func linkCues(_ cues: [DJCDomain.Cue]) -> [Cue] { cues.sorted { $0.inMsec < $1.inMsec }.compactMap(cue) }
+
     private static func cue(_ cue: DJCDomain.Cue) -> Cue? {
         guard cue.inMsec >= 0, cue.isMemoryCue || cue.hotCueSlot != nil else { return nil }
         return Cue(positionMs: UInt32(cue.inMsec), outMs: cue.isLoop ? UInt32(cue.outMsec) : 0, hotCue: cue.hotCueSlot,
