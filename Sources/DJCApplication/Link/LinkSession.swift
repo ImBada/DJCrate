@@ -172,6 +172,8 @@ public actor LinkSession {
     private let converter: LinkAudioConverter
     /// 이 연결에서 WAV로 바꿔 내어 준 곡(서버 곡 번호)
     private var substituted: Set<UInt32> = []
+    /// 진행 중인 변환(원본 경로별). 같은 곡을 바꾸는 동안 또 놓으면 이 변환을 함께 기다린다(같은 출력 파일을 두 번 쓰지 않게)
+    private var converting: [String: Task<Result<String?, LinkProblem>, Never>] = [:]
 
     public init(source: LinkServerSource, converter: LinkAudioConverter = .none, played: @escaping @Sendable (LinkPlay) -> Void = { _ in }) {
         self.source = source
@@ -292,15 +294,31 @@ public actor LinkSession {
     public func load(contentID: String, player: Int, playerModel: String = "") async throws(LinkProblem) {
         guard let library else { throw .notConnected }
         guard let id = library.linkID(of: contentID) else { throw .trackNotShared }
+        let mine = generation
         if needsConversion(id, library: library, playerModel: playerModel), let track = library.track(linkID: id) {
-            if let wav = try await converter.convert(track.path) {
-                // 바꾸는 사이 끄거나 다시 켰으면 지금 서버에 바꿔 끼우지 않는다
-                guard self.library?.linkID(of: contentID) == id else { throw .notConnected }
-                await source.substitute(id, wav, LinkLibrary.wavFileType)
-                substituted.insert(id)
+            if let wav = try await convert(track.path).get() {
+                // 바꾸는 사이 끄거나 다시 켰으면 지금 서버에 바꿔 끼우지 않는다(다시 읽은 라이브러리는 같은 번호라도 경로가 다를 수 있다)
+                guard generation == mine, self.library?.linkID(of: contentID) == id else { throw .notConnected }
+                // 함께 기다린 다른 싣기가 먼저 바꿔 끼웠으면 다시 끼우지 않는다
+                if !substituted.contains(id) {
+                    substituted.insert(id)
+                    await source.substitute(id, wav, LinkLibrary.wavFileType)
+                }
             }
         }
         try await source.load(player, id)
+    }
+
+    /// 그 원본을 바꾼다. 같은 원본을 바꾸는 중이면 그 변환을 함께 기다린다
+    private func convert(_ path: String) async -> Result<String?, LinkProblem> {
+        if let running = converting[path] { return await running.value }
+        let task = Task { [converter] () -> Result<String?, LinkProblem> in
+            do throws(LinkProblem) { return .success(try await converter.convert(path)) } catch { return .failure(error) }
+        }
+        converting[path] = task
+        let result = await task.value
+        converting[path] = nil
+        return result
     }
 
     /// 그 곡을 그 기종에 실을 때 형식을 바꿀 수도 있는지(바꾸는 동안 화면이 알린다)

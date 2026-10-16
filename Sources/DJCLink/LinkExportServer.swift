@@ -286,6 +286,13 @@ public final class LinkExportServer: Sendable {
     }
 
     /// 곡마다의 이름 → 겹치지 않는 이름 목록과 곡마다의 번호(처음 나온 차례). 이름이 같으면 같은 번호다
+    /// 그 행과 같은 음원 경로를 쓰는 행과 그 곡 id(그 행 포함, 차례대로). 바꿔 끼울 때 경로·형식·곡 정보를 모두 이 행들에 적용한다.
+    /// 범위 밖이면 빈 값
+    static func substitutionTargets(paths: [String], ids: [UInt64], of row: Int) -> [(row: Int, id: String)] {
+        guard paths.indices.contains(row) else { return [] }
+        return paths.indices.filter { paths[$0] == paths[row] && ids.indices.contains($0) }.map { ($0, String(ids[$0])) }
+    }
+
     static func mergedIDs(_ perTrack: [String]) -> (names: [String], ids: [UInt32]) {
         var names: [String] = []
         var index: [String: UInt32] = [:]
@@ -355,16 +362,20 @@ private final class ExportSource: Source {
     func substitute(trackID: UInt32, path: String, fileType: UInt8) {
         let current = snapshot
         guard let row = current.row_of_id(UInt64(trackID)) else { return }
-        let original = current.folder_path.get(Int(row))
+        // 같은 음원을 가리키는 곡이 여럿이면 경로·형식·곡 정보를 모두 함께 바꾼다(경로만 바뀐 곡이 WAV를 FLAC 형식으로 내보내지 않게)
+        let paths = (0..<current.folder_path.len()).map { current.folder_path.get($0) }
+        let targets = LinkExportServer.substitutionTargets(paths: paths, ids: current.ids, of: Int(row))
+        let original = paths[Int(row)]
         let next = current.clone()
         next.map_folder_paths { $0 == original ? path : $0 }
-        if next.file_type.indices.contains(Int(row)) { next.file_type[Int(row)] = fileType }
-        snapshot = next
-        if var detail = details[String(trackID)] {
+        for target in targets {
+            if next.file_type.indices.contains(target.row) { next.file_type[target.row] = fileType }
+            guard var detail = details[target.id] else { continue }
             detail.path = path
             detail.file_type = UInt32(fileType)
-            details[String(trackID)] = detail
+            details[target.id] = detail
         }
+        snapshot = next
     }
 
     /// 재생 목록만 바꾼 새 라이브러리로 바꿔 끼운다(재생 기록 나무는 함께 옮긴다)
