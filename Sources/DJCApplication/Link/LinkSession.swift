@@ -93,6 +93,8 @@ public enum LinkProblem: Error, Equatable, Sendable {
     case notMounted(Int)
     /// 켜는 도중에 끄기를 요청함(알릴 일이 아니다)
     case cancelled
+    /// CDJ가 못 읽는 형식을 WAV로 바꾸지 못함(까닭)
+    case conversionFailed(String)
     case failed(String)
 }
 
@@ -111,25 +113,42 @@ public struct LinkServerSource: Sendable {
     public var isRekordboxRunning: @Sendable () -> Bool
     /// 띄운 서버의 재생 목록 나무를 바꾼다(곡은 그대로). iTunes 목록을 연결한 뒤에 다 읽었을 때 쓴다
     public var updatePlaylists: @Sendable (_ playlists: [LinkLibrary.Playlist]) async -> Void
+    /// 곡 하나를 다른 파일·형식으로 내어 준다(CDJ가 못 읽는 형식을 바꾼 WAV)
+    public var substitute: @Sendable (_ trackID: UInt32, _ path: String, _ fileType: UInt8) async -> Void
 
     public init(start: @escaping @Sendable (LinkLibrary, String, String, @escaping @Sendable (LinkHistoryEvent) -> Void) async throws(LinkProblem) -> Void,
                 stop: @escaping @Sendable () async -> Void,
                 status: @escaping @Sendable () async -> LinkServerStatus?,
                 load: @escaping @Sendable (Int, UInt32) async throws(LinkProblem) -> Void,
                 isRekordboxRunning: @escaping @Sendable () -> Bool,
-                updatePlaylists: @escaping @Sendable ([LinkLibrary.Playlist]) async -> Void = { _ in }) {
+                updatePlaylists: @escaping @Sendable ([LinkLibrary.Playlist]) async -> Void = { _ in },
+                substitute: @escaping @Sendable (UInt32, String, UInt8) async -> Void = { _, _, _ in }) {
         self.start = start
         self.stop = stop
         self.status = status
         self.load = load
         self.isRekordboxRunning = isRekordboxRunning
         self.updatePlaylists = updatePlaylists
+        self.substitute = substitute
     }
 
     /// 서버를 띄우지 않는다(화면 시험·자가 테스트 실행). 연결을 켜면 쓸 수 없다고 한다
     public static let none = LinkServerSource(start: { _, _, _, _ throws(LinkProblem) in throw .noInterface }, stop: {},
                                               status: { nil }, load: { _, _ throws(LinkProblem) in throw .notConnected },
                                               isRekordboxRunning: { false })
+}
+
+/// CDJ가 못 읽는 음원(FLAC·ALAC)을 WAV로 바꾸는 포트(#277). 원본은 읽기만 하고, 바꾼 파일은 다시 쓴다(캐시)
+public struct LinkAudioConverter: Sendable {
+    /// 그 음원이 바꿔야 하는 형식이면 바꾼 WAV 경로, 바꿀 필요가 없으면(AAC .m4a 등) nil
+    public var convert: @Sendable (_ path: String) async throws(LinkProblem) -> String?
+
+    public init(convert: @escaping @Sendable (String) async throws(LinkProblem) -> String?) {
+        self.convert = convert
+    }
+
+    /// 바꾸지 않는다(시험·화면 시험)
+    public static let none = LinkAudioConverter { _ throws(LinkProblem) in nil }
 }
 
 /// LINK 연결(#273·#274): 사용자가 켜면 라이브러리를 만들어 서버를 띄우고, 플레이어에 놓은 곡을 싣는다.
@@ -147,8 +166,14 @@ public actor LinkSession {
     /// CDJ가 재생 기록에 곡을 넣거나 뺐을 때(아무 스레드에서나 부른다)
     private let played: @Sendable (LinkPlay) -> Void
 
-    public init(source: LinkServerSource, played: @escaping @Sendable (LinkPlay) -> Void = { _ in }) {
+    /// FLAC·ALAC를 WAV로 바꾸는 포트(끌어 놓아 실을 때만, #277)
+    private let converter: LinkAudioConverter
+    /// 이 연결에서 WAV로 바꿔 내어 준 곡(서버 곡 번호)
+    private var substituted: Set<UInt32> = []
+
+    public init(source: LinkServerSource, converter: LinkAudioConverter = .none, played: @escaping @Sendable (LinkPlay) -> Void = { _ in }) {
         self.source = source
+        self.converter = converter
         self.played = played
     }
 
@@ -226,6 +251,7 @@ public actor LinkSession {
             return .failure(.cancelled)
         }
         library = built
+        substituted = []
         return .success(built.tracks.count)
     }
 
@@ -256,10 +282,32 @@ public actor LinkSession {
         return status
     }
 
-    /// rekordbox 곡(`contentID`)을 플레이어에 싣는다
-    public func load(contentID: String, player: Int) async throws(LinkProblem) {
+    /// rekordbox 곡(`contentID`)을 플레이어에 싣는다. 그 기종이 못 읽을 수 있는 형식(FLAC·ALAC)이면 WAV로 바꿔 그 파일을 내어 준 뒤 싣는다(#277).
+    /// FLAC·ALAC을 재생하는 기종(`LinkPlayerFormats`)에는 바꾸지 않고 원본을 싣는다
+    /// - Parameter playerModel: 플레이어 기종 이름(장치 알림의 이름). 모르면 빈 값(바꾸는 쪽으로 둔다)
+    public func load(contentID: String, player: Int, playerModel: String = "") async throws(LinkProblem) {
         guard let library else { throw .notConnected }
         guard let id = library.linkID(of: contentID) else { throw .trackNotShared }
+        if needsConversion(id, library: library, playerModel: playerModel), let track = library.track(linkID: id) {
+            if let wav = try await converter.convert(track.path) {
+                // 바꾸는 사이 끄거나 다시 켰으면 지금 서버에 바꿔 끼우지 않는다
+                guard self.library?.linkID(of: contentID) == id else { throw .notConnected }
+                await source.substitute(id, wav, LinkLibrary.wavFileType)
+                substituted.insert(id)
+            }
+        }
         try await source.load(player, id)
+    }
+
+    /// 그 곡을 그 기종에 실을 때 형식을 바꿀 수도 있는지(바꾸는 동안 화면이 알린다)
+    public func mayConvert(contentID: String, playerModel: String = "") -> Bool {
+        guard let library, let id = library.linkID(of: contentID) else { return false }
+        return needsConversion(id, library: library, playerModel: playerModel)
+    }
+
+    private func needsConversion(_ id: UInt32, library: LinkLibrary, playerModel: String) -> Bool {
+        guard !substituted.contains(id), !LinkPlayerFormats.playsLossless(model: playerModel),
+              let track = library.track(linkID: id) else { return false }
+        return LinkLibrary.mayNeedConversion(path: track.path)
     }
 }

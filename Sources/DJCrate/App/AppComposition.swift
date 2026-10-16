@@ -122,7 +122,10 @@ final class AppComposition {
         let launch = UUID().uuidString
         return LinkBarModel(
             discovery: LinkDiscovery(source: .live, log: { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }),
-            session: LinkSession(source: .live(), played: { [weak store] play in
+            // CDJ가 못 읽는 FLAC·ALAC은 끌어 놓을 때 WAV로 바꿔 ~/Music/DJCrate/LINK에 둔다(#277). 음원이 보통 ~/Music에 있어 새로 열리는 폴더가 없다
+            session: LinkSession(source: .live(), converter: .live(cache: FileManager.default.homeDirectoryForCurrentUser
+                                     .appending(path: "Music/DJCrate/LINK", directoryHint: .isDirectory)),
+                                 played: { [weak store] play in
                 Task { @MainActor in store?.history.recordLinkPlay(play, session: "\(launch)-\(play.session)-\(play.history)") }
             }),
             library: { [weak store] in

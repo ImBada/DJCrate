@@ -155,6 +155,12 @@ public final class LinkExportServer: Sendable {
         self.source = source
     }
 
+    /// 곡 하나를 다른 파일로 내어 준다(CDJ가 못 읽는 형식을 바꾼 WAV 등). CDJ는 곡 정보의 경로·형식으로 파일을 찾아 읽는다.
+    /// 새 파일은 서버를 띄울 때 연 폴더(곡 경로 앞 세 단계) 안에 있어야 NFS로 읽힌다
+    public func substitute(trackID: UInt32, path: String, fileType: UInt8) async {
+        await Task { @DJLinkActor [source] in source.substitute(trackID: trackID, path: path, fileType: fileType) }.value
+    }
+
     /// 재생 목록 나무를 바꾼다(곡·경로는 그대로). CDJ 탐색 결과는 라이브러리 단위로 기억하므로 새 라이브러리로 바꿔 끼운다
     public func updatePlaylists(_ playlists: [LinkExportPlaylist]) async {
         await Task { @DJLinkActor [source] in source.replacePlaylists(playlists) }.value
@@ -274,7 +280,7 @@ public final class LinkExportServer: Sendable {
 private final class ExportSource: Source {
     private var snapshot: Library
     private let root: String
-    private let details: [String: DJLinkExportModel.TrackDetails]
+    private var details: [String: DJLinkExportModel.TrackDetails]
     private let onHistory: @Sendable (LinkExportHistoryEvent) -> Void
     /// 서버가 연 재생 기록 번호(서버를 띄운 동안 하나)
     private var historySession: UInt32 = 0
@@ -297,6 +303,22 @@ private final class ExportSource: Source {
     }
 
     func library() -> Library? { snapshot }
+
+    /// 그 곡의 경로·형식만 바꾼 새 라이브러리로 바꿔 끼운다(CDJ 탐색 기억은 라이브러리 단위라 새로 읽힌다)
+    func substitute(trackID: UInt32, path: String, fileType: UInt8) {
+        let current = snapshot
+        guard let row = current.row_of_id(UInt64(trackID)) else { return }
+        let original = current.folder_path.get(Int(row))
+        let next = current.clone()
+        next.map_folder_paths { $0 == original ? path : $0 }
+        if next.file_type.indices.contains(Int(row)) { next.file_type[Int(row)] = fileType }
+        snapshot = next
+        if var detail = details[String(trackID)] {
+            detail.path = path
+            detail.file_type = UInt32(fileType)
+            details[String(trackID)] = detail
+        }
+    }
 
     /// 재생 목록만 바꾼 새 라이브러리로 바꿔 끼운다(재생 기록 나무는 함께 옮긴다)
     func replacePlaylists(_ playlists: [LinkExportPlaylist]) {

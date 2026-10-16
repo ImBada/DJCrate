@@ -66,11 +66,24 @@ public struct LinkLibrary: Equatable, Sendable {
     /// 그 rekordbox 곡의 CDJ 번호. 내어 주지 않는 곡이면 nil
     public func linkID(of contentID: String) -> UInt32? { idsByContent[contentID] }
 
-    /// 그 CDJ 번호로 내어 준 곡의 제목. 번호는 1부터 차례로 매기므로 자리로 찾는다
-    public func title(ofLinkID id: UInt32) -> String? {
+    /// 그 CDJ 번호로 내어 준 곡. 번호는 1부터 차례로 매기므로 자리로 찾는다
+    public func track(linkID id: UInt32) -> Track? {
         let index = Int(id) - 1
         guard tracks.indices.contains(index), tracks[index].id == id else { return nil }
-        return tracks[index].title
+        return tracks[index]
+    }
+
+    /// 그 CDJ 번호로 내어 준 곡의 제목
+    public func title(ofLinkID id: UInt32) -> String? { track(linkID: id)?.title }
+
+    /// WAV 형식 번호(CDJ-2000nexus 실기 확인)
+    public static let wavFileType: UInt8 = 11
+
+    /// 앞 세대 CDJ(CDJ-2000nexus 등)가 못 읽을 수 있어 WAV로 바꿀지 볼 음원: FLAC과, ALAC일 수 있는 .m4a·.mp4
+    /// (ALAC·AAC는 코덱을 열어 봐야 가른다. 그 판정은 변환 포트가 한다)
+    public static func mayNeedConversion(path: String) -> Bool {
+        let ext = (path as NSString).pathExtension.lowercased()
+        return ext == "flac" || ext == "m4a" || ext == "mp4"
     }
 
     /// rekordbox 컬렉션의 곡과 재생 목록으로 만든다. 내어 줄 수 없는 곡(`isShareable`)은 빼고, 재생 목록에서도 뺀다.

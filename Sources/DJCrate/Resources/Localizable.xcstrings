@@ -4427,6 +4427,38 @@
         }
       }
     },
+    "CDJ가 읽을 수 있게 WAV로 바꾼 뒤 싣습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Converting to WAV so the CDJ can play it, then loading"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CDJで再生できるようWAVに変換してからロードします"
+          }
+        }
+      }
+    },
+    "CDJ가 읽을 수 있는 WAV로 바꾸지 못했습니다(%@). 음원 파일을 확인한 뒤 다시 놓으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't convert to a WAV the CDJ can play (%@). Check the audio file, then drop it again"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CDJで再生できるWAVに変換できませんでした（%@）。音声ファイルを確認してから、もう一度ドロップしてください"
+          }
+        }
+      }
+    },
     "CDJ로 가는 네트워크 연결을 찾지 못했습니다. 케이블·네트워크 설정을 확인한 뒤 다시 켜세요" : {
       "localizations" : {
         "en" : {
@@ -36205,6 +36237,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "音源ファイルを読み込めないため、VBR MP3かどうか確認できません。rekordboxでファイルの場所を確認してください"
+          }
+        }
+      }
+    },
+    "음원 파일을 읽지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read the audio file"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音声ファイルを読み込めませんでした"
           }
         }
       }

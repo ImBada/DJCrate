@@ -124,6 +124,67 @@ struct LinkSessionTests {
         await #expect(throws: LinkProblem.notMounted(2)) { try await session.load(contentID: "10", player: 2) }
     }
 
+    @Test func FLAC·ALAC일_수_있는_곡은_바꾼_WAV로_바꿔_끼운_뒤_한_번만_바꾸고_싣는다() async throws {
+        let fake = Fake()
+        let swapped = Mutex<[(id: UInt32, path: String, type: UInt8)]>([])
+        let conversions = Mutex(0)
+        var source = fake.source
+        source.substitute = { id, path, type in swapped.withLock { $0.append((id, path, type)) } }
+        let converter = LinkAudioConverter { path throws(LinkProblem) in
+            conversions.withLock { $0 += 1 }
+            return path.hasSuffix(".flac") ? "/Users/dj/Music/DJCrate/LINK/x.wav" : nil
+        }
+        let session = LinkSession(source: source, converter: converter)
+        let flac = Self.row("10", path: "/Users/dj/Music/10.flac")
+        let aac = Self.row("20", path: "/Users/dj/Music/20.m4a")
+        try await session.connect(rows: [flac, aac, Self.row("30")], playlists: PlaylistLayout(), shareRoot: "/share", peers: [Self.cdj2])
+        #expect(await session.mayConvert(contentID: "10"))
+        #expect(!(await session.mayConvert(contentID: "30")))
+        try await session.load(contentID: "10", player: 2)
+        try await session.load(contentID: "10", player: 2)
+        try await session.load(contentID: "20", player: 2)
+        try await session.load(contentID: "30", player: 2)
+        #expect(swapped.withLock { $0.map(\.id) } == [1])
+        #expect(swapped.withLock { $0.map(\.type) } == [11])
+        // FLAC 한 번, AAC일 수 있는 .m4a는 볼 때마다(바꾸지 않았으니), MP3는 보지 않는다
+        #expect(conversions.withLock { $0 } == 2)
+        #expect(!(await session.mayConvert(contentID: "10")))
+        #expect(fake.loaded.withLock { $0.map(\.id) } == [1, 1, 2, 3])
+    }
+
+    @Test func FLAC·ALAC을_재생하는_기종에는_바꾸지_않고_원본을_싣는다() async throws {
+        let fake = Fake()
+        let conversions = Mutex(0)
+        let swapped = Mutex(0)
+        var source = fake.source
+        source.substitute = { _, _, _ in swapped.withLock { $0 += 1 } }
+        let session = LinkSession(source: source, converter: LinkAudioConverter { _ throws(LinkProblem) in
+            conversions.withLock { $0 += 1 }
+            return "/Users/dj/Music/DJCrate/LINK/x.wav"
+        })
+        try await session.connect(rows: [Self.row("10", path: "/Users/dj/Music/10.flac")], playlists: PlaylistLayout(), shareRoot: "/share",
+                                  peers: [Self.cdj2])
+        #expect(!(await session.mayConvert(contentID: "10", playerModel: "CDJ-3000")))
+        try await session.load(contentID: "10", player: 2, playerModel: "CDJ-3000")
+        try await session.load(contentID: "10", player: 2, playerModel: "CDJ-2000NXS2")
+        #expect(conversions.withLock { $0 } == 0)
+        #expect(swapped.withLock { $0 } == 0)
+        // 못 읽는 기종에 실으면 그때 바꾼다
+        #expect(await session.mayConvert(contentID: "10", playerModel: "CDJ-2000nexus"))
+        try await session.load(contentID: "10", player: 1, playerModel: "CDJ-2000nexus")
+        #expect(conversions.withLock { $0 } == 1)
+        #expect(swapped.withLock { $0 } == 1)
+    }
+
+    @Test func 바꾸지_못하면_싣지_않고_이유를_넘긴다() async throws {
+        let fake = Fake()
+        let session = LinkSession(source: fake.source, converter: LinkAudioConverter { _ throws(LinkProblem) in throw .conversionFailed("깨진 파일") })
+        let flac = Self.row("10", path: "/Users/dj/Music/10.flac")
+        try await session.connect(rows: [flac], playlists: PlaylistLayout(), shareRoot: "/share", peers: [Self.cdj2])
+        await #expect(throws: LinkProblem.conversionFailed("깨진 파일")) { try await session.load(contentID: "10", player: 2) }
+        #expect(fake.loaded.withLock { $0.isEmpty })
+    }
+
     @Test func CDJ가_기록에_넣고_뺀_곡을_rekordbox_곡과_연결_차례로_알린다() async throws {
         let fake = Fake()
         let plays = Mutex<[LinkPlay]>([])

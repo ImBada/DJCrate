@@ -16,7 +16,8 @@ extension LinkServerSource {
             status: { await slot.status() },
             load: { player, id throws(LinkProblem) in try await slot.load(player: player, trackID: id) },
             isRekordboxRunning: { LibrarySnapshot.isRekordboxRunning() },
-            updatePlaylists: { playlists in await slot.updatePlaylists(playlists.map(LinkExportPlaylist.init)) })
+            updatePlaylists: { playlists in await slot.updatePlaylists(playlists.map(LinkExportPlaylist.init)) },
+            substitute: { id, path, fileType in await slot.substitute(id, path: path, fileType: fileType) })
     }
 }
 
@@ -48,6 +49,10 @@ private actor LinkServerSlot {
             stopping = Task { await server.stop() }
         }
         await stopping?.value
+    }
+
+    func substitute(_ trackID: UInt32, path: String, fileType: UInt8) async {
+        await server?.substitute(trackID: trackID, path: path, fileType: fileType)
     }
 
     func updatePlaylists(_ playlists: [LinkExportPlaylist]) async {

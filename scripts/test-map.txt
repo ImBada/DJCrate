@@ -178,6 +178,7 @@ target DJCLinkTests
 suite DJCDomainTests.LinkRosterTests
 suite DJCDomainTests.LinkLibraryTests
 suite DJCDomainTests.LinkHistoryTests
+suite DJCAdaptersTests.LinkAudioConverterLiveTests
 suite DJCApplicationTests.LinkSessionTests
 suite DJCApplicationTests.LinkDiscoveryTests
 suite DJCrateTests.LinkBarModelTests

@@ -128,4 +128,23 @@ struct LinkLibraryTests {
         #expect(library.playlists.last?.trackIDs == [1])
         #expect(library.tracks.count == 1)
     }
+
+    @Test func 바꿀지_볼_음원은_FLAC과_ALAC일_수_있는_m4a·mp4다() {
+        #expect(LinkLibrary.mayNeedConversion(path: "/m/a.FLAC"))
+        #expect(LinkLibrary.mayNeedConversion(path: "/m/a.m4a"))
+        #expect(LinkLibrary.mayNeedConversion(path: "/m/a.mp4"))
+        #expect(!LinkLibrary.mayNeedConversion(path: "/m/a.mp3"))
+        #expect(!LinkLibrary.mayNeedConversion(path: "/m/a.wav"))
+        #expect(!LinkLibrary.mayNeedConversion(path: "/m/a.aiff"))
+    }
+
+    @Test func FLAC·ALAC을_재생하는_기종은_NXS2·3000_세대와_새_올인원이다() {
+        for model in ["CDJ-3000", "CDJ-3000X", "CDJ-2000NXS2", "XDJ-1000MK2", "XDJ-RX2", "XDJ-RX3", "XDJ-XZ", "XDJ-AZ", "OPUS-QUAD"] {
+            #expect(LinkPlayerFormats.playsLossless(model: model), "\(model)")
+        }
+        // 앞 세대와 모르는 기종은 바꾼다. 이름 앞부분이 같아도(XDJ-RX와 XDJ-RX2) 따로 본다
+        for model in ["CDJ-2000nexus", "CDJ-2000", "CDJ-900NXS", "XDJ-1000", "XDJ-700", "XDJ-RX", "XDJ-RX9", ""] {
+            #expect(!LinkPlayerFormats.playsLossless(model: model), "\(model)")
+        }
+    }
 }

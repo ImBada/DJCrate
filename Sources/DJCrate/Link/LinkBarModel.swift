@@ -158,8 +158,11 @@ final class LinkBarModel {
     }
 
     func load(contentID: String, on device: LinkDevice) async {
+        if await session.mayConvert(contentID: contentID, playerModel: device.name) {
+            notify(String(ui: "CDJ가 읽을 수 있게 WAV로 바꾼 뒤 싣습니다"), .success)
+        }
         do {
-            try await session.load(contentID: contentID, player: device.number)
+            try await session.load(contentID: contentID, player: device.number, playerModel: device.name)
         } catch {
             notify(LinkText.problem(error), .warning)
         }
@@ -249,6 +252,7 @@ enum LinkText {
         case let .notMounted(number): String(ui: "\(number)번 플레이어가 아직 DJCrate 라이브러리를 열지 않았습니다. 잠시 뒤 다시 놓으세요")
         case .cancelled: String(ui: "LINK 연결을 껐습니다")
         case let .failed(why): String(ui: "LINK 일이 실패했습니다: \(why)")
+        case let .conversionFailed(why): String(ui: "CDJ가 읽을 수 있는 WAV로 바꾸지 못했습니다(\(why)). 음원 파일을 확인한 뒤 다시 놓으세요")
         }
     }
 }
