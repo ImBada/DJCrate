@@ -15,6 +15,8 @@ final class LinkBarModel {
         var playlists: PlaylistLayout
         /// iTunes 재생 목록(다 읽었을 때만). nil이면 아직 읽는 중이라 다 읽은 뒤 연결 중인 서버에 더한다
         var iTunes: [SyncedITunesLibrary.Node]? = nil
+        /// 큐 초안이 있는 곡(rekordbox 곡 ID)의 큐. rekordbox 큐 대신 내어 준다(#280)
+        var draftCues: [String: [Cue]] = [:]
         var shareRoot: String
     }
 
@@ -147,7 +149,7 @@ final class LinkBarModel {
         do {
             servesITunes = input.iTunes != nil
             let count = try await session.connect(rows: input.rows, playlists: input.playlists, iTunes: input.iTunes ?? [],
-                                                  shareRoot: input.shareRoot, peers: state.devices)
+                                                  draftCues: input.draftCues, shareRoot: input.shareRoot, peers: state.devices)
             // 기다리는 사이 껐으면(rekordbox 켜짐·끄기) 켜진 것으로 되돌리지 않는다
             guard connection == .connecting else { return }
             connection = .on(tracks: count)

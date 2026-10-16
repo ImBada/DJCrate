@@ -130,6 +130,8 @@ final class AppComposition {
         // LINK 재생 기록의 세션 열쇠: 앱 실행마다 새 앞부분 + 연결 차례 + 서버가 연 기록 번호
         // (보존본은 다시 켠 뒤에도 남아 앞 실행의 차례와 섞이지 않게, CDJ가 기록을 지우고 새로 열면 새 기록이 되게)
         let launch = UUID().uuidString
+        // CDJ가 저장·삭제한 큐(#280)는 큐 초안에 하나씩 얹는다(앱이 맡은 초안 저장을 먼저 끝낸다)
+        let cueDrafts = LinkCueDrafts(edits: store.useCases.draftEdits, flush: { [watch = store.useCases.watch] in watch.flush() })
         return LinkBarModel(
             discovery: LinkDiscovery(source: .live, log: { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }),
             // CDJ가 못 읽는 FLAC·ALAC은 끌어 놓을 때 WAV로 바꿔 ~/Music/DJCrate/LINK에 둔다(#277). 음원이 보통 ~/Music에 있어 새로 열리는 폴더가 없다
@@ -137,6 +139,8 @@ final class AppComposition {
                                      .appending(path: "Music/DJCrate/LINK", directoryHint: .isDirectory)),
                                  played: { [weak store] play in
                 Task { @MainActor in store?.history.recordLinkPlay(play, session: "\(launch)-\(play.session)-\(play.history)") }
+            }, cueEdited: { [weak store] edit in
+                Task { @MainActor in store?.enqueueLinkCueEdit(edit, drafts: cueDrafts) }
             }),
             library: { [weak store] in
                 guard let store, case .loaded = store.phase else { return nil }
@@ -144,7 +148,7 @@ final class AppComposition {
                 let music = store.music.library
                 let iTunes = music.status == .ready || music.status == .stale ? music.tree : nil
                 return LinkBarModel.LibraryInput(rows: store.rows, playlists: store.playlists.rekordboxPlaylists, iTunes: iTunes,
-                                                 shareRoot: store.shareRoot.path)
+                                                 draftCues: store.linkDraftCues(), shareRoot: store.shareRoot.path)
             },
             notify: { [weak store] text, kind in store?.toast = .notice(text, nil, kind: kind) },
             sessionEnded: { [weak store] in store?.history.closeLinkSessions() },

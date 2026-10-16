@@ -93,6 +93,18 @@ struct LinkLibraryTests {
         ])
     }
 
+    @Test func 큐_초안이_있는_곡은_초안의_큐를_내어_준다() throws {
+        // #280: CDJ에서 찍어 초안에 들어간 큐가 LINK를 다시 켜도 CDJ에 남는다
+        let rekordbox = [Cue(id: "1", contentID: "10", kind: 0, inMsec: 1_000, name: "", colorTableIndex: nil)]
+        let draft = [Cue(id: "1", contentID: "10", kind: 0, inMsec: 1_000, name: "", colorTableIndex: nil),
+                     Cue(id: "n", contentID: "10", kind: 2, inMsec: 3_000, name: "", colorTableIndex: nil)]
+        let library = LinkLibrary.build(rows: [Self.row("10", cues: rekordbox), Self.row("20", cues: rekordbox)], playlists: PlaylistLayout(),
+                                        draftCues: ["10": draft])
+        #expect(library.tracks.first { $0.contentID == "10" }?.cues.map(\.positionMs) == [1_000, 3_000])
+        #expect(library.tracks.first { $0.contentID == "10" }?.cues.last?.hotCue == "B")
+        #expect(library.tracks.first { $0.contentID == "20" }?.cues.map(\.positionMs) == [1_000])
+    }
+
     @Test func 재생_목록은_폴더_나무와_곡_순서를_지키고_스마트_목록과_못_내어_주는_곡은_뺀다() {
         let layout = PlaylistLayout([
             (PlaylistLayout.Item(id: "f", name: "201X", isFolder: true), 0),

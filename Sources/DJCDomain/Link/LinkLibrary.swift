@@ -90,13 +90,15 @@ public struct LinkLibrary: Equatable, Sendable {
 
     /// rekordbox 컬렉션의 곡과 재생 목록으로 만든다. 내어 줄 수 없는 곡(`isShareable`)은 빼고, 재생 목록에서도 뺀다.
     /// 스마트 재생 목록은 규칙을 옮기지 않으므로 뺀다. iTunes 재생 목록이 있으면 맨 위 "iTunes" 폴더에 넣는다(`setPlaylists`)
-    public static func build(rows: [TrackRow], playlists layout: PlaylistLayout, iTunes: [SyncedITunesLibrary.Node] = []) -> LinkLibrary {
+    /// - Parameter draftCues: 큐 초안이 있는 곡(rekordbox 곡 ID)의 큐. rekordbox 큐 대신 내어 준다(CDJ에서 찍은 큐가 다시 켜도 남게, #280)
+    public static func build(rows: [TrackRow], playlists layout: PlaylistLayout, iTunes: [SyncedITunesLibrary.Node] = [],
+                             draftCues: [String: [DJCDomain.Cue]] = [:]) -> LinkLibrary {
         var library = LinkLibrary()
         for row in rows where isShareable(row) && library.idsByContent[row.track.id] == nil {
             guard let fileType = fileType(ofExtension: row.track.fileExtension) else { continue }
             let id = UInt32(library.tracks.count + 1)
             library.idsByContent[row.track.id] = id
-            library.tracks.append(track(row, id: id, fileType: fileType))
+            library.tracks.append(track(row, id: id, fileType: fileType, cues: draftCues[row.track.id] ?? row.cues))
         }
         library.setPlaylists(layout: layout, iTunes: iTunes)
         return library
@@ -135,14 +137,14 @@ public struct LinkLibrary: Equatable, Sendable {
         }
     }
 
-    private static func track(_ row: TrackRow, id: UInt32, fileType: UInt8) -> Track {
+    private static func track(_ row: TrackRow, id: UInt32, fileType: UInt8, cues: [DJCDomain.Cue]) -> Track {
         let track = row.track
         return Track(id: id, contentID: track.id, title: track.title, artist: track.artist ?? "", album: track.album ?? "",
                      genre: track.genre ?? "", key: track.key ?? "", bpmX100: UInt32(max(0, ((track.bpm ?? 0) * 100).rounded())),
                      lengthSeconds: UInt32(max(0, track.lengthSeconds)), path: track.folderPath,
                      analysisPath: track.analysisDataPath ?? "", artworkPath: track.imagePath ?? "", fileType: fileType,
                      bitrateKbps: UInt32(max(0, track.bitrateKbps ?? 0)), rating: UInt8(clamping: track.rating),
-                     comment: track.comment, cues: row.cues.compactMap(cue))
+                     comment: track.comment, cues: cues.compactMap(cue))
     }
 
     /// 메모리 큐와 A~H 핫 큐만 옮긴다(뜻을 모르는 종류는 뺀다)

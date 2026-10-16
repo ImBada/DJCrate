@@ -45,10 +45,12 @@ public struct LinkPlayerState: Equatable, Sendable {
     }
 }
 
-/// CDJ가 보낸 재생 기록 편집(서버가 매긴 곡 번호, 서버가 연 기록 번호)
+/// CDJ가 보낸 편집(서버가 매긴 곡 번호): 재생 기록 넣기·빼기(서버가 연 기록 번호)와 큐 저장·삭제(#280)
 public enum LinkHistoryEvent: Equatable, Sendable {
     case added(UInt32, history: UInt32)
     case removed(UInt32, history: UInt32)
+    /// 큐 저장·삭제. `contentID`는 비어 있고, 세션이 곡 번호로 채워 앱에 알린다
+    case cue(UInt32, LinkCueEdit)
 }
 
 /// CDJ가 재생 기록에 넣거나 뺀 rekordbox 곡(rekordbox의 LINK HISTORY). 앱이 DJCrate에 보존한다
@@ -167,6 +169,8 @@ public actor LinkSession {
 
     /// CDJ가 재생 기록에 곡을 넣거나 뺐을 때(아무 스레드에서나 부른다)
     private let played: @Sendable (LinkPlay) -> Void
+    /// CDJ가 내어 준 곡의 큐를 저장하거나 지웠을 때(#280, 아무 스레드에서나 부른다)
+    private let cueEdited: @Sendable (LinkCueEdit) -> Void
 
     /// FLAC·ALAC를 WAV로 바꾸는 포트(끌어 놓아 실을 때만, #277)
     private let converter: LinkAudioConverter
@@ -175,10 +179,12 @@ public actor LinkSession {
     /// 진행 중인 변환(원본 경로별). 같은 곡을 바꾸는 동안 또 놓으면 이 변환을 함께 기다린다(같은 출력 파일을 두 번 쓰지 않게)
     private var converting: [String: Task<Result<String?, LinkProblem>, Never>] = [:]
 
-    public init(source: LinkServerSource, converter: LinkAudioConverter = .none, played: @escaping @Sendable (LinkPlay) -> Void = { _ in }) {
+    public init(source: LinkServerSource, converter: LinkAudioConverter = .none, played: @escaping @Sendable (LinkPlay) -> Void = { _ in },
+                cueEdited: @escaping @Sendable (LinkCueEdit) -> Void = { _ in }) {
         self.source = source
         self.converter = converter
         self.played = played
+        self.cueEdited = cueEdited
     }
 
     public var isConnected: Bool { library != nil }
@@ -189,13 +195,15 @@ public actor LinkSession {
     /// 연결을 켠다. rekordbox가 켜져 있으면 포트를 열지 않는다(LNK-3). 내어 준 곡 수를 돌려준다
     @discardableResult
     /// - Parameter iTunes: 맨 위 "iTunes" 폴더에 넣을 iTunes 재생 목록(다 읽었을 때만, 아니면 빈 값)
-    public func connect(rows: [TrackRow], playlists: PlaylistLayout, iTunes: [SyncedITunesLibrary.Node] = [], shareRoot: String,
-                        peers: [LinkDevice]) async throws(LinkProblem) -> Int {
+    /// - Parameter draftCues: 큐 초안이 있는 곡(rekordbox 곡 ID)의 큐. rekordbox 큐 대신 내어 준다(#280)
+    public func connect(rows: [TrackRow], playlists: PlaylistLayout, iTunes: [SyncedITunesLibrary.Node] = [],
+                        draftCues: [String: [Cue]] = [:], shareRoot: String, peers: [LinkDevice]) async throws(LinkProblem) -> Int {
         // 차례는 기다리기 전에 받는다. 그래야 기다리는 사이 들어온 끄기가 이 켜기를 무른다
         generation += 1
         let mine = generation
         let result = await serialized { session in
-            await session.connectNow(rows: rows, playlists: playlists, iTunes: iTunes, shareRoot: shareRoot, peers: peers, mine: mine)
+            await session.connectNow(rows: rows, playlists: playlists, iTunes: iTunes, draftCues: draftCues, shareRoot: shareRoot,
+                                     peers: peers, mine: mine)
         }
         return try result.get()
     }
@@ -219,8 +227,8 @@ public actor LinkSession {
         await serialized { session in await session.stopNow() }
     }
 
-    private func connectNow(rows: [TrackRow], playlists: PlaylistLayout, iTunes: [SyncedITunesLibrary.Node], shareRoot: String,
-                            peers: [LinkDevice], mine: Int) async -> Result<Int, LinkProblem> {
+    private func connectNow(rows: [TrackRow], playlists: PlaylistLayout, iTunes: [SyncedITunesLibrary.Node], draftCues: [String: [Cue]],
+                            shareRoot: String, peers: [LinkDevice], mine: Int) async -> Result<Int, LinkProblem> {
         guard generation == mine else { return .failure(.cancelled) }
         let source = source
         if await BlockingWork.run(qos: .utility, { source.isRekordboxRunning() }) { return .failure(.rekordboxRunning) }
@@ -229,10 +237,10 @@ public actor LinkSession {
         guard let peer = peers.first(where: \.hasDeck) ?? peers.first(where: { $0.kind != .rekordbox }) else {
             return .failure(.noDevice)
         }
-        let built = LinkLibrary.build(rows: rows, playlists: playlists, iTunes: iTunes)
+        let built = LinkLibrary.build(rows: rows, playlists: playlists, iTunes: iTunes, draftCues: draftCues)
         // 서버가 매긴 곡 번호 → rekordbox 곡 ID. 이 켜기에서 띄운 서버의 기록만 이 차례로 알린다
         let contentIDs = Dictionary(built.tracks.map { ($0.id, $0.contentID) }, uniquingKeysWith: { first, _ in first })
-        let played = played
+        let played = played, cueEdited = cueEdited
         let history: @Sendable (LinkHistoryEvent) -> Void = { event in
             switch event {
             case let .added(id, list):
@@ -241,6 +249,11 @@ public actor LinkSession {
                 if let contentID = contentIDs[id] {
                     played(LinkPlay(contentID: contentID, linkID: id, session: mine, history: list, removed: true))
                 }
+            case let .cue(id, edit):
+                guard let contentID = contentIDs[id] else { return }
+                var edit = edit
+                edit.contentID = contentID
+                cueEdited(edit)
             }
         }
         do {

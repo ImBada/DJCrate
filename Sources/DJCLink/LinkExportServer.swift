@@ -1,4 +1,5 @@
 internal import DJLinkExport
+internal import DJLinkExportDBServer
 internal import DJLinkExportModel
 internal import DJLinkExportProtocol
 internal import DJLinkKit
@@ -110,6 +111,27 @@ public enum LinkExportHistoryEvent: Equatable, Sendable {
     case added(trackID: UInt32, history: UInt32)
     /// 그 곡을 기록에서 뺐다
     case removed(trackID: UInt32, history: UInt32)
+    /// CDJ가 그 곡의 큐를 저장하거나 지웠다(#280). 서버는 내어 주는 큐 목록을 이미 바꿨다
+    case cue(trackID: UInt32, edit: LinkExportCueEdit)
+}
+
+/// CDJ가 보낸 큐 저장·삭제 하나. 시각은 rekordbox 시간축 ms다
+public struct LinkExportCueEdit: Equatable, Sendable {
+    public var deleted: Bool
+    /// rekordbox `djmdCue.Kind` 부호: 0 메모리, 1~3·5~9 핫큐 A~H, 4 활성 메모리 루프
+    public var kind: Int
+    public var inMs: UInt32
+    /// 루프 끝. 루프가 아니면 nil
+    public var outMs: UInt32?
+    public var comment: String
+
+    public init(deleted: Bool, kind: Int, inMs: UInt32, outMs: UInt32?, comment: String) {
+        self.deleted = deleted
+        self.kind = kind
+        self.inMs = inMs
+        self.outMs = outMs
+        self.comment = comment
+    }
 }
 
 /// 플레이어 하나의 재생 상태(상태 패킷)
@@ -286,6 +308,37 @@ public final class LinkExportServer: Sendable {
     }
 
     /// 곡마다의 이름 → 겹치지 않는 이름 목록과 곡마다의 번호(처음 나온 차례). 이름이 같으면 같은 번호다
+    /// 내어 주는 큐 하나(DJLinkExport `Cue`에서 번호를 뺀 값). 시험이 DJLinkKit 없이 규칙을 본다
+    struct ServedCue: Equatable {
+        var kind: UInt8
+        var positionMs: UInt32
+        var outMs: UInt32
+        var colour: UInt8
+    }
+
+    /// CDJ의 큐 저장·삭제를 내어 주는 큐 목록에 옮긴다(#280). 덱·초안과 같은 규칙: 메모리 큐는 ±30ms 안이면 같은 큐,
+    /// 핫큐는 그 칸을 바꾸고, 활성 루프(Kind 4)는 하나만 둔다. 시각 차례로 돌려준다
+    static func editedCues(_ cues: [ServedCue], deleted: Bool, kind: UInt8, inMs: UInt32, outMs: UInt32) -> [ServedCue] {
+        let memory: Set<UInt8> = [0, 4]
+        func near(_ cue: ServedCue) -> Bool { memory.contains(cue.kind) && abs(Int64(cue.positionMs) - Int64(inMs)) <= 30 }
+        var next = cues
+        if memory.contains(kind) {
+            if deleted {
+                let closest = next.indices.filter { near(next[$0]) }
+                    .min { abs(Int64(next[$0].positionMs) - Int64(inMs)) < abs(Int64(next[$1].positionMs) - Int64(inMs)) }
+                if let closest { next.remove(at: closest) }
+                return next
+            }
+            guard !next.contains(where: near) else { return cues }
+            if kind == 4 { for i in next.indices where next[i].kind == 4 { next[i].kind = 0 } }
+            next.append(ServedCue(kind: kind, positionMs: inMs, outMs: outMs > inMs ? outMs : 0, colour: 0))
+        } else {
+            next.removeAll { $0.kind == kind }
+            if !deleted { next.append(ServedCue(kind: kind, positionMs: inMs, outMs: outMs > inMs ? outMs : 0, colour: 0)) }
+        }
+        return next.sorted { $0.positionMs < $1.positionMs }
+    }
+
     /// 그 행과 같은 음원 경로를 쓰는 행과 그 곡 id(그 행 포함, 차례대로). 바꿔 끼울 때 경로·형식·곡 정보를 모두 이 행들에 적용한다.
     /// 범위 밖이면 빈 값
     static func substitutionTargets(paths: [String], ids: [UInt64], of row: Int) -> [(row: Int, id: String)] {
@@ -307,7 +360,7 @@ public final class LinkExportServer: Sendable {
     }
 
     /// 재생 목록 나무. 부모는 목록 안 순번, 차례는 목록 순서다(CDJ는 같은 층에서 폴더 먼저, 그 안에서 이 차례로 보인다)
-    static func playlistTree(_ playlists: [LinkExportPlaylist], row: (UInt32) -> Row?) -> Playlists {
+    static func playlistTree(_ playlists: [LinkExportPlaylist], row: (UInt32) -> DJLinkExportModel.Row?) -> Playlists {
         var lists = Playlists()
         for (index, playlist) in playlists.enumerated() {
             lists.ids.append(1000 + UInt64(index))
@@ -407,6 +460,29 @@ private final class ExportSource: Source {
         return id
     }
 
+    /// CDJ의 큐 저장·삭제(#280)를 받아 내어 주는 큐를 바꾸고 앱에 알린다. 거절하면 서버가 빈 큐 목록으로 답해
+    /// CDJ의 메모리 큐가 모두 사라졌다. 그 밖의 편집(태그·평점·그리드)은 받지 않는다(LNK-11)
+    func edit(_ edit: Edit) -> Bool {
+        let track: UInt32, cue: PlayerCue, deleted: Bool
+        switch edit {
+        case let .saveCue(id, saved): (track, cue, deleted) = (id, saved, false)
+        case let .deleteCue(id, removed): (track, cue, deleted) = (id, removed, true)
+        default: return false
+        }
+        guard let row = snapshot.row_of_id(UInt64(track)) else { return false }
+        let served = snapshot.cues_of(row).map {
+            LinkExportServer.ServedCue(kind: $0.kind, positionMs: $0.position_ms, outMs: $0.out_ms, colour: $0.colour)
+        }
+        let out = cue.out_ms ?? 0
+        let next = LinkExportServer.editedCues(served, deleted: deleted, kind: cue.kind, inMs: cue.in_ms, outMs: out)
+        snapshot.set_cues_of(row, next.enumerated().map { index, cue in
+            DJLinkExportModel.Cue(id: UInt32(index + 1), position_ms: cue.positionMs, out_ms: cue.outMs, kind: cue.kind, colour: cue.colour)
+        })
+        onHistory(.cue(trackID: track, edit: LinkExportCueEdit(deleted: deleted, kind: Int(cue.kind), inMs: cue.in_ms,
+                                                               outMs: out > cue.in_ms ? out : nil, comment: cue.comment)))
+        return true
+    }
+
     func add_to_history(_ history: UInt32, _ track: UInt32) -> Bool {
         guard let row = snapshot.row_of_id(UInt64(track)), edit(history: history, { $0.append(row) }) else { return false }
         onHistory(.added(trackID: track, history: history))
@@ -421,7 +497,7 @@ private final class ExportSource: Source {
     }
 
     /// 서버 라이브러리의 그 기록 곡 목록을 고친다. 그 기록이 없으면 false
-    private func edit(history: UInt32, _ change: (inout [Row]) -> Void) -> Bool {
+    private func edit(history: UInt32, _ change: (inout [DJLinkExportModel.Row]) -> Void) -> Bool {
         var histories = snapshot.histories()
         guard let index = histories.index_of(UInt64(history)), histories.members.indices.contains(index) else { return false }
         change(&histories.members[index])

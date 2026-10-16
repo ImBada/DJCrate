@@ -1505,6 +1505,28 @@
         }
       }
     },
+    "%@: %@. 그 곡의 큐를 DJCrate에서 확인한 뒤 CDJ에서 다시 찍으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$@. Check that track's cues in DJCrate, then set the cue again on the CDJ"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$@。DJCrateでその曲のキューを確認してから、CDJでもう一度打ってください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$@. 그 곡의 큐를 DJCrate에서 확인한 뒤 CDJ에서 다시 찍으세요"
+          }
+        }
+      }
+    },
     "%@: WAV·AIFF로만 렌더합니다. 확장자를 .wav나 .aiff로 주세요" : {
       "localizations" : {
         "en" : {
@@ -4411,6 +4433,22 @@
         }
       }
     },
+    "CDJ가 보낸 큐가 곡 길이를 벗어났습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The cue sent by the CDJ is outside the track length"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CDJから送られたキューが曲の長さを超えています"
+          }
+        }
+      }
+    },
     "CDJ가 쓴 기록·목록이 있어 Device Library는 아직 고칠 수 없습니다" : {
       "localizations" : {
         "en" : {
@@ -4503,6 +4541,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "CDJにロードされている曲のため、デッキにロードしません。CDJで別の曲をロードしてからロードしてください"
+          }
+        }
+      }
+    },
+    "CDJ에서 고친 큐를 DJCrate에 옮기지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't bring the cue edited on the CDJ into DJCrate"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CDJで編集したキューをDJCrateに取り込めませんでした"
+          }
+        }
+      }
+    },
+    "CDJ에서 찍은 메모리 큐를 DJCrate에 옮기지 못했습니다" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't bring the memory cue set on the CDJ into DJCrate"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CDJで打ったメモリーキューをDJCrateに取り込めませんでした"
           }
         }
       }
@@ -26005,6 +26075,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "メモリーキューは1曲につき%lld個までです（rekordboxの制限）。使わないメモリーキューを削除してから保存してください"
+          }
+        }
+      }
+    },
+    "메모리 큐는 곡당 %lld개까지입니다. DJCrate에서 쓰지 않는 메모리 큐를 지운 뒤 CDJ에서 다시 찍으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A track can have up to %lld memory cues. Delete unused memory cues in DJCrate, then set the cue again on the CDJ"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリーキューは1曲あたり%lld個までです。DJCrateで使わないメモリーキューを削除してから、CDJでもう一度打ってください"
           }
         }
       }

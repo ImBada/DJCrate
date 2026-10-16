@@ -248,6 +248,8 @@ final class LibraryStore {
     var recoverySheet: RecoverySheetModel?
     /// 복구가 rekordbox 사본을 읽은 횟수(시험이 시트 하나가 줄마다 사본을 뜨지 않는지 센다)
     @ObservationIgnored var recoverySnapshotReads = 0
+    /// CDJ 큐 편집(#280)을 받은 차례대로 하나씩 얹는 줄의 끝
+    @ObservationIgnored var linkCueTail: Task<Void, Never>?
     private(set) var cueDraftUUIDs: Set<String> = []
     private(set) var gridDraftUUIDs: Set<String> = []
     private(set) var gainDraftUUIDs: Set<String> = []

@@ -252,6 +252,22 @@ struct LinkSessionTests {
         #expect(fake.loaded.withLock { $0.isEmpty })
     }
 
+    @Test func CDJ가_저장한_큐는_rekordbox_곡_ID로_알린다() async throws {
+        // #280: CDJ MEMORY로 더한 큐를 DJCrate 큐 초안으로 옮기려고 앱에 알린다. 내어 주지 않은 번호는 버린다
+        let fake = Fake()
+        let edits = Mutex<[LinkCueEdit]>([])
+        let session = LinkSession(source: fake.source, cueEdited: { edit in edits.withLock { $0.append(edit) } })
+        try await session.connect(rows: [Self.row("10"), Self.row("20")], playlists: PlaylistLayout(), shareRoot: "/share",
+                                  peers: [Self.cdj2])
+        let events = try #require(fake.history.withLock { $0 })
+        let memory = LinkCueEdit(contentID: "", deleted: false, kind: 0, inMs: 12_000, outMs: nil, comment: "")
+        events(.cue(2, memory))
+        events(.cue(99, memory))
+        var expected = memory
+        expected.contentID = "20"
+        #expect(edits.withLock { $0 } == [expected])
+    }
+
     @Test func CDJ가_기록에_넣고_뺀_곡을_rekordbox_곡과_연결_차례로_알린다() async throws {
         let fake = Fake()
         let plays = Mutex<[LinkPlay]>([])

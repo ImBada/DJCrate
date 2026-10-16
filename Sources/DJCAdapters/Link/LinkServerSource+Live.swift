@@ -36,6 +36,9 @@ private actor LinkServerSlot {
                                                           switch event {
                                                           case let .added(id, list): history(.added(id, history: list))
                                                           case let .removed(id, list): history(.removed(id, history: list))
+                                                          case let .cue(id, edit):
+                                                              history(.cue(id, LinkCueEdit(contentID: "", deleted: edit.deleted, kind: edit.kind,
+                                                                                           inMs: edit.inMs, outMs: edit.outMs, comment: edit.comment)))
                                                           }
                                                       })
         } catch {
