@@ -150,7 +150,9 @@ struct ContentView: View {
                     Button(.ui("스냅샷 뜨기")) { window.startTakeSnapshot() }
                 }
             case let .loading(message):
+                // 상세 열을 다 채운다. 제 크기만 차지하면 아래에 붙는 LINK 막대가 열 가운데로 올라왔다
                 ProgressView(message)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             case let .failed(message):
                 ContentUnavailableView {
                     Label(.ui("불러오지 못했습니다"), systemImage: "exclamationmark.triangle")
