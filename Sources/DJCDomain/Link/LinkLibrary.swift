@@ -74,8 +74,8 @@ public struct LinkLibrary: Equatable, Sendable {
     }
 
     /// rekordbox 컬렉션의 곡과 재생 목록으로 만든다. 내어 줄 수 없는 곡(`isShareable`)은 빼고, 재생 목록에서도 뺀다.
-    /// 스마트 재생 목록은 규칙을 옮기지 않으므로 뺀다.
-    public static func build(rows: [TrackRow], playlists layout: PlaylistLayout) -> LinkLibrary {
+    /// 스마트 재생 목록은 규칙을 옮기지 않으므로 뺀다. iTunes 재생 목록이 있으면 맨 위 "iTunes" 폴더에 넣는다(`setPlaylists`)
+    public static func build(rows: [TrackRow], playlists layout: PlaylistLayout, iTunes: [SyncedITunesLibrary.Node] = []) -> LinkLibrary {
         var library = LinkLibrary()
         for row in rows where isShareable(row) && library.idsByContent[row.track.id] == nil {
             guard let fileType = fileType(ofExtension: row.track.fileExtension) else { continue }
@@ -83,8 +83,22 @@ public struct LinkLibrary: Equatable, Sendable {
             library.idsByContent[row.track.id] = id
             library.tracks.append(track(row, id: id, fileType: fileType))
         }
-        library.addPlaylists(of: PlaylistLayout.root, parent: nil, layout: layout)
+        library.setPlaylists(layout: layout, iTunes: iTunes)
         return library
+    }
+
+    /// CDJ PLAYLIST 맨 위 폴더 이름(rekordbox 트리의 iTunes처럼)
+    public static let iTunesFolderName = "iTunes"
+
+    /// 재생 목록 나무를 다시 만든다(곡은 그대로). iTunes 목록은 맨 위 "iTunes" 폴더 아래에 원래 나무대로 두고, 컬렉션과 이어진 곡만 넣는다
+    /// (USB 동기화와 같은 규칙). CDJ는 같은 층에서 폴더를 먼저, 그 안에서 차례대로 보이므로 첫 자리의 폴더가 맨 위다
+    public mutating func setPlaylists(layout: PlaylistLayout, iTunes: [SyncedITunesLibrary.Node]) {
+        playlists = []
+        if !iTunes.isEmpty {
+            playlists.append(Playlist(name: Self.iTunesFolderName, parent: nil, isFolder: true, trackIDs: []))
+            addITunes(iTunes, parent: 0)
+        }
+        addPlaylists(of: PlaylistLayout.root, parent: nil, layout: layout)
     }
 
     /// LINK로 내어 줄 수 있는 곡: rekordbox 컬렉션에 들어 있고(추가 대기·USB 곡이 아님), 지우지 않았고, 이 Mac에 파일이 있는 곡
@@ -121,6 +135,15 @@ public struct LinkLibrary: Equatable, Sendable {
         guard cue.inMsec >= 0, cue.isMemoryCue || cue.hotCueSlot != nil else { return nil }
         return Cue(positionMs: UInt32(cue.inMsec), outMs: cue.isLoop ? UInt32(cue.outMsec) : 0, hotCue: cue.hotCueSlot,
                    colour: UInt8(clamping: cue.colorTableIndex ?? 0))
+    }
+
+    private mutating func addITunes(_ nodes: [SyncedITunesLibrary.Node], parent: Int) {
+        for node in nodes {
+            let index = playlists.count
+            playlists.append(Playlist(name: node.name, parent: parent, isFolder: node.isFolder,
+                                      trackIDs: node.isFolder ? [] : node.trackIDs.compactMap { idsByContent[$0] }))
+            if let children = node.children { addITunes(children, parent: index) }
+        }
     }
 
     private mutating func addPlaylists(of parentID: String, parent: Int?, layout: PlaylistLayout) {

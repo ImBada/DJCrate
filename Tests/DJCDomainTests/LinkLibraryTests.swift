@@ -97,4 +97,35 @@ struct LinkLibraryTests {
             LinkLibrary.Playlist(name: "Dance", parent: nil, isFolder: false, trackIDs: []),
         ])
     }
+
+    @Test func iTunes_재생_목록은_맨_위_iTunes_폴더_아래_원래_나무대로_두고_컬렉션_곡만_넣는다() {
+        let iTunes = SyncedITunesLibrary(snapshot: ITunesLibrarySnapshot(playlists: [
+            .init(id: "F", name: "Club", isFolder: true),
+            .init(id: "A1", name: "Warmup", parentID: "F", paths: ["/Users/dj/Music/Song.mp3", "/Users/dj/Music/없는곡.mp3"]),
+            .init(id: "A2", name: "Peak", paths: ["/Users/dj/Music/Song.wav"]),
+        ]), tracks: [Self.row("10").track, Self.row("15", path: "/Users/dj/Music/Song.wav").track])
+        let layout = PlaylistLayout([(PlaylistLayout.Item(id: "r", name: "rekordbox 목록",
+                                                          entries: [PlaylistEntry(trackNo: 1, contentID: "15")]), 0)])
+        let library = LinkLibrary.build(rows: [Self.row("10"), Self.row("15", path: "/Users/dj/Music/Song.wav")], playlists: layout,
+                                        iTunes: iTunes.tree)
+        #expect(library.playlists == [
+            LinkLibrary.Playlist(name: "iTunes", parent: nil, isFolder: true, trackIDs: []),
+            LinkLibrary.Playlist(name: "Club", parent: 0, isFolder: true, trackIDs: []),
+            LinkLibrary.Playlist(name: "Warmup", parent: 1, isFolder: false, trackIDs: [1]),
+            LinkLibrary.Playlist(name: "Peak", parent: 0, isFolder: false, trackIDs: [2]),
+            LinkLibrary.Playlist(name: "rekordbox 목록", parent: nil, isFolder: false, trackIDs: [2]),
+        ])
+    }
+
+    @Test func iTunes_목록이_없으면_iTunes_폴더를_만들지_않고_나중에_넣을_수_있다() throws {
+        var library = LinkLibrary.build(rows: [Self.row("10")], playlists: PlaylistLayout())
+        #expect(library.playlists.isEmpty)
+        let iTunes = SyncedITunesLibrary(snapshot: ITunesLibrarySnapshot(playlists: [
+            .init(id: "B", name: "Later", paths: ["/Users/dj/Music/Song.mp3"]),
+        ]), tracks: [Self.row("10").track])
+        library.setPlaylists(layout: PlaylistLayout(), iTunes: iTunes.tree)
+        #expect(library.playlists.map(\.name) == ["iTunes", "Later"])
+        #expect(library.playlists.last?.trackIDs == [1])
+        #expect(library.tracks.count == 1)
+    }
 }

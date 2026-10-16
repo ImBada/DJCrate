@@ -148,9 +148,16 @@ public enum LinkExportError: Error, Equatable, Sendable {
 /// 알림·상태를 보내고 dbserver·NFS를 연다. 음원·분석 파일은 읽기만 한다. 사용자가 LINK 단추로 막대를 펼쳤을 때만 만든다(LNK-2).
 public final class LinkExportServer: Sendable {
     private let export: LinkExport
+    private let source: ExportSource
 
-    private init(export: LinkExport) {
+    private init(export: LinkExport, source: ExportSource) {
         self.export = export
+        self.source = source
+    }
+
+    /// 재생 목록 나무를 바꾼다(곡·경로는 그대로). CDJ 탐색 결과는 라이브러리 단위로 기억하므로 새 라이브러리로 바꿔 끼운다
+    public func updatePlaylists(_ playlists: [LinkExportPlaylist]) async {
+        await Task { @DJLinkActor [source] in source.replacePlaylists(playlists) }.value
     }
 
     /// 곡과 재생 목록으로 서버를 띄운다. `peer`(보이는 CDJ 하나의 주소)로 가는 인터페이스에 참여한다.
@@ -165,7 +172,7 @@ public final class LinkExportServer: Sendable {
             let source = ExportSource(library: library(tracks: tracks, playlists: playlists), shareRoot: shareRoot,
                                       tracks: tracks, onHistory: onHistory)
             do {
-                return LinkExportServer(export: try await LinkExport.start(source, interface))
+                return LinkExportServer(export: try await LinkExport.start(source, interface), source: source)
             } catch let error as LinkError {
                 throw LinkExportError.bind(error.description)
             }
@@ -235,6 +242,12 @@ public final class LinkExportServer: Sendable {
         for track in tracks { analysis.push(track.analysisPath) }
         library.analysis_path = analysis
         let rowOfID = Dictionary(tracks.enumerated().map { ($0.element.id, Row($0.offset)) }, uniquingKeysWith: { first, _ in first })
+        library.set_playlists(playlistTree(playlists, row: { rowOfID[$0] }))
+        return library
+    }
+
+    /// 재생 목록 나무. 부모는 목록 안 순번, 차례는 목록 순서다(CDJ는 같은 층에서 폴더 먼저, 그 안에서 이 차례로 보인다)
+    static func playlistTree(_ playlists: [LinkExportPlaylist], row: (UInt32) -> Row?) -> Playlists {
         var lists = Playlists()
         for (index, playlist) in playlists.enumerated() {
             lists.ids.append(1000 + UInt64(index))
@@ -243,10 +256,9 @@ public final class LinkExportServer: Sendable {
             lists.seq.append(UInt32(index))
             lists.attribute.append(playlist.isFolder ? ATTRIBUTE_FOLDER : 0)
             lists.smart.push("")
-            lists.members.append(playlist.trackIDs.compactMap { rowOfID[$0] })
+            lists.members.append(playlist.trackIDs.compactMap(row))
         }
-        library.set_playlists(lists)
-        return library
+        return lists
     }
 
     private static func cue(_ cue: LinkExportCue) -> DJLinkExportModel.Cue {
@@ -260,7 +272,7 @@ public final class LinkExportServer: Sendable {
 /// 곡 정보를 주면 서버는 목록 둘째 열(아티스트·앨범·장르·레이블)과 비트레이트도 그 값을 쓰므로 함께 채운다.
 @DJLinkActor
 private final class ExportSource: Source {
-    private let snapshot: Library
+    private var snapshot: Library
     private let root: String
     private let details: [String: DJLinkExportModel.TrackDetails]
     private let onHistory: @Sendable (LinkExportHistoryEvent) -> Void
@@ -285,6 +297,14 @@ private final class ExportSource: Source {
     }
 
     func library() -> Library? { snapshot }
+
+    /// 재생 목록만 바꾼 새 라이브러리로 바꿔 끼운다(재생 기록 나무는 함께 옮긴다)
+    func replacePlaylists(_ playlists: [LinkExportPlaylist]) {
+        let current = snapshot
+        let next = current.clone()
+        next.set_playlists(LinkExportServer.playlistTree(playlists, row: { current.row_of_id(UInt64($0)) }))
+        snapshot = next
+    }
     func share_root() -> String { root }
     func details(_ id: String) -> DJLinkExportModel.TrackDetails? { details[id] }
 

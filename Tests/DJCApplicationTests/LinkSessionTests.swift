@@ -10,10 +10,10 @@ struct LinkSessionTests {
     static let cdj2 = LinkDevice(number: 2, name: "CDJ-2000nexus", kind: .player, address: "169.254.86.193")
     static let djm = LinkDevice(number: 33, name: "DJM-900NXS2", kind: .mixer, address: "169.254.98.242")
 
-    static func row(_ id: String) -> TrackRow {
+    static func row(_ id: String, path: String? = nil) -> TrackRow {
         TrackRow(track: Track(id: id, uuid: "u\(id)", title: "곡 \(id)", artist: nil, album: nil, albumArtist: nil, genre: nil,
                               composer: nil, releaseYear: nil, trackNumber: nil, key: nil, bpm: 120, lengthSeconds: 60,
-                              folderPath: "/Users/dj/Music/\(id).mp3", comment: "", importedOn: nil, analysisDataPath: nil,
+                              folderPath: path ?? "/Users/dj/Music/\(id).mp3", comment: "", importedOn: nil, analysisDataPath: nil,
                               imagePath: nil, isDeleted: false),
                  cues: [], playCount: 0)
     }

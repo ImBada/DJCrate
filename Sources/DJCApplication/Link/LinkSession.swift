@@ -109,17 +109,21 @@ public struct LinkServerSource: Sendable {
     public var load: @Sendable (_ player: Int, _ trackID: UInt32) async throws(LinkProblem) -> Void
     /// rekordbox·rekordboxAgent가 켜져 있는지. 프로세스를 띄워 보므로 메인 밖에서 부른다
     public var isRekordboxRunning: @Sendable () -> Bool
+    /// 띄운 서버의 재생 목록 나무를 바꾼다(곡은 그대로). iTunes 목록을 연결한 뒤에 다 읽었을 때 쓴다
+    public var updatePlaylists: @Sendable (_ playlists: [LinkLibrary.Playlist]) async -> Void
 
     public init(start: @escaping @Sendable (LinkLibrary, String, String, @escaping @Sendable (LinkHistoryEvent) -> Void) async throws(LinkProblem) -> Void,
                 stop: @escaping @Sendable () async -> Void,
                 status: @escaping @Sendable () async -> LinkServerStatus?,
                 load: @escaping @Sendable (Int, UInt32) async throws(LinkProblem) -> Void,
-                isRekordboxRunning: @escaping @Sendable () -> Bool) {
+                isRekordboxRunning: @escaping @Sendable () -> Bool,
+                updatePlaylists: @escaping @Sendable ([LinkLibrary.Playlist]) async -> Void = { _ in }) {
         self.start = start
         self.stop = stop
         self.status = status
         self.load = load
         self.isRekordboxRunning = isRekordboxRunning
+        self.updatePlaylists = updatePlaylists
     }
 
     /// 서버를 띄우지 않는다(화면 시험·자가 테스트 실행). 연결을 켜면 쓸 수 없다고 한다
@@ -155,14 +159,28 @@ public actor LinkSession {
 
     /// 연결을 켠다. rekordbox가 켜져 있으면 포트를 열지 않는다(LNK-3). 내어 준 곡 수를 돌려준다
     @discardableResult
-    public func connect(rows: [TrackRow], playlists: PlaylistLayout, shareRoot: String, peers: [LinkDevice]) async throws(LinkProblem) -> Int {
+    /// - Parameter iTunes: 맨 위 "iTunes" 폴더에 넣을 iTunes 재생 목록(다 읽었을 때만, 아니면 빈 값)
+    public func connect(rows: [TrackRow], playlists: PlaylistLayout, iTunes: [SyncedITunesLibrary.Node] = [], shareRoot: String,
+                        peers: [LinkDevice]) async throws(LinkProblem) -> Int {
         // 차례는 기다리기 전에 받는다. 그래야 기다리는 사이 들어온 끄기가 이 켜기를 무른다
         generation += 1
         let mine = generation
         let result = await serialized { session in
-            await session.connectNow(rows: rows, playlists: playlists, shareRoot: shareRoot, peers: peers, mine: mine)
+            await session.connectNow(rows: rows, playlists: playlists, iTunes: iTunes, shareRoot: shareRoot, peers: peers, mine: mine)
         }
         return try result.get()
+    }
+
+    /// 켜 둔 서버의 재생 목록 나무를 바꾼다(곡은 켤 때 그대로). 꺼져 있으면 하지 않는다
+    public func updatePlaylists(_ playlists: PlaylistLayout, iTunes: [SyncedITunesLibrary.Node]) async {
+        await serialized { session in await session.updatePlaylistsNow(playlists, iTunes: iTunes) }
+    }
+
+    private func updatePlaylistsNow(_ layout: PlaylistLayout, iTunes: [SyncedITunesLibrary.Node]) async {
+        guard var library else { return }
+        library.setPlaylists(layout: layout, iTunes: iTunes)
+        self.library = library
+        await source.updatePlaylists(library.playlists)
     }
 
     /// 연결을 끈다. 켜는 중이어도 끈다(그 켜기는 차례가 바뀐 것을 보고 서버를 띄우지 않거나 내린다)
@@ -172,8 +190,8 @@ public actor LinkSession {
         await serialized { session in await session.stopNow() }
     }
 
-    private func connectNow(rows: [TrackRow], playlists: PlaylistLayout, shareRoot: String, peers: [LinkDevice],
-                            mine: Int) async -> Result<Int, LinkProblem> {
+    private func connectNow(rows: [TrackRow], playlists: PlaylistLayout, iTunes: [SyncedITunesLibrary.Node], shareRoot: String,
+                            peers: [LinkDevice], mine: Int) async -> Result<Int, LinkProblem> {
         guard generation == mine else { return .failure(.cancelled) }
         let source = source
         if await BlockingWork.run(qos: .utility, { source.isRekordboxRunning() }) { return .failure(.rekordboxRunning) }
@@ -182,7 +200,7 @@ public actor LinkSession {
         guard let peer = peers.first(where: \.hasDeck) ?? peers.first(where: { $0.kind != .rekordbox }) else {
             return .failure(.noDevice)
         }
-        let built = LinkLibrary.build(rows: rows, playlists: playlists)
+        let built = LinkLibrary.build(rows: rows, playlists: playlists, iTunes: iTunes)
         // 서버가 매긴 곡 번호 → rekordbox 곡 ID. 이 켜기에서 띄운 서버의 기록만 이 차례로 알린다
         let contentIDs = Dictionary(built.tracks.map { ($0.id, $0.contentID) }, uniquingKeysWith: { first, _ in first })
         let played = played

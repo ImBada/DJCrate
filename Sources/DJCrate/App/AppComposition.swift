@@ -127,7 +127,10 @@ final class AppComposition {
             }),
             library: { [weak store] in
                 guard let store, case .loaded = store.phase else { return nil }
-                return LinkBarModel.LibraryInput(rows: store.rows, playlists: store.playlists.rekordboxPlaylists,
+                // iTunes 목록은 다 읽었을 때만 넣는다(USB 동기화와 같은 조건). 읽는 중이면 다 읽은 뒤 연결 중인 서버에 더한다
+                let music = store.music.library
+                let iTunes = music.status == .ready || music.status == .stale ? music.tree : nil
+                return LinkBarModel.LibraryInput(rows: store.rows, playlists: store.playlists.rekordboxPlaylists, iTunes: iTunes,
                                                  shareRoot: store.shareRoot.path)
             },
             notify: { [weak store] text, kind in store?.toast = .notice(text, nil, kind: kind) },

@@ -13,6 +13,8 @@ final class LinkBarModel {
     struct LibraryInput {
         var rows: [TrackRow]
         var playlists: PlaylistLayout
+        /// iTunes 재생 목록(다 읽었을 때만). nil이면 아직 읽는 중이라 다 읽은 뒤 연결 중인 서버에 더한다
+        var iTunes: [SyncedITunesLibrary.Node]? = nil
         var shareRoot: String
     }
 
@@ -38,6 +40,8 @@ final class LinkBarModel {
     @ObservationIgnored private let sessionEnded: () -> Void
     /// 펼친 채 rekordbox 때문에 막혔는지. 풀리고 장치가 다시 보이면 내어 주기를 다시 켠다
     @ObservationIgnored private var reconnectWhenFree = false
+    /// 켠 서버에 iTunes 목록을 넣었는지(켤 때 아직 읽는 중이었으면 다 읽은 뒤 넣는다)
+    @ObservationIgnored private var servesITunes = false
     /// 서버 상태를 다시 볼 간격
     @ObservationIgnored var statusInterval: Duration = .seconds(1)
 
@@ -125,8 +129,9 @@ final class LinkBarModel {
         }
         connection = .connecting
         do {
-            let count = try await session.connect(rows: input.rows, playlists: input.playlists, shareRoot: input.shareRoot,
-                                                  peers: state.devices)
+            servesITunes = input.iTunes != nil
+            let count = try await session.connect(rows: input.rows, playlists: input.playlists, iTunes: input.iTunes ?? [],
+                                                  shareRoot: input.shareRoot, peers: state.devices)
             // 기다리는 사이 껐으면(rekordbox 켜짐·끄기) 켜진 것으로 되돌리지 않는다
             guard connection == .connecting else { return }
             connection = .on(tracks: count)
@@ -203,6 +208,14 @@ final class LinkBarModel {
         guard isConnected else { return }
         let status = await session.status()
         if isConnected { server = status }
+        await addITunesWhenReady()
+    }
+
+    /// 켤 때 iTunes 목록을 아직 읽는 중이었으면, 다 읽은 뒤 켜 둔 서버의 재생 목록에 넣는다(서버를 다시 띄우지 않는다)
+    func addITunesWhenReady() async {
+        guard isConnected, !servesITunes, let input = library(), let tree = input.iTunes else { return }
+        servesITunes = true
+        await session.updatePlaylists(input.playlists, iTunes: tree)
     }
 }
 
