@@ -48,6 +48,14 @@ final class LinkBarModel {
     @ObservationIgnored private var reconnectWhenFree = false
     /// 켠 서버에 iTunes 목록을 넣었는지(켤 때 아직 읽는 중이었으면 다 읽은 뒤 넣는다)
     @ObservationIgnored private var servesITunes = false
+    /// 켠 서버에 마지막으로 보낸 재생 목록(재생 목록 초안을 얹은 모양)과 iTunes 목록. 같은 모양이면 다시 보내지 않는다
+    @ObservationIgnored private var sentPlaylists: PlaylistLayout?
+    @ObservationIgnored private var servedITunes: [SyncedITunesLibrary.Node] = []
+    /// 켜는 동안 재생 목록 초안이 바뀌었는지(켠 뒤 보낸다)
+    @ObservationIgnored private var playlistsChangedWhileConnecting = false
+    @ObservationIgnored private var playlistTail: Task<Void, Never>?
+    /// 연결을 끌 때마다 오른다. 끄기 전에 걸어 둔 큐·재생 목록 보내기가 다시 켠 서버에 옛 값을 보내지 않게 한다
+    @ObservationIgnored private var linkEpoch = 0
     /// 연결한 뒤 서버에 보낸 곡별 큐(rekordbox 곡 ID). 같은 큐는 다시 보내지 않는다(#281)
     @ObservationIgnored private var sentCues: [String: [Cue]] = [:]
     /// 켜는 동안 고친 곡별 큐. 켜진 뒤에 보낸다(켤 때 읽은 초안 큐보다 새것이다)
@@ -157,6 +165,7 @@ final class LinkBarModel {
         connection = .connecting
         do {
             servesITunes = input.iTunes != nil
+            playlistsChangedWhileConnecting = false
             let count = try await session.connect(rows: input.rows, playlists: input.playlists, iTunes: input.iTunes ?? [],
                                                   draftCues: input.draftCues, shareRoot: input.shareRoot, peers: state.devices)
             // 기다리는 사이 껐으면(rekordbox 켜짐·끄기) 켜진 것으로 되돌리지 않는다
@@ -167,6 +176,9 @@ final class LinkBarModel {
             let pending = pendingCues
             pendingCues = [:]
             for (contentID, cues) in pending { updateCues(contentID: contentID, cues: cues) }
+            sentPlaylists = input.playlists
+            servedITunes = input.iTunes ?? []
+            if playlistsChangedWhileConnecting { updatePlaylists() }
             await refreshStatus()
         } catch .cancelled {
             return
@@ -183,6 +195,9 @@ final class LinkBarModel {
         server = nil
         sentCues = [:]
         pendingCues = [:]
+        sentPlaylists = nil
+        servedITunes = []
+        linkEpoch += 1
         publishCDJTracks()
         await session.disconnect()
         sessionEnded()
@@ -194,12 +209,37 @@ final class LinkBarModel {
         if connection == .connecting { pendingCues[contentID] = cues }
         guard isConnected, sentCues[contentID] != cues else { return }
         sentCues[contentID] = cues
-        let previous = cueTail
-        cueTail = Task { [session] in
+        let previous = cueTail, epoch = linkEpoch
+        cueTail = Task { [weak self, session] in
             await previous?.value
+            guard self?.linkEpoch == epoch else { return }
             await session.updateCues(contentID: contentID, cues: cues)
         }
     }
+
+    /// 재생 목록 초안이 바뀌면 켜 둔 서버의 재생 목록을 초안을 얹은 모양으로 바꾼다(곡은 그대로, 추가 대기 곡은 뺀다).
+    /// 보낸 것과 다를 때만 받은 차례대로 보낸다. CDJ는 탐색 결과를 라이브러리 단위로 기억해 목록을 다시 열면 새 모양을 본다
+    func updatePlaylists() {
+        if connection == .connecting { playlistsChangedWhileConnecting = true }
+        guard isConnected, let input = library(), input.playlists != sentPlaylists else { return }
+        sentPlaylists = input.playlists
+        // 내어 준 iTunes 폴더는 그대로 둔다(다시 읽는 중이면 앞에 내어 준 것). 아직 내어 주지 않았으면 다 읽은 뒤 넣는다(`addITunesWhenReady`)
+        if servesITunes, let tree = input.iTunes { servedITunes = tree }
+        sendPlaylists(input.playlists, iTunes: servedITunes)
+    }
+
+    /// 재생 목록 보내기를 한 줄로 차례대로 보낸다(초안 변경과 늦게 넣는 iTunes 목록이 서로 앞지르지 않게)
+    private func sendPlaylists(_ playlists: PlaylistLayout, iTunes: [SyncedITunesLibrary.Node]) {
+        let previous = playlistTail, epoch = linkEpoch
+        playlistTail = Task { [weak self, session] in
+            await previous?.value
+            guard self?.linkEpoch == epoch else { return }
+            await session.updatePlaylists(playlists, iTunes: iTunes)
+        }
+    }
+
+    /// 걸어 둔 재생 목록 보내기가 다 끝날 때까지 기다린다
+    func playlistUpdatesSent() async { await playlistTail?.value }
 
     /// 걸어 둔 큐 보내기가 다 끝날 때까지 기다린다(시험)
     func cueUpdatesSent() async { await cueTail?.value }
@@ -252,6 +292,9 @@ final class LinkBarModel {
             server = nil
             sentCues = [:]
             pendingCues = [:]
+            sentPlaylists = nil
+            servedITunes = []
+            linkEpoch += 1
             publishCDJTracks()
             Task { [session, sessionEnded] in
                 await session.disconnect()
@@ -281,7 +324,10 @@ final class LinkBarModel {
     func addITunesWhenReady() async {
         guard isConnected, !servesITunes, let input = library(), let tree = input.iTunes else { return }
         servesITunes = true
-        await session.updatePlaylists(input.playlists, iTunes: tree)
+        sentPlaylists = input.playlists
+        servedITunes = tree
+        sendPlaylists(input.playlists, iTunes: tree)
+        await playlistUpdatesSent()
     }
 }
 

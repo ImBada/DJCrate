@@ -153,7 +153,7 @@ final class AppComposition {
                 // iTunes 목록은 다 읽었을 때만 넣는다(USB 동기화와 같은 조건). 읽는 중이면 다 읽은 뒤 연결 중인 서버에 더한다
                 let music = store.music.library
                 let iTunes = music.status == .ready || music.status == .stale ? music.tree : nil
-                return LinkBarModel.LibraryInput(rows: store.rows, playlists: store.playlists.rekordboxPlaylists, iTunes: iTunes,
+                return LinkBarModel.LibraryInput(rows: store.rows, playlists: store.playlists.playlistProjection.layout, iTunes: iTunes,
                                                  draftCues: store.linkDraftCues(), shareRoot: store.shareRoot.path)
             },
             notify: { [weak store] text, kind in store?.toast = .notice(text, nil, kind: kind) },
@@ -319,6 +319,8 @@ final class AppComposition {
         if let link {
             store.isLinkServing = { [weak link] in link?.isServing ?? false }
             store.onLinkCuesChanged = { [weak link] contentID, cues in link?.updateCues(contentID: contentID, cues: cues) }
+            // 재생 목록 초안도 얹어 내어 준다. 추가 대기 곡은 rekordbox 분석 파일이 없어 빼므로 목록에서도 빠진다
+            store.playlists.onProjectionChanged = { [weak link] in link?.updatePlaylists() }
         }
     }
 

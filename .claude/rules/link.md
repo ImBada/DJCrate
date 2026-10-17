@@ -24,6 +24,8 @@ CDJ·DJM 네트워크 코드를 고칠 때 지키는 규칙이다. 리뷰는 규
 ## 내어 주기
 
 - **LNK-10** 내어 주는 라이브러리는 저장소가 읽은 rekordbox 컬렉션이다. 이 Mac에 파일이 없는 곡은 내어 주지 않는다(`LinkLibrary.isShareable`).
+  - 추가 대기 곡은 내어 주지 않는다. rekordbox 분석 파일과 곡 ID는 rekordbox에 쓰기 때 생긴다.
+  - 재생 목록은 재생 목록 초안을 얹은 모양을 내어 준다(`playlistProjection`). 추가 대기 곡은 목록에서도 빠진다.
 - **LNK-11** 음원·분석 파일은 읽기만 한다. Link Export의 NFS는 쓰기 요청을 거절한다. CDJ의 편집(`Source.edit`)은 큐 저장·삭제만 받는다(LNK-16). 태그·평점·그리드 편집은 받지 않는다.
 - **LNK-14** FLAC·ALAC을 못 읽는 기종(`LinkPlayerFormats`)에 실을 때만 WAV로 바꾼다(`LinkAudioConverter`). 바꾸는 때는 아래 둘이다.
   - DJCrate에서 끌어 놓아 실을 때: 바꾼 뒤 싣는다.
@@ -35,7 +37,7 @@ CDJ·DJM 네트워크 코드를 고칠 때 지키는 규칙이다. 리뷰는 규
 - **LNK-15** CDJ가 실은 DJCrate 곡은 DJCrate 덱에서 내린다. CDJ에 실려 있는 곡은 재생 중이 아니어도 덱에 올리지 않는다(`DeckModel.applyCDJTracks`).
 - **LNK-13** CDJ가 보낸 재생 기록(`add_to_history`)은 DJCrate에 "LINK HISTORY yyyy-MM-dd" 보존본으로만 남긴다(`LinkHistory`). LINK 동안 rekordbox 라이브러리에 쓰지 않는다. rekordbox에는 USB 기록과 같은 쓰기 대기로 올려 rekordbox에 쓰기 때 넣는다.
 - **LNK-16** CDJ의 큐 저장·삭제(#280)는 내어 주는 큐 목록을 바꿔 답한다. 거절하면 서버가 빈 목록으로 답해 CDJ의 메모리 큐가 사라진다. 받은 편집은 그 곡의 큐 초안에만 얹는다(`LinkCueDrafts`). LINK 동안 rekordbox 라이브러리에 쓰지 않는다. 큐 초안이 있는 곡은 연결할 때 초안의 큐를 내어 준다.
-- **LNK-17** 연결한 뒤 DJCrate에서 큐 초안이 바뀌면 그 곡의 큐만 서버에 보낸다(#281, `LinkBarModel.updateCues`). 곡 정보(제목·태그 등)와 그리드는 보내지 않는다. 곡 정보는 CDJ가 목록을 다시 읽어야 보여 LINK를 다시 켤 때 반영한다.
+- **LNK-17** 연결한 뒤 DJCrate에서 큐 초안이 바뀌면 그 곡의 큐만 서버에 보낸다(#281, `LinkBarModel.updateCues`). 재생 목록 초안이 바뀌면 재생 목록만 보낸다(`LinkBarModel.updatePlaylists`). 곡 정보(제목·태그 등)와 그리드는 보내지 않는다. 곡 정보는 CDJ가 목록을 다시 읽어야 보여 LINK를 다시 켤 때 반영한다.
 - **LNK-12** 실기 확인은 시험용 네트워크에서 사용자가 한다. 에이전트는 LINK 단추를 누르지 않는다.
 
 ## 경계

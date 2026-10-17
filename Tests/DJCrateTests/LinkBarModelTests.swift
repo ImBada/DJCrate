@@ -109,6 +109,158 @@ struct LinkBarModelTests {
         #expect(sent.withLock { $0 } == [[1_000], []])
     }
 
+    @Test func 연결한_동안_재생_목록_초안이_바뀌면_바뀔_때만_차례대로_서버에_보낸다() async {
+        // 재생 목록 초안을 얹은 모양을 내어 준다. 추가 대기 곡(djc-)은 rekordbox 분석 파일이 없어 목록에서도 빠진다
+        let sent = Mutex<[[String]]>([])
+        let source = LinkServerSource(
+            start: { _, _, _, _ throws(LinkProblem) in }, stop: {}, status: { LinkServerStatus(deviceNumber: 17) },
+            load: { _, _ throws(LinkProblem) in }, isRekordboxRunning: { false },
+            updatePlaylists: { playlists in sent.withLock { $0.append(playlists.map { "\($0.name):\($0.trackIDs.count)" }) } })
+        func row(_ id: String) -> TrackRow {
+            TrackRow(track: Track(id: id, uuid: "u\(id)", title: "곡", artist: nil, album: nil, albumArtist: nil, genre: nil,
+                                  composer: nil, releaseYear: nil, trackNumber: nil, key: nil, bpm: 120, lengthSeconds: 60,
+                                  folderPath: "/Users/dj/Music/\(id).mp3", comment: "", importedOn: nil, analysisDataPath: nil,
+                                  imagePath: nil, isDeleted: false),
+                     cues: [], playCount: 0)
+        }
+        final class Layout: @unchecked Sendable { var value = PlaylistLayout() }
+        let layout = Layout()
+        let model = LinkBarModel(discovery: LinkDiscovery(source: .none), session: LinkSession(source: source),
+                                 library: { .init(rows: [row("10"), row("djc-1")], playlists: layout.value, shareRoot: "/share") })
+        model.updatePlaylists()
+        model.apply(.listening([Self.cdj1]))
+        await model.connect()
+        model.updatePlaylists()
+        let draft = PlaylistLayout.Item(id: "new:1", name: "초안 목록",
+                                        entries: [PlaylistEntry(trackNo: 1, contentID: "10"), PlaylistEntry(trackNo: 2, contentID: "djc-1")])
+        layout.value = PlaylistLayout([(draft, 0)])
+        model.updatePlaylists()
+        model.updatePlaylists()
+        await model.playlistUpdatesSent()
+        #expect(sent.withLock { $0 } == [["초안 목록:1"]])
+    }
+
+    /// 문을 열 때까지 지나가는 쪽을 세워 둔다(보내기가 끝나기 전의 차례를 만들려고)
+    final class Blocker: Sendable {
+        private let state = Mutex<(open: Bool, waiting: [CheckedContinuation<Void, Never>])>((false, []))
+        func pass() async {
+            await withCheckedContinuation { continuation in
+                let go = state.withLock { state -> Bool in
+                    if state.open { return true }
+                    state.waiting.append(continuation)
+                    return false
+                }
+                if go { continuation.resume() }
+            }
+        }
+        func open() {
+            let waiting = state.withLock { state in
+                state.open = true
+                defer { state.waiting = [] }
+                return state.waiting
+            }
+            for continuation in waiting { continuation.resume() }
+        }
+        var waitingCount: Int { state.withLock { $0.waiting.count } }
+    }
+
+    final class LayoutBox: @unchecked Sendable { var value = PlaylistLayout() }
+
+    static func layout(_ name: String) -> PlaylistLayout {
+        PlaylistLayout([(PlaylistLayout.Item(id: "new:\(name)", name: name, entries: [PlaylistEntry(trackNo: 1, contentID: "10")]), 0)])
+    }
+
+    static let mp3Row = TrackRow(track: Track(id: "10", uuid: "u10", title: "곡", artist: nil, album: nil, albumArtist: nil, genre: nil,
+                                              composer: nil, releaseYear: nil, trackNumber: nil, key: nil, bpm: 120, lengthSeconds: 60,
+                                              folderPath: "/Users/dj/Music/10.mp3", comment: "", importedOn: nil, analysisDataPath: nil,
+                                              imagePath: nil, isDeleted: false),
+                                 cues: [], playCount: 0)
+
+    @Test func 켜는_중에_바뀐_재생_목록_초안은_켠_뒤에_보낸다() async {
+        let sent = Mutex<[[String]]>([])
+        let gate = Mutex<CheckedContinuation<Void, Never>?>(nil)
+        let source = LinkServerSource(
+            start: { _, _, _, _ throws(LinkProblem) in await withCheckedContinuation { c in gate.withLock { $0 = c } } },
+            stop: {}, status: { LinkServerStatus(deviceNumber: 17) }, load: { _, _ throws(LinkProblem) in },
+            isRekordboxRunning: { false }, updatePlaylists: { playlists in sent.withLock { $0.append(playlists.map(\.name)) } })
+        let layout = LayoutBox()
+        let model = LinkBarModel(discovery: LinkDiscovery(source: .none), session: LinkSession(source: source),
+                                 library: { .init(rows: [Self.mp3Row], playlists: layout.value, shareRoot: "/share") })
+        model.apply(.listening([Self.cdj1]))
+        let connecting = Task { await model.connect() }
+        while gate.withLock({ $0 == nil }) { await Task.yield() }
+        // 켤 때 읽은 모양(빈 목록)으로 서버가 뜨는 사이 초안이 바뀌었다
+        layout.value = Self.layout("켜는 중")
+        model.updatePlaylists()
+        gate.withLock { $0?.resume(); $0 = nil }
+        await connecting.value
+        await model.playlistUpdatesSent()
+        #expect(sent.withLock { $0 } == [["켜는 중"]])
+    }
+
+    @Test func 늦게_넣는_iTunes_목록은_앞서_걸어_둔_재생_목록_보내기에_지워지지_않는다() async {
+        // 둘이 서로 다른 줄로 보내면 늦게 끝난 초안 보내기가 iTunes 폴더 없는 모양으로 덮었다(리뷰)
+        let sent = Mutex<[[String]]>([])
+        let blocker = Blocker()
+        let source = LinkServerSource(
+            start: { _, _, _, _ throws(LinkProblem) in }, stop: {}, status: { LinkServerStatus(deviceNumber: 17) },
+            load: { _, _ throws(LinkProblem) in }, isRekordboxRunning: { false },
+            updatePlaylists: { playlists in
+                await blocker.pass()
+                sent.withLock { $0.append(playlists.map(\.name)) }
+            })
+        let layout = LayoutBox()
+        let ready = ITunesBox()
+        let model = LinkBarModel(discovery: LinkDiscovery(source: .none), session: LinkSession(source: source),
+                                 library: { .init(rows: [Self.mp3Row], playlists: layout.value, iTunes: ready.tree, shareRoot: "/share") })
+        model.apply(.listening([Self.cdj1]))
+        await model.connect()
+        layout.value = Self.layout("첫째")
+        model.updatePlaylists()
+        layout.value = Self.layout("둘째")
+        model.updatePlaylists()
+        while blocker.waitingCount == 0 { await Task.yield() }
+        ready.tree = SyncedITunesLibrary(snapshot: ITunesLibrarySnapshot(playlists: [.init(id: "B", name: "Later", paths: ["/Users/dj/Music/10.mp3"])]),
+                                         tracks: [Self.mp3Row.track]).tree
+        let adding = Task { await model.addITunesWhenReady() }
+        blocker.open()
+        await adding.value
+        await model.playlistUpdatesSent()
+        #expect(sent.withLock { $0.last } == ["iTunes", "Later", "둘째"])
+    }
+
+    @Test func 끄기_전에_걸어_둔_재생_목록_보내기는_다시_켠_서버에_보내지_않는다() async {
+        let sent = Mutex<[[String]]>([])
+        let blocker = Blocker()
+        let source = LinkServerSource(
+            start: { _, _, _, _ throws(LinkProblem) in }, stop: {}, status: { LinkServerStatus(deviceNumber: 17) },
+            load: { _, _ throws(LinkProblem) in }, isRekordboxRunning: { false },
+            updatePlaylists: { playlists in
+                await blocker.pass()
+                sent.withLock { $0.append(playlists.map(\.name)) }
+            })
+        let layout = LayoutBox()
+        let model = LinkBarModel(discovery: LinkDiscovery(source: .none), session: LinkSession(source: source),
+                                 library: { .init(rows: [Self.mp3Row], playlists: layout.value, shareRoot: "/share") })
+        model.apply(.listening([Self.cdj1]))
+        await model.connect()
+        layout.value = Self.layout("첫째")
+        model.updatePlaylists()
+        layout.value = Self.layout("둘째")
+        model.updatePlaylists()
+        while blocker.waitingCount == 0 { await Task.yield() }
+        // 첫째가 서버에서 끝나기 전에 끄고 다시 켠다. 다시 켠 서버는 켤 때 읽은 모양(둘째)으로 뜬다
+        let reconnect = Task {
+            await model.disconnect()
+            await model.connect()
+        }
+        while model.isConnected { await Task.yield() }
+        blocker.open()
+        await reconnect.value
+        await model.playlistUpdatesSent()
+        #expect(sent.withLock { $0 } == [["첫째"]])
+    }
+
     @Test func 켜는_중에_고친_큐는_연결된_뒤에_보낸다() async {
         // 켜는 동안(.connecting) 고친 큐를 버리면, 켤 때 읽은 옛 초안 큐가 그대로 남았다(#281 리뷰)
         let sent = Mutex<[[UInt32]]>([])
