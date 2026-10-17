@@ -11,13 +11,14 @@ struct LinkAudioConverterLiveTests {
     static func tone(_ url: URL, format: AudioFormatID) throws {
         let settings: [String: Any] = [AVFormatIDKey: format, AVSampleRateKey: 44_100.0, AVNumberOfChannelsKey: 2,
                                        AVLinearPCMBitDepthKey: 16, AVEncoderBitDepthHintKey: 16]
-        let file = try AVAudioFile(forWriting: url, settings: settings, commonFormat: .pcmFormatFloat32, interleaved: false)
+        // 16비트 정수로 넣어야 무손실 인코더가 원본을 16비트로 적는다(부동소수로 넣으면 24비트로 적는다)
+        let file = try AVAudioFile(forWriting: url, settings: settings, commonFormat: .pcmFormatInt16, interleaved: false)
         let frames: AVAudioFrameCount = 44_100
         let buffer = try #require(AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frames))
         buffer.frameLength = frames
         for channel in 0..<2 {
-            let samples = try #require(buffer.floatChannelData?[channel])
-            for frame in 0..<Int(frames) { samples[frame] = Float(sin(Double(frame) * 2 * .pi * 440 / 44_100) * 0.5) }
+            let samples = try #require(buffer.int16ChannelData?[channel])
+            for frame in 0..<Int(frames) { samples[frame] = Int16(sin(Double(frame) * 2 * .pi * 440 / 44_100) * 16_000) }
         }
         try file.write(from: buffer)
     }
@@ -41,6 +42,8 @@ struct LinkAudioConverterLiveTests {
         let wav = try AVAudioFile(forReading: URL(filePath: path))
         #expect(wav.length == 44_100)
         #expect(wav.fileFormat.sampleRate == 44_100)
+        // 압축 형식은 PCM 비트 수가 0으로 읽혀도 원본 비트 깊이(16)를 따른다. 24비트로 키우면 CDJ가 NFS로 1.5배를 읽는다
+        #expect(wav.fileFormat.settings[AVLinearPCMBitDepthKey] as? Int == 16)
         // 원본은 그대로, 반쯤 쓴 파일은 남지 않는다
         #expect(try Data(contentsOf: source) == before)
         #expect(try FileManager.default.contentsOfDirectory(atPath: root.appending(path: "cache").path) == [URL(filePath: path).lastPathComponent])
@@ -58,7 +61,9 @@ struct LinkAudioConverterLiveTests {
         try Self.tone(alac, format: kAudioFormatAppleLossless)
         try Self.tone(aac, format: kAudioFormatMPEG4AAC)
         let converter = LinkAudioConverter.live(cache: root.appending(path: "cache"))
-        #expect(try await converter.convert(alac.path)?.hasSuffix(".wav") == true)
+        let alacWAV = try #require(try await converter.convert(alac.path))
+        #expect(alacWAV.hasSuffix(".wav"))
+        #expect(try AVAudioFile(forReading: URL(filePath: alacWAV)).fileFormat.settings[AVLinearPCMBitDepthKey] as? Int == 16)
         #expect(try await converter.convert(aac.path) == nil)
         #expect(try await converter.convert(root.appending(path: "song.mp3").path) == nil)
     }

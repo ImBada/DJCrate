@@ -35,7 +35,7 @@ extension LinkAudioConverter {
             try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
             let file = try AVAudioFile(forReading: source)
             let span = EditFrameSpan(sourceFrame: 0, frameCount: file.length, outputFrame: 0, crossfadeFrames: 0)
-            _ = try EditRenderer.render([span], source: source, to: output, bitDepth: bitDepth(file))
+            _ = try EditRenderer.render([span], source: source, to: output, bitDepth: bitDepth(file, source: source))
             return output.path
         } catch {
             // 같은 곡을 거의 같이 두 번 놓아 다른 쪽이 먼저 다 썼으면 그 파일을 쓴다
@@ -62,8 +62,22 @@ extension LinkAudioConverter {
     }
 
     /// 원본 비트 수를 지킨다: 16비트 이하면 16, 아니면 24(CDJ WAV는 16·24비트)
-    static func bitDepth(_ file: AVAudioFile) -> Int {
-        let bits = (file.fileFormat.settings[AVLinearPCMBitDepthKey] as? Int) ?? Int(file.fileFormat.streamDescription.pointee.mBitsPerChannel)
+    /// 원본 비트 깊이가 16 이하면 16, 아니면 24. FLAC·ALAC은 PCM 비트 수가 0으로 읽혀 파일이 적어 둔 원본 비트 깊이를 본다.
+    /// 16비트를 24비트로 키우면 같은 소리에 파일만 1.5배가 되고 CDJ가 NFS로 그만큼 더 읽는다
+    static func bitDepth(_ file: AVAudioFile, source: URL) -> Int {
+        let pcm = Int(file.fileFormat.streamDescription.pointee.mBitsPerChannel)
+        let bits = pcm > 0 ? pcm : sourceBitDepth(source) ?? 0
         return bits > 0 && bits <= 16 ? 16 : 24
+    }
+
+    /// 파일이 적어 둔 원본 비트 깊이. 정수는 양수, 부동소수는 음수다. 모르면 nil
+    static func sourceBitDepth(_ url: URL) -> Int? {
+        var id: AudioFileID?
+        guard AudioFileOpenURL(url as CFURL, .readPermission, 0, &id) == noErr, let id else { return nil }
+        defer { AudioFileClose(id) }
+        var depth: Int32 = 0
+        var size = UInt32(MemoryLayout<Int32>.size)
+        guard AudioFileGetProperty(id, kAudioFilePropertySourceBitDepth, &size, &depth) == noErr, depth != 0 else { return nil }
+        return Int(depth)
     }
 }
