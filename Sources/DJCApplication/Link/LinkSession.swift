@@ -59,7 +59,7 @@ public enum LinkHistoryEvent: Equatable, Sendable {
 
 /// CDJ에서 실은 곡을 그 기종이 못 읽어 백그라운드에서 바꾼 일(#277). 화면이 알린다
 public enum LinkBackgroundConversion: Equatable, Sendable {
-    /// 바꿔 끼웠다. CDJ에서 다시 실으면 WAV가 실린다(바꾸는 동안의 싣기는 원본을 받아 CDJ가 못 읽었다)
+    /// 바꾸는 데 오래 걸려(`LinkFileHold.limit`) 그 싣기가 원본을 받아 실패한 뒤 바꿔 끼웠다. CDJ에서 다시 실으면 WAV가 실린다
     case finished(title: String)
     case failed(title: String, LinkProblem)
 }
@@ -132,6 +132,9 @@ public struct LinkServerSource: Sendable {
     public var substitute: @Sendable (_ trackID: UInt32, _ path: String, _ fileType: UInt8) async -> Void
     /// 곡 하나의 큐 목록을 바꾼다(연결한 뒤 DJCrate에서 고친 큐, #281). CDJ는 곡을 실을 때 다시 묻는다
     public var updateCues: @Sendable (_ trackID: UInt32, _ cues: [LinkLibrary.Cue]) async -> Void
+    /// 플레이어의 파일 요청(이 Mac의 경로, 기종 이름)을 보류할지 묻는 함수를 띄운 서버에 건다. true면 답하지 않는다(#277).
+    /// NFS가 답하는 도중에 부르므로 바로 끝나야 한다
+    public var setFileHold: @Sendable (_ hold: @escaping @Sendable (_ path: String, _ playerModel: String) -> Bool) async -> Void
 
     public init(start: @escaping @Sendable (LinkLibrary, String, String, @escaping @Sendable (LinkHistoryEvent) -> Void) async throws(LinkProblem) -> Void,
                 stop: @escaping @Sendable () async -> Void,
@@ -140,7 +143,8 @@ public struct LinkServerSource: Sendable {
                 isRekordboxRunning: @escaping @Sendable () -> Bool,
                 updatePlaylists: @escaping @Sendable ([LinkLibrary.Playlist]) async -> Void = { _ in },
                 substitute: @escaping @Sendable (UInt32, String, UInt8) async -> Void = { _, _, _ in },
-                updateCues: @escaping @Sendable (UInt32, [LinkLibrary.Cue]) async -> Void = { _, _ in }) {
+                updateCues: @escaping @Sendable (UInt32, [LinkLibrary.Cue]) async -> Void = { _, _ in },
+                setFileHold: @escaping @Sendable (@escaping @Sendable (String, String) -> Bool) async -> Void = { _ in }) {
         self.start = start
         self.stop = stop
         self.status = status
@@ -149,6 +153,7 @@ public struct LinkServerSource: Sendable {
         self.updatePlaylists = updatePlaylists
         self.substitute = substitute
         self.updateCues = updateCues
+        self.setFileHold = setFileHold
     }
 
     /// 서버를 띄우지 않는다(화면 시험·자가 테스트 실행). 연결을 켜면 쓸 수 없다고 한다
@@ -193,6 +198,8 @@ public actor LinkSession {
     private var substituted: Set<String> = []
     /// 이 연결에서 바꿀 필요가 없다고 본 원본 경로(AAC .m4a 등). CDJ가 다시 읽을 때 코덱을 또 보지 않는다
     private var unconvertible: Set<String> = []
+    /// 바꾸는 동안 그 원본 요청에 답하지 않게 하는 보류(서버가 액터 밖에서 묻는다)
+    private let fileHold: LinkFileHold
     /// CDJ가 원본을 요청해 백그라운드에서 바꾸는 일을 알린다(아무 스레드에서나 부른다)
     private let backgroundConversion: @Sendable (LinkBackgroundConversion) -> Void
     /// 진행 중인 변환(원본 경로별). 같은 곡을 바꾸는 동안 또 놓으면 이 변환을 함께 기다린다(같은 출력 파일을 두 번 쓰지 않게)
@@ -200,12 +207,14 @@ public actor LinkSession {
 
     public init(source: LinkServerSource, converter: LinkAudioConverter = .none, played: @escaping @Sendable (LinkPlay) -> Void = { _ in },
                 cueEdited: @escaping @Sendable (LinkCueEdit) -> Void = { _ in },
-                backgroundConversion: @escaping @Sendable (LinkBackgroundConversion) -> Void = { _ in }) {
+                backgroundConversion: @escaping @Sendable (LinkBackgroundConversion) -> Void = { _ in },
+                fileHold: LinkFileHold = LinkFileHold()) {
         self.source = source
         self.converter = converter
         self.played = played
         self.cueEdited = cueEdited
         self.backgroundConversion = backgroundConversion
+        self.fileHold = fileHold
     }
 
     public var isConnected: Bool { library != nil }
@@ -280,6 +289,7 @@ public actor LinkSession {
                 Task { await self.fileRequested(path: path, playerModel: model, generation: mine) }
             }
         }
+        fileHold.reset(candidates: Set(built.tracks.map(\.path).filter(LinkLibrary.mayNeedConversion(path:))))
         do {
             try await source.start(built, shareRoot, peer.address, history)
         } catch {
@@ -294,6 +304,8 @@ public actor LinkSession {
         library = built
         substituted = []
         unconvertible = []
+        let hold = fileHold
+        await source.setFileHold { path, model in hold.shouldHold(path: path, playerModel: model) }
         return .success(built.tracks.count)
     }
 
@@ -334,20 +346,25 @@ public actor LinkSession {
         guard let id = library.linkID(of: contentID) else { throw .trackNotShared }
         let mine = generation
         if needsConversion(id, library: library, playerModel: playerModel), let track = library.track(linkID: id) {
-            if let wav = try await convert(track.path).get() {
+            let converted = await convert(track.path)
+            // 바꾸지 못했으면 그 원본을 기다리던 CDJ의 요청에 곧바로 원본으로 답한다
+            if case .failure = converted { fileHold.release(track.path) }
+            if let wav = try converted.get() {
                 // 바꾸는 사이 끄거나 다시 켰으면 지금 서버에 바꿔 끼우지 않는다(다시 읽은 라이브러리는 같은 번호라도 경로가 다를 수 있다)
                 guard generation == mine, self.library?.linkID(of: contentID) == id else { throw .notConnected }
                 await substitute(id, original: track.path, wav: wav)
+                fileHold.release(track.path)
             } else if generation == mine {
                 unconvertible.insert(track.path)
+                fileHold.release(track.path)
             }
         }
         try await source.load(player, id)
     }
 
     /// CDJ에서 고른 곡의 원본을 플레이어가 읽으려 했다(#277). 그 기종이 못 읽는 형식이면 백그라운드에서 WAV로 바꿔 끼운다.
-    /// 바꾸는 동안 이번 싣기는 원본을 받아 실패한다. CDJ는 곡 번호별로 처음 받은 경로를 기억하므로 서버가 그 원본 이름으로도
-    /// WAV를 내어 주고, 다시 실으면 WAV가 실린다(CDJ-2000nexus 실기).
+    /// 바꾸는 동안 서버는 그 요청에 답하지 않고(`LinkFileHold`), CDJ가 다시 보낸 요청에 WAV로 답해 첫 싣기부터 WAV가 실린다.
+    /// CDJ는 곡 번호별로 처음 받은 경로를 기억하므로 서버가 원본 이름으로도 WAV를 내어 준다(CDJ-2000nexus 실기).
     /// 내어 준 곡의 원본이 아닌 파일(분석 파일·그림·바꾼 WAV)은 지나친다
     func fileRequested(path: String, playerModel: String, generation mine: Int) async {
         guard generation == mine, let library, let id = library.linkID(ofPath: path), let track = library.track(linkID: id),
@@ -358,10 +375,13 @@ public actor LinkSession {
         case let .success(wav?):
             guard generation == mine, self.library?.linkID(ofPath: path) == id else { return }
             await substitute(id, original: path, wav: wav)
-            backgroundConversion(.finished(title: track.title))
+            // 보류하던 싣기는 다음 요청에 WAV를 받아 그대로 실린다. 오래 걸려 원본으로 답했으면 다시 실으라고 알린다
+            if !fileHold.release(path) { backgroundConversion(.finished(title: track.title)) }
         case .success(nil):
             if generation == mine { unconvertible.insert(path) }
+            fileHold.release(path)
         case let .failure(problem):
+            fileHold.release(path)
             if generation == mine { backgroundConversion(.failed(title: track.title, problem)) }
         }
     }

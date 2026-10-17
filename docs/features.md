@@ -344,7 +344,7 @@ LINK를 누르면 DJCrate 라이브러리를 CDJ에 내어 준다. rekordbox의 
 곡 목록의 곡을 막대의 플레이어 칸에 끌어 놓으면 그 플레이어에 싣는다.
 
 - FLAC·ALAC을 못 읽는 기종에 놓으면 WAV로 바꿔 싣는다. 바꾼 파일은 `~/Music/DJCrate/LINK`에 둔다. 원본은 그대로 둔다.
-- FLAC·ALAC을 못 읽는 기종의 LINK 메뉴에서 그런 곡을 고르면 DJCrate가 WAV로 바꾼다. 바꾸는 동안의 싣기는 실패한다. 다 바꾸면 알림을 띄운다. CDJ에서 다시 실으면 WAV가 실린다.
+- FLAC·ALAC을 못 읽는 기종의 LINK 메뉴에서 그런 곡을 고르면 DJCrate가 WAV로 바꿔 싣는다. 바꾸는 동안 CDJ는 1~2초 기다린다. 15초 안에 못 바꾸면 그 싣기는 실패한다. 그때는 다 바꾼 뒤 알림을 띄운다. CDJ에서 다시 실으면 WAV가 실린다.
 - CDJ가 DJCrate 덱의 곡을 실으면 덱에서 내린다. CDJ에 실린 곡은 멈춰 있어도 덱에 올리지 않는다.
 
 CDJ가 남긴 재생 기록은 "LINK HISTORY 날짜" 이름으로 DJCrate에 보존한다. 연결한 동안에는 rekordbox 라이브러리에 쓰지 않는다. 연결을 끊으면 그 기록이 "rekordbox 쓰기 대기"에 오른다. rekordbox에 쓰기(⇧⌘E) 때 rekordbox Histories에 들어간다. 쓰는 방식은 USB 기록과 같다([재생 기록](#재생-기록히스토리)).

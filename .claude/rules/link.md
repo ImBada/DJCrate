@@ -27,9 +27,10 @@ CDJ·DJM 네트워크 코드를 고칠 때 지키는 규칙이다. 리뷰는 규
 - **LNK-11** 음원·분석 파일은 읽기만 한다. Link Export의 NFS는 쓰기 요청을 거절한다. CDJ의 편집(`Source.edit`)은 큐 저장·삭제만 받는다(LNK-16). 태그·평점·그리드 편집은 받지 않는다.
 - **LNK-14** FLAC·ALAC을 못 읽는 기종(`LinkPlayerFormats`)에 실을 때만 WAV로 바꾼다(`LinkAudioConverter`). 바꾸는 때는 아래 둘이다.
   - DJCrate에서 끌어 놓아 실을 때: 바꾼 뒤 싣는다.
-  - CDJ에서 고를 때: 플레이어가 NFS로 원본을 읽으려 하면 백그라운드에서 바꿔 끼운다(`LinkSession.fileRequested`). 바꾸는 동안의 싣기는 실패하므로 다 바꾼 뒤 다시 실으라고 알린다.
-  - 바꿔 끼울 때는 곡 정보의 경로와 NFS의 원본 이름을 함께 WAV로 바꾼다(`redirect_file`). CDJ는 곡 번호별로 처음 받은 경로를 기억해 원본 이름으로 다시 찾기 때문이다(2026-10-17 CDJ-2000nexus 실기).
-  - NFS는 같은 핸들의 내용을 바꾼다. 새 핸들로 바꾸면 싣기가 멈췄다. 그래서 같은 원본을 읽던 다른 기종도 다음 읽기부터 WAV를 받는다.
+  - CDJ에서 고를 때: 플레이어가 NFS로 원본을 찾으면 백그라운드에서 바꿔 끼운다(`LinkSession.fileRequested`).
+  - 바꾸는 동안 그 요청에 답하지 않는다(`LinkFileHold`). CDJ가 1초쯤 뒤 다시 묻는 요청에 WAV로 답해 첫 싣기부터 실린다. 원본으로 답해 E-8305로 실패시키지 않는다.
+  - 15초(`LinkFileHold.limit`) 안에 못 바꾸면 원본으로 답한다. 그 싣기는 실패하므로 다 바꾼 뒤 다시 실으라고 알린다. 바꿀 필요가 없는 곡은 곧바로 원본으로 답한다. 바꾸지 못한 곡도 그렇다.
+  - 바꿔 끼울 때는 곡 정보의 경로와 NFS의 원본 이름을 함께 WAV로 바꾼다(`redirect_file`). CDJ는 곡 번호별로 처음 받은 경로를 기억해 원본 이름으로 다시 찾기 때문이다(2026-10-17 CDJ-2000nexus 실기). 이미 연 핸들은 원본을 이어 읽는다.
   - 바꾼 파일은 `~/Music/DJCrate/LINK`에만 쓴다. 원본은 읽기만 한다. 시험은 임시 폴더에서만 바꾼다.
 - **LNK-15** CDJ가 실은 DJCrate 곡은 DJCrate 덱에서 내린다. CDJ에 실려 있는 곡은 재생 중이 아니어도 덱에 올리지 않는다(`DeckModel.applyCDJTracks`).
 - **LNK-13** CDJ가 보낸 재생 기록(`add_to_history`)은 DJCrate에 "LINK HISTORY yyyy-MM-dd" 보존본으로만 남긴다(`LinkHistory`). LINK 동안 rekordbox 라이브러리에 쓰지 않는다. rekordbox에는 USB 기록과 같은 쓰기 대기로 올려 rekordbox에 쓰기 때 넣는다.

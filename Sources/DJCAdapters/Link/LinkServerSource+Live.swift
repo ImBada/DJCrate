@@ -20,7 +20,8 @@ extension LinkServerSource {
             substitute: { id, path, fileType in await slot.substitute(id, path: path, fileType: fileType) },
             updateCues: { id, cues in
                 await slot.updateCues(id, cues.map { LinkExportCue(positionMs: $0.positionMs, outMs: $0.outMs, hotCue: $0.hotCue, colour: $0.colour) })
-            })
+            },
+            setFileHold: { hold in await slot.setFileHold(hold) })
     }
 }
 
@@ -57,6 +58,10 @@ private actor LinkServerSlot {
             stopping = Task { await server.stop() }
         }
         await stopping?.value
+    }
+
+    func setFileHold(_ hold: @escaping @Sendable (String, String) -> Bool) async {
+        await server?.setFileHold(hold)
     }
 
     func substitute(_ trackID: UInt32, path: String, fileType: UInt8) async {

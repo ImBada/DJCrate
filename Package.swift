@@ -39,7 +39,7 @@ let package = Package(
         // 그 manifest의 폐기된 watchOS 4 선언 경고가 manifest를 읽을 때마다 보인다(2026-10-01에는 이것을 없애려고 바이너리 타깃으로 두었다).
         .package(url: "https://github.com/sqlcipher/SQLCipher.swift", exact: "4.19.0"),
         // Pro DJ Link(CDJ·DJM 네트워크). alphatheta-connect의 Swift 포트, GPL-2.0-or-later(#268). DJCLink만 import한다.
-        .package(url: "https://github.com/ImBada/DJLinkKit", exact: "0.1.5"),
+        .package(url: "https://github.com/ImBada/DJLinkKit", exact: "0.1.6"),
     ],
     targets: [
         // 앱 자동 업데이트(#59, MIT). Sparkle 2.10.0 공식 SwiftPM 바이너리·체크섬(그 태그의 Package.swift와 같다).

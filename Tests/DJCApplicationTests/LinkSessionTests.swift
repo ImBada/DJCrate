@@ -128,8 +128,10 @@ struct LinkSessionTests {
         let fake = Fake()
         let swapped = Mutex<[(id: UInt32, path: String, type: UInt8)]>([])
         let conversions = Mutex(0)
+        let gate = Mutex<(@Sendable (String, String) -> Bool)?>(nil)
         var source = fake.source
         source.substitute = { id, path, type in swapped.withLock { $0.append((id, path, type)) } }
+        source.setFileHold = { hold in gate.withLock { $0 = hold } }
         let converter = LinkAudioConverter { path throws(LinkProblem) in
             conversions.withLock { $0 += 1 }
             return path.hasSuffix(".flac") ? "/Users/dj/Music/DJCrate/LINK/x.wav" : nil
@@ -150,6 +152,10 @@ struct LinkSessionTests {
         #expect(conversions.withLock { $0 } == 2)
         #expect(!(await session.mayConvert(contentID: "10")))
         #expect(fake.loaded.withLock { $0.map(\.id) } == [1, 1, 2, 3])
+        // 바꿔 끼운 원본·바꿀 필요가 없는 원본은 CDJ가 찾을 때 미루지 않는다(곧바로 실은 곡이 기다리지 않게)
+        let hold = try #require(gate.withLock { $0 })
+        #expect(!hold("/Users/dj/Music/10.flac", "CDJ-2000nexus"))
+        #expect(!hold("/Users/dj/Music/20.m4a", "CDJ-2000nexus"))
     }
 
     @Test func 같은_곡을_바꾸는_동안_또_놓으면_진행_중인_변환을_함께_기다린다() async throws {
@@ -245,33 +251,52 @@ struct LinkSessionTests {
 
     @Test func 바꾸지_못하면_싣지_않고_이유를_넘긴다() async throws {
         let fake = Fake()
-        let session = LinkSession(source: fake.source, converter: LinkAudioConverter { _ throws(LinkProblem) in throw .conversionFailed("깨진 파일") })
+        let gate = Mutex<(@Sendable (String, String) -> Bool)?>(nil)
+        var source = fake.source
+        source.setFileHold = { hold in gate.withLock { $0 = hold } }
+        let session = LinkSession(source: source, converter: LinkAudioConverter { path throws(LinkProblem) in
+            // 바꾸는 사이 CDJ가 같은 원본을 찾아 서버가 답을 미뤘다
+            _ = gate.withLock { $0 }?(path, "CDJ-2000nexus")
+            throw .conversionFailed("깨진 파일")
+        })
         let flac = Self.row("10", path: "/Users/dj/Music/10.flac")
         try await session.connect(rows: [flac], playlists: PlaylistLayout(), shareRoot: "/share", peers: [Self.cdj2])
         await #expect(throws: LinkProblem.conversionFailed("깨진 파일")) { try await session.load(contentID: "10", player: 2) }
+        // 바꾸지 못한 원본은 곧바로 원본으로 답한다(CDJ가 다시 물을 때마다 또 바꾸지 않게)
+        let hold = try #require(gate.withLock { $0 })
+        #expect(!hold("/Users/dj/Music/10.flac", "CDJ-2000nexus"))
         #expect(fake.loaded.withLock { $0.isEmpty })
     }
 
-    @Test func CDJ가_못_읽는_원본을_읽으려_하면_백그라운드에서_WAV로_바꿔_끼우고_알린다() async throws {
-        // CDJ 상태 패킷에는 로드 실패 칸이 없다. 플레이어가 NFS로 원본을 찾으면 그 싣기는 실패한 것으로 보고, 다시 실을 때 WAV가 나가게 한다
+    @Test func CDJ가_못_읽는_원본을_읽으려_하면_바꾸는_동안_답을_미루고_WAV로_바꿔_끼운다() async throws {
+        // CDJ 상태 패킷에는 로드 실패 칸이 없다. 플레이어가 NFS로 원본을 찾으면 바꾸는 동안 답하지 않고(CDJ가 다시 묻는다),
+        // 다 바꾼 뒤의 요청에 WAV로 답해 첫 싣기부터 실리게 한다. 제때 실렸으니 알리지 않는다
         let fake = Fake()
         let swapped = Mutex<[(id: UInt32, path: String, type: UInt8)]>([])
         let conversions = Mutex(0)
         let events = Mutex<[LinkBackgroundConversion]>([])
+        let gate = Mutex<(@Sendable (String, String) -> Bool)?>(nil)
+        let heldWhileConverting = Mutex<Bool?>(nil)
         var source = fake.source
         source.substitute = { id, path, type in swapped.withLock { $0.append((id, path, type)) } }
-        let session = LinkSession(source: source, converter: LinkAudioConverter { _ throws(LinkProblem) in
+        source.setFileHold = { hold in gate.withLock { $0 = hold } }
+        let session = LinkSession(source: source, converter: LinkAudioConverter { path throws(LinkProblem) in
             conversions.withLock { $0 += 1 }
+            heldWhileConverting.withLock { $0 = gate.withLock { $0 }?(path, "CDJ-2000nexus") }
             return "/Users/dj/Music/DJCrate/LINK/x.wav"
         }, backgroundConversion: { event in events.withLock { $0.append(event) } })
         try await session.connect(rows: [Self.row("10"), Self.row("20", path: "/Users/dj/Music/20.flac")], playlists: PlaylistLayout(),
                                   shareRoot: "/share", peers: [Self.cdj2])
+        let hold = try #require(gate.withLock { $0 })
+        #expect(hold("/Users/dj/Music/20.flac", "CDJ-2000nexus"))
+        #expect(!hold("/Users/dj/Music/10.mp3", "CDJ-2000nexus"))
         let history = try #require(fake.history.withLock { $0 })
         history(.fileRequested(path: "/Users/dj/Music/20.flac", playerModel: "CDJ-2000nexus"))
-        while events.withLock({ $0.isEmpty }) { await Task.yield() }
-        #expect(events.withLock { $0 } == [.finished(title: "곡 20")])
+        while swapped.withLock({ $0.isEmpty }) || hold("/Users/dj/Music/20.flac", "CDJ-2000nexus") { await Task.yield() }
+        #expect(heldWhileConverting.withLock { $0 } == true)
         #expect(swapped.withLock { $0.map(\.id) } == [2])
         #expect(swapped.withLock { $0.map(\.type) } == [11])
+        #expect(events.withLock { $0.isEmpty })
         // 바꾼 뒤에는 원본을 또 읽어도(앞 요청의 READ 등), 바꾼 WAV를 읽어도 다시 바꾸지 않는다. 곡은 CDJ가 싣는다
         let generation = await session.currentGeneration
         await session.fileRequested(path: "/Users/dj/Music/20.flac", playerModel: "CDJ-2000nexus", generation: generation)
@@ -279,6 +304,27 @@ struct LinkSessionTests {
         #expect(conversions.withLock { $0 } == 1)
         #expect(fake.loaded.withLock { $0.isEmpty })
         #expect(!(await session.mayConvert(contentID: "20")))
+    }
+
+    @Test func 바꾸는_데_오래_걸려_원본으로_답했으면_다_바꾼_뒤_다시_실으라고_알린다() async throws {
+        let fake = Fake()
+        let clock = LinkFileHoldTests.Clock()
+        let events = Mutex<[LinkBackgroundConversion]>([])
+        let gate = Mutex<(@Sendable (String, String) -> Bool)?>(nil)
+        var source = fake.source
+        source.setFileHold = { hold in gate.withLock { $0 = hold } }
+        let session = LinkSession(source: source, converter: LinkAudioConverter { path throws(LinkProblem) in
+            // 바꾸는 사이 CDJ가 상한보다 오래 다시 물어 서버가 원본으로 답했다
+            let hold = gate.withLock { $0 }
+            _ = hold?(path, "CDJ-2000nexus")
+            clock.advance(LinkFileHold.limit + .seconds(1))
+            _ = hold?(path, "CDJ-2000nexus")
+            return "/Users/dj/Music/DJCrate/LINK/x.wav"
+        }, backgroundConversion: { event in events.withLock { $0.append(event) } }, fileHold: LinkFileHold(now: { clock.now() }))
+        try await session.connect(rows: [Self.row("20", path: "/Users/dj/Music/20.flac")], playlists: PlaylistLayout(), shareRoot: "/share",
+                                  peers: [Self.cdj2])
+        await session.fileRequested(path: "/Users/dj/Music/20.flac", playerModel: "CDJ-2000nexus", generation: await session.currentGeneration)
+        #expect(events.withLock { $0 } == [.finished(title: "곡 20")])
     }
 
     @Test func 읽을_수_있는_기종·다른_파일·바꿀_필요_없는_음원은_백그라운드에서_바꾸지_않는다() async throws {

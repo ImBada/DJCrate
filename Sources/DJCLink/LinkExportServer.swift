@@ -207,6 +207,15 @@ public final class LinkExportServer: Sendable {
         }.value
     }
 
+    /// 플레이어의 파일 요청(이 Mac의 경로, 기종 이름)을 보류할지 묻는 함수를 건다. true면 답하지 않아 플레이어가 같은 요청을 다시 보낸다(#277).
+    /// DJLinkKit 액터에서 NFS 답을 하는 도중에 부르므로 짧게 끝나야 한다
+    public func setFileHold(_ hold: @escaping @Sendable (_ path: String, _ playerModel: String) -> Bool) async {
+        await Task { @DJLinkActor [export] in
+            // DJLinkKit은 "지금 답할지"를 묻는다(보류의 반대)
+            export.gate_files { path, player in !hold(path, player?.name ?? "") }
+        }.value
+    }
+
     /// 곡 하나의 큐 목록을 바꾼다(#281). CDJ는 곡을 실을 때 큐를 다시 묻는다. 이미 실린 곡은 다시 실어야 보인다
     public func updateCues(trackID: UInt32, cues: [LinkExportCue]) async {
         await Task { @DJLinkActor [source] in source.replaceCues(trackID: trackID, cues: cues) }.value
