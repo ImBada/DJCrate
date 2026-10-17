@@ -68,6 +68,9 @@ public struct LinkLibrary: Equatable, Sendable {
     /// 그 rekordbox 곡의 CDJ 번호. 내어 주지 않는 곡이면 nil
     public func linkID(of contentID: String) -> UInt32? { idsByContent[contentID] }
 
+    /// 그 음원 경로를 쓰는 첫 곡의 CDJ 번호(CDJ가 NFS로 읽으려 한 파일이 어느 곡인지 찾는다). 내어 준 곡의 음원이 아니면 nil
+    public func linkID(ofPath path: String) -> UInt32? { tracks.first { $0.path == path }?.id }
+
     /// 그 CDJ 번호로 내어 준 곡. 번호는 1부터 차례로 매기므로 자리로 찾는다
     public func track(linkID id: UInt32) -> Track? {
         let index = Int(id) - 1

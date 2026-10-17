@@ -43,6 +43,8 @@ private actor LinkServerSlot {
                                                               history(.cue(id, LinkCueEdit(contentID: "", deleted: edit.deleted, kind: edit.kind,
                                                                                            inMs: edit.inMs, outMs: edit.outMs, comment: edit.comment)))
                                                           }
+                                                      }, onFileRequest: { request in
+                                                          history(.fileRequested(path: request.path, playerModel: request.model))
                                                       })
         } catch {
             throw Self.problem(error)

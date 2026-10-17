@@ -48,6 +48,15 @@ struct LinkLibraryTests {
         #expect(library.title(ofLinkID: 3) == nil)
     }
 
+    @Test func 음원_경로로_CDJ_번호를_찾는다() {
+        // CDJ가 NFS로 읽으려 한 파일이 어느 곡인지 찾는다. 같은 음원을 가리키는 곡이 여럿이면 첫 곡이다
+        let library = LinkLibrary.build(rows: [Self.row("10", path: "/Users/dj/Music/A.flac"), Self.row("11", path: "/Users/dj/Music/B.mp3"),
+                                               Self.row("12", path: "/Users/dj/Music/A.flac")], playlists: PlaylistLayout())
+        #expect(library.linkID(ofPath: "/Users/dj/Music/A.flac") == 1)
+        #expect(library.linkID(ofPath: "/Users/dj/Music/B.mp3") == 2)
+        #expect(library.linkID(ofPath: "/PIONEER/USBANLZ/P01/0001/ANLZ0000.DAT") == nil)
+    }
+
     @Test func 곡_값을_옮긴다() throws {
         let track = try #require(LinkLibrary.build(rows: [Self.row("10")], playlists: PlaylistLayout()).tracks.first)
         #expect(track.title == "곡 10")

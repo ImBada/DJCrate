@@ -134,6 +134,23 @@ public struct LinkExportCueEdit: Equatable, Sendable {
     }
 }
 
+/// 플레이어가 NFS로 서버의 파일을 찾거나 처음부터 읽으려 한 것(DJLinkKit `LinkExport.observe_files`).
+/// CDJ의 상태 패킷에는 로드 실패 칸이 없어, 못 읽는 형식을 실으려 한 것을 이것으로 안다(#277)
+public struct LinkExportFileRequest: Equatable, Sendable {
+    /// 이 Mac의 파일 경로(음원·분석 파일·그림)
+    public var path: String
+    /// 요청한 플레이어 번호. 알림을 듣지 못한 주소면 nil
+    public var player: Int?
+    /// 그 플레이어의 기종 이름(장치 알림의 이름). 모르면 빈 값
+    public var model: String
+
+    public init(path: String, player: Int?, model: String) {
+        self.path = path
+        self.player = player
+        self.model = model
+    }
+}
+
 /// 플레이어 하나의 재생 상태(상태 패킷)
 public struct LinkExportPlayer: Equatable, Sendable {
     public var number: Int
@@ -183,7 +200,11 @@ public final class LinkExportServer: Sendable {
     /// 곡 하나를 다른 파일로 내어 준다(CDJ가 못 읽는 형식을 바꾼 WAV 등). CDJ는 곡 정보의 경로·형식으로 파일을 찾아 읽는다.
     /// 새 파일은 서버를 띄울 때 연 폴더(곡 경로 앞 세 단계) 안에 있어야 NFS로 읽힌다
     public func substitute(trackID: UInt32, path: String, fileType: UInt8) async {
-        await Task { @DJLinkActor [source] in source.substitute(trackID: trackID, path: path, fileType: fileType) }.value
+        await Task { @DJLinkActor [source, export] in
+            // 이미 그 곡 정보를 받은 CDJ는 곡 번호별로 기억한 옛 경로로 찾는다(CDJ-2000nexus 실기). 그 이름으로도 WAV를 내어 준다
+            guard let original = source.substitute(trackID: trackID, path: path, fileType: fileType) else { return }
+            export.redirect_file(original, to: path)
+        }.value
     }
 
     /// 곡 하나의 큐 목록을 바꾼다(#281). CDJ는 곡을 실을 때 큐를 다시 묻는다. 이미 실린 곡은 다시 실어야 보인다
@@ -199,8 +220,10 @@ public final class LinkExportServer: Sendable {
     /// 곡과 재생 목록으로 서버를 띄운다. `peer`(보이는 CDJ 하나의 주소)로 가는 인터페이스에 참여한다.
     /// 시험 프로세스에서는 DJLinkKit이 소켓을 만들지 않고 바로 실패한다.
     /// - Parameter onHistory: CDJ가 재생 기록에 곡을 넣거나 뺄 때(rekordbox의 LINK HISTORY). DJLinkKit 액터에서 부른다
+    /// - Parameter onFileRequest: 플레이어가 파일을 찾거나 처음부터 읽을 때. DJLinkKit 액터에서 NFS 답을 하는 도중에 부르므로 짧게 끝낸다
     public static func start(tracks: [LinkExportTrack], playlists: [LinkExportPlaylist], shareRoot: String, peer: String,
-                             onHistory: @escaping @Sendable (LinkExportHistoryEvent) -> Void = { _ in }) async throws -> LinkExportServer {
+                             onHistory: @escaping @Sendable (LinkExportHistoryEvent) -> Void = { _ in },
+                             onFileRequest: @escaping @Sendable (LinkExportFileRequest) -> Void = { _ in }) async throws -> LinkExportServer {
         try await Task { @DJLinkActor in
             guard let address = try? LinkAddress(peer), let interface = interface(toward: address) else {
                 throw LinkExportError.noInterface(peer: peer)
@@ -210,6 +233,9 @@ public final class LinkExportServer: Sendable {
             do {
                 // 장치 찾기가 방금 들은 알림을 넘겨 CDJ의 다음 알림(약 2초 간격)을 기다리지 않고 바로 참여한다
                 let export = try await LinkExport.start(source, interface, seedAnnouncements: RecentAnnouncements.recent())
+                export.observe_files { path, player in
+                    onFileRequest(LinkExportFileRequest(path: path, player: player.map { Int($0.number) }, model: player?.name ?? ""))
+                }
                 return LinkExportServer(export: export, source: source)
             } catch let error as LinkError {
                 throw LinkExportError.bind(error.description)
@@ -427,9 +453,11 @@ private final class ExportSource: Source {
         })
     }
 
-    func substitute(trackID: UInt32, path: String, fileType: UInt8) {
+    /// - Returns: 바꾸기 전 원본 경로. 그 곡이 없으면 nil
+    @discardableResult
+    func substitute(trackID: UInt32, path: String, fileType: UInt8) -> String? {
         let current = snapshot
-        guard let row = current.row_of_id(UInt64(trackID)) else { return }
+        guard let row = current.row_of_id(UInt64(trackID)) else { return nil }
         // 같은 음원을 가리키는 곡이 여럿이면 경로·형식·곡 정보를 모두 함께 바꾼다(경로만 바뀐 곡이 WAV를 FLAC 형식으로 내보내지 않게)
         let paths = (0..<current.folder_path.len()).map { current.folder_path.get($0) }
         let targets = LinkExportServer.substitutionTargets(paths: paths, ids: current.ids, of: Int(row))
@@ -444,6 +472,7 @@ private final class ExportSource: Source {
             details[target.id] = detail
         }
         snapshot = next
+        return original
     }
 
     /// 재생 목록만 바꾼 새 라이브러리로 바꿔 끼운다(재생 기록 나무는 함께 옮긴다)

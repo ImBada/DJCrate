@@ -14713,6 +14713,54 @@
         }
       }
     },
+    "‘%@’ 곡을 CDJ가 읽을 수 있는 WAV로 바꾸지 못했습니다(%@). 음원 파일을 확인하세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't convert ‘%1$@’ to a WAV the CDJ can play (%2$@). Check the audio file"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」をCDJで再生できるWAVに変換できませんでした（%2$@）。音声ファイルを確認してください"
+          }
+        }
+      }
+    },
+    "‘%@’ 곡을 CDJ가 읽을 수 있는 WAV로 바꿨습니다. CDJ에서 다시 실으세요" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Converted ‘%@’ to a WAV the CDJ can play. Load it again on the CDJ"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」をCDJで再生できるWAVに変換しました。CDJでもう一度ロードしてください"
+          }
+        }
+      }
+    },
+    "‘%@’ 곡을 WAV로 바꾸지 못했습니다. %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't convert ‘%1$@’ to a WAV. %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」をWAVに変換できませんでした。%2$@"
+          }
+        }
+      }
+    },
     "‘%@’ 동기화 · 곡 %lld개" : {
       "localizations" : {
         "en" : {

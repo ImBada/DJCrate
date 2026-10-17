@@ -318,4 +318,14 @@ enum LinkText {
         case let .conversionFailed(why): String(ui: "CDJ가 읽을 수 있는 WAV로 바꾸지 못했습니다(\(why)). 음원 파일을 확인한 뒤 다시 놓으세요")
         }
     }
+
+    /// CDJ에서 고른 곡을 백그라운드에서 바꾼 결과(#277)
+    static func backgroundConversion(_ event: LinkBackgroundConversion) -> String {
+        switch event {
+        case let .finished(title): String(ui: "‘\(title)’ 곡을 CDJ가 읽을 수 있는 WAV로 바꿨습니다. CDJ에서 다시 실으세요")
+        case let .failed(title, .conversionFailed(why)):
+            String(ui: "‘\(title)’ 곡을 CDJ가 읽을 수 있는 WAV로 바꾸지 못했습니다(\(why)). 음원 파일을 확인하세요")
+        case let .failed(title, why): String(ui: "‘\(title)’ 곡을 WAV로 바꾸지 못했습니다. \(problem(why))")
+        }
+    }
 }

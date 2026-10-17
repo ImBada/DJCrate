@@ -45,12 +45,23 @@ public struct LinkPlayerState: Equatable, Sendable {
     }
 }
 
-/// CDJ가 보낸 편집(서버가 매긴 곡 번호): 재생 기록 넣기·빼기(서버가 연 기록 번호)와 큐 저장·삭제(#280)
+/// CDJ가 보낸 편집(서버가 매긴 곡 번호): 재생 기록 넣기·빼기(서버가 연 기록 번호)와 큐 저장·삭제(#280).
+/// 플레이어가 서버의 파일을 읽으려 한 것도 함께 알린다
 public enum LinkHistoryEvent: Equatable, Sendable {
     case added(UInt32, history: UInt32)
     case removed(UInt32, history: UInt32)
     /// 큐 저장·삭제. `contentID`는 비어 있고, 세션이 곡 번호로 채워 앱에 알린다
     case cue(UInt32, LinkCueEdit)
+    /// 플레이어가 NFS로 그 파일(이 Mac의 경로)을 찾거나 처음부터 읽었다. 음원·분석 파일·그림 모두 온다.
+    /// `playerModel`은 그 플레이어의 기종 이름(모르면 빈 값)
+    case fileRequested(path: String, playerModel: String)
+}
+
+/// CDJ에서 실은 곡을 그 기종이 못 읽어 백그라운드에서 바꾼 일(#277). 화면이 알린다
+public enum LinkBackgroundConversion: Equatable, Sendable {
+    /// 바꿔 끼웠다. CDJ에서 다시 실으면 WAV가 실린다(바꾸는 동안의 싣기는 원본을 받아 CDJ가 못 읽었다)
+    case finished(title: String)
+    case failed(title: String, LinkProblem)
 }
 
 /// CDJ가 재생 기록에 넣거나 뺀 rekordbox 곡(rekordbox의 LINK HISTORY). 앱이 DJCrate에 보존한다
@@ -176,19 +187,25 @@ public actor LinkSession {
     /// CDJ가 내어 준 곡의 큐를 저장하거나 지웠을 때(#280, 아무 스레드에서나 부른다)
     private let cueEdited: @Sendable (LinkCueEdit) -> Void
 
-    /// FLAC·ALAC를 WAV로 바꾸는 포트(끌어 놓아 실을 때만, #277)
+    /// FLAC·ALAC를 WAV로 바꾸는 포트(끌어 놓아 실을 때와 CDJ에서 고른 원본을 플레이어가 읽으려 할 때, #277)
     private let converter: LinkAudioConverter
-    /// 이 연결에서 WAV로 바꿔 내어 준 곡(서버 곡 번호)
-    private var substituted: Set<UInt32> = []
+    /// 이 연결에서 WAV로 바꿔 내어 준 원본 경로. 같은 음원을 가리키는 곡은 서버가 함께 바꾼다
+    private var substituted: Set<String> = []
+    /// 이 연결에서 바꿀 필요가 없다고 본 원본 경로(AAC .m4a 등). CDJ가 다시 읽을 때 코덱을 또 보지 않는다
+    private var unconvertible: Set<String> = []
+    /// CDJ가 원본을 요청해 백그라운드에서 바꾸는 일을 알린다(아무 스레드에서나 부른다)
+    private let backgroundConversion: @Sendable (LinkBackgroundConversion) -> Void
     /// 진행 중인 변환(원본 경로별). 같은 곡을 바꾸는 동안 또 놓으면 이 변환을 함께 기다린다(같은 출력 파일을 두 번 쓰지 않게)
     private var converting: [String: Task<Result<String?, LinkProblem>, Never>] = [:]
 
     public init(source: LinkServerSource, converter: LinkAudioConverter = .none, played: @escaping @Sendable (LinkPlay) -> Void = { _ in },
-                cueEdited: @escaping @Sendable (LinkCueEdit) -> Void = { _ in }) {
+                cueEdited: @escaping @Sendable (LinkCueEdit) -> Void = { _ in },
+                backgroundConversion: @escaping @Sendable (LinkBackgroundConversion) -> Void = { _ in }) {
         self.source = source
         self.converter = converter
         self.played = played
         self.cueEdited = cueEdited
+        self.backgroundConversion = backgroundConversion
     }
 
     public var isConnected: Bool { library != nil }
@@ -258,6 +275,9 @@ public actor LinkSession {
                 var edit = edit
                 edit.contentID = contentID
                 cueEdited(edit)
+            case let .fileRequested(path, model):
+                // 서버 액터에서 NFS 답을 하는 도중에 불린다. 바꾸기는 세션에서 따로 한다
+                Task { await self.fileRequested(path: path, playerModel: model, generation: mine) }
             }
         }
         do {
@@ -273,6 +293,7 @@ public actor LinkSession {
         }
         library = built
         substituted = []
+        unconvertible = []
         return .success(built.tracks.count)
     }
 
@@ -316,14 +337,40 @@ public actor LinkSession {
             if let wav = try await convert(track.path).get() {
                 // 바꾸는 사이 끄거나 다시 켰으면 지금 서버에 바꿔 끼우지 않는다(다시 읽은 라이브러리는 같은 번호라도 경로가 다를 수 있다)
                 guard generation == mine, self.library?.linkID(of: contentID) == id else { throw .notConnected }
-                // 함께 기다린 다른 싣기가 먼저 바꿔 끼웠으면 다시 끼우지 않는다
-                if !substituted.contains(id) {
-                    substituted.insert(id)
-                    await source.substitute(id, wav, LinkLibrary.wavFileType)
-                }
+                await substitute(id, original: track.path, wav: wav)
+            } else if generation == mine {
+                unconvertible.insert(track.path)
             }
         }
         try await source.load(player, id)
+    }
+
+    /// CDJ에서 고른 곡의 원본을 플레이어가 읽으려 했다(#277). 그 기종이 못 읽는 형식이면 백그라운드에서 WAV로 바꿔 끼운다.
+    /// 바꾸는 동안 이번 싣기는 원본을 받아 실패한다. CDJ는 곡 번호별로 처음 받은 경로를 기억하므로 서버가 그 원본 이름으로도
+    /// WAV를 내어 주고, 다시 실으면 WAV가 실린다(CDJ-2000nexus 실기).
+    /// 내어 준 곡의 원본이 아닌 파일(분석 파일·그림·바꾼 WAV)은 지나친다
+    func fileRequested(path: String, playerModel: String, generation mine: Int) async {
+        guard generation == mine, let library, let id = library.linkID(ofPath: path), let track = library.track(linkID: id),
+              needsConversion(id, library: library, playerModel: playerModel) else { return }
+        // 같은 원본을 바꾸는 중이면(LOOKUP·READ가 이어 오거나 다시 실었을 때) 그 변환에 맡긴다
+        guard converting[path] == nil else { return }
+        switch await convert(path) {
+        case let .success(wav?):
+            guard generation == mine, self.library?.linkID(ofPath: path) == id else { return }
+            await substitute(id, original: path, wav: wav)
+            backgroundConversion(.finished(title: track.title))
+        case .success(nil):
+            if generation == mine { unconvertible.insert(path) }
+        case let .failure(problem):
+            if generation == mine { backgroundConversion(.failed(title: track.title, problem)) }
+        }
+    }
+
+    /// 바꾼 WAV를 내어 준다. 함께 기다린 다른 싣기가 먼저 바꿔 끼웠으면 다시 끼우지 않는다
+    private func substitute(_ id: UInt32, original: String, wav: String) async {
+        guard !substituted.contains(original) else { return }
+        substituted.insert(original)
+        await source.substitute(id, wav, LinkLibrary.wavFileType)
     }
 
     /// 그 원본을 바꾼다. 같은 원본을 바꾸는 중이면 그 변환을 함께 기다린다
@@ -351,8 +398,8 @@ public actor LinkSession {
     }
 
     private func needsConversion(_ id: UInt32, library: LinkLibrary, playerModel: String) -> Bool {
-        guard !substituted.contains(id), !LinkPlayerFormats.playsLossless(model: playerModel),
-              let track = library.track(linkID: id) else { return false }
+        guard !LinkPlayerFormats.playsLossless(model: playerModel), let track = library.track(linkID: id),
+              !substituted.contains(track.path), !unconvertible.contains(track.path) else { return false }
         return LinkLibrary.mayNeedConversion(path: track.path)
     }
 }

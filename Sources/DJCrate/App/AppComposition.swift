@@ -134,13 +134,19 @@ final class AppComposition {
         let cueDrafts = LinkCueDrafts(edits: store.useCases.draftEdits, flush: { [watch = store.useCases.watch] in watch.flush() })
         return LinkBarModel(
             discovery: LinkDiscovery(source: .live, log: { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }),
-            // CDJ가 못 읽는 FLAC·ALAC은 끌어 놓을 때 WAV로 바꿔 ~/Music/DJCrate/LINK에 둔다(#277). 음원이 보통 ~/Music에 있어 새로 열리는 폴더가 없다
+            // CDJ가 못 읽는 FLAC·ALAC은 끌어 놓거나 CDJ에서 고를 때 WAV로 바꿔 ~/Music/DJCrate/LINK에 둔다(#277). 음원이 보통 ~/Music에 있어 새로 열리는 폴더가 없다
             session: LinkSession(source: .live(), converter: .live(cache: FileManager.default.homeDirectoryForCurrentUser
                                      .appending(path: "Music/DJCrate/LINK", directoryHint: .isDirectory)),
                                  played: { [weak store] play in
                 Task { @MainActor in store?.history.recordLinkPlay(play, session: "\(launch)-\(play.session)-\(play.history)") }
             }, cueEdited: { [weak store] edit in
                 Task { @MainActor in store?.enqueueLinkCueEdit(edit, drafts: cueDrafts) }
+            }, backgroundConversion: { [weak store] event in
+                // CDJ에서 고른 FLAC·ALAC은 그 싣기가 실패한 뒤에 WAV로 바꾼다. 다 바꾸면 다시 실으라고 알린다
+                let finished = if case .finished = event { true } else { false }
+                Task { @MainActor in
+                    store?.toast = .notice(LinkText.backgroundConversion(event), nil, kind: finished ? .success : .warning)
+                }
             }),
             library: { [weak store] in
                 guard let store, case .loaded = store.phase else { return nil }

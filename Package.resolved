@@ -1,13 +1,13 @@
 {
-  "originHash" : "c695f27ee5658714b6242d73cd9edc6756ad2857fffaf2d338adca14b9471885",
+  "originHash" : "2b9fc768c739cc0ddf60d3007f8b8e184a8b9d56b6aecf543297c487b1637661",
   "pins" : [
     {
       "identity" : "djlinkkit",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/ImBada/DJLinkKit",
       "state" : {
-        "revision" : "fb489eff844c8bb679c05c32526c4ad0d549c75e",
-        "version" : "0.1.4"
+        "revision" : "0271b9ede09532268b53e0d1c0e34910291b3aca",
+        "version" : "0.1.5"
       }
     },
     {
