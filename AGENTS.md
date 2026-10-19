@@ -94,6 +94,7 @@ TDD로 일한다. 버그는 실패하는 시험으로 먼저 재현한 뒤 고�
 | `ui-strings.md` | STR | 화면 문구·용어 |
 | `cipher.md` | CIP | SQLCipher 열기 |
 | `harness.md` | HAR | 검사 스크립트·지침 |
+| `link.md` | LNK | Pro DJ Link |
 
 - 절차 스킬(`.claude/skills/<이름>/SKILL.md`): `verify-change`, `app-selftest`, `usb-image-check`, `rekordbox-experiment`, `worker-brief`, `release`.
 - 리뷰어 서브에이전트: `.claude/agents/reviewer.md`.

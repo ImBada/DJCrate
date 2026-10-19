@@ -115,7 +115,7 @@ DJCApplication은 기능별 폴더에 유스케이스와 포트를 둔다. 유�
 - **DJCStorage**는 DJCrate 자신의 파일을 맡는다. 초안과 추가한 곡, 반영 묶음과 USB 초안이 그 파일이다. iTunes 읽기와 USB 볼륨·도구 실행도 맡는다.
 - **DJCAnalysis**는 소리 분석과 곡 편집 렌더를 맡는다. 파형, 그리드 추정, 조성을 분석한다. 음량과 섹션도 분석한다. DJCAnalysis는 rekordbox를 모르므로 시간축 차이를 인자로 받는다.
 - **DJCEnvironment**는 이 프로세스의 환경을 읽는다. 시험 프로세스인지와 그 임시 폴더를 안다(`TestProcess`, #182). 데이터·로그·캐시 위치는 `DJC_HOME`과 `DJC_REKORDBOX_DIR`에 따라 정한다. 환경을 인자로 받는 순수 규칙은 DJCDomain에 남는다. 인프라가 막는 입출력을 협력 풀 밖에서 돌리는 `OffPoolIO`도 여기 있다(#247).
-- **DJCLink**는 Pro DJ Link(CDJ·DJM 네트워크)를 맡는다. 외부 패키지 [DJLinkKit](https://github.com/ImBada/DJLinkKit)(GPL-2.0-or-later)을 import하는 유일한 모듈이다. DJLinkKit 타입은 공개 API에 내지 않는다. DJCrate의 값(`LinkDevice` 등)으로 바꿔 낸다. 그래서 DJLinkKit이 바뀌어도 고칠 곳은 이 모듈뿐이다. 아직 어댑터·앱·CLI에 잇지 않았다(#268).
+- **DJCLink**는 Pro DJ Link(CDJ·DJM 네트워크)를 맡는다. 외부 패키지 [DJLinkKit](https://github.com/ImBada/DJLinkKit)(GPL-2.0-or-later)을 import하는 유일한 모듈이다. DJLinkKit 타입은 공개 API에 내지 않는다. DJCrate의 값(`LinkDevice` 등)으로 바꿔 낸다. 그래서 DJLinkKit이 바뀌어도 고칠 곳은 이 모듈뿐이다. 어댑터 `DJCAdapters/Link`만 부른다(#272).
 - 앱 **DJCrate**와 CLI **djc**의 본체는 라이브러리 타깃이다. 그래서 실행 파일과 시험이 컴파일 결과를 함께 쓴다. 실행 진입점만 `DJCrateExecutable`·`djcExecutable`로 나눈다. 제품 이름과 리소스 번들 이름은 그대로다.
 
 ### 경계 규칙
