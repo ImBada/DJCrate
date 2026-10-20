@@ -365,6 +365,11 @@ final class AppComposition {
                                         return StorageSettingsModel.busyReason(store: store)
                                     },
                                     linkServing: { [weak store] in store?.isLinkServing() ?? false },
+                                    // 변환본을 비우는 동안 LINK 켜기를 기다리게 한다(LINK 막대가 없는 실행은 막을 것이 없다)
+                                    beginLinkAudioClear: { [weak link = self.link] in
+                                        guard let link else { return {} }
+                                        return link.beginCacheClear()
+                                    },
                                     canClone: { RekordboxPointSnapshot.canClone(from: rekordbox, to: snapshots) },
                                     clearMemory: { [weak store] kinds in
                                         if kinds.contains(.loudness) { LoudnessCache.shared.clear() }
