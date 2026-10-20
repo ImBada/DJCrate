@@ -180,6 +180,30 @@ struct StorageSettingsTests {
         #expect(!scene.exists("waveforms/a-1.json"))
     }
 
+    @Test func LINK로_내어_주는_동안은_WAV_변환본만_비우지_않고_이유를_준다() async throws {
+        // #287: CDJ가 NFS로 읽는 중인 변환본을 지우면 재생이 끊긴다. 다른 캐시는 그대로 비운다
+        let scene = try scene()
+        defer { try? FileManager.default.removeItem(at: scene.root) }
+        try scene.write("link-audio/a-0011-22.wav", bytes: 4_000)
+        let serving = Mutex(true)
+        let model = StorageSettingsModel(paths: scene.paths, files: .live, linkServing: { serving.withLock { $0 } })
+        await model.refresh()
+        #expect(model.usage?.first { $0.kind == .linkAudio }?.bytes == 4_000)
+        #expect(model.blockReason == nil)
+        #expect(model.blockReason(of: .linkAudio)?.contains("LINK") == true)
+        #expect(model.blockReason(of: .waveforms) == nil)
+
+        await model.clear(DJCCacheKind.allCases)
+        #expect(scene.exists("link-audio/a-0011-22.wav"))
+        #expect(!scene.exists("waveforms/a-1.json"))
+        #expect(model.message?.contains("LINK를 끈 뒤") == true, "\(model.message ?? "")")
+
+        serving.withLock { $0 = false }
+        #expect(model.blockReason(of: .linkAudio) == nil)
+        await model.clear([.linkAudio])
+        #expect(!scene.exists("link-audio/a-0011-22.wav"))
+    }
+
     @Test func 앱이_쓰는_중인지는_rekordbox와_USB_쓰기에서_나온다() {
         #expect(StorageSettingsModel.busyReason(writingRekordbox: false, writingUsb: false) == nil)
         #expect(StorageSettingsModel.busyReason(writingRekordbox: true, writingUsb: false) != nil)
